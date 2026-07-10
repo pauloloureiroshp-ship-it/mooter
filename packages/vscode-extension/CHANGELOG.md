@@ -2,6 +2,17 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [Unreleased] — MEO F5
+
+### Added
+
+- **MEO — Moo Executive Officer rename (formerly Director's Cut)**: panel title, per-lens executive role headers, WCAG 2.2 AA polish. The Live Preview side panel now carries an explicit section title, and each lens (Stream/Dia/LLM/Fleet) shows the honest executive role that lens covers, over the same real data as before — no new numbers, no new claims.
+
+### Notes
+
+- ⚠️ "MEO" is INTERNAL plugin naming only. Before any public/marketing use, verify trademark — known collision: MEO = Altice Portugal (telecom).
+- Version race between release lineages is a known, tracked anomaly; F5 intentionally ships no version bump — the bump is resolved when this branch integrates (F6).
+
 ## [0.16.37] — 2026-06-27 — Sessions always visible: runtime-diagnosed collapse + bullet-proof invariant
 
 ### Fixed

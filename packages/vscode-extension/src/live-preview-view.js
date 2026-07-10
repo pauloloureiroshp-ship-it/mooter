@@ -1,5 +1,8 @@
 'use strict';
 // live-preview-view.js — Live Preview · MP1 (Painel + Director's Cut + Brain).
+// Product name: MEO — Moo Executive Officer (formerly "Director's Cut"). Code identifiers
+// (renderDirectorsCut, lpdc-* CSS) intentionally keep the original name — renaming them is
+// churn with no user value.
 //
 // Pure module, dual-use like row-renderer.js: required by tests (node:test) AND the
 // `renderDirectorsCut`/`renderBrain` functions are serialised into the webview via
@@ -183,7 +186,7 @@ function renderDirectorsCut(events, opts) {
   }
 
   if (!list.length) {
-    return '<div class="lpdc lpdc-empty"><div class="lpdc-hd">🎞️ Director\'s Cut</div>'
+    return '<div class="lpdc lpdc-empty"><div class="lpdc-hd">🎞️ diário da sessão</div>'
       + '<div class="lpdc-nd" style="margin-top:6px">nenhum evento ainda — corre uma sessão e o stream aparece aqui</div></div>';
   }
 
@@ -191,7 +194,7 @@ function renderDirectorsCut(events, opts) {
   for (var i = list.length - 1; i >= 0; i--) rows += line(list[i]);
 
   var scopeNote = sidKnown ? '' : '<div class="lpdc-nd" style="margin-top:2px">sessão activa desconhecida — a mostrar todos os eventos do bus</div>';
-  return '<div class="lpdc"><div class="lpdc-hd">🎞️ Director\'s Cut · <b>' + list.length + '</b> evento' + (list.length === 1 ? '' : 's') + '</div>'
+  return '<div class="lpdc"><div class="lpdc-hd">🎞️ <b>' + list.length + '</b> evento' + (list.length === 1 ? '' : 's') + '</div>'
     + scopeNote
     + '<div class="lpdc-stream">' + rows + '</div></div>';
 }
@@ -220,13 +223,17 @@ function renderBrain(brain) {
   if (total > 0) {
     var order = [['T0', 'var(--t0,#4CAF6A)'], ['T1', 'var(--t1,#5A9BD4)'], ['T2', 'var(--t2,#A78BFA)'], ['T3', 'var(--t3,#D46A5A)']];
     var seg = '';
+    var legend = '';
     for (var i = 0; i < order.length; i++) {
       var k = order[i][0];
       var n = c[k] || 0;
       var pct = Math.round(100 * n / total);
       if (pct > 0) seg += '<span style="width:' + pct + '%;background:' + order[i][1] + '" title="' + k + ' ' + n + '"></span>';
+      legend += (legend ? ' ' : '') + k + ':' + n;
     }
-    mix = '<div class="lpbr-mix">' + seg + '</div>';
+    // WCAG 2.2 AA (1.4.1 use of color): tier mix is never color-only — the same T0:n T1:n…
+    // legend the Day lens already uses is mirrored here so every tier is readable as text too.
+    mix = '<div class="lpbr-mix">' + seg + '</div><div class="lpbr-row lpbr-mix-legend">' + legend + '</div>';
   } else {
     mix = '<div class="lpbr-nd">sem decisões ainda</div>';
   }
@@ -320,7 +327,7 @@ function renderDayBreakdown(byDay) {
   // Honest scope (adversarial F2 finding): only the bus events are workspace-scoped; the
   // decisions/tiers/cost come from the machine-wide ~/.claude decisions.log (no cwd filter),
   // so each scope is labelled where it belongs rather than a single misleading "workspace".
-  var foot = 'janela recente: ' + winEvents + ' eventos (deste workspace) · ' + winDecisions + ' decisões (todas as sessões desta máquina) — não é histórico completo';
+  var foot = 'janela recente: ' + winEvents + ' eventos (deste workspace) · ' + winDecisions + ' decisões — todas as sessões desta máquina (não é histórico completo)';
   if (win.unplaced > 0) foot += ' · ' + win.unplaced + ' sem data';
 
   return '<div class="lpx">'

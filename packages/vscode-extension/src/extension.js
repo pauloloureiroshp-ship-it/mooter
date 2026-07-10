@@ -70,6 +70,8 @@ try { GCHIP = require('./guardian-chip'); } catch { GCHIP = null; }
 let DOCTOR = null;
 try { DOCTOR = require('./doctor-checks'); } catch { DOCTOR = null; }
 // ── LIVE PREVIEW · MP1 (additive, read-only) — Director's Cut + Brain render module
+// Product name: MEO — Moo Executive Officer (formerly "Director's Cut"). Code identifiers
+// below intentionally keep the original name — renaming them is churn with no user value.
 // (serialised into its OWN webview panel via fn.toString(), same trick as row-renderer.js)
 // + the file-bus producer's eventsPath() helper (MP0 foundation). Both fail-soft: absent →
 // the command still registers but the panel shows nothing to render (no crash).
@@ -1689,6 +1691,11 @@ function getLivePreviewHtml(token) {
   .lpd-btn:hover:not([disabled]){background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
   .lpd-btn[disabled]{opacity:.45;cursor:not-allowed}
   .lpd-x:focus-visible,.lpd-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+  #lp-brain,#lp-dc{--t0:var(--vscode-charts-green,#4CAF6A);--t1:var(--vscode-charts-blue,#5A9BD4);--t2:var(--vscode-charts-purple,#A78BFA);--t3:var(--vscode-charts-red,#D46A5A);--t5:var(--vscode-charts-yellow,#C9A227)}
+  .lp-meo-hd{margin:2px 0 6px}
+  .lp-meo-t{font-weight:700;font-size:12px;color:var(--vscode-foreground,#e6e6e6)}
+  .lp-meo-sub{font-size:11px;color:var(--vscode-descriptionForeground,#9a9a9a)}
+  .lp-lens-hd{font-size:11px;font-weight:700;color:var(--vscode-descriptionForeground,#9a9a9a);margin:0 0 4px}
   .lpbr,.lpdc{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
   .lpbr-hd,.lpdc-hd{font-weight:700;margin-bottom:6px}
   .lpbr-row{margin:3px 0;font-size:12px}
@@ -1764,8 +1771,9 @@ function getLivePreviewHtml(token) {
     <div id="lp-sel" role="region" aria-label="Elemento selecionado" style="display:none"></div>
     <div id="lp-brain">a carregar…</div>
     <div id="lp-dc">
+      <div id="lp-meo-hd" class="lp-meo-hd"><div class="lp-meo-t">🐮 MEO — Moo Executive Officer</div><div class="lp-meo-sub">o teu cockpit executivo · dados reais, custos ~est.</div></div>
       <div id="lp-work-mount"></div>
-      <div id="lp-tabs" role="tablist" aria-label="Lentes do Director's Cut">
+      <div id="lp-tabs" role="tablist" aria-label="Lentes do MEO">
         <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0">Stream</button>
         <button type="button" class="lp-tab" role="tab" id="lp-tab-day" aria-selected="false" aria-controls="lp-pane-day" data-tab="day" tabindex="-1">Dia</button>
         <button type="button" class="lp-tab" role="tab" id="lp-tab-model" aria-selected="false" aria-controls="lp-pane-model" data-tab="model" tabindex="-1">LLM</button>
@@ -1807,15 +1815,16 @@ function renderWork(s){
   el.innerHTML=html;
 }
 function lpPane(tab){ return document.getElementById(tab==='stream'?'lp-pane-stream':tab==='day'?'lp-pane-day':tab==='model'?'lp-pane-model':'lp-pane-fleet'); }
+function lpLensHd(tab){var r=tab==='stream'?'Chief of Staff — o diário da sessão':tab==='day'?'COO — operações por dia':tab==='model'?'CFO — custos e modelos (~est.)':tab==='fleet'?'COO — frota em paralelo':'';return r?('<div class="lp-lens-hd">'+r+'</div>'):'';}
 function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify([(s&&s.events)||[], !!(s&&s.sidKnown), (s&&s.journal)||null]); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
 function renderLens(tab){
   const s=lpLastSnap; const el=lpPane(tab); if(!el) return;
   const sig=lpSig(tab,s); if(sig===lpLensSig[tab]) return; lpLensSig[tab]=sig;
   let sc=0; const oldS=el.querySelector('.lpdc-stream'); if(oldS) sc=oldS.scrollTop;
-  if(tab==='stream') el.innerHTML=renderJournalCard(s&&s.journal)+renderDirectorsCut((s&&s.events)||[], { sidKnown: !!(s&&s.sidKnown) });
-  else if(tab==='day') el.innerHTML=renderDayBreakdown(s&&s.byDay);
-  else if(tab==='model') el.innerHTML=renderModelBreakdown(s&&s.byModel);
-  else if(tab==='fleet') el.innerHTML=renderFleetLanes(s&&s.fleet);
+  if(tab==='stream') el.innerHTML=lpLensHd('stream')+renderJournalCard(s&&s.journal)+renderDirectorsCut((s&&s.events)||[], { sidKnown: !!(s&&s.sidKnown) });
+  else if(tab==='day') el.innerHTML=lpLensHd('day')+renderDayBreakdown(s&&s.byDay);
+  else if(tab==='model') el.innerHTML=lpLensHd('model')+renderModelBreakdown(s&&s.byModel);
+  else if(tab==='fleet') el.innerHTML=lpLensHd('fleet')+renderFleetLanes(s&&s.fleet);
   const nS=el.querySelector('.lpdc-stream'); if(nS&&sc) nS.scrollTop=sc;
 }
 function setTab(tab){
@@ -1859,7 +1868,7 @@ function applyStage(stage){
         + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
         + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
         + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
-        + 'ou cola o URL na barra acima. Entretanto o Director’s Cut continua a fazer stream à direita.</div></div>';
+        + 'ou cola o URL na barra acima. Entretanto o MEO continua a fazer stream à direita.</div></div>';
       // Only rewrite when the copy changes — otherwise a poll wipes any text selection in the hint.
       if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html; }
     } else { lastDegradeHtml = null; }

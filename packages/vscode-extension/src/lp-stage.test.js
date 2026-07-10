@@ -120,7 +120,7 @@ test('resolveStage: a live common port → framed cleanly, not degraded, not sta
   assert.strictEqual(s.reason, null);
 });
 
-test('resolveStage: nothing live → degraded honestly (only Director\'s Cut), never a fake URL', () => {
+test('resolveStage: nothing live → degraded honestly (only MEO), never a fake URL', () => {
   const s = LPS.resolveStage({ configPort: 7819, livePorts: [] });
   assert.strictEqual(s.url, null);
   assert.strictEqual(s.degraded, true);
@@ -170,9 +170,9 @@ test('renderStageStatus: live server shows the URL + source + honest "porta ativ
   assert.ok(html.includes('lps-on'));
 });
 
-test('renderStageStatus: degraded → only Director\'s Cut copy, no URL invented', () => {
+test('renderStageStatus: degraded → only MEO copy, no URL invented', () => {
   const html = LPS.renderStageStatus({ url: null, degraded: true, reason: 'nenhum dev server detetado' });
-  assert.ok(html.includes("Director's Cut"));
+  assert.ok(html.includes('só MEO'));
   assert.ok(html.includes('lps-off'));
   assert.ok(html.indexOf('http://') === -1);
 });

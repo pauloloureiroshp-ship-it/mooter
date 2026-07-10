@@ -55,7 +55,7 @@ test('renderDayBreakdown: real data renders hero + table, honest labels present'
   assert.ok(html.includes('~est. $0.0123'), 'tilde-prefixed cost estimate');
   assert.ok(html.includes('sem ~est.'), 'uncounted-cost honesty note');
   assert.ok(html.includes('eventos (deste workspace)'), 'events scope honestly labelled workspace');
-  assert.ok(html.includes('decisões (todas as sessões desta máquina)'), 'decisions scope honestly labelled machine-wide');
+  assert.ok(html.includes('decisões — todas as sessões desta máquina (não é histórico completo)'), 'decisions scope honestly labelled machine-wide, canon em-dash form (matches renderModelBreakdown)');
   assert.ok(html.includes('sem data'), 'window.unplaced surfaced');
 });
 
