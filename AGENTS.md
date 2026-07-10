@@ -115,6 +115,33 @@ Mooter is developed across two agents plus a human gate:
 **Rule of thumb:** structured handoff for execution; prose for deciding. The human authorizes the irreversible. Conceptual source: Cowork vault `00-core/protocolo-comunicacao`; this section is its repo-side mirror.
 
 
+## Information architecture — where a doc lives (and when it dies)
+
+Every `.md` in this repo has exactly one home and one lifecycle. Before creating a file, find its row. Conceptual source: Cowork vault `00-core/onde-vive-o-que`; this section is its repo-side mirror.
+
+| Type of content | Home | Lifecycle / trigger |
+|---|---|---|
+| Masterprompt / handoff to execute | `_handoff/` | **Ephemeral.** When the wave ships (or is superseded), move to `_handoff/_archive/YYYY-MM/` **in the same PR that ships it**. Never leave executed masterprompts at top level. |
+| Living feature spec (1 per feature) | `docs/strategy/<FEATURE>_ROADMAP.md` | Updated in place while the feature evolves. Multiple overlapping studies ⇒ consolidate into the one canonical file, archive the rest. |
+| Strategy canon (STRATEGY, ARCHITECTURE, VISION) | `docs/strategy/` | Stable; updated by decision. Historical wave kickoffs/findings do NOT live here — archive to `docs/archive/`. |
+| Current project state | `SYNC.md` (root) | **Snapshot, not a log.** Current state + last few sessions only (~200 lines). Older entries roll into `docs/foundation/SYNC_ARCHIVE_<year>.md`. |
+| Durable architectural decision | `MEMORY.md` (root) | Distilled from LOOP/waves, append-only. If a decision survives ~a month of sessions, it belongs here. |
+| Execution learning (observed/hypothesis/experiment) | `LOOP.md` (root) | Append-only, same day as the learning. |
+| Infra / endpoints / service IDs | `INFRA.md` (root) | Update in the same PR that changes infra. |
+| Stable personal decision / identity / cross-project | Cowork vault (`~/Documents/paulo-vault`) | By decision, never by session. |
+| Work log / milestones | Notion HQ Mooter | Per session/milestone. |
+| Mechanical provenance | Ledger (`tools/router/*ledger*`) | Automatic, append-only. |
+
+**Consolidation triggers (the loop that prevents re-pollution):**
+
+1. **Wave shipped** ⇒ same PR: archive its masterprompt → `_handoff/_archive/YYYY-MM/` · update `SYNC.md` snapshot · append `LOOP.md` if something was learned.
+2. **3+ stable LOOP entries on one theme** ⇒ distill one `MEMORY.md` entry.
+3. **Feature studies multiply** (2+ docs on the same feature) ⇒ merge into the feature's single living spec; archive the sources.
+4. **`SYNC.md` > ~200 lines** ⇒ roll history into the archive file.
+5. **Strategic decision made in conversation** ⇒ vault entry (Paulo's side) + `MEMORY.md` if it constrains this repo.
+
+**Never:** `node_modules/` under `docs/` (add to `.gitignore`) · new root `.md` without explicit request · deleting instead of archiving (moves are Paulo-reviewed; git writes are Paulo's).
+
 ## Cross-references
 
 - `CLAUDE.md` — Claude Code-specific project instructions (lean; pointers).

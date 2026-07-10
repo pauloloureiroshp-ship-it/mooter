@@ -233,6 +233,44 @@ A cura: `_isGitWrite(cmd)` (commit|merge|rebase|cherry-pick|am|revert|worktree a
 
 ---
 
+### 2026-07-06-vscodeignore-estripava-babel-parser-do-vsix
+
+**Contexto:** LP-3.2 empacotamento. O `.vscodeignore` com `node_modules/**` estripava o `@babel/parser` de TODOS os vsix gerados.
+
+**Resultado observado:** a suite passava (646/646) porque os testes resolviam o parser por hoisting do node_modules do worktree — mas a instalação real do vsix morria com "não consegui interpretar o arquivo". Testes verdes não provaram nada sobre a instalação real.
+
+**Fix aplicado (`2c1a492`):** allowlist no `.vscodeignore` + teste estático que pina o contrato (cruza `vsce ls` com todos os `require()`) + UI honesta (parser-unavailable ≠ parse-error).
+
+**Quem observou:** Paulo + Cowork na prova viva de instalação (2026-07-06).
+
+**Status:** RESOLVIDO. **Regra destilável: prova manual = vsix INSTALADO, nunca o worktree.** Fonte: vault `30-learnings/mooter-live-edit-dia-de-aterragens-2026-07-06`.
+
+---
+
+### 2026-07-06-fence-stale-assimetrica-no-motor-de-edicao
+
+**Contexto:** auditoria total read-only do Live Preview (`_handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md`, 1×P0 · 6×P1 · 7×P2).
+
+**Resultado observado:** o delete $0 é fail-closed (diff-before-write + sha256), mas as edições de texto/classe escrevem **incondicionalmente** — a proteção de staleness existe só num dos caminhos de escrita. P1 grave; fix-masterprompt pronto (FIX-MP da auditoria).
+
+**Quem observou:** wave de auditoria (read-only), confirmado por Cowork.
+
+**Status:** aberto — fix pendente de execução no comboio LP. Ver `docs/strategy/LIVE_EDIT_ROADMAP.md`.
+
+---
+
+### 2026-07-06-p0-arvore-do-preview-nao-e-a-arvore-de-edicao
+
+**Contexto:** edição $0 ao vivo com workspace em `~/frugal` e dev server servindo o worktree `frugal-land-mp52a`.
+
+**Resultado observado:** "✓ aplicado" e a tela não muda — o host resolve `data-insp-path` contra o workspace, mas nada amarra árvore de edição → árvore servida. O preview mente por omissão. Deixou rasto uncommitted em `landing/app/page.tsx` de outro worktree (incidente forense 06:49).
+
+**Quem observou:** Paulo ao vivo (2026-07-06); triagem do rasto pendente.
+
+**Status:** **P0 aberto** — FIX-MP-1 (amarrar edição à árvore servida) deve preceder o LP-6 publish. Lição de processo associada: **OK de merge é condicional** — se o veredicto adversarial mudar entre o OK e o merge, o CC para e re-pede.
+
+---
+
 ## HIPÓTESE
 
 ### Sobre 2026-04-21-classifier-gastou-opus-em-tarefa-descritiva

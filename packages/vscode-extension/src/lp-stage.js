@@ -237,7 +237,7 @@ function renderStageStatus(stage) {
   }
   if (s.degraded || !s.url) {
     var rd = s.reason ? esc(s.reason) : 'nenhum dev server detetado';
-    return '<span class="lps-dot lps-off"></span><span class="lps-txt lps-nd">🎞️ só Director\'s Cut · ' + rd + '</span>';
+    return '<span class="lps-dot lps-off"></span><span class="lps-txt lps-nd">🎞️ só MEO · ' + rd + '</span>';
   }
   var srcTxt = s.source ? (' · fonte: ' + esc(s.source)) : '';
   if (s.stale) {

@@ -174,6 +174,72 @@ Nota: são 10 features numeradas mas "8 canônicas" no nome porque as duas prime
 
 ---
 
+## 2026-06-07 — mission-statement
+
+**Decisão:** a missão canônica é **"Your LLM router. Local-first. Learns forever."** (7 palavras, universal — variante B6d, escolhida entre alternativas na Wave 30).
+
+**Implicação:** todo copy público deriva daqui; "save 90%" e afins são consequência, nunca a promessa.
+
+---
+
+## 2026-06-08 — tier-ladder-t5-fable-opt-in
+
+**Decisão:** T0-T3 são auto-roteados; **T5 (Fable) é opt-in exclusivo via `@fable` e nunca auto-roteado; não existe T4**. Prompts de alto risco (deploy/secrets/migrations) têm floor T3.
+
+**Por quê:** custo/capacidade do tier Mythos não justifica roteamento automático; o floor T3 protege o irreversível. (Formalizado em `CLAUDE.md`/`AGENTS.md`; wave 58 adicionou `fable-5-routing.ts` por allowlist.)
+
+---
+
+## 2026-06-11 — engine-frozen-e-allowlist-por-wave
+
+**Decisão:** `tools/router/classify.js` é FROZEN (sha256 CI-enforced) e os `packages/*` das waves 28-34.5 ficam intocados salvo allowlist explícita no brief da wave ativa (padrão: **só adições, arquivos novos**).
+
+**Por quê:** o motor provado não se degrada por acreção; toda evolução entra por camada nova auditável.
+
+**Reverter custaria:** re-validar o classifier inteiro + perder a garantia de CI.
+
+---
+
+## 2026-06-26 — uma-sessao-cc-por-working-tree
+
+**Decisão:** sessões CC compartilham a working-tree → **rodar UMA de cada vez**; ship de main via worktree dedicada (`git worktree add ../frugal-ship`), nunca da árvore compartilhada.
+
+**Por quê:** worktree-crossing provado 2× (sessão Overclock ocupou a tree 06-28; CC editou worktree errada 07-05).
+
+---
+
+## 2026-07-03 — git-nativo-e-a-unica-verdade
+
+**Decisão:** o estado git lido via mount/sandbox é **não-confiável para escrita e enviesado para leitura** (incidente: 2119 dirty reportado vs 11 real, HEAD "partido"). Leitura via mount só cruzada com nativo; **escrita git é sempre do Paulo, PowerShell nativo**.
+
+**Reverter custaria:** risco real de corromper `.git` (permissões parciais no mount).
+
+---
+
+## 2026-07-03 — protocolo-de-comunicacao-tipado
+
+**Decisão:** trabalho flui por handoffs tipados (⇄ COWORK→CC com GOAL/WHERE/DO/GUARD/GATE/NEXT/BACK · ⇄ MOO HANDOFF de volta), prosa só para decidir; **confrontar o estado real da frente (git/worktree/último handoff) antes de emitir** — incremento sobre o que existe, nunca recomeço; só o Paulo autoriza o irreversível.
+
+**Onde vive:** `AGENTS.md` § Communication protocol (espelho do vault `00-core/protocolo-comunicacao`).
+
+---
+
+## 2026-07-04 — live-preview-local-first-sem-webcontainers
+
+**Decisão:** o App Stage renderiza o **dev server real num iframe dentro do VS Code** — sem WebContainers, sem re-hospedar. Os 3 fossos: preview fiel · click-to-code · edições determinísticas $0 (moos locais).
+
+**Por quê:** a queixa nº 1 do mercado (Lovable/Bolt/v0/Replit) é de CONFIANÇA (preview que mente, credit-burn); local-first ataca exatamente isso e nenhum concorrente o tem dentro do VS Code. O funil **edito $0 → seguro $0 → publico com custo visível** é o anti-credit-burn como produto.
+
+---
+
+## 2026-07-07 — arquitetura-de-informacao-ciclo-de-vida
+
+**Decisão:** todo `.md` tem uma casa e um ciclo de vida (`AGENTS.md` § Information architecture): masterprompt executado arquiva em `_handoff/_archive/YYYY-MM/` **no mesmo PR do ship**; 1 spec vivo por feature em `docs/strategy/`; `SYNC.md` é snapshot ≤~200 linhas (histórico rola para archive); LOOP no dia; MEMORY destila o que sobrevive ~1 mês.
+
+**Por quê:** auditoria 2026-07-07 (`_handoff/INFO_AUDIT.md`): 3 depósitos sem ciclo de vida (23 masterprompts executados soltos, SYNC de 371 KB, waves históricas em docs/strategy). Regra em .md é pedido — enforcement mecânico via `tools/docs-hygiene.js` (CI/hook, modo warn primeiro) planejado.
+
+---
+
 ## Seção — Registro de decisões supersedidas
 
 (vazio — será populado conforme decisões evoluem; nova entry superseder aponta para antiga via slug)

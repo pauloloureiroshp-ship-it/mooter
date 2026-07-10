@@ -2,6 +2,17 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.63] — 2026-07-10 — MEO — Moo Executive Officer (rename + WCAG polish), integrated onto the release lineage
+
+### Added
+
+- **MEO — Moo Executive Officer rename (formerly Director's Cut)**: panel title, per-lens executive role headers, WCAG 2.2 AA polish. The Live Preview side panel now carries an explicit section title, and each lens (Stream/Dia/LLM/Fleet) shows the honest executive role that lens covers, over the same real data as before — no new numbers, no new claims.
+
+### Notes
+
+- ⚠️ "MEO" is INTERNAL plugin naming only. Before any public/marketing use, verify trademark — known collision: MEO = Altice Portugal (telecom).
+- This release integrates the MEO cockpit (F5) onto origin/main 0.16.62 (which had already absorbed lp-4.9 + the PR #231 cockpit layout) and resolves the known version-race anomaly between lineages by bumping to the global max + 1 (0.16.62 → 0.16.63).
+
 ## [0.16.62] — 2026-07-08 — Data-hop: click a value → the agent follows it to its source and edits there
 
 ### Added
