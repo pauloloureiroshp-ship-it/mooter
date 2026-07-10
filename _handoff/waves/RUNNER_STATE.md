@@ -27,8 +27,8 @@
 | 0 | **HARMONY CLOSER** | `frugal-fleet-arm` · `feat/fleet-arm` | `c1234f5` | ✅ **PASS** | #232 | done |
 | 1 | **W-LAND (batch landing)** | inspect (read-only, no worktree) | n/a | ✅ **PASS** | #235–#239 | done |
 | 2 | **W3 (First-Magic onboarding)** | `frugal-wave-w3` · `wave-w3` | `ef140b5` | 🅿️ **PR #240** (E2E✅ · LH→CI · vsix→Paulo) | #240 | done (residual→Paulo) |
-| 3 | **W-UX (Live Sessions clean)** | `frugal-wave-ux` · `wave-ux` | (confront) | 🔄 **IN PROGRESS** (confront+inventory done) | — | implement keepers |
-| 4 | W15 (CTO Command Deck F0+1) | — | — | ⬜ pending | — | — |
+| 3 | **W-UX (Live Sessions clean)** | `frugal-wave-ux` · `wave-ux` | (confront) | 🤝 **DELEGATED → Codex plane** | — | (Codex owns) |
+| 4 | **W15 (CTO Command Deck F0+1)** | — | — | ⬜ pending | — | **NEXT** |
 | 5 | W6 (Budget/Economics spans) | — | — | ⬜ pending | — | — |
 | 6 | W5 (Moo Loop Sessions) | — | — | ⬜ pending | — | — |
 | 7 | W7 (Forge nightly schedule) | — | — | ⬜ pending | — | — |
@@ -78,7 +78,9 @@ Worktree `frugal-wave-w3` · branch `wave-w3` from `origin/main` (f5a1f04) · sh
 
 **Residual → Paulo (in PAULO_QUEUE):** measure/enforce Lighthouse ≥95; republish vsix (push `cockpit-v0.16.63` tag) but **only after the publish-cockpit `npm ci` fix lands on main**, else it ships parser-less.
 
-## Wave 3 — W-UX · Live Sessions clean — 🔄 IN PROGRESS (2026-07-10)
+## Wave 3 — W-UX · Live Sessions clean — 🤝 DELEGATED → Codex plane (2026-07-10)
+
+> **Handed off to the Codex plane** (a separate conversation orchestrates it). The runner does **NOT** touch worktree `frugal-wave-ux` / branch `wave-ux` any further. The confront + inventory + keepers plan below is the handoff payload for whoever picks it up.
 
 Worktree `frugal-wave-ux` · branch `wave-ux` from `origin/main` (c5cda85 — **PR #237 directors-cut-v2 was merged by Paulo** since W-LAND) · sha proven. Scope: only `packages/vscode-extension/**` + tests.
 
@@ -94,4 +96,4 @@ Worktree `frugal-wave-ux` · branch `wave-ux` from `origin/main` (c5cda85 — **
 - Invariants: classify frozen · `renderRow`/`renderGroupHeader` **concat-only** (webview-syntax.test) · selective adds · atomic commits per block · **no push/merge without OK** · fleet & `~/frugal` tree untouched.
 
 ## §RESUME
-Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; Wave 2 (W3) runner-complete (PR #240). **Wave 3 (W-UX) IN PROGRESS** in worktree `frugal-wave-ux` (branch `wave-ux`) — confront+inventory done, **removal list is empty** (B2 already shipped). Implement the keepers list above (openSessionTab coherence · compact row+disclosure · optimistic feedback · auto-detect), atomic commits, extension tests green, no push without OK. Verify brakes first."
+Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; Wave 2 (W3) runner-complete (PR #240); **Wave 3 (W-UX) DELEGATED to the Codex plane — do NOT touch `wave-ux`**. **Start at Wave 4 (W15 · CTO Command Deck, Fase 0 tokens + Fase 1 spine+inbox)** — execute `_handoff/CTO_COMMAND_DECK_SPEC.md` (Fases 2–5 return to the queue as new items). New worktree(s) per the spec from main ATUAL (`git fetch` first) per R5. Verify brakes first."
