@@ -212,9 +212,14 @@ function renderBrain(brain) {
   var tierChip = b.lastTier ? ('<span class="lpbr-tier lpbr-' + esc(b.lastTier) + '">' + esc(b.lastTier) + '</span>') : nd(null);
   var modelTxt = nd(b.lastModel);
   var pctTxt = (typeof b.pctLocal === 'number') ? (b.pctLocal + '% local') : nd(null);
-  var costTxt = (typeof b.costUsd === 'number' && isFinite(b.costUsd))
-    ? ('$' + b.costUsd.toFixed((b.costUsd > 0 && b.costUsd < 0.01) ? 4 : 2))
-    : nd(null);
+  // Honest-by-provenance (adversarial B8 fix): the Brain's cost comes from the bus event's
+  // REAL cost field (buildBrainData: e.cost), not a pricing.js estimate — so it carries the
+  // "(reportado)" provenance label, NOT "~est." (which is reserved for the Day/LLM lenses that
+  // DO estimate). The label rides with the value so a "$" never renders unlabelled; absent -> n/d.
+  var hasCost = (typeof b.costUsd === 'number' && isFinite(b.costUsd));
+  var costHtml = hasCost
+    ? ('custo (reportado) <b>$' + b.costUsd.toFixed((b.costUsd > 0 && b.costUsd < 0.01) ? 4 : 2) + '</b>')
+    : ('custo <b>' + nd(null) + '</b>');
   var scopeTxt = b.scope === 'session' ? '(sessão activa)' : (b.scope === 'global' ? '(global — sem decisões desta sessão)' : '');
 
   var c = b.counts || {};
@@ -245,7 +250,7 @@ function renderBrain(brain) {
 
   return '<div class="lpbr"><div class="lpbr-hd">🧠 Brain</div>'
     + '<div class="lpbr-row">tier <b>' + tierChip + '</b> · modelo ' + modelTxt + ' ' + esc(scopeTxt) + '</div>'
-    + '<div class="lpbr-row">custo <b>' + costTxt + '</b> · ' + pctTxt + '</div>'
+    + '<div class="lpbr-row">' + costHtml + ' · ' + pctTxt + '</div>'
     + mix
     + '<div class="lpbr-row lpbr-gpu">GPU ' + gpuTxt + '</div>'
     + '</div>';
@@ -259,7 +264,9 @@ function renderDayBreakdown(byDay) {
   var b = (byDay && typeof byDay === 'object') ? byDay : null;
   var days = (b && Array.isArray(b.days)) ? b.days : null;
   if (!b || !days || !days.length) {
-    return '<div class="lpx lpdc-empty">sem decisões ainda</div>';
+    return '<div class="lpx lpdc-empty">sem decisões ainda'
+      + '<div class="lpdc-nd" style="margin-top:6px">abre uma sessão Claude Code e executa uma tarefa — os dados aparecem aqui</div>'
+      + '</div>';
   }
 
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -349,7 +356,9 @@ function renderModelBreakdown(byModel) {
   var b = (byModel && typeof byModel === 'object') ? byModel : null;
   var models = (b && Array.isArray(b.models)) ? b.models : null;
   if (!b || !models || !models.length) {
-    return '<div class="lpx lpdc-empty">sem decisões ainda</div>';
+    return '<div class="lpx lpdc-empty">sem decisões ainda'
+      + '<div class="lpdc-nd" style="margin-top:6px">abre uma sessão Claude Code e executa uma tarefa — os dados aparecem aqui</div>'
+      + '</div>';
   }
 
   var totals = (b.totals && typeof b.totals === 'object') ? b.totals : {};
@@ -418,7 +427,12 @@ function renderModelBreakdown(byModel) {
 function renderFleetLanes(fleet) {
   var f = (fleet && typeof fleet === 'object') ? fleet : null;
   if (!f) {
-    return '<div class="lpx lpdc-empty">sem sinais da frota ainda</div>';
+    // No snapshot at all ⇒ no heartbeat: give the next step. When a heartbeat DOES exist the
+    // rest banner ("frota em repouso" + timestamp/age below) already says enough, so the tip is
+    // intentionally NOT repeated there (brief · Task 3 Fleet nuance).
+    return '<div class="lpx lpdc-empty">sem sinais da frota ainda'
+      + '<div class="lpdc-nd" style="margin-top:6px">abre uma sessão Claude Code e executa uma tarefa — os dados aparecem aqui</div>'
+      + '</div>';
   }
 
   function ageTxt(ts) {
@@ -544,8 +558,21 @@ function renderJournalCard(journal) {
     + '</div>';
 }
 
+// ── formatMeoVersion(version) — the discreet "v<version>" shown beside the MEO title. The
+// version is read host-side from the extension's package.json and passed in the snapshot
+// (nullable by contract): absent/blank ⇒ '' so the title shows no version rather than a
+// fabricated one. Concat-only + ES5 — serialised into the webview via fn.toString() like the
+// renderers above; strips angle/quote chars defensively even though the source is our own manifest.
+function formatMeoVersion(version) {
+  if (version == null) return '';
+  var v = String(version).trim();
+  if (!v) return '';
+  return 'v' + v.replace(/[<>&"']/g, '');
+}
+
 module.exports = {
   esc: esc,
+  formatMeoVersion: formatMeoVersion,
   parseBusJsonl: parseBusJsonl,
   detectActiveSid: detectActiveSid,
   filterBySession: filterBySession,
