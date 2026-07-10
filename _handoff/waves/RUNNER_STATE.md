@@ -26,7 +26,7 @@
 |---|------|-------------------|-----------|------|----------|------|
 | 0 | **HARMONY CLOSER** | `frugal-fleet-arm` · `feat/fleet-arm` | `c1234f5` | ✅ **PASS** | #232 | done |
 | 1 | **W-LAND (batch landing)** | inspect (read-only, no worktree) | n/a | ✅ **PASS** | #235–#239 | done |
-| 2 | W3 (First-Magic onboarding) | — | — | ⬜ pending | — | **NEXT** |
+| 2 | **W3 (First-Magic onboarding)** | `frugal-wave-w3` · `wave-w3` | `da42695` | 🔄 **IN PROGRESS** (W3.1 done) | — (gate pending) | continue W3 |
 | 3 | W-UX (Live Sessions clean) | — | — | ⬜ pending | — | — |
 | 4 | W15 (CTO Command Deck F0+1) | — | — | ⬜ pending | — | — |
 | 5 | W6 (Budget/Economics spans) | — | — | ⬜ pending | — | — |
@@ -62,5 +62,19 @@ Read-only inspection of the **23 most recent** unmerged branches (last commit �
 - **Prune list:** 10 SUPERSEDED + 1 STALE branches (see queue); ~85 ancient branches recommended for bulk prune (not inspected). LP branches (`live-edit`, `lp-preview-diagnostics`) left to the cloud trilho.
 - **No conflicts force-resolved** (brief: conflict = report + continue). classify sha intact on every inspected branch. No branch mutated (read-only + FF/new-ref pushes only).
 
+## Wave 2 — W3 · First-Magic onboarding — 🔄 IN PROGRESS (2026-07-10)
+
+Worktree `frugal-wave-w3` · branch `wave-w3` from `origin/main` (f5a1f04) · sha proven.
+
+**Confronted (NOT greenfield):** main already ships a 5-step onboarding wizard (`landing/app/onboarding/page.tsx`, 1230 lines: hardware detect → providers/budget/persona → local stack → install cmd → confirm), a full install flow (`(marketing)/install`, API token routes, `install.ps1/sh`, migration 006), and vscode `walkthrough/*.md`. `feat/first-magic-onboarding` is 0-ahead/187-behind (already landed). The real gap = **the "magic moment"**: no demo that shows a non-dev the router routing a prompt local at $0.
+
+**W3.1 done (commit `da42695`):** `FirstMagicDemo` client component + pure `first-magic.ts` (data+helpers) + tests, wired as the **opener of onboarding Step 1** with a "get this on my machine" CTA → install step. The 6 example verdicts are **REAL frozen-classifier output** (honest-copy: "$0" only for the local tier). 6 new tests; **full landing suite 215/215 green**; `tsc --noEmit` clean; classify sha intact.
+
+**W3 remaining (gate = install E2E + lighthouse ≥95):**
+- Lighthouse tooling is **absent** in `landing` (scripts are only `build`/`test`) — add a lighthouse-CI script + run onboarding/install routes ≥95.
+- Run the `/install` E2E (`landing/app/lib/install-script.test.ts`) green in-worktree.
+- **vsix republish (CI tag)** — prepare only; **STOP before any publish** (Paulo's explicit gate — confirmed).
+- Then draft PR for `wave-w3` + queue line. No PR yet (gate unmet).
+
 ## §RESUME
-Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 are PASS — **start at Wave 2 (W3 · First-Magic onboarding)** per the queue table. Verify brakes first (STOP · quota-live · heartbeat). New worktree `wave-w3` from **main ATUAL** (`git fetch` first) per R5; gate: install E2E + lighthouse ≥95."
+Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; **Wave 2 (W3) is IN PROGRESS** in worktree `frugal-wave-w3` (branch `wave-w3`, HEAD `da42695`) — W3.1 First-Magic demo done+green. Resume the W3 remaining list above (lighthouse ≥95 tooling, /install E2E, vsix prep — STOP before publish), then draft-PR wave-w3. Verify brakes first."
