@@ -1604,6 +1604,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
     if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
     if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
+    if (m.type === 'lp-sdk-help') { this._sdkHelp(); return; } // D8/F9 — honest "how to install the Agent SDK" (the light said "sem SDK")
     if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
@@ -2725,6 +2726,24 @@ class LivePreviewPanel {
       setTimeout(() => { try { this.routes = null; this._detectStage(); } catch { /* best-effort */ } }, 3500);
     } catch { /* best-effort — never throw into the host */ }
   }
+  // D8/F9 — the "sem SDK" readiness light used to offer a button labelled "instalar" that actually opened a
+  // folder picker (copy≠action). Give it a REAL, honest action: state the exact install command and offer to
+  // copy it / open the workspace terminal. We never auto-run npm in the user's project (that would be a
+  // surprising write); the user stays in control.
+  async _sdkHelp() {
+    try {
+      const cmd = 'npm i @anthropic-ai/claude-agent-sdk';
+      const pick = await vscode.window.showInformationMessage(
+        'Live Preview — para as edições por AGENTE, instala o Agent SDK no workspace: ' + cmd,
+        'Copiar comando', 'Abrir terminal');
+      if (pick === 'Copiar comando') { try { await vscode.env.clipboard.writeText(cmd); vscode.window.showInformationMessage('Comando copiado — cola no terminal do projeto.'); } catch { /* best-effort */ } }
+      else if (pick === 'Abrir terminal') {
+        if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Abre a pasta do projeto primeiro.'); return; }
+        const term = vscode.window.createTerminal({ name: 'Mooter — instalar Agent SDK', cwd: this._wsRoot() });
+        term.show(); term.sendText(cmd, false); // pre-filled, NOT auto-run — the user presses Enter
+      }
+    } catch { /* best-effort — never throw into the host */ }
+  }
   // vscode.workspace.isTrusted is a boolean in real VS Code; default to trusted only when the API
   // does not expose the flag at all (never downgrade a genuine `false`).
   _workspaceTrusted() {
@@ -3220,7 +3239,7 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-fwd" title="Avançar no site" aria-label="Avançar">›</button>
         <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
-        <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
+        <button id="lp-select-btn" class="lp-labeled" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯 Selecionar</button>
         <span id="lp-anchor" class="lp-anchor" role="status" aria-live="polite" title="O elemento fixado — o alvo do prompt. Sem âncora, nenhum prompt é enviado.">📍 sem seleção</span>
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
         <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
@@ -3363,7 +3382,7 @@ function renderReadiness(r){
     else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
     if(r.sdk) parts.push(lit('ok','agente',null,null));
     else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
-    else parts.push(lit('bad','sem SDK','folder','instalar'));
+    else parts.push(lit('bad','sem SDK','sdk','como instalar'));
   }
   const html=parts.join('');
   if(html===lpReadySig) return; lpReadySig=html;
@@ -3376,6 +3395,7 @@ function readinessFix(f){
   else if(f==='folder') vsapi.postMessage({ type:'lp-open-folder' });
   else if(f==='trust') vsapi.postMessage({ type:'lp-trust' });
   else if(f==='restart') vsapi.postMessage({ type:'lp-restart-dev' });
+  else if(f==='sdk') vsapi.postMessage({ type:'lp-sdk-help' }); // D8/F9 — a real, honest SDK action (not a folder picker mislabelled "instalar")
 }
 function renderWork(s){
   const el=document.getElementById('lp-work-mount'); if(!el) return;
@@ -3561,6 +3581,7 @@ function lpClearErrors(kind){
 // F2 (P1-7) — honest hot-reload-down banner. The tap owns the truth (its HMR socket dropped); we only
 // reflect it. textContent (never innerHTML) — the copy is static, so there is nothing to inject.
 function setHmrStale(down){
+  lpHmrDown=!!down; // F9 — so the edit-applied toast can tell the truth about whether the preview will refresh
   var el=document.getElementById('lp-hmr');
   if(!el) return;
   if(down){ el.textContent='⚠ hot-reload desligado — o preview pode estar desatualizado. A tentar reconectar…'; el.style.display='block'; }
@@ -3619,7 +3640,7 @@ let lpIntent='edit';
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
-let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false;
+let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false, lpHmrDown=false;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -4531,7 +4552,11 @@ function showEditResult(ok, reason){
     'task-empty':'o agente devolveu vazio — reformula o pedido',
     'revert-stale':'o ficheiro mudou desde a edição do agente — reverter recusado (nada foi escrito)',
     'revert-unavailable':'não consigo garantir o reverter deste ficheiro (sem marca da edição) — recusado para não sobrepor bytes de outrem' };
-  const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
+  let txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
+  // F9 (honesty) — the applied/deleted/model-applied strings promise "o HMR atualiza o preview". If we KNOW
+  // the hot-reload socket is down (F2 lpHmrDown), that promise is false: the file was written but the preview
+  // will NOT refresh. Tell the truth instead of contradicting our own hot-reload-down banner.
+  if(lpHmrDown && txt.indexOf('o HMR atualiza o preview')!==-1){ txt=txt.replace('o HMR atualiza o preview','⚠ hot-reload desligado — recarrega o preview para veres a mudança'); }
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
 // LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
@@ -4813,7 +4838,7 @@ if(pubEl) pubEl.addEventListener('click', function(e){
     const msgEl=document.getElementById('lp-pub-msg');
     const message=(msgEl && msgEl.value ? msgEl.value : (lpPublishState.defaultMessage||'')).trim();
     if(!message) return;
-    t.disabled=true;
+    t.disabled=true; t.textContent='a fazer commit + push…'; // F9 — honest progress (the button no longer just freezes)
     vsapi.postMessage({ type:'lp-publish-commit', files: lpPublishState.touchedFiles.map(function(f){ return (f&&f.path)||f; }), message: message });
     return;
   }
@@ -4826,7 +4851,7 @@ if(pubEl) pubEl.addEventListener('click', function(e){
     const typed=input ? input.value.trim() : '';
     const expected=lpPublishState && lpPublishState.projectName;
     if(!typed || !expected || typed!==expected) return;
-    t.disabled=true;
+    t.disabled=true; t.textContent='a fazer deploy… (pode demorar uns minutos)'; // F9 — vercel --prod can take ~180s; never a frozen-looking button
     vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
     return;
   }

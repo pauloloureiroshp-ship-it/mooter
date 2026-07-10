@@ -376,6 +376,37 @@ test('F0.5.3: the semaphore shows port+source + tree state, and each fix button 
   assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-trust'; }), 'trust fix posts lp-trust (Manage Workspace Trust)');
 });
 
+test('F9 (D8/#3): the "sem SDK" light offers a REAL SDK action (lp-sdk-help), not a mislabelled folder picker', () => {
+  const h = bootWebview(false);
+  // folder + trusted, but the Agent SDK is missing → the sdk light lights up.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:7819/' }, leBridge: { available: false, reason: 'sdk-bridge-missing' }, readiness: { workspace: true, devServer: true, port: '7819', source: 'tap', tree: 'ok', sdk: false, trust: true, reason: 'sdk-bridge-missing' }, feed: { rev: 0, items: [] } } }, source: h.win, origin: null }));
+  const el = h.env.doc.getElementById('lp-ready');
+  assert.ok(/sem SDK/.test(el.innerHTML || ''), 'the sdk light is lit');
+  const sdk = el.querySelector('[data-fix="sdk"]');
+  assert.ok(sdk, 'it offers an sdk fix (data-fix="sdk", not "folder")');
+  assert.ok(/como instalar/.test(el.innerHTML || ''), 'the button reads "como instalar" (honest), not the old bare "instalar"');
+  assert.strictEqual(el.querySelector('[data-fix="folder"]'), null, 'the "sem SDK" light does NOT wire a folder picker');
+  const before = h.posted.length;
+  sdk.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-sdk-help'; }), 'clicking posts lp-sdk-help (host shows the real install command) — never lp-open-folder');
+  assert.ok(!h.posted.slice(before).some(function (x) { return x.type === 'lp-open-folder'; }), 'the "sem SDK" fix is NOT a folder picker');
+});
+
+test('F9 (#4): the applied toast tells the truth about HMR — promises a refresh only when hot-reload is UP', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1', path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/app/page.tsx', tag: 'h1', label: 'h1' } ] });
+  const msg = () => (h.env.doc.getElementById('lp-edit-msg') || {}).textContent || '';
+  const fireApplied = () => h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-edit-result', __t: 'tok', ok: true, reason: 'applied' }, source: h.win, origin: null }));
+  // HMR healthy → the toast may say the preview updates.
+  fireApplied();
+  assert.ok(/o HMR atualiza o preview/.test(msg()), 'with HMR up, the applied toast promises the refresh');
+  // HMR goes down (tap banner) → the SAME applied result must NOT keep promising a refresh that will not happen.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-hmr-down' }, source: h.frame.contentWindow, origin: 'http://localhost:7819' }));
+  fireApplied();
+  assert.ok(/hot-reload desligado/.test(msg()), 'with HMR down, the toast tells the user to reload — no false promise');
+  assert.ok(!/o HMR atualiza o preview/.test(msg()), 'the unconditional "o HMR atualiza" promise is gone while HMR is down');
+});
+
 // ── F5 (P1-5): component-scope + multi-instance warnings are BEHAVIOURAL, not just string-present ──
 // The audit found the shared-component warning (parentCrumb.file !== sel.file) was covered only by a
 // string-presence assert on the raw HTML — neither the POSITIVE branch (a node whose usage site is a

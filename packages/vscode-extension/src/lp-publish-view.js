@@ -57,7 +57,11 @@ function renderPublishPopover(state, esc) {
   var more = files.length > 30 ? '<div class="lp-pub-meta">…+' + (files.length - 30) + ' more</div>' : '';
 
   var websiteUrl = (typeof state.websiteUrl === 'string' && state.websiteUrl) ? state.websiteUrl : null;
-  var status = websiteUrl ? 'Publicado' : 'Rascunho';
+  // D10 (F9 honesty) — a linked Vercel project ALWAYS has a prod URL, so "Publicado" purely from websiteUrl
+  // falsely implies the current working tree is live. Only claim "Publicado" on a REAL successful deploy THIS
+  // session; a known URL without one is "Site ligado" (last known deploy), and no URL at all is "Rascunho".
+  var deployedThisSession = !!(state.lastResult && state.lastResult.action === 'deploy' && state.lastResult.ok);
+  var status = deployedThisSession ? 'Publicado' : (websiteUrl ? 'Site ligado' : 'Rascunho');
   var hasCritical = !!state.hasOpenCritical;
   var vercelLinked = !!state.vercelLinked;
   var projectName = (typeof state.projectName === 'string') ? state.projectName : '';
@@ -66,10 +70,12 @@ function renderPublishPopover(state, esc) {
   // the link text is rendered as plain escaped text — the webview's own markup turns it into an
   // anchor (same contract note as the brief: "just text the webview turns into an anchor").
   var siteLine = websiteUrl
-    ? '<div class="lp-pub-url">site: ' + e(websiteUrl) + '</div>'
+    ? '<div class="lp-pub-url">' + (deployedThisSession ? 'site: ' : 'site (último deploy conhecido): ') + e(websiteUrl) + '</div>'
     : '<div class="lp-pub-meta">ainda sem deploy conhecido nesta sessão.</div>';
   var branchLine = '<div class="lp-pub-meta">branch: ' + e(branch) + '</div>';
-  var costLine = '<div class="lp-pub-cost">edições $0 · review $0 · deploy $0</div>';
+  // D10 (honesty) — the old "edições $0 · review $0 · deploy $0" was a lie: cloud edits use the user's
+  // Anthropic subscription and deploy uses the user's Vercel account. State WHO charges, not a false absolute.
+  var costLine = '<div class="lp-pub-cost">sem cobrança do Mooter · edições locais $0 · edições cloud = a tua subscrição · deploy = a tua conta Vercel</div>';
 
   var reviewBtn = '<button type="button" id="lp-pub-review-btn" class="lp-sel-btn">🛡 Rever segurança</button>';
 
