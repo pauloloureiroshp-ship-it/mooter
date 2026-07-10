@@ -15,7 +15,7 @@
 
 "use strict";
 
-import { spawnSync } from "node:child_process";
+import { getGpuSample, waitForGpuSample } from "./gpu-stream.mjs";
 
 // Same precedence as local-pillar's DEFAULT_MODEL — FLEET_MODEL (day/night selector)
 // must win, else the cycle pre-flight checks the wrong (heavy) model and false-backs-off
@@ -62,18 +62,22 @@ export async function probeOllamaPs(host, timeoutMs = PS_TIMEOUT_MS) {
   } catch { return []; }
 }
 
+// Flicker fix 2026-07-10: NO spawn here anymore. Reads the persistent gpu-stream
+// (one hidden `nvidia-smi -l`) — the old per-cycle spawnSync opened a console
+// window every ~15s under pm2 (windowless parent, no windowsHide).
 export function probeVramFreeMb() {
-  const r = spawnSync("nvidia-smi", ["--query-gpu=memory.free", "--format=csv,noheader,nounits"], { encoding: "utf8" });
-  if (r.status !== 0 || !r.stdout) return null;
-  const v = parseInt((r.stdout.trim().split("\n")[0] || "").trim(), 10);
-  return Number.isFinite(v) ? v : null;
+  const s = getGpuSample();
+  return s && Number.isFinite(s.freeMb) ? s.freeMb : null;
 }
 
 // One-call convenience: probe both, then decide. Returns the assessContention shape
 // plus the raw probe values (freeMb, foreignModels) for the heartbeat/DIGEST.
 export async function preflight({ ollamaHost, fleetModel = FLEET_MODEL } = {}) {
   const host = (ollamaHost || process.env.OLLAMA_HOST || "http://127.0.0.1:11434").replace(/\/$/, "");
-  const [psModels, freeMb] = [await probeOllamaPs(host), probeVramFreeMb()];
+  // Bounded wait for the stream's first sample (cold start); a missing sample
+  // NEVER blocks the fleet — assessContention treats freeMb=null as "no proof".
+  const [psModels, sample] = [await probeOllamaPs(host), await waitForGpuSample(3_000)];
+  const freeMb = sample && Number.isFinite(sample.freeMb) ? sample.freeMb : null;
   return assessContention({ psModels, freeMb, fleetModel });
 }
 

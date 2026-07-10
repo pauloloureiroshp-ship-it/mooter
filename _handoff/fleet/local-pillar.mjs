@@ -32,9 +32,8 @@
 import { readFileSync, writeFileSync, appendFileSync, renameSync, existsSync } from "node:fs";
 import { dirname, join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
-
 import { preflight } from "./vram-preflight.mjs";
+import { getGpuSample, waitForGpuSample } from "./gpu-stream.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -159,15 +158,13 @@ export function buildIdleProposal(loop, round) {
 }
 
 // ── GPU snapshot (honest n/d when nvidia-smi absent) ─────────────────────────
+// Flicker fix 2026-07-10: reads the persistent gpu-stream instead of spawning
+// nvidia-smi per round (each spawn under pm2 opened a visible console window —
+// the measured 8-flashes/min culprit, together with vram-preflight's per-cycle spawn).
 function queryGpu() {
-  const r = spawnSync(
-    "nvidia-smi",
-    ["--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
-    { encoding: "utf8" },
-  );
-  if (r.status !== 0 || !r.stdout) return { util: null, temp: null, usedMb: null, totalMb: null };
-  const p = (r.stdout.trim().split("\n")[0] || "").split(",").map((s) => parseInt(s.trim(), 10));
-  return { util: num(p[0]), temp: num(p[1]), usedMb: num(p[2]), totalMb: num(p[3]) };
+  const s = getGpuSample();
+  if (!s) return { util: null, temp: null, usedMb: null, totalMb: null };
+  return { util: num(s.utilPct), temp: num(s.tempC), usedMb: num(s.usedMb), totalMb: num(s.totalMb) };
 }
 
 // ── Ollama (every call time-boxed) ───────────────────────────────────────────
@@ -236,11 +233,22 @@ export function makeGenGate(slots) {
   return { acquire, release, get inFlight() { return inFlight; }, get peak() { return peak; }, slots };
 }
 
-const GEN_SLOTS = computeGenSlots({ totalMb: queryGpu().totalMb, envSlots: Number(process.env.FLEET_GEN_SLOTS) });
-const genGate = makeGenGate(GEN_SLOTS);
+// Flicker fix 2026-07-10: the gate is sized LAZILY on first use (bounded wait for
+// the gpu-stream's first sample) instead of a module-load spawnSync — the old
+// import-time spawn was one more hidden-less console flash under pm2. The promise
+// memo guarantees a SINGLE gate even under concurrent first calls (cap intact).
+let genGatePromise = null;
+function getGenGate() {
+  if (!genGatePromise) {
+    genGatePromise = waitForGpuSample(3_000).then((s) =>
+      makeGenGate(computeGenSlots({ totalMb: s ? s.totalMb : null, envSlots: Number(process.env.FLEET_GEN_SLOTS) })));
+  }
+  return genGatePromise;
+}
 
 // One generation, through the VRAM gate. Real work only — no busywork.
 async function runRoundWork(prompt, model) {
+  const genGate = await getGenGate();
   await genGate.acquire();
   try {
     return await ollamaGenerate(model, prompt);

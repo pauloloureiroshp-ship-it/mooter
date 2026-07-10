@@ -10,7 +10,7 @@
 "use strict";
 
 import { readFileSync, existsSync, appendFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execHiddenSync } from "./exec-hidden.mjs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,11 +35,15 @@ catch { /* missing/corrupt heartbeat → treat as stale */ }
 if (ageMs > MAX_AGE_MS) {
   const ageMin = Number.isFinite(ageMs) ? Math.round(ageMs / 60_000) : "n/d";
   console.log(`[watchdog] heartbeat stale (${ageMin}min > ${MAX_AGE_MS / 60_000}min) — restarting ${APP}.`);
-  try {
-    execSync(`pm2 restart ${APP}`, { stdio: "inherit" });
+  // Flicker fix 2026-07-10: hidden shell (pm2 is a .cmd shim on Windows — needs a
+  // shell, but windowsHide keeps it windowless under the schtasks/wscript parent).
+  const r = execHiddenSync("pm2", ["restart", APP]);
+  if (r.status === 0) {
+    console.log(String(r.stdout || "").trim());
     log({ event: "incident", source: "watchdog", reason: "heartbeat-stale-restart", age_min: ageMin, app: APP });
-  } catch (e) {
-    log({ event: "incident", source: "watchdog", reason: "pm2-restart-failed", detail: e && e.message, app: APP });
+  } else {
+    const detail = (r.error && r.error.message) || String(r.stderr || r.stdout || `exit ${r.status}`).trim();
+    log({ event: "incident", source: "watchdog", reason: "pm2-restart-failed", detail, app: APP });
     process.exit(1);
   }
 } else {

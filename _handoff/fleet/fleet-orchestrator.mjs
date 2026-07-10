@@ -156,6 +156,7 @@ async function cloudPillar(loop) {
     const cp = spawn(process.execPath, [runner], {
       env: { ...process.env, LOOP_DIR: abs(loop.pillar.workdir), REPO, MAX_ROUNDS: "1" },
       stdio: "inherit",
+      windowsHide: true, // flicker fix 2026-07-10: pm2 parent is windowless — never open a console
     });
     cp.on("exit", (code) => (code === 0 ? res() : rej(new Error(`sdk-runner exited ${code}`))));
     cp.on("error", rej);
