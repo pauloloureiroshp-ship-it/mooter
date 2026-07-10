@@ -7,6 +7,7 @@ import { suggestHardware, formatGpuLabel } from './_lib/hardware';
 import { PERSONAS, personaPackHint, type Persona } from './_lib/persona';
 import { LOCAL_HW, estimateMonthlySavings } from './_lib/estimate';
 import StatuslineCard from '@/components/StatuslineCard';
+import FirstMagicDemo from './_components/FirstMagicDemo';
 
 const HW_OPTIONS = [
   { value: 'mac_m_series', label: 'Mac M-series' },
@@ -372,6 +373,7 @@ export default function OnboardingPage() {
         {/* ── Step 1 ─────────────────────────────────────────── */}
         {step === 1 && (
           <div>
+            <FirstMagicDemo onStart={() => setStep(4)} />
             <h2 style={{
               fontSize: '1.75rem', fontWeight: 700, margin: '0 0 8px',
               letterSpacing: '-0.02em', color: 'var(--text)',
