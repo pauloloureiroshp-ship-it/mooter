@@ -50,7 +50,7 @@ function deriveDecisions(lines) {
               : [],
           })),
         });
-      } else if (b.type === 'tool_result' && b.tool_use_id) {
+      } else if (b.type === 'tool_result' && b.tool_use_id && !_isToolError(b)) {
         const ans = _extractAnswers(b);
         if (ans) resultsById[b.tool_use_id] = ans;
       }
@@ -76,6 +76,25 @@ function deriveDecisions(lines) {
     }
   }
   return out;
+}
+
+// A failed AskUserQuestion invocation is a tool result, but never a human
+// decision. Claude Code versions may expose the failure via `is_error`, a
+// structured error field, or the textual <tool_use_error>/InputValidationError
+// payload. Reject all three before answer extraction so an error cannot be
+// projected as `answered_by: human`.
+function _isToolError(block) {
+  if (!block || typeof block !== 'object') return false;
+  if (block.is_error === true || block.error != null) return true;
+  let text = '';
+  if (typeof block.content === 'string') text = block.content;
+  else if (Array.isArray(block.content)) {
+    text = block.content.map((item) => {
+      if (typeof item === 'string') return item;
+      return item && typeof item.text === 'string' ? item.text : '';
+    }).join(' ');
+  }
+  return /<tool_use_error>|InputValidationError|ToolUseError/i.test(text);
 }
 
 function _parse(ln) {
@@ -137,4 +156,4 @@ function _coerce(v) {
   return String(v);
 }
 
-module.exports = { deriveDecisions };
+module.exports = { deriveDecisions, _isToolError };

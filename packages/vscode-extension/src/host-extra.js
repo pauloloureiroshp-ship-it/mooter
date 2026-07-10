@@ -2628,7 +2628,13 @@ async function composeHandoff(row, pending, opts) {
   const vaultMtime = (opts.vaultMtime !== undefined) ? opts.vaultMtime : null;
   let deltaTurns = (opts.deltaTurns !== undefined) ? opts.deltaTurns : null;
   if (deltaTurns == null && sid) { const jl = readJournalLast(sid); if (jl && Number.isFinite(jl.n_turn)) deltaTurns = jl.n_turn; }
-  const baseOpts = { mode, now: opts.now, snapshot, vaultMtime, deltaTurns };
+  // Preserve the caller's deterministic Perfect Handoff context across BOTH
+  // enrichment paths. Rebuilding this object from only six fields silently
+  // dropped `perfect`, `ledgerEvents`, `sessionGit`, `expectedCwd` and `recent`:
+  // a ready local summary could therefore replace an honest STATE/DECISIONS/
+  // worktree-aware skeleton with the legacy projection. Unknown orchestration
+  // options are harmless to generateHandoff; the resolved facts below win.
+  const baseOpts = Object.assign({}, opts, { mode, snapshot, vaultMtime, deltaTurns });
   // ⇄ Live Context Accumulator (PASSO 4): if the turn-end hook already built a rolling summary in
   // the background, USE IT — instant, no cold-start, no on-demand Ollama call. PENDING stays
   // verbatim from the transcript; the journal backfills LAST STEP only when the live pending is thin.
