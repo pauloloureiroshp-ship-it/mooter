@@ -4619,21 +4619,31 @@ function getHtml(guardianPct = null) {
   .card.graph{border-color:var(--g)} .card.graph .lbl{color:var(--g)}
   .livecow{font-size:22px;line-height:1}
   .herd{margin-top:7px;display:flex;flex-direction:column;gap:4px}
-  .srow{display:flex;align-items:center;gap:9px;padding:5px 8px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:pointer;background:var(--vscode-editorWidget-background)}
+  .srow{display:block;padding:3px 5px;border:1px solid var(--vscode-widget-border);border-left:3px solid transparent;border-radius:6px;cursor:default;background:var(--vscode-editorWidget-background)}
   .srow:hover{background:var(--vscode-list-hoverBackground)}
   .srow.on{border-left-color:var(--g);background:var(--gdim)}
   .srow .livecow{font-size:18px}
-  .sbody{flex:1;min-width:0}
+  .sbody{width:100%;min-width:0}
   .stop{display:flex;gap:8px;align-items:center;justify-content:space-between}
   .sname{font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sllm{font-size:10px;color:var(--vscode-descriptionForeground);flex:none}
   .ssub{font-size:9.5px;color:var(--vscode-descriptionForeground);margin-top:1px;display:flex;align-items:center;gap:5px}
   /* WCOCKPIT-9 (Bloco B): compact single-line card — name + state + id on one .sline */
-  .sline{display:flex;align-items:baseline;gap:5px;min-width:0}
-  .sline .sname{flex:0 1 auto;min-width:34px}
-  .sline .sstate{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;color:var(--vscode-descriptionForeground);display:inline-flex;align-items:center;gap:4px}
+  .sline{display:flex;align-items:center;gap:5px;min-width:0;min-height:24px;white-space:nowrap}
+  .sline .sname{flex:1 1 auto;min-width:34px}
+  .sline .sstate{flex:none;max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;color:var(--vscode-descriptionForeground);display:inline-flex;align-items:center;gap:4px;border:1px solid var(--vscode-widget-border);border-radius:8px;padding:1px 5px}
   .sline .sid{flex:none;font-size:9px;color:var(--vscode-descriptionForeground);opacity:.6;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace)}
-  .sline .sllm{margin-left:auto;flex:none}
+  .sline .sllm{flex:none;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srowdot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;background:var(--vscode-descriptionForeground)}
+  .srowdot.needs{background:var(--vscode-charts-yellow)}.srowdot.active{background:var(--vscode-charts-green)}
+  .sstate.needs,.sstate.active{color:var(--vscode-foreground);font-weight:600}
+  .squickactions{display:inline-flex;align-items:center;gap:1px;flex:none}
+  .squick,.sdisclose{width:24px;height:24px;min-width:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-color:transparent;background:transparent;font-size:12px;opacity:.65}
+  .squick:hover,.sdisclose:hover{opacity:1;border-color:var(--vscode-widget-border);background:var(--vscode-list-hoverBackground)}
+  .squick:focus-visible,.sdisclose:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px;opacity:1}
+  .sdisclose .chev{margin:0;font-size:9px}
+  .sdetailhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:9.5px;color:var(--vscode-descriptionForeground)}
+  .sdetails{margin-top:4px;padding:5px 3px 3px;border-top:1px dashed var(--vscode-widget-border)}
   .sscm{font-size:9.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .scmbr{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-foreground);background:var(--surface2);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:1px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .scmpr{font-weight:600;font-size:9.5px}
@@ -4646,7 +4656,7 @@ function getHtml(guardianPct = null) {
   /* Deck Floor (Fase 2): session type glyph + persistent pin. Pinned = filled 📌 + warm left rail
      (shape marker, not colour-only — WCAG 1.4.1). */
   .stype{font-size:11px;flex:none;margin-right:1px}
-  .spin{all:unset;cursor:pointer;font-size:12px;flex:none;opacity:.28;padding:0 3px;line-height:1;filter:grayscale(1)}
+  .spin{all:unset;cursor:pointer;font-size:12px;flex:none;opacity:.28;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;line-height:1;filter:grayscale(1)}
   .spin:hover{opacity:.85;filter:none}
   .spin.on{opacity:1;filter:none}
   .spin:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--acc-warm));outline-offset:1px;border-radius:4px}
@@ -4798,17 +4808,20 @@ function getHtml(guardianPct = null) {
   .ssafe.amber{color:var(--acc-warm);background:rgba(229,192,123,.12)}
   .ssafe.blue{color:var(--blue);background:rgba(90,155,212,.12)}
   .ssafe.repo{color:var(--vscode-descriptionForeground);background:rgba(128,128,128,.12);font-weight:500}
-  /* WCOCKPIT-9 (Bloco B): progressive disclosure — controls reveal ONLY on selection
-     (.on / :focus-within), NOT on hover, so hovering keeps the card at its compact 1-line
-     height. The ⋯ hint stays on hover ("click to expand") and clears once the drawer opens. */
-  .sdrawer{display:none;margin-top:5px;padding-top:5px;border-top:1px dashed var(--vscode-widget-border)}
-  .srow.on .sdrawer,.srow:focus-within .sdrawer{display:block}
+  /* B3: the row disclosure owns all detail visibility; selection never changes row height. */
+  .sdrawer{display:block;margin-top:5px;padding-top:5px;border-top:1px dashed var(--vscode-widget-border)}
+  .srow.collapsed .sdetails{display:none}
+  .srow.collapsed .sdisclose .chev{transform:rotate(-90deg)}
   .srow{position:relative}
-  .srow::after{content:"⋯";position:absolute;right:8px;bottom:3px;font-size:11px;opacity:.3;line-height:1}
-  .srow:hover::after{opacity:.6}
-  .srow.on::after,.srow:focus-within::after{content:""}
   /* WCOCKPIT-6: group header rollup (branch + git stage once per project) */
   .ghd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:11px 2px 4px;font-size:9px;letter-spacing:.04em}
+  .statebucket{display:flex;flex-direction:column;gap:4px;margin:4px 0 7px}
+  .statehead{min-height:24px;display:flex;align-items:center;gap:5px;padding:0 5px;border-bottom:1px solid var(--vscode-widget-border);font-size:9.5px;color:var(--vscode-descriptionForeground)}
+  .statehead .statecount{margin-left:auto;font-variant-numeric:tabular-nums}
+  .statebucket.collapsed>*:not(.collaphead){display:none!important}
+  .statebucket.collapsed .statehead .chev{transform:rotate(-90deg)}
+  .statebucket.needs .statehead{color:var(--vscode-foreground);font-weight:600}
+  .statehead:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   .ghkey{text-transform:uppercase;opacity:.65;font-weight:600}
   .ghsrc{font-weight:600;text-transform:none;letter-spacing:0;font-size:8.5px;opacity:.85}
   .ghsrc.cw{color:var(--blue-bright)}
@@ -4835,6 +4848,7 @@ function getHtml(guardianPct = null) {
   .collaphead:hover{color:var(--vscode-foreground)}
   .collaphead:focus-visible{outline:1px solid var(--r);outline-offset:2px;border-radius:3px}
   .chev{display:inline-block;font-size:8px;opacity:.5;margin-right:6px;transition:transform .15s ease;vertical-align:middle}
+  @media (prefers-reduced-motion:reduce){.chev{transition:none}}
   .card.collapsed .chev{transform:rotate(-90deg)}
   .card.collapsed>*:not(.collaphead){display:none!important}
   .grpsec.collapsed>*:not(.collaphead){display:none!important}
@@ -4921,9 +4935,9 @@ function getHtml(guardianPct = null) {
   button.hf:focus-visible{outline:2px solid var(--r);outline-offset:1px;opacity:1}
   .herdempty{font-size:10px;color:var(--vscode-descriptionForeground);text-align:center;padding:12px 8px}
   .herdempty button{font-size:9.5px;padding:2px 9px;margin-left:6px}
-  .srow[hidden],.grpsec[hidden]{display:none!important}
+  .srow[hidden],.statebucket[hidden],.grpsec[hidden]{display:none!important}
   /* compacto: esconde as sublines pesadas (mantém nome+estado+modelo na .sline e o drawer na selecção) */
-  .herd.compact .sbody>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
+  .herd.compact .sdetails>.ssub,.herd.compact .srail,.herd.compact .snow,.herd.compact .sbehind,.herd.compact .sgit,.herd.compact .sscm{display:none}
   /* ── MISSION CONTROL TAB · Frente G ── */
   .mc-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px}
   .mc-title{font-size:13px;font-weight:700;color:var(--r)}.mc-proj{font-size:11px;color:var(--vscode-descriptionForeground);font-weight:400}
@@ -5428,7 +5442,10 @@ const collapsed=new Set((function(){try{
   if(!st.layoutCalmV1){st.layoutCalmV1=1;st.collapsed=[...new Set([...(st.collapsed||[]),..._CALM_COLLAPSED])];try{vsapi.setState(st);}catch{}}
   return st.collapsed||_CALM_COLLAPSED;
 }catch{return _CALM_COLLAPSED;}})());
-function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];vsapi.setState(st);}catch{}}
+const collapseKnown=new Set((function(){try{return (vsapi.getState()||{}).collapseKnown||[];}catch{return [];}})());
+function saveCollapsed(){try{const st=vsapi.getState()||{};st.collapsed=[...collapsed];st.collapseKnown=[...collapseKnown];vsapi.setState(st);}catch{}}
+// B3: seed compact rows + idle buckets once; the same persisted collapse Set remembers later toggles.
+function ccBorn(id,bornCollapsed){if(!collapseKnown.has(id)){collapseKnown.add(id);if(bornCollapsed)collapsed.add(id);saveCollapsed();}return cc(id);}
 // Sessions-always-visible (runtime-diagnosed via _handoff/herd-diag.json): a persisted 'grp:*'
 // project-group collapse survives reload and is BORN collapsed (cc()→.grpsec.collapsed → the CSS
 // rule .grpsec.collapsed>*:not(.collaphead){display:none} hides every .srow), so the herd shows 0
@@ -5457,7 +5474,7 @@ function saveHerdPrefs(){try{const st=vsapi.getState()||{};st.herdFilter=herdFil
 function applyHerdFilter(){
   const cont=document.querySelector('#v-cockpit .herd');if(!cont)return;
   const bar=document.querySelector('#v-cockpit .herdfilter');
-  if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
+  if(!bar){cont.classList.remove('compact');cont.querySelectorAll('.srow[data-state]').forEach(r=>{r.hidden=false;});document.querySelectorAll('#v-cockpit .statebucket').forEach(b=>{b.hidden=false;});document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{g.hidden=false;});return;}
   cont.classList.toggle('compact',!!herdCompact);
   const q=(herdQuery||'').toLowerCase().trim();
   let f=herdFilter||'all';if(HF_VALID.indexOf(f)<0)f='all'; // filtro inválido/legado → 'all' (nunca esconde por acidente)
@@ -5471,6 +5488,7 @@ function applyHerdFilter(){
   // as sessões reverte para mostrar todas. O cockpit nunca pode deixar a herd vazia sem o user escolher.
   // Procura sem match é o ÚNICO estado-vazio (mostra o "Ver todas"); um filtro de estado nunca lá chega.
   if(f!=='all'&&!q&&shown===0&&total>0){rows.forEach(r=>{r.hidden=false;});shown=total;f='all';herdFilter='all';}
+  document.querySelectorAll('#v-cockpit .statebucket').forEach(b=>{const any=[...b.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);b.hidden=!any;const forceOpen=any&&(f!=='all'||!!q);const folded=forceOpen?false:collapsed.has(b.dataset.collap);b.classList.toggle('collapsed',folded);const h=b.querySelector('.statehead');if(h)h.setAttribute('aria-expanded',String(!folded));});
   document.querySelectorAll('#v-cockpit .grpsec').forEach(g=>{const any=[...g.querySelectorAll('.srow[data-state]')].some(r=>!r.hidden);g.hidden=!any;});
   document.querySelectorAll('#v-cockpit .hf[data-hf]').forEach(b=>b.classList.toggle('on',b.dataset.hf===f));
   const cb=document.querySelector('#v-cockpit .hfcompact');if(cb)cb.classList.toggle('on',!!herdCompact);
@@ -5508,6 +5526,8 @@ function enforceHerdVisible(){
   const rows=[...cont.querySelectorAll('.srow[data-state]')];if(!rows.length)return; // no sessions → nothing to guard
   if((herdQuery||'').trim())return;        // an active search owns the empty-state; never override it
   if(rows.some(herdRowVisible))return;     // ≥1 already visible → invariant already holds
+  const folded=[...cont.querySelectorAll('.statebucket.collapsed .statehead')];
+  if(folded.some(h=>!herdAncestorCollapsed(h)))return; // B3: a visible bucket header is intentional disclosure, not an empty herd
   let purged=false;
   rows.forEach(r=>{r.hidden=false;let n=r.parentElement;while(n&&n.id!=='v-cockpit'){if(n.classList&&n.classList.contains('collapsed')&&(n.classList.contains('card')||n.classList.contains('grpsec'))){n.classList.remove('collapsed');const id=n.dataset&&n.dataset.collap;if(id&&collapsed.has(id)){collapsed.delete(id);purged=true;}}n=n.parentElement;}});
   if(herdFilter!=='all')herdFilter='all';
@@ -5525,7 +5545,7 @@ function cc(id){return collapsed.has(id)?' collapsed':'';}
 // Build a uniform collapsible header (chevron + title). Click/Enter toggles; clicks on
 // interactive children (e.g. the ledger scope pills [data-ls]) are ignored so they don't collapse.
 function chead(title,cls){return '<div class="'+(cls||'lbl')+' collaphead"><span class="chev">▾</span>'+title+'</div>';}
-function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();};h.onclick=tog;h.setAttribute('role','button');h.setAttribute('tabindex','0');h.setAttribute('aria-label','toggle section');h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog();}});});}
+function wireCollapse(root){(root||document).querySelectorAll('[data-collap]').forEach(c=>{const h=c.querySelector('.collaphead');if(!h)return;const sync=()=>{const open=!c.classList.contains('collapsed');h.setAttribute('aria-expanded',String(open));if(!h.getAttribute('aria-label'))h.setAttribute('aria-label','expandir ou recolher esta secção');if(!h.getAttribute('title'))h.setAttribute('title','expandir ou recolher esta secção');};const tog=(ev)=>{if(ev&&ev.target&&ev.target.closest('[data-ls]'))return;if(ev&&ev.stopPropagation)ev.stopPropagation();const on=c.classList.toggle('collapsed');const id=c.dataset.collap;if(on)collapsed.add(id);else collapsed.delete(id);saveCollapsed();sync();};h.onclick=tog;if(h.tagName!=='BUTTON'){h.setAttribute('role','button');h.setAttribute('tabindex','0');}sync();h.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!(e.target&&e.target.closest&&e.target.closest('[data-ls]'))){e.preventDefault();tog(e);}});});}
 // ⇄ Handoff v2 — inline live panel state. The whole cockpit re-renders on every snapshot, so the
 // panel CONTENT must live OUTSIDE the DOM (here) and be re-applied after each render (hydrateHoff).
 // Keyed by data-hoff id (session id OR project key). status: 'ready' (skeleton copiado) | 'enriched'
@@ -5618,6 +5638,8 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
 // scope in the webview, so renderRow's free refs to STAGE_META/deriveStages must be declared here).
 const STAGE_META=${RR?JSON.stringify(RR.STAGE_META):'[]'};
 const deriveStages=${RR?RR.deriveStages.toString():'function deriveStages(){return {stages:{},safe:{level:"green",label:"",action:null},behind:null};}'};
+const sessionStateKey=${RR&&RR.sessionStateKey?RR.sessionStateKey.toString():'function sessionStateKey(r){return r&&r.needsYou?"needs":(r&&(r.working||r.waitingForCowork)?"active":"idle");}'};
+const orderSessionsByState=${RR&&RR.orderSessionsByState?RR.orderSessionsByState.toString():'function orderSessionsByState(rows){return rows||[];}'};
 const renderRow=${RR?RR.renderRow.toString():'function renderRow(r){return "";}'};
 const renderGroupHeader=${RR?RR.renderGroupHeader.toString():'function renderGroupHeader(k,g){return "";}'};
 // HONEST-CONTROLS D2: inbox meta-classifier + per-repo collapse (siblings — renderInbox calls them)
@@ -6013,9 +6035,9 @@ window.addEventListener('message',(e)=>{
   // WCOCKPIT-9 (Bloco D): passa os modelos locais REAIS (snapshot.ollama) ao dropdown por sessão.
   // (Bloco F): loopActive = liveness honesta do loop-runner. (Bloco E): slashCommands = picker real.
   const localModels=s.ollama||[];const loopActive=!!s.loopActive;const slashCommands=s.slashList||[];
-  const rowFor=(r,gctx)=>{try{return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey,localModels,loopActive,slashCommands});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
-  // WCOCKPIT-2: sort needs-you first, then most recent (host already sorts, but snapshot may arrive pre-sorted)
-  const sorted=[...rsess].sort((a,b)=>{if(!!a.pinned!==!!b.pinned)return a.pinned?-1:1;if(a.needsYou!==b.needsYou)return a.needsYou?-1:1;return(b.lastActiveTs||0)-(a.lastActiveTs||0);});
+  const rowFor=(r,gctx)=>{try{const rk='sess:'+r.fullId;return renderRow(r,{selSess,effSess,branchCount,nowMs:Date.now(),groupBranch:gctx&&gctx.branch,groupGitKey:gctx&&gctx.gitKey,localModels,loopActive,slashCommands,rowCollapsed:ccBorn(rk,true).indexOf('collapsed')>=0});}catch(er){return '<div class="srow" style="opacity:.5;font-size:9px;padding:5px 8px">⚠ render error · '+esc(String(er&&er.message||er))+'</div>';}}
+  // B3: state is the primary order; pin + recency only sort within the same state.
+  const sorted=orderSessionsByState(rsess);
   // WCOCKPIT-9 (Bloco A): agrupa por PROJETO COWORK real (espelho). O repoFolder deixa de
   // mascarar-se de projeto: é fallback ROTULADO ('repo (sem Cowork)') só quando há repo git
   // real (branch/gitStage); um cwd qualquer (ex.: System32) cai em 'Unassigned · sem Cowork'.
@@ -6027,17 +6049,23 @@ window.addEventListener('message',(e)=>{
   // WCOCKPIT-6: roll up branch + git stage to the group header; pass as context so cards dedup.
   const gitKeyOf=(r)=>r.gitStage?(r.gitStage.state+':'+(r.gitStage.dirty||0)+':'+(r.gitStage.ahead||0)):'';
   const groupCtx=(gr)=>{let branch=null,gitKey=null;for(const r of gr){if(!branch&&r.branch)branch=r.branch;if(!gitKey&&r.gitStage)gitKey=gitKeyOf(r);}return{branch,gitKey};};
-  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+gr.map(r=>rowFor(r,gc)).join('')+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">Nenhuma sessão ativa</div><div class="sub" style="margin:4px 0 10px">Abre um separador Claude Code e envia um prompt — o Mooter roteia-o e a herd acende-se.</div><button class="go" data-a="launch">★&nbsp; New CC — começar</button></div>';
+  // B3 minimal composition: keep the real project grouping, then order three state buckets inside it.
+  const stateBuckets=(k,gr,gc)=>[
+    ['needs','🟡','Precisa de ti','expandir ou recolher as sessões que precisam de ti'],
+    ['active','🟢','Activas','expandir ou recolher as sessões activas'],
+    ['idle','✅','Idle / done','expandir ou recolher as sessões idle/done; estão recolhidas por defeito']
+  ].map(d=>{const rows=gr.filter(r=>sessionStateKey(r)===d[0]);if(!rows.length)return '';const id='state:'+k+':'+d[0];const cl=d[0]==='idle'?ccBorn(id,true):cc(id);const open=cl.indexOf('collapsed')<0;return '<div class="statebucket '+d[0]+cl+'" data-collap="'+esc(id)+'" data-bucket="'+d[0]+'"><div class="statehead collaphead" title="'+d[3]+'" aria-label="'+d[3]+'" aria-expanded="'+String(open)+'"><span class="chev">▾</span><span>'+d[1]+' '+d[2]+'</span><span class="statecount">'+rows.length+'</span></div>'+rows.map(r=>rowFor(r,gc)).join('')+'</div>';}).join('');
+  const herdRows=sorted.length?_ord.map(k=>{const gr=_grp[k];const gc=groupCtx(gr);return '<div class="grpsec'+cc('grp:'+k)+'" data-collap="grp:'+esc(k)+'">'+grpHd(k,gr)+stateBuckets(k,gr,gc)+'</div>';}).join(''):'<div role="status" style="text-align:center;padding:16px 10px"><div style="font-size:28px;line-height:1">🐮</div><div style="font-weight:600;margin-top:6px">Nenhuma sessão ativa</div><div class="sub" style="margin:4px 0 10px">Abre um separador Claude Code e envia um prompt — o Mooter roteia-o e a herd acende-se.</div><button class="go" data-a="launch">★&nbsp; New CC — começar</button></div>';
   // Honest link note: branches shared by ≥2 sessions (same work), if any.
   const sharedKeys=Object.keys(branchCount).filter(k=>branchCount[k]>1);
   const linkNote=sharedKeys.length?'<div class="sub" style="font-size:9px;margin-top:4px">🔗 '+sharedKeys.map(k=>esc((JSON.parse(k)[1]||k))+' ('+branchCount[k]+')').join(' · ')+' — sessions on the same repo+branch are the same work</div>':'';
   const allRow='<div class="srow'+(selSess==='all'?' on':'')+'" data-sess="all" role="button" tabindex="0"><span class="livecow">🌐</span><div class="sbody"><div class="stop"><span class="sname">All sessions</span><span class="sllm">global</span></div><div class="ssub">every session combined</div></div></div>';
-  const needN=rsess.filter(r=>r.needsYou).length;
+  const needN=rsess.filter(r=>sessionStateKey(r)==='needs').length;
   const clearableN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).length; // WCOCKPIT-7: old & safe-to-close
   // B3 — declutter: contadores por estado + barra de filtro/procura (só quando há sessões suficientes
   // para densidade importar; <5 sessões não esconde idle por defeito, para não surpreender).
-  const activeN=rsess.filter(r=>r.working||r.waitingForCowork).length;
-  const idleN=rsess.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork).length;
+  const activeN=rsess.filter(r=>sessionStateKey(r)==='active').length;
+  const idleN=rsess.filter(r=>sessionStateKey(r)==='idle').length;
   const showFilter=rsess.length>=5;
   const hfBar=showFilter?('<div class="herdfilter"><input class="herdq" placeholder="🔎 filtrar sessões…" aria-label="filtrar sessões por nome" value="'+esc(herdQuery)+'"><div class="herdchips" role="toolbar" aria-label="filtrar a herd por estado">'
     +'<button class="hf" data-hf="atencao" title="precisam de ti + activas (esconde idle/done)">🎯 Atenção</button>'
@@ -6140,6 +6168,7 @@ window.addEventListener('message',(e)=>{
   document.querySelectorAll('#v-cockpit .seg .mo').forEach(el=>{const go=()=>{const seg=el.parentNode;if(seg)seg.querySelectorAll('.mo').forEach(x=>x.classList.remove('on'));el.classList.add('on');flashApply(el);send('mode',el.dataset.m);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
   (function(){const ps=$('#pinSel');if(ps)ps.onchange=()=>{flashApply(ps);send('pinNext',ps.value);};})();
   document.querySelectorAll('#v-cockpit .srow').forEach(el=>{const go=()=>{const v=el.dataset.sess;send(v==='all'?'selectSession':'openSessionTab',v);};el.onclick=go;el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  document.querySelectorAll('#v-cockpit .squick').forEach(b=>{const o=b.onclick;b.onclick=(e)=>{e.stopPropagation();if(b.dataset.qhandoff)send('handoff',b.dataset.qhandoff);else if(o)o.call(b,e);};});
   // Deck Floor (Fase 2): persistent pin toggle — stops row-open propagation; persists via host→mode-registry.
   document.querySelectorAll('#v-cockpit .spin[data-psess]').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const next=b.dataset.pinned!=='true';b.classList.toggle('on',next);b.dataset.pinned=String(next);b.setAttribute('aria-pressed',String(next));flashApply(b);send('pinSession',{sid:b.dataset.psess,pinned:next});};b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});});
   document.querySelectorAll('#v-cockpit .clrdone').forEach(b=>{b.onclick=(e)=>{e.stopPropagation();const rs=(lastSnap&&lastSnap.recent)||[];const ids=rs.filter(r=>!r.working&&!r.needsYou&&!r.waitingForCowork&&(r.ageMs||0)>1800000).map(r=>r.fullId);send('clearDoneSessions',ids);};});

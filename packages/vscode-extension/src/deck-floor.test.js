@@ -32,9 +32,10 @@ function renderHtml() {
 function scriptOf(html) { const m = html.match(/<script[^>]*>([\s\S]*?)<\/script>/); assert.ok(m, 'inline script found'); return m[1]; }
 
 // ── row: type glyph + persistent pin ────────────────────────────────────────
-test('renderRow shows a type glyph (💬 CC · ♾️ loop) and never fabricates ⏰', () => {
+test('renderRow derives the type glyph from real fields (💬 CC · ♾️ loop · ⏰ scheduled)', () => {
   assert.match(rr.renderRow(BASE_ROW, {}), /class="stype"[^>]*>💬/, 'plain session → CC glyph');
   assert.match(rr.renderRow(Object.assign({}, BASE_ROW, { loop: true }), { loopActive: false }), /class="stype"[^>]*>♾️/, 'loop session → ♾️');
+  assert.match(rr.renderRow(Object.assign({}, BASE_ROW, { scheduled: true }), {}), /class="stype"[^>]*>⏰/, 'real scheduled flag → ⏰');
 });
 
 test('renderRow renders a persistent pin control carrying the session id + pressed state', () => {
