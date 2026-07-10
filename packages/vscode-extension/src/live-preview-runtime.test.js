@@ -375,3 +375,43 @@ test('F0.5.3: the semaphore shows port+source + tree state, and each fix button 
   trust.dispatchEvent(h.mkEvent('click'));
   assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-trust'; }), 'trust fix posts lp-trust (Manage Workspace Trust)');
 });
+
+// ── F5 (P1-5): component-scope + multi-instance warnings are BEHAVIOURAL, not just string-present ──
+// The audit found the shared-component warning (parentCrumb.file !== sel.file) was covered only by a
+// string-presence assert on the raw HTML — neither the POSITIVE branch (a node whose usage site is a
+// different file → warn) nor the NEGATIVE branch (a node in its OWN page → NO warn) was exercised. A
+// silent regression here makes the UI lie: either scream on everything, or go quiet on real shared
+// components. These drive the REAL renderSelection() via the runtime harness and read #lp-sel.
+function fireSelectWith(h, over) {
+  const base = { type: 'lp-select', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1', rect: { x: 10, y: 10, w: 120, h: 24 }, text: 'Old headline', className: 'title', path: [], repeated: 0 };
+  h.win.dispatchEvent(h.mkEvent('message', { data: Object.assign(base, over), source: h.frame.contentWindow, origin: 'http://localhost:7819' }));
+}
+const SHARED_WARN = 'afeta todos os usos deste componente';
+const selHtml = (h) => { const el = h.env.doc.getElementById('lp-sel'); return el ? el.innerHTML : ''; };
+
+test('F5/P1-5: node whose USAGE site (parent crumb) is a DIFFERENT file → shared-component warning FIRES', () => {
+  const h = bootWebview(false);
+  // leaf lives in Card.tsx (a component definition); the crumb above it is the page that USES it.
+  fireSelectWith(h, {
+    file: 'landing/components/Card.tsx', tag: 'h2',
+    path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/components/Card.tsx', tag: 'h2', label: 'h2' } ],
+  });
+  assert.ok(selHtml(h).indexOf(SHARED_WARN) !== -1, 'edit lands on the definition → all-usages warning must show');
+});
+
+test('F5/P1-5: node in its OWN page (parent crumb SAME file) → shared-component warning is SILENT (no false alarm)', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, {
+    file: 'landing/app/page.tsx', tag: 'h1', repeated: 0,
+    path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/app/page.tsx', tag: 'h1', label: 'h1' } ],
+  });
+  assert.strictEqual(selHtml(h).indexOf(SHARED_WARN), -1, 'a plain page node must NOT scream the shared-component warning (the layout.tsx false-positive fix)');
+});
+
+test('F5/P1-5: repeated>1 → multi-instance (.map()) warning fires with the exact count', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', tag: 'li', repeated: 3, path: [ { file: 'landing/app/page.tsx', tag: 'ul', label: 'ul' }, { file: 'landing/app/page.tsx', tag: 'li', label: 'li' } ] });
+  const html = selHtml(h);
+  assert.ok(html.indexOf('×3') !== -1 && html.indexOf('TODOS os itens') !== -1, 'repeated node → honest template-wide warning with the live count');
+  assert.strictEqual(html.indexOf(SHARED_WARN), -1, 'same-file repeated node does not ALSO fire the shared-component warning');
+});
