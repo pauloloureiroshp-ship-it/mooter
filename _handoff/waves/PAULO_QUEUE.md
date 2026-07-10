@@ -3,6 +3,16 @@
 > Two-factor: the runner never merges, deploys, or makes machine-state changes.
 > Everything that needs Paulo lands here. Newest wave on top.
 
+## From Wave 2 — W3 · First-Magic onboarding (2026-07-10)
+
+### Draft PR — review + merge
+- [ ] **PR #240** — `wave-w3` → main: First-Magic demo (onboarding "$0 routing" moment, real classifier verdicts) + **`publish-cockpit.yml` fix** (adds `npm ci`) + `.lighthouserc.json`. Additive; classify sha intact; landing 215/215, extension 939/939 (with deps), /install E2E 9/9.
+
+### Residual gate items (runner could not finish locally)
+- [ ] **Lighthouse ≥95** on `/onboarding` + `/install` — **not measurable in the wave worktree** (Next dual-lockfile workspace-root breaks `next start`). Run `npx @lhci/cli autorun` from `landing/` in CI or a single-lockfile clean env (spec in `landing/.lighthouserc.json`); if <95, the demo/route needs perf/a11y work before W3 is truly done.
+- [ ] **Republish the vsix** (`mooter-cockpit`, currently 0.16.62): push a `cockpit-v0.16.63` tag → `publish-cockpit.yml` publishes to VS Code Marketplace + Open VSX. ⚠️ **Merge PR #240's `npm ci` fix to main FIRST** — otherwise the current workflow tests fail on a fresh runner **and** ships a vsix without `@babel/parser` (live-edit broken in the store). The runner did **not** bump the version or push a tag (your publish gate).
+- [ ] Confirm the First-Magic demo **copy + placement** (Step 1 opener vs a pre-wizard hero).
+
 ## From Wave 1 — W-LAND · batch landing (2026-07-10)
 
 Full detail: `_handoff/waves/WLAND_INVENTORY.md`. Inspected the 23 most recent unmerged branches (read-only).

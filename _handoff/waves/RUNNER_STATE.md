@@ -26,8 +26,8 @@
 |---|------|-------------------|-----------|------|----------|------|
 | 0 | **HARMONY CLOSER** | `frugal-fleet-arm` · `feat/fleet-arm` | `c1234f5` | ✅ **PASS** | #232 | done |
 | 1 | **W-LAND (batch landing)** | inspect (read-only, no worktree) | n/a | ✅ **PASS** | #235–#239 | done |
-| 2 | **W3 (First-Magic onboarding)** | `frugal-wave-w3` · `wave-w3` | `da42695` | 🔄 **IN PROGRESS** (W3.1 done) | — (gate pending) | continue W3 |
-| 3 | W-UX (Live Sessions clean) | — | — | ⬜ pending | — | — |
+| 2 | **W3 (First-Magic onboarding)** | `frugal-wave-w3` · `wave-w3` | `ef140b5` | 🅿️ **PR #240** (E2E✅ · LH→CI · vsix→Paulo) | #240 | done (residual→Paulo) |
+| 3 | W-UX (Live Sessions clean) | — | — | ⬜ pending | — | **NEXT** |
 | 4 | W15 (CTO Command Deck F0+1) | — | — | ⬜ pending | — | — |
 | 5 | W6 (Budget/Economics spans) | — | — | ⬜ pending | — | — |
 | 6 | W5 (Moo Loop Sessions) | — | — | ⬜ pending | — | — |
@@ -62,7 +62,7 @@ Read-only inspection of the **23 most recent** unmerged branches (last commit �
 - **Prune list:** 10 SUPERSEDED + 1 STALE branches (see queue); ~85 ancient branches recommended for bulk prune (not inspected). LP branches (`live-edit`, `lp-preview-diagnostics`) left to the cloud trilho.
 - **No conflicts force-resolved** (brief: conflict = report + continue). classify sha intact on every inspected branch. No branch mutated (read-only + FF/new-ref pushes only).
 
-## Wave 2 — W3 · First-Magic onboarding — 🔄 IN PROGRESS (2026-07-10)
+## Wave 2 — W3 · First-Magic onboarding — 🅿️ PR #240 (runner-complete, residual → Paulo) (2026-07-10)
 
 Worktree `frugal-wave-w3` · branch `wave-w3` from `origin/main` (f5a1f04) · sha proven.
 
@@ -70,11 +70,13 @@ Worktree `frugal-wave-w3` · branch `wave-w3` from `origin/main` (f5a1f04) · sh
 
 **W3.1 done (commit `da42695`):** `FirstMagicDemo` client component + pure `first-magic.ts` (data+helpers) + tests, wired as the **opener of onboarding Step 1** with a "get this on my machine" CTA → install step. The 6 example verdicts are **REAL frozen-classifier output** (honest-copy: "$0" only for the local tier). 6 new tests; **full landing suite 215/215 green**; `tsc --noEmit` clean; classify sha intact.
 
-**W3 remaining (gate = install E2E + lighthouse ≥95):**
-- Lighthouse tooling is **absent** in `landing` (scripts are only `build`/`test`) — add a lighthouse-CI script + run onboarding/install routes ≥95.
-- Run the `/install` E2E (`landing/app/lib/install-script.test.ts`) green in-worktree.
-- **vsix republish (CI tag)** — prepare only; **STOP before any publish** (Paulo's explicit gate — confirmed).
-- Then draft PR for `wave-w3` + queue line. No PR yet (gate unmet).
+**W3.2 done (commit `ef140b5`) — gate work + a bug found on the way:**
+- **/install E2E** ✅ `install-script.test.ts` 9/9 green.
+- **vsix publish blocker found + fixed**: `publish-cockpit.yml` had **no `npm ci`** → live-edit tests fail on a fresh runner (need `@babel/parser`) AND the packaged vsix would ship **without its parser** (live-edit broken in the marketplace build). Added `npm ci`; with deps the extension suite is **939/939** green.
+- **Lighthouse**: added `landing/.lighthouserc.json` (gate spec, ≥95 on /onboarding + /install). **Not measurable in-worktree** — Next's dual-lockfile workspace-root inference breaks `next start` locally; CI / clean env must run it.
+- **Draft PR #240** opened (base main). **vsix NOT published** — no `cockpit-v*` tag pushed (Paulo's gate). Worktree `frugal-wave-w3` kept (residual pending).
+
+**Residual → Paulo (in PAULO_QUEUE):** measure/enforce Lighthouse ≥95; republish vsix (push `cockpit-v0.16.63` tag) but **only after the publish-cockpit `npm ci` fix lands on main**, else it ships parser-less.
 
 ## §RESUME
-Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; **Wave 2 (W3) is IN PROGRESS** in worktree `frugal-wave-w3` (branch `wave-w3`, HEAD `da42695`) — W3.1 First-Magic demo done+green. Resume the W3 remaining list above (lighthouse ≥95 tooling, /install E2E, vsix prep — STOP before publish), then draft-PR wave-w3. Verify brakes first."
+Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 PASS; Wave 2 (W3) is runner-complete via **PR #240** (residual — Lighthouse measure + vsix publish — is Paulo's, in the queue). **Start at Wave 3 (W-UX · Live Sessions clean)** — execute `_handoff/COCKPIT_LIVE_SESSIONS_UX_BRIEF.md`; new worktree `wave-ux` from main ATUAL (`git fetch` first) per R5. Verify brakes first."
