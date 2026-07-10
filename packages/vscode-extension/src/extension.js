@@ -1272,8 +1272,11 @@ function probePorts(ports, timeoutMs) {
 // to the webview; never writes user code or routing state. retainContextWhenHidden keeps the
 // stream/scroll position across tab switches.
 class LivePreviewPanel {
-  constructor(panel) {
+  constructor(panel, context) {
     this.panel = panel;
+    // F0.2 — workspaceState memento for the per-node history feed (display-only; never undo bytes).
+    // null in a bare unit harness (no ctor) → the feed stays in-memory, contract unchanged.
+    this._store = (context && context.workspaceState && typeof context.workspaceState.get === 'function') ? context.workspaceState : null;
     this.timer = null;       // fast bus/Brain poll
     this.stageTimer = null;  // slower App Stage re-probe (TCP sweep)
     this.watcher = null;
@@ -1314,7 +1317,7 @@ class LivePreviewPanel {
     this._selection = null;
     this._wire();
   }
-  static createOrReveal() {
+  static createOrReveal(context) {
     if (LivePreviewPanel.current) {
       LivePreviewPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return LivePreviewPanel.current;
@@ -1322,7 +1325,7 @@ class LivePreviewPanel {
     const panel = vscode.window.createWebviewPanel(
       'mooterLivePreview', 'Mooter — Live Preview 🎬', vscode.ViewColumn.Beside,
       { enableScripts: true, retainContextWhenHidden: true });
-    LivePreviewPanel.current = new LivePreviewPanel(panel);
+    LivePreviewPanel.current = new LivePreviewPanel(panel, context); // F0.2 — pass context for the persisted feed
     return LivePreviewPanel.current;
   }
   _wsRoot() {
@@ -1733,7 +1736,7 @@ class LivePreviewPanel {
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code, (edit.kind === 'class' ? 'classe · $0' : 'texto · $0'), raw); // §4 feed item
+      this._pushUndo(real, source, res.code, (edit.kind === 'class' ? 'classe · $0' : 'texto · $0'), raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
       this._postEditResult(true, 'applied');
       // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
       // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
@@ -1756,9 +1759,10 @@ class LivePreviewPanel {
   // always sha-guarded fail-closed. Lazy init: unit harnesses skip the constructor.
   _feedPush(item) {
     try {
+      this._feedEnsureLoaded();
       if (!this._feed) { this._feed = []; this._feedSeq = 0; this._feedRev = 0; }
-      item.id = 'f' + (++this._feedSeq);
       item.ts = Date.now();
+      item.id = 'f' + item.ts + '_' + (++this._feedSeq); // F0.2: cross-session-unique (ts differs per session → no collision with persisted history ids)
       this._feed.push(item);
       if (this._feed.length > 50) this._feed.shift();
       this._feedBump();
@@ -1767,12 +1771,50 @@ class LivePreviewPanel {
   }
   _feedBump() {
     this._feedRev = (this._feedRev || 0) + 1;
+    this._feedPersist();
     this._post(); // the feed rides the snapshot; bumping reposts it immediately
   }
-  // Renderable view — never leaks host paths or splice internals to the webview.
+  // F0.2 — display shape a node uses to show ITS history. nodeKey travels so the webview can filter
+  // "histórico deste nó"; `persisted` marks prior-SESSION items (restored from workspaceState) that
+  // carry NO revert entry — shown read-only as "histórico" (a stale-byte revert across a reopen is
+  // exactly the write we refuse). Live items keep their revert. Never leaks host paths / splice bytes.
+  _feedDisplay(e) { return { id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', reason: e.reason || null, nodeKey: e.nodeKey || null, persisted: !!e.persisted }; }
   _feedView() {
-    const items = (this._feed || []).map((e) => ({ id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', reason: e.reason || null }));
-    return { rev: this._feedRev || 0, items };
+    this._feedEnsureLoaded();
+    const hist = (this._feedHistory || []).map((e) => this._feedDisplay(e));
+    const live = (this._feed || []).map((e) => this._feedDisplay(e));
+    return { rev: this._feedRev || 0, items: hist.concat(live) };
+  }
+  // F0.2 persistence — workspaceState, DISPLAY-ONLY (never the undo bytes). Loaded once per panel so a
+  // reopen restores the per-node record; guarded so a bare Object.create harness (no _store) stays in-memory.
+  _feedEnsureLoaded() {
+    if (this._feedLoaded) return;
+    this._feedLoaded = true;
+    this._feedHistory = [];
+    try {
+      if (this._store && typeof this._store.get === 'function') {
+        const saved = this._store.get('lpFeedHistoryV1', []);
+        if (Array.isArray(saved)) {
+          this._feedHistory = saved.filter((x) => x && typeof x === 'object' && x.id).slice(-100).map((x) => ({
+            id: String(x.id), ts: Number(x.ts) || 0, via: (typeof x.via === 'string') ? x.via : null,
+            files: Array.isArray(x.files) ? x.files.filter((f) => typeof f === 'string') : [],
+            status: (typeof x.status === 'string') ? x.status : 'live', reason: null,
+            nodeKey: (x.nodeKey && typeof x.nodeKey === 'object') ? x.nodeKey : null, persisted: true,
+          }));
+        }
+      }
+    } catch { this._feedHistory = []; }
+  }
+  _feedPersist() {
+    try {
+      if (!this._store || typeof this._store.update !== 'function') return;
+      const toStore = (e) => ({ id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', nodeKey: e.nodeKey || null });
+      const seen = new Set(); const all = [];
+      for (const e of (this._feedHistory || []).concat(this._feed || [])) {
+        if (!e || !e.id || seen.has(e.id)) continue; seen.add(e.id); all.push(toStore(e));
+      }
+      this._store.update('lpFeedHistoryV1', all.slice(-100)); // display-only; NO undo bytes ever leave RAM
+    } catch { /* best-effort — persistence never blocks a write */ }
   }
   _undoDepth() {
     let n = 0;
@@ -1789,12 +1831,15 @@ class LivePreviewPanel {
     return null;
   }
   // §4 — remember the write we just made as a feed item carrying its inverse-splice entry.
-  _pushUndo(real, before, after, via, relFile) {
+  _pushUndo(real, before, after, via, relFile, anchor) {
     try {
       if (!LEU) return;
       const e = LEU.makeEntry(real, before, after);
       if (!e) return;
-      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null });
+      const a = anchor || {};
+      // F0.2 — the node identity this write belongs to, so the feed can be queried per node (and survive a reopen).
+      const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || real, line: Number.isInteger(a.line) ? a.line : null, col: Number.isInteger(a.col) ? a.col : null, tag: (typeof a.tag === 'string') ? a.tag.slice(0, 60) : null };
+      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey });
     } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
   }
   // Inverse byte-splice of ONE feed item. FAIL-CLOSED: the file's CURRENT sha must still match
@@ -1908,7 +1953,7 @@ class LivePreviewPanel {
       }
       // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code, 'apagar · $0', raw); // §4 feed item
+      this._pushUndo(real, source, res.code, 'apagar · $0', raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
   }
@@ -1940,53 +1985,14 @@ class LivePreviewPanel {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
     try {
       const root = this._wsRoot();
-      // D6 — bind this scan to the exact tree state it is about to read (HEAD + working tree). The
-      // publish gate re-checks this at commit/deploy time; any edit since → stale → re-scan required.
-      const fingerprint = this._treeFingerprint();
-      // Skip vendored/build dirs AND test/fixture dirs — a security review audits SHIPPED code, not
-      // the scanners' own test fixtures (whose AKIA…-shaped strings would otherwise flood the panel
-      // with false 'critical' findings, which is exactly what a showcase must not do). Dot-dirs
-      // (.git/.next/.turbo/…) are skipped below by their leading '.'.
-      const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
-      const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
-      const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i; // *.test.tsx / *.spec.js / *.stories.tsx — not shipped product code
-      const ENV_RE = /^\.env(\..*)?$/i;
-      const MAX_FILES = 2000;
-      const MAX_BYTES = 512 * 1024; // skip anything bigger — never read a partial file across a truncation boundary
-      const files = [];
-      let nextConfigAbs = null;
-      const walk = (dir, depth) => {
-        if (depth > 12 || files.length >= MAX_FILES) return;
-        let ents;
-        try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const ent of ents) {
-          if (files.length >= MAX_FILES) return;
-          const name = ent.name;
-          const abs = path.join(dir, name);
-          if (ent.isDirectory()) {
-            if (name.charAt(0) === '.' || SKIP_DIRS.has(name)) continue; // node_modules/.git/.next/dist/… never walked
-            walk(abs, depth + 1);
-            continue;
-          }
-          if (!ent.isFile()) continue;
-          const rel = path.relative(root, abs).split(path.sep).join('/');
-          const isEnv = ENV_RE.test(name);
-          if (name.charAt(0) === '.' && !isEnv) continue; // other dotfiles are out of scope
-          if (TEST_RE.test(name)) continue; // test/spec/story files are not shipped product — skip
-          const isPublic = /(^|\/)public\//i.test(rel);
-          const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
-          const isSrc = SRC_RE.test(name);
-          if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
-          if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
-          try {
-            const st = fs.statSync(abs);
-            if (!st.isFile() || st.size > MAX_BYTES) continue;
-            const content = fs.readFileSync(abs, 'utf8');
-            files.push({ path: rel, content });
-          } catch { /* unreadable → skipped, never blocks the scan */ }
-        }
-      };
-      walk(root, 0);
+      // D6 — read the exact set of shipped-code files this review audits, then bind the scan to their
+      // CONTENT (fingerprint below). The publish gate re-reads the SAME set and refuses if a single byte
+      // changed since — closing the untracked / staged / gitignored TOCTOU a git-diff fingerprint missed
+      // (P0 adversarial review): a secret pasted into an untracked file AFTER a clean scan is now caught.
+      const walked = this._walkScanFiles(root);
+      const files = walked.files;
+      const nextConfigAbs = walked.nextConfigAbs;
+      const fingerprint = this._fingerprintOf(files);
 
       const secrets = LPSS ? LPSS.scanSecrets(files) : [];
       const xss = LPXS ? LPXS.scanXss(files) : [];
@@ -2027,34 +2033,89 @@ class LivePreviewPanel {
   // there in that method — never trusting anything the webview echoes back as truth.
   // ════════════════════════════════════════════════════════════════════════════
 
-  // D6 (P0) — the FAIL-CLOSED publish security gate. Publish (commit + deploy) is BLOCKED unless the
-  // LAST 🛡 scan this session is (1) present, (2) not errored, (3) FRESH — bound to the exact HEAD +
-  // working tree it scanned, so ANY edit/commit since makes it stale and forces a re-scan — and (4)
-  // clear of open Criticals: a secret baked into the change, OR an npm-audit critical/high with possible
-  // PRODUCTION exposure (dev-only advisories never ship, so they don't block a prod deploy — the panel's
-  // own honest bucketing). Default = BLOCKED. There is NO webview override: the earlier `overrideCritical`
-  // message let a forged lp-publish-* wave a Critical through; it is GONE. A Critical is fixed, or a fresh
-  // clean scan clears it. (Codex D6 · P0 no-scan bypass + P1 override/failed-scan/narrow-critical.)
-  _treeFingerprint() {
-    try {
-      const root = this._wsRoot();
-      const g = (args) => require('child_process').execFileSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
-      const head = g(['rev-parse', 'HEAD']);
-      const status = g(['status', '--porcelain']);
-      const diff = g(['diff', '--no-color']);
-      return crypto.createHash('sha256').update(String(head) + '\0' + String(status) + '\0' + String(diff), 'utf8').digest('hex');
-    } catch { return null; } // no git / detached probe failure → null (gate treats a null fingerprint as un-fresh)
+  // The shipped-code file set a 🛡 review audits: source/env/public/next.config under the workspace,
+  // skipping vendored/build/test/fixture dirs and *.test.* files. Read by BOTH _securityScan (to scan)
+  // and _fingerprintOf (to bind the scan to those exact bytes). Never throws; unreadable files are skipped.
+  _walkScanFiles(root) {
+    const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
+    const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
+    const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i;
+    const ENV_RE = /^\.env(\..*)?$/i;
+    const MAX_FILES = 2000;
+    const MAX_BYTES = 512 * 1024;
+    const files = [];
+    let nextConfigAbs = null;
+    const walk = (dir, depth) => {
+      if (depth > 12 || files.length >= MAX_FILES) return;
+      let ents;
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const ent of ents) {
+        if (files.length >= MAX_FILES) return;
+        const name = ent.name;
+        const abs = path.join(dir, name);
+        if (ent.isDirectory()) {
+          if (name.charAt(0) === '.' || SKIP_DIRS.has(name)) continue;
+          walk(abs, depth + 1);
+          continue;
+        }
+        if (!ent.isFile()) continue;
+        const rel = path.relative(root, abs).split(path.sep).join('/');
+        const isEnv = ENV_RE.test(name);
+        if (name.charAt(0) === '.' && !isEnv) continue;
+        if (TEST_RE.test(name)) continue;
+        const isPublic = /(^|\/)public\//i.test(rel);
+        const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
+        const isSrc = SRC_RE.test(name);
+        if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
+        if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
+        try {
+          const st = fs.statSync(abs);
+          if (!st.isFile() || st.size > MAX_BYTES) continue;
+          const content = fs.readFileSync(abs, 'utf8');
+          files.push({ path: rel, content });
+        } catch { /* unreadable → skipped */ }
+      }
+    };
+    try { walk(root, 0); } catch { /* fail-soft */ }
+    return { files, nextConfigAbs };
   }
+  // CONTENT fingerprint of a walked file set: sha256 over sorted `path\0sha256(content)`. Binds a scan
+  // to the exact bytes it read — so an edit to ANY of them (tracked, staged, untracked, or gitignored)
+  // since the scan flips the fingerprint. This is what makes the gate a real freshness signal (the earlier
+  // git-diff version was blind to untracked/staged/ignored content — the P0 review's confirmed TOCTOU).
+  _fingerprintOf(files) {
+    try {
+      const lines = (Array.isArray(files) ? files : []).map((f) => String(f.path) + '\0' + crypto.createHash('sha256').update(String(f.content), 'utf8').digest('hex')).sort();
+      return crypto.createHash('sha256').update(lines.join('\n'), 'utf8').digest('hex');
+    } catch { return null; }
+  }
+  _scanFingerprint() { try { return this._fingerprintOf(this._walkScanFiles(this._wsRoot()).files); } catch { return null; } }
+  // D6 (P0) — the FAIL-CLOSED publish security gate. Publish (commit + deploy) is BLOCKED unless the
+  // LAST 🛡 scan this session is (1) present, (2) not errored, (3) FRESH — bound to the CONTENT of the
+  // exact files it scanned, so ANY byte change since (incl. an untracked/staged/gitignored file edited
+  // after the scan) makes it stale and forces a re-scan — and (4) clear of open Criticals: a secret baked
+  // into the change, OR an npm-audit critical/high that is NOT provably all-dev-only (fail-closed: a
+  // critical whose entries can't be classified blocks). Default = BLOCKED. There is NO webview override:
+  // the earlier `overrideCritical` message let a forged lp-publish-* wave a Critical through; it is GONE.
   _securityGate() {
     const r = this._lastSecurity;
     if (!r || typeof r !== 'object') return { cleared: false, reason: 'security-scan-required' };
     if (r.error) return { cleared: false, reason: 'security-scan-failed' };
-    const now = this._treeFingerprint();
+    const now = this._scanFingerprint();
     if (!r.fingerprint || !now || r.fingerprint !== now) return { cleared: false, reason: 'security-scan-stale' };
     const secrets = Array.isArray(r.secrets) ? r.secrets : [];
     if (secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical')) return { cleared: false, reason: 'critical-open' };
     const a = r.audit;
-    if (a && a.ok && a.counts && ((Number(a.counts.critical) || 0) + (Number(a.counts.high) || 0)) > 0 && (Number(a.prodCount) || 0) > 0) return { cleared: false, reason: 'critical-open' };
+    if (a && a.ok && a.counts) {
+      const c = a.counts;
+      const risk = (Number(c.critical) || 0) + (Number(c.high) || 0);
+      const total = risk + (Number(c.moderate) || 0) + (Number(c.low) || 0) + (Number(c.info) || 0);
+      // Block a critical/high UNLESS every advisory is PROVABLY dev-only (devOnlyCount === total). A
+      // metadata-vs-entries divergence (counts say critical but the entry map is empty/unclassifiable)
+      // → devOnlyCount !== total → BLOCK. Dev deps never ship, so a fully-dev-only set does not block.
+      const allDevOnly = total > 0 && (Number(a.devOnlyCount) || 0) === total;
+      if (risk > 0 && !allDevOnly) return { cleared: false, reason: 'critical-open' };
+    }
     return { cleared: true, reason: null };
   }
 
@@ -2099,14 +2160,15 @@ class LivePreviewPanel {
       const prev = await extra.gitCommitPreview(root);
       const touchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
       const vercel = this._vercelProject(root);
+      const secGate = this._securityGate(); // once — it walks the scanned-file set
       post({
         branch: prev ? prev.branch : null,
         touchedFiles,
         defaultMessage: prev ? prev.message : '',
         vercelLinked: vercel.linked,
         projectName: vercel.linked ? vercel.projectName : null,
-        hasOpenCritical: !this._securityGate().cleared, // D6: "blocked by security" — required/failed/stale/critical
-        securityReason: this._securityGate().reason,     // the honest WHY, so the popover doesn't just say "critical"
+        hasOpenCritical: !secGate.cleared, // D6: "blocked by security" — required/failed/stale/critical
+        securityReason: secGate.reason,    // the honest WHY, so the popover doesn't just say "critical"
         websiteUrl: this._lastDeployUrl || null,
       });
     } catch { post({ error: 'status-failed' }); }
@@ -2361,7 +2423,7 @@ class LivePreviewPanel {
       const vlabel = (m.tier && m.tier !== 'local')
         ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
         : 'cercada · local $0';
-      this._pushUndo(real, s2, res.code, vlabel, raw); // §4 feed item
+      this._pushUndo(real, s2, res.code, vlabel, raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
@@ -2486,7 +2548,8 @@ class LivePreviewPanel {
       // result panel; the feed item reverts the whole task, sha-guarded per file).
       if (edits.length) {
         const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
-        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null });
+        const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || raw, line: Number.isInteger(m.line) ? m.line : null, col: Number.isInteger(m.col) ? m.col : null, tag: (typeof m.tag === 'string') ? m.tag.slice(0, 60) : null };
+        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null, nodeKey });
       }
       // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
       // file now) — the user's own pre-existing uncommitted changes never pollute it.
@@ -2819,6 +2882,17 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-sel .lp-crumb:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   #lp-sel .lp-crumb-sep{opacity:.55;font-size:10.5px}
   #lp-sel .lp-sel-warn{font-size:11px;line-height:1.45;margin-top:7px;padding:6px 8px;border-radius:5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
+  /* F0.2 — per-node history block inside the selection panel */
+  #lp-sel .lp-nh{margin-top:8px;font-size:11px;border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 8px}
+  #lp-sel .lp-nh-hd{font-weight:600;opacity:.85;margin-bottom:4px}
+  #lp-sel .lp-nh-row{display:flex;gap:8px;align-items:center;padding:2px 0;opacity:.9}
+  #lp-sel .lp-nh-t{opacity:.7;font-variant-numeric:tabular-nums}
+  #lp-sel .lp-nh-v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #lp-sel .lp-nh-b{font-size:10px;padding:1px 5px;border-radius:4px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+  #lp-sel .lp-nh-b.lp-nh-hist{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border)}
+  .lpfd-row-hist{opacity:.72}
+  .lpfd-st.lpfd-hist{color:var(--vscode-descriptionForeground)}
+  .lpfd-node{font-family:var(--vscode-editor-font-family,monospace);opacity:.75;font-size:10.5px}
   #lp-sel .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   #lp-sel .lp-ed-row{display:flex;gap:6px;align-items:center}
   #lp-sel .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -3499,7 +3573,7 @@ let lpIntent='edit';
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
-let lpFeedRev=-1, lpBridge=null, lpNoWorkspace=false;
+let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -3803,6 +3877,23 @@ function updateAnchorChip(sel){
     a.title='Sem elemento fixado — clica 🎯 e escolhe um elemento no preview. Sem âncora, nenhum prompt é enviado.';
   }
 }
+// F0.2 — the history of THIS node (clicking a node shows its edits, incl. prior sessions restored from
+// workspaceState). Matches feed items by nodeKey (file+tag+line); a persisted item is read-only history.
+function lpNodeHistoryHTML(sel){
+  try{
+    if(!sel||!sel.file) return '';
+    var all=Array.isArray(lpFeedItems)?lpFeedItems:[];
+    var items=all.filter(function(e){ var nk=e&&e.nodeKey; if(!nk||nk.file!==sel.file) return false; if(sel.tag!=null&&nk.tag!=null&&nk.tag!==sel.tag) return false; if(sel.line!=null&&nk.line!=null&&nk.line!==sel.line) return false; return true; });
+    if(!items.length) return '';
+    function clk(ts){ if(ts==null) return 'n/d'; var d=new Date(ts); return isNaN(d.getTime())?'n/d':d.toLocaleTimeString(undefined,{hour12:false}); }
+    var rows='';
+    for(var i=items.length-1;i>=0;i--){ var e=items[i]||{};
+      var badge=e.persisted?'<span class="lp-nh-b lp-nh-hist">histórico</span>':('<span class="lp-nh-b">'+esc(e.status||'live')+'</span>');
+      rows+='<div class="lp-nh-row"><span class="lp-nh-t">'+esc(clk(e.ts))+'</span><span class="lp-nh-v">'+esc(e.via||'edição')+'</span>'+badge+'</div>';
+    }
+    return '<div class="lp-nh"><div class="lp-nh-hd">🕘 histórico deste nó · '+items.length+'</div>'+rows+'</div>';
+  }catch(_){ return ''; }
+}
 function renderSelection(sel){
   updateAnchorChip(sel); // F3 — keep the persistent anchor chip honest on every (de)selection
   const el=document.getElementById('lp-sel');
@@ -3848,6 +3939,7 @@ function renderSelection(sel){
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
     +warn
+    +lpNodeHistoryHTML(sel)
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
@@ -4525,6 +4617,7 @@ window.addEventListener('message', (ev) => {
     const fd=m.s && m.s.feed;
     if(fd && typeof fd.rev==='number' && fd.rev!==lpFeedRev){
       lpFeedRev=fd.rev;
+      lpFeedItems=Array.isArray(fd.items)?fd.items:[]; // F0.2 — keep the items so renderSelection can show THIS node's history
       const fe=document.getElementById('lp-feed');
       if(fe){
         fe.innerHTML=renderEditsFeed(fd.items);
@@ -4733,7 +4826,7 @@ function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   // Live Preview · MP1 — singleton WebviewPanel, ViewColumn.Beside (reveals if already open).
-  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => LivePreviewPanel.createOrReveal()));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => LivePreviewPanel.createOrReveal(ctx)));
   data.start();
 }
 function deactivate() {}

@@ -454,3 +454,24 @@ test('F2/P1-7: an lp-hmr-down that is NOT from the origin-locked frame is ignore
   h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-hmr-down' }, source: { name: 'evil' }, origin: 'http://localhost:7819' }));
   assert.notStrictEqual(h.env.doc.getElementById('lp-hmr').style.display, 'block', 'a non-frame sender cannot fake the stale banner');
 });
+
+// ── F0.2: clicking a node shows ITS history (per-node feed by nodeKey; prior-session items labelled) ──
+function pushFeed(h, items) {
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:7819/' }, leBridge: { available: false }, feed: { rev: 99, items: items } } }, source: h.win, origin: null }));
+}
+test('F0.2: selecting a node shows ITS history; a prior-session item is read-only "histórico"', () => {
+  const h = bootWebview(false);
+  pushFeed(h, [
+    { id: 'h1', ts: 1000, via: 'texto · $0', files: ['landing/app/page.tsx'], status: 'live', nodeKey: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, persisted: true },
+    { id: 'f1', ts: 2000, via: 'classe · $0', files: ['landing/app/page.tsx'], status: 'live', nodeKey: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, persisted: false },
+    { id: 'x1', ts: 3000, via: 'texto · $0', files: ['landing/app/other.tsx'], status: 'live', nodeKey: { file: 'landing/app/other.tsx', line: 9, col: 1, tag: 'p' }, persisted: false },
+  ]);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1', path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/app/page.tsx', tag: 'h1', label: 'h1' } ] });
+  const html = (h.env.doc.getElementById('lp-sel') || {}).innerHTML || '';
+  assert.ok(/histórico deste nó · 2/.test(html), 'the h1 node shows its 2 edits (not the other node): ' + html.slice(0, 200));
+  assert.ok(html.indexOf('histórico') !== -1, 'the prior-session item is labelled histórico (read-only)');
+  // A DIFFERENT node shows only its own single history item.
+  fireSelectWith(h, { file: 'landing/app/other.tsx', line: 9, col: 1, tag: 'p', path: [ { file: 'landing/app/other.tsx', tag: 'div', label: 'div' }, { file: 'landing/app/other.tsx', tag: 'p', label: 'p' } ] });
+  const html2 = (h.env.doc.getElementById('lp-sel') || {}).innerHTML || '';
+  assert.ok(/histórico deste nó · 1/.test(html2), 'the other node has its OWN single-item history (nodeKey isolation)');
+});

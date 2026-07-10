@@ -54,7 +54,7 @@ const CLEAN_SCAN = { secrets: [], xss: [], csp: { hasCsp: true, findings: [] }, 
 function applyScan(fakeThis, lastSecurity, fpNow) {
   fakeThis._lastSecurity = lastSecurity === undefined ? CLEAN_SCAN : lastSecurity;
   const now = fpNow !== undefined ? fpNow : ((fakeThis._lastSecurity && fakeThis._lastSecurity.fingerprint) || null);
-  fakeThis._treeFingerprint = () => now; // the gate recomputes this and compares to the scan's fingerprint
+  fakeThis._scanFingerprint = () => now; // the gate recomputes this (content hash of the scanned files) and compares to the scan's
 }
 
 function deployWith(root, typedName, spawnSpy) {
@@ -184,9 +184,23 @@ test('D6 deploy gate: a DEV-ONLY audit critical does NOT block a prod deploy (ho
   try {
     const r = deployRaw(root, { projectName: 'showcase-proj' },
       (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'Production: https://showcase-proj.vercel.app\n', stderr: '' }; },
-      { secrets: [], audit: { ok: true, counts: { critical: 2, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0 }, fingerprint: 'FP' });
-    assert.strictEqual(calls.length, 1, 'dev-only criticals (prodCount 0) do not block a prod deploy');
+      // provably all-dev-only: devOnlyCount === total (the only way a critical clears — fail-closed otherwise)
+      { secrets: [], audit: { ok: true, counts: { critical: 2, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0, devOnlyCount: 2 }, fingerprint: 'FP' });
+    assert.strictEqual(calls.length, 1, 'provably dev-only criticals do not block a prod deploy');
     assert.strictEqual(r.ok, true);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 (P1) deploy gate: an audit critical whose entries are UNCLASSIFIABLE (devOnlyCount != total) fails closed', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    // npm metadata reports a critical, but the per-entry map is empty/unclassifiable → cannot PROVE dev-only → block.
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'x', stderr: '' }; },
+      { secrets: [], audit: { ok: true, counts: { critical: 1, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0, devOnlyCount: 0 }, fingerprint: 'FP' });
+    assert.strictEqual(r.reason, 'critical-open', 'an unprovable dev-only critical is fail-closed, not cleared');
+    assert.strictEqual(calls.length, 0);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
