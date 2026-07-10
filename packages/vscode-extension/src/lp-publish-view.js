@@ -78,10 +78,23 @@ function renderPublishPopover(state, esc) {
       + '<div class="lp-pub-files">' + fileRows + more + '</div>'
     : '<div class="lp-pub-meta">nada por commitar.</div>';
 
+  // D6 — the publish gate is fail-closed for MORE than an open Critical: a missing / failed / stale scan
+  // also blocks. Say WHICH so the disabled button is never a silent or lying dead control.
+  function secReasonText(reason) {
+    switch (reason) {
+      case 'security-scan-required': return 'corre o 🛡 Review Security primeiro — o publish exige um scan válido desta versão.';
+      case 'security-scan-failed': return 'o último 🛡 scan de segurança falhou — corre-o de novo antes de publicar.';
+      case 'security-scan-stale': return 'o código mudou desde o último 🛡 scan — corre-o de novo (o scan tem de ser desta versão).';
+      case 'critical-open': return 'resolve o Critical no 🛡 Review Security primeiro.';
+      default: return 'publish bloqueado pela verificação de segurança — corre o 🛡 Review Security.';
+    }
+  }
+  var secText = secReasonText(state.securityReason);
+
   var msgVal = e(String(state.defaultMessage || ''));
   var commitDisabled = (!files.length || hasCritical) ? ' disabled' : '';
   var criticalNote = hasCritical
-    ? '<div class="lp-pub-warn">⚠ resolve o Critical no 🛡 Review Security primeiro.</div>'
+    ? '<div class="lp-pub-warn">⚠ ' + e(secText) + '</div>'
     : '';
   var commitBlock = '<textarea id="lp-pub-msg" class="lp-pub-msg" rows="2" aria-label="Mensagem de commit">' + msgVal + '</textarea>'
     + '<button type="button" id="lp-pub-commit-btn" class="lp-sel-btn"' + commitDisabled + '>Atualizar (commit + push)</button>';
@@ -90,7 +103,7 @@ function renderPublishPopover(state, esc) {
   if (!vercelLinked) {
     deployBlock = '<div class="lp-pub-meta">este workspace não está ligado a um projeto Vercel (landing/.vercel/project.json ausente).</div>';
   } else if (hasCritical) {
-    deployBlock = '<div class="lp-pub-warn">⚠ deploy bloqueado — resolve o Critical no 🛡 Review Security primeiro.</div>';
+    deployBlock = '<div class="lp-pub-warn">⚠ deploy bloqueado — ' + e(secText) + '</div>';
   } else {
     deployBlock = '<button type="button" id="lp-pub-deploy-open" class="lp-sel-btn lp-pub-danger">Publicar (deploy Vercel — IRREVERSÍVEL)</button>'
       + '<div id="lp-pub-gate" class="lp-pub-gate" style="display:none" role="group" aria-label="Confirmar deploy">'
@@ -101,17 +114,21 @@ function renderPublishPopover(state, esc) {
       + '</div>';
   }
 
+  // D6 — a security-gate refusal returns a slug (security-scan-required/-failed/-stale, critical-open);
+  // render the honest sentence instead of the raw slug so a blocked publish explains itself.
+  var SEC_REASONS = { 'security-scan-required': 1, 'security-scan-failed': 1, 'security-scan-stale': 1, 'critical-open': 1 };
+  function reasonText(reason) { return SEC_REASONS[reason] ? secReasonText(reason) : String(reason || 'falhou'); }
   var lastResult = '';
   var lr = (state.lastResult && typeof state.lastResult === 'object') ? state.lastResult : null;
   if (lr) {
     if (lr.action === 'commit') {
       lastResult = lr.ok
         ? '<div class="lp-pub-ok">✓ commit + push' + (lr.cmd ? ' — ' + e(String(lr.cmd)) : '') + '</div>'
-        : '<div class="lp-pub-err">✕ ' + e(String(lr.reason || 'falhou')) + (lr.out ? ' — ' + e(String(lr.out).slice(0, 200)) : '') + '</div>';
+        : '<div class="lp-pub-err">✕ ' + e(reasonText(lr.reason)) + (lr.out ? ' — ' + e(String(lr.out).slice(0, 200)) : '') + '</div>';
     } else if (lr.action === 'deploy') {
       lastResult = lr.ok
         ? '<div class="lp-pub-ok">✓ deploy' + (lr.url ? ' — ' + e(String(lr.url)) : ' (sem URL — ver output)') + '</div>'
-        : '<div class="lp-pub-err">✕ deploy: ' + e(String(lr.reason || 'falhou')) + (lr.out ? ' — ' + e(String(lr.out).slice(0, 200)) : '') + '</div>';
+        : '<div class="lp-pub-err">✕ deploy: ' + e(reasonText(lr.reason)) + (lr.out ? ' — ' + e(String(lr.out).slice(0, 200)) : '') + '</div>';
     }
   }
 

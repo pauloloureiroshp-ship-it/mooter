@@ -51,11 +51,27 @@ test('renderPublishPopover: no touched files → honest empty state, commit butt
 
 test('renderPublishPopover: an open Critical disables BOTH commit and deploy, with the exact reason shown', () => {
   const html = renderPublishPopover({
-    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true,
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true, securityReason: 'critical-open',
   });
   assert.ok(/lp-pub-commit-btn[^>]*disabled/.test(html), 'commit disabled while a Critical is open');
   assert.ok(html.includes('resolve o Critical no 🛡 Review Security primeiro'), 'the exact reason is stated, twice (commit + deploy sections)');
   assert.ok(!html.includes('lp-pub-deploy-open'), 'deploy button itself is not rendered while a Critical is open');
+});
+
+test('D6: publish blocked for NO scan states the honest reason (not a lying "resolve the Critical")', () => {
+  const html = renderPublishPopover({
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true, securityReason: 'security-scan-required',
+  });
+  assert.ok(/lp-pub-commit-btn[^>]*disabled/.test(html), 'commit disabled until a valid scan exists');
+  assert.ok(html.includes('corre o 🛡 Review Security primeiro'), 'says a scan is REQUIRED — not "resolve the Critical" when there is no scan yet');
+  assert.ok(!html.includes('resolve o Critical'), 'no false claim of an open Critical when the real reason is a missing scan');
+});
+
+test('D6: publish blocked for a STALE scan states the code changed since the scan', () => {
+  const html = renderPublishPopover({
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true, securityReason: 'security-scan-stale',
+  });
+  assert.ok(html.includes('mudou desde o último 🛡 scan'), 'honest: the scan is stale, re-run it');
 });
 
 test('renderPublishPopover: not linked to Vercel → no deploy control at all, states why', () => {

@@ -51,11 +51,12 @@ function runScan(root) {
   const Panel = loadPanelClass();
   assert.ok(Panel, 'LivePreviewPanel class loaded');
   let posted = null;
-  const fakeThis = {
-    token: 'HTOK',
-    _wsRoot: () => root,
-    panel: { webview: { postMessage: (mIn) => { posted = mIn; } } },
-  };
+  // Object.create so prototype methods (_treeFingerprint, called by _securityScan to bind the scan to
+  // the tree state) resolve; only the three collaborators are overridden on the instance.
+  const fakeThis = Object.create(Panel.prototype);
+  fakeThis.token = 'HTOK';
+  fakeThis._wsRoot = () => root;
+  fakeThis.panel = { webview: { postMessage: (mIn) => { posted = mIn; } } };
   Panel.prototype._securityScan.call(fakeThis);
   return posted;
 }

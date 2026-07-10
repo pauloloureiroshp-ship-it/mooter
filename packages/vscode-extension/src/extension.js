@@ -1940,6 +1940,9 @@ class LivePreviewPanel {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
     try {
       const root = this._wsRoot();
+      // D6 — bind this scan to the exact tree state it is about to read (HEAD + working tree). The
+      // publish gate re-checks this at commit/deploy time; any edit since → stale → re-scan required.
+      const fingerprint = this._treeFingerprint();
       // Skip vendored/build dirs AND test/fixture dirs — a security review audits SHIPPED code, not
       // the scanners' own test fixtures (whose AKIA…-shaped strings would otherwise flood the panel
       // with false 'critical' findings, which is exactly what a showcase must not do). Dot-dirs
@@ -2011,7 +2014,7 @@ class LivePreviewPanel {
       // LP-6 §B — stash the verdict for _publishStatus's hasOpenCritical check. Overwritten by
       // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
       // scan the user just ran and saw fail.
-      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length };
+      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length, fingerprint };
       post({ secrets, xss, csp, audit, scannedFiles: files.length });
     } catch { this._lastSecurity = { error: 'scan-failed' }; post({ error: 'scan-failed' }); }
   }
@@ -2024,17 +2027,35 @@ class LivePreviewPanel {
   // there in that method — never trusting anything the webview echoes back as truth.
   // ════════════════════════════════════════════════════════════════════════════
 
-  // hasOpenCritical — PURE-ish read of this._lastSecurity (the verdict of the LAST 🛡 scan this
-  // session ran). Only `secrets` findings count (per brief: an npm-audit "critical" is a supply-
-  // chain risk, not a secret leak baked into the commit — deliberately narrower than the review
-  // panel's own bucketing). No scan yet, or the last scan errored → false (unknown ≠ blocked);
-  // flagged in the handoff for Paulo's review — an errored scan could arguably be conservative
-  // instead and block by default.
-  _hasOpenCriticalSecurity() {
+  // D6 (P0) — the FAIL-CLOSED publish security gate. Publish (commit + deploy) is BLOCKED unless the
+  // LAST 🛡 scan this session is (1) present, (2) not errored, (3) FRESH — bound to the exact HEAD +
+  // working tree it scanned, so ANY edit/commit since makes it stale and forces a re-scan — and (4)
+  // clear of open Criticals: a secret baked into the change, OR an npm-audit critical/high with possible
+  // PRODUCTION exposure (dev-only advisories never ship, so they don't block a prod deploy — the panel's
+  // own honest bucketing). Default = BLOCKED. There is NO webview override: the earlier `overrideCritical`
+  // message let a forged lp-publish-* wave a Critical through; it is GONE. A Critical is fixed, or a fresh
+  // clean scan clears it. (Codex D6 · P0 no-scan bypass + P1 override/failed-scan/narrow-critical.)
+  _treeFingerprint() {
+    try {
+      const root = this._wsRoot();
+      const g = (args) => require('child_process').execFileSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+      const head = g(['rev-parse', 'HEAD']);
+      const status = g(['status', '--porcelain']);
+      const diff = g(['diff', '--no-color']);
+      return crypto.createHash('sha256').update(String(head) + '\0' + String(status) + '\0' + String(diff), 'utf8').digest('hex');
+    } catch { return null; } // no git / detached probe failure → null (gate treats a null fingerprint as un-fresh)
+  }
+  _securityGate() {
     const r = this._lastSecurity;
-    if (!r || typeof r !== 'object' || r.error) return false;
+    if (!r || typeof r !== 'object') return { cleared: false, reason: 'security-scan-required' };
+    if (r.error) return { cleared: false, reason: 'security-scan-failed' };
+    const now = this._treeFingerprint();
+    if (!r.fingerprint || !now || r.fingerprint !== now) return { cleared: false, reason: 'security-scan-stale' };
     const secrets = Array.isArray(r.secrets) ? r.secrets : [];
-    return secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical');
+    if (secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical')) return { cleared: false, reason: 'critical-open' };
+    const a = r.audit;
+    if (a && a.ok && a.counts && ((Number(a.counts.critical) || 0) + (Number(a.counts.high) || 0)) > 0 && (Number(a.prodCount) || 0) > 0) return { cleared: false, reason: 'critical-open' };
+    return { cleared: true, reason: null };
   }
 
   // _vercelProject(root) — the SINGLE resolver for "is this workspace linked, and to what
@@ -2084,7 +2105,8 @@ class LivePreviewPanel {
         defaultMessage: prev ? prev.message : '',
         vercelLinked: vercel.linked,
         projectName: vercel.linked ? vercel.projectName : null,
-        hasOpenCritical: this._hasOpenCriticalSecurity(),
+        hasOpenCritical: !this._securityGate().cleared, // D6: "blocked by security" — required/failed/stale/critical
+        securityReason: this._securityGate().reason,     // the honest WHY, so the popover doesn't just say "critical"
         websiteUrl: this._lastDeployUrl || null,
       });
     } catch { post({ error: 'status-failed' }); }
@@ -2105,11 +2127,10 @@ class LivePreviewPanel {
       const reqFiles = Array.isArray(m && m.files) ? m.files.filter((f) => typeof f === 'string' && f) : [];
       const message = (m && typeof m.message === 'string') ? m.message.trim().slice(0, 500) : '';
       if (!reqFiles.length || !message) { post({ ok: false, reason: 'bad-request', cmd: '' }); return; }
-      // FIX-REVIEW MED — fail-closed, BEFORE any staging: an OPEN Critical secret finding blocks the
-      // commit+push at the HOST. The webview button-disable is advisory only; a forged/buggy
-      // lp-publish-commit must not let a scanned secret reach the remote. Escape hatch = explicit
-      // override (the brief's "override explícito com aviso vermelho"), never a silent default.
-      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open', cmd: '' }); return; }
+      // D6 (P0) — fail-closed, BEFORE any staging: the selective commit+push is gated on a valid, FRESH,
+      // Critical-free security scan (no scan / errored / stale / open Critical all block). No override —
+      // a forged lp-publish-commit can no longer wave a scanned secret to the remote.
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
       const prev = await extra.gitCommitPreview(root);
       const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
       const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
@@ -2146,11 +2167,10 @@ class LivePreviewPanel {
       // ── THE GATE ── deploy is unreachable without this exact match. Nothing above this line
       // spawns a process; nothing below runs unless it passes.
       if (!typed || typed !== info.projectName) { post({ ok: false, reason: 'name-mismatch' }); return; }
-      // FIX-REVIEW MED — fail-closed secondary gate on the IRREVERSIBLE step: an OPEN Critical
-      // security finding blocks the deploy at the HOST too (the webview button-disable is advisory
-      // and bypassable by a forged message). Escape hatch = explicit override (brief's red-warning
-      // path), never silent. The two-factor name gate above remains the primary, non-overridable gate.
-      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open' }); return; }
+      // D6 (P0) — fail-closed secondary gate on the IRREVERSIBLE step: a valid, FRESH, Critical-free scan
+      // is REQUIRED before `vercel --prod` can spawn (no scan / errored / stale / open Critical all block).
+      // The two-factor name gate above stays the primary gate; this one is no longer overridable from the webview.
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason }); return; } }
       let cp;
       try {
         cp = require('child_process').spawnSync('vercel', ['--prod', '--yes'],

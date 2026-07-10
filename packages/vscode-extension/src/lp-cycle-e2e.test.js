@@ -95,6 +95,27 @@ test('F1: apply → git shows exactly +1/-1; revert → git CLEAN (the $0 cycle 
   } finally { if (root) fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('D6: _treeFingerprint binds to HEAD + working tree — stable, shifts on edit, restores on revert; null off-git', () => {
+  let root, file;
+  try { ({ root, file } = setupRepo()); }
+  catch (e) { console.log('git unavailable — skipping: ' + e.message); return; }
+  try {
+    const { inst } = mkInstance(root);
+    const fp1 = inst._treeFingerprint();
+    assert.ok(fp1 && typeof fp1 === 'string', 'a fingerprint is computed on a real git repo');
+    assert.strictEqual(inst._treeFingerprint(), fp1, 'stable while nothing changes (a scan stays fresh)');
+    fs.writeFileSync(file, SRC.replace('Old headline', 'New headline'), 'utf8');
+    const fp2 = inst._treeFingerprint();
+    assert.notStrictEqual(fp2, fp1, 'an uncommitted edit shifts the fingerprint → the prior scan is now STALE');
+    fs.writeFileSync(file, SRC, 'utf8');
+    assert.strictEqual(inst._treeFingerprint(), fp1, 'reverting the edit restores the exact fingerprint');
+    // Off a git repo, the fingerprint is null → the gate treats it as un-fresh (fail-closed).
+    const nogit = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lp-nogit-')));
+    try { const { inst: inst2 } = mkInstance(nogit); assert.strictEqual(inst2._treeFingerprint(), null, 'no git → null fingerprint (publish stays fail-closed)'); }
+    finally { fs.rmSync(nogit, { recursive: true, force: true }); }
+  } finally { if (root) fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('F1: a fenced model reply cycle (promptApply → undo) also closes to a clean tree', async () => {
   let root, file;
   try { ({ root, file } = setupRepo()); }
