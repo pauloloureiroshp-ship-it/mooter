@@ -16,8 +16,8 @@
 | # | Wave | Worktree / branch | Final sha | Gate | Draft PR | Next |
 |---|------|-------------------|-----------|------|----------|------|
 | 0 | **HARMONY CLOSER** | `frugal-fleet-arm` · `feat/fleet-arm` | `c1234f5` | ✅ **PASS** | #232 | done |
-| 1 | W-LAND (batch landing) | — | — | ⬜ pending | — | **NEXT** |
-| 2 | W3 (First-Magic onboarding) | — | — | ⬜ pending | — | — |
+| 1 | **W-LAND (batch landing)** | inspect (read-only, no worktree) | n/a | ✅ **PASS** | #235–#239 | done |
+| 2 | W3 (First-Magic onboarding) | — | — | ⬜ pending | — | **NEXT** |
 | 3 | W-UX (Live Sessions clean) | — | — | ⬜ pending | — | — |
 | 4 | W15 (CTO Command Deck F0+1) | — | — | ⬜ pending | — | — |
 | 5 | W6 (Budget/Economics spans) | — | — | ⬜ pending | — | — |
@@ -43,5 +43,15 @@ Executed `_handoff/FLEET_HARMONY_CLOSER.md` F1→F4 in the existing `feat/fleet-
 
 ---
 
+## Wave 1 — W-LAND · batch landing — ✅ PASS (2026-07-10)
+
+Read-only inspection of the **23 most recent** unmerged branches (last commit ≥ 2026-06-22, no open PR); one independent agent per branch via a workflow (git ref-only, no checkout — the live fleet runs from this worktree). Full detail: `_handoff/waves/WLAND_INVENTORY.md`.
+
+- **Verdicts:** LANDABLE 10 · SUPERSEDED 10 · LP_CLOUD_MANAGED 2 · STALE 1.
+- **Draft PRs opened (5):** #235 `feat/pm-adapters` · #236 `feat/lp-cockpit-layout` · #237 `wave/directors-cut-v2` (⚠️ SYNC.md+extension.js conflicts) · #238 `feat/moo-dispatch` (⚠️ extension.js conflicts) · #239 `feat/wire-adaptive-learner-decide-agent` (was local-only → pushed). All base `main`, draft.
+- **Not auto-PR'd (queued):** `feat/site-v2` (no local ref → agent verdict unreliable, manual re-inspect); the **June-23 cluster** (WN1/WFV/W3/cockpit-w1 — local-only, ~295 behind, overlapping → consolidate one, not 4 PRs).
+- **Prune list:** 10 SUPERSEDED + 1 STALE branches (see queue); ~85 ancient branches recommended for bulk prune (not inspected). LP branches (`live-edit`, `lp-preview-diagnostics`) left to the cloud trilho.
+- **No conflicts force-resolved** (brief: conflict = report + continue). classify sha intact on every inspected branch. No branch mutated (read-only + FF/new-ref pushes only).
+
 ## §RESUME
-Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Wave 0 is PASS (PR #232) — **start at Wave 1 (W-LAND)** per the queue table. Verify brakes first (STOP · quota-live · heartbeat). New worktree from **main ATUAL** (`git fetch` first) per R5."
+Fresh session: "Continua `_handoff/WAVE_RUNNER_MASTERPROMPT.md`. Waves 0–1 are PASS — **start at Wave 2 (W3 · First-Magic onboarding)** per the queue table. Verify brakes first (STOP · quota-live · heartbeat). New worktree `wave-w3` from **main ATUAL** (`git fetch` first) per R5; gate: install E2E + lighthouse ≥95."
