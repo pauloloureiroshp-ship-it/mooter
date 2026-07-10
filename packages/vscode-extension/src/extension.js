@@ -648,6 +648,7 @@ class CockpitProvider {
       if (m.cmd === 'rate') {
         const r = await extra.rateSpan(m.arg && m.arg.id, m.arg && m.arg.n);
         vscode.window.setStatusBarMessage(r.ok ? '🐮 feedback saved — the Pastor learns' : '🐮 could not save feedback', 3500);
+        this.data.refresh(true);
       }
       if (m.cmd === 'intent') {
         const res = await extra.intentResolve(m.arg);
@@ -4838,7 +4839,7 @@ function getHtml(guardianPct = null) {
   .ghtip{color:var(--acc-warm);font-weight:600}
   .hero .lbl{color:var(--bmuted)}.hero .sub{color:var(--bmuted)}.hero .sub b{color:var(--btext)}
   .term{background:var(--ttybg)!important;border-top:14px solid var(--ttyhd)}
-  .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px}.stars span:hover,.stars span.on{opacity:1}
+  .stars{display:inline-flex;gap:2px;margin-left:8px}.stars span{cursor:pointer;opacity:.4;font-size:12px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center}.stars span:hover,.stars span.on{opacity:1}
   .intentwrap{display:flex;gap:6px;margin:0 0 10px}
   .intentwrap input{flex:1;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 10px;font:12px var(--vscode-font-family)}
   .intentres{font-size:11px;color:var(--vscode-descriptionForeground);margin:-4px 0 8px;display:none}
@@ -4909,9 +4910,10 @@ function getHtml(guardianPct = null) {
   .mx{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px}.mx th,.mx td{padding:3px 5px;text-align:right;border-bottom:1px solid var(--vscode-widget-border)}.mx th:first-child,.mx td:first-child{text-align:left;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mx th{color:var(--vscode-descriptionForeground);font-weight:600}.mx td.sv{color:var(--g)}
   .kv{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0}.kv span:first-child{color:var(--vscode-descriptionForeground)}
   /* B1 — optimistic perceived-speed: o controlo salta JÁ; "a aplicar…" pulsa no painel até o snapshot reconciliar */
-  .applytag{font-size:9px;color:var(--acc-warm);margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
+  .applytag{font-size:9px;color:var(--vscode-descriptionForeground);margin-left:6px;opacity:.9;white-space:nowrap;animation:applypulse 1s ease-in-out infinite}
   @keyframes applypulse{0%,100%{opacity:.4}50%{opacity:1}}
-  .applying{outline:1px solid rgba(229,192,123,.45);outline-offset:1px}
+  .applying{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
+  #modeBadge,#budSet,#v-models button[data-eff],.sseg .smode,.smodsel,button.sauto,button.sloop{min-height:24px}
   @media (prefers-reduced-motion:reduce){.applytag{animation:none}}
   /* B4 — vista viva do moo local por sessão (estado do acumulador, read-only) */
   .smoo{margin-top:6px;padding:6px 7px;border:1px dashed var(--vscode-widget-border);border-radius:6px;background:var(--vscode-editorWidget-background)}
@@ -5618,12 +5620,13 @@ function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelec
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
 // B1 — optimistic perceived-speed: depois de aplicar o novo estado JÁ no DOM (.on salta no clique),
 // mostra "⟳ a aplicar…" no PAINEL junto ao controlo até o próximo snapshot reconciliar (o re-render
-// reconstrói #v-cockpit e limpa a tag). Safety timeout caso um refresh demore/falhe. Nunca lança.
+// reconstrói o painel e limpa a tag). Safety timeout cobre os applies CLI de até 8s. Nunca lança.
 function flashApply(el){try{if(!el)return;el.classList.add('applying');
   var host=(el.closest&&(el.closest('.sdrawer')||el.closest('.srow')||el.closest('.card')||el.closest('.brand')))||el.parentNode;
   if(host&&!host.querySelector('.applytag')){var t=document.createElement('span');t.className='applytag';t.textContent='⟳ a aplicar…';host.appendChild(t);
-    setTimeout(function(){try{t.remove();}catch(_){}try{el.classList.remove('applying');}catch(_){}} ,2500);}
+    setTimeout(function(){try{t.remove();}catch(_){}try{el.classList.remove('applying');}catch(_){}} ,10000);}
 }catch(_){}}
+function clearApply(){try{document.querySelectorAll('.applytag').forEach(function(x){try{x.remove();}catch(_){}});document.querySelectorAll('.applying').forEach(function(x){try{x.classList.remove('applying');}catch(_){}});}catch(_){}}
 function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
   const a=b.dataset.a;
   if(a.startsWith('term:'))send('term',a.slice(5));
@@ -5984,7 +5987,7 @@ window.addEventListener('message',(e)=>{
       document.getElementById('intentRun').onclick=()=>send('term',r.cmd);}
     else {inR.innerHTML='🐮 not a known command — <button class="sm" id="intentTerm">open Terminal</button> to run it manually';var _it=document.getElementById('intentTerm');if(_it)_it.onclick=function(){goTab('doctor');};}
     return;}
-  if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;
+  if(e.data.type!=='snapshot')return;const s=e.data.s;lastSnap=s;clearApply();
   // B2 — stable scroll: the periodic snapshot re-renders every view's innerHTML, which
   // resets the document scroll and makes the panel jump/flicker. Capture the active scroll
   // now and restore it after all views are rebuilt (only the visible view has height, so a
@@ -6181,21 +6184,23 @@ window.addEventListener('message',(e)=>{
 
   // ── SETUP: HW/SW/Subs + budget editor (req 3,8)
   const dev=s.device||{};const hwd=dev.hardware||{};const sw=dev.software||{};const subs=dev.subscriptions||{};const hw=s.hw||{};
-  const bud=(s.budget&&s.budget.monthly_budget_usd)||0;
+  const budgetValue=s.budget&&s.budget.monthly_budget_usd;
+  const hasBudget=budgetValue!=null&&Number.isFinite(Number(budgetValue));
+  const bud=hasBudget?Number(budgetValue):'';
   const kv=(k,v)=>'<div class="kv"><span>'+esc(k)+'</span><span>'+(v==null||v===''?'<i style="color:var(--r)">missing</i>':esc(v))+'</span></div>';
   $('#v-setup').innerHTML=
     '<div class="card"><div class="lbl">🎮 Hardware</div>'+kv('GPU',hw.name||hwd.gpu||null)+kv('VRAM',hw.vram_mb?(hw.vram_mb/1024).toFixed(0)+' GB':null)+kv('Tier',hw.hw_tier||hwd.hw_tier)+kv('RAM',hwd.ram_gb?hwd.ram_gb+' GB':null)+kv('CPU cores',hwd.cpu_cores)+kv('Platform',(hwd.platform||'')+(hwd.arch?'/'+hwd.arch:''))+
       (!s.device?'<div class="sub" style="margin-top:6px">profile not captured yet</div><button class="sm" data-a="term:node ~/.claude/tools/router/setup-profile.js --non-interactive" style="margin-top:4px">Detect now</button>':'')+'</div>'+
     '<div class="card"><div class="lbl">💾 Software</div>'+kv('Node',sw.node_version)+kv('Claude Code',sw.claude_code_version)+kv('VS Code',sw.vscode_installed?'yes':'detected (you are here 🐮)')+kv('Ollama',(s.ollama||[]).length?'running · '+(s.ollama.length)+' models':(sw.ollama_installed?'installed (stopped)':'offline'))+'</div>'+
     '<div class="card"><div class="lbl">🔑 Subscriptions</div>'+kv('Anthropic',subs.anthropic||(s.sub&&s.sub.profile))+kv('OpenAI',subs.openai)+kv('Gemini',subs.gemini)+kv('Ollama',subs.ollama)+'<div class="sub" style="margin-top:5px">keys & tiers drive T1-T3 budgets</div></div>'+
-    '<div class="card"><div class="lbl">💰 Monthly budget — the Moo calibrates around this</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10"><button class="sm" id="budSet">Set</button><span class="sub">'+(bud?'cap active in applyBudgetCap()':'not set — routing uncapped')+'</span></div></div>'+
+    '<div class="card"><div class="lbl">💰 Orçamento mensal — guardado localmente</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px">$ <input type="number" id="budIn" value="'+bud+'" min="0" step="10" placeholder="n/d" aria-label="Orçamento mensal em dólares"><button class="sm" id="budSet" title="Guarda este limite mensal na configuração local do Mooter">Aplicar</button><span class="sub">'+(hasBudget?'limite guardado: $'+bud+'/mês':'sem limite guardado · n/d')+'</span></div></div>'+
     // ── GUARDIAN:F0 ── context guardrail card — write CLAUDE_AUTOCOMPACT_PCT_OVERRIDE so CC auto-compacts BEFORE the ~83% delirium line.
     '<div class="card"><div class="lbl">🛡️ Context guardrail — auto-compact antecipado</div>'+
       '<div class="sub" style="margin-top:6px">Estado actual: <b>'+(GUARDIAN_AUTOCOMPACT_PCT!=null?('auto-compact aos '+GUARDIAN_AUTOCOMPACT_PCT+'%'):'default do Claude Code (~83%)')+'</b></div>'+
       '<div style="display:flex;gap:6px;margin-top:8px">'+[70,75,80].map(p=>'<button class="sm'+(GUARDIAN_AUTOCOMPACT_PCT===p?'" style="border-color:var(--g);color:var(--g)':'')+'" data-a="setAutoCompact" data-x="'+p+'">'+p+'%</button>').join('')+'</div>'+
       '<div class="sub" style="margin-top:7px">Baixa o limiar do auto-compact do Claude Code para a sessão compactar <b>antes</b> da zona de delírio. Só baixa (nunca sobe). Aplica-se a <b>sessões NOVAS</b> — reabre o VS Code.</div></div>';
     // ── /GUARDIAN:F0 ──
-  const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>send('budget',bi.value);
+  const bi=$('#budIn');const bs=$('#budSet');if(bs)bs.onclick=()=>{bs.classList.add('on');flashApply(bs);send('budget',bi.value);};
   wireButtons($('#v-setup'));
 
   // ── INSTALL: recomendados p/ hardware + packs (req 4)
@@ -6329,10 +6334,10 @@ window.addEventListener('message',(e)=>{
   if(decs.length){$('#v-decisions').innerHTML=decs.map((d,i)=>{const sid=spanFor(d);const key=d.ts||('i'+i);
     return '<div class="dec'+(openDecs.has(key)?' open':'')+'" data-key="'+esc(key)+'" role="button" tabindex="0" aria-label="toggle decision detail"><div class="dtop"><span class="chip '+esc(d.tier)+'">'+esc(d.tier)+'</span><span class="prev">'+esc(d.preview)+'</span><span class="meta">'+esc((d.ts||'').slice(11,16))+'</span></div>'+
     '<div class="ddet">model <b>'+esc(d.model)+'</b> · '+esc(d.cat)+' · conf <b>'+esc(d.conf)+'</b>'+(d.rule&&d.rule!=='none'?' · rule <b>'+esc(d.rule)+'</b>':'')+
-    (sid?'<span class="stars" data-sid="'+esc(sid)+'">'+[1,2,3,4,5].map(n=>'<span data-n="'+n+'">★</span>').join('')+'</span>':'')+'</div></div>';}).join('');
+    (sid?'<span class="stars" data-sid="'+esc(sid)+'" role="radiogroup" aria-label="Avaliação desta decisão">'+[1,2,3,4,5].map(n=>'<span data-n="'+n+'" role="radio" tabindex="0" aria-checked="false" title="Avaliar com '+n+' de 5 estrelas">★</span>').join('')+'</span>':'')+'</div></div>';}).join('');
     document.querySelectorAll('.dec').forEach(el=>{const tog=()=>{const open=el.classList.toggle('open');const k=el.dataset.key;if(open)openDecs.add(k);else openDecs.delete(k);};el.onclick=(ev)=>{if(ev.target.closest('.stars'))return;tog();};el.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('.stars')){e.preventDefault();tog();}});});
-    document.querySelectorAll('.stars span').forEach(st=>st.onclick=()=>{const w=st.parentElement;const n=+st.dataset.n;
-      w.querySelectorAll('span').forEach(x=>x.classList.toggle('on',+x.dataset.n<=n));send('rate',{id:w.dataset.sid,n});});}
+    document.querySelectorAll('.stars span').forEach(st=>{const rate=()=>{const w=st.parentElement;const n=+st.dataset.n;
+      w.querySelectorAll('span').forEach(x=>{const on=+x.dataset.n<=n;x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on));});flashApply(w);send('rate',{id:w.dataset.sid,n});};st.onclick=rate;st.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();rate();}});});}
 
   // ── TERMINAL (req 2)
   $('#v-terminal').innerHTML='<div class="card"><div class="lbl">Live statusline (same renderer as your terminal)</div><div class="term" style="margin-top:8px">'+(s.statuslineHtml||'<span style="opacity:.6">renderer warming up…</span>')+'</div></div>'+
