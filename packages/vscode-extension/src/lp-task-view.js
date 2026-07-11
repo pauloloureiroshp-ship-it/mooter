@@ -89,26 +89,32 @@ function renderEditsFeed(items) {
     if (isNaN(d.getTime())) return 'n/d';
     return d.toLocaleTimeString(undefined, { hour12: false });
   }
-  var hd = '<div class="lpfd-hd">✎ mudanças desta sessão de preview' + (list.length ? (' · <b>' + list.length + '</b>') : '') + '</div>';
+  // F0.2 — a node tag on the row so the feed reads per-node ("… › h1"), and prior-SESSION items (persisted)
+  // render as read-only "histórico" (no revert button — their undo bytes are not in this session's RAM).
+  function nodeTag(e) { var nk = e && e.nodeKey; return (nk && typeof nk.tag === 'string' && nk.tag) ? nk.tag : ''; }
+  var hd = '<div class="lpfd-hd">✎ mudanças deste preview (sessão + histórico)' + (list.length ? (' · <b>' + list.length + '</b>') : '') + '</div>';
   if (!list.length) {
     return '<div class="lpfd lpfd-empty">' + hd
-      + '<div class="lpfd-nd">ainda nenhuma — cada escrita do Live Edit entra aqui com hora, via e reverter por item</div></div>';
+      + '<div class="lpfd-nd">ainda nenhuma — cada escrita do Live Edit entra aqui com hora, nó, via e reverter por item</div></div>';
   }
   var rows = '';
   for (var i = list.length - 1; i >= 0; i--) {
     var e = list[i] || {};
     var files = Array.isArray(e.files) ? e.files : [];
     var st;
-    if (e.status === 'reverted') st = '<span class="lpfd-st">↩ revertido</span>';
+    if (e.persisted) st = '<span class="lpfd-st lpfd-hist" title="edição de uma sessão anterior — o histórico é só de leitura (reverter só existe na sessão que a fez)">🕘 histórico</span>';
+    else if (e.status === 'reverted') st = '<span class="lpfd-st">↩ revertido</span>';
     else if (e.status === 'kept') st = '<span class="lpfd-st">✓ mantido</span>';
     else st = '<button type="button" class="lpfd-rv" data-feed-rv="' + esc(e.id || '') + '" title="repor os bytes anteriores desta mudança — guardado por hash: recusa se o ficheiro mudou entretanto">reverter</button>';
     var stale = (e.reason === 'undo-stale' || e.reason === 'revert-stale');
-    var why = (e.status === 'live' && e.reason)
+    var why = (!e.persisted && e.status === 'live' && e.reason)
       ? ('<span class="lpfd-why">' + esc(stale ? 'o ficheiro mudou entretanto — reverter recusado' : e.reason) + '</span>')
       : '';
-    rows += '<div class="lpfd-row">'
+    var tagBit = nodeTag(e) ? ('<span class="lpfd-node" title="nó editado">' + esc('<' + nodeTag(e) + '>') + '</span>') : '';
+    rows += '<div class="lpfd-row' + (e.persisted ? ' lpfd-row-hist' : '') + '">'
       + '<span class="lpfd-time">' + esc(clock(e.ts)) + '</span>'
       + '<span class="lpfd-via">' + esc(e.via || 'edição') + '</span>'
+      + tagBit
       + '<span class="lpfd-files">' + esc(files.join(' · ')) + '</span>'
       + st + why
       + '</div>';

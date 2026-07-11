@@ -75,3 +75,22 @@ test('wiring: no anchor file → empty pack, task still runs (fail-soft)', async
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r._cp, '', 'no anchor → empty pack, still runs');
 });
+
+// W2 — the THIRD Context-Engine layer (data-hop, Wave 2.3) reaches the agent: when the pinned
+// node renders a value, the pack traces that value back to its definition file, so the agent edits
+// at the SOURCE, not blindly. Completes the repo-map + import-slice proof above.
+test('wiring: the data-hop trail reaches the agent — traces the pinned value to its source file', async () => {
+  const root = mkRepo({
+    'app/page.tsx': "import { stats } from './data';\nexport default function Page(){ return <p>{stats.savedUsd}</p>; }",
+    'app/data.ts': "export const stats = { savedUsd: 42 };",
+  });
+  const r = await LET.runAnchoredTask(
+    { instruction: 'os números batem com o projeto?', file: 'app/page.tsx', tag: 'p', nodeSource: '<p>{stats.savedUsd}</p>' },
+    BASE(root, mkFakeRunner()),
+  );
+  assert.strictEqual(r.ok, true, 'verdict ok');
+  assert.ok(r._cp.includes('Data-hop'), 'the pack carries the data-hop section (values traced to their source)');
+  assert.ok(r._cp.includes('stats') && r._cp.includes('definido em'), 'the data-hop names the symbol and its definition file');
+  assert.ok(r._cp.includes('data'), 'the trail points at the data source (app/data.ts)');
+  assert.ok(!hasAbsPath(r._cp), 'no absolute path leaks in the data-hop');
+});

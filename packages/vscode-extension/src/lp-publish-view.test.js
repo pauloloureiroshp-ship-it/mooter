@@ -19,14 +19,23 @@ test('renderPublishPopover: Draft status + honest cost line + no fabricated site
   const html = renderPublishPopover({ branch: 'wave/lp-6', touchedFiles: [], defaultMessage: '', vercelLinked: true, projectName: 'landing', hasOpenCritical: false, websiteUrl: null });
   assert.ok(html.includes('Rascunho'), 'no known deploy URL → Rascunho, never Publicado');
   assert.ok(html.includes('ainda sem deploy conhecido'), 'honestly states no deploy known this session');
-  assert.ok(html.includes('edições $0 · review $0 · deploy $0'), 'the exact honest cost line is present');
+  // D10 (F9 honesty) — the cost line names WHO charges; it never claims deploy is $0 (Vercel bills, cloud
+  // edits use the Anthropic subscription). "sem cobrança do Mooter" is the only $0-adjacent claim, and it is true.
+  assert.ok(html.includes('sem cobrança do Mooter'), 'states the honest truth: Mooter itself does not charge');
+  assert.ok(html.includes('deploy = a tua conta Vercel'), 'deploy cost is attributed to the user Vercel account, not falsely $0');
+  assert.ok(!/deploy \$0/.test(html), 'the old lying "deploy $0" absolute is gone');
   assert.ok(!html.includes('https://'), 'no invented URL anywhere');
 });
 
-test('renderPublishPopover: Published status shows the real URL as plain (escaped) text', () => {
-  const html = renderPublishPopover({ branch: 'main', touchedFiles: [], websiteUrl: 'https://mysite.vercel.app', vercelLinked: true, projectName: 'landing' });
-  assert.ok(html.includes('Publicado'), 'a known websiteUrl flips status to Publicado');
-  assert.ok(html.includes('https://mysite.vercel.app'), 'the URL text is present (webview turns it into a link)');
+test('renderPublishPopover: "Publicado" requires a REAL deploy THIS session; a bare URL is "Site ligado" (D10 honesty)', () => {
+  // A linked project always has a prod URL — a bare websiteUrl must NOT claim the current tree is live.
+  const linkedOnly = renderPublishPopover({ branch: 'main', touchedFiles: [], websiteUrl: 'https://mysite.vercel.app', vercelLinked: true, projectName: 'landing' });
+  assert.ok(linkedOnly.includes('Site ligado') && !linkedOnly.includes('Publicado'), 'a known URL without a session deploy → Site ligado, never Publicado');
+  assert.ok(/último deploy conhecido/.test(linkedOnly), 'the URL is honestly framed as the last known deploy');
+  // Only a successful deploy result THIS session earns "Publicado".
+  const deployed = renderPublishPopover({ branch: 'main', touchedFiles: [], websiteUrl: 'https://mysite.vercel.app', vercelLinked: true, projectName: 'landing', lastResult: { action: 'deploy', ok: true, url: 'https://mysite.vercel.app' } });
+  assert.ok(deployed.includes('Publicado'), 'a real successful deploy this session → Publicado');
+  assert.ok(deployed.includes('https://mysite.vercel.app'), 'the URL text is present (webview turns it into a link)');
 });
 
 test('renderPublishPopover: touched files listed, commit textarea seeded with the default message', () => {
@@ -51,11 +60,27 @@ test('renderPublishPopover: no touched files → honest empty state, commit butt
 
 test('renderPublishPopover: an open Critical disables BOTH commit and deploy, with the exact reason shown', () => {
   const html = renderPublishPopover({
-    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true,
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true, securityReason: 'critical-open',
   });
   assert.ok(/lp-pub-commit-btn[^>]*disabled/.test(html), 'commit disabled while a Critical is open');
   assert.ok(html.includes('resolve o Critical no 🛡 Review Security primeiro'), 'the exact reason is stated, twice (commit + deploy sections)');
   assert.ok(!html.includes('lp-pub-deploy-open'), 'deploy button itself is not rendered while a Critical is open');
+});
+
+test('D6: publish blocked for NO scan states the honest reason (not a lying "resolve the Critical")', () => {
+  const html = renderPublishPopover({
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true, securityReason: 'security-scan-required',
+  });
+  assert.ok(/lp-pub-commit-btn[^>]*disabled/.test(html), 'commit disabled until a valid scan exists');
+  assert.ok(html.includes('corre o 🛡 Review Security primeiro'), 'says a scan is REQUIRED — not "resolve the Critical" when there is no scan yet');
+  assert.ok(!html.includes('resolve o Critical'), 'no false claim of an open Critical when the real reason is a missing scan');
+});
+
+test('D6: publish blocked for a STALE scan states the code changed since the scan', () => {
+  const html = renderPublishPopover({
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }], vercelLinked: true, projectName: 'landing', hasOpenCritical: true, securityReason: 'security-scan-stale',
+  });
+  assert.ok(html.includes('mudou desde o último 🛡 scan'), 'honest: the scan is stale, re-run it');
 });
 
 test('renderPublishPopover: not linked to Vercel → no deploy control at all, states why', () => {

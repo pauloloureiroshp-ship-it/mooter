@@ -1272,8 +1272,11 @@ function probePorts(ports, timeoutMs) {
 // to the webview; never writes user code or routing state. retainContextWhenHidden keeps the
 // stream/scroll position across tab switches.
 class LivePreviewPanel {
-  constructor(panel) {
+  constructor(panel, context) {
     this.panel = panel;
+    // F0.2 — workspaceState memento for the per-node history feed (display-only; never undo bytes).
+    // null in a bare unit harness (no ctor) → the feed stays in-memory, contract unchanged.
+    this._store = (context && context.workspaceState && typeof context.workspaceState.get === 'function') ? context.workspaceState : null;
     this.timer = null;       // fast bus/Brain poll
     this.stageTimer = null;  // slower App Stage re-probe (TCP sweep)
     this.watcher = null;
@@ -1289,7 +1292,7 @@ class LivePreviewPanel {
     // App Stage <iframe> is a DIFFERENT origin (http://localhost) and cannot read this token
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
     // origin-lock hole where framed content could postMessage the panel to re-point the iframe.
-    this.token = 'lp' + String(Math.random()).slice(2) + String(Math.random()).slice(2);
+    this.token = 'lp' + crypto.randomBytes(24).toString('hex'); // P1-3: CSPRNG, not guessable Math.random — this is the host→webview auth secret (m.__t === HOST_TOKEN)
     // LP-6 §B — the LAST 🛡 Review Security verdict (set at the end of _securityScan below). Read
     // by _publishStatus to decide hasOpenCritical — never re-scans on its own, never fabricated.
     this._lastSecurity = null;
@@ -1303,9 +1306,18 @@ class LivePreviewPanel {
     // write. (A bare unit-harness instance built via Object.create skips this ctor → _servedRoot is
     // undefined → NOT gated, so the pre-existing edit/delete host contracts run unchanged.)
     this._servedRoot = null;
+    // F3 (W1) — the host-side record of the pinned selection, fed by the origin-locked lp-pin relay
+    // (a sibling of lp-tree, posted on every lp-select). Read by (1) the fail-closed gate below, so
+    // NO prompt path talks to the LLM before ANY element is pinned this session, and (2) _taskRun,
+    // which forwards its rendered .selText into the agent's anchor block so a dynamic-<p> ask sees the
+    // text the user sees. HONEST SCOPE: the chip and the generate paths still carry the anchor on
+    // their own messages (the store is not yet their sole reader) — full unification is a later step.
+    // null from birth → _selectionMissing() default-denies until a pin arrives; a bare Object.create
+    // harness leaves it undefined → NOT gated (pre-existing host contracts run unchanged).
+    this._selection = null;
     this._wire();
   }
-  static createOrReveal() {
+  static createOrReveal(context) {
     if (LivePreviewPanel.current) {
       LivePreviewPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return LivePreviewPanel.current;
@@ -1313,7 +1325,7 @@ class LivePreviewPanel {
     const panel = vscode.window.createWebviewPanel(
       'mooterLivePreview', 'Mooter — Live Preview 🎬', vscode.ViewColumn.Beside,
       { enableScripts: true, retainContextWhenHidden: true });
-    LivePreviewPanel.current = new LivePreviewPanel(panel);
+    LivePreviewPanel.current = new LivePreviewPanel(panel, context); // F0.2 — pass context for the persisted feed
     return LivePreviewPanel.current;
   }
   _wsRoot() {
@@ -1425,6 +1437,35 @@ class LivePreviewPanel {
   _treeGateBlocked() {
     return this._servedRoot !== undefined && !this._treeConfirmed();
   }
+  // F3 (W1) — record the pinned selection relayed from the webview (lp-pin). Bounded + sanitised;
+  // a missing/empty file clears it. Never throws. This is the ONLY writer of this._selection.
+  // Read today: .file (by the fail-closed gate _selectionMissing) and .selText (by _taskRun → the
+  // agent's anchor block, so a dynamic-<p> ask sees the rendered text). .line/.col/.tag are recorded
+  // as the pin's identity but not yet read here — the paths still take the anchor from the message.
+  _setSelection(m) {
+    try {
+      const file = (m && typeof m.file === 'string') ? m.file.trim() : '';
+      if (!file) { this._selection = null; return; }
+      this._selection = {
+        file: file.slice(0, 1024),
+        line: Number.isInteger(m && m.line) ? m.line : null,
+        col: Number.isInteger(m && m.col) ? m.col : null,
+        tag: (m && typeof m.tag === 'string') ? m.tag.slice(0, 60) : '',
+        selText: (m && typeof m.selText === 'string') ? m.selText.replace(/\s+/g, ' ').trim().slice(0, 200) : '',
+      };
+      // D5 — trace a pin ONCE per distinct node (the tap re-pins on every HMR/reflow; de-dup avoids spam).
+      const pk = this._selection.file + '|' + this._selection.line + '|' + this._selection.tag;
+      if (pk !== this._lastPinKey) { this._lastPinKey = pk; this._emitLpEvent('pin', { kind: 'server', nodeKey: this._selection, summary: 'pin <' + (this._selection.tag || '?') + '>' }); }
+    } catch { this._selection = null; }
+  }
+  // F3 (W1) — the fail-closed selection gate, shaped EXACTLY like _treeGateBlocked: default-DENY in
+  // production (the ctor sets _selection=null → BLOCKED until a pin arrives, so no prompt path talks
+  // to the LLM without a pinned selection — the agent asks instead of guessing). A bare Object.create
+  // unit harness never runs the ctor (_selection === undefined) → NOT gated, so the pre-existing
+  // lp-edit/lp-task/lp-prompt host contracts (which pass the anchor on the message) run unchanged.
+  _selectionMissing() {
+    return this._selection !== undefined && !(this._selection && this._selection.file);
+  }
   // FIX-MP-1 G1 — the honest banner text when the preview is live but comes from an UNCONFIRMED tree.
   // null when identity is unproven-because-absent (servedRoot null → the write gate already refuses
   // with its own message) or when confirmed; a factual note naming the served root's basename only when
@@ -1442,15 +1483,39 @@ class LivePreviewPanel {
     } catch { /* fail-soft */ }
     return null;
   }
+  // D5 — leave an HONEST trace of Live Preview actions in the MEO/diary bus (events.jsonl); today the
+  // panel only READS the bus. Typed + REDACTED: nodeKey + a bounded summary only — never a secret, a full
+  // prompt, or before/after bytes. sid = the active session the panel last saw, so the diary scopes it.
+  // Fail-soft: telemetry never blocks a Live Preview action, and it silently no-ops without hook-collector.
+  _emitLpEvent(action, fields) {
+    try {
+      if (!HC || typeof HC.appendEvent !== 'function') return;
+      const f = fields || {};
+      const nk = f.nodeKey && typeof f.nodeKey === 'object' ? f.nodeKey : null;
+      HC.appendEvent(this._wsRoot(), {
+        ts: new Date().toISOString(),
+        sid: (typeof this._lpSid === 'string' && this._lpSid) ? this._lpSid : null,
+        kind: (typeof f.kind === 'string' && f.kind) ? f.kind : 'file',
+        tool: 'live-preview',
+        path: (typeof f.path === 'string') ? f.path.slice(0, 400) : null,
+        summary: (typeof f.summary === 'string') ? f.summary.slice(0, 200) : null,
+        tier: null, model: null, cost: null, local: true,
+        lp: String(action || 'event').slice(0, 40),
+        node: nk ? { file: (typeof nk.file === 'string' ? nk.file : null), line: (nk.line != null ? nk.line : null), tag: (typeof nk.tag === 'string' ? nk.tag : null) } : null,
+      });
+    } catch { /* best-effort — never blocks */ }
+  }
   _post() {
     try {
       const s = livePreviewSnapshot();
+      this._lpSid = (s && typeof s.sid === 'string' && s.sid) ? s.sid : (this._lpSid || null); // D5 — cache the active sid for emitted LP events
       s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
       // urlError (transient user paste) wins; otherwise FIX-MP-1 G1 surfaces an honest tree-mismatch
       // banner (the preview is live but comes from a DIFFERENT tree than the one we would write to).
       s.stageError = this.urlError || this._treeBanner() || null; // both ride the ONE stageError channel
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
+      s.readiness = this._readiness();      // F0.5.3: the 4-light readiness semaphore (honest facts)
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
@@ -1536,6 +1601,11 @@ class LivePreviewPanel {
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
+    if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
+    if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
+    if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
+    if (m.type === 'lp-sdk-help') { this._sdkHelp(); return; } // D8/F9 — honest "how to install the Agent SDK" (the light said "sem SDK")
+    if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
     if (m.type === 'lp-edit') { this._applyEdit(m); return; } // MP5.1 deterministic $0 edit
@@ -1693,7 +1763,7 @@ class LivePreviewPanel {
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code, (edit.kind === 'class' ? 'classe · $0' : 'texto · $0'), raw); // §4 feed item
+      this._pushUndo(real, source, res.code, (edit.kind === 'class' ? 'classe · $0' : 'texto · $0'), raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
       this._postEditResult(true, 'applied');
       // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
       // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
@@ -1716,23 +1786,63 @@ class LivePreviewPanel {
   // always sha-guarded fail-closed. Lazy init: unit harnesses skip the constructor.
   _feedPush(item) {
     try {
+      this._feedEnsureLoaded();
       if (!this._feed) { this._feed = []; this._feedSeq = 0; this._feedRev = 0; }
-      item.id = 'f' + (++this._feedSeq);
       item.ts = Date.now();
+      item.id = 'f' + item.ts + '_' + (++this._feedSeq); // F0.2: cross-session-unique (ts differs per session → no collision with persisted history ids)
       this._feed.push(item);
       if (this._feed.length > 50) this._feed.shift();
       this._feedBump();
+      this._emitLpEvent(item.kind === 'agent' ? 'agent' : 'edit', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: item.via || null }); // D5
       return item;
     } catch { return null; }
   }
   _feedBump() {
     this._feedRev = (this._feedRev || 0) + 1;
+    this._feedPersist();
     this._post(); // the feed rides the snapshot; bumping reposts it immediately
   }
-  // Renderable view — never leaks host paths or splice internals to the webview.
+  // F0.2 — display shape a node uses to show ITS history. nodeKey travels so the webview can filter
+  // "histórico deste nó"; `persisted` marks prior-SESSION items (restored from workspaceState) that
+  // carry NO revert entry — shown read-only as "histórico" (a stale-byte revert across a reopen is
+  // exactly the write we refuse). Live items keep their revert. Never leaks host paths / splice bytes.
+  _feedDisplay(e) { return { id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', reason: e.reason || null, nodeKey: e.nodeKey || null, persisted: !!e.persisted }; }
   _feedView() {
-    const items = (this._feed || []).map((e) => ({ id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', reason: e.reason || null }));
-    return { rev: this._feedRev || 0, items };
+    this._feedEnsureLoaded();
+    const hist = (this._feedHistory || []).map((e) => this._feedDisplay(e));
+    const live = (this._feed || []).map((e) => this._feedDisplay(e));
+    return { rev: this._feedRev || 0, items: hist.concat(live) };
+  }
+  // F0.2 persistence — workspaceState, DISPLAY-ONLY (never the undo bytes). Loaded once per panel so a
+  // reopen restores the per-node record; guarded so a bare Object.create harness (no _store) stays in-memory.
+  _feedEnsureLoaded() {
+    if (this._feedLoaded) return;
+    this._feedLoaded = true;
+    this._feedHistory = [];
+    try {
+      if (this._store && typeof this._store.get === 'function') {
+        const saved = this._store.get('lpFeedHistoryV1', []);
+        if (Array.isArray(saved)) {
+          this._feedHistory = saved.filter((x) => x && typeof x === 'object' && x.id).slice(-100).map((x) => ({
+            id: String(x.id), ts: Number(x.ts) || 0, via: (typeof x.via === 'string') ? x.via : null,
+            files: Array.isArray(x.files) ? x.files.filter((f) => typeof f === 'string') : [],
+            status: (typeof x.status === 'string') ? x.status : 'live', reason: null,
+            nodeKey: (x.nodeKey && typeof x.nodeKey === 'object') ? x.nodeKey : null, persisted: true,
+          }));
+        }
+      }
+    } catch { this._feedHistory = []; }
+  }
+  _feedPersist() {
+    try {
+      if (!this._store || typeof this._store.update !== 'function') return;
+      const toStore = (e) => ({ id: e.id, ts: e.ts, via: e.via || null, files: Array.isArray(e.files) ? e.files : [], status: e.status || 'live', nodeKey: e.nodeKey || null });
+      const seen = new Set(); const all = [];
+      for (const e of (this._feedHistory || []).concat(this._feed || [])) {
+        if (!e || !e.id || seen.has(e.id)) continue; seen.add(e.id); all.push(toStore(e));
+      }
+      this._store.update('lpFeedHistoryV1', all.slice(-100)); // display-only; NO undo bytes ever leave RAM
+    } catch { /* best-effort — persistence never blocks a write */ }
   }
   _undoDepth() {
     let n = 0;
@@ -1749,12 +1859,15 @@ class LivePreviewPanel {
     return null;
   }
   // §4 — remember the write we just made as a feed item carrying its inverse-splice entry.
-  _pushUndo(real, before, after, via, relFile) {
+  _pushUndo(real, before, after, via, relFile, anchor) {
     try {
       if (!LEU) return;
       const e = LEU.makeEntry(real, before, after);
       if (!e) return;
-      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null });
+      const a = anchor || {};
+      // F0.2 — the node identity this write belongs to, so the feed can be queried per node (and survive a reopen).
+      const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || real, line: Number.isInteger(a.line) ? a.line : null, col: Number.isInteger(a.col) ? a.col : null, tag: (typeof a.tag === 'string') ? a.tag.slice(0, 60) : null };
+      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey });
     } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
   }
   // Inverse byte-splice of ONE feed item. FAIL-CLOSED: the file's CURRENT sha must still match
@@ -1763,6 +1876,11 @@ class LivePreviewPanel {
   // revert over someone else's bytes is exactly the lie this product exists to avoid.
   _revertSpliceItem(item) {
     if (!LEU) return { ok: false, reason: 'engine-unavailable' };
+    // N1 (FIX-MP-1 parity) — an undo/revert is a WRITE. If the served tree is no longer the confirmed
+    // one (dev server restarted onto a sibling worktree since the edit), writing even an inverse splice
+    // would land on a tree the user is not previewing → the same "preview that lies". Fail-closed, like
+    // every forward write path. (A bare Object.create harness has _servedRoot===undefined → not gated.)
+    if (this._treeGateBlocked()) return { ok: false, reason: 'preview-tree-mismatch' };
     let cur;
     try { cur = fs.readFileSync(item.entry.file, 'utf8'); }
     catch { return { ok: false, reason: 'undo-stale' }; }
@@ -1785,6 +1903,7 @@ class LivePreviewPanel {
       if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
       item.status = 'reverted'; item.reason = null;
       this._feedBump();
+      this._emitLpEvent('revert', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: 'revert (desfazer último)' }); // D5
       this._postEditResult(true, 'undone');
     } catch { this._postEditResult(false, 'error'); }
   }
@@ -1800,6 +1919,7 @@ class LivePreviewPanel {
         if (!r.ok) { item.reason = r.reason; this._feedBump(); this._postEditResult(false, r.reason); return; }
         item.status = 'reverted'; item.reason = null;
         this._feedBump();
+        this._emitLpEvent('revert', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: 'revert (por item)' }); // D5
         this._postEditResult(true, 'undone');
         return;
       }
@@ -1863,7 +1983,7 @@ class LivePreviewPanel {
       }
       // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
-      this._pushUndo(real, source, res.code, 'apagar · $0', raw); // §4 feed item
+      this._pushUndo(real, source, res.code, 'apagar · $0', raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
       this._postEditResult(true, 'deleted');
     } catch { fail('error'); }
   }
@@ -1895,50 +2015,14 @@ class LivePreviewPanel {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
     try {
       const root = this._wsRoot();
-      // Skip vendored/build dirs AND test/fixture dirs — a security review audits SHIPPED code, not
-      // the scanners' own test fixtures (whose AKIA…-shaped strings would otherwise flood the panel
-      // with false 'critical' findings, which is exactly what a showcase must not do). Dot-dirs
-      // (.git/.next/.turbo/…) are skipped below by their leading '.'.
-      const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
-      const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
-      const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i; // *.test.tsx / *.spec.js / *.stories.tsx — not shipped product code
-      const ENV_RE = /^\.env(\..*)?$/i;
-      const MAX_FILES = 2000;
-      const MAX_BYTES = 512 * 1024; // skip anything bigger — never read a partial file across a truncation boundary
-      const files = [];
-      let nextConfigAbs = null;
-      const walk = (dir, depth) => {
-        if (depth > 12 || files.length >= MAX_FILES) return;
-        let ents;
-        try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const ent of ents) {
-          if (files.length >= MAX_FILES) return;
-          const name = ent.name;
-          const abs = path.join(dir, name);
-          if (ent.isDirectory()) {
-            if (name.charAt(0) === '.' || SKIP_DIRS.has(name)) continue; // node_modules/.git/.next/dist/… never walked
-            walk(abs, depth + 1);
-            continue;
-          }
-          if (!ent.isFile()) continue;
-          const rel = path.relative(root, abs).split(path.sep).join('/');
-          const isEnv = ENV_RE.test(name);
-          if (name.charAt(0) === '.' && !isEnv) continue; // other dotfiles are out of scope
-          if (TEST_RE.test(name)) continue; // test/spec/story files are not shipped product — skip
-          const isPublic = /(^|\/)public\//i.test(rel);
-          const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
-          const isSrc = SRC_RE.test(name);
-          if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
-          if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
-          try {
-            const st = fs.statSync(abs);
-            if (!st.isFile() || st.size > MAX_BYTES) continue;
-            const content = fs.readFileSync(abs, 'utf8');
-            files.push({ path: rel, content });
-          } catch { /* unreadable → skipped, never blocks the scan */ }
-        }
-      };
-      walk(root, 0);
+      // D6 — read the exact set of shipped-code files this review audits, then bind the scan to their
+      // CONTENT (fingerprint below). The publish gate re-reads the SAME set and refuses if a single byte
+      // changed since — closing the untracked / staged / gitignored TOCTOU a git-diff fingerprint missed
+      // (P0 adversarial review): a secret pasted into an untracked file AFTER a clean scan is now caught.
+      const walked = this._walkScanFiles(root);
+      const files = walked.files;
+      const nextConfigAbs = walked.nextConfigAbs;
+      const fingerprint = this._fingerprintOf(files);
 
       const secrets = LPSS ? LPSS.scanSecrets(files) : [];
       const xss = LPXS ? LPXS.scanXss(files) : [];
@@ -1966,7 +2050,10 @@ class LivePreviewPanel {
       // LP-6 §B — stash the verdict for _publishStatus's hasOpenCritical check. Overwritten by
       // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
       // scan the user just ran and saw fail.
-      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length };
+      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length, fingerprint };
+      // D5 — trace the review in the diary: COUNTS only, never a secret value or a file path with the leak.
+      const nSec = Array.isArray(secrets) ? secrets.length : 0, nXss = Array.isArray(xss) ? xss.length : 0;
+      this._emitLpEvent('security', { kind: 'server', summary: 'review · ' + nSec + ' secrets · ' + nXss + ' xss · ' + files.length + ' ficheiros' });
       post({ secrets, xss, csp, audit, scannedFiles: files.length });
     } catch { this._lastSecurity = { error: 'scan-failed' }; post({ error: 'scan-failed' }); }
   }
@@ -1979,17 +2066,90 @@ class LivePreviewPanel {
   // there in that method — never trusting anything the webview echoes back as truth.
   // ════════════════════════════════════════════════════════════════════════════
 
-  // hasOpenCritical — PURE-ish read of this._lastSecurity (the verdict of the LAST 🛡 scan this
-  // session ran). Only `secrets` findings count (per brief: an npm-audit "critical" is a supply-
-  // chain risk, not a secret leak baked into the commit — deliberately narrower than the review
-  // panel's own bucketing). No scan yet, or the last scan errored → false (unknown ≠ blocked);
-  // flagged in the handoff for Paulo's review — an errored scan could arguably be conservative
-  // instead and block by default.
-  _hasOpenCriticalSecurity() {
+  // The shipped-code file set a 🛡 review audits: source/env/public/next.config under the workspace,
+  // skipping vendored/build/test/fixture dirs and *.test.* files. Read by BOTH _securityScan (to scan)
+  // and _fingerprintOf (to bind the scan to those exact bytes). Never throws; unreadable files are skipped.
+  _walkScanFiles(root) {
+    const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
+    const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
+    const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i;
+    const ENV_RE = /^\.env(\..*)?$/i;
+    const MAX_FILES = 2000;
+    const MAX_BYTES = 512 * 1024;
+    const files = [];
+    let nextConfigAbs = null;
+    const walk = (dir, depth) => {
+      if (depth > 12 || files.length >= MAX_FILES) return;
+      let ents;
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const ent of ents) {
+        if (files.length >= MAX_FILES) return;
+        const name = ent.name;
+        const abs = path.join(dir, name);
+        if (ent.isDirectory()) {
+          if (name.charAt(0) === '.' || SKIP_DIRS.has(name)) continue;
+          walk(abs, depth + 1);
+          continue;
+        }
+        if (!ent.isFile()) continue;
+        const rel = path.relative(root, abs).split(path.sep).join('/');
+        const isEnv = ENV_RE.test(name);
+        if (name.charAt(0) === '.' && !isEnv) continue;
+        if (TEST_RE.test(name)) continue;
+        const isPublic = /(^|\/)public\//i.test(rel);
+        const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
+        const isSrc = SRC_RE.test(name);
+        if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
+        if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
+        try {
+          const st = fs.statSync(abs);
+          if (!st.isFile() || st.size > MAX_BYTES) continue;
+          const content = fs.readFileSync(abs, 'utf8');
+          files.push({ path: rel, content });
+        } catch { /* unreadable → skipped */ }
+      }
+    };
+    try { walk(root, 0); } catch { /* fail-soft */ }
+    return { files, nextConfigAbs };
+  }
+  // CONTENT fingerprint of a walked file set: sha256 over sorted `path\0sha256(content)`. Binds a scan
+  // to the exact bytes it read — so an edit to ANY of them (tracked, staged, untracked, or gitignored)
+  // since the scan flips the fingerprint. This is what makes the gate a real freshness signal (the earlier
+  // git-diff version was blind to untracked/staged/ignored content — the P0 review's confirmed TOCTOU).
+  _fingerprintOf(files) {
+    try {
+      const lines = (Array.isArray(files) ? files : []).map((f) => String(f.path) + '\0' + crypto.createHash('sha256').update(String(f.content), 'utf8').digest('hex')).sort();
+      return crypto.createHash('sha256').update(lines.join('\n'), 'utf8').digest('hex');
+    } catch { return null; }
+  }
+  _scanFingerprint() { try { return this._fingerprintOf(this._walkScanFiles(this._wsRoot()).files); } catch { return null; } }
+  // D6 (P0) — the FAIL-CLOSED publish security gate. Publish (commit + deploy) is BLOCKED unless the
+  // LAST 🛡 scan this session is (1) present, (2) not errored, (3) FRESH — bound to the CONTENT of the
+  // exact files it scanned, so ANY byte change since (incl. an untracked/staged/gitignored file edited
+  // after the scan) makes it stale and forces a re-scan — and (4) clear of open Criticals: a secret baked
+  // into the change, OR an npm-audit critical/high that is NOT provably all-dev-only (fail-closed: a
+  // critical whose entries can't be classified blocks). Default = BLOCKED. There is NO webview override:
+  // the earlier `overrideCritical` message let a forged lp-publish-* wave a Critical through; it is GONE.
+  _securityGate() {
     const r = this._lastSecurity;
-    if (!r || typeof r !== 'object' || r.error) return false;
+    if (!r || typeof r !== 'object') return { cleared: false, reason: 'security-scan-required' };
+    if (r.error) return { cleared: false, reason: 'security-scan-failed' };
+    const now = this._scanFingerprint();
+    if (!r.fingerprint || !now || r.fingerprint !== now) return { cleared: false, reason: 'security-scan-stale' };
     const secrets = Array.isArray(r.secrets) ? r.secrets : [];
-    return secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical');
+    if (secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical')) return { cleared: false, reason: 'critical-open' };
+    const a = r.audit;
+    if (a && a.ok && a.counts) {
+      const c = a.counts;
+      const risk = (Number(c.critical) || 0) + (Number(c.high) || 0);
+      const total = risk + (Number(c.moderate) || 0) + (Number(c.low) || 0) + (Number(c.info) || 0);
+      // Block a critical/high UNLESS every advisory is PROVABLY dev-only (devOnlyCount === total). A
+      // metadata-vs-entries divergence (counts say critical but the entry map is empty/unclassifiable)
+      // → devOnlyCount !== total → BLOCK. Dev deps never ship, so a fully-dev-only set does not block.
+      const allDevOnly = total > 0 && (Number(a.devOnlyCount) || 0) === total;
+      if (risk > 0 && !allDevOnly) return { cleared: false, reason: 'critical-open' };
+    }
+    return { cleared: true, reason: null };
   }
 
   // _vercelProject(root) — the SINGLE resolver for "is this workspace linked, and to what
@@ -2033,13 +2193,15 @@ class LivePreviewPanel {
       const prev = await extra.gitCommitPreview(root);
       const touchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
       const vercel = this._vercelProject(root);
+      const secGate = this._securityGate(); // once — it walks the scanned-file set
       post({
         branch: prev ? prev.branch : null,
         touchedFiles,
         defaultMessage: prev ? prev.message : '',
         vercelLinked: vercel.linked,
         projectName: vercel.linked ? vercel.projectName : null,
-        hasOpenCritical: this._hasOpenCriticalSecurity(),
+        hasOpenCritical: !secGate.cleared, // D6: "blocked by security" — required/failed/stale/critical
+        securityReason: secGate.reason,    // the honest WHY, so the popover doesn't just say "critical"
         websiteUrl: this._lastDeployUrl || null,
       });
     } catch { post({ error: 'status-failed' }); }
@@ -2060,11 +2222,10 @@ class LivePreviewPanel {
       const reqFiles = Array.isArray(m && m.files) ? m.files.filter((f) => typeof f === 'string' && f) : [];
       const message = (m && typeof m.message === 'string') ? m.message.trim().slice(0, 500) : '';
       if (!reqFiles.length || !message) { post({ ok: false, reason: 'bad-request', cmd: '' }); return; }
-      // FIX-REVIEW MED — fail-closed, BEFORE any staging: an OPEN Critical secret finding blocks the
-      // commit+push at the HOST. The webview button-disable is advisory only; a forged/buggy
-      // lp-publish-commit must not let a scanned secret reach the remote. Escape hatch = explicit
-      // override (the brief's "override explícito com aviso vermelho"), never a silent default.
-      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open', cmd: '' }); return; }
+      // D6 (P0) — fail-closed, BEFORE any staging: the selective commit+push is gated on a valid, FRESH,
+      // Critical-free security scan (no scan / errored / stale / open Critical all block). No override —
+      // a forged lp-publish-commit can no longer wave a scanned secret to the remote.
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
       const prev = await extra.gitCommitPreview(root);
       const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
       const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
@@ -2072,6 +2233,7 @@ class LivePreviewPanel {
       const cres = await extra.gitCommit(root, files, message); // `git add -- <files>` then `git commit` — never -A
       if (!cres.ok) { post({ ok: false, reason: 'commit-failed', out: String(cres.out || '').slice(0, 400), cmd: cres.cmd }); return; }
       const pres = await extra.gitPush(root); // never --force
+      this._emitLpEvent('publish', { kind: 'server', summary: 'commit+push · ' + files.length + ' ficheiros · ' + (pres.ok ? 'ok' : 'push-failed') }); // D5
       post({
         ok: pres.ok,
         reason: pres.ok ? undefined : 'push-failed',
@@ -2101,11 +2263,10 @@ class LivePreviewPanel {
       // ── THE GATE ── deploy is unreachable without this exact match. Nothing above this line
       // spawns a process; nothing below runs unless it passes.
       if (!typed || typed !== info.projectName) { post({ ok: false, reason: 'name-mismatch' }); return; }
-      // FIX-REVIEW MED — fail-closed secondary gate on the IRREVERSIBLE step: an OPEN Critical
-      // security finding blocks the deploy at the HOST too (the webview button-disable is advisory
-      // and bypassable by a forged message). Escape hatch = explicit override (brief's red-warning
-      // path), never silent. The two-factor name gate above remains the primary, non-overridable gate.
-      if (this._hasOpenCriticalSecurity() && !(m && m.overrideCritical === true)) { post({ ok: false, reason: 'critical-open' }); return; }
+      // D6 (P0) — fail-closed secondary gate on the IRREVERSIBLE step: a valid, FRESH, Critical-free scan
+      // is REQUIRED before `vercel --prod` can spawn (no scan / errored / stale / open Critical all block).
+      // The two-factor name gate above stays the primary gate; this one is no longer overridable from the webview.
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason }); return; } }
       let cp;
       try {
         cp = require('child_process').spawnSync('vercel', ['--prod', '--yes'],
@@ -2122,6 +2283,7 @@ class LivePreviewPanel {
       const urlMatch = out.match(/https:\/\/\S+\.vercel\.app\S*/);
       const url = urlMatch ? urlMatch[0] : null;
       if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
+      this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null }); // D5 — the deploy URL is public; safe to trace
       post({ ok: true, url, out: out.slice(0, 800) });
     } catch { post({ ok: false, reason: 'error' }); }
   }
@@ -2139,6 +2301,8 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED before we read the workspace node and ship its bytes to the model:
       // an unconfirmed served tree would build a diff of a file the user never saw in the preview.
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
+      // F3 (W1) — no pinned selection in the store → refuse, never rewrite a node the user did not pin.
+      if (this._selectionMissing()) { fail('no-selection'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -2294,7 +2458,7 @@ class LivePreviewPanel {
       const vlabel = (m.tier && m.tier !== 'local')
         ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
         : 'cercada · local $0';
-      this._pushUndo(real, s2, res.code, vlabel, raw); // §4 feed item
+      this._pushUndo(real, s2, res.code, vlabel, raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
@@ -2332,6 +2496,13 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED alongside the trust gate: the anchored agent must not run off a
       // preview anchor from a sibling served tree (it would edit the wrong tree the user never saw).
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
+      // F3 (W1) — no pinned selection in the store → refuse before the agent runs anchorless
+      // (defense-in-depth; the honest webview already hides the one-box until an element is pinned).
+      if (this._selectionMissing()) { fail('no-selection'); return; }
+      // N2 — enforce the "one active task at a time" invariant the cancel machinery ASSUMES: a second
+      // lp-task while one is running would overwrite _activeTaskAbort (orphaning the first — cancel would
+      // only reach the second) and run two agents at once. Refuse honestly; the running one is untouched.
+      if (this._activeTaskAbort) { fail('task-busy'); return; }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).
@@ -2374,6 +2545,10 @@ class LivePreviewPanel {
       // LP-4.9 §1 — explicit intent from the Edit/Ask toggle. 'ask' forces an answer-only run
       // (zero writes even if the ask looks like an edit); anything else edits. Default 'edit'.
       const intent = (m && m.intent === 'ask') ? 'ask' : 'edit';
+      // F3 (W1) — the rendered text of the pinned node comes from the host SelectionStore (the record
+      // fed by lp-pin), NOT the message, so an ask/edit agent sees what the user sees even when the
+      // JSX is dynamic. Guarded: a bare Object.create harness has no store → '' (contract unchanged).
+      const selText = (this._selection && typeof this._selection.selText === 'string') ? this._selection.selText : '';
       this._postTaskStatus({ phase: 'thinking', mode, intent });
       // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
       const ac = (typeof AbortController === 'function') ? new AbortController() : null;
@@ -2384,6 +2559,7 @@ class LivePreviewPanel {
           instruction,
           file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
           nodeSource,
+          selText,
           breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
           refs,
           intent,
@@ -2407,7 +2583,8 @@ class LivePreviewPanel {
       // result panel; the feed item reverts the whole task, sha-guarded per file).
       if (edits.length) {
         const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
-        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null });
+        const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || raw, line: Number.isInteger(m.line) ? m.line : null, col: Number.isInteger(m.col) ? m.col : null, tag: (typeof m.tag === 'string') ? m.tag.slice(0, 60) : null };
+        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null, nodeKey });
       }
       // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
       // file now) — the user's own pre-existing uncommitted changes never pollute it.
@@ -2490,7 +2667,16 @@ class LivePreviewPanel {
   }
   // LP-4 §6 — is the subscription bridge usable from this workspace? A cheap fs fact, cached 30s
   // (it rides every snapshot poll). Fail-soft: absent module → honest 'sdk-bridge-missing'.
+  // F0.5.2 — an EMPTY window (no folder open) is NOT "SDK missing": it needs a FOLDER first. Kept
+  // out of the 30s cache so opening a folder lights up the readiness immediately.
+  _hasWorkspace() {
+    try { const wfs = vscode.workspace && vscode.workspace.workspaceFolders; return !!(wfs && wfs.length); }
+    catch { return false; }
+  }
   _leBridgeStatus() {
+    // F0.5.2 — tri-state: no-workspace ≠ sdk-missing ≠ untrusted. The honest reason drives the right
+    // 1-click action in the UI (open a folder / install the SDK / trust the workspace) — never a lie.
+    if (!this._hasWorkspace()) return { available: false, reason: 'no-workspace' };
     const now = Date.now();
     if (this._leBridge && this._leBridgeTs && (now - this._leBridgeTs) < 30000) return this._leBridge;
     // review P1-A: the cloud bridge runs the workspace's SDK, so it is gated on Workspace Trust.
@@ -2501,6 +2687,62 @@ class LivePreviewPanel {
       : { available: false, reason: 'sdk-bridge-missing' };
     this._leBridgeTs = now;
     return this._leBridge;
+  }
+  // F0.5.3 — the 4-light readiness the semaphore renders: workspace · dev server (+port/source) ·
+  // served tree (marker matches this workspace?) · agent (SDK+trust, from the tri-state reason).
+  // Pure FACT — never fabricates "ready". The sticky-port case (Docker 200 on :3000) surfaces as
+  // devServer:true with tree:'mismatch' + the port/source, so the user SEES the wrong one.
+  _readiness() {
+    const br = this._leBridgeStatus();
+    const st = this.stage || {};
+    const hasWs = this._hasWorkspace();
+    const devUp = !!(st.url && !st.degraded);
+    let tree; // 'ok' (marker matches) | 'mismatch' (sticky-port / old branch) | 'unknown' (no server)
+    if (!devUp || this._servedRoot === undefined || this._servedRoot === null) tree = 'unknown';
+    else tree = this._treeConfirmed() ? 'ok' : 'mismatch';
+    return {
+      workspace: hasWs,
+      devServer: devUp,
+      port: (st.port != null) ? String(st.port) : null,
+      source: (typeof st.source === 'string') ? st.source : null,
+      tree: tree,
+      sdk: !!br.available,                                  // available ⇒ SDK found AND trusted
+      trust: hasWs && (br.reason !== 'workspace-untrusted'),
+      reason: br.reason || null,
+    };
+  }
+  // F0.5.3 — recover from a sticky-port / stale-tree preview WITHOUT touching the terminal yourself.
+  // GATED (modal confirm — the agent never runs a command blindly): open a terminal in the served
+  // tree (or the workspace root) and run the dev command, then re-probe so the readiness lights update.
+  async _restartDevServer() {
+    try {
+      if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Live Preview: abre a pasta do projeto primeiro (janela sem pasta).'); return; }
+      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta servida e corro "npm run dev".', { modal: true }, 'Reiniciar');
+      if (pick !== 'Reiniciar') return;
+      const cwd = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : this._wsRoot();
+      const term = vscode.window.createTerminal({ name: 'Mooter — dev server', cwd });
+      term.show(); term.sendText('npm run dev');
+      // re-probe shortly after so the semaphore reflects the fresh server (not the sticky one).
+      setTimeout(() => { try { this.routes = null; this._detectStage(); } catch { /* best-effort */ } }, 3500);
+    } catch { /* best-effort — never throw into the host */ }
+  }
+  // D8/F9 — the "sem SDK" readiness light used to offer a button labelled "instalar" that actually opened a
+  // folder picker (copy≠action). Give it a REAL, honest action: state the exact install command and offer to
+  // copy it / open the workspace terminal. We never auto-run npm in the user's project (that would be a
+  // surprising write); the user stays in control.
+  async _sdkHelp() {
+    try {
+      const cmd = 'npm i @anthropic-ai/claude-agent-sdk';
+      const pick = await vscode.window.showInformationMessage(
+        'Live Preview — para as edições por AGENTE, instala o Agent SDK no workspace: ' + cmd,
+        'Copiar comando', 'Abrir terminal');
+      if (pick === 'Copiar comando') { try { await vscode.env.clipboard.writeText(cmd); vscode.window.showInformationMessage('Comando copiado — cola no terminal do projeto.'); } catch { /* best-effort */ } }
+      else if (pick === 'Abrir terminal') {
+        if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Abre a pasta do projeto primeiro.'); return; }
+        const term = vscode.window.createTerminal({ name: 'Mooter — instalar Agent SDK', cwd: this._wsRoot() });
+        term.show(); term.sendText(cmd, false); // pre-filled, NOT auto-run — the user presses Enter
+      }
+    } catch { /* best-effort — never throw into the host */ }
   }
   // vscode.workspace.isTrusted is a boolean in real VS Code; default to trusted only when the API
   // does not expose the flag at all (never downgrade a genuine `false`).
@@ -2575,7 +2817,7 @@ LivePreviewPanel.current = null;
 // Cut, innerHTML-refreshed each poll). The iframe is deliberately NOT sandboxed: it frames the
 // user's OWN trusted dev server and needs same-origin scripts + websockets for HMR to work.
 function getLivePreviewHtml(token, wsRoot) {
-  const nonce = String(Math.random()).slice(2);
+  const nonce = crypto.randomBytes(16).toString('hex'); // P1-3: CSPRNG CSP nonce
   const hostToken = JSON.stringify(String(token == null ? '' : token));
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
   const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
@@ -2655,10 +2897,26 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);flex-wrap:wrap}
   .lp-status{flex:1 1 auto;min-width:120px;display:flex;align-items:center;gap:7px;font-size:12px;overflow:hidden}
   .lp-status .lps-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #lp-controls{display:flex;gap:5px;align-items:center;flex:none}
-  #lp-url{width:190px;max-width:40vw;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
+  /* F0.5.3 — readiness semaphore: a compact row of honest lights + 1-click fixes. */
+  .lp-ready{display:none;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:11px;padding:4px 2px 2px;color:var(--vscode-descriptionForeground)}
+  .lp-ready .lp-rl{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .lp-ready .lp-rfix{font:10.5px var(--vscode-font-family);color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;border-radius:5px;padding:1px 7px;cursor:pointer}
+  .lp-ready .lp-rfix:hover{background:var(--vscode-button-hoverBackground)}
+  /* F3 (W1) — the anchor chip: the pinned element, always visible next to the select button
+     (persistent) and at the top of the one-box (per-pin). Honest 'sem seleção' state when unpinned.
+     Badge bg/fg only → guaranteed contrast in light AND dark; opacity/weight signal the pinned state. */
+  .lp-anchor{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 9px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;opacity:.65}
+  .lp-anchor.on{opacity:1;font-weight:600}
+  .lp-anchor-in{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;margin:0 0 6px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  /* D1 — the controls must WRAP, not overflow. #lp-controls was flex:none (one indivisible row that
+     burst its container at 1024/821px, worsened by the 🛡 Review / 🚀 Publish labels). Now it wraps and
+     shrinks; #lp-url flexes to fill its row. */
+  #lp-controls{display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex:1 1 auto;min-width:0}
+  #lp-url{flex:1 1 160px;min-width:120px;max-width:100%;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
   #lp-controls button{font:12px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:3px 9px;cursor:pointer}
   #lp-controls button:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  /* F0.3/F0.4 — the primary actions carry a VISIBLE text label (not just a tooltip): a touch of weight, never wrap. */
+  #lp-controls .lp-labeled{white-space:nowrap;font-weight:600}
   #lp-back,#lp-fwd{padding:3px 7px;font-weight:700}
   #lp-routes{font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 5px;max-width:24vw;cursor:pointer}
   #lp-controls button:focus-visible,#lp-url:focus-visible,#lp-routes:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
@@ -2680,6 +2938,17 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-sel .lp-crumb:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   #lp-sel .lp-crumb-sep{opacity:.55;font-size:10.5px}
   #lp-sel .lp-sel-warn{font-size:11px;line-height:1.45;margin-top:7px;padding:6px 8px;border-radius:5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
+  /* F0.2 — per-node history block inside the selection panel */
+  #lp-sel .lp-nh{margin-top:8px;font-size:11px;border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 8px}
+  #lp-sel .lp-nh-hd{font-weight:600;opacity:.85;margin-bottom:4px}
+  #lp-sel .lp-nh-row{display:flex;gap:8px;align-items:center;padding:2px 0;opacity:.9}
+  #lp-sel .lp-nh-t{opacity:.7;font-variant-numeric:tabular-nums}
+  #lp-sel .lp-nh-v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #lp-sel .lp-nh-b{font-size:10px;padding:1px 5px;border-radius:4px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+  #lp-sel .lp-nh-b.lp-nh-hist{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-widget-border)}
+  .lpfd-row-hist{opacity:.72}
+  .lpfd-st.lpfd-hist{color:var(--vscode-descriptionForeground)}
+  .lpfd-node{font-family:var(--vscode-editor-font-family,monospace);opacity:.75;font-size:10.5px}
   #lp-sel .lp-ed-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:9px 0 3px}
   #lp-sel .lp-ed-row{display:flex;gap:6px;align-items:center}
   #lp-sel .lp-ed-in{flex:1 1 auto;min-width:60px;font:12px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-widget-border));border-radius:5px;padding:3px 7px}
@@ -2719,7 +2988,7 @@ function getLivePreviewHtml(token, wsRoot) {
   /* LP-4.8 §1 — in-canvas toolbar, floating over the frame anchored to the pin. The overlay
      spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
   .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
-  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:248px;max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
+  .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:min(248px,calc(100% - 16px));max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
   /* LP-4.9 §7 — toolbar header: grip (drag) + minimize + close. Sticky so it stays while scrolling. */
   .lp-ctb-hd{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;margin:0 -11px 6px;padding:5px 9px;background:var(--vscode-editorWidget-background);border-bottom:1px solid var(--vscode-widget-border);border-radius:9px 9px 0 0}
   .lp-ctb-grip{flex:1 1 auto;font-size:10.5px;opacity:.6;cursor:grab;user-select:none;letter-spacing:.04em;touch-action:none}
@@ -2832,6 +3101,8 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-ctb .lp-mode-hint{font-size:10px;opacity:.72;margin:1px 0 5px;line-height:1.4}
   /* LP-4.9 loop-fix §C — the project-context/route line (always visible in the simple view). */
   .lp-ctx{font-size:10.5px;line-height:1.4;margin:4px 0 2px;padding:5px 8px;border-radius:6px}
+  /* W2 — honest context-source chip (repo ✓ · Notion n/d). Badge bg/fg → contrast in both themes. */
+  .lp-ctx-src{align-items:center;gap:4px;font-size:10px;margin:0 0 4px;padding:2px 8px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap}
   .lp-ctx-ok{color:var(--vscode-charts-green,#4CAF6A);background:rgba(76,175,106,.10);border:1px solid rgba(76,175,106,.35)}
   .lp-ctx-warn{color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   /* LP-4.9 §2 — progressive disclosure: the "▾ mais" chevron + the advanced drawer. */
@@ -2843,6 +3114,7 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-framewrap.lp-dev-narrow{background:var(--vscode-editorWidget-background)}
   #lp-framewrap.lp-dev-narrow #lp-frame{margin:0 auto;border-left:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border)}
   .lp-dev-btn[aria-pressed="true"]{background:var(--vscode-charts-blue,#5A9BD4)!important;color:#0B0A09!important;border-color:transparent!important;font-weight:700}
+  .lp-dev-note{font-size:11px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));white-space:normal}
   .lp-degrade{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--vscode-descriptionForeground)}
   .lp-degrade-in{max-width:440px}
   .lp-degrade-ico{font-size:34px;margin-bottom:8px;opacity:.85}
@@ -2850,12 +3122,16 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-degrade-r{font-size:12.5px;margin-bottom:10px}
   .lp-degrade-h{font-size:11.5px;opacity:.85;line-height:1.5}
   .lp-degrade-h code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px}
+  /* F0.5.1 — the honest empty-window action: ONE prominent primary button. */
+  .lp-open-folder{font:13px var(--vscode-font-family);font-weight:600;color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;border-radius:6px;padding:8px 16px;cursor:pointer;margin-top:4px}
+  .lp-open-folder:hover{background:var(--vscode-button-hoverBackground)}
   .lps-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--vscode-descriptionForeground)}
   .lps-on{background:var(--vscode-charts-green,#4CAF6A)}
   .lps-off{background:var(--vscode-descriptionForeground)}
   .lps-stale{background:var(--vscode-charts-yellow,#E5C07B)}
   .lps-wait{background:var(--vscode-charts-blue,#5A9BD4)}
   #lp-error{flex-basis:100%;order:9;color:var(--vscode-inputValidation-errorForeground,var(--vscode-errorForeground,#D9484B));font-size:11.5px;padding:1px 2px}
+  #lp-hmr{flex-basis:100%;order:10;font-size:11.5px;padding:2px 7px;margin-top:2px;border-radius:5px;color:var(--vscode-inputValidation-warningForeground,var(--vscode-charts-yellow,#E5C07B));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.12));border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.4))}
   /* MP4 — Honest Diagnostics strip. Sits BETWEEN the toolbar and the iframe; hidden when 0 errors. */
   #lp-diag{display:none;flex-direction:column;border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editorWidget-background);font-size:12px;max-height:34%;overflow:auto}
   #lp-diag.lpd-show{display:flex}
@@ -2946,6 +3222,12 @@ function getLivePreviewHtml(token, wsRoot) {
     #lp-stagewrap{flex:1 1 auto;border-right:0;border-bottom:1px solid var(--vscode-widget-border)}
     #lp-side{flex:0 0 auto;max-width:none;max-height:42vh}
   }
+  /* D1 — at narrow widths the URL takes its own full row and the controls stay wrapped (no overflow). */
+  @media (max-width:560px){
+    #lp-controls{width:100%}
+    #lp-url{flex-basis:100%}
+    #lp-status{width:100%}
+  }
 </style>
 </head><body>
 <div id="lp-root">
@@ -2957,19 +3239,26 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-fwd" title="Avançar no site" aria-label="Avançar">›</button>
         <input id="lp-url" type="text" placeholder="/rota  ou  http://localhost:7819" aria-label="Rota ou URL do dev server (só localhost)" spellcheck="false" autocomplete="off" />
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
-        <button id="lp-select-btn" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯</button>
+        <button id="lp-select-btn" class="lp-labeled" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯 Selecionar</button>
+        <span id="lp-anchor" class="lp-anchor" role="status" aria-live="polite" title="O elemento fixado — o alvo do prompt. Sem âncora, nenhum prompt é enviado.">📍 sem seleção</span>
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
         <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
         <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
+        <!-- D1 — honest effective-width note: a preset caps at 100% of the panel, so 768px can deliver less. -->
+        <span id="lp-dev-note" class="lp-dev-note" role="status" aria-live="polite" style="display:none"></span>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
-        <button id="lp-security-btn" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡</button>
+        <button id="lp-security-btn" class="lp-labeled" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡 Review</button>
         <!-- LP-6 §E — Publish: commit+push seletivo, depois deploy Vercel gated por 2º fator (host-side). -->
-        <button id="lp-publish-btn" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀</button>
+        <button id="lp-publish-btn" class="lp-labeled" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀 Publish</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
+      <!-- F2 (P1-7) — honest hot-reload-down banner: when the tap's HMR socket drops, the preview may be STALE. -->
+      <div id="lp-hmr" role="status" aria-live="polite" style="display:none"></div>
+      <!-- F0.5.3 — readiness semaphore: 4 honest lights (pasta · dev server · árvore · agente) + 1-click fixes. -->
+      <div id="lp-ready" class="lp-ready" role="status" aria-label="Prontidão do Live Preview" style="display:none"></div>
     </div>
     <div id="lp-diag" role="log" aria-label="Diagnóstico do preview (erros de runtime e build)"></div>
     <div id="lp-framewrap">
@@ -3069,8 +3358,44 @@ function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
   lpLastSnap = s;
+  renderReadiness(s && s.readiness); // F0.5.3 — the 4-light readiness semaphore
   renderWork(s);
   renderLens(lpDcTab);
+}
+// F0.5.3 — the readiness semaphore: 4 honest lights (pasta · dev server+porta/fonte · árvore · agente)
+// with a 1-click fix per unlit light. Sticky-port shows the wrong :porta (fonte) so the user SEES it.
+let lpReadySig='';
+function renderReadiness(r){
+  const el=document.getElementById('lp-ready'); if(!el) return;
+  if(!r){ if(lpReadySig!==''){ lpReadySig=''; el.innerHTML=''; el.style.display='none'; } return; }
+  const lit=function(state,label,fix,fixlabel){
+    const dot=state==='ok'?'🟢':(state==='warn'?'🟡':'🔴');
+    return '<span class="lp-rl">'+dot+' '+esc(label)+(fix?(' <button type="button" class="lp-rfix" data-fix="'+esc(fix)+'">'+esc(fixlabel)+'</button>'):'')+'</span>';
+  };
+  const parts=[];
+  if(!r.workspace){ parts.push(lit('bad','sem pasta','folder','Abrir pasta')); }
+  else {
+    parts.push(lit('ok','pasta',null,null));
+    if(r.devServer) parts.push(lit('ok',':'+(r.port||'?')+(r.source?(' '+r.source):''),'reprobe','re-probar'));
+    else parts.push(lit('bad','sem dev server','reprobe','re-probar'));
+    if(r.tree==='ok') parts.push(lit('ok','árvore',null,null));
+    else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
+    if(r.sdk) parts.push(lit('ok','agente',null,null));
+    else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
+    else parts.push(lit('bad','sem SDK','sdk','como instalar'));
+  }
+  const html=parts.join('');
+  if(html===lpReadySig) return; lpReadySig=html;
+  el.innerHTML=html; el.style.display=parts.length?'flex':'none';
+  const btns=el.querySelectorAll('[data-fix]');
+  for(let i=0;i<btns.length;i++){ btns[i].addEventListener('click', function(){ readinessFix(this.getAttribute('data-fix')); }); }
+}
+function readinessFix(f){
+  if(f==='reprobe') vsapi.postMessage({ type:'lp-redetect' });
+  else if(f==='folder') vsapi.postMessage({ type:'lp-open-folder' });
+  else if(f==='trust') vsapi.postMessage({ type:'lp-trust' });
+  else if(f==='restart') vsapi.postMessage({ type:'lp-restart-dev' });
+  else if(f==='sdk') vsapi.postMessage({ type:'lp-sdk-help' }); // D8/F9 — a real, honest SDK action (not a folder picker mislabelled "instalar")
 }
 function renderWork(s){
   const el=document.getElementById('lp-work-mount'); if(!el) return;
@@ -3127,14 +3452,27 @@ function applyStage(stage){
   if(degrade){
     degrade.style.display = hasUrl ? 'none' : 'flex';
     if(!hasUrl){
-      const reason = (st && st.reason) ? st.reason : 'nenhum dev server detetado';
-      const html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
-        + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
-        + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
-        + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
-        + 'ou cola o URL na barra acima. Entretanto o MEO continua a fazer stream à direita.</div></div>';
+      let html;
+      if(lpNoWorkspace){
+        // F0.5.1 — honest empty-window screen: never a dead state, never the "start the dev server"
+        // lie (you cannot, without a folder). ONE button opens the project folder in THIS window.
+        html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">📂</div>'
+          + '<div class="lp-degrade-t">Nenhuma pasta aberta nesta janela</div>'
+          + '<div class="lp-degrade-r">O Live Preview precisa da pasta do teu projeto para servir o site e editar.</div>'
+          + '<div class="lp-degrade-h"><button type="button" id="lp-open-folder" class="lp-open-folder">📂 Abrir a pasta do projeto nesta janela</button></div></div>';
+      } else {
+        const reason = (st && st.reason) ? st.reason : 'nenhum dev server detetado';
+        html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
+          + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
+          + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
+          + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
+          + 'ou cola o URL na barra acima. Entretanto o MEO continua a fazer stream à direita.</div></div>';
+      }
       // Only rewrite when the copy changes — otherwise a poll wipes any text selection in the hint.
-      if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html; }
+      if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html;
+        // F0.5.1 — re-wire the open-folder button after each rewrite (host opens the folder picker).
+        var ofb=document.getElementById('lp-open-folder'); if(ofb) ofb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-folder' }); });
+      }
     } else { lastDegradeHtml = null; }
   }
   // Only touch the iframe when the URL actually changes — preserves HMR/scroll across polls
@@ -3240,6 +3578,15 @@ function lpClearErrors(kind){
   if(!kind||kind==='all') lpErrors=[]; else lpErrors=lpErrors.filter((e)=>e && e.kind!==kind);
   lpRenderStrip();
 }
+// F2 (P1-7) — honest hot-reload-down banner. The tap owns the truth (its HMR socket dropped); we only
+// reflect it. textContent (never innerHTML) — the copy is static, so there is nothing to inject.
+function setHmrStale(down){
+  lpHmrDown=!!down; // F9 — so the edit-applied toast can tell the truth about whether the preview will refresh
+  var el=document.getElementById('lp-hmr');
+  if(!el) return;
+  if(down){ el.textContent='⚠ hot-reload desligado — o preview pode estar desatualizado. A tentar reconectar…'; el.style.display='block'; }
+  else { el.style.display='none'; el.textContent=''; }
+}
 // Delegated, CSP-safe click handler for the strip buttons — reads data-act/data-idx, looks the
 // full error (incl. stack) up in lpErrors, and dispatches a REAL action to the host.
 const diagEl=document.getElementById('lp-diag');
@@ -3293,7 +3640,7 @@ let lpIntent='edit';
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
-let lpFeedRev=-1, lpBridge=null;
+let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false, lpHmrDown=false;
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -3518,6 +3865,15 @@ function lpFinishProgress(){
 function renderCtxLine(){
   const el=document.getElementById('lp-ctx'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
+  // W2 — honest context-source chip. The agent reads the repo via the Context Engine (repo-map +
+  // import-slice + data-hop, pré-computado $0, NÃO grep às cegas) when the bridge is ON and this is
+  // an ask OR a non-local edit. Camada C (Notion/3rd brain) não está ligada → 'Notion n/d', nunca fingir.
+  const readsProject=!!br.available&&(lpIntent==='ask'||lpMode!=='local');
+  const csrc=document.getElementById('lp-ctx-src');
+  if(csrc){
+    if(readsProject){ csrc.textContent='📚 repo ✓ · Notion n/d'; csrc.title='Contexto do agente: repo via Context Engine (repo-map · import-slice · data-hop, pré-computado $0). Notion/3rd brain ainda não ligados (Camada C).'; csrc.style.display='inline-flex'; }
+    else { csrc.style.display='none'; csrc.textContent=''; }
+  }
   if(lpIntent==='ask'){
     el.className='lp-ctx '+(br.available?'lp-ctx-ok':'lp-ctx-warn');
     el.textContent=br.available
@@ -3562,14 +3918,51 @@ function dismissCoachMarks(){ const c=document.getElementById('lp-coach'); if(c)
 function maybeCoachOnArm(){ let done=false; try{ done=localStorage.getItem('lp-coach-done')==='1'; }catch(e){} if(!done) showCoachMarks(); }
 // Short, human reason for the warn toast (the panel still shows the full honest state).
 function toastReason(reason){
-  const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente',
+  const m={ 'workspace-untrusted':'workspace não confiável', 'sdk-bridge-missing':'ponte SDK ausente', 'no-workspace':'sem pasta aberta',
+    'no-selection':'sem elemento fixado — escolhe um no preview',
     'prompt-empty':'escreve primeiro o que queres', 'file-changed':'o ficheiro mudou — pré-visualiza de novo',
     'local-model-offline':'moo local offline', 'local-model-timeout':'o moo local demorou demasiado',
     'task-timeout':'o agente demorou demasiado', 'task-cancelled':'cancelado',
     'replacement-parse-error':'recusado pela cerca (JSX inválido)', 'not-single-root':'recusado pela cerca' };
   return m[reason]||(reason?String(reason):'rejeitado');
 }
+// F3 (W1) — the persistent anchor chip in the toolbar: '📍 file:line · <tag>' when a node is
+// pinned, an honest '📍 sem seleção' when not. Concat-only + esc(); &lt;&gt; for the literal tag.
+// Driven from the webview sel object (the same pin the host store mirrors); after an apply-time
+// lp-repin it may briefly show the pre-repin file:line until the tap re-emits lp-select.
+function updateAnchorChip(sel){
+  const a=document.getElementById('lp-anchor');
+  if(!a) return;
+  if(sel&&sel.file){
+    const tg=esc(sel.tag||'elemento');
+    a.innerHTML='📍 '+esc(baseName(sel.file))+':'+esc(sel.line==null?'?':sel.line)+' · &lt;'+tg+'&gt;';
+    a.className='lp-anchor on';
+    a.title='Elemento fixado: '+(sel.file||'')+':'+(sel.line==null?'?':sel.line)+' — o alvo do prompt';
+  } else {
+    a.innerHTML='📍 sem seleção';
+    a.className='lp-anchor';
+    a.title='Sem elemento fixado — clica 🎯 e escolhe um elemento no preview. Sem âncora, nenhum prompt é enviado.';
+  }
+}
+// F0.2 — the history of THIS node (clicking a node shows its edits, incl. prior sessions restored from
+// workspaceState). Matches feed items by nodeKey (file+tag+line); a persisted item is read-only history.
+function lpNodeHistoryHTML(sel){
+  try{
+    if(!sel||!sel.file) return '';
+    var all=Array.isArray(lpFeedItems)?lpFeedItems:[];
+    var items=all.filter(function(e){ var nk=e&&e.nodeKey; if(!nk||nk.file!==sel.file) return false; if(sel.tag!=null&&nk.tag!=null&&nk.tag!==sel.tag) return false; if(sel.line!=null&&nk.line!=null&&nk.line!==sel.line) return false; return true; });
+    if(!items.length) return '';
+    function clk(ts){ if(ts==null) return 'n/d'; var d=new Date(ts); return isNaN(d.getTime())?'n/d':d.toLocaleTimeString(undefined,{hour12:false}); }
+    var rows='';
+    for(var i=items.length-1;i>=0;i--){ var e=items[i]||{};
+      var badge=e.persisted?'<span class="lp-nh-b lp-nh-hist">histórico</span>':('<span class="lp-nh-b">'+esc(e.status||'live')+'</span>');
+      rows+='<div class="lp-nh-row"><span class="lp-nh-t">'+esc(clk(e.ts))+'</span><span class="lp-nh-v">'+esc(e.via||'edição')+'</span>'+badge+'</div>';
+    }
+    return '<div class="lp-nh"><div class="lp-nh-hd">🕘 histórico deste nó · '+items.length+'</div>'+rows+'</div>';
+  }catch(_){ return ''; }
+}
 function renderSelection(sel){
+  updateAnchorChip(sel); // F3 — keep the persistent anchor chip honest on every (de)selection
   const el=document.getElementById('lp-sel');
   if(!el) return;
   if(!sel){ el.style.display='none'; el.innerHTML=''; hideCanvasToolbar(); return; }
@@ -3599,7 +3992,7 @@ function renderSelection(sel){
     :'';
   // Honest multi-instance warning: the tap counted the same stamp on N live DOM nodes — the
   // selection is pinned to the FIRST instance, but any edit/delete lands on the template.
-  if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a edição afeta o template, ou seja TODOS os itens.</div>';
+  if(sel.repeated>1) warn+='<div class="lp-sel-warn">⚠ elemento repetido no ecrã (×'+esc(sel.repeated)+' — provavelmente .map()) — a moldura está presa à 1ª instância, mas a edição afeta o template, ou seja TODOS os itens.</div>'; // P1-6: surface the frame-pinned-to-first-instance limitation that used to live only in a comment
   // LP-4.5 §5 — dynamic-component honesty, BEFORE any fenced rewrite: an uppercase tag is a
   // COMPONENT whose rendered content comes from inside it — rewriting the usage node may change
   // nothing on screen (the CommunityPulse case). Offer the agent, never a lying "✓ escrito".
@@ -3613,6 +4006,7 @@ function renderSelection(sel){
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
     +warn
+    +lpNodeHistoryHTML(sel)
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
@@ -3624,25 +4018,28 @@ function renderSelection(sel){
   // text/class edits, presets, /skills, open/delete — lives behind "▾ mais". Simple by default,
   // the power one click away. The expanded/collapsed choice is remembered per session (localStorage).
   const inputsHTML=
-    // ── SIMPLE (always visible) ──
-    // §5 — presets are the STAR: the instant $0 gesture (colour/size/spacing) sits at the very top.
-    '<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
+    // ── SIMPLE (always visible) — F0.1: PROMPT-FIRST. anchor · Editar/Perguntar · prompt(autofocus) · tier · context. ──
+    // F3 (W1) — the anchor chip AT the input: shows the pinned element (📍 file:line · <tag>). loc/tag already esc'd above.
+    '<div class="lp-anchor-in" title="Este prompt está ancorado a este elemento (ficheiro:linha) — o alvo da edição">📍 '+esc(baseName(sel.file||'?'))+':'+esc(sel.line==null?'?':sel.line)+' · &lt;'+tag+'&gt;</div>'
     +'<div class="lp-mode-tg" role="radiogroup" aria-label="O que fazer com este prompt">'   // §1 intent
     +'<button type="button" id="lp-mode-edit" class="lp-mtg" role="radio" aria-checked="true" data-intent="edit" title="Escreve → diff → aplica → muda o preview">✏️ Editar</button>'
     +'<button type="button" id="lp-mode-ask" class="lp-mtg" role="radio" aria-checked="false" data-intent="ask" title="Lê o repo → responde no painel, zero escrita">💬 Perguntar</button>'
     +'</div>'
     +'<div id="lp-box-l" class="lp-mode-hint">Editar muda o site · Perguntar só responde</div>'
+    // F0.1 — the prompt box is the star (autofocus on a fresh pin, wired below); the tier picker sits under it.
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
-    // LP-4.9 loop-fix §C — ALWAYS-visible context/route line: tells the user, before sending,
-    // whether THIS edit reads the whole project (agent) or only this node (local $0), and how to
-    // enable the agent when it is off. Answers "não sei se apanha o contexto do projeto".
-    +'<div id="lp-ctx" class="lp-ctx" role="status"></div>'
-    +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
-    +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Mostrar/ocultar os controlos avançados">▾ mais</button>'
-    // ── ADVANCED (collapsed by default) ──
-    +'<div id="lp-adv" class="lp-adv" style="display:none">'
+    // F0.1 — the model/tier picker (local $0 · Haiku · Sonnet · Opus · @fable) is now ALWAYS visible, under the box.
     +'<div id="lp-chip" class="lp-chip"></div>'
+    // LP-4.9 loop-fix §C + W2 — ALWAYS-visible context/route line + honest context-source chip.
+    +'<div id="lp-ctx" class="lp-ctx" role="status"></div>'
+    +'<span id="lp-ctx-src" class="lp-ctx-src" role="status" title="Fontes de contexto do agente" style="display:none"></span>'
+    +'<div id="lp-refs" class="lp-refs" role="group" aria-label="Elementos anexados como referência" style="display:none"></div>'
+    // ── ▾ AJUSTES RÁPIDOS (collapsed) — F0.1: the instant $0 style presets + raw text/class edits, /skills, open/delete. ──
+    +'<button type="button" id="lp-more" class="lp-more" aria-expanded="false" aria-controls="lp-adv" title="Ajustes rápidos de estilo + controlos avançados">▾ ajustes rápidos</button>'
+    +'<div id="lp-adv" class="lp-adv" style="display:none">'
+    // §5 — the instant $0 style gesture (colour/size/spacing), moved off the top into the quick-adjust drawer.
+    +'<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
     +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
     +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
@@ -3662,7 +4059,9 @@ function renderSelection(sel){
     const chip=document.getElementById('lp-ctb-chip');
     // §7 — preserve a minimized toolbar across re-pins (show the 🐮 chip, keep the panel hidden).
     if(lpToolbarMin){ if(ctb){ ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); } if(chip) chip.style.display='inline-flex'; }
-    else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none'; }
+    else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none';
+      // F0.1 — pin ready to type: focus the prompt box on a fresh selection (only when the toolbar is shown).
+      const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} } }
   }
   else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
@@ -3773,7 +4172,7 @@ function renderSelection(sel){
   const moreBtn=document.getElementById('lp-more'), advEl=document.getElementById('lp-adv');
   const setAdv=function(open){
     if(advEl) advEl.style.display=open?'block':'none';
-    if(moreBtn){ moreBtn.setAttribute('aria-expanded', open?'true':'false'); moreBtn.textContent=open?'▴ menos':'▾ mais'; }
+    if(moreBtn){ moreBtn.setAttribute('aria-expanded', open?'true':'false'); moreBtn.textContent=open?'▴ menos':'▾ ajustes rápidos'; }
     try{ localStorage.setItem('lp-adv-open', open?'1':'0'); }catch(e){}
   };
   let advOpen=false; try{ advOpen=localStorage.getItem('lp-adv-open')==='1'; }catch(e){}
@@ -3936,7 +4335,9 @@ function renderEscalationOffer(m, el){
   const ev=(m&&m.evidence&&typeof m.evidence==='object')?m.evidence:{};
   const why=esc(ev.lastReason||'recusado')+(ev.lastDetail?(' — '+esc(String(ev.lastDetail).slice(0,160))):'');
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
-  const disReason=(br.reason==='workspace-untrusted')
+  const disReason=(br.reason==='no-workspace')
+    ? 'sem pasta aberta — abre a pasta do projeto nesta janela primeiro (o agente lê o repo)'
+    : (br.reason==='workspace-untrusted')
     ? 'workspace não confiável — confia no workspace (Manage Workspace Trust) para subir para cloud'
     : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud';
   el.innerHTML='<div class="lp-diff" role="region" aria-label="Escalação com evidência">'
@@ -4049,7 +4450,9 @@ function renderModeChips(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
   // review P1-A: the disabled-reason is HONEST about which gate failed — trust vs missing SDK.
-  const disReason=(br.reason==='workspace-untrusted')
+  const disReason=(br.reason==='no-workspace')
+    ? 'sem pasta aberta — abre a pasta do projeto nesta janela primeiro (o agente lê o repo)'
+    : (br.reason==='workspace-untrusted')
     ? 'workspace não confiável — o agente corre o Agent SDK do workspace; confia no workspace (Manage Workspace Trust) para ativar'
     : 'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para ativar o agente';
   if(lpMode!=='local'&&!br.available) lpMode='local'; // honest fallback, visible in the chips
@@ -4080,6 +4483,10 @@ function renderModeChips(){
     const bi2=document.getElementById('lp-box-in'), h=document.getElementById('lp-box-hint');
     if(h){ if(bi2&&lpMode!=='local'&&suggestLocalChip(bi2.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; } else h.style.display='none'; }
   }); }
+  // W2 — the ctx line AND the honest context chip must track EVERY tier change (incl. the →local
+  // fallback above): renderCtxLine reflects the current lpMode, so a switch to 'local $0' drops the
+  // '📚 repo ✓' chip instead of leaving it lying. Cheap (two elements); safe if the toolbar is absent.
+  renderCtxLine();
 }
 // Honest edit feedback — every refusal shows its real reason (no silent no-op, no fabricated success).
 function showEditResult(ok, reason){
@@ -4096,6 +4503,7 @@ function showEditResult(ok, reason){
     'not-found':'não localizei o elemento no ficheiro — reselecciona', 'parse-error':'não consegui interpretar o ficheiro',
     'file-not-in-workspace':'o ficheiro está fora do workspace', 'engine-unavailable':'motor de edição indisponível',
     'preview-tree-mismatch':'o preview não vem desta árvore (ou o marcador dev não está presente) — reinicia o dev server neste workspace',
+    'no-selection':'sem elemento fixado — clica 🎯 e escolhe um elemento no preview primeiro (sem âncora, o agente pergunta em vez de adivinhar)',
     'parser-unavailable':'motor de edição indisponível — reinstala o plugin (dependência em falta)',
     'bad-request':'pedido inválido', 'bad-value':'valor inválido', refused:'edição recusada', error:'erro a aplicar a edição',
     // LP-4 §6 — honest states for the prompt/undo flows: the model path, the fence, and the moo.
@@ -4104,6 +4512,7 @@ function showEditResult(ok, reason){
     undone:'↩ desfeito — os bytes anteriores foram repostos ($0, splice inverso)',
     'undo-stale':'o ficheiro mudou desde a última escrita do Live Edit — desfazer recusado (nada foi escrito)',
     'nothing-to-undo':'nada para desfazer nesta sessão',
+    'task-busy':'já há uma tarefa do agente a correr — espera que termine (ou cancela-a) antes de lançar outra',
     'prompt-empty':'escreve primeiro o que queres mudar',
     'node-too-large':'este elemento é grande demais para reescrita por prompt — edita no editor',
     'local-model-offline':'moo local offline — arranca o Ollama (ollama serve) ou sobe para cloud',
@@ -4111,6 +4520,7 @@ function showEditResult(ok, reason){
     'local-model-empty':'o moo local devolveu vazio — reformula o prompt',
     'local-model-error':'o moo local falhou — vê o Ollama',
     'sdk-bridge-missing':'ponte SDK ausente — instala @anthropic-ai/claude-agent-sdk no workspace para subir para cloud',
+    'no-workspace':'sem pasta aberta — abre a pasta do projeto nesta janela (o agente lê o repo)',
     'workspace-untrusted':'workspace não confiável — a subida para cloud corre o Agent SDK do workspace; confia no workspace para ativar',
     'cloud-bridge-error':'a ponte cloud falhou — vê a sessão do Claude Code',
     'cloud-model-timeout':'o modelo cloud demorou demasiado — tenta de novo',
@@ -4142,7 +4552,11 @@ function showEditResult(ok, reason){
     'task-empty':'o agente devolveu vazio — reformula o pedido',
     'revert-stale':'o ficheiro mudou desde a edição do agente — reverter recusado (nada foi escrito)',
     'revert-unavailable':'não consigo garantir o reverter deste ficheiro (sem marca da edição) — recusado para não sobrepor bytes de outrem' };
-  const txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
+  let txt=map[reason]||(ok?'✓ ok':'não aplicado ('+reason+')');
+  // F9 (honesty) — the applied/deleted/model-applied strings promise "o HMR atualiza o preview". If we KNOW
+  // the hot-reload socket is down (F2 lpHmrDown), that promise is false: the file was written but the preview
+  // will NOT refresh. Tell the truth instead of contradicting our own hot-reload-down banner.
+  if(lpHmrDown && txt.indexOf('o HMR atualiza o preview')!==-1){ txt=txt.replace('o HMR atualiza o preview','⚠ hot-reload desligado — recarrega o preview para veres a mudança'); }
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
 // LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
@@ -4230,6 +4644,8 @@ window.addEventListener('message', (ev) => {
     if (!curOrigin || ev.origin !== curOrigin) return; // ORIGIN LOCK (event.origin validated)
     if (m.type === 'lp-error'){ lpIngest(m); }
     else if (m.type === 'lp-error-clear'){ lpClearErrors(m.kind); }
+    else if (m.type === 'lp-hmr-down'){ setHmrStale(true); } // F2 (P1-7) — hot-reload channel dropped: the preview may be stale (origin-locked)
+    else if (m.type === 'lp-hmr-up'){ setHmrStale(false); } // F2 — reconnected: clear the honest stale banner
     else if (m.type === 'lp-nav'){ if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav)
     else if (m.type === 'lp-state'){
       if (typeof m.path === 'string'){
@@ -4240,7 +4656,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked, same as every tap message)
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; renderSelection(lpSelection); } // FIX-MP-1 — relay served-tree identity on every selection
+    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
     // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.
@@ -4260,6 +4676,7 @@ window.addEventListener('message', (ev) => {
   //    MP2). The framed iframe cannot read HOST_TOKEN, so it cannot forge this.
   if (m.__t !== HOST_TOKEN) return;
   if (m.type === 'lp-snapshot'){
+    lpNoWorkspace = !!(m.s && m.s.leBridge && m.s.leBridge.reason === 'no-workspace'); // F0.5.1 — empty-window signal for applyStage
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
@@ -4271,6 +4688,7 @@ window.addEventListener('message', (ev) => {
     const fd=m.s && m.s.feed;
     if(fd && typeof fd.rev==='number' && fd.rev!==lpFeedRev){
       lpFeedRev=fd.rev;
+      lpFeedItems=Array.isArray(fd.items)?fd.items:[]; // F0.2 — keep the items so renderSelection can show THIS node's history
       const fe=document.getElementById('lp-feed');
       if(fe){
         fe.innerHTML=renderEditsFeed(fd.items);
@@ -4420,7 +4838,7 @@ if(pubEl) pubEl.addEventListener('click', function(e){
     const msgEl=document.getElementById('lp-pub-msg');
     const message=(msgEl && msgEl.value ? msgEl.value : (lpPublishState.defaultMessage||'')).trim();
     if(!message) return;
-    t.disabled=true;
+    t.disabled=true; t.textContent='a fazer commit + push…'; // F9 — honest progress (the button no longer just freezes)
     vsapi.postMessage({ type:'lp-publish-commit', files: lpPublishState.touchedFiles.map(function(f){ return (f&&f.path)||f; }), message: message });
     return;
   }
@@ -4433,7 +4851,7 @@ if(pubEl) pubEl.addEventListener('click', function(e){
     const typed=input ? input.value.trim() : '';
     const expected=lpPublishState && lpPublishState.projectName;
     if(!typed || !expected || typed!==expected) return;
-    t.disabled=true;
+    t.disabled=true; t.textContent='a fazer deploy… (pode demorar uns minutos)'; // F9 — vercel --prod can take ~180s; never a frozen-looking button
     vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
     return;
   }
@@ -4447,6 +4865,19 @@ function setDevice(px){
   else { f.style.width='100%'; f.style.maxWidth=''; w.classList.remove('lp-dev-narrow'); }
   const map=[['lp-dev-390',390],['lp-dev-768',768],['lp-dev-full',null]];
   for(let i=0;i<map.length;i++){ const b=document.getElementById(map[i][0]); if(b) b.setAttribute('aria-pressed', map[i][1]===px?'true':'false'); }
+  // D1 — HONEST effective width: the preset caps at 100% of the panel (maxWidth:100%), so a 768px request
+  // can render narrower. Read the real width and, when it falls short, say so instead of promising a lie.
+  const note=document.getElementById('lp-dev-note');
+  if(note){
+    try{
+      if(!px){ note.style.display='none'; note.textContent=''; }
+      else {
+        let eff=0; try{ eff=Math.round(f.getBoundingClientRect().width)||f.clientWidth||0; }catch(_){ eff=0; }
+        if(eff && eff < px-1){ note.textContent='⚠ '+px+'px pedido · '+eff+'px efetivo — o painel limita (alarga a janela ou recolhe o lado)'; note.style.display='inline'; }
+        else { note.style.display='none'; note.textContent=''; }
+      }
+    }catch(_){ /* note is best-effort */ }
+  }
 }
 (function(){
   const d3=document.getElementById('lp-dev-390');
@@ -4479,7 +4910,7 @@ function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
   // Live Preview · MP1 — singleton WebviewPanel, ViewColumn.Beside (reveals if already open).
-  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => LivePreviewPanel.createOrReveal()));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => LivePreviewPanel.createOrReveal(ctx)));
   data.start();
 }
 function deactivate() {}
@@ -4488,7 +4919,7 @@ module.exports = { activate, deactivate };
 // ───────────────────────── webview ─────────────────────────
 // ───────────────────────── webview v0.3 ─────────────────────────
 function getHtml(guardianPct = null) {
-  const nonce = String(Math.random()).slice(2);
+  const nonce = crypto.randomBytes(16).toString('hex'); // P1-3: CSPRNG CSP nonce
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>

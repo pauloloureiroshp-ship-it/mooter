@@ -171,6 +171,9 @@ function runAnchoredTask(input, opts) {
         instruction,
         file: input.file, line: input.line, col: input.col, tag: input.tag,
         nodeSource: input.nodeSource, breadcrumb: input.breadcrumb,
+        // F3 (W1) — the rendered DOM text of the pinned node (from the host SelectionStore), so the
+        // agent sees what the user SEES even when the JSX is dynamic (<p>{t('key')}</p>). Bounded.
+        selText: (typeof input.selText === 'string') ? input.selText.slice(0, 200) : '',
         // LP-4.8 §4 — attach-as-reference: read-only context pointers, already sanitised host-side.
         refs: Array.isArray(input.refs) ? input.refs.slice(0, 8) : undefined,
         // LP-4.9 §1 — explicit intent: 'ask' = answer only (zero writes), else edit.

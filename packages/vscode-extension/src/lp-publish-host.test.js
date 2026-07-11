@@ -44,6 +44,19 @@ function mkLinkedWorkspace(projectName) {
   return root;
 }
 
+// D6 — the publish gate is now FAIL-CLOSED on security: it needs a VALID, FRESH, Critical-free scan.
+// applyScan wires the pieces a unit needs to exercise the gate deterministically without a real git
+// repo or a 30s npm audit: _lastSecurity (the recorded scan) + a stubbed _treeFingerprint (the "current"
+// tree state the gate recomputes). Default = a clean scan whose fingerprint MATCHES the current tree
+// (fresh + clear → publish allowed), so tests about the OTHER gates (name-match, not-linked) aren't
+// blocked by security. Pass lastSecurity/fpNow to drive the required/failed/stale/critical branches.
+const CLEAN_SCAN = { secrets: [], xss: [], csp: { hasCsp: true, findings: [] }, audit: { ok: true, counts: { critical: 0, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0 }, fingerprint: 'FP' };
+function applyScan(fakeThis, lastSecurity, fpNow) {
+  fakeThis._lastSecurity = lastSecurity === undefined ? CLEAN_SCAN : lastSecurity;
+  const now = fpNow !== undefined ? fpNow : ((fakeThis._lastSecurity && fakeThis._lastSecurity.fingerprint) || null);
+  fakeThis._scanFingerprint = () => now; // the gate recomputes this (content hash of the scanned files) and compares to the scan's
+}
+
 function deployWith(root, typedName, spawnSpy) {
   const Panel = loadPanelWithFakeSpawn(spawnSpy);
   assert.ok(Panel, 'LivePreviewPanel loaded');
@@ -53,73 +66,160 @@ function deployWith(root, typedName, spawnSpy) {
   const fakeThis = Object.create(Panel.prototype);
   fakeThis.token = 'T';
   fakeThis._wsRoot = () => root;
+  applyScan(fakeThis); // default clean+fresh so the security gate passes → the NAME gate is what's under test
   fakeThis.panel = { webview: { postMessage: (m) => { posted = m; } } };
   fakeThis._publishDeploy({ projectName: typedName });
   return posted;
 }
 
-// Variant that also injects _lastSecurity and passes a full deploy payload — for the fail-closed
-// Critical-secret gate (FIX-REVIEW MED). deployWith leaves _lastSecurity unset → no open Critical.
-function deployRaw(root, payload, spawnSpy, lastSecurity) {
+// Variant that drives the security gate: pass lastSecurity (the recorded scan; null = "no scan") and,
+// for the stale branch, an fpNow that differs from the scan's fingerprint.
+function deployRaw(root, payload, spawnSpy, lastSecurity, fpNow) {
   const Panel = loadPanelWithFakeSpawn(spawnSpy);
   assert.ok(Panel, 'LivePreviewPanel loaded');
   const fakeThis = Object.create(Panel.prototype);
   fakeThis.token = 'T';
   fakeThis._wsRoot = () => root;
-  fakeThis._lastSecurity = lastSecurity || null;
+  applyScan(fakeThis, lastSecurity, fpNow);
   let posted = null;
   fakeThis.panel = { webview: { postMessage: (m) => { posted = m; } } };
   fakeThis._publishDeploy(payload);
   return posted;
 }
 
-// _publishCommit is async and refuses on an open Critical BEFORE any git; spawnSync is stubbed but
+// _publishCommit is async and refuses at the security gate BEFORE any git; spawnSync is stubbed but
 // unused on that path. Returns a promise of the posted message.
-function commitRaw(root, payload, lastSecurity) {
+function commitRaw(root, payload, lastSecurity, fpNow) {
   const Panel = loadPanelWithFakeSpawn(() => ({ status: 0, stdout: '', stderr: '' }));
   assert.ok(Panel, 'LivePreviewPanel loaded');
   const fakeThis = Object.create(Panel.prototype);
   fakeThis.token = 'T';
   fakeThis._wsRoot = () => root;
-  fakeThis._lastSecurity = lastSecurity || null;
+  applyScan(fakeThis, lastSecurity, fpNow);
   let posted = null;
   fakeThis.panel = { webview: { postMessage: (m) => { posted = m; } } };
   return Promise.resolve(fakeThis._publishCommit(payload)).then(() => posted);
 }
 
-test('LP-6 deploy gate: an OPEN Critical finding blocks deploy (critical-open) even on the exact name, never spawns', () => {
+test('D6 deploy gate: a fresh scan with an OPEN Critical secret blocks deploy (critical-open) even on the exact name, never spawns', () => {
   const root = mkLinkedWorkspace('showcase-proj');
   const calls = [];
   try {
     const r = deployRaw(root, { projectName: 'showcase-proj' },
       (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: '', stderr: '' }; },
-      { secrets: [{ severity: 'critical', rule: 'aws-key' }] });
+      { secrets: [{ severity: 'critical', rule: 'aws-key' }], audit: { ok: true, counts: {}, prodCount: 0 }, fingerprint: 'FP' });
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.reason, 'critical-open');
     assert.strictEqual(calls.length, 0, 'vercel NEVER spawned while a Critical finding is open');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('LP-6 deploy gate: an explicit overrideCritical lets the exact-name deploy through the Critical gate', () => {
+test('D6 (P0/P1) deploy gate: overrideCritical from the webview is IGNORED — a Critical still blocks, never spawns', () => {
   const root = mkLinkedWorkspace('showcase-proj');
   const calls = [];
   try {
+    // The old bypass let a forged lp-publish-deploy with overrideCritical:true reach `vercel --prod`.
     const r = deployRaw(root, { projectName: 'showcase-proj', overrideCritical: true },
       (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'https://showcase-proj.vercel.app\n', stderr: '' }; },
-      { secrets: [{ severity: 'critical', rule: 'aws-key' }] });
-    assert.strictEqual(calls.length, 1, 'the explicit override reaches the spawn');
-    assert.strictEqual(r.ok, true);
-    assert.strictEqual(r.url, 'https://showcase-proj.vercel.app');
+      { secrets: [{ severity: 'critical', rule: 'aws-key' }], fingerprint: 'FP' });
+    assert.strictEqual(r.ok, false, 'the override no longer works');
+    assert.strictEqual(r.reason, 'critical-open');
+    assert.strictEqual(calls.length, 0, 'a forged override can NEVER reach the spawn');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('LP-6 commit gate: an OPEN Critical secret blocks the selective commit (critical-open) before any git', async () => {
+test('D6 (P0) deploy gate: NO scan this session blocks deploy (security-scan-required) even on the exact name, never spawns', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'x', stderr: '' }; },
+      null); // <- the exact bypass Codex proved: no _lastSecurity used to mean hasOpenCritical=false → spawn
+    assert.strictEqual(r.ok, false, 'no security scan → publish is NOT allowed');
+    assert.strictEqual(r.reason, 'security-scan-required');
+    assert.strictEqual(calls.length, 0, 'vercel NEVER spawns without a valid scan (the P0 bypass is closed)');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 (P1) deploy gate: a FAILED scan blocks (security-scan-failed), never spawns', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'x', stderr: '' }; },
+      { error: 'scan-failed' });
+    assert.strictEqual(r.reason, 'security-scan-failed', 'an errored scan is fail-closed, not treated as "clear"');
+    assert.strictEqual(calls.length, 0);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 (P0) deploy gate: a STALE scan (tree changed since scan) blocks (security-scan-stale), never spawns', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    // scanned at fingerprint 'OLD'; the tree is now 'NEW' → the scan no longer describes what would ship.
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'x', stderr: '' }; },
+      { secrets: [], audit: { ok: true, counts: {}, prodCount: 0 }, fingerprint: 'OLD' }, 'NEW');
+    assert.strictEqual(r.reason, 'security-scan-stale', 'a scan of an older tree cannot clear the current one');
+    assert.strictEqual(calls.length, 0);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 (P1) deploy gate: an npm-audit CRITICAL/HIGH with prod exposure blocks (critical-open), never spawns', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'x', stderr: '' }; },
+      { secrets: [], audit: { ok: true, counts: { critical: 1, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 1 }, fingerprint: 'FP' });
+    assert.strictEqual(r.reason, 'critical-open', 'a prod-exposed supply-chain critical blocks, not just baked secrets');
+    assert.strictEqual(calls.length, 0);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 deploy gate: a DEV-ONLY audit critical does NOT block a prod deploy (honest — dev deps never ship)', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'Production: https://showcase-proj.vercel.app\n', stderr: '' }; },
+      // provably all-dev-only: devOnlyCount === total (the only way a critical clears — fail-closed otherwise)
+      { secrets: [], audit: { ok: true, counts: { critical: 2, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0, devOnlyCount: 2 }, fingerprint: 'FP' });
+    assert.strictEqual(calls.length, 1, 'provably dev-only criticals do not block a prod deploy');
+    assert.strictEqual(r.ok, true);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 (P1) deploy gate: an audit critical whose entries are UNCLASSIFIABLE (devOnlyCount != total) fails closed', () => {
+  const root = mkLinkedWorkspace('showcase-proj');
+  const calls = [];
+  try {
+    // npm metadata reports a critical, but the per-entry map is empty/unclassifiable → cannot PROVE dev-only → block.
+    const r = deployRaw(root, { projectName: 'showcase-proj' },
+      (cmd, args) => { calls.push({ cmd, args }); return { status: 0, stdout: 'x', stderr: '' }; },
+      { secrets: [], audit: { ok: true, counts: { critical: 1, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0, devOnlyCount: 0 }, fingerprint: 'FP' });
+    assert.strictEqual(r.reason, 'critical-open', 'an unprovable dev-only critical is fail-closed, not cleared');
+    assert.strictEqual(calls.length, 0);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 commit gate: a fresh OPEN Critical secret blocks the selective commit (critical-open) before any git', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-pub-crit-'));
   try {
     const r = await commitRaw(root, { files: ['landing/app/page.tsx'], message: 'x' },
-      { secrets: [{ severity: 'critical', rule: 'stripe-key' }] });
+      { secrets: [{ severity: 'critical', rule: 'stripe-key' }], fingerprint: 'FP' });
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.reason, 'critical-open');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('D6 commit gate: NO scan blocks the selective commit (security-scan-required) before any git', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-pub-noscan-'));
+  try {
+    const r = await commitRaw(root, { files: ['landing/app/page.tsx'], message: 'x' }, null);
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, 'security-scan-required', 'commit+push is gated on a valid scan too');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

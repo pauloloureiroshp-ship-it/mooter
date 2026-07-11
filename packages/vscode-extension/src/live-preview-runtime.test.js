@@ -224,3 +224,297 @@ test('RUNTIME: bridge OFF routes Editar to the local $0 path (lp-prompt), not a 
   assert.strictEqual(sent.type, 'lp-prompt', 'bridge off → local fenced rewrite (lp-prompt), never a doomed lp-task');
   assert.strictEqual(sent.tier, 'local', 'runs on the local $0 tier');
 });
+
+// ── F3 (W1): every prompt path carries the anchor envelope, no path talks to the LLM before an
+//    element is pinned, and the anchor chip is honest ('sem seleção' → '📍 file:line · <tag>'). ──
+function sendWith(h, text) {
+  const bi = h.env.doc.getElementById('lp-box-in');
+  bi.value = text;
+  const before = h.posted.length;
+  h.env.doc.getElementById('lp-box-b').dispatchEvent(h.mkEvent('click'));
+  return h.posted.slice(before);
+}
+function assertEnvelope(msg) {
+  assert.ok(msg, 'a message was posted on send');
+  assert.strictEqual(msg.file, 'landing/app/page.tsx', 'the envelope carries the pinned file');
+  assert.strictEqual(msg.line, 5, 'the envelope carries the pinned line');
+  assert.strictEqual(msg.tag, 'h1', 'the envelope carries the pinned tag');
+}
+
+test('F3 ENVELOPE: the local $0 path (lp-prompt) carries the pinned selection', () => {
+  const h = bootWebview(false); // bridge OFF → local $0
+  fireSelect(h);
+  const sent = sendWith(h, 'encurta este texto').filter((x) => x.type === 'lp-prompt');
+  assert.strictEqual(sent.length, 1, 'exactly one lp-prompt posted');
+  assertEnvelope(sent[0]);
+  assert.strictEqual(sent[0].tier, 'local', 'local $0 tier');
+});
+
+test('F3 ENVELOPE: the agent edit path (lp-task/edit) carries the pinned selection', () => {
+  const h = bootWebview(true); // bridge ON → the anchored agent
+  fireSelect(h);
+  const sent = sendWith(h, 'muda o título').filter((x) => x.type === 'lp-task');
+  assert.strictEqual(sent.length, 1, 'exactly one lp-task posted');
+  assert.strictEqual(sent[0].intent, 'edit', 'edit intent');
+  assertEnvelope(sent[0]);
+});
+
+test('F3 ENVELOPE: the ask path (lp-task/ask) carries the pinned selection', () => {
+  const h = bootWebview(true); // ask needs the bridge ON
+  fireSelect(h);
+  h.env.doc.getElementById('lp-mode-ask').dispatchEvent(h.mkEvent('click')); // flip intent → Perguntar
+  const sent = sendWith(h, 'os números batem com o projeto?').filter((x) => x.type === 'lp-task');
+  assert.strictEqual(sent.length, 1, 'exactly one lp-task posted');
+  assert.strictEqual(sent[0].intent, 'ask', 'ask intent');
+  assertEnvelope(sent[0]);
+});
+
+test('F3 FAIL-CLOSED: no selection → no one-box, ZERO write/LLM messages can be posted', () => {
+  const h = bootWebview(false); // NO fireSelect → nothing pinned
+  assert.strictEqual(h.env.doc.getElementById('lp-box-in'), null, 'no one-box exists without a pinned selection');
+  assert.strictEqual(h.env.doc.getElementById('lp-box-b'), null, 'no send button exists without a pinned selection');
+  const WRITE = ['lp-prompt', 'lp-task', 'lp-prompt-apply', 'lp-edit', 'lp-delete'];
+  const writes = h.posted.filter((x) => WRITE.indexOf(x.type) !== -1);
+  assert.strictEqual(writes.length, 0, 'no prompt/write path can talk to the LLM without a pinned selection');
+});
+
+test('F3 STORE + CHIP: selecting relays exactly one lp-pin to the host SelectionStore and the anchor chip goes honest', () => {
+  const h = bootWebview(false);
+  const chip = h.env.doc.getElementById('lp-anchor');
+  assert.ok(chip, 'the persistent anchor chip exists in the toolbar (the always-visible affordance)');
+  const before = h.posted.length;
+  fireSelect(h);
+  const pins = h.posted.slice(before).filter((x) => x.type === 'lp-pin');
+  assert.strictEqual(pins.length, 1, 'exactly one lp-pin relayed to the host store on select');
+  assert.strictEqual(pins[0].file, 'landing/app/page.tsx', 'the lp-pin carries the anchor file');
+  assert.strictEqual(pins[0].tag, 'h1', 'the lp-pin carries the anchor tag');
+  assert.ok(/page\.tsx/.test(chip.innerHTML || ''), 'pinned → the chip names the file');
+  assert.ok(/h1/.test(chip.innerHTML || ''), 'pinned → the chip names the tag');
+});
+
+// ── W2: the honest context-source chip — repo ✓ (Context Engine) · Notion n/d (Camada C not wired). ──
+test('W2 CONTEXT CHIP: bridge ON → honest "repo ✓ · Notion n/d"; bridge OFF → hidden (never fakes context)', () => {
+  const on = bootWebview(true); fireSelect(on); // bridge ON → agent reads the project
+  const chipOn = on.env.doc.getElementById('lp-ctx-src');
+  assert.ok(chipOn, 'the context-source chip element exists');
+  assert.ok(/repo ✓/.test(chipOn.textContent || ''), 'bridge ON → repo ✓ (the Context Engine reads the repo)');
+  assert.ok(/Notion n\/d/.test(chipOn.textContent || ''), 'honest: Notion n/d (Camada C not wired) — never faked');
+  assert.notStrictEqual(chipOn.style.display, 'none', 'the chip is visible when the agent reads the project');
+  const off = bootWebview(false); fireSelect(off); // bridge OFF → local $0, only this node
+  const chipOff = off.env.doc.getElementById('lp-ctx-src');
+  assert.strictEqual(chipOff.style.display, 'none', 'bridge OFF (local $0) → no context-source chip (honest: it edits only this node)');
+});
+
+test('W2 CONTEXT CHIP stays honest on TIER SWITCH: agent (repo ✓) → local $0 (hidden) → agent (repo ✓)', () => {
+  const h = bootWebview(true); fireSelect(h); // bridge ON, default edit+auto → agent reads the repo
+  const chip = h.env.doc.getElementById('lp-ctx-src');
+  const tier = (mode) => { const c = h.env.doc.getElementById('lp-chip'); return c && c.querySelector('[data-mode="' + mode + '"]'); };
+  assert.ok(/repo ✓/.test(chip.textContent || '') && chip.style.display !== 'none', 'auto → 📚 repo ✓ visible');
+  // switch to the local $0 tier — the fenced local rewrite reads NOTHING from the repo
+  const local = tier('local');
+  assert.ok(local, 'the local tier chip exists');
+  local.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'none', 'local $0 → the chip HIDES (no stale "repo ✓" lie)');
+  // back to the agent — the honest chip returns
+  const auto = tier('auto');
+  auto.dispatchEvent(h.mkEvent('click'));
+  assert.ok(/repo ✓/.test(chip.textContent || '') && chip.style.display !== 'none', 'back to auto → 📚 repo ✓ returns (agent reads the repo)');
+});
+
+// ── F0.3/F0.4: the 🛡 Review and 🚀 Publish top-toolbar actions carry VISIBLE text labels. ──
+test('F0.3/F0.4: 🛡 Review + 🚀 Publish show text labels (discoverable, not just tooltips)', () => {
+  const html = loadModule().getLivePreviewHtml('tok');
+  assert.ok(/id="lp-security-btn"[^>]*>🛡 Review</.test(html), 'the security action shows the label "🛡 Review"');
+  assert.ok(/id="lp-publish-btn"[^>]*>🚀 Publish</.test(html), 'the publish action shows the label "🚀 Publish"');
+});
+
+// ── F0.1: prompt-first — the box is the star (autofocus on pin), tier picker under it, presets collapsed. ──
+test('F0.1: after a pin, the prompt box is focused and sits above the tier picker + ▾ ajustes rápidos drawer', () => {
+  const h = bootWebview(true); fireSelect(h);
+  const bi = h.env.doc.getElementById('lp-box-in');
+  assert.ok(bi, 'the prompt box rendered');
+  assert.strictEqual(h.env.doc.activeElement, bi, 'the prompt box is autofocused on a fresh pin (ready to type)');
+  const html = loadModule().getLivePreviewHtml('tok');
+  const iBox = html.indexOf('id="lp-box-in"'), iChip = html.indexOf('id="lp-chip"');
+  const iMore = html.indexOf('id="lp-more"'), iAdv = html.indexOf('id="lp-adv"'), iPresets = html.indexOf('id="lp-presets"');
+  assert.ok(iBox < iChip && iChip < iMore, 'order: prompt box → tier picker → ▾ ajustes rápidos (prompt-first)');
+  assert.ok(iPresets > iAdv, 'presets are collapsed inside the ▾ ajustes rápidos drawer');
+  assert.ok(/▾ ajustes rápidos/.test(html), 'the drawer is labelled "▾ ajustes rápidos"');
+});
+
+// ── F0.5.1: an empty window (no folder) → honest "open folder" screen + button, never a dead state. ──
+test('F0.5.1: no folder → honest empty-window screen with an "Abrir a pasta" button that posts lp-open-folder', () => {
+  const h = bootWebview(false);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: false, degraded: true, reason: 'sem pasta' }, leBridge: { available: false, reason: 'no-workspace' }, feed: { rev: 0, items: [] } } }, source: h.win, origin: null }));
+  const deg = h.env.doc.getElementById('lp-degrade');
+  assert.ok(/Nenhuma pasta aberta/.test(deg.innerHTML || ''), 'shows the honest empty-window screen, not the "start the dev server" lie');
+  const btn = h.env.doc.getElementById('lp-open-folder');
+  assert.ok(btn, 'the "Abrir a pasta" button is present (never a dead state)');
+  const before = h.posted.length;
+  btn.dispatchEvent(h.mkEvent('click'));
+  const posted = h.posted.slice(before).filter(function (x) { return x.type === 'lp-open-folder'; });
+  assert.strictEqual(posted.length, 1, 'clicking posts lp-open-folder → the host opens the folder in this window');
+});
+
+// ── F0.5.3: readiness semaphore — 4 honest lights + 1-click fix per unlit light (sticky-port visible). ──
+test('F0.5.3: the semaphore shows port+source + tree state, and each fix button posts the right message', () => {
+  const h = bootWebview(false);
+  // sticky-port: folder ok, dev server up on :3000 (Docker), served tree MISMATCH, agent untrusted.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:3000/', port: 3000, source: 'probe' }, leBridge: { available: false, reason: 'workspace-untrusted' }, readiness: { workspace: true, devServer: true, port: '3000', source: 'probe', tree: 'mismatch', sdk: false, trust: false, reason: 'workspace-untrusted' }, feed: { rev: 0, items: [] } } }, source: h.win, origin: null }));
+  const el = h.env.doc.getElementById('lp-ready');
+  assert.ok(el, 'the semaphore element exists');
+  assert.ok(/:3000 probe/.test(el.innerHTML || ''), 'shows the dev-server port + source — the sticky one is VISIBLE, not hidden');
+  assert.ok(/outra árvore/.test(el.innerHTML || ''), 'the served-tree light is amber (mismatch) — the sticky-port/old-branch case');
+  const restart = el.querySelector('[data-fix="restart"]');
+  assert.ok(restart, 'the tree-mismatch light offers a "reiniciar dev server" fix');
+  let before = h.posted.length;
+  restart.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-restart-dev'; }), 'restart fix posts lp-restart-dev (gated host-side)');
+  const trust = el.querySelector('[data-fix="trust"]');
+  before = h.posted.length;
+  trust.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-trust'; }), 'trust fix posts lp-trust (Manage Workspace Trust)');
+});
+
+test('F9 (D8/#3): the "sem SDK" light offers a REAL SDK action (lp-sdk-help), not a mislabelled folder picker', () => {
+  const h = bootWebview(false);
+  // folder + trusted, but the Agent SDK is missing → the sdk light lights up.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:7819/' }, leBridge: { available: false, reason: 'sdk-bridge-missing' }, readiness: { workspace: true, devServer: true, port: '7819', source: 'tap', tree: 'ok', sdk: false, trust: true, reason: 'sdk-bridge-missing' }, feed: { rev: 0, items: [] } } }, source: h.win, origin: null }));
+  const el = h.env.doc.getElementById('lp-ready');
+  assert.ok(/sem SDK/.test(el.innerHTML || ''), 'the sdk light is lit');
+  const sdk = el.querySelector('[data-fix="sdk"]');
+  assert.ok(sdk, 'it offers an sdk fix (data-fix="sdk", not "folder")');
+  assert.ok(/como instalar/.test(el.innerHTML || ''), 'the button reads "como instalar" (honest), not the old bare "instalar"');
+  assert.strictEqual(el.querySelector('[data-fix="folder"]'), null, 'the "sem SDK" light does NOT wire a folder picker');
+  const before = h.posted.length;
+  sdk.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-sdk-help'; }), 'clicking posts lp-sdk-help (host shows the real install command) — never lp-open-folder');
+  assert.ok(!h.posted.slice(before).some(function (x) { return x.type === 'lp-open-folder'; }), 'the "sem SDK" fix is NOT a folder picker');
+});
+
+test('F9 (#4): the applied toast tells the truth about HMR — promises a refresh only when hot-reload is UP', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1', path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/app/page.tsx', tag: 'h1', label: 'h1' } ] });
+  const msg = () => (h.env.doc.getElementById('lp-edit-msg') || {}).textContent || '';
+  const fireApplied = () => h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-edit-result', __t: 'tok', ok: true, reason: 'applied' }, source: h.win, origin: null }));
+  // HMR healthy → the toast may say the preview updates.
+  fireApplied();
+  assert.ok(/o HMR atualiza o preview/.test(msg()), 'with HMR up, the applied toast promises the refresh');
+  // HMR goes down (tap banner) → the SAME applied result must NOT keep promising a refresh that will not happen.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-hmr-down' }, source: h.frame.contentWindow, origin: 'http://localhost:7819' }));
+  fireApplied();
+  assert.ok(/hot-reload desligado/.test(msg()), 'with HMR down, the toast tells the user to reload — no false promise');
+  assert.ok(!/o HMR atualiza o preview/.test(msg()), 'the unconditional "o HMR atualiza" promise is gone while HMR is down');
+});
+
+// ── F5 (P1-5): component-scope + multi-instance warnings are BEHAVIOURAL, not just string-present ──
+// The audit found the shared-component warning (parentCrumb.file !== sel.file) was covered only by a
+// string-presence assert on the raw HTML — neither the POSITIVE branch (a node whose usage site is a
+// different file → warn) nor the NEGATIVE branch (a node in its OWN page → NO warn) was exercised. A
+// silent regression here makes the UI lie: either scream on everything, or go quiet on real shared
+// components. These drive the REAL renderSelection() via the runtime harness and read #lp-sel.
+function fireSelectWith(h, over) {
+  const base = { type: 'lp-select', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1', rect: { x: 10, y: 10, w: 120, h: 24 }, text: 'Old headline', className: 'title', path: [], repeated: 0 };
+  h.win.dispatchEvent(h.mkEvent('message', { data: Object.assign(base, over), source: h.frame.contentWindow, origin: 'http://localhost:7819' }));
+}
+const SHARED_WARN = 'afeta todos os usos deste componente';
+const selHtml = (h) => { const el = h.env.doc.getElementById('lp-sel'); return el ? el.innerHTML : ''; };
+
+test('F5/P1-5: node whose USAGE site (parent crumb) is a DIFFERENT file → shared-component warning FIRES', () => {
+  const h = bootWebview(false);
+  // leaf lives in Card.tsx (a component definition); the crumb above it is the page that USES it.
+  fireSelectWith(h, {
+    file: 'landing/components/Card.tsx', tag: 'h2',
+    path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/components/Card.tsx', tag: 'h2', label: 'h2' } ],
+  });
+  assert.ok(selHtml(h).indexOf(SHARED_WARN) !== -1, 'edit lands on the definition → all-usages warning must show');
+});
+
+test('F5/P1-5: node in its OWN page (parent crumb SAME file) → shared-component warning is SILENT (no false alarm)', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, {
+    file: 'landing/app/page.tsx', tag: 'h1', repeated: 0,
+    path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/app/page.tsx', tag: 'h1', label: 'h1' } ],
+  });
+  assert.strictEqual(selHtml(h).indexOf(SHARED_WARN), -1, 'a plain page node must NOT scream the shared-component warning (the layout.tsx false-positive fix)');
+});
+
+test('F5/P1-5: repeated>1 → multi-instance (.map()) warning fires with the exact count', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', tag: 'li', repeated: 3, path: [ { file: 'landing/app/page.tsx', tag: 'ul', label: 'ul' }, { file: 'landing/app/page.tsx', tag: 'li', label: 'li' } ] });
+  const html = selHtml(h);
+  assert.ok(html.indexOf('×3') !== -1 && html.indexOf('TODOS os itens') !== -1, 'repeated node → honest template-wide warning with the live count');
+  assert.strictEqual(html.indexOf(SHARED_WARN), -1, 'same-file repeated node does not ALSO fire the shared-component warning');
+});
+
+// ── F6 (P1-6): the 5.2a limitations must be VISIBLE to the user, not buried in a comment ───────────
+// The "frame is pinned to the FIRST instance" fact lived only in a source comment; the user editing a
+// .map()'d node had no way to know the highlight box tracks instance #1 while the write hits the whole
+// template. Surface it in the multi-instance warning copy.
+test('F6/P1-6: the multi-instance warning states the frame is pinned to the FIRST instance (limitation surfaced, not just commented)', () => {
+  const h = bootWebview(false);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', tag: 'li', repeated: 4, path: [ { file: 'landing/app/page.tsx', tag: 'ul', label: 'ul' }, { file: 'landing/app/page.tsx', tag: 'li', label: 'li' } ] });
+  const html = selHtml(h);
+  assert.ok(/presa à 1ª instância/.test(html), 'the user must SEE that the highlight tracks instance #1 while the edit hits the template');
+  assert.ok(html.indexOf('TODOS os itens') !== -1, 'and still that the edit affects every rendered item');
+});
+
+// ── F2 (P1-7): honest hot-reload-down banner — the preview must never silently fake freshness ──────
+// When the tap's HMR socket drops (dev server down / hot-reload dead), edits stop reflecting while the
+// frame still LOOKS fresh. The tap posts lp-hmr-down (origin-locked); the webview must SHOW it, and
+// clear it on lp-hmr-up (reconnect). Driven through the same origin-locked iframe channel as lp-select.
+function fireTap(h, data) {
+  h.win.dispatchEvent(h.mkEvent('message', { data: data, source: h.frame.contentWindow, origin: 'http://localhost:7819' }));
+}
+test('F2/P1-7: lp-hmr-down shows the honest stale banner; lp-hmr-up clears it', () => {
+  const h = bootWebview(false);
+  const hmr = () => h.env.doc.getElementById('lp-hmr');
+  assert.ok(hmr(), '#lp-hmr mount is present in the body');
+  // (The static default is display:none in the shipped HTML — asserted in webview-syntax.test.js. The
+  // hand-rolled DOM does not reflect a static style attribute into .style, so here we assert behaviour.)
+  fireTap(h, { type: 'lp-hmr-down' });
+  assert.strictEqual(hmr().style.display, 'block', 'down → the banner is shown');
+  assert.ok(/hot-reload desligado/.test(hmr().textContent || ''), 'honest copy: the preview may be stale');
+  fireTap(h, { type: 'lp-hmr-up' });
+  assert.strictEqual(hmr().style.display, 'none', 'up (reconnected) → banner cleared');
+  assert.strictEqual(hmr().textContent, '', 'no stale copy left behind');
+});
+test('F2/P1-7: an lp-hmr-down that is NOT from the origin-locked frame is ignored (no spoofed banner)', () => {
+  const h = bootWebview(false);
+  // Wrong source (not the frame) — the origin lock must drop it, exactly like every other tap message.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-hmr-down' }, source: { name: 'evil' }, origin: 'http://localhost:7819' }));
+  assert.notStrictEqual(h.env.doc.getElementById('lp-hmr').style.display, 'block', 'a non-frame sender cannot fake the stale banner');
+});
+
+test('D1: a device preset that cannot fit shows the honest EFFECTIVE width (never a silent "768" lie)', () => {
+  const h = bootWebview(false);
+  const btn768 = h.env.doc.getElementById('lp-dev-768');
+  const note = () => h.env.doc.getElementById('lp-dev-note');
+  assert.ok(btn768 && note(), 'device button + effective-width note mount present');
+  btn768.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(note().style.display, 'inline', 'the note shows when the panel caps the preset below the requested width');
+  assert.ok(/768px pedido/.test(note().textContent || '') && /efetivo/.test(note().textContent || ''), 'states requested vs effective honestly: ' + note().textContent);
+  h.env.doc.getElementById('lp-dev-full').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(note().style.display, 'none', 'full width clears the note (nothing to warn about)');
+});
+
+// ── F0.2: clicking a node shows ITS history (per-node feed by nodeKey; prior-session items labelled) ──
+function pushFeed(h, items) {
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:7819/' }, leBridge: { available: false }, feed: { rev: 99, items: items } } }, source: h.win, origin: null }));
+}
+test('F0.2: selecting a node shows ITS history; a prior-session item is read-only "histórico"', () => {
+  const h = bootWebview(false);
+  pushFeed(h, [
+    { id: 'h1', ts: 1000, via: 'texto · $0', files: ['landing/app/page.tsx'], status: 'live', nodeKey: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, persisted: true },
+    { id: 'f1', ts: 2000, via: 'classe · $0', files: ['landing/app/page.tsx'], status: 'live', nodeKey: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, persisted: false },
+    { id: 'x1', ts: 3000, via: 'texto · $0', files: ['landing/app/other.tsx'], status: 'live', nodeKey: { file: 'landing/app/other.tsx', line: 9, col: 1, tag: 'p' }, persisted: false },
+  ]);
+  fireSelectWith(h, { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1', path: [ { file: 'landing/app/page.tsx', tag: 'section', label: 'section' }, { file: 'landing/app/page.tsx', tag: 'h1', label: 'h1' } ] });
+  const html = (h.env.doc.getElementById('lp-sel') || {}).innerHTML || '';
+  assert.ok(/histórico deste nó · 2/.test(html), 'the h1 node shows its 2 edits (not the other node): ' + html.slice(0, 200));
+  assert.ok(html.indexOf('histórico') !== -1, 'the prior-session item is labelled histórico (read-only)');
+  // A DIFFERENT node shows only its own single history item.
+  fireSelectWith(h, { file: 'landing/app/other.tsx', line: 9, col: 1, tag: 'p', path: [ { file: 'landing/app/other.tsx', tag: 'div', label: 'div' }, { file: 'landing/app/other.tsx', tag: 'p', label: 'p' } ] });
+  const html2 = (h.env.doc.getElementById('lp-sel') || {}).innerHTML || '';
+  assert.ok(/histórico deste nó · 1/.test(html2), 'the other node has its OWN single-item history (nodeKey isolation)');
+});

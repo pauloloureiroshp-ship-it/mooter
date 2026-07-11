@@ -246,6 +246,16 @@ export function stampMatches(
   return p.file === file && p.line === line && p.col === col && (!tag || (p.tag || '') === tag);
 }
 
+/**
+ * hmrReconnectDelay — PURE. Bounded backoff for the dev HMR reconnect: attempt 0 → 1s, then doubling,
+ * capped at 5s. Keeps the "no reconnect storm" property (FIX-MP-7) provable without a live socket.
+ */
+export function hmrReconnectDelay(attempt: number): number {
+  // NaN / negative → treat as attempt 0 (1s floor); a large or Infinite count backs off to the 5s cap.
+  const a = typeof attempt === 'number' && attempt > 0 ? Math.floor(attempt) : 0;
+  return Math.min(1000 * Math.pow(2, a), 5000);
+}
+
 export function installLpErrorTap(): void {
   if (typeof window === 'undefined') return;
   // Embedded-only + idempotent. The <LpErrorTap/> wrapper already gates NODE_ENV + parent check;
@@ -391,10 +401,39 @@ export function installLpErrorTap(): void {
   //    would fabricate a red strip on a HEALTHY edit (honest-copy). A Server Component RUNTIME throw is
   //    NOT carried here (Next sends only `serverComponentChanges`, no error text) — that path is covered
   //    by reportBoundaryError() from app/error.tsx + app/global-error.tsx. Fully fail-soft.
-  try {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const hmr = new WebSocket(proto + '//' + location.host + '/_next/webpack-hmr');
-    hmr.addEventListener('message', (ev: MessageEvent) => {
+  // F2 (P1-7): the socket is ALSO our honest liveness signal for hot-reload. A dropped/failed socket
+  // means the dev server or the HMR channel is gone — edits stop reflecting while the preview still
+  // LOOKS fresh (the "preview fine, published broken" trap). So on close/error we surface lp-hmr-down,
+  // attempt a BOUNDED reconnect (hmrReconnectDelay — never a storm), and clear it with lp-hmr-up once
+  // the socket re-opens. The old code swallowed both and relied on the page reload; that hid real staleness.
+  let hmrDown = false;
+  let hmrAttempt = 0;
+  const HMR_MAX_ATTEMPTS = 6;
+  const markHmrDown = (): void => { if (hmrDown) return; hmrDown = true; post({ type: 'lp-hmr-down' }); };
+  const markHmrUp = (): void => { hmrAttempt = 0; if (!hmrDown) return; hmrDown = false; post({ type: 'lp-hmr-up' }); };
+  const scheduleHmrReconnect = (): void => {
+    if (hmrAttempt >= HMR_MAX_ATTEMPTS) return; // bounded — never a reconnect storm
+    const delay = hmrReconnectDelay(hmrAttempt);
+    hmrAttempt++;
+    try { window.setTimeout(connectHmr, delay); } catch { /* no timer host — give up quietly */ }
+  };
+  function connectHmr(): void {
+    let sock: WebSocket;
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      sock = new WebSocket(proto + '//' + location.host + '/_next/webpack-hmr');
+    } catch {
+      markHmrDown(); scheduleHmrReconnect(); // WebSocket blocked → treat as down + retry (DOM-overlay + boundary paths still work)
+      return;
+    }
+    let gone = false;
+    const onGone = (): void => {
+      if (gone) return; gone = true; // 'error' is usually followed by 'close' — collapse to ONE transition
+      markHmrDown();
+      scheduleHmrReconnect();
+    };
+    sock.addEventListener('open', () => { markHmrUp(); });
+    sock.addEventListener('message', (ev: MessageEvent) => {
       try {
         const data = typeof ev.data === 'string' ? JSON.parse(ev.data) : null;
         if (!data || typeof data !== 'object') return;
@@ -409,13 +448,10 @@ export function installLpErrorTap(): void {
         /* a malformed frame is not our problem — ignore it */
       }
     });
-    // A dropped socket is not an error condition (Next restarts its own); we just stop relaying. No
-    // reconnect storm — one connection for the page's lifetime is enough, and the boundary path covers
-    // the reload case. Swallow socket errors so a hiccup never surfaces as a strip row.
-    hmr.addEventListener('error', () => {});
-  } catch {
-    /* WebSocket unavailable / blocked — the DOM-overlay and boundary paths still work */
+    sock.addEventListener('close', onGone);
+    sock.addEventListener('error', onGone);
   }
+  connectHmr();
 
   // ── 5. State-preserving reload — report route + scroll (throttled); restore on the host's ask.
   let lastEmit = 0;

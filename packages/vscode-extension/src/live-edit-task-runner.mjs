@@ -248,6 +248,10 @@ async function main() {
   if (req.tag) anchor.push('- elemento: <' + String(req.tag) + '>');
   if (typeof req.breadcrumb === 'string' && req.breadcrumb.trim()) anchor.push('- breadcrumb: ' + req.breadcrumb.trim());
   if (nodeSource.trim()) anchor.push('- fonte do nó (JSX):\n' + nodeSource);
+  // F3 (W1) — the RENDERED text the user actually sees on the pinned node (from the DOM), distinct
+  // from the JSX source: for a dynamic node (e.g. <p>{t('key')}</p>) the JSX carries no words but
+  // this does — so an ask ("resume este texto") never has to guess about what is pinned.
+  if (typeof req.selText === 'string' && req.selText.trim()) anchor.push('- texto renderizado do nó (o que o utilizador vê no ecrã): ' + req.selText.trim());
   // LP-4.8 §4 — multi-select attach-as-reference: extra nodes the user Cmd/Ctrl-clicked as CONTEXT
   // for this one prompt (Lovable's attach model). They are read-only pointers (file:line <tag>) the
   // agent should consider; the edit still lands in the RIGHT place, gated by the same in-workspace +
