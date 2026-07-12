@@ -1738,6 +1738,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-task-cancel') { try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ } return; } // LP-4.9 §8 cancel the running agent task
     if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
     if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
+    if (m.type === 'lp-ask-apply') { this._askApply(m); return; } // COH-07 — turn an Ask answer into an anchored edit (host revalidates the lease; webview sends ONLY the askId)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
@@ -2726,12 +2727,56 @@ class LivePreviewPanel {
         const d = LET.gitDiffFile(e.snapshot, e.abs);
         return { file: e.file, diff: (d && d.ok) ? d.lines.slice(0, 400) : null, diffReason: (d && d.ok) ? null : ((d && d.reason) || 'git-unavailable') };
       });
+      // COH-07 — Ask→Apply. An ANSWER (intent:'ask', no edits) registers a HOST-SIDE ask record keyed by
+      // askId, carrying the lease it was produced under + the question/answer/anchor/refs. The webview
+      // gets ONLY the askId back and renders "▶ Aplicar com o agente"; it never holds a trusted payload.
+      let askId = null;
+      if (intent === 'ask' && res.kind === 'answer' && String(res.text || '').trim()) {
+        if (!this._askReg) { this._askReg = new Map(); this._askSeq = 0; }
+        askId = 'ask-' + (++this._askSeq);
+        this._askReg.set(askId, {
+          epoch: (this._readyEpoch | 0),
+          servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null,
+          instruction, answer: String(res.text || ''),
+          refs, filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
+          model: res.model || null, mode,
+          file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+          tagLabel: (typeof m.tag === 'string') ? m.tag : '',
+          breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+        });
+        if (this._askReg.size > 20) { const k = this._askReg.keys().next().value; this._askReg.delete(k); }
+      }
       this._postTaskResult({
         ok: true, taskId, kind: res.kind, text: String(res.text || ''),
         filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
         edits: view,
         denied: Array.isArray(res.denied) ? res.denied.slice(0, 40) : [],
-        model: res.model || null, mode,
+        model: res.model || null, mode, askId,
+      });
+    } catch { fail('error'); }
+  }
+  // COH-07 — Ask→Apply, host-bound. The webview sends ONLY { askId }; the host re-validates the lease
+  // (tree + trust + epoch) the answer was produced under, then composes the edit instruction from the
+  // STORED question+answer and launches a normal anchored EDIT run. Nothing the webview sends besides the
+  // askId is trusted (a tampered instruction/answer/file in the message is ignored). Fail-closed with an
+  // honest reason on a missing/expired record or a broken lease.
+  _askApply(m) {
+    const fail = (reason) => this._postTaskResult({ ok: false, reason: String(reason || 'error') });
+    try {
+      const askId = (m && typeof m.askId === 'string') ? m.askId : '';
+      const rec = (this._askReg && this._askReg.get(askId)) || null;
+      if (!rec) { fail('ask-expired'); return; }                                  // no such record → refuse
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }     // COH-01 tree gate
+      if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
+      if ((rec.epoch | 0) !== (this._readyEpoch | 0)) { fail('preview-tree-mismatch'); return; } // lease moved
+      this._askReg.delete(askId); // one-shot: the answer becomes an edit exactly once
+      // Compose the edit instruction HOST-SIDE from the stored question+answer (never the webview's).
+      const composed = 'Aplica ao elemento ancorado a sugestão seguinte, com o mínimo de alterações.\n\n'
+        + 'Pedido original do utilizador:\n' + rec.instruction + '\n\n'
+        + 'Sugestão a aplicar (resposta anterior do agente):\n' + rec.answer;
+      this._taskRun({
+        instruction: composed, file: rec.file, line: rec.line, col: rec.col, tag: rec.tag,
+        refs: rec.refs, mode: rec.mode, intent: 'edit', breadcrumb: rec.breadcrumb,
       });
     } catch { fail('error'); }
   }
@@ -3122,6 +3167,10 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-sel .lp-task-st{font-size:10.5px;opacity:.9;margin-left:6px}
   #lp-sel .lp-task-reads{font-size:10.5px;opacity:.8;margin:4px 0;line-height:1.6}
   #lp-sel .lp-task-reads code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10px}
+  /* COH-07 — the Ask→Apply primary CTA ("▶ Aplicar com o agente") + its hint. */
+  #lp-sel .lp-abtn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-border,transparent);font-weight:600}
+  #lp-sel .lp-abtn:hover{background:var(--vscode-button-hoverBackground)}
+  #lp-sel .lp-task-hint{font-size:10.5px;opacity:.75;margin:5px 0 2px;line-height:1.5}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
   #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
   #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -4635,8 +4684,20 @@ function renderTaskResult(m){
       +'<button id="lp-task-revert-all" class="lp-sel-btn" title="repor os bytes anteriores de TODOS os ficheiros listados (sha-guarded) — nunca fora desta lista">reverter tudo</button>'
       +'</div>';
   }
+  // COH-07 — an ANSWER (no edits) ALWAYS terminates in "▶ Aplicar com o agente": one click turns the
+  // answer into an anchored EDIT. The webview posts ONLY the askId — the host revalidates the lease and
+  // composes the edit from the STORED question+answer (never a webview-supplied payload). Diff + revert
+  // as the normal edit path. Ends the copy-paste-to-Codex-by-hand gesture the audit called out.
+  if(!edits.length && m.askId){
+    html+='<div class="lp-sel-acts">'
+      +'<button id="lp-ask-apply" class="lp-sel-btn lp-abtn" data-askid="'+esc(m.askId)+'" title="cria a edição ancorada NESTE elemento a partir desta resposta — com diff antes de escrever e reverter sempre">▶ Aplicar com o agente</button>'
+      +'</div>'
+      +'<div class="lp-task-hint">Aplicar cria a edição ancorada neste elemento, com diff antes de escrever e reverter sempre — não precisas de copiar para lado nenhum.</div>';
+  }
   html+='</div>';
   el.innerHTML=html;
+  const ab=document.getElementById('lp-ask-apply');
+  if(ab) ab.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-ask-apply', askId:this.getAttribute('data-askid') }); showEditResult(null,'pending'); });
   const tid=m.taskId;
   const kb=document.getElementById('lp-task-keep');
   if(kb) kb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-keep', taskId:tid }); showEditResult(null,'pending'); });
