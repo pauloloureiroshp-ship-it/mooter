@@ -1747,8 +1747,12 @@ class LivePreviewPanel {
       return;
     }
     if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
-    if (m.type === 'lp-open-external') { // C0 · COH-01 (mock S7 "inspect") — open the NEW origin in the real browser to see what it serves. Origin-locked: only a normalized localhost URL is ever opened.
-      try { const n = LPS ? LPS.normalizeStageUrl(m.url) : null; if (n) vscode.env.openExternal(vscode.Uri.parse(n.url)); } catch { /* best-effort */ }
+    if (m.type === 'lp-open-external') { // C0 COH-01 (S7 inspect) + C4 COH-19 (open the deploy/prod URL). Origin-locked: ONLY a normalized localhost URL OR a validated HTTPS URL is ever opened — never an arbitrary scheme.
+      try {
+        const loc = LPS ? LPS.normalizeStageUrl(m.url) : null;
+        const safe = loc ? loc.url : this._validHttpsUrl(m.url);
+        if (safe) vscode.env.openExternal(vscode.Uri.parse(safe));
+      } catch { /* best-effort */ }
       return;
     }
     if (m.type === 'lp-pick-project') { // COH-05 — the user picked the active project in a multi-root workspace. Accept ONLY a path that is a current workspace-folder member; then re-detect against it.
@@ -2350,6 +2354,48 @@ class LivePreviewPanel {
   // project name, shown only as a hint — the deploy gate re-derives it independently), the open-
   // Critical flag, and the last known REAL deploy URL this session produced (or null — never
   // guessed).
+  // COH-10 — validate an HTTPS production URL. Returns the canonical origin+path (trailing slash
+  // stripped) or null. ONLY https is a valid production destination; never http, never a bare host.
+  _validHttpsUrl(u) {
+    try {
+      if (typeof u !== 'string' || !u.trim()) return null;
+      const p = new URL(u.trim());
+      if (p.protocol !== 'https:' || !p.hostname) return null;
+      const tail = (p.pathname && p.pathname !== '/') ? p.pathname.replace(/\/+$/, '') : '';
+      return p.origin + tail;
+    } catch { return null; }
+  }
+  // COH-10 — the project's OWN declared production URL (NEXT_PUBLIC_SITE_URL), read from its versioned
+  // env files. This is the "project manifest" source — never derived from the project NAME, never a
+  // generic hardcode. First HTTPS value wins. Fail-soft.
+  _readEnvSiteUrl(root) {
+    const files = ['landing/.env.local', 'landing/.env.production', 'landing/.env', 'landing/.env.local.example', '.env.production', '.env'];
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const txt = fs.readFileSync(path.join(root, files[i]), 'utf8');
+        const m = /^\s*NEXT_PUBLIC_SITE_URL\s*=\s*["']?([^"'\s#]+)/m.exec(txt);
+        if (m) { const v = this._validHttpsUrl(m[1]); if (v) return v; }
+      } catch { /* next file */ }
+    }
+    return null;
+  }
+  // COH-10 — the production destination shown BEFORE the two-factor deploy (mock S5). HONEST precedence:
+  //   1) the REAL deploy URL this session produced (current truth)
+  //   2) an explicit Mooter setting (mooter.livePreview.productionUrl)
+  //   3) a project manifest (.mooter/live-preview.json → productionUrl)
+  //   4) the project's own declared NEXT_PUBLIC_SITE_URL (versioned env)
+  //   5) n/d — never guessed, never derived from projectName, never a generic hardcode.
+  // Every candidate is HTTPS-validated. Returns { url, source } ({ url:null } → the UI shows n/d).
+  _productionUrl() {
+    const root = this._wsRoot();
+    const dep = this._validHttpsUrl(this._lastDeployUrl);
+    if (dep) return { url: dep, source: 'deploy atual' };
+    try { const cfg = vscode.workspace.getConfiguration('mooter'); const s = cfg && typeof cfg.get === 'function' ? cfg.get('livePreview.productionUrl') : null; const v = this._validHttpsUrl(s); if (v) return { url: v, source: 'setting Mooter' }; } catch { /* not set */ }
+    try { const j = JSON.parse(fs.readFileSync(path.join(root, '.mooter', 'live-preview.json'), 'utf8')); const v = this._validHttpsUrl(j && j.productionUrl); if (v) return { url: v, source: 'manifest do projeto' }; } catch { /* absent */ }
+    const env = this._readEnvSiteUrl(root);
+    if (env) return { url: env, source: 'config do projeto · validada HTTPS' };
+    return { url: null, source: null };
+  }
   async _publishStatus() {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-status-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
     try {
@@ -2367,6 +2413,7 @@ class LivePreviewPanel {
         hasOpenCritical: !secGate.cleared, // D6: "blocked by security" — required/failed/stale/critical
         securityReason: secGate.reason,    // the honest WHY, so the popover doesn't just say "critical"
         websiteUrl: this._lastDeployUrl || null,
+        destination: this._productionUrl(), // COH-10 — the prod target, shown BEFORE the two-factor
       });
     } catch { post({ error: 'status-failed' }); }
   }
@@ -3179,6 +3226,12 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-publish .lp-pub-meta{opacity:.75;margin-bottom:6px}
   #lp-publish .lp-pub-err{color:var(--vscode-errorForeground,#D9484B)}
   #lp-publish .lp-pub-url{margin-bottom:6px;word-break:break-all}
+  /* COH-10/19 — the production destination + real clickable URL anchors. */
+  #lp-publish .lp-pub-dest{margin:6px 0;word-break:break-all;font-size:11.5px}
+  #lp-publish .lp-pub-dest-src{opacity:.7;font-size:10.5px}
+  #lp-publish .lp-pub-link{color:var(--vscode-textLink-foreground,#4daafc);text-decoration:underline;cursor:pointer}
+  #lp-publish .lp-pub-link:hover{color:var(--vscode-textLink-activeForeground,#4daafc)}
+  #lp-publish .lp-pub-inline-err{margin:5px 0;font-size:11px}
   #lp-publish .lp-pub-cost{opacity:.65;margin-bottom:8px;font-style:italic}
   #lp-publish .lp-pub-warn{color:var(--vscode-charts-yellow,#E5C07B);margin-bottom:6px}
   #lp-publish .lp-pub-ok{color:var(--vscode-charts-green,#4EC97A);word-break:break-all}
@@ -3824,7 +3877,7 @@ function applyStage(stage){
     // toolbar so the user never edits through an anchor that belonged to the previous origin. The host
     // has already re-armed the lease + nulled servedRoot/selection; this is the visual half of the
     // invalidation. renderSelection(null) hides the in-canvas toolbar too. (First load: nothing to clear.)
-    if(originChanged){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} }
+    if(originChanged){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){} } // COH-11 — a new app must re-prove nav capability
     frame.setAttribute('src', st.url);
   }
 }
@@ -4029,6 +4082,16 @@ let lpIntent='edit';
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
 let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false, lpHmrDown=false;
 let lpServedRoot=null; // COH-16 — the current lease's served root, so per-node history never mixes worktrees
+// COH-11 — Back/Forward route through the Mooter tap (lp-history). Without a tap handshake (lp-ready)
+// from the current origin, they do nothing — so they are DISABLED with an honest reason until the tap
+// proves the capability. Reset on every origin change (a new app must re-prove it).
+let lpHasTap=false;
+function applyNavCapability(){
+  const back=document.getElementById('lp-back'), fwd=document.getElementById('lp-fwd');
+  const why='navegação indisponível — este site não expõe o tap Mooter (sem handshake da origem atual)';
+  const set=function(b){ if(!b) return; if(lpHasTap){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title=(b.id==='lp-back'?'Recuar no site':'Avançar no site'); } else { b.disabled=true; b.setAttribute('aria-disabled','true'); b.title=why; } };
+  set(back); set(fwd);
+}
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -5056,14 +5119,14 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-error-clear'){ lpClearErrors(m.kind); }
     else if (m.type === 'lp-hmr-down'){ setHmrStale(true); } // F2 (P1-7) — hot-reload channel dropped: the preview may be stale (origin-locked)
     else if (m.type === 'lp-hmr-up'){ setHmrStale(false); } // F2 — reconnected: clear the honest stale banner
-    else if (m.type === 'lp-nav'){ if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav)
+    else if (m.type === 'lp-nav'){ if(!lpHasTap){ lpHasTap=true; applyNavCapability(); } if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav) + COH-11 the tap proves nav capability
     else if (m.type === 'lp-state'){
       if (typeof m.path === 'string'){
         lpState = { path: m.path.slice(0,2048), scrollY: (typeof m.scrollY === 'number' && isFinite(m.scrollY)) ? m.scrollY : 0 };
         vsapi.postMessage({ type:'lp-state', path: lpState.path, scrollY: lpState.scrollY });
       }
     }
-    else if (m.type === 'lp-ready'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked, same as every tap message)
+    else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11 the handshake proves nav capability
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
     else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
@@ -5215,9 +5278,10 @@ if(urlInput) urlInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sub
 const routesSel=document.getElementById('lp-routes');
 if(routesSel) routesSel.addEventListener('change', ()=>{ const v=routesSel.value; if(v) vsapi.postMessage({ type:'lp-nav-input', input:v }); });
 const backBtn=document.getElementById('lp-back');
-if(backBtn) backBtn.addEventListener('click', ()=> frameHistory('back'));
+if(backBtn) backBtn.addEventListener('click', ()=>{ if(!lpHasTap) return; frameHistory('back'); }); // COH-11 — guarded (button is also disabled without a tap)
 const fwdBtn=document.getElementById('lp-fwd');
-if(fwdBtn) fwdBtn.addEventListener('click', ()=> frameHistory('forward'));
+if(fwdBtn) fwdBtn.addEventListener('click', ()=>{ if(!lpHasTap) return; frameHistory('forward'); });
+applyNavCapability(); // COH-11 — Back/Forward start DISABLED with a reason until a tap handshake proves the capability
 const reBtn=document.getElementById('lp-redetect');
 if(reBtn) reBtn.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-redetect' }));
 const autoBtn=document.getElementById('lp-auto');
@@ -5248,28 +5312,44 @@ if(pubBtn) pubBtn.addEventListener('click', function(){
   if(el){ el.style.display='block'; el.innerHTML='<div class="lp-pub-hdr">🚀 a preparar…</div>'; }
   vsapi.postMessage({ type:'lp-publish-status' });
 });
+// COH-12 — an inline error next to a control (never a silent return). Creates/updates a sibling
+// alert element; cleared on the next successful action or re-render.
+function pubInlineError(refId, msg){
+  const ref=document.getElementById(refId); if(!ref||!ref.parentNode) return;
+  let err=document.getElementById(refId+'-err');
+  if(!err){ err=document.createElement('div'); err.id=refId+'-err'; err.className='lp-pub-err lp-pub-inline-err'; err.setAttribute('role','alert'); ref.parentNode.insertBefore(err, ref.nextSibling); }
+  err.textContent=msg;
+}
 const pubEl=document.getElementById('lp-publish');
 if(pubEl) pubEl.addEventListener('click', function(e){
-  const t=e.target; if(!t || !t.id) return;
+  const t=e.target; if(!t) return;
+  // COH-19 — a real deploy/prod URL anchor opens in the browser host-side (CSP-safe), never inert text.
+  const ext=(t.getAttribute && t.getAttribute('data-ext'))||null;
+  if(ext){ if(e.preventDefault) e.preventDefault(); vsapi.postMessage({ type:'lp-open-external', url:ext }); return; }
+  if(!t.id) return;
   if(t.id==='lp-pub-review-btn'){ const b=document.getElementById('lp-security-btn'); if(b) b.click(); return; }
   if(t.id==='lp-pub-commit-btn'){
-    if(!lpPublishState || !Array.isArray(lpPublishState.touchedFiles) || !lpPublishState.touchedFiles.length) return;
+    // COH-12 — no silent returns: an empty change set or an empty message says WHY, next to the button.
+    if(!lpPublishState || !Array.isArray(lpPublishState.touchedFiles) || !lpPublishState.touchedFiles.length){ pubInlineError('lp-pub-commit-btn','nada por commitar — não há ficheiros alterados nesta árvore.'); return; }
     const msgEl=document.getElementById('lp-pub-msg');
     const message=(msgEl && msgEl.value ? msgEl.value : (lpPublishState.defaultMessage||'')).trim();
-    if(!message) return;
+    if(!message){ pubInlineError('lp-pub-commit-btn','escreve uma mensagem de commit primeiro.'); if(msgEl) msgEl.focus(); return; }
+    pubInlineError('lp-pub-commit-btn','');
     t.disabled=true; t.textContent='a fazer commit + push…'; // F9 — honest progress (the button no longer just freezes)
     vsapi.postMessage({ type:'lp-publish-commit', files: lpPublishState.touchedFiles.map(function(f){ return (f&&f.path)||f; }), message: message });
     return;
   }
   if(t.id==='lp-pub-deploy-open'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='block'; return; }
-  if(t.id==='lp-pub-deploy-cancel'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='none'; return; }
+  if(t.id==='lp-pub-deploy-cancel'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='none'; pubInlineError('lp-pub-deploy-confirm',''); return; }
   if(t.id==='lp-pub-deploy-confirm'){
     // Client-side check is a UX courtesy ONLY — the host re-reads .vercel/project.json itself and
     // is the ONLY thing that can actually authorise the deploy (see extension.js _publishDeploy).
     const input=document.getElementById('lp-pub-gate-input');
     const typed=input ? input.value.trim() : '';
     const expected=lpPublishState && lpPublishState.projectName;
-    if(!typed || !expected || typed!==expected) return;
+    // COH-12 — no silent return: a mismatched two-factor confirmation says exactly what to type.
+    if(!typed || !expected || typed!==expected){ pubInlineError('lp-pub-deploy-confirm', expected?('o nome do projeto não coincide — escreve exactamente "'+expected+'".'):'projeto Vercel não ligado — não há destino para confirmar.'); if(input) input.focus(); return; }
+    pubInlineError('lp-pub-deploy-confirm','');
     t.disabled=true; t.textContent='a fazer deploy… (pode demorar uns minutos)'; // F9 — vercel --prod can take ~180s; never a frozen-looking button
     vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
     return;
