@@ -24,6 +24,28 @@ function fixture() {
   return { root, sha };
 }
 
+test('global ledger override remains isolated per real repo/worktree root', () => {
+  const a = fixture();
+  const b = fixture();
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-agent-sync-global-'));
+  const previous = process.env.MOOTER_AGENT_SYNC_DIR;
+  try {
+    process.env.MOOTER_AGENT_SYNC_DIR = parent;
+    const dirA = sync.defaultDir(a.root);
+    const dirB = sync.defaultDir(b.root);
+    assert.strictEqual(path.dirname(dirA), parent);
+    assert.strictEqual(path.dirname(dirB), parent);
+    assert.notStrictEqual(dirA, dirB, 'two roots never co-mingle into one global ledger');
+    assert.strictEqual(sync.defaultDir(a.root), dirA, 'the per-root key is stable');
+  } finally {
+    if (previous == null) delete process.env.MOOTER_AGENT_SYNC_DIR;
+    else process.env.MOOTER_AGENT_SYNC_DIR = previous;
+    fs.rmSync(a.root, { recursive: true, force: true });
+    fs.rmSync(b.root, { recursive: true, force: true });
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
 test('normalizeEvent clamps and normalizes agent/cadence/status', () => {
   const { root } = fixture();
   try {

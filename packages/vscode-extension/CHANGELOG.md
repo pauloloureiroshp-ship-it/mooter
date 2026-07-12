@@ -37,8 +37,10 @@ All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Kee
   the gitignored `_handoff/agent-sync/` operational directory.
 - Add shared Claude Code and Roo/Gemini rules plus the canonical repo protocol for Claude, Codex, Gemini/Roo,
   local Ollama and Cowork handoffs.
-- Fix `moo-verify` missing-tool detection on Windows: unavailable advisory checks now remain `—`, while a
-  user-required missing custom check continues to block.
+- Fix `moo-verify` missing-tool detection on Windows without accepting generic “not found” test failures;
+  every unavailable required check blocks, while unavailable advisory checks remain `—`.
+- Scope `MOOTER_AGENT_SYNC_DIR` by a stable real-root key so one inherited environment cannot co-mingle
+  sibling worktrees or repositories in a shared Ledger.
 - Regression proof: extension suite **1176 pass / 0 fail**; focused Stop/handoff/Ledger suite **77 pass / 0 fail**.
   The full router suite exposed one load-sensitive statusline latency failure that passed in isolation and the
   Windows missing-tool issue fixed above; no classifier change.

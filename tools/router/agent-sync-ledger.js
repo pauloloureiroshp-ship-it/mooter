@@ -105,7 +105,15 @@ function isMooterRoot(root) {
 }
 
 function defaultDir(root) {
-  return process.env.MOOTER_AGENT_SYNC_DIR || path.join(root, '_handoff', 'agent-sync');
+  const override = process.env.MOOTER_AGENT_SYNC_DIR;
+  if (!override) return path.join(root, '_handoff', 'agent-sync');
+  // Treat the global override as a parent, never one shared ledger. A stable real-root key keeps
+  // sibling worktrees/repositories isolated even when every agent inherits the same environment.
+  let canonical;
+  try { canonical = fs.realpathSync(root); } catch { canonical = path.resolve(root); }
+  const base = (path.basename(canonical) || 'repo').replace(/[^a-z0-9._-]+/gi, '-').slice(0, 80) || 'repo';
+  const rootHash = crypto.createHash('sha256').update(canonical).digest('hex').slice(0, 12);
+  return path.join(path.resolve(override), base + '-' + rootHash);
 }
 
 function paths(root, dir) {
