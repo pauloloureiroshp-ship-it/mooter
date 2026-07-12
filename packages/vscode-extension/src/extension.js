@@ -91,6 +91,11 @@ try { LPA = require('./lp-aggregates.js'); } catch { LPA = null; }
 // and the App Stage stays in its honest "a detetar…" state (no crash).
 let LPS = null;
 try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
+// COH-02 — the PURE in-canvas toolbar placement decision (never covers the pin), serialised into the
+// webview via chooseToolbarPlacement.toString(). Fail-soft: absent → the webview stub keeps the toolbar
+// anchored below the pin (pre-existing behaviour) rather than crashing.
+let LPTG = null;
+try { LPTG = require('./lp-toolbar-geom.js'); } catch { LPTG = null; }
 // ── LIVE PREVIEW · MP4 (Honest Diagnostics) — the PURE normaliser + ×N grouper + honest strip
 // renderer + the tap-message ORIGIN LOCK (acceptTapOrigin) + the file-open resolver. The
 // fs.existsSync (file resolve) and the clipboard write live host-side below; this module only
@@ -1325,6 +1330,9 @@ class LivePreviewPanel {
     this._stageOrigin = null;
     this._readyEpoch = 0;
     this._leaseInfo = null;
+    // COH-05 — in a multi-root workspace, the user's explicit project pick (from the project selector).
+    // null → resolve the active project from the active editor (see _wsRoot). Never a blind folders[0].
+    this._projectRoot = null;
     this._wire();
   }
   static createOrReveal(context) {
@@ -1339,7 +1347,41 @@ class LivePreviewPanel {
     return LivePreviewPanel.current;
   }
   _wsRoot() {
-    return (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+    const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || null;
+    if (!folders || !folders.length) return process.cwd();
+    if (folders.length === 1) return (folders[0] && folders[0].uri && folders[0].uri.fsPath) || process.cwd();
+    // COH-05 — MULTI-ROOT: never a blind folders[0]. Resolve the ACTIVE project.
+    // 1) an explicit user pick from the project selector (still a member of the workspace) wins.
+    if (this._projectRoot) {
+      for (let i = 0; i < folders.length; i++) { if (folders[i] && folders[i].uri && folders[i].uri.fsPath === this._projectRoot) return this._projectRoot; }
+    }
+    // 2) the folder that OWNS the active editor's document (the project the user is looking at).
+    try {
+      const active = vscode.window && vscode.window.activeTextEditor;
+      const doc = active && active.document && active.document.uri;
+      if (doc && typeof vscode.workspace.getWorkspaceFolder === 'function') {
+        const wf = vscode.workspace.getWorkspaceFolder(doc);
+        if (wf && wf.uri && wf.uri.fsPath) return wf.uri.fsPath;
+      }
+    } catch { /* fall through to the honest first-folder default */ }
+    // 3) no active editor to disambiguate → the first folder (surfaced with a selector in the UI, so
+    //    the user can correct it — the write gate still fail-closes if the served tree does not match).
+    return (folders[0] && folders[0].uri && folders[0].uri.fsPath) || process.cwd();
+  }
+  // COH-05 — the multi-root project selector facts for the UI: the folder list + the active one. Empty
+  // (null) for a single-root workspace (no selector needed). Never throws.
+  _projectsSnapshot() {
+    try {
+      const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || null;
+      if (!folders || folders.length < 2) return null;
+      const active = this._wsRoot();
+      const list = [];
+      for (let i = 0; i < folders.length; i++) {
+        const f = folders[i]; const p = f && f.uri && f.uri.fsPath;
+        if (p) list.push({ path: p, name: (f.name || p.split(/[\\/]+/).filter(Boolean).slice(-1)[0] || p), active: p === active });
+      }
+      return list.length ? { list, active } : null;
+    } catch { return null; }
   }
   // FIX-MP-1 (audit P0-1) — record the root the dev server actually SERVES, relayed by the dev-only
   // tap (NEXT_PUBLIC_LP_ROOT). Fail-soft: a non-empty string is realpath-normalised when it exists on
@@ -1571,6 +1613,7 @@ class LivePreviewPanel {
       // an origin swap. Once a fresh lp-ready from the new origin re-confirms the tree, this is null and
       // the normal UI returns. Never fabricated: derived purely from _leaseInfo + _treeConfirmed().
       s.lease = (this._leaseInfo && !this._treeConfirmed()) ? this._leaseInfo : null;
+      s.projects = this._projectsSnapshot(); // COH-05 — the multi-root project selector (null for single-root)
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
@@ -1657,10 +1700,29 @@ class LivePreviewPanel {
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
-    if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
+    if (m.type === 'lp-open-folder') {
+      // COH-03 — a REAL folder picker in THIS window (the copy says "Abrir a pasta", so the effect must
+      // be a folder picker, not the recents list). macOS uses the combined open dialog (openFileFolder);
+      // Windows/Linux use openFolder. Honest-controls: copy === effect.
+      try {
+        const isMac = process.platform === 'darwin';
+        vscode.commands.executeCommand(isMac ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+      } catch { /* best-effort */ }
+      return;
+    }
     if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
     if (m.type === 'lp-open-external') { // C0 · COH-01 (mock S7 "inspect") — open the NEW origin in the real browser to see what it serves. Origin-locked: only a normalized localhost URL is ever opened.
       try { const n = LPS ? LPS.normalizeStageUrl(m.url) : null; if (n) vscode.env.openExternal(vscode.Uri.parse(n.url)); } catch { /* best-effort */ }
+      return;
+    }
+    if (m.type === 'lp-pick-project') { // COH-05 — the user picked the active project in a multi-root workspace. Accept ONLY a path that is a current workspace-folder member; then re-detect against it.
+      try {
+        const want = (typeof m.path === 'string') ? m.path : '';
+        const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || [];
+        let okMember = false;
+        for (let i = 0; i < folders.length; i++) { if (folders[i] && folders[i].uri && folders[i].uri.fsPath === want) { okMember = true; break; } }
+        if (okMember) { this._projectRoot = want; this.overrideUrl = null; this.routes = null; this._detectStage(); }
+      } catch { /* best-effort */ }
       return;
     }
     if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
@@ -2939,6 +3001,8 @@ function getLivePreviewHtml(token, wsRoot) {
   // execution, so the risk is panel-JS breakage + inert HTML, not RCE — but the fence is cheap.
   const skillsJson = JSON.stringify(Array.isArray(skillsRegistry) ? skillsRegistry : []).replace(/</g, '\\u003c');
   const renderSkillsMenuHTMLSrc = LSK ? LSK.renderSkillsMenuHTML.toString() : 'function renderSkillsMenuHTML(){return "";}';
+  // COH-02 — the pure toolbar-placement decision, serialised into the webview (never covers the pin).
+  const chooseToolbarPlacementSrc = LPTG ? LPTG.chooseToolbarPlacement.toString() : 'function chooseToolbarPlacement(o){return {mode:"place",x:6,y:6};}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -3341,6 +3405,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <!-- D1 — honest effective-width note: a preset caps at 100% of the panel, so 768px can deliver less. -->
         <span id="lp-dev-note" class="lp-dev-note" role="status" aria-live="polite" style="display:none"></span>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
+        <!-- COH-05 — multi-root project selector (hidden unless the workspace has ≥2 folders). Picks the ACTIVE project the preview serves/edits — never a blind workspaceFolders[0]. -->
+        <select id="lp-project" title="Projeto ativo (workspace multi-raiz)" aria-label="Escolher o projeto ativo" style="display:none"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
@@ -3452,6 +3518,7 @@ const renderSecurityFindings=${renderSecurityFindingsSrc};
 const renderPublishPopover=${renderPublishPopoverSrc};
 const LP_SKILLS=${skillsJson};
 const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
+const chooseToolbarPlacement=${chooseToolbarPlacementSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
@@ -3463,7 +3530,24 @@ function render(s){
 // F0.5.3 — the readiness semaphore: 4 honest lights (pasta · dev server+porta/fonte · árvore · agente)
 // with a 1-click fix per unlit light. Sticky-port shows the wrong :porta (fonte) so the user SEES it.
 let lpReadySig='';
+// COH-04 — the 🎯 selector is enabled ONLY on a CONFIRMED preview identity (workspace · dev server ·
+// tree 'ok'). Otherwise it is disabled with the exact cause + the 1-click fix in its tooltip, and any
+// live select mode is turned off — pinning a node you cannot edit (or that belongs to another app) is a
+// lie the honest-controls invariant forbids. Called on every readiness paint (before the dedup return).
+function applySelectCapability(r){
+  const b=document.getElementById('lp-select-btn'); if(!b) return;
+  const ok=!!(r && r.workspace && r.devServer && r.tree==='ok');
+  if(ok){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title='Selecionar um elemento do preview para editar (Esc sai)'; return; }
+  if(lpSelectOn) setSelectMode(false); // cannot select an unconfirmed preview
+  b.disabled=true; b.setAttribute('aria-disabled','true');
+  const why=(!r||!r.workspace)?'abre a pasta do projeto primeiro'
+    :(!r.devServer)?'arranca o dev server para o preview aparecer'
+    :(r.tree==='mismatch')?'o preview vem de outra árvore — reinicia o dev server neste workspace'
+    :'identidade do preview por confirmar — aguarda o handshake da origem atual';
+  b.title='🎯 Selecionar indisponível — '+why;
+}
 function renderReadiness(r){
+  applySelectCapability(r); // COH-04 — gate the selector by identity on every paint (independent of the lights-dedup below)
   const el=document.getElementById('lp-ready'); if(!el) return;
   if(!r){ if(lpReadySig!==''){ lpReadySig=''; el.innerHTML=''; el.style.display='none'; } return; }
   const lit=function(state,label,fix,fixlabel){
@@ -3478,7 +3562,7 @@ function renderReadiness(r){
     else parts.push(lit('bad','sem dev server','reprobe','re-probar'));
     if(r.tree==='ok') parts.push(lit('ok','árvore',null,null));
     else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
-    else if(r.tree==='unknown' && r.devServer) parts.push(lit('warn','árvore por confirmar','restart','reiniciar dev server')); // C0 COH-01/04 — a server is up but its identity is UNPROVEN (origin swap / no handshake): the 4th light NEVER silently vanishes; it stays amber with a 1-click fix
+    else if(r.tree==='unknown') parts.push(lit('warn','árvore por confirmar', r.devServer?'restart':'reprobe', r.devServer?'reiniciar dev server':'re-probar')); // C0/COH-04 — the 4th light is ALWAYS visible: identity 'por confirmar' (origin swap / no handshake / no server) NEVER silently vanishes, always with a 1-click fix
     if(r.sdk) parts.push(lit('ok','agente',null,null));
     else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
     else parts.push(lit('bad','sem SDK','sdk','como instalar'));
@@ -3625,6 +3709,18 @@ function renderLease(lease){
   if(wb) wb.addEventListener('click', function(){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; });
   const ib=document.getElementById('lp-lease-inspect');
   if(ib) ib.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-external', url:(lease.nextOrigin||'') }); });
+}
+// COH-05 — the multi-root project selector. Hidden for a single-root workspace; otherwise lists the
+// workspace folders with the ACTIVE one selected. Picking one posts lp-pick-project (host re-detects
+// against it). Concat-only + esc()'d; deduped on a signature so a poll never steals a mid-open dropdown.
+let lpProjSig='';
+function renderProjects(projects){
+  const sel=document.getElementById('lp-project'); if(!sel) return;
+  if(!projects||!Array.isArray(projects.list)||projects.list.length<2){ if(lpProjSig!==''){ lpProjSig=''; sel.style.display='none'; sel.innerHTML=''; } return; }
+  const sig=JSON.stringify(projects); if(sig===lpProjSig) return; lpProjSig=sig;
+  let html='';
+  for(let i=0;i<projects.list.length;i++){ const p=projects.list[i]||{}; html+='<option value="'+esc(p.path)+'"'+(p.active?' selected':'')+'>📁 '+esc(p.name||p.path)+'</option>'; }
+  sel.innerHTML=html; sel.style.display='inline-block';
 }
 // ── MP3.3 multi-page navigation (webview side) ──────────────────────────────────────────────
 // Navigate the frame WITHIN the current stage origin. curSrc stays = the stage root, so the App
@@ -3917,34 +4013,36 @@ function positionCanvasToolbar(rect){
   const px=fx+(rect.x||0), py=fy+(rect.y||0), pw=rect.w||0, ph=rect.h||0; // pin box in wrap coords
   const clampX=function(x,w){ return Math.max(6, Math.min(x, wrapW-w-6)); };
   const clampY=function(y,h){ return Math.max(6, Math.min(y, wrapH-h-6)); };
+  const cw=(chip&&chip.offsetWidth)||34, chh=(chip&&chip.offsetHeight)||28;
   // §7 minimized — place the 🐮 chip at the pin corner (above if it fits, else below); toolbar hidden.
+  // Above/below by construction never overlaps the pin (COH-02 holds for the minimized state too).
   if(lpToolbarMin){
-    if(chip){ const cw=chip.offsetWidth||34, chh=chip.offsetHeight||34; chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
+    if(chip){ chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
     return;
   }
   const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
-  // §7 dragged — honour the manual position (clamped into the frame; the auto-anchor is the
-  // no-drag alternative required by WCAG 2.5.7, so dragging is a convenience, never the only way).
-  if(lpToolbarManualPos){ tb.style.left=clampX(lpToolbarManualPos.x, tw)+'px'; tb.style.top=clampY(lpToolbarManualPos.y, th)+'px'; return; }
-  // §7 auto-anchor — try above → below → right → left; take the first that fits AND does not cover
-  // the pin (the toolbar must never hide the very element being edited — Paulo's live pain).
   const pin={x:px,y:py,w:pw,h:ph};
-  const cands=[
-    {x:clampX(px,tw), y:py-th-8},        // above
-    {x:clampX(px,tw), y:py+ph+8},        // below
-    {x:px+pw+8,       y:clampY(py,th)},  // right
-    {x:px-tw-8,       y:clampY(py,th)},  // left
-  ];
-  let chosen=null;
-  for(let i=0;i<cands.length;i++){
-    const c=cands[i];
-    if(c.x<6||c.y<6||c.x+tw>wrapW-6||c.y+th>wrapH-6) continue;   // off-frame
-    if(lpRectsOverlap({x:c.x,y:c.y,w:tw,h:th}, pin)) continue;   // covers the pin
-    chosen=c; break;
+  // COH-02 — the PURE placement decision (serialised in): it repeats the overlap test on the MANUAL
+  // (dragged) position too, and when nothing fits it returns 'minimize'/'dock' instead of clamping the
+  // toolbar ON TOP of the pin. INVARIANT: the returned rect never covers the pinned node. The auto-anchor
+  // (manual omitted) is the no-drag alternative required by WCAG 2.5.7 — dragging is a convenience, never
+  // the only way to place the toolbar. Proven geometrically in lp-toolbar-geom.test.js (real rectangles).
+  const pl=chooseToolbarPlacement({ pin, tb:{w:tw,h:th}, wrap:{w:wrapW,h:wrapH}, chip:{w:cw,h:chh}, manual:lpToolbarManualPos });
+  if(pl.mode==='place'){
+    tb.style.display='block'; tb.setAttribute('aria-hidden','false');
+    if(chip) chip.style.display='none';
+    tb.style.left=pl.x+'px'; tb.style.top=pl.y+'px';
+    return;
   }
-  if(!chosen) chosen={x:clampX(px,tw), y:clampY(py+ph+8, th)};   // last resort: clamped below
-  tb.style.left=chosen.x+'px';
-  tb.style.top=chosen.y+'px';
+  // No full placement clears the pin → auto-minimize to the chip (never over the node). 'dock' parks the
+  // chip at the top of the right edge of the frame. Either way the FULL toolbar is hidden, chip shown.
+  lpToolbarMin=true;
+  tb.style.display='none'; tb.setAttribute('aria-hidden','true');
+  if(chip){
+    chip.style.display='inline-flex';
+    if(pl.mode==='minimize'){ chip.style.left=pl.x+'px'; chip.style.top=pl.y+'px'; }
+    else { chip.style.left=Math.max(6, wrapW-cw-6)+'px'; chip.style.top='6px'; } // dock: top of the right rail edge
+  }
 }
 function hideCanvasToolbar(){
   const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body'), chip=document.getElementById('lp-ctb-chip');
@@ -4818,6 +4916,7 @@ window.addEventListener('message', (ev) => {
     lpNoWorkspace = !!(m.s && m.s.leBridge && m.s.leBridge.reason === 'no-workspace'); // F0.5.1 — empty-window signal for applyStage
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
     renderLease(m.s && m.s.lease); // C0 · COH-01 — the identity-lease safe state (mock S7) rides the snapshot
+    renderProjects(m.s && m.s.projects); // COH-05 — the multi-root project selector rides the snapshot
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
@@ -4948,6 +5047,9 @@ const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
+// COH-05 — pick the active project (multi-root). Host re-detects the dev server against it.
+const projSel=document.getElementById('lp-project');
+if(projSel) projSel.addEventListener('change', function(){ if(this.value) vsapi.postMessage({ type:'lp-pick-project', path:this.value }); });
 // LP-5 §C — 🛡 Review Security: a GLOBAL action (not per-pin). Click → the host bounded-walks the
 // workspace + runs the 4 pure scanners + npm audit, all local, $0; the result renders into
 // #lp-security via the serialised renderSecurityFindings (same fn.toString() trick as presets).
