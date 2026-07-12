@@ -5,7 +5,7 @@
 
 **Atualizado:** 2026-07-12 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
 **extensão em main:** `v0.16.67` · **candidata local:** `v0.16.68` em
-`fix/lp-iframe-reload-rearm` (**3 commits locais, push pendente**).
+`fix/lp-iframe-reload-rearm` (**branch publicada; PR/merge pendentes**).
 
 ## Verdade atual
 
@@ -27,7 +27,7 @@ Auditoria mecânica pelo Git nativo do Windows, confrontada com `origin/main`. D
 | Estado atual | Quantidade | Tratamento |
 |---|---:|---|
 | Worktree canónico `frugal` | 1 | manter; preservar WIP antes de alinhar a `main` |
-| Worktree desta consolidação | 1 | limpo; branch candidata para push |
+| Worktree desta consolidação | 1 | limpo; branch candidata publicada |
 | Outros worktrees sujos | 10 | patches + não rastreados preservados no cofre; revisão antes de remover |
 | **Registrados** | **12** | eram 40; redução segura de 70% |
 
@@ -56,7 +56,7 @@ webview concat-only/CSP/origin-lock/tree-gate preservados.
 
 ## Próxima missão
 
-1. Revisar e, com autorização, publicar `fix/lp-iframe-reload-rearm` como PR curto para `main`.
+1. Revisar e, com autorização separada, abrir `fix/lp-iframe-reload-rearm` como PR curto para `main`.
 2. Preservar/triangular o trabalho real dos 11 worktrees sujos, começando pelo diretório canónico `frugal`.
 3. Remover o resíduo órfão `frugal-final` somente depois de o lock do Windows desaparecer.
 4. Deixar apenas `C:\Users\Paulo Loureiro\frugal` em `main`, limpo e sincronizado; branches históricas podem

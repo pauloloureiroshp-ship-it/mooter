@@ -8,13 +8,15 @@
 
 ## 0. TL;DR (o que não podes perder)
 - Todo o trabalho desta sessão **já está committado** no branch `fix/lp-iframe-reload-rearm`
-  (`ea65359` + `f05c2e9` + `cee1eb7`). Nada fica por commitar exceto o `.vsix` (artefacto regenerável, gitignored).
+  (`ea65359` + `f05c2e9` + `06874cf`) e a branch está publicada no remoto. Nada fica por commitar exceto o
+  `.vsix` (artefacto regenerável, gitignored); PR e merge continuam pendentes de autorização separada.
 - **Suite: 1167/1167 verde. `classify.js` sha `427d8c0b…4bc48f` intacta.** Mantém ambos.
 - A reorg tem **4 pontos load-bearing** (§4). Se moveres qualquer um sem seguir §5, o Live Preview morre.
 
 ## 1. Estado do repo AGORA
 - Worktree: `C:\Users\Paulo Loureiro\frugal-lp-coerencia`
-- Branch: **`fix/lp-iframe-reload-rearm`** · HEAD `cee1eb7` · base `origin/main` `89ff3e3` (PR #246 já mergeado)
+- Branch: **`fix/lp-iframe-reload-rearm`** · alteração funcional mais recente `06874cf` · base `origin/main`
+  `89ff3e3` (PR #246 já mergeado) · branch publicada; PR/merge pendentes
 - **12 worktrees registradas** (`git worktree list`) depois da remoção segura de 27 limpas — a reorg TEM de ser
   worktree-aware (ver §4-D). Ex.: `frugal` (wave/honest-controls), `frugal-w2` (wave/w2-agent-bridge) e esta árvore.
 - `.vsix` é gitignored (artefacto de build). A mudança experimental de `landing/package.json`
@@ -27,7 +29,7 @@
 |---|---|---|
 | `ea65359` | **Fix #1** reload re-arm + **Fix #2** banner honesto + 4 testes + bump | `packages/vscode-extension/src/extension.js`, `…/src/live-preview-runtime.test.js`, `…/package.json` (0.16.68) |
 | `f05c2e9` | consolidação docs/sync (Codex) | docs |
-| `cee1eb7` | **integração host** pin recebido→gate→ficheiro pinado→undo limpo | `…/src/lp-cycle-e2e.test.js` |
+| `06874cf` | **integração host** pin recebido→gate→ficheiro pinado→undo limpo | `…/src/lp-cycle-e2e.test.js` |
 | `f05c2e9` | nota de arquitetura H2 arquivada | `_handoff/_archive/2026-07/LP_H2_FLOATING_PROMPT_ARCHITECTURE.md` |
 
 **Fix #1 — reload-desync** (`extension.js`, handler `lp-ready`): um reload completo do iframe reinicia o tap
@@ -45,7 +47,7 @@ pin-first fail-closed (nenhum prompt vai ao LLM sem pin). Não reconstruir uma c
 
 **Verificação adversarial (3 lentes, 0 bugs):** seleção auto-pina (automático); todos os caminhos LLM/agente
 têm o gate `_selectionMissing()` **antes** de qualquer `await`; todos os writes são contidos ao workspace
-(`_within` + realpath + sha + tree gate) — sem write fora da árvore. O teste `cee1eb7` bloqueia a metade host
+(`_within` + realpath + sha + tree gate) — sem write fora da árvore. O teste `06874cf` bloqueia a metade host
 da cadeia; o relay DOM/tap/webview continua provado separadamente em `live-preview-runtime.test.js`.
 
 ## 3. Como o Live Preview funciona (mapa, para saberes o que estás a mexer)
