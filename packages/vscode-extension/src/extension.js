@@ -3256,7 +3256,21 @@ function getLivePreviewHtml(token, wsRoot) {
      Badge bg/fg only → guaranteed contrast in light AND dark; opacity/weight signal the pinned state. */
   .lp-anchor{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 9px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;opacity:.65}
   .lp-anchor.on{opacity:1;font-weight:600}
+  /* COH-14 — the single visual-state token. Colour + TEXT (never colour alone); animation ONLY in
+     'working' (and only when reduced-motion is not requested — the global guard zeroes it otherwise). */
+  .lp-state-token{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 8px;border-radius:999px;white-space:nowrap;font-weight:600}
+  .lp-state-token[data-state="working"]{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+  .lp-state-token[data-state="success"]{background:var(--vscode-charts-green,#4EC97A);color:#0B0A09}
+  .lp-state-token[data-state="warning"]{background:var(--vscode-charts-yellow,#E5C07B);color:#0B0A09}
+  .lp-state-token[data-state="error"],.lp-state-token[data-state="blocked"]{background:var(--vscode-charts-red,#E8888A);color:#0B0A09}
+  @keyframes lpstatepulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .lp-state-token[data-state="working"]{animation:lpstatepulse 1.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.lp-state-token[data-state="working"]{animation:none}}
   .lp-anchor-in{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;margin:0 0 6px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  /* COH-18 — contextual skill chips next to the one-box (info-blue, distinct from the tier chips). */
+  .lp-ctx-skills{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px}
+  .lp-ctx-skill{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--vscode-textLink-foreground,#4daafc);background:transparent;color:var(--vscode-textLink-foreground,#4daafc);cursor:pointer;white-space:nowrap}
+  .lp-ctx-skill:hover{background:var(--vscode-textLink-foreground,#4daafc);color:var(--vscode-editor-background)}
   /* D1 — the controls must WRAP, not overflow. #lp-controls was flex:none (one indivisible row that
      burst its container at 1024/821px, worsened by the 🛡 Review / 🚀 Publish labels). Now it wraps and
      shrinks; #lp-url flexes to fill its row. */
@@ -3604,6 +3618,8 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
         <button id="lp-select-btn" class="lp-labeled" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯 Selecionar</button>
         <span id="lp-anchor" class="lp-anchor" role="status" aria-live="polite" title="O elemento fixado — o alvo do prompt. Sem âncora, nenhum prompt é enviado.">📍 sem seleção</span>
+        <!-- COH-14 — the single visual-state token (idle·blocked·working·success·warning·error), SEPARATE from the actor/tier glyph. Text always present; animates only in 'working'. -->
+        <span id="lp-state-token" class="lp-state-token" role="status" aria-live="polite" style="display:none"></span>
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
         <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
         <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
@@ -4271,7 +4287,23 @@ function hideCanvasToolbar(){
 // landed ("✓ aplicado no preview · $0"), a question was answered ("💬 resposta no painel →"), or a
 // write was refused ("⚠️ …"). Politely announced (aria-live) and auto-dismissed. kind ∈ ok|ask|warn.
 let lpToastTimer=null;
+// COH-14 — the SINGLE visual state machine. One reducer maps the whole panel to one of six honest
+// states; the state token (text, always present) is SEPARATE from the actor/tier glyph (COH-13).
+// Animation lives ONLY in 'working' — the spinner is display-gated to it, and the CSS animates only
+// [data-lp-state="working"]; success/warning/error/blocked are FINITE, textual transitions. The global
+// prefers-reduced-motion guard already zeroes every animation, so reduced-motion is green in all states.
+let lpVisState='idle';
+const LP_STATE_TOKENS={ idle:'', blocked:'⛔ bloqueado', working:'⏳ a trabalhar', success:'✓ feito', warning:'⚠️ atenção', error:'⛔ erro' };
+function lpVisualState(state){
+  const s=Object.prototype.hasOwnProperty.call(LP_STATE_TOKENS,state)?state:'idle';
+  lpVisState=s;
+  const wrap=document.getElementById('lp-framewrap'); if(wrap) wrap.setAttribute('data-lp-state', s);
+  const tok=document.getElementById('lp-state-token');
+  if(tok){ const txt=LP_STATE_TOKENS[s]; tok.textContent=txt; tok.setAttribute('data-state', s); tok.style.display=txt?'inline-flex':'none'; }
+}
 function showToast(kind, text){
+  // COH-14 — a toast is a FINITE state transition: ok→success, warn→warning, err→error (ask/info stay).
+  if(kind==='ok') lpVisualState('success'); else if(kind==='warn') lpVisualState('warning'); else if(kind==='err'||kind==='error') lpVisualState('error');
   const t=document.getElementById('lp-ctb-toast'); if(!t) return;
   t.className='lp-ctb-toast lp-toast-'+(kind||'ok')+' lp-toast-in';
   t.textContent=text;
@@ -4297,6 +4329,7 @@ function sendFlash(){
 // HONEST tier ("moo local · $0" vs "Sonnet · subscrição") and a cancel button for agent runs. Never
 // mute: it starts on the first thinking status and ends when a result (any outcome) arrives.
 function lpStartProgress(text, cancellable){
+  lpVisualState('working'); // COH-14 — the ONLY state that animates
   const p=document.getElementById('lp-progress'), t=document.getElementById('lp-progress-txt'), c=document.getElementById('lp-progress-cancel');
   // §4 — the minimized 🐮 chip also shows "working" so a run is never mute when the toolbar is
   // collapsed (the user may minimize to watch the preview while the agent works).
@@ -4308,6 +4341,9 @@ function lpStartProgress(text, cancellable){
 }
 function lpUpdateProgress(text){ const t=document.getElementById('lp-progress-txt'); if(t&&text) t.textContent=text; }
 function lpFinishProgress(){
+  // COH-14 — leaving 'working' returns to a resting state; a subsequent toast promotes it to
+  // success/warning/error. Never leave the machine spinning after a run ends.
+  if(lpVisState==='working') lpVisualState('idle');
   const p=document.getElementById('lp-progress'); if(p) p.style.display='none';
   const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.remove('lp-chip-working'); chip.setAttribute('title','Reabrir a toolbar'); }
 }
@@ -4490,6 +4526,9 @@ function renderSelection(sel){
     // F0.1 — the prompt box is the star (autofocus on a fresh pin, wired below); the tier picker sits under it.
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // COH-18 — 1–3 contextual skill chips derived from the node's tag/semantics, JUNTO ao one-box. The
+    // full /skills menu stays in the ▾ drawer below. Populated by renderCtxSkills(sel) after mount.
+    +'<div id="lp-ctx-skills" class="lp-ctx-skills" role="group" aria-label="Skills sugeridas para este elemento" style="display:none"></div>'
     // F0.1 — the model/tier picker (local $0 · Haiku · Sonnet · Opus · @fable) is now ALWAYS visible, under the box.
     +'<div id="lp-chip" class="lp-chip"></div>'
     // LP-4.9 loop-fix §C + W2 — ALWAYS-visible context/route line + honest context-source chip.
@@ -4523,8 +4562,9 @@ function renderSelection(sel){
     else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none';
       // F0.1 — pin ready to type: focus the prompt box on a fresh selection (only when the toolbar is shown).
       const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} } }
+    try{ renderCtxSkills(sel); }catch(e){} // COH-18 — contextual skill chips next to the one-box
   }
-  else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
+  else { el.insertAdjacentHTML('beforeend', inputsHTML); try{ renderCtxSkills(sel); }catch(e){} } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
   const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
@@ -4911,6 +4951,35 @@ function applyTaskKeepResult(m){
   const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
 }
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
+// COH-13 — the SINGLE tier dictionary, used in the chips, the MEO and the cockpit (no more three
+// vocabularies, no more ✨ collapsing three models). One glyph per tier + AUTO's router meta-glyph.
+// The text label is ALWAYS present alongside the glyph (never colour/emoji alone).
+function tierGlyph(t){ return t==='t1'?'⚡':t==='t2'?'🎼':t==='t3'?'🧠':t==='fable'?'🌟':t==='auto'?'🧭':'🐮'; }
+function tierLabel(t){ return tierGlyph(t)+' '+tierModel(t); }
+// COH-18 — derive 1–3 contextual skills from the pinned node's tag/semantics (image→/icon+/a11y ·
+// heading→/copy · text→/copy+/a11y · section→/section · else→/restyle). Each carries a natural-language
+// seed the one-box already knows how to send. The FULL /skills menu stays in the ▾ drawer.
+function contextualSkills(sel){
+  var tag=String((sel&&sel.tag)||'').toLowerCase();
+  var out=[];
+  function add(skill,label,seed){ if(out.length<3 && !out.some(function(s){return s.skill===skill;})) out.push({skill:skill,label:label,seed:seed}); }
+  if(tag==='img'||tag==='image'||tag==='svg'||tag==='picture'){ add('/icon','💡 /icon — otimizar ícone/imagem','otimiza este ícone/imagem'); add('/a11y','💡 /a11y — alt desta imagem','adiciona um alt descritivo a esta imagem'); }
+  else if(/^h[1-6]$/.test(tag)){ add('/copy','💡 /copy — reescrever este título','reescreve este título para ser mais claro e persuasivo'); }
+  else if(tag==='p'||tag==='span'||tag==='a'||tag==='li'||tag==='label'||tag==='button'||tag==='blockquote'||tag==='strong'||tag==='em'){ add('/copy','💡 /copy — reescrever este texto','reescreve este texto para ser mais claro'); add('/a11y','💡 /a11y — contraste deste <'+tag+'>','melhora o contraste e a acessibilidade deste elemento'); }
+  else if(tag==='section'||tag==='header'||tag==='footer'||tag==='nav'||tag==='main'||tag==='article'||tag==='aside'){ add('/section','💡 /section — ajustar esta secção','melhora a disposição desta secção'); }
+  else { add('/restyle','💡 /restyle — mudar o estilo','muda o estilo deste elemento'); }
+  return out;
+}
+function renderCtxSkills(sel){
+  var el=document.getElementById('lp-ctx-skills'); if(!el) return;
+  var sk=(sel&&sel.file)?contextualSkills(sel):[];
+  if(!sk.length){ el.style.display='none'; el.innerHTML=''; return; }
+  var html='';
+  for(var i=0;i<sk.length;i++){ html+='<button type="button" class="lp-ctx-skill" data-seed="'+esc(sk[i].seed)+'" title="'+esc(sk[i].skill)+' — sugestão contextual · o menu completo está em ▾ ajustes rápidos">'+esc(sk[i].label)+'</button>'; }
+  el.innerHTML=html; el.style.display='flex';
+  var btns=el.querySelectorAll('[data-seed]');
+  for(var j=0;j<btns.length;j++){ btns[j].addEventListener('click', function(){ var bx=document.getElementById('lp-box-in'); if(bx){ bx.value=this.getAttribute('data-seed'); try{ bx.focus(); }catch(e){} } }); }
+}
 // LP-4.5 — the one-box MODE chips. The truth: text/class/delete stay deterministic ($0, no LLM).
 // The BOX defaults to AUTO = the anchored-task agent (subscription via the SDK bridge — honest
 // chip 'agente · subscrição'): it reads the repo and answers or edits in the RIGHT place, every
@@ -4918,7 +4987,7 @@ function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus'
 // Haiku/Sonnet/Opus pin the AGENT's model; @fable is manual only (never auto-routed). Bridge
 // absent/untrusted → every agent mode disables with the honest reason and local becomes the
 // selection — never a dead button that fails later.
-const LP_MODES=[['auto','🤖 AUTO · agente · subscrição'],['local','🐮 local $0 · só este nó'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+const LP_MODES=[['auto','🧭 AUTO · agente · subscrição'],['local','🐮 local $0 · só este nó'],['t1','⚡ Haiku'],['t2','🎼 Sonnet'],['t3','🧠 Opus'],['fable','🌟 @fable']]; // COH-13 — one glyph per tier, text always present
 function renderModeChips(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
@@ -6495,7 +6564,10 @@ function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'')
 // PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
 function stageColor(st){const x=String(st||'');if(x.indexOf('merged')===0)return 'var(--g)';if(x.indexOf('ready')===0)return 'var(--g)';if(x.indexOf('❌')>=0)return 'var(--t3)';if(x.indexOf('⏳')>=0)return 'var(--acc-warm)';if(x==='draft')return 'var(--vscode-descriptionForeground)';return 'var(--vscode-descriptionForeground)';}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
-function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(/claude|opus|sonnet|haiku/.test(x))return '✨';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
+// COH-13 — the SINGLE dictionary in the cockpit too: ✨ no longer collapses Opus/Sonnet/Haiku into one
+// glyph. Each Claude tier gets its canonical emoji (🧠 Opus · 🎼 Sonnet · ⚡ Haiku · 🌟 Fable) — matching
+// the one-box chips and the MEO. Non-Claude families keep their own marks (honest, distinct).
+function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(x.includes('opus'))return '🧠';if(x.includes('sonnet'))return '🎼';if(x.includes('haiku'))return '⚡';if(/claude/.test(x))return '🐮';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
 function agoFmt(ms){const t=Math.round((+ms||0)/1000);if(t<60)return t+'s';const mi=Math.round(t/60);if(mi<60)return mi+'m';const h=Math.round(mi/60);return h<24?h+'h':Math.round(h/24)+'d';}
 function ledgerHtml(s){
   // Feature 4: ONE table, SAME columns for cloud and local — model | in | out | cache |
