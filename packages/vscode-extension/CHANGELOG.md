@@ -2,6 +2,47 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.70] — 2026-07-12 — Live Preview HTTP health and real restart
+
+- Replace the TCP-only App Stage check with a bounded localhost HTTP validator. HTTP 500, JSON/API
+  responses, off-origin redirects and frame-blocking headers can no longer appear as a green preview.
+- Surface a broken dev server as a dedicated recovery state with the real HTTP reason instead of an
+  empty iframe plus the misleading combination “porta ativa” / “árvore por confirmar”.
+- Resolve the package that actually owns the dev script (`landing/` in this repository) instead of
+  running `npm run dev` at a workspace root with no such script.
+- Make automatic detection and ↻ recovery race-safe: concurrent requests coalesce into a latest-wins
+  follow-up, manual refresh ignores stale identity, can recover from an unreachable override, and reloads
+  the same-URL iframe so an old error document/handshake cannot remain stuck.
+- Probe the configured port plus common framework auto-increment ranges concurrently across IPv4 and IPv6;
+  validate and frame the same `localhost` authority to prevent virtual-host false greens.
+- Harden framing/restart: reject cross-host loopback redirects and cumulative CSP blockers, refuse workspace
+  scripts while untrusted, and stop a listener only when its process command line/cwd proves it belongs to
+  the selected project.
+- Regression proof: isolated full extension suite **1202 pass / 0 fail**; landing suite **211 pass / 0 fail**;
+  the real `:7819` probe returned **HTTP 200**, frameable HTML and the instrumentation marker.
+
+## [0.16.69] — 2026-07-12 — MEO Control Tower
+
+- Add a default **Control** view that crosses the Live Preview stream, real execution log, recent VS Code
+  session catalogue and a typed multi-agent Ledger into one CTO-level projection.
+- Make each attributable step name the responsible agent, real model, execution channel (`local`,
+  `subscription`, `api` or `cloud`), channel evidence, VS Code session title and delivery scope (wave/PR).
+  Unknowns remain `n/d`; model-family fallback is explicitly labelled and never presented as connector proof.
+- Add a **Sessions** view with per-session agents, models, channels, stream/execution/Ledger counts, handoffs,
+  branch/wave/PR and independently sourced Notion/Obsidian sync stamps.
+- Replace the old Stream-only event list with a unified, newest-first operational timeline while retaining the
+  local handoff journal and scroll position across refreshes.
+- Add `tools/router/agent-sync-ledger.js` and wire the existing Stop hook to append privacy-bounded turn
+  checkpoints automatically. Prompts and responses are not copied into the Ledger; generated state stays under
+  the gitignored `_handoff/agent-sync/` operational directory.
+- Add shared Claude Code and Roo/Gemini rules plus the canonical repo protocol for Claude, Codex, Gemini/Roo,
+  local Ollama and Cowork handoffs.
+- Fix `moo-verify` missing-tool detection on Windows: unavailable advisory checks now remain `—`, while a
+  user-required missing custom check continues to block.
+- Regression proof: extension suite **1176 pass / 0 fail**; focused Stop/handoff/Ledger suite **77 pass / 0 fail**.
+  The full router suite exposed one load-sensitive statusline latency failure that passed in isolation and the
+  Windows missing-tool issue fixed above; no classifier change.
+
 ## [0.16.68] — 2026-07-12 — Live Preview selection reliability
 
 - Re-arm the in-page selection tap after a same-URL iframe reload when selection mode is still active. This

@@ -38,7 +38,7 @@ function loadPanelClass() {
       if (k === 'window') return new Proxy({}, { get(_t, _k) {
         if (_k === 'showWarningMessage') return (msg) => { env.warns.push(String(msg)); return Promise.resolve(env.warnAnswer); };
         if (_k === 'showInformationMessage') return () => Promise.resolve(undefined);
-        if (_k === 'createTerminal') return (opts) => { env.terminals.push(opts || {}); return { show() {}, sendText() {} }; };
+        if (_k === 'createTerminal') return (opts) => { const row = Object.assign({ sent: [] }, opts || {}); env.terminals.push(row); return { show() {}, sendText(text) { row.sent.push(String(text)); } }; };
         return mk();
       } });
       if (k === 'Uri') return { file: (p) => ({ fsPath: p }), parse: () => '', joinPath: () => '' };
@@ -47,7 +47,7 @@ function loadPanelClass() {
     apply() { return mk(); },
   });
   const realReq = require;
-  const REAL = ['./live-edit-ast.js'];
+  const REAL = ['./live-edit-ast.js', './lp-dev-server.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: EXT_PATH, Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise, Map, Set, Number };
   sandbox.globalThis = sandbox;
@@ -170,23 +170,55 @@ test("C0/COH-04: server up but identity unproven → readiness.tree === 'unknown
 });
 
 // ── (5) Restart runs in the confirmed workspace root — COH-06 ─────────────────────────────────────
-test('C0/COH-06: restart targets the CONFIRMED workspace root (never a divergent served root) and clears identity first', async () => {
+test('C0/COH-06: restart resolves the dev package inside the CONFIRMED workspace and clears identity first', async () => {
   const ws = mkTree('lp-lease-5ws-');
   const served = mkTree('lp-lease-5srv-'); // a SIBLING (divergent) served root
   const { inst } = mkInstance(ws.root);
   inst._hasWorkspace = () => true;
   inst._selection = { file: 'page.tsx', line: 4, tag: 'h1' };
   inst._servedRoot = served.root;                            // the WRONG (divergent) served root
-  inst.stage = { url: 'http://localhost:3000' }; inst._stageOrigin = 'http://localhost:3000';
+  inst.stage = { url: 'http://localhost:3000', port: 3000, stale: false }; inst._stageOrigin = 'http://localhost:3000';
   inst._readyEpoch = 3;
-  env.terminals.length = 0; env.warns.length = 0; env.warnAnswer = 'Reiniciar';
+  fs.mkdirSync(path.join(ws.root, 'landing'));
+  fs.writeFileSync(path.join(ws.root, 'landing', 'package.json'), JSON.stringify({ scripts: { dev: 'next dev -p 7819' } }));
+  env.terminals.length = 0; env.warns.length = 0; env.warnAnswer = 'Encerrar e reiniciar';
   await inst._restartDevServer();
   assert.strictEqual(env.terminals.length, 1, 'exactly one dev-server terminal was opened');
-  assert.strictEqual(env.terminals[0].cwd, ws.root, 'cwd is the CONFIRMED workspace root, NOT the divergent served root');
+  assert.strictEqual(env.terminals[0].cwd, path.join(ws.root, 'landing'), 'cwd is the dev package inside the CONFIRMED workspace');
   assert.notStrictEqual(env.terminals[0].cwd, served.root, 'never runs npm run dev in the wrong tree');
+  assert.strictEqual(env.terminals[0].sent.length, 1);
+  assert.match(env.terminals[0].sent[0], /3000/, 'the confirmed wrong-tree listener is explicitly released');
+  assert.match(env.terminals[0].sent[0], /npm run dev$/, 'the resolved package receives the real dev command');
   assert.strictEqual(inst._servedRoot, null, 'sticky served-tree identity cleared before the re-probe');
   assert.strictEqual(inst._selection, null, 'selection cleared before the re-probe');
   assert.ok((inst._readyEpoch | 0) > 3, 'epoch bumped so any in-flight write refuses');
+});
+
+test('HTTP-blocked stage: restart explicitly releases the broken port before starting landing', async () => {
+  const ws = mkTree('lp-lease-http500-');
+  fs.mkdirSync(path.join(ws.root, 'landing'));
+  fs.writeFileSync(path.join(ws.root, 'landing', 'package.json'), JSON.stringify({ scripts: { dev: 'next dev -p 7819' } }));
+  const { inst } = mkInstance(ws.root);
+  inst._hasWorkspace = () => true;
+  inst.stage = { url: null, port: 7819, degraded: true, blocked: true, statusCode: 500 };
+  inst._servedRoot = null; inst._selection = null;
+  env.terminals.length = 0; env.warns.length = 0; env.warnAnswer = 'Encerrar e reiniciar';
+  await inst._restartDevServer();
+  assert.strictEqual(env.terminals.length, 1);
+  assert.strictEqual(env.terminals[0].cwd, path.join(ws.root, 'landing'));
+  assert.match(env.terminals[0].sent[0], /7819/);
+  assert.match(env.terminals[0].sent[0], /npm run dev$/);
+});
+
+test('untrusted workspace: dev-server start/restart is refused before reading or executing its script', async () => {
+  const ws = mkTree('lp-lease-untrusted-');
+  const { inst } = mkInstance(ws.root);
+  inst._hasWorkspace = () => true;
+  inst._workspaceTrusted = () => false;
+  env.terminals.length = 0; env.warns.length = 0; env.warnAnswer = 'Iniciar';
+  await inst._restartDevServer();
+  assert.strictEqual(env.terminals.length, 0, 'workspace code is never executed while untrusted');
+  assert.ok(env.warns.some((message) => /confia neste workspace/.test(message)), 'the refusal tells the user the real recovery action');
 });
 
 // ── ADVERSARIAL (C0 gate) — epoch race / TOCTOU between resolveStage and write ────────────────────

@@ -3,7 +3,7 @@
 // verification). Unlike webview-syntax.test.js / dcv2-tabs.test.js — which only PARSE the inline
 // <script> (vm.Script never executes it) — this file actually EXECUTES it inside a vm sandbox
 // against a minimal but faithful DOM stub, proving at runtime that:
-//   1. a snapshot NEVER resets the active tab back to stream
+//   1. a snapshot NEVER resets the active tab back to the default Control view
 //   2. only the active pane re-renders; identical data is a signed no-op (no redundant
 //      innerHTML reassignment)
 //   3. the stream's scroll position survives a re-render with different events
@@ -64,21 +64,21 @@ function makeElement(id) {
   const attrs = {};
   const listeners = {};
   if (id && id.indexOf('lp-tab-') === 0) {
-    attrs['aria-selected'] = (id === 'lp-tab-stream') ? 'true' : 'false';
+    attrs['aria-selected'] = (id === 'lp-tab-control') ? 'true' : 'false';
     classes.add('lp-tab');
-    if (id === 'lp-tab-stream') classes.add('on');
+    if (id === 'lp-tab-control') classes.add('on');
   }
-  if (id && id.indexOf('lp-pane-') === 0 && id !== 'lp-pane-stream') attrs.hidden = 'hidden';
+  if (id && id.indexOf('lp-pane-') === 0 && id !== 'lp-pane-control') attrs.hidden = 'hidden';
 
   const el = {
     id: id,
-    tabIndex: (id === 'lp-tab-stream') ? 0 : ((id && id.indexOf('lp-tab-') === 0) ? -1 : 0),
+    tabIndex: (id === 'lp-tab-control') ? 0 : ((id && id.indexOf('lp-tab-') === 0) ? -1 : 0),
     style: {},
     get innerHTML() { return html; },
     set innerHTML(v) {
       setCount++;
       html = String(v == null ? '' : v);
-      if (html.indexOf('class="lpdc-stream"') !== -1) {
+      if (html.indexOf('lpdc-stream') !== -1) {
         if (!streamChild) streamChild = { scrollTop: 0 };
         else streamChild.scrollTop = 0; // fresh node on every re-render, like a real browser
       } else {
@@ -112,7 +112,7 @@ function makeElement(id) {
 
 function makeDocument() {
   const map = new Map();
-  const PRESET = ['lp-tabs', 'lp-brain', 'lp-pane-stream', 'lp-pane-day', 'lp-pane-model', 'lp-pane-fleet', 'lp-tab-stream', 'lp-tab-day', 'lp-tab-model', 'lp-tab-fleet'];
+  const PRESET = ['lp-tabs', 'lp-brain', 'lp-pane-control', 'lp-pane-stream', 'lp-pane-sessions', 'lp-pane-day', 'lp-pane-model', 'lp-pane-fleet', 'lp-tab-control', 'lp-tab-stream', 'lp-tab-sessions', 'lp-tab-day', 'lp-tab-model', 'lp-tab-fleet'];
   for (const id of PRESET) map.set(id, makeElement(id));
   return {
     getElementById(id) { if (!map.has(id)) map.set(id, makeElement(id)); return map.get(id); },
@@ -185,12 +185,13 @@ test('F2 anti-break: identical snapshot data is a signed no-op (no redundant inn
 // ── 4. stream scroll position survives a re-render with different events ──────────────────
 test('F2 anti-break: the stream scroll position is preserved across a snapshot with different events', () => {
   const { context, doc } = evalWebview();
-  context.render({ events: [{ ts: Date.now(), kind: 'file', path: 'a.ts' }], sidKnown: true });
+  context.setTab('stream');
+  context.render({ executive: { timeline: [{ ts: new Date().toISOString(), agent: 'codex', kind: 'file', summary: 'a.ts' }] } });
   const pane = doc.getElementById('lp-pane-stream');
   const child1 = pane.querySelector('.lpdc-stream');
   assert.ok(child1, 'stream child must be present after the first render');
   child1.scrollTop = 120;
-  context.render({ events: [{ ts: Date.now(), kind: 'file', path: 'b.ts', summary: 'a different event' }], sidKnown: true });
+  context.render({ executive: { timeline: [{ ts: new Date().toISOString(), agent: 'codex', kind: 'file', summary: 'a different event' }] } });
   const child2 = pane.querySelector('.lpdc-stream');
   assert.strictEqual(child2.scrollTop, 120, 'scrollTop must be restored after the events changed');
 });

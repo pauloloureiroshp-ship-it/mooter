@@ -376,6 +376,39 @@ test('F0.5.3: the semaphore shows port+source + tree state, and each fix button 
   assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-trust'; }), 'trust fix posts lp-trust (Manage Workspace Trust)');
 });
 
+test('HTTP 500 stage is never framed green and offers one-click port recovery', () => {
+  const h = bootWebview(false);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: null, port: 7819, degraded: true, blocked: true, statusCode: 500, reason: 'porta 7819: HTTP 500 — dev server com erro interno' },
+    leBridge: { available: false, reason: 'sdk-bridge-missing' },
+    readiness: { workspace: true, devServer: false, port: '7819', tree: 'unknown', sdk: false, trust: true, stageBlocked: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  const frame = h.env.doc.getElementById('lp-frame');
+  const degrade = h.env.doc.getElementById('lp-degrade');
+  assert.strictEqual(frame.style.display, 'none', 'HTTP 500 is not framed as a live preview');
+  assert.ok(/Dev server respondeu com erro/.test(degrade.innerHTML || ''));
+  assert.ok(/HTTP 500/.test(degrade.innerHTML || ''));
+  const recover = h.env.doc.getElementById('lp-recover-dev');
+  assert.ok(recover, 'the error state has a direct recovery action');
+  const before = h.posted.length;
+  recover.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-restart-dev'; }));
+});
+
+test('healthy HTML with a pending handshake offers frame reload, not a server restart', () => {
+  const h = bootWebview(false);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://127.0.0.1:7819', port: 7819, source: 'config', degraded: false, stale: false, validated: 'http-html' },
+    leBridge: { available: false, reason: 'sdk-bridge-missing' },
+    readiness: { workspace: true, devServer: true, port: '7819', source: 'config', tree: 'unknown', sdk: false, trust: true, stageBlocked: false },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  const ready = h.env.doc.getElementById('lp-ready');
+  assert.ok(ready.querySelector('[data-fix="reload"]'), 'pending handshake offers reload');
+  assert.strictEqual(ready.querySelector('[data-fix="restart"]'), null, 'healthy HTML does not ask to restart the server');
+});
+
 test('F9 (D8/#3): the "sem SDK" light offers a REAL SDK action (lp-sdk-help), not a mislabelled folder picker', () => {
   const h = bootWebview(false);
   // folder + trusted, but the Agent SDK is missing → the sdk light lights up.
@@ -595,4 +628,20 @@ test('RUNTIME: a CONFIRMED identity (tree==ok) hides the blocked banner and enab
   assert.strictEqual(bn.style.display, 'none', 'the banner is hidden once identity is confirmed');
   const b = h.env.doc.getElementById('lp-select-btn');
   assert.ok(!b.disabled, '🎯 is enabled on a green tree');
+});
+
+test('RUNTIME: toolbar refresh reloads a same-URL iframe and requests a fresh host probe', () => {
+  const h = bootWebview(false);
+  const refresh = h.env.doc.getElementById('lp-redetect');
+  assert.ok(refresh && h.frame, 'refresh button and iframe are mounted');
+  const originalSet = h.frame.setAttribute.bind(h.frame);
+  const srcWrites = [];
+  h.frame.setAttribute = (name, value) => {
+    if (name === 'src') srcWrites.push(String(value));
+    return originalSet(name, value);
+  };
+  const before = h.posted.length;
+  refresh.dispatchEvent(h.mkEvent('click'));
+  assert.deepStrictEqual(srcWrites, ['http://localhost:7819/'], 'same URL is deliberately reloaded to clear a stale error document/handshake');
+  assert.ok(h.posted.slice(before).some((message) => message && message.type === 'lp-redetect'), 'host receives the fresh re-probe intent');
 });

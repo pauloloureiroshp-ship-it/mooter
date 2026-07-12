@@ -78,10 +78,9 @@ test('isLocalhostUrl: boolean mirror of the origin lock', () => {
 
 // ── candidatePortList / buildCandidates ──────────────────────────────────────────────────
 
-test('candidatePortList: override > sticky > config > commons, de-duplicated', () => {
+test('candidatePortList: override > config > sticky > commons, de-duplicated', () => {
   const list = LPS.candidatePortList({ overrideUrl: 'http://localhost:9000', stickyUrl: 'http://localhost:4000', configPort: 3000 });
-  // 9000 (override), 4000 (sticky), 3000 (config → already a common but appears here first), then remaining commons
-  assert.deepStrictEqual(list.slice(0, 3), [9000, 4000, 3000]);
+  assert.deepStrictEqual(list.slice(0, 3), [9000, 3000, 4000]);
   // no duplicate 3000 later even though it is a common
   assert.strictEqual(list.filter((p) => p === 3000).length, 1);
   // 7819 (a common) still present
@@ -90,6 +89,9 @@ test('candidatePortList: override > sticky > config > commons, de-duplicated', (
 
 test('candidatePortList: no inputs → just the commons in order', () => {
   assert.deepStrictEqual(LPS.candidatePortList({}), LPS.commonDevPorts());
+  assert.ok(LPS.commonDevPorts().includes(5174), 'Vite auto-increment port is covered');
+  assert.ok(LPS.commonDevPorts().includes(3005), 'Next auto-increment range is covered');
+  assert.ok(LPS.commonDevPorts().includes(8787), 'common Workers dev port is covered');
 });
 
 test('buildCandidates: tags provenance (override/config/probe)', () => {
@@ -139,6 +141,74 @@ test('resolveStage: override is authoritative — always framed, marked stale wh
   assert.ok(/não respondeu/.test(dead.reason));
 });
 
+test('resolveStage: a live 127 override uses the localhost authority actually validated by the probe', () => {
+  const s = LPS.resolveStage({
+    overrideUrl: 'http://127.0.0.1:6001', livePorts: [6001],
+    accepted: { port: 6001, url: 'http://localhost:6001', instrumented: false },
+  });
+  assert.strictEqual(s.url, 'http://localhost:6001');
+  assert.strictEqual(s.source, 'override');
+  assert.strictEqual(s.stale, false);
+});
+
+test('resolveStage: forced refresh may recover from an unreachable override using a detected config port', () => {
+  const s = LPS.resolveStage({
+    overrideUrl: 'http://localhost:6001', configPort: 7819,
+    livePorts: [7819], accepted: { port: 7819, url: 'http://localhost:7819', instrumented: true },
+    allowOverrideFallback: true,
+  });
+  assert.strictEqual(s.url, 'http://localhost:7819');
+  assert.strictEqual(s.port, 7819);
+  assert.strictEqual(s.source, 'config');
+  assert.strictEqual(s.overrideFallback, true);
+  assert.strictEqual(s.stale, false);
+});
+
+test('resolveStage: forced refresh never bypasses a positively broken override', () => {
+  const s = LPS.resolveStage({
+    overrideUrl: 'http://localhost:6001', configPort: 7819, livePorts: [7819],
+    rejected: [{ port: 6001, statusCode: 500, reason: 'HTTP 500' }],
+    allowOverrideFallback: true,
+  });
+  assert.strictEqual(s.url, null);
+  assert.strictEqual(s.port, 6001);
+  assert.strictEqual(s.blocked, true);
+});
+
+test('resolveStage: a reachable HTTP 500 is blocked instead of framed as a live preview', () => {
+  const s = LPS.resolveStage({
+    configPort: 7819,
+    livePorts: [],
+    rejected: [{ port: 7819, statusCode: 500, reason: 'HTTP 500 — dev server com erro interno' }],
+  });
+  assert.strictEqual(s.url, null);
+  assert.strictEqual(s.degraded, true);
+  assert.strictEqual(s.blocked, true);
+  assert.strictEqual(s.statusCode, 500);
+  assert.strictEqual(s.recovery, 'restart');
+  assert.match(s.reason, /HTTP 500/);
+});
+
+test('resolveStage carries HTTP validation and instrumentation facts for the healthy stage', () => {
+  const s = LPS.resolveStage({
+    configPort: 7819,
+    livePorts: [7819],
+    accepted: { port: 7819, statusCode: 200, instrumented: true },
+  });
+  assert.strictEqual(s.validated, 'http-html');
+  assert.strictEqual(s.instrumented, true);
+  assert.strictEqual(s.blocked, false);
+});
+
+test('resolveStage frames localhost when the accepted probe required IPv6 loopback', () => {
+  const s = LPS.resolveStage({
+    configPort: 7819, livePorts: [7819],
+    accepted: { port: 7819, url: 'http://localhost:7819', connectedHost: '::1', instrumented: true },
+  });
+  assert.strictEqual(s.url, 'http://localhost:7819');
+  assert.strictEqual(s.instrumented, true);
+});
+
 test('resolveStage: an invalid override is ignored, not trusted', () => {
   const s = LPS.resolveStage({ overrideUrl: 'http://evil.com:7819', configPort: 7819, livePorts: [7819] });
   assert.strictEqual(s.source, 'config'); // fell through to detection, evil override dropped
@@ -161,12 +231,12 @@ test('resolveStage: never throws on garbage input', () => {
 
 // ── renderStageStatus (honest, XSS-safe, concat-only) ─────────────────────────────────────
 
-test('renderStageStatus: live server shows the URL + source + honest "porta ativa", no over-claim', () => {
+test('renderStageStatus: live server shows the URL + source + honest HTTP validation, no over-claim', () => {
   const html = LPS.renderStageStatus({ url: 'http://localhost:7819', source: 'config', degraded: false, stale: false });
   assert.ok(html.includes('http://localhost:7819'));
   assert.ok(html.includes('config'));
-  assert.ok(html.includes('porta ativa'), 'states only what was measured (a live port), not a rendered-frame/HMR claim');
-  assert.ok(html.indexOf('HMR') === -1, 'does not assert HMR from a bare TCP probe (loop hole #4)');
+  assert.ok(html.includes('HTML 2xx validado'), 'states the successful HTTP validation, not a bare listening port');
+  assert.ok(html.indexOf('HMR') === -1, 'does not assert HMR from an HTTP probe');
   assert.ok(html.includes('lps-on'));
 });
 

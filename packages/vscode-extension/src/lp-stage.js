@@ -4,7 +4,7 @@
 // PURE decision layer for the App Stage. Mirrors live-preview-view.js exactly:
 //   • No `vscode`, no fs, no net — this module only PARSES text/objects it is handed and
 //     RESOLVES a stage state from ports it is told are live. The fs reads (config files) and
-//     the TCP probes (which ports actually listen) live HOST-SIDE in extension.js, same split
+//     the HTTP probes (which ports serve successful frameable HTML) live HOST-SIDE, same split
 //     as live-preview-view.js keeps the file-bus tail-read host-side.
 //   • Every function is fail-soft — never throws on garbage input.
 //   • `renderStageStatus` is concat-only (NO backticks, NO ${…}) so it can be serialised into
@@ -36,9 +36,16 @@ function esc(x) {
 
 // Common local dev-server ports, in priority order. 7819 first — it is the mooter.ai landing
 // dev port (`next dev -H 127.0.0.1 -p 7819`), the dogfood target for the first App Stage.
-// 3000 = Next default, 5173 = Vite default, 4321 = Astro, 8080 = generic.
+// The short ranges cover the ports frameworks auto-increment to when their default is occupied.
+// Probes run concurrently host-side, so this broader sweep does not multiply refresh latency.
 function commonDevPorts() {
-  return [7819, 3000, 5173, 4321, 8080];
+  return [
+    7819,
+    3000, 3001, 3002, 3003, 3004, 3005,
+    5173, 5174, 5175, 5176, 5177,
+    4173, 4174, 4175,
+    4200, 4321, 5000, 5001, 8000, 8080, 8787, 8888,
+  ];
 }
 
 function isValidPort(n) {
@@ -125,18 +132,24 @@ function isLocalhostUrl(url) {
   return normalizeStageUrl(url) !== null;
 }
 
+// The HTTP validator tries both loopback families with `Host: localhost`; keep the framed authority
+// identical to that validated Host so name-based dev servers cannot produce a probe/frame mismatch.
+function probedStageUrl(port) {
+  return 'http://localhost:' + port;
+}
+
 // ── candidatePortList(opts) — PURE. The ordered, de-duplicated union of ports worth probing:
-// the override, then the sticky (last-good) URL's port, then the parsed config port, then the
-// commons. Returns number[]. Used host-side to decide WHICH ports to TCP-probe.
+// the override, then the parsed config port, then the sticky (last-good) URL's port, then the
+// commons. Config beats sticky so an old service cannot pin the panel after the real project starts.
 function candidatePortList(opts) {
   opts = opts || {};
   var out = [];
   function push(p) { if (isValidPort(p) && out.indexOf(p) === -1) out.push(p); }
   var ov = normalizeStageUrl(opts.overrideUrl);
   if (ov) push(ov.port);
+  if (isValidPort(opts.configPort)) push(opts.configPort);
   var st = normalizeStageUrl(opts.stickyUrl);
   if (st) push(st.port);
-  if (isValidPort(opts.configPort)) push(opts.configPort);
   var commons = commonDevPorts();
   for (var i = 0; i < commons.length; i++) push(commons[i]);
   return out;
@@ -152,17 +165,16 @@ function buildCandidates(opts) {
   function push(p, source) { if (isValidPort(p) && !seen[p]) { seen[p] = 1; out.push({ port: p, source: source }); } }
   var ov = normalizeStageUrl(opts.overrideUrl);
   if (ov) push(ov.port, 'override');
+  if (isValidPort(opts.configPort)) push(opts.configPort, 'config');
   var st = normalizeStageUrl(opts.stickyUrl);
   if (st) push(st.port, 'probe');
-  if (isValidPort(opts.configPort)) push(opts.configPort, 'config');
   var commons = commonDevPorts();
   for (var i = 0; i < commons.length; i++) push(commons[i], 'probe');
   return out;
 }
 
 // ── pickDevServer(candidates, livePorts) — PURE. The first candidate whose port is actually
-// listening. Returns { url, port, source } or null. candidates = buildCandidates() output;
-// livePorts = the subset the host TCP-probe found alive.
+// serving successful frameable HTML. livePorts is the subset the host HTTP validator accepted.
 function pickDevServer(candidates, livePorts) {
   var cand = Array.isArray(candidates) ? candidates : [];
   var live = {};
@@ -171,7 +183,7 @@ function pickDevServer(candidates, livePorts) {
   for (var j = 0; j < cand.length; j++) {
     var c = cand[j];
     if (c && live[c.port]) {
-      return { url: 'http://localhost:' + c.port, port: c.port, source: c.source || 'probe' };
+      return { url: probedStageUrl(c.port), port: c.port, source: c.source || 'probe' };
     }
   }
   return null;
@@ -179,7 +191,8 @@ function pickDevServer(candidates, livePorts) {
 
 // ── resolveStage(inputs) — PURE. The whole App Stage decision, from raw inputs to the honest
 // stage object the webview renders. inputs:
-//   { overrideUrl?, stickyUrl?, configPort?, livePorts:number[] }
+//   { overrideUrl?, stickyUrl?, configPort?, livePorts:number[], rejected?:object[], accepted?:object,
+//     workspacePresent?:boolean }
 // Returns:
 //   { url, port, source, degraded, stale, reason }
 //     • url/port      : the localhost URL to frame (null when degraded).
@@ -188,42 +201,93 @@ function pickDevServer(candidates, livePorts) {
 //     • stale         : true → we still show `url` but its port stopped answering (honest note;
 //                       the iframe is kept so native HMR reconnects when the server returns).
 //     • reason        : PT-PT human note (null when a live server is framed cleanly).
-// Override is AUTHORITATIVE (the user pasted it): it is always framed, marked stale if the port
-// is not (yet) answering — never silently dropped. Never throws.
+// A positively unhealthy/non-frameable response is blocked instead of framed. A port with no
+// response remains stale for an explicit override so native HMR can reconnect. Never throws.
 function resolveStage(inputs) {
   inputs = inputs || {};
   var livePorts = Array.isArray(inputs.livePorts) ? inputs.livePorts : [];
+  var rejected = Array.isArray(inputs.rejected) ? inputs.rejected : [];
+  var accepted = inputs.accepted && typeof inputs.accepted === 'object' ? inputs.accepted : null;
+  var workspacePresent = inputs.workspacePresent !== false;
   var liveSet = {};
   for (var i = 0; i < livePorts.length; i++) if (isValidPort(livePorts[i])) liveSet[livePorts[i]] = 1;
+  function rejectedAt(port) {
+    for (var ri = 0; ri < rejected.length; ri++) {
+      var item = rejected[ri];
+      if (item && item.port === port) return item;
+    }
+    return null;
+  }
+  function rejectionText(item) {
+    if (!item) return null;
+    return 'porta ' + item.port + ': ' + String(item.reason || 'não é uma página HTML enquadrável').slice(0, 180);
+  }
 
   var ov = normalizeStageUrl(inputs.overrideUrl);
   if (ov) {
     var ovLive = !!liveSet[ov.port];
-    return {
-      url: ov.url, port: ov.port, source: 'override', degraded: false,
-      stale: !ovLive,
-      reason: ovLive ? null : 'servidor não respondeu ainda em ' + ov.url + ' — a tentar mesmo assim',
-    };
+    var ovRejected = rejectedAt(ov.port);
+    if (ovRejected) {
+      return {
+        url: null, attemptedUrl: ov.url, port: ov.port, source: 'override', degraded: true,
+        stale: false, blocked: true, workspacePresent: workspacePresent, statusCode: ovRejected.statusCode || null,
+        recovery: 'restart', reason: 'não mostrei ' + ov.url + ' — ' + rejectionText(ovRejected),
+      };
+    }
+    if (ovLive || inputs.allowOverrideFallback !== true) {
+      var validatedOverride = ovLive && accepted && accepted.port === ov.port ? normalizeStageUrl(accepted.url) : null;
+      return {
+        url: validatedOverride ? validatedOverride.url : ov.url, port: ov.port, source: 'override', degraded: false,
+        stale: !ovLive, blocked: false, workspacePresent: workspacePresent,
+        reason: ovLive ? null : 'servidor não respondeu ainda em ' + ov.url + ' — a tentar mesmo assim',
+      };
+    }
+    // ↻ is an explicit recovery intent. If the pasted origin is unreachable (not positively
+    // broken) allow the already-probed config/common candidates below to recover automatically.
+    // A reachable 4xx/5xx/frame-blocked override returned above and never gets bypassed.
   }
 
   var configPort = isValidPort(inputs.configPort) ? inputs.configPort : null;
   var candidates = buildCandidates({ stickyUrl: inputs.stickyUrl, configPort: configPort });
   var picked = pickDevServer(candidates, livePorts);
   if (picked) {
-    return { url: picked.url, port: picked.port, source: picked.source, degraded: false, stale: false, reason: null };
+    var acceptedUrl = accepted && accepted.port === picked.port ? normalizeStageUrl(accepted.url) : null;
+    return {
+      url: acceptedUrl ? acceptedUrl.url : picked.url, port: picked.port, source: picked.source, degraded: false, stale: false,
+      blocked: false, workspacePresent: workspacePresent, validated: 'http-html',
+      instrumented: !!(accepted && accepted.port === picked.port && accepted.instrumented === true),
+      overrideFallback: !!ov, reason: null,
+    };
   }
 
   var st = normalizeStageUrl(inputs.stickyUrl);
-  if (st) {
+  if (st && !rejectedAt(st.port)) {
     return {
       url: st.url, port: st.port, source: 'probe', degraded: false, stale: true,
+      blocked: false, workspacePresent: workspacePresent,
       reason: 'servidor offline? — o preview reconecta (HMR) quando voltar',
     };
   }
 
+  var reason;
+  var firstRejected = rejected.length ? rejected[0] : null;
+  if (firstRejected) {
+    var notes = [];
+    for (var rj = 0; rj < rejected.length && notes.length < 3; rj++) {
+      var note = rejectionText(rejected[rj]);
+      if (note) notes.push(note);
+    }
+    reason = 'dev server encontrado, mas o preview foi bloqueado com segurança (' + notes.join(' · ') + ')';
+  } else {
+    reason = 'nenhum dev server detetado (portas ' + commonDevPorts().join(' · ') + ')';
+  }
+  if (workspacePresent) reason += ' — usa Reiniciar para arrancar o script dev correto';
+  else reason = 'nenhuma pasta de projeto aberta — abre a pasta do projeto; ' + reason;
   return {
-    url: null, port: null, source: null, degraded: true, stale: false,
-    reason: 'nenhum dev server detetado (portas 7819 · 3000 · 5173 · 4321 · 8080) — corre `cd landing && npm run dev` ou cola o URL acima',
+    url: null, port: firstRejected && firstRejected.port || null, source: null, degraded: true, stale: false,
+    blocked: !!firstRejected, workspacePresent: workspacePresent,
+    statusCode: firstRejected && firstRejected.statusCode || null,
+    recovery: firstRejected ? 'restart' : 'start', reason: reason,
   };
 }
 
@@ -244,10 +308,10 @@ function renderStageStatus(stage) {
     return '<span class="lps-dot lps-stale"></span><span class="lps-txt">⚠️ <b>' + esc(s.url) + '</b>'
       + srcTxt + (s.reason ? (' · <span class="lps-nd">' + esc(s.reason) + '</span>') : '') + '</span>';
   }
-  // Honest copy (loop hole #4): we only know the PORT answered a TCP probe — not that the frame
-  // rendered or that HMR is wired. "porta ativa" states exactly what was measured, no more.
+  // Honest copy: the host proved a successful HTML response and checked frame-blocking headers. It
+  // still does not claim that hydration/HMR or the Mooter handshake succeeded inside the frame.
   return '<span class="lps-dot lps-on"></span><span class="lps-txt">🌐 <b>' + esc(s.url) + '</b>'
-    + srcTxt + ' · porta ativa</span>';
+    + srcTxt + ' · HTML 2xx validado</span>';
 }
 
 // ── MP3.3 multi-page navigation — PURE helpers (route discovery + address-bar resolution) ──────
@@ -351,6 +415,7 @@ module.exports = {
   parseConfigPort: parseConfigPort,
   normalizeStageUrl: normalizeStageUrl,
   isLocalhostUrl: isLocalhostUrl,
+  probedStageUrl: probedStageUrl,
   candidatePortList: candidatePortList,
   buildCandidates: buildCandidates,
   pickDevServer: pickDevServer,

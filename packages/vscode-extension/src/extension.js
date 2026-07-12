@@ -86,11 +86,15 @@ try { HC = require('./hook-collector.js'); } catch { HC = null; }
 let LPA = null;
 try { LPA = require('./lp-aggregates.js'); } catch { LPA = null; }
 // ── LIVE PREVIEW · MP2 (App Stage) — the PURE dev-server detector + honest stage resolver +
-// the origin-lock URL validator (loop hole #3). fs reads / TCP probes live host-side below;
+// the origin-lock URL validator (loop hole #3). fs reads / HTTP probes live host-side below;
 // this module only decides. Fail-soft: absent → the panel still renders Director's Cut + Brain
 // and the App Stage stays in its honest "a detetar…" state (no crash).
 let LPS = null;
 try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
+let LPProbe = null;
+try { LPProbe = require('./lp-stage-probe.js'); } catch { LPProbe = null; }
+let LPDevServer = null;
+try { LPDevServer = require('./lp-dev-server.js'); } catch { LPDevServer = null; }
 // COH-02 — the PURE in-canvas toolbar placement decision (never covers the pin), serialised into the
 // webview via chooseToolbarPlacement.toString(). Fail-soft: absent → the webview stub keeps the toolbar
 // anchored below the pin (pre-existing behaviour) rather than crashing.
@@ -1228,18 +1232,21 @@ function livePreviewSnapshot() {
     // log / pricing.js (~est) / fleet JSONs read inside lp-aggregates (all tail-reads /
     // tiny files — cheap at the 7s poll cadence). Nullable by contract: any failure (or
     // LPA absent) leaves the three fields null and every existing consumer untouched.
+    let sessions = [];
+    try { if (extra && typeof extra.sessionSummaries === 'function') sessions = extra.sessionSummaries(60); } catch { sessions = []; }
     let agg = null;
-    try { if (LPA) agg = LPA.collectAggregates({ wsRoot, events, decisions }); } catch { agg = null; }
+    try { if (LPA) agg = LPA.collectAggregates({ wsRoot, events, decisions, sessions }); } catch { agg = null; }
     const a = agg || {};
     let journal = null;
     try { if (LPA && sid) journal = LPA.readJournal(sid); } catch { journal = null; }
     return {
       events: scoped, sid, sidKnown: !!sid, brain,
       byDay: a.byDay || null, byModel: a.byModel || null, fleet: a.fleet || null,
+      executive: a.executive || null,
       journal: journal,
     };
   } catch {
-    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null, journal: null };
+    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null, executive: null, journal: null };
   }
 }
 
@@ -1247,9 +1254,8 @@ function livePreviewSnapshot() {
 // The two side-effectful halves the PURE lp-stage.js is deliberately kept free of:
 //   1. readStageConfigText — read the (small) dev-config files so lp-stage.parseConfigPort can
 //      learn the configured port (e.g. landing's `next dev -H 127.0.0.1 -p 7819`).
-//   2. probePorts — a fast TCP connect probe telling resolveStage() which candidate ports are
-//      ACTUALLY listening. We do NOT spawn the dev server (it lives in the user's own terminal),
-//      so probing is the honest substitute for "capture the port from stdout" (loop hole #6).
+//   2. probeStagePorts — a bounded HTTP GET against 127.0.0.1 telling resolveStage() which
+//      candidates actually serve successful frameable HTML. A listening HTTP 500/API is rejected.
 // Both are fully fail-soft: any error degrades to "nothing configured / nothing live", which
 // resolveStage() then reports honestly as the degraded (Director's-Cut-only) state.
 const STAGE_CONFIG_FILES = [
@@ -1269,24 +1275,12 @@ function readStageConfigText(wsRoot) {
   }
   return out;
 }
-// Fast TCP connect probe (127.0.0.1:port). Resolves to the port when something answers within
-// timeoutMs, else drops it. Never throws; probes the small candidate set in parallel.
-function probePorts(ports, timeoutMs) {
-  let net; try { net = require('net'); } catch { return Promise.resolve([]); }
-  const uniq = Array.from(new Set((Array.isArray(ports) ? ports : []).filter((p) => Number.isInteger(p) && p >= 1 && p <= 65535)));
-  const to = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 500;
-  return Promise.all(uniq.map((p) => new Promise((resolve) => {
-    let done = false;
-    const sock = new net.Socket();
-    const finish = (ok) => { if (done) return; done = true; try { sock.destroy(); } catch { /* noop */ } resolve(ok ? p : null); };
-    try {
-      sock.setTimeout(to);
-      sock.once('connect', () => finish(true));
-      sock.once('timeout', () => finish(false));
-      sock.once('error', () => finish(false));
-      sock.connect(p, '127.0.0.1');
-    } catch { finish(false); }
-  }))).then((a) => a.filter((x) => x != null));
+async function probeStagePorts(ports, options) {
+  if (LPProbe && typeof LPProbe.probePorts === 'function') {
+    try { return await LPProbe.probePorts(ports, options); } catch { /* degrade below */ }
+  }
+  // Never revive the TCP-only false-green path when packaging is incomplete.
+  return { livePorts: [], rejected: [], accepted: null };
 }
 
 // Singleton WebviewPanel (editor area, ViewColumn.Beside — MP2 hosts the App Stage <iframe>
@@ -1300,7 +1294,7 @@ class LivePreviewPanel {
     // null in a bare unit harness (no ctor) → the feed stays in-memory, contract unchanged.
     this._store = (context && context.workspaceState && typeof context.workspaceState.get === 'function') ? context.workspaceState : null;
     this.timer = null;       // fast bus/Brain poll
-    this.stageTimer = null;  // slower App Stage re-probe (TCP sweep)
+    this.stageTimer = null;  // slower App Stage re-probe (bounded HTTP validation)
     this.watcher = null;
     this.overrideUrl = null; // user-pasted URL (already origin-validated) or null = auto-detect
     this.urlError = null;    // transient origin-lock rejection note (its OWN channel — never
@@ -1310,6 +1304,12 @@ class LivePreviewPanel {
                              // state-preserving reload — the webview restores it after a reload)
     this.routes = null;      // MP3.3: cached list of the site's navigable routes (landing/app/**/page.*)
     this._detecting = false;
+    // A refresh can arrive while the bounded HTTP probe is still running. Coalesce concurrent
+    // requests into one guaranteed follow-up pass instead of silently dropping the click. A manual
+    // refresh also consumes `_freshDetect` so the old sticky origin cannot bias that follow-up.
+    this._detectAgain = false;
+    this._freshDetect = false;
+    this._detectGeneration = 0; // latest intent wins; an older HTTP result can never overwrite it
     // Shared secret stamped into the webview HTML and onto every host→webview message. The
     // App Stage <iframe> is a DIFFERENT origin (http://localhost) and cannot read this token
     // (same-origin policy), so it cannot forge a message the webview will trust — closing the
@@ -1684,23 +1684,56 @@ class LivePreviewPanel {
   // App Stage detection: read config → probe candidate ports → resolveStage() (all fail-soft).
   // The last-good URL stays sticky so a transient server restart never tears down the iframe
   // (native HMR reconnects on its own). Never throws; on any error the previous stage is kept.
-  async _detectStage() {
-    if (this._detecting || !LPS) return;
+  async _detectStage(options) {
+    const freshRequested = !!(options && options.fresh === true);
+    if (freshRequested) this._freshDetect = true;
+    if (!LPS) return;
+    this._detectGeneration = (this._detectGeneration | 0) + 1;
+    if (this._detecting) {
+      // At most one extra pass is needed: it sees the newest config/ports and preserves any manual
+      // `fresh` bit set above. This is deliberately a boolean, not an unbounded refresh queue.
+      this._detectAgain = true;
+      return;
+    }
     this._detecting = true;
+    const generation = this._detectGeneration;
+    const fresh = this._freshDetect === true;
     try {
       const wsRoot = this._wsRoot();
+      const workspacePresent = this._hasWorkspace();
       const configPort = LPS.parseConfigPort(readStageConfigText(wsRoot));
-      const stickyUrl = (this.stage && this.stage.url) ? this.stage.url : null;
+      // Periodic probes keep the last-good origin so HMR survives brief restarts. User refresh,
+      // Auto and workspace changes explicitly probe from zero and cannot be pinned by stale state.
+      const stickyUrl = !fresh && this.stage && this.stage.url ? this.stage.url : null;
       const probeList = LPS.candidatePortList({ overrideUrl: this.overrideUrl, stickyUrl, configPort });
-      const livePorts = await probePorts(probeList, 500);
-      const next = LPS.resolveStage({ overrideUrl: this.overrideUrl, stickyUrl, configPort, livePorts });
+      const schemeByPort = {};
+      for (const raw of [this.overrideUrl, stickyUrl]) {
+        const normalized = LPS.normalizeStageUrl(raw);
+        if (normalized && normalized.scheme === 'https') schemeByPort[normalized.port] = 'https';
+      }
+      const probe = await probeStagePorts(probeList, { timeoutMs: 900, schemeByPort, authoritativePorts: configPort ? [configPort] : [] });
+      const next = LPS.resolveStage({
+        overrideUrl: this.overrideUrl, stickyUrl, configPort,
+        livePorts: probe.livePorts, rejected: probe.rejected, accepted: probe.accepted,
+        workspacePresent, allowOverrideFallback: fresh,
+      });
       // urlError travels on s.stageError (see _post), NOT on next.reason — folding it in here
       // used to mislabel an unrelated stale/degraded state as "URL inválido".
       // C0 · COH-01 — flows through the lease: a genuine origin change re-arms identity + shows S7.
-      this._setStage(next);
+      // Inputs may have changed while the network request was pending. Only the newest intent may
+      // publish; a queued pass below re-reads config, override and workspace from one coherent point.
+      if (generation === this._detectGeneration) {
+        if (fresh && next && next.overrideFallback) this.overrideUrl = null;
+        if (fresh) this._freshDetect = false;
+        this._setStage(next);
+      }
     } catch { /* keep last stage */ }
     finally { this._detecting = false; }
     this._post();
+    if (this._detectAgain) {
+      this._detectAgain = false;
+      return this._detectStage();
+    }
   }
   // Webview → host messages. SECURITY (loop hole #3): a pasted URL is ONLY ever accepted after
   // lp-stage.normalizeStageUrl() confirms it is http(s)://localhost:<port>; nothing is ever
@@ -1714,8 +1747,8 @@ class LivePreviewPanel {
       this._detectStage();
       return;
     }
-    if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage(); return; }
-    if (m.type === 'lp-redetect') { this._invalidateBridge(); this.routes = null; this._detectStage(); return; } // also refresh routes + COH-17 re-read the SDK/trust bridge (no 30s stale)
+    if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage({ fresh: true }); return; }
+    if (m.type === 'lp-redetect') { this._invalidateBridge(); this.routes = null; this._detectStage({ fresh: true }); return; } // also refresh routes + COH-17 re-read the SDK/trust bridge (no 30s stale)
     // MP3.3 — address bar / route picker. resolveNavTarget keeps the localhost origin lock in ONE
     // place: a same-origin path navigates the frame (lp-goto, no re-point); a different localhost
     // origin re-points the stage through the existing override lock; anything else is refused.
@@ -3012,7 +3045,7 @@ class LivePreviewPanel {
     const br = this._leBridgeStatus();
     const st = this.stage || {};
     const hasWs = this._hasWorkspace();
-    const devUp = !!(st.url && !st.degraded);
+    const devUp = !!(st.url && !st.degraded && !st.stale);
     let tree; // 'ok' (marker matches) | 'mismatch' (sticky-port / old branch) | 'unknown' (no server)
     if (!devUp || this._servedRoot === undefined || this._servedRoot === null) tree = 'unknown';
     else tree = this._treeConfirmed() ? 'ok' : 'mismatch';
@@ -3025,22 +3058,46 @@ class LivePreviewPanel {
       sdk: !!br.available,                                  // available ⇒ SDK found AND trusted
       trust: hasWs && (br.reason !== 'workspace-untrusted'),
       reason: br.reason || null,
+      stageBlocked: !!st.blocked,
+      stageReason: (typeof st.reason === 'string' && st.reason) ? st.reason : null,
+      recovery: (typeof st.recovery === 'string' && st.recovery) ? st.recovery : null,
     };
   }
   // F0.5.3 — recover from a sticky-port / stale-tree preview WITHOUT touching the terminal yourself.
-  // GATED (modal confirm — the agent never runs a command blindly): open a terminal in the served
-  // tree (or the workspace root) and run the dev command, then re-probe so the readiness lights update.
+  // GATED (modal confirm — the agent never runs a command blindly): locate the package that actually
+  // owns a dev script (Mooter: landing/), optionally release a positively-broken port, then run it.
   async _restartDevServer() {
     try {
       if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Live Preview: abre a pasta do projeto primeiro (janela sem pasta).'); return; }
-      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta do workspace e corro "npm run dev".', { modal: true }, 'Reiniciar');
-      if (pick !== 'Reiniciar') return;
-      // C0 · COH-06 — restart ALWAYS in the CONFIRMED workspace root, NEVER a divergent _servedRoot: a
-      // sticky-port mismatch means _servedRoot points at the WRONG tree, and running `npm run dev` there
-      // is exactly the "restart in the wrong place" bug. The workspace root is the one the user opened.
-      const cwd = this._wsRoot();
-      const term = vscode.window.createTerminal({ name: 'Mooter — dev server', cwd });
-      term.show(); term.sendText('npm run dev');
+      // Manifest contract: untrusted workspaces are read-only. A package.json `dev` script is
+      // workspace code, so never start/stop anything until VS Code trust has been explicitly granted.
+      if (!this._workspaceTrusted()) { vscode.window.showWarningMessage('Live Preview: confia neste workspace antes de iniciar ou reiniciar o dev server.'); return; }
+      const wsRoot = this._wsRoot();
+      const target = LPDevServer && typeof LPDevServer.resolveDevTarget === 'function' ? LPDevServer.resolveDevTarget(wsRoot) : null;
+      if (!target) {
+        vscode.window.showWarningMessage('Live Preview: não encontrei um script "dev" em package.json nem em landing/package.json.');
+        return;
+      }
+      const stagePort = this.stage && Number.isInteger(this.stage.port) ? this.stage.port : null;
+      const treeMismatch = !!(stagePort && this.stage && this.stage.url && !this.stage.stale
+        && this._servedRoot != null && !this._treeConfirmed());
+      const releaseBrokenPort = !!(stagePort && ((this.stage && this.stage.blocked) || treeMismatch));
+      const location = target.relativeDir === '.' ? 'a raiz do workspace' : target.relativeDir + '/';
+      const action = releaseBrokenPort
+        ? ('tentar encerrar somente um servidor deste projeto em :' + stagePort + ' e reiniciar')
+        : 'iniciar';
+      const pick = await vscode.window.showWarningMessage('Live Preview: ' + action + ' "npm run dev" em ' + location + '?', { modal: true }, releaseBrokenPort ? 'Encerrar e reiniciar' : 'Iniciar');
+      if (pick !== (releaseBrokenPort ? 'Encerrar e reiniciar' : 'Iniciar')) return;
+      // C0 · COH-06 — derive the package only INSIDE the confirmed workspace, never from a divergent
+      // _servedRoot. The selected package may be a known descendant (Mooter: landing/), not blindly the
+      // workspace root: the old root-level `npm run dev` was a no-op because that package has no script.
+      const restart = releaseBrokenPort && LPDevServer && typeof LPDevServer.restartShell === 'function'
+        ? LPDevServer.restartShell(stagePort, process.platform, target.cwd)
+        : { shellPath: null, command: target.command || 'npm run dev' };
+      const terminalOptions = { name: 'Mooter — dev server', cwd: target.cwd };
+      if (restart.shellPath) terminalOptions.shellPath = restart.shellPath;
+      const term = vscode.window.createTerminal(terminalOptions);
+      term.show(); term.sendText(restart.command || 'npm run dev');
       // C0 · COH-01/06 — clear the sticky origin + identity BEFORE the re-probe so the fresh server is
       // resolved from zero (no stale port wins) and nothing writes until its handshake re-confirms.
       this.overrideUrl = null; this.stage = null; this._stageOrigin = null; this._leaseInfo = null;
@@ -3051,7 +3108,7 @@ class LivePreviewPanel {
       try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
       this._activeTaskAbort = null;
       // re-probe shortly after so the semaphore reflects the fresh server (not the sticky one).
-      setTimeout(() => { try { this.routes = null; this._detectStage(); } catch { /* best-effort */ } }, 3500);
+      setTimeout(() => { try { this.routes = null; this._detectStage({ fresh: true }); } catch { /* best-effort */ } }, 3500);
     } catch { /* best-effort — never throw into the host */ }
   }
   // D8/F9 — the "sem SDK" readiness light used to offer a button labelled "instalar" that actually opened a
@@ -3101,7 +3158,7 @@ class LivePreviewPanel {
     this._detectStage();
     // Visibility-aware polling (mirrors data.js's pollIntervalMs idea) — only tick while shown.
     this.timer = setInterval(() => { if (this.panel.visible) this._post(); }, data_.pollIntervalMs(true));
-    // App Stage re-probe on a slower cadence (a TCP sweep, never on the render path).
+    // App Stage re-probe on a slower cadence (bounded HTTP validation, never on the render path).
     this.stageTimer = setInterval(() => { if (this.panel.visible) this._detectStage(); }, 4000);
     this._busPost = (extra && extra.mkDebounce) ? extra.mkDebounce(() => { if (this.panel.visible) this._post(); }, 1500) : null;
     this.panel.onDidChangeViewState(() => { if (this.panel.visible) { this._post(); this._detectStage(); if (this._busPost) this._busPost.cancel(); } });
@@ -3110,7 +3167,7 @@ class LivePreviewPanel {
     // underlying cause (grants trust, changes workspace) so the readiness semaphore reacts at once, not
     // up to 30s later. COH-05 — an active-editor change may switch the active multi-root project.
     try { this._trustSub = vscode.workspace.onDidGrantWorkspaceTrust(() => { this._invalidateBridge(); this._post(); }); } catch { this._trustSub = null; }
-    try { this._wsFoldersSub = vscode.workspace.onDidChangeWorkspaceFolders(() => { this._invalidateBridge(); this._projectRoot = null; this.routes = null; this._detectStage(); this._post(); }); } catch { this._wsFoldersSub = null; }
+    try { this._wsFoldersSub = vscode.workspace.onDidChangeWorkspaceFolders(() => { this._invalidateBridge(); this._projectRoot = null; this.routes = null; this._detectStage({ fresh: true }); this._post(); }); } catch { this._wsFoldersSub = null; }
     try { this._activeEdSub = vscode.window.onDidChangeActiveTextEditor(() => { if (this.panel.visible) this._post(); }); } catch { this._activeEdSub = null; }
     // Best-effort fs.watch on the bus directory for near-live updates between polls — a missed
     // event (dir not created yet, watcher error) is still covered by the poll above, so this
@@ -3121,10 +3178,19 @@ class LivePreviewPanel {
         if (f === 'events.jsonl') { if (this._busPost) this._busPost(); else if (this.panel.visible) this._post(); }
       });
     } catch { this.watcher = null; }
+    // MEO Control Tower: the typed cross-agent Ledger is a second source. Polling already
+    // covers a directory created after panel-open; this watcher only reduces visible latency.
+    try {
+      const syncDir = path.join(this._wsRoot(), '_handoff', 'agent-sync');
+      this.syncWatcher = fs.watch(syncDir, { persistent: false }, (_e, f) => {
+        if (f === 'events.jsonl' || f === 'snapshot.json') { if (this._busPost) this._busPost(); else if (this.panel.visible) this._post(); }
+      });
+    } catch { this.syncWatcher = null; }
     this.panel.onDidDispose(() => {
       if (this.timer) clearInterval(this.timer);
       if (this.stageTimer) clearInterval(this.stageTimer);
       try { if (this.watcher) this.watcher.close(); } catch { /* best-effort */ }
+      try { if (this.syncWatcher) this.syncWatcher.close(); } catch { /* best-effort */ }
       try { if (this._busPost) this._busPost.cancel(); } catch { /* best-effort */ }
       try { if (this._trustSub) this._trustSub.dispose(); } catch { /* best-effort */ }
       try { if (this._wsFoldersSub) this._wsFoldersSub.dispose(); } catch { /* best-effort */ }
@@ -3173,6 +3239,9 @@ function getLivePreviewHtml(token, wsRoot) {
   const renderFleetLanesSrc = LPV ? LPV.renderFleetLanes.toString() : 'function renderFleetLanes(){return "";}';
   const renderWorkPillSrc = LPV ? LPV.renderWorkPill.toString() : 'function renderWorkPill(){return "";}';
   const renderJournalCardSrc = LPV ? LPV.renderJournalCard.toString() : 'function renderJournalCard(){return "";}';
+  const renderExecutiveOverviewSrc = LPV ? LPV.renderExecutiveOverview.toString() : 'function renderExecutiveOverview(){return "";}';
+  const renderExecutiveTimelineSrc = LPV ? LPV.renderExecutiveTimeline.toString() : 'function renderExecutiveTimeline(){return "";}';
+  const renderSessionBreakdownSrc = LPV ? LPV.renderSessionBreakdown.toString() : 'function renderSessionBreakdown(){return "";}';
   // LP-4.5 — the one-box heuristic (SUGGESTS the local chip, never decides) + the safe markdown
   // renderer for agent answers, same fn.toString() contract as the renderers above (concat-only,
   // backtick-free source).
@@ -3583,6 +3652,19 @@ function getLivePreviewHtml(token, wsRoot) {
   .lpx-tr:first-child{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground,#8a8a8a)}
   .lpx-cell{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px}
   .lpx-cell .lpbr-mix{min-width:40px;flex:1}
+  .meo-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:5px 0 8px}
+  .meo-kpi{display:flex;flex-direction:column;gap:2px;border:1px solid var(--vscode-widget-border);border-radius:7px;padding:7px 8px;background:var(--vscode-editorWidget-background)}
+  .meo-kpi b{font-size:16px}.meo-kpi span{font-size:10px;color:var(--vscode-descriptionForeground)}
+  .meo-kpi.ok{border-left:3px solid var(--vscode-charts-green,#4CAF6A)}.meo-kpi.warn{border-left:3px solid var(--vscode-charts-yellow,#E5C07B)}
+  .meo-warns{border:1px solid var(--vscode-inputValidation-warningBorder,#E5C07B);background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.1));padding:6px 8px;border-radius:6px;font-size:10.5px;line-height:1.45;margin-bottom:8px}
+  .meo-sec{margin:8px 0}.meo-sec-hd{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--vscode-descriptionForeground);font-weight:700;margin-bottom:4px}
+  .meo-agent,.meo-flow,.meo-delivery,.meo-session-row{display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;border-top:1px solid var(--vscode-widget-border);padding:4px 0;font-size:10.5px}
+  .meo-agent>span:first-child{min-width:110px}.meo-flow>span:last-child{flex:1;min-width:120px}.meo-delivery>span{flex:1;min-width:120px}
+  .meo-step{border-top:1px solid var(--vscode-widget-border);padding:6px 0}.meo-step-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:10.5px}
+  .meo-step-body{font-size:11.5px;margin:3px 0;word-break:break-word}.meo-step-meta{font-size:9.5px;color:var(--vscode-descriptionForeground);word-break:break-word}
+  .meo-channel{font-size:9px;border:1px solid var(--vscode-widget-border);border-radius:999px;padding:1px 6px}.meo-channel.local{border-color:var(--vscode-charts-green,#4CAF6A)}.meo-channel.subscription{border-color:var(--vscode-charts-purple,#A78BFA)}.meo-channel.cloud{border-color:var(--vscode-charts-blue,#5A9BD4)}
+  .meo-timeline{max-height:58vh;overflow:auto}.meo-session{border:1px solid var(--vscode-widget-border);border-radius:7px;padding:7px 9px;margin:6px 0;background:var(--vscode-editorWidget-background)}
+  .meo-session-hd{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.meo-session-hd span{font-size:9.5px;color:var(--vscode-descriptionForeground)}
   .lpx-chip{display:inline-block;font-size:10px;padding:0 6px;border-radius:8px;background:var(--vscode-badge-background,#4d4d4d);color:var(--vscode-badge-foreground,#fff);line-height:16px}
   .lpx-foot{margin-top:6px;font-size:10px;color:var(--vscode-descriptionForeground,#8a8a8a)}
   .lpx-lane{padding:4px 0;border-bottom:1px solid var(--vscode-panel-border,#2a2a2a)}
@@ -3709,12 +3791,16 @@ function getLivePreviewHtml(token, wsRoot) {
       <div id="lp-meo-hd" class="lp-meo-hd"><div class="lp-meo-t">🐮 MEO — Moo Executive Officer</div><div class="lp-meo-sub">o teu cockpit executivo · dados reais, custos ~est.</div></div>
       <div id="lp-work-mount"></div>
       <div id="lp-tabs" role="tablist" aria-label="Lentes do MEO">
-        <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0">Stream</button>
+        <button type="button" class="lp-tab on" role="tab" id="lp-tab-control" aria-selected="true" aria-controls="lp-pane-control" data-tab="control" tabindex="0">Control</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-stream" aria-selected="false" aria-controls="lp-pane-stream" data-tab="stream" tabindex="-1">Stream</button>
+        <button type="button" class="lp-tab" role="tab" id="lp-tab-sessions" aria-selected="false" aria-controls="lp-pane-sessions" data-tab="sessions" tabindex="-1">Sessões</button>
         <button type="button" class="lp-tab" role="tab" id="lp-tab-day" aria-selected="false" aria-controls="lp-pane-day" data-tab="day" tabindex="-1">Dia</button>
         <button type="button" class="lp-tab" role="tab" id="lp-tab-model" aria-selected="false" aria-controls="lp-pane-model" data-tab="model" tabindex="-1">LLM</button>
         <button type="button" class="lp-tab" role="tab" id="lp-tab-fleet" aria-selected="false" aria-controls="lp-pane-fleet" data-tab="fleet" tabindex="-1">Fleet</button>
       </div>
-      <div id="lp-pane-stream" role="tabpanel" aria-labelledby="lp-tab-stream"></div>
+      <div id="lp-pane-control" role="tabpanel" aria-labelledby="lp-tab-control"></div>
+      <div id="lp-pane-stream" role="tabpanel" aria-labelledby="lp-tab-stream" hidden></div>
+      <div id="lp-pane-sessions" role="tabpanel" aria-labelledby="lp-tab-sessions" hidden></div>
       <div id="lp-pane-day" role="tabpanel" aria-labelledby="lp-tab-day" hidden></div>
       <div id="lp-pane-model" role="tabpanel" aria-labelledby="lp-tab-model" hidden></div>
       <div id="lp-pane-fleet" role="tabpanel" aria-labelledby="lp-tab-fleet" hidden></div>
@@ -3737,6 +3823,9 @@ const renderModelBreakdown=${renderModelBreakdownSrc};
 const renderFleetLanes=${renderFleetLanesSrc};
 const renderWorkPill=${renderWorkPillSrc};
 const renderJournalCard=${renderJournalCardSrc};
+const renderExecutiveOverview=${renderExecutiveOverviewSrc};
+const renderExecutiveTimeline=${renderExecutiveTimelineSrc};
+const renderSessionBreakdown=${renderSessionBreakdownSrc};
 const suggestLocalChip=${suggestLocalChipSrc};
 const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
@@ -3770,6 +3859,7 @@ function applySelectCapability(r){
   if(lpSelectOn) setSelectMode(false); // cannot select an unconfirmed preview
   b.disabled=true; b.setAttribute('aria-disabled','true');
   const why=(!r||!r.workspace)?'abre a pasta do projeto primeiro'
+    :(r.stageBlocked)?('o dev server respondeu com erro' + (r.port?(' em :'+r.port):'') + ' — o preview foi bloqueado')
     :(!r.devServer)?'arranca o dev server para o preview aparecer'
     :(r.tree==='mismatch')?'o preview vem de outra árvore — reinicia o dev server neste workspace'
     :'identidade do preview por confirmar — aguarda o handshake da origem atual';
@@ -3778,8 +3868,8 @@ function applySelectCapability(r){
   // missable (its cause hides in a hover tooltip); mirror the readiness strip's 1-click fix HERE, assertively.
   // NEVER arms select — the fix button posts a host recovery action via readinessFix, exactly like the strip.
   if(bn){
-    const fix=(!r||!r.workspace)?'folder':(!r.devServer)?'reprobe':(r.tree==='mismatch')?'restart':(r.devServer?'restart':'reprobe');
-    const fixlabel=(fix==='folder')?'Abrir pasta':(fix==='restart')?'reiniciar dev server':'re-probar';
+    const fix=(!r||!r.workspace)?'folder':(r.stageBlocked||!r.devServer)?'restart':(r.tree==='mismatch')?'restart':'reload';
+    const fixlabel=(fix==='folder')?'Abrir pasta':(fix==='restart')?(r.stageBlocked?'encerrar e reiniciar':'iniciar dev server'):(fix==='reload')?'recarregar preview':'re-probar';
     bn.innerHTML='<span>🎯 Selecionar indisponível — '+esc(why)+'</span><button type="button" class="lp-sb-fix" data-fix="'+esc(fix)+'">'+esc(fixlabel)+'</button>';
     bn.style.display='flex';
     const fb=bn.querySelector('[data-fix]');
@@ -3798,11 +3888,12 @@ function renderReadiness(r){
   if(!r.workspace){ parts.push(lit('bad','sem pasta','folder','Abrir pasta')); }
   else {
     parts.push(lit('ok','pasta',null,null));
-    if(r.devServer) parts.push(lit('ok',':'+(r.port||'?')+(r.source?(' '+r.source):''),'reprobe','re-probar'));
-    else parts.push(lit('bad','sem dev server','reprobe','re-probar'));
+    if(r.stageBlocked) parts.push(lit('bad',':'+(r.port||'?')+' com erro','restart','encerrar e reiniciar'));
+    else if(r.devServer) parts.push(lit('ok',':'+(r.port||'?')+(r.source?(' '+r.source):''),'reprobe','re-probar'));
+    else parts.push(lit('bad','sem dev server','restart','iniciar'));
     if(r.tree==='ok') parts.push(lit('ok','árvore',null,null));
     else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
-    else if(r.tree==='unknown') parts.push(lit('warn','árvore por confirmar', r.devServer?'restart':'reprobe', r.devServer?'reiniciar dev server':'re-probar')); // C0/COH-04 — the 4th light is ALWAYS visible: identity 'por confirmar' (origin swap / no handshake / no server) NEVER silently vanishes, always with a 1-click fix
+    else if(r.tree==='unknown') parts.push(lit('warn','árvore por confirmar', r.devServer?'reload':(r.stageBlocked?'restart':'reprobe'), r.devServer?'recarregar preview':(r.stageBlocked?'reiniciar':'re-probar'))); // C0/COH-04 — identity stays visible; a healthy frame reloads for handshake instead of asking for a server restart
     if(r.sdk) parts.push(lit('ok','agente',null,null));
     else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
     else parts.push(lit('bad','sem SDK','sdk','como instalar'));
@@ -3818,6 +3909,7 @@ function readinessFix(f){
   else if(f==='folder') vsapi.postMessage({ type:'lp-open-folder' });
   else if(f==='trust') vsapi.postMessage({ type:'lp-trust' });
   else if(f==='restart') vsapi.postMessage({ type:'lp-restart-dev' });
+  else if(f==='reload'){ reloadStageFrame(); vsapi.postMessage({ type:'lp-redetect' }); }
   else if(f==='sdk') vsapi.postMessage({ type:'lp-sdk-help' }); // D8/F9 — a real, honest SDK action (not a folder picker mislabelled "instalar")
 }
 function renderWork(s){
@@ -3826,21 +3918,23 @@ function renderWork(s){
   if(html===lpWorkSig) return; lpWorkSig=html;
   el.innerHTML=html;
 }
-function lpPane(tab){ return document.getElementById(tab==='stream'?'lp-pane-stream':tab==='day'?'lp-pane-day':tab==='model'?'lp-pane-model':'lp-pane-fleet'); }
-function lpLensHd(tab){var r=tab==='stream'?'Chief of Staff — o diário da sessão':tab==='day'?'COO — operações por dia':tab==='model'?'CFO — custos e modelos (~est.)':tab==='fleet'?'COO — frota em paralelo':'';return r?('<div class="lp-lens-hd">'+r+'</div>'):'';}
-function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify([(s&&s.events)||[], !!(s&&s.sidKnown), (s&&s.journal)||null]); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
+function lpPane(tab){ return document.getElementById(tab==='control'?'lp-pane-control':tab==='stream'?'lp-pane-stream':tab==='sessions'?'lp-pane-sessions':tab==='day'?'lp-pane-day':tab==='model'?'lp-pane-model':'lp-pane-fleet'); }
+function lpLensHd(tab){var r=tab==='control'?'CTO — visão executiva e cobertura':tab==='stream'?'Chief of Staff — cada etapa, agente, modelo e sessão':tab==='sessions'?'COO — breakdown por sessão':tab==='day'?'COO — operações por dia':tab==='model'?'CFO — custos e modelos (~est.)':tab==='fleet'?'COO — frota em paralelo':'';return r?('<div class="lp-lens-hd">'+r+'</div>'):'';}
+function lpSig(tab,s){ try{ if(tab==='stream') return JSON.stringify({executive:(s&&s.executive)||null,journal:(s&&s.journal)||null}); if(tab==='control'||tab==='sessions') return JSON.stringify((s&&s.executive)||null); if(tab==='day') return JSON.stringify((s&&s.byDay)||null); if(tab==='model') return JSON.stringify((s&&s.byModel)||null); if(tab==='fleet') return JSON.stringify((s&&s.fleet)||null); }catch(_e){ return null; } return null; }
 function renderLens(tab){
   const s=lpLastSnap; const el=lpPane(tab); if(!el) return;
   const sig=lpSig(tab,s); if(sig===lpLensSig[tab]) return; lpLensSig[tab]=sig;
   let sc=0; const oldS=el.querySelector('.lpdc-stream'); if(oldS) sc=oldS.scrollTop;
-  if(tab==='stream') el.innerHTML=lpLensHd('stream')+renderJournalCard(s&&s.journal)+renderDirectorsCut((s&&s.events)||[], { sidKnown: !!(s&&s.sidKnown) });
+  if(tab==='control') el.innerHTML=lpLensHd('control')+renderExecutiveOverview(s&&s.executive);
+  else if(tab==='stream') el.innerHTML=lpLensHd('stream')+renderJournalCard(s&&s.journal)+renderExecutiveTimeline(s&&s.executive);
+  else if(tab==='sessions') el.innerHTML=lpLensHd('sessions')+renderSessionBreakdown(s&&s.executive);
   else if(tab==='day') el.innerHTML=lpLensHd('day')+renderDayBreakdown(s&&s.byDay);
   else if(tab==='model') el.innerHTML=lpLensHd('model')+renderModelBreakdown(s&&s.byModel);
   else if(tab==='fleet') el.innerHTML=lpLensHd('fleet')+renderFleetLanes(s&&s.fleet);
   const nS=el.querySelector('.lpdc-stream'); if(nS&&sc) nS.scrollTop=sc;
 }
 function setTab(tab){
-  const order=['stream','day','model','fleet']; if(order.indexOf(tab)<0) return;
+  const order=['control','stream','sessions','day','model','fleet']; if(order.indexOf(tab)<0) return;
   lpDcTab=tab;
   for(let i=0;i<order.length;i++){ const t=order[i]; const on=(t===tab);
     const btn=document.getElementById('lp-tab-'+t); const pane=lpPane(t);
@@ -3849,7 +3943,7 @@ function setTab(tab){
   }
   renderLens(tab);
 }
-(function(){ const strip=document.getElementById('lp-tabs'); if(!strip) return; const order=['stream','day','model','fleet'];
+(function(){ const strip=document.getElementById('lp-tabs'); if(!strip) return; const order=['control','stream','sessions','day','model','fleet'];
   strip.addEventListener('click', function(e){ const b=(e.target&&e.target.closest)?e.target.closest('.lp-tab'):null; if(b&&b.getAttribute('data-tab')){ setTab(b.getAttribute('data-tab')); b.focus(); } });
   strip.addEventListener('keydown', function(e){ const cur=order.indexOf(lpDcTab); let ni=-1;
     if(e.key==='ArrowRight'||e.key==='ArrowDown') ni=(cur+1)%order.length;
@@ -3864,6 +3958,12 @@ function applyError(err){
   else { el.textContent=''; el.style.display='none'; }
 }
 let curSrc=null, curOrigin=null, lastDegradeHtml=null;
+function reloadStageFrame(){
+  const frame=document.getElementById('lp-frame');
+  if(!frame||!curSrc) return;
+  lpHasTap=false; try{ applyNavCapability(); }catch(e){}
+  frame.setAttribute('src', curSrc);
+}
 function applyStage(stage){
   const st=stage||null;
   const statusEl=document.getElementById('lp-status');
@@ -3885,16 +3985,18 @@ function applyStage(stage){
           + '<div class="lp-degrade-h"><button type="button" id="lp-open-folder" class="lp-open-folder">📂 Abrir a pasta do projeto nesta janela</button></div></div>';
       } else {
         const reason = (st && st.reason) ? st.reason : 'nenhum dev server detetado';
-        html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">🎬</div>'
-          + '<div class="lp-degrade-t">App Stage à espera do dev server</div>'
+        const blocked = !!(st && st.blocked);
+        html = '<div class="lp-degrade-in"><div class="lp-degrade-ico">'+(blocked?'🧯':'🎬')+'</div>'
+          + '<div class="lp-degrade-t">'+(blocked?'Dev server respondeu com erro':'App Stage à espera do dev server')+'</div>'
           + '<div class="lp-degrade-r">' + esc(reason) + '</div>'
-          + '<div class="lp-degrade-h">arranca o dev server (ex.: <code>cd landing &amp;&amp; npm run dev</code>) '
-          + 'ou cola o URL na barra acima. Entretanto o MEO continua a fazer stream à direita.</div></div>';
+          + '<div class="lp-degrade-h"><button type="button" id="lp-recover-dev" class="lp-open-folder">'+(blocked?'↻ Encerrar e reiniciar':'▶ Iniciar dev server')+'</button> '
+          + 'O Mooter usa o package.json correto do projeto. Entretanto o MEO continua a fazer stream à direita.</div></div>';
       }
       // Only rewrite when the copy changes — otherwise a poll wipes any text selection in the hint.
       if(html !== lastDegradeHtml){ lastDegradeHtml = html; degrade.innerHTML = html;
         // F0.5.1 — re-wire the open-folder button after each rewrite (host opens the folder picker).
         var ofb=document.getElementById('lp-open-folder'); if(ofb) ofb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-folder' }); });
+        var rdb=document.getElementById('lp-recover-dev'); if(rdb) rdb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-restart-dev' }); });
       }
     } else { lastDegradeHtml = null; }
   }
@@ -3986,9 +4088,9 @@ function reflectRoute(path){
 }
 // Rebuild the routes picker ONLY when the set changes (never wipe a mid-poll selection). esc-safe.
 let lpRoutesSig=null;
-let lpDcTab='stream';
+let lpDcTab='control';
 let lpLastSnap=null;
-let lpLensSig={stream:null,day:null,model:null,fleet:null};
+let lpLensSig={control:null,stream:null,sessions:null,day:null,model:null,fleet:null};
 let lpWorkSig=null;
 function populateRoutes(routes){
   const sel=document.getElementById('lp-routes');
@@ -5371,7 +5473,7 @@ const fwdBtn=document.getElementById('lp-fwd');
 if(fwdBtn) fwdBtn.addEventListener('click', ()=>{ if(!lpHasTap) return; frameHistory('forward'); });
 applyNavCapability(); // COH-11 — Back/Forward start DISABLED with a reason until a tap handshake proves the capability
 const reBtn=document.getElementById('lp-redetect');
-if(reBtn) reBtn.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-redetect' }));
+if(reBtn) reBtn.addEventListener('click', ()=>{ reloadStageFrame(); vsapi.postMessage({ type:'lp-redetect' }); });
 const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');

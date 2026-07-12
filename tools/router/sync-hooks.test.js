@@ -20,7 +20,7 @@ const {
 
 // A COMPLETE wired hook: journaling (accumulateHandoff + handoff-journal) AND the v2.5 CAPTURE fix
 // (journal.effectiveCwd) — the marker set the self-check now requires.
-const ACCUMULATOR_BODY = 'function accumulateHandoff(){ const j = require("./handoff-journal.js"); j.effectiveCwd([], null); }';
+const ACCUMULATOR_BODY = 'function accumulateHandoff(){ const j = require("./handoff-journal.js"); j.effectiveCwd([], null); } function accumulateAgentSync(){ require("./agent-sync-ledger.js"); }';
 const STALE_BODY = '// old turn-end, no journaling here';
 
 function tmp(prefix) {
@@ -150,6 +150,7 @@ test('self-check FAILS (and lists missing markers) on a stale hook', () => {
   assert.equal(c.hasAccumulator, false);
   assert.ok(c.missingMarkers.includes('accumulateHandoff'));
   assert.ok(c.missingMarkers.includes('handoff-journal'));
+  assert.ok(c.missingMarkers.includes('agent-sync-ledger'));
 });
 
 test('self-check reports file-not-found when the wired hook is absent', () => {

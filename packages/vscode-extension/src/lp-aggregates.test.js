@@ -288,6 +288,57 @@ test('loadPricing: loads the REAL repo pricing.js; bad/missing candidates → nu
   assert.strictEqual(LPA.loadPricing(null), null);
 });
 
+// ── MEO Control Tower executive projection ─────────────────────────────────────────────
+
+test('executionChannel distinguishes local, subscription, cloud and n/d with a basis', () => {
+  assert.deepStrictEqual(LPA.executionChannel('qwen3:30b', null, null), { channel: 'local', provider: 'ollama', basis: 'model-family' });
+  assert.deepStrictEqual(LPA.executionChannel('claude-opus-4-8', 'anthropic', null), { channel: 'subscription', provider: 'anthropic', basis: 'explicit-provider' });
+  assert.deepStrictEqual(LPA.executionChannel('codex', 'openai', null), { channel: 'cloud', provider: 'openai', basis: 'explicit-provider' });
+  assert.deepStrictEqual(LPA.executionChannel('codex', 'openai', null, 'subscription'), { channel: 'subscription', provider: 'openai', basis: 'typed-ledger' });
+  assert.deepStrictEqual(LPA.executionChannel(null, null, null), { channel: null, provider: null, basis: null });
+});
+
+test('buildExecutive joins stream, execution, ledger and session title without inventing gaps', () => {
+  const exec = LPA.parseExecutionLog(EXEC_LINES, 400);
+  const ledger = [{
+    ts: '2026-07-08T10:02:00.000Z', agent: 'codex', provider: 'openai', model: 'codex', execution_channel: 'subscription',
+    kind: 'handoff', status: 'ready', session_id: 'sid-2', session_title: null,
+    summary: 'Codex handed MEO review to Gemini', target_agents: ['gemini-roo'],
+    evidence: ['code', 'handoff'], wave: 'wave/meo-cto', pr: '#247',
+    notion_ref: 'notion://mooter/meo', obsidian_ref: 'Mooter/meo.md',
+    git: { branch: 'wave/meo-cto', head: 'abc123' },
+  }];
+  const r = LPA.buildExecutive({
+    events: [mkEvent({ sid: 'sid-2', summary: 'stream interaction' })], exec, ledger,
+    sessions: [{ fullId: 'sid-2', title: 'MEO CTO view', model: 'claude-opus-4-8', notionSyncedAt: '2026-07-08T09:00:00Z' }],
+  });
+  assert.strictEqual(r.coverage.ledgerPresent, true);
+  assert.ok(r.timeline.some((e) => e.source === 'stream'));
+  assert.ok(r.timeline.some((e) => e.source === 'execution' && e.model === 'qwen2.5:3b' && e.channel === 'local'));
+  assert.ok(r.timeline.some((e) => e.source === 'ledger' && e.agent === 'codex' && e.sessionTitle === 'MEO CTO view'));
+  assert.ok(r.timeline.some((e) => e.source === 'ledger' && e.agent === 'codex' && e.channel === 'subscription' && e.channelBasis === 'typed-ledger'));
+  const s = r.sessions.find((x) => x.sid === 'sid-2');
+  assert.ok(s);
+  assert.strictEqual(s.title, 'MEO CTO view');
+  assert.strictEqual(s.wave, 'wave/meo-cto');
+  assert.strictEqual(s.pr, '#247');
+  assert.strictEqual(s.handoffs, 1);
+  assert.strictEqual(r.handoffs.length, 1);
+  assert.strictEqual(r.mirrors.notion.length, 1);
+  assert.strictEqual(r.mirrors.obsidian.length, 1);
+});
+
+test('readAgentSync tail-reads valid JSONL and tolerates a truncated line', () => {
+  const tmp = fsm.mkdtempSync(path.join(osm.tmpdir(), 'meo-ledger-'));
+  try {
+    const p = path.join(tmp, 'events.jsonl');
+    fsm.writeFileSync(p, '{"ts":"2026-07-12T00:00:00Z","kind":"turn"}\n{broken\n{"ts":"2026-07-12T00:01:00Z","kind":"handoff"}\n');
+    const rows = LPA.readAgentSync(null, p, 10);
+    assert.strictEqual(rows.length, 2);
+    assert.strictEqual(rows[1].kind, 'handoff');
+  } finally { fsm.rmSync(tmp, { recursive: true, force: true }); }
+});
+
 // ── collectAggregates (end-to-end, fail-soft per lens) ───────────────────────────────────
 
 test('collectAggregates: end-to-end over real-shaped fixtures on disk', () => {
@@ -313,16 +364,22 @@ test('collectAggregates: end-to-end over real-shaped fixtures on disk', () => {
   assert.ok(agg.byModel && agg.byModel.models.length >= 1);
   assert.strictEqual(agg.byModel.costBasis, 'tier-est');
   assert.ok(agg.fleet && agg.fleet.resting === true);
+  assert.ok(agg.executive && agg.executive.coverage.streamEvents === 1);
 });
 
-test('collectAggregates: every source broken/absent → {null,null,null}, never a throw', () => {
+test('collectAggregates: broken sources stay null while executive coverage reports the gap', () => {
   const agg = LPA.collectAggregates({
     wsRoot: null, events: null, decisions: null,
     execLogPath: '/definitely/not/here.log',
     pricingPaths: ['/nope.js'],
     fleetDir: '/definitely/not/here',
   });
-  assert.deepStrictEqual(agg, { byDay: null, byModel: null, fleet: null });
+  assert.strictEqual(agg.byDay, null);
+  assert.strictEqual(agg.byModel, null);
+  assert.strictEqual(agg.fleet, null);
+  assert.ok(agg.executive);
+  assert.strictEqual(agg.executive.coverage.ledgerPresent, false);
+  assert.ok(agg.executive.coverage.warnings.some((w) => w.includes('Ledger ausente')));
   assert.doesNotThrow(() => LPA.collectAggregates(null));
 });
 

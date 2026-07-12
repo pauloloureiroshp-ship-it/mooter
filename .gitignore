@@ -146,6 +146,9 @@ _handoff/loop/transcript/
 _handoff/loop/STATE.json
 _handoff/loop/heartbeat.json
 
+# Multi-agent operational ledger projections (generated locally; source is tools/router/agent-sync-ledger.js).
+_handoff/agent-sync/
+
 # Local Guardian handoff projections (Ledger is truth; UUID Markdown is regenerated).
 _handoff/guardian/????????-????-????-????-????????????.md
 

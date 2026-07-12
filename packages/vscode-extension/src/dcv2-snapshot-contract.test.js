@@ -1,6 +1,6 @@
 // dcv2-snapshot-contract.test.js — Director's Cut v2 · F1 source-contract guard (node --test).
-// F1 is DATA ONLY: livePreviewSnapshot() must expose the three nullable aggregate fields
-// (byDay/byModel/fleet) on BOTH its success return and its catch return, and load
+// F1 is DATA ONLY: livePreviewSnapshot() must expose every nullable aggregate field
+// (byDay/byModel/fleet/executive) on BOTH its success return and its catch return, and load
 // lp-aggregates.js fail-soft (absent → LPA stays null, nothing else changes). This suite reads
 // extension.js AS TEXT (no eval) so a distracted merge that drops a field or the fail-soft guard
 // trips the build instead of silently shipping a half-wired snapshot. Mirrors the
@@ -30,14 +30,14 @@ test('F1: lp-aggregates.js is required fail-soft (absent → LPA stays null)', (
     'the require must be fail-soft: catch leaves LPA = null');
 });
 
-test('F1: livePreviewSnapshot success return exposes byDay/byModel/fleet', () => {
+test('F1: livePreviewSnapshot success return exposes byDay/byModel/fleet/executive', () => {
   const body = snapshotBody();
-  for (const k of ['byDay', 'byModel', 'fleet']) {
+  for (const k of ['byDay', 'byModel', 'fleet', 'executive']) {
     assert.ok(body.includes(k + ':'), 'snapshot must return the ' + k + ' field');
   }
 });
 
-test('F1: the catch path returns all three aggregates as null (honest fallback)', () => {
+test('F1: the catch path returns every aggregate as null (honest fallback)', () => {
   const body = snapshotBody();
   const m = body.match(/catch\s*\{\s*return\s*\{([^}]*)\}/);
   assert.ok(m, 'livePreviewSnapshot must have a catch that returns an object');
@@ -45,4 +45,5 @@ test('F1: the catch path returns all three aggregates as null (honest fallback)'
   assert.match(caught, /byDay:\s*null/, 'catch must set byDay: null');
   assert.match(caught, /byModel:\s*null/, 'catch must set byModel: null');
   assert.match(caught, /fleet:\s*null/, 'catch must set fleet: null');
+  assert.match(caught, /executive:\s*null/, 'catch must set executive: null');
 });

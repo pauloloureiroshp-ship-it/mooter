@@ -549,6 +549,101 @@ function renderJournalCard(journal) {
     + '</div>';
 }
 
+// ── MEO Control Tower renderers ────────────────────────────────────────────────────────
+// Pure/concat-only/ES5: serialized into the webview exactly like the existing lenses.
+function renderExecutiveOverview(executive) {
+  var x = (executive && typeof executive === 'object') ? executive : null;
+  if (!x) return '<div class="lpx lpdc-empty">Control Tower n/d — snapshot executivo indisponível</div>';
+  var c = x.coverage || {};
+  function n(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
+  function ago(ts) {
+    var t = Date.parse(ts); if (isNaN(t)) return 'n/d'; var s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (s < 60) return 'há ' + s + 's'; var m = Math.floor(s / 60); if (m < 60) return 'há ' + m + 'm';
+    var h = Math.floor(m / 60); return h < 24 ? ('há ' + h + 'h') : ('há ' + Math.floor(h / 24) + 'd');
+  }
+  function agentGlyph(a) { a = String(a || ''); if (a === 'claude-code') return '🧠'; if (a === 'codex') return '🟢'; if (a === 'gemini-roo') return '💎'; if (a === 'ollama') return '🦙'; if (a === 'cowork') return '⇄'; if (a === 'paulo') return '👤'; return '🤖'; }
+  var pctTitle = n(c.sessions) ? Math.round(100 * n(c.titledSessions) / n(c.sessions)) : null;
+  var pctModel = n(c.steps) ? Math.round(100 * n(c.modelAttributedSteps) / n(c.steps)) : null;
+  var cards = '<div class="meo-kpis">'
+    + '<div class="meo-kpi"><b>' + n(c.steps) + '</b><span>etapas unificadas</span></div>'
+    + '<div class="meo-kpi"><b>' + n(c.sessions) + '</b><span>sessões · ' + (pctTitle == null ? 'n/d' : pctTitle + '% tituladas') + '</span></div>'
+    + '<div class="meo-kpi"><b>' + n(c.modelAttributedSteps) + '/' + n(c.steps) + '</b><span>modelo atribuído' + (pctModel == null ? '' : ' · ' + pctModel + '%') + '</span></div>'
+    + '<div class="meo-kpi ' + (c.ledgerPresent ? 'ok' : 'warn') + '"><b>' + (c.ledgerPresent ? 'ON' : 'OFF') + '</b><span>agent-sync Ledger · ' + n(c.ledgerEvents) + ' eventos</span></div>'
+    + '</div>';
+  var warnings = Array.isArray(c.warnings) && c.warnings.length
+    ? '<div class="meo-warns">' + c.warnings.map(function (w) { return '<div>⚠ ' + esc(w) + '</div>'; }).join('') + '</div>' : '';
+  var agents = Array.isArray(x.agents) ? x.agents : [];
+  var agentRows = agents.length ? agents.map(function (a) {
+    return '<div class="meo-agent"><span>' + agentGlyph(a.agent) + ' <b>' + esc(a.agent) + '</b></span>'
+      + '<span>' + esc((a.channels || []).join(' · ') || 'canal n/d') + '</span>'
+      + '<span>' + esc((a.models || []).join(', ') || 'modelo n/d') + '</span>'
+      + '<span>' + esc(a.steps || 0) + ' etapas · ' + esc(ago(a.lastTs)) + '</span></div>';
+  }).join('') : '<div class="lpdc-nd">nenhum agente atribuído</div>';
+  var handoffs = Array.isArray(x.handoffs) ? x.handoffs : [];
+  var handoffRows = handoffs.length ? handoffs.slice(0, 8).map(function (h) {
+    return '<div class="meo-flow"><span>' + agentGlyph(h.agent) + ' ' + esc(h.agent || 'n/d') + '</span><b>→</b>'
+      + '<span>' + esc((h.targets || []).join(', ') || 'n/d') + '</span><span>' + esc(h.summary || h.kind || 'handoff') + '</span></div>';
+  }).join('') : '<div class="lpdc-nd">sem handoff tipado ainda</div>';
+  var d = x.delivery || {};
+  var delivery = '<div class="meo-delivery">'
+    + '<span>waves <b>' + esc((d.waves || []).join(', ') || 'n/d') + '</b></span>'
+    + '<span>PRs <b>' + esc((d.prs || []).join(', ') || 'n/d') + '</b></span>'
+    + '<span>branches <b>' + esc((d.branches || []).join(', ') || 'n/d') + '</b></span></div>';
+  var mirrors = x.mirrors || {};
+  var mirrorLine = '<div class="meo-delivery"><span>Notion <b>' + (mirrors.notion && mirrors.notion.length ? esc(mirrors.notion.length + ' sinal(is)') : 'n/d') + '</b></span>'
+    + '<span>Obsidian <b>' + (mirrors.obsidian && mirrors.obsidian.length ? esc(mirrors.obsidian.length + ' sinal(is)') : 'n/d') + '</b></span></div>';
+  return '<div class="meo-ctl">' + cards + warnings
+    + '<div class="meo-sec"><div class="meo-sec-hd">Agentes · quem fez o quê</div>' + agentRows + '</div>'
+    + '<div class="meo-sec"><div class="meo-sec-hd">Handoffs · fluxo de responsabilidade</div>' + handoffRows + '</div>'
+    + '<div class="meo-sec"><div class="meo-sec-hd">Delivery</div>' + delivery + mirrorLine + '</div></div>';
+}
+
+function renderExecutiveTimeline(executive) {
+  var x = (executive && typeof executive === 'object') ? executive : null;
+  var rows = x && Array.isArray(x.timeline) ? x.timeline : [];
+  if (!rows.length) return '<div class="lpx lpdc-empty">sem etapas unificadas ainda</div>';
+  function clock(ts) { var d = new Date(ts); return isNaN(d.getTime()) ? 'n/d' : d.toLocaleTimeString(undefined, { hour12: false }); }
+  function glyph(a) { if (a === 'claude-code') return '🧠'; if (a === 'codex') return '🟢'; if (a === 'gemini-roo') return '💎'; if (a === 'ollama') return '🦙'; if (a === 'cowork') return '⇄'; if (a === 'paulo') return '👤'; return '🤖'; }
+  var html = '';
+  for (var i = 0; i < rows.length && i < 100; i++) {
+    var e = rows[i] || {}; var channel = e.channel || 'n/d';
+    var session = e.sessionTitle || (e.sid ? ('sessão ' + String(e.sid).slice(0, 8)) : 'sessão n/d');
+    var model = e.model || 'modelo n/d';
+    var scope = [e.wave, e.pr].filter(Boolean).join(' · ');
+    html += '<div class="meo-step">'
+      + '<div class="meo-step-top"><span class="lpdc-time">' + esc(clock(e.ts)) + '</span>'
+      + '<span>' + glyph(e.agent) + ' <b>' + esc(e.agent || 'agente n/d') + '</b></span>'
+      + '<span class="meo-channel ' + esc(channel) + '">' + esc(channel) + '</span>'
+      + '<span>' + esc(model) + '</span></div>'
+      + '<div class="meo-step-body">' + esc(e.summary || e.kind || 'sem detalhe') + '</div>'
+      + '<div class="meo-step-meta">' + esc(session) + ' · ' + esc(e.source || 'fonte n/d')
+      + (e.kind ? ' · ' + esc(e.kind) : '') + (e.status ? ' · ' + esc(e.status) : '')
+      + (scope ? ' · ' + esc(scope) : '') + '</div></div>';
+  }
+  return '<div class="meo-timeline lpdc-stream"><div class="lpx-foot">' + rows.length + ' etapas · stream + execution + Ledger · mais recente primeiro</div>' + html + '</div>';
+}
+
+function renderSessionBreakdown(executive) {
+  var x = (executive && typeof executive === 'object') ? executive : null;
+  var rows = x && Array.isArray(x.sessions) ? x.sessions : [];
+  if (!rows.length) return '<div class="lpx lpdc-empty">sem sessões resolvidas ainda</div>';
+  function age(ts) { var t = Date.parse(ts); if (isNaN(t)) return 'n/d'; var m = Math.floor(Math.max(0, Date.now() - t) / 60000); return m < 60 ? ('há ' + m + 'm') : ('há ' + Math.floor(m / 60) + 'h'); }
+  var html = '';
+  for (var i = 0; i < rows.length && i < 40; i++) {
+    var s = rows[i] || {};
+    var delivery = [s.wave, s.pr, s.branch].filter(Boolean).join(' · ') || 'delivery n/d';
+    var mirrors = 'Notion ' + (s.notionSyncedAt ? age(s.notionSyncedAt) : 'n/d') + ' · Obsidian ' + (s.obsidianSyncedAt ? age(s.obsidianSyncedAt) : 'n/d');
+    html += '<div class="meo-session">'
+      + '<div class="meo-session-hd"><b>' + esc(s.title || 'sessão sem título') + '</b><span>' + esc(s.sid ? String(s.sid).slice(0, 8) : 'n/d') + ' · ' + esc(age(s.lastTs)) + '</span></div>'
+      + '<div class="meo-session-row"><span>agentes <b>' + esc((s.agents || []).join(', ') || 'n/d') + '</b></span><span>canais <b>' + esc((s.channels || []).join(', ') || 'n/d') + '</b></span></div>'
+      + '<div class="meo-session-row"><span>modelos <b>' + esc((s.models || []).join(', ') || 'n/d') + '</b></span></div>'
+      + '<div class="meo-session-row"><span>' + esc(s.steps || 0) + ' etapas</span><span>stream ' + esc(s.streamSteps || 0) + '</span><span>exec ' + esc(s.executionSteps || 0) + '</span><span>ledger ' + esc(s.ledgerSteps || 0) + '</span><span>handoffs ' + esc(s.handoffs || 0) + '</span></div>'
+      + '<div class="meo-session-row"><span>' + esc(delivery) + '</span><span>' + esc(mirrors) + '</span></div>'
+      + '</div>';
+  }
+  return '<div class="meo-sessions">' + html + '</div>';
+}
+
 module.exports = {
   esc: esc,
   parseBusJsonl: parseBusJsonl,
@@ -562,4 +657,7 @@ module.exports = {
   renderFleetLanes: renderFleetLanes,
   renderWorkPill: renderWorkPill,
   renderJournalCard: renderJournalCard,
+  renderExecutiveOverview: renderExecutiveOverview,
+  renderExecutiveTimeline: renderExecutiveTimeline,
+  renderSessionBreakdown: renderSessionBreakdown,
 };

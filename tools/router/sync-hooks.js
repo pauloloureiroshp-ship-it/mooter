@@ -49,7 +49,7 @@ const WIRED_HOOKS = [
 // records the REAL worktree (not the CC launch dir); a stale copy without it would
 // silently re-introduce the worktree-crossing lie, so the self-check flags it.
 const ACCUMULATOR_HOOK = 'gsd-turn-end.js';
-const ACCUMULATOR_MARKERS = ['accumulateHandoff', 'handoff-journal', 'effectiveCwd'];
+const ACCUMULATOR_MARKERS = ['accumulateHandoff', 'handoff-journal', 'effectiveCwd', 'agent-sync-ledger'];
 
 function homeDir() {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();

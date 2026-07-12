@@ -638,6 +638,60 @@ function _sessionCwd(file) {
   return null;
 }
 
+// MEO Control Tower: cheap synchronous identity projection for recent Claude
+// sessions. Unlike recentSessions(), this deliberately does no git/gh/network
+// work, so the Live Preview poll can join titles/models/mirror stamps without
+// blocking the extension host. Every unknown remains null.
+function _lastTranscriptModel(file, maxBytes) {
+  try {
+    const st = fs.statSync(file); const start = Math.max(0, st.size - (maxBytes || 512 * 1024));
+    const fd = fs.openSync(file, 'r'); const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let d; try { d = JSON.parse(lines[i]); } catch { continue; }
+      const model = d && d.message && d.message.model;
+      if (typeof model === 'string' && model && model.charAt(0) !== '<') return model.slice(0, 120);
+    }
+  } catch { /* unreadable transcript */ }
+  return null;
+}
+
+function sessionSummaries(maxN = 40, opts) {
+  opts = opts || {};
+  const files = Array.isArray(opts.files) ? opts.files : listSessionFiles();
+  const names = opts.names || sessionNames();
+  const decorate = typeof opts.decorate === 'function'
+    ? opts.decorate
+    : function (row) { return modeRegistry().decorate(row, modeRegistry().readCoworkMap()); };
+  const out = [];
+  for (const f of files.slice(0, Math.max(1, maxN))) {
+    const file = typeof f === 'string' ? f : f.file;
+    if (!file) continue;
+    let mtime = (f && typeof f === 'object' && Number.isFinite(f.mtime)) ? f.mtime : null;
+    if (mtime == null) { try { mtime = fs.statSync(file).mtimeMs; } catch { mtime = null; } }
+    const sid = path.basename(file).replace(/\.jsonl$/, '');
+    const row = {
+      id: sid.slice(0, 8), fullId: sid,
+      name: names[sid] || _firstPrompt(file) || null,
+      model: _lastTranscriptModel(file, opts.maxBytes),
+      cwd: _sessionCwd(file), lastActiveTs: mtime,
+    };
+    try { decorate(row); } catch { /* optional registry unavailable */ }
+    out.push({
+      id: row.id, fullId: row.fullId,
+      title: row.coworkTitle || row.brainTitle || row.name || null,
+      promptTitle: row.name || null, coworkTitle: row.coworkTitle || null,
+      brainTitle: row.brainTitle || null, model: row.model || null,
+      cwd: row.cwd || null, project: row.project || null, lastActiveTs: row.lastActiveTs,
+      notionPageId: row.notionPageId || null, notionSyncedAt: row.notionSyncedAt || null,
+      obsidianPath: row.obsidianPath || null, obsidianSyncedAt: row.obsidianSyncedAt || null,
+      handoffSentAt: row.handoffSentAt || null,
+    });
+  }
+  return out;
+}
+
 // The current branch of a git repo at `cwd`. null when cwd is missing, not a repo, in a
 // detached HEAD ("HEAD"), or git is absent/slow (2s timeout). Async — callers await it.
 async function gitBranch(cwd) {
@@ -2745,7 +2799,7 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
   slashCommands, _packDescription,
-  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
+  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, sessionSummaries, _lastTranscriptModel, activeSession,
   execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk, _isAskingUser,
