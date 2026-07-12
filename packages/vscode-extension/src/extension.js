@@ -96,6 +96,23 @@ try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
 // anchored below the pin (pre-existing behaviour) rather than crashing.
 let LPTG = null;
 try { LPTG = require('./lp-toolbar-geom.js'); } catch { LPTG = null; }
+// COH-09 — AUTO must consult the Mooter router (the FROZEN classify.js, never modified) to pick a tier
+// instead of being a fixed Sonnet alias. classify(prompt) is pure/sync (<50ms, zero LLM, no writes) and
+// returns { tier:'T0'|'T1'|'T2'|'T3'|'T5', … }. It lives at repo root (outside the VSIX), so the require
+// is lazy + fail-soft across candidate paths; when it cannot be found (a packaged VSIX) AUTO degrades to
+// today's Sonnet default — never a crash. Cached (including the not-found sentinel `false`).
+let _lpClassify = null;
+function lpLoadClassify() {
+  if (_lpClassify !== null) return _lpClassify;
+  const home = (() => { try { return require('os').homedir(); } catch { return ''; } })();
+  const cands = [
+    path.join(__dirname, '..', '..', '..', 'tools', 'router', 'classify.js'),
+    home ? path.join(home, 'frugal', 'tools', 'router', 'classify.js') : null,
+    home ? path.join(home, 'frugal-lp-coerencia', 'tools', 'router', 'classify.js') : null,
+  ].filter(Boolean);
+  for (let i = 0; i < cands.length; i++) { try { const m = require(cands[i]); if (m && typeof m.classify === 'function') { _lpClassify = m.classify; return _lpClassify; } } catch { /* next candidate */ } }
+  _lpClassify = false; return false;
+}
 // ── LIVE PREVIEW · MP4 (Honest Diagnostics) — the PURE normaliser + ×N grouper + honest strip
 // renderer + the tap-message ORIGIN LOCK (acceptTapOrigin) + the file-open resolver. The
 // fs.existsSync (file resolve) and the clipboard write live host-side below; this module only
@@ -1585,6 +1602,17 @@ class LivePreviewPanel {
       if (!HC || typeof HC.appendEvent !== 'function') return;
       const f = fields || {};
       const nk = f.nodeKey && typeof f.nodeKey === 'object' ? f.nodeKey : null;
+      // COH-08 — HONEST routing facts. The old producer hardcoded tier:null/model:null/cost:null/
+      // local:true for EVERY event — so a Sonnet/Opus agent edit and a Vercel deploy both read as free
+      // local $0. Now tier/model/cost come from the caller (or stay null → the renderer shows `n/d`,
+      // never a fabricated 0), and `local` is the truth: explicit when given, else inferred from the
+      // tier (any cloud tier ⇒ not local). A cloud action can NEVER masquerade as local again.
+      const tier = (typeof f.tier === 'string' && f.tier) ? f.tier : null;
+      const isCloudTier = !!(tier && tier !== 'local');
+      // COH-08 (adversarial NIT-1) — a CLOUD tier FORCES local:false: the invariant "cloud can never
+      // masquerade as local" holds even if a future caller carelessly passes local:true with a cloud tier.
+      // Only a non-cloud (local/absent-tier) event may set local explicitly; else it defaults to true.
+      const local = isCloudTier ? false : ((typeof f.local === 'boolean') ? f.local : true);
       HC.appendEvent(this._wsRoot(), {
         ts: new Date().toISOString(),
         sid: (typeof this._lpSid === 'string' && this._lpSid) ? this._lpSid : null,
@@ -1592,7 +1620,14 @@ class LivePreviewPanel {
         tool: 'live-preview',
         path: (typeof f.path === 'string') ? f.path.slice(0, 400) : null,
         summary: (typeof f.summary === 'string') ? f.summary.slice(0, 200) : null,
-        tier: null, model: null, cost: null, local: true,
+        tier: tier,
+        model: (typeof f.model === 'string' && f.model) ? f.model.slice(0, 60) : null,
+        cost: (typeof f.cost === 'number' && isFinite(f.cost)) ? f.cost : null, // null → renderer shows `n/d`, never a fake $0
+        local: local,
+        // COH-15 — a coherent lifecycle: started | progress | succeeded | failed | cancelled (redacted).
+        // Absent on the plain trace events; present on the task/scan/publish/route lifecycle calls.
+        phase: (typeof f.phase === 'string' && f.phase) ? f.phase.slice(0, 24) : null,
+        taskId: (typeof f.taskId === 'string' && f.taskId) ? f.taskId.slice(0, 40) : null,
         lp: String(action || 'event').slice(0, 40),
         node: nk ? { file: (typeof nk.file === 'string' ? nk.file : null), line: (nk.line != null ? nk.line : null), tag: (typeof nk.tag === 'string' ? nk.tag : null) } : null,
       });
@@ -1615,6 +1650,7 @@ class LivePreviewPanel {
       s.lease = (this._leaseInfo && !this._treeConfirmed()) ? this._leaseInfo : null;
       s.projects = this._projectsSnapshot(); // COH-05 — the multi-root project selector (null for single-root)
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
+      s.servedRoot = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : null; // COH-16 — the current lease's served root, so the per-node history filter never mixes homonym worktrees (already exposed via feed nodeKeys)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
@@ -1679,7 +1715,7 @@ class LivePreviewPanel {
       return;
     }
     if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage(); return; }
-    if (m.type === 'lp-redetect') { this.routes = null; this._detectStage(); return; } // also refresh routes
+    if (m.type === 'lp-redetect') { this._invalidateBridge(); this.routes = null; this._detectStage(); return; } // also refresh routes + COH-17 re-read the SDK/trust bridge (no 30s stale)
     // MP3.3 — address bar / route picker. resolveNavTarget keeps the localhost origin lock in ONE
     // place: a same-origin path navigates the frame (lp-goto, no re-point); a different localhost
     // origin re-points the stage through the existing override lock; anything else is refused.
@@ -1916,7 +1952,7 @@ class LivePreviewPanel {
       this._feed.push(item);
       if (this._feed.length > 50) this._feed.shift();
       this._feedBump();
-      this._emitLpEvent(item.kind === 'agent' ? 'agent' : 'edit', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: item.via || null }); // D5
+      this._emitLpEvent(item.kind === 'agent' ? 'agent' : 'edit', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: item.via || null, tier: item.tier || null, model: item.model || null, cost: (typeof item.cost === 'number') ? item.cost : null, local: (typeof item.local === 'boolean') ? item.local : undefined, phase: 'succeeded', taskId: item.taskId || null }); // COH-08/15 — forward the item's HONEST tier/model/cost/local (an agent edit is never local:true)
       return item;
     } catch { return null; }
   }
@@ -1982,7 +2018,7 @@ class LivePreviewPanel {
     return null;
   }
   // §4 — remember the write we just made as a feed item carrying its inverse-splice entry.
-  _pushUndo(real, before, after, via, relFile, anchor) {
+  _pushUndo(real, before, after, via, relFile, anchor, meta) {
     try {
       if (!LEU) return;
       const e = LEU.makeEntry(real, before, after);
@@ -1990,7 +2026,12 @@ class LivePreviewPanel {
       const a = anchor || {};
       // F0.2 — the node identity this write belongs to, so the feed can be queried per node (and survive a reopen).
       const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || real, line: Number.isInteger(a.line) ? a.line : null, col: Number.isInteger(a.col) ? a.col : null, tag: (typeof a.tag === 'string') ? a.tag.slice(0, 60) : null };
-      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey });
+      // COH-08 — a splice is a deterministic $0 LOCAL write by default; a FENCED cloud rewrite passes
+      // meta {tier, model} so the MEO shows the real tier/model instead of a fake local $0.
+      const md = meta || {};
+      const cloud = !!(md.tier && md.tier !== 'local');
+      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey,
+        tier: md.tier || 'local', model: md.model || null, local: cloud ? false : true, cost: cloud ? null : 0 });
     } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
   }
   // Inverse byte-splice of ONE feed item. FAIL-CLOSED: the file's CURRENT sha must still match
@@ -2406,7 +2447,7 @@ class LivePreviewPanel {
       const urlMatch = out.match(/https:\/\/\S+\.vercel\.app\S*/);
       const url = urlMatch ? urlMatch[0] : null;
       if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
-      this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null }); // D5 — the deploy URL is public; safe to trace
+      this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null, local: false, phase: url ? 'succeeded' : 'failed' }); // COH-08 — a deploy PUBLISHES to production: NEVER local:true. COH-15 — lifecycle succeeded/failed.
       post({ ok: true, url, out: out.slice(0, 800) });
     } catch { post({ ok: false, reason: 'error' }); }
   }
@@ -2431,6 +2472,8 @@ class LivePreviewPanel {
       // ago even if the origin swapped-then-re-confirmed during the model call (stamping the epoch at
       // post-time would inherit the new epoch and let that stale reply through).
       const epochAtGen = (this._readyEpoch | 0);
+      // COH-09 — the user accepted a local→cloud escalation offer (flagged by the escalation button).
+      if (m && m.escalated) this._emitLpEvent('escalation_accepted', { kind: 'server', phase: 'succeeded', summary: '🐮 local → ' + (m.tier === 't3' ? '🧠 Opus' : '🎼 Sonnet'), tier: m.tier || 't2', local: false });
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -2483,6 +2526,7 @@ class LivePreviewPanel {
             if (q.reason === 'local-quality-exhausted') {
               // The offer payload carries the original ask so the button can re-fire on t2 —
               // bound to THIS target (review P1-B discipline), with the evidence verbatim.
+              this._emitLpEvent('escalation_offered', { kind: 'server', phase: 'progress', summary: '🐮 local esgotou — oferecer 🎼 Sonnet', tier: 'local', local: true, nodeKey: { file: relFile, line: m.line, col: m.col, tag: m.tag } }); // COH-09 — the escalation is announced in the MEO (offered)
               this._postPromptDiff({ ok: false, reason: 'local-quality-exhausted', evidence: q.evidence, file: raw, line: m.line, col: m.col, tag: m.tag, prompt, selText: (m && typeof m.selText === 'string') ? m.selText.slice(0, 200) : '' });
               return;
             }
@@ -2591,7 +2635,7 @@ class LivePreviewPanel {
       const vlabel = (m.tier && m.tier !== 'local')
         ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
         : 'cercada · local $0';
-      this._pushUndo(real, s2, res.code, vlabel, raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
+      this._pushUndo(real, s2, res.code, vlabel, raw, { line: m.line, col: m.col, tag: m.tag }, { tier: m.tier || 'local', model: m.model || null }); // §4 feed item + F0.2 nodeKey + COH-08 honest tier/model (a fenced cloud rewrite is not local $0)
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
@@ -2620,11 +2664,43 @@ class LivePreviewPanel {
   // here AND in runAnchoredTask (defense in depth); permissions are enforced runner-side via the
   // canUseTool allowlist (Bash/network NEVER). A question writes NOTHING; an edit comes back as a
   // per-file git diff the user keeps or reverts (sha-guarded) — never a silent "✓ escrito".
+  // COH-09 — resolve AUTO to a concrete tier via the FROZEN router (classify.js). Returns
+  // { mode, tier, routed }. The anchored AGENT path is always a cloud run (no local key), so T0 and T1
+  // both map to the cheapest cloud tier (Haiku/t1); T2→Sonnet, T3→Opus; T5 clamps to Opus (never
+  // auto-Fable — tier-ladder doctrine). Fail-soft: router unavailable → { mode:'auto' } = today's Sonnet.
+  _autoResolveMode(instruction) {
+    const classify = lpLoadClassify();
+    if (!classify) return { mode: 'auto', tier: null, routed: false };
+    let d = null;
+    try { d = classify(String(instruction || '')); } catch { d = null; }
+    const t = (d && typeof d.tier === 'string') ? d.tier : null;
+    let mode;
+    switch (t) {
+      case 'T0': mode = 't1'; break;
+      case 'T1': mode = 't1'; break;
+      case 'T2': mode = 't2'; break;
+      case 'T3': mode = 't3'; break;
+      case 'T5': mode = 't3'; break;
+      default: mode = 't2'; break;
+    }
+    return { mode, tier: t, routed: !!t };
+  }
   async _taskRun(m) {
-    const fail = (reason, detail) => this._postTaskResult({ ok: false, reason: String(reason || 'error'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    let _taskMode = 'auto'; // function-scoped so `fail` (below) can name the tier once the mode is resolved
+    const fail = (reason, detail) => {
+      // COH-15 — a coherent lifecycle: a refusal/abort is `failed` (or `cancelled` when the user aborted).
+      const r = String(reason || 'error');
+      this._emitLpEvent('task', { kind: 'server', phase: (r === 'cancelled' || r === 'aborted') ? 'cancelled' : 'failed', summary: 'task · ' + r, tier: (_taskMode && _taskMode !== 'auto') ? _taskMode : null, local: false });
+      this._postTaskResult({ ok: false, reason: r, detail: detail ? String(detail).slice(0, 200) : undefined });
+    };
     try {
       const instruction = (m && typeof m.instruction === 'string') ? m.instruction.trim() : '';
-      const mode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
+      const rawMode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
+      // COH-09 — AUTO is router-native: consult the Mooter classifier for a tier instead of a fixed
+      // Sonnet alias. @fable is never auto-reached (T5 clamps to Opus). Announced before the run below.
+      const routeInfo = (rawMode === 'auto') ? this._autoResolveMode(instruction) : null;
+      const mode = routeInfo ? routeInfo.mode : rawMode;
+      _taskMode = mode; // expose to the fail() lifecycle emitter above
       if (!instruction) { fail('prompt-empty'); return; }
       if (!LET) { fail('engine-unavailable'); return; }
       if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
@@ -2684,7 +2760,15 @@ class LivePreviewPanel {
       // fed by lp-pin), NOT the message, so an ask/edit agent sees what the user sees even when the
       // JSX is dynamic. Guarded: a bare Object.create harness has no store → '' (contract unchanged).
       const selText = (this._selection && typeof this._selection.selText === 'string') ? this._selection.selText : '';
+      // COH-09 — announce the routing decision BEFORE the run: 🧭 → 🐮/⚡/🎼/🧠. Only when AUTO routed
+      // (an explicit chip needs no announcement). The MEO gets a route_decided event; the canvas a status.
+      if (routeInfo && routeInfo.routed) {
+        const rlabel = mode === 't1' ? '⚡ Haiku' : mode === 't2' ? '🎼 Sonnet' : mode === 't3' ? '🧠 Opus' : mode;
+        this._postTaskStatus({ phase: 'route', mode, from: 'auto', tier: mode, label: rlabel, classifierTier: routeInfo.tier || null });
+        this._emitLpEvent('route_decided', { kind: 'server', phase: 'succeeded', summary: '🧭 AUTO → ' + rlabel + (routeInfo.tier ? (' (' + routeInfo.tier + ')') : ''), tier: mode, local: false });
+      }
       this._postTaskStatus({ phase: 'thinking', mode, intent });
+      this._emitLpEvent('task', { kind: 'server', phase: 'started', summary: (intent === 'ask' ? 'perguntar' : 'editar') + ' · ' + mode, tier: (mode && mode !== 'auto') ? mode : null, local: false, nodeKey: { file: relFile || raw, line: m.line, col: m.col, tag: m.tag } }); // COH-15 — prompt sent (lifecycle started)
       // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
       const ac = (typeof AbortController === 'function') ? new AbortController() : null;
       this._activeTaskAbort = ac;
@@ -2719,7 +2803,10 @@ class LivePreviewPanel {
       if (edits.length) {
         const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
         const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || raw, line: Number.isInteger(m.line) ? m.line : null, col: Number.isInteger(m.col) ? m.col : null, tag: (typeof m.tag === 'string') ? m.tag.slice(0, 60) : null };
-        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null, nodeKey });
+        // COH-08 — an AGENT edit is a CLOUD action: local:false, the REAL model that ran (res.model),
+        // and the tier chip the user chose. cost stays null (we do not meter tokens) → honest `n/d`,
+        // never a fabricated $0. This is what stops a Sonnet/Opus edit reading as free local work.
+        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null, nodeKey, tier: mode, model: res.model || null, local: false, cost: null });
       }
       // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
       // file now) — the user's own pre-existing uncommitted changes never pollute it.
@@ -2745,6 +2832,8 @@ class LivePreviewPanel {
           breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
         });
         if (this._askReg.size > 20) { const k = this._askReg.keys().next().value; this._askReg.delete(k); }
+        // COH-08/15 — an Ask that produced an answer is a CLOUD run (local:false) with the real model.
+        this._emitLpEvent('ask', { kind: 'server', phase: 'succeeded', summary: 'perguntar · resposta', tier: (mode && mode !== 'auto') ? mode : null, model: res.model || null, local: false });
       }
       this._postTaskResult({
         ok: true, taskId, kind: res.kind, text: String(res.text || ''),
@@ -2835,6 +2924,7 @@ class LivePreviewPanel {
       // §4 — the feed item settles as kept (facts, not claims).
       const item = this._feedFindAgent(taskId);
       if (item) { item.status = 'kept'; item.reason = null; this._feedBump(); }
+      this._emitLpEvent('keep', { kind: 'server', phase: 'succeeded', summary: 'manter · ' + taskId, taskId, tier: (item && item.tier) || null, model: (item && item.model) || null, local: (item && typeof item.local === 'boolean') ? item.local : undefined }); // COH-15 — keep lifecycle
       post({ taskId, ok: true });
     } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
   }
@@ -2932,6 +3022,7 @@ class LivePreviewPanel {
         if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Abre a pasta do projeto primeiro.'); return; }
         const term = vscode.window.createTerminal({ name: 'Mooter — instalar Agent SDK', cwd: this._wsRoot() });
         term.show(); term.sendText(cmd, false); // pre-filled, NOT auto-run — the user presses Enter
+        this._invalidateBridge(); // COH-17 — drop the 30s cache so the readiness re-reads once the SDK lands
       }
     } catch { /* best-effort — never throw into the host */ }
   }
@@ -2968,6 +3059,12 @@ class LivePreviewPanel {
     this._busPost = (extra && extra.mkDebounce) ? extra.mkDebounce(() => { if (this.panel.visible) this._post(); }, 1500) : null;
     this.panel.onDidChangeViewState(() => { if (this.panel.visible) { this._post(); this._detectStage(); if (this._busPost) this._busPost.cancel(); } });
     this.panel.webview.onDidReceiveMessage((m) => this._onMessage(m));
+    // COH-17 — the SDK/trust bridge is cached 30s; invalidate it IMMEDIATELY when the user fixes the
+    // underlying cause (grants trust, changes workspace) so the readiness semaphore reacts at once, not
+    // up to 30s later. COH-05 — an active-editor change may switch the active multi-root project.
+    try { this._trustSub = vscode.workspace.onDidGrantWorkspaceTrust(() => { this._invalidateBridge(); this._post(); }); } catch { this._trustSub = null; }
+    try { this._wsFoldersSub = vscode.workspace.onDidChangeWorkspaceFolders(() => { this._invalidateBridge(); this._projectRoot = null; this.routes = null; this._detectStage(); this._post(); }); } catch { this._wsFoldersSub = null; }
+    try { this._activeEdSub = vscode.window.onDidChangeActiveTextEditor(() => { if (this.panel.visible) this._post(); }); } catch { this._activeEdSub = null; }
     // Best-effort fs.watch on the bus directory for near-live updates between polls — a missed
     // event (dir not created yet, watcher error) is still covered by the poll above, so this
     // never blocks or throws. Read-only: never creates the directory itself.
@@ -2982,9 +3079,15 @@ class LivePreviewPanel {
       if (this.stageTimer) clearInterval(this.stageTimer);
       try { if (this.watcher) this.watcher.close(); } catch { /* best-effort */ }
       try { if (this._busPost) this._busPost.cancel(); } catch { /* best-effort */ }
+      try { if (this._trustSub) this._trustSub.dispose(); } catch { /* best-effort */ }
+      try { if (this._wsFoldersSub) this._wsFoldersSub.dispose(); } catch { /* best-effort */ }
+      try { if (this._activeEdSub) this._activeEdSub.dispose(); } catch { /* best-effort */ }
       LivePreviewPanel.current = null;
     });
   }
+  // COH-17 — drop the 30s SDK/trust bridge cache so the next _leBridgeStatus() re-reads FACTS. Called
+  // when the user fixes the cause (grants trust, installs the SDK, re-probes) or the workspace changes.
+  _invalidateBridge() { this._leBridge = null; this._leBridgeTs = 0; }
 }
 LivePreviewPanel.current = null;
 
@@ -3925,6 +4028,7 @@ let lpIntent='edit';
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
 let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false, lpHmrDown=false;
+let lpServedRoot=null; // COH-16 — the current lease's served root, so per-node history never mixes worktrees
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -4231,12 +4335,20 @@ function updateAnchorChip(sel){
   }
 }
 // F0.2 — the history of THIS node (clicking a node shows its edits, incl. prior sessions restored from
-// workspaceState). Matches feed items by nodeKey (file+tag+line); a persisted item is read-only history.
+// workspaceState). COH-16 — matches feed items on the FULL persisted nodeKey: lease/tree (servedRoot) +
+// file + line + col + tag. The old filter (file+tag+line only) mixed homonym nodes across worktrees — a
+// page.tsx:56 <p> in worktree A showed worktree B's history. servedRoot/col are compared only when both
+// sides know them (a persisted item from before servedRoot was recorded still matches on file+line+tag).
 function lpNodeHistoryHTML(sel){
   try{
     if(!sel||!sel.file) return '';
     var all=Array.isArray(lpFeedItems)?lpFeedItems:[];
-    var items=all.filter(function(e){ var nk=e&&e.nodeKey; if(!nk||nk.file!==sel.file) return false; if(sel.tag!=null&&nk.tag!=null&&nk.tag!==sel.tag) return false; if(sel.line!=null&&nk.line!=null&&nk.line!==sel.line) return false; return true; });
+    var items=all.filter(function(e){ var nk=e&&e.nodeKey; if(!nk||nk.file!==sel.file) return false;
+      if(lpServedRoot&&nk.servedRoot&&nk.servedRoot!==lpServedRoot) return false; // COH-16 — never mix worktrees
+      if(sel.tag!=null&&nk.tag!=null&&nk.tag!==sel.tag) return false;
+      if(sel.line!=null&&nk.line!=null&&nk.line!==sel.line) return false;
+      if(sel.col!=null&&nk.col!=null&&nk.col!==sel.col) return false; // COH-16 — col disambiguates same-line siblings
+      return true; });
     if(!items.length) return '';
     function clk(ts){ if(ts==null) return 'n/d'; var d=new Date(ts); return isNaN(d.getTime())?'n/d':d.toLocaleTimeString(undefined,{hour12:false}); }
     var rows='';
@@ -4638,7 +4750,7 @@ function renderEscalationOffer(m, el){
   if(up) up.addEventListener('click', function(){
     if(this.disabled) return;
     if(m.file==null||m.line==null||!m.prompt){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt', file:m.file, line:m.line, col:m.col, tag:m.tag, prompt:m.prompt, tier:'t2', selText:m.selText||'' });
+    vsapi.postMessage({ type:'lp-prompt', file:m.file, line:m.line, col:m.col, tag:m.tag, prompt:m.prompt, tier:'t2', selText:m.selText||'', escalated:true }); // COH-09 — the accepted escalation is flagged so the MEO records escalation_accepted
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-esc-cancel');
@@ -4978,6 +5090,7 @@ window.addEventListener('message', (ev) => {
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
     renderLease(m.s && m.s.lease); // C0 · COH-01 — the identity-lease safe state (mock S7) rides the snapshot
     renderProjects(m.s && m.s.projects); // COH-05 — the multi-root project selector rides the snapshot
+    lpServedRoot=(m.s && typeof m.s.servedRoot==='string' && m.s.servedRoot)?m.s.servedRoot:null; // COH-16 — the current lease's served root for the per-node history filter
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
@@ -5045,6 +5158,9 @@ window.addEventListener('message', (ev) => {
     // denial (honesty: the fence is visible, not implied).
     const el=document.getElementById('lp-edit-msg');
     let txt='';
+    // COH-09 — AUTO announces the router decision BEFORE the run: "🧭 AUTO → 🎼 Sonnet". A quick honest
+    // toast + the pending line, so the user sees WHERE the request is going before any token is spent.
+    if(m.phase==='route'){ const lbl=m.label||tierModel(m.mode); txt='🧭 AUTO → '+lbl; if(el){ el.textContent=txt; el.className='lp-ed-msg lp-ed-pending'; } showToast('ask','🧭 encaminhado para '+lbl); return; }
     if(m.phase==='thinking') txt='🐮 a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
     else if(m.phase==='tool') txt=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
     else if(m.phase==='deny') txt='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
