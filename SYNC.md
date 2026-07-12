@@ -4,14 +4,24 @@
 > Snapshot, não log (regra ≤200 linhas; histórico em `docs/foundation/SYNC_ARCHIVE_2026.md`).
 
 **Atualizado:** 2026-07-12 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
-**extensão em main:** `v0.16.67` · **candidata local:** `v0.16.68` em
-`fix/lp-iframe-reload-rearm` (**branch publicada; PR/merge pendentes**).
+**extensão em main:** `v0.16.67` · **candidata:** `v0.16.70` em
+`fix/lp-iframe-reload-rearm` (**branch publicada; review/merge pendentes**).
 
 ## Verdade atual
 
 - **LP-COERÊNCIA:** PR #246 merged; os 19 findings COH-01…19 estão em `main`.
 - **Seleção pós-reload:** o host rearma o tap depois de um reload same-URL e mostra uma razão assertiva
-  quando o gate 🎯 está bloqueado. Suite extensão **1167/1167 pass**.
+  quando o gate 🎯 está bloqueado.
+- **Descoberta/recovery do localhost:** probe HTTP 2xx+HTML em IPv4/IPv6, portas configuradas/comuns e ranges
+  auto-incrementados em paralelo. Poll automático e ↻ são latest-wins; ↻ nunca se perde durante outro probe,
+  ignora identidade sticky, recupera override inalcançável e recarrega o iframe same-URL. Reinício exige trust
+  e só encerra listener com ownership do projeto comprovado. Suite extensão isolada **1202/1202 pass**.
+- **MEO Control Tower:** Control/Stream/Sessões cruzam bus, execução real, catálogo de sessões e Ledger tipado.
+  Cada etapa mostra agente, modelo, canal com base de atribuição, título da sessão e wave/PR; handoffs, fleet e
+  sinais de Notion/Obsidian ficam visíveis sem inventar acesso. Suite extensão **1176/1176 pass**.
+- **Tracking durável:** `tools/router/agent-sync-ledger.js` gera `_handoff/agent-sync/{events.jsonl,snapshot.json,
+  latest.md,prompts/,briefs/}` (estado operacional local e gitignored). O Stop hook existente registra turnos
+  Claude automaticamente; Codex/Gemini/Ollama usam checkpoints/briefs tipados.
 - **Landing:** suite **211/211 pass**. Build compila e chega à recolha de páginas, mas para por ausência local
   de `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`; não é regressão atribuída ao código.
 - **Classificador:** `tools/router/classify.js` SHA
@@ -61,7 +71,7 @@ webview concat-only/CSP/origin-lock/tree-gate preservados.
 
 ## Próxima missão
 
-1. Revisar e, com autorização separada, abrir `fix/lp-iframe-reload-rearm` como PR curto para `main`.
+1. Revisar o draft PR de `fix/lp-iframe-reload-rearm`; merge/Marketplace continuam gates humanos.
 2. Preservar/triangular o trabalho real dos 11 worktrees sujos, começando pelo diretório canónico `frugal`.
 3. Remover o resíduo órfão `frugal-final` somente depois de o lock do Windows desaparecer.
 4. Deixar apenas `C:\Users\Paulo Loureiro\frugal` em `main`, limpo e sincronizado; branches históricas podem

@@ -190,5 +190,51 @@ Remoção só numa PR de depreciação separada, depois de:
 
 Até esse gate: manter a pasta como legado identificado; não misturar sua remoção com a reorg do Live Preview.
 
+## 9. MEO Control Tower — tracking CTO sem reorg destrutiva (2026-07-12)
+
+A evolução do MEO ficou **aditiva** e respeitou a decisão do §8: `extension.js` continua como entrypoint
+monolítico, os módulos `lp-*` permanecem flat e a landing instrumentada não foi movida. A candidata `v0.16.69`
+acrescenta duas lentes (`Control`, `Sessões`) e transforma `Stream` numa timeline unificada.
+
+Fontes cruzadas, com proveniência visível:
+
+- `_handoff/live-preview/events.jsonl`: atividade runtime/ficheiros, sem autoria inventada;
+- `~/.claude/hooks/execution.log`: operações, modelo e session id realmente executados;
+- catálogo leve dos transcripts VS Code: título/modelo/cwd, sem Git/gh/network no poll do painel;
+- `_handoff/agent-sync/events.jsonl`: autoria/handoffs/wave/PR/canal tipados;
+- mode registry: timestamps/referências já existentes de Notion e Obsidian;
+- `_handoff/fleet/*`: estado da frota, preservando `n/d` quando não há heartbeat.
+
+O Ledger vive em `_handoff/agent-sync/`, está gitignored e produz JSONL append-only, snapshot, `latest.md`,
+prompts por agente e briefs por destinatário. O Stop hook `gsd-turn-end.js` registra um checkpoint Claude
+compacto (session id/título/modelo), sem copiar prompt ou resposta e sem subprocessos Git. O protocolo canónico
+está em `docs/agent-context/AGENT_CONTEXT_PROTOCOL.md`; regras de consumo estão em `.claude/skills/agent-sync/`
+e `.roo/rules/`.
+
+Gates executados no Windows Node:
+
+- extensão: **1176/1176 pass**;
+- Stop/handoff/Ledger: **77/77 pass**;
+- `moo-verify`: **12/12 pass** após normalizar o código de comando ausente do Windows;
+- classificador: SHA congelado deve ser confrontado novamente imediatamente antes do commit/push;
+- Notion HQ e vault Mooter: **NO ACCESS** nesta sessão; apenas sinais locais existentes são mostrados.
+
+## 10. Live Preview `v0.16.70` — localhost automático e refresh determinístico (2026-07-12)
+
+O falso-verde TCP/HTTP 500 foi fechado com validação HTTP real: só 2xx HTML enquadrável entra no iframe.
+A descoberta sonda em paralelo a porta configurada e os defaults/ranges auto-incrementados de Next, Vite,
+Astro, Angular, Workers e servidores genéricos, tentando loopback IPv4 e IPv6 sem divergir o `Host` validado
+da autoridade `localhost` enquadrada.
+
+O ↻ agora é uma intenção forte: recarrega o iframe mesmo quando a URL não mudou, invalida cache de rotas/bridge,
+ignora identidade sticky e enfileira exatamente uma nova sondagem se houver outra em curso. Geração latest-wins
+impede o resultado antigo de sobrescrever a intenção nova; override inalcançável pode cair para o localhost
+real, enquanto HTTP 4xx/5xx positivamente observado continua bloqueado e explícito.
+
+Guardrails adicionais: redirects `localhost ↔ 127.0.0.1` são recusados; múltiplas políticas CSP são tratadas
+como interseção; workspace untrusted nunca executa `npm run dev`; restart só mata LISTEN PID quando comando/cwd
+prova ownership do pacote selecionado. Gate Windows Node com HOME isolado: **1202/1202 pass**; focused recovery:
+**96/96 pass**; landing: **211/211 pass**; `classify.js` congelado intacto.
+
 ---
 ⇄ **CODEX→CC no fim**: confirma §5 (1..9) verde, cita o novo caminho de `extension.js` se o moveste, e **pára antes do merge**.
