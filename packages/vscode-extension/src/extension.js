@@ -1315,6 +1315,16 @@ class LivePreviewPanel {
     // null from birth → _selectionMissing() default-denies until a pin arrives; a bare Object.create
     // harness leaves it undefined → NOT gated (pre-existing host contracts run unchanged).
     this._selection = null;
+    // C0 · COH-01 (audit P0) — the transactional IDENTITY LEASE {origin · servedRoot · readyEpoch}.
+    // `_stageOrigin` is the framed origin the current lease is bound to; a genuine origin change
+    // (7819 dies, an unrelated app answers on 3000) re-arms BOTH fail-closed gates (servedRoot AND
+    // selection) via _invalidateIdentity, so nothing writes while the iframe shows a different app.
+    // `_readyEpoch` is a monotonic counter bumped on every origin change, so a write bound to an OLD
+    // lease refuses even if the new origin later re-confirms a (coincidentally lineage-sharing) root.
+    // `_leaseInfo` carries the S7 safe-state facts for the webview (null until an origin actually swaps).
+    this._stageOrigin = null;
+    this._readyEpoch = 0;
+    this._leaseInfo = null;
     this._wire();
   }
   static createOrReveal(context) {
@@ -1346,6 +1356,47 @@ class LivePreviewPanel {
     } catch { next = null; }
     this._servedRoot = next;
     this._post();
+  }
+  // C0 · COH-01 — the localhost origin ("scheme://host:port") a stage url is framed at, or null. This
+  // is the lease key: two urls with the same origin are the SAME app (a route move / HMR blip), a
+  // different origin is a DIFFERENT app and re-arms identity. Fail-soft — never throws.
+  _stageOriginOf(url) {
+    if (typeof url !== 'string' || !url) return null;
+    try { return new URL(url).origin; } catch { return null; }
+  }
+  _portOf(origin) { try { return (new URL(origin).port) || null; } catch { return null; } }
+  // C0 · COH-01 — set the App Stage AND enforce the lease. A genuine origin change re-arms identity;
+  // a same-origin update (poll, stale HMR blip, route move) leaves servedRoot/selection UNTOUCHED so
+  // native HMR reconnect survives (the audit's explicit sticky-port requirement). This REPLACES the
+  // bare `this.stage = next` in _detectStage — every stage mutation now flows through the lease.
+  _setStage(next) {
+    const prevOrigin = (this._stageOrigin != null) ? this._stageOrigin : null;
+    const nextOrigin = this._stageOriginOf(next && next.url);
+    this.stage = next;
+    if (nextOrigin !== prevOrigin) this._invalidateIdentity(nextOrigin, prevOrigin);
+    else this._stageOrigin = nextOrigin; // normalise a first-set from undefined; identity untouched
+  }
+  // C0 · COH-01 — the transactional invalidation. On EVERY origin change: cancel the active agent task,
+  // null the served-tree identity AND the pin (so every $0/preview/write path fail-closes), forget the
+  // pin-dedup key, bump the epoch (invalidates in-flight writes bound to the old lease), and record the
+  // S7 facts when a KNOWN origin was replaced by another KNOWN origin (7819→3000 — "another app took the
+  // port"). Only a fresh lp-ready from the NEW origin (relayed origin-locked as lp-tree/lp-pin) can renew
+  // the lease. A bare Object.create harness leaves servedRoot/selection === undefined → left inert.
+  _invalidateIdentity(nextOrigin, prevOrigin) {
+    const clearedSel = (this._selection && this._selection.file) ? this._selection : null;
+    this._stageOrigin = nextOrigin;
+    this._readyEpoch = (this._readyEpoch | 0) + 1;
+    try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
+    this._activeTaskAbort = null;
+    if (this._servedRoot !== undefined) this._servedRoot = null;   // identity unproven for the new origin
+    if (this._selection !== undefined) this._selection = null;     // the old pin belonged to the old app
+    this._lastPinKey = null;                                        // let a genuine re-pin re-trace
+    this._leaseInfo = (prevOrigin && nextOrigin && prevOrigin !== nextOrigin)
+      ? { prevOrigin, nextOrigin, prevPort: this._portOf(prevOrigin), newPort: this._portOf(nextOrigin),
+          clearedFile: clearedSel ? clearedSel.file : null, clearedLine: (clearedSel && Number.isInteger(clearedSel.line)) ? clearedSel.line : null,
+          clearedTag: clearedSel ? (clearedSel.tag || null) : null, epoch: this._readyEpoch }
+      : null;
+    try { this._post(); } catch { /* best-effort — repaint the S7 safe state */ }
   }
   // The served tree is CONFIRMED only when its root shares LINEAGE with the VS Code workspace:
   // identical, or one is a descendant of the other (the landing/ subdir of the real workspace IS a
@@ -1516,6 +1567,10 @@ class LivePreviewPanel {
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
       s.readiness = this._readiness();      // F0.5.3: the 4-light readiness semaphore (honest facts)
+      // C0 · COH-01 — the S7 safe-state facts ride the snapshot ONLY while identity is unconfirmed after
+      // an origin swap. Once a fresh lp-ready from the new origin re-confirms the tree, this is null and
+      // the normal UI returns. Never fabricated: derived purely from _leaseInfo + _treeConfirmed().
+      s.lease = (this._leaseInfo && !this._treeConfirmed()) ? this._leaseInfo : null;
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
@@ -1562,7 +1617,8 @@ class LivePreviewPanel {
       const next = LPS.resolveStage({ overrideUrl: this.overrideUrl, stickyUrl, configPort, livePorts });
       // urlError travels on s.stageError (see _post), NOT on next.reason — folding it in here
       // used to mislabel an unrelated stale/degraded state as "URL inválido".
-      this.stage = next;
+      // C0 · COH-01 — flows through the lease: a genuine origin change re-arms identity + shows S7.
+      this._setStage(next);
     } catch { /* keep last stage */ }
     finally { this._detecting = false; }
     this._post();
@@ -1603,6 +1659,10 @@ class LivePreviewPanel {
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
     if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
     if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
+    if (m.type === 'lp-open-external') { // C0 · COH-01 (mock S7 "inspect") — open the NEW origin in the real browser to see what it serves. Origin-locked: only a normalized localhost URL is ever opened.
+      try { const n = LPS ? LPS.normalizeStageUrl(m.url) : null; if (n) vscode.env.openExternal(vscode.Uri.parse(n.url)); } catch { /* best-effort */ }
+      return;
+    }
     if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
     if (m.type === 'lp-sdk-help') { this._sdkHelp(); return; } // D8/F9 — honest "how to install the Agent SDK" (the light said "sem SDK")
     if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
@@ -2303,6 +2363,11 @@ class LivePreviewPanel {
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       // F3 (W1) — no pinned selection in the store → refuse, never rewrite a node the user did not pin.
       if (this._selectionMissing()) { fail('no-selection'); return; }
+      // C0 · COH-01 (NIT-1) — capture the lease epoch the reply is GENERATED under, BEFORE the async
+      // model call. It rides the diff so the apply-time epoch guard refuses a reply composed one lease
+      // ago even if the origin swapped-then-re-confirmed during the model call (stamping the epoch at
+      // post-time would inherit the new epoch and let that stale reply through).
+      const epochAtGen = (this._readyEpoch | 0);
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -2401,7 +2466,7 @@ class LivePreviewPanel {
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local', epoch: epochAtGen }); // C0 COH-01 NIT-1 — the diff carries the generation-time epoch, not the post-time one
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -2413,6 +2478,11 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED, EARLIEST: the one-box default path (tier:'local') writes the
       // approved model reply. Without a proven served-tree lineage the reply must never land on disk.
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
+      // C0 · COH-01 — LEASE epoch guard: the webview echoes the epoch the diff was generated under. If
+      // the framed origin has changed since (even if a new origin re-confirmed a lineage-sharing tree),
+      // the epoch moved → refuse. Closes the epoch-race / TOCTOU the adversarial gate probes. Backward-
+      // compatible: a payload without an epoch (older webview / a deterministic path) skips this check.
+      if (m && m.epoch != null && (m.epoch | 0) !== (this._readyEpoch | 0)) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
       if (!raw || !replacement.trim()) { fail('bad-request'); return; }
@@ -2477,7 +2547,9 @@ class LivePreviewPanel {
     } catch { fail('error'); }
   }
   _postPromptDiff(payload) {
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+    // C0 · COH-01 — stamp the current lease epoch on the diff so the webview echoes it back on apply
+    // (the epoch guard in _promptApply refuses a reply generated one lease ago).
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token, epoch: (this._readyEpoch | 0) }, payload)); } catch { /* best-effort */ }
   }
   // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
   // nodeSource + breadcrumb), not a fence: the agent runs headless WITH the workspace as cwd,
@@ -2717,11 +2789,23 @@ class LivePreviewPanel {
   async _restartDevServer() {
     try {
       if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Live Preview: abre a pasta do projeto primeiro (janela sem pasta).'); return; }
-      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta servida e corro "npm run dev".', { modal: true }, 'Reiniciar');
+      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta do workspace e corro "npm run dev".', { modal: true }, 'Reiniciar');
       if (pick !== 'Reiniciar') return;
-      const cwd = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : this._wsRoot();
+      // C0 · COH-06 — restart ALWAYS in the CONFIRMED workspace root, NEVER a divergent _servedRoot: a
+      // sticky-port mismatch means _servedRoot points at the WRONG tree, and running `npm run dev` there
+      // is exactly the "restart in the wrong place" bug. The workspace root is the one the user opened.
+      const cwd = this._wsRoot();
       const term = vscode.window.createTerminal({ name: 'Mooter — dev server', cwd });
       term.show(); term.sendText('npm run dev');
+      // C0 · COH-01/06 — clear the sticky origin + identity BEFORE the re-probe so the fresh server is
+      // resolved from zero (no stale port wins) and nothing writes until its handshake re-confirms.
+      this.overrideUrl = null; this.stage = null; this._stageOrigin = null; this._leaseInfo = null;
+      this._readyEpoch = (this._readyEpoch | 0) + 1;
+      if (this._servedRoot !== undefined) this._servedRoot = null;
+      if (this._selection !== undefined) this._selection = null;
+      this._lastPinKey = null;
+      try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
+      this._activeTaskAbort = null;
       // re-probe shortly after so the semaphore reflects the fresh server (not the sticky one).
       setTimeout(() => { try { this.routes = null; this._detectStage(); } catch { /* best-effort */ } }, 3500);
     } catch { /* best-effort — never throw into the host */ }
@@ -3122,6 +3206,16 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-degrade-r{font-size:12.5px;margin-bottom:10px}
   .lp-degrade-h{font-size:11.5px;opacity:.85;line-height:1.5}
   .lp-degrade-h code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px}
+  /* C0 · COH-01 — the lease safe-state (mock S7). Warn-tinted card OVER the frame; blocks the gesture. */
+  .lp-lease{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:left;padding:24px;background:color-mix(in srgb, var(--vscode-editor-background) 82%, transparent);backdrop-filter:blur(1.5px);z-index:6}
+  .lp-lease-card{max-width:520px;border:1px solid var(--vscode-editorWarning-foreground,#caa700);border-radius:10px;padding:16px 18px;background:var(--vscode-editor-background);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .lp-lease-t{font-weight:800;color:var(--vscode-foreground);margin-bottom:8px;font-size:14px}
+  .lp-lease-r{font-size:12.5px;color:var(--vscode-descriptionForeground);line-height:1.55;margin-bottom:8px}
+  .lp-lease-inv{font-family:var(--vscode-editor-font-family,monospace);font-size:11.5px;color:var(--vscode-editorWarning-foreground,#caa700);background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:6px 8px;border-radius:6px;margin-bottom:8px}
+  .lp-lease-h{font-size:12px;color:var(--vscode-foreground);line-height:1.5;margin-bottom:12px}
+  .lp-lease-acts{display:flex;flex-wrap:wrap;gap:8px}
+  .lp-lease-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--vscode-button-border,transparent);background:var(--vscode-button-background);color:var(--vscode-button-foreground);cursor:pointer;font-size:12px}
+  .lp-lease-btn.ghost{background:transparent;color:var(--vscode-foreground);border-color:var(--vscode-input-border,#8884)}
   /* F0.5.1 — the honest empty-window action: ONE prominent primary button. */
   .lp-open-folder{font:13px var(--vscode-font-family);font-weight:600;color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;border-radius:6px;padding:8px 16px;cursor:pointer;margin-top:4px}
   .lp-open-folder:hover{background:var(--vscode-button-hoverBackground)}
@@ -3264,6 +3358,10 @@ function getLivePreviewHtml(token, wsRoot) {
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
       <div id="lp-degrade" class="lp-degrade"></div>
+      <!-- C0 · COH-01 (audit P0) — the identity-lease safe state (mock S7). Shown OVER the frame when the
+           stage origin changed and identity is not yet re-confirmed: the pin is cleared, the served tree
+           is "por confirmar", every write is blocked. Only a fresh lp-ready from the NEW origin dismisses it. -->
+      <div id="lp-lease" class="lp-lease" role="alertdialog" aria-live="assertive" style="display:none"></div>
       <!-- LP-4.8 §1 — the in-canvas toolbar. It lives in the TRUSTED webview (never in the
            cross-origin site), floating over the frame anchored to the pin: the site's CSS/JS
            cannot reach it (adversarial L1). The overlay is pointer-events:none so clicks pass
@@ -3380,6 +3478,7 @@ function renderReadiness(r){
     else parts.push(lit('bad','sem dev server','reprobe','re-probar'));
     if(r.tree==='ok') parts.push(lit('ok','árvore',null,null));
     else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
+    else if(r.tree==='unknown' && r.devServer) parts.push(lit('warn','árvore por confirmar','restart','reiniciar dev server')); // C0 COH-01/04 — a server is up but its identity is UNPROVEN (origin swap / no handshake): the 4th light NEVER silently vanishes; it stays amber with a 1-click fix
     if(r.sdk) parts.push(lit('ok','agente',null,null));
     else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
     else parts.push(lit('bad','sem SDK','sdk','como instalar'));
@@ -3480,12 +3579,52 @@ function applyStage(stage){
   // reloads. When the URL DOES change we also recompute curOrigin — the exact origin the MP4
   // tap-message lock accepts — and drop stale errors that belonged to the previous origin.
   if(hasUrl && frame && curSrc !== st.url){
+    const originChanged = curOrigin !== null; // curOrigin was already set → this is a genuine re-point, not the first load
     curSrc = st.url;
     try { curOrigin = new URL(st.url).origin; } catch(e) { curOrigin = null; }
     lpClearErrors('all');
     lpState = null; lpPendingRestore = null; // a different URL is a different app — never restore the old route/scroll onto it
+    // C0 · COH-01 — a different stage origin is a DIFFERENT app: drop the pin, the refs and the anchored
+    // toolbar so the user never edits through an anchor that belonged to the previous origin. The host
+    // has already re-armed the lease + nulled servedRoot/selection; this is the visual half of the
+    // invalidation. renderSelection(null) hides the in-canvas toolbar too. (First load: nothing to clear.)
+    if(originChanged){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} }
     frame.setAttribute('src', st.url);
   }
+}
+// C0 · COH-01 — the identity-lease safe state (mock S7). Rendered OVER the frame whenever the host
+// snapshot carries s.lease (origin changed, tree not yet re-confirmed). Blocks the gesture honestly:
+// the pin is already cleared, and Selecionar/Editar only return when the new origin handshakes. Copy is
+// concat-only + esc()'d (this lives inside the getLivePreviewHtml template, so string-plus only). Fail-soft.
+let lpLeaseActive=false;
+function renderLease(lease){
+  const el=document.getElementById('lp-lease'); if(!el) return;
+  if(!lease){ if(lpLeaseActive){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; setSelectMode(false); } return; }
+  lpLeaseActive=true;
+  const oldP=lease.prevPort?(':'+esc(lease.prevPort)):'a origem antiga';
+  const newP=lease.newPort?(':'+esc(lease.newPort)):'uma nova origem';
+  const selTxt=lease.clearedFile?('seleção 📍 '+esc(lease.clearedFile)+(lease.clearedLine!=null?(':'+esc(lease.clearedLine)):'')+' — limpa'):'seleção — limpa';
+  const html='<div class="lp-lease-card">'
+    +'<div class="lp-lease-t">🔒 A origem do preview mudou ('+oldP+' → '+newP+')</div>'
+    +'<div class="lp-lease-r">O servidor em '+oldP+' parou e apareceu outro em '+newP+' — pode ser outra aplicação (ex.: um container Docker). Por segurança, o Mooter invalidou tudo o que dependia da origem antiga:</div>'
+    +'<div class="lp-lease-inv">'+selTxt+' · árvore servida — por confirmar · edições — bloqueadas (zero writes)</div>'
+    +'<div class="lp-lease-h">O 🎯 Selecionar e o ✏️ Editar só voltam quando o site em '+newP+' fizer o handshake Mooter (lp-ready da origem atual) e confirmar que é a MESMA árvore do teu workspace.</div>'
+    +'<div class="lp-lease-acts">'
+    +'<button type="button" id="lp-lease-restart" class="lp-lease-btn">↻ reiniciar o MEU dev server ('+oldP+')</button>'
+    +'<button type="button" id="lp-lease-wait" class="lp-lease-btn ghost">✓ usar '+newP+' (aguardar handshake)</button>'
+    +'<button type="button" id="lp-lease-inspect" class="lp-lease-btn ghost">📄 ver o que responde em '+newP+'</button>'
+    +'</div></div>';
+  el.innerHTML=html; el.style.display='flex';
+  // While the lease is unconfirmed, Select mode is off — the gesture is blocked until the handshake.
+  setSelectMode(false);
+  const rb=document.getElementById('lp-lease-restart');
+  if(rb) rb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-restart-dev' }); });
+  const wb=document.getElementById('lp-lease-wait');
+  // "aguardar handshake" — accept the new origin and dismiss THIS overlay locally; identity stays
+  // unconfirmed (the amber "árvore por confirmar" light + blocked writes persist) until lp-ready arrives.
+  if(wb) wb.addEventListener('click', function(){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; });
+  const ib=document.getElementById('lp-lease-inspect');
+  if(ib) ib.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-external', url:(lease.nextOrigin||'') }); });
 }
 // ── MP3.3 multi-page navigation (webview side) ──────────────────────────────────────────────
 // Navigate the frame WITHIN the current stage origin. curSrc stays = the stage root, so the App
@@ -4318,7 +4457,7 @@ function renderPromptDiff(m){
     // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
     // concurrent preview can no longer make the approved diff land on a different node.
     if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic });
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic, epoch:m.epoch }); // C0 COH-01 — echo the lease epoch the diff was generated under; the host refuses a stale-lease write
     showEditResult(null,'pending');
   });
   const ga=document.getElementById('lp-pr-agent');
@@ -4678,6 +4817,7 @@ window.addEventListener('message', (ev) => {
   if (m.type === 'lp-snapshot'){
     lpNoWorkspace = !!(m.s && m.s.leBridge && m.s.leBridge.reason === 'no-workspace'); // F0.5.1 — empty-window signal for applyStage
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
+    renderLease(m.s && m.s.lease); // C0 · COH-01 — the identity-lease safe state (mock S7) rides the snapshot
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
