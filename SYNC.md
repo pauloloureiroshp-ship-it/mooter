@@ -42,6 +42,11 @@ transformado em `main` nem limpo até o conteúdo real ser separado de caches, p
 ## Arquitectura de informação
 
 - Régua/auditoria/mock/masterprompt já executados foram movidos para `_handoff/_archive/2026-07/`.
+- **Alocação Live Preview:** auditada sem movimentos; `extension.js`, módulos flat `lp-*`/`live-edit-*`, assets,
+  tap na landing e hook no router permanecem nos locais atuais. O §8 do handoff fixa os contratos e armadilhas.
+- **Extensão legada `vscode-extension/`:** é um pacote `mooter-savings@0.5.2` completo, não um ficheiro órfão.
+  A mesma implementação está instalada nesta máquina como `frugal.frugal-savings-0.5.2`; fica preservada até
+  uma PR separada migrar/desinstalar essa identidade e decidir os comportamentos únicos.
 - Handoffs Guardian com nome UUID são projeções locais regeneráveis e agora ficam ignorados; os specs Guardian
   canónicos continuam rastreados.
 - Specs vivas permanecem em `docs/strategy/`; `LIVE_EDIT_ROADMAP.md` é o arco canónico do Live Preview/Edit.

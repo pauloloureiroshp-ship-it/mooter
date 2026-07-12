@@ -74,10 +74,20 @@ O **origin-lock** (`ev.source===frame.contentWindow && ev.origin===curOrigin`) f
 - Pacotes de engine congelados (`packages/*` das waves 28-34.5). Wave 58 só permitiu **adições** a `packages/router/src/`.
 
 ### B. Protocolo de mensagens (contratos de string — preservar VERBATIM)
-Se refatorares o ficheiro que gera ou consome estes, as strings têm de continuar idênticas dos dois lados:
-`lp-select` · `lp-pin` · `lp-select-mode` · `lp-select-mode-off` · `lp-ready` · `lp-tree` · `lp-nav` ·
-`lp-edit` · `lp-prompt` · `lp-prompt-apply` · `lp-task` · `lp-ask-apply` · `lp-open-source` · `lp-pin-rect`.
-Consumidor host: `extension.js` (routing ~1770-1781). Produtor/consumidor página: `landing/app/_components/lp-error-tap.ts`.
+Se refatorares um produtor ou consumidor, cada contrato correspondente tem de continuar idêntico. **Não**
+exijas ingenuamente que todas as strings existam nos dois ficheiros: `extension.js` contém tanto a webview
+quanto o host, enquanto `lp-error-tap.ts` é apenas a ponta que corre dentro da página previewada.
+
+- Tap → webview/host: `lp-error` · `lp-error-clear` · `lp-hmr-down` · `lp-hmr-up` · `lp-state` · `lp-nav` ·
+  `lp-pin-rect` · `lp-attach` · `lp-select` · `lp-select-mode-off` · `lp-ready`.
+- Webview → tap: `lp-select-mode` · `lp-detach` · `lp-detach-all` · `lp-preview-class` · `lp-preview-clear` ·
+  `lp-flash` · `lp-reselect` · `lp-repin` · `lp-history` · `lp-restore`.
+- Webview → host, dentro de `extension.js`: `lp-tree` · `lp-pin` · `lp-edit` · `lp-prompt` ·
+  `lp-prompt-apply` · `lp-task` · `lp-ask-apply` · `lp-open-source` e os restantes contratos do routing host.
+
+`lp-tree` e `lp-pin` são relays internos derivados de `lp-ready`/`lp-select`; não são esperados como literais no
+tap. Consumidor host: `extension.js` (routing ~1738-1790). Ponta da página:
+`landing/app/_components/lp-error-tap.ts`.
 
 ### C. Instrumentação da app previewada (o MAIOR risco — vive em `landing/`)
 A seleção só funciona se a app previewada estiver instrumentada em **DEV**. Move `landing/` com CUIDADO extremo:
@@ -127,6 +137,58 @@ Se **1** ou **2** falharem, **pára e reverte** — é regressão bloqueadora, n
 - `_handoff/_archive/2026-07/LP_H2_FLOATING_PROMPT_ARCHITECTURE.md` — onde vive a caixa flutuante + porque H2 já estava entregue.
 - `_handoff/_archive/2026-07/LP_COHERENCE_AUDIT_REPORT.md` — a auditoria D-A–D-L (19 findings COH-01…19) que originou o PR #246.
 - Este ficheiro — a fonte de verdade da reorg do Live Preview.
+
+## 8. Veredito de alocação após confronto CC ↔ Codex (2026-07-12)
+
+**Não mover o Live Preview nesta branch.** A estrutura atual é coerente e os gates mecânicos confirmaram:
+entrypoint resolvido, os dois fixes presentes exatamente uma vez, 11 tipos tap→webview/host e 10 tipos
+webview→tap cobertos, nenhum candidato órfão entre os módulos runtime `lp-*`/`live-edit-*`, mount DEV,
+webpack, `NEXT_PUBLIC_LP_ROOT`, regras de packaging e SHA congelado intactos.
+
+| Componente | Local canónico nesta wave | Decisão |
+|---|---|---|
+| Host + webview | `packages/vscode-extension/src/extension.js` | manter; é o `main` |
+| Módulos Live Preview | `packages/vscode-extension/src/lp-*.js` | manter flat; já estão separados por responsabilidade |
+| Engine Live Edit | `packages/vscode-extension/src/live-edit-*.js/.mjs` | manter flat; dependências relativas verificadas |
+| Assets | `packages/vscode-extension/assets/live-edit/` | manter |
+| Tap dentro do iframe | `landing/app/_components/lp-error-tap.ts` + `LpErrorTap.tsx` | manter na app |
+| Hook tap → bus | `tools/router/live-preview-tap.js` | manter; listado em `sync-hooks.js` |
+
+### Armadilhas para uma reorg futura
+
+1. `extension.js` tem 7368 linhas, mas um split agora é refactor de alto risco e sem valor funcional desta wave:
+   o entrypoint, `fn.toString()` concat-only, nonce/CSP e o routing host/webview formam um só contrato. Tratar
+   eventual split como wave própria, com harness runtime e packaging completo.
+2. Reagrupar `src/` em subpastas exige atualizar **todos** os `require('./…')`, o `main`, `.vscodeignore`,
+   imports dos testes e voltar a provar a suíte completa + conteúdo do VSIX. Não fazer como limpeza cosmética.
+3. `landing/app/_components/` é load-bearing: preservar o mount no layout, o inspector webpack — nunca trocar
+   silenciosamente para Turbopack — e `NEXT_PUBLIC_LP_ROOT` identificado com a árvore servida.
+
+### `vscode-extension/` top-level: legado, mas **não apagar nesta branch**
+
+O achado inicial chamou `vscode-extension/extension.js` de ficheiro solto. O confronto provou que a pasta é
+uma segunda extensão rastreada, com manifesto próprio: `mooter-savings@0.5.2`, publisher `mooter`, `main` em
+`./extension.js`, activation `onStartupFinished`, três comandos e configurações `frugal.*`. Ela não participa
+do Live Preview e o workflow atual de marketplace publica apenas `packages/vscode-extension` (`mooter-cockpit`),
+mas mantém comportamentos antigos próprios — toasts, resumo e abertura de `decisions.log`.
+
+Evidência histórica diz que o pacote antigo era VSIX local e **não tinha sido publicado**; busca pública atual
+encontrou o `mooter-cockpit`, não uma listing `mooter-savings`. Isso reduz o risco, mas não prova ausência de
+instalações manuais. A inspeção desta máquina provou justamente uma instalação presente/preservada:
+`frugal.frugal-savings-0.5.2`, ao lado de `mooter.mooter-cockpit`. O `extension.js` instalado é byte-identical
+ao source do repo (SHA-256 `c5a8e718…aef5`), enquanto o manifesto instalado ainda diz `frugal/frugal-savings`
+e o manifesto do repo já diz `mooter/mooter-savings`. Logo, o rebrand mudou a identidade de atualização e a
+pasta é hoje a única fonte rastreada para compreender ou migrar essa instalação.
+
+Remoção só numa PR de depreciação separada, depois de:
+
+1. decidir e executar a migração/desinstalação de `frugal.frugal-savings-0.5.2` nas máquinas do Paulo;
+2. decidir explicitamente se os comportamentos exclusivos serão migrados ou abandonados;
+3. confirmar pela conta do publisher se alguma das identidades `frugal.frugal-savings` ou
+   `mooter.mooter-savings` existe no Marketplace/Open VSX;
+4. remover **a pasta inteira** (`extension.js` + `package.json`) e validar que onboarding/release não dependem dela.
+
+Até esse gate: manter a pasta como legado identificado; não misturar sua remoção com a reorg do Live Preview.
 
 ---
 ⇄ **CODEX→CC no fim**: confirma §5 (1..9) verde, cita o novo caminho de `extension.js` se o moveste, e **pára antes do merge**.
