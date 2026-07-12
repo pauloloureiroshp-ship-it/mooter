@@ -91,6 +91,28 @@ try { LPA = require('./lp-aggregates.js'); } catch { LPA = null; }
 // and the App Stage stays in its honest "a detetar…" state (no crash).
 let LPS = null;
 try { LPS = require('./lp-stage.js'); } catch { LPS = null; }
+// COH-02 — the PURE in-canvas toolbar placement decision (never covers the pin), serialised into the
+// webview via chooseToolbarPlacement.toString(). Fail-soft: absent → the webview stub keeps the toolbar
+// anchored below the pin (pre-existing behaviour) rather than crashing.
+let LPTG = null;
+try { LPTG = require('./lp-toolbar-geom.js'); } catch { LPTG = null; }
+// COH-09 — AUTO must consult the Mooter router (the FROZEN classify.js, never modified) to pick a tier
+// instead of being a fixed Sonnet alias. classify(prompt) is pure/sync (<50ms, zero LLM, no writes) and
+// returns { tier:'T0'|'T1'|'T2'|'T3'|'T5', … }. It lives at repo root (outside the VSIX), so the require
+// is lazy + fail-soft across candidate paths; when it cannot be found (a packaged VSIX) AUTO degrades to
+// today's Sonnet default — never a crash. Cached (including the not-found sentinel `false`).
+let _lpClassify = null;
+function lpLoadClassify() {
+  if (_lpClassify !== null) return _lpClassify;
+  const home = (() => { try { return require('os').homedir(); } catch { return ''; } })();
+  const cands = [
+    path.join(__dirname, '..', '..', '..', 'tools', 'router', 'classify.js'),
+    home ? path.join(home, 'frugal', 'tools', 'router', 'classify.js') : null,
+    home ? path.join(home, 'frugal-lp-coerencia', 'tools', 'router', 'classify.js') : null,
+  ].filter(Boolean);
+  for (let i = 0; i < cands.length; i++) { try { const m = require(cands[i]); if (m && typeof m.classify === 'function') { _lpClassify = m.classify; return _lpClassify; } } catch { /* next candidate */ } }
+  _lpClassify = false; return false;
+}
 // ── LIVE PREVIEW · MP4 (Honest Diagnostics) — the PURE normaliser + ×N grouper + honest strip
 // renderer + the tap-message ORIGIN LOCK (acceptTapOrigin) + the file-open resolver. The
 // fs.existsSync (file resolve) and the clipboard write live host-side below; this module only
@@ -1315,6 +1337,19 @@ class LivePreviewPanel {
     // null from birth → _selectionMissing() default-denies until a pin arrives; a bare Object.create
     // harness leaves it undefined → NOT gated (pre-existing host contracts run unchanged).
     this._selection = null;
+    // C0 · COH-01 (audit P0) — the transactional IDENTITY LEASE {origin · servedRoot · readyEpoch}.
+    // `_stageOrigin` is the framed origin the current lease is bound to; a genuine origin change
+    // (7819 dies, an unrelated app answers on 3000) re-arms BOTH fail-closed gates (servedRoot AND
+    // selection) via _invalidateIdentity, so nothing writes while the iframe shows a different app.
+    // `_readyEpoch` is a monotonic counter bumped on every origin change, so a write bound to an OLD
+    // lease refuses even if the new origin later re-confirms a (coincidentally lineage-sharing) root.
+    // `_leaseInfo` carries the S7 safe-state facts for the webview (null until an origin actually swaps).
+    this._stageOrigin = null;
+    this._readyEpoch = 0;
+    this._leaseInfo = null;
+    // COH-05 — in a multi-root workspace, the user's explicit project pick (from the project selector).
+    // null → resolve the active project from the active editor (see _wsRoot). Never a blind folders[0].
+    this._projectRoot = null;
     this._wire();
   }
   static createOrReveal(context) {
@@ -1329,7 +1364,41 @@ class LivePreviewPanel {
     return LivePreviewPanel.current;
   }
   _wsRoot() {
-    return (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+    const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || null;
+    if (!folders || !folders.length) return process.cwd();
+    if (folders.length === 1) return (folders[0] && folders[0].uri && folders[0].uri.fsPath) || process.cwd();
+    // COH-05 — MULTI-ROOT: never a blind folders[0]. Resolve the ACTIVE project.
+    // 1) an explicit user pick from the project selector (still a member of the workspace) wins.
+    if (this._projectRoot) {
+      for (let i = 0; i < folders.length; i++) { if (folders[i] && folders[i].uri && folders[i].uri.fsPath === this._projectRoot) return this._projectRoot; }
+    }
+    // 2) the folder that OWNS the active editor's document (the project the user is looking at).
+    try {
+      const active = vscode.window && vscode.window.activeTextEditor;
+      const doc = active && active.document && active.document.uri;
+      if (doc && typeof vscode.workspace.getWorkspaceFolder === 'function') {
+        const wf = vscode.workspace.getWorkspaceFolder(doc);
+        if (wf && wf.uri && wf.uri.fsPath) return wf.uri.fsPath;
+      }
+    } catch { /* fall through to the honest first-folder default */ }
+    // 3) no active editor to disambiguate → the first folder (surfaced with a selector in the UI, so
+    //    the user can correct it — the write gate still fail-closes if the served tree does not match).
+    return (folders[0] && folders[0].uri && folders[0].uri.fsPath) || process.cwd();
+  }
+  // COH-05 — the multi-root project selector facts for the UI: the folder list + the active one. Empty
+  // (null) for a single-root workspace (no selector needed). Never throws.
+  _projectsSnapshot() {
+    try {
+      const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || null;
+      if (!folders || folders.length < 2) return null;
+      const active = this._wsRoot();
+      const list = [];
+      for (let i = 0; i < folders.length; i++) {
+        const f = folders[i]; const p = f && f.uri && f.uri.fsPath;
+        if (p) list.push({ path: p, name: (f.name || p.split(/[\\/]+/).filter(Boolean).slice(-1)[0] || p), active: p === active });
+      }
+      return list.length ? { list, active } : null;
+    } catch { return null; }
   }
   // FIX-MP-1 (audit P0-1) — record the root the dev server actually SERVES, relayed by the dev-only
   // tap (NEXT_PUBLIC_LP_ROOT). Fail-soft: a non-empty string is realpath-normalised when it exists on
@@ -1346,6 +1415,47 @@ class LivePreviewPanel {
     } catch { next = null; }
     this._servedRoot = next;
     this._post();
+  }
+  // C0 · COH-01 — the localhost origin ("scheme://host:port") a stage url is framed at, or null. This
+  // is the lease key: two urls with the same origin are the SAME app (a route move / HMR blip), a
+  // different origin is a DIFFERENT app and re-arms identity. Fail-soft — never throws.
+  _stageOriginOf(url) {
+    if (typeof url !== 'string' || !url) return null;
+    try { return new URL(url).origin; } catch { return null; }
+  }
+  _portOf(origin) { try { return (new URL(origin).port) || null; } catch { return null; } }
+  // C0 · COH-01 — set the App Stage AND enforce the lease. A genuine origin change re-arms identity;
+  // a same-origin update (poll, stale HMR blip, route move) leaves servedRoot/selection UNTOUCHED so
+  // native HMR reconnect survives (the audit's explicit sticky-port requirement). This REPLACES the
+  // bare `this.stage = next` in _detectStage — every stage mutation now flows through the lease.
+  _setStage(next) {
+    const prevOrigin = (this._stageOrigin != null) ? this._stageOrigin : null;
+    const nextOrigin = this._stageOriginOf(next && next.url);
+    this.stage = next;
+    if (nextOrigin !== prevOrigin) this._invalidateIdentity(nextOrigin, prevOrigin);
+    else this._stageOrigin = nextOrigin; // normalise a first-set from undefined; identity untouched
+  }
+  // C0 · COH-01 — the transactional invalidation. On EVERY origin change: cancel the active agent task,
+  // null the served-tree identity AND the pin (so every $0/preview/write path fail-closes), forget the
+  // pin-dedup key, bump the epoch (invalidates in-flight writes bound to the old lease), and record the
+  // S7 facts when a KNOWN origin was replaced by another KNOWN origin (7819→3000 — "another app took the
+  // port"). Only a fresh lp-ready from the NEW origin (relayed origin-locked as lp-tree/lp-pin) can renew
+  // the lease. A bare Object.create harness leaves servedRoot/selection === undefined → left inert.
+  _invalidateIdentity(nextOrigin, prevOrigin) {
+    const clearedSel = (this._selection && this._selection.file) ? this._selection : null;
+    this._stageOrigin = nextOrigin;
+    this._readyEpoch = (this._readyEpoch | 0) + 1;
+    try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
+    this._activeTaskAbort = null;
+    if (this._servedRoot !== undefined) this._servedRoot = null;   // identity unproven for the new origin
+    if (this._selection !== undefined) this._selection = null;     // the old pin belonged to the old app
+    this._lastPinKey = null;                                        // let a genuine re-pin re-trace
+    this._leaseInfo = (prevOrigin && nextOrigin && prevOrigin !== nextOrigin)
+      ? { prevOrigin, nextOrigin, prevPort: this._portOf(prevOrigin), newPort: this._portOf(nextOrigin),
+          clearedFile: clearedSel ? clearedSel.file : null, clearedLine: (clearedSel && Number.isInteger(clearedSel.line)) ? clearedSel.line : null,
+          clearedTag: clearedSel ? (clearedSel.tag || null) : null, epoch: this._readyEpoch }
+      : null;
+    try { this._post(); } catch { /* best-effort — repaint the S7 safe state */ }
   }
   // The served tree is CONFIRMED only when its root shares LINEAGE with the VS Code workspace:
   // identical, or one is a descendant of the other (the landing/ subdir of the real workspace IS a
@@ -1492,6 +1602,17 @@ class LivePreviewPanel {
       if (!HC || typeof HC.appendEvent !== 'function') return;
       const f = fields || {};
       const nk = f.nodeKey && typeof f.nodeKey === 'object' ? f.nodeKey : null;
+      // COH-08 — HONEST routing facts. The old producer hardcoded tier:null/model:null/cost:null/
+      // local:true for EVERY event — so a Sonnet/Opus agent edit and a Vercel deploy both read as free
+      // local $0. Now tier/model/cost come from the caller (or stay null → the renderer shows `n/d`,
+      // never a fabricated 0), and `local` is the truth: explicit when given, else inferred from the
+      // tier (any cloud tier ⇒ not local). A cloud action can NEVER masquerade as local again.
+      const tier = (typeof f.tier === 'string' && f.tier) ? f.tier : null;
+      const isCloudTier = !!(tier && tier !== 'local');
+      // COH-08 (adversarial NIT-1) — a CLOUD tier FORCES local:false: the invariant "cloud can never
+      // masquerade as local" holds even if a future caller carelessly passes local:true with a cloud tier.
+      // Only a non-cloud (local/absent-tier) event may set local explicitly; else it defaults to true.
+      const local = isCloudTier ? false : ((typeof f.local === 'boolean') ? f.local : true);
       HC.appendEvent(this._wsRoot(), {
         ts: new Date().toISOString(),
         sid: (typeof this._lpSid === 'string' && this._lpSid) ? this._lpSid : null,
@@ -1499,7 +1620,14 @@ class LivePreviewPanel {
         tool: 'live-preview',
         path: (typeof f.path === 'string') ? f.path.slice(0, 400) : null,
         summary: (typeof f.summary === 'string') ? f.summary.slice(0, 200) : null,
-        tier: null, model: null, cost: null, local: true,
+        tier: tier,
+        model: (typeof f.model === 'string' && f.model) ? f.model.slice(0, 60) : null,
+        cost: (typeof f.cost === 'number' && isFinite(f.cost)) ? f.cost : null, // null → renderer shows `n/d`, never a fake $0
+        local: local,
+        // COH-15 — a coherent lifecycle: started | progress | succeeded | failed | cancelled (redacted).
+        // Absent on the plain trace events; present on the task/scan/publish/route lifecycle calls.
+        phase: (typeof f.phase === 'string' && f.phase) ? f.phase.slice(0, 24) : null,
+        taskId: (typeof f.taskId === 'string' && f.taskId) ? f.taskId.slice(0, 40) : null,
         lp: String(action || 'event').slice(0, 40),
         node: nk ? { file: (typeof nk.file === 'string' ? nk.file : null), line: (nk.line != null ? nk.line : null), tag: (typeof nk.tag === 'string' ? nk.tag : null) } : null,
       });
@@ -1516,7 +1644,13 @@ class LivePreviewPanel {
       s.routes = this.routes || this._discoverRoutes(); // MP3.3: routes for the "known routes" picker
       s.leBridge = this._leBridgeStatus(); // LP-4 §6: SDK-bridge fact → chip enables/disables cloud honestly
       s.readiness = this._readiness();      // F0.5.3: the 4-light readiness semaphore (honest facts)
+      // C0 · COH-01 — the S7 safe-state facts ride the snapshot ONLY while identity is unconfirmed after
+      // an origin swap. Once a fresh lp-ready from the new origin re-confirms the tree, this is null and
+      // the normal UI returns. Never fabricated: derived purely from _leaseInfo + _treeConfirmed().
+      s.lease = (this._leaseInfo && !this._treeConfirmed()) ? this._leaseInfo : null;
+      s.projects = this._projectsSnapshot(); // COH-05 — the multi-root project selector (null for single-root)
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
+      s.servedRoot = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : null; // COH-16 — the current lease's served root, so the per-node history filter never mixes homonym worktrees (already exposed via feed nodeKeys)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
     } catch { /* best-effort */ }
@@ -1562,7 +1696,8 @@ class LivePreviewPanel {
       const next = LPS.resolveStage({ overrideUrl: this.overrideUrl, stickyUrl, configPort, livePorts });
       // urlError travels on s.stageError (see _post), NOT on next.reason — folding it in here
       // used to mislabel an unrelated stale/degraded state as "URL inválido".
-      this.stage = next;
+      // C0 · COH-01 — flows through the lease: a genuine origin change re-arms identity + shows S7.
+      this._setStage(next);
     } catch { /* keep last stage */ }
     finally { this._detecting = false; }
     this._post();
@@ -1580,7 +1715,7 @@ class LivePreviewPanel {
       return;
     }
     if (m.type === 'lp-clear-url') { this.overrideUrl = null; this.urlError = null; this._detectStage(); return; }
-    if (m.type === 'lp-redetect') { this.routes = null; this._detectStage(); return; } // also refresh routes
+    if (m.type === 'lp-redetect') { this._invalidateBridge(); this.routes = null; this._detectStage(); return; } // also refresh routes + COH-17 re-read the SDK/trust bridge (no 30s stale)
     // MP3.3 — address bar / route picker. resolveNavTarget keeps the localhost origin lock in ONE
     // place: a same-origin path navigates the frame (lp-goto, no re-point); a different localhost
     // origin re-points the stage through the existing override lock; anything else is refused.
@@ -1601,8 +1736,35 @@ class LivePreviewPanel {
     //    buttons). The strip/accumulation itself lives webview-side; these are the two actions that
     //    genuinely need a VS Code API (open a file, write the clipboard) + the state mirror.
     if (m.type === 'lp-tree') { this._setServedRoot(m.servedRoot); return; } // FIX-MP-1 G1: served-tree identity from the dev tap
-    if (m.type === 'lp-open-folder') { try { vscode.commands.executeCommand('workbench.action.openRecent'); } catch { /* best-effort */ } return; } // F0.5.1 — empty window → open the project folder (recents) in THIS window, never a dead state
+    if (m.type === 'lp-open-folder') {
+      // COH-03 — a REAL folder picker in THIS window (the copy says "Abrir a pasta", so the effect must
+      // be a folder picker, not the recents list). macOS uses the combined open dialog (openFileFolder);
+      // Windows/Linux use openFolder. Honest-controls: copy === effect.
+      try {
+        const isMac = process.platform === 'darwin';
+        vscode.commands.executeCommand(isMac ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+      } catch { /* best-effort */ }
+      return;
+    }
     if (m.type === 'lp-trust') { try { vscode.commands.executeCommand('workbench.trust.manage'); } catch { /* best-effort */ } return; } // F0.5.3 — trust light fix (Manage Workspace Trust)
+    if (m.type === 'lp-open-external') { // C0 COH-01 (S7 inspect) + C4 COH-19 (open the deploy/prod URL). Origin-locked: ONLY a normalized localhost URL OR a validated HTTPS URL is ever opened — never an arbitrary scheme.
+      try {
+        const loc = LPS ? LPS.normalizeStageUrl(m.url) : null;
+        const safe = loc ? loc.url : this._validHttpsUrl(m.url);
+        if (safe) vscode.env.openExternal(vscode.Uri.parse(safe));
+      } catch { /* best-effort */ }
+      return;
+    }
+    if (m.type === 'lp-pick-project') { // COH-05 — the user picked the active project in a multi-root workspace. Accept ONLY a path that is a current workspace-folder member; then re-detect against it.
+      try {
+        const want = (typeof m.path === 'string') ? m.path : '';
+        const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || [];
+        let okMember = false;
+        for (let i = 0; i < folders.length; i++) { if (folders[i] && folders[i].uri && folders[i].uri.fsPath === want) { okMember = true; break; } }
+        if (okMember) { this._projectRoot = want; this.overrideUrl = null; this.routes = null; this._detectStage(); }
+      } catch { /* best-effort */ }
+      return;
+    }
     if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
     if (m.type === 'lp-sdk-help') { this._sdkHelp(); return; } // D8/F9 — honest "how to install the Agent SDK" (the light said "sem SDK")
     if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
@@ -1616,6 +1778,7 @@ class LivePreviewPanel {
     if (m.type === 'lp-task-cancel') { try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ } return; } // LP-4.9 §8 cancel the running agent task
     if (m.type === 'lp-task-revert') { this._taskRevert(m); return; } // LP-4.5 sha-guarded revert (per file or all — OUR record only)
     if (m.type === 'lp-task-keep') { this._taskKeep(m); return; } // LP-4.5 accept agent edits (drops snapshots)
+    if (m.type === 'lp-ask-apply') { this._askApply(m); return; } // COH-07 — turn an Ask answer into an anchored edit (host revalidates the lease; webview sends ONLY the askId)
     if (m.type === 'lp-undo') { this._undoLast(); return; } // LP-4 §4 $0 undo (inverse byte-splice, sha-guarded)
     if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
@@ -1793,7 +1956,7 @@ class LivePreviewPanel {
       this._feed.push(item);
       if (this._feed.length > 50) this._feed.shift();
       this._feedBump();
-      this._emitLpEvent(item.kind === 'agent' ? 'agent' : 'edit', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: item.via || null }); // D5
+      this._emitLpEvent(item.kind === 'agent' ? 'agent' : 'edit', { kind: 'file', path: (Array.isArray(item.files) && item.files[0]) || null, nodeKey: item.nodeKey, summary: item.via || null, tier: item.tier || null, model: item.model || null, cost: (typeof item.cost === 'number') ? item.cost : null, local: (typeof item.local === 'boolean') ? item.local : undefined, phase: 'succeeded', taskId: item.taskId || null }); // COH-08/15 — forward the item's HONEST tier/model/cost/local (an agent edit is never local:true)
       return item;
     } catch { return null; }
   }
@@ -1859,7 +2022,7 @@ class LivePreviewPanel {
     return null;
   }
   // §4 — remember the write we just made as a feed item carrying its inverse-splice entry.
-  _pushUndo(real, before, after, via, relFile, anchor) {
+  _pushUndo(real, before, after, via, relFile, anchor, meta) {
     try {
       if (!LEU) return;
       const e = LEU.makeEntry(real, before, after);
@@ -1867,7 +2030,12 @@ class LivePreviewPanel {
       const a = anchor || {};
       // F0.2 — the node identity this write belongs to, so the feed can be queried per node (and survive a reopen).
       const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || real, line: Number.isInteger(a.line) ? a.line : null, col: Number.isInteger(a.col) ? a.col : null, tag: (typeof a.tag === 'string') ? a.tag.slice(0, 60) : null };
-      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey });
+      // COH-08 — a splice is a deterministic $0 LOCAL write by default; a FENCED cloud rewrite passes
+      // meta {tier, model} so the MEO shows the real tier/model instead of a fake local $0.
+      const md = meta || {};
+      const cloud = !!(md.tier && md.tier !== 'local');
+      this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey,
+        tier: md.tier || 'local', model: md.model || null, local: cloud ? false : true, cost: cloud ? null : 0 });
     } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
   }
   // Inverse byte-splice of ONE feed item. FAIL-CLOSED: the file's CURRENT sha must still match
@@ -2186,6 +2354,48 @@ class LivePreviewPanel {
   // project name, shown only as a hint — the deploy gate re-derives it independently), the open-
   // Critical flag, and the last known REAL deploy URL this session produced (or null — never
   // guessed).
+  // COH-10 — validate an HTTPS production URL. Returns the canonical origin+path (trailing slash
+  // stripped) or null. ONLY https is a valid production destination; never http, never a bare host.
+  _validHttpsUrl(u) {
+    try {
+      if (typeof u !== 'string' || !u.trim()) return null;
+      const p = new URL(u.trim());
+      if (p.protocol !== 'https:' || !p.hostname) return null;
+      const tail = (p.pathname && p.pathname !== '/') ? p.pathname.replace(/\/+$/, '') : '';
+      return p.origin + tail;
+    } catch { return null; }
+  }
+  // COH-10 — the project's OWN declared production URL (NEXT_PUBLIC_SITE_URL), read from its versioned
+  // env files. This is the "project manifest" source — never derived from the project NAME, never a
+  // generic hardcode. First HTTPS value wins. Fail-soft.
+  _readEnvSiteUrl(root) {
+    const files = ['landing/.env.local', 'landing/.env.production', 'landing/.env', 'landing/.env.local.example', '.env.production', '.env'];
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const txt = fs.readFileSync(path.join(root, files[i]), 'utf8');
+        const m = /^\s*NEXT_PUBLIC_SITE_URL\s*=\s*["']?([^"'\s#]+)/m.exec(txt);
+        if (m) { const v = this._validHttpsUrl(m[1]); if (v) return v; }
+      } catch { /* next file */ }
+    }
+    return null;
+  }
+  // COH-10 — the production destination shown BEFORE the two-factor deploy (mock S5). HONEST precedence:
+  //   1) the REAL deploy URL this session produced (current truth)
+  //   2) an explicit Mooter setting (mooter.livePreview.productionUrl)
+  //   3) a project manifest (.mooter/live-preview.json → productionUrl)
+  //   4) the project's own declared NEXT_PUBLIC_SITE_URL (versioned env)
+  //   5) n/d — never guessed, never derived from projectName, never a generic hardcode.
+  // Every candidate is HTTPS-validated. Returns { url, source } ({ url:null } → the UI shows n/d).
+  _productionUrl() {
+    const root = this._wsRoot();
+    const dep = this._validHttpsUrl(this._lastDeployUrl);
+    if (dep) return { url: dep, source: 'deploy atual' };
+    try { const cfg = vscode.workspace.getConfiguration('mooter'); const s = cfg && typeof cfg.get === 'function' ? cfg.get('livePreview.productionUrl') : null; const v = this._validHttpsUrl(s); if (v) return { url: v, source: 'setting Mooter' }; } catch { /* not set */ }
+    try { const j = JSON.parse(fs.readFileSync(path.join(root, '.mooter', 'live-preview.json'), 'utf8')); const v = this._validHttpsUrl(j && j.productionUrl); if (v) return { url: v, source: 'manifest do projeto' }; } catch { /* absent */ }
+    const env = this._readEnvSiteUrl(root);
+    if (env) return { url: env, source: 'config do projeto · validada HTTPS' };
+    return { url: null, source: null };
+  }
   async _publishStatus() {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-status-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
     try {
@@ -2203,6 +2413,7 @@ class LivePreviewPanel {
         hasOpenCritical: !secGate.cleared, // D6: "blocked by security" — required/failed/stale/critical
         securityReason: secGate.reason,    // the honest WHY, so the popover doesn't just say "critical"
         websiteUrl: this._lastDeployUrl || null,
+        destination: this._productionUrl(), // COH-10 — the prod target, shown BEFORE the two-factor
       });
     } catch { post({ error: 'status-failed' }); }
   }
@@ -2283,7 +2494,7 @@ class LivePreviewPanel {
       const urlMatch = out.match(/https:\/\/\S+\.vercel\.app\S*/);
       const url = urlMatch ? urlMatch[0] : null;
       if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
-      this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null }); // D5 — the deploy URL is public; safe to trace
+      this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null, local: false, phase: url ? 'succeeded' : 'failed' }); // COH-08 — a deploy PUBLISHES to production: NEVER local:true. COH-15 — lifecycle succeeded/failed.
       post({ ok: true, url, out: out.slice(0, 800) });
     } catch { post({ ok: false, reason: 'error' }); }
   }
@@ -2303,6 +2514,13 @@ class LivePreviewPanel {
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       // F3 (W1) — no pinned selection in the store → refuse, never rewrite a node the user did not pin.
       if (this._selectionMissing()) { fail('no-selection'); return; }
+      // C0 · COH-01 (NIT-1) — capture the lease epoch the reply is GENERATED under, BEFORE the async
+      // model call. It rides the diff so the apply-time epoch guard refuses a reply composed one lease
+      // ago even if the origin swapped-then-re-confirmed during the model call (stamping the epoch at
+      // post-time would inherit the new epoch and let that stale reply through).
+      const epochAtGen = (this._readyEpoch | 0);
+      // COH-09 — the user accepted a local→cloud escalation offer (flagged by the escalation button).
+      if (m && m.escalated) this._emitLpEvent('escalation_accepted', { kind: 'server', phase: 'succeeded', summary: '🐮 local → ' + (m.tier === 't3' ? '🧠 Opus' : '🎼 Sonnet'), tier: m.tier || 't2', local: false });
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
@@ -2355,6 +2573,7 @@ class LivePreviewPanel {
             if (q.reason === 'local-quality-exhausted') {
               // The offer payload carries the original ask so the button can re-fire on t2 —
               // bound to THIS target (review P1-B discipline), with the evidence verbatim.
+              this._emitLpEvent('escalation_offered', { kind: 'server', phase: 'progress', summary: '🐮 local esgotou — oferecer 🎼 Sonnet', tier: 'local', local: true, nodeKey: { file: relFile, line: m.line, col: m.col, tag: m.tag } }); // COH-09 — the escalation is announced in the MEO (offered)
               this._postPromptDiff({ ok: false, reason: 'local-quality-exhausted', evidence: q.evidence, file: raw, line: m.line, col: m.col, tag: m.tag, prompt, selText: (m && typeof m.selText === 'string') ? m.selText.slice(0, 200) : '' });
               return;
             }
@@ -2401,7 +2620,7 @@ class LivePreviewPanel {
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local' });
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local', epoch: epochAtGen }); // C0 COH-01 NIT-1 — the diff carries the generation-time epoch, not the post-time one
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -2413,6 +2632,11 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED, EARLIEST: the one-box default path (tier:'local') writes the
       // approved model reply. Without a proven served-tree lineage the reply must never land on disk.
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
+      // C0 · COH-01 — LEASE epoch guard: the webview echoes the epoch the diff was generated under. If
+      // the framed origin has changed since (even if a new origin re-confirmed a lineage-sharing tree),
+      // the epoch moved → refuse. Closes the epoch-race / TOCTOU the adversarial gate probes. Backward-
+      // compatible: a payload without an epoch (older webview / a deterministic path) skips this check.
+      if (m && m.epoch != null && (m.epoch | 0) !== (this._readyEpoch | 0)) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
       if (!raw || !replacement.trim()) { fail('bad-request'); return; }
@@ -2458,7 +2682,7 @@ class LivePreviewPanel {
       const vlabel = (m.tier && m.tier !== 'local')
         ? ('cercada · ' + (m.tier === 't1' ? 'Haiku' : m.tier === 't2' ? 'Sonnet' : m.tier === 't3' ? 'Opus' : m.tier === 'fable' ? 'Fable' : m.tier) + ' · subscrição')
         : 'cercada · local $0';
-      this._pushUndo(real, s2, res.code, vlabel, raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
+      this._pushUndo(real, s2, res.code, vlabel, raw, { line: m.line, col: m.col, tag: m.tag }, { tier: m.tier || 'local', model: m.model || null }); // §4 feed item + F0.2 nodeKey + COH-08 honest tier/model (a fenced cloud rewrite is not local $0)
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
@@ -2477,7 +2701,9 @@ class LivePreviewPanel {
     } catch { fail('error'); }
   }
   _postPromptDiff(payload) {
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+    // C0 · COH-01 — stamp the current lease epoch on the diff so the webview echoes it back on apply
+    // (the epoch guard in _promptApply refuses a reply generated one lease ago).
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token, epoch: (this._readyEpoch | 0) }, payload)); } catch { /* best-effort */ }
   }
   // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
   // nodeSource + breadcrumb), not a fence: the agent runs headless WITH the workspace as cwd,
@@ -2485,11 +2711,43 @@ class LivePreviewPanel {
   // here AND in runAnchoredTask (defense in depth); permissions are enforced runner-side via the
   // canUseTool allowlist (Bash/network NEVER). A question writes NOTHING; an edit comes back as a
   // per-file git diff the user keeps or reverts (sha-guarded) — never a silent "✓ escrito".
+  // COH-09 — resolve AUTO to a concrete tier via the FROZEN router (classify.js). Returns
+  // { mode, tier, routed }. The anchored AGENT path is always a cloud run (no local key), so T0 and T1
+  // both map to the cheapest cloud tier (Haiku/t1); T2→Sonnet, T3→Opus; T5 clamps to Opus (never
+  // auto-Fable — tier-ladder doctrine). Fail-soft: router unavailable → { mode:'auto' } = today's Sonnet.
+  _autoResolveMode(instruction) {
+    const classify = lpLoadClassify();
+    if (!classify) return { mode: 'auto', tier: null, routed: false };
+    let d = null;
+    try { d = classify(String(instruction || '')); } catch { d = null; }
+    const t = (d && typeof d.tier === 'string') ? d.tier : null;
+    let mode;
+    switch (t) {
+      case 'T0': mode = 't1'; break;
+      case 'T1': mode = 't1'; break;
+      case 'T2': mode = 't2'; break;
+      case 'T3': mode = 't3'; break;
+      case 'T5': mode = 't3'; break;
+      default: mode = 't2'; break;
+    }
+    return { mode, tier: t, routed: !!t };
+  }
   async _taskRun(m) {
-    const fail = (reason, detail) => this._postTaskResult({ ok: false, reason: String(reason || 'error'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    let _taskMode = 'auto'; // function-scoped so `fail` (below) can name the tier once the mode is resolved
+    const fail = (reason, detail) => {
+      // COH-15 — a coherent lifecycle: a refusal/abort is `failed` (or `cancelled` when the user aborted).
+      const r = String(reason || 'error');
+      this._emitLpEvent('task', { kind: 'server', phase: (r === 'cancelled' || r === 'aborted') ? 'cancelled' : 'failed', summary: 'task · ' + r, tier: (_taskMode && _taskMode !== 'auto') ? _taskMode : null, local: false });
+      this._postTaskResult({ ok: false, reason: r, detail: detail ? String(detail).slice(0, 200) : undefined });
+    };
     try {
       const instruction = (m && typeof m.instruction === 'string') ? m.instruction.trim() : '';
-      const mode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
+      const rawMode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
+      // COH-09 — AUTO is router-native: consult the Mooter classifier for a tier instead of a fixed
+      // Sonnet alias. @fable is never auto-reached (T5 clamps to Opus). Announced before the run below.
+      const routeInfo = (rawMode === 'auto') ? this._autoResolveMode(instruction) : null;
+      const mode = routeInfo ? routeInfo.mode : rawMode;
+      _taskMode = mode; // expose to the fail() lifecycle emitter above
       if (!instruction) { fail('prompt-empty'); return; }
       if (!LET) { fail('engine-unavailable'); return; }
       if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
@@ -2549,7 +2807,15 @@ class LivePreviewPanel {
       // fed by lp-pin), NOT the message, so an ask/edit agent sees what the user sees even when the
       // JSX is dynamic. Guarded: a bare Object.create harness has no store → '' (contract unchanged).
       const selText = (this._selection && typeof this._selection.selText === 'string') ? this._selection.selText : '';
+      // COH-09 — announce the routing decision BEFORE the run: 🧭 → 🐮/⚡/🎼/🧠. Only when AUTO routed
+      // (an explicit chip needs no announcement). The MEO gets a route_decided event; the canvas a status.
+      if (routeInfo && routeInfo.routed) {
+        const rlabel = mode === 't1' ? '⚡ Haiku' : mode === 't2' ? '🎼 Sonnet' : mode === 't3' ? '🧠 Opus' : mode;
+        this._postTaskStatus({ phase: 'route', mode, from: 'auto', tier: mode, label: rlabel, classifierTier: routeInfo.tier || null });
+        this._emitLpEvent('route_decided', { kind: 'server', phase: 'succeeded', summary: '🧭 AUTO → ' + rlabel + (routeInfo.tier ? (' (' + routeInfo.tier + ')') : ''), tier: mode, local: false });
+      }
       this._postTaskStatus({ phase: 'thinking', mode, intent });
+      this._emitLpEvent('task', { kind: 'server', phase: 'started', summary: (intent === 'ask' ? 'perguntar' : 'editar') + ' · ' + mode, tier: (mode && mode !== 'auto') ? mode : null, local: false, nodeKey: { file: relFile || raw, line: m.line, col: m.col, tag: m.tag } }); // COH-15 — prompt sent (lifecycle started)
       // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
       const ac = (typeof AbortController === 'function') ? new AbortController() : null;
       this._activeTaskAbort = ac;
@@ -2584,7 +2850,10 @@ class LivePreviewPanel {
       if (edits.length) {
         const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
         const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || raw, line: Number.isInteger(m.line) ? m.line : null, col: Number.isInteger(m.col) ? m.col : null, tag: (typeof m.tag === 'string') ? m.tag.slice(0, 60) : null };
-        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null, nodeKey });
+        // COH-08 — an AGENT edit is a CLOUD action: local:false, the REAL model that ran (res.model),
+        // and the tier chip the user chose. cost stays null (we do not meter tokens) → honest `n/d`,
+        // never a fabricated $0. This is what stops a Sonnet/Opus edit reading as free local work.
+        this._feedPush({ kind: 'agent', via: 'agente · ' + modeLabel + ' · subscrição', files: edits.map((e) => e.file), taskId, status: 'live', reason: null, nodeKey, tier: mode, model: res.model || null, local: false, cost: null });
       }
       // Per-file diff for the panel: real git diff, scoped to EXACTLY this task (snapshot vs the
       // file now) — the user's own pre-existing uncommitted changes never pollute it.
@@ -2592,12 +2861,58 @@ class LivePreviewPanel {
         const d = LET.gitDiffFile(e.snapshot, e.abs);
         return { file: e.file, diff: (d && d.ok) ? d.lines.slice(0, 400) : null, diffReason: (d && d.ok) ? null : ((d && d.reason) || 'git-unavailable') };
       });
+      // COH-07 — Ask→Apply. An ANSWER (intent:'ask', no edits) registers a HOST-SIDE ask record keyed by
+      // askId, carrying the lease it was produced under + the question/answer/anchor/refs. The webview
+      // gets ONLY the askId back and renders "▶ Aplicar com o agente"; it never holds a trusted payload.
+      let askId = null;
+      if (intent === 'ask' && res.kind === 'answer' && String(res.text || '').trim()) {
+        if (!this._askReg) { this._askReg = new Map(); this._askSeq = 0; }
+        askId = 'ask-' + (++this._askSeq);
+        this._askReg.set(askId, {
+          epoch: (this._readyEpoch | 0),
+          servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null,
+          instruction, answer: String(res.text || ''),
+          refs, filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
+          model: res.model || null, mode,
+          file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+          tagLabel: (typeof m.tag === 'string') ? m.tag : '',
+          breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
+        });
+        if (this._askReg.size > 20) { const k = this._askReg.keys().next().value; this._askReg.delete(k); }
+        // COH-08/15 — an Ask that produced an answer is a CLOUD run (local:false) with the real model.
+        this._emitLpEvent('ask', { kind: 'server', phase: 'succeeded', summary: 'perguntar · resposta', tier: (mode && mode !== 'auto') ? mode : null, model: res.model || null, local: false });
+      }
       this._postTaskResult({
         ok: true, taskId, kind: res.kind, text: String(res.text || ''),
         filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
         edits: view,
         denied: Array.isArray(res.denied) ? res.denied.slice(0, 40) : [],
-        model: res.model || null, mode,
+        model: res.model || null, mode, askId,
+      });
+    } catch { fail('error'); }
+  }
+  // COH-07 — Ask→Apply, host-bound. The webview sends ONLY { askId }; the host re-validates the lease
+  // (tree + trust + epoch) the answer was produced under, then composes the edit instruction from the
+  // STORED question+answer and launches a normal anchored EDIT run. Nothing the webview sends besides the
+  // askId is trusted (a tampered instruction/answer/file in the message is ignored). Fail-closed with an
+  // honest reason on a missing/expired record or a broken lease.
+  _askApply(m) {
+    const fail = (reason) => this._postTaskResult({ ok: false, reason: String(reason || 'error') });
+    try {
+      const askId = (m && typeof m.askId === 'string') ? m.askId : '';
+      const rec = (this._askReg && this._askReg.get(askId)) || null;
+      if (!rec) { fail('ask-expired'); return; }                                  // no such record → refuse
+      if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }     // COH-01 tree gate
+      if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
+      if ((rec.epoch | 0) !== (this._readyEpoch | 0)) { fail('preview-tree-mismatch'); return; } // lease moved
+      this._askReg.delete(askId); // one-shot: the answer becomes an edit exactly once
+      // Compose the edit instruction HOST-SIDE from the stored question+answer (never the webview's).
+      const composed = 'Aplica ao elemento ancorado a sugestão seguinte, com o mínimo de alterações.\n\n'
+        + 'Pedido original do utilizador:\n' + rec.instruction + '\n\n'
+        + 'Sugestão a aplicar (resposta anterior do agente):\n' + rec.answer;
+      this._taskRun({
+        instruction: composed, file: rec.file, line: rec.line, col: rec.col, tag: rec.tag,
+        refs: rec.refs, mode: rec.mode, intent: 'edit', breadcrumb: rec.breadcrumb,
       });
     } catch { fail('error'); }
   }
@@ -2656,6 +2971,7 @@ class LivePreviewPanel {
       // §4 — the feed item settles as kept (facts, not claims).
       const item = this._feedFindAgent(taskId);
       if (item) { item.status = 'kept'; item.reason = null; this._feedBump(); }
+      this._emitLpEvent('keep', { kind: 'server', phase: 'succeeded', summary: 'manter · ' + taskId, taskId, tier: (item && item.tier) || null, model: (item && item.model) || null, local: (item && typeof item.local === 'boolean') ? item.local : undefined }); // COH-15 — keep lifecycle
       post({ taskId, ok: true });
     } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
   }
@@ -2717,11 +3033,23 @@ class LivePreviewPanel {
   async _restartDevServer() {
     try {
       if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Live Preview: abre a pasta do projeto primeiro (janela sem pasta).'); return; }
-      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta servida e corro "npm run dev".', { modal: true }, 'Reiniciar');
+      const pick = await vscode.window.showWarningMessage('Reiniciar o dev server? Abro um terminal na pasta do workspace e corro "npm run dev".', { modal: true }, 'Reiniciar');
       if (pick !== 'Reiniciar') return;
-      const cwd = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : this._wsRoot();
+      // C0 · COH-06 — restart ALWAYS in the CONFIRMED workspace root, NEVER a divergent _servedRoot: a
+      // sticky-port mismatch means _servedRoot points at the WRONG tree, and running `npm run dev` there
+      // is exactly the "restart in the wrong place" bug. The workspace root is the one the user opened.
+      const cwd = this._wsRoot();
       const term = vscode.window.createTerminal({ name: 'Mooter — dev server', cwd });
       term.show(); term.sendText('npm run dev');
+      // C0 · COH-01/06 — clear the sticky origin + identity BEFORE the re-probe so the fresh server is
+      // resolved from zero (no stale port wins) and nothing writes until its handshake re-confirms.
+      this.overrideUrl = null; this.stage = null; this._stageOrigin = null; this._leaseInfo = null;
+      this._readyEpoch = (this._readyEpoch | 0) + 1;
+      if (this._servedRoot !== undefined) this._servedRoot = null;
+      if (this._selection !== undefined) this._selection = null;
+      this._lastPinKey = null;
+      try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
+      this._activeTaskAbort = null;
       // re-probe shortly after so the semaphore reflects the fresh server (not the sticky one).
       setTimeout(() => { try { this.routes = null; this._detectStage(); } catch { /* best-effort */ } }, 3500);
     } catch { /* best-effort — never throw into the host */ }
@@ -2741,6 +3069,7 @@ class LivePreviewPanel {
         if (!this._hasWorkspace()) { vscode.window.showWarningMessage('Abre a pasta do projeto primeiro.'); return; }
         const term = vscode.window.createTerminal({ name: 'Mooter — instalar Agent SDK', cwd: this._wsRoot() });
         term.show(); term.sendText(cmd, false); // pre-filled, NOT auto-run — the user presses Enter
+        this._invalidateBridge(); // COH-17 — drop the 30s cache so the readiness re-reads once the SDK lands
       }
     } catch { /* best-effort — never throw into the host */ }
   }
@@ -2777,6 +3106,12 @@ class LivePreviewPanel {
     this._busPost = (extra && extra.mkDebounce) ? extra.mkDebounce(() => { if (this.panel.visible) this._post(); }, 1500) : null;
     this.panel.onDidChangeViewState(() => { if (this.panel.visible) { this._post(); this._detectStage(); if (this._busPost) this._busPost.cancel(); } });
     this.panel.webview.onDidReceiveMessage((m) => this._onMessage(m));
+    // COH-17 — the SDK/trust bridge is cached 30s; invalidate it IMMEDIATELY when the user fixes the
+    // underlying cause (grants trust, changes workspace) so the readiness semaphore reacts at once, not
+    // up to 30s later. COH-05 — an active-editor change may switch the active multi-root project.
+    try { this._trustSub = vscode.workspace.onDidGrantWorkspaceTrust(() => { this._invalidateBridge(); this._post(); }); } catch { this._trustSub = null; }
+    try { this._wsFoldersSub = vscode.workspace.onDidChangeWorkspaceFolders(() => { this._invalidateBridge(); this._projectRoot = null; this.routes = null; this._detectStage(); this._post(); }); } catch { this._wsFoldersSub = null; }
+    try { this._activeEdSub = vscode.window.onDidChangeActiveTextEditor(() => { if (this.panel.visible) this._post(); }); } catch { this._activeEdSub = null; }
     // Best-effort fs.watch on the bus directory for near-live updates between polls — a missed
     // event (dir not created yet, watcher error) is still covered by the poll above, so this
     // never blocks or throws. Read-only: never creates the directory itself.
@@ -2791,9 +3126,15 @@ class LivePreviewPanel {
       if (this.stageTimer) clearInterval(this.stageTimer);
       try { if (this.watcher) this.watcher.close(); } catch { /* best-effort */ }
       try { if (this._busPost) this._busPost.cancel(); } catch { /* best-effort */ }
+      try { if (this._trustSub) this._trustSub.dispose(); } catch { /* best-effort */ }
+      try { if (this._wsFoldersSub) this._wsFoldersSub.dispose(); } catch { /* best-effort */ }
+      try { if (this._activeEdSub) this._activeEdSub.dispose(); } catch { /* best-effort */ }
       LivePreviewPanel.current = null;
     });
   }
+  // COH-17 — drop the 30s SDK/trust bridge cache so the next _leBridgeStatus() re-reads FACTS. Called
+  // when the user fixes the cause (grants trust, installs the SDK, re-probes) or the workspace changes.
+  _invalidateBridge() { this._leBridge = null; this._leBridgeTs = 0; }
 }
 LivePreviewPanel.current = null;
 
@@ -2855,6 +3196,8 @@ function getLivePreviewHtml(token, wsRoot) {
   // execution, so the risk is panel-JS breakage + inert HTML, not RCE — but the fence is cheap.
   const skillsJson = JSON.stringify(Array.isArray(skillsRegistry) ? skillsRegistry : []).replace(/</g, '\\u003c');
   const renderSkillsMenuHTMLSrc = LSK ? LSK.renderSkillsMenuHTML.toString() : 'function renderSkillsMenuHTML(){return "";}';
+  // COH-02 — the pure toolbar-placement decision, serialised into the webview (never covers the pin).
+  const chooseToolbarPlacementSrc = LPTG ? LPTG.chooseToolbarPlacement.toString() : 'function chooseToolbarPlacement(o){return {mode:"place",x:6,y:6};}';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*;">
 <style>
@@ -2883,6 +3226,12 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-publish .lp-pub-meta{opacity:.75;margin-bottom:6px}
   #lp-publish .lp-pub-err{color:var(--vscode-errorForeground,#D9484B)}
   #lp-publish .lp-pub-url{margin-bottom:6px;word-break:break-all}
+  /* COH-10/19 — the production destination + real clickable URL anchors. */
+  #lp-publish .lp-pub-dest{margin:6px 0;word-break:break-all;font-size:11.5px}
+  #lp-publish .lp-pub-dest-src{opacity:.7;font-size:10.5px}
+  #lp-publish .lp-pub-link{color:var(--vscode-textLink-foreground,#4daafc);text-decoration:underline;cursor:pointer}
+  #lp-publish .lp-pub-link:hover{color:var(--vscode-textLink-activeForeground,#4daafc)}
+  #lp-publish .lp-pub-inline-err{margin:5px 0;font-size:11px}
   #lp-publish .lp-pub-cost{opacity:.65;margin-bottom:8px;font-style:italic}
   #lp-publish .lp-pub-warn{color:var(--vscode-charts-yellow,#E5C07B);margin-bottom:6px}
   #lp-publish .lp-pub-ok{color:var(--vscode-charts-green,#4EC97A);word-break:break-all}
@@ -2907,7 +3256,21 @@ function getLivePreviewHtml(token, wsRoot) {
      Badge bg/fg only → guaranteed contrast in light AND dark; opacity/weight signal the pinned state. */
   .lp-anchor{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 9px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;opacity:.65}
   .lp-anchor.on{opacity:1;font-weight:600}
+  /* COH-14 — the single visual-state token. Colour + TEXT (never colour alone); animation ONLY in
+     'working' (and only when reduced-motion is not requested — the global guard zeroes it otherwise). */
+  .lp-state-token{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.4;padding:2px 8px;border-radius:999px;white-space:nowrap;font-weight:600}
+  .lp-state-token[data-state="working"]{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+  .lp-state-token[data-state="success"]{background:var(--vscode-charts-green,#4EC97A);color:#0B0A09}
+  .lp-state-token[data-state="warning"]{background:var(--vscode-charts-yellow,#E5C07B);color:#0B0A09}
+  .lp-state-token[data-state="error"],.lp-state-token[data-state="blocked"]{background:var(--vscode-charts-red,#E8888A);color:#0B0A09}
+  @keyframes lpstatepulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .lp-state-token[data-state="working"]{animation:lpstatepulse 1.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.lp-state-token[data-state="working"]{animation:none}}
   .lp-anchor-in{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;margin:0 0 6px;border-radius:999px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  /* COH-18 — contextual skill chips next to the one-box (info-blue, distinct from the tier chips). */
+  .lp-ctx-skills{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px}
+  .lp-ctx-skill{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--vscode-textLink-foreground,#4daafc);background:transparent;color:var(--vscode-textLink-foreground,#4daafc);cursor:pointer;white-space:nowrap}
+  .lp-ctx-skill:hover{background:var(--vscode-textLink-foreground,#4daafc);color:var(--vscode-editor-background)}
   /* D1 — the controls must WRAP, not overflow. #lp-controls was flex:none (one indivisible row that
      burst its container at 1024/821px, worsened by the 🛡 Review / 🚀 Publish labels). Now it wraps and
      shrinks; #lp-url flexes to fill its row. */
@@ -2974,6 +3337,10 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-sel .lp-task-st{font-size:10.5px;opacity:.9;margin-left:6px}
   #lp-sel .lp-task-reads{font-size:10.5px;opacity:.8;margin:4px 0;line-height:1.6}
   #lp-sel .lp-task-reads code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace);font-size:10px}
+  /* COH-07 — the Ask→Apply primary CTA ("▶ Aplicar com o agente") + its hint. */
+  #lp-sel .lp-abtn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-border,transparent);font-weight:600}
+  #lp-sel .lp-abtn:hover{background:var(--vscode-button-hoverBackground)}
+  #lp-sel .lp-task-hint{font-size:10.5px;opacity:.75;margin:5px 0 2px;line-height:1.5}
   /* MP5.1 — router-native model chip: honest $0 for deterministic edits + manual override. */
   #lp-sel .lp-chip{margin:9px 0 2px;padding:7px 9px;border:1px solid var(--vscode-widget-border);border-radius:7px;background:var(--vscode-input-background)}
   #lp-sel .lp-chip-hd{font-size:11.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -3122,6 +3489,16 @@ function getLivePreviewHtml(token, wsRoot) {
   .lp-degrade-r{font-size:12.5px;margin-bottom:10px}
   .lp-degrade-h{font-size:11.5px;opacity:.85;line-height:1.5}
   .lp-degrade-h code{background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:1px 5px;border-radius:4px}
+  /* C0 · COH-01 — the lease safe-state (mock S7). Warn-tinted card OVER the frame; blocks the gesture. */
+  .lp-lease{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:left;padding:24px;background:color-mix(in srgb, var(--vscode-editor-background) 82%, transparent);backdrop-filter:blur(1.5px);z-index:6}
+  .lp-lease-card{max-width:520px;border:1px solid var(--vscode-editorWarning-foreground,#caa700);border-radius:10px;padding:16px 18px;background:var(--vscode-editor-background);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .lp-lease-t{font-weight:800;color:var(--vscode-foreground);margin-bottom:8px;font-size:14px}
+  .lp-lease-r{font-size:12.5px;color:var(--vscode-descriptionForeground);line-height:1.55;margin-bottom:8px}
+  .lp-lease-inv{font-family:var(--vscode-editor-font-family,monospace);font-size:11.5px;color:var(--vscode-editorWarning-foreground,#caa700);background:var(--vscode-textCodeBlock-background,var(--vscode-input-background));padding:6px 8px;border-radius:6px;margin-bottom:8px}
+  .lp-lease-h{font-size:12px;color:var(--vscode-foreground);line-height:1.5;margin-bottom:12px}
+  .lp-lease-acts{display:flex;flex-wrap:wrap;gap:8px}
+  .lp-lease-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--vscode-button-border,transparent);background:var(--vscode-button-background);color:var(--vscode-button-foreground);cursor:pointer;font-size:12px}
+  .lp-lease-btn.ghost{background:transparent;color:var(--vscode-foreground);border-color:var(--vscode-input-border,#8884)}
   /* F0.5.1 — the honest empty-window action: ONE prominent primary button. */
   .lp-open-folder{font:13px var(--vscode-font-family);font-weight:600;color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;border-radius:6px;padding:8px 16px;cursor:pointer;margin-top:4px}
   .lp-open-folder:hover{background:var(--vscode-button-hoverBackground)}
@@ -3241,12 +3618,16 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-go" title="Ir para esta rota/URL no App Stage">Ir</button>
         <button id="lp-select-btn" class="lp-labeled" title="Selecionar um elemento do preview para editar (Esc sai)" aria-label="Selecionar elemento para editar" aria-pressed="false">🎯 Selecionar</button>
         <span id="lp-anchor" class="lp-anchor" role="status" aria-live="polite" title="O elemento fixado — o alvo do prompt. Sem âncora, nenhum prompt é enviado.">📍 sem seleção</span>
+        <!-- COH-14 — the single visual-state token (idle·blocked·working·success·warning·error), SEPARATE from the actor/tier glyph. Text always present; animates only in 'working'. -->
+        <span id="lp-state-token" class="lp-state-token" role="status" aria-live="polite" style="display:none"></span>
         <button id="lp-dev-390" class="lp-dev-btn" title="Preview a 390px (telemóvel) — só muda a largura do iframe" aria-label="Preview mobile 390px" aria-pressed="false">📱390</button>
         <button id="lp-dev-768" class="lp-dev-btn" title="Preview a 768px (tablet) — só muda a largura do iframe" aria-label="Preview tablet 768px" aria-pressed="false">📱768</button>
         <button id="lp-dev-full" class="lp-dev-btn" title="Largura total" aria-label="Preview em largura total" aria-pressed="true">💻</button>
         <!-- D1 — honest effective-width note: a preset caps at 100% of the panel, so 768px can deliver less. -->
         <span id="lp-dev-note" class="lp-dev-note" role="status" aria-live="polite" style="display:none"></span>
         <select id="lp-routes" title="Rotas conhecidas do site" aria-label="Ir para uma rota do site"></select>
+        <!-- COH-05 — multi-root project selector (hidden unless the workspace has ≥2 folders). Picks the ACTIVE project the preview serves/edits — never a blind workspaceFolders[0]. -->
+        <select id="lp-project" title="Projeto ativo (workspace multi-raiz)" aria-label="Escolher o projeto ativo" style="display:none"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
@@ -3264,6 +3645,10 @@ function getLivePreviewHtml(token, wsRoot) {
     <div id="lp-framewrap">
       <iframe id="lp-frame" title="Mooter App Stage — pré-visualização do dev server local" style="display:none"></iframe>
       <div id="lp-degrade" class="lp-degrade"></div>
+      <!-- C0 · COH-01 (audit P0) — the identity-lease safe state (mock S7). Shown OVER the frame when the
+           stage origin changed and identity is not yet re-confirmed: the pin is cleared, the served tree
+           is "por confirmar", every write is blocked. Only a fresh lp-ready from the NEW origin dismisses it. -->
+      <div id="lp-lease" class="lp-lease" role="alertdialog" aria-live="assertive" style="display:none"></div>
       <!-- LP-4.8 §1 — the in-canvas toolbar. It lives in the TRUSTED webview (never in the
            cross-origin site), floating over the frame anchored to the pin: the site's CSS/JS
            cannot reach it (adversarial L1). The overlay is pointer-events:none so clicks pass
@@ -3354,6 +3739,7 @@ const renderSecurityFindings=${renderSecurityFindingsSrc};
 const renderPublishPopover=${renderPublishPopoverSrc};
 const LP_SKILLS=${skillsJson};
 const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
+const chooseToolbarPlacement=${chooseToolbarPlacementSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
@@ -3365,7 +3751,24 @@ function render(s){
 // F0.5.3 — the readiness semaphore: 4 honest lights (pasta · dev server+porta/fonte · árvore · agente)
 // with a 1-click fix per unlit light. Sticky-port shows the wrong :porta (fonte) so the user SEES it.
 let lpReadySig='';
+// COH-04 — the 🎯 selector is enabled ONLY on a CONFIRMED preview identity (workspace · dev server ·
+// tree 'ok'). Otherwise it is disabled with the exact cause + the 1-click fix in its tooltip, and any
+// live select mode is turned off — pinning a node you cannot edit (or that belongs to another app) is a
+// lie the honest-controls invariant forbids. Called on every readiness paint (before the dedup return).
+function applySelectCapability(r){
+  const b=document.getElementById('lp-select-btn'); if(!b) return;
+  const ok=!!(r && r.workspace && r.devServer && r.tree==='ok');
+  if(ok){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title='Selecionar um elemento do preview para editar (Esc sai)'; return; }
+  if(lpSelectOn) setSelectMode(false); // cannot select an unconfirmed preview
+  b.disabled=true; b.setAttribute('aria-disabled','true');
+  const why=(!r||!r.workspace)?'abre a pasta do projeto primeiro'
+    :(!r.devServer)?'arranca o dev server para o preview aparecer'
+    :(r.tree==='mismatch')?'o preview vem de outra árvore — reinicia o dev server neste workspace'
+    :'identidade do preview por confirmar — aguarda o handshake da origem atual';
+  b.title='🎯 Selecionar indisponível — '+why;
+}
 function renderReadiness(r){
+  applySelectCapability(r); // COH-04 — gate the selector by identity on every paint (independent of the lights-dedup below)
   const el=document.getElementById('lp-ready'); if(!el) return;
   if(!r){ if(lpReadySig!==''){ lpReadySig=''; el.innerHTML=''; el.style.display='none'; } return; }
   const lit=function(state,label,fix,fixlabel){
@@ -3380,6 +3783,7 @@ function renderReadiness(r){
     else parts.push(lit('bad','sem dev server','reprobe','re-probar'));
     if(r.tree==='ok') parts.push(lit('ok','árvore',null,null));
     else if(r.tree==='mismatch') parts.push(lit('warn','outra árvore','restart','reiniciar dev server'));
+    else if(r.tree==='unknown') parts.push(lit('warn','árvore por confirmar', r.devServer?'restart':'reprobe', r.devServer?'reiniciar dev server':'re-probar')); // C0/COH-04 — the 4th light is ALWAYS visible: identity 'por confirmar' (origin swap / no handshake / no server) NEVER silently vanishes, always with a 1-click fix
     if(r.sdk) parts.push(lit('ok','agente',null,null));
     else if(!r.trust) parts.push(lit('bad','sem confiança','trust','confiar'));
     else parts.push(lit('bad','sem SDK','sdk','como instalar'));
@@ -3480,12 +3884,64 @@ function applyStage(stage){
   // reloads. When the URL DOES change we also recompute curOrigin — the exact origin the MP4
   // tap-message lock accepts — and drop stale errors that belonged to the previous origin.
   if(hasUrl && frame && curSrc !== st.url){
+    const originChanged = curOrigin !== null; // curOrigin was already set → this is a genuine re-point, not the first load
     curSrc = st.url;
     try { curOrigin = new URL(st.url).origin; } catch(e) { curOrigin = null; }
     lpClearErrors('all');
     lpState = null; lpPendingRestore = null; // a different URL is a different app — never restore the old route/scroll onto it
+    // C0 · COH-01 — a different stage origin is a DIFFERENT app: drop the pin, the refs and the anchored
+    // toolbar so the user never edits through an anchor that belonged to the previous origin. The host
+    // has already re-armed the lease + nulled servedRoot/selection; this is the visual half of the
+    // invalidation. renderSelection(null) hides the in-canvas toolbar too. (First load: nothing to clear.)
+    if(originChanged){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){} } // COH-11 — a new app must re-prove nav capability
     frame.setAttribute('src', st.url);
   }
+}
+// C0 · COH-01 — the identity-lease safe state (mock S7). Rendered OVER the frame whenever the host
+// snapshot carries s.lease (origin changed, tree not yet re-confirmed). Blocks the gesture honestly:
+// the pin is already cleared, and Selecionar/Editar only return when the new origin handshakes. Copy is
+// concat-only + esc()'d (this lives inside the getLivePreviewHtml template, so string-plus only). Fail-soft.
+let lpLeaseActive=false;
+function renderLease(lease){
+  const el=document.getElementById('lp-lease'); if(!el) return;
+  if(!lease){ if(lpLeaseActive){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; setSelectMode(false); } return; }
+  lpLeaseActive=true;
+  const oldP=lease.prevPort?(':'+esc(lease.prevPort)):'a origem antiga';
+  const newP=lease.newPort?(':'+esc(lease.newPort)):'uma nova origem';
+  const selTxt=lease.clearedFile?('seleção 📍 '+esc(lease.clearedFile)+(lease.clearedLine!=null?(':'+esc(lease.clearedLine)):'')+' — limpa'):'seleção — limpa';
+  const html='<div class="lp-lease-card">'
+    +'<div class="lp-lease-t">🔒 A origem do preview mudou ('+oldP+' → '+newP+')</div>'
+    +'<div class="lp-lease-r">O servidor em '+oldP+' parou e apareceu outro em '+newP+' — pode ser outra aplicação (ex.: um container Docker). Por segurança, o Mooter invalidou tudo o que dependia da origem antiga:</div>'
+    +'<div class="lp-lease-inv">'+selTxt+' · árvore servida — por confirmar · edições — bloqueadas (zero writes)</div>'
+    +'<div class="lp-lease-h">O 🎯 Selecionar e o ✏️ Editar só voltam quando o site em '+newP+' fizer o handshake Mooter (lp-ready da origem atual) e confirmar que é a MESMA árvore do teu workspace.</div>'
+    +'<div class="lp-lease-acts">'
+    +'<button type="button" id="lp-lease-restart" class="lp-lease-btn">↻ reiniciar o MEU dev server ('+oldP+')</button>'
+    +'<button type="button" id="lp-lease-wait" class="lp-lease-btn ghost">✓ usar '+newP+' (aguardar handshake)</button>'
+    +'<button type="button" id="lp-lease-inspect" class="lp-lease-btn ghost">📄 ver o que responde em '+newP+'</button>'
+    +'</div></div>';
+  el.innerHTML=html; el.style.display='flex';
+  // While the lease is unconfirmed, Select mode is off — the gesture is blocked until the handshake.
+  setSelectMode(false);
+  const rb=document.getElementById('lp-lease-restart');
+  if(rb) rb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-restart-dev' }); });
+  const wb=document.getElementById('lp-lease-wait');
+  // "aguardar handshake" — accept the new origin and dismiss THIS overlay locally; identity stays
+  // unconfirmed (the amber "árvore por confirmar" light + blocked writes persist) until lp-ready arrives.
+  if(wb) wb.addEventListener('click', function(){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; });
+  const ib=document.getElementById('lp-lease-inspect');
+  if(ib) ib.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-external', url:(lease.nextOrigin||'') }); });
+}
+// COH-05 — the multi-root project selector. Hidden for a single-root workspace; otherwise lists the
+// workspace folders with the ACTIVE one selected. Picking one posts lp-pick-project (host re-detects
+// against it). Concat-only + esc()'d; deduped on a signature so a poll never steals a mid-open dropdown.
+let lpProjSig='';
+function renderProjects(projects){
+  const sel=document.getElementById('lp-project'); if(!sel) return;
+  if(!projects||!Array.isArray(projects.list)||projects.list.length<2){ if(lpProjSig!==''){ lpProjSig=''; sel.style.display='none'; sel.innerHTML=''; } return; }
+  const sig=JSON.stringify(projects); if(sig===lpProjSig) return; lpProjSig=sig;
+  let html='';
+  for(let i=0;i<projects.list.length;i++){ const p=projects.list[i]||{}; html+='<option value="'+esc(p.path)+'"'+(p.active?' selected':'')+'>📁 '+esc(p.name||p.path)+'</option>'; }
+  sel.innerHTML=html; sel.style.display='inline-block';
 }
 // ── MP3.3 multi-page navigation (webview side) ──────────────────────────────────────────────
 // Navigate the frame WITHIN the current stage origin. curSrc stays = the stage root, so the App
@@ -3641,6 +4097,17 @@ let lpIntent='edit';
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
 let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false, lpHmrDown=false;
+let lpServedRoot=null; // COH-16 — the current lease's served root, so per-node history never mixes worktrees
+// COH-11 — Back/Forward route through the Mooter tap (lp-history). Without a tap handshake (lp-ready)
+// from the current origin, they do nothing — so they are DISABLED with an honest reason until the tap
+// proves the capability. Reset on every origin change (a new app must re-prove it).
+let lpHasTap=false;
+function applyNavCapability(){
+  const back=document.getElementById('lp-back'), fwd=document.getElementById('lp-fwd');
+  const why='navegação indisponível — este site não expõe o tap Mooter (sem handshake da origem atual)';
+  const set=function(b){ if(!b) return; if(lpHasTap){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title=(b.id==='lp-back'?'Recuar no site':'Avançar no site'); } else { b.disabled=true; b.setAttribute('aria-disabled','true'); b.title=why; } };
+  set(back); set(fwd);
+}
 function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
@@ -3778,34 +4245,36 @@ function positionCanvasToolbar(rect){
   const px=fx+(rect.x||0), py=fy+(rect.y||0), pw=rect.w||0, ph=rect.h||0; // pin box in wrap coords
   const clampX=function(x,w){ return Math.max(6, Math.min(x, wrapW-w-6)); };
   const clampY=function(y,h){ return Math.max(6, Math.min(y, wrapH-h-6)); };
+  const cw=(chip&&chip.offsetWidth)||34, chh=(chip&&chip.offsetHeight)||28;
   // §7 minimized — place the 🐮 chip at the pin corner (above if it fits, else below); toolbar hidden.
+  // Above/below by construction never overlaps the pin (COH-02 holds for the minimized state too).
   if(lpToolbarMin){
-    if(chip){ const cw=chip.offsetWidth||34, chh=chip.offsetHeight||34; chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
+    if(chip){ chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
     return;
   }
   const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
-  // §7 dragged — honour the manual position (clamped into the frame; the auto-anchor is the
-  // no-drag alternative required by WCAG 2.5.7, so dragging is a convenience, never the only way).
-  if(lpToolbarManualPos){ tb.style.left=clampX(lpToolbarManualPos.x, tw)+'px'; tb.style.top=clampY(lpToolbarManualPos.y, th)+'px'; return; }
-  // §7 auto-anchor — try above → below → right → left; take the first that fits AND does not cover
-  // the pin (the toolbar must never hide the very element being edited — Paulo's live pain).
   const pin={x:px,y:py,w:pw,h:ph};
-  const cands=[
-    {x:clampX(px,tw), y:py-th-8},        // above
-    {x:clampX(px,tw), y:py+ph+8},        // below
-    {x:px+pw+8,       y:clampY(py,th)},  // right
-    {x:px-tw-8,       y:clampY(py,th)},  // left
-  ];
-  let chosen=null;
-  for(let i=0;i<cands.length;i++){
-    const c=cands[i];
-    if(c.x<6||c.y<6||c.x+tw>wrapW-6||c.y+th>wrapH-6) continue;   // off-frame
-    if(lpRectsOverlap({x:c.x,y:c.y,w:tw,h:th}, pin)) continue;   // covers the pin
-    chosen=c; break;
+  // COH-02 — the PURE placement decision (serialised in): it repeats the overlap test on the MANUAL
+  // (dragged) position too, and when nothing fits it returns 'minimize'/'dock' instead of clamping the
+  // toolbar ON TOP of the pin. INVARIANT: the returned rect never covers the pinned node. The auto-anchor
+  // (manual omitted) is the no-drag alternative required by WCAG 2.5.7 — dragging is a convenience, never
+  // the only way to place the toolbar. Proven geometrically in lp-toolbar-geom.test.js (real rectangles).
+  const pl=chooseToolbarPlacement({ pin, tb:{w:tw,h:th}, wrap:{w:wrapW,h:wrapH}, chip:{w:cw,h:chh}, manual:lpToolbarManualPos });
+  if(pl.mode==='place'){
+    tb.style.display='block'; tb.setAttribute('aria-hidden','false');
+    if(chip) chip.style.display='none';
+    tb.style.left=pl.x+'px'; tb.style.top=pl.y+'px';
+    return;
   }
-  if(!chosen) chosen={x:clampX(px,tw), y:clampY(py+ph+8, th)};   // last resort: clamped below
-  tb.style.left=chosen.x+'px';
-  tb.style.top=chosen.y+'px';
+  // No full placement clears the pin → auto-minimize to the chip (never over the node). 'dock' parks the
+  // chip at the top of the right edge of the frame. Either way the FULL toolbar is hidden, chip shown.
+  lpToolbarMin=true;
+  tb.style.display='none'; tb.setAttribute('aria-hidden','true');
+  if(chip){
+    chip.style.display='inline-flex';
+    if(pl.mode==='minimize'){ chip.style.left=pl.x+'px'; chip.style.top=pl.y+'px'; }
+    else { chip.style.left=Math.max(6, wrapW-cw-6)+'px'; chip.style.top='6px'; } // dock: top of the right rail edge
+  }
 }
 function hideCanvasToolbar(){
   const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body'), chip=document.getElementById('lp-ctb-chip');
@@ -3818,7 +4287,23 @@ function hideCanvasToolbar(){
 // landed ("✓ aplicado no preview · $0"), a question was answered ("💬 resposta no painel →"), or a
 // write was refused ("⚠️ …"). Politely announced (aria-live) and auto-dismissed. kind ∈ ok|ask|warn.
 let lpToastTimer=null;
+// COH-14 — the SINGLE visual state machine. One reducer maps the whole panel to one of six honest
+// states; the state token (text, always present) is SEPARATE from the actor/tier glyph (COH-13).
+// Animation lives ONLY in 'working' — the spinner is display-gated to it, and the CSS animates only
+// [data-lp-state="working"]; success/warning/error/blocked are FINITE, textual transitions. The global
+// prefers-reduced-motion guard already zeroes every animation, so reduced-motion is green in all states.
+let lpVisState='idle';
+const LP_STATE_TOKENS={ idle:'', blocked:'⛔ bloqueado', working:'⏳ a trabalhar', success:'✓ feito', warning:'⚠️ atenção', error:'⛔ erro' };
+function lpVisualState(state){
+  const s=Object.prototype.hasOwnProperty.call(LP_STATE_TOKENS,state)?state:'idle';
+  lpVisState=s;
+  const wrap=document.getElementById('lp-framewrap'); if(wrap) wrap.setAttribute('data-lp-state', s);
+  const tok=document.getElementById('lp-state-token');
+  if(tok){ const txt=LP_STATE_TOKENS[s]; tok.textContent=txt; tok.setAttribute('data-state', s); tok.style.display=txt?'inline-flex':'none'; }
+}
 function showToast(kind, text){
+  // COH-14 — a toast is a FINITE state transition: ok→success, warn→warning, err→error (ask/info stay).
+  if(kind==='ok') lpVisualState('success'); else if(kind==='warn') lpVisualState('warning'); else if(kind==='err'||kind==='error') lpVisualState('error');
   const t=document.getElementById('lp-ctb-toast'); if(!t) return;
   t.className='lp-ctb-toast lp-toast-'+(kind||'ok')+' lp-toast-in';
   t.textContent=text;
@@ -3844,6 +4329,7 @@ function sendFlash(){
 // HONEST tier ("moo local · $0" vs "Sonnet · subscrição") and a cancel button for agent runs. Never
 // mute: it starts on the first thinking status and ends when a result (any outcome) arrives.
 function lpStartProgress(text, cancellable){
+  lpVisualState('working'); // COH-14 — the ONLY state that animates
   const p=document.getElementById('lp-progress'), t=document.getElementById('lp-progress-txt'), c=document.getElementById('lp-progress-cancel');
   // §4 — the minimized 🐮 chip also shows "working" so a run is never mute when the toolbar is
   // collapsed (the user may minimize to watch the preview while the agent works).
@@ -3855,6 +4341,9 @@ function lpStartProgress(text, cancellable){
 }
 function lpUpdateProgress(text){ const t=document.getElementById('lp-progress-txt'); if(t&&text) t.textContent=text; }
 function lpFinishProgress(){
+  // COH-14 — leaving 'working' returns to a resting state; a subsequent toast promotes it to
+  // success/warning/error. Never leave the machine spinning after a run ends.
+  if(lpVisState==='working') lpVisualState('idle');
   const p=document.getElementById('lp-progress'); if(p) p.style.display='none';
   const chip=document.getElementById('lp-ctb-chip'); if(chip){ chip.classList.remove('lp-chip-working'); chip.setAttribute('title','Reabrir a toolbar'); }
 }
@@ -3945,12 +4434,20 @@ function updateAnchorChip(sel){
   }
 }
 // F0.2 — the history of THIS node (clicking a node shows its edits, incl. prior sessions restored from
-// workspaceState). Matches feed items by nodeKey (file+tag+line); a persisted item is read-only history.
+// workspaceState). COH-16 — matches feed items on the FULL persisted nodeKey: lease/tree (servedRoot) +
+// file + line + col + tag. The old filter (file+tag+line only) mixed homonym nodes across worktrees — a
+// page.tsx:56 <p> in worktree A showed worktree B's history. servedRoot/col are compared only when both
+// sides know them (a persisted item from before servedRoot was recorded still matches on file+line+tag).
 function lpNodeHistoryHTML(sel){
   try{
     if(!sel||!sel.file) return '';
     var all=Array.isArray(lpFeedItems)?lpFeedItems:[];
-    var items=all.filter(function(e){ var nk=e&&e.nodeKey; if(!nk||nk.file!==sel.file) return false; if(sel.tag!=null&&nk.tag!=null&&nk.tag!==sel.tag) return false; if(sel.line!=null&&nk.line!=null&&nk.line!==sel.line) return false; return true; });
+    var items=all.filter(function(e){ var nk=e&&e.nodeKey; if(!nk||nk.file!==sel.file) return false;
+      if(lpServedRoot&&nk.servedRoot&&nk.servedRoot!==lpServedRoot) return false; // COH-16 — never mix worktrees
+      if(sel.tag!=null&&nk.tag!=null&&nk.tag!==sel.tag) return false;
+      if(sel.line!=null&&nk.line!=null&&nk.line!==sel.line) return false;
+      if(sel.col!=null&&nk.col!=null&&nk.col!==sel.col) return false; // COH-16 — col disambiguates same-line siblings
+      return true; });
     if(!items.length) return '';
     function clk(ts){ if(ts==null) return 'n/d'; var d=new Date(ts); return isNaN(d.getTime())?'n/d':d.toLocaleTimeString(undefined,{hour12:false}); }
     var rows='';
@@ -4029,6 +4526,9 @@ function renderSelection(sel){
     // F0.1 — the prompt box is the star (autofocus on a fresh pin, wired below); the tier picker sits under it.
     +'<div class="lp-ed-row"><input id="lp-box-in" class="lp-ed-in" type="text" placeholder="ex: encurta este texto · os números batem com o projecto?" aria-label="prompt ancorado neste elemento" /><button id="lp-box-b" class="lp-sel-btn lp-box-send" title="Envia o prompt no modo escolhido — diff antes de manter">✏️ Editar</button></div>'
     +'<div id="lp-box-hint" class="lp-hint" style="display:none"></div>'
+    // COH-18 — 1–3 contextual skill chips derived from the node's tag/semantics, JUNTO ao one-box. The
+    // full /skills menu stays in the ▾ drawer below. Populated by renderCtxSkills(sel) after mount.
+    +'<div id="lp-ctx-skills" class="lp-ctx-skills" role="group" aria-label="Skills sugeridas para este elemento" style="display:none"></div>'
     // F0.1 — the model/tier picker (local $0 · Haiku · Sonnet · Opus · @fable) is now ALWAYS visible, under the box.
     +'<div id="lp-chip" class="lp-chip"></div>'
     // LP-4.9 loop-fix §C + W2 — ALWAYS-visible context/route line + honest context-source chip.
@@ -4062,8 +4562,9 @@ function renderSelection(sel){
     else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none';
       // F0.1 — pin ready to type: focus the prompt box on a fresh selection (only when the toolbar is shown).
       const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} } }
+    try{ renderCtxSkills(sel); }catch(e){} // COH-18 — contextual skill chips next to the one-box
   }
-  else { el.insertAdjacentHTML('beforeend', inputsHTML); } // fallback: keep controls in the rail
+  else { el.insertAdjacentHTML('beforeend', inputsHTML); try{ renderCtxSkills(sel); }catch(e){} } // fallback: keep controls in the rail
   // LP-4 §0 — preview-first: "aplicar" asks for the mini-diff; the write only happens after the
   // user approves it (and the host re-checks the source hash at that moment — fence simétrica).
   const sendEdit=function(kind,value){ vsapi.postMessage({ type:'lp-edit', preview:true, file:sel.file, line:sel.line, col:sel.col, tag:sel.tag, edit:{ kind:kind, value:value } }); showEditResult(null,'pending'); };
@@ -4318,7 +4819,7 @@ function renderPromptDiff(m){
     // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
     // concurrent preview can no longer make the approved diff land on a different node.
     if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic });
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic, epoch:m.epoch }); // C0 COH-01 — echo the lease epoch the diff was generated under; the host refuses a stale-lease write
     showEditResult(null,'pending');
   });
   const ga=document.getElementById('lp-pr-agent');
@@ -4352,7 +4853,7 @@ function renderEscalationOffer(m, el){
   if(up) up.addEventListener('click', function(){
     if(this.disabled) return;
     if(m.file==null||m.line==null||!m.prompt){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt', file:m.file, line:m.line, col:m.col, tag:m.tag, prompt:m.prompt, tier:'t2', selText:m.selText||'' });
+    vsapi.postMessage({ type:'lp-prompt', file:m.file, line:m.line, col:m.col, tag:m.tag, prompt:m.prompt, tier:'t2', selText:m.selText||'', escalated:true }); // COH-09 — the accepted escalation is flagged so the MEO records escalation_accepted
     showEditResult(null,'pending');
   });
   const ca=document.getElementById('lp-esc-cancel');
@@ -4398,8 +4899,20 @@ function renderTaskResult(m){
       +'<button id="lp-task-revert-all" class="lp-sel-btn" title="repor os bytes anteriores de TODOS os ficheiros listados (sha-guarded) — nunca fora desta lista">reverter tudo</button>'
       +'</div>';
   }
+  // COH-07 — an ANSWER (no edits) ALWAYS terminates in "▶ Aplicar com o agente": one click turns the
+  // answer into an anchored EDIT. The webview posts ONLY the askId — the host revalidates the lease and
+  // composes the edit from the STORED question+answer (never a webview-supplied payload). Diff + revert
+  // as the normal edit path. Ends the copy-paste-to-Codex-by-hand gesture the audit called out.
+  if(!edits.length && m.askId){
+    html+='<div class="lp-sel-acts">'
+      +'<button id="lp-ask-apply" class="lp-sel-btn lp-abtn" data-askid="'+esc(m.askId)+'" title="cria a edição ancorada NESTE elemento a partir desta resposta — com diff antes de escrever e reverter sempre">▶ Aplicar com o agente</button>'
+      +'</div>'
+      +'<div class="lp-task-hint">Aplicar cria a edição ancorada neste elemento, com diff antes de escrever e reverter sempre — não precisas de copiar para lado nenhum.</div>';
+  }
   html+='</div>';
   el.innerHTML=html;
+  const ab=document.getElementById('lp-ask-apply');
+  if(ab) ab.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-ask-apply', askId:this.getAttribute('data-askid') }); showEditResult(null,'pending'); });
   const tid=m.taskId;
   const kb=document.getElementById('lp-task-keep');
   if(kb) kb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-task-keep', taskId:tid }); showEditResult(null,'pending'); });
@@ -4438,6 +4951,35 @@ function applyTaskKeepResult(m){
   const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
 }
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
+// COH-13 — the SINGLE tier dictionary, used in the chips, the MEO and the cockpit (no more three
+// vocabularies, no more ✨ collapsing three models). One glyph per tier + AUTO's router meta-glyph.
+// The text label is ALWAYS present alongside the glyph (never colour/emoji alone).
+function tierGlyph(t){ return t==='t1'?'⚡':t==='t2'?'🎼':t==='t3'?'🧠':t==='fable'?'🌟':t==='auto'?'🧭':'🐮'; }
+function tierLabel(t){ return tierGlyph(t)+' '+tierModel(t); }
+// COH-18 — derive 1–3 contextual skills from the pinned node's tag/semantics (image→/icon+/a11y ·
+// heading→/copy · text→/copy+/a11y · section→/section · else→/restyle). Each carries a natural-language
+// seed the one-box already knows how to send. The FULL /skills menu stays in the ▾ drawer.
+function contextualSkills(sel){
+  var tag=String((sel&&sel.tag)||'').toLowerCase();
+  var out=[];
+  function add(skill,label,seed){ if(out.length<3 && !out.some(function(s){return s.skill===skill;})) out.push({skill:skill,label:label,seed:seed}); }
+  if(tag==='img'||tag==='image'||tag==='svg'||tag==='picture'){ add('/icon','💡 /icon — otimizar ícone/imagem','otimiza este ícone/imagem'); add('/a11y','💡 /a11y — alt desta imagem','adiciona um alt descritivo a esta imagem'); }
+  else if(/^h[1-6]$/.test(tag)){ add('/copy','💡 /copy — reescrever este título','reescreve este título para ser mais claro e persuasivo'); }
+  else if(tag==='p'||tag==='span'||tag==='a'||tag==='li'||tag==='label'||tag==='button'||tag==='blockquote'||tag==='strong'||tag==='em'){ add('/copy','💡 /copy — reescrever este texto','reescreve este texto para ser mais claro'); add('/a11y','💡 /a11y — contraste deste <'+tag+'>','melhora o contraste e a acessibilidade deste elemento'); }
+  else if(tag==='section'||tag==='header'||tag==='footer'||tag==='nav'||tag==='main'||tag==='article'||tag==='aside'){ add('/section','💡 /section — ajustar esta secção','melhora a disposição desta secção'); }
+  else { add('/restyle','💡 /restyle — mudar o estilo','muda o estilo deste elemento'); }
+  return out;
+}
+function renderCtxSkills(sel){
+  var el=document.getElementById('lp-ctx-skills'); if(!el) return;
+  var sk=(sel&&sel.file)?contextualSkills(sel):[];
+  if(!sk.length){ el.style.display='none'; el.innerHTML=''; return; }
+  var html='';
+  for(var i=0;i<sk.length;i++){ html+='<button type="button" class="lp-ctx-skill" data-seed="'+esc(sk[i].seed)+'" title="'+esc(sk[i].skill)+' — sugestão contextual · o menu completo está em ▾ ajustes rápidos">'+esc(sk[i].label)+'</button>'; }
+  el.innerHTML=html; el.style.display='flex';
+  var btns=el.querySelectorAll('[data-seed]');
+  for(var j=0;j<btns.length;j++){ btns[j].addEventListener('click', function(){ var bx=document.getElementById('lp-box-in'); if(bx){ bx.value=this.getAttribute('data-seed'); try{ bx.focus(); }catch(e){} } }); }
+}
 // LP-4.5 — the one-box MODE chips. The truth: text/class/delete stay deterministic ($0, no LLM).
 // The BOX defaults to AUTO = the anchored-task agent (subscription via the SDK bridge — honest
 // chip 'agente · subscrição'): it reads the repo and answers or edits in the RIGHT place, every
@@ -4445,7 +4987,7 @@ function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus'
 // Haiku/Sonnet/Opus pin the AGENT's model; @fable is manual only (never auto-routed). Bridge
 // absent/untrusted → every agent mode disables with the honest reason and local becomes the
 // selection — never a dead button that fails later.
-const LP_MODES=[['auto','🤖 AUTO · agente · subscrição'],['local','🐮 local $0 · só este nó'],['t1','Haiku'],['t2','Sonnet'],['t3','Opus'],['fable','@fable']];
+const LP_MODES=[['auto','🧭 AUTO · agente · subscrição'],['local','🐮 local $0 · só este nó'],['t1','⚡ Haiku'],['t2','🎼 Sonnet'],['t3','🧠 Opus'],['fable','🌟 @fable']]; // COH-13 — one glyph per tier, text always present
 function renderModeChips(){
   const el=document.getElementById('lp-chip'); if(!el) return;
   const br=lpBridge||{ available:false, reason:'sdk-bridge-missing' };
@@ -4646,14 +5188,14 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-error-clear'){ lpClearErrors(m.kind); }
     else if (m.type === 'lp-hmr-down'){ setHmrStale(true); } // F2 (P1-7) — hot-reload channel dropped: the preview may be stale (origin-locked)
     else if (m.type === 'lp-hmr-up'){ setHmrStale(false); } // F2 — reconnected: clear the honest stale banner
-    else if (m.type === 'lp-nav'){ if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav)
+    else if (m.type === 'lp-nav'){ if(!lpHasTap){ lpHasTap=true; applyNavCapability(); } if (typeof m.path === 'string') reflectRoute(m.path.slice(0,2048)); } // MP3.3: current route from the tap (popstate + Link nav) + COH-11 the tap proves nav capability
     else if (m.type === 'lp-state'){
       if (typeof m.path === 'string'){
         lpState = { path: m.path.slice(0,2048), scrollY: (typeof m.scrollY === 'number' && isFinite(m.scrollY)) ? m.scrollY : 0 };
         vsapi.postMessage({ type:'lp-state', path: lpState.path, scrollY: lpState.scrollY });
       }
     }
-    else if (m.type === 'lp-ready'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked, same as every tap message)
+    else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11 the handshake proves nav capability
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
     else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
@@ -4678,6 +5220,9 @@ window.addEventListener('message', (ev) => {
   if (m.type === 'lp-snapshot'){
     lpNoWorkspace = !!(m.s && m.s.leBridge && m.s.leBridge.reason === 'no-workspace'); // F0.5.1 — empty-window signal for applyStage
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
+    renderLease(m.s && m.s.lease); // C0 · COH-01 — the identity-lease safe state (mock S7) rides the snapshot
+    renderProjects(m.s && m.s.projects); // COH-05 — the multi-root project selector rides the snapshot
+    lpServedRoot=(m.s && typeof m.s.servedRoot==='string' && m.s.servedRoot)?m.s.servedRoot:null; // COH-16 — the current lease's served root for the per-node history filter
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
@@ -4745,6 +5290,9 @@ window.addEventListener('message', (ev) => {
     // denial (honesty: the fence is visible, not implied).
     const el=document.getElementById('lp-edit-msg');
     let txt='';
+    // COH-09 — AUTO announces the router decision BEFORE the run: "🧭 AUTO → 🎼 Sonnet". A quick honest
+    // toast + the pending line, so the user sees WHERE the request is going before any token is spent.
+    if(m.phase==='route'){ const lbl=m.label||tierModel(m.mode); txt='🧭 AUTO → '+lbl; if(el){ el.textContent=txt; el.className='lp-ed-msg lp-ed-pending'; } showToast('ask','🧭 encaminhado para '+lbl); return; }
     if(m.phase==='thinking') txt='🐮 a pensar… ('+(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · subscrição)';
     else if(m.phase==='tool') txt=((m.tool==='Edit'||m.tool==='MultiEdit')?'✎ a editar ':'👁 a ler ')+(m.path||'…');
     else if(m.phase==='deny') txt='🛡 ferramenta negada: '+(m.tool||'?')+(m.why?(' ('+m.why+')'):'');
@@ -4799,15 +5347,19 @@ if(urlInput) urlInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sub
 const routesSel=document.getElementById('lp-routes');
 if(routesSel) routesSel.addEventListener('change', ()=>{ const v=routesSel.value; if(v) vsapi.postMessage({ type:'lp-nav-input', input:v }); });
 const backBtn=document.getElementById('lp-back');
-if(backBtn) backBtn.addEventListener('click', ()=> frameHistory('back'));
+if(backBtn) backBtn.addEventListener('click', ()=>{ if(!lpHasTap) return; frameHistory('back'); }); // COH-11 — guarded (button is also disabled without a tap)
 const fwdBtn=document.getElementById('lp-fwd');
-if(fwdBtn) fwdBtn.addEventListener('click', ()=> frameHistory('forward'));
+if(fwdBtn) fwdBtn.addEventListener('click', ()=>{ if(!lpHasTap) return; frameHistory('forward'); });
+applyNavCapability(); // COH-11 — Back/Forward start DISABLED with a reason until a tap handshake proves the capability
 const reBtn=document.getElementById('lp-redetect');
 if(reBtn) reBtn.addEventListener('click', ()=> vsapi.postMessage({ type:'lp-redetect' }));
 const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
+// COH-05 — pick the active project (multi-root). Host re-detects the dev server against it.
+const projSel=document.getElementById('lp-project');
+if(projSel) projSel.addEventListener('change', function(){ if(this.value) vsapi.postMessage({ type:'lp-pick-project', path:this.value }); });
 // LP-5 §C — 🛡 Review Security: a GLOBAL action (not per-pin). Click → the host bounded-walks the
 // workspace + runs the 4 pure scanners + npm audit, all local, $0; the result renders into
 // #lp-security via the serialised renderSecurityFindings (same fn.toString() trick as presets).
@@ -4829,28 +5381,44 @@ if(pubBtn) pubBtn.addEventListener('click', function(){
   if(el){ el.style.display='block'; el.innerHTML='<div class="lp-pub-hdr">🚀 a preparar…</div>'; }
   vsapi.postMessage({ type:'lp-publish-status' });
 });
+// COH-12 — an inline error next to a control (never a silent return). Creates/updates a sibling
+// alert element; cleared on the next successful action or re-render.
+function pubInlineError(refId, msg){
+  const ref=document.getElementById(refId); if(!ref||!ref.parentNode) return;
+  let err=document.getElementById(refId+'-err');
+  if(!err){ err=document.createElement('div'); err.id=refId+'-err'; err.className='lp-pub-err lp-pub-inline-err'; err.setAttribute('role','alert'); ref.parentNode.insertBefore(err, ref.nextSibling); }
+  err.textContent=msg;
+}
 const pubEl=document.getElementById('lp-publish');
 if(pubEl) pubEl.addEventListener('click', function(e){
-  const t=e.target; if(!t || !t.id) return;
+  const t=e.target; if(!t) return;
+  // COH-19 — a real deploy/prod URL anchor opens in the browser host-side (CSP-safe), never inert text.
+  const ext=(t.getAttribute && t.getAttribute('data-ext'))||null;
+  if(ext){ if(e.preventDefault) e.preventDefault(); vsapi.postMessage({ type:'lp-open-external', url:ext }); return; }
+  if(!t.id) return;
   if(t.id==='lp-pub-review-btn'){ const b=document.getElementById('lp-security-btn'); if(b) b.click(); return; }
   if(t.id==='lp-pub-commit-btn'){
-    if(!lpPublishState || !Array.isArray(lpPublishState.touchedFiles) || !lpPublishState.touchedFiles.length) return;
+    // COH-12 — no silent returns: an empty change set or an empty message says WHY, next to the button.
+    if(!lpPublishState || !Array.isArray(lpPublishState.touchedFiles) || !lpPublishState.touchedFiles.length){ pubInlineError('lp-pub-commit-btn','nada por commitar — não há ficheiros alterados nesta árvore.'); return; }
     const msgEl=document.getElementById('lp-pub-msg');
     const message=(msgEl && msgEl.value ? msgEl.value : (lpPublishState.defaultMessage||'')).trim();
-    if(!message) return;
+    if(!message){ pubInlineError('lp-pub-commit-btn','escreve uma mensagem de commit primeiro.'); if(msgEl) msgEl.focus(); return; }
+    pubInlineError('lp-pub-commit-btn','');
     t.disabled=true; t.textContent='a fazer commit + push…'; // F9 — honest progress (the button no longer just freezes)
     vsapi.postMessage({ type:'lp-publish-commit', files: lpPublishState.touchedFiles.map(function(f){ return (f&&f.path)||f; }), message: message });
     return;
   }
   if(t.id==='lp-pub-deploy-open'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='block'; return; }
-  if(t.id==='lp-pub-deploy-cancel'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='none'; return; }
+  if(t.id==='lp-pub-deploy-cancel'){ const gate=document.getElementById('lp-pub-gate'); if(gate) gate.style.display='none'; pubInlineError('lp-pub-deploy-confirm',''); return; }
   if(t.id==='lp-pub-deploy-confirm'){
     // Client-side check is a UX courtesy ONLY — the host re-reads .vercel/project.json itself and
     // is the ONLY thing that can actually authorise the deploy (see extension.js _publishDeploy).
     const input=document.getElementById('lp-pub-gate-input');
     const typed=input ? input.value.trim() : '';
     const expected=lpPublishState && lpPublishState.projectName;
-    if(!typed || !expected || typed!==expected) return;
+    // COH-12 — no silent return: a mismatched two-factor confirmation says exactly what to type.
+    if(!typed || !expected || typed!==expected){ pubInlineError('lp-pub-deploy-confirm', expected?('o nome do projeto não coincide — escreve exactamente "'+expected+'".'):'projeto Vercel não ligado — não há destino para confirmar.'); if(input) input.focus(); return; }
+    pubInlineError('lp-pub-deploy-confirm','');
     t.disabled=true; t.textContent='a fazer deploy… (pode demorar uns minutos)'; // F9 — vercel --prod can take ~180s; never a frozen-looking button
     vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
     return;
@@ -5996,7 +6564,10 @@ function modelLabel(m){return MLABEL[String(m||'').toLowerCase()]||String(m||'')
 // PR stage → colour (matches host-extra prStage strings). Honest: only stages we derive.
 function stageColor(st){const x=String(st||'');if(x.indexOf('merged')===0)return 'var(--g)';if(x.indexOf('ready')===0)return 'var(--g)';if(x.indexOf('❌')>=0)return 'var(--t3)';if(x.indexOf('⏳')>=0)return 'var(--acc-warm)';if(x==='draft')return 'var(--vscode-descriptionForeground)';return 'var(--vscode-descriptionForeground)';}
 function lFmt(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(2)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':String(n));}
-function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(/claude|opus|sonnet|haiku/.test(x))return '✨';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
+// COH-13 — the SINGLE dictionary in the cockpit too: ✨ no longer collapses Opus/Sonnet/Haiku into one
+// glyph. Each Claude tier gets its canonical emoji (🧠 Opus · 🎼 Sonnet · ⚡ Haiku · 🌟 Fable) — matching
+// the one-box chips and the MEO. Non-Claude families keep their own marks (honest, distinct).
+function famEmoji(model){const x=String(model||'').toLowerCase();if(x.includes('fable'))return '🌟';if(x.includes('opus'))return '🧠';if(x.includes('sonnet'))return '🎼';if(x.includes('haiku'))return '⚡';if(/claude/.test(x))return '🐮';if(/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x)||x.includes(':'))return '🦙';if(x.includes('gemini'))return '💎';if(/gpt|codex|openai/.test(x))return '🟢';return '🤖';}
 function agoFmt(ms){const t=Math.round((+ms||0)/1000);if(t<60)return t+'s';const mi=Math.round(t/60);if(mi<60)return mi+'m';const h=Math.round(mi/60);return h<24?h+'h':Math.round(h/24)+'d';}
 function ledgerHtml(s){
   // Feature 4: ONE table, SAME columns for cloud and local — model | in | out | cache |

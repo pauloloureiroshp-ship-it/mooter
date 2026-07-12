@@ -57,6 +57,9 @@ function mkInstance(Panel, root, trusted) {
   inst.token = 'tok';
   inst._wsRoot = () => root;
   inst._workspaceTrusted = () => trusted;
+  // These tests predate COH-09 (AUTO router-native): neutralise routing so mode:'auto' forwards
+  // verbatim. Real AUTO→tier resolution has its own coverage in lp-routing-host.test.js.
+  inst._autoResolveMode = () => ({ mode: 'auto', routed: false });
   return { inst, posts };
 }
 

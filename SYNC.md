@@ -5,8 +5,28 @@
 > **Snapshot, não log** (regra ≤200 linhas, `AGENTS.md` § Information architecture).
 > Histórico pré-W0 (2026-06-11 → 07-08) arquivado em `docs/foundation/SYNC_ARCHIVE_2026.md`.
 
-**Atualizado:** 2026-07-10 · **main @** `c5cda85` (#237-MEO) · **extensão** `v0.16.66` ·
-**suites extensão** `1086/1086` pass · `classify.js` sha `427d8c0b…4bc48f` **FROZEN/intacta**.
+**Atualizado:** 2026-07-12 · **main @** `40e84cc` (#245 LP produção-perfeita) · **extensão** `v0.16.67` ·
+**suites extensão** `1162/1162` pass · `classify.js` sha `427d8c0b…4bc48f` **FROZEN/intacta**.
+**Frente LP-COERÊNCIA: FECHADA num único PR** `wave/lp-coerencia` → main — os 19 findings da auditoria de
+coerência (COH-01…19), cada um com teste; 2 gates adversariais (C0 lease · C3 eventos) = SHIP-WITH-NITS.
+**GATE humano** (merge/deploy = Paulo/Cowork no Chrome — nunca autónomo).
+
+### Frente LP-COERÊNCIA (2026-07-12) — TODOS os 19 findings fechados neste PR
+
+`wave/lp-coerencia` off `origin/main @ 40e84cc`. Régua = `_handoff/LP_COHERENCE_AUDIT_REPORT.md` + mock
+`_handoff/mooter-live-preview-mock-v2.html`. Waves atómicas C0→C5:
+
+- **C0** `e2924ce` — COH-01 lease transacional {origin·servedRoot·época} (P0) + COH-06. Adversarial: 7 vetores CLOSED.
+- **C1** `93d75e8` — COH-02 (toolbar geometria, teste geométrico real) · COH-03 (folder picker) · COH-04 (4ª luz tri-estado) · COH-05 (multi-root projeto ativo).
+- **C2** `5f3052b` — COH-07 Ask→Apply host-bound (só taskId; revalida lease+tree+trust).
+- **C3** `23b3a3c` — COH-08 (tier/model/cost/local reais) · COH-09 (AUTO router-native, classify.js intacto) · COH-15 (lifecycle) · COH-16 (nodeKey) · COH-17 (bridge cache). Adversarial: 8 vetores CLOSED.
+- **C4** `d56e280` — COH-10 (destino mooter.ai antes do two-factor) · COH-19 (anchor real) · COH-11 (Back/Fwd disabled) · COH-12 (erros inline).
+- **C5** `cb2be03` — COH-13 (dicionário único de tiers) · COH-14 (state machine visual) · COH-18 (skills contextuais).
+
+---
+
+## 📦 Frente anterior — LIVE PREVIEW "produção perfeita" (fechada em #245, `40e84cc`)
+
 **Frente LP: FECHADA num único PR** `wave/lp-producao-perfeita` → main (supersede #234/#241/#242) — GATE humano (merge/deploy = Paulo).
 
 ---

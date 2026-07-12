@@ -59,6 +59,9 @@ function mkInstance(Panel, root) {
   inst.token = 'tok';
   inst._wsRoot = () => root;
   inst._workspaceTrusted = () => true;
+  // Predates COH-09 (AUTO router-native): neutralise routing so the 'agente · AUTO · subscrição'
+  // via label stays deterministic here. Real AUTO→tier routing is covered in lp-routing-host.test.js.
+  inst._autoResolveMode = () => ({ mode: 'auto', routed: false });
   return { inst, posts };
 }
 

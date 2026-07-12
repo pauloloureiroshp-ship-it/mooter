@@ -346,6 +346,11 @@ function renderDayBreakdown(byDay) {
 // execution.log, ops.total) and "rotas" (from decisions.log, routes) are DISTINCT numbers and
 // are NEVER merged into one column — that distinction is the whole point of this lens.
 function renderModelBreakdown(byModel) {
+  // COH-13 — the SINGLE tier dictionary in the MEO too. NESTED (not a module-level helper) so it travels
+  // with renderModelBreakdown through fn.toString() serialisation into the webview (only esc is in scope
+  // there — same self-contained contract as the module header). Mirrors extension.js famEmoji exactly:
+  // 🧠 Opus · 🎼 Sonnet · ⚡ Haiku · 🌟 Fable · 🐮 local; non-Claude families keep their distinct marks.
+  function famGlyph(model) { var x = String(model || '').toLowerCase(); if (x.indexOf('fable') !== -1) return '🌟'; if (x.indexOf('opus') !== -1) return '🧠'; if (x.indexOf('sonnet') !== -1) return '🎼'; if (x.indexOf('haiku') !== -1) return '⚡'; if (/claude/.test(x)) return '🐮'; if (/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(x) || x.indexOf(':') !== -1) return '🦙'; if (x.indexOf('gemini') !== -1) return '💎'; if (/gpt|codex|openai/.test(x)) return '🟢'; return '🤖'; }
   var b = (byModel && typeof byModel === 'object') ? byModel : null;
   var models = (b && Array.isArray(b.models)) ? b.models : null;
   if (!b || !models || !models.length) {
@@ -382,7 +387,7 @@ function renderModelBreakdown(byModel) {
       costTxt = '<span class="lpdc-nd">n/d</span>';
     }
     rows += '<div class="lpx-tr">'
-      + '<span class="lpx-cell">' + esc(m.model) + '</span>'
+      + '<span class="lpx-cell">' + famGlyph(m.model) + ' ' + esc(m.model) + '</span>' // COH-13 — the shared family glyph precedes the model name
       + '<span class="lpx-cell">' + tierChip + optInChip + '</span>'
       + '<span class="lpx-cell">' + localChip + '</span>'
       + '<span class="lpx-cell">' + opsTotal + '</span>'

@@ -66,12 +66,24 @@ function renderPublishPopover(state, esc) {
   var vercelLinked = !!state.vercelLinked;
   var projectName = (typeof state.projectName === 'string') ? state.projectName : '';
 
+  // COH-19 — a validated URL is a REAL clickable anchor (data-ext → host openExternal, CSP-safe),
+  // not a plain <div> of text. Fail-soft: a falsy url renders nothing.
+  function anchor(url) {
+    if (!url) return '';
+    return '<a href="' + e(url) + '" data-ext="' + e(url) + '" class="lp-pub-link" rel="noreferrer noopener">' + e(url) + '</a>';
+  }
   var head = '<div class="lp-pub-hdr">🚀 Publicar — ' + e(status) + '</div>';
-  // the link text is rendered as plain escaped text — the webview's own markup turns it into an
-  // anchor (same contract note as the brief: "just text the webview turns into an anchor").
   var siteLine = websiteUrl
-    ? '<div class="lp-pub-url">' + (deployedThisSession ? 'site: ' : 'site (último deploy conhecido): ') + e(websiteUrl) + '</div>'
+    ? '<div class="lp-pub-url">' + (deployedThisSession ? 'site: ' : 'site (último deploy conhecido): ') + anchor(websiteUrl) + '</div>'
     : '<div class="lp-pub-meta">ainda sem deploy conhecido nesta sessão.</div>';
+  // COH-10 — the production DESTINATION, shown BEFORE the two-factor deploy so the user knows where they
+  // are publishing. Honest precedence + source (resolved host-side in _productionUrl); n/d when unknown.
+  var dest = (state.destination && typeof state.destination === 'object') ? state.destination : null;
+  var destUrl = (dest && typeof dest.url === 'string' && dest.url) ? dest.url : null;
+  var destSrc = (dest && typeof dest.source === 'string' && dest.source) ? dest.source : null;
+  var destLine = destUrl
+    ? '<div class="lp-pub-dest">destino: 🌐 ' + anchor(destUrl) + (destSrc ? ' <span class="lp-pub-dest-src">· fonte: ' + e(destSrc) + '</span>' : '') + '</div>'
+    : '<div class="lp-pub-dest lp-pub-meta">destino: n/d — define <code>NEXT_PUBLIC_SITE_URL</code> ou a setting <code>mooter.livePreview.productionUrl</code></div>';
   var branchLine = '<div class="lp-pub-meta">branch: ' + e(branch) + '</div>';
   // D10 (honesty) — the old "edições $0 · review $0 · deploy $0" was a lie: cloud edits use the user's
   // Anthropic subscription and deploy uses the user's Vercel account. State WHO charges, not a false absolute.
@@ -132,8 +144,9 @@ function renderPublishPopover(state, esc) {
         ? '<div class="lp-pub-ok">✓ commit + push' + (lr.cmd ? ' — ' + e(String(lr.cmd)) : '') + '</div>'
         : '<div class="lp-pub-err">✕ ' + e(reasonText(lr.reason)) + (lr.out ? ' — ' + e(String(lr.out).slice(0, 200)) : '') + '</div>';
     } else if (lr.action === 'deploy') {
+      // COH-19 — the post-deploy URL is a REAL clickable anchor (opens in the browser), not text.
       lastResult = lr.ok
-        ? '<div class="lp-pub-ok">✓ deploy' + (lr.url ? ' — ' + e(String(lr.url)) : ' (sem URL — ver output)') + '</div>'
+        ? '<div class="lp-pub-ok">✓ deploy' + (lr.url ? ' — ' + anchor(String(lr.url)) : ' (sem URL — ver output)') + '</div>'
         : '<div class="lp-pub-err">✕ deploy: ' + e(reasonText(lr.reason)) + (lr.out ? ' — ' + e(String(lr.out).slice(0, 200)) : '') + '</div>';
     }
   }
@@ -141,7 +154,7 @@ function renderPublishPopover(state, esc) {
   return head + siteLine + branchLine + costLine + criticalNote
     + '<div class="lp-pub-sec">' + reviewBtn + '</div>'
     + '<div class="lp-pub-sec">' + filesBlock + commitBlock + '</div>'
-    + '<div class="lp-pub-sec">' + deployBlock + '</div>'
+    + '<div class="lp-pub-sec">' + destLine + deployBlock + '</div>' // COH-10 — destination BEFORE the two-factor
     + (lastResult ? '<div class="lp-pub-sec">' + lastResult + '</div>' : '');
 }
 

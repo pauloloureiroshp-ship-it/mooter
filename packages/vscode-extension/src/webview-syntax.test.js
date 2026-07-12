@@ -18,7 +18,7 @@ function loadExtension() {
   const mk = () => new Proxy(function () { return mk(); }, { get(t, k) { if (k === Symbol.toPrimitive || k === 'toString') return () => ''; if (k === 'Uri') return { file: () => '', parse: () => '', joinPath: () => '' }; return mk(); }, apply() { return mk(); } });
   const vscodeStub = mk();
   const realReq = require;
-  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js', './lp-skills.js', './lp-security-view.js', './lp-publish-view.js'];
+  const REAL = ['./cowork-waiting', './mode-registry', './row-renderer', './arch-tree', './mission-control-view', './project-command-view', './guardian-chip', './live-preview-view.js', './lp-stage.js', './lp-toolbar-geom.js', './lp-diagnostics.js', './lp-task-view.js', './lp-presets.js', './lp-skills.js', './lp-security-view.js', './lp-publish-view.js'];
   const req = (name) => { if (name === 'vscode') return vscodeStub; if (REAL.indexOf(name) !== -1) return realReq(name); if (name.charAt(0) === '.') return mk(); return realReq(name); };
   const sandbox = { require: req, module: { exports: {} }, exports: {}, console: { log() {}, error() {}, warn() {}, info() {} }, process, __dirname, __filename: path.join(__dirname, 'extension.js'), Buffer, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, URL, TextEncoder, TextDecoder, Math, Date, JSON, Promise };
   sandbox.globalThis = sandbox;
@@ -414,9 +414,11 @@ test('Live Preview LP-4.9 §7 chrome — close (X), minimize, drag, and never co
   // X closes; minimize collapses to the chip; the chip re-expands.
   assert.ok(/xb\.addEventListener\('click', function\(\)\{ hideCanvasToolbar\(\)/.test(html), 'X closes the toolbar');
   assert.ok(html.includes('lpToolbarMin=true') && html.includes('lpToolbarMin=false'), 'minimize/expand toggle the state');
-  // The positioner tries above→below→right→left and rejects any candidate that covers the pin.
-  assert.ok(html.includes('function lpRectsOverlap'), 'overlap test present (toolbar must not cover the node)');
-  assert.ok(/if\(lpRectsOverlap\(\{x:c\.x,y:c\.y,w:tw,h:th\}, pin\)\) continue;/.test(html), 'candidates covering the pin are skipped');
+  // COH-02 — the placement decision is the PURE, serialised chooseToolbarPlacement (never covers the
+  // pin: 'place' | auto-'minimize' | 'dock'). The GEOMETRIC proof lives in lp-toolbar-geom.test.js (real
+  // rectangles at 320/390/768/820/1024) — this only checks it is wired in and fed the manual position.
+  assert.ok(html.includes('const chooseToolbarPlacement='), 'the pure placement decision is serialised into the webview');
+  assert.ok(/chooseToolbarPlacement\(\{ pin, tb:\{w:tw,h:th\}, wrap:\{w:wrapW,h:wrapH\}, chip:\{w:cw,h:chh\}, manual:lpToolbarManualPos \}\)/.test(html), 'the positioner delegates to it AND passes the manual drag through the same overlap test');
   // Drag via the grip updates a manual position; the auto-anchor remains as the no-drag alternative.
   assert.ok(html.includes("grip.addEventListener('pointerdown'") && html.includes('lpToolbarManualPos='), 'grip drag repositions the toolbar');
   assert.ok(html.includes('WCAG 2.5.7') || html.includes('no-drag alternative'), 'drag has a documented no-drag alternative (WCAG 2.5.7)');
