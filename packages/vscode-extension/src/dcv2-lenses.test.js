@@ -60,7 +60,7 @@ test('renderDayBreakdown: real data renders hero + table, honest labels present'
 });
 
 test('renderDayBreakdown: null -> exact empty-state string, never throws', () => {
-  assert.strictEqual(renderDayBreakdown(null), '<div class="lpx lpdc-empty">sem decisões ainda</div>');
+  assert.strictEqual(renderDayBreakdown(null), '<div class="lpx lpdc-empty">sem decisões ainda<div class="lpdc-nd" style="margin-top:6px">abre uma sessão Claude Code e executa uma tarefa — os dados aparecem aqui</div></div>');
   assert.doesNotThrow(() => renderDayBreakdown(undefined));
   assert.doesNotThrow(() => renderDayBreakdown({}));
   assert.doesNotThrow(() => renderDayBreakdown({ days: [] }));
@@ -129,7 +129,7 @@ test('renderModelBreakdown: real data renders hero + table, "ops reais"/"rotas" 
 });
 
 test('renderModelBreakdown: null -> exact empty-state string, never throws', () => {
-  assert.strictEqual(renderModelBreakdown(null), '<div class="lpx lpdc-empty">sem decisões ainda</div>');
+  assert.strictEqual(renderModelBreakdown(null), '<div class="lpx lpdc-empty">sem decisões ainda<div class="lpdc-nd" style="margin-top:6px">abre uma sessão Claude Code e executa uma tarefa — os dados aparecem aqui</div></div>');
   assert.doesNotThrow(() => renderModelBreakdown(undefined));
   assert.doesNotThrow(() => renderModelBreakdown({}));
   assert.doesNotThrow(() => renderModelBreakdown({ models: [] }));
@@ -192,7 +192,7 @@ test('renderFleetLanes: resting banner never hides a stale heartbeat', () => {
 });
 
 test('renderFleetLanes: whole-null fleet -> exact empty-state string, never throws', () => {
-  assert.strictEqual(renderFleetLanes(null), '<div class="lpx lpdc-empty">sem sinais da frota ainda</div>');
+  assert.strictEqual(renderFleetLanes(null), '<div class="lpx lpdc-empty">sem sinais da frota ainda<div class="lpdc-nd" style="margin-top:6px">abre uma sessão Claude Code e executa uma tarefa — os dados aparecem aqui</div></div>');
   assert.doesNotThrow(() => renderFleetLanes(undefined));
   assert.doesNotThrow(() => renderFleetLanes({}));
   assert.doesNotThrow(() => renderFleetLanes('garbage'));

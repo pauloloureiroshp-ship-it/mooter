@@ -231,10 +231,63 @@ test('renderBrain: escapes HTML in model name (no injection)', () => {
   assert.ok(html.includes('&lt;script&gt;'), 'escaped model name present');
 });
 
+// ── honest-by-provenance: the Brain cost is a REPORTED bus value, never mislabelled ~est. ──
+
+test('renderBrain: every $ carries a provenance label — reported cost is "(reportado)", never bare or ~est.', () => {
+  // buildBrainData reads the bus event's REAL `cost` field (e.cost), so the Brain's cost is a
+  // reported value, not a pricing.js estimate. It must be labelled "(reportado)"; and the
+  // adversarial invariant is: if a "$" appears anywhere in the Brain render, a provenance label
+  // (~est. OR reportado) MUST be present too — a bare "$" is a regression.
+  const withCost = LPV.buildBrainData(DECISIONS, 'sess-a', [{ sid: 'sess-a', kind: 'server', cost: 2 }], null);
+  const html = LPV.renderBrain(withCost);
+  assert.ok(html.includes('$'), 'sanity: a real cost renders a $ value');
+  assert.ok(/reportado|~est\./.test(html), 'ADVERSARIAL: a $ cost must carry a provenance label (reportado / ~est.)');
+  assert.ok(html.includes('custo (reportado)'), 'the reported bus cost is labelled (reportado)');
+  assert.strictEqual(html.indexOf('~est.'), -1, 'a reported cost must NOT be mislabelled ~est.');
+
+  // Absent cost ⇒ n/d with no $ and no dangling "(reportado)" on a missing value.
+  const noCost = LPV.renderBrain(LPV.buildBrainData(DECISIONS, 'sess-a', [], null));
+  assert.strictEqual(noCost.indexOf('$'), -1, 'absent cost renders no $ at all');
+  assert.strictEqual(noCost.indexOf('reportado'), -1, 'no dangling (reportado) when cost is n/d');
+  assert.ok(noCost.includes('n/d'), 'absent cost falls back to honest n/d');
+});
+
+// ── empty-states with a next action (audit gap #3) ─────────────────────────────────────────
+
+test('renderDayBreakdown/renderModelBreakdown: empty lens tells the user how to generate data', () => {
+  const day = LPV.renderDayBreakdown(null);
+  assert.ok(day.includes('sem decisões ainda'), 'honest empty copy kept');
+  assert.ok(day.includes('abre uma sessão Claude Code'), 'empty Day lens surfaces the next action');
+  const model = LPV.renderModelBreakdown({ models: [] });
+  assert.ok(model.includes('abre uma sessão Claude Code'), 'empty LLM lens surfaces the next action');
+});
+
+test('renderFleetLanes: no-signal state gives the action; a resting heartbeat does NOT repeat it', () => {
+  const empty = LPV.renderFleetLanes(null);
+  assert.ok(empty.includes('sem sinais da frota ainda'), 'honest empty copy kept');
+  assert.ok(empty.includes('abre uma sessão Claude Code'), 'no fleet signal ⇒ actionable tip');
+  // A heartbeat (even resting) already orients the user via the rest banner + timestamp/age, so
+  // the tip is intentionally NOT duplicated there.
+  const resting = LPV.renderFleetLanes({ resting: true, heartbeat: { ts: '2026-06-23T03:35:19.429Z', dryRun: true }, pillars: [] });
+  assert.ok(resting.includes('frota em repouso'), 'resting banner shown');
+  assert.strictEqual(resting.indexOf('abre uma sessão Claude Code'), -1, 'tip not duplicated when a heartbeat exists');
+});
+
+// ── formatMeoVersion: the discreet MEO header version (nullable by contract) ────────────────
+
+test('formatMeoVersion: prefixes v when present, empty string when null/blank, XSS-defensive', () => {
+  assert.strictEqual(LPV.formatMeoVersion('0.16.66'), 'v0.16.66');
+  assert.strictEqual(LPV.formatMeoVersion(null), '', 'null ⇒ no version (never fabricated)');
+  assert.strictEqual(LPV.formatMeoVersion(undefined), '', 'undefined ⇒ no version');
+  assert.strictEqual(LPV.formatMeoVersion(''), '', 'blank ⇒ no version');
+  assert.strictEqual(LPV.formatMeoVersion('  '), '', 'whitespace-only ⇒ no version');
+  assert.strictEqual(LPV.formatMeoVersion('1.0<script>'), 'v1.0script', 'strips angle/quote chars defensively');
+});
+
 // ── concat-only contract (safe to embed in getLivePreviewHtml's outer template literal) ───
 
-test('concat-only guard: renderDirectorsCut/renderBrain source has no backticks or ${} interpolation', () => {
-  for (const fn of [LPV.renderDirectorsCut, LPV.renderBrain]) {
+test('concat-only guard: renderDirectorsCut/renderBrain/formatMeoVersion source has no backticks or ${} interpolation', () => {
+  for (const fn of [LPV.renderDirectorsCut, LPV.renderBrain, LPV.formatMeoVersion]) {
     const src = fn.toString();
     assert.ok(src.indexOf('`') === -1, fn.name + ' source has no backticks');
     assert.ok(src.indexOf('${') === -1, fn.name + ' source has no ${ interpolation');

@@ -541,6 +541,7 @@ class CockpitProvider {
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
+      if (m.cmd === 'openLivePreview') vscode.commands.executeCommand('mooter.openLivePreview');
       if (m.cmd === 'refresh') { this.data.refresh(true); reWarm(); }
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
       if (m.cmd === 'openUrl') { const u = String(m.arg || ''); if (/^https?:\/\//i.test(u)) vscode.env.openExternal(vscode.Uri.parse(u)); }
@@ -1185,6 +1186,12 @@ function readBusTail(busFile, maxBytes) {
   } catch { return ''; }
 }
 
+// Extension version (host-side, read once from the manifest) — passed in the LP snapshot so the
+// MEO header can show a discreet "v<version>". Nullable by contract: any read failure ⇒ null,
+// and the webview's formatMeoVersion then renders nothing rather than a fabricated build id.
+let EXT_VERSION = null;
+try { EXT_VERSION = (require('../package.json').version) || null; } catch { EXT_VERSION = null; }
+
 // Assemble the payload the Live Preview panel renders PURELY from: the file-bus events
 // (filtered to the active session — see detectActiveSid's heuristic doc in
 // live-preview-view.js), and the Brain overlay (decisions.log + the EXISTING GPU-snapshot
@@ -1214,10 +1221,10 @@ function livePreviewSnapshot() {
     return {
       events: scoped, sid, sidKnown: !!sid, brain,
       byDay: a.byDay || null, byModel: a.byModel || null, fleet: a.fleet || null,
-      journal: journal,
+      journal: journal, version: EXT_VERSION,
     };
   } catch {
-    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null, journal: null };
+    return { events: [], sid: null, sidKnown: false, brain: null, byDay: null, byModel: null, fleet: null, journal: null, version: EXT_VERSION };
   }
 }
 
@@ -2821,6 +2828,7 @@ function getLivePreviewHtml(token, wsRoot) {
   const hostToken = JSON.stringify(String(token == null ? '' : token));
   const renderDirectorsCutSrc = LPV ? LPV.renderDirectorsCut.toString() : 'function renderDirectorsCut(){return "";}';
   const renderBrainSrc = LPV ? LPV.renderBrain.toString() : 'function renderBrain(){return "";}';
+  const formatMeoVersionSrc = LPV ? LPV.formatMeoVersion.toString() : 'function formatMeoVersion(){return "";}';
   const renderStageStatusSrc = LPS ? LPS.renderStageStatus.toString() : 'function renderStageStatus(){return "";}';
   const renderErrorStripSrc = LPD ? LPD.renderErrorStrip.toString() : 'function renderErrorStrip(){return "";}';
   // MP4-polish — the honest-severity predicates, serialised so the webview's lpIngest classifies
@@ -3159,6 +3167,8 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-brain,#lp-dc{--t0:var(--vscode-charts-green,#4CAF6A);--t1:var(--vscode-charts-blue,#5A9BD4);--t2:var(--vscode-charts-purple,#A78BFA);--t3:var(--vscode-charts-red,#D46A5A);--t5:var(--vscode-charts-yellow,#C9A227)}
   .lp-meo-hd{margin:2px 0 6px}
   .lp-meo-t{font-weight:700;font-size:12px;color:var(--vscode-foreground,#e6e6e6)}
+  .lp-meo-ver{font-weight:400;font-size:10px;color:var(--vscode-descriptionForeground,#9a9a9a);opacity:.75}
+  .lp-meo-ver:empty{display:none}
   .lp-meo-sub{font-size:11px;color:var(--vscode-descriptionForeground,#9a9a9a)}
   .lp-lens-hd{font-size:11px;font-weight:700;color:var(--vscode-descriptionForeground,#9a9a9a);margin:0 0 4px}
   /* LP-4.5 §4 — the unified session feed (one row per Live Edit write, per-item revert). */
@@ -3314,7 +3324,7 @@ function getLivePreviewHtml(token, wsRoot) {
     <div id="lp-feed" role="region" aria-label="Mudanças desta sessão de preview"></div>
     <div id="lp-brain">a carregar…</div>
     <div id="lp-dc">
-      <div id="lp-meo-hd" class="lp-meo-hd"><div class="lp-meo-t">🐮 MEO — Moo Executive Officer</div><div class="lp-meo-sub">o teu cockpit executivo · dados reais, custos ~est.</div></div>
+      <div id="lp-meo-hd" class="lp-meo-hd"><div class="lp-meo-t">🐮 MEO — Moo Executive Officer <span id="lp-meo-ver" class="lp-meo-ver" title="versão da extensão activa"></span></div><div class="lp-meo-sub">o teu cockpit executivo · dados reais, custos ~est.</div></div>
       <div id="lp-work-mount"></div>
       <div id="lp-tabs" role="tablist" aria-label="Lentes do MEO">
         <button type="button" class="lp-tab on" role="tab" id="lp-tab-stream" aria-selected="true" aria-controls="lp-pane-stream" data-tab="stream" tabindex="0">Stream</button>
@@ -3336,6 +3346,7 @@ const HOST_TOKEN=${hostToken};
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const renderDirectorsCut=${renderDirectorsCutSrc};
 const renderBrain=${renderBrainSrc};
+const formatMeoVersion=${formatMeoVersionSrc};
 const renderStageStatus=${renderStageStatusSrc};
 const renderErrorStrip=${renderErrorStripSrc};
 const isLivePreviewSelfNoise=${isSelfNoiseSrc};
@@ -3357,6 +3368,8 @@ const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
 function render(s){
   const brainEl=document.getElementById('lp-brain');
   if(brainEl) brainEl.innerHTML = renderBrain(s && s.brain);
+  const verEl=document.getElementById('lp-meo-ver');
+  if(verEl) verEl.textContent = formatMeoVersion(s && s.version);
   lpLastSnap = s;
   renderReadiness(s && s.readiness); // F0.5.3 — the 4-light readiness semaphore
   renderWork(s);
@@ -5265,6 +5278,10 @@ function getHtml(guardianPct = null) {
   .intentwrap input{flex:1;background:var(--vscode-input-background);color:var(--vscode-foreground);border:1px solid var(--vscode-widget-border);border-radius:6px;padding:6px 10px;font:12px var(--vscode-font-family)}
   .intentres{font-size:11px;color:var(--vscode-descriptionForeground);margin:-4px 0 8px;display:none}
   .intentres b{color:var(--g)}
+  .meocta{margin:0 0 11px}
+  .meocta-btn{width:100%;text-align:center;cursor:pointer;background:var(--vscode-button-secondaryBackground,var(--vscode-editorWidget-background));color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));border:1px solid var(--vscode-widget-border);border-radius:6px;padding:7px 10px;font:12px var(--vscode-font-family)}
+  .meocta-btn:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  .meocta-btn:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
   .lbl{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--vscode-descriptionForeground)}
   .collaphead{cursor:pointer;user-select:none;outline:none}
   .collaphead:hover{color:var(--vscode-foreground)}
@@ -5779,6 +5796,8 @@ function getHtml(guardianPct = null) {
 </div>
 <!-- B9 — command bar (not a chatbot): natural language OR a /command resolves to a real Mooter command via the classifier; a leading "/" runs straight through. -->
 <div class="intentwrap"><input id="intentIn" placeholder="🐮 run a command, or describe it… (→ /mooter command)"><button class="sm" id="intentGo" title="resolve to a Mooter command and offer to run it">→</button></div><div class="intentres" id="intentRes"></div>
+<!-- Discovery CTA (audit gap #2): the MEO lives in the separate Live Preview panel; surface a VISIBLE textual entry here, not only the title-bar icon, so it is actually discoverable from the Cockpit the user opens. -->
+<div class="meocta"><button type="button" id="openMeoBtn" class="meocta-btn" title="Abre o painel Live Preview — o MEO (Moo Executive Officer) está no rail direito">Abrir MEO 🐮 no Live Preview</button></div>
 <div class="view on" id="view-cockpit"><div id="v-cockpit"><div class="empty">Connecting to mooter…</div></div></div>
 <!-- ARCH TREE TAB (Frente E · Arquitectura Viva) — renders purely from s.mc (MissionControlSnapshot). Separate from the Frente G Mission Control region. -->
 <div class="view" id="view-arch"><div id="v-arch"><div class="empty">🔌 Arquitectura · system map — a ligar…</div></div></div>
@@ -5817,6 +5836,8 @@ function applyAdv(on){var b=document.body;if(!b)return;if(on)b.classList.remove(
 window.addEventListener('message',function(ev){var m=ev&&ev.data;if(!m||m.type!=='mooter-adv')return;var cur=!document.body.classList.contains('mooter-adv-hidden');applyAdv(m.action==='show'?true:(m.action==='hide'?false:!cur));});
 // Restore the last tab — but never land on a hidden advanced tab while advanced views are folded away.
 try{var _rt=(vsapi.getState()||{}).tab;var _advOn=!document.body.classList.contains('mooter-adv-hidden');if(_rt&&_rt!=='cockpit'&&(_advOn||!ADV_TABS[_rt]))goTab(_rt);}catch(e){}$('#scoreBadge').onclick=()=>goTab('cockpit');
+// Discovery CTA (audit gap #2): open the Live Preview panel (where the MEO lives) from the Cockpit.
+(function(){var _meo=document.getElementById('openMeoBtn');if(_meo)_meo.onclick=function(){send('openLivePreview');};})();
 // ARCH TREE TAB (Frente E): persisted mode for the Arquitectura Viva view (🌳 tree · 📊 ceo · 🔌 wt).
 let archModeCur='tree';try{var _am=(vsapi.getState()||{}).archMode;if(_am)archModeCur=_am;}catch(e){}
 // DELIVERY COCKPIT · Frente B v2 — persisted grouping axis for the Project command tab (Fase↔Squad).
