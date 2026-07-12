@@ -2,6 +2,54 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.67] — 2026-07-12 — Live Preview "coerência total": the 19-finding coherence close (COH-01…19)
+
+The full Live Preview coherence pass — all 19 findings of the 2026-07-11 Codex coherence audit, each with a
+test, mapped to the approved mock. Suite **1162 pass / 0 fail**. `classify.js` sha frozen; no new deps. Two
+adversarial gates (C0 lease, C3 event surface) — both **SHIP-WITH-NITS**, all vectors closed.
+
+### Security / correctness
+
+- **COH-01 (P0) — the preview identity is now a transactional LEASE {origin · servedRoot · epoch}.** A stage
+  origin swap (7819 dies, an unrelated app answers on 3000) cancels the active task, nulls the served-tree
+  identity AND the pin, bumps the epoch and shows the S7 safe state — so no write ever lands on the workspace
+  while the iframe shows a different app ("what you see is what you edit", now guaranteed in TIME). Only a fresh
+  lp-ready from the new origin renews the lease; a write bound to an old epoch refuses even on a re-confirmed tree.
+- **COH-06** — restart dev server ALWAYS targets the confirmed workspace root, never a divergent servedRoot, and
+  clears sticky+selection+identity before the re-probe.
+- **COH-07** — Ask→Apply is host-bound: an answer registers by taskId {lease, question, answer, refs}; the webview
+  sends ONLY the taskId; the host revalidates lease+tree+trust and composes the edit from the stored payload. A
+  tampered webview payload is ignored; a missing/expired record or a broken lease refuses honestly.
+
+### Honesty
+
+- **COH-08** — the MEO stops lying: real tier/model/cost (or `n/d`, never a fabricated $0); a cloud tier FORCES
+  `local:false` — an agent edit or a Vercel deploy can never read as free local work.
+- **COH-09** — AUTO is router-native: consults the FROZEN classify.js (fail-soft) for local→Haiku→Sonnet→Opus,
+  never auto-Fable (T5 clamps to Opus), and announces `route_decided` (🧭 → 🐮/⚡/🎼/🧠) before running.
+- **COH-10 / COH-19** — Publish shows the production destination BEFORE the two-factor (honest precedence: deploy >
+  setting > manifest > project `NEXT_PUBLIC_SITE_URL` > n/d, HTTPS-validated, here → mooter.ai); the post-deploy
+  URL is a real clickable anchor (host openExternal).
+- **COH-15** — a coherent lifecycle (started/succeeded/failed/cancelled) on prompt/ask/keep/cancel/escalation/deploy.
+
+### Honest surfaces
+
+- **COH-02** — the in-canvas toolbar never covers the pin (pure geometric decision + real geometric test);
+  auto-minimizes to a chip / docks when nothing fits. **COH-03** — "Abrir a pasta" opens a real folder picker.
+  **COH-04** — the tree light is always visible ("por confirmar" never vanishes) + the selector is gated with
+  cause. **COH-05** — multi-root resolves the active project, never a blind `workspaceFolders[0]`.
+- **COH-11** — Back/Forward disabled with a reason until a tap handshake proves the capability. **COH-12** —
+  empty commit / empty message / wrong two-factor show an inline error (no silent returns). **COH-16** — per-node
+  history uses the full nodeKey (lease + file + line + col). **COH-17** — the SDK/trust bridge cache invalidates
+  immediately on grant-trust / workspace change / re-probe / install-SDK.
+
+### Visual language
+
+- **COH-13** — one tier dictionary everywhere (🐮 local · ⚡ Haiku · 🎼 Sonnet · 🧠 Opus · 🌟 Fable); `famEmoji`
+  no longer collapses Claude into ✨. **COH-14** — a single visual state machine (idle·blocked·working·success·
+  warning·error); animation only in `working`; reduced-motion green. **COH-18** — 1–3 contextual skill chips by
+  node tag next to the one-box.
+
 ## [0.16.66] — 2026-07-10 — Live Preview "produção perfeita": the F-close (F0.1–F9 · D1/D5/D6)
 
 The Live Preview close — every open finding fixed with a test, plus the Codex D-series (independent audit)
