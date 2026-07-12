@@ -62,8 +62,14 @@ function run(cmd) {
     return { state: 'skip', signal: '—' };
   }
   if (r.error && r.error.code === 'ETIMEDOUT') return { state: 'fail', signal: `timed out after ${CHECK_TIMEOUT_MS}ms` };
-  if (r.status === 127) return { state: 'skip', signal: '—' }; // command not found
   const out = `${r.stdout || ''}\n${r.stderr || ''}`;
+  // POSIX shells use 127; Windows cmd.exe commonly uses status=1 and a
+  // localized "is not recognized" message. Both mean unavailable, not a
+  // real failed advisory check. Required custom checks are promoted to a
+  // blocker below, preserving the fail-closed contract.
+  if (r.status === 127 || /is not recognized as an internal or external command|command not found|not found(?:\r?\n|$)/i.test(out)) {
+    return { state: 'skip', signal: '—' };
+  }
   if (r.status === 0) return { state: 'pass', signal: 'ok' };
   // concise failing signal: last meaningful line
   const line = out.split('\n').map((s) => s.trim()).filter(Boolean).slice(-1)[0] || `exit ${r.status}`;
