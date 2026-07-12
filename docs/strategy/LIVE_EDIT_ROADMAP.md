@@ -107,7 +107,7 @@ números — resolvido aqui.)
 
 ## 4. Findings do audit (LP-AUDIT 2026-07-06, base @2c1a492) — veredicto W0 @f5a1f04
 
-Fix masterprompts em `_handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md` (FIX-MP-1..7).
+Fix masterprompts arquivados em `_handoff/_archive/2026-07/LIVE_PREVIEW_AUDIT_FINDINGS.md` (FIX-MP-1..7).
 **Estado em W0:** P0-1 e P1-2 **fechados**; P1-3/4/5/7 + N1/N2 **abertos** (a W3 herda); P1-6 parcial.
 
 | # | Finding | Veredicto W0 | Evidência @f5a1f04 |

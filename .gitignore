@@ -146,6 +146,9 @@ _handoff/loop/transcript/
 _handoff/loop/STATE.json
 _handoff/loop/heartbeat.json
 
+# Local Guardian handoff projections (Ledger is truth; UUID Markdown is regenerated).
+_handoff/guardian/????????-????-????-????-????????????.md
+
 # Delivery Cockpit — forecast.json is a RUNTIME artefact (the CLI writes it, the UI reads it).
 # Never commit: it is derived from the live Ledger + roadmap and goes STALE the moment the scope moves.
 tools/router/forecast/forecast.json

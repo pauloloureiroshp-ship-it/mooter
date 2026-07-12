@@ -53,7 +53,7 @@ A metodologia JÁ existe no vault; a falha é de **disciplina de execução**, n
 **Fase 0 · Inventário (read-only).** Mapear: (a) `_handoff/*.md` — agrupar por tema, marcar
 efémero (executado, obsoleto) vs vivo (spec actual); (b) os 4 canónicos do repo — existem e
 estão frescos?; (c) vault — que ficheiros deviam ter sido criados hoje e não foram; (d) Notion
-HQ — está em dia? Output: `_handoff/INFO_AUDIT.md` (tabela, sem mexer em nada).
+HQ — está em dia? Output arquivado: `_handoff/_archive/2026-07/INFO_AUDIT.md` (tabela, sem mexer em nada).
 
 **Fase 1 · A regra "onde vive o quê" (o coração).** Escrever/afinar uma tabela curta e viva:
 efémero (masterprompt executado → arquiva) · spec vivo (1 por feature, consolidado) · canónico

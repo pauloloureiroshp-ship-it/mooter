@@ -236,7 +236,7 @@ Nota: são 10 features numeradas mas "8 canônicas" no nome porque as duas prime
 
 **Decisão:** todo `.md` tem uma casa e um ciclo de vida (`AGENTS.md` § Information architecture): masterprompt executado arquiva em `_handoff/_archive/YYYY-MM/` **no mesmo PR do ship**; 1 spec vivo por feature em `docs/strategy/`; `SYNC.md` é snapshot ≤~200 linhas (histórico rola para archive); LOOP no dia; MEMORY destila o que sobrevive ~1 mês.
 
-**Por quê:** auditoria 2026-07-07 (`_handoff/INFO_AUDIT.md`): 3 depósitos sem ciclo de vida (23 masterprompts executados soltos, SYNC de 371 KB, waves históricas em docs/strategy). Regra em .md é pedido — enforcement mecânico via `tools/docs-hygiene.js` (CI/hook, modo warn primeiro) planejado.
+**Por quê:** auditoria 2026-07-07 (`_handoff/_archive/2026-07/INFO_AUDIT.md`): 3 depósitos sem ciclo de vida (23 masterprompts executados soltos, SYNC de 371 KB, waves históricas em docs/strategy). Regra em .md é pedido — enforcement mecânico via `tools/docs-hygiene.js` (CI/hook, modo warn primeiro) planejado.
 
 ---
 

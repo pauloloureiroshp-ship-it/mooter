@@ -233,7 +233,7 @@ C híbrido (pesados → Painel inferior, decisão 3 já autoriza) → LP-5 🛡 
 
 > **Objetivo:** todas as features do Live Preview perfeitas para produção — é o coração do Mooter.
 > **Fontes cruzadas:** este MASTER · `docs/strategy/LIVE_EDIT_ROADMAP.md` (⚠️ stale 07-07) ·
-> `_handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md` · `_handoff/CROSSDEVICE_RECON.md` ·
+> `_handoff/_archive/2026-07/LIVE_PREVIEW_AUDIT_FINDINGS.md` · `_handoff/CROSSDEVICE_RECON.md` ·
 > `_handoff/LIVE_PREVIEW_COWORK_PERFECT_HANDOFF.md` (o runbook com o checklist §5 A-E — é a régua
 > de aceitação deste plano) · Notion HQ. **⚠️ Descoberta-chave: main está À FRENTE dos docs**
 > (LP-5 ✅ · LP-6 ✅ · FIX-MP-1 ✅ · Context Engine ✅ · cross-device ✅ · F1+F2 layout ✅ via PR #231),
