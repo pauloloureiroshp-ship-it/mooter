@@ -189,6 +189,23 @@ test('resolveStage: a reachable HTTP 500 is blocked instead of framed as a live 
   assert.match(s.reason, /HTTP 500/);
 });
 
+test('resolveStage: a transient HTTP failure on the CURRENT validated origin retains pixels but blocks edits', () => {
+  const s = LPS.resolveStage({
+    configPort: 7819,
+    retainedUrl: 'http://localhost:7819',
+    retainedSource: 'config',
+    livePorts: [],
+    rejected: [{ port: 7819, statusCode: 500, reason: 'HTTP 500 — rebuilding' }],
+  });
+  assert.strictEqual(s.url, 'http://localhost:7819', 'last validated frame stays mounted (no page/blank oscillation)');
+  assert.strictEqual(s.degraded, false);
+  assert.strictEqual(s.stale, true);
+  assert.strictEqual(s.blocked, true, 'display continuity never becomes write authority');
+  assert.strictEqual(s.retained, true);
+  assert.strictEqual(s.source, 'config');
+  assert.match(s.reason, /mantive a última página visível/);
+});
+
 test('resolveStage carries HTTP validation and instrumentation facts for the healthy stage', () => {
   const s = LPS.resolveStage({
     configPort: 7819,

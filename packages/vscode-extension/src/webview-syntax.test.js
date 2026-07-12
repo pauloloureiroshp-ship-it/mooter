@@ -226,7 +226,7 @@ test('Live Preview LP-4.8 §1 in-canvas toolbar — floats over the frame anchor
   assert.ok(html.includes("m.type === 'lp-pin-rect'"), 'lp-pin-rect handled (toolbar follows the pin on reflow)');
   assert.ok(/positionCanvasToolbar\(m\.rect\)/.test(html), 'reflow rect repositions the toolbar');
   // A webview-side resize (panel drag) also re-anchors from the last known rect.
-  assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{ positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-anchors the toolbar');
+  assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{[^}]*positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-evaluates dock/float and re-anchors the toolbar');
   // The controls that MOVED still ship their ids + wiring (regression guard for the split).
   assert.ok(html.includes('id="lp-chip"') && html.includes('id="lp-box-in"') && html.includes('id="lp-sel-del"'), 'chip/one-box/delete still present after the split');
   parseInlineScript(html);

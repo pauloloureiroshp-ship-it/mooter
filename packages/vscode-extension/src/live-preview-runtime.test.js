@@ -62,12 +62,12 @@ function makeDom() {
   Element.prototype.appendChild = function (c) { c.parentNode = this; this._children.push(c); return c; };
   Element.prototype.contains = function (n) { if (n === this) return true; for (const c of this._children) { if (c === n || (c.contains && c.contains(n))) return true; } return false; };
   Element.prototype.remove = function () { if (this.parentNode) { const i = this.parentNode._children.indexOf(this); if (i !== -1) this.parentNode._children.splice(i, 1); } };
-  Object.defineProperty(Element.prototype, 'offsetWidth', { get() { return 260; } });
-  Object.defineProperty(Element.prototype, 'offsetHeight', { get() { return 160; } });
+  Object.defineProperty(Element.prototype, 'offsetWidth', { get() { return this._offsetWidth == null ? 260 : this._offsetWidth; } });
+  Object.defineProperty(Element.prototype, 'offsetHeight', { get() { return this._offsetHeight == null ? 160 : this._offsetHeight; } });
   Object.defineProperty(Element.prototype, 'offsetLeft', { get() { return 0; } });
   Object.defineProperty(Element.prototype, 'offsetTop', { get() { return 0; } });
-  Object.defineProperty(Element.prototype, 'clientWidth', { get() { return 900; } });
-  Object.defineProperty(Element.prototype, 'clientHeight', { get() { return 600; } });
+  Object.defineProperty(Element.prototype, 'clientWidth', { get() { return this._clientWidth == null ? 900 : this._clientWidth; } });
+  Object.defineProperty(Element.prototype, 'clientHeight', { get() { return this._clientHeight == null ? 600 : this._clientHeight; } });
   function matchSel(el, sel) {
     sel = sel.trim();
     if (sel[0] === '#') return el.id === sel.slice(1);
@@ -189,6 +189,28 @@ test('RUNTIME: arm → lp-select renders the in-canvas toolbar (one-box, send, c
   assert.ok(bi, 'the one-box input rendered on select');
   assert.ok(bb, 'the send button rendered');
   assert.ok(ctx, 'the project-context line rendered');
+});
+
+test('RUNTIME: a large pin/toolbar docks the SAME prompt in the rail; 🐮 always reopens it', () => {
+  const h = bootWebview(false);
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  const wrap = h.env.doc.getElementById('lp-framewrap');
+  toolbar._offsetHeight = 900; // deliberately impossible to place around the pin
+  wrap._clientHeight = 260;
+  fireSelect(h);
+  const dock = h.env.doc.getElementById('lp-prompt-dock');
+  const chip = h.env.doc.getElementById('lp-ctb-chip');
+  assert.strictEqual(toolbar.parentNode, dock, 'prompt is docked outside the stage instead of covering the pin');
+  assert.ok(toolbar.classList.contains('lp-docked'));
+  assert.strictEqual(toolbar.style.display, 'block', 'the one-box stays visible immediately after selection');
+  assert.strictEqual(chip.style.display, 'none', 'auto-placement never strands the user behind a cow chip');
+
+  h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'inline-flex', 'explicit minimise still produces the compact cow');
+  chip.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(toolbar.parentNode, dock, 'reopening an impossible floating placement falls back to the rail');
+  assert.strictEqual(toolbar.style.display, 'block', 'clicking the cow always opens a real prompt');
+  assert.strictEqual(h.env.doc.activeElement, h.env.doc.getElementById('lp-box-in'), 'reopened prompt is ready to type');
 });
 
 test('RUNTIME: type + click send POSTS a message AND shows in-canvas progress (kills "nada visível")', () => {
@@ -644,4 +666,41 @@ test('RUNTIME: toolbar refresh reloads a same-URL iframe and requests a fresh ho
   refresh.dispatchEvent(h.mkEvent('click'));
   assert.deepStrictEqual(srcWrites, ['http://localhost:7819/'], 'same URL is deliberately reloaded to clear a stale error document/handshake');
   assert.ok(h.posted.slice(before).some((message) => message && message.type === 'lp-redetect'), 'host receives the fresh re-probe intent');
+});
+
+test('RUNTIME: transient same-port HTTP failure keeps pixels, clears stale selection, then forces one recovery handshake', () => {
+  const h = bootWebview(false);
+  const frameWrites = [];
+  const originalSet = h.frame.setAttribute.bind(h.frame);
+  h.frame.setAttribute = (name, value) => {
+    if (name === 'src') frameWrites.push(String(value));
+    return originalSet(name, value);
+  };
+  // Establish the epoch used by the currently rendered healthy document.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, identityEpoch: 1 },
+    readiness: { workspace: true, devServer: true, port: '7819', tree: 'ok', sdk: false, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  frameWrites.length = 0;
+  fireSelect(h);
+  assert.strictEqual(h.env.doc.getElementById('lp-sel').style.display, 'block');
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, port: '7819', tree: 'unknown', stageBlocked: true, sdk: false, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', prevPort: '7819', newPort: '7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.strictEqual(h.frame.style.display, 'block', 'last validated page remains mounted behind the safety state');
+  assert.strictEqual(h.env.doc.getElementById('lp-sel').style.display, 'none', 'old breadcrumb/selection is not shown as current');
+  assert.strictEqual(h.env.doc.getElementById('lp-ctb').style.display, 'none', 'stale prompt cannot be used');
+  assert.strictEqual(frameWrites.length, 0, 'the broken document is not thrashed by repeated src writes');
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: false, blocked: false, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, port: '7819', tree: 'unknown', sdk: false, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.deepStrictEqual(frameWrites, ['http://localhost:7819/'], 'same URL reloads exactly once after health returns so lp-ready can renew identity');
 });

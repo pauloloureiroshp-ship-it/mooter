@@ -118,3 +118,17 @@ test('probePorts stops on a reachable broken configured port instead of jumping 
     await new Promise((resolve) => unrelated.server.close(resolve));
   }
 });
+
+test('repeated probes remain healthy when Node reuses an already-connected socket', async () => {
+  const page = await listen((_req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<!doctype html><p data-insp-path="page.tsx:1:1">ok</p>'); });
+  try {
+    for (let i = 0; i < 20; i++) {
+      const result = await Probe.probeOne(page.port, { timeoutMs: 500 });
+      assert.strictEqual(result.ok, true);
+      assert.strictEqual(result.statusCode, 200);
+      assert.strictEqual(result.instrumented, true);
+    }
+  } finally {
+    await new Promise((resolve) => page.server.close(resolve));
+  }
+});

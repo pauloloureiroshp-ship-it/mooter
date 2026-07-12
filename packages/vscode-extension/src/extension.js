@@ -1413,6 +1413,10 @@ class LivePreviewPanel {
         try { next = fs.realpathSync(p); } catch { next = path.normalize(p); }
       }
     } catch { next = null; }
+    // A document loaded while the HTTP validator says the stage is stale/broken cannot renew the
+    // lease. Recovery must first publish a healthy stage, then force a fresh frame load/handshake.
+    const st = this.stage;
+    if (st !== undefined && (!st || !st.url || st.degraded || st.stale || st.blocked)) next = null;
     this._servedRoot = next;
     this._post();
   }
@@ -1429,10 +1433,14 @@ class LivePreviewPanel {
   // native HMR reconnect survives (the audit's explicit sticky-port requirement). This REPLACES the
   // bare `this.stage = next` in _detectStage — every stage mutation now flows through the lease.
   _setStage(next) {
+    const prev = this.stage;
     const prevOrigin = (this._stageOrigin != null) ? this._stageOrigin : null;
     const nextOrigin = this._stageOriginOf(next && next.url);
     this.stage = next;
-    if (nextOrigin !== prevOrigin) this._invalidateIdentity(nextOrigin, prevOrigin);
+    const wasHealthy = !!(prev && prev.url && !prev.degraded && !prev.stale && !prev.blocked);
+    const lostHealth = !!(next && next.url && (next.blocked || next.retained) && wasHealthy && nextOrigin === prevOrigin);
+    if (nextOrigin !== prevOrigin) this._invalidateIdentity(nextOrigin, prevOrigin, prevOrigin && !nextOrigin ? 'stage-unavailable' : 'origin-changed');
+    else if (lostHealth) this._invalidateIdentity(nextOrigin, prevOrigin, 'stage-unhealthy');
     else this._stageOrigin = nextOrigin; // normalise a first-set from undefined; identity untouched
   }
   // C0 · COH-01 — the transactional invalidation. On EVERY origin change: cancel the active agent task,
@@ -1441,7 +1449,7 @@ class LivePreviewPanel {
   // S7 facts when a KNOWN origin was replaced by another KNOWN origin (7819→3000 — "another app took the
   // port"). Only a fresh lp-ready from the NEW origin (relayed origin-locked as lp-tree/lp-pin) can renew
   // the lease. A bare Object.create harness leaves servedRoot/selection === undefined → left inert.
-  _invalidateIdentity(nextOrigin, prevOrigin) {
+  _invalidateIdentity(nextOrigin, prevOrigin, cause) {
     const clearedSel = (this._selection && this._selection.file) ? this._selection : null;
     this._stageOrigin = nextOrigin;
     this._readyEpoch = (this._readyEpoch | 0) + 1;
@@ -1450,8 +1458,9 @@ class LivePreviewPanel {
     if (this._servedRoot !== undefined) this._servedRoot = null;   // identity unproven for the new origin
     if (this._selection !== undefined) this._selection = null;     // the old pin belonged to the old app
     this._lastPinKey = null;                                        // let a genuine re-pin re-trace
-    this._leaseInfo = (prevOrigin && nextOrigin && prevOrigin !== nextOrigin)
-      ? { prevOrigin, nextOrigin, prevPort: this._portOf(prevOrigin), newPort: this._portOf(nextOrigin),
+    const leaseKind = (typeof cause === 'string' && cause) ? cause : 'origin-changed';
+    this._leaseInfo = (prevOrigin && (nextOrigin !== prevOrigin || leaseKind !== 'origin-changed'))
+      ? { kind: leaseKind, prevOrigin, nextOrigin, prevPort: this._portOf(prevOrigin), newPort: this._portOf(nextOrigin),
           clearedFile: clearedSel ? clearedSel.file : null, clearedLine: (clearedSel && Number.isInteger(clearedSel.line)) ? clearedSel.line : null,
           clearedTag: clearedSel ? (clearedSel.tag || null) : null, epoch: this._readyEpoch }
       : null;
@@ -1545,7 +1554,14 @@ class LivePreviewPanel {
   // (_servedRoot === undefined, built via Object.create) is NOT gated — it exercises the pre-existing
   // edit/delete/open contracts unchanged. Production never reaches undefined (ctor + every lp-tree set it).
   _treeGateBlocked() {
-    return this._servedRoot !== undefined && !this._treeConfirmed();
+    if (this._servedRoot === undefined) return false;
+    // Real instances always have `stage` (null from the ctor until detection). Bare Object.create
+    // harnesses leave it undefined and retain the legacy isolated-method test contract.
+    if (this.stage !== undefined) {
+      const st = this.stage;
+      if (!st || !st.url || st.degraded || st.stale || st.blocked) return true;
+    }
+    return !this._treeConfirmed();
   }
   // F3 (W1) — record the pinned selection relayed from the webview (lp-pin). Bounded + sanitised;
   // a missing/empty file clears it. Never throws. This is the ONLY writer of this._selection.
@@ -1556,6 +1572,9 @@ class LivePreviewPanel {
     try {
       const file = (m && typeof m.file === 'string') ? m.file.trim() : '';
       if (!file) { this._selection = null; return; }
+      // Never accept a pin from a retained/stale/error document. lp-tree is relayed immediately
+      // before lp-pin, so a healthy current-origin handshake has already renewed the tree here.
+      if (this._servedRoot !== undefined && this._treeGateBlocked()) { this._selection = null; return; }
       this._selection = {
         file: file.slice(0, 1024),
         line: Number.isInteger(m && m.line) ? m.line : null,
@@ -1637,7 +1656,9 @@ class LivePreviewPanel {
     try {
       const s = livePreviewSnapshot();
       this._lpSid = (s && typeof s.sid === 'string' && s.sid) ? s.sid : (this._lpSid || null); // D5 — cache the active sid for emitted LP events
-      s.stage = this.stage;              // MP2: App Stage state alongside the bus/Brain snapshot
+      // The epoch lets the webview force exactly one same-URL reload after a suspended identity
+      // recovers. Without it the old `curSrc === st.url` optimisation suppresses the handshake forever.
+      s.stage = this.stage ? Object.assign({}, this.stage, { identityEpoch: (this._readyEpoch | 0) }) : this.stage;
       // urlError (transient user paste) wins; otherwise FIX-MP-1 G1 surfaces an honest tree-mismatch
       // banner (the preview is live but comes from a DIFFERENT tree than the one we would write to).
       s.stageError = this.urlError || this._treeBanner() || null; // both ride the ONE stageError channel
@@ -1714,6 +1735,8 @@ class LivePreviewPanel {
       const probe = await probeStagePorts(probeList, { timeoutMs: 900, schemeByPort, authoritativePorts: configPort ? [configPort] : [] });
       const next = LPS.resolveStage({
         overrideUrl: this.overrideUrl, stickyUrl, configPort,
+        retainedUrl: this.stage && this.stage.url ? this.stage.url : null,
+        retainedSource: this.stage && this.stage.source ? this.stage.source : null,
         livePorts: probe.livePorts, rejected: probe.rejected, accepted: probe.accepted,
         workspacePresent, allowOverrideFallback: fresh,
       });
@@ -3430,6 +3453,11 @@ function getLivePreviewHtml(token, wsRoot) {
      spans the frame but is click-through (pointer-events:none); only .lp-ctb catches events. */
   .lp-ctb-ov{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
   .lp-ctb{position:absolute;left:8px;top:8px;pointer-events:auto;box-sizing:border-box;width:max-content;min-width:min(248px,calc(100% - 16px));max-width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.34);padding:0 11px 9px}
+  /* If the selected node leaves no safe rectangle for the full prompt, dock it in the rail. The
+     prompt remains visible and usable instead of auto-minimising back to 🐮 on every click. */
+  #lp-prompt-dock{display:none;margin-bottom:10px}
+  #lp-prompt-dock .lp-ctb.lp-docked{position:relative;left:auto;top:auto;width:100%;min-width:0;max-width:none;max-height:min(620px,65vh);margin:0;box-shadow:none;border-color:var(--vscode-focusBorder,var(--vscode-widget-border))}
+  #lp-prompt-dock .lp-ctb-grip{cursor:default}
   /* LP-4.9 §7 — toolbar header: grip (drag) + minimize + close. Sticky so it stays while scrolling. */
   .lp-ctb-hd{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;margin:0 -11px 6px;padding:5px 9px;background:var(--vscode-editorWidget-background);border-bottom:1px solid var(--vscode-widget-border);border-radius:9px 9px 0 0}
   .lp-ctb-grip{flex:1 1 auto;font-size:10.5px;opacity:.6;cursor:grab;user-select:none;letter-spacing:.04em;touch-action:none}
@@ -3780,6 +3808,9 @@ function getLivePreviewHtml(token, wsRoot) {
     </div>
   </section>
   <aside id="lp-side">
+    <!-- When the full prompt cannot fit around a large pin, it docks here instead of collapsing into
+         an impossible-to-open chip. Same component and handlers; no parallel editing surface. -->
+    <div id="lp-prompt-dock" role="region" aria-label="Prompt do elemento selecionado"></div>
     <!-- LP-5 §C — 🛡 Review Security mounts here; hidden until the first scan. -->
     <div id="lp-security" role="region" aria-label="Review de segurança" style="display:none"></div>
     <!-- LP-6 §E — 🚀 Publish popover mounts here; hidden until the button is clicked. -->
@@ -3957,7 +3988,7 @@ function applyError(err){
   if(err){ el.textContent=String(err); el.style.display='block'; }
   else { el.textContent=''; el.style.display='none'; }
 }
-let curSrc=null, curOrigin=null, lastDegradeHtml=null;
+let curSrc=null, curOrigin=null, curIdentityEpoch=-1, lastDegradeHtml=null;
 function reloadStageFrame(){
   const frame=document.getElementById('lp-frame');
   if(!frame||!curSrc) return;
@@ -4000,22 +4031,37 @@ function applyStage(stage){
       }
     } else { lastDegradeHtml = null; }
   }
+  // If a stage disappears entirely, retire the old origin locally too. The previous implementation
+  // hid the iframe but kept curSrc/curOrigin + the right-rail selection alive; when the same URL came
+  // back the equality optimisation suppressed a reload, so lp-ready never renewed the tree.
+  if(!hasUrl && curSrc!==null){
+    curSrc=null; curOrigin=null; curIdentityEpoch=-1;
+    lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
+    lpHasTap=false; try{ applyNavCapability(); }catch(e){}
+    if(frame){ try{ frame.removeAttribute('src'); }catch(e){} }
+  }
   // Only touch the iframe when the URL actually changes — preserves HMR/scroll across polls
   // (MP2 invariant, gate #5). A same-URL re-detect/poll never re-points the frame, so it never
-  // reloads. When the URL DOES change we also recompute curOrigin — the exact origin the MP4
-  // tap-message lock accepts — and drop stale errors that belonged to the previous origin.
-  if(hasUrl && frame && curSrc !== st.url){
-    const originChanged = curOrigin !== null; // curOrigin was already set → this is a genuine re-point, not the first load
+  // reloads. Exception: after the host suspended the identity on a positive HTTP failure, a healthy
+  // same-URL recovery carries a newer identityEpoch and MUST reload once to obtain a fresh lp-ready.
+  const nextEpoch=(st&&Number.isInteger(st.identityEpoch))?st.identityEpoch:curIdentityEpoch;
+  const recoveredSameUrl=!!(hasUrl && !st.stale && !st.blocked && curSrc===st.url && nextEpoch>curIdentityEpoch);
+  // When the URL DOES change we also recompute curOrigin — the exact origin the MP4 tap-message lock
+  // accepts — and drop stale errors that belonged to the previous origin.
+  if(hasUrl && frame && (curSrc !== st.url || recoveredSameUrl)){
+    const oldOrigin=curOrigin;
     curSrc = st.url;
     try { curOrigin = new URL(st.url).origin; } catch(e) { curOrigin = null; }
+    const originChanged = oldOrigin !== null && oldOrigin !== curOrigin;
     lpClearErrors('all');
     lpState = null; lpPendingRestore = null; // a different URL is a different app — never restore the old route/scroll onto it
     // C0 · COH-01 — a different stage origin is a DIFFERENT app: drop the pin, the refs and the anchored
     // toolbar so the user never edits through an anchor that belonged to the previous origin. The host
     // has already re-armed the lease + nulled servedRoot/selection; this is the visual half of the
     // invalidation. renderSelection(null) hides the in-canvas toolbar too. (First load: nothing to clear.)
-    if(originChanged){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){} } // COH-11 — a new app must re-prove nav capability
+    if(originChanged||recoveredSameUrl){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){} } // COH-11 — a new/recovered app must re-prove nav capability
     frame.setAttribute('src', st.url);
+    curIdentityEpoch=nextEpoch;
   }
 }
 // C0 · COH-01 — the identity-lease safe state (mock S7). Rendered OVER the frame whenever the host
@@ -4026,19 +4072,27 @@ let lpLeaseActive=false;
 function renderLease(lease){
   const el=document.getElementById('lp-lease'); if(!el) return;
   if(!lease){ if(lpLeaseActive){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; setSelectMode(false); } return; }
+  // Host already cleared its SelectionStore. Clear the visual half on every lease snapshot as well;
+  // otherwise a stale breadcrumb/right-rail card survives over a blocked preview (the exact screenshot).
+  lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
   lpLeaseActive=true;
   const oldP=lease.prevPort?(':'+esc(lease.prevPort)):'a origem antiga';
   const newP=lease.newPort?(':'+esc(lease.newPort)):'uma nova origem';
   const selTxt=lease.clearedFile?('seleção 📍 '+esc(lease.clearedFile)+(lease.clearedLine!=null?(':'+esc(lease.clearedLine)):'')+' — limpa'):'seleção — limpa';
+  const sameOrigin=lease.kind==='stage-unhealthy' || (lease.prevOrigin&&lease.prevOrigin===lease.nextOrigin);
+  const title=sameOrigin?('🔒 Edição pausada enquanto '+oldP+' recupera'):('🔒 A origem do preview mudou ('+oldP+' → '+newP+')');
+  const reason=sameOrigin
+    ?('O servidor deixou temporariamente de responder como uma página HTML válida. Mantive a última página visível para o preview não oscilar, mas invalidei a seleção e bloqueei escritas até uma revalidação completa.')
+    :('O servidor em '+oldP+' parou e apareceu outro em '+newP+' — pode ser outra aplicação (ex.: um container Docker). Por segurança, o Mooter invalidou tudo o que dependia da origem antiga:');
   const html='<div class="lp-lease-card">'
-    +'<div class="lp-lease-t">🔒 A origem do preview mudou ('+oldP+' → '+newP+')</div>'
-    +'<div class="lp-lease-r">O servidor em '+oldP+' parou e apareceu outro em '+newP+' — pode ser outra aplicação (ex.: um container Docker). Por segurança, o Mooter invalidou tudo o que dependia da origem antiga:</div>'
+    +'<div class="lp-lease-t">'+title+'</div>'
+    +'<div class="lp-lease-r">'+reason+'</div>'
     +'<div class="lp-lease-inv">'+selTxt+' · árvore servida — por confirmar · edições — bloqueadas (zero writes)</div>'
-    +'<div class="lp-lease-h">O 🎯 Selecionar e o ✏️ Editar só voltam quando o site em '+newP+' fizer o handshake Mooter (lp-ready da origem atual) e confirmar que é a MESMA árvore do teu workspace.</div>'
+    +'<div class="lp-lease-h">O 🎯 Selecionar e o ✏️ Editar só voltam depois de HTTP válido + novo handshake Mooter (lp-ready) confirmarem a MESMA árvore do teu workspace.</div>'
     +'<div class="lp-lease-acts">'
-    +'<button type="button" id="lp-lease-restart" class="lp-lease-btn">↻ reiniciar o MEU dev server ('+oldP+')</button>'
-    +'<button type="button" id="lp-lease-wait" class="lp-lease-btn ghost">✓ usar '+newP+' (aguardar handshake)</button>'
-    +'<button type="button" id="lp-lease-inspect" class="lp-lease-btn ghost">📄 ver o que responde em '+newP+'</button>'
+    +'<button type="button" id="lp-lease-restart" class="lp-lease-btn">↻ encerrar e reiniciar '+oldP+'</button>'
+    +'<button type="button" id="lp-lease-wait" class="lp-lease-btn ghost">revalidar agora</button>'
+    +'<button type="button" id="lp-lease-inspect" class="lp-lease-btn ghost">📄 ver a origem</button>'
     +'</div></div>';
   el.innerHTML=html; el.style.display='flex';
   // While the lease is unconfirmed, Select mode is off — the gesture is blocked until the handshake.
@@ -4046,11 +4100,9 @@ function renderLease(lease){
   const rb=document.getElementById('lp-lease-restart');
   if(rb) rb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-restart-dev' }); });
   const wb=document.getElementById('lp-lease-wait');
-  // "aguardar handshake" — accept the new origin and dismiss THIS overlay locally; identity stays
-  // unconfirmed (the amber "árvore por confirmar" light + blocked writes persist) until lp-ready arrives.
-  if(wb) wb.addEventListener('click', function(){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; });
+  if(wb) wb.addEventListener('click', function(){ reloadStageFrame(); vsapi.postMessage({ type:'lp-redetect' }); });
   const ib=document.getElementById('lp-lease-inspect');
-  if(ib) ib.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-external', url:(lease.nextOrigin||'') }); });
+  if(ib) ib.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-open-external', url:(lease.nextOrigin||lease.prevOrigin||'') }); });
 }
 // COH-05 — the multi-root project selector. Hidden for a single-root workspace; otherwise lists the
 // workspace folders with the ACTIVE one selected. Picking one posts lp-pick-project (host re-detects
@@ -4354,8 +4406,17 @@ function wireSkillsMenu(){
 // map it into #lp-framewrap coordinates via the iframe's offset (0,0 full-width; centred in device
 // mode) and clamp so the toolbar never spills outside the frame. Prefer ABOVE the pin, fall back
 // below when there is no room — the toolbar must never cover the very element being edited.
-let lpPinRect=null, lpToolbarManualPos=null, lpToolbarMin=false;
+let lpPinRect=null, lpToolbarManualPos=null, lpToolbarMin=false, lpToolbarDocked=false;
 function lpRectsOverlap(a,b){ return !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y); }
+function mountCanvasToolbar(docked){
+  const tb=document.getElementById('lp-ctb'), ov=document.getElementById('lp-ctb-ov'), dock=document.getElementById('lp-prompt-dock');
+  if(!tb) return;
+  const host=docked?dock:ov;
+  if(host&&tb.parentNode!==host){ try{ host.appendChild(tb); }catch(e){} }
+  lpToolbarDocked=!!docked;
+  if(docked){ tb.classList.add('lp-docked'); if(dock) dock.style.display='block'; }
+  else { tb.classList.remove('lp-docked'); if(dock) dock.style.display='none'; }
+}
 function positionCanvasToolbar(rect){
   const tb=document.getElementById('lp-ctb'), chip=document.getElementById('lp-ctb-chip'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
   if(!tb||!f||!wrap) return;
@@ -4370,9 +4431,13 @@ function positionCanvasToolbar(rect){
   // §7 minimized — place the 🐮 chip at the pin corner (above if it fits, else below); toolbar hidden.
   // Above/below by construction never overlaps the pin (COH-02 holds for the minimized state too).
   if(lpToolbarMin){
+    const dock=document.getElementById('lp-prompt-dock'); if(dock) dock.style.display='none';
     if(chip){ chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
     return;
   }
+  // Once docked, stay docked for this selection. Measuring the docked (height-capped) box and then
+  // the floating (full-height) box on alternating pin-rect messages would otherwise create a loop.
+  if(lpToolbarDocked){ mountCanvasToolbar(true); tb.style.display='block'; tb.setAttribute('aria-hidden','false'); if(chip) chip.style.display='none'; return; }
   const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
   const pin={x:px,y:py,w:pw,h:ph};
   // COH-02 — the PURE placement decision (serialised in): it repeats the overlap test on the MANUAL
@@ -4382,20 +4447,18 @@ function positionCanvasToolbar(rect){
   // the only way to place the toolbar. Proven geometrically in lp-toolbar-geom.test.js (real rectangles).
   const pl=chooseToolbarPlacement({ pin, tb:{w:tw,h:th}, wrap:{w:wrapW,h:wrapH}, chip:{w:cw,h:chh}, manual:lpToolbarManualPos });
   if(pl.mode==='place'){
+    mountCanvasToolbar(false);
     tb.style.display='block'; tb.setAttribute('aria-hidden','false');
     if(chip) chip.style.display='none';
     tb.style.left=pl.x+'px'; tb.style.top=pl.y+'px';
     return;
   }
-  // No full placement clears the pin → auto-minimize to the chip (never over the node). 'dock' parks the
-  // chip at the top of the right edge of the frame. Either way the FULL toolbar is hidden, chip shown.
-  lpToolbarMin=true;
-  tb.style.display='none'; tb.setAttribute('aria-hidden','true');
-  if(chip){
-    chip.style.display='inline-flex';
-    if(pl.mode==='minimize'){ chip.style.left=pl.x+'px'; chip.style.top=pl.y+'px'; }
-    else { chip.style.left=Math.max(6, wrapW-cw-6)+'px'; chip.style.top='6px'; } // dock: top of the right rail edge
-  }
+  // No full placement clears the pin. Dock THE SAME prompt component in the right rail instead of
+  // auto-minimising to a chip that immediately minimises itself again when clicked. This preserves
+  // the never-cover-pin invariant and makes selection → prompt unconditionally discoverable.
+  mountCanvasToolbar(true);
+  tb.style.display='block'; tb.setAttribute('aria-hidden','false');
+  if(chip) chip.style.display='none';
 }
 function hideCanvasToolbar(){
   const tb=document.getElementById('lp-ctb'), tbb=document.getElementById('lp-ctb-body'), chip=document.getElementById('lp-ctb-chip');
@@ -4403,6 +4466,7 @@ function hideCanvasToolbar(){
   if(tb){ tb.style.display='none'; tb.setAttribute('aria-hidden','true'); }
   if(chip) chip.style.display='none';
   if(tbb) tbb.innerHTML='';
+  mountCanvasToolbar(false);
 }
 // LP-4.9 §3 — real-time feedback. A toast anchored to the node says EXACTLY what happened: an edit
 // landed ("✓ aplicado no preview · $0"), a question was answered ("💬 resposta no painel →"), or a
@@ -4677,6 +4741,7 @@ function renderSelection(sel){
     sendClearPreview();
     ctbBody.innerHTML=inputsHTML;
     lpToolbarManualPos=null; // §7 — a fresh selection re-anchors (drag is per-selection)
+    lpToolbarDocked=false; mountCanvasToolbar(false); // a different pin gets a fresh floating-size geometry decision
     const chip=document.getElementById('lp-ctb-chip');
     // §7 — preserve a minimized toolbar across re-pins (show the 🐮 chip, keep the panel hidden).
     if(lpToolbarMin){ if(ctb){ ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); } if(chip) chip.style.display='inline-flex'; }
@@ -4823,7 +4888,16 @@ function renderSelection(sel){
   renderModeChips();
   renderRefs(); // LP-4.8 §4 — repaint the attached-reference chips (toolbar markup was rebuilt)
   // Anchor the toolbar to the pin now that it is laid out (offsetWidth/Height are measurable).
-  if(ctbBody) positionCanvasToolbar(sel.rect);
+  if(ctbBody){
+    positionCanvasToolbar(sel.rect);
+    // Reparenting the focused one-box into #lp-prompt-dock drops focus in real Chromium even
+    // though our lightweight DOM harness preserves it. Restore focus AFTER placement so a fresh
+    // pin is genuinely ready to type. Never steal focus from the first-run coach dialog.
+    const coach=document.getElementById('lp-coach');
+    if(!lpToolbarMin && (!coach || coach.style.display==='none')){
+      const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} }
+    }
+  }
 }
 // MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
 // partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
@@ -5224,7 +5298,7 @@ function showEditResult(ok, reason){
 }
 // LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
 // within the frame wrap, so re-anchor the toolbar from the last known pin rect (iframe coords).
-window.addEventListener('resize', function(){ positionCanvasToolbar(); });
+window.addEventListener('resize', function(){ lpToolbarDocked=false; positionCanvasToolbar(); });
 // LP-4.8 §5 — keyboard/a11y. Esc DISMISSES the in-canvas toolbar, but only when focus is inside it
 // (so it never steals VS Code's global Esc), and never preventDefaults globally. If the /skills menu
 // is open, its own handler closes the menu first (it stopPropagations, so we don't also hide). After
@@ -5269,14 +5343,15 @@ window.addEventListener('resize', function(){ positionCanvasToolbar(); });
       else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
     }
   });
-  const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
-  const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); ctb.focus(); };
+  const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); const dock=document.getElementById('lp-prompt-dock'); if(dock) dock.style.display='none'; if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
+  const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); const box=document.getElementById('lp-box-in'); if(box) box.focus(); };
   if(mn) mn.addEventListener('click', minimize);
   if(chip) chip.addEventListener('click', expand);
   // Drag via the grip. Pointer events; updates lpToolbarManualPos (clamped by positionCanvasToolbar).
   if(grip){
     let dragging=false, ox=0, oy=0;
     grip.addEventListener('pointerdown', function(e){
+      if(ctb.classList.contains('lp-docked')) return;
       dragging=true; const r=ctb.getBoundingClientRect(), wr=wrap?wrap.getBoundingClientRect():{left:0,top:0};
       ox=e.clientX-(r.left-wr.left); oy=e.clientY-(r.top-wr.top);
       try{ grip.setPointerCapture(e.pointerId); }catch(err){}

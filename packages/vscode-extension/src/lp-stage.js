@@ -191,8 +191,8 @@ function pickDevServer(candidates, livePorts) {
 
 // ── resolveStage(inputs) — PURE. The whole App Stage decision, from raw inputs to the honest
 // stage object the webview renders. inputs:
-//   { overrideUrl?, stickyUrl?, configPort?, livePorts:number[], rejected?:object[], accepted?:object,
-//     workspacePresent?:boolean }
+//   { overrideUrl?, stickyUrl?, retainedUrl?, retainedSource?, configPort?, livePorts:number[],
+//     rejected?:object[], accepted?:object, workspacePresent?:boolean }
 // Returns:
 //   { url, port, source, degraded, stale, reason }
 //     • url/port      : the localhost URL to frame (null when degraded).
@@ -261,6 +261,23 @@ function resolveStage(inputs) {
   }
 
   var st = normalizeStageUrl(inputs.stickyUrl);
+  // A previously validated frame is valuable visual state. If that SAME origin temporarily answers
+  // with a positive HTTP failure during a rebuild, keep the last rendered page mounted instead of
+  // oscillating between the app and a blank error screen. This is display continuity only: stale +
+  // blocked means selection/writes fail closed host-side until a fresh successful probe and handshake.
+  // `retainedUrl` is deliberately NOT a discovery candidate, so a stale unrelated app can never win.
+  var retained = normalizeStageUrl(inputs.retainedUrl);
+  var retainedRejected = retained ? rejectedAt(retained.port) : null;
+  if (retained && retainedRejected) {
+    return {
+      url: retained.url, attemptedUrl: retained.url, port: retained.port,
+      source: (typeof inputs.retainedSource === 'string' && inputs.retainedSource) ? inputs.retainedSource : 'probe',
+      degraded: false, stale: true, blocked: true, retained: true, workspacePresent: workspacePresent,
+      statusCode: retainedRejected.statusCode || null, recovery: 'restart', validated: null,
+      reason: 'o servidor respondeu com erro (' + rejectionText(retainedRejected)
+        + ') — mantive a última página visível, mas edições ficam bloqueadas até revalidar',
+    };
+  }
   if (st && !rejectedAt(st.port)) {
     return {
       url: st.url, port: st.port, source: 'probe', degraded: false, stale: true,

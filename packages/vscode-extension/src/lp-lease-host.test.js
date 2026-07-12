@@ -126,6 +126,39 @@ test('C0/COH-01: a SAME-origin poll/stale update NEVER re-arms identity (native 
   assert.strictEqual(inst._leaseInfo || null, null, 'no S7 safe-state for a same-origin blip');
 });
 
+test('same-origin positive HTTP failure suspends the lease, clears the pin and blocks writes while pixels are retained', () => {
+  const { root } = mkTree('lp-lease-http-retained-');
+  const { inst } = mkInstance(root);
+  inst.stage = { url: 'http://localhost:7819', port: 7819, degraded: false, stale: false, blocked: false };
+  inst._stageOrigin = 'http://localhost:7819';
+  inst._readyEpoch = 9;
+  inst._servedRoot = root;
+  inst._selection = { file: 'page.tsx', line: 4, tag: 'h1' };
+  inst._setStage({ url: 'http://localhost:7819', port: 7819, degraded: false, stale: true, blocked: true, retained: true });
+  assert.strictEqual(inst.stage.url, 'http://localhost:7819', 'the last page remains the display surface');
+  assert.strictEqual(inst._servedRoot, null, 'HTTP failure cannot keep write authority');
+  assert.strictEqual(inst._selection, null, 'stale visual anchor is cleared');
+  assert.strictEqual(inst._readyEpoch, 10);
+  assert.strictEqual(inst._treeGateBlocked(), true);
+  assert.strictEqual(inst._leaseInfo.kind, 'stage-unhealthy');
+  assert.strictEqual(inst._leaseInfo.prevPort, '7819');
+  assert.strictEqual(inst._leaseInfo.newPort, '7819');
+});
+
+test('a stale/error document cannot renew servedRoot or pin before the stage is healthy again', () => {
+  const { root } = mkTree('lp-lease-stale-ready-');
+  const { inst } = mkInstance(root);
+  inst.stage = { url: 'http://localhost:7819', port: 7819, degraded: false, stale: true, blocked: true, retained: true };
+  inst._stageOrigin = 'http://localhost:7819';
+  inst._servedRoot = null;
+  inst._selection = null;
+  inst._setServedRoot(root);
+  inst._setSelection({ file: 'page.tsx', line: 4, tag: 'h1' });
+  assert.strictEqual(inst._servedRoot, null, 'lp-ready from a broken document is ignored');
+  assert.strictEqual(inst._selection, null, 'lp-pin from a broken document is ignored');
+  assert.strictEqual(inst._treeGateBlocked(), true);
+});
+
 // ── (2) A write pending across the swap fail-closes ───────────────────────────────────────────────
 test('C0/COH-01: a prompt-apply pending across the swap writes NOTHING and answers preview-tree-mismatch', async () => {
   const { root, file } = mkTree('lp-lease-2-');

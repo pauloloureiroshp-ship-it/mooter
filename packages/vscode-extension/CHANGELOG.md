@@ -2,6 +2,23 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.71] — 2026-07-12 — Stable select-to-prompt and preview recovery
+
+- Make the selected-element prompt unconditionally reachable: it still floats beside the pin when
+  geometry permits, but docks the same component at the top of the right rail when a large element or
+  expanded controls leave no safe rectangle. Explicit minimise still uses the 🐮 chip, and clicking it
+  always reopens the prompt with focus in the input instead of immediately minimising again.
+- Keep the last validated page visible during a transient positive HTTP failure on the current origin,
+  eliminating page/blank oscillation. Display continuity never grants write authority: the host clears
+  served-root identity and selection, bumps the lease epoch and blocks every edit until recovery.
+- On same-URL recovery, force exactly one iframe reload so a fresh `lp-ready` handshake can renew the
+  tree. Clear stale breadcrumbs/toolbars on every suspended lease and ignore ready/pin messages emitted
+  while the HTTP stage is stale or blocked.
+- Fix repeated Node 24 probes accumulating `connect` listeners on an already-connected reused socket.
+- Regression proof: extension suite **1208/1208 pass** with isolated HOME and serial test files; focused
+  Live Preview/recovery suite **123/123 pass**; landing **211/211 pass** plus typecheck; installed runtime
+  completed **20/20** live HTTP 200 instrumented probes. No dependency or classifier change.
+
 ## [0.16.70] — 2026-07-12 — Live Preview HTTP health and real restart
 
 - Replace the TCP-only App Stage check with a bounded localhost HTTP validator. HTTP 500, JSON/API

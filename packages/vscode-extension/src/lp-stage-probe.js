@@ -145,7 +145,14 @@ function probeEndpoint(port, options, connectedHost, pathName, redirectsLeft) {
         res.once('aborted', () => finish({ reachable: true, statusCode, reason: 'resposta HTTP interrompida' }));
         res.once('error', () => finish({ reachable: true, statusCode, reason: 'erro ao ler a resposta HTTP' }));
       });
-      req.once('socket', (socket) => socket.once('connect', () => { connected = true; }));
+      req.once('socket', (socket) => {
+        // Node 24 may reuse an already-connected socket. Adding a `connect` listener to that socket
+        // on every 4s probe leaks listeners because the event will never fire again (and eventually
+        // emits MaxListenersExceededWarning). Mark reused sockets connected immediately; only wait
+        // for `connect` while a brand-new socket is actually connecting.
+        if (socket && socket.connecting) socket.once('connect', () => { connected = true; });
+        else connected = true;
+      });
       req.setTimeout(timeoutMs, () => finish({ reachable: connected, reason: connected ? 'serviço não respondeu como página HTTP' : null }));
       hardTimer = setTimeout(() => finish({ reachable: connected, reason: connected ? 'resposta HTTP excedeu o limite' : null }), timeoutMs + 300);
       req.once('error', () => finish({ reachable: connected, reason: connected ? 'resposta não-HTTP' : null }));
