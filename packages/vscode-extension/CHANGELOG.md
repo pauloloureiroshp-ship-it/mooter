@@ -2,6 +2,15 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.68] — 2026-07-12 — Live Preview selection reliability
+
+- Re-arm the in-page selection tap after a same-URL iframe reload when selection mode is still active. This
+  closes the state split where the host kept the target button lit while the fresh tap silently ignored clicks.
+- Keep the reload handshake fail-closed: an inactive selector is never armed implicitly.
+- When selection is blocked, show an assertive reason banner with the same one-click recovery as the readiness
+  strip; the gate remains disabled until the preview identity is confirmed.
+- Regression proof: extension suite **1166 pass / 0 fail**; landing suite **211 pass / 0 fail**.
+
 ## [0.16.67] — 2026-07-12 — Live Preview "coerência total": the 19-finding coherence close (COH-01…19)
 
 The full Live Preview coherence pass — all 19 findings of the 2026-07-11 Codex coherence audit, each with a

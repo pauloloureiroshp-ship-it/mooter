@@ -518,3 +518,81 @@ test('F0.2: selecting a node shows ITS history; a prior-session item is read-onl
   const html2 = (h.env.doc.getElementById('lp-sel') || {}).innerHTML || '';
   assert.ok(/histórico deste nó · 1/.test(html2), 'the other node has its OWN single-item history (nodeKey isolation)');
 });
+
+// H2-FIX — the iframe-reload desync. Select mode is armed on the HOST (🎯 lit, lpSelectOn=true) and posts
+// lp-select-mode to the tap. A full same-URL iframe reload (Next server-component edit, non-hot-swappable
+// change, or error-overlay recovery) re-inits the fresh in-page tap with its own select mode OFF (on=false)
+// and re-handshakes via lp-ready. The host keeps 🎯 lit (curSrc===st.url → no re-point/reset) and tree stays
+// 'ok', so the button LIES: the user clicks an element, the tap returns at `if(!on) return`, no lp-select is
+// posted, renderSelection never runs, and NEITHER the toolbar NOR the 🐮 chip appears. The host must re-assert
+// select mode on the reload handshake. Capture the host→tap channel (postMessage into frame.contentWindow).
+function captureFrameChannel(h) {
+  const framePosts = [];
+  h.frame.contentWindow = { name: 'frame', postMessage: (m) => framePosts.push(m) };
+  return framePosts;
+}
+function fireReady(h, servedRoot) {
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-ready', servedRoot: (servedRoot == null ? null : servedRoot) },
+    source: h.frame.contentWindow, origin: 'http://localhost:7819',
+  }));
+}
+
+test('RUNTIME: a same-URL iframe reload RE-ARMS the tap while select mode is on (kills "🎯 lit but dead clicks, no toolbar, no chip")', () => {
+  const h = bootWebview(false);
+  const frameCh = captureFrameChannel(h);
+  // arm 🎯 — the host tells the tap to enter select mode
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const armed = frameCh.filter((m) => m && m.type === 'lp-select-mode' && m.on === true);
+  assert.ok(armed.length >= 1, 'clicking 🎯 posts lp-select-mode {on:true} to the tap (armed)');
+  // a full iframe reload at the SAME URL: the fresh tap comes up on=false and re-handshakes with lp-ready
+  const beforeReload = frameCh.length;
+  fireReady(h, null);
+  const reArmed = frameCh.slice(beforeReload).filter((m) => m && m.type === 'lp-select-mode' && m.on === true);
+  assert.ok(reArmed.length >= 1, 'after a reload handshake (lp-ready) while armed, the host RE-SENDS lp-select-mode {on:true} so the fresh tap is armed again (no armed-but-dead 🎯)');
+});
+
+test('RUNTIME: a reload handshake does NOT arm the tap when select mode is OFF (the re-arm is gated by lpSelectOn)', () => {
+  const h = bootWebview(false);
+  const frameCh = captureFrameChannel(h);
+  // never arm 🎯; a fresh lp-ready must NOT spuriously enter select mode
+  fireReady(h, null);
+  const spurious = frameCh.filter((m) => m && m.type === 'lp-select-mode' && m.on === true);
+  assert.equal(spurious.length, 0, 'lp-ready without arming never posts lp-select-mode {on:true} (no zero-interaction select oracle)');
+});
+
+// COH-04+ — the OTHER end of "nothing appears": when the preview identity is NOT confirmed (tree!='ok'),
+// 🎯 is natively-disabled and swallows clicks, so the honest cause hides in a hover tooltip + the easy-to-miss
+// readiness strip. Make it LOUD: an assertive banner names the exact cause + carries the same 1-click fix,
+// and it NEVER arms selection (the security gate stays intact).
+function snapshotReadiness(h, readiness) {
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { ok: true, url: 'http://localhost:7819/' }, readiness: readiness, feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+}
+
+test('RUNTIME: 🎯 blocked (tree != ok) surfaces a LOUD banner with the cause + a wired 1-click fix (not just a silent disabled button)', () => {
+  const h = bootWebview(false);
+  snapshotReadiness(h, { workspace: true, devServer: true, port: '7819', source: 'probe', tree: 'unknown', sdk: false, trust: true });
+  const bn = h.env.doc.getElementById('lp-select-blocked');
+  assert.ok(bn, 'a dedicated blocked-reason banner element exists');
+  assert.strictEqual(bn.style.display, 'flex', 'the banner is VISIBLE when 🎯 is blocked');
+  assert.match(bn.innerHTML, /indispon|por confirmar|handshake|dev server|pasta/i, 'the banner names the exact cause');
+  const fix = bn.querySelector('[data-fix]');
+  assert.ok(fix, 'a 1-click fix button is present');
+  const before = h.posted.length;
+  fix.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.length > before, 'the fix reuses readinessFix → posts a host recovery action (not a dead button)');
+  const b = h.env.doc.getElementById('lp-select-btn');
+  assert.strictEqual(b.getAttribute('aria-pressed'), 'false', 'selection did NOT auto-arm — the security gate is intact');
+});
+
+test('RUNTIME: a CONFIRMED identity (tree==ok) hides the blocked banner and enables 🎯', () => {
+  const h = bootWebview(false);
+  snapshotReadiness(h, { workspace: true, devServer: true, port: '7819', source: 'probe', tree: 'unknown', sdk: false, trust: true });
+  snapshotReadiness(h, { workspace: true, devServer: true, port: '7819', source: 'probe', tree: 'ok', sdk: true, trust: true });
+  const bn = h.env.doc.getElementById('lp-select-blocked');
+  assert.strictEqual(bn.style.display, 'none', 'the banner is hidden once identity is confirmed');
+  const b = h.env.doc.getElementById('lp-select-btn');
+  assert.ok(!b.disabled, '🎯 is enabled on a green tree');
+});

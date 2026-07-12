@@ -3285,6 +3285,11 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-controls button:focus-visible,#lp-url:focus-visible,#lp-routes:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   /* MP5.1 — select-to-edit: pressed 🎯 toggle + the selection panel in the side rail. */
   #lp-select-btn.lp-on{background:var(--vscode-charts-red,#E8888A);color:#0B0A09;border-color:transparent;font-weight:700}
+  /* COH-04+ — the LOUD blocked-selection banner (assertive; only shown when 🎯 cannot arm). */
+  #lp-select-blocked{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;border:1px solid var(--vscode-inputValidation-warningBorder,rgba(229,192,123,.6));background:var(--vscode-inputValidation-warningBackground,rgba(229,192,123,.14));color:var(--vscode-foreground);border-radius:6px;font:12px var(--vscode-font-family);font-weight:600;line-height:1.4}
+  #lp-select-blocked .lp-sb-fix{flex:none;font:11.5px var(--vscode-font-family);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));background:var(--vscode-button-secondaryBackground,var(--vscode-input-background));border:1px solid var(--vscode-widget-border);border-radius:5px;padding:2px 9px;cursor:pointer;white-space:nowrap}
+  #lp-select-blocked .lp-sb-fix:hover{background:var(--vscode-button-secondaryHoverBackground,var(--vscode-list-hoverBackground))}
+  #lp-select-blocked .lp-sb-fix:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
   #lp-sel{background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-widget-border);border-radius:7px;padding:10px 12px;margin-bottom:10px}
   #lp-sel .lp-sel-hd{font-weight:700;margin-bottom:4px}
   #lp-sel .lp-sel-loc{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;opacity:.85;word-break:break-all}
@@ -3640,6 +3645,8 @@ function getLivePreviewHtml(token, wsRoot) {
       <div id="lp-hmr" role="status" aria-live="polite" style="display:none"></div>
       <!-- F0.5.3 — readiness semaphore: 4 honest lights (pasta · dev server · árvore · agente) + 1-click fixes. -->
       <div id="lp-ready" class="lp-ready" role="status" aria-label="Prontidão do Live Preview" style="display:none"></div>
+      <!-- COH-04+ — the 🎯 gate made LOUD: a native-disabled button fires no click, so a user who clicks it gets nothing. Whenever selection is blocked, applySelectCapability mirrors the exact cause + the readiness strip's 1-click fix HERE, assertively (never auto-arms). -->
+      <div id="lp-select-blocked" class="lp-select-blocked" role="alert" aria-live="assertive" style="display:none"></div>
     </div>
     <div id="lp-diag" role="log" aria-label="Diagnóstico do preview (erros de runtime e build)"></div>
     <div id="lp-framewrap">
@@ -3757,8 +3764,9 @@ let lpReadySig='';
 // lie the honest-controls invariant forbids. Called on every readiness paint (before the dedup return).
 function applySelectCapability(r){
   const b=document.getElementById('lp-select-btn'); if(!b) return;
+  const bn=document.getElementById('lp-select-blocked');
   const ok=!!(r && r.workspace && r.devServer && r.tree==='ok');
-  if(ok){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title='Selecionar um elemento do preview para editar (Esc sai)'; return; }
+  if(ok){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title='Selecionar um elemento do preview para editar (Esc sai)'; if(bn){ bn.style.display='none'; bn.innerHTML=''; } return; }
   if(lpSelectOn) setSelectMode(false); // cannot select an unconfirmed preview
   b.disabled=true; b.setAttribute('aria-disabled','true');
   const why=(!r||!r.workspace)?'abre a pasta do projeto primeiro'
@@ -3766,6 +3774,17 @@ function applySelectCapability(r){
     :(r.tree==='mismatch')?'o preview vem de outra árvore — reinicia o dev server neste workspace'
     :'identidade do preview por confirmar — aguarda o handshake da origem atual';
   b.title='🎯 Selecionar indisponível — '+why;
+  // COH-04+ — LOUD honest surface. A native-disabled control fires no click, so the disabled 🎯 alone is
+  // missable (its cause hides in a hover tooltip); mirror the readiness strip's 1-click fix HERE, assertively.
+  // NEVER arms select — the fix button posts a host recovery action via readinessFix, exactly like the strip.
+  if(bn){
+    const fix=(!r||!r.workspace)?'folder':(!r.devServer)?'reprobe':(r.tree==='mismatch')?'restart':(r.devServer?'restart':'reprobe');
+    const fixlabel=(fix==='folder')?'Abrir pasta':(fix==='restart')?'reiniciar dev server':'re-probar';
+    bn.innerHTML='<span>🎯 Selecionar indisponível — '+esc(why)+'</span><button type="button" class="lp-sb-fix" data-fix="'+esc(fix)+'">'+esc(fixlabel)+'</button>';
+    bn.style.display='flex';
+    const fb=bn.querySelector('[data-fix]');
+    if(fb) fb.addEventListener('click', function(){ readinessFix(this.getAttribute('data-fix')); });
+  }
 }
 function renderReadiness(r){
   applySelectCapability(r); // COH-04 — gate the selector by identity on every paint (independent of the lights-dedup below)
@@ -5195,7 +5214,7 @@ window.addEventListener('message', (ev) => {
         vsapi.postMessage({ type:'lp-state', path: lpState.path, scrollY: lpState.scrollY });
       }
     }
-    else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11 the handshake proves nav capability
+    else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); if(lpSelectOn) sendSelectMode(true); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11 the handshake proves nav capability + H2-FIX a full same-URL iframe reload re-inits the in-page tap with select mode OFF; if the host is still armed, re-assert it on the reload handshake so 🎯 never stays lit while clicks are dead (no lp-select, no toolbar, no chip)
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
     else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
