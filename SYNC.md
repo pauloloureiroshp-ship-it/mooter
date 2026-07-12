@@ -5,13 +5,13 @@
 
 **Atualizado:** 2026-07-12 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
 **extensão em main:** `v0.16.67` · **candidata local:** `v0.16.68` em
-`fix/lp-iframe-reload-rearm @ ea65359` (**1 commit local, ainda sem push**).
+`fix/lp-iframe-reload-rearm` (**3 commits locais, push pendente**).
 
 ## Verdade atual
 
 - **LP-COERÊNCIA:** PR #246 merged; os 19 findings COH-01…19 estão em `main`.
 - **Seleção pós-reload:** o host rearma o tap depois de um reload same-URL e mostra uma razão assertiva
-  quando o gate 🎯 está bloqueado. Suite extensão **1166/1166 pass**.
+  quando o gate 🎯 está bloqueado. Suite extensão **1167/1167 pass**.
 - **Landing:** suite **211/211 pass**. Build compila e chega à recolha de páginas, mas para por ausência local
   de `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`; não é regressão atribuída ao código.
 - **Classificador:** `tools/router/classify.js` SHA
@@ -21,15 +21,19 @@
 
 ## Consolidação dos worktrees
 
-Auditoria mecânica pelo Git nativo do Windows, confrontada com `origin/main`:
+Auditoria mecânica pelo Git nativo do Windows, confrontada com `origin/main`. Dos 40 worktrees iniciais,
+27 limpos foram removidos sem `--force`; todas as branches foram verificadas como preservadas.
 
-| Classe | Quantidade | Tratamento |
+| Estado atual | Quantidade | Tratamento |
 |---|---:|---|
-| Limpos e já em `main` | 18 | removíveis após gate humano |
-| Limpos, branch ainda não mesclada | 10 | remover só a pasta; preservar a branch |
-| Sujos, trabalho já em `main` | 6 | separar artefactos locais antes de remover |
-| Sujos, trabalho exclusivo | 6 | preservar/commit/rever antes de qualquer remoção |
-| **Total** | **40** | nenhum `worktree remove --force` autónomo |
+| Worktree canónico `frugal` | 1 | manter; preservar WIP antes de alinhar a `main` |
+| Worktree desta consolidação | 1 | limpo; branch candidata para push |
+| Outros worktrees sujos | 10 | patches + não rastreados preservados no cofre; revisão antes de remover |
+| **Registrados** | **12** | eram 40; redução segura de 70% |
+
+`frugal-final` saiu do registro Git, mas o Windows manteve um resíduo órfão de 5,7 MB bloqueado em
+`packages/vscode-extension/src`; não foi forçado. Fechar o processo que mantém o diretório aberto antes de
+remover o resíduo físico.
 
 O diretório pretendido como canónico, `C:\Users\Paulo Loureiro\frugal`, ainda está em
 `wave/honest-controls` e contém 25 alterações rastreadas + 1562 não rastreadas. Ele **não pode** ser
@@ -53,8 +57,8 @@ webview concat-only/CSP/origin-lock/tree-gate preservados.
 ## Próxima missão
 
 1. Revisar e, com autorização, publicar `fix/lp-iframe-reload-rearm` como PR curto para `main`.
-2. Preservar o trabalho real dos 12 worktrees sujos, começando pelo diretório canónico `frugal`.
-3. Apresentar a lista nominal dos worktrees removíveis; Paulo autoriza a remoção em lote.
+2. Preservar/triangular o trabalho real dos 11 worktrees sujos, começando pelo diretório canónico `frugal`.
+3. Remover o resíduo órfão `frugal-final` somente depois de o lock do Windows desaparecer.
 4. Deixar apenas `C:\Users\Paulo Loureiro\frugal` em `main`, limpo e sincronizado; branches históricas podem
    continuar no Git sem ocupar pastas.
 

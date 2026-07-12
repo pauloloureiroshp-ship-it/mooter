@@ -95,6 +95,48 @@ test('F1: apply → git shows exactly +1/-1; revert → git CLEAN (the $0 cycle 
   } finally { if (root) fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+// H2 HOST-INTEGRATION — the host half of the chain the user must be able to trust: a RECEIVED pin becomes the
+// sole selection authority, and an anchored edit lands on exactly that file. The preceding DOM/tap/webview half
+// is intentionally NOT claimed here: live-preview-runtime.test.js proves lp-select → exactly one lp-pin relay,
+// while lp-selection-host.test.js proves the host store contract. This real-git test composes the remaining
+// host boundary: no pin → fail-closed; received pin → allowed; edit → only the pinned file; undo → clean tree.
+test('H2 HOST INTEGRATION: received pin → gate opens → edit lands only on the pinned file → clean undo', async () => {
+  assert.ok(Panel, 'LivePreviewPanel resolvable');
+  let root, file;
+  try { ({ root, file } = setupRepo()); }
+  catch (e) { console.log('git unavailable — skipping H2-E2E pin chain: ' + e.message); return; }
+  try {
+    assert.strictEqual(git(root, ['status', '--porcelain']).trim(), '', 'repo starts clean at HEAD===SRC');
+    const { inst, posts } = mkInstance(root);
+    inst._emitLpEvent = () => {};            // hermetic — no event-bus side effects
+    inst._workspaceTrusted = () => true;     // trust gate open (isolates the pin gate under test)
+    inst._selection = null;                  // simulate the production ctor default → the pin gate is ACTIVE
+
+    // (1) NO pin yet → the agent/LLM prompt path is FAIL-CLOSED (no anchorless prompt ever reaches the model).
+    assert.strictEqual(inst._selectionMissing(), true, 'no pin yet → the selection gate is active');
+    await inst._taskRun({ instruction: 'encurta este texto', mode: 'local', file: 'page.tsx', line: 4, tag: 'h1' });
+    assert.ok(posts.some((p) => /no-selection/.test(JSON.stringify(p))), 'without a pin, a prompt on the selection is refused (no-selection) BEFORE any agent runs');
+
+    // (2) At the host receipt boundary, _setSelection records the lp-pin payload as the sole authority.
+    inst._setSelection({ file: 'page.tsx', line: 4, col: 3, tag: 'h1', selText: 'Old headline' });
+    assert.strictEqual(inst._selectionMissing(), false, 'after the pin, prompts are allowed');
+    assert.strictEqual(inst._selection.file, 'page.tsx', 'the pin anchors to the SELECTED file');
+    assert.strictEqual(inst._selection.line, 4, 'the pin carries the selected line');
+
+    // (3) a prompt/edit ANCHORED to the pin changes EXACTLY the pinned file — nothing collateral.
+    await inst._applyEdit({ preview: false, file: inst._selection.file, line: inst._selection.line, tag: inst._selection.tag, edit: { kind: 'text', value: 'New headline' }, h: sha(SRC) });
+    assert.ok(posts.some((p) => p.type === 'lp-edit-result' && p.reason === 'applied' && p.ok === true), 'the anchored edit applied');
+    const numstat = git(root, ['diff', '--numstat']).trim().split('\n').filter(Boolean);
+    assert.strictEqual(numstat.length, 1, 'exactly one file changed');
+    assert.ok(/page\.tsx$/.test(numstat[0].split('\t')[2]), 'and it is the PINNED file (page.tsx) — the prompt landed on what was selected');
+    assert.ok(fs.readFileSync(file, 'utf8').includes('New headline'), 'the selected element was edited on disk');
+
+    // (4) the cycle reverts to a clean tree — no trace.
+    await inst._undoLast();
+    assert.strictEqual(git(root, ['status', '--porcelain']).trim(), '', 'the full select→pin→prompt→revert cycle closed clean');
+  } finally { if (root) fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('D6: _scanFingerprint binds to CONTENT of scanned files — stable, shifts on tracked edit, and on UNTRACKED edits (TOCTOU closed)', () => {
   let root, file;
   try { ({ root, file } = setupRepo()); }

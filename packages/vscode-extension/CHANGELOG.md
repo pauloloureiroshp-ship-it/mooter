@@ -9,7 +9,9 @@ All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Kee
 - Keep the reload handshake fail-closed: an inactive selector is never armed implicitly.
 - When selection is blocked, show an assertive reason banner with the same one-click recovery as the readiness
   strip; the gate remains disabled until the preview identity is confirmed.
-- Regression proof: extension suite **1166 pass / 0 fail**; landing suite **211 pass / 0 fail**.
+- Add a real-git host integration proof for `received pin → gate → pinned file → clean undo`, while explicitly
+  leaving the DOM/tap/webview relay claim to its dedicated runtime test.
+- Regression proof: extension suite **1167 pass / 0 fail**; landing suite **211 pass / 0 fail**.
 
 ## [0.16.67] — 2026-07-12 — Live Preview "coerência total": the 19-finding coherence close (COH-01…19)
 

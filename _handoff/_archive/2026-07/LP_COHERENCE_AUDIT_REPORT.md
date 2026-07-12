@@ -1,9 +1,9 @@
 # LP Coherence Audit — Live Preview v0.16.66
 
-**Data:** 2026-07-11  
-**Modo:** auditoria read-only; nenhum código, configuração, dependência, servidor, commit, push ou deploy alterado  
-**Artefacto auditado:** `C:\Users\Paulo Loureiro\frugal-final` · branch `wave/lp-producao-perfeita` · commit `d522ad8c4a639497f06bb29458c66ae8fe067874` · `packages/vscode-extension/package.json:5` = `0.16.66`  
-**Régua:** `_handoff/LP_CODEX_COHERENCE_MASTERPROMPT.md` + `_handoff/LP_CODEX_AUDIT_REPORT.md` + handoffs LP existentes  
+**Data:** 2026-07-11
+**Modo:** auditoria read-only; nenhum código, configuração, dependência, servidor, commit, push ou deploy alterado
+**Artefacto auditado:** `C:\Users\Paulo Loureiro\frugal-final` · branch `wave/lp-producao-perfeita` · commit `d522ad8c4a639497f06bb29458c66ae8fe067874` · `packages/vscode-extension/package.json:5` = `0.16.66`
+**Régua:** `_handoff/LP_CODEX_COHERENCE_MASTERPROMPT.md` + `_handoff/LP_CODEX_AUDIT_REPORT.md` + handoffs LP existentes
 **Veredicto global:** **NO-GO para F3 enquanto COH-01 estiver aberto.** A geometria recomendada já está maioritariamente implementada, mas o vínculo `stage origin ↔ servedRoot ↔ selection` não é atómico. Depois de uma troca automática de porta, o preview pode mostrar outra aplicação e conservar autorização/seleção da árvore anterior.
 
 ## 0. Proveniência e confronto com o estado real
