@@ -106,6 +106,40 @@ test('anchor extraction: node span via the REAL engine, workspace-relative label
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('async task stays bound to node A when the user selects B before completion', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const task = {
+    runAnchoredTask: async () => { await gate; return { ok: true, kind: 'answer', text: 'Resposta exclusiva de A.', filesRead: ['landing/page.tsx'], edits: [], denied: [], model: 'claude-sonnet-4-6' }; },
+    gitDiffFile: () => ({ ok: true, lines: [] }),
+  };
+  const Panel = loadPanelClass({ task });
+  const root = setup();
+  try {
+    const { inst, posts } = mkInstance(Panel, root, true);
+    inst._servedRoot = root; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = 1;
+    inst._setSelection({ file: TARGET.file, line: TARGET.line, col: 7, tag: TARGET.tag, selText: 'A' });
+    const aId = inst._journeyView().id;
+    const pending = inst._taskRun(Object.assign({ instruction: 'analisa A', mode: 't2' }, TARGET));
+    await Promise.resolve(); // runAnchoredTask is now awaiting
+    inst._setSelection({ file: TARGET.file, line: 3, col: 5, tag: 'section', selText: 'B' });
+    const bId = inst._journeyView().id;
+    release();
+    await pending;
+
+    const a = inst._journeyById(aId), b = inst._journeyById(bId);
+    assert.ok(a.turns.some((t) => /Resposta exclusiva de A/.test(t.text)), 'A receives its own late assistant answer');
+    assert.ok(!b.turns.some((t) => /Resposta exclusiva de A/.test(t.text)), 'B thread is never mutated by A completion');
+    const result = posts.find((p) => p.type === 'lp-task-result' && p.ok);
+    assert.strictEqual(result.journeyId, aId, 'webview payload remains correlated to A journey');
+    assert.strictEqual(result.anchor.file, TARGET.file);
+    assert.strictEqual(result.anchor.line, TARGET.line);
+    assert.strictEqual(result.anchor.col, 7);
+    assert.strictEqual(result.anchor.tag, TARGET.tag);
+    assert.strictEqual(inst._activeJourneyId, bId, 'B remains the host-visible active thread');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('edits verdict: per-file git diff computed from OUR snapshot record; edits registered host-side; streaming forwarded', async () => {
   const root = setup();
   const abs = path.join(root, 'landing', 'page.tsx');
@@ -127,6 +161,11 @@ test('edits verdict: per-file git diff computed from OUR snapshot record; edits 
   const Panel = loadPanelClass({ task });
   try {
     const { inst, posts } = mkInstance(Panel, root, true);
+    let sealed = null;
+    inst._publishSealRecord = (sealedRoot, file, beforeRaw, afterSha) => {
+      sealed = { sealedRoot, file, beforeRaw: Buffer.from(beforeRaw), afterSha };
+      return { ok: true };
+    };
     await inst._taskRun(Object.assign({ instruction: 'põe números reais', mode: 'auto' }, TARGET));
     // streaming forwarded with honest phases
     assert.ok(posts.some((p) => p.type === 'lp-task-status' && p.phase === 'tool' && p.tool === 'Read' && p.path === 'landing/page.tsx'), 'read streamed');
@@ -143,6 +182,36 @@ test('edits verdict: per-file git diff computed from OUR snapshot record; edits 
     assert.ok(inst._taskReg && inst._taskReg.size === 1, 'task registry holds the edits');
     const reg = inst._taskReg.get(r.taskId);
     assert.ok(reg && reg[0].snapshot === snap && reg[0].abs === abs && reg[0].shaAfter === 'sha-x', 'registry entry is the full host record');
+    assert.ok(sealed, 'the agent result is provenance-sealed before Keep can authorize it');
+    assert.strictEqual(sealed.sealedRoot, root);
+    assert.strictEqual(sealed.file, 'landing/page.tsx');
+    assert.strictEqual(sealed.beforeRaw.toString('utf8'), SRC, 'the seal starts from the runner first-touch snapshot bytes');
+    assert.strictEqual(sealed.afterSha, 'sha-x');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('agent edit re-pins the same selected node after HMR/import line shifts', async () => {
+  const root = setup();
+  const abs = path.join(root, 'landing', 'page.tsx');
+  const snap = path.join(root, 'before.bin');
+  fs.writeFileSync(snap, SRC, 'utf8');
+  const shifted = 'import A from "./a";\nimport B from "./b";\n' + SRC.replace('total={61}', 'total={77}');
+  const task = {
+    runAnchoredTask: async () => {
+      fs.writeFileSync(abs, shifted, 'utf8');
+      return { ok: true, kind: 'edits', text: 'Atualizei com contexto.', filesRead: ['landing/page.tsx'], edits: [{ file: 'landing/page.tsx', abs, snapshot: snap, shaAfter: 'sha' }], denied: [], model: 'claude-sonnet-4-6' };
+    },
+    gitDiffFile: () => ({ ok: true, lines: ['+ import e conteúdo'] }),
+  };
+  const Panel = loadPanelClass({ task });
+  try {
+    const { inst, posts } = mkInstance(Panel, root, true);
+    await inst._taskRun(Object.assign({ instruction: 'valida e aplica a correção no projeto', mode: 't2' }, TARGET));
+    const repin = posts.find((p) => p.type === 'lp-repin');
+    assert.ok(repin, 'agent path asks the tap to re-pin after its write');
+    assert.strictEqual(repin.file, 'landing/page.tsx');
+    assert.strictEqual(repin.line, 6, 'two imports moved the exact component from line 4 to line 6');
+    assert.strictEqual(repin.tag, 'CommunityPulse');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

@@ -4,6 +4,7 @@
 // cannot see — so unit-proving them here is the only CI signal that guards gates #1/#4 against a
 // regression. DOM-free by construction, so a node-env vitest exercises them directly.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   parseStackForSource,
   classifyOverlay,
@@ -34,6 +35,17 @@ describe('Selection Journey node lifecycle', () => {
     expect(normalizeLpNodeState('published-by-attacker')).toBe('selected');
     expect(lpNodeStateLabel('unknown')).toBe('selecionado');
     expect(lpNodeStateLabel('working', 'x'.repeat(300))).toHaveLength(120);
+  });
+
+  it('animates both the pink working border and the yellow waiting-for-OK border, respecting reduced motion', () => {
+    const source = readFileSync(new URL('./lp-error-tap.ts', import.meta.url), 'utf8');
+    expect(source).toContain('@keyframes lpMooWorking');
+    expect(source).toContain('@keyframes lpMooAwaiting');
+    expect(source).toMatch(/lp-state-awaiting[^}]+animation:lpMooAwaiting/);
+    expect(source).toContain('@media (prefers-reduced-motion:reduce)');
+    expect(source).toContain('shadowHost && shadowHost.isConnected');
+    expect(source).toContain('if (on && (!shadowHost || !shadowHost.isConnected)) ensure();');
+    expect(source).toContain('if (v) { ensure(); drawPin(); postPinRect(); }');
   });
 });
 

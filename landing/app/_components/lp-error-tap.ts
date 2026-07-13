@@ -526,7 +526,12 @@ export function installLpErrorTap(): void {
     const refEls: Element[] = [];
     const refBoxes: HTMLElement[] = [];
     const ensure = (): void => {
-      if (shadowHost) return;
+      if (shadowHost && shadowHost.isConnected) return;
+      // Fast Refresh normally preserves our out-of-tree shadow host, but a document/root repair can
+      // detach it while this tap closure survives with `on === true`. Treat a detached host as gone;
+      // the parent's idempotent re-arm must be able to reconstruct the visible overlay.
+      shadowHost = null; box = null; pinBox = null; pinLabel = null; root = null;
+      refEls.length = 0; refBoxes.length = 0;
       shadowHost = document.createElement('div');
       shadowHost.setAttribute('data-lp-select-overlay', '');
       shadowHost.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;margin:0;';
@@ -534,9 +539,10 @@ export function installLpErrorTap(): void {
       const style = document.createElement('style');
       style.textContent = `
         @keyframes lpMooWorking { 0%,100% { box-shadow:0 0 0 2px rgba(232,136,138,.28),0 0 10px rgba(232,136,138,.18) } 50% { box-shadow:0 0 0 4px rgba(232,136,138,.52),0 0 22px rgba(232,136,138,.42) } }
+        @keyframes lpMooAwaiting { 0%,100% { box-shadow:0 0 0 2px rgba(229,192,123,.26),0 0 8px rgba(229,192,123,.14) } 50% { box-shadow:0 0 0 4px rgba(229,192,123,.48),0 0 18px rgba(229,192,123,.3) } }
         .lp-pin-state { position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px solid #7AA2F7;background:rgba(122,162,247,.06);border-radius:4px;box-shadow:0 0 0 2px rgba(122,162,247,.22);transition:border-color .2s ease,background .2s ease,box-shadow .2s ease; }
         .lp-pin-state.lp-state-working { border-color:#E8888A;background:rgba(232,136,138,.08);animation:lpMooWorking 1.05s ease-in-out infinite; }
-        .lp-pin-state.lp-state-awaiting { border-color:#E5C07B;background:rgba(229,192,123,.08);box-shadow:0 0 0 3px rgba(229,192,123,.34); }
+        .lp-pin-state.lp-state-awaiting { border-color:#E5C07B;background:rgba(229,192,123,.08);animation:lpMooAwaiting 1.45s ease-in-out infinite; }
         .lp-pin-state.lp-state-approved { border-color:#7FB88A;background:rgba(127,184,138,.07);box-shadow:0 0 0 3px rgba(127,184,138,.34); }
         .lp-pin-state.lp-state-reverted { border-color:#7AA2F7;background:rgba(122,162,247,.05);box-shadow:0 0 0 2px rgba(122,162,247,.2); }
         .lp-pin-state.lp-state-error,.lp-pin-state.lp-state-stale { border-color:#D9484B;background:rgba(217,72,75,.07);box-shadow:0 0 0 3px rgba(217,72,75,.28); }
@@ -575,6 +581,10 @@ export function installLpErrorTap(): void {
       root = null;
     };
     const drawPin = (): void => {
+      // Fast Refresh may preserve this closure and the selected DOM node while Next removes our
+      // out-of-tree shadow host. Rebuild it at every authoritative draw boundary; otherwise the
+      // host can truthfully be in `awaiting` while the user sees no yellow box at all.
+      if (on && (!shadowHost || !shadowHost.isConnected)) ensure();
       if (!pinBox) return;
       // isConnected: HMR may swap the node out from under the pin — hide instead of lying.
       if (!pinned || !pinned.isConnected) { pinBox.style.display = 'none'; return; }
@@ -595,6 +605,7 @@ export function installLpErrorTap(): void {
       post({ type: 'lp-pin-rect', rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
     };
     const applyPinState = (state: string, label?: string): void => {
+      if (on && (!shadowHost || !shadowHost.isConnected)) ensure();
       if (!pinBox) return;
       const next = normalizeLpNodeState(state);
       pinBox.className = 'lp-pin-state lp-state-' + next;
@@ -797,7 +808,10 @@ export function installLpErrorTap(): void {
       if (on && ev.key === 'Escape') { set(false); post({ type: 'lp-select-mode-off' }); }
     };
     const set = (v: boolean): void => {
-      if (v === on) return;
+      if (v === on) {
+        if (v) { ensure(); drawPin(); postPinRect(); }
+        return;
+      }
       on = v;
       if (v) {
         ensure();

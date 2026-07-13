@@ -2,6 +2,27 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.74] — 2026-07-13 — Live Preview coherence and transactional Publish
+
+- Keep the preview identity as an origin/root/epoch lease across HMR and transient health changes. The
+  last validated pixels stay visible without retaining stale write authority; same-URL reloads re-arm the
+  selector and re-pin only an AST-proven exact node, so old selections/threads cannot jump trees or siblings.
+- Complete the per-node Selection Journey: Ask and Apply remain ordered in the exact node thread, AUTO
+  coherence work floors to Sonnet, and every accepted edit carries the pink working → yellow explicit OK →
+  reviewed/green lifecycle on the selected DOM boundary, including off-screen journeys and reduced motion.
+- Make Review Security a refreshable, count-reconciled workflow with progress, findings, remediation activity
+  and a reopenable report. Missing, failed, partial, stale or Critical/High reviews block both Git and Production.
+- Make Publish transactional from Local → Git → Production. Same-file pre-existing WIP, selected-path HEAD/index
+  races, hidden multi-destination remotes, unsupported clean-filter transforms and mutable deploy sources all
+  fail closed. Git commits use a path-scoped parent/content/mode lease plus an atomically reconciled real index;
+  deploys verify every archived byte against the immutable pushed tree before crossing the Vercel boundary.
+- Show the exact local folder, sanitized/effective Git repository and branch, validated production URL, redacted
+  Vercel identity and immutable commit source before any irreversible control is enabled.
+- Regression proof: extension **1,343 pass / 0 fail / 1 expected Windows symlink skip** (1,344 total);
+  landing **214/214 pass** plus clean typecheck; isolated VS Code E2E completed Select → Ask/Sonnet →
+  Apply/HMR → Security → Publish destinations and **20/20** stability cycles. Frozen classifier SHA unchanged;
+  no security remediation or production deploy was performed during validation.
+
 ## [0.16.73] — 2026-07-13 — Selection Journey and an honest publish pipeline
 
 - Give every exact selected source node a durable **Selection Journey**: its own bounded, redacted local

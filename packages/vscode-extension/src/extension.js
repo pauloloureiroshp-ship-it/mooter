@@ -49,6 +49,9 @@ try { MCA = require('./mc-assistant'); } catch { MCA = null; }
 let GUARDIAN_PREBAKE = null;
 try { GUARDIAN_PREBAKE = require('./guardian-prebake'); } catch { GUARDIAN_PREBAKE = null; }
 const GUARDIAN_PREBAKE_DEBOUNCE_MS = 15000; // cap pre-bake ticks to ~1/15s — never on the render path
+// One bounded lease for the host and webview halves of post-write HMR re-pinning. Keeping one value
+// prevents the parent from painting a node after the host has already expired the journey adoption.
+const LP_REPIN_TTL_MS = 20000;
 // ── MISSION CONTROL TAB · Frente G — the Mission Control view renderer (serialised into the
 // webview via .toString(), same trick as row-renderer). Fail-soft: absent → tab shows n/d.
 let MCV = null;
@@ -1321,9 +1324,20 @@ class LivePreviewPanel {
     this._securityRun = { state: 'idle', phase: null, label: 'ainda não revisto', counts: { critical: 0, warning: 0, info: 0, total: 0 }, scannedAt: null, reportId: null, scannedFiles: 0 };
     this._securityFindings = new Map();
     this._securityThread = [];
+    // Publish may only offer bytes produced and explicitly accepted by THIS Live Preview panel.
+    // The working tree can contain parallel user/agent edits; those remain visible as local dirt
+    // but are never silently swept into the Live Preview commit/deploy scope.
+    this._livePublishScope = true;
+    // Host-only provenance for each file touched by this panel. The first preimage is proven
+    // against HEAD through Git clean filters; later writes inherit that proof only when their
+    // before-bytes are exactly the preceding LP shaAfter. Nothing from the webview can mint it.
+    this._publishPreimages = new Map();
     // LP-6 §D — the last REAL deploy URL this session produced (set only on a successful
     // _publishDeploy). null until a real deploy happens; never inferred.
     this._lastDeployUrl = null;
+    // The only production source allowed after a Live Preview publish is the immutable commit OID
+    // that THIS panel successfully pushed. Deploy never packages the mutable working tree.
+    this._lastPublishCommit = null;
     // FIX-MP-1 (audit P0-1) — served-tree identity. The realpath'd root the dev server ACTUALLY
     // serves, learned from the dev-only tap via lp-tree (NEXT_PUBLIC_LP_ROOT). null = UNPROVEN →
     // every $0 write/preview fail-closes (see _treeConfirmed / _treeGateBlocked). Set to null here so
@@ -1428,6 +1442,17 @@ class LivePreviewPanel {
     // lease. Recovery must first publish a healthy stage, then force a fresh frame load/handshake.
     const st = this.stage;
     if (st !== undefined && (!st || !st.url || st.degraded || st.stale || st.blocked)) next = null;
+    const prev = (typeof this._servedRoot === 'string' && this._servedRoot) || null;
+    // A same-origin dev server can change the physical app it serves (for example workspace root A
+    // to nested app B) without changing scheme/host/port. Lineage alone remains green in that case,
+    // so treat any REAL served-root change as a new identity lease: invalidate the old pin, pending
+    // re-pin, journey approval and in-flight work, then let THIS origin-locked lp-tree handshake renew
+    // the new root under the bumped epoch. Repeated handshakes for the same physical directory are
+    // inert, including symlink/case aliases that resolve to the same inode.
+    if (prev && (!next || !this._sameServedRoot(prev, next))) {
+      const origin = (typeof this._stageOrigin === 'string' && this._stageOrigin) || this._stageOriginOf(st && st.url);
+      this._invalidateIdentity(origin || null, origin || null, 'served-root-changed');
+    }
     this._servedRoot = next;
     this._post();
   }
@@ -1437,6 +1462,41 @@ class LivePreviewPanel {
   _stageOriginOf(url) {
     if (typeof url !== 'string' || !url) return null;
     try { return new URL(url).origin; } catch { return null; }
+  }
+  // Exact physical-root equality for the servedRoot component of the lease. This is deliberately
+  // stricter than `_treeConfirmed()` (which accepts ancestor/descendant lineage): two apps inside the
+  // same workspace are both safe paths, but they are not the same pixels and must not share a pin.
+  _sameServedRoot(a, b) {
+    try {
+      if (typeof a !== 'string' || !a || typeof b !== 'string' || !b) return false;
+      const idA = LivePreviewPanel._statId(a), idB = LivePreviewPanel._statId(b);
+      if (idA !== null && idB !== null) return idA === idB;
+      const aa = path.resolve(a), bb = path.resolve(b);
+      const ci = LivePreviewPanel._caseInsensitiveFS(a) || LivePreviewPanel._caseInsensitiveFS(b);
+      return LivePreviewPanel._canonCase(aa, ci) === LivePreviewPanel._canonCase(bb, ci);
+    } catch { return false; }
+  }
+  _identityLeaseSnapshot() {
+    return {
+      servedRoot: (typeof this._servedRoot === 'string' && this._servedRoot) || null,
+      origin: (typeof this._stageOrigin === 'string' && this._stageOrigin) || null,
+      epoch: (this._readyEpoch | 0),
+    };
+  }
+  // Real instances opt into the lease protocol in the constructor (`stage = null`). Bare
+  // Object.create host harnesses intentionally leave every protocol field undefined and retain the
+  // legacy isolated-method contract; production always requires all three lease fields.
+  _identityLeaseMatches(lease) {
+    const protocolActive = this.stage !== undefined || this._selection !== undefined
+      || this._stageOrigin !== undefined || this._readyEpoch !== undefined;
+    if (!protocolActive) return true;
+    if (!lease || typeof lease !== 'object') return false;
+    const has = (k) => Object.prototype.hasOwnProperty.call(lease, k);
+    if (!has('servedRoot') || !has('origin') || !has('epoch') || !Number.isInteger(lease.epoch)) return false;
+    const current = this._identityLeaseSnapshot();
+    return lease.servedRoot === current.servedRoot
+      && lease.origin === current.origin
+      && lease.epoch === current.epoch;
   }
   _portOf(origin) { try { return (new URL(origin).port) || null; } catch { return null; } }
   // C0 · COH-01 — set the App Stage AND enforce the lease. A genuine origin change re-arms identity;
@@ -1462,18 +1522,26 @@ class LivePreviewPanel {
   // the lease. A bare Object.create harness leaves servedRoot/selection === undefined → left inert.
   _invalidateIdentity(nextOrigin, prevOrigin, cause) {
     const clearedSel = (this._selection && this._selection.file) ? this._selection : null;
+    const leaseKind = (typeof cause === 'string' && cause) ? cause : 'origin-changed';
     if (clearedSel) this._journeyMarkStale('O preview mudou de origem/árvore; a conversa foi preservada, mas a aprovação anterior perdeu validade.');
     this._stageOrigin = nextOrigin;
     this._readyEpoch = (this._readyEpoch | 0) + 1;
+    // A pending post-write pin is a lease, not a bookmark. It may cross exactly one same-origin
+    // `stage-unhealthy` recovery epoch; any genuine origin move/unavailability destroys it. This
+    // prevents an A→B→A port cycle from resurrecting A's old yellow/approval state.
+    if (this._pendingRepin) {
+      if (leaseKind === 'stage-unhealthy' && nextOrigin && nextOrigin === prevOrigin && this._pendingRepin.origin === prevOrigin) this._pendingRepin.epoch = this._readyEpoch;
+      else this._pendingRepin = null;
+    }
     try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
     this._activeTaskAbort = null;
     if (this._servedRoot !== undefined) this._servedRoot = null;   // identity unproven for the new origin
     if (this._selection !== undefined) this._selection = null;     // the old pin belonged to the old app
     this._lastPinKey = null;                                        // let a genuine re-pin re-trace
-    const leaseKind = (typeof cause === 'string' && cause) ? cause : 'origin-changed';
     this._leaseInfo = (prevOrigin && (nextOrigin !== prevOrigin || leaseKind !== 'origin-changed'))
       ? { kind: leaseKind, prevOrigin, nextOrigin, prevPort: this._portOf(prevOrigin), newPort: this._portOf(nextOrigin),
           clearedFile: clearedSel ? clearedSel.file : null, clearedLine: (clearedSel && Number.isInteger(clearedSel.line)) ? clearedSel.line : null,
+          clearedCol: (clearedSel && Number.isInteger(clearedSel.col)) ? clearedSel.col : null,
           clearedTag: clearedSel ? (clearedSel.tag || null) : null, epoch: this._readyEpoch }
       : null;
     try { this._post(); } catch { /* best-effort — repaint the S7 safe state */ }
@@ -1597,8 +1665,47 @@ class LivePreviewPanel {
       // D5 — trace a pin ONCE per distinct node (the tap re-pins on every HMR/reflow; de-dup avoids spam).
       const pk = this._selection.file + '|' + this._selection.line + '|' + this._selection.tag;
       if (pk !== this._lastPinKey) { this._lastPinKey = pk; this._emitLpEvent('pin', { kind: 'server', nodeKey: this._selection, summary: 'pin <' + (this._selection.tag || '?') + '>' }); }
-      this._journeyPost(this._journeyCurrent(true));
+      // A host-issued re-pin is the SAME user selection after HMR, even when imports moved its
+      // source line or the model changed the root tag. Adopt the existing journey only when the
+      // fresh pin exactly matches the short-lived host expectation; a normal user click still
+      // opens its own thread.
+      const adopted = this._adoptPendingRepin();
+      this._journeyPost(adopted || this._journeyCurrent(true));
     } catch { this._selection = null; }
+  }
+  _adoptPendingRepin() {
+    try {
+      const p = this._pendingRepin;
+      if (!p || !this._selection || Date.now() > p.expiresAt) { this._pendingRepin = null; return null; }
+      const e = p.expected || {};
+      const s = this._selection;
+      if (String(e.file || '') !== String(s.file || '')) return null;
+      if (Number.isInteger(e.line) && e.line !== s.line) return null;
+      if (Number.isInteger(e.col) && Number.isInteger(s.col) && e.col !== s.col) return null;
+      if (e.tag && s.tag && String(e.tag).toLowerCase() !== String(s.tag).toLowerCase()) return null;
+      if (p.servedRoot !== ((typeof this._servedRoot === 'string' && this._servedRoot) || null)) return null;
+      if (p.origin !== ((typeof this._stageOrigin === 'string' && this._stageOrigin) || null)) return null;
+      if ((p.epoch | 0) !== (this._readyEpoch | 0)) { this._pendingRepin = null; return null; }
+      this._journeyEnsureLoaded();
+      const old = p.journeyId && this._journeys instanceof Map ? this._journeys.get(p.journeyId) : null;
+      this._pendingRepin = null;
+      if (!old) return null;
+      const identity = this._journeyIdentity(s);
+      const nextId = this._journeyId(identity);
+      if (!identity || !nextId) return null;
+      this._journeys.delete(old.id);
+      old.id = nextId;
+      old.identity = identity;
+      // A reload may have marked the old lease stale between write and fresh pin. The expected
+      // re-pin proves continuity, so restore the state captured when the host requested it.
+      old.state = p.state || old.state;
+      old.label = p.label || old.label;
+      old.updatedAt = Date.now();
+      this._journeys.set(nextId, old);
+      this._activeJourneyId = nextId;
+      this._journeyCommit(old);
+      return old;
+    } catch { this._pendingRepin = null; return null; }
   }
   // F3 (W1) — the fail-closed selection gate, shaped EXACTLY like _treeGateBlocked: default-DENY in
   // production (the ctor sets _selection=null → BLOCKED until a pin arrives, so no prompt path talks
@@ -1674,6 +1781,10 @@ class LivePreviewPanel {
     this._activeJourneyId = j ? id : null;
     return j;
   }
+  _journeyById(id) {
+    this._journeyEnsureLoaded();
+    return (typeof id === 'string' && id && this._journeys instanceof Map) ? (this._journeys.get(id) || null) : null;
+  }
   _journeyDisplay(j) {
     if (!j) return null;
     return {
@@ -1706,12 +1817,14 @@ class LivePreviewPanel {
       if (oldest && oldest.id !== j.id) this._journeys.delete(oldest.id);
     }
     this._journeyPersist();
-    this._journeyPost(j);
+    // A task may finish for node A after the user moved to B. Persist A, but never replace B's
+    // visible thread with a background update. Selecting A again reads the persisted projection.
+    if (this._activeJourneyId === j.id) this._journeyPost(j);
   }
   _journeyAppend(role, text, meta) {
-    const j = this._journeyCurrent(true);
-    if (!j || !String(text == null ? '' : text).trim()) return null;
     const m = meta || {};
+    const j = m.journey || (m.journeyId ? this._journeyById(m.journeyId) : this._journeyCurrent(true));
+    if (!j || !String(text == null ? '' : text).trim()) return null;
     const r = role === 'user' || role === 'assistant' ? role : 'activity';
     const safe = this._journeySafeText(text, r === 'assistant' ? 8000 : (r === 'activity' ? 800 : 4000));
     const turns = Array.isArray(j.turns) ? j.turns : (j.turns = []);
@@ -1737,8 +1850,362 @@ class LivePreviewPanel {
   _journeyMarkStale(reason) {
     const j = this._activeJourneyId && this._journeys instanceof Map ? this._journeys.get(this._activeJourneyId) : this._journeyCurrent(false);
     if (!j) return;
-    this._journeyAppend('activity', reason || 'A identidade do preview mudou; valida novamente.', { status: 'stale' });
+    this._journeyAppend('activity', reason || 'A identidade do preview mudou; valida novamente.', { status: 'stale', journey: j });
     this._journeySetState('stale', 'preview mudou — valida novamente', { journey: j });
+  }
+  _journeyAcceptCode(label, opts) {
+    const j = (opts && opts.journey) || (opts && opts.journeyId ? this._journeyById(opts.journeyId) : this._journeyCurrent(true));
+    if (!j) return null;
+    j.codeAccepted = true;
+    j.pendingWrite = false;
+    j.published = false;
+    // Green means exactly what the user just confirmed: these local bytes are accepted. The label
+    // keeps the next gate explicit; Security/Publish remain independently fail-closed and can move
+    // the boundary back to yellow if findings block it.
+    return this._journeySetState('approved', label || 'OK local · Review Security pendente', { journey: j });
+  }
+  _journeyRekey(journey, anchor) {
+    try {
+      const j = journey;
+      if (!j || !j.identity || !anchor || !anchor.file) return j || null;
+      const nextIdentity = Object.assign({}, j.identity, {
+        file: String(anchor.file).slice(0, 1024),
+        line: Number.isInteger(anchor.line) ? anchor.line : null,
+        col: Number.isInteger(anchor.col) ? anchor.col : null,
+        tag: typeof anchor.tag === 'string' ? anchor.tag.slice(0, 60) : '',
+      });
+      const nextId = this._journeyId(nextIdentity);
+      if (!nextId || nextId === j.id) return j;
+      this._journeyEnsureLoaded();
+      const oldId = j.id;
+      let target = this._journeys instanceof Map ? this._journeys.get(nextId) : null;
+      if (target && target !== j) {
+        const seen = new Set((Array.isArray(target.turns) ? target.turns : []).map((t) => t && t.id));
+        const merged = (Array.isArray(target.turns) ? target.turns.slice() : []);
+        for (const turn of (Array.isArray(j.turns) ? j.turns : [])) if (!seen.has(turn && turn.id)) merged.push(turn);
+        target.turns = merged.sort((a, b) => (a && a.ts || 0) - (b && b.ts || 0)).slice(-80);
+        target.state = j.state; target.label = j.label; target.codeAccepted = j.codeAccepted; target.pendingWrite = j.pendingWrite; target.published = j.published;
+      } else {
+        target = j; target.id = nextId; target.identity = nextIdentity;
+      }
+      if (this._journeys instanceof Map) { this._journeys.delete(oldId); this._journeys.set(nextId, target); }
+      if (this._activeJourneyId === oldId) this._activeJourneyId = nextId;
+      this._journeyCommit(target);
+      return target;
+    } catch { return journey || null; }
+  }
+  _journeyApprovalGate() {
+    this._journeyEnsureLoaded();
+    // A task writes before its result is accepted. The registry is host-owned and survives node
+    // switches, so ANY unsettled edit (A while B is selected included) blocks the global Publish
+    // gate. A forged webview selection can never hide it.
+    if (this._activeTaskAbort) return { cleared: false, reason: 'selection-approval-required' };
+    if (this._taskReg && typeof this._taskReg.values === 'function') {
+      for (const edits of this._taskReg.values()) if (Array.isArray(edits) && edits.length) return { cleared: false, reason: 'selection-approval-required' };
+    }
+    const current = this._journeyCurrent(false);
+    if (current && current.state === 'awaiting' && current.codeAccepted !== true) return { cleared: false, reason: 'selection-approval-required' };
+    // `pendingWrite` is set only after bytes landed (not for a harmless preview-only proposal).
+    // It lets an off-screen journey keep its veto until its own OK/revert settles the write.
+    if (this._journeys && typeof this._journeys.values === 'function') {
+      for (const j of this._journeys.values()) if (j && j.pendingWrite === true && j.codeAccepted !== true) return { cleared: false, reason: 'selection-approval-required' };
+    }
+    return { cleared: true, reason: null };
+  }
+  _writeProposalGate() {
+    if (this._activeTaskAbort) return { cleared: false, reason: 'task-busy' };
+    if (this._taskReg && typeof this._taskReg.values === 'function') {
+      for (const edits of this._taskReg.values()) if (Array.isArray(edits) && edits.length) return { cleared: false, reason: 'selection-approval-required' };
+    }
+    this._journeyEnsureLoaded();
+    if (this._journeys && typeof this._journeys.values === 'function') {
+      for (const j of this._journeys.values()) if (j && j.pendingWrite === true && j.codeAccepted !== true) return { cleared: false, reason: 'selection-approval-required' };
+    }
+    return { cleared: true, reason: null };
+  }
+  _publishRelPath(root, raw) {
+    try {
+      if (typeof raw !== 'string' || !raw.trim()) return null;
+      const base = path.resolve(root);
+      const abs = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(base, raw);
+      const rel = path.relative(base, abs);
+      if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
+      return rel.split(path.sep).join('/');
+    } catch { return null; }
+  }
+  _publishPathSha(root, rel) {
+    try {
+      const abs = path.resolve(root, rel);
+      const st = fs.lstatSync(abs);
+      const raw = st.isSymbolicLink() ? Buffer.from(fs.readlinkSync(abs), 'utf8') : (st.isFile() ? fs.readFileSync(abs) : null);
+      return raw ? crypto.createHash('sha256').update(raw).digest('hex') : null;
+    } catch { return null; }
+  }
+  _publishRawSha(raw) {
+    try {
+      const b = Buffer.isBuffer(raw) ? raw : Buffer.from(raw == null ? '' : String(raw), 'utf8');
+      return crypto.createHash('sha256').update(b).digest('hex');
+    } catch { return null; }
+  }
+  _publishPreimageMap() {
+    if (!this._publishPreimages || typeof this._publishPreimages.get !== 'function' || typeof this._publishPreimages.set !== 'function') this._publishPreimages = new Map();
+    return this._publishPreimages;
+  }
+  _publishPreimageKey(root, rel) {
+    try {
+      const r = fs.realpathSync(root);
+      const ci = LivePreviewPanel._caseInsensitiveFS(r);
+      return LivePreviewPanel._canonCase(path.resolve(r), ci) + '\0' + String(rel || '');
+    } catch { return path.resolve(root || '.') + '\0' + String(rel || ''); }
+  }
+  // Bounded, binary-safe Git read used only to prove Publish provenance. `hash-object --path`
+  // intentionally runs the repository's clean filters, so an honest CRLF checkout can match the
+  // LF blob in HEAD. No index/ref/worktree mutation happens here.
+  _publishGitBuffer(root, args, input) {
+    try {
+      const opts = { timeout: 8000, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: null, shell: false };
+      if (input !== undefined) opts.input = Buffer.isBuffer(input) ? input : Buffer.from(input);
+      const r = require('child_process').spawnSync('git', ['-C', root].concat(args), opts);
+      if (!r || r.error || r.status !== 0) return { ok: false, out: Buffer.alloc(0) };
+      const out = Buffer.isBuffer(r.stdout) ? r.stdout : Buffer.from(r.stdout || '');
+      return { ok: true, out };
+    } catch { return { ok: false, out: Buffer.alloc(0) }; }
+  }
+  _publishGitEntry(root, rel, fromIndex) {
+    const r = this._publishGitBuffer(root, fromIndex
+      ? ['ls-files', '--stage', '-z', '--', rel]
+      : ['ls-tree', '-z', 'HEAD', '--', rel]);
+    if (!r.ok) return { ok: false, entry: null };
+    if (!r.out.length) return { ok: true, entry: null };
+    const records = r.out.toString('utf8').split('\0').filter(Boolean);
+    if (records.length !== 1) return { ok: false, entry: null };
+    const tab = records[0].indexOf('\t');
+    if (tab < 0 || records[0].slice(tab + 1) !== rel) return { ok: false, entry: null };
+    const bits = records[0].slice(0, tab).trim().split(/\s+/);
+    if (fromIndex) {
+      if (bits.length !== 3 || bits[2] !== '0' || !/^[0-9a-f]{40,64}$/i.test(bits[1])) return { ok: false, entry: null };
+      return { ok: true, entry: { mode: bits[0], oid: bits[1].toLowerCase() } };
+    }
+    if (bits.length !== 3 || bits[1] !== 'blob' || !/^[0-9a-f]{40,64}$/i.test(bits[2])) return { ok: false, entry: null };
+    return { ok: true, entry: { mode: bits[0], oid: bits[2].toLowerCase() } };
+  }
+  _publishCoreFileMode(root) {
+    const r = this._publishGitBuffer(root, ['config', '--bool', 'core.filemode']);
+    if (!r.ok) return null;
+    const v = r.out.toString('utf8').trim().toLowerCase();
+    return v === 'true' ? true : (v === 'false' ? false : null);
+  }
+  _publishWorktreeMode(root, rel, coreFileMode) {
+    try {
+      const st = fs.lstatSync(path.resolve(root, rel));
+      if (!st.isFile()) return null; // symlinks/directories are not safe LP source blobs
+      if (coreFileMode !== true) return null;
+      return (st.mode & 0o111) ? '100755' : '100644';
+    } catch { return null; }
+  }
+  _publishPreimageProof(root, rel, beforeRaw) {
+    try {
+      const raw = Buffer.isBuffer(beforeRaw) ? beforeRaw : Buffer.from(beforeRaw == null ? '' : String(beforeRaw), 'utf8');
+      const clean = this._publishGitBuffer(root, ['hash-object', '--path=' + rel, '--stdin'], raw);
+      const cleanOid = clean.ok ? clean.out.toString('utf8').trim().toLowerCase() : '';
+      const head = this._publishGitEntry(root, rel, false);
+      const index = this._publishGitEntry(root, rel, true);
+      const fileMode = this._publishCoreFileMode(root);
+      if (!/^[0-9a-f]{40,64}$/i.test(cleanOid) || !head.ok || !index.ok || fileMode === null) return { ok: false, reason: 'preexisting-dirt-in-approved-file' };
+      // A missing HEAD entry means this file was already untracked before LP. A dirty index for the
+      // same path is also unsafe: host-extra refreshes selected index entries after commit, so that
+      // staged-only WIP would otherwise be silently destroyed even if it was absent from the blob.
+      if (!head.entry || !index.entry) return { ok: false, reason: 'preexisting-dirt-in-approved-file' };
+      if (head.entry.oid !== cleanOid || index.entry.oid !== head.entry.oid || index.entry.mode !== head.entry.mode) return { ok: false, reason: 'preexisting-dirt-in-approved-file' };
+      if (head.entry.mode !== '100644' && head.entry.mode !== '100755') return { ok: false, reason: 'preexisting-dirt-in-approved-file' };
+      const wtMode = this._publishWorktreeMode(root, rel, fileMode);
+      if (fileMode === true && wtMode !== head.entry.mode) return { ok: false, reason: 'preexisting-dirt-in-approved-file' };
+      return { ok: true, reason: null, baseOid: head.entry.oid, baseMode: head.entry.mode };
+    } catch { return { ok: false, reason: 'preexisting-dirt-in-approved-file' }; }
+  }
+  // Record one trusted write edge `beforeSha -> afterSha`. The first edge must start at a clean
+  // HEAD/index preimage; subsequent LP writes may inherit only from this panel's exact tail hash.
+  _publishHasActiveEdge(root, rel) {
+    try {
+      for (const item of (Array.isArray(this._feed) ? this._feed : [])) {
+        if (!item || item.status === 'reverted') continue;
+        const active = (item.kind === 'splice' && item.status === 'live')
+          || (item.kind === 'agent' && (item.status === 'live' || item.status === 'kept'));
+        if (!active) continue;
+        for (const raw of (Array.isArray(item.files) ? item.files : [])) {
+          if (this._publishRelPath(root, raw) === rel) return true;
+        }
+      }
+    } catch { /* fail closed below */ }
+    return false;
+  }
+  _publishSealRecord(root, rawPath, beforeRaw, afterSha) {
+    const rel = this._publishRelPath(root, rawPath);
+    const hasBefore = Buffer.isBuffer(beforeRaw) || beforeRaw instanceof Uint8Array || typeof beforeRaw === 'string';
+    const beforeSha = this._publishRawSha(beforeRaw);
+    const nextSha = (typeof afterSha === 'string' && /^[0-9a-f]{64}$/i.test(afterSha)) ? afterSha.toLowerCase() : null;
+    if (!rel || !hasBefore || !beforeSha || !nextSha) return { ok: false, reason: 'preexisting-dirt-in-approved-file' };
+    const map = this._publishPreimageMap();
+    const key = this._publishPreimageKey(root, rel);
+    let rec = map.get(key);
+    // Once every prior edge for this path was explicitly reverted, the next write is a NEW chain.
+    // Re-prove its current preimage against HEAD/index so the recovery copy (revert → stash/commit
+    // old WIP → apply again) works without requiring a panel reload. A still-live/kept edge never
+    // gets this escape hatch: manual disk changes cannot launder an unsafe chain into Publish.
+    if (rec && !this._publishHasActiveEdge(root, rel)) {
+      map.delete(key);
+      rec = null;
+    }
+    if (!rec) {
+      const proof = this._publishPreimageProof(root, rel, beforeRaw);
+      rec = { root: path.resolve(root), path: rel, safe: !!proof.ok, reason: proof.ok ? null : 'preexisting-dirt-in-approved-file', baseOid: proof.baseOid || null, baseMode: proof.baseMode || null, tailSha: nextSha };
+      map.set(key, rec);
+      return { ok: rec.safe, reason: rec.reason, path: rel };
+    }
+    if (rec.tailSha !== beforeSha) {
+      rec.safe = false;
+      rec.reason = 'preexisting-dirt-in-approved-file';
+    }
+    rec.tailSha = nextSha;
+    return { ok: rec.safe === true, reason: rec.reason || null, path: rel };
+  }
+  _publishSealRewind(root, rawPath, afterSha, restoredRaw) {
+    try {
+      const rel = this._publishRelPath(root, rawPath);
+      if (!rel) return false;
+      const rec = this._publishPreimageMap().get(this._publishPreimageKey(root, rel));
+      if (!rec) return false;
+      const expected = (typeof afterSha === 'string') ? afterSha.toLowerCase() : '';
+      const restoredSha = this._publishRawSha(restoredRaw);
+      if (!restoredSha || rec.tailSha !== expected) { rec.safe = false; rec.reason = 'preexisting-dirt-in-approved-file'; return false; }
+      rec.tailSha = restoredSha;
+      return rec.safe === true;
+    } catch { return false; }
+  }
+  _publishSealCheck(root, rel, expectedSha) {
+    try {
+      const rec = this._publishPreimageMap().get(this._publishPreimageKey(root, rel));
+      if (!rec || rec.safe !== true || rec.reason || rec.tailSha !== expectedSha) return false;
+      const head = this._publishGitEntry(root, rel, false);
+      const index = this._publishGitEntry(root, rel, true);
+      if (!head.ok || !index.ok || !head.entry || !index.entry) return false;
+      if (head.entry.oid !== rec.baseOid || head.entry.mode !== rec.baseMode) return false;
+      if (index.entry.oid !== head.entry.oid || index.entry.mode !== head.entry.mode) return false;
+      const fileMode = this._publishCoreFileMode(root);
+      if (fileMode === null) return false;
+      const wtMode = this._publishWorktreeMode(root, rel, fileMode);
+      if (fileMode === true && wtMode !== head.entry.mode) return false;
+      return true;
+    } catch { return false; }
+  }
+  _publishSealAdvance(root, files) {
+    for (const raw of (Array.isArray(files) ? files : [])) {
+      const rel = this._publishRelPath(root, raw);
+      if (!rel) continue;
+      const rec = this._publishPreimageMap().get(this._publishPreimageKey(root, rel));
+      if (!rec) continue;
+      const head = this._publishGitEntry(root, rel, false);
+      const index = this._publishGitEntry(root, rel, true);
+      if (!head.ok || !index.ok || !head.entry || !index.entry || head.entry.oid !== index.entry.oid || head.entry.mode !== index.entry.mode) {
+        rec.safe = false; rec.reason = 'preexisting-dirt-in-approved-file'; continue;
+      }
+      rec.baseOid = head.entry.oid;
+      rec.baseMode = head.entry.mode;
+    }
+  }
+  _publishFileScope(root, changedRows) {
+    const rows = Array.isArray(changedRows) ? changedRows.filter((r) => r && typeof r.path === 'string') : [];
+    // Bare method harnesses from older contracts do not run the constructor. Production always
+    // opts in above; keeping the undefined branch avoids turning unrelated unit fixtures into a
+    // fake panel while the dedicated scope tests exercise the real fail-closed mode.
+    if (this._livePublishScope !== true) return { files: rows, excludedCount: 0, stalePaths: [], blockedPaths: [] };
+    const approved = new Map();
+    for (const item of (Array.isArray(this._feed) ? this._feed : [])) {
+      const itemFiles = Array.isArray(item && item.files) ? item.files : [];
+      if (!item) continue;
+      // A reverted LATER edge restores the preceding LP tail; it must not erase an earlier live
+      // approval for the same file. Only live/kept items nominate a candidate below.
+      if (item.status === 'reverted') continue;
+      if (item.kind === 'splice' && item.status === 'live' && item.entry && typeof item.entry.shaAfter === 'string') {
+        const rel = this._publishRelPath(root, itemFiles[0]);
+        if (rel) approved.set(rel, item.entry.shaAfter.toLowerCase());
+      } else if (item.kind === 'agent' && item.status === 'kept' && Array.isArray(item.approvedShas)) {
+        for (const row of item.approvedShas) {
+          const rel = this._publishRelPath(root, row && row.file);
+          if (rel && row && typeof row.sha256 === 'string' && row.sha256) approved.set(rel, row.sha256.toLowerCase());
+        }
+      }
+    }
+    const files = [], stalePaths = [], blockedPaths = [];
+    for (const row of rows) {
+      const rel = this._publishRelPath(root, row.path);
+      if (!rel || !approved.has(rel)) continue;
+      if (this._publishPathSha(root, rel) !== approved.get(rel)) { stalePaths.push(rel); continue; }
+      if (!this._publishSealCheck(root, rel, approved.get(rel))) { blockedPaths.push(rel); continue; }
+      files.push(row);
+    }
+    return { files, stalePaths, blockedPaths, excludedCount: Math.max(0, rows.length - files.length) };
+  }
+  _journeySecurityVerdict(gate) {
+    this._journeyEnsureLoaded();
+    // Security scans the current publish scope, not merely the node that happens to be selected
+    // while the popover is open. Project the verdict onto every accepted, unpublished Selection
+    // Journey so re-selecting A after reviewing from B never resurrects a lying "falta Review".
+    const targets = this._journeys && typeof this._journeys.values === 'function'
+      ? Array.from(this._journeys.values()).filter((j) => j && j.codeAccepted === true && !j.published)
+      : [];
+    for (const j of targets) {
+      if (gate && gate.cleared) {
+        if (j.label !== 'segurança validada · pronto para Publish') this._journeyAppend('activity', 'Review Security concluído para estes bytes. A alteração está pronta para entrar no plano de Publish.', { status: 'ready', journey: j });
+        this._journeySetState('approved', 'segurança validada · pronto para Publish', { journey: j });
+      } else {
+        const reason = gate && gate.reason;
+        const preexisting = reason === 'preexisting-dirt-in-approved-file';
+        const label = preexisting ? 'WIP anterior no mesmo ficheiro · Publish bloqueado' : (reason === 'critical-open' ? 'Review encontrou issues · Publish bloqueado' : 'Review incompleto · Publish bloqueado');
+        const text = preexisting
+          ? 'Este ficheiro já tinha alterações antes do primeiro Live Preview (ou não era rastreado). Não consigo separar esses bytes com segurança: reverte esta proposta, guarda o WIP original e aplica de novo.'
+          : (reason === 'critical-open' ? 'O Review encontrou issues críticas/altas. O código continua local e o Publish está bloqueado.' : 'A cobertura do Review não ficou completa. O código continua local e o Publish está bloqueado.');
+        if (j.label !== label) this._journeyAppend('activity', text, { status: 'blocked', journey: j });
+        this._journeySetState('awaiting', label, { journey: j });
+      }
+    }
+  }
+  _journeyPublishResult(action, result) {
+    const r = result || {};
+    if (!r.ok) {
+      const j = this._journeyCurrent(false);
+      if (!j || j.codeAccepted !== true) return;
+      this._journeyAppend('activity', 'Publish não concluiu: ' + String(r.reason || 'erro') + '. Os bytes aprovados continuam no working tree.', { status: 'blocked' });
+      this._journeySetState('awaiting', 'Publish falhou · código continua local', { journey: j });
+      return;
+    }
+    this._journeyEnsureLoaded();
+    const current = this._journeyCurrent(false);
+    const published = this._lastPublishCommit;
+    const root = published && typeof published.root === 'string' ? published.root : null;
+    const paths = new Set(root && Array.isArray(published.files)
+      ? published.files.map((f) => this._publishRelPath(root, f)).filter(Boolean)
+      : []);
+    let targets = this._journeys && typeof this._journeys.values === 'function'
+      ? Array.from(this._journeys.values()).filter((j) => {
+        if (!j || j.codeAccepted !== true) return false;
+        if (!paths.size || !root) return j === current;
+        const owned = [j.identity && j.identity.file].concat(Array.isArray(j.approvedFiles) ? j.approvedFiles : []);
+        return owned.some((f) => paths.has(this._publishRelPath(root, f)));
+      })
+      : [];
+    if (!targets.length && current && current.codeAccepted === true) targets = [current];
+    for (const j of targets) {
+      if (action === 'commit') {
+        this._journeyAppend('activity', 'Commit + push concluídos para o destino Git mostrado no painel.', { status: 'pushed', journey: j });
+        this._journeySetState('approved', 'Git atualizado · pronto para produção', { journey: j });
+      } else if (action === 'deploy') {
+        j.published = true;
+        const url = this._validHttpsUrl(r.url) || this._validHttpsUrl(this._lastDeployUrl);
+        this._journeyAppend('activity', 'Deploy concluído' + (url ? (' e confirmado em ' + url) : '') + '.', { status: 'published', journey: j });
+        this._journeySetState('approved', url ? ('publicado · ' + new URL(url).host) : 'publicado em produção', { journey: j });
+      }
+    }
   }
   // FIX-MP-1 G1 — the honest banner text when the preview is live but comes from an UNCONFIRMED tree.
   // null when identity is unproven-because-absent (servedRoot null → the write gate already refuses
@@ -2132,6 +2599,7 @@ class LivePreviewPanel {
         this._postEditDiff({ ok: true, stale, kind: res.kind, start: d.start, removed: d.removed, added: d.added, h, abs: real, file: raw, line: m.line, col: m.col, tag: m.tag, edit });
         return;
       }
+      { const gate = this._writeProposalGate(); if (!gate.cleared) { fail(gate.reason); return; } }
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom undo entry that lights the button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
@@ -2139,7 +2607,10 @@ class LivePreviewPanel {
       this._postEditResult(true, 'applied');
       // §5 — the splice preserved the node's start, so the same stamp still identifies it: ask
       // the tap to watch through the HMR swap and re-emit a FRESH lp-select (re-prompt no re-pick).
-      this._postRepin({ file: raw, line: m.line, col: m.col, tag: m.tag });
+      this._postRepin(
+        { file: raw, line: m.line, col: m.col, tag: m.tag },
+        { sourceAnchor: { file: raw, line: m.line, col: m.col, tag: m.tag } }
+      );
     } catch { fail('error'); }
   }
   _postEditResult(ok, reason, tier) {
@@ -2152,7 +2623,7 @@ class LivePreviewPanel {
     const r = String(reason || '');
     if (ok && ['applied', 'deleted', 'model-applied', 'model-applied-dynamic'].includes(r)) {
       this._journeyAppend('activity', r === 'deleted' ? 'Elemento removido no working tree local.' : 'Alteração aplicada no working tree e refletida pelo preview.', { status: 'approved' });
-      this._journeySetState('approved', 'aprovado localmente');
+      this._journeyAcceptCode('OK local · Review Security pendente');
       if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
     } else if (ok && r === 'undone') {
       this._journeyAppend('activity', 'Alteração revertida com verificação de hash.', { status: 'reverted' });
@@ -2256,6 +2727,10 @@ class LivePreviewPanel {
       // meta {tier, model} so the MEO shows the real tier/model instead of a fake local $0.
       const md = meta || {};
       const cloud = !!(md.tier && md.tier !== 'local');
+      // Host-only Publish provenance: `before` is the exact preimage this writer read and e.shaAfter
+      // is the exact resulting file hash. A failed/untracked/dirty proof does not undo the local UX,
+      // but it permanently makes this chain non-publishable until the user reverts and starts clean.
+      this._publishSealRecord(this._wsRoot(), relFile || real, before, e.shaAfter);
       this._feedPush({ kind: 'splice', via: via || 'edição', files: [relFile || real], entry: e, status: 'live', reason: null, nodeKey,
         tier: md.tier || 'local', model: md.model || null, local: cloud ? false : true, cost: cloud ? null : 0 });
     } catch { /* feed is best-effort bookkeeping — never blocks the write */ }
@@ -2276,7 +2751,10 @@ class LivePreviewPanel {
     catch { return { ok: false, reason: 'undo-stale' }; }
     const r = LEU.applyUndo(item.entry, cur);
     if (!r.ok) return r;
-    try { fs.writeFileSync(item.entry.file, r.code, 'utf8'); }
+    try {
+      fs.writeFileSync(item.entry.file, r.code, 'utf8');
+      this._publishSealRewind(this._wsRoot(), item.entry.file, item.entry.shaAfter, r.code);
+    }
     catch { return { ok: false, reason: 'error' }; }
     return { ok: true };
   }
@@ -2380,6 +2858,7 @@ class LivePreviewPanel {
         this._postDeleteDiff({ ok: true, stale, start: d.start, removed: d.removed, added: d.added, h, inExpr, abs: real, file: raw, line: m.line, col: m.col, tag: m.tag });
         return;
       }
+      { const gate = this._writeProposalGate(); if (!gate.cleared) { fail(gate.reason); return; } }
       // review P3-c: write FIRST, then record the undo entry (a failed write leaves no phantom entry).
       fs.writeFileSync(real, res.code, 'utf8');
       this._pushUndo(real, source, res.code, 'apagar · $0', raw, { line: m.line, col: m.col, tag: m.tag }); // §4 feed item + F0.2 nodeKey
@@ -2477,10 +2956,11 @@ class LivePreviewPanel {
   _indexSecurityFindings(result, root, nextConfigAbs) {
     this._securityFindings = new Map();
     let seq = 0;
-    const reg = (kind, obj, pathValue, lineValue, fixable) => {
+    const reg = (kind, obj, pathValue, lineValue, fixable, meta) => {
       const id = 'sf_' + (++seq);
       const pathText = typeof pathValue === 'string' ? pathValue.slice(0, 1024) : null;
-      const rec = { id, kind, path: pathText, line: Number.isInteger(lineValue) ? lineValue : 1, severity: obj && obj.severity ? String(obj.severity) : null, type: obj && obj.type ? String(obj.type).slice(0, 120) : kind, fixable: !!(fixable && pathText) };
+      const md = meta && typeof meta === 'object' ? meta : {};
+      const rec = { id, kind, path: pathText, line: Number.isInteger(lineValue) ? lineValue : 1, severity: obj && obj.severity ? String(obj.severity) : null, type: obj && (obj.type || obj.name) ? String(obj.type || obj.name).slice(0, 120) : kind, fixable: !!(fixable && pathText), packageRoot: typeof md.packageRoot === 'string' ? md.packageRoot.slice(0, 1024) : null, remediation: typeof md.remediation === 'string' ? md.remediation : null };
       this._securityFindings.set(id, rec);
       return Object.assign({}, obj, { findingId: id, fixable: rec.fixable, path: pathText || (obj && obj.path) || null });
     };
@@ -2491,8 +2971,160 @@ class LivePreviewPanel {
     const cspObj = result.csp && typeof result.csp === 'object' ? result.csp : { hasCsp: false, findings: [] };
     const csp = Object.assign({}, cspObj, { findings: (Array.isArray(cspObj.findings) ? cspObj.findings : []).map((x) => reg('csp', x, cfgRel, 1, !!cfgRel)) });
     const auditObj = result.audit && typeof result.audit === 'object' ? result.audit : { ok: false };
-    const audit = Object.assign({}, auditObj, { top: (Array.isArray(auditObj.top) ? auditObj.top : []).map((x) => reg('audit', x, null, 1, false)) });
+    const audit = Object.assign({}, auditObj, { top: (Array.isArray(auditObj.top) ? auditObj.top : []).map((x) => {
+      const pkgRoot = x && typeof x.packageRoot === 'string' && x.packageRoot ? x.packageRoot : '.';
+      const manifestRel = (pkgRoot === '.' ? '' : pkgRoot.replace(/\/+$/, '') + '/') + 'package.json';
+      let canFix = !!(x && x.fixAvailable);
+      try { canFix = canFix && !!this._resolveContainedFile(manifestRel); } catch { canFix = false; }
+      return reg('audit', x, manifestRel, 1, canFix, { packageRoot: pkgRoot, remediation: 'npm-compatible-lock-fix' });
+    }) });
     return { secrets, xss, csp, audit };
+  }
+  // Dependency review must follow what Publish can ship. Resolve the nearest standalone npm
+  // package for the served app, the selected file and every dirty Git path; this repository is
+  // explicitly NOT a workspace, so auditing only the root package is both incomplete and wrong.
+  _securityPackageRoots(root) {
+    const roots = new Set();
+    // Windows paths are case-insensitive and the preview/workspace can spell the same directory
+    // differently (drive-letter casing, junctions, symlinks). A plain Set<string> audited that
+    // physical package twice, doubling every npm finding and the publish-gating totals. Keep the
+    // canonical path for cwd/display and a separate platform-aware identity for de-duplication.
+    const rootIdentities = new Set();
+    let overflow = false;
+    let gitScopeOk = false;
+    let gitReason = 'git-status-unavailable';
+    const dirtyFiles = [];
+    const rootAbs = path.resolve(root);
+    let rootRealAbs = rootAbs;
+    try {
+      const rp = fs.realpathSync.native || fs.realpathSync;
+      rootRealAbs = rp.call(fs, rootAbs);
+    } catch { /* lexical workspace root remains authoritative for missing paths */ }
+    const withinBase = (base, p) => {
+      const rel = path.relative(base, path.resolve(p));
+      return rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel));
+    };
+    const within = (p) => {
+      try { return withinBase(rootAbs, p) || withinBase(rootRealAbs, p); }
+      catch { return false; }
+    };
+    const canonicalPackageRoot = (dir) => {
+      let canonical = path.resolve(dir);
+      try {
+        const rp = fs.realpathSync.native || fs.realpathSync;
+        canonical = rp.call(fs, canonical);
+      } catch { /* the caller already proved package.json exists; path.resolve is a safe fallback */ }
+      if (!within(canonical)) return null;
+      const normalized = path.normalize(canonical);
+      return { path: path.normalize(path.resolve(dir)), identity: process.platform === 'win32' ? normalized.toLowerCase() : normalized };
+    };
+    const addNearest = (input) => {
+      try {
+        if (!input) return;
+        let dir = path.resolve(input);
+        if (fs.existsSync(dir) && fs.statSync(dir).isFile()) dir = path.dirname(dir);
+        if (!within(dir)) return;
+        while (within(dir)) {
+          if (fs.existsSync(path.join(dir, 'package.json'))) {
+            const canonical = canonicalPackageRoot(dir);
+            if (canonical && !rootIdentities.has(canonical.identity)) {
+              rootIdentities.add(canonical.identity);
+              roots.add(canonical.path);
+            }
+            return;
+          }
+          if (dir === rootAbs) return;
+          const parent = path.dirname(dir); if (parent === dir) return; dir = parent;
+        }
+      } catch { /* ignore this candidate */ }
+    };
+    addNearest(this._servedRoot);
+    try { if (this._selection && this._selection.file) addNearest(this._resolveContainedFile(this._selection.file)); } catch { /* optional selection */ }
+    try {
+      const isWin = process.platform === 'win32';
+      const cp = require('child_process').spawnSync(isWin ? 'git.exe' : 'git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: rootAbs, timeout: 8000, windowsHide: true, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8', shell: false });
+      if (cp && !cp.error && cp.status === 0 && extra && typeof extra.parsePorcelain === 'function') {
+        const rows = extra.parsePorcelain(cp.stdout || '');
+        gitScopeOk = true; gitReason = null;
+        for (const row of rows) {
+          if (!row || typeof row.path !== 'string' || !row.path) continue;
+          // A porcelain rename carries NEW + OLD. Both belong to the Security lease: NEW bytes
+          // must be scanned and OLD absence must remain part of the exact tree being published.
+          const dirtyPaths = [row.path];
+          if (typeof row.origPath === 'string' && row.origPath) dirtyPaths.push(row.origPath);
+          for (const dirtyPath of dirtyPaths) {
+            const abs = path.resolve(rootAbs, dirtyPath);
+            if (!within(abs)) continue;
+            dirtyFiles.push(abs);
+            addNearest(abs);
+          }
+        }
+      } else if (cp && cp.error && cp.error.code === 'ETIMEDOUT') gitReason = 'git-status-timeout';
+      else if (cp && cp.status !== 0) gitReason = 'git-status-failed';
+      else gitReason = 'git-status-unparseable';
+    } catch { gitReason = 'git-status-failed'; }
+    if (!roots.size) addNearest(rootAbs);
+    const list = Array.from(roots);
+    // Keep the synchronous dependency phase bounded. More packages are never silently skipped:
+    // overflow makes coverage incomplete and Publish stays locked until the scope is narrowed.
+    if (list.length > 4) { overflow = true; list.length = 4; }
+    return { roots: list, overflow, dirtyFiles, gitScopeOk, gitReason };
+  }
+  _auditProductionPackages(root, knownScope) {
+    const scope = knownScope && Array.isArray(knownScope.roots) ? knownScope : this._securityPackageRoots(root);
+    if (!LPAS || typeof LPAS.summarizeNpmAudit !== 'function') return { ok: false, reason: 'summarizer-unavailable', packages: [], counts: { critical: 0, high: 0, moderate: 0, low: 0, info: 0 } };
+    if (scope.overflow) return { ok: false, reason: 'too-many-package-roots', packages: [], counts: { critical: 0, high: 0, moderate: 0, low: 0, info: 0 } };
+    if (!scope.roots.length) return { ok: true, notApplicable: true, packages: [], counts: { critical: 0, high: 0, moderate: 0, low: 0, info: 0 }, prodCount: 0, devOnlyCount: 0, top: [], honestSummary: 'sem pacote npm no escopo publicado.' };
+    // Defense in depth: callers/tests may provide a scope directly. Canonicalise again here so an
+    // alias can never inflate audit metadata even if it bypassed _securityPackageRoots().
+    const auditRoots = [];
+    const auditRootIdentities = new Set();
+    for (const rawRoot of scope.roots) {
+      const resolved = path.normalize(path.resolve(rawRoot));
+      let canonical = resolved;
+      try {
+        const rp = fs.realpathSync.native || fs.realpathSync;
+        canonical = rp.call(fs, canonical);
+      } catch { /* npm will report an honest package-audit failure below */ }
+      canonical = path.normalize(canonical);
+      const identity = process.platform === 'win32' ? canonical.toLowerCase() : canonical;
+      if (auditRootIdentities.has(identity)) continue;
+      auditRootIdentities.add(identity);
+      auditRoots.push(resolved);
+    }
+    const counts = { critical: 0, high: 0, moderate: 0, low: 0, info: 0 };
+    const packages = [];
+    const top = [];
+    let prodCount = 0, devOnlyCount = 0;
+    for (const pkgRoot of auditRoots) {
+      let summary = null;
+      let reason = null;
+      try {
+        const isWin = process.platform === 'win32';
+        const cp = require('child_process').spawnSync(
+          isWin ? 'npm.cmd' : 'npm',
+          ['audit', '--omit=dev', '--json'],
+          { cwd: pkgRoot, timeout: 15000, windowsHide: true, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8', shell: isWin }
+        );
+        const out = cp && typeof cp.stdout === 'string' ? cp.stdout : '';
+        let raw = null; try { raw = out ? JSON.parse(out) : null; } catch { raw = null; }
+        if (!raw || raw.error || (!raw.auditReportVersion && !raw.metadata)) reason = (raw && raw.error && (raw.error.code || raw.error.summary)) || 'audit-unparseable';
+        else summary = LPAS.summarizeNpmAudit(out);
+      } catch { reason = 'audit-spawn-failed'; }
+      const rel = path.relative(root, pkgRoot).split(path.sep).join('/') || '.';
+      if (!summary || !summary.ok) {
+        packages.push({ root: rel, ok: false, reason: reason || (summary && summary.reason) || 'audit-failed' });
+        return { ok: false, reason: 'package-audit-failed', packages, counts, prodCount, devOnlyCount, top, honestSummary: 'npm audit de produção incompleto.' };
+      }
+      packages.push({ root: rel, ok: true, counts: summary.counts, honestSummary: summary.honestSummary });
+      for (const k of Object.keys(counts)) counts[k] += Number(summary.counts && summary.counts[k]) || 0;
+      prodCount += Number(summary.prodCount) || 0;
+      devOnlyCount += Number(summary.devOnlyCount) || 0;
+      for (const row of (Array.isArray(summary.top) ? summary.top : [])) top.push(Object.assign({ packageRoot: rel }, row));
+    }
+    const total = Object.values(counts).reduce((n, v) => n + (Number(v) || 0), 0);
+    const parts = ['critical', 'high', 'moderate', 'low', 'info'].filter((k) => counts[k]).map((k) => counts[k] + ' ' + k);
+    return { ok: true, packages, counts, prodCount, devOnlyCount, top: top.slice(0, 20), honestSummary: total ? (parts.join(', ') + ' em dependências de produção.') : 'sem vulnerabilidades de produção reportadas.' };
   }
   _securityScan() {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
@@ -2505,7 +3137,8 @@ class LivePreviewPanel {
       // CONTENT (fingerprint below). The publish gate re-reads the SAME set and refuses if a single byte
       // changed since — closing the untracked / staged / gitignored TOCTOU a git-diff fingerprint missed
       // (P0 adversarial review): a secret pasted into an untracked file AFTER a clean scan is now caught.
-      const walked = this._walkScanFiles(root);
+      const packageScope = this._securityPackageRoots(root);
+      const walked = this._walkScanFiles(root, packageScope.roots, packageScope.dirtyFiles);
       const files = walked.files;
       const nextConfigAbs = walked.nextConfigAbs;
       const fingerprint = this._fingerprintOf(files);
@@ -2521,20 +3154,10 @@ class LivePreviewPanel {
         csp = LPCC.checkCsp(cfgText);
       }
 
-      // npm audit — FAIL-SOFT. npm exits non-zero when it FINDS vulnerabilities (not a failure
-      // here); missing npm / a timeout / any spawn error all degrade to {ok:false} honestly.
-      this._securityPostStatus('scanning', 'dependencies', 'A consultar advisories do npm para as dependências…');
-      let audit = { ok: false };
-      try {
-        const isWin = process.platform === 'win32';
-        const cp = require('child_process').spawnSync(
-          isWin ? 'npm.cmd' : 'npm',
-          ['audit', '--json'],
-          { cwd: root, timeout: 30000, windowsHide: true, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8', shell: isWin }
-        );
-        const out = (cp && typeof cp.stdout === 'string') ? cp.stdout : '';
-        audit = (LPAS && out) ? LPAS.summarizeNpmAudit(out) : { ok: false };
-      } catch { audit = { ok: false }; }
+      // Audit the actual standalone package(s) Publish can ship, production dependencies only.
+      // This repo is not a workspace: the root package is an SDK anchor while the site is landing/.
+      this._securityPostStatus('scanning', 'dependencies', 'A consultar advisories das dependências de produção do app…');
+      let audit = this._auditProductionPackages(root, packageScope);
 
       const indexed = this._indexSecurityFindings({ secrets, xss, csp, audit }, root, nextConfigAbs);
       secrets = indexed.secrets; xss = indexed.xss; csp = indexed.csp; audit = indexed.audit;
@@ -2545,16 +3168,39 @@ class LivePreviewPanel {
       // LP-6 §B — stash the verdict for _publishStatus's hasOpenCritical check. Overwritten by
       // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
       // scan the user just ran and saw fail.
-      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length, fingerprint };
-      this._securityRun = { state: 'complete', phase: 'done', label: counts.total ? (counts.total + ' issue' + (counts.total === 1 ? '' : 's') + ' encontrado' + (counts.total === 1 ? '' : 's')) : 'nenhum issue encontrado pelos scanners', counts, scannedAt, reportId, scannedFiles: files.length };
-      this._securityThreadPush('assistant', counts.total ? ('Review concluído: ' + counts.critical + ' crítico(s), ' + counts.warning + ' aviso(s) e ' + counts.info + ' informativo(s). Revê os findings abaixo antes de publicar.') : 'Review concluído sem findings nos scanners executados. O relatório não substitui auditoria humana.', { status: 'complete' });
+      const coverage = {
+        secrets: !!(LPSS && typeof LPSS.scanSecrets === 'function'),
+        xss: !!(LPXS && typeof LPXS.scanXss === 'function'),
+        csp: !!(LPCC && typeof LPCC.checkCsp === 'function'),
+        npmAudit: !!(audit && audit.ok),
+        packageRoots: audit && Array.isArray(audit.packages) ? audit.packages.map((p) => ({ root: p.root, ok: !!p.ok, reason: p.reason || null })) : [],
+        truncated: !!walked.truncated,
+        skippedUnreadable: Number(walked.skippedUnreadable) || 0,
+        scopeOverflow: !!packageScope.overflow,
+        gitScope: packageScope.gitScopeOk === true,
+        gitReason: packageScope.gitReason || null,
+        truncatedReasons: Array.isArray(walked.truncatedReasons) ? walked.truncatedReasons.slice(0, 12) : [],
+        unreadablePaths: Array.isArray(walked.unreadablePaths) ? walked.unreadablePaths.slice(0, 12) : [],
+      };
+      coverage.complete = coverage.secrets && coverage.xss && coverage.csp && coverage.npmAudit && coverage.gitScope && !coverage.truncated && coverage.skippedUnreadable === 0 && !coverage.scopeOverflow;
+      this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length, fingerprint, coverage, scannedAt };
+      this._journeySecurityVerdict(this._securityGate());
+      const complete = coverage.complete === true;
+      const finalState = complete ? 'complete' : 'incomplete';
+      const finalLabel = !complete
+        ? 'Review incompleto · Publish bloqueado'
+        : (counts.total ? (counts.total + ' issue' + (counts.total === 1 ? '' : 's') + ' encontrado' + (counts.total === 1 ? '' : 's')) : 'nenhum issue encontrado pelos scanners');
+      this._securityRun = { state: finalState, phase: 'done', label: finalLabel, counts, scannedAt, reportId, scannedFiles: files.length };
+      this._securityThreadPush('assistant', !complete
+        ? 'O Review não conseguiu provar cobertura completa. Nenhum resultado parcial libera Publish; abre o relatório para ver a causa e volta a correr depois de a resolver.'
+        : (counts.total ? ('Review concluído: ' + counts.critical + ' crítico(s), ' + counts.warning + ' aviso(s) e ' + counts.info + ' informativo(s). Revê os findings abaixo antes de publicar.') : 'Review concluído sem findings nos scanners executados. O relatório não substitui auditoria humana.'), { status: finalState });
       // D5 — trace the review in the diary: COUNTS only, never a secret value or a file path with the leak.
       const nSec = Array.isArray(secrets) ? secrets.length : 0, nXss = Array.isArray(xss) ? xss.length : 0;
       this._emitLpEvent('security', { kind: 'server', summary: 'review · ' + nSec + ' secrets · ' + nXss + ' xss · ' + files.length + ' ficheiros' });
-      this._securityPostStatus('complete', 'done', this._securityRun.label);
+      this._securityPostStatus(finalState, 'done', this._securityRun.label);
       // The complete result is deliberately the last message: consumers that render atomically
       // never flash back from the findings to a progress-only card.
-      post({ secrets, xss, csp, audit, scannedFiles: files.length, counts, scannedAt, reportId, thread: this._securityThread.slice(-60), coverage: { secrets: !!LPSS, xss: !!LPXS, csp: !!LPCC, npmAudit: !!(audit && audit.ok) } });
+      post({ secrets, xss, csp, audit, scannedFiles: files.length, counts, scannedAt, reportId, thread: this._securityThread.slice(-60), coverage });
     } catch {
       this._lastSecurity = { error: 'scan-failed' };
       this._securityRun = { state: 'error', phase: 'failed', label: 'o review falhou', counts: { critical: 0, warning: 0, info: 0, total: 0 }, scannedAt: Date.now(), reportId: null, scannedFiles: 0 };
@@ -2571,6 +3217,77 @@ class LivePreviewPanel {
       this._openSourceFile({ file: rec.path, line: rec.line || 1, col: 1 });
     } catch { /* best-effort */ }
   }
+  async _securityFixAudit(rec) {
+    const finishStatus = (state, label, text, status) => {
+      this._securityThreadPush('assistant', text, { status: status || state });
+      this._securityPostStatus(state, 'dependency-remediation', label);
+    };
+    if (this._securityRemediationBusy) { finishStatus(this._securityRun && this._securityRun.state || 'complete', 'Já existe uma correção em curso.', 'Aguarda a correção npm que já está em curso; não iniciei uma segunda operação.', 'blocked'); return; }
+    let temp = null;
+    try {
+      const root = this._wsRoot();
+      const manifest = this._resolveContainedFile(rec && rec.path);
+      if (!manifest) { finishStatus('complete', 'Manifesto npm indisponível.', 'Não encontrei o package.json indexado por este finding; nenhuma alteração foi feita.', 'blocked'); return; }
+      const pkgRoot = path.dirname(manifest);
+      const lock = ['package-lock.json', 'npm-shrinkwrap.json'].map((n) => path.join(pkgRoot, n)).find((p) => fs.existsSync(p));
+      if (!lock) { finishStatus('complete', 'Lockfile npm necessário.', 'A correção automática compatível exige um package-lock.json/npm-shrinkwrap.json existente. Abri apenas um caminho manual; nada foi escrito.', 'blocked'); return; }
+      if (this._treeGateBlocked()) { finishStatus('complete', 'Correção bloqueada: árvore não confirmada.', 'A árvore servida deixou de coincidir com o workspace. Nenhuma dependência foi alterada.', 'blocked'); return; }
+
+      const originals = [manifest, lock].map((file) => ({ file, before: fs.readFileSync(file) }));
+      temp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mooter-audit-fix-'));
+      for (const x of originals) fs.writeFileSync(path.join(temp, path.basename(x.file)), x.before);
+      this._securityRemediationBusy = true;
+      this._securityThreadPush('activity', 'A preparar um fix npm compatível numa cópia temporária do manifest + lockfile (package-lock-only, ignore-scripts, nunca --force).', { status: 'working' });
+      this._securityPostStatus('complete', 'dependency-remediation', 'A calcular correção npm compatível…');
+
+      let run;
+      if (typeof this._securityNpmFixRunner === 'function') run = await this._securityNpmFixRunner(temp);
+      else run = await new Promise((resolve) => {
+        const isWin = process.platform === 'win32';
+        require('child_process').execFile(isWin ? 'npm.cmd' : 'npm', ['audit', 'fix', '--omit=dev', '--package-lock-only', '--ignore-scripts', '--json'], { cwd: temp, timeout: 120000, maxBuffer: 20 * 1024 * 1024, windowsHide: true, shell: isWin }, (error, stdout, stderr) => resolve({ error, stdout: String(stdout || ''), stderr: String(stderr || '') }));
+      });
+
+      // The network/solver ran only in temp. Before copying a proposal back, revalidate BOTH the
+      // Security lease and the original bytes; an editor/agent change during npm resolution aborts.
+      if (!this._lastSecurity || this._securityRun.state !== 'complete' || this._scanFingerprint() !== this._lastSecurity.fingerprint) {
+        this._markSecurityStale('dependency-remediation-race');
+        return;
+      }
+      for (const x of originals) {
+        const now = fs.readFileSync(x.file);
+        if (!now.equals(x.before)) { this._markSecurityStale('dependency-remediation-race'); return; }
+      }
+      const proposals = originals.map((x) => ({ file: x.file, before: x.before, after: fs.readFileSync(path.join(temp, path.basename(x.file))) }));
+      const changed = proposals.filter((x) => !x.after.equals(x.before));
+      if (!changed.length) {
+        finishStatus('complete', 'Sem fix compatível automático.', 'O npm não encontrou uma atualização compatível sem --force. Nenhum ficheiro foi alterado; abre o package.json para planear o upgrade manual/major.', 'blocked');
+        return;
+      }
+      { const gate = this._writeProposalGate(); if (!gate.cleared) { finishStatus('complete', 'Resolve primeiro a proposta pendente.', 'Confirma OK ou reverte a alteração que já está pendente antes de aplicar outra correção.', 'blocked'); return; } }
+      const written = [];
+      try {
+        for (const x of changed) { fs.writeFileSync(x.file, x.after); written.push(x); }
+      } catch {
+        // Roll back only bytes this operation itself just wrote; never overwrite a concurrent edit.
+        for (const x of written.reverse()) {
+          try { if (fs.readFileSync(x.file).equals(x.after)) fs.writeFileSync(x.file, x.before); } catch { /* fail closed; status below stays blocked */ }
+        }
+        finishStatus('error', 'Correção npm falhou ao aplicar.', 'A proposta temporária não pôde ser aplicada de forma completa; nenhum sucesso foi declarado.', 'error');
+        return;
+      }
+      for (const x of changed) {
+        let rel = path.relative(root, x.file).split(path.sep).join('/');
+        this._pushUndo(x.file, x.before.toString('utf8'), x.after.toString('utf8'), 'security npm fix · sem --force', rel, null, { tier: 'local', model: null });
+      }
+      this._securityThreadPush('assistant', 'Fix npm compatível aplicado a ' + changed.map((x) => path.basename(x.file)).join(' + ') + '. Revê o diff/undo e corre Review Security novamente; Publish continua bloqueado até o novo relatório.', { status: 'awaiting' });
+      this._markSecurityStale('dependency-remediation');
+    } catch {
+      finishStatus('error', 'Correção npm falhou.', 'A correção compatível não foi aplicada. Nenhum sucesso foi presumido; verifica npm/registry e tenta novamente.', 'error');
+    } finally {
+      this._securityRemediationBusy = false;
+      if (temp) { try { fs.rmSync(temp, { recursive: true, force: true }); } catch { /* owned temp only */ } }
+    }
+  }
   _securityFix(m) {
     const id = m && typeof m.findingId === 'string' ? m.findingId : '';
     const rec = this._securityFindings instanceof Map ? this._securityFindings.get(id) : null;
@@ -2585,6 +3302,7 @@ class LivePreviewPanel {
       this._postTaskResult({ ok: false, reason: 'security-scan-stale', context: 'security', findingId: id });
       return;
     }
+    if (rec.kind === 'audit' && rec.remediation === 'npm-compatible-lock-fix') return this._securityFixAudit(rec);
     this._securityThreadPush('user', 'Corrigir ' + rec.kind + ' · ' + rec.type + ' em ' + rec.path + ':' + rec.line + '.', { status: 'sent' });
     this._securityPostStatus('complete', 'remediation', 'A preparar correção segura para ' + rec.path + '…');
     this._taskRun({ securityFindingId: id, mode: 'auto', intent: 'edit' });
@@ -2598,24 +3316,76 @@ class LivePreviewPanel {
   // there in that method — never trusting anything the webview echoes back as truth.
   // ════════════════════════════════════════════════════════════════════════════
 
-  // The shipped-code file set a 🛡 review audits: source/env/public/next.config under the workspace,
-  // skipping vendored/build/test/fixture dirs and *.test.* files. Read by BOTH _securityScan (to scan)
-  // and _fingerprintOf (to bind the scan to those exact bytes). Never throws; unreadable files are skipped.
-  _walkScanFiles(root) {
+  // The shipped-byte set a 🛡 review leases. Every non-vendored file under the publishable package
+  // roots is fingerprinted as RAW bytes; source/config/text is also handed to the static scanners.
+  // Every dirty Git path is force-included in the byte lease even when it lives in a normally skipped
+  // test/hidden dir, because Publish can commit it. Test/fixture source remains fingerprint-only: its
+  // deliberate fake credentials must not become false Criticals in a production review. A file we
+  // cannot read/fit is not silently omitted: metadata makes
+  // coverage incomplete and `_scanFingerprint` refuses the lease on every later re-check.
+  _walkScanFiles(root, scanRoots, explicitPaths) {
     const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '__tests__', '__mocks__', 'fixtures', '__fixtures__', 'golden', 'test', 'tests']);
     const SRC_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/i;
     const TEST_RE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/i;
     const ENV_RE = /^\.env(\..*)?$/i;
+    const MANIFEST_RE = /^(?:package\.json|package-lock\.json|npm-shrinkwrap\.json)$/i;
+    const TEXT_RE = /\.(?:jsonc?|ya?ml|toml|ini|conf|config|sh|bash|zsh|fish|ps1|bat|cmd|html?|css|scss|less|mdx?|txt|graphql|gql|sql|xml)$/i;
+    const SPECIAL_TEXT_RE = /^(?:Dockerfile(?:\..*)?|Procfile|vercel\.json|netlify\.toml|wrangler\.toml)$/i;
     const MAX_FILES = 2000;
-    const MAX_BYTES = 512 * 1024;
+    // extension.js itself is intentionally self-contained and can exceed 512 KiB; 2 MiB remains
+    // bounded while ensuring the exact extension bytes being published are actually scanned.
+    const MAX_BYTES = 2 * 1024 * 1024;
     const files = [];
     let nextConfigAbs = null;
+    let truncated = false;
+    let skippedUnreadable = 0;
+    const truncatedReasons = [];
+    const unreadablePaths = [];
+    const rootAbs = path.resolve(root);
+    const seen = new Set();
+    const safeRel = (abs) => {
+      try {
+        const rel = path.relative(rootAbs, path.resolve(abs));
+        if (rel === '' || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
+        return rel.split(path.sep).join('/');
+      } catch { return null; }
+    };
+    const noteTruncated = (reason) => { truncated = true; if (truncatedReasons.length < 12 && !truncatedReasons.includes(reason)) truncatedReasons.push(reason); };
+    const includeFile = (abs, forceScan) => {
+      const rel = safeRel(abs);
+      if (!rel) return;
+      const key = process.platform === 'win32' ? rel.toLowerCase() : rel;
+      if (seen.has(key)) return;
+      if (files.length >= MAX_FILES) { noteTruncated('limite de ' + MAX_FILES + ' ficheiros atingido'); return; }
+      try {
+        if (!fs.existsSync(abs)) return; // a Git deletion is leased by absence, not "unreadable"
+        const st = fs.statSync(abs);
+        if (!st.isFile()) return;
+        if (st.size > MAX_BYTES) { noteTruncated(rel + ' excede 2 MiB'); return; }
+        const raw = fs.readFileSync(abs);
+        const name = path.basename(abs);
+        const isEnv = ENV_RE.test(name);
+        const isPublic = /(^|\/)public\//i.test(rel);
+        const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
+        const isLock = /^(?:package-lock\.json|npm-shrinkwrap\.json)$/i.test(name);
+        const looksText = raw.slice(0, 4096).indexOf(0) === -1;
+        const isTestFixture = TEST_RE.test(name) || /(^|\/)(?:__tests__|__mocks__|fixtures|__fixtures__|golden|test|tests)(?:\/|$)/i.test(rel);
+        const shouldScan = looksText && !isLock && !isTestFixture && (!!forceScan || isEnv || isPublic || isNextConfig || SRC_RE.test(name) || TEXT_RE.test(name) || SPECIAL_TEXT_RE.test(name) || name === 'package.json');
+        seen.add(key);
+        if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
+        files.push({ path: rel, content: shouldScan ? raw.toString('utf8') : '', hash: crypto.createHash('sha256').update(raw).digest('hex'), scannedText: shouldScan });
+      } catch {
+        skippedUnreadable++;
+        if (unreadablePaths.length < 12) unreadablePaths.push(rel);
+      }
+    };
     const walk = (dir, depth) => {
-      if (depth > 12 || files.length >= MAX_FILES) return;
+      if (depth > 12) { noteTruncated('profundidade máxima atingida em ' + (safeRel(dir) || '.')); return; }
       let ents;
-      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); }
+      catch { skippedUnreadable++; const rel = safeRel(dir); if (rel && unreadablePaths.length < 12) unreadablePaths.push(rel); return; }
       for (const ent of ents) {
-        if (files.length >= MAX_FILES) return;
+        if (files.length >= MAX_FILES) { noteTruncated('limite de ' + MAX_FILES + ' ficheiros atingido'); return; }
         const name = ent.name;
         const abs = path.join(dir, name);
         if (ent.isDirectory()) {
@@ -2624,25 +3394,23 @@ class LivePreviewPanel {
           continue;
         }
         if (!ent.isFile()) continue;
-        const rel = path.relative(root, abs).split(path.sep).join('/');
-        const isEnv = ENV_RE.test(name);
-        if (name.charAt(0) === '.' && !isEnv) continue;
+        // Tests/fixtures are not part of a normal production scan. A dirty one is still added first
+        // through explicitPaths, fingerprinted byte-for-byte, and therefore cannot escape freshness.
         if (TEST_RE.test(name)) continue;
-        const isPublic = /(^|\/)public\//i.test(rel);
-        const isNextConfig = /^next\.config\.(js|ts|mjs|cjs)$/i.test(name);
-        const isSrc = SRC_RE.test(name);
-        if (!isEnv && !isPublic && !isNextConfig && !isSrc) continue;
-        if (isNextConfig && !nextConfigAbs) nextConfigAbs = abs;
-        try {
-          const st = fs.statSync(abs);
-          if (!st.isFile() || st.size > MAX_BYTES) continue;
-          const content = fs.readFileSync(abs, 'utf8');
-          files.push({ path: rel, content });
-        } catch { /* unreadable → skipped */ }
+        includeFile(abs, false);
       }
     };
-    try { walk(root, 0); } catch { /* fail-soft */ }
-    return { files, nextConfigAbs };
+    try {
+      for (const p of (Array.isArray(explicitPaths) ? explicitPaths : [])) includeFile(p, true);
+      let starts = Array.isArray(scanRoots) && scanRoots.length ? scanRoots.map((p) => path.resolve(p)) : [path.resolve(root)];
+      starts = starts.filter((p, i, arr) => {
+        const rel = path.relative(path.resolve(root), p);
+        if (rel.startsWith('..') || path.isAbsolute(rel)) return false;
+        return !arr.some((other, j) => j !== i && (p === other || (!path.relative(other, p).startsWith('..') && !path.isAbsolute(path.relative(other, p)))));
+      });
+      for (const start of starts) walk(start, 0);
+    } catch { /* fail-soft */ }
+    return { files, nextConfigAbs, truncated, skippedUnreadable, truncatedReasons, unreadablePaths };
   }
   // CONTENT fingerprint of a walked file set: sha256 over sorted `path\0sha256(content)`. Binds a scan
   // to the exact bytes it read — so an edit to ANY of them (tracked, staged, untracked, or gitignored)
@@ -2650,11 +3418,25 @@ class LivePreviewPanel {
   // git-diff version was blind to untracked/staged/ignored content — the P0 review's confirmed TOCTOU).
   _fingerprintOf(files) {
     try {
-      const lines = (Array.isArray(files) ? files : []).map((f) => String(f.path) + '\0' + crypto.createHash('sha256').update(String(f.content), 'utf8').digest('hex')).sort();
+      const lines = (Array.isArray(files) ? files : []).map((f) => {
+        const hash = f && typeof f.hash === 'string' && /^[a-f0-9]{64}$/i.test(f.hash)
+          ? f.hash.toLowerCase()
+          : crypto.createHash('sha256').update(String(f && f.content), 'utf8').digest('hex');
+        return String(f && f.path) + '\0' + hash;
+      }).sort();
       return crypto.createHash('sha256').update(lines.join('\n'), 'utf8').digest('hex');
     } catch { return null; }
   }
-  _scanFingerprint() { try { return this._fingerprintOf(this._walkScanFiles(this._wsRoot()).files); } catch { return null; } }
+  _scanFingerprint() {
+    try {
+      const root = this._wsRoot();
+      const scope = this._securityPackageRoots(root);
+      if (scope.overflow || scope.gitScopeOk !== true) return null;
+      const walked = this._walkScanFiles(root, scope.roots, scope.dirtyFiles);
+      if (walked.truncated || walked.skippedUnreadable > 0) return null;
+      return this._fingerprintOf(walked.files);
+    } catch { return null; }
+  }
   // D6 (P0) — the FAIL-CLOSED publish security gate. Publish (commit + deploy) is BLOCKED unless the
   // LAST 🛡 scan this session is (1) present, (2) not errored, (3) FRESH — bound to the CONTENT of the
   // exact files it scanned, so ANY byte change since (incl. an untracked/staged/gitignored file edited
@@ -2663,14 +3445,18 @@ class LivePreviewPanel {
   // critical whose entries can't be classified blocks). Default = BLOCKED. There is NO webview override:
   // the earlier `overrideCritical` message let a forged lp-publish-* wave a Critical through; it is GONE.
   _securityGate() {
+    if (this._securityRemediationBusy) return { cleared: false, reason: 'security-remediation-running' };
     const r = this._lastSecurity;
     if (!r || typeof r !== 'object') return { cleared: false, reason: 'security-scan-required' };
     if (r.error) return { cleared: false, reason: 'security-scan-failed' };
+    if (!r.coverage || r.coverage.complete !== true) return { cleared: false, reason: 'security-coverage-incomplete' };
+    if (!Number.isFinite(r.scannedAt) || (Date.now() - r.scannedAt) > 15 * 60 * 1000) return { cleared: false, reason: 'security-scan-stale' };
     const now = this._scanFingerprint();
     if (!r.fingerprint || !now || r.fingerprint !== now) return { cleared: false, reason: 'security-scan-stale' };
     const secrets = Array.isArray(r.secrets) ? r.secrets : [];
     if (secrets.some((s) => s && String(s.severity || '').toLowerCase() === 'critical')) return { cleared: false, reason: 'critical-open' };
     const a = r.audit;
+    if (!a || a.ok !== true || !a.counts) return { cleared: false, reason: 'security-coverage-incomplete' };
     if (a && a.ok && a.counts) {
       const c = a.counts;
       const risk = (Number(c.critical) || 0) + (Number(c.high) || 0);
@@ -2684,13 +3470,11 @@ class LivePreviewPanel {
     return { cleared: true, reason: null };
   }
 
-  // _vercelProject(root) — the SINGLE resolver for "is this workspace linked, and to what
-  // project". Read by BOTH _publishStatus (advisory, for the UI hint) AND _publishDeploy (the
-  // actual gate) — one function, so the two can never silently diverge. Checks
-  // <root>/landing/.vercel/project.json first (this repo's real layout), then <root>/.vercel/
-  // project.json. projectName = the linked project's OWN .projectName field, or (fallback) the
-  // basename of the directory that holds .vercel/ — e.g. "landing". Never throws; not linked →
-  // { linked:false, projectName:null, projectDir:null }.
+  // _vercelProject(root) — the SINGLE resolver for the production target identity. A Vercel link is
+  // valid only when projectName + projectId + orgId are all present in a regular, non-symlink
+  // `.vercel/project.json`. The raw-file SHA is part of the lease too: rewriting the link while
+  // preserving the visible name cannot redirect a deploy between status/confirmation/spawn.
+  // Full provider IDs and raw bytes remain host-only; `_vercelPublicIdentity` emits redacted hints.
   _vercelProject(root) {
     const candidates = [
       path.join(root || '', 'landing', '.vercel', 'project.json'),
@@ -2699,17 +3483,61 @@ class LivePreviewPanel {
     for (const p of candidates) {
       try {
         if (!fs.existsSync(p)) continue;
-        let j = null;
-        try { j = JSON.parse(fs.readFileSync(p, 'utf8')); } catch { j = null; }
-        const vercelDir = path.dirname(p);      // …/.vercel
-        const projectDir = path.dirname(vercelDir); // …/landing (or the wsRoot itself)
-        const name = (j && typeof j.projectName === 'string' && j.projectName.trim())
-          ? j.projectName.trim()
-          : path.basename(projectDir);
-        return { linked: true, projectName: name, projectDir };
-      } catch { /* try next candidate */ }
+        const vercelDir = path.dirname(p);
+        const projectDir = path.dirname(vercelDir);
+        const projectStat = fs.lstatSync(projectDir);
+        const vercelStat = fs.lstatSync(vercelDir);
+        const fileStat = fs.lstatSync(p);
+        if (projectStat.isSymbolicLink() || !projectStat.isDirectory()
+          || vercelStat.isSymbolicLink() || !vercelStat.isDirectory()
+          || fileStat.isSymbolicLink() || !fileStat.isFile()) {
+          return { linked: false, reason: 'vercel-identity-invalid', projectName: null, projectDir: null };
+        }
+        const raw = fs.readFileSync(p);
+        if (!raw.length || raw.length > 1024 * 1024) return { linked: false, reason: 'vercel-identity-invalid', projectName: null, projectDir: null };
+        const j = JSON.parse(raw.toString('utf8'));
+        const field = (name) => {
+          const value = j && typeof j[name] === 'string' ? j[name].trim() : '';
+          return value && value.length <= 512 && !/[\u0000-\u001f\u007f]/.test(value) ? value : null;
+        };
+        const projectName = field('projectName'), projectId = field('projectId'), orgId = field('orgId');
+        if (!projectName || !projectId || !orgId) return { linked: false, reason: 'vercel-identity-invalid', projectName: null, projectDir: null };
+        const projectJsonSha256 = crypto.createHash('sha256').update(raw).digest('hex');
+        const identityKey = crypto.createHash('sha256')
+          .update(projectName + '\0' + projectId + '\0' + orgId + '\0' + projectJsonSha256, 'utf8').digest('hex');
+        return { linked: true, reason: null, projectName, projectId, orgId, projectDir, projectFile: p, projectJsonSha256, identityKey, raw };
+      } catch {
+        // A present-but-unreadable first-choice link is not permission to silently fall through to
+        // another project. Surface it and require the user to repair/re-link explicitly.
+        return { linked: false, reason: 'vercel-identity-invalid', projectName: null, projectDir: null };
+      }
     }
-    return { linked: false, projectName: null, projectDir: null };
+    return { linked: false, reason: 'not-linked', projectName: null, projectDir: null };
+  }
+  _sameVercelIdentity(a, b) {
+    return !!(a && b && a.linked && b.linked
+      && a.projectName === b.projectName
+      && a.projectId === b.projectId
+      && a.orgId === b.orgId
+      && a.projectJsonSha256 === b.projectJsonSha256
+      && a.identityKey === b.identityKey);
+  }
+  _redactVercelId(value) {
+    const s = typeof value === 'string' ? value : '';
+    if (!s) return null;
+    if (s.length <= 10) return s.slice(0, 3) + '…' + s.slice(-2);
+    return s.slice(0, 6) + '…' + s.slice(-4);
+  }
+  _vercelPublicIdentity(info) {
+    if (!info || !info.linked) return null;
+    return {
+      projectName: info.projectName,
+      projectIdHint: this._redactVercelId(info.projectId),
+      orgIdHint: this._redactVercelId(info.orgId),
+      projectJsonSha256Hint: String(info.projectJsonSha256 || '').slice(0, 12),
+      // Opaque status→click lease. It contains no provider ID and is never rendered into HTML.
+      key: info.identityKey,
+    };
   }
 
   // _publishStatus() — READ-ONLY. Answers "what would Publish do right now": the changed files
@@ -2765,22 +3593,41 @@ class LivePreviewPanel {
     try {
       const root = this._wsRoot();
       const prev = await extra.gitCommitPreview(root);
-      const touchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
+      const allTouchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
+      const publishScope = this._publishFileScope(root, allTouchedFiles);
+      const touchedFiles = publishScope.files;
       const git = extra && typeof extra.gitRemoteInfo === 'function' ? await extra.gitRemoteInfo(root) : { available: false, name: null, url: null, webUrl: null };
+      const gitStage = extra && typeof extra.gitStage === 'function' ? await extra.gitStage(root) : null;
       const vercel = this._vercelProject(root);
       const secGate = this._securityGate(); // once — it walks the scanned-file set
+      const approvalGate = this._journeyApprovalGate();
+      const scopeGate = publishScope.blockedPaths.length
+        ? { cleared: false, reason: 'preexisting-dirt-in-approved-file' }
+        : (publishScope.stalePaths.length ? { cleared: false, reason: 'approved-content-changed' } : { cleared: true, reason: null });
+      this._journeySecurityVerdict(scopeGate.cleared ? secGate : scopeGate);
+      const pushed = this._lastPublishCommit && this._lastPublishCommit.root === root ? this._lastPublishCommit : null;
+      let deployReason = null;
+      if (!pushed) deployReason = 'git-publish-required';
+      else if (touchedFiles.length || publishScope.stalePaths.length || publishScope.blockedPaths.length) deployReason = 'git-publish-stale';
+      else if (!this._lastSecurity || pushed.securityFingerprint !== this._lastSecurity.fingerprint || pushed.securityReportId !== (this._lastSecurity.reportId || null)) deployReason = 'git-publish-security-mismatch';
       post({
         branch: prev ? prev.branch : null,
+        ahead: gitStage && Number.isFinite(gitStage.ahead) ? gitStage.ahead : 0,
+        behind: gitStage && Number.isFinite(gitStage.behind) ? gitStage.behind : 0,
         touchedFiles,
-        defaultMessage: prev ? prev.message : '',
+        defaultMessage: prev ? ((extra && typeof extra.defaultCommitMessage === 'function') ? extra.defaultCommitMessage(prev.branch, touchedFiles) : prev.message) : '',
         vercelLinked: vercel.linked,
         projectName: vercel.linked ? vercel.projectName : null,
-        hasOpenCritical: !secGate.cleared, // D6: "blocked by security" — required/failed/stale/critical
-        securityReason: secGate.reason,    // the honest WHY, so the popover doesn't just say "critical"
+        vercelIdentity: this._vercelPublicIdentity(vercel),
+        vercelReason: vercel.reason || null,
+        hasOpenCritical: !secGate.cleared || !approvalGate.cleared || !scopeGate.cleared, // all fail-closed gates share one disabled surface
+        securityReason: !approvalGate.cleared ? approvalGate.reason : (!scopeGate.cleared ? scopeGate.reason : secGate.reason),
         websiteUrl: this._lastDeployUrl || null,
-        local: { folder: path.basename(root), path: root, dirtyCount: touchedFiles.length, repo: !!prev },
+        local: { folder: path.basename(root), path: root, dirtyCount: allTouchedFiles.length, publishableCount: touchedFiles.length, excludedCount: publishScope.excludedCount, blockedPaths: publishScope.blockedPaths.slice(0, 30), repo: !!prev },
         git,
         destination: this._productionUrl(), // COH-10 — the prod target, shown BEFORE the two-factor
+        deployReason,
+        gitPublishedCommit: pushed ? String(pushed.head || '').slice(0, 12) : null,
       });
     } catch { post({ error: 'status-failed' }); }
   }
@@ -2789,14 +3636,16 @@ class LivePreviewPanel {
   // The webview's file list is a SUGGESTION, not authority: we recompute the changed set fresh
   // (a new gitCommitPreview, not the one the webview saw — the disk may have moved since) and
   // silently drop anything the user did not actually see change — a file the caller asks for that
-  // is NOT in that fresh set is simply never staged. host-extra.gitCommit does the real
-  // `git add -- <files>` + `git commit`; host-extra.gitPush does the real `git push` (never
-  // --force). Reports the EXACT command string either way (transparency), never a presumed
-  // success.
+  // is NOT in that fresh set is simply never staged. host-extra.gitCommit uses an isolated index,
+  // verifies the reviewed bytes, builds with `commit-tree`, then advances HEAD by CAS; gitPush
+  // sends that immutable commit to the confirmed destination (never --force). Reports the actual
+  // plumbing path either way (transparency), never a presumed success.
   async _publishCommit(m) {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'commit' }, payload)); } catch { /* best-effort */ } };
     try {
       const root = this._wsRoot();
+      const frozen = extra && typeof extra.classifyShaGuard === 'function' ? extra.classifyShaGuard(root) : { ok: false, checked: true };
+      if (frozen.checked && !frozen.ok) { post({ ok: false, reason: 'classify-frozen-changed', cmd: '' }); return; }
       const reqFiles = Array.isArray(m && m.files) ? m.files.filter((f) => typeof f === 'string' && f) : [];
       const message = (m && typeof m.message === 'string') ? m.message.trim().slice(0, 500) : '';
       if (!reqFiles.length || !message) { post({ ok: false, reason: 'bad-request', cmd: '' }); return; }
@@ -2804,57 +3653,304 @@ class LivePreviewPanel {
       // Critical-free security scan (no scan / errored / stale / open Critical all block). No override —
       // a forged lp-publish-commit can no longer wave a scanned secret to the remote.
       { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
+      { const gate = this._journeyApprovalGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
       // A control labelled "commit + push" must not knowingly create a local-only commit when no
       // remote exists. Re-read the remote here; the webview's earlier status is advisory only.
+      let expectedDestination = null;
       if (extra && typeof extra.gitRemoteInfo === 'function') {
         const remote = await extra.gitRemoteInfo(root);
-        if (!remote || !remote.available) { post({ ok: false, reason: 'git-remote-required', cmd: '' }); return; }
+        if (!remote || !remote.available) { post({ ok: false, reason: (remote && remote.reason) || 'git-remote-required', cmd: '' }); return; }
+        expectedDestination = { name: remote.name, targetBranch: remote.targetBranch, url: remote.url };
       }
       const prev = await extra.gitCommitPreview(root);
-      const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
-      const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
+      const changedRows = prev && Array.isArray(prev.files) ? prev.files : [];
+      const publishScope = this._publishFileScope(root, changedRows);
+      if (publishScope.blockedPaths.length) { post({ ok: false, reason: 'preexisting-dirt-in-approved-file', cmd: '' }); return; }
+      if (publishScope.stalePaths.length) { this._markSecurityStale('publish-approval-mismatch'); post({ ok: false, reason: 'approved-content-changed', cmd: '' }); return; }
+      const approvedRows = publishScope.files;
+      const byDisplayedPath = new Map(approvedRows.filter((f) => f && typeof f.path === 'string').map((f) => [f.path, f]));
+      const files = [];
+      const selected = new Set();
+      const renamedAway = new Set();
+      for (const requested of reqFiles) {
+        const row = byDisplayedPath.get(requested);
+        if (!row) continue; // NEVER commit a file the user didn't see
+        if (!selected.has(row.path)) { selected.add(row.path); files.push(row.path); }
+        // Porcelain renders a rename as one NEW-path row, but its commit is necessarily two-path:
+        // add NEW + delete OLD. Expand only R (not C/copy), and bind both states to the byte lease.
+        const renamed = row.x === 'R' || row.y === 'R';
+        if (renamed && typeof row.origPath === 'string' && row.origPath) {
+          renamedAway.add(row.origPath);
+          if (!selected.has(row.origPath)) { selected.add(row.origPath); files.push(row.origPath); }
+        }
+      }
       if (!files.length) { post({ ok: false, reason: 'no-matching-files', cmd: '' }); return; }
-      const cres = await extra.gitCommit(root, files, message); // `git add -- <files>` then `git commit` — never -A
-      if (!cres.ok) { post({ ok: false, reason: 'commit-failed', out: String(cres.out || '').slice(0, 400), cmd: cres.cmd }); return; }
-      const pres = await extra.gitPush(root); // never --force
+      // Re-check immediately before the first mutation. Remote/status discovery above awaited I/O;
+      // any byte changed meanwhile invalidates the content-bound review and approval lease.
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
+      { const gate = this._journeyApprovalGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
+      // Bind the approval to the exact bytes that are about to be staged. A deletion is an explicit
+      // `{missing:true}` state; regular files and symlinks carry both raw bytes and SHA-256. The
+      // host-extra fence re-reads the staged blob (`git show :path`) after `git add` and refuses the
+      // commit if even one byte differs. Paths remain constrained to this workspace.
+      const expectedSnapshot = [];
+      const rootAbs = path.resolve(root);
+      for (const rel of files) {
+        const abs = path.resolve(rootAbs, rel);
+        const inside = path.relative(rootAbs, abs);
+        if (!inside || inside === '..' || inside.startsWith('..' + path.sep) || path.isAbsolute(inside)) {
+          post({ ok: false, reason: 'approved-snapshot-invalid', cmd: '' }); return;
+        }
+        // OLD is the deletion half of a displayed rename. Never silently approve bytes if that
+        // path was recreated after the preview; the isolated-index verifier will require absence.
+        if (renamedAway.has(rel)) {
+          expectedSnapshot.push({ path: rel, missing: true, sha256: null, raw: null });
+          continue;
+        }
+        try {
+          const st = fs.lstatSync(abs);
+          let raw;
+          if (st.isSymbolicLink()) raw = Buffer.from(fs.readlinkSync(abs), 'utf8');
+          else if (st.isFile()) raw = fs.readFileSync(abs);
+          else { post({ ok: false, reason: 'approved-content-unverifiable', cmd: '' }); return; }
+          expectedSnapshot.push({ path: rel, missing: false, sha256: crypto.createHash('sha256').update(raw).digest('hex'), raw });
+        } catch (e) {
+          if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) expectedSnapshot.push({ path: rel, missing: true, sha256: null, raw: null });
+          else { post({ ok: false, reason: 'approved-content-unverifiable', cmd: '' }); return; }
+        }
+      }
+      // Canonicalise the user-visible bytes through Git's REAL clean/eol filters in a private index.
+      // The raw SHA remains the lease over what the user reviewed; blobOid+gitMode bind what Git will
+      // actually write. This is what makes an honest CRLF checkout publishable without weakening the
+      // exact-byte fence or mistaking a symlink/mode change for the approved regular file.
+      let commitSnapshot = expectedSnapshot;
+      if (this._livePublishScope === true) {
+        if (!extra || typeof extra.prepareApprovedSnapshot !== 'function') {
+          post({ ok: false, reason: 'approved-content-unverifiable', cmd: '' }); return;
+        }
+        const prepared = await extra.prepareApprovedSnapshot(root, expectedSnapshot);
+        if (!prepared || !prepared.ok || !Array.isArray(prepared.rows)) {
+          const reason = prepared && typeof prepared.reason === 'string' ? prepared.reason : 'approved-content-unverifiable';
+          if (reason === 'approved-content-changed' || reason === 'approved-content-unverifiable'
+            || reason === 'approved-content-transform-unsupported') this._markSecurityStale('publish-canonical-snapshot-mismatch');
+          post({ ok: false, reason, cmd: '' }); return;
+        }
+        commitSnapshot = prepared.rows;
+        // The canonical preparation can take bounded Git I/O. Re-read the host-only provenance
+        // afterwards so a same-path staged WIP or HEAD move cannot race into index reconciliation.
+        for (const row of expectedSnapshot) {
+          if (row && row.missing !== true && !this._publishSealCheck(root, row.path, row.sha256)) {
+            post({ ok: false, reason: 'preexisting-dirt-in-approved-file', cmd: '' }); return;
+          }
+        }
+      }
+      // Snapshotting/canonicalisation spans multiple reads. Revalidate both global host gates once
+      // more immediately before the first mutation; gitCommit then rechecks OID+mode after staging.
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
+      { const gate = this._journeyApprovalGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
+      const cres = await extra.gitCommit(root, files, message, commitSnapshot); // never -A; staged canonical blob+mode must equal the lease
+      if (!cres.ok) {
+        const reason = typeof cres.reason === 'string' && cres.reason ? cres.reason : 'commit-failed';
+        if (reason === 'approved-content-changed' || reason === 'approved-content-unverifiable'
+          || reason === 'approved-content-transform-unsupported') this._markSecurityStale('publish-snapshot-mismatch');
+        else if (reason === 'git-selected-base-moved') this._markSecurityStale('publish-selected-base-moved');
+        else if (reason === 'git-index-selected-path-moved') this._markSecurityStale('publish-index-selected-path-moved');
+        const result = { ok: false, reason, out: String(cres.out || '').slice(0, 400), cmd: cres.cmd };
+        this._journeyPublishResult('commit', result); post(result); return;
+      }
+      // HEAD now contains the reviewed bytes. Advance the host-only baseline before any later LP
+      // chain starts; if index reconciliation failed the seal turns unsafe and the next Publish blocks.
+      this._publishSealAdvance(root, files);
+      const pres = await extra.gitPush(root, cres.head, expectedDestination); // immutable approved commit + confirmed destination; never mutable HEAD / --force
       this._emitLpEvent('publish', { kind: 'server', summary: 'commit+push · ' + files.length + ' ficheiros · ' + (pres.ok ? 'ok' : 'push-failed') }); // D5
-      post({
+      const result = {
         ok: pres.ok,
-        reason: pres.ok ? undefined : 'push-failed',
+        reason: pres.ok ? undefined : (pres.reason || 'push-failed'),
         out: String(pres.out || '').slice(0, 400),
         cmd: cres.cmd + ' && ' + pres.cmd,
         filesCommitted: files.length,
-      });
+      };
+      if (pres.ok) this._lastPublishCommit = {
+        root, head: cres.head, files: files.slice(), destination: expectedDestination,
+        securityFingerprint: this._lastSecurity && this._lastSecurity.fingerprint || null,
+        securityReportId: this._lastSecurity && this._lastSecurity.reportId || null,
+      };
+      this._journeyPublishResult('commit', result);
+      post(result);
     } catch { post({ ok: false, reason: 'error', cmd: '' }); }
   }
 
-  // _publishDeploy(m) — payload {projectName}. THE IRREVERSIBLE STEP. HARD TWO-FACTOR GATE:
-  // this method independently re-reads .vercel/project.json (via _vercelProject — the SAME
-  // resolver _publishStatus used to show the hint, called again here fresh) and compares it
-  // BYTE-FOR-BYTE against m.projectName. Anything other than an exact match REFUSES and deploys
-  // NOTHING — the webview is assumed untrusted/possibly wrong; this check is the only thing that
-  // matters. Only on an exact match does `vercel --prod --yes` ever spawn. A missing CLI (ENOENT,
+  // _publishDeploy(m) — payload {projectName, vercelIdentityKey}. THE IRREVERSIBLE STEP. HARD
+  // two-factor + target-lease gate: the typed project name must match AND the opaque identity key
+  // shown by the latest status must still represent the exact {name,id,org,raw project.json SHA}.
+  // The source and copied snapshot identities are re-read before snapshotting, after snapshotting,
+  // and immediately before spawn. Anything else REFUSES and deploys NOTHING. A missing CLI (ENOENT,
   // or a shell reporting "not recognized"/"command not found") returns an honest onboarding
   // reason, never an invented URL. Any other failure (non-zero exit, timeout) is reported as-is —
   // never presented as success.
+  _verifyDeploySnapshot(root, commit, projectRel, snapshotProject, spawnSync) {
+    try {
+      if (!root || !/^[0-9a-f]{40,64}$/i.test(String(commit || '')) || typeof projectRel !== 'string'
+        || !snapshotProject || typeof spawnSync !== 'function') return { ok: false, reason: 'deploy-snapshot-mismatch' };
+      const args = ['-C', root, 'ls-tree', '-r', '-z', commit];
+      if (projectRel) args.push('--', projectRel);
+      const listed = spawnSync('git', args, { timeout: 30000, maxBuffer: 128 * 1024 * 1024, encoding: null, windowsHide: true });
+      if (!listed || listed.error || listed.status !== 0 || !Buffer.isBuffer(listed.stdout)) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+      const expected = new Map();
+      const prefix = projectRel ? projectRel.replace(/\/+$/, '') + '/' : '';
+      const records = listed.stdout.toString('utf8').split('\0').filter(Boolean);
+      if (!records.length || records.length > 50000) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+      for (const record of records) {
+        const tab = record.indexOf('\t');
+        const meta = tab >= 0 ? record.slice(0, tab).split(/\s+/) : [];
+        const treePath = tab >= 0 ? record.slice(tab + 1) : '';
+        if (meta.length !== 3 || meta[1] !== 'blob' || (meta[0] !== '100644' && meta[0] !== '100755')
+          || !/^[0-9a-f]{40,64}$/i.test(meta[2]) || (prefix && !treePath.startsWith(prefix))) {
+          return { ok: false, reason: meta[0] === '120000' ? 'deploy-snapshot-symlink' : 'deploy-snapshot-mismatch' };
+        }
+        const rel = prefix ? treePath.slice(prefix.length) : treePath;
+        const relNative = rel.split('/').join(path.sep);
+        const abs = path.resolve(snapshotProject, relNative);
+        const inside = path.relative(path.resolve(snapshotProject), abs);
+        if (!rel || !inside || inside === '..' || inside.startsWith('..' + path.sep) || path.isAbsolute(inside) || expected.has(rel)) {
+          return { ok: false, reason: 'deploy-snapshot-mismatch' };
+        }
+        let st, raw;
+        try { st = fs.lstatSync(abs); raw = st.isFile() && !st.isSymbolicLink() ? fs.readFileSync(abs) : null; } catch { raw = null; }
+        if (!raw) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+        const algorithm = meta[2].length === 64 ? 'sha256' : (meta[2].length === 40 ? 'sha1' : null);
+        if (!algorithm) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+        const oid = crypto.createHash(algorithm).update(Buffer.from('blob ' + raw.length + '\0')).update(raw).digest('hex');
+        if (oid !== meta[2].toLowerCase()) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+        expected.set(rel, true);
+      }
+      const actual = [];
+      const stack = [snapshotProject];
+      while (stack.length) {
+        const dir = stack.pop();
+        for (const de of fs.readdirSync(dir, { withFileTypes: true })) {
+          const abs = path.join(dir, de.name);
+          if (de.isSymbolicLink()) return { ok: false, reason: 'deploy-snapshot-symlink' };
+          if (de.isDirectory()) stack.push(abs);
+          else if (de.isFile()) actual.push(path.relative(snapshotProject, abs).split(path.sep).join('/'));
+          else return { ok: false, reason: 'deploy-snapshot-mismatch' };
+          if (actual.length > 50000) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+        }
+      }
+      if (actual.length !== expected.size || actual.some((rel) => !expected.has(rel))) return { ok: false, reason: 'deploy-snapshot-mismatch' };
+      return { ok: true, reason: null };
+    } catch { return { ok: false, reason: 'deploy-snapshot-mismatch' }; }
+  }
   _publishDeploy(m) {
-    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'deploy' }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => { this._journeyPublishResult('deploy', payload); try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'deploy' }, payload)); } catch { /* best-effort */ } };
+    let ownedSnapshot = null;
     try {
       const root = this._wsRoot();
+      const frozen = extra && typeof extra.classifyShaGuard === 'function' ? extra.classifyShaGuard(root) : { ok: false, checked: true };
+      if (frozen.checked && !frozen.ok) { post({ ok: false, reason: 'classify-frozen-changed' }); return; }
       const info = this._vercelProject(root);
-      if (!info.linked) { post({ ok: false, reason: 'not-linked' }); return; }
+      if (!info.linked) { post({ ok: false, reason: info.reason || 'not-linked' }); return; }
       const typed = (m && typeof m.projectName === 'string') ? m.projectName.trim() : '';
+      const requestedIdentityKey = (m && typeof m.vercelIdentityKey === 'string') ? m.vercelIdentityKey : '';
       // ── THE GATE ── deploy is unreachable without this exact match. Nothing above this line
       // spawns a process; nothing below runs unless it passes.
       if (!typed || typed !== info.projectName) { post({ ok: false, reason: 'name-mismatch' }); return; }
+      if (!requestedIdentityKey || requestedIdentityKey !== info.identityKey) { post({ ok: false, reason: 'vercel-identity-changed' }); return; }
       // D6 (P0) — fail-closed secondary gate on the IRREVERSIBLE step: a valid, FRESH, Critical-free scan
       // is REQUIRED before `vercel --prod` can spawn (no scan / errored / stale / open Critical all block).
       // The two-factor name gate above stays the primary gate; this one is no longer overridable from the webview.
       { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason }); return; } }
+      { const gate = this._journeyApprovalGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason }); return; } }
+      // The status-to-click token matched the first read. Re-read after all gates and freeze the
+      // actual source path too, so a landing↔root link swap with identical JSON still cannot move
+      // the deployment target underneath this confirmation.
+      const beforeSnapshotInfo = this._vercelProject(root);
+      if (!this._sameVercelIdentity(info, beforeSnapshotInfo) || beforeSnapshotInfo.projectDir !== info.projectDir) {
+        post({ ok: false, reason: 'vercel-identity-changed' }); return;
+      }
+      // Freeze exactly what Vercel will read. A real panel deploys ONLY the immutable commit OID
+      // that this panel already pushed, never the mutable working tree. The constructor opt-in keeps
+      // legacy isolated method harnesses on their old copy path; production cannot reach that branch.
+      let snapshotProject;
+      if (this._livePublishScope === true) {
+        const published = this._lastPublishCommit;
+        if (!published || published.root !== root || !/^[0-9a-f]{40,64}$/i.test(String(published.head || ''))) { post({ ok: false, reason: 'git-publish-required' }); return; }
+        if (!this._lastSecurity || published.securityFingerprint !== this._lastSecurity.fingerprint || published.securityReportId !== (this._lastSecurity.reportId || null)) { post({ ok: false, reason: 'git-publish-security-mismatch' }); return; }
+        const cproc = require('child_process');
+        const gs = cproc.spawnSync('git', ['-C', root, 'status', '--porcelain=v1', '-z'], { timeout: 8000, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8', windowsHide: true });
+        if (!gs || gs.error || gs.status !== 0) { post({ ok: false, reason: 'git-publish-stale' }); return; }
+        const dirtyRows = extra && typeof extra.parsePorcelain === 'function' ? extra.parsePorcelain(String(gs.stdout || '')) : [];
+        const liveScope = this._publishFileScope(root, dirtyRows);
+        if (liveScope.blockedPaths.length) { post({ ok: false, reason: 'preexisting-dirt-in-approved-file' }); return; }
+        if (liveScope.stalePaths.length || liveScope.files.length) { post({ ok: false, reason: 'git-publish-stale' }); return; }
+        const rootAbs = path.resolve(root), projectAbs = path.resolve(info.projectDir);
+        const projectRelNative = path.relative(rootAbs, projectAbs);
+        if (projectRelNative === '..' || projectRelNative.startsWith('..' + path.sep) || path.isAbsolute(projectRelNative)) { post({ ok: false, reason: 'deploy-snapshot-mismatch' }); return; }
+        const projectRel = projectRelNative.split(path.sep).join('/');
+        // `.vercel` is intentionally not versioned. Copy only the exact raw bytes already frozen
+        // into the identity lease; never perform an unbound second read here.
+        const vercelMeta = Buffer.from(info.raw);
+        ownedSnapshot = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mooter-deploy-'));
+        const archiveArgs = ['-C', root, 'archive', '--format=tar', published.head];
+        if (projectRel) archiveArgs.push('--', projectRel);
+        const archive = cproc.spawnSync('git', archiveArgs, { timeout: 30000, maxBuffer: 128 * 1024 * 1024, encoding: null, windowsHide: true });
+        if (!archive || archive.error || archive.status !== 0 || !Buffer.isBuffer(archive.stdout) || !archive.stdout.length) { post({ ok: false, reason: 'deploy-snapshot-incomplete' }); return; }
+        const unpack = cproc.spawnSync('tar', ['-xf', '-', '-C', ownedSnapshot], { input: archive.stdout, timeout: 30000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', windowsHide: true });
+        if (!unpack || unpack.error || unpack.status !== 0) { post({ ok: false, reason: 'deploy-snapshot-incomplete' }); return; }
+        snapshotProject = projectRel ? path.join(ownedSnapshot, ...projectRel.split('/')) : ownedSnapshot;
+        // `git archive` honours export-subst/export-ignore and can therefore produce bytes that
+        // differ from the supposedly immutable commit. Prove every extracted regular file against
+        // its tree blob OID before adding Vercel's unversioned metadata or crossing the deploy
+        // boundary. This also rejects submodules, omitted files, injected extras and symlinks.
+        const snapshotProof = this._verifyDeploySnapshot(root, published.head, projectRel, snapshotProject, cproc.spawnSync);
+        if (!snapshotProof.ok) { post({ ok: false, reason: snapshotProof.reason || 'deploy-snapshot-mismatch' }); return; }
+        // Git can version symlinks. Vercel must never follow one outside the archived tree.
+        const stack = [snapshotProject]; let seen = 0;
+        while (stack.length) {
+          const dir = stack.pop();
+          for (const de of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (++seen > 50000) { post({ ok: false, reason: 'deploy-snapshot-incomplete' }); return; }
+            if (de.isSymbolicLink()) throw new Error('snapshot-symlink');
+            if (de.isDirectory()) stack.push(path.join(dir, de.name));
+          }
+        }
+        // Never retain a versioned `.vercel` directory or extra provider metadata in the deploy.
+        // Only the exact project.json bytes frozen by the confirmation lease are permitted.
+        try { fs.rmSync(path.join(snapshotProject, '.vercel'), { recursive: true, force: true }); } catch { /* absent */ }
+        fs.mkdirSync(path.join(snapshotProject, '.vercel'), { recursive: true });
+        fs.writeFileSync(path.join(snapshotProject, '.vercel', 'project.json'), vercelMeta);
+      } else {
+        // Backward-compatible isolated harness path. Real panels always opt into immutable Git mode.
+        const sourceWalk = this._walkScanFiles(info.projectDir, [info.projectDir], []);
+        if (sourceWalk.truncated || sourceWalk.skippedUnreadable > 0) { post({ ok: false, reason: 'deploy-snapshot-incomplete' }); return; }
+        const sourceFp = this._fingerprintOf(sourceWalk.files);
+        ownedSnapshot = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mooter-deploy-'));
+        snapshotProject = path.join(ownedSnapshot, path.basename(info.projectDir));
+        const skip = new Set(['node_modules', '.next', '.git', 'dist', 'build', 'out', 'coverage']);
+        fs.cpSync(info.projectDir, snapshotProject, { recursive: true, errorOnExist: true, force: false, filter: (src) => {
+          const base = path.basename(src);
+          if (src !== info.projectDir && skip.has(base)) return false;
+          if (src !== info.projectDir && fs.lstatSync(src).isSymbolicLink()) throw new Error('snapshot-symlink');
+          return true;
+        } });
+        const copiedWalk = this._walkScanFiles(snapshotProject, [snapshotProject], []);
+        if (copiedWalk.truncated || copiedWalk.skippedUnreadable > 0 || !sourceFp || this._fingerprintOf(copiedWalk.files) !== sourceFp) { post({ ok: false, reason: 'deploy-snapshot-mismatch' }); return; }
+      }
+      const copiedInfo = this._vercelProject(snapshotProject);
+      if (!this._sameVercelIdentity(info, copiedInfo)) { post({ ok: false, reason: 'vercel-identity-changed' }); return; }
+      { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason }); return; } }
+      // Final fence: no awaited work or unrelated filesystem access is permitted between these
+      // reads and spawn. A mutation of either the live link or the copied target fails closed.
+      const sourceAtSpawn = this._vercelProject(root);
+      const snapshotAtSpawn = this._vercelProject(snapshotProject);
+      if (!this._sameVercelIdentity(info, sourceAtSpawn) || sourceAtSpawn.projectDir !== info.projectDir
+        || !this._sameVercelIdentity(info, snapshotAtSpawn)) {
+        post({ ok: false, reason: 'vercel-identity-changed' }); return;
+      }
       let cp;
       try {
         cp = require('child_process').spawnSync('vercel', ['--prod', '--yes'],
-          { cwd: info.projectDir, timeout: 180000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
+          { cwd: snapshotProject, timeout: 180000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
       } catch (e) {
         post({ ok: false, reason: (e && e.code === 'ENOENT') ? 'vercel-cli-missing' : 'spawn-error' });
         return;
@@ -2868,8 +3964,9 @@ class LivePreviewPanel {
       const url = urlMatch ? urlMatch[0] : null;
       if (url) this._lastDeployUrl = url; // honest state for the next lp-publish-status — never inferred
       this._emitLpEvent('deploy', { kind: 'server', summary: 'deploy Vercel · prod' + (url ? ' · publicado' : ''), path: url || null, local: false, phase: url ? 'succeeded' : 'failed' }); // COH-08 — a deploy PUBLISHES to production: NEVER local:true. COH-15 — lifecycle succeeded/failed.
-      post({ ok: true, url, out: out.slice(0, 800) });
-    } catch { post({ ok: false, reason: 'error' }); }
+      post({ ok: true, url, out: out.slice(0, 800), vercelIdentity: this._vercelPublicIdentity(info) });
+    } catch (e) { post({ ok: false, reason: e && e.message === 'snapshot-symlink' ? 'deploy-snapshot-symlink' : 'error' }); }
+    finally { if (ownedSnapshot) { try { fs.rmSync(ownedSnapshot, { recursive: true, force: true }); } catch { /* owned temp only */ } } }
   }
 
   // ── LP-4 §3 — anchored prompt: the model path, FENCED. The model (local $0 moo OR the
@@ -2887,11 +3984,10 @@ class LivePreviewPanel {
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       // F3 (W1) — no pinned selection in the store → refuse, never rewrite a node the user did not pin.
       if (this._selectionMissing()) { fail('no-selection'); return; }
-      // C0 · COH-01 (NIT-1) — capture the lease epoch the reply is GENERATED under, BEFORE the async
-      // model call. It rides the diff so the apply-time epoch guard refuses a reply composed one lease
-      // ago even if the origin swapped-then-re-confirmed during the model call (stamping the epoch at
-      // post-time would inherit the new epoch and let that stale reply through).
-      const epochAtGen = (this._readyEpoch | 0);
+      // Capture the FULL lease the reply is GENERATED under, BEFORE the async model call. Origin,
+      // physical served root and epoch ride the diff together, so a same-port app/root swap cannot
+      // inherit write authority merely because lineage remains green.
+      const leaseAtGen = this._identityLeaseSnapshot();
       // COH-09 — the user accepted a local→cloud escalation offer (flagged by the escalation button).
       if (m && m.escalated) this._emitLpEvent('escalation_accepted', { kind: 'server', phase: 'succeeded', summary: '🐮 local → ' + (m.tier === 't3' ? '🧠 Opus' : '🎼 Sonnet'), tier: m.tier || 't2', local: false });
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
@@ -2996,7 +4092,7 @@ class LivePreviewPanel {
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local', epoch: epochAtGen }); // C0 COH-01 NIT-1 — the diff carries the generation-time epoch, not the post-time one
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local', lease: leaseAtGen, epoch: leaseAtGen.epoch });
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
@@ -3008,11 +4104,9 @@ class LivePreviewPanel {
       // FIX-MP-1 G2 — FAIL-CLOSED, EARLIEST: the one-box default path (tier:'local') writes the
       // approved model reply. Without a proven served-tree lineage the reply must never land on disk.
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
-      // C0 · COH-01 — LEASE epoch guard: the webview echoes the epoch the diff was generated under. If
-      // the framed origin has changed since (even if a new origin re-confirmed a lineage-sharing tree),
-      // the epoch moved → refuse. Closes the epoch-race / TOCTOU the adversarial gate probes. Backward-
-      // compatible: a payload without an epoch (older webview / a deterministic path) skips this check.
-      if (m && m.epoch != null && (m.epoch | 0) !== (this._readyEpoch | 0)) { fail('preview-tree-mismatch'); return; }
+      // The approval is valid only for the exact generation lease. Missing/partial leases fail closed
+      // in production; origin + physical servedRoot + epoch must all still match.
+      if (!this._identityLeaseMatches(m && m.lease)) { fail('preview-tree-mismatch'); return; }
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
       if (!raw || !replacement.trim()) { fail('bad-request'); return; }
@@ -3046,12 +4140,14 @@ class LivePreviewPanel {
       if (stale) {
         const d = LEA.diffRemovedLines(s2, LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement).code);
         // review P1-B: carry the target on the regenerated stale preview too (+ §5 dynamic flag).
-        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, newImports, importsAdded, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic });
+        const lease = this._identityLeaseSnapshot();
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, newImports, importsAdded, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic, lease, epoch: lease.epoch });
         return;
       }
       // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
       // honestly and push NO undo entry (else 'desfazer' would revert an EARLIER edit).
       if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      { const gate = this._writeProposalGate(); if (!gate.cleared) { fail(gate.reason); return; } }
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom entry that lights the undo button and later refuses as 'undo-stale'.
       fs.writeFileSync(real, res.code, 'utf8');
@@ -3063,22 +4159,19 @@ class LivePreviewPanel {
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
       this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied', m.tier);
-      // §5 — the node's start survived the splice, but a model rewrite may have CHANGED the tag:
-      // read the fresh tag from the spliced output so the re-pin stamp matches post-HMR reality.
-      let repinTag = (typeof m.tag === 'string') ? m.tag : '';
+      // Imports and agent/model rewrites can move the source stamp even though this is still the
+      // exact selected JSX root. Rebase against both verified ASTs; never loose-match a DOM node.
+      let repin = { file: raw, line: m.line, col: m.col, tag: (typeof m.tag === 'string') ? m.tag : '' };
       try {
-        const r3 = LEA.locateRange(res.code, { line: m.line, col: m.col });
-        if (r3.ok && r3.el && typeof LEA.tagNameOf === 'function') {
-          const t = LEA.tagNameOf(r3.el.openingElement);
-          if (t) repinTag = t;
-        }
-      } catch { /* keep the old tag — the tap matches tag only when it can */ }
-      this._postRepin({ file: raw, line: m.line, col: m.col, tag: repinTag });
+        const mapped = LEA && typeof LEA.rebaseTargetStamp === 'function' ? LEA.rebaseTargetStamp(s2, res.code, target) : null;
+        if (mapped && mapped.ok) repin = { file: raw, line: mapped.line, col: mapped.col, tag: mapped.tag };
+      } catch { /* fall back to the old exact stamp; tap will fail closed if it no longer exists */ }
+      this._postRepin(repin, { sourceAnchor: { file: raw, line: m.line, col: m.col, tag: m.tag } });
     } catch { fail('error'); }
   }
   _postPromptDiff(payload) {
-    // C0 · COH-01 — stamp the current lease epoch on the diff so the webview echoes it back on apply
-    // (the epoch guard in _promptApply refuses a reply generated one lease ago).
+    // Successful diffs already carry the generation-time FULL lease. Never stamp the post-time
+    // identity here: an async reply from an old app must remain old and fail at approval time.
     if (payload && payload.ok) {
       this._journeyAppend('assistant', payload.stale ? 'O ficheiro mudou. Atualizei a proposta e preciso de uma nova confirmação.' : 'Proposta pronta. Revê o diff e confirma para escrever no working tree.', { model: payload.model || null, status: 'awaiting' });
       this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
@@ -3089,7 +4182,7 @@ class LivePreviewPanel {
       this._journeyAppend('activity', 'Não foi possível preparar a proposta: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
       this._journeySetState('error', String((payload && payload.reason) || 'proposta bloqueada'));
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token, epoch: (this._readyEpoch | 0) }, payload)); } catch { /* best-effort */ }
+    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
   // nodeSource + breadcrumb), not a fence: the agent runs headless WITH the workspace as cwd,
@@ -3104,6 +4197,10 @@ class LivePreviewPanel {
   _autoResolveMode(instruction) {
     const classify = lpLoadClassify();
     if (!classify) return { mode: 'auto', tier: null, routed: false };
+    // The frozen router classifies generic wording, but Live Preview knows one additional fact:
+    // asks about coherence with the project/repo require cross-file reading and judgment. Floor
+    // those anchored tasks at Sonnet host-side; classify.js remains byte-frozen and T5 remains opt-in.
+    const asksProjectContext = /\b(projecto|projeto|project|repo|reposit[oó]rio|codebase|coer[eê]ncia|coerente|consist[eê]ncia|consistente|proposta|voz|evid[eê]ncias?|provas?\s+reais|dados?\s+reais|n[uú]meros?\s+reais|api|backend|outros?\s+(?:ficheiros?|arquivos?)|outra\s+p[aá]gina)\b/i.test(String(instruction || ''));
     let d = null;
     try { d = classify(String(instruction || '')); } catch { d = null; }
     const t = (d && typeof d.tier === 'string') ? d.tier : null;
@@ -3116,17 +4213,30 @@ class LivePreviewPanel {
       case 'T5': mode = 't3'; break;
       default: mode = 't2'; break;
     }
-    return { mode, tier: t, routed: !!t };
+    const contextFloored = asksProjectContext && mode === 't1';
+    if (contextFloored) mode = 't2';
+    return { mode, tier: t, routed: !!t, contextFloored };
   }
   async _taskRun(m) {
     let _taskMode = 'auto'; // function-scoped so `fail` (below) can name the tier once the mode is resolved
     let taskContext = null;
     let findingId = null;
+    let taskJourney = null;
+    let taskLease = null;
+    let taskAnchor = null;
+    let taskId = null;
+    const envelope = (extra) => Object.assign({}, taskContext === 'security' ? {} : {
+      taskId,
+      journeyId: taskJourney && taskJourney.id || null,
+      anchor: taskAnchor,
+      lease: taskLease,
+    }, extra || {});
     const fail = (reason, detail) => {
       // COH-15 — a coherent lifecycle: a refusal/abort is `failed` (or `cancelled` when the user aborted).
       const r = String(reason || 'error');
       this._emitLpEvent('task', { kind: 'server', phase: (r === 'cancelled' || r === 'aborted') ? 'cancelled' : 'failed', summary: 'task · ' + r, tier: (_taskMode && _taskMode !== 'auto') ? _taskMode : null, local: false });
-      this._postTaskResult({ ok: false, reason: r, detail: detail ? String(detail).slice(0, 200) : undefined, context: taskContext, findingId });
+      this._postTaskResult(envelope({ ok: false, reason: r, detail: detail ? String(detail).slice(0, 200) : undefined, context: taskContext, findingId }));
+      if (taskId && this._taskContext instanceof Map && !(this._taskReg instanceof Map && this._taskReg.has(taskId))) this._taskContext.delete(taskId);
     };
     try {
       const requestedFinding = m && typeof m.securityFindingId === 'string' ? m.securityFindingId : '';
@@ -3153,29 +4263,57 @@ class LivePreviewPanel {
       // F3 (W1) — no pinned selection in the store → refuse before the agent runs anchorless
       // (defense-in-depth; the honest webview already hides the one-box until an element is pinned).
       if (taskContext !== 'security' && this._selectionMissing()) { fail('no-selection'); return; }
+      { const gate = this._writeProposalGate(); if (!gate.cleared) { fail(gate.reason); return; } }
       // N2 — enforce the "one active task at a time" invariant the cancel machinery ASSUMES: a second
       // lp-task while one is running would overwrite _activeTaskAbort (orphaning the first — cancel would
       // only reach the second) and run two agents at once. Refuse honestly; the running one is untouched.
-      if (this._activeTaskAbort) { fail('task-busy'); return; }
+      if (taskContext !== 'security') {
+        taskJourney = this._journeyCurrent(true);
+        taskAnchor = {
+          file: (m && typeof m.file === 'string' && m.file.trim()) || (this._selection && this._selection.file) || '',
+          line: Number.isInteger(m && m.line) ? m.line : (this._selection && this._selection.line),
+          col: Number.isInteger(m && m.col) ? m.col : (this._selection && this._selection.col),
+          tag: (m && typeof m.tag === 'string') ? m.tag : ((this._selection && this._selection.tag) || ''),
+        };
+        taskLease = {
+          servedRoot: (typeof this._servedRoot === 'string' && this._servedRoot) || null,
+          origin: (typeof this._stageOrigin === 'string' && this._stageOrigin) || null,
+          epoch: (this._readyEpoch | 0),
+        };
+        if (this._activeTaskAbort) { fail('task-busy'); return; }
+        // One exact node cannot accumulate two unresolved edit proposals behind one #lp-del mount.
+        // Resolve the first with OK/revert before starting another, so no approval CTA is overwritten.
+        if (taskJourney && taskJourney.state === 'awaiting' && taskJourney.codeAccepted !== true) { fail('selection-approval-required'); return; }
+      }
+      else if (this._activeTaskAbort) { fail('task-busy'); return; }
+      if (!this._taskReg) { this._taskReg = new Map(); this._taskSeq = 0; }
+      if (!this._taskContext) this._taskContext = new Map();
+      taskId = 'task-' + (++this._taskSeq);
+      this._taskContext.set(taskId, { context: taskContext, findingId, journeyId: taskJourney && taskJourney.id || null, lease: taskLease, anchor: taskAnchor });
       if (taskContext === 'security') this._securityThreadPush('activity', 'O agente está a analisar o finding e o contexto mínimo necessário.', { status: 'working' });
       else {
-        if (m && m.continuation) this._journeyAppend('activity', 'A aplicar a sugestão anterior com o agente.', { status: 'working' });
-        else this._journeyAppend('user', instruction, { status: 'sent' });
-        this._journeySetState('working', 'Moo está a alterar');
+        if (m && m.continuation) this._journeyAppend('activity', 'A aplicar a sugestão anterior com o agente.', { status: 'working', journey: taskJourney });
+        else this._journeyAppend('user', instruction, { status: 'sent', journey: taskJourney });
+        this._journeySetState('working', 'Moo está a alterar', { journey: taskJourney });
       }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).
       let nodeSource = '';
       let relFile = '';
+      let anchorReal = null;
+      let anchorBefore = null;
+      const anchorTarget = { line: m && m.line, col: m && m.col, tag: m && m.tag };
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       if (raw) {
         const real = this._resolveContainedFile(raw);
         if (real) {
+          anchorReal = real;
           try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep '' */ }
           try {
             if (LEA && typeof LEA.locateRange === 'function') {
               const s = fs.readFileSync(real, 'utf8');
+              anchorBefore = s;
               const r = LEA.locateRange(s, { line: m.line, col: m.col, tag: m.tag });
               if (r.ok) nodeSource = s.slice(r.start, r.end);
             }
@@ -3213,10 +4351,10 @@ class LivePreviewPanel {
       // (an explicit chip needs no announcement). The MEO gets a route_decided event; the canvas a status.
       if (routeInfo && routeInfo.routed) {
         const rlabel = mode === 't1' ? '⚡ Haiku' : mode === 't2' ? '🎼 Sonnet' : mode === 't3' ? '🧠 Opus' : mode;
-        this._postTaskStatus({ phase: 'route', mode, from: 'auto', tier: mode, label: rlabel, classifierTier: routeInfo.tier || null, context: taskContext, findingId });
+        this._postTaskStatus(envelope({ phase: 'route', mode, from: 'auto', tier: mode, label: rlabel, classifierTier: routeInfo.tier || null, context: taskContext, findingId }));
         this._emitLpEvent('route_decided', { kind: 'server', phase: 'succeeded', summary: '🧭 AUTO → ' + rlabel + (routeInfo.tier ? (' (' + routeInfo.tier + ')') : ''), tier: mode, local: false });
       }
-      this._postTaskStatus({ phase: 'thinking', mode, intent, context: taskContext, findingId });
+      this._postTaskStatus(envelope({ phase: 'thinking', mode, intent, context: taskContext, findingId }));
       this._emitLpEvent('task', { kind: 'server', phase: 'started', summary: (intent === 'ask' ? 'perguntar' : 'editar') + ' · ' + mode, tier: (mode && mode !== 'auto') ? mode : null, local: false, nodeKey: { file: relFile || raw, line: m.line, col: m.col, tag: m.tag } }); // COH-15 — prompt sent (lifecycle started)
       // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
       const ac = (typeof AbortController === 'function') ? new AbortController() : null;
@@ -3236,18 +4374,19 @@ class LivePreviewPanel {
           wsRoot: this._wsRoot(),
           trusted: this._workspaceTrusted() === true,
           signal: ac ? ac.signal : undefined,
-          onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode, context: taskContext, findingId }),
+          onProgress: (ev) => this._postTaskStatus(envelope({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode, context: taskContext, findingId })),
         });
       } finally { if (this._activeTaskAbort === ac) this._activeTaskAbort = null; }
       if (!res || !res.ok) { fail((res && res.reason) || 'error', res && res.detail); return; }
+      const leaseStale = taskContext !== 'security' && !!(!taskLease
+        || taskLease.origin !== ((typeof this._stageOrigin === 'string' && this._stageOrigin) || null)
+        || taskLease.servedRoot !== ((typeof this._servedRoot === 'string' && this._servedRoot) || null)
+        || (taskLease.epoch | 0) !== (this._readyEpoch | 0)
+        || this._treeGateBlocked());
       // Register the edits HOST-side keyed by taskId: revert must act on OUR record (snapshot +
       // shaAfter), never on paths a webview message hands back (P1-B discipline, agent flavour).
-      if (!this._taskReg) { this._taskReg = new Map(); this._taskSeq = 0; }
-      const taskId = 'task-' + (++this._taskSeq);
       const edits = Array.isArray(res.edits) ? res.edits : [];
       this._taskReg.set(taskId, edits);
-      if (!this._taskContext) this._taskContext = new Map();
-      this._taskContext.set(taskId, { context: taskContext, findingId });
       if (this._taskReg.size > 20) {
         const k = this._taskReg.keys().next().value;
         this._taskReg.delete(k);
@@ -3256,6 +4395,13 @@ class LivePreviewPanel {
       // §4 — an agent task that edited files is ONE feed item (per-file revert lives in the
       // result panel; the feed item reverts the whole task, sha-guarded per file).
       if (edits.length) {
+        // The runner's first-touch snapshot is the only trustworthy preimage for an agent edit.
+        // Seal it before Keep deletes snapshots; an unreadable snapshot stays local-only.
+        for (const e of edits) {
+          let before = null;
+          try { before = fs.readFileSync(e.snapshot); } catch { before = null; }
+          this._publishSealRecord(this._wsRoot(), e && e.file, before, e && e.shaAfter);
+        }
         const modeLabel = mode === 'auto' ? 'AUTO' : (mode === 't1' ? 'Haiku' : mode === 't2' ? 'Sonnet' : mode === 't3' ? 'Opus' : mode === 'fable' ? 'Fable' : mode);
         const nodeKey = { servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null, file: relFile || raw, line: Number.isInteger(m.line) ? m.line : null, col: Number.isInteger(m.col) ? m.col : null, tag: (typeof m.tag === 'string') ? m.tag.slice(0, 60) : null };
         // COH-08 — an AGENT edit is a CLOUD action: local:false, the REAL model that ran (res.model),
@@ -3269,16 +4415,35 @@ class LivePreviewPanel {
         const d = LET.gitDiffFile(e.snapshot, e.abs);
         return { file: e.file, diff: (d && d.ok) ? d.lines.slice(0, 400) : null, diffReason: (d && d.ok) ? null : ((d && d.reason) || 'git-unavailable') };
       });
+      // Resolve the post-write source stamp BEFORE publishing the result. This binds the CTA, the
+      // per-node thread and the visual re-pin to one mapped node even when imports shifted its line.
+      let resultAnchor = taskAnchor;
+      if (taskContext !== 'security' && edits.length && anchorReal && anchorBefore && !leaseStale) {
+        try {
+          const anchorAfter = fs.readFileSync(anchorReal, 'utf8');
+          const mapped = LEA && typeof LEA.rebaseTargetStamp === 'function'
+            ? LEA.rebaseTargetStamp(anchorBefore, anchorAfter, anchorTarget)
+            : null;
+          if (mapped && mapped.ok) resultAnchor = { file: raw, line: mapped.line, col: mapped.col, tag: mapped.tag };
+          else if (anchorAfter === anchorBefore) resultAnchor = { file: raw, line: m.line, col: m.col, tag: m.tag };
+          else resultAnchor = null; // changed but no exact mapping: never paint/approve a guessed sibling
+        } catch { resultAnchor = null; }
+        if (resultAnchor) taskJourney = this._journeyRekey(taskJourney, resultAnchor) || taskJourney;
+      }
+      const taskCtxNow = this._taskContext instanceof Map ? this._taskContext.get(taskId) : null;
+      if (taskCtxNow) { taskCtxNow.journeyId = taskJourney && taskJourney.id || null; taskCtxNow.anchor = resultAnchor || taskAnchor; taskCtxNow.leaseStale = leaseStale; }
       // COH-07 — Ask→Apply. An ANSWER (intent:'ask', no edits) registers a HOST-SIDE ask record keyed by
       // askId, carrying the lease it was produced under + the question/answer/anchor/refs. The webview
       // gets ONLY the askId back and renders "▶ Aplicar com o agente"; it never holds a trusted payload.
       let askId = null;
-      if (intent === 'ask' && res.kind === 'answer' && String(res.text || '').trim()) {
+      if (!leaseStale && intent === 'ask' && res.kind === 'answer' && String(res.text || '').trim()) {
         if (!this._askReg) { this._askReg = new Map(); this._askSeq = 0; }
         askId = 'ask-' + (++this._askSeq);
         this._askReg.set(askId, {
-          epoch: (this._readyEpoch | 0),
-          servedRoot: (typeof this._servedRoot === 'string') ? this._servedRoot : null,
+          lease: taskLease || this._identityLeaseSnapshot(),
+          epoch: taskLease ? taskLease.epoch : (this._readyEpoch | 0),
+          servedRoot: taskLease ? taskLease.servedRoot : ((typeof this._servedRoot === 'string') ? this._servedRoot : null),
+          origin: taskLease ? taskLease.origin : ((typeof this._stageOrigin === 'string') ? this._stageOrigin : null),
           instruction, answer: String(res.text || ''),
           refs, filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
           model: res.model || null, mode,
@@ -3290,17 +4455,25 @@ class LivePreviewPanel {
         // COH-08/15 — an Ask that produced an answer is a CLOUD run (local:false) with the real model.
         this._emitLpEvent('ask', { kind: 'server', phase: 'succeeded', summary: 'perguntar · resposta', tier: (mode && mode !== 'auto') ? mode : null, model: res.model || null, local: false });
       }
-      this._postTaskResult({
+      this._postTaskResult(envelope({
         ok: true, taskId, kind: res.kind, text: String(res.text || ''),
         filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
         edits: view,
         denied: Array.isArray(res.denied) ? res.denied.slice(0, 40) : [],
         model: res.model || null, mode, askId, context: taskContext, findingId,
-      });
+        anchor: taskContext === 'security' ? null : (resultAnchor || taskAnchor),
+        sourceAnchor: taskContext === 'security' ? null : taskAnchor,
+        leaseStale,
+      }));
+      // The agent path writes before returning, so HMR may already have replaced the selected DOM
+      // node. Re-pin the SAME source anchor after every edit task (even when a data dependency in
+      // another file changed the render). If this file moved, map its verified old JSX node to the
+      // new AST; if the node was genuinely removed, fail closed and leave no lying border.
+      if (taskContext !== 'security' && edits.length && resultAnchor && !leaseStale) this._postRepin(resultAnchor, { taskId, journey: taskJourney, sourceAnchor: taskAnchor, lease: taskLease });
     } catch { fail('error'); }
   }
   // COH-07 — Ask→Apply, host-bound. The webview sends ONLY { askId }; the host re-validates the lease
-  // (tree + trust + epoch) the answer was produced under, then composes the edit instruction from the
+  // (tree + trust + full identity lease) the answer was produced under, then composes the edit instruction from the
   // STORED question+answer and launches a normal anchored EDIT run. Nothing the webview sends besides the
   // askId is trusted (a tampered instruction/answer/file in the message is ignored). Fail-closed with an
   // honest reason on a missing/expired record or a broken lease.
@@ -3312,7 +4485,8 @@ class LivePreviewPanel {
       if (!rec) { fail('ask-expired'); return; }                                  // no such record → refuse
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }     // COH-01 tree gate
       if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
-      if ((rec.epoch | 0) !== (this._readyEpoch | 0)) { fail('preview-tree-mismatch'); return; } // lease moved
+      const recLease = rec.lease || { servedRoot: rec.servedRoot, origin: rec.origin, epoch: rec.epoch };
+      if (!this._identityLeaseMatches(recLease)) { fail('preview-tree-mismatch'); return; } // lease moved
       this._askReg.delete(askId); // one-shot: the answer becomes an edit exactly once
       // Compose the edit instruction HOST-SIDE from the stored question+answer (never the webview's).
       const composed = 'Aplica ao elemento ancorado a sugestão seguinte, com o mínimo de alterações.\n\n'
@@ -3333,13 +4507,14 @@ class LivePreviewPanel {
       else if (payload.phase === 'deny') secText = 'Ferramenta recusada pela cerca: ' + (payload.tool || '?') + '.';
       if (secText) this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation', secText);
     } else if (payload) {
+      const journey = payload.journeyId ? this._journeyById(payload.journeyId) : this._journeyCurrent(true);
       let text = '';
       if (payload.phase === 'route') text = 'Roteado para ' + (payload.label || payload.mode || 'agente') + '.';
       else if (payload.phase === 'thinking') text = 'O agente está a analisar o pedido e o contexto do projeto.';
       else if (payload.phase === 'tool') text = (payload.tool === 'Edit' || payload.tool === 'MultiEdit' ? 'A editar ' : 'A ler ') + (payload.path || 'o projeto') + '.';
       else if (payload.phase === 'deny') text = 'Ferramenta recusada pela cerca: ' + (payload.tool || '?') + '.';
-      if (text) this._journeyAppend('activity', text, { status: payload.phase === 'deny' ? 'blocked' : 'working' });
-      if (payload.phase !== 'deny') this._journeySetState('working', payload.phase === 'tool' ? text.replace(/\.$/, '') : 'Moo está a alterar');
+      if (text && journey) this._journeyAppend('activity', text, { status: payload.phase === 'deny' ? 'blocked' : 'working', journey });
+      if (payload.phase !== 'deny' && journey) this._journeySetState('working', payload.phase === 'tool' ? text.replace(/\.$/, '') : 'Moo está a alterar', { journey });
     }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
@@ -3356,19 +4531,24 @@ class LivePreviewPanel {
         else this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation-done', 'Remediação concluída sem alterações.');
       }
     } else if (payload) {
+      const journey = payload.journeyId ? this._journeyById(payload.journeyId) : this._journeyCurrent(true);
       if (!payload.ok) {
-        this._journeyAppend('assistant', 'Não consegui concluir esta etapa: ' + String(payload.reason || 'erro') + '.', { status: 'error' });
-        this._journeySetState('error', String(payload.reason || 'operação bloqueada'));
+        if (journey) this._journeyAppend('assistant', 'Não consegui concluir esta etapa: ' + String(payload.reason || 'erro') + '.', { status: 'error', journey });
+        if (journey) this._journeySetState('error', String(payload.reason || 'operação bloqueada'), { journey });
       } else {
         const edits = Array.isArray(payload.edits) ? payload.edits : [];
-        if (payload.kind === 'answer' || !edits.length) {
-          if (payload.text) this._journeyAppend('assistant', payload.text, { model: payload.model || null, status: 'answered' });
-          this._journeySetState('selected', 'respondido — podes continuar');
+        if (payload.leaseStale) {
+          if (journey) this._journeyAppend('assistant', 'A tarefa terminou depois de a identidade do preview mudar. As alterações não foram aprovadas nem re-pinadas; só a reversão verificada permanece disponível.', { model: payload.model || null, status: 'stale', journey });
+          if (journey) this._journeySetState('stale', 'preview mudou · apenas reverter', { journey });
+        } else if (payload.kind === 'answer' || !edits.length) {
+          if (payload.text && journey) this._journeyAppend('assistant', payload.text, { model: payload.model || null, status: 'answered', journey });
+          if (journey) this._journeySetState('selected', 'respondido — podes continuar', { journey });
         } else {
           const files = edits.map((e) => e && e.file).filter(Boolean);
           const summary = payload.text || ('Alterei ' + edits.length + ' ficheiro' + (edits.length === 1 ? '' : 's') + (files.length ? (': ' + files.join(', ')) : '') + '. O preview já mostra o working tree; confirma OK ou reverte.');
-          this._journeyAppend('assistant', summary, { model: payload.model || null, status: 'awaiting' });
-          this._journeySetState('awaiting', 'aguarda OK');
+          if (journey) this._journeyAppend('assistant', summary, { model: payload.model || null, status: 'awaiting', journey });
+          if (journey) journey.pendingWrite = true;
+          if (journey) this._journeySetState('awaiting', 'aguarda OK', { journey });
           if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
         }
       }
@@ -3385,6 +4565,7 @@ class LivePreviewPanel {
       const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
       const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
       const taskCtx = this._taskContext instanceof Map ? this._taskContext.get(taskId) : null;
+      const taskJourney = taskCtx && taskCtx.journeyId ? this._journeyById(taskCtx.journeyId) : null;
       if (!LET || !reg || !reg.length) { post({ taskId, results: [], done: false }); return; }
       const targets = m && m.all ? reg.slice() : reg.filter((e) => e && e.file === m.file);
       const results = [];
@@ -3392,6 +4573,7 @@ class LivePreviewPanel {
         const r = LET.revertEdit(e);
         results.push({ file: e.file, ok: !!(r && r.ok), reason: (r && r.reason) || null });
         if (r && r.ok) {
+          try { this._publishSealRewind(this._wsRoot(), e.file, e.shaAfter, fs.readFileSync(e.abs)); } catch { /* missing proof stays fail-closed at Publish */ }
           const i = reg.indexOf(e);
           if (i !== -1) reg.splice(i, 1);
           try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ }
@@ -3413,8 +4595,9 @@ class LivePreviewPanel {
         this._securityThreadPush('activity', !reg.length ? 'A proposta de correção foi revertida.' : 'Parte da proposta de correção foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting' });
         this._markSecurityStale('remediation-reverted');
       } else if (results.some((r) => r.ok)) {
-        this._journeyAppend('activity', !reg.length ? 'Todas as alterações desta proposta foram revertidas.' : 'Parte da proposta foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting' });
-        this._journeySetState(!reg.length ? 'reverted' : 'awaiting', !reg.length ? 'revertido' : 'aguarda OK');
+        if (taskJourney) taskJourney.pendingWrite = !!reg.length;
+        if (taskJourney) this._journeyAppend('activity', !reg.length ? 'Todas as alterações desta proposta foram revertidas.' : 'Parte da proposta foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting', journey: taskJourney });
+        if (taskJourney) this._journeySetState(!reg.length ? 'reverted' : 'awaiting', !reg.length ? 'revertido' : 'aguarda OK', { journey: taskJourney });
         if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
       }
       if (!reg.length && this._taskContext instanceof Map) this._taskContext.delete(taskId);
@@ -3430,17 +4613,31 @@ class LivePreviewPanel {
       const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
       const taskCtx = this._taskContext instanceof Map ? this._taskContext.get(taskId) : null;
       if (!reg || !reg.length) { post({ taskId, ok: false }); return; }
+      const taskJourney = taskCtx && taskCtx.journeyId ? this._journeyById(taskCtx.journeyId) : null;
+      const lease = taskCtx && taskCtx.lease;
+      const leaseOk = !lease || (taskCtx && taskCtx.context === 'security') || (!taskCtx.leaseStale
+        && lease.origin === ((typeof this._stageOrigin === 'string' && this._stageOrigin) || null)
+        && lease.servedRoot === ((typeof this._servedRoot === 'string' && this._servedRoot) || null)
+        && (lease.epoch | 0) === (this._readyEpoch | 0)
+        && !this._treeGateBlocked());
+      if (!leaseOk) { post({ taskId, ok: false, reason: 'preview-tree-mismatch' }); return; }
       for (const e of reg) { try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ } }
       this._taskReg.delete(taskId);
       // §4 — the feed item settles as kept (facts, not claims).
       const item = this._feedFindAgent(taskId);
-      if (item) { item.status = 'kept'; item.reason = null; this._feedBump(); }
+      if (item) {
+        item.status = 'kept'; item.reason = null;
+        item.approvedShas = reg.map((e) => ({ file: e && e.file, sha256: e && e.shaAfter })).filter((e) => e.file && typeof e.sha256 === 'string' && e.sha256);
+        if (taskJourney) taskJourney.approvedFiles = item.approvedShas.map((e) => e.file);
+        this._feedBump();
+      }
       if (taskCtx && taskCtx.context === 'security') {
         this._securityThreadPush('activity', 'OK confirmado: a correção permanece no working tree. É obrigatório correr novamente o Review Security.', { status: 'approved' });
         this._markSecurityStale('remediation-kept');
       } else {
-        this._journeyAppend('activity', 'OK confirmado: as alterações permanecem no working tree local.', { status: 'approved' });
-        this._journeySetState('approved', 'aprovado localmente');
+        if (taskJourney) taskJourney.pendingWrite = false;
+        if (taskJourney) this._journeyAppend('activity', 'OK confirmado: as alterações permanecem no working tree local.', { status: 'approved', journey: taskJourney });
+        if (taskJourney) this._journeyAcceptCode('OK local · Review Security pendente', { journey: taskJourney });
       }
       if (this._taskContext instanceof Map) this._taskContext.delete(taskId);
       this._emitLpEvent('keep', { kind: 'server', phase: 'succeeded', summary: 'manter · ' + taskId, taskId, tier: (item && item.tier) || null, model: (item && item.model) || null, local: (item && typeof item.local === 'boolean') ? item.local : undefined }); // COH-15 — keep lifecycle
@@ -3455,8 +4652,40 @@ class LivePreviewPanel {
     }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
-  _postRepin(payload) {
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-repin', __t: this.token }, payload)); } catch { /* best-effort */ }
+  _postRepin(payload, meta) {
+    const md = meta && typeof meta === 'object' ? meta : {};
+    let j = null;
+    let lease = md.lease || {
+      servedRoot: (typeof this._servedRoot === 'string' && this._servedRoot) || null,
+      origin: (typeof this._stageOrigin === 'string' && this._stageOrigin) || null,
+      epoch: (this._readyEpoch | 0),
+    };
+    try {
+      j = md.journey || this._journeyCurrent(false);
+      this._pendingRepin = {
+        expected: {
+          file: payload && typeof payload.file === 'string' ? payload.file : '',
+          line: Number.isInteger(payload && payload.line) ? payload.line : null,
+          col: Number.isInteger(payload && payload.col) ? payload.col : null,
+          tag: payload && typeof payload.tag === 'string' ? payload.tag : '',
+        },
+        journeyId: j && j.id || null,
+        state: j && j.state || null,
+        label: j && j.label || null,
+        servedRoot: lease.servedRoot || null,
+        origin: lease.origin || null,
+        epoch: lease.epoch | 0,
+        expiresAt: Date.now() + LP_REPIN_TTL_MS,
+      };
+    } catch { this._pendingRepin = null; }
+    try {
+      this.panel.webview.postMessage(Object.assign({ type: 'lp-repin', __t: this.token }, payload, {
+        taskId: typeof md.taskId === 'string' ? md.taskId : null,
+        journeyId: j && j.id || null,
+        sourceAnchor: md.sourceAnchor || null,
+        lease,
+      }));
+    } catch { /* best-effort */ }
   }
   // LP-4 §6 — is the subscription bridge usable from this workspace? A cheap fs fact, cached 30s
   // (it rides every snapshot poll). Fail-soft: absent module → honest 'sdk-bridge-missing'.
@@ -3549,6 +4778,7 @@ class LivePreviewPanel {
       if (this._servedRoot !== undefined) this._servedRoot = null;
       if (this._selection !== undefined) this._selection = null;
       this._lastPinKey = null;
+      this._pendingRepin = null;
       try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
       this._activeTaskAbort = null;
       // re-probe shortly after so the semaphore reflects the fresh server (not the sticky one).
@@ -3726,12 +4956,12 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-stagewrap{flex:1 1 62%;display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--vscode-widget-border)}
   #lp-side{flex:0 0 340px;max-width:46%;overflow:auto;padding:12px 14px;min-width:0}
   /* LP-5 §C — 🛡 Review Security results panel (global action, local $0). */
-  #lp-security{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55}
+  #lp-security{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55;max-height:min(68vh,720px);overflow:auto;scrollbar-gutter:stable}
   #lp-security .lp-sec-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
   #lp-security .lp-sec-meta{opacity:.75;margin-bottom:6px}
   #lp-security .lp-sec-err{color:var(--vscode-errorForeground,#D9484B)}
   #lp-security .lp-sec-group{margin-bottom:8px}
-  #lp-security .lp-sec-glabel{font-weight:600;margin-bottom:3px}
+  #lp-security .lp-sec-glabel{font-weight:600;margin-bottom:3px;cursor:pointer;position:sticky;top:0;padding:4px 2px;background:var(--vscode-editor-background);z-index:1}
   #lp-security .lp-sec-critical .lp-sec-glabel{color:var(--vscode-charts-red,#E8888A)}
   #lp-security .lp-sec-warning .lp-sec-glabel{color:var(--vscode-charts-yellow,#E5C07B)}
   #lp-security .lp-sec-info .lp-sec-glabel{opacity:.8}
@@ -3740,12 +4970,14 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-security .lp-sec-detail{opacity:.85}
   #lp-security-badge{display:none;min-width:17px;height:17px;box-sizing:border-box;margin-left:4px;padding:0 5px;border-radius:999px;align-items:center;justify-content:center;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);font-size:10px;font-weight:800}
   #lp-security-btn.lp-sec-scanning #lp-security-badge{display:inline-flex;background:transparent;border:2px solid rgba(232,136,138,.35);border-top-color:#E8888A;padding:0;width:15px;min-width:15px;height:15px;animation:lpSpin .8s linear infinite}
-  #lp-security-btn.lp-sec-stale #lp-security-badge{display:inline-flex;background:var(--vscode-charts-yellow,#E5C07B);color:#171719}
+  #lp-security-btn.lp-sec-stale #lp-security-badge,#lp-security-btn.lp-sec-incomplete #lp-security-badge{display:inline-flex;background:var(--vscode-charts-yellow,#E5C07B);color:#171719}
   #lp-security-btn.lp-sec-complete #lp-security-badge,#lp-security-btn.lp-sec-error #lp-security-badge{display:inline-flex}
   #lp-security-btn.lp-sec-error #lp-security-badge{background:var(--vscode-errorForeground,#D9484B);color:#fff}
   .lp-sec-counts{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
   .lp-sec-count{border:1px solid var(--vscode-widget-border);border-radius:999px;padding:2px 7px;font-weight:700}
   .lp-sec-count.critical{color:var(--vscode-charts-red,#E8888A)}.lp-sec-count.warning{color:var(--vscode-charts-yellow,#E5C07B)}.lp-sec-count.info{opacity:.78}
+  .lp-sec-causes{margin:7px 0;padding:7px 8px;border:1px solid var(--vscode-charts-yellow,#E5C07B);border-radius:6px;background:rgba(229,192,123,.08)}
+  .lp-sec-causes ul{margin:4px 0 0;padding-left:18px}.lp-sec-causes li{margin:2px 0;word-break:break-word}
   .lp-sec-actions{display:flex;gap:5px;margin-top:5px}
   .lp-sec-action{font:10.5px var(--vscode-font-family);padding:2px 7px;border:1px solid var(--vscode-widget-border);border-radius:5px;color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground);cursor:pointer}
   .lp-sec-fix{border-color:#E8888A;color:#F3A3B5}
@@ -3802,8 +5034,8 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-publish .lp-pub-step-state{font-size:9.5px;font-weight:600;opacity:.72;text-align:right}
   #lp-publish .lp-pub-step-body{padding:8px}
   #lp-publish .lp-pub-flow{text-align:center;height:10px;line-height:10px;color:var(--vscode-descriptionForeground)}
-  #lp-publish .lp-pub-path{margin-top:4px;opacity:.78}
-  #lp-publish .lp-pub-path code{display:block;margin-top:3px;white-space:normal;word-break:break-all}
+  #lp-publish .lp-pub-local-path{margin-top:5px;padding:5px 7px;border:1px solid var(--vscode-panel-border);border-radius:5px;background:color-mix(in srgb,var(--vscode-editor-background) 76%,transparent);opacity:.86}
+  #lp-publish .lp-pub-local-path code{display:block;white-space:normal;word-break:break-all}
   #lp-publish .lp-pub-remote{margin-bottom:5px;word-break:break-all}
   #lp-publish .lp-pub-files-hdr{font-weight:600;margin-bottom:4px}
   #lp-publish .lp-pub-files{max-height:120px;overflow:auto;margin-bottom:6px}
@@ -4319,6 +5551,7 @@ function getLivePreviewHtml(token, wsRoot) {
 const vsapi=acquireVsCodeApi();
 let lpPublishState=null; // LP-6 §E — last lp-publish-status-result / lp-publish-result payload
 const HOST_TOKEN=${hostToken};
+const LP_REPIN_TTL_MS=${LP_REPIN_TTL_MS};
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const renderDirectorsCut=${renderDirectorsCutSrc};
 const renderBrain=${renderBrainSrc};
@@ -4368,8 +5601,36 @@ function applySelectCapability(r){
   const b=document.getElementById('lp-select-btn'); if(!b) return;
   const bn=document.getElementById('lp-select-blocked');
   const ok=!!(r && r.workspace && r.devServer && r.tree==='ok');
-  if(ok){ b.disabled=false; b.removeAttribute('aria-disabled'); b.title='Selecionar um elemento do preview para editar (Esc sai)'; if(bn){ bn.style.display='none'; bn.innerHTML=''; } return; }
-  if(lpSelectOn) setSelectMode(false); // cannot select an unconfirmed preview
+  lpSelectCapable=ok;
+  if(ok){
+    b.disabled=false; b.removeAttribute('aria-disabled'); b.title='Selecionar um elemento do preview para editar (Esc sai)'; if(bn){ bn.style.display='none'; bn.innerHTML=''; }
+    // A healthy snapshot can arrive before or after the host's post-write re-pin. Resume only the
+    // intent that was explicitly preserved across a same-origin suspension; an explicit user OFF
+    // clears lpSelectWanted/lpLeaseResumeSelect and can never be undone here.
+    maybeResumeSelect();
+    return;
+  }
+  if(lpSelectOn||lpSelectWanted){
+    // A short same-origin HTTP/HMR blip must still fail closed while unhealthy, but it must not
+    // erase the user's active selection intent while the host-vetted post-write re-pin is still in
+    // flight. The old code required lpPendingRepin to EXIST already; a real Fast Refresh can publish
+    // the unhealthy snapshot first, which turned lpSelectWanted off and discarded the late re-pin.
+    // Preserve intent for this same-origin/unknown-tree window, while mismatch/origin moves remain
+    // hard invalidations. Once the exact same origin/tree handshakes, maybeResumeSelect restores it.
+    const lease=lpLastSnap&&lpLastSnap.lease;
+    const stage=lpLastSnap&&lpLastSnap.stage;
+    let sameOriginStage=false;
+    try{ sameOriginStage=!!(curOrigin&&stage&&stage.url&&new URL(stage.url).origin===curOrigin); }catch(e){}
+    const recoverableLease=!!(lease&&lease.kind==='stage-unhealthy'
+      && lease.prevOrigin&&lease.prevOrigin===lease.nextOrigin);
+    // No lease can mean the short lp-ready/tree handshake gap of the same mounted document. Any
+    // explicit non-health lease (including served-root-changed on the SAME port) is a hard identity
+    // boundary and must not fall through this same-origin shortcut.
+    const recoverableHandshake=!!(!lease&&sameOriginStage&&r&&r.workspace&&r.tree==='unknown');
+    const recoverable=!!(lpSelectWanted&&(recoverableLease||recoverableHandshake));
+    if(recoverable) lpLeaseResumeSelect=true;
+    if(lpSelectOn||!recoverable) setSelectMode(false,recoverable);
+  } // cannot select an unconfirmed preview
   b.disabled=true; b.setAttribute('aria-disabled','true');
   const why=(!r||!r.workspace)?'abre a pasta do projeto primeiro'
     :(r.stageBlocked)?('o dev server respondeu com erro' + (r.port?(' em :'+r.port):'') + ' — o preview foi bloqueado')
@@ -4518,7 +5779,8 @@ function applyStage(stage){
   // back the equality optimisation suppressed a reload, so lp-ready never renewed the tree.
   if(!hasUrl && curSrc!==null){
     curSrc=null; curOrigin=null; curIdentityEpoch=-1;
-    lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
+    lpSelection=null; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; clearTaskResults(); lpLeaseResumeSelect=false; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
+    setSelectMode(false);
     lpHasTap=false; try{ applyNavCapability(); }catch(e){}
     if(frame){ try{ frame.removeAttribute('src'); }catch(e){} }
   }
@@ -4541,7 +5803,15 @@ function applyStage(stage){
     // toolbar so the user never edits through an anchor that belonged to the previous origin. The host
     // has already re-armed the lease + nulled servedRoot/selection; this is the visual half of the
     // invalidation. renderSelection(null) hides the in-canvas toolbar too. (First load: nothing to clear.)
-    if(originChanged||recoveredSameUrl){ lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){} } // COH-11 — a new/recovered app must re-prove nav capability
+    if(originChanged||recoveredSameUrl){
+      lpSelection=null; lpRefs=[];
+      // A same-origin health recovery reloads the disposable document but may retain exactly one
+      // short host-vetted post-write pin. A genuine origin move is a different app and hard-clears it.
+      if(originChanged||!lpLeaseResumeSelect){ lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; if(originChanged) clearTaskResults(); }
+      if(originChanged){ lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; }
+      if(originChanged){ lpLeaseResumeSelect=false; setSelectMode(false); }
+      try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){}
+    } // COH-11 — a new/recovered app must re-prove nav capability
     frame.setAttribute('src', st.url);
     curIdentityEpoch=nextEpoch;
   }
@@ -4550,10 +5820,33 @@ function applyStage(stage){
 // snapshot carries s.lease (origin changed, tree not yet re-confirmed). Blocks the gesture honestly:
 // the pin is already cleared, and Selecionar/Editar only return when the new origin handshakes. Copy is
 // concat-only + esc()'d (this lives inside the getLivePreviewHtml template, so string-plus only). Fail-soft.
-let lpLeaseActive=false;
+let lpLeaseActive=false, lpLeaseResumeSelect=false;
 function renderLease(lease){
   const el=document.getElementById('lp-lease'); if(!el) return;
-  if(!lease){ if(lpLeaseActive){ lpLeaseActive=false; el.style.display='none'; el.innerHTML=''; setSelectMode(false); } return; }
+  if(!lease){
+    if(lpLeaseActive){
+      // The user may have armed Select before choosing a node, or the host re-pin may arrive one
+      // message later. Restoring same-origin selection intent is safe after tree==='ok'; rearmPinnedSelection
+      // will replay an exact, unexpired pin when one exists and otherwise merely re-arm picking.
+      const resume=!!(lpLeaseResumeSelect&&lpSelectWanted&&lpSelectCapable);
+      lpLeaseActive=false; lpLeaseResumeSelect=false; el.style.display='none'; el.innerHTML='';
+      if(resume){ setSelectMode(true,true); rearmPinnedSelection(); }
+      else setSelectMode(false);
+    }
+    return;
+  }
+  const sameOriginAddress=!!(lease.prevOrigin&&lease.prevOrigin===lease.nextOrigin);
+  const recoverableLease=!!(lease.kind==='stage-unhealthy'&&sameOriginAddress);
+  const recoverable=!!(recoverableLease&&lpSelectWanted);
+  if(recoverable) lpLeaseResumeSelect=true;
+  // Preserve the exact node that THIS lease cleared. It is the only visual selection a late task
+  // re-pin may substitute for while renderLease intentionally exposes no current selection. This
+  // prevents task A from hijacking the canvas when B was the node actually cleared by the lease.
+  if(recoverableLease&&lpSelection&&lpSelection.file){
+    lpSuspendedSelection={ file:lpSelection.file, line:lpSelection.line, col:lpSelection.col, tag:lpSelection.tag };
+    lpSuspendedSelectionUntil=Date.now()+LP_REPIN_TTL_MS;
+  }
+  if(!recoverableLease){ lpLeaseResumeSelect=false; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; clearTaskResults(); }
   // Host already cleared its SelectionStore. Clear the visual half on every lease snapshot as well;
   // otherwise a stale breadcrumb/right-rail card survives over a blocked preview (the exact screenshot).
   lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
@@ -4561,11 +5854,13 @@ function renderLease(lease){
   const oldP=lease.prevPort?(':'+esc(lease.prevPort)):'a origem antiga';
   const newP=lease.newPort?(':'+esc(lease.newPort)):'uma nova origem';
   const selTxt=lease.clearedFile?('seleção 📍 '+esc(lease.clearedFile)+(lease.clearedLine!=null?(':'+esc(lease.clearedLine)):'')+' — limpa'):'seleção — limpa';
-  const sameOrigin=lease.kind==='stage-unhealthy' || (lease.prevOrigin&&lease.prevOrigin===lease.nextOrigin);
-  const title=sameOrigin?('🔒 Edição pausada enquanto '+oldP+' recupera'):('🔒 A origem do preview mudou ('+oldP+' → '+newP+')');
-  const reason=sameOrigin
+  const treeChanged=lease.kind==='served-root-changed';
+  const title=recoverableLease?('🔒 Edição pausada enquanto '+oldP+' recupera'):(treeChanged?'🔒 A árvore servida pelo preview mudou':('🔒 A origem do preview mudou ('+oldP+' → '+newP+')'));
+  const reason=recoverableLease
     ?('O servidor deixou temporariamente de responder como uma página HTML válida. Mantive a última página visível para o preview não oscilar, mas invalidei a seleção e bloqueei escritas até uma revalidação completa.')
-    :('O servidor em '+oldP+' parou e apareceu outro em '+newP+' — pode ser outra aplicação (ex.: um container Docker). Por segurança, o Mooter invalidou tudo o que dependia da origem antiga:');
+    :(treeChanged
+      ?('A porta é a mesma, mas o handshake apontou para outra pasta física. Por segurança, o Mooter invalidou seleção, thread ativa e aprovações da árvore anterior:')
+      :('O servidor em '+oldP+' parou e apareceu outro em '+newP+' — pode ser outra aplicação (ex.: um container Docker). Por segurança, o Mooter invalidou tudo o que dependia da origem antiga:'));
   const html='<div class="lp-lease-card">'
     +'<div class="lp-lease-t">'+title+'</div>'
     +'<div class="lp-lease-r">'+reason+'</div>'
@@ -4578,7 +5873,7 @@ function renderLease(lease){
     +'</div></div>';
   el.innerHTML=html; el.style.display='flex';
   // While the lease is unconfirmed, Select mode is off — the gesture is blocked until the handshake.
-  setSelectMode(false);
+  setSelectMode(false, recoverableLease&&lpLeaseResumeSelect);
   const rb=document.getElementById('lp-lease-restart');
   if(rb) rb.addEventListener('click', function(){ vsapi.postMessage({ type:'lp-restart-dev' }); });
   const wb=document.getElementById('lp-lease-wait');
@@ -4729,6 +6024,12 @@ function lpSendRestore(){
   // target before the restore is delivered (honest-controls: the scroll must actually return).
   if(lpState){ lpPendingRestore=lpState; setTimeout(()=>{ lpPendingRestore=null; }, 1500); }
   lpSendRestore();
+  // A Next Server Component edit can finish as a full document reload AFTER the host's one-shot
+  // lp-repin already reached the old document. The webview survives that reload, so it owns the
+  // recovery lease: re-arm the fresh tap and replay the exact pinned stamp. Two bounded retries
+  // cover the load-vs-tap-listener race; origin targeting and the tap's full-stamp matcher remain
+  // the authority (a vanished/ambiguous node still paints nothing).
+  if(lpSelectOn){ setTimeout(()=>rearmPinnedSelection(),30); setTimeout(()=>rearmPinnedSelection(),350); }
 }); })();
 // ── MP5.1 Select-to-edit (webview side). The 🎯 toolbar button toggles the dev tap's select mode
 // (origin-targeted postMessage into the frame — the frame is cross-origin, so never '*'). When the
@@ -4737,7 +6038,18 @@ function lpSendRestore(){
 // LP-4.5 one-box mode: 'auto' (anchored-task agent — the default) · 'local' (LP-4 fenced node
 // rewrite, $0) · 't1'/'t2'/'t3'/'fable' (the agent pinned to that subscription model; @fable is
 // manual-only, never auto-routed).
-let lpSelection=null, lpSelectOn=false, lpMode='auto';
+let lpSelection=null, lpSelectOn=false, lpSelectWanted=false, lpSelectCapable=false, lpMode='auto';
+// Exact visual anchor cleared by a same-origin health lease. A late post-write re-pin must prove its
+// sourceAnchor equals this stamp; task correlation alone is insufficient when another node was active.
+let lpSuspendedSelection=null, lpSuspendedSelectionUntil=0;
+// Short-lived host-vetted re-pin survives an iframe document/HMR replacement. It is deliberately
+// kept in the parent webview (not the disposable frame) and expires quickly so an old anchor can
+// never revive minutes later.
+let lpPendingRepin=null, lpPendingRepinUntil=0, lpRepinFallbackBlocked=false;
+// Actionable answers/diffs are per-task AND per exact node. A bounded map survives renderSelection
+// rebuilds and node switches without letting task A overwrite B or orphan A's OK CTA.
+const lpTaskResults=new Map();
+let lpTaskResultSeq=0; // monotonic receive order; Map re-insertion during HMR never changes "newest"
 // LP-4.8 §4 — multi-select attach-as-reference: extra nodes Cmd/Ctrl-clicked as CONTEXT for one
 // prompt (Lovable's model, NOT batch-edit). They ride the agent (lp-task) path only; a local $0
 // fenced edit still targets the single pinned node. Each entry: { file, line, col, tag, label }.
@@ -4769,8 +6081,10 @@ function sendSelectMode(on){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-select-mode', on:!!on }, curOrigin); }catch(e){} }
 }
-function setSelectMode(on){
+function setSelectMode(on,preserveIntent){
   lpSelectOn=!!on;
+  if(!preserveIntent) lpSelectWanted=lpSelectOn;
+  if(!lpSelectOn&&!preserveIntent){ lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; lpLeaseResumeSelect=false; }
   const b=document.getElementById('lp-select-btn');
   if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
   sendSelectMode(lpSelectOn);
@@ -4811,6 +6125,68 @@ function journeyMatchesSelection(j, sel){
   if(n.tag&&sel.tag&&n.tag!==sel.tag) return false;
   return true;
 }
+function sameNodeStamp(a,b){
+  if(!a||!b||!a.file||!b.file||a.file!==b.file) return false;
+  if(a.line!=null&&b.line!=null&&a.line!==b.line) return false;
+  if(a.col!=null&&b.col!=null&&a.col!==b.col) return false;
+  if(a.tag&&b.tag&&String(a.tag).toLowerCase()!==String(b.tag).toLowerCase()) return false;
+  return true;
+}
+function taskResultMatchesSelection(r,sel){
+  return !!(r&&r.anchor&&sameNodeStamp(r.anchor,sel));
+}
+function taskLeaseMatchesCurrent(r){
+  const l=r&&r.lease;
+  if(!l||typeof l!=='object') return true; // backward-compatible host payload
+  if(Object.prototype.hasOwnProperty.call(l,'servedRoot')&&(l.servedRoot||null)!==(lpServedRoot||null)) return false;
+  if(Object.prototype.hasOwnProperty.call(l,'origin')&&(l.origin||null)!==(curOrigin||null)) return false;
+  return true;
+}
+function rememberTaskResult(m){
+  if(!m||!m.ok||m.context==='security') return null;
+  const anchor=(m.anchor&&m.anchor.file)?m.anchor:(lpSelection?{file:lpSelection.file,line:lpSelection.line,col:lpSelection.col,tag:lpSelection.tag}:null);
+  if(!anchor) return null;
+  const r=Object.assign({},m,{anchor:{file:anchor.file,line:anchor.line,col:anchor.col,tag:anchor.tag},receivedSeq:++lpTaskResultSeq});
+  const key=(typeof r.taskId==='string'&&r.taskId)?r.taskId:('result-'+Date.now()+'-'+lpTaskResults.size);
+  if(lpTaskResults.has(key)) lpTaskResults.delete(key);
+  lpTaskResults.set(key,r);
+  while(lpTaskResults.size>20) lpTaskResults.delete(lpTaskResults.keys().next().value);
+  return r;
+}
+function taskResultForSelection(sel){
+  let found=null;
+  for(const r of lpTaskResults.values()) if(taskResultMatchesSelection(r,sel)&&taskLeaseMatchesCurrent(r)&&(!found||(r.receivedSeq||0)>(found.receivedSeq||0))) found=r;
+  return found;
+}
+function clearTaskResult(taskId){ if(typeof taskId==='string'&&taskId) lpTaskResults.delete(taskId); }
+function clearTaskResults(){ lpTaskResults.clear(); }
+function migrateTaskResultForRepin(m){
+  if(!m||!m.file) return null;
+  let key=null, found=null;
+  // A journey can contain an Ask result followed by the edit created from that answer. A re-pin
+  // for the edit MUST correlate by its exact taskId first: falling through to the shared journeyId
+  // migrates the older Ask CTA to the new node stamp and hides "OK — manter tudo" behind
+  // "Aplicar". When a taskId is present it is authoritative and never falls back to a sibling
+  // result in the same thread. Legacy messages without taskId use the newest journey/source match.
+  if(m.taskId){
+    for(const [k,r] of lpTaskResults.entries()) if(r&&r.taskId===m.taskId){ key=k; found=r; break; }
+  } else if(m.journeyId){
+    for(const [k,r] of lpTaskResults.entries()) if(r&&r.journeyId===m.journeyId){ key=k; found=r; }
+  } else if(m.sourceAnchor){
+    for(const [k,r] of lpTaskResults.entries()) if(taskResultMatchesSelection(r,m.sourceAnchor)){ key=k; found=r; }
+  }
+  // Backward-compatible deterministic/older-host re-pin: it has no task correlation, so it may
+  // migrate only the single actionable result that matches the currently pinned exact node.
+  if(!found&&!m.taskId&&!m.journeyId&&!m.sourceAnchor&&lpSelection){
+    for(const [k,r] of lpTaskResults.entries()) if(taskResultMatchesSelection(r,lpSelection)&&taskLeaseMatchesCurrent(r)){ key=k; found=r; break; }
+  }
+  if(!found) return null;
+  lpTaskResults.delete(key);
+  found=Object.assign({},found,{anchor:{file:m.file,line:m.line,col:m.col,tag:m.tag},journeyId:m.journeyId||found.journeyId,lease:m.lease||found.lease});
+  lpTaskResults.set(found.taskId||key,found);
+  return found;
+}
+function taskMessageMatchesSelection(m){ return !!(m&&lpSelection&&taskResultMatchesSelection(m,lpSelection)&&taskLeaseMatchesCurrent(m)); }
 // The webview cannot paint inside the cross-origin page. It forwards only the host-authoritative
 // state + the already-vetted current stamp to the tap, origin-targeted. The tap verifies the stamp
 // against its own pinned element before changing the border.
@@ -4822,20 +6198,24 @@ function sendJourneyState(j){
 function renderJourneyPanel(j){
   const el=document.getElementById('lp-thread'); if(!el) return;
   if(j&&journeyMatchesSelection(j,lpSelection)){ el.innerHTML=renderJourneyThread(j); sendJourneyState(j); }
+  else if(lpSelection&&lpSelection.file) el.innerHTML=renderJourneyThread({state:'selected',label:'a abrir thread',turns:[]});
   else el.innerHTML=renderJourneyThread(null);
 }
 function applyJourney(j){
-  lpJourney=(j&&journeyMatchesSelection(j,lpSelection))?j:null;
-  renderJourneyPanel(lpJourney);
+  if(j&&journeyMatchesSelection(j,lpSelection)){ lpJourney=j; renderJourneyPanel(lpJourney); }
+  else if(!j){ lpJourney=null; renderJourneyPanel(null); }
+  // A background task for node A may post after the user selected B. Ignore that projection here;
+  // A was persisted host-side and will render when A is selected again. Never blank B's thread.
 }
 function applySecuritySummary(sec){
   lpSecurity=(sec&&typeof sec==='object')?sec:null;
   const b=document.getElementById('lp-security-btn'), badge=document.getElementById('lp-security-badge');
   if(!b||!badge) return;
-  b.classList.remove('lp-sec-scanning','lp-sec-complete','lp-sec-stale','lp-sec-error');
+  b.classList.remove('lp-sec-scanning','lp-sec-complete','lp-sec-incomplete','lp-sec-stale','lp-sec-error');
   const state=(lpSecurity&&lpSecurity.state)||'idle';
   if(state==='scanning'){ b.classList.add('lp-sec-scanning'); badge.textContent=''; b.setAttribute('aria-label','Review de segurança em andamento'); }
   else if(state==='complete'){ const n=lpSecurity&&lpSecurity.counts?Number(lpSecurity.counts.total)||0:0; b.classList.add('lp-sec-complete'); badge.textContent=String(n); b.setAttribute('aria-label','Review de segurança: '+n+' issues encontrados'); }
+  else if(state==='incomplete'){ b.classList.add('lp-sec-incomplete'); badge.textContent='!'; b.setAttribute('aria-label','Review de segurança incompleto — Publish bloqueado'); }
   else if(state==='stale'){ b.classList.add('lp-sec-stale'); badge.textContent='!'; b.setAttribute('aria-label','Review de segurança desatualizado — o código mudou'); }
   else if(state==='error'){ b.classList.add('lp-sec-error'); badge.textContent='!'; b.setAttribute('aria-label','Review de segurança falhou'); }
   else { badge.textContent=''; b.setAttribute('aria-label','Review de segurança ainda não executado'); }
@@ -4875,8 +6255,36 @@ function renderRefs(){
 // LP-4 §5 — after a write, the host asks the tap to watch through the HMR swap and re-emit a
 // FRESH lp-select for the same node (re-prompt without re-selecting). Origin-targeted, never '*'.
 function sendRepin(c){
+  if(c&&c.file){
+    lpPendingRepin={ file:c.file, line:c.line, col:c.col, tag:c.tag };
+    lpPendingRepinUntil=Date.now()+LP_REPIN_TTL_MS;
+    // Until the tap proves this mapped stamp with a fresh lp-select, the pre-write lpSelection is a
+    // tombstoned address. If this lease expires, fail closed instead of falling back to that old node.
+    lpRepinFallbackBlocked=true;
+  }
+  forwardRepin(c);
+}
+function forwardRepin(c){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+}
+function rearmPinnedSelection(){
+  if(!lpSelectOn||!curOrigin) return;
+  sendSelectMode(true);
+  let c=null;
+  if(lpPendingRepin&&Date.now()<=lpPendingRepinUntil) c=lpPendingRepin;
+  else if(lpPendingRepin){ lpPendingRepin=null; lpPendingRepinUntil=0; }
+  if(!c&&!lpRepinFallbackBlocked) c=lpSelection;
+  if(c&&c.file) forwardRepin(c);
+  // lp-ready means the fresh tap listener already exists; replay the lifecycle synchronously so
+  // awaiting/approved never waits behind another HMR tick (the tap still validates the exact stamp).
+  if(lpJourney) sendJourneyState(lpJourney);
+}
+function maybeResumeSelect(){
+  if(!lpSelectCapable||lpLeaseActive||!lpLeaseResumeSelect||!lpSelectWanted||lpSelectOn) return;
+  lpLeaseResumeSelect=false;
+  setSelectMode(true,true);
+  rearmPinnedSelection();
 }
 function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
 // LP-4.5 §5 — the escape hatch from every dynamic-content warning: point the one box at the
@@ -5456,6 +6864,10 @@ function renderSelection(sel){
       const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} }
     }
   }
+  // An HMR re-pin reconstructs this whole panel. Restore the actionable answer/diff for THIS exact
+  // node so its conversation never loses "Aplicar" or "OK — manter tudo" between pink and yellow.
+  const savedTaskResult=taskResultForSelection(sel);
+  if(savedTaskResult) renderTaskResult(savedTaskResult);
 }
 // MP5.2a — the delete mini-diff. Preview shows EXACTLY the lines the engine would remove (and any
 // partial line it would keep) before anything touches disk; "aplicar" re-runs the engine from disk
@@ -5572,7 +6984,7 @@ function renderPromptDiff(m){
     // review P1-B: the write target comes from THIS diff (m), not the mutable global — a second
     // concurrent preview can no longer make the approved diff land on a different node.
     if(m.file==null||m.line==null){ showEditResult(false,'bad-request'); return; }
-    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic, epoch:m.epoch }); // C0 COH-01 — echo the lease epoch the diff was generated under; the host refuses a stale-lease write
+    vsapi.postMessage({ type:'lp-prompt-apply', file:m.file, line:m.line, col:m.col, tag:m.tag, replacement:m.replacement, newImports:Array.isArray(m.newImports)?m.newImports:[], h:m.h, tier:m.tier, dynamic:!!m.dynamic, lease:m.lease, epoch:m.epoch }); // echo the full generation lease; the host refuses a different origin/root/epoch
     showEditResult(null,'pending');
   });
   const ga=document.getElementById('lp-pr-agent');
@@ -5648,8 +7060,9 @@ function renderTaskResult(m){
     if(lines.length>80) html+='<div class="lp-diff-l">… +'+(lines.length-80)+' linhas</div>';
   }
   if(edits.length){
+    if(m.leaseStale) html+='<div class="lp-sel-warn">⚠ a identidade do preview mudou enquanto o agente trabalhava. Não é possível aprovar/re-pin esta proposta; apenas reverter os bytes verificados.</div>';
     html+='<div class="lp-sel-acts">'
-      +'<button id="lp-task-keep" class="lp-sel-btn" title="aprovar — as edições ficam nos ficheiros (o HMR já as mostra)">OK — manter tudo</button>'
+      +(m.leaseStale?'':'<button id="lp-task-keep" class="lp-sel-btn" title="aprovar — as edições ficam nos ficheiros (o HMR já as mostra)">OK — manter tudo</button>')
       +'<button id="lp-task-revert-all" class="lp-sel-btn" title="repor os bytes anteriores de TODOS os ficheiros listados (sha-guarded) — nunca fora desta lista">reverter tudo</button>'
       +'</div>';
   }
@@ -5693,6 +7106,7 @@ function applyTaskRevertResult(m){
   if(m.done){
     const kb=document.getElementById('lp-task-keep'); if(kb) kb.disabled=true;
     const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
+    clearTaskResult(m.taskId);
   }
 }
 function applyTaskKeepResult(m){
@@ -5703,6 +7117,7 @@ function applyTaskKeepResult(m){
   for(let i=0;i<bts.length;i++) bts[i].disabled=true;
   const kb=document.getElementById('lp-task-keep'); if(kb) kb.disabled=true;
   const rb=document.getElementById('lp-task-revert-all'); if(rb) rb.disabled=true;
+  if(m.ok) clearTaskResult(m.taskId);
 }
 function tierModel(t){ return t==='t1'?'Haiku':t==='t2'?'Sonnet':t==='t3'?'Opus':t==='fable'?'Fable':'local'; }
 // COH-13 — the SINGLE tier dictionary, used in the chips, the MEO and the cockpit (no more three
@@ -5953,10 +7368,10 @@ window.addEventListener('message', (ev) => {
         vsapi.postMessage({ type:'lp-state', path: lpState.path, scrollY: lpState.scrollY });
       }
     }
-    else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); if(lpSelectOn) sendSelectMode(true); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11 the handshake proves nav capability + H2-FIX a full same-URL iframe reload re-inits the in-page tap with select mode OFF; if the host is still armed, re-assert it on the reload handshake so 🎯 never stays lit while clicks are dead (no lp-select, no toolbar, no chip)
+    else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); if(lpSelectOn) rearmPinnedSelection(); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11/H2: a fresh document loses BOTH select mode and the old pin; re-arm + replay the short-lived exact stamp so HMR cannot erase the yellow/green lifecycle
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; lpJourney=null; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
+    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); if(lpPendingRepin){ lpPendingRepin=null; lpPendingRepinUntil=0; } lpRepinFallbackBlocked=false; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; lpJourney=null; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked); every fresh exact pin retires the short-lived HMR replay/tombstone
     // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.
@@ -5980,7 +7395,9 @@ window.addEventListener('message', (ev) => {
     render(m.s); applyStage(m.s && m.s.stage); applyError(m.s && m.s.stageError); populateRoutes(m.s && m.s.routes);
     renderLease(m.s && m.s.lease); // C0 · COH-01 — the identity-lease safe state (mock S7) rides the snapshot
     renderProjects(m.s && m.s.projects); // COH-05 — the multi-root project selector rides the snapshot
-    lpServedRoot=(m.s && typeof m.s.servedRoot==='string' && m.s.servedRoot)?m.s.servedRoot:null; // COH-16 — the current lease's served root for the per-node history filter
+    const nextServedRoot=(m.s && typeof m.s.servedRoot==='string' && m.s.servedRoot)?m.s.servedRoot:null;
+    if(lpServedRoot&&nextServedRoot&&lpServedRoot!==nextServedRoot) clearTaskResults();
+    lpServedRoot=nextServedRoot; // COH-16 — the current lease's served root for the per-node history/result filter
     if(m.s && Object.prototype.hasOwnProperty.call(m.s,'journey')) applyJourney(m.s.journey); // host-owned per-node thread/state
     if(m.s && m.s.security) applySecuritySummary(m.s.security);
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
@@ -6054,6 +7471,7 @@ window.addEventListener('message', (ev) => {
       const st=document.getElementById('lp-security-thread'); if(st&&lpSecurity) st.innerHTML=renderSecurityActivity(lpSecurity.thread,esc);
       return;
     }
+    if(m.anchor&&!taskMessageMatchesSelection(m)) return; // task A finishing in the background never animates/rewrites B's controls
     const el=document.getElementById('lp-edit-msg');
     let txt='';
     // COH-09 — AUTO announces the router decision BEFORE the run: "🧭 AUTO → 🎼 Sonnet". A quick honest
@@ -6067,13 +7485,16 @@ window.addEventListener('message', (ev) => {
     if(m.phase==='thinking') lpStartProgress(txt, true); else if(txt) lpUpdateProgress(txt);
   }
   else if (m.type === 'lp-task-result'){
-    renderTaskResult(m); // LP-4.5 agent verdict (answer or per-file diffs)
     if(m.context==='security'){
+      renderTaskResult(m); // Security has its own global review thread/mount, never a selected-node CTA.
       if(!m.ok) showToast('warn','⚠️ correção de segurança bloqueada: '+toastReason(m.reason));
       else if(Array.isArray(m.edits)&&m.edits.length) showToast('ask','🛡 correção pronta — revê e confirma no painel →');
       else showToast('ask','🛡 resposta do review no painel →');
       return;
     }
+    const taskResult=m.ok?rememberTaskResult(m):m;
+    if(!taskMessageMatchesSelection(taskResult)) return; // persist A, but never render/toast it on B
+    renderTaskResult(taskResult); // LP-4.5 agent verdict bound to the exact current node
     lpFinishProgress(); // LP-4.9 §8 — the run ended; stop the spinner (the toast says the outcome)
     // LP-4.9 §3 — honest completion toast: answered (panel), edited (preview + flash), or refused.
     if(!m.ok){ showToast('warn', '⚠️ '+toastReason(m.reason)); }
@@ -6082,7 +7503,34 @@ window.addEventListener('message', (ev) => {
   }
   else if (m.type === 'lp-task-revert-result'){ applyTaskRevertResult(m); } // LP-4.5 per-file revert outcomes
   else if (m.type === 'lp-task-keep-result'){ applyTaskKeepResult(m); } // LP-4.5 keep-all outcome
-  else if (m.type === 'lp-repin'){ sendRepin(m); } // LP-4 §5 host-vetted re-pin forwarded into the frame
+  else if (m.type === 'lp-repin'){
+    // Correlate only this task's stored result. If A completed while B is selected, keep A ready for
+    // later but do not move B's border/selector. Deterministic current-node re-pins have no taskId.
+    const migrated=migrateTaskResultForRepin(m);
+    // During a same-origin health lease renderLease deliberately clears lpSelection. A late re-pin
+    // is still current when it correlates to the stored, successful task result under this lease;
+    // requiring the now-cleared visual selection dropped the exact race seen in real Next HMR.
+    const selectedTask=!!(m.sourceAnchor&&lpSelection&&sameNodeStamp(m.sourceAnchor,lpSelection)&&taskLeaseMatchesCurrent(m));
+    // Stored-result correlation substitutes for the visual selection ONLY while a same-origin
+    // capability/health suspension has cleared that selection. If the user actively selected B,
+    // a late task-A re-pin stays stored for A and must never drag the canvas back from B.
+    const suspendedAnchor=!!(lpSuspendedSelection&&Date.now()<=lpSuspendedSelectionUntil
+      && m.sourceAnchor&&sameNodeStamp(m.sourceAnchor,lpSuspendedSelection));
+    if(lpSuspendedSelection&&Date.now()>lpSuspendedSelectionUntil){ lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; }
+    const suspendedTask=!!(!lpSelection&&suspendedAnchor
+      && (!m.taskId||(migrated&&taskLeaseMatchesCurrent(migrated))));
+    // Backward compatibility is fail-closed: an older deterministic message without sourceAnchor
+    // may only re-assert the stamp already active on screen. It cannot carry a rebased A stamp into B.
+    const legacySame=!!(!m.taskId&&!m.sourceAnchor&&lpSelection&&sameNodeStamp(m,lpSelection));
+    const currentTask=selectedTask||suspendedTask||legacySame;
+    if(currentTask){
+      if(lpSelectWanted){
+        sendRepin(m);
+        if(lpLeaseActive||!lpSelectCapable||((lpLastSnap&&lpLastSnap.lease||{}).kind==='stage-unhealthy')) lpLeaseResumeSelect=true;
+        maybeResumeSelect();
+      } else forwardRepin(m);
+    }
+  } // LP-4 §5 host-vetted re-pin forwarded into the frame
   else if (m.type === 'lp-security-result'){
     // LP-5 §C — 🛡 review verdict: render into #lp-security via the serialised PURE renderer
     // (same fn.toString() trick as the presets bar). m carries {secrets,xss,csp,audit,scannedFiles}
@@ -6090,15 +7538,16 @@ window.addEventListener('message', (ev) => {
     const secBtn2=document.getElementById('lp-security-btn'); if(secBtn2) secBtn2.disabled=false;
     const secEl2=document.getElementById('lp-security');
     if(secEl2){ secEl2.style.display='block'; secEl2.innerHTML=renderSecurityFindings(m, esc); }
-    applySecuritySummary(Object.assign({},lpSecurity||{},{ state:m.error?'error':'complete', counts:m.counts||((lpSecurity&&lpSecurity.counts)||null), scannedAt:m.scannedAt||null, reportId:m.reportId||null, scannedFiles:m.scannedFiles||0, thread:Array.isArray(m.thread)?m.thread:((lpSecurity&&lpSecurity.thread)||[]) }));
+    applySecuritySummary(Object.assign({},lpSecurity||{},{ state:m.error?'error':((m.coverage&&m.coverage.complete===false)?'incomplete':'complete'), counts:m.counts||((lpSecurity&&lpSecurity.counts)||null), scannedAt:m.scannedAt||null, reportId:m.reportId||null, scannedFiles:m.scannedFiles||0, thread:Array.isArray(m.thread)?m.thread:((lpSecurity&&lpSecurity.thread)||[]) }));
   }
   else if (m.type === 'lp-publish-status-result'){
     // LP-6 §B — status snapshot (branch, touched files, Vercel link + expected project name,
     // open-Critical flag, last known deploy URL). Rendered via the serialised PURE renderer, same
     // fn.toString() contract as the security findings above.
-    lpPublishState = m;
+    const previousResult=lpPublishState&&lpPublishState.lastResult;
+    lpPublishState = Object.assign({},m,previousResult?{lastResult:previousResult}:{});
     const el=document.getElementById('lp-publish');
-    if(el){ el.style.display='block'; el.innerHTML=renderPublishPopover(lpPublishState, esc); }
+    if(el){ el.style.display='block'; el.innerHTML=renderPublishPopover(lpPublishState, esc); el.setAttribute('tabindex','-1'); el.scrollIntoView({block:'nearest',behavior:'smooth'}); el.focus({preventScroll:true}); }
   }
   else if (m.type === 'lp-publish-result'){
     // LP-6 §C/D — outcome of a commit+push or a deploy attempt. Merged into the last known state
@@ -6139,6 +7588,7 @@ if(projSel) projSel.addEventListener('change', function(){ if(this.value) vsapi.
 const secBtn=document.getElementById('lp-security-btn');
 if(secBtn) secBtn.addEventListener('click', function(){
   const secEl=document.getElementById('lp-security');
+  const pubEl=document.getElementById('lp-publish'); if(pubEl) pubEl.style.display='none';
   if(secEl){ secEl.style.display='block'; secEl.innerHTML='<div class="lp-sec-hdr">🛡 a analisar… ($0 local)</div>'; }
   secBtn.disabled=true;
   vsapi.postMessage({ type:'lp-security-scan' });
@@ -6158,7 +7608,8 @@ const pubBtn=document.getElementById('lp-publish-btn');
 if(pubBtn) pubBtn.addEventListener('click', function(){
   const el=document.getElementById('lp-publish');
   if(el && el.style.display==='block'){ el.style.display='none'; return; } // toggle closed, no re-fetch
-  if(el){ el.style.display='block'; el.innerHTML='<div class="lp-pub-hdr">🚀 a preparar…</div>'; }
+  const secEl=document.getElementById('lp-security'); if(secEl) secEl.style.display='none';
+  if(el){ el.style.display='block'; el.innerHTML='<div class="lp-pub-hdr">🚀 a preparar destinos…</div>'; el.setAttribute('tabindex','-1'); el.scrollIntoView({block:'nearest',behavior:'smooth'}); el.focus({preventScroll:true}); }
   vsapi.postMessage({ type:'lp-publish-status' });
 });
 // COH-12 — an inline error next to a control (never a silent return). Creates/updates a sibling
@@ -6200,7 +7651,9 @@ if(pubEl) pubEl.addEventListener('click', function(e){
     if(!typed || !expected || typed!==expected){ pubInlineError('lp-pub-deploy-confirm', expected?('o nome do projeto não coincide — escreve exactamente "'+expected+'".'):'projeto Vercel não ligado — não há destino para confirmar.'); if(input) input.focus(); return; }
     pubInlineError('lp-pub-deploy-confirm','');
     t.disabled=true; t.textContent='a fazer deploy… (pode demorar uns minutos)'; // F9 — vercel --prod can take ~180s; never a frozen-looking button
-    vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed });
+    const vercelIdentityKey=lpPublishState && lpPublishState.vercelIdentity && lpPublishState.vercelIdentity.key;
+    if(!vercelIdentityKey){ pubInlineError('lp-pub-deploy-confirm','a identidade Vercel expirou — fecha e abre Publish para confirmar o destino atual.'); t.disabled=false; t.textContent='Confirmar deploy'; return; }
+    vsapi.postMessage({ type:'lp-publish-deploy', projectName: typed, vercelIdentityKey: vercelIdentityKey });
     return;
   }
 });

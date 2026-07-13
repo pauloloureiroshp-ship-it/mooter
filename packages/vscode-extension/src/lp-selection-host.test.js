@@ -131,6 +131,119 @@ test('SelectionJourney: persists a bounded/redacted thread and resumes only the 
   assert.notStrictEqual(b._journeyView().id, first.id, 'a different source node gets a different thread');
 });
 
+test('SelectionJourney: a host-vetted HMR re-pin migrates the same thread to its new source stamp', () => {
+  const Panel = loadPanelClass();
+  const inst = Object.create(Panel.prototype);
+  inst._servedRoot = 'C:/repo/landing'; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = 3;
+  inst._treeGateBlocked = () => false;
+  inst.panel = { webview: { postMessage() {} } }; inst.token = 'tok';
+  inst._setSelection({ file: 'app/page.tsx', line: 56, col: 15, tag: 'p', selText: 'Hero' });
+  inst._journeyAppend('user', 'melhora isto com o contexto do projeto', { status: 'sent' });
+  inst._journeySetState('awaiting', 'aguarda OK');
+  const old = inst._journeyView();
+
+  inst._postRepin({ file: 'app/page.tsx', line: 59, col: 15, tag: 'p' });
+  inst._invalidateIdentity('http://localhost:7819', 'http://localhost:7819', 'stage-unhealthy');
+  inst._servedRoot = 'C:/repo/landing'; // healthy same-origin lp-ready renews the tree before lp-pin
+  inst._setSelection({ file: 'app/page.tsx', line: 59, col: 15, tag: 'p', selText: 'Hero melhorado' });
+  const next = inst._journeyView();
+  assert.ok(next, 'fresh exact pin still has a journey');
+  assert.strictEqual(next.node.line, 59, 'identity follows the rebased source line');
+  assert.strictEqual(next.node.epoch, 4, 'identity renews onto the fresh document lease');
+  assert.ok(next.turns.length >= old.turns.length, 'conversation continuity survives HMR (the safety suspension may append one activity row)');
+  assert.strictEqual(next.turns[0].text, old.turns[0].text);
+  assert.strictEqual(next.state, 'awaiting', 'yellow approval state is restored, not reset/staled');
+});
+
+test('SelectionJourney: a genuine A→B→A origin cycle destroys pending re-pin and cannot resurrect approval', () => {
+  const Panel = loadPanelClass();
+  const inst = Object.create(Panel.prototype);
+  inst._servedRoot = 'C:/repo/landing'; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = 1;
+  inst._treeGateBlocked = () => false;
+  inst.panel = { webview: { postMessage() {} } }; inst.token = 'tok';
+  inst._setSelection({ file: 'app/page.tsx', line: 56, col: 15, tag: 'p', selText: 'Hero' });
+  inst._journeyAppend('user', 'melhora', { status: 'sent' });
+  inst._journeySetState('awaiting', 'aguarda OK');
+  const oldId = inst._journeyView().id;
+  inst._postRepin({ file: 'app/page.tsx', line: 59, col: 15, tag: 'p' });
+  assert.ok(inst._pendingRepin, 'precondition: short same-app re-pin exists');
+
+  inst._invalidateIdentity('http://localhost:3000', 'http://localhost:7819', 'origin-changed');
+  assert.strictEqual(inst._pendingRepin, null, 'a genuine origin move hard-clears the old lease');
+  inst._servedRoot = 'C:/repo/landing';
+  inst._setSelection({ file: 'other/page.tsx', line: 2, col: 1, tag: 'main', selText: 'Other app' });
+  inst._invalidateIdentity('http://localhost:7819', 'http://localhost:3000', 'origin-changed');
+  inst._servedRoot = 'C:/repo/landing';
+  inst._setSelection({ file: 'app/page.tsx', line: 59, col: 15, tag: 'p', selText: 'Hero melhorado' });
+  const returned = inst._journeyView();
+  assert.notStrictEqual(returned.id, oldId, 'returning to the port creates the new epoch/node identity');
+  assert.notStrictEqual(returned.state, 'awaiting', 'old yellow approval is never resurrected');
+});
+
+test('SelectionJourney: pink/yellow/green lifecycle is gated by OK, Security and real Publish outcomes', () => {
+  const Panel = loadPanelClass();
+  const inst = Object.create(Panel.prototype);
+  inst._servedRoot = 'C:/repo/landing'; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = 3;
+  inst._treeGateBlocked = () => false;
+  inst.panel = { webview: { postMessage() {} } }; inst.token = 'tok';
+  inst._setSelection({ file: 'app/page.tsx', line: 56, col: 15, tag: 'p', selText: 'Hero' });
+
+  inst._journeySetState('working', 'Moo está a alterar');
+  assert.strictEqual(inst._journeyView().state, 'working', 'pink means the selected node is actively being worked');
+  inst._journeySetState('awaiting', 'aguarda OK');
+  const approvalBeforeOk = inst._journeyApprovalGate();
+  assert.strictEqual(approvalBeforeOk.cleared, false, 'yellow before OK blocks Publish');
+  assert.strictEqual(approvalBeforeOk.reason, 'selection-approval-required');
+
+  inst._journeyAcceptCode();
+  assert.strictEqual(inst._journeyView().state, 'approved', 'OK turns the exact local selection green while naming the pending Security gate');
+  assert.match(inst._journeyView().label, /Review Security/i);
+  assert.strictEqual(inst._journeyApprovalGate().cleared, true, 'the explicit local OK clears only the approval gate');
+  inst._journeySecurityVerdict({ cleared: false, reason: 'critical-open' });
+  assert.strictEqual(inst._journeyView().state, 'awaiting', 'a finding keeps the node yellow and Publish blocked');
+
+  inst._journeySecurityVerdict({ cleared: true });
+  assert.strictEqual(inst._journeyView().state, 'approved', 'green is earned only after complete Security Review');
+  assert.match(inst._journeyView().label, /pronto para Publish/);
+
+  inst._journeyPublishResult('commit', { ok: true });
+  assert.match(inst._journeyView().label, /Git atualizado/, 'green reports the real Git milestone after commit + push');
+  inst._journeyPublishResult('deploy', { ok: true, url: 'https://mooter.ai' });
+  assert.strictEqual(inst._journeyCurrent(false).published, true, 'the host records the verified deploy milestone');
+  assert.match(inst._journeyView().label, /publicado · mooter\.ai/, 'production green names the verified production host');
+});
+
+test('SelectionJourney: one global Security/Publish outcome advances every accepted edited thread, not only the visible node', () => {
+  const Panel = loadPanelClass();
+  const inst = Object.create(Panel.prototype);
+  inst._servedRoot = '/repo/landing'; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = 9;
+  inst._treeGateBlocked = () => false;
+  inst._wsRoot = () => '/repo';
+  inst.panel = { webview: { postMessage() {} } }; inst.token = 'tok';
+
+  inst._setSelection({ file: '/repo/landing/app/a.tsx', line: 4, col: 7, tag: 'p', selText: 'A' });
+  inst._journeyAcceptCode();
+  const aId = inst._journeyView().id;
+  inst._setSelection({ file: '/repo/landing/app/b.tsx', line: 8, col: 7, tag: 'p', selText: 'B' });
+  inst._journeyAcceptCode();
+  const bId = inst._journeyView().id;
+
+  inst._journeySecurityVerdict({ cleared: true });
+  assert.strictEqual(inst._journeyById(aId).state, 'approved', 'A receives the project-wide Security verdict while B is visible');
+  assert.strictEqual(inst._journeyById(bId).state, 'approved');
+
+  inst._lastPublishCommit = {
+    root: '/repo', head: 'a'.repeat(40),
+    files: ['landing/app/a.tsx', 'landing/app/b.tsx'],
+  };
+  inst._journeyPublishResult('commit', { ok: true });
+  assert.match(inst._journeyById(aId).label, /Git atualizado/);
+  assert.match(inst._journeyById(bId).label, /Git atualizado/);
+  inst._journeyPublishResult('deploy', { ok: true, url: 'https://mooter.ai' });
+  assert.strictEqual(inst._journeyById(aId).published, true, 'A records the same immutable deploy milestone');
+  assert.strictEqual(inst._journeyById(bId).published, true, 'B records the same immutable deploy milestone');
+});
+
 // ── the gate is WIRED into every LLM path (fail-closed) ─────────────────────────────────────────
 test('F3 FAIL-CLOSED: _taskRun with a null store refuses "no-selection" and NEVER touches the agent', async () => {
   const calls = [];

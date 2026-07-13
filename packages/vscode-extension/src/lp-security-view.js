@@ -90,13 +90,15 @@ function buildItems(result) {
     if (!a || typeof a !== 'object') continue;
     var fix = a.fixAvailable ? ' · correção disponível' : '';
     var range = a.range ? (' (' + String(a.range) + ')') : '';
+    var pkg = a.packageRoot ? ('[' + String(a.packageRoot) + '] ') : '';
     items.push({
       bucket: bucketOf(a.severity),
       label: 'audit · ' + String(a.name == null ? '?' : a.name),
-      detail: String(a.title || 'vulnerabilidade reportada') + range + fix,
+      detail: pkg + String(a.title || 'vulnerabilidade reportada') + range + fix,
       id: typeof a.findingId === 'string' ? a.findingId : null,
-      path: null,
-      fixable: false,
+      path: typeof a.path === 'string' ? a.path : null,
+      fixable: a.fixable === true,
+      actionLabel: a.fixable === true ? 'aplicar fix npm compatível' : null,
     });
   }
 
@@ -138,7 +140,9 @@ function renderSecurityFindings(result, esc) {
 
   var scanned = (typeof result.scannedFiles === 'number' && isFinite(result.scannedFiles) && result.scannedFiles >= 0) ? result.scannedFiles : 0;
   var audit = (result.audit && typeof result.audit === 'object') ? result.audit : null;
-  var auditLine = (audit && audit.ok === true) ? String(audit.honestSummary || '') : 'npm audit indisponível — sem dados.';
+  var auditLine = (audit && audit.ok === true)
+    ? String(audit.honestSummary || '')
+    : 'npm audit indisponível' + (audit && audit.reason ? (' — ' + String(audit.reason)) : ' — sem dados.');
 
   var items = buildItems(result);
   var groups = { critical: [], warning: [], info: [] };
@@ -151,33 +155,89 @@ function renderSecurityFindings(result, esc) {
     var key = ORDER[g];
     var rows = groups[key];
     if (!rows.length) continue;
-    body += '<div class="lp-sec-group lp-sec-' + key + '">';
-    body += '<div class="lp-sec-glabel">' + LABELS[key] + ' (' + rows.length + ')</div>';
+    var open = key === 'critical' || (groups.critical.length === 0 && key === 'warning') ? ' open' : '';
+    body += '<details class="lp-sec-group lp-sec-' + key + '"' + open + '>';
+    body += '<summary class="lp-sec-glabel">' + LABELS[key] + ' (' + rows.length + ')</summary>';
     for (var r2 = 0; r2 < rows.length; r2++) {
       var it = rows[r2];
       body += '<div class="lp-sec-item"><span class="lp-sec-label">' + e(it.label) + '</span>'
         + '<span class="lp-sec-detail">' + e(it.detail) + '</span>'
         + (it.id && it.path ? ('<span class="lp-sec-actions"><button type="button" class="lp-sec-action" data-security-open="' + e(it.id) + '">abrir</button>'
-          + (it.fixable ? ('<button type="button" class="lp-sec-action lp-sec-fix" data-security-fix="' + e(it.id) + '">corrigir com o agente</button>') : '') + '</span>') : '')
+          + (it.fixable ? ('<button type="button" class="lp-sec-action lp-sec-fix" data-security-fix="' + e(it.id) + '">' + e(it.actionLabel || 'corrigir com o agente') + '</button>') : '') + '</span>') : '')
         + '</div>';
     }
-    body += '</div>';
+    body += '</details>';
   }
-  if (!items.length) body = '<div class="lp-sec-meta">nada encontrado pelos 4 scanners estáticos.</div>';
+  if (!items.length) body = result.coverage && result.coverage.complete === false
+    ? '<div class="lp-sec-meta">nenhum finding nos scanners que concluíram — isto não equivale a aprovação porque a cobertura ficou incompleta.</div>'
+    : '<div class="lp-sec-meta">nada encontrado pelos 4 scanners estáticos.</div>';
 
-  var counts = result.counts && typeof result.counts === 'object' ? result.counts : { critical: groups.critical.length, warning: groups.warning.length, info: groups.info.length, total: items.length };
-  var chips = '<div class="lp-sec-counts"><span class="lp-sec-count critical">' + e(Number(counts.critical) || 0) + ' crítico</span><span class="lp-sec-count warning">' + e(Number(counts.warning) || 0) + ' aviso</span><span class="lp-sec-count info">' + e(Number(counts.info) || 0) + ' info</span></div>';
+  // Chips and group headings describe the SAME visible rows. The host's aggregate counts remain
+  // authoritative for the badge/gate, but npm metadata can contain more affected packages than
+  // the bounded `audit.top` detail list. Mixing those two quantities made e.g. a chip say “3 info”
+  // beside “Info (1)”. Reconcile explicitly instead of fabricating duplicate rows.
+  var shownCounts = { critical: groups.critical.length, warning: groups.warning.length, info: groups.info.length, total: items.length };
+  var rawCounts = result.counts && typeof result.counts === 'object' ? result.counts : null;
+  function safeCount(value) {
+    var n = Number(value);
+    return isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  }
+  var reportedCounts = rawCounts ? {
+    critical: safeCount(rawCounts.critical), warning: safeCount(rawCounts.warning), info: safeCount(rawCounts.info), total: safeCount(rawCounts.total),
+  } : shownCounts;
+  if (rawCounts && reportedCounts.total !== reportedCounts.critical + reportedCounts.warning + reportedCounts.info) {
+    reportedCounts.total = reportedCounts.critical + reportedCounts.warning + reportedCounts.info;
+  }
+  var chips = '<div class="lp-sec-counts" aria-label="linhas detalhadas abaixo"><span class="lp-sec-count critical">' + e(shownCounts.critical) + ' crítico</span><span class="lp-sec-count warning">' + e(shownCounts.warning) + ' aviso</span><span class="lp-sec-count info">' + e(shownCounts.info) + ' info</span></div>';
+  var hiddenByBucket = {
+    critical: Math.max(0, reportedCounts.critical - shownCounts.critical),
+    warning: Math.max(0, reportedCounts.warning - shownCounts.warning),
+    info: Math.max(0, reportedCounts.info - shownCounts.info),
+  };
+  var hiddenTotal = hiddenByBucket.critical + hiddenByBucket.warning + hiddenByBucket.info;
+  var reconciliation = '';
+  if (rawCounts && (reportedCounts.total !== shownCounts.total || hiddenTotal > 0)) {
+    var hiddenParts = [];
+    if (hiddenByBucket.critical) hiddenParts.push(hiddenByBucket.critical + ' crítico');
+    if (hiddenByBucket.warning) hiddenParts.push(hiddenByBucket.warning + ' aviso');
+    if (hiddenByBucket.info) hiddenParts.push(hiddenByBucket.info + ' info');
+    reconciliation = '<div class="lp-sec-meta lp-sec-reconcile"><b>Totais do scan:</b> ' + e(reportedCounts.critical) + ' crítico · ' + e(reportedCounts.warning) + ' aviso · ' + e(reportedCounts.info) + ' info. '
+      + 'A lista detalha ' + e(shownCounts.total) + ' de ' + e(reportedCounts.total) + ' finding' + (reportedCounts.total === 1 ? '' : 's') + '.'
+      + (hiddenTotal ? (' +' + e(hiddenTotal) + ' contabilizado' + (hiddenTotal === 1 ? '' : 's') + ' apenas nos totais agregados (' + e(hiddenParts.join(' · ')) + '), incluindo metadata do npm.') : '')
+      + '</div>';
+  }
   var meta = '<div class="lp-sec-meta">' + scanned + ' ficheiro' + (scanned === 1 ? '' : 's') + ' analisados · ' + e(auditLine) + '</div>';
   var coverage = result.coverage && typeof result.coverage === 'object' ? result.coverage : {};
+  var packageRoots = Array.isArray(coverage.packageRoots) ? coverage.packageRoots : [];
+  var rootsText = packageRoots.length ? packageRoots.map(function (p) {
+    return String((p && p.root) || '?') + ((p && p.ok) ? ' ✓' : (' ✕' + (p && p.reason ? (' (' + String(p.reason) + ')') : '')));
+  }).join(' · ') : 'n/a';
+  var coverageWarning = coverage.complete === false
+    ? '<div class="lp-sec-err">⚠ cobertura incompleta — o Publish permanece bloqueado até um novo review completo.</div>'
+    : '';
+  var causes = [];
+  if (coverage.gitScope === false) causes.push('Git: ' + String(coverage.gitReason || 'status indisponível'));
+  if (coverage.scopeOverflow) causes.push('mais de 4 pacotes npm alterados/servidos; reduz o escopo ou revê por partes');
+  if (coverage.truncated) {
+    var tr = Array.isArray(coverage.truncatedReasons) ? coverage.truncatedReasons : [];
+    causes.push('varredura truncada' + (tr.length ? (': ' + tr.join(' · ')) : ''));
+  }
+  if (Number(coverage.skippedUnreadable) > 0) {
+    var ur = Array.isArray(coverage.unreadablePaths) ? coverage.unreadablePaths : [];
+    causes.push(Number(coverage.skippedUnreadable) + ' caminho(s) sem leitura' + (ur.length ? (': ' + ur.join(' · ')) : ''));
+  }
+  if (coverage.npmAudit === false) causes.push('npm audit de produção não concluiu; verifica rede/registry e tenta Refresh');
+  var causeHtml = causes.length ? '<div class="lp-sec-causes"><b>Porque ficou bloqueado:</b><ul>' + causes.map(function (c) { return '<li>' + e(c) + '</li>'; }).join('') + '</ul></div>' : '';
   var when = result.scannedAt ? new Date(result.scannedAt) : null;
   var whenText = when && !isNaN(when.getTime()) ? when.toLocaleString() : 'n/d';
   var report = '<details class="lp-sec-report"><summary>Relatório final · ' + e(result.reportId || 'sem id') + '</summary>'
-    + '<div>executado: ' + e(whenText) + '</div><div>escopo: ficheiros de código, env, public e next.config dentro do workspace; testes, builds e vendored excluídos.</div>'
-    + '<div>cobertura: secret ' + (coverage.secrets === false ? 'indisponível' : '✓') + ' · XSS ' + (coverage.xss === false ? 'indisponível' : '✓') + ' · CSP ' + (coverage.csp === false ? 'indisponível' : '✓') + ' · npm audit ' + (coverage.npmAudit ? '✓' : 'indisponível') + '</div>'
+    + '<div>executado: ' + e(whenText) + '</div><div>escopo: app servido + pacotes npm com alterações; código, env, public, manifests e locks. Testes, builds e vendored excluídos.</div>'
+    + '<div>cobertura: secret ' + (coverage.secrets === false ? 'indisponível' : '✓') + ' · XSS ' + (coverage.xss === false ? 'indisponível' : '✓') + ' · CSP ' + (coverage.csp === false ? 'indisponível' : '✓') + ' · npm audit prod ' + (coverage.npmAudit ? '✓' : 'indisponível') + ' · paths Git ' + (coverage.gitScope ? '✓' : 'indisponível') + '</div>'
+    + '<div>pacotes auditados: ' + e(rootsText) + '</div>'
     + '<div>Limite: análise estática local; não substitui pentest ou auditoria humana.</div></details>';
   var thread = '<div id="lp-security-thread" class="lp-sec-thread">' + renderSecurityActivity(result.thread, e) + '</div><div id="lp-security-fix-result"></div>';
 
-  return HEADER + chips + meta + body + report + thread;
+  return HEADER + chips + reconciliation + meta + coverageWarning + causeHtml + body + report + thread;
 }
 
 module.exports = { renderSecurityFindings: renderSecurityFindings, renderSecurityActivity: renderSecurityActivity, bucketOf: bucketOf, buildItems: buildItems };
