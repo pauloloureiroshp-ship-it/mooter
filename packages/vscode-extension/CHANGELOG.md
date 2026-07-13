@@ -2,6 +2,27 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.73] — 2026-07-13 — Selection Journey and an honest publish pipeline
+
+- Give every exact selected source node a durable **Selection Journey**: its own bounded, redacted local
+  conversation with user prompts, Moo replies, operational activity and approval state. Re-selecting the
+  same node resumes its thread; a different tree/node never inherits it. A persistent composer now lives
+  directly below the thread, so the prompt stays visible even when the in-canvas 🐮 is minimised.
+- Paint the host-authoritative lifecycle on the exact pinned element: pink motion while code is changing,
+  yellow while the reversible result awaits an explicit **OK**, green only after local approval, with stale,
+  error and reverted states plus `prefers-reduced-motion` support. The cross-origin tap rechecks the complete
+  source stamp before changing a border.
+- Turn **Review Security** into a visible workflow: live scope/static/dependency phases, finding-count badge,
+  severity chips, activity/remediation thread and a reopenable final report. Secrets and dependency advisories
+  remain manual-only; only host-indexed code/CSP findings may reach the agent, and every code change stales the
+  scan before Publish.
+- Turn **Publish ▾** into an explicit Local → Git → Production pipeline. It shows the actual folder, branch,
+  credential-sanitised remote and validated HTTPS production URL before action. Missing remotes disable the
+  commit+push action instead of knowingly leaving a hidden local-only commit; security and exact-name deploy
+  gates remain host-side and fail-closed.
+- Regression proof: extension **1217/1217 pass**; landing **213/213 pass**; landing typecheck clean. Frozen
+  classifier SHA unchanged. No new dependency; no push, merge or production deploy performed.
+
 ## [0.16.72] — 2026-07-13 — No preview flapping and an always-visible prompt
 
 - Treat a connected localhost probe that times out before any HTTP status as inconclusive, not as a

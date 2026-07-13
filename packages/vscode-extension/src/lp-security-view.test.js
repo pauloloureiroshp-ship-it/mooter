@@ -4,7 +4,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { renderSecurityFindings, bucketOf } = require('./lp-security-view.js');
+const { renderSecurityFindings, renderSecurityActivity, bucketOf } = require('./lp-security-view.js');
 
 test('bucketOf: folds every scanner severity vocabulary into critical/warning/info, never promotes', () => {
   assert.strictEqual(bucketOf('critical'), 'critical');
@@ -88,4 +88,27 @@ test('renderSecurityFindings: accepts a custom esc (webview contract, same as re
   const esc = (x) => { calls++; return String(x == null ? '' : x); };
   renderSecurityFindings({ secrets: [{ path: 'a', line: 1, type: 't', severity: 'critical', preview: 'p' }], scannedFiles: 1 }, esc);
   assert.ok(calls > 0, 'the provided esc is actually used');
+});
+
+test('Review Security UX: count chips, report and host-vetted remediation actions stay together', () => {
+  const html = renderSecurityFindings({
+    secrets: [{ findingId: 'sf_secret', path: '.env', line: 1, type: 'token', severity: 'critical', preview: 'abc…', fixable: false }],
+    xss: [{ findingId: 'sf_xss', path: 'app/page.tsx', line: 4, type: 'raw-html', severity: 'warning', snippet: 'dangerouslySetInnerHTML', fixable: true }],
+    csp: { hasCsp: true, findings: [] }, audit: { ok: false }, scannedFiles: 8,
+    counts: { critical: 1, warning: 1, info: 0, total: 2 }, reportId: 'sec-123', scannedAt: 1,
+    coverage: { secrets: true, xss: true, csp: true, npmAudit: false },
+    thread: [{ role: 'activity', text: 'A procurar findings.' }, { role: 'assistant', text: 'Review concluído.' }],
+  });
+  assert.ok(html.includes('1 crítico') && html.includes('1 aviso'), 'badge-ready counts are rendered');
+  assert.ok(html.includes('Relatório final · sec-123'), 'the final report remains easy to reopen');
+  assert.ok(html.includes('data-security-open="sf_secret"'), 'a secret can be opened for manual treatment');
+  assert.ok(!html.includes('data-security-fix="sf_secret"'), 'a secret is never auto-fixed');
+  assert.ok(html.includes('data-security-fix="sf_xss"'), 'only the host-vetted code finding offers agent remediation');
+  assert.ok(html.includes('thread do review') && html.includes('Review concluído.'), 'scan/remediation activity is visible in one thread');
+});
+
+test('renderSecurityActivity escapes hostile thread content', () => {
+  const html = renderSecurityActivity([{ role: 'assistant', text: '<img src=x onerror=alert(1)>' }]);
+  assert.ok(!html.includes('<img src=x'));
+  assert.ok(html.includes('&lt;img'));
 });

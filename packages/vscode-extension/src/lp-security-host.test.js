@@ -47,24 +47,26 @@ function mkWorkspace() {
   return root;
 }
 
-function runScan(root) {
+function runScanDetailed(root) {
   const Panel = loadPanelClass();
   assert.ok(Panel, 'LivePreviewPanel class loaded');
-  let posted = null;
+  const posts = [];
   // Object.create so prototype methods (_treeFingerprint, called by _securityScan to bind the scan to
   // the tree state) resolve; only the three collaborators are overridden on the instance.
   const fakeThis = Object.create(Panel.prototype);
   fakeThis.token = 'HTOK';
   fakeThis._wsRoot = () => root;
-  fakeThis.panel = { webview: { postMessage: (mIn) => { posted = mIn; } } };
+  fakeThis.panel = { webview: { postMessage: (mIn) => { posts.push(mIn); } } };
   Panel.prototype._securityScan.call(fakeThis);
-  return posted;
+  return { result: posts.filter((m) => m && m.type === 'lp-security-result').pop() || null, posts, instance: fakeThis };
 }
+function runScan(root) { return runScanDetailed(root).result; }
 
 test('LP-5 _securityScan: finds shipped secrets/xss/csp; SKIPS test files + fixtures', () => {
   const root = mkWorkspace();
   try {
-    const r = runScan(root);
+    const detail = runScanDetailed(root);
+    const r = detail.result;
     assert.ok(r && r.type === 'lp-security-result', 'posts a security result: ' + JSON.stringify(r && r.type));
     assert.ok(!r.error, 'no scan error on a valid workspace');
     const secretPaths = (r.secrets || []).map((s) => s.path);
@@ -76,6 +78,24 @@ test('LP-5 _securityScan: finds shipped secrets/xss/csp; SKIPS test files + fixt
     // xss + csp fired on the shipped files.
     assert.ok((r.xss || []).some((x) => x.path === 'app/danger.tsx'), 'flags dangerouslySetInnerHTML');
     assert.ok(r.csp && Array.isArray(r.csp.findings) && r.csp.findings.some((f) => f.type === 'unsafe-inline'), 'flags unsafe-inline CSP');
+    assert.ok(r.counts && r.counts.total >= 4 && r.counts.critical >= 2, 'host emits badge-ready severity counts');
+    assert.match(r.reportId || '', /^sec-[a-f0-9]+$/, 'final report is bound to the scanned tree fingerprint');
+    assert.ok(r.coverage && r.coverage.secrets && r.coverage.xss && r.coverage.csp, 'report states the scanners that actually ran');
+    const phases = detail.posts.filter((m) => m.type === 'lp-security-status').map((m) => m.security && m.security.phase);
+    assert.deepStrictEqual(phases.slice(0, 3), ['scope', 'static', 'dependencies'], 'progress is honest and ordered before the result');
+    assert.strictEqual(detail.posts[detail.posts.length - 1].type, 'lp-security-result', 'atomic final result is the last scan message');
+
+    // Remediation authority remains host-side. Secrets are manual-only; the indexed XSS row may
+    // launch a task, but only by findingId from this exact scan.
+    let launched = null;
+    detail.instance._taskRun = (m) => { launched = m; };
+    const secret = r.secrets[0];
+    detail.instance._securityFix({ findingId: secret.findingId });
+    assert.strictEqual(launched, null, 'a secret is never auto-fixed');
+    assert.ok(detail.posts.some((m) => m.type === 'lp-task-result' && m.reason === 'security-fix-unavailable'), 'manual-only refusal is visible in the review thread');
+    const xss = r.xss.find((x) => x.fixable);
+    detail.instance._securityFix({ findingId: xss.findingId });
+    assert.ok(launched && launched.securityFindingId === xss.findingId && launched.mode === 'auto' && launched.intent === 'edit', 'only the host-indexed safe finding reaches the agent');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

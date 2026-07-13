@@ -21,6 +21,23 @@
  */
 
 type TapKind = 'runtime' | 'build' | 'console' | 'promise';
+export type LpNodeState = 'selected' | 'working' | 'awaiting' | 'approved' | 'reverted' | 'stale' | 'error';
+
+/** PURE lifecycle coercion shared by the pin overlay and its tests. Unknown input fails safe. */
+export function normalizeLpNodeState(state: unknown): LpNodeState {
+  const allowed: LpNodeState[] = ['selected', 'working', 'awaiting', 'approved', 'reverted', 'stale', 'error'];
+  return typeof state === 'string' && allowed.includes(state as LpNodeState) ? (state as LpNodeState) : 'selected';
+}
+
+/** PURE honest label: pink work → yellow approval → green accepted. */
+export function lpNodeStateLabel(state: unknown, label?: unknown): string {
+  if (typeof label === 'string' && label.trim()) return label.slice(0, 120);
+  const next = normalizeLpNodeState(state);
+  if (next === 'working') return 'Moo está a alterar';
+  if (next === 'awaiting') return 'aguarda OK';
+  if (next === 'approved') return 'aprovado localmente';
+  return next === 'selected' ? 'selecionado' : next;
+}
 
 interface TapError {
   type: 'lp-error';
@@ -500,6 +517,7 @@ export function installLpErrorTap(): void {
     // repositions on scroll/resize, and clears on Esc or teardown — the selection can no longer
     // evaporate on mouseout.
     let pinBox: HTMLElement | null = null;
+    let pinLabel: HTMLElement | null = null;
     let pinned: Element | null = null;
     let root: ShadowRoot | null = null;
     // LP-4.8 §4 — multi-select attach-as-reference (Lovable's model): Cmd/Ctrl-click pins extra
@@ -513,13 +531,30 @@ export function installLpErrorTap(): void {
       shadowHost.setAttribute('data-lp-select-overlay', '');
       shadowHost.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;margin:0;';
       root = shadowHost.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes lpMooWorking { 0%,100% { box-shadow:0 0 0 2px rgba(232,136,138,.28),0 0 10px rgba(232,136,138,.18) } 50% { box-shadow:0 0 0 4px rgba(232,136,138,.52),0 0 22px rgba(232,136,138,.42) } }
+        .lp-pin-state { position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px solid #7AA2F7;background:rgba(122,162,247,.06);border-radius:4px;box-shadow:0 0 0 2px rgba(122,162,247,.22);transition:border-color .2s ease,background .2s ease,box-shadow .2s ease; }
+        .lp-pin-state.lp-state-working { border-color:#E8888A;background:rgba(232,136,138,.08);animation:lpMooWorking 1.05s ease-in-out infinite; }
+        .lp-pin-state.lp-state-awaiting { border-color:#E5C07B;background:rgba(229,192,123,.08);box-shadow:0 0 0 3px rgba(229,192,123,.34); }
+        .lp-pin-state.lp-state-approved { border-color:#7FB88A;background:rgba(127,184,138,.07);box-shadow:0 0 0 3px rgba(127,184,138,.34); }
+        .lp-pin-state.lp-state-reverted { border-color:#7AA2F7;background:rgba(122,162,247,.05);box-shadow:0 0 0 2px rgba(122,162,247,.2); }
+        .lp-pin-state.lp-state-error,.lp-pin-state.lp-state-stale { border-color:#D9484B;background:rgba(217,72,75,.07);box-shadow:0 0 0 3px rgba(217,72,75,.28); }
+        .lp-state-label { position:absolute;right:-2px;top:-25px;max-width:min(300px,75vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 8px;border-radius:999px;background:#171719;color:#fff;border:1px solid currentColor;font:600 11px/1.2 system-ui,sans-serif;letter-spacing:.01em;box-shadow:0 4px 14px rgba(0,0,0,.25); }
+        .lp-state-working .lp-state-label { color:#F3A3B5 }.lp-state-awaiting .lp-state-label { color:#E5C07B }.lp-state-approved .lp-state-label { color:#8FD39B }.lp-state-error .lp-state-label,.lp-state-stale .lp-state-label { color:#FF8D91 }
+        @media (prefers-reduced-motion:reduce) { .lp-pin-state { animation:none!important;transition:none!important } }
+      `;
+      root.appendChild(style);
       box = document.createElement('div');
       box.style.cssText =
         'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
       root.appendChild(box);
       pinBox = document.createElement('div');
-      pinBox.style.cssText =
-        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px solid #E8888A;background:rgba(232,136,138,0.07);border-radius:3px;box-shadow:0 0 0 2px rgba(232,136,138,0.28);';
+      pinBox.className = 'lp-pin-state lp-state-selected';
+      pinLabel = document.createElement('div');
+      pinLabel.className = 'lp-state-label';
+      pinLabel.textContent = 'selecionado';
+      pinBox.appendChild(pinLabel);
       root.appendChild(pinBox);
       document.documentElement.appendChild(shadowHost);
     };
@@ -535,6 +570,7 @@ export function installLpErrorTap(): void {
       shadowHost = null;
       box = null;
       pinBox = null;
+      pinLabel = null;
       pinned = null;
       root = null;
     };
@@ -558,7 +594,18 @@ export function installLpErrorTap(): void {
       const r = pinned.getBoundingClientRect();
       post({ type: 'lp-pin-rect', rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
     };
-    const pin = (el: Element | null): void => { pinned = el; drawPin(); postPinRect(); };
+    const applyPinState = (state: string, label?: string): void => {
+      if (!pinBox) return;
+      const next = normalizeLpNodeState(state);
+      pinBox.className = 'lp-pin-state lp-state-' + next;
+      if (pinLabel) pinLabel.textContent = lpNodeStateLabel(next, label);
+    };
+    const pin = (el: Element | null): void => { pinned = el; applyPinState('selected', 'selecionado'); drawPin(); postPinRect(); };
+    const nodeState = (d: { file?: unknown; line?: unknown; col?: unknown; tag?: unknown; state?: unknown; label?: unknown }): void => {
+      if (!pinned || !pinned.isConnected || !stampMatches(pinned.getAttribute('data-insp-path'), d)) return;
+      applyPinState(typeof d.state === 'string' ? d.state : 'selected', typeof d.label === 'string' ? d.label.slice(0, 120) : '');
+      drawPin();
+    };
     // Redraw every attached-reference box (HMR may disconnect a node — hide it, never lie).
     const drawRefs = (): void => {
       for (let i = 0; i < refBoxes.length; i++) {
@@ -772,7 +819,7 @@ export function installLpErrorTap(): void {
         teardown();
       }
     };
-    return { set, reselect, repin, detach: removeRef, detachAll: clearRefs, previewClass, clearPreview: clearPreviewClass, flash };
+    return { set, reselect, repin, state: nodeState, detach: removeRef, detachAll: clearRefs, previewClass, clearPreview: clearPreviewClass, flash };
   })();
 
   window.addEventListener('message', (ev: MessageEvent) => {
@@ -806,6 +853,11 @@ export function installLpErrorTap(): void {
     // LP-4.9 §3 — flash the pin box after a write landed, so the eye lands on what changed.
     if (d.type === 'lp-flash') {
       try { select.flash(); } catch { /* best-effort */ }
+      return;
+    }
+    // Selection Journey — host-authoritative lifecycle painted on the exact pinned stamp.
+    if (d.type === 'lp-node-state') {
+      try { select.state(d); } catch { /* best-effort — stale/mismatched stamps paint nothing */ }
       return;
     }
     // MP5.2a — a breadcrumb chip re-selects an ancestor node (re-pin + fresh lp-select). Benign:

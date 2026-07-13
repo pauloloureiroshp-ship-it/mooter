@@ -48,6 +48,9 @@ function buildItems(result) {
       bucket: bucketOf(s.severity),
       label: 'segredo · ' + String(s.type == null ? '?' : s.type),
       detail: String(s.path == null ? '?' : s.path) + ':' + String(s.line == null ? '?' : s.line) + ' — ' + String(s.preview == null ? '' : s.preview),
+      id: typeof s.findingId === 'string' ? s.findingId : null,
+      path: typeof s.path === 'string' ? s.path : null,
+      fixable: false,
     });
   }
 
@@ -59,6 +62,9 @@ function buildItems(result) {
       bucket: bucketOf(x.severity == null ? 'warning' : x.severity),
       label: 'xss · ' + String(x.type == null ? '?' : x.type),
       detail: String(x.path == null ? '?' : x.path) + ':' + String(x.line == null ? '?' : x.line) + ' — ' + String(x.snippet == null ? '' : x.snippet),
+      id: typeof x.findingId === 'string' ? x.findingId : null,
+      path: typeof x.path === 'string' ? x.path : null,
+      fixable: x.fixable === true,
     });
   }
 
@@ -71,6 +77,9 @@ function buildItems(result) {
       bucket: bucketOf(c.severity == null ? 'info' : c.severity),
       label: 'csp · ' + String(c.type == null ? '?' : c.type),
       detail: String(c.detail == null ? '' : c.detail),
+      id: typeof c.findingId === 'string' ? c.findingId : null,
+      path: typeof c.path === 'string' ? c.path : null,
+      fixable: c.fixable === true,
     });
   }
 
@@ -85,10 +94,31 @@ function buildItems(result) {
       bucket: bucketOf(a.severity),
       label: 'audit · ' + String(a.name == null ? '?' : a.name),
       detail: String(a.title || 'vulnerabilidade reportada') + range + fix,
+      id: typeof a.findingId === 'string' ? a.findingId : null,
+      path: null,
+      fixable: false,
     });
   }
 
   return items;
+}
+
+// renderSecurityActivity(thread, esc) — compact, local-only operational thread for scans and
+// remediations. It is separate from a selected node's conversation because security findings may
+// live anywhere in the workspace. The host owns every row and redacts/bounds it before display.
+function renderSecurityActivity(thread, esc) {
+  var e = (typeof esc === 'function') ? esc : defaultEsc;
+  var rows = Array.isArray(thread) ? thread.slice(-60) : [];
+  var html = '<div class="lp-sec-thread-hd">💬 thread do review</div>';
+  if (!rows.length) return html + '<div class="lp-sec-meta">a atividade do scan e das correções aparece aqui.</div>';
+  for (var i = 0; i < rows.length; i++) {
+    var t = rows[i] || {};
+    var role = t.role === 'user' ? 'user' : (t.role === 'assistant' ? 'assistant' : 'activity');
+    var who = role === 'user' ? 'Tu' : (role === 'assistant' ? 'Moo' : 'atividade');
+    html += '<div class="lp-sec-thread-row lp-sec-thread-' + role + '"><b>' + who + '</b> · ' + e(String(t.text || ''))
+      + (t.model ? (' <span>· ' + e(String(t.model)) + '</span>') : '') + '</div>';
+  }
+  return html;
 }
 
 // renderSecurityFindings(result, esc) — PURE, FAIL-SOFT. result shaped
@@ -126,15 +156,28 @@ function renderSecurityFindings(result, esc) {
     for (var r2 = 0; r2 < rows.length; r2++) {
       var it = rows[r2];
       body += '<div class="lp-sec-item"><span class="lp-sec-label">' + e(it.label) + '</span>'
-        + '<span class="lp-sec-detail">' + e(it.detail) + '</span></div>';
+        + '<span class="lp-sec-detail">' + e(it.detail) + '</span>'
+        + (it.id && it.path ? ('<span class="lp-sec-actions"><button type="button" class="lp-sec-action" data-security-open="' + e(it.id) + '">abrir</button>'
+          + (it.fixable ? ('<button type="button" class="lp-sec-action lp-sec-fix" data-security-fix="' + e(it.id) + '">corrigir com o agente</button>') : '') + '</span>') : '')
+        + '</div>';
     }
     body += '</div>';
   }
   if (!items.length) body = '<div class="lp-sec-meta">nada encontrado pelos 4 scanners estáticos.</div>';
 
+  var counts = result.counts && typeof result.counts === 'object' ? result.counts : { critical: groups.critical.length, warning: groups.warning.length, info: groups.info.length, total: items.length };
+  var chips = '<div class="lp-sec-counts"><span class="lp-sec-count critical">' + e(Number(counts.critical) || 0) + ' crítico</span><span class="lp-sec-count warning">' + e(Number(counts.warning) || 0) + ' aviso</span><span class="lp-sec-count info">' + e(Number(counts.info) || 0) + ' info</span></div>';
   var meta = '<div class="lp-sec-meta">' + scanned + ' ficheiro' + (scanned === 1 ? '' : 's') + ' analisados · ' + e(auditLine) + '</div>';
+  var coverage = result.coverage && typeof result.coverage === 'object' ? result.coverage : {};
+  var when = result.scannedAt ? new Date(result.scannedAt) : null;
+  var whenText = when && !isNaN(when.getTime()) ? when.toLocaleString() : 'n/d';
+  var report = '<details class="lp-sec-report"><summary>Relatório final · ' + e(result.reportId || 'sem id') + '</summary>'
+    + '<div>executado: ' + e(whenText) + '</div><div>escopo: ficheiros de código, env, public e next.config dentro do workspace; testes, builds e vendored excluídos.</div>'
+    + '<div>cobertura: secret ' + (coverage.secrets === false ? 'indisponível' : '✓') + ' · XSS ' + (coverage.xss === false ? 'indisponível' : '✓') + ' · CSP ' + (coverage.csp === false ? 'indisponível' : '✓') + ' · npm audit ' + (coverage.npmAudit ? '✓' : 'indisponível') + '</div>'
+    + '<div>Limite: análise estática local; não substitui pentest ou auditoria humana.</div></details>';
+  var thread = '<div id="lp-security-thread" class="lp-sec-thread">' + renderSecurityActivity(result.thread, e) + '</div><div id="lp-security-fix-result"></div>';
 
-  return HEADER + meta + body;
+  return HEADER + chips + meta + body + report + thread;
 }
 
-module.exports = { renderSecurityFindings: renderSecurityFindings, bucketOf: bucketOf };
+module.exports = { renderSecurityFindings: renderSecurityFindings, renderSecurityActivity: renderSecurityActivity, bucketOf: bucketOf, buildItems: buildItems };

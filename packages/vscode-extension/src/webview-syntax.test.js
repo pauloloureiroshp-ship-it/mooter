@@ -154,6 +154,9 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   // LP-4.5 — the ONE BOX on the pin: any prompt, default AUTO = the anchored-task agent; the
   // local $0 chip keeps the LP-4 fenced rewrite reachable; the heuristic only SUGGESTS.
   assert.ok(html.includes('id="lp-box-in"'), 'one-box input present');
+  assert.ok(html.includes('id="lp-thread-in"') && html.includes('Continua a conversa deste elemento'), 'a persistent textbox is visible in the element thread even when the canvas toolbar is minimized');
+  assert.ok(html.includes('id="lp-thread-mode-edit"') && html.includes('id="lp-thread-mode-ask"'), 'the thread composer keeps the explicit Editar/Perguntar choice');
+  assert.ok(html.includes('OK — aplicar') && html.includes('OK — manter tudo'), 'yellow proposals end in an explicit OK before the green accepted state');
   assert.ok(html.includes('os números batem com o projecto'), 'placeholder shows a PROJECT ask (LP-4.9 §1: an ask example), not only node tweaks');
   assert.ok(html.includes("type:'lp-task'"), 'anchored task request wired to the host');
   assert.ok(html.includes("m.type === 'lp-task-result'"), 'agent verdict handled');
@@ -370,7 +373,7 @@ test('Live Preview LP-4.9 §2 / F0.1 progressive disclosure — prompt-first min
   assert.ok(html.includes('id="lp-more"') && /aria-controls="lp-adv"/.test(html), 'chevron controls the drawer');
   // F0.1 — the QUICK-ADJUST presets + raw text/class edits + skills moved INTO the drawer (one click away).
   const advStart = html.indexOf('id="lp-adv"');
-  const advChunk = html.slice(advStart, advStart + 1200);
+  const advChunk = html.slice(advStart, advStart + 1800);
   assert.ok(advChunk.includes('id="lp-presets"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'quick-adjust presets/raw-edits/skills live in the drawer');
   // F0.1 — the model/tier picker moved UP into the minimal (prompt-first) view, like the one-box.
   assert.ok(html.indexOf('id="lp-chip"') < advStart, 'the tier picker stays in the minimal view');

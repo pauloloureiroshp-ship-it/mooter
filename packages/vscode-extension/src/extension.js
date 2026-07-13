@@ -1318,6 +1318,9 @@ class LivePreviewPanel {
     // LP-6 §B — the LAST 🛡 Review Security verdict (set at the end of _securityScan below). Read
     // by _publishStatus to decide hasOpenCritical — never re-scans on its own, never fabricated.
     this._lastSecurity = null;
+    this._securityRun = { state: 'idle', phase: null, label: 'ainda não revisto', counts: { critical: 0, warning: 0, info: 0, total: 0 }, scannedAt: null, reportId: null, scannedFiles: 0 };
+    this._securityFindings = new Map();
+    this._securityThread = [];
     // LP-6 §D — the last REAL deploy URL this session produced (set only on a successful
     // _publishDeploy). null until a real deploy happens; never inferred.
     this._lastDeployUrl = null;
@@ -1337,6 +1340,14 @@ class LivePreviewPanel {
     // null from birth → _selectionMissing() default-denies until a pin arrives; a bare Object.create
     // harness leaves it undefined → NOT gated (pre-existing host contracts run unchanged).
     this._selection = null;
+    // Selection Journey — one local, bounded conversation per exact source node + preview lease.
+    // The host owns this state; the webview only renders a display projection. Thread text stays in
+    // VS Code workspaceState on this machine and is redacted/bounded before persistence. Undo bytes,
+    // source snapshots and secrets never enter it. A lease/origin change marks the old journey stale.
+    this._journeys = null;
+    this._journeyLoaded = false;
+    this._journeyRev = 0;
+    this._activeJourneyId = null;
     // C0 · COH-01 (audit P0) — the transactional IDENTITY LEASE {origin · servedRoot · readyEpoch}.
     // `_stageOrigin` is the framed origin the current lease is bound to; a genuine origin change
     // (7819 dies, an unrelated app answers on 3000) re-arms BOTH fail-closed gates (servedRoot AND
@@ -1451,6 +1462,7 @@ class LivePreviewPanel {
   // the lease. A bare Object.create harness leaves servedRoot/selection === undefined → left inert.
   _invalidateIdentity(nextOrigin, prevOrigin, cause) {
     const clearedSel = (this._selection && this._selection.file) ? this._selection : null;
+    if (clearedSel) this._journeyMarkStale('O preview mudou de origem/árvore; a conversa foi preservada, mas a aprovação anterior perdeu validade.');
     this._stageOrigin = nextOrigin;
     this._readyEpoch = (this._readyEpoch | 0) + 1;
     try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
@@ -1571,7 +1583,7 @@ class LivePreviewPanel {
   _setSelection(m) {
     try {
       const file = (m && typeof m.file === 'string') ? m.file.trim() : '';
-      if (!file) { this._selection = null; return; }
+      if (!file) { this._selection = null; this._activeJourneyId = null; this._journeyPost(null); return; }
       // Never accept a pin from a retained/stale/error document. lp-tree is relayed immediately
       // before lp-pin, so a healthy current-origin handshake has already renewed the tree here.
       if (this._servedRoot !== undefined && this._treeGateBlocked()) { this._selection = null; return; }
@@ -1585,6 +1597,7 @@ class LivePreviewPanel {
       // D5 — trace a pin ONCE per distinct node (the tap re-pins on every HMR/reflow; de-dup avoids spam).
       const pk = this._selection.file + '|' + this._selection.line + '|' + this._selection.tag;
       if (pk !== this._lastPinKey) { this._lastPinKey = pk; this._emitLpEvent('pin', { kind: 'server', nodeKey: this._selection, summary: 'pin <' + (this._selection.tag || '?') + '>' }); }
+      this._journeyPost(this._journeyCurrent(true));
     } catch { this._selection = null; }
   }
   // F3 (W1) — the fail-closed selection gate, shaped EXACTLY like _treeGateBlocked: default-DENY in
@@ -1594,6 +1607,138 @@ class LivePreviewPanel {
   // lp-edit/lp-task/lp-prompt host contracts (which pass the anchor on the message) run unchanged.
   _selectionMissing() {
     return this._selection !== undefined && !(this._selection && this._selection.file);
+  }
+  // ── Selection Journey: durable per-node thread + honest visual state ──────────────────────
+  _journeySafeText(value, max) {
+    let s = String(value == null ? '' : value);
+    // Local persistence is still persistence: redact common credential shapes before workspaceState.
+    s = s.replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{12,}|AKIA[A-Z0-9]{16})\b/g, '[redigido]');
+    s = s.replace(/(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s"']+/ig, '$1[redigido]');
+    return s.slice(0, Math.max(1, Number(max) || 4000));
+  }
+  _journeyIdentity(sel) {
+    const s = sel || this._selection;
+    if (!s || !s.file) return null;
+    return {
+      servedRoot: (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : null,
+      origin: (typeof this._stageOrigin === 'string' && this._stageOrigin) ? this._stageOrigin : null,
+      epoch: (this._readyEpoch | 0),
+      file: String(s.file).slice(0, 1024),
+      line: Number.isInteger(s.line) ? s.line : null,
+      col: Number.isInteger(s.col) ? s.col : null,
+      tag: (typeof s.tag === 'string') ? s.tag.slice(0, 60) : '',
+    };
+  }
+  _journeyId(identity) {
+    if (!identity) return null;
+    try {
+      const raw = [identity.servedRoot || '', identity.origin || '', identity.epoch | 0, identity.file || '', identity.line == null ? '' : identity.line, identity.col == null ? '' : identity.col, identity.tag || ''].join('\u0000');
+      return 'j_' + crypto.createHash('sha256').update(raw, 'utf8').digest('hex').slice(0, 20);
+    } catch { return null; }
+  }
+  _journeyEnsureLoaded() {
+    if (this._journeyLoaded) return;
+    this._journeyLoaded = true;
+    this._journeys = new Map();
+    try {
+      const saved = this._store && typeof this._store.get === 'function' ? this._store.get('lpSelectionJourneysV1', []) : [];
+      if (!Array.isArray(saved)) return;
+      for (const raw of saved.slice(-30)) {
+        if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !raw.identity || typeof raw.identity !== 'object') continue;
+        const turns = Array.isArray(raw.turns) ? raw.turns.slice(-80).map((t) => ({
+          id: (t && typeof t.id === 'string') ? t.id.slice(0, 80) : '',
+          role: t && (t.role === 'user' || t.role === 'assistant') ? t.role : 'activity',
+          text: this._journeySafeText(t && t.text, t && t.role === 'assistant' ? 8000 : 4000),
+          ts: Number(t && t.ts) || 0,
+          model: (t && typeof t.model === 'string') ? t.model.slice(0, 80) : null,
+          status: (t && typeof t.status === 'string') ? t.status.slice(0, 40) : null,
+        })) : [];
+        const oldState = typeof raw.state === 'string' ? raw.state : 'selected';
+        // Pending/working state cannot survive a panel restart because its reversible snapshots live
+        // only in RAM. Keep the conversation, but never resurrect a lying yellow/green control state.
+        const state = (oldState === 'selected' || oldState === 'reverted') ? oldState : 'stale';
+        this._journeys.set(raw.id, { id: raw.id, identity: raw.identity, state, label: state === 'stale' ? 'histórico — valida novamente' : (raw.label || state), turns, updatedAt: Number(raw.updatedAt) || 0, persisted: true });
+      }
+    } catch { this._journeys = new Map(); }
+  }
+  _journeyCurrent(create) {
+    this._journeyEnsureLoaded();
+    const identity = this._journeyIdentity();
+    const id = this._journeyId(identity);
+    if (!identity || !id) { this._activeJourneyId = null; return null; }
+    let j = this._journeys.get(id) || null;
+    if (!j && create !== false) {
+      j = { id, identity, state: 'selected', label: 'selecionado', turns: [], updatedAt: Date.now(), persisted: false };
+      this._journeys.set(id, j);
+    }
+    this._activeJourneyId = j ? id : null;
+    return j;
+  }
+  _journeyDisplay(j) {
+    if (!j) return null;
+    return {
+      id: j.id, rev: this._journeyRev || 0, state: j.state || 'selected', label: j.label || null,
+      node: j.identity ? { file: j.identity.file, line: j.identity.line, col: j.identity.col, tag: j.identity.tag, epoch: j.identity.epoch } : null,
+      turns: (Array.isArray(j.turns) ? j.turns : []).slice(-80).map((t) => ({ id: t.id, role: t.role, text: t.text, ts: t.ts, model: t.model || null, status: t.status || null })),
+      updatedAt: j.updatedAt || null,
+    };
+  }
+  _journeyView() { return this._journeyDisplay(this._journeyCurrent(false)); }
+  _journeyPersist() {
+    try {
+      if (!this._store || typeof this._store.update !== 'function' || !(this._journeys instanceof Map)) return;
+      const arr = Array.from(this._journeys.values()).sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0)).slice(-30).map((j) => ({
+        id: j.id, identity: j.identity, state: j.state, label: j.label, updatedAt: j.updatedAt,
+        turns: (Array.isArray(j.turns) ? j.turns : []).slice(-80).map((t) => ({ id: t.id, role: t.role, text: t.text, ts: t.ts, model: t.model || null, status: t.status || null })),
+      }));
+      this._store.update('lpSelectionJourneysV1', arr);
+    } catch { /* thread persistence never blocks editing */ }
+  }
+  _journeyPost(j) {
+    try { this.panel.webview.postMessage({ type: 'lp-journey-update', __t: this.token, journey: this._journeyDisplay(j || this._journeyCurrent(false)) }); } catch { /* best-effort */ }
+  }
+  _journeyCommit(j) {
+    if (!j) return;
+    j.updatedAt = Date.now(); j.persisted = false;
+    this._journeyRev = (this._journeyRev || 0) + 1;
+    if (this._journeys instanceof Map && this._journeys.size > 30) {
+      const oldest = Array.from(this._journeys.values()).sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0))[0];
+      if (oldest && oldest.id !== j.id) this._journeys.delete(oldest.id);
+    }
+    this._journeyPersist();
+    this._journeyPost(j);
+  }
+  _journeyAppend(role, text, meta) {
+    const j = this._journeyCurrent(true);
+    if (!j || !String(text == null ? '' : text).trim()) return null;
+    const m = meta || {};
+    const r = role === 'user' || role === 'assistant' ? role : 'activity';
+    const safe = this._journeySafeText(text, r === 'assistant' ? 8000 : (r === 'activity' ? 800 : 4000));
+    const turns = Array.isArray(j.turns) ? j.turns : (j.turns = []);
+    const last = turns.length ? turns[turns.length - 1] : null;
+    if (r === 'activity' && last && last.role === 'activity' && last.text === safe && (Date.now() - (last.ts || 0)) < 2500) {
+      last.ts = Date.now(); last.status = m.status || last.status || null;
+    } else {
+      turns.push({ id: 'jt_' + Date.now() + '_' + turns.length, role: r, text: safe, ts: Date.now(), model: (typeof m.model === 'string' ? m.model.slice(0, 80) : null), status: (typeof m.status === 'string' ? m.status.slice(0, 40) : null) });
+      if (turns.length > 80) turns.splice(0, turns.length - 80);
+    }
+    this._journeyCommit(j);
+    return j;
+  }
+  _journeySetState(state, label, opts) {
+    const j = (opts && opts.journey) || this._journeyCurrent(true);
+    if (!j) return null;
+    const allowed = new Set(['selected', 'working', 'awaiting', 'approved', 'reverted', 'stale', 'error']);
+    j.state = allowed.has(state) ? state : 'selected';
+    j.label = this._journeySafeText(label || j.state, 120);
+    this._journeyCommit(j);
+    return j;
+  }
+  _journeyMarkStale(reason) {
+    const j = this._activeJourneyId && this._journeys instanceof Map ? this._journeys.get(this._activeJourneyId) : this._journeyCurrent(false);
+    if (!j) return;
+    this._journeyAppend('activity', reason || 'A identidade do preview mudou; valida novamente.', { status: 'stale' });
+    this._journeySetState('stale', 'preview mudou — valida novamente', { journey: j });
   }
   // FIX-MP-1 G1 — the honest banner text when the preview is live but comes from an UNCONFIRMED tree.
   // null when identity is unproven-because-absent (servedRoot null → the write gate already refuses
@@ -1671,6 +1816,8 @@ class LivePreviewPanel {
       s.lease = (this._leaseInfo && !this._treeConfirmed()) ? this._leaseInfo : null;
       s.projects = this._projectsSnapshot(); // COH-05 — the multi-root project selector (null for single-root)
       s.feed = this._feedView(); // LP-4.5 §4: the unified session feed rides the snapshot (rev-guarded render)
+      s.journey = this._journeyView(); // Selection Journey — thread/state for the currently pinned exact node
+      s.security = this._securitySummary(); // badge/progress summary; full findings travel only on explicit scan
       s.servedRoot = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : null; // COH-16 — the current lease's served root, so the per-node history filter never mixes homonym worktrees (already exposed via feed nodeKeys)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
       this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
@@ -1842,6 +1989,8 @@ class LivePreviewPanel {
     if (m.type === 'lp-feed-revert') { this._feedRevert(m); return; } // LP-4.5 §4 per-item revert from the unified feed
     if (m.type === 'lp-copy-error') { this._copyErrorToClipboard(m); return; }
     if (m.type === 'lp-security-scan') { this._securityScan(); return; } // LP-5 §B global 🛡 review — secrets/xss/csp/npm-audit, local $0
+    if (m.type === 'lp-security-open') { this._securityOpen(m); return; }
+    if (m.type === 'lp-security-fix') { this._securityFix(m); return; }
     // LP-6 §B/C/D — 🚀 Publish: status (read-only) → selective commit+push → hard-gated deploy.
     if (m.type === 'lp-publish-status') { this._publishStatus(); return; }
     if (m.type === 'lp-publish-commit') { this._publishCommit(m); return; }
@@ -1953,6 +2102,7 @@ class LivePreviewPanel {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const edit = (m && m.edit && typeof m.edit === 'object') ? m.edit : null;
       if (!raw || !edit) { fail('bad-request'); return; }
+      if (preview) this._journeySetState('working', 'a preparar ajuste local');
       if (!LEA) { fail('engine-unavailable'); return; }
       const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const root = this._wsRoot();
@@ -1999,6 +2149,19 @@ class LivePreviewPanel {
     const undo = this._undoDepth();
     const msg = { type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo };
     if (tier && tier !== 'local') msg.tier = String(tier);
+    const r = String(reason || '');
+    if (ok && ['applied', 'deleted', 'model-applied', 'model-applied-dynamic'].includes(r)) {
+      this._journeyAppend('activity', r === 'deleted' ? 'Elemento removido no working tree local.' : 'Alteração aplicada no working tree e refletida pelo preview.', { status: 'approved' });
+      this._journeySetState('approved', 'aprovado localmente');
+      if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
+    } else if (ok && r === 'undone') {
+      this._journeyAppend('activity', 'Alteração revertida com verificação de hash.', { status: 'reverted' });
+      this._journeySetState('reverted', 'revertido');
+      if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
+    } else if (!ok) {
+      this._journeyAppend('activity', 'Operação recusada: ' + (r || 'erro') + '.', { status: 'error' });
+      this._journeySetState('error', r || 'operação bloqueada');
+    }
     try { this.panel.webview.postMessage(msg); } catch { /* best-effort */ }
   }
   // ── LP-4.5 §4 — the UNIFIED session feed. ONE list holds every Live Edit write: splice-kind
@@ -2155,6 +2318,14 @@ class LivePreviewPanel {
     } catch { this._postEditResult(false, 'error'); }
   }
   _postEditDiff(payload) {
+    if (payload && payload.ok) {
+      const edit = payload.edit && typeof payload.edit === 'object' ? payload.edit : {};
+      this._journeyAppend('activity', 'Proposta determinística pronta' + (edit.kind ? (' para ' + edit.kind) : '') + '; nada foi escrito ainda.', { status: 'awaiting' });
+      this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
+    } else {
+      this._journeyAppend('activity', 'Não foi possível preparar a proposta: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
+      this._journeySetState('error', String((payload && payload.reason) || 'proposta bloqueada'));
+    }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-edit-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // MP5.2a deterministic $0 delete — same containment guard as _applyEdit, but TWO-PHASE and
@@ -2174,6 +2345,7 @@ class LivePreviewPanel {
     try {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       if (!raw) { fail('bad-request'); return; }
+      if (preview) this._journeySetState('working', 'a preparar remoção segura');
       if (!LEA || typeof LEA.deleteNode !== 'function') { fail('engine-unavailable'); return; }
       const contained = (root, abs) => LivePreviewPanel._within(root, abs, LivePreviewPanel._caseInsensitiveFS(root), path); // FIX cross-device: case-robust via EMPIRICAL case-sensitivity probe (fail-safe → sensitive) — same '..'/absolute fail-closed guard
       const root = this._wsRoot();
@@ -2215,6 +2387,13 @@ class LivePreviewPanel {
     } catch { fail('error'); }
   }
   _postDeleteDiff(payload) {
+    if (payload && payload.ok) {
+      this._journeyAppend('activity', 'Remoção preparada; nada foi apagado até confirmares.', { status: 'awaiting' });
+      this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
+    } else {
+      this._journeyAppend('activity', 'Remoção recusada: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
+      this._journeySetState('error', String((payload && payload.reason) || 'remoção bloqueada'));
+    }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-delete-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // Shared workspace-containment resolver (same guard as _openSourceFile/_applyEdit/_deleteNode):
@@ -2238,8 +2417,88 @@ class LivePreviewPanel {
   // timeout, or any spawn error all degrade to an honest ok:false, never a throw); the only
   // network traffic is npm's OWN registry advisory check inside that command — we send it no
   // code. Wrapped end-to-end in try/catch: any unexpected failure posts {error:'scan-failed'}.
+  _securityThreadPush(role, text, meta) {
+    try {
+      if (!Array.isArray(this._securityThread)) this._securityThread = [];
+      const r = role === 'user' || role === 'assistant' ? role : 'activity';
+      const safe = this._journeySafeText(text, r === 'assistant' ? 6000 : 1000);
+      const last = this._securityThread.length ? this._securityThread[this._securityThread.length - 1] : null;
+      if (r === 'activity' && last && last.role === 'activity' && last.text === safe && (Date.now() - (last.ts || 0)) < 2500) last.ts = Date.now();
+      else this._securityThread.push({ role: r, text: safe, ts: Date.now(), status: meta && meta.status ? String(meta.status).slice(0, 40) : null, model: meta && meta.model ? String(meta.model).slice(0, 80) : null });
+      if (this._securityThread.length > 60) this._securityThread.splice(0, this._securityThread.length - 60);
+    } catch { /* display-only */ }
+  }
+  _securitySummary() {
+    const r = this._securityRun && typeof this._securityRun === 'object' ? this._securityRun : { state: 'idle' };
+    return {
+      state: r.state || 'idle', phase: r.phase || null, label: r.label || null,
+      counts: r.counts || { critical: 0, warning: 0, info: 0, total: 0 },
+      scannedAt: r.scannedAt || null, reportId: r.reportId || null, scannedFiles: Number(r.scannedFiles) || 0,
+      thread: (Array.isArray(this._securityThread) ? this._securityThread : []).slice(-60),
+    };
+  }
+  _securityPostStatus(state, phase, label) {
+    if (!this._securityRun || typeof this._securityRun !== 'object') this._securityRun = { counts: { critical: 0, warning: 0, info: 0, total: 0 } };
+    this._securityRun.state = state || this._securityRun.state || 'idle';
+    this._securityRun.phase = phase || null;
+    this._securityRun.label = label || null;
+    if (label) this._securityThreadPush('activity', label, { status: state });
+    try { this.panel.webview.postMessage({ type: 'lp-security-status', __t: this.token, security: this._securitySummary() }); } catch { /* best-effort */ }
+  }
+  _markSecurityStale(reason) {
+    try {
+      if (!this._securityRun || (this._securityRun.state !== 'complete' && this._securityRun.state !== 'stale')) return;
+      this._securityRun.state = 'stale'; this._securityRun.phase = null; this._securityRun.label = 'código mudou — review desatualizado';
+      this._securityThreadPush('activity', 'O código mudou depois do scan. O relatório continua acessível, mas o Publish exige um novo Review Security.', { status: 'stale' });
+      try { this.panel.webview.postMessage({ type: 'lp-security-status', __t: this.token, reason: reason || 'code-changed', security: this._securitySummary() }); } catch { /* best-effort */ }
+    } catch { /* display-only */ }
+  }
+  _securityCounts(result) {
+    const out = { critical: 0, warning: 0, info: 0, total: 0 };
+    // Keep this host-side and self-contained. Several test/runtime loaders intentionally proxy
+    // optional renderer modules; trusting a renderer callback here could turn an unknown proxy
+    // value into an object key and corrupt the publish-gating counts.
+    const add = (sev, n) => {
+      const count = Number(n);
+      if (!isFinite(count) || count <= 0) return;
+      const s = String(sev == null ? '' : sev).toLowerCase();
+      const k = s === 'critical' || s === 'high' ? 'critical' : (s === 'warning' || s === 'moderate' ? 'warning' : 'info');
+      out[k] += count;
+    };
+    for (const x of (Array.isArray(result && result.secrets) ? result.secrets : [])) add(x && x.severity, 1);
+    for (const x of (Array.isArray(result && result.xss) ? result.xss : [])) add((x && x.severity) || 'warning', 1);
+    const cf = result && result.csp && Array.isArray(result.csp.findings) ? result.csp.findings : [];
+    for (const x of cf) add((x && x.severity) || 'info', 1);
+    const ac = result && result.audit && result.audit.ok && result.audit.counts ? result.audit.counts : null;
+    if (ac) { add('critical', Number(ac.critical) || 0); add('high', Number(ac.high) || 0); add('moderate', Number(ac.moderate) || 0); add('low', (Number(ac.low) || 0) + (Number(ac.info) || 0)); }
+    out.total = out.critical + out.warning + out.info;
+    return out;
+  }
+  _indexSecurityFindings(result, root, nextConfigAbs) {
+    this._securityFindings = new Map();
+    let seq = 0;
+    const reg = (kind, obj, pathValue, lineValue, fixable) => {
+      const id = 'sf_' + (++seq);
+      const pathText = typeof pathValue === 'string' ? pathValue.slice(0, 1024) : null;
+      const rec = { id, kind, path: pathText, line: Number.isInteger(lineValue) ? lineValue : 1, severity: obj && obj.severity ? String(obj.severity) : null, type: obj && obj.type ? String(obj.type).slice(0, 120) : kind, fixable: !!(fixable && pathText) };
+      this._securityFindings.set(id, rec);
+      return Object.assign({}, obj, { findingId: id, fixable: rec.fixable, path: pathText || (obj && obj.path) || null });
+    };
+    const secrets = (Array.isArray(result.secrets) ? result.secrets : []).map((x) => reg('secret', x, x && x.path, x && x.line, false));
+    const xss = (Array.isArray(result.xss) ? result.xss : []).map((x) => reg('xss', x, x && x.path, x && x.line, true));
+    let cfgRel = null;
+    try { if (nextConfigAbs) cfgRel = path.relative(root, nextConfigAbs).split(path.sep).join('/'); } catch { cfgRel = null; }
+    const cspObj = result.csp && typeof result.csp === 'object' ? result.csp : { hasCsp: false, findings: [] };
+    const csp = Object.assign({}, cspObj, { findings: (Array.isArray(cspObj.findings) ? cspObj.findings : []).map((x) => reg('csp', x, cfgRel, 1, !!cfgRel)) });
+    const auditObj = result.audit && typeof result.audit === 'object' ? result.audit : { ok: false };
+    const audit = Object.assign({}, auditObj, { top: (Array.isArray(auditObj.top) ? auditObj.top : []).map((x) => reg('audit', x, null, 1, false)) });
+    return { secrets, xss, csp, audit };
+  }
   _securityScan() {
     const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    this._securityThread = [];
+    this._securityRun = { state: 'scanning', phase: 'scope', label: 'A preparar o escopo do review…', counts: { critical: 0, warning: 0, info: 0, total: 0 }, scannedAt: null, reportId: null, scannedFiles: 0 };
+    this._securityPostStatus('scanning', 'scope', 'A preparar o escopo do review…');
     try {
       const root = this._wsRoot();
       // D6 — read the exact set of shipped-code files this review audits, then bind the scan to their
@@ -2250,9 +2509,11 @@ class LivePreviewPanel {
       const files = walked.files;
       const nextConfigAbs = walked.nextConfigAbs;
       const fingerprint = this._fingerprintOf(files);
+      this._securityRun.scannedFiles = files.length;
+      this._securityPostStatus('scanning', 'static', 'A procurar segredos, XSS e configuração CSP em ' + files.length + ' ficheiro' + (files.length === 1 ? '' : 's') + '…');
 
-      const secrets = LPSS ? LPSS.scanSecrets(files) : [];
-      const xss = LPXS ? LPXS.scanXss(files) : [];
+      let secrets = LPSS ? LPSS.scanSecrets(files) : [];
+      let xss = LPXS ? LPXS.scanXss(files) : [];
       let csp = { hasCsp: false, findings: [] };
       if (LPCC) {
         let cfgText = '';
@@ -2262,6 +2523,7 @@ class LivePreviewPanel {
 
       // npm audit — FAIL-SOFT. npm exits non-zero when it FINDS vulnerabilities (not a failure
       // here); missing npm / a timeout / any spawn error all degrade to {ok:false} honestly.
+      this._securityPostStatus('scanning', 'dependencies', 'A consultar advisories do npm para as dependências…');
       let audit = { ok: false };
       try {
         const isWin = process.platform === 'win32';
@@ -2274,15 +2536,58 @@ class LivePreviewPanel {
         audit = (LPAS && out) ? LPAS.summarizeNpmAudit(out) : { ok: false };
       } catch { audit = { ok: false }; }
 
+      const indexed = this._indexSecurityFindings({ secrets, xss, csp, audit }, root, nextConfigAbs);
+      secrets = indexed.secrets; xss = indexed.xss; csp = indexed.csp; audit = indexed.audit;
+      const counts = this._securityCounts({ secrets, xss, csp, audit });
+      const scannedAt = Date.now();
+      const reportId = fingerprint ? ('sec-' + fingerprint.slice(0, 10)) : ('sec-' + scannedAt);
+
       // LP-6 §B — stash the verdict for _publishStatus's hasOpenCritical check. Overwritten by
       // EVERY scan (including a failed one, below) so a stale "no critical" can never survive a
       // scan the user just ran and saw fail.
       this._lastSecurity = { secrets, xss, csp, audit, scannedFiles: files.length, fingerprint };
+      this._securityRun = { state: 'complete', phase: 'done', label: counts.total ? (counts.total + ' issue' + (counts.total === 1 ? '' : 's') + ' encontrado' + (counts.total === 1 ? '' : 's')) : 'nenhum issue encontrado pelos scanners', counts, scannedAt, reportId, scannedFiles: files.length };
+      this._securityThreadPush('assistant', counts.total ? ('Review concluído: ' + counts.critical + ' crítico(s), ' + counts.warning + ' aviso(s) e ' + counts.info + ' informativo(s). Revê os findings abaixo antes de publicar.') : 'Review concluído sem findings nos scanners executados. O relatório não substitui auditoria humana.', { status: 'complete' });
       // D5 — trace the review in the diary: COUNTS only, never a secret value or a file path with the leak.
       const nSec = Array.isArray(secrets) ? secrets.length : 0, nXss = Array.isArray(xss) ? xss.length : 0;
       this._emitLpEvent('security', { kind: 'server', summary: 'review · ' + nSec + ' secrets · ' + nXss + ' xss · ' + files.length + ' ficheiros' });
-      post({ secrets, xss, csp, audit, scannedFiles: files.length });
-    } catch { this._lastSecurity = { error: 'scan-failed' }; post({ error: 'scan-failed' }); }
+      this._securityPostStatus('complete', 'done', this._securityRun.label);
+      // The complete result is deliberately the last message: consumers that render atomically
+      // never flash back from the findings to a progress-only card.
+      post({ secrets, xss, csp, audit, scannedFiles: files.length, counts, scannedAt, reportId, thread: this._securityThread.slice(-60), coverage: { secrets: !!LPSS, xss: !!LPXS, csp: !!LPCC, npmAudit: !!(audit && audit.ok) } });
+    } catch {
+      this._lastSecurity = { error: 'scan-failed' };
+      this._securityRun = { state: 'error', phase: 'failed', label: 'o review falhou', counts: { critical: 0, warning: 0, info: 0, total: 0 }, scannedAt: Date.now(), reportId: null, scannedFiles: 0 };
+      this._securityThreadPush('assistant', 'O review falhou antes de produzir um relatório válido. O Publish continua bloqueado.', { status: 'error' });
+      this._securityPostStatus('error', 'failed', 'O review falhou — tenta novamente.');
+      post({ error: 'scan-failed', thread: this._securityThread.slice(-60) });
+    }
+  }
+  _securityOpen(m) {
+    try {
+      const id = m && typeof m.findingId === 'string' ? m.findingId : '';
+      const rec = this._securityFindings instanceof Map ? this._securityFindings.get(id) : null;
+      if (!rec || !rec.path) return;
+      this._openSourceFile({ file: rec.path, line: rec.line || 1, col: 1 });
+    } catch { /* best-effort */ }
+  }
+  _securityFix(m) {
+    const id = m && typeof m.findingId === 'string' ? m.findingId : '';
+    const rec = this._securityFindings instanceof Map ? this._securityFindings.get(id) : null;
+    if (!rec || !rec.fixable || !rec.path) {
+      this._securityThreadPush('assistant', 'Este finding não possui uma correção automática segura. Abre o ficheiro e trata-o manualmente; segredos e dependências nunca são alterados às cegas.', { status: 'blocked' });
+      this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation-blocked', 'Correção automática indisponível para este finding.');
+      this._postTaskResult({ ok: false, reason: 'security-fix-unavailable', context: 'security', findingId: id });
+      return;
+    }
+    if (!this._lastSecurity || this._securityRun.state !== 'complete' || this._scanFingerprint() !== this._lastSecurity.fingerprint) {
+      this._markSecurityStale('code-changed');
+      this._postTaskResult({ ok: false, reason: 'security-scan-stale', context: 'security', findingId: id });
+      return;
+    }
+    this._securityThreadPush('user', 'Corrigir ' + rec.kind + ' · ' + rec.type + ' em ' + rec.path + ':' + rec.line + '.', { status: 'sent' });
+    this._securityPostStatus('complete', 'remediation', 'A preparar correção segura para ' + rec.path + '…');
+    this._taskRun({ securityFindingId: id, mode: 'auto', intent: 'edit' });
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -2461,6 +2766,7 @@ class LivePreviewPanel {
       const root = this._wsRoot();
       const prev = await extra.gitCommitPreview(root);
       const touchedFiles = (prev && Array.isArray(prev.files)) ? prev.files : [];
+      const git = extra && typeof extra.gitRemoteInfo === 'function' ? await extra.gitRemoteInfo(root) : { available: false, name: null, url: null, webUrl: null };
       const vercel = this._vercelProject(root);
       const secGate = this._securityGate(); // once — it walks the scanned-file set
       post({
@@ -2472,6 +2778,8 @@ class LivePreviewPanel {
         hasOpenCritical: !secGate.cleared, // D6: "blocked by security" — required/failed/stale/critical
         securityReason: secGate.reason,    // the honest WHY, so the popover doesn't just say "critical"
         websiteUrl: this._lastDeployUrl || null,
+        local: { folder: path.basename(root), path: root, dirtyCount: touchedFiles.length, repo: !!prev },
+        git,
         destination: this._productionUrl(), // COH-10 — the prod target, shown BEFORE the two-factor
       });
     } catch { post({ error: 'status-failed' }); }
@@ -2496,6 +2804,12 @@ class LivePreviewPanel {
       // Critical-free security scan (no scan / errored / stale / open Critical all block). No override —
       // a forged lp-publish-commit can no longer wave a scanned secret to the remote.
       { const gate = this._securityGate(); if (!gate.cleared) { post({ ok: false, reason: gate.reason, cmd: '' }); return; } }
+      // A control labelled "commit + push" must not knowingly create a local-only commit when no
+      // remote exists. Re-read the remote here; the webview's earlier status is advisory only.
+      if (extra && typeof extra.gitRemoteInfo === 'function') {
+        const remote = await extra.gitRemoteInfo(root);
+        if (!remote || !remote.available) { post({ ok: false, reason: 'git-remote-required', cmd: '' }); return; }
+      }
       const prev = await extra.gitCommitPreview(root);
       const allowed = new Set((prev && Array.isArray(prev.files) ? prev.files : []).map((f) => f.path));
       const files = reqFiles.filter((f) => allowed.has(f)); // NEVER commit a file the user didn't see
@@ -2591,6 +2905,9 @@ class LivePreviewPanel {
       // review P1-A: refuse cloud tiers in an untrusted workspace BEFORE anything spawns the
       // workspace SDK — the chip already disables them, this is the host-side backstop.
       if (tier !== 'local' && !this._workspaceTrusted()) { fail('workspace-untrusted'); return; }
+      if (m && m.escalated) this._journeyAppend('activity', 'A continuar a mesma proposta com Sonnet.', { status: 'working' });
+      else this._journeyAppend('user', prompt, { status: 'sent' });
+      this._journeySetState('working', tier === 'local' ? 'moo local está a alterar' : 'agente está a alterar');
       const s0 = fs.readFileSync(real, 'utf8');
       const target = { line: m.line, col: m.col, tag: m.tag };
       const r0 = LEA.locateRange(s0, target);
@@ -2762,6 +3079,16 @@ class LivePreviewPanel {
   _postPromptDiff(payload) {
     // C0 · COH-01 — stamp the current lease epoch on the diff so the webview echoes it back on apply
     // (the epoch guard in _promptApply refuses a reply generated one lease ago).
+    if (payload && payload.ok) {
+      this._journeyAppend('assistant', payload.stale ? 'O ficheiro mudou. Atualizei a proposta e preciso de uma nova confirmação.' : 'Proposta pronta. Revê o diff e confirma para escrever no working tree.', { model: payload.model || null, status: 'awaiting' });
+      this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
+    } else if (payload && payload.reason === 'local-quality-exhausted') {
+      this._journeyAppend('assistant', 'O modelo local não conseguiu produzir uma alteração que passasse pela cerca. Podes subir para Sonnet sem perder esta conversa.', { status: 'blocked' });
+      this._journeySetState('error', 'moo local precisa de decisão');
+    } else {
+      this._journeyAppend('activity', 'Não foi possível preparar a proposta: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
+      this._journeySetState('error', String((payload && payload.reason) || 'proposta bloqueada'));
+    }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token, epoch: (this._readyEpoch | 0) }, payload)); } catch { /* best-effort */ }
   }
   // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
@@ -2793,13 +3120,23 @@ class LivePreviewPanel {
   }
   async _taskRun(m) {
     let _taskMode = 'auto'; // function-scoped so `fail` (below) can name the tier once the mode is resolved
+    let taskContext = null;
+    let findingId = null;
     const fail = (reason, detail) => {
       // COH-15 — a coherent lifecycle: a refusal/abort is `failed` (or `cancelled` when the user aborted).
       const r = String(reason || 'error');
       this._emitLpEvent('task', { kind: 'server', phase: (r === 'cancelled' || r === 'aborted') ? 'cancelled' : 'failed', summary: 'task · ' + r, tier: (_taskMode && _taskMode !== 'auto') ? _taskMode : null, local: false });
-      this._postTaskResult({ ok: false, reason: r, detail: detail ? String(detail).slice(0, 200) : undefined });
+      this._postTaskResult({ ok: false, reason: r, detail: detail ? String(detail).slice(0, 200) : undefined, context: taskContext, findingId });
     };
     try {
+      const requestedFinding = m && typeof m.securityFindingId === 'string' ? m.securityFindingId : '';
+      if (requestedFinding) {
+        const rec = this._securityFindings instanceof Map ? this._securityFindings.get(requestedFinding) : null;
+        taskContext = 'security'; findingId = requestedFinding;
+        if (!rec || !rec.fixable || !rec.path) { fail('security-fix-unavailable'); return; }
+        const safeInstruction = 'Resolve only this static security finding with the minimum safe code change. Do not weaken validation, CSP, escaping or trust boundaries. Do not expose secret values. Finding: ' + rec.kind + ' / ' + rec.type + ' / ' + (rec.severity || 'n/d') + '. File: ' + rec.path + ':' + rec.line + '. After editing, explain what changed and any residual risk.';
+        m = Object.assign({}, m, { instruction: safeInstruction, file: rec.path, line: rec.line || 1, col: 1, tag: '', refs: [], intent: 'edit' });
+      }
       const instruction = (m && typeof m.instruction === 'string') ? m.instruction.trim() : '';
       const rawMode = (m && typeof m.mode === 'string' && m.mode) ? m.mode : 'auto';
       // COH-09 — AUTO is router-native: consult the Mooter classifier for a tier instead of a fixed
@@ -2815,11 +3152,17 @@ class LivePreviewPanel {
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
       // F3 (W1) — no pinned selection in the store → refuse before the agent runs anchorless
       // (defense-in-depth; the honest webview already hides the one-box until an element is pinned).
-      if (this._selectionMissing()) { fail('no-selection'); return; }
+      if (taskContext !== 'security' && this._selectionMissing()) { fail('no-selection'); return; }
       // N2 — enforce the "one active task at a time" invariant the cancel machinery ASSUMES: a second
       // lp-task while one is running would overwrite _activeTaskAbort (orphaning the first — cancel would
       // only reach the second) and run two agents at once. Refuse honestly; the running one is untouched.
       if (this._activeTaskAbort) { fail('task-busy'); return; }
+      if (taskContext === 'security') this._securityThreadPush('activity', 'O agente está a analisar o finding e o contexto mínimo necessário.', { status: 'working' });
+      else {
+        if (m && m.continuation) this._journeyAppend('activity', 'A aplicar a sugestão anterior com o agente.', { status: 'working' });
+        else this._journeyAppend('user', instruction, { status: 'sent' });
+        this._journeySetState('working', 'Moo está a alterar');
+      }
       // Anchor context (best-effort, never blocks the task): the node's exact source if we can
       // still locate it, plus the workspace-relative file:line label — same P3-a discipline as
       // _promptEdit (the absolute host path never travels to the model).
@@ -2870,10 +3213,10 @@ class LivePreviewPanel {
       // (an explicit chip needs no announcement). The MEO gets a route_decided event; the canvas a status.
       if (routeInfo && routeInfo.routed) {
         const rlabel = mode === 't1' ? '⚡ Haiku' : mode === 't2' ? '🎼 Sonnet' : mode === 't3' ? '🧠 Opus' : mode;
-        this._postTaskStatus({ phase: 'route', mode, from: 'auto', tier: mode, label: rlabel, classifierTier: routeInfo.tier || null });
+        this._postTaskStatus({ phase: 'route', mode, from: 'auto', tier: mode, label: rlabel, classifierTier: routeInfo.tier || null, context: taskContext, findingId });
         this._emitLpEvent('route_decided', { kind: 'server', phase: 'succeeded', summary: '🧭 AUTO → ' + rlabel + (routeInfo.tier ? (' (' + routeInfo.tier + ')') : ''), tier: mode, local: false });
       }
-      this._postTaskStatus({ phase: 'thinking', mode, intent });
+      this._postTaskStatus({ phase: 'thinking', mode, intent, context: taskContext, findingId });
       this._emitLpEvent('task', { kind: 'server', phase: 'started', summary: (intent === 'ask' ? 'perguntar' : 'editar') + ' · ' + mode, tier: (mode && mode !== 'auto') ? mode : null, local: false, nodeKey: { file: relFile || raw, line: m.line, col: m.col, tag: m.tag } }); // COH-15 — prompt sent (lifecycle started)
       // LP-4.9 §8 — the cancel button (lp-task-cancel) aborts THIS run. One active task at a time.
       const ac = (typeof AbortController === 'function') ? new AbortController() : null;
@@ -2893,7 +3236,7 @@ class LivePreviewPanel {
           wsRoot: this._wsRoot(),
           trusted: this._workspaceTrusted() === true,
           signal: ac ? ac.signal : undefined,
-          onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode }),
+          onProgress: (ev) => this._postTaskStatus({ phase: ev.ev, tool: ev.tool || null, path: ev.path || null, why: ev.why || null, mode, context: taskContext, findingId }),
         });
       } finally { if (this._activeTaskAbort === ac) this._activeTaskAbort = null; }
       if (!res || !res.ok) { fail((res && res.reason) || 'error', res && res.detail); return; }
@@ -2903,7 +3246,13 @@ class LivePreviewPanel {
       const taskId = 'task-' + (++this._taskSeq);
       const edits = Array.isArray(res.edits) ? res.edits : [];
       this._taskReg.set(taskId, edits);
-      if (this._taskReg.size > 20) { const k = this._taskReg.keys().next().value; this._taskReg.delete(k); }
+      if (!this._taskContext) this._taskContext = new Map();
+      this._taskContext.set(taskId, { context: taskContext, findingId });
+      if (this._taskReg.size > 20) {
+        const k = this._taskReg.keys().next().value;
+        this._taskReg.delete(k);
+        if (this._taskContext instanceof Map) this._taskContext.delete(k);
+      }
       // §4 — an agent task that edited files is ONE feed item (per-file revert lives in the
       // result panel; the feed item reverts the whole task, sha-guarded per file).
       if (edits.length) {
@@ -2946,7 +3295,7 @@ class LivePreviewPanel {
         filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
         edits: view,
         denied: Array.isArray(res.denied) ? res.denied.slice(0, 40) : [],
-        model: res.model || null, mode, askId,
+        model: res.model || null, mode, askId, context: taskContext, findingId,
       });
     } catch { fail('error'); }
   }
@@ -2971,14 +3320,59 @@ class LivePreviewPanel {
         + 'Sugestão a aplicar (resposta anterior do agente):\n' + rec.answer;
       this._taskRun({
         instruction: composed, file: rec.file, line: rec.line, col: rec.col, tag: rec.tag,
-        refs: rec.refs, mode: rec.mode, intent: 'edit', breadcrumb: rec.breadcrumb,
+        refs: rec.refs, mode: rec.mode, intent: 'edit', breadcrumb: rec.breadcrumb, continuation: true,
       });
     } catch { fail('error'); }
   }
   _postTaskStatus(payload) {
+    if (payload && payload.context === 'security') {
+      let secText = '';
+      if (payload.phase === 'route') secText = 'Remediação roteada para ' + (payload.label || payload.mode || 'agente') + '.';
+      else if (payload.phase === 'thinking') secText = 'O agente está a analisar o finding e o contexto do projeto.';
+      else if (payload.phase === 'tool') secText = (payload.tool === 'Edit' || payload.tool === 'MultiEdit' ? 'A corrigir ' : 'A verificar ') + (payload.path || 'o projeto') + '.';
+      else if (payload.phase === 'deny') secText = 'Ferramenta recusada pela cerca: ' + (payload.tool || '?') + '.';
+      if (secText) this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation', secText);
+    } else if (payload) {
+      let text = '';
+      if (payload.phase === 'route') text = 'Roteado para ' + (payload.label || payload.mode || 'agente') + '.';
+      else if (payload.phase === 'thinking') text = 'O agente está a analisar o pedido e o contexto do projeto.';
+      else if (payload.phase === 'tool') text = (payload.tool === 'Edit' || payload.tool === 'MultiEdit' ? 'A editar ' : 'A ler ') + (payload.path || 'o projeto') + '.';
+      else if (payload.phase === 'deny') text = 'Ferramenta recusada pela cerca: ' + (payload.tool || '?') + '.';
+      if (text) this._journeyAppend('activity', text, { status: payload.phase === 'deny' ? 'blocked' : 'working' });
+      if (payload.phase !== 'deny') this._journeySetState('working', payload.phase === 'tool' ? text.replace(/\.$/, '') : 'Moo está a alterar');
+    }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   _postTaskResult(payload) {
+    if (payload && payload.context === 'security') {
+      if (!payload.ok) {
+        this._securityThreadPush('assistant', 'Não consegui preparar a correção: ' + String(payload.reason || 'erro') + '. Nenhuma aprovação foi presumida.', { status: 'error' });
+        this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation-failed', 'A correção foi bloqueada: ' + String(payload.reason || 'erro') + '.');
+      } else {
+        const secEdits = Array.isArray(payload.edits) ? payload.edits : [];
+        const secText = payload.text || (secEdits.length ? ('Correção preparada em ' + secEdits.length + ' ficheiro' + (secEdits.length === 1 ? '' : 's') + '. Revê o diff e confirma OK ou reverte.') : 'O agente concluiu sem alterar ficheiros.');
+        this._securityThreadPush('assistant', secText, { model: payload.model || null, status: secEdits.length ? 'awaiting' : 'answered' });
+        if (secEdits.length) this._markSecurityStale('remediation');
+        else this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation-done', 'Remediação concluída sem alterações.');
+      }
+    } else if (payload) {
+      if (!payload.ok) {
+        this._journeyAppend('assistant', 'Não consegui concluir esta etapa: ' + String(payload.reason || 'erro') + '.', { status: 'error' });
+        this._journeySetState('error', String(payload.reason || 'operação bloqueada'));
+      } else {
+        const edits = Array.isArray(payload.edits) ? payload.edits : [];
+        if (payload.kind === 'answer' || !edits.length) {
+          if (payload.text) this._journeyAppend('assistant', payload.text, { model: payload.model || null, status: 'answered' });
+          this._journeySetState('selected', 'respondido — podes continuar');
+        } else {
+          const files = edits.map((e) => e && e.file).filter(Boolean);
+          const summary = payload.text || ('Alterei ' + edits.length + ' ficheiro' + (edits.length === 1 ? '' : 's') + (files.length ? (': ' + files.join(', ')) : '') + '. O preview já mostra o working tree; confirma OK ou reverte.');
+          this._journeyAppend('assistant', summary, { model: payload.model || null, status: 'awaiting' });
+          this._journeySetState('awaiting', 'aguarda OK');
+          if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
+        }
+      }
+    }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-result', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   // LP-4.5 — revert agent edits: per file (m.file) or all (m.all). The webview only names WHICH
@@ -2990,6 +3384,7 @@ class LivePreviewPanel {
     try {
       const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
       const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
+      const taskCtx = this._taskContext instanceof Map ? this._taskContext.get(taskId) : null;
       if (!LET || !reg || !reg.length) { post({ taskId, results: [], done: false }); return; }
       const targets = m && m.all ? reg.slice() : reg.filter((e) => e && e.file === m.file);
       const results = [];
@@ -3014,6 +3409,15 @@ class LivePreviewPanel {
         }
         this._feedBump();
       }
+      if (taskCtx && taskCtx.context === 'security' && results.some((r) => r.ok)) {
+        this._securityThreadPush('activity', !reg.length ? 'A proposta de correção foi revertida.' : 'Parte da proposta de correção foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting' });
+        this._markSecurityStale('remediation-reverted');
+      } else if (results.some((r) => r.ok)) {
+        this._journeyAppend('activity', !reg.length ? 'Todas as alterações desta proposta foram revertidas.' : 'Parte da proposta foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting' });
+        this._journeySetState(!reg.length ? 'reverted' : 'awaiting', !reg.length ? 'revertido' : 'aguarda OK');
+        if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
+      }
+      if (!reg.length && this._taskContext instanceof Map) this._taskContext.delete(taskId);
       post({ taskId, results, done: !reg.length });
     } catch { post({ taskId: (m && m.taskId) || '', results: [], done: false }); }
   }
@@ -3024,17 +3428,31 @@ class LivePreviewPanel {
     try {
       const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
       const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
+      const taskCtx = this._taskContext instanceof Map ? this._taskContext.get(taskId) : null;
       if (!reg || !reg.length) { post({ taskId, ok: false }); return; }
       for (const e of reg) { try { fs.unlinkSync(e.snapshot); } catch { /* best-effort tmp cleanup */ } }
       this._taskReg.delete(taskId);
       // §4 — the feed item settles as kept (facts, not claims).
       const item = this._feedFindAgent(taskId);
       if (item) { item.status = 'kept'; item.reason = null; this._feedBump(); }
+      if (taskCtx && taskCtx.context === 'security') {
+        this._securityThreadPush('activity', 'OK confirmado: a correção permanece no working tree. É obrigatório correr novamente o Review Security.', { status: 'approved' });
+        this._markSecurityStale('remediation-kept');
+      } else {
+        this._journeyAppend('activity', 'OK confirmado: as alterações permanecem no working tree local.', { status: 'approved' });
+        this._journeySetState('approved', 'aprovado localmente');
+      }
+      if (this._taskContext instanceof Map) this._taskContext.delete(taskId);
       this._emitLpEvent('keep', { kind: 'server', phase: 'succeeded', summary: 'manter · ' + taskId, taskId, tier: (item && item.tier) || null, model: (item && item.model) || null, local: (item && typeof item.local === 'boolean') ? item.local : undefined }); // COH-15 — keep lifecycle
       post({ taskId, ok: true });
     } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
   }
   _postPromptStatus(payload) {
+    if (payload && payload.phase === 'thinking') {
+      const sample = payload.round && payload.sample ? (' · ronda ' + payload.round + ', amostra ' + payload.sample) : '';
+      this._journeySetState('working', 'Moo está a alterar' + sample);
+      this._journeyAppend('activity', 'A preparar uma proposta cercada para este elemento' + sample + '.', { status: 'working' });
+    }
     try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
   }
   _postRepin(payload) {
@@ -3274,13 +3692,18 @@ function getLivePreviewHtml(token, wsRoot) {
   const suggestLocalChipSrc = LTV ? LTV.suggestLocalChip.toString() : 'function suggestLocalChip(){return false;}';
   const renderMarkdownSafeSrc = LTV ? LTV.renderMarkdownSafe.toString() : 'function renderMarkdownSafe(t){return esc(t);}';
   const renderEditsFeedSrc = LTV ? LTV.renderEditsFeed.toString() : 'function renderEditsFeed(){return "";}';
+  const renderJourneyThreadSrc = LTV ? LTV.renderJourneyThread.toString() : 'function renderJourneyThread(){return "";}';
   // LP-4.8 §2 — the deterministic preset engine, serialised in (self-contained: each fn carries its
   // own catalog/regexes so toString survives the module-scope loss).
   const mergeClassSrc = LPP ? LPP.mergeClass.toString() : 'function mergeClass(c,cls){return ((c||"")+" "+cls).trim();}';
   const renderPresetsBarHTMLSrc = LPP ? LPP.renderPresetsBarHTML.toString() : 'function renderPresetsBarHTML(){return "";}';
   // LP-5 §C — the Review Security renderer, serialised in (self-contained, same fn.toString()
   // contract as renderPresetsBarHTML above).
+  const securityBucketSrc = LPSECV ? LPSECV.bucketOf.toString() : 'function bucketOf(){return "info";}';
+  const buildSecurityItemsSrc = LPSECV && LPSECV.buildItems ? LPSECV.buildItems.toString() : 'function buildItems(){return [];}';
+  const renderSecurityActivitySrc = LPSECV && LPSECV.renderSecurityActivity ? LPSECV.renderSecurityActivity.toString() : 'function renderSecurityActivity(){return "";}';
   const renderSecurityFindingsSrc = LPSECV ? LPSECV.renderSecurityFindings.toString() : 'function renderSecurityFindings(){return "";}';
+  const publishPathOfSrc = LPPV && LPPV.pathOf ? LPPV.pathOf.toString() : 'function pathOf(){return "";}';
   const renderPublishPopoverSrc = LPPV ? LPPV.renderPublishPopover.toString() : 'function renderPublishPopover(){return "";}';
   // LP-4.8 §3 — the /skills registry (data, loaded from assets/skills or the workspace override)
   // embedded as JSON, plus the pure menu renderer serialised in. No regexes → JSON is enough.
@@ -3312,9 +3735,48 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-security .lp-sec-critical .lp-sec-glabel{color:var(--vscode-charts-red,#E8888A)}
   #lp-security .lp-sec-warning .lp-sec-glabel{color:var(--vscode-charts-yellow,#E5C07B)}
   #lp-security .lp-sec-info .lp-sec-glabel{opacity:.8}
-  #lp-security .lp-sec-item{margin:2px 0;word-break:break-word}
+  #lp-security .lp-sec-item{margin:4px 0;padding:5px 0;border-bottom:1px solid color-mix(in srgb,var(--vscode-widget-border) 70%,transparent);word-break:break-word}
   #lp-security .lp-sec-label{font-weight:600;margin-right:6px}
   #lp-security .lp-sec-detail{opacity:.85}
+  #lp-security-badge{display:none;min-width:17px;height:17px;box-sizing:border-box;margin-left:4px;padding:0 5px;border-radius:999px;align-items:center;justify-content:center;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);font-size:10px;font-weight:800}
+  #lp-security-btn.lp-sec-scanning #lp-security-badge{display:inline-flex;background:transparent;border:2px solid rgba(232,136,138,.35);border-top-color:#E8888A;padding:0;width:15px;min-width:15px;height:15px;animation:lpSpin .8s linear infinite}
+  #lp-security-btn.lp-sec-stale #lp-security-badge{display:inline-flex;background:var(--vscode-charts-yellow,#E5C07B);color:#171719}
+  #lp-security-btn.lp-sec-complete #lp-security-badge,#lp-security-btn.lp-sec-error #lp-security-badge{display:inline-flex}
+  #lp-security-btn.lp-sec-error #lp-security-badge{background:var(--vscode-errorForeground,#D9484B);color:#fff}
+  .lp-sec-counts{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+  .lp-sec-count{border:1px solid var(--vscode-widget-border);border-radius:999px;padding:2px 7px;font-weight:700}
+  .lp-sec-count.critical{color:var(--vscode-charts-red,#E8888A)}.lp-sec-count.warning{color:var(--vscode-charts-yellow,#E5C07B)}.lp-sec-count.info{opacity:.78}
+  .lp-sec-actions{display:flex;gap:5px;margin-top:5px}
+  .lp-sec-action{font:10.5px var(--vscode-font-family);padding:2px 7px;border:1px solid var(--vscode-widget-border);border-radius:5px;color:var(--vscode-foreground);background:var(--vscode-button-secondaryBackground);cursor:pointer}
+  .lp-sec-fix{border-color:#E8888A;color:#F3A3B5}
+  .lp-sec-report{margin:8px 0;padding:6px 8px;border:1px solid var(--vscode-widget-border);border-radius:6px;line-height:1.5}
+  .lp-sec-report summary{cursor:pointer;font-weight:700}
+  .lp-sec-thread{margin-top:8px;padding-top:7px;border-top:1px solid var(--vscode-widget-border)}
+  .lp-sec-thread-hd{font-weight:700;margin-bottom:5px}.lp-sec-thread-row{margin:3px 0;padding:4px 6px;border-left:2px solid var(--vscode-widget-border);border-radius:3px;font-size:10.5px}
+  .lp-sec-thread-user{border-left-color:#7AA2F7}.lp-sec-thread-assistant{border-left-color:#E8888A;background:rgba(232,136,138,.06)}
+  /* Selection Journey — the durable per-element conversation. */
+  #lp-thread{margin:9px 0}
+  .lpjt{border:1px solid color-mix(in srgb,var(--vscode-widget-border) 78%,#E8888A 22%);border-radius:9px;background:color-mix(in srgb,var(--vscode-editor-background) 92%,#E8888A 8%);overflow:hidden}
+  .lpjt-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;font-weight:700}
+  .lpjt-state{flex:none;border:1px solid var(--vscode-widget-border);border-radius:999px;padding:2px 7px;font-size:10px;font-weight:700}
+  .lpjt-working{color:#F3A3B5;border-color:#E8888A;background:rgba(232,136,138,.12)}
+  .lpjt-awaiting{color:var(--vscode-charts-yellow,#E5C07B);border-color:var(--vscode-charts-yellow,#E5C07B);background:rgba(229,192,123,.1)}
+  .lpjt-approved{color:var(--vscode-testing-iconPassed,#7FB88A);border-color:var(--vscode-testing-iconPassed,#7FB88A);background:rgba(127,184,138,.1)}
+  .lpjt-error,.lpjt-stale{color:var(--vscode-errorForeground,#E8888A);border-color:var(--vscode-errorForeground,#E8888A)}
+  .lpjt-list{max-height:300px;overflow:auto;padding:0 8px 8px}
+  .lpjt-turn{margin:5px 0;padding:7px 8px;border-radius:8px;word-break:break-word}
+  .lpjt-turn-user{margin-left:24px;background:var(--vscode-button-secondaryBackground,rgba(127,127,127,.16))}
+  .lpjt-turn-assistant{margin-right:12px;background:color-mix(in srgb,var(--vscode-editor-background) 86%,#E8888A 14%);border:1px solid rgba(232,136,138,.22)}
+  .lpjt-turn-activity{padding:4px 7px;border-left:2px solid var(--vscode-widget-border);border-radius:0;opacity:.82;font-size:10.5px}
+  .lpjt-meta{display:flex;gap:5px;align-items:center;margin-bottom:3px;font-size:9.5px;opacity:.72}
+  .lpjt-text{font-size:11px;line-height:1.5;white-space:pre-wrap}
+  .lpjt-nd{padding:0 9px 9px;opacity:.72;font-size:10.5px;line-height:1.45}
+  .lp-thread-compose{margin-top:7px;padding:8px;border:1px solid var(--vscode-widget-border);border-radius:8px;background:var(--vscode-editorWidget-background)}
+  .lp-thread-compose-hd{font-size:10.5px;font-weight:700;margin-bottom:6px}
+  .lp-thread-modes{display:flex;gap:5px;margin-bottom:6px}
+  .lp-thread-row{display:flex;gap:6px;align-items:stretch}
+  .lp-thread-input{flex:1;min-width:0;resize:vertical;box-sizing:border-box;font:11px var(--vscode-font-family);color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border);border-radius:5px;padding:6px 7px}
+  .lp-thread-send{flex:none;align-self:stretch}
   /* LP-6 §E — 🚀 Publish popover (commit/push preview + gated Vercel deploy). */
   #lp-publish{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55}
   #lp-publish .lp-pub-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
@@ -3331,6 +3793,18 @@ function getLivePreviewHtml(token, wsRoot) {
   #lp-publish .lp-pub-warn{color:var(--vscode-charts-yellow,#E5C07B);margin-bottom:6px}
   #lp-publish .lp-pub-ok{color:var(--vscode-charts-green,#4EC97A);word-break:break-all}
   #lp-publish .lp-pub-sec{margin-top:8px;padding-top:8px;border-top:1px solid var(--vscode-widget-border)}
+  #lp-publish .lp-pub-caret{opacity:.65}
+  #lp-publish .lp-pub-pipeline{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+  #lp-publish .lp-pub-step{border:1px solid var(--vscode-widget-border);border-radius:8px;overflow:hidden;background:color-mix(in srgb,var(--vscode-editor-background) 92%,var(--vscode-foreground) 8%)}
+  #lp-publish .lp-pub-step-hd{display:grid;grid-template-columns:24px 1fr auto;gap:7px;align-items:center;padding:7px 8px;background:rgba(127,127,127,.07)}
+  #lp-publish .lp-pub-step-hd small{display:block;opacity:.65;font-size:9.5px}
+  #lp-publish .lp-pub-step-n{width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font-size:10px;font-weight:700}
+  #lp-publish .lp-pub-step-state{font-size:9.5px;font-weight:600;opacity:.72;text-align:right}
+  #lp-publish .lp-pub-step-body{padding:8px}
+  #lp-publish .lp-pub-flow{text-align:center;height:10px;line-height:10px;color:var(--vscode-descriptionForeground)}
+  #lp-publish .lp-pub-path{margin-top:4px;opacity:.78}
+  #lp-publish .lp-pub-path code{display:block;margin-top:3px;white-space:normal;word-break:break-all}
+  #lp-publish .lp-pub-remote{margin-bottom:5px;word-break:break-all}
   #lp-publish .lp-pub-files-hdr{font-weight:600;margin-bottom:4px}
   #lp-publish .lp-pub-files{max-height:120px;overflow:auto;margin-bottom:6px}
   #lp-publish .lp-pub-file{opacity:.85;word-break:break-all;margin:1px 0}
@@ -3749,9 +4223,9 @@ function getLivePreviewHtml(token, wsRoot) {
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
-        <button id="lp-security-btn" class="lp-labeled" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0, nunca sai da máquina; não substitui auditoria humana)" aria-label="Review de segurança">🛡 Review</button>
+        <button id="lp-security-btn" class="lp-labeled" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0; npm audit consulta o registry; não substitui auditoria humana)" aria-label="Review de segurança">🛡 Review <span id="lp-security-badge" aria-hidden="true"></span></button>
         <!-- LP-6 §E — Publish: commit+push seletivo, depois deploy Vercel gated por 2º fator (host-side). -->
-        <button id="lp-publish-btn" class="lp-labeled" title="Publicar — commit + push seletivo, depois deploy Vercel (irreversível, exige confirmar o nome do projeto)" aria-label="Publicar">🚀 Publish</button>
+        <button id="lp-publish-btn" class="lp-labeled" title="Publicar — vê a pasta local, o remote Git e a URL de produção antes de confirmar" aria-label="Publicar e escolher destino">🚀 Publish ▾</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
       <!-- F2 (P1-7) — honest hot-reload-down banner: when the tap's HMR socket drops, the preview may be STALE. -->
@@ -3863,9 +4337,14 @@ const renderSessionBreakdown=${renderSessionBreakdownSrc};
 const suggestLocalChip=${suggestLocalChipSrc};
 const renderMarkdownSafe=${renderMarkdownSafeSrc};
 const renderEditsFeed=${renderEditsFeedSrc};
+const renderJourneyThread=${renderJourneyThreadSrc};
 const mergeClass=${mergeClassSrc};
 const renderPresetsBarHTML=${renderPresetsBarHTMLSrc};
+const bucketOf=${securityBucketSrc};
+const buildItems=${buildSecurityItemsSrc};
+const renderSecurityActivity=${renderSecurityActivitySrc};
 const renderSecurityFindings=${renderSecurityFindingsSrc};
+const pathOf=${publishPathOfSrc};
 const renderPublishPopover=${renderPublishPopoverSrc};
 const LP_SKILLS=${skillsJson};
 const renderSkillsMenuHTML=${renderSkillsMenuHTMLSrc};
@@ -4274,6 +4753,8 @@ let lpIntent='edit';
 // (edit/delete/prompt) reads file/line/col/tag from THE DIFF the user approved (m).
 let lpFeedRev=-1, lpFeedItems=[], lpBridge=null, lpNoWorkspace=false, lpHmrDown=false;
 let lpServedRoot=null; // COH-16 — the current lease's served root, so per-node history never mixes worktrees
+let lpJourney=null; // host-owned SelectionJourney display projection for the currently pinned exact node
+let lpSecurity=null; // host-owned scan summary for badge/progress/staleness
 // COH-11 — Back/Forward route through the Mooter tap (lp-history). Without a tap handshake (lp-ready)
 // from the current origin, they do nothing — so they are DISABLED with an honest reason until the tap
 // proves the capability. Reset on every origin change (a new app must re-prove it).
@@ -4321,6 +4802,48 @@ function sendPreviewClass(cn){
 function sendClearPreview(){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-preview-clear' }, curOrigin); }catch(e){} }
+}
+function journeyMatchesSelection(j, sel){
+  const n=j&&j.node;
+  if(!n||!sel||!sel.file||n.file!==sel.file) return false;
+  if(n.line!=null&&sel.line!=null&&n.line!==sel.line) return false;
+  if(n.col!=null&&sel.col!=null&&n.col!==sel.col) return false;
+  if(n.tag&&sel.tag&&n.tag!==sel.tag) return false;
+  return true;
+}
+// The webview cannot paint inside the cross-origin page. It forwards only the host-authoritative
+// state + the already-vetted current stamp to the tap, origin-targeted. The tap verifies the stamp
+// against its own pinned element before changing the border.
+function sendJourneyState(j){
+  const f=document.getElementById('lp-frame'), w=f&&f.contentWindow;
+  if(!w||!curOrigin||!j||!journeyMatchesSelection(j,lpSelection)) return;
+  try{ w.postMessage({ type:'lp-node-state', file:lpSelection.file, line:lpSelection.line, col:lpSelection.col, tag:lpSelection.tag, state:j.state||'selected', label:j.label||'' }, curOrigin); }catch(e){}
+}
+function renderJourneyPanel(j){
+  const el=document.getElementById('lp-thread'); if(!el) return;
+  if(j&&journeyMatchesSelection(j,lpSelection)){ el.innerHTML=renderJourneyThread(j); sendJourneyState(j); }
+  else el.innerHTML=renderJourneyThread(null);
+}
+function applyJourney(j){
+  lpJourney=(j&&journeyMatchesSelection(j,lpSelection))?j:null;
+  renderJourneyPanel(lpJourney);
+}
+function applySecuritySummary(sec){
+  lpSecurity=(sec&&typeof sec==='object')?sec:null;
+  const b=document.getElementById('lp-security-btn'), badge=document.getElementById('lp-security-badge');
+  if(!b||!badge) return;
+  b.classList.remove('lp-sec-scanning','lp-sec-complete','lp-sec-stale','lp-sec-error');
+  const state=(lpSecurity&&lpSecurity.state)||'idle';
+  if(state==='scanning'){ b.classList.add('lp-sec-scanning'); badge.textContent=''; b.setAttribute('aria-label','Review de segurança em andamento'); }
+  else if(state==='complete'){ const n=lpSecurity&&lpSecurity.counts?Number(lpSecurity.counts.total)||0:0; b.classList.add('lp-sec-complete'); badge.textContent=String(n); b.setAttribute('aria-label','Review de segurança: '+n+' issues encontrados'); }
+  else if(state==='stale'){ b.classList.add('lp-sec-stale'); badge.textContent='!'; b.setAttribute('aria-label','Review de segurança desatualizado — o código mudou'); }
+  else if(state==='error'){ b.classList.add('lp-sec-error'); badge.textContent='!'; b.setAttribute('aria-label','Review de segurança falhou'); }
+  else { badge.textContent=''; b.setAttribute('aria-label','Review de segurança ainda não executado'); }
+  const th=document.getElementById('lp-security-thread'); if(th&&lpSecurity) th.innerHTML=renderSecurityActivity(lpSecurity.thread,esc);
+  let stale=document.getElementById('lp-security-stale');
+  const panel=document.getElementById('lp-security');
+  if(state==='stale'&&panel){ if(!stale){ stale=document.createElement('div'); stale.id='lp-security-stale'; stale.className='lp-pub-warn'; panel.insertBefore(stale,panel.firstChild); } stale.textContent='⚠ código alterado depois do scan — relatório histórico; corre o Review novamente antes de publicar.'; }
+  else if(stale&&stale.parentNode) stale.parentNode.removeChild(stale);
 }
 // Render the attached-reference chips (each with a ✕) + a "limpar" clear-all. Rebuilt whenever a
 // ref is attached/removed and after each renderSelection (which recreates the toolbar markup).
@@ -4701,10 +5224,17 @@ function renderSelection(sel){
     +(crumbs?('<div class="lp-crumbs" role="navigation" aria-label="Árvore do elemento">'+crumbs+'</div>'):'')
     +'<div class="lp-sel-loc">'+loc+'</div>'
     +warn
+    +'<div id="lp-thread"></div>'
+    +'<div class="lp-thread-compose" role="group" aria-label="Continuar conversa sobre este elemento">'
+    +'<div class="lp-thread-compose-hd">💬 Continua a conversa deste elemento</div>'
+    +'<div class="lp-thread-modes" role="radiogroup" aria-label="Editar ou perguntar nesta thread"><button type="button" id="lp-thread-mode-edit" class="lp-mtg" role="radio" aria-checked="true">✏️ Editar</button><button type="button" id="lp-thread-mode-ask" class="lp-mtg" role="radio" aria-checked="false">💬 Perguntar</button></div>'
+    +'<div class="lp-thread-row"><textarea id="lp-thread-in" class="lp-thread-input" rows="2" placeholder="Diz ao Moo o que queres mudar neste elemento…" aria-label="Prompt da thread deste elemento"></textarea><button type="button" id="lp-thread-send" class="lp-sel-btn lp-thread-send">✏️ Editar</button></div>'
+    +'<div class="lp-hint">Enter envia · Shift+Enter cria uma nova linha</div></div>'
     +lpNodeHistoryHTML(sel)
     +'<div id="lp-del"></div>'
     +'<div id="lp-edit-msg" class="lp-ed-msg" role="status"></div>';
   el.style.display='block';
+  renderJourneyPanel(lpJourney);
   // LP-4.8 §1 — the in-canvas toolbar (inputs), anchored to the pin. Same ids/wiring as before,
   // just hosted here instead of the side rail. Falls back to the side panel only if the toolbar
   // host is absent (defensive — the static markup always ships it).
@@ -4739,9 +5269,9 @@ function renderSelection(sel){
     // §5 — the instant $0 style gesture (colour/size/spacing), moved off the top into the quick-adjust drawer.
     +'<div id="lp-presets" class="lp-pz lp-pz-star" role="group" aria-label="Estilo rápido — cor, tamanho, espaçamento ($0, sem tokens, pré-visualiza ao passar o rato)"></div>'
     +'<div class="lp-ed-l" id="lp-ed-text-l">texto</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-text" class="lp-ed-in" type="text" value="'+esc(curText)+'" placeholder="texto do elemento" aria-label="texto do elemento selecionado" /><button id="lp-ed-text-b" class="lp-sel-btn" title="Preparar uma proposta determinística — $0, sem tokens">ver proposta</button></div>'
     +'<div class="lp-ed-l" id="lp-ed-class-l">classe (Tailwind · cor · spacing)</div>'
-    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Editar deterministicamente — $0, sem tokens">aplicar</button></div>'
+    +'<div class="lp-ed-row"><input id="lp-ed-class" class="lp-ed-in" type="text" value="'+esc(curClass)+'" placeholder="ex: text-lg font-bold text-rose-500" spellcheck="false" aria-label="classe Tailwind do elemento selecionado" /><button id="lp-ed-class-b" class="lp-sel-btn" title="Preparar uma proposta determinística — $0, sem tokens">ver proposta</button></div>'
     +'<div class="lp-sk"><button id="lp-sk-btn" class="lp-sel-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="lp-sk-menu" title="Skills ancoradas a este elemento — cada uma mostra o seu tier">/skills ▾</button>'
     +'<div id="lp-sk-active" class="lp-sk-active" role="status"></div>'
     +'<div id="lp-sk-menu" class="lp-sk-menu" role="menu" aria-label="Skills" style="display:none"></div></div>'
@@ -4803,9 +5333,12 @@ function renderSelection(sel){
   // nó' chip keeps the LP-4 fenced node rewrite intact. The heuristic below only SUGGESTS the
   // local chip when the ask smells node-local — it never decides.
   const bi=document.getElementById('lp-box-in'), bb=document.getElementById('lp-box-b');
-  const sendBox=function(){
-    const v=bi?bi.value.trim():'';
+  const threadInput=document.getElementById('lp-thread-in'), threadSend=document.getElementById('lp-thread-send');
+  const sendBox=function(sourceInput){
+    const source=sourceInput&&typeof sourceInput.value==='string'?sourceInput:bi;
+    const v=source?source.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
+    if(bi&&source!==bi) bi.value=v; // one controller: rail composer and canvas box stay in sync
     const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
     const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
     // LP-4.9 §1 — Perguntar ALWAYS routes to the agent: answering needs to read the repo, which the
@@ -4841,6 +5374,11 @@ function renderSelection(sel){
     if(ab){ const on=lpIntent==='ask'; ab.setAttribute('aria-checked', on?'true':'false'); ab.tabIndex=on?0:-1; if(on) ab.classList.add('on'); else ab.classList.remove('on'); }
     const sb=document.getElementById('lp-box-b'); if(sb) sb.textContent=(lpIntent==='ask')?'💬 Perguntar':'✏️ Editar';
     const bi2=document.getElementById('lp-box-in'); if(bi2) bi2.setAttribute('aria-label', (lpIntent==='ask')?'pergunta ancorada neste elemento':'edição ancorada neste elemento');
+    const ts=document.getElementById('lp-thread-send'); if(ts) ts.textContent=(lpIntent==='ask')?'💬 Perguntar':'✏️ Editar';
+    const ti2=document.getElementById('lp-thread-in'); if(ti2) ti2.setAttribute('aria-label', (lpIntent==='ask')?'pergunta na thread deste elemento':'edição na thread deste elemento');
+    const teb=document.getElementById('lp-thread-mode-edit'), tab=document.getElementById('lp-thread-mode-ask');
+    if(teb){ const on=lpIntent==='edit'; teb.setAttribute('aria-checked',on?'true':'false'); teb.tabIndex=on?0:-1; teb.classList.toggle('on',on); }
+    if(tab){ const on=lpIntent==='ask'; tab.setAttribute('aria-checked',on?'true':'false'); tab.tabIndex=on?0:-1; tab.classList.toggle('on',on); }
     // §5 (honesty) — Perguntar ALWAYS runs on the agent; if the local $0 chip is picked, say so here
     // (no silent "$0" while the run costs subscription). The chip itself stays behind "▾ mais".
     const hint=document.getElementById('lp-box-l');
@@ -4850,22 +5388,29 @@ function renderSelection(sel){
     renderCtxLine(); // §C — keep the project-context line in sync with the intent/tier
   };
   const ebtn=document.getElementById('lp-mode-edit'), abtn=document.getElementById('lp-mode-ask');
+  const threadEdit=document.getElementById('lp-thread-mode-edit'), threadAsk=document.getElementById('lp-thread-mode-ask');
   const setIntent=function(v,focus){ lpIntent=v; renderIntentToggle(); const h=document.getElementById('lp-box-hint'); if(h) h.style.display='none'; if(focus){ const t=document.getElementById(v==='ask'?'lp-mode-ask':'lp-mode-edit'); if(t) t.focus(); } };
   if(ebtn) ebtn.addEventListener('click', function(){ setIntent('edit', false); });
   if(abtn) abtn.addEventListener('click', function(){ setIntent('ask', false); });
+  if(threadEdit) threadEdit.addEventListener('click', function(){ setIntent('edit', false); });
+  if(threadAsk) threadAsk.addEventListener('click', function(){ setIntent('ask', false); });
   // §3 (a11y) — arrow keys move within the radiogroup (2 options → any arrow toggles), APG-style.
   const onToggleKey=function(e){ if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); setIntent(lpIntent==='ask'?'edit':'ask', true); } };
   if(ebtn) ebtn.addEventListener('keydown', onToggleKey);
   if(abtn) abtn.addEventListener('keydown', onToggleKey);
   if(bi&&bb){
-    bb.addEventListener('click', sendBox);
-    bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(); } });
+    bb.addEventListener('click', function(){ sendBox(bi); });
+    bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(bi); } });
     bi.addEventListener('input', function(){
       const h=document.getElementById('lp-box-hint'); if(!h) return;
       // The local-chip suggestion only applies to EDITS (asking always uses the agent).
       if(lpIntent==='edit'&&lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
       else h.style.display='none';
     });
+  }
+  if(threadInput&&threadSend){
+    threadSend.addEventListener('click', function(){ sendBox(threadInput); });
+    threadInput.addEventListener('keydown', function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendBox(threadInput); } });
   }
   renderIntentToggle();
   // LP-4.9 §2 — progressive disclosure: restore the remembered expanded state and wire "▾ mais".
@@ -4938,7 +5483,7 @@ function renderDeleteDiff(m){
     +staleWarn
     +exprWarn
     +rows
-    +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">aplicar — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-del-apply" class="lp-sel-btn">OK — apagar</button><button id="lp-del-cancel" class="lp-sel-btn">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-del-apply');
   if(ap) ap.addEventListener('click', function(){
@@ -4973,7 +5518,7 @@ function renderEditDiff(m){
     +(m.abs?('<div class="lp-diff-hd">✍ '+esc(m.abs)+'</div>'):'')
     +staleWarn
     +rows
-    +'<div class="lp-sel-acts"><button id="lp-ed-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-ed-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-ed-apply" class="lp-sel-btn">OK — aplicar</button><button id="lp-ed-cancel" class="lp-sel-btn">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-ed-apply');
   if(ap) ap.addEventListener('click', function(){
@@ -5020,7 +5565,7 @@ function renderPromptDiff(m){
     +staleWarn
     +dynWarn
     +rows
-    +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">aplicar — escrever</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
+    +'<div class="lp-sel-acts"><button id="lp-pr-apply" class="lp-sel-btn">OK — aplicar</button><button id="lp-pr-cancel" class="lp-sel-btn">cancelar</button></div>'
     +'</div>';
   const ap=document.getElementById('lp-pr-apply');
   if(ap) ap.addEventListener('click', function(){
@@ -5072,12 +5617,13 @@ function renderEscalationOffer(m, el){
 // git diff (scoped to the task) + 'manter tudo' / 'reverter tudo' / per-file revert. Reverts are
 // sha-guarded HOST-side against OUR snapshot record — never against paths this webview sends.
 function renderTaskResult(m){
-  const el=document.getElementById('lp-del'); if(!el) return;
-  if(!m || !m.ok){ el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); return; }
+  const security=!!(m&&m.context==='security');
+  const el=document.getElementById(security?'lp-security-fix-result':'lp-del'); if(!el) return;
+  if(!m || !m.ok){ if(security) el.innerHTML='<div class="lp-pub-err">correção bloqueada: '+esc((m&&m.reason)||'error')+'</div>'; else { el.innerHTML=''; showEditResult(false, (m&&m.reason)||'error'); } return; }
   const msg=document.getElementById('lp-edit-msg'); if(msg){ msg.textContent=''; msg.className='lp-ed-msg'; }
   const who=(m.mode==='auto'?'AUTO':tierModel(m.mode))+' · agente · subscrição'+(m.model?(' ('+esc(m.model)+')'):'');
   let html='<div class="lp-diff" role="region" aria-label="Resultado do agente">'
-    +'<div class="lp-diff-hd">'+(m.kind==='answer'?'resposta do agente':'edições do agente')+' — '+who+'</div>';
+    +'<div class="lp-diff-hd">'+(security?'correção de segurança':(m.kind==='answer'?'resposta do agente':'edições do agente'))+' — '+who+'</div>';
   if(m.text) html+='<div class="lp-task-txt">'+renderMarkdownSafe(m.text)+'</div>';
   const reads=Array.isArray(m.filesRead)?m.filesRead:[];
   if(reads.length){
@@ -5103,7 +5649,7 @@ function renderTaskResult(m){
   }
   if(edits.length){
     html+='<div class="lp-sel-acts">'
-      +'<button id="lp-task-keep" class="lp-sel-btn" title="aceitar — as edições ficam nos ficheiros (o HMR já as mostra)">manter tudo</button>'
+      +'<button id="lp-task-keep" class="lp-sel-btn" title="aprovar — as edições ficam nos ficheiros (o HMR já as mostra)">OK — manter tudo</button>'
       +'<button id="lp-task-revert-all" class="lp-sel-btn" title="repor os bytes anteriores de TODOS os ficheiros listados (sha-guarded) — nunca fora desta lista">reverter tudo</button>'
       +'</div>';
   }
@@ -5410,7 +5956,7 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); if(lpSelectOn) sendSelectMode(true); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11 the handshake proves nav capability + H2-FIX a full same-URL iframe reload re-inits the in-page tap with select mode OFF; if the host is still armed, re-assert it on the reload handshake so 🎯 never stays lit while clicks are dead (no lp-select, no toolbar, no chip)
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
+    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; lpJourney=null; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked)
     // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.
@@ -5435,6 +5981,8 @@ window.addEventListener('message', (ev) => {
     renderLease(m.s && m.s.lease); // C0 · COH-01 — the identity-lease safe state (mock S7) rides the snapshot
     renderProjects(m.s && m.s.projects); // COH-05 — the multi-root project selector rides the snapshot
     lpServedRoot=(m.s && typeof m.s.servedRoot==='string' && m.s.servedRoot)?m.s.servedRoot:null; // COH-16 — the current lease's served root for the per-node history filter
+    if(m.s && Object.prototype.hasOwnProperty.call(m.s,'journey')) applyJourney(m.s.journey); // host-owned per-node thread/state
+    if(m.s && m.s.security) applySecuritySummary(m.s.security);
     // LP-4 §6 — the SDK-bridge status rides the snapshot; refresh the chip when it changes so the
     // cloud tiers enable/disable from FACTS (never a dead button).
     const br=m.s && m.s.leBridge;
@@ -5454,6 +6002,8 @@ window.addEventListener('message', (ev) => {
       }
     }
   }
+  else if (m.type === 'lp-journey-update'){ applyJourney(m.journey); }
+  else if (m.type === 'lp-security-status'){ applySecuritySummary(m.security); }
   else if (m.type === 'lp-goto'){ if (typeof m.url === 'string') navFrameTo(m.url); } // MP3.3: host-vetted same-origin navigation
   else if (m.type === 'lp-edit-result'){
     showEditResult(m.ok, m.reason); // MP5.1 honest deterministic-edit feedback
@@ -5500,6 +6050,10 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'lp-task-status'){
     // LP-4.5 — live agent progress: what it is doing RIGHT NOW (a ler X / a editar Y), plus every
     // denial (honesty: the fence is visible, not implied).
+    if(m.context==='security'){
+      const st=document.getElementById('lp-security-thread'); if(st&&lpSecurity) st.innerHTML=renderSecurityActivity(lpSecurity.thread,esc);
+      return;
+    }
     const el=document.getElementById('lp-edit-msg');
     let txt='';
     // COH-09 — AUTO announces the router decision BEFORE the run: "🧭 AUTO → 🎼 Sonnet". A quick honest
@@ -5514,6 +6068,12 @@ window.addEventListener('message', (ev) => {
   }
   else if (m.type === 'lp-task-result'){
     renderTaskResult(m); // LP-4.5 agent verdict (answer or per-file diffs)
+    if(m.context==='security'){
+      if(!m.ok) showToast('warn','⚠️ correção de segurança bloqueada: '+toastReason(m.reason));
+      else if(Array.isArray(m.edits)&&m.edits.length) showToast('ask','🛡 correção pronta — revê e confirma no painel →');
+      else showToast('ask','🛡 resposta do review no painel →');
+      return;
+    }
     lpFinishProgress(); // LP-4.9 §8 — the run ended; stop the spinner (the toast says the outcome)
     // LP-4.9 §3 — honest completion toast: answered (panel), edited (preview + flash), or refused.
     if(!m.ok){ showToast('warn', '⚠️ '+toastReason(m.reason)); }
@@ -5530,6 +6090,7 @@ window.addEventListener('message', (ev) => {
     const secBtn2=document.getElementById('lp-security-btn'); if(secBtn2) secBtn2.disabled=false;
     const secEl2=document.getElementById('lp-security');
     if(secEl2){ secEl2.style.display='block'; secEl2.innerHTML=renderSecurityFindings(m, esc); }
+    applySecuritySummary(Object.assign({},lpSecurity||{},{ state:m.error?'error':'complete', counts:m.counts||((lpSecurity&&lpSecurity.counts)||null), scannedAt:m.scannedAt||null, reportId:m.reportId||null, scannedFiles:m.scannedFiles||0, thread:Array.isArray(m.thread)?m.thread:((lpSecurity&&lpSecurity.thread)||[]) }));
   }
   else if (m.type === 'lp-publish-status-result'){
     // LP-6 §B — status snapshot (branch, touched files, Vercel link + expected project name,
@@ -5581,6 +6142,13 @@ if(secBtn) secBtn.addEventListener('click', function(){
   if(secEl){ secEl.style.display='block'; secEl.innerHTML='<div class="lp-sec-hdr">🛡 a analisar… ($0 local)</div>'; }
   secBtn.disabled=true;
   vsapi.postMessage({ type:'lp-security-scan' });
+});
+const secPanel=document.getElementById('lp-security');
+if(secPanel) secPanel.addEventListener('click', function(e){
+  const t=e.target; if(!t||!t.getAttribute) return;
+  const openId=t.getAttribute('data-security-open'), fixId=t.getAttribute('data-security-fix');
+  if(openId){ vsapi.postMessage({ type:'lp-security-open', findingId:openId }); return; }
+  if(fixId){ t.disabled=true; t.textContent='a preparar correção…'; vsapi.postMessage({ type:'lp-security-fix', findingId:fixId }); return; }
 });
 // LP-6 §E — 🚀 Publish: opens/closes the popover (fetches fresh status on every open — the
 // touched files / Critical flag / Vercel link can all have changed since the last look), then

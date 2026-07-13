@@ -84,6 +84,10 @@ test('F3 _setSelection: mirrors + bounds the pin; an empty/absent file clears th
   assert.strictEqual(inst._selection.tag, 'h1');
   assert.strictEqual(inst._selection.selText, 'Old headline', 'selText is whitespace-collapsed + trimmed');
   assert.strictEqual(inst._selectionMissing(), false, 'a real pin → NOT gated');
+  const journey = inst._journeyView();
+  assert.ok(journey && /^j_[a-f0-9]{20}$/.test(journey.id), 'the exact pin opens one host-owned journey');
+  assert.strictEqual(journey.node.file, 'landing/app/page.tsx');
+  assert.strictEqual(journey.state, 'selected');
   // caps: a very long tag/selText is bounded, never unbounded.
   inst._setSelection({ file: 'x.tsx', tag: 'a'.repeat(200), selText: 'b'.repeat(500) });
   assert.ok(inst._selection.tag.length <= 60, 'tag capped');
@@ -92,6 +96,39 @@ test('F3 _setSelection: mirrors + bounds the pin; an empty/absent file clears th
   inst._setSelection({ file: '' });
   assert.strictEqual(inst._selection, null, 'empty file clears the store');
   assert.strictEqual(inst._selectionMissing(), true, 'cleared store → gated again');
+});
+
+test('SelectionJourney: persists a bounded/redacted thread and resumes only the exact node identity', () => {
+  const Panel = loadPanelClass();
+  const db = new Map();
+  const store = { get: (k, d) => db.has(k) ? db.get(k) : d, update: (k, v) => { db.set(k, v); return Promise.resolve(); } };
+  const make = () => {
+    const inst = Object.create(Panel.prototype);
+    inst._store = store; inst._servedRoot = 'C:/repo/landing'; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = 7;
+    inst._treeGateBlocked = () => false;
+    inst.panel = { webview: { postMessage() {} } }; inst.token = 'tok';
+    return inst;
+  };
+  const a = make();
+  a._setSelection({ file: 'app/page.tsx', line: 56, col: 15, tag: 'p', selText: 'Hero' });
+  a._journeyAppend('user', 'usa sk-abcdefghijklmnopqrstuvwxyz e melhora', { status: 'sent' });
+  a._journeyAppend('assistant', '**Proposta** pronta', { model: 'sonnet', status: 'awaiting' });
+  a._journeySetState('awaiting', 'aguarda OK');
+  const first = a._journeyView();
+  assert.strictEqual(first.turns.length, 2);
+  assert.ok(first.turns[0].text.includes('[redigido]') && !first.turns[0].text.includes('sk-abcdefghijklmnopqrstuvwxyz'), 'common credential shape is redacted before persistence');
+  assert.strictEqual(first.state, 'awaiting');
+  assert.ok(Array.isArray(db.get('lpSelectionJourneysV1')), 'thread persisted in workspaceState');
+
+  const b = make();
+  b._setSelection({ file: 'app/page.tsx', line: 56, col: 15, tag: 'p', selText: 'Hero' });
+  const resumed = b._journeyView();
+  assert.strictEqual(resumed.id, first.id, 'same tree/origin/epoch/source node resumes the same thread');
+  assert.strictEqual(resumed.turns.length, 2);
+  assert.strictEqual(resumed.state, 'stale', 'pending approval is never resurrected after its RAM snapshots vanished');
+
+  b._setSelection({ file: 'app/page.tsx', line: 57, col: 15, tag: 'p', selText: 'Other' });
+  assert.notStrictEqual(b._journeyView().id, first.id, 'a different source node gets a different thread');
 });
 
 // ── the gate is WIRED into every LLM path (fail-closed) ─────────────────────────────────────────

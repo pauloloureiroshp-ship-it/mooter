@@ -702,6 +702,56 @@ async function gitBranch(cwd) {
   return (!b || b === 'HEAD') ? null : b; // 'HEAD' = detached → no branch to show
 }
 
+// PURE: remove credentials/query fragments from a git remote before it can reach the webview.
+// HTTPS remotes may contain a username/token; SCP-style SSH remotes are normalised to the
+// conventional `git@host:path`. A browser URL is derived only from a proven network host.
+function sanitizeGitRemoteUrl(raw) {
+  const source = String(raw == null ? '' : raw).split(/\r?\n/)[0].trim();
+  if (!source || /[\u0000-\u001f]/.test(source)) return { url: null, webUrl: null };
+  if (/^[A-Za-z]:[\\/]/.test(source) || source.startsWith('/') || source.startsWith('\\\\')) return { url: null, webUrl: null };
+  if (source.indexOf('://') === -1) {
+    const m = /^(?:[^@/:\s]+@)?([A-Za-z0-9.-]+):([^\s]+)$/.exec(source);
+    if (!m) return { url: null, webUrl: null };
+    const host = m[1].toLowerCase();
+    const repo = m[2].replace(/^\/+/, '').replace(/[?#].*$/, '');
+    if (!host || !repo) return { url: null, webUrl: null };
+    const webPath = repo.replace(/\.git$/i, '');
+    return { url: 'git@' + host + ':' + repo, webUrl: 'https://' + host + '/' + webPath };
+  }
+  try {
+    const u = new URL(source);
+    const protocol = String(u.protocol || '').toLowerCase();
+    if (protocol !== 'https:' && protocol !== 'http:' && protocol !== 'ssh:') return { url: null, webUrl: null };
+    u.password = '';
+    u.search = '';
+    u.hash = '';
+    if (protocol === 'https:' || protocol === 'http:') u.username = '';
+    else if (u.username !== 'git') u.username = '';
+    const clean = u.toString().replace(/\/$/, u.pathname === '/' ? '/' : '');
+    const repoPath = u.pathname.replace(/^\/+/, '').replace(/\.git\/?$/i, '');
+    const webUrl = u.hostname && repoPath ? ('https://' + u.host + '/' + repoPath) : null;
+    return { url: clean, webUrl };
+  } catch { return { url: null, webUrl: null }; }
+}
+
+// READ-ONLY remote descriptor for Publish. Prefer origin, otherwise the first configured remote.
+// Never returns credentials and never throws when git is absent, slow, or the folder is not a repo.
+async function gitRemoteInfo(cwd) {
+  const empty = { available: false, name: null, url: null, webUrl: null };
+  if (!cwd || typeof cwd !== 'string') return empty;
+  try {
+    const rr = await execTool('git', ['-C', cwd, 'remote'], 2500);
+    if (!rr.ok) return empty;
+    const remotes = String(rr.out || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    if (!remotes.length) return empty;
+    const name = remotes.indexOf('origin') !== -1 ? 'origin' : remotes[0];
+    let ur = await execTool('git', ['-C', cwd, 'remote', 'get-url', '--push', name], 2500);
+    if (!ur.ok || !ur.out) ur = await execTool('git', ['-C', cwd, 'remote', 'get-url', name], 2500);
+    const safe = sanitizeGitRemoteUrl(ur && ur.out);
+    return safe.url ? { available: true, name, url: safe.url, webUrl: safe.webUrl } : empty;
+  } catch { return empty; }
+}
+
 // WCOCKPIT-4 (fixed in WCOCKPIT-5): READ-ONLY git stage snapshot for a session's working dir.
 // ASYNC — uses execTool (execFile under the hood) so the event loop is NEVER blocked.
 // WCOCKPIT-4 used spawnSync which stalled the extension host → blank cockpit panel.
@@ -2800,7 +2850,7 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
   slashCommands, _packDescription,
   PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, sessionSummaries, _lastTranscriptModel, activeSession,
-  execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
+  execTool, _sessionCwd, gitBranch, gitRemoteInfo, sanitizeGitRemoteUrl, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk, _isAskingUser,
   extractPending, extractTouchedFiles, sessionUnsaved, _relForCwd, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,

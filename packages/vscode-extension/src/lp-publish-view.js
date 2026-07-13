@@ -72,7 +72,8 @@ function renderPublishPopover(state, esc) {
     if (!url) return '';
     return '<a href="' + e(url) + '" data-ext="' + e(url) + '" class="lp-pub-link" rel="noreferrer noopener">' + e(url) + '</a>';
   }
-  var head = '<div class="lp-pub-hdr">🚀 Publicar — ' + e(status) + '</div>';
+  var head = '<div class="lp-pub-hdr">🚀 Publicar <span class="lp-pub-caret">▾</span> — ' + e(status) + '</div>'
+    + '<div class="lp-pub-meta">Escolhe conscientemente o alcance: a pasta local é a origem; Git guarda a versão; Produção torna-a pública.</div>';
   var siteLine = websiteUrl
     ? '<div class="lp-pub-url">' + (deployedThisSession ? 'site: ' : 'site (último deploy conhecido): ') + anchor(websiteUrl) + '</div>'
     : '<div class="lp-pub-meta">ainda sem deploy conhecido nesta sessão.</div>';
@@ -90,6 +91,27 @@ function renderPublishPopover(state, esc) {
   var costLine = '<div class="lp-pub-cost">sem cobrança do Mooter · edições locais $0 · edições cloud = a tua subscrição · deploy = a tua conta Vercel</div>';
 
   var reviewBtn = '<button type="button" id="lp-pub-review-btn" class="lp-sel-btn">🛡 Rever segurança</button>';
+
+  var local = (state.local && typeof state.local === 'object') ? state.local : null;
+  var localFolder = local && typeof local.folder === 'string' && local.folder ? local.folder : 'workspace atual';
+  var localPath = local && typeof local.path === 'string' && local.path ? local.path : null;
+  var localDirty = local && isFinite(Number(local.dirtyCount)) ? Math.max(0, Number(local.dirtyCount)) : files.length;
+  var localStep = '<section class="lp-pub-step lp-pub-step-local" aria-label="Etapa local">'
+    + '<div class="lp-pub-step-hd"><span class="lp-pub-step-n">1</span><span><b>Local</b><small>pasta de trabalho</small></span><strong class="lp-pub-step-state">origem</strong></div>'
+    + '<div class="lp-pub-step-body"><div>📁 ' + e(localFolder) + ' · ' + localDirty + ' alteração' + (localDirty === 1 ? '' : 'ões') + '</div>'
+    + (localPath ? ('<details class="lp-pub-path"><summary>ver pasta local</summary><code>' + e(localPath) + '</code></details>') : '<div class="lp-pub-meta">caminho local indisponível.</div>')
+    + '</div></section>';
+
+  var git = (state.git && typeof state.git === 'object') ? state.git : null;
+  var gitAvailable = !!(git && git.available && git.url);
+  var gitName = git && typeof git.name === 'string' && git.name ? git.name : 'remote';
+  var gitUrl = git && typeof git.url === 'string' && git.url ? git.url : null;
+  var gitWebUrl = git && typeof git.webUrl === 'string' && git.webUrl ? git.webUrl : null;
+  var gitBlocked = !!git && !gitAvailable;
+  var gitRemoteLine = gitAvailable
+    ? '<div class="lp-pub-remote">🔗 ' + e(gitName) + ': ' + (gitWebUrl ? anchor(gitWebUrl) : '<code>' + e(gitUrl) + '</code>')
+      + (gitWebUrl ? ('<details><summary>ver URL do remote</summary><code>' + e(gitUrl) + '</code></details>') : '') + '</div>'
+    : '<div class="lp-pub-warn">sem remote Git configurado — o código continua apenas na pasta local até ligares um remote.</div>';
 
   var filesBlock = files.length
     ? '<div class="lp-pub-files-hdr">' + files.length + ' ficheiro' + (files.length === 1 ? '' : 's') + ' por commitar:</div>'
@@ -110,12 +132,15 @@ function renderPublishPopover(state, esc) {
   var secText = secReasonText(state.securityReason);
 
   var msgVal = e(String(state.defaultMessage || ''));
-  var commitDisabled = (!files.length || hasCritical) ? ' disabled' : '';
+  var commitDisabled = (!files.length || hasCritical || gitBlocked) ? ' disabled' : '';
   var criticalNote = hasCritical
     ? '<div class="lp-pub-warn">⚠ ' + e(secText) + '</div>'
     : '';
   var commitBlock = '<textarea id="lp-pub-msg" class="lp-pub-msg" rows="2" aria-label="Mensagem de commit">' + msgVal + '</textarea>'
-    + '<button type="button" id="lp-pub-commit-btn" class="lp-sel-btn"' + commitDisabled + '>Atualizar (commit + push)</button>';
+    + '<button type="button" id="lp-pub-commit-btn" class="lp-sel-btn"' + commitDisabled + '>Guardar no Git (commit + push)</button>';
+  var gitStep = '<section class="lp-pub-step lp-pub-step-git" aria-label="Etapa Git">'
+    + '<div class="lp-pub-step-hd"><span class="lp-pub-step-n">2</span><span><b>Git</b><small>repositório de código</small></span><strong class="lp-pub-step-state">' + (gitAvailable ? 'ligado' : 'não ligado') + '</strong></div>'
+    + '<div class="lp-pub-step-body">' + gitRemoteLine + branchLine + filesBlock + commitBlock + '</div></section>';
 
   var deployBlock;
   if (!vercelLinked) {
@@ -131,11 +156,18 @@ function renderPublishPopover(state, esc) {
       + '<button type="button" id="lp-pub-deploy-cancel" class="lp-sel-btn">cancelar</button>'
       + '</div>';
   }
+  var prodStep = '<section class="lp-pub-step lp-pub-step-prod" aria-label="Etapa produção">'
+    + '<div class="lp-pub-step-hd"><span class="lp-pub-step-n">3</span><span><b>Produção</b><small>URL pública</small></span><strong class="lp-pub-step-state">' + e(status) + '</strong></div>'
+    + '<div class="lp-pub-step-body">' + destLine + siteLine + deployBlock + '</div></section>';
 
   // D6 — a security-gate refusal returns a slug (security-scan-required/-failed/-stale, critical-open);
   // render the honest sentence instead of the raw slug so a blocked publish explains itself.
   var SEC_REASONS = { 'security-scan-required': 1, 'security-scan-failed': 1, 'security-scan-stale': 1, 'critical-open': 1 };
-  function reasonText(reason) { return SEC_REASONS[reason] ? secReasonText(reason) : String(reason || 'falhou'); }
+  function reasonText(reason) {
+    if (SEC_REASONS[reason]) return secReasonText(reason);
+    if (reason === 'git-remote-required') return 'liga um remote Git antes de usar commit + push.';
+    return String(reason || 'falhou');
+  }
   var lastResult = '';
   var lr = (state.lastResult && typeof state.lastResult === 'object') ? state.lastResult : null;
   if (lr) {
@@ -151,10 +183,9 @@ function renderPublishPopover(state, esc) {
     }
   }
 
-  return head + siteLine + branchLine + costLine + criticalNote
-    + '<div class="lp-pub-sec">' + reviewBtn + '</div>'
-    + '<div class="lp-pub-sec">' + filesBlock + commitBlock + '</div>'
-    + '<div class="lp-pub-sec">' + destLine + deployBlock + '</div>' // COH-10 — destination BEFORE the two-factor
+  return head + costLine + criticalNote
+    + '<div class="lp-pub-sec lp-pub-review">' + reviewBtn + '</div>'
+    + '<div class="lp-pub-pipeline">' + localStep + '<div class="lp-pub-flow" aria-hidden="true">↓</div>' + gitStep + '<div class="lp-pub-flow" aria-hidden="true">↓</div>' + prodStep + '</div>'
     + (lastResult ? '<div class="lp-pub-sec">' + lastResult + '</div>' : '');
 }
 

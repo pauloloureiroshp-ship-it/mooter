@@ -16,7 +16,26 @@ import {
   buildBreadcrumbPath,
   stampMatches,
   hmrReconnectDelay,
+  normalizeLpNodeState,
+  lpNodeStateLabel,
 } from './lp-error-tap';
+
+describe('Selection Journey node lifecycle', () => {
+  it('keeps the exact pink → yellow OK → green approval state sequence', () => {
+    expect(normalizeLpNodeState('working')).toBe('working');
+    expect(lpNodeStateLabel('working')).toBe('Moo está a alterar');
+    expect(normalizeLpNodeState('awaiting')).toBe('awaiting');
+    expect(lpNodeStateLabel('awaiting')).toBe('aguarda OK');
+    expect(normalizeLpNodeState('approved')).toBe('approved');
+    expect(lpNodeStateLabel('approved')).toBe('aprovado localmente');
+  });
+
+  it('fails safe on hostile/unknown state and bounds a host label', () => {
+    expect(normalizeLpNodeState('published-by-attacker')).toBe('selected');
+    expect(lpNodeStateLabel('unknown')).toBe('selecionado');
+    expect(lpNodeStateLabel('working', 'x'.repeat(300))).toHaveLength(120);
+  });
+});
 
 describe('parseStackForSource', () => {
   it('picks the first user-source frame (path + line:col), skipping framework noise', () => {

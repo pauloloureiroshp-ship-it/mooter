@@ -6,6 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { renderPublishPopover, pathOf } = require('./lp-publish-view.js');
+const { sanitizeGitRemoteUrl } = require('./host-extra.js');
 
 test('pathOf: reads {path} objects or bare strings, never throws on garbage', () => {
   assert.strictEqual(pathOf({ x: 'M', y: ' ', path: 'a/b.ts' }), 'a/b.ts');
@@ -50,6 +51,50 @@ test('renderPublishPopover: touched files listed, commit textarea seeded with th
   assert.ok(html.includes('2 ficheiros por commitar'), 'honest count, pluralised');
   assert.ok(html.includes('wip(wave/lp-6): 2 files'), 'default commit message seeds the textarea');
   assert.ok(!html.includes('lp-pub-commit-btn" class="lp-sel-btn" disabled'), 'commit enabled when files exist and no Critical is open');
+});
+
+test('Publish pipeline: shows Local → Git → Produção with the exact destinations before action', () => {
+  const html = renderPublishPopover({
+    branch: 'fix/live-magic',
+    touchedFiles: [{ path: 'landing/app/page.tsx' }],
+    defaultMessage: 'fix: live magic',
+    local: { folder: 'frugal-lp-coerencia', path: 'C:/Users/Paulo/frugal-lp-coerencia', dirtyCount: 1, repo: true },
+    git: { available: true, name: 'origin', url: 'git@github.com:mooter-ai/mooter.git', webUrl: 'https://github.com/mooter-ai/mooter' },
+    destination: { url: 'https://mooter.ai', source: 'config do projeto' },
+    vercelLinked: true,
+    projectName: 'mooter',
+  });
+  const local = html.indexOf('<b>Local</b>');
+  const git = html.indexOf('<b>Git</b>');
+  const prod = html.indexOf('<b>Produção</b>');
+  assert.ok(local !== -1 && git > local && prod > git, 'the three scopes are visible in order');
+  assert.ok(html.includes('C:/Users/Paulo/frugal-lp-coerencia'), 'local folder is explicit');
+  assert.ok(html.includes('https://github.com/mooter-ai/mooter'), 'Git repository URL is explicit and clickable');
+  assert.ok(html.includes('git@github.com:mooter-ai/mooter.git'), 'technical remote is available on demand');
+  assert.ok(html.includes('https://mooter.ai'), 'production URL is explicit before deploy');
+  assert.ok(html.includes('Guardar no Git (commit + push)'), 'Git action is named by effect');
+});
+
+test('git remote sanitization strips credentials/query tokens and derives a safe repo URL', () => {
+  const https = sanitizeGitRemoteUrl('https://oauth2:super-secret-token@github.com/mooter-ai/mooter.git?token=also-secret');
+  assert.strictEqual(https.url, 'https://github.com/mooter-ai/mooter.git');
+  assert.strictEqual(https.webUrl, 'https://github.com/mooter-ai/mooter');
+  assert.ok(!JSON.stringify(https).includes('secret'), 'no credential reaches the webview state');
+  const ssh = sanitizeGitRemoteUrl('paulo@github.com:mooter-ai/mooter.git');
+  assert.deepStrictEqual(ssh, { url: 'git@github.com:mooter-ai/mooter.git', webUrl: 'https://github.com/mooter-ai/mooter' });
+  assert.deepStrictEqual(sanitizeGitRemoteUrl('C:/local/repo'), { url: null, webUrl: null }, 'a local path is not fabricated into a network remote');
+});
+
+test('Publish pipeline: an explicitly missing Git remote disables commit + push without hiding Local/Produção', () => {
+  const html = renderPublishPopover({
+    branch: 'main', touchedFiles: [{ path: 'a.ts' }],
+    local: { folder: 'repo', path: '/repo', dirtyCount: 1 },
+    git: { available: false, name: null, url: null, webUrl: null },
+    destination: { url: 'https://mooter.ai', source: 'manifest do projeto' },
+  });
+  assert.ok(/lp-pub-commit-btn[^>]*disabled/.test(html), 'does not knowingly create a local-only commit behind a commit+push label');
+  assert.ok(html.includes('sem remote Git configurado'), 'the exact missing prerequisite is visible');
+  assert.ok(html.includes('<b>Local</b>') && html.includes('<b>Produção</b>'), 'other scopes remain visible');
 });
 
 test('renderPublishPopover: no touched files → honest empty state, commit button disabled', () => {
