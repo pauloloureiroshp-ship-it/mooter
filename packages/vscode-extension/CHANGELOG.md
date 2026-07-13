@@ -2,6 +2,22 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.72] — 2026-07-13 — No preview flapping and an always-visible prompt
+
+- Treat a connected localhost probe that times out before any HTTP status as inconclusive, not as a
+  positively broken page. The configured project port stays authoritative for that poll, so a slow
+  Next.js compile cannot invalidate the selection, jump to another localhost app or reload the iframe
+  on the next healthy poll. Real HTTP errors and frame blockers remain fail-closed.
+- Raise the bounded background probe budget from 900 ms to 1.8 s. A real `:7819` sample reproduced the
+  bug with a 911 ms response, confirming why the previous threshold caused intermittent health flips.
+- When geometry docks the selected-element prompt in the right rail, reveal the dock immediately and
+  focus the one-box. Reopening via the 🐮 also brings the prompt back into view even if the user had
+  scrolled down into the MEO cards.
+- Delayed VS Code/webview resize events can no longer move an already-docked prompt back over the
+  canvas, so the textbox keeps one predictable home for the current selection.
+- Regression proof: focused preview/lease/probe suite **97/97 pass** and full isolated extension suite
+  **1209/1209 pass**; frozen classifier SHA unchanged.
+
 ## [0.16.71] — 2026-07-12 — Stable select-to-prompt and preview recovery
 
 - Make the selected-element prompt unconditionally reachable: it still floats beside the pin when

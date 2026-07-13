@@ -1732,7 +1732,10 @@ class LivePreviewPanel {
         const normalized = LPS.normalizeStageUrl(raw);
         if (normalized && normalized.scheme === 'https') schemeByPort[normalized.port] = 'https';
       }
-      const probe = await probeStagePorts(probeList, { timeoutMs: 900, schemeByPort, authoritativePorts: configPort ? [configPort] : [] });
+      // Next.js can legitimately spend >900ms compiling a route on Windows. A 1.8s background
+      // budget stays bounded while avoiding false health transitions; lp-stage-probe separately
+      // classifies a connected/no-status timeout as inconclusive, never as a broken HTTP page.
+      const probe = await probeStagePorts(probeList, { timeoutMs: 1800, schemeByPort, authoritativePorts: configPort ? [configPort] : [] });
       const next = LPS.resolveStage({
         overrideUrl: this.overrideUrl, stickyUrl, configPort,
         retainedUrl: this.stage && this.stage.url ? this.stage.url : null,
@@ -4408,13 +4411,23 @@ function wireSkillsMenu(){
 // below when there is no room — the toolbar must never cover the very element being edited.
 let lpPinRect=null, lpToolbarManualPos=null, lpToolbarMin=false, lpToolbarDocked=false;
 function lpRectsOverlap(a,b){ return !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y); }
+function revealPromptDock(){
+  const dock=document.getElementById('lp-prompt-dock'), side=document.getElementById('lp-side');
+  if(!dock||!side) return;
+  // The rail may be scrolled deep into MEO when a new selection docks the prompt at its top.
+  // Make the one-box immediately discoverable instead of rendering it correctly above the user's
+  // viewport. This is intentionally instant and scoped to explicit selection/reopen gestures.
+  try{ side.scrollTop=0; }catch(e){}
+  try{ if(typeof dock.scrollIntoView==='function') dock.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){}
+}
 function mountCanvasToolbar(docked){
   const tb=document.getElementById('lp-ctb'), ov=document.getElementById('lp-ctb-ov'), dock=document.getElementById('lp-prompt-dock');
   if(!tb) return;
+  const wasDocked=lpToolbarDocked;
   const host=docked?dock:ov;
   if(host&&tb.parentNode!==host){ try{ host.appendChild(tb); }catch(e){} }
   lpToolbarDocked=!!docked;
-  if(docked){ tb.classList.add('lp-docked'); if(dock) dock.style.display='block'; }
+  if(docked){ tb.classList.add('lp-docked'); if(dock) dock.style.display='block'; if(!wasDocked) revealPromptDock(); }
   else { tb.classList.remove('lp-docked'); if(dock) dock.style.display='none'; }
 }
 function positionCanvasToolbar(rect){
@@ -5297,8 +5310,11 @@ function showEditResult(ok, reason){
   el.textContent=txt; el.className='lp-ed-msg '+(ok?'lp-ed-ok':'lp-ed-no');
 }
 // LP-4.8 §1 — the webview itself resizing (panel drag, window resize) moves the iframe's offset
-// within the frame wrap, so re-anchor the toolbar from the last known pin rect (iframe coords).
-window.addEventListener('resize', function(){ lpToolbarDocked=false; positionCanvasToolbar(); });
+// within the frame wrap, so re-anchor a floating toolbar from the last known pin rect. Never evict
+// an already-docked prompt: VS Code emits delayed webview resizes while its layout settles, and the
+// old reset made the textbox appear to vanish long after selection. A new selection starts a fresh
+// placement decision in renderSelection instead.
+window.addEventListener('resize', function(){ positionCanvasToolbar(); });
 // LP-4.8 §5 — keyboard/a11y. Esc DISMISSES the in-canvas toolbar, but only when focus is inside it
 // (so it never steals VS Code's global Esc), and never preventDefaults globally. If the /skills menu
 // is open, its own handler closes the menu first (it stopPropagations, so we don't also hide). After
@@ -5344,7 +5360,7 @@ window.addEventListener('resize', function(){ lpToolbarDocked=false; positionCan
     }
   });
   const minimize=function(){ lpToolbarMin=true; ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); const dock=document.getElementById('lp-prompt-dock'); if(dock) dock.style.display='none'; if(chip){ chip.style.display='inline-flex'; } positionCanvasToolbar(); if(chip) chip.focus(); };
-  const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); const box=document.getElementById('lp-box-in'); if(box) box.focus(); };
+  const expand=function(){ lpToolbarMin=false; if(chip) chip.style.display='none'; ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); positionCanvasToolbar(); if(lpToolbarDocked) revealPromptDock(); const box=document.getElementById('lp-box-in'); if(box) box.focus(); };
   if(mn) mn.addEventListener('click', minimize);
   if(chip) chip.addEventListener('click', expand);
   // Drag via the grip. Pointer events; updates lpToolbarManualPos (clamped by positionCanvasToolbar).

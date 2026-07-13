@@ -3,21 +3,29 @@
 > Canónico em `~/frugal/SYNC.md` (Mac) e `C:\Users\Paulo Loureiro\frugal\SYNC.md` (Windows).
 > Snapshot, não log (regra ≤200 linhas; histórico em `docs/foundation/SYNC_ARCHIVE_2026.md`).
 
-**Atualizado:** 2026-07-12 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
-**extensão em main:** `v0.16.67` · **candidata local instalada:** `v0.16.71` em
-`fix/lp-iframe-reload-rearm` (**push da 0.16.71 e review/merge pendentes**).
+**Atualizado:** 2026-07-13 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
+**extensão em main:** `v0.16.67` · **candidata local instalada:** `v0.16.72` em
+`fix/lp-iframe-reload-rearm` (**push/review/merge pendentes**).
 
 ## Verdade atual
 
 - **LP-COERÊNCIA:** PR #246 merged; os 19 findings COH-01…19 estão em `main`.
 - **Seleção/prompt pós-reload:** o host rearma o tap depois de reload same-URL; se a caixa não couber sem
-  cobrir o pin, o mesmo prompt docka no rail (a 🐮 sempre reabre com foco). Falha HTTP transitória mantém
-  os últimos pixels, mas limpa pin/root, bloqueia writes e força novo handshake na recuperação.
+  cobrir o pin, o mesmo prompt docka no topo do rail, é revelado mesmo quando o rail estava scrollado e a
+  🐮 sempre reabre com foco. O dock fica sticky durante a seleção, inclusive após resizes tardios do webview.
+- **Estabilidade do preview:** conexão TCP sem status HTTP dentro do budget é inconclusiva, não erro positivo;
+  o porto configurado continua autoritativo nessa ronda e a identidade/pin não são invalidados. Budget do
+  probe subiu para 1,8 s. Erro HTTP real continua fail-closed. Prova Chromium isolada: 100 s, 99 amostras,
+  zero reload/blank/perda de pin/textbox; mais 3 reloads manuais com árvore verde.
 - **Descoberta/recovery do localhost:** probe HTTP 2xx+HTML em IPv4/IPv6, portas configuradas/comuns e ranges
   auto-incrementados em paralelo. Poll automático e ↻ são latest-wins; ↻ nunca se perde durante outro probe,
   ignora identidade sticky, recupera override inalcançável e recarrega o iframe same-URL. Reinício exige trust
   e só encerra listener com ownership do projeto comprovado. Socket reutilizado não acumula listeners. Suite
-  extensão com HOME isolada e ficheiros seriais **1208/1208 pass**; landing **211/211 + typecheck**.
+  extensão com HOME isolada e ficheiros seriais **1209/1209 pass**; landing **211/211 + typecheck**.
+- **Árvore realmente em teste:** a janela QA, o workspace do VS Code e o processo que possui `:7819` apontam
+  todos para `C:\Users\Paulo Loureiro\frugal-lp-coerencia`; o gate confirmou a raiz servida `landing/` nessa
+  mesma linhagem. As 12 worktrees ainda registadas não causaram esta falha, mas a consolidação para uma única
+  pasta canónica `frugal` ainda não terminou.
 - **MEO Control Tower:** Control/Stream/Sessões cruzam bus, execução real, catálogo de sessões e Ledger tipado.
   Cada etapa mostra agente, modelo, canal com base de atribuição, título da sessão e wave/PR; handoffs, fleet e
   sinais de Notion/Obsidian ficam visíveis sem inventar acesso. Suite extensão **1176/1176 pass**.
@@ -73,8 +81,9 @@ webview concat-only/CSP/origin-lock/tree-gate preservados.
 
 ## Próxima missão
 
-1. Recarregar a janela do VS Code e provar visualmente 0.16.71: pin → prompt/dock → minimizar/reabrir e ↻
-   repetido em :7819. Depois push seletivo para atualizar o draft PR; merge/Marketplace são gates humanos.
+1. Na janela principal do Paulo, executar uma única vez **Developer: Reload Window** para o extension host
+   carregar a `v0.16.72` já instalada; repetir pin → prompt/dock → minimizar/reabrir. A prova isolada já passou.
+   Depois push seletivo para atualizar o draft PR; merge/Marketplace continuam gates humanos.
 2. Preservar/triangular o trabalho real dos 11 worktrees sujos, começando pelo diretório canónico `frugal`.
 3. Remover o resíduo órfão `frugal-final` somente depois de o lock do Windows desaparecer.
 4. Deixar apenas `C:\Users\Paulo Loureiro\frugal` em `main`, limpo e sincronizado; branches históricas podem

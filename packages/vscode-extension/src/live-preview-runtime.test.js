@@ -35,6 +35,8 @@ function makeDom() {
     this.textContent = '';
     this.tabIndex = 0;
     this.inert = false;
+    this.scrollTop = 0;
+    this._scrollIntoViewCalls = 0;
     this._children = [];       // parsed descendants (flat) — enough for querySelectorAll
     this._listeners = {};
     this.parentNode = null;
@@ -58,6 +60,7 @@ function makeDom() {
   Element.prototype.setPointerCapture = function () {};
   Element.prototype.releasePointerCapture = function () {};
   Element.prototype.setSelectionRange = function () {};
+  Element.prototype.scrollIntoView = function () { this._scrollIntoViewCalls += 1; };
   Element.prototype.getBoundingClientRect = function () { return { left: 10, top: 10, width: 120, height: 24, right: 130, bottom: 34, x: 10, y: 10 }; };
   Element.prototype.appendChild = function (c) { c.parentNode = this; this._children.push(c); return c; };
   Element.prototype.contains = function (n) { if (n === this) return true; for (const c of this._children) { if (c === n || (c.contains && c.contains(n))) return true; } return false; };
@@ -195,8 +198,10 @@ test('RUNTIME: a large pin/toolbar docks the SAME prompt in the rail; 🐮 alway
   const h = bootWebview(false);
   const toolbar = h.env.doc.getElementById('lp-ctb');
   const wrap = h.env.doc.getElementById('lp-framewrap');
+  const side = h.env.doc.getElementById('lp-side');
   toolbar._offsetHeight = 900; // deliberately impossible to place around the pin
   wrap._clientHeight = 260;
+  side.scrollTop = 900; // user was reading MEO below the fold when the new pin arrived
   fireSelect(h);
   const dock = h.env.doc.getElementById('lp-prompt-dock');
   const chip = h.env.doc.getElementById('lp-ctb-chip');
@@ -204,12 +209,20 @@ test('RUNTIME: a large pin/toolbar docks the SAME prompt in the rail; 🐮 alway
   assert.ok(toolbar.classList.contains('lp-docked'));
   assert.strictEqual(toolbar.style.display, 'block', 'the one-box stays visible immediately after selection');
   assert.strictEqual(chip.style.display, 'none', 'auto-placement never strands the user behind a cow chip');
+  assert.strictEqual(side.scrollTop, 0, 'a docked prompt is revealed at the top of a previously scrolled rail');
+  assert.ok(dock._scrollIntoViewCalls >= 1, 'the dock is explicitly brought into view');
+  assert.strictEqual(h.env.doc.activeElement, h.env.doc.getElementById('lp-box-in'), 'fresh docked prompt is ready to type');
+
+  h.win.dispatchEvent(h.mkEvent('resize'));
+  assert.strictEqual(toolbar.parentNode, dock, 'a delayed VS Code resize cannot move the prompt out of its dock');
+  assert.ok(toolbar.classList.contains('lp-docked'), 'docked placement stays sticky for the current selection');
 
   h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
   assert.strictEqual(chip.style.display, 'inline-flex', 'explicit minimise still produces the compact cow');
   chip.dispatchEvent(h.mkEvent('click'));
   assert.strictEqual(toolbar.parentNode, dock, 'reopening an impossible floating placement falls back to the rail');
   assert.strictEqual(toolbar.style.display, 'block', 'clicking the cow always opens a real prompt');
+  assert.ok(dock._scrollIntoViewCalls >= 2, 'clicking the cow reveals the dock even when it was already docked');
   assert.strictEqual(h.env.doc.activeElement, h.env.doc.getElementById('lp-box-in'), 'reopened prompt is ready to type');
 });
 

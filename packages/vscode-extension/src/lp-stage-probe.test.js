@@ -119,6 +119,34 @@ test('probePorts stops on a reachable broken configured port instead of jumping 
   }
 });
 
+test('probePorts treats a connected timeout as inconclusive and keeps the configured port authoritative', async () => {
+  const slow = await listen((_req, res) => {
+    setTimeout(() => {
+      if (res.destroyed) return;
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<html>late compile</html>');
+    }, 150);
+  });
+  const unrelated = await listen((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<html>another app</html>');
+  });
+  try {
+    const result = await Probe.probePorts([slow.port, unrelated.port], {
+      timeoutMs: 30,
+      authoritativePorts: [slow.port],
+    });
+    assert.deepStrictEqual(result.livePorts, []);
+    assert.deepStrictEqual(result.rejected, [], 'no HTTP status means no positive broken-page verdict');
+    assert.strictEqual(result.accepted, null);
+    assert.strictEqual(result.inconclusive.length, 1);
+    assert.strictEqual(result.inconclusive[0].port, slow.port);
+  } finally {
+    await new Promise((resolve) => slow.server.close(resolve));
+    await new Promise((resolve) => unrelated.server.close(resolve));
+  }
+});
+
 test('repeated probes remain healthy when Node reuses an already-connected socket', async () => {
   const page = await listen((_req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<!doctype html><p data-insp-path="page.tsx:1:1">ok</p>'); });
   try {

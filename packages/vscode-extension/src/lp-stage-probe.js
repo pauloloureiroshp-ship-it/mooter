@@ -185,10 +185,23 @@ async function probePorts(ports, options) {
     try { return await probeOne(port, opts); } catch { return null; }
   }));
   const rejected = [];
+  const inconclusive = [];
   for (let i = 0; i < uniq.length; i++) {
     const port = uniq[i];
     const result = results[i];
     if (result && result.ok) return { livePorts: [port], rejected, accepted: result };
+    if (result && result.reachable && !Number.isInteger(result.statusCode)) {
+      // A connected socket that did not produce an HTTP status before the deadline is NOT a
+      // positive broken-page verdict. Next.js can cross the old 900ms budget while compiling;
+      // classifying that pause as `rejected` made the host invalidate the preview identity and
+      // reload the iframe on the next healthy poll (visible as auth/page flicker + a lost prompt).
+      // Keep the configured port authoritative for this cycle so a slow project never yields to
+      // an unrelated healthy app on a common fallback port. The caller retains the last validated
+      // pixels/identity but its stale stage still fail-closes writes until the next good probe.
+      inconclusive.push({ port, reason: result.reason || 'resposta HTTP inconclusiva' });
+      if (authoritative.has(port)) return { livePorts: [], rejected, accepted: null, inconclusive };
+      continue;
+    }
     if (result && result.reachable) {
       rejected.push({ port, statusCode: result.statusCode, reason: result.reason || 'não é uma página HTML enquadrável' });
       // A configured server that answers HTTP 500 is a broken project server, not permission to
@@ -197,7 +210,7 @@ async function probePorts(ports, options) {
       if (authoritative.has(port)) return { livePorts: [], rejected, accepted: null };
     }
   }
-  return { livePorts: [], rejected, accepted: null };
+  return { livePorts: [], rejected, accepted: null, inconclusive };
 }
 
 module.exports = { MAX_SAMPLE_BYTES, headerValue, headerValues, frameBlockReason, classifyResponse, sameOriginRedirect, probeOne, probePorts };
