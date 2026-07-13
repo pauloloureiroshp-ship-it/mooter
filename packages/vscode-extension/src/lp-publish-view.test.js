@@ -99,7 +99,7 @@ test('Publish pipeline: shows Local → Git → Produção with the exact destin
     branch: 'fix/live-magic',
     touchedFiles: [{ path: 'landing/app/page.tsx' }],
     defaultMessage: 'fix: live magic',
-    local: { folder: 'frugal-lp-coerencia', path: 'C:/Users/Paulo/frugal-lp-coerencia', dirtyCount: 1, repo: true },
+    local: { folder: 'mooter-live-preview', path: 'C:/Users/Paulo/mooter-live-preview', dirtyCount: 1, repo: true },
     git: { available: true, name: 'origin', url: 'git@github.com:mooter-ai/mooter.git', webUrl: 'https://github.com/mooter-ai/mooter' },
     destination: { url: 'https://mooter.ai', source: 'config do projeto' },
     vercelLinked: true,
@@ -109,7 +109,7 @@ test('Publish pipeline: shows Local → Git → Produção with the exact destin
   const git = html.indexOf('<b>Git</b>');
   const prod = html.indexOf('<b>Produção</b>');
   assert.ok(local !== -1 && git > local && prod > git, 'the three scopes are visible in order');
-  assert.ok(html.includes('C:/Users/Paulo/frugal-lp-coerencia'), 'local folder is explicit');
+  assert.ok(html.includes('C:/Users/Paulo/mooter-live-preview'), 'local folder is explicit');
   assert.ok(html.includes('class="lp-pub-local-path"'), 'the full local path is visible without expanding a disclosure');
   assert.ok(html.includes('1 alteração'), 'the singular local change count is grammatical');
   assert.ok(!html.includes('alteraçãoões'), 'the broken plural is never rendered');
