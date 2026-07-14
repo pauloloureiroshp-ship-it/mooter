@@ -72,3 +72,33 @@ test('extractHandoffRefs ignores placeholders and deduplicates paths', () => {
   const refs = doctor.extractHandoffRefs('`_handoff/A.md` and _handoff/A.md; ignore _handoff/<TASK>.md');
   assert.deepEqual(refs, ['_handoff/A.md']);
 });
+
+test('reports normalized duplicate packets in the active queue', (t) => {
+  const f = fixture();
+  t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
+  // Two packets with an identical normalized digest → one duplicate group in the active queue.
+  const body = '# Packet\nSTATUS: active\n\n## Goal\nShip the spine safely.\n';
+  fs.writeFileSync(path.join(f.root, '_handoff', 'DUP-A.md'), body);
+  fs.writeFileSync(path.join(f.root, '_handoff', 'DUP-B.md'), body);
+  const report = doctor.inspectRepo(f.root, { expectedClassifierSha: f.expectedClassifierSha, gitLines: () => [] });
+  const dup = report.findings.find((item) => item.code === 'HANDOFF_EXACT_DUPLICATES');
+  assert.ok(dup, 'normalized duplicate packet group reported');
+  assert.equal(dup.severity, 'warn');
+  assert.deepEqual(dup.files, ['_handoff/DUP-A.md', '_handoff/DUP-B.md'], 'both duplicate packets listed');
+  assert.equal(report.ok, true, 'duplicates are warn-first, not a hard invariant failure');
+});
+
+test('reports non-empty deletion buckets', (t) => {
+  const f = fixture();
+  t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(f.root, '_handoff', 'ONE.md'), '# Task\nSTATUS: active\n\n## Goal\nShip safely.\n');
+  // A non-empty `_handoff/_to_delete` bucket is neither an archive nor an explicit active queue.
+  fs.mkdirSync(path.join(f.root, '_handoff', '_to_delete'), { recursive: true });
+  fs.writeFileSync(path.join(f.root, '_handoff', '_to_delete', 'stale.md'), 'old draft to be removed');
+  const report = doctor.inspectRepo(f.root, { expectedClassifierSha: f.expectedClassifierSha, gitLines: () => [] });
+  const del = report.findings.find((item) => item.code === 'PENDING_DELETION_BUCKETS');
+  assert.ok(del, 'non-empty deletion bucket reported');
+  assert.equal(del.severity, 'warn');
+  assert.deepEqual(del.files, ['_handoff/_to_delete'], 'the non-empty bucket is named');
+  assert.equal(report.ok, true, 'deletion buckets are warn-first');
+});
