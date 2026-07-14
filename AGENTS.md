@@ -21,11 +21,16 @@ planes (Claude Code · Codex · local moos) start on the same page:
 
 1. **Read** this `AGENTS.md` + the tail of `SYNC.md` (current state).
 2. **Consult the vault** for anything about Paulo's identity, project strategy, or a stable
-   decision — don't guess. `VAULT_PATH` is exported per-machine (Win: `…\paulo-vault`, Mac:
-   `~/Documents/paulo-vault`):
+   decision — don't guess. `VAULT_PATH` is exported per-machine — vault at the home root on both OSes, outside Documents/OneDrive/iCloud (Win:
+   `…\paulo-vault`, Mac: `~/paulo-vault`):
 
    ```sh
-   node "$VAULT_PATH/.claude/3rd-brain/retrieve.js" "<topic in Paulo's words>"
+   # if the retriever exists use it; otherwise read the vault canon files directly and continue
+   if [ -f "$VAULT_PATH/.claude/3rd-brain/retrieve.js" ]; then
+     node "$VAULT_PATH/.claude/3rd-brain/retrieve.js" "<topic in Paulo's words>"
+   else
+     ls "$VAULT_PATH"/00-*/ "$VAULT_PATH"/80-notion-mirror/ 2>/dev/null   # then read the top matches
+   fi
    ```
 
    Read the top 1-2 files it returns. **Order of truth:** vault canon (`00-90`) >
@@ -158,7 +163,7 @@ Every `.md` in this repo has exactly one home and one lifecycle. Before creating
 | Durable architectural decision | `MEMORY.md` (root) | Distilled from LOOP/waves, append-only. If a decision survives ~a month of sessions, it belongs here. |
 | Execution learning (observed/hypothesis/experiment) | `LOOP.md` (root) | Append-only, same day as the learning. |
 | Infra / endpoints / service IDs | `INFRA.md` (root) | Update in the same PR that changes infra. |
-| Stable personal decision / identity / cross-project | Cowork vault (`~/Documents/paulo-vault`) | By decision, never by session. |
+| Stable personal decision / identity / cross-project | Cowork vault (`~/paulo-vault`) | By decision, never by session. |
 | Work log / milestones | Notion HQ Mooter | Per session/milestone. |
 | Mechanical provenance | Ledger (`tools/router/*ledger*`) | Automatic, append-only. |
 
