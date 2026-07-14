@@ -1,0 +1,46 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260707065716
+Username: DESKTOP-J26409Q\Paulo Loureiro
+RunAs User: DESKTOP-J26409Q\Paulo Loureiro
+Configuration Name: 
+Machine: DESKTOP-J26409Q (Microsoft Windows NT 10.0.26200.0)
+Host Application: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\Paulo Loureiro\frugal\_handoff\verify-lp48-merge.ps1
+Process ID: 91432
+PSVersion: 5.1.26100.8737
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8737
+BuildVersion: 10.0.26100.8737
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\Paulo Loureiro\frugal\_handoff\verify-log.txt
+=== 1) fetch origin (so refs, nao toca no working tree) ===
+
+=== 2) origin/main - ultimos 6 commits ===
+d8b294d merge: LP-4.8 ÔÇö UX in-canvas toolbar + element-scoped /skills (Wave A)
+7d35a59 harden(live-edit): LP-4.8 ┬º3 ÔÇö escape workspace-skill JSON before the inline <script> (bump 0.16.54)
+20226a2 chore(vscode-extension): bump 0.16.53 ÔÇö LP-4.8 UX in-canvas + skills
+1fbd2d0 polish(live-edit): LP-4.8 ÔÇö surface the attached-ref label in the chip title
+d8ac786 feat(live-edit): LP-4.8 ┬º5 ÔÇö keyboard + a11y for the in-canvas toolbar
+e790f2d feat(live-edit): LP-4.8 ┬º4 ÔÇö multi-select Cmd/Ctrl attach-as-reference
+=== 3) O merge LP-4.8 esta em origin/main? ===
+  origin/HEAD -> origin/main
+  origin/main
+  origin/wave/lp-4-8-ux-skills
+7d35a59 harden(live-edit): LP-4.8 ┬º3 ÔÇö escape workspace-skill JSON before the inline <script> (bump 0.16.54)
+=== 4) classify.js sha (frozen check no working tree) ===
+SHA256 hash of C:\Users\Paulo Loureiro\frugal\tools\router\classify.js:
+427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f
+CertUtil: -hashfile command completed successfully.
+=== 5) Estado local ===
+## wave/honest-controls
+ M SYNC.md
+ M landing/app/_components/TwoTerminalDemo.tsx
+=== FIM ===
+**********************
+Windows PowerShell transcript end
+End time: 20260707065717
+**********************

@@ -16,6 +16,9 @@
   },
   "extensions": {
     "recommendations": [
+      "anthropic.claude-code",
+      "openai.chatgpt",
+      "google.gemini-cli-vscode-ide-companion",
       "dbaeumer.vscode-eslint",
       "esbenp.prettier-vscode",
       "eamodio.gitlens",

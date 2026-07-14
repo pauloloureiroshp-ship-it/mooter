@@ -1,0 +1,66 @@
+PUSH RUN 2026-07-08T08:52:59
+--- pushing feat/quota-aware
+git : Everything up-to-date
+At C:\Users\Paulo Loureiro\frugal\_handoff\push-parked.ps1:15 char:3
++   git push -u origin $b 2>&1 | Out-File $log -Append -Encoding ascii
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+branch 'feat/quota-aware' set up to track 'origin/feat/quota-aware'.
+--- pushing feat/fleet-arm
+git : Everything up-to-date
+At C:\Users\Paulo Loureiro\frugal\_handoff\push-parked.ps1:15 char:3
++   git push -u origin $b 2>&1 | Out-File $log -Append -Encoding ascii
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+branch 'feat/fleet-arm' set up to track 'origin/feat/fleet-arm'.
+--- pushing feat/moo-dispatch
+git : Everything up-to-date
+At C:\Users\Paulo Loureiro\frugal\_handoff\push-parked.ps1:15 char:3
++   git push -u origin $b 2>&1 | Out-File $log -Append -Encoding ascii
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+branch 'feat/moo-dispatch' set up to track 'origin/feat/moo-dispatch'.
+--- pushing feat/live-edit
+git : Everything up-to-date
+At C:\Users\Paulo Loureiro\frugal\_handoff\push-parked.ps1:15 char:3
++   git push -u origin $b 2>&1 | Out-File $log -Append -Encoding ascii
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+branch 'feat/live-edit' set up to track 'origin/feat/live-edit'.
+--- pushing feat/lp-preview-diagnostics
+git : Everything up-to-date
+At C:\Users\Paulo Loureiro\frugal\_handoff\push-parked.ps1:15 char:3
++   git push -u origin $b 2>&1 | Out-File $log -Append -Encoding ascii
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+branch 'feat/lp-preview-diagnostics' set up to track 'origin/feat/lp-preview-diagnostics'.
+--- pushing wave/lp-4-9-ux-intuitive
+git : Everything up-to-date
+At C:\Users\Paulo Loureiro\frugal\_handoff\push-parked.ps1:15 char:3
++   git push -u origin $b 2>&1 | Out-File $log -Append -Encoding ascii
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+branch 'wave/lp-4-9-ux-intuitive' set up to track 'origin/wave/lp-4-9-ux-intuitive'.
+--- refs remotos apos push:
+
+fb4a9921b1f1ad749fec7a90a36ebeff9853a1b8	refs/heads/feat/fleet-arm
+6d44ccd9d065ba4a7b9d26b35e273652cd9deff1	refs/heads/feat/live-edit
+715620b56b9918e3292762c85eee48335c4a9f1b	refs/heads/feat/lp-preview-diagnostics
+41b3ae26615665367a513cc0a6fa1138daf39650	refs/heads/feat/moo-dispatch
+b590d8a8718909a30ab8038b29cdc56b2bad1b7d	refs/heads/feat/quota-aware
+9a4358f722f824655b554b570cd68fc9735f3eef	refs/heads/wave/lp-4-9-ux-intuitive
+
+
+DONE 2026-07-08T08:53:06

@@ -86,11 +86,15 @@ cd packages/mooter-bench && npm install && npm test
 
 ## Communication protocol (orchestrator ⇄ this agent)
 
-Mooter is developed across two agents plus a human gate:
+Mooter is developed across multiple agents plus a human gate:
 
 - **Cowork** (Claude Desktop) — orchestrator/architect: designs, red-teams, writes masterprompts, confronts the git/Ledger, keeps memory.
-- **Claude Code** (this agent) — executor: worktrees, code, tests, merges; delegates iterative work to local moos ($0).
-- **Paulo** (human) — authorizes every irreversible action (merge, push, delete). Never self-authorize these.
+- **Claude Code** — executor-in-chief: worktrees, code, tests, merges; delegates iterative work to local moos ($0).
+- **Codex** (OpenAI; reads this file natively) — parallel implementer/debugger for well-scoped delegated tasks; works in its own worktree/branch; never merges.
+- **Gemini CLI** (loads this file via `.gemini/settings.json` + `GEMINI.md`) — reviewer/second opinion: architecture review, doc-vs-code validation, risk analysis; read-only by default.
+- **Paulo** (human) — authorizes every irreversible action (merge, push, delete). No agent self-authorizes these.
+
+Agent-specific context files: `CLAUDE.md` (Claude Code; imports this file) · `GEMINI.md` (Gemini) · Codex reads only this file. Cross-agent conflict ⇒ log it in `docs/AGENT_HANDOFF.md` and stop.
 
 **Inbound (Cowork → you)** arrives as a typed handoff:
 
@@ -128,7 +132,7 @@ Every `.md` in this repo has exactly one home and one lifecycle. Before creating
 | Durable architectural decision | `MEMORY.md` (root) | Distilled from LOOP/waves, append-only. If a decision survives ~a month of sessions, it belongs here. |
 | Execution learning (observed/hypothesis/experiment) | `LOOP.md` (root) | Append-only, same day as the learning. |
 | Infra / endpoints / service IDs | `INFRA.md` (root) | Update in the same PR that changes infra. |
-| Stable personal decision / identity / cross-project | Cowork vault (`~/Documents/paulo-vault`) | By decision, never by session. |
+| Stable personal decision / identity / cross-project | Cowork vault (`~/paulo-vault`) | By decision, never by session. |
 | Work log / milestones | Notion HQ Mooter | Per session/milestone. |
 | Mechanical provenance | Ledger (`tools/router/*ledger*`) | Automatic, append-only. |
 
@@ -142,9 +146,38 @@ Every `.md` in this repo has exactly one home and one lifecycle. Before creating
 
 **Never:** `node_modules/` under `docs/` (add to `.gitignore`) · new root `.md` without explicit request · deleting instead of archiving (moves are Paulo-reviewed; git writes are Paulo's).
 
+## 3rd-brain — Paulo's vault loader (consult before identity/strategy answers)
+
+Paulo keeps a personal knowledge vault (`~/paulo-vault`, Windows: `C:\Users\Paulo Loureiro\paulo-vault`)
+with a zero-LLM keyword retriever. Claude Code auto-injects it per-prompt via hooks; **other agents must
+consult it explicitly** (this section is that instruction — the same way Cowork consults it via `CLAUDE.md`).
+
+**When to consult** — questions about Paulo's identity/voice, project strategy/priorities, or a stable
+decision (i.e. anything the answer should be *grounded in the vault*, not guessed):
+
+```sh
+# VAULT_PATH is exported at user scope on Paulo's machines (Win: C:\Users\Paulo Loureiro\paulo-vault,
+# Mac: ~/Documents/paulo-vault). retrieve.js resolves the vault from it.
+node "$VAULT_PATH/.claude/3rd-brain/retrieve.js" "<topic in Paulo's words>"
+# Windows (PowerShell): node "$env:VAULT_PATH\.claude\3rd-brain\retrieve.js" "<topic>"
+```
+
+It prints the top vault files by score (<5ms, no LLM). **Read the top 1-2 before answering.**
+
+**Order of truth on conflict:** vault (`00-90` canon) > `80-notion-mirror` > repo `MEMORY.md` > conversation.
+Never fabricate context; if the vault is stale (old dates), say so rather than invent updates.
+
+> Codex-native option (GA 2026-05): Codex CLI now supports lifecycle hooks (`SessionStart`,
+> `UserPromptSubmit`, `Stop`) configured via `.codex/` and trusted through `/hooks`. A `UserPromptSubmit`
+> hook shelling out to `retrieve.js` would give Codex the same *automatic* per-prompt injection Claude Code
+> has — an opt-in follow-up (needs a one-time `/hooks` trust). Until wired, the manual command above is the
+> reliable path.
+
 ## Cross-references
 
 - `CLAUDE.md` — Claude Code-specific project instructions (lean; pointers).
 - `docs/strategy/STRATEGY.md` — strategic single source of truth.
 - `SYNC.md` — current state, last sessions, next mission.
 - `INFRA.md` — deploy targets, service IDs, endpoints.
+
+## Imported Claude Cowork project instructions

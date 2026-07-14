@@ -1,0 +1,131 @@
+﻿diff --git a/packages/vscode-extension/src/extension.js b/packages/vscode-extension/src/extension.js
+index ca67b30..2f73868 100644
+--- a/packages/vscode-extension/src/extension.js
++++ b/packages/vscode-extension/src/extension.js
+@@ -561,13 +561,11 @@ class CockpitProvider {
+       }
+       if (m.cmd === 'selectSession') { const a = String(m.arg || 'auto'); this.data.selectedSession = (a === 'all' || a === 'auto') ? a : a.replace(/[^a-zA-Z0-9._-]/g, ''); this.data.refresh(true); }
+       if (m.cmd === 'openSession') {
+-        // Open/focus that exact Claude Code session in the editor. The extension's URI
+-        // handler maps /open?session=<id> → claude-vscode.primaryEditor.open(id); we call
+-        // the command directly (URI as fallback), then scope the cockpit to it.
+-        const id = String(m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
++        // Backward-compatible open-and-scope path: the registered deep-link owns tab opening.
++        const id = String((m.arg && typeof m.arg === 'object') ? m.arg.id : m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
++        const title = String((m.arg && typeof m.arg === 'object') ? m.arg.title || '' : '');
+         if (id) {
+-          try { await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', id); }
+-          catch { try { vscode.env.openExternal(vscode.Uri.parse('vscode://anthropic.claude-code/open?session=' + id)); } catch { /* no-op */ } }
++          await vscode.commands.executeCommand('mooter.openSessionTab', { id, title });
+           this.data.selectedSession = id; this.data.refresh(true);
+         }
+       }
+@@ -727,8 +725,6 @@ class CockpitProvider {
+       // session (wave=sessão=aba). Routes through the registered mooter.openSessionTab command.
+       if (m.cmd === 'openSessionTab') {
+         vscode.commands.executeCommand('mooter.openSessionTab', m.arg);
+-        const _id = String((m.arg && m.arg.id) || m.arg || '').replace(/[^a-zA-Z0-9._-]/g, '');
+-        if (_id) { this.data.selectedSession = _id; this.data.refresh(true); }
+       }
+       // ════════════════════════════════════════════════════════════════════════
+       // WCOCKPIT-9 (Bloco C): fluxo Commit & Push por sessão. SEMPRE host-side (execFile git,
+@@ -5614,6 +5610,7 @@ function wireButtons(root){root.querySelectorAll('button[data-a]').forEach(b=>b.
+   else if(a.startsWith('openUrl:'))send('openUrl',a.slice(8));
+   else if(a.startsWith('pull:'))send('pull',a.slice(5));
+   else if(a.startsWith('tab:'))goTab(a.slice(4));
++  else if(a==='openSessionTab')send(a,{id:b.dataset.x,title:b.dataset.title||''});
+   else send(a,b.dataset.x);
+ });}
+ // WCOCKPIT-3: session card renderer (from row-renderer.js — safe when fn.toString() serialised)
+diff --git a/packages/vscode-extension/src/mission-control-view.js b/packages/vscode-extension/src/mission-control-view.js
+index dd4e008..06c92af 100644
+--- a/packages/vscode-extension/src/mission-control-view.js
++++ b/packages/vscode-extension/src/mission-control-view.js
+@@ -319,8 +319,9 @@ function renderMissionControl(snapshot) {
+         var ds = depState(rss.deps);
+         var rname = nd(rss.name);
+         var rmodel = rss.model ? (famEmoji(rss.model) + ' ' + esc(modelShort(rss.model))) : nd(null);
++        // W-UX: pure open controls use the canonical tab command; push keeps open-and-scope.
+         var openTail = rss.sid
+-          ? '<button class="mcv2-tgopen" data-a="openSession" data-x="' + esc(rss.sid) + '" title="abrir esta sessão">🔗</button>'
++          ? '<button class="mcv2-tgopen" data-a="openSessionTab" data-x="' + esc(rss.sid) + '" data-title="' + esc(rss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗</button>'
+           : '<span class="mc-nd">🔗 n/d</span>';
+         out += '<div class="mcv2-tgrow ' + ds.cls + '" title="' + esc(ds.label) + '">'
+           + '<span class="mcv2-depdot">' + ds.dot + '</span>'
+@@ -495,7 +496,7 @@ function renderMissionControl(snapshot) {
+       var spine = '<div class="mcf-spine"><div class="mcf-line' + (last ? ' half' : '') + '"></div>'
+         + '<div class="mcf-node" style="border-color:' + col + '"></div><div class="mcf-conn" style="background:' + col + '"></div></div>';
+       if (t.sid) {
+-        out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><button class="mcf-brow' + (stCls === 'push' ? ' attn' : (hot ? ' hot' : '')) + '" data-a="openSession" data-x="' + esc(t.sid) + '" title="abrir esta sessão no VSCode">' + label + '</button></div></div>';
++        out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><button class="mcf-brow' + (stCls === 'push' ? ' attn' : (hot ? ' hot' : '')) + '" data-a="openSessionTab" data-x="' + esc(t.sid) + '" data-title="' + esc(t.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">' + label + '</button></div></div>';
+       } else {
+         out += '<div class="mcf-grow">' + spine + '<div class="mcf-branch"><div class="mcf-brow nolink" title="sem sessão ligada">' + label + '</div></div></div>';
+       }
+@@ -569,7 +570,7 @@ function renderMissionControl(snapshot) {
+       + (ss.git && ss.git.pushNeeded === true && ss.sid
+         ? '<button class="mcf-pushbtn" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir para rever e enviar">✅ push?</button>'
+         : (ss.sid
+-          ? '<button class="mcf-gitlink" data-a="openSession" data-x="' + esc(ss.sid) + '" title="abrir sessão">🔗 git</button>'
++          ? '<button class="mcf-gitlink" data-a="openSessionTab" data-x="' + esc(ss.sid) + '" data-title="' + esc(ss.name || '') + '" title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)">🔗 git</button>'
+           : '<span class="mc-nd">🔗 n/d</span>'));
+     // ── GUARDIAN:F3 ── "⇄ Saltar para fresca": surge SÓ no limiar de delírio (advise ≥90,
+     // contrato F1 pressureLadder). ss.ctxPct já vem do snapshot MC (mc-snapshot). Clique → handler
+diff --git a/packages/vscode-extension/src/mission-control-view.test.js b/packages/vscode-extension/src/mission-control-view.test.js
+index 8ee8941..02b0951 100644
+--- a/packages/vscode-extension/src/mission-control-view.test.js
++++ b/packages/vscode-extension/src/mission-control-view.test.js
+@@ -8,6 +8,8 @@
+ 
+ const { test } = require('node:test');
+ const assert = require('node:assert');
++const fs = require('node:fs');
++const path = require('node:path');
+ 
+ const { renderMissionControl, renderMissionControlSafe } = require('./mission-control-view.js');
+ 
+@@ -79,8 +81,8 @@ test('renders the full snapshot without throwing, non-empty HTML', () => {
+   const html = noThrow('full', FULL);
+   assert.ok(html.indexOf('Mission Control') !== -1);
+   assert.ok(html.indexOf('frugal-front-G') !== -1, 'project name appears');
+-  // worktree git-graph link → openSession with the sid
+-  assert.ok(html.indexOf('data-a="openSession" data-x="sess-1"') !== -1, 'worktree row links to openSession');
++  // worktree git-graph link → canonical openSessionTab with the sid + available title
++  assert.ok(html.indexOf('data-a="openSessionTab" data-x="sess-1" data-title="Build MC view"') !== -1, 'worktree row links to openSessionTab with title');
+   // pilot actions present
+   for (const cmd of ['pauseAll', 'resumeAll', 'spawnMoo', 'projHandoff', 'refresh']) {
+     assert.ok(html.indexOf('data-a="' + cmd + '"') !== -1, 'pilot action ' + cmd + ' present');
+@@ -201,7 +203,33 @@ test('MCV2: sessions grouped by task_group with correct dependency badges', () =
+   assert.ok(html.indexOf('⚠️') !== -1 && html.indexOf('irreversível à frente') !== -1, 'irreversible-ahead badge');
+   // the irreversible session and the open link
+   assert.ok(html.indexOf('apply ledger migration') !== -1, 'irreversible session name');
+-  assert.ok(html.indexOf('data-a="openSession" data-x="sx-3"') !== -1, 'session open link wired');
++  assert.ok(html.indexOf('data-a="openSessionTab" data-x="sx-3" data-title="apply ledger migration"') !== -1, 'session open link wired to canonical tab command');
++});
++
++test('W-UX: pure session-open controls use openSessionTab; push keeps open-and-scope', () => {
++  const html = renderMissionControl(FULL);
++  const tip = 'title="abre a aba desta sessão no Claude Code (foca a existente, nunca duplica)"';
++  assert.match(html, /class="mcv2-tgopen" data-a="openSessionTab"[^>]*data-title="Build MC view"/, 'task-group link uses canonical tab command');
++  assert.match(html, /class="mcf-brow[^"]*" data-a="openSessionTab"[^>]*data-title="Build MC view"/, 'branch row uses canonical tab command');
++  assert.match(html, /class="mcf-gitlink" data-a="openSessionTab"[^>]*data-title="Remote moo"/, 'git link uses canonical tab command');
++  assert.equal(html.split(tip).length - 1, 4, 'every rendered pure-open control has the exact honest tooltip');
++  assert.match(html, /class="mcf-pushbtn" data-a="openSession"[^>]*title="abrir para rever e enviar"/, 'push action keeps backward-compatible open-and-scope path');
++});
++
++test('W-UX: legacy openSession delegates to mooter.openSessionTab and keeps cockpit scope', () => {
++  const src = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
++  const start = src.indexOf("if (m.cmd === 'openSession') {");
++  const end = src.indexOf('// ── DELIVERY COCKPIT', start);
++  assert.ok(start !== -1 && end > start, 'openSession handler found');
++  const handler = src.slice(start, end);
++  assert.match(handler, /executeCommand\('mooter\.openSessionTab', \{ id, title \}\)/, 'delegates to registered canonical command with id + title');
++  assert.doesNotMatch(handler, /claude-vscode\.primaryEditor\.open/, 'does not duplicate primary editor opening');
++  assert.match(handler, /this\.data\.selectedSession = id; this\.data\.refresh\(true\)/, 'keeps cockpit scope + refresh');
++  const tabStart = src.indexOf("if (m.cmd === 'openSessionTab') {");
++  const tabEnd = src.indexOf('// ═', tabStart);
++  const tabHandler = src.slice(tabStart, tabEnd);
++  assert.match(tabHandler, /executeCommand\('mooter\.openSessionTab', m\.arg\)/, 'pure tab path uses the registered command');
++  assert.doesNotMatch(tabHandler, /selectedSession|refresh\(true\)/, 'pure tab path does not scope the cockpit');
+ });
+ 
+ test('MCV2: sessions lacking task_group fall into an honest n/d group', () => {

@@ -1,0 +1,3 @@
+OPEN FLEET WINDOW 2026-07-08T08:58:00
+using: code -> C:\Users\Paulo Loureiro\frugal-fleet-arm
+DONE exit=0 2026-07-08T08:58:01

@@ -1,0 +1,127 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260707060826
+Username: DESKTOP-J26409Q\Paulo Loureiro
+RunAs User: DESKTOP-J26409Q\Paulo Loureiro
+Configuration Name: 
+Machine: DESKTOP-J26409Q (Microsoft Windows NT 10.0.26200.0)
+Host Application: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\Paulo Loureiro\frugal\_handoff\commit-info-architecture.ps1
+Process ID: 78020
+PSVersion: 5.1.26100.8737
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8737
+BuildVersion: 10.0.26100.8737
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\Paulo Loureiro\frugal\_handoff\commit-log.txt
+=== 0) Arquivar os scripts da limpeza (efemeros) ===
+OK    cleanup-info-architecture.ps1 -> _archive\2026-07
+OK    RUN-CLEANUP.bat -> _archive\2026-07
+OK    cleanup-log.txt -> _archive\2026-07
+=== 1) Branch e HEAD atuais (nao trocamos de branch) ===
+wave/honest-controls
+2c1a492 (HEAD -> wave/honest-controls) merge: LP-3.2 — vsix embarca @babel/parser + UI honesta parser-unavailable
+=== 2) Stage seletivo ===
+
+
+warning: in the working copy of '_handoff/_archive/2026-07/cleanup-log.txt', CRLF will be replaced by LF the next time G
+it touches it
+
+=== 3) O que vai no commit (staged) ===
+ .../waves}/WAVE6_5_D1_ADMIN_PANEL_KICKOFF.md       |    0
+ .../WAVE6_5_D2_ADMIN_CHARTS_FEEDBACK_KICKOFF.md    |    0
+ .../waves}/WAVE6_D1_WEB_ONBOARDING_KICKOFF.md      |    0
+ .../waves}/WAVE6_D2_INSTALL_URL_KICKOFF.md         |    0
+ .../waves}/WAVE6_SUPABASE_SETUP.md                 |    0
+ .../waves}/WAVE8_INSTALL_RELIABILITY_KICKOFF.md    |    0
+ .../waves}/WAVE9_PROD_PARITY_FIX_KICKOFF.md        |    0
+ .../waves}/WAVE_COUNCIL_MASTERPROMPT_CC.md         |    0
+ .../waves}/WAVE_COUNCIL_MEGA_MASTERPROMPT_CC.md    |    0
+ .../waves}/WAVE_PACKS_HARDENING_KICKOFF.md         |    0
+ .../waves}/WAVE_TOKEN_ECONOMY_ARC_REPORT.md        |    0
+ .../WAVE_WCOCKPIT9_COWORK_MIRROR_MASTERPROMPT.md   |    0
+ docs/foundation/SYNC_ARCHIVE_2026H1.md             | 3220 ++++++++++++++++++++
+ docs/strategy/LIVE_EDIT_ROADMAP.md                 |  156 +
+ 244 files changed, 5743 insertions(+), 3011 deletions(-)
+=== 4) Guard: classify.js NAO pode estar staged ===
+OK    classify.js fora do stage
+=== 5) Commit ===
+
+=== 6) Prova ===
+
+ M landing/app/_components/TwoTerminalDemo.tsx
+ M landing/app/page.tsx
+ M landing/components/Footer.tsx
+ M tools/router/chip-composer.js
+ M tools/router/gsd-statusline.js
+?? _handoff/CONDUCTOR_F0_DISPATCH_MASTERPROMPT.md
+?? _handoff/CONDUCTOR_F0_REDTEAM.md
+?? _handoff/DECK_POLISH_MASTERPROMPT.md
+?? _handoff/FLEET_ARM_GPU_TALO_BRIEF.md
+?? _handoff/FLEET_FASE3_LAUNCH_HANDOFF.md
+?? _handoff/LIVE_EDIT_CCA_AUDIT.md
+?? _handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md
+?? _handoff/LIVE_PREVIEW_FEATURE_STUDY.md
+?? _handoff/LIVE_PREVIEW_MASTER_HANDOFF.md
+?? _handoff/LIVE_PREVIEW_POSTMORTEM_PROTOCOL.md
+?? _handoff/LIVE_PREVIEW_TOTAL_AUDIT_WAVE.md
+?? _handoff/MIRROR_MASTERPROMPTS.md
+?? _handoff/MOOTER_BRIDGE_CONNECTOR_STUDY.md
+?? _handoff/MOOTER_CONDUCTOR_BRIEF.md
+?? _handoff/MOOTER_CONDUCTOR_PRODUCT_DESIGN.md
+?? _handoff/MOOTER_MIRROR_ARCHITECTURE.md
+?? _handoff/MOOTER_PAINS_X_SOTA_BLUEPRINT.md
+?? _handoff/MOOVE_MVP_MASTERPROMPT.md
+?? _handoff/PORTABILITY_LOVABLE_TO_MOOTER_BRIEF.md
+?? _handoff/QUOTA_AWARE_MP.md
+?? _handoff/RUN-COMMIT.bat
+?? _handoff/SUPER_MP_QUOTA_FLEET.md
+?? _handoff/SUPER_WAVE_LP48_LP5_LP6.md
+?? _handoff/commit-info-architecture.ps1
+?? _handoff/commit-log.txt
+?? _handoff/guardian/026d0f38-0ae1-495b-8f12-659900233c6a.md
+?? _handoff/guardian/061aea86-b8f9-4c89-9eb3-174d763833df.md
+?? _handoff/guardian/1f698af0-c58b-46fa-b4fa-94bf0783fff9.md
+?? _handoff/guardian/238afb6f-0ea4-449a-bf92-02dfeb4e871e.md
+?? _handoff/guardian/3c1a726e-f8ee-40cb-9d9d-4915bec47fee.md
+?? _handoff/guardian/48c8155c-a4b4-4320-97e5-6e73d662b7bf.md
+?? _handoff/guardian/55346997-b5ca-40c8-b75d-37ee75d34267.md
+?? _handoff/guardian/55fd1260-5697-4a31-8917-90123725feeb.md
+?? _handoff/guardian/6cace64e-e61f-47d8-8a28-9bcc41ff062c.md
+?? _handoff/guardian/73bf36f0-215b-4132-be65-b167574e2da2.md
+?? _handoff/guardian/73f7ba48-0c26-4d44-840c-7ef5c0d16c45.md
+?? _handoff/guardian/77ea7c3b-8d49-44fb-90b7-f1d674d86798.md
+?? _handoff/guardian/7b671c0a-b16a-4105-8bae-a2e0a76d8b09.md
+?? _handoff/guardian/7ed5684a-5d0e-43b9-a2aa-821c4ef5f98c.md
+?? _handoff/guardian/85d9a37e-22b3-41ad-9f8b-a8862373b332.md
+?? _handoff/guardian/8a323d01-642b-486d-8160-2d59dcda734e.md
+?? _handoff/guardian/8d471133-14e2-4117-8fe0-6557beb1de60.md
+?? _handoff/guardian/afb98bfa-0049-4359-9464-6e003bd650a9.md
+?? _handoff/guardian/b93b5607-6d33-4791-9f4e-e53fc75f4532.md
+?? _handoff/guardian/bfb01d25-a71b-4518-9897-42ca85c371c9.md
+?? _handoff/guardian/cbd3cc49-7bb7-4cd0-93c9-1f24f1a8b1aa.md
+?? _handoff/guardian/cc0501e1-efba-44b0-aef4-91cf5054a370.md
+?? _handoff/guardian/cf270168-a612-4ae4-a755-99e2d307b39f.md
+?? _handoff/guardian/d2df4fc3-9160-4801-ac18-82001bcf9fa9.md
+?? _handoff/guardian/e34b25b9-b779-46bd-be5b-34bcc974043b.md
+?? _handoff/guardian/f01709d5-9408-46df-ac53-dddc4651306f.md
+?? _handoff/guardian/f2611fee-79dd-415d-87d9-1daac0a85674.md
+?? _handoff/guardian/f863f742-78ab-406d-baee-37839e3e7e3e.md
+?? _handoff/guardian/fbb90047-61bf-4a80-8159-af949ffdf306.md
+?? _handoff/reinstall-mooter.cmd
+?? _handoff/repro-live-edit.js
+?? docs/foundation/CLAUDE_DESKTOP_DISK_MAP.md
+?? docs/foundation/SYSTEM_DESIGN.md
+?? docs/foundation/SYSTEM_DESIGN.pdf
+?? docs/strategy/MOOVE_PRODUCT_DESIGN.md
+?? docs/strategy/PORTABILITY_LOVABLE_TO_CC_STUDY.md
+?? tools/router/quota-live.js
+?? tools/router/quota-status.js
+=== FIM - SEM push (autorizacao do Paulo pendente) ===
+**********************
+Windows PowerShell transcript end
+End time: 20260707060828
+**********************
