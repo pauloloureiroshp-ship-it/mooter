@@ -72,3 +72,10 @@ test('COH-02: an extreme cramped viewport where nothing fits → dock (never a p
   const r = resultRect(pl, wrap);
   assert.ok(pl.mode === 'dock' || !overlap(r, pin), 'cramped → dock or a non-covering chip, never a covering toolbar');
 });
+
+test('COH-02: the explicit minimized-chip geometry also docks when the cow itself cannot clear the pin', () => {
+  const wrap = { w: 200, h: 150 };
+  const pin = { x: 8, y: 8, w: 184, h: 134 };
+  const pl = chooseToolbarPlacement({ pin, tb: CHIP, wrap, chip: CHIP });
+  assert.strictEqual(pl.mode, 'dock', 'runtime must reopen the full prompt in the rail; it may not clamp the cow over the pin');
+});

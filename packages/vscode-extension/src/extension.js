@@ -80,6 +80,11 @@ try { DOCTOR = require('./doctor-checks'); } catch { DOCTOR = null; }
 // the command still registers but the panel shows nothing to render (no crash).
 let LPV = null;
 try { LPV = require('./live-preview-view.js'); } catch { LPV = null; }
+// Native Activity Bar companion. The view is presentation-only; LivePreviewPanel remains the
+// single host controller for selection identity, writes, Security and Publish.
+let LPSIDEBAR = null, LPSIDEBAR_PROVIDER = null;
+try { LPSIDEBAR = require('./lp-sidebar-view.js'); } catch { LPSIDEBAR = null; }
+try { LPSIDEBAR_PROVIDER = require('./lp-sidebar-provider.js'); } catch { LPSIDEBAR_PROVIDER = null; }
 let HC = null;
 try { HC = require('./hook-collector.js'); } catch { HC = null; }
 // ── DIRECTOR'S CUT v2 · F1 (additive, read-only, DATA ONLY — no UI yet) — the host-side
@@ -569,6 +574,7 @@ class CockpitProvider {
     view.onDidDispose(() => { sub.dispose(); vis.dispose(); if (this._view === view) this._view = null; });
     view.webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
+      if (m.cmd === 'openLivePreview') await vscode.commands.executeCommand('mooter.openLivePreview');
       if (m.cmd === 'launch') vscode.commands.executeCommand('mooter.newSession');
       if (m.cmd === 'refresh') { this.data.refresh(true); reWarm(); }
       if (m.cmd === 'term') runInTerminal(mooterCmd(m.arg || 'mooter doctor'));
@@ -1218,9 +1224,13 @@ function readBusTail(busFile, maxBytes) {
 // (filtered to the active session — see detectActiveSid's heuristic doc in
 // live-preview-view.js), and the Brain overlay (decisions.log + the EXISTING GPU-snapshot
 // cache reader from mc-snapshot.js — reused, not reinvented). Never throws.
-function livePreviewSnapshot() {
+function livePreviewSnapshot(rootOverride) {
   try {
-    const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath) || process.cwd();
+    // Use the controller's resolved active project whenever supplied. This keeps MEO telemetry,
+    // the preview lease and the write target on the SAME workspace in a multi-root window.
+    const wsRoot = (typeof rootOverride === 'string' && rootOverride)
+      || (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] && vscode.workspace.workspaceFolders[0].uri.fsPath)
+      || process.cwd();
     const busFile = HC ? HC.eventsPath(wsRoot) : path.join(wsRoot, '_handoff', 'live-preview', 'events.jsonl');
     const raw = readBusTail(busFile, 128 * 1024);
     const events = LPV ? LPV.parseBusJsonl(raw, 500) : [];
@@ -1291,8 +1301,32 @@ async function probeStagePorts(ports, options) {
 // to the webview; never writes user code or routing state. retainContextWhenHidden keeps the
 // stream/scroll position across tab switches.
 class LivePreviewPanel {
-  constructor(panel, context) {
+  constructor(panel, context, sidebarProvider) {
     this.panel = panel;
+    this._sidebar = sidebarProvider || null;
+    this._lastLpSnapshot = null;
+    this._lastPublishStatus = null;
+    this._lastPublishResult = null;
+    this._sidebarTaskResults = new Map();
+    this._sidebarTaskStatus = null;
+    this._sidebarSecurityTaskStatus = null;
+    this._sidebarSecurityTaskResult = null;
+    // The native sidebar emits intent only. Keep deterministic preview approvals host-side so an
+    // OK click can apply only the exact diff this controller produced for the active selection.
+    this._sidebarEditProposal = null;
+    this._sidebarDeleteProposal = null;
+    this._sidebarEditDisplay = null;
+    this._sidebarDeleteDisplay = null;
+    // Multi-select references are another host-owned part of selection identity. The editor panel
+    // may project origin-locked Ctrl/Cmd-clicks here, but only contained, lease-bound records survive;
+    // the native sidebar receives labels/count and can never submit or choose source references.
+    this._selectionRefs = [];
+    this._selectionRefsOwner = null;
+    // Fenced prompt rewrites are asynchronous. Bind every run to one immutable host operation so a
+    // late answer for node A can never become the Apply proposal while node B is selected. The
+    // monotonically increasing id also gives same-node retries a deterministic latest-wins order.
+    this._promptSeq = 0;
+    this._activePromptOp = null;
     // F0.2 — workspaceState memento for the per-node history feed (display-only; never undo bytes).
     // null in a bare unit harness (no ctor) → the feed stays in-memory, contract unchanged.
     this._store = (context && context.workspaceState && typeof context.workspaceState.get === 'function') ? context.workspaceState : null;
@@ -1377,16 +1411,344 @@ class LivePreviewPanel {
     this._projectRoot = null;
     this._wire();
   }
-  static createOrReveal(context) {
+  static createOrReveal(context, sidebarProvider) {
     if (LivePreviewPanel.current) {
+      if (sidebarProvider) { LivePreviewPanel.current._sidebar = sidebarProvider; sidebarProvider.attach(LivePreviewPanel.current); }
       LivePreviewPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return LivePreviewPanel.current;
     }
     const panel = vscode.window.createWebviewPanel(
-      'mooterLivePreview', 'Mooter — Live Preview 🎬', vscode.ViewColumn.Beside,
+      'mooterLivePreview', 'Mooter — Live Preview ⚡', vscode.ViewColumn.Beside,
       { enableScripts: true, retainContextWhenHidden: true });
-    LivePreviewPanel.current = new LivePreviewPanel(panel, context); // F0.2 — pass context for the persisted feed
+    LivePreviewPanel.current = new LivePreviewPanel(panel, context, sidebarProvider); // one controller, two projections
+    if (sidebarProvider) sidebarProvider.attach(LivePreviewPanel.current);
     return LivePreviewPanel.current;
+  }
+  _postPanel(payload) {
+    try { this.panel.webview.postMessage(Object.assign({}, payload || {}, { __t: this.token })); } catch { /* best-effort */ }
+  }
+  _postSidebar(payload) {
+    try { if (this._sidebar) this._sidebar.post(payload || {}); } catch { /* best-effort */ }
+  }
+  _postBoth(payload) {
+    this._postPanel(payload);
+    this._postSidebar(payload);
+  }
+  _syncSidebar() {
+    try { if (this._sidebar) this._sidebar.sync(this); } catch { /* best-effort */ }
+  }
+  _clearSelectionRefs() {
+    this._selectionRefs = [];
+    this._selectionRefsOwner = null;
+  }
+  _nodeStamp(value) {
+    const row = value && typeof value === 'object' ? value : {};
+    return {
+      file: typeof row.file === 'string' ? row.file : '',
+      line: Number.isInteger(row.line) ? row.line : null,
+      col: Number.isInteger(row.col) ? row.col : null,
+      tag: typeof row.tag === 'string' ? row.tag : '',
+    };
+  }
+  _sameNodeStamp(a, b) {
+    const aa = this._nodeStamp(a), bb = this._nodeStamp(b);
+    return !!aa.file && aa.file === bb.file && aa.line === bb.line && aa.col === bb.col
+      && String(aa.tag || '').toLowerCase() === String(bb.tag || '').toLowerCase();
+  }
+  _currentJourneyId() {
+    const current = this._journeyCurrent(false);
+    return current && current.id || null;
+  }
+  _refsOwnedByCurrentSelection() {
+    const owner = this._selectionRefsOwner;
+    if (!owner || !this._selection || !this._sameNodeStamp(owner.nodeKey, this._selection)) return false;
+    const journeyId = this._activeJourneyId || this._currentJourneyId();
+    return !!owner.journeyId && owner.journeyId === journeyId;
+  }
+  _relativeSelectionRef(real) {
+    try {
+      const root = this._wsRoot();
+      const rel = path.relative(root, real);
+      if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
+      return rel.split(path.sep).join('/');
+    } catch { return null; }
+  }
+  // The editor panel is the only reference ingress. Every row is bounded, workspace-contained and
+  // stamped with the CURRENT host lease; replacing the list is atomic so detach/clear cannot leave
+  // a stale tail behind. A bare harness can stub containment, while production always reuses the
+  // same realpath guard as source opening and edits.
+  _setSelectionRefs(message) {
+    try {
+      const incoming = message && Array.isArray(message.refs) ? message.refs : [];
+      const sel = this._selection;
+      if (!sel || !sel.file || (this._servedRoot !== undefined && this._treeGateBlocked()) || !incoming.length) {
+        this._clearSelectionRefs(); this._syncSidebar(); return;
+      }
+      const lease = this._identityLeaseSnapshot();
+      const ownerJourney = this._journeyCurrent(true);
+      const ownerNodeKey = this._nodeStamp(sel);
+      if (!ownerJourney || !ownerJourney.id || !ownerNodeKey.file) {
+        this._clearSelectionRefs(); this._syncSidebar(); return;
+      }
+      const next = [];
+      const seen = new Set();
+      // Inspect at most 32 untrusted rows to bound work, while retaining at most eight valid refs.
+      for (let i = 0; i < incoming.length && i < 32 && next.length < 8; i++) {
+        const row = incoming[i] && typeof incoming[i] === 'object' ? incoming[i] : {};
+        const raw = typeof row.file === 'string' ? row.file.trim().slice(0, 1024) : '';
+        if (!raw) continue;
+        const real = this._resolveContainedFile(raw);
+        if (!real) continue;
+        const file = this._relativeSelectionRef(real);
+        if (!file) continue;
+        const line = Number.isInteger(row.line) && row.line > 0 ? row.line : null;
+        const col = Number.isInteger(row.col) && row.col > 0 ? row.col : null;
+        const tag = typeof row.tag === 'string' ? row.tag.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60) : '';
+        const stamp = [file, line == null ? '' : line, col == null ? '' : col, tag].join('|');
+        if (seen.has(stamp)) continue;
+        seen.add(stamp);
+        const cleanLabel = typeof row.label === 'string' ? row.label.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+        next.push({ file, line, col, tag, label: cleanLabel || ('<' + (tag || 'nó') + '> referência'), lease: Object.assign({}, lease) });
+      }
+      this._selectionRefs = next;
+      this._selectionRefsOwner = { journeyId: ownerJourney.id, nodeKey: ownerNodeKey };
+      this._syncSidebar();
+    } catch {
+      this._clearSelectionRefs(); this._syncSidebar();
+    }
+  }
+  // Re-check both lease and filesystem containment at the exact submit boundary. This deliberately
+  // ignores any `refs` property supplied by the sidebar message; only records accepted above exist.
+  _validatedSelectionRefs() {
+    try {
+      if (!this._selection || !this._selection.file || (this._servedRoot !== undefined && this._treeGateBlocked())) {
+        this._clearSelectionRefs(); return [];
+      }
+      if (!this._refsOwnedByCurrentSelection()) { this._clearSelectionRefs(); return []; }
+      const stored = Array.isArray(this._selectionRefs) ? this._selectionRefs : [];
+      const valid = [];
+      for (let i = 0; i < stored.length && valid.length < 8; i++) {
+        const row = stored[i] || {};
+        if (!this._identityLeaseMatches(row.lease)) continue;
+        const real = this._resolveContainedFile(row.file);
+        if (!real) continue;
+        const file = this._relativeSelectionRef(real);
+        if (!file) continue;
+        valid.push({ file, line: Number.isInteger(row.line) ? row.line : undefined, col: Number.isInteger(row.col) ? row.col : undefined, tag: typeof row.tag === 'string' ? row.tag.slice(0, 60) : undefined, label: typeof row.label === 'string' ? row.label.slice(0, 80) : '', lease: row.lease });
+      }
+      this._selectionRefs = valid;
+      return valid.map((row) => ({ file: row.file, line: row.line, col: row.col, tag: row.tag }));
+    } catch { this._clearSelectionRefs(); return []; }
+  }
+  _sidebarState() {
+    const sel = this._selection && this._selection.file ? this._selection : null;
+    const readiness = this._readiness();
+    const treeReady = !!(readiness && readiness.workspace && readiness.devServer && readiness.tree === 'ok');
+    const sec = this._securitySummary();
+    const journey = this._journeyView();
+    let taskResult = null;
+    if (this._sidebarTaskResults instanceof Map && this._sidebarTaskResults.size) {
+      const rows = Array.from(this._sidebarTaskResults.values()).reverse();
+      taskResult = rows.find((result) => {
+        if (!result || !sel) return false;
+        if (journey && result.journeyId && result.journeyId === journey.id) return true;
+        const anchor = result.anchor || result.sourceAnchor || null;
+        return !!(anchor && anchor.file === sel.file && anchor.line === sel.line && (!anchor.tag || !sel.tag || anchor.tag === sel.tag));
+      }) || null;
+    }
+    let securityResult = null;
+    if (this._lastSecurity && typeof this._lastSecurity === 'object') {
+      securityResult = Object.assign({}, this._lastSecurity, {
+        counts: sec.counts,
+        scannedAt: sec.scannedAt,
+        reportId: sec.reportId,
+        thread: sec.thread,
+      });
+    }
+    const stage = this.stage || null;
+    const storedRefs = this._refsOwnedByCurrentSelection() && Array.isArray(this._selectionRefs)
+      ? this._selectionRefs.filter((row) => row && this._identityLeaseMatches(row.lease)).slice(0, 8) : [];
+    return {
+      active: true,
+      selection: sel ? {
+        label: path.basename(sel.file) + (sel.line ? (':' + sel.line) : '') + ' · <' + (sel.tag || '?') + '>',
+        tag: sel.tag || null,
+        text: sel.selText || '',
+        className: sel.className || '',
+        summary: sel.selText || 'Thread pronta para este elemento.',
+      } : null,
+      journey,
+      taskResult,
+      taskStatus: this._sidebarTaskStatus && (!this._sidebarTaskStatus.journeyId
+        || this._sidebarTaskStatus.journeyId === (journey && journey.id)) ? this._sidebarTaskStatus : null,
+      securityTaskStatus: this._sidebarSecurityTaskStatus,
+      securityTaskResult: this._sidebarSecurityTaskResult,
+      editDiff: this._sidebarEditDisplay || null,
+      deleteDiff: this._sidebarDeleteDisplay || null,
+      refs: {
+        count: storedRefs.length,
+        labels: storedRefs.map((row, index) => (typeof row.label === 'string' && row.label) ? row.label.slice(0, 80) : ('referência ' + (index + 1))),
+      },
+      security: sec,
+      securityResult,
+      publish: this._lastPublishStatus,
+      meo: this._lastLpSnapshot || null,
+      readiness: {
+        ready: treeReady,
+        label: treeReady ? 'preview ligado' : null,
+        reason: !readiness.workspace ? 'abre a pasta' : (!readiness.devServer ? 'dev server indisponível' : (readiness.tree !== 'ok' ? 'árvore por confirmar' : null)),
+        workspace: readiness.workspace,
+        devServer: readiness.devServer,
+        tree: readiness.tree,
+        agent: readiness.sdk,
+      },
+      stage: stage ? { label: stage.url || stage.reason || 'preview', status: stage.stale ? 'stale' : (stage.degraded ? 'degraded' : 'ready') } : null,
+    };
+  }
+  _sidebarTaskActionAllowed(taskId) {
+    try {
+      if (!taskId || !(this._taskContext instanceof Map)) return false;
+      const ctx = this._taskContext.get(taskId);
+      if (!ctx) return false;
+      if (ctx.context === 'security') return true;
+      const journeyId = this._activeJourneyId || this._currentJourneyId();
+      return !!ctx.journeyId && ctx.journeyId === journeyId && !!this._selection
+        && (!ctx.anchor || this._sameNodeStamp(ctx.anchor, this._selection));
+    } catch { return false; }
+  }
+  _onSidebarMessage(message) {
+    if (!message || typeof message !== 'object') return;
+    if (message.type === 'lp-sidebar-submit') {
+      const instruction = typeof message.instruction === 'string' ? message.instruction.trim().slice(0, 12000) : '';
+      const intent = message.intent === 'ask' ? 'ask' : 'edit';
+      const allowedModes = new Set(['auto', 'local', 't1', 't2', 't3', 'fable']);
+      let mode = allowedModes.has(message.mode) ? message.mode : 'auto';
+      if (intent === 'ask' && mode === 'local') mode = 'auto';
+      const sel = this._selection;
+      if (!instruction || !sel || !sel.file) {
+        this._postSidebar({ type: 'lp-task-result', ok: false, reason: !sel ? 'selection-required' : 'prompt-empty' });
+        return;
+      }
+      if (intent === 'edit' && mode === 'local') {
+        this._promptEdit({
+          type: 'lp-prompt', prompt: instruction, tier: 'local',
+          file: sel.file, line: sel.line, col: sel.col, tag: sel.tag, selText: sel.selText || '',
+        });
+        return;
+      }
+      const refs = this._validatedSelectionRefs();
+      this._taskRun({
+        type: 'lp-task', instruction, intent, mode,
+        file: sel.file, line: sel.line, col: sel.col, tag: sel.tag,
+        selText: sel.selText || '', breadcrumb: sel.tag ? ('<' + sel.tag + '>') : '', refs,
+      });
+      return;
+    }
+    if (message.type === 'lp-sidebar-preview-edit') {
+      const sel = this._selection;
+      const kind = message.kind === 'class' ? 'class' : (message.kind === 'text' ? 'text' : null);
+      const value = typeof message.value === 'string' ? message.value.slice(0, kind === 'class' ? 4000 : 12000) : null;
+      if (!sel || !sel.file || !kind || value == null) {
+        this._postSidebar({ type: 'lp-edit-result', ok: false, reason: !sel ? 'selection-required' : 'bad-request' });
+        return;
+      }
+      this._applyEdit({ preview: true, file: sel.file, line: sel.line, col: sel.col, tag: sel.tag, edit: { kind, value } });
+      return;
+    }
+    if (message.type === 'lp-sidebar-preset') {
+      const sel = this._selection;
+      const cls = typeof message.cls === 'string' ? message.cls : '';
+      const group = typeof message.group === 'string' ? message.group : '';
+      const catalogs = {
+        'text-color': /^text-(?:slate|red|orange|amber|yellow|green|teal|sky|blue|indigo|violet|pink)-600$/,
+        'bg-color': /^bg-(?:slate|red|orange|amber|yellow|green|teal|sky|blue|indigo|violet|pink)-500$/,
+        'text-size': /^text-(?:sm|base|lg|xl|[2-4]xl)$/,
+        pad: /^p-(?:1|2|3|4|6)$/,
+      };
+      if (!sel || !sel.file || !catalogs[group] || !catalogs[group].test(cls) || !LPP || typeof LPP.mergeClass !== 'function') {
+        this._postSidebar({ type: 'lp-edit-result', ok: false, reason: !sel ? 'selection-required' : 'bad-request' });
+        return;
+      }
+      const value = LPP.mergeClass(sel.className || '', cls, group);
+      this._applyEdit({ preview: true, file: sel.file, line: sel.line, col: sel.col, tag: sel.tag, edit: { kind: 'class', value } });
+      return;
+    }
+    if (message.type === 'lp-sidebar-edit-apply') {
+      const proposal = this._sidebarEditProposal;
+      if (!proposal) { this._postSidebar({ type: 'lp-edit-result', ok: false, reason: 'proposal-required' }); return; }
+      const applyKind = proposal.applyKind;
+      if (applyKind === 'prompt' && this._selection !== undefined
+        && (!proposal.promptOp || !this._promptOpActive(proposal.promptOp))) {
+        this._sidebarEditProposal = null; this._sidebarEditDisplay = null;
+        this._postSidebar({ type: 'lp-edit-result', ok: false, reason: 'selection-changed' });
+        this._syncSidebar();
+        return;
+      }
+      this._sidebarEditProposal = null; this._sidebarEditDisplay = null;
+      const request = Object.assign({}, proposal, { preview: false });
+      delete request.applyKind;
+      if (applyKind === 'prompt') this._promptApply(request);
+      else this._applyEdit(request);
+      return;
+    }
+    if (message.type === 'lp-sidebar-delete-preview') {
+      const sel = this._selection;
+      if (!sel || !sel.file) { this._postSidebar({ type: 'lp-edit-result', ok: false, reason: 'selection-required' }); return; }
+      this._deleteNode({ preview: true, file: sel.file, line: sel.line, col: sel.col, tag: sel.tag });
+      return;
+    }
+    if (message.type === 'lp-sidebar-delete-apply') {
+      const proposal = this._sidebarDeleteProposal;
+      this._sidebarDeleteProposal = null; this._sidebarDeleteDisplay = null;
+      if (!proposal) { this._postSidebar({ type: 'lp-edit-result', ok: false, reason: 'proposal-required' }); return; }
+      this._deleteNode(Object.assign({}, proposal, { preview: false }));
+      return;
+    }
+    if (message.type === 'lp-sidebar-proposal-dismiss') {
+      const promptOp = this._sidebarEditProposal && this._sidebarEditProposal.promptOp;
+      if (promptOp && this._activePromptOp && this._activePromptOp.id === promptOp.id) this._activePromptOp = null;
+      this._sidebarEditProposal = null; this._sidebarDeleteProposal = null;
+      this._sidebarEditDisplay = null; this._sidebarDeleteDisplay = null;
+      this._syncSidebar();
+      return;
+    }
+    if (message.type === 'lp-open-source') {
+      const sel = this._selection;
+      if (sel) this._openSourceFile({ file: sel.file, line: sel.line, col: sel.col, tag: sel.tag });
+      return;
+    }
+    if (message.type === 'lp-publish-commit') {
+      const status = this._lastPublishStatus && typeof this._lastPublishStatus === 'object' ? this._lastPublishStatus : null;
+      const rows = status && Array.isArray(status.touchedFiles) ? status.touchedFiles : [];
+      const files = rows.map((row) => typeof row === 'string' ? row : (row && typeof row.path === 'string' ? row.path : '')).filter(Boolean);
+      const commitMessage = typeof message.message === 'string' ? message.message.trim().slice(0, 500) : '';
+      this._publishCommit({ files, message: commitMessage });
+      return;
+    }
+    if (message.type === 'lp-task-keep' || message.type === 'lp-task-revert') {
+      const taskId = typeof message.taskId === 'string' ? message.taskId : '';
+      if (!this._sidebarTaskActionAllowed(taskId)) {
+        this._postSidebar({ type: message.type === 'lp-task-keep' ? 'lp-task-keep-result' : 'lp-task-revert-result', taskId, ok: false, done: false, reason: 'selection-changed', results: [] });
+        return;
+      }
+      this._onMessage(message);
+      return;
+    }
+    if (message.type === 'lp-task-cancel') {
+      const status = this._sidebarTaskStatus;
+      const activeJourney = this._currentJourneyId();
+      const normalAllowed = !!status && (!status.journeyId || status.journeyId === activeJourney);
+      const securityAllowed = !!this._sidebarSecurityTaskStatus;
+      if (!normalAllowed && !securityAllowed) return;
+      this._onMessage(message);
+      return;
+    }
+    const allowed = new Set([
+      'lp-ask-apply',
+      'lp-undo', 'lp-feed-revert', 'lp-security-scan', 'lp-security-open', 'lp-security-fix',
+      'lp-publish-status', 'lp-publish-deploy', 'lp-open-external',
+    ]);
+    if (allowed.has(message.type)) this._onMessage(message);
   }
   _wsRoot() {
     const folders = (vscode.workspace && vscode.workspace.workspaceFolders) || null;
@@ -1537,6 +1899,11 @@ class LivePreviewPanel {
     this._activeTaskAbort = null;
     if (this._servedRoot !== undefined) this._servedRoot = null;   // identity unproven for the new origin
     if (this._selection !== undefined) this._selection = null;     // the old pin belonged to the old app
+    this._clearSelectionRefs();                                    // refs share the exact same lease as the pin
+    this._activePromptOp = null;
+    this._sidebarTaskStatus = null;
+    this._sidebarEditProposal = null; this._sidebarDeleteProposal = null;
+    this._sidebarEditDisplay = null; this._sidebarDeleteDisplay = null;
     this._lastPinKey = null;                                        // let a genuine re-pin re-trace
     this._leaseInfo = (prevOrigin && (nextOrigin !== prevOrigin || leaseKind !== 'origin-changed'))
       ? { kind: leaseKind, prevOrigin, nextOrigin, prevPort: this._portOf(prevOrigin), newPort: this._portOf(nextOrigin),
@@ -1651,17 +2018,37 @@ class LivePreviewPanel {
   _setSelection(m) {
     try {
       const file = (m && typeof m.file === 'string') ? m.file.trim() : '';
-      if (!file) { this._selection = null; this._activeJourneyId = null; this._journeyPost(null); return; }
+      if (!file) {
+        this._selection = null; this._activeJourneyId = null;
+        this._clearSelectionRefs();
+        this._activePromptOp = null;
+        this._sidebarEditProposal = null; this._sidebarDeleteProposal = null;
+        this._sidebarEditDisplay = null; this._sidebarDeleteDisplay = null;
+        this._journeyPost(null); this._syncSidebar(); return;
+      }
       // Never accept a pin from a retained/stale/error document. lp-tree is relayed immediately
       // before lp-pin, so a healthy current-origin handshake has already renewed the tree here.
-      if (this._servedRoot !== undefined && this._treeGateBlocked()) { this._selection = null; return; }
-      this._selection = {
+      if (this._servedRoot !== undefined && this._treeGateBlocked()) {
+        this._selection = null; this._sidebarEditProposal = null; this._sidebarDeleteProposal = null;
+        this._clearSelectionRefs();
+        this._activePromptOp = null;
+        this._sidebarEditDisplay = null; this._sidebarDeleteDisplay = null;
+        this._syncSidebar(); return;
+      }
+      const previousSelection = this._selection && this._selection.file ? this._nodeStamp(this._selection) : null;
+      const nextSelection = {
         file: file.slice(0, 1024),
         line: Number.isInteger(m && m.line) ? m.line : null,
         col: Number.isInteger(m && m.col) ? m.col : null,
         tag: (m && typeof m.tag === 'string') ? m.tag.slice(0, 60) : '',
         selText: (m && typeof m.selText === 'string') ? m.selText.replace(/\s+/g, ' ').trim().slice(0, 200) : '',
+        className: (m && typeof m.className === 'string') ? m.className.replace(/\s+/g, ' ').trim().slice(0, 4000) : '',
       };
+      // `continuation` is only a focus/UX hint from the trusted parent webview. Prove the stamp
+      // again host-side; a forged/different node can never retain A's draft, refs or async prompt.
+      const sameContinuation = !!(m && m.continuation === true && previousSelection
+        && this._sameNodeStamp(previousSelection, nextSelection));
+      this._selection = nextSelection;
       // D5 — trace a pin ONCE per distinct node (the tap re-pins on every HMR/reflow; de-dup avoids spam).
       const pk = this._selection.file + '|' + this._selection.line + '|' + this._selection.tag;
       if (pk !== this._lastPinKey) { this._lastPinKey = pk; this._emitLpEvent('pin', { kind: 'server', nodeKey: this._selection, summary: 'pin <' + (this._selection.tag || '?') + '>' }); }
@@ -1670,8 +2057,30 @@ class LivePreviewPanel {
       // fresh pin exactly matches the short-lived host expectation; a normal user click still
       // opens its own thread.
       const adopted = this._adoptPendingRepin();
+      const continuation = !!(adopted || sameContinuation);
+      if (!continuation) {
+        this._clearSelectionRefs();
+        this._activePromptOp = null;
+        this._sidebarEditProposal = null;
+        this._sidebarDeleteProposal = null;
+        this._sidebarEditDisplay = null;
+        this._sidebarDeleteDisplay = null;
+      } else if (adopted && this._selectionRefsOwner) {
+        this._selectionRefsOwner = { journeyId: adopted.id, nodeKey: this._nodeStamp(this._selection) };
+      }
       this._journeyPost(adopted || this._journeyCurrent(true));
-    } catch { this._selection = null; }
+      this._syncSidebar();
+      // A manual selection is the one intentional focus transition: open the native Mooter
+      // inspector and put the single composer under the user's cursor. An HMR re-pin only refreshes
+      // state; it must never steal focus while the user is typing elsewhere.
+      if (!continuation && this._sidebar) this._sidebar.reveal('edit', true);
+    } catch {
+      this._selection = null;
+      this._clearSelectionRefs();
+      this._activePromptOp = null;
+      this._sidebarEditProposal = null; this._sidebarDeleteProposal = null;
+      this._sidebarEditDisplay = null; this._sidebarDeleteDisplay = null;
+    }
   }
   _adoptPendingRepin() {
     try {
@@ -1781,6 +2190,35 @@ class LivePreviewPanel {
     this._activeJourneyId = j ? id : null;
     return j;
   }
+  _newPromptOp(anchor, journey, lease) {
+    const seq = (this._promptSeq | 0) + 1;
+    this._promptSeq = seq;
+    const op = {
+      id: 'prompt-' + seq,
+      seq,
+      journeyId: journey && journey.id || null,
+      nodeKey: this._nodeStamp(anchor),
+      lease: Object.assign({}, lease || this._identityLeaseSnapshot()),
+    };
+    this._activePromptOp = op;
+    return op;
+  }
+  _promptOpState(op) {
+    if (!op || typeof op !== 'object' || !op.id || !op.journeyId || !op.nodeKey) return 'invalid';
+    const active = this._activePromptOp;
+    if (!active || active.id !== op.id) {
+      if (active && active.journeyId === op.journeyId && this._sameNodeStamp(active.nodeKey, op.nodeKey)) return 'superseded';
+      return 'selection-changed';
+    }
+    if (active.journeyId !== op.journeyId || !this._sameNodeStamp(active.nodeKey, op.nodeKey)
+      || !op.lease || active.lease.origin !== op.lease.origin || active.lease.servedRoot !== op.lease.servedRoot
+      || active.lease.epoch !== op.lease.epoch) return 'invalid';
+    if (!this._identityLeaseMatches(active.lease)) return 'lease-changed';
+    if (this._activeJourneyId !== active.journeyId || !this._selection || !this._sameNodeStamp(active.nodeKey, this._selection)) return 'selection-changed';
+    return 'active';
+  }
+  _promptOpActive(op) { return this._promptOpState(op) === 'active'; }
+  _promptJourney(op) { return op && op.journeyId ? this._journeyById(op.journeyId) : null; }
   _journeyById(id) {
     this._journeyEnsureLoaded();
     return (typeof id === 'string' && id && this._journeys instanceof Map) ? (this._journeys.get(id) || null) : null;
@@ -1806,7 +2244,7 @@ class LivePreviewPanel {
     } catch { /* thread persistence never blocks editing */ }
   }
   _journeyPost(j) {
-    try { this.panel.webview.postMessage({ type: 'lp-journey-update', __t: this.token, journey: this._journeyDisplay(j || this._journeyCurrent(false)) }); } catch { /* best-effort */ }
+    this._postBoth({ type: 'lp-journey-update', journey: this._journeyDisplay(j || this._journeyCurrent(false)) });
   }
   _journeyCommit(j) {
     if (!j) return;
@@ -1890,6 +2328,9 @@ class LivePreviewPanel {
       }
       if (this._journeys instanceof Map) { this._journeys.delete(oldId); this._journeys.set(nextId, target); }
       if (this._activeJourneyId === oldId) this._activeJourneyId = nextId;
+      if (this._selectionRefsOwner && this._selectionRefsOwner.journeyId === oldId) {
+        this._selectionRefsOwner = { journeyId: nextId, nodeKey: this._nodeStamp(anchor) };
+      }
       this._journeyCommit(target);
       return target;
     } catch { return journey || null; }
@@ -2266,7 +2707,8 @@ class LivePreviewPanel {
   }
   _post() {
     try {
-      const s = livePreviewSnapshot();
+      const s = livePreviewSnapshot(this._wsRoot());
+      this._lastLpSnapshot = s;
       this._lpSid = (s && typeof s.sid === 'string' && s.sid) ? s.sid : (this._lpSid || null); // D5 — cache the active sid for emitted LP events
       // The epoch lets the webview force exactly one same-URL reload after a suspended identity
       // recovers. Without it the old `curSrc === st.url` optimisation suppresses the handshake forever.
@@ -2287,7 +2729,8 @@ class LivePreviewPanel {
       s.security = this._securitySummary(); // badge/progress summary; full findings travel only on explicit scan
       s.servedRoot = (typeof this._servedRoot === 'string' && this._servedRoot) ? this._servedRoot : null; // COH-16 — the current lease's served root, so the per-node history filter never mixes homonym worktrees (already exposed via feed nodeKeys)
       // __t authenticates this as a HOST message (see this.token) — the framed iframe can't forge it.
-      this.panel.webview.postMessage({ type: 'lp-snapshot', __t: this.token, s });
+      this._postPanel({ type: 'lp-snapshot', s });
+      this._syncSidebar();
     } catch { /* best-effort */ }
   }
   // MP3.3 — discover the site's navigable routes by walking landing/app for Next page files, then
@@ -2380,6 +2823,7 @@ class LivePreviewPanel {
   // eval'd/executed and no non-localhost origin can enter the stage.
   _onMessage(m) {
     if (!m || typeof m !== 'object') return;
+    if (m.type === 'lp-open-sidebar') { if (this._sidebar) this._sidebar.reveal('edit', true); return; }
     if (m.type === 'lp-set-url') {
       const n = LPS ? LPS.normalizeStageUrl(m.url) : null;
       if (n) { this.overrideUrl = n.url; this.urlError = null; }
@@ -2440,6 +2884,7 @@ class LivePreviewPanel {
     }
     if (m.type === 'lp-restart-dev') { this._restartDevServer(); return; } // F0.5.3 — sticky-port / stale-tree recovery (gated)
     if (m.type === 'lp-sdk-help') { this._sdkHelp(); return; } // D8/F9 — honest "how to install the Agent SDK" (the light said "sem SDK")
+    if (m.type === 'lp-refs-sync') { this._setSelectionRefs(m); return; } // LP-4.8/native sidebar — origin-locked panel refs become host-owned, contained and lease-bound
     if (m.type === 'lp-pin') { this._setSelection(m); return; } // F3 (W1): the single host-side SelectionStore ingress (origin-locked relay, mirrors the webview pin)
     if (m.type === 'lp-open-file') { this._openErrorFile(m); return; }
     if (m.type === 'lp-open-source') { this._openSourceFile(m); return; } // MP5.1 click-to-code
@@ -2613,27 +3058,38 @@ class LivePreviewPanel {
       );
     } catch { fail('error'); }
   }
-  _postEditResult(ok, reason, tier) {
+  _postEditResult(ok, reason, tier, meta) {
+    const md = meta && typeof meta === 'object' ? meta : {};
+    const journey = md.skipJourney ? null : (md.journey || (md.journeyId ? this._journeyById(md.journeyId) : this._journeyCurrent(false)));
+    const ownsCurrent = !md.journeyId || md.journeyId === this._activeJourneyId;
+    if (ownsCurrent) {
+      this._sidebarEditProposal = null;
+      this._sidebarDeleteProposal = null;
+      this._sidebarEditDisplay = null;
+      this._sidebarDeleteDisplay = null;
+    }
+    if (md.promptOp && this._activePromptOp && this._activePromptOp.id === md.promptOp.id) this._activePromptOp = null;
     // §4 — every result carries the live revertable depth so the panel state reflects facts.
     // LP-4.9 §3 — the tier rides along so the completion toast tells the TRUTH about cost: a fenced
     // rewrite escalated to Sonnet/Opus is subscription, not $0 (deterministic edits stay $0).
     const undo = this._undoDepth();
-    const msg = { type: 'lp-edit-result', __t: this.token, ok: !!ok, reason: String(reason || ''), undo };
+    const msg = { type: 'lp-edit-result', ok: !!ok, reason: String(reason || ''), undo };
     if (tier && tier !== 'local') msg.tier = String(tier);
     const r = String(reason || '');
-    if (ok && ['applied', 'deleted', 'model-applied', 'model-applied-dynamic'].includes(r)) {
-      this._journeyAppend('activity', r === 'deleted' ? 'Elemento removido no working tree local.' : 'Alteração aplicada no working tree e refletida pelo preview.', { status: 'approved' });
-      this._journeyAcceptCode('OK local · Review Security pendente');
+    if (!md.skipJourney && ok && ['applied', 'deleted', 'model-applied', 'model-applied-dynamic'].includes(r)) {
+      this._journeyAppend('activity', r === 'deleted' ? 'Elemento removido no working tree local.' : 'Alteração aplicada no working tree e refletida pelo preview.', { status: 'approved', journey });
+      this._journeyAcceptCode('OK local · Review Security pendente', { journey });
       if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
-    } else if (ok && r === 'undone') {
-      this._journeyAppend('activity', 'Alteração revertida com verificação de hash.', { status: 'reverted' });
-      this._journeySetState('reverted', 'revertido');
+    } else if (!md.skipJourney && ok && r === 'undone') {
+      this._journeyAppend('activity', 'Alteração revertida com verificação de hash.', { status: 'reverted', journey });
+      this._journeySetState('reverted', 'revertido', { journey });
       if (typeof this._markSecurityStale === 'function') this._markSecurityStale('code-changed');
-    } else if (!ok) {
-      this._journeyAppend('activity', 'Operação recusada: ' + (r || 'erro') + '.', { status: 'error' });
-      this._journeySetState('error', r || 'operação bloqueada');
+    } else if (!md.skipJourney && !ok) {
+      this._journeyAppend('activity', 'Operação recusada: ' + (r || 'erro') + '.', { status: 'error', journey });
+      this._journeySetState('error', r || 'operação bloqueada', { journey });
     }
-    try { this.panel.webview.postMessage(msg); } catch { /* best-effort */ }
+    if (md.projection !== false) this._postBoth(msg);
+    else this._syncSidebar();
   }
   // ── LP-4.5 §4 — the UNIFIED session feed. ONE list holds every Live Edit write: splice-kind
   // items (deterministic text/class, delete, fenced rewrite — each carries its LEU inverse-splice
@@ -2797,14 +3253,26 @@ class LivePreviewPanel {
   }
   _postEditDiff(payload) {
     if (payload && payload.ok) {
+      this._sidebarEditProposal = {
+        applyKind: 'edit',
+        file: payload.file, line: payload.line, col: payload.col, tag: payload.tag,
+        edit: payload.edit, h: payload.h,
+      };
       const edit = payload.edit && typeof payload.edit === 'object' ? payload.edit : {};
       this._journeyAppend('activity', 'Proposta determinística pronta' + (edit.kind ? (' para ' + edit.kind) : '') + '; nada foi escrito ainda.', { status: 'awaiting' });
       this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
     } else {
+      this._sidebarEditProposal = null;
       this._journeyAppend('activity', 'Não foi possível preparar a proposta: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
       this._journeySetState('error', String((payload && payload.reason) || 'proposta bloqueada'));
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-edit-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+    const message = Object.assign({ type: 'lp-edit-diff' }, payload);
+    this._postPanel(message);
+    const display = Object.assign({}, message);
+    for (const key of ['abs', 'file', 'line', 'col', 'tag', 'edit', 'h']) delete display[key];
+    this._sidebarEditDisplay = display;
+    this._sidebarDeleteDisplay = null;
+    this._postSidebar(display);
   }
   // MP5.2a deterministic $0 delete — same containment guard as _applyEdit, but TWO-PHASE and
   // stateless: preview computes the exact removed/added lines for the panel's mini-diff; apply
@@ -2867,13 +3335,23 @@ class LivePreviewPanel {
   }
   _postDeleteDiff(payload) {
     if (payload && payload.ok) {
+      this._sidebarDeleteProposal = {
+        file: payload.file, line: payload.line, col: payload.col, tag: payload.tag, h: payload.h,
+      };
       this._journeyAppend('activity', 'Remoção preparada; nada foi apagado até confirmares.', { status: 'awaiting' });
       this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
     } else {
+      this._sidebarDeleteProposal = null;
       this._journeyAppend('activity', 'Remoção recusada: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
       this._journeySetState('error', String((payload && payload.reason) || 'remoção bloqueada'));
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-delete-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+    const message = Object.assign({ type: 'lp-delete-diff' }, payload);
+    this._postPanel(message);
+    const display = Object.assign({}, message);
+    for (const key of ['abs', 'file', 'line', 'col', 'tag', 'h']) delete display[key];
+    this._sidebarDeleteDisplay = display;
+    this._sidebarEditDisplay = null;
+    this._postSidebar(display);
   }
   // Shared workspace-containment resolver (same guard as _openSourceFile/_applyEdit/_deleteNode):
   // path.relative (no sibling-dir trap) + realpath re-check (no symlink escape). null = refuse.
@@ -2922,14 +3400,14 @@ class LivePreviewPanel {
     this._securityRun.phase = phase || null;
     this._securityRun.label = label || null;
     if (label) this._securityThreadPush('activity', label, { status: state });
-    try { this.panel.webview.postMessage({ type: 'lp-security-status', __t: this.token, security: this._securitySummary() }); } catch { /* best-effort */ }
+    this._postBoth({ type: 'lp-security-status', security: this._securitySummary() });
   }
   _markSecurityStale(reason) {
     try {
       if (!this._securityRun || (this._securityRun.state !== 'complete' && this._securityRun.state !== 'stale')) return;
       this._securityRun.state = 'stale'; this._securityRun.phase = null; this._securityRun.label = 'código mudou — review desatualizado';
       this._securityThreadPush('activity', 'O código mudou depois do scan. O relatório continua acessível, mas o Publish exige um novo Review Security.', { status: 'stale' });
-      try { this.panel.webview.postMessage({ type: 'lp-security-status', __t: this.token, reason: reason || 'code-changed', security: this._securitySummary() }); } catch { /* best-effort */ }
+      this._postBoth({ type: 'lp-security-status', reason: reason || 'code-changed', security: this._securitySummary() });
     } catch { /* display-only */ }
   }
   _securityCounts(result) {
@@ -3127,7 +3605,7 @@ class LivePreviewPanel {
     return { ok: true, packages, counts, prodCount, devOnlyCount, top: top.slice(0, 20), honestSummary: total ? (parts.join(', ') + ' em dependências de produção.') : 'sem vulnerabilidades de produção reportadas.' };
   }
   _securityScan() {
-    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-security-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => { this._postBoth(Object.assign({ type: 'lp-security-result' }, payload)); this._syncSidebar(); };
     this._securityThread = [];
     this._securityRun = { state: 'scanning', phase: 'scope', label: 'A preparar o escopo do review…', counts: { critical: 0, warning: 0, info: 0, total: 0 }, scannedAt: null, reportId: null, scannedFiles: 0 };
     this._securityPostStatus('scanning', 'scope', 'A preparar o escopo do review…');
@@ -3589,7 +4067,11 @@ class LivePreviewPanel {
     return { url: null, source: null };
   }
   async _publishStatus() {
-    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-status-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => {
+      this._lastPublishStatus = payload && typeof payload === 'object' ? Object.assign({}, payload) : null;
+      this._postBoth(Object.assign({ type: 'lp-publish-status-result' }, payload));
+      this._syncSidebar();
+    };
     try {
       const root = this._wsRoot();
       const prev = await extra.gitCommitPreview(root);
@@ -3641,7 +4123,11 @@ class LivePreviewPanel {
   // sends that immutable commit to the confirmed destination (never --force). Reports the actual
   // plumbing path either way (transparency), never a presumed success.
   async _publishCommit(m) {
-    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'commit' }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => {
+      this._lastPublishResult = Object.assign({ action: 'commit' }, payload || {});
+      this._postBoth(Object.assign({ type: 'lp-publish-result', action: 'commit' }, payload));
+      this._syncSidebar();
+    };
     try {
       const root = this._wsRoot();
       const frozen = extra && typeof extra.classifyShaGuard === 'function' ? extra.classifyShaGuard(root) : { ok: false, checked: true };
@@ -3842,7 +4328,12 @@ class LivePreviewPanel {
     } catch { return { ok: false, reason: 'deploy-snapshot-mismatch' }; }
   }
   _publishDeploy(m) {
-    const post = (payload) => { this._journeyPublishResult('deploy', payload); try { this.panel.webview.postMessage(Object.assign({ type: 'lp-publish-result', __t: this.token, action: 'deploy' }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => {
+      this._journeyPublishResult('deploy', payload);
+      this._lastPublishResult = Object.assign({ action: 'deploy' }, payload || {});
+      this._postBoth(Object.assign({ type: 'lp-publish-result', action: 'deploy' }, payload));
+      this._syncSidebar();
+    };
     let ownedSnapshot = null;
     try {
       const root = this._wsRoot();
@@ -3977,7 +4468,13 @@ class LivePreviewPanel {
   // regenerated stale preview. A model can hallucinate content; it cannot escape the span, and
   // a rejected replacement shows its exact reason and writes NOTHING.
   async _promptEdit(m) {
-    const fail = (reason, detail) => this._postPromptDiff({ ok: false, reason: String(reason || 'refused'), detail: detail ? String(detail).slice(0, 200) : undefined });
+    let promptOp = null;
+    let promptJourney = null;
+    const fail = (reason, detail) => this._postPromptDiff({
+      ok: false,
+      reason: String(reason || 'refused'),
+      detail: detail ? String(detail).slice(0, 200) : undefined,
+    }, promptOp);
     try {
       // FIX-MP-1 G2 — FAIL-CLOSED before we read the workspace node and ship its bytes to the model:
       // an unconfirmed served tree would build a diff of a file the user never saw in the preview.
@@ -3994,6 +4491,17 @@ class LivePreviewPanel {
       const prompt = (m && typeof m.prompt === 'string') ? m.prompt.trim() : '';
       const tier = (m && typeof m.tier === 'string' && m.tier) ? m.tier : 'local';
       if (!raw || !prompt) { fail('bad-request'); return; }
+      const requestedNode = { file: raw, line: m && m.line, col: m && m.col, tag: m && m.tag };
+      // Production has a host SelectionStore. Never let a stale/forged panel message choose a node
+      // different from the pixels currently pinned; bare method harnesses keep the legacy contract.
+      if (this._selection !== undefined && (!this._selection || !this._sameNodeStamp(requestedNode, this._selection))) {
+        fail('selection-changed'); return;
+      }
+      if (this._selection !== undefined) {
+        promptJourney = this._journeyCurrent(true);
+        if (!promptJourney) { fail('no-selection'); return; }
+        promptOp = this._newPromptOp(this._selection, promptJourney, leaseAtGen);
+      }
       if (!LEA || typeof LEA.locateRange !== 'function' || typeof LEA.spliceNodeRange !== 'function') { fail('engine-unavailable'); return; }
       if (tier !== 'local' && !(LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier])) { fail('bad-request', 'unknown tier ' + tier); return; }
       const real = this._resolveContainedFile(raw);
@@ -4001,9 +4509,9 @@ class LivePreviewPanel {
       // review P1-A: refuse cloud tiers in an untrusted workspace BEFORE anything spawns the
       // workspace SDK — the chip already disables them, this is the host-side backstop.
       if (tier !== 'local' && !this._workspaceTrusted()) { fail('workspace-untrusted'); return; }
-      if (m && m.escalated) this._journeyAppend('activity', 'A continuar a mesma proposta com Sonnet.', { status: 'working' });
-      else this._journeyAppend('user', prompt, { status: 'sent' });
-      this._journeySetState('working', tier === 'local' ? 'moo local está a alterar' : 'agente está a alterar');
+      if (m && m.escalated) this._journeyAppend('activity', 'A continuar a mesma proposta com Sonnet.', { status: 'working', journey: promptJourney });
+      else this._journeyAppend('user', prompt, { status: 'sent', journey: promptJourney });
+      this._journeySetState('working', tier === 'local' ? 'moo local está a alterar' : 'agente está a alterar', { journey: promptJourney });
       const s0 = fs.readFileSync(real, 'utf8');
       const target = { line: m.line, col: m.col, tag: m.tag };
       const r0 = LEA.locateRange(s0, target);
@@ -4022,7 +4530,7 @@ class LivePreviewPanel {
       // absolute host path (which would leak the OS username + repo tree to the cloud).
       let relFile = real;
       try { const rel = path.relative(this._wsRoot(), real); if (rel && !rel.startsWith('..')) relFile = rel.split(path.sep).join('/'); } catch { /* keep real */ }
-      this._postPromptStatus({ phase: 'thinking', tier });
+      this._postPromptStatus({ phase: 'thinking', tier }, promptOp);
       let reply;
       let newImports = [];
       let quality = null;
@@ -4038,7 +4546,7 @@ class LivePreviewPanel {
             {
               source: s0, range: { start: r0.start, end: r0.end }, wsRoot: this._wsRoot(), absFile: real,
               rewrite: (inp, ro) => LEM.rewriteElement(inp, ro), // the host's LEM, injectable in tests
-              onStatus: (st) => this._postPromptStatus({ phase: 'thinking', tier, round: st.round, rounds: st.rounds, sample: st.sample, of: st.of }),
+              onStatus: (st) => this._postPromptStatus({ phase: 'thinking', tier, round: st.round, rounds: st.rounds, sample: st.sample, of: st.of }, promptOp),
             },
           );
           if (!q.ok) {
@@ -4046,7 +4554,7 @@ class LivePreviewPanel {
               // The offer payload carries the original ask so the button can re-fire on t2 —
               // bound to THIS target (review P1-B discipline), with the evidence verbatim.
               this._emitLpEvent('escalation_offered', { kind: 'server', phase: 'progress', summary: '🐮 local esgotou — oferecer 🎼 Sonnet', tier: 'local', local: true, nodeKey: { file: relFile, line: m.line, col: m.col, tag: m.tag } }); // COH-09 — the escalation is announced in the MEO (offered)
-              this._postPromptDiff({ ok: false, reason: 'local-quality-exhausted', evidence: q.evidence, file: raw, line: m.line, col: m.col, tag: m.tag, prompt, selText: (m && typeof m.selText === 'string') ? m.selText.slice(0, 200) : '' });
+              this._postPromptDiff({ ok: false, reason: 'local-quality-exhausted', evidence: q.evidence, file: raw, line: m.line, col: m.col, tag: m.tag, prompt, selText: (m && typeof m.selText === 'string') ? m.selText.slice(0, 200) : '' }, promptOp);
               return;
             }
             fail(q.reason, q.detail);
@@ -4065,6 +4573,9 @@ class LivePreviewPanel {
         reply = await LEC.rewriteElementCloud({ nodeSource, prompt, file: relFile, line: m.line, tier }, { wsRoot: this._wsRoot(), trusted: this._workspaceTrusted() });
       }
       if (!reply || !reply.ok) { fail((reply && reply.reason) || 'error', reply && reply.detail); return; }
+      // The model call yielded. Revalidate the immutable operation before touching current UI state
+      // or offering Apply; A's late answer is archived in A and never appears over B.
+      if (promptOp && !this._promptOpActive(promptOp)) { fail('selection-changed'); return; }
       const replacement = reply.precleaned
         ? String(reply.text || '')
         : ((LEM && typeof LEM.cleanModelReply === 'function') ? LEM.cleanModelReply(reply.text) : String(reply.text || '').trim());
@@ -4092,15 +4603,20 @@ class LivePreviewPanel {
       const d = LEA.diffRemovedLines(s1, res.code);
       // review P1-B: the write TARGET rides the diff payload so apply is bound to THIS preview —
       // never reconstructed from a mutable global that a concurrent second preview could have moved.
-      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local', lease: leaseAtGen, epoch: leaseAtGen.epoch });
+      this._postPromptDiff({ ok: true, stale: false, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h1, replacement, newImports, importsAdded, abs: real, tier, dynamic, quality, model: reply.model || (LEC && LEC.TIER_MODEL && LEC.TIER_MODEL[tier]) || 'local', lease: leaseAtGen, epoch: leaseAtGen.epoch }, promptOp);
     } catch { fail('error'); }
   }
   // Apply the APPROVED replacement — the same two-phase fence as delete/edit: the echo hash must
   // still match the disk (else: regenerated stale preview, nothing written), the target must
   // still be a real node span, and the splice must pass every fence check again at write time.
   async _promptApply(m) {
-    const fail = (reason) => this._postEditResult(false, reason);
+    const promptOp = m && m.promptOp && typeof m.promptOp === 'object' ? m.promptOp : null;
+    const promptJourney = this._promptJourney(promptOp);
+    const resultMeta = promptOp ? { promptOp, journey: promptJourney, journeyId: promptOp.journeyId } : {};
+    const fail = (reason, projection) => this._postEditResult(false, reason, null,
+      Object.assign({}, resultMeta, { projection: projection !== false, skipJourney: !promptOp && projection === false }));
     try {
+      if (promptOp && !this._promptOpActive(promptOp)) { fail('selection-changed', false); return; }
       // FIX-MP-1 G2 — FAIL-CLOSED, EARLIEST: the one-box default path (tier:'local') writes the
       // approved model reply. Without a proven served-tree lineage the reply must never land on disk.
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }
@@ -4110,6 +4626,10 @@ class LivePreviewPanel {
       const raw = (m && typeof m.file === 'string') ? m.file.trim() : '';
       const replacement = (m && typeof m.replacement === 'string') ? m.replacement : '';
       if (!raw || !replacement.trim()) { fail('bad-request'); return; }
+      if (this._selection !== undefined && (!this._selection
+        || !this._sameNodeStamp({ file: raw, line: m.line, col: m.col, tag: m.tag }, this._selection))) {
+        fail('selection-changed', false); return;
+      }
       if (typeof m.h !== 'string' || !m.h) { fail('bad-request'); return; }
       if (!LEA || typeof LEA.locateRange !== 'function' || typeof LEA.spliceNodeRange !== 'function') { fail('engine-unavailable'); return; }
       const real = this._resolveContainedFile(raw);
@@ -4141,12 +4661,12 @@ class LivePreviewPanel {
         const d = LEA.diffRemovedLines(s2, LEA.spliceNodeRange(s2, { start: r2.start, end: r2.end }, replacement).code);
         // review P1-B: carry the target on the regenerated stale preview too (+ §5 dynamic flag).
         const lease = this._identityLeaseSnapshot();
-        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, newImports, importsAdded, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic, lease, epoch: lease.epoch });
+        this._postPromptDiff({ ok: true, stale: true, file: raw, line: m.line, col: m.col, tag: m.tag, start: d.start, removed: d.removed, added: d.added, h: h2, replacement, newImports, importsAdded, abs: real, tier: m.tier || 'local', dynamic: !!m.dynamic, lease, epoch: lease.epoch }, promptOp);
         return;
       }
       // review P3-b: a model reply that equals the node byte-for-byte is a genuine no-op — say so
       // honestly and push NO undo entry (else 'desfazer' would revert an EARLIER edit).
-      if (!res.changed) { this._postEditResult(true, 'no-op'); return; }
+      if (!res.changed) { this._postEditResult(true, 'no-op', null, resultMeta); return; }
       { const gate = this._writeProposalGate(); if (!gate.cleared) { fail(gate.reason); return; } }
       // review P3-c: write FIRST, then record the undo entry — a failed write must not leave a
       // phantom entry that lights the undo button and later refuses as 'undo-stale'.
@@ -4158,7 +4678,7 @@ class LivePreviewPanel {
       // §5 — a write on a dynamic-content node must NEVER read as a plain "✓ escrito": the file
       // changed, the render may not have. The flag was computed host-side at preview time and
       // rode the approved diff; the copy tells the user to verify and offers the agent.
-      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied', m.tier);
+      this._postEditResult(true, m.dynamic ? 'model-applied-dynamic' : 'model-applied', m.tier, resultMeta);
       // Imports and agent/model rewrites can move the source stamp even though this is still the
       // exact selected JSX root. Rebase against both verified ASTs; never loose-match a DOM node.
       let repin = { file: raw, line: m.line, col: m.col, tag: (typeof m.tag === 'string') ? m.tag : '' };
@@ -4166,23 +4686,69 @@ class LivePreviewPanel {
         const mapped = LEA && typeof LEA.rebaseTargetStamp === 'function' ? LEA.rebaseTargetStamp(s2, res.code, target) : null;
         if (mapped && mapped.ok) repin = { file: raw, line: mapped.line, col: mapped.col, tag: mapped.tag };
       } catch { /* fall back to the old exact stamp; tap will fail closed if it no longer exists */ }
-      this._postRepin(repin, { sourceAnchor: { file: raw, line: m.line, col: m.col, tag: m.tag } });
+      this._postRepin(repin, { journey: promptJourney, sourceAnchor: { file: raw, line: m.line, col: m.col, tag: m.tag }, lease: promptOp && promptOp.lease });
     } catch { fail('error'); }
   }
-  _postPromptDiff(payload) {
+  _postPromptDiff(payload, promptOp) {
     // Successful diffs already carry the generation-time FULL lease. Never stamp the post-time
     // identity here: an async reply from an old app must remain old and fail at approval time.
-    if (payload && payload.ok) {
-      this._journeyAppend('assistant', payload.stale ? 'O ficheiro mudou. Atualizei a proposta e preciso de uma nova confirmação.' : 'Proposta pronta. Revê o diff e confirma para escrever no working tree.', { model: payload.model || null, status: 'awaiting' });
-      this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK');
-    } else if (payload && payload.reason === 'local-quality-exhausted') {
-      this._journeyAppend('assistant', 'O modelo local não conseguiu produzir uma alteração que passasse pela cerca. Podes subir para Sonnet sem perder esta conversa.', { status: 'blocked' });
-      this._journeySetState('error', 'moo local precisa de decisão');
-    } else {
-      this._journeyAppend('activity', 'Não foi possível preparar a proposta: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error' });
-      this._journeySetState('error', String((payload && payload.reason) || 'proposta bloqueada'));
+    const opState = promptOp ? this._promptOpState(promptOp) : 'active';
+    const journey = promptOp ? this._promptJourney(promptOp) : this._journeyCurrent(true);
+    if (promptOp && opState !== 'active') {
+      // Archive the late/superseded outcome in its own thread, but never touch the proposal, status
+      // or toast currently belonging to another selected node.
+      if (journey) this._journeyAppend('activity', opState === 'superseded'
+        ? 'Pedido anterior descartado: uma instrução mais recente para este elemento venceu.'
+        : 'Resposta descartada com segurança porque a seleção ou a identidade do preview mudou.',
+      { status: opState === 'superseded' ? 'superseded' : 'stale', journey });
+      if (journey && opState !== 'superseded') this._journeySetState('stale', 'seleção mudou — pede novamente', { journey });
+      if (this._activePromptOp && this._activePromptOp.id === promptOp.id) this._activePromptOp = null;
+      this._syncSidebar();
+      return;
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-diff', __t: this.token }, payload)); } catch { /* best-effort */ }
+    if (payload && payload.ok) {
+      this._journeyAppend('assistant', payload.stale ? 'O ficheiro mudou. Atualizei a proposta e preciso de uma nova confirmação.' : 'Proposta pronta. Revê o diff e confirma para escrever no working tree.', { model: payload.model || null, status: 'awaiting', journey });
+      this._journeySetState('awaiting', payload.stale ? 'diff atualizado — confirma de novo' : 'aguarda OK', { journey });
+    } else if (payload && payload.reason === 'local-quality-exhausted') {
+      this._journeyAppend('assistant', 'O modelo local não conseguiu produzir uma alteração que passasse pela cerca. Podes subir para Sonnet sem perder esta conversa.', { status: 'blocked', journey });
+      this._journeySetState('error', 'moo local precisa de decisão', { journey });
+    } else {
+      this._journeyAppend('activity', 'Não foi possível preparar a proposta: ' + String((payload && payload.reason) || 'erro') + '.', { status: 'error', journey });
+      this._journeySetState('error', String((payload && payload.reason) || 'proposta bloqueada'), { journey });
+    }
+    const panelMessage = Object.assign({ type: 'lp-prompt-diff' }, payload);
+    this._postPanel(panelMessage);
+    if (payload && payload.ok) {
+      this._sidebarEditProposal = {
+        applyKind: 'prompt',
+        file: payload.file, line: payload.line, col: payload.col, tag: payload.tag,
+        replacement: payload.replacement, newImports: payload.newImports, h: payload.h,
+        tier: payload.tier, dynamic: payload.dynamic, model: payload.model,
+        lease: payload.lease, epoch: payload.epoch,
+        promptOp: promptOp ? {
+          id: promptOp.id, seq: promptOp.seq, journeyId: promptOp.journeyId,
+          nodeKey: Object.assign({}, promptOp.nodeKey), lease: Object.assign({}, promptOp.lease),
+        } : null,
+      };
+    } else {
+      this._sidebarEditProposal = null;
+      if (promptOp && this._activePromptOp && this._activePromptOp.id === promptOp.id) this._activePromptOp = null;
+    }
+    const display = {
+      type: 'lp-edit-diff', ok: !!(payload && payload.ok),
+      reason: payload && payload.reason || null, detail: payload && payload.detail || null,
+      stale: !!(payload && payload.stale), kind: 'model',
+      removed: payload && Array.isArray(payload.removed) ? payload.removed : [],
+      added: payload && Array.isArray(payload.added) ? payload.added : [],
+      message: payload && payload.ok
+        ? ((payload.tier === 'local' ? 'Moo local · $0' : String(payload.model || payload.tier || 'modelo')) + ' preparou esta proposta cercada.')
+        : null,
+    };
+    this._sidebarEditDisplay = display;
+    this._sidebarDeleteDisplay = null;
+    if (this._sidebarTaskStatus && (!promptOp || this._sidebarTaskStatus.promptOpId === promptOp.id)) this._sidebarTaskStatus = null;
+    this._postSidebar(display);
+    this._syncSidebar();
   }
   // ── LP-4.5 — anchored PROJECT task: the one-box default. The pin is an ANCHOR (file:line +
   // nodeSource + breadcrumb), not a fence: the agent runs headless WITH the workspace as cwd,
@@ -4290,7 +4856,10 @@ class LivePreviewPanel {
       if (!this._taskContext) this._taskContext = new Map();
       taskId = 'task-' + (++this._taskSeq);
       this._taskContext.set(taskId, { context: taskContext, findingId, journeyId: taskJourney && taskJourney.id || null, lease: taskLease, anchor: taskAnchor });
-      if (taskContext === 'security') this._securityThreadPush('activity', 'O agente está a analisar o finding e o contexto mínimo necessário.', { status: 'working' });
+      if (taskContext === 'security') {
+        this._sidebarSecurityTaskResult = null;
+        this._securityThreadPush('activity', 'O agente está a analisar o finding e o contexto mínimo necessário.', { status: 'working' });
+      }
       else {
         if (m && m.continuation) this._journeyAppend('activity', 'A aplicar a sugestão anterior com o agente.', { status: 'working', journey: taskJourney });
         else this._journeyAppend('user', instruction, { status: 'sent', journey: taskJourney });
@@ -4439,6 +5008,7 @@ class LivePreviewPanel {
       if (!leaseStale && intent === 'ask' && res.kind === 'answer' && String(res.text || '').trim()) {
         if (!this._askReg) { this._askReg = new Map(); this._askSeq = 0; }
         askId = 'ask-' + (++this._askSeq);
+        const askAnchor = resultAnchor || taskAnchor;
         this._askReg.set(askId, {
           lease: taskLease || this._identityLeaseSnapshot(),
           epoch: taskLease ? taskLease.epoch : (this._readyEpoch | 0),
@@ -4447,7 +5017,12 @@ class LivePreviewPanel {
           instruction, answer: String(res.text || ''),
           refs, filesRead: Array.isArray(res.filesRead) ? res.filesRead.slice(0, 100) : [],
           model: res.model || null, mode,
-          file: relFile || raw, line: m.line, col: m.col, tag: m.tag,
+          journeyId: taskJourney && taskJourney.id || null,
+          anchor: askAnchor ? this._nodeStamp(askAnchor) : null,
+          file: askAnchor && askAnchor.file || relFile || raw,
+          line: askAnchor && askAnchor.line != null ? askAnchor.line : m.line,
+          col: askAnchor && askAnchor.col != null ? askAnchor.col : m.col,
+          tag: askAnchor && askAnchor.tag != null ? askAnchor.tag : m.tag,
           tagLabel: (typeof m.tag === 'string') ? m.tag : '',
           breadcrumb: (typeof m.breadcrumb === 'string') ? m.breadcrumb.slice(0, 400) : '',
         });
@@ -4478,15 +5053,24 @@ class LivePreviewPanel {
   // askId is trusted (a tampered instruction/answer/file in the message is ignored). Fail-closed with an
   // honest reason on a missing/expired record or a broken lease.
   _askApply(m) {
-    const fail = (reason) => this._postTaskResult({ ok: false, reason: String(reason || 'error') });
+    let rec = null;
+    const fail = (reason) => this._postTaskResult({
+      ok: false, reason: String(reason || 'error'),
+      journeyId: rec && rec.journeyId || null,
+      anchor: rec && rec.anchor || null,
+    });
     try {
       const askId = (m && typeof m.askId === 'string') ? m.askId : '';
-      const rec = (this._askReg && this._askReg.get(askId)) || null;
+      rec = (this._askReg && this._askReg.get(askId)) || null;
       if (!rec) { fail('ask-expired'); return; }                                  // no such record → refuse
       if (this._treeGateBlocked()) { fail('preview-tree-mismatch'); return; }     // COH-01 tree gate
       if (this._workspaceTrusted() !== true) { fail('workspace-untrusted'); return; }
       const recLease = rec.lease || { servedRoot: rec.servedRoot, origin: rec.origin, epoch: rec.epoch };
       if (!this._identityLeaseMatches(recLease)) { fail('preview-tree-mismatch'); return; } // lease moved
+      if (!rec.journeyId || rec.journeyId !== this._activeJourneyId || !rec.anchor
+        || !this._selection || !this._sameNodeStamp(rec.anchor, this._selection)) {
+        fail('selection-changed'); return;
+      }
       this._askReg.delete(askId); // one-shot: the answer becomes an edit exactly once
       // Compose the edit instruction HOST-SIDE from the stored question+answer (never the webview's).
       const composed = 'Aplica ao elemento ancorado a sugestão seguinte, com o mínimo de alterações.\n\n'
@@ -4506,6 +5090,7 @@ class LivePreviewPanel {
       else if (payload.phase === 'tool') secText = (payload.tool === 'Edit' || payload.tool === 'MultiEdit' ? 'A corrigir ' : 'A verificar ') + (payload.path || 'o projeto') + '.';
       else if (payload.phase === 'deny') secText = 'Ferramenta recusada pela cerca: ' + (payload.tool || '?') + '.';
       if (secText) this._securityPostStatus(this._securityRun && this._securityRun.state || 'complete', 'remediation', secText);
+      this._sidebarSecurityTaskStatus = Object.assign({}, payload);
     } else if (payload) {
       const journey = payload.journeyId ? this._journeyById(payload.journeyId) : this._journeyCurrent(true);
       let text = '';
@@ -4515,8 +5100,13 @@ class LivePreviewPanel {
       else if (payload.phase === 'deny') text = 'Ferramenta recusada pela cerca: ' + (payload.tool || '?') + '.';
       if (text && journey) this._journeyAppend('activity', text, { status: payload.phase === 'deny' ? 'blocked' : 'working', journey });
       if (payload.phase !== 'deny' && journey) this._journeySetState('working', payload.phase === 'tool' ? text.replace(/\.$/, '') : 'Moo está a alterar', { journey });
+      this._sidebarTaskStatus = Object.assign({}, payload);
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-status', __t: this.token }, payload)); } catch { /* best-effort */ }
+    const message = Object.assign({ type: 'lp-task-status' }, payload);
+    const active = payload && (payload.context === 'security'
+      || (!!payload.journeyId && payload.journeyId === this._activeJourneyId
+        && (!payload.anchor || (this._selection && this._sameNodeStamp(payload.anchor, this._selection)))));
+    if (active || !payload || !payload.journeyId) this._postBoth(message);
   }
   _postTaskResult(payload) {
     if (payload && payload.context === 'security') {
@@ -4553,14 +5143,33 @@ class LivePreviewPanel {
         }
       }
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-result', __t: this.token }, payload)); } catch { /* best-effort */ }
+    if (payload && payload.context !== 'security' && payload.taskId) {
+      if (!(this._sidebarTaskResults instanceof Map)) this._sidebarTaskResults = new Map();
+      this._sidebarTaskResults.set(payload.taskId, Object.assign({}, payload));
+      while (this._sidebarTaskResults.size > 30) this._sidebarTaskResults.delete(this._sidebarTaskResults.keys().next().value);
+    }
+    if (payload && payload.context === 'security') {
+      this._sidebarSecurityTaskStatus = null;
+      this._sidebarSecurityTaskResult = Object.assign({}, payload);
+    } else if (payload) {
+      if (!this._sidebarTaskStatus || !payload.taskId || this._sidebarTaskStatus.taskId === payload.taskId) this._sidebarTaskStatus = null;
+    }
+    const message = Object.assign({ type: 'lp-task-result' }, payload);
+    const active = payload && (payload.context === 'security'
+      || (!!payload.journeyId && payload.journeyId === this._activeJourneyId
+        && (!payload.anchor || (this._selection && this._sameNodeStamp(payload.anchor, this._selection)))));
+    if (active || !payload || !payload.journeyId) this._postBoth(message);
+    this._syncSidebar();
   }
   // LP-4.5 — revert agent edits: per file (m.file) or all (m.all). The webview only names WHICH
   // registered edit; the write itself uses OUR record (snapshot path + shaAfter) — a forged
   // message cannot point the revert at an arbitrary file. Sha-guarded fail-closed in revertEdit:
   // the file must still match the post-agent hash or nothing is written ('revert-stale').
   _taskRevert(m) {
-    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-revert-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => {
+      if (payload && payload.done && payload.taskId && this._sidebarTaskResults instanceof Map) this._sidebarTaskResults.delete(payload.taskId);
+      this._postBoth(Object.assign({ type: 'lp-task-revert-result' }, payload)); this._syncSidebar();
+    };
     try {
       const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
       const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
@@ -4594,6 +5203,12 @@ class LivePreviewPanel {
       if (taskCtx && taskCtx.context === 'security' && results.some((r) => r.ok)) {
         this._securityThreadPush('activity', !reg.length ? 'A proposta de correção foi revertida.' : 'Parte da proposta de correção foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting' });
         this._markSecurityStale('remediation-reverted');
+        const previous = this._sidebarSecurityTaskResult && this._sidebarSecurityTaskResult.taskId === taskId
+          ? this._sidebarSecurityTaskResult : { taskId, context: 'security' };
+        this._sidebarSecurityTaskResult = Object.assign({}, previous, {
+          edits: Array.isArray(previous.edits) ? previous.edits.filter((row) => reg.some((e) => e && row && e.file === row.file)) : [],
+          settled: !reg.length ? 'reverted' : null,
+        });
       } else if (results.some((r) => r.ok)) {
         if (taskJourney) taskJourney.pendingWrite = !!reg.length;
         if (taskJourney) this._journeyAppend('activity', !reg.length ? 'Todas as alterações desta proposta foram revertidas.' : 'Parte da proposta foi revertida; ainda há ficheiros alterados.', { status: !reg.length ? 'reverted' : 'awaiting', journey: taskJourney });
@@ -4607,7 +5222,10 @@ class LivePreviewPanel {
   // LP-4.5 — keep agent edits: the files already hold them (HMR showed them); keeping just drops
   // our snapshots/record. Honest ok:false when there is nothing registered to keep.
   _taskKeep(m) {
-    const post = (payload) => { try { this.panel.webview.postMessage(Object.assign({ type: 'lp-task-keep-result', __t: this.token }, payload)); } catch { /* best-effort */ } };
+    const post = (payload) => {
+      if (payload && payload.ok && payload.taskId && this._sidebarTaskResults instanceof Map) this._sidebarTaskResults.delete(payload.taskId);
+      this._postBoth(Object.assign({ type: 'lp-task-keep-result' }, payload)); this._syncSidebar();
+    };
     try {
       const taskId = (m && typeof m.taskId === 'string') ? m.taskId : '';
       const reg = (this._taskReg && this._taskReg.get(taskId)) || null;
@@ -4634,6 +5252,9 @@ class LivePreviewPanel {
       if (taskCtx && taskCtx.context === 'security') {
         this._securityThreadPush('activity', 'OK confirmado: a correção permanece no working tree. É obrigatório correr novamente o Review Security.', { status: 'approved' });
         this._markSecurityStale('remediation-kept');
+        const previous = this._sidebarSecurityTaskResult && this._sidebarSecurityTaskResult.taskId === taskId
+          ? this._sidebarSecurityTaskResult : { taskId, context: 'security' };
+        this._sidebarSecurityTaskResult = Object.assign({}, previous, { edits: [], settled: 'kept' });
       } else {
         if (taskJourney) taskJourney.pendingWrite = false;
         if (taskJourney) this._journeyAppend('activity', 'OK confirmado: as alterações permanecem no working tree local.', { status: 'approved', journey: taskJourney });
@@ -4644,13 +5265,23 @@ class LivePreviewPanel {
       post({ taskId, ok: true });
     } catch { post({ taskId: (m && m.taskId) || '', ok: false }); }
   }
-  _postPromptStatus(payload) {
+  _postPromptStatus(payload, promptOp) {
+    if (promptOp && !this._promptOpActive(promptOp)) return;
+    const journey = promptOp ? this._promptJourney(promptOp) : this._journeyCurrent(true);
     if (payload && payload.phase === 'thinking') {
       const sample = payload.round && payload.sample ? (' · ronda ' + payload.round + ', amostra ' + payload.sample) : '';
-      this._journeySetState('working', 'Moo está a alterar' + sample);
-      this._journeyAppend('activity', 'A preparar uma proposta cercada para este elemento' + sample + '.', { status: 'working' });
+      this._journeySetState('working', 'Moo está a alterar' + sample, { journey });
+      this._journeyAppend('activity', 'A preparar uma proposta cercada para este elemento' + sample + '.', { status: 'working', journey });
     }
-    try { this.panel.webview.postMessage(Object.assign({ type: 'lp-prompt-status', __t: this.token }, payload)); } catch { /* best-effort */ }
+    const panelStatus = Object.assign({ type: 'lp-prompt-status' }, payload);
+    const sidebarStatus = Object.assign({
+      type: 'lp-task-status', mode: (payload && payload.tier) || 'local',
+      journeyId: promptOp && promptOp.journeyId || (journey && journey.id) || null,
+      promptOpId: promptOp && promptOp.id || null,
+    }, payload || {});
+    this._sidebarTaskStatus = sidebarStatus;
+    this._postPanel(panelStatus);
+    this._postSidebar(sidebarStatus);
   }
   _postRepin(payload, meta) {
     const md = meta && typeof meta === 'object' ? meta : {};
@@ -4777,6 +5408,11 @@ class LivePreviewPanel {
       this._readyEpoch = (this._readyEpoch | 0) + 1;
       if (this._servedRoot !== undefined) this._servedRoot = null;
       if (this._selection !== undefined) this._selection = null;
+      this._clearSelectionRefs();
+      this._activePromptOp = null;
+      this._sidebarTaskStatus = null;
+      this._sidebarEditProposal = null; this._sidebarDeleteProposal = null;
+      this._sidebarEditDisplay = null; this._sidebarDeleteDisplay = null;
       this._lastPinKey = null;
       this._pendingRepin = null;
       try { if (this._activeTaskAbort) this._activeTaskAbort.abort(); } catch { /* best-effort */ }
@@ -4869,6 +5505,10 @@ class LivePreviewPanel {
       try { if (this._trustSub) this._trustSub.dispose(); } catch { /* best-effort */ }
       try { if (this._wsFoldersSub) this._wsFoldersSub.dispose(); } catch { /* best-effort */ }
       try { if (this._activeEdSub) this._activeEdSub.dispose(); } catch { /* best-effort */ }
+      try { if (this._sidebar) this._sidebar.detach(this); } catch { /* best-effort */ }
+      // Closing the editor canvas exits Live Preview mode instead of leaving a dead sidebar as the
+      // only Mooter surface. The Cockpit becomes visible again; reopening Live Preview is explicit.
+      try { void vscode.commands.executeCommand('setContext', 'mooter.livePreviewMode', false); } catch { /* best-effort */ }
       LivePreviewPanel.current = null;
     });
   }
@@ -4953,8 +5593,11 @@ function getLivePreviewHtml(token, wsRoot) {
   html,body{height:100%}
   body{font:13px var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-editor-background);margin:0;padding:0}
   #lp-root{display:flex;flex-direction:row;height:100vh;min-height:0}
-  #lp-stagewrap{flex:1 1 62%;display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--vscode-widget-border)}
-  #lp-side{flex:0 0 340px;max-width:46%;overflow:auto;padding:12px 14px;min-width:0}
+  #lp-stagewrap{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;border:0}
+  /* The editor is now the canvas. Selection/thread/Security/Publish/MEO live in the native
+     Mooter Activity Bar view, so the legacy internal rail and draggable composer stay inert. */
+  #lp-side{display:none!important}
+  .lp-ctb-ov{display:none!important}
   /* LP-5 §C — 🛡 Review Security results panel (global action, local $0). */
   #lp-security{margin-bottom:12px;padding:8px 10px;border:1px solid var(--vscode-widget-border);border-radius:7px;font-size:11.5px;line-height:1.55;max-height:min(68vh,720px);overflow:auto;scrollbar-gutter:stable}
   #lp-security .lp-sec-hdr{font-weight:600;margin-bottom:6px;opacity:.9}
@@ -5454,10 +6097,11 @@ function getLivePreviewHtml(token, wsRoot) {
         <select id="lp-project" title="Projeto ativo (workspace multi-raiz)" aria-label="Escolher o projeto ativo" style="display:none"></select>
         <button id="lp-auto" title="Voltar à deteção automática do dev server">Auto</button>
         <button id="lp-redetect" title="Re-detetar o dev server" aria-label="Re-detetar">↻</button>
+        <button id="lp-sidebar-btn" class="lp-labeled" title="Abrir os controles, a thread, Security, Publish e MEO na barra lateral do Mooter" aria-label="Abrir controles do Live Preview">🐮 Editar</button>
         <!-- LP-5 §C — global action (not per-pin): local $0 static review (secret-scan, npm audit, CSP, XSS heuristic). -->
-        <button id="lp-security-btn" class="lp-labeled" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0; npm audit consulta o registry; não substitui auditoria humana)" aria-label="Review de segurança">🛡 Review <span id="lp-security-badge" aria-hidden="true"></span></button>
+        <button id="lp-security-btn" class="lp-labeled" style="display:none" title="Review de segurança local — secret-scan, npm audit, CSP e XSS estático ($0; npm audit consulta o registry; não substitui auditoria humana)" aria-label="Review de segurança">🛡 Review <span id="lp-security-badge" aria-hidden="true"></span></button>
         <!-- LP-6 §E — Publish: commit+push seletivo, depois deploy Vercel gated por 2º fator (host-side). -->
-        <button id="lp-publish-btn" class="lp-labeled" title="Publicar — vê a pasta local, o remote Git e a URL de produção antes de confirmar" aria-label="Publicar e escolher destino">🚀 Publish ▾</button>
+        <button id="lp-publish-btn" class="lp-labeled" style="display:none" title="Publicar — vê a pasta local, o remote Git e a URL de produção antes de confirmar" aria-label="Publicar e escolher destino">🚀 Publish ▾</button>
       </div>
       <div id="lp-error" role="alert" style="display:none"></div>
       <!-- F2 (P1-7) — honest hot-reload-down banner: when the tap's HMR socket drops, the preview may be STALE. -->
@@ -5779,7 +6423,7 @@ function applyStage(stage){
   // back the equality optimisation suppressed a reload, so lp-ready never renewed the tree.
   if(!hasUrl && curSrc!==null){
     curSrc=null; curOrigin=null; curIdentityEpoch=-1;
-    lpSelection=null; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; clearTaskResults(); lpLeaseResumeSelect=false; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
+    lpSelection=null; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; clearTaskResults(); lpLeaseResumeSelect=false; clearAttachedRefs(false); try{ renderSelection(null); }catch(e){}
     setSelectMode(false);
     lpHasTap=false; try{ applyNavCapability(); }catch(e){}
     if(frame){ try{ frame.removeAttribute('src'); }catch(e){} }
@@ -5804,13 +6448,13 @@ function applyStage(stage){
     // has already re-armed the lease + nulled servedRoot/selection; this is the visual half of the
     // invalidation. renderSelection(null) hides the in-canvas toolbar too. (First load: nothing to clear.)
     if(originChanged||recoveredSameUrl){
-      lpSelection=null; lpRefs=[];
+      lpSelection=null; clearAttachedRefs(false);
       // A same-origin health recovery reloads the disposable document but may retain exactly one
       // short host-vetted post-write pin. A genuine origin move is a different app and hard-clears it.
       if(originChanged||!lpLeaseResumeSelect){ lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; if(originChanged) clearTaskResults(); }
       if(originChanged){ lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; }
       if(originChanged){ lpLeaseResumeSelect=false; setSelectMode(false); }
-      try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){}
+      try{ renderSelection(null); }catch(e){} lpHasTap=false; try{ applyNavCapability(); }catch(e){}
     } // COH-11 — a new/recovered app must re-prove nav capability
     frame.setAttribute('src', st.url);
     curIdentityEpoch=nextEpoch;
@@ -5849,7 +6493,7 @@ function renderLease(lease){
   if(!recoverableLease){ lpLeaseResumeSelect=false; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; clearTaskResults(); }
   // Host already cleared its SelectionStore. Clear the visual half on every lease snapshot as well;
   // otherwise a stale breadcrumb/right-rail card survives over a blocked preview (the exact screenshot).
-  lpSelection=null; lpRefs=[]; try{ renderRefs(); }catch(e){} try{ renderSelection(null); }catch(e){}
+  lpSelection=null; clearAttachedRefs(false); try{ renderSelection(null); }catch(e){}
   lpLeaseActive=true;
   const oldP=lease.prevPort?(':'+esc(lease.prevPort)):'a origem antiga';
   const newP=lease.newPort?(':'+esc(lease.newPort)):'uma nova origem';
@@ -6046,6 +6690,10 @@ let lpSuspendedSelection=null, lpSuspendedSelectionUntil=0;
 // kept in the parent webview (not the disposable frame) and expires quickly so an old anchor can
 // never revive minutes later.
 let lpPendingRepin=null, lpPendingRepinUntil=0, lpRepinFallbackBlocked=false;
+// One-shot UI correlation for a programmatic HMR re-pin. A normal click — even on the same source
+// node — is a fresh selection and must reopen/reset the composer; only a re-pin we just requested
+// may preserve the draft/minimise/dock state while the disposable iframe document is replaced.
+let lpUiRepinExpected=null, lpUiRepinExpectedUntil=0;
 // Actionable answers/diffs are per-task AND per exact node. A bounded map survives renderSelection
 // rebuilds and node switches without letting task A overwrite B or orphan A's OK CTA.
 const lpTaskResults=new Map();
@@ -6058,7 +6706,7 @@ let lpRefs=[];
 // it will EDIT (write → diff → apply → preview changes) or ASK (read the repo → answer in the
 // panel, zero writes). 'edit' (default) respects the model chip; 'ask' always uses the agent (only
 // it can answer), never the local $0 moo. Kills Paulo's #1 pain: the "I asked, expected an edit".
-let lpIntent='edit';
+let lpIntent='edit', lpPromptDraft='';
 // LP-4 §6 / review P1-B — honest session state driving the panel: the SDK-bridge status (from
 // the snapshot) and the unified feed's render revision (LP-4.5 §4 — re-render only on change so
 // a poll never steals focus from a feed button). The WRITE TARGET is NOT a global: every apply
@@ -6084,7 +6732,7 @@ function sendSelectMode(on){
 function setSelectMode(on,preserveIntent){
   lpSelectOn=!!on;
   if(!preserveIntent) lpSelectWanted=lpSelectOn;
-  if(!lpSelectOn&&!preserveIntent){ lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; lpLeaseResumeSelect=false; }
+  if(!lpSelectOn&&!preserveIntent){ lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpPendingRepin=null; lpPendingRepinUntil=0; lpRepinFallbackBlocked=false; lpUiRepinExpected=null; lpUiRepinExpectedUntil=0; lpLeaseResumeSelect=false; clearAttachedRefs(true); }
   const b=document.getElementById('lp-select-btn');
   if(b){ b.setAttribute('aria-pressed', lpSelectOn?'true':'false'); if(lpSelectOn) b.classList.add('lp-on'); else b.classList.remove('lp-on'); }
   sendSelectMode(lpSelectOn);
@@ -6105,6 +6753,19 @@ function sendDetach(c){
 function sendDetachAll(){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
   if(w&&curOrigin){ try{ w.postMessage({ type:'lp-detach-all' }, curOrigin); }catch(e){} }
+}
+// Full-list sync is intentional: the host atomically replaces its contained, lease-bound record, so
+// a removed reference can never survive as a stale tail. The native sidebar never receives these
+// source stamps; its state projection contains labels/count only.
+function syncRefsHost(){
+  const refs=lpRefs.slice(0,8).map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag, label:r.label }; });
+  try{ vsapi.postMessage({ type:'lp-refs-sync', refs:refs }); }catch(e){}
+}
+function clearAttachedRefs(notifyTap){
+  if(notifyTap) sendDetachAll();
+  lpRefs=[];
+  try{ renderRefs(); }catch(e){}
+  syncRefsHost();
 }
 // LP-4.9 §5 — hover-preview: ask the tap to VISUALLY apply a className to the pinned element (live
 // DOM only, no file write) so a preset shows its effect before you commit — the Lovable gesture.
@@ -6247,10 +6908,10 @@ function renderRefs(){
   for(let i=0;i<xs.length;i++){ xs[i].addEventListener('click', function(){
     const idx=parseInt(this.getAttribute('data-ref'),10);
     const r=(Number.isInteger(idx)&&idx>=0&&idx<lpRefs.length)?lpRefs[idx]:null;
-    if(r){ sendDetach(r); lpRefs.splice(idx,1); renderRefs(); }
+    if(r){ sendDetach(r); lpRefs.splice(idx,1); renderRefs(); syncRefsHost(); }
   }); }
   const clr=document.getElementById('lp-refs-clr');
-  if(clr) clr.addEventListener('click', function(){ sendDetachAll(); lpRefs=[]; renderRefs(); });
+  if(clr) clr.addEventListener('click', function(){ clearAttachedRefs(true); });
 }
 // LP-4 §5 — after a write, the host asks the tap to watch through the HMR swap and re-emit a
 // FRESH lp-select for the same node (re-prompt without re-selecting). Origin-targeted, never '*'.
@@ -6266,7 +6927,11 @@ function sendRepin(c){
 }
 function forwardRepin(c){
   const f=document.getElementById('lp-frame'); const w=f&&f.contentWindow;
-  if(w&&curOrigin&&c){ try{ w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin); }catch(e){} }
+  if(w&&curOrigin&&c){ try{
+    w.postMessage({ type:'lp-repin', file:c.file, line:c.line, col:c.col, tag:c.tag }, curOrigin);
+    lpUiRepinExpected={ file:c.file, line:c.line, col:c.col, tag:c.tag };
+    lpUiRepinExpectedUntil=Date.now()+LP_REPIN_TTL_MS;
+  }catch(e){} }
 }
 function rearmPinnedSelection(){
   if(!lpSelectOn||!curOrigin) return;
@@ -6287,6 +6952,12 @@ function maybeResumeSelect(){
   rearmPinnedSelection();
 }
 function baseName(f){ const parts=String(f==null?'':f).split(/[\\\\/]/); return parts[parts.length-1]||String(f==null?'':f); }
+function syncPromptDraft(value,source){
+  lpPromptDraft=String(value==null?'':value);
+  const box=document.getElementById('lp-box-in'), thread=document.getElementById('lp-thread-in');
+  if(box&&box!==source&&box.value!==lpPromptDraft) box.value=lpPromptDraft;
+  if(thread&&thread!==source&&thread.value!==lpPromptDraft) thread.value=lpPromptDraft;
+}
 // LP-4.5 §5 — the escape hatch from every dynamic-content warning: point the one box at the
 // agent. Honest when it cannot: bridge missing/untrusted → the exact reason, no silent no-op.
 function switchToAgent(){
@@ -6322,7 +6993,7 @@ function wireSkillsMenu(){
   for(let i=0;i<items.length;i++){ items[i].addEventListener('click', function(){
     const id=this.getAttribute('data-skill'), tier=this.getAttribute('data-tier'), tpl=this.getAttribute('data-template')||'';
     const bi=document.getElementById('lp-box-in');
-    if(bi){ bi.value=tpl; bi.focus(); try{ bi.setSelectionRange(tpl.length, tpl.length); }catch(e){} }
+    if(bi){ syncPromptDraft(tpl); bi.focus(); try{ bi.setSelectionRange(tpl.length, tpl.length); }catch(e){} }
     lpMode=skillTierMode(tier);              // pin the chip to the skill's tier floor (honest routing)
     renderModeChips();
     if(act) act.textContent='skill activa: /'+id+' · '+(lpMode==='auto'?'agente · subscrição':'local · $0');
@@ -6352,14 +7023,21 @@ function revealPromptDock(){
   try{ if(typeof dock.scrollIntoView==='function') dock.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){}
 }
 function mountCanvasToolbar(docked){
-  const tb=document.getElementById('lp-ctb'), ov=document.getElementById('lp-ctb-ov'), dock=document.getElementById('lp-prompt-dock');
+  const tb=document.getElementById('lp-ctb'), ov=document.getElementById('lp-ctb-ov'), dock=document.getElementById('lp-prompt-dock'), grip=document.getElementById('lp-ctb-grip');
   if(!tb) return;
   const wasDocked=lpToolbarDocked;
   const host=docked?dock:ov;
   if(host&&tb.parentNode!==host){ try{ host.appendChild(tb); }catch(e){} }
   lpToolbarDocked=!!docked;
-  if(docked){ tb.classList.add('lp-docked'); if(dock) dock.style.display='block'; if(!wasDocked) revealPromptDock(); }
-  else { tb.classList.remove('lp-docked'); if(dock) dock.style.display='none'; }
+  if(docked){
+    tb.classList.add('lp-docked'); if(dock) dock.style.display='block';
+    if(grip){ grip.textContent='📍 fixo no painel'; grip.title='Prompt fixo no painel lateral'; grip.setAttribute('aria-disabled','true'); }
+    if(!wasDocked) revealPromptDock();
+  }
+  else {
+    tb.classList.remove('lp-docked'); if(dock) dock.style.display='none';
+    if(grip){ grip.textContent='⠿ mover'; grip.title='Arrastar (ou deixa o posicionamento automático)'; grip.removeAttribute('aria-disabled'); }
+  }
 }
 function positionCanvasToolbar(rect){
   const tb=document.getElementById('lp-ctb'), chip=document.getElementById('lp-ctb-chip'), f=document.getElementById('lp-frame'), wrap=document.getElementById('lp-framewrap');
@@ -6368,22 +7046,35 @@ function positionCanvasToolbar(rect){
   if(!rect) return;
   const fx=f.offsetLeft||0, fy=f.offsetTop||0;
   const wrapW=wrap.clientWidth||0, wrapH=wrap.clientHeight||0;
+  // Chromium/VS Code reports a transient 0×0 canvas while panes are rearranged. That is not a real
+  // placement constraint: do not turn it into a sticky dock. Hide a floating prompt for this frame
+  // and let the next valid resize place it from the same pin.
+  if(wrapW<=0||wrapH<=0){ if(!lpToolbarDocked) tb.style.visibility='hidden'; return; }
+  tb.style.visibility='visible';
   const px=fx+(rect.x||0), py=fy+(rect.y||0), pw=rect.w||0, ph=rect.h||0; // pin box in wrap coords
-  const clampX=function(x,w){ return Math.max(6, Math.min(x, wrapW-w-6)); };
-  const clampY=function(y,h){ return Math.max(6, Math.min(y, wrapH-h-6)); };
   const cw=(chip&&chip.offsetWidth)||34, chh=(chip&&chip.offsetHeight)||28;
-  // §7 minimized — place the 🐮 chip at the pin corner (above if it fits, else below); toolbar hidden.
-  // Above/below by construction never overlaps the pin (COH-02 holds for the minimized state too).
+  const pin={x:px,y:py,w:pw,h:ph};
+  // §7 minimized — run the SAME proven geometry as the full prompt. If even the compact cow cannot
+  // clear the pin, reopen the real prompt in the safe rail; a covering chip is not a valid state.
   if(lpToolbarMin){
     const dock=document.getElementById('lp-prompt-dock'); if(dock) dock.style.display='none';
-    if(chip){ chip.style.left=clampX(px, cw)+'px'; chip.style.top=clampY((py-chh-6>6)?(py-chh-6):(py+ph+6), chh)+'px'; }
+    const mini=chooseToolbarPlacement({ pin, tb:{w:cw,h:chh}, wrap:{w:wrapW,h:wrapH}, chip:{w:cw,h:chh} });
+    if(mini.mode!=='dock'){
+      if(chip){ chip.style.display='inline-flex'; chip.style.left=mini.x+'px'; chip.style.top=mini.y+'px'; }
+      return;
+    }
+    lpToolbarMin=false;
+    mountCanvasToolbar(true);
+    tb.style.display='block'; tb.setAttribute('aria-hidden','false');
+    if(chip) chip.style.display='none';
+    revealPromptDock();
+    const box=document.getElementById('lp-box-in'); if(box){ try{ box.focus(); }catch(e){} }
     return;
   }
   // Once docked, stay docked for this selection. Measuring the docked (height-capped) box and then
   // the floating (full-height) box on alternating pin-rect messages would otherwise create a loop.
   if(lpToolbarDocked){ mountCanvasToolbar(true); tb.style.display='block'; tb.setAttribute('aria-hidden','false'); if(chip) chip.style.display='none'; return; }
   const tw=tb.offsetWidth||260, th=tb.offsetHeight||160;
-  const pin={x:px,y:py,w:pw,h:ph};
   // COH-02 — the PURE placement decision (serialised in): it repeats the overlap test on the MANUAL
   // (dragged) position too, and when nothing fits it returns 'minimize'/'dock' instead of clamping the
   // toolbar ON TOP of the pin. INVARIANT: the returned rect never covers the pinned node. The auto-anchor
@@ -6587,7 +7278,8 @@ function lpNodeHistoryHTML(sel){
     return '<div class="lp-nh"><div class="lp-nh-hd">🕘 histórico deste nó · '+items.length+'</div>'+rows+'</div>';
   }catch(_){ return ''; }
 }
-function renderSelection(sel){
+function renderSelection(sel,options){
+  const freshSelection=!!(options&&options.freshSelection);
   updateAnchorChip(sel); // F3 — keep the persistent anchor chip honest on every (de)selection
   const el=document.getElementById('lp-sel');
   if(!el) return;
@@ -6691,14 +7383,16 @@ function renderSelection(sel){
     // which would strand a hover-preview on the node. Clear it before we replace the markup.
     sendClearPreview();
     ctbBody.innerHTML=inputsHTML;
-    lpToolbarManualPos=null; // §7 — a fresh selection re-anchors (drag is per-selection)
-    lpToolbarDocked=false; mountCanvasToolbar(false); // a different pin gets a fresh floating-size geometry decision
+    if(freshSelection){
+      lpPromptDraft=''; lpToolbarMin=false; lpToolbarManualPos=null; lpToolbarDocked=false;
+      mountCanvasToolbar(false); // an explicit pin always reopens and re-anchors the composer
+    }
     const chip=document.getElementById('lp-ctb-chip');
     // §7 — preserve a minimized toolbar across re-pins (show the 🐮 chip, keep the panel hidden).
     if(lpToolbarMin){ if(ctb){ ctb.style.display='none'; ctb.setAttribute('aria-hidden','true'); } if(chip) chip.style.display='inline-flex'; }
     else { if(ctb){ ctb.style.display='block'; ctb.setAttribute('aria-hidden','false'); } if(chip) chip.style.display='none';
       // F0.1 — pin ready to type: focus the prompt box on a fresh selection (only when the toolbar is shown).
-      const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} } }
+      const bx=document.getElementById('lp-box-in'); if(freshSelection&&bx){ try{ bx.focus(); }catch(e){} } }
     try{ renderCtxSkills(sel); }catch(e){} // COH-18 — contextual skill chips next to the one-box
   }
   else { el.insertAdjacentHTML('beforeend', inputsHTML); try{ renderCtxSkills(sel); }catch(e){} } // fallback: keep controls in the rail
@@ -6742,11 +7436,12 @@ function renderSelection(sel){
   // local chip when the ask smells node-local — it never decides.
   const bi=document.getElementById('lp-box-in'), bb=document.getElementById('lp-box-b');
   const threadInput=document.getElementById('lp-thread-in'), threadSend=document.getElementById('lp-thread-send');
+  syncPromptDraft(lpPromptDraft);
   const sendBox=function(sourceInput){
     const source=sourceInput&&typeof sourceInput.value==='string'?sourceInput:bi;
     const v=source?source.value.trim():'';
     if(!v){ showEditResult(false,'prompt-empty'); return; }
-    if(bi&&source!==bi) bi.value=v; // one controller: rail composer and canvas box stay in sync
+    syncPromptDraft(v); // one controller: rail composer and canvas box stay in sync across HMR
     const bc=pth.map(function(c){ return (c&&(c.label||c.tag))||''; }).filter(function(x){ return !!x; }).join(' › ');
     const refs=lpRefs.map(function(r){ return { file:r.file, line:r.line, col:r.col, tag:r.tag }; });
     // LP-4.9 §1 — Perguntar ALWAYS routes to the agent: answering needs to read the repo, which the
@@ -6810,6 +7505,7 @@ function renderSelection(sel){
     bb.addEventListener('click', function(){ sendBox(bi); });
     bi.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); sendBox(bi); } });
     bi.addEventListener('input', function(){
+      syncPromptDraft(bi.value,bi);
       const h=document.getElementById('lp-box-hint'); if(!h) return;
       // The local-chip suggestion only applies to EDITS (asking always uses the agent).
       if(lpIntent==='edit'&&lpMode!=='local'&&suggestLocalChip(bi.value)){ h.textContent='💡 parece uma mudança só deste nó — o chip "local $0 · só este nó" resolve sem custo'; h.style.display='block'; }
@@ -6819,6 +7515,7 @@ function renderSelection(sel){
   if(threadInput&&threadSend){
     threadSend.addEventListener('click', function(){ sendBox(threadInput); });
     threadInput.addEventListener('keydown', function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendBox(threadInput); } });
+    threadInput.addEventListener('input', function(){ syncPromptDraft(threadInput.value,threadInput); });
   }
   renderIntentToggle();
   // LP-4.9 §2 — progressive disclosure: restore the remembered expanded state and wire "▾ mais".
@@ -6860,10 +7557,11 @@ function renderSelection(sel){
     // though our lightweight DOM harness preserves it. Restore focus AFTER placement so a fresh
     // pin is genuinely ready to type. Never steal focus from the first-run coach dialog.
     const coach=document.getElementById('lp-coach');
-    if(!lpToolbarMin && (!coach || coach.style.display==='none')){
+    if(freshSelection && !lpToolbarMin && (!coach || coach.style.display==='none')){
       const bx=document.getElementById('lp-box-in'); if(bx){ try{ bx.focus(); }catch(e){} }
     }
   }
+  if(freshSelection&&!lpToolbarDocked){ try{ if(typeof el.scrollIntoView==='function') el.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){} }
   // An HMR re-pin reconstructs this whole panel. Restore the actionable answer/diff for THIS exact
   // node so its conversation never loses "Aplicar" or "OK — manter tudo" between pink and yellow.
   const savedTaskResult=taskResultForSelection(sel);
@@ -7147,7 +7845,7 @@ function renderCtxSkills(sel){
   for(var i=0;i<sk.length;i++){ html+='<button type="button" class="lp-ctx-skill" data-seed="'+esc(sk[i].seed)+'" title="'+esc(sk[i].skill)+' — sugestão contextual · o menu completo está em ▾ ajustes rápidos">'+esc(sk[i].label)+'</button>'; }
   el.innerHTML=html; el.style.display='flex';
   var btns=el.querySelectorAll('[data-seed]');
-  for(var j=0;j<btns.length;j++){ btns[j].addEventListener('click', function(){ var bx=document.getElementById('lp-box-in'); if(bx){ bx.value=this.getAttribute('data-seed'); try{ bx.focus(); }catch(e){} } }); }
+  for(var j=0;j<btns.length;j++){ btns[j].addEventListener('click', function(){ var bx=document.getElementById('lp-box-in'); if(bx){ syncPromptDraft(this.getAttribute('data-seed')); try{ bx.focus(); }catch(e){} } }); }
 }
 // LP-4.5 — the one-box MODE chips. The truth: text/class/delete stay deterministic ($0, no LLM).
 // The BOX defaults to AUTO = the anchored-task agent (subscription via the SDK bridge — honest
@@ -7371,7 +8069,18 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-ready'){ lpHasTap=true; applyNavCapability(); vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); lpSendRestore(); if(lpSelectOn) rearmPinnedSelection(); } // FIX-MP-1 — relay served-tree identity early (origin-locked) + COH-11/H2: a fresh document loses BOTH select mode and the old pin; re-arm + replay the short-lived exact stamp so HMR cannot erase the yellow/green lifecycle
     // MP5.1 — a click in select mode. The origin lock above already vetted the sender; render the
     // selection panel. lp-select-mode-off is the tap telling us the user pressed Esc inside the frame.
-    else if (m.type === 'lp-select'){ vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null }); if(lpPendingRepin){ lpPendingRepin=null; lpPendingRepinUntil=0; } lpRepinFallbackBlocked=false; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0; lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 }; lpJourney=null; vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'' }); renderSelection(lpSelection); } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked); every fresh exact pin retires the short-lived HMR replay/tombstone
+    else if (m.type === 'lp-select'){
+      const uiContinuation=!!(lpUiRepinExpected&&Date.now()<=lpUiRepinExpectedUntil&&sameNodeStamp(lpUiRepinExpected,m));
+      lpUiRepinExpected=null; lpUiRepinExpectedUntil=0;
+      if(!uiContinuation) clearAttachedRefs(true);
+      vsapi.postMessage({ type:'lp-tree', servedRoot: (typeof m.servedRoot==='string') ? m.servedRoot : null });
+      if(lpPendingRepin){ lpPendingRepin=null; lpPendingRepinUntil=0; }
+      lpRepinFallbackBlocked=false; lpSuspendedSelection=null; lpSuspendedSelectionUntil=0;
+      lpSelection={ file:m.file, line:m.line, col:m.col, tag:m.tag, rect:m.rect, text:m.text, className:m.className, path:Array.isArray(m.path)?m.path.slice(0,12):[], repeated:(typeof m.repeated==='number'&&m.repeated>1)?m.repeated:0 };
+      lpJourney=null;
+      vsapi.postMessage({ type:'lp-pin', file:m.file, line:m.line, col:m.col, tag:m.tag, selText:(typeof m.text==='string')?m.text.slice(0,200):'', className:(typeof m.className==='string')?m.className.slice(0,4000):'', continuation:uiContinuation });
+      renderSelection(lpSelection,{freshSelection:!uiContinuation});
+    } // FIX-MP-1 relay served-tree identity + F3 (W1) relay the pin to the host SelectionStore (both origin-locked); exact programmatic re-pins preserve UI state, explicit picks reopen it
     // LP-4.8 §1 — the tap re-emits the pin's box on every scroll/resize reflow so the in-canvas
     // toolbar follows the element. Benign: a read-only rect on the SAME origin-locked channel as
     // lp-select; it only nudges the toolbar's position, never touches the write path.
@@ -7381,10 +8090,10 @@ window.addEventListener('message', (ev) => {
     else if (m.type === 'lp-attach'){
       if(m.file && lpRefs.length<8){
         const dup=lpRefs.some(function(r){ return r.file===m.file && r.line===m.line && r.col===m.col && r.tag===m.tag; });
-        if(!dup){ lpRefs.push({ file:m.file, line:m.line, col:m.col, tag:m.tag, label:(typeof m.label==='string')?m.label.slice(0,40):'' }); renderRefs(); }
+        if(!dup){ lpRefs.push({ file:m.file, line:m.line, col:m.col, tag:m.tag, label:(typeof m.label==='string')?m.label.slice(0,40):'' }); renderRefs(); syncRefsHost(); }
       }
     }
-    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); lpRefs=[]; renderRefs(); }
+    else if (m.type === 'lp-select-mode-off'){ setSelectMode(false); }
     return;
   }
   // ── TRUSTED HOST branch. Accept ONLY host messages bearing the shared secret (unchanged from
@@ -7577,6 +8286,8 @@ const reBtn=document.getElementById('lp-redetect');
 if(reBtn) reBtn.addEventListener('click', ()=>{ reloadStageFrame(); vsapi.postMessage({ type:'lp-redetect' }); });
 const autoBtn=document.getElementById('lp-auto');
 if(autoBtn) autoBtn.addEventListener('click', ()=>{ if(urlInput) urlInput.value=''; vsapi.postMessage({ type:'lp-clear-url' }); });
+const sidebarBtn=document.getElementById('lp-sidebar-btn');
+if(sidebarBtn) sidebarBtn.addEventListener('click', ()=>{ vsapi.postMessage({ type:'lp-open-sidebar' }); });
 const selBtn=document.getElementById('lp-select-btn');
 if(selBtn) selBtn.addEventListener('click', ()=> setSelectMode(!lpSelectOn));
 // COH-05 — pick the active project (multi-root). Host re-detects the dev server against it.
@@ -7698,20 +8409,50 @@ function activate(ctx) {
   makeStatusBar(ctx, data);
   const cockpitProvider = new CockpitProvider(ctx, data);
   ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', cockpitProvider));
+  let livePreviewSidebar = null;
+  if (LPSIDEBAR_PROVIDER && LPSIDEBAR_PROVIDER.LivePreviewSidebarProvider) {
+    livePreviewSidebar = new LPSIDEBAR_PROVIDER.LivePreviewSidebarProvider(vscode, {
+      getHtml: (token) => (LPSIDEBAR && typeof LPSIDEBAR.getLivePreviewSidebarHtml === 'function')
+        ? LPSIDEBAR.getLivePreviewSidebarHtml(token)
+        : '<!doctype html><html><body>Mooter Live Preview — reinstala o plugin.</body></html>',
+      getPanel: () => LivePreviewPanel.current,
+      openPanel: () => LivePreviewPanel.createOrReveal(ctx, livePreviewSidebar),
+    });
+    ctx.subscriptions.push(livePreviewSidebar);
+    ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterLivePreviewSidebar', livePreviewSidebar, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }));
+  }
   // F1 · progressive disclosure — reveal/fold the advanced tabs (Setup·Agents·Decisions·Doctor).
   // Focuses the cockpit first, then toggles; one retry covers a just-created (not-yet-ready) webview.
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.showAdvancedViews', async () => {
+    try { await vscode.commands.executeCommand('setContext', 'mooter.livePreviewMode', false); } catch { /* best-effort */ }
     try { await vscode.commands.executeCommand('mooterCockpit.focus'); } catch { /* best-effort */ }
     const post = () => { const v = cockpitProvider._view; if (v && v.webview) { try { v.webview.postMessage({ type: 'mooter-adv', action: 'toggle' }); } catch { /* best-effort */ } return true; } return false; };
     if (!post()) setTimeout(post, 350);
   }));
-  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openCockpit', () => vscode.commands.executeCommand('mooterCockpit.focus')));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openCockpit', async () => {
+    try { await vscode.commands.executeCommand('setContext', 'mooter.livePreviewMode', false); } catch { /* best-effort */ }
+    return vscode.commands.executeCommand('mooterCockpit.focus');
+  }));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.newSession', newSession));
   ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openSessionTab', openSessionTab)); // Deck Floor (Fase 2): wave=sessão=aba deep-link
-  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => data.refresh(true)));
-  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooterCockpit.focus')));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.refresh', () => {
+    data.refresh(true);
+    if (LivePreviewPanel.current) LivePreviewPanel.current._post();
+    if (livePreviewSidebar) livePreviewSidebar.sync();
+  }));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.setupWizard', () => vscode.commands.executeCommand('mooter.openCockpit')));
   // Live Preview · MP1 — singleton WebviewPanel, ViewColumn.Beside (reveals if already open).
-  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => LivePreviewPanel.createOrReveal(ctx)));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.openLivePreview', () => {
+    const panel = LivePreviewPanel.createOrReveal(ctx, livePreviewSidebar);
+    if (livePreviewSidebar) livePreviewSidebar.reveal('edit', false);
+    return panel;
+  }));
+  ctx.subscriptions.push(vscode.commands.registerCommand('mooter.focusLivePreviewSidebar', () => {
+    const panel = LivePreviewPanel.createOrReveal(ctx, livePreviewSidebar);
+    if (livePreviewSidebar) livePreviewSidebar.reveal('edit', !!(panel && panel._selection));
+  }));
   data.start();
 }
 function deactivate() {}
@@ -7782,6 +8523,15 @@ function getHtml(guardianPct = null) {
   .tab.on{color:var(--vscode-foreground);border-bottom-color:var(--r)}
   /* B6 — header frozen: identity + tab switcher stay pinned; the body scrolls under them. */
   .chrome{position:sticky;top:0;z-index:30;background:var(--vscode-sideBar-background,var(--vscode-editor-background));margin:0 -10px;padding:0 10px}
+  .surfacebridge{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1.2fr);align-items:center;gap:2px;padding:7px 3px 5px;border-bottom:1px solid var(--vscode-widget-border)}
+  .surfacebridge button{position:relative;min-width:0;padding:6px 5px;border:1px solid transparent;border-radius:7px;color:var(--vscode-descriptionForeground);background:transparent;font:11.5px var(--vscode-font-family);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .surfacebridge button:hover{color:var(--vscode-foreground);background:var(--vscode-list-hoverBackground)}
+  .surfacebridge button:focus-visible{outline:2px solid var(--vscode-focusBorder,var(--r));outline-offset:1px}
+  .surfacebridge button.active{color:var(--vscode-foreground);border-color:color-mix(in srgb,var(--r) 38%,transparent);background:var(--rdim)}
+  .surfacebridge button.active::after{content:'';position:absolute;left:22%;right:22%;bottom:1px;height:2px;border-radius:3px;background:var(--r);box-shadow:0 0 8px color-mix(in srgb,var(--r) 70%,transparent);animation:surfacebridgeglow 1.8s ease-in-out infinite}
+  .surfacebridge .swap{color:var(--r);text-align:center;font-size:14px;animation:surfacebridgenudge 1.8s ease-in-out infinite}
+  @keyframes surfacebridgeglow{50%{opacity:.48;transform:scaleX(.72)}}
+  @keyframes surfacebridgenudge{50%{transform:translateX(2px);opacity:.6}}
   .chrome .brand{margin-left:0;margin-right:0}
   .chrome .tabs{margin-left:0;margin-right:0;margin-bottom:0}
   /* R1 · tabs priority-collapse — the delivery surfaces (Cockpit · Mission · Project · Arch) stay
@@ -8570,6 +9320,7 @@ function getHtml(guardianPct = null) {
 </style></head><body class="mooter-adv-hidden">
 <!-- B6 — frozen header: identity + tab switcher pinned via .chrome (position:sticky) so switching tabs is always reachable while the body scrolls. -->
 <div class="chrome">
+<nav class="surfacebridge" aria-label="Alternar superfície do Mooter"><button type="button" class="active" aria-current="page" title="Cockpit ativo">🧭 Cockpit</button><span class="swap" aria-hidden="true">⇄</span><button type="button" id="openLivePreviewSurface" title="Abrir Live Preview">⚡ Live Preview</button></nav>
 <div class="brand"><span id="brandCow" class="livecow" aria-hidden="true">🐮</span><b>mooter</b><details class="pswitch" id="pswitch"><summary aria-haspopup="true" aria-label="switch project (one company, one click)" title="one company, one click — switch the whole deck"><span class="proj" id="proj">—</span> <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" id="pswitchMenu" role="radiogroup" aria-label="Project"></div></details><span id="pair" style="font-size:10.5px;color:var(--bmuted)">✱</span><details class="pnew" id="pnew"><summary aria-haspopup="menu" aria-label="new (CC session, loop, schedule)" title="new — CC session · loop · schedule">＋ New <span class="caret" aria-hidden="true">▾</span></summary><div class="menu" role="menu" aria-label="New"><button class="mi" role="menuitem" data-new="cc">💬 CC session</button><button class="mi" role="menuitem" data-new="loop" disabled aria-disabled="true" title="LoopMoo — chega na wave 5"><span>♾️ Loop</span><span class="soon">🌊 W5</span></button><button class="mi" role="menuitem" data-new="schedule" disabled aria-disabled="true" title="Schedule — chega na wave 5"><span>⏰ Schedule</span><span class="soon">🌊 W5</span></button></div></details>
   <span class="right"><span class="badge b-mode" id="modeBadge">Moo</span><span class="badge b-score" id="scoreBadge" title="Mooter Score — click for pending items">—%</span></span></div>
 <div class="inbox" id="inbox" role="status" aria-live="polite" aria-label="Inbox — o que precisa de ti"><div class="inbox-calm"><span class="ic">🟢</span> a ligar ao mooter…</div></div>
@@ -8835,6 +9586,7 @@ function ledgerHtml(s){
 }
 function wireLedgerToggle(){const lg=$('#tokLedger');if(!lg)return;lg.querySelectorAll('[data-ls]').forEach(b=>{const go=()=>{ledgerScope=b.dataset.ls;if(lastSnap){lg.innerHTML=ledgerHtml(lastSnap);wireLedgerToggle();wireCollapse(lg);}};b.onclick=go;b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});}
 function send(cmd,arg){vsapi.postMessage({cmd,arg});}
+const openLivePreviewSurface=document.getElementById('openLivePreviewSurface');if(openLivePreviewSurface)openLivePreviewSurface.addEventListener('click',()=>send('openLivePreview'));
 // B1 — optimistic perceived-speed: depois de aplicar o novo estado JÁ no DOM (.on salta no clique),
 // mostra "⟳ a aplicar…" no PAINEL junto ao controlo até o próximo snapshot reconciliar (o re-render
 // reconstrói #v-cockpit e limpa a tag). Safety timeout caso um refresh demore/falhe. Nunca lança.

@@ -66,3 +66,14 @@ test('sticky header + reduced-motion kill switch survive Phase 1', () => {
   assert.match(html, /prefers-reduced-motion:reduce\)\{\*,\*::before/, 'global reduced-motion kill present');
   assert.match(html, /@keyframes inboxpulse/, 'your-turn pulse defined (disabled under reduced-motion)');
 });
+
+test('Cockpit exposes the symmetric animated bridge to Live Preview', () => {
+  const html = renderHtml();
+  const script = scriptOf(html);
+  assert.match(html, /class="surfacebridge"[^>]*aria-label="Alternar superfície do Mooter"/, 'surface switch belongs to the sticky cockpit chrome');
+  assert.match(html, /aria-current="page"[^>]*>🧭 Cockpit/, 'Cockpit is announced as the active surface');
+  assert.match(html, /id="openLivePreviewSurface"[^>]*>⚡ Live Preview/, 'Live Preview is the symmetric destination');
+  assert.match(script, /openLivePreviewSurface[\s\S]*?send\('openLivePreview'\)/, 'the client emits only the command intent');
+  const source = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
+  assert.match(source, /m\.cmd === 'openLivePreview'\) await vscode\.commands\.executeCommand\('mooter\.openLivePreview'\)/, 'the host resolves the intent through the canonical command');
+});

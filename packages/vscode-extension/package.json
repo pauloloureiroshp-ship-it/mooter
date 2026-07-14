@@ -2,7 +2,7 @@
   "name": "mooter-cockpit",
   "displayName": "Mooter — Cost Cockpit for Claude Code",
   "description": "See what your Claude Code routing saves — live decisions, tier mix, counterfactual $ savings. Read-only cockpit for the mooter router. Community project, not affiliated with Anthropic.",
-  "version": "0.16.74",
+  "version": "0.16.78",
   "publisher": "mooter",
   "license": "MIT",
   "repository": {
@@ -78,7 +78,15 @@
         {
           "type": "webview",
           "id": "mooterCockpit",
-          "name": "Cockpit"
+          "name": "Cockpit",
+          "when": "!mooter.livePreviewMode"
+        },
+        {
+          "type": "webview",
+          "id": "mooterLivePreviewSidebar",
+          "name": "Live Preview",
+          "contextualTitle": "Mooter — Live Preview",
+          "when": "mooter.livePreviewMode"
         }
       ]
     },
@@ -86,7 +94,8 @@
       {
         "command": "mooter.openCockpit",
         "title": "Open Cockpit",
-        "category": "Mooter"
+        "category": "Mooter",
+        "icon": "$(dashboard)"
       },
       {
         "command": "mooter.newSession",
@@ -106,9 +115,15 @@
       },
       {
         "command": "mooter.openLivePreview",
-        "title": "Open Live Preview 🎬",
+        "title": "Open Live Preview ⚡",
         "category": "Mooter",
         "icon": "$(preview)"
+      },
+      {
+        "command": "mooter.focusLivePreviewSidebar",
+        "title": "Open Live Preview Controls",
+        "category": "Mooter",
+        "icon": "$(layout-sidebar-left)"
       },
       {
         "command": "mooter.showAdvancedViews",
@@ -127,6 +142,21 @@
           "command": "mooter.openLivePreview",
           "when": "view == mooterCockpit",
           "group": "navigation"
+        },
+        {
+          "command": "mooter.openLivePreview",
+          "when": "view == mooterLivePreviewSidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mooter.refresh",
+          "when": "view == mooterLivePreviewSidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mooter.openCockpit",
+          "when": "view == mooterLivePreviewSidebar",
+          "group": "navigation@3"
         }
       ]
     },

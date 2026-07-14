@@ -2,6 +2,50 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.78] — 2026-07-14 — Live Preview visual QA hardening
+
+- Validate the real sidebar renderer at native 370 px and constrained 240 px widths instead of approving an
+  illustrative mock. The prompt composer now occupies the bottom of short conversations and its send action
+  remains right-aligned when narrow rails collapse helper copy.
+- Keep zero-count Security badges genuinely hidden, retain accessible tab names in icon-only layouts and use an
+  AA-contrast pink action tone while preserving the brighter Mooter pink for focus and motion cues.
+- Make the Production button visibly two-factor: it starts disabled and only unlocks after the exact host-projected
+  project name is typed. The host-owned security, immutable-commit and destination-lease checks remain authoritative.
+- Regression proof: real renderer inspected at **370 px and 240 px**; Sidebar + Security + Publish **150/150**;
+  extension **1,391 pass / 0 fail / 1 expected symlink skip**. Landing typecheck remains clean and its unrelated
+  in-progress page stays byte-identical; frozen classifier SHA unchanged.
+
+## [0.16.76] — 2026-07-14 — Prompt-first Live Preview UX
+
+- Add one symmetric, animated `🧭 Cockpit ⇄ ⚡ Live Preview` switch to both native surfaces. The active
+  destination is announced accessibly, reduced-motion disables the cue, and the authenticated sidebar bridge
+  bypasses the selection/write controller entirely.
+- Keep the surface switch, preview health and Edit/Security/Publish/MEO tabs fixed while the bounded panel body
+  scrolls. Selection context now belongs to the conversation instead of consuming the pinned navigation row.
+- Recompose Edit as a calm, prompt-first workspace: lightweight per-node thread, persistent bottom composer,
+  Edit/Ask intent toggle, contextual skills, progressive `Texto · Cor · Espaço` controls and compact model picker.
+  Auto remains honestly labelled as Auto until the router reports a concrete model.
+- Preserve the existing host-authoritative identity lease, proposal/approval flow and fail-closed Security →
+  Publish boundary; the UI still emits intent-only commands and cannot supply a file, line, lease or deploy scope.
+- Regression proof: extension **1,391 pass / 0 fail / 1 expected conditional skip** (1,392 total) in the
+  standard parallel runner; landing typecheck clean and its pre-existing WIP kept byte-identical. Frozen
+  classifier SHA unchanged; no commit, push or production deploy was performed.
+
+## [0.16.75] — 2026-07-13 — Native Live Preview workspace
+
+- Move the complete Live Preview workflow into a native Mooter Activity Bar view: one composer and one
+  per-node thread, plus Security, Publish and MEO tabs. The editor panel is now a clean, dominant canvas;
+  the detached/overlapping prompt card and the old internal rail are no longer user-visible.
+- Keep the exact-node lifecycle inside the iframe, where it remains source-stamped and reflow-aware: pink
+  while the code is changing, yellow while the result awaits OK and green only after local approval.
+- Harden the new sidebar as an intent-only surface. The extension host chooses the current authenticated
+  selection, workspace and deployment lease; forged node/file identities and raw edit messages are rejected.
+- Restore the active node's thread and task result when the view is reopened, preserve drafts across proven
+  HMR re-pins, and reveal/focus the single composer after a manual selection without stealing focus on reload.
+- Regression proof: extension **1,389 pass / 0 fail / 1 expected conditional skip** (1,390 total), including
+  native-sidebar projection/authentication, selection isolation, HMR, Security-to-Publish and packaging contracts.
+  Frozen classifier SHA unchanged; no commit, push or production deploy was performed during validation.
+
 ## [0.16.74] — 2026-07-13 — Live Preview coherence and transactional Publish
 
 - Keep the preview identity as an origin/root/epoch lease across HMR and transient health changes. The

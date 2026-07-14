@@ -43,13 +43,15 @@ function mkInstance(wsRoot) {
 // A record as _taskRun would register after an Ask, on a CONFIRMED tree at epoch E.
 function seedRecord(inst, wsRoot, epoch) {
   inst._servedRoot = wsRoot; inst._stageOrigin = 'http://localhost:7819'; inst._readyEpoch = epoch;
-  inst._selection = { file: 'page.tsx', line: 3, tag: 'div' };
+  inst._selection = { file: 'page.tsx', line: 3, col: 1, tag: 'div' };
+  inst._activeJourneyId = 'journey-page-div';
   inst._askReg = new Map();
   inst._askReg.set('ask-1', {
     lease: { servedRoot: wsRoot, origin: 'http://localhost:7819', epoch },
     epoch, servedRoot: wsRoot, origin: 'http://localhost:7819', instruction: 'melhora a disposição do hero',
     answer: 'Sobe o lineHeight para 1.05 e dá 16px de respiro à trust row.',
     refs: undefined, filesRead: ['page.tsx'], model: 'claude-opus', mode: 'auto',
+    journeyId: 'journey-page-div', anchor: { file: 'page.tsx', line: 3, col: 1, tag: 'div' },
     file: 'page.tsx', line: 3, col: 1, tag: 'div', tagLabel: 'div', breadcrumb: '',
   });
 }

@@ -45,6 +45,16 @@ test('Live Preview (MP2 App Stage) webview script parses as delivered', () => {
   parseInlineScript(sandbox.getLivePreviewHtml());
 });
 
+test('native-sidebar architecture leaves the editor as a clean canvas', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(/#lp-side\{display:none!important\}/.test(html), 'the legacy all-in-one rail no longer competes with the stage');
+  assert.ok(/\.lp-ctb-ov\{display:none!important\}/.test(html), 'the draggable composer cannot float over the site');
+  assert.ok(html.includes('id="lp-sidebar-btn"'), 'canvas exposes one compact control that reveals the native sidebar');
+  assert.ok(html.includes("type:'lp-open-sidebar'"), 'the compact control is wired to the host');
+  parseInlineScript(html);
+});
+
 test('Live Preview CSP allows framing localhost + hosts the App Stage iframe (loop hole #2a)', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
@@ -265,7 +275,7 @@ test('Live Preview LP-4.8 §3 /skills — element-scoped skills seed the one-box
   assert.ok(html.includes('"tierFloor":"auto"'), '/section floors to the agent');
   // A skill SEEDS the one-box and pins the chip — it does NOT open a new write path. The proof:
   // the item handler sets lp-box-in + lpMode, then execution reuses the existing sendBox path.
-  assert.ok(/bi\.value=tpl/.test(html), 'skill seeds the one-box with its template');
+  assert.ok(/syncPromptDraft\(tpl\)/.test(html), 'skill seeds the canonical draft shared by the one-box and thread');
   assert.ok(/lpMode=skillTierMode\(tier\)/.test(html), 'skill pins the chip to its tier floor (routing surfaced)');
   assert.ok(html.includes('skill activa: /'), 'active-skill indicator shows the routing');
   // No bespoke skill message type — /skills must not bypass the fence with its own write channel.
@@ -444,7 +454,7 @@ test('Live Preview LP-4.9 §3 real-time feedback — toast says exactly what hap
   assert.ok(html.includes("'✓ escrito · '+tierModel(m.tier)+' · subscrição'"), 'escalated rewrite toast is honest about cost');
   // Host threads the tier so the toast can tell the truth.
   const ext = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
-  assert.ok(/_postEditResult\(true, m\.dynamic \? 'model-applied-dynamic' : 'model-applied', m\.tier\)/.test(ext), 'host passes the tier to the edit result');
+  assert.ok(/_postEditResult\(true, m\.dynamic \? 'model-applied-dynamic' : 'model-applied', m\.tier, resultMeta\)/.test(ext), 'host passes the tier and immutable prompt identity to the edit result');
   assert.ok(/if \(tier && tier !== 'local'\) msg\.tier = String\(tier\)/.test(ext), 'result message carries the non-local tier');
   // A question answered → "💬 resposta no painel →" (points to the panel, no false "changed").
   assert.ok(html.includes('💬 resposta no painel →') && html.includes("showToast('ask'"), 'answer toast points to the panel');

@@ -130,7 +130,12 @@ test('async task stays bound to node A when the user selects B before completion
     const a = inst._journeyById(aId), b = inst._journeyById(bId);
     assert.ok(a.turns.some((t) => /Resposta exclusiva de A/.test(t.text)), 'A receives its own late assistant answer');
     assert.ok(!b.turns.some((t) => /Resposta exclusiva de A/.test(t.text)), 'B thread is never mutated by A completion');
-    const result = posts.find((p) => p.type === 'lp-task-result' && p.ok);
+    const projected = posts.find((p) => p.type === 'lp-task-result' && p.ok);
+    assert.strictEqual(projected, undefined, 'late A result is never projected into the panel while B is active');
+    const result = inst._sidebarTaskResults instanceof Map
+      ? Array.from(inst._sidebarTaskResults.values()).find((row) => row && row.ok)
+      : null;
+    assert.ok(result, 'A result is retained host-side for A thread/history');
     assert.strictEqual(result.journeyId, aId, 'webview payload remains correlated to A journey');
     assert.strictEqual(result.anchor.file, TARGET.file);
     assert.strictEqual(result.anchor.line, TARGET.line);

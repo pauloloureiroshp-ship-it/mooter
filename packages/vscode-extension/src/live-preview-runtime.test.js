@@ -62,7 +62,14 @@ function makeDom() {
   Element.prototype.setSelectionRange = function () {};
   Element.prototype.scrollIntoView = function () { this._scrollIntoViewCalls += 1; };
   Element.prototype.getBoundingClientRect = function () { return { left: 10, top: 10, width: 120, height: 24, right: 130, bottom: 34, x: 10, y: 10 }; };
-  Element.prototype.appendChild = function (c) { c.parentNode = this; this._children.push(c); return c; };
+  Element.prototype.appendChild = function (c) {
+    if (c.parentNode && c.parentNode !== this && Array.isArray(c.parentNode._children)) {
+      const old = c.parentNode._children.indexOf(c); if (old !== -1) c.parentNode._children.splice(old, 1);
+    }
+    c.parentNode = this;
+    if (this._children.indexOf(c) === -1) this._children.push(c);
+    return c;
+  };
   Element.prototype.contains = function (n) { if (n === this) return true; for (const c of this._children) { if (c === n || (c.contains && c.contains(n))) return true; } return false; };
   Element.prototype.remove = function () { if (this.parentNode) { const i = this.parentNode._children.indexOf(this); if (i !== -1) this.parentNode._children.splice(i, 1); } };
   Object.defineProperty(Element.prototype, 'offsetWidth', { get() { return this._offsetWidth == null ? 260 : this._offsetWidth; } });
@@ -205,8 +212,12 @@ test('RUNTIME: a large pin/toolbar docks the SAME prompt in the rail; 🐮 alway
   fireSelect(h);
   const dock = h.env.doc.getElementById('lp-prompt-dock');
   const chip = h.env.doc.getElementById('lp-ctb-chip');
+  chip._offsetWidth = 34; chip._offsetHeight = 28;
+  const grip = h.env.doc.getElementById('lp-ctb-grip');
   assert.strictEqual(toolbar.parentNode, dock, 'prompt is docked outside the stage instead of covering the pin');
   assert.ok(toolbar.classList.contains('lp-docked'));
+  assert.match(grip.textContent, /fixo no painel/, 'a docked prompt says it is fixed instead of inviting an impossible drag');
+  assert.doesNotMatch(grip.textContent, /mover/);
   assert.strictEqual(toolbar.style.display, 'block', 'the one-box stays visible immediately after selection');
   assert.strictEqual(chip.style.display, 'none', 'auto-placement never strands the user behind a cow chip');
   assert.strictEqual(side.scrollTop, 0, 'a docked prompt is revealed at the top of a previously scrolled rail');
@@ -224,6 +235,84 @@ test('RUNTIME: a large pin/toolbar docks the SAME prompt in the rail; 🐮 alway
   assert.strictEqual(toolbar.style.display, 'block', 'clicking the cow always opens a real prompt');
   assert.ok(dock._scrollIntoViewCalls >= 2, 'clicking the cow reveals the dock even when it was already docked');
   assert.strictEqual(h.env.doc.activeElement, h.env.doc.getElementById('lp-box-in'), 'reopened prompt is ready to type');
+});
+
+test('RUNTIME: a fresh explicit selection always reopens/reset the composer and reveals its per-node thread', () => {
+  const h = bootWebview(false);
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  const chip = h.env.doc.getElementById('lp-ctb-chip');
+  chip._offsetWidth = 34; chip._offsetHeight = 28;
+  fireSelect(h);
+  const oldBox = h.env.doc.getElementById('lp-box-in');
+  oldBox.value = 'rascunho do h1'; oldBox.dispatchEvent(h.mkEvent('input'));
+  assert.strictEqual(h.env.doc.getElementById('lp-thread-in').value, 'rascunho do h1', 'canvas and thread share one draft controller');
+  h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'inline-flex');
+
+  const side = h.env.doc.getElementById('lp-side'); side.scrollTop = 900;
+  fireSelectWith(h, { line: 20, tag: 'p', rect: { x: 300, y: 240, w: 140, h: 30 }, text: 'Outro texto' });
+  const freshBox = h.env.doc.getElementById('lp-box-in');
+  assert.strictEqual(toolbar.style.display, 'block', 'a new pin cannot inherit the hidden/minimized state');
+  assert.strictEqual(chip.style.display, 'none');
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-ctb-ov'), 'a fresh pin gets a fresh floating placement decision');
+  assert.strictEqual(freshBox.value, '', 'node A draft never leaks into node B');
+  assert.strictEqual(h.env.doc.getElementById('lp-thread-in').value, '');
+  assert.strictEqual(h.env.doc.activeElement, freshBox, 'the visible textbox is immediately ready to type');
+  assert.ok(h.env.doc.getElementById('lp-sel')._scrollIntoViewCalls >= 1, 'the selected node thread is explicitly revealed in a scrolled rail');
+  assert.match(h.env.doc.getElementById('lp-ctb-grip').textContent, /mover/, 'fresh floating placement restores the drag label');
+});
+
+test('RUNTIME: a programmatic same-node HMR re-pin preserves and mirrors the canonical draft', () => {
+  const h = bootWebview(false);
+  captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelect(h);
+  let box = h.env.doc.getElementById('lp-box-in');
+  box.value = 'valida a coerência deste texto'; box.dispatchEvent(h.mkEvent('input'));
+  assert.strictEqual(h.env.doc.getElementById('lp-thread-in').value, box.value);
+
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-repin', __t: 'tok', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' },
+    source: h.win, origin: null,
+  }));
+  fireSelect(h); // the fresh disposable document answers the exact re-pin
+  box = h.env.doc.getElementById('lp-box-in');
+  const thread = h.env.doc.getElementById('lp-thread-in');
+  assert.strictEqual(box.value, 'valida a coerência deste texto', 'HMR cannot erase text already typed for this exact node');
+  assert.strictEqual(thread.value, box.value, 'the per-node thread composer rehydrates the same draft');
+  thread.value = 'continua pela thread'; thread.dispatchEvent(h.mkEvent('input'));
+  assert.strictEqual(box.value, 'continua pela thread', 'editing in the thread mirrors back to the canvas composer');
+});
+
+test('RUNTIME: transient zero canvas geometry hides briefly and never creates a sticky dock', () => {
+  const h = bootWebview(false);
+  const wrap = h.env.doc.getElementById('lp-framewrap');
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  wrap._clientWidth = 0; wrap._clientHeight = 0;
+  fireSelect(h);
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-ctb-ov'));
+  assert.ok(!toolbar.classList.contains('lp-docked'), '0×0 is a layout tick, not evidence that docking is needed');
+  assert.strictEqual(toolbar.style.visibility, 'hidden');
+  wrap._clientWidth = 900; wrap._clientHeight = 600;
+  h.win.dispatchEvent(h.mkEvent('resize'));
+  assert.strictEqual(toolbar.style.visibility, 'visible');
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-ctb-ov'), 'the next valid resize floats normally');
+  assert.ok(!toolbar.classList.contains('lp-docked'));
+});
+
+test('RUNTIME: if a minimized cow cannot clear the pin, the full composer safely reopens in the rail', () => {
+  const h = bootWebview(false);
+  const wrap = h.env.doc.getElementById('lp-framewrap');
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  const chip = h.env.doc.getElementById('lp-ctb-chip');
+  wrap._clientWidth = 200; wrap._clientHeight = 150;
+  chip._offsetWidth = 34; chip._offsetHeight = 28;
+  fireSelectWith(h, { rect: { x: 8, y: 8, w: 184, h: 134 } });
+  h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'none', 'no chip is painted over the selected element');
+  assert.strictEqual(toolbar.style.display, 'block', 'the real composer is reopened instead of disappearing');
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-prompt-dock'));
+  assert.ok(toolbar.classList.contains('lp-docked'));
 });
 
 test('RUNTIME: type + click send POSTS a message AND shows in-canvas progress (kills "nada visível")', () => {
