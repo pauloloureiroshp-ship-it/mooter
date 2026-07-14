@@ -78,8 +78,15 @@ test('a failed AskUserQuestion tool_result is never recorded as a human decision
   const textual = { message: { role: 'user', content: [
     { type: 'tool_result', tool_use_id: 'ask-error', content: '<tool_use_error>InputValidationError: too many questions</tool_use_error>' },
   ] } };
+  // Structured error field ONLY — no is_error flag, no textual <tool_use_error>/InputValidationError
+  // marker. The content is a VALID option label ('main'), so absent the error-field rejection this
+  // WOULD project a human decision; asserting [] proves the `error != null` branch is what rejects it.
+  const structured = { message: { role: 'user', content: [
+    { type: 'tool_result', tool_use_id: 'ask-error', error: { type: 'invalid_request_error', message: 'invalid questions' }, content: 'main' },
+  ] } };
   assert.deepEqual(deriveDecisions([ask, flagged]), [], 'is_error result is not an answer');
   assert.deepEqual(deriveDecisions([ask, textual]), [], 'textual tool error is not an answer');
+  assert.deepEqual(deriveDecisions([ask, structured]), [], 'structured error field (no is_error, no marker) is not an answer');
 });
 
 test('never throws on garbage; accepts pre-parsed objects', () => {
