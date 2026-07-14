@@ -142,6 +142,24 @@ Every `.md` in this repo has exactly one home and one lifecycle. Before creating
 
 **Never:** `node_modules/` under `docs/` (add to `.gitignore`) · new root `.md` without explicit request · deleting instead of archiving (moves are Paulo-reviewed; git writes are Paulo's).
 
+## Agent boot & freshness — vault + Notion consultation, per plan
+
+One engine (the vault's **3rd-brain**: a zero-LLM keyword index over `~/paulo-vault`, which
+carries the local Notion mirror in `80-notion-mirror/`), three deliveries. Every plan
+consults the **vault** automatically; the vault is what loads Notion — agents read the
+**local mirror**, never the Notion API per-agent (heavy). Honesty: before trusting
+Notion-origin content, check `80-notion-mirror/_sync/manifest.json`; if stale, say
+"Notion ~N dias atrás — corre `notion-to-vault`" and use the mirror local-first anyway.
+
+| Plan | How it consults the vault | Notion |
+|---|---|---|
+| **Claude Code** | Native hooks — `SessionStart` boot slice + `UserPromptSubmit` per-prompt `<vault-context>` (worktree-aware: `~/mooter`, `~/frugal`, and siblings `~/frugal-*` all resolve to Mooter). Zero-LLM, capped <2k tokens. | via mirror + freshness note |
+| **Codex** | _Pending diagnosis → approach A (native roots + hooks) or B (host-side `.mooter/vault-context.md` the sandbox reads). See the F2 STOP._ | via mirror + freshness note |
+| **moo (Ollama)** | Headless — no hooks. The **dispatcher** (`spawn-orchestrator`) runs the frozen `retrieve.js` for the task topic and **prepends** the top-1/2 hits (capped) to the prompt before `ollama run`. | via mirror + freshness note |
+
+Reading the vault is retrieval-driven, not "read `AGENTS.md`" — this file is repo-side
+routing, not the vault. An agent that only reads `AGENTS.md` has NOT consulted the vault.
+
 ## Cross-references
 
 - `CLAUDE.md` — Claude Code-specific project instructions (lean; pointers).
