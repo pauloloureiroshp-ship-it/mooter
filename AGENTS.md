@@ -5,11 +5,41 @@ Claude-specific instructions live in `CLAUDE.md` (root) — read that too if you
 
 ## Project overview
 
-**Mooter** (mooter.ai, MIT) is a local-first LLM router for Claude Code. A deterministic
-regex classifier routes every prompt in <50ms to the minimum viable tier: local Ollama
-models first (free), cloud models (Haiku/Sonnet/Opus) only when justified. The router
-learns forever from local telemetry (the "Pastor"), never proxies prompts, and never
-fabricates metrics. Mission: **"Your LLM router. Local-first. Learns forever."**
+**Mooter** (mooter.ai, MIT) is the Lovable-grade experience for developers who have
+*outgrown* Lovable — real, complex, long-lived, multi-agent projects, built in VS Code.
+The LLM router is invisible infrastructure under five pillars: **Resume · Plan · Route ·
+Watch · Review**. The moat a large vendor won't copy: **local-first $0 · honest cost ·
+Resume in 60s · multi-vendor neutrality**. The rule: a change ships only if it improves one
+of the five. Underneath the **Route** pillar, a deterministic <50ms regex classifier sends
+each prompt to the minimum viable tier (local Ollama first, cloud only when it earns its
+cost); the router never proxies prompts and never fabricates metrics.
+
+## Agent boot & freshness
+
+Every agent (Codex especially — it reads this file natively) boots the same way, so all three
+planes (Claude Code · Codex · local moos) start on the same page:
+
+1. **Read** this `AGENTS.md` + the tail of `SYNC.md` (current state).
+2. **Consult the vault** for anything about Paulo's identity, project strategy, or a stable
+   decision — don't guess. `VAULT_PATH` is exported per-machine (Win: `…\paulo-vault`, Mac:
+   `~/Documents/paulo-vault`):
+
+   ```sh
+   node "$VAULT_PATH/.claude/3rd-brain/retrieve.js" "<topic in Paulo's words>"
+   ```
+
+   Read the top 1-2 files it returns. **Order of truth:** vault canon (`00-90`) >
+   `80-notion-mirror` > repo `MEMORY.md` > conversation. Never fabricate context.
+3. **Freshness — vault (Obsidian):** before consulting, refresh —
+   `git -C "$VAULT_PATH" pull --ff-only` (if it has a remote) + `node "$VAULT_PATH/.claude/3rd-brain/build-index.js"`
+   (~80ms). In Claude Code this is automatic on SessionStart; Codex/moos run it by hand.
+4. **Freshness — Notion (honest):** the `80-notion-mirror/` may be days behind — check
+   `…/_sync/manifest.json`; if stale and relevant, say "Notion ~N days behind — run the
+   `notion-to-vault` skill." Never present a stale mirror as the current state.
+
+**Roles.** Codex works in its own worktree/branch and **never** merges, pushes, deploys, or
+deletes (Paulo's gate). **Output:** every handoff follows `docs/strategy/PERFECT_HANDOFF_SPEC.md`
+(STATE · mechanical GATE · worktree-true provenance · complete PENDING · `n/d`, never a guess).
 
 ## Architecture map
 
