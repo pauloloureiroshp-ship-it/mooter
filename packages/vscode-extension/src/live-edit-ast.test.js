@@ -137,6 +137,130 @@ test('locateRange is fail-soft: no-source / not-found / parse-error, never throw
   assert.strictEqual(locateRange('<div className=', { line: 1 }).reason, 'parse-error');
 });
 
+test('rebaseTargetStamp follows the exact JSX node when imports move its source line', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = 'import x from "x";\n\nexport default () => (\n  <main>\n    <p>Hero</p>\n  </main>\n);\n';
+  const after = 'import x from "x";\nimport y from "y";\nimport z from "z";\n\nexport default () => (\n  <main>\n    <p>Hero melhorado</p>\n  </main>\n);\n';
+  const r = rebaseTargetStamp(before, after, { line: 5, col: 4, tag: 'p' });
+  assert.deepStrictEqual({ ok: r.ok, line: r.line, col: r.col, tag: r.tag }, { ok: true, line: 7, col: 4, tag: 'p' });
+  assert.strictEqual(r.shifted, true);
+});
+
+test('rebaseTargetStamp keeps structural identity when the selected root tag changes', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = 'export default () => <section><img alt="moo" /><p>keep</p></section>;';
+  const after = 'export default () => <section><figure><span>moo</span></figure><p>keep</p></section>;';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<img'), tag: 'img' });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.line, 1);
+  assert.strictEqual(r.tag, 'figure');
+});
+
+test('rebaseTargetStamp fails closed when the old source node no longer exists', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const r = rebaseTargetStamp('<main><p>x</p></main>', '<main><p>x</p></main>', { line: 9, tag: 'p' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'not-found');
+});
+
+test('rebaseTargetStamp never moves the border onto a same-tag sibling after deletion', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>selected A</p><p>unrelated B</p></main>';
+  const after = '<main><p>unrelated B</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>'), tag: 'p' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'node-removed');
+});
+
+test('rebaseTargetStamp fails closed when identical repeated siblings become structurally ambiguous', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>same</p><p>same</p></main>';
+  const after = '<main><p>same</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>'), tag: 'p' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'ambiguous-after');
+});
+
+test('rebaseTargetStamp maps the selected same-line sibling past an inserted same-tag node', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>A</p><p>B</p></main>';
+  const after = '<main><p>A</p><p>X</p><p>B changed</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>B'), tag: 'p' });
+  assert.deepStrictEqual(
+    { ok: r.ok, line: r.line, col: r.col, tag: r.tag },
+    { ok: true, line: 1, col: after.indexOf('<p>B changed'), tag: 'p' },
+  );
+});
+
+test('rebaseTargetStamp gives selected text more identity weight than shared Tailwind attributes', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const cls = 'text-sm font-medium tracking-tight text-white';
+  const before = '<main><p className="' + cls + '">A</p><p className="' + cls + '">B</p></main>';
+  const after = '<main><p className="' + cls + '">A</p><p className="' + cls + '">X</p><p className="' + cls + '">B changed</p></main>';
+  const targetCol = before.indexOf('<p className', before.indexOf('<p className') + 1);
+  const r = rebaseTargetStamp(before, after, { line: 1, col: targetCol, tag: 'p' });
+  const firstAfter = after.indexOf('<p className');
+  const secondAfter = after.indexOf('<p className', firstAfter + 1);
+  const thirdAfter = after.indexOf('<p className', secondAfter + 1);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.col, thirdAfter);
+});
+
+test('rebaseTargetStamp keeps the selected node when a same-tag sibling is inserted after it', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>A</p><p>B</p></main>';
+  const after = '<main><p>A</p><p>B changed</p><p>X</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>B'), tag: 'p' });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.col, after.indexOf('<p>B changed'));
+});
+
+test('rebaseTargetStamp maps a multiline target after a same-tag insertion above it', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main>\n  <p>A</p>\n  <p>B</p>\n</main>\n';
+  const after = '<main>\n  <p>A</p>\n  <p>X</p>\n  <p>B changed</p>\n</main>\n';
+  const r = rebaseTargetStamp(before, after, { line: 3, col: 2, tag: 'p' });
+  assert.deepStrictEqual(
+    { ok: r.ok, line: r.line, col: r.col, tag: r.tag },
+    { ok: true, line: 4, col: 2, tag: 'p' },
+  );
+});
+
+test('rebaseTargetStamp follows a uniquely identifiable target through sibling reordering', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>A</p><p>B</p><p>C</p></main>';
+  const after = '<main><p>B changed</p><p>A</p><p>C</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>B'), tag: 'p' });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.col, after.indexOf('<p>B changed'));
+});
+
+test('rebaseTargetStamp fails closed when an edit creates duplicate plausible targets', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>A</p><p>B</p></main>';
+  const after = '<main><p>A</p><p>B changed</p><p>B changed</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>B'), tag: 'p' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'ambiguous-after');
+});
+
+test('rebaseTargetStamp refuses an insertion when neither new sibling proves target identity', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const before = '<main><p>A</p><p>B</p></main>';
+  const after = '<main><p>A</p><p>X</p><p>Y</p></main>';
+  const r = rebaseTargetStamp(before, after, { line: 1, col: before.indexOf('<p>B'), tag: 'p' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'ambiguous-after');
+});
+
+test('rebaseTargetStamp keeps the exact selected duplicate when source bytes are unchanged', () => {
+  const { rebaseTargetStamp } = require('./live-edit-ast.js');
+  const source = '<main><p>same</p><p>same</p></main>';
+  const second = source.indexOf('<p>', source.indexOf('<p>') + 1);
+  const r = rebaseTargetStamp(source, source, { line: 1, col: second, tag: 'p' });
+  assert.deepStrictEqual({ ok: r.ok, line: r.line, col: r.col, tag: r.tag }, { ok: true, line: 1, col: second, tag: 'p' });
+});
+
 test('deleteNode removes the node AND its orphaned line — byte-exact, siblings preserved', () => {
   const r = deleteNode(SRC52, { line: 4, tag: 'img' });
   assert.strictEqual(r.ok, true);

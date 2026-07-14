@@ -139,21 +139,21 @@ function makeElement(id) {
   const classes = new Set();
   const attrs = {};
   if (id && id.indexOf('lp-tab-') === 0) {
-    attrs['aria-selected'] = (id === 'lp-tab-stream') ? 'true' : 'false';
+    attrs['aria-selected'] = (id === 'lp-tab-control') ? 'true' : 'false';
     classes.add('lp-tab');
-    if (id === 'lp-tab-stream') classes.add('on');
+    if (id === 'lp-tab-control') classes.add('on');
   }
-  if (id && id.indexOf('lp-pane-') === 0 && id !== 'lp-pane-stream') attrs.hidden = 'hidden';
+  if (id && id.indexOf('lp-pane-') === 0 && id !== 'lp-pane-control') attrs.hidden = 'hidden';
 
   const el = {
     id: id,
-    tabIndex: (id === 'lp-tab-stream') ? 0 : ((id && id.indexOf('lp-tab-') === 0) ? -1 : 0),
+    tabIndex: (id === 'lp-tab-control') ? 0 : ((id && id.indexOf('lp-tab-') === 0) ? -1 : 0),
     style: {},
     get innerHTML() { return html; },
     set innerHTML(v) {
       setCount++;
       html = String(v == null ? '' : v);
-      if (html.indexOf('class="lpdc-stream"') !== -1) {
+      if (html.indexOf('lpdc-stream') !== -1) {
         if (!streamChild) streamChild = { scrollTop: 0 };
         else streamChild.scrollTop = 0;
       } else {
@@ -183,7 +183,7 @@ function makeElement(id) {
 
 function makeDocument() {
   const map = new Map();
-  const PRESET = ['lp-tabs', 'lp-brain', 'lp-work-mount', 'lp-pane-stream', 'lp-pane-day', 'lp-pane-model', 'lp-pane-fleet', 'lp-tab-stream', 'lp-tab-day', 'lp-tab-model', 'lp-tab-fleet'];
+  const PRESET = ['lp-tabs', 'lp-brain', 'lp-work-mount', 'lp-pane-control', 'lp-pane-stream', 'lp-pane-sessions', 'lp-pane-day', 'lp-pane-model', 'lp-pane-fleet', 'lp-tab-control', 'lp-tab-stream', 'lp-tab-sessions', 'lp-tab-day', 'lp-tab-model', 'lp-tab-fleet'];
   for (const id of PRESET) map.set(id, makeElement(id));
   return {
     getElementById(id) { if (!map.has(id)) map.set(id, makeElement(id)); return map.get(id); },

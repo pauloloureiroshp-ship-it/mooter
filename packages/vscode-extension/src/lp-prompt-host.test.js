@@ -94,6 +94,11 @@ test('local $0 preview: model sees ONLY the subtree; fenced diff posted with has
   assert.ok(diff && diff.ok === true && diff.stale === false, 'fenced preview posted');
   assert.strictEqual(diff.h, sha(SRC), 'current disk hash stamped');
   assert.strictEqual(diff.replacement, REPL);
+  assert.ok(diff.lease && Object.prototype.hasOwnProperty.call(diff.lease, 'servedRoot') && Object.prototype.hasOwnProperty.call(diff.lease, 'origin') && Object.prototype.hasOwnProperty.call(diff.lease, 'epoch'), 'the generation-time full identity lease rides the diff');
+  assert.strictEqual(diff.lease.servedRoot, null);
+  assert.strictEqual(diff.lease.origin, null);
+  assert.strictEqual(diff.lease.epoch, 0);
+  assert.strictEqual(diff.epoch, diff.lease.epoch, 'legacy epoch mirror agrees with the full lease');
   assert.ok(path.isAbsolute(diff.abs), 'ABSOLUTE path in the diff payload (A7 mitigation)');
   assert.ok(diff.removed.some((l) => l.includes('<img src="/moo.png" alt="moo" />')), 'diff shows the node going');
   assert.ok(diff.added.some((l) => l.includes('rounded-xl border')), 'diff shows the rewrite coming');

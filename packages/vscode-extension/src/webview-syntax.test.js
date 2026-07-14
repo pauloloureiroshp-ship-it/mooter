@@ -45,6 +45,16 @@ test('Live Preview (MP2 App Stage) webview script parses as delivered', () => {
   parseInlineScript(sandbox.getLivePreviewHtml());
 });
 
+test('native-sidebar architecture leaves the editor as a clean canvas', () => {
+  const sandbox = loadExtension();
+  const html = sandbox.getLivePreviewHtml('tok');
+  assert.ok(/#lp-side\{display:none!important\}/.test(html), 'the legacy all-in-one rail no longer competes with the stage');
+  assert.ok(/\.lp-ctb-ov\{display:none!important\}/.test(html), 'the draggable composer cannot float over the site');
+  assert.ok(html.includes('id="lp-sidebar-btn"'), 'canvas exposes one compact control that reveals the native sidebar');
+  assert.ok(html.includes("type:'lp-open-sidebar'"), 'the compact control is wired to the host');
+  parseInlineScript(html);
+});
+
 test('Live Preview CSP allows framing localhost + hosts the App Stage iframe (loop hole #2a)', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
@@ -154,6 +164,9 @@ test('Live Preview LP-4 §6 panel — one box, honest chip, fenced prompt flow, 
   // LP-4.5 — the ONE BOX on the pin: any prompt, default AUTO = the anchored-task agent; the
   // local $0 chip keeps the LP-4 fenced rewrite reachable; the heuristic only SUGGESTS.
   assert.ok(html.includes('id="lp-box-in"'), 'one-box input present');
+  assert.ok(html.includes('id="lp-thread-in"') && html.includes('Continua a conversa deste elemento'), 'a persistent textbox is visible in the element thread even when the canvas toolbar is minimized');
+  assert.ok(html.includes('id="lp-thread-mode-edit"') && html.includes('id="lp-thread-mode-ask"'), 'the thread composer keeps the explicit Editar/Perguntar choice');
+  assert.ok(html.includes('OK — aplicar') && html.includes('OK — manter tudo'), 'yellow proposals end in an explicit OK before the green accepted state');
   assert.ok(html.includes('os números batem com o projecto'), 'placeholder shows a PROJECT ask (LP-4.9 §1: an ask example), not only node tweaks');
   assert.ok(html.includes("type:'lp-task'"), 'anchored task request wired to the host');
   assert.ok(html.includes("m.type === 'lp-task-result'"), 'agent verdict handled');
@@ -226,7 +239,7 @@ test('Live Preview LP-4.8 §1 in-canvas toolbar — floats over the frame anchor
   assert.ok(html.includes("m.type === 'lp-pin-rect'"), 'lp-pin-rect handled (toolbar follows the pin on reflow)');
   assert.ok(/positionCanvasToolbar\(m\.rect\)/.test(html), 'reflow rect repositions the toolbar');
   // A webview-side resize (panel drag) also re-anchors from the last known rect.
-  assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{ positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-anchors the toolbar');
+  assert.ok(/window\.addEventListener\('resize',\s*function\(\)\{[^}]*positionCanvasToolbar\(\); \}\)/.test(html), 'webview resize re-evaluates dock/float and re-anchors the toolbar');
   // The controls that MOVED still ship their ids + wiring (regression guard for the split).
   assert.ok(html.includes('id="lp-chip"') && html.includes('id="lp-box-in"') && html.includes('id="lp-sel-del"'), 'chip/one-box/delete still present after the split');
   parseInlineScript(html);
@@ -262,7 +275,7 @@ test('Live Preview LP-4.8 §3 /skills — element-scoped skills seed the one-box
   assert.ok(html.includes('"tierFloor":"auto"'), '/section floors to the agent');
   // A skill SEEDS the one-box and pins the chip — it does NOT open a new write path. The proof:
   // the item handler sets lp-box-in + lpMode, then execution reuses the existing sendBox path.
-  assert.ok(/bi\.value=tpl/.test(html), 'skill seeds the one-box with its template');
+  assert.ok(/syncPromptDraft\(tpl\)/.test(html), 'skill seeds the canonical draft shared by the one-box and thread');
   assert.ok(/lpMode=skillTierMode\(tier\)/.test(html), 'skill pins the chip to its tier floor (routing surfaced)');
   assert.ok(html.includes('skill activa: /'), 'active-skill indicator shows the routing');
   // No bespoke skill message type — /skills must not bypass the fence with its own write channel.
@@ -370,7 +383,7 @@ test('Live Preview LP-4.9 §2 / F0.1 progressive disclosure — prompt-first min
   assert.ok(html.includes('id="lp-more"') && /aria-controls="lp-adv"/.test(html), 'chevron controls the drawer');
   // F0.1 — the QUICK-ADJUST presets + raw text/class edits + skills moved INTO the drawer (one click away).
   const advStart = html.indexOf('id="lp-adv"');
-  const advChunk = html.slice(advStart, advStart + 1200);
+  const advChunk = html.slice(advStart, advStart + 1800);
   assert.ok(advChunk.includes('id="lp-presets"') && advChunk.includes('id="lp-ed-text"') && advChunk.includes('id="lp-sk-btn"'), 'quick-adjust presets/raw-edits/skills live in the drawer');
   // F0.1 — the model/tier picker moved UP into the minimal (prompt-first) view, like the one-box.
   assert.ok(html.indexOf('id="lp-chip"') < advStart, 'the tier picker stays in the minimal view');
@@ -441,7 +454,7 @@ test('Live Preview LP-4.9 §3 real-time feedback — toast says exactly what hap
   assert.ok(html.includes("'✓ escrito · '+tierModel(m.tier)+' · subscrição'"), 'escalated rewrite toast is honest about cost');
   // Host threads the tier so the toast can tell the truth.
   const ext = fs.readFileSync(path.join(__dirname, 'extension.js'), 'utf8');
-  assert.ok(/_postEditResult\(true, m\.dynamic \? 'model-applied-dynamic' : 'model-applied', m\.tier\)/.test(ext), 'host passes the tier to the edit result');
+  assert.ok(/_postEditResult\(true, m\.dynamic \? 'model-applied-dynamic' : 'model-applied', m\.tier, resultMeta\)/.test(ext), 'host passes the tier and immutable prompt identity to the edit result');
   assert.ok(/if \(tier && tier !== 'local'\) msg\.tier = String\(tier\)/.test(ext), 'result message carries the non-local tier');
   // A question answered → "💬 resposta no painel →" (points to the panel, no false "changed").
   assert.ok(html.includes('💬 resposta no painel →') && html.includes("showToast('ask'"), 'answer toast points to the panel');

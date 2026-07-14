@@ -1,9 +1,11 @@
-# INFRA.md — frugal Infrastructure Reference
-# Última actualização: 2026-04-18 (v0.10.0 · post-landing-redesign)
+# INFRA.md — Mooter Infrastructure Reference
+# Última verificação ao vivo: 2026-04-18 (v0.10.0 · post-landing-redesign)
+# Estado em 2026-07-12: STALE / NÃO REVERIFICADO — confirmar cada ID/endpoint no serviço antes de operar.
 # ⚠️ NUNCA commitar passwords reais aqui. Usar placeholders e referências a secrets managers.
 
-> Ficheiro de referência operacional **auto-populado via MCP**.
-> Todos os IDs são reais, obtidos directamente dos serviços — não adivinhados.
+> Ficheiro de referência operacional historicamente **auto-populado via MCP**.
+> Os IDs abaixo foram obtidos directamente dos serviços na data da última verificação; não assumir que continuam
+> atuais sem consulta ao conector correspondente.
 > Qualquer sessão (Cowork ou Claude Code) pode operar autonomamente com este ficheiro.
 > **Actualizar sempre que mudar qualquer endpoint, credencial ou estrutura.**
 

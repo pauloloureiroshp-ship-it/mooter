@@ -68,11 +68,36 @@ test('renderEditsFeed: empty state is honest; rows render newest-first with via/
 });
 
 test('serialisation contract: concat-only source (no backticks/${}), esc as a free variable', () => {
-  for (const fn of [LTV.suggestLocalChip, LTV.renderMarkdownSafe, LTV.renderEditsFeed]) {
+  for (const fn of [LTV.suggestLocalChip, LTV.renderMarkdownSafe, LTV.renderEditsFeed, LTV.renderJourneyThread]) {
     const src = fn.toString();
     assert.ok(src.indexOf(String.fromCharCode(96)) === -1, fn.name + ': no backtick anywhere — the fn embeds in the host template literal');
     assert.ok(src.indexOf('${') === -1, fn.name + ': no ${} interpolation');
   }
+});
+
+test('renderJourneyThread: keeps the conversation and exposes the honest approval state', () => {
+  const html = LTV.renderJourneyThread({
+    state: 'awaiting',
+    label: 'aguarda OK',
+    turns: [
+      { role: 'user', text: 'encurta este texto', ts: 1751800000000 },
+      { role: 'activity', text: 'a editar landing/app/page.tsx', status: 'working', ts: 1751800001000 },
+      { role: 'assistant', text: '**Proposta pronta**', model: 'claude-sonnet', ts: 1751800002000 },
+    ],
+  });
+  assert.ok(html.includes('conversa deste elemento'));
+  assert.ok(html.includes('lpjt-awaiting') && html.includes('aguarda OK'), 'yellow-state token comes from host state');
+  assert.ok(html.includes('<b>Tu</b>') && html.includes('encurta este texto'), 'user turn survives');
+  assert.ok(html.includes('a editar landing/app/page.tsx'), 'activity is visible in the same thread');
+  assert.ok(html.includes('<b>Proposta pronta</b>') && html.includes('claude-sonnet'), 'assistant markdown + model render');
+});
+
+test('renderJourneyThread: escapes hostile user/activity strings and handles empty state', () => {
+  const html = LTV.renderJourneyThread({ state: 'working', turns: [{ role: 'user', text: '<img src=x onerror=1>' }, { role: 'activity', text: '<script>x</script>' }] });
+  assert.ok(!html.includes('<img') && !html.includes('<script>'));
+  assert.ok(html.includes('&lt;img') && html.includes('&lt;script&gt;'));
+  assert.ok(LTV.renderJourneyThread({ state: 'selected', turns: [] }).includes('Escreve na caixa logo abaixo'));
+  assert.ok(LTV.renderJourneyThread(null).includes('seleciona um elemento'));
 });
 
 // ── renderMarkdownSafe — esc() FIRST on everything; only bold/code/bullets/headings transform.

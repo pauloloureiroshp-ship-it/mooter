@@ -62,8 +62,15 @@ function run(cmd) {
     return { state: 'skip', signal: '—' };
   }
   if (r.error && r.error.code === 'ETIMEDOUT') return { state: 'fail', signal: `timed out after ${CHECK_TIMEOUT_MS}ms` };
-  if (r.status === 127) return { state: 'skip', signal: '—' }; // command not found
   const out = `${r.stdout || ''}\n${r.stderr || ''}`;
+  // POSIX shells use 127 for the command itself being absent. Windows cmd.exe commonly uses
+  // status=1 plus this exact two-line diagnostic. Do NOT match generic "not found" output: a real
+  // test failure may legitimately end with those words and must stay a failure.
+  const windowsMissing = r.status === 1
+    && /is not recognized as an internal or external command,\s*(?:\r?\n)?\s*operable program or batch file\.?/i.test(out);
+  if (r.status === 127 || windowsMissing) {
+    return { state: 'skip', signal: '—' };
+  }
   if (r.status === 0) return { state: 'pass', signal: 'ok' };
   // concise failing signal: last meaningful line
   const line = out.split('\n').map((s) => s.trim()).filter(Boolean).slice(-1)[0] || `exit ${r.status}`;
@@ -143,10 +150,10 @@ function verify() {
     let pass = state === 'pass' ? true : (state === 'fail' ? false : null); // null = skipped/—
     let sig = signal;
 
-    // A user-declared REQUIRED check whose tool is missing (skip) is a
-    // misconfiguration the opter-in must see — never a silent green. Auto-detected
-    // checks may legitimately be absent and stay '—'.
-    if (kind === 'required' && state === 'skip' && c.custom) {
+    // Any REQUIRED check whose tool is missing is a blocker. Auto-detected test/typecheck commands
+    // are detected from actual scripts/binaries, so a missing nested tool is a broken required gate,
+    // not permission to silently green it.
+    if (kind === 'required' && state === 'skip') {
       pass = false;
       sig = 'required check unavailable (tool missing / exit 127)';
     }

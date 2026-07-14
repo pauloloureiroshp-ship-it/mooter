@@ -4,8 +4,14 @@
 // 100% ADITIVO: nao toca classify.js nem engine; so um ficheiro de estado novo.
 const fs = require("fs"); const path = require("path"); const os = require("os");
 const { execFileSync } = require("child_process");
-const ROUTER = path.join(os.homedir(), ".claude", "tools", "router");
+// Tests and embedders may isolate registry I/O explicitly. Production keeps the established
+// ~/.claude path; the override is opt-in and never inferred from a workspace or prompt.
+const ROUTER = process.env.MOOTER_MODE_REGISTRY_DIR
+  ? path.resolve(process.env.MOOTER_MODE_REGISTRY_DIR)
+  : path.join(os.homedir(), ".claude", "tools", "router");
 const FILE = path.join(ROUTER, ".mooter-sessions.json");
+const LOCK = FILE + ".lock";
+const LOCK_SLEEP = new Int32Array(new SharedArrayBuffer(4));
 // WCOCKPIT-9 (Bloco A): mapa persistente CC<->Cowork escrito pelo LADO Cowork (sdk-runner/signal.ps1).
 // Distinto do .cowork-pending.json (estado "waiting" instantâneo de UMA sessão): este é o
 // espelho durável { session_id: {coworkProject, coworkTitle, coworkConversationId, coworkUpdatedAt} }
@@ -24,21 +30,63 @@ function readAll() {
   try { const j = JSON.parse(fs.readFileSync(FILE, "utf8")); return j && typeof j === "object" ? j : {}; }
   catch { return {}; }
 }
-// Escrita atomica: tmp + rename (nunca deixa o ficheiro meio-escrito/truncado).
-function writeAll(obj) {
+function acquireLock() {
+  try { if (!fs.existsSync(ROUTER)) fs.mkdirSync(ROUTER, { recursive: true }); } catch { return null; }
+  const deadline = Date.now() + 1500;
+  while (Date.now() <= deadline) {
+    const token = process.pid + ':' + Date.now() + ':' + Math.random().toString(36).slice(2);
+    try {
+      const fd = fs.openSync(LOCK, 'wx');
+      fs.writeFileSync(fd, token, 'utf8');
+      return { fd, token };
+    } catch (error) {
+      if (!error || error.code !== 'EEXIST') return null;
+      // A killed writer must not wedge the registry forever. A normal registry write is only a
+      // few milliseconds, so 15s is deliberately conservative before treating a lock as orphaned.
+      try {
+        if (Date.now() - fs.statSync(LOCK).mtimeMs > 15000) fs.unlinkSync(LOCK);
+      } catch { /* another writer may have released it between stat/unlink */ }
+      if (Date.now() <= deadline) Atomics.wait(LOCK_SLEEP, 0, 0, 8);
+    }
+  }
+  return null;
+}
+function releaseLock(lock) {
+  if (!lock) return;
+  try { fs.closeSync(lock.fd); } catch { /* best-effort */ }
+  try {
+    // Do not unlink a replacement lock if an orphan cleanup raced with this writer.
+    if (fs.readFileSync(LOCK, 'utf8') === lock.token) fs.unlinkSync(LOCK);
+  } catch { /* best-effort */ }
+}
+function withLock(fn) {
+  const lock = acquireLock();
+  if (!lock) return false;
+  try { return fn(); } catch { return false; } finally { releaseLock(lock); }
+}
+// Escrita atomica: tmp unico + rename (nunca deixa o ficheiro meio-escrito/truncado).
+function writeAllUnlocked(obj) {
+  const tmp = FILE + '.' + process.pid + '.' + Date.now() + '.' + Math.random().toString(36).slice(2) + '.tmp';
   try {
     if (!fs.existsSync(ROUTER)) fs.mkdirSync(ROUTER, { recursive: true });
-    const tmp = FILE + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(obj, null, 2)); fs.renameSync(tmp, FILE);
+    fs.writeFileSync(tmp, JSON.stringify(obj, null, 2)); fs.renameSync(tmp, FILE);
     return true;
   } catch { return false; }
+  finally { try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* best-effort */ } }
 }
+function writeAll(obj) { return withLock(() => writeAllUnlocked(obj)); }
 function get(sessionId) { const e = readAll()[sessionId]; return { ...DEFAULT, ...(e || {}) }; }
 // Patch parcial validado (modo tem de ser valido; resto passthrough).
 function set(sessionId, patch) {
   if (!sessionId) return false;
-  if (patch && patch.mode && !MODES.includes(patch.mode)) delete patch.mode;
-  const all = readAll(); all[sessionId] = { ...DEFAULT, ...(all[sessionId] || {}), ...(patch || {}) };
-  return writeAll(all);
+  const next = patch && typeof patch === 'object' ? { ...patch } : {};
+  if (next.mode && !MODES.includes(next.mode)) delete next.mode;
+  // The lock covers the complete read-modify-write transaction. Without it two VS Code windows,
+  // a loop runner and the tests can all read the same old snapshot and silently drop each other.
+  return withLock(() => {
+    const all = readAll(); all[sessionId] = { ...DEFAULT, ...(all[sessionId] || {}), ...next };
+    return writeAllUnlocked(all);
+  });
 }
 // WCOCKPIT-9 (Bloco A): lê o mapa persistente CC<->Cowork (read-only). Nunca lança; {} se ausente.
 // Aceita ser pré-lido uma vez por refresh e passado a decorate() para evitar N leituras no loop.

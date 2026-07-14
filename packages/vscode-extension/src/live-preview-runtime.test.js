@@ -35,6 +35,8 @@ function makeDom() {
     this.textContent = '';
     this.tabIndex = 0;
     this.inert = false;
+    this.scrollTop = 0;
+    this._scrollIntoViewCalls = 0;
     this._children = [];       // parsed descendants (flat) — enough for querySelectorAll
     this._listeners = {};
     this.parentNode = null;
@@ -58,16 +60,24 @@ function makeDom() {
   Element.prototype.setPointerCapture = function () {};
   Element.prototype.releasePointerCapture = function () {};
   Element.prototype.setSelectionRange = function () {};
+  Element.prototype.scrollIntoView = function () { this._scrollIntoViewCalls += 1; };
   Element.prototype.getBoundingClientRect = function () { return { left: 10, top: 10, width: 120, height: 24, right: 130, bottom: 34, x: 10, y: 10 }; };
-  Element.prototype.appendChild = function (c) { c.parentNode = this; this._children.push(c); return c; };
+  Element.prototype.appendChild = function (c) {
+    if (c.parentNode && c.parentNode !== this && Array.isArray(c.parentNode._children)) {
+      const old = c.parentNode._children.indexOf(c); if (old !== -1) c.parentNode._children.splice(old, 1);
+    }
+    c.parentNode = this;
+    if (this._children.indexOf(c) === -1) this._children.push(c);
+    return c;
+  };
   Element.prototype.contains = function (n) { if (n === this) return true; for (const c of this._children) { if (c === n || (c.contains && c.contains(n))) return true; } return false; };
   Element.prototype.remove = function () { if (this.parentNode) { const i = this.parentNode._children.indexOf(this); if (i !== -1) this.parentNode._children.splice(i, 1); } };
-  Object.defineProperty(Element.prototype, 'offsetWidth', { get() { return 260; } });
-  Object.defineProperty(Element.prototype, 'offsetHeight', { get() { return 160; } });
+  Object.defineProperty(Element.prototype, 'offsetWidth', { get() { return this._offsetWidth == null ? 260 : this._offsetWidth; } });
+  Object.defineProperty(Element.prototype, 'offsetHeight', { get() { return this._offsetHeight == null ? 160 : this._offsetHeight; } });
   Object.defineProperty(Element.prototype, 'offsetLeft', { get() { return 0; } });
   Object.defineProperty(Element.prototype, 'offsetTop', { get() { return 0; } });
-  Object.defineProperty(Element.prototype, 'clientWidth', { get() { return 900; } });
-  Object.defineProperty(Element.prototype, 'clientHeight', { get() { return 600; } });
+  Object.defineProperty(Element.prototype, 'clientWidth', { get() { return this._clientWidth == null ? 900 : this._clientWidth; } });
+  Object.defineProperty(Element.prototype, 'clientHeight', { get() { return this._clientHeight == null ? 600 : this._clientHeight; } });
   function matchSel(el, sel) {
     sel = sel.trim();
     if (sel[0] === '#') return el.id === sel.slice(1);
@@ -170,7 +180,7 @@ function bootWebview(bridgeAvailable) {
   frame.contentWindow = { name: 'frame' };
   // 1) snapshot (trusted) → sets curOrigin from the stage url + the SDK-bridge status.
   win.dispatchEvent(env.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: { stage: { ok: true, url: 'http://localhost:7819/' }, leBridge: { available: !!bridgeAvailable, reason: bridgeAvailable ? '' : 'sdk-bridge-missing' }, feed: { rev: 0, items: [] } } }, source: win, origin: null }));
-  return { env, win, posted, frame, mkEvent: env.mkEvent };
+  return { env, win, posted, frame, ctx, mkEvent: env.mkEvent };
 }
 
 function fireSelect(h) {
@@ -189,6 +199,120 @@ test('RUNTIME: arm → lp-select renders the in-canvas toolbar (one-box, send, c
   assert.ok(bi, 'the one-box input rendered on select');
   assert.ok(bb, 'the send button rendered');
   assert.ok(ctx, 'the project-context line rendered');
+});
+
+test('RUNTIME: a large pin/toolbar docks the SAME prompt in the rail; 🐮 always reopens it', () => {
+  const h = bootWebview(false);
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  const wrap = h.env.doc.getElementById('lp-framewrap');
+  const side = h.env.doc.getElementById('lp-side');
+  toolbar._offsetHeight = 900; // deliberately impossible to place around the pin
+  wrap._clientHeight = 260;
+  side.scrollTop = 900; // user was reading MEO below the fold when the new pin arrived
+  fireSelect(h);
+  const dock = h.env.doc.getElementById('lp-prompt-dock');
+  const chip = h.env.doc.getElementById('lp-ctb-chip');
+  chip._offsetWidth = 34; chip._offsetHeight = 28;
+  const grip = h.env.doc.getElementById('lp-ctb-grip');
+  assert.strictEqual(toolbar.parentNode, dock, 'prompt is docked outside the stage instead of covering the pin');
+  assert.ok(toolbar.classList.contains('lp-docked'));
+  assert.match(grip.textContent, /fixo no painel/, 'a docked prompt says it is fixed instead of inviting an impossible drag');
+  assert.doesNotMatch(grip.textContent, /mover/);
+  assert.strictEqual(toolbar.style.display, 'block', 'the one-box stays visible immediately after selection');
+  assert.strictEqual(chip.style.display, 'none', 'auto-placement never strands the user behind a cow chip');
+  assert.strictEqual(side.scrollTop, 0, 'a docked prompt is revealed at the top of a previously scrolled rail');
+  assert.ok(dock._scrollIntoViewCalls >= 1, 'the dock is explicitly brought into view');
+  assert.strictEqual(h.env.doc.activeElement, h.env.doc.getElementById('lp-box-in'), 'fresh docked prompt is ready to type');
+
+  h.win.dispatchEvent(h.mkEvent('resize'));
+  assert.strictEqual(toolbar.parentNode, dock, 'a delayed VS Code resize cannot move the prompt out of its dock');
+  assert.ok(toolbar.classList.contains('lp-docked'), 'docked placement stays sticky for the current selection');
+
+  h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'inline-flex', 'explicit minimise still produces the compact cow');
+  chip.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(toolbar.parentNode, dock, 'reopening an impossible floating placement falls back to the rail');
+  assert.strictEqual(toolbar.style.display, 'block', 'clicking the cow always opens a real prompt');
+  assert.ok(dock._scrollIntoViewCalls >= 2, 'clicking the cow reveals the dock even when it was already docked');
+  assert.strictEqual(h.env.doc.activeElement, h.env.doc.getElementById('lp-box-in'), 'reopened prompt is ready to type');
+});
+
+test('RUNTIME: a fresh explicit selection always reopens/reset the composer and reveals its per-node thread', () => {
+  const h = bootWebview(false);
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  const chip = h.env.doc.getElementById('lp-ctb-chip');
+  chip._offsetWidth = 34; chip._offsetHeight = 28;
+  fireSelect(h);
+  const oldBox = h.env.doc.getElementById('lp-box-in');
+  oldBox.value = 'rascunho do h1'; oldBox.dispatchEvent(h.mkEvent('input'));
+  assert.strictEqual(h.env.doc.getElementById('lp-thread-in').value, 'rascunho do h1', 'canvas and thread share one draft controller');
+  h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'inline-flex');
+
+  const side = h.env.doc.getElementById('lp-side'); side.scrollTop = 900;
+  fireSelectWith(h, { line: 20, tag: 'p', rect: { x: 300, y: 240, w: 140, h: 30 }, text: 'Outro texto' });
+  const freshBox = h.env.doc.getElementById('lp-box-in');
+  assert.strictEqual(toolbar.style.display, 'block', 'a new pin cannot inherit the hidden/minimized state');
+  assert.strictEqual(chip.style.display, 'none');
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-ctb-ov'), 'a fresh pin gets a fresh floating placement decision');
+  assert.strictEqual(freshBox.value, '', 'node A draft never leaks into node B');
+  assert.strictEqual(h.env.doc.getElementById('lp-thread-in').value, '');
+  assert.strictEqual(h.env.doc.activeElement, freshBox, 'the visible textbox is immediately ready to type');
+  assert.ok(h.env.doc.getElementById('lp-sel')._scrollIntoViewCalls >= 1, 'the selected node thread is explicitly revealed in a scrolled rail');
+  assert.match(h.env.doc.getElementById('lp-ctb-grip').textContent, /mover/, 'fresh floating placement restores the drag label');
+});
+
+test('RUNTIME: a programmatic same-node HMR re-pin preserves and mirrors the canonical draft', () => {
+  const h = bootWebview(false);
+  captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelect(h);
+  let box = h.env.doc.getElementById('lp-box-in');
+  box.value = 'valida a coerência deste texto'; box.dispatchEvent(h.mkEvent('input'));
+  assert.strictEqual(h.env.doc.getElementById('lp-thread-in').value, box.value);
+
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-repin', __t: 'tok', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' },
+    source: h.win, origin: null,
+  }));
+  fireSelect(h); // the fresh disposable document answers the exact re-pin
+  box = h.env.doc.getElementById('lp-box-in');
+  const thread = h.env.doc.getElementById('lp-thread-in');
+  assert.strictEqual(box.value, 'valida a coerência deste texto', 'HMR cannot erase text already typed for this exact node');
+  assert.strictEqual(thread.value, box.value, 'the per-node thread composer rehydrates the same draft');
+  thread.value = 'continua pela thread'; thread.dispatchEvent(h.mkEvent('input'));
+  assert.strictEqual(box.value, 'continua pela thread', 'editing in the thread mirrors back to the canvas composer');
+});
+
+test('RUNTIME: transient zero canvas geometry hides briefly and never creates a sticky dock', () => {
+  const h = bootWebview(false);
+  const wrap = h.env.doc.getElementById('lp-framewrap');
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  wrap._clientWidth = 0; wrap._clientHeight = 0;
+  fireSelect(h);
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-ctb-ov'));
+  assert.ok(!toolbar.classList.contains('lp-docked'), '0×0 is a layout tick, not evidence that docking is needed');
+  assert.strictEqual(toolbar.style.visibility, 'hidden');
+  wrap._clientWidth = 900; wrap._clientHeight = 600;
+  h.win.dispatchEvent(h.mkEvent('resize'));
+  assert.strictEqual(toolbar.style.visibility, 'visible');
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-ctb-ov'), 'the next valid resize floats normally');
+  assert.ok(!toolbar.classList.contains('lp-docked'));
+});
+
+test('RUNTIME: if a minimized cow cannot clear the pin, the full composer safely reopens in the rail', () => {
+  const h = bootWebview(false);
+  const wrap = h.env.doc.getElementById('lp-framewrap');
+  const toolbar = h.env.doc.getElementById('lp-ctb');
+  const chip = h.env.doc.getElementById('lp-ctb-chip');
+  wrap._clientWidth = 200; wrap._clientHeight = 150;
+  chip._offsetWidth = 34; chip._offsetHeight = 28;
+  fireSelectWith(h, { rect: { x: 8, y: 8, w: 184, h: 134 } });
+  h.env.doc.getElementById('lp-ctb-min').dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(chip.style.display, 'none', 'no chip is painted over the selected element');
+  assert.strictEqual(toolbar.style.display, 'block', 'the real composer is reopened instead of disappearing');
+  assert.strictEqual(toolbar.parentNode, h.env.doc.getElementById('lp-prompt-dock'));
+  assert.ok(toolbar.classList.contains('lp-docked'));
 });
 
 test('RUNTIME: type + click send POSTS a message AND shows in-canvas progress (kills "nada visível")', () => {
@@ -324,8 +448,74 @@ test('W2 CONTEXT CHIP stays honest on TIER SWITCH: agent (repo ✓) → local $0
 // ── F0.3/F0.4: the 🛡 Review and 🚀 Publish top-toolbar actions carry VISIBLE text labels. ──
 test('F0.3/F0.4: 🛡 Review + 🚀 Publish show text labels (discoverable, not just tooltips)', () => {
   const html = loadModule().getLivePreviewHtml('tok');
-  assert.ok(/id="lp-security-btn"[^>]*>🛡 Review</.test(html), 'the security action shows the label "🛡 Review"');
-  assert.ok(/id="lp-publish-btn"[^>]*>🚀 Publish</.test(html), 'the publish action shows the label "🚀 Publish"');
+  assert.ok(/id="lp-security-btn"[^>]*>🛡 Review <span id="lp-security-badge"/.test(html), 'the security action keeps the visible "🛡 Review" label plus its finding badge');
+  assert.ok(/id="lp-publish-btn"[^>]*>🚀 Publish ▾</.test(html), 'the publish action keeps the visible label plus its destination dropdown affordance');
+});
+
+test('F0.3/F0.4 runtime: Review and Publish are mutually exclusive, focused, and never stack off-screen', () => {
+  const h = bootWebview(true);
+  const sec = h.env.doc.getElementById('lp-security');
+  const pub = h.env.doc.getElementById('lp-publish');
+  const reviewButton = h.env.doc.getElementById('lp-security-btn');
+  const publishButton = h.env.doc.getElementById('lp-publish-btn');
+
+  pub.style.display = 'block';
+  reviewButton.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(pub.style.display, 'none', 'opening Review closes Publish');
+  assert.strictEqual(sec.style.display, 'block', 'Review is immediately visible');
+  assert.ok(h.posted.some((m) => m.type === 'lp-security-scan'), 'Review refresh reaches the host');
+
+  publishButton.dispatchEvent(h.mkEvent('click'));
+  assert.strictEqual(sec.style.display, 'none', 'opening Publish closes the long Review report');
+  assert.strictEqual(pub.style.display, 'block', 'Publish opens in the visible rail');
+  assert.ok(pub._scrollIntoViewCalls >= 1, 'Publish is deliberately scrolled into view');
+  assert.strictEqual(h.env.doc.activeElement, pub, 'keyboard focus follows the newly opened panel');
+  assert.ok(h.posted.some((m) => m.type === 'lp-publish-status'), 'Publish fetches fresh destinations');
+});
+
+test('F0.3 runtime: Security result keeps visible group/chip counts aligned and discloses aggregated npm rows', () => {
+  const h = bootWebview(true);
+  const top = [];
+  for (let i = 0; i < 2; i++) top.push({ name: 'high-' + i, severity: 'high', title: 'high advisory' });
+  for (let i = 0; i < 8; i++) top.push({ name: 'moderate-' + i, severity: 'moderate', title: 'moderate advisory' });
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: {
+      type: 'lp-security-result', __t: 'tok', secrets: [], xss: [],
+      csp: { hasCsp: false, findings: [{ type: 'missing-csp', severity: 'info', detail: 'CSP não configurado.' }] },
+      audit: { ok: true, honestSummary: '2 high, 8 moderate, 1 low', top },
+      counts: { critical: 2, warning: 8, info: 2, total: 12 }, scannedFiles: 20,
+      coverage: { complete: true, secrets: true, xss: true, csp: true, npmAudit: true, gitScope: true },
+    },
+    source: h.win,
+    origin: null,
+  }));
+  const html = h.env.doc.getElementById('lp-security').innerHTML;
+  assert.ok(html.includes('Crítico (2)') && html.includes('Aviso (8)') && html.includes('Info (1)'), 'serialized renderer groups only the rows actually shown');
+  assert.match(html, /lp-sec-count info[^>]*>1 info<\/span>/, 'the visible chip agrees with Info (1)');
+  assert.ok(html.includes('A lista detalha 11 de 12 findings.') && html.includes('+1 contabilizado'), 'the omitted npm aggregate remains explicit');
+});
+
+test('F0.4 runtime: a commit/deploy outcome survives the automatic status refresh', () => {
+  const h = bootWebview(true);
+  const pub = h.env.doc.getElementById('lp-publish');
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-publish-status-result', __t: 'tok', branch: 'main', touchedFiles: [], git: { available: false }, vercelLinked: false },
+    source: h.win,
+    origin: null,
+  }));
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-publish-result', __t: 'tok', action: 'commit', ok: false, reason: 'security-scan-stale' },
+    source: h.win,
+    origin: null,
+  }));
+  assert.ok(/código mudou desde o último/.test(pub.innerHTML), 'the real result is rendered');
+
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-publish-status-result', __t: 'tok', branch: 'main', touchedFiles: [], git: { available: false }, vercelLinked: false },
+    source: h.win,
+    origin: null,
+  }));
+  assert.ok(/código mudou desde o último/.test(pub.innerHTML), 'a fresh status snapshot does not erase the outcome');
 });
 
 // ── F0.1: prompt-first — the box is the star (autofocus on pin), tier picker under it, presets collapsed. ──
@@ -374,6 +564,39 @@ test('F0.5.3: the semaphore shows port+source + tree state, and each fix button 
   before = h.posted.length;
   trust.dispatchEvent(h.mkEvent('click'));
   assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-trust'; }), 'trust fix posts lp-trust (Manage Workspace Trust)');
+});
+
+test('HTTP 500 stage is never framed green and offers one-click port recovery', () => {
+  const h = bootWebview(false);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: null, port: 7819, degraded: true, blocked: true, statusCode: 500, reason: 'porta 7819: HTTP 500 — dev server com erro interno' },
+    leBridge: { available: false, reason: 'sdk-bridge-missing' },
+    readiness: { workspace: true, devServer: false, port: '7819', tree: 'unknown', sdk: false, trust: true, stageBlocked: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  const frame = h.env.doc.getElementById('lp-frame');
+  const degrade = h.env.doc.getElementById('lp-degrade');
+  assert.strictEqual(frame.style.display, 'none', 'HTTP 500 is not framed as a live preview');
+  assert.ok(/Dev server respondeu com erro/.test(degrade.innerHTML || ''));
+  assert.ok(/HTTP 500/.test(degrade.innerHTML || ''));
+  const recover = h.env.doc.getElementById('lp-recover-dev');
+  assert.ok(recover, 'the error state has a direct recovery action');
+  const before = h.posted.length;
+  recover.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.slice(before).some(function (x) { return x.type === 'lp-restart-dev'; }));
+});
+
+test('healthy HTML with a pending handshake offers frame reload, not a server restart', () => {
+  const h = bootWebview(false);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://127.0.0.1:7819', port: 7819, source: 'config', degraded: false, stale: false, validated: 'http-html' },
+    leBridge: { available: false, reason: 'sdk-bridge-missing' },
+    readiness: { workspace: true, devServer: true, port: '7819', source: 'config', tree: 'unknown', sdk: false, trust: true, stageBlocked: false },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  const ready = h.env.doc.getElementById('lp-ready');
+  assert.ok(ready.querySelector('[data-fix="reload"]'), 'pending handshake offers reload');
+  assert.strictEqual(ready.querySelector('[data-fix="restart"]'), null, 'healthy HTML does not ask to restart the server');
 });
 
 test('F9 (D8/#3): the "sem SDK" light offers a REAL SDK action (lp-sdk-help), not a mislabelled folder picker', () => {
@@ -517,4 +740,493 @@ test('F0.2: selecting a node shows ITS history; a prior-session item is read-onl
   fireSelectWith(h, { file: 'landing/app/other.tsx', line: 9, col: 1, tag: 'p', path: [ { file: 'landing/app/other.tsx', tag: 'div', label: 'div' }, { file: 'landing/app/other.tsx', tag: 'p', label: 'p' } ] });
   const html2 = (h.env.doc.getElementById('lp-sel') || {}).innerHTML || '';
   assert.ok(/histórico deste nó · 1/.test(html2), 'the other node has its OWN single-item history (nodeKey isolation)');
+});
+
+// H2-FIX — the iframe-reload desync. Select mode is armed on the HOST (🎯 lit, lpSelectOn=true) and posts
+// lp-select-mode to the tap. A full same-URL iframe reload (Next server-component edit, non-hot-swappable
+// change, or error-overlay recovery) re-inits the fresh in-page tap with its own select mode OFF (on=false)
+// and re-handshakes via lp-ready. The host keeps 🎯 lit (curSrc===st.url → no re-point/reset) and tree stays
+// 'ok', so the button LIES: the user clicks an element, the tap returns at `if(!on) return`, no lp-select is
+// posted, renderSelection never runs, and NEITHER the toolbar NOR the 🐮 chip appears. The host must re-assert
+// select mode on the reload handshake. Capture the host→tap channel (postMessage into frame.contentWindow).
+function captureFrameChannel(h) {
+  const framePosts = [];
+  h.frame.contentWindow = { name: 'frame', postMessage: (m) => framePosts.push(m) };
+  return framePosts;
+}
+function fireReady(h, servedRoot) {
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-ready', servedRoot: (servedRoot == null ? null : servedRoot) },
+    source: h.frame.contentWindow, origin: 'http://localhost:7819',
+  }));
+}
+
+test('RUNTIME: a same-URL iframe reload RE-ARMS the tap while select mode is on (kills "🎯 lit but dead clicks, no toolbar, no chip")', () => {
+  const h = bootWebview(false);
+  const frameCh = captureFrameChannel(h);
+  // arm 🎯 — the host tells the tap to enter select mode
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const armed = frameCh.filter((m) => m && m.type === 'lp-select-mode' && m.on === true);
+  assert.ok(armed.length >= 1, 'clicking 🎯 posts lp-select-mode {on:true} to the tap (armed)');
+  // a full iframe reload at the SAME URL: the fresh tap comes up on=false and re-handshakes with lp-ready
+  const beforeReload = frameCh.length;
+  fireReady(h, null);
+  const reArmed = frameCh.slice(beforeReload).filter((m) => m && m.type === 'lp-select-mode' && m.on === true);
+  assert.ok(reArmed.length >= 1, 'after a reload handshake (lp-ready) while armed, the host RE-SENDS lp-select-mode {on:true} so the fresh tap is armed again (no armed-but-dead 🎯)');
+});
+
+test('RUNTIME: a full HMR document reload RE-PINS the exact selection and restores its lifecycle', () => {
+  const h = bootWebview(false);
+  const frameCh = captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelect(h);
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-journey-update', __t: 'tok', journey: { node: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, state: 'awaiting', label: 'aguarda OK', turns: [] } },
+    source: h.win, origin: null,
+  }));
+  // The host sends its vetted stamp while the old document is still alive.
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-repin', __t: 'tok', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' },
+    source: h.win, origin: null,
+  }));
+  frameCh.length = 0;
+
+  // Next replaces the complete iframe document after that one-shot. The parent webview survives;
+  // load + lp-ready must replay select-mode, the exact stamp, and the awaiting/yellow state.
+  h.frame.dispatchEvent(h.mkEvent('load'));
+  fireReady(h, null);
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-select-mode' && m.on === true), 'fresh tap is armed');
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-repin' && m.file === 'landing/app/page.tsx' && m.line === 5 && m.col === 3 && m.tag === 'h1'), 'the exact host-vetted stamp survives the disposable frame');
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-node-state' && m.state === 'awaiting'), 'yellow/OK lifecycle is replayed after the new pin');
+});
+
+test('RUNTIME: a transient HMR health lease restores select mode AND the exact thread OK after a mapped re-pin', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelect(h);
+
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: {
+      type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-hmr-1', kind: 'edit',
+      text: 'Texto coerente aplicado.', mode: 'auto', model: 'claude-sonnet-4-6',
+      anchor: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' },
+      edits: [{ file: 'landing/app/page.tsx', diff: ['@@ -5 +5 @@', '-Antes', '+Depois'] }],
+    },
+    source: h.win, origin: null,
+  }));
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /OK — manter tudo/, 'the selected-node thread initially exposes its approval');
+
+  // Imports moved the exact h1 from line 5 to line 7. The host-vetted AST rebase updates the
+  // pending stamp before the disposable document/health lease interrupts the frame.
+  h.win.dispatchEvent(h.mkEvent('message', {
+    data: { type: 'lp-repin', __t: 'tok', sourceAnchor: { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, file: 'landing/app/page.tsx', line: 7, col: 3, tag: 'h1' },
+    source: h.win, origin: null,
+  }));
+  frameCh.length = 0;
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, port: '7819', tree: 'unknown', stageBlocked: true, sdk: true, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', prevPort: '7819', newPort: '7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.strictEqual(h.env.doc.getElementById('lp-select-btn').getAttribute('aria-pressed'), 'false', 'writes remain fail-closed while the HTTP/tree lease is unhealthy');
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: false, blocked: false, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, port: '7819', tree: 'ok', sdk: true, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.strictEqual(h.env.doc.getElementById('lp-select-btn').getAttribute('aria-pressed'), 'true', 'the same-origin/tree handshake restores the user selection intent');
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-select-mode' && m.on === true), 'the recovered tap is armed again');
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-repin' && m.line === 7), 'only the mapped exact stamp is replayed');
+
+  fireSelectWith(h, { file: 'landing/app/page.tsx', line: 7, col: 3, tag: 'h1' });
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /OK — manter tudo/, 'renderSelection rehydrates the same node thread instead of erasing its OK CTA');
+});
+
+test('RUNTIME: real HMR ordering — unhealthy snapshot BEFORE the host re-pin preserves intent and accepts that late correlated re-pin', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  const before = { file: 'landing/app/(marketing)/conductor/page.tsx', line: 52, col: 9, tag: 'p' };
+  const after = { file: before.file, line: 52, col: 9, tag: 'p' };
+  const taskLease = { servedRoot: null, origin: 'http://localhost:7819', epoch: 1 };
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelectWith(h, before);
+
+  // The successful model result is stored, but Next's health poll wins the race against lp-repin.
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-real-order', journeyId: 'journey-real-order',
+    kind: 'edits', mode: 'auto', model: 'claude-sonnet-4-6', anchor: after, sourceAnchor: before,
+    lease: taskLease, edits: [{ file: before.file, diff: ['-No race conditions.', '+No races.'] }],
+  }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, port: '7819', tree: 'unknown', stageBlocked: true, sdk: true, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.strictEqual(h.env.doc.getElementById('lp-select-btn').getAttribute('aria-pressed'), 'false', 'writes stay fail-closed during the unhealthy lease');
+
+  // Host AST rebase arrives after renderLease cleared the visual selection. Correlation to the stored
+  // successful task is the authority; it must survive until the same tree is healthy again.
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', taskId: 'task-real-order', journeyId: 'journey-real-order',
+    sourceAnchor: before, lease: taskLease, file: after.file, line: after.line, col: after.col, tag: after.tag,
+  }, source: h.win, origin: null }));
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: false, blocked: false, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, port: '7819', tree: 'ok', sdk: true, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+
+  assert.strictEqual(h.env.doc.getElementById('lp-select-btn').getAttribute('aria-pressed'), 'true', 'the exact same origin/tree restores the preserved user intent');
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-select-mode' && m.on === true), 'the fresh tap is re-armed');
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-repin' && m.file === after.file && m.line === after.line && m.col === after.col && m.tag === after.tag), 'the late host-correlated exact node is replayed');
+});
+
+test('RUNTIME: late task A never renders on B, and both nodes retain their own actionable result', () => {
+  const h = bootWebview(true);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const lease = { servedRoot: null, origin: 'http://localhost:7819', epoch: 0 };
+  const A = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  const B = { file: 'landing/app/page.tsx', line: 9, col: 3, tag: 'p' };
+  fireSelectWith(h, A);
+  fireSelectWith(h, B); // user moves while A is still running
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-A', journeyId: 'journey-A',
+    kind: 'edits', mode: 't2', model: 'claude-sonnet-4-6', anchor: A, lease,
+    edits: [{ file: A.file, diff: ['-A before', '+A after'] }],
+  }, source: h.win, origin: null }));
+  assert.doesNotMatch(h.env.doc.getElementById('lp-del').innerHTML, /A after|OK — manter tudo/, 'A result is stored but never injected into selected node B');
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-B', journeyId: 'journey-B',
+    kind: 'edits', mode: 't2', model: 'claude-sonnet-4-6', anchor: B, lease,
+    edits: [{ file: B.file, diff: ['-B before', '+B after'] }],
+  }, source: h.win, origin: null }));
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /B after/);
+  assert.doesNotMatch(h.env.doc.getElementById('lp-del').innerHTML, /A after/);
+
+  fireSelectWith(h, A);
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /A after/);
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /OK — manter tudo/, 'A keeps its own CTA after B produced a newer result');
+  fireSelectWith(h, B);
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /B after/, 'B also keeps its independent result');
+});
+
+test('RUNTIME: a late task-A re-pin cannot pull an actively selected node B back to A', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const lease = { servedRoot: null, origin: 'http://localhost:7819', epoch: 0 };
+  const A = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  const B = { file: 'landing/app/page.tsx', line: 9, col: 3, tag: 'p' };
+  fireSelectWith(h, A);
+  fireSelectWith(h, B);
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-late-A', journeyId: 'journey-late-A',
+    kind: 'edits', mode: 't2', model: 'claude-sonnet-4-6', anchor: A, sourceAnchor: A, lease,
+    edits: [{ file: A.file, diff: ['-A before', '+A after'] }],
+  }, source: h.win, origin: null }));
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', taskId: 'task-late-A', journeyId: 'journey-late-A',
+    sourceAnchor: A, lease, file: A.file, line: 7, col: A.col, tag: A.tag,
+  }, source: h.win, origin: null }));
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-repin').length, 0, 'A remains stored but cannot move the live pin away from B');
+  assert.match(h.env.doc.getElementById('lp-sel').innerHTML, /page\.tsx:9/, 'B stays the visible exact selection');
+});
+
+test('RUNTIME: a health lease that cleared B cannot let a late correlated task-A re-pin substitute for B', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const lease = { servedRoot: null, origin: 'http://localhost:7819', epoch: 0 };
+  const A = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  const B = { file: 'landing/app/page.tsx', line: 9, col: 3, tag: 'p' };
+  fireSelectWith(h, A);
+  fireSelectWith(h, B);
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-lease-A', journeyId: 'journey-lease-A',
+    kind: 'edits', anchor: A, sourceAnchor: A, lease,
+    edits: [{ file: A.file, diff: ['-A before', '+A after'] }],
+  }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, tree: 'unknown', stageBlocked: true, sdk: true, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', taskId: 'task-lease-A', journeyId: 'journey-lease-A',
+    sourceAnchor: A, lease, file: A.file, line: 7, col: A.col, tag: A.tag,
+  }, source: h.win, origin: null }));
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-repin').length, 0, 'the suspended exact stamp is B, so A cannot hijack it');
+});
+
+test('RUNTIME: unhealthy → healthy → late re-pin still restores the exact task whose node the lease cleared', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  const A = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  const lease = { servedRoot: null, origin: 'http://localhost:7819', epoch: 0 };
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelectWith(h, A);
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-late-after-health', journeyId: 'journey-late-after-health',
+    kind: 'edits', anchor: A, sourceAnchor: A, lease,
+    edits: [{ file: A.file, diff: ['-A before', '+A after'] }],
+  }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, tree: 'unknown', stageBlocked: true, sdk: true, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, tree: 'ok', sdk: true, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', taskId: 'task-late-after-health', journeyId: 'journey-late-after-health',
+    sourceAnchor: A, lease, file: A.file, line: 7, col: A.col, tag: A.tag,
+  }, source: h.win, origin: null }));
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-repin' && m.line === 7), 'the bounded suspended stamp survives lease removal until its late correlated re-pin');
+});
+
+test('RUNTIME: a late deterministic A re-pin with no taskId cannot pull active B back to A', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const A = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  const B = { file: 'landing/app/page.tsx', line: 9, col: 3, tag: 'p' };
+  fireSelectWith(h, A);
+  fireSelectWith(h, B);
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', sourceAnchor: A,
+    file: A.file, line: 7, col: A.col, tag: A.tag,
+  }, source: h.win, origin: null }));
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-repin').length, 0, 'trusted does not mean current: the source anchor must still equal B');
+});
+
+test('RUNTIME: a deterministic mapped re-pin for the actively selected node still succeeds', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  const A = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelectWith(h, A);
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', sourceAnchor: A,
+    file: A.file, line: 7, col: A.col, tag: A.tag,
+  }, source: h.win, origin: null }));
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-repin' && m.line === 7), 'the fail-closed A/B fence preserves the current-node happy path');
+});
+
+test('RUNTIME: an expired mapped re-pin tombstones the old pre-write stamp instead of reviving it', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  const before = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelectWith(h, before);
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', sourceAnchor: before,
+    file: before.file, line: 7, col: before.col, tag: before.tag,
+  }, source: h.win, origin: null }));
+  frameCh.length = 0;
+  const expiredNow = Date.now() + 21000;
+  h.ctx.Date = class extends Date { static now() { return expiredNow; } };
+  fireReady(h, null);
+  assert.ok(frameCh.some((m) => m && m.type === 'lp-select-mode' && m.on === true), 'Select mode itself remains armed');
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-repin').length, 0, 'neither mapped line 7 nor stale pre-write line 5 is replayed after expiry');
+});
+
+test('RUNTIME: same-origin servedRoot change is a hard identity boundary and never revives the old pin', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  const before = { file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' };
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  fireSelectWith(h, before);
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', sourceAnchor: before,
+    file: before.file, line: 7, col: before.col, tag: before.tag,
+  }, source: h.win, origin: null }));
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', stale: false, blocked: false, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, tree: 'unknown', sdk: true, trust: true },
+    lease: { kind: 'served-root-changed', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', stale: false, blocked: false, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, tree: 'ok', sdk: true, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.strictEqual(h.env.doc.getElementById('lp-select-btn').getAttribute('aria-pressed'), 'false', 'the user must explicitly select in the new physical tree');
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-select-mode' && m.on === true).length, 0);
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-repin').length, 0);
+});
+
+test('RUNTIME: Ask→Apply in one thread re-pins the edit result, never the older Ask CTA', () => {
+  const h = bootWebview(true);
+  h.env.doc.getElementById('lp-select-btn').dispatchEvent(h.mkEvent('click'));
+  const before = { file: 'landing/app/lp-e2e/page.tsx', line: 9, col: 7, tag: 'p' };
+  const after = { file: before.file, line: 10, col: 7, tag: 'p' };
+  const lease = { servedRoot: null, origin: 'http://localhost:7819', epoch: 1 };
+  fireSelectWith(h, before);
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-ask', journeyId: 'journey-shared',
+    kind: 'answer', askId: 'ask-1', text: 'Sugestão coerente.', mode: 'auto', model: 'claude-sonnet-4-6',
+    anchor: before, lease, edits: [],
+  }, source: h.win, origin: null }));
+  assert.match(h.env.doc.getElementById('lp-del').innerHTML, /Aplicar com o agente/);
+
+  // The edit is stored while the disposable HMR document still carries the old stamp.
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-task-result', __t: 'tok', ok: true, taskId: 'task-edit', journeyId: 'journey-shared',
+    kind: 'edits', text: 'Texto aplicado.', mode: 'auto', model: 'claude-sonnet-4-6',
+    anchor: after, sourceAnchor: before, lease,
+    edits: [{ file: before.file, diff: ['-Antes', '+Depois'] }],
+  }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: {
+    type: 'lp-repin', __t: 'tok', taskId: 'task-edit', journeyId: 'journey-shared',
+    sourceAnchor: before, lease, file: after.file, line: after.line, col: after.col, tag: after.tag,
+  }, source: h.win, origin: null }));
+  fireSelectWith(h, after);
+
+  const html = h.env.doc.getElementById('lp-del').innerHTML;
+  assert.match(html, /Depois/);
+  assert.match(html, /OK — manter tudo/, 'the new edit keeps its approval CTA after HMR');
+  assert.doesNotMatch(html, /Aplicar com o agente/, 'the older Ask result never shadows its applied edit');
+});
+
+test('RUNTIME: explicit selector OFF cannot be undone by late repin, reload or same-origin recovery', () => {
+  const h = bootWebview(true);
+  const frameCh = captureFrameChannel(h);
+  const select = h.env.doc.getElementById('lp-select-btn');
+  select.dispatchEvent(h.mkEvent('click'));
+  fireSelect(h);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-repin', __t: 'tok', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, source: h.win, origin: null }));
+  select.dispatchEvent(h.mkEvent('click')); // explicit user OFF clears wanted intent
+  frameCh.length = 0;
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-repin', __t: 'tok', file: 'landing/app/page.tsx', line: 5, col: 3, tag: 'h1' }, source: h.win, origin: null }));
+  fireReady(h, null);
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, tree: 'unknown', stageBlocked: true, sdk: true, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', epoch: 2 }, feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', identityEpoch: 2 }, readiness: { workspace: true, devServer: true, tree: 'ok', sdk: true, trust: true }, feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  fireReady(h, null);
+  assert.strictEqual(select.getAttribute('aria-pressed'), 'false');
+  assert.strictEqual(frameCh.filter((m) => m && m.type === 'lp-select-mode' && m.on === true).length, 0, 'nothing overrides the explicit OFF intent');
+});
+
+test('RUNTIME: a reload handshake does NOT arm the tap when select mode is OFF (the re-arm is gated by lpSelectOn)', () => {
+  const h = bootWebview(false);
+  const frameCh = captureFrameChannel(h);
+  // never arm 🎯; a fresh lp-ready must NOT spuriously enter select mode
+  fireReady(h, null);
+  const spurious = frameCh.filter((m) => m && m.type === 'lp-select-mode' && m.on === true);
+  assert.equal(spurious.length, 0, 'lp-ready without arming never posts lp-select-mode {on:true} (no zero-interaction select oracle)');
+});
+
+// COH-04+ — the OTHER end of "nothing appears": when the preview identity is NOT confirmed (tree!='ok'),
+// 🎯 is natively-disabled and swallows clicks, so the honest cause hides in a hover tooltip + the easy-to-miss
+// readiness strip. Make it LOUD: an assertive banner names the exact cause + carries the same 1-click fix,
+// and it NEVER arms selection (the security gate stays intact).
+function snapshotReadiness(h, readiness) {
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { ok: true, url: 'http://localhost:7819/' }, readiness: readiness, feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+}
+
+test('RUNTIME: 🎯 blocked (tree != ok) surfaces a LOUD banner with the cause + a wired 1-click fix (not just a silent disabled button)', () => {
+  const h = bootWebview(false);
+  snapshotReadiness(h, { workspace: true, devServer: true, port: '7819', source: 'probe', tree: 'unknown', sdk: false, trust: true });
+  const bn = h.env.doc.getElementById('lp-select-blocked');
+  assert.ok(bn, 'a dedicated blocked-reason banner element exists');
+  assert.strictEqual(bn.style.display, 'flex', 'the banner is VISIBLE when 🎯 is blocked');
+  assert.match(bn.innerHTML, /indispon|por confirmar|handshake|dev server|pasta/i, 'the banner names the exact cause');
+  const fix = bn.querySelector('[data-fix]');
+  assert.ok(fix, 'a 1-click fix button is present');
+  const before = h.posted.length;
+  fix.dispatchEvent(h.mkEvent('click'));
+  assert.ok(h.posted.length > before, 'the fix reuses readinessFix → posts a host recovery action (not a dead button)');
+  const b = h.env.doc.getElementById('lp-select-btn');
+  assert.strictEqual(b.getAttribute('aria-pressed'), 'false', 'selection did NOT auto-arm — the security gate is intact');
+});
+
+test('RUNTIME: a CONFIRMED identity (tree==ok) hides the blocked banner and enables 🎯', () => {
+  const h = bootWebview(false);
+  snapshotReadiness(h, { workspace: true, devServer: true, port: '7819', source: 'probe', tree: 'unknown', sdk: false, trust: true });
+  snapshotReadiness(h, { workspace: true, devServer: true, port: '7819', source: 'probe', tree: 'ok', sdk: true, trust: true });
+  const bn = h.env.doc.getElementById('lp-select-blocked');
+  assert.strictEqual(bn.style.display, 'none', 'the banner is hidden once identity is confirmed');
+  const b = h.env.doc.getElementById('lp-select-btn');
+  assert.ok(!b.disabled, '🎯 is enabled on a green tree');
+});
+
+test('RUNTIME: toolbar refresh reloads a same-URL iframe and requests a fresh host probe', () => {
+  const h = bootWebview(false);
+  const refresh = h.env.doc.getElementById('lp-redetect');
+  assert.ok(refresh && h.frame, 'refresh button and iframe are mounted');
+  const originalSet = h.frame.setAttribute.bind(h.frame);
+  const srcWrites = [];
+  h.frame.setAttribute = (name, value) => {
+    if (name === 'src') srcWrites.push(String(value));
+    return originalSet(name, value);
+  };
+  const before = h.posted.length;
+  refresh.dispatchEvent(h.mkEvent('click'));
+  assert.deepStrictEqual(srcWrites, ['http://localhost:7819/'], 'same URL is deliberately reloaded to clear a stale error document/handshake');
+  assert.ok(h.posted.slice(before).some((message) => message && message.type === 'lp-redetect'), 'host receives the fresh re-probe intent');
+});
+
+test('RUNTIME: transient same-port HTTP failure keeps pixels, clears stale selection, then forces one recovery handshake', () => {
+  const h = bootWebview(false);
+  const frameWrites = [];
+  const originalSet = h.frame.setAttribute.bind(h.frame);
+  h.frame.setAttribute = (name, value) => {
+    if (name === 'src') frameWrites.push(String(value));
+    return originalSet(name, value);
+  };
+  // Establish the epoch used by the currently rendered healthy document.
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, identityEpoch: 1 },
+    readiness: { workspace: true, devServer: true, port: '7819', tree: 'ok', sdk: false, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  frameWrites.length = 0;
+  fireSelect(h);
+  assert.strictEqual(h.env.doc.getElementById('lp-sel').style.display, 'block');
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: true, blocked: true, retained: true, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: false, port: '7819', tree: 'unknown', stageBlocked: true, sdk: false, trust: true },
+    lease: { kind: 'stage-unhealthy', prevOrigin: 'http://localhost:7819', nextOrigin: 'http://localhost:7819', prevPort: '7819', newPort: '7819', epoch: 2 },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.strictEqual(h.frame.style.display, 'block', 'last validated page remains mounted behind the safety state');
+  assert.strictEqual(h.env.doc.getElementById('lp-sel').style.display, 'none', 'old breadcrumb/selection is not shown as current');
+  assert.strictEqual(h.env.doc.getElementById('lp-ctb').style.display, 'none', 'stale prompt cannot be used');
+  assert.strictEqual(frameWrites.length, 0, 'the broken document is not thrashed by repeated src writes');
+
+  h.win.dispatchEvent(h.mkEvent('message', { data: { type: 'lp-snapshot', __t: 'tok', s: {
+    stage: { url: 'http://localhost:7819/', port: 7819, stale: false, blocked: false, identityEpoch: 2 },
+    readiness: { workspace: true, devServer: true, port: '7819', tree: 'unknown', sdk: false, trust: true },
+    feed: { rev: 0, items: [] },
+  } }, source: h.win, origin: null }));
+  assert.deepStrictEqual(frameWrites, ['http://localhost:7819/'], 'same URL reloads exactly once after health returns so lp-ready can renew identity');
 });

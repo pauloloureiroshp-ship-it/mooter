@@ -122,9 +122,53 @@ function renderEditsFeed(items) {
   return '<div class="lpfd">' + hd + '<div class="lpfd-list">' + rows + '</div></div>';
 }
 
+// ── renderJourneyThread(journey) — one durable conversation per selected source node. The host
+// owns identity/state and sends a bounded display projection; this renderer never reconstructs a
+// lease from webview state. `working/awaiting/approved` deliberately match the in-page overlay:
+// pink motion while code is changing, yellow while a reversible local result awaits OK, green only
+// after the user accepts it. Activity rows are concise operational facts; user/assistant rows keep
+// the actual conversational continuity that the old edit-only feed could not provide.
+function renderJourneyThread(journey) {
+  var j = (journey && typeof journey === 'object') ? journey : null;
+  if (!j) return '<div class="lpjt lpjt-empty"><div class="lpjt-hd">💬 conversa deste elemento</div><div class="lpjt-nd">seleciona um elemento para começar.</div></div>';
+  var turns = Array.isArray(j.turns) ? j.turns.slice(-60) : [];
+  var states = {
+    selected: 'selecionado', working: 'a alterar', awaiting: 'aguarda OK', approved: 'aprovado localmente',
+    reverted: 'revertido', stale: 'desatualizado', error: 'bloqueado'
+  };
+  var state = (typeof j.state === 'string' && states[j.state]) ? j.state : 'selected';
+  var label = (typeof j.label === 'string' && j.label) ? j.label : states[state];
+  var hd = '<div class="lpjt-hd"><span>💬 conversa deste elemento</span><span class="lpjt-state lpjt-' + esc(state) + '">' + esc(label) + '</span></div>';
+  if (!turns.length) {
+    return '<div class="lpjt">' + hd + '<div class="lpjt-nd">Escreve na caixa logo abaixo. Perguntas, propostas, atividade e aprovações ficam nesta thread.</div></div>';
+  }
+  function clock(ts) {
+    if (ts == null) return 'n/d';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return 'n/d';
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  var body = '';
+  for (var i = 0; i < turns.length; i++) {
+    var t = turns[i] || {};
+    var role = t.role === 'user' ? 'user' : (t.role === 'assistant' ? 'assistant' : 'activity');
+    var who = role === 'user' ? 'Tu' : (role === 'assistant' ? 'Moo' : 'atividade');
+    var meta = [];
+    if (t.model) meta.push(String(t.model));
+    if (t.status) meta.push(String(t.status));
+    var content = role === 'assistant' ? renderMarkdownSafe(t.text || '') : esc(t.text || '');
+    body += '<div class="lpjt-turn lpjt-turn-' + role + '">'
+      + '<div class="lpjt-meta"><b>' + who + '</b><span>' + esc(clock(t.ts)) + '</span>'
+      + (meta.length ? ('<span>· ' + esc(meta.join(' · ')) + '</span>') : '') + '</div>'
+      + '<div class="lpjt-text">' + content + '</div></div>';
+  }
+  return '<div class="lpjt">' + hd + '<div class="lpjt-list" role="log" aria-label="Conversa e atividade deste elemento">' + body + '</div></div>';
+}
+
 module.exports = {
   esc: esc,
   suggestLocalChip: suggestLocalChip,
   renderMarkdownSafe: renderMarkdownSafe,
   renderEditsFeed: renderEditsFeed,
+  renderJourneyThread: renderJourneyThread,
 };

@@ -34,6 +34,42 @@ test('scanSecrets: detects a Stripe live secret key as critical', () => {
   assert.strictEqual(out[0].severity, 'critical');
 });
 
+test('scanSecrets: detects Anthropic sk-ant keys as critical without a generic duplicate', () => {
+  const key = 'sk-ant-api03-' + 'Ab9_'.repeat(10);
+  const out = scanSecrets([{ path: 'src/anthropic.ts', content: 'const apiKey = "' + key + '";' }]);
+  assert.strictEqual(out.length, 1);
+  assert.strictEqual(out[0].type, 'anthropic-api-key');
+  assert.strictEqual(out[0].severity, 'critical');
+  assert.strictEqual(out[0].preview, 'sk-a…');
+});
+
+test('scanSecrets: provider-shaped tokens remain critical in comments, fixtures and templates', () => {
+  const anthropic = 'sk-ant-' + 'aZ9_mQ2vL8pR4tY7nC6bK3wX';
+  const github = 'ghp_' + 'x'.repeat(36);
+  const out = scanSecrets([{
+    path: '.env.example',
+    content: [
+      '# ANTHROPIC_API_KEY=' + anthropic,
+      '# fixture token ' + github,
+    ].join('\n'),
+  }]);
+  assert.deepStrictEqual(out.map((x) => [x.type, x.severity]), [
+    ['anthropic-api-key', 'critical'],
+    ['github-token', 'critical'],
+  ]);
+});
+
+test('scanSecrets: exact public sanitizer dummy strings are not treated as leaked credentials', () => {
+  const out = scanSecrets([{
+    path: 'tools/router/privacy.js',
+    content: [
+      "'use sk-ant-abcdefghijklmnop1234567890 to call the API'",
+      "'token ghp_abcdefghijklmnopqrstuvwxyz1234567890'",
+    ].join('\n'),
+  }]);
+  assert.deepStrictEqual(out, []);
+});
+
 test('scanSecrets: detects every PEM private key header variant as critical', () => {
   const variants = [
     '-----BEGIN RSA PRIVATE KEY-----',
@@ -62,6 +98,60 @@ test('scanSecrets: detects generic API_KEY/SECRET/PASSWORD/TOKEN assignments as 
     assert.strictEqual(f.type, 'generic-secret-assignment');
     assert.strictEqual(f.severity, 'warning');
   }
+});
+
+test('scanSecrets: detects camelCase apiKey and modern credential variable names', () => {
+  const content = [
+    'const apiKey = "real-development-key-123";',
+    'SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiJ9.payload.signature',
+    'PRIVATE_KEY="base64EncodedPrivateMaterial123"',
+    'DATABASE_URL=postgresql://app:s3cret@db.internal:5432/prod',
+  ].join('\n');
+  const out = scanSecrets([{ path: 'src/config.ts', content }]);
+  assert.strictEqual(out.length, 4);
+  assert.deepStrictEqual(out.map((x) => x.line), [1, 2, 3, 4]);
+  assert.ok(out.every((x) => x.type === 'generic-secret-assignment'));
+  assert.ok(out.every((x) => x.severity === 'warning'));
+});
+
+test('scanSecrets: generic modern credentials escalate in real .env files', () => {
+  const out = scanSecrets([{
+    path: 'apps/web/.env.local',
+    content: [
+      'SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiJ9.payload.signature',
+      'DATABASE_URL=postgres://app:s3cret@prod-db.internal/app',
+    ].join('\n'),
+  }]);
+  assert.strictEqual(out.length, 2);
+  assert.ok(out.every((x) => x.severity === 'critical'));
+});
+
+test('scanSecrets: ignores shell expansion and canonical .env.example placeholders', () => {
+  const content = [
+    'if [ -z "${ANTHROPIC_API_KEY:-}" ]; then',
+    'ANTHROPIC_API_KEY=sk-ant-...your-key-here',
+    'ANTHROPIC_SECONDARY_API_KEY=sk-ant-your-key-here',
+    '# CF_API_TOKEN=your-cloudflare-api-token',
+    'SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>',
+    'PRIVATE_KEY={{PRIVATE_KEY}}',
+    'DATABASE_URL=${DATABASE_URL:-}',
+    '// const apiKey = "replace-me";',
+  ].join('\n');
+  assert.deepStrictEqual(scanSecrets([{ path: '.env.example', content }]), []);
+});
+
+test('scanSecrets: ignores dynamic references and type declarations, but not a literal beside them', () => {
+  const content = [
+    'const apiKey = process.env.ANTHROPIC_API_KEY',
+    'const other: { apiKey: string } = config;',
+    'DATABASE_URL=$DATABASE_URL',
+    'PRIVATE_KEY=import.meta.env.PRIVATE_KEY',
+    'const apiKey = "literal-secret-value-987";',
+  ].join('\n');
+  const out = scanSecrets([{ path: 'src/config.ts', content }]);
+  assert.strictEqual(out.length, 1);
+  assert.strictEqual(out[0].line, 5);
+  assert.strictEqual(out[0].type, 'generic-secret-assignment');
 });
 
 test('scanSecrets: redaction — the full secret NEVER appears in the preview', () => {

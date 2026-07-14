@@ -37,6 +37,16 @@ test('failing required test → pass:false, exit 2, blocking lists the check', (
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('required auto-detected failure ending in "not found" still blocks (never misclassified unavailable)', () => {
+  const dir = mkproject({ name: 'x', scripts: { test: 'echo resource not found && exit 1' } });
+  const r = runCLI(dir);
+  assert.strictEqual(r.code, 2);
+  assert.strictEqual(r.json.pass, false);
+  assert.ok(r.json.blocking.some((b) => b.name === 'test'));
+  assert.match(r.json.blocking.find((b) => b.name === 'test').signal, /not found/i);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('passing required test → pass:true, exit 0', () => {
   const dir = mkproject({ name: 'x', scripts: { test: 'exit 0' } });
   const r = runCLI(dir);

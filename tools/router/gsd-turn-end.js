@@ -419,6 +419,67 @@ function accumulateDecisions() {
 }
 try { accumulateDecisions(); } catch { /* never block the turn */ }
 
+// ── MEO Control Tower — typed multi-agent turn checkpoint ──────────────────
+// Reuses this already-wired Stop hook instead of adding another global hook.
+// Local-only, compact and fail-soft: session/title/model pointers only, never
+// prompt or response bodies. Automatic capture explicitly skips git subprocesses
+// inside agent-sync-ledger; full git provenance stays a manual checkpoint concern.
+function accumulateAgentSync() {
+  if (!sessionId || sessionId === 'unknown') return;
+  let sync;
+  try { sync = require(path.join(ROUTER_DIR, 'agent-sync-ledger.js')); } catch { return; }
+  if (!sync || typeof sync.command !== 'function') return;
+
+  const transcriptPath = payload.transcript_path || payload.transcriptPath || null;
+  let tail = [];
+  try { if (transcriptPath && fs.existsSync(transcriptPath)) tail = tailLines(transcriptPath, 262144); } catch { tail = []; }
+
+  let model = null;
+  for (let i = tail.length - 1; i >= 0; i--) {
+    let row;
+    try { row = JSON.parse(tail[i]); } catch { continue; }
+    const m = row && row.message && row.message.model;
+    if (typeof m === 'string' && m && m.charAt(0) !== '<') { model = m.slice(0, 120); break; }
+  }
+
+  let title = null;
+  try {
+    if (transcriptPath && fs.existsSync(transcriptPath)) {
+      const fd = fs.openSync(transcriptPath, 'r');
+      const st = fs.fstatSync(fd); const buf = Buffer.alloc(Math.min(st.size, 96 * 1024));
+      fs.readSync(fd, buf, 0, buf.length, 0); fs.closeSync(fd);
+      for (const line of buf.toString('utf8').split('\n')) {
+        let row; try { row = JSON.parse(line); } catch { continue; }
+        if (!row || row.type !== 'user' || !row.message) continue;
+        const c = row.message.content; let txt = '';
+        if (typeof c === 'string') txt = c;
+        else if (Array.isArray(c)) { for (const b of c) if (b && b.type === 'text' && typeof b.text === 'string') txt += b.text; }
+        txt = txt.trim(); if (!txt || txt.charAt(0) === '<') continue;
+        title = (txt.split('\n').find((x) => x.trim()) || txt).replace(/^#+\s*/, '').replace(/\s+/g, ' ').slice(0, 160);
+        if (title) break;
+      }
+    }
+  } catch { title = null; }
+
+  let cwd = (typeof payload.cwd === 'string' && payload.cwd) ? payload.cwd : process.cwd();
+  try {
+    const journal = require(path.join(ROUTER_DIR, 'handoff-journal.js'));
+    if (journal && typeof journal.effectiveCwd === 'function') cwd = journal.effectiveCwd(tail, cwd) || cwd;
+  } catch { /* payload cwd remains the honest fallback */ }
+
+  const hookPayload = {
+    cwd,
+    session_id: sessionId,
+    session_title: title,
+    provider: 'anthropic',
+    model,
+    execution_channel: 'subscription',
+    summary: 'Claude Code turn completed',
+  };
+  try { sync.command(['hook'], { stdin: JSON.stringify(hookPayload), root: cwd }); } catch { /* never block Stop */ }
+}
+try { accumulateAgentSync(); } catch { /* never block the turn */ }
+
 // ── PEÇA 4: Auto-sync silencioso (a cada 25 chamadas) ────────────────────
 function autoSync() {
   const { spawn } = require('child_process');

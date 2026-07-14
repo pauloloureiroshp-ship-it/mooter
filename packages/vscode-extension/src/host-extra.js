@@ -45,7 +45,10 @@ function execTool(cmd, args = [], timeoutMs = 6000, cwd) {
       const opts = { timeout: timeoutMs, maxBuffer: 1024 * 512, windowsHide: true };
       if (cwd) opts.cwd = cwd; // run git/gh INSIDE the session's repo → repo-correct results
       execFile(cmd, args, opts,
-        (err, stdout) => resolve({ ok: !err, out: String(stdout || '').trim() }));
+        // Do NOT trim command output here. Some machine-readable formats use leading spaces as
+        // structural data (`git status --porcelain` is the important example: " M path" means an
+        // unstaged modification). Callers that consume human text already trim explicitly.
+        (err, stdout) => resolve({ ok: !err, out: String(stdout || '') }));
     } catch { resolve({ ok: false, out: '' }); }
   });
 }
@@ -638,6 +641,60 @@ function _sessionCwd(file) {
   return null;
 }
 
+// MEO Control Tower: cheap synchronous identity projection for recent Claude
+// sessions. Unlike recentSessions(), this deliberately does no git/gh/network
+// work, so the Live Preview poll can join titles/models/mirror stamps without
+// blocking the extension host. Every unknown remains null.
+function _lastTranscriptModel(file, maxBytes) {
+  try {
+    const st = fs.statSync(file); const start = Math.max(0, st.size - (maxBytes || 512 * 1024));
+    const fd = fs.openSync(file, 'r'); const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start); fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let d; try { d = JSON.parse(lines[i]); } catch { continue; }
+      const model = d && d.message && d.message.model;
+      if (typeof model === 'string' && model && model.charAt(0) !== '<') return model.slice(0, 120);
+    }
+  } catch { /* unreadable transcript */ }
+  return null;
+}
+
+function sessionSummaries(maxN = 40, opts) {
+  opts = opts || {};
+  const files = Array.isArray(opts.files) ? opts.files : listSessionFiles();
+  const names = opts.names || sessionNames();
+  const decorate = typeof opts.decorate === 'function'
+    ? opts.decorate
+    : function (row) { return modeRegistry().decorate(row, modeRegistry().readCoworkMap()); };
+  const out = [];
+  for (const f of files.slice(0, Math.max(1, maxN))) {
+    const file = typeof f === 'string' ? f : f.file;
+    if (!file) continue;
+    let mtime = (f && typeof f === 'object' && Number.isFinite(f.mtime)) ? f.mtime : null;
+    if (mtime == null) { try { mtime = fs.statSync(file).mtimeMs; } catch { mtime = null; } }
+    const sid = path.basename(file).replace(/\.jsonl$/, '');
+    const row = {
+      id: sid.slice(0, 8), fullId: sid,
+      name: names[sid] || _firstPrompt(file) || null,
+      model: _lastTranscriptModel(file, opts.maxBytes),
+      cwd: _sessionCwd(file), lastActiveTs: mtime,
+    };
+    try { decorate(row); } catch { /* optional registry unavailable */ }
+    out.push({
+      id: row.id, fullId: row.fullId,
+      title: row.coworkTitle || row.brainTitle || row.name || null,
+      promptTitle: row.name || null, coworkTitle: row.coworkTitle || null,
+      brainTitle: row.brainTitle || null, model: row.model || null,
+      cwd: row.cwd || null, project: row.project || null, lastActiveTs: row.lastActiveTs,
+      notionPageId: row.notionPageId || null, notionSyncedAt: row.notionSyncedAt || null,
+      obsidianPath: row.obsidianPath || null, obsidianSyncedAt: row.obsidianSyncedAt || null,
+      handoffSentAt: row.handoffSentAt || null,
+    });
+  }
+  return out;
+}
+
 // The current branch of a git repo at `cwd`. null when cwd is missing, not a repo, in a
 // detached HEAD ("HEAD"), or git is absent/slow (2s timeout). Async — callers await it.
 async function gitBranch(cwd) {
@@ -646,6 +703,135 @@ async function gitBranch(cwd) {
   if (!r.ok) return null;
   const b = r.out.split('\n')[0].trim();
   return (!b || b === 'HEAD') ? null : b; // 'HEAD' = detached → no branch to show
+}
+
+// PURE: remove credentials/query fragments from a git remote before it can reach the webview.
+// HTTPS remotes may contain a username/token; SCP-style SSH remotes are normalised to the
+// conventional `git@host:path`. A browser URL is derived only from a proven network host.
+function sanitizeGitRemoteUrl(raw) {
+  const source = String(raw == null ? '' : raw).split(/\r?\n/)[0].trim();
+  if (!source || /[\u0000-\u001f]/.test(source)) return { url: null, webUrl: null };
+  if (/^[A-Za-z]:[\\/]/.test(source) || source.startsWith('/') || source.startsWith('\\\\')) return { url: null, webUrl: null };
+  if (source.indexOf('://') === -1) {
+    const m = /^(?:[^@/:\s]+@)?([A-Za-z0-9.-]+):([^\s]+)$/.exec(source);
+    if (!m) return { url: null, webUrl: null };
+    const host = m[1].toLowerCase();
+    const repo = m[2].replace(/^\/+/, '').replace(/[?#].*$/, '');
+    if (!host || !repo) return { url: null, webUrl: null };
+    const webPath = repo.replace(/\.git$/i, '');
+    return { url: 'git@' + host + ':' + repo, webUrl: 'https://' + host + '/' + webPath };
+  }
+  try {
+    const u = new URL(source);
+    const protocol = String(u.protocol || '').toLowerCase();
+    if (protocol !== 'https:' && protocol !== 'http:' && protocol !== 'ssh:') return { url: null, webUrl: null };
+    u.password = '';
+    u.search = '';
+    u.hash = '';
+    if (protocol === 'https:' || protocol === 'http:') u.username = '';
+    else if (u.username !== 'git') u.username = '';
+    const clean = u.toString().replace(/\/$/, u.pathname === '/' ? '/' : '');
+    const repoPath = u.pathname.replace(/^\/+/, '').replace(/\.git\/?$/i, '');
+    const webUrl = u.hostname && repoPath ? ('https://' + u.host + '/' + repoPath) : null;
+    return { url: clean, webUrl };
+  } catch { return { url: null, webUrl: null }; }
+}
+
+// READ-ONLY remote descriptor for Publish. The branch's REAL upstream wins over `origin`: what the
+// UI shows is therefore the same remote+branch that gitPush targets. A branch with no upstream falls
+// back deterministically to its pushRemote / remote.pushDefault / origin / first remote, targeting
+// the same branch name. Never returns credentials and never throws when git is absent or slow.
+async function gitRemoteInfo(cwd) {
+  const empty = {
+    available: false, name: null, url: null, webUrl: null,
+    localBranch: null, upstreamRemote: null, upstreamBranch: null, hasUpstream: false,
+    targetBranch: null, reason: null, destinationCount: 0,
+  };
+  if (!cwd || typeof cwd !== 'string') return empty;
+  try {
+    const pair = await Promise.all([
+      gitBranch(cwd),
+      execTool('git', ['-C', cwd, 'remote'], 2500),
+    ]);
+    const localBranch = pair[0];
+    const rr = pair[1];
+    if (!rr.ok) return empty;
+    const remotes = String(rr.out || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    if (!localBranch || !remotes.length) return Object.assign({}, empty, { localBranch });
+
+    let upstreamRemote = null;
+    let upstreamBranch = null;
+    // These atoms avoid guessing where a local branch tracks when its upstream is not `origin`
+    // (or when the upstream branch has a different name from the local branch).
+    const fr = await execTool('git', [
+      '-C', cwd, 'for-each-ref',
+      '--format=%(upstream:remotename)%00%(upstream:remoteref)',
+      '--count=1', 'refs/heads/' + localBranch,
+    ], 2500);
+    if (fr.ok) {
+      const parts = String(fr.out || '').replace(/[\r\n]+$/, '').split('\0');
+      const remote = String(parts[0] || '').trim();
+      const remoteRef = String(parts[1] || '').trim();
+      if (remotes.includes(remote) && remoteRef.startsWith('refs/heads/')) {
+        upstreamRemote = remote;
+        upstreamBranch = remoteRef.slice('refs/heads/'.length);
+      }
+    }
+
+    let name = upstreamRemote;
+    if (!name) {
+      const pushRemote = await execTool('git', ['-C', cwd, 'config', '--get', 'branch.' + localBranch + '.pushRemote'], 2000);
+      const pushDefault = name ? null : await execTool('git', ['-C', cwd, 'config', '--get', 'remote.pushDefault'], 2000);
+      const configured = String((pushRemote.ok && pushRemote.out) || (pushDefault && pushDefault.ok && pushDefault.out) || '').trim();
+      name = remotes.includes(configured) ? configured : (remotes.includes('origin') ? 'origin' : remotes[0]);
+    }
+    const targetBranch = upstreamBranch || localBranch;
+    const facts = { name, localBranch, upstreamRemote, upstreamBranch, hasUpstream: !!(upstreamRemote && upstreamBranch), targetBranch };
+    const unavailable = (reason, destinationCount) => Object.assign({}, empty, facts, {
+      reason: String(reason || 'git-destination-unverifiable'),
+      destinationCount: Number.isInteger(destinationCount) ? destinationCount : 0,
+    });
+    const lines = (out) => String(out || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+
+    // A Git remote can contain MULTIPLE pushurl values, and `git push <remote>` sends to every one.
+    // Publish is deliberately singular: one URL shown, one URL frozen, one URL written. If no
+    // explicit pushurl exists, require exactly one fetch URL because it becomes the implicit push
+    // destination. Count configured entries (not unique strings): two equal values still mean two
+    // transport attempts and therefore fail closed.
+    const pushCfg = await execTool('git', ['-C', cwd, 'config', '--get-all', 'remote.' + name + '.pushurl'], 2500);
+    let configured = lines(pushCfg && pushCfg.out);
+    if (!configured.length) {
+      const fetchCfg = await execTool('git', ['-C', cwd, 'config', '--get-all', 'remote.' + name + '.url'], 2500);
+      configured = lines(fetchCfg && fetchCfg.out);
+    }
+    if (configured.length !== 1) {
+      return unavailable(configured.length > 1 ? 'git-multiple-push-destinations' : 'git-destination-unverifiable', configured.length);
+    }
+
+    // Ask Git for the EFFECTIVE push URL so url.*.insteadOf / pushInsteadOf cannot hide the real
+    // transport behind a friendly configured URL. `--all` is mandatory: if expansion ever produces
+    // more than one destination, the singular contract still fails closed. Local/file/helper URLs
+    // are intentionally not publishable by this UI because they cannot be rendered as a safe repo URL.
+    const expanded = await execTool('git', ['-C', cwd, 'remote', 'get-url', '--push', '--all', name], 2500);
+    const effective = expanded && expanded.ok ? lines(expanded.out) : [];
+    if (effective.length !== 1) {
+      return unavailable(effective.length > 1 ? 'git-multiple-push-destinations' : 'git-destination-unverifiable', effective.length);
+    }
+    const safe = sanitizeGitRemoteUrl(effective[0]);
+    return safe.url ? {
+      available: true,
+      name,
+      url: safe.url,
+      webUrl: safe.webUrl,
+      localBranch,
+      upstreamRemote,
+      upstreamBranch,
+      hasUpstream: !!(upstreamRemote && upstreamBranch),
+      targetBranch,
+      reason: null,
+      destinationCount: 1,
+    } : unavailable('git-destination-unverifiable', effective.length);
+  } catch { return empty; }
 }
 
 // WCOCKPIT-4 (fixed in WCOCKPIT-5): READ-ONLY git stage snapshot for a session's working dir.
@@ -657,12 +843,12 @@ async function gitBranch(cwd) {
 async function gitStage(cwd) {
   if (!cwd || typeof cwd !== 'string') return null;
   try {
-    const sr = await execTool('git', ['-C', cwd, 'status', '--porcelain'], 3000);
+    const sr = await execTool('git', ['-C', cwd, 'status', '--porcelain=v1', '-z'], 3000);
     if (!sr.ok) return null;
-    const lines = (sr.out || '').split('\n').filter(function(l) { return l.length >= 2; });
+    const parsedFiles = parsePorcelain(sr.out);
     let dirty = 0, staged = 0;
-    for (const line of lines) {
-      const x = line[0], y = line[1];
+    for (const file of parsedFiles) {
+      const x = file.x, y = file.y;
       if (x !== ' ' && x !== '?') staged++;   // col1 ≠ space = staged change
       if (y !== ' ' || x === '?') dirty++;     // col2 ≠ space or untracked = dirty
     }
@@ -671,7 +857,7 @@ async function gitStage(cwd) {
     // classifier can read them. NO extra git call — parsed from the same porcelain output already
     // fetched. Capped at 200 to bound the snapshot serialised to the webview (the counts above stay
     // exact; `files` is a bounded sample used only for classification/attribution).
-    const files = parsePorcelain(sr.out).slice(0, 200);
+    const files = parsedFiles.slice(0, 200);
     let ahead = 0, behind = 0;
     try {
       const rr = await execTool('git', ['-C', cwd, 'rev-list', '--count', '--left-right', '@{u}...HEAD'], 3000);
@@ -699,18 +885,38 @@ async function gitStage(cwd) {
 // sha FROZEN de classify.js (CI-enforced). Usada como guarda anti-commit-acidental do engine.
 const FROZEN_CLASSIFY_SHA = '427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f';
 
-// PURA (testável): parse de `git status --porcelain` → [{x,y,path}]. Trata renomeações (-> novo)
-// e paths citados. Nunca lança.
+// PURA (testável): parse de `git status --porcelain=v1` → [{x,y,path}]. Aceita tanto o formato
+// histórico separado por newline quanto o formato recomendado `-z`, que preserva sem ambiguidades
+// espaços, tabs, aspas e newlines nos paths. Em `-z`, Git escreve renames como NEW\0OLD\0 (ordem
+// invertida e sem seta); preservamos ambos como `{path:NEW, origPath:OLD}` para que Publish possa
+// rever/commitar a adição e a eliminação como uma única mudança. Nunca lança.
 function parsePorcelain(text) {
   const out = [];
-  for (const line of String(text || '').split('\n')) {
+  const source = String(text || '');
+  if (source.includes('\0')) {
+    const fields = source.split('\0');
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      if (field.length < 4 || field[2] !== ' ') continue;
+      const x = field[0], y = field[1];
+      const p = field.slice(3);
+      // In porcelain v1 -z, a rename/copy has a second NUL field containing the OLD path.
+      const moved = x === 'R' || x === 'C' || y === 'R' || y === 'C';
+      const origPath = moved ? String(fields[i + 1] || '') : '';
+      if (p) out.push(origPath ? { x, y, path: p, origPath } : { x, y, path: p });
+      if (moved) i++;
+    }
+    return out;
+  }
+  for (const line of source.split(/\r?\n/)) {
     if (line.length < 4) continue;
     const x = line[0], y = line[1];
     let p = line.slice(3);
     const arrow = p.indexOf(' -> ');
-    if (arrow >= 0) p = p.slice(arrow + 4); // rename → keep the new path
+    let origPath = null;
+    if (arrow >= 0) { origPath = p.slice(0, arrow).replace(/^"(.*)"$/, '$1'); p = p.slice(arrow + 4); }
     p = p.replace(/^"(.*)"$/, '$1');
-    if (p) out.push({ x, y, path: p });
+    if (p) out.push(origPath ? { x, y, path: p, origPath } : { x, y, path: p });
   }
   return out;
 }
@@ -749,7 +955,7 @@ function classifyShaGuard(cwd) {
 // READ-ONLY: preview de commit (ficheiros + branch + mensagem default). NUNCA stage/commit.
 async function gitCommitPreview(cwd) {
   if (!cwd) return null;
-  const sr = await execTool('git', ['-C', cwd, 'status', '--porcelain'], 4000);
+  const sr = await execTool('git', ['-C', cwd, 'status', '--porcelain=v1', '-z'], 4000);
   if (!sr.ok) return null;
   const files = parsePorcelain(sr.out);
   const branch = await gitBranch(cwd);
@@ -757,30 +963,737 @@ async function gitCommitPreview(cwd) {
 }
 
 // Exec git capturando stdout+stderr (git escreve erros/progresso no stderr) → resultado HONESTO.
-function execGit(args, cwd, timeoutMs) {
+function execGit(args, cwd, timeoutMs, envExtra) {
   return new Promise((resolve) => {
     try {
-      execFile('git', ['-C', cwd].concat(args), { timeout: timeoutMs || 12000, maxBuffer: 1024 * 512, windowsHide: true },
+      const opts = { timeout: timeoutMs || 12000, maxBuffer: 1024 * 512, windowsHide: true };
+      if (envExtra) opts.env = Object.assign({}, process.env, envExtra);
+      execFile('git', ['-C', cwd].concat(args), opts,
         (err, stdout, stderr) => resolve({ ok: !err, out: (String(stdout || '') + String(stderr || '')).trim() }));
     } catch (e) { resolve({ ok: false, out: String((e && e.message) || e) }); }
   });
 }
 
-// Commit SELECTIVO (NUNCA `git add -A`): stage exactamente os paths dados, depois commit.
-// Devolve o comando git exacto + resultado real (nunca "sucesso" presumido).
-async function gitCommit(cwd, files, message) {
-  if (!cwd || !Array.isArray(files) || !files.length || !message) return { ok: false, out: 'nothing to commit', cmd: '' };
-  const ar = await execGit(['add', '--'].concat(files), cwd, 8000);
-  if (!ar.ok) return { ok: false, out: 'git add failed: ' + ar.out, cmd: 'git add -- ' + files.join(' ') };
-  const cr = await execGit(['commit', '-m', message, '--'].concat(files), cwd, 12000);
-  return { ok: cr.ok, out: cr.out, cmd: 'git add -- <' + files.length + ' file' + (files.length === 1 ? '' : 's') + '> && git commit -m "' + message + '"' };
+// Binary-safe Git reader used by the content-bound selective commit fence. `git show :path`
+// returns the exact blob staged in the index; converting it to UTF-8 would corrupt binary files
+// and make a byte-for-byte approval lease meaningless.
+function execGitRaw(args, cwd, timeoutMs, envExtra) {
+  return new Promise((resolve) => {
+    try {
+      const opts = {
+        timeout: timeoutMs || 8000,
+        maxBuffer: 1024 * 1024 * 32,
+        windowsHide: true,
+        encoding: 'buffer',
+      };
+      if (envExtra) opts.env = Object.assign({}, process.env, envExtra);
+      execFile('git', ['-C', cwd].concat(args), opts, (err, stdout, stderr) => resolve({
+        ok: !err,
+        out: Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout || ''),
+        err: Buffer.isBuffer(stderr) ? stderr.toString('utf8') : String(stderr || ''),
+      }));
+    } catch (e) {
+      resolve({ ok: false, out: Buffer.alloc(0), err: String((e && e.message) || e) });
+    }
+  });
 }
 
-// Push (NUNCA `--force`). Resultado real (stdout+stderr). Gated a montante por confirmação modal.
-async function gitPush(cwd) {
+// Binary-safe Git command with caller-owned stdin. Clean filters are part of the Git repository's
+// content model, so the approval lease must ask Git itself what blob `git add` will create instead
+// of guessing that worktree bytes and blob bytes are identical (they are not under CRLF filters).
+function execGitInputRaw(args, cwd, input, timeoutMs, envExtra) {
+  return new Promise((resolve) => {
+    try {
+      const opts = {
+        timeout: timeoutMs || 8000,
+        maxBuffer: 1024 * 1024 * 32,
+        windowsHide: true,
+        encoding: 'buffer',
+      };
+      if (envExtra) opts.env = Object.assign({}, process.env, envExtra);
+      const child = execFile('git', ['-C', cwd].concat(args), opts, (err, stdout, stderr) => resolve({
+        ok: !err,
+        out: Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout || ''),
+        err: Buffer.isBuffer(stderr) ? stderr.toString('utf8') : String(stderr || ''),
+      }));
+      // Ignore a late EPIPE here: the process callback above remains the single honest result.
+      if (child.stdin) {
+        child.stdin.on('error', () => {});
+        child.stdin.end(Buffer.isBuffer(input) ? input : Buffer.from(input || ''));
+      }
+    } catch (e) {
+      resolve({ ok: false, out: Buffer.alloc(0), err: String((e && e.message) || e) });
+    }
+  });
+}
+
+function snapshotRawBytes(row) {
+  if (Buffer.isBuffer(row && row.raw)) return Buffer.from(row.raw);
+  if (row && row.raw instanceof Uint8Array) return Buffer.from(row.raw);
+  if (row && row.raw && row.raw.type === 'Buffer' && Array.isArray(row.raw.data)) return Buffer.from(row.raw.data);
+  return null;
+}
+
+function parseIndexLeaseEntry(raw) {
+  const fields = Buffer.from(raw || '').toString('utf8').split('\0').filter((x) => x.length > 0);
+  if (fields.length !== 1) return null;
+  const tab = fields[0].indexOf('\t');
+  if (tab < 0) return null;
+  const m = /^([0-7]{6}) ([a-f0-9]{40,64}) ([0-3])$/i.exec(fields[0].slice(0, tab));
+  if (!m) return null;
+  return { mode: m[1], oid: m[2].toLowerCase(), stage: Number(m[3]), path: fields[0].slice(tab + 1) };
+}
+
+function parseTreeLeaseEntry(raw) {
+  const fields = Buffer.from(raw || '').toString('utf8').split('\0').filter((x) => x.length > 0);
+  if (fields.length !== 1) return null;
+  const tab = fields[0].indexOf('\t');
+  if (tab < 0) return null;
+  const m = /^([0-7]{6}) ([a-z]+) ([a-f0-9]{40,64})$/i.exec(fields[0].slice(0, tab));
+  if (!m) return null;
+  return { mode: m[1], type: m[2], oid: m[3].toLowerCase(), path: fields[0].slice(tab + 1) };
+}
+
+function rowHasCanonicalLease(row) {
+  return !!row && Object.prototype.hasOwnProperty.call(row, 'blobOid')
+    && Object.prototype.hasOwnProperty.call(row, 'gitMode');
+}
+
+function rowHasPartialCanonicalLease(row) {
+  if (!row) return false;
+  const oid = Object.prototype.hasOwnProperty.call(row, 'blobOid');
+  const mode = Object.prototype.hasOwnProperty.call(row, 'gitMode');
+  return oid !== mode;
+}
+
+function rowHasBaseLease(row) {
+  return !!row && Object.prototype.hasOwnProperty.call(row, 'baseBlobOid')
+    && Object.prototype.hasOwnProperty.call(row, 'baseGitMode')
+    && Object.prototype.hasOwnProperty.call(row, 'baseMissing');
+}
+
+function rowHasPartialBaseLease(row) {
+  if (!row) return false;
+  const oid = Object.prototype.hasOwnProperty.call(row, 'baseBlobOid');
+  const mode = Object.prototype.hasOwnProperty.call(row, 'baseGitMode');
+  const missing = Object.prototype.hasOwnProperty.call(row, 'baseMissing');
+  return (Number(oid) + Number(mode) + Number(missing)) > 0 && !(oid && mode && missing);
+}
+
+function validPreparedGitMode(mode) {
+  return mode === '100644' || mode === '100755' || mode === '120000';
+}
+
+// Security reviews the worktree bytes, while Git commits the clean-filtered blob. The only
+// content transform that is semantically safe without a second canonical-code scan is Git's
+// ordinary CRLF -> LF normalisation. Everything else (custom clean filters, working-tree
+// encodings, LFS pointers, etc.) fails closed instead of publishing bytes the user never saw.
+function isApprovedCanonicalTransform(raw, canonical) {
+  if (!Buffer.isBuffer(raw) || !Buffer.isBuffer(canonical)) return false;
+  if (raw.equals(canonical)) return true;
+  const normalized = [];
+  let sawCrlf = false;
+  for (let i = 0; i < raw.length; i++) {
+    const byte = raw[i];
+    if (byte === 0x0d) {
+      if (i + 1 >= raw.length || raw[i + 1] !== 0x0a) return false;
+      sawCrlf = true;
+      continue;
+    }
+    normalized.push(byte);
+  }
+  return sawCrlf && Buffer.from(normalized).equals(canonical);
+}
+
+// Convert host-approved WORKTREE bytes into the exact Git representation that Publish will write.
+// Contract:
+//   input  rows: [{ path, missing, raw, sha256 }]
+//   output success: { ok:true, rows:[...input, blobOid, gitMode] }
+//   output failure: { ok:false, reason, paths }
+//
+// Raw SHA remains the lease over what the user saw. `blobOid` and `gitMode` bind the canonical tree
+// after clean/eol filters and executable/symlink rules. A private index rooted at HEAD delegates
+// core.filemode and tracked-symlink semantics to Git itself without touching the user's index.
+async function prepareApprovedSnapshot(cwd, rows) {
+  if (!cwd || !Array.isArray(rows) || !rows.length) {
+    return { ok: false, reason: 'approved-snapshot-invalid', paths: [] };
+  }
+  const root = path.resolve(cwd);
+  const prepared = [];
+  const seen = new Set();
+  let tempDir = null;
+  try {
+    for (const row of rows) {
+      const p = row && typeof row.path === 'string' ? row.path : '';
+      const slash = p.replace(/\\/g, '/');
+      const normalized = path.posix.normalize(slash);
+      const key = process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+      const abs = normalized && normalized !== '.' ? path.resolve(root, ...normalized.split('/')) : root;
+      const rel = path.relative(root, abs);
+      if (!p || p !== slash || normalized !== p || path.posix.isAbsolute(p)
+        || /^[a-zA-Z]:/.test(p) || normalized === '.git' || normalized.startsWith('.git/')
+        || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel) || seen.has(key)) {
+        return { ok: false, reason: 'approved-snapshot-invalid', paths: p ? [p] : [] };
+      }
+      seen.add(key);
+
+      let st = null;
+      try { st = fs.lstatSync(abs); } catch (e) {
+        if (!e || e.code !== 'ENOENT') return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      }
+      if (row.missing === true) {
+        if (st) return { ok: false, reason: 'approved-content-changed', paths: [p] };
+        if (row.raw != null || row.sha256 != null) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+        prepared.push(Object.assign({}, row, { path: p, missing: true, raw: null, sha256: null }));
+        continue;
+      }
+      if (!st || (!st.isFile() && !st.isSymbolicLink())) {
+        return { ok: false, reason: st ? 'approved-content-unverifiable' : 'approved-content-changed', paths: [p] };
+      }
+      const raw = snapshotRawBytes(row);
+      if (!raw) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+      const sha = crypto.createHash('sha256').update(raw).digest('hex');
+      if (typeof row.sha256 !== 'string' || row.sha256.toLowerCase() !== sha) {
+        return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+      }
+      let actual;
+      try {
+        actual = st.isSymbolicLink()
+          ? Buffer.from(fs.readlinkSync(abs, { encoding: 'buffer' }))
+          : fs.readFileSync(abs);
+      } catch {
+        return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      }
+      if (!actual.equals(raw)) return { ok: false, reason: 'approved-content-changed', paths: [p] };
+      prepared.push(Object.assign({}, row, { path: p, missing: false, raw: Buffer.from(raw), sha256: sha }));
+    }
+
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-approve-index-'));
+    const isolatedEnv = { GIT_INDEX_FILE: path.join(tempDir, 'index') };
+    const old = await execGit(['rev-parse', '--verify', 'HEAD'], cwd, 5000);
+    const oldHead = old.ok ? String(old.out || '').split(/\r?\n/)[0].trim() : null;
+    const init = oldHead
+      ? await execGit(['read-tree', oldHead], cwd, 8000, isolatedEnv)
+      : await execGit(['read-tree', '--empty'], cwd, 8000, isolatedEnv);
+    if (!init.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [] };
+    const files = prepared.map((row) => row.path);
+    // Lease the selected paths in the parent tree BEFORE applying the approved worktree bytes.
+    // `gitCommit` later compares its captured parent path-by-path, allowing unrelated HEAD moves
+    // while refusing a concurrent commit that changed the same selected file.
+    const baseLeases = new Map();
+    for (const row of prepared) {
+      const baseRaw = await execGitRaw(['ls-files', '--stage', '-z', '--', row.path], cwd, 8000, isolatedEnv);
+      if (!baseRaw.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [row.path] };
+      if (!baseRaw.out.length) {
+        baseLeases.set(row.path, { baseBlobOid: null, baseGitMode: null, baseMissing: true });
+        continue;
+      }
+      const base = parseIndexLeaseEntry(baseRaw.out);
+      if (!base || base.stage !== 0 || base.path !== row.path || !validPreparedGitMode(base.mode)) {
+        return { ok: false, reason: 'approved-content-unverifiable', paths: [row.path] };
+      }
+      baseLeases.set(row.path, { baseBlobOid: base.oid, baseGitMode: base.mode, baseMissing: false });
+    }
+    const staged = await execGit(['add', '--'].concat(files), cwd, 12000, isolatedEnv);
+    if (!staged.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: files };
+
+    const enriched = [];
+    for (const row of prepared) {
+      const entryRaw = await execGitRaw(['ls-files', '--stage', '-z', '--', row.path], cwd, 8000, isolatedEnv);
+      if (!entryRaw.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [row.path] };
+      if (row.missing === true) {
+        if (entryRaw.out.length !== 0) return { ok: false, reason: 'approved-content-changed', paths: [row.path] };
+        enriched.push(Object.assign({}, row, baseLeases.get(row.path), { blobOid: null, gitMode: null }));
+        continue;
+      }
+      const entry = parseIndexLeaseEntry(entryRaw.out);
+      if (!entry || entry.stage !== 0 || entry.path !== row.path || !validPreparedGitMode(entry.mode)) {
+        return { ok: false, reason: 'approved-content-unverifiable', paths: [row.path] };
+      }
+      const hashArgs = entry.mode === '120000'
+        ? ['hash-object', '--no-filters', '--stdin']
+        : ['hash-object', '--path=' + row.path, '--stdin'];
+      const hashed = await execGitInputRaw(hashArgs, cwd, row.raw, 12000);
+      const oid = hashed.ok ? hashed.out.toString('ascii').trim().toLowerCase() : '';
+      if (!/^[a-f0-9]{40,64}$/.test(oid)) {
+        return { ok: false, reason: 'approved-content-unverifiable', paths: [row.path] };
+      }
+      if (entry.oid !== oid) return { ok: false, reason: 'approved-content-changed', paths: [row.path] };
+      const canonical = await execGitRaw(['cat-file', 'blob', entry.oid], cwd, 12000);
+      if (!canonical.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [row.path] };
+      if (!isApprovedCanonicalTransform(row.raw, canonical.out)) {
+        return { ok: false, reason: 'approved-content-transform-unsupported', paths: [row.path] };
+      }
+      enriched.push(Object.assign({}, row, baseLeases.get(row.path), { blobOid: oid, gitMode: entry.mode }));
+    }
+    return { ok: true, rows: enriched };
+  } catch {
+    return { ok: false, reason: 'approved-content-unverifiable', paths: [] };
+  } finally {
+    if (tempDir) { try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* owned temp only */ } }
+  }
+}
+
+// A plumbing commit must never cut across an operation whose semantics Git normally owns. In a
+// merge/rebase/cherry-pick/revert/sequencer, `commit-tree` would bypass the operation's parent and
+// continuation rules. Detect the per-worktree Git directory (important for linked worktrees) and
+// fail closed before creating or attaching a candidate commit.
+async function gitOperationInProgress(cwd) {
+  const resolved = await execGit(['rev-parse', '--absolute-git-dir'], cwd, 5000);
+  if (!resolved.ok) return { ok: false, operation: null };
+  const gitDir = String(resolved.out || '').split(/\r?\n/)[0].trim();
+  if (!gitDir) return { ok: false, operation: null };
+  const markers = [
+    ['merge', 'MERGE_HEAD'],
+    ['rebase', 'rebase-merge'],
+    ['rebase', 'rebase-apply'],
+    ['rebase', 'REBASE_HEAD'],
+    ['cherry-pick', 'CHERRY_PICK_HEAD'],
+    ['revert', 'REVERT_HEAD'],
+    ['sequencer', 'sequencer'],
+  ];
+  for (const marker of markers) {
+    try {
+      if (fs.existsSync(path.join(gitDir, marker[1]))) return { ok: true, operation: marker[0] };
+    } catch { return { ok: false, operation: null }; }
+  }
+  return { ok: true, operation: null };
+}
+
+// Verify that `git add` staged the approved lease. Prepared rows compare canonical OID+mode because
+// clean/eol filters legitimately transform worktree bytes. Legacy rows (without both canonical
+// fields) keep the old byte-exact comparison for backwards compatibility.
+async function verifyStagedSnapshot(cwd, files, expected, envExtra) {
+  if (expected == null) return { ok: true, checked: false }; // backwards-compatible callers
+  if (!Array.isArray(expected)) return { ok: false, reason: 'approved-snapshot-invalid', paths: [] };
+  const byPath = new Map();
+  for (const row of expected) {
+    const p = row && typeof row.path === 'string' ? row.path : '';
+    if (!p || byPath.has(p)) return { ok: false, reason: 'approved-snapshot-invalid', paths: p ? [p] : [] };
+    byPath.set(p, row);
+  }
+  const uniqueFiles = Array.from(new Set(files));
+  if (byPath.size !== uniqueFiles.length || uniqueFiles.some((p) => !byPath.has(p))) {
+    return { ok: false, reason: 'approved-snapshot-invalid', paths: uniqueFiles.filter((p) => !byPath.has(p)) };
+  }
+
+  const mismatches = [];
+  for (const p of uniqueFiles) {
+    const row = byPath.get(p);
+    if (rowHasPartialCanonicalLease(row)) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    const canonical = rowHasCanonicalLease(row);
+    if (row.missing === true) {
+      if (canonical && (row.blobOid !== null || row.gitMode !== null)) {
+        return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+      }
+      const stagedEntry = await execGitRaw(['ls-files', '--stage', '-z', '--', p], cwd, 8000, envExtra);
+      if (!stagedEntry.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      if (stagedEntry.out.length !== 0) mismatches.push(p);
+      continue;
+    }
+    const raw = snapshotRawBytes(row);
+    if (!raw) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    const approvedSha = crypto.createHash('sha256').update(raw).digest('hex');
+    if (typeof row.sha256 !== 'string' || row.sha256.toLowerCase() !== approvedSha) {
+      return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    }
+    if (canonical) {
+      if (typeof row.blobOid !== 'string' || !/^[a-f0-9]{40,64}$/i.test(row.blobOid)
+        || !validPreparedGitMode(row.gitMode)) {
+        return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+      }
+      const indexed = await execGitRaw(['ls-files', '--stage', '-z', '--', p], cwd, 8000, envExtra);
+      if (!indexed.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      const entry = parseIndexLeaseEntry(indexed.out);
+      if (!entry || entry.stage !== 0 || entry.path !== p
+        || entry.oid !== row.blobOid.toLowerCase() || entry.mode !== row.gitMode) mismatches.push(p);
+      continue;
+    }
+    const staged = await execGitRaw(['show', '--no-ext-diff', '--no-textconv', ':' + p], cwd, 8000, envExtra);
+    if (!staged.ok) { mismatches.push(p); continue; }
+    const stagedSha = crypto.createHash('sha256').update(staged.out).digest('hex');
+    if (stagedSha !== approvedSha || !staged.out.equals(raw)) mismatches.push(p);
+  }
+  return mismatches.length
+    ? { ok: false, reason: 'approved-content-changed', paths: mismatches }
+    : { ok: true, checked: true };
+}
+
+// Defence in depth after `git commit`: prepared leases compare the tree's canonical blob OID and
+// mode; legacy fixtures continue comparing raw blob bytes exactly.
+async function verifyCommittedSnapshot(cwd, commit, files, expected) {
+  if (!commit || !Array.isArray(expected)) return { ok: false, reason: 'approved-content-unverifiable', paths: [] };
+  const byPath = new Map(expected.map((row) => [row && row.path, row]));
+  const mismatches = [];
+  for (const p of Array.from(new Set(files))) {
+    const row = byPath.get(p);
+    if (!row) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    if (rowHasPartialCanonicalLease(row)) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    const canonical = rowHasCanonicalLease(row);
+    if (row.missing === true) {
+      if (canonical && (row.blobOid !== null || row.gitMode !== null)) {
+        return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+      }
+      const entry = await execGitRaw(['ls-tree', '-z', commit, '--', p], cwd, 8000);
+      if (!entry.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      if (entry.out.length !== 0) mismatches.push(p);
+      continue;
+    }
+    const raw = snapshotRawBytes(row);
+    if (!raw) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    const approvedSha = crypto.createHash('sha256').update(raw).digest('hex');
+    if (typeof row.sha256 !== 'string' || row.sha256.toLowerCase() !== approvedSha) {
+      return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    }
+    if (canonical) {
+      if (typeof row.blobOid !== 'string' || !/^[a-f0-9]{40,64}$/i.test(row.blobOid)
+        || !validPreparedGitMode(row.gitMode)) {
+        return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+      }
+      const treeRaw = await execGitRaw(['ls-tree', '-z', commit, '--', p], cwd, 8000);
+      if (!treeRaw.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      const entry = parseTreeLeaseEntry(treeRaw.out);
+      if (!entry || entry.path !== p || entry.type !== 'blob'
+        || entry.oid !== row.blobOid.toLowerCase() || entry.mode !== row.gitMode) mismatches.push(p);
+      continue;
+    }
+    const blob = await execGitRaw(['show', '--no-ext-diff', '--no-textconv', commit + ':' + p], cwd, 8000);
+    if (!blob.ok || crypto.createHash('sha256').update(blob.out).digest('hex') !== approvedSha || !blob.out.equals(raw)) mismatches.push(p);
+  }
+  return mismatches.length
+    ? { ok: false, reason: 'approved-content-changed', paths: mismatches }
+    : { ok: true, checked: true };
+}
+
+// Bind the approved write to the selected paths' parent-tree entries, not to the whole HEAD.
+// This permits a concurrent commit that touched only unrelated files, but a same-path change
+// cannot silently become the parent of an older approved blob and be reverted by Publish.
+async function verifySelectedBaseSnapshot(cwd, commit, files, expected) {
+  if (!Array.isArray(expected)) return { ok: false, reason: 'approved-snapshot-invalid', paths: [] };
+  const byPath = new Map();
+  let leased = 0;
+  for (const row of expected) {
+    const p = row && typeof row.path === 'string' ? row.path : '';
+    if (!p || byPath.has(p) || rowHasPartialBaseLease(row)) return { ok: false, reason: 'approved-snapshot-invalid', paths: p ? [p] : [] };
+    if (rowHasBaseLease(row)) leased++;
+    byPath.set(p, row);
+  }
+  const uniqueFiles = Array.from(new Set(files));
+  if (!leased) return { ok: true, checked: false }; // compatibility for non-Publish callers
+  if (leased !== expected.length || byPath.size !== uniqueFiles.length || uniqueFiles.some((p) => !byPath.has(p))) {
+    return { ok: false, reason: 'approved-snapshot-invalid', paths: uniqueFiles.filter((p) => !byPath.has(p)) };
+  }
+  const moved = [];
+  for (const p of uniqueFiles) {
+    const row = byPath.get(p);
+    const baseMissing = row.baseMissing === true;
+    if (baseMissing) {
+      if (row.baseBlobOid !== null || row.baseGitMode !== null) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    } else if (typeof row.baseBlobOid !== 'string' || !/^[a-f0-9]{40,64}$/i.test(row.baseBlobOid)
+      || !validPreparedGitMode(row.baseGitMode)) {
+      return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    }
+    if (!commit) {
+      if (!baseMissing) moved.push(p);
+      continue;
+    }
+    const treeRaw = await execGitRaw(['ls-tree', '-z', commit, '--', p], cwd, 8000);
+    if (!treeRaw.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+    if (baseMissing) {
+      if (treeRaw.out.length) moved.push(p);
+      continue;
+    }
+    const entry = parseTreeLeaseEntry(treeRaw.out);
+    if (!entry || entry.path !== p || entry.type !== 'blob'
+      || entry.oid !== row.baseBlobOid.toLowerCase() || entry.mode !== row.baseGitMode) moved.push(p);
+  }
+  return moved.length
+    ? { ok: false, reason: 'git-selected-base-moved', paths: moved }
+    : { ok: true, checked: true };
+}
+
+// The user's real index is independent state. Before Publish and again while owning index.lock,
+// require every selected stage-0 entry to still equal the approved parent entry. Unrelated staged
+// paths are deliberately ignored here and later copied verbatim into the reconciled index.
+async function verifySelectedIndexBase(cwd, commit, files, expected, envExtra) {
+  if (!Array.isArray(expected)) return { ok: false, reason: 'approved-snapshot-invalid', paths: [] };
+  const byPath = new Map(expected.map((row) => [row && row.path, row]));
+  const uniqueFiles = Array.from(new Set(files));
+  const moved = [];
+  for (const p of uniqueFiles) {
+    const row = byPath.get(p);
+    if (!row) return { ok: false, reason: 'approved-snapshot-invalid', paths: [p] };
+    let missing, oid, mode;
+    if (rowHasBaseLease(row)) {
+      missing = row.baseMissing === true;
+      oid = row.baseBlobOid;
+      mode = row.baseGitMode;
+    } else {
+      const treeRaw = commit ? await execGitRaw(['ls-tree', '-z', commit, '--', p], cwd, 8000) : { ok: true, out: Buffer.alloc(0) };
+      if (!treeRaw.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+      if (!treeRaw.out.length) { missing = true; oid = null; mode = null; }
+      else {
+        const tree = parseTreeLeaseEntry(treeRaw.out);
+        if (!tree || tree.path !== p || tree.type !== 'blob' || !validPreparedGitMode(tree.mode)) {
+          return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+        }
+        missing = false; oid = tree.oid; mode = tree.mode;
+      }
+    }
+    const indexedRaw = await execGitRaw(['ls-files', '--stage', '-z', '--', p], cwd, 8000, envExtra);
+    if (!indexedRaw.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [p] };
+    if (missing) {
+      if (indexedRaw.out.length) moved.push(p);
+      continue;
+    }
+    const indexed = parseIndexLeaseEntry(indexedRaw.out);
+    if (!indexed || indexed.stage !== 0 || indexed.path !== p || indexed.oid !== String(oid).toLowerCase() || indexed.mode !== mode) moved.push(p);
+  }
+  return moved.length
+    ? { ok: false, reason: 'git-index-selected-path-moved', paths: moved }
+    : { ok: true, checked: true };
+}
+
+async function selectedIndexFingerprint(cwd, files, envExtra) {
+  try {
+    const hash = crypto.createHash('sha256');
+    const unique = Array.from(new Set(files)).sort();
+    for (const p of unique) {
+      const raw = await execGitRaw(['ls-files', '--stage', '-z', '--', p], cwd, 8000, envExtra);
+      if (!raw.ok) return null;
+      const label = Buffer.from(p, 'utf8');
+      const lens = Buffer.alloc(8);
+      lens.writeUInt32BE(label.length, 0); lens.writeUInt32BE(raw.out.length, 4);
+      hash.update(lens).update(label).update(raw.out);
+    }
+    return hash.digest('hex');
+  } catch { return null; }
+}
+
+// The isolated index must not acquire an EXTRA path through a hook, nor silently omit an approved
+// path. Compare the exact tree delta with rename detection disabled so old/new paths cannot collapse
+// into a presentation-only rename pair.
+async function verifyCommittedPathSet(cwd, oldHead, newHead, files) {
+  const args = oldHead
+    ? ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', oldHead, newHead]
+    : ['ls-tree', '-r', '--name-only', '-z', newHead];
+  const r = await execGitRaw(args, cwd, 8000);
+  if (!r.ok) return { ok: false, reason: 'approved-content-unverifiable', paths: [] };
+  const actual = new Set(r.out.toString('utf8').split('\0').filter(Boolean));
+  const approved = new Set(files);
+  const extra = Array.from(actual).filter((p) => !approved.has(p));
+  const missing = Array.from(approved).filter((p) => !actual.has(p));
+  return extra.length || missing.length
+    ? { ok: false, reason: 'approved-content-changed', paths: extra.concat(missing), extra, missing }
+    : { ok: true, checked: true };
+}
+
+// Commit SELECTIVO (NUNCA `git add -A`): stage exactamente os paths dados, depois commit.
+// Quando `expectedSnapshot` é fornecido, o blob staged de CADA path tem de ser byte-idêntico ao
+// snapshot aprovado; mismatch recusa o commit (e o chamador, portanto, nunca chega ao push).
+// Devolve o comando git exacto + resultado real (nunca "sucesso" presumido).
+async function gitCommit(cwd, files, message, expectedSnapshot, testHooks) {
+  if (!cwd || !Array.isArray(files) || !files.length || !message) return { ok: false, out: 'nothing to commit', cmd: '' };
+  // Legacy cockpit callers did not supply a content lease. Preserve that API/behaviour exactly.
+  if (expectedSnapshot == null) {
+    const ar = await execGit(['add', '--'].concat(files), cwd, 8000);
+    if (!ar.ok) return { ok: false, out: 'git add failed: ' + ar.out, cmd: 'git add -- ' + files.join(' ') };
+    const cr = await execGit(['commit', '-m', message, '--'].concat(files), cwd, 12000);
+    return { ok: cr.ok, out: cr.out, cmd: 'git add -- <' + files.length + ' file' + (files.length === 1 ? '' : 's') + '> && git commit -m "' + message + '"' };
+  }
+
+  // Content-bound Publish uses a private index. Starting from HEAD means the commit contains ONLY
+  // the selected paths, while unrelated files already staged by the user remain byte-for-byte in
+  // the real index. Committing without a pathspec is essential: `git commit -- <paths>` re-reads the
+  // worktree and would reopen a race after staged verification.
+  let tempDir = null;
+  const cmd = 'GIT_INDEX_FILE=<isolated> git add -- <' + files.length + ' file' + (files.length === 1 ? '' : 's')
+    + '> && git write-tree && git commit-tree <tree> -m "' + message + '" && git update-ref HEAD <candidate> <reviewed-HEAD>';
+  try {
+    const initialOperation = await gitOperationInProgress(cwd);
+    if (!initialOperation.ok) return { ok: false, reason: 'approved-content-unverifiable', out: 'Git operation state could not be verified; commit refused', cmd };
+    if (initialOperation.operation) return { ok: false, reason: 'git-operation-in-progress', out: 'a ' + initialOperation.operation + ' operation is in progress; finish or abort it before Publish', cmd: cmd + ' [refused]' };
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-publish-index-'));
+    const tempIndex = path.join(tempDir, 'index');
+    const isolatedEnv = { GIT_INDEX_FILE: tempIndex };
+    const old = await execGit(['rev-parse', '--verify', 'HEAD'], cwd, 5000);
+    const oldHead = old.ok ? String(old.out || '').split(/\r?\n/)[0].trim() : null;
+    const base = await verifySelectedBaseSnapshot(cwd, oldHead, files, expectedSnapshot);
+    if (!base.ok) {
+      const named = Array.isArray(base.paths) && base.paths.length ? ' (' + base.paths.slice(0, 5).join(', ') + ')' : '';
+      return { ok: false, reason: base.reason, out: 'selected parent-tree bytes changed after approval; commit refused' + named, cmd: cmd + ' [refused: ' + base.reason + ']' };
+    }
+    const preparedBaseLease = expectedSnapshot.length > 0 && expectedSnapshot.every((row) => rowHasBaseLease(row));
+    if (preparedBaseLease) {
+      const initialIndex = await verifySelectedIndexBase(cwd, oldHead, files, expectedSnapshot);
+      if (!initialIndex.ok) {
+        const named = Array.isArray(initialIndex.paths) && initialIndex.paths.length ? ' (' + initialIndex.paths.slice(0, 5).join(', ') + ')' : '';
+        return { ok: false, reason: initialIndex.reason, out: 'selected staging changed after approval; commit refused' + named, cmd: cmd + ' [refused: ' + initialIndex.reason + ']' };
+      }
+    }
+    const initialIndexFingerprint = await selectedIndexFingerprint(cwd, files);
+    if (!initialIndexFingerprint) return { ok: false, reason: 'approved-content-unverifiable', out: 'selected staging could not be leased; commit refused', cmd: cmd + ' [refused]' };
+    const init = oldHead
+      ? await execGit(['read-tree', oldHead], cwd, 8000, isolatedEnv)
+      : await execGit(['read-tree', '--empty'], cwd, 8000, isolatedEnv);
+    if (!init.ok) return { ok: false, reason: 'approved-content-unverifiable', out: 'isolated Git index could not be initialised; commit refused', cmd };
+    const ar = await execGit(['add', '--'].concat(files), cwd, 8000, isolatedEnv);
+    if (!ar.ok) return { ok: false, reason: 'commit-failed', out: 'isolated git add failed: ' + ar.out, cmd };
+    const verified = await verifyStagedSnapshot(cwd, files, expectedSnapshot, isolatedEnv);
+    if (!verified.ok) {
+      const named = Array.isArray(verified.paths) && verified.paths.length ? ' (' + verified.paths.slice(0, 5).join(', ') + ')' : '';
+      return {
+        ok: false,
+        reason: verified.reason,
+        out: verified.reason === 'approved-content-changed'
+          ? 'approved file content changed before commit; commit refused' + named
+          : 'approved file content could not be verified; commit refused' + named,
+        cmd: cmd + ' [refused: ' + verified.reason + ']',
+      };
+    }
+
+    // Deterministic test seam only (never passed by the extension): lets regression tests advance
+    // HEAD or mutate bytes at the exact old TOCTOU boundary without sleeps/flaky filesystem races.
+    if (testHooks && typeof testHooks.afterVerify === 'function') await testHooks.afterVerify({ cwd, tempIndex, isolatedEnv: Object.assign({}, isolatedEnv) });
+
+    const operationBeforeCommit = await gitOperationInProgress(cwd);
+    if (!operationBeforeCommit.ok) return { ok: false, reason: 'approved-content-unverifiable', out: 'Git operation state could not be re-verified; commit refused', cmd };
+    if (operationBeforeCommit.operation) return { ok: false, reason: 'git-operation-in-progress', out: 'a ' + operationBeforeCommit.operation + ' operation started while Publish was preparing; branch and push left untouched', cmd: cmd + ' [refused]' };
+
+    // Build the tree/commit OFF the captured oldHead, then publish it to the branch with one CAS.
+    // A porcelain `git commit` would re-read the current HEAD after our read-tree and could parent a
+    // stale tree onto somebody else's concurrent commit, reverting their bytes. commit-tree fixes the
+    // parent explicitly; update-ref <new> <old> fails instead of overwriting when HEAD moved.
+    const wt = await execGit(['write-tree'], cwd, 8000, isolatedEnv);
+    const tree = wt.ok ? String(wt.out || '').split(/\r?\n/)[0].trim() : null;
+    if (!tree) return { ok: false, reason: 'approved-content-unverifiable', out: 'approved Git tree could not be built; commit refused', cmd };
+    const commitArgs = ['commit-tree', tree];
+    if (oldHead) commitArgs.push('-p', oldHead);
+    commitArgs.push('-m', message);
+    const made = await execGit(commitArgs, cwd, 12000, isolatedEnv);
+    const newHead = made.ok ? String(made.out || '').split(/\r?\n/)[0].trim() : null;
+    if (!newHead || !/^[a-f0-9]{40,64}$/i.test(newHead)) return { ok: false, reason: 'commit-failed', out: made.out || 'commit object was not created', cmd };
+    const pathSet = await verifyCommittedPathSet(cwd, oldHead, newHead, files);
+    const committed = pathSet.ok ? await verifyCommittedSnapshot(cwd, newHead, files, expectedSnapshot) : pathSet;
+    if (!committed.ok) return { ok: false, reason: committed.reason, out: 'candidate commit differed from the exact approved paths/bytes; branch and push untouched', cmd: cmd + ' [refused]' };
+
+    // Reconcile the REAL index transactionally. Owning `<index>.lock` blocks Git index writers;
+    // under that lock we re-check selected entries, copy the latest index (thus preserving any
+    // unrelated staging), update only the approved paths in the copy, and fsync the replacement.
+    // HEAD advances by CAS while the lock is held; only then is lock→index renamed atomically.
+    const indexResolved = await execGit(['rev-parse', '--git-path', 'index'], cwd, 5000);
+    const indexText = indexResolved.ok ? String(indexResolved.out || '').split(/\r?\n/)[0].trim() : '';
+    const realIndexPath = indexText ? (path.isAbsolute(indexText) ? path.resolve(indexText) : path.resolve(cwd, indexText)) : null;
+    if (!realIndexPath || !fs.existsSync(realIndexPath)) {
+      return { ok: false, reason: 'approved-content-unverifiable', out: 'real Git index could not be resolved; branch and push left untouched', cmd: cmd + ' [refused]' };
+    }
+    const lockPath = realIndexPath + '.lock';
+    let lockFd = null;
+    let lockOwned = false;
+    try {
+      try { lockFd = fs.openSync(lockPath, 'wx', 0o600); lockOwned = true; }
+      catch { return { ok: false, reason: 'git-index-lock-busy', out: 'the Git index is busy; branch and push left untouched', cmd: cmd + ' [refused]' }; }
+
+      const lockedFingerprint = await selectedIndexFingerprint(cwd, files);
+      if (!lockedFingerprint || lockedFingerprint !== initialIndexFingerprint) {
+        return { ok: false, reason: 'git-index-selected-path-moved', out: 'selected staging changed while Publish was preparing; commit refused', cmd: cmd + ' [refused: git-index-selected-path-moved]' };
+      }
+      if (preparedBaseLease) {
+        const lockedIndex = await verifySelectedIndexBase(cwd, oldHead, files, expectedSnapshot);
+        if (!lockedIndex.ok) {
+          const named = Array.isArray(lockedIndex.paths) && lockedIndex.paths.length ? ' (' + lockedIndex.paths.slice(0, 5).join(', ') + ')' : '';
+          return { ok: false, reason: lockedIndex.reason, out: 'selected staging changed while Publish was preparing; commit refused' + named, cmd: cmd + ' [refused: ' + lockedIndex.reason + ']' };
+        }
+      }
+      const operationBeforeCas = await gitOperationInProgress(cwd);
+      if (!operationBeforeCas.ok) return { ok: false, reason: 'approved-content-unverifiable', out: 'Git operation state could not be re-verified; branch and push left untouched', cmd };
+      if (operationBeforeCas.operation) return { ok: false, reason: 'git-operation-in-progress', out: 'a ' + operationBeforeCas.operation + ' operation started while Publish was preparing; branch and push left untouched', cmd: cmd + ' [refused]' };
+
+      const nextIndex = path.join(tempDir, 'reconciled-index');
+      fs.copyFileSync(realIndexPath, nextIndex);
+      const nextEnv = { GIT_INDEX_FILE: nextIndex };
+      const sync = await execGit(['reset', '-q', newHead, '--'].concat(files), cwd, 8000, nextEnv);
+      if (!sync.ok) return { ok: false, reason: 'approved-content-unverifiable', out: 'selected paths could not be reconciled in an isolated index; branch and push left untouched', cmd: cmd + ' [refused]' };
+      const nextVerified = await verifyStagedSnapshot(cwd, files, expectedSnapshot, nextEnv);
+      if (!nextVerified.ok) return { ok: false, reason: nextVerified.reason, out: 'reconciled index differs from the approved commit; branch and push left untouched', cmd: cmd + ' [refused]' };
+      const nextRaw = fs.readFileSync(nextIndex);
+      fs.writeSync(lockFd, nextRaw, 0, nextRaw.length, 0);
+      fs.fsyncSync(lockFd);
+      fs.closeSync(lockFd); lockFd = null;
+
+      const zero = '0'.repeat(newHead.length);
+      const cas = await execGit(['update-ref', 'HEAD', newHead, oldHead || zero], cwd, 8000);
+      if (!cas.ok) return { ok: false, reason: 'git-head-moved', out: 'HEAD changed while Publish was preparing the approved commit; branch and push left untouched', cmd: cmd + ' [CAS refused]' };
+      try {
+        fs.renameSync(lockPath, realIndexPath);
+        lockOwned = false;
+      } catch (e) {
+        // Best-effort rollback keeps the operation fail-closed. Even if another ref writer makes
+        // rollback impossible, the old real index remains untouched and no push is attempted.
+        await execGit(['update-ref', 'HEAD', oldHead || zero, newHead], cwd, 8000);
+        return { ok: false, reason: 'git-index-reconcile-failed', out: 'commit object was prepared but the real index could not be atomically reconciled; push refused: ' + String((e && e.message) || e), cmd: cmd + ' [index rename refused]' };
+      }
+      return { ok: true, out: newHead + ' ' + message, cmd, head: newHead, parent: oldHead };
+    } finally {
+      if (lockFd !== null) { try { fs.closeSync(lockFd); } catch { /* best-effort */ } }
+      if (lockOwned) { try { fs.unlinkSync(lockPath); } catch { /* best-effort */ } }
+    }
+  } catch (e) {
+    return { ok: false, reason: 'commit-failed', out: String((e && e.message) || e), cmd };
+  } finally {
+    if (tempDir) { try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* owned temp only */ } }
+  }
+}
+
+// Push (NUNCA `--force`). Resolve outra vez o destino honesto e envia explicitamente HEAD para a
+// MESMA remote+branch mostrada por gitRemoteInfo — nunca deixa `push.default` escolher outro lugar.
+// Gated a montante por confirmação modal.
+async function gitPush(cwd, expectedHead, expectedDestination, testHooks) {
   if (!cwd) return { ok: false, out: 'no cwd', cmd: '' };
-  const r = await execGit(['push'], cwd, 30000);
-  return { ok: r.ok, out: r.out, cmd: 'git push' };
+  const destination = await gitRemoteInfo(cwd);
+  if (!destination.available || !destination.name || !destination.targetBranch) {
+    return { ok: false, reason: destination.reason || 'git-destination-unverifiable', out: 'no single verifiable git push destination', cmd: '' };
+  }
+  if (expectedDestination != null) {
+    const same = expectedDestination && destination.name === expectedDestination.name
+      && destination.targetBranch === expectedDestination.targetBranch
+      && destination.url === expectedDestination.url;
+    if (!same) return { ok: false, reason: 'git-destination-changed', out: 'Git remote/branch changed after confirmation; push refused', cmd: '' };
+  }
+  let source = 'HEAD';
+  if (expectedHead != null) {
+    const wanted = String(expectedHead).trim();
+    if (!/^[a-f0-9]{40,64}$/i.test(wanted)) return { ok: false, reason: 'git-head-moved', out: 'approved commit identity is invalid; push refused', cmd: '' };
+    const current = await execGit(['rev-parse', '--verify', 'HEAD'], cwd, 5000);
+    const actual = current.ok ? String(current.out || '').split(/\r?\n/)[0].trim() : null;
+    if (actual !== wanted) return { ok: false, reason: 'git-head-moved', out: 'HEAD changed after the approved commit; push refused', cmd: '' };
+    // Push the immutable approved object id, not a mutable `HEAD` token. If HEAD races after this
+    // check, Git still sends only the commit whose bytes/path-set passed the lease.
+    source = wanted;
+  }
+  const refspec = source + ':refs/heads/' + destination.targetBranch;
+  // Never pass the remote NAME to push: a remote may fan out to multiple pushurl entries after the
+  // approval snapshot. Push the exact sanitized URL that was displayed/frozen. A command-scoped,
+  // nonce URL maps to that destination with an exact-length pushInsteadOf rule. This makes the rule
+  // strictly more specific than any ambient url.* rewrite and prevents a late local/global config
+  // change from redirecting the explicit URL. Git applies URL rewriting once; the transport receives
+  // `destination.url`. The nonce itself is non-secret and exists only for this process invocation.
+  const alias = 'https://mooter-publish.invalid/' + crypto.randomBytes(16).toString('hex');
+  const freezeRule = 'url.' + destination.url + '.pushInsteadOf=' + alias;
+  const pushArgs = ['-c', freezeRule, 'push', '--', alias, refspec];
+  const r = testHooks && typeof testHooks.execPush === 'function'
+    ? await testHooks.execPush(pushArgs.slice(), { cwd, destination: Object.assign({}, destination), alias, freezeRule, refspec })
+    : await execGit(pushArgs, cwd, 30000);
+  return {
+    ok: r.ok,
+    out: r.out,
+    reason: r.ok ? undefined : 'push-failed',
+    cmd: 'git push ' + destination.url + ' ' + source + ':refs/heads/' + destination.targetBranch,
+    remote: destination.name,
+    url: destination.url,
+    branch: destination.targetBranch,
+    head: expectedHead || null,
+  };
 }
 
 // Open/recent PRs from gh, scoped to the repo at `cwd` (gh runs in that dir → the PRs
@@ -2745,9 +3658,9 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   parseEffort, parseIntent, parseSpanIds, effortGet, effortSet, whyNotFable, trailJson, securitySummary, feedbackSpans, rateSpan, intentResolve, MOOTER_CLI,
   deviceProfile, hwCapability, quantSnapshot, preferences, readBudget, writeBudget, readPinNext, writePinNext, liveRouting, SLASH_CMDS, mooterScore, installedPacks,
   slashCommands, _packDescription,
-  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, activeSession,
-  execTool, _sessionCwd, gitBranch, gitStage, prList, prStage,
-  parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
+  PRICES, priceFor, costFor, tokenLedger, aggregateUsage, localTokens, recentSessions, sessionSummaries, _lastTranscriptModel, activeSession,
+  execTool, _sessionCwd, gitBranch, gitRemoteInfo, sanitizeGitRemoteUrl, gitStage, prList, prStage,
+  parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, prepareApprovedSnapshot, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk, _isAskingUser,
   extractPending, extractTouchedFiles, sessionUnsaved, _relForCwd, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,

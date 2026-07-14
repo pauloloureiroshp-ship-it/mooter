@@ -1,9 +1,14 @@
 // data.test.js — backend audit suite (node --test). Fixtures = REAL log lines (F0).
 'use strict';
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const http = require('http');
+// The mode registry is live user state. Isolate it before host-extra/mode-registry are loaded so
+// tests cannot race the running VS Code extension or accumulate fixture sessions in ~/.claude.
+const registryTestDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-mode-registry-test-'));
+process.env.MOOTER_MODE_REGISTRY_DIR = registryTestDir;
+after(() => { try { fs.rmSync(registryTestDir, { recursive: true, force: true }); } catch { /* best-effort */ } });
 const d = require('./data.js');
 
 const REAL_LINE = '{"ts":"2026-06-11T19:24:14.289Z","ts_ms":1781205854290,"event":"classified","session_id":"validate-test","prompt_len":50,"prompt_preview":"refactor the auth middleware to add refresh tokens","tier":"T3","task_category":"architecture_or_critical","recommended_backend":"claude_subagent","recommended_model":"claude-opus-4-6","confidence":0.75,"escalation_rule":"none","quality_intent":false,"cache_hit":false}';
@@ -336,7 +341,11 @@ test('recentSessions: async, each entry has cwd + branch (string|null, never fab
 
 // ── WCOCKPIT: mode-registry unit tests ──
 const mr = require('./mode-registry');
-const tmpSession = 'test-session-wcockpit-' + process.pid;
+// Windows can reuse the child PID across WSL-launched test runs. Keep a per-module nonce as a second
+// isolation layer inside the disposable registry so repeated/retried cases never inherit stale fields.
+const registryTestRun = process.pid + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 0x100000000).toString(36);
+const registrySid = (prefix) => prefix + registryTestRun;
+const tmpSession = registrySid('test-session-wcockpit-');
 
 test('mode-registry: DEFAULT is {mode:"moo", model:null, auto:false}', () => {
   assert.equal(mr.DEFAULT.mode, 'moo');
@@ -349,7 +358,7 @@ test('mode-registry: MODES has exactly lazy/moo/crazy', () => {
 });
 
 test('mode-registry: get unknown session → DEFAULT fields', () => {
-  const e = mr.get('__no_such_session_ever__');
+  const e = mr.get(registrySid('__no_such_session_ever__-'));
   assert.equal(e.mode, 'moo');
   assert.equal(e.model, null);
   assert.equal(e.auto, false);
@@ -508,7 +517,7 @@ test('mode-registry WCOCKPIT-2: DEFAULT has notion/obsidian integration fields',
 });
 
 test('mode-registry WCOCKPIT-2: decorate fills integration fields on row', () => {
-  const sid = 'wcockpit2-test-' + process.pid;
+  const sid = registrySid('wcockpit2-test-');
   mr.set(sid, { notionPageId: 'notion-abc', notionSyncedAt: '2026-06-23T00:00:00Z', obsidianPath: '/vault/note.md' });
   const row = { fullId: sid };
   mr.decorate(row);
@@ -519,7 +528,7 @@ test('mode-registry WCOCKPIT-2: decorate fills integration fields on row', () =>
 });
 
 test('mode-registry WCOCKPIT-2: touchSync updates notionSyncedAt atomically', () => {
-  const sid = 'wcockpit2-touch-' + process.pid;
+  const sid = registrySid('wcockpit2-touch-');
   mr.set(sid, { mode: 'moo' }); // fresh entry
   const before = mr.get(sid).notionSyncedAt;
   assert.equal(before, null); // not set yet
@@ -530,7 +539,7 @@ test('mode-registry WCOCKPIT-2: touchSync updates notionSyncedAt atomically', ()
 });
 
 test('mode-registry WCOCKPIT-2: touchSync updates obsidianSyncedAt independently', () => {
-  const sid = 'wcockpit2-touch-obs-' + process.pid;
+  const sid = registrySid('wcockpit2-touch-obs-');
   mr.set(sid, { notionSyncedAt: '2026-01-01T00:00:00Z' });
   mr.touchSync(sid, 'obsidian');
   const e = mr.get(sid);
@@ -539,7 +548,7 @@ test('mode-registry WCOCKPIT-2: touchSync updates obsidianSyncedAt independently
 });
 
 test('mode-registry WCOCKPIT-2: touchSync rejects invalid `which` → false', () => {
-  const sid = 'wcockpit2-bad-' + process.pid;
+  const sid = registrySid('wcockpit2-bad-');
   assert.equal(mr.touchSync(sid, 'slack'), false);
   assert.equal(mr.touchSync('', 'notion'), false);
   assert.equal(mr.touchSync(null, 'notion'), false);
@@ -1247,7 +1256,7 @@ test('WCOCKPIT-6 renderGroupHeader: rolls up branch + uncommitted git once for t
 
 // ── WCOCKPIT-7: clear/close sessions + compact drawer ──
 test('WCOCKPIT-7 mode-registry: archive/isArchived/unarchive lifecycle', () => {
-  const sid = 'wc7-arch-' + process.pid;
+  const sid = registrySid('wc7-arch-');
   mr.set(sid, { mode: 'moo' });
   const t0 = Date.now();
   assert.equal(mr.isArchived(sid, t0), false, 'not archived initially');
@@ -1276,7 +1285,7 @@ test('WCOCKPIT-7 renderRow: integrations inline in control row (no standalone .s
 // ════════════════════════════════════════════════════════════════════════════
 
 test('WCOCKPIT-9 mode-registry: setCowork persists project/title/conversation + decorate reads them (sem mapa)', () => {
-  const sid = 'wc9-cowork-' + process.pid;
+  const sid = registrySid('wc9-cowork-');
   mr.setCowork(sid, { project: 'Mooter.ai', title: 'Wave WCOCKPIT-9 brain', conversationId: 'conv-123' });
   const row = { fullId: sid };
   mr.decorate(row, {}); // mapa Cowork vazio → cai para os campos do registo
@@ -1287,7 +1296,7 @@ test('WCOCKPIT-9 mode-registry: setCowork persists project/title/conversation + 
 });
 
 test('WCOCKPIT-9 mode-registry: decorate PREFERE o mapa Cowork persistente sobre o registo', () => {
-  const sid = 'wc9-prio-' + process.pid;
+  const sid = registrySid('wc9-prio-');
   mr.setCowork(sid, { project: 'Registry Project', title: 'reg title' });
   const map = { [sid]: { coworkProject: 'Real Cowork Project', coworkTitle: 'map title', coworkConversationId: 'c9' } };
   const row = { fullId: sid };
@@ -1298,7 +1307,7 @@ test('WCOCKPIT-9 mode-registry: decorate PREFERE o mapa Cowork persistente sobre
 });
 
 test('WCOCKPIT-9 mode-registry: sem mapa nem registo → coworkProject null (nunca inventado)', () => {
-  const row = { fullId: '__wc9_no_cowork_ever__' };
+  const row = { fullId: registrySid('__wc9_no_cowork_ever__-') };
   mr.decorate(row, {});
   assert.equal(row.coworkProject, null, 'no Cowork mapping → null fallback (honest)');
 });
@@ -1310,7 +1319,7 @@ test('WCOCKPIT-9 mode-registry: readCoworkMap nunca lança (ficheiro ausente →
 });
 
 test('WCOCKPIT-9 mode-registry: setLoop persiste + decorate expõe row.loop (Bloco F)', () => {
-  const sid = 'wc9-loop-' + process.pid;
+  const sid = registrySid('wc9-loop-');
   mr.setLoop(sid, true);
   const row = { fullId: sid };
   mr.decorate(row, {});
@@ -1508,7 +1517,7 @@ test('WCOCKPIT-9 (Bloco E) renderRow: nextSlash armado mostra "next ▶" + opç�
 });
 
 test('WCOCKPIT-9 (Bloco E) mode-registry: setNextSlash persiste + decorate expõe row.nextSlash', () => {
-  const sid = 'wc9-slash-' + process.pid;
+  const sid = registrySid('wc9-slash-');
   mr.setNextSlash(sid, '/mooter route');
   const row = { fullId: sid };
   mr.decorate(row, {});
@@ -1846,7 +1855,7 @@ test('⇄ Handoff writeHandoffToSync: upsert num SYNC.md já existente preserva 
 test('⇄ Handoff mode-registry: setHandoff persiste handoffSentAt + decorate expõe (aditivo)', () => {
   assert.ok('handoffSentAt' in mr.DEFAULT, 'DEFAULT carries handoffSentAt');
   assert.equal(mr.DEFAULT.handoffSentAt, null);
-  const sid = 'handoff-reg-' + process.pid;
+  const sid = registrySid('handoff-reg-');
   const row0 = { fullId: sid };
   mr.decorate(row0, {});
   assert.equal(row0.handoffSentAt, null, 'unset → null (never fabricated)');
@@ -1879,7 +1888,7 @@ test('⇄ Handoff v3 host-side flow (handler sim): clipboard + handoffSentAt + S
   // Espelha a sequência do handler m.cmd==="handoff" SEM vscode: generate → clipboard(mock)
   // → setHandoff → writeHandoffToSync. (O handler real adiciona apenas clipboard.writeText + toast.)
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-handoff-'));
-  const sid = 'handoff-sim-' + process.pid;
+  const sid = registrySid('handoff-sim-');
   const row = { fullId: sid, id: sid.slice(0, 8), name: 'wire the handoff button', cwd: tmpDir,
     branch: 'wave/cockpit-handoff', model: 'claude-opus-4-8', mode: 'moo',
     turns: 7, saved: 0.9, gitStage: { state: 'uncommitted', dirty: 2, staged: 0, ahead: 0, behind: 0 },

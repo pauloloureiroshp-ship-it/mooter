@@ -24,7 +24,7 @@ anthropic.com/news/claude-partner-network · pearsonvue.com/us/en/anthropic.html
 **FIX-MP-1 (P0-1: edição amarrada à árvore servida) e o fix da fence stale assimétrica (P1-2) devem
 estar executados ou em execução ANTES das Fases B-D.** Senão o baseline nasce medindo bugs já
 conhecidos e a auditoria re-encontra o próprio backlog. **A Fase A (harness, read-only) pode correr
-já, em paralelo aos fixes.** Confrontar `_handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md` +
+já, em paralelo aos fixes.** Confrontar `_handoff/_archive/2026-07/LIVE_PREVIEW_AUDIT_FINDINGS.md` +
 `docs/strategy/LIVE_EDIT_ROADMAP.md` antes de arrancar.
 
 ## 1. Mapa CCA-Foundations (domínios oficiais → o que auditar no Live Edit)

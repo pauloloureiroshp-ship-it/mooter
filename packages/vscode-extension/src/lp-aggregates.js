@@ -48,6 +48,11 @@ function str(v, max) {
   return t.length > m ? t.slice(0, m) : t;
 }
 function num(v) { return (typeof v === 'number' && Number.isFinite(v)) ? v : null; }
+function uniqueList(items) {
+  const seen = new Set(); const out = [];
+  for (const item of (Array.isArray(items) ? items : [])) { if (item && !seen.has(item)) { seen.add(item); out.push(item); } }
+  return out;
+}
 
 // ── dayKeyOf(ts) — LOCAL-day bucket key (YYYY-MM-DD) or null ────────────────────────────
 // Local timezone on purpose: the user lives in local time (see the clock() UTC bugfix in
@@ -477,8 +482,191 @@ function buildFleet(raw) {
   return { heartbeat: heartbeat, pillars: pillars, resting: resting };
 }
 
+// ── MEO Control Tower — cross-agent executive projection ───────────────────────────────
+// The ledger is LOCAL operational state. Tail-read only; absence is a visible coverage
+// gap, never an empty-success state. Old v1 and current v2 rows are both accepted.
+function readAgentSync(wsRoot, ledgerPath, maxN) {
+  try {
+    const file = ledgerPath || (wsRoot ? path.join(wsRoot, '_handoff', 'agent-sync', 'events.jsonl') : null);
+    if (!file) return [];
+    const st = fs.statSync(file);
+    if (!st.isFile() || st.size === 0) return [];
+    const start = Math.max(0, st.size - 256 * 1024);
+    const fd = fs.openSync(file, 'r'); let buf;
+    try { buf = Buffer.alloc(st.size - start); fs.readSync(fd, buf, 0, buf.length, start); }
+    finally { fs.closeSync(fd); }
+    const rows = [];
+    for (const line of buf.toString('utf8').split('\n')) {
+      if (!line.trim()) continue;
+      try { const e = JSON.parse(line); if (e && typeof e === 'object' && e.ts) rows.push(e); } catch { /* truncated tail */ }
+    }
+    const cap = Number.isFinite(maxN) && maxN > 0 ? maxN : 400;
+    return rows.length > cap ? rows.slice(rows.length - cap) : rows;
+  } catch { return []; }
+}
+
+// local/subscription/cloud is a DISPLAY classification with an explicit basis. An explicit
+// provider/local flag wins; model-family fallback is labelled `model-family`, never presented
+// as connector proof. Unknown stays n/d.
+function executionChannel(model, provider, local, explicitChannel) {
+  const p = String(provider || '').toLowerCase();
+  const m = String(model || '').toLowerCase();
+  const explicit = String(explicitChannel || '').toLowerCase();
+  if (explicit === 'local' || explicit === 'subscription' || explicit === 'api' || explicit === 'cloud') {
+    return { channel: explicit, provider: provider || null, basis: 'typed-ledger' };
+  }
+  if (local === true || p === 'ollama' || p === 'local') return { channel: 'local', provider: provider || 'ollama', basis: local === true ? 'explicit-local' : 'explicit-provider' };
+  if (local === false && p === 'anthropic') return { channel: 'subscription', provider: provider, basis: 'explicit-provider' };
+  if (p === 'anthropic' || p === 'claude-code') return { channel: 'subscription', provider: provider || 'anthropic', basis: 'explicit-provider' };
+  if (p === 'openai' || p === 'google' || p === 'fable') return { channel: 'cloud', provider: provider, basis: 'explicit-provider' };
+  if (/qwen|llama|gemma|deepseek|mistral|phi|ollama/.test(m) || (m && m.indexOf(':') !== -1)) return { channel: 'local', provider: 'ollama', basis: 'model-family' };
+  if (/^claude-|opus|sonnet|haiku/.test(m)) return { channel: 'subscription', provider: 'anthropic', basis: 'model-family' };
+  if (/gemini/.test(m)) return { channel: 'cloud', provider: 'google', basis: 'model-family' };
+  if (/gpt|codex|openai/.test(m)) return { channel: 'cloud', provider: 'openai', basis: 'model-family' };
+  return { channel: null, provider: provider || null, basis: null };
+}
+
+function buildExecutive(input) {
+  const o = input || {};
+  const bus = Array.isArray(o.events) ? o.events : [];
+  const exec = Array.isArray(o.exec) ? o.exec : [];
+  const ledger = Array.isArray(o.ledger) ? o.ledger : [];
+  const catalog = Array.isArray(o.sessions) ? o.sessions : [];
+  const sessionById = new Map();
+  for (const s of catalog) if (s && s.fullId) sessionById.set(s.fullId, s);
+
+  function sessionOf(sid) { return sid ? (sessionById.get(sid) || null) : null; }
+  function titleOf(sid, explicit) { const s = sessionOf(sid); return str(explicit, 160) || (s && str(s.title, 160)) || null; }
+  function tsMs(ts) { const n = Date.parse(ts); return Number.isFinite(n) ? n : 0; }
+  const timeline = [];
+
+  for (const e of bus) {
+    if (!e || typeof e !== 'object') continue;
+    const ch = executionChannel(e.model, null, typeof e.local === 'boolean' ? e.local : null);
+    timeline.push({
+      ts: str(e.ts, 40), source: 'stream', kind: str(e.kind, 40), status: str(e.phase, 24),
+      agent: e.sid ? 'claude-code' : null, attribution: e.sid ? 'live-preview-hook' : null,
+      provider: ch.provider, channel: ch.channel, channelBasis: ch.basis,
+      model: str(e.model, 120), tier: str(e.tier, 20), role: null,
+      sid: str(e.sid, 120), sessionTitle: titleOf(e.sid),
+      summary: str(e.summary || e.tool || e.path, 240), path: str(e.path, 400),
+      wave: null, pr: null, targets: [], evidence: ['runtime'], git: null,
+      notionRef: null, obsidianRef: null,
+    });
+  }
+
+  for (const x of exec) {
+    if (!x || typeof x !== 'object') continue;
+    const ch = executionChannel(x.model, null, null);
+    timeline.push({
+      ts: str(x.ts, 40), source: 'execution', kind: x.op === 'agent' ? 'agent-op' : 'tool-op', status: null,
+      agent: x.agent ? str(x.agent, 80) : (ch.channel === 'local' ? 'ollama' : 'claude-code'),
+      attribution: x.agent ? 'execution-agent-marker' : (ch.basis ? 'execution-model-family' : 'execution-hook'),
+      provider: ch.provider, channel: ch.channel, channelBasis: ch.basis,
+      model: str(x.model, 120), tier: null, role: str(x.role, 60),
+      sid: str(x.sid, 120), sessionTitle: titleOf(x.sid),
+      summary: str(x.cmd, 240), path: null, wave: null, pr: null, targets: [],
+      evidence: ['runtime'], git: null, notionRef: null, obsidianRef: null,
+    });
+  }
+
+  for (const e of ledger) {
+    if (!e || typeof e !== 'object') continue;
+    const ch = executionChannel(e.model, e.provider, null, e.execution_channel || e.channel);
+    timeline.push({
+      ts: str(e.ts, 40), source: 'ledger', kind: str(e.kind, 40), status: str(e.status, 40),
+      agent: str(e.agent, 80), attribution: 'typed-ledger',
+      provider: ch.provider, channel: ch.channel, channelBasis: ch.basis,
+      model: str(e.model, 120), tier: null, role: null,
+      sid: str(e.session_id, 120), sessionTitle: titleOf(e.session_id, e.session_title),
+      summary: str(e.summary, 700), path: str(e.artifact, 200),
+      wave: str(e.wave, 120), pr: str(e.pr, 120),
+      targets: Array.isArray(e.target_agents) ? e.target_agents.slice(0, 8) : [],
+      evidence: Array.isArray(e.evidence) ? e.evidence.slice(0, 16) : [],
+      git: e.git && typeof e.git === 'object' ? e.git : null,
+      notionRef: str(e.notion_ref, 240), obsidianRef: str(e.obsidian_ref, 240),
+    });
+  }
+
+  timeline.sort(function (a, b) { return tsMs(b.ts) - tsMs(a.ts); });
+  const shownTimeline = timeline.slice(0, 240);
+
+  const sessions = new Map();
+  function sessionRow(sid) {
+    const key = sid || '__unknown__';
+    let r = sessions.get(key);
+    if (!r) {
+      const c = sessionOf(sid);
+      r = {
+        sid: sid || null, title: c ? c.title : null, lastTs: c && c.lastActiveTs ? new Date(c.lastActiveTs).toISOString() : null,
+        models: new Set(), agents: new Set(), channels: new Set(), steps: 0,
+        streamSteps: 0, executionSteps: 0, ledgerSteps: 0, handoffs: 0,
+        wave: null, pr: null, branch: null,
+        notionRef: c ? (c.notionPageId || null) : null, notionSyncedAt: c ? (c.notionSyncedAt || null) : null,
+        obsidianRef: c ? (c.obsidianPath || null) : null, obsidianSyncedAt: c ? (c.obsidianSyncedAt || null) : null,
+        handoffSentAt: c ? (c.handoffSentAt || null) : null,
+      };
+      sessions.set(key, r);
+    }
+    return r;
+  }
+  for (const c of catalog) if (c && c.fullId) sessionRow(c.fullId);
+  for (const e of shownTimeline) {
+    const r = sessionRow(e.sid);
+    r.steps++;
+    if (e.source === 'stream') r.streamSteps++; else if (e.source === 'execution') r.executionSteps++; else if (e.source === 'ledger') r.ledgerSteps++;
+    if (e.model) r.models.add(e.model); if (e.agent) r.agents.add(e.agent); if (e.channel) r.channels.add(e.channel);
+    if (!r.title && e.sessionTitle) r.title = e.sessionTitle;
+    if (!r.lastTs || tsMs(e.ts) > tsMs(r.lastTs)) r.lastTs = e.ts;
+    if (e.kind === 'handoff' || e.kind === 'brief') r.handoffs++;
+    if (e.wave) r.wave = e.wave; if (e.pr) r.pr = e.pr;
+    if (e.git && e.git.branch) r.branch = e.git.branch;
+    if (e.notionRef) r.notionRef = e.notionRef; if (e.obsidianRef) r.obsidianRef = e.obsidianRef;
+  }
+  const sessionList = Array.from(sessions.values()).map(function (r) {
+    r.models = Array.from(r.models).sort(); r.agents = Array.from(r.agents).sort(); r.channels = Array.from(r.channels).sort(); return r;
+  }).sort(function (a, b) { return tsMs(b.lastTs) - tsMs(a.lastTs); }).slice(0, 60);
+
+  const agentMap = new Map();
+  for (const e of shownTimeline) {
+    if (!e.agent) continue;
+    let a = agentMap.get(e.agent);
+    if (!a) { a = { agent: e.agent, steps: 0, lastTs: null, models: new Set(), channels: new Set(), sessions: new Set() }; agentMap.set(e.agent, a); }
+    a.steps++; if (e.model) a.models.add(e.model); if (e.channel) a.channels.add(e.channel); if (e.sid) a.sessions.add(e.sid);
+    if (!a.lastTs || tsMs(e.ts) > tsMs(a.lastTs)) a.lastTs = e.ts;
+  }
+  const agents = Array.from(agentMap.values()).map(function (a) {
+    a.models = Array.from(a.models).sort(); a.channels = Array.from(a.channels).sort(); a.sessions = Array.from(a.sessions); return a;
+  }).sort(function (a, b) { return tsMs(b.lastTs) - tsMs(a.lastTs); });
+
+  const handoffs = shownTimeline.filter(function (e) { return e.source === 'ledger' && (e.kind === 'handoff' || e.kind === 'brief'); }).slice(0, 40);
+  const mirrors = {
+    notion: shownTimeline.filter(function (e) { return e.notionRef || e.evidence.indexOf('notion-export') !== -1; }).slice(0, 20),
+    obsidian: shownTimeline.filter(function (e) { return e.obsidianRef || e.evidence.indexOf('obsidian-vault') !== -1; }).slice(0, 20),
+  };
+  const waves = uniqueList(ledger.map(function (e) { return str(e && e.wave, 120); }).filter(Boolean));
+  const prs = uniqueList(ledger.map(function (e) { return str(e && e.pr, 120); }).filter(Boolean));
+  const branches = uniqueList(ledger.map(function (e) { return e && e.git && str(e.git.branch, 160); }).filter(Boolean));
+  const titled = sessionList.filter(function (s) { return !!s.title; }).length;
+  const modelled = shownTimeline.filter(function (e) { return !!e.model; }).length;
+  const warnings = [];
+  if (!ledger.length) warnings.push('agent-sync Ledger ausente — handoffs e autoria cross-agent ficam n/d');
+  if (titled < sessionList.length) warnings.push((sessionList.length - titled) + ' sessão(ões) sem título resolvido');
+  if (modelled < shownTimeline.length) warnings.push((shownTimeline.length - modelled) + ' etapa(s) sem modelo atribuído');
+
+  return {
+    generatedAt: new Date().toISOString(), timeline: shownTimeline, sessions: sessionList, agents,
+    handoffs, mirrors, delivery: { waves, prs, branches },
+    coverage: {
+      ledgerPresent: ledger.length > 0, ledgerEvents: ledger.length, streamEvents: bus.length,
+      executionOps: exec.length, sessions: sessionList.length, titledSessions: titled,
+      steps: shownTimeline.length, modelAttributedSteps: modelled, warnings,
+    },
+  };
+}
+
 // ── collectAggregates — the ONE call extension.js::livePreviewSnapshot() makes ───────────
-// opts: { wsRoot, events, decisions, execLogPath?, pricingPaths?, fleetDir?, maxExec? }.
+// opts: { wsRoot, events, decisions, sessions?, execLogPath?, ledgerPath?, pricingPaths?, fleetDir?, maxExec? }.
 // Every sub-aggregate is isolated in its own try/catch: one broken source NEVER nulls the
 // others (fail-soft per lens — harmonization rule §8 of the handoff).
 function collectAggregates(opts) {
@@ -503,7 +691,13 @@ function collectAggregates(opts) {
     fleet = buildFleet(readFleet(dir));
   } catch { fleet = null; }
 
-  return { byDay: byDay, byModel: byModel, fleet: fleet };
+  let executive = null;
+  try {
+    const ledger = readAgentSync(wsRoot, o.ledgerPath, o.maxLedger || 400);
+    executive = buildExecutive({ events: o.events, exec: exec, ledger: ledger, sessions: o.sessions });
+  } catch { executive = null; }
+
+  return { byDay: byDay, byModel: byModel, fleet: fleet, executive: executive };
 }
 
 module.exports = {
@@ -522,5 +716,8 @@ module.exports = {
   buildByModel,
   readFleet,
   buildFleet,
+  readAgentSync,
+  executionChannel,
+  buildExecutive,
   collectAggregates,
 };

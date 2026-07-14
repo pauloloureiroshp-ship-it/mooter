@@ -1,5 +1,13 @@
 # Live Edit — Roadmap & Spec Vivo (canônico)
 
+> **WAVE SELECTION JOURNEY + SECURITY/PUBLISH UX, 2026-07-13** — implementada na branch
+> `fix/lp-iframe-reload-rearm` como extensão `v0.16.73` (ainda não mergeada/publicada): cada nó de
+> source exato tem thread e composer persistentes; lifecycle visual rosa trabalhando → amarelo
+> aguardando **OK** → verde aprovado; Review Security ganhou progresso, badge, remediação segura e
+> relatório; Publish mostra o pipeline honesto **Local → Git → Produção** antes de agir. Gates atuais:
+> extensão **1217/1217**, landing **213/213** + typecheck; `classify.js` frozen intact. Push, merge e
+> deploy de produção continuam como gatilhos exclusivos do Paulo.
+
 > **FECHO "produção perfeita" (F-close), 2026-07-10** — PR único `wave/lp-producao-perfeita` → main
 > (base `origin/main @c5cda85` / extensão `v0.16.66` / suites `1086/1086`), a superseder #234/#241/#242.
 > Fechados com teste: W0→W2 · F0.1–F9 · findings P1-2/3/4/5/6/7 + N1/N2 · Codex D1/D5/D6(P0, TOCTOU fechado
@@ -88,26 +96,25 @@ Legenda: ✅ shipped em main com evidência · 🟡 shipped auto-declarado · �
 | LP-4.7 · Moo Quality Engine | best-of-N + retry-2-rondas-com-erro + escalação por evidência + whitelist assets/imports + envelope estruturado + trial de modelo | ✅ | **em main** (`e26e663`, `f9aad55`, `2189d11`); `live-edit-quality.test.js`, `lp-quality-host.test.js` |
 | LP-4.8 · UX in-canvas + Skills no pin | toolbar ancorada ao pin + presets $0 + `/skills` element-scoped + multi-select | ✅ | **em main** (`bf8220c`, `c07f7c4`, `4855654`, `e790f2d`); `lp-presets.test.js`, `lp-skills.test.js` |
 | LP-4.9 · UX intuitiva | toggle Editar/Perguntar · disclosure progressiva · presets estrela · feedback tempo-real · chrome · coach marks · WCAG 2.2 · **Perguntar = fence** | ✅ | **em main** (`81d347e`…`63fc63b`, 9 commits); L1 `live-preview-runtime.test.js` |
-| LP-5 · 🛡 Review Security | pipeline LOCAL $0 (secret · npm audit honesto · headers/CSP · XSS) + Critical bloqueia publish | ✅ | **em main** (`68cbc2a`, `d15079b`, `7cbaccd`, `f2a2ebd`); `lp-security-host.test.js`, `lp-secret-scan.test.js`, `lp-audit-summary.test.js` |
-| LP-6 · 🚀 Publish | popover · gate no security · commit SELETIVO · deploy Vercel two-factor host-side | ✅ | **em main** (`0303b97`); `lp-publish-host.test.js` (deploy mockado; nome exato obrigatório). *Nits:* override de Critical sem UI; onboarding de CLI ausente = string crua |
+| LP-5 · 🛡 Review Security | pipeline LOCAL (secret · npm audit honesto · headers/CSP · XSS) + Critical bloqueia publish + progresso/badge/thread/remediação/relatório | 🟡 **v0.16.73 na branch** | base em main + wave atual; `lp-security-host.test.js`, `lp-security-view.test.js`; segredo/dependência manual-only, finding corrigível indexado pelo host |
+| LP-6 · 🚀 Publish | pipeline Local → Git → Produção · remote sanitizado · gate security · commit SELETIVO · deploy Vercel two-factor host-side | 🟡 **v0.16.73 na branch** | `lp-publish-view.test.js`, `lp-publish-host.test.js`; remote ausente bloqueia commit+push; URL de produção HTTPS validada |
 | Context Engine · contexto $0-local | repo-map + import-slice + data-hop para o agente ancorado | ✅ | **em main** (Wave 2.2 `c7ef568`, 2.3 data-hop `e1cec41`); `lp-context-wire.test.js`, `live-edit-context.test.js` |
 | Cross-device tree-gate | identidade de árvore por linhagem de filesystem (inode) — fix macOS | ✅ | **em main** (`938010f`); `lp-crossdevice.test.js` |
 | F1+F2 · Layout cockpit | esconder meio-construído (D) + limpar IA interna (A) | ✅ | **em main** PR #231 (`3f8f93e`, `f5f0cb7`) |
-| **F3 · Live Preview interno (o coração)** | seleção = estado partilhado (SelectionStore host-side único) · prompt-por-LLM óbvio · stage é rei · feed em direto | ❌ **W1 — próxima** | spec `_handoff/LIVE_PREVIEW_FABLE5_MASTER_HANDOFF.md` §2.96 |
+| **F3 · Live Preview interno (o coração)** | SelectionStore host-side + thread/composer por nó + prompt-por-LLM óbvio + stage é rei + feed em direto + lifecycle no pin | 🟡 **v0.16.73 na branch** | `lp-selection-host.test.js`, `lp-task-view.test.js`, `webview-syntax.test.js`, `lp-error-tap.test.ts`; falta gate visual humano no VS Code |
 | LP-4.6 / Camada C · Context Notion/vault | espelhos Notion/vault no prompt (camada C) | 🔜 **W6** (decisões D1-D3 pendentes) | idem §2.97 |
 | MP5.3 · Seleção de ÁREA (marquee) | rect → AABB + screenshot recortado + multimodal | ❌ na fila, sem wave | `_handoff/_archive/` MP5_SPEC §3.3 |
 | LP-7 · Before/after renderizado | diff VISUAL da UI antes de aplicar | ❌ leapfrog futuro | VISION |
 
-**Suites (reconciliadas W0, 2026-07-10):** extensão **939/939** pass (run limpo, 15.1s) —
-subiu de 646 (audit 07-06) com LP-4.8/4.9/5/6 + Context Engine + FIX-MP-1/2. `classify.js`
-sha `427d8c0b…4bc48f` = gate CI `.github/workflows/test.yml`. (P2-13 do audit — drift de
-números — resolvido aqui.)
+**Suites atuais (branch v0.16.73, 2026-07-13):** extensão **1217/1217** pass; landing
+**213/213** pass + TypeScript `--noEmit` limpo. `classify.js` sha `427d8c0b…4bc48f` intacta.
+O snapshot histórico W0 foi **939/939**; números antigos abaixo são evidência da época, não o gate atual.
 
 ---
 
 ## 4. Findings do audit (LP-AUDIT 2026-07-06, base @2c1a492) — veredicto W0 @f5a1f04
 
-Fix masterprompts em `_handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md` (FIX-MP-1..7).
+Fix masterprompts arquivados em `_handoff/_archive/2026-07/LIVE_PREVIEW_AUDIT_FINDINGS.md` (FIX-MP-1..7).
 **Estado em W0:** P0-1 e P1-2 **fechados**; P1-3/4/5/7 + N1/N2 **abertos** (a W3 herda); P1-6 parcial.
 
 | # | Finding | Veredicto W0 | Evidência @f5a1f04 |
@@ -141,7 +148,7 @@ lista completa no findings doc.
 | Wave | Conteúdo | Estado | Gate humano |
 |---|---|---|---|
 | **W0** Verdade | git-truth vs docs · checklist A-E com evidência · veredicto findings · reconciliar ROADMAP+SYNC | ✅ **feito** (07-10) | relatório ✅/🟡/❌ + docs reconciliados (este PR) |
-| **W1** F3 — o coração | SelectionStore host-side único · prompt-por-LLM óbvio (elevar existente) · stage é rei · feed em direto | 🔜 **próxima** | prova viva pin→prompt→edição no nó certo + antes→depois |
+| **W1** F3 — o coração | SelectionStore host-side único · thread/composer por nó · lifecycle no pin · prompt-por-LLM óbvio · stage é rei · feed em direto | 🟡 **implementada na v0.16.73 branch** | suites verdes; falta prova viva humana pin→thread→rosa→amarelo→OK→verde |
 | **W2** Ponte agente + contexto repo | `@anthropic-ai/claude-agent-sdk` + trust · "projeto TODO" ON · chip `repo ✓ · Notion n/d` | ⏳ | edição via agente no sítio certo com contexto provado |
 | **W3** Produção-ready | herda P1-3/4/5/6/7 + N1/N2 · prova E2E ciclo $0 (gap §8.1) · probe Mac + casing/launcher | ⏳ | suites verdes + probe Mac + preview nunca finge frescura |
 | **W4** Polish beat-Lovable | design-critique §2 · light/dark · motion · estados vazio/loading/erro · modo simples sem scroll | ⏳ | critique verde + screenshots antes→depois |

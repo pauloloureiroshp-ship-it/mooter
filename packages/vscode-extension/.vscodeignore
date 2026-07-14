@@ -8,3 +8,7 @@ docs/**
 .eslintrc*
 **/.DS_Store
 scripts/**
+NUL
+instalar
+_handoff/**
+src/_handoff/**

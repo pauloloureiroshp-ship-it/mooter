@@ -113,6 +113,14 @@ test('COH-09: T5/@fable is never reached by AUTO — the mapping clamps to Opus 
   assert.ok(!/mode = 'fable'/.test(body), 'AUTO never resolves to fable');
 });
 
+test('Live Preview project-context floor: coherence against the repo never runs on Haiku', () => {
+  const inst = mkInst();
+  const r = inst._autoResolveMode('Valida o texto selecionado e verifica a coerência em relação ao projeto e às provas reais.');
+  assert.strictEqual(r.mode, 't2', 'cross-project coherence is floored to Sonnet');
+  assert.strictEqual(r.contextFloored, true, 'the host exposes why it raised the tier');
+  assert.notStrictEqual(r.mode, 'fable', 'the context floor never bypasses the opt-in-only Fable invariant');
+});
+
 // ── COH-17 — bridge invalidation ───────────────────────────────────────────────────────────────────
 test('COH-17: _invalidateBridge drops the 30s SDK/trust cache immediately', () => {
   const inst = mkInst();

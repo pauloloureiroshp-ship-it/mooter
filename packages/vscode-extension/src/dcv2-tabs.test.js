@@ -1,6 +1,6 @@
 'use strict';
 // dcv2-tabs.test.js — Director's Cut v2 · F2, Unit B.
-// Structural guard: the #lp-dc mount is a real tablist with 4 panes, the 3 new lens renderers
+// Structural guard: the #lp-dc mount is a real tablist with 6 panes, all lens renderers
 // are serialised into the webview (concat-only, exactly like the existing renderX serialisations),
 // and the tab state machine (setTab/renderLens) is wired in — while the inline script still
 // PARSES as delivered. Mirrors webview-syntax.test.js's loadExtension()/parseInlineScript harness.
@@ -31,23 +31,26 @@ function parseInlineScript(html) {
   assert.doesNotThrow(() => new vm.Script('function acquireVsCodeApi(){return{postMessage(){}}};' + m[1]), 'webview JS must parse AS DELIVERED');
 }
 
-test('Live Preview #lp-dc: real tablist with exactly 4 data-tab chips (stream/day/model/fleet)', () => {
+test('Live Preview #lp-dc: real tablist with exactly 6 data-tab chips', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
   assert.ok(html.includes('role="tablist"'), 'tablist role present');
   const chips = html.match(/data-tab="/g) || [];
-  assert.strictEqual(chips.length, 4, 'exactly 4 data-tab chips');
-  for (const tab of ['stream', 'day', 'model', 'fleet']) {
+  assert.strictEqual(chips.length, 6, 'exactly 6 data-tab chips');
+  for (const tab of ['control', 'stream', 'sessions', 'day', 'model', 'fleet']) {
     assert.ok(html.includes('data-tab="' + tab + '"'), 'data-tab="' + tab + '" present');
   }
 });
 
-test('Live Preview: the 3 new lens renderers are serialised into the webview', () => {
+test('Live Preview: the executive and aggregate lens renderers are serialised into the webview', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
   assert.ok(html.includes('const renderDayBreakdown='), 'renderDayBreakdown serialised');
   assert.ok(html.includes('const renderModelBreakdown='), 'renderModelBreakdown serialised');
   assert.ok(html.includes('const renderFleetLanes='), 'renderFleetLanes serialised');
+  assert.ok(html.includes('const renderExecutiveOverview='), 'renderExecutiveOverview serialised');
+  assert.ok(html.includes('const renderExecutiveTimeline='), 'renderExecutiveTimeline serialised');
+  assert.ok(html.includes('const renderSessionBreakdown='), 'renderSessionBreakdown serialised');
 });
 
 test('Live Preview: tab state machine (setTab/renderLens) is wired in', () => {
@@ -57,7 +60,7 @@ test('Live Preview: tab state machine (setTab/renderLens) is wired in', () => {
   assert.ok(/function renderLens\(/.test(html), 'renderLens defined');
 });
 
-test('Live Preview: the inline script (with the 4 new tabs/panes + 3 serialised lenses) still parses as delivered', () => {
+test('Live Preview: the inline script (with 6 tabs/panes and all serialised lenses) still parses as delivered', () => {
   const sandbox = loadExtension();
   const html = sandbox.getLivePreviewHtml('tok');
   parseInlineScript(html);

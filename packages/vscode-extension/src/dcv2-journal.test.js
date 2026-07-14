@@ -134,11 +134,11 @@ test('F4 structural: getLivePreviewHtml serialises renderJournalCard and carries
 });
 
 test('F4 structural: the Stream lens prepends renderJournalCard(s&&s.journal)', () => {
-  assert.ok(SCRIPT_TEXT.includes('renderJournalCard(s&&s.journal)+renderDirectorsCut('), 'renderLens stream branch must prepend the journal card');
+  assert.ok(SCRIPT_TEXT.includes('renderJournalCard(s&&s.journal)+renderExecutiveTimeline('), 'renderLens stream branch must prepend the journal card to the unified executive timeline');
 });
 
 test('F4 structural: lpSig stream branch includes the journal in its signature', () => {
   const lpSigLine = SCRIPT_TEXT.split('\n').find((l) => l.indexOf('function lpSig(tab,s)') !== -1);
   assert.ok(lpSigLine, 'lpSig function found in the inline script');
-  assert.ok(lpSigLine.includes('(s&&s.journal)||null'), 'lpSig stream branch must fold s.journal into the signature');
+  assert.ok(lpSigLine.includes('journal:(s&&s.journal)||null'), 'lpSig stream branch must fold s.journal into the signature');
 });

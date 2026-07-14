@@ -2,6 +2,179 @@
 
 All notable changes to **Mooter — Cost Cockpit for Claude Code**. Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.16.78] — 2026-07-14 — Live Preview visual QA hardening
+
+- Validate the real sidebar renderer at native 370 px and constrained 240 px widths instead of approving an
+  illustrative mock. The prompt composer now occupies the bottom of short conversations and its send action
+  remains right-aligned when narrow rails collapse helper copy.
+- Keep zero-count Security badges genuinely hidden, retain accessible tab names in icon-only layouts and use an
+  AA-contrast pink action tone while preserving the brighter Mooter pink for focus and motion cues.
+- Make the Production button visibly two-factor: it starts disabled and only unlocks after the exact host-projected
+  project name is typed. The host-owned security, immutable-commit and destination-lease checks remain authoritative.
+- Regression proof: real renderer inspected at **370 px and 240 px**; Sidebar + Security + Publish **150/150**;
+  extension **1,391 pass / 0 fail / 1 expected symlink skip**. Landing typecheck remains clean and its unrelated
+  in-progress page stays byte-identical; frozen classifier SHA unchanged.
+
+## [0.16.76] — 2026-07-14 — Prompt-first Live Preview UX
+
+- Add one symmetric, animated `🧭 Cockpit ⇄ ⚡ Live Preview` switch to both native surfaces. The active
+  destination is announced accessibly, reduced-motion disables the cue, and the authenticated sidebar bridge
+  bypasses the selection/write controller entirely.
+- Keep the surface switch, preview health and Edit/Security/Publish/MEO tabs fixed while the bounded panel body
+  scrolls. Selection context now belongs to the conversation instead of consuming the pinned navigation row.
+- Recompose Edit as a calm, prompt-first workspace: lightweight per-node thread, persistent bottom composer,
+  Edit/Ask intent toggle, contextual skills, progressive `Texto · Cor · Espaço` controls and compact model picker.
+  Auto remains honestly labelled as Auto until the router reports a concrete model.
+- Preserve the existing host-authoritative identity lease, proposal/approval flow and fail-closed Security →
+  Publish boundary; the UI still emits intent-only commands and cannot supply a file, line, lease or deploy scope.
+- Regression proof: extension **1,391 pass / 0 fail / 1 expected conditional skip** (1,392 total) in the
+  standard parallel runner; landing typecheck clean and its pre-existing WIP kept byte-identical. Frozen
+  classifier SHA unchanged; no commit, push or production deploy was performed.
+
+## [0.16.75] — 2026-07-13 — Native Live Preview workspace
+
+- Move the complete Live Preview workflow into a native Mooter Activity Bar view: one composer and one
+  per-node thread, plus Security, Publish and MEO tabs. The editor panel is now a clean, dominant canvas;
+  the detached/overlapping prompt card and the old internal rail are no longer user-visible.
+- Keep the exact-node lifecycle inside the iframe, where it remains source-stamped and reflow-aware: pink
+  while the code is changing, yellow while the result awaits OK and green only after local approval.
+- Harden the new sidebar as an intent-only surface. The extension host chooses the current authenticated
+  selection, workspace and deployment lease; forged node/file identities and raw edit messages are rejected.
+- Restore the active node's thread and task result when the view is reopened, preserve drafts across proven
+  HMR re-pins, and reveal/focus the single composer after a manual selection without stealing focus on reload.
+- Regression proof: extension **1,389 pass / 0 fail / 1 expected conditional skip** (1,390 total), including
+  native-sidebar projection/authentication, selection isolation, HMR, Security-to-Publish and packaging contracts.
+  Frozen classifier SHA unchanged; no commit, push or production deploy was performed during validation.
+
+## [0.16.74] — 2026-07-13 — Live Preview coherence and transactional Publish
+
+- Keep the preview identity as an origin/root/epoch lease across HMR and transient health changes. The
+  last validated pixels stay visible without retaining stale write authority; same-URL reloads re-arm the
+  selector and re-pin only an AST-proven exact node, so old selections/threads cannot jump trees or siblings.
+- Complete the per-node Selection Journey: Ask and Apply remain ordered in the exact node thread, AUTO
+  coherence work floors to Sonnet, and every accepted edit carries the pink working → yellow explicit OK →
+  reviewed/green lifecycle on the selected DOM boundary, including off-screen journeys and reduced motion.
+- Make Review Security a refreshable, count-reconciled workflow with progress, findings, remediation activity
+  and a reopenable report. Missing, failed, partial, stale or Critical/High reviews block both Git and Production.
+- Make Publish transactional from Local → Git → Production. Same-file pre-existing WIP, selected-path HEAD/index
+  races, hidden multi-destination remotes, unsupported clean-filter transforms and mutable deploy sources all
+  fail closed. Git commits use a path-scoped parent/content/mode lease plus an atomically reconciled real index;
+  deploys verify every archived byte against the immutable pushed tree before crossing the Vercel boundary.
+- Show the exact local folder, sanitized/effective Git repository and branch, validated production URL, redacted
+  Vercel identity and immutable commit source before any irreversible control is enabled.
+- Regression proof: extension **1,343 pass / 0 fail / 1 expected Windows symlink skip** (1,344 total);
+  landing **214/214 pass** plus clean typecheck; isolated VS Code E2E completed Select → Ask/Sonnet →
+  Apply/HMR → Security → Publish destinations and **20/20** stability cycles. Frozen classifier SHA unchanged;
+  no security remediation or production deploy was performed during validation.
+
+## [0.16.73] — 2026-07-13 — Selection Journey and an honest publish pipeline
+
+- Give every exact selected source node a durable **Selection Journey**: its own bounded, redacted local
+  conversation with user prompts, Moo replies, operational activity and approval state. Re-selecting the
+  same node resumes its thread; a different tree/node never inherits it. A persistent composer now lives
+  directly below the thread, so the prompt stays visible even when the in-canvas 🐮 is minimised.
+- Paint the host-authoritative lifecycle on the exact pinned element: pink motion while code is changing,
+  yellow while the reversible result awaits an explicit **OK**, green only after local approval, with stale,
+  error and reverted states plus `prefers-reduced-motion` support. The cross-origin tap rechecks the complete
+  source stamp before changing a border.
+- Turn **Review Security** into a visible workflow: live scope/static/dependency phases, finding-count badge,
+  severity chips, activity/remediation thread and a reopenable final report. Secrets and dependency advisories
+  remain manual-only; only host-indexed code/CSP findings may reach the agent, and every code change stales the
+  scan before Publish.
+- Turn **Publish ▾** into an explicit Local → Git → Production pipeline. It shows the actual folder, branch,
+  credential-sanitised remote and validated HTTPS production URL before action. Missing remotes disable the
+  commit+push action instead of knowingly leaving a hidden local-only commit; security and exact-name deploy
+  gates remain host-side and fail-closed.
+- Regression proof: extension **1217/1217 pass**; landing **213/213 pass**; landing typecheck clean. Frozen
+  classifier SHA unchanged. No new dependency; no push, merge or production deploy performed.
+
+## [0.16.72] — 2026-07-13 — No preview flapping and an always-visible prompt
+
+- Treat a connected localhost probe that times out before any HTTP status as inconclusive, not as a
+  positively broken page. The configured project port stays authoritative for that poll, so a slow
+  Next.js compile cannot invalidate the selection, jump to another localhost app or reload the iframe
+  on the next healthy poll. Real HTTP errors and frame blockers remain fail-closed.
+- Raise the bounded background probe budget from 900 ms to 1.8 s. A real `:7819` sample reproduced the
+  bug with a 911 ms response, confirming why the previous threshold caused intermittent health flips.
+- When geometry docks the selected-element prompt in the right rail, reveal the dock immediately and
+  focus the one-box. Reopening via the 🐮 also brings the prompt back into view even if the user had
+  scrolled down into the MEO cards.
+- Delayed VS Code/webview resize events can no longer move an already-docked prompt back over the
+  canvas, so the textbox keeps one predictable home for the current selection.
+- Regression proof: focused preview/lease/probe suite **97/97 pass** and full isolated extension suite
+  **1209/1209 pass**; frozen classifier SHA unchanged.
+
+## [0.16.71] — 2026-07-12 — Stable select-to-prompt and preview recovery
+
+- Make the selected-element prompt unconditionally reachable: it still floats beside the pin when
+  geometry permits, but docks the same component at the top of the right rail when a large element or
+  expanded controls leave no safe rectangle. Explicit minimise still uses the 🐮 chip, and clicking it
+  always reopens the prompt with focus in the input instead of immediately minimising again.
+- Keep the last validated page visible during a transient positive HTTP failure on the current origin,
+  eliminating page/blank oscillation. Display continuity never grants write authority: the host clears
+  served-root identity and selection, bumps the lease epoch and blocks every edit until recovery.
+- On same-URL recovery, force exactly one iframe reload so a fresh `lp-ready` handshake can renew the
+  tree. Clear stale breadcrumbs/toolbars on every suspended lease and ignore ready/pin messages emitted
+  while the HTTP stage is stale or blocked.
+- Fix repeated Node 24 probes accumulating `connect` listeners on an already-connected reused socket.
+- Regression proof: extension suite **1208/1208 pass** with isolated HOME and serial test files; focused
+  Live Preview/recovery suite **123/123 pass**; landing **211/211 pass** plus typecheck; installed runtime
+  completed **20/20** live HTTP 200 instrumented probes. No dependency or classifier change.
+
+## [0.16.70] — 2026-07-12 — Live Preview HTTP health and real restart
+
+- Replace the TCP-only App Stage check with a bounded localhost HTTP validator. HTTP 500, JSON/API
+  responses, off-origin redirects and frame-blocking headers can no longer appear as a green preview.
+- Surface a broken dev server as a dedicated recovery state with the real HTTP reason instead of an
+  empty iframe plus the misleading combination “porta ativa” / “árvore por confirmar”.
+- Resolve the package that actually owns the dev script (`landing/` in this repository) instead of
+  running `npm run dev` at a workspace root with no such script.
+- Make automatic detection and ↻ recovery race-safe: concurrent requests coalesce into a latest-wins
+  follow-up, manual refresh ignores stale identity, can recover from an unreachable override, and reloads
+  the same-URL iframe so an old error document/handshake cannot remain stuck.
+- Probe the configured port plus common framework auto-increment ranges concurrently across IPv4 and IPv6;
+  validate and frame the same `localhost` authority to prevent virtual-host false greens.
+- Harden framing/restart: reject cross-host loopback redirects and cumulative CSP blockers, refuse workspace
+  scripts while untrusted, and stop a listener only when its process command line/cwd proves it belongs to
+  the selected project.
+- Regression proof: isolated full extension suite **1202 pass / 0 fail**; landing suite **211 pass / 0 fail**;
+  the real `:7819` probe returned **HTTP 200**, frameable HTML and the instrumentation marker.
+
+## [0.16.69] — 2026-07-12 — MEO Control Tower
+
+- Add a default **Control** view that crosses the Live Preview stream, real execution log, recent VS Code
+  session catalogue and a typed multi-agent Ledger into one CTO-level projection.
+- Make each attributable step name the responsible agent, real model, execution channel (`local`,
+  `subscription`, `api` or `cloud`), channel evidence, VS Code session title and delivery scope (wave/PR).
+  Unknowns remain `n/d`; model-family fallback is explicitly labelled and never presented as connector proof.
+- Add a **Sessions** view with per-session agents, models, channels, stream/execution/Ledger counts, handoffs,
+  branch/wave/PR and independently sourced Notion/Obsidian sync stamps.
+- Replace the old Stream-only event list with a unified, newest-first operational timeline while retaining the
+  local handoff journal and scroll position across refreshes.
+- Add `tools/router/agent-sync-ledger.js` and wire the existing Stop hook to append privacy-bounded turn
+  checkpoints automatically. Prompts and responses are not copied into the Ledger; generated state stays under
+  the gitignored `_handoff/agent-sync/` operational directory.
+- Add shared Claude Code and Roo/Gemini rules plus the canonical repo protocol for Claude, Codex, Gemini/Roo,
+  local Ollama and Cowork handoffs.
+- Fix `moo-verify` missing-tool detection on Windows without accepting generic “not found” test failures;
+  every unavailable required check blocks, while unavailable advisory checks remain `—`.
+- Scope `MOOTER_AGENT_SYNC_DIR` by a stable real-root key so one inherited environment cannot co-mingle
+  sibling worktrees or repositories in a shared Ledger.
+- Regression proof: extension suite **1176 pass / 0 fail**; focused Stop/handoff/Ledger suite **77 pass / 0 fail**.
+  The full router suite exposed one load-sensitive statusline latency failure that passed in isolation and the
+  Windows missing-tool issue fixed above; no classifier change.
+
+## [0.16.68] — 2026-07-12 — Live Preview selection reliability
+
+- Re-arm the in-page selection tap after a same-URL iframe reload when selection mode is still active. This
+  closes the state split where the host kept the target button lit while the fresh tap silently ignored clicks.
+- Keep the reload handshake fail-closed: an inactive selector is never armed implicitly.
+- When selection is blocked, show an assertive reason banner with the same one-click recovery as the readiness
+  strip; the gate remains disabled until the preview identity is confirmed.
+- Add a real-git host integration proof for `received pin → gate → pinned file → clean undo`, while explicitly
+  leaving the DOM/tap/webview relay claim to its dedicated runtime test.
+- Regression proof: extension suite **1167 pass / 0 fail**; landing suite **211 pass / 0 fail**.
+
 ## [0.16.67] — 2026-07-12 — Live Preview "coerência total": the 19-finding coherence close (COH-01…19)
 
 The full Live Preview coherence pass — all 19 findings of the 2026-07-11 Codex coherence audit, each with a

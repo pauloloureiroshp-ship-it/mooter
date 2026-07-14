@@ -175,6 +175,309 @@ function locateRange(source, target) {
   return { ok: true, start: el.start, end: el.end, el };
 }
 
+function normaliseIdentityText(value) {
+  return String(value == null ? '' : value).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function identityTokens(value) {
+  const out = new Set();
+  const matches = normaliseIdentityText(value).match(/[a-z0-9_\-\u00c0-\u024f]+/g) || [];
+  for (const token of matches) out.add(token);
+  return out;
+}
+
+function setSimilarity(a, b) {
+  if (!a || !b || a.size === 0 || b.size === 0) return 0;
+  let common = 0;
+  for (const item of a) if (b.has(item)) common++;
+  return (2 * common) / (a.size + b.size);
+}
+
+// Only user-meaningful static values participate in semantic identity. AST field names, tag names
+// and JavaScript identifiers are deliberately excluded: two generic <p> siblings must not become
+// "the same node" merely because their syntax is alike.
+function semanticIdentityOf(el) {
+  const visibleParts = [];
+  const attributeParts = [];
+  const seen = new Set();
+  (function walk(n) {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { for (const item of n) walk(item); return; }
+    if (seen.has(n)) return;
+    seen.add(n);
+    if (n.type === 'JSXText') {
+      const text = normaliseIdentityText(n.value);
+      if (text) visibleParts.push(text);
+      return;
+    }
+    if (n.type === 'JSXExpressionContainer') {
+      const x = n.expression;
+      if (x && (x.type === 'StringLiteral' || x.type === 'NumericLiteral')) {
+        const text = normaliseIdentityText(x.value);
+        if (text) visibleParts.push(text);
+        return;
+      }
+      if (x && x.type === 'TemplateLiteral' && (!x.expressions || x.expressions.length === 0)) {
+        const text = normaliseIdentityText((x.quasis || []).map((q) => q.value && q.value.cooked || '').join(''));
+        if (text) visibleParts.push(text);
+        return;
+      }
+    }
+    if (n.type === 'JSXAttribute') {
+      const v = n.value;
+      if (v && v.type === 'StringLiteral') {
+        const text = normaliseIdentityText(v.value);
+        if (text) attributeParts.push(text);
+      } else if (v && v.type === 'JSXExpressionContainer') {
+        const x = v.expression;
+        if (x && (x.type === 'StringLiteral' || x.type === 'NumericLiteral')) attributeParts.push(normaliseIdentityText(x.value));
+        else if (x && x.type === 'TemplateLiteral' && (!x.expressions || x.expressions.length === 0)) {
+          attributeParts.push(normaliseIdentityText((x.quasis || []).map((q) => q.value && q.value.cooked || '').join('')));
+        }
+      }
+      return;
+    }
+    for (const key in n) {
+      if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments' || key === 'innerComments') continue;
+      const value = n[key];
+      if (value && typeof value === 'object') walk(value);
+    }
+  })(el);
+  const visible = normaliseIdentityText(visibleParts.filter(Boolean).join(' '));
+  const attributes = normaliseIdentityText(attributeParts.filter(Boolean).join(' '));
+  return { visible, attributes, combined: normaliseIdentityText([visible, attributes].filter(Boolean).join(' ')) };
+}
+
+// Build the real JSX containment tree from byte spans. `collectJsxElements` is intentionally flat;
+// rebasing needs the nearest JSX parent and direct siblings so an inserted node cannot steal the
+// selected node's old global index.
+function buildRebaseMeta(source, elements) {
+  const ordered = elements.slice().sort((a, b) => (a.start - b.start) || (b.end - a.end));
+  const roots = [];
+  const metas = [];
+  const byElement = new Map();
+  const stack = [];
+  for (const el of ordered) {
+    while (stack.length) {
+      const top = stack[stack.length - 1];
+      if (top.el.start < el.start && el.end <= top.el.end) break;
+      stack.pop();
+    }
+    const parent = stack.length ? stack[stack.length - 1] : null;
+    const opening = el.openingElement;
+    const attrs = new Set();
+    for (const attr of (opening && opening.attributes) || []) {
+      if (attr.type === 'JSXAttribute' && attr.name && attr.name.name) attrs.add(String(attr.name.name).toLowerCase());
+      else if (attr.type === 'JSXSpreadAttribute') attrs.add('...');
+    }
+    const raw = source.slice(el.start, el.end);
+    const identity = semanticIdentityOf(el);
+    const semantic = identity.combined;
+    const meta = {
+      el,
+      parent,
+      children: [],
+      tag: tagNameOf(opening).toLowerCase(),
+      raw,
+      rawNormalised: normaliseIdentityText(raw),
+      semantic,
+      semanticTokens: identityTokens(semantic),
+      visible: identity.visible,
+      visibleTokens: identityTokens(identity.visible),
+      attributeValues: identity.attributes,
+      attributeValueTokens: identityTokens(identity.attributes),
+      attrs,
+      loc: opening && opening.loc && opening.loc.start,
+    };
+    if (parent) parent.children.push(meta); else roots.push(meta);
+    metas.push(meta);
+    byElement.set(el, meta);
+    stack.push(meta);
+  }
+  for (const meta of metas) {
+    const siblings = meta.parent ? meta.parent.children : roots;
+    meta.siblingIndex = siblings.indexOf(meta);
+    meta.siblingCount = siblings.length;
+    meta.depth = 0;
+    meta.ancestorTags = [];
+    let parent = meta.parent;
+    while (parent) {
+      meta.depth++;
+      meta.ancestorTags.unshift(parent.tag);
+      parent = parent.parent;
+    }
+    meta.childTags = new Set(meta.children.map((child) => child.tag).filter(Boolean));
+    meta.signature = [meta.tag, meta.semantic, Array.from(meta.attrs).sort().join(','), Array.from(meta.childTags).sort().join(',')].join('|');
+  }
+  return { metas, roots, byElement };
+}
+
+function ancestorSimilarity(a, b) {
+  const left = a || [];
+  const right = b || [];
+  if (left.length === 0 && right.length === 0) return 1;
+  const longest = Math.max(left.length, right.length);
+  if (!longest) return 0;
+  let common = 0;
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) break;
+    common++;
+  }
+  return common / longest;
+}
+
+function siblingPosition(meta) {
+  return meta.siblingCount > 1 ? meta.siblingIndex / (meta.siblingCount - 1) : 0;
+}
+
+function rebasePairScore(oldMeta, newMeta, expectedLine) {
+  if (!oldMeta || !newMeta || !newMeta.loc) return { score: -Infinity, semantic: 0, rawExact: false };
+  const rawExact = !!oldMeta.raw && oldMeta.raw === newMeta.raw;
+  const semantic = setSimilarity(oldMeta.semanticTokens, newMeta.semanticTokens);
+  const visible = setSimilarity(oldMeta.visibleTokens, newMeta.visibleTokens);
+  const attributeValues = setSimilarity(oldMeta.attributeValueTokens, newMeta.attributeValueTokens);
+  const attrs = setSimilarity(oldMeta.attrs, newMeta.attrs);
+  const shape = setSimilarity(oldMeta.childTags, newMeta.childTags);
+  const ancestry = ancestorSimilarity(oldMeta.ancestorTags, newMeta.ancestorTags);
+  const oldParent = oldMeta.parent ? oldMeta.parent.tag : '#root';
+  const newParent = newMeta.parent ? newMeta.parent.tag : '#root';
+  let score = 0;
+  if (rawExact) score += 140;
+  if (oldMeta.tag && oldMeta.tag === newMeta.tag) score += 32;
+  if (semantic > 0) score += Math.round(36 * semantic);
+  if (visible > 0) score += Math.round(54 * visible);
+  if (attributeValues > 0) score += Math.round(14 * attributeValues);
+  if (oldMeta.semantic && oldMeta.semantic === newMeta.semantic) score += 12;
+  score += Math.round(16 * attrs);
+  score += Math.round(12 * shape);
+  score += Math.round(28 * ancestry);
+  if (oldParent === newParent) score += 20;
+  if (oldMeta.depth === newMeta.depth) score += 8;
+  else if (Math.abs(oldMeta.depth - newMeta.depth) === 1) score += 2;
+  if (oldMeta.siblingIndex === 0 && newMeta.siblingIndex === 0) score += 6;
+  if (oldMeta.siblingIndex === oldMeta.siblingCount - 1 && newMeta.siblingIndex === newMeta.siblingCount - 1) score += 6;
+  score += Math.max(0, 6 - Math.round(Math.abs(siblingPosition(oldMeta) - siblingPosition(newMeta)) * 6));
+  if (Number.isInteger(expectedLine)) score += Math.max(0, 6 - Math.abs(newMeta.loc.line - expectedLine));
+  return { score, semantic, rawExact };
+}
+
+function expectedRebaseLine(before, after, oldLine) {
+  const oldLines = before.split('\n');
+  const newLines = after.split('\n');
+  let expected = oldLine + (newLines.length - oldLines.length);
+  let distanceFound = Infinity;
+  // A unique unchanged line is only a weak geographic anchor. Identity still comes from the AST
+  // candidate comparison below; an inserted same-tag line is allowed to sit on this exact line.
+  for (let distance = 0; distance <= 40; distance++) {
+    const directions = distance === 0 ? [0] : [-1, 1];
+    for (const direction of directions) {
+      const oldIndex = (oldLine - 1) + (distance * direction);
+      if (oldIndex < 0 || oldIndex >= oldLines.length) continue;
+      const needle = oldLines[oldIndex];
+      if (!needle || !needle.trim()) continue;
+      let found = -1;
+      let count = 0;
+      for (let newIndex = 0; newIndex < newLines.length; newIndex++) {
+        if (newLines[newIndex] === needle) { found = newIndex; count++; if (count > 1) break; }
+      }
+      if (count === 1) {
+        expected = (found + 1) - (oldIndex + 1 - oldLine);
+        distanceFound = distance;
+        break;
+      }
+    }
+    if (distanceFound !== Infinity) break;
+  }
+  return { line: expected, anchored: distanceFound !== Infinity };
+}
+
+// Rebase a source-map stamp after an edit/HMR. The preview tap can only re-pin an exact
+// data-insp-path, so reusing the old line after imports (or an agent edit above the node) makes the
+// Cowork-style border disappear. Identity is proven by a unique combination of node semantics,
+// ancestry, parent/sibling context and source geography. Index is weak evidence only; insertions,
+// reorders and duplicates either map to one clearly stronger node or fail closed.
+function rebaseTargetStamp(before, after, target) {
+  if (typeof before !== 'string' || !before || typeof after !== 'string' || !after) return { ok: false, reason: 'no-source' };
+  const pb = parse(before);
+  const pa = parse(after);
+  if (pb.error || pa.error) return { ok: false, reason: 'parse-error', detail: pb.error || pa.error };
+  const oldEls = collectJsxElements(pb.ast);
+  const newEls = collectJsxElements(pa.ast);
+  const oldEl = locate(oldEls, target || {});
+  if (!oldEl) return { ok: false, reason: 'not-found' };
+  if (!newEls.length) return { ok: false, reason: 'not-found-after' };
+
+  const oldTree = buildRebaseMeta(before, oldEls);
+  const newTree = buildRebaseMeta(after, newEls);
+  const oldMeta = oldTree.byElement.get(oldEl);
+  const oldLoc = oldMeta && oldMeta.loc;
+  if (!oldLoc) return { ok: false, reason: 'not-found' };
+  const oldLine = oldLoc.line;
+  const oldTag = oldMeta.tag;
+  const requestedCol = Number.isInteger(target && target.col) ? target.col : oldLoc.column;
+  const colBias = requestedCol - oldLoc.column;
+  if (before === after) {
+    return {
+      ok: true,
+      line: oldLoc.line,
+      col: Math.max(0, oldLoc.column + colBias),
+      tag: tagNameOf(oldEl.openingElement) || String((target && target.tag) || ''),
+      shifted: false,
+      evidence: 'exact-source',
+    };
+  }
+
+  const geography = expectedRebaseLine(before, after, oldLine);
+  const MIN_SCORE = 60;
+  const MIN_WIN_MARGIN = 16;
+  const rows = [];
+  let duplicateCompetition = false;
+  let removedCompetition = false;
+  for (const candidate of newTree.metas) {
+    const own = rebasePairScore(oldMeta, candidate, geography.line);
+    if (own.score < MIN_SCORE) continue;
+    let competitor = null;
+    for (const otherOld of oldTree.metas) {
+      if (otherOld === oldMeta) continue;
+      const other = rebasePairScore(otherOld, candidate, geography.line);
+      if (!competitor || other.score > competitor.score) competitor = { score: other.score, meta: otherOld };
+    }
+    const sameOldIdentity = !!(competitor && competitor.meta.rawNormalised
+      && competitor.meta.rawNormalised === oldMeta.rawNormalised
+      && competitor.score >= own.score - 12);
+    const consumedByOther = !!(competitor && competitor.score >= own.score + 12);
+    if (sameOldIdentity) duplicateCompetition = true;
+    if (consumedByOther) removedCompetition = true;
+    if (!sameOldIdentity && !consumedByOther) rows.push({ candidate, own });
+  }
+  if (!rows.length) {
+    if (duplicateCompetition) return { ok: false, reason: 'ambiguous-after' };
+    return { ok: false, reason: removedCompetition ? 'node-removed' : 'ambiguous-after' };
+  }
+  rows.sort((a, b) => b.own.score - a.own.score);
+  const best = rows[0];
+  const second = rows[1];
+  if (second && best.own.score - second.own.score < MIN_WIN_MARGIN) return { ok: false, reason: 'ambiguous-after' };
+  // Two equivalent candidates under the same JSX parent are indistinguishable regardless of
+  // their indices: one may have been inserted before/after the selected node during the edit.
+  const duplicate = rows.find((row, index) => index > 0
+    && row.candidate.parent === best.candidate.parent
+    && row.candidate.signature === best.candidate.signature
+    && best.own.score - row.own.score < 24);
+  if (duplicate) return { ok: false, reason: 'ambiguous-after' };
+
+  const bestLoc = best.candidate.loc;
+  const bestTag = tagNameOf(best.candidate.el.openingElement);
+  return {
+    ok: true,
+    line: bestLoc.line,
+    col: Math.max(0, bestLoc.column + colBias),
+    tag: bestTag || String((target && target.tag) || ''),
+    shifted: bestLoc.line !== oldLine || (bestLoc.column + colBias) !== requestedCol || (bestTag && bestTag.toLowerCase() !== oldTag),
+    evidence: best.own.rawExact ? 'exact-source' : (best.own.semantic > 0 ? 'semantic-context' : (geography.anchored ? 'source-context' : 'structural-context')),
+  };
+}
+
 // Delete the node's exact span. If the element sat alone on its line(s), the orphaned indentation
 // and the trailing newline go with it (no blank line left behind); an inline element among siblings
 // loses only its own bytes. The result must still parse — deleting a structurally mandatory node
@@ -353,6 +656,7 @@ module.exports = {
   editText,
   editClass,
   locateRange,
+  rebaseTargetStamp,
   deleteNode,
   spliceNodeRange,
   insertImports,

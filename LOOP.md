@@ -249,7 +249,7 @@ A cura: `_isGitWrite(cmd)` (commit|merge|rebase|cherry-pick|am|revert|worktree a
 
 ### 2026-07-06-fence-stale-assimetrica-no-motor-de-edicao
 
-**Contexto:** auditoria total read-only do Live Preview (`_handoff/LIVE_PREVIEW_AUDIT_FINDINGS.md`, 1×P0 · 6×P1 · 7×P2).
+**Contexto:** auditoria total read-only do Live Preview (`_handoff/_archive/2026-07/LIVE_PREVIEW_AUDIT_FINDINGS.md`, 1×P0 · 6×P1 · 7×P2).
 
 **Resultado observado:** o delete $0 é fail-closed (diff-before-write + sha256), mas as edições de texto/classe escrevem **incondicionalmente** — a proteção de staleness existe só num dos caminhos de escrita. P1 grave; fix-masterprompt pronto (FIX-MP da auditoria).
 
@@ -268,6 +268,24 @@ A cura: `_isGitWrite(cmd)` (commit|merge|rebase|cherry-pick|am|revert|worktree a
 **Quem observou:** Paulo ao vivo (2026-07-06); triagem do rasto pendente.
 
 **Status:** **P0 aberto** — FIX-MP-1 (amarrar edição à árvore servida) deve preceder o LP-6 publish. Lição de processo associada: **OK de merge é condicional** — se o veredicto adversarial mudar entre o OK e o merge, o CC para e re-pede.
+
+---
+
+### 2026-07-12-worktree-sprawl-esconde-wip-real
+
+**Contexto:** consolidação do repositório após o PR #246. O Git nativo do Windows encontrou 40 worktrees:
+28 limpos e 12 sujos. O diretório pretendido como canónico (`C:\Users\Paulo Loureiro\frugal`) sozinho tinha
+25 alterações rastreadas e 1562 não rastreadas, misturando código, documentos, projeções e artefactos gerados.
+
+**Resultado observado:** contar pastas ou apagar pelo nome não distingue uma branch histórica limpa de WIP real.
+A unidade segura de consolidação é `worktree + branch + HEAD + dirty + ancestralidade em origin/main`. Branches
+podem continuar preservadas no Git sem ocupar uma pasta; worktree sujo nunca é removido antes de classificar e
+preservar cada alteração. Handoffs Guardian UUID são projeções regeneráveis do Ledger e não devem poluir `status`.
+
+**Quem observou:** Codex, por auditoria mecânica local confrontada com GitHub (2026-07-12).
+
+**Status:** em resolução — fix H2 preservado em branch própria; remoção física dos worktrees aguarda gate nominal
+do Paulo. Regra destilável: **primeiro preservar a identidade e o WIP; só depois reduzir as pastas**.
 
 ---
 
