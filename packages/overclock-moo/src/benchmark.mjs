@@ -76,7 +76,7 @@ function nvidiaUtilNow() {
   const r = spawnSync(
     "nvidia-smi",
     ["--query-gpu=utilization.gpu,memory.used", "--format=csv,noheader,nounits"],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   );
   if (r.status !== 0 || !r.stdout) return null;
   const first = r.stdout.trim().split("\n")[0] || "";
@@ -197,7 +197,7 @@ async function genOne(model, promptText, numPredict = 120) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function repoRoot() {
-  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", windowsHide: true });
   return r.status === 0 ? r.stdout.trim() : process.cwd();
 }
 
@@ -445,7 +445,7 @@ async function main() {
   // Git diff for job context.
   let diff = "";
   try {
-    const r = spawnSync("git", ["-C", root, "diff", "--stat", "HEAD"], { encoding: "utf8" });
+    const r = spawnSync("git", ["-C", root, "diff", "--stat", "HEAD"], { encoding: "utf8", windowsHide: true });
     if (r.status === 0) diff = r.stdout.trim().slice(-1000);
   } catch { /* ignore */ }
 

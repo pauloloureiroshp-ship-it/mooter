@@ -32,7 +32,7 @@ import { runOverlapped, runIdleFill } from "./pool.mjs";
 const OLLAMA = process.env.OLLAMA_HOST?.replace(/\/$/, "") || "http://127.0.0.1:11434";
 
 function repoRoot() {
-  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", windowsHide: true });
   return r.status === 0 ? r.stdout.trim() : process.cwd();
 }
 
@@ -51,7 +51,7 @@ function readGpuSlice() {
 
 /** One-shot GPU util now (for the after-reading). null = n/d. */
 function queryUtilNow() {
-  const r = spawnSync("nvidia-smi", ["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"], { encoding: "utf8" });
+  const r = spawnSync("nvidia-smi", ["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"], { encoding: "utf8", windowsHide: true });
   if (r.status !== 0 || !r.stdout) return null;
   const vals = r.stdout.trim().split("\n").map((s) => parseInt(s, 10)).filter(Number.isFinite);
   return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
@@ -73,7 +73,7 @@ async function withUtilSampling(fn) {
       const r = spawnSync(
         "nvidia-smi",
         ["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
-        { encoding: "utf8" },
+        { encoding: "utf8", windowsHide: true },
       );
       if (r.status === 0 && r.stdout) {
         const vals = r.stdout.trim().split("\n").map((s) => parseInt(s, 10)).filter(Number.isFinite);
@@ -127,7 +127,7 @@ function bashPath() {
   for (const c of ["C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"]) {
     if (existsSync(c)) return (_bash = c);
   }
-  const w = spawnSync("where", ["bash"], { encoding: "utf8" });
+  const w = spawnSync("where", ["bash"], { encoding: "utf8", windowsHide: true });
   return (_bash = w.status === 0 ? w.stdout.trim().split("\n")[0].trim() : null);
 }
 
@@ -138,8 +138,8 @@ function runCpuGate(job) {
   // npm defaults its own script-shell to cmd on Windows even when launched from
   // bash; force POSIX so the repo's tsx-shim test scripts resolve.
   const r = bash
-    ? spawnSync(bash, ["-lc", `export npm_config_script_shell=bash; cd "${(job.cwd || ".").replace(/\\/g, "/")}" && ${job.command}`], { encoding: "utf8", timeout: 180_000 })
-    : spawnSync(job.command, { cwd: job.cwd, shell: true, encoding: "utf8", timeout: 180_000 });
+    ? spawnSync(bash, ["-lc", `export npm_config_script_shell=bash; cd "${(job.cwd || ".").replace(/\\/g, "/")}" && ${job.command}`], { encoding: "utf8", timeout: 180_000, windowsHide: true })
+    : spawnSync(job.command, { cwd: job.cwd, shell: true, encoding: "utf8", timeout: 180_000, windowsHide: true });
   const wallSeconds = (Date.now() - t0) / 1000;
   const out = (r.stdout || "") + (r.stderr || "");
   // Precise tool-missing signals only — NOT a broad scan of combined output (a
@@ -189,7 +189,7 @@ async function runGpuLlmJob(job, model, prompt) {
 }
 
 function gitDiffStat(root) {
-  const r = spawnSync("git", ["-C", root, "diff", "--stat", "HEAD"], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", root, "diff", "--stat", "HEAD"], { encoding: "utf8", windowsHide: true });
   return r.status === 0 ? r.stdout.trim().slice(-1500) : "";
 }
 
@@ -202,7 +202,7 @@ function readGpuStatus(gpu) {
   const r = spawnSync(
     "nvidia-smi",
     ["--query-gpu=temperature.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   );
   if (r.status === 0 && r.stdout) {
     const first = r.stdout.trim().split("\n")[0] || "";

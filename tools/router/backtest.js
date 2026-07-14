@@ -103,7 +103,13 @@ function loadDecisions() {
   const lines = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(Boolean);
   const out = [];
   for (const line of lines) {
-    try { out.push(JSON.parse(line)); } catch { /* skip malformed */ }
+    // v0.9.7 fix: a literal "null" line is VALID JSON and used to slip through as
+    // a null entry — resolveFeedback then crashed on e.event (nightly exit 1 at
+    // 02:00, proven in backtest-latest.log 2026-07-10). Only objects are events.
+    try {
+      const e = JSON.parse(line);
+      if (e && typeof e === 'object') out.push(e);
+    } catch { /* skip malformed */ }
   }
   return out;
 }
@@ -1210,6 +1216,7 @@ function main() {
       const child = spawn(process.execPath, [hubPushPath, outputPath], {
         detached: true,
         stdio: 'ignore',
+        windowsHide: true, // no console flash when the 02:00 scheduled task runs
       });
       child.unref();
       console.log('[backtest] delta queued for hub-push (background)');
@@ -1258,6 +1265,7 @@ function main() {
     const metricsChild = spawn(process.execPath, [updateMetricsPath], {
       detached: true,
       stdio: 'ignore',
+      windowsHide: true, // no console flash when the 02:00 scheduled task runs
     });
     metricsChild.unref();
     console.log('[backtest] metrics-snapshot.json update queued (background)');

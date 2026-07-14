@@ -67,6 +67,10 @@ const DEFAULT_ELIGIBLE = [
   // statusline_chips.graph / MOOTER_STATUSLINE_GRAPH=1). Default OFF →
   // byte-identical statusline. Honest `🕸 ?` when opted in but no breadcrumb.
   './graph-status.js',
+  // MP-Q Q4 — 📅 official weekly-quota chip (opt-IN: '' unless
+  // statusline_chips.quota / MOOTER_STATUSLINE_QUOTA=1). Default OFF →
+  // byte-identical statusline. Honest `📅 semana n/d` without fresh quota-live.
+  './quota-status.js',
 ];
 
 // The full historic chip list, in render order. Extracted verbatim from the old
@@ -121,6 +125,8 @@ const CHIP_MODULES = [
   './agents-progress-status.js',
   // Wave 66 Block 6 — 🕸 code knowledge graph (opt-IN).
   './graph-status.js',
+  // MP-Q Q4 — 📅 official weekly-quota (opt-IN).
+  './quota-status.js',
 ];
 
 /**

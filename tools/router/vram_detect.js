@@ -12,7 +12,7 @@ const CACHE_MS = 5000;
 
 function detectVramLinux(spawn) {
   try {
-    const r = spawn('nvidia-smi', ['--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 1500, encoding: 'utf8' });
+    const r = spawn('nvidia-smi', ['--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 1500, encoding: 'utf8', windowsHide: true });
     if (!r || r.status !== 0) return null;
     const line = String(r.stdout || '').trim().split('\n')[0];
     const [used, total] = line.split(',').map((s) => parseInt(s.trim(), 10));
@@ -25,7 +25,7 @@ function detectVramLinux(spawn) {
 
 function detectVramMac(spawn) {
   try {
-    const r = spawn('system_profiler', ['SPHardwareDataType', '-json'], { timeout: 1500, encoding: 'utf8' });
+    const r = spawn('system_profiler', ['SPHardwareDataType', '-json'], { timeout: 1500, encoding: 'utf8', windowsHide: true });
     if (!r || r.status !== 0) return null;
     const data = JSON.parse(String(r.stdout || ''));
     const ramText = data && data.SPHardwareDataType && data.SPHardwareDataType[0] && data.SPHardwareDataType[0].physical_memory;

@@ -56,6 +56,26 @@ test('composeHandoff backfills LAST STEP from the journal when live pending has 
   assert.ok(c.text.includes('LAST:   Edit host-extra.js'), 'LAST STEP (full mode) backfilled from the journal entry');
 });
 
+test('composeHandoff preserves Perfect Handoff ledger + provenance options during local enrichment', async () => {
+  const row = { fullId: 'acc-1', id: 'acc-1', name: 'live context', turns: 20, branch: 'tree/other', cwd: '/repo', gitStage: { dirty: 0 } };
+  const c = await extra.composeHandoff(row, { lastAssistantText: '—', lastToolActions: [] }, {
+    perfect: true,
+    snapshot: { head: { sha7: 'abc1234' }, baseAhead: 2, pushed: false, classifyFrozen: true },
+    sessionGit: { source: 'journal', branch: 'feat/honest', sha: 'abc1234def0', aheadOfMain: 2 },
+    ledgerEvents: [
+      { kind: 'intent', output: { goal: 'preserve grounded handoff context' } },
+      { kind: 'decision', output: { question: 'Keep the ledger?', chosen: 'yes' } },
+      { kind: 'outcome', output: { tests: '7/7', sha: true } },
+    ],
+  });
+  assert.equal(c.fromSummary, true, 'exercise the enrichment path that previously dropped opts');
+  assert.ok(/STATE:/.test(c.text), 'perfect mode survives enrichment');
+  assert.ok(/feat\/honest @abc1234/.test(c.text), 'per-session provenance survives enrichment');
+  assert.ok(/INTENT: preserve grounded handoff context/.test(c.text), 'ledger intent survives enrichment');
+  assert.ok(/DECISIONS:/.test(c.text) && /Keep the ledger/.test(c.text), 'ledger decisions survive enrichment');
+  assert.ok(/GATE✓:.*tests 7\/7.*classify\.js sha ✓/.test(c.text), 'mechanical outcome survives enrichment');
+});
+
 test('fallback: no summary → on-demand path (Ollama down) ships the deterministic skeleton', async () => {
   const row = { fullId: 'no-summary-sid', id: 'no-summary-sid', name: 'fresh session', turns: 5 };
   const pending = { lastAssistantText: 'still verbatim?', lastToolActions: [{ name: 'Read', target: 'x.js' }] };

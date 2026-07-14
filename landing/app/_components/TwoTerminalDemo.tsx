@@ -190,8 +190,7 @@ export default function TwoTerminalDemo() {
           </button>
         </div>
         <p style={{ color: 'var(--color-muted)', fontSize: 15, lineHeight: 1.6, maxWidth: 680, marginTop: 4, marginBottom: 32 }}>
-          The exact same six prompts, streamed into both at once. The hard one — the schema migration — stays on Opus on{' '}
-          <em>both</em> sides. Mooter only routes down when quality holds.
+          Same prompts, both terminals at once. The hard one stays on Opus on <em>both</em> sides. Mooter only routes down when quality holds.
         </p>
 
         <div className="m-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
