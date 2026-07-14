@@ -1,14 +1,19 @@
 # 🐮🗺️ MOOTER — Roadmap de Waves (v3, breakdown por Squad)
 
+> **🎯 NOW = `_handoff/FOUNDATION_SUPER_MASTERPROMPT.md` → North Star F0–F5** (Notion 2026-07-13, por pilar: Resume · Plan · Route · Watch · Review). As waves W1–W16 abaixo **aguardam re-triagem (F5)** — não iniciar wave desta lista sem re-triagem.
+
 > O plano vivo. Todo o backlog organizado em waves priorizadas, **alinhadas com a tese** e o confronto
 > SOTA 2026, com um **dono de squad** por wave (Team Topologies). Cada wave declara o **modo de execução**
 > (CC / Loop / Schedule / dynamic-workflow), squad, worktree, effort e dependências. Fonte de verdade da
 > arquitectura: `MOOTER_ARCHITECTURE.md`.
 
 ## A tese (a régua de toda a wave)
-Decidir a $0, empurrar o máximo para local, **provar** cada poupança, e **melhorar sozinho**. O quarteto:
-Cowork (design, raro) · CC (irreversível) · moos locais ($0, mão-de-obra) · Mooter (o maestro). Uma wave só
-entra se avança isto. Veredito SOTA 2026: **no caminho certo, adiante em honestidade**.
+Mooter = a experiência tipo Lovable para quem **ultrapassou** o Lovable — projetos reais, complexos,
+duradouros, multi-agente, no VS Code. O router é infra **invisível**. **5 pilares: Resume · Plan · Route ·
+Watch · Review.** Régua: se não melhora um dos 5, não entra. O fosso (o que a MS nunca fará): local-first
+$0 · custo honesto · Resume 60s · neutralidade multi-vendor. Motor interno: decidir a $0, empurrar o máximo
+para local, **provar** cada poupança, **melhorar sozinho** — o quarteto Cowork (design, raro) · CC
+(irreversível) · moos locais ($0) · Mooter (o maestro). Veredito SOTA 2026: **no caminho certo, adiante em honestidade**.
 
 ## Princípios de priorização
 1. **Performance/custo primeiro.** 2. **Alavanca** (fundações antes de folhas). 3. **Velocidade local $0**

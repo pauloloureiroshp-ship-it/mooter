@@ -1,9 +1,11 @@
 # Mooter — Project Instructions
 
-**Mooter** is a local-first LLM router for Claude Code (mooter.ai, MIT). It classifies every
-prompt deterministically in <50ms (regex, zero LLM cost) and routes it to the minimum viable
-tier — local Ollama first, cloud only when it earns its cost. Mission:
-**"Your LLM router. Local-first. Learns forever."**
+**Mooter** (mooter.ai, MIT) is the Lovable-grade experience for developers who outgrew
+Lovable — real, complex, multi-agent projects in VS Code, with the LLM router as invisible
+infrastructure. Five pillars: **Resume · Plan · Route · Watch · Review** (a change ships only
+if it improves one). Underneath **Route**, it classifies every prompt deterministically in
+<50ms (regex, zero LLM cost) and routes to the minimum viable tier — local Ollama first,
+cloud only when it earns its cost.
 
 > Paulo's personal routing doctrine lives in `~/.claude/CLAUDE.md` and still applies globally.
 > The long version that used to live here is archived at

@@ -2,16 +2,16 @@
 
 # mooter
 
-### Your LLM router. Local-first. Learns forever.
+### For developers who outgrew Lovable — real, multi-agent projects in VS Code. Local-first.
 
-The AI router that picks tools, not just models.
+Five pillars over an invisible, local-first router: **Resume · Plan · Route · Watch · Review.**
 
-**Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · ~90% cost savings validated on 1,437 real prompts.**
+**Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · 65–82% cost vs all-Opus (measured — [SYSTEM_DESIGN §0](docs/foundation/SYSTEM_DESIGN.md#0-executive-summary-read-this-if-you-read-nothing-else) · [validation runs](docs/strategy/MOOTER_PERF_VALIDATION.md)).**
 
-[![Version](https://img.shields.io/badge/version-v1.15.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v1.44.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Wave 1: shipped](https://img.shields.io/badge/Wave%201-shipped%202026--06--03-brightgreen.svg)](docs/wave1-validation.md)
-[![Savings](https://img.shields.io/badge/savings-~90%25-brightgreen.svg)](docs/REAL_CORPUS_VALIDATION.md)
+[![Savings](https://img.shields.io/badge/savings-65--82%25%20vs%20all--Opus-brightgreen.svg)](docs/foundation/SYSTEM_DESIGN.md#0-executive-summary-read-this-if-you-read-nothing-else)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
 [![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
 [![CI](https://github.com/pauloloureiroshp-ship-it/mooter/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
