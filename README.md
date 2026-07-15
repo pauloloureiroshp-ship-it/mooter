@@ -2,9 +2,9 @@
 
 # mooter
 
-### For developers who outgrew Lovable — real, multi-agent projects in VS Code. Local-first.
+### Operate like a master without studying every day — real multi-agent projects in VS Code. Local-first.
 
-Five pillars over an invisible, local-first router: **Resume · Plan · Route · Watch · Review.**
+Mooter sets up, watches, and pilots your project with total visibility: foundation-gap alerts, best practices applied automatically, and the magic visible (Live Preview). The engine is the moat; the cockpit is the product. Five experiences: **Resume · Plan · Route (invisible) · Watch · Review.**
 
 **Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · 65–82% cost vs all-Opus (measured — [SYSTEM_DESIGN §0](docs/foundation/SYSTEM_DESIGN.md#0-executive-summary-read-this-if-you-read-nothing-else) · [validation runs](docs/strategy/MOOTER_PERF_VALIDATION.md)).**
 

@@ -5,14 +5,16 @@ Claude-specific instructions live in `CLAUDE.md` (root) — read that too if you
 
 ## Project overview
 
-**Mooter** (mooter.ai, MIT) is the Lovable-grade experience for developers who have
-*outgrown* Lovable — real, complex, long-lived, multi-agent projects, built in VS Code.
-The LLM router is invisible infrastructure under five pillars: **Resume · Plan · Route ·
-Watch · Review**. The moat a large vendor won't copy: **local-first $0 · honest cost ·
-Resume in 60s · multi-vendor neutrality**. The rule: a change ships only if it improves one
-of the five. Underneath the **Route** pillar, a deterministic <50ms regex classifier sends
-each prompt to the minimum viable tier (local Ollama first, cloud only when it earns its
-cost); the router never proxies prompts and never fabricates metrics.
+**Mooter** (mooter.ai, MIT) exists so a vibe coder can operate like a master without studying
+every day: it sets up, watches, and pilots a real multi-agent project from inside VS Code with
+total visibility — alerting foundation gaps (skills, memory, loops, file structure), applying
+vibe-coding best practices automatically, and making the magic visible (Live Preview).
+Under the hood, the engine and moat: a deterministic local-first router (<50ms, $0 to classify)
+that orchestrates multiple LLM subscriptions (Anthropic, OpenAI, Google) plus the user's own
+GPU (Ollama), routing every prompt to the minimum viable tier and learning forever from local
+telemetry — never proxying prompts, never fabricating metrics. The engine is the moat; the
+cockpit is the product. A change earns its place by improving one of five experiences:
+**Resume · Plan · Route (invisible) · Watch · Review**.
 
 ## Agent boot & freshness
 

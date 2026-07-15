@@ -8,12 +8,12 @@
 > arquitectura: `MOOTER_ARCHITECTURE.md`.
 
 ## A tese (a régua de toda a wave)
-Mooter = a experiência tipo Lovable para quem **ultrapassou** o Lovable — projetos reais, complexos,
-duradouros, multi-agente, no VS Code. O router é infra **invisível**. **5 pilares: Resume · Plan · Route ·
-Watch · Review.** Régua: se não melhora um dos 5, não entra. O fosso (o que a MS nunca fará): local-first
-$0 · custo honesto · Resume 60s · neutralidade multi-vendor. Motor interno: decidir a $0, empurrar o máximo
-para local, **provar** cada poupança, **melhorar sozinho** — o quarteto Cowork (design, raro) · CC
-(irreversível) · moos locais ($0) · Mooter (o maestro). Veredito SOTA 2026: **no caminho certo, adiante em honestidade**.
+O Mooter existe para o vibe coder ganhar tempo operando como um mestre sem estudar todos os dias:
+melhores práticas automáticas, visibilidade total, alertas de gaps de fundação, e a magia visível —
+pilotado do plugin VS Code. Por baixo, o motor-fosso: roteamento determinístico local-first ($0,
+<50ms) sobre multi-subscriptions + GPU do usuário. **Uma wave só entra se melhorar uma das 5
+experiências: Resume · Plan · Route (invisível) · Watch · Review.** "$0 primeiro" continua como
+princípio de execução (como trabalhar), não como tese (porquê existir). Prova > promessa.
 
 ## Princípios de priorização
 1. **Performance/custo primeiro.** 2. **Alavanca** (fundações antes de folhas). 3. **Velocidade local $0**
