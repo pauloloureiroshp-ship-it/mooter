@@ -4,6 +4,39 @@
 > Cowork (Claude) age sobre ele **sem nunca pedir um screenshot**. Determinístico no detalhe, qwen só
 > de guarnição. É o trunfo do Mooter: *perfect handoff + learns forever.*
 
+> **STATUS (auditoria multiagente 2026-07-10): PARCIAL.** A projeção por sessão é
+> forte, mas o Ledger ainda não é durável/concorrente e a fila documental voltou a
+> divergir. “Perfect” só volta a ser verdadeiro quando os gates P1 abaixo fecharem.
+
+## Modelo de autoridade (alvo)
+
+1. **Verdade:** event log durável, ordenado e transacional (`sid + seq + event_id + schema_version`).
+2. **Projeções:** handoff por sessão, board do projeto e `SYNC.md`; nenhum deles recebe escrita concorrente direta.
+3. **Work order:** um packet ativo tipado em `_handoff/`, com dono, estado, worktree, guardas, gate e próximo passo.
+4. **Memória:** `LOOP.md`/`MEMORY.md`; Notion e vault são espelhos, nunca pré-requisitos invisíveis.
+5. **Humano:** Paulo autoriza merge, push, deploy, delete e overrides de invariantes.
+
+Fluxo de ciclo de vida: `draft → ready → claimed → blocked|verified → shipped → archived`.
+Um packet sem estado explícito não está pronto para execução; um packet shipped que
+permanece no topo é drift detectável, não “memória útil”.
+
+## Gate de perfeição aberto (2026-07-10)
+
+| Prioridade | Falha observada | Gate para fechar |
+|---|---|---|
+| P1 | turn snippets e eventos dividem o mesmo buffer móvel de 50 linhas | separar context buffer do ledger append-only; rollover 50+ preserva intent/decision/outcome |
+| P1 | append/dedupe/rewrite e upsert de `SYNC.md` não têm single-writer/lock transacional | stress multiprocess sem perda/duplicação; temp único + fsync ou SQLite WAL |
+| P1 | writers diretos contornam `ledger-reduce` | toda projeção de produção nasce do reducer; replay gera resultado byte-idêntico |
+| P1 | `wave ship --force` pode contornar SHA e ship não exige fases/gates completos | SHA nunca é overrideable; ship exige fases, evidência e merge verificados |
+| P1 | auto-lock do conductor avisa, mas deixa o git concorrente continuar | conflito de lock bloqueia mutação ou enfileira intent; teste E2E prova o comportamento |
+| P2 | payloads do ledger são crus, ilimitados e sem schema/redaction | schema versionado, limites, redaction e proveniência recalculada internamente |
+| P2 | fila ativa/documentos canônicos voltam a acumular | `node tools/docs-hygiene.js` verde em modo warn; depois baseline limpo e `--strict` no CI |
+
+Correções implementadas nesta auditoria (execução do gate Node pendente neste shell):
+erros de `AskUserQuestion` deixam de virar “decisões humanas”; `composeHandoff`
+preserva `perfect`, Ledger e proveniência durante o enriquecimento local; os testes
+de Ledger entram no gate principal do router.
+
 ## Auditoria da mecânica actual (2026-06-30)
 | Peça | Faz | Veredicto |
 |---|---|---|
