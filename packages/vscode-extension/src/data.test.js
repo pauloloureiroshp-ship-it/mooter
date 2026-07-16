@@ -4,6 +4,8 @@ const { test, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const http = require('http');
+const LEDGER_REDUCER = path.resolve(__dirname, '..', '..', '..', 'tools', 'router', 'ledger-reduce.js');
+function reducerOpts(opts) { return Object.assign({}, opts || {}, { reducerPaths: [LEDGER_REDUCER] }); }
 // The mode registry is live user state. Isolate it before host-extra/mode-registry are loaded so
 // tests cannot race the running VS Code extension or accumulate fixture sessions in ~/.claude.
 const registryTestDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-mode-registry-test-'));
@@ -1814,14 +1816,14 @@ test('⇄ Handoff v3 generateHandoff FRESH: ⚠ quando vault/Notion > 7d; em fal
 test('⇄ Handoff writeHandoffToSync: UPSERT por sid (2ª chamada substitui, não acumula); atómico', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sync-'));
   const sid = 'sess-handoff-1';
-  const r1 = x.writeHandoffToSync(tmpDir, sid, 'FIRST HANDOFF TEXT', { name: 'sess', now: new Date('2026-06-26T10:00:00') });
+  const r1 = x.writeHandoffToSync(tmpDir, sid, 'FIRST HANDOFF TEXT', reducerOpts({ name: 'sess', now: new Date('2026-06-26T10:00:00') }));
   assert.equal(r1.ok, true);
   assert.equal(r1.created, true, 'created the SYNC.md when absent (context never lost)');
   let content = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
   assert.ok(content.includes('FIRST HANDOFF TEXT'));
   assert.ok(content.includes('### ⇄ Handoff · sess · 2026-06-26 10:00'));
   // 2nd handoff for the SAME sid → replaces, never accumulates
-  const r2 = x.writeHandoffToSync(tmpDir, sid, 'SECOND HANDOFF TEXT', { name: 'sess', now: new Date('2026-06-26T11:00:00') });
+  const r2 = x.writeHandoffToSync(tmpDir, sid, 'SECOND HANDOFF TEXT', reducerOpts({ name: 'sess', now: new Date('2026-06-26T11:00:00') }));
   assert.equal(r2.ok, true);
   content = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
   assert.ok(content.includes('SECOND HANDOFF TEXT'));
@@ -1829,7 +1831,7 @@ test('⇄ Handoff writeHandoffToSync: UPSERT por sid (2ª chamada substitui, nã
   const startMarkers = (content.match(/<!-- mooter-handoff:sess-handoff-1 -->/g) || []).length;
   assert.equal(startMarkers, 1, 'exactly ONE handoff block per sid');
   // a DIFFERENT sid appends its own block (both coexist)
-  x.writeHandoffToSync(tmpDir, 'other-sid', 'OTHER SESSION HANDOFF', { name: 'other', now: new Date('2026-06-26T12:00:00') });
+  x.writeHandoffToSync(tmpDir, 'other-sid', 'OTHER SESSION HANDOFF', reducerOpts({ name: 'other', now: new Date('2026-06-26T12:00:00') }));
   content = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
   assert.ok(content.includes('SECOND HANDOFF TEXT') && content.includes('OTHER SESSION HANDOFF'), 'distinct sids coexist');
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -1843,13 +1845,36 @@ test('⇄ Handoff writeHandoffToSync: upsert num SYNC.md já existente preserva 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sync-pre-'));
   const file = path.join(tmpDir, 'SYNC.md');
   fs.writeFileSync(file, '# Mooter — Sync Snapshot\n\n### Existing section\n**Estado:** keep me\n');
-  const r = x.writeHandoffToSync(tmpDir, 'sX', 'HANDOFF BODY', { name: 'sX', now: new Date('2026-06-26T13:00:00') });
+  const r = x.writeHandoffToSync(tmpDir, 'sX', 'HANDOFF BODY', reducerOpts({ name: 'sX', now: new Date('2026-06-26T13:00:00') }));
   assert.equal(r.ok, true);
   assert.equal(r.created, false, 'existing file is not flagged created');
   const content = fs.readFileSync(file, 'utf8');
   assert.ok(content.includes('### Existing section') && content.includes('keep me'), 'pre-existing content preserved');
   assert.ok(content.includes('HANDOFF BODY'), 'handoff block appended');
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('Gate 3: reducer resolver honors checkout-first order and fails explicitly when incompatible', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-reducer-resolve-'));
+  const incompatible = path.join(tmpDir, 'old-reducer.js');
+  fs.writeFileSync(incompatible, "if (process.argv[2] === '--protocol-version') process.stdout.write('mooter-ledger-reducer.v0\\n');\n");
+  try {
+    const production = x._ledgerReducerCandidates(tmpDir, {});
+    assert.equal(production[0], path.join(tmpDir, 'tools', 'router', 'ledger-reduce.js'));
+    assert.equal(production[1], path.join(x.ROUTER, 'ledger-reduce.js'));
+    const ordered = x._ledgerReducerCandidates(tmpDir, { reducerPaths: [incompatible, LEDGER_REDUCER] });
+    assert.deepEqual(ordered, [incompatible, LEDGER_REDUCER]);
+    const resolved = x._resolveLedgerReducer(tmpDir, { reducerPaths: ordered });
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.file, LEDGER_REDUCER, 'first compatible reducer wins after incompatible checkout candidate');
+    assert.equal(resolved.attempts[0].reason, 'incompatible-protocol');
+    const refused = x.writeHandoffToSync(tmpDir, 'sid', 'body', { reducerPaths: [incompatible] });
+    assert.equal(refused.ok, false);
+    assert.equal(refused.reason, 'reducer-unavailable');
+    assert.equal(fs.existsSync(path.join(tmpDir, 'SYNC.md')), false, 'no fallback writer exists in the plugin');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test('⇄ Handoff mode-registry: setHandoff persiste handoffSentAt + decorate expõe (aditivo)', () => {
@@ -1899,7 +1924,7 @@ test('⇄ Handoff v3 host-side flow (handler sim): clipboard + handoffSentAt + S
   const text = x.generateHandoff(row, row.pending, { snapshot, now: new Date('2026-06-26T09:00:00') });
   clipboard = text;
   mr.setHandoff(sid);
-  const w = x.writeHandoffToSync(row.cwd, sid, text, { name: row.name });
+  const w = x.writeHandoffToSync(row.cwd, sid, text, reducerOpts({ name: row.name }));
   assert.ok(clipboard.includes('⇄ MOO HANDOFF'), 'clipboard holds the handoff text');
   assert.ok(clipboard.includes('PENDING:"Ready to commit?"'), 'pending question copied verbatim');
   assert.ok(clipboard.includes('ASK:    answer'), 'action-first ASK present');

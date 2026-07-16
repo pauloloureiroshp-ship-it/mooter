@@ -326,3 +326,32 @@ test('Gate 2: multiprocess writers lose and duplicate zero events', async () => 
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
+
+test('Gate 3: agent snapshot replay is byte-identical and contains no ambient clock/git reads', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    const event = sync.normalizeEvent({
+      id: 'stable-event', agent: 'codex', kind: 'decision', cadence: 'checkpoint',
+      status: 'ready', summary: 'stable reducer input',
+    }, { root, git: false, classify: false, now: '2026-07-16T11:00:00.000Z' });
+    event.git = { branch: 'fixed', head: 'abc123', dirty: 0, ahead: 1, error: null };
+    event.classify = { path: 'tools/router/classify.js', sha256: 'fixed-sha', intact: true };
+    const one = sync.buildSnapshot(root, [event], dir);
+    const two = sync.buildSnapshot(root, [event], dir);
+    assert.equal(JSON.stringify(one), JSON.stringify(two));
+    assert.equal(sync.renderSnapshot(one), sync.renderSnapshot(two));
+    assert.equal(one.generated_at, event.ts);
+    assert.deepEqual(one.git, event.git);
+    assert.deepEqual(one.classify, event.classify);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Gate 3: agent ledger delegates every projection write to ledger-reduce', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'agent-sync-ledger.js'), 'utf8');
+  assert.doesNotMatch(source, /fs\.(?:writeFileSync|renameSync|appendFileSync)\s*\(/);
+  assert.doesNotMatch(source, /reducer\.atomicWriteFileSync\s*\(/);
+  assert.match(source, /reducer\.materializeProjectionFiles?\s*\(/);
+});

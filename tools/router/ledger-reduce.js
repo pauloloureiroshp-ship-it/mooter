@@ -20,6 +20,7 @@ const path = require('path');
 const crypto = require('crypto');
 const journal = require('./handoff-journal.js');
 
+const REDUCER_PROTOCOL_VERSION = 'mooter-ledger-reducer.v1';
 const LOCK_SCHEMA_VERSION = 'mooter-ledger-lock.v1';
 const DEFAULT_LEASE_MS = 30_000;
 const DEFAULT_WAIT_MS = 30_000;
@@ -199,7 +200,12 @@ function withFileLock(lockPath, fn, opts = {}) {
   while (true) {
     handle = acquireFileLock(lockPath, opts);
     if (handle.ok) break;
-    const retryable = handle.reason === 'lock-held' || handle.reason === 'lock-owner-not-proven-dead';
+    // A concurrent O_EXCL creator may be between file creation and the fsynced
+    // metadata write. Re-read that boundedly; never delete/recover an invalid
+    // lock. A persistently invalid lock still ends at the human-audit error.
+    const retryable = handle.reason === 'lock-held' ||
+      handle.reason === 'lock-owner-not-proven-dead' ||
+      handle.reason === 'lock-invalid-human-audit';
     if (!retryable || Date.now() - started >= waitMs) {
       const err = new Error(`ledger lock unavailable: ${handle.reason}`);
       err.code = 'MOOTER_LEDGER_LOCKED';
@@ -216,6 +222,111 @@ function withFileLock(lockPath, fn, opts = {}) {
 }
 
 function _safeId(id) { return String(id || '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80); }
+
+function materializeProjectionFile(file, data, opts = {}) {
+  atomicWriteFileSync(file, data, opts);
+  return { ok: true, file, bytes: Buffer.byteLength(String(data), 'utf8') };
+}
+
+function materializeProjectionFiles(entries, opts = {}) {
+  const written = [];
+  for (const entry of (Array.isArray(entries) ? entries : [])) {
+    if (!entry || !entry.file) continue;
+    written.push(materializeProjectionFile(entry.file, entry.data == null ? '' : entry.data, opts));
+  }
+  return written;
+}
+
+function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// PURE: stable handoff projection used by every producer, including the VSIX.
+function projectSyncHandoff(base, payload = {}) {
+  const sid = String(payload.sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!sid) return null;
+  const name = String(payload.name || sid).replace(/[\r\n]+/g, ' ').slice(0, 60);
+  const timestamp = String(payload.timestamp || '').replace(/[\r\n]+/g, ' ').slice(0, 32);
+  const start = `<!-- mooter-handoff:${sid} -->`;
+  const end = `<!-- /mooter-handoff:${sid} -->`;
+  const block = `${start}\n### ⇄ Handoff · ${name} · ${timestamp}\n\n\`\`\`\n${String(payload.text || '')}\n\`\`\`\n${end}`;
+  let source = String(base || '');
+  const re = new RegExp(_reEsc(start) + '[\\s\\S]*?' + _reEsc(end));
+  if (re.test(source)) return source.replace(re, block);
+  if (!source.trim()) source = '# Mooter — Sync Snapshot\n';
+  return source.replace(/\s*$/, '') + '\n\n' + block + '\n';
+}
+
+function reduceSyncHandoff(root, payload, opts = {}) {
+  if (!root || typeof root !== 'string') return { ok: false, reason: 'no-root' };
+  if (!payload || !String(payload.sid || '').replace(/[^a-zA-Z0-9._-]/g, '')) {
+    return { ok: false, reason: 'no-sid' };
+  }
+  const file = path.join(root, 'SYNC.md');
+  const lockPath = opts.lockPath || path.join(root, '_handoff', 'agent-sync', '.writer.lock');
+  try {
+    return withFileLock(lockPath, () => {
+      let base = '';
+      let created = false;
+      try { base = fs.readFileSync(file, 'utf8'); } catch { created = true; }
+      const projected = projectSyncHandoff(base, payload);
+      materializeProjectionFile(file, projected, opts);
+      return { ok: true, path: file, created, bytes: Buffer.byteLength(projected, 'utf8') };
+    }, opts.lock || {});
+  } catch (err) {
+    return { ok: false, reason: err && err.code === 'MOOTER_LEDGER_LOCKED' ? 'locked' : 'write-failed' };
+  }
+}
+
+// PURE: replace the current snapshot metadata/truth as one deterministic projection.
+function projectSyncSnapshot(base, payload = {}) {
+  let source = String(base || '');
+  if (!source.trim()) source = '# Mooter — Sync Snapshot\n';
+  const metadata = String(payload.metadata || '').trim();
+  if (metadata) {
+    const metadataRe = /\*\*Atualizado:\*\*[\s\S]*?(?=\n\n## Verdade atual)/;
+    source = metadataRe.test(source)
+      ? source.replace(metadataRe, metadata)
+      : source.replace(/^(# [^\n]+\n)/, `$1\n${metadata}\n`);
+  }
+  if (Array.isArray(payload.truth)) {
+    const truth = payload.truth.map((line) => `- ${String(line).trim()}`).join('\n');
+    const section = `## Verdade atual\n\n${truth}\n`;
+    const sectionRe = /## Verdade atual\n[\s\S]*?(?=\n## |$)/;
+    source = sectionRe.test(source)
+      ? source.replace(sectionRe, section)
+      : source.replace(/\s*$/, '') + `\n\n${section}`;
+  }
+  return source;
+}
+
+function reduceSyncSnapshot(root, payload, opts = {}) {
+  if (!root || typeof root !== 'string') return { ok: false, reason: 'no-root' };
+  const file = path.join(root, 'SYNC.md');
+  const lockPath = opts.lockPath || path.join(root, '_handoff', 'agent-sync', '.writer.lock');
+  try {
+    return withFileLock(lockPath, () => {
+      let base = '';
+      try { base = fs.readFileSync(file, 'utf8'); } catch { /* new snapshot */ }
+      const projected = projectSyncSnapshot(base, payload);
+      materializeProjectionFile(file, projected, opts);
+      return { ok: true, path: file, bytes: Buffer.byteLength(projected, 'utf8') };
+    }, opts.lock || {});
+  } catch (err) {
+    return { ok: false, reason: err && err.code === 'MOOTER_LEDGER_LOCKED' ? 'locked' : 'write-failed' };
+  }
+}
+
+function handleProtocolRequest(request) {
+  if (!request || request.protocol_version !== REDUCER_PROTOCOL_VERSION) {
+    return { ok: false, reason: 'incompatible-protocol', protocol_version: REDUCER_PROTOCOL_VERSION };
+  }
+  if (request.operation === 'sync-handoff-upsert') {
+    return reduceSyncHandoff(request.root, request.payload || {}, request.options || {});
+  }
+  if (request.operation === 'sync-snapshot-refresh') {
+    return reduceSyncSnapshot(request.root, request.payload || {}, request.options || {});
+  }
+  return { ok: false, reason: 'unknown-operation', protocol_version: REDUCER_PROTOCOL_VERSION };
+}
 
 // Where the reducer writes projections. Env-overridable for tests/sandbox;
 // default is the repo's `_handoff/guardian/` (this file lives at tools/router/,
@@ -275,6 +386,7 @@ function reduceSession(sid, opts = {}) {
 }
 
 module.exports = {
+  REDUCER_PROTOCOL_VERSION,
   LOCK_SCHEMA_VERSION,
   atomicWriteFileSync,
   appendFileDurablySync,
@@ -283,6 +395,13 @@ module.exports = {
   withFileLock,
   fsyncDirSync,
   isProcessAlive,
+  materializeProjectionFile,
+  materializeProjectionFiles,
+  projectSyncHandoff,
+  reduceSyncHandoff,
+  projectSyncSnapshot,
+  reduceSyncSnapshot,
+  handleProtocolRequest,
   reduceSession,
   projectHandoffMarkdown,
   projectFromEvents,
@@ -291,6 +410,17 @@ module.exports = {
 
 // CLI: `node ledger-reduce.js <sid> [outDir]` — one-shot projection. Best-effort.
 if (require.main === module) {
+  if (process.argv[2] === '--protocol-version') {
+    process.stdout.write(REDUCER_PROTOCOL_VERSION + '\n');
+    process.exit(0);
+  }
+  if (process.argv[2] === '--request') {
+    let r;
+    try { r = handleProtocolRequest(JSON.parse(fs.readFileSync(0, 'utf8'))); }
+    catch { r = { ok: false, reason: 'invalid-request', protocol_version: REDUCER_PROTOCOL_VERSION }; }
+    try { process.stdout.write(JSON.stringify(r) + '\n'); } catch { /* ignore */ }
+    process.exit(r.ok ? 0 : 1);
+  }
   const sid = process.argv[2];
   const outDir = process.argv[3];
   const r = reduceSession(sid, outDir ? { outDir } : {});

@@ -301,7 +301,10 @@ function writeContextEvents(root, events, dir) {
   const ps = paths(root, dir);
   fs.mkdirSync(ps.dir, { recursive: true });
   const context = selectContextEvents(events);
-  reducer.atomicWriteFileSync(ps.context, context.map((e) => JSON.stringify(e)).join('\n') + (context.length ? '\n' : ''));
+  reducer.materializeProjectionFile(
+    ps.context,
+    context.map((e) => JSON.stringify(e)).join('\n') + (context.length ? '\n' : ''),
+  );
   return context;
 }
 
@@ -372,9 +375,21 @@ function buildSnapshot(root, events, dir, opts) {
       files: e.files || [],
     }));
   const last = events[events.length - 1] || null;
+  const latestProjection = (key) => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i] && events[i][key]) return events[i][key];
+    }
+    return null;
+  };
+  const now = opts.now instanceof Date ? opts.now.toISOString() : opts.now;
+  const projection = (key) => {
+    if (opts[key] === false) return null;
+    if (opts[key] && typeof opts[key] === 'object') return opts[key];
+    return latestProjection(key);
+  };
   return {
     schema_version: SCHEMA_VERSION,
-    generated_at: new Date().toISOString(),
+    generated_at: now || (last && last.ts) || '1970-01-01T00:00:00.000Z',
     repo_root: root,
     dir: paths(root, dir).dir,
     event_count: events.length,
@@ -384,8 +399,8 @@ function buildSnapshot(root, events, dir, opts) {
     active_briefs: activeBriefs,
     recent_decisions: recentDecisions,
     recent_gates: recentGates,
-    classify: opts.classify === false ? null : classifySnapshot(root),
-    git: opts.git === false ? null : gitSnapshot(root),
+    classify: projection('classify'),
+    git: projection('git'),
   };
 }
 
@@ -553,13 +568,12 @@ function writeBriefPrompts(root, event, snapshot, dir) {
   const ps = paths(root, dir);
   const targets = event.target_agents && event.target_agents.length ? event.target_agents : ['ollama'];
   fs.mkdirSync(ps.briefsDir, { recursive: true });
-  const written = [];
-  for (const target of targets) {
-    const file = path.join(ps.briefsDir, `${event.id}-${target}.md`);
-    reducer.atomicWriteFileSync(file, renderBriefPrompt(event, snapshot, target) + '\n');
-    written.push(file);
-  }
-  return written;
+  return reducer.withFileLock(ps.lock, () => reducer.materializeProjectionFiles(
+    targets.map((target) => ({
+      file: path.join(ps.briefsDir, `${event.id}-${target}.md`),
+      data: renderBriefPrompt(event, snapshot, target) + '\n',
+    })),
+  ).map((entry) => entry.file));
 }
 
 function writeSnapshot(root, snapshot, dir, opts) {
@@ -567,11 +581,14 @@ function writeSnapshot(root, snapshot, dir, opts) {
   const ps = paths(root, dir);
   const write = () => {
     fs.mkdirSync(ps.promptsDir, { recursive: true });
-    reducer.atomicWriteFileSync(ps.snapshot, JSON.stringify(snapshot, null, 2) + '\n');
-    reducer.atomicWriteFileSync(ps.latest, renderSnapshot(snapshot) + '\n');
-    for (const agent of SYNC_AGENTS) {
-      reducer.atomicWriteFileSync(path.join(ps.promptsDir, `${agent}.md`), renderAgentPrompt(snapshot, agent) + '\n');
-    }
+    reducer.materializeProjectionFiles([
+      { file: ps.snapshot, data: JSON.stringify(snapshot, null, 2) + '\n' },
+      { file: ps.latest, data: renderSnapshot(snapshot) + '\n' },
+      ...SYNC_AGENTS.map((agent) => ({
+        file: path.join(ps.promptsDir, `${agent}.md`),
+        data: renderAgentPrompt(snapshot, agent) + '\n',
+      })),
+    ]);
   };
   if (opts.lockHeld) return write();
   return reducer.withFileLock(ps.lock, write, opts.lock || {});
