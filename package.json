@@ -3,6 +3,10 @@
   "private": true,
   "description": "Workspace anchor for the Live Preview anchored-task agent (LP-4.5 / W2). Declares the headless @anthropic-ai/claude-agent-sdk that live-edit-task-runner.mjs import()s FROM THE WORKSPACE at edit time. Dev-only: the shipped mooter router + landing product never import it, and it is NEVER bundled in the vscode-extension vsix (a separate package; live-edit-packaging.test.js pins that the extension deps must not carry it). Workspace Trust is required before the agent runs.",
   "scripts": {
+    "handoff:preflight": "node tools/handoff-preflight.js",
+    "handoff:preflight:check": "node tools/handoff-preflight.js --check",
+    "handoff:qa": "node tools/handoff-preflight.js --qa",
+    "test:handoff-preflight": "node --test tools/handoff-preflight.test.js",
     "handoff:hygiene": "node tools/docs-hygiene.js",
     "handoff:hygiene:strict": "node tools/docs-hygiene.js --strict",
     "test:docs-hygiene": "node --test tools/docs-hygiene.test.js"

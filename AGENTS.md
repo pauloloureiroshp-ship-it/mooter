@@ -144,6 +144,21 @@ Mooter is developed across two agents plus a human gate:
 
 **Outbound (you → Cowork) — the handoff that never lies:**
 
+- **Run the preflight FIRST — before you write a single line of the handoff:**
+  ```
+  npm run handoff:preflight        # skeleton: every spec field, mechanical ones pre-filled
+  npm run handoff:qa               # this session's Q&A, verbatim, zero LLM
+  ```
+  This is not advice. On 2026-07-16 a handoff was written **three times** before it was right, by an
+  agent that had read this very file — because a rule in prose does not enforce itself. The preflight
+  parses `PERFECT_HANDOFF_SPEC.md` for the required fields, fills the ~90% that are mechanical (git,
+  sha, unpushed across **all** worktrees, derived STATE), marks judgement fields as loud `<<TODO>>`,
+  and writes `n/d` wherever it cannot verify. It fails (`--check`) if the spec grows a field it does
+  not know, so the format cannot silently drift. Cost: $0, no model.
+- **`DECISIONS` is recovered, never remembered.** `npm run handoff:qa` reads the Claude Code transcript
+  and emits every question with **all** options and the chosen answer, verbatim. Do not hand-transcribe
+  it — that is how the spec's hole nº2 (truncated questions) comes back. Note the Ledger cannot serve
+  this: `kind:decision` carries only `output_hash`/`idem_key` — the shape, not the content.
 - Report the branch where **work** happened (the git-write worktree), never where you last `cd`'d. Provenance is the Ledger (`tools/router/*ledger*`).
 - Include real git state (unpushed / uncommitted / PR / CI), completed steps (for dedup), and a confidence signal. Reference context, don't dump it.
 - `uncommitted` is the red alert — it is the only work that can be lost.

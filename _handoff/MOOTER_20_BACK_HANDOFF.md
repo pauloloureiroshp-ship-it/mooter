@@ -123,7 +123,14 @@ O LOOP.md que este ciclo escreveu diz: *"trabalho não-durável (untracked/uncom
 fonte nº1 de falha de comunicação multi-agente"*. Nesta mesma sessão:
 - O **brief do H0.2** estava gitignored, e o evento que o originou **não existe no Ledger** — órfão.
 - Os **audits que o H2 precisa** eram untracked, sem cópia em lado nenhum.
-- As **9 decisões desta sessão** não foram para o Ledger (`kind:decision` não é emitido).
+- As **9 decisões desta sessão** não são projectáveis: `kind:decision` **é** emitido, mas só com
+  `output_hash`/`idem_key` — o Ledger guarda a *forma*, não o *conteúdo*.
+
+**E a peça que faltava:** o Q&A **estava** recuperável o tempo todo — no transcript do Claude Code, não
+no Ledger. `tools/handoff-preflight.js --qa` extrai as 9 perguntas verbatim, com todas as opções, em
+milissegundos e a custo zero. Transcrevi-as à mão em Opus por não saber onde procurar. **A lição não é
+"o Ledger falhou" — é que ninguém tinha lido o spec para saber que campo era preciso, nem procurado a
+fonte mecânica que já existia.**
 
 ---
 
@@ -197,10 +204,16 @@ NEXT:     Paulo diz se quer; são ~20min. Compõe _handoff/MOOTER_20_RELEASE_GAT
 
 ## 💬 Q&A COMPLETO DA THREAD — 9 perguntas, verbatim
 
-> ⚠️ **Transcrição, não projecção.** O `PERFECT_HANDOFF_SPEC.md:128` diz que o handoff perfeito é uma
-> *projecção do Ledger*. Mas `_handoff/agent-sync/events.jsonl` tem só 5 marcadores
-> `claude-code/kind:turn` de hook — **zero eventos `kind:decision`**. Isto foi transcrito à mão da
-> sessão. É a mesma raiz do brief órfão.
+> ⚠️ **Transcrito à mão — e não era preciso.** O `PERFECT_HANDOFF_SPEC.md:128` diz que o handoff perfeito
+> é uma *projecção do Ledger*. O Live Context Accumulator **emite** `kind:decision` (3 eventos nesta
+> sessão, em `~/.claude/tools/router/handoff/<sid>.jsonl`) — **mas só com `output_hash` e `idem_key`:
+> hashes, sem pergunta, sem opções, sem escolha**. Logo não é projectável de lá, e o
+> `_handoff/agent-sync/events.jsonl` tem apenas 5 marcadores `kind:turn`.
+>
+> **A correcção (2026-07-16, pós-ciclo):** o Q&A ESTÁ na íntegra no transcript do Claude Code
+> (`~/.claude/projects/<proj>/<sid>.jsonl`), que guarda cada `AskUserQuestion` com a pergunta completa,
+> todas as opções e as respostas. `tools/handoff-preflight.js --qa` extrai-o **verbatim, zero LLM, em
+> milissegundos**. Este bloco foi transcrito à mão a queimar Opus por eu não saber disso.
 
 ### Ronda 1 — pré-H0 (a árvore principal era insalvável como base)
 
@@ -382,8 +395,10 @@ git stash list && git stash show -p stash@{0} | head -50
    código apaga). Sem isso o H1 não vira wave.
 3. **Considerar despromover o H2 de "wave" para "3 items"**: o gate de CI (~15 linhas) compra a maior
    parte do valor hoje; manifesto anti-rot e recibo na UI são o resto.
-4. **Emitir `kind:decision` no Ledger** — 9 decisões reais desta sessão não existem nele, e por isso o
-   bloco Q&A acima é transcrição e não projecção, contra o `PERFECT_HANDOFF_SPEC.md:128`.
+4. **Pôr payload no `kind:decision` do Ledger** — ele é emitido, mas só com `output_hash`/`idem_key`.
+   Enquanto guardar hashes, o `DECISIONS` do spec (que exige a pergunta COMPLETA) nunca será uma
+   projecção do Ledger, contra o `PERFECT_HANDOFF_SPEC.md:128`. Entretanto,
+   `tools/handoff-preflight.js --qa` resolve-o pelo transcript do CC, a custo zero.
 5. **Corrigir o masterprompt do próximo ciclo**: 4 das suas premissas eram falsas, uma delas
    (`auditoria D1-h8`) era uma citação a um documento inexistente. Rodar pointer-check antes de emitir —
    é exactamente o job L0 que o LOOP deste ciclo registou.
