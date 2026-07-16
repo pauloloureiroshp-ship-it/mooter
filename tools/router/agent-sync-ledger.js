@@ -20,6 +20,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
+const reducer = require('./ledger-reduce.js');
 
 const SCHEMA_VERSION = 'agent-sync-ledger.v2';
 const EXPECTED_CLASSIFY_SHA =
@@ -123,6 +124,7 @@ function paths(root, dir) {
     dir: d,
     events: path.join(d, 'events.jsonl'),
     context: path.join(d, 'context.jsonl'),
+    lock: path.join(d, '.writer.lock'),
     snapshot: path.join(d, 'snapshot.json'),
     latest: path.join(d, 'latest.md'),
     promptsDir: path.join(d, 'prompts'),
@@ -299,19 +301,22 @@ function writeContextEvents(root, events, dir) {
   const ps = paths(root, dir);
   fs.mkdirSync(ps.dir, { recursive: true });
   const context = selectContextEvents(events);
-  fs.writeFileSync(ps.context, context.map((e) => JSON.stringify(e)).join('\n') + (context.length ? '\n' : ''));
+  reducer.atomicWriteFileSync(ps.context, context.map((e) => JSON.stringify(e)).join('\n') + (context.length ? '\n' : ''));
   return context;
 }
 
 function appendEvent(root, event, dir, opts) {
+  opts = opts || {};
   const ps = paths(root, dir);
   fs.mkdirSync(ps.dir, { recursive: true });
-  fs.appendFileSync(ps.events, JSON.stringify(event) + '\n');
-  const events = readEvents(root, dir);
-  writeContextEvents(root, events, dir);
-  const snapshot = buildSnapshot(root, events, dir, opts);
-  writeSnapshot(root, snapshot, dir);
-  return snapshot;
+  return reducer.withFileLock(ps.lock, () => {
+    reducer.appendFileDurablySync(ps.events, JSON.stringify(event) + '\n');
+    const events = readEvents(root, dir);
+    writeContextEvents(root, events, dir);
+    const snapshot = buildSnapshot(root, events, dir, opts);
+    writeSnapshot(root, snapshot, dir, { lockHeld: true });
+    return snapshot;
+  }, opts.lock || {});
 }
 
 function buildSnapshot(root, events, dir, opts) {
@@ -551,20 +556,25 @@ function writeBriefPrompts(root, event, snapshot, dir) {
   const written = [];
   for (const target of targets) {
     const file = path.join(ps.briefsDir, `${event.id}-${target}.md`);
-    fs.writeFileSync(file, renderBriefPrompt(event, snapshot, target) + '\n');
+    reducer.atomicWriteFileSync(file, renderBriefPrompt(event, snapshot, target) + '\n');
     written.push(file);
   }
   return written;
 }
 
-function writeSnapshot(root, snapshot, dir) {
+function writeSnapshot(root, snapshot, dir, opts) {
+  opts = opts || {};
   const ps = paths(root, dir);
-  fs.mkdirSync(ps.promptsDir, { recursive: true });
-  fs.writeFileSync(ps.snapshot, JSON.stringify(snapshot, null, 2) + '\n');
-  fs.writeFileSync(ps.latest, renderSnapshot(snapshot) + '\n');
-  for (const agent of SYNC_AGENTS) {
-    fs.writeFileSync(path.join(ps.promptsDir, `${agent}.md`), renderAgentPrompt(snapshot, agent) + '\n');
-  }
+  const write = () => {
+    fs.mkdirSync(ps.promptsDir, { recursive: true });
+    reducer.atomicWriteFileSync(ps.snapshot, JSON.stringify(snapshot, null, 2) + '\n');
+    reducer.atomicWriteFileSync(ps.latest, renderSnapshot(snapshot) + '\n');
+    for (const agent of SYNC_AGENTS) {
+      reducer.atomicWriteFileSync(path.join(ps.promptsDir, `${agent}.md`), renderAgentPrompt(snapshot, agent) + '\n');
+    }
+  };
+  if (opts.lockHeld) return write();
+  return reducer.withFileLock(ps.lock, write, opts.lock || {});
 }
 
 function simulationEvents() {

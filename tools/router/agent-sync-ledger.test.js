@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const childProcess = require('node:child_process');
 
 const sync = require('./agent-sync-ledger.js');
 
@@ -293,5 +294,35 @@ test('command simulate reports pass and writes to requested dir', () => {
     assert.ok(fs.existsSync(path.join(dir, 'events.jsonl')));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Gate 2: multiprocess writers lose and duplicate zero events', async () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  const script = path.join(__dirname, 'agent-sync-ledger.js');
+  try {
+    const writers = Array.from({ length: 12 }, (_, index) => new Promise((resolve, reject) => {
+      const child = childProcess.spawn(process.execPath, [
+        script, 'record', '--root', root, '--dir', dir, '--agent', 'codex',
+        '--kind', 'turn', '--cadence', 'turn', '--status', 'done',
+        '--summary', `multiprocess-${index}`, '--git', 'false',
+      ], { stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('error', reject);
+      child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`writer ${index} exited ${code}: ${stderr}`)));
+    }));
+    await Promise.all(writers);
+    const events = sync.readEvents(root, dir);
+    assert.equal(events.length, 12, 'every writer lands exactly one event');
+    assert.equal(new Set(events.map((event) => event.id)).size, 12, 'event ids remain unique');
+    assert.deepEqual(events.map((event) => event.summary).sort(),
+      Array.from({ length: 12 }, (_, index) => `multiprocess-${index}`).sort());
+    assert.equal(fs.existsSync(path.join(dir, '.writer.lock')), false, 'writer lock is released');
+    const snapshot = JSON.parse(fs.readFileSync(path.join(dir, 'snapshot.json'), 'utf8'));
+    assert.equal(snapshot.event_count, 12, 'projection covers the complete locked ledger');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
