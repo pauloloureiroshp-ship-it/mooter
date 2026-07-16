@@ -1,3 +1,18 @@
+---
+type: BRIEF
+id: <ID>
+from: <FROM>
+to: <TO>
+status: <STATUS> # lifecycle
+state: <FM_STATE> # execution
+worktree: <WORKTREE>
+branch: <BRANCH>
+sha: <SHA>
+uncommitted: <UNCOMMITTED_COUNT>
+tests: <TESTS>
+decisions_pending: <DECISIONS_PENDING>
+---
+
 # ⇄ <FROM> → LEDGER → <TO> · BRIEF — <TITLE>
 > Budget: ≤ 1k tokens · event_id: <ID> · source: <SOURCE_REF>
 

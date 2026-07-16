@@ -149,12 +149,12 @@ Mooter is developed across two agents plus a human gate:
 - `uncommitted` is the red alert — it is the only work that can be lost.
 - **Confront before you emit:** before issuing a handoff that touches a front, read that front's real state (git/worktree/last handoff). Never assume it is undone; if it exists, iterate — don't restart.
 
-**Rule of thumb:** structured handoff for execution; prose for deciding. The human authorizes the irreversible. Conceptual source: Cowork vault `00-core/protocolo-comunicacao`; this section is its repo-side mirror.
+**Rule of thumb:** structured handoff for execution; prose for deciding. The human authorizes the irreversible. Canonical repo contract: `docs/agent-context/AGENT_CONTEXT_PROTOCOL.md`. Conceptual mirror in Paulo's vault (maintained by Cowork).
 
 
 ## Information architecture — where a doc lives (and when it dies)
 
-Every `.md` in this repo has exactly one home and one lifecycle. Before creating a file, find its row. Conceptual source: Cowork vault `00-core/onde-vive-o-que`; this section is its repo-side mirror.
+Every `.md` in this repo has exactly one home and one lifecycle. Before creating a file, find its row. Canonical repo source: this `AGENTS.md` § Information architecture. Conceptual mirror in Paulo's vault (maintained by Cowork).
 
 | Type of content | Home | Lifecycle / trigger |
 |---|---|---|

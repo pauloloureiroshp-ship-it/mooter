@@ -1,7 +1,12 @@
 ---
 handoff_schema: 1
 task_id: <ID>
+type: HANDOFF
+id: <ID>
+from: <FROM>
+to: <TO>
 status: <STATUS> # lifecycle
+state: <FM_STATE> # execution
 owner: <OWNER>
 created_at: <CREATED_AT>
 updated_at: <UPDATED_AT>
@@ -9,6 +14,10 @@ worktree: <WORKTREE_PATH>
 branch: <BRANCH>
 base: <BASE>
 head: <HEAD>
+sha: <HEAD>
+uncommitted: <UNCOMMITTED_COUNT>
+tests: <TESTS>
+decisions_pending: <DECISIONS_PENDING>
 ledger_ref: <LEDGER_REF>
 supersedes: <SUPERSEDES>
 ---

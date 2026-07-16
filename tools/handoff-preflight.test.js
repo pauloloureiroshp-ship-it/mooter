@@ -21,6 +21,8 @@ const TEMPLATE_ROOT = path.join(REPO, '_handoff', 'templates');
 const FIXTURE_ROOT = path.join(TEMPLATE_ROOT, 'fixtures');
 const FIXTURE_ID = 'cd89b89c606a7a20';
 const FIXTURE_SOURCE = path.join(FIXTURE_ROOT, `${FIXTURE_ID}.source.md`);
+const AGENTS = path.join(REPO, 'AGENTS.md');
+const PROTOCOL = path.join(REPO, 'docs', 'agent-context', 'AGENT_CONTEXT_PROTOCOL.md');
 const pre = require('./handoff-preflight.js');
 
 function run(args = []) {
@@ -222,6 +224,17 @@ test('Lingua Franca defines exactly four typed contracts and canonical budgets',
   ]);
 });
 
+test('P3 pins canonical repo references and the FC-8 no-mount exception', () => {
+  const agents = fs.readFileSync(AGENTS, 'utf8');
+  const protocol = fs.readFileSync(PROTOCOL, 'utf8');
+  assert.doesNotMatch(agents, /00-core\/(?:protocolo-comunicacao|onde-vive-o-que)/);
+  assert.match(agents, /Canonical repo contract: `docs\/agent-context\/AGENT_CONTEXT_PROTOCOL\.md`/);
+  assert.match(agents, /Canonical repo source: this `AGENTS\.md` § Information architecture/);
+  assert.equal((agents.match(/Conceptual mirror in Paulo's vault \(maintained by Cowork\)/g) || []).length, 2);
+  assert.match(protocol, /consumer cannot mount or access the worktree[\s\S]{0,160}`git diff --stat`[\s\S]{0,160}critical sections/);
+  assert.match(protocol, /explicit\s+exception to references over dumps/);
+});
+
 test('typed contract parser rejects fifth types and duplicate constitutional rows', () => {
   const protocol = fs.readFileSync(path.join(REPO, 'docs', 'agent-context', 'AGENT_CONTEXT_PROTOCOL.md'), 'utf8');
   const marker = '| `BRIEF` | executor → ledger | minimum durable record | ≤ 1k tokens |';
@@ -258,7 +271,51 @@ test('all four templates stay within 60 lines and retain load-bearing HANDOFF fi
   const handoff = fs.readFileSync(path.join(TEMPLATE_ROOT, 'HANDOFF.template.md'), 'utf8');
   for (const field of ['INTENT:', 'TIME:', 'DELTA:', 'RESUME:', 'conf:']) assert.match(handoff, new RegExp(field));
   assert.match(handoff, /status: <STATUS>/, 'lifecycle status must remain in frontmatter');
+  assert.match(handoff, /state: <FM_STATE>/, 'machine execution state needs its own placeholder');
   assert.match(handoff, /STATE: <STATE>/, 'execution STATE must remain distinct');
+});
+
+test('P4 HANDOFF and BRIEF expose stable projectable YAML frontmatter', () => {
+  const source = fs.readFileSync(FIXTURE_SOURCE, 'utf8');
+  for (const type of ['HANDOFF', 'BRIEF']) {
+    const rendered = pre.renderTypedFixture(type, source);
+    const verdict = pre.validateProjectionFrontmatter(rendered, type);
+    assert.equal(verdict.ok, true, verdict.errors.join('\n'));
+    for (const field of pre.PROJECTION_FRONTMATTER_FIELDS) {
+      assert.ok(Object.prototype.hasOwnProperty.call(verdict.data, field), `${type} omits ${field}`);
+    }
+    assert.equal(verdict.data.type, type);
+    assert.equal(verdict.data.status, 'ready');
+    assert.equal(verdict.data.state, 'n/d');
+    assert.equal(verdict.data.worktree, 'n/d');
+    assert.equal(verdict.data.branch, 'n/d');
+    assert.equal(verdict.data.sha, 'n/d');
+    assert.equal(verdict.data.uncommitted, 'n/d');
+    assert.equal(verdict.data.tests, 'n/d');
+    assert.deepEqual(verdict.data.decisions_pending, ['F1', 'F2', 'F3']);
+    const missing = rendered.replace(/^tests:.*\n/m, '');
+    assert.equal(pre.validateProjectionFrontmatter(missing, type).ok, false);
+    const wrongShape = rendered.replace(/^decisions_pending:.*$/m, 'decisions_pending: n/d');
+    assert.equal(pre.validateProjectionFrontmatter(wrongShape, type).ok, false);
+    const swapped = rendered
+      .replace(/^status:.*$/m, 'status: n/d # lifecycle')
+      .replace(/^state:.*$/m, 'state: ready # execution');
+    assert.equal(pre.validateProjectionFrontmatter(swapped, type).ok, false);
+    const executionAsLifecycle = rendered.replace(/^status:.*$/m, 'status: landed # lifecycle');
+    assert.equal(pre.validateProjectionFrontmatter(executionAsLifecycle, type).ok, false);
+    const badSha = rendered.replace(/^sha:.*$/m, 'sha: not-a-sha');
+    assert.equal(pre.validateProjectionFrontmatter(badSha, type).ok, false);
+    const badCount = rendered.replace(/^uncommitted:.*$/m, 'uncommitted: many');
+    assert.equal(pre.validateProjectionFrontmatter(badCount, type).ok, false);
+    const mixedUnknown = rendered.replace(/^decisions_pending:.*$/m, 'decisions_pending: ["n/d", "F1"]');
+    assert.equal(pre.validateProjectionFrontmatter(mixedUnknown, type).ok, false);
+    const unknown = rendered.replace(/^decisions_pending:.*$/m, 'decisions_pending: ["n/d"]');
+    assert.equal(pre.validateProjectionFrontmatter(unknown, type).ok, true);
+    const verifiedNone = rendered.replace(/^decisions_pending:.*$/m, 'decisions_pending: []');
+    assert.equal(pre.validateProjectionFrontmatter(verifiedNone, type).ok, true);
+    const duplicate = rendered.replace(/^tests:.*$/m, 'tests: n/d\ntests: n/d');
+    assert.equal(pre.validateProjectionFrontmatter(duplicate, type).ok, false);
+  }
 });
 
 test('typed renderer is hermetic and deterministic for every fixture type', () => {

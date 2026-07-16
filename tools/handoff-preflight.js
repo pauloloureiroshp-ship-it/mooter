@@ -64,10 +64,15 @@ const TYPE_FILES = Object.freeze({
 
 const REQUIRED_PLACEHOLDERS = Object.freeze({
   MASTERPROMPT: ['FROM', 'TO', 'GOAL', 'WHERE', 'WHEN', 'ACTIONS', 'GUARDS', 'GATES', 'REUSE_INTERNAL', 'REUSE_PUBLIC', 'REUSE_PREVIOUS', 'STOPS', 'NEXT', 'BACK'],
-  HANDOFF: ['STATUS', 'STATE', 'WORKTREE', 'UNPUSHED', 'GATES', 'WORK', 'DECISIONS', 'PENDING', 'UNCOMMITTED', 'INTENT', 'TIME', 'DELTA', 'RESUME', 'CONF', 'STOP'],
+  HANDOFF: ['FROM', 'TO', 'STATUS', 'FM_STATE', 'STATE', 'WORKTREE', 'UNPUSHED', 'GATES', 'WORK', 'DECISIONS', 'PENDING', 'UNCOMMITTED', 'UNCOMMITTED_COUNT', 'TESTS', 'DECISIONS_PENDING', 'INTENT', 'TIME', 'DELTA', 'RESUME', 'CONF', 'STOP'],
   'DECISION CONTRACT': ['FROM', 'TO', 'DECISION_ROWS', 'GUARDS', 'NEXT_GATE', 'STOPS'],
-  BRIEF: ['FROM', 'TO', 'STATUS', 'STATE', 'WORKTREE', 'GIT_REF', 'UNCOMMITTED', 'UNPUSHED', 'TASK', 'EVIDENCE_POINTER', 'STOP'],
+  BRIEF: ['FROM', 'TO', 'STATUS', 'FM_STATE', 'STATE', 'WORKTREE', 'BRANCH', 'SHA', 'GIT_REF', 'UNCOMMITTED', 'UNCOMMITTED_COUNT', 'UNPUSHED', 'TESTS', 'DECISIONS_PENDING', 'TASK', 'EVIDENCE_POINTER', 'STOP'],
 });
+
+const PROJECTION_FRONTMATTER_FIELDS = Object.freeze([
+  'type', 'id', 'from', 'to', 'status', 'state', 'worktree', 'branch', 'sha',
+  'uncommitted', 'tests', 'decisions_pending',
+]);
 
 /** The fields this tool knows how to emit. Checked against the spec at runtime. */
 const KNOWN_FIELDS = [
@@ -223,6 +228,11 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
   const guardrails = sections.guardrails.length ? sections.guardrails : ['n/d'];
   const acceptance = sections.acceptance.length ? sections.acceptance : ['n/d'];
   const decisionRequests = acceptance.filter((item) => /^Decisão F\d/i.test(item));
+  const decisionIds = decisionRequests.map((item) => {
+    const match = item.match(/^Decisão\s+(F\d+)/i);
+    return match ? match[1].toUpperCase() : 'n/d';
+  });
+  const decisionsPending = JSON.stringify(decisionIds.length ? decisionIds : ['n/d']);
   const decisionRows = decisionRequests.map((item) => {
     const key = item.replace(/^Decisão\s+/i, '').replace(/\s+sobre\s+/i, ' — ');
     return `| ${key} | n/d | Solicitada na fonte; nenhum verdict presente. |`;
@@ -259,6 +269,7 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
     FROM: from.toUpperCase(), TO: to.toUpperCase(), STATUS: status, OWNER: 'n/d',
     CREATED_AT: 'n/d', UPDATED_AT: 'n/d', WORKTREE_PATH: 'n/d', BRANCH: 'n/d',
     BASE: 'n/d', HEAD: 'n/d', LEDGER_REF: id, SUPERSEDES: 'n/d',
+    FM_STATE: 'n/d', UNCOMMITTED_COUNT: 'n/d', TESTS: 'n/d', DECISIONS_PENDING: decisionsPending,
     TLDR: 'STATE n/d · três decisões pendentes · RED ALERT F3 incompleto',
     INTENT: `${sections.task || 'n/d'} · evidência ${sourceRef}`,
     STATE: 'n/d — estado de execução ausente na fonte',
@@ -290,8 +301,11 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
   return { ...common,
     FROM: from.toUpperCase(), TO: to.toUpperCase(), STATUS: status,
     SCOPE: meta.scope || 'n/d', CONFIDENCE: confidence,
-    EVIDENCE_TAGS: meta.evidence || 'n/d', STATE: 'n/d — estado de execução ausente na fonte',
-    WORKTREE: 'n/d', GIT_REF: 'n/d@n/d · origin/main@71340b25 é apenas base alegada pela fonte',
+    EVIDENCE_TAGS: meta.evidence || 'n/d', FM_STATE: 'n/d',
+    STATE: 'n/d — estado de execução ausente na fonte',
+    WORKTREE: 'n/d', BRANCH: 'n/d', SHA: 'n/d',
+    GIT_REF: 'n/d@n/d · origin/main@71340b25 é apenas base alegada pela fonte',
+    UNCOMMITTED_COUNT: 'n/d', TESTS: 'n/d', DECISIONS_PENDING: decisionsPending,
     UNCOMMITTED: redAlert, UNPUSHED: 'n/d', TASK: sections.task || 'n/d',
     CONTEXT: `Alegação da fonte: ${sourceContext}`,
     DELIVERABLE: expected, FILES: bullets(sections.files), GUARDS: bullets(guardrails),
@@ -313,6 +327,73 @@ function renderTemplate(inputType, values, templateDir = TEMPLATE_ROOT) {
   const unresolved = [...rendered.matchAll(/<([A-Za-z][A-Za-z0-9_ -]*)>/g)].map((m) => m[1]);
   if (unresolved.length) throw new Error(`placeholders não resolvidos em ${type}: ${unresolved.join(', ')}`);
   return normalizeEol(rendered).replace(/\n*$/, '') + '\n';
+}
+
+/** Parse the deliberately small YAML subset used by projectable messages. */
+function parseProjectionFrontmatter(text) {
+  const normalized = normalizeEol(text);
+  const errors = [];
+  const data = {};
+  if (!normalized.startsWith('---\n')) {
+    return { ok: false, data, errors: ['frontmatter YAML ausente'] };
+  }
+  const end = normalized.indexOf('\n---\n', 4);
+  if (end === -1) return { ok: false, data, errors: ['frontmatter YAML sem fecho'] };
+  const lines = normalized.slice(4, end).split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const match = line.match(/^([a-z][a-z0-9_]*):(?:\s*(.*))?$/);
+    if (!match) {
+      errors.push(`linha YAML não suportada: ${line}`);
+      continue;
+    }
+    const key = match[1];
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      errors.push(`campo YAML duplicado: ${key}`);
+      continue;
+    }
+    const raw = String(match[2] || '').replace(/\s+#\s+.*$/, '').trim();
+    if (key === 'decisions_pending') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string' || !item.trim())) {
+          errors.push('decisions_pending deve ser array de strings não vazias');
+        } else data[key] = parsed;
+      } catch {
+        errors.push('decisions_pending deve usar array YAML/JSON inline');
+      }
+    } else data[key] = raw;
+  }
+  return { ok: errors.length === 0, data, errors };
+}
+
+function validateProjectionFrontmatter(text, expectedType) {
+  const parsed = parseProjectionFrontmatter(text);
+  const errors = [...parsed.errors];
+  for (const field of PROJECTION_FRONTMATTER_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(parsed.data, field)) errors.push(`frontmatter omite ${field}`);
+    else if (field !== 'decisions_pending' && !String(parsed.data[field]).trim()) errors.push(`frontmatter esvazia ${field}`);
+  }
+  if (parsed.data.type && parsed.data.type !== expectedType) {
+    errors.push(`frontmatter type esperado ${expectedType}, recebido ${parsed.data.type}`);
+  }
+  if (parsed.data.status && !['draft', 'ready', 'claimed', 'blocked', 'verified', 'shipped', 'archived', 'n/d'].includes(parsed.data.status)) {
+    errors.push(`frontmatter status inválido: ${parsed.data.status}`);
+  }
+  if (parsed.data.state && !['parked', 'awaiting-you', 'landed', 'in-progress', 'n/d'].includes(parsed.data.state)) {
+    errors.push(`frontmatter state inválido: ${parsed.data.state}`);
+  }
+  if (parsed.data.sha && !/^(?:n\/d|[0-9a-f]{7,64})$/i.test(parsed.data.sha)) {
+    errors.push(`frontmatter sha inválido: ${parsed.data.sha}`);
+  }
+  if (parsed.data.uncommitted && !/^(?:n\/d|\d+)$/.test(parsed.data.uncommitted)) {
+    errors.push(`frontmatter uncommitted inválido: ${parsed.data.uncommitted}`);
+  }
+  if (Array.isArray(parsed.data.decisions_pending) && parsed.data.decisions_pending.includes('n/d') &&
+      (parsed.data.decisions_pending.length !== 1 || parsed.data.decisions_pending[0] !== 'n/d')) {
+    errors.push('decisions_pending desconhecido deve ser somente ["n/d"]');
+  }
+  return { ok: errors.length === 0, data: parsed.data, errors };
 }
 
 function renderTypedFixture(inputType, sourceText, options = {}) {
@@ -381,6 +462,15 @@ function validateTypedArtifacts(options = {}) {
     for (const required of REQUIRED_PLACEHOLDERS[type]) {
       if (!placeholders.has(required)) errors.push(`${TYPE_FILES[type]} omite <${required}>`);
     }
+    if (type === 'HANDOFF' || type === 'BRIEF') {
+      if (!normalizeEol(template).startsWith('---\n')) errors.push(`${TYPE_FILES[type]} omite frontmatter YAML`);
+      for (const field of PROJECTION_FRONTMATTER_FIELDS) {
+        if (!new RegExp(`^${field}:`, 'm').test(template)) errors.push(`${TYPE_FILES[type]} omite frontmatter ${field}`);
+      }
+      if (!/^status: .*# lifecycle$/m.test(template) || !/^state: .*# execution$/m.test(template)) {
+        errors.push(`${TYPE_FILES[type]} mistura status lifecycle com state execution`);
+      }
+    }
     if (source === null || !contract) continue;
     let rendered;
     try { rendered = renderTypedFixture(type, source, { templateDir }); }
@@ -396,7 +486,15 @@ function validateTypedArtifacts(options = {}) {
     if (/<[A-Za-z][A-Za-z0-9_ -]*>/.test(rendered)) errors.push(`${type} fixture contém placeholder`);
     const estimatedTokens = estimateTokens(rendered);
     if (estimatedTokens > contract.budgetTokens) errors.push(`${type} excede budget: ~${estimatedTokens}/${contract.budgetTokens}`);
-    results[type] = { lines: lineCount(rendered), bytes: Buffer.byteLength(rendered), estimatedTokens };
+    let frontmatter = null;
+    if (type === 'HANDOFF' || type === 'BRIEF') {
+      frontmatter = validateProjectionFrontmatter(rendered, type);
+      for (const error of frontmatter.errors) errors.push(`${type} ${error}`);
+    }
+    results[type] = {
+      lines: lineCount(rendered), bytes: Buffer.byteLength(rendered), estimatedTokens,
+      ...(frontmatter ? { frontmatter: frontmatter.ok } : {}),
+    };
     if (/pushed ✓|STATE:\s*landed|0 uncommitted|tests?\s+\d+\/\d+\s+✓/i.test(rendered)) {
       errors.push(`${type} fixture contém falso verde load-bearing`);
     }
@@ -414,6 +512,18 @@ function validateTypedArtifacts(options = {}) {
     if (/\|\s*(APPROVE|CHANGES)\s*\|/.test(decision) || !/\| n\/d \|/.test(decision)) errors.push('DECISION CONTRACT inventa ou omite verdict n/d');
     if (!/CODEX → LEDGER → COWORK/.test(brief) || !/uncommitted:[^\n]*POST_MERGE_REMEDIATION_MASTERPROMPT\.md/.test(brief) || !/⛔ STOP:/.test(brief)) {
       errors.push('BRIEF não preserva ledger → consumer + RED ALERT completo + STOP');
+    }
+    for (const [type, artifact] of [['HANDOFF', handoff], ['BRIEF', brief]]) {
+      const frontmatter = validateProjectionFrontmatter(artifact, type);
+      if (frontmatter.data.status !== 'ready' || frontmatter.data.state !== 'n/d') {
+        errors.push(`${type} não preserva status lifecycle distinto de state execution`);
+      }
+      if (frontmatter.data.tests !== 'n/d' || frontmatter.data.uncommitted !== 'n/d') {
+        errors.push(`${type} fabrica tests/uncommitted no frontmatter`);
+      }
+      if (JSON.stringify(frontmatter.data.decisions_pending) !== JSON.stringify(['F1', 'F2', 'F3'])) {
+        errors.push(`${type} decisions_pending não projeta F1/F2/F3`);
+      }
     }
   }
   return { ok: errors.length === 0, errors, results };
@@ -838,5 +948,7 @@ module.exports = {
   specFields, checkSpecDrift, gitFacts, worktrees, gateFacts, canonChecks,
   extractQA, renderQA, render, KNOWN_FIELDS, parseStatus, parseMessageContracts,
   normalizeMessageType, parseBrief, projectBrief, renderTemplate,
-  renderTypedFixture, validateTypedArtifacts, estimateTokens, unpushedInventory, TYPE_FILES,
+  renderTypedFixture, validateTypedArtifacts, parseProjectionFrontmatter,
+  validateProjectionFrontmatter, estimateTokens, unpushedInventory, TYPE_FILES,
+  PROJECTION_FRONTMATTER_FIELDS,
 };

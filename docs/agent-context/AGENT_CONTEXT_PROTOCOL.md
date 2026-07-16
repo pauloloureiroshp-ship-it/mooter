@@ -45,12 +45,27 @@ message type.
 | `DECISION CONTRACT` | brain → executor | typed response to decisions | ≤ 2k tokens |
 | `BRIEF` | executor → ledger | minimum durable record | ≤ 1k tokens |
 
+Every HANDOFF and BRIEF starts with stable YAML frontmatter containing `type`,
+`id`, `from`, `to`, `state`, `worktree`, `branch`, `sha`, `uncommitted`, `tests`
+and the string array `decisions_pending`. It also carries `status`: `status` is
+the message lifecycle, while `state` is execution state. Unknown scalar facts
+remain `n/d`; an unknown decisions array is `["n/d"]`, never a false empty list.
+Lifecycle values follow `_handoff/codex/scaffold/HANDOFF.template.md:4`
+(`draft|ready|claimed|blocked|verified|shipped|archived`); execution values follow
+`docs/strategy/PERFECT_HANDOFF_SPEC.md:67` (`parked|awaiting-you|landed|in-progress`).
+Either scalar may be `n/d` when its value is not verified.
+This contract is machine-projectable by the Cockpit without parsing prose; it
+does not authorize a second store or a new view.
+
 ### (c) Truth rules
 
 - Unknown or unverified data is `n/d`, never a guess.
 - `uncommitted` is a **RED ALERT** and includes every affected full path.
 - Confront before emit: read the real Git/worktree state and latest handoff first.
 - Point to evidence as `path:line`; never paste content the consumer can open.
+- If the HANDOFF consumer cannot mount or access the worktree, include
+  `git diff --stat` plus the diff of the critical sections. This is the explicit
+  exception to references over dumps.
 - Report a contradiction when found; never silently absorb it as a new premise.
 - If a budget is exceeded, cut prose, never evidence.
 
