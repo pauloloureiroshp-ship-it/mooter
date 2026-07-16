@@ -5,11 +5,48 @@ Claude-specific instructions live in `CLAUDE.md` (root) — read that too if you
 
 ## Project overview
 
-**Mooter** (mooter.ai, MIT) is a local-first LLM router for Claude Code. A deterministic
-regex classifier routes every prompt in <50ms to the minimum viable tier: local Ollama
-models first (free), cloud models (Haiku/Sonnet/Opus) only when justified. The router
-learns forever from local telemetry (the "Pastor"), never proxies prompts, and never
-fabricates metrics. Mission: **"Your LLM router. Local-first. Learns forever."**
+**Mooter** (mooter.ai, MIT) exists so a vibe coder can operate like a master without studying
+every day: it sets up, watches, and pilots a real multi-agent project from inside VS Code with
+total visibility — alerting foundation gaps (skills, memory, loops, file structure), applying
+vibe-coding best practices automatically, and making the magic visible (Live Preview).
+Under the hood, the engine and moat: a deterministic local-first router (<50ms, $0 to classify)
+that orchestrates multiple LLM subscriptions (Anthropic, OpenAI, Google) plus the user's own
+GPU (Ollama), routing every prompt to the minimum viable tier and learning forever from local
+telemetry — never proxying prompts, never fabricating metrics. The engine is the moat; the
+cockpit is the product. A change earns its place by improving one of five experiences:
+**Resume · Plan · Route (invisible) · Watch · Review**.
+
+## Agent boot & freshness
+
+Every agent (Codex especially — it reads this file natively) boots the same way, so all three
+planes (Claude Code · Codex · local moos) start on the same page:
+
+1. **Read** this `AGENTS.md` + the tail of `SYNC.md` (current state).
+2. **Consult the vault** for anything about Paulo's identity, project strategy, or a stable
+   decision — don't guess. `VAULT_PATH` is exported per-machine — vault at the home root on both OSes, outside Documents/OneDrive/iCloud (Win:
+   `…\paulo-vault`, Mac: `~/paulo-vault`):
+
+   ```sh
+   # if the retriever exists use it; otherwise read the vault canon files directly and continue
+   if [ -f "$VAULT_PATH/.claude/3rd-brain/retrieve.js" ]; then
+     node "$VAULT_PATH/.claude/3rd-brain/retrieve.js" "<topic in Paulo's words>"
+   else
+     ls "$VAULT_PATH"/00-*/ "$VAULT_PATH"/80-notion-mirror/ 2>/dev/null   # then read the top matches
+   fi
+   ```
+
+   Read the top 1-2 files it returns. **Order of truth:** vault canon (`00-90`) >
+   `80-notion-mirror` > repo `MEMORY.md` > conversation. Never fabricate context.
+3. **Freshness — vault (Obsidian):** before consulting, refresh —
+   `git -C "$VAULT_PATH" pull --ff-only` (if it has a remote) + `node "$VAULT_PATH/.claude/3rd-brain/build-index.js"`
+   (~80ms). In Claude Code this is automatic on SessionStart; Codex/moos run it by hand.
+4. **Freshness — Notion (honest):** the `80-notion-mirror/` may be days behind — check
+   `…/_sync/manifest.json`; if stale and relevant, say "Notion ~N days behind — run the
+   `notion-to-vault` skill." Never present a stale mirror as the current state.
+
+**Roles.** Codex works in its own worktree/branch and **never** merges, pushes, deploys, or
+deletes (Paulo's gate). **Output:** every handoff follows `docs/strategy/PERFECT_HANDOFF_SPEC.md`
+(STATE · mechanical GATE · worktree-true provenance · complete PENDING · `n/d`, never a guess).
 
 ## Architecture map
 
@@ -128,7 +165,7 @@ Every `.md` in this repo has exactly one home and one lifecycle. Before creating
 | Durable architectural decision | `MEMORY.md` (root) | Distilled from LOOP/waves, append-only. If a decision survives ~a month of sessions, it belongs here. |
 | Execution learning (observed/hypothesis/experiment) | `LOOP.md` (root) | Append-only, same day as the learning. |
 | Infra / endpoints / service IDs | `INFRA.md` (root) | Update in the same PR that changes infra. |
-| Stable personal decision / identity / cross-project | Cowork vault (`~/Documents/paulo-vault`) | By decision, never by session. |
+| Stable personal decision / identity / cross-project | Cowork vault (`~/paulo-vault`) | By decision, never by session. |
 | Work log / milestones | Notion HQ Mooter | Per session/milestone. |
 | Mechanical provenance | Ledger (`tools/router/*ledger*`) | Automatic, append-only. |
 

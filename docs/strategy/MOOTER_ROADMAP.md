@@ -1,14 +1,19 @@
 # 🐮🗺️ MOOTER — Roadmap de Waves (v3, breakdown por Squad)
 
+> **🎯 NOW = `_handoff/FOUNDATION_SUPER_MASTERPROMPT.md` → North Star F0–F5** (Notion 2026-07-13, por pilar: Resume · Plan · Route · Watch · Review). As waves W1–W16 abaixo **aguardam re-triagem (F5)** — não iniciar wave desta lista sem re-triagem.
+
 > O plano vivo. Todo o backlog organizado em waves priorizadas, **alinhadas com a tese** e o confronto
 > SOTA 2026, com um **dono de squad** por wave (Team Topologies). Cada wave declara o **modo de execução**
 > (CC / Loop / Schedule / dynamic-workflow), squad, worktree, effort e dependências. Fonte de verdade da
 > arquitectura: `MOOTER_ARCHITECTURE.md`.
 
 ## A tese (a régua de toda a wave)
-Decidir a $0, empurrar o máximo para local, **provar** cada poupança, e **melhorar sozinho**. O quarteto:
-Cowork (design, raro) · CC (irreversível) · moos locais ($0, mão-de-obra) · Mooter (o maestro). Uma wave só
-entra se avança isto. Veredito SOTA 2026: **no caminho certo, adiante em honestidade**.
+O Mooter existe para o vibe coder ganhar tempo operando como um mestre sem estudar todos os dias:
+melhores práticas automáticas, visibilidade total, alertas de gaps de fundação, e a magia visível —
+pilotado do plugin VS Code. Por baixo, o motor-fosso: roteamento determinístico local-first ($0,
+<50ms) sobre multi-subscriptions + GPU do usuário. **Uma wave só entra se melhorar uma das 5
+experiências: Resume · Plan · Route (invisível) · Watch · Review.** "$0 primeiro" continua como
+princípio de execução (como trabalhar), não como tese (porquê existir). Prova > promessa.
 
 ## Princípios de priorização
 1. **Performance/custo primeiro.** 2. **Alavanca** (fundações antes de folhas). 3. **Velocidade local $0**

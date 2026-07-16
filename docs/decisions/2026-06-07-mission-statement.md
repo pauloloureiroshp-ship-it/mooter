@@ -1,6 +1,6 @@
 # ADR-0001: Mission statement — "Your LLM router. Local-first. Learns forever."
 
-- **Status:** Accepted
+- **Status:** Superseded by tese 2026-07-15 (commit 1486af4, PR #248)
 - **Date:** 2026-06-07
 - **Deciders:** Paulo Loureiro (owner), Cowork (strategy), CC (apply)
 - **Tier/Wave:** Wave 30 Mega Synthesis, Phase B (T0/T1)
