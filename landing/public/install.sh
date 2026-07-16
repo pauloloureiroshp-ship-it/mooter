@@ -153,7 +153,10 @@ do_run "mkdir -p '$ROUTER_DIR/providers'"
 do_run "cp '$SRC_DIR/tools/router/providers/'*.js '$ROUTER_DIR/providers/' 2>/dev/null || true"
 
 # Hooks live under ~/.claude/hooks/ (not ~/.claude/tools/router/).
-for h in gsd-statusline.js gsd-turn-end.js mooter-turn-header.js frugal-turn-header.js exec-logger.js PostToolUse.js; do
+# NOTE: keep this list in lockstep with WIRED_HOOKS in tools/router/sync-hooks.js
+# and $hookNames in install.ps1. live-preview-tap.js (Live Preview MP0) is the
+# file-bus tap — additive/read-only/fail-soft.
+for h in gsd-statusline.js gsd-turn-end.js mooter-turn-header.js frugal-turn-header.js exec-logger.js PostToolUse.js conductor-git-guard.js live-preview-tap.js; do
   [ -f "$SRC_DIR/tools/router/$h" ] && do_run "cp '$SRC_DIR/tools/router/$h' '$HOOKS_DIR/$h'"
   do_run "rm -f '$ROUTER_DIR/$h'"
 done
