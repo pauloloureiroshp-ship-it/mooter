@@ -2,8 +2,8 @@
 //
 // Sub-commands: status · lock · unlock · queue · wait · heartbeats · locks ·
 // history · reap · auto-lock · auto-unlock · beat. Each returns {exitCode,output}.
-// Auto-lock/auto-unlock are the hook entrypoints (H.4): non-blocking, never exit
-// >1 so a hook can't wedge Claude Code's native flow.
+// Auto-lock/auto-unlock are hook entrypoints (H.4). A conflicting auto-lock is
+// deliberately blocking (exit 2); auto-unlock remains best-effort.
 
 import { tryAcquire, release, listLocks, setLockIntent } from "./locks.ts";
 import { acquireWithRecovery, forceRelease, status, reap } from "./conductor.ts";
@@ -209,7 +209,7 @@ export function runConductor(args: string[], opts: ConductorCmdOptions = {}): Cm
       return { exitCode: 0, output: "heartbeat cleared." };
     }
 
-    // ── hook entrypoints (H.4) — non-blocking, exit 0 even on miss ──────────
+    // ── hook entrypoints (H.4) ──────────────────────────────────────────────
     case "auto-lock": {
       const cmd = flag(rest, "--cmd") ?? "";
       const det = cmd ? detectShellIntent(cmd, cwd) : null;
@@ -219,8 +219,12 @@ export function runConductor(args: string[], opts: ConductorCmdOptions = {}): Cm
         setLockIntent(det.resource, det.intent, home);
         return { exitCode: 0, output: `🔒 ${det.resource}` };
       }
-      // Surface a non-fatal warning; never block the tool (exit 0).
-      return { exitCode: 0, output: `⚠ ${det.resource} held by ${r.heldBy.terminal_name}${r.stale ? " (stale)" : ""} — concurrent op` };
+      // Exit 2 is the PreToolUse hard-block contract. A stale/cross-runtime lock
+      // still needs audited human recovery; the hook never steals it silently.
+      return {
+        exitCode: 2,
+        output: `BLOCKED: ${det.resource} held by ${r.heldBy.terminal_name}${r.stale ? " (stale; human audit required)" : ""} — concurrent operation`,
+      };
     }
 
     case "auto-unlock": {

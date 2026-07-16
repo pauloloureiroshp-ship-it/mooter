@@ -135,12 +135,18 @@ test("runConductor CLI: lock → conflict → force unlock → history", () => {
   assert.ok(hist.output.includes("RELEASED"), hist.output);
 });
 
-test("runConductor auto-lock/auto-unlock are non-blocking (exit 0) and detect intent", () => {
+test("runConductor auto-lock blocks a conflicting writer and auto-unlock releases", () => {
   const h = home();
   const opts = { home: h, now: NOW, sessionId: "hook", cwd: "/x" };
   const al = runConductor(["auto-lock", "--cmd", "git tag v9"], opts);
   assert.strictEqual(al.exitCode, 0);
   assert.ok(al.output.includes("tag"), al.output);
+  const conflict = runConductor(
+    ["auto-lock", "--cmd", "git tag v10"],
+    { ...opts, sessionId: "other", terminalName: "other-terminal" },
+  );
+  assert.strictEqual(conflict.exitCode, 2);
+  assert.match(conflict.output, /BLOCKED.*concurrent operation/);
   // a non-locking command → silent, exit 0
   const noop = runConductor(["auto-lock", "--cmd", "ls"], opts);
   assert.strictEqual(noop.exitCode, 0);

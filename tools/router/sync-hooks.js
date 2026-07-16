@@ -35,6 +35,9 @@ const WIRED_HOOKS = [
   'frugal-turn-header.js',
   'exec-logger.js',
   'PostToolUse.js',
+  // Gate 5 — blocking conductor bridge. PreToolUse acquires/blocks and the
+  // post-tool hooks release through the same runtime copy.
+  'conductor-git-guard.js',
   // Live Preview · MP0 — the file-bus tap. Wired next to the existing hooks
   // (UserPromptSubmit/PostToolUse/Stop/SubagentStop) by register-hooks.js; this
   // entry keeps its WIRED ~/.claude/hooks/ copy fresh on every /mooter-update so
