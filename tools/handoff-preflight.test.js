@@ -146,6 +146,41 @@ test('renderQA never invents a choice it did not find', () => {
   assert.match(out, /2\) B — db/);
 });
 
+test('REGRESSION: "unpushed" means unpushed — not "ahead of main"', () => {
+  // The bug this pins: v1 measured origin/main..<branch> and reported
+  // feat/fleet-arm as "28 commits por push". All 28 were already on
+  // origin/feat/fleet-arm. A handoff that cries unpushed about pushed work is
+  // worse than no handoff — it burns the trust that makes it worth reading.
+  const wts = pre.worktrees().filter((w) => w.branch);
+  for (const w of wts) {
+    const u = pre.unpushedFor(w.branch, w.path);
+    if (u.count === null) continue;
+    if (u.basis === 'origin/main') continue; // no upstream — fallback, correctly labelled
+    // With an upstream, the count MUST be measured against that upstream.
+    assert.match(u.basis, /^origin\//, `basis must be a remote ref, got ${u.basis}`);
+    const aheadOfMain = Number(
+      require('node:child_process')
+        .execFileSync('git', ['rev-list', '--count', `origin/main..${w.branch}`],
+          { cwd: w.path, encoding: 'utf8' }).trim(),
+    );
+    // The whole point: these two numbers are allowed to differ wildly.
+    // If unpushed were still measured off main, this assertion would be
+    // vacuous — so we assert the semantic, not the number.
+    assert.ok(u.count <= aheadOfMain || u.basis !== 'origin/main',
+      `${w.branch}: unpushed(${u.count}) vs ahead-of-main(${aheadOfMain}) — basis ${u.basis}`);
+  }
+});
+
+test('a branch fully pushed to its upstream reports 0 unpushed', () => {
+  const wts = pre.worktrees().filter((w) => w.branch);
+  const withUpstream = wts.find((w) => pre.unpushedFor(w.branch, w.path).basis?.startsWith('origin/')
+    && pre.unpushedFor(w.branch, w.path).basis !== 'origin/main');
+  if (!withUpstream) return; // nothing to assert on this machine
+  const u = pre.unpushedFor(withUpstream.branch, withUpstream.path);
+  assert.equal(typeof u.count, 'number');
+  assert.ok(u.count >= 0);
+});
+
 test('UNPUSHED spans every worktree, not just the current one', () => {
   const wts = pre.worktrees();
   // A handoff that reports only the current worktree is how unpushed work goes

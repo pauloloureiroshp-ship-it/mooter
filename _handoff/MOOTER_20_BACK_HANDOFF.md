@@ -142,7 +142,7 @@ fonte mecânica que já existia.**
 | **H1** Cockpit De-clutter | **awaiting-you** | inventário completo · zero código ✓ |
 | **H2** LP Trust Harness | **awaiting-you** | spec completa · testes re-executados ✓ |
 | **H3** Site 2.0 | **blocked** | F2 fora de `origin/main` — gate respeitado ✓ |
-| **H4** RC 2.0 gate doc | **not started** | ⚠️ **nada o bloqueia** — omissão |
+| **H4** RC 2.0 gate doc | **awaiting-you** | composto 2026-07-16 → `_handoff/MOOTER_20_RELEASE_GATE.md` · 0 de 7 gates passam |
 
 ### H0 — Housekeeping nativo
 
@@ -411,21 +411,41 @@ git stash list && git stash show -p stash@{0} | head -50
 existe; o único doc com critérios tem **10**, não 5). `PERFECT_HANDOFF_SPEC.md:95`: *"Quando incerto →
 'n/d', nunca palpite."* Preencho assim que o Paulo der a definição.
 
-`🔍 council n/d · objeção mais forte: este BACK declara "H0 landed" quando nada foi pushed — se o Paulo
-não pushar, é exactamente o artefacto não-durável que o próprio H0 canonizou como falha nº1, e eu estaria
-a repetir o PHASE_A_GATE que enganou 3 agentes durante 6 dias · resolvida: parcialmente, e digo qual é a
-parte que não resolvi. STATE diz "landed (local) · unpushed", UNPUSHED é secção de topo com o comando
-exacto, e o TL;DR abre com "push 1 branch". Mas a verdade nua é que 3 commits num disco não são estado
-durável — o risco só fecha quando o Paulo pushar, e isso é gate dele por desenho do masterprompt, não meu
-para resolver.`
+`🔍 council 8/8 · objeção mais forte: eu sou o autor E o avaliador deste ciclo, e a Q1 provou que isso
+falha — reportei duas vezes ao Paulo que "feat/fleet-arm tem 28 commits por push" e estavam TODOS
+pushed; era bug da minha própria ferramenta, que media `origin/main..branch` (ahead) e chamava-lhe
+unpushed. Um handoff que grita "não-durável" sobre trabalho seguro queima a confiança que o torna digno
+de ser lido — e eu escrevi este BACK inteiro sob a tese "trabalho não-durável é a falha nº1", que é
+exactamente o viés que produziria esse falso positivo · resolvida: parcialmente, e nomeio a parte que
+não fecha. Mecanizei o que era juízo: `unpushedFor()` passa a medir contra o upstream da própria branch
+e a declarar a base quando cai para origin/main, com teste de regressão que pina a semântica (não o
+número). Mas a parte que NÃO resolvi é estrutural: o linter e o preflight foram escritos por mim, logo
+não são crítico externo — a Q1 continua a depender de alguém de fora confrontar o meu estado. É por isso
+que o ⛔ STOP e o gate de push são do Paulo, e não meus.`
 
-As 8 perguntas do pre-dispatch red-team gate **não estão no vault** — `00-core/reasoning-protocol.md`
-(Axioma 4) remete para memória do Cowork inacessível a esta sessão. Corridos os 5 checks nomeados no
-Axioma 4 §"Regra de menos-interações": advogado do diabo ✓ · fontes/freshness ✓ (todo número mecânico
-re-verificado nesta árvore, nenhum citado de auditoria) · colisão com trabalho em voo ✓ (F1/F2/F3
-verificados por `git diff`; zero sobreposição) · custo/reversibilidade ✓ (3 commits locais, stash +
-backup íntegros, zero push) · reuse-antes-de-construir ✓ (H1 §4 e H2 §4). Assino `n/d` em vez de `8/8`
-porque não sei quais são as 8.
+Council aplicado (8/8 verbatim, dadas pelo Paulo 2026-07-16 — a wave Lingua Franca vai canonizá-las no
+`AGENTS.md`; até lá `handoff-preflight --lint` reporta `canon: n/d`):
+
+1. **Fonte de verdade** — todo número mecânico foi **re-medido nesta árvore**, nenhum citado de auditoria:
+   sha do `classify.js` byte-a-byte, F2 fora de `origin/main` por `merge-base --is-ancestor`, 687/687
+   re-executados. **Falhei-a uma vez** (fleet-arm) e a correcção está acima.
+2. **Escritor único** — zero ficheiros dos worktrees do Codex (F1/F2/F3, LF). Verificado por `git diff`
+   que nenhum deles toca `tools/router/package.json`, e que o "package.json do plugin" da GUARD é o
+   `packages/vscode-extension/package.json` (da F2).
+3. **Reversível vs irreversível** — explícito em todo o doc: 4 commits locais (autónomo) vs **push, merge
+   e tag = gate do Paulo**. Nunca fiz push. O H3 ficou gated na F2 por verificação, não por promessa.
+4. **Script-first** — o trabalho local correu autónomo antes de te pedir seja o que for: backup, stash,
+   rebase, diffs, testes e o preflight. As 9 perguntas foram só onde havia decisão real a tomar.
+5. **Projeção vs 2ª verdade** — o `DECISIONS` é **extraído** do transcript (`--qa`), não re-escrito. O
+   Ledger não serve porque guarda hashes; documentei isso em vez de criar uma 2ª verdade paralela.
+6. **Degradação graciosa** — o preflight é `git`+`node`, sem plugin, sem daemon, sem rede. Onde não
+   alcança (canon das 8 perguntas, CCA), devolve `n/d` em vez de falhar ou inventar.
+7. **Frozen/allowlist/n-d** — `classify.js` intacto (verificado); zero allowlists tocadas; `n/d` assinado
+   em todo o CCA e em toda a execução de suite que não corri.
+8. **Custo de reverter** — máximo custo de reverter neste ciclo: `git revert` de 4 commits locais, todos
+   sem push. Backup íntegro (1596/1596) + `stash@{0}` preservado + tag de seguro no fleet-arm. Escolhi o
+   caminho mais reversível em cada bifurcação: inventariar antes de cortar, spec antes de implementar,
+   perguntar antes de mexer na `.gitignore`.
 
 ```
 ⇄ END

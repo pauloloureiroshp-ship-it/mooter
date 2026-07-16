@@ -322,13 +322,31 @@ estágios** até existir sinal de spec/plan. Recomendo CUT; não me bateria por 
 `PERFECT_HANDOFF_SPEC.md:95`: *"Quando incerto → 'n/d', nunca palpite."* Preencho quando o Paulo der a
 definição.
 
-`🔍 council n/d · objeção mais forte: as 8 lenses/cards MERGE são progressive disclosure, não duplicação —
-cortá-las piora a navegação enquanto reporto 58,8% de melhoria · resolvida: refutada em 3 pontos do
-próprio código (jump-links auto-declarados; economicsLens repete o que está no mesmo ecrã; inbox+Score já
-empurram o sinal), MAS a emenda é aceite — entra uma status line não-colapsável com os 4 sinais que mudam
-decisão, e a aritmética não se mexe.`
-As 8 perguntas do pre-dispatch red-team gate **não estão no vault** — `00-core/reasoning-protocol.md`
-(Axioma 4) remete para uma memória do Cowork inacessível a esta sessão. Corridos os 5 checks nomeados no
-Axioma 4 §"Regra de menos-interações": advogado do diabo ✓ · fontes/freshness ✓ · colisão com trabalho em
-voo ✓ (F1/F2/F3 verificados por `git diff`) · custo/reversibilidade ✓ (zero código) · reuse-antes-de-
-construir ✓ (§4). Assino `n/d` em vez de `8/8` porque não sei quais são as 8.
+`🔍 council 8/8 · objeção mais forte: as 8 lenses/cards MERGE são progressive disclosure, não duplicação —
+cortá-las piora a navegação enquanto eu reporto 58,8% de "melhoria", optimizando a métrica pela qual
+escolhi ser avaliado · resolvida: refutada em 3 pontos do próprio código (as lenses terminam TODAS em
+jump-links auto-declarados, logo são um índice e a tab bar já é o índice; o economicsLens não resume um
+tab distante — repete o que está no MESMO ecrã a 20 linhas; inbox+Score já EMPURRAM o sinal enquanto as
+lenses obrigam a PUXAR por 4 cards colapsados), MAS a emenda é aceite: entra uma status line
+não-colapsável com os 4 sinais que mudam decisão, e a aritmética não se mexe (58,8% A / 23,5% B).`
+
+Council aplicado (8/8 verbatim, dadas pelo Paulo 2026-07-16 — a wave Lingua Franca vai canonizá-las no
+`AGENTS.md`; até lá `handoff-preflight --lint` reporta `canon: n/d`):
+
+1. **Fonte de verdade** — inventário feito no código a `file:line`, nunca em auditoria citada. Foi assim
+   que 4 premissas do masterprompt caíram: 823.184 bytes ≠ 332KB · 8 tabs ≠ 5 superfícies · 7 comandos ≠
+   5 · e a **"auditoria D1-h8" que não existe** (a string ocorre 1× no repo: dentro do masterprompt).
+2. **Escritor único** — zero código escrito; nenhum recurso vivo tocado. Não colide com a F2, que detém
+   `packages/vscode-extension/{README.md,package.json,walkthrough/*}`.
+3. **Reversível vs irreversível** — explícito: **nada aqui é autónomo**. O ⛔ STOP exige decisão do Paulo
+   elemento a elemento antes de qualquer edit.
+4. **Script-first** — o inventário correu por grep/read mecânicos; a aritmética (21+18+11+1=51) é
+   conferível à mão, e mostrei-a em vez de a afirmar.
+5. **Projeção vs 2ª verdade** — aponta para `file:line` do código real; não recopiei o estado de nenhuma
+   auditoria (foi por não o fazer que a D1-h8 se revelou inexistente).
+6. **Degradação graciosa** — a proposta é **semântica, não markup**: sobrevive à migração para
+   vscode-elements e não depende de plugin ou daemon.
+7. **Frozen/allowlist/n-d** — `classify.js` intacto; zero ficheiros das allowlists do Codex; a densidade
+   "N/V" ficou **UNVERIFIED** em vez de repetida como facto.
+8. **Custo de reverter** — zero código = custo zero. O caminho mais reversível foi escolhido por desenho:
+   inventariar e decidir antes de cortar, nunca o contrário.

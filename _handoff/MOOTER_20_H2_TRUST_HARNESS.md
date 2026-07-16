@@ -178,12 +178,32 @@ duas auditorias já diziam.
 (`AUDIT_CCA.md` não existe; o único doc com critérios tem **10**, não 5). Regra de ouro do
 `PERFECT_HANDOFF_SPEC.md:95`: *"Quando incerto → 'n/d', nunca palpite."*
 
-`🔍 council n/d · objeção mais forte: o manifesto cria 2ª fonte de verdade que deriva; renames partem o CI
-e a pressão afrouxa-o até virar teatro — e o P2 é o elo frágil por não ter finding ID · resolvida: match
-por finding-ID prefix (estável) em vez de frase, + minCount por prova (apagar falha, renomear não), + P2
-por regex de comportamento com o risco residual declarado no manifesto em vez de escondido.`
-As 8 perguntas do pre-dispatch red-team gate **não estão no vault** — `00-core/reasoning-protocol.md`
-(Axioma 4) remete para uma memória do Cowork inacessível a esta sessão. Corridos os 5 checks nomeados no
-Axioma 4: advogado do diabo ✓ · fontes/freshness ✓ (números re-executados, não citados) · colisão com
-trabalho em voo ✓ · custo/reversibilidade ✓ (zero código) · reuse-antes-de-construir ✓ (§4). Assino `n/d`
-em vez de `8/8` porque não sei quais são as 8.
+`🔍 council 8/8 · objeção mais forte: o manifesto cria uma 2ª fonte de verdade que deriva — renames partem
+o CI, a pressão afrouxa o manifesto até ele não asserir nada, e o harness apodrece em teatro; pior, o P2
+(SHA-guard) é o elo frágil por não ter finding ID nos nomes dos testes, logo é o primeiro a ser afrouxado
+· resolvida: match por **finding-ID prefix** (`COH-01:`, `D6 ` — a parte estável) em vez de frase inteira,
++ `minCount` por prova (apagar continua a falhar, renomear fica livre), + P2 por regex de comportamento
+com o risco residual declarado NO manifesto em vez de escondido num hábito. Risco residual assumido e
+nomeado: 1 das 7 provas continua defensável só por regex.`
+
+Council aplicado (8/8 verbatim, dadas pelo Paulo 2026-07-16 — a wave Lingua Franca vai canonizá-las no
+`AGENTS.md`; até lá `handoff-preflight --lint` reporta `canon: n/d`):
+
+1. **Fonte de verdade** — contagens **re-executadas nesta árvore**, nunca citadas: 687/687 (union LP) e
+   1393/1394 (suite completa, 127,9s). Foi assim que o "68/68" do masterprompt caiu (errado ~10×) e que se
+   viu que **COH-01, o P0 do NO-GO, já está fechado** desde `e2924ce`.
+2. **Escritor único** — o harness **orquestra** os testes existentes; não reescreve nenhum. Zero ficheiros
+   de teste ou de engine tocados.
+3. **Reversível vs irreversível** — explícito: spec agora, implementação só depois do ⛔ STOP e pós-F1.
+   Nada corre sozinho a partir deste documento.
+4. **Script-first** — é a essência da proposta: o gate passa a ser um comando (`npm run lp:trust`), não
+   uma opinião sobre se o LP merece confiança.
+5. **Projeção vs 2ª verdade** — o recibo é **projecção**: gerado do run e gitignored por desenho. Um
+   recibo commitado seria uma 2ª verdade stale — por isso é explicitamente proibido.
+6. **Degradação graciosa** — sem recibo, a UI diz "sem E2E nesta árvore"; **nunca verde**. Ausente ≠ verde
+   é a lição literal do D6 (fail-closed), aplicada à própria UI de confiança.
+7. **Frozen/allowlist/n-d** — `classify.js` verificado no S0 do próprio harness; zero ficheiros das
+   allowlists; `lp-error-tap.ts` ficou **UNVERIFIED** por não ter sido executado, em vez de assumido.
+8. **Custo de reverter** — 2 ficheiros novos + 1 workflow + 1 linha de script: reverter é apagar. E o
+   caminho mais reversível está nomeado à frente do meu próprio plano: **~15 linhas de CI compram hoje a
+   maior parte do valor, sem o harness** — se o Paulo só fizer isso, já ganhou.

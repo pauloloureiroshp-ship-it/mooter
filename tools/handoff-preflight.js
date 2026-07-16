@@ -120,6 +120,33 @@ function gitFacts() {
   return { branch, head, upstream, ahead, behind, dirty, untracked, stat, commits, lastTs, state };
 }
 
+/**
+ * "Unpushed" means: commits that exist NOWHERE but this disk.
+ *
+ * It does NOT mean "ahead of main" — and conflating the two is not a nitpick.
+ * The first version of this file measured `origin/main..<branch>` and reported
+ * feat/fleet-arm as "28 commits por push". All 28 were already safe on
+ * origin/feat/fleet-arm; the branch was merely 28 ahead of main. That false
+ * alarm was escalated to Paulo twice. A handoff tool that cries "unpushed"
+ * about pushed work destroys the trust that makes the handoff worth reading.
+ *
+ * So: measure against the branch's OWN upstream. Only when a branch has no
+ * upstream is `origin/main` a defensible fallback — and then the basis is
+ * reported, because "ahead of main with no upstream" is a different (and
+ * genuinely at-risk) claim than "unpushed".
+ */
+function unpushedFor(branch, cwd = REPO) {
+  if (!branch) return { count: null, basis: 'n/d' };
+  const upstream = sh('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${branch}@{u}`], cwd);
+  if (upstream) {
+    const c = sh('git', ['rev-list', '--count', `${upstream}..${branch}`], cwd);
+    return { count: c === null ? null : Number(c), basis: upstream };
+  }
+  // No upstream: every commit is genuinely at risk, but say what we measured.
+  const c = sh('git', ['rev-list', '--count', `origin/main..${branch}`], cwd);
+  return { count: c === null ? null : Number(c), basis: 'origin/main' };
+}
+
 /** Every worktree, so UNPUSHED is the sum across all of them and not a lie. */
 function worktrees() {
   const raw = sh('git', ['worktree', 'list', '--porcelain']);
@@ -160,22 +187,85 @@ function gateFacts() {
  * is not, the footer must say n/d instead of inventing a score, which is the
  * precise failure this cycle hit with `council 8/8`.
  */
+/**
+ * Locate the council questions in their CANONICAL home — never here.
+ *
+ * The eight pre-dispatch red-team questions are canon, and canon has exactly
+ * one home. Hardcoding them in this file would create the second source of
+ * truth that council question #5 exists to forbid: the day canon changes, this
+ * tool would keep cheerfully validating against a stale copy. So the tool
+ * resolves them by reading, and degrades to n/d when it cannot (question #6).
+ *
+ * The Lingua Franca wave will canonise them in AGENTS.md. Until then this
+ * returns n/d — which is the correct answer, not a failure: an agent that
+ * cannot reach the questions must sign `n/d`, never `8/8`.
+ */
+function councilCanon() {
+  const home = os.homedir();
+  const sources = [
+    { path: path.join(REPO, 'AGENTS.md'), label: 'AGENTS.md (canon)' },
+    { path: path.join(home, 'paulo-vault', '00-core', 'reasoning-protocol.md'), label: 'vault reasoning-protocol' },
+  ];
+  for (const s of sources) {
+    if (!fs.existsSync(s.path)) continue;
+    const text = fs.readFileSync(s.path, 'utf8');
+    // Contract: a heading mentioning council/red-team, followed by a numbered
+    // list reaching at least 8. Deliberately shape-based — we do not encode
+    // the questions' wording, only that canon carries eight of them.
+    const section = text.match(/^#{2,4}\s.*(council|red[- ]team)[\s\S]*?(?=^#{2,4}\s|\Z)/im);
+    if (!section) continue;
+    const items = section[0].match(/^\s*(\d)\.\s+\S/gm) || [];
+    const highest = items.reduce((a, l) => Math.max(a, Number(l.trim()[0])), 0);
+    if (highest >= 8) return { ok: true, source: s.label, count: highest };
+  }
+  return { ok: false, source: null, count: 0 };
+}
+
+/**
+ * Lint an emitted handoff for the two mandatory footers.
+ * It checks PRESENCE and honesty — never the wording of the questions.
+ */
+function lintHandoff(file) {
+  if (!fs.existsSync(file)) return { ok: false, errors: [`ficheiro ausente: ${file}`] };
+  const t = fs.readFileSync(file, 'utf8');
+  const errors = [];
+  const canon = councilCanon();
+
+  const warnings = [];
+
+  if (!/^\s*`?CCA:\s*\S/m.test(t)) errors.push('falta o rodapé `CCA: n/5` (ou `CCA: n/d` justificado)');
+  if (!/🔍\s*council/.test(t)) errors.push('falta o rodapé `🔍 council …`');
+  else {
+    // Anti-sycophancy, mechanised: a council that only approves did not run.
+    // This is the one thing the linter CAN prove, so it is a hard error.
+    if (!/objeção mais forte:/.test(t)) {
+      errors.push('rodapé council sem `objeção mais forte:` — council que só aprova não rodou');
+    }
+    if (!/resolvida:/.test(t)) errors.push('rodapé council sem `resolvida:`');
+
+    // NOT an error. The linter cannot know what the author was handed in-session:
+    // an agent given the questions directly can sign 8/8 truthfully even while
+    // canon is still missing. What canon-absent DOES prove is that the *next*
+    // agent cannot self-serve them — a fact about the system, not about this
+    // signature. Warn, never fail; conflating the two would force honest authors
+    // to sign n/d for work they really did.
+    if (/council\s*8\/8/.test(t) && !canon.ok) {
+      warnings.push('assina `8/8` com o canon ainda inalcançável — válido se as perguntas te foram dadas '
+        + 'na sessão, mas o próximo agente não as encontra sozinho (a wave Lingua Franca canoniza)');
+    }
+  }
+  return { ok: errors.length === 0, errors, warnings, canon };
+}
+
 function canonChecks() {
   const home = os.homedir();
   const vault = [path.join(home, 'paulo-vault'), path.join(home, 'Documents', 'paulo-vault')]
     .find((p) => fs.existsSync(p)) || null;
-  const proto = vault ? path.join(vault, '00-core', 'reasoning-protocol.md') : null;
-  const protoExists = proto ? fs.existsSync(proto) : false;
 
-  // The 8 pre-dispatch red-team questions: the protocol references them but
-  // they live in a Cowork memory. If they are not in the vault, no agent can
-  // honestly sign `council 8/8` — so we surface that instead of guessing.
-  let council = 'n/d — 8 perguntas não encontradas no vault';
-  if (protoExists) {
-    const t = fs.readFileSync(proto, 'utf8');
-    const hasList = /pre-dispatch[\s\S]{0,400}?1\.\s.*\n\s*2\.\s/.test(t);
-    council = hasList ? '✓ 8 perguntas resolvíveis no vault' : 'n/d — protocolo remete p/ memória do Cowork';
-  }
+  const cc = councilCanon();
+  const council = cc.ok
+    ? `✓ ${cc.count} perguntas resolvíveis em ${cc.source}`
+    : 'n/d — 8 perguntas não estão no canon (AGENTS.md/vault) · a wave Lingua Franca vai canonizá-las';
 
   // CCA-F: the `CCA: n/5` footer needs a definition of the 5 criteria.
   const ccaDoc = [path.join(REPO, 'AUDIT_CCA.md'), path.join(REPO, 'docs', 'AUDIT_CCA.md')]
@@ -306,12 +396,16 @@ function render(f) {
   const pushed = git.ahead > 0 ? `UNPUSHED ⚠ (${git.ahead})` : 'pushed ✓';
 
   const unpushedBlock = wts.map((w) => {
-    const c = sh('git', ['rev-list', '--count', `origin/main..${w.branch || w.head}`], w.path);
+    const u = unpushedFor(w.branch, w.path);
     const d = sh('git', ['status', '--short'], w.path);
     const dn = d ? d.split('\n').filter((l) => l && !l.startsWith('??')).length : 0;
-    if (c === null) return `  ${w.branch || w.head}  n/d`;
-    if (Number(c) === 0 && dn === 0) return null; // clean+pushed: not worth the noise
-    return `  ${(w.branch || w.head).padEnd(42)} ${String(c).padStart(3)} commits · ${dn} sujos`;
+    const name = w.branch || w.head;
+    if (u.count === null) return `  ${name.padEnd(42)} n/d`;
+    if (u.count === 0 && dn === 0) return null; // clean + pushed: not worth the noise
+    const note = u.basis === 'origin/main'
+      ? ' ⚠️ sem upstream — medido vs origin/main (ahead, NÃO unpushed)'
+      : '';
+    return `  ${name.padEnd(42)} ${String(u.count).padStart(3)} por push vs ${u.basis} · ${dn} sujos${note}`;
   }).filter(Boolean).join('\n') || '  (nada por push em nenhum worktree)';
 
   return `⇄ MOO HANDOFF · ${todo('INTENT')} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')}
@@ -373,6 +467,25 @@ function main() {
     return;
   }
 
+  const lintIdx = argv.indexOf('--lint');
+  if (lintIdx !== -1) {
+    const targets = argv.slice(lintIdx + 1).filter((a) => !a.startsWith('--'));
+    if (!targets.length) { console.error('handoff-preflight --lint precisa de ≥1 ficheiro'); process.exit(2); }
+    let bad = 0;
+    for (const f of targets) {
+      const r = lintHandoff(f);
+      if (!r.ok) { bad += 1; console.log(`✗ ${path.basename(f)}`); }
+      else console.log(`✓ ${path.basename(f)}`);
+      for (const e of r.errors) console.log(`    ✗ ${e}`);
+      for (const w of r.warnings || []) console.log(`    ⚠ ${w}`);
+    }
+    const c = councilCanon();
+    console.log(c.ok
+      ? `\ncanon: ✓ ${c.count} perguntas em ${c.source}`
+      : '\ncanon: n/d — 8 perguntas ainda não canonizadas; `n/d` é a assinatura correcta até a LF as publicar');
+    process.exit(bad ? 1 : 0);
+  }
+
   const sidIdx = argv.indexOf('--sid');
   const sid = sidIdx !== -1 ? argv[sidIdx + 1] : (process.env.CLAUDE_SESSION_ID || null);
   const qa = extractQA(sid);
@@ -402,6 +515,6 @@ function main() {
 if (require.main === module) main();
 
 module.exports = {
-  specFields, checkSpecDrift, gitFacts, worktrees, gateFacts, canonChecks,
-  extractQA, renderQA, render, KNOWN_FIELDS,
+  specFields, checkSpecDrift, gitFacts, worktrees, gateFacts, canonChecks, councilCanon, lintHandoff,
+  extractQA, renderQA, unpushedFor, render, KNOWN_FIELDS,
 };
