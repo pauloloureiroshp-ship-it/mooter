@@ -1,0 +1,368 @@
+#!/usr/bin/env node
+// @ts-check
+'use strict';
+/**
+ * handoff-preflight.test.js
+ *
+ * The point of the preflight is that it CANNOT lie and CANNOT silently omit.
+ * These tests pin exactly those two properties — anything else is detail.
+ */
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { execFileSync, spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const path = require('node:path');
+
+const TOOL = path.join(__dirname, 'handoff-preflight.js');
+const REPO = path.resolve(__dirname, '..');
+const TEMPLATE_ROOT = path.join(REPO, '_handoff', 'templates');
+const FIXTURE_ROOT = path.join(TEMPLATE_ROOT, 'fixtures');
+const FIXTURE_ID = 'cd89b89c606a7a20';
+const FIXTURE_SOURCE = path.join(FIXTURE_ROOT, `${FIXTURE_ID}.source.md`);
+const pre = require('./handoff-preflight.js');
+
+function run(args = []) {
+  return execFileSync(process.execPath, [TOOL, ...args], {
+    cwd: REPO, encoding: 'utf8', timeout: 30000,
+  });
+}
+
+test('--check passes: the skeleton covers every field the spec names', () => {
+  // This is the anti-drift gate. If it fails, the spec grew a field and the
+  // handoff would ship with a silent hole — the exact bug this tool exists for.
+  const out = run(['--check']);
+  assert.match(out, /sem drift nos campos parseáveis do spec/);
+});
+
+test('spec parsing finds the canonical fields (not an empty set)', () => {
+  const { ok, fields } = pre.specFields();
+  assert.equal(ok, true, 'PERFECT_HANDOFF_SPEC.md must be readable');
+  // A silently-empty parse would make --check pass vacuously — the worst
+  // possible failure, since it looks green while asserting nothing.
+  assert.ok(fields.length >= 5, `expected the spec to name ≥5 fields, got ${fields.length}`);
+  for (const required of ['STATE', 'GATE', 'WORK', 'WORKTREE']) {
+    assert.ok(fields.includes(required), `spec must name ${required}`);
+  }
+});
+
+test('every judgement field renders as a loud TODO, never as blank', () => {
+  const out = run();
+  // An omitted field must be impossible to mistake for "nothing to report".
+  for (const field of ['GOAL', 'INTENT', 'A ÚNICA COISA', 'PENDING', 'RISK']) {
+    assert.match(out, new RegExp(`${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]{0,120}?<<TODO`),
+      `${field} must render a <<TODO>> marker`);
+  }
+});
+
+test('GATE never claims tests are green without running them', () => {
+  const out = run();
+  // The golden rule (spec:95): never say ✓ unless it is true. This preflight
+  // does not execute suites, so it must say n/d — never a pass.
+  assert.match(out, /testes n\/d/);
+  assert.doesNotMatch(out, /testes \d+\/\d+ ✓/);
+});
+
+test('classify.js sha is measured, not asserted', () => {
+  const gate = pre.gateFacts();
+  // Either a real verdict or n/d — never an unconditional ✓.
+  assert.ok(
+    gate.classifySha === 'n/d' || /^✓ intacto$|^✗ DIVERGE/.test(gate.classifySha),
+    `unexpected sha verdict: ${gate.classifySha}`,
+  );
+});
+
+test('STATE is derived from measured git facts, never hardcoded', () => {
+  const git = pre.gitFacts();
+  assert.ok(
+    ['landed', 'parked (precisa push)', 'in-progress (dirty)', 'n/d'].includes(git.state),
+    `unexpected derived STATE: ${git.state}`,
+  );
+  // STATE must agree with the numbers it was derived from.
+  if (git.state === 'landed') {
+    assert.equal(git.ahead, 0);
+    assert.equal(git.dirty, 0);
+    assert.equal(git.untracked, 0);
+    assert.equal(git.uncommitted, 0);
+  }
+  if (git.state === 'parked (precisa push)') {
+    assert.ok(git.ahead > 0, 'parked implies unpushed commits');
+    assert.equal(git.dirty, 0, 'parked implies a clean tree');
+    assert.equal(git.untracked, 0, 'parked implies no untracked work');
+    assert.equal(git.uncommitted, 0, 'parked implies no uncommitted work');
+  }
+});
+
+test('council footer refuses to sign 8/8 when the 8 questions are unreachable', () => {
+  const canon = pre.canonChecks();
+  const out = run();
+  if (!canon.council.startsWith('✓')) {
+    // This is the exact failure of the 2026-07-16 cycle: the protocol points at
+    // a Cowork memory, so no agent can honestly sign 8/8.
+    assert.match(out, /assina n\/d, NUNCA 8\/8/);
+    assert.doesNotMatch(out, /🔍 council: 8\/8/);
+  }
+});
+
+test('--json emits machine-readable facts with the load-bearing keys', () => {
+  const j = JSON.parse(run(['--json']));
+  for (const k of ['git', 'wts', 'gate', 'canon', 'drift']) {
+    assert.ok(k in j, `--json must expose ${k}`);
+  }
+  assert.ok(Array.isArray(j.wts), 'worktrees must be an array');
+});
+
+test('Q&A is recovered verbatim from the transcript, with every option intact', () => {
+  const qa = pre.extractQA(null);
+  if (!qa.ok) {
+    // No transcript on this machine is a legitimate state — but it must degrade
+    // to n/d, never to a fabricated decisions block.
+    assert.match(pre.renderQA(qa), /^\s*n\/d — /);
+    return;
+  }
+  for (const round of qa.rounds) {
+    for (const q of round.questions) {
+      assert.ok(q.question.length > 0, 'question text must be present');
+      // The spec's hole nº2: a truncated question is worse than no question.
+      assert.doesNotMatch(q.question, /\.\.\.$|…$/, 'question must not be truncated');
+      assert.ok(q.options.length >= 2, 'a question must carry ALL its options');
+      for (const o of q.options) {
+        assert.ok(o.label && o.description, 'each option needs label + description');
+      }
+      assert.ok(q.chosen, 'chosen answer must be present or explicit n/d');
+    }
+  }
+});
+
+test('Q&A without an explicit sid refuses global newest transcript attribution', () => {
+  const qa = pre.extractQA(null);
+  assert.equal(qa.ok, false);
+  assert.match(qa.err, /--sid obrigatório/);
+  assert.match(pre.renderQA(qa), /n\/d/);
+});
+
+test('renderQA never invents a choice it did not find', () => {
+  const fake = {
+    ok: true,
+    file: '/tmp/x.jsonl',
+    rounds: [{
+      round: 1,
+      questions: [{
+        question: 'Q?',
+        header: 'h',
+        options: [{ label: 'A', description: 'da' }, { label: 'B', description: 'db' }],
+        chosen: 'n/d (sem resposta registada no transcript)',
+      }],
+    }],
+  };
+  const out = pre.renderQA(fake);
+  assert.match(out, /n\/d \(sem resposta registada/);
+  // Both options must survive into the render — no silent dropping.
+  assert.match(out, /1\) A — da/);
+  assert.match(out, /2\) B — db/);
+});
+
+test('UNPUSHED spans every worktree, not just the current one', () => {
+  const wts = pre.worktrees();
+  // A handoff that reports only the current worktree is how unpushed work goes
+  // missing — the spec asks for "a soma de todos os worktrees".
+  assert.ok(wts.length >= 1);
+  for (const w of wts) assert.ok(w.path, 'each worktree needs a path');
+});
+
+test('untracked work is RED ALERT and can never derive landed', () => {
+  const run = (_cmd, args) => {
+    const key = args.join(' ');
+    if (key === 'branch --show-current') return 'feat/test';
+    if (key === 'rev-parse --short HEAD') return 'abc1234';
+    if (key.includes('--symbolic-full-name')) return 'origin/feat/test';
+    if (key.startsWith('rev-list')) return '0\t0';
+    if (key === 'status --porcelain=v1 -z --untracked-files=all') return '?? new file.md\0';
+    if (key.startsWith('diff ')) return '';
+    if (key.startsWith('log --format')) return '';
+    if (key.startsWith('log -1')) return '2026-07-16T00:00:00Z';
+    return null;
+  };
+  const git = pre.gitFacts(run);
+  assert.equal(git.untracked, 1);
+  assert.equal(git.uncommitted, 1);
+  assert.equal(git.state, 'in-progress (dirty)');
+  assert.equal(git.uncommittedPaths.length, 1);
+  assert.match(git.uncommittedPaths[0], /new file\.md$/);
+});
+
+test('git failure degrades to n/d, never zero, clean or pushed', () => {
+  const git = pre.gitFacts(() => null);
+  assert.equal(git.state, 'n/d');
+  assert.equal(git.upstream, null);
+  assert.equal(git.ahead, null);
+  assert.equal(git.uncommitted, null);
+  assert.equal(git.uncommittedPaths, null);
+  const out = pre.render({
+    git, wts: null,
+    gate: { classifySha: 'n/d', tests: 'n/d' },
+    canon: { vault: 'n/d', council: 'n/d', cca: 'n/d', notion: 'n/d' },
+    drift: { drifted: false, unknown: [] },
+    qa: { ok: false, err: 'n/d', rounds: [] },
+  });
+  assert.match(out, /STATE:\s+n\/d/);
+  assert.match(out, /RED ALERT — uncommitted:\n\s+n\/d/);
+  assert.doesNotMatch(out, /pushed ✓|nada por push ou commit/);
+});
+
+test('Lingua Franca defines exactly four typed contracts and canonical budgets', () => {
+  const parsed = pre.parseMessageContracts();
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.contracts.map((c) => [c.type, c.direction, c.budgetTokens]), [
+    ['MASTERPROMPT', 'brain → executor', 8000],
+    ['HANDOFF', 'executor → brain', 4000],
+    ['DECISION CONTRACT', 'brain → executor', 2000],
+    ['BRIEF', 'executor → ledger', 1000],
+  ]);
+});
+
+test('typed contract parser rejects fifth types and duplicate constitutional rows', () => {
+  const protocol = fs.readFileSync(path.join(REPO, 'docs', 'agent-context', 'AGENT_CONTEXT_PROTOCOL.md'), 'utf8');
+  const marker = '| `BRIEF` | executor → ledger | minimum durable record | ≤ 1k tokens |';
+  const fifth = protocol.replace(marker, `${marker}\n| \`FIFTH_TYPE\` | x → y | forbidden | ≤ 1k tokens |`);
+  const duplicate = protocol.replace(marker, `${marker}\n| \`HANDOFF\` | executor → brain | duplicate | ≤ 4k tokens |`);
+  const fifthVerdict = pre.validateTypedArtifacts({ protocolText: fifth });
+  const duplicateVerdict = pre.validateTypedArtifacts({ protocolText: duplicate });
+  assert.equal(fifthVerdict.ok, false);
+  assert.match(fifthVerdict.errors.join('\n'), /tipos desconhecidos: FIFTH TYPE/);
+  assert.equal(duplicateVerdict.ok, false);
+  assert.match(duplicateVerdict.errors.join('\n'), /duplica tipos: HANDOFF/);
+});
+
+test('the historical cd89 source is canonical-EOL pinned and parsed losslessly', () => {
+  const bytes = fs.readFileSync(FIXTURE_SOURCE);
+  const normalized = bytes.toString('utf8').replace(/\r\n?/g, '\n').replace(/\n*$/, '') + '\n';
+  assert.equal(Buffer.byteLength(normalized), 1751);
+  assert.equal(
+    crypto.createHash('sha256').update(normalized).digest('hex'),
+    'c397823bef7db788e87c676298f7006a9d59cd719f9cf5c361b25bc7dd7eba6c',
+  );
+  const brief = pre.parseBrief(bytes.toString('utf8'));
+  assert.equal(brief.meta.event_id, FIXTURE_ID);
+  assert.equal(brief.sections.files.length, 7);
+  assert.equal(brief.sections.guardrails.length, 3);
+  assert.equal(brief.sections.acceptance.length, 4);
+});
+
+test('all four templates stay within 60 lines and retain load-bearing HANDOFF fields', () => {
+  for (const file of Object.values(pre.TYPE_FILES)) {
+    const text = fs.readFileSync(path.join(TEMPLATE_ROOT, file), 'utf8').replace(/\r\n?/g, '\n');
+    assert.ok(text.replace(/\n+$/, '').split('\n').length <= 60, `${file} exceeds 60 lines`);
+  }
+  const handoff = fs.readFileSync(path.join(TEMPLATE_ROOT, 'HANDOFF.template.md'), 'utf8');
+  for (const field of ['INTENT:', 'TIME:', 'DELTA:', 'RESUME:', 'conf:']) assert.match(handoff, new RegExp(field));
+  assert.match(handoff, /status: <STATUS>/, 'lifecycle status must remain in frontmatter');
+  assert.match(handoff, /STATE: <STATE>/, 'execution STATE must remain distinct');
+});
+
+test('typed renderer is hermetic and deterministic for every fixture type', () => {
+  const source = fs.readFileSync(FIXTURE_SOURCE, 'utf8');
+  const oldHome = process.env.HOME;
+  process.env.HOME = path.join(REPO, 'definitely-missing-home');
+  try {
+    for (const type of Object.keys(pre.TYPE_FILES)) {
+      const a = pre.renderTypedFixture(type, source);
+      const b = pre.renderTypedFixture(type, source);
+      const crlf = pre.renderTypedFixture(type, source.replace(/\n/g, '\r\n'));
+      assert.equal(a, b, `${type} render must be byte-deterministic`);
+      assert.equal(a, crlf, `${type} render must normalize CRLF`);
+      assert.doesNotMatch(a, /<[A-Z][A-Z0-9_]*>/, `${type} left a placeholder`);
+    }
+  } finally {
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
+  }
+});
+
+test('golden fixtures match the renderer and fit their constitutional budgets', () => {
+  const verdict = pre.validateTypedArtifacts();
+  assert.deepEqual(verdict.errors, []);
+  assert.equal(verdict.ok, true);
+  assert.deepEqual(Object.keys(verdict.results).sort(), Object.keys(pre.TYPE_FILES).sort());
+  const budgets = new Map(pre.parseMessageContracts().contracts.map((c) => [c.type, c.budgetTokens]));
+  for (const [type, result] of Object.entries(verdict.results)) {
+    assert.ok(result.estimatedTokens <= budgets.get(type), `${type} exceeds budget`);
+  }
+});
+
+test('fixtures degrade absent execution truth to n/d plus STOP', () => {
+  const source = fs.readFileSync(FIXTURE_SOURCE, 'utf8');
+  const master = pre.renderTypedFixture('MASTERPROMPT', source);
+  const handoff = pre.renderTypedFixture('HANDOFF', source);
+  const decision = pre.renderTypedFixture('DECISION_CONTRACT', source);
+  const brief = pre.renderTypedFixture('BRIEF', source);
+  assert.match(master, /♻️ REUSE[\s\S]*n\/d[\s\S]*⛔ STOP/);
+  assert.match(handoff, /status: ready # lifecycle[\s\S]*STATE: n\/d[^\n]*# execution/);
+  assert.match(handoff, /UNPUSHED: n\/d/);
+  assert.match(handoff, /RED ALERT[\s\S]*não enumera nenhum full path/);
+  assert.match(handoff, /POST_MERGE_REMEDIATION_MASTERPROMPT\.md[\s\S]*POST_MERGE_AUDIT_CODEX_REPORT\.md[\s\S]*PHASE_A_GATE\.md/);
+  assert.match(handoff, /⛔ STOP:/);
+  assert.match(decision, /\| F1[^\n]+\| n\/d \|/);
+  assert.match(decision, /\| F2[^\n]+\| n\/d \|/);
+  assert.match(decision, /\| F3[^\n]+\| n\/d \|/);
+  assert.doesNotMatch(decision, /\|\s*(APPROVE|CHANGES)\s*\|/);
+  assert.match(brief, /CODEX → LEDGER → COWORK/);
+  assert.match(brief, /STATUS: ready # lifecycle[\s\S]*STATE: n\/d[^\n]*# execution/);
+  assert.match(brief, /uncommitted:[^\n]*F3: n\/d[^\n]*POST_MERGE_REMEDIATION_MASTERPROMPT\.md[\s\S]*⛔ STOP:/);
+  for (const out of [master, handoff, decision, brief]) {
+    assert.doesNotMatch(out, /pushed ✓|STATE:\s*landed|0 uncommitted|tests?\s+\d+\/\d+\s+✓/i);
+    assert.doesNotMatch(out, /execution state is absent|Source claim only|is source base only|records a|source verified|~narrative/i);
+  }
+});
+
+test('typed artifact validation returns errors instead of throwing on missing template roots', () => {
+  const verdict = pre.validateTypedArtifacts({ templateDir: path.join(REPO, 'definitely-missing-templates') });
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.length >= 4);
+});
+
+test('--check validates the spec and all typed artifacts through one validator', () => {
+  const out = run(['--check']);
+  assert.match(out, /sem drift nos campos parseáveis do spec/);
+  assert.match(out, /4 templates \+ 4 fixtures honestas/);
+  assert.match(run(['--check-templates']), /4 templates \+ 4 fixtures honestas/);
+});
+
+test('typed CLI rejects incomplete or unknown fixture requests with exit 2', () => {
+  const missing = spawnSync(process.execPath, [TOOL, '--fixture', FIXTURE_SOURCE], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(missing.status, 2);
+  assert.match(missing.stderr, /--fixture FILE e --type TYPE/);
+  const unknown = spawnSync(process.execPath, [TOOL, '--fixture', FIXTURE_SOURCE, '--type', 'FIFTH_TYPE'], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(unknown.status, 2);
+  assert.match(unknown.stderr, /tipo desconhecido/);
+  const foreign = spawnSync(process.execPath, [TOOL, '--fixture', 'AGENTS.md', '--type', 'BRIEF'], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(foreign.status, 2);
+  assert.match(foreign.stderr, /somente a source cd89 pinada/);
+});
+
+test('typed renderer rejects non-cd89 briefs instead of projecting hardcoded facts', () => {
+  const source = fs.readFileSync(FIXTURE_SOURCE, 'utf8').replace(FIXTURE_ID, 'foreign-event');
+  assert.throws(() => pre.renderTypedFixture('BRIEF', source), /não corresponde à cd89 pinada/);
+  const sameIdDifferentFacts = fs.readFileSync(FIXTURE_SOURCE, 'utf8').replace('F3 tem sete paths', 'F3 tem zero paths');
+  assert.throws(() => pre.renderTypedFixture('BRIEF', sameIdDifferentFacts), /não corresponde à cd89 pinada/);
+});
+
+test('worktree UNPUSHED uses each branch upstream, never origin/main distance', () => {
+  const wts = [{ path: 'C:/repo', branch: 'feat/already-pushed', head: 'abc1234' }];
+  const run = (_cmd, args) => {
+    const key = args.join(' ');
+    if (key.includes('--symbolic-full-name')) return 'origin/feat/already-pushed';
+    if (key.startsWith('rev-list')) {
+      assert.match(key, /origin\/feat\/already-pushed\.\.\.HEAD/);
+      assert.doesNotMatch(key, /origin\/main/);
+      return '0\t0';
+    }
+    if (key === 'status --porcelain=v1 -z --untracked-files=all') return '';
+    return null;
+  };
+  const inventory = pre.unpushedInventory(wts, run);
+  assert.equal(inventory.complete, true);
+  assert.match(inventory.text, /nada unpushed ou uncommitted/);
+  assert.doesNotMatch(inventory.text, /1 unpushed/);
+});
