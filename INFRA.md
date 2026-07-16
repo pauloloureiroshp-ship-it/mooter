@@ -142,9 +142,26 @@ git status --short && git log --oneline -5
 # Push standard
 git push origin main
 
-# Tag nova versão
-git tag -a v0.9.X -m "v0.9.X — descrição" && git push origin v0.9.X
+# Tag nova versão (ver POLÍTICA DE TAGS abaixo antes de escolher o nome)
+git tag -a v1.44.0-slug -m "v1.44.0 — descrição" && git push origin v1.44.0-slug
 ```
+
+### POLÍTICA DE TAGS E VERSÃO (2026-07-16)
+
+A tag de release é `vX.Y.Z[-slug]`, onde o `-slug` nomeia a wave/feature (`v1.44.0-graphify`). Ao dar
+push, `.github/workflows/version-sync.yml` deriva o core semver (tira o `v` e tudo a partir do primeiro
+`-`) e escreve-o em **`tools/router/version.json` — a única fonte de verdade** — e em
+`landing/app/version.json`, que é uma cópia gerada e existe só porque o Next.js não consegue importar
+de fora da app root. **Nenhum dos dois se edita à mão**, e a versão nunca aparece hardcoded em JSX: a
+landing lê o JSON (`app/page.tsx` hero badge, changelog, compare, install, methodology). Várias tags
+podem partilhar o mesmo core semver — `v1.44.0-graphify`, `v1.44.0-first-magic` e
+`v1.44.0-compaction-advisor` são três waves sob o mesmo 1.44.0, e isso é intencional: o core só sobe
+quando o que o produto promete muda. Tags de componente usam prefixo próprio
+(`vscode-cockpit-v0.12.1`) e são deliberadamente ignoradas pelo version-sync, que só faz match em
+`v<dígito>`. Histórico da dor: o sync nasceu porque `version.json` ficou em 1.6.0 com as tags em 1.21.x;
+a mesma classe de drift reapareceu em 2026-07-16 com a landing em 1.39.0 contra o router em 1.44.0 —
+por isso o workflow passou a escrever os dois ficheiros no mesmo run. Regra do 2.0: `v2.0.0` é tag
+**depois** do gate humano, nunca antes (ver `_handoff/MOOTER_20_RELEASE_GATE.md`).
 
 ---
 
