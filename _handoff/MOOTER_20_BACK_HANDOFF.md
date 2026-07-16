@@ -142,7 +142,7 @@ fonte mecânica que já existia.**
 | **H1** Cockpit De-clutter | **awaiting-you** | inventário completo · zero código ✓ |
 | **H2** LP Trust Harness | **awaiting-you** | spec completa · testes re-executados ✓ |
 | **H3** Site 2.0 | **blocked** | F2 fora de `origin/main` — gate respeitado ✓ |
-| **H4** RC 2.0 gate doc | **awaiting-you** | composto 2026-07-16 → `_handoff/MOOTER_20_RELEASE_GATE.md` · 0 de 7 gates passam |
+| **H4** RC 2.0 gate doc | ✅ **APROVADO** 2026-07-16 | `_handoff/MOOTER_20_RELEASE_GATE.md` é canon · 0/7 = baseline oficial · Dívida 1 → merge da LF · Dívida 2 → F5 |
 
 ### H0 — Housekeeping nativo
 

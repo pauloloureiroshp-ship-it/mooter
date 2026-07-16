@@ -1,10 +1,14 @@
 # 🐮 MOOTER 2.0 — RELEASE GATE
 
-> **Este documento é a definição oficial de "2.0 pronto".** Composto por CC em 2026-07-16 (H4 do
-> `MOOTER_20_TRUST_RELEASE_MASTERPROMPT.md`). ⛔ Só vira canon depois de o Paulo aprovar.
+> ✅ **APROVADO pelo Paulo em 2026-07-16.** Este documento **é** a definição oficial de "2.0 pronto".
+> Composto por CC (H4 do `MOOTER_20_TRUST_RELEASE_MASTERPROMPT.md`).
 >
 > **A régua:** `v2.0.0` **não é um número de versão — é o resultado de um teste com humanos.**
 > A tag existe depois do gate humano passar. Nunca antes.
+>
+> **Regra do changelog (Paulo, na aprovação):** o **0 de 7 honesto é o baseline**. Cada gate que virar
+> verde entra no changelog **com o comando que o provou** — não com a afirmação de que passou. Um gate
+> verde sem comando citado não conta; é a mesma classe de alegação que a "auditoria D1-h8".
 
 ---
 
@@ -45,6 +49,8 @@ critérios do CCA-F não estão definidos em lado nenhum citável neste repo**: 
 o único documento com critérios tem **10**, não 5. Enquanto assim for, `CCA: 5/5` é uma assinatura sem
 referente — e a regra de ouro do `PERFECT_HANDOFF_SPEC.md:95` obriga a `n/d`. **Acção:** canonizar os 5
 critérios (dono: Cowork/LF), e então `handoff-preflight --lint` passa a poder validá-los.
+**Fecha com o merge da Lingua Franca** (Paulo, 2026-07-16). Verificação no dia:
+`node tools/handoff-preflight.js --lint _handoff/*.md` deixa de reportar `canon: n/d`.
 
 **Dívida 2 — o gate 6 protege contra o risco errado.** A auditoria do LP dizia NO-GO por COH-01; esse P0
 **está fechado** desde `e2924ce`. Os testes existem e passam: **687/687** (union LP) e **1393/1394**
@@ -53,6 +59,8 @@ critérios (dono: Cowork/LF), e então `handoff-preflight --lint` passa a poder 
 `push: tags:['cockpit-v*']` — **depois** da decisão de shipar. **Um PR pode partir os 687 testes e o CI
 fica verde.** O harness completo do H2 é a resposta certa, mas ~15 linhas de YAML (um job de PR a correr
 `npm ci && node --test src/*.test.js`) compram hoje a maior parte do valor.
+**Fecha na F5** (Paulo, 2026-07-16). Verificação no dia: abrir um PR que parta um teste do LP e confirmar
+que o CI fica **vermelho** — o gate só existe quando falha por bem.
 
 ---
 
@@ -85,10 +93,14 @@ que o Mooter serve para alguém — só prova que está pronto para ser testado 
 
 ---
 
-## Estado agregado: **0 de 7 gates passam** (2026-07-16)
+## Estado agregado: **0 de 7 gates passam** (2026-07-16) — o BASELINE
 
 Isto não é mau sinal — é o gate a funcionar. Um checklist que passasse no dia em que foi escrito não
 estaria a medir nada.
+
+**Aceite pelo Paulo como baseline oficial em 2026-07-16.** Daqui para a frente o progresso mede-se
+contra este 0/7, e cada gate que virar verde entra no changelog **com o comando que o provou**. Quem
+actualizar esta tabela actualiza a coluna "Estado" com data e comando — nunca com uma opinião.
 
 ---
 
@@ -126,4 +138,6 @@ Council aplicado (8/8 verbatim, dadas pelo Paulo 2026-07-16 — a wave Lingua Fr
 8. **Custo de reverter** — é um documento: reverter custa um `git revert`. Escolhi o caminho reversível
    deliberadamente — **nenhuma tag, nenhum push, nenhum merge** sai deste doc.
 
-⛔ **STOP:** o Paulo aprova este gate doc — só então ele vira a definição oficial de "2.0 pronto".
+✅ **APROVADO — Paulo, 2026-07-16.** O ⛔ STOP fechou. Este documento é agora a definição oficial de
+"2.0 pronto", com os 2 débitos datados (Dívida 1 → merge da Lingua Franca · Dívida 2 → F5) e o 0/7 como
+baseline oficial.
