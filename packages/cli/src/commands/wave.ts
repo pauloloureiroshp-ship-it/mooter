@@ -3,11 +3,13 @@
 //   mooter wave start <n> [--branch <name>] [--template wave30] [--json]
 //   mooter wave status [--json]            current phase + classify.js sha verify + git HEAD
 //   mooter wave phase <id> [--done|--in-progress] [--commit <h>] [--notes <t>]
-//   mooter wave ship [--tag <t>] [--merge <commit>] [--force] [--json]
+//   mooter wave ship [--tag <t>] [--merge <commit>] [--json]
+//   mooter wave ship --request-override --reason <text> --approved-by Paulo
+//   mooter wave ship --override <request-id> [--tag <t>] [--merge <commit>]
 //
 // Pure delegator to @mooter/synthesis central-state. `status` and `ship` verify
-// the doctrine-gated tools/router/classify.js sha; `ship` refuses on mismatch
-// unless --force.
+// the doctrine-gated tools/router/classify.js sha. SHA mismatch/missing is never
+// overrideable; failed wave gates require a persisted two-phase override.
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -19,6 +21,7 @@ import {
   startWave,
   setPhase,
   shipWave,
+  requestShipOverride,
   summarize,
   loadState,
   recordClassifySha,
@@ -32,7 +35,9 @@ export const WAVE_USAGE = `mooter wave — wave lifecycle helper
   mooter wave start <n> [--branch <name>] [--template wave30] [--json]
   mooter wave status [--json]
   mooter wave phase <id> [--done|--in-progress] [--commit <h>] [--notes "<t>"]
-  mooter wave ship [--tag <t>] [--merge <commit>] [--force] [--json]`;
+  mooter wave ship [--tag <t>] [--merge <commit>] [--json]
+  mooter wave ship --request-override --reason "<why>" --approved-by Paulo [--json]
+  mooter wave ship --override <request-id> [--tag <t>] [--merge <commit>] [--json]`;
 
 // Canonical A-O scaffold for the mega wave; used when --template wave30 (or n===30).
 const WAVE30_PHASES: Array<{ id: string; title: string }> = [
@@ -89,6 +94,22 @@ function classifySha(): { path: string | null; sha: string | null } {
   } catch {
     return { path: p, sha: null };
   }
+}
+
+/** The doctrine SHA gate precedes every normal or override shipping path. */
+export function classifyShipGateError(sha: string | null): string | null {
+  if (!sha) return "classify.js sha unavailable — refusing to ship";
+  if (!classifyShaOk(sha)) {
+    return `classify.js sha MISMATCH — refusing to ship (doctrine gate)\n  expected ${EXPECTED_CLASSIFY_SHA}\n  actual   ${sha}`;
+  }
+  return null;
+}
+
+function overrideRequestId(waveNumber: number, reason: string): string {
+  return createHash("sha256")
+    .update(`${waveNumber}\0${reason}\0${Date.now()}\0${process.pid}`)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 function gitInfo(): { branch: string | null; head: string | null } {
@@ -202,24 +223,52 @@ export function runWave(args: string[]): CmdResult {
   }
 
   if (sub === "ship") {
-    const force = rest.includes("--force");
     const { sha } = classifySha();
-    const ok = sha ? classifyShaOk(sha) : false;
-    if (sha && !ok && !force) {
+    const shaError = classifyShipGateError(sha);
+    if (shaError) {
       return {
         exitCode: 2,
-        output: `✗ classify.js sha MISMATCH — refusing to ship (doctrine gate). Use --force to override.\n  expected ${EXPECTED_CLASSIFY_SHA}\n  actual   ${sha}`,
+        output: `✗ ${shaError}`,
+      };
+    }
+    if (rest.includes("--force")) {
+      return {
+        exitCode: 2,
+        output: "✗ --force cannot ship a wave. Use --request-override with a reason and explicit Paulo approval, then consume its id with --override.",
       };
     }
     const tag = flag(rest, "--tag");
     const merge = flag(rest, "--merge");
     try {
-      const s = shipWave({ tag, mergeCommit: merge });
+      if (rest.includes("--request-override")) {
+        const reason = flag(rest, "--reason") ?? "";
+        const approvedBy = flag(rest, "--approved-by") ?? "";
+        const current = loadState().currentWave;
+        if (!current) throw new Error("no active wave to ship");
+        const result = requestShipOverride({
+          id: overrideRequestId(current.number, reason),
+          reason,
+          approvedBy,
+        });
+        if (json) return { exitCode: 0, output: JSON.stringify(result.request, null, 2) };
+        return {
+          exitCode: 0,
+          output: [
+            `override-requested ${result.request.id}`,
+            `   failed gates: ${result.request.failedGates.join(", ")}`,
+            `   reason: ${result.request.reason}`,
+            `   approved by: ${result.request.approvedBy}`,
+            `Next: mooter wave ship --override ${result.request.id}`,
+          ].join("\n"),
+        };
+      }
+      const override = flag(rest, "--override");
+      const s = shipWave({ tag, mergeCommit: merge, overrideRequestId: override });
       const shipped = s.history[s.history.length - 1];
       if (json) return { exitCode: 0, output: JSON.stringify(shipped, null, 2) };
       const lines = [
-        `🐮 Wave ${shipped.number} shipped${tag ? ` · tag ${tag}` : ""}${merge ? ` · merge ${merge}` : ""}`,
-        `   classify.js sha: ${sha ? (ok ? "✓ intact" : "✗ forced") : "not found"}`,
+        `🐮 Wave ${shipped.number} ${shipped.shipmentStatus}${tag ? ` · tag ${tag}` : ""}${merge ? ` · merge ${merge}` : ""}`,
+        `   classify.js sha: ✓ intact`,
         `   phases done: ${shipped.phases.filter((p) => p.status === "done").length}/${shipped.phases.length}`,
         `Next: tag after dev→main merge, hub deploy, Notion auto-write.`,
       ];
