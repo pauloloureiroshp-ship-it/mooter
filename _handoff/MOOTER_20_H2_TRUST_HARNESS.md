@@ -2,7 +2,9 @@
 
 ```
 ⇄ MOO HANDOFF · H2 Live Preview Trust Harness · 2026-07-16
-STATE:    awaiting-you        ← spec pronta; aprovação do Paulo antes de virar wave (pós-F1)
+STATE:    ✅ APPROVED (Paulo, 2026-07-16) + follow-up F7 (ver §6)
+          ⛔ Implementação é WAVE PRÓPRIA com allowlist — NÃO iniciar sem masterprompt.
+             A allowlist tem de incluir a linha `lp:trust` no package.json da RAIZ.
 WORKTREE: ~/frugal · chore/mooter-20-h0 @08575b4 · 1 ahead of origin/main · UNPUSHED ⚠
 GATE:     read-only ✓ · zero código ✓ · testes LP executados de verdade: 687/687 ✓ ·
           suite completa 1393/1394 (1 platform-skip) ✓ · classify.js sha intacto ✓
@@ -169,6 +171,48 @@ provas** — e fica **visível no manifesto** em vez de escondida num hábito.
 testes dele vivem em `landing/` (`landing-test.yml`), que não executei. Comportamento GUI/visual, fluxos
 live de Ollama/Agent-SDK/Vercel, e o estado remoto do PR #245 continuam por verificar, exactamente como as
 duas auditorias já diziam.
+
+---
+
+## 6. ✅ Follow-up F7 — fechar o risco residual do P2 (Paulo, 2026-07-16)
+
+O Paulo aprovou a spec **e mandou fechar a fraqueza que eu próprio declarei**: o **P2 (SHA-guard) é a
+única das 7 provas sem finding ID formal** — é casada por regex de comportamento
+(`/sha-guarded|undo-stale|preview-tree-mismatch|bad-request/ + minCount:5`), porque as outras 6 têm o ID
+da auditoria embebido no nome do teste (`COH-01:`, `COH-07:`, `D6 `…) e o P2 não tem.
+
+**Porque isto importa:** eu tinha nomeado o P2 como "o elo frágil, o primeiro a ser afrouxado" e aceitei-o
+como risco residual. O Paulo recusou o resíduo — correctamente. Um manifesto com 6 provas ancoradas em IDs
+estáveis e 1 ancorada em prosa apodrece pela mais fraca: basta um rename determinado para o P2 escapar, e
+a prova continua verde a asserir nada.
+
+**F7:** criar um finding ID formal para o SHA-guard (ex.: `INV-01` — é *invariante certificado*, não fix de
+finding aberto; ver a nota do P2 na tabela §1) e passá-lo aos nomes dos testes em
+`live-edit-undo.test.js` / `lp-edit-host.test.js`. Depois disso o manifesto passa a casar **7/7 por
+ID-prefix**, e o `minCount` deixa de ser a única rede.
+
+⚠️ **F7 toca em ficheiros de teste** — o que viola o ♻️ REUSE gate desta spec ("o harness não reescreve
+testes"). Por isso **F7 é trabalho da wave, com allowlist explícita**, e não do harness. A ordem correcta é
+F7 primeiro (renomear com ID), manifesto depois — assim o harness nasce já com 7/7 por ID e nunca chega a
+existir a versão frágil.
+
+### ⛔ Gate de implementação
+
+A implementação **é wave própria com allowlist** e **não arranca sem masterprompt** (Paulo, 2026-07-16).
+A allowlist tem de incluir, no mínimo:
+
+```text
+tools/lp-trust-proofs.json            (novo)
+tools/lp-trust-harness.js             (novo)
+.github/workflows/lp-trust.yml        (novo)
+package.json (RAIZ)                   ← só a linha "lp:trust" — explicitamente na allowlist
+packages/vscode-extension/src/lp-sidebar-view.js   (recibo na UI, :644)
+packages/vscode-extension/src/lp-trust-receipt.test.js (novo)
+F7: live-edit-undo.test.js · lp-edit-host.test.js   ← renomear com o ID formal
+```
+
+Nota de colisão: o `package.json` da **raiz** não é o `package.json` **do plugin** (allowlist da F2 do
+Codex). São ficheiros diferentes; verificado por `git diff origin/main...fix/remediation-cockpit-honest-copy`.
 
 ---
 

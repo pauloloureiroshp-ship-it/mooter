@@ -2,7 +2,10 @@
 
 ```
 ⇄ MOO HANDOFF · H1 Cockpit De-clutter · 2026-07-16
-STATE:    awaiting-you        ← cut-list completa; decisão elemento-a-elemento é do Paulo
+STATE:    ✅ APPROVED em bloco (Paulo, 2026-07-16) com 2 ajustes:
+          · pipelineCard CUT → KEEP (rail de 3 estágios)
+          · status line de estados-excepcionais APROVADA
+          ⛔ 1 item aberto: fixar a métrica oficial (ver §2 — o ajuste move 58,8%→56,9%)
 WORKTREE: ~/frugal · chore/mooter-20-h0 @08575b4 · 1 ahead of origin/main · UNPUSHED ⚠
 GATE:     ZERO código escrito ✓ · read-only ✓ · nenhum ficheiro do Codex tocado ✓
 WORK:     0 ficheiros alterados nesta fase (inventário puro, como o masterprompt exige)
@@ -56,7 +59,7 @@ no overflow `···`: `setup` · `herd` · `decisions` · `doctor`.
 | `.go` New Claude Code session | `10081` | KEEP | Resume |
 | caption hint sob `.go` | `10082` | CUT | Texto explicativo permanente; não muda decisão |
 | `hwStripCard` GPU util/VRAM | `10083` → `9748` | MERGE | → MC GPU card (`mission-control-view.js:413`), mesmo `s.mc.gpu` |
-| `pipelineCard` spec→plan→exec→review→ship | `10084` → `9776` | CUT | Meio-construído: `spec`/`plan` **hardcoded a 0 para sempre** (`9787-9789`). 2 de 5 estágios são decoração. |
+| `pipelineCard` → **rail de 3 estágios** | `10084` → `9776` | **KEEP** ✅ | **Plan** — decisão do Paulo (2026-07-16): vira rail de 3 estágios (`exec`/`review`/`ship`), que **derivam de sinal git real**, e o marcador de bottleneck (`⛔`, `9790`) muda uma decisão. Os 2 estágios mortos (`spec`/`plan`, hardcoded a 0 em `9787-9789`) **saem** — um estágio que nunca acende é um anúncio, não um rail. Eu tinha recomendado CUT e disse que não me bateria por isso; o Paulo arbitrou KEEP. |
 | **hero — Saved vs all-Opus** | `10098` | KEEP | **Review** — o recibo (métrica-mãe §1.9) |
 | Graphify "~34×" card | `10104` | CUT | O `~34×` é **constante hardcoded**, não é live. Anti-vanity. |
 | mode seg zen/auto/beast | `10111` | KEEP | **Route** |
@@ -128,7 +131,13 @@ ao Mission Control. **Aplicar-lhe a quota de 60% destruía a superfície mais sa
 
 Âmbito = webview do Cockpit (Chrome + Cockpit + MC + Architecture). PC e MEO reportados à parte.
 
-```
+> ⚠️ **A métrica mudou com o ajuste aprovado — e as duas versões estão aqui porque o Paulo declarou
+> `58,8% / 23,5%` como oficial no MESMO paste em que aprovou `pipelineCard → KEEP`. Os dois não podem
+> coexistir: o 58,8% foi contado com o pipelineCard em CUT. A conta está à vista para ele arbitrar.**
+
+**Inventário original (pipelineCard = CUT):**
+
+```text
                   elementos   KEEP   MERGE   CUT   NATIVE
 Chrome                   10      4       3      2       1
 Cockpit tab              21      7       8      6       0
@@ -138,14 +147,34 @@ Architecture              6      0       4      2       0
 TOTAL                    51     21      18     11       1     (21+18+11+1 = 51 ✓)
 ```
 
-- **Métrica A** — sai da superfície onde hoje renderiza (MERGE+CUT+NATIVE): `30/51 = **58,8%**`
-- **Métrica B** — desaparece do produto (CUT+NATIVE): `12/51 = **23,5%**`
+- Métrica A (sai da superfície) = `30/51` = **58,8%** ← número que o Paulo declarou oficial
+- Métrica B (some do produto) = `12/51` = **23,5%** ← idem
 
-**Veredicto sobre a hipótese dos ~60%: CONFIRMADA na Métrica A (58,8%), e o número não foi forçado** —
-caiu da contagem. **Mas a decisão god-mode é ambígua sobre que métrica queria, e a diferença é tudo:**
+**Com o ajuste aprovado (pipelineCard = KEEP, rail de 3 estágios):**
 
-- "60% cut" = *o utilizador vê menos 60% de coisas* → **58,8%, atingido.**
-- "60% cut" = *60% do código/dados apagam* → **23,5%, e a meta está errada.**
+```text
+                  elementos   KEEP   MERGE   CUT   NATIVE
+Chrome                   10      4       3      2       1
+Cockpit tab              21      8       8      5       0    ← pipelineCard CUT → KEEP
+Mission Control          14     10       3      1       0
+Architecture              6      0       4      2       0
+                       ----   ----    ----   ----    ----
+TOTAL                    51     22      18     10       1     (22+18+10+1 = 51 ✓)
+```
+
+- **Métrica A** — sai da superfície onde hoje renderiza (MERGE+CUT+NATIVE): `29/51` = **56,9%**
+- **Métrica B** — desaparece do produto (CUT+NATIVE): `11/51` = **21,6%**
+
+A status line de estados-excepcionais (aprovada) **não mexe no denominador**: é elemento novo, não um
+dos 51.
+
+**⛔ Pendente de arbitragem do Paulo:** fixar `58,8% / 23,5%` (inventário original) ou `56,9% / 21,6%`
+(pós-ajuste). Recomendo os **56,9% / 21,6%** — são os que reproduzem a conta com as decisões dele
+aplicadas. Fixar o 58,8% ao lado de `pipelineCard = KEEP` faz o documento contradizer-se, e um número
+que não bate com a tabela é a mesma classe de alegação que a "auditoria D1-h8".
+
+**❌ Nunca citar "60%"** (regra do Paulo, 2026-07-16). A meta god-mode era uma hipótese, não uma quota;
+o número real caiu da contagem e reporta-se com a métrica nomeada, sempre.
 
 **O achado dominante não é volume, é duplicação: 18 MERGE contra 11 CUT.** O problema do Cockpit é
 renderizar o mesmo facto repetidamente, não renderizar factos inúteis:
@@ -305,13 +334,13 @@ decisão**. O resto (Pastor conf/cache `9731`, contagem do Ledger `9737`, a linh
 A contagem mantém-se em **58,8% (A) / 23,5% (B)** — mas o corte passa a ter substituto nomeado para a
 única função que as lenses serviam de facto.
 
-**Risco residual, para a decisão elemento-a-elemento do Paulo:** `pipelineCard` (`10084`) é o meu CUT
-menos confiante. Cortei-o porque 2 dos 5 estágios estão estruturalmente hardcoded a 0 (`9787-9789`) — mas
-os outros 3 (`exec`/`review`/`ship`) **derivam de sinal git real**, e o marcador de bottleneck (`⛔`,
-`9790`) discutivelmente muda uma decisão. Opções honestas: **CUT agora** (a minha recomendação: um
-pipeline de 5 estágios que nunca acende 2 é um anúncio meio-construído — exactamente o que o comentário
-do brainLens diz já ter sido removido uma vez por essa razão, `9725-9727`) ou **KEEP como rail de 3
-estágios** até existir sinal de spec/plan. Recomendo CUT; não me bateria por isso.
+**Risco residual — RESOLVIDO pelo Paulo (2026-07-16).** `pipelineCard` (`10084`) era o meu CUT menos
+confiante e eu disse que não me bateria por ele. O Paulo arbitrou **KEEP como rail de 3 estágios**, e a
+decisão é melhor que a minha recomendação: eu tinha deixado o argumento contra mim próprio na mesa —
+`exec`/`review`/`ship` **derivam de sinal git real** e o bottleneck (`⛔`, `9790`) muda uma decisão. Cortar
+os 3 estágios vivos para matar os 2 mortos era deitar fora sinal por causa de decoração. **A emenda:
+saem os 2 estágios hardcoded a 0 (`spec`/`plan`, `9787-9789`), fica o rail de 3.** Um estágio que nunca
+acende continua a ser um anúncio — só que agora removemos o anúncio em vez do rail.
 
 ---
 

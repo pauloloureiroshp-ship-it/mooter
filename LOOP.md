@@ -303,6 +303,28 @@ do Paulo. Regra destilável: **primeiro preservar a identidade e o WIP; só depo
 
 ---
 
+### 2026-07-16-auditoria-d1-h8-citada-mas-inexistente
+
+**Contexto:** o `MOOTER_20_TRUST_RELEASE_MASTERPROMPT.md:36` fundamentou a fase H1 (de-clutter do
+Cockpit) numa "densidade N/V na auditoria **D1-h8**". O executor foi ler a auditoria antes de cortar.
+
+**Resultado observado:** **a auditoria não existe.** A string `D1-h8` ocorre **exactamente uma vez em
+todo o repo — dentro do próprio masterprompt que a cita como fonte**. Citação auto-referencial: o
+documento é a única prova de si mesmo. O executor marcou a densidade como `UNVERIFIED` em vez de a
+repetir como facto, e o inventário mediu o código directamente — foi assim que caíram mais 3 premissas
+do mesmo masterprompt (`extension.js` 823.184 bytes ≠ ~332KB · 8 tabs ≠ 5 superfícies · 7 comandos ≠ 5).
+
+**Quem observou:** CC (2026-07-16), ao executar o H1 do ciclo Mooter 2.0.
+
+**Status:** registado pelo Paulo como o **7º ponteiro morto** do ciclo. Difere dos anteriores (FC-1..FC-8,
+onde o alvo citado simplesmente não existia): aqui o ponteiro **aponta para si próprio**, o que o torna
+invisível a um pointer-check ingénuo — o ficheiro citado existe, o conteúdo citado não. Reforça o job L0
+`pointer-sentinel` da Harmony Mesh (ver HIPÓTESE de `2026-07-16-phase-a-gate-untracked-enganou-3-agentes`):
+o check tem de validar **o conteúdo citado**, não só a existência do path. Regra destilável: **um
+masterprompt não pode ser a única prova das suas próprias premissas.**
+
+---
+
 ### 2026-07-16-allowlist-com-paths-errados-executor-parou
 
 **Contexto:** masterprompt do ciclo de remediação emitido com allowlist inválida — o Cowork citou

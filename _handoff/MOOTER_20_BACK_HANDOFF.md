@@ -51,8 +51,8 @@ do valor do H2. Fecha na F5 (`_handoff/MOOTER_20_RELEASE_GATE.md` §Dívida 2).
 | Fase | Estado | Artefacto |
 |---|---|---|
 | H0 | ✅ landed | 5/5 itens · 1 commit `08575b4` · 9 fich. +228/-15 |
-| H1 | 🟡 awaiting | `MOOTER_20_H1_CUT_LIST.md` · 51 elementos · zero código |
-| H2 | 🟡 awaiting | `MOOTER_20_H2_TRUST_HARNESS.md` · 7 provas · zero código |
+| H1 | ✅ aprovado | `MOOTER_20_H1_CUT_LIST.md` · +2 ajustes (pipelineCard→KEEP rail 3 · status line) · ⛔ métrica por fixar: 58,8/23,5 (original) vs 56,9/21,6 (pós-ajuste) |
+| H2 | ✅ aprovado | `MOOTER_20_H2_TRUST_HARNESS.md` · +F7 (finding ID formal p/ o P2) · implementação = wave própria com allowlist, não arranca sem masterprompt |
 | H3 | ❄️ gated | F2 fora de `origin/main` (`merge-base --is-ancestor`) |
 | H4 | ✅ aprovado | `MOOTER_20_RELEASE_GATE.md` é canon · 0/7 = baseline |
 
