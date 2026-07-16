@@ -32,7 +32,8 @@ const VALID_KINDS = new Set(['sync', 'intent', 'brief', 'turn', 'decision', 'art
 const VALID_EVIDENCE = new Set(['code', 'test', 'git', 'doc', 'handoff', 'notion-export', 'obsidian-vault', 'runtime', 'connector', 'inference']);
 const VALID_CONFIDENCE = new Set(['low', 'medium', 'high', 'unknown']);
 const VALID_CHANNELS = new Set(['local', 'subscription', 'api', 'cloud', 'unknown']);
-const MAX_EVENTS = 400;
+const MAX_CONTEXT_EVENTS = 50;
+const CONTEXT_STICKY_KINDS = new Set(['intent', 'decision', 'outcome']);
 const SYNC_AGENTS = ['claude-code', 'codex', 'gemini-roo', 'ollama'];
 const SHARED_LANGUAGE = [
   ['intent', 'what Paulo or an agent is trying to accomplish'],
@@ -121,6 +122,7 @@ function paths(root, dir) {
   return {
     dir: d,
     events: path.join(d, 'events.jsonl'),
+    context: path.join(d, 'context.jsonl'),
     snapshot: path.join(d, 'snapshot.json'),
     latest: path.join(d, 'latest.md'),
     promptsDir: path.join(d, 'prompts'),
@@ -274,11 +276,31 @@ function readEvents(root, dir) {
   return raw.split('\n').filter(Boolean).map((line) => safeJson(line)).filter(Boolean);
 }
 
-function writeEvents(root, events, dir) {
+function selectContextEvents(events, maxEvents) {
+  const list = Array.isArray(events) ? events : [];
+  const max = Number.isInteger(maxEvents) && maxEvents > 0 ? maxEvents : MAX_CONTEXT_EVENTS;
+  const indexed = list.map((event, index) => ({ event, index }));
+  const sticky = indexed.filter(({ event }) => event && CONTEXT_STICKY_KINDS.has(event.kind));
+  if (sticky.length >= max) return sticky.slice(-max).map(({ event }) => event);
+  const stickyIndexes = new Set(sticky.map(({ index }) => index));
+  const recent = indexed
+    .filter(({ index }) => !stickyIndexes.has(index))
+    .slice(-(max - sticky.length));
+  return sticky.concat(recent).sort((a, b) => a.index - b.index).map(({ event }) => event);
+}
+
+function readContextEvents(root, dir) {
+  const raw = safeRead(paths(root, dir).context);
+  if (!raw) return [];
+  return raw.split('\n').filter(Boolean).map((line) => safeJson(line)).filter(Boolean);
+}
+
+function writeContextEvents(root, events, dir) {
   const ps = paths(root, dir);
   fs.mkdirSync(ps.dir, { recursive: true });
-  const keep = events.slice(-MAX_EVENTS);
-  fs.writeFileSync(ps.events, keep.map((e) => JSON.stringify(e)).join('\n') + (keep.length ? '\n' : ''));
+  const context = selectContextEvents(events);
+  fs.writeFileSync(ps.context, context.map((e) => JSON.stringify(e)).join('\n') + (context.length ? '\n' : ''));
+  return context;
 }
 
 function appendEvent(root, event, dir, opts) {
@@ -286,8 +308,8 @@ function appendEvent(root, event, dir, opts) {
   fs.mkdirSync(ps.dir, { recursive: true });
   fs.appendFileSync(ps.events, JSON.stringify(event) + '\n');
   const events = readEvents(root, dir);
-  if (events.length > MAX_EVENTS) writeEvents(root, events, dir);
-  const snapshot = buildSnapshot(root, events.slice(-MAX_EVENTS), dir, opts);
+  writeContextEvents(root, events, dir);
+  const snapshot = buildSnapshot(root, events, dir, opts);
   writeSnapshot(root, snapshot, dir);
   return snapshot;
 }
@@ -875,6 +897,9 @@ module.exports = {
   normalizeChannel,
   normalizeEvent,
   readEvents,
+  readContextEvents,
+  selectContextEvents,
+  writeContextEvents,
   appendEvent,
   buildSnapshot,
   renderSnapshot,

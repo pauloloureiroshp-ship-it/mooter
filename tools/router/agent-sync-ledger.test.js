@@ -111,10 +111,50 @@ test('appendEvent writes events, snapshot, latest and prompts', () => {
     const snap = sync.appendEvent(root, ev, dir);
     assert.equal(snap.event_count, 1);
     assert.ok(fs.existsSync(path.join(dir, 'events.jsonl')));
+    assert.ok(fs.existsSync(path.join(dir, 'context.jsonl')));
     assert.ok(fs.existsSync(path.join(dir, 'snapshot.json')));
     assert.ok(fs.existsSync(path.join(dir, 'latest.md')));
     assert.ok(fs.existsSync(path.join(dir, 'prompts', 'gemini-roo.md')));
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /implemented sync ledger/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Gate 1: context rolls at 50 while the durable ledger preserves intent, decision and outcome', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    const structural = ['intent', 'decision', 'outcome'].map((kind, index) => sync.normalizeEvent({
+      id: `structural-${kind}`,
+      agent: 'codex',
+      kind,
+      cadence: 'checkpoint',
+      status: kind === 'outcome' ? 'done' : 'ready',
+      summary: `${kind} must survive context rollover`,
+    }, { root, git: false, classify: false, now: `2026-07-09T00:00:0${index}.000Z` }));
+    for (const event of structural) sync.appendEvent(root, event, dir, { git: false, classify: false });
+    for (let i = 0; i < 60; i++) {
+      const turn = sync.normalizeEvent({
+        id: `turn-${i}`,
+        agent: 'claude-code',
+        kind: 'turn',
+        cadence: 'turn',
+        status: 'done',
+        summary: `turn ${i}`,
+      }, { root, git: false, classify: false, now: `2026-07-09T00:01:${String(i).padStart(2, '0')}.000Z` });
+      sync.appendEvent(root, turn, dir, { git: false, classify: false });
+    }
+
+    const ledger = sync.readEvents(root, dir);
+    const context = sync.readContextEvents(root, dir);
+    assert.equal(ledger.length, 63, 'append-only ledger never drops events at context rollover');
+    assert.equal(context.length, 50, 'context buffer stays bounded');
+    for (const event of structural) {
+      assert.ok(ledger.some((item) => item.id === event.id), `${event.kind} remains durable`);
+      assert.ok(context.some((item) => item.id === event.id), `${event.kind} remains in bounded context`);
+    }
+    assert.equal(context.at(-1).id, 'turn-59', 'latest turn remains available to stateless consumers');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
