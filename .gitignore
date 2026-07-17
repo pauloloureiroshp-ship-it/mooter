@@ -170,6 +170,11 @@ _handoff/piloto/quarentena/
 # Multi-agent operational ledger projections (generated locally; source is tools/router/agent-sync-ledger.js).
 _handoff/agent-sync/
 
+# Live Preview trust receipt — a PROJECTION of an `npm run lp:trust` run, written locally.
+# Never commit: a committed receipt is a stale claim that outlives the run that earned it.
+# tools/lp-trust-runner.js fail-closes if this path is not ignored.
+_handoff/live-preview/trust-receipt.json
+
 # Local Guardian handoff projections (Ledger is truth; UUID Markdown is regenerated).
 _handoff/guardian/????????-????-????-????-????????????.md
 
