@@ -388,30 +388,42 @@ function main(argv = process.argv.slice(2)) {
     }
   }
   log(`… S2 node --test over ${files.length} proof file(s)`);
-  const run = spawnSync(process.execPath, ['--test', '--test-reporter=junit', ...files], {
-    cwd: extDir,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (run.error) {
-    log(`✖ S2 test runner failed to start: ${run.error.message}`);
-    return 1;
-  }
-  const xml = run.stdout || '';
 
-  // ── S3 · parse ────────────────────────────────────────────────────────────────
-  let tests;
-  try {
-    tests = parseJUnit(xml);
-  } catch (e) {
-    log(`✖ S3 could not parse the junit report: ${e.message}`);
-    return 1;
-  }
-  if (tests.length === 0) {
-    // Exit 0 with no tests would otherwise read as "all green".
-    log('✖ S3 the report contains zero tests — refusing to call that green');
-    if (run.stderr) log(run.stderr.slice(0, 2000));
-    return 1;
+  // One spawn PER FILE, so each test is attributed to the file we KNOW we ran, rather than
+  // to the reporter's `file` attribute. That attribute is not emitted by every Node the CI
+  // may use (it is absent on the workflow's Node 22 but present on Node 24), and when it is
+  // missing every proof matches zero tests — the harness correctly fail-closes to RED, but
+  // for a reason that has nothing to do with the Live Preview. Attribution is ours to make.
+  // Cost is 6 extra process starts (~1s); node --test already isolates per file anyway.
+  const tests = [];
+  let runStatus = 0;
+  for (const f of files) {
+    const run = spawnSync(process.execPath, ['--test', '--test-reporter=junit', f], {
+      cwd: extDir,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (run.error) {
+      log(`✖ S2 test runner failed to start for ${f}: ${run.error.message}`);
+      return 1;
+    }
+    if (run.status !== 0) runStatus = run.status;
+
+    let parsed;
+    try {
+      parsed = parseJUnit(run.stdout || '');
+    } catch (e) {
+      log(`✖ S3 could not parse the junit report for ${f}: ${e.message}`);
+      return 1;
+    }
+    if (parsed.length === 0) {
+      // A proof file that yields no tests cannot back anything. Never silently green.
+      log(`✖ S3 ${f} reported zero tests — refusing to call that green`);
+      if (run.stderr) log(run.stderr.slice(0, 2000));
+      return 1;
+    }
+    // `file` is authoritative here: it is the path we passed to the runner.
+    for (const t of parsed) tests.push({ ...t, file: f });
   }
   const totals = {
     total: tests.length,
@@ -428,7 +440,7 @@ function main(argv = process.argv.slice(2)) {
   // ── S5 · skip policy ──────────────────────────────────────────────────────────
   const badSkips = evaluateSkips(manifest, tests);
 
-  const problems = computeProblems({ proofDetail, tests, badSkips, runStatus: run.status });
+  const problems = computeProblems({ proofDetail, tests, badSkips, runStatus });
 
   const status = problems.length === 0 ? 'green' : 'red';
 

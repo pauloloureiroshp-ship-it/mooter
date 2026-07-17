@@ -248,6 +248,35 @@ test('validateManifest rejects a clause file outside its own proof files', () =>
   assert.throws(() => H.validateManifest(bad), /not in that proof's files/);
 });
 
+/* ──────────── file attribution · the runner tags, the reporter is not trusted ──── */
+
+test("parseJUnit tolerates a testcase with no file attribute (Node 22's junit emits none)", () => {
+  // Node 24 emits file="…"; the CI's Node 22 does not. The parser must not crash — but a
+  // test with no file can never back a proof (next test), so the runner tags files itself.
+  const xml = '<testsuites>\n\t<testcase name="C0/COH-01: a" time="0.1" classname="test"/>\n</testsuites>';
+  const [t] = H.parseJUnit(xml);
+  assert.equal(t.name, 'C0/COH-01: a');
+  assert.equal(t.file, '');
+});
+
+test('CI REGRESSION: unattributed tests back nothing — 110 green tests still gave 0/7 proofs', () => {
+  // This is exactly what CI produced when file attribution was left to the reporter:
+  // every test passed, every proof matched zero. Fail-closed, but for the wrong reason.
+  const tests = [
+    { name: 'C0/COH-01: a', file: '', status: 'pass', durationMs: 0 },
+    { name: 'C0/COH-01: b', file: '', status: 'pass', durationMs: 0 },
+  ];
+  assert.equal(H.evaluateProofs(MANIFEST, tests)[0].status, 'red');
+});
+
+test('tests tagged with the manifest-relative path (how the runner tags them) back their proof', () => {
+  const tests = [
+    { name: 'C0/COH-01: a', file: 'src/lp-lease-host.test.js', status: 'pass', durationMs: 0 },
+    { name: 'C0/COH-01: b', file: 'src/lp-lease-host.test.js', status: 'pass', durationMs: 0 },
+  ];
+  assert.equal(H.evaluateProofs(MANIFEST, tests)[0].status, 'green');
+});
+
 /* ─────────────────────────────── path matching ───────────────────────────────── */
 
 test('sameFile matches a manifest-relative path against an absolute reported path', () => {
