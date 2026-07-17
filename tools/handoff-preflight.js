@@ -49,6 +49,7 @@ const os = require('node:os');
 const REPO = path.resolve(__dirname, '..');
 const SPEC = path.join(REPO, 'docs', 'strategy', 'PERFECT_HANDOFF_SPEC.md');
 const PROTOCOL = path.join(REPO, 'docs', 'agent-context', 'AGENT_CONTEXT_PROTOCOL.md');
+const AGENTS = path.join(REPO, 'AGENTS.md');
 const TEMPLATE_ROOT = path.join(REPO, '_handoff', 'templates');
 const FIXTURE_ROOT = path.join(TEMPLATE_ROOT, 'fixtures');
 const FIXTURE_ID = 'cd89b89c606a7a20';
@@ -63,9 +64,9 @@ const TYPE_FILES = Object.freeze({
 });
 
 const REQUIRED_PLACEHOLDERS = Object.freeze({
-  MASTERPROMPT: ['FROM', 'TO', 'GOAL', 'WHERE', 'WHEN', 'ACTIONS', 'GUARDS', 'GATES', 'REUSE_INTERNAL', 'REUSE_PUBLIC', 'REUSE_PREVIOUS', 'STOPS', 'NEXT', 'BACK'],
-  HANDOFF: ['FROM', 'TO', 'STATUS', 'FM_STATE', 'STATE', 'WORKTREE', 'UNPUSHED', 'GATES', 'WORK', 'DECISIONS', 'PENDING', 'UNCOMMITTED', 'UNCOMMITTED_COUNT', 'TESTS', 'DECISIONS_PENDING', 'INTENT', 'TIME', 'DELTA', 'RESUME', 'CONF', 'STOP'],
-  'DECISION CONTRACT': ['FROM', 'TO', 'DECISION_ROWS', 'GUARDS', 'NEXT_GATE', 'STOPS'],
+  MASTERPROMPT: ['FROM', 'TO', 'GOAL', 'WHERE', 'WHEN', 'ACTIONS', 'GUARDS', 'GATES', 'REUSE_INTERNAL', 'REUSE_PUBLIC', 'REUSE_PREVIOUS', 'STOPS', 'NEXT', 'BACK', 'COUNCIL_SCORE', 'COUNCIL_OBJECTION', 'COUNCIL_RESOLUTION'],
+  HANDOFF: ['FROM', 'TO', 'STATUS', 'FM_STATE', 'STATE', 'WORKTREE', 'UNPUSHED', 'GATES', 'WORK', 'DECISIONS', 'PENDING', 'UNCOMMITTED', 'UNCOMMITTED_COUNT', 'TESTS', 'DECISIONS_PENDING', 'INTENT', 'TIME', 'DELTA', 'RESUME', 'CONF', 'STOP', 'CCA_SCORE'],
+  'DECISION CONTRACT': ['FROM', 'TO', 'DECISION_ROWS', 'GUARDS', 'NEXT_GATE', 'STOPS', 'COUNCIL_SCORE', 'COUNCIL_OBJECTION', 'COUNCIL_RESOLUTION'],
   BRIEF: ['FROM', 'TO', 'STATUS', 'FM_STATE', 'STATE', 'WORKTREE', 'BRANCH', 'SHA', 'GIT_REF', 'UNCOMMITTED', 'UNCOMMITTED_COUNT', 'UNPUSHED', 'TESTS', 'DECISIONS_PENDING', 'TASK', 'EVIDENCE_POINTER', 'STOP'],
 });
 
@@ -165,6 +166,132 @@ function parseMessageContracts(protocolText) {
   };
 }
 
+/** Read the eight council keys from the repo canon without copying them here. */
+function parseCouncilQuestions(agentsText) {
+  let text = agentsText;
+  try {
+    if (text === undefined) text = fs.readFileSync(AGENTS, 'utf8');
+  } catch (err) {
+    return { ok: false, questions: [], antiSycophancy: false, err: `AGENTS ausente: ${err.message}` };
+  }
+  const lines = normalizeEol(text).split('\n');
+  const headings = lines.map((line, index) => /^##\s+Pre-Dispatch Red-Team Gate\s*$/.test(line) ? index : -1).filter((index) => index !== -1);
+  if (headings.length !== 1) {
+    return { ok: false, questions: [], antiSycophancy: false, err: `esperada 1 seção Pre-Dispatch Red-Team Gate, encontradas ${headings.length}` };
+  }
+  const start = headings[0];
+  const endOffset = lines.slice(start + 1).findIndex((line) => /^##\s+/.test(line));
+  const end = endOffset === -1 ? lines.length : start + 1 + endOffset;
+  const section = lines.slice(start + 1, end);
+  const entries = section
+    .map((line) => line.match(/^(\d+)\.\s+\*\*([^*]+)\*\*\s*$/))
+    .filter(Boolean)
+    .map((match) => ({ number: Number(match[1]), key: match[2].trim() }));
+  const questions = entries.map((entry) => entry.key);
+  const ordered = entries.every((entry, index) => entry.number === index + 1);
+  const unique = new Set(questions).size === questions.length;
+  const flat = section.join(' ').replace(/\s+/g, ' ');
+  const antiSycophancy = flat.includes('o gate DEVE produzir ≥1 objeção real ou declarar o que tentou refutar; gate que só aprova = não rodou.');
+  const faults = [];
+  if (questions.length !== 8) faults.push(`esperadas 8 perguntas, encontradas ${questions.length}`);
+  if (!ordered) faults.push('numeração das perguntas não é 1..8');
+  if (!unique) faults.push('perguntas duplicadas');
+  if (!antiSycophancy) faults.push('regra anti-sycophancy ausente');
+  return { ok: faults.length === 0, questions, antiSycophancy, err: faults.join('; ') || null };
+}
+
+/** Parse the five CCA-F rows mechanically; finding rows never awards a score. */
+function parseCcaCriteria(protocolText) {
+  let text = protocolText;
+  try {
+    if (text === undefined) text = fs.readFileSync(PROTOCOL, 'utf8');
+  } catch (err) {
+    return { ok: false, criteria: [], totalWeight: 0, err: `protocol ausente: ${err.message}` };
+  }
+  const lines = normalizeEol(text).split('\n');
+  const headings = lines.map((line, index) => /^####\s+CCA-F standards gate\s*$/.test(line) ? index : -1).filter((index) => index !== -1);
+  if (headings.length !== 1) return { ok: false, criteria: [], totalWeight: 0, err: `esperada 1 tabela CCA-F, encontradas ${headings.length}` };
+  const start = headings[0];
+  const endOffset = lines.slice(start + 1).findIndex((line) => /^#{1,4}\s+/.test(line));
+  const end = endOffset === -1 ? lines.length : start + 1 + endOffset;
+  const criteria = [];
+  for (const line of lines.slice(start + 1, end)) {
+    const row = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/);
+    if (!row || /^---/.test(row[1])) continue;
+    const weighted = row[1].match(/^(.*?)\s*\((\d+)%\)$/);
+    if (!weighted) continue;
+    criteria.push({ domain: weighted[1].trim(), weight: Number(weighted[2]), check: row[2].trim(), failure: row[3].trim() });
+  }
+  const totalWeight = criteria.reduce((sum, criterion) => sum + criterion.weight, 0);
+  const unique = new Set(criteria.map((criterion) => criterion.domain)).size === criteria.length;
+  const complete = criteria.every((criterion) => criterion.domain && criterion.check && criterion.failure);
+  const faults = [];
+  if (criteria.length !== 5) faults.push(`esperados 5 critérios CCA-F, encontrados ${criteria.length}`);
+  if (!unique) faults.push('critérios CCA-F duplicados');
+  if (!complete) faults.push('critério CCA-F incompleto');
+  if (totalWeight !== 100) faults.push(`pesos CCA-F somam ${totalWeight}, não 100`);
+  return { ok: faults.length === 0, criteria, totalWeight, err: faults.join('; ') || null };
+}
+
+function footerPositionIsFinal(lines, index) {
+  const tail = lines.slice(index + 1).filter((line) => line.trim());
+  return tail.length === 0 || (tail.length === 1 && tail[0] === '⇄ END');
+}
+
+/** Validate one rendered CCA footer. Partial/unknown is a flag, not a block. */
+function validateCcaFooter(text, denominator = 5) {
+  const lines = normalizeEol(text).split('\n');
+  const indexes = lines.map((line, index) => line.startsWith('CCA:') ? index : -1).filter((index) => index !== -1);
+  const errors = [];
+  const warnings = [];
+  if (indexes.length !== 1) {
+    errors.push(`esperado 1 rodapé CCA, encontrados ${indexes.length}`);
+    return { ok: false, errors, warnings, score: null };
+  }
+  const index = indexes[0];
+  const match = lines[index].match(/^CCA: (n\/d|\d+)\/(\d+)$/);
+  if (!match) errors.push('rodapé CCA inválido; esperado CCA: n/5');
+  if (!footerPositionIsFinal(lines, index)) errors.push('rodapé CCA não está no fim do artefacto');
+  if (!match) return { ok: false, errors, warnings, score: null };
+  const actualDenominator = Number(match[2]);
+  if (actualDenominator !== denominator) errors.push(`denominador CCA ${actualDenominator}, esperado ${denominator}`);
+  const score = match[1] === 'n/d' ? null : Number(match[1]);
+  if (score !== null && (score < 0 || score > denominator)) errors.push(`score CCA fora do intervalo: ${score}/${denominator}`);
+  if (score === null || score < denominator) warnings.push(`CCA abaixo de ${denominator}/${denominator}: ${match[1]}/${actualDenominator}`);
+  return { ok: errors.length === 0, errors, warnings, score };
+}
+
+/** Validate one rendered council footer without deciding that the council ran. */
+function validateCouncilFooter(text) {
+  const lines = normalizeEol(text).split('\n');
+  const indexes = lines.map((line, index) => line.startsWith('🔍 council') ? index : -1).filter((index) => index !== -1);
+  const errors = [];
+  const warnings = [];
+  if (indexes.length !== 1) {
+    errors.push(`esperado 1 rodapé council, encontrados ${indexes.length}`);
+    return { ok: false, errors, warnings, score: null };
+  }
+  const index = indexes[0];
+  const match = lines[index].match(/^🔍 council (8\/8|n\/d) · objeção mais forte: (.+) · resolvida: (.+)$/);
+  if (!match) errors.push('rodapé council inválido');
+  if (!footerPositionIsFinal(lines, index)) errors.push('rodapé council não está no fim do artefacto');
+  if (!match) return { ok: false, errors, warnings, score: null };
+  const [, score, objection, resolution] = match;
+  if (score === 'n/d') {
+    if (!objection.startsWith('n/d') || !resolution.startsWith('n/d')) {
+      errors.push('council n/d exige objeção e resolução n/d');
+    }
+    warnings.push('council n/d — execução não comprovada');
+  } else {
+    const emptyObjection = /^(?:n\/d|none|nenhuma|sem objeção)$/i.test(objection.trim());
+    const emptyResolution = /^(?:n\/d|none|nenhuma|sem resolução)$/i.test(resolution.trim());
+    if (emptyObjection || emptyResolution || /<[^>]+>/.test(`${objection} ${resolution}`)) {
+      errors.push('council 8/8 exige objeção e resolução reais');
+    }
+  }
+  return { ok: errors.length === 0, errors, warnings, score };
+}
+
 function parseBrief(sourceText) {
   const text = normalizeEol(sourceText);
   const lines = text.split('\n');
@@ -246,6 +373,11 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
   const stop = 'A fonte omite os verdicts F1/F2/F3, os full paths da F3 e o root absoluto dos três paths untracked da main.';
 
   const common = { ID: id, TITLE: title, SOURCE_REF: sourceRef };
+  const unknownCouncil = {
+    COUNCIL_SCORE: 'n/d',
+    COUNCIL_OBJECTION: 'n/d — ausente na fonte',
+    COUNCIL_RESOLUTION: 'n/d — sem objeção verificável',
+  };
   if (type === 'MASTERPROMPT') return { ...common,
     FROM: 'n/d', TO: to.toUpperCase(),
     GOAL: sections.task || 'n/d',
@@ -262,7 +394,7 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
       stop,
     ]),
     NEXT: `COWORK devolve um DECISION CONTRACT para o evento ${id}.`,
-    BACK: expected,
+    BACK: expected, ...unknownCouncil,
   };
 
   if (type === 'HANDOFF') return { ...common,
@@ -288,6 +420,7 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
     NARRATIVE: 'n/d', CONF: 'fonte verificada · git n/d · gate n/d · narrativa n/d',
     EVIDENCE: bullets([sourceRef, `ledger event ${id}`]),
     STOP: stop, HUMAN_GATE: 'Paulo autoriza push, merge ou delete.', BACK: expected,
+    CCA_SCORE: 'n/d',
   };
 
   if (type === 'DECISION CONTRACT') return { ...common,
@@ -296,6 +429,7 @@ function projectBrief(brief, inputType, sourceRef = `_handoff/templates/fixtures
     GUARDS: bullets(guardrails),
     NEXT_GATE: 'COWORK fornece APPROVE ou CHANGES nas três linhas com evidência exata.',
     STOPS: bullets([`${stop} CODEX não executa remediação nem ação irreversível.`]),
+    ...unknownCouncil,
   };
 
   return { ...common,
@@ -425,10 +559,15 @@ function validateTypedArtifacts(options = {}) {
   const templateDir = options.templateDir || TEMPLATE_ROOT;
   const sourceFile = options.sourceFile || FIXTURE_SOURCE;
   const errors = [];
+  const warnings = [];
   const results = {};
   const renderedByType = {};
   const parsed = parseMessageContracts(options.protocolText);
   if (!parsed.ok) errors.push(parsed.err);
+  const ccaCanon = parseCcaCriteria(options.protocolText);
+  if (!ccaCanon.ok) errors.push(`canon CCA-F inválido: ${ccaCanon.err}`);
+  const councilCanon = parseCouncilQuestions(options.agentsText);
+  if (!councilCanon.ok) errors.push(`canon council inválido: ${councilCanon.err}`);
   const contracts = new Map(parsed.contracts.map((contract) => [contract.type, contract]));
   const expectedTypes = Object.keys(TYPE_FILES);
   const actualTypes = [...contracts.keys()];
@@ -471,6 +610,19 @@ function validateTypedArtifacts(options = {}) {
         errors.push(`${TYPE_FILES[type]} mistura status lifecycle com state execution`);
       }
     }
+    if (type === 'HANDOFF') {
+      const footers = normalizeEol(template).split('\n').filter((line) => line.startsWith('CCA:'));
+      if (footers.length !== 1 || footers[0] !== 'CCA: <CCA_SCORE>/5') {
+        errors.push('HANDOFF.template.md deve conter exatamente CCA: <CCA_SCORE>/5');
+      }
+    }
+    if (type === 'MASTERPROMPT' || type === 'DECISION CONTRACT') {
+      const footers = normalizeEol(template).split('\n').filter((line) => line.startsWith('🔍 council'));
+      const expected = '🔍 council <COUNCIL_SCORE> · objeção mais forte: <COUNCIL_OBJECTION> · resolvida: <COUNCIL_RESOLUTION>';
+      if (footers.length !== 1 || footers[0] !== expected) {
+        errors.push(`${TYPE_FILES[type]} deve conter exatamente um rodapé council`);
+      }
+    }
     if (source === null || !contract) continue;
     let rendered;
     try { rendered = renderTypedFixture(type, source, { templateDir }); }
@@ -497,6 +649,18 @@ function validateTypedArtifacts(options = {}) {
     };
     if (/pushed ✓|STATE:\s*landed|0 uncommitted|tests?\s+\d+\/\d+\s+✓/i.test(rendered)) {
       errors.push(`${type} fixture contém falso verde load-bearing`);
+    }
+    if (type === 'HANDOFF') {
+      const footer = validateCcaFooter(rendered, 5);
+      footer.errors.forEach((error) => errors.push(`${type} ${error}`));
+      footer.warnings.forEach((warning) => warnings.push(`${type} ${warning}`));
+      if (/^CCA: 5\/5$/m.test(rendered)) errors.push('HANDOFF fixture fabrica CCA 5/5 sem evidência');
+    }
+    if (type === 'MASTERPROMPT' || type === 'DECISION CONTRACT') {
+      const footer = validateCouncilFooter(rendered);
+      footer.errors.forEach((error) => errors.push(`${type} ${error}`));
+      footer.warnings.forEach((warning) => warnings.push(`${type} ${warning}`));
+      if (/^🔍 council 8\/8/m.test(rendered)) errors.push(`${type} fixture fabrica council 8/8 sem evidência`);
     }
   }
 
@@ -526,7 +690,7 @@ function validateTypedArtifacts(options = {}) {
       }
     }
   }
-  return { ok: errors.length === 0, errors, results };
+  return { ok: errors.length === 0, errors, warnings, results };
 }
 
 /** Parse NUL-delimited porcelain without losing spaces or rename source paths. */
@@ -652,22 +816,8 @@ function canonChecks() {
   const home = os.homedir();
   const vault = [path.join(home, 'paulo-vault'), path.join(home, 'Documents', 'paulo-vault')]
     .find((p) => fs.existsSync(p)) || null;
-  const proto = vault ? path.join(vault, '00-core', 'reasoning-protocol.md') : null;
-  const protoExists = proto ? fs.existsSync(proto) : false;
-
-  // The 8 pre-dispatch red-team questions: the protocol references them but
-  // they live in a Cowork memory. If they are not in the vault, no agent can
-  // honestly sign `council 8/8` — so we surface that instead of guessing.
-  let council = 'n/d — 8 perguntas não encontradas no vault';
-  if (protoExists) {
-    const t = fs.readFileSync(proto, 'utf8');
-    const hasList = /pre-dispatch[\s\S]{0,400}?1\.\s.*\n\s*2\.\s/.test(t);
-    council = hasList ? '✓ 8 perguntas resolvíveis no vault' : 'n/d — protocolo remete p/ memória do Cowork';
-  }
-
-  // CCA-F: the `CCA: n/5` footer needs a definition of the 5 criteria.
-  const ccaDoc = [path.join(REPO, 'AUDIT_CCA.md'), path.join(REPO, 'docs', 'AUDIT_CCA.md')]
-    .find((p) => fs.existsSync(p)) || null;
+  const councilCanon = parseCouncilQuestions();
+  const ccaCanon = parseCcaCriteria();
 
   const mirror = vault ? path.join(vault, '80-notion-mirror') : null;
   let notion = 'n/d';
@@ -682,8 +832,8 @@ function canonChecks() {
 
   return {
     vault: vault || 'n/d',
-    council,
-    cca: ccaDoc ? `✓ ${path.relative(REPO, ccaDoc)}` : 'os 5 critérios do CCA-F não estão definidos no repo',
+    council: councilCanon.ok ? '✓ 8 perguntas resolvíveis no AGENTS.md' : `n/d — ${councilCanon.err}`,
+    cca: ccaCanon.ok ? '✓ 5 critérios CCA-F resolvíveis no protocolo' : `n/d — ${ccaCanon.err}`,
     notion,
   };
 }
@@ -842,9 +992,7 @@ conf:     git ${git.branch && git.head && git.ahead !== null && git.uncommitted 
 canon:    vault ${canon.vault === 'n/d' ? 'n/d' : '✓'} · council ${canon.council} · notion ${canon.notion}
 
 Rodapés
-CCA: ${canon.cca.startsWith('✓') ? '<<preencher n/5>>' : 'n/d'} — ${canon.cca}
-🔍 council: ${canon.council.startsWith('✓') ? '<<8/8 + objeção mais forte + como resolvida>>' : canon.council}
-  ${canon.council.startsWith('✓') ? '' : '→ assina n/d, NUNCA 8/8. Regra de ouro do spec:95 — "quando incerto, n/d, nunca palpite".'}
+CCA: ${canon.cca.startsWith('✓') ? '<<preencher n>>/5' : 'n/d/5'} — ${canon.cca}
 ${drift.drifted ? `\n⚠️ SPEC DRIFT: o spec tem campos que este preflight não conhece: ${drift.unknown.join(', ')}\n   Actualiza KNOWN_FIELDS em tools/handoff-preflight.js antes de confiar neste esqueleto.` : ''}
 ⇄ END`;
 }
@@ -865,6 +1013,7 @@ function main() {
       }
     }
     const typed = validateTypedArtifacts();
+    typed.warnings.forEach((warning) => console.warn(`handoff-preflight: ⚠️ ${warning}`));
     if (!typed.ok) {
       typed.errors.forEach((err) => console.error(`handoff-preflight: ${err}`));
       failed = true;
@@ -950,5 +1099,6 @@ module.exports = {
   normalizeMessageType, parseBrief, projectBrief, renderTemplate,
   renderTypedFixture, validateTypedArtifacts, parseProjectionFrontmatter,
   validateProjectionFrontmatter, estimateTokens, unpushedInventory, TYPE_FILES,
-  PROJECTION_FRONTMATTER_FIELDS,
+  PROJECTION_FRONTMATTER_FIELDS, parseCouncilQuestions, parseCcaCriteria,
+  validateCcaFooter, validateCouncilFooter,
 };

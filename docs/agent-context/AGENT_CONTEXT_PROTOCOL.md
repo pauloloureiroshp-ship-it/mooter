@@ -69,6 +69,39 @@ does not authorize a second store or a new view.
 - Report a contradiction when found; never silently absorb it as a new premise.
 - If a budget is exceeded, cut prose, never evidence.
 
+#### CCA-F standards gate
+
+Every HANDOFF evaluates the five Claude Certified Architect — Foundations
+domains below. The table is the repo-side mechanical canon; the footer projects
+the result and never replaces the evidence.
+
+| Pilar CCA-F (peso no exame) | Check mecânico no handoff | Falha real que cobre |
+|---|---|---|
+| Agentic Architecture & Orchestration (27%) | worktree/branch/deps declarados · 1 executor por frente · plano antes de código em mudança de arquitetura | sessões concorrentes no mesmo tree |
+| Tool Design & MCP Integration (18%) | hook/tool novo cita o contrato existente (provider README) · zero ferramenta inventada/duplicada | duplicar codex-cli.js (evitado na W62) |
+| Claude Code Config & Workflows (20%) | CLAUDE/AGENTS respeitados · hooks só via fontes versionadas (nunca ~/.claude direto) · sha classify no gate | condição 1 do F1 round 2 |
+| Prompt Engineering & Structured Output (20%) | mensagem é 1 dos 4 tipos · campos obrigatórios presentes · budget respeitado | handoffs pré-protocolo |
+| Context Management & Reliability (15%) | refs path:linha · n/d nunca palpite · RED ALERT se uncommitted · confront-before-emit | FC-1..FC-8 inteiras |
+
+The required HANDOFF footer is `CCA: <n>/5`, where `n` is the number of checks
+passed after all five were evaluated. If any check is unverified, render
+`CCA: n/d/5`; never turn missing evidence into `0/5` or assume `5/5`. A score
+below `5/5` (including `n/d`) is a lint flag, not an automatic block. Three
+consecutive flags require STOP and process review. The
+deterministic preflight validates the canonical five rows plus footer presence
+and shape; the future mesh lint owns evidence attachment and the Mission Control
+time series.
+
+#### Council pre-emit gate
+
+`AGENTS.md` § Pre-Dispatch Red-Team Gate is the single operational source for
+the eight question keys and the anti-sycophancy rule. A verified MASTERPROMPT or
+DECISION CONTRACT ends with `🔍 council 8/8 · objeção mais forte: <X> · resolvida:
+<como>`. When the eight answers or a real objection are not evidenced, the same
+footer renders `council n/d` plus `n/d` objection/resolution and the artifact
+keeps its STOP; it never fabricates `8/8`. The preflight reads the keys from
+`AGENTS.md` and validates footer presence without embedding a second copy.
+
 The detailed HANDOFF fields and their mechanical provenance remain single-sourced
 in `docs/strategy/PERFECT_HANDOFF_SPEC.md:64-148`.
 

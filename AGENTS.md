@@ -48,6 +48,29 @@ planes (Claude Code · Codex · local moos) start on the same page:
 deletes (Paulo's gate). **Output:** every handoff follows `docs/strategy/PERFECT_HANDOFF_SPEC.md`
 (STATE · mechanical GATE · worktree-true provenance · complete PENDING · `n/d`, never a guess).
 
+## Pre-Dispatch Red-Team Gate
+
+Before emitting a MASTERPROMPT, HANDOFF, DECISION CONTRACT, public copy, canon,
+or architectural decision, answer all eight canonical question keys in order
+with concrete evidence:
+
+1. **fonte de verdade**
+2. **escritor único**
+3. **reversível vs irreversível**
+4. **script-first**
+5. **projeção vs 2ª verdade**
+6. **degradação graciosa**
+7. **frozen/allowlist/n-d**
+8. **custo de reverter**
+
+**Anti-sycophancy:** o gate DEVE produzir ≥1 objeção real ou declarar o que
+tentou refutar; gate que só aprova = não rodou. Level-2 MASTERPROMPT and
+DECISION CONTRACT artifacts carry the visible council footer defined by
+`docs/agent-context/AGENT_CONTEXT_PROTOCOL.md`; an unverified run is `n/d`, never
+fabricated `8/8`. Conceptual mirror: Paulo's vault
+`00-core/reasoning-protocol.md` Axiom 4. The repo section above is the operational
+canon for the eight questions; the vault is not duplicated here.
+
 ## Architecture map
 
 | Path | What it is |

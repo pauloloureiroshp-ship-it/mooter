@@ -23,3 +23,5 @@
 
 ⏭ NEXT   <NEXT>
 📋 BACK   <BACK>
+
+🔍 council <COUNCIL_SCORE> · objeção mais forte: <COUNCIL_OBJECTION> · resolvida: <COUNCIL_RESOLUTION>

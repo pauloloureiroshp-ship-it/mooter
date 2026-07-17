@@ -15,4 +15,5 @@ NEXT GATE: <NEXT_GATE>
 ⛔ STOP
 <STOPS>
 
+🔍 council <COUNCIL_SCORE> · objeção mais forte: <COUNCIL_OBJECTION> · resolvida: <COUNCIL_RESOLUTION>
 ⇄ END

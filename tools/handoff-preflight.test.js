@@ -13,6 +13,7 @@ const assert = require('node:assert/strict');
 const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
+const os = require('node:os');
 const path = require('node:path');
 
 const TOOL = path.join(__dirname, 'handoff-preflight.js');
@@ -96,15 +97,22 @@ test('STATE is derived from measured git facts, never hardcoded', () => {
   }
 });
 
-test('council footer refuses to sign 8/8 when the 8 questions are unreachable', () => {
-  const canon = pre.canonChecks();
-  const out = run();
-  if (!canon.council.startsWith('✓')) {
-    // This is the exact failure of the 2026-07-16 cycle: the protocol points at
-    // a Cowork memory, so no agent can honestly sign 8/8.
-    assert.match(out, /assina n\/d, NUNCA 8\/8/);
-    assert.doesNotMatch(out, /🔍 council: 8\/8/);
-  }
+test('P6 council canon is repo-local, exact and parsed without hardcoded keys', () => {
+  const canon = pre.parseCouncilQuestions();
+  assert.equal(canon.ok, true, canon.err);
+  assert.deepEqual(canon.questions, [
+    'fonte de verdade', 'escritor único', 'reversível vs irreversível', 'script-first',
+    'projeção vs 2ª verdade', 'degradação graciosa', 'frozen/allowlist/n-d', 'custo de reverter',
+  ]);
+  assert.equal(canon.antiSycophancy, true);
+
+  const arbitraryKeys = Array.from({ length: 8 }, (_, index) => `${index + 1}. **question-${index + 1}**`).join('\n');
+  const synthetic = `## Pre-Dispatch Red-Team Gate\n\n${arbitraryKeys}\n\n**Anti-sycophancy:** o gate DEVE produzir ≥1 objeção real ou declarar o que tentou refutar; gate que só aprova = não rodou.\n\n## Next\n`;
+  assert.equal(pre.parseCouncilQuestions(synthetic).ok, true, 'production parser must not pin question text');
+  assert.equal(pre.parseCouncilQuestions(synthetic.replace('8. **question-8**\n', '')).ok, false);
+  assert.equal(pre.parseCouncilQuestions(synthetic.replace('8. **question-8**', '8. **question-7**')).ok, false);
+  assert.equal(pre.parseCouncilQuestions(`${synthetic}\n## Pre-Dispatch Red-Team Gate\n`).ok, false);
+  assert.equal(pre.parseCouncilQuestions(synthetic.replace('gate que só aprova = não rodou.', 'gate aprovado.')).ok, false);
 });
 
 test('--json emits machine-readable facts with the load-bearing keys', () => {
@@ -235,6 +243,50 @@ test('P3 pins canonical repo references and the FC-8 no-mount exception', () => 
   assert.match(protocol, /explicit\s+exception to references over dumps/);
 });
 
+test('P5 CCA-F canon has five unique weighted mechanical criteria', () => {
+  const canon = pre.parseCcaCriteria();
+  assert.equal(canon.ok, true, canon.err);
+  assert.equal(canon.criteria.length, 5);
+  assert.equal(canon.totalWeight, 100);
+  assert.deepEqual(canon.criteria.map((criterion) => [criterion.domain, criterion.weight]), [
+    ['Agentic Architecture & Orchestration', 27],
+    ['Tool Design & MCP Integration', 18],
+    ['Claude Code Config & Workflows', 20],
+    ['Prompt Engineering & Structured Output', 20],
+    ['Context Management & Reliability', 15],
+  ]);
+  assert.ok(canon.criteria.every((criterion) => criterion.check && criterion.failure));
+
+  const protocol = fs.readFileSync(PROTOCOL, 'utf8');
+  const firstRow = protocol.split(/\r?\n/).find((line) => line.startsWith('| Agentic Architecture'));
+  assert.equal(pre.parseCcaCriteria(protocol.replace(`${firstRow}\n`, '')).ok, false);
+  assert.equal(pre.parseCcaCriteria(protocol.replace(firstRow, `${firstRow}\n${firstRow}`)).ok, false);
+  assert.equal(pre.parseCcaCriteria(protocol.replace('(27%)', '(26%)')).ok, false);
+  assert.equal(pre.parseCcaCriteria(`${protocol}\n#### CCA-F standards gate\n`).ok, false);
+});
+
+test('P5/P6 footer validators reject false green and accept honest degradation', () => {
+  assert.equal(pre.validateCcaFooter('CCA: 5/5\n').ok, true);
+  assert.deepEqual(pre.validateCcaFooter('CCA: 5/5\n').warnings, []);
+  assert.equal(pre.validateCcaFooter('CCA: 4/5\n').ok, true);
+  assert.equal(pre.validateCcaFooter('CCA: n/d/5\n').ok, true);
+  assert.ok(pre.validateCcaFooter('CCA: n/d/5\n').warnings.length > 0);
+  assert.equal(pre.validateCcaFooter('CCA: 6/5\n').ok, false);
+  assert.equal(pre.validateCcaFooter('CCA: 5/4\n').ok, false);
+  assert.equal(pre.validateCcaFooter('CCA: n/d/5\nCCA: n/d/5\n').ok, false);
+  assert.equal(pre.validateCcaFooter('no footer\n').ok, false);
+
+  const honestUnknown = '🔍 council n/d · objeção mais forte: n/d — ausente · resolvida: n/d — ausente\n';
+  const honestVerified = '🔍 council 8/8 · objeção mais forte: segunda verdade derivável · resolvida: parser lê o canon\n';
+  assert.equal(pre.validateCouncilFooter(honestUnknown).ok, true);
+  assert.ok(pre.validateCouncilFooter(honestUnknown).warnings.length > 0);
+  assert.equal(pre.validateCouncilFooter(honestVerified).ok, true);
+  assert.equal(pre.validateCouncilFooter(honestVerified.replace('segunda verdade derivável', 'n/d')).ok, false);
+  assert.equal(pre.validateCouncilFooter(honestUnknown.replace('n/d — ausente · resolvida', 'objeção real · resolvida')).ok, false);
+  assert.equal(pre.validateCouncilFooter('🔍 council 8/8 · objeção mais forte: nenhuma · resolvida: n/d\n').ok, false);
+  assert.equal(pre.validateCouncilFooter(`${honestUnknown.trim()}\n${honestUnknown}`).ok, false);
+});
+
 test('typed contract parser rejects fifth types and duplicate constitutional rows', () => {
   const protocol = fs.readFileSync(path.join(REPO, 'docs', 'agent-context', 'AGENT_CONTEXT_PROTOCOL.md'), 'utf8');
   const marker = '| `BRIEF` | executor → ledger | minimum durable record | ≤ 1k tokens |';
@@ -273,6 +325,12 @@ test('all four templates stay within 60 lines and retain load-bearing HANDOFF fi
   assert.match(handoff, /status: <STATUS>/, 'lifecycle status must remain in frontmatter');
   assert.match(handoff, /state: <FM_STATE>/, 'machine execution state needs its own placeholder');
   assert.match(handoff, /STATE: <STATE>/, 'execution STATE must remain distinct');
+  assert.match(handoff, /^CCA: <CCA_SCORE>\/5$/m);
+  const master = fs.readFileSync(path.join(TEMPLATE_ROOT, 'MASTERPROMPT.template.md'), 'utf8');
+  const decision = fs.readFileSync(path.join(TEMPLATE_ROOT, 'DECISION_CONTRACT.template.md'), 'utf8');
+  for (const text of [master, decision]) {
+    assert.match(text, /^🔍 council <COUNCIL_SCORE> · objeção mais forte: <COUNCIL_OBJECTION> · resolvida: <COUNCIL_RESOLUTION>$/m);
+  }
 });
 
 test('P4 HANDOFF and BRIEF expose stable projectable YAML frontmatter', () => {
@@ -341,6 +399,7 @@ test('golden fixtures match the renderer and fit their constitutional budgets', 
   const verdict = pre.validateTypedArtifacts();
   assert.deepEqual(verdict.errors, []);
   assert.equal(verdict.ok, true);
+  assert.equal(verdict.warnings.length, 3, 'honest n/d footers are non-blocking flags');
   assert.deepEqual(Object.keys(verdict.results).sort(), Object.keys(pre.TYPE_FILES).sort());
   const budgets = new Map(pre.parseMessageContracts().contracts.map((c) => [c.type, c.budgetTokens]));
   for (const [type, result] of Object.entries(verdict.results)) {
@@ -360,16 +419,45 @@ test('fixtures degrade absent execution truth to n/d plus STOP', () => {
   assert.match(handoff, /RED ALERT[\s\S]*não enumera nenhum full path/);
   assert.match(handoff, /POST_MERGE_REMEDIATION_MASTERPROMPT\.md[\s\S]*POST_MERGE_AUDIT_CODEX_REPORT\.md[\s\S]*PHASE_A_GATE\.md/);
   assert.match(handoff, /⛔ STOP:/);
+  assert.match(handoff, /^CCA: n\/d\/5$/m);
+  assert.doesNotMatch(handoff, /^CCA: 5\/5$/m);
   assert.match(decision, /\| F1[^\n]+\| n\/d \|/);
   assert.match(decision, /\| F2[^\n]+\| n\/d \|/);
   assert.match(decision, /\| F3[^\n]+\| n\/d \|/);
   assert.doesNotMatch(decision, /\|\s*(APPROVE|CHANGES)\s*\|/);
+  for (const out of [master, decision]) {
+    assert.match(out, /^🔍 council n\/d · objeção mais forte: n\/d[^\n]+ · resolvida: n\/d[^\n]+$/m);
+    assert.doesNotMatch(out, /^🔍 council 8\/8/m);
+  }
   assert.match(brief, /CODEX → LEDGER → COWORK/);
   assert.match(brief, /STATUS: ready # lifecycle[\s\S]*STATE: n\/d[^\n]*# execution/);
   assert.match(brief, /uncommitted:[^\n]*F3: n\/d[^\n]*POST_MERGE_REMEDIATION_MASTERPROMPT\.md[\s\S]*⛔ STOP:/);
   for (const out of [master, handoff, decision, brief]) {
     assert.doesNotMatch(out, /pushed ✓|STATE:\s*landed|0 uncommitted|tests?\s+\d+\/\d+\s+✓/i);
     assert.doesNotMatch(out, /execution state is absent|Source claim only|is source base only|records a|source verified|~narrative/i);
+  }
+});
+
+test('typed validation reads both canons and enforces footer presence', () => {
+  const agents = fs.readFileSync(AGENTS, 'utf8');
+  const protocol = fs.readFileSync(PROTOCOL, 'utf8');
+  const missingQuestion = agents.replace('8. **custo de reverter**\n', '');
+  const missingCriterion = protocol.replace(/^\| Agentic Architecture.*\n/m, '');
+  assert.match(pre.validateTypedArtifacts({ agentsText: missingQuestion }).errors.join('\n'), /canon council inválido/);
+  assert.match(pre.validateTypedArtifacts({ protocolText: missingCriterion }).errors.join('\n'), /canon CCA-F inválido/);
+
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-lf-footers-'));
+  try {
+    for (const file of Object.values(pre.TYPE_FILES)) fs.copyFileSync(path.join(TEMPLATE_ROOT, file), path.join(temp, file));
+    const handoffFile = path.join(temp, 'HANDOFF.template.md');
+    fs.writeFileSync(handoffFile, fs.readFileSync(handoffFile, 'utf8').replace(/^CCA:.*\n/m, ''));
+    assert.match(pre.validateTypedArtifacts({ templateDir: temp }).errors.join('\n'), /HANDOFF\.template\.md deve conter exatamente CCA/);
+    fs.copyFileSync(path.join(TEMPLATE_ROOT, 'HANDOFF.template.md'), handoffFile);
+    const masterFile = path.join(temp, 'MASTERPROMPT.template.md');
+    fs.writeFileSync(masterFile, fs.readFileSync(masterFile, 'utf8').replace(/^🔍 council.*\n/m, ''));
+    assert.match(pre.validateTypedArtifacts({ templateDir: temp }).errors.join('\n'), /MASTERPROMPT\.template\.md deve conter exatamente um rodapé council/);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
   }
 });
 
