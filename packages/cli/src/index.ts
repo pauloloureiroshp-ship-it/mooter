@@ -70,6 +70,7 @@ import { runCcaFAudit } from "./fable-observe/cca-f-audit-cmd.ts";
 import { isEnabled as inlineTrackerEnabled, startTimer, buildCommandPrefix } from "../../transparency/src/index.ts";
 import { runCostPerf, runBenchmarks } from "./commands/cost-perf.ts";
 import { runRankings } from "./commands/rankings.ts";
+import { runReceipts } from "./commands/receipts.ts";
 
 const TOP_USAGE = `mooter — Your LLM router. Local-first. Learns forever.
 
@@ -125,6 +126,7 @@ Usage:
   mooter workflow <subcommand>     local-first dynamic workflows (Ollama workers · cross-session resume)
   mooter workflows [<name>] [--tail] [--json]   CC-native /workflows mirror — list running + completed runs
   mooter agents [stats] [--running] [--workflow <name>] [--json]   interactive list of live/recent sub-agents (per-LLM emoji); stats = avg duration per agent type
+  mooter receipts [--last N] [--json]   honest Ledger receipts (wall-clock · typed-message budget · route $ · drift catches)
   mooter compression <subcommand>  L12 prompt compression (opt-in · test · status)
   mooter lora <subcommand>         L13 LoRA adapters (list · show · load · infra only)
   mooter pastor <subcommand>       Pastor v2 per-task adapter routing + distill (adapters · route · distill · state)
@@ -558,6 +560,12 @@ async function main(argv: string[]): Promise<number> {
       workflow: wfIdx >= 0 ? rest[wfIdx + 1] : undefined,
       json: rest.includes("--json"),
     });
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "receipts") {
+    const res = runReceipts(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
