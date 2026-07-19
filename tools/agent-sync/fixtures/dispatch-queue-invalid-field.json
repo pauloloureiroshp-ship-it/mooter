@@ -1,0 +1,13 @@
+{
+  "severity": "routine",
+  "id": "vs-invalid-field-20260719",
+  "lane": "receipts",
+  "destino": {
+    "agente": "codex",
+    "sessao_id": "codex-vs-w2"
+  },
+  "created_at": "2026-07-19T12:05:00.000Z",
+  "corpo_path": "_handoff/VS_W2.md",
+  "estado": "pending",
+  "session_title": "titles are not addresses"
+}
