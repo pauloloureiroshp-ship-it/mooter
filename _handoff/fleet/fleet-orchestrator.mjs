@@ -39,6 +39,9 @@ import { createLeaseManager, inMemoryLocks } from "../../packages/fleet-commande
 import { gateProposal } from "../../packages/fleet-commander/src/proof-gate.mjs";
 import { transition } from "../../packages/fleet-commander/src/fsm.mjs";
 import { runBoundedPool } from "../../packages/overclock-moo/src/pool.mjs";
+import meshPhaseA from "../../tools/router/mesh-cycle.js";
+
+const { runMeshCycle, readFleetCycleGate } = meshPhaseA;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -256,15 +259,63 @@ export async function runFleet(opts = {}) {
 
   emit({ event: "startup", pillars: fleet.pillars.map((p) => p.id), dry_run: !!dryRun, caps });
 
-  const summary = { rounds: 0, ran: 0, gated: 0, rejected: 0, incidents: 0, peakGpu: 0, peakCloud: 0, peakPool: 0, errors: 0, spentUsd: 0, idleReason: null };
+  const summary = { rounds: 0, ran: 0, gated: 0, rejected: 0, incidents: 0, peakGpu: 0, peakCloud: 0, peakPool: 0, errors: 0, spentUsd: 0, idleReason: null, meshOk: null, effort: null };
   const wrapEmit = (rec) => {
     if (rec.event === "gate_rejected") summary.rejected++;
     if (rec.event === "incident") summary.incidents++;
     return emit(rec);
   };
 
+  // Harmony Mesh Phase A extends the existing Fleet ledger; it does not create
+  // another daemon or event store. The coordinator owns its daily in-process
+  // cadence, while the effort gate below rereads preferences every Fleet cycle.
+  if (opts.mesh !== false) {
+    const meshRunner = opts.runMeshCycle || runMeshCycle;
+    try {
+      const mesh = meshRunner({
+        root: REPO,
+        nowMs: Number(now()),
+        emit: wrapEmit,
+        force: opts.forceMesh === true,
+        dryRunBriefs: opts.dryRunBriefs === true,
+      });
+      summary.meshOk = !!mesh.ok;
+    } catch (e) {
+      summary.meshOk = false;
+      wrapEmit({ event: "incident", source: "mesh-phase-a", reason: "mesh-cycle-threw", detail: e && e.message });
+    }
+  }
+
+  const cycleGate = opts.readFleetCycleGate || readFleetCycleGate;
+  let lastGateSignature = null;
+
   for (let round = 1; round <= maxRounds; round++) {
     if (existsSync(stopSentinel)) { summary.idleReason = "STOP sentinel"; break; }
+    const effortGate = cycleGate({
+      nowMs: Number(now()),
+      preferences: opts.preferences,
+      preferencesFile: opts.preferencesFile,
+      readFile: opts.readPreferencesFile,
+    });
+    summary.effort = effortGate.effective_effort;
+    const gateSignature = JSON.stringify([effortGate.effective_effort, effortGate.pause_until, effortGate.allow_fleet_generation]);
+    if (gateSignature !== lastGateSignature) {
+      wrapEmit({
+        event: "effort_gate",
+        round,
+        configured_effort: effortGate.configured_effort,
+        effective_effort: effortGate.effective_effort,
+        pause_until: effortGate.pause_until,
+        allow_fleet_generation: effortGate.allow_fleet_generation,
+        reason: effortGate.reason,
+      });
+      lastGateSignature = gateSignature;
+    }
+    if (!effortGate.allow_fleet_generation) {
+      summary.idleReason = effortGate.reason;
+      wrapEmit({ event: "idle", round, reason: summary.idleReason, source: "effort_gate" });
+      break;
+    }
     const loops = buildLoops(fleet.pillars, fleetDir, { now, runsToday, readState: opts.readState });
     const ctx = { now: now(), gpu: { foregroundBusy }, humanQueueSize, caps };
     let res;

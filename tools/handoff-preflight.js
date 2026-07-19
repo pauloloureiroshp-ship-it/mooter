@@ -127,6 +127,153 @@ function normalizeEol(text) {
   return String(text).replace(/\r\n?/g, '\n');
 }
 
+// Pointer validation is shared with pointer-sentinel. Keeping the parser here
+// extends the existing preflight instead of creating a second interpretation of
+// path:line references. It is deliberately conservative: only repo/home paths
+// are candidates; commands, URLs and placeholders are skipped.
+const POINTER_ROOTS = [
+  '_handoff/', 'docs/', 'tools/', 'packages/', 'landing/', 'hub/', '.claude/',
+  'packs/', 'AGENTS.md', 'CLAUDE.md', 'SYNC.md', 'INFRA.md', 'MEMORY.md', 'LOOP.md',
+];
+
+function pointerSourceFiles(root = REPO) {
+  const files = ['AGENTS.md', 'CLAUDE.md', 'SYNC.md']
+    .map((file) => path.join(root, file))
+    .filter((file) => fs.existsSync(file));
+  const handoff = path.join(root, '_handoff');
+  const walk = (dir) => {
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (entry.name === '_archive' || entry.name === '_to_delete' || entry.name === 'node_modules') continue;
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.isFile() && /masterprompt.*\.md$|\.masterprompt\.md$/i.test(entry.name)) files.push(file);
+    }
+  };
+  walk(handoff);
+  return [...new Set(files)];
+}
+
+function looksLikePointer(raw) {
+  const value = String(raw || '').trim().replace(/^@/, '');
+  if (!value || /^(?:https?:|mailto:|app:|skill:)/i.test(value)) return false;
+  if (/[\n\r|]/.test(value) || /[<>$]/.test(value)) return false;
+  if (/(?:^|\/)YYYY(?:[-_/]|$)|\/_?X\.md$/i.test(value)) return false;
+  if (value.startsWith('~/')) return true;
+  if (/^[A-Za-z]:[\\/]/.test(value)) return true;
+  if (/^\/(?:home|Users|mnt|opt|var|tmp)\//.test(value)) return true;
+  return POINTER_ROOTS.some((prefix) => value === prefix.replace(/\/$/, '') || value.startsWith(prefix));
+}
+
+function normalizePointer(raw) {
+  let value = String(raw || '').trim()
+    .replace(/^['"(]+|['"),.;]+$/g, '')
+    .replace(/^@/, '')
+    .replace(/\\/g, '/');
+  const hash = value.indexOf('#');
+  if (hash >= 0) value = value.slice(0, hash);
+  const line = value.match(/:(\d+)(?:-(\d+))?$/);
+  if (line) value = value.slice(0, line.index);
+  if (!looksLikePointer(value)) return null;
+  if (/\s/.test(value) && !/^[A-Za-z]:\//.test(value)) return null;
+  return {
+    raw: String(raw || '').trim(),
+    path: value,
+    line_start: line ? Number(line[1]) : null,
+    line_end: line ? Number(line[2] || line[1]) : null,
+  };
+}
+
+function extractPointers(text) {
+  const normalized = normalizeEol(text);
+  const found = [];
+  const seen = new Set();
+  const add = (raw, index) => {
+    const pointer = normalizePointer(raw);
+    if (!pointer) return;
+    const sourceLine = normalized.slice(0, index).split('\n').length;
+    const key = `${sourceLine}|${pointer.path}|${pointer.line_start || ''}|${pointer.line_end || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    found.push({ ...pointer, source_line: sourceLine });
+  };
+  for (const match of normalized.matchAll(/`([^`\n]+)`/g)) add(match[1], match.index);
+  for (const match of normalized.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) add(match[1], match.index);
+  const rawPath = /(?:^|[\s("'])(~\/(?:\.[A-Za-z0-9._-]+\/)?[A-Za-z0-9_./*:-]+|(?:_handoff|docs|tools|packages|landing|hub|\.claude|packs)\/[A-Za-z0-9_./*:-]+|(?:AGENTS|CLAUDE|SYNC|INFRA|MEMORY|LOOP)\.md(?::\d+(?:-\d+)?)?)/gm;
+  for (const match of normalized.matchAll(rawPath)) add(match[1], match.index + match[0].indexOf(match[1]));
+  return found;
+}
+
+function resolvePointer(pointer, root, home) {
+  let value = pointer.path;
+  if (value.startsWith('~/')) value = path.join(home, value.slice(2));
+  else if (/^[A-Za-z]:\//.test(value)) value = process.platform === 'win32' ? value : null;
+  else if (!path.isAbsolute(value)) value = path.join(root, value);
+  if (!value) return null;
+  const wildcard = value.search(/[?*\[]/);
+  if (wildcard >= 0) {
+    const prefix = value.slice(0, wildcard).replace(/[\\/]$/, '');
+    return prefix || path.parse(value).root;
+  }
+  return path.resolve(value);
+}
+
+function validatePointers(options = {}) {
+  const root = path.resolve(options.root || REPO);
+  const home = options.home || os.homedir();
+  const files = options.files || pointerSourceFiles(root);
+  const findings = [];
+  let checked = 0;
+  for (const sourceFile of files) {
+    let text;
+    try { text = (options.readFile || fs.readFileSync)(sourceFile, 'utf8'); }
+    catch (err) {
+      findings.push({ source: path.relative(root, sourceFile), source_line: null, path: null, reason: 'source-unreadable', detail: err.message });
+      continue;
+    }
+    for (const pointer of extractPointers(text)) {
+      const target = resolvePointer(pointer, root, home);
+      if (!target) continue;
+      checked++;
+      let stat;
+      try { stat = (options.stat || fs.statSync)(target); }
+      catch {
+        findings.push({
+          source: path.relative(root, sourceFile).split(path.sep).join('/'),
+          source_line: pointer.source_line,
+          path: pointer.raw,
+          reason: 'missing-path',
+        });
+        continue;
+      }
+      if (pointer.line_end !== null) {
+        if (!stat.isFile()) {
+          findings.push({ source: path.relative(root, sourceFile).split(path.sep).join('/'), source_line: pointer.source_line, path: pointer.raw, reason: 'line-ref-not-file' });
+          continue;
+        }
+        let targetText;
+        try { targetText = (options.readFile || fs.readFileSync)(target, 'utf8'); }
+        catch {
+          findings.push({ source: path.relative(root, sourceFile).split(path.sep).join('/'), source_line: pointer.source_line, path: pointer.raw, reason: 'target-unreadable' });
+          continue;
+        }
+        const lines = normalizeEol(targetText).split('\n').length;
+        if (pointer.line_start < 1 || pointer.line_end < pointer.line_start || pointer.line_end > lines) {
+          findings.push({
+            source: path.relative(root, sourceFile).split(path.sep).join('/'),
+            source_line: pointer.source_line,
+            path: pointer.raw,
+            reason: 'line-out-of-range',
+            target_lines: lines,
+          });
+        }
+      }
+    }
+  }
+  return { ok: findings.length === 0, files_scanned: files.length, pointers_checked: checked, findings };
+}
+
 function canonicalSource(text) {
   return normalizeEol(text).replace(/\n*$/, '') + '\n';
 }
@@ -1100,5 +1247,6 @@ module.exports = {
   renderTypedFixture, validateTypedArtifacts, parseProjectionFrontmatter,
   validateProjectionFrontmatter, estimateTokens, unpushedInventory, TYPE_FILES,
   PROJECTION_FRONTMATTER_FIELDS, parseCouncilQuestions, parseCcaCriteria,
-  validateCcaFooter, validateCouncilFooter,
+  validateCcaFooter, validateCouncilFooter, pointerSourceFiles, extractPointers,
+  normalizePointer, resolvePointer, validatePointers,
 };
