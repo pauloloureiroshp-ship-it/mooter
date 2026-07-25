@@ -40,6 +40,7 @@ const plan = require('./plan.js');
 const journal = require('./journal.js');
 const wt = require('./worktrees.js');
 const contexto = require('./context.js');
+const P = require('./paths.js');
 const localfirst = require('./localfirst.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
@@ -75,11 +76,14 @@ function ledgerRead() {
 }
 const TERMINAL = new Set(['done', 'failed']);
 function activeJobsByWorktree(worktree) {
-  const norm = path.resolve(worktree).toLowerCase();
+  // ⚠️ canon(): em Windows o mesmo sítio aparece como C:\Users\PAULOL~1\… e
+  // C:\Users\Paulo Loureiro\… — comparar as strings dava worktrees "ocupadas"
+  // que estavam livres, e livres que estavam ocupadas.
+  const norm = P.chave(worktree);
   const state = new Map(); // job_id → last event
   for (const ev of ledgerRead()) {
     if (!ev.job_id) continue;
-    if (ev.worktree && path.resolve(ev.worktree).toLowerCase() !== norm) continue;
+    if (ev.worktree && P.chave(ev.worktree) !== norm) continue;
     if (ev.event === 'dispatched' || ev.event === 'started') state.set(ev.job_id, ev.event);
     if (TERMINAL.has(ev.event)) state.delete(ev.job_id);
   }
@@ -188,7 +192,9 @@ function guardCheck({ agent, worktree, masterprompt, wave, allowedTools }) {
     const norm = path.resolve(wt);
     if (/paulo-vault/i.test(norm)) reasons.push('worktree dentro do vault — PROIBIDO (constituição §5)');
     const root = process.env.MOOTER_WORKTREE_ROOT || path.dirname(path.resolve(REPO));
-    if (!norm.toLowerCase().startsWith(path.resolve(root).toLowerCase())) {
+    // ⚠️ dentroDe() resolve 8.3 e symlinks. Antes, uma worktree em %TEMP% era
+    // recusada como "fora da raiz" mesmo estando lá dentro.
+    if (!P.dentroDe(norm, root)) {
       reasons.push(`worktree fora da raiz permitida (${root})`);
     }
     if (!fs.existsSync(norm) || !fs.statSync(norm).isDirectory()) {
@@ -696,6 +702,13 @@ async function toolDispatch(args) {
     REGISTRY.delete(job_id);
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'timeout', duration_s: Math.round((Date.now() - t0) / 1000) });
   }, JOB_TIMEOUT_MS());
+  // ⚠️ unref(): o timeout do job é de dezenas de minutos e, sem isto, o
+  // event loop fica preso a ele — o processo nunca termina sozinho e a suite
+  // no Windows morria com exit 124 (timeout) DEPOIS de todos os asserts
+  // passarem. O processo filho tem handle próprio, por isso a vida do job
+  // continua garantida; o que deixa de ser garantido é o processo ficar vivo
+  // só por causa de um despertador.
+  try { timer.unref(); } catch { /* ambiente sem unref */ }
   REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm, mp_hash, step: stepId });
   // proof of ownership: another connector instance must be able to tell whether
   // this job is alive before it dares to declare it orphaned
@@ -1233,18 +1246,31 @@ async function toolWork(args) {
     } else if (a.force === true) {
       avisoFabricacao = 'não consegui ler nenhum dos ficheiros citados e despachaste à mesma — trata a resposta como não verificada';
     } else {
+      // ⚠️ v1.4.2 — recusar sem dizer ONDE está o ficheiro é mandar o utilizador
+      // adivinhar entre 37 pastas. Procuramos por ele antes de responder.
+      let onde = [];
+      try {
+        onde = require('./worktrees.js').comOsFicheiros(REPO, activeJobsByWorktree, contexto.pathsCitados(goal + ' ' + (a.context || '')))
+          .filter((w) => !P.mesmo(w.path, worktree)).slice(0, 5);
+      } catch { /* sem git, seguimos sem sugestão */ }
       return {
-        resumo: '⛔ não despachei: o motor local não lê ficheiros e eu também não consegui lê-los por ele',
+        resumo: onde.length
+          ? '⛔ não despachei: esse ficheiro não existe em ' + require('path').basename(worktree)
+            + ' — mas existe em ' + onde.map((w) => w.name).join(', ')
+          : '⛔ não despachei: o motor local não lê ficheiros e eu também não consegui lê-los por ele',
         erro: 'sem_contexto_para_o_local',
         porque: 'tentei ler ' + (ctx.falhados.map((f) => f.path).join(', ') || 'os ficheiros citados')
           + ' na pasta ' + require('path').basename(worktree) + ' e não consegui',
         detalhe: ctx.falhados,
-        faz_assim: [
+        onde_existe: onde.length ? onde : null,
+        faz_assim: (onde.length
+          ? ['mooter_work({goal, agent:"moo", worktree:"' + onde[0].path + '"}) — a pasta onde o ficheiro existe mesmo']
+          : []).concat([
           'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
           'diz o caminho completo a partir da raiz do projecto',
           'mooter_work({goal, agent:"moo", force:true}) — despacho na mesma, mas a resposta será inventada',
-        ],
-        nota: 'um modelo sem acesso ao disco responde na mesma, e a resposta parece boa. Foi assim que apareceram funções que não existem.',
+        ]),
+        nota: 'um modelo sem acesso ao disco responde na mesma, e a resposta parece boa. Reproduzido a 2026-07-25: o moo escreveu "NAO CONSEGUI LER" e a seguir descreveu uma função `emitTelemetry` que não existe em ficheiro nenhum.',
       };
     }
   }

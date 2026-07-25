@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "mooter",
   "display_name": "Mooter",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "A frota Mooter dentro do Cowork: seis portas, a GPU local a fazer o que consegue (e a ler os teus ficheiros), e numeros que nunca sao inventados.",
   "long_description": "Mooter mostra e pilota a frota de agentes sem sair da conversa.\n\nO painel nativo (MCP Apps) mostra, ao vivo: que agente esta a trabalhar, o modelo que ESTA MESMO a correr (lido do stream do proprio job, nunca inferido de uma pasta), tokens in/out, tokens por segundo, o que ele esta a fazer neste instante em portugues, o plano da wave com o risco de cada etapa e quem a executou, os modelos residentes na GPU local via Ollama, e o estado do vault Obsidian.\n\nO motor: um router local-first determinista (classify.js, congelado, <50ms, $0 para classificar) que escolhe o tier minimo viavel e PASSA esse modelo ao CLI. Jobs correm em Claude Code, Codex, Gemini ou na GPU local. Nada e' proxiado e nada e' fabricado: o que nao se sabe aparece como n/d, nunca como um palpite plausivel.",
   "author": {

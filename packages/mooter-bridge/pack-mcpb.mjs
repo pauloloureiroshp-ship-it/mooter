@@ -41,8 +41,38 @@ const FILES = [
   ['tools6.js', 'server/tools6.js'],
   ['localfirst.js', 'server/localfirst.js'],
   ['context.js', 'server/context.js'],
+  ['paths.js', 'server/paths.js'],
   ['bundle-package.json', 'server/package.json'],
 ];
+
+/**
+ * ⚠️ O bundle é uma lista à mão — e uma lista à mão esquece-se.
+ *
+ * A v1.4.2 acrescentou `paths.js` e, se ficasse de fora, o conector instalado
+ * morria no primeiro `require` com o Cowork a dizer apenas "servidor falhou".
+ * Em vez de confiar na memória, lemos os `require('./x.js')` de cada ficheiro
+ * que vai no bundle e exigimos que todos estejam na lista. Falha o build, não
+ * a máquina do utilizador.
+ */
+function verificarRequires(files) {
+  const dentro = new Set(files.map(([src]) => src));
+  const faltam = [];
+  for (const [src] of files) {
+    if (!src.endsWith('.js')) continue;
+    const texto = fs.readFileSync(path.join(HERE, src), 'utf8');
+    const re = /require\(\s*['"]\.\/([\w.-]+\.js)['"]\s*\)/g;
+    let m;
+    while ((m = re.exec(texto)) !== null) {
+      if (!dentro.has(m[1])) faltam.push(src + ' -> ' + m[1]);
+    }
+  }
+  if (faltam.length) {
+    console.error('BUNDLE INCOMPLETO — estes require ficariam sem ficheiro:');
+    for (const f of faltam) console.error('  ' + f);
+    process.exit(1);
+  }
+}
+verificarRequires(FILES);
 
 function crc32(buf) {
   let c, table = [];

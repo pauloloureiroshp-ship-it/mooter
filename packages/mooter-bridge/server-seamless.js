@@ -53,6 +53,7 @@ function main() {
     stdinEnded = true; maybeExit();
     if (seam.REGISTRY.size > 0) {
       const iv = setInterval(() => { if (seam.REGISTRY.size === 0 && pending === 0) { clearInterval(iv); maybeExit(); } }, 1000);
+      try { iv.unref(); } catch { /* ambiente sem unref */ }
       iv.unref && iv.unref();
     }
   });

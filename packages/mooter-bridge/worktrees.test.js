@@ -88,6 +88,28 @@ if (!gitOk) {
     assert.ok(a.ok);
     assert.ok(a.reused, 'criou uma segunda pasta com o mesmo nome');
   });
+
+  // ⚠️ v1.4.2 — nasceu de um caso real. Pedi ao motor local um resumo de
+  // `telemetry.js` numa pasta onde esse ficheiro não existe naquela branch. A
+  // recusa estava certa; o que faltava era dizer ONDE o ficheiro está, entre 37
+  // pastas. Sem isso, o utilizador adivinha — e o modelo, esse, respondeu
+  // "NAO CONSEGUI LER" e a seguir inventou uma função que não existe.
+  t('comOsFicheiros diz em que pastas o ficheiro existe mesmo', () => {
+    const com = wt.comOsFicheiros(REPO, () => [], ['a.txt']);
+    assert.ok(com.length >= 1, 'não encontrou a pasta que tem o ficheiro');
+    assert.ok(com.every((w) => fs.existsSync(path.join(w.path, 'a.txt'))));
+    assert.ok(com.every((w) => w.path && w.name), 'a sugestão tem de trazer caminho utilizável');
+  });
+
+  t('comOsFicheiros não inventa pastas para um ficheiro que não existe', () => {
+    assert.deepStrictEqual(wt.comOsFicheiros(REPO, () => [], ['nao-existe-em-lado-nenhum.js']), []);
+  });
+
+  t('comOsFicheiros inclui as ocupadas, mas marca-as', () => {
+    const com = wt.comOsFicheiros(REPO, () => ['job-1'], ['a.txt']);
+    assert.ok(com.length >= 1, 'esconder as ocupadas transforma a sugestão em "não há nada"');
+    assert.ok(com.every((w) => w.busy === true), 'ocupada por marcar — o utilizador ia bater no guard');
+  });
 }
 
 function t(name, fn) {

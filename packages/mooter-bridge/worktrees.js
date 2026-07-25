@@ -26,6 +26,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const P = require('./paths.js');
 
 function git(args, cwd) {
   return execFileSync('git', args, {
@@ -74,7 +75,7 @@ function list(repoHint, busyFn) {
     w.busy = jobs.length > 0;
     w.busy_jobs = jobs.length ? jobs : null;
     w.name = path.basename(w.path);
-    w.is_main = path.resolve(w.path).toLowerCase() === path.resolve(repo).toLowerCase();
+    w.is_main = P.mesmo(w.path, repo);
     try { w.exists = fs.existsSync(w.path); } catch { w.exists = false; }
   }
   const free = out.filter((w) => w.exists && !w.busy && !w.bare);
@@ -103,8 +104,8 @@ function list(repoHint, busyFn) {
  *   · prefere as secundárias à principal, para não bloquear a árvore de trabalho
  */
 function isTemp(p) {
-  const t = path.resolve(os.tmpdir()).toLowerCase();
-  return path.resolve(p).toLowerCase().startsWith(t);
+  // ⚠️ canon(): os.tmpdir() vem em 8.3 no Windows e o git devolve a forma longa
+  return P.dentroDe(p, os.tmpdir());
 }
 
 /**
@@ -123,10 +124,10 @@ function suspeita(w, repo) {
 function firstFree(repoHint, busyFn, avoid, requiredPaths) {
   const r = list(repoHint, busyFn);
   if (r.error) return null;
-  const av = avoid ? path.resolve(avoid).toLowerCase() : null;
+  const av = avoid ? P.canon(avoid) : null;
   let usable = r.worktrees.filter((w) => w.exists && !w.busy && !w.bare
     && !w.detached && !suspeita(w, r.repo)
-    && (!av || path.resolve(w.path).toLowerCase() !== av));
+    && (!av || P.canon(w.path) !== av));
 
   const req = Array.isArray(requiredPaths) ? requiredPaths.filter(Boolean) : [];
   if (req.length) {
@@ -140,6 +141,26 @@ function firstFree(repoHint, busyFn, avoid, requiredPaths) {
   if (!usable.length) return null;
   const secondary = usable.filter((w) => !w.is_main);
   return (secondary[0] || usable[0]).path;
+}
+
+/**
+ * Quais das pastas TÊM os ficheiros pedidos — para a recusa deixar de ser um
+ * beco sem saída.
+ *
+ * Medido em 2026-07-25 com a v1.4.2 acabada de escrever: pedi ao motor local um
+ * resumo de `telemetry.js` na pasta `frugal-w2`, onde esse ficheiro não existe
+ * naquela branch. A resposta certa é recusar — mas recusar sem dizer ONDE o
+ * ficheiro está obriga o utilizador a adivinhar entre 37 pastas. O modelo, esse,
+ * respondeu "NAO CONSEGUI LER" e a seguir inventou uma função `emitTelemetry`
+ * que não existe em lado nenhum. É este o custo de não dar saída.
+ */
+function comOsFicheiros(repoHint, busyFn, requiredPaths) {
+  const r = list(repoHint, busyFn);
+  if (r.error || !Array.isArray(requiredPaths) || !requiredPaths.length) return [];
+  return r.worktrees
+    .filter((w) => w.exists && !w.bare && !w.detached && !suspeita(w, r.repo))
+    .filter((w) => requiredPaths.every((rel) => { try { return fs.existsSync(path.join(w.path, rel)); } catch { return false; } }))
+    .map((w) => ({ name: w.name, path: w.path, branch: w.branch || null, busy: !!w.busy }));
 }
 
 /** Quais das livres NÃO têm os ficheiros pedidos — para o erro explicar-se. */
@@ -173,4 +194,4 @@ function create(repoHint, name) {
   }
 }
 
-module.exports = { list, firstFree, create, mainRepo, semOsFicheiros, isTemp, suspeita };
+module.exports = { list, firstFree, create, mainRepo, semOsFicheiros, comOsFicheiros, isTemp, suspeita };

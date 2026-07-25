@@ -176,6 +176,21 @@ for (const t of fleet.TOOLS) {
   }));
 }
 
+/**
+ * ⚠️ A versão é LIDA do manifest, nunca escrita à mão.
+ *
+ * A v1.4.2 saiu a dizer ao host que era a 1.4.1 porque a string estava colada
+ * no código e o bump só tocou no manifest. Um conector que mente sobre a
+ * própria versão torna impossível responder à única pergunta que interessa
+ * quando algo falha: "é esta a build que eu instalei?".
+ */
+const VERSION = (() => {
+  for (const p of [_pathx.join(__dirname, '..', 'manifest.json'), _pathx.join(__dirname, 'manifest.json')]) {
+    try { const v = JSON.parse(_fsx.readFileSync(p, 'utf8')).version; if (v) return String(v); } catch { /* próximo */ }
+  }
+  return 'n/d';   // nunca inventar um número de versão
+})();
+
 // ── Onda B (v1.4.1) · a superfície passa a SEIS ───────────────────────────
 // As seis substituem as antigas em `tools/list`. Os nomes antigos continuam a
 // funcionar em `tools/call` como aliases NÃO documentados durante uma versão —
@@ -278,7 +293,7 @@ async function handle(msg) {
         // `title` is what a human should see; `name` stays the machine id.
         // v1.1 shipped name:"mooter-bridge" while the manifest said "Mooter" —
         // two labels for one thing, and the panel had no way to show either.
-        serverInfo: { name: 'mooter-bridge', title: 'Mooter', version: '1.4.1' },
+        serverInfo: { name: 'mooter-bridge', title: 'Mooter', version: VERSION },
       },
     };
   }
@@ -387,6 +402,7 @@ function main() {
     stdinEnded = true; maybeExit();
     if (seam.REGISTRY.size > 0) {
       const iv = setInterval(() => { if (seam.REGISTRY.size === 0 && pending === 0) { clearInterval(iv); maybeExit(); } }, 1000);
+      try { iv.unref(); } catch { /* ambiente sem unref */ }
       iv.unref && iv.unref();
     }
   });

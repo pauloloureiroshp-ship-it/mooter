@@ -27,6 +27,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const P = require('./paths.js');
 
 // extensões que fazem sentido dar a um modelo. Binários e lock files ficam fora.
 const TEXTO = /\.(js|mjs|cjs|ts|tsx|jsx|json|md|txt|py|rs|go|java|rb|php|sh|ps1|bat|yml|yaml|toml|ini|html|css|scss|sql|graphql|prisma|env\.example)$/i;
@@ -49,7 +50,9 @@ function pathsCitados(texto) {
 function resolverDentro(worktree, rel) {
   const raiz = path.resolve(worktree);
   const alvo = path.resolve(raiz, rel);
-  if (alvo !== raiz && !alvo.startsWith(raiz + path.sep)) return null;   // path traversal
+  // ⚠️ a verificação de traversal usa canon(): sem isso, em Windows um caminho
+  // em 8.3 podia escapar a uma raiz escrita na forma longa.
+  if (!P.dentroDe(alvo, raiz)) return null;
   return alvo;
 }
 

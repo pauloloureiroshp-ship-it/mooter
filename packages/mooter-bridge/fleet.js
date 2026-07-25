@@ -28,6 +28,7 @@ const telemetry = require('./telemetry.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
 const gpuMod = require('./gpu.js');
+const P = require('./paths.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -54,7 +55,12 @@ const OLLAMA_TIMEOUT_MS = 700; // the panel polls every 3s — never block on a 
 const AGENT_LABEL = { cc: 'Claude Code', codex: 'Codex', gemini: 'Gemini', moo: 'Ollama · local' };
 const LOCAL_AGENTS = new Set(['moo']);
 
-function norm(p) { return String(p || '').replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/\/+$/, '').toLowerCase(); }
+// P.chave() em vez de manipulação de string à mão: em Windows o mesmo sítio tem
+// duas grafias (8.3 e longa) e comparar texto dava falsos negativos. A versão
+// TOLERANTE (e não canon) porque os cwd das sessões vêm de ficheiros escritos
+// por outros processos, com separadores e barra final ao acaso — e podem
+// apontar para pastas que já não existem.
+function norm(p) { return P.chave(p); }
 function leaf(p) { return String(p || '').split(/[\\/]/).filter(Boolean).pop() || ''; }
 
 // ── 1. ledger ─────────────────────────────────────────────────────────────
@@ -291,6 +297,7 @@ function sessionsFast(listFn) {
     let settled = false;
     const finish = (v, fresh) => { if (!settled) { settled = true; resolve({ sessions: v, fresh }); } };
     const timer = setTimeout(() => finish(SESSIONS_CACHE.sessions, false), SESSIONS_BUDGET_MS);
+    try { timer.unref(); } catch { /* ambiente sem unref */ }
     Promise.resolve(listFn({ limit: 20 }))
       .then((r) => {
         const list = (r && Array.isArray(r.sessions)) ? r.sessions : [];
