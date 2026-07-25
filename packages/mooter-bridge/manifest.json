@@ -1,0 +1,36 @@
+{
+  "manifest_version": "0.3",
+  "name": "mooter",
+  "display_name": "Mooter",
+  "version": "1.3.0",
+  "description": "A frota Mooter ao vivo dentro do Cowork: que wave, quem esta a trabalhar, com que LLM, quantos tokens, que ficheiros tocou, que handoffs fez, e quanto da GPU esta a arder.",
+  "long_description": "Mooter mostra e pilota a frota de agentes sem sair da conversa.\n\nO painel nativo (MCP Apps) mostra, ao vivo: que agente esta a trabalhar, o modelo que ESTA MESMO a correr (lido do stream do proprio job, nunca inferido de uma pasta), tokens in/out, tokens por segundo, o que ele esta a fazer neste instante em portugues, o plano da wave com o risco de cada etapa e quem a executou, os modelos residentes na GPU local via Ollama, e o estado do vault Obsidian.\n\nO motor: um router local-first determinista (classify.js, congelado, <50ms, $0 para classificar) que escolhe o tier minimo viavel e PASSA esse modelo ao CLI. Jobs correm em Claude Code, Codex, Gemini ou na GPU local. Nada e' proxiado e nada e' fabricado: o que nao se sabe aparece como n/d, nunca como um palpite plausivel.",
+  "author": { "name": "Paulo Loureiro" },
+  "license": "MIT",
+  "icon": "icon.png",
+  "icons": { "256": "icon.png" },
+  "keywords": ["mooter", "fleet", "agents", "ollama", "mcp-apps", "claude-code", "codex", "router", "local-first"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/server-apps.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/server-apps.js"]
+    }
+  },
+  "tools": [
+    { "name": "mooter_work", "description": "Uma porta so: descreve o objectivo em linguagem normal e o Mooter classifica, escolhe o tier e o motor, escolhe a worktree livre, escreve o handoff e despacha." },
+    { "name": "mooter_fleet", "description": "Painel ao vivo: quem trabalha, com que modelo real, tokens, tok/s, etapas com risco, GPU local e vault." },
+    { "name": "mooter_route", "description": "Classifica uma tarefa com o router congelado e devolve tier, agente e o modelo a passar ao CLI." },
+    { "name": "mooter_dispatch", "description": "Despacha um masterprompt para cc, codex, gemini ou moo (GPU local), com o modelo decidido pelo router." },
+    { "name": "mooter_status", "description": "Estado de um job ou de uma wave, com telemetria ao vivo: modelo real, tokens, tok/s e a accao em curso." },
+    { "name": "mooter_collect", "description": "Recolhe o resultado de um job terminado, com custo, modelo usado e tokens medidos." },
+    { "name": "mooter_cancel", "description": "Encerra um job (mata a arvore de processos) ou varre os orfaos deixados por um reinicio, libertando as worktrees." },
+    { "name": "mooter_plan", "description": "As etapas de uma wave, quem executou cada uma e o risco de cada uma (inferido e revisivel)." },
+    { "name": "mooter_journal", "description": "Escreve o resultado da wave no vault Obsidian. O vault e' detectado, nunca assumido." },
+    { "name": "mooter_session_bind", "description": "Diz ao Mooter que sessao do Cowork o esta a conduzir: projecto, pasta e ficheiros." },
+    { "name": "mooter_sessions_list", "description": "Sessoes Claude Code que o cockpit ve, com estado honesto, branch, PR, tokens e custo." },
+    { "name": "mooter_session_read", "description": "Le uma sessao Claude Code em detalhe pelo id." },
+    { "name": "mooter_run", "description": "Corre um comando curto do Mooter e devolve a saida." }
+  ]
+}

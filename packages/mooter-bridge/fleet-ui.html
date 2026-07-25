@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="pt">
+<meta charset="utf-8">
+<!--
+  fleet-ui.html — mooter-bridge v1.2 · the cockpit, inside the chat.
+
+  Nine complaints shaped this file, and they were all the same complaint:
+  "I cannot see who is working on what, right now, without leaving the chat."
+
+  What changed vs v1.1
+    · the cow exists (inline SVG — the MCP Apps default CSP allows 'self' and
+      data: only, so an inline vector is the one logo that always renders)
+    · every job shows the model it REALLY used, and where that fact came from
+    · live tokens and tok/s, split cloud vs local, read from the job's stream
+    · the plan: steps, state, WHO did each one, and the risk of each one
+    · buttons that act, via ui/message — the panel can talk to the conversation
+    · host theme variables, so it stops looking like a foreign object
+
+  Constraints honoured (MCP Apps spec 2026-01-26, read in full):
+    · no external fetch/script/font — the default CSP is connect-src 'none'
+    · no widget state persistence exists in this spec version, so we rehydrate
+      from the ledger on every render. That is WHY this polls instead of listens.
+    · the host may know the tool under several names; we discover it and pin it.
+-->
+<style>
+  :root {
+    --bg: var(--color-background-primary, transparent);
+    --fg: var(--color-text-primary, #1f1e1b);
+    --fg2: var(--color-text-secondary, #6b6a63);
+    --fg3: var(--color-text-tertiary, #9b9a92);
+    --line: var(--color-border-secondary, rgba(120,118,110,.22));
+    --ok: var(--color-text-success, #3f8f5f);
+    --bad: var(--color-text-danger, #c0392b);
+    --warn: var(--color-text-warning, #b4761d);
+    --font: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+    --mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+    --r: var(--border-radius-md, 9px);
+    color-scheme: light dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.45 var(--font); }
+  .hd { display: flex; align-items: center; gap: 9px; padding: 2px 2px 10px; }
+  .nm { font-weight: 600; letter-spacing: -.01em; }
+  .st { color: var(--fg2); }
+  .t { margin-left: auto; color: var(--fg3); font: 11px var(--mono); }
+  .ctx { color: var(--fg2); font-size: 11.5px; padding: 0 2px 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; font-size: 10.5px; color: var(--fg2); white-space: nowrap; }
+  .chip.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+  .chip.off { color: var(--fg3); }
+  h4 { margin: 14px 0 7px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--fg3); font-weight: 600; }
+  .card { border: 1px solid var(--line); border-radius: var(--r); padding: 9px 11px; margin-bottom: 7px; }
+  .card.live { border-color: color-mix(in srgb, var(--fg) 22%, transparent); }
+  .r1 { display: flex; align-items: baseline; gap: 8px; }
+  .who { font-weight: 600; font-size: 12.5px; }
+  .cd { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
+  .where { color: var(--fg2); font-size: 11px; }
+  .el { margin-left: auto; color: var(--fg3); font: 11px var(--mono); white-space: nowrap; }
+  .act { color: var(--fg2); font-size: 12px; margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+  .met { margin-top: 5px; display: flex; gap: 10px; flex-wrap: wrap; color: var(--fg3); font: 10.5px var(--mono); }
+  .met b { color: var(--fg2); font-weight: 600; }
+  .bar { height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 7px; }
+  .bar i { display: block; height: 100%; width: 32%; background: currentColor; opacity: .55; animation: sl 1.7s ease-in-out infinite; }
+  @keyframes sl { 0% { transform: translateX(-110%); } 100% { transform: translateX(330%); } }
+  .sp { width: 9px; height: 9px; border: 1.6px solid currentColor; border-right-color: transparent; border-radius: 50%; display: inline-block; animation: sp .8s linear infinite; opacity: .75; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .step { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-top: 1px solid var(--line); }
+  .mk { width: 15px; text-align: center; flex: 0 0 auto; font-size: 11px; line-height: 1.5; }
+  .stx { flex: 1 1 auto; }
+  .sttl { font-size: 12px; }
+  .sby { color: var(--fg3); font-size: 10.5px; }
+  .rk { flex: 0 0 auto; font-size: 9.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg3); white-space: nowrap; }
+  .rk.alto { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); font-weight: 600; }
+  .rk.medio { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+  .done .sttl { color: var(--fg2); }
+  .done .mk { color: var(--ok); }
+  .fail .mk { color: var(--bad); }
+  .gpu { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+  .gpu .nmm { font: 11.5px var(--mono); }
+  .gpu .dt { color: var(--fg3); font-size: 10.5px; }
+  .gpu .cx { margin-left: auto; color: var(--fg3); font: 10.5px var(--mono); }
+  .foot { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--fg3); font: 10.5px var(--mono); }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  button { font: 11px var(--font); color: var(--fg2); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  button:hover { color: var(--fg); border-color: color-mix(in srgb, var(--fg) 30%, transparent); }
+  button.danger:hover { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+  .empty { color: var(--fg3); font-size: 12px; padding: 6px 0; }
+  .warn { color: var(--warn); font-size: 11px; margin-top: 6px; }
+  .wave { border: 1px solid var(--line); border-radius: var(--r); padding: 9px 11px; margin-bottom: 9px; }
+  .wave .wn { font-weight: 600; font-size: 13px; }
+  .wave .wg { color: var(--fg2); font-size: 11.5px; margin-top: 1px; }
+  .wave .wm { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .prog { height: 3px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 7px; }
+  .prog i { display: block; height: 100%; background: currentColor; opacity: .5; }
+  .gg { display: flex; align-items: center; gap: 7px; margin: 2px 0 6px; }
+  .gbar { flex: 1 1 auto; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .gbar i { display: block; height: 100%; background: currentColor; opacity: .55; }
+  .gnum { font: 10.5px var(--mono); color: var(--fg2); white-space: nowrap; }
+  .ho { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 11.5px; color: var(--fg2); }
+  .ho .ar { color: var(--fg3); }
+  .fl { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .fl span { font: 10px var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--fg3); }
+  .fl span.w { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+  .coh { margin-top: 8px; font-size: 10.5px; color: var(--fg3); }
+  .coh b { color: var(--warn); font-weight: 600; }
+</style>
+
+<div class="hd">
+  <svg width="26" height="26" viewBox="0 0 32 32" aria-label="Mooter">
+    <ellipse cx="16" cy="19.5" rx="10.5" ry="8.5" fill="currentColor" opacity=".10"/>
+    <path d="M5.5 13.5c-1.6-1-2.4-3-1.7-4.4.7-1.4 2.7-1.5 4 .2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M26.5 13.5c1.6-1 2.4-3 1.7-4.4-.7-1.4-2.7-1.5-4 .2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <ellipse cx="16" cy="17" rx="9.6" ry="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    <ellipse cx="16" cy="21.6" rx="5.2" ry="3.9" fill="currentColor" opacity=".16"/>
+    <ellipse cx="16" cy="21.6" rx="5.2" ry="3.9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <circle cx="14.1" cy="21.3" r=".95" fill="currentColor"/>
+    <circle cx="17.9" cy="21.3" r=".95" fill="currentColor"/>
+    <circle cx="12.3" cy="14.6" r="1.35" fill="currentColor"/>
+    <circle cx="19.7" cy="14.6" r="1.35" fill="currentColor"/>
+    <path d="M8.6 10.2c1.5-.7 2.6-.4 3.2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".5"/>
+  </svg>
+  <span class="nm">Mooter</span>
+  <span class="st" id="st">a ligar…</span>
+  <span class="t" id="t"></span>
+</div>
+<div class="ctx" id="ctx" style="display:none"></div>
+<div id="secs"></div>
+
+<script>
+(function () {
+  var COLOR = { cc: '#c15f3c', codex: '#3a7fc4', gemini: '#8a7ec4', moo: '#6f66c0' };
+  var pending = {}, seq = 0, haveData = false, fails = 0, timer = null, last = null;
+
+  function post(m) { try { parent.postMessage(m, '*'); } catch (e) { /* */ } }
+
+  post({ jsonrpc: '2.0', id: 'ui-init', method: 'ui/initialize',
+         params: { protocolVersion: '2026-01-26', capabilities: {},
+                   appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
+                   clientInfo: { name: 'mooter-fleet-panel', version: '1.2.0' } } });
+  post({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} });
+
+  // A tool pode chegar ao host com o nome simples ou prefixado (quando proxiada).
+  // O painel descobre qual funciona na primeira chamada e fixa-o.
+  var TOOL_NAMES = [
+    'mooter_fleet',
+    'mcp__remote-devices__Mooter__mooter_fleet',
+    'mcp__remote-devices__mooter__mooter_fleet',
+    'mcp__Mooter__mooter_fleet',
+    'mcp__mooter__mooter_fleet'
+  ];
+  var toolName = null;
+
+  function callAny(args) {
+    if (toolName) return callTool(toolName, args);
+    var i = 0;
+    function attempt() {
+      if (i >= TOOL_NAMES.length) return Promise.reject(new Error('tool not found under any known name'));
+      var n = TOOL_NAMES[i++];
+      return callTool(n, args).then(function (r) { toolName = n; return r; }, function (e) {
+        if (String((e && e.message) || '').indexOf('unknown tool') >= 0) {
+          var k = TOOL_NAMES.indexOf(n); if (k >= 0) TOOL_NAMES.splice(k, 1); i = Math.max(0, i - 1);
+        }
+        return attempt();
+      });
+    }
+    return attempt();
+  }
+
+  function callTool(name, args) {
+    if (window.mcpApp && typeof window.mcpApp.callTool === 'function') return window.mcpApp.callTool(name, args || {});
+    return new Promise(function (resolve, reject) {
+      var id = 'ui-' + (++seq);
+      pending[id] = { resolve: resolve, reject: reject };
+      post({ jsonrpc: '2.0', id: id, method: 'tools/call', params: { name: name, arguments: args || {} } });
+      setTimeout(function () { if (pending[id]) { delete pending[id]; reject(new Error('timeout')); } }, 20000);
+    });
+  }
+
+  // ui/message — o painel fala com a conversa como se o utilizador escrevesse.
+  // É assim que um botão vira acção sem sair do chat (spec 2026-01-26).
+  function say(text) {
+    post({ jsonrpc: '2.0', id: 'ui-msg-' + (++seq), method: 'ui/message',
+           params: { role: 'user', content: { type: 'text', text: text } } });
+  }
+
+  function unwrap(res) {
+    if (!res) return null;
+    if (res.structuredContent) return res.structuredContent;
+    if (res.content && res.content[0] && res.content[0].text) {
+      try { return JSON.parse(res.content[0].text); } catch (e) { return null; }
+    }
+    return (res.jobs || res.waves || res.error) ? res : null;
+  }
+
+  // tema do host: ~80 variáveis CSS + light/dark. Sem isto o painel é um corpo estranho.
+  function applyHostContext(hc) {
+    if (!hc) return;
+    try {
+      if (hc.theme) document.documentElement.style.colorScheme = hc.theme;
+      var vars = hc.styles && hc.styles.variables;
+      if (vars) for (var k in vars) if (vars[k] != null) document.documentElement.style.setProperty(k, vars[k]);
+    } catch (e) { /* */ }
+  }
+
+  window.addEventListener('message', function (ev) {
+    var m = ev.data;
+    if (!m || typeof m !== 'object') return;
+    if (m.id === 'ui-init' && m.result) { applyHostContext(m.result.hostContext); return; }
+    if (m.id && pending[m.id]) {
+      var p = pending[m.id]; delete pending[m.id];
+      if (m.error) p.reject(new Error((m.error && m.error.message) || 'rpc error')); else p.resolve(m.result);
+      return;
+    }
+    if (m.method === 'ui/notifications/host-context-changed') { applyHostContext(m.params); return; }
+    if (m.method === 'ui/notifications/tool-result') {
+      var nm = m.params && (m.params.toolName || m.params.name);
+      if (nm && TOOL_NAMES.indexOf(nm) < 0) TOOL_NAMES.unshift(nm);
+      if (nm) toolName = nm;
+      var d = unwrap(m.params && (m.params.result || m.params)); if (d) render(d); return;
+    }
+    if (m.method === 'ui/notifications/tool-input') {
+      var ni = m.params && (m.params.toolName || m.params.name);
+      if (ni) { if (TOOL_NAMES.indexOf(ni) < 0) TOOL_NAMES.unshift(ni); toolName = ni; }
+      return;
+    }
+    var g = m.params && (m.params.structuredContent || m.params.data);
+    if (g && (g.jobs || g.waves || g.error)) render(g);
+  });
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function node(tag, cls, html) { var d = document.createElement(tag); if (cls) d.className = cls; if (html != null) d.innerHTML = html; return d; }
+  function gb(n) { return n == null ? null : (n / 1073741824).toFixed(1) + ' GB'; }
+  function kn(n) { return n == null ? null : (n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : String(n)); }
+  function ctxLabel(n) { return n == null ? '—' : (n >= 1024 ? Math.round(n / 1024) + 'k' : String(n)); }
+  function btn(label, cls, fn) { var b = node('button', cls || null, esc(label)); b.onclick = fn; return b; }
+  function riskCls(r) { return r === 'alto' ? 'alto' : (r && r.indexOf('d') === 1 ? 'medio' : (r === 'baixo' ? '' : 'medio')); }
+
+  // ── um job ────────────────────────────────────────────────────────────────
+  function jobCard(j, done) {
+    var c = COLOR[j.agent] || '#9b9a92';
+    var who = j.model || j.agent_label || j.agent || '—';
+    var card = node('div', 'card' + (done ? '' : ' live'));
+
+    var r1 = node('div', 'r1');
+    r1.appendChild(node('span', 'who', '<span class="cd" style="background:' + c + '"></span>' + esc(who)));
+    r1.appendChild(node('span', 'where', esc(j.where || j.job_id || '')));
+    var mark = done ? (j.state === 'failed' ? '✕' : '✓') : '';
+    r1.appendChild(node('span', 'el', (mark ? mark + ' ' : '') + (j.elapsed_s != null ? j.elapsed_s + 's' : '—')));
+    card.appendChild(r1);
+
+    if (!done && j.activity) {
+      card.appendChild(node('div', 'act', '<span class="sp"></span><span>' + esc(j.activity) + '</span>'));
+    } else if (done && j.exit_code === 'orphaned-by-restart') {
+      card.appendChild(node('div', 'act', 'encerrado por reinício do conector'));
+    }
+
+    var met = [];
+    if (j.tokens_in != null || j.tokens_out != null) met.push('<b>' + (kn(j.tokens_in) || 0) + '</b> in · <b>' + (kn(j.tokens_out) || 0) + '</b> out');
+    if (j.tok_s) met.push('<b>' + j.tok_s + '</b> tok/s');
+    if (j.steps_done) met.push('<b>' + j.steps_done + '</b> passos');
+    if (j.cost_usd != null) met.push(j.local ? '<b>$0</b> local' : '<b>$' + Number(j.cost_usd).toFixed(4) + '</b>');
+    if (j.tier) met.push(esc(j.tier));
+    if (j.model_source && String(j.model_source).indexOf('n/d') === 0) met.push('modelo n/d');
+    if (met.length) card.appendChild(node('div', 'met', met.join('<span style="opacity:.4"> · </span>')));
+
+    // o que foi lido e o que foi tocado — a diferença entre "está a correr" e "mudou ISTO"
+    if ((j.files_read && j.files_read.length) || (j.files_written && j.files_written.length)) {
+      var fl = node('div', 'fl');
+      (j.files_read || []).forEach(function (f) { fl.appendChild(node('span', null, esc(f))); });
+      (j.files_written || []).forEach(function (f) { fl.appendChild(node('span', 'w', '✎ ' + esc(f))); });
+      card.appendChild(fl);
+    }
+
+    if (!done) {
+      card.appendChild(node('div', 'bar', '<i></i>'));
+      var acts = node('div', 'acts');
+      acts.appendChild(btn('Cancelar', 'danger', function () { say('Cancela o job ' + j.job_id + ' com mooter_cancel e diz-me o que ficou por fazer.'); }));
+      acts.appendChild(btn('O que está a fazer?', null, function () { say('Mostra o estado do job ' + j.job_id + ' (mooter_status) em 3 linhas.'); }));
+      card.appendChild(acts);
+    } else if (j.state === 'done') {
+      var a2 = node('div', 'acts');
+      a2.appendChild(btn('Ver resultado', null, function () { say('Recolhe o job ' + j.job_id + ' (mooter_collect) e resume-me o resultado.'); }));
+      card.appendChild(a2);
+    }
+    return card;
+  }
+
+  // ── o plano: etapas, risco, quem fez ──────────────────────────────────────
+  function planBlock(p) {
+    var box = node('div', 'card');
+    box.appendChild(node('div', 'r1',
+      '<span class="who">' + esc(p.goal || p.wave) + '</span>' +
+      '<span class="el">' + p.done + '/' + p.total + '</span>'));
+    (p.steps || []).forEach(function (s) {
+      var cls = 'step' + (s.state === 'feito' ? ' done' : (s.state === 'falhou' ? ' fail' : ''));
+      var mk = { feito: '✓', falhou: '✕', pendente: '○', saltado: '–' }[s.state] || '○';
+      var row = node('div', cls);
+      row.appendChild(node('span', 'mk', s.state === 'a-correr' ? '<span class="sp"></span>' : mk));
+      row.appendChild(node('span', 'stx',
+        '<span class="sttl">' + esc(s.title) + '</span>' +
+        (s.by ? '<br><span class="sby">' + esc(s.by) + (s.note ? ' · ' + esc(s.note) : '') + '</span>' : '')));
+      row.appendChild(node('span', 'rk ' + riskCls(s.risk), esc(s.risk)));
+      box.appendChild(row);
+    });
+    if (p.high_risk_open) box.appendChild(node('div', 'warn', '⚠ ' + p.high_risk_open + ' etapa(s) de risco alto por fazer — precisam do teu OK'));
+    return box;
+  }
+
+  // ── render ────────────────────────────────────────────────────────────────
+  function render(d) {
+    if (!d) return;
+    last = d; haveData = true;
+    var secs = document.getElementById('secs');
+    secs.textContent = '';
+
+    var live = (d.jobs || []).filter(function (j) { return j.state === 'running' || j.state === 'dispatched'; });
+    var done = (d.jobs || []).filter(function (j) { return j.state === 'done' || j.state === 'failed'; });
+
+    // cabeçalho: quantos na nuvem, quantos na GPU — em tempo real
+    var tt = d.totals || {};
+    var head = [];
+    if (tt.live_cloud) head.push(tt.live_cloud + ' subscrição');
+    if (tt.live_local) head.push(tt.live_local + ' local');
+    document.getElementById('st').textContent = d.error ? 'erro'
+      : (head.length ? head.join(' · ') + ' a trabalhar' : 'frota parada');
+    document.getElementById('t').textContent = String(d.ts || '').slice(11, 19);
+
+    var ctx = document.getElementById('ctx');
+    ctx.textContent = '';
+    if (d.context && (d.context.project || d.context.folder_name)) {
+      ctx.style.display = 'flex';
+      ctx.appendChild(node('span', null, esc([d.context.project, d.context.folder_name].filter(Boolean).join(' · '))));
+      if (d.vault) {
+        ctx.appendChild(node('span', 'chip ' + (d.vault.available ? 'on' : 'off'),
+          d.vault.available
+            ? '◆ Obsidian' + (d.vault.last_note ? ' · ' + esc(String(d.vault.last_note.at).slice(11, 16)) : ' · sem notas')
+            : '◆ Obsidian n/d'));
+      }
+      var gname = d.gpu && d.gpu.name ? d.gpu.name.replace(/^NVIDIA\s+/i, '') : null;
+      var gu = d.gpu && d.gpu.live ? d.gpu.live.util_pct : null;
+      ctx.appendChild(node('span', 'chip ' + (d.local_available ? 'on' : 'off'),
+        gname ? esc(gname) + (gu != null ? ' · ' + gu + '%' : '') : (d.local_available ? 'GPU ligada' : 'GPU n/d')));
+      if (d.context.files && d.context.files.length) {
+        ctx.appendChild(node('span', 'chip', d.context.files.length + ' ficheiros no contexto'));
+      }
+    } else { ctx.style.display = 'none'; }
+
+    if (d.error) { secs.appendChild(node('div', 'empty', esc(d.error))); return; }
+
+    // ── a wave: o que está a ser trabalhado, no topo, sem ter de inferir ──
+    var w = d.active_wave;
+    if (w) {
+      var wb = node('div', 'wave');
+      wb.appendChild(node('div', 'wn', esc(w.wave)));
+      if (w.goal) wb.appendChild(node('div', 'wg', esc(w.goal)));
+      else if (w.current_step) wb.appendChild(node('div', 'wg', 'agora: ' + esc(w.current_step)));
+      var wm = node('div', 'wm');
+      if (w.steps_total) wm.appendChild(node('span', 'chip', w.steps_done + '/' + w.steps_total + ' etapas'));
+      if (w.live) wm.appendChild(node('span', 'chip on', w.live + ' a correr'));
+      if (w.failed) wm.appendChild(node('span', 'chip', w.failed + ' falhou'));
+      if (w.high_risk_open) wm.appendChild(node('span', 'chip', '⚠ ' + w.high_risk_open + ' risco alto'));
+      wb.appendChild(wm);
+      if (w.steps_total) {
+        var pct = Math.round((w.steps_done / w.steps_total) * 100);
+        wb.appendChild(node('div', 'prog', '<i style="width:' + pct + '%"></i>'));
+      }
+      secs.appendChild(wb);
+    }
+
+    if (live.length) {
+      secs.appendChild(node('h4', null, 'A trabalhar'));
+      live.forEach(function (j) { secs.appendChild(jobCard(j, false)); });
+    }
+
+    // ── handoffs provados: quem preparou o terreno para quem ──
+    if (d.handoffs && d.handoffs.length) {
+      secs.appendChild(node('h4', null, 'Handoffs'));
+      d.handoffs.forEach(function (h) {
+        var row = node('div', 'ho');
+        row.appendChild(node('span', null,
+          '<span class="cd" style="background:' + (h.from_local ? COLOR.moo : (COLOR[h.from_agent] || '#9b9a92')) + '"></span>' +
+          esc(h.from_model || h.from_agent || '?')));
+        row.appendChild(node('span', 'ar', '→'));
+        row.appendChild(node('span', null, esc(h.to_model || h.to_agent || '?')));
+        if (h.saved_note) row.appendChild(node('span', 'chip on', '$0 de preparação'));
+        secs.appendChild(row);
+      });
+    }
+
+    (d.plans || []).forEach(function (p) {
+      if (!p || !p.steps || !p.steps.length) return;
+      secs.appendChild(node('h4', null, 'Plano · ' + esc(p.wave)));
+      secs.appendChild(planBlock(p));
+    });
+
+    // ── a placa, e o quanto está a ser usada agora ──
+    var g = d.gpu;
+    secs.appendChild(node('h4', null, g && g.name ? esc(g.name) : 'Local · GPU'));
+    if (g && g.live) {
+      var u = g.live.util_pct, mp = g.live.memory_pct;
+      var gg = node('div', 'gg');
+      gg.appendChild(node('span', 'gnum', 'GPU'));
+      gg.appendChild(node('span', 'gbar', '<i style="width:' + (u == null ? 0 : u) + '%"></i>'));
+      gg.appendChild(node('span', 'gnum', (u == null ? 'n/d' : u + '%')
+        + (g.live.temp_c != null ? ' · ' + g.live.temp_c + '°' : '')
+        + (g.live.power_w != null ? ' · ' + Math.round(g.live.power_w) + 'W' : '')));
+      secs.appendChild(gg);
+      var gm = node('div', 'gg');
+      gm.appendChild(node('span', 'gnum', 'VRAM'));
+      gm.appendChild(node('span', 'gbar', '<i style="width:' + (mp == null ? 0 : mp) + '%"></i>'));
+      gm.appendChild(node('span', 'gnum', g.live.memory_used_mb != null
+        ? (Math.round(g.live.memory_used_mb / 1024 * 10) / 10) + ' / ' + Math.round((g.live.memory_total_mb || 0) / 1024) + ' GB' : 'n/d'));
+      secs.appendChild(gm);
+      if (g.headroom && g.headroom.verdict !== 'n/d') {
+        var hr = node('div', 'met');
+        hr.appendChild(node('span', null, 'folga: <b>' + esc(g.headroom.verdict) + '</b>' + (g.headroom.why ? ' — ' + esc(g.headroom.why) : '')));
+        secs.appendChild(hr);
+        if (g.headroom.can_overclock) {
+          var oc = node('div', 'acts');
+          oc.appendChild(btn('Aproveitar a folga', null, function () {
+            say('A GPU está com folga (' + (u == null ? '?' : u) + '% e ' + Math.round((g.headroom.free_mb || 0) / 1024) + ' GB livres). Despacha mais trabalho local com mooter_dispatch agent:"moo" para encher a placa.');
+          }));
+          secs.appendChild(oc);
+        }
+      }
+    } else if (g && !g.available) {
+      secs.appendChild(node('div', 'empty', 'placa n/d — ' + esc(g.reason || 'nvidia-smi não respondeu')));
+    }
+    if (d.local == null) {
+      secs.appendChild(node('div', 'empty', 'n/d — Ollama não respondeu em ' + esc(d.local_host || '127.0.0.1:11434')));
+    } else if (!d.local.length) {
+      secs.appendChild(node('div', 'empty', 'Ollama a correr, nenhum modelo residente'));
+      var a3 = node('div', 'acts');
+      a3.appendChild(btn('Pôr a GPU a trabalhar', null, function () {
+        say('Despacha um job local (mooter_dispatch agent:"moo") e mostra-me os tokens medidos da GPU.');
+      }));
+      secs.appendChild(a3);
+    } else {
+      d.local.forEach(function (m) {
+        var g = node('div', 'gpu');
+        g.appendChild(node('span', 'nmm', '<span class="cd" style="background:' + COLOR.moo + '"></span>' + esc(m.model)));
+        g.appendChild(node('span', 'dt', esc([m.parameter_size, m.quantization, gb(m.vram_bytes)].filter(Boolean).join(' · '))));
+        g.appendChild(node('span', 'cx', ctxLabel(m.context_length)));
+        secs.appendChild(g);
+      });
+    }
+
+    if (done.length) {
+      secs.appendChild(node('h4', null, 'Concluídas'));
+      done.slice(0, 6).forEach(function (j) { secs.appendChild(jobCard(j, true)); });
+    }
+
+    var t = d.totals;
+    if (t && (t.cloud_out || t.local_out || t.cost_usd)) {
+      var f = node('div', 'foot');
+      f.appendChild(node('span', null, 'cloud <b>' + (kn(t.cloud_out) || 0) + '</b> out'));
+      f.appendChild(node('span', null, 'local <b>' + (kn(t.local_out) || 0) + '</b> out'));
+      if (t.local_share != null) f.appendChild(node('span', 'chip' + (t.local_share > 0 ? ' on' : ' off'), t.local_share + '% local'));
+      if (t.cost_usd) f.appendChild(node('span', null, '$' + Number(t.cost_usd).toFixed(4)));
+      if (d.sessions_fresh === false) f.appendChild(node('span', 'chip off', 'sessões em cache'));
+      secs.appendChild(f);
+    }
+
+    // ── o painel a auditar-se a si próprio ──
+    if (d.coherence && d.coherence.length) {
+      var avisos = d.coherence.filter(function (c) { return c.level === 'aviso'; });
+      var box = node('div', 'coh');
+      box.innerHTML = avisos.length
+        ? '<b>⚠ ' + avisos.length + ' incoerência(s)</b> · ' + esc(avisos[0].msg) + (avisos.length > 1 ? ' (+' + (avisos.length - 1) + ')' : '')
+        : esc(d.coherence[0].msg);
+      if (avisos.length) {
+        box.style.cursor = 'pointer';
+        box.onclick = function () { say('Explica as incoerências que o painel do Mooter detectou e diz o que fazer.'); };
+      }
+      secs.appendChild(box);
+    }
+  }
+
+  // ── polling: a spec não define push servidor→painel, por isso o painel puxa ──
+  function liveNow() {
+    return !!(last && (last.jobs || []).some(function (j) { return j.state === 'running' || j.state === 'dispatched'; }));
+  }
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(tick, ms); }
+  function tick() {
+    callAny({ windowMinutes: 30 })
+      .then(function (res) {
+        var d = unwrap(res);
+        fails = 0;
+        if (d) render(d);
+        schedule(liveNow() ? 2000 : 4000);   // rápido quando há trabalho, calmo quando não há
+      })
+      .catch(function () {
+        fails++;
+        if (!haveData) document.getElementById('st').textContent = fails > 2 ? 'sem ligação ao Mooter' : 'a ligar…';
+        schedule(fails >= 3 ? 15000 : 4000);
+      });
+  }
+  tick();
+
+  try {
+    var ro = new ResizeObserver(function () {
+      post({ jsonrpc: '2.0', method: 'ui/notifications/size-changed',
+             params: { width: document.body.scrollWidth, height: document.body.scrollHeight } });
+    });
+    ro.observe(document.body);
+  } catch (e) { /* */ }
+})();
+</script>
+</html>
