@@ -105,6 +105,26 @@ function setPlan(wave, steps, goal) {
   return plan;
 }
 
+/**
+ * Acrescenta uma etapa sem destruir as que já existem.
+ *
+ * ⚠️ v1.3.3 — a razão de existir: `setPlan` substitui, e `mooter_work` chamava-o
+ * a cada despacho. Três jobs na mesma wave davam um plano com UMA etapa, e o
+ * painel — que desenha o plano como checklist — mostrava um terço do trabalho.
+ */
+function addStep(wave, step, goal) {
+  const prev = readPlan(wave);
+  if (!prev) return setPlan(wave, [step], goal);
+  const norm = normStep(step, prev.steps.length);
+  const existing = prev.steps.find((s) => s.id === norm.id);
+  if (existing) { Object.assign(existing, { title: norm.title || existing.title, agent: norm.agent || existing.agent }); }
+  else prev.steps.push(norm);
+  if (goal && !prev.goal) prev.goal = String(goal);
+  prev.updated_at = new Date().toISOString();
+  writePlan(prev);
+  return prev;
+}
+
 /** Move one step forward. `by` is who really did it — agent + concrete model. */
 function updateStep(wave, stepId, patch) {
   let plan = readPlan(wave);
@@ -169,4 +189,4 @@ function listPlans() {
   } catch { return []; }
 }
 
-module.exports = { setPlan, updateStep, readPlan, summarize, listPlans, inferRisk, planPath, RISK, STATES };
+module.exports = { setPlan, addStep, updateStep, readPlan, summarize, listPlans, inferRisk, planPath, RISK, STATES };

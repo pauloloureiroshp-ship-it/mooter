@@ -64,13 +64,35 @@ server.listen(0, '127.0.0.1', async () => {
     ok('lê /api/tags');
   } catch (e) { bad('lê /api/tags', e); }
 
+  // ⚠️ v1.3.3 — este teste dizia "escolhe o mais pequeno" e estava a codificar
+  // o comportamento ERRADO como correcto. Um modelo maior prepara melhor, e a
+  // VRAM livre já é medida. A regra passa a ser: o maior que CABE.
   try {
-    const m = await moo.pickModel(null, HOST, null);
-    assert.strictEqual(m, 'qwen2.5:3b', 'devia escolher o mais pequeno instalado, não o 70B');
+    // o 70B pesa ~42 GB: só entra quando há VRAM para ele
+    const grande = await moo.pickModel(null, HOST, null, { free_mb: 60000 });
+    assert.strictEqual(grande, 'llama3.1:70b', 'com 60 GB livres devia escolher o maior que cabe');
+    const m = await moo.pickModel(null, HOST, null, { free_mb: 20000 });
+    assert.strictEqual(m, 'qwen2.5:3b', 'com 20 GB livres o 70B (42 GB) não cabe — escolhe o que cabe');
+    const pequeno = await moo.pickModel(null, HOST, null, { free_mb: 3000 });
+    assert.strictEqual(pequeno, 'qwen2.5:3b', 'com 3 GB livres só o pequeno cabe');
     const r = await moo.pickModel(null, HOST, [{ model: 'llama3.1:70b' }]);
     assert.strictEqual(r, 'llama3.1:70b', 'o residente na GPU tem prioridade — já está quente');
-    ok('escolhe modelo: residente > mais pequeno, nunca inventado');
+    ok('escolhe modelo: residente > maior que cabe, nunca inventado');
   } catch (e) { bad('escolhe modelo', e); }
+
+  // ⚠️ o bug real de 2026-07-25: um embedder foi escolhido e o job morreu em
+  // 102 ms. Enviesamento duplo — embedders são os menores E ficam residentes
+  // por causa do RAG do vault. Quanto melhor o RAG, mais garantido o erro.
+  try {
+    assert.strictEqual(moo.isGenerative({ model: 'nomic-embed-text:latest' }), false);
+    assert.strictEqual(moo.isGenerative({ model: 'bge-m3' }), false);
+    assert.strictEqual(moo.isGenerative({ model: 'all-minilm' }), false);
+    assert.strictEqual(moo.isGenerative({ model: 'qwen2.5:3b' }), true);
+    const r = await moo.pickModel(null, HOST, [{ model: 'nomic-embed-text:latest' }], { free_mb: 20000 });
+    assert.notStrictEqual(r, 'nomic-embed-text:latest', 'escolheu um embedder residente — o job morre em 102ms');
+    assert.ok(r && r.indexOf('embed') < 0);
+    ok('NUNCA escolhe um modelo de embeddings, mesmo residente');
+  } catch (e) { bad('rejeita embedders', e); }
 
   try {
     const nada = await moo.pickModel(null, '127.0.0.1:1', null);

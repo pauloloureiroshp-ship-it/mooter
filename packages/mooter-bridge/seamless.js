@@ -38,6 +38,7 @@ const telemetry = require('./telemetry.js');
 const moo = require('./moo.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
+const wt = require('./worktrees.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
@@ -170,8 +171,29 @@ function guardCheck({ agent, worktree, masterprompt, wave, allowedTools }) {
 }
 
 // ── agent command builders (flags validated against official docs 2026-07-24) ─
-function bootstrapPrompt(mpPath) {
-  return `Lê o ficheiro ${mpPath} e executa integralmente o masterprompt nele contido. O conteúdo do ficheiro são as tuas instruções de wave.`;
+/**
+ * ⚠️ v1.3.2 — the first line becomes the session title, so make it mean something.
+ *
+ * The CLI derives a session's title from the start of its prompt. Every Mooter
+ * job began with "Lê o ficheiro C:\…\.mooter\jobs\j", so mooter_sessions_list
+ * showed EIGHT sessions with the same unusable name and the whole fleet was
+ * indistinguishable. One line of context costs nothing and makes the cockpit
+ * readable.
+ */
+function bootstrapPrompt(mpPath, label) {
+  // ⚠️ v1.3.4 — UMA LINHA, SEMPRE. Este bug custou três jobs.
+  //
+  // A v1.3.3 pôs o label numa linha própria (`# label\nLê o ficheiro…`) para dar
+  // títulos úteis às sessões. No Windows o spawn é `shell: true`, e o cmd.exe
+  // CORTA o argumento na primeira newline: o agente recebia só o cabeçalho, sem
+  // nunca ver a instrução de ler o masterprompt. Respondia a pedir o brief.
+  //
+  // O label continua a vir primeiro (é dele que sai o título da sessão), mas na
+  // mesma linha. E o texto é higienizado: sem newlines, sem aspas, sem `|`, `&`,
+  // `<`, `>` — tudo o que uma shell interpreta.
+  const clean = (s) => String(s || '').replace(/[\r\n]+/g, ' ').replace(/["`|&<>^%]/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 70);
+  const head = label ? '[' + clean(label) + '] ' : '';
+  return `${head}Le o ficheiro ${mpPath} e executa integralmente o masterprompt nele contido. O conteudo do ficheiro sao as tuas instrucoes de wave.`;
 }
 /**
  * v1.2 — TWO changes that turn the router from advisory into actual policy.
@@ -189,10 +211,10 @@ function bootstrapPrompt(mpPath) {
  *    is reading. That is what telemetry.js reads. (`--verbose` is required by
  *    the CLI when streaming in print mode.)
  */
-function buildCommand(agent, jobDir, allowedTools, model) {
+function buildCommand(agent, jobDir, allowedTools, model, label) {
   const mpPath = path.join(jobDir, 'masterprompt.md');
   const outFile = path.join(jobDir, 'last-message.txt');
-  const boot = bootstrapPrompt(mpPath);
+  const boot = bootstrapPrompt(mpPath, label);
   if (agent === 'cc') {
     const args = ['-p', boot, '--output-format', 'stream-json', '--verbose'];
     // v1 WITHOUT --bare (D3: subscription auth + Mooter router hooks fire).
@@ -202,7 +224,14 @@ function buildCommand(agent, jobDir, allowedTools, model) {
     return { bin: 'claude', args };
   }
   if (agent === 'codex') {
-    const args = ['exec', boot, '--json', '--sandbox', 'workspace-write', '--output-last-message', outFile];
+    // ⚠️ v1.3.2 — allowedTools used to be accepted and silently dropped here,
+    // while the sandbox stayed `workspace-write`. A caller asking for read-only
+    // got write permission and only the masterprompt's prose stood in the way.
+    // Prose is a request, not a guard. Now the permission maps to the flag.
+    const readOnly = !allowedTools || /^\s*(read|read-only)\s*$/i.test(String(allowedTools))
+      || !/(write|edit|bash)/i.test(String(allowedTools));
+    const args = ['exec', boot, '--json', '--sandbox', readOnly ? 'read-only' : 'workspace-write',
+      '--output-last-message', outFile];
     if (model) args.push('--model', String(model));
     return { bin: 'codex', args };
   }
@@ -220,6 +249,22 @@ function buildCommand(agent, jobDir, allowedTools, model) {
 function quoteArg(a) {
   // our own paths/flags only — guard already rejected quotes in caller args
   return /[\s]/.test(a) ? '"' + a + '"' : a;
+}
+
+/**
+ * ⚠️ v1.3.4 — a última linha de defesa contra o bug que cortou três jobs.
+ *
+ * Com `shell: true` no Windows, o cmd.exe termina o comando na primeira newline.
+ * Qualquer argumento com `\n` perde tudo o que vem a seguir — silenciosamente,
+ * sem erro, e o agente recebe meio prompt. Isto verifica ANTES de despachar.
+ */
+function assertSingleLineArgs(cmd) {
+  for (const a of (cmd.args || [])) {
+    if (/[\r\n]/.test(String(a))) {
+      throw new Error('argumento com quebra de linha seria truncado pela shell: ' + String(a).slice(0, 60) + '…');
+    }
+  }
+  return true;
 }
 
 // ── spawner (injectable for hermetic tests) ───────────────────────────────
@@ -294,6 +339,59 @@ function readJobResult(agent, jobDir, elapsedSeconds) {
     };
   } catch { return empty; }
 }
+/**
+ * O que o motor REALMENTE recebeu em matéria de permissões, lido do comando
+ * que foi executado (guardado em meta.json). É a única forma de auditar se o
+ * `allowedTools:"Read"` que se pediu chegou mesmo ao processo.
+ */
+function effectivePermissions(meta) {
+  const cmd = String((meta && meta.cmd) || '');
+  if (!cmd) return null;
+  if (meta.agent === 'codex') {
+    const m = cmd.match(/--sandbox\s+(\S+)/);
+    return m ? { sandbox: m[1], read_only: m[1] === 'read-only', fonte: 'flag --sandbox no comando executado' } : null;
+  }
+  if (meta.agent === 'cc') {
+    const m = cmd.match(/--allowedTools\s+(\S+)/);
+    return m ? { allowedTools: m[1], read_only: !/(write|edit|bash)/i.test(m[1]), fonte: 'flag --allowedTools no comando executado' } : null;
+  }
+  if (meta.agent === 'moo') return { sandbox: 'sem ferramentas', read_only: true, fonte: 'o moo só gera texto, não lê nem escreve ficheiros' };
+  return null;
+}
+
+/**
+ * O texto que o job entregou — a fonte ROBUSTA sobre se houve trabalho.
+ * Extraída para função própria porque `finish()` e `toolCollect()` precisam
+ * exactamente da mesma resposta, e tê-la em dois sítios foi como nasceu o bug
+ * de marcar trabalho entregue como `empty-output`.
+ */
+function jobResultText(agent, jobDir) {
+  try {
+    if (agent === 'codex') {
+      const p = path.join(jobDir, 'last-message.txt');
+      if (fs.existsSync(p)) {
+        const s = fs.readFileSync(p, 'utf8');
+        if (s && s.trim()) return s;
+      }
+    }
+    const tail = telemetry.readTail(path.join(jobDir, 'out.log'), telemetry.TAIL_BYTES) || '';
+    const evs = telemetry.parseLines(tail);
+    for (let i = evs.length - 1; i >= 0; i--) {
+      const e = evs[i];
+      if (e && e.result != null && String(e.result).trim()) return String(e.result);
+    }
+    // último recurso: qualquer texto de assistant no stream
+    for (let i = evs.length - 1; i >= 0; i--) {
+      const c = evs[i] && evs[i].message && evs[i].message.content;
+      if (Array.isArray(c)) {
+        const txt = c.filter((b) => b && b.type === 'text' && b.text).map((b) => b.text).join('\n');
+        if (txt.trim()) return txt;
+      }
+    }
+    return null;
+  } catch { return null; }
+}
+
 // kept for callers/tests that still use the old name
 function parseCostFromOut(agent, jobDir) {
   const r = readJobResult(agent, jobDir, null);
@@ -316,7 +414,7 @@ async function toolRoute(args) {
     confidence: d.confidence != null ? d.confidence : null,
     rationale: d.reasoning || null,
     recommended_model: d.recommended_model || null,
-    cli_model: cliModelFor(d.tier, d.recommended_model),
+    cli_model: cliModelFor(tierToAgent[d.tier] || 'cc', d.tier, d.recommended_model),
     routing_note: 'classify.js (FROZEN, read-only) decide TIER; codex/gemini são escolha de doutrina de wave, não do classifier. v1.2: T0/moo É dispatchável (Ollama local, $0) e o modelo recomendado É passado ao CLI — o roteamento deixou de ser consultivo.',
   };
 }
@@ -330,12 +428,55 @@ async function toolRoute(args) {
  * version cannot rot into an error six weeks from now. Unknown tier → null,
  * and null means "let the CLI decide" — never a fabricated model name.
  */
-function cliModelFor(tier, recommended) {
+/**
+ * ⚠️ v1.3.2 — TRANSLATE PER VENDOR, OR PASS NOTHING.
+ *
+ * v1.3.1 fixed "the router never reaches the CLI" and created a worse bug: it
+ * reached EVERY CLI with Anthropic vocabulary. Two jobs died on 2026-07-25:
+ *   moo   ← "opus"   → Ollama answered with an init line and nothing else, exit 0
+ *   codex ← "sonnet" → HTTP 400 "The 'sonnet' model is not supported when using
+ *                       Codex with a ChatGPT account."
+ * classify.js is FROZEN and only speaks Anthropic — correctly, that is its job.
+ * The missing piece was always a translation layer between router and spawn.
+ *
+ * Rule: a vendor we cannot map gets NO `--model` at all. Letting the CLI pick
+ * its own default is honest; improvising a model name is how you pay for a
+ * job's startup tokens and then watch it die.
+ */
+const VENDOR_MODELS = {
+  cc: { T1: 'haiku', T2: 'sonnet', T3: 'opus', T5: null },
+  // Codex tiers map to OpenAI names. Kept deliberately small: only aliases the
+  // CLI is known to accept. Anything else → null → CLI default.
+  codex: { T1: null, T2: null, T3: null, T5: null },
+  gemini: { T1: null, T2: null, T3: null, T5: null },
+  // moo never takes a tier name: the model has to be one that is actually
+  // installed on this machine. moo.pickModel() resolves it from /api/ps.
+  moo: null,
+};
+
+/**
+ * ⚠️ v1.3.3 — o back-compat FOI APAGADO, e essa é a correcção.
+ *
+ * A v1.3.2 escreveu este mapa por vendor, escreveu 6 asserts a prová-lo, e o bug
+ * continuou em produção — porque `toolWork` chamava com a assinatura antiga de
+ * 2 argumentos. O shim `if (agent não é agente) { agent = 'cc' }` assumia
+ * Anthropic e devolvia "sonnet" para um job `moo`. O back-compat protegia um
+ * chamador que não existia e criava o chamador que falhava.
+ *
+ * Agora `agent` é obrigatório. Um chamador que o esqueça parte imediatamente,
+ * em vez de receber silenciosamente um modelo do vendor errado.
+ */
+function cliModelFor(agent, tier, recommended) {
+  if (!['cc', 'codex', 'gemini', 'moo'].includes(String(agent))) {
+    throw new TypeError('cliModelFor(agent, tier, recommended): agent obrigatório e válido, recebi ' + JSON.stringify(agent));
+  }
+  const a = String(agent);
+  if (a === 'moo') return null;                    // resolved from what is resident
+  const table = VENDOR_MODELS[a];
+  if (!table) return null;                         // unknown vendor → CLI decides
   const t = String(tier || '').toUpperCase();
-  if (t === 'T1') return 'haiku';
-  if (t === 'T2') return 'sonnet';
-  if (t === 'T3') return 'opus';
-  if (t === 'T5') return null;               // Fable is opt-in via @fable, never auto-routed
+  if (t in table) return table[t];
+  if (a !== 'cc') return null;                     // only Anthropic understands the aliases below
   const r = String(recommended || '').toLowerCase();
   if (r.includes('haiku')) return 'haiku';
   if (r.includes('sonnet')) return 'sonnet';
@@ -413,9 +554,9 @@ async function toolDispatch(args) {
   // FROZEN classifier picks the minimum viable tier and we pass it to the CLI.
   // Before this, `recommended_model` was computed and thrown away.
   const classified = classifyOrNull(masterprompt);
-  const model_recommended = classified ? cliModelFor(classified.tier, classified.recommended_model) : null;
-  const model = args && args.model ? String(args.model) : model_recommended;
   const tier = classified ? (classified.tier || null) : null;
+  const model_recommended = classified ? cliModelFor(agent, tier, classified.recommended_model) : null;
+  const model = args && args.model ? String(args.model) : model_recommended;
 
   ensureDirs();
   const job_id = 'job-' + Date.now().toString(36) + '-' + crypto.randomBytes(2).toString('hex');
@@ -424,11 +565,17 @@ async function toolDispatch(args) {
   const mpPath = path.join(jobDir, 'masterprompt.md');
   fs.writeFileSync(mpPath, masterprompt, 'utf8');
   const mp_hash = sha256(masterprompt);
-  const cmd = buildCommand(agent, jobDir, allowedTools, model);
+  // a readable label for the session list: wave · step · what this is about
+  const gist = String(masterprompt).split('\n').map((l) => l.trim())
+    .find((l) => l && !l.startsWith('⇄') && !l.startsWith('#') && !l.startsWith('---')) || '';
+  const label = [wave, stepId, gist.replace(/^[A-ZÇÃÕ\s]{4,}:\s*/, '').slice(0, 60)].filter(Boolean).join(' · ');
+  const cmd = buildCommand(agent, jobDir, allowedTools, model, label);
+  try { assertSingleLineArgs(cmd); }
+  catch (e) { return { error: '❌ ' + ((e && e.message) || e), hint: 'isto é um bug do conector, não do teu pedido — reporta-o' }; }
   const wtNorm = path.resolve(worktree);
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: [cmd.bin, ...cmd.args].join(' '),
-    created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId,
+    created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
   }, null, 2));
 
   ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'dispatched', mp_hash, model, model_recommended, tier, step: stepId,
@@ -516,10 +663,27 @@ async function toolDispatch(args) {
 
   function finish(code, dur) {
     const r = readJobResult(agent, jobDir, dur);
-    const ok = code === 0;
+    // ⚠️ v1.3.3 — MEDIR O RESULTADO, NÃO A TELEMETRIA.
+    //
+    // A v1.3.2 perguntava "a telemetria trouxe tokens?" e marcava `failed` quando
+    // não. Em 2026-07-25 um job entregou 1,8 KB de análise correcta e foi dado
+    // como `empty-output`, porque o parser de NDJSON não extraiu `tokens_out`.
+    // O produto disse que o trabalho falhou com o trabalho à frente do utilizador.
+    //
+    // Há duas fontes sobre o mesmo job — o TEXTO e a TELEMETRIA — e a decisão de
+    // vida-ou-morte usava a frágil. O texto é a robusta: se há resultado, houve
+    // trabalho. Telemetria em falta é um aviso de coerência, não uma sentença.
+    const delivered = jobResultText(agent, jobDir);
+    const producedNothing = !delivered || !String(delivered).trim();
+    const ok = code === 0 && !producedNothing;
+    if (code === 0 && producedNothing) log('job ' + job_id + ' saiu 0 sem entregar texto — marcado failed');
+    if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
+      log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
+    }
     ledgerAppend({
       job_id, wave, agent, worktree: wtNorm, event: ok ? 'done' : 'failed', mp_hash,
-      exit_code: code, cost_usd: r.cost_usd, duration_s: dur,
+      exit_code: producedNothing && code === 0 ? 'empty-output' : code,
+      cost_usd: r.cost_usd, duration_s: dur,
       // model_used comes from the job's own stream. model_recommended is what the
       // router asked for. Keeping both makes the gap between doctrine and reality
       // a metric instead of a surprise.
@@ -554,7 +718,13 @@ async function toolDispatch(args) {
     job_id, wave, agent, worktree: wtNorm, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
     model_recommended, tier,
-    routed: model && model === model_recommended ? 'pelo classify.js (FROZEN)' : (args && args.model ? 'forçado pelo chamador' : 'default do CLI'),
+    // ⚠️ v1.3.3 — proveniência PROPAGADA, não inferida da forma dos argumentos.
+    // A v1.3.2 via `args.model` preenchido (posto pelo próprio mooter_work) e
+    // reportava "forçado pelo chamador" — atribuía ao utilizador um acto do
+    // próprio produto. O campo que existe para dar rasto apontava para o lado errado.
+    routed_by: args && args.routed_by ? String(args.routed_by) : (args && args.model ? 'user' : (model ? 'classify' : 'cli-default')),
+    routed: args && args.routed_by === 'work+classify' ? 'escolhido pelo mooter_work via classify.js (FROZEN)'
+      : (args && args.model ? 'forçado pelo chamador' : (model ? 'pelo classify.js (FROZEN)' : 'default do CLI')),
     note: 'dispatch aceito; acompanhar com mooter_status (traz tokens e a acção em curso), resultado via mooter_collect',
   };
 }
@@ -593,13 +763,19 @@ async function toolStatus(args) {
     // live telemetry, straight from the job's own stream
     try {
       const elapsed = j.started_ts ? Math.max(1, Math.round((Date.now() - Date.parse(j.started_ts)) / 1000)) : null;
-      const t = telemetry.readJobTelemetry(path.join(JOBS_DIR(), j.job_id, 'out.log'), elapsed);
+      // ⚠️ v1.3.3 — o mesmo job dava tok_s 34 no `fleet` e 2 no `status`, porque
+      // só o fleet congelava a taxa na duração final. Um número derivado
+      // calculado em dois sítios diverge sempre; é só uma questão de quando.
+      const finalDur = (j.events.find((e) => e.duration_s != null) || {}).duration_s;
+      const isDone = TERMINAL.has(j.last) || j.last === 'collected';
+      const t = telemetry.readJobTelemetry(path.join(JOBS_DIR(), j.job_id, 'out.log'), elapsed,
+        { finished: isDone, duration_s: finalDur });
       if (t) {
         j.now = {
           model: t.model || null,
           activity: t.activity || null,
           tokens_in: t.tokens_in, tokens_out: t.tokens_out,
-          tok_s: t.tok_s, steps_done: t.steps_done,
+          tok_s: t.tok_s, tok_s_basis: t.tok_s_basis || null, steps_done: t.steps_done,
           tools_used: t.tools_used && t.tools_used.length ? t.tools_used : null,
           cost_usd: t.cost_usd,
         };
@@ -671,23 +847,8 @@ async function toolCollect(args) {
   const durEv = evs.find((e) => e.duration_s != null);
   const r = readJobResult(meta.agent, jobDir, durEv ? durEv.duration_s : null);
   const { cost_usd, session_id } = r;
-  let body = null;
-  // stream-json: the final `result` event carries the answer, on its own line
-  if (meta.agent === 'cc' || meta.agent === 'moo') {
-    try {
-      const tail = telemetry.readTail(path.join(jobDir, 'out.log'), telemetry.TAIL_BYTES) || '';
-      const evsJson = telemetry.parseLines(tail);
-      for (let i = evsJson.length - 1; i >= 0; i--) {
-        const e2 = evsJson[i];
-        // `type:"result"` (stream-json) or a bare object carrying `result`
-        // (`--output-format json`, and older bundles). Both are the final word.
-        if (e2 && e2.result != null && (e2.type === 'result' || e2.total_cost_usd != null || evsJson.length === 1)) {
-          body = String(e2.result); break;
-        }
-      }
-    } catch { /* */ }
-  }
-  if (meta.agent === 'codex') { try { body = fs.readFileSync(path.join(jobDir, 'last-message.txt'), 'utf8'); } catch { body = null; } }
+  // mesma função que `finish()` usa para decidir done/failed — uma só verdade
+  let body = jobResultText(meta.agent, jobDir);
   if (body == null) { try { body = fs.readFileSync(path.join(jobDir, 'out.log'), 'utf8'); } catch { body = null; } }
   let truncated = false; let full_path = null;
   if (body && body.length > COLLECT_LIMIT) {
@@ -700,6 +861,12 @@ async function toolCollect(args) {
   return {
     job_id: jobId, state: last, agent: meta.agent, wave: meta.wave,
     result: body, session_id: session_id || null, cost_usd: cost_usd,
+    // ⚠️ v1.3.4 (E2) — as permissões que REALMENTE valeram.
+    // Pedir `allowedTools:"Read"` e não ter forma de verificar se foi aplicado
+    // é opacidade, não segurança. Agora o comando executado é auditável: dá para
+    // ver o `--sandbox` que o Codex recebeu e a lista que o CC recebeu.
+    allowed_tools_pedido: meta.allowedTools || null,
+    allowed_tools_effective: effectivePermissions(meta),
     // v1.2: the model the job REALLY ran, from its own stream — never inferred
     model_used: r.model_used || null,
     model_recommended: meta.model_recommended || null,
@@ -709,6 +876,80 @@ async function toolCollect(args) {
     tok_s: r.telemetry ? r.telemetry.tok_s : null,
     tools_used: r.telemetry && r.telemetry.tools_used && r.telemetry.tools_used.length ? r.telemetry.tools_used : null,
     truncated, full_path, idempotent: already ? 'já tinha sido coletado (evento não duplicado)' : 'primeira coleta',
+  };
+}
+
+/**
+ * mooter_await — one call instead of seven.
+ *
+ * The session that ran the v1.3.1 demo had to `sleep 40` in a shell four times
+ * to follow a wave, because status is a point-in-time read. That is a ridiculous
+ * choreography for a product whose whole thesis is "the vibe coder doesn't study".
+ *
+ * Server-side waiting is also the RIGHT workaround for this host: it never sends
+ * `progressToken` (anthropics/claude-code#58687), so notifications would be dead
+ * work. The server waits, the panel polls itself, and the chat stays clean.
+ */
+async function toolAwait(args) {
+  const a = args || {};
+  const wave = a.wave ? String(a.wave) : null;
+  const jobId = a.job_id ? String(a.job_id) : null;
+  if (!wave && !jobId) return { error: 'passa wave ou job_id' };
+  const timeoutS = Math.min(Math.max(Number(a.timeout_s) || 300, 5), 1800);
+  const t0 = Date.now();
+
+  const snapshot = () => {
+    const evs = ledgerRead().filter((e) => (jobId ? e.job_id === jobId : e.wave === wave));
+    const byJob = new Map();
+    for (const e of evs) {
+      if (!e.job_id) continue;
+      const j = byJob.get(e.job_id) || { job_id: e.job_id, agent: e.agent, wave: e.wave, last: null };
+      j.last = e.event;
+      if (e.exit_code != null) j.exit_code = e.exit_code;
+      if (e.cost_usd != null) j.cost_usd = e.cost_usd;
+      if (e.duration_s != null) j.duration_s = e.duration_s;
+      if (e.model_used) j.model_used = e.model_used;
+      if (e.tokens_out != null) j.tokens_out = e.tokens_out;
+      byJob.set(e.job_id, j);
+    }
+    return [...byJob.values()];
+  };
+
+  const settled = (jobs) => jobs.length > 0 && jobs.every((j) => TERMINAL.has(j.last) || j.last === 'collected');
+
+  let jobs = snapshot();
+  while (!settled(jobs)) {
+    if (Date.now() - t0 > timeoutS * 1000) {
+      return {
+        timed_out: true, waited_s: Math.round((Date.now() - t0) / 1000),
+        jobs, note: 'ainda a correr ao fim de ' + timeoutS + 's — os jobs continuam vivos, volta com mooter_status ou aumenta o timeout_s',
+      };
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+    jobs = snapshot();
+  }
+
+  const done = jobs.filter((j) => j.last === 'done' || j.last === 'collected');
+  const failed = jobs.filter((j) => j.last === 'failed');
+  // ⚠️ v1.3.3 — `0` é uma afirmação; `null` é uma abstenção.
+  // Somar `null`s dá 0 em JS, e a v1.3.2 fechou uma wave que gastou Opus 62 s
+  // a dizer `cost_usd: 0`. Num produto cujo diferencial é custo honesto, essa
+  // é a linha que destrói mais valor por carácter.
+  const medidos = jobs.filter((j) => typeof j.cost_usd === 'number');
+  const semMedicao = jobs.length - medidos.length;
+  const cost = medidos.reduce((s, j) => s + Number(j.cost_usd), 0);
+  return {
+    settled: true,
+    waited_s: Math.round((Date.now() - t0) / 1000),
+    total: jobs.length, done: done.length, failed: failed.length,
+    cost_usd: medidos.length ? Number(cost.toFixed(6)) : null,
+    cost_jobs_medidos: medidos.length,
+    cost_jobs_sem_medicao: semMedicao,
+    cost_note: semMedicao ? semMedicao + ' job(s) sem custo reportado pelo CLI — o total é parcial' : null,
+    jobs,
+    note: failed.length
+      ? failed.length + ' job(s) falharam — usa mooter_collect/mooter_status para o detalhe'
+      : 'todos terminaram; recolhe com mooter_collect',
   };
 }
 
@@ -775,8 +1016,29 @@ async function toolWork(args) {
 
   const d = classifyOrNull(goal);
   const tier = d ? (d.tier || null) : null;
-  const agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
-  const model = a.model ? String(a.model) : (d ? cliModelFor(tier, d.recommended_model) : null);
+  let agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
+
+  // ⚠️ v1.3.3 — DEGRADAR, não recusar. (achado dos testes de caminho, não de
+  // uma auditoria: quando o classificador dava T0 e a máquina não tinha Ollama
+  // a correr, o `mooter_work` devolvia "nenhum modelo local disponível" e o
+  // utilizador ficava sem nada. A porta única não pode fechar-se porque um
+  // motor opcional está em baixo — cai para a nuvem e diz que caiu.)
+  let downgraded = null;
+  if (agent === 'moo') {
+    const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
+    const res = await require('./fleet.js').probeOllama(700).catch(() => null);
+    const has = await moo.pickModel(null, host, res).catch(() => null);
+    if (!has) {
+      downgraded = 'o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em ' + host + ' — passei para o Claude Code';
+      agent = 'cc';
+      log(downgraded);
+    }
+  }
+  // ⚠️ v1.3.3 — o `agent` VAI, e é por isto que o bug existia: esta linha
+  // chamava com 2 argumentos e o shim assumia Anthropic, entregando "sonnet"
+  // ao Ollama. O agente está calculado na linha acima; nunca mais o deixar cair.
+  const model = a.model ? String(a.model) : (d ? cliModelFor(agent, tier, d.recommended_model) : null);
+  const routedBy = a.model ? 'user' : (model ? 'work+classify' : 'cli-default');
   const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
 
   let worktree = a.worktree ? String(a.worktree) : null;
@@ -784,12 +1046,32 @@ async function toolWork(args) {
     const ctx = (() => { try { return require('./fleet.js').readSessionContext(); } catch { return null; } })();
     worktree = (ctx && ctx.folder) || REPO;
   }
-  const busy = activeJobsByWorktree(worktree);
+  // ⚠️ v1.3.4 — a worktree ocupada deixa de ser um beco.
+  // O guard continua certo (dois agentes na mesma árvore corrompem-se), mas
+  // antes a saída oferecida era "passa outra worktree" — um conceito de git que
+  // o vibe coder não tem. Agora procuramos uma livre, e só falamos de git se
+  // não houver nenhuma.
+  let busy = activeJobsByWorktree(worktree);
   if (busy.length) {
-    return {
-      error: 'a worktree ' + worktree + ' já tem job activo (' + busy.join(', ') + ')',
-      hint: 'usa mooter_cancel(job_id) ou mooter_cancel(sweep:true) se for um órfão, ou passa outra worktree',
-    };
+    const alt = wt.firstFree(REPO, activeJobsByWorktree, worktree);
+    if (alt) {
+      log('worktree ocupada; mudei para ' + alt);
+      worktree = alt;
+      busy = [];
+    } else if (a.create_worktree === true) {
+      const made = wt.create(REPO, (a.wave || 'work').toString().slice(0, 20));
+      if (made.ok) { worktree = made.path; busy = []; log('worktree criada: ' + made.path); }
+      else return { error: 'todas as worktrees estão ocupadas e a criação falhou', detail: made.error };
+    } else {
+      const inv = wt.list(REPO, activeJobsByWorktree);
+      return {
+        resumo: '🐮 não há onde trabalhar: as ' + (inv.total || 0) + ' pastas de trabalho estão ocupadas',
+        error: 'a worktree ' + worktree + ' já tem job activo (' + busy.join(', ') + ') e não há nenhuma livre',
+        ocupadas: (inv.worktrees || []).filter((w) => w.busy).map((w) => ({ path: w.path, jobs: w.busy_jobs })),
+        hint: 'espera que um termine, usa mooter_cancel(sweep:true) se forem órfãos, '
+          + 'ou repete com create_worktree:true para eu criar uma nova (faz `git worktree add`, é reversível)',
+      };
+    }
   }
 
   const readOnly = a.write !== true;
@@ -809,8 +1091,13 @@ async function toolWork(args) {
     a.context ? '\nCONTEXTO ADICIONAL:\n' + String(a.context) : '',
   ].join('\n');
 
+  // ⚠️ v1.3.3 — ACRESCENTAR, não substituir.
+  // `setPlan` substitui. Três `mooter_work` na mesma wave davam `total: 1` e o
+  // goal da wave passava a ser o do último — o trabalho anterior desaparecia do
+  // plano que o painel desenha como checklist. O produto a mentir sobre si mesmo.
+  const stepId = 'S' + (((plan.readPlan(wave) || {}).steps || []).length + 1);
   if (Array.isArray(a.steps) && a.steps.length) { try { plan.setPlan(wave, a.steps, goal); } catch { /* */ } }
-  else { try { plan.setPlan(wave, [{ title: goal, agent, state: 'a-correr' }], goal); } catch { /* */ } }
+  else { try { plan.addStep(wave, { id: stepId, title: goal, agent, state: 'a-correr' }, goal); } catch { /* */ } }
 
   // ── prepare: the local moo loads the piano before the expensive agent plays ──
   // Default ON when the GPU is available and the target is a paid agent. The
@@ -818,9 +1105,25 @@ async function toolWork(args) {
   // so the first paid token is spent on the actual problem instead of on
   // orientation. Costs $0 and is measured, not claimed.
   const wantsPrepare = a.prepare !== false && agent !== 'moo';
+  let prepareSkipped = null;
   if (wantsPrepare) {
+    // ⚠️ v1.3.3 — /api/ps lista o que está RESIDENTE em memória, não o que está
+    // instalado. Com a GPU em idle a lista vem vazia, e a v1.3.2 concluía "não
+    // há modelo local" e desistia EM SILÊNCIO. Resultado: em 4 jobs reais houve
+    // 0 handoffs e 0 chained — a prova de valor do produto ("a GPU prepara de
+    // graça o trabalho do agente pago") nunca correu, e nada avisou.
+    // Um modelo frio custa segundos de carregamento, não é um impedimento.
+    const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
     const resident = await require('./fleet.js').probeOllama(700).catch(() => null);
-    const localModel = resident && resident.length ? await moo.pickModel(null, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident) : null;
+    let free = null;
+    try { const g = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null); free = g && g.headroom ? g.headroom.free_mb : null; } catch { /* */ }
+    const localModel = await moo.pickModel(null, host, resident, { free_mb: free }).catch(() => null);
+    if (!localModel) {
+      prepareSkipped = (resident === null)
+        ? 'Ollama não respondeu em ' + host + ' — sem preparação local'
+        : 'nenhum modelo local capaz de gerar texto (só embedders ou lista vazia) — sem preparação local';
+      log('prepare saltado: ' + prepareSkipped);
+    }
     if (localModel) {
       const prepMp = [
         '⇄ ROUTING / DE: Cowork (mooter_work) / PARA: moo (GPU local) / WAVE: ' + wave,
@@ -841,11 +1144,13 @@ async function toolWork(args) {
       ].join('\n');
 
       const prep = await toolDispatch({
-        agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0',
-        __chain: { agent, worktree, masterprompt: mp, wave, allowedTools, model, step: 'S1' },
+        agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
+        __chain: { agent, worktree, masterprompt: mp, wave, allowedTools, model, step: stepId },
       });
       if (prep && prep.job_id) {
         return {
+          resumo: '🐮 GPU local (' + localModel + ') a preparar o trabalho a $0 · depois entra o ' + agent
+            + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id,
           ok: true, goal, wave, tier,
           phase: 'preparação local',
           agent: 'moo → ' + agent,
@@ -857,20 +1162,30 @@ async function toolWork(args) {
           note: 'a GPU local está a preparar o handoff ($0). Quando acabar, o ' + agent + ' arranca sozinho com esse trabalho já dentro do prompt — vê o painel.',
         };
       }
-      // preparation refused (busy worktree, no model): fall through, never block
+      prepareSkipped = 'a preparação local foi recusada: ' + ((prep && (prep.reasons || prep.error)) || 'motivo desconhecido');
+      log(prepareSkipped);
     }
   }
 
-  const r = await toolDispatch({ agent, worktree, masterprompt: mp, wave, allowedTools, model, step: 'S1' });
+  const r = await toolDispatch({ agent, worktree, masterprompt: mp, wave, allowedTools, model, step: 'S1', routed_by: routedBy });
   if (r && r.error) return Object.assign({ goal, wave, tier, agent, model }, r);
   return {
+    // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
+    // A v1.3.2 punha-a em `content[0].text` e este host mostra o
+    // `structuredContent`: a prosa era escrita e descartada em 21/21 chamadas.
+    resumo: '🐮 ' + (model || agent) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
+      + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
+      + (prepareSkipped ? ' · sem preparação local' : ''),
     ok: true, goal, wave, tier, agent,
     model: r.model || model || '(default do CLI)',
     routed: r.routed,
+    routed_by: routedBy,
     job_id: r.job_id, worktree,
     prepared: false,
+    downgraded,                          // porque não foi para onde o router queria
+    prepare_skipped: prepareSkipped,     // ❌ silêncio nunca; n/d sempre
     mode: readOnly ? 'só leitura' : 'escrita permitida',
-    note: 'a trabalhar. O painel actualiza-se sozinho; usa mooter_status para o texto e mooter_collect no fim.',
+    note: 'a trabalhar. O painel actualiza-se sozinho; usa mooter_await para esperar e mooter_collect no fim.',
   };
 }
 
@@ -928,11 +1243,37 @@ const TOOLS = [
       model: { type: 'string', description: 'Force a model. Omit to let the router decide.' },
       steps: { type: 'array', items: { type: 'string' }, description: 'Optional plan: the steps the panel should show, with risk inferred per step.' },
       prepare: { type: 'boolean', description: 'Let the local GPU write the handoff brief first, at $0, and start the paid agent with it already embedded. Default true when Ollama is up.' },
+      create_worktree: { type: 'boolean', description: 'If every working folder is busy, create a new one (git worktree add, reversible). Off by default — this is the only thing here that writes outside the job directory.' },
       allowedTools: { type: 'string', description: 'Override the permission list.' },
       context: { type: 'string', description: 'Extra context to inline in the masterprompt.' },
     }, required: ['goal'], additionalProperties: false },
     annotations: { title: 'Mooter: just do this', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolWork,
+  },
+  {
+    name: 'mooter_worktrees',
+    description: 'Where can work happen right now: every git worktree of this project with its branch and whether an agent is already using it. Two agents in the same folder corrupt each other, so the Mooter refuses to double-book — this tool is how you see the free ones without knowing anything about git. Read-only.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { title: 'Where work can happen', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    handler: async () => {
+      const r = wt.list(REPO, activeJobsByWorktree);
+      if (r.error) return r;
+      return Object.assign({
+        resumo: '🐮 ' + r.free + ' de ' + r.total + ' pastas livres para trabalhar'
+          + (r.free ? ' (' + r.livres.map((w) => w.name).join(', ') + ')' : ' — espera que um job termine ou usa mooter_cancel(sweep:true)'),
+      }, r);
+    },
+  },
+  {
+    name: 'mooter_await',
+    description: 'Block until a wave (or one job) finishes, then return the summary: how many done, how many failed, total cost, and the per-job outcome. One call instead of polling mooter_status in a loop with sleeps. Server-side waiting is deliberate: this host does not send progressToken, so the panel polls itself while the server waits and the chat stays clean.',
+    inputSchema: { type: 'object', properties: {
+      wave: { type: 'string', description: 'Wave id to wait for.' },
+      job_id: { type: 'string', description: 'Single job to wait for.' },
+      timeout_s: { type: 'number', description: 'Give up after this many seconds (5-1800, default 300). Jobs keep running; only the wait ends.' },
+    }, additionalProperties: false },
+    annotations: { title: 'Wait for a Mooter wave', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    handler: toolAwait,
   },
   {
     name: 'mooter_cancel',
@@ -981,7 +1322,7 @@ const TOOLS = [
 
 module.exports = {
   TOOLS, guardCheck, ledgerAppend, ledgerRead, activeJobsByWorktree,
-  toolRoute, toolDispatch, toolStatus, toolCollect, toolCancel, toolPlan, toolJournal, toolWork,
+  toolRoute, toolDispatch, toolStatus, toolCollect, toolCancel, toolPlan, toolJournal, toolWork, toolAwait,
   buildCommand, bootstrapPrompt, setJobSpawner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, classifyOrNull, readJobResult, parseCostFromOut,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },

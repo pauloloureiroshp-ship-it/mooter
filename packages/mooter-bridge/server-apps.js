@@ -179,10 +179,27 @@ for (const t of fleet.TOOLS) {
 jlog('REGISTRY_OK', { tools: base.TOOLS.length });
 const RESOURCES = [fleet.UI_RESOURCE];
 
-// every tool of the working loop repaints the panel
-const REPAINT_TOOLS = new Set(['mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_work', 'mooter_cancel', 'mooter_plan', 'mooter_journal']);
+/**
+ * ⚠️ v1.3.2 — ONE PANEL PER WAVE, NOT ONE PER CALL.
+ *
+ * v1.3.1 attached the UI resource to seven tools so the panel would refresh
+ * during a dispatch → status → collect loop. In this host every `tools/call`
+ * carrying a resourceUri renders a NEW widget in the conversation — it does not
+ * repaint the previous one. One real session produced **22 stacked panels** and
+ * the user's verdict was "fiquei perdido".
+ *
+ * The repaint was never needed: fleet-ui.html already polls itself every 2-4 s
+ * while a job is alive. The v1.2 critique said it in writing — "the polling IS
+ * the correct architecture for this host, don't touch it" — and then v1.3.1
+ * touched it. This reverts that, deliberately.
+ *
+ * The panel is a PLACE, not a message. Only tools that legitimately open the
+ * place carry it; the working loop stays silent and lets the panel breathe.
+ */
+const ANCHOR_TOOLS = new Set(['mooter_fleet', 'mooter_work']);
+const LOOP_TOOLS = new Set(['mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_cancel', 'mooter_plan', 'mooter_journal', 'mooter_await']);
 for (const t of base.TOOLS) {
-  if (!REPAINT_TOOLS.has(t.name)) continue;
+  if (!ANCHOR_TOOLS.has(t.name)) continue;
   t._meta = Object.assign({}, t._meta, { ui: { resourceUri: fleet.UI_URI, visibility: ['model', 'app'] } });
 }
 
@@ -207,6 +224,10 @@ function humanLine(name, d) {
       return '🐮 ' + d.job_id + ' ' + d.state + (d.model_used ? ' · ' + d.model_used : '')
         + (d.cost_usd != null ? ' · $' + Number(d.cost_usd).toFixed(4) : '')
         + (d.tokens_out != null ? ' · ' + d.tokens_out + ' tok out' : '');
+    case 'mooter_await':
+      if (d.timed_out) return '🐮 ainda a correr ao fim de ' + d.waited_s + 's — ' + (d.jobs || []).length + ' job(s)';
+      return '🐮 wave fechada em ' + d.waited_s + 's · ' + d.done + '/' + d.total + ' ok'
+        + (d.failed ? ' · ' + d.failed + ' falhou' : '') + (d.cost_usd ? ' · $' + Number(d.cost_usd).toFixed(4) : '');
     case 'mooter_cancel':
       return '🐮 ' + (d.count != null ? (d.count + ' órfão(s) encerrado(s)') : (d.job_id + ' encerrado' + (d.killed ? ' (processo morto)' : '')));
     case 'mooter_plan':
@@ -243,7 +264,7 @@ async function handle(msg) {
         // `title` is what a human should see; `name` stays the machine id.
         // v1.1 shipped name:"mooter-bridge" while the manifest said "Mooter" —
         // two labels for one thing, and the panel had no way to show either.
-        serverInfo: { name: 'mooter-bridge', title: 'Mooter', version: '1.3.0' },
+        serverInfo: { name: 'mooter-bridge', title: 'Mooter', version: '1.3.5' },
       },
     };
   }
@@ -263,17 +284,22 @@ async function handle(msg) {
   // resourceUri to every tool in the loop makes the host re-render the View on
   // each call — no notifications needed (the host does not send progressTokens
   // anyway: anthropics/claude-code#58687).
-  if (method === 'tools/call' && params && REPAINT_TOOLS.has(params.name)) {
+  if (method === 'tools/call' && params && LOOP_TOOLS.has(params.name)) {
     const res2 = await base.handle(msg);
     if (res2 && res2.result && !res2.error) {
-      res2.result._meta = Object.assign({}, res2.result._meta, { ui: { resourceUri: fleet.UI_URI } });
-      // human-readable one-liner so the chat reads like prose even without the panel
+      // ❌ no `_meta.ui` here on purpose — see ANCHOR_TOOLS above.
+      // ⚠️ v1.3.2 — the chat gets PROSE, the model gets the data.
+      // v1.3.1 prefixed the human line to the JSON, so the user read one nice
+      // sentence followed by 4 KB of structure. structuredContent already
+      // carries everything the model and the panel need; the text channel is
+      // for the person, and a person does not read a ledger row.
       try {
         const sc = res2.result.structuredContent
           || (res2.result.content && res2.result.content[0] && JSON.parse(res2.result.content[0].text));
         const line = humanLine(params.name, sc);
         if (line && res2.result.content && res2.result.content[0]) {
-          res2.result.content[0].text = line + '\n\n' + res2.result.content[0].text;
+          if (!res2.result.structuredContent) res2.result.structuredContent = sc;
+          res2.result.content[0].text = line;
         }
       } catch { /* prose is a bonus, never a failure mode */ }
     }

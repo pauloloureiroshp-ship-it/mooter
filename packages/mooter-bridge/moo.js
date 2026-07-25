@@ -64,16 +64,53 @@ function listModels(hostStr, timeoutMs) {
  * Order: explicit arg → MOOTER_MOO_MODEL → resident on the GPU → smallest installed.
  * Returns null when the machine genuinely has nothing — the caller must fail.
  */
-async function pickModel(explicit, hostStr, residentList) {
+/**
+ * ⚠️ v1.3.3 — um modelo de EMBEDDINGS não gera texto.
+ *
+ * A v1.3.2 escolhia "o primeiro residente, senão o menor instalado". Nenhuma das
+ * duas perguntava se o modelo sabe gerar. Um job real recebeu
+ * `nomic-embed-text:latest` e morreu em 102 ms com só a linha de init.
+ *
+ * E não foi azar — é enviesamento duplo:
+ *   1. embedders são quase sempre os MENORES instalados → ganhavam o sort;
+ *   2. o RAG do vault mantém o embedder RESIDENTE → ganhava o primeiro lugar.
+ * Quanto melhor o RAG funcionava, mais garantido era escolher o modelo errado.
+ *
+ * Agora: filtrar por capacidade primeiro, e preferir o MAIOR que cabe na VRAM
+ * livre — porque um modelo maior dá um briefing melhor, e a folga já é medida.
+ */
+const EMBED_RE = /(embed|bge|gte|minilm|e5-|nomic|mxbai|arctic-embed|all-minilm)/i;
+
+function isGenerative(m) {
+  if (!m || !m.model) return false;
+  if (EMBED_RE.test(String(m.model))) return false;
+  const fam = String((m.details && m.details.family) || m.family || '');
+  if (EMBED_RE.test(fam)) return false;
+  return true;
+}
+
+async function pickModel(explicit, hostStr, residentList, opts) {
   if (explicit) return String(explicit);
   const env = process.env.MOOTER_MOO_MODEL;
   if (env && env.indexOf('${') < 0 && env.trim()) return env.trim();
-  if (Array.isArray(residentList) && residentList.length && residentList[0].model) return residentList[0].model;
+
+  const freeMb = opts && opts.free_mb != null ? Number(opts.free_mb) : null;
+  const fits = (m) => (freeMb == null || m.size_bytes == null) ? true : (m.size_bytes / 1048576) <= freeMb * 0.9;
+
+  // 1. já residente E capaz de gerar: é o mais rápido a arrancar
+  const resident = (Array.isArray(residentList) ? residentList : []).filter(isGenerative);
+  if (resident.length && resident[0].model) return resident[0].model;
+
+  // 2. instalados: o MAIOR que cabe, porque prepara melhor
   const all = await listModels(hostStr, 1500);
   if (!all || !all.length) return null;
-  const sized = all.filter((m) => m.size_bytes != null);
-  if (sized.length) { sized.sort((a, b) => a.size_bytes - b.size_bytes); return sized[0].model; }
-  return all[0].model;
+  const gen = all.filter(isGenerative);
+  if (!gen.length) return null;                    // só há embedders → n/d, nunca improvisar
+  const sized = gen.filter((m) => m.size_bytes != null && fits(m));
+  if (sized.length) { sized.sort((a, b) => b.size_bytes - a.size_bytes); return sized[0].model; }
+  const anySized = gen.filter((m) => m.size_bytes != null);
+  if (anySized.length) { anySized.sort((a, b) => a.size_bytes - b.size_bytes); return anySized[0].model; }
+  return gen[0].model;
 }
 
 /**
@@ -190,4 +227,4 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
   return em;
 }
 
-module.exports = { runLocal, listModels, pickModel, hostPort };
+module.exports = { runLocal, listModels, pickModel, hostPort, isGenerative, EMBED_RE };

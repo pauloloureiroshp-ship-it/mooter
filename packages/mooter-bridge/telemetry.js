@@ -238,10 +238,29 @@ function foldEvents(events) {
 }
 
 /** tok/s over a known elapsed window. Never divides by zero, never guesses. */
-function withRate(t, elapsedSeconds) {
+/**
+ * ⚠️ v1.3.2 — a rate that decays every time you read it is a lie.
+ *
+ * v1.3.1 divided tokens by wall-clock-since-spawn, and the caller kept passing
+ * "now minus started_at" even for finished jobs. The same job read four times
+ * reported 116 → 33 → 8 → 3 → 2 tok/s. Nothing changed except the clock.
+ *
+ * Rules now:
+ *   · finished job → freeze on the job's own duration, and only once
+ *   · live job     → still an estimate, and marked as such
+ *   · no duration  → no number. `tok_s` stays null rather than drifting.
+ */
+function withRate(t, elapsedSeconds, opts) {
   if (!t) return t;
-  if (t.tokens_out != null && elapsedSeconds != null && elapsedSeconds > 0) {
-    t.tok_s = Math.round(t.tokens_out / elapsedSeconds);
+  const o = opts || {};
+  const finished = t.finished || o.finished === true;
+  const secs = (finished && o.duration_s != null) ? Number(o.duration_s) : elapsedSeconds;
+  if (t.tokens_out != null && secs != null && secs > 0) {
+    t.tok_s = Math.round(t.tokens_out / secs);
+    t.tok_s_basis = finished ? 'duração final do job' : 'estimativa, job a correr';
+  } else {
+    t.tok_s = null;
+    t.tok_s_basis = null;
   }
   return t;
 }
@@ -250,11 +269,11 @@ function withRate(t, elapsedSeconds) {
  * Public entry: read a job's out.log and describe the job honestly.
  * @returns {object|null} null when there is nothing trustworthy to say.
  */
-function readJobTelemetry(outLogPath, elapsedSeconds) {
+function readJobTelemetry(outLogPath, elapsedSeconds, opts) {
   const text = readTail(outLogPath, TAIL_BYTES);
   if (text == null) return null;
   const t = foldEvents(parseLines(text));
-  return withRate(t, elapsedSeconds);
+  return withRate(t, elapsedSeconds, opts);
 }
 
 module.exports = {

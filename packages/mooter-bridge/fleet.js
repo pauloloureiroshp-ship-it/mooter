@@ -363,14 +363,17 @@ async function toolFleet(args, deps) {
     // v1.2 — live telemetry straight from the job's own NDJSON: what it is
     // doing right now, tokens so far, tok/s. This is the whole reason the panel
     // stopped being a list of ids and became something you can watch.
-    if (isLive(j)) {
+    // finished jobs freeze their rate on duration_s; live ones estimate and say so
+    {
       try {
-        const t = telemetry.readJobTelemetry(path.join(JOBS_DIR, j.job_id, 'out.log'), j.elapsed_s);
+        const t = telemetry.readJobTelemetry(path.join(JOBS_DIR, j.job_id, 'out.log'), j.elapsed_s,
+          { finished: !isLive(j), duration_s: j.duration_s });
         if (t) {
           j.activity = t.activity || null;
           j.tokens_in = t.tokens_in != null ? t.tokens_in : j.tokens_in;
           j.tokens_out = t.tokens_out != null ? t.tokens_out : j.tokens_out;
           j.tok_s = t.tok_s != null ? t.tok_s : null;
+          j.tok_s_basis = t.tok_s_basis || null;
           j.steps_done = t.steps_done || 0;
           j.files_read = t.files_read && t.files_read.length ? t.files_read.slice(-6) : null;
           j.files_written = t.files_written && t.files_written.length ? t.files_written.slice(-6) : null;
@@ -450,6 +453,32 @@ async function toolFleet(args, deps) {
   }
   if (!sessionsFresh && jobs.some((j) => isLive(j))) {
     coherence.push({ level: 'info', job: null, msg: 'sessões do cockpit vieram de cache — nomes de modelo podem estar em atraso' });
+  }
+  // ⚠️ v1.3.3 — erros reais viviam SÓ no stderr_tail e nunca chegavam ao painel.
+  // Um job `done exit 0` trazia "failed to load skill … missing YAML frontmatter"
+  // e "AuthRequired … mcp.vercel.com" sem que nada aparecesse. Promovê-los a
+  // coerência é o que este array existe para fazer — e separa o que é ambiente
+  // (skill mal formada, OAuth em falta) do que é falha do job.
+  for (const j of jobs) {
+    try {
+      const errPath = path.join(JOBS_DIR, j.job_id, 'err.log');
+      const lines = fs.readFileSync(errPath, 'utf8').split('\n').filter(Boolean).slice(-40);
+      const seen = new Set();
+      for (const l of lines) {
+        if (!/\b(error|fatal|failed|auth\s*required|refused|denied)\b/i.test(l)) continue;
+        if (/no stdin data received/i.test(l)) continue;      // ruído conhecido e benigno
+        const msg = l.trim().slice(0, 160);
+        if (seen.has(msg)) continue;
+        seen.add(msg);
+        const ambiente = /(skill|frontmatter|AuthRequired|mcp\.|oauth|\.mcp\.json)/i.test(msg);
+        coherence.push({
+          level: ambiente ? 'info' : 'aviso',
+          job: j.job_id,
+          msg: (ambiente ? 'ambiente (não é do job): ' : 'stderr: ') + msg,
+        });
+        if (seen.size >= 3) break;                            // no máximo 3 por job
+      }
+    } catch { /* sem err.log é normal */ }
   }
 
   jobs.sort((a, b) => {

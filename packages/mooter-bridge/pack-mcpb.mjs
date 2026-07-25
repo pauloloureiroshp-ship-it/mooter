@@ -37,6 +37,7 @@ const FILES = [
   ['moo.js', 'server/moo.js'],
   ['plan.js', 'server/plan.js'],
   ['journal.js', 'server/journal.js'],
+  ['worktrees.js', 'server/worktrees.js'],
   ['bundle-package.json', 'server/package.json'],
 ];
 

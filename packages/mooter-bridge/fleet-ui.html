@@ -27,7 +27,9 @@
     --bg: var(--color-background-primary, transparent);
     --fg: var(--color-text-primary, #1f1e1b);
     --fg2: var(--color-text-secondary, #6b6a63);
-    --fg3: var(--color-text-tertiary, #9b9a92);
+    /* ⚠️ v1.3.3 — #9b9a92 sobre fundo claro dá ~2.8:1, abaixo do mínimo AA de
+       4.5:1, e era usado em .met/.sby/.chip/.foot a 10.5px. Escurecido. */
+    --fg3: var(--color-text-tertiary, #6b6a63);
     --line: var(--color-border-secondary, rgba(120,118,110,.22));
     --ok: var(--color-text-success, #3f8f5f);
     --bad: var(--color-text-danger, #c0392b);
@@ -102,10 +104,18 @@
   .fl span.w { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
   .coh { margin-top: 8px; font-size: 10.5px; color: var(--fg3); }
   .coh b { color: var(--warn); font-weight: 600; }
+  /* ⚠️ v1.3.3 — havia zero media queries: spinner e barra animavam para sempre,
+     sem escape para quem tem sensibilidade a movimento. */
+  @media (prefers-reduced-motion: reduce) {
+    .bar i, .sp { animation: none !important; }
+    .sp { border-right-color: currentColor; opacity: .5; }
+    .bar i { width: 100% !important; opacity: .3; }
+    * { transition: none !important; }
+  }
 </style>
 
 <div class="hd">
-  <svg width="26" height="26" viewBox="0 0 32 32" aria-label="Mooter">
+  <svg role="img" width="26" height="26" viewBox="0 0 32 32" aria-label="Mooter"><title>Mooter</title>
     <ellipse cx="16" cy="19.5" rx="10.5" ry="8.5" fill="currentColor" opacity=".10"/>
     <path d="M5.5 13.5c-1.6-1-2.4-3-1.7-4.4.7-1.4 2.7-1.5 4 .2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     <path d="M26.5 13.5c1.6-1 2.4-3 1.7-4.4-.7-1.4-2.7-1.5-4 .2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -128,7 +138,7 @@
 <script>
 (function () {
   var COLOR = { cc: '#c15f3c', codex: '#3a7fc4', gemini: '#8a7ec4', moo: '#6f66c0' };
-  var pending = {}, seq = 0, haveData = false, fails = 0, timer = null, last = null;
+  var pending = {}, seq = 0, haveData = false, fails = 0, timer = null, last = null, fullscreen = false;
 
   function post(m) { try { parent.postMessage(m, '*'); } catch (e) { /* */ } }
 
@@ -201,9 +211,18 @@
     } catch (e) { /* */ }
   }
 
+  // ⚠️ v1.3.3 — origem fixada na primeira resposta do host.
+  // O listener aceitava mensagens de QUALQUER origem e deixava-as escolher o
+  // nome da tool que o painel passaria a chamar. Um frame vizinho hostil podia
+  // pintar custos falsos ou fixar um toolName arbitrário — num painel que mostra
+  // dinheiro e cujos botões enviam prompts em nome do utilizador.
+  var hostOrigin = null;
+
   window.addEventListener('message', function (ev) {
     var m = ev.data;
     if (!m || typeof m !== 'object') return;
+    if (hostOrigin === null && m.id === 'ui-init') hostOrigin = ev.origin;   // a primeira resposta define a origem
+    if (hostOrigin !== null && ev.origin !== hostOrigin) return;             // tudo o resto é ignorado
     if (m.id === 'ui-init' && m.result) { applyHostContext(m.result.hostContext); return; }
     if (m.id && pending[m.id]) {
       var p = pending[m.id]; delete pending[m.id];
@@ -211,15 +230,16 @@
       return;
     }
     if (m.method === 'ui/notifications/host-context-changed') { applyHostContext(m.params); return; }
+    // ❌ v1.3.3 — nunca aceitar um NOME DE TOOL vindo de uma mensagem.
+    // A lista fixa TOOL_NAMES é a única fonte; o host só pode confirmar um nome
+    // que já lá esteja, nunca introduzir um novo.
+    function adoptName(nm) { if (nm && TOOL_NAMES.indexOf(nm) >= 0) toolName = nm; }
     if (m.method === 'ui/notifications/tool-result') {
-      var nm = m.params && (m.params.toolName || m.params.name);
-      if (nm && TOOL_NAMES.indexOf(nm) < 0) TOOL_NAMES.unshift(nm);
-      if (nm) toolName = nm;
+      adoptName(m.params && (m.params.toolName || m.params.name));
       var d = unwrap(m.params && (m.params.result || m.params)); if (d) render(d); return;
     }
     if (m.method === 'ui/notifications/tool-input') {
-      var ni = m.params && (m.params.toolName || m.params.name);
-      if (ni) { if (TOOL_NAMES.indexOf(ni) < 0) TOOL_NAMES.unshift(ni); toolName = ni; }
+      adoptName(m.params && (m.params.toolName || m.params.name));
       return;
     }
     var g = m.params && (m.params.structuredContent || m.params.data);
@@ -238,6 +258,21 @@
   function btn(label, cls, fn) { var b = node('button', cls || null, esc(label)); b.onclick = fn; return b; }
   function riskCls(r) { return r === 'alto' ? 'alto' : (r && r.indexOf('d') === 1 ? 'medio' : (r === 'baixo' ? '' : 'medio')); }
 
+  // cada exit_code ganha uma frase e, quando faz sentido, uma acção
+  function explainExit(code) {
+    var c = String(code == null ? '' : code);
+    if (c === 'orphaned-by-restart') return 'encerrado por reinício do conector';
+    if (c === 'empty-output') return 'terminou sem entregar texto — motor provavelmente incompatível com a tarefa';
+    if (c === 'timeout') return 'excedeu o tempo máximo e foi encerrado';
+    if (c === 'cancelled-by-user') return 'cancelado por ti';
+    if (c === 'cancelled-stale') return 'cancelado — o processo já não existia';
+    if (c === 'spawn-error') return 'o executável não arrancou (fora do PATH?)';
+    if (c === 'no-local-model') return 'nenhum modelo local capaz de gerar texto';
+    if (c.indexOf('proc-error') === 0) return 'erro do processo: ' + c.slice(11);
+    if (c) return 'terminou com código ' + c;
+    return 'falhou sem código de saída';
+  }
+
   // ── um job ────────────────────────────────────────────────────────────────
   function jobCard(j, done) {
     var c = COLOR[j.agent] || '#9b9a92';
@@ -253,8 +288,11 @@
 
     if (!done && j.activity) {
       card.appendChild(node('div', 'act', '<span class="sp"></span><span>' + esc(j.activity) + '</span>'));
-    } else if (done && j.exit_code === 'orphaned-by-restart') {
-      card.appendChild(node('div', 'act', 'encerrado por reinício do conector'));
+    } else if (done && j.state === 'failed') {
+      // ⚠️ v1.3.3 — o ✕ era mudo. Só `orphaned-by-restart` tinha texto; tudo o
+      // resto aparecia como um símbolo sem uma palavra, e o utilizador não tinha
+      // como saber porquê sem sair do painel.
+      card.appendChild(node('div', 'act', esc(explainExit(j.exit_code))));
     }
 
     var met = [];
@@ -280,9 +318,18 @@
       acts.appendChild(btn('Cancelar', 'danger', function () { say('Cancela o job ' + j.job_id + ' com mooter_cancel e diz-me o que ficou por fazer.'); }));
       acts.appendChild(btn('O que está a fazer?', null, function () { say('Mostra o estado do job ' + j.job_id + ' (mooter_status) em 3 linhas.'); }));
       card.appendChild(acts);
-    } else if (j.state === 'done') {
+    } else {
+      // ⚠️ v1.3.3 — "Ver resultado" também nos falhados.
+      // O botão só existia em `done`, e o bug do backend marcava trabalho bom
+      // como `failed` — o painel escondia exactamente o resultado que era
+      // preciso ver. Um job falhado COM output é o caso em que mais se quer ler.
       var a2 = node('div', 'acts');
       a2.appendChild(btn('Ver resultado', null, function () { say('Recolhe o job ' + j.job_id + ' (mooter_collect) e resume-me o resultado.'); }));
+      if (j.state === 'failed') {
+        a2.appendChild(btn('Tentar noutro motor', null, function () {
+          say('O job ' + j.job_id + ' falhou (' + explainExit(j.exit_code) + '). Repete o mesmo objectivo noutro motor e diz-me a diferença.');
+        }));
+      }
       card.appendChild(a2);
     }
     return card;
@@ -310,8 +357,17 @@
   }
 
   // ── render ────────────────────────────────────────────────────────────────
+  var lastHash = null;
   function render(d) {
     if (!d) return;
+    // ⚠️ v1.3.3 — não reconstruir o DOM quando nada mudou.
+    // O painel apagava e reconstruía tudo a cada 2 s: o scroll saltava, o foco
+    // perdia-se, e um clique começado antes do tick podia acabar noutro botão.
+    // Com um job órfão preso, isto martelava para sempre.
+    var hash;
+    try { hash = JSON.stringify(d); } catch (e) { hash = null; }
+    if (hash !== null && hash === lastHash) { last = d; return; }
+    lastHash = hash;
     last = d; haveData = true;
     var secs = document.getElementById('secs');
     secs.textContent = '';
@@ -373,6 +429,17 @@
     if (live.length) {
       secs.appendChild(node('h4', null, 'A trabalhar'));
       live.forEach(function (j) { secs.appendChild(jobCard(j, false)); });
+    } else if (!done.length) {
+      // ⚠️ v1.3.3 — o melhor momento para ensinar é quando não há nada a
+      // acontecer, e era exactamente o único momento em que o painel ficava
+      // calado. Três exemplos clicáveis, pelo mecanismo que já existia (say()).
+      secs.appendChild(node('h4', null, 'Começa por aqui'));
+      var ex = node('div', 'acts');
+      [['Auditar um ficheiro', 'mooter_work goal:"lê o packages/mooter-bridge/telemetry.js e diz-me em 5 bullets o que faz e onde é frágil"'],
+       ['Pôr a GPU a trabalhar', 'mooter_work goal:"explica em 200 palavras o que é um handoff entre agentes" agent:"moo"'],
+       ['Ver o que anda solto', 'Corre mooter_cancel(sweep:true) e diz-me quantos jobs órfãos fechaste.']]
+        .forEach(function (p) { ex.appendChild(btn(p[0], null, function () { say(p[1]); })); });
+      secs.appendChild(ex);
     }
 
     // ── handoffs provados: quem preparou o terreno para quem ──
@@ -390,11 +457,27 @@
       });
     }
 
-    (d.plans || []).forEach(function (p) {
+    (d.plans || []).slice(0, 3).forEach(function (p) {
       if (!p || !p.steps || !p.steps.length) return;
       secs.appendChild(node('h4', null, 'Plano · ' + esc(p.wave)));
       secs.appendChild(planBlock(p));
     });
+
+    // ⚠️ v1.3.4 — HIERARQUIA. O custo e a coerência — as duas coisas que provam
+    // a tese — estavam em ÚLTIMO, a 10.5px, cinzentos. A GPU, que é uma métrica
+    // de máquina, ocupava quatro blocos a meio. Em modo inline mostramos o que
+    // se decide com; o resto vive em fullscreen, a um clique.
+    if (!fullscreen) {
+      var more = node('div', 'acts');
+      more.appendChild(btn('Ver GPU e histórico', null, function () {
+        fullscreen = true;
+        post({ jsonrpc: '2.0', id: 'ui-mode-' + (++seq), method: 'ui/request-display-mode', params: { mode: 'fullscreen' } });
+        lastHash = null; render(last);
+      }));
+      secs.appendChild(more);
+      footer(d, secs);
+      return;
+    }
 
     // ── a placa, e o quanto está a ser usada agora ──
     var g = d.gpu;
@@ -453,18 +536,36 @@
       done.slice(0, 6).forEach(function (j) { secs.appendChild(jobCard(j, true)); });
     }
 
+    // ⚠️ v1.3.3 — `0` é falsy, e por isso o rodapé DESAPARECIA quando o custo
+    // era zero: um job local a $0 — o argumento comercial inteiro — não mostrava
+    // nada. O único cenário em que o custo aparecia era quando já se tinha
+    // gasto dinheiro. Agora testa-se `!= null` e o $0 tem destaque positivo.
+    footer(d, secs);
+  }
+
+  // rodapé: custo, quota local e a auto-auditoria — as três coisas que provam a
+  // tese, e que até à v1.3.3 viviam no fundo do painel a 10.5px
+  function footer(d, secs) {
     var t = d.totals;
-    if (t && (t.cloud_out || t.local_out || t.cost_usd)) {
+    if (t && (t.cloud_out != null || t.local_out != null || t.cost_usd != null)) {
       var f = node('div', 'foot');
       f.appendChild(node('span', null, 'cloud <b>' + (kn(t.cloud_out) || 0) + '</b> out'));
       f.appendChild(node('span', null, 'local <b>' + (kn(t.local_out) || 0) + '</b> out'));
       if (t.local_share != null) f.appendChild(node('span', 'chip' + (t.local_share > 0 ? ' on' : ' off'), t.local_share + '% local'));
-      if (t.cost_usd) f.appendChild(node('span', null, '$' + Number(t.cost_usd).toFixed(4)));
+      if (t.cost_usd != null) {
+        f.appendChild(Number(t.cost_usd) === 0
+          ? node('span', 'chip on', '$0 · tudo local')
+          : node('span', null, '$' + Number(t.cost_usd).toFixed(4)));
+      } else {
+        f.appendChild(node('span', 'chip off', 'custo n/d'));
+      }
       if (d.sessions_fresh === false) f.appendChild(node('span', 'chip off', 'sessões em cache'));
       secs.appendChild(f);
     }
 
     // ── o painel a auditar-se a si próprio ──
+    // Nenhum concorrente põe no ecrã "detectei uma incoerência nos meus próprios
+    // números", porque nenhum tem incentivo comercial para isso. É o fosso.
     if (d.coherence && d.coherence.length) {
       var avisos = d.coherence.filter(function (c) { return c.level === 'aviso'; });
       var box = node('div', 'coh');

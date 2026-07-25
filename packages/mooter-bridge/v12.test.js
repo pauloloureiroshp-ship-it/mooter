@@ -67,12 +67,57 @@ t('sem stream → null, nunca um palpite', () => {
 console.log('\nrouter — o fosso deixou de ser decorativo');
 
 t('tier → alias de CLI (aliases, não versões que apodrecem)', () => {
-  assert.strictEqual(seam.cliModelFor('T1'), 'haiku');
-  assert.strictEqual(seam.cliModelFor('T2'), 'sonnet');
-  assert.strictEqual(seam.cliModelFor('T3'), 'opus');
-  assert.strictEqual(seam.cliModelFor('T5'), null, 'Fable nunca é auto-roteado');
-  assert.strictEqual(seam.cliModelFor('T9'), null);
-  assert.strictEqual(seam.cliModelFor(null, 'claude-haiku-4-5'), 'haiku');
+  assert.strictEqual(seam.cliModelFor('cc', 'T1'), 'haiku');
+  assert.strictEqual(seam.cliModelFor('cc', 'T2'), 'sonnet');
+  assert.strictEqual(seam.cliModelFor('cc', 'T3'), 'opus');
+  assert.strictEqual(seam.cliModelFor('cc', 'T5'), null, 'Fable nunca é auto-roteado');
+  assert.strictEqual(seam.cliModelFor('cc', 'T9'), null);
+  assert.strictEqual(seam.cliModelFor('cc', null, 'claude-haiku-4-5'), 'haiku');
+  // ⚠️ v1.3.3 — INVERTIDO DE PROPÓSITO. Este assert protegia o back-compat de
+  // 2 argumentos, e era por essa porta que o bug entrava: `toolWork` chamava
+  // com (tier, rec), o shim assumia Anthropic, e o Ollama recebia "sonnet".
+  // O teste estava a certificar a porta de trás. Agora o agente é obrigatório.
+  assert.throws(() => seam.cliModelFor('T1'), /agent obrigatório/,
+    'a assinatura antiga tem de PARTIR, não de ser tolerada');
+});
+
+// ⚠️ o bug que a v1.3.1 criou ao resolver o da v1.2: vocabulário Anthropic
+// entregue a motores que não são Anthropic. Dois jobs mortos em 2026-07-25.
+t('NUNCA manda nome de modelo Anthropic a outro vendor', () => {
+  assert.strictEqual(seam.cliModelFor('codex', 'T2'), null, 'codex recebeu "sonnet" e devolveu HTTP 400');
+  assert.strictEqual(seam.cliModelFor('codex', 'T3'), null);
+  assert.strictEqual(seam.cliModelFor('gemini', 'T3'), null);
+  assert.strictEqual(seam.cliModelFor('moo', 'T0'), null, 'moo recebeu "opus" e devolveu 0 tokens em 0s');
+  assert.strictEqual(seam.cliModelFor('moo', 'T3', 'claude-opus-4-6'), null);
+  // e o comando construído não pode conter --model para esses motores
+  assert.ok(!seam.buildCommand('codex', '/tmp/j', 'Read', null).args.includes('--model'));
+  assert.ok(!seam.buildCommand('moo', '/tmp/j', null, null).args.includes('--model'));
+});
+
+t('allowedTools:"Read" no codex vira --sandbox read-only', () => {
+  const ro = seam.buildCommand('codex', '/tmp/j', 'Read', null);
+  const i = ro.args.indexOf('--sandbox');
+  assert.ok(i >= 0);
+  assert.strictEqual(ro.args[i + 1], 'read-only', 'pedi read-only e corri com permissão de escrita');
+  const rw = seam.buildCommand('codex', '/tmp/j', 'Read,Write,Bash', null);
+  assert.strictEqual(rw.args[rw.args.indexOf('--sandbox') + 1], 'workspace-write');
+});
+
+t('tok/s congela na duração final e não decai a cada leitura', () => {
+  const nd = [
+    '{"type":"system","model":"m","session_id":"s"}',
+    '{"type":"result","subtype":"success","total_cost_usd":0.01,"usage":{"input_tokens":10,"output_tokens":200}}',
+  ].join('\n');
+  const base = () => telemetry.foldEvents(telemetry.parseLines(nd));
+  const a = telemetry.withRate(base(), 4, { finished: true, duration_s: 4 });
+  const b = telemetry.withRate(base(), 400, { finished: true, duration_s: 4 });
+  assert.strictEqual(a.tok_s, 50);
+  assert.strictEqual(b.tok_s, 50, 'o mesmo job lido mais tarde devolveu um tok/s diferente');
+  assert.strictEqual(a.tok_s_basis, 'duração final do job');
+  // um job ainda a correr não tem evento `result`, logo é estimativa e diz-se
+  const emCurso = telemetry.foldEvents(telemetry.parseLines(
+    '{"type":"assistant","message":{"model":"m","usage":{"input_tokens":10,"output_tokens":90}}}'));
+  assert.strictEqual(telemetry.withRate(emCurso, 9, { finished: false }).tok_s_basis, 'estimativa, job a correr');
 });
 
 t('buildCommand passa --model ao CLI (o bug que matava o fosso)', () => {
