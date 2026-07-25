@@ -25,6 +25,7 @@ process.env.MOOTER_WORKTREE_ROOT = HOME;
 process.env.MOOTER_REPO = REPO;
 
 const wt = require('./worktrees.js');
+const P = require('./paths.js');
 
 let pass = 0;
 const ok = (n) => { console.log('  ok  ' + n); pass++; };
@@ -56,8 +57,12 @@ if (!gitOk) {
     assert.ok(r.worktrees[0].branch, 'sem branch');
   });
 
+  // ⚠️ este teste falhou no Windows por comparar caminhos com `path.resolve`,
+  // que é EXACTAMENTE o erro que o `paths.js` existe para corrigir: o git
+  // devolve a forma longa e o `mkdtemp` a forma curta 8.3. O teste estava a
+  // codificar a comparação partida — usa agora o mesmo critério que a produção.
   t('uma worktree ocupada deixa de contar como livre', () => {
-    const r = wt.list(REPO, (p) => (path.resolve(p) === path.resolve(REPO) ? ['job-1'] : []));
+    const r = wt.list(REPO, (p) => (P.mesmo(p, REPO) ? ['job-1'] : []));
     assert.strictEqual(r.free, 0);
     assert.strictEqual(r.worktrees[0].busy, true);
     assert.deepStrictEqual(r.worktrees[0].busy_jobs, ['job-1']);

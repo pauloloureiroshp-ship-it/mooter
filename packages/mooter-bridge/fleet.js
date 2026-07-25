@@ -110,6 +110,10 @@ function foldJobs(events) {
     if (e.tokens_in != null) j.tokens_in = e.tokens_in;
     if (e.tokens_out != null) j.tokens_out = e.tokens_out;
     if (e.handoff_from) j.handoff_from = e.handoff_from;
+    // v1.4.2 — porque é que ESTE modelo local e não outro. O painel deixa de ter
+    // de adivinhar se um 3B foi escolha ou acidente.
+    if (e.modelo_porque) j.modelo_porque = e.modelo_porque;
+    if (e.modelo_trocou_residente) j.modelo_trocou_residente = e.modelo_trocou_residente;
   }
   return [...byId.values()];
 }

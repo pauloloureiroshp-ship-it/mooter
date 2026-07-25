@@ -33,7 +33,12 @@ process.env.MOOTER_HOME = HOME;
 process.env.MOOTER_LIB = '1';
 process.env.MOOTER_WORKTREE_ROOT = HOME;
 process.env.MOOTER_REPO = WT;
-delete process.env.OLLAMA_HOST;
+// ⚠️ HERMETICIDADE — apagar OLLAMA_HOST não isola nada: o código cai para
+// `127.0.0.1:11434`, que na máquina do Paulo TEM um daemon a responder. O gate
+// no Windows falhou por isto — T1/T7 e A4b/A5 assumiam "sem modelo local" e
+// encontraram um. Apontar para uma porta morta é a única forma de a suite dar
+// o mesmo resultado com e sem GPU.
+process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
 const plan = require('./plan.js');
@@ -70,6 +75,24 @@ function fakeSpawner(write) {
   return seen;
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * ⚠️ Esperar por TEMPO é a origem das falhas intermitentes que o gate no
+ * Windows apanhou: `await wait(120)` chega numa máquina rápida e não chega
+ * noutra, e o teste seguinte bate no guard de posse com
+ * "worktree já tem job ativo". O guard está certo — a suite é que estava a
+ * adivinhar. Esperamos pelo FACTO (a worktree ficar livre), com um tecto.
+ */
+async function livre(seamMod, worktree, maxMs) {
+  const fim = Date.now() + (maxMs || 8000);
+  for (;;) {
+    let n = 0;
+    try { n = (seamMod.activeJobsByWorktree(worktree) || []).length; } catch { n = 0; }
+    if (!n) return true;
+    if (Date.now() > fim) return false;
+    await wait(25);
+  }
+}
 
 (async () => {
   console.log('\ncaminho observável — os 4 bugs que a suite anterior não viu');
@@ -109,12 +132,14 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       // texto real, mas SEM usage e SEM type:"result" reconhecível como tal
       out.write('{"type":"assistant","message":{"content":[{"type":"text","text":"A análise completa do ficheiro, com 3 achados."}]}}\n');
     });
+    await livre(seam, WT);
     const d = await seam.toolDispatch({
       agent: 'cc', worktree: WT, wave: 'T3', step: 'S1',
       masterprompt: '⇄ ROUTING / teste\nanalisa o ficheiro',
     });
     assert.ok(d.job_id, JSON.stringify(d.reasons || d.error));
-    await wait(300);
+    await livre(seam, WT);
+    await wait(60);
     const st = await seam.toolStatus({ job_id: d.job_id });
     assert.strictEqual(st.jobs[0].last, 'done',
       'trabalho entregue foi marcado ' + st.jobs[0].last + ' — o produto disse que falhou com o resultado à frente');
@@ -126,10 +151,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // ── T3b · sem resultado NENHUM continua a ser failed ────────────────────
   try {
     fakeSpawner((out) => { out.write('{"type":"system","subtype":"init","model":"x"}\n'); });
+    await livre(seam, WT);
     const d = await seam.toolDispatch({
       agent: 'cc', worktree: WT, wave: 'T3b', masterprompt: '⇄ ROUTING / teste\nfaz nada',
     });
-    await wait(300);
+    await livre(seam, WT);
+    await wait(60);
     const st = await seam.toolStatus({ job_id: d.job_id });
     assert.strictEqual(st.jobs[0].last, 'failed', 'job que só emitiu init devia falhar');
     okmsg('T3b · só linha de init = failed');
@@ -138,10 +165,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // ── T4 · dois toolWork na mesma wave = duas etapas ──────────────────────
   try {
     fakeSpawner((out) => { out.write('{"type":"result","result":"ok","total_cost_usd":0.01}\n'); });
+    await livre(seam, WT);
     await seam.toolWork({ goal: 'primeira tarefa da wave', worktree: WT, wave: 'T4', prepare: false });
-    await wait(120);
+    await livre(seam, WT);
     await seam.toolWork({ goal: 'segunda tarefa da wave', worktree: WT, wave: 'T4', prepare: false });
-    await wait(120);
+    await livre(seam, WT);
+    await wait(60);
     const p = plan.summarize(plan.readPlan('T4'));
     assert.strictEqual(p.total, 2, 'o segundo work apagou a etapa do primeiro (total=' + p.total + ')');
     assert.ok(p.steps.some((s) => /primeira/.test(s.title)), 'a primeira etapa desapareceu do plano');

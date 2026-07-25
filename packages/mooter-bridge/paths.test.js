@@ -66,6 +66,51 @@ test('T7 — chave() não colapsa pastas diferentes', () => {
   assert.notStrictEqual(P.chave(__dirname), P.chave(path.dirname(__dirname)));
 });
 
+/**
+ * ⚠️ T9 — a falha que o gate no Windows apanhou, reproduzida de forma portátil.
+ *
+ * `fs.realpathSync.native()` só resolve caminhos que EXISTEM. A primeira versão
+ * do `canon()` caía para `path.resolve()` quando o caminho não existia — e aí a
+ * grafia alternativa (8.3 no Windows, symlink em qualquer lado) ficava por
+ * resolver. `dentroDe()` devolvia **false** para um ficheiro que estava lá dentro.
+ *
+ * Um symlink é a mesma situação e corre em qualquer sistema: duas grafias para o
+ * mesmo sítio, uma delas a apontar para um ficheiro que ainda não existe.
+ */
+test('T9 — REGRESSÃO: caminho AINDA POR CRIAR dentro de uma pasta com outra grafia', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-link-'));
+  const real = path.join(base, 'real');
+  const link = path.join(base, 'atalho');
+  fs.mkdirSync(real);
+  let temLink = true;
+  try { fs.symlinkSync(real, link, 'junction'); } catch { temLink = false; }
+  try {
+    if (!temLink) { console.log('  (sem permissão para symlinks — T9 saltado)'); return; }
+    const porCriar = path.join(link, 'ainda', 'nao', 'existe.js');
+    assert.ok(P.dentroDe(porCriar, real),
+      'um ficheiro por criar dentro da pasta não foi reconhecido — é este o bug do gate');
+    assert.ok(P.mesmo(link, real), 'as duas grafias da MESMA pasta não coincidiram');
+    // e o traversal continua a ser traversal, mesmo por criar
+    assert.ok(!P.dentroDe(path.join(link, '..', '..', 'fora.js'), real));
+  } finally {
+    try { fs.rmSync(base, { recursive: true, force: true }); } catch { /* */ }
+  }
+});
+
+test('T10 — o cache não congela a resposta de um caminho que passa a existir', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-cache-'));
+  try {
+    const novo = path.join(base, 'nasce-agora');
+    const antes = P.canon(novo);          // ainda não existe
+    fs.mkdirSync(novo);
+    const depois = P.canon(novo);         // agora existe
+    assert.ok(P.dentroDe(depois, base), 'depois de existir tem de ser reconhecido');
+    assert.ok(P.dentroDe(antes, base), 'antes de existir também — senão o guard recusa o que é legítimo');
+  } finally {
+    try { fs.rmSync(base, { recursive: true, force: true }); } catch { /* */ }
+  }
+});
+
 test('T8 — o cache pode ser limpo sem partir nada', () => {
   const antes = P.canon(__dirname);
   P.limparCache();

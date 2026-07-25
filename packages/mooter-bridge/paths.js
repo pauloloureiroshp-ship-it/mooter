@@ -27,20 +27,54 @@ const path = require('path');
 
 const cache = new Map();
 
-/** Caminho canónico: 8.3 resolvido, symlinks resolvidos, minúsculas em Windows. */
+/**
+ * Caminho canónico: 8.3 resolvido, symlinks resolvidos, minúsculas em Windows.
+ *
+ * ⚠️ O DETALHE QUE PARTIU A PRIMEIRA VERSÃO, apanhado pelo gate no Windows real:
+ *
+ * `fs.realpathSync.native()` só funciona em caminhos que EXISTEM. A v1 caía para
+ * `path.resolve()` quando o caminho não existia — e `path.resolve` não normaliza
+ * 8.3. Resultado, medido:
+ *
+ *   canon("C:\\Users\\PAULOL~1\\...\\tmpX\\sub\\f.js")  → ficava em forma CURTA
+ *   canon("C:\\Users\\PAULOL~1\\...")                   → resolvia para LONGA
+ *   dentroDe(o primeiro, o segundo)                     → false  ❌
+ *
+ * Ou seja: exactamente o bug que este módulo existe para fechar, mas só para
+ * ficheiros por criar — que é o caso do guard (worktree ainda por criar) e do
+ * `context.js` (ficheiro citado que pode não existir). Silencioso e enganador.
+ *
+ * A correcção: resolver o ANCESTRAL MAIS PRÓXIMO que existe e voltar a colar o
+ * resto por cima. A parte que existe fica canónica; a que não existe é texto e
+ * não tem grafia alternativa possível.
+ */
 function canon(p) {
   if (!p) return '';
   const chave = String(p);
   if (cache.has(chave)) return cache.get(chave);
-  let out;
-  try {
-    out = fs.realpathSync.native(chave);
-  } catch {
-    // ainda não existe: o melhor que podemos afirmar é a resolução do path
-    out = path.resolve(chave);
+
+  const alvo = path.resolve(chave);
+  let out = alvo;
+  let cur = alvo;
+  const porColar = [];
+  for (;;) {
+    try {
+      const real = fs.realpathSync.native(cur);
+      out = porColar.length ? path.join(real, ...porColar.reverse()) : real;
+      break;
+    } catch {
+      const pai = path.dirname(cur);
+      if (!pai || pai === cur) { out = alvo; break; }   // nada no caminho existe
+      porColar.push(path.basename(cur));
+      cur = pai;
+    }
   }
+
   if (process.platform === 'win32') out = out.toLowerCase();
-  cache.set(chave, out);
+  // ⚠️ só se guarda em cache o que EXISTE. Um caminho por criar muda de resposta
+  // no instante em que passa a existir — e um guard a responder com memória de
+  // há dez minutos é pior do que um guard lento.
+  if (!porColar.length) cache.set(chave, out);
   return out;
 }
 

@@ -22,7 +22,12 @@ process.env.MOOTER_LIB = '1';
 process.env.MOOTER_WORKTREE_ROOT = HOME;
 process.env.MOOTER_REPO = WT;
 process.env.MOOTER_AWAIT_MAX_S = '3';   // o clamp prova-se em 3s, não em 45
-delete process.env.OLLAMA_HOST;
+// ⚠️ HERMETICIDADE — apagar OLLAMA_HOST não isola nada: o código cai para
+// `127.0.0.1:11434`, que na máquina do Paulo TEM um daemon a responder. O gate
+// no Windows falhou por isto — T1/T7 e A4b/A5 assumiam "sem modelo local" e
+// encontraram um. Apontar para uma porta morta é a única forma de a suite dar
+// o mesmo resultado com e sem GPU.
+process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
 const plan = require('./plan.js');
@@ -32,6 +37,24 @@ let pass = 0;
 const okmsg = (n) => { console.log('  ok  ' + n); pass++; };
 const bad = (n, e) => { console.log('  FAIL ' + n + '\n       ' + ((e && e.message) || e)); process.exitCode = 1; };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * ⚠️ Esperar por TEMPO é a origem das falhas intermitentes que o gate no
+ * Windows apanhou: `await wait(120)` chega numa máquina rápida e não chega
+ * noutra, e o teste seguinte bate no guard de posse com
+ * "worktree já tem job ativo". O guard está certo — a suite é que estava a
+ * adivinhar. Esperamos pelo FACTO (a worktree ficar livre), com um tecto.
+ */
+async function livre(seamMod, worktree, maxMs) {
+  const fim = Date.now() + (maxMs || 8000);
+  for (;;) {
+    let n = 0;
+    try { n = (seamMod.activeJobsByWorktree(worktree) || []).length; } catch { n = 0; }
+    if (!n) return true;
+    if (Date.now() > fim) return false;
+    await wait(25);
+  }
+}
 
 function fakeSpawner(write, pid) {
   seam.setJobSpawner((cmd, cwd, out) => {
@@ -110,6 +133,7 @@ function fakeSpawner(write, pid) {
     // o ficheiro EXISTE na worktree de teste → o conector lê-o e injecta-o
     fs.writeFileSync(path.join(WT, 'alvo.js'), 'function realmenteExiste() { return 42; }\n');
     fakeSpawner((out) => { out.write('{"type":"result","result":"analisei o ficheiro real","total_cost_usd":0}\n'); });
+    await livre(seam, WT);
     const r = await seam.toolWork({
       goal: 'analisa o alvo.js', agent: 'moo',
       worktree: WT, wave: 'A3b', prepare: false,
@@ -122,7 +146,7 @@ function fakeSpawner(write, pid) {
     assert.ok(/não inventes/i.test(mp), 'sem a instrução anti-fabricação o modelo continua a inventar');
     okmsg('A3b · o conector lê o ficheiro PELO modelo local ($0)');
   } catch (e) { bad('A3b', e); }
-  await wait(300);   // o WIP guard é real: um job por worktree de cada vez
+  await livre(seam, WT);   // o WIP guard é real: um job por worktree de cada vez
 
   // ── A4 · um número, um significado ──────────────────────────────────────
   // Prova: tier T3 num job local grátis, T0 num Opus, e o mesmo job com T2 e T3.
@@ -138,12 +162,13 @@ function fakeSpawner(write, pid) {
 
   try {
     fakeSpawner((out) => { out.write('{"type":"result","result":"pronto","total_cost_usd":0.02}\n'); });
+    await livre(seam, WT);
     const r = await seam.toolWork({ goal: 'faz um resumo curto', worktree: WT, wave: 'A4b', prepare: false });
     assert.ok('tier_pedido' in r && 'tier_motor' in r, 'os dois tiers têm de vir separados');
     assert.ok(!('tier' in r), 'o campo ambíguo `tier` continua a existir');
     okmsg('A4b · work devolve tier_pedido e tier_motor, nunca `tier`');
   } catch (e) { bad('A4b', e); }
-  await wait(300);
+  await livre(seam, WT);
 
   // ── A5 · o picker vê o conteúdo e declara a mudança ─────────────────────
   // Prova: pedi frugal-fleet (ocupada) e o job correu numa worktree em %TEMP%,

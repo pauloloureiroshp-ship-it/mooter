@@ -89,28 +89,100 @@ function isGenerative(m) {
   return true;
 }
 
-async function pickModel(explicit, hostStr, residentList, opts) {
-  if (explicit) return String(explicit);
+/** Tamanho em bytes de um modelo, venha ele de /api/ps ou de /api/tags. */
+function bytesDe(m) {
+  if (!m) return null;
+  for (const k of ['size_bytes', 'size', 'vram_bytes']) {
+    if (m[k] != null && Number.isFinite(Number(m[k]))) return Number(m[k]);
+  }
+  return null;
+}
+
+/**
+ * ⚠️ v1.4.2 — o residente deixa de ganhar SEMPRE, e a razão é um ciclo vicioso
+ * medido no ledger de 2026-07-25: os 4 jobs locais do dia correram todos em
+ * `qwen2.5:3b`. Não porque fosse o melhor — porque era o que estava carregado.
+ * E estava carregado porque o job anterior, minúsculo, o tinha carregado.
+ *
+ *   modelo pequeno é carregado → é residente → ganha a regra 1 → volta a ser
+ *   carregado → nunca há espaço nem motivo para carregar um maior.
+ *
+ * O tier local ficava preso a 3B numa máquina com 19 GB de VRAM livres e ninguém
+ * dava por isso, porque a escolha nunca era explicada. Carregar um modelo maior
+ * custa segundos; usar um 3B para trabalho a sério custa uma resposta errada.
+ *
+ * Regra nova: o residente ganha se estiver na mesma ordem de grandeza do melhor
+ * que cabe (≥70% do tamanho). Abaixo disso, vale a pena pagar o arranque.
+ * A decisão vem sempre com o `porque` — uma escolha que não se explica não se
+ * pode auditar.
+ */
+const MARGEM_RESIDENTE = 0.7;
+
+async function pickModelExplained(explicit, hostStr, residentList, opts) {
+  if (explicit) return { model: String(explicit), porque: 'pedido explicitamente por quem chamou' };
   const env = process.env.MOOTER_MOO_MODEL;
-  if (env && env.indexOf('${') < 0 && env.trim()) return env.trim();
+  if (env && env.indexOf('${') < 0 && env.trim()) {
+    return { model: env.trim(), porque: 'fixado em MOOTER_MOO_MODEL' };
+  }
 
   const freeMb = opts && opts.free_mb != null ? Number(opts.free_mb) : null;
-  const fits = (m) => (freeMb == null || m.size_bytes == null) ? true : (m.size_bytes / 1048576) <= freeMb * 0.9;
+  const cabe = (b) => (freeMb == null || b == null) ? true : (b / 1048576) <= freeMb * 0.9;
 
-  // 1. já residente E capaz de gerar: é o mais rápido a arrancar
-  const resident = (Array.isArray(residentList) ? residentList : []).filter(isGenerative);
-  if (resident.length && resident[0].model) return resident[0].model;
+  const instalados = (await listModels(hostStr, 1500)) || [];
+  const gen = instalados.filter(isGenerative);
+  const porNome = new Map(gen.map((m) => [String(m.model), m]));
 
-  // 2. instalados: o MAIOR que cabe, porque prepara melhor
-  const all = await listModels(hostStr, 1500);
-  if (!all || !all.length) return null;
-  const gen = all.filter(isGenerative);
-  if (!gen.length) return null;                    // só há embedders → n/d, nunca improvisar
-  const sized = gen.filter((m) => m.size_bytes != null && fits(m));
-  if (sized.length) { sized.sort((a, b) => b.size_bytes - a.size_bytes); return sized[0].model; }
-  const anySized = gen.filter((m) => m.size_bytes != null);
-  if (anySized.length) { anySized.sort((a, b) => a.size_bytes - b.size_bytes); return anySized[0].model; }
-  return gen[0].model;
+  // tamanho do residente: /api/ps nem sempre o traz — vai buscá-lo aos instalados
+  const residentes = (Array.isArray(residentList) ? residentList : [])
+    .filter(isGenerative)
+    .map((m) => ({ model: String(m.model), bytes: bytesDe(m) != null ? bytesDe(m) : bytesDe(porNome.get(String(m.model))) }))
+    .filter((m) => cabe(m.bytes));
+  residentes.sort((a, b) => (b.bytes || 0) - (a.bytes || 0));
+  const residente = residentes[0] || null;
+
+  if (!gen.length) {
+    // sem /api/tags só temos o residente — melhor isso do que inventar
+    if (residente) return { model: residente.model, porque: 'já carregado na GPU (não consegui listar os instalados)' };
+    return { model: null, porque: 'esta máquina não tem nenhum modelo local capaz de gerar texto' };
+  }
+
+  const comTamanho = gen.filter((m) => bytesDe(m) != null);
+  const queCabem = comTamanho.filter((m) => cabe(bytesDe(m)));
+  queCabem.sort((a, b) => bytesDe(b) - bytesDe(a));
+  const melhor = queCabem[0] || null;
+
+  if (residente) {
+    if (!melhor || residente.bytes == null || bytesDe(melhor) == null) {
+      return { model: residente.model, porque: 'já carregado na GPU — arranca de imediato' };
+    }
+    if (residente.model === melhor.model) {
+      return { model: residente.model, porque: 'já carregado na GPU e é o maior que cabe na VRAM livre' };
+    }
+    if (residente.bytes >= bytesDe(melhor) * MARGEM_RESIDENTE) {
+      return { model: residente.model, porque: 'já carregado e do mesmo calibre do maior que cabe — não compensa recarregar' };
+    }
+    const x = (bytesDe(melhor) / residente.bytes).toFixed(1);
+    return {
+      model: melhor.model,
+      porque: 'troquei o residente ' + residente.model + ' pelo ' + melhor.model + ', que é ' + x + '× maior e cabe nos '
+        + (freeMb != null ? Math.round(freeMb / 1024) + ' GB livres' : 'limites da GPU'),
+      trocou_residente: residente.model,
+      custo: 'o arranque leva alguns segundos porque o modelo tem de ser carregado',
+    };
+  }
+
+  if (melhor) {
+    return { model: melhor.model, porque: 'o maior modelo instalado que cabe na VRAM livre' };
+  }
+  // nada com tamanho conhecido: o menor é o palpite menos arriscado, e diz-se
+  const anySized = comTamanho.slice().sort((a, b) => bytesDe(a) - bytesDe(b));
+  if (anySized.length) return { model: anySized[0].model, porque: 'nenhum cabe com folga na VRAM livre — escolhi o mais pequeno' };
+  return { model: gen[0].model, porque: 'não sei os tamanhos — escolhi o primeiro que sabe gerar' };
+}
+
+async function pickModel(explicit, hostStr, residentList, opts) {
+  const r = await pickModelExplained(explicit, hostStr, residentList, opts);
+  return r.model;
 }
 
 /**
@@ -227,4 +299,6 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
   return em;
 }
 
-module.exports = { runLocal, listModels, pickModel, hostPort, isGenerative, EMBED_RE };
+module.exports = {
+  pickModelExplained,
+  bytesDe, runLocal, listModels, pickModel, hostPort, isGenerative, EMBED_RE };

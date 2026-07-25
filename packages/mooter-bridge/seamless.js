@@ -677,18 +677,35 @@ async function toolDispatch(args) {
     if (agent === 'moo') {
       // local tier: no CLI, no shell, no PATH lottery — straight to the GPU
       const resident = await require('./fleet.js').probeOllama(700).catch(() => null);
-      const chosen = await moo.pickModel(model, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident);
+      // ⚠️ v1.4.2 — a escolha do modelo local passa a vir com o PORQUÊ, e o
+      // porquê vai para o ledger. Sem isso, a única forma de descobrir que o
+      // tier local estava preso a um 3B residente foi ler 4 jobs à mão.
+      let freeMb = null;
+      try {
+        const g = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null);
+        freeMb = g && g.headroom ? g.headroom.free_mb : null;
+      } catch { /* sem nvidia-smi seguimos sem folga conhecida */ }
+      const escolha = await moo.pickModelExplained(model, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident, { free_mb: freeMb });
+      const chosen = escolha.model;
       if (!chosen) {
         ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'no-local-model' });
         return { error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado', job_id };
       }
+      // o porquê vai para o ledger append-only: uma escolha que não deixa
+      // rasto não se pode auditar três dias depois
+      ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'local_model_chosen',
+        model: chosen, modelo_porque: escolha.porque || null,
+        modelo_trocou_residente: escolha.trocou_residente || null, vram_livre_mb: freeMb });
       child = moo.runLocal({
         hostStr: process.env.OLLAMA_HOST || '127.0.0.1:11434',
         model: chosen, prompt: masterprompt, outStream, errStream,
       });
       try {
         const m = JSON.parse(fs.readFileSync(path.join(jobDir, 'meta.json'), 'utf8'));
-        m.model = chosen; fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify(m, null, 2));
+        m.model = chosen;
+        m.modelo_porque = escolha.porque || null;
+        m.modelo_trocou_residente = escolha.trocou_residente || null;
+        fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify(m, null, 2));
       } catch { /* */ }
     } else {
       child = spawnJob(cmd, wtNorm, outStream, errStream);

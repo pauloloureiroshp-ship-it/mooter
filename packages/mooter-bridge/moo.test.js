@@ -94,6 +94,42 @@ server.listen(0, '127.0.0.1', async () => {
     ok('NUNCA escolhe um modelo de embeddings, mesmo residente');
   } catch (e) { bad('rejeita embedders', e); }
 
+  // ⚠️ v1.4.2 — o CICLO VICIOSO, medido no ledger de 2026-07-25: os 4 jobs
+  // locais do dia correram todos em qwen2.5:3b. Não por ser o melhor — por estar
+  // carregado. E estava carregado porque o job minúsculo anterior o carregou.
+  // Numa máquina com 19 GB de VRAM livres, o tier local ficou preso a 3B.
+  try {
+    const r = await moo.pickModelExplained(null, HOST, [{ model: 'qwen2.5:3b', size: 2159374499 }], { free_mb: 60000 });
+    assert.strictEqual(r.model, 'llama3.1:70b', 'ficou preso ao 3B residente com 60 GB livres');
+    assert.strictEqual(r.trocou_residente, 'qwen2.5:3b');
+    assert.ok(/maior/.test(r.porque), 'trocou de modelo sem explicar porquê: ' + r.porque);
+    assert.ok(r.custo, 'trocar de modelo custa arranque — tem de ser dito');
+    ok('quebra o ciclo vicioso: 3B residente perde para o 70B que cabe');
+  } catch (e) { bad('quebra o ciclo vicioso', e); }
+
+  try {
+    // sem VRAM para o grande, o residente pequeno é a escolha certa — e continua a sê-lo
+    const r = await moo.pickModelExplained(null, HOST, [{ model: 'qwen2.5:3b', size: 2159374499 }], { free_mb: 3000 });
+    assert.strictEqual(r.model, 'qwen2.5:3b');
+    assert.ok(!r.trocou_residente, 'trocou para um modelo que não cabe');
+    ok('sem VRAM para o maior, mantém o residente (e não força um arranque inútil)');
+  } catch (e) { bad('mantém o residente quando não há VRAM', e); }
+
+  try {
+    // o residente JÁ é o melhor: não há troca nem custo de arranque
+    const r = await moo.pickModelExplained(null, HOST, [{ model: 'llama3.1:70b', size: 42000000000 }], { free_mb: 60000 });
+    assert.strictEqual(r.model, 'llama3.1:70b');
+    assert.ok(!r.trocou_residente);
+    ok('residente que já é o maior que cabe fica onde está');
+  } catch (e) { bad('residente óptimo fica', e); }
+
+  try {
+    const r = await moo.pickModelExplained(null, '127.0.0.1:1', null);
+    assert.strictEqual(r.model, null);
+    assert.ok(/não tem nenhum modelo local/.test(r.porque), 'null sem explicação é indistinguível de avaria');
+    ok('quando não há modelo, o porquê vem escrito');
+  } catch (e) { bad('null explicado', e); }
+
   try {
     const nada = await moo.pickModel(null, '127.0.0.1:1', null);
     assert.strictEqual(nada, null, 'sem daemon tem de devolver null, não um nome plausível');
