@@ -157,6 +157,36 @@ function updateStep(wave, stepId, patch) {
   return plan;
 }
 
+/**
+ * ⚠️ A7 — reconciliar contra o ledger antes de contar.
+ *
+ * O plano dizia `running: 4` com `live: 0`, e o passo S1 exibia o `job_id` e o
+ * custo do S5 — porque a conclusão era casada por ORDEM DE CHEGADA e não por
+ * `job_id`. Um passo `a-correr` cujo job já terminou é uma mentira que o painel
+ * desenha como checklist.
+ *
+ * `ledgerStates` é um Map `job_id -> último evento`. Sem ele, o resumo é o
+ * antigo; com ele, um passo nunca fica `a-correr` se o seu job está terminal.
+ */
+function reconcile(plan, ledgerStates) {
+  if (!plan || !ledgerStates) return plan;
+  const TERMINAL = new Set(['done', 'failed', 'collected']);
+  for (const s of (plan.steps || [])) {
+    if (!s.job_id) {
+      // um passo sem job nunca pode estar a correr — nada o está a executar
+      if (s.state === 'a-correr') { s.state = 'pendente'; s.note = (s.note ? s.note + ' · ' : '') + 'sem job associado'; }
+      continue;
+    }
+    const ev = ledgerStates.get(s.job_id);
+    if (!ev) continue;
+    if (s.state === 'a-correr' && TERMINAL.has(ev)) {
+      s.state = ev === 'failed' ? 'falhou' : 'feito';
+      s.reconciliado = 'o ledger diz ' + ev + ' — o plano estava atrasado';
+    }
+  }
+  return plan;
+}
+
 /** Everything the panel needs, already counted. */
 function summarize(plan) {
   if (!plan) return null;
@@ -189,4 +219,4 @@ function listPlans() {
   } catch { return []; }
 }
 
-module.exports = { setPlan, addStep, updateStep, readPlan, summarize, listPlans, inferRisk, planPath, RISK, STATES };
+module.exports = { setPlan, addStep, updateStep, readPlan, summarize, reconcile, listPlans, inferRisk, planPath, RISK, STATES };

@@ -13,10 +13,16 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+// ⚠️ A6 — o env ANTES dos requires, e o repo de teste criado antes de tudo.
+// Em Windows, com 37 worktrees reais, um `mainRepo()` que caia no repositório do
+// Paulo faz `git worktree list` devolver a frota inteira e o teste falha por
+// razões que nada têm a ver com o código.
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-wt-'));
+const REPO = path.join(HOME, 'proj');
 process.env.MOOTER_HOME = HOME;
 process.env.MOOTER_LIB = '1';
 process.env.MOOTER_WORKTREE_ROOT = HOME;
+process.env.MOOTER_REPO = REPO;
 
 const wt = require('./worktrees.js');
 
@@ -24,7 +30,6 @@ let pass = 0;
 const ok = (n) => { console.log('  ok  ' + n); pass++; };
 const bad = (n, e) => { console.log('  FAIL ' + n + '\n       ' + ((e && e.message) || e)); process.exitCode = 1; };
 
-const REPO = path.join(HOME, 'proj');
 let gitOk = true;
 try {
   fs.mkdirSync(REPO, { recursive: true });

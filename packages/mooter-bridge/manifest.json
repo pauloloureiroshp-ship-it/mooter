@@ -2,8 +2,8 @@
   "manifest_version": "0.3",
   "name": "mooter",
   "display_name": "Mooter",
-  "version": "1.3.5",
-  "description": "A frota Mooter ao vivo dentro do Cowork: que wave, quem esta a trabalhar, com que LLM, quantos tokens, que ficheiros tocou, que handoffs fez, e quanto da GPU esta a arder.",
+  "version": "1.4.1",
+  "description": "A frota Mooter dentro do Cowork: seis portas, a GPU local a fazer o que consegue (e a ler os teus ficheiros), e numeros que nunca sao inventados.",
   "long_description": "Mooter mostra e pilota a frota de agentes sem sair da conversa.\n\nO painel nativo (MCP Apps) mostra, ao vivo: que agente esta a trabalhar, o modelo que ESTA MESMO a correr (lido do stream do proprio job, nunca inferido de uma pasta), tokens in/out, tokens por segundo, o que ele esta a fazer neste instante em portugues, o plano da wave com o risco de cada etapa e quem a executou, os modelos residentes na GPU local via Ollama, e o estado do vault Obsidian.\n\nO motor: um router local-first determinista (classify.js, congelado, <50ms, $0 para classificar) que escolhe o tier minimo viavel e PASSA esse modelo ao CLI. Jobs correm em Claude Code, Codex, Gemini ou na GPU local. Nada e' proxiado e nada e' fabricado: o que nao se sabe aparece como n/d, nunca como um palpite plausivel.",
   "author": {
     "name": "Paulo Loureiro"
@@ -34,63 +34,27 @@
   "tools": [
     {
       "name": "mooter_work",
-      "description": "Pede trabalho em linguagem normal. Escolhe sozinho o motor, o modelo e a pasta livre. Usa esta primeiro."
+      "description": "A porta unica. Objectivo em portugues; ele escolhe motor, modelo e pasta, e devolve o trabalho feito."
+    },
+    {
+      "name": "mooter_check",
+      "description": "Saber e receber: estado, e o resultado quando ja terminou. Espera ate 45s se pedires."
     },
     {
       "name": "mooter_fleet",
-      "description": "O painel: quem trabalha, com que modelo, quantos tokens, e quanto custou ate agora."
-    },
-    {
-      "name": "mooter_await",
-      "description": "Espera que o trabalho acabe e devolve o resumo. Uma chamada em vez de perguntar sete vezes."
-    },
-    {
-      "name": "mooter_collect",
-      "description": "O resultado de um trabalho que terminou, com custo e permissoes efectivas."
-    },
-    {
-      "name": "mooter_worktrees",
-      "description": "Onde ha espaco para trabalhar agora: pastas do projecto, branch de cada, e quais estao livres."
+      "description": "O painel: wave activa, quem trabalha, tokens, custo, etapas com risco, GPU e pastas livres."
     },
     {
       "name": "mooter_cancel",
-      "description": "Para um trabalho, ou limpa os que ficaram presos de um reinicio."
-    },
-    {
-      "name": "mooter_plan",
-      "description": "As etapas da wave: o que falta, quem fez cada uma, e o risco de cada uma."
+      "description": "Parar um trabalho, ou limpar os que ficaram presos de um reinicio. Confirma a morte do processo."
     },
     {
       "name": "mooter_journal",
-      "description": "Guarda o resultado no vault Obsidian. Se nao encontrar o vault, diz — nao escreve as cegas."
+      "description": "Guardar o resultado no vault Obsidian. O vault e' detectado, nunca assumido."
     },
     {
-      "name": "mooter_status",
-      "description": "Detalhe de um trabalho a decorrer: modelo real, tokens, e o que esta a fazer agora."
-    },
-    {
-      "name": "mooter_session_bind",
-      "description": "Diz ao Mooter que projecto e pasta esta conversa esta a usar."
-    },
-    {
-      "name": "mooter_sessions_list",
-      "description": "As sessoes Claude Code que o cockpit ve, com branch, PR e tokens."
-    },
-    {
-      "name": "mooter_session_read",
-      "description": "Detalhe de uma sessao Claude Code pelo id."
-    },
-    {
-      "name": "mooter_dispatch",
-      "description": "Avancado: despacha para um motor especifico com controlo total. Prefere mooter_work."
-    },
-    {
-      "name": "mooter_route",
-      "description": "Avancado: so classifica a tarefa e diz que tier daria, sem executar nada."
-    },
-    {
-      "name": "mooter_run",
-      "description": "Avancado: corre um comando curto do Mooter e devolve a saida."
+      "name": "mooter_setup",
+      "description": "O estado desta conversa: projecto, pasta, e o plano de etapas da wave."
     }
   ]
 }

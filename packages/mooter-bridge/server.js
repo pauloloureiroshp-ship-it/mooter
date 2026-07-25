@@ -27,10 +27,34 @@ function setHostExtra(stub) { hx = stub; }
 
 function log(...a) { try { process.stderr.write('[mooter-bridge] ' + a.join(' ') + '\n'); } catch { /* ignore */ } }
 
+/**
+ * ⚠️ A8 — títulos que dizem alguma coisa.
+ *
+ * Cinco de dez sessões tinham o mesmo título: `"Lê o ficheiro C:\Users\Paulo
+ * Loureiro\.mooter\jobs\j"` — o prompt de arranque, truncado a meio de um path.
+ * A frota inteira ficava indistinguível na lista.
+ *
+ * O prefixo `[wave · step · objectivo]` que o conector já injecta é o que deve
+ * sobrar; o caminho do masterprompt é ruído de máquina e sai fora.
+ */
+function cleanTitle(name) {
+  let t = String(name || '').trim();
+  if (!t) return null;
+  const m = t.match(/^\[([^\]]{3,90})\]/);          // o rótulo que nós pomos
+  if (m) return m[1].trim();
+  t = t.replace(/\bL[eê]\s+o\s+ficheiro\b/i, '').trim();
+  // restos de caminho: qualquer token com barra e comprimento de path.
+  // Um caminho do Windows tem espaços ("Paulo Loureiro"), por isso um único
+  // regex ancorado no `C:\` deixava metade para trás — foi o que aconteceu.
+  t = t.split(/\s+/).filter((w) => !/[\\/]/.test(w) || w.length < 8).join(' ');
+  t = t.replace(/\s{2,}/g, ' ').replace(/^[·\-—,.]+|[·\-—,.]+$/g, '').trim();
+  return t.length >= 3 ? t : 'job Mooter';
+}
+
 // ── tool implementations (read-only) ──────────────────────────────────────
 function shapeSession(r) {
   return {
-    id: r.id, fullId: r.fullId, title: r.name || null,
+    id: r.id, fullId: r.fullId, title: cleanTitle(r.name),
     status: r.working ? 'working' : (r.needsYou ? 'needs_you' : 'idle'),
     model: r.model || null, project: r.project || null,
     cwd: r.cwd || null, branch: r.branch || null,

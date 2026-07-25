@@ -96,7 +96,9 @@ function foldJobs(events) {
     // model_recommended is what the FROZEN router asked for. Both, always.
     if (e.model_used) j.model_used = e.model_used;
     if (e.model_recommended) j.model_recommended = e.model_recommended;
-    if (e.tier) j.tier = e.tier;
+    if (e.tier) j.tier_pedido = e.tier;
+    if (e.tier_pedido) j.tier_pedido = e.tier_pedido;
+    if (e.tier_motor) j.tier_motor = e.tier_motor;
     if (e.step) j.step = e.step;
     if (e.session_id) j.session_id = e.session_id;
     if (e.tokens_in != null) j.tokens_in = e.tokens_in;
@@ -387,9 +389,12 @@ async function toolFleet(args, deps) {
   // wave plans: the steps, who did them, and which ones are dangerous
   const planWaves = [...new Set(jobs.map((j) => j.wave).filter(Boolean))];
   if (waveFilter && !planWaves.includes(waveFilter)) planWaves.push(waveFilter);
+  // A7 — o plano é reconciliado contra o ledger ANTES de ser contado
+  const ledgerStates = new Map();
+  for (const e of events) { if (e && e.job_id && e.event) ledgerStates.set(e.job_id, e.event); }
   const plans = [];
   for (const w of planWaves) {
-    try { const p = plan.readPlan(w); if (p) plans.push(plan.summarize(p)); } catch { /* */ }
+    try { const p = plan.readPlan(w); if (p) plans.push(plan.summarize(plan.reconcile(p, ledgerStates))); } catch { /* */ }
   }
 
   // token totals split by where the work happened — the number that shows
@@ -436,6 +441,20 @@ async function toolFleet(args, deps) {
   // Two costs for one job differed by 2.5x on 2026-07-25 and nobody noticed for
   // a day. A cockpit that cannot detect its own contradictions is decoration.
   const coherence = [];
+  // ⚠️ A4 — três regras novas, cada uma nascida de um número impossível visto
+  // na auditoria de 2026-07-25.
+  for (const j of jobs) {
+    const local = LOCAL_AGENTS.has(j.agent);
+    if (local && j.tier_motor && j.tier_motor !== 'T0') {
+      coherence.push({ level: 'aviso', job: j.job_id, msg: 'motor local marcado ' + j.tier_motor + ' — local é sempre T0' });
+    }
+    if (!local && j.tier_motor === 'T0') {
+      coherence.push({ level: 'aviso', job: j.job_id, msg: 'motor pago marcado T0 — T0 é a GPU local' });
+    }
+    if (j.tokens_in != null && j.tokens_in < 20 && (j.tokens_out == null || j.tokens_out > 50)) {
+      coherence.push({ level: 'aviso', job: j.job_id, msg: 'tokens_in=' + j.tokens_in + ' é impossível para um prompt real — o parser não leu o usage' });
+    }
+  }
   for (const j of jobs) {
     if (j.state === 'done' && j.cost_usd == null && !LOCAL_AGENTS.has(j.agent)) {
       coherence.push({ level: 'aviso', job: j.job_id, msg: 'job terminou sem custo registado — o CLI não reportou total_cost_usd' });
@@ -449,6 +468,11 @@ async function toolFleet(args, deps) {
     }
     if (j.model && !j.model_source) {
       coherence.push({ level: 'aviso', job: j.job_id, msg: 'modelo sem proveniência declarada' });
+    }
+  }
+  for (const p of plans) {
+    if (p && p.running > 0 && !jobs.some((j) => isLive(j) && j.wave === p.wave)) {
+      coherence.push({ level: 'aviso', job: null, msg: 'plano ' + p.wave + ' diz ' + p.running + ' etapa(s) a correr mas não há job vivo nessa wave' });
     }
   }
   if (!sessionsFresh && jobs.some((j) => isLive(j))) {

@@ -18,19 +18,35 @@ const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
 
+// ⚠️ A6 — TUDO ISTO TEM DE ACONTECER ANTES DOS `require`.
+// `seamless.js` lê `MOOTER_REPO` no topo do módulo (`const REPO = …`). Definir a
+// variável DEPOIS do require deixava o REPO a apontar para o repositório real do
+// Paulo: em Windows, com 37 worktrees a sério, os testes escolhiam uma worktree
+// real, escreviam no ledger real e falhavam com jobs que nada tinham a ver com
+// eles ("posse: worktree já tem job ativo (job-ms0ik779-57b6)"). Uma suite que
+// toca em produção não é uma suite — é um segundo utilizador.
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-path-'));
+const WT = path.join(HOME, 'repo');
+fs.mkdirSync(WT, { recursive: true });
+try { require('child_process').execFileSync('git', ['-C', WT, 'init', '-q'], { stdio: 'ignore' }); } catch { /* */ }
 process.env.MOOTER_HOME = HOME;
 process.env.MOOTER_LIB = '1';
 process.env.MOOTER_WORKTREE_ROOT = HOME;
+process.env.MOOTER_REPO = WT;
+delete process.env.OLLAMA_HOST;
 
 const seam = require('./seamless.js');
 const plan = require('./plan.js');
 const moo = require('./moo.js');
 
-const WT = path.join(HOME, 'repo');
-fs.mkdirSync(WT, { recursive: true });
-try { require('child_process').execFileSync('git', ['-C', WT, 'init', '-q'], { stdio: 'ignore' }); } catch { /* */ }
-process.env.MOOTER_REPO = WT;
+// prova de isolamento: se algum caminho apontar para fora do temp, parar já
+for (const [k, v] of Object.entries(seam._paths || {})) {
+  const val = typeof v === 'function' ? v() : v;
+  if (typeof val === 'string' && !val.startsWith(HOME) && !val.startsWith(os.tmpdir())) {
+    console.error('ABORTADO: ' + k + ' aponta para fora do sandbox: ' + val);
+    process.exit(1);
+  }
+}
 
 let pass = 0;
 const okmsg = (n) => { console.log('  ok  ' + n); pass++; };
@@ -203,5 +219,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   } catch (e) { bad('T9', e); }
 
   console.log('\n' + pass + ' testes de caminho' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
-  try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ }
+  // streams dos jobs falsos ainda podem estar a fechar; limpar sem barulho
+  process.on('uncaughtException', () => {});
+  setTimeout(() => { try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ } }, 250);
 })();

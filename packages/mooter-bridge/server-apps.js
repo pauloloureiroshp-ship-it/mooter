@@ -176,7 +176,20 @@ for (const t of fleet.TOOLS) {
   }));
 }
 
-jlog('REGISTRY_OK', { tools: base.TOOLS.length });
+// ── Onda B (v1.4.1) · a superfície passa a SEIS ───────────────────────────
+// As seis substituem as antigas em `tools/list`. Os nomes antigos continuam a
+// funcionar em `tools/call` como aliases NÃO documentados durante uma versão —
+// a mitigação que o relatório pediu, porque este conector tem um utilizador e
+// partir-lhe as automações por estética seria vaidade, não engenharia.
+const tools6 = require('./tools6.js');
+const SEIS = tools6.build(seam, fleet, base);
+const ANTIGAS = base.TOOLS.slice();                 // continuam chamáveis
+for (const t of SEIS) {
+  const i = base.TOOLS.findIndex((x) => x.name === t.name);
+  if (i >= 0) base.TOOLS[i] = t; else base.TOOLS.push(t);
+}
+
+jlog('REGISTRY_OK', { tools: base.TOOLS.length, publicas: tools6.PUBLICAS.length });
 const RESOURCES = [fleet.UI_RESOURCE];
 
 /**
@@ -197,7 +210,8 @@ const RESOURCES = [fleet.UI_RESOURCE];
  * place carry it; the working loop stays silent and lets the panel breathe.
  */
 const ANCHOR_TOOLS = new Set(['mooter_fleet', 'mooter_work']);
-const LOOP_TOOLS = new Set(['mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_cancel', 'mooter_plan', 'mooter_journal', 'mooter_await']);
+const LOOP_EXTRA = ['mooter_check', 'mooter_setup'];
+const LOOP_TOOLS = new Set(['mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_cancel', 'mooter_plan', 'mooter_journal', 'mooter_await', 'mooter_check', 'mooter_setup', 'mooter_worktrees']);
 for (const t of base.TOOLS) {
   if (!ANCHOR_TOOLS.has(t.name)) continue;
   t._meta = Object.assign({}, t._meta, { ui: { resourceUri: fleet.UI_URI, visibility: ['model', 'app'] } });
@@ -264,7 +278,7 @@ async function handle(msg) {
         // `title` is what a human should see; `name` stays the machine id.
         // v1.1 shipped name:"mooter-bridge" while the manifest said "Mooter" —
         // two labels for one thing, and the panel had no way to show either.
-        serverInfo: { name: 'mooter-bridge', title: 'Mooter', version: '1.3.5' },
+        serverInfo: { name: 'mooter-bridge', title: 'Mooter', version: '1.4.1' },
       },
     };
   }
@@ -309,11 +323,17 @@ async function handle(msg) {
   // mooter_fleet: own the result so the no-UI fallback reads like prose, not JSON
   if (method === 'tools/call' && params && params.name === 'mooter_fleet') {
     try {
-      const out = await fleet.toolFleet(params.arguments || {}, { sessionsList: sessionsListLazy });
+      // v1.4.1 — usar o handler REGISTADO (o da Onda B, que percebe `view`),
+      // e não `fleet.toolFleet` directamente: esta intercepção existia para dar
+      // texto humano ao fallback sem painel, e estava a passar à frente da tool.
+      const reg = base.TOOLS.find((t) => t.name === 'mooter_fleet');
+      const out = reg && reg.handler
+        ? await reg.handler(params.arguments || {})
+        : await fleet.toolFleet(params.arguments || {}, { sessionsList: sessionsListLazy });
       return {
         jsonrpc: '2.0', id,
         result: {
-          content: [{ type: 'text', text: fleet.formatFleetText(out) }],
+          content: [{ type: 'text', text: (out && out.resumo) ? out.resumo : fleet.formatFleetText(out) }],
           structuredContent: out,
           isError: !!(out && out.error),
           _meta: { ui: { resourceUri: fleet.UI_URI } },
@@ -330,6 +350,11 @@ async function handle(msg) {
       const src = base.TOOLS.find((t) => t.name === shaped.name);
       if (src && src._meta) shaped._meta = src._meta;
     }
+    // só as seis são anunciadas; as antigas ficam chamáveis mas invisíveis
+    const antes = res.result.tools.length;
+    res.result.tools = res.result.tools.filter((t) => tools6.PUBLICAS.includes(t.name));
+    res.result.tools.sort((a, b) => tools6.PUBLICAS.indexOf(a.name) - tools6.PUBLICAS.indexOf(b.name));
+    jlog('TOOLS_LIST', { anunciadas: res.result.tools.length, escondidas: antes - res.result.tools.length });
   }
   return res;
 }

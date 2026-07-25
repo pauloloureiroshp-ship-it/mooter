@@ -88,16 +88,68 @@ function list(repoHint, busyFn) {
   };
 }
 
-/** A primeira worktree livre, preferindo as que NÃO são a principal. */
-function firstFree(repoHint, busyFn, avoid) {
+/**
+ * ⚠️ A5 — escolher uma pasta que TENHA o ficheiro pedido.
+ *
+ * A v1.3.5 escolhia a primeira livre e mais nada. Resultado real: pedi trabalho
+ * sobre `worktrees.js` e o job foi para uma worktree em **%TEMP%, em detached
+ * HEAD**, onde esse ficheiro não existe em nenhuma branch. O cc e o codex
+ * responderam correctamente "NÃO CONSEGUI LER" — o conector é que os mandou
+ * para o sítio errado, com 35 pastas limpas disponíveis.
+ *
+ * Regras agora:
+ *   · exclui `detached` e qualquer coisa sob %TEMP% (nunca são o teu trabalho)
+ *   · se o goal cita ficheiros, exclui as pastas onde eles não existem em disco
+ *   · prefere as secundárias à principal, para não bloquear a árvore de trabalho
+ */
+function isTemp(p) {
+  const t = path.resolve(os.tmpdir()).toLowerCase();
+  return path.resolve(p).toLowerCase().startsWith(t);
+}
+
+/**
+ * ⚠️ Uma worktree em %TEMP% só é suspeita se o REPO não estiver lá.
+ *
+ * A regra ingénua ("nunca %TEMP%") existia porque um job foi parar a
+ * `AppData/Local/Temp/mooter-pr251-main-…` em detached HEAD. Mas as suites
+ * criam repositórios inteiros em `mkdtemp` — e a regra ingénua excluía-os
+ * todos, fazendo falhar um teste que estava certo. O sinal verdadeiro é a
+ * DISCREPÂNCIA: repo fora do temp, worktree dentro dele.
+ */
+function suspeita(w, repo) {
+  return isTemp(w.path) && !isTemp(repo);
+}
+
+function firstFree(repoHint, busyFn, avoid, requiredPaths) {
   const r = list(repoHint, busyFn);
   if (r.error) return null;
   const av = avoid ? path.resolve(avoid).toLowerCase() : null;
-  const usable = r.worktrees.filter((w) => w.exists && !w.busy && !w.bare
+  let usable = r.worktrees.filter((w) => w.exists && !w.busy && !w.bare
+    && !w.detached && !suspeita(w, r.repo)
     && (!av || path.resolve(w.path).toLowerCase() !== av));
+
+  const req = Array.isArray(requiredPaths) ? requiredPaths.filter(Boolean) : [];
+  if (req.length) {
+    const comFicheiros = usable.filter((w) => req.every((rel) => {
+      try { return fs.existsSync(path.join(w.path, rel)); } catch { return false; }
+    }));
+    // se nenhuma tem os ficheiros, é melhor não escolher do que escolher às cegas
+    if (!comFicheiros.length) return null;
+    usable = comFicheiros;
+  }
   if (!usable.length) return null;
   const secondary = usable.filter((w) => !w.is_main);
   return (secondary[0] || usable[0]).path;
+}
+
+/** Quais das livres NÃO têm os ficheiros pedidos — para o erro explicar-se. */
+function semOsFicheiros(repoHint, busyFn, requiredPaths) {
+  const r = list(repoHint, busyFn);
+  if (r.error || !Array.isArray(requiredPaths) || !requiredPaths.length) return [];
+  return r.worktrees
+    .filter((w) => w.exists && !w.busy && !w.bare && !w.detached && !suspeita(w, r.repo))
+    .filter((w) => !requiredPaths.every((rel) => { try { return fs.existsSync(path.join(w.path, rel)); } catch { return false; } }))
+    .map((w) => w.name);
 }
 
 /**
@@ -121,4 +173,4 @@ function create(repoHint, name) {
   }
 }
 
-module.exports = { list, firstFree, create, mainRepo };
+module.exports = { list, firstFree, create, mainRepo, semOsFicheiros, isTemp, suspeita };

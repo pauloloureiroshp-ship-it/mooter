@@ -39,6 +39,8 @@ const moo = require('./moo.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
 const wt = require('./worktrees.js');
+const contexto = require('./context.js');
+const localfirst = require('./localfirst.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
@@ -103,14 +105,42 @@ function activeJobsByWorktree(worktree) {
  * Every dispatch now drops `<jobDir>/owner.json` with the owning pid. A job is
  * only an orphan if its owner process is genuinely gone.
  */
+/** Um pid existe? `signal 0` não mata nada; EPERM significa "existe e não é meu". */
+function pidAlive(pid) {
+  if (!pid) return false;
+  try { process.kill(Number(pid), 0); return true; }
+  catch (e) { return !!(e && e.code === 'EPERM'); }
+}
+
+/**
+ * ⚠️ A2 — nenhum job é declarado morto sem prova.
+ *
+ * A v1.3.3 usava o pid do PROCESSO DONO (o servidor MCP). Isso responde "quem o
+ * lançou ainda vive?", não "o trabalho ainda corre?". Um servidor que reinicia
+ * marcava `orphaned-by-restart` no ledger **sem matar nada** — e um Opus com
+ * permissão de escrita continuou a escrever depois de declarado morto, deixando
+ * um commit de 15 ficheiros sem dono no ledger.
+ *
+ * Agora guardamos os DOIS pids e verificamos o do trabalho primeiro.
+ */
 function ownerAlive(job_id) {
   try {
     const o = JSON.parse(fs.readFileSync(path.join(JOBS_DIR(), job_id, 'owner.json'), 'utf8'));
-    if (!o || !o.pid) return false;
+    if (!o) return false;
+    // 1. o processo do TRABALHO ainda existe? é esta a pergunta que interessa
+    if (o.child_pid && pidAlive(o.child_pid)) return true;
+    // 2. senão, o servidor que o lançou ainda o tem em memória?
     if (o.pid === process.pid) return REGISTRY.has(job_id);
-    try { process.kill(o.pid, 0); return true; }   // signal 0 = "does it exist?"
-    catch (e) { return e && e.code === 'EPERM'; }  // exists but not ours to signal
+    return pidAlive(o.pid);
   } catch { return false; }
+}
+
+/** O que sabemos do processo de um job, para pôr no ledger sem inventar. */
+function jobPids(job_id) {
+  try {
+    const o = JSON.parse(fs.readFileSync(path.join(JOBS_DIR(), job_id, 'owner.json'), 'utf8'));
+    return { server_pid: o.pid || null, child_pid: o.child_pid || null };
+  } catch { return { server_pid: null, child_pid: null }; }
 }
 
 function sweepOrphans() {
@@ -124,9 +154,13 @@ function sweepOrphans() {
   for (const [job_id, ev] of state) {
     if (REGISTRY.has(job_id)) continue;   // ours and alive
     if (ownerAlive(job_id)) continue;     // someone else's, and still running
+    // o pid verificado vai para o ledger: quem ler depois sabe COMO se concluiu
+    // que estava morto, em vez de ter de confiar na palavra do sweeper
+    const pids = jobPids(job_id);
     ledgerAppend({
       job_id, wave: ev.wave, agent: ev.agent, worktree: ev.worktree,
       event: 'failed', mp_hash: ev.mp_hash, exit_code: 'orphaned-by-restart',
+      child_pid: pids.child_pid, pid_verificado: true,
     });
     swept.push(job_id);
   }
@@ -466,6 +500,26 @@ const VENDOR_MODELS = {
  * Agora `agent` é obrigatório. Um chamador que o esqueça parte imediatamente,
  * em vez de receber silenciosamente um modelo do vendor errado.
  */
+/**
+ * ⚠️ A4 — o tier do MOTOR, derivado do que correu, não do que se pediu.
+ *
+ * Observado na auditoria: um job `moo` local ($0) apareceu como T0, depois T2,
+ * depois T3 em três leituras; um job `cc` em Opus apareceu como T0. O campo
+ * `tier` estava a carregar dois significados — a classificação do texto e a
+ * escada de custo — e quem lê não tinha como saber qual dos dois estava a ver.
+ *
+ * Isto responde só a uma pergunta: quanto custa o que correu?
+ */
+function tierDoMotor(agent, model) {
+  if (agent === 'moo') return 'T0';                       // local, $0, sempre
+  const m = String(model || '').toLowerCase();
+  if (m.includes('haiku')) return 'T1';
+  if (m.includes('sonnet')) return 'T2';
+  if (m.includes('opus')) return 'T3';
+  if (m.includes('fable')) return 'T5';
+  return null;                                            // n/d, nunca um palpite
+}
+
 function cliModelFor(agent, tier, recommended) {
   if (!['cc', 'codex', 'gemini', 'moo'].includes(String(agent))) {
     throw new TypeError('cliModelFor(agent, tier, recommended): agent obrigatório e válido, recebi ' + JSON.stringify(agent));
@@ -482,6 +536,34 @@ function cliModelFor(agent, tier, recommended) {
   if (r.includes('sonnet')) return 'sonnet';
   if (r.includes('opus')) return 'opus';
   return null;
+}
+
+/**
+ * ⚠️ A3 — não despachar leitura para quem não lê.
+ *
+ * Um goal que dizia "lê o packages/mooter-bridge/worktrees.js" foi para o `moo`
+ * (Ollama local, que só gera texto) e voltou `done` com três funções INVENTADAS:
+ * `createWorktree`, `removeWorktree`, `updateWorktree`. As reais são `list`,
+ * `firstFree`, `create`, `mainRepo`.
+ *
+ * O conector já sabia — escreve "o moo só gera texto, não lê nem escreve
+ * ficheiros" no `allowed_tools_effective`. Só que o diz no `collect`, à terceira
+ * chamada, depois de o utilizador já ter lido uma resposta plausível e falsa.
+ * Saber e não avisar a tempo é pior do que não saber.
+ */
+const LEITURA_RE = /\b(l[êe]|abre|analisa|audita|rev[êe]|revisa|inspecciona|inspeciona|verifica|examina|read|analyz[ei]|review|inspect|check)\b/i;
+const PATH_RE = /(?:^|[\s"'`(])([\w./\\-]+\.(?:js|mjs|cjs|ts|tsx|jsx|json|md|py|rs|go|java|rb|php|sh|ps1|yml|yaml|toml|html|css|sql))\b/;
+const ENGINES_SEM_FICHEIROS = new Set(['moo']);
+
+function pedeLeituraDeFicheiro(texto) {
+  const t = String(texto || '');
+  const m = t.match(PATH_RE);
+  const temPath = !!m;
+  const temVerbo = LEITURA_RE.test(t);
+  if (!temPath && !temVerbo) return null;
+  // um verbo de leitura sozinho é fraco; um path é prova suficiente
+  if (!temPath && temVerbo && !/\b(ficheiro|arquivo|file|c[óo]digo|repo|pasta)\b/i.test(t)) return null;
+  return { path: m ? m[1] : null, verbo: temVerbo };
 }
 
 /** Ask the FROZEN classifier directly. Returns null if it is unavailable. */
@@ -617,7 +699,12 @@ async function toolDispatch(args) {
   REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm, mp_hash, step: stepId });
   // proof of ownership: another connector instance must be able to tell whether
   // this job is alive before it dares to declare it orphaned
-  try { fs.writeFileSync(path.join(jobDir, 'owner.json'), JSON.stringify({ pid: process.pid, at: nowIso() })); } catch { /* */ }
+  // ⚠️ A2 — guardar o pid do TRABALHO, não só o do servidor. É a diferença
+  // entre "quem o lançou ainda vive?" e "o trabalho ainda corre?".
+  try {
+    fs.writeFileSync(path.join(jobDir, 'owner.json'),
+      JSON.stringify({ pid: process.pid, child_pid: (child && child.pid) || null, at: nowIso() }));
+  } catch { /* */ }
   if (stepId) {
     try {
       // title: the first meaningful line of the masterprompt, so a step created
@@ -687,7 +774,8 @@ async function toolDispatch(args) {
       // model_used comes from the job's own stream. model_recommended is what the
       // router asked for. Keeping both makes the gap between doctrine and reality
       // a metric instead of a surprise.
-      model_used: r.model_used, model_recommended, tier,
+      model_used: r.model_used, model_recommended,
+      tier_pedido: tier, tier_motor: tierDoMotor(agent, r.model_used || model),
       session_id: r.session_id,
       tokens_in: r.telemetry ? r.telemetry.tokens_in : null,
       tokens_out: r.telemetry ? r.telemetry.tokens_out : null,
@@ -743,7 +831,9 @@ async function toolStatus(args) {
     if (e.event === 'started') j.started_ts = e.ts;
     if (e.model_used) j.model_used = e.model_used;
     if (e.model_recommended) j.model_recommended = e.model_recommended;
-    if (e.tier) j.tier = e.tier;
+    if (e.tier) j.tier_pedido = e.tier;
+    if (e.tier_pedido) j.tier_pedido = e.tier_pedido;
+    if (e.tier_motor) j.tier_motor = e.tier_motor;
     if (e.step) j.step = e.step;
   }
   for (const j of Object.values(byJob)) {
@@ -815,14 +905,35 @@ async function toolCancel(args) {
   const last = evs[evs.length - 1];
   if (TERMINAL.has(last.event)) return { job_id: jobId, state: last.event, note: 'já estava terminado — nada a fazer (idempotente)' };
 
+  // ⚠️ A2 — o cancelamento é CONFIRMADO, não presumido.
+  // Antes escrevia-se `cancelled` logo a seguir ao kill. Se o processo
+  // sobrevivesse (com `shell:true` o kill apanha o cmd.exe e não o neto), o
+  // ledger dizia morto e o agente continuava a escrever no disco. Agora
+  // re-verificamos o pid e, se ele resistir, dizemo-lo em vez de mentir.
+  const pids = jobPids(jobId);
   let killed = false;
   if (live) { clearTimeout(live.timer); killed = killTree(live.child); REGISTRY.delete(jobId); }
+  else if (pids.child_pid && pidAlive(pids.child_pid)) {
+    // o servidor reiniciou mas o trabalho continua vivo — matar pela árvore
+    killed = killTree({ pid: pids.child_pid, kill: () => { try { process.kill(pids.child_pid, 'SIGKILL'); return true; } catch { return false; } } });
+  }
+  await new Promise((r) => setTimeout(r, 250));            // dar tempo ao SO
+  const aindaVivo = pids.child_pid ? pidAlive(pids.child_pid) : false;
   ledgerAppend({
     job_id: jobId, wave: last.wave, agent: last.agent, worktree: last.worktree,
     event: 'failed', mp_hash: last.mp_hash,
-    exit_code: killed ? 'cancelled-by-user' : 'cancelled-stale',
+    exit_code: aindaVivo ? 'cancel_failed' : (killed ? 'cancelled-by-user' : 'cancelled-stale'),
+    child_pid: pids.child_pid, pid_verificado: true,
     duration_s: live ? Math.round((Date.now() - live.startedAt) / 1000) : null,
   });
+  if (aindaVivo) {
+    return {
+      resumo: '⚠️ não consegui matar o job ' + jobId + ' — o processo ' + pids.child_pid + ' continua vivo',
+      job_id: jobId, killed: false, child_pid: pids.child_pid, cancel_failed: true,
+      faz_assim: ['no PowerShell: taskkill /PID ' + pids.child_pid + ' /T /F', 'depois volta a chamar mooter_cancel para fechar o ledger'],
+      note: 'o ledger regista cancel_failed com o pid — nunca digo que matei algo que continua a correr',
+    };
+  }
   if (live && live.step) { try { plan.updateStep(live.wave, live.step, { state: 'falhou', note: 'cancelado' }); } catch { /* */ } }
   return {
     job_id: jobId, killed,
@@ -870,7 +981,8 @@ async function toolCollect(args) {
     // v1.2: the model the job REALLY ran, from its own stream — never inferred
     model_used: r.model_used || null,
     model_recommended: meta.model_recommended || null,
-    tier: meta.tier || null,
+    tier_pedido: meta.tier || null,
+    tier_motor: tierDoMotor(meta.agent, r.model_used || meta.model),
     tokens_in: r.telemetry ? r.telemetry.tokens_in : null,
     tokens_out: r.telemetry ? r.telemetry.tokens_out : null,
     tok_s: r.telemetry ? r.telemetry.tok_s : null,
@@ -895,7 +1007,23 @@ async function toolAwait(args) {
   const wave = a.wave ? String(a.wave) : null;
   const jobId = a.job_id ? String(a.job_id) : null;
   if (!wave && !jobId) return { error: 'passa wave ou job_id' };
-  const timeoutS = Math.min(Math.max(Number(a.timeout_s) || 300, 5), 1800);
+  // ⚠️ A1 — o `await` NUNCA pode durar mais que o host aguenta.
+  //
+  // A v1.3.5 aceitava `timeout_s` até 1800 e a nota dizia "aumenta o timeout_s".
+  // O Claude Desktop tem um tecto duro na chamada MCP; ao estourar, derruba a
+  // ligação, o servidor reinicia — e o job que estava a correr fica órfão. Um
+  // utilizador que seguiu a nota da própria tool matou o trabalho que esperava
+  // (job-ms0iggqi-882b, 79 s, 7 passos feitos, custo perdido).
+  //
+  // O tecto passa a 45 s, com clamp em runtime e no schema. Esperar mais faz-se
+  // voltando a chamar, não pedindo ao host que aguente mais.
+  // 45 s é o tecto seguro medido neste host. Configurável por env para os testes
+  // poderem provar o clamp sem esperar 45 s, e para afinar noutro host sem tocar
+  // no código — mas nunca acima de 120 s, que é onde o Desktop começa a desistir.
+  const AWAIT_MAX_S = Math.min(Number(process.env.MOOTER_AWAIT_MAX_S) || 45, 120);
+  const pedido = Number(a.timeout_s);
+  const timeoutS = Math.min(Math.max(Number.isFinite(pedido) ? pedido : 30, 5), AWAIT_MAX_S);
+  const clamped = Number.isFinite(pedido) && pedido > AWAIT_MAX_S ? pedido : null;
   const t0 = Date.now();
 
   const snapshot = () => {
@@ -920,9 +1048,18 @@ async function toolAwait(args) {
   let jobs = snapshot();
   while (!settled(jobs)) {
     if (Date.now() - t0 > timeoutS * 1000) {
+      const vivos = jobs.filter((j) => !TERMINAL.has(j.last) && j.last !== 'collected');
       return {
+        resumo: '🐮 ainda a trabalhar ao fim de ' + timeoutS + 's · ' + vivos.length + ' job(s) a correr — volta a chamar com o mesmo '
+          + (jobId ? 'job_id' : 'wave'),
         timed_out: true, waited_s: Math.round((Date.now() - t0) / 1000),
-        jobs, note: 'ainda a correr ao fim de ' + timeoutS + 's — os jobs continuam vivos, volta com mooter_status ou aumenta o timeout_s',
+        jobs,
+        // ❌ NUNCA "aumenta o timeout_s": foi essa nota que levou alguém a pedir
+        //    600s e a matar o próprio job que esperava.
+        note: 'os jobs continuam vivos. Chama outra vez com o mesmo ' + (jobId ? 'job_id' : 'wave')
+          + ' — cada espera é curta de propósito, para o host nunca derrubar a ligação e deixar um job órfão.',
+        timeout_maximo_s: AWAIT_MAX_S,
+        pedido_ajustado: clamped ? ('pediste ' + clamped + 's; o máximo seguro é ' + AWAIT_MAX_S + 's e foi esse o usado') : null,
       };
     }
     await new Promise((r) => setTimeout(r, 2000));
@@ -1017,12 +1154,101 @@ async function toolWork(args) {
   const d = classifyOrNull(goal);
   const tier = d ? (d.tier || null) : null;
   let agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
+  let escolhaLocal = null;   // preenchido abaixo, depois de sabermos o contexto
 
   // ⚠️ v1.3.3 — DEGRADAR, não recusar. (achado dos testes de caminho, não de
   // uma auditoria: quando o classificador dava T0 e a máquina não tinha Ollama
   // a correr, o `mooter_work` devolvia "nenhum modelo local disponível" e o
   // utilizador ficava sem nada. A porta única não pode fechar-se porque um
   // motor opcional está em baixo — cai para a nuvem e diz que caiu.)
+  let worktree = a.worktree ? String(a.worktree) : null;
+  if (!worktree) {
+    const ctx = (() => { try { return require('./fleet.js').readSessionContext(); } catch { return null; } })();
+    worktree = (ctx && ctx.folder) || REPO;
+  }
+  // ⚠️ v1.3.4 — a worktree ocupada deixa de ser um beco.
+  // O guard continua certo (dois agentes na mesma árvore corrompem-se), mas
+  // antes a saída oferecida era "passa outra worktree" — um conceito de git que
+  // o vibe coder não tem. Agora procuramos uma livre, e só falamos de git se
+  // não houver nenhuma.
+  // A5 — os ficheiros que o goal cita têm de existir na pasta escolhida
+  const pedidos = [];
+  { const m = String(goal + ' ' + (a.context || '')).match(new RegExp(PATH_RE.source, 'g'));
+    if (m) for (const x of m) { const c = x.trim().replace(/^["'`(]/, ''); if (c.includes('/') || c.includes('\\')) pedidos.push(c.replace(/\\/g, '/')); } }
+
+  const pedida = worktree;
+  let relocated = false; let relocatedPorque = null;
+  let busy = activeJobsByWorktree(worktree);
+  const temOsFicheiros = !pedidos.length || pedidos.every((rel) => { try { return require('fs').existsSync(require('path').join(worktree, rel)); } catch { return false; } });
+  if (!busy.length && !temOsFicheiros) {
+    const alt2 = wt.firstFree(REPO, activeJobsByWorktree, null, pedidos);
+    if (alt2) { worktree = alt2; relocated = true; relocatedPorque = 'a pasta pedida não tem ' + pedidos.join(', '); log('relocado: ' + relocatedPorque); }
+  }
+  if (busy.length) {
+    const alt = wt.firstFree(REPO, activeJobsByWorktree, worktree, pedidos);
+    if (alt) {
+      relocated = true;
+      relocatedPorque = 'a pasta pedida tinha um job activo (' + busy.join(', ') + ')';
+      log('worktree ocupada; mudei para ' + alt);
+      worktree = alt;
+      busy = [];
+    } else if (a.create_worktree === true) {
+      const made = wt.create(REPO, (a.wave || 'work').toString().slice(0, 20));
+      if (made.ok) { worktree = made.path; busy = []; log('worktree criada: ' + made.path); }
+      else return { error: 'todas as worktrees estão ocupadas e a criação falhou', detail: made.error };
+    } else {
+      const inv = wt.list(REPO, activeJobsByWorktree);
+      const semFich = pedidos.length ? wt.semOsFicheiros(REPO, activeJobsByWorktree, pedidos) : [];
+      return {
+        resumo: pedidos.length
+          ? '⛔ não há pasta livre com ' + pedidos.join(', ')
+          : '🐮 não há onde trabalhar: as ' + (inv.total || 0) + ' pastas estão ocupadas',
+        erro: pedidos.length ? 'sem_worktree_viavel' : 'todas_ocupadas',
+        ocupadas: (inv.worktrees || []).filter((w) => w.busy).map((w) => ({ pasta: w.name, jobs: w.busy_jobs })),
+        livres_sem_os_ficheiros: semFich.length ? semFich : null,
+        faz_assim: [
+          'espera que um dos jobs acima termine',
+          'mooter_cancel(sweep:true) — se forem órfãos de um reinício',
+          'mooter_work({…, create_worktree:true}) — crio uma pasta nova a partir da branch actual',
+        ],
+      };
+    }
+  }
+
+  // ── A3 (v1.4.1) · DAR OLHOS ao motor local, em vez de o proibir ──────────
+  //
+  // A v1.4.0 recusava despachar leitura para o `moo`. Era honesto e era a
+  // solução errada: amputava o tier local de 90% do trabalho real. O servidor
+  // corre em Node, no disco do utilizador — pode ler o ficheiro ELE PRÓPRIO e
+  // injectá-lo no prompt. O modelo local não precisa de ferramentas; precisa de
+  // contexto. Custa milissegundos, custa $0, e transforma "o teu modelo local
+  // não serve para isto" em "o teu modelo local acabou de auditar o ficheiro".
+  const leitura = pedeLeituraDeFicheiro(goal + ' ' + (a.context || ''));
+  let contextoInjectado = null;
+  let avisoFabricacao = null;
+  if (leitura && ENGINES_SEM_FICHEIROS.has(agent)) {
+    const ctx = contexto.lerParaPrompt(goal + ' ' + (a.context || ''), worktree, a.context_budget);
+    if (ctx.bloco) {
+      contextoInjectado = ctx;                       // os olhos emprestados
+    } else if (a.force === true) {
+      avisoFabricacao = 'não consegui ler nenhum dos ficheiros citados e despachaste à mesma — trata a resposta como não verificada';
+    } else {
+      return {
+        resumo: '⛔ não despachei: o motor local não lê ficheiros e eu também não consegui lê-los por ele',
+        erro: 'sem_contexto_para_o_local',
+        porque: 'tentei ler ' + (ctx.falhados.map((f) => f.path).join(', ') || 'os ficheiros citados')
+          + ' na pasta ' + require('path').basename(worktree) + ' e não consegui',
+        detalhe: ctx.falhados,
+        faz_assim: [
+          'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
+          'diz o caminho completo a partir da raiz do projecto',
+          'mooter_work({goal, agent:"moo", force:true}) — despacho na mesma, mas a resposta será inventada',
+        ],
+        nota: 'um modelo sem acesso ao disco responde na mesma, e a resposta parece boa. Foi assim que apareceram funções que não existem.',
+      };
+    }
+  }
+
   let downgraded = null;
   if (agent === 'moo') {
     const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
@@ -1041,36 +1267,32 @@ async function toolWork(args) {
   const routedBy = a.model ? 'user' : (model ? 'work+classify' : 'cli-default');
   const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
 
-  let worktree = a.worktree ? String(a.worktree) : null;
-  if (!worktree) {
-    const ctx = (() => { try { return require('./fleet.js').readSessionContext(); } catch { return null; } })();
-    worktree = (ctx && ctx.folder) || REPO;
-  }
-  // ⚠️ v1.3.4 — a worktree ocupada deixa de ser um beco.
-  // O guard continua certo (dois agentes na mesma árvore corrompem-se), mas
-  // antes a saída oferecida era "passa outra worktree" — um conceito de git que
-  // o vibe coder não tem. Agora procuramos uma livre, e só falamos de git se
-  // não houver nenhuma.
-  let busy = activeJobsByWorktree(worktree);
-  if (busy.length) {
-    const alt = wt.firstFree(REPO, activeJobsByWorktree, worktree);
-    if (alt) {
-      log('worktree ocupada; mudei para ' + alt);
-      worktree = alt;
-      busy = [];
-    } else if (a.create_worktree === true) {
-      const made = wt.create(REPO, (a.wave || 'work').toString().slice(0, 20));
-      if (made.ok) { worktree = made.path; busy = []; log('worktree criada: ' + made.path); }
-      else return { error: 'todas as worktrees estão ocupadas e a criação falhou', detail: made.error };
-    } else {
-      const inv = wt.list(REPO, activeJobsByWorktree);
-      return {
-        resumo: '🐮 não há onde trabalhar: as ' + (inv.total || 0) + ' pastas de trabalho estão ocupadas',
-        error: 'a worktree ' + worktree + ' já tem job activo (' + busy.join(', ') + ') e não há nenhuma livre',
-        ocupadas: (inv.worktrees || []).filter((w) => w.busy).map((w) => ({ path: w.path, jobs: w.busy_jobs })),
-        hint: 'espera que um termine, usa mooter_cancel(sweep:true) se forem órfãos, '
-          + 'ou repete com create_worktree:true para eu criar uma nova (faz `git worktree add`, é reversível)',
-      };
+  // ── LOCAL-FIRST (v1.4.1) · agora que sabemos o contexto, a GPU pode chegar ──
+  //
+  // Medido em 2026-07-25: 0% de output local em 8 sessões. O classify.js olha
+  // para o TEXTO e nada sabe sobre o que a máquina aguenta — e até aqui o tier
+  // local nem sequer lia ficheiros. Com `context.js` a fronteira mudou, e esta
+  // é a decisão que o classificador nunca teve dados para tomar.
+  // ❌ Nunca escolhe local para escrita, git, deploy, testes ou auditoria.
+  if (!a.agent && agent !== 'moo') {
+    let vram = null; let temLocal = false;
+    try {
+      const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
+      const res = await require('./fleet.js').probeOllama(700).catch(() => null);
+      const g = await require('./gpu.js').gpuSnapshot(res ? res.length : null).catch(() => null);
+      vram = g && g.headroom ? g.headroom.free_mb : null;
+      temLocal = !!(await moo.pickModel(null, host, res, { free_mb: vram }).catch(() => null));
+    } catch { /* sem local, seguimos para a nuvem */ }
+
+    // ler os ficheiros ANTES de decidir: é o tamanho do contexto que manda
+    const pre = contexto.lerParaPrompt(goal + ' ' + (a.context || ''), worktree, a.context_budget);
+    escolhaLocal = localfirst.cabeNoLocal({
+      goal, tier, contextoChars: pre.chars, temModeloLocal: temLocal,
+      escrita: a.write === true, vramLivreMb: vram,
+    });
+    if (escolhaLocal.local) {
+      agent = 'moo';
+      log('local-first: ' + escolhaLocal.porque);
     }
   }
 
@@ -1096,6 +1318,9 @@ async function toolWork(args) {
   // goal da wave passava a ser o do último — o trabalho anterior desaparecia do
   // plano que o painel desenha como checklist. O produto a mentir sobre si mesmo.
   const stepId = 'S' + (((plan.readPlan(wave) || {}).steps || []).length + 1);
+  // os olhos emprestados entram no prompt, antes do plano
+  const mpFinal = contextoInjectado ? (mp + '\n' + contextoInjectado.bloco) : mp;
+
   if (Array.isArray(a.steps) && a.steps.length) { try { plan.setPlan(wave, a.steps, goal); } catch { /* */ } }
   else { try { plan.addStep(wave, { id: stepId, title: goal, agent, state: 'a-correr' }, goal); } catch { /* */ } }
 
@@ -1145,7 +1370,7 @@ async function toolWork(args) {
 
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
-        __chain: { agent, worktree, masterprompt: mp, wave, allowedTools, model, step: stepId },
+        __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId },
       });
       if (prep && prep.job_id) {
         return {
@@ -1167,21 +1392,45 @@ async function toolWork(args) {
     }
   }
 
-  const r = await toolDispatch({ agent, worktree, masterprompt: mp, wave, allowedTools, model, step: 'S1', routed_by: routedBy });
-  if (r && r.error) return Object.assign({ goal, wave, tier, agent, model }, r);
+  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId, routed_by: routedBy });
+  if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
     // A v1.3.2 punha-a em `content[0].text` e este host mostra o
     // `structuredContent`: a prosa era escrita e descartada em 21/21 chamadas.
     resumo: '🐮 ' + (model || agent) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
       + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
-      + (prepareSkipped ? ' · sem preparação local' : ''),
-    ok: true, goal, wave, tier, agent,
+      + (prepareSkipped ? ' · sem preparação local' : '')
+      + (relocated ? ' · mudei para ' + require('path').basename(worktree) : '')
+      + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : ''),
+    ok: true, goal, wave,
+    // ⚠️ A4 — dois campos que partilhavam nome e diziam coisas diferentes.
+    // `tier` chegou a dizer T0 para um job Opus e T3 para um job local grátis.
+    tier_pedido: tier,                   // o que o classify.js achou do TEXTO
+    tier_motor: tierDoMotor(agent, r.model || model),  // o que de facto correu
+    agent,
     model: r.model || model || '(default do CLI)',
     routed: r.routed,
     routed_by: routedBy,
-    job_id: r.job_id, worktree,
+    job_id: r.job_id,
+    // ⚠️ A5 — toda a mudança de pasta é DECLARADA. Antes trocava em silêncio e
+    // o utilizador não tinha como saber que o job correu noutro sítio.
+    worktree_pedida: pedida,
+    worktree_usada: worktree,
+    relocated,
+    relocated_porque: relocatedPorque,
     prepared: false,
+    // v1.4.1 — o que o conector leu PELO modelo local. É o que separa uma
+    // resposta fundamentada de uma resposta plausível.
+    // porque foi (ou não foi) para a GPU — a decisão que o classificador não podia tomar
+    escolha_local: escolhaLocal ? { local: escolhaLocal.local, porque: escolhaLocal.porque, confianca: escolhaLocal.confianca } : null,
+    poupanca_estimada: (escolhaLocal && escolhaLocal.local)
+      ? localfirst.poupancaEstimada((contextoInjectado ? contextoInjectado.chars : 0) + goal.length, 2000, tier === 'T3' ? 'opus' : 'sonnet')
+      : null,
+    ficheiros_lidos: contextoInjectado ? contextoInjectado.lidos.map((f) => f.path) : null,
+    contexto_chars: contextoInjectado ? contextoInjectado.chars : null,
+    contexto_truncado: contextoInjectado && contextoInjectado.truncados.length ? contextoInjectado.truncados : null,
+    aviso_fabricacao: avisoFabricacao,   // A3: forçaste um motor que não lê
     downgraded,                          // porque não foi para onde o router queria
     prepare_skipped: prepareSkipped,     // ❌ silêncio nunca; n/d sempre
     mode: readOnly ? 'só leitura' : 'escrita permitida',
@@ -1270,7 +1519,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {
       wave: { type: 'string', description: 'Wave id to wait for.' },
       job_id: { type: 'string', description: 'Single job to wait for.' },
-      timeout_s: { type: 'number', description: 'Give up after this many seconds (5-1800, default 300). Jobs keep running; only the wait ends.' },
+      timeout_s: { type: 'number', minimum: 5, maximum: 45, default: 30, description: 'Quanto tempo esperar, em segundos (5-45, default 30). O tecto é curto de propósito: uma espera longa faz o host derrubar a ligação e deixa o job órfão. Para esperar mais, chama outra vez com o mesmo job_id/wave.' },
     }, additionalProperties: false },
     annotations: { title: 'Wait for a Mooter wave', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolAwait,
@@ -1324,6 +1573,7 @@ module.exports = {
   TOOLS, guardCheck, ledgerAppend, ledgerRead, activeJobsByWorktree,
   toolRoute, toolDispatch, toolStatus, toolCollect, toolCancel, toolPlan, toolJournal, toolWork, toolAwait,
   buildCommand, bootstrapPrompt, setJobSpawner, REGISTRY,
-  sweepOrphans, killTree, cliModelFor, classifyOrNull, readJobResult, parseCostFromOut,
+  sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
+  pedeLeituraDeFicheiro, jobResultText, pidAlive,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },
 };

@@ -38,6 +38,9 @@ const FILES = [
   ['plan.js', 'server/plan.js'],
   ['journal.js', 'server/journal.js'],
   ['worktrees.js', 'server/worktrees.js'],
+  ['tools6.js', 'server/tools6.js'],
+  ['localfirst.js', 'server/localfirst.js'],
+  ['context.js', 'server/context.js'],
   ['bundle-package.json', 'server/package.json'],
 ];
 
