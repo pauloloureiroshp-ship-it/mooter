@@ -68,7 +68,9 @@ test('Q2 — cache_read e REGISTADO mas nunca entra no PESO da quota', () => {
    * nao a um numero absoluto — foi assim que este teste ja falhou uma vez, por
    * culpa do proprio teste.
    */
-  const pesoMax = (m.curta.saidas / 1000) * 5;
+  // Onda 0.4: o peso deriva de ENTRADAS+SAIDAS (nunca do cache lido). O tecto
+  // e' "tudo Opus": (entradas+saidas)/1000 x 5.
+  const pesoMax = ((m.curta.saidas + m.curta.entradas) / 1000) * 5;
   assert.ok(m.curta.peso <= pesoMax + 0.001,
     'o cache lido entrou no peso: ' + m.curta.peso + ' > ' + pesoMax);
   assert.ok(m.curta.peso < (m.curta.cache_lido / 1000) * 0.1,
@@ -131,10 +133,13 @@ test('Q9 — sem GPU local, aperta o tecto em vez de prometer local', () => {
   assert.strictEqual(c.tecto, 'haiku');
 });
 
-test('Q10 — o Codex fica n/d, e diz porque', () => {
-  const e = q.estado({ raiz: RAIZ });
+test('Q10 — Codex sem rollouts legiveis fica n/d COM porque — nunca um numero inventado', () => {
+  // Onda 0.5: o Codex TEM leitura local. Mas quando nao ha nada legivel, a
+  // resposta continua a ser n/d com explicacao — nunca estimativa disfarçada.
+  const vazio = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-codex-vazio-'));
+  const e = q.estado({ raiz: RAIZ, raiz_codex: vazio });
   assert.strictEqual(e.codex.disponivel, false);
-  assert.ok(/interactivo|interativo/.test(e.codex.porque), 'nao explica porque e que o Codex fica sem leitura');
+  assert.ok(e.codex.porque && e.codex.porque.length > 10, 'nao explica porque e que o Codex fica sem leitura');
 });
 
 test('Q11 — ACHADO CODEX: a cache existe e nao muda os numeros', () => {
@@ -173,4 +178,110 @@ test('Q13 — um ficheiro que MUDA e relido, nao servido da cache', () => {
   }));
   const depois = q.medir({ raiz: RAIZ, agora }).longa.saidas;
   assert.strictEqual(depois, antes + 500, 'a cache serviu dados velhos depois do ficheiro crescer');
+});
+
+/**
+ * ── ONDA 0 (2026-07-26) — a regua honesta ─────────────────────────────────
+ * A quota estava inflacionada 2-3x: uma resposta com N blocos de conteudo
+ * escreve N linhas assistant, CADA UMA com copia do mesmo usage, e nos
+ * somavamos todas. Consequencia: nivel "critico" falso -> tecto haiku -> o
+ * produto sabotava a propria qualidade. Estes testes usam fixtures com o
+ * formato REAL medido no ficheiro da sessao viva de 2026-07-26.
+ */
+
+function raizFresca() { return fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-onda0-')); }
+
+test('Q14 — DEDUP por requestId: linhas duplicadas contam UMA vez, e o factor e MEDIDO', () => {
+  const raiz = raizFresca();
+  const dir = path.join(raiz, 'p'); fs.mkdirSync(dir);
+  const agora = Date.now();
+  const linha = (req, out, cache) => JSON.stringify({
+    type: 'assistant', requestId: req, timestamp: new Date(agora - 60e3).toISOString(),
+    message: { id: 'msg_' + req, model: 'claude-sonnet-5',
+      usage: { input_tokens: 10, output_tokens: out, cache_read_input_tokens: cache, cache_creation_input_tokens: 0 } },
+  });
+  // o padrao real medido: resposta 1 com 2 blocos, resposta 2 com 3 blocos
+  fs.writeFileSync(path.join(dir, 'x.jsonl'), [
+    linha('req_1', 121, 19930), linha('req_1', 121, 19930),
+    linha('req_2', 1757, 43332), linha('req_2', 1757, 43332), linha('req_2', 1757, 43332),
+  ].join('\n'));
+  const m = q.medir({ raiz, agora });
+  assert.strictEqual(m.longa.turnos, 2, 'contou ' + m.longa.turnos + ' turnos onde ha 2 respostas — a deduplicacao falhou');
+  assert.strictEqual(m.longa.saidas, 121 + 1757, 'somou usage duplicado: ' + m.longa.saidas);
+  assert.strictEqual(m.longa.linhas_brutas, 5);
+  assert.strictEqual(m.longa.dedup.factor, 2.5, 'o factor de inflacao tem de ser MEDIDO e reportado');
+  assert.ok(/5 linhas.*2 turnos/.test(m.longa.dedup.porque), 'o painel tem de poder dizer "li X linhas, Y unicos"');
+});
+
+test('Q15 — GUARD #25941: >20% de output placeholder -> saidas n/d, NUNCA somar', () => {
+  const raiz = raizFresca();
+  const dir = path.join(raiz, 'p'); fs.mkdirSync(dir);
+  const agora = Date.now();
+  const linha = (i, out) => JSON.stringify({
+    type: 'assistant', requestId: 'req_' + i, timestamp: new Date(agora - 60e3).toISOString(),
+    message: { model: 'claude-sonnet-5', usage: { input_tokens: 100, output_tokens: out } },
+  });
+  // 3 de 10 turnos com placeholder (1-2 tokens) = 30% > 20%
+  const linhas = [];
+  for (let i = 0; i < 7; i++) linhas.push(linha(i, 500));
+  for (let i = 7; i < 10; i++) linhas.push(linha(i, 2));
+  fs.writeFileSync(path.join(dir, 'x.jsonl'), linhas.join('\n'));
+  const m = q.medir({ raiz, agora });
+  assert.strictEqual(m.longa.saidas, null, 'somou placeholders do #25941 em vez de dizer n/d');
+  assert.ok(/25941/.test(m.longa.aviso_saidas || ''), 'nao avisa que o bug reproduziu');
+  // o peso nao pode ficar cego: usa as entradas, que continuam fiaveis
+  assert.ok(Math.abs(m.longa.peso - 1.0) < 0.001, 'peso com saidas n/d devia ser so entradas (1000/1000 x 1): ' + m.longa.peso);
+});
+
+test('Q16 — Onda 0.4: as ENTRADAS contam no peso — input gigante ja nao le "baixo"', () => {
+  const raiz = raizFresca();
+  const dir = path.join(raiz, 'p'); fs.mkdirSync(dir);
+  const agora = Date.now();
+  fs.writeFileSync(path.join(dir, 'x.jsonl'), JSON.stringify({
+    type: 'assistant', requestId: 'req_a', timestamp: new Date(agora - 60e3).toISOString(),
+    message: { model: 'claude-sonnet-5', usage: { input_tokens: 1000, output_tokens: 500 } },
+  }));
+  const m = q.medir({ raiz, agora });
+  assert.ok(Math.abs(m.longa.peso - 1.5) < 0.001, 'peso devia ser (1000+500)/1000 x 1 = 1.5: ' + m.longa.peso);
+});
+
+test('Q17 — Onda 0.5: o Codex LE-SE dos rollouts locais, com o mesmo contrato de honestidade', () => {
+  const raiz = raizFresca();
+  const dia = path.join(raiz, '2026', '07', '26'); fs.mkdirSync(dia, { recursive: true });
+  const agora = Date.now();
+  const ev = (min, tin, tout, cached) => JSON.stringify({
+    timestamp: new Date(agora - min * 60e3).toISOString(), type: 'event_msg',
+    payload: { type: 'token_count', info: {
+      last_token_usage: { input_tokens: tin, cached_input_tokens: cached, output_tokens: tout },
+      total_token_usage: { input_tokens: 999999, output_tokens: 999999 },
+    } },
+  });
+  fs.writeFileSync(path.join(dia, 'rollout-2026-07-26-abc.jsonl'),
+    [ev(10, 100, 20, 50), ev(5, 200, 40, 80)].join('\n'));
+  const c = q.medirCodex({ raiz_codex: raiz, agora });
+  assert.strictEqual(c.disponivel, true);
+  assert.strictEqual(c.longa.entradas, 300, 'tem de somar os DELTAS (last_token_usage), nunca o cumulativo');
+  assert.strictEqual(c.longa.saidas, 60);
+  assert.strictEqual(c.longa.cache_lido, 130);
+  assert.strictEqual(c.longa.turnos, 2);
+  assert.ok(/LIMITE INFERIOR/.test(c.ressalva), 'o contrato de honestidade vale para o Codex tambem');
+  assert.ok(/27131/.test(c.nota || ''), 'tem de declarar que estes caminhos nunca entram no contexto de agentes');
+});
+
+test('Q18 — Onda 0.6: forcar_local INVERTE o default mas nunca os vetos de risco', () => {
+  const lf = require('./localfirst.js');
+  // sem forcar, "na duvida, nuvem"
+  const semForcar = lf.cabeNoLocal({ goal: 'analisa a arquitectura do worker', tier: 'T2', temModeloLocal: true });
+  // (goal com "arquitectura" cai no veto SO_NUVEM — usa um goal neutro)
+  const neutro = lf.cabeNoLocal({ goal: 've la isto por mim', tier: 'T2', temModeloLocal: true });
+  assert.strictEqual(neutro.local, false, 'sem quota critica o default continua a ser nuvem');
+  // com forcar, o default inverte
+  const forcado = lf.cabeNoLocal({ goal: 've la isto por mim', tier: 'T2', temModeloLocal: true, forcar: true });
+  assert.strictEqual(forcado.local, true, 'quota critica tem de mandar o trabalho neutro para a GPU');
+  // mas NUNCA os vetos: escrita continua na nuvem mesmo com quota critica
+  const escrita = lf.cabeNoLocal({ goal: 've la isto', temModeloLocal: true, escrita: true, forcar: true });
+  assert.strictEqual(escrita.local, false, 'forcar_local passou por cima do veto de escrita — poupar nunca pode custar correccao');
+  const git = lf.cabeNoLocal({ goal: 'faz commit e push disto', temModeloLocal: true, forcar: true });
+  assert.strictEqual(git.local, false, 'forcar_local passou por cima do veto de git');
+  void semForcar;
 });

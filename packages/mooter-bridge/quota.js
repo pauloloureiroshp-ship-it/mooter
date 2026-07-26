@@ -109,10 +109,26 @@ function ficheirosRecentes(raiz, desdeMs, maxFich) {
  */
 const CACHE = new Map();   // caminho -> { tamanho, mtime, r }
 
+/**
+ * ⚠️ DEDUPLICAÇÃO (Onda 0.1, 2026-07-26) — o bug que estrangulava o produto:
+ *
+ * Uma resposta com N blocos de conteúdo escreve N linhas `type:"assistant"` no
+ * .jsonl, CADA UMA com uma cópia do MESMO `usage`. Medido hoje na sessão viva:
+ * a mesma resposta aparecia 2-3×, e a quota lia 15 090 de peso onde havia ~6 000.
+ * Consequência: `nivel: "critico"` → tecto haiku → o produto sabotava a própria
+ * qualidade com um número que ele próprio inflacionou.
+ *
+ * Um turno = um `requestId`. Fallback: `message.id`; último recurso: a assinatura
+ * (timestamp + usage). Last-wins: a linha mais recente do turno fica com o usage.
+ * O factor de inflação medido (linhas brutas ÷ turnos únicos) VIAJA no resultado
+ * para o painel o mostrar — medido, não estimado.
+ */
 function lerFicheiro(f, desdeMs) {
-  const r = { entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0, por_modelo: {}, ultimo: 0, linha: [] };
+  const r = { entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0,
+    linhas_brutas: 0, suspeitas: 0, por_modelo: {}, ultimo: 0, linha: [] };
   let bruto;
   try { bruto = fs.readFileSync(f, 'utf8'); } catch { return r; }
+  const porTurno = new Map();   // chave de dedup -> turno único (last-wins)
   for (const linha of bruto.split('\n')) {
     if (!linha) continue;
     let m;
@@ -123,26 +139,37 @@ function lerFicheiro(f, desdeMs) {
     if (!u) continue;
     const t = Date.parse(m.timestamp || msg.timestamp || 0) || 0;
     if (t && desdeMs && t < desdeMs) continue;
+    r.linhas_brutas++;
+    const chave = m.requestId || msg.id
+      || (t + '|' + (u.input_tokens || 0) + '|' + (u.output_tokens || 0) + '|'
+        + (u.cache_creation_input_tokens || 0) + '|' + (u.cache_read_input_tokens || 0));
+    const antes = porTurno.get(chave);
+    porTurno.set(chave, {
+      t, mod: msg.model || 'n/d',
+      e: Number(u.input_tokens || 0), s: Number(u.output_tokens || 0),
+      c: Number(u.cache_creation_input_tokens || 0),
+      /**
+       * ⚠️ O cache LIDO não entra no peso da quota (é 0,1× e a barra da app não o
+       * conta assim), mas é o número que explica a factura: 631 MILHÕES em 7 dias,
+       * 69,8% do custo. Guardá-lo é o que permite responder à pergunta certa —
+       * "vale a pena recomeçar a conversa?".
+       */
+      cr: Number(u.cache_read_input_tokens || 0),
+      dups: antes ? antes.dups + 1 : 1,
+    });
+  }
+  for (const turno of porTurno.values()) {
     r.turnos++;
-    r.entradas += Number(u.input_tokens || 0);
-    r.saidas += Number(u.output_tokens || 0);
-    r.cache_criado += Number(u.cache_creation_input_tokens || 0);
-    /**
-     * ⚠️ O cache LIDO não entra no peso da quota (é 0,1× e a barra da app não o
-     * conta assim), mas é o número que explica a factura: 631 MILHÕES em 7 dias,
-     * 69,8% do custo. Guardá-lo é o que permite responder à pergunta certa —
-     * "vale a pena recomeçar a conversa?".
-     */
-    r.cache_lido += Number(u.cache_read_input_tokens || 0);
-    if (t > r.ultimo) r.ultimo = t;
-    const mod = msg.model || 'n/d';
-    const pm = r.por_modelo[mod] || (r.por_modelo[mod] = { entradas: 0, saidas: 0, turnos: 0 });
-    pm.entradas += Number(u.input_tokens || 0);
-    pm.saidas += Number(u.output_tokens || 0);
-    pm.turnos++;
+    r.entradas += turno.e; r.saidas += turno.s;
+    r.cache_criado += turno.c; r.cache_lido += turno.cr;
+    // guard #25941: output gravado como placeholder 1-2. Hoje NÃO reproduz
+    // (0 de 22 linhas ≤3) — mas no dia em que reproduzir, somá-lo cegava o produto.
+    if (turno.s <= 3) r.suspeitas++;
+    if (turno.t > r.ultimo) r.ultimo = turno.t;
+    const pm = r.por_modelo[turno.mod] || (r.por_modelo[turno.mod] = { entradas: 0, saidas: 0, turnos: 0 });
+    pm.entradas += turno.e; pm.saidas += turno.s; pm.turnos++;
     // guardado para se poder recortar a janela de 5h sem reler o ficheiro
-    r.linha.push({ t, mod, e: Number(u.input_tokens || 0), s: Number(u.output_tokens || 0),
-      c: Number(u.cache_creation_input_tokens || 0), cr: Number(u.cache_read_input_tokens || 0) });
+    r.linha.push(turno);
   }
   return r;
 }
@@ -150,10 +177,13 @@ function lerFicheiro(f, desdeMs) {
 /** Recorta uma janela mais curta a partir do que já foi lido, sem tocar no disco. */
 function filtrar(r, desdeMs) {
   if (!desdeMs) return r;
-  const out = { entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0, por_modelo: {}, ultimo: 0 };
+  const out = { entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0,
+    linhas_brutas: 0, suspeitas: 0, por_modelo: {}, ultimo: 0 };
   for (const t of (r.linha || [])) {
     if (t.t && t.t < desdeMs) continue;
     out.turnos++; out.entradas += t.e; out.saidas += t.s; out.cache_criado += t.c; out.cache_lido += (t.cr || 0);
+    out.linhas_brutas += (t.dups || 1);
+    if (t.s <= 3) out.suspeitas++;
     if (t.t > out.ultimo) out.ultimo = t.t;
     const pm = out.por_modelo[t.mod] || (out.por_modelo[t.mod] = { entradas: 0, saidas: 0, turnos: 0 });
     pm.entradas += t.e; pm.saidas += t.s; pm.turnos++;
@@ -217,20 +247,45 @@ function medir(opts) {
   }
 
   const acc = (nome, desde) => {
-    const a = { janela: nome, entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0, peso: 0, por_familia: {}, desde: new Date(desde).toISOString() };
+    const a = { janela: nome, entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0,
+      linhas_brutas: 0, suspeitas: 0, peso: 0, por_familia: {}, desde: new Date(desde).toISOString() };
     for (const { f } of fich) {
       // a janela curta é um subconjunto da longa: filtra-se por turno, sem reler
       const r = filtrar(lido.get(f).todos, desde);
       a.entradas += r.entradas; a.saidas += r.saidas; a.cache_criado += r.cache_criado;
       a.cache_lido += (r.cache_lido || 0); a.turnos += r.turnos;
+      a.linhas_brutas += (r.linhas_brutas || r.turnos); a.suspeitas += (r.suspeitas || 0);
       for (const [mod, pm] of Object.entries(r.por_modelo)) {
         const p = pesoDe(mod);
-        // o peso mede o consumo relativo de quota, não dólares
-        a.peso += (pm.saidas / 1000) * p.peso;
-        const fam = a.por_familia[p.familia] || (a.por_familia[p.familia] = { saidas: 0, turnos: 0 });
-        fam.saidas += pm.saidas; fam.turnos += pm.turnos;
+        const fam = a.por_familia[p.familia] || (a.por_familia[p.familia] = { entradas: 0, saidas: 0, turnos: 0, peso_x: p.peso });
+        fam.entradas += pm.entradas; fam.saidas += pm.saidas; fam.turnos += pm.turnos;
       }
     }
+    // Onda 0.1 — o factor de inflação é MEDIDO e viaja com o número
+    a.dedup = {
+      linhas_brutas: a.linhas_brutas, turnos_unicos: a.turnos,
+      factor: a.turnos ? Number((a.linhas_brutas / a.turnos).toFixed(2)) : null,
+      porque: 'li ' + a.linhas_brutas + ' linhas assistant, ' + a.turnos + ' turnos únicos por requestId — '
+        + 'linhas duplicadas por bloco de conteúdo não contam duas vezes',
+    };
+    /**
+     * ⚠️ GUARD #25941 (Onda 0.2) — `output_tokens` gravado como placeholder 1-2.
+     * Hoje não reproduz nesta máquina (0 de 22 linhas ≤3). Se >20% dos turnos
+     * vierem com output ≤3, as saídas passam a n/d e NUNCA se soma um placeholder
+     * — melhor um n/d honesto do que um peso três ordens de grandeza a menos.
+     */
+    const guard = a.turnos > 0 && (a.suspeitas / a.turnos) > 0.2;
+    if (guard) {
+      a.aviso_saidas = 'claude-code#25941: ' + a.suspeitas + ' de ' + a.turnos
+        + ' turnos têm output_tokens ≤3 (placeholder). saidas = n/d; o peso usa só as entradas.';
+      a.saidas = null;
+    }
+    // Onda 0.4 — as ENTRADAS contam no peso: uma sessão de input gigante com
+    // output curto já não lê "baixo". (Consumo relativo de quota, não dólares.)
+    for (const fam of Object.values(a.por_familia)) {
+      a.peso += ((fam.entradas + (guard ? 0 : fam.saidas)) / 1000) * fam.peso_x;
+    }
+    a.peso = Number(a.peso.toFixed(3));
     return a;
   };
 
@@ -271,8 +326,119 @@ function pressao(medida, referencia) {
     peso_5h: Number(medida.curta.peso.toFixed(1)),
     referencia: ref,
     porque: 'peso de ' + medida.longa.peso.toFixed(0) + ' na semana contra uma referência de ' + ref.peso_semana
-      + ' (Opus pesa 5×, Sonnet 1×, Haiku 0,25×). A referência é ajustável — não é um limite publicado.',
+      + ' (entradas+saídas por 1000 × família: Opus 5×, Sonnet 1×, Haiku 0,25×; turnos deduplicados por requestId).'
+      + ' A referência é ajustável — não é um limite publicado.',
     estimativa: true,
+  };
+}
+
+/**
+ * ── CODEX (Onda 0.5, 2026-07-26) ──────────────────────────────────────────
+ *
+ * O que estava escrito aqui era falso por preguiça: "a OpenAI só expõe a quota
+ * por comando interactivo". Medido hoje: 2 560 ficheiros em `~/.codex/sessions/
+ * ** /rollout-*.jsonl`, com contadores de tokens dentro (eventos `token_count`
+ * com `last_token_usage` por turno e `total_token_usage` cumulativo).
+ * O produto declarava indisponível uma coisa que está no disco.
+ *
+ * ⚠️ codex#27131 — estes caminhos NUNCA podem entrar nas ferramentas do agente:
+ * o Codex já se auto-ingeriu e explodiu o próprio contexto. Só ESTE módulo os lê,
+ * e só para somar números. (Veto correspondente em context.js.)
+ *
+ * Se o formato não for o que sabemos ler, a resposta é n/d com o porquê —
+ * nunca um número inventado a partir de bytes que não entendemos.
+ */
+const CACHE_CODEX = new Map();   // caminho -> { tamanho, mtime, r }
+
+function raizCodex() {
+  const cands = [process.env.MOOTER_CODEX_HOME, path.join(os.homedir(), '.codex', 'sessions')].filter(Boolean);
+  for (const c of cands) { try { if (fs.statSync(c).isDirectory()) return c; } catch { /* próximo */ } }
+  return null;
+}
+
+/** rollouts vivem em sessions/AAAA/MM/DD/rollout-*.jsonl — desce no máximo 4 níveis. */
+function ficheirosCodex(raiz, desdeMs, maxFich) {
+  const out = [];
+  const walk = (dir, prof) => {
+    if (prof > 4 || out.length >= (maxFich || 400)) return;
+    let ents;
+    try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(f, prof + 1); continue; }
+      if (!e.isFile() || !e.name.startsWith('rollout-') || !e.name.endsWith('.jsonl')) continue;
+      try {
+        const st = fs.statSync(f);
+        if (st.mtimeMs >= desdeMs) out.push({ f, mtime: st.mtimeMs, size: st.size });
+      } catch { /* */ }
+    }
+  };
+  walk(raiz, 0);
+  out.sort((a, b) => b.mtime - a.mtime);
+  return out.slice(0, maxFich || 400);
+}
+
+function lerRollout(f) {
+  // deltas por turno (last_token_usage) — somáveis por janela sem dupla contagem
+  const r = { linha: [], eventos: 0 };
+  let bruto;
+  try { bruto = fs.readFileSync(f, 'utf8'); } catch { return r; }
+  for (const linha of bruto.split('\n')) {
+    if (!linha || linha.indexOf('token') === -1) continue;   // barato antes do parse
+    let m;
+    try { m = JSON.parse(linha); } catch { continue; }
+    const p = (m && m.payload) || m;
+    const info = p && p.type === 'token_count' ? (p.info || p) : null;
+    const lu = info && info.last_token_usage;
+    if (!lu) continue;
+    r.eventos++;
+    r.linha.push({
+      t: Date.parse(m.timestamp || 0) || 0,
+      e: Number(lu.input_tokens || 0), s: Number(lu.output_tokens || 0),
+      cr: Number(lu.cached_input_tokens || lu.cache_read_input_tokens || 0),
+    });
+  }
+  return r;
+}
+
+/** Quanto é que ESTA máquina gastou de Codex nas duas janelas. Mesmo contrato: limite inferior. */
+function medirCodex(opts) {
+  const o = opts || {};
+  const agora = o.agora || Date.now();
+  const raiz = o.raiz_codex || raizCodex();
+  if (!raiz) return { disponivel: false, porque: 'não encontrei as sessões do Codex nesta máquina (~/.codex/sessions)' };
+  const desdeLonga = agora - JANELA_LONGA_D * 24 * 3600 * 1000;
+  const desdeCurta = agora - JANELA_CURTA_H * 3600 * 1000;
+  const fich = ficheirosCodex(raiz, desdeLonga, o.max_ficheiros);
+  if (!fich.length) return { disponivel: false, porque: 'sem rollouts do Codex na janela de ' + JANELA_LONGA_D + ' dias' };
+  let eventos = 0;
+  const janela = (desde) => ({ desde: new Date(desde).toISOString(), entradas: 0, saidas: 0, cache_lido: 0, turnos: 0 });
+  const curta = janela(desdeCurta); const longa = janela(desdeLonga);
+  for (const { f, mtime, size } of fich) {
+    const c = CACHE_CODEX.get(f);
+    let r;
+    if (c && c.tamanho === size && c.mtime === mtime) { r = c.r; }
+    else { r = lerRollout(f); CACHE_CODEX.set(f, { tamanho: size, mtime, r }); }
+    eventos += r.eventos;
+    for (const t of r.linha) {
+      for (const a of (t.t >= desdeCurta ? [curta, longa] : (t.t >= desdeLonga ? [longa] : []))) {
+        a.turnos++; a.entradas += t.e; a.saidas += t.s; a.cache_lido += t.cr;
+      }
+    }
+  }
+  if (CACHE_CODEX.size > 500) {
+    const vivos = new Set(fich.map((x) => x.f));
+    for (const k of CACHE_CODEX.keys()) if (!vivos.has(k)) CACHE_CODEX.delete(k);
+  }
+  if (!eventos) {
+    return { disponivel: false, porque: 'encontrei ' + fich.length + ' rollout(s) mas nenhum evento token_count que eu saiba ler — formato: n/d, não estimo' };
+  }
+  return {
+    disponivel: true,
+    fonte: 'rollouts locais do Codex (' + fich.length + ' ficheiro(s), ' + eventos + ' eventos token_count na janela de 7 dias)',
+    ressalva: 'LIMITE INFERIOR: só conta o que passou por esta máquina.',
+    curta, longa,
+    nota: '⚠️ codex#27131: estes caminhos são lidos SÓ para contar tokens — nunca entram no contexto de nenhum agente',
   };
 }
 
@@ -322,13 +488,13 @@ function estado(opts) {
     medida: m,
     pressao: p,
     calibragem: c,
-    // ❌ o Codex não tem via não-interactiva para a quota: `/usage` e `/status`
-    // só correm dentro de uma sessão. Dizemos n/d em vez de estimar.
     // ⚠️ a pergunta que a medição de hoje tornou a mais importante do produto:
     // vale a pena recomeçar a conversa? 69,8% do custo era releitura.
     arrastar: (() => { try { return require('./sessao.js').custoDeArrastar(m); } catch { return null; } })(),
-    codex: { disponivel: false, porque: 'a OpenAI só expõe a quota do Codex por comando interactivo (/usage, /status) — não há via programática' },
+    // Onda 0.5 — o Codex TEM leitura local (rollouts com token_count). O que
+    // aqui dizia "não há via programática" era falso: estava no disco.
+    codex: (() => { try { return medirCodex(opts); } catch (e) { return { disponivel: false, porque: 'erro a ler rollouts do Codex: ' + (e && e.message) }; } })(),
   };
 }
 
-module.exports = { estado, medir, pressao, calibrar, filtrar, CACHE, raizSessoes, pesoDe, JANELA_CURTA_H, JANELA_LONGA_D };
+module.exports = { estado, medir, medirCodex, pressao, calibrar, filtrar, CACHE, CACHE_CODEX, raizSessoes, raizCodex, pesoDe, JANELA_CURTA_H, JANELA_LONGA_D };

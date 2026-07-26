@@ -1652,6 +1652,9 @@ async function toolWork(args) {
     escolhaLocal = localfirst.cabeNoLocal({
       goal, tier, contextoChars: pre.chars, temModeloLocal: temLocal,
       escrita: a.write === true, vramLivreMb: vram,
+      // Onda 0.6 — a quota crítica agora tem efeito real: forcar_local era
+      // calculado em quota.js e NUNCA lido. Ou se usa, ou se apaga: usa-se.
+      forcar: !!(calibragem && calibragem.forcar_local),
     });
     if (escolhaLocal.local) {
       agent = 'moo';

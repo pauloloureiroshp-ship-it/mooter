@@ -31,7 +31,10 @@ const P = require('./paths.js');
 
 // extensões que fazem sentido dar a um modelo. Binários e lock files ficam fora.
 const TEXTO = /\.(js|mjs|cjs|ts|tsx|jsx|json|md|txt|py|rs|go|java|rb|php|sh|ps1|bat|yml|yaml|toml|ini|html|css|scss|sql|graphql|prisma|env\.example)$/i;
-const IGNORAR = /(node_modules|\.git[\/\\]|dist[\/\\]|build[\/\\]|coverage[\/\\]|package-lock\.json|yarn\.lock|pnpm-lock)/i;
+// ⚠️ codex#27131 — logs de sessão de agentes NUNCA entram no contexto de nenhum
+// agente: o Codex já se auto-ingeriu e explodiu o próprio contexto. A quota
+// (quota.js) lê esses caminhos SÓ para somar números; aqui são veto absoluto.
+const IGNORAR = /(node_modules|\.git[\/\\]|dist[\/\\]|build[\/\\]|coverage[\/\\]|package-lock\.json|yarn\.lock|pnpm-lock|\.codex[\/\\]sessions|\.claude[\/\\]projects)/i;
 
 /** Todos os caminhos que o texto cita e que parecem ficheiros. */
 function pathsCitados(texto) {

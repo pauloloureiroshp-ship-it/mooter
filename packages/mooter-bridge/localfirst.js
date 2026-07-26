@@ -52,7 +52,7 @@ const CONTEXTO_MAX_LOCAL_CHARS = 18000;
 /**
  * @returns {{local:boolean, porque:string, confianca:'alta'|'media'|'baixa'}}
  */
-function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramLivreMb }) {
+function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramLivreMb, forcar }) {
   const texto = String(goal || '');
 
   if (!temModeloLocal) {
@@ -76,6 +76,22 @@ function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramL
   }
   if (vramLivreMb != null && vramLivreMb < 1500) {
     return { local: false, porque: 'só há ' + Math.round(vramLivreMb) + ' MB de VRAM livre', confianca: 'alta' };
+  }
+
+  /**
+   * ── FORÇAR LOCAL (Onda 0.6, 2026-07-26) ─────────────────────────────────
+   * A quota crítica calculava `forcar_local` e ninguém o lia — código a fingir
+   * que decidia. Agora decide: com a quota no limite, o default "na dúvida,
+   * nuvem" inverte-se para "na dúvida, GPU ($0)".
+   * ⚠️ SÓ o default. Os vetos acima (escrita, git/deploy, contexto grande,
+   * VRAM) já correram e continuam a mandar — poupar nunca pode custar correcção.
+   */
+  if (forcar) {
+    return {
+      local: true,
+      porque: 'quota perto do limite: tudo o que a GPU consegue fazer vai para ela ($0); os vetos de risco continuam a valer',
+      confianca: 'media',
+    };
   }
 
   const bom = BOM_PARA_LOCAL.find((re) => re.test(texto));
