@@ -268,6 +268,18 @@ test('Q17 — Onda 0.5: o Codex LE-SE dos rollouts locais, com o mesmo contrato 
   assert.ok(/27131/.test(c.nota || ''), 'tem de declarar que estes caminhos nunca entram no contexto de agentes');
 });
 
+test('Q19 — Onda 0.3: a referencia e AJUSTAVEL de verdade (preferences.json), e declara a origem', () => {
+  const f = path.join(raizFresca(), 'preferences.json');
+  fs.writeFileSync(f, JSON.stringify({ statusline_line3: true, quota_referencia: { peso_semana: 12000 } }));
+  const r = q.lerReferencia(f);
+  assert.ok(r && r.peso_semana === 12000, 'nao leu a referencia calibrada pelo utilizador');
+  assert.ok(/utilizador/.test(r.origem), 'nao declara de onde veio a referencia');
+  // prefs sem quota_referencia (o caso real desta maquina hoje) -> null, defaults mandam
+  const f2 = path.join(raizFresca(), 'preferences.json');
+  fs.writeFileSync(f2, JSON.stringify({ statusline_line3: true }));
+  assert.strictEqual(q.lerReferencia(f2), null);
+});
+
 test('Q18 — Onda 0.6: forcar_local INVERTE o default mas nunca os vetos de risco', () => {
   const lf = require('./localfirst.js');
   // sem forcar, "na duvida, nuvem"

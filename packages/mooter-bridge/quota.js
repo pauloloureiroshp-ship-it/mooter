@@ -309,11 +309,34 @@ function medir(opts) {
  * pode corrigir, e o painel diz qual é. Um número inventado com ar de precisão
  * seria pior do que um número honesto com ar de estimativa.
  */
+/**
+ * Onda 0.3 — "a referência é ajustável" só é verdade se houver onde a ajustar.
+ * Lê `~/.mooter/preferences.json` → `quota_referencia: {peso_semana, peso_5h}`.
+ * Calibragem honesta: olhar a barra de /usage da app (X%), e pôr
+ * peso_semana = peso_medido / (X/100). Sem esse dado, ficam os defaults — que
+ * o painel declara como defaults, não como limite.
+ */
+function lerReferencia(ficheiro) {
+  try {
+    const f = ficheiro || path.join(os.homedir(), '.mooter', 'preferences.json');
+    const p = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const r = p && p.quota_referencia;
+    if (r && (Number(r.peso_semana) > 0 || Number(r.peso_5h) > 0)) {
+      const out = { origem: 'preferences.json (calibrada pelo utilizador)' };
+      if (Number(r.peso_semana) > 0) out.peso_semana = Number(r.peso_semana);
+      if (Number(r.peso_5h) > 0) out.peso_5h = Number(r.peso_5h);
+      return out;
+    }
+  } catch { /* sem prefs, sem drama */ }
+  return null;
+}
+
 function pressao(medida, referencia) {
   if (!medida || !medida.disponivel) {
     return { valor: null, nivel: 'desconhecido', porque: (medida && medida.porque) || 'sem dados locais' };
   }
-  const ref = Object.assign({ peso_semana: 4000, peso_5h: 400 }, referencia || {});
+  const ref = Object.assign({ peso_semana: 4000, peso_5h: 400, origem: 'default — não é um limite publicado' },
+    lerReferencia() || {}, referencia || {});
   const pl = medida.longa.peso / ref.peso_semana;
   const pc = medida.curta.peso / ref.peso_5h;
   const v = Math.max(0, Math.min(1, Math.max(pl, pc)));
@@ -497,4 +520,4 @@ function estado(opts) {
   };
 }
 
-module.exports = { estado, medir, medirCodex, pressao, calibrar, filtrar, CACHE, CACHE_CODEX, raizSessoes, raizCodex, pesoDe, JANELA_CURTA_H, JANELA_LONGA_D };
+module.exports = { estado, medir, medirCodex, pressao, calibrar, filtrar, lerReferencia, CACHE, CACHE_CODEX, raizSessoes, raizCodex, pesoDe, JANELA_CURTA_H, JANELA_LONGA_D };
