@@ -30,11 +30,24 @@
  *    devolve-o como um bloco pronto a colar. A conversa seguinte começa com o
  *    contexto todo em ~2 mil tokens em vez de arrastar 462 mil por turno.
  *
- * É o "compact e clear com segurança" que ele descreveu: a GPU regista tudo,
- * e a conversa nova nasce informada em vez de nascer amnésica.
+ * É o "compact e clear com segurança" que ele descreveu: a conversa nova nasce
+ * informada em vez de nascer amnésica.
  *
- * ⚠️ O estado é escrito pelo MODELO LOCAL, a $0. Nunca gasta subscrição para
- * poupar subscrição — isso seria um moinho a moer-se a si próprio.
+ * ── QUEM ESCREVE ISTO, DE FACTO ───────────────────────────────────────────
+ *
+ * ⚠️ Uma versão anterior deste cabeçalho dizia "o estado é escrito pelo MODELO
+ * LOCAL, a $0". Não é verdade, e num projecto cuja promessa é não fabricar,
+ * mentir sobre si próprio é a pior classe de bug. `registar()` grava os arrays
+ * que QUEM CHAMA lhe passa — e quem chama é o assistente da conversa. A GPU
+ * local não participa nesta função.
+ *
+ * O que é verdade: **guardar e devolver o estado custa $0** — é I/O de disco,
+ * sem inferência nenhuma. A poupança não vem de quem escreve o resumo; vem de
+ * a conversa seguinte nascer com 2 mil tokens em vez de arrastar 462 mil.
+ *
+ * ⚠️ E não há registo automático: nada regista sozinho ao fim de cada turno.
+ * Só existe estado se alguém chamar `mooter_setup({sessao:"registar"})`. Um
+ * `turnos_registados: 1` ao fim de um dia inteiro quer dizer exactamente isso.
  */
 
 const fs = require('fs');
@@ -76,8 +89,15 @@ function gravar(e) {
   } catch { return false; }
 }
 
-/** Acrescentar sem repetir e sem crescer para sempre. */
-function juntar(lista, novos, max) {
+/**
+ * Acrescentar sem repetir e sem crescer para sempre.
+ *
+ * ⚠️ O corte é REAL e tem de ser contado. O rodapé do `retomar` diz "o que não
+ * está acima não foi registado" — mas uma linha cortada aqui FOI registada e
+ * depois deitada fora. A diferença importa: "nunca soubeste" leva o utilizador
+ * a registar de novo; "sabias e perdeste" leva-o a procurar no ledger.
+ */
+function juntar(lista, novos, max, contador) {
   const out = Array.isArray(lista) ? lista.slice() : [];
   for (const n of (Array.isArray(novos) ? novos : [novos]).filter(Boolean)) {
     const t = String(n).trim().slice(0, 300);
@@ -86,8 +106,10 @@ function juntar(lista, novos, max) {
     if (out.some((x) => x.toLowerCase() === t.toLowerCase())) continue;
     out.push(t);
   }
+  const tecto = max || 25;
+  if (out.length > tecto && contador) contador.n += out.length - tecto;
   // fica o mais recente: um estado é uma fotografia do presente, não um diário
-  return out.slice(-(max || 25));
+  return out.slice(-tecto);
 }
 
 /**
@@ -99,11 +121,13 @@ function registar(a) {
   const e = ler(id) || vazio(id);
   if (a.projecto) e.projecto = String(a.projecto).slice(0, 120);
   if (a.objectivo) e.objectivo = String(a.objectivo).slice(0, 400);
-  e.feito = juntar(e.feito, a.feito, 30);
-  e.por_fazer = juntar(e.por_fazer, a.por_fazer, 20);
-  e.decisoes = juntar(e.decisoes, a.decisoes, 20);
-  e.bloqueios = juntar(e.bloqueios, a.bloqueios, 10);
-  e.ficheiros = juntar(e.ficheiros, a.ficheiros, 40);
+  const cortadas = { n: (e.linhas_cortadas || 0) };
+  e.feito = juntar(e.feito, a.feito, 30, cortadas);
+  e.por_fazer = juntar(e.por_fazer, a.por_fazer, 20, cortadas);
+  e.decisoes = juntar(e.decisoes, a.decisoes, 20, cortadas);
+  e.bloqueios = juntar(e.bloqueios, a.bloqueios, 10, cortadas);
+  e.ficheiros = juntar(e.ficheiros, a.ficheiros, 40, cortadas);
+  e.linhas_cortadas = cortadas.n;
   if (a.proximo) e.proximo = String(a.proximo).slice(0, 400);
   // uma coisa feita deixa de estar por fazer — senão a lista mente
   if (Array.isArray(a.feito) && a.feito.length) {
@@ -156,6 +180,15 @@ function retomar(id, opts) {
   if (e.proximo) { l.push('**E agora:** ' + e.proximo); l.push(''); }
   l.push('---');
   l.push('⚠️ Isto é um RESUMO, não a conversa. O que não está acima não foi registado — se precisares de um detalhe que falte, diz e eu procuro no ledger ou no repo.');
+  // ⚠️ um estado que cortou linhas e não o diz está a mentir por omissão:
+  // "nunca foi registado" e "foi registado e deitado fora" mandam o utilizador
+  // para sítios diferentes.
+  if (e.linhas_cortadas > 0) {
+    l.push('⚠️ ' + e.linhas_cortadas + ' linha(s) mais antigas foram registadas e depois cortadas pelo tecto de cada secção — existem no ledger, não aqui.');
+  }
+  if ((e.turnos_registados || 0) <= 1) {
+    l.push('ℹ️ Só ' + (e.turnos_registados || 0) + ' bloco registado: isto é uma fotografia de um momento, não o histórico da sessão. O registo não é automático.');
+  }
 
   const texto = l.join('\n');
   return {

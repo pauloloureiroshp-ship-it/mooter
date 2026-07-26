@@ -572,6 +572,252 @@ function pedeLeituraDeFicheiro(texto) {
   return { path: m ? m[1] : null, verbo: temVerbo };
 }
 
+/**
+ * ── A4 · dar olhos de EXECUÇÃO ao motor local ─────────────────────────────
+ *
+ * Irmão do A3. O A3 lê ficheiros pelo modelo; o A4 corre comandos por ele.
+ *
+ * Nasceu de um caso medido em 2026-07-26: foram pedidos ao `moo` cinco comandos
+ * git. O A3 não disparou — o texto não tinha nenhum path com extensão conhecida
+ * e "repositorio" não faz match de `\brepo\b`. Nada foi injectado, e o qwen3:30b
+ * devolveu uma tabela com `n/d` na coluna da evidência e PASS/FAIL na coluna do
+ * veredicto. Inventou a conclusão a partir de coisa nenhuma.
+ *
+ * Três invariantes. Cada um foi pago com um erro de uma tentativa anterior:
+ *
+ *  1. ALLOWLIST SÓ GIT, e só subcomandos que lêem. `npm test` e `node --test`
+ *     correm código do repositório: não são leitura, são execução arbitrária
+ *     despoletada por uma frase em português. Uma tentativa anterior punha-os
+ *     na lista, e bastava MENCIONAR "o npm test da wave anterior" para o
+ *     servidor executar o script `test` do package.json.
+ *
+ *  2. OS ARGUMENTOS DO UTILIZADOR SÃO SAGRADOS. Correr `git show` quando foi
+ *     pedido `git show --stat <sha>` é dar evidência errada com selo de
+ *     autenticidade — pior do que não dar nenhuma, porque agora tem carimbo.
+ *     Se um argumento não passa a validação, o comando INTEIRO é descartado e
+ *     dito em voz alta. Nunca uma versão mutilada a fingir que é a pedida.
+ *
+ *  3. O ESTADO DE EVIDÊNCIA VAI PARA `meta.json`. O guard de saída corre no
+ *     `collect`, muito depois de o objecto em memória ter desaparecido: se o
+ *     estado só existir na resposta do `work`, o guard lê `undefined` e degrada
+ *     tudo, sempre. Um aviso que dispara sempre é ruído, e ruído ensina a
+ *     ignorar avisos.
+ *
+ * A segurança real está em `shell:false` + binário fixo `git`: sem shell, um
+ * `;` dentro de um argumento é um byte, não um comando. As proibições abaixo
+ * são defesa em profundidade, não a defesa principal.
+ */
+const GIT_SUB_LEITURA = new Set([
+  'show', 'status', 'log', 'diff', 'ls-files', 'rev-parse',
+  'branch', 'merge-base', 'shortlog', 'describe', 'blame', 'cat-file',
+]);
+// flags que fazem o git executar OUTRO programa, escrever ficheiros, ou mudar de repo
+const FLAG_PROIBIDA = /^(-c|-C|--exec|--exec-path|--upload-pack|--receive-pack|--output|--ext-diff|--git-dir|--work-tree|--namespace|--config-env)(=|$)/i;
+// `git branch` também apaga, move e copia — as flags de escrita saem
+const FLAG_PROIBIDA_POR_SUB = {
+  branch: /^(-d|-D|-m|-M|-c|-C|-u|--delete|--move|--copy|--set-upstream(-to)?|--unset-upstream|--edit-description|--force)(=|$)/i,
+};
+const METACARACTER = /[;|&$`<>\r\n]/;
+/**
+ * Onde acabam os argumentos e começa a frase.
+ *
+ * "corre git rev-parse HEAD e depois git push" tem de dar `git rev-parse HEAD`,
+ * não `git rev-parse HEAD e depois git push origin main` — que é o que uma
+ * captura gulosa até ao fim da linha produz, e que o git recusa com
+ * "ambiguous argument 'e'". Um pedido em português não traz `;` a separar.
+ */
+const PALAVRA_DE_LIGACAO = new Set([
+  'e', 'ou', 'mas', 'depois', 'então', 'entao', 'também', 'tambem', 'ainda', 'já', 'ja',
+  'and', 'or', 'then', 'also', 'after', 'next',
+  'diz', 'diz-me', 'conta', 'mostra', 'mostra-me', 'verifica', 'valida', 'confirma',
+  'relata', 'cola', 'explica', 'compara', 'resume', 'no', 'na', 'nos', 'nas', 'para',
+  'quantos', 'quantas', 'qual', 'quais', 'se', 'que', 'com', 'sem', 'por', 'em',
+]);
+const A4_MAX_COMANDOS = 6;
+// ⚠️ 5s não chega: `git status` numa árvore com centenas de ficheiros por
+// rastrear leva mais do que isso, e um timeout aqui vira "sem evidência".
+const A4_TIMEOUT_MS = 15000;
+const A4_BYTES_POR_COMANDO = 24000;
+const A4_BYTES_TOTAL = 64000;
+
+/**
+ * Parte uma lista de argumentos preservando o que veio entre aspas.
+ *
+ * ⚠️ `--format="%H | %an"` é UM argumento, não três. Um tokenizador que parta
+ * só por espaços vê `--format="%H`, `|`, `%an"` — e o `|` solto faz o comando
+ * inteiro ser recusado por metacaracter. Foi assim que o caso real de 2026-07-26
+ * falhou no primeiro teste desta suite: o `git show --stat` era descartado e
+ * sobrava o segundo `git show`, com os argumentos errados.
+ */
+function tokenizarArgs(s) {
+  const out = [];
+  const re = /(?:[^\s"']+|"[^"]*"|'[^']*')+/g;
+  let m;
+  while ((m = re.exec(String(s || '')))) {
+    const bruto = m[0];
+    const aspado = /["']/.test(bruto);
+    out.push({ v: bruto.replace(/["']/g, ''), aspado, bruto });
+  }
+  return out;
+}
+
+/**
+ * Encontra os comandos git pedidos no texto, COM os argumentos que o utilizador
+ * escreveu. Devolve sempre a lista completa — os recusados vêm com o porquê,
+ * para que a recusa apareça no prompt em vez de desaparecer.
+ */
+function pedeExecucao(texto) {
+  const t = String(texto || '');
+  // cortar em separadores de frase e em enumerações "(1)" / "(2)", nunca no `|`
+  // — um `|` costuma vir dentro de um --format="%H | %an" e não separa nada
+  // ⚠️ partir POR `git` em vez de casar com uma regex gulosa: uma captura
+  // `git\s+([^\n;]+)` consome até ao fim da linha e o segundo `git` do texto
+  // nunca chega a ser visto — "git rev-parse HEAD e depois git push" dava um
+  // comando só, malformado, em vez de um bom e um recusado.
+  const segmentos = t.split(/\bgit\s+/i).slice(1);
+  const achados = [];
+  const vistos = new Set();
+  for (const seg of segmentos) {
+    if (achados.length >= A4_MAX_COMANDOS) break;
+    const linha = String(seg || '').split(/\n|;|\(\s*\d+\s*\)/)[0];
+    const toks = tokenizarArgs(linha);
+    if (!toks.length) continue;
+
+    // ⚠️ o subcomando é o PRIMEIRO token. Se vier uma flag antes dele
+    // (`git -c core.pager=id status`), isso é o git a ser instruído a executar
+    // outra coisa — recusa-se em voz alta, não se ignora em silêncio.
+    const cabeca = toks.shift();
+    if (cabeca.v.startsWith('-')) {
+      achados.push({ sub: null, args: [], nome: 'git ' + cabeca.v + ' …', recusado: 'argumento proibido antes do subcomando: ' + cabeca.v });
+      continue;
+    }
+    const sub = cabeca.v.toLowerCase();
+    if (!GIT_SUB_LEITURA.has(sub)) {
+      achados.push({ sub, args: [], nome: 'git ' + sub, recusado: 'subcomando fora da allowlist de leitura' });
+      continue;
+    }
+    const args = [];
+    let recusado = null;
+    for (const tk of toks) {
+      // a frase recomeça: os argumentos deste comando acabaram aqui
+      if (tk.v.toLowerCase() === 'git') break;
+      if (!tk.aspado && !tk.v.startsWith('-') && PALAVRA_DE_LIGACAO.has(tk.v.toLowerCase())) break;
+      if (FLAG_PROIBIDA.test(tk.v)) { recusado = 'argumento proibido: ' + tk.v; break; }
+      const porSub = FLAG_PROIBIDA_POR_SUB[sub];
+      if (porSub && porSub.test(tk.v)) { recusado = 'argumento que escreve: ' + tk.v; break; }
+      if (!tk.aspado && METACARACTER.test(tk.v)) { recusado = 'metacaracter em argumento não citado: ' + tk.v; break; }
+      if (tk.v.length > 200) { recusado = 'argumento demasiado longo'; break; }
+      args.push(tk.v);
+    }
+    const nome = ('git ' + sub + ' ' + args.join(' ')).trim();
+    // ⚠️ nunca correr uma versão mutilada do que foi pedido
+    if (recusado) { achados.push({ sub, args: [], nome: 'git ' + sub + ' …', recusado }); continue; }
+    if (vistos.has(nome)) continue;
+    vistos.add(nome);
+    achados.push({ sub, args, nome, recusado: null });
+  }
+  return achados.length ? achados : null;
+}
+
+/** Corre UM comando já validado. Nunca recebe nada do utilizador sem passar por pedeExecucao. */
+function correrGit(args, worktree, maxBytes) {
+  const { spawnSync } = require('child_process');
+  const r = spawnSync('git', args, {
+    cwd: worktree,
+    shell: false,                       // ⬅ a defesa principal
+    encoding: 'utf8',
+    timeout: A4_TIMEOUT_MS,
+    maxBuffer: Math.max(4096, maxBytes),
+    windowsHide: true,
+    // GIT_OPTIONAL_LOCKS=0 impede o `status` de refrescar (e travar) o index.
+    // Um conector de LEITURA que deixa um index.lock para trás não é de leitura.
+    env: Object.assign({}, process.env, { GIT_PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }),
+  });
+  if (r.error) return { erro: (r.error.code === 'ETIMEDOUT' ? 'excedeu ' + (A4_TIMEOUT_MS / 1000) + 's' : String(r.error.message || r.error)), saida: null };
+  if (r.status !== 0) return { erro: 'saiu ' + r.status + (r.stderr ? ': ' + String(r.stderr).trim().split('\n')[0].slice(0, 160) : ''), saida: null };
+  const out = String(r.stdout || '');
+  return { erro: null, saida: out.slice(0, maxBytes), truncado: out.length > maxBytes };
+}
+
+/** Corre os comandos pedidos e devolve o bloco a injectar no prompt. */
+function executarComandos(texto, worktree) {
+  const pedidos = pedeExecucao(texto);
+  if (!pedidos) return null;
+  const executados = [];
+  const recusados = [];
+  const partes = [];
+  let usado = 0;
+
+  for (const p of pedidos) {
+    if (p.recusado) { recusados.push({ comando: p.nome, porque: p.recusado }); continue; }
+    const resta = A4_BYTES_TOTAL - usado;
+    if (resta < 2000) { recusados.push({ comando: p.nome, porque: 'orçamento de bytes esgotado' }); continue; }
+    // ⚠️ o subcomando vai À CABEÇA dos argumentos. Sem ele, `git --abbrev-ref HEAD`
+    // é o git a ler uma opção global que não existe, e sai 129.
+    const r = correrGit([p.sub, ...p.args], worktree, Math.min(A4_BYTES_POR_COMANDO, resta));
+    if (r.erro) { recusados.push({ comando: p.nome, porque: r.erro }); continue; }
+    usado += r.saida.length;
+    executados.push(p.nome);
+    partes.push('$ ' + p.nome + '\n```\n' + (r.saida.trim() || '(saída vazia)')
+      + (r.truncado ? '\n… [truncado]' : '') + '\n```');
+  }
+
+  if (!partes.length) {
+    // nada correu: quem chama decide se avisa ou recusa — mas não inventamos um bloco
+    return { bloco: null, executados: [], recusados, chars: 0 };
+  }
+
+  const cab = [
+    '',
+    '---',
+    '## SAÍDAS REAIS, corridas pelo conector no teu lugar',
+    '',
+    'Não tens ferramentas para executar comandos. O conector correu-os por ti, nesta pasta,',
+    'e o que está abaixo é a saída literal — não é um resumo nem uma reconstrução.',
+    '',
+    '⚠️ REGRA QUE NÃO SE NEGOCEIA: uma conclusão só pode assentar numa saída que esteja aqui.',
+    'Se uma verificação não tem saída em baixo, escreve `n/d` na linha E `n/d` no veredicto.',
+    'Nunca PASS, nunca FAIL, nunca "seguro" ou "aprovado" sem a saída correspondente à vista.',
+    recusados.length
+      ? '\n❌ Não corri (e portanto NÃO tens evidência para isto): '
+        + recusados.map((r) => r.comando + ' — ' + r.porque).join(' · ')
+      : '',
+  ].filter((l) => l !== '').join('\n');
+
+  return { bloco: cab + '\n\n' + partes.join('\n\n') + '\n---\n', executados, recusados, chars: usado };
+}
+
+/**
+ * A4 · nível 2 do guard de saída. Mecânico: não pede nada ao modelo.
+ *
+ * Um veredicto é uma afirmação sobre o mundo. Se o motor não tinha ferramentas
+ * E o disco não regista evidência nenhuma, a afirmação não pode ter vindo de
+ * lado nenhum — e vai marcada. O contrário também importa: quando HÁ evidência,
+ * isto cala-se. Um aviso que dispara sempre é ruído, e ruído ensina a ignorar.
+ */
+const VEREDICTO_RE = /(\bPASS\b|\bFAIL\b|\baprovad[oa]\b|\breprovad[oa]\b|seguro para (?:o )?push|pode(?:s)? fazer push|est[áa] (?:tudo )?(?:ok|correcto|correto)\b)/i;
+
+function veredictoSemEvidencia(meta, body) {
+  if (!body || !meta) return { degradado: false };
+  if (!ENGINES_SEM_FICHEIROS.has(meta.agent)) return { degradado: false };
+  const ev = meta.evidencia || null;
+  const teveAlgo = !!(ev && ((ev.ficheiros_lidos || []).length || (ev.comandos_corridos || []).length));
+  if (teveAlgo) return { degradado: false };
+  if (!VEREDICTO_RE.test(String(body))) return { degradado: false };
+  const recusados = (ev && ev.comandos_recusados) || [];
+  const aviso = [
+    '> ⚠️ **VEREDICTO NÃO VERIFICADO** — o que está abaixo foi escrito por um motor local',
+    '> sem ferramentas, e o conector não lhe injectou ficheiro nem saída de comando nenhuma.',
+    recusados.length
+      ? '> Comandos que não correram: ' + recusados.map((r) => r.comando + ' (' + r.porque + ')').join(' · ')
+      : '> Nenhuma evidência foi recolhida para este job.',
+    '> Qualquer PASS, FAIL ou "seguro" no texto seguinte é especulação, não observação.',
+    '',
+    '',
+  ].join('\n');
+  return { degradado: true, texto: aviso + String(body) };
+}
+
 /** Ask the FROZEN classifier directly. Returns null if it is unavailable. */
 function classifyOrNull(text) {
   try {
@@ -664,6 +910,10 @@ async function toolDispatch(args) {
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: [cmd.bin, ...cmd.args].join(' '),
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
+    // ⚠️ A4 · invariante 3 — o guard de saída corre no `collect`, quando este
+    // objecto já morreu há muito. Se a evidência só existisse na resposta do
+    // `work`, o guard leria `undefined` e degradaria tudo, sempre.
+    evidencia: (args && args.evidencia) || null,
   }, null, 2));
 
   ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'dispatched', mp_hash, model, model_recommended, tier, step: stepId,
@@ -1003,9 +1253,23 @@ async function toolCollect(args) {
   }
   const already = evs.some((e) => e.event === 'collected');
   if (!already) ledgerAppend({ job_id: jobId, wave: meta.wave, agent: meta.agent, worktree: meta.worktree, event: 'collected', mp_hash: meta.mp_hash });
+
+  // ── A4 · guard de SAÍDA, mecânico ────────────────────────────────────────
+  // O nível 1 é a regra escrita no prompt. Esta é a rede por baixo: um modelo
+  // de 3B não obedece a uma instrução só porque ela está lá. Aqui não se pede
+  // nada ao modelo — lê-se o que ele escreveu e compara-se com a evidência que
+  // o disco diz que ele teve. Só corre para motores sem ferramentas: o `cc`
+  // corre os seus comandos e o veredicto dele assenta em algo.
+  const vered = veredictoSemEvidencia(meta, body);
+
   return {
     job_id: jobId, state: last, agent: meta.agent, wave: meta.wave,
-    result: body, session_id: session_id || null, cost_usd: cost_usd,
+    result: vered.degradado ? vered.texto : body,
+    session_id: session_id || null, cost_usd: cost_usd,
+    // ⚠️ A4 — `true` quer dizer: o motor não tinha ferramentas, o disco não
+    // regista evidência nenhuma, e mesmo assim a resposta traz um veredicto.
+    veredicto_sem_evidencia: vered.degradado || false,
+    evidencia: meta.evidencia || null,
     // ⚠️ v1.3.4 (E2) — as permissões que REALMENTE valeram.
     // Pedir `allowedTools:"Read"` e não ter forma de verificar se foi aplicado
     // é opacidade, não segurança. Agora o comando executado é auditável: dá para
@@ -1296,6 +1560,24 @@ async function toolWork(args) {
     }
   }
 
+  // ── A4 · correr os comandos pedidos, PELO motor local ────────────────────
+  // O A3 acima empresta-lhe os olhos para ficheiros. Este empresta-lhos para
+  // comandos. Só corre para motores sem ferramentas: o `cc` e o `codex` correm
+  // os seus próprios, e duplicá-los seria pagar duas vezes pela mesma verdade.
+  let execucaoInjectada = null;
+  if (ENGINES_SEM_FICHEIROS.has(agent)) {
+    const exe = executarComandos(goal + ' ' + (a.context || ''), worktree);
+    if (exe && exe.bloco) {
+      execucaoInjectada = exe;
+    } else if (exe && exe.recusados.length && !contextoInjectado && !avisoFabricacao) {
+      // pediram comandos, nenhum correu, e não há leitura a compensar:
+      // dizê-lo agora é melhor do que deixar o modelo preencher o vazio
+      avisoFabricacao = 'pediste comandos que eu não pude correr ('
+        + exe.recusados.map((r) => r.comando + ' — ' + r.porque).join(' · ')
+        + ') e o motor local não tem ferramentas — qualquer veredicto na resposta é especulação';
+    }
+  }
+
   let downgraded = null;
   if (agent === 'moo') {
     const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
@@ -1400,7 +1682,17 @@ async function toolWork(args) {
   // plano que o painel desenha como checklist. O produto a mentir sobre si mesmo.
   const stepId = 'S' + (((plan.readPlan(wave) || {}).steps || []).length + 1);
   // os olhos emprestados entram no prompt, antes do plano
-  const mpFinal = contextoInjectado ? (mp + '\n' + contextoInjectado.bloco) : mp;
+  const mpFinal = mp
+    + (contextoInjectado ? '\n' + contextoInjectado.bloco : '')
+    + (execucaoInjectada ? '\n' + execucaoInjectada.bloco : '');
+
+  // ⚠️ A4 · invariante 3 — a evidência viaja para o disco, não só para a resposta
+  const evidencia = {
+    ficheiros_lidos: contextoInjectado ? contextoInjectado.lidos.map((f) => f.path) : [],
+    comandos_corridos: execucaoInjectada ? execucaoInjectada.executados : [],
+    comandos_recusados: execucaoInjectada ? execucaoInjectada.recusados : [],
+    chars: (contextoInjectado ? contextoInjectado.chars : 0) + (execucaoInjectada ? execucaoInjectada.chars : 0),
+  };
 
   if (Array.isArray(a.steps) && a.steps.length) { try { plan.setPlan(wave, a.steps, goal); } catch { /* */ } }
   else { try { plan.addStep(wave, { id: stepId, title: goal, agent, state: 'a-correr' }, goal); } catch { /* */ } }
@@ -1473,7 +1765,7 @@ async function toolWork(args) {
     }
   }
 
-  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId, routed_by: routedBy });
+  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId, routed_by: routedBy, evidencia });
   if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
@@ -1483,7 +1775,8 @@ async function toolWork(args) {
       + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
       + (prepareSkipped ? ' · sem preparação local' : '')
       + (relocated ? ' · mudei para ' + require('path').basename(worktree) : '')
-      + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : ''),
+      + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : '')
+      + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
     ok: true, goal, wave,
     // ⚠️ A4 — dois campos que partilhavam nome e diziam coisas diferentes.
     // `tier` chegou a dizer T0 para um job Opus e T3 para um job local grátis.
@@ -1516,6 +1809,9 @@ async function toolWork(args) {
     ficheiros_lidos: contextoInjectado ? contextoInjectado.lidos.map((f) => f.path) : null,
     contexto_chars: contextoInjectado ? contextoInjectado.chars : null,
     contexto_truncado: contextoInjectado && contextoInjectado.truncados.length ? contextoInjectado.truncados : null,
+    // A4 — o que o conector correu PELO motor local, e o que recusou correr
+    comandos_corridos: execucaoInjectada && execucaoInjectada.executados.length ? execucaoInjectada.executados : null,
+    comandos_recusados: execucaoInjectada && execucaoInjectada.recusados.length ? execucaoInjectada.recusados : null,
     aviso_fabricacao: avisoFabricacao,   // A3: forçaste um motor que não lê
     downgraded,                          // porque não foi para onde o router queria
     prepare_skipped: prepareSkipped,     // ❌ silêncio nunca; n/d sempre
@@ -1661,5 +1957,7 @@ module.exports = {
   buildCommand, bootstrapPrompt, setJobSpawner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, jobResultText, pidAlive,
+  // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
+  pedeExecucao, executarComandos, veredictoSemEvidencia,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },
 };
