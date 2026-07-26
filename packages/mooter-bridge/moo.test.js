@@ -190,6 +190,109 @@ server.listen(0, '127.0.0.1', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   } catch (e) { bad('daemon inalcançável', e); }
 
+  /**
+   * ── ONDA 1 (2026-07-26) — o selector deixa de escolher o mais velho por 1 GB ──
+   * Roster REAL desta máquina, medido via /api/tags hoje. O caso que motivou
+   * tudo: qwen3:30b (18,5 GB, 2025) ganhava ao qwen3.6:27b (17,4 GB, Abr 2026).
+   */
+  const roster = http.createServer((req, res) => {
+    if (req.url === '/api/tags') {
+      res.setHeader('content-type', 'application/json');
+      return res.end(JSON.stringify({ models: [
+        { model: 'qwen3.6:35b-a3b', size: 25661243776 },
+        { model: 'qwen3:30b', size: 19864223744 },
+        { model: 'qwen3.6:27b', size: 18682238976 },
+        { model: 'qwen2.5-coder:14b', size: 9663676416 },
+        { model: 'gemma4:e4b', size: 10307921510 },
+        { model: 'qwen2.5-coder:7b', size: 5046586573 },
+        { model: 'qwen2.5:3b', size: 2159374499 },
+      ] }));
+    }
+    res.statusCode = 404; res.end('{}');
+  });
+  await new Promise((r) => roster.listen(0, '127.0.0.1', r));
+  const RHOST = '127.0.0.1:' + roster.address().port;
+
+  try {
+    // 23 GB de VRAM: o 35b (23,9 GB) não cabe. O 3.6:27b TEM de ganhar ao 3:30b.
+    const r = await moo.pickModelExplained(null, RHOST, null, { free_mb: 23028 });
+    assert.strictEqual(r.model, 'qwen3.6:27b', 'a geração de Abril 2026 perdeu para o modelo de 2025 por 1 GB: ' + r.model);
+    assert.ok(/geração 3\.6/.test(r.porque) && /ganhou a/.test(r.porque), 'a escolha tem de se explicar em linguagem de gente: ' + r.porque);
+    ok('ONDA 1.3: qwen3.6:27b ganha ao qwen3:30b (geração > 1 GB)');
+  } catch (e) { bad('geração ganha a tamanho', e); }
+
+  try {
+    // tarefa de código → o especialista ganha ao generalista maior
+    const r = await moo.pickModelExplained(null, RHOST, null, { free_mb: 23028, goal: 'corrige o bug na função parseTelemetry do ficheiro telemetry.js' });
+    assert.strictEqual(r.model, 'qwen2.5-coder:14b', 'tarefa de código devia ir para o *-coder: ' + r.model);
+    ok('ONDA 1.3: pedido de código vai para o qwen2.5-coder:14b');
+  } catch (e) { bad('código → coder', e); }
+
+  try {
+    // o residente de geração mais antiga NÃO bloqueia a troca (a inércia era o bug)
+    const r = await moo.pickModelExplained(null, RHOST, [{ model: 'qwen3:30b', size: 19864223744 }], { free_mb: 23028 });
+    assert.strictEqual(r.model, 'qwen3.6:27b', 'o residente de 2025 voltou a bloquear a geração nova: ' + r.model);
+    assert.strictEqual(r.trocou_residente, 'qwen3:30b');
+    ok('ONDA 1.3: residente qwen3:30b (2025) é trocado pelo qwen3.6:27b (2026)');
+  } catch (e) { bad('residente antigo não bloqueia', e); }
+
+  try {
+    // residente da MESMA geração e calibre fica — recarregar por nada é desperdício
+    const r = await moo.pickModelExplained(null, RHOST, [{ model: 'qwen3.6:27b', size: 18682238976 }], { free_mb: 23028 });
+    assert.strictEqual(r.model, 'qwen3.6:27b');
+    assert.ok(!r.trocou_residente, 'trocou um residente que já era a melhor escolha');
+    ok('ONDA 1.3: residente que é a melhor escolha fica quente');
+  } catch (e) { bad('residente óptimo fica (roster real)', e); }
+
+  try {
+    // ── ONDA 1.1/1.2: o payload leva num_ctx>=16384 e keep_alive — medido, não assumido
+    let visto = null;
+    const eco = http.createServer((req, res) => {
+      let b = ''; req.on('data', (d) => { b += d; });
+      req.on('end', () => {
+        visto = JSON.parse(b);
+        res.setHeader('content-type', 'application/x-ndjson');
+        res.end(JSON.stringify({ model: visto.model, done: true, done_reason: 'stop', message: { role: 'assistant', content: 'ok' }, prompt_eval_count: 1, eval_count: 1, eval_duration: 1e9 }) + '\n');
+      });
+    });
+    await new Promise((r) => eco.listen(0, '127.0.0.1', r));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-ctx-'));
+    const out = fs.createWriteStream(path.join(dir, 'out.log'));
+    const child = moo.runLocal({ hostStr: '127.0.0.1:' + eco.address().port, model: 'x', prompt: 'olá', outStream: out, errStream: new PassThrough() });
+    await new Promise((res) => child.on('close', res));
+    assert.ok(visto && visto.options && visto.options.num_ctx >= 16384,
+      'num_ctx não foi enviado ou é < 16384 — o Ollama volta ao default 4096: ' + JSON.stringify(visto && visto.options));
+    assert.ok(visto.keep_alive, 'sem keep_alive cada troca de modelo paga 18 GB de recarregamento');
+    assert.strictEqual(visto.options.temperature, 0.2);
+    eco.close(); fs.rmSync(dir, { recursive: true, force: true });
+    ok('ONDA 1.1: num_ctx=' + visto.options.num_ctx + ' e keep_alive=' + visto.keep_alive + ' vão no payload');
+  } catch (e) { bad('num_ctx/keep_alive no payload', e); }
+
+  try {
+    // ── ONDA 1.2: contexto que não cabe é DITO, com números — nunca em silêncio
+    let visto2 = null;
+    const eco2 = http.createServer((req, res) => {
+      let b = ''; req.on('data', (d) => { b += d; });
+      req.on('end', () => { visto2 = JSON.parse(b); res.end(JSON.stringify({ model: visto2.model, done: true, message: { content: 'ok' }, eval_count: 1, prompt_eval_count: 1, eval_duration: 1e9 }) + '\n'); });
+    });
+    await new Promise((r) => eco2.listen(0, '127.0.0.1', r));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-trunc-'));
+    const outPath = path.join(dir, 'out.log');
+    const out = fs.createWriteStream(outPath);
+    const gigante = 'x'.repeat(140000);   // ~40k tokens estimados > teto 32768
+    const child = moo.runLocal({ hostStr: '127.0.0.1:' + eco2.address().port, model: 'x', prompt: gigante, outStream: out, errStream: new PassThrough() });
+    await new Promise((res) => child.on('close', res));
+    await new Promise((r) => setTimeout(r, 60));
+    const evs = telemetry.parseLines(fs.readFileSync(outPath, 'utf8'));
+    const init = evs.find((e) => e.type === 'system');
+    assert.ok(init.contexto_truncado && init.contexto_truncado.tokens_estimados > init.contexto_truncado.num_ctx,
+      'o corte de contexto tem de ser declarado com números, não null');
+    eco2.close(); fs.rmSync(dir, { recursive: true, force: true });
+    ok('ONDA 1.2: truncagem declarada (' + init.contexto_truncado.tokens_estimados + ' tokens > num_ctx ' + init.contexto_truncado.num_ctx + ')');
+  } catch (e) { bad('truncagem declarada', e); }
+
+  roster.close();
+
   console.log('\n' + pass + ' testes moo' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
   server.close();
 });

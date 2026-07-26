@@ -475,7 +475,16 @@ schtasks /query /tn "FrugalRouterBacktest" /fo list
 | Serviço | Plano | Conta | Dashboard | Propósito |
 |---|---|---|---|---|
 | Anthropic API | Pay-as-go | paulo.loureiro.shp@gmail.com | console.anthropic.com | Haiku (T1) |
-| Ollama | Local | — | localhost:11434 | T0 (qwen3:30b) |
+| Ollama | Local | — | localhost:11434 | T0 (selector adequação×capacidade desde v1.12 — Onda 1) |
+
+### Ollama — afinação (Onda 1.5, 2026-07-26)
+
+- `OLLAMA_KV_CACHE_TYPE=q8_0` (env de utilizador Windows) — metade da memória de KV,
+  Δppl 0,002-0,05 (imperceptível). Exige flash attention: automático desde Ollama 0.30.0
+  (esta máquina: 0.32.3 ✅). **Só vale após reiniciar o serviço Ollama.**
+- `num_ctx` agora é enviado pelo bridge (mín. 16384, teto `MOOTER_NUM_CTX_MAX`, default 32768)
+  + `keep_alive` (`MOOTER_KEEP_ALIVE`, default 10m). Antes: default 4096 e truncagem silenciosa.
+- ❌ NVFP4/MXFP4 não é opção: exige Blackwell, a 4090 é Ada. Q4_K_M continua o alvo.
 | Sentry | Free? | — | sentry.io | Error tracking (MCP disponível) |
 
 ---

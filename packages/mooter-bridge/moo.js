@@ -124,7 +124,57 @@ function bytesDe(m) {
  * A decisão vem sempre com o `porque` — uma escolha que não se explica não se
  * pode auditar.
  */
-const MARGEM_RESIDENTE = 0.7;
+/**
+ * ── ONDA 1.3/1.6 (2026-07-26) — adequação × capacidade, não "o maior que cabe" ──
+ *
+ * O critério antigo ordenava por tamanho e levava o maior. Medido nesta máquina:
+ * escolhia o `qwen3:30b` (18,5 GB, geração 2025) e ignorava o `qwen3.6:27b`
+ * (17,4 GB, Abril 2026) por 1,1 GB. Uma geração à frente perdia para um giga.
+ *
+ * Critério novo, com os dados que o /api/tags REALMENTE tem (nome e tamanho —
+ * não inventamos benchmarks):
+ *   · geração dentro da família (qwen3.6 > qwen3 > qwen2.5) pesa mais do que 1 GB;
+ *   · tamanho continua a contar (log2 — dobrar o modelo vale +1, não +tudo);
+ *   · um modelo *-coder ganha bónus quando a tarefa é código, e perde um pouco
+ *     quando não é (é especialista, não generalista).
+ *
+ * ⚠️ A specialization-matrix.ts do router (Wave 58) NÃO é consumível daqui:
+ * é TypeScript com imports e células por MEDIR (o adaptive-learner é quem a
+ * preenche — Onda 3). Este selector usa só factos locais verificáveis; ligar a
+ * matriz medida ao tier local fica explicitamente para a Onda 3.
+ */
+const CODER_RE = /(coder|codegemma|codellama|starcoder|codeqwen|codestral)/i;
+const TAREFA_CODIGO_RE = /\b(c[oó]digo|code|diff|patch|refactor|refactoriza|bug|fun[cç][aã]o|classe|implementa|regex|sql|typescript|javascript|python|stack ?trace|\.jsx?|\.tsx?|\.py|\.rs|\.go)\b/i;
+
+function familiaVersao(nome) {
+  const m = String(nome || '').toLowerCase().match(/^([a-z][a-z-]*?)[-]?(\d+(?:\.\d+)?)/);
+  if (!m) return { familia: String(nome || '').toLowerCase().split(/[:\s]/)[0] || 'n/d', versao: null };
+  return { familia: m[1].replace(/-$/, ''), versao: Number(m[2]) };
+}
+
+/** Pontua candidatos que cabem. Devolve ordenado, cada um com a justificação. */
+function pontuar(cands, tarefaCodigo) {
+  const maxVer = {};
+  for (const c of cands) {
+    const fv = familiaVersao(c.model);
+    if (fv.versao != null) maxVer[fv.familia] = Math.max(maxVer[fv.familia] || 0, fv.versao);
+  }
+  return cands.map((c) => {
+    const fv = familiaVersao(c.model);
+    const gb = (bytesDe(c) || 0) / 1073741824;
+    const novidade = (fv.versao != null && maxVer[fv.familia]) ? fv.versao / maxVer[fv.familia] : 0.8;
+    const coder = CODER_RE.test(String(c.model));
+    let score = novidade * 3 + (gb > 0 ? Math.log2(gb) : 0);
+    const just = [];
+    just.push(fv.versao != null
+      ? ('geração ' + fv.versao + (novidade >= 1 ? ' — a mais recente da família ' + fv.familia : ' (há mais recente na família)'))
+      : 'geração n/d');
+    just.push(gb > 0 ? gb.toFixed(1) + ' GB' : 'tamanho n/d');
+    if (coder && tarefaCodigo) { score += 4; just.push('especializado em código, e a tarefa é código'); }
+    else if (coder) { score -= 1; just.push('especializado em código mas a tarefa não é'); }
+    return { model: c.model, bytes: bytesDe(c), score, novidade, just };
+  }).sort((a, b) => b.score - a.score);
+}
 
 async function pickModelExplained(explicit, hostStr, residentList, opts) {
   if (explicit) return { model: String(explicit), porque: 'pedido explicitamente por quem chamou' };
@@ -172,25 +222,35 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
 
   const comTamanho = gen.filter((m) => bytesDe(m) != null);
   const queCabem = comTamanho.filter((m) => cabe(bytesDe(m)));
-  queCabem.sort((a, b) => bytesDe(b) - bytesDe(a));
-  const melhor = queCabem[0] || null;
+  // Onda 1.3 — adequação × capacidade em vez de "o maior que cabe"
+  const tarefaCodigo = TAREFA_CODIGO_RE.test(String((opts && opts.goal) || ''));
+  const ranking = pontuar(queCabem, tarefaCodigo);
+  const melhor = ranking[0] || null;
+  const segundo = ranking[1] || null;
 
   if (residente) {
-    if (!melhor || residente.bytes == null || bytesDe(melhor) == null) {
+    const rankRes = ranking.find((r) => r.model === residente.model) || null;
+    if (!melhor || residente.bytes == null || !rankRes) {
       return { model: residente.model, porque: 'já carregado na GPU — arranca de imediato' };
     }
-    if (residente.model === melhor.model) {
-      return { model: residente.model, porque: 'já carregado na GPU e é o maior que cabe na VRAM livre' };
+    if (rankRes.model === melhor.model) {
+      return { model: melhor.model, porque: 'já carregado na GPU e é a melhor escolha: ' + melhor.just.join(', ') };
     }
-    if (residente.bytes >= bytesDe(melhor) * MARGEM_RESIDENTE) {
-      return { model: residente.model, porque: 'já carregado e do mesmo calibre do maior que cabe — não compensa recarregar' };
+    /**
+     * O residente só ganha se estiver no mesmo calibre E não for de geração
+     * mais antiga. Sem a segunda condição, o `qwen3:30b` residente (2025)
+     * bloqueava o `qwen3.6:27b` (Abr 2026) para sempre — a inércia a preservar
+     * exactamente o erro que o selector novo veio corrigir.
+     */
+    if (rankRes.score >= melhor.score * 0.9 && rankRes.novidade >= melhor.novidade - 0.05) {
+      return { model: rankRes.model, porque: 'já carregado e do mesmo calibre da melhor escolha — não compensa recarregar' };
     }
-    const x = (bytesDe(melhor) / residente.bytes).toFixed(1);
+    const eMaior = (melhor.bytes || 0) > (rankRes.bytes || 0);
     return {
       model: melhor.model,
-      porque: 'troquei o residente ' + residente.model + ' pelo ' + melhor.model + ', que é ' + x + '× maior e cabe nos '
-        + (freeMb != null ? Math.round(freeMb / 1024) + ' GB livres' : 'limites da GPU'),
-      trocou_residente: residente.model,
+      porque: 'troquei o residente ' + rankRes.model + ' pelo ' + melhor.model + ': ' + melhor.just.join(', ')
+        + (eMaior ? ' — maior e mais capaz' : ' — mais recente, e ainda liberta VRAM'),
+      trocou_residente: rankRes.model,
       custo: 'o arranque leva alguns segundos porque o modelo tem de ser carregado',
     };
   }
@@ -198,9 +258,9 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
   if (melhor) {
     return {
       model: melhor.model,
-      porque: jaCorrem
-        ? ('o maior que cabe na fatia da GPU que sobra (' + jaCorrem + ' job local já a correr)')
-        : 'o maior modelo instalado que cabe na VRAM livre',
+      porque: 'escolhi o ' + melhor.model + ': ' + melhor.just.join(', ')
+        + (segundo ? ' — ganhou ao ' + segundo.model : '')
+        + (jaCorrem ? ' (fatia de GPU repartida: ' + jaCorrem + ' job local já a correr)' : ''),
       locais_a_correr: jaCorrem || null,
     };
   }
@@ -234,14 +294,44 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
   const write = (obj) => { try { outStream.write(JSON.stringify(obj) + '\n'); } catch { /* */ } };
   const werr = (s) => { try { errStream.write(s + '\n'); } catch { /* */ } };
 
+  /**
+   * ── ONDA 1.1/1.2 (2026-07-26) — o contexto deixou de ser truncado em silêncio ──
+   *
+   * Medido hoje via /api/ps: `context_length: 4096` — o DEFAULT do Ollama,
+   * porque nunca enviámos `num_ctx`. O A3 lia ficheiros para dar olhos ao
+   * modelo e o Ollama cortava-os fora sem dizer nada. Todo o esforço de
+   * injecção alimentava uma janela que não o comportava.
+   *
+   * Agora: `num_ctx` calculado a partir do prompt real (mínimo 16384), com
+   * tecto configurável; se mesmo assim não couber, o corte é DITO — no stderr,
+   * no init e no result — com números, nunca `null`.
+   *
+   * `keep_alive` evita pagar 18 GB de recarregamento a cada troca de job.
+   * `num_batch`: n/d — sem medição própria não se afina às cegas.
+   */
+  const charsPrompt = String(prompt || '').length;
+  const tokensEstimados = Math.ceil(charsPrompt / 3.5);   // ESTIMATIVA, e diz-se
+  const tetoCtx = Math.max(16384, Number(process.env.MOOTER_NUM_CTX_MAX) || 32768);
+  const numCtx = Math.min(Math.max(16384, tokensEstimados + 2048), tetoCtx);
+  const keepAlive = process.env.MOOTER_KEEP_ALIVE || '10m';
+  const contextoTruncado = (tokensEstimados + 2048) > tetoCtx
+    ? { chars_prompt: charsPrompt, tokens_estimados: tokensEstimados, num_ctx: tetoCtx,
+        nota: 'estimativa ~3,5 chars/token; o que passar do num_ctx é cortado pelo Ollama' }
+    : null;
+  if (contextoTruncado) {
+    werr('⚠️ contexto de ~' + tokensEstimados + ' tokens excede num_ctx=' + tetoCtx + ' — o excedente será truncado pelo Ollama');
+  }
+
   // Mirror the cloud agents' first event so telemetry.js needs no special case.
-  write({ type: 'system', subtype: 'init', model, session_id: 'moo-' + t0.toString(36), local: true, host: hostStr });
+  write({ type: 'system', subtype: 'init', model, session_id: 'moo-' + t0.toString(36), local: true, host: hostStr,
+    num_ctx: numCtx, keep_alive: keepAlive, contexto_truncado: contextoTruncado });
 
   const payload = JSON.stringify({
     model,
     messages: [{ role: 'user', content: prompt }],
     stream: true,
-    options: Object.assign({ temperature: 0.2 }, options || {}),
+    keep_alive: keepAlive,
+    options: Object.assign({ temperature: 0.2, num_ctx: numCtx }, options || {}),
   });
 
   setImmediate(() => em.emit('spawn'));
@@ -349,6 +439,9 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
               write({
                 type: 'result', subtype: 'success', local: true, model,
                 result: text,
+                // Onda 1.2 — se houve corte, ele viaja até ao fim, com números
+                contexto_truncado: contextoTruncado,
+                num_ctx: numCtx,
                 // Zero API cost — measured, not unknown: Ollama bills nothing.
                 // NOT zero real cost: electricity and wear exist. We report what
                 // we can measure and name it precisely instead of saying "free".
@@ -398,4 +491,5 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
 module.exports = {
   MAX_RACIOCINIO,
   pickModelExplained,
+  familiaVersao, pontuar, TAREFA_CODIGO_RE, CODER_RE,
   bytesDe, runLocal, listModels, pickModel, hostPort, isGenerative, EMBED_RE };

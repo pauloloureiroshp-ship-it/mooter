@@ -939,7 +939,10 @@ async function toolDispatch(args) {
       let locaisVivos = 0;
       try { for (const [, r] of REGISTRY) if (r && r.agent === 'moo') locaisVivos++; } catch { /* */ }
       const escolha = await moo.pickModelExplained(model, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident,
-        { free_mb: freeMb, locais_a_correr: locaisVivos });
+        // Onda 1.3 — o objectivo REAL (não o boilerplate do masterprompt) informa
+        // a adequação: tarefa de código prefere um modelo *-coder
+        { free_mb: freeMb, locais_a_correr: locaisVivos,
+          goal: (String(masterprompt || '').match(/OBJECTIVO: (.+)/) || [])[1] || null });
       const chosen = escolha.model;
       if (!chosen) {
         ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'no-local-model' });
@@ -1644,7 +1647,7 @@ async function toolWork(args) {
       const res = await require('./fleet.js').probeOllama(700).catch(() => null);
       const g = await require('./gpu.js').gpuSnapshot(res ? res.length : null).catch(() => null);
       vram = g && g.headroom ? g.headroom.free_mb : null;
-      temLocal = !!(await moo.pickModel(null, host, res, { free_mb: vram }).catch(() => null));
+      temLocal = !!(await moo.pickModel(null, host, res, { free_mb: vram, goal }).catch(() => null));
     } catch { /* sem local, seguimos para a nuvem */ }
 
     // ler os ficheiros ANTES de decidir: é o tamanho do contexto que manda
@@ -1718,7 +1721,7 @@ async function toolWork(args) {
     const resident = await require('./fleet.js').probeOllama(700).catch(() => null);
     let free = null;
     try { const g = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null); free = g && g.headroom ? g.headroom.free_mb : null; } catch { /* */ }
-    const localModel = await moo.pickModel(null, host, resident, { free_mb: free }).catch(() => null);
+    const localModel = await moo.pickModel(null, host, resident, { free_mb: free, goal }).catch(() => null);
     if (!localModel) {
       prepareSkipped = (resident === null)
         ? 'Ollama não respondeu em ' + host + ' — sem preparação local'
