@@ -204,6 +204,16 @@ for (const t of SEIS) {
   if (i >= 0) base.TOOLS[i] = t; else base.TOOLS.push(t);
 }
 
+// ── v1.5 · a sonda do painel ──────────────────────────────────────────────
+// `visibility:['app']` — o modelo não a vê em `tools/list` (o filtro das seis
+// já a deixa de fora) e não a chama; o painel chama-a por `ui/call-tool` para
+// contar o que o host lhe permitiu fazer. É assim que sabemos se o Live Preview
+// é possível sem pedir a ninguém para descrever o ecrã.
+const probe = require('./probe.js');
+for (const t of [probe.TOOL, probe.TOOL_DESCOBRIR, probe.TOOL_UPDATE]) {
+  if (!base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
+}
+
 jlog('REGISTRY_OK', { tools: base.TOOLS.length, publicas: tools6.PUBLICAS.length });
 const RESOURCES = [fleet.UI_RESOURCE];
 
@@ -224,7 +234,22 @@ const RESOURCES = [fleet.UI_RESOURCE];
  * The panel is a PLACE, not a message. Only tools that legitimately open the
  * place carry it; the working loop stays silent and lets the panel breathe.
  */
-const ANCHOR_TOOLS = new Set(['mooter_fleet', 'mooter_work']);
+/**
+ * ⚠️ v1.5.1 — UM PAINEL, NÃO UM POR DESPACHO.
+ *
+ * O Paulo pediu "tudo num único bloco" e eu entreguei o contrário sem dar por
+ * isso: com `mooter_work` também a carregar o recurso de UI, cada despacho fazia
+ * o host montar OUTRA View. Na bateria de 2026-07-26 foram seis chamadas —
+ * seis painéis empilhados, todos a repolar, todos a competir pelo mesmo espaço.
+ * Foi metade do que ele viu como "flickering".
+ *
+ * A spec MCP Apps liga uma View ao RESULTADO de uma tool; não existe painel
+ * único no protocolo. Logo, a única forma de haver um só é haver uma só tool
+ * que o abre. `mooter_fleet` é o SÍTIO: abre-se uma vez e actualiza-se sozinho
+ * por polling. `mooter_work` passa a devolver só texto — e o painel que já está
+ * aberto mostra o job a aparecer.
+ */
+const ANCHOR_TOOLS = new Set(['mooter_fleet']);
 const LOOP_EXTRA = ['mooter_check', 'mooter_setup'];
 const LOOP_TOOLS = new Set(['mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_cancel', 'mooter_plan', 'mooter_journal', 'mooter_await', 'mooter_check', 'mooter_setup', 'mooter_worktrees']);
 for (const t of base.TOOLS) {
@@ -303,7 +328,27 @@ async function handle(msg) {
   if (method === 'resources/read') {
     const uri = params && params.uri;
     if (uri !== fleet.UI_URI) return { jsonrpc: '2.0', id, error: { code: -32602, message: 'unknown resource: ' + uri } };
-    return { jsonrpc: '2.0', id, result: { contents: [{ uri: fleet.UI_URI, mimeType: fleet.UI_MIME, text: fleet.readUiHtml() }] } };
+    /**
+     * ⚠️ v1.5 — O `_meta` VAI NO CONTEÚDO, e é por aqui que a CSP viaja.
+     *
+     * Até aqui só `resources/list` levava `_meta.ui`. O host lê a política de
+     * segurança do painel na LEITURA do recurso, não na listagem — por isso as
+     * `frameDomains` que declaramos em `UI_RESOURCE` chegavam a lado nenhum, e
+     * o Live Preview teria falhado com o host a parecer culpado.
+     *
+     * Apanhado por um teste de fumo ao bundle, não em produção. É o objectivo.
+     */
+    return {
+      jsonrpc: '2.0', id,
+      result: {
+        contents: [{
+          uri: fleet.UI_URI,
+          mimeType: fleet.UI_MIME,
+          text: fleet.readUiHtml(),
+          _meta: fleet.UI_RESOURCE._meta,
+        }],
+      },
+    };
   }
 
   // ── v1.2 · the panel repaints at every step of the loop ───────────────────

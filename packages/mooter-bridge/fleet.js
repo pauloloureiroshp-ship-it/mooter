@@ -29,6 +29,9 @@ const plan = require('./plan.js');
 const journal = require('./journal.js');
 const gpuMod = require('./gpu.js');
 const P = require('./paths.js');
+const arvore = require('./arvore.js');
+const probe = require('./probe.js');
+const quota = require('./quota.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -268,16 +271,45 @@ function readSessionContext() {
  */
 async function toolSessionBind(args) {
   const a = args || {};
+  /**
+   * ⚠️ HERDAR NÃO É DECLARAR.
+   *
+   * A v1.5 passou a preservar o contexto anterior para que declarar só o
+   * `session_model` não apagasse o projecto. Efeito colateral apanhado pelo
+   * gate: uma chamada VAZIA passava a "ter" projecto — herdado — e o guard
+   * deixava-a passar. Uma chamada vazia voltava a carimbar `bound_at` e a
+   * dizer que estava tudo bem, sem ninguém ter declarado nada.
+   *
+   * O guard olha para o que ESTA chamada trouxe. A herança vem depois.
+   */
+  if (!a.project && !a.folder && !a.session_model) {
+    return { error: 'nada para ligar — dá pelo menos project, folder ou session_model' };
+  }
+  const antes = readSessionContext() || {};
   const ctx = {
     bound_at: new Date().toISOString(),
-    session_id: a.sessionId ? String(a.sessionId) : null,
-    project: a.project ? String(a.project) : null,
-    folder: a.folder ? String(a.folder) : null,
-    folder_name: a.folder ? leaf(a.folder) : null,
-    files: Array.isArray(a.files) ? a.files.slice(0, 40).map(String) : [],
-    note: a.note ? String(a.note).slice(0, 200) : null,
+    session_id: a.sessionId ? String(a.sessionId) : (antes.session_id || null),
+    project: a.project ? String(a.project) : (antes.project || null),
+    folder: a.folder ? String(a.folder) : (antes.folder || null),
+    folder_name: a.folder ? leaf(a.folder) : (antes.folder_name || null),
+    files: Array.isArray(a.files) ? a.files.slice(0, 40).map(String) : (antes.files || []),
+    note: a.note ? String(a.note).slice(0, 200) : (antes.note || null),
+    /**
+     * ⚠️ v1.5 — QUEM CONDUZ A CONVERSA.
+     *
+     * O MCP não expõe o modelo do host: `clientInfo` traz o nome e a versão da
+     * aplicação, e mais nada. Inferi-lo pela pasta ou pela hora seria repetir o
+     * erro de 2026-07-25, em que um job foi etiquetado com o modelo de uma
+     * sessão 18 horas mais velha só por partilharem a pasta.
+     *
+     * Por isso é DECLARADO por quem chama, e a declaração fica com carimbo de
+     * quando foi feita. Se ninguém declarar, o painel escreve n/d e diz porquê.
+     */
+    session_model: a.session_model ? String(a.session_model).slice(0, 80) : (antes.session_model || null),
+    session_model_em: a.session_model ? new Date().toISOString() : (antes.session_model_em || null),
+    session_model_fonte: a.session_model ? 'declarado por quem chama' : (antes.session_model_fonte || null),
   };
-  if (!ctx.project && !ctx.folder) return { error: 'project or folder is required' };
+
   try {
     fs.mkdirSync(MOOTER_DIR, { recursive: true });
     fs.writeFileSync(SESSION_FILE, JSON.stringify(ctx, null, 2), 'utf8');
@@ -563,6 +595,60 @@ async function toolFleet(args, deps) {
     handoffs,                    // proven chains: who prepared for whom
     coherence,                   // the panel auditing itself
     active_wave: activeWave,     // the wave being worked right now
+    // ── v1.5 · A CABINE ────────────────────────────────────────────────────
+    // A lista plana responde "o que corre". A árvore responde à pergunta de
+    // quem paga: quanto do meu trabalho foi feito de graça, e por quem.
+    arvore: arvore.construir(jobs, plans),
+    // quem conduz ESTA conversa. O MCP não expõe o modelo do host — por isso é
+    // DECLARADO por quem chama, e fica `null` se ninguém o declarar.
+    // ❌ Nunca inferido: um palpite aqui contamina tudo o que está por baixo.
+    sessao: (() => {
+      const m = context && context.session_model ? String(context.session_model) : null;
+      return {
+        modelo: m,
+        fonte: m ? (context.session_model_fonte || 'declarado por quem chama') : null,
+        nota: m ? null : 'o MCP não expõe o modelo do host — declara-o com mooter_setup({session_model}) ou fica n/d',
+      };
+    })(),
+    live_preview: probe.estado(),   // o host deixa embeber um localhost? medido, não assumido
+    /**
+     * ⚠️ O MEDIDOR DE COMBUSTÍVEL — e a razão de ele existir.
+     *
+     * "approaching weekly limit" apareceu na caixa de texto do Paulo enquanto
+     * trabalhávamos. Não há API de quota em lado nenhum; o que há são os
+     * ficheiros de sessão que o próprio `/usage` do Claude Code lê. Lemos os
+     * mesmos, e a leitura viaja sempre com a ressalva de que é um LIMITE
+     * INFERIOR — o contador do servidor conta também o claude.ai e outras
+     * máquinas, e está sempre à frente deste.
+     */
+    combustivel: (() => { try { return quota.estado({}); } catch { return null; } })(),
+    /**
+     * ⚠️ O utilizador não pode ser o último a saber que há versão nova.
+     * Até aqui, só descobria se alguém lho dissesse — e um vibe coder podia
+     * ficar meses numa build com bugs já corrigidos.
+     */
+    /**
+     * ⚠️ 37,9 KB DE 2 EM 2 SEGUNDOS. Medido no registo do servidor.
+     *
+     * O painel repolla continuamente e esta resposta levava a lista COMPLETA de
+     * todos os bundles alguma vez construídos — 22 entradas com caminho, bytes e
+     * contagem de ficheiros. Ninguém olha para isso, e passava pelo mesmo tubo
+     * stdio por onde os jobs são despachados.
+     *
+     * O painel só precisa de saber: que versão corre, e se há uma mais nova.
+     */
+    versao: (() => {
+      try {
+        const r = require('./update.js').procurar({});
+        return { versao_instalada: r.versao_instalada, nova: r.nova, resumo: r.resumo };
+      } catch { return null; }
+    })(),
+    // ⚠️ a porta que funcionou da última vez. O painel arranca já com ela em vez
+    // de exigir que o utilizador saiba a porta do próprio dev server.
+    preview_ultima: (() => {
+      try { return require('./preview.js').lembrar ? JSON.parse(require('fs').readFileSync(require('./preview.js').MEM, 'utf8')) : null; }
+      catch { return null; }
+    })(),
     gpu,                         // which card, how hard it is working
     vault: (() => { try { return journal.vaultStatus(); } catch { return null; } })(),
     local,                       // null = Ollama unreachable (n/d), [] = up with nothing loaded
@@ -635,6 +721,28 @@ function formatFleetText(d) {
   return L.join('\n');
 }
 
+/**
+ * As origens locais que o painel pode tocar. Portas típicas de dev server —
+ * Vite, Next, CRA, Astro, e a porta do Live Preview do plugin do VS Code.
+ * ❌ Nunca um domínio externo: ver a nota em UI_RESOURCE._meta.ui.csp.
+ */
+/**
+ * ⚠️ 11434 SAIU DAQUI. Auditoria do Codex, 2026-07-26:
+ *
+ * `frameDomains` autoriza DOCUMENTOS dentro de iframes. A 11434 é a API REST do
+ * Ollama — não serve documentos, e o painel nunca lhe fala directamente (quem
+ * fala é o servidor, em Node). Tê-la na lista era uma porta aberta sem nenhuma
+ * porta do outro lado: risco sem benefício.
+ *
+ * `connectDomains` fica igualmente vazio, e pela mesma razão: nada no painel
+ * faz fetch. Se um dia fizer, entra aqui uma origem de cada vez, com motivo.
+ */
+const LOCAL_PORTS = [3000, 3001, 4000, 4173, 5000, 5173, 5174, 8000, 8080, 8081, 8788, 9000, 39215];
+const LOCAL_ORIGINS = [];
+for (const h of ['http://localhost', 'http://127.0.0.1']) {
+  for (const p of LOCAL_PORTS) LOCAL_ORIGINS.push(h + ':' + p);
+}
+
 function readUiHtml() {
   try { return fs.readFileSync(UI_FILE, 'utf8'); }
   catch { return '<p style="font:14px system-ui">fleet-ui.html missing next to fleet.js</p>'; }
@@ -647,8 +755,26 @@ const UI_RESOURCE = {
   mimeType: UI_MIME,
   _meta: {
     ui: {
-      // the panel is fully self-contained: no external script, style, font or fetch.
-      csp: { resourceDomains: [], connectDomains: [] },
+      /**
+       * ⚠️ v1.5 — o painel continua a NÃO carregar script, estilo ou fonte de
+       * fora. O que passa a declarar é o mínimo para o Live Preview:
+       *
+       *   frameDomains   → embeber o teu servidor de preview local num iframe
+       *   connectDomains → perguntar-lhe se está vivo antes de o embeber
+       *
+       * Só `localhost`/`127.0.0.1`. Nenhum domínio da internet, em lado nenhum:
+       * um painel que pudesse falar para fora seria um canal de exfiltração com
+       * vista para o teu código.
+       *
+       * A spec (SEP-1865, Final na revisão 2026-07-28) permite isto. Se ESTE
+       * host o implementa é outra pergunta — e é a `mooter_ui_probe` que a
+       * responde, com medição, em vez de nós assumirmos.
+       */
+      csp: {
+        resourceDomains: [],
+        connectDomains: [],          // o painel não faz fetch nenhum
+        frameDomains: LOCAL_ORIGINS, // só documentos de servidores de preview locais
+      },
       prefersBorder: false,
     },
   },
@@ -686,6 +812,7 @@ const TOOLS = [
         files: { type: 'array', items: { type: 'string' }, description: 'Files currently being worked on (max 40).' },
         sessionId: { type: 'string', description: 'Cowork session id, when known.' },
         note: { type: 'string', description: 'One line on what this session is doing.' },
+        session_model: { type: 'string', description: 'O modelo que conduz esta conversa (ex.: claude-opus-5). O MCP não o expõe — declara-o ou o painel diz n/d.' },
       },
       additionalProperties: false,
     },
@@ -695,7 +822,7 @@ const TOOLS = [
 ];
 
 module.exports = {
-  TOOLS, UI_RESOURCE, UI_URI, UI_MIME,
+  TOOLS, UI_RESOURCE, UI_URI, UI_MIME, LOCAL_ORIGINS, LOCAL_PORTS,
   toolFleet, toolSessionBind, readUiHtml, formatFleetText,
   foldJobs, elapsedSeconds, attachModels, groupByWave, probeOllama, readSessionContext,
   LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull, sessionsFast, SESSIONS_BUDGET_MS,

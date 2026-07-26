@@ -199,6 +199,16 @@ function build(seam, fleet, base) {
           folder: { type: 'string' },
           files: { type: 'array', items: { type: 'string' } },
           note: { type: 'string' },
+          sessao: { type: 'string', enum: ['registar', 'retomar', 'listar', 'esquecer'], description: 'O cérebro da sessão, mantido em disco a $0. "registar" guarda o que foi feito neste bloco; "retomar" devolve o bloco para colar numa conversa nova.' },
+          feito: { type: 'array', items: { type: 'string' }, description: 'O que ficou concluído neste bloco.' },
+          por_fazer: { type: 'array', items: { type: 'string' }, description: 'O que ficou explicitamente por fazer.' },
+          decisoes: { type: 'array', items: { type: 'string' }, description: 'Escolhas com consequência, e o porquê.' },
+          bloqueios: { type: 'array', items: { type: 'string' }, description: 'O que depende do utilizador.' },
+          ficheiros_tocados: { type: 'array', items: { type: 'string' } },
+          proximo: { type: 'string', description: 'A resposta ao "e agora?".' },
+          objectivo: { type: 'string' },
+          atualizar: { type: 'string', enum: ['ver', 'aplicar', 'reverter'], description: 'Versão do conector: "ver" procura uma mais recente, "aplicar" instala-a, "reverter" volta atrás. Depois de aplicar é SEMPRE preciso fechar e reabrir o Claude Desktop.' },
+          session_model: { type: 'string', description: 'O modelo que está a conduzir ESTA conversa (ex.: claude-opus-5). O MCP não o expõe ao servidor — declara-o aqui, senão o painel mostra n/d em vez de adivinhar.' },
           wave: { type: 'string', description: 'Para mexer no plano desta wave.' },
           steps: { type: 'array', items: {}, description: 'Definir as etapas da wave.' },
           step: { type: 'string', description: 'Actualizar uma etapa.' },
@@ -211,6 +221,58 @@ function build(seam, fleet, base) {
       annotations: { title: 'Estado da sessão e do plano', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       handler: async (args) => {
         const a = args || {};
+        /**
+         * ⚠️ v1.8.2 — O BOTÃO QUE NINGUÉM CONSEGUIA CARREGAR.
+         *
+         * A v1.8 pôs a actualização numa tool `visibility:['app']`, escondida do
+         * `tools/list`. A intenção era boa (o modelo não deve substituir os
+         * ficheiros do servidor por iniciativa própria a partir de texto que
+         * leu). O efeito foi outro: o painel não lhe chegou E o modelo também
+         * não — o registo do servidor mostrou ZERO chamadas ao actualizador
+         * depois de o utilizador carregar no botão.
+         *
+         * A protecção certa não é tornar a coisa inalcançável; é exigir que
+         * alguém a peça. Aqui vive numa tool pública, com um verbo explícito, e
+         * a skill diz para nunca a disparar sem pedido.
+         */
+        if (a.sessao) {
+          const s = require('./sessao.js');
+          if (a.sessao === 'retomar') {
+            const r = s.retomar(a.id, {});
+            return comResumo(r, r.ok ? ('🐮 estado da sessão em ~' + r.tokens_aprox + ' tokens (em vez de arrastar a conversa toda)') : '⚠ ' + r.porque);
+          }
+          if (a.sessao === 'listar') return comResumo({ sessoes: s.listar() }, '🐮 sessões guardadas');
+          if (a.sessao === 'esquecer') return comResumo(s.esquecer(a.id), '🐮 estado largado');
+          const r = s.registar({
+            id: a.id, projecto: a.project, objectivo: a.objectivo,
+            feito: a.feito, por_fazer: a.por_fazer, decisoes: a.decisoes,
+            bloqueios: a.bloqueios, ficheiros: a.ficheiros_tocados, proximo: a.proximo,
+          });
+          return comResumo({
+            ok: r.ok, feito: r.estado.feito.length, por_fazer: r.estado.por_fazer.length,
+            turnos_registados: r.estado.turnos_registados,
+          }, '🐮 registado · ' + r.estado.feito.length + ' feito(s), ' + r.estado.por_fazer.length + ' por fazer');
+        }
+        if (a.atualizar) {
+          const up = require('./update.js');
+          if (a.atualizar === 'aplicar') {
+            const r = up.aplicar({});
+            return comResumo(r, r.ok ? ('🐮 ' + r.de + ' → ' + r.para) : '⚠ ' + (r.erro || 'não actualizei'));
+          }
+          if (a.atualizar === 'reverter') {
+            const r = up.reverter();
+            return comResumo(r, r.ok ? '🐮 revertido' : '⚠ ' + (r.erro || 'não revertí'));
+          }
+          const r = up.procurar({});
+          // ⚠️ a lista inteira de bundles antigos não interessa a ninguém e
+          // enchia a resposta: fica o que há de novo e as 3 mais recentes.
+          return comResumo({
+            versao_instalada: r.versao_instalada,
+            nova: r.nova,
+            recentes: (r.encontrados || []).slice(0, 3),
+            procurei_em: r.procurei_em,
+          }, '🐮 ' + r.resumo);
+        }
         if (a.wave && (a.steps || a.step)) {
           const r = await seam.toolPlan({
             wave: a.wave, action: a.steps ? 'set' : 'update', steps: a.steps,
@@ -218,15 +280,19 @@ function build(seam, fleet, base) {
           });
           return comResumo(r, '🐮 plano actualizado');
         }
-        if (a.project || a.folder) {
+        if (a.project || a.folder || a.session_model) {
           const r = await fleet.toolSessionBind(a);
-          return comResumo(r, '🐮 sessão ligada a ' + (a.project || a.folder));
+          return comResumo(r, '🐮 sessão: ' + [a.project || a.folder, a.session_model && ('conduzida por ' + a.session_model)].filter(Boolean).join(' · '));
         }
         const ctx = fleet.readSessionContext();
         return {
-          resumo: ctx ? ('🐮 ' + [ctx.project, ctx.folder_name].filter(Boolean).join(' · ')) : '🐮 sessão ainda não configurada',
+          resumo: ctx ? ('🐮 ' + [ctx.project, ctx.folder_name, ctx.session_model].filter(Boolean).join(' · ')) : '🐮 sessão ainda não configurada',
           contexto: ctx,
-          faz_assim: ctx ? null : ['mooter_setup({project:"…", folder:"C:\\\\…"})'],
+          // o painel só pode mostrar "quem conduz" se alguém lho disser
+          falta_declarar: ctx && !ctx.session_model
+            ? 'o modelo desta conversa — mooter_setup({session_model:"…"}). Sem isso o painel escreve n/d, que é a verdade.'
+            : null,
+          faz_assim: ctx ? null : ['mooter_setup({project:"…", folder:"C:\\\\…", session_model:"…"})'],
         };
       },
     },

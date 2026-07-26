@@ -120,6 +120,22 @@ test('mooter_session_bind refuses an empty binding', async () => {
   assert.ok(r.error, 'binding nothing would silently mislabel every later snapshot');
 });
 
+// ⚠️ v1.5 — o gate no Windows apanhou isto: ao preservar o contexto anterior,
+// uma chamada vazia passava a "ter" projecto por herança e o guard deixava-a
+// passar, re-carimbando `bound_at` sem ninguém ter declarado nada.
+test('herdar não é declarar — o guard olha para ESTA chamada, não para o passado', async () => {
+  const ok = await fleet.toolSessionBind({ project: 'P', folder: '/tmp' });
+  assert.ok(ok.ok, ok.error);
+  const vazia = await fleet.toolSessionBind({});
+  assert.ok(vazia.error, 'a chamada vazia passou por herdar o que já lá estava');
+  // e declarar SÓ o modelo não pode apagar o projecto que já existia
+  const so = await fleet.toolSessionBind({ session_model: 'claude-opus-5' });
+  assert.ok(so.ok, so.error);
+  assert.strictEqual(so.context.project, 'P', 'declarar o modelo apagou o projecto');
+  assert.strictEqual(so.context.session_model, 'claude-opus-5');
+  assert.ok(so.context.session_model_em, 'a declaração tem de ficar com carimbo de quando foi feita');
+});
+
 test('toolFleet reports local_available false instead of pretending zero models', async () => {
   const out = await fleet.toolFleet({}, { sessionsList: async () => ({ sessions: [] }) });
   assert.strictEqual(out.local, null);
@@ -157,7 +173,19 @@ test('both tools are exported and mooter_fleet declares its UI', () => {
 test('the panel html is self-contained and speaks the app protocol', () => {
   const html = fleet.readUiHtml();
   assert.ok(html.length > 1000);
-  assert.ok(!/https?:\/\//.test(html), 'panel must not reference any external URL');
+  /**
+   * ⚠️ CONTRACT CHANGE na v1.5 — a regra ficou MAIS apertada, não menos.
+   *
+   * Antes: "nenhum URL, ponto final". Agora o painel embebe o teu servidor de
+   * preview local, por isso `localhost` é legítimo — e tudo o resto passa a ser
+   * proibido explicitamente, com o teste a dizer qual foi o intruso. Um painel
+   * que mostra o teu código e envia prompts em teu nome não pode ganhar a
+   * capacidade de falar para a internet por distracção de quem edita o HTML.
+   */
+  const urls = html.match(/https?:\/\/[^\s"'`<>)]+/g) || [];
+  const forasteiros = urls.filter((u) => !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(u));
+  assert.deepStrictEqual(forasteiros, [],
+    'o painel só pode falar para localhost — estes URL não são locais: ' + forasteiros.join(', '));
   assert.ok(html.includes('color-scheme: light dark'), 'without this the iframe canvas is white in dark mode');
   assert.ok(html.includes('ui/initialize'));
   assert.ok(html.includes('ui/notifications/tool-result'));
@@ -168,4 +196,10 @@ test('the panel html is self-contained and speaks the app protocol', () => {
   assert.ok(html.includes('<svg'), 'the cow must exist — inline, because the default CSP allows no external image');
   assert.ok(html.includes('ui/message'), 'the panel must be able to act, not only display');
   assert.ok(html.includes('--color-text-primary'), 'must use the host theme variables');
+  // v1.5 — a cabine é UM bloco, e as quatro secções têm de lá estar
+  for (const id of ['s-trab', 's-saldo', 's-cab', 'conduz']) {
+    assert.ok(html.includes(id), 'falta a secção ' + id + ' — a cabine deixou de ser um bloco só');
+  }
+  assert.ok(html.includes('mooter_ui_probe'), 'sem a sonda, o suporte a Live Preview volta a ser suposição');
+  assert.ok(/n\/d/.test(html), 'o painel tem de saber escrever n/d');
 });

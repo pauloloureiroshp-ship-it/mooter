@@ -42,6 +42,12 @@ const FILES = [
   ['localfirst.js', 'server/localfirst.js'],
   ['context.js', 'server/context.js'],
   ['paths.js', 'server/paths.js'],
+  ['arvore.js', 'server/arvore.js'],
+  ['probe.js', 'server/probe.js'],
+  ['preview.js', 'server/preview.js'],
+  ['quota.js', 'server/quota.js'],
+  ['update.js', 'server/update.js'],
+  ['sessao.js', 'server/sessao.js'],
   ['bundle-package.json', 'server/package.json'],
 ];
 
@@ -54,12 +60,26 @@ const FILES = [
  * que vai no bundle e exigimos que todos estejam na lista. Falha o build, não
  * a máquina do utilizador.
  */
+/**
+ * ⚠️ Um comentário que MENCIONE um require não é um require.
+ *
+ * O detector varria o texto cru e apanhou `// todos os require('./x.js') têm de
+ * existir` — uma frase de documentação — e recusou o build inteiro por causa de
+ * um ficheiro `x.js` que nunca existiu. Um guarda que dá falsos positivos acaba
+ * por ser desligado, e um guarda desligado não guarda nada.
+ */
+function semComentarios(texto) {
+  return String(texto)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')   // blocos
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1 '); // linha (sem apanhar http://)
+}
+
 function verificarRequires(files) {
   const dentro = new Set(files.map(([src]) => src));
   const faltam = [];
   for (const [src] of files) {
     if (!src.endsWith('.js')) continue;
-    const texto = fs.readFileSync(path.join(HERE, src), 'utf8');
+    const texto = semComentarios(fs.readFileSync(path.join(HERE, src), 'utf8'));
     const re = /require\(\s*['"]\.\/([\w.-]+\.js)['"]\s*\)/g;
     let m;
     while ((m = re.exec(texto)) !== null) {

@@ -685,7 +685,11 @@ async function toolDispatch(args) {
         const g = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null);
         freeMb = g && g.headroom ? g.headroom.free_mb : null;
       } catch { /* sem nvidia-smi seguimos sem folga conhecida */ }
-      const escolha = await moo.pickModelExplained(model, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident, { free_mb: freeMb });
+      // quantos jobs locais já disputam esta placa neste instante
+      let locaisVivos = 0;
+      try { for (const [, r] of REGISTRY) if (r && r.agent === 'moo') locaisVivos++; } catch { /* */ }
+      const escolha = await moo.pickModelExplained(model, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident,
+        { free_mb: freeMb, locais_a_correr: locaisVivos });
       const chosen = escolha.model;
       if (!chosen) {
         ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'no-local-model' });
@@ -1306,8 +1310,42 @@ async function toolWork(args) {
   // ⚠️ v1.3.3 — o `agent` VAI, e é por isto que o bug existia: esta linha
   // chamava com 2 argumentos e o shim assumia Anthropic, entregando "sonnet"
   // ao Ollama. O agente está calculado na linha acima; nunca mais o deixar cair.
-  const model = a.model ? String(a.model) : (d ? cliModelFor(agent, tier, d.recommended_model) : null);
-  const routedBy = a.model ? 'user' : (model ? 'work+classify' : 'cli-default');
+  /**
+   * ── CALIBRAGEM POR QUOTA (v1.7) ─────────────────────────────────────────
+   *
+   * Isto é o que nenhum concorrente pode copiar sem ter uma GPU do lado do
+   * utilizador. O LiteLLM, com o orçamento esgotado, RECUSA a chamada. O
+   * OpenRouter escolhe um provedor mais barato — e continua a cobrar. Nós
+   * descemos de tier e, no limite, mandamos para uma placa que não cobra nada.
+   * O trabalho não pára.
+   *
+   * ❌ Nunca sobe de tier por causa da quota. Só desce, e diz porquê.
+   */
+  let calibragem = null;
+  if (!a.model) {
+    try {
+      const q = require('./quota.js').estado({});
+      if (q && q.pressao && q.pressao.valor != null && q.calibragem.politica !== 'normal') {
+        calibragem = q.calibragem;
+        calibragem.pressao = q.pressao.valor;
+        calibragem.nivel = q.pressao.nivel;
+      }
+    } catch { /* sem leitura de quota, o routing fica como estava */ }
+  }
+
+  let model = a.model ? String(a.model) : (d ? cliModelFor(agent, tier, d.recommended_model) : null);
+  let routedBy = a.model ? 'user' : (model ? 'work+classify' : 'cli-default');
+  // o tecto da calibragem aplica-se DEPOIS do router, e só para baixo
+  if (calibragem && calibragem.tecto && agent !== 'moo' && model) {
+    const ordem = ['haiku', 'sonnet', 'opus'];
+    const iAgora = ordem.findIndex((x) => String(model).includes(x));
+    const iTecto = ordem.indexOf(calibragem.tecto);
+    if (iAgora > iTecto && iTecto >= 0) {
+      calibragem.desceu_de = model;
+      model = calibragem.tecto;
+      routedBy = 'quota';
+    }
+  }
   const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
 
   // ── LOCAL-FIRST (v1.4.1) · agora que sabemos o contexto, a GPU pode chegar ──
@@ -1466,6 +1504,11 @@ async function toolWork(args) {
     // v1.4.1 — o que o conector leu PELO modelo local. É o que separa uma
     // resposta fundamentada de uma resposta plausível.
     // porque foi (ou não foi) para a GPU — a decisão que o classificador não podia tomar
+    // ⚠️ se a quota mexeu no routing, isso NUNCA pode ser silencioso
+    calibragem_por_quota: calibragem ? {
+      politica: calibragem.politica, nivel: calibragem.nivel, pressao: calibragem.pressao,
+      desceu_de: calibragem.desceu_de || null, porque: calibragem.porque, tecto: calibragem.tecto,
+    } : null,
     escolha_local: escolhaLocal ? { local: escolhaLocal.local, porque: escolhaLocal.porque, confianca: escolhaLocal.confianca } : null,
     poupanca_estimada: (escolhaLocal && escolhaLocal.local)
       ? localfirst.poupancaEstimada((contextoInjectado ? contextoInjectado.chars : 0) + goal.length, 2000, tier === 'T3' ? 'opus' : 'sonnet')

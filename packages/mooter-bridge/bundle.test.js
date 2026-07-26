@@ -37,7 +37,11 @@ test('B1 — todo o require(./x.js) de um ficheiro empacotado também é empacot
   const faltam = [];
   for (const f of files) {
     if (!f.src.endsWith('.js')) continue;
-    const texto = fs.readFileSync(path.join(HERE, f.src), 'utf8');
+    // ⚠️ um comentário que MENCIONE um require não é um require: o detector
+    // recusou um build inteiro por causa de uma frase de documentação.
+    const texto = fs.readFileSync(path.join(HERE, f.src), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
     const re = /require\(\s*['"]\.\/([\w.-]+\.js)['"]\s*\)/g;
     let m;
     while ((m = re.exec(texto)) !== null) if (!dentro.has(m[1])) faltam.push(f.src + ' -> ' + m[1]);

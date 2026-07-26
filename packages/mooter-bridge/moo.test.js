@@ -130,6 +130,21 @@ server.listen(0, '127.0.0.1', async () => {
     ok('quando não há modelo, o porquê vem escrito');
   } catch (e) { bad('null explicado', e); }
 
+
+  // ⚠️ APANHADO AO VIVO a 2026-07-26: um job de PREPARACAO (o moo a amaciar o
+  // caminho ao agente pago, a $0) chegou a 140 376 caracteres de raciocinio em
+  // 6 minutos e continuava. Um preparador que demora mais do que o trabalho que
+  // prepara nao poupa nada — atrasa, com a GPU ocupada e o pago a espera.
+  try {
+    const src = require('fs').readFileSync(__dirname + '/moo.js', 'utf8');
+    assert.ok(/MAX_RACIOCINIO/.test(src), 'o raciocinio local voltou a ficar sem trela');
+    assert.ok(/raciocinio-cortado/.test(src), 'corta sem dizer ao painel que cortou');
+    // a trela e sobre o PREAMBULO: nunca cortar uma resposta ja comecada
+    assert.ok(/!text && pensamento\.length > MAX_RACIOCINIO/.test(src),
+      'pode cortar uma resposta a meio — so o preambulo interno pode ser interrompido');
+    assert.ok(moo.MAX_RACIOCINIO >= 5000, 'trela curta de mais: cortaria trabalho legitimo');
+    ok('trela no raciocinio: corta o preambulo infinito, nunca a resposta');
+  } catch (e) { bad('trela no raciocinio', e); }
   try {
     const nada = await moo.pickModel(null, '127.0.0.1:1', null);
     assert.strictEqual(nada, null, 'sem daemon tem de devolver null, não um nome plausível');

@@ -81,6 +81,14 @@ function listModels(hostStr, timeoutMs) {
  */
 const EMBED_RE = /(embed|bge|gte|minilm|e5-|nomic|mxbai|arctic-embed|all-minilm)/i;
 
+/**
+ * Quanto raciocínio se tolera antes da primeira palavra de resposta.
+ * 60k caracteres são ~15k tokens de pensamento — muito para qualquer tarefa
+ * que valha a pena dar a um tier local. Ajustável por ambiente para quem
+ * quiser deixar um modelo pensar mais.
+ */
+const MAX_RACIOCINIO = Math.max(5000, Number(process.env.MOOTER_MAX_RACIOCINIO) || 60000);
+
 function isGenerative(m) {
   if (!m || !m.model) return false;
   if (EMBED_RE.test(String(m.model))) return false;
@@ -126,7 +134,23 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
   }
 
   const freeMb = opts && opts.free_mb != null ? Number(opts.free_mb) : null;
-  const cabe = (b) => (freeMb == null || b == null) ? true : (b / 1048576) <= freeMb * 0.9;
+  /**
+   * ⚠️ A VRAM LIVRE É UMA FOTOGRAFIA, NÃO UMA RESERVA.
+   *
+   * Medido a 2026-07-26: três jobs locais despachados quase ao mesmo tempo
+   * viram todos "19 GB livres" e escolheram todos o modelo grande. A GPU foi a
+   * 100% com 22,3 de 23 GB, e os três estrangularam-se — 8 minutos para um
+   * resumo de 4 bullets. Cada decisão estava certa isoladamente e o conjunto
+   * estava errado.
+   *
+   * `locais_a_correr` é quantos jobs locais já estão vivos. Cada um deles vai
+   * disputar a mesma placa, por isso o orçamento de cada novo job encolhe. Não
+   * é uma reserva real — é a humildade de assumir que não somos os únicos.
+   */
+  const jaCorrem = opts && opts.locais_a_correr != null ? Math.max(0, Number(opts.locais_a_correr)) : 0;
+  const fatia = jaCorrem > 0 ? 1 / (jaCorrem + 1) : 1;
+  const orcamentoMb = freeMb == null ? null : freeMb * fatia;
+  const cabe = (b) => (orcamentoMb == null || b == null) ? true : (b / 1048576) <= orcamentoMb * 0.9;
 
   const instalados = (await listModels(hostStr, 1500)) || [];
   const gen = instalados.filter(isGenerative);
@@ -172,7 +196,13 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
   }
 
   if (melhor) {
-    return { model: melhor.model, porque: 'o maior modelo instalado que cabe na VRAM livre' };
+    return {
+      model: melhor.model,
+      porque: jaCorrem
+        ? ('o maior que cabe na fatia da GPU que sobra (' + jaCorrem + ' job local já a correr)')
+        : 'o maior modelo instalado que cabe na VRAM livre',
+      locais_a_correr: jaCorrem || null,
+    };
   }
   // nada com tamanho conhecido: o menor é o palpite menos arriscado, e diz-se
   const anySized = comTamanho.slice().sort((a, b) => bytesDe(a) - bytesDe(b));
@@ -198,6 +228,8 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
   const t0 = Date.now();
   let killed = false;
   let req = null;
+  let pensamento = '';        // o que os modelos de raciocínio emitem em `thinking`
+  let avisadoDoLimite = false;
 
   const write = (obj) => { try { outStream.write(JSON.stringify(obj) + '\n'); } catch { /* */ } };
   const werr = (s) => { try { errStream.write(s + '\n'); } catch { /* */ } };
@@ -232,15 +264,76 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
             let j;
             try { j = JSON.parse(line); } catch { continue; }
             if (j.message && j.message.content) text += j.message.content;
+            /**
+             * ⚠️ O "A PENSAR" DE OITO MINUTOS SEM UM ÚNICO TOKEN.
+             *
+             * Medido a 2026-07-26: o `qwen3:30b` correu 529 s e o painel mostrou
+             * `a pensar` com `tok_s: null` do princípio ao fim. Não era falha do
+             * painel — era daqui.
+             *
+             * Modelos de raciocínio emitem o raciocínio no campo `thinking` do
+             * Ollama, não em `content`. Esta linha só somava `content`, por isso
+             * `text` ficava VAZIO durante todo o raciocínio e a moldura de
+             * progresso saía sem nada dentro. Do lado de fora era
+             * indistinguível de um job pendurado.
+             *
+             * Agora o raciocínio é contado e DITO como raciocínio. Um utilizador
+             * que vê "a raciocinar · 12k caracteres" sabe que está vivo; um que
+             * vê "a pensar" durante oito minutos vai matar o processo.
+             */
+            if (j.message && j.message.thinking) pensamento += j.message.thinking;
+
+            /**
+             * ⚠️ TRELA NO RACIOCÍNIO — apanhado ao vivo a 2026-07-26.
+             *
+             * Um job de PREPARAÇÃO (o moo a amaciar o caminho ao agente pago,
+             * a $0) chegou a **140 376 caracteres de raciocínio em 6 minutos**
+             * e continuava. Um preparador que demora mais do que o trabalho que
+             * prepara não poupa nada: atrasa. E o pior é que sem trela ele
+             * ficava assim para sempre, com a GPU ocupada e o agente pago à
+             * espera.
+             *
+             * A trela é sobre o RACIOCÍNIO, não sobre a resposta: quando estoura,
+             * pedimos ao modelo para parar de pensar e responder já. Se nem isso
+             * resultar, o watchdog do job trata do resto.
+             *
+             * ❌ Nunca cortar a resposta a meio — só o preâmbulo interno.
+             */
+            if (!avisadoDoLimite && !text && pensamento.length > MAX_RACIOCINIO) {
+              avisadoDoLimite = true;
+              werr('raciocínio passou os ' + MAX_RACIOCINIO + ' caracteres sem uma única palavra de resposta — a interromper');
+              write({
+                type: 'assistant', local: true, fase: 'raciocinio-cortado',
+                message: { model, content: [{ type: 'text',
+                  text: '⚠️ o modelo local raciocinou ' + pensamento.length + ' caracteres sem começar a responder. Interrompido.' }] },
+                chars_raciocinio: pensamento.length,
+              });
+              try { req.destroy(); } catch { /* */ }
+              em.emit('close', 0);
+              return;
+            }
 
             // throttle: one assistant frame per ~400ms keeps out.log small while
             // still letting the panel show live progress at its 3s cadence
             const now = Date.now();
             if (!j.done && now - lastEmit > 400) {
               lastEmit = now;
+              const aRaciocinar = !text && pensamento;
               write({
                 type: 'assistant', local: true,
-                message: { model, content: [{ type: 'text', text: text.slice(-400) }], usage: { output_tokens_partial: text.length } },
+                message: {
+                  model,
+                  content: [{ type: 'text', text: aRaciocinar
+                    ? ('🤔 a raciocinar · ' + pensamento.length + ' caracteres até agora')
+                    : text.slice(-400) }],
+                  // ⚠️ CARACTERES, não tokens. O Ollama só reporta a contagem de
+                  // tokens na mensagem final; inventar um número aqui seria pior
+                  // do que não ter nenhum. O nome do campo diz o que é.
+                  usage: { output_chars_partial: text.length + pensamento.length },
+                },
+                fase: aRaciocinar ? 'raciocinio' : 'resposta',
+                chars_raciocinio: pensamento.length,
+                chars_resposta: text.length,
               });
             }
 
@@ -271,6 +364,9 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
                   total_duration_ns: j.total_duration != null ? j.total_duration : null,
                   load_duration_ns: j.load_duration != null ? j.load_duration : null,
                   tok_s,
+                  // quanto do trabalho foi raciocínio que nunca chegou a ver-se
+                  chars_raciocinio: pensamento.length || null,
+                  chars_resposta: text.length,
                 },
               });
             }
@@ -300,5 +396,6 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
 }
 
 module.exports = {
+  MAX_RACIOCINIO,
   pickModelExplained,
   bytesDe, runLocal, listModels, pickModel, hostPort, isGenerative, EMBED_RE };
