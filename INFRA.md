@@ -28,6 +28,22 @@
 
 > **Para qualquer sessão:** usa os padrões abaixo. Nunca precisas de navegar manualmente.
 
+### Capacidades do cliente MCP do Mooter
+
+Sonda M0 implementada em 2026-07-26. A fonte operacional é
+`~/.mooter/mcp-capabilities.json`, escrita a partir de `initialize.params.capabilities`;
+ausência de declaração é `n/d`, nunca `false`. Nesta verificação o ficheiro ainda não
+existia porque o conector com a sonda ainda não tinha sido carregado pelo Cowork.
+
+| Capacidade | Estado medido | Fonte / porque |
+|---|---|---|
+| resources | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| prompts | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| elicitation | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| sampling | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| roots | n/d | `mcp-capabilities.json` ausente em 2026-07-26; se declarado, o servidor pede `roots/list` e guarda as roots recebidas |
+| logging | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+
 ### Vercel (MCP ID: `e1fe49cb-32e5-4421-af51-11afacdca0bb`)
 
 ```

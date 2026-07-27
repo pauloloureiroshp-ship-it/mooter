@@ -33,6 +33,8 @@ const P = require('./paths.js');
 const arvore = require('./arvore.js');
 const probe = require('./probe.js');
 const quota = require('./quota.js');
+const capacidades = require('./capacidades.js');
+const board = require('./board.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -343,7 +345,25 @@ function probeWorktrees(timeoutMs, events) {
 
 // ── 3. which Cowork session/project is driving ───────────────────────────
 function readSessionContext() {
-  try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch { /* tenta roots negociadas */ }
+  try {
+    const cap = capacidades.estado();
+    const root = cap.roots && cap.roots[0];
+    if (!root || !root.uri) return null;
+    let folder = root.uri;
+    if (/^file:/i.test(folder)) folder = require('url').fileURLToPath(folder);
+    return {
+      bound_at: cap.medido_em,
+      session_id: null,
+      project: root.nome || null,
+      folder,
+      folder_name: root.nome || leaf(folder),
+      files: [],
+      note: 'contexto recebido por MCP roots/list',
+      fonte: 'mcp-capabilities.json → roots/list',
+      session_model: null,
+    };
+  } catch { return null; }
 }
 
 /**
@@ -429,6 +449,19 @@ function sessionsFast(listFn) {
 
 // ── the snapshot the panel polls ─────────────────────────────────────────
 async function toolFleet(args, deps) {
+  const d = deps || {};
+  if (args && args.view === 'board') {
+    const card = await (typeof d.boardScorecard === 'function'
+      ? d.boardScorecard({}) : board.scorecardAsync({}));
+    const dormir = card.pode_ir_dormir && card.pode_ir_dormir.valor;
+    return {
+      resumo: dormir === true ? '🐮 scorecard dentro da faixa — podes ir dormir'
+        : (dormir === false ? '⚠ scorecard com ' + card.excepcoes.length + ' excepção(ões)'
+          : '🐮 scorecard n/d — faltam medições para fechar o estado'),
+      scorecard: card,
+      excepcoes: card.excepcoes,
+    };
+  }
   const now = Date.now();
   const windowMin = Math.min(Math.max(Number(args && args.windowMinutes) || 30, 1), 1440);
   const waveFilter = args && args.wave ? String(args.wave) : null;
@@ -436,11 +469,10 @@ async function toolFleet(args, deps) {
 
   const context = readSessionContext();
   const events = readLedgerLines(LEDGER);
-  const d = deps || {};
   const sessionProbe = typeof d.sessionsList === 'function'
     ? () => sessionsFast(d.sessionsList)
     : () => ({ sessions: [], fresh: true });
-  const [local, gpu, vault, livePreview, fuel, worktrees, sessionResult] = await Promise.all([
+  const [local, gpu, vault, livePreview, fuel, worktrees, sessionResult, capabilityState] = await Promise.all([
     probeWithin(
       includeLocal
         ? () => (typeof d.probeOllama === 'function' ? d.probeOllama(OLLAMA_TIMEOUT_MS) : probeOllama(OLLAMA_TIMEOUT_MS))
@@ -472,6 +504,10 @@ async function toolFleet(args, deps) {
       PANEL_PROBE_TIMEOUT_MS, null,
     ),
     probeWithin(sessionProbe, PANEL_PROBE_TIMEOUT_MS, { sessions: SESSIONS_CACHE.sessions, fresh: false }),
+    probeWithin(
+      () => (typeof d.capabilityState === 'function' ? d.capabilityState() : capacidades.estado()),
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
   ]);
   const sessions = (sessionResult && sessionResult.sessions) || [];
   const sessionsFresh = !!(sessionResult && sessionResult.fresh);
@@ -488,7 +524,7 @@ async function toolFleet(args, deps) {
       live: 0, waves: [], jobs: [], sessions: [],
       plans: [], handoffs: [], coherence: [], active_wave: null,
       totals: { cloud_in: 0, cloud_out: 0, local_in: 0, local_out: 0, cost_usd: 0, jobs_cloud: 0, jobs_local: 0, local_share: null, live_cloud: 0, live_local: 0 },
-      gpu, vault, live_preview: livePreview, combustivel: fuel, worktrees,
+      gpu, vault, live_preview: livePreview, combustivel: fuel, worktrees, capacidades: capabilityState,
       local, local_available: local !== null, local_host: OLLAMA_HOST,
       sessions_fresh: sessionsFresh,
       notice: 'sem ledger — nenhum job foi despachado nesta máquina',
@@ -721,6 +757,7 @@ async function toolFleet(args, deps) {
       };
     })(),
     live_preview: livePreview,      // o host deixa embeber um localhost? medido, não assumido
+    capacidades: capabilityState,  // initialize do cliente: true/false/n/d, nunca ausência=negação
     /**
      * ⚠️ O MEDIDOR DE COMBUSTÍVEL — e a razão de ele existir.
      *
