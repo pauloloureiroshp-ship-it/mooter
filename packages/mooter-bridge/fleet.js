@@ -145,6 +145,218 @@ function elapsedSeconds(job, now) {
   return Number.isNaN(t1) ? null : Math.max(0, Math.round((t1 - t0) / 1000));
 }
 
+function measuredMetric(jobs, field, label) {
+  const selected = Array.isArray(jobs) ? jobs : [];
+  const measured = selected.filter((job) => job[field] != null && Number.isFinite(Number(job[field])));
+  const missing = selected.length - measured.length;
+  const raw = measured.reduce((sum, job) => sum + Number(job[field]), 0);
+  const value = measured.length ? Number(raw.toFixed(field === 'cost_usd' ? 6 : 3)) : null;
+  let why;
+  if (!selected.length) why = 'não há jobs desta origem no retrato';
+  else if (!measured.length) why = 'nenhum dos ' + selected.length + ' job(s) trouxe ' + label + ' medido';
+  else if (missing) why = 'soma parcial: ' + measured.length + ' job(s) medidos e ' + missing + ' sem medição de ' + label;
+  else why = 'soma das ' + measured.length + ' parcela(s) de ' + label + ' reportadas pelos próprios jobs';
+  return {
+    valor: value,
+    porque: why,
+    jobs_medidos: measured.length,
+    jobs_sem_medicao: missing,
+  };
+}
+
+function countMetric(value, label, measuredJobs) {
+  return {
+    valor: value,
+    porque: label,
+    jobs_medidos: measuredJobs,
+    jobs_sem_medicao: 0,
+  };
+}
+
+/**
+ * Uma única agregação alimenta a lista plana e o resumo da árvore. Os objectos
+ * são partilhados de propósito: uma segunda soma não pode voltar a divergir.
+ */
+function aggregatePanel(jobs) {
+  const list = Array.isArray(jobs) ? jobs : [];
+  const cloud = list.filter((job) => !LOCAL_AGENTS.has(job.agent));
+  const local = list.filter((job) => LOCAL_AGENTS.has(job.agent));
+  const cloudIn = measuredMetric(cloud, 'tokens_in', 'tokens de entrada cloud');
+  const cloudOut = measuredMetric(cloud, 'tokens_out', 'tokens de saída cloud');
+  const localIn = measuredMetric(local, 'tokens_in', 'tokens de entrada locais');
+  const localOut = measuredMetric(local, 'tokens_out', 'tokens de saída locais');
+
+  let cost;
+  if (!cloud.length && local.length) {
+    cost = {
+      valor: 0,
+      porque: 'todos os jobs do retrato correram localmente; custo real de subscrição zero',
+      jobs_medidos: local.length,
+      jobs_sem_medicao: 0,
+    };
+  } else {
+    cost = measuredMetric(cloud, 'cost_usd', 'custo cloud');
+  }
+
+  const outputMeasured = cloudOut.jobs_medidos + localOut.jobs_medidos;
+  const outputMissing = cloudOut.jobs_sem_medicao + localOut.jobs_sem_medicao;
+  const outputTotal = Number((Number(cloudOut.valor || 0) + Number(localOut.valor || 0)).toFixed(3));
+  let shareValue = null;
+  let shareWhy;
+  if (!outputMeasured) shareWhy = 'nenhum job trouxe tokens de saída medidos';
+  else if (outputMissing) shareWhy = 'percentagem n/d: há ' + outputMissing + ' job(s) sem tokens de saída medidos';
+  else if (!outputTotal) shareWhy = 'os jobs medidos reportaram zero tokens de saída';
+  else {
+    shareValue = Math.round((Number(localOut.valor || 0) / outputTotal) * 100);
+    shareWhy = 'tokens de saída locais divididos pelo total de saída medido';
+  }
+  const localShare = {
+    valor: shareValue,
+    porque: shareWhy,
+    jobs_medidos: outputMeasured,
+    jobs_sem_medicao: outputMissing,
+  };
+
+  const totals = {
+    cloud_in: cloudIn,
+    cloud_out: cloudOut,
+    local_in: localIn,
+    local_out: localOut,
+    cost_usd: cost,
+    jobs_cloud: countMetric(cloud.length, 'contagem directa dos jobs não locais no ledger', cloud.length),
+    jobs_local: countMetric(local.length, 'contagem directa dos jobs locais no ledger', local.length),
+    local_share: localShare,
+    live_cloud: countMetric(cloud.filter(isLive).length, 'jobs cloud com estado running ou dispatched', cloud.length),
+    live_local: countMetric(local.filter(isLive).length, 'jobs locais com estado running ou dispatched', local.length),
+  };
+  return {
+    totals,
+    arvore_resumo: {
+      tokens_local: localOut,
+      tokens_nuvem: cloudOut,
+      quota_local_pct: localShare,
+      custo_usd: cost,
+      custo_jobs_sem_medicao: cost.jobs_sem_medicao,
+    },
+  };
+}
+
+function addFreshness(block, measuredAt, now, thresholdMinutes) {
+  if (!block || typeof block !== 'object') return null;
+  const threshold = Number.isFinite(Number(thresholdMinutes)) && Number(thresholdMinutes) > 0
+    ? Number(thresholdMinutes) : 15;
+  const measuredMs = Date.parse(measuredAt || '');
+  if (Number.isNaN(measuredMs)) {
+    return {
+      ...block,
+      medido_em: { valor: null, porque: 'a origem não forneceu um instante de medição válido' },
+      fresco: false,
+      idade_h: { valor: null, porque: 'sem medido_em válido não é possível calcular a idade' },
+    };
+  }
+  const ageHours = Number((Math.max(0, Number(now) - measuredMs) / 3600000).toFixed(2));
+  return {
+    ...block,
+    medido_em: new Date(measuredMs).toISOString(),
+    fresco: ageHours * 60 <= threshold,
+    idade_h: ageHours,
+  };
+}
+
+function freshnessThreshold(blockName, deps) {
+  const configured = deps && deps.freshnessMinutes;
+  if (Number.isFinite(Number(configured)) && Number(configured) > 0) return Number(configured);
+  if (configured && Number.isFinite(Number(configured[blockName])) && Number(configured[blockName]) > 0) {
+    return Number(configured[blockName]);
+  }
+  const envKey = 'MOOTER_FRESHNESS_' + String(blockName).toUpperCase().replace(/[^A-Z0-9]+/g, '_') + '_MINUTES';
+  const specific = envOrNull(envKey);
+  if (Number.isFinite(Number(specific)) && Number(specific) > 0) return Number(specific);
+  const common = envOrNull('MOOTER_FRESHNESS_MINUTES');
+  if (Number.isFinite(Number(common)) && Number(common) > 0) return Number(common);
+  return 15;
+}
+
+function closePercentages(percentages) {
+  if (!percentages || typeof percentages !== 'object') return percentages;
+  const entries = Object.entries(percentages)
+    .filter(([, value]) => Number.isFinite(Number(value)));
+  if (!entries.length) return { ...percentages };
+  const out = { ...percentages };
+  for (const [key, value] of entries) out[key] = Number(Number(value).toFixed(1));
+  const total = entries.reduce((sum, [key]) => sum + out[key], 0);
+  const lastKey = entries[entries.length - 1][0];
+  out[lastKey] = Number(Math.max(0, out[lastKey] + (100 - total)).toFixed(1));
+  return out;
+}
+
+function sanitizeFuel(fuel) {
+  if (!fuel || typeof fuel !== 'object') return null;
+  let out;
+  try { out = JSON.parse(JSON.stringify(fuel)); } catch { return fuel; }
+  const visit = (value) => {
+    if (!value || typeof value !== 'object') return;
+    if (value.suspeitas != null) {
+      const hasItems = Array.isArray(value.suspeitas_itens) && value.suspeitas_itens.length > 0;
+      if (!hasItems) {
+        delete value.suspeitas;
+        delete value.aviso_saidas;
+      }
+    }
+    for (const child of Object.values(value)) visit(child);
+  };
+  visit(out);
+  if (out.arrastar && out.arrastar.percentagens) {
+    out.arrastar.percentagens = closePercentages(out.arrastar.percentagens);
+  }
+  return out;
+}
+
+/**
+ * ⚠️ CAMPOS DE CONTRATO — nunca desaparecem, mesmo a null.
+ *
+ * Apanhado pelo teste T6 do path.test.js ao fechar a L1: ao remover blocos
+ * vazios, o `tok_s` de um job passou de `null` a AUSENTE, e o guard que exige
+ * que `mooter_status` e `mooter_fleet` digam a mesma coisa sobre o mesmo facto
+ * imutável falhou com "status disse null e fleet disse undefined".
+ *
+ * Limpar ruído é remover BLOCOS sem conteúdo. Não é apagar um campo que outra
+ * vista promete — isso não é limpeza, é fazer duas vistas discordarem. Um `null`
+ * declarado vale mais do que um campo que some.
+ */
+const CAMPOS_DE_CONTRATO = new Set([
+  'tok_s', 'tok_s_basis', 'model', 'model_used', 'model_recommended',
+  'tier_pedido', 'tier_motor', 'exit_code', 'duration_s', 'elapsed_s',
+  'cost_usd', 'tokens_in', 'tokens_out', 'state', 'job_id',
+]);
+
+function compactPayload(value) {
+  const compact = (item, parentExplainsNull, key) => {
+    if (CAMPOS_DE_CONTRATO.has(key) && (item === null || item === undefined)) return null;
+    if (item === null || item === undefined) return parentExplainsNull ? null : undefined;
+    if (Array.isArray(item)) {
+      const array = item.map((child) => compact(child, false, null)).filter((child) => child !== undefined);
+      return array.length ? array : undefined;
+    }
+    if (typeof item !== 'object') return item;
+    const explainsNull = ['porque', 'base', 'reason', 'nota']
+      .some((k) => typeof item[k] === 'string' && item[k].trim());
+    const object = {};
+    for (const [k, child] of Object.entries(item)) {
+      const next = compact(child, explainsNull, k);
+      if (next !== undefined) object[k] = next;
+      else if (k === 'plans' && Array.isArray(child)) object[k] = [];
+    }
+    return Object.keys(object).length ? object : undefined;
+  };
+  return compact(value, false, null) || {};
+}
+
+function metricValue(value) {
+  return value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'valor')
+    ? value.valor : value;
+}
+
 /**
  * v1.2 — THE BUG THIS FIXES, in full, because it must never come back:
  *
@@ -305,6 +517,18 @@ function activeJobsFromEvents(events, worktree) {
   return [...state.keys()];
 }
 
+function summarizeWorktrees(rows) {
+  const worktrees = Array.isArray(rows) ? rows : [];
+  const occupied = worktrees.filter((row) => row.busy === true).length;
+  const free = worktrees.length - occupied;
+  return {
+    total: countMetric(worktrees.length, 'contagem das worktrees devolvidas por git worktree list', worktrees.length),
+    occupied: countMetric(occupied, 'worktrees cujo busy deriva de pelo menos um job vivo', worktrees.length),
+    free: countMetric(free, 'total menos as worktrees marcadas busy pela mesma fonte', worktrees.length),
+    worktrees,
+  };
+}
+
 // Projecção read-only do inventário: usa execFile assíncrono porque o listador
 // canónico é síncrono e uma chamada git presa não pode congelar o painel.
 function probeWorktrees(timeoutMs, events) {
@@ -333,11 +557,7 @@ function probeWorktrees(timeoutMs, events) {
           row.busy_jobs = jobs.length ? jobs : null;
           try { row.exists = fs.existsSync(row.path); } catch { row.exists = false; }
         }
-        finish({
-          total: rows.length,
-          free: rows.filter((row) => row.exists && !row.busy && !row.detached).length,
-          worktrees: rows,
-        });
+        finish(summarizeWorktrees(rows));
       });
       child.on('error', () => finish(null));
     } catch { finish(null); }
@@ -521,6 +741,111 @@ function sessionsFast(listFn) {
   });
 }
 
+function publicJob(job, now) {
+  const out = { ...(job || {}) };
+  let value = null;
+  let why = 'o ledger não trouxe duração nem timestamps válidos';
+  if (job && job.duration_s != null && Number.isFinite(Number(job.duration_s))) {
+    value = Number(job.duration_s);
+    why = 'reportada pelo campo duration_s do ledger';
+  } else if (job) {
+    const start = Date.parse(job.started_at || job.dispatched_at || '');
+    const end = Date.parse(job.ended_at || '');
+    if (!Number.isNaN(start) && !Number.isNaN(end)) {
+      value = Math.max(0, Math.round((end - start) / 1000));
+      why = 'derivada de started_at e ended_at do ledger';
+    } else if (isLive(job) && !Number.isNaN(start)) {
+      value = Math.max(0, Math.round((Number(now) - start) / 1000));
+      why = 'derivada do início no ledger até ao instante deste retrato';
+    }
+  }
+  delete out.duration_s;
+  delete out.elapsed_s;
+  out.duracao_s = { valor: value, porque: why };
+  if (out.model == null) {
+    out.model = { valor: null, porque: 'o stream do job e a sessão não declararam um modelo atribuível' };
+  }
+  if (out.tier_motor == null) {
+    out.tier_motor = { valor: null, porque: 'o motor não escreveu tier_motor no ledger' };
+  }
+  return out;
+}
+
+function environmentNoise(message) {
+  const text = String(message || '');
+  return /^ambiente \(não é do job\):/i.test(text)
+    || /\brg:.*(?:os error 123|filename, directory name, or volume label syntax)/i.test(text)
+    || /apply_patch verification failed/i.test(text);
+}
+
+function filterCoherence(entries) {
+  return (Array.isArray(entries) ? entries : []).filter((entry) => !environmentNoise(entry && entry.msg));
+}
+
+function waveSummary(waveId, jobs, plans) {
+  if (!waveId) return null;
+  const inWave = jobs.filter((job) => job.wave === waveId);
+  const wavePlan = plans.find((item) => item && item.wave === waveId);
+  return {
+    wave: waveId,
+    goal: wavePlan ? wavePlan.goal : null,
+    live: inWave.filter(isLive).length,
+    done: inWave.filter((job) => job.state === 'done').length,
+    failed: inWave.filter((job) => job.state === 'failed').length,
+    total: inWave.length,
+    steps_done: wavePlan ? wavePlan.done : null,
+    steps_total: wavePlan ? wavePlan.total : null,
+    current_step: wavePlan && wavePlan.current ? wavePlan.current.title : null,
+    high_risk_open: wavePlan ? wavePlan.high_risk_open : null,
+  };
+}
+
+function waveFocus(jobs, plans) {
+  const list = Array.isArray(jobs) ? jobs : [];
+  const planList = Array.isArray(plans) ? plans : [];
+  const live = list.filter(isLive);
+  const activeId = live.length ? live[0].wave : null;
+  const recent = list.slice().sort((a, b) => String(b.ended_at || b.dispatched_at || '')
+    .localeCompare(String(a.ended_at || a.dispatched_at || '')));
+  const lastId = !activeId && recent.length ? recent[0].wave : null;
+  return {
+    active_wave: waveSummary(activeId, list, planList),
+    ultima_wave: waveSummary(lastId, list, planList),
+  };
+}
+
+function explainMissing(value, because) {
+  return value == null ? { valor: null, porque: because } : value;
+}
+
+function decorateTree(tree, aggregateSummary) {
+  if (!tree || typeof tree !== 'object') return tree;
+  for (const wave of (tree.waves || [])) {
+    for (const task of (wave.tarefas || [])) {
+      for (const floor of [task.remate].concat(task.preparadores || [])) {
+        if (!floor) continue;
+        floor.modelo = explainMissing(floor.modelo,
+          'o job não declarou o modelo usado no stream nem numa sessão temporalmente compatível');
+        floor.tier_motor = explainMissing(floor.tier_motor,
+          'o motor não escreveu tier_motor no ledger deste job');
+      }
+    }
+  }
+  tree.resumo = { ...(tree.resumo || {}), ...(aggregateSummary || {}) };
+  return tree;
+}
+
+function sessionPayload(context, now, thresholdMinutes) {
+  const model = context && context.session_model ? String(context.session_model) : null;
+  const block = {
+    modelo: explainMissing(model,
+      'o MCP não expõe o modelo do host; ninguém o declarou para esta sessão'),
+    fonte: model ? (context.session_model_fonte || 'declarado por quem chama') : null,
+    nota: model ? null : 'declara-o com mooter_setup({session_model}) ou fica n/d',
+  };
+  return addFreshness(block, context && context.session_model_em, now, thresholdMinutes);
+}
+
 // ── the snapshot the panel polls ─────────────────────────────────────────
 async function toolFleet(args, deps) {
   const d = deps || {};
@@ -609,21 +934,35 @@ async function toolFleet(args, deps) {
   if (gpu && gpu.live && Array.isArray(local) && typeof gpuMod.headroom === 'function') {
     gpu.headroom = gpuMod.headroom(gpu.live, { memory_total_mb: gpu.memory_total_mb }, local.length);
   }
+  const measuredNow = new Date(now).toISOString();
+  const fuelMeasured = sanitizeFuel(fuel);
+  const freshBlocks = {
+    live_preview: addFreshness(livePreview,
+      livePreview && livePreview.relatorio && livePreview.relatorio.at,
+      now, freshnessThreshold('live_preview', d)),
+    capacidades: addFreshness(capabilityState,
+      capabilityState && capabilityState.medido_em,
+      now, freshnessThreshold('capacidades', d)),
+    gpu: addFreshness(gpu, gpu ? measuredNow : null, now, freshnessThreshold('gpu', d)),
+    vault: addFreshness(vault, vault ? measuredNow : null, now, freshnessThreshold('vault', d)),
+    combustivel: addFreshness(fuelMeasured, fuelMeasured ? measuredNow : null,
+      now, freshnessThreshold('combustivel', d)),
+    sessao: sessionPayload(context, now, freshnessThreshold('sessao', d)),
+  };
 
   if (events === null) {
-    // Even with no ledger the panel must render its full shape: an empty
-    // cockpit with a working GPU gauge is informative; a cockpit missing half
-    // its fields looks broken. Same keys, honest zeros and nulls.
-    return {
+    const emptyAggregate = aggregatePanel([]);
+    return compactPayload({
       ok: true, ts: new Date(now).toISOString(), context,
       live: 0, waves: [], jobs: [], sessions: [],
       plans: [], handoffs: [], coherence: [], active_wave: null,
-      totals: { cloud_in: 0, cloud_out: 0, local_in: 0, local_out: 0, cost_usd: 0, jobs_cloud: 0, jobs_local: 0, local_share: null, live_cloud: 0, live_local: 0 },
-      gpu, vault, live_preview: livePreview, combustivel: fuel, worktrees, capacidades: capabilityState,
+      totals: emptyAggregate.totals,
+      ...freshBlocks,
+      worktrees,
       local, local_available: local !== null, local_host: OLLAMA_HOST,
       sessions_fresh: sessionsFresh,
       notice: 'sem ledger — nenhum job foi despachado nesta máquina',
-    };
+    });
   }
 
   let jobs = foldJobs(events);
@@ -681,22 +1020,9 @@ async function toolFleet(args, deps) {
     try { const p = plan.readPlan(w); if (p) plans.push(plan.summarize(plan.reconcile(p, ledgerStates))); } catch { /* */ }
   }
 
-  // token totals split by where the work happened — the number that shows
-  // whether the local-first doctrine is actually happening or is just a slogan
-  const totals = { cloud_in: 0, cloud_out: 0, local_in: 0, local_out: 0, cost_usd: 0, jobs_cloud: 0, jobs_local: 0 };
-  for (const j of jobs) {
-    const isLocal = LOCAL_AGENTS.has(j.agent);
-    if (j.tokens_in != null) totals[isLocal ? 'local_in' : 'cloud_in'] += Number(j.tokens_in);
-    if (j.tokens_out != null) totals[isLocal ? 'local_out' : 'cloud_out'] += Number(j.tokens_out);
-    if (j.cost_usd != null) totals.cost_usd += Number(j.cost_usd);
-    totals[isLocal ? 'jobs_local' : 'jobs_cloud']++;
-  }
-  totals.cost_usd = Number(totals.cost_usd.toFixed(6));
-  const totalOut = totals.cloud_out + totals.local_out;
-  totals.local_share = totalOut > 0 ? Math.round((totals.local_out / totalOut) * 100) : null;
-  // v1.3 — "quantidade de agentes subscription e local em progresso"
-  totals.live_cloud = jobs.filter((j) => isLive(j) && !LOCAL_AGENTS.has(j.agent)).length;
-  totals.live_local = jobs.filter((j) => isLive(j) && LOCAL_AGENTS.has(j.agent)).length;
+  // Uma só soma alimenta totals e arvore.resumo; sem parcelas, o valor é n/d.
+  const aggregate = aggregatePanel(jobs);
+  const totals = aggregate.totals;
 
   // v1.3 — handoff chains: who prepared the ground for whom.
   // A handoff is not a slogan here: it is a ledger fact. A job carries
@@ -781,12 +1107,13 @@ async function toolFleet(args, deps) {
         if (/no stdin data received/i.test(l)) continue;      // ruído conhecido e benigno
         const msg = l.trim().slice(0, 160);
         if (seen.has(msg)) continue;
-        seen.add(msg);
         const ambiente = /(skill|frontmatter|AuthRequired|mcp\.|oauth|\.mcp\.json)/i.test(msg);
+        if (ambiente || environmentNoise(msg)) continue;       // fica no err.log, não no painel
+        seen.add(msg);
         coherence.push({
-          level: ambiente ? 'info' : 'aviso',
+          level: 'aviso',
           job: j.job_id,
-          msg: (ambiente ? 'ambiente (não é do job): ' : 'stderr: ') + msg,
+          msg: 'stderr: ' + msg,
         });
         if (seen.size >= 3) break;                            // no máximo 3 por job
       }
@@ -799,60 +1126,33 @@ async function toolFleet(args, deps) {
     return String(b.ended_at || b.dispatched_at || '').localeCompare(String(a.ended_at || a.dispatched_at || ''));
   });
 
-  // v1.3 — WHICH WAVE IS BEING WORKED. The panel grouped by wave but never
-  // said which one is live now, so a user with three waves in the window had to
-  // infer it. Live jobs decide; if none, the most recent wave to have ended.
-  const liveJobs = jobs.filter(isLive);
-  const activeWaveId = liveJobs.length
-    ? liveJobs[0].wave
-    : (jobs.length ? jobs[0].wave : null);
-  const activeWavePlan = activeWaveId ? plans.find((p) => p && p.wave === activeWaveId) : null;
-  const activeWave = activeWaveId ? {
-    wave: activeWaveId,
-    goal: activeWavePlan ? activeWavePlan.goal : null,
-    live: liveJobs.filter((j) => j.wave === activeWaveId).length,
-    done: jobs.filter((j) => j.wave === activeWaveId && j.state === 'done').length,
-    failed: jobs.filter((j) => j.wave === activeWaveId && j.state === 'failed').length,
-    total: jobs.filter((j) => j.wave === activeWaveId).length,
-    steps_done: activeWavePlan ? activeWavePlan.done : null,
-    steps_total: activeWavePlan ? activeWavePlan.total : null,
-    current_step: activeWavePlan && activeWavePlan.current ? activeWavePlan.current.title : null,
-    high_risk_open: activeWavePlan ? activeWavePlan.high_risk_open : null,
-  } : null;
-
+  const focus = waveFocus(jobs, plans);
   const shown = jobs.slice(0, 16);
-  return {
+  const publicJobs = shown.map((job) => publicJob(job, now));
+  const tree = decorateTree(arvore.construir(jobs, plans), aggregate.arvore_resumo);
+  return compactPayload({
     ok: true,
     ts: new Date(now).toISOString(),
     context,
     live: shown.filter(isLive).length,
-    waves: groupByWave(shown),
-    jobs: shown,
+    waves: groupByWave(publicJobs),
+    jobs: publicJobs,
     sessions: sessions
       .filter((s) => s.status === 'working')
       .map((s) => ({ id: s.id, title: s.title, model: s.model || null, project: s.project || null, cwd: s.cwd || null })),
     plans,                       // steps × risk × who did them
     totals,                      // tokens split cloud vs local, real cost
     handoffs,                    // proven chains: who prepared for whom
-    coherence,                   // the panel auditing itself
-    active_wave: activeWave,     // the wave being worked right now
+    coherence: filterCoherence(coherence),
+    active_wave: focus.active_wave,
+    ultima_wave: focus.ultima_wave,
     // ── v1.5 · A CABINE ────────────────────────────────────────────────────
     // A lista plana responde "o que corre". A árvore responde à pergunta de
     // quem paga: quanto do meu trabalho foi feito de graça, e por quem.
-    arvore: arvore.construir(jobs, plans),
-    // quem conduz ESTA conversa. O MCP não expõe o modelo do host — por isso é
-    // DECLARADO por quem chama, e fica `null` se ninguém o declarar.
-    // ❌ Nunca inferido: um palpite aqui contamina tudo o que está por baixo.
-    sessao: (() => {
-      const m = context && context.session_model ? String(context.session_model) : null;
-      return {
-        modelo: m,
-        fonte: m ? (context.session_model_fonte || 'declarado por quem chama') : null,
-        nota: m ? null : 'o MCP não expõe o modelo do host — declara-o com mooter_setup({session_model}) ou fica n/d',
-      };
-    })(),
-    live_preview: livePreview,      // o host deixa embeber um localhost? medido, não assumido
-    capacidades: capabilityState,  // initialize do cliente: true/false/n/d, nunca ausência=negação
+    arvore: tree,
+    sessao: freshBlocks.sessao,
+    live_preview: freshBlocks.live_preview,
+    capacidades: freshBlocks.capacidades,
     /**
      * ⚠️ O MEDIDOR DE COMBUSTÍVEL — e a razão de ele existir.
      *
@@ -863,7 +1163,7 @@ async function toolFleet(args, deps) {
      * INFERIOR — o contador do servidor conta também o claude.ai e outras
      * máquinas, e está sempre à frente deste.
      */
-    combustivel: fuel,
+    combustivel: freshBlocks.combustivel,
     /**
      * ⚠️ O utilizador não pode ser o último a saber que há versão nova.
      * Até aqui, só descobria se alguém lho dissesse — e um vibe coder podia
@@ -891,8 +1191,8 @@ async function toolFleet(args, deps) {
       try { return require('./preview.js').lembrar ? JSON.parse(require('fs').readFileSync(require('./preview.js').MEM, 'utf8')) : null; }
       catch { return null; }
     })(),
-    gpu,                         // which card, how hard it is working
-    vault,
+    gpu: freshBlocks.gpu,
+    vault: freshBlocks.vault,
     worktrees,                     // projecção read-only; null quando a sonda excede o orçamento
     local,                       // null = Ollama unreachable (n/d), [] = up with nothing loaded
     local_available: local !== null,
@@ -900,7 +1200,7 @@ async function toolFleet(args, deps) {
     // false = o enriquecimento de modelo estourou o orcamento; o retrato e' valido,
     // so os nomes concretos podem estar em cache ou ausentes. Honesto, nao inventado.
     sessions_fresh: sessionsFresh,
-  };
+  });
 }
 
 /**
@@ -923,9 +1223,10 @@ function formatFleetText(d) {
       if (!rows.length) continue;
       L.push('  ' + w.wave);
       for (const j of rows) {
-        const who = j.model || j.agent_label || '?';
+        const who = metricValue(j.model) || j.agent_label || '?';
         const tk = (j.tokens_out != null) ? (' · ' + j.tokens_out + ' tok out' + (j.tok_s ? ' · ' + j.tok_s + ' tok/s' : '')) : '';
-        L.push('    · ' + (j.where || j.job_id) + ' — ' + who + (j.elapsed_s != null ? ' — ' + j.elapsed_s + 's' : '') + tk);
+        const seconds = metricValue(j.duracao_s);
+        L.push('    · ' + (j.where || j.job_id) + ' — ' + who + (seconds != null ? ' — ' + seconds + 's' : '') + tk);
         if (j.activity) L.push('        ' + j.activity);
       }
     }
@@ -941,11 +1242,15 @@ function formatFleetText(d) {
     }
     if (p.high_risk_open) L.push('  ! ' + p.high_risk_open + ' etapa(s) de risco alto por fazer — exigem o teu OK');
   }
-  if (d.totals && (d.totals.cloud_out || d.totals.local_out)) {
+  if (d.totals && (metricValue(d.totals.cloud_out) != null || metricValue(d.totals.local_out) != null)) {
     const t = d.totals;
-    L.push('', 'TOKENS  cloud ' + t.cloud_in + ' in / ' + t.cloud_out + ' out  ·  local ' + t.local_in + ' in / ' + t.local_out + ' out'
-      + (t.local_share != null ? '  ·  ' + t.local_share + '% do output foi local' : '')
-      + (t.cost_usd ? '  ·  $' + t.cost_usd.toFixed(4) : ''));
+    const cloudIn = metricValue(t.cloud_in); const cloudOut = metricValue(t.cloud_out);
+    const localIn = metricValue(t.local_in); const localOut = metricValue(t.local_out);
+    const share = metricValue(t.local_share); const cost = metricValue(t.cost_usd);
+    L.push('', 'TOKENS  cloud ' + (cloudIn == null ? 'n/d' : cloudIn) + ' in / ' + (cloudOut == null ? 'n/d' : cloudOut)
+      + ' out  ·  local ' + (localIn == null ? 'n/d' : localIn) + ' in / ' + (localOut == null ? 'n/d' : localOut) + ' out'
+      + (share != null ? '  ·  ' + share + '% do output foi local' : '')
+      + (cost != null ? '  ·  $' + Number(cost).toFixed(4) : ''));
   }
   if (d.vault) {
     L.push('', 'VAULT  ' + (d.vault.available
@@ -958,7 +1263,11 @@ function formatFleetText(d) {
   else for (const m of d.local) L.push('    · ' + m.model + [m.parameter_size, m.quantization].filter(Boolean).map((x) => ' — ' + x).join(''));
   if (done.length) {
     L.push('', 'CONCLUIDAS');
-    for (const j of done) L.push('    ' + (j.state === 'failed' ? 'x' : 'v') + ' ' + (j.where || j.job_id) + ' — ' + (j.model || j.agent_label || '?') + (j.elapsed_s != null ? ' — ' + j.elapsed_s + 's' : ''));
+    for (const j of done) {
+      const seconds = metricValue(j.duracao_s);
+      L.push('    ' + (j.state === 'failed' ? 'x' : 'v') + ' ' + (j.where || j.job_id) + ' — '
+        + (metricValue(j.model) || j.agent_label || '?') + (seconds != null ? ' — ' + seconds + 's' : ''));
+    }
   }
   if (d.notice) L.push('', d.notice);
   return L.join('\n');
@@ -1068,5 +1377,7 @@ module.exports = {
   TOOLS, UI_RESOURCE, UI_URI, UI_MIME, LOCAL_ORIGINS, LOCAL_PORTS,
   toolFleet, toolSessionBind, readUiHtml, formatFleetText,
   foldJobs, elapsedSeconds, attachModels, groupByWave, probeOllama, readSessionContext,
+  aggregatePanel, addFreshness, closePercentages, summarizeWorktrees, compactPayload,
+  filterCoherence, publicJob, sanitizeFuel, waveFocus,
   LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull, sessionsFast, SESSIONS_BUDGET_MS,
 };

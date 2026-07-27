@@ -261,7 +261,8 @@ test('U17 — aplicarAsync responde em menos de 500 ms e persiste até instalado
       + '\nmodule.exports = ' + i + ';\n';
   }
   escreverBundle(bundle, '1.21.0', servidores);
-  assert.ok(fs.statSync(bundle).size > 500000, 'o bundle sintético não é grande o suficiente');
+  const bundleBytes = fs.statSync(bundle).size;
+  assert.ok(bundleBytes > 500000, 'o bundle sintético não é grande o suficiente');
 
   const inicio = Date.now();
   const resposta = await up.aplicarAsync({
@@ -272,6 +273,7 @@ test('U17 — aplicarAsync responde em menos de 500 ms e persiste até instalado
   const demorouMs = Date.now() - inicio;
   assert.strictEqual(resposta.estado, 'a-instalar');
   assert.ok(demorouMs < 500, 'a resposta demorou ' + demorouMs + ' ms');
+  console.log('  (' + bundleBytes + ' bytes; resposta inicial em ' + demorouMs + ' ms)');
 
   const inicial = up.estadoDaInstalacao({ mooterDir: instalacao.mooterDir });
   assert.strictEqual(inicial.estado, 'a-instalar');
@@ -379,4 +381,33 @@ test('U21 — mooter_setup aplica em background e ver inclui o recibo', async ()
   } finally {
     Object.assign(up, originais);
   }
+});
+
+/**
+ * ⚠️ BUG DE TIJOLO apanhado a 2026-07-27: o verificador rejeitava o shebang
+ * `#!/usr/bin/env node`, que os NOSSOS ficheiros reais têm (server.js,
+ * server-apps.js, fleet.js). Consequência: a versão instalada recusaria todos os
+ * bundles seguintes, incluindo o que a corrigisse.
+ *
+ * Os 21 testes anteriores passaram porque usavam ficheiros sintéticos sem
+ * shebang. Este lê um ficheiro REAL do pacote — um teste que não usa o formato
+ * real não testa o caso real.
+ */
+test('U22 — o verificador aceita o shebang que os nossos proprios ficheiros tem', () => {
+  const fsx = require('fs');
+  const pathx = require('path');
+  const reais = ['fleet.js', 'server.js', 'server-apps.js'];
+  let comShebang = 0;
+  const zip = [{ nome: 'manifest.json', dados: Buffer.from(JSON.stringify({ version: '9.9.9' })) }];
+  for (const nome of reais) {
+    const p = pathx.join(__dirname, nome);
+    let src;
+    try { src = fsx.readFileSync(p, 'utf8'); } catch { continue; }
+    if (/^#!/.test(src)) comShebang++;
+    zip.push({ nome: 'server/' + nome, dados: Buffer.from(src, 'utf8') });
+  }
+  assert.ok(comShebang > 0, 'nenhum ficheiro real tem shebang — o teste deixou de cobrir o caso');
+  const problemas = up.verificar(zip).filter((p) => /sintaxe/i.test(p));
+  assert.deepStrictEqual(problemas, [],
+    'o verificador recusou ficheiros REAIS do pacote: ' + problemas.join(' | '));
 });

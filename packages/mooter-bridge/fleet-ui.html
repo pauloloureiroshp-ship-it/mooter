@@ -285,9 +285,17 @@
   function dur(s) { if (s == null) return null; if (s < 60) return s + 's'; var m = Math.floor(s / 60); return m + 'm' + String(s % 60).padStart(2, '0') + 's'; }
   function btn(label, cls, fn) { var b = el('button', cls || null, esc(label)); b.onclick = fn; return b; }
   function vivo(x) { return x === 'running' || x === 'dispatched'; }
+  function valor(v) { return v && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, 'valor') ? v.valor : v; }
+  function porque(v, fallback) { return v && typeof v === 'object' && v.porque ? v.porque : fallback; }
+  function idade(bloco) {
+    if (!bloco || bloco.fresco !== false) return '';
+    var h = valor(bloco.idade_h);
+    return h == null ? ' · desactualizado' : ' · há ' + h.toLocaleString('pt-PT') + ' h';
+  }
 
   /** `0` é uma afirmação, `null` é uma abstenção — e têm de se ver diferentes. */
   function money(v, local) {
+    v = valor(v);
     if (local) return { txt: '$0', cls: 'usd free', t: 'correu na tua GPU — custo real zero, não arredondado' };
     if (v == null) return { txt: 'n/d', cls: 'usd nd', t: 'o CLI nao reportou custo. n/d nao e zero.' };
     return { txt: '$' + Number(v).toFixed(v < 0.01 ? 4 : 2), cls: 'usd', t: 'custo reportado pelo proprio CLI' };
@@ -297,13 +305,14 @@
   function pintaConduz(d) {
     var box = document.getElementById('conduz'); box.textContent = '';
     var s = d.sessao || {};
-    if (s.modelo) {
-      var c = el('span', 'chip', 'conduz <b>' + esc(s.modelo) + '</b>');
+    var sessionModel = valor(s.modelo);
+    if (sessionModel) {
+      var c = el('span', 'chip', 'conduz <b>' + esc(sessionModel) + '</b>' + idade(s));
       c.title = 'Declarado por quem chama — o MCP nao expoe o modelo do host. Fonte: ' + esc(s.fonte || 'n/d');
       box.appendChild(c);
     } else {
-      var nd = el('span', 'chip nd', 'conduz n/d');
-      nd.title = s.nota || 'ninguem declarou o modelo desta conversa';
+      var nd = el('span', 'chip nd', 'conduz n/d' + idade(s));
+      nd.title = porque(s.modelo, s.nota || 'ninguem declarou o modelo desta conversa');
       nd.style.cursor = 'pointer';
       nd.onclick = function () { say('Declara o modelo desta conversa no Mooter com mooter_setup({session_model:"..."}) e confirma no painel.'); };
       box.appendChild(nd);
@@ -313,9 +322,9 @@
     var g = d.gpu;
     if (g && g.available && g.live) {
       box.appendChild(el('span', 'chip ' + (g.live.util_pct >= 50 ? 'on' : ''),
-        'GPU <b>' + g.live.util_pct + '%</b> · ' + Math.round(g.live.memory_used_mb / 1024) + '/' + Math.round(g.live.memory_total_mb / 1024) + ' GB'));
+        'GPU <b>' + g.live.util_pct + '%</b> · ' + Math.round(g.live.memory_used_mb / 1024) + '/' + Math.round(g.live.memory_total_mb / 1024) + ' GB' + idade(g)));
     } else {
-      box.appendChild(el('span', 'chip off', 'GPU n/d'));
+      box.appendChild(el('span', 'chip off', 'GPU n/d' + idade(g)));
     }
   }
 
@@ -329,19 +338,21 @@
     var who = el('span', 'who', esc(a.etiqueta || a.agente || '?'));
     who.style.color = COR[a.agente] || 'inherit';
     l1.appendChild(who);
-    if (a.modelo) {
-      var mm = el('span', 'mod', esc(a.modelo));
+    var floorModel = valor(a.modelo);
+    if (floorModel) {
+      var mm = el('span', 'mod', esc(floorModel));
       mm.title = 'proveniencia: ' + esc(a.modelo_fonte || 'nao declarada');
       l1.appendChild(mm);
     } else {
       var mn = el('span', 'mod nd', 'modelo n/d');
-      mn.title = 'o CLI nao disse que modelo usou — melhor n/d do que um palpite';
+      mn.title = porque(a.modelo, 'o CLI nao disse que modelo usou — melhor n/d do que um palpite');
       l1.appendChild(mn);
     }
-    var tier = a.tier_motor || a.tier_pedido;
+    var motorTier = valor(a.tier_motor);
+    var tier = motorTier || a.tier_pedido;
     if (tier) {
       var tv = el('span', 'tier' + (tier === 'T0' ? ' t0' : ''), esc(tier));
-      tv.title = a.tier_motor ? 'tier do motor que REALMENTE correu' : 'tier pedido ao router (o motor ainda nao se declarou)';
+      tv.title = motorTier ? 'tier do motor que REALMENTE correu' : porque(a.tier_motor, 'tier pedido ao router (o motor ainda nao se declarou)');
       l1.appendChild(tv);
     }
 
@@ -419,9 +430,11 @@
     if (!r || !r.tarefas) { s.appendChild(el('div', 'none', 'ainda sem tokens medidos.')); return; }
 
     var box = el('div', 'saldo');
-    var loc = r.tokens_local || 0, nuv = r.tokens_nuvem || 0, tot = loc + nuv;
+    var loc = valor(r.tokens_local) || 0, nuv = valor(r.tokens_nuvem) || 0, tot = loc + nuv;
+    var localPct = valor(r.quota_local_pct);
 
-    var q = el('div', 'big', (r.quota_local_pct == null ? 'n/d' : r.quota_local_pct + '%'));
+    var q = el('div', 'big', (localPct == null ? 'n/d' : localPct + '%'));
+    q.title = porque(r.quota_local_pct, 'percentagem dos tokens de saída medidos');
     q.appendChild(el('small', null, 'dos tokens sairam da<br>tua GPU, a custo zero'));
     box.appendChild(q);
 
@@ -465,7 +478,7 @@
        * o numero que mais dol errar.
        */
       fn.title = (cb.medida && cb.medida.ressalva ? cb.medida.ressalva + ' ' : '') + pr.porque;
-      fu.appendChild(el('span', 'muted', 'consumo'));
+      fu.appendChild(el('span', 'muted', 'consumo' + idade(cb)));
       fu.appendChild(fb); fu.appendChild(fn);
       s.appendChild(fu);
       s.appendChild(el('div', 'base',
@@ -490,13 +503,13 @@
 
     var chips = el('div', 'conduz'); chips.style.justifyContent = 'flex-start';
     var v = d.vault;
-    chips.appendChild(el('span', 'chip ' + (v && v.available ? 'on' : 'off'), v && v.available ? 'vault ligado' : 'vault n/d'));
+    chips.appendChild(el('span', 'chip ' + (v && v.available ? 'on' : 'off'), (v && v.available ? 'vault ligado' : 'vault n/d') + idade(v)));
     chips.appendChild(el('span', 'chip ' + (d.local_available ? 'on' : 'off'),
       d.local_available ? ((d.local || []).length + ' modelo(s) na GPU') : 'Ollama em baixo'));
     var onb = d.capacidades && d.capacidades.onboarding;
     if (onb) {
       var oc = onb.suportado === true ? 'on' : (onb.suportado === false ? 'off' : 'nd');
-      var ochip = el('span', 'chip ' + oc, 'onboarding ' + esc(onb.estado || 'n/d'));
+      var ochip = el('span', 'chip ' + oc, 'onboarding ' + esc(onb.estado || 'n/d') + idade(d.capacidades));
       ochip.title = onb.porque || '';
       chips.appendChild(ochip);
     }
@@ -556,7 +569,7 @@
     var lpst = (d.live_preview && d.live_preview.veredicto) || { estado: 'desconhecido', porque: '' };
     var lp = el('div', 'lp ' + (lpst.estado === 'suportado' ? 'on' : (lpst.estado === 'bloqueado' ? 'off' : '')));
     var t1 = el('div', 'lbl', 'live preview');
-    t1.appendChild(el('span', 'rt', esc(lpAberto ? modoActual : lpst.estado)));
+    t1.appendChild(el('span', 'rt', esc(lpAberto ? modoActual : lpst.estado) + idade(d.live_preview)));
     lp.appendChild(t1);
 
     // memoria: a porta que ja funcionou nesta maquina entra sozinha
@@ -696,24 +709,29 @@
     if (d.error) { st.textContent = String(d.error).slice(0, 120); return; }
     var nLive = (d.jobs || []).filter(function (j) { return vivo(j.state); }).length;
 
-    seMudou('st', [nLive, d.active_wave && d.active_wave.wave], function () {
+    seMudou('st', [nLive, d.active_wave && d.active_wave.wave, d.ultima_wave && d.ultima_wave.wave], function () {
       st.textContent = '';
       if (nLive) { st.appendChild(el('span', 'pulse')); st.appendChild(document.createTextNode(' ' + nLive + ' a trabalhar')); }
-      else st.textContent = d.active_wave ? ('wave ' + d.active_wave.wave) : 'parado';
+      else st.textContent = d.ultima_wave ? ('parado · última wave ' + d.ultima_wave.wave) : 'parado';
     });
     seMudou('conduz', [d.sessao, d.context && d.context.project, d.context && d.context.folder_name,
-      d.gpu && d.gpu.live && [d.gpu.live.util_pct, d.gpu.live.memory_used_mb]], function () { pintaConduz(d); });
+      d.gpu && d.gpu.live && [d.gpu.live.util_pct, d.gpu.live.memory_used_mb],
+      d.sessao && [d.sessao.fresco, d.sessao.idade_h], d.gpu && [d.gpu.fresco, d.gpu.idade_h]], function () { pintaConduz(d); });
     seMudou('trab', d.arvore && d.arvore.waves, function () { pintaTrabalho(d); });
-    seMudou('saldo', d.arvore && d.arvore.resumo, function () { pintaSaldo(d); });
+    seMudou('saldo', [d.arvore && d.arvore.resumo,
+      d.combustivel && [d.combustivel.fresco, d.combustivel.idade_h]], function () { pintaSaldo(d); });
     // ⚠️ o iframe do Live Preview NAO entra na assinatura: se entrasse, cada
     // mudanca no vault ou nos avisos recarregava a pagina que estas a ver.
     seMudou('cab', [d.vault && d.vault.available, d.local_available, (d.local || []).length,
       (d.coherence || []).filter(function (c) { return c.level === 'aviso'; }).length,
       d.live_preview && d.live_preview.veredicto && d.live_preview.veredicto.estado,
+      lpAberto, lpUrl,
+      d.live_preview && [d.live_preview.fresco, d.live_preview.idade_h],
+      d.vault && [d.vault.fresco, d.vault.idade_h],
       d.versao && [d.versao.versao_instalada, d.versao.nova && d.versao.nova.versao],
       updEstado && updEstado.msg,
-      lpAberto, lpUrl,
-      d.capacidades && d.capacidades.onboarding && d.capacidades.onboarding.estado], function () { pintaCabine(d); });
+      d.capacidades && d.capacidades.onboarding && d.capacidades.onboarding.estado,
+      d.capacidades && [d.capacidades.fresco, d.capacidades.idade_h]], function () { pintaCabine(d); });
   }
 
   // ── polling: a spec não define push servidor→painel, por isso o painel puxa ──

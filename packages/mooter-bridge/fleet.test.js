@@ -182,9 +182,10 @@ test('roots declaradas e válidas ganham ao bind manual', async () => {
 
 test('toolFleet reports local_available false instead of pretending zero models', async () => {
   const out = await fleet.toolFleet({}, { sessionsList: async () => ({ sessions: [] }) });
-  assert.strictEqual(out.local, null);
+  assert.ok(!('local' in out), 'bloco local sem dados deve desaparecer do payload');
   assert.strictEqual(out.local_available, false);
-  assert.ok('waves' in out && 'context' in out);
+  assert.ok('context' in out);
+  assert.ok(!('waves' in out), 'lista de waves vazia deve desaparecer do payload');
   assert.ok(out.capacidades && out.capacidades.onboarding,
     'o painel não expõe a sonda de capacidades do cliente');
 });
@@ -226,7 +227,7 @@ test('o painel responde em menos de 2s quando uma sonda fica pendurada', async (
   });
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 2000, 'uma sonda pendurada segurou o painel por ' + elapsed + 'ms');
-  assert.strictEqual(out.local, null, 'a sonda pendurada deve degradar para n/d');
+  assert.ok(!('local' in out), 'a sonda pendurada deve degradar removendo o bloco sem dados');
 });
 
 test('sondas cedem o ciclo antes de trabalho síncrono', async () => {
@@ -307,4 +308,178 @@ test('the panel html is self-contained and speaks the app protocol', () => {
   }
   assert.ok(html.includes('mooter_ui_probe'), 'sem a sonda, o suporte a Live Preview volta a ser suposição');
   assert.ok(/n\/d/.test(html), 'o painel tem de saber escrever n/d');
+});
+
+function unexplainedNulls(value, pathPrefix, parent) {
+  const pathNow = pathPrefix || '$';
+  if (value === null) {
+    const explained = parent && ['porque', 'base', 'reason', 'nota']
+      .some((key) => typeof parent[key] === 'string' && parent[key].trim());
+    return explained ? [] : [pathNow];
+  }
+  if (!value || typeof value !== 'object') return [];
+  const out = [];
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => out.push(...unexplainedNulls(item, pathNow + '[' + index + ']', value)));
+  } else {
+    for (const [key, item] of Object.entries(value)) {
+      out.push(...unexplainedNulls(item, pathNow + '.' + key, value));
+    }
+  }
+  return out;
+}
+
+test('L1(a) — dois jobs cloud sem custo produzem n/d, nunca zero', () => {
+  const aggregate = fleet.aggregatePanel([
+    { job_id: 'codex-1', agent: 'codex', state: 'done' },
+    { job_id: 'codex-2', agent: 'codex', state: 'done' },
+  ]);
+  assert.strictEqual(aggregate.totals.cost_usd.valor, null);
+  assert.strictEqual(aggregate.totals.cost_usd.jobs_medidos, 0);
+  assert.strictEqual(aggregate.totals.cost_usd.jobs_sem_medicao, 2);
+  assert.match(aggregate.totals.cost_usd.porque, /nenhum.*custo|sem custo/i);
+  assert.strictEqual(aggregate.totals.cloud_in.valor, null,
+    'dois jobs reais sem tokens medidos não podem virar cloud_in=0');
+});
+
+test('L1(b) — totals e arvore.resumo partilham a mesma agregação', () => {
+  const aggregate = fleet.aggregatePanel([
+    { job_id: 'cloud', agent: 'codex', tokens_in: 12, tokens_out: 7, cost_usd: 0.25 },
+    { job_id: 'local', agent: 'moo', tokens_in: 5, tokens_out: 3 },
+  ]);
+  assert.strictEqual(aggregate.totals.cost_usd, aggregate.arvore_resumo.custo_usd);
+  assert.strictEqual(aggregate.totals.cloud_out, aggregate.arvore_resumo.tokens_nuvem);
+  assert.strictEqual(aggregate.totals.local_out, aggregate.arvore_resumo.tokens_local);
+  assert.strictEqual(aggregate.totals.local_share, aggregate.arvore_resumo.quota_local_pct);
+});
+
+test('L1(c) — o payload não contém null sem porquê', () => {
+  const aggregate = fleet.aggregatePanel([{ job_id: 'x', agent: 'codex' }]);
+  const payload = fleet.compactPayload({
+    totals: aggregate.totals,
+    arvore: { resumo: aggregate.arvore_resumo },
+    sessao: { modelo: { valor: null, porque: 'o host não declarou o modelo' } },
+    poupanca: { usd: null, base: 'sem tokens locais medidos' },
+    bloco_vazio: [],
+    campo_sem_dados: null,
+  });
+  assert.deepStrictEqual(unexplainedNulls(payload), []);
+});
+
+test('L1(c) — o retrato real também passa a varredura recursiva', async () => {
+  const measuredAt = new Date().toISOString();
+  const out = await fleet.toolFleet({}, {
+    probeOllama: () => [],
+    gpuSnapshot: () => ({ available: false, reason: 'GPU não detectada' }),
+    vaultStatus: () => ({ available: false, reason: 'vault não detectado' }),
+    uiProbe: () => ({ veredicto: { estado: 'desconhecido', porque: 'sem sonda' }, relatorio: { at: measuredAt } }),
+    quotaEstado: () => ({ medida: { disponivel: false, porque: 'sem sessões locais' } }),
+    worktreesList: () => fleet.summarizeWorktrees([]),
+    sessionsList: () => ({ sessions: [] }),
+    capabilityState: () => ({ medido_em: measuredAt, onboarding: { estado: 'n/d', porque: 'sem initialize' } }),
+  });
+  assert.deepStrictEqual(unexplainedNulls(out), []);
+  for (const key of ['live_preview', 'capacidades', 'gpu', 'vault', 'combustivel', 'sessao']) {
+    assert.ok(out[key] && 'medido_em' in out[key] && 'fresco' in out[key] && 'idade_h' in out[key],
+      key + ' ficou sem metadados de frescura');
+  }
+});
+
+test('L1(d) — medição com uma hora fica stale e leva idade exacta', () => {
+  const now = Date.parse('2026-07-27T12:00:00.000Z');
+  const measuredAt = '2026-07-27T11:00:00.000Z';
+  const block = fleet.addFreshness({ estado: 'medido' }, measuredAt, now, 15);
+  assert.strictEqual(block.medido_em, measuredAt);
+  assert.strictEqual(block.fresco, false);
+  assert.strictEqual(block.idade_h, 1);
+});
+
+test('L1(d) — cada bloco stale mostra a idade ao lado do valor no painel', () => {
+  const html = fleet.readUiHtml();
+  for (const expression of ['idade(s)', 'idade(g)', 'idade(cb)', 'idade(v)',
+    'idade(d.capacidades)', 'idade(d.live_preview)']) {
+    assert.ok(html.includes(expression), expression + ' não está visível no painel');
+  }
+});
+
+test('L1(e) — arrastar fecha exactamente em 100,0%', () => {
+  const percentages = fleet.closePercentages({
+    releitura: 53.4, regravacao: 22.1, resposta: 21.4, pergunta: 3.2,
+  });
+  const total = Object.values(percentages).reduce((sum, value) => sum + value, 0);
+  assert.strictEqual(Number(total.toFixed(1)), 100.0);
+});
+
+test('L1(f) — free é derivado do mesmo busy e nunca excede total - ocupadas', () => {
+  const inventory = fleet.summarizeWorktrees([
+    { path: 'a', busy: false },
+    { path: 'b', busy: false },
+    { path: 'c', busy: true, busy_jobs: ['j1'] },
+    { path: 'd', busy: false, detached: true },
+  ]);
+  assert.strictEqual(inventory.total.valor, 4);
+  assert.strictEqual(inventory.occupied.valor, 1);
+  assert.strictEqual(inventory.free.valor, 3);
+  assert.ok(inventory.free.valor <= inventory.total.valor - inventory.occupied.valor);
+});
+
+test('L1(g) — blocos vazios desaparecem do payload', () => {
+  const payload = fleet.compactPayload({
+    handoffs: [], sessions: [], local: [], files: [], preview_ultima: null,
+    keep: { valor: 1 },
+  });
+  for (const key of ['handoffs', 'sessions', 'local', 'files', 'preview_ultima']) {
+    assert.ok(!(key in payload), key + ' vazio sobreviveu no payload');
+  }
+  assert.deepStrictEqual(payload.keep, { valor: 1 });
+});
+
+test('L1(h) — coherence exclui ruído de ambiente', () => {
+  const filtered = fleet.filterCoherence([
+    { level: 'info', msg: 'ambiente (não é do job): rg: os error 123' },
+    { level: 'aviso', msg: 'stderr: apply_patch verification failed: contexto não encontrado' },
+    { level: 'aviso', msg: 'stderr: invariante de custo divergente' },
+  ]);
+  assert.deepStrictEqual(filtered.map((item) => item.msg), ['stderr: invariante de custo divergente']);
+});
+
+test('L1(11) — cada job publica uma só duração e explica a fonte', () => {
+  const job = fleet.publicJob({
+    job_id: 'j1',
+    agent: 'codex',
+    state: 'done',
+    started_at: '2026-07-27T11:49:47.000Z',
+    ended_at: '2026-07-27T12:00:00.000Z',
+    duration_s: null,
+    elapsed_s: 613,
+  }, Date.parse('2026-07-27T12:00:00.000Z'));
+  assert.ok(!('duration_s' in job));
+  assert.ok(!('elapsed_s' in job));
+  assert.deepStrictEqual(job.duracao_s, {
+    valor: 613,
+    porque: 'derivada de started_at e ended_at do ledger',
+  });
+  assert.ok(job.model && job.model.valor === null && job.model.porque);
+  assert.ok(job.tier_motor && job.tier_motor.valor === null && job.tier_motor.porque);
+});
+
+test('L1(12) — suspeita sem item deixa de ser alerta', () => {
+  const fuel = fleet.sanitizeFuel({
+    medida: { longa: { suspeitas: 1, aviso_saidas: 'há um placeholder' } },
+  });
+  assert.ok(!('suspeitas' in fuel.medida.longa));
+  assert.ok(!('aviso_saidas' in fuel.medida.longa));
+});
+
+test('L1(13) — active_wave só existe com job vivo; caso contrário há ultima_wave', () => {
+  const jobs = [{ job_id: 'f1', wave: 'falhada', state: 'failed', ended_at: '2026-07-27T12:00:00.000Z' }];
+  const focus = fleet.waveFocus(jobs, [{ wave: 'falhada', goal: 'não fingir actividade' }]);
+  assert.strictEqual(focus.active_wave, null);
+  assert.strictEqual(focus.ultima_wave.wave, 'falhada');
+  assert.strictEqual(focus.ultima_wave.failed, 1);
+});
+
+test('L1 — o manifest anuncia a versão 1.22.0', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf8'));
+  assert.strictEqual(manifest.version, '1.22.0');
 });

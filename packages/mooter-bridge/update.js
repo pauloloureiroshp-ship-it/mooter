@@ -207,11 +207,30 @@ function verificar(zip) {
     }
   }
 
-  // Sintaxe CommonJS, compilada pelo próprio V8. Mantém a mesma rede sem abrir
-  // um processo `node --check` por ficheiro — 32 spawns não são trabalho de fundo.
+  /**
+   * Sintaxe CommonJS, compilada pelo próprio V8. Mantém a mesma rede sem abrir
+   * um processo `node --check` por ficheiro — 32 spawns não são trabalho de fundo.
+   *
+   * ⚠️ O SHEBANG TEM DE SAIR PRIMEIRO — e este é um bug de TIJOLO, apanhado a
+   * 2026-07-27 antes de chegar à máquina de alguém:
+   *
+   *   `#!/usr/bin/env node` é válido num ficheiro que o Node carrega (o loader
+   *   remove-o), mas NÃO é sintaxe JavaScript válida. `Module.wrap` não o remove,
+   *   por isso o V8 rebentava com "Invalid or unexpected token" em
+   *   `server.js`, `server-apps.js` e `fleet.js` — os três têm shebang.
+   *
+   *   Consequência se tivesse passado: a versão instalada recusaria TODOS os
+   *   bundles seguintes, incluindo o que corrigisse isto. Uma actualização que
+   *   se tranca a si própria por fora.
+   *
+   *   Os 21 testes desta suite passaram na mesma porque usam ficheiros
+   *   sintéticos sem shebang. Um teste que não usa o formato real não testa o
+   *   caso real — por isso o teste novo lê um ficheiro NOSSO, com shebang.
+   */
   for (const f of js) {
     try {
-      new vm.Script(Module.wrap(f.dados.toString('utf8')), { filename: f.nome });
+      const fonte = f.dados.toString('utf8').replace(/^#![^\n]*\n/, '\n');
+      new vm.Script(Module.wrap(fonte), { filename: f.nome });
     } catch (e) {
       problemas.push('erro de sintaxe em ' + f.nome + ': ' + String((e && e.message) || e).slice(0, 160));
     }
@@ -337,13 +356,14 @@ function alvosDoBundle(zip, dest, atual) {
   return alvos;
 }
 
-async function reporBackupAsync(backup, dest) {
+async function reporBackupAsync(backup, dest, atual) {
   let repostos = 0;
   let nomes;
   try { nomes = await fs.promises.readdir(backup); } catch { return repostos; }
   for (const nome of nomes) {
     try {
-      await fs.promises.copyFile(path.join(backup, nome), path.join(dest, nome));
+      const alvo = nome === 'manifest.json' && atual ? atual.ficheiro : path.join(dest, nome);
+      await fs.promises.copyFile(path.join(backup, nome), alvo);
       repostos++;
     } catch { /* continuar a repor o que for possível */ }
     await cederCiclo();
@@ -402,7 +422,7 @@ async function instalarEmSegundoPlano(ctx) {
     });
     await guardarEstado(estado, opts);
   } catch (e) {
-    const repostos = backup ? await reporBackupAsync(backup, dest) : 0;
+    const repostos = backup ? await reporBackupAsync(backup, dest, atual) : 0;
     estado = Object.assign({}, estado, {
       estado: 'falhou',
       terminado_em: new Date().toISOString(),
