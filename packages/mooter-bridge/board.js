@@ -277,10 +277,14 @@ function motivosNaoLocal(ledger) {
     const decisao = event.local_decisao;
     if (!decisao || decisao.local !== false || !String(decisao.porque || '').trim()) continue;
     const porque = String(decisao.porque).trim();
-    contagem.set(porque, (contagem.get(porque) || 0) + 1);
+    const motivo = decisao.motivo_nao_local ? String(decisao.motivo_nao_local) : null;
+    const chave = JSON.stringify([motivo, porque]);
+    contagem.set(chave, (contagem.get(chave) || 0) + 1);
   }
-  return [...contagem.entries()].map(([porque, n]) => ({ porque, n }))
-    .sort((a, b) => b.n - a.n || a.porque.localeCompare(b.porque));
+  return [...contagem.entries()].map(([chave, n]) => {
+    const [motivo, porque] = JSON.parse(chave);
+    return motivo ? { motivo, porque, n } : { porque, n };
+  }).sort((a, b) => b.n - a.n || a.porque.localeCompare(b.porque));
 }
 
 function interrupcoesNoDia(ledger, medidoEm) {

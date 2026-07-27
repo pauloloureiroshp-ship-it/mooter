@@ -1200,6 +1200,20 @@ function readCrossCheck(jobDir) {
   catch { return null; }
 }
 
+function normalizarDecisaoLocal(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const decisao = {
+    local: raw.local === true,
+    porque: String(raw.porque || 'n/d'),
+    confianca: String(raw.confianca || 'n/d'),
+    forcado_por_quota: raw.forcado_por_quota === true,
+  };
+  if (raw.local === false && raw.motivo_nao_local) {
+    decisao.motivo_nao_local = String(raw.motivo_nao_local);
+  }
+  return decisao;
+}
+
 async function toolDispatch(args) {
   const agent = String((args && args.agent) || '').trim();
   const worktree = String((args && args.worktree) || '').trim();
@@ -1215,12 +1229,7 @@ async function toolDispatch(args) {
     ? args.__worktree_created : null;
   const rawLocalDecision = args && args.__local_decisao && typeof args.__local_decisao === 'object'
     ? args.__local_decisao : null;
-  const localDecision = rawLocalDecision ? {
-    local: rawLocalDecision.local === true,
-    porque: String(rawLocalDecision.porque || 'n/d'),
-    confianca: String(rawLocalDecision.confianca || 'n/d'),
-    forcado_por_quota: rawLocalDecision.forcado_por_quota === true,
-  } : null;
+  const localDecision = normalizarDecisaoLocal(rawLocalDecision);
   const stepProgress = stepsTotalFor(agent, args && args.__steps_total);
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
@@ -1381,9 +1390,10 @@ async function toolDispatch(args) {
       // porquê vai para o ledger. Sem isso, a única forma de descobrir que o
       // tier local estava preso a um 3B residente foi ler 4 jobs à mão.
       let freeMb = null;
+      let vramSnapshot = null;
       try {
-        const g = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null);
-        freeMb = g && g.headroom ? g.headroom.free_mb : null;
+        vramSnapshot = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null);
+        freeMb = vramSnapshot && vramSnapshot.headroom ? vramSnapshot.headroom.free_mb : null;
       } catch { /* sem nvidia-smi seguimos sem folga conhecida */ }
       // quantos jobs locais já disputam esta placa neste instante
       let locaisVivos = 0;
@@ -1391,7 +1401,7 @@ async function toolDispatch(args) {
       const escolha = await moo.pickModelExplained(model, process.env.OLLAMA_HOST || '127.0.0.1:11434', resident,
         // Onda 1.3 — o objectivo REAL (não o boilerplate do masterprompt) informa
         // a adequação: tarefa de código prefere um modelo *-coder
-        { free_mb: freeMb, locais_a_correr: locaisVivos,
+        { vram: vramSnapshot, locais_a_correr: locaisVivos,
           goal: (String(masterprompt || '').match(/OBJECTIVO: (.+)/) || [])[1] || null });
       const chosen = escolha.model;
       if (!chosen) {
@@ -2332,13 +2342,14 @@ async function toolWork(args) {
   // é a decisão que o classificador nunca teve dados para tomar.
   // ❌ Nunca escolhe local para escrita, git, deploy, testes ou auditoria.
   if (!a.agent && !a.model && agent !== 'moo') {
-    let vram = null; let temLocal = false;
+    let vram = null; let temLocal = false; let escolhaModeloLocal = null;
     try {
       const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
       const res = await require('./fleet.js').probeOllama(700).catch(() => null);
       const g = await require('./gpu.js').gpuSnapshot(res ? res.length : null).catch(() => null);
       vram = g && g.headroom ? g.headroom.free_mb : null;
-      temLocal = !!(await moo.pickModel(null, host, res, { free_mb: vram, goal }).catch(() => null));
+      escolhaModeloLocal = await moo.pickModelExplained(null, host, res, { vram: g, goal }).catch(() => null);
+      temLocal = !!(escolhaModeloLocal && escolhaModeloLocal.model);
     } catch { /* sem local, seguimos para a nuvem */ }
 
     // ler os ficheiros ANTES de decidir: é o tamanho do contexto que manda
@@ -2346,6 +2357,8 @@ async function toolWork(args) {
     escolhaLocal = localfirst.cabeNoLocal({
       goal, tier, contextoChars: pre.chars, temModeloLocal: temLocal,
       escrita: a.write === true, vramLivreMb: vram,
+      motivoNaoLocal: escolhaModeloLocal && escolhaModeloLocal.motivo_nao_local,
+      modeloJaResidente: escolhaModeloLocal && escolhaModeloLocal.residente === true,
       // Onda 0.6 — a quota crítica agora tem efeito real: forcar_local era
       // calculado em quota.js e NUNCA lido. Ou se usa, ou se apaga: usa-se.
       forcar: !!(calibragem && calibragem.forcar_local),
@@ -2363,6 +2376,7 @@ async function toolWork(args) {
         porque: 'histórico local: ' + aprendizagem.porque,
         confianca: aprendizagem.confianca,
         forcado_por_quota: false,
+        motivo_nao_local: null,
       };
       routedBy = 'adaptive-learned';
     }
@@ -2388,6 +2402,8 @@ async function toolWork(args) {
       porque: escolhaLocal.porque,
       confianca: escolhaLocal.confianca,
       forcado_por_quota: escolhaLocal.forcado_por_quota === true,
+      motivo_nao_local: escolhaLocal.local === false && escolhaLocal.motivo_nao_local
+        ? String(escolhaLocal.motivo_nao_local) : null,
     };
   }
 
@@ -2476,9 +2492,9 @@ async function toolWork(args) {
     // Um modelo frio custa segundos de carregamento, não é um impedimento.
     const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
     const resident = await require('./fleet.js').probeOllama(700).catch(() => null);
-    let free = null;
-    try { const g = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null); free = g && g.headroom ? g.headroom.free_mb : null; } catch { /* */ }
-    const localModel = await moo.pickModel(null, host, resident, { free_mb: free, goal }).catch(() => null);
+    let vramSnapshot = null;
+    try { vramSnapshot = await require('./gpu.js').gpuSnapshot(resident ? resident.length : null); } catch { /* */ }
+    const localModel = await moo.pickModel(null, host, resident, { vram: vramSnapshot, goal }).catch(() => null);
     if (!localModel) {
       prepareSkipped = (resident === null)
         ? 'Ollama não respondeu em ' + host + ' — sem preparação local'
@@ -2605,6 +2621,7 @@ async function toolWork(args) {
     escolha_local: escolhaLocal ? {
       local: escolhaLocal.local, porque: escolhaLocal.porque, confianca: escolhaLocal.confianca,
       forcado_por_quota: escolhaLocal.forcado_por_quota,
+      motivo_nao_local: escolhaLocal.motivo_nao_local || null,
     } : null,
     aprendizagem: aprendizagem ? {
       agente: aprendizagem.agente, porque: aprendizagem.porque,
@@ -2765,6 +2782,7 @@ module.exports = {
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   isDeicticGoal, worktreeSuffix, stepsTotalFor, createStreamStepTracker,
+  _normalizarDecisaoLocal: normalizarDecisaoLocal,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,
   applyQuotaCeiling,

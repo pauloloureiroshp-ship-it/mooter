@@ -145,6 +145,15 @@ function bytesDe(m) {
  */
 const CODER_RE = /(coder|codegemma|codellama|starcoder|codeqwen|codestral)/i;
 const TAREFA_CODIGO_RE = /\b(c[oó]digo|code|diff|patch|refactor|refactoriza|bug|fun[cç][aã]o|classe|implementa|regex|sql|typescript|javascript|python|stack ?trace|\.jsx?|\.tsx?|\.py|\.rs|\.go)\b/i;
+const BYTES_POR_MB = 1024 * 1024;
+const MB_POR_GB = 1024;
+/**
+ * BRIEF_X4_VRAM, medido em 2026-07-27: 644 MB livres fizeram o pedido seguinte
+ * cair para a nuvem. A reserva mantém pelo menos 2 GB ou 10% da placa livres;
+ * o percentual faz a mesma regra escalar para placas de capacidades diferentes.
+ */
+const FOLGA_MINIMA_GB = 2;
+const FOLGA_MINIMA_FRACAO = 0.10;
 
 function familiaVersao(nome) {
   const m = String(nome || '').toLowerCase().match(/^([a-z][a-z-]*?)[-]?(\d+(?:\.\d+)?)/);
@@ -176,6 +185,58 @@ function pontuar(cands, tarefaCodigo) {
   }).sort((a, b) => b.score - a.score);
 }
 
+function numeroOuNull(v) {
+  const n = Number(v);
+  return v != null && Number.isFinite(n) ? n : null;
+}
+
+async function lerVram(residentList, opts) {
+  const o = opts || {};
+  if (Object.prototype.hasOwnProperty.call(o, 'vram')) return o.vram;
+  // Compatibilidade para callers antigos e fixtures: fornecer free_mb significa
+  // que quem chamou já fez a leitura e impede uma segunda sonda à GPU.
+  if (o.free_mb != null || o.total_mb != null) {
+    return {
+      memory_total_mb: numeroOuNull(o.total_mb),
+      headroom: { free_mb: numeroOuNull(o.free_mb) },
+    };
+  }
+  try {
+    return await require('./gpu.js').gpuSnapshot(Array.isArray(residentList) ? residentList.length : null);
+  } catch {
+    return null;
+  }
+}
+
+function numerosVram(snapshot) {
+  const totalMb = numeroOuNull(snapshot && (
+    snapshot.memory_total_mb != null
+      ? snapshot.memory_total_mb
+      : snapshot.live && snapshot.live.memory_total_mb
+  ));
+  const freeMb = numeroOuNull(snapshot && snapshot.headroom && snapshot.headroom.free_mb);
+  const reservaMb = totalMb == null
+    ? null
+    : Math.max(FOLGA_MINIMA_GB * MB_POR_GB, totalMb * FOLGA_MINIMA_FRACAO);
+  return { totalMb, freeMb, reservaMb, completa: totalMb != null && freeMb != null };
+}
+
+function gbLegivel(mb) {
+  const gb = mb / MB_POR_GB;
+  return (Math.abs(gb - Math.round(gb)) < 0.05 ? String(Math.round(gb)) : gb.toFixed(1)) + ' GB';
+}
+
+function porqueNaoCabe(modelo, bytes, vram) {
+  const tamanhoMb = bytes / BYTES_POR_MB;
+  const depoisMb = vram.freeMb - tamanhoMb;
+  if (depoisMb >= 0) {
+    return modelo + ' deixaria ' + Math.round(depoisMb) + ' MB livres, abaixo da folga mínima de '
+      + gbLegivel(vram.reservaMb);
+  }
+  return modelo + ' precisa de ' + gbLegivel(tamanhoMb) + ', mas só há '
+    + Math.round(vram.freeMb) + ' MB livres e a folga mínima é ' + gbLegivel(vram.reservaMb);
+}
+
 async function pickModelExplained(explicit, hostStr, residentList, opts) {
   if (explicit) return { model: String(explicit), porque: 'pedido explicitamente por quem chamou' };
   const env = process.env.MOOTER_MOO_MODEL;
@@ -183,7 +244,9 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
     return { model: env.trim(), porque: 'fixado em MOOTER_MOO_MODEL' };
   }
 
-  const freeMb = opts && opts.free_mb != null ? Number(opts.free_mb) : null;
+  const snapshot = await lerVram(residentList, opts);
+  const vram = numerosVram(snapshot);
+  const freeMb = vram.freeMb;
   /**
    * ⚠️ A VRAM LIVRE É UMA FOTOGRAFIA, NÃO UMA RESERVA.
    *
@@ -199,42 +262,67 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
    */
   const jaCorrem = opts && opts.locais_a_correr != null ? Math.max(0, Number(opts.locais_a_correr)) : 0;
   const fatia = jaCorrem > 0 ? 1 / (jaCorrem + 1) : 1;
-  const orcamentoMb = freeMb == null ? null : freeMb * fatia;
-  const cabe = (b) => (orcamentoMb == null || b == null) ? true : (b / 1048576) <= orcamentoMb * 0.9;
+  const orcamentoMb = vram.completa
+    ? Math.max(0, freeMb - vram.reservaMb) * fatia
+    : (freeMb == null ? null : freeMb * fatia * 0.9);
+  const cabeCarregar = (b) => (orcamentoMb == null || b == null) ? true : (b / BYTES_POR_MB) <= orcamentoMb;
 
   const instalados = (await listModels(hostStr, 1500)) || [];
   const gen = instalados.filter(isGenerative);
   const porNome = new Map(gen.map((m) => [String(m.model), m]));
+  const nomesResidentes = new Set((Array.isArray(residentList) ? residentList : [])
+    .filter(isGenerative).map((m) => String(m.model)));
 
   // tamanho do residente: /api/ps nem sempre o traz — vai buscá-lo aos instalados
   const residentes = (Array.isArray(residentList) ? residentList : [])
     .filter(isGenerative)
     .map((m) => ({ model: String(m.model), bytes: bytesDe(m) != null ? bytesDe(m) : bytesDe(porNome.get(String(m.model))) }))
-    .filter((m) => cabe(m.bytes));
   residentes.sort((a, b) => (b.bytes || 0) - (a.bytes || 0));
   const residente = residentes[0] || null;
 
   if (!gen.length) {
     // sem /api/tags só temos o residente — melhor isso do que inventar
-    if (residente) return { model: residente.model, porque: 'já carregado na GPU (não consegui listar os instalados)' };
+    if (residente) return {
+      model: residente.model,
+      porque: 'já carregado na GPU (não consegui listar os instalados)',
+      residente: true,
+    };
     return { model: null, porque: 'esta máquina não tem nenhum modelo local capaz de gerar texto' };
   }
 
   const comTamanho = gen.filter((m) => bytesDe(m) != null);
-  const queCabem = comTamanho.filter((m) => cabe(bytesDe(m)));
   // Onda 1.3 — adequação × capacidade em vez de "o maior que cabe"
   const tarefaCodigo = TAREFA_CODIGO_RE.test(String((opts && opts.goal) || ''));
-  const ranking = pontuar(queCabem, tarefaCodigo);
+  const rankingTodos = pontuar(comTamanho, tarefaCodigo);
+  const ranking = rankingTodos.filter((r) => nomesResidentes.has(r.model) || cabeCarregar(r.bytes));
   const melhor = ranking[0] || null;
   const segundo = ranking[1] || null;
+  const preferido = rankingTodos[0] || null;
+  const preferidoBloqueado = vram.completa && preferido
+    && !nomesResidentes.has(preferido.model) && !cabeCarregar(preferido.bytes)
+    ? preferido : null;
+  const notaVram = (escolhido) => preferidoBloqueado && preferidoBloqueado.model !== escolhido
+    ? ' — a VRAM decidiu: ' + porqueNaoCabe(preferidoBloqueado.model, preferidoBloqueado.bytes, vram)
+    : '';
+  const ressalvaVram = vram.completa
+    ? ''
+    : ' — leitura completa da VRAM indisponível; mantive o comportamento anterior sem bloquear';
 
   if (residente) {
     const rankRes = ranking.find((r) => r.model === residente.model) || null;
     if (!melhor || residente.bytes == null || !rankRes) {
-      return { model: residente.model, porque: 'já carregado na GPU — arranca de imediato' };
+      return {
+        model: residente.model,
+        porque: 'já carregado na GPU — arranca de imediato' + notaVram(residente.model),
+        residente: true,
+      };
     }
     if (rankRes.model === melhor.model) {
-      return { model: melhor.model, porque: 'já carregado na GPU e é a melhor escolha: ' + melhor.just.join(', ') };
+      return {
+        model: melhor.model,
+        porque: 'já carregado na GPU e é a melhor escolha: ' + melhor.just.join(', ') + notaVram(melhor.model),
+        residente: true,
+      };
     }
     /**
      * O residente só ganha se estiver no mesmo calibre E não for de geração
@@ -243,15 +331,21 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
      * exactamente o erro que o selector novo veio corrigir.
      */
     if (rankRes.score >= melhor.score * 0.9 && rankRes.novidade >= melhor.novidade - 0.05) {
-      return { model: rankRes.model, porque: 'já carregado e do mesmo calibre da melhor escolha — não compensa recarregar' };
+      return {
+        model: rankRes.model,
+        porque: 'já carregado e do mesmo calibre da melhor escolha — não compensa recarregar' + notaVram(rankRes.model),
+        residente: true,
+      };
     }
     const eMaior = (melhor.bytes || 0) > (rankRes.bytes || 0);
     return {
       model: melhor.model,
       porque: 'troquei o residente ' + rankRes.model + ' pelo ' + melhor.model + ': ' + melhor.just.join(', ')
-        + (eMaior ? ' — maior e mais capaz' : ' — mais recente, e ainda liberta VRAM'),
+        + (eMaior ? ' — maior e mais capaz' : ' — mais recente, e ainda liberta VRAM')
+        + notaVram(melhor.model) + ressalvaVram,
       trocou_residente: rankRes.model,
       custo: 'o arranque leva alguns segundos porque o modelo tem de ser carregado',
+      vram_influenciou: preferidoBloqueado != null,
     };
   }
 
@@ -260,14 +354,33 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
       model: melhor.model,
       porque: 'escolhi o ' + melhor.model + ': ' + melhor.just.join(', ')
         + (segundo ? ' — ganhou ao ' + segundo.model : '')
-        + (jaCorrem ? ' (fatia de GPU repartida: ' + jaCorrem + ' job local já a correr)' : ''),
+        + (jaCorrem ? ' (fatia de GPU repartida: ' + jaCorrem + ' job local já a correr)' : '')
+        + notaVram(melhor.model) + ressalvaVram,
       locais_a_correr: jaCorrem || null,
+      vram_influenciou: preferidoBloqueado != null,
     };
   }
-  // nada com tamanho conhecido: o menor é o palpite menos arriscado, e diz-se
+
+  if (vram.completa && preferido) {
+    return {
+      model: null,
+      porque: 'nenhum modelo novo cabe mantendo a folga mínima de ' + gbLegivel(vram.reservaMb)
+        + ': ' + porqueNaoCabe(preferido.model, preferido.bytes, vram),
+      motivo_nao_local: 'falta_vram',
+      vram_influenciou: true,
+    };
+  }
+
+  // Sem leitura completa, degradar para o palpite anterior e declará-lo.
   const anySized = comTamanho.slice().sort((a, b) => bytesDe(a) - bytesDe(b));
-  if (anySized.length) return { model: anySized[0].model, porque: 'nenhum cabe com folga na VRAM livre — escolhi o mais pequeno' };
-  return { model: gen[0].model, porque: 'não sei os tamanhos — escolhi o primeiro que sabe gerar' };
+  if (anySized.length) return {
+    model: anySized[0].model,
+    porque: 'a leitura completa da VRAM está indisponível — mantive o comportamento anterior e escolhi o mais pequeno',
+  };
+  return {
+    model: gen[0].model,
+    porque: 'os tamanhos dos modelos são n/d — não pude aplicar o tecto de VRAM e mantive o primeiro que sabe gerar',
+  };
 }
 
 async function pickModel(explicit, hostStr, residentList, opts) {
@@ -490,6 +603,7 @@ function runLocal({ hostStr, model, prompt, outStream, errStream, options }) {
 
 module.exports = {
   MAX_RACIOCINIO,
+  FOLGA_MINIMA_GB,
   pickModelExplained,
   familiaVersao, pontuar, TAREFA_CODIGO_RE, CODER_RE,
   bytesDe, runLocal, listModels, pickModel, hostPort, isGenerative, EMBED_RE };

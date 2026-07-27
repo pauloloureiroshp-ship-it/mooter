@@ -100,6 +100,17 @@ tools/router/.sentry.json
 *.jsonl
 # Wave 23 self-audit deliverables are committed artifacts (corpus / validation / LoRA export)
 !audit/*.jsonl
+# ⚠️ CINTO DE SEGURANÇA, não decoração.
+#
+# Os .jsonl abaixo estão versionados desde antes de a regra `*.jsonl` existir —
+# e o .gitignore não afecta ficheiros já tracked, por isso sobreviveram por
+# acidente histórico, não por desenho. Basta um `git rm --cached` numa limpeza
+# para o padrão largo os re-ignorar NA HORA, e desaparecem do repo sem aviso.
+# São corpora de benchmark e de validação: os números das waves 1.5 e 23
+# deixam de ser reproduzíveis sem eles.
+!.planning/**/*.jsonl
+!docs/benchmarks/**/*.jsonl
+!packages/router/scripts/**/*.jsonl
 training-*.json
 model-weights/
 *.onnx
@@ -165,3 +176,31 @@ RUN-*.bat
 .gemini/
 .mooter/
 # .planning/ tem conteudo versionado (waves, benchmarks, validacao) - nao ignorar
+
+# ── Artefactos de sessão ───────────────────────────────────────────────────
+# Medido a 2026-07-27: 690 ficheiros por commitar, dos quais 635 eram lixo de
+# sessão — 262 pastas temporárias em scripts/ (o mkdtempSync resolveu o tmpdir
+# para dentro do repo) e ~150 saídas de runners em _handoff/. Nada disto é
+# código; é o rasto de o trabalho ter acontecido. Um `git status` com 690
+# linhas deixa de servir para ver o que mudou, que é a única coisa para que
+# serve. Os briefs (.md) e os runners (.ps1/.bat) CONTINUAM versionados: são a
+# memória de como as coisas foram feitas.
+_handoff/*-saida.txt
+_handoff/*-console.txt
+_handoff/*-resultado.txt
+_handoff/msg-*.txt
+_handoff/*.mcpb
+_handoff/*.tmp
+_to_delete/
+# pastas temporárias de teste: prefixo conhecido + sufixo aleatório
+scripts/lec-*/
+scripts/lecw-*/
+scripts/leq-*/
+scripts/leas-*/
+scripts/le-task-snap-*/
+scripts/lp-*/
+scripts/lpa-*/
+scripts/lpsk-*/
+scripts/gj[0-9]-*/
+scripts/guardian-prebake-*/
+scripts/node-compile-cache/

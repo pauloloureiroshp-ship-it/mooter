@@ -52,12 +52,10 @@ const CONTEXTO_MAX_LOCAL_CHARS = 18000;
 /**
  * @returns {{local:boolean, porque:string, confianca:'alta'|'media'|'baixa'}}
  */
-function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramLivreMb, forcar }) {
+function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramLivreMb,
+  motivoNaoLocal, modeloJaResidente, forcar }) {
   const texto = String(goal || '');
 
-  if (!temModeloLocal) {
-    return { local: false, porque: 'não há modelo local capaz de gerar texto', confianca: 'alta' };
-  }
   if (escrita) {
     return { local: false, porque: 'o trabalho pode escrever ficheiros — isso vai sempre para a nuvem', confianca: 'alta' };
   }
@@ -74,8 +72,26 @@ function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramL
       confianca: 'alta',
     };
   }
-  if (vramLivreMb != null && vramLivreMb < 1500) {
-    return { local: false, porque: 'só há ' + Math.round(vramLivreMb) + ' MB de VRAM livre', confianca: 'alta' };
+  if (motivoNaoLocal === 'falta_vram') {
+    return {
+      local: false,
+      porque: 'nenhum modelo novo cabe sem consumir a folga mínima de VRAM',
+      confianca: 'alta',
+      motivo_nao_local: 'falta_vram',
+      forcado_por_quota: false,
+    };
+  }
+  if (!temModeloLocal) {
+    return { local: false, porque: 'não há modelo local capaz de gerar texto', confianca: 'alta' };
+  }
+  if (!modeloJaResidente && vramLivreMb != null && vramLivreMb < 1500) {
+    return {
+      local: false,
+      porque: 'só há ' + Math.round(vramLivreMb) + ' MB de VRAM livre',
+      confianca: 'alta',
+      motivo_nao_local: 'falta_vram',
+      forcado_por_quota: false,
+    };
   }
 
   /**

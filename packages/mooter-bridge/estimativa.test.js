@@ -140,6 +140,44 @@ test('6 — o caminho de leitura abre o índice e faz stat ao log, nunca abre le
   assert.equal(opened.some((file) => /ledger\.jsonl$/i.test(file)), false);
 });
 
+/**
+ * Regressão de um caso REAL, não hipotético: job-ms3keiig-ef8f, 2026-07-27.
+ * O Codex emitiu 36 passos contra um total de 4 e a ETA mostrou "4 de 4,
+ * faltam 0 s" durante 576 s com o job vivo. O E3, ao lado, dizia
+ * "a-trabalhar, cresceu há 0 s" — dois blocos da mesma resposta a
+ * contradizerem-se. Um denominador desmentido pelos factos não se clampa.
+ */
+test('8 — passos a mais que o total: nem barra cheia, nem "faltam 0 s"', (t) => {
+  const f = fixture(t, 'job-passos-a-mais');
+  const job = liveJob({ steps_done: 36, steps_total: 4, elapsed_s: 576 });
+  const r = estimation.estimateJob(f.jobId, job, { indexPath: f.indexPath, outPath: f.outPath });
+
+  assert.equal(r.progresso.valor, null, 'clampou em vez de admitir que o denominador está errado');
+  assert.match(r.progresso.porque, /36 passos contra um total de 4/);
+  assert.equal(r.falta_s.valor, null, 'devolveu uma estimativa a partir de um denominador desmentido');
+  assert.equal(r.manda, null);
+});
+
+test('9 — passos completos com o job ainda vivo não viram "faltam 0 s"', (t) => {
+  const f = fixture(t, 'job-passos-completos');
+  const job = liveJob({ steps_done: 4, steps_total: 4, elapsed_s: 300 });
+  const r = estimation.estimateJob(f.jobId, job, { indexPath: f.indexPath, outPath: f.outPath });
+
+  assert.equal(r.falta_s.valor, null);
+  assert.match(r.falta_s.porque, /continua a correr/);
+});
+
+test('10 — com o E1 desmentido, o E2 assume se tiver base', (t) => {
+  const f = fixture(t, 'job-e2-assume');
+  seed(f.indexPath, [600, 700, 800, 900, 1_000]);
+  const job = liveJob({ steps_done: 36, steps_total: 4, elapsed_s: 300 });
+  const r = estimation.estimateJob(f.jobId, job, { indexPath: f.indexPath, outPath: f.outPath });
+
+  assert.equal(r.progresso.valor, null);
+  assert.equal(r.manda, 'E2', 'o E1 caiu e ninguém assumiu — a ETA ficou n/d à toa');
+  assert.ok(r.falta_s.valor > 0);
+});
+
 test('7 — vivacidade compara amostras do próprio log sem contaminar a ETA', (t) => {
   const f = fixture(t);
   seed(f.indexPath, [600, 650, 700, 750, 800]);

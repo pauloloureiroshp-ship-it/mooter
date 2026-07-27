@@ -18,5 +18,10 @@
     "fleet-ui.html",
     "sync.js",
     "worktrees.js"
+  ],
+  "1.25": [
+    "moo.js",
+    "localfirst.js",
+    "estimativa.js"
   ]
 }

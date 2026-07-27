@@ -53,6 +53,9 @@ const MARCADORES = {
   'fleet-ui.html': ['eta-track', 'fill_pct'],
   'sync.js': ['semHead'],
   'worktrees.js': ['total_bruto', 'suspeita'],
+  // v1.25 — o tecto de VRAM e a ETA que deixou de fingir 100%
+  'moo.js': ['FOLGA_MINIMA_GB', 'falta_vram'],
+  'localfirst.js': ['falta_vram'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {

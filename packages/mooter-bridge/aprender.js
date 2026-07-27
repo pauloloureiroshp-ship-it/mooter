@@ -83,6 +83,7 @@ function jobRecords(input) {
       status: null, desfecho: null, duration_s: null, tokens_in: null, tokens_out: null,
       cost_usd: null, prep_duration_s: null, tokens_poupados_estimados: null,
       files_touched: null, files_touched_reason: null,
+      motivo_nao_local: null, forcado_por_quota: false,
     };
     for (const field of ['agent', 'tier_motor', 'goal', 'worktree']) {
       if (event[field]) record[field] = event[field];
@@ -91,6 +92,10 @@ function jobRecords(input) {
     if (typeof event.preparation === 'boolean') record.preparation = event.preparation;
     if (event.event === 'dispatched') {
       if (!record.dispatched_at) record.dispatched_at = event.ts || null;
+      if (event.local_decisao && typeof event.local_decisao === 'object') {
+        record.motivo_nao_local = event.local_decisao.motivo_nao_local || null;
+        record.forcado_por_quota = event.local_decisao.forcado_por_quota === true;
+      }
       if (event.worktree_criada && typeof event.worktree_criada === 'object') {
         record.worktree_criada = event.worktree_criada;
       }

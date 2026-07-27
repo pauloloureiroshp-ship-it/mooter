@@ -23,6 +23,21 @@ function elapsedSeconds(job, now) {
   return Math.max(0, (Number(now) - started) / 1000);
 }
 
+/**
+ * ⚠️ Apanhado em uso real (2026-07-27, job-ms3keiig-ef8f).
+ *
+ * O Codex emitiu `steps_done: 36` contra `steps_total: 4` — porque o detector
+ * de passos conta CHAMADAS DE FERRAMENTA e o total vem do plano da wave. São
+ * duas grandezas diferentes com o mesmo nome.
+ *
+ * A versão anterior fazia `Math.min(done, total)` e devolvia "4 de 4": uma
+ * barra cheia, com o job a meio, durante quase dez minutos. Clampar não é
+ * defender-se do erro — é escondê-lo e apresentá-lo como certeza.
+ *
+ * `done > total` é a PROVA de que o denominador está errado. Nesse caso não há
+ * progresso para mostrar: há um `n/d` com o porquê, e o E2 assume. A barra fica
+ * indeterminada, que é a verdade.
+ */
 function progressFor(job) {
   const source = job && job.now ? { ...job, ...job.now } : (job || {});
   const done = finiteNonNegative(source.steps_done);
@@ -31,7 +46,14 @@ function progressFor(job) {
     return nd(source.steps_total_porque || 'o job não declarou um total de passos fiável');
   }
   if (!Number.isInteger(done)) return nd('o job ainda não declarou nenhum passo concluído');
-  return { passo: Math.min(done, total), de: total, fonte: 'passos declarados' };
+  if (done > total) {
+    return nd(
+      'o job já declarou ' + done + ' passos contra um total de ' + total
+      + ' — o denominador não descreve este job (o detector conta chamadas de ferramenta, '
+      + 'o total vem do plano), por isso não há percentagem honesta a mostrar',
+    );
+  }
+  return { passo: done, de: total, fonte: 'passos declarados' };
 }
 
 function indexKeyFor(job) {
@@ -72,6 +94,20 @@ function stepEstimate(progress, elapsed) {
   if (!progress || progress.valor === null) return { valor: null, porque: progress && progress.porque };
   if (elapsed == null) return { valor: null, porque: 'o tempo decorrido do job é n/d' };
   if (progress.passo <= 0) return { valor: null, porque: 'ainda não há um passo concluído para medir o ritmo real' };
+  /**
+   * ⚠️ "Faltam 0 s" num job que continua vivo é uma impossibilidade, não uma
+   * estimativa optimista. Se os passos dizem que acabou e o job não acabou, os
+   * passos estão errados — e a resposta certa é dizê-lo, não devolver zero e
+   * deixar a barra cheia a contradizer o pulso do E3, que naquele mesmo
+   * instante estava a marcar "a-trabalhar, cresceu há 0 s".
+   */
+  if (progress.passo >= progress.de) {
+    return {
+      valor: null,
+      porque: 'os passos declarados dizem que o trabalho acabou (' + progress.passo + ' de ' + progress.de
+        + ') mas o job continua a correr — os passos deixaram de descrever o que falta',
+    };
+  }
   const projectedTotal = Math.max(elapsed, elapsed * (progress.de / progress.passo));
   return {
     valor: Math.max(0, Math.round(projectedTotal - elapsed)),
