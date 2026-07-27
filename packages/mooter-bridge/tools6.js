@@ -263,14 +263,17 @@ function build(seam, fleet, base) {
         if (a.atualizar) {
           const up = require('./update.js');
           if (a.atualizar === 'aplicar') {
-            const r = up.aplicar({});
-            return comResumo(r, r.ok ? ('🐮 ' + r.de + ' → ' + r.para) : '⚠ ' + (r.erro || 'não actualizei'));
+            const r = await up.aplicarAsync({});
+            return comResumo(r, r.estado === 'a-instalar'
+              ? "🐮 a instalar em segundo plano — confirma com atualizar:'ver' daqui a alguns segundos"
+              : '⚠ ' + (r.erro || 'não actualizei'));
           }
           if (a.atualizar === 'reverter') {
             const r = up.reverter();
             return comResumo(r, r.ok ? '🐮 revertido' : '⚠ ' + (r.erro || 'não revertí'));
           }
           const r = up.procurar({});
+          const instalacao = up.estadoDaInstalacao();
           // ⚠️ a lista inteira de bundles antigos não interessa a ninguém e
           // enchia a resposta: fica o que há de novo e as 3 mais recentes.
           return comResumo({
@@ -278,7 +281,8 @@ function build(seam, fleet, base) {
             nova: r.nova,
             recentes: (r.encontrados || []).slice(0, 3),
             procurei_em: r.procurei_em,
-          }, '🐮 ' + r.resumo);
+            instalacao,
+          }, instalacao.stale ? '⚠ ' + instalacao.aviso : '🐮 ' + r.resumo);
         }
         if (a.wave && (a.steps || a.step)) {
           const r = await seam.toolPlan({

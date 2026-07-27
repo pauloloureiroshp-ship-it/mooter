@@ -37,10 +37,13 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const Module = require('module');
+const vm = require('vm');
 const zlib = require('zlib');
 
 const MOOTER_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
+const UPDATE_STATE_FILE = 'update-estado.json';
+const INSTALL_STALE_MS = 5 * 60 * 1000;
 
 /** A pasta onde ESTE servidor está instalado. É aqui que se escreve, e só aqui. */
 function pastaInstalada() { return __dirname; }
@@ -204,19 +207,14 @@ function verificar(zip) {
     }
   }
 
-  // sintaxe: escrever num temp e pedir ao Node para verificar
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-upd-'));
-  try {
-    for (const f of js) {
-      const alvo = path.join(tmp, path.basename(f.nome));
-      fs.writeFileSync(alvo, f.dados);
+  // Sintaxe CommonJS, compilada pelo próprio V8. Mantém a mesma rede sem abrir
+  // um processo `node --check` por ficheiro — 32 spawns não são trabalho de fundo.
+  for (const f of js) {
+    try {
+      new vm.Script(Module.wrap(f.dados.toString('utf8')), { filename: f.nome });
+    } catch (e) {
+      problemas.push('erro de sintaxe em ' + f.nome + ': ' + String((e && e.message) || e).slice(0, 160));
     }
-    for (const f of js) {
-      try { execFileSync(process.execPath, ['--check', path.join(tmp, path.basename(f.nome))], { stdio: 'pipe', timeout: 8000 }); }
-      catch (e) { problemas.push('erro de sintaxe em ' + f.nome + ': ' + String((e && e.stderr) || e).slice(0, 160)); }
-    }
-  } finally {
-    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* */ }
   }
   return problemas;
 }
@@ -306,6 +304,240 @@ function aplicar(opts) {
   };
 }
 
+/** Onde fica o recibo persistente da instalação assíncrona. */
+function ficheiroEstado(opts) {
+  return path.join((opts && opts.mooterDir) || MOOTER_DIR, UPDATE_STATE_FILE);
+}
+
+async function guardarEstado(estado, opts) {
+  const alvo = ficheiroEstado(opts);
+  await fs.promises.mkdir(path.dirname(alvo), { recursive: true });
+  await fs.promises.writeFile(alvo, JSON.stringify(estado, null, 2) + '\n', 'utf8');
+}
+
+/** Ceder o ciclo entre ficheiros: o servidor tem de continuar a responder. */
+function cederCiclo() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function alvosDoBundle(zip, dest, atual) {
+  const alvos = [];
+  for (const f of zip) {
+    if (f.nome === 'manifest.json') {
+      if (atual) alvos.push({ ficheiro: f, destino: atual.ficheiro });
+      continue;
+    }
+    if (!f.nome.startsWith('server/')) continue;
+    const p = path.join(dest, path.basename(f.nome));
+    if (path.dirname(path.resolve(p)) !== path.resolve(dest)) {
+      throw new Error('entrada suspeita no bundle: ' + f.nome);
+    }
+    alvos.push({ ficheiro: f, destino: p });
+  }
+  return alvos;
+}
+
+async function reporBackupAsync(backup, dest) {
+  let repostos = 0;
+  let nomes;
+  try { nomes = await fs.promises.readdir(backup); } catch { return repostos; }
+  for (const nome of nomes) {
+    try {
+      await fs.promises.copyFile(path.join(backup, nome), path.join(dest, nome));
+      repostos++;
+    } catch { /* continuar a repor o que for possível */ }
+    await cederCiclo();
+  }
+  return repostos;
+}
+
+async function instalarEmSegundoPlano(ctx) {
+  const { zip, dest, atual, versaoAtual, opts } = ctx;
+  let estado = ctx.estado;
+  let backup = null;
+  try {
+    // A verificação continua antes de qualquer escrita na instalação.
+    const problemas = verificar(zip);
+    if (problemas.length) {
+      estado = Object.assign({}, estado, {
+        estado: 'falhou',
+        terminado_em: new Date().toISOString(),
+        erro: 'o bundle não passou na verificação — não toquei em nada: ' + problemas.join('; '),
+      });
+      await guardarEstado(estado, opts);
+      return;
+    }
+
+    backup = path.join((opts && opts.mooterDir) || MOOTER_DIR,
+      'backup-' + versaoAtual + '-' + Date.now());
+    estado = Object.assign({}, estado, { backup });
+    await fs.promises.mkdir(backup, { recursive: true });
+
+    const instalados = await fs.promises.readdir(dest, { withFileTypes: true });
+    for (const entrada of instalados) {
+      if (entrada.isFile()) {
+        try {
+          await fs.promises.copyFile(path.join(dest, entrada.name), path.join(backup, entrada.name));
+        } catch { /* igual ao caminho síncrono: um ficheiro inacessível não trava os restantes */ }
+      }
+      await cederCiclo();
+    }
+    if (atual) {
+      await fs.promises.copyFile(atual.ficheiro, path.join(backup, 'manifest.json'));
+      await cederCiclo();
+    }
+
+    const alvos = alvosDoBundle(zip, dest, atual);
+    for (const item of alvos) {
+      await fs.promises.writeFile(item.destino, item.ficheiro.dados);
+      estado = Object.assign({}, estado, { ficheiros_escritos: estado.ficheiros_escritos + 1 });
+      await guardarEstado(estado, opts);
+      await cederCiclo();
+    }
+
+    estado = Object.assign({}, estado, {
+      estado: 'instalado',
+      terminado_em: new Date().toISOString(),
+      erro: null,
+    });
+    await guardarEstado(estado, opts);
+  } catch (e) {
+    const repostos = backup ? await reporBackupAsync(backup, dest) : 0;
+    estado = Object.assign({}, estado, {
+      estado: 'falhou',
+      terminado_em: new Date().toISOString(),
+      erro: 'falhou a meio: ' + ((e && e.message) || e)
+        + (backup ? ' · ' + repostos + ' ficheiro(s) repostos de ' + backup : ''),
+      backup,
+    });
+    try { await guardarEstado(estado, opts); } catch { /* o erro original continua a ser a verdade disponível */ }
+  }
+}
+
+/**
+ * Arranca a instalação e devolve assim que o recibo inicial está persistido.
+ * Backup e escrita correm depois da resposta, com I/O assíncrono.
+ */
+async function aplicarAsync(opts) {
+  const o = opts || {};
+  const dest = o.installDir || pastaInstalada();
+  const atual = lerManifest(dest);
+  const versaoAtual = atual ? atual.manifest.version : 'n/d';
+  const iniciadoEm = new Date().toISOString();
+  const alvo = o.ficheiro || (procurar(o).nova || {}).ficheiro;
+
+  if (!alvo) {
+    return {
+      estado: 'falhou', de: versaoAtual, para: 'n/d', bundle: null, iniciado_em: iniciadoEm,
+      erro: 'não encontrei nenhum bundle mais recente para instalar',
+    };
+  }
+
+  let zip;
+  let versaoNova = 'n/d';
+  try {
+    zip = lerZip(fs.readFileSync(alvo));
+    const man = zip.find((x) => x.nome === 'manifest.json');
+    versaoNova = man ? (JSON.parse(man.dados.toString('utf8')).version || 'n/d') : 'n/d';
+  } catch (e) {
+    const falhou = {
+      estado: 'falhou',
+      de: versaoAtual,
+      para: versaoNova,
+      ficheiros_escritos: 0,
+      total: 0,
+      iniciado_em: iniciadoEm,
+      terminado_em: new Date().toISOString(),
+      erro: 'não consegui ler ' + alvo + ': ' + ((e && e.message) || e),
+      backup: null,
+    };
+    try { await guardarEstado(falhou, o); } catch { /* a resposta ainda explica a falha */ }
+    return {
+      estado: 'falhou', de: versaoAtual, para: versaoNova, bundle: alvo,
+      iniciado_em: iniciadoEm, erro: falhou.erro,
+    };
+  }
+
+  if (!o.forcar && compara(versaoNova, versaoAtual) <= 0) {
+    const erro = 'o bundle é a versão ' + versaoNova + ' e já tens a ' + versaoAtual;
+    const falhou = {
+      estado: 'falhou',
+      de: versaoAtual,
+      para: versaoNova,
+      ficheiros_escritos: 0,
+      total: 0,
+      iniciado_em: iniciadoEm,
+      terminado_em: new Date().toISOString(),
+      erro,
+      backup: null,
+    };
+    try { await guardarEstado(falhou, o); } catch { /* a resposta ainda explica a falha */ }
+    return { estado: 'falhou', de: versaoAtual, para: versaoNova, bundle: alvo, iniciado_em: iniciadoEm, erro };
+  }
+
+  let total;
+  try { total = alvosDoBundle(zip, dest, atual).length; }
+  catch (e) {
+    const erro = (e && e.message) || String(e);
+    return { estado: 'falhou', de: versaoAtual, para: versaoNova, bundle: alvo, iniciado_em: iniciadoEm, erro };
+  }
+  const estado = {
+    estado: 'a-instalar',
+    de: versaoAtual,
+    para: versaoNova,
+    ficheiros_escritos: 0,
+    total,
+    iniciado_em: iniciadoEm,
+    terminado_em: null,
+    erro: null,
+    backup: null,
+  };
+
+  try {
+    await guardarEstado(estado, o);
+  } catch (e) {
+    return {
+      estado: 'falhou', de: versaoAtual, para: versaoNova, bundle: alvo, iniciado_em: iniciadoEm,
+      erro: 'não consegui persistir o estado da instalação: ' + ((e && e.message) || e),
+    };
+  }
+
+  setImmediate(() => {
+    instalarEmSegundoPlano({
+      zip, dest, atual, versaoAtual, opts: o, estado,
+    }).catch(() => { /* instalarEmSegundoPlano persiste a falha antes de terminar */ });
+  });
+
+  return { estado: 'a-instalar', de: versaoAtual, para: versaoNova, bundle: alvo, iniciado_em: iniciadoEm };
+}
+
+/**
+ * Ler o recibo sem adivinhar. `a-instalar` antigo pode significar processo morto,
+ * não sucesso: ao fim de cinco minutos fica explicitamente stale.
+ */
+function estadoDaInstalacao(opts) {
+  const o = opts || {};
+  let estado;
+  try { estado = JSON.parse(fs.readFileSync(ficheiroEstado(o), 'utf8')); }
+  catch (e) {
+    return {
+      estado: 'n/d',
+      stale: false,
+      erro: 'não há estado de instalação legível: ' + ((e && e.message) || e),
+    };
+  }
+  const agora = o.agora == null ? Date.now() : Number(o.agora);
+  const inicio = Date.parse(estado.iniciado_em || '');
+  const stale = estado.estado === 'a-instalar' && Number.isFinite(inicio)
+    && Number.isFinite(agora) && agora - inicio > INSTALL_STALE_MS;
+  return Object.assign({}, estado, {
+    stale,
+    aviso: stale
+      ? 'a instalação ficou a meio ou o processo terminou sem actualizar o estado; confirma a versão'
+      : null,
+  });
+}
+
 /** Voltar atrás, a partir da cópia de segurança mais recente. */
 function reverter() {
   let dirs;
@@ -325,4 +557,7 @@ function reverter() {
   return { ok: true, de: b, ficheiros: n, a_seguir: 'fecha o Claude Desktop por completo e volta a abrir' };
 }
 
-module.exports = { procurar, aplicar, reverter, verificar, compara, lerZip, pastaInstalada, lerManifest };
+module.exports = {
+  procurar, aplicar, aplicarAsync, estadoDaInstalacao, reverter, verificar, compara, lerZip,
+  pastaInstalada, lerManifest,
+};

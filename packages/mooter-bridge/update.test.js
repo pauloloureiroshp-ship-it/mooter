@@ -12,6 +12,70 @@ const os = require('os');
 const path = require('path');
 const up = require('./update.js');
 
+function escreverBundle(ficheiro, versao, servidores) {
+  const entradas = [
+    { nome: 'manifest.json', dados: Buffer.from(JSON.stringify({ version: versao })) },
+    ...Object.entries(servidores).map(([nome, dados]) => ({
+      nome: 'server/' + nome,
+      dados: Buffer.isBuffer(dados) ? dados : Buffer.from(dados),
+    })),
+  ];
+  const locais = [];
+  const centrais = [];
+  let offset = 0;
+  for (const entrada of entradas) {
+    const nome = Buffer.from(entrada.nome);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(entrada.dados.length, 18);
+    local.writeUInt32LE(entrada.dados.length, 22);
+    local.writeUInt16LE(nome.length, 26);
+    locais.push(local, nome, entrada.dados);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(entrada.dados.length, 20);
+    central.writeUInt32LE(entrada.dados.length, 24);
+    central.writeUInt16LE(nome.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centrais.push(central, nome);
+    offset += local.length + nome.length + entrada.dados.length;
+  }
+  const blocoCentral = Buffer.concat(centrais);
+  const fim = Buffer.alloc(22);
+  fim.writeUInt32LE(0x06054b50, 0);
+  fim.writeUInt16LE(entradas.length, 8);
+  fim.writeUInt16LE(entradas.length, 10);
+  fim.writeUInt32LE(blocoCentral.length, 12);
+  fim.writeUInt32LE(offset, 16);
+  fs.writeFileSync(ficheiro, Buffer.concat([...locais, blocoCentral, fim]));
+}
+
+function prepararInstalacao(raiz, versao) {
+  const installRoot = path.join(raiz, 'instalado');
+  const installDir = path.join(installRoot, 'server');
+  const mooterDir = path.join(raiz, 'mooter-home');
+  fs.mkdirSync(installDir, { recursive: true });
+  fs.mkdirSync(mooterDir, { recursive: true });
+  fs.writeFileSync(path.join(installRoot, 'manifest.json'), JSON.stringify({ version: versao }));
+  fs.writeFileSync(path.join(installDir, 'antigo.js'), 'module.exports = "antigo";\n');
+  return { installRoot, installDir, mooterDir };
+}
+
+async function esperarEstado(mooterDir, esperado, timeoutMs = 20000) {
+  const limite = Date.now() + timeoutMs;
+  while (Date.now() < limite) {
+    const estado = up.estadoDaInstalacao({ mooterDir });
+    if (estado.estado === esperado) return estado;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('estado não chegou a ' + esperado + ': '
+    + JSON.stringify(up.estadoDaInstalacao({ mooterDir })));
+}
+
 test('U1 — versoes comparam-se por numero, nao por texto', () => {
   assert.strictEqual(up.compara('1.10.0', '1.9.0'), 1, '1.10 tem de ser MAIOR que 1.9');
   assert.strictEqual(up.compara('1.7.0', '1.7.0'), 0);
@@ -184,4 +248,135 @@ test('U16 — a resposta do painel nao leva a lista inteira de bundles', () => {
   const bloco = src.slice(src.indexOf('versao: (() =>'), src.indexOf('versao: (() =>') + 600);
   assert.ok(!/encontrados/.test(bloco), 'o painel voltou a enviar a lista inteira de versoes');
   assert.ok(/versao_instalada/.test(bloco) && /nova/.test(bloco), 'o painel precisa de saber a versao e se ha nova');
+});
+
+test('U17 — aplicarAsync responde em menos de 500 ms e persiste até instalado', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-u17-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const instalacao = prepararInstalacao(tmp, '1.20.0');
+  const bundle = path.join(tmp, 'grande.mcpb');
+  const servidores = {};
+  for (let i = 0; i < 40; i++) {
+    servidores['ficheiro-' + i + '.js'] = '// ' + 'x'.repeat(14000)
+      + '\nmodule.exports = ' + i + ';\n';
+  }
+  escreverBundle(bundle, '1.21.0', servidores);
+  assert.ok(fs.statSync(bundle).size > 500000, 'o bundle sintético não é grande o suficiente');
+
+  const inicio = Date.now();
+  const resposta = await up.aplicarAsync({
+    ficheiro: bundle,
+    installDir: instalacao.installDir,
+    mooterDir: instalacao.mooterDir,
+  });
+  const demorouMs = Date.now() - inicio;
+  assert.strictEqual(resposta.estado, 'a-instalar');
+  assert.ok(demorouMs < 500, 'a resposta demorou ' + demorouMs + ' ms');
+
+  const inicial = up.estadoDaInstalacao({ mooterDir: instalacao.mooterDir });
+  assert.strictEqual(inicial.estado, 'a-instalar');
+  assert.strictEqual(inicial.ficheiros_escritos, 0);
+  assert.strictEqual(inicial.total, 41);
+
+  const final = await esperarEstado(instalacao.mooterDir, 'instalado');
+  assert.strictEqual(final.ficheiros_escritos, final.total);
+  assert.strictEqual(final.ficheiros_escritos, 41);
+  assert.ok(final.terminado_em);
+  assert.strictEqual(final.erro, null);
+  const manifest = JSON.parse(fs.readFileSync(path.join(instalacao.installRoot, 'manifest.json'), 'utf8'));
+  assert.strictEqual(manifest.version, '1.21.0');
+});
+
+test('U18 — bundle inválido falha antes de escrever na instalação', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-u18-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const instalacao = prepararInstalacao(tmp, '1.20.0');
+  const bundle = path.join(tmp, 'invalido.mcpb');
+  escreverBundle(bundle, '1.21.0', {
+    'partido.js': "module.exports = require('./nao-existe.js');\n",
+  });
+  const antes = fs.readFileSync(path.join(instalacao.installDir, 'antigo.js'), 'utf8');
+
+  const resposta = await up.aplicarAsync({
+    ficheiro: bundle,
+    installDir: instalacao.installDir,
+    mooterDir: instalacao.mooterDir,
+  });
+  assert.strictEqual(resposta.estado, 'a-instalar');
+  const final = await esperarEstado(instalacao.mooterDir, 'falhou');
+  assert.match(final.erro, /não passou na verificação/);
+  assert.match(final.erro, /nao-existe\.js/);
+  assert.strictEqual(final.ficheiros_escritos, 0);
+  assert.strictEqual(final.backup, null);
+  assert.strictEqual(fs.readFileSync(path.join(instalacao.installDir, 'antigo.js'), 'utf8'), antes);
+  assert.ok(!fs.existsSync(path.join(instalacao.installDir, 'partido.js')));
+});
+
+test('U19 — estadoDaInstalacao marca stale depois de cinco minutos', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-u19-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const agora = Date.now();
+  fs.writeFileSync(path.join(tmp, 'update-estado.json'), JSON.stringify({
+    estado: 'a-instalar',
+    de: '1.20.0',
+    para: '1.21.0',
+    ficheiros_escritos: 7,
+    total: 41,
+    iniciado_em: new Date(agora - (5 * 60 * 1000) - 1).toISOString(),
+    terminado_em: null,
+    erro: null,
+    backup: null,
+  }));
+  const estado = up.estadoDaInstalacao({ mooterDir: tmp, agora });
+  assert.strictEqual(estado.stale, true);
+  assert.match(estado.aviso, /ficou a meio/);
+});
+
+test('U20 — o aplicar síncrono continua a instalar como antes', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-u20-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const instalacao = prepararInstalacao(tmp, '1.20.0');
+  const updateCopy = path.join(instalacao.installDir, 'update.js');
+  fs.copyFileSync(path.join(__dirname, 'update.js'), updateCopy);
+  const bundle = path.join(tmp, 'sync.mcpb');
+  escreverBundle(bundle, '1.21.0', { 'novo.js': 'module.exports = 21;\n' });
+  const antes = process.env.MOOTER_HOME;
+  process.env.MOOTER_HOME = instalacao.mooterDir;
+  try {
+    const localUp = require(updateCopy);
+    const resposta = localUp.aplicar({ ficheiro: bundle });
+    assert.strictEqual(typeof resposta.then, 'undefined', 'o caminho antigo deixou de ser síncrono');
+    assert.strictEqual(resposta.ok, true);
+    assert.strictEqual(resposta.ficheiros, 2);
+    assert.ok(fs.existsSync(path.join(instalacao.installDir, 'novo.js')));
+  } finally {
+    delete require.cache[require.resolve(updateCopy)];
+    if (antes == null) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = antes;
+  }
+});
+
+test('U21 — mooter_setup aplica em background e ver inclui o recibo', async () => {
+  const tools6 = require('./tools6.js');
+  const originais = {
+    aplicarAsync: up.aplicarAsync,
+    procurar: up.procurar,
+    estadoDaInstalacao: up.estadoDaInstalacao,
+  };
+  up.aplicarAsync = async () => ({
+    estado: 'a-instalar', de: '1.20.0', para: '1.21.0', bundle: 'x.mcpb', iniciado_em: 'agora',
+  });
+  up.procurar = () => ({
+    versao_instalada: '1.20.0', nova: { versao: '1.21.0' }, encontrados: [], procurei_em: [], resumo: 'há nova',
+  });
+  up.estadoDaInstalacao = () => ({ estado: 'a-instalar', stale: false });
+  try {
+    const setup = tools6.build({}, {}, {}).find((tool) => tool.name === 'mooter_setup');
+    const aplicar = await setup.handler({ atualizar: 'aplicar' });
+    assert.match(aplicar.resumo, /a instalar em segundo plano/);
+    assert.match(aplicar.resumo, /atualizar:'ver'/);
+    const ver = await setup.handler({ atualizar: 'ver' });
+    assert.strictEqual(ver.instalacao.estado, 'a-instalar');
+  } finally {
+    Object.assign(up, originais);
+  }
 });
