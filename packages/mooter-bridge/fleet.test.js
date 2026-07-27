@@ -461,9 +461,13 @@ test('L1(f) — free é derivado do mesmo busy e nunca excede total - ocupadas',
     { path: 'c', busy: true, busy_jobs: ['j1'] },
     { path: 'd', busy: false, detached: true },
   ]);
-  assert.strictEqual(inventory.total.valor, 4);
+  // S4 — 'd' é detached: nunca é candidata a trabalho, por isso fica fora do
+  // total elegível (3), mas o bruto (4) continua visível em total_bruto.
+  assert.strictEqual(inventory.total.valor, 3);
+  assert.strictEqual(inventory.total_bruto.valor, 4);
+  assert.match(inventory.total_bruto.porque, /detached/i);
   assert.strictEqual(inventory.occupied.valor, 1);
-  assert.strictEqual(inventory.free.valor, 3);
+  assert.strictEqual(inventory.free.valor, 2);
   assert.ok(inventory.free.valor <= inventory.total.valor - inventory.occupied.valor);
 });
 

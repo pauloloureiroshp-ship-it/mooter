@@ -190,6 +190,18 @@ function renderJobs(ledger, maxJobs) {
   return lines.join('\n').trimEnd();
 }
 
+/**
+ * A linha "- HEAD: ..." muda em QUALQUER commit — incluindo o commit que grava
+ * o próprio SYNC.md gerado, o que a torna estruturalmente incapaz de coincidir
+ * consigo própria depois de comitada (o HEAD real avança para o commit que a
+ * escreve, mas o texto ficou com o HEAD de antes). Mascará-la antes de comparar
+ * deixa o --check detectar deriva real (entregas, ledger, zona humana) em vez de
+ * falhar para sempre por causa deste paradoxo auto-referencial.
+ */
+function semHead(texto) {
+  return String(texto || '').replace(/^- HEAD: .*$/m, '- HEAD: <mascarado>');
+}
+
 function newestObservedAt(values) {
   const dates = values.filter(Boolean).map((value) => new Date(value)).filter((date) => !Number.isNaN(date.getTime()));
   return dates.length
@@ -248,8 +260,14 @@ function projectSync(options = {}) {
     humanBlock: extractHumanBlock(current),
     maxJobs: options.maxJobs || DEFAULT_MAX_JOBS,
   });
+  // `changed` decide se ESCREVE: o HEAD real tem de ficar sempre fresco no
+  // ficheiro gerado, por isso compara o conteúdo inteiro sem máscara.
+  // `changedSemHead` decide o --check: ignora só a linha do HEAD, porque essa
+  // linha nunca pode coincidir depois de comitada (ver semHead acima) — sem a
+  // máscara, --check saía 1 para sempre a partir do primeiro commit seguinte.
   const changed = current !== content;
-  if (options.check) return { code: changed ? 1 : 0, changed, wrote: false, content, ...paths };
+  const changedSemHead = semHead(current) !== semHead(content);
+  if (options.check) return { code: changedSemHead ? 1 : 0, changed: changedSemHead, wrote: false, content, ...paths };
   if (!changed) return { code: 0, changed: false, wrote: false, content, ...paths };
   const temporary = `${paths.syncPath}.${process.pid}.tmp`;
   try {
@@ -296,4 +314,4 @@ function runCli(argv, io = process, dependencies = {}) {
 }
 
 if (require.main === module) process.exitCode = runCli(process.argv.slice(2));
-module.exports = { HUMAN_START, HUMAN_END, extractHumanBlock, findVersionCommit, parseGitLog, projectSync, readGit, readLedger, renderSync, runCli, terminalJobs };
+module.exports = { HUMAN_START, HUMAN_END, extractHumanBlock, findVersionCommit, parseGitLog, projectSync, readGit, readLedger, renderSync, runCli, semHead, terminalJobs };

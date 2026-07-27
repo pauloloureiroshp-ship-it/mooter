@@ -16,6 +16,7 @@
     "estimativa.js",
     "fleet.js",
     "fleet-ui.html",
-    "sync.js"
+    "sync.js",
+    "worktrees.js"
   ]
 }

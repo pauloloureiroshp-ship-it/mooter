@@ -34,6 +34,7 @@ const arvore = require('./arvore.js');
 const probe = require('./probe.js');
 const quota = require('./quota.js');
 const capacidades = require('./capacidades.js');
+const { suspeita } = require('./worktrees.js');
 const board = require('./board.js');
 const afericao = require('./afericao.js');
 const estimation = require('./estimativa.js');
@@ -531,14 +532,23 @@ function activeJobsFromEvents(events, worktree) {
   return [...state.keys()];
 }
 
+// S4 — espelha o critério de worktrees.js:list(): detached e checkouts
+// suspeitos em %TEMP% nunca são candidatos reais a trabalho, por isso ficam
+// fora do total elegível. O bruto continua exposto (worktrees) e explicado
+// (total_bruto), nunca escondido.
 function summarizeWorktrees(rows) {
   const worktrees = Array.isArray(rows) ? rows : [];
-  const occupied = worktrees.filter((row) => row.busy === true).length;
-  const free = worktrees.length - occupied;
+  const elegiveis = worktrees.filter((row) => !row.detached && !suspeita(row, REPO));
+  const excluidas = worktrees.length - elegiveis.length;
+  const occupied = elegiveis.filter((row) => row.busy === true).length;
+  const free = elegiveis.length - occupied;
   return {
-    total: countMetric(worktrees.length, 'contagem das worktrees devolvidas por git worktree list', worktrees.length),
-    occupied: countMetric(occupied, 'worktrees cujo busy deriva de pelo menos um job vivo', worktrees.length),
-    free: countMetric(free, 'total menos as worktrees marcadas busy pela mesma fonte', worktrees.length),
+    total: countMetric(elegiveis.length, 'worktrees candidatas a trabalho: exclui detached e checkouts suspeitos em %TEMP% (ver total_bruto)', worktrees.length),
+    total_bruto: countMetric(worktrees.length, excluidas
+      ? `${excluidas} worktree(s) excluída(s) do total: detached e/ou checkout suspeito em %TEMP%`
+      : 'nenhuma worktree foi excluída — bruto e elegível coincidem', worktrees.length),
+    occupied: countMetric(occupied, 'worktrees elegíveis cujo busy deriva de pelo menos um job vivo', worktrees.length),
+    free: countMetric(free, 'total elegível menos as worktrees marcadas busy pela mesma fonte', worktrees.length),
     worktrees,
   };
 }

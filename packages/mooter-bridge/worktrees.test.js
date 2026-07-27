@@ -95,6 +95,19 @@ if (!gitOk) {
     assert.ok(/já existe|por cima/i.test(a.error), a.error);
   });
 
+  // S4 — o total deixa de contar detached/%TEMP% (nunca são candidatas reais a
+  // trabalho), mas o número bruto continua visível, com o porquê da exclusão.
+  t('total exclui detached; total_bruto continua a mostrar o número real', () => {
+    const before = wt.list(REPO, () => []);
+    const detachedPath = path.join(path.dirname(REPO), path.basename(REPO) + '-detached-x');
+    execFileSync('git', ['worktree', 'add', '--detach', detachedPath], { cwd: REPO, stdio: 'ignore' });
+    const r = wt.list(REPO, () => []);
+    assert.strictEqual(r.total, before.total, 'a detached não pode entrar no total elegível');
+    assert.strictEqual(r.total_bruto, before.total_bruto + 1, 'o bruto tem de contar a detached');
+    assert.match(r.total_bruto_porque, /detached/i);
+    assert.ok(r.worktrees.some((w) => w.detached), 'a lista bruta continua a mostrar a detached, sem esconder');
+  });
+
   // ⚠️ v1.4.2 — nasceu de um caso real. Pedi ao motor local um resumo de
   // `telemetry.js` numa pasta onde esse ficheiro não existe naquela branch. A
   // recusa estava certa; o que faltava era dizer ONDE o ficheiro está, entre 37

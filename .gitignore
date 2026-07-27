@@ -155,3 +155,13 @@ _handoff/guardian/????????-????-????-????-????????????.md
 # Delivery Cockpit — forecast.json is a RUNTIME artefact (the CLI writes it, the UI reads it).
 # Never commit: it is derived from the live Ledger + roadmap and goes STALE the moment the scope moves.
 tools/router/forecast/forecast.json
+
+# Local agent artefacts (per-machine, not part of the shipped repo) — RUN-*.bat
+# launchers and per-tool state dirs dropped by agent CLIs in the working copy.
+RUN-*.bat
+.agents/
+.ai/
+.codex/
+.gemini/
+.mooter/
+# .planning/ tem conteudo versionado (waves, benchmarks, validacao) - nao ignorar

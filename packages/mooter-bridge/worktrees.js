@@ -78,10 +78,21 @@ function list(repoHint, busyFn) {
     w.is_main = P.mesmo(w.path, repo);
     try { w.exists = fs.existsSync(w.path); } catch { w.exists = false; }
   }
-  const free = out.filter((w) => w.exists && !w.busy && !w.bare);
+  // ⚠️ `total` alinhado com o critério do firstFree() (!detached && !suspeita):
+  // uma detached ou um checkout suspeito em %TEMP% nunca são candidatos reais a
+  // trabalho, por isso não entram no total "de frota". O bruto fica disponível
+  // à parte — nunca escondido — em `total_bruto`, com o "porque" a dizer o que
+  // foi filtrado.
+  const elegiveis = out.filter((w) => !w.detached && !suspeita(w, repo));
+  const excluidas = out.length - elegiveis.length;
+  const free = elegiveis.filter((w) => w.exists && !w.busy && !w.bare);
   return {
     repo,
-    total: out.length,
+    total: elegiveis.length,
+    total_bruto: out.length,
+    total_bruto_porque: excluidas
+      ? `${excluidas} worktree(s) excluída(s) do total: detached e/ou checkout suspeito em %TEMP% nunca são candidatos a trabalho`
+      : 'nenhuma worktree foi excluída — bruto e elegível coincidem',
     free: free.length,
     worktrees: out,
     // o que interessa a quem só quer trabalhar: onde é que posso pôr o próximo job
