@@ -43,6 +43,7 @@ const contexto = require('./context.js');
 const P = require('./paths.js');
 const localfirst = require('./localfirst.js');
 const aprender = require('./aprender.js');
+const fosso = require('./fosso.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
@@ -77,6 +78,13 @@ function ledgerRead() {
   } catch { return []; }
 }
 const TERMINAL = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
+const NON_STATE_EVENTS = new Set(['cross_check']);
+function lastStateEvent(events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (!NON_STATE_EVENTS.has(events[i].event)) return events[i].event;
+  }
+  return null;
+}
 function activeJobsByWorktree(worktree) {
   // ⚠️ canon(): em Windows o mesmo sítio aparece como C:\Users\PAULOL~1\… e
   // C:\Users\Paulo Loureiro\… — comparar as strings dava worktrees "ocupadas"
@@ -349,6 +357,8 @@ function killTree(child) {
 }
 let spawnJob = realSpawnJob;
 function setJobSpawner(fn) { spawnJob = fn; }
+let crossCheckRunner = null;
+function setCrossCheckRunner(fn) { crossCheckRunner = typeof fn === 'function' ? fn : null; }
 
 // ── job registry (live children in this server instance) ──────────────────
 const REGISTRY = new Map(); // job_id → { child, timer, startedAt }
@@ -864,6 +874,54 @@ function embedHandoff(masterprompt, fromJobId) {
   } catch { return { mp: masterprompt, ok: false }; }
 }
 
+/**
+ * O job pago termina primeiro; a verificação local é uma auditoria posterior e
+ * nunca atrasa o estado done. O JSON no job torna o retorno recolhível sem
+ * transformar o ledger numa segunda fonte de verdade para o conteúdo.
+ */
+async function runCrossCheckForJob({ job_id, resultado, worktree, wave, agent, jobDir }) {
+  let checked;
+  try {
+    const options = crossCheckRunner
+      ? { runner: crossCheckRunner }
+      : (spawnJob !== realSpawnJob
+        ? { runner: async () => ({ available: false, reason: 'runner local não injectado no teste hermético' }) }
+        : undefined);
+    checked = await fosso.verificacaoCruzada({ job_id, resultado, worktree }, options);
+  } catch (error) {
+    checked = {
+      job_id, disponivel: false,
+      porque: 'a verificação cruzada falhou: ' + ((error && error.message) || 'erro desconhecido'),
+      divergencias: [], verificado: 0, custo_usd: 0,
+      nota: 'sem veredicto: a verificação factual local não terminou',
+    };
+  }
+  try {
+    await fs.promises.writeFile(
+      path.join(jobDir, 'cross-check.json'),
+      JSON.stringify(checked, null, 2) + '\n',
+      'utf8',
+    );
+  } catch (error) {
+    log('cross-check ' + job_id + ' não persistiu: ' + ((error && error.message) || error));
+  }
+  ledgerAppend({
+    job_id, wave, agent, worktree, event: 'cross_check',
+    disponivel: checked.disponivel === true,
+    verificado: Number(checked.verificado) || 0,
+    divergencias_count: Array.isArray(checked.divergencias) ? checked.divergencias.length : 0,
+    custo_usd: 0,
+    porque: checked.porque || null,
+    note: checked.nota || null,
+  });
+  return checked;
+}
+
+function readCrossCheck(jobDir) {
+  try { return JSON.parse(fs.readFileSync(path.join(jobDir, 'cross-check.json'), 'utf8')); }
+  catch { return null; }
+}
+
 async function toolDispatch(args) {
   const agent = String((args && args.agent) || '').trim();
   const worktree = String((args && args.worktree) || '').trim();
@@ -878,6 +936,10 @@ async function toolDispatch(args) {
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
+  const wtNorm = path.resolve(worktree);
+  const canWrite = args && typeof args.__escrita === 'boolean'
+    ? args.__escrita
+    : /(?:write|edit|bash)/i.test(String(allowedTools || ''));
 
   // handoff: embed the previous job's answer BEFORE hashing, so mp_hash covers
   // what the agent actually receives — otherwise the audit trail is a lie
@@ -885,6 +947,27 @@ async function toolDispatch(args) {
   if (handoffFrom) {
     handoff = embedHandoff(masterprompt, handoffFrom);
     masterprompt = handoff.mp;
+  }
+
+  // Jobs de leitura só recebem cache válido; nenhum scan caro entra no hot path.
+  let projectMap;
+  try {
+    projectMap = await fosso.mapaParaDispatch(wtNorm, { escrita: canWrite });
+  } catch (error) {
+    projectMap = {
+      injetado: false,
+      porque: 'mapa indisponível: ' + ((error && error.message) || 'erro desconhecido'),
+      resumo: null,
+    };
+  }
+  if (projectMap.injetado) {
+    masterprompt += [
+      '',
+      '---',
+      '## MAPA COMPACTO DO PROJECTO (cache local verificável)',
+      projectMap.resumo,
+      '---',
+    ].join('\n');
   }
 
   // ── v1.2: the model is decided HERE, and it is decided by the router ──────
@@ -910,31 +993,33 @@ async function toolDispatch(args) {
   const cmd = buildCommand(agent, jobDir, allowedTools, model, label);
   try { assertSingleLineArgs(cmd); }
   catch (e) { return { error: '❌ ' + ((e && e.message) || e), hint: 'isto é um bug do conector, não do teu pedido — reporta-o' }; }
-  const wtNorm = path.resolve(worktree);
   const jobGoal = args && args.__goal
     ? String(args.__goal)
     : ((String(masterprompt).match(/OBJECTIVO(?: DA WAVE)?:\s*([^\r\n]+)/i) || [])[1] || null);
-  const canWrite = args && typeof args.__escrita === 'boolean'
-    ? args.__escrita
-    : /(?:write|edit|bash)/i.test(String(allowedTools || ''));
   // Keep rate só é atribuível se a árvore estava limpa antes do agente entrar.
   const gitBase = canWrite ? aprender.captureGitBase(wtNorm) : null;
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
+    // ⚠️ A4 · invariante 3 — PRIMEIRO CAMPO, e é de propósito. O guard de saída
+    // corre no `collect`, quando este objecto já morreu há muito: se a evidência
+    // só existisse na resposta do `work`, o guard leria `undefined` e degradaria
+    // tudo, sempre. Ficou em primeiro lugar depois de a Onda 4 acrescentar
+    // campos ao meio e o empurrar para fora da janela que o teste A4 inspecciona —
+    // o campo que prova que não fabricámos nada não pode depender de ordem.
+    evidencia: (args && args.evidencia) || null,
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: [cmd.bin, ...cmd.args].join(' '),
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
     goal: jobGoal, escrita: canWrite, preparation: !!chain, git_base: gitBase,
+    mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque,
+    cross_check_requested: args && args.__cross_check === true,
     note: dispatchNote, prep_from: prepFrom,
-    // ⚠️ A4 · invariante 3 — o guard de saída corre no `collect`, quando este
-    // objecto já morreu há muito. Se a evidência só existisse na resposta do
-    // `work`, o guard leria `undefined` e degradaria tudo, sempre.
-    evidencia: (args && args.evidencia) || null,
   }, null, 2));
 
   ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'dispatched', mp_hash, model, model_recommended, tier, step: stepId,
     goal: jobGoal, escrita: canWrite, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
     git_base_clean: gitBase ? gitBase.clean : null,
-    handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote });
+    handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote,
+    mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque });
 
   const outStream = fs.createWriteStream(path.join(jobDir, 'out.log'));
   const errStream = fs.createWriteStream(path.join(jobDir, 'err.log'));
@@ -1161,6 +1246,15 @@ async function toolDispatch(args) {
       files_touched_reason: touched ? touched.reason : null,
       step: stepId,
     }, prep || {}));
+    if (ok && agent !== 'moo' && args && args.__cross_check === true) {
+      setImmediate(() => {
+        runCrossCheckForJob({
+          job_id, resultado: delivered, worktree: wtNorm,
+          wave, agent, jobDir,
+        }).catch((error) => log('cross-check ' + job_id + ' falhou: '
+          + ((error && error.message) || error)));
+      });
+    }
     if (stepId) {
       try {
         plan.updateStep(wave, stepId, {
@@ -1192,6 +1286,11 @@ async function toolDispatch(args) {
     job_id, wave, agent, worktree: wtNorm, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
     model_recommended, tier,
+    mapa_injectado: projectMap.injetado,
+    mapa_porque: projectMap.porque,
+    verificacao_cruzada: args && args.__cross_check === true && agent !== 'moo'
+      ? { estado: 'pendente', custo_usd: 0 }
+      : null,
     // ⚠️ v1.3.3 — proveniência PROPAGADA, não inferida da forma dos argumentos.
     // A v1.3.2 via `args.model` preenchido (posto pelo próprio mooter_work) e
     // reportava "forçado pelo chamador" — atribuía ao utilizador um acto do
@@ -1216,8 +1315,10 @@ async function toolStatus(args) {
       ts: e.ts, event: e.event, exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
       prep_duration_s: e.prep_duration_s, prep_chars: e.prep_chars,
       tokens_poupados_estimados: e.tokens_poupados_estimados, note: e.note,
+      disponivel: e.disponivel, verificado: e.verificado,
+      divergencias_count: e.divergencias_count,
     });
-    j.last = e.event;
+    if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
     if (e.event === 'started') j.started_ts = e.ts;
     if (e.model_used) j.model_used = e.model_used;
     if (e.model_recommended) j.model_recommended = e.model_recommended;
@@ -1341,7 +1442,7 @@ async function toolCollect(args) {
   try { meta = JSON.parse(fs.readFileSync(path.join(jobDir, 'meta.json'), 'utf8')); }
   catch { return { error: 'job desconhecido: ' + jobId }; }
   const evs = ledgerRead().filter((e) => e.job_id === jobId);
-  const last = evs.length ? evs[evs.length - 1].event : null;
+  const last = lastStateEvent(evs);
   if (!TERMINAL.has(last) && !['collected'].includes(last)) {
     return { job_id: jobId, state: last || 'unknown', note: 'job ainda não terminou — usa mooter_status e volta' };
   }
@@ -1367,6 +1468,7 @@ async function toolCollect(args) {
   // o disco diz que ele teve. Só corre para motores sem ferramentas: o `cc`
   // corre os seus comandos e o veredicto dele assenta em algo.
   const vered = veredictoSemEvidencia(meta, body);
+  const crossCheck = readCrossCheck(jobDir);
 
   return {
     job_id: jobId, state: last, agent: meta.agent, wave: meta.wave,
@@ -1392,6 +1494,14 @@ async function toolCollect(args) {
     tokens_out: r.telemetry ? r.telemetry.tokens_out : null,
     tok_s: r.telemetry ? r.telemetry.tok_s : null,
     tools_used: r.telemetry && r.telemetry.tools_used && r.telemetry.tools_used.length ? r.telemetry.tools_used : null,
+    verificacao_cruzada: crossCheck || (meta.cross_check_requested
+      ? {
+        estado: 'pendente',
+        disponivel: 'n/d',
+        porque: 'o job terminou; a verificação local pós-job ainda não persistiu resultado',
+        custo_usd: 0,
+      }
+      : null),
     truncated, full_path, idempotent: already ? 'já tinha sido coletado (evento não duplicado)' : 'primeira coleta',
   };
 }
@@ -1437,7 +1547,7 @@ async function toolAwait(args) {
     for (const e of evs) {
       if (!e.job_id) continue;
       const j = byJob.get(e.job_id) || { job_id: e.job_id, agent: e.agent, wave: e.wave, last: null };
-      j.last = e.event;
+      if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
       if (e.exit_code != null) j.exit_code = e.exit_code;
       if (e.cost_usd != null) j.cost_usd = e.cost_usd;
       if (e.duration_s != null) j.duration_s = e.duration_s;
@@ -1874,7 +1984,7 @@ async function toolWork(args) {
         agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
         __goal: goal, __escrita: false,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
-          __goal: goal, __escrita: a.write === true },
+          __goal: goal, __escrita: a.write === true, __cross_check: true },
       });
       if (prep && prep.job_id) {
         return {
@@ -1888,6 +1998,12 @@ async function toolWork(args) {
           chained: true,
           worktree,
           mode: readOnly ? 'só leitura' : 'escrita permitida',
+          verificacao_cruzada: {
+            estado: 'aguarda_job_pago',
+            job_id: 'n/d',
+            custo_usd: 0,
+            porque: 'o job pago nasce automaticamente quando a preparação local terminar',
+          },
           note: 'a GPU local está a preparar o handoff ($0). Quando acabar, o ' + agent + ' arranca sozinho com esse trabalho já dentro do prompt — vê o painel.',
         };
       }
@@ -1897,7 +2013,8 @@ async function toolWork(args) {
   }
 
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
-    routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true });
+    routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
+    __cross_check: agent !== 'moo' });
   if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
@@ -1926,6 +2043,9 @@ async function toolWork(args) {
     relocated,
     relocated_porque: relocatedPorque,
     prepared: false,
+    mapa_injectado: r.mapa_injectado,
+    mapa_porque: r.mapa_porque,
+    verificacao_cruzada: r.verificacao_cruzada,
     // v1.4.1 — o que o conector leu PELO modelo local. É o que separa uma
     // resposta fundamentada de uma resposta plausível.
     // porque foi (ou não foi) para a GPU — a decisão que o classificador não podia tomar
@@ -2090,9 +2210,9 @@ const TOOLS = [
 module.exports = {
   TOOLS, guardCheck, ledgerAppend, ledgerRead, activeJobsByWorktree,
   toolRoute, toolDispatch, toolStatus, toolCollect, toolCancel, toolPlan, toolJournal, toolWork, toolAwait,
-  buildCommand, bootstrapPrompt, setJobSpawner, REGISTRY,
+  buildCommand, bootstrapPrompt, setJobSpawner, setCrossCheckRunner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
-  pedeLeituraDeFicheiro, jobResultText, pidAlive,
+  pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, executarComandos, veredictoSemEvidencia,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },

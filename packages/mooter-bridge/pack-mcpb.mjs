@@ -40,6 +40,8 @@ const FILES = [
   ['worktrees.js', 'server/worktrees.js'],
   ['tools6.js', 'server/tools6.js'],
   ['localfirst.js', 'server/localfirst.js'],
+  ['aprender.js', 'server/aprender.js'],
+  ['fosso.js', 'server/fosso.js'],
   ['context.js', 'server/context.js'],
   ['paths.js', 'server/paths.js'],
   ['arvore.js', 'server/arvore.js'],

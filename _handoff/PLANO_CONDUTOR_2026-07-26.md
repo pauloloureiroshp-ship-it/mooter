@@ -35,6 +35,22 @@
 - ⚠️ Bugs §5.4 (create_worktree ignorado, permissoes_efectivas mente) não estavam em onda nenhuma → entram na **Onda 5.4**.
 - ⚠️ Restart do Ollama pendente (KV q8_0 + primeiro /api/ps ≥16384).
 
+## Registo de execução (actualizado ao vivo)
+
+| Onda | Commit | Estado |
+|---|---|---|
+| 0 — régua honesta | `fd4f425` + `4bf34eb` (v1.11.0) | ✅ |
+| 1 — tier local dessabotado | `86a3af5` (v1.12.0) | ✅ |
+| 2 — velocidade sentida | `6224a0d` (v1.13.0) + `0a666e3` (fix do commit incoerente) | ✅ |
+| 3 — o loop que aprende | `9026e57` (v1.14.0) | ✅ (3.7 LoRA fica para quando houver dados) |
+| 5.1/5.3 — narrativa | `0a666e3` (STRATEGY.md + radar) | ✅ |
+| 4 — o fosso | — | 🔜 |
+| 5.2/5.4 — Notion + bugs do conector | — | 🔜 |
+
+**Duas lições caras desta sessão, ambas registadas:**
+1. **Falso-verde do sandbox.** O E2E do `v12.test.js` é *saltado* quando não há git utilizável — no Linux dava "20/20 verde" enquanto no Windows falhava 3/3. Regra nova: um verde só conta no runner **nativo**.
+2. **Commit incoerente.** `6224a0d` deixou `fleet.js` a chamar `quota.estadoAsync` sem incluir o `quota.js` que a define — um checkout limpo teria o painel a engolir a excepção e a mostrar quota `n/d` em silêncio. Regra nova: o runner verifica que o que o commit chama existe no commit.
+
 ## Sequência de execução (condutor)
 ```
 FASE 0 ✅ conector v1.12.0 instalado (restart no fim da sessão)

@@ -89,6 +89,52 @@ webview concat-only/CSP/origin-lock/tree-gate preservados.
 4. Deixar apenas `C:\Users\Paulo Loureiro\frugal` em `main`, limpo e sincronizado; branches históricas podem
    continuar no Git sem ocupar pastas.
 
+## 📥 COWORK → CLAUDE CODE
+### Instruções e decisões tomadas no Cowork para a próxima sessão
+> Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar.
+
+**Última actualização Cowork:** 2026-07-26 · **Estado:** 🟡 Por ler
+
+- **ONDA 0 (a régua honesta) SHIPPED** em `chore/mooter-20-h0` @ `fd4f425` + `4bf34eb` (pushed, v1.11.0):
+  dedup por requestId (inflação **medida 2,44×**: 2061 linhas → 844 turnos), guard #25941,
+  entradas no peso, quota **Codex disponível** (rollouts locais), `forcar_local` ligado ao dispatch,
+  referência calibrável via `~/.mooter/preferences.json → quota_referencia`.
+- Medição real em `_handoff/onda0-medicao.json`; plano completo em
+  `_handoff/MASTER_PROMPT_MOOTER_COWORK_2026-07-26.md`.
+- **ONDA 1 TAMBÉM SHIPPED** @ `86a3af5` (v1.12.0): `num_ctx`≥16384 + `keep_alive` 10m (fim da
+  truncagem silenciosa a 4096; corte agora é DITO com números), selector adequação×capacidade
+  (`qwen3.6:27b` ganha ao `qwen3:30b`; código → `qwen2.5-coder:14b`; residente de geração velha
+  não bloqueia), `OLLAMA_KV_CACHE_TYPE=q8_0` (User env — **reiniciar o Ollama para valer**).
+- **ONDA 2** @ `6224a0d` (v1.13.0) + `0a666e3`: timeout de preparação (`MOOTER_PREP_TIMEOUT_MS`,
+  20 s), fallback quando o moo falha (o chain deixou de morrer em silêncio), prep medida no ledger,
+  sondas do painel em paralelo. Causa-raiz apanhada a meio: `quota.estado()` era **síncrona e
+  bloqueava o event loop 209 ms** → nasceram `quota.medirAsync/estadoAsync`.
+- **ONDA 3** @ `9026e57` (v1.14.0): `aprender.js` — um resultado de job **muda decisões futuras**
+  (≥5 observações, nunca contra um veto de risco), keep rate honesto (`n/d` quando não é
+  atribuível), satisfação inferida, custo por tarefa entregue, bloco "o que aprendi". Prova com o
+  ledger real: 73 jobs, 55 entregues, 27 locais, custo mediano US$ 0,4826 em 45 jobs.
+- **ONDA 5.1/5.3** @ `0a666e3`: `docs/strategy/STRATEGY.md` reescrito na tese "o motor é o fosso, a
+  cabine é o produto" (estava congelado em 2026-05-07 a dizer v0.11) e
+  `docs/strategy/RADAR_CONCORRENCIA.md` criado, com cadência trimestral.
+- **Conector actualizado 1.9.0 → 1.12.0**; há bundle novo por instalar em `_handoff/`.
+- ⚠️ **Duas regras novas, ambas pagas caro:** (1) o sandbox Linux dá **falsos-verdes** — o E2E do
+  `v12.test.js` é saltado sem git e dava "20/20" enquanto o Windows falhava 3/3; o gate real é o
+  runner nativo. (2) Um commit pode ficar **incoerente** — `6224a0d` chamava `quota.estadoAsync`
+  sem incluir o `quota.js` que a define; verificar sempre que o que o commit chama existe no commit.
+- Referência da quota **calibrada com dado real**: barra /usage a 75% → `quota_referencia`
+  `{peso_semana: 11961, peso_5h: 1196}` em `~/.mooter/preferences.json`. Pressão agora ≈0,75 = "alto"
+  (tecto sonnet) — bate com a app, sem haiku falso.
+- Decisão 1.4: `specialization-matrix.ts` NÃO é consumível do bridge (TS + células por medir);
+  o selector local usa factos verificáveis (nome/tamanho/geração). Ligar a matriz medida = Onda 3
+  (adaptive-learner). Nada ficou a fingir que decide.
+- **Próxima missão: ONDA 4** (o fosso — mapa de projecto persistente `PROJECT_CONTEXT.json`,
+  verificação cruzada local↔nuvem a $0, fan-out, estratégias nomeadas de routing) e depois
+  **5.2/5.4** (Notion 7 releases atrás; bugs do conector: `create_worktree` ignorado,
+  `permissoes_efectivas` que declara read-only e usa Bash, bind de projecto que se perde).
+- ⚠️ Por fazer na máquina: **reiniciar o serviço Ollama** (para o KV cache q8_0 valer) e **fechar e
+  reabrir o Claude Desktop** (o conector em memória ainda é o antigo). Depois, confirmar num job
+  real que o `/api/ps` mostra `context_length ≥ 16384` e que o modelo escolhido é o `qwen3.6:27b`.
+
 ## Pointers
 
 - Auditoria: `_handoff/_archive/2026-07/LP_COHERENCE_AUDIT_REPORT.md`
