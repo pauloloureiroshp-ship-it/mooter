@@ -24,6 +24,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const { execFile } = require('child_process');
 const telemetry = require('./telemetry.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
@@ -40,6 +41,7 @@ const LEDGER = path.join(MOOTER_DIR, 'ledger.jsonl');
 const JOBS_DIR = path.join(MOOTER_DIR, 'jobs');
 const SESSION_FILE = path.join(MOOTER_DIR, 'cowork-session.json');
 const UI_FILE = path.join(__dirname, 'fleet-ui.html');
+const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
 
 // A plugin .mcp.json declares env as "${OLLAMA_HOST}". When the variable is not
 // set on the machine, some hosts pass the placeholder through VERBATIM — the probe
@@ -54,6 +56,7 @@ function envOrNull(name) {
 }
 const OLLAMA_HOST = envOrNull('OLLAMA_HOST') || '127.0.0.1:11434';
 const OLLAMA_TIMEOUT_MS = 700; // the panel polls every 3s — never block on a dead daemon
+const PANEL_PROBE_TIMEOUT_MS = 1200;
 
 const AGENT_LABEL = { cc: 'Claude Code', codex: 'Codex', gemini: 'Gemini', moo: 'Ollama · local' };
 const LOCAL_AGENTS = new Set(['moo']);
@@ -96,6 +99,7 @@ function foldJobs(events) {
     else if (e.event === 'started') { j.started_at = e.ts; j.state = 'running'; }
     else if (e.event === 'done') { j.ended_at = e.ts; j.state = 'done'; }
     else if (e.event === 'failed') { j.ended_at = e.ts; j.state = 'failed'; }
+    else if (e.event === 'prep_timeout' || e.event === 'prep_failed_fallback') { j.ended_at = e.ts; j.state = 'failed'; }
     else if (e.event === 'collected' && j.state !== 'failed') { j.state = j.state === 'running' ? 'done' : j.state; }
     if (e.exit_code != null) j.exit_code = e.exit_code;
     if (e.duration_s != null) j.duration_s = e.duration_s;
@@ -110,6 +114,12 @@ function foldJobs(events) {
     if (e.tier_motor) j.tier_motor = e.tier_motor;
     if (e.step) j.step = e.step;
     if (e.session_id) j.session_id = e.session_id;
+    if (e.prep_duration_s != null) j.prep_duration_s = e.prep_duration_s;
+    if (e.prep_chars != null) j.prep_chars = e.prep_chars;
+    if (e.tokens_poupados_estimados != null) j.tokens_poupados_estimados = e.tokens_poupados_estimados;
+    if (e.tokens_poupados_estimados_nota) j.tokens_poupados_estimados_nota = e.tokens_poupados_estimados_nota;
+    if (e.note) j.note = e.note;
+    if (e.prep_from) j.prep_from = e.prep_from;
     if (e.tokens_in != null) j.tokens_in = e.tokens_in;
     if (e.tokens_out != null) j.tokens_out = e.tokens_out;
     if (e.handoff_from) j.handoff_from = e.handoff_from;
@@ -258,6 +268,79 @@ function probeOllama(timeoutMs) {
   });
 }
 
+function probeWithin(fn, timeoutMs, fallback) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(fallback), timeoutMs);
+    // Uma sonda pode ser síncrona e cara na primeira leitura (quota percorre os
+    // rollouts). Ceder um ciclo deixa spawn/close já pendentes avançarem antes
+    // do painel; uma microtask aqui bloqueava o ciclo de vida dos próprios jobs.
+    setImmediate(() => {
+      if (settled) return;
+      Promise.resolve()
+        .then(fn)
+        .then(finish)
+        .catch(() => finish(fallback));
+    });
+  });
+}
+
+function activeJobsFromEvents(events, worktree) {
+  const key = norm(worktree);
+  const state = new Map();
+  for (const e of (events || [])) {
+    if (!e || !e.job_id || (e.worktree && norm(e.worktree) !== key)) continue;
+    if (e.event === 'dispatched' || e.event === 'started') state.set(e.job_id, e.event);
+    if (e.event === 'done' || e.event === 'failed' || e.event === 'prep_timeout' || e.event === 'prep_failed_fallback') state.delete(e.job_id);
+  }
+  return [...state.keys()];
+}
+
+// Projecção read-only do inventário: usa execFile assíncrono porque o listador
+// canónico é síncrono e uma chamada git presa não pode congelar o painel.
+function probeWorktrees(timeoutMs, events) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
+    let child;
+    try {
+      child = execFile('git', ['worktree', 'list', '--porcelain'], {
+        cwd: REPO, encoding: 'utf8', timeout: timeoutMs, windowsHide: true,
+      }, (err, stdout) => {
+        if (err) return finish(null);
+        const rows = [];
+        let current = null;
+        for (const line of String(stdout || '').split('\n')) {
+          const text = line.trim();
+          if (text.startsWith('worktree ')) { current = { path: text.slice(9), branch: null, detached: false }; rows.push(current); }
+          else if (!current) continue;
+          else if (text.startsWith('branch ')) current.branch = text.slice(7).replace(/^refs\/heads\//, '');
+          else if (text === 'detached') current.detached = true;
+        }
+        for (const row of rows) {
+          const jobs = activeJobsFromEvents(events, row.path);
+          row.name = leaf(row.path);
+          row.busy = jobs.length > 0;
+          row.busy_jobs = jobs.length ? jobs : null;
+          try { row.exists = fs.existsSync(row.path); } catch { row.exists = false; }
+        }
+        finish({
+          total: rows.length,
+          free: rows.filter((row) => row.exists && !row.busy && !row.detached).length,
+          worktrees: rows,
+        });
+      });
+      child.on('error', () => finish(null));
+    } catch { finish(null); }
+  });
+}
+
 // ── 3. which Cowork session/project is driving ───────────────────────────
 function readSessionContext() {
   try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch { return null; }
@@ -353,23 +436,61 @@ async function toolFleet(args, deps) {
 
   const context = readSessionContext();
   const events = readLedgerLines(LEDGER);
-  const local = includeLocal ? await probeOllama(OLLAMA_TIMEOUT_MS) : null;
+  const d = deps || {};
+  const sessionProbe = typeof d.sessionsList === 'function'
+    ? () => sessionsFast(d.sessionsList)
+    : () => ({ sessions: [], fresh: true });
+  const [local, gpu, vault, livePreview, fuel, worktrees, sessionResult] = await Promise.all([
+    probeWithin(
+      includeLocal
+        ? () => (typeof d.probeOllama === 'function' ? d.probeOllama(OLLAMA_TIMEOUT_MS) : probeOllama(OLLAMA_TIMEOUT_MS))
+        : () => null,
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
+    probeWithin(
+      () => (typeof d.gpuSnapshot === 'function' ? d.gpuSnapshot(null) : gpuMod.gpuSnapshot(null)),
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
+    probeWithin(
+      () => (typeof d.vaultStatus === 'function' ? d.vaultStatus() : journal.vaultStatus()),
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
+    probeWithin(
+      () => (typeof d.uiProbe === 'function' ? d.uiProbe() : probe.estado()),
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
+    probeWithin(
+      // ⚠️ estadoAsync, NUNCA estado: a versão síncrona lê 47 ficheiros e prendeu
+      // o event loop 209 ms — tempo em que nem o `close` de um job corre.
+      () => (typeof d.quotaEstado === 'function' ? d.quotaEstado({}) : quota.estadoAsync({})),
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
+    probeWithin(
+      () => (typeof d.worktreesList === 'function'
+        ? d.worktreesList(PANEL_PROBE_TIMEOUT_MS, events || [])
+        : probeWorktrees(PANEL_PROBE_TIMEOUT_MS, events || [])),
+      PANEL_PROBE_TIMEOUT_MS, null,
+    ),
+    probeWithin(sessionProbe, PANEL_PROBE_TIMEOUT_MS, { sessions: SESSIONS_CACHE.sessions, fresh: false }),
+  ]);
+  const sessions = (sessionResult && sessionResult.sessions) || [];
+  const sessionsFresh = !!(sessionResult && sessionResult.fresh);
+  if (gpu && gpu.live && Array.isArray(local) && typeof gpuMod.headroom === 'function') {
+    gpu.headroom = gpuMod.headroom(gpu.live, { memory_total_mb: gpu.memory_total_mb }, local.length);
+  }
 
   if (events === null) {
     // Even with no ledger the panel must render its full shape: an empty
     // cockpit with a working GPU gauge is informative; a cockpit missing half
     // its fields looks broken. Same keys, honest zeros and nulls.
-    let gpu0 = null;
-    try { gpu0 = await gpuMod.gpuSnapshot(Array.isArray(local) ? local.length : null); } catch { gpu0 = null; }
     return {
       ok: true, ts: new Date(now).toISOString(), context,
       live: 0, waves: [], jobs: [], sessions: [],
       plans: [], handoffs: [], coherence: [], active_wave: null,
       totals: { cloud_in: 0, cloud_out: 0, local_in: 0, local_out: 0, cost_usd: 0, jobs_cloud: 0, jobs_local: 0, local_share: null, live_cloud: 0, live_local: 0 },
-      gpu: gpu0,
-      vault: (() => { try { return journal.vaultStatus(); } catch { return null; } })(),
+      gpu, vault, live_preview: livePreview, combustivel: fuel, worktrees,
       local, local_available: local !== null, local_host: OLLAMA_HOST,
-      sessions_fresh: true,
+      sessions_fresh: sessionsFresh,
       notice: 'sem ledger — nenhum job foi despachado nesta máquina',
     };
   }
@@ -383,17 +504,6 @@ async function toolFleet(args, deps) {
     const t = j.ended_at ? Date.parse(j.ended_at) : NaN;
     return !Number.isNaN(t) && t >= cutoff;
   });
-
-  let sessions = [];
-  let sessionsFresh = true;
-  try {
-    const listFn = deps && deps.sessionsList;
-    if (typeof listFn === 'function') {
-      const r = await sessionsFast(listFn);
-      sessions = r.sessions || [];
-      sessionsFresh = r.fresh;
-    }
-  } catch { /* the panel must never die because the cockpit is unavailable */ }
 
   attachModels(jobs, sessions);
 
@@ -475,7 +585,11 @@ async function toolFleet(args, deps) {
       to_model: j.model || null,
       state: j.state,
       saved_note: src && LOCAL_AGENTS.has(src.agent)
-        ? 'preparado localmente ($0) antes de gastar tokens de subscrição'
+        ? 'preparação local: '
+          + (src.prep_chars != null ? src.prep_chars + ' chars' : 'chars n/d')
+          + ' em ' + (src.prep_duration_s != null ? src.prep_duration_s + 's' : 'n/d')
+          + ' · ' + (src.tokens_poupados_estimados != null ? '~' + src.tokens_poupados_estimados : 'n/d')
+          + ' tokens poupados (estimativa)'
         : null,
     });
   }
@@ -575,10 +689,6 @@ async function toolFleet(args, deps) {
     high_risk_open: activeWavePlan ? activeWavePlan.high_risk_open : null,
   } : null;
 
-  // v1.3 — the actual card, and how hard it is working
-  let gpu = null;
-  try { gpu = await gpuMod.gpuSnapshot(Array.isArray(local) ? local.length : null); } catch { gpu = null; }
-
   const shown = jobs.slice(0, 16);
   return {
     ok: true,
@@ -610,7 +720,7 @@ async function toolFleet(args, deps) {
         nota: m ? null : 'o MCP não expõe o modelo do host — declara-o com mooter_setup({session_model}) ou fica n/d',
       };
     })(),
-    live_preview: probe.estado(),   // o host deixa embeber um localhost? medido, não assumido
+    live_preview: livePreview,      // o host deixa embeber um localhost? medido, não assumido
     /**
      * ⚠️ O MEDIDOR DE COMBUSTÍVEL — e a razão de ele existir.
      *
@@ -621,7 +731,7 @@ async function toolFleet(args, deps) {
      * INFERIOR — o contador do servidor conta também o claude.ai e outras
      * máquinas, e está sempre à frente deste.
      */
-    combustivel: (() => { try { return quota.estado({}); } catch { return null; } })(),
+    combustivel: fuel,
     /**
      * ⚠️ O utilizador não pode ser o último a saber que há versão nova.
      * Até aqui, só descobria se alguém lho dissesse — e um vibe coder podia
@@ -650,7 +760,8 @@ async function toolFleet(args, deps) {
       catch { return null; }
     })(),
     gpu,                         // which card, how hard it is working
-    vault: (() => { try { return journal.vaultStatus(); } catch { return null; } })(),
+    vault,
+    worktrees,                     // projecção read-only; null quando a sonda excede o orçamento
     local,                       // null = Ollama unreachable (n/d), [] = up with nothing loaded
     local_available: local !== null,
     local_host: OLLAMA_HOST,

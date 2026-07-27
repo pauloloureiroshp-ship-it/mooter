@@ -26,8 +26,10 @@ fs.mkdirSync(path.join(FAKEREPO, 'tools', 'router'), { recursive: true });
 fs.writeFileSync(path.join(FAKEREPO, 'tools', 'router', 'classify.js'),
   "module.exports={classify:(t)=>({tier:'T2',confidence:0.9,reasoning:'stub',recommended_model:'sonnet'})};");
 process.env.MOOTER_REPO = FAKEREPO;
+process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
+const moo = require('./moo.js');
 
 // a real git worktree
 const WT = path.join(TMP, 'frugal-wt-a');
@@ -40,6 +42,15 @@ function fakeChild() {
   c.stderr = new EventEmitter(); c.stderr.pipe = () => {};
   c.kill = () => { c.emit('close', 137); };
   return c;
+}
+
+async function waitUntil(fn, maxMs) {
+  const deadline = Date.now() + (maxMs || 1500);
+  while (Date.now() < deadline) {
+    if (fn()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail('condição não ficou verdadeira dentro do prazo');
 }
 
 const MP = '⇄ ROUTING\nDE: teste\nPARA: cc\n\nDiz apenas "ok".';
@@ -162,6 +173,79 @@ test('collect antes do fim: devolve estado, não resultado', async () => {
   const c = await seam.toolCollect({ job_id: d.job_id });
   assert.ok(c.note && c.note.includes('não terminou'));
   seam.REGISTRY.get(d.job_id).child.emit('close', 0);
+});
+
+test('prep que excede o timeout despacha o chain directo e regista prep_timeout', async () => {
+  const wtPrep = path.join(TMP, 'frugal-wt-prep-timeout');
+  fs.mkdirSync(wtPrep, { recursive: true });
+  execFileSync('git', ['init', '-q', wtPrep]);
+  const originalRunLocal = moo.runLocal;
+  process.env.MOOTER_PREP_TIMEOUT_MS = '30';
+  const cloud = [];
+  try {
+    moo.runLocal = () => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; };
+    seam.setJobSpawner(() => {
+      const child = fakeChild();
+      cloud.push(child);
+      setImmediate(() => child.emit('spawn'));
+      return child;
+    });
+    const prep = await seam.toolDispatch({
+      agent: 'moo', worktree: wtPrep, masterprompt: MP, wave: 'prep-timeout', model: 'qwen-test',
+      __chain: { agent: 'cc', worktree: wtPrep, masterprompt: MP, wave: 'prep-timeout', model: 'claude-sonnet' },
+    });
+    await waitUntil(() => seam.ledgerRead().some((e) => e.job_id === prep.job_id && e.event === 'prep_timeout'));
+    await waitUntil(() => seam.ledgerRead().some((e) => e.agent === 'cc' && e.prep_from === prep.job_id && e.event === 'dispatched'));
+
+    const timedOut = seam.ledgerRead().find((e) => e.job_id === prep.job_id && e.event === 'prep_timeout');
+    assert.ok(timedOut.note.includes('preparação local excedeu 0.03s — fui directo'));
+    assert.strictEqual(typeof timedOut.prep_duration_s, 'number');
+    assert.strictEqual(typeof timedOut.prep_chars, 'number');
+    assert.strictEqual(typeof timedOut.tokens_poupados_estimados, 'number');
+    assert.strictEqual(timedOut.tokens_poupados_estimados, 0, 'uma preparação descartada não poupou tokens');
+    const collected = await seam.toolCollect({ job_id: prep.job_id });
+    assert.ok(collected.note.includes('fui directo'), JSON.stringify(collected));
+    assert.strictEqual(cloud.length, 1, 'o chain pago deve ser despachado exactamente uma vez');
+  } finally {
+    for (const [, live] of seam.REGISTRY) live.child.emit('close', 1);
+    moo.runLocal = originalRunLocal;
+    delete process.env.MOOTER_PREP_TIMEOUT_MS;
+  }
+});
+
+test('prep que falha despacha o chain directo e regista prep_failed_fallback', async () => {
+  const wtPrep = path.join(TMP, 'frugal-wt-prep-failed');
+  fs.mkdirSync(wtPrep, { recursive: true });
+  execFileSync('git', ['init', '-q', wtPrep]);
+  const originalRunLocal = moo.runLocal;
+  const cloud = [];
+  try {
+    moo.runLocal = () => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; };
+    seam.setJobSpawner(() => {
+      const child = fakeChild();
+      cloud.push(child);
+      setImmediate(() => child.emit('spawn'));
+      return child;
+    });
+    const prep = await seam.toolDispatch({
+      agent: 'moo', worktree: wtPrep, masterprompt: MP, wave: 'prep-failed', model: 'qwen-test',
+      __chain: { agent: 'cc', worktree: wtPrep, masterprompt: MP, wave: 'prep-failed', model: 'claude-sonnet' },
+    });
+    seam.REGISTRY.get(prep.job_id).child.emit('close', 7);
+    await waitUntil(() => seam.ledgerRead().some((e) => e.job_id === prep.job_id && e.event === 'prep_failed_fallback'));
+    await waitUntil(() => seam.ledgerRead().some((e) => e.agent === 'cc' && e.prep_from === prep.job_id && e.event === 'dispatched'));
+
+    const fallback = seam.ledgerRead().find((e) => e.job_id === prep.job_id && e.event === 'prep_failed_fallback');
+    assert.strictEqual(fallback.exit_code, 7);
+    assert.ok(fallback.note.includes('a preparação local falhou (exit 7) — fui directo'));
+    assert.strictEqual(fallback.tokens_poupados_estimados, 0, 'uma preparação falhada não poupou tokens');
+    const collected = await seam.toolCollect({ job_id: prep.job_id });
+    assert.ok(collected.note.includes('exit 7'), JSON.stringify(collected));
+    assert.strictEqual(cloud.length, 1, 'o chain pago deve ser despachado exactamente uma vez');
+  } finally {
+    for (const [, live] of seam.REGISTRY) live.child.emit('close', 1);
+    moo.runLocal = originalRunLocal;
+  }
 });
 
 test('server-seamless: regista as 4 tools no registry do server.js base', () => {

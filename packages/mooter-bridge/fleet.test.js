@@ -143,6 +143,41 @@ test('toolFleet reports local_available false instead of pretending zero models'
   assert.ok('waves' in out && 'context' in out);
 });
 
+test('o painel responde em menos de 2s quando uma sonda fica pendurada', async () => {
+  const started = Date.now();
+  const out = await fleet.toolFleet({}, {
+    probeOllama: () => new Promise(() => {}),
+    gpuSnapshot: async () => null,
+    vaultStatus: async () => null,
+    uiProbe: async () => null,
+    quotaEstado: async () => null,
+    worktreesList: async () => null,
+    sessionsList: async () => ({ sessions: [] }),
+  });
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 2000, 'uma sonda pendurada segurou o painel por ' + elapsed + 'ms');
+  assert.strictEqual(out.local, null, 'a sonda pendurada deve degradar para n/d');
+});
+
+test('sondas cedem o ciclo antes de trabalho síncrono', async () => {
+  let lifecycleAdvanced = false;
+  let quotaSawLifecycle = false;
+  setImmediate(() => { lifecycleAdvanced = true; });
+
+  await fleet.toolFleet({}, {
+    probeOllama: () => null,
+    gpuSnapshot: () => null,
+    vaultStatus: () => null,
+    uiProbe: () => null,
+    quotaEstado: () => { quotaSawLifecycle = lifecycleAdvanced; return null; },
+    worktreesList: () => null,
+    sessionsList: () => ({ sessions: [] }),
+  });
+
+  assert.strictEqual(quotaSawLifecycle, true,
+    'uma sonda síncrona arrancou antes dos callbacks de lifecycle já pendentes');
+});
+
 test('an unexpanded ${VAR} placeholder is treated as unset, not as a hostname', () => {
   process.env.MOOTER_TEST_VAR = '${MOOTER_TEST_VAR}';
   assert.strictEqual(fleet.envOrNull('MOOTER_TEST_VAR'), null, 'a literal placeholder would silently kill the probe');

@@ -51,6 +51,7 @@ const JOBS_DIR = () => path.join(MOOTER_HOME_DIR(), 'jobs');
 let _home = MOOTER_HOME;
 function MOOTER_HOME_DIR() { return process.env.MOOTER_HOME || _home; }
 const JOB_TIMEOUT_MS = () => Number(process.env.MOOTER_JOB_TIMEOUT_MS) || 30 * 60 * 1000;
+const PREP_TIMEOUT_MS = () => Number(process.env.MOOTER_PREP_TIMEOUT_MS) || 20 * 1000;
 const COLLECT_LIMIT = 100_000; // chars; above this: excerpt + path (tool-result ~150k cap)
 
 function log(...a) { try { process.stderr.write('[mooter-seamless] ' + a.join(' ') + '\n'); } catch { /* */ } }
@@ -74,7 +75,7 @@ function ledgerRead() {
     }).filter(Boolean);
   } catch { return []; }
 }
-const TERMINAL = new Set(['done', 'failed']);
+const TERMINAL = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
 function activeJobsByWorktree(worktree) {
   // ⚠️ canon(): em Windows o mesmo sítio aparece como C:\Users\PAULOL~1\… e
   // C:\Users\Paulo Loureiro\… — comparar as strings dava worktrees "ocupadas"
@@ -871,6 +872,8 @@ async function toolDispatch(args) {
   const stepId = args && args.step ? String(args.step) : null;
   const handoffFrom = args && args.handoff_from ? String(args.handoff_from) : null;
   const chain = args && args.__chain ? args.__chain : null;   // internal: set by mooter_work
+  const dispatchNote = args && args.__note ? String(args.__note) : null;
+  const prepFrom = args && args.__prep_from ? String(args.__prep_from) : null;
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
@@ -910,6 +913,7 @@ async function toolDispatch(args) {
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: [cmd.bin, ...cmd.args].join(' '),
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
+    note: dispatchNote, prep_from: prepFrom,
     // ⚠️ A4 · invariante 3 — o guard de saída corre no `collect`, quando este
     // objecto já morreu há muito. Se a evidência só existisse na resposta do
     // `work`, o guard leria `undefined` e degradaria tudo, sempre.
@@ -917,7 +921,7 @@ async function toolDispatch(args) {
   }, null, 2));
 
   ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'dispatched', mp_hash, model, model_recommended, tier, step: stepId,
-    handoff_from: handoff.ok ? handoffFrom : null });
+    handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote });
 
   const outStream = fs.createWriteStream(path.join(jobDir, 'out.log'));
   const errStream = fs.createWriteStream(path.join(jobDir, 'err.log'));
@@ -971,6 +975,10 @@ async function toolDispatch(args) {
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'spawn-error' });
     return { error: 'spawn falhou: ' + ((e && e.message) || e), job_id };
   }
+  let prepTimedOut = false;
+  let prepFailedOnError = false;
+  let chainDispatched = false;
+  let prepTimer = null;
   const timer = setTimeout(() => {
     killTree(child);
     REGISTRY.delete(job_id);
@@ -984,6 +992,59 @@ async function toolDispatch(args) {
   // só por causa de um despertador.
   try { timer.unref(); } catch { /* ambiente sem unref */ }
   REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm, mp_hash, step: stepId });
+
+  function prepMetrics(durationS, usable) {
+    let text = jobResultText(agent, jobDir);
+    if (text == null) {
+      try { text = fs.readFileSync(path.join(jobDir, 'out.log'), 'utf8'); } catch { text = ''; }
+    }
+    const prepChars = String(text || '').length;
+    const avoided = /opus/i.test(String(chain && chain.model))
+      ? 'opus'
+      : (/haiku/i.test(String(chain && chain.model)) ? 'haiku' : 'sonnet');
+    const estimated = localfirst.poupancaEstimada(masterprompt.length, usable ? prepChars : 0, avoided);
+    return {
+      prep_duration_s: durationS,
+      prep_chars: prepChars,
+      tokens_poupados_estimados: estimated.tokens_out_estimados,
+      tokens_poupados_estimados_nota: estimated.nota,
+    };
+  }
+
+  function dispatchChain(withHandoff, note) {
+    if (!chain || chainDispatched) return;
+    chainDispatched = true;
+    const next = Object.assign({}, chain);
+    if (withHandoff) next.handoff_from = job_id;
+    if (note) {
+      next.__note = note;
+      next.__prep_from = job_id;
+    }
+    setImmediate(() => {
+      toolDispatch(next)
+        .then((r2) => { if (r2 && r2.error) log('chain dispatch recusado: ' + JSON.stringify(r2.reasons || r2.error)); })
+        .catch((e) => log('chain falhou: ' + ((e && e.message) || e)));
+    });
+  }
+
+  if (chain && agent === 'moo') {
+    prepTimer = setTimeout(() => {
+      prepTimedOut = true;
+      clearTimeout(timer);
+      REGISTRY.delete(job_id);
+      const durationS = Number(((Date.now() - t0) / 1000).toFixed(3));
+      const note = 'preparação local excedeu ' + Number((PREP_TIMEOUT_MS() / 1000).toFixed(3)) + 's — fui directo';
+      ledgerAppend(Object.assign({
+        job_id, wave, agent, worktree: wtNorm, event: 'prep_timeout', mp_hash,
+        exit_code: 'prep-timeout', note,
+      }, prepMetrics(durationS, false)));
+      try { outStream.end(); } catch { /* */ }
+      try { errStream.end(); } catch { /* */ }
+      killTree(child);
+      dispatchChain(false, note);
+    }, PREP_TIMEOUT_MS());
+    try { prepTimer.unref(); } catch { /* ambiente sem unref */ }
+  }
   // proof of ownership: another connector instance must be able to tell whether
   // this job is alive before it dares to declare it orphaned
   // ⚠️ A2 — guardar o pid do TRABALHO, não só o do servidor. É a diferença
@@ -1009,11 +1070,23 @@ async function toolDispatch(args) {
   const logStarted = () => { if (!startedLogged) { startedLogged = true; ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'started', mp_hash }); } };
   child.once('spawn', logStarted);
   child.once('error', (e) => {
-    clearTimeout(timer); REGISTRY.delete(job_id);
-    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'proc-error:' + ((e && e.message) || ''), duration_s: Math.round((Date.now() - t0) / 1000) });
+    clearTimeout(timer); clearTimeout(prepTimer); REGISTRY.delete(job_id);
+    const exit = 'proc-error:' + ((e && e.message) || '');
+    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: exit, duration_s: Math.round((Date.now() - t0) / 1000) });
+    if (chain && agent === 'moo') {
+      prepFailedOnError = true;
+      const prep = prepMetrics(Number(((Date.now() - t0) / 1000).toFixed(3)), false);
+      const note = 'a preparação local falhou (exit ' + exit + ') — fui directo';
+      ledgerAppend(Object.assign({
+        job_id, wave, agent, worktree: wtNorm, event: 'prep_failed_fallback', mp_hash,
+        exit_code: exit, note,
+      }, prep));
+      dispatchChain(false, note);
+    }
   });
   child.once('close', (code) => {
-    clearTimeout(timer); REGISTRY.delete(job_id);
+    clearTimeout(timer); clearTimeout(prepTimer); REGISTRY.delete(job_id);
+    if (prepTimedOut || prepFailedOnError) return;
     logStarted(); // shells emit no 'spawn' reliably; a close implies it ran
     const dur = Math.round((Date.now() - t0) / 1000);
     // ⚠️ `close` fires when the process ends, NOT when our WriteStream has
@@ -1050,11 +1123,14 @@ async function toolDispatch(args) {
     const delivered = jobResultText(agent, jobDir);
     const producedNothing = !delivered || !String(delivered).trim();
     const ok = code === 0 && !producedNothing;
+    const prep = chain && agent === 'moo'
+      ? prepMetrics(Number(((Date.now() - t0) / 1000).toFixed(3)), ok)
+      : null;
     if (code === 0 && producedNothing) log('job ' + job_id + ' saiu 0 sem entregar texto — marcado failed');
     if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
       log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
     }
-    ledgerAppend({
+    ledgerAppend(Object.assign({
       job_id, wave, agent, worktree: wtNorm, event: ok ? 'done' : 'failed', mp_hash,
       exit_code: producedNothing && code === 0 ? 'empty-output' : code,
       cost_usd: r.cost_usd, duration_s: dur,
@@ -1067,7 +1143,7 @@ async function toolDispatch(args) {
       tokens_in: r.telemetry ? r.telemetry.tokens_in : null,
       tokens_out: r.telemetry ? r.telemetry.tokens_out : null,
       step: stepId,
-    });
+    }, prep || {}));
     if (stepId) {
       try {
         plan.updateStep(wave, stepId, {
@@ -1080,12 +1156,18 @@ async function toolDispatch(args) {
     }
     // ── the chain: the local moo finished, now the paid agent starts, with the
     // moo's work already in its prompt. This is the "carregar o piano" step.
-    if (ok && chain) {
-      setImmediate(() => {
-        toolDispatch(Object.assign({}, chain, { handoff_from: job_id }))
-          .then((r2) => { if (r2 && r2.error) log('chain dispatch recusado: ' + JSON.stringify(r2.reasons || r2.error)); })
-          .catch((e) => log('chain falhou: ' + ((e && e.message) || e)));
-      });
+    if (chain) {
+      if (ok) {
+        dispatchChain(true, null);
+      } else {
+        const exit = producedNothing && code === 0 ? 'empty-output' : code;
+        const note = 'a preparação local falhou (exit ' + exit + ') — fui directo';
+        ledgerAppend(Object.assign({
+          job_id, wave, agent, worktree: wtNorm, event: 'prep_failed_fallback', mp_hash,
+          exit_code: exit, note,
+        }, prep || {}));
+        dispatchChain(false, note);
+      }
     }
   }
 
@@ -1100,7 +1182,7 @@ async function toolDispatch(args) {
     routed_by: args && args.routed_by ? String(args.routed_by) : (args && args.model ? 'user' : (model ? 'classify' : 'cli-default')),
     routed: args && args.routed_by === 'work+classify' ? 'escolhido pelo mooter_work via classify.js (FROZEN)'
       : (args && args.model ? 'forçado pelo chamador' : (model ? 'pelo classify.js (FROZEN)' : 'default do CLI')),
-    note: 'dispatch aceito; acompanhar com mooter_status (traz tokens e a acção em curso), resultado via mooter_collect',
+    note: dispatchNote || 'dispatch aceito; acompanhar com mooter_status (traz tokens e a acção em curso), resultado via mooter_collect',
   };
 }
 
@@ -1113,7 +1195,11 @@ async function toolStatus(args) {
   const byJob = {};
   for (const e of evs) {
     const j = byJob[e.job_id] || (byJob[e.job_id] = { job_id: e.job_id, wave: e.wave, agent: e.agent, worktree: e.worktree, events: [], last: null, started_ts: null });
-    j.events.push({ ts: e.ts, event: e.event, exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s });
+    j.events.push({
+      ts: e.ts, event: e.event, exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
+      prep_duration_s: e.prep_duration_s, prep_chars: e.prep_chars,
+      tokens_poupados_estimados: e.tokens_poupados_estimados, note: e.note,
+    });
     j.last = e.event;
     if (e.event === 'started') j.started_ts = e.ts;
     if (e.model_used) j.model_used = e.model_used;
@@ -1268,6 +1354,7 @@ async function toolCollect(args) {
   return {
     job_id: jobId, state: last, agent: meta.agent, wave: meta.wave,
     result: vered.degradado ? vered.texto : body,
+    note: meta.note || (([...evs].reverse().find((e) => e.note) || {}).note) || null,
     session_id: session_id || null, cost_usd: cost_usd,
     // ⚠️ A4 — `true` quer dizer: o motor não tinha ferramentas, o disco não
     // regista evidência nenhuma, e mesmo assim a resposta traz um veredicto.
