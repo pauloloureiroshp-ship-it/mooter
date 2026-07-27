@@ -127,10 +127,20 @@ webview concat-only/CSP/origin-lock/tree-gate preservados.
 - Decisão 1.4: `specialization-matrix.ts` NÃO é consumível do bridge (TS + células por medir);
   o selector local usa factos verificáveis (nome/tamanho/geração). Ligar a matriz medida = Onda 3
   (adaptive-learner). Nada ficou a fingir que decide.
-- **Próxima missão: ONDA 4** (o fosso — mapa de projecto persistente `PROJECT_CONTEXT.json`,
-  verificação cruzada local↔nuvem a $0, fan-out, estratégias nomeadas de routing) e depois
-  **5.2/5.4** (Notion 7 releases atrás; bugs do conector: `create_worktree` ignorado,
-  `permissoes_efectivas` que declara read-only e usa Bash, bind de projecto que se perde).
+- **ONDA 4** @ `3e05415` (v1.15.0): `fosso.js` — mapa de projecto persistente + verificação
+  cruzada local↔nuvem a $0.
+- **MEO M0+M1** @ `da856bf`+`0a52e5b` (v1.16.0): `capacidades.js` (sonda do cliente MCP) e
+  `board.js` (scorecard sem LLM, faixas calibráveis, excepções com dono). **Skills dos 6 cargos
+  M-level** versionadas em `skills/`. Doutrina em `docs/strategy/GOVERNANCA_MEO.md`.
+- **ONDA 5.4** @ `af3787a` (v1.17.0): os três bugs de honestidade — `create_worktree` deixa de ser
+  aceite e ignorado, `permissoes_efectivas` reflecte o que o CLI recebeu (`n/d` quando
+  indeterminável), e o bind deixa de ser apagado por um bind parcial.
+- 📏 **MEDIDO no cliente real (02:43):** `roots` **suportado** (9 raízes, inclui `frugal` e
+  `paulo-vault`) → é a fonte de âmbito certa. `elicitation`/`sampling`/`resources`/`prompts`:
+  **n/d** (não declarados) → o onboarding dentro do Cowork fica pelo plano B (painel MCP Apps).
+- **Próxima missão: M2** (as vozes: usar as skills em sessões separadas e medir se as
+  interrupções baixam) · resto da **Onda 4** (fan-out, failover, estratégias nomeadas) ·
+  **M3** (plugin/marketplace) · **5.2** (Notion, precisa autorização do conector).
 - ⚠️ Por fazer na máquina: **reiniciar o serviço Ollama** (para o KV cache q8_0 valer) e **fechar e
   reabrir o Claude Desktop** (o conector em memória ainda é o antigo). Depois, confirmar num job
   real que o `/api/ps` mostra `context_length ≥ 16384` e que o modelo escolhido é o `qwen3.6:27b`.
