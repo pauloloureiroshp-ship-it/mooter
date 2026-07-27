@@ -651,6 +651,34 @@ function cliModelFor(agent, tier, recommended) {
   return null;
 }
 
+const QUOTA_MODEL_ORDER = ['haiku', 'sonnet', 'opus'];
+
+/**
+ * Aplica o tecto sem nunca promover um modelo conhecido. No ponto final do
+ * dispatch, `null` num job CC significa um default do CLI sem limite explícito;
+ * fixar o tecto aí restringe esse default, não afirma qual modelo ele seria.
+ */
+function applyQuotaCeiling(agent, model, calibration, finalResolution) {
+  if (!calibration || !calibration.tecto || agent === 'moo') {
+    return { model, applied: false, from: null };
+  }
+  const ceilingIndex = QUOTA_MODEL_ORDER.indexOf(String(calibration.tecto));
+  if (ceilingIndex < 0) return { model, applied: false, from: null };
+
+  const currentIndex = QUOTA_MODEL_ORDER.findIndex((name) => String(model || '').includes(name));
+  if (currentIndex >= 0) {
+    if (currentIndex <= ceilingIndex) return { model, applied: false, from: null };
+    return { model: calibration.tecto, applied: true, from: model };
+  }
+
+  // Só o Claude Code aceita estes aliases. Nos outros providers, inventar uma
+  // tradução seria trocar um tecto honesto por um comando inválido.
+  if (finalResolution === true && agent === 'cc' && !model) {
+    return { model: calibration.tecto, applied: true, from: '(default do CLI)' };
+  }
+  return { model, applied: false, from: null };
+}
+
 /**
  * ⚠️ A3 — não despachar leitura para quem não lê.
  *
@@ -677,6 +705,51 @@ function pedeLeituraDeFicheiro(texto) {
   // um verbo de leitura sozinho é fraco; um path é prova suficiente
   if (!temPath && temVerbo && !/\b(ficheiro|arquivo|file|c[óo]digo|repo|pasta)\b/i.test(t)) return null;
   return { path: m ? m[1] : null, verbo: temVerbo };
+}
+
+const EXECUTION_VERB_RE = /\b(corre|executa|roda|run)\b/i;
+const EXECUTION_KNOWN_COMMAND_RE = /\b(?:npm\s+(?:test\b|run\s+\S+)|node\s+(?:--test\b|[\w./\\-]+\.test\.js\b)|git\s+\S+|pytest(?:\s|$))/i;
+const EXECUTION_NON_GIT_RE = /\b(?:npm\s+(?:test\b|run\s+\S+)|node\s+(?:--test\b|[\w./\\-]+\.test\.js\b)|pytest(?:\s|$))/i;
+const EXECUTION_BACKTICK_RE = /`([^`\r\n]{2,200})`/g;
+
+/**
+ * Detecta intenção de execução, não apenas os comandos git que o A4 pode
+ * correr em segurança. O A4 e este guard são complementares: o primeiro
+ * recolhe evidência permitida; este impede entregar ao /api/chat o resto.
+ */
+function pedeExecucaoDeMotor(texto) {
+  const t = String(texto || '');
+  const hasVerb = EXECUTION_VERB_RE.test(t);
+  const hasKnownCommand = EXECUTION_KNOWN_COMMAND_RE.test(t);
+  const hasGit = /\bgit\s+\S+/i.test(t);
+  let backtickCommand = null;
+  let match;
+  EXECUTION_BACKTICK_RE.lastIndex = 0;
+  while ((match = EXECUTION_BACKTICK_RE.exec(t)) !== null) {
+    const candidate = match[1].trim();
+    if (EXECUTION_KNOWN_COMMAND_RE.test(candidate)
+      || /^(?:python3?|npx|pnpm|yarn|bun|deno|cargo|go|dotnet|mvn|gradle|bash|sh|pwsh|powershell|cmd)\b\s+\S+/i.test(candidate)) {
+      backtickCommand = candidate;
+      break;
+    }
+  }
+  if (!hasVerb && !hasKnownCommand && !backtickCommand) return null;
+  const hasNonGit = EXECUTION_NON_GIT_RE.test(t)
+    || !!(backtickCommand && !/^git\s+/i.test(backtickCommand));
+  return {
+    verbo: (t.match(EXECUTION_VERB_RE) || [])[0] || null,
+    comando: backtickCommand || (t.match(EXECUTION_KNOWN_COMMAND_RE) || [])[0] || null,
+    apenas_git: hasGit && !hasNonGit,
+  };
+}
+
+function executionCapability(agent) {
+  const commandText = agent === 'moo' ? '(ollama) /api/chat' : '(dispatch pendente)';
+  const effective = effectivePermissions({ agent, cmd: commandText });
+  return {
+    supported: !(Array.isArray(effective.valor) && effective.valor.length === 0),
+    effective,
+  };
 }
 
 /**
@@ -1090,7 +1163,20 @@ async function toolDispatch(args) {
   const classified = classifyOrNull(masterprompt);
   const tier = classified ? (classified.tier || null) : null;
   const model_recommended = classified ? cliModelFor(agent, tier, classified.recommended_model) : null;
-  const model = args && args.model ? String(args.model) : model_recommended;
+  let model = args && args.model ? String(args.model) : model_recommended;
+  const quotaCalibration = args && args.__quota_calibragem && typeof args.__quota_calibragem === 'object'
+    ? args.__quota_calibragem : null;
+  // BUG v1.18: o tecto corria em toolWork antes desta resolução. Quando o T0
+  // local caía para CC, `model` era null e o CLI acabava no seu default sem
+  // limite. Este é o último ponto antes de buildCommand/spawn: reaplica aqui.
+  const finalCeiling = applyQuotaCeiling(agent, model, quotaCalibration, true);
+  if (finalCeiling.applied) {
+    model = finalCeiling.model;
+    quotaCalibration.desceu_de = finalCeiling.from;
+  }
+  const dispatchRoutedBy = finalCeiling.applied
+    ? 'quota'
+    : (args && args.routed_by ? String(args.routed_by) : (args && args.model ? 'user' : (model ? 'classify' : 'cli-default')));
 
   ensureDirs();
   const job_id = 'job-' + Date.now().toString(36) + '-' + crypto.randomBytes(2).toString('hex');
@@ -1445,9 +1531,10 @@ async function toolDispatch(args) {
     // A v1.3.2 via `args.model` preenchido (posto pelo próprio mooter_work) e
     // reportava "forçado pelo chamador" — atribuía ao utilizador um acto do
     // próprio produto. O campo que existe para dar rasto apontava para o lado errado.
-    routed_by: args && args.routed_by ? String(args.routed_by) : (args && args.model ? 'user' : (model ? 'classify' : 'cli-default')),
-    routed: args && args.routed_by === 'work+classify' ? 'escolhido pelo mooter_work via classify.js (FROZEN)'
-      : (args && args.model ? 'forçado pelo chamador' : (model ? 'pelo classify.js (FROZEN)' : 'default do CLI')),
+    routed_by: dispatchRoutedBy,
+    routed: dispatchRoutedBy === 'quota' ? 'limitado pelo tecto de quota antes do spawn'
+      : (args && args.routed_by === 'work+classify' ? 'escolhido pelo mooter_work via classify.js (FROZEN)'
+        : (args && args.model ? 'forçado pelo chamador' : (model ? 'pelo classify.js (FROZEN)' : 'default do CLI'))),
     note: dispatchNote || 'dispatch aceito; acompanhar com mooter_status (traz tokens e a acção em curso), resultado via mooter_collect',
   };
 }
@@ -1925,7 +2012,9 @@ async function toolWork(args) {
   // injectá-lo no prompt. O modelo local não precisa de ferramentas; precisa de
   // contexto. Custa milissegundos, custa $0, e transforma "o teu modelo local
   // não serve para isto" em "o teu modelo local acabou de auditar o ficheiro".
-  const leitura = pedeLeituraDeFicheiro(goal + ' ' + (a.context || ''));
+  const executionText = goal + ' ' + (a.context || '');
+  const leitura = pedeLeituraDeFicheiro(executionText);
+  const executionIntent = pedeExecucaoDeMotor(executionText);
   let contextoInjectado = null;
   let avisoFabricacao = null;
   if (leitura && ENGINES_SEM_FICHEIROS.has(agent)) {
@@ -2101,6 +2190,36 @@ async function toolWork(args) {
     };
   }
 
+  // BUG v1.18: o moo aceitou `node board.test.js`, não correu nada e respondeu
+  // 14/0 por inferência do ficheiro. O A4 continua intacto para git de leitura;
+  // todo o pedido que ele não satisfez é recusado ou reencaminhado antes do job.
+  const capability = executionIntent ? executionCapability(agent) : null;
+  const satisfiedByA4 = !!(executionIntent && executionIntent.apenas_git
+    && execucaoInjectada && execucaoInjectada.executados.length > 0
+    && execucaoInjectada.recusados.length === 0);
+  if (executionIntent && capability && !capability.supported && !satisfiedByA4) {
+    if (a.agent) {
+      return {
+        resumo: '⛔ não despachei: este motor não executa comandos — usa agent:"cc" ou agent:"codex"',
+        erro: 'motor_sem_execucao', agent,
+        pedido_execucao: executionIntent,
+        permissoes_efectivas: capability.effective,
+        faz_assim: [
+          'mooter_work({goal, agent:"cc"}) — o Claude Code executa e devolve a saída real',
+          'mooter_work({goal, agent:"codex"}) — o Codex executa no sandbox declarado',
+        ],
+      };
+    }
+    agent = 'cc';
+    model = d ? cliModelFor(agent, tier, d.recommended_model) : null;
+    routedBy = 'capacidade-execucao';
+    escolhaLocal = {
+      local: false,
+      porque: 'o goal pede execução e o motor local não recebe ferramentas',
+      confianca: 'alta', forcado_por_quota: false,
+    };
+  }
+
   const readOnly = a.write !== true;
   const allowedTools = a.allowedTools ? String(a.allowedTools) : (readOnly ? 'Read,Glob,Grep' : 'Read,Glob,Grep,Edit,Write');
   const mp = [
@@ -2189,7 +2308,8 @@ async function toolWork(args) {
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
-          __worktree_created: worktreeCriada, __local_decisao: escolhaLocal },
+          __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
+          __quota_calibragem: calibragem },
       });
       if (prep && prep.job_id) {
         return {
@@ -2223,13 +2343,14 @@ async function toolWork(args) {
 
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
-    __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal });
+    __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
+    __quota_calibragem: calibragem });
   if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model, worktree_criada: worktreeCriada }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
     // A v1.3.2 punha-a em `content[0].text` e este host mostra o
     // `structuredContent`: a prosa era escrita e descartada em 21/21 chamadas.
-    resumo: '🐮 ' + (model || agent) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
+    resumo: '🐮 ' + (r.model || model || agent) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
       + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
       + (prepareSkipped ? ' · sem preparação local' : '')
       + (relocated ? ' · mudei para ' + require('path').basename(worktree) : '')
@@ -2246,7 +2367,7 @@ async function toolWork(args) {
     agent,
     model: r.model || model || '(default do CLI)',
     routed: r.routed,
-    routed_by: routedBy,
+    routed_by: r.routed_by || routedBy,
     job_id: r.job_id,
     // ⚠️ A5 — toda a mudança de pasta é DECLARADA. Antes trocava em silêncio e
     // o utilizador não tinha como saber que o job correu noutro sítio.
@@ -2430,7 +2551,8 @@ module.exports = {
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
-  pedeExecucao, executarComandos, veredictoSemEvidencia,
+  pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,
+  applyQuotaCeiling,
   requestedPermissions, effectivePermissions, permissionReport,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },
 };

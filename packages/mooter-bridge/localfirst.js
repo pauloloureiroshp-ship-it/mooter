@@ -91,6 +91,7 @@ function cabeNoLocal({ goal, tier, contextoChars, temModeloLocal, escrita, vramL
       local: true,
       porque: 'quota perto do limite: tudo o que a GPU consegue fazer vai para ela ($0); os vetos de risco continuam a valer',
       confianca: 'media',
+      forcado_por_quota: true,
     };
   }
 

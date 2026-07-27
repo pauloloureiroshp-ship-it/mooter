@@ -24,12 +24,15 @@ process.env.MOOTER_WORKTREE_ROOT = TMP;
 const FAKEREPO = path.join(TMP, 'frugal');
 fs.mkdirSync(path.join(FAKEREPO, 'tools', 'router'), { recursive: true });
 fs.writeFileSync(path.join(FAKEREPO, 'tools', 'router', 'classify.js'),
-  "module.exports={classify:(t)=>({tier:'T2',confidence:0.9,reasoning:'stub',recommended_model:'sonnet'})};");
+  "module.exports={classify:(t)=>String(t).includes('quota-t0')"
+  + "?{tier:'T0',confidence:0.9,reasoning:'stub T0',recommended_model:'qwen2.5:3b'}"
+  + ":{tier:'T2',confidence:0.9,reasoning:'stub',recommended_model:'sonnet'}};");
 process.env.MOOTER_REPO = FAKEREPO;
 process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
 const moo = require('./moo.js');
+const quotaModule = require('./quota.js');
 const wtModule = require('./worktrees.js');
 
 // a real git worktree
@@ -43,6 +46,20 @@ function fakeChild() {
   c.stderr = new EventEmitter(); c.stderr.pipe = () => {};
   c.kill = () => { c.emit('close', 137); };
   return c;
+}
+
+function makeWorktree(name) {
+  const worktree = path.join(TMP, name);
+  fs.mkdirSync(worktree, { recursive: true });
+  execFileSync('git', ['init', '-q', worktree]);
+  return worktree;
+}
+
+async function closeJob(result, code) {
+  if (result && result.job_id && seam.REGISTRY.has(result.job_id)) {
+    seam.REGISTRY.get(result.job_id).child.emit('close', code == null ? 0 : code);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
 }
 
 async function waitUntil(fn, maxMs) {
@@ -80,6 +97,245 @@ test('route: usa o classifier (stub) e mapeia tier→agent', async () => {
   assert.strictEqual(r.tier, 'T2');
   assert.strictEqual(r.confidence, 0.9);
   assert.ok(r.routing_note.includes('FROZEN'));
+});
+
+test('honestidade: pedido de execução fixado no moo é recusado antes do dispatch', async () => {
+  const worktree = makeWorktree('frugal-wt-exec-moo');
+  fs.writeFileSync(path.join(worktree, 'board.test.js'), 'const resultado = 14;\n');
+  const originalPickModel = moo.pickModel;
+  const originalPickModelExplained = moo.pickModelExplained;
+  const originalRunLocal = moo.runLocal;
+  let localRuns = 0;
+  let result = null;
+  try {
+    moo.pickModel = async () => 'qwen-test';
+    moo.pickModelExplained = async () => ({ model: 'qwen-test', porque: 'stub' });
+    moo.runLocal = () => { localRuns++; return fakeChild(); };
+    result = await seam.toolWork({
+      goal: 'Corre o comando `node board.test.js` e diz quantos testes passaram',
+      agent: 'moo', worktree, wave: 'honest-exec-moo', prepare: false,
+    });
+    assert.strictEqual(result.erro, 'motor_sem_execucao', JSON.stringify(result));
+    assert.deepStrictEqual(result.permissoes_efectivas.valor, []);
+    assert.match(result.resumo, /cc|codex/i);
+    assert.strictEqual(localRuns, 0, 'o pedido impossível chegou ao /api/chat do moo');
+  } finally {
+    await closeJob(result, 1);
+    moo.pickModel = originalPickModel;
+    moo.pickModelExplained = originalPickModelExplained;
+    moo.runLocal = originalRunLocal;
+  }
+});
+
+test('honestidade: pedido de execução sem agent fixado é reencaminhado para cc', async () => {
+  const worktree = makeWorktree('frugal-wt-exec-auto');
+  fs.writeFileSync(path.join(worktree, 'board.test.js'), 'const resultado = 14;\n');
+  const originalPickModel = moo.pickModel;
+  const originalEstado = quotaModule.estado;
+  let spawned = null;
+  let result = null;
+  try {
+    quotaModule.estado = () => ({
+      pressao: { valor: 0.2, nivel: 'normal' },
+      calibragem: { politica: 'normal', tecto: null, forcar_local: false, porque: 'stub' },
+    });
+    moo.pickModel = async () => 'qwen-test';
+    seam.setJobSpawner((cmd) => {
+      spawned = cmd;
+      const child = fakeChild();
+      setImmediate(() => child.emit('spawn'));
+      return child;
+    });
+    result = await seam.toolWork({
+      goal: 'quota-t0: corre `node board.test.js` e devolve a saída',
+      worktree, wave: 'honest-exec-auto', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.agent, 'cc');
+    assert.strictEqual(result.routed_by, 'capacidade-execucao');
+    assert.strictEqual(spawned.bin, 'claude');
+  } finally {
+    await closeJob(result, 1);
+    moo.pickModel = originalPickModel;
+    quotaModule.estado = originalEstado;
+  }
+});
+
+test('honestidade: detector cobre verbos, crases e comandos canónicos', () => {
+  for (const goal of [
+    'corre os testes', 'executa esta verificação', 'roda a suite', 'run the checks',
+    'usa `python script.py`', 'npm test', 'node board.test.js', 'git status', 'pytest -q',
+  ]) {
+    assert.ok(seam.pedeExecucaoDeMotor(goal), 'não detectou: ' + goal);
+  }
+  assert.strictEqual(seam.pedeExecucaoDeMotor('Resume em duas frases a ideia principal'), null);
+});
+
+test('honestidade: goal sem execução continua a ser despachado ao moo', async () => {
+  const worktree = makeWorktree('frugal-wt-normal-moo');
+  const originalPickModel = moo.pickModel;
+  const originalPickModelExplained = moo.pickModelExplained;
+  const originalRunLocal = moo.runLocal;
+  let chosen = null;
+  let result = null;
+  try {
+    moo.pickModel = async () => 'qwen-test';
+    moo.pickModelExplained = async () => ({ model: 'qwen-test', porque: 'stub' });
+    moo.runLocal = ({ model }) => { chosen = model; const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; };
+    result = await seam.toolWork({
+      goal: 'Resume em duas frases a ideia principal', agent: 'moo',
+      worktree, wave: 'honest-normal-moo', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.agent, 'moo');
+    assert.strictEqual(chosen, 'qwen-test');
+  } finally {
+    await closeJob(result, 0);
+    moo.pickModel = originalPickModel;
+    moo.pickModelExplained = originalPickModelExplained;
+    moo.runLocal = originalRunLocal;
+  }
+});
+
+test('honestidade: git de leitura satisfeito pelo A4 continua no moo', async () => {
+  const worktree = makeWorktree('frugal-wt-a4-moo');
+  const originalPickModel = moo.pickModel;
+  const originalPickModelExplained = moo.pickModelExplained;
+  const originalRunLocal = moo.runLocal;
+  let result = null;
+  try {
+    moo.pickModel = async () => 'qwen-test';
+    moo.pickModelExplained = async () => ({ model: 'qwen-test', porque: 'stub' });
+    moo.runLocal = () => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; };
+    result = await seam.toolWork({
+      goal: 'corre git status e resume a saída', agent: 'moo',
+      worktree, wave: 'honest-a4-moo', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.agent, 'moo');
+    assert.deepStrictEqual(result.comandos_corridos, ['git status']);
+  } finally {
+    await closeJob(result, 0);
+    moo.pickModel = originalPickModel;
+    moo.pickModelExplained = originalPickModelExplained;
+    moo.runLocal = originalRunLocal;
+  }
+});
+
+test('quota: tecto sonnet limita o modelo final que cairia no default do CLI', async () => {
+  const worktree = makeWorktree('frugal-wt-quota-cap');
+  const originalEstado = quotaModule.estado;
+  const originalPickModel = moo.pickModel;
+  let spawned = null;
+  let result = null;
+  try {
+    quotaModule.estado = () => ({
+      pressao: { valor: 0.8, nivel: 'alto' },
+      calibragem: { politica: 'nuvem-com-conta', tecto: 'sonnet', forcar_local: false, porque: 'stub' },
+    });
+    moo.pickModel = async () => null;
+    seam.setJobSpawner((cmd) => {
+      spawned = cmd;
+      const child = fakeChild();
+      setImmediate(() => child.emit('spawn'));
+      return child;
+    });
+    result = await seam.toolWork({
+      goal: 'quota-t0: explica isto brevemente', worktree,
+      wave: 'quota-cap-final', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.ok(spawned, 'o job cloud não chegou ao spawner');
+    const modelIndex = spawned.args.indexOf('--model');
+    assert.ok(modelIndex >= 0, 'o tecto não chegou ao comando final: ' + JSON.stringify(spawned.args));
+    assert.strictEqual(spawned.args[modelIndex + 1], 'sonnet');
+    assert.strictEqual(result.model, 'sonnet');
+    assert.ok(result.calibragem_por_quota.desceu_de, JSON.stringify(result.calibragem_por_quota));
+    assert.strictEqual(result.routed_by, 'quota');
+  } finally {
+    await closeJob(result, 1);
+    quotaModule.estado = originalEstado;
+    moo.pickModel = originalPickModel;
+  }
+});
+
+test('quota: agent moo continua isento do tecto activo', async () => {
+  const worktree = makeWorktree('frugal-wt-quota-moo');
+  const originalEstado = quotaModule.estado;
+  const originalPickModel = moo.pickModel;
+  const originalPickModelExplained = moo.pickModelExplained;
+  const originalRunLocal = moo.runLocal;
+  let chosen = null;
+  let result = null;
+  try {
+    quotaModule.estado = () => ({
+      pressao: { valor: 0.8, nivel: 'alto' },
+      calibragem: { politica: 'nuvem-com-conta', tecto: 'sonnet', forcar_local: false, porque: 'stub' },
+    });
+    moo.pickModel = async () => 'qwen-test';
+    moo.pickModelExplained = async () => ({ model: 'qwen-test', porque: 'stub' });
+    moo.runLocal = ({ model }) => { chosen = model; const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; };
+    result = await seam.toolWork({
+      goal: 'Resume este conceito em duas frases', agent: 'moo',
+      worktree, wave: 'quota-moo-isento', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.agent, 'moo');
+    assert.strictEqual(chosen, 'qwen-test');
+    assert.strictEqual(result.calibragem_por_quota.desceu_de, null);
+  } finally {
+    await closeJob(result, 0);
+    quotaModule.estado = originalEstado;
+    moo.pickModel = originalPickModel;
+    moo.pickModelExplained = originalPickModelExplained;
+    moo.runLocal = originalRunLocal;
+  }
+});
+
+test('quota: sem calibragem o fallback conserva o default do CLI', async () => {
+  const worktree = makeWorktree('frugal-wt-quota-normal');
+  const originalEstado = quotaModule.estado;
+  const originalPickModel = moo.pickModel;
+  let spawned = null;
+  let result = null;
+  try {
+    quotaModule.estado = () => ({
+      pressao: { valor: 0.2, nivel: 'normal' },
+      calibragem: { politica: 'normal', tecto: null, forcar_local: false, porque: 'stub' },
+    });
+    moo.pickModel = async () => null;
+    seam.setJobSpawner((cmd) => {
+      spawned = cmd;
+      const child = fakeChild();
+      setImmediate(() => child.emit('spawn'));
+      return child;
+    });
+    result = await seam.toolWork({
+      goal: 'quota-t0: explica isto brevemente', worktree,
+      wave: 'quota-sem-calibragem', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.ok(spawned);
+    assert.strictEqual(spawned.args.includes('--model'), false, JSON.stringify(spawned.args));
+    assert.strictEqual(result.routed_by, 'cli-default');
+    assert.strictEqual(result.calibragem_por_quota, null);
+  } finally {
+    await closeJob(result, 1);
+    quotaModule.estado = originalEstado;
+    moo.pickModel = originalPickModel;
+  }
+});
+
+test('quota: o tecto nunca promove um modelo conhecido', () => {
+  const calibration = { tecto: 'sonnet' };
+  assert.deepStrictEqual(seam.applyQuotaCeiling('cc', 'haiku', calibration, true),
+    { model: 'haiku', applied: false, from: null });
+  assert.deepStrictEqual(seam.applyQuotaCeiling('cc', 'sonnet', calibration, true),
+    { model: 'sonnet', applied: false, from: null });
+  assert.deepStrictEqual(seam.applyQuotaCeiling('cc', 'opus', calibration, true),
+    { model: 'sonnet', applied: true, from: 'opus' });
+  assert.deepStrictEqual(seam.applyQuotaCeiling('moo', 'qwen-test', calibration, true),
+    { model: 'qwen-test', applied: false, from: null });
 });
 
 test('permissões com Bash pedido nunca regressam como lista efectiva só de leitura', () => {
