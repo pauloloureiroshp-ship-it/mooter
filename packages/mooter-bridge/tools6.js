@@ -25,6 +25,7 @@
  */
 
 const PUBLICAS = ['mooter_work', 'mooter_check', 'mooter_fleet', 'mooter_cancel', 'mooter_journal', 'mooter_setup'];
+const capacidades = require('./capacidades.js');
 
 /** Wrap para garantir que TODA a resposta abre com uma frase legível. */
 function comResumo(r, fallback) {
@@ -48,7 +49,8 @@ function build(seam, fleet, base) {
           model: { type: 'string', description: '[avançado] forçar um modelo.' },
           wave: { type: 'string', description: '[avançado] agrupar vários trabalhos sob o mesmo nome.' },
           worktree: { type: 'string', description: '[avançado] pasta específica. Omite e eu escolho uma livre.' },
-          create_worktree: { type: 'boolean', description: '[avançado] criar uma pasta nova se todas estiverem ocupadas (escreve no disco).' },
+          create_worktree: { type: 'boolean', description: '[avançado] criar sempre uma pasta nova isolada antes do job (escreve no disco; se falhar, o job não arranca).' },
+          allowedTools: { type: 'string', description: '[avançado] ferramentas pedidas ao CLI; a resposta distingue pedido de capacidade efectiva.' },
           prepare: { type: 'boolean', description: '[avançado] deixar a GPU local escrever o briefing primeiro, a $0. Ligado por omissão.' },
           steps: { type: 'array', items: { type: 'string' }, description: '[avançado] as etapas que o painel deve mostrar.' },
           context: { type: 'string', description: 'Contexto extra para juntar ao pedido.' },
@@ -97,7 +99,9 @@ function build(seam, fleet, base) {
             const c = await seam.toolCollect({ job_id: a.job_id });
             return comResumo(Object.assign({}, st, {
               resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used,
-              permissoes_efectivas: c.allowed_tools_effective,
+              permissoes_pedidas: c.permissoes_pedidas,
+              permissoes_efectivas: c.permissoes_efectivas,
+              permissoes_diferenca: c.permissoes_diferenca,
             }), '🐮 ' + a.job_id + ' ' + j.last + (c.model_used ? ' · ' + c.model_used : ''));
           }
         }
@@ -112,7 +116,7 @@ function build(seam, fleet, base) {
       inputSchema: {
         type: 'object',
         properties: {
-          view: { type: 'string', enum: ['tudo', 'jobs', 'pastas', 'sessoes', 'plano'], description: 'tudo (default) · jobs · pastas · sessoes · plano' },
+          view: { type: 'string', enum: ['tudo', 'board', 'jobs', 'pastas', 'sessoes', 'plano'], description: 'tudo (default) · board · jobs · pastas · sessoes · plano' },
           wave: { type: 'string', description: 'Filtrar por wave.' },
           windowMinutes: { type: 'number', description: 'Quanto tempo para trás mostrar os concluídos (default 30).' },
         },
@@ -123,6 +127,9 @@ function build(seam, fleet, base) {
       handler: async (args) => {
         const a = args || {};
         const view = a.view || 'tudo';
+        if (view === 'board') {
+          return fleet.toolFleet(a, { sessionsList: base.toolSessionsList });
+        }
         if (view === 'pastas') {
           const r = require('./worktrees.js').list(seam._paths.REPO, seam.activeJobsByWorktree);
           if (r.error) return r;
@@ -285,14 +292,22 @@ function build(seam, fleet, base) {
           return comResumo(r, '🐮 sessão: ' + [a.project || a.folder, a.session_model && ('conduzida por ' + a.session_model)].filter(Boolean).join(' · '));
         }
         const ctx = fleet.readSessionContext();
+        const cap = capacidades.estado();
+        const root = cap.roots && cap.roots[0] ? cap.roots[0] : null;
+        const cabeca = ctx ? ('🐮 ' + [ctx.project, ctx.folder_name, ctx.session_model].filter(Boolean).join(' · '))
+          : '🐮 sessão ainda não configurada';
         return {
-          resumo: ctx ? ('🐮 ' + [ctx.project, ctx.folder_name, ctx.session_model].filter(Boolean).join(' · ')) : '🐮 sessão ainda não configurada',
+          resumo: cabeca + '\n' + cap.resumo,
           contexto: ctx,
+          capacidades: cap,
+          roots_recebidas: cap.roots,
           // o painel só pode mostrar "quem conduz" se alguém lho disser
           falta_declarar: ctx && !ctx.session_model
             ? 'o modelo desta conversa — mooter_setup({session_model:"…"}). Sem isso o painel escreve n/d, que é a verdade.'
             : null,
-          faz_assim: ctx ? null : ['mooter_setup({project:"…", folder:"C:\\\\…", session_model:"…"})'],
+          faz_assim: ctx ? null : [root
+            ? 'mooter_setup({folder:"' + root.uri + '", session_model:"…"})'
+            : 'mooter_setup({project:"…", folder:"C:\\\\…", session_model:"…"})'],
         };
       },
     },

@@ -282,6 +282,25 @@ Aqui há dinheiro em cima da mesa. O protocolo MCP tem seis capacidades; nós us
 | **Sampling** | o servidor pede ao **cliente** para inferir; sem API key, sem custo próprio do servidor | ❌ | **Enorme:** os M-levels podiam raciocinar usando a tua sessão, em vez de um motor separado |
 | **Roots** | o cliente declara ao servidor que pastas são o âmbito | ❌ | Mata o bug do bind perdido (`P / tmp`) de raiz |
 
+### ✅ MEDIDO — a sonda M0 correu no cliente real (2026-07-27 02:43)
+
+Fonte: `~/.mooter/mcp-capabilities.json`. Cliente `local-agent-mode-Mooter` 1.0.0, protocolo
+`2025-11-25`.
+
+| Capacidade | Estado medido | Como se soube |
+|---|---|---|
+| **roots** | ✅ **suportado** — o cliente respondeu a `roots/list` com **9 roots** (inclui `frugal` e `paulo-vault`) | resposta real a `roots/list` |
+| resources | `n/d` | não declarado em `initialize.params.capabilities` — ausência não prova falta de suporte |
+| prompts | `n/d` | idem |
+| elicitation | `n/d` | idem — logo, **o onboarding por elicitation continua por provar** |
+| sampling | `n/d` | idem |
+| logging | `n/d` | idem |
+
+**O que isto muda, já:** o bind de projecto deixa de depender de um ficheiro escrito à mão — as
+**roots são a fonte de âmbito** e o cliente dá-as de graça. É a correcção de raiz do bug do
+`P / tmp`. Quanto ao onboarding dentro do Cowork: fica o plano B (painel de setup no MCP Apps),
+porque `elicitation` não está declarado e nós não construímos sobre suposições.
+
 **Ressalvas honestas:** `elicitation` e `sampling` dependem do **cliente** as suportar. Se o Claude
 Desktop/Cowork as suporta hoje, e em que versão, é **`n/d` — tem de ser testado**, não assumido.
 Além disso, a especificação está a mudar: uma versão recente substitui as chamadas iniciadas pelo

@@ -392,23 +392,111 @@ function readJobResult(agent, jobDir, elapsedSeconds) {
   } catch { return empty; }
 }
 /**
- * O que o motor REALMENTE recebeu em matéria de permissões, lido do comando
- * que foi executado (guardado em meta.json). É a única forma de auditar se o
- * `allowedTools:"Read"` que se pediu chegou mesmo ao processo.
+ * Separa intenção do chamador de capacidade efectiva. `--allowedTools` no
+ * Claude Code preaprova ferramentas; não é o mesmo que `--tools`, que limita
+ * as ferramentas disponíveis. Quando o comando não prova o conjunto efectivo,
+ * a resposta é n/d com a razão em vez de promover o pedido a facto.
  */
+function parseToolList(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  const out = [];
+  let token = ''; let depth = 0;
+  const flush = () => { if (token.trim()) out.push(token.trim()); token = ''; };
+  for (const char of raw) {
+    if (char === '(') depth++;
+    if (char === ')') depth = Math.max(0, depth - 1);
+    if ((char === ',' || /\s/.test(char)) && depth === 0) flush();
+    else token += char;
+  }
+  flush();
+  return [...new Set(out)];
+}
+
+function ndPermissions(porque, fonte, extra) {
+  return Object.assign({ valor: 'n/d', porque, fonte: fonte || 'comando executado' }, extra || {});
+}
+
+function requestedPermissions(meta) {
+  if (!meta) return ndPermissions('não há metadados do job', 'meta.json');
+  const raw = meta.allowedTools || (meta.agent === 'cc' ? 'Read' : null);
+  if (!raw) {
+    return ndPermissions('o chamador não declarou allowedTools', 'pedido recebido pelo conector');
+  }
+  return {
+    valor: parseToolList(raw),
+    porque: meta.allowedTools
+      ? 'lista pedida ao conector em allowedTools'
+      : 'default Read aplicado pelo conector ao Claude Code',
+    fonte: meta.allowedTools ? 'meta.json.allowedTools' : 'default do buildCommand',
+  };
+}
+
 function effectivePermissions(meta) {
   const cmd = String((meta && meta.cmd) || '');
-  if (!cmd) return null;
+  if (!meta || !cmd) return ndPermissions('meta.json não contém o comando executado', 'meta.json.cmd');
   if (meta.agent === 'codex') {
     const m = cmd.match(/--sandbox\s+(\S+)/);
-    return m ? { sandbox: m[1], read_only: m[1] === 'read-only', fonte: 'flag --sandbox no comando executado' } : null;
+    if (!m) return ndPermissions('o comando Codex não contém --sandbox', 'meta.json.cmd');
+    return ndPermissions(
+      'o sandbox prova o limite de escrita, mas o comando não declara o conjunto de ferramentas disponível',
+      'flag --sandbox no comando executado',
+      { sandbox: m[1], read_only: m[1] === 'read-only' },
+    );
   }
   if (meta.agent === 'cc') {
-    const m = cmd.match(/--allowedTools\s+(\S+)/);
-    return m ? { allowedTools: m[1], read_only: !/(write|edit|bash)/i.test(m[1]), fonte: 'flag --allowedTools no comando executado' } : null;
+    const tools = cmd.match(/(?:^|\s)--tools\s+(\S+)/);
+    if (tools) {
+      return {
+        valor: parseToolList(tools[1].replace(/^"|"$/g, '')),
+        porque: '--tools limita o conjunto de ferramentas disponível ao Claude Code',
+        fonte: 'flag --tools no comando executado',
+      };
+    }
+    const allowed = cmd.match(/--allowedTools\s+(\S+)/);
+    return ndPermissions(
+      '--allowedTools apenas permite/preaprova; sem --tools e --disallowedTools não prova tudo o que o agente pode usar',
+      'flags do Claude Code no comando executado',
+      { allowed_tools: allowed ? parseToolList(allowed[1]) : [], read_only: 'n/d' },
+    );
   }
-  if (meta.agent === 'moo') return { sandbox: 'sem ferramentas', read_only: true, fonte: 'o moo só gera texto, não lê nem escreve ficheiros' };
-  return null;
+  if (meta.agent === 'moo') {
+    return {
+      valor: [], read_only: true,
+      porque: 'o moo corre via /api/chat e não recebe ferramentas',
+      fonte: 'caminho in-process de buildCommand',
+    };
+  }
+  if (meta.agent === 'gemini') {
+    return ndPermissions(
+      '--approval-mode auto_edit não enumera as ferramentas que o Gemini pode usar',
+      'flags do Gemini no comando executado',
+      { approval_mode: 'auto_edit', read_only: false },
+    );
+  }
+  return ndPermissions('agente desconhecido; não há contrato de ferramentas', 'meta.json.agent');
+}
+
+function permissionReport(meta) {
+  const pedido = requestedPermissions(meta);
+  const efectivo = effectivePermissions(meta);
+  let diferenca;
+  if (Array.isArray(pedido.valor) && Array.isArray(efectivo.valor)) {
+    const a = [...pedido.valor].sort(); const b = [...efectivo.valor].sort();
+    const diferem = JSON.stringify(a) !== JSON.stringify(b);
+    diferenca = {
+      diferem,
+      porque: diferem
+        ? 'a lista pedida não coincide com as ferramentas que o comando prova como disponíveis'
+        : 'pedido e capacidade efectiva provada coincidem',
+    };
+  } else {
+    diferenca = {
+      diferem: 'n/d',
+      porque: 'não é possível comparar listas porque a capacidade efectiva é n/d',
+    };
+  }
+  return { pedido, efectivo, diferenca };
 }
 
 /**
@@ -933,6 +1021,8 @@ async function toolDispatch(args) {
   const chain = args && args.__chain ? args.__chain : null;   // internal: set by mooter_work
   const dispatchNote = args && args.__note ? String(args.__note) : null;
   const prepFrom = args && args.__prep_from ? String(args.__prep_from) : null;
+  const createdWorktree = args && args.__worktree_created && typeof args.__worktree_created === 'object'
+    ? args.__worktree_created : null;
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
@@ -991,6 +1081,8 @@ async function toolDispatch(args) {
     .find((l) => l && !l.startsWith('⇄') && !l.startsWith('#') && !l.startsWith('---')) || '';
   const label = [wave, stepId, gist.replace(/^[A-ZÇÃÕ\s]{4,}:\s*/, '').slice(0, 60)].filter(Boolean).join(' · ');
   const cmd = buildCommand(agent, jobDir, allowedTools, model, label);
+  const commandText = [cmd.bin, ...cmd.args].join(' ');
+  const permissions = permissionReport({ agent, cmd: commandText, allowedTools });
   try { assertSingleLineArgs(cmd); }
   catch (e) { return { error: '❌ ' + ((e && e.message) || e), hint: 'isto é um bug do conector, não do teu pedido — reporta-o' }; }
   const jobGoal = args && args.__goal
@@ -1006,15 +1098,24 @@ async function toolDispatch(args) {
     // campos ao meio e o empurrar para fora da janela que o teste A4 inspecciona —
     // o campo que prova que não fabricámos nada não pode depender de ordem.
     evidencia: (args && args.evidencia) || null,
-    job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: [cmd.bin, ...cmd.args].join(' '),
+    permissoes_pedidas: permissions.pedido,
+    permissoes_efectivas: permissions.efectivo,
+    permissoes_diferenca: permissions.diferenca,
+    job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: commandText,
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
+    worktree_criada: createdWorktree,
     goal: jobGoal, escrita: canWrite, preparation: !!chain, git_base: gitBase,
     mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque,
     cross_check_requested: args && args.__cross_check === true,
     note: dispatchNote, prep_from: prepFrom,
   }, null, 2));
 
-  ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'dispatched', mp_hash, model, model_recommended, tier, step: stepId,
+  ledgerAppend({
+    event: 'dispatched',
+    permissoes_pedidas: permissions.pedido, permissoes_efectivas: permissions.efectivo,
+    permissoes_diferenca: permissions.diferenca,
+    job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree,
+    mp_hash, model, model_recommended, tier, step: stepId,
     goal: jobGoal, escrita: canWrite, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
     git_base_clean: gitBase ? gitBase.clean : null,
@@ -1283,7 +1384,10 @@ async function toolDispatch(args) {
   }
 
   return {
-    job_id, wave, agent, worktree: wtNorm, mp_hash,
+    permissoes_pedidas: permissions.pedido,
+    permissoes_efectivas: permissions.efectivo,
+    permissoes_diferenca: permissions.diferenca,
+    job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
     model_recommended, tier,
     mapa_injectado: projectMap.injetado,
@@ -1469,8 +1573,16 @@ async function toolCollect(args) {
   // corre os seus comandos e o veredicto dele assenta em algo.
   const vered = veredictoSemEvidencia(meta, body);
   const crossCheck = readCrossCheck(jobDir);
+  const permissions = {
+    pedido: meta.permissoes_pedidas || requestedPermissions(meta),
+    efectivo: meta.permissoes_efectivas || effectivePermissions(meta),
+    diferenca: meta.permissoes_diferenca || permissionReport(meta).diferenca,
+  };
 
   return {
+    permissoes_pedidas: permissions.pedido,
+    permissoes_efectivas: permissions.efectivo,
+    permissoes_diferenca: permissions.diferenca,
     job_id: jobId, state: last, agent: meta.agent, wave: meta.wave,
     result: vered.degradado ? vered.texto : body,
     note: meta.note || (([...evs].reverse().find((e) => e.note) || {}).note) || null,
@@ -1479,12 +1591,10 @@ async function toolCollect(args) {
     // regista evidência nenhuma, e mesmo assim a resposta traz um veredicto.
     veredicto_sem_evidencia: vered.degradado || false,
     evidencia: meta.evidencia || null,
-    // ⚠️ v1.3.4 (E2) — as permissões que REALMENTE valeram.
-    // Pedir `allowedTools:"Read"` e não ter forma de verificar se foi aplicado
-    // é opacidade, não segurança. Agora o comando executado é auditável: dá para
-    // ver o `--sandbox` que o Codex recebeu e a lista que o CC recebeu.
+    // Aliases ingleses preservados por compatibilidade; a verdade pública vive
+    // nos três campos acima e distingue pedido, efectivo e comparabilidade.
     allowed_tools_pedido: meta.allowedTools || null,
-    allowed_tools_effective: effectivePermissions(meta),
+    allowed_tools_effective: permissions.efectivo,
     // v1.2: the model the job REALLY ran, from its own stream — never inferred
     model_used: r.model_used || null,
     model_recommended: meta.model_recommended || null,
@@ -1694,6 +1804,33 @@ async function toolWork(args) {
 
   const pedida = worktree;
   let relocated = false; let relocatedPorque = null;
+  let worktreeCriada = null;
+  if (a.create_worktree === true) {
+    const createWave = String(a.wave || 'work');
+    const made = wt.create(REPO, createWave.slice(0, 20), worktree);
+    if (!made.ok) {
+      ledgerAppend({
+        event: 'worktree_create_failed', wave: createWave, source_worktree: worktree,
+        reason: made.error || 'motivo n/d',
+      });
+      return {
+        resumo: '⛔ não arranquei o job: create_worktree:true falhou',
+        erro: 'create_worktree_falhou', create_worktree: true,
+        worktree_origem: worktree, porque: made.error || 'motivo n/d',
+      };
+    }
+    worktreeCriada = {
+      path: made.path, branch: made.branch || null, source: made.source || worktree,
+    };
+    ledgerAppend({
+      event: 'worktree_created', wave: createWave,
+      worktree: worktreeCriada.path, branch: worktreeCriada.branch,
+      source_worktree: worktreeCriada.source,
+    });
+    worktree = made.path;
+    relocated = true; relocatedPorque = 'create_worktree:true criou isolamento explícito';
+    log('worktree criada: ' + made.path);
+  }
   let busy = activeJobsByWorktree(worktree);
   const temOsFicheiros = !pedidos.length || pedidos.every((rel) => { try { return require('fs').existsSync(require('path').join(worktree, rel)); } catch { return false; } });
   if (!busy.length && !temOsFicheiros) {
@@ -1708,10 +1845,6 @@ async function toolWork(args) {
       log('worktree ocupada; mudei para ' + alt);
       worktree = alt;
       busy = [];
-    } else if (a.create_worktree === true) {
-      const made = wt.create(REPO, (a.wave || 'work').toString().slice(0, 20));
-      if (made.ok) { worktree = made.path; busy = []; log('worktree criada: ' + made.path); }
-      else return { error: 'todas as worktrees estão ocupadas e a criação falhou', detail: made.error };
     } else {
       const inv = wt.list(REPO, activeJobsByWorktree);
       const semFich = pedidos.length ? wt.semOsFicheiros(REPO, activeJobsByWorktree, pedidos) : [];
@@ -1983,8 +2116,9 @@ async function toolWork(args) {
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
         __goal: goal, __escrita: false,
+        __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
-          __goal: goal, __escrita: a.write === true, __cross_check: true },
+          __goal: goal, __escrita: a.write === true, __cross_check: true, __worktree_created: worktreeCriada },
       });
       if (prep && prep.job_id) {
         return {
@@ -1995,6 +2129,10 @@ async function toolWork(args) {
           agent: 'moo → ' + agent,
           model: (prep.model || localModel) + ' → ' + (model || '(default do CLI)'),
           job_id: prep.job_id,
+          permissoes_pedidas: prep.permissoes_pedidas,
+          permissoes_efectivas: prep.permissoes_efectivas,
+          permissoes_diferenca: prep.permissoes_diferenca,
+          worktree_criada: worktreeCriada,
           chained: true,
           worktree,
           mode: readOnly ? 'só leitura' : 'escrita permitida',
@@ -2014,8 +2152,8 @@ async function toolWork(args) {
 
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
-    __cross_check: agent !== 'moo' });
-  if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model }, r);
+    __cross_check: agent !== 'moo', __worktree_created: worktreeCriada });
+  if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model, worktree_criada: worktreeCriada }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
     // A v1.3.2 punha-a em `content[0].text` e este host mostra o
@@ -2027,6 +2165,9 @@ async function toolWork(args) {
       + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : '')
       + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
     ok: true, goal, wave,
+    permissoes_pedidas: r.permissoes_pedidas,
+    permissoes_efectivas: r.permissoes_efectivas,
+    permissoes_diferenca: r.permissoes_diferenca,
     // ⚠️ A4 — dois campos que partilhavam nome e diziam coisas diferentes.
     // `tier` chegou a dizer T0 para um job Opus e T3 para um job local grátis.
     tier_pedido: tier,                   // o que o classify.js achou do TEXTO
@@ -2042,6 +2183,7 @@ async function toolWork(args) {
     worktree_usada: worktree,
     relocated,
     relocated_porque: relocatedPorque,
+    worktree_criada: worktreeCriada,
     prepared: false,
     mapa_injectado: r.mapa_injectado,
     mapa_porque: r.mapa_porque,
@@ -2130,7 +2272,7 @@ const TOOLS = [
       model: { type: 'string', description: 'Force a model. Omit to let the router decide.' },
       steps: { type: 'array', items: { type: 'string' }, description: 'Optional plan: the steps the panel should show, with risk inferred per step.' },
       prepare: { type: 'boolean', description: 'Let the local GPU write the handoff brief first, at $0, and start the paid agent with it already embedded. Default true when Ollama is up.' },
-      create_worktree: { type: 'boolean', description: 'If every working folder is busy, create a new one (git worktree add, reversible). Off by default — this is the only thing here that writes outside the job directory.' },
+      create_worktree: { type: 'boolean', description: 'Create a fresh isolated worktree before dispatch (git worktree add, reversible). If creation fails the job does not start.' },
       allowedTools: { type: 'string', description: 'Override the permission list.' },
       context: { type: 'string', description: 'Extra context to inline in the masterprompt.' },
     }, required: ['goal'], additionalProperties: false },
@@ -2215,5 +2357,6 @@ module.exports = {
   pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, executarComandos, veredictoSemEvidencia,
+  requestedPermissions, effectivePermissions, permissionReport,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },
 };

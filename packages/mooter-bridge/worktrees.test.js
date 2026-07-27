@@ -72,6 +72,7 @@ if (!gitOk) {
     const made = wt.create(REPO, 'wave-x');
     assert.ok(made.ok, made.error);
     assert.ok(fs.existsSync(made.path), 'a pasta não foi criada');
+    assert.strictEqual(path.dirname(made.path), path.dirname(REPO), 'a pasta saiu do pai da worktree actual');
     const r = wt.list(REPO, () => []);
     assert.strictEqual(r.total, 2);
   });
@@ -88,10 +89,10 @@ if (!gitOk) {
     assert.strictEqual(free, null);
   });
 
-  t('criar duas vezes reutiliza em vez de duplicar', () => {
+  t('criar duas vezes recusa em vez de trabalhar por cima da pasta existente', () => {
     const a = wt.create(REPO, 'wave-x');
-    assert.ok(a.ok);
-    assert.ok(a.reused, 'criou uma segunda pasta com o mesmo nome');
+    assert.strictEqual(a.ok, false);
+    assert.ok(/já existe|por cima/i.test(a.error), a.error);
   });
 
   // ⚠️ v1.4.2 — nasceu de um caso real. Pedi ao motor local um resumo de

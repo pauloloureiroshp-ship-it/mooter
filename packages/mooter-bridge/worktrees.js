@@ -175,20 +175,28 @@ function semOsFicheiros(repoHint, busyFn, requiredPaths) {
 
 /**
  * Criar uma worktree nova. ⚠️ Escreve no disco — só com pedido explícito.
- * Cria uma branch própria a partir do HEAD actual para nunca colidir com outra
- * árvore; se a branch já existir, reutiliza-a.
+ * Cria uma branch própria a partir do HEAD da worktree de origem. Uma pasta
+ * existente é sempre recusa: reutilizá-la faria `create_worktree:true` prometer
+ * isolamento e entregar estado anterior.
  */
-function create(repoHint, name) {
+function create(repoHint, name, sourceWorktree) {
   const repo = mainRepo(repoHint);
   if (!repo) return { ok: false, error: 'não encontrei o repositório principal' };
   const safe = String(name || 'mooter').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 40) || 'mooter';
-  const dir = path.resolve(path.dirname(repo), path.basename(repo) + '-' + safe);
+  const source = sourceWorktree ? path.resolve(sourceWorktree) : path.resolve(repo);
+  if (!fs.existsSync(source)) return { ok: false, error: 'a worktree de origem não existe: ' + source };
+  const dir = path.resolve(path.dirname(source), path.basename(repo) + '-' + safe);
   const branch = 'mooter/wt-' + safe;
-  if (fs.existsSync(dir)) return { ok: true, path: dir, reused: true, note: 'a pasta já existia — reutilizada' };
+  if (fs.existsSync(dir)) {
+    return { ok: false, error: 'a pasta de destino já existe; recuso criar por cima: ' + dir, path: dir };
+  }
   try {
-    try { git(['worktree', 'add', '-b', branch, dir], repo); }
-    catch { git(['worktree', 'add', dir, branch], repo); }   // branch já existia
-    return { ok: true, path: dir, branch, created: true, note: 'worktree criada — reversível com `git worktree remove`' };
+    try { git(['worktree', 'add', '-b', branch, dir, 'HEAD'], source); }
+    catch { git(['worktree', 'add', dir, branch], source); }   // branch já existia
+    return {
+      ok: true, path: dir, branch, source, created: true,
+      note: 'worktree criada — reversível com `git worktree remove`',
+    };
   } catch (e) {
     return { ok: false, error: 'git worktree add falhou: ' + ((e && e.message) || e).toString().slice(0, 300) };
   }

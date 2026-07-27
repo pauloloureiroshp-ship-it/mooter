@@ -101,6 +101,8 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     const r = await server.handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'mooter_setup', arguments: {} } });
     const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
     assert.ok(sc.resumo && /🐮/.test(sc.resumo), 'sem resumo legível na primeira chave');
+    assert.ok(/onboarding no Cowork: (suportado|não suportado|n\/d)/i.test(sc.resumo),
+      'setup não expõe a capacidade de onboarding');
     okmsg('setup responde com resumo legível');
   } catch (e) { bad('resumo do setup', e); }
 
@@ -111,6 +113,14 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     assert.ok(sc.pastas, 'a vista de pastas não devolveu pastas');
     okmsg('view:"pastas" devolve um campo só, sem duplicação');
   } catch (e) { bad('payload das pastas', e); }
+
+  try {
+    const r = await server.handle({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'mooter_fleet', arguments: { view: 'board' } } });
+    const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
+    assert.ok(sc.scorecard && sc.scorecard.metricas, 'view:"board" não devolveu o scorecard');
+    assert.ok(Array.isArray(sc.excepcoes), 'view:"board" não devolveu excepções');
+    okmsg('view:"board" usa o scorecard assíncrono');
+  } catch (e) { bad('view board', e); }
 
   say('\n' + pass + ' testes da onda B' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
   process.on('uncaughtException', () => {});

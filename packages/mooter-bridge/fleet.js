@@ -344,26 +344,73 @@ function probeWorktrees(timeoutMs, events) {
 }
 
 // ── 3. which Cowork session/project is driving ───────────────────────────
-function readSessionContext() {
-  try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch { /* tenta roots negociadas */ }
+function normalizarFolder(value) {
+  if (value == null) return null;
+  let folder = String(value).trim();
+  if (!folder) return null;
+  try { if (/^file:/i.test(folder)) folder = require('url').fileURLToPath(folder); }
+  catch { return null; }
+  return path.resolve(folder);
+}
+
+function folderValida(value) {
+  const folder = normalizarFolder(value);
+  if (!folder) return null;
+  try { return fs.statSync(folder).isDirectory() ? folder : null; }
+  catch { return null; }
+}
+
+function manualSessionContext() {
+  try {
+    const value = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+    return value && typeof value === 'object' ? value : null;
+  } catch { return null; }
+}
+
+function rootsSessionContext(manual) {
   try {
     const cap = capacidades.estado();
-    const root = cap.roots && cap.roots[0];
-    if (!root || !root.uri) return null;
-    let folder = root.uri;
-    if (/^file:/i.test(folder)) folder = require('url').fileURLToPath(folder);
+    const rootsDeclaradas = cap.capacidades && cap.capacidades.roots
+      && cap.capacidades.roots.suportado === true;
+    if (!rootsDeclaradas || !Array.isArray(cap.roots)) return null;
+    let root = null; let folder = null;
+    for (const candidate of cap.roots) {
+      const resolved = candidate && candidate.uri ? folderValida(candidate.uri) : null;
+      if (resolved) { root = candidate; folder = resolved; break; }
+    }
+    if (!root || !folder) return null;
     return {
       bound_at: cap.medido_em,
-      session_id: null,
-      project: root.nome || null,
+      session_id: manual ? manual.session_id || null : null,
+      project: root.nome || leaf(folder),
       folder,
       folder_name: root.nome || leaf(folder),
-      files: [],
+      files: manual && Array.isArray(manual.files) ? manual.files : [],
       note: 'contexto recebido por MCP roots/list',
       fonte: 'mcp-capabilities.json → roots/list',
-      session_model: null,
+      session_model: manual ? manual.session_model || null : null,
+      session_model_em: manual ? manual.session_model_em || null : null,
+      session_model_fonte: manual ? manual.session_model_fonte || null : null,
     };
   } catch { return null; }
+}
+
+function readSessionContext() {
+  const manual = manualSessionContext();
+  return rootsSessionContext(manual) || manual;
+}
+
+function registarBindRecusado(args, porque) {
+  try {
+    fs.mkdirSync(MOOTER_DIR, { recursive: true });
+    fs.appendFileSync(LEDGER, JSON.stringify({
+      ts: new Date().toISOString(), event: 'session_bind_rejected',
+      project_requested: args && args.project ? String(args.project) : null,
+      folder_requested: args && args.folder ? String(args.folder) : null,
+      reason: porque,
+    }) + '\n', 'utf8');
+    return true;
+  } catch { return false; }
 }
 
 /**
@@ -388,13 +435,34 @@ async function toolSessionBind(args) {
   if (!a.project && !a.folder && !a.session_model) {
     return { error: 'nada para ligar — dá pelo menos project, folder ou session_model' };
   }
+  const hasProject = Object.prototype.hasOwnProperty.call(a, 'project');
+  const hasFolder = Object.prototype.hasOwnProperty.call(a, 'folder');
+  const wantsScope = hasProject || hasFolder;
+  let requestedFolder = null;
+  if (wantsScope) {
+    const project = hasProject ? String(a.project || '').trim() : '';
+    requestedFolder = hasFolder ? folderValida(a.folder) : null;
+    if (!project || !requestedFolder) {
+      const porque = !project
+        ? 'bind parcial recusado: project válido e folder válida têm de chegar juntos'
+        : 'bind parcial recusado: folder não existe ou não é uma pasta; project e folder válidos têm de chegar juntos';
+      const ledgerRegistado = registarBindRecusado(a, porque);
+      return {
+        error: porque,
+        bind_recusado: 'parcial',
+        contexto_preservado: readSessionContext(),
+        ledger_registado: ledgerRegistado,
+        ledger_porque: ledgerRegistado ? null : 'não foi possível escrever o evento session_bind_rejected',
+      };
+    }
+  }
   const antes = readSessionContext() || {};
   const ctx = {
     bound_at: new Date().toISOString(),
     session_id: a.sessionId ? String(a.sessionId) : (antes.session_id || null),
-    project: a.project ? String(a.project) : (antes.project || null),
-    folder: a.folder ? String(a.folder) : (antes.folder || null),
-    folder_name: a.folder ? leaf(a.folder) : (antes.folder_name || null),
+    project: wantsScope ? String(a.project).trim() : (antes.project || null),
+    folder: wantsScope ? requestedFolder : (antes.folder || null),
+    folder_name: wantsScope ? leaf(requestedFolder) : (antes.folder_name || null),
     files: Array.isArray(a.files) ? a.files.slice(0, 40).map(String) : (antes.files || []),
     note: a.note ? String(a.note).slice(0, 200) : (antes.note || null),
     /**
@@ -419,7 +487,12 @@ async function toolSessionBind(args) {
   } catch (e) {
     return { error: 'could not write session context: ' + ((e && e.message) || e) };
   }
-  return { ok: true, context: ctx, file: SESSION_FILE };
+  const efectivo = readSessionContext() || ctx;
+  const rootsPreferidas = efectivo.fonte === 'mcp-capabilities.json → roots/list';
+  return {
+    ok: true, context: efectivo, file: SESSION_FILE,
+    manual_context: rootsPreferidas ? ctx : null,
+  };
 }
 
 // ── enriquecimento de modelo: nunca no caminho critico ───────────────────

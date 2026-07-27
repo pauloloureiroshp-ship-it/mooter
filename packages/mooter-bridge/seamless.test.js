@@ -30,6 +30,7 @@ process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
 const moo = require('./moo.js');
+const wtModule = require('./worktrees.js');
 
 // a real git worktree
 const WT = path.join(TMP, 'frugal-wt-a');
@@ -79,6 +80,58 @@ test('route: usa o classifier (stub) e mapeia tier→agent', async () => {
   assert.strictEqual(r.tier, 'T2');
   assert.strictEqual(r.confidence, 0.9);
   assert.ok(r.routing_note.includes('FROZEN'));
+});
+
+test('permissões com Bash pedido nunca regressam como lista efectiva só de leitura', () => {
+  const report = seam.permissionReport({
+    agent: 'cc',
+    allowedTools: 'Read,Glob,Grep,Bash',
+    cmd: 'claude -p x --allowedTools Read,Glob,Grep,Bash',
+  });
+  assert.ok(report.pedido.valor.includes('Bash'));
+  assert.strictEqual(report.efectivo.valor, 'n/d');
+  assert.ok(report.efectivo.porque.includes('--allowedTools'));
+  assert.notDeepStrictEqual(report.efectivo.valor, ['Read', 'Glob', 'Grep']);
+});
+
+test('permissões indetermináveis dizem n/d com o porquê', () => {
+  const efectivo = seam.effectivePermissions({ agent: 'gemini', cmd: 'gemini --approval-mode auto_edit' });
+  assert.strictEqual(efectivo.valor, 'n/d');
+  assert.ok(efectivo.porque, 'n/d sem razão volta a ser opacidade');
+});
+
+test('create_worktree:true cria antes do dispatch e leva o caminho para resultado e ledger', async () => {
+  const created = path.join(TMP, 'frugal-wt-created-explicit');
+  fs.mkdirSync(created, { recursive: true });
+  execFileSync('git', ['init', '-q', created]);
+  const originalCreate = wtModule.create;
+  let createCall = null;
+  let jobId = null;
+  wtModule.create = (repo, name, source) => {
+    createCall = { repo, name, source };
+    return { ok: true, path: created, branch: 'mooter/wt-onda54', source, created: true };
+  };
+  seam.setJobSpawner(() => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; });
+  try {
+    const result = await seam.toolWork({
+      goal: 'explica o estado actual', agent: 'cc', worktree: WT,
+      wave: 'onda54-create-explicit', create_worktree: true, prepare: false,
+      allowedTools: 'Read,Glob,Grep,Bash',
+    });
+    jobId = result.job_id;
+    assert.ok(jobId, JSON.stringify(result));
+    assert.ok(createCall, 'create_worktree:true foi ignorado');
+    assert.strictEqual(createCall.source, WT);
+    assert.strictEqual(result.worktree_usada, created);
+    assert.strictEqual(result.worktree_criada.path, created);
+    const dispatched = seam.ledgerRead().find((event) => event.job_id === jobId && event.event === 'dispatched');
+    assert.strictEqual(dispatched.worktree_criada.path, created);
+    assert.ok(dispatched.permissoes_pedidas.valor.includes('Bash'));
+    assert.strictEqual(dispatched.permissoes_efectivas.valor, 'n/d');
+  } finally {
+    if (jobId && seam.REGISTRY.has(jobId)) seam.REGISTRY.get(jobId).child.emit('close', 1);
+    wtModule.create = originalCreate;
+  }
 });
 
 test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json, collect idempotente', async () => {
