@@ -11,6 +11,11 @@
     "server-apps.js"
   ],
   "1.24": [
-    "recibo.js"
+    "capacidades.js",
+    "eta.js",
+    "estimativa.js",
+    "fleet.js",
+    "fleet-ui.html",
+    "sync.js"
   ]
 }

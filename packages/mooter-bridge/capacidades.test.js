@@ -26,10 +26,22 @@ test('declaração explícita distingue true, false e n/d', () => {
   const r = capacidades.sondar({
     roots: { listChanged: true },
     sampling: false,
+    notifications: { progress: {} },
   }, { agora: '2026-07-26T12:00:00.000Z' });
   assert.strictEqual(r.capacidades.roots.suportado, true);
   assert.strictEqual(r.capacidades.sampling.suportado, false);
   assert.strictEqual(r.capacidades.elicitation.suportado, null);
+  assert.strictEqual(r.capacidades['notifications/progress'].suportado, true);
+});
+
+test('notifications/progress omitido fica null com porquê, nunca false', () => {
+  const r = capacidades.sondar({}, { agora: '2026-07-26T12:00:00.000Z' });
+  const progress = r.capacidades['notifications/progress'];
+  assert.strictEqual(progress.suportado, null);
+  assert.notStrictEqual(progress.suportado, false);
+  assert.match(progress.porque, /não declarou.+ausência não prova/i);
+  assert.strictEqual(progress.fonte, 'initialize.params.capabilities');
+  assert.strictEqual(progress.medido_em, '2026-07-26T12:00:00.000Z');
 });
 
 test('initialize persiste cliente e roots recebidas sem campos estranhos', () => {

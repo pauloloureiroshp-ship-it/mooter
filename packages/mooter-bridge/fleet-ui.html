@@ -88,9 +88,21 @@
   .l2 { color: var(--fg2); font-size: 11.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .porque { color: var(--fg3); font-size: 10.5px; margin-top: 1px; font-style: italic; }
 
-  .bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 4px; }
-  .bar > i { display: block; height: 100%; background: var(--acc); }
-  .bar.ind > i { width: 34%; animation: sl 1.5s ease-in-out infinite; }
+  .eta { border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; margin-bottom: 7px; }
+  .eta-head { display: flex; align-items: baseline; gap: 7px; font-size: 11.5px; }
+  .eta-head .eta-who { font-weight: 600; }
+  .eta-head .eta-time { margin-left: auto; font: 11px var(--mono); white-space: nowrap; }
+  .eta-track { height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 5px; }
+  .eta-track > i { display: block; height: 100%; background: var(--acc); transition: width .5s ease; }
+  .eta-track.aviso > i { background: var(--warn); }
+  .eta-track.pulsante { animation: eta-p90 1.3s ease-in-out infinite; }
+  .eta-track.ind > i { width: 34%; background: repeating-linear-gradient(135deg, var(--acc) 0 6px, transparent 6px 11px); animation: sl 1.5s ease-in-out infinite; }
+  .eta-signals { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--fg2); font-size: 10.5px; margin-top: 4px; }
+  .eta-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--fg3); }
+  .eta-dot.vivo { background: var(--ok); animation: bp 1.6s ease-in-out infinite; }
+  .eta-dot.parado { background: var(--fg3); box-shadow: inset 0 0 0 1px var(--line2); }
+  .eta-small { color: var(--fg3); font-size: 10px; line-height: 1.35; margin-top: 3px; }
+  @keyframes eta-p90 { 0%,100% { opacity: 1 } 50% { opacity: .38 } }
   @keyframes sl { 0% { margin-left: -34% } 100% { margin-left: 100% } }
 
   /* ── saldo ─────────────────────────────────────────────────────────── */
@@ -270,11 +282,14 @@
     function adopt(nm) { if (nm && TOOL_NAMES.indexOf(nm) >= 0) toolName = nm; }
     if (m.method === 'ui/notifications/tool-result') {
       adopt(m.params && (m.params.toolName || m.params.name));
-      var d = unwrap(m.params && (m.params.result || m.params)); if (d) render(d); return;
+      var d = unwrap(m.params && (m.params.result || m.params));
+      if (d && d.view === 'eta') mergeEta(d); else if (d) render(d);
+      return;
     }
     if (m.method === 'ui/notifications/tool-input') { adopt(m.params && (m.params.toolName || m.params.name)); return; }
     var g = m.params && (m.params.structuredContent || m.params.data);
-    if (g && (g.jobs || g.arvore || g.error)) render(g);
+    if (g && g.view === 'eta') mergeEta(g);
+    else if (g && (g.jobs || g.arvore || g.error)) render(g);
   });
 
   // ── utilitários de apresentação ─────────────────────────────────────────
@@ -372,21 +387,62 @@
       b.appendChild(el('div', 'porque', 'porque: ' + esc(a.modelo_porque)
         + (a.trocou_residente ? ' (trocou o residente ' + esc(a.trocou_residente) + ')' : '')));
     }
-    // ⚠️ barra INDETERMINADA de propósito: não sabemos o total de tokens que o
-    // job vai produzir, e uma percentagem inventada seria pior do que nenhuma.
-    if (vivo(a.estado)) b.appendChild(el('div', 'bar ind', '<i></i>'));
     w.appendChild(b);
     return w;
+  }
+
+  function renderEtaLine(job) {
+    var model = job.eta_bar || {
+      type: 'indeterminate', fill_pct: null, percentage: null,
+      remaining_s: null, state: 'calm', pulsing: false,
+      message: 'n/d — a barra ainda não recebeu uma estimativa medida',
+      estimator: { name: null, reason: 'estimativa n/d', base: null, percentile: null },
+      pulse: { state: 'n/d', text: 'vivacidade n/d' },
+    };
+    var row = el('div', 'eta');
+    var head = el('div', 'eta-head');
+    var label = [job.agent_label || job.agent || 'agente', job.wave || job.job_id].filter(Boolean).join(' · ');
+    head.appendChild(el('span', 'eta-who', esc(label)));
+    if (model.percentage != null) head.appendChild(el('span', 'mod', esc(model.percentage + '%')));
+    head.appendChild(el('span', 'eta-time', model.remaining_s == null ? 'n/d' : ('~' + esc(dur(model.remaining_s)))));
+    row.appendChild(head);
+
+    var track = el('div', 'eta-track '
+      + (model.type === 'indeterminate' ? 'ind' : (model.state === 'warning' ? 'aviso' : 'calmo'))
+      + (model.pulsing ? ' pulsante' : ''));
+    var fill = el('i');
+    if (model.type !== 'indeterminate') fill.style.width = String(model.fill_pct) + '%';
+    track.appendChild(fill);
+    row.appendChild(track);
+
+    var signals = el('div', 'eta-signals');
+    var pulse = model.pulse || {};
+    signals.appendChild(el('span', 'eta-dot ' + (pulse.state === 'a-trabalhar' ? 'vivo' : (pulse.state === 'parado' ? 'parado' : 'nd'))));
+    signals.appendChild(el('span', null, esc(pulse.text || 'vivacidade n/d')));
+    var note = model.warning || model.message || (model.estimator && model.estimator.base);
+    if (note) signals.appendChild(el('span', model.warning ? 'fnum alto' : 'muted', esc(note)));
+    row.appendChild(signals);
+
+    var estimator = model.estimator || {};
+    row.appendChild(el('div', 'eta-small', 'estimador: ' + esc(estimator.name || 'n/d')
+      + ' — ' + esc(estimator.base || estimator.reason || 'sem base medida')
+      + (estimator.percentile ? ' · ' + esc(estimator.percentile) : '')));
+    return row;
   }
 
   function pintaTrabalho(d) {
     var s = document.getElementById('s-trab'); s.textContent = '';
     var waves = (d.arvore && d.arvore.waves) || [];
-    var nLive = (d.jobs || []).filter(function (j) { return vivo(j.state); }).length;
+    var liveJobs = (d.jobs || []).filter(function (j) { return vivo(j.state); });
+    var nLive = liveJobs.length;
     var lb = el('div', 'lbl', 'o trabalho');
     lb.appendChild(el('span', 'rt', nLive ? (nLive + ' a correr') : (waves.length ? 'parado' : '')));
     s.appendChild(lb);
-    if (!waves.length) { s.appendChild(el('div', 'none', 'nada despachado nesta janela.')); return; }
+    liveJobs.forEach(function (job) { s.appendChild(renderEtaLine(job)); });
+    if (!waves.length) {
+      if (!liveJobs.length) s.appendChild(el('div', 'none', 'nada despachado nesta janela.'));
+      return;
+    }
 
     var tarefas = [];
     waves.forEach(function (w) {
@@ -410,8 +466,6 @@
       if (vivo(t.estado)) {
         acts.appendChild(btn('O que esta a fazer?', null, function () {
           say('Mostra o estado do job ' + t.job_id + ' com mooter_check e diz-me em 3 linhas.'); }));
-        acts.appendChild(btn('Parar', 'danger', function () {
-          say('Cancela o job ' + t.job_id + ' com mooter_cancel e diz-me o que ficou por fazer.'); }));
       } else {
         acts.appendChild(btn('Ver resultado', null, function () {
           say('Recolhe o job ' + t.job_id + ' com mooter_check e resume-me o resultado.'); }));
@@ -717,7 +771,10 @@
     seMudou('conduz', [d.sessao, d.context && d.context.project, d.context && d.context.folder_name,
       d.gpu && d.gpu.live && [d.gpu.live.util_pct, d.gpu.live.memory_used_mb],
       d.sessao && [d.sessao.fresco, d.sessao.idade_h], d.gpu && [d.gpu.fresco, d.gpu.idade_h]], function () { pintaConduz(d); });
-    seMudou('trab', d.arvore && d.arvore.waves, function () { pintaTrabalho(d); });
+    seMudou('trab', [d.arvore && d.arvore.waves,
+      (d.jobs || []).filter(function (j) { return vivo(j.state); }).map(function (j) {
+        return [j.job_id, j.state, j.agent_label, j.wave, j.eta_bar];
+      })], function () { pintaTrabalho(d); });
     seMudou('saldo', [d.arvore && d.arvore.resumo,
       d.combustivel && [d.combustivel.fresco, d.combustivel.idade_h]], function () { pintaSaldo(d); });
     // ⚠️ o iframe do Live Preview NAO entra na assinatura: se entrasse, cada
@@ -732,22 +789,55 @@
       updEstado && updEstado.msg,
       d.capacidades && d.capacidades.onboarding && d.capacidades.onboarding.estado,
       d.capacidades && [d.capacidades.fresco, d.capacidades.idade_h]], function () { pintaCabine(d); });
+    if (!nLive && timer !== null) { clearTimeout(timer); timer = null; }
+    else if (nLive && timer === null) schedule(2000);
   }
 
-  // ── polling: a spec não define push servidor→painel, por isso o painel puxa ──
+  function etaRequestJobs() {
+    if (!last) return [];
+    return (last.jobs || []).filter(function (job) { return vivo(job.state); }).map(function (job) {
+      return {
+        job_id: job.job_id, state: job.state, agent: job.agent,
+        goal: job.goal, prompt_chars: job.prompt_chars,
+        started_at: job.started_at, dispatched_at: job.dispatched_at,
+        elapsed_s: job.started_at || job.dispatched_at ? undefined : valor(job.duracao_s),
+        steps_done: job.steps_done, steps_total: job.steps_total,
+        steps_total_porque: job.steps_total_porque,
+      };
+    });
+  }
+
+  function mergeEta(data) {
+    if (!last || !data || !Array.isArray(data.jobs)) return;
+    var updates = {};
+    data.jobs.forEach(function (job) { updates[job.job_id] = job; });
+    (last.jobs || []).forEach(function (job) {
+      var update = updates[job.job_id];
+      if (!update) return;
+      job.estimativa = update.estimativa;
+      job.eta_bar = update.eta_bar;
+    });
+    if (data.ts) last.ts = data.ts;
+    render(last);
+  }
+
+  // ── polling: depois do retrato inicial, só ETA; nunca volta a abrir o ledger ──
   function liveNow() { return !!(last && (last.jobs || []).some(function (j) { return vivo(j.state); })); }
   function schedule(ms) { clearTimeout(timer); timer = setTimeout(tick, ms); }
   function tick() {
-    callAny(TOOL_NAMES, { windowMinutes: 30 }, true)
+    timer = null;
+    var jobs = haveData ? etaRequestJobs() : [];
+    if (haveData && !jobs.length) return;
+    callAny(TOOL_NAMES, haveData ? { view: 'eta', jobs: jobs } : { windowMinutes: 30 }, true)
       .then(function (res) {
         var d = unwrap(res); fails = 0;
-        if (d) render(d);
-        schedule(liveNow() ? 2000 : 4000);
+        if (d && d.view === 'eta') mergeEta(d); else if (d) render(d);
+        if (liveNow()) schedule(d && d.refresh_ms ? Number(d.refresh_ms) : 2000);
       })
       .catch(function () {
         fails++;
         if (!haveData) document.getElementById('st').textContent = fails > 2 ? 'sem ligacao ao Mooter' : 'a ligar...';
-        schedule(fails >= 3 ? 15000 : 4000);
+        if (!haveData || liveNow()) schedule(fails >= 3 ? 15000 : 4000);
       });
   }
   tick();

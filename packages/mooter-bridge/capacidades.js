@@ -10,7 +10,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const NOMES = ['resources', 'prompts', 'elicitation', 'sampling', 'roots', 'logging'];
+const NOMES = [
+  'resources', 'prompts', 'elicitation', 'sampling', 'roots', 'logging',
+  'notifications/progress',
+];
 
 function home(opts) {
   const o = opts || {};
@@ -42,11 +45,21 @@ function apoioDeclarado(valor) {
   return null;
 }
 
+function declaredCapability(caps, nome) {
+  if (tem(caps, nome)) return { declared: true, value: caps[nome] };
+  if (nome === 'notifications/progress'
+      && caps && typeof caps.notifications === 'object'
+      && tem(caps.notifications, 'progress')) {
+    return { declared: true, value: caps.notifications.progress };
+  }
+  return { declared: false, value: null };
+}
+
 function registo(nome, caps, medidoEm, ms) {
-  const declarado = tem(caps, nome);
-  const suportado = declarado ? apoioDeclarado(caps[nome]) : null;
+  const declaration = declaredCapability(caps, nome);
+  const suportado = declaration.declared ? apoioDeclarado(declaration.value) : null;
   let porque;
-  if (!declarado || suportado === null) {
+  if (!declaration.declared || suportado === null) {
     porque = 'o cliente não declarou "' + nome
       + '" em initialize.params.capabilities; ausência não prova falta de suporte';
   } else if (suportado === false) {

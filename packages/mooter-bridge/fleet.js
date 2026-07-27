@@ -44,6 +44,7 @@ const MOOTER_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter')
 const LEDGER = path.join(MOOTER_DIR, 'ledger.jsonl');
 const JOBS_DIR = path.join(MOOTER_DIR, 'jobs');
 const ETA_INDEX = path.join(MOOTER_DIR, 'eta-index.json');
+const ETA_REFRESH_MS = 2000;
 const SESSION_FILE = path.join(MOOTER_DIR, 'cowork-session.json');
 const UI_FILE = path.join(__dirname, 'fleet-ui.html');
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
@@ -784,6 +785,128 @@ function publicJob(job, now) {
   return out;
 }
 
+function measuredNumber(value) {
+  const number = value == null ? null : Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function measuredPercentile(value) {
+  const match = /^p(\d{1,3})$/.exec(String(value || ''));
+  if (!match) return null;
+  return Math.max(1, Math.min(100, Number(match[1])));
+}
+
+function stalledInterval(seconds) {
+  const value = measuredNumber(seconds);
+  if (value == null) return 'n/d';
+  if (value < 60) return Math.round(value) + ' s';
+  return Math.floor(value / 60) + ' min';
+}
+
+/**
+ * Converte a estimativa medida num contrato visual. O browser não recalcula
+ * percentis nem inventa denominadores: limita-se a desenhar este objecto.
+ */
+function etaBarModel(job) {
+  const source = job || {};
+  const estimate = source.estimativa || {};
+  const progress = estimate.progresso || {};
+  const realSteps = progress.fonte === 'passos declarados'
+    && Number.isInteger(Number(progress.passo))
+    && Number.isInteger(Number(progress.de))
+    && Number(progress.de) > 0;
+  const percentage = realSteps
+    ? Math.max(0, Math.min(100, Math.round((Number(progress.passo) / Number(progress.de)) * 100)))
+    : null;
+  const remaining = measuredNumber(estimate.falta_s && estimate.falta_s.valor);
+  const elapsed = measuredNumber(source.elapsed_s != null
+    ? source.elapsed_s
+    : (source.duracao_s && source.duracao_s.valor));
+  let fill = percentage;
+  if (fill == null && remaining != null && elapsed != null) {
+    const total = elapsed + remaining;
+    fill = total > 0 ? Math.max(0, Math.min(100, Math.round((elapsed / total) * 100))) : 100;
+  }
+  const indeterminate = remaining == null || fill == null;
+  const percentile = measuredPercentile(estimate.falta_s && estimate.falta_s.percentil_actual);
+  const pulsing = typeof estimate.aviso === 'string' && estimate.aviso.length > 0;
+  const reason = (estimate.falta_s && estimate.falta_s.porque)
+    || estimate.manda_porque || estimate.porque || 'a estimativa não trouxe uma base medida';
+  const withoutHistory = /hist[oó]ric|observa|eta-index/i.test(reason);
+  const liveness = estimate.vivo || {};
+  let pulse = {
+    state: 'n/d',
+    text: 'vivacidade n/d — ' + (liveness.porque || 'out.log ainda não foi medido'),
+    stalled_s: null,
+  };
+  if (liveness.estado === 'a-trabalhar') {
+    pulse = { state: 'a-trabalhar', text: 'out.log a crescer', stalled_s: null };
+  } else if (liveness.estado === 'parado') {
+    pulse = {
+      state: 'parado',
+      text: 'sem crescimento há ' + stalledInterval(liveness.ultimo_crescimento_s),
+      stalled_s: measuredNumber(liveness.ultimo_crescimento_s),
+    };
+  }
+  return {
+    type: indeterminate ? 'indeterminate' : 'determinate',
+    fill_pct: indeterminate ? null : fill,
+    percentage,
+    remaining_s: remaining,
+    state: pulsing || (percentile != null && percentile >= 50) ? 'warning' : 'calm',
+    pulsing,
+    warning: pulsing ? estimate.aviso : null,
+    message: indeterminate
+      ? (withoutHistory ? 'n/d — sem histórico suficiente' : 'n/d — ' + reason)
+      : null,
+    estimator: {
+      name: estimate.manda || null,
+      reason: estimate.porque || estimate.manda_porque || reason,
+      base: estimate.falta_s && estimate.falta_s.base ? estimate.falta_s.base : null,
+      percentile: percentile == null ? null : 'p' + percentile,
+    },
+    pulse,
+    actions: [],
+  };
+}
+
+/**
+ * Refresh barato da barra: zero jobs = zero I/O; com jobs, um índice comum e
+ * uma estimativa por job. Esta vista recebe os jobs já conhecidos pelo painel,
+ * portanto nunca precisa de abrir ledger.jsonl.
+ */
+function refreshEtaJobs(jobs, deps) {
+  const d = deps || {};
+  const list = (Array.isArray(jobs) ? jobs : [])
+    .filter((job) => job && job.job_id && isLive(job))
+    .slice(0, 32);
+  const now = d.now == null ? Date.now() : Number(d.now);
+  if (!list.length) {
+    return { ok: true, view: 'eta', ts: new Date(now).toISOString(), refresh_ms: ETA_REFRESH_MS, jobs: [] };
+  }
+  const index = typeof d.etaReadIndex === 'function'
+    ? d.etaReadIndex()
+    : estimation.readIndex({ indexPath: ETA_INDEX });
+  const estimate = typeof d.estimateJob === 'function' ? d.estimateJob : estimation.estimateJob;
+  const refreshed = list.map((job) => {
+    const measured = estimate(String(job.job_id), {
+      agent: job.agent, goal: job.goal, prompt_chars: job.prompt_chars,
+      started_at: job.started_at || job.dispatched_at, elapsed_s: job.elapsed_s,
+      steps_done: job.steps_done, steps_total: job.steps_total,
+      steps_total_porque: job.steps_total_porque,
+    }, {
+      index, indexPath: ETA_INDEX,
+      outPath: path.join(JOBS_DIR, String(job.job_id), 'out.log'), now,
+    });
+    return {
+      job_id: String(job.job_id),
+      estimativa: measured,
+      eta_bar: etaBarModel({ ...job, estimativa: measured }),
+    };
+  });
+  return { ok: true, view: 'eta', ts: new Date(now).toISOString(), refresh_ms: ETA_REFRESH_MS, jobs: refreshed };
+}
+
 function environmentNoise(message) {
   const text = String(message || '');
   return /^ambiente \(não é do job\):/i.test(text)
@@ -862,6 +985,7 @@ function sessionPayload(context, now, thresholdMinutes) {
 // ── the snapshot the panel polls ─────────────────────────────────────────
 async function toolFleet(args, deps) {
   const d = deps || {};
+  if (args && args.view === 'eta') return refreshEtaJobs(args.jobs, d);
   if (args && args.view === 'afericao') {
     const ultima = typeof d.afericaoLatest === 'function'
       ? await d.afericaoLatest({}) : afericao.lerUltimaAfericao({});
@@ -1039,6 +1163,7 @@ async function toolFleet(args, deps) {
       index: etaIndex, indexPath: ETA_INDEX,
       outPath: path.join(JOBS_DIR, j.job_id, 'out.log'), now,
     });
+    j.eta_bar = etaBarModel(j);
   }
 
   // wave plans: the steps, who did them, and which ones are dangerous
@@ -1371,6 +1496,22 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
+        view: { type: 'string', enum: ['eta'], description: 'Refresh barato das barras já visíveis, sem abrir o ledger.' },
+        jobs: {
+          type: 'array', maxItems: 32,
+          description: 'Jobs vivos já conhecidos pelo painel; usados apenas quando view=eta.',
+          items: {
+            type: 'object',
+            properties: {
+              job_id: { type: 'string' }, state: { type: 'string' }, agent: { type: 'string' },
+              goal: { type: 'string' }, prompt_chars: { type: 'number' },
+              started_at: { type: 'string' }, dispatched_at: { type: 'string' }, elapsed_s: { type: 'number' },
+              steps_done: { type: 'number' }, steps_total: { type: 'number' }, steps_total_porque: { type: 'string' },
+            },
+            required: ['job_id', 'state'],
+            additionalProperties: false,
+          },
+        },
         wave: { type: 'string', description: 'Optional wave id filter.' },
         windowMinutes: { type: 'number', description: 'How far back finished jobs stay visible (1-1440, default 30). Live jobs always show.' },
         includeLocal: { type: 'boolean', description: 'Probe the local Ollama daemon for resident models (default true).' },
@@ -1410,6 +1551,6 @@ module.exports = {
   toolFleet, toolSessionBind, readUiHtml, formatFleetText,
   foldJobs, elapsedSeconds, attachModels, groupByWave, probeOllama, readSessionContext,
   aggregatePanel, addFreshness, closePercentages, summarizeWorktrees, compactPayload,
-  filterCoherence, publicJob, sanitizeFuel, waveFocus,
-  LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull, sessionsFast, SESSIONS_BUDGET_MS,
+  filterCoherence, publicJob, sanitizeFuel, waveFocus, etaBarModel, refreshEtaJobs,
+  LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull, sessionsFast, SESSIONS_BUDGET_MS, ETA_REFRESH_MS,
 };
