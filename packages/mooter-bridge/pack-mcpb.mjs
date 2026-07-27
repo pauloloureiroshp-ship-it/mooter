@@ -25,6 +25,7 @@ const OUT = process.argv[2] || path.join(HERE, '..', '..', '_handoff', `mooter-v
 // exact file list — never a glob. A stray file in a bundle is a supply-chain bug.
 const FILES = [
   ['manifest.json', 'manifest.json'],
+  ['entregas-por-versao.json', 'entregas-por-versao.json'],
   ['icon.png', 'icon.png'],
   ['README.md', 'README.md'],
   ["server-apps.js", "server/server-apps.js"],
@@ -57,6 +58,50 @@ const FILES = [
   ['sessao.js', 'server/sessao.js'],
   ['bundle-package.json', 'server/package.json'],
 ];
+
+function minorKey(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version || ''));
+  if (!match) throw new Error('manifest.version não é semver MAJOR.MINOR.PATCH: ' + String(version || 'n/d'));
+  return match[1] + '.' + match[2];
+}
+
+function verifyDeliveries(version, deliveries, files, root) {
+  const key = minorKey(version);
+  if (!deliveries || !Object.prototype.hasOwnProperty.call(deliveries, key)) {
+    throw new Error(
+      'VERSÃO ' + version + ' NÃO PODE SER EMPACOTADA — não existe declaração para ' + key + '.\n'
+      + 'Faz assim: declara a entrega em entregas-por-versao.json antes de subir manifest.json.',
+    );
+  }
+  const expected = deliveries[key];
+  if (!Array.isArray(expected) || expected.some((file) => typeof file !== 'string' || !file.trim())) {
+    throw new Error('VERSÃO ' + version + ' NÃO PODE SER EMPACOTADA — a entrega ' + key + ' não é uma lista válida.');
+  }
+  const bundled = new Set(files.map(([src]) => src));
+  const missing = expected.filter((file) => !fs.existsSync(path.join(root, file)));
+  const outsideBundle = expected.filter((file) => !bundled.has(file));
+  if (!missing.length && !outsideBundle.length) return;
+  const problems = [];
+  if (missing.length) problems.push('faltam no repo: ' + missing.join(', '));
+  if (outsideBundle.length) problems.push('existem mas não entram em FILES: ' + outsideBundle.join(', '));
+  throw new Error(
+    'VERSÃO ' + version + ' NÃO PODE SER EMPACOTADA — entrega ' + key + ' incompleta: '
+    + problems.join('; ') + '.\n'
+    + 'Faz assim: adiciona os ficheiros à bridge e a FILES; se a entrega mudou, corrige em conjunto '
+    + 'manifest.json e entregas-por-versao.json antes de empacotar.',
+  );
+}
+
+const IMPORT_ONLY = process.env.MOOTER_PACK_IMPORT_ONLY === '1';
+if (!IMPORT_ONLY) {
+  try {
+    const deliveries = JSON.parse(fs.readFileSync(path.join(HERE, 'entregas-por-versao.json'), 'utf8'));
+    verifyDeliveries(manifest.version, deliveries, FILES, HERE);
+  } catch (error) {
+    console.error((error && error.message) || String(error));
+    process.exit(1);
+  }
+}
 
 /**
  * ⚠️ O bundle é uma lista à mão — e uma lista à mão esquece-se.
@@ -109,47 +154,51 @@ function crc32(buf) {
   return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const locals = [];
-const centrals = [];
-let offset = 0;
+if (!IMPORT_ONLY) {
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
 
-for (const [src, dest] of FILES) {
-  const p = path.join(HERE, src);
-  if (!fs.existsSync(p)) { console.error('FALTA: ' + src); process.exit(1); }
-  const data = fs.readFileSync(p);
-  const name = Buffer.from(dest, 'utf8');
-  const crc = crc32(data);
+  for (const [src, dest] of FILES) {
+    const p = path.join(HERE, src);
+    if (!fs.existsSync(p)) { console.error('FALTA: ' + src); process.exit(1); }
+    const data = fs.readFileSync(p);
+    const name = Buffer.from(dest, 'utf8');
+    const crc = crc32(data);
 
-  const lh = Buffer.alloc(30);
-  lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0, 6);
-  lh.writeUInt16LE(0, 8);                    // stored
-  lh.writeUInt16LE(0, 10); lh.writeUInt16LE(0x2821, 12);   // fixed timestamp = reproducible
-  lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22);
-  lh.writeUInt16LE(name.length, 26); lh.writeUInt16LE(0, 28);
-  locals.push(lh, name, data);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0, 6);
+    lh.writeUInt16LE(0, 8);                    // stored
+    lh.writeUInt16LE(0, 10); lh.writeUInt16LE(0x2821, 12);   // fixed timestamp = reproducible
+    lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22);
+    lh.writeUInt16LE(name.length, 26); lh.writeUInt16LE(0, 28);
+    locals.push(lh, name, data);
 
-  const ch = Buffer.alloc(46);
-  ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6);
-  ch.writeUInt16LE(0, 8); ch.writeUInt16LE(0, 10);
-  ch.writeUInt16LE(0, 12); ch.writeUInt16LE(0x2821, 14);
-  ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(data.length, 20); ch.writeUInt32LE(data.length, 24);
-  ch.writeUInt16LE(name.length, 28);
-  ch.writeUInt32LE(offset, 42);
-  centrals.push(ch, name);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6);
+    ch.writeUInt16LE(0, 8); ch.writeUInt16LE(0, 10);
+    ch.writeUInt16LE(0, 12); ch.writeUInt16LE(0x2821, 14);
+    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(data.length, 20); ch.writeUInt32LE(data.length, 24);
+    ch.writeUInt16LE(name.length, 28);
+    ch.writeUInt32LE(offset, 42);
+    centrals.push(ch, name);
 
-  offset += lh.length + name.length + data.length;
+    offset += lh.length + name.length + data.length;
+  }
+
+  const central = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(FILES.length, 8); eocd.writeUInt16LE(FILES.length, 10);
+  eocd.writeUInt32LE(central.length, 12); eocd.writeUInt32LE(offset, 16);
+
+  const zip = Buffer.concat([...locals, central, eocd]);
+  fs.mkdirSync(path.dirname(OUT), { recursive: true });
+  fs.writeFileSync(OUT, zip);
+
+  console.log('mooter ' + manifest.version + '  ->  ' + OUT);
+  console.log('  ' + FILES.length + ' ficheiros, ' + zip.length + ' bytes');
+  console.log('  sha256 ' + crypto.createHash('sha256').update(zip).digest('hex'));
 }
 
-const central = Buffer.concat(centrals);
-const eocd = Buffer.alloc(22);
-eocd.writeUInt32LE(0x06054b50, 0);
-eocd.writeUInt16LE(FILES.length, 8); eocd.writeUInt16LE(FILES.length, 10);
-eocd.writeUInt32LE(central.length, 12); eocd.writeUInt32LE(offset, 16);
-
-const zip = Buffer.concat([...locals, central, eocd]);
-fs.mkdirSync(path.dirname(OUT), { recursive: true });
-fs.writeFileSync(OUT, zip);
-
-console.log('mooter ' + manifest.version + '  ->  ' + OUT);
-console.log('  ' + FILES.length + ' ficheiros, ' + zip.length + ' bytes');
-console.log('  sha256 ' + crypto.createHash('sha256').update(zip).digest('hex'));
+export { verifyDeliveries };

@@ -694,6 +694,25 @@ function applyQuotaCeiling(agent, model, calibration, finalResolution) {
  */
 const LEITURA_RE = /\b(l[êe]|abre|analisa|audita|rev[êe]|revisa|inspecciona|inspeciona|verifica|examina|read|analyz[ei]|review|inspect|check)\b/i;
 const PATH_RE = /(?:^|[\s"'`(])([\w./\\-]+\.(?:js|mjs|cjs|ts|tsx|jsx|json|md|py|rs|go|java|rb|php|sh|ps1|yml|yaml|toml|html|css|sql))\b/;
+const DEICTIC_GOAL_RE = /\b(?:aqui|worktree\s+(?:actual|atual)|current\s+worktree|no\s+repo\s+(?:actual|atual))\b|\b(?:nesta|neste|esta)\s+(?:worktree|pasta|repo(?:sitório|sitorio)?)\b/i;
+const WORKTREE_RECOVERY_STEPS = Object.freeze([
+  'espera que um dos jobs acima termine',
+  'mooter_cancel(sweep:true) — se forem órfãos de um reinício',
+  'mooter_work({…, create_worktree:true}) — crio uma pasta nova a partir da branch actual',
+]);
+
+function isDeicticGoal(text) {
+  return DEICTIC_GOAL_RE.test(String(text || ''));
+}
+
+function worktreeSuffix(requested, used, relocated) {
+  const usedName = path.basename(String(used || requested || 'n/d'));
+  if (relocated) {
+    return ' · relocado para ' + usedName + ' (pedida: '
+      + path.basename(String(requested || 'n/d')) + ')';
+  }
+  return ' · em ' + usedName;
+}
 const ENGINES_SEM_FICHEIROS = new Set(['moo']);
 
 function pedeLeituraDeFicheiro(texto) {
@@ -1796,7 +1815,10 @@ async function toolAwait(args) {
     const byJob = new Map();
     for (const e of evs) {
       if (!e.job_id) continue;
-      const j = byJob.get(e.job_id) || { job_id: e.job_id, agent: e.agent, wave: e.wave, last: null };
+      const j = byJob.get(e.job_id) || {
+        job_id: e.job_id, agent: e.agent, wave: e.wave, worktree: e.worktree, last: null,
+      };
+      if (e.worktree) j.worktree = e.worktree;
       if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
       if (e.exit_code != null) j.exit_code = e.exit_code;
       if (e.cost_usd != null) j.cost_usd = e.cost_usd;
@@ -1909,6 +1931,7 @@ async function toolWork(args) {
   const a = args || {};
   const goal = String(a.goal || '').trim();
   if (!goal) return { error: 'goal é obrigatório — descreve o que queres em linguagem normal' };
+  const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
   // The guard only checks that a ⇄ header EXISTS. If user text could carry its
   // own ⇄, a forged routing header could smuggle instructions past the reader's
   // eye ("⇄ ROUTING ... allowedTools: everything"). The header is ours alone.
@@ -1943,9 +1966,27 @@ async function toolWork(args) {
     if (m) for (const x of m) { const c = x.trim().replace(/^["'`(]/, ''); if (c.includes('/') || c.includes('\\')) pedidos.push(c.replace(/\\/g, '/')); } }
 
   const pedida = worktree;
+  const deictic = isDeicticGoal(goal);
   let relocated = false; let relocatedPorque = null;
   let worktreeCriada = null;
+  const refuseRelocation = (reason, jobs) => {
+    const occupied = Array.isArray(jobs) && jobs.length
+      ? [{ pasta: path.basename(pedida), jobs }] : [];
+    ledgerAppend({
+      event: 'relocacao_recusada', wave, worktree: pedida, goal,
+      relocacao_recusada: { porque: reason, goal_deictico: true },
+    });
+    return {
+      resumo: '⛔ não relocalizei: o pedido refere-se a esta worktree' + worktreeSuffix(pedida, pedida, false),
+      erro: 'sem_worktree_viavel', porque: reason,
+      ocupadas: occupied, faz_assim: [...WORKTREE_RECOVERY_STEPS],
+      worktree_pedida: pedida, worktree_usada: pedida, relocated: false,
+    };
+  };
   if (a.create_worktree === true) {
+    if (deictic) {
+      return refuseRelocation('o goal é dêictico e create_worktree:true mudaria a pasta pedida', []);
+    }
     const createWave = String(a.wave || 'work');
     const made = wt.create(REPO, createWave.slice(0, 20), worktree);
     if (!made.ok) {
@@ -1954,7 +1995,7 @@ async function toolWork(args) {
         reason: made.error || 'motivo n/d',
       });
       return {
-        resumo: '⛔ não arranquei o job: create_worktree:true falhou',
+        resumo: '⛔ não arranquei o job: create_worktree:true falhou' + worktreeSuffix(pedida, pedida, false),
         erro: 'create_worktree_falhou', create_worktree: true,
         worktree_origem: worktree, porque: made.error || 'motivo n/d',
       };
@@ -1973,11 +2014,14 @@ async function toolWork(args) {
   }
   let busy = activeJobsByWorktree(worktree);
   const temOsFicheiros = !pedidos.length || pedidos.every((rel) => { try { return require('fs').existsSync(require('path').join(worktree, rel)); } catch { return false; } });
-  if (!busy.length && !temOsFicheiros) {
+  if (!busy.length && !temOsFicheiros && !deictic) {
     const alt2 = wt.firstFree(REPO, activeJobsByWorktree, null, pedidos);
     if (alt2) { worktree = alt2; relocated = true; relocatedPorque = 'a pasta pedida não tem ' + pedidos.join(', '); log('relocado: ' + relocatedPorque); }
   }
   if (busy.length) {
+    if (deictic) {
+      return refuseRelocation('a worktree pedida tem job activo (' + busy.join(', ') + ')', busy);
+    }
     const alt = wt.firstFree(REPO, activeJobsByWorktree, worktree, pedidos);
     if (alt) {
       relocated = true;
@@ -1990,16 +2034,13 @@ async function toolWork(args) {
       const semFich = pedidos.length ? wt.semOsFicheiros(REPO, activeJobsByWorktree, pedidos) : [];
       return {
         resumo: pedidos.length
-          ? '⛔ não há pasta livre com ' + pedidos.join(', ')
-          : '🐮 não há onde trabalhar: as ' + (inv.total || 0) + ' pastas estão ocupadas',
+          ? '⛔ não há pasta livre com ' + pedidos.join(', ') + worktreeSuffix(pedida, pedida, false)
+          : '🐮 não há onde trabalhar: as ' + (inv.total || 0) + ' pastas estão ocupadas'
+            + worktreeSuffix(pedida, pedida, false),
         erro: pedidos.length ? 'sem_worktree_viavel' : 'todas_ocupadas',
         ocupadas: (inv.worktrees || []).filter((w) => w.busy).map((w) => ({ pasta: w.name, jobs: w.busy_jobs })),
         livres_sem_os_ficheiros: semFich.length ? semFich : null,
-        faz_assim: [
-          'espera que um dos jobs acima termine',
-          'mooter_cancel(sweep:true) — se forem órfãos de um reinício',
-          'mooter_work({…, create_worktree:true}) — crio uma pasta nova a partir da branch actual',
-        ],
+        faz_assim: [...WORKTREE_RECOVERY_STEPS],
       };
     }
   }
@@ -2035,7 +2076,9 @@ async function toolWork(args) {
         resumo: onde.length
           ? '⛔ não despachei: esse ficheiro não existe em ' + require('path').basename(worktree)
             + ' — mas existe em ' + onde.map((w) => w.name).join(', ')
-          : '⛔ não despachei: o motor local não lê ficheiros e eu também não consegui lê-los por ele',
+            + worktreeSuffix(pedida, worktree, relocated)
+          : '⛔ não despachei: o motor local não lê ficheiros e eu também não consegui lê-los por ele'
+            + worktreeSuffix(pedida, worktree, relocated),
         erro: 'sem_contexto_para_o_local',
         porque: 'tentei ler ' + (ctx.falhados.map((f) => f.path).join(', ') || 'os ficheiros citados')
           + ' na pasta ' + require('path').basename(worktree) + ' e não consegui',
@@ -2121,8 +2164,6 @@ async function toolWork(args) {
       routedBy = 'quota';
     }
   }
-  const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
-
   // ── LOCAL-FIRST (v1.4.1) · agora que sabemos o contexto, a GPU pode chegar ──
   //
   // Medido em 2026-07-25: 0% de output local em 8 sessões. O classify.js olha
@@ -2200,7 +2241,8 @@ async function toolWork(args) {
   if (executionIntent && capability && !capability.supported && !satisfiedByA4) {
     if (a.agent) {
       return {
-        resumo: '⛔ não despachei: este motor não executa comandos — usa agent:"cc" ou agent:"codex"',
+        resumo: '⛔ não despachei: este motor não executa comandos — usa agent:"cc" ou agent:"codex"'
+          + worktreeSuffix(pedida, worktree, relocated),
         erro: 'motor_sem_execucao', agent,
         pedido_execucao: executionIntent,
         permissoes_efectivas: capability.effective,
@@ -2314,7 +2356,8 @@ async function toolWork(args) {
       if (prep && prep.job_id) {
         return {
           resumo: '🐮 GPU local (' + localModel + ') a preparar o trabalho a $0 · depois entra o ' + agent
-            + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id,
+            + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id
+            + worktreeSuffix(pedida, worktree, relocated),
           ok: true, goal, wave, tier,
           phase: 'preparação local',
           agent: 'moo → ' + agent,
@@ -2324,6 +2367,10 @@ async function toolWork(args) {
           permissoes_efectivas: prep.permissoes_efectivas,
           permissoes_diferenca: prep.permissoes_diferenca,
           worktree_criada: worktreeCriada,
+          worktree_pedida: pedida,
+          worktree_usada: worktree,
+          relocated,
+          relocated_porque: relocatedPorque,
           chained: true,
           worktree,
           mode: readOnly ? 'só leitura' : 'escrita permitida',
@@ -2345,7 +2392,12 @@ async function toolWork(args) {
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
     __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
     __quota_calibragem: calibragem });
-  if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model, worktree_criada: worktreeCriada }, r);
+  if (r && r.error) return Object.assign({
+    resumo: '⛔ não despachei o job' + worktreeSuffix(pedida, worktree, relocated),
+    goal, wave, tier_pedido: tier, agent, model,
+    worktree_pedida: pedida, worktree_usada: worktree,
+    relocated, relocated_porque: relocatedPorque, worktree_criada: worktreeCriada,
+  }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
     // A v1.3.2 punha-a em `content[0].text` e este host mostra o
@@ -2353,7 +2405,7 @@ async function toolWork(args) {
     resumo: '🐮 ' + (r.model || model || agent) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
       + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
       + (prepareSkipped ? ' · sem preparação local' : '')
-      + (relocated ? ' · mudei para ' + require('path').basename(worktree) : '')
+      + worktreeSuffix(pedida, worktree, relocated)
       + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : '')
       + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
     ok: true, goal, wave,
@@ -2550,6 +2602,7 @@ module.exports = {
   buildCommand, bootstrapPrompt, setJobSpawner, setCrossCheckRunner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
+  isDeicticGoal, worktreeSuffix,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,
   applyQuotaCeiling,

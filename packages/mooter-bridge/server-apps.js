@@ -278,7 +278,7 @@ function resourcesAtuais() {
  */
 const ANCHOR_TOOLS = new Set(['mooter_fleet']);
 const LOOP_EXTRA = ['mooter_check', 'mooter_setup'];
-const LOOP_TOOLS = new Set(['mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_cancel', 'mooter_plan', 'mooter_journal', 'mooter_await', 'mooter_check', 'mooter_setup', 'mooter_worktrees']);
+const LOOP_TOOLS = new Set(['mooter_work', 'mooter_dispatch', 'mooter_status', 'mooter_collect', 'mooter_cancel', 'mooter_plan', 'mooter_journal', 'mooter_await', 'mooter_check', 'mooter_setup', 'mooter_worktrees']);
 for (const t of base.TOOLS) {
   if (!ANCHOR_TOOLS.has(t.name)) continue;
   t._meta = Object.assign({}, t._meta, { ui: { resourceUri: fleet.UI_URI, visibility: ['model', 'app'] } });
@@ -287,6 +287,7 @@ for (const t of base.TOOLS) {
 /** One sentence a person can read, before the JSON. */
 function humanLine(name, d) {
   if (!d || typeof d !== 'object') return null;
+  if ((name === 'mooter_work' || name === 'mooter_check') && d.resumo) return d.resumo;
   if (d.error) return '⚠ ' + d.error;
   switch (name) {
     case 'mooter_work':

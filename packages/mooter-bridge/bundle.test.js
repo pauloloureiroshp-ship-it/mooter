@@ -15,7 +15,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const HERE = __dirname;
 const PACK = fs.readFileSync(path.join(HERE, 'pack-mcpb.mjs'), 'utf8');
@@ -76,4 +78,39 @@ test('B5 — manifest e lista de tools do manifest batem com as 6 públicas', ()
   const noManifest = man.tools.map((t) => t.name).sort();
   assert.deepStrictEqual(noManifest, publicas,
     'o manifest promete portas diferentes das que o servidor abre');
+});
+
+test('B6 — o pack falha com entrega declarada ausente e passa quando ela existe no bundle', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-pack-entregas-'));
+  const previousImportOnly = process.env.MOOTER_PACK_IMPORT_ONLY;
+  try {
+    process.env.MOOTER_PACK_IMPORT_ONLY = '1';
+    const moduleUrl = pathToFileURL(path.join(HERE, 'pack-mcpb.mjs')).href + '?test=' + Date.now();
+    const { verifyDeliveries } = await import(moduleUrl);
+    const files = [['sentinela.js', 'server/sentinela.js']];
+    fs.writeFileSync(path.join(dir, 'sentinela.js'), 'existe');
+    assert.throws(
+      () => verifyDeliveries('9.9.0', { '9.9': ['nao-existe.js'] }, files, dir),
+      (error) => /9\.9\.0/.test(error.message) && /nao-existe\.js/.test(error.message)
+        && /faz assim/i.test(error.message),
+    );
+    assert.doesNotThrow(
+      () => verifyDeliveries('9.9.0', { '9.9': ['sentinela.js'] }, files, dir),
+    );
+    fs.writeFileSync(path.join(dir, 'fora-do-pack.js'), 'existe');
+    assert.throws(
+      () => verifyDeliveries('9.9.0', { '9.9': ['fora-do-pack.js'] }, files, dir),
+      /não entram em FILES: fora-do-pack\.js/i,
+    );
+    assert.throws(
+      () => verifyDeliveries('9.9.0', {}, files, dir),
+      /não existe declaração para 9\.9/i,
+    );
+    assert.match(PACK, /verifyDeliveries\(manifest\.version, deliveries, FILES, HERE\)/,
+      'o verificador existe mas o pack não o chama');
+  } finally {
+    if (previousImportOnly == null) delete process.env.MOOTER_PACK_IMPORT_ONLY;
+    else process.env.MOOTER_PACK_IMPORT_ONLY = previousImportOnly;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

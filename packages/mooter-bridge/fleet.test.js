@@ -479,7 +479,22 @@ test('L1(13) — active_wave só existe com job vivo; caso contrário há ultima
   assert.strictEqual(focus.ultima_wave.failed, 1);
 });
 
-test('L1 — o manifest anuncia a versão 1.22.0', () => {
+/**
+ * ⚠️ Um teste que fixa a versão em texto não testa nada — envelhece.
+ *
+ * A versão anterior deste teste exigia literalmente '1.22.0'. Ao subir para a
+ * 1.23.0 ficou vermelho sem que houvesse bug nenhum: a suite passou a pedir
+ * manutenção em vez de dar informação. O que interessa mesmo é o invariante da
+ * Onda 1 — a versão anunciada tem de ser semver e tem de ter entrega declarada,
+ * senão o conector diz "1.23.0" sem que ninguém saiba o que isso entrega.
+ */
+test('L1 — a versão anunciada é semver e tem entrega declarada', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf8'));
-  assert.strictEqual(manifest.version, '1.22.0');
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+  const entregas = JSON.parse(fs.readFileSync(path.join(__dirname, 'entregas-por-versao.json'), 'utf8'));
+  const minor = manifest.version.split('.').slice(0, 2).join('.');
+  assert.ok(
+    Object.prototype.hasOwnProperty.call(entregas, minor),
+    'manifest anuncia ' + manifest.version + ' mas entregas-por-versao.json não declara ' + minor,
+  );
 });

@@ -31,6 +31,8 @@ const DEFAULT_FAIXAS = Object.freeze({
   tempo_recuperacao_min: Object.freeze([0, 60]),
   keep_rate_pct: Object.freeze([50, 100]),
   custo_por_tarefa_entregue_usd: Object.freeze([0, 1]),
+  custo_total_usd: null,
+  cobertura_custo_pct: null,
   trabalho_zero_pct: Object.freeze([50, 100]),
   pressao_quota: Object.freeze([0, 0.85]),
   wip_actual: Object.freeze([0, 3]),
@@ -122,6 +124,15 @@ function lerFaixas(opts) {
   } catch { /* sem preferências: os defaults ficam declarados */ }
   const out = {};
   for (const [nome, padrao] of Object.entries(DEFAULT_FAIXAS)) {
+    if (padrao == null) {
+      out[nome] = {
+        faixa: null,
+        origem: nome === 'custo_total_usd'
+          ? 'n/d — total acumulado; não tem faixa'
+          : 'n/d — cobertura informativa; sem limiar declarado',
+      };
+      continue;
+    }
     const calibrada = faixaValida(calibradas[nome]);
     out[nome] = calibrada
       ? { faixa: calibrada, origem: 'preferences.json → board_faixas (calibrada pelo utilizador)' }
@@ -133,19 +144,21 @@ function lerFaixas(opts) {
 function metrica(nome, valor, unidade, fonte, medidoEm, faixas, porque) {
   const config = faixas[nome];
   const n = numero(valor);
+  const faixa = config && Array.isArray(config.faixa) ? config.faixa : null;
   const estado = n == null ? 'n/d'
-    : (n >= config.faixa[0] && n <= config.faixa[1] ? 'dentro' : 'fora');
+    : (!faixa ? 'n/d' : (n >= faixa[0] && n <= faixa[1] ? 'dentro' : 'fora'));
   return {
     valor: n,
     unidade,
     fonte,
     medido_em: medidoEm,
-    faixa: [...config.faixa],
-    faixa_origem: config.origem,
+    faixa: faixa ? [...faixa] : null,
+    faixa_origem: config ? config.origem : 'n/d — faixa não declarada',
     estado,
     porque: n == null ? porque
-      : (porque + '; valor ' + n + (estado === 'dentro' ? ' dentro de ' : ' fora de ')
-        + '[' + config.faixa.join(', ') + ']'),
+      : (!faixa ? porque + '; faixa n/d — não existe limiar declarado'
+        : (porque + '; valor ' + n + (estado === 'dentro' ? ' dentro de ' : ' fora de ')
+          + '[' + faixa.join(', ') + ']')),
   };
 }
 
@@ -297,6 +310,19 @@ function construir(ledger, quotaState, gpuState, opts) {
   const keep = keepRate(records, o);
   const chamadasMeo = interrupcoesNoDia(ledger, medidoEm);
   const custos = entregues.map((r) => numero(r.cost_usd)).filter((v) => v != null);
+  const costsMeasured = custos.length;
+  const costsMissing = entregues.length - costsMeasured;
+  const totalCost = costsMeasured
+    ? arredondar(custos.reduce((sum, cost) => sum + cost, 0), 6) : null;
+  const costCoverage = entregues.length
+    ? arredondar(costsMeasured / entregues.length * 100, 2) : null;
+  const totalCostReason = !entregues.length
+    ? 'não há tarefas entregues para somar'
+    : (!costsMeasured
+      ? 'nenhuma das ' + entregues.length + ' entregas tem cost_usd reportado pelo CLI'
+      : (costsMissing
+        ? 'soma parcial: ' + costsMeasured + ' entrega(s) medida(s) e ' + costsMissing + ' sem medição de custo'
+        : 'soma real das ' + costsMeasured + ' entrega(s) com custo reportado pelo CLI'));
   const locais = concluidos.filter((r) => r.agent === 'moo').length;
   const pressao = quotaState && quotaState.pressao ? numero(quotaState.pressao.valor) : null;
   const wip = records.filter((r) => !r.status).length;
@@ -346,6 +372,18 @@ function construir(ledger, quotaState, gpuState, opts) {
       custos.length ? custos.length + '/' + entregues.length + ' entregas com custo reportado pelo CLI'
         : 'nenhuma tarefa entregue tem cost_usd reportado pelo CLI',
     ),
+    custo_total_usd: Object.assign(metrica(
+      'custo_total_usd', totalCost, 'USD (soma)',
+      'aprender._jobRecords · soma de cost_usd das tarefas done', medidoEm, faixas,
+      totalCostReason,
+    ), { jobs_medidos: costsMeasured, jobs_sem_medicao: costsMissing }),
+    cobertura_custo_pct: Object.assign(metrica(
+      'cobertura_custo_pct', costCoverage, '% de entregas',
+      'aprender._jobRecords · entregas com cost_usd / tarefas done', medidoEm, faixas,
+      entregues.length
+        ? costsMeasured + '/' + entregues.length + ' entregas têm custo reportado pelo CLI'
+        : 'não há tarefas entregues para calcular cobertura',
+    ), { jobs_medidos: costsMeasured, jobs_sem_medicao: costsMissing }),
     trabalho_zero_pct: metrica(
       'trabalho_zero_pct', concluidos.length ? arredondar(locais / concluidos.length * 100, 2) : null,
       '% de jobs concluídos', 'aprender._jobRecords · agent=moo / concluídos', medidoEm, faixas,
@@ -470,7 +508,7 @@ function finalizar(card, opts) {
     if (card.fontes && card.fontes.ledger) card.fontes.ledger.eventos = card.ledger_eventos;
     card.excepcoes = excepcoes(card, opts);
   }
-  const nd = Object.values(card.metricas).filter((m) => m.estado === 'n/d').length;
+  const nd = Object.values(card.metricas).filter((m) => numero(m.valor) == null).length;
   card.pode_ir_dormir = card.excepcoes.length
     ? { valor: false, porque: card.excepcoes.length + ' métrica(s) fora da faixa' }
     : (nd ? { valor: null, porque: nd + ' métrica(s) n/d; não há prova suficiente para dizer sim' }

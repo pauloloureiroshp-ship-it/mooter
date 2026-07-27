@@ -1,0 +1,16 @@
+{
+  "1.20": [
+    "sentinela.js",
+    "afericao.js"
+  ],
+  "1.22": [],
+  "1.23": [
+    "board.js",
+    "seamless.js",
+    "tools6.js",
+    "server-apps.js"
+  ],
+  "1.24": [
+    "recibo.js"
+  ]
+}

@@ -24,6 +24,7 @@ process.env.MOOTER_REPO = WT;
 
 const server = require('./server-apps.js');
 const tools6 = require('./tools6.js');
+const seamless = require('./seamless.js');
 
 // ⚠️ `server-apps.js` redirecciona console.* para o diário (stdout é sagrado no
 // stdio MCP). Um teste que use console.log fica MUDO. Escrevemos directo no fd.
@@ -87,6 +88,39 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     assert.ok(check.inputSchema.properties.wait_s.maximum === 45, 'o tecto de espera tem de estar no schema');
     okmsg('check avisa sobre texto não confiável e limita a espera');
   } catch (e) { bad('anti-injecção', e); }
+
+  try {
+    const seamStub = {
+      async toolStatus() {
+        return { jobs: [{ job_id: 'job-check', last: 'started', worktree: path.join(HOME, 'wt-check') }] };
+      },
+    };
+    const fleetStub = {};
+    const check = tools6.build(seamStub, fleetStub, {}).find((t) => t.name === 'mooter_check');
+    const sc = await check.handler({ job_id: 'job-check' });
+    assert.match(sc.resumo, / · em wt-check$/);
+    okmsg('check nomeia a worktree usada no resumo');
+  } catch (e) { bad('worktree no resumo do check', e); }
+
+  try {
+    seamless.ledgerAppend({
+      job_id: 'job-check-real', wave: 'onda1-check', agent: 'cc',
+      worktree: WT, event: 'started',
+    });
+    const response = await server.handle({
+      jsonrpc: '2.0', id: 20, method: 'tools/call',
+      params: { name: 'mooter_check', arguments: { job_id: 'job-check-real' } },
+    });
+    const structured = response.result.structuredContent;
+    assert.match(structured.resumo, / · em repo$/);
+    assert.match(response.result.content[0].text, / · em repo$/,
+      'o texto visível perdeu a worktree que existe no structuredContent');
+    seamless.ledgerAppend({
+      job_id: 'job-check-real', wave: 'onda1-check', agent: 'cc',
+      worktree: WT, event: 'failed', exit_code: 'fim-do-teste',
+    });
+    okmsg('check nomeia a worktree no texto visível do MCP');
+  } catch (e) { bad('worktree no texto do check', e); }
 
   try {
     // os nomes antigos continuam a funcionar — mitigação para quem já os usa

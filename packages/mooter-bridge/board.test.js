@@ -59,7 +59,51 @@ test('ledger sintético de 30 eventos bate com o cálculo feito à mão', () => 
   assert.strictEqual(m.trabalho_zero_pct.valor, 50);        // 5 / 10 jobs no moo
   assert.strictEqual(m.pressao_quota.valor, 0.5);
   assert.strictEqual(m.wip_actual.valor, 0);
-  for (const item of Object.values(m)) assert.strictEqual(item.estado, 'dentro', item.fonte);
+  for (const [nome, item] of Object.entries(m)) {
+    if (nome === 'custo_total_usd' || nome === 'cobertura_custo_pct') {
+      assert.strictEqual(item.estado, 'n/d', nome);
+      assert.strictEqual(item.faixa, null, nome);
+    } else assert.strictEqual(item.estado, 'dentro', item.fonte);
+  }
+  assert.strictEqual(card.pode_ir_dormir.valor, true,
+    'uma métrica medida sem faixa não pode contar como dado ausente');
+});
+
+test('custo total e cobertura coexistem com a mediana sem esconder zero medido', () => {
+  const base = { wave: 'onda1', agent: 'cc', worktree: 'C:\\repo', escrita: false };
+  const ledger = [0, 0, 0.6054].flatMap((cost, index) => {
+    const shared = { ...base, job_id: 'custo-' + index };
+    return [
+      { ...shared, event: 'dispatched', ts: `2026-07-26T12:0${index}:00.000Z` },
+      { ...shared, event: 'done', exit_code: 0, cost_usd: cost, ts: `2026-07-26T12:0${index}:01.000Z` },
+    ];
+  });
+  const metrics = board.scorecard(deps({ ledger, keepResults: [] })).metricas;
+  assert.strictEqual(metrics.custo_por_tarefa_entregue_usd.valor, 0);
+  assert.strictEqual(metrics.custo_total_usd.valor, 0.6054);
+  assert.strictEqual(metrics.custo_total_usd.jobs_medidos, 3);
+  assert.strictEqual(metrics.custo_total_usd.jobs_sem_medicao, 0);
+  assert.strictEqual(metrics.cobertura_custo_pct.valor, 100);
+});
+
+test('custo total declara entregas sem medição e a cobertura conta zero como medido', () => {
+  const base = { wave: 'onda1', agent: 'cc', worktree: 'C:\\repo', escrita: false };
+  const ledger = [0, null, null].flatMap((cost, index) => {
+    const shared = { ...base, job_id: 'cobertura-' + index };
+    const terminal = {
+      ...shared, event: 'done', exit_code: 0, ts: `2026-07-26T13:0${index}:01.000Z`,
+    };
+    if (cost != null) terminal.cost_usd = cost;
+    return [
+      { ...shared, event: 'dispatched', ts: `2026-07-26T13:0${index}:00.000Z` },
+      terminal,
+    ];
+  });
+  const metrics = board.scorecard(deps({ ledger, keepResults: [] })).metricas;
+  assert.strictEqual(metrics.custo_total_usd.valor, 0);
+  assert.strictEqual(metrics.custo_total_usd.jobs_medidos, 1);
+  assert.strictEqual(metrics.custo_total_usd.jobs_sem_medicao, 2);
+  assert.strictEqual(metrics.cobertura_custo_pct.valor, 33.33);
 });
 
 test('métrica sem dados devolve n/d e valor null — nunca zero', () => {

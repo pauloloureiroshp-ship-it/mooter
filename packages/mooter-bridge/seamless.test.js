@@ -390,6 +390,88 @@ test('create_worktree:true cria antes do dispatch e leva o caminho para resultad
   }
 });
 
+test('mooter_work nomeia a worktree usada no resumo quando não relocaliza', async () => {
+  seam.setJobSpawner(() => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; });
+  const result = await seam.toolWork({
+    goal: 'resume o estado do projecto', agent: 'cc', worktree: WT,
+    wave: 'onda1-resumo-worktree', prepare: false,
+  });
+  try {
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.match(result.resumo, new RegExp(' · em ' + path.basename(WT) + '$'));
+  } finally {
+    await closeJob(result, 1);
+  }
+});
+
+test('goal dêictico recusa worktree ocupada, não relocaliza e regista a recusa', async () => {
+  const alternative = makeWorktree('frugal-wt-deictico-alt');
+  const originalFirstFree = wtModule.firstFree;
+  let pickerCalls = 0;
+  let result = null;
+  seam.ledgerAppend({
+    job_id: 'ocupante-deictico', wave: 'onda1-deictico', agent: 'cc',
+    worktree: WT, event: 'started',
+  });
+  wtModule.firstFree = () => { pickerCalls++; return alternative; };
+  seam.setJobSpawner(() => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; });
+  try {
+    result = await seam.toolWork({
+      goal: 'audita os ficheiros por commitar nesta worktree',
+      agent: 'cc', worktree: WT, wave: 'onda1-deictico', prepare: false,
+    });
+    assert.strictEqual(result.erro, 'sem_worktree_viavel', JSON.stringify(result));
+    assert.strictEqual(pickerCalls, 0, 'um goal dêictico chegou ao picker de relocalização');
+    assert.deepStrictEqual(result.faz_assim, [
+      'espera que um dos jobs acima termine',
+      'mooter_cancel(sweep:true) — se forem órfãos de um reinício',
+      'mooter_work({…, create_worktree:true}) — crio uma pasta nova a partir da branch actual',
+    ]);
+    const event = seam.ledgerRead().find((item) => item.event === 'relocacao_recusada'
+      && item.wave === 'onda1-deictico');
+    assert.ok(event, 'a recusa não ficou no ledger');
+    assert.strictEqual(event.relocacao_recusada.goal_deictico, true);
+    assert.ok(event.relocacao_recusada.porque);
+  } finally {
+    await closeJob(result, 1);
+    wtModule.firstFree = originalFirstFree;
+    seam.ledgerAppend({
+      job_id: 'ocupante-deictico', wave: 'onda1-deictico', agent: 'cc',
+      worktree: WT, event: 'failed', exit_code: 'fim-do-teste',
+    });
+  }
+});
+
+test('goal sem dêictico continua a relocalizar e nomeia origem e destino no resumo', async () => {
+  const alternative = makeWorktree('frugal-wt-relocacao-alt');
+  const originalFirstFree = wtModule.firstFree;
+  let result = null;
+  seam.ledgerAppend({
+    job_id: 'ocupante-relocacao', wave: 'onda1-relocacao', agent: 'cc',
+    worktree: WT, event: 'started',
+  });
+  wtModule.firstFree = () => alternative;
+  seam.setJobSpawner(() => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; });
+  try {
+    result = await seam.toolWork({
+      goal: 'audita o estado do projecto',
+      agent: 'cc', worktree: WT, wave: 'onda1-relocacao', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.relocated, true);
+    assert.strictEqual(result.worktree_usada, alternative);
+    assert.match(result.resumo, new RegExp(' · relocado para ' + path.basename(alternative)
+      + ' \\(pedida: ' + path.basename(WT) + '\\)'));
+  } finally {
+    await closeJob(result, 1);
+    wtModule.firstFree = originalFirstFree;
+    seam.ledgerAppend({
+      job_id: 'ocupante-relocacao', wave: 'onda1-relocacao', agent: 'cc',
+      worktree: WT, event: 'failed', exit_code: 'fim-do-teste',
+    });
+  }
+});
+
 test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json, collect idempotente', async () => {
   let spawned = null;
   seam.setJobSpawner((cmd, cwd) => { spawned = { cmd, cwd }; const c = fakeChild(); setImmediate(() => c.emit('spawn')); return c; });

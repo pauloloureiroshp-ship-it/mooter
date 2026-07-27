@@ -26,12 +26,30 @@
 
 const PUBLICAS = ['mooter_work', 'mooter_check', 'mooter_fleet', 'mooter_cancel', 'mooter_journal', 'mooter_setup'];
 const capacidades = require('./capacidades.js');
+const path = require('path');
 
 /** Wrap para garantir que TODA a resposta abre com uma frase legível. */
 function comResumo(r, fallback) {
   if (!r || typeof r !== 'object') return r;
   if (r.resumo) return r;
   return Object.assign({ resumo: fallback || '🐮 feito' }, r);
+}
+
+function withWorktreeSummary(r, fallback) {
+  const out = comResumo(r, fallback);
+  if (!out || typeof out !== 'object' || !out.resumo
+      || / · (?:em|relocado para) [^·]+(?:$| · )/.test(out.resumo)) return out;
+  const jobs = Array.isArray(out.jobs) ? out.jobs : [];
+  const usedNames = [...new Set([
+    out.worktree_usada, out.worktree,
+    ...jobs.map((job) => job && (job.worktree_usada || job.worktree)),
+  ].filter(Boolean).map((worktree) => path.basename(String(worktree))))];
+  if (!usedNames.length) return out;
+  const requestedName = out.worktree_pedida ? path.basename(String(out.worktree_pedida)) : null;
+  out.resumo += out.relocated === true && requestedName
+    ? ' · relocado para ' + usedNames[0] + ' (pedida: ' + requestedName + ')'
+    : ' · em ' + usedNames.join(', ');
+  return out;
 }
 
 function build(seam, fleet, base) {
@@ -81,15 +99,17 @@ function build(seam, fleet, base) {
         const a = args || {};
         if (!a.job_id && !a.wave) {
           const snap = await fleet.toolFleet({ windowMinutes: 30 }, { sessionsList: base.toolSessionsList });
-          return comResumo(snap, fleet.formatFleetText(snap).split('\n')[0]);
+          return withWorktreeSummary(snap, fleet.formatFleetText(snap).split('\n')[0]);
         }
         if (a.wait_s != null && a.wait_s > 0) {
           const w = await seam.toolAwait({ job_id: a.job_id, wave: a.wave, timeout_s: a.wait_s });
           if (w && w.settled && a.job_id) {
             const c = await seam.toolCollect({ job_id: a.job_id });
-            return comResumo(Object.assign({}, w, { resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used }), w.resumo);
+            return withWorktreeSummary(Object.assign({}, w, {
+              resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used,
+            }), w.resumo);
           }
-          return comResumo(w);
+          return withWorktreeSummary(w);
         }
         const st = await seam.toolStatus({ job_id: a.job_id, wave: a.wave });
         if (st && st.jobs && a.job_id) {
@@ -97,7 +117,7 @@ function build(seam, fleet, base) {
           const terminal = j && (j.last === 'done' || j.last === 'failed' || j.last === 'collected');
           if (terminal) {
             const c = await seam.toolCollect({ job_id: a.job_id });
-            return comResumo(Object.assign({}, st, {
+            return withWorktreeSummary(Object.assign({}, st, {
               resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used,
               permissoes_pedidas: c.permissoes_pedidas,
               permissoes_efectivas: c.permissoes_efectivas,
@@ -105,7 +125,7 @@ function build(seam, fleet, base) {
             }), '🐮 ' + a.job_id + ' ' + j.last + (c.model_used ? ' · ' + c.model_used : ''));
           }
         }
-        return comResumo(st, '🐮 em curso');
+        return withWorktreeSummary(st, '🐮 em curso');
       },
     },
 
