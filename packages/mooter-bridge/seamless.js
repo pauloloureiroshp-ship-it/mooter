@@ -44,6 +44,7 @@ const contexto = require('./context.js');
 const P = require('./paths.js');
 const localfirst = require('./localfirst.js');
 const aprender = require('./aprender.js');
+const eta = require('./eta.js');
 const fosso = require('./fosso.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
@@ -73,8 +74,18 @@ function ledgerAppend(ev) {
     payload.desfecho = desfecho;
     if (!Object.prototype.hasOwnProperty.call(payload, 'ttft_ms')) payload.ttft_ms = null;
   }
-  const line = JSON.stringify({ ts: nowIso(), ...payload });
+  const record = { ts: nowIso(), ...payload };
+  const line = JSON.stringify(record);
   fs.appendFileSync(LEDGER_PATH(), line + '\n');
+  try {
+    const etaResult = eta.observeTerminal(record, {
+      indexPath: path.join(MOOTER_HOME_DIR(), 'eta-index.json'),
+      jobDir: record.job_id ? path.join(JOBS_DIR(), record.job_id) : null,
+    });
+    if (etaResult && etaResult.ok === false) log('ETA ' + (record.job_id || 'n/d') + ': ' + etaResult.porque);
+  } catch (error) {
+    log('ETA ' + (record.job_id || 'n/d') + ' não actualizada: ' + ((error && error.message) || error));
+  }
   return line;
 }
 function ledgerRead() {
@@ -85,7 +96,7 @@ function ledgerRead() {
   } catch { return []; }
 }
 const TERMINAL = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
-const NON_STATE_EVENTS = new Set(['cross_check']);
+const NON_STATE_EVENTS = new Set(['cross_check', 'step']);
 function lastStateEvent(events) {
   for (let i = events.length - 1; i >= 0; i--) {
     if (!NON_STATE_EVENTS.has(events[i].event)) return events[i].event;
@@ -398,6 +409,77 @@ function readJobResult(agent, jobDir, elapsedSeconds) {
     };
   } catch { return empty; }
 }
+
+function stepsTotalFor(agent, suppliedTotal) {
+  if (Number.isInteger(suppliedTotal) && suppliedTotal >= 0) return { steps_total: suppliedTotal, porque: null };
+  if (agent === 'moo') return { steps_total: 1, porque: null };
+  const signal = agent === 'codex'
+    ? 'a contagem de chamadas de ferramenta no out.log'
+    : (agent === 'cc' ? 'os eventos tool_use do stream' : 'o stream deste agente');
+  return {
+    steps_total: null,
+    porque: signal + ' mede o passo actual, mas não fornece um total fiável sem steps explícitos',
+  };
+}
+
+const CODEX_STEP_ITEMS = new Set([
+  'command_execution', 'mcp_tool_call', 'web_search', 'file_change', 'tool_call',
+]);
+
+function stepSignalsForEvent(agent, event, seen) {
+  if (!event || typeof event !== 'object') return [];
+  if (agent === 'moo') {
+    if (event.type !== 'result' || seen.has('moo-result')) return [];
+    seen.add('moo-result');
+    return ['generation'];
+  }
+  if (agent === 'codex') {
+    const item = event.item && typeof event.item === 'object' ? event.item : null;
+    if (event.type !== 'item.completed' || !item || !CODEX_STEP_ITEMS.has(item.type)) return [];
+    const key = item.id ? 'codex:' + item.id : 'codex:' + seen.size;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return ['tool_call'];
+  }
+  if (agent !== 'cc') return [];
+  const message = event.message && typeof event.message === 'object' ? event.message : null;
+  const content = message && Array.isArray(message.content) ? message.content
+    : (Array.isArray(event.content) ? event.content : []);
+  const signals = [];
+  for (const part of content) {
+    if (!part || part.type !== 'tool_use') continue;
+    const key = part.id ? 'cc:' + part.id : 'cc:' + seen.size;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    signals.push('tool_call');
+  }
+  return signals;
+}
+
+function createStreamStepTracker(agent, onAdvance) {
+  let pending = '';
+  let stepIndex = 0;
+  const seen = new Set();
+  const inspect = (line) => {
+    const source = String(line || '').trim();
+    if (!source || source[0] !== '{') return;
+    let event;
+    try { event = JSON.parse(source); } catch { return; }
+    for (const signal of stepSignalsForEvent(agent, event, seen)) onAdvance(++stepIndex, signal);
+  };
+  return {
+    observe(chunk) {
+      pending += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '');
+      let newline;
+      while ((newline = pending.indexOf('\n')) >= 0) {
+        inspect(pending.slice(0, newline));
+        pending = pending.slice(newline + 1);
+      }
+    },
+    finish() { inspect(pending); pending = ''; return stepIndex; },
+  };
+}
+
 /**
  * Separa intenção do chamador de capacidade efectiva. `--allowedTools` no
  * Claude Code preaprova ferramentas; não é o mesmo que `--tools`, que limita
@@ -1138,6 +1220,7 @@ async function toolDispatch(args) {
     confianca: String(rawLocalDecision.confianca || 'n/d'),
     forcado_por_quota: rawLocalDecision.forcado_por_quota === true,
   } : null;
+  const stepProgress = stepsTotalFor(agent, args && args.__steps_total);
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
@@ -1236,6 +1319,8 @@ async function toolDispatch(args) {
     worktree_criada: createdWorktree,
     goal: jobGoal, escrita: canWrite, preparation: !!chain, git_base: gitBase,
     local_decisao: localDecision,
+    steps_total: stepProgress.steps_total,
+    steps_total_porque: stepProgress.porque,
     mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque,
     cross_check_requested: args && args.__cross_check === true,
     note: dispatchNote, prep_from: prepFrom,
@@ -1255,10 +1340,33 @@ async function toolDispatch(args) {
     handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote,
     mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque });
 
+  let startedLogged = false;
+  const logStarted = () => {
+    if (startedLogged) return;
+    startedLogged = true;
+    const started = {
+      job_id, wave, agent, worktree: wtNorm, event: 'started', mp_hash,
+      steps_total: stepProgress.steps_total,
+    };
+    if (stepProgress.porque) started.porque = stepProgress.porque;
+    ledgerAppend(started);
+  };
   const fileOutStream = fs.createWriteStream(path.join(jobDir, 'out.log'));
   const outStream = new PassThrough();
   const contentTiming = telemetry.createContentTiming(t0);
-  outStream.on('data', (chunk) => contentTiming.observe(chunk));
+  const stepTracker = createStreamStepTracker(agent, (stepIndex, signal) => {
+    logStarted();
+    const progress = {
+      job_id, wave, agent, worktree: wtNorm, event: 'step', mp_hash,
+      step_index: stepIndex, steps_total: stepProgress.steps_total, step_signal: signal,
+    };
+    if (stepProgress.porque) progress.porque = stepProgress.porque;
+    ledgerAppend(progress);
+  });
+  outStream.on('data', (chunk) => {
+    contentTiming.observe(chunk);
+    stepTracker.observe(chunk);
+  });
   outStream.pipe(fileOutStream);
   const errStream = fs.createWriteStream(path.join(jobDir, 'err.log'));
   let child;
@@ -1284,6 +1392,7 @@ async function toolDispatch(args) {
           goal: (String(masterprompt || '').match(/OBJECTIVO: (.+)/) || [])[1] || null });
       const chosen = escolha.model;
       if (!chosen) {
+        stepTracker.finish();
         ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
           exit_code: 'no-local-model', ttft_ms: contentTiming.finish().ttft_ms });
         try { outStream.end(); errStream.end(); } catch { /* */ }
@@ -1309,6 +1418,7 @@ async function toolDispatch(args) {
       child = spawnJob(cmd, wtNorm, outStream, errStream);
     }
   } catch (e) {
+    stepTracker.finish();
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
       exit_code: 'spawn-error', ttft_ms: contentTiming.finish().ttft_ms });
     try { outStream.end(); errStream.end(); } catch { /* */ }
@@ -1325,6 +1435,7 @@ async function toolDispatch(args) {
     jobTimedOut = true;
     killTree(child);
     REGISTRY.delete(job_id);
+    stepTracker.finish();
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'timeout',
       duration_s: Math.round((Date.now() - t0) / 1000), ttft_ms: contentTiming.finish().ttft_ms });
     try { outStream.end(); errStream.end(); } catch { /* */ }
@@ -1337,7 +1448,7 @@ async function toolDispatch(args) {
   // só por causa de um despertador.
   try { timer.unref(); } catch { /* ambiente sem unref */ }
   REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm,
-    mp_hash, step: stepId, contentTiming, markCancelled() { cancelRequested = true; } });
+    mp_hash, step: stepId, contentTiming, stepTracker, markCancelled() { cancelRequested = true; } });
 
   function prepMetrics(durationS, usable) {
     let text = jobResultText(agent, jobDir);
@@ -1378,6 +1489,7 @@ async function toolDispatch(args) {
       prepTimedOut = true;
       clearTimeout(timer);
       REGISTRY.delete(job_id);
+      stepTracker.finish();
       const durationS = Number(((Date.now() - t0) / 1000).toFixed(3));
       const note = 'preparação local excedeu ' + Number((PREP_TIMEOUT_MS() / 1000).toFixed(3)) + 's — fui directo';
       ledgerAppend(Object.assign({
@@ -1412,12 +1524,11 @@ async function toolDispatch(args) {
     } catch { /* */ }
   }
 
-  let startedLogged = false;
-  const logStarted = () => { if (!startedLogged) { startedLogged = true; ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'started', mp_hash }); } };
   child.once('spawn', logStarted);
   child.once('error', (e) => {
     processErrored = true;
     clearTimeout(timer); clearTimeout(prepTimer); REGISTRY.delete(job_id);
+    stepTracker.finish();
     const exit = 'proc-error:' + ((e && e.message) || '');
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: exit,
       duration_s: Math.round((Date.now() - t0) / 1000), ttft_ms: contentTiming.finish().ttft_ms });
@@ -1457,6 +1568,7 @@ async function toolDispatch(args) {
   }
 
   function finish(code, dur) {
+    stepTracker.finish();
     const timing = contentTiming.finish();
     const r = readJobResult(agent, jobDir, dur);
     // ⚠️ v1.3.3 — MEDIR O RESULTADO, NÃO A TELEMETRIA.
@@ -1566,16 +1678,30 @@ async function toolStatus(args) {
   if (!evs.length) return { error: 'nada no ledger para ' + (jobId || wave) };
   const byJob = {};
   for (const e of evs) {
-    const j = byJob[e.job_id] || (byJob[e.job_id] = { job_id: e.job_id, wave: e.wave, agent: e.agent, worktree: e.worktree, events: [], last: null, started_ts: null });
+    const j = byJob[e.job_id] || (byJob[e.job_id] = {
+      job_id: e.job_id, wave: e.wave, agent: e.agent, worktree: e.worktree,
+      events: [], last: null, started_ts: null, steps_done: 0,
+      steps_total: null, steps_total_porque: 'o job ainda não emitiu started',
+    });
     j.events.push({
       ts: e.ts, event: e.event, exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
       prep_duration_s: e.prep_duration_s, prep_chars: e.prep_chars,
       tokens_poupados_estimados: e.tokens_poupados_estimados, note: e.note,
       disponivel: e.disponivel, verificado: e.verificado,
       divergencias_count: e.divergencias_count,
+      step_index: e.step_index, steps_total: e.steps_total, porque: e.porque,
     });
     if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
-    if (e.event === 'started') j.started_ts = e.ts;
+    if (e.event === 'started') {
+      j.started_ts = e.ts;
+      j.steps_total = Object.prototype.hasOwnProperty.call(e, 'steps_total') ? e.steps_total : null;
+      j.steps_total_porque = e.steps_total == null ? (e.porque || 'o total de passos é n/d') : null;
+    }
+    if (e.event === 'step') {
+      j.steps_done = Math.max(j.steps_done, Number(e.step_index) || 0);
+      if (Object.prototype.hasOwnProperty.call(e, 'steps_total')) j.steps_total = e.steps_total;
+      if (e.steps_total == null && e.porque) j.steps_total_porque = e.porque;
+    }
     if (e.model_used) j.model_used = e.model_used;
     if (e.model_recommended) j.model_recommended = e.model_recommended;
     if (e.tier) j.tier_pedido = e.tier;
@@ -1612,13 +1738,20 @@ async function toolStatus(args) {
           model: t.model || null,
           activity: t.activity || null,
           tokens_in: t.tokens_in, tokens_out: t.tokens_out,
-          tok_s: t.tok_s, tok_s_basis: t.tok_s_basis || null, steps_done: t.steps_done,
+          tok_s: t.tok_s, tok_s_basis: t.tok_s_basis || null,
+          steps_done: Math.max(Number(t.steps_done) || 0, j.steps_done),
+          steps_total: j.steps_total,
           tools_used: t.tools_used && t.tools_used.length ? t.tools_used : null,
           cost_usd: t.cost_usd,
         };
+        if (j.steps_total == null) j.now.steps_total_porque = j.steps_total_porque;
         if (t.model && !j.model_used) j.model_used = t.model;
       }
     } catch { /* telemetry is a bonus; status must never fail because of it */ }
+    if (!j.now) {
+      j.now = { steps_done: j.steps_done, steps_total: j.steps_total };
+      if (j.steps_total == null) j.now.steps_total_porque = j.steps_total_porque;
+    }
   }
   return { jobs: Object.values(byJob), ledger_lines: evs.length };
 }
@@ -1672,6 +1805,7 @@ async function toolCancel(args) {
   await new Promise((r) => setTimeout(r, 250));            // dar tempo ao SO
   const aindaVivo = pids.child_pid ? pidAlive(pids.child_pid) : false;
   const ttft = live && live.contentTiming ? live.contentTiming.finish().ttft_ms : null;
+  if (live && live.stepTracker) live.stepTracker.finish();
   ledgerAppend({
     job_id: jobId, wave: last.wave, agent: last.agent, worktree: last.worktree,
     event: 'failed', mp_hash: last.mp_hash,
@@ -1931,6 +2065,7 @@ async function toolWork(args) {
   const a = args || {};
   const goal = String(a.goal || '').trim();
   if (!goal) return { error: 'goal é obrigatório — descreve o que queres em linguagem normal' };
+  const suppliedStepsTotal = Array.isArray(a.steps) ? a.steps.length : null;
   const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
   // The guard only checks that a ⇄ header EXISTS. If user text could carry its
   // own ⇄, a forged routing header could smuggle instructions past the reader's
@@ -2350,6 +2485,7 @@ async function toolWork(args) {
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
+          __steps_total: suppliedStepsTotal,
           __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
           __quota_calibragem: calibragem },
       });
@@ -2390,6 +2526,7 @@ async function toolWork(args) {
 
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
+    __steps_total: suppliedStepsTotal,
     __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
     __quota_calibragem: calibragem });
   if (r && r.error) return Object.assign({
@@ -2602,7 +2739,7 @@ module.exports = {
   buildCommand, bootstrapPrompt, setJobSpawner, setCrossCheckRunner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
-  isDeicticGoal, worktreeSuffix,
+  isDeicticGoal, worktreeSuffix, stepsTotalFor, createStreamStepTracker,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,
   applyQuotaCeiling,

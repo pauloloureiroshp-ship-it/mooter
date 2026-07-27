@@ -42,6 +42,7 @@ const FILES = [
   ['tools6.js', 'server/tools6.js'],
   ['localfirst.js', 'server/localfirst.js'],
   ['aprender.js', 'server/aprender.js'],
+  ['eta.js', 'server/eta.js'],
   ['board.js', 'server/board.js'],
   ['sentinela.js', 'server/sentinela.js'],
   ['afericao.js', 'server/afericao.js'],
