@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
-  HUMAN_START, HUMAN_END, extractHumanBlock, projectSync, runCli,
+  HUMAN_START, HUMAN_END, extractHumanBlock, projectSync, runCli, semHead,
 } = require('./sync.js');
 
 const COMMIT = '0123456789abcdef0123456789abcdef01234567';
@@ -136,6 +136,33 @@ test('6. --check ignora o HEAD sozinho a mudar (o paradoxo auto-referencial do S
   assert.equal(code, 0);
   assert.match(output.read().stdout, /SYNC\.md actualizado:/);
   assert.equal(output.read().stderr, '');
+});
+
+/**
+ * ⚠️ A máscara é uma regex acoplada ao texto que o render produz.
+ *
+ * `semHead` procura literalmente `^- HEAD: ...`. Se alguém renomear a etiqueta
+ * no `renderSync`, ou quebrar a linha, a máscara deixa de bater — e o `--check`
+ * volta em silêncio ao paradoxo auto-referencial, a sair 1 para sempre, sem que
+ * nenhum teste se queixe. Este prova o acoplamento nos dois sentidos: o render
+ * TEM de emitir a linha na forma que a máscara reconhece.
+ */
+test('8. o render e a máscara falam a mesma língua — se o formato do HEAD mudar, isto parte', () => {
+  const env = fixture({});
+  projectSync({ ...env, runGit: makeFakeGit('a'.repeat(40)) });
+  const gerado = fs.readFileSync(path.join(env.root, 'SYNC.md'), 'utf8');
+
+  const linhas = gerado.split('\n').filter((linha) => /^- HEAD: /.test(linha));
+  assert.equal(
+    linhas.length, 1,
+    'o render deixou de emitir exactamente uma linha "- HEAD: ..." — a máscara semHead ficou órfã '
+      + 'e o --check volta ao paradoxo auto-referencial sem ninguém dar por isso',
+  );
+  assert.notEqual(
+    semHead(gerado), gerado,
+    'semHead não alterou o texto gerado: a regex já não bate no que o renderSync produz',
+  );
+  assert.match(semHead(gerado), /^- HEAD: <mascarado>$/m);
 });
 
 test('7. --check continua a sair 1 quando algo REAL muda além do HEAD', () => {

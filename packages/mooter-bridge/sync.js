@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 'use strict';
 
+// `npm run sync:check` só estabiliza (código 0 sem diff espúrio) com a frota
+// parada: o SYNC.md gerado inclui estado lido ao vivo do ledger, e um job a
+// correr entre duas chamadas muda esse conteúdo por razões alheias ao HEAD.
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

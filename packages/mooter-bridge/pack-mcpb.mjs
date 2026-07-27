@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -104,6 +105,32 @@ if (!IMPORT_ONLY) {
     console.error((error && error.message) || String(error));
     process.exit(1);
   }
+}
+
+/**
+ * ⚠️ `verifyDeliveries` prova que os ficheiros EXISTEM, não que fazem alguma coisa.
+ *
+ * Um `existsSync` passa com um ficheiro vazio. Até aqui, qualquer pessoa podia
+ * empacotar uma versão cuja entrega tinha sido regredida, e o bundle saía com o
+ * carimbo de aprovado. O `entrega.test.js` verifica marcadores de conteúdo — mas
+ * só valia se alguém se lembrasse de o correr. Agora o pack corre-o sozinho e
+ * recusa-se a produzir um `.mcpb` se ele falhar: o gate está no caminho, não na
+ * disciplina de quem empacota.
+ *
+ * Só este teste, de propósito. A bateria inteira demora e transformaria o pack
+ * num CI — o que faria as pessoas contorná-lo com uma variável de ambiente.
+ */
+if (!IMPORT_ONLY && process.env.MOOTER_PACK_SKIP_GATE !== '1') {
+  const gate = spawnSync(process.execPath, ['--test', 'entrega.test.js'], { cwd: HERE, encoding: 'utf8' });
+  if (gate.status !== 0) {
+    console.error('GATE DE ENTREGA FALHOU — o bundle NÃO foi escrito.');
+    console.error('A entrega declarada para ' + manifest.version + ' não está implementada, ou foi regredida.');
+    console.error((gate.stdout || '').split('\n').filter((l) => /^not ok|falta o marcador/.test(l)).join('\n'));
+    console.error('Faz assim: corrige o código, ou corrige entregas-por-versao.json se a entrega mudou.');
+    process.exit(1);
+  }
+  const passed = /^# pass (\d+)/m.exec(gate.stdout || '');
+  console.log('gate de entrega: ' + (passed ? passed[1] : 'n/d') + ' verificações de conteúdo OK');
 }
 
 /**
