@@ -26,6 +26,8 @@ const DEFAULT_FAIXAS = Object.freeze({
   entregas_por_dia: Object.freeze([1, 1000]),
   lead_time_primeiro_token_s: Object.freeze([0, 120]),
   taxa_falha_pct: Object.freeze([0, 20]),
+  taxa_interrupcao_pct: Object.freeze([0, 100]),
+  interrupcoes_por_dia: Object.freeze([0, 1]),
   tempo_recuperacao_min: Object.freeze([0, 60]),
   keep_rate_pct: Object.freeze([50, 100]),
   custo_por_tarefa_entregue_usd: Object.freeze([0, 1]),
@@ -38,6 +40,8 @@ const DONOS = Object.freeze({
   entregas_por_dia: 'MOO',
   lead_time_primeiro_token_s: 'MOO',
   taxa_falha_pct: 'MTO',
+  taxa_interrupcao_pct: 'MEO',
+  interrupcoes_por_dia: 'MEO',
   tempo_recuperacao_min: 'MTO',
   keep_rate_pct: 'MIO',
   custo_por_tarefa_entregue_usd: 'MFO',
@@ -50,6 +54,8 @@ const EFEITOS = Object.freeze({
   entregas_por_dia: 'a cadência continua abaixo da faixa e o backlog cresce',
   lead_time_primeiro_token_s: 'o feedback inicial continua lento e aumenta o WIP percebido',
   taxa_falha_pct: 'mais trabalho termina sem entrega e exige repetição',
+  taxa_interrupcao_pct: 'mais trabalho é interrompido antes de chegar a um desfecho útil',
+  interrupcoes_por_dia: 'o MEO continua a ser chamado acima do limiar diário acordado',
   tempo_recuperacao_min: 'falhas ficam abertas por mais tempo e bloqueiam a wave',
   keep_rate_pct: 'mais alterações entregues são desfeitas ou refeitas',
   custo_por_tarefa_entregue_usd: 'cada entrega continua a consumir mais orçamento pago',
@@ -145,11 +151,11 @@ function metrica(nome, valor, unidade, fonte, medidoEm, faixas, porque) {
 
 function lerLedger(opts) {
   const o = opts || {};
-  if (Array.isArray(o.ledger)) return o.ledger;
+  if (Array.isArray(o.ledger)) return o.ledger.map(aprender.comDesfecho);
   const read = typeof o.ledgerRead === 'function' ? o.ledgerRead : seamless.ledgerRead;
   try {
     const r = read();
-    return Array.isArray(r) ? r : [];
+    return Array.isArray(r) ? r.map(aprender.comDesfecho) : [];
   } catch { return []; }
 }
 
@@ -199,6 +205,7 @@ function temposRecuperacao(ledger) {
     const t = Date.parse(ev.ts || 0);
     if (!Number.isFinite(t)) continue;
     if (ev.event === 'failed') {
+      if (aprender.classificarDesfecho(ev) !== 'falhou') continue;
       const lista = pendentes.get(ev.wave) || [];
       lista.push(t);
       pendentes.set(ev.wave, lista);
@@ -213,8 +220,16 @@ function temposRecuperacao(ledger) {
 
 function keepRate(records, opts) {
   const o = opts || {};
-  const jobs = records.filter((r) => r.status === 'done' && r.escrita === true).slice(-20);
-  if (!jobs.length) return { valor: null, porque: 'não há jobs de escrita entregues para medir' };
+  const escritos = records.filter((r) => r.status === 'done' && r.escrita === true);
+  const jobs = escritos.filter((r) => {
+    const criada = r.worktree_criada && typeof r.worktree_criada.path === 'string'
+      ? r.worktree_criada.path.trim() : '';
+    if (!criada || !String(r.worktree || '').trim() || r.git_base_clean !== true) return false;
+    return path.resolve(criada) === path.resolve(r.worktree);
+  }).slice(-20);
+  if (!jobs.length) return { valor: null, porque: escritos.length
+    ? 'nenhum job de escrita entregue correu numa worktree criada de fresco com base limpa provada'
+    : 'não há jobs de escrita entregues para medir' };
   let resultados;
   if (Array.isArray(o.keepResults)) resultados = o.keepResults;
   else {
@@ -242,6 +257,27 @@ function keepRate(records, opts) {
   };
 }
 
+function motivosNaoLocal(ledger) {
+  const contagem = new Map();
+  for (const event of ledger) {
+    if (!event || event.event !== 'dispatched' || event.preparation === true) continue;
+    const decisao = event.local_decisao;
+    if (!decisao || decisao.local !== false || !String(decisao.porque || '').trim()) continue;
+    const porque = String(decisao.porque).trim();
+    contagem.set(porque, (contagem.get(porque) || 0) + 1);
+  }
+  return [...contagem.entries()].map(([porque, n]) => ({ porque, n }))
+    .sort((a, b) => b.n - a.n || a.porque.localeCompare(b.porque));
+}
+
+function interrupcoesNoDia(ledger, medidoEm) {
+  const dia = String(medidoEm || '').slice(0, 10);
+  const noDia = ledger.filter((event) => event && String(event.ts || '').slice(0, 10) === dia);
+  if (!noDia.length) return { valor: null, porque: 'o ledger não tem cobertura no dia UTC medido' };
+  const n = noDia.filter((event) => event.event === 'meo_interrupcao').length;
+  return { valor: n, porque: n + ' chamada(s) ao MEO registada(s) em ' + dia + ' UTC' };
+}
+
 function construir(ledger, quotaState, gpuState, opts) {
   const o = opts || {};
   const medidoEm = agoraIso(o);
@@ -249,11 +285,17 @@ function construir(ledger, quotaState, gpuState, opts) {
   const records = registos(ledger, o);
   const concluidos = records.filter((r) => r.status && !r.preparation);
   const entregues = concluidos.filter((r) => r.status === 'done');
+  const desfechos = concluidos.filter((r) => r.desfecho);
+  const baseFalha = desfechos.filter((r) => r.desfecho === 'entregue' || r.desfecho === 'falhou');
+  const falharam = baseFalha.filter((r) => r.desfecho === 'falhou');
+  const baseInterrupcao = desfechos.filter((r) => r.desfecho !== 'indeterminado');
+  const interrompidos = baseInterrupcao.filter((r) => r.desfecho === 'interrompido');
   const dias = new Set(ledger.filter((e) => e && e.job_id && Number.isFinite(Date.parse(e.ts || 0)))
     .map((e) => new Date(e.ts).toISOString().slice(0, 10)));
   const ttft = temposPrimeiroToken(ledger);
   const recuperacoes = temposRecuperacao(ledger);
   const keep = keepRate(records, o);
+  const chamadasMeo = interrupcoesNoDia(ledger, medidoEm);
   const custos = entregues.map((r) => numero(r.cost_usd)).filter((v) => v != null);
   const locais = concluidos.filter((r) => r.agent === 'moo').length;
   const pressao = quotaState && quotaState.pressao ? numero(quotaState.pressao.valor) : null;
@@ -273,11 +315,21 @@ function construir(ledger, quotaState, gpuState, opts) {
         : 'o ledger não regista first_token, first_token_at ou ttft_ms; done não é usado como palpite',
     ),
     taxa_falha_pct: metrica(
-      'taxa_falha_pct', concluidos.length
-        ? arredondar(concluidos.filter((r) => r.status === 'failed').length / concluidos.length * 100, 2) : null,
-      '% de jobs concluídos', 'aprender._jobRecords · failed / concluídos', medidoEm, faixas,
-      concluidos.length ? concluidos.filter((r) => r.status === 'failed').length + '/' + concluidos.length + ' jobs concluídos falharam'
-        : 'não há jobs concluídos',
+      'taxa_falha_pct', baseFalha.length ? arredondar(falharam.length / baseFalha.length * 100, 2) : null,
+      '% de jobs com sucesso/falha', 'aprender._jobRecords · falhou / (entregue + falhou)', medidoEm, faixas,
+      baseFalha.length ? falharam.length + '/' + baseFalha.length + ' desfechos elegíveis foram falha de trabalho'
+        : 'não há desfechos entregue/falhou comparáveis',
+    ),
+    taxa_interrupcao_pct: metrica(
+      'taxa_interrupcao_pct', baseInterrupcao.length
+        ? arredondar(interrompidos.length / baseInterrupcao.length * 100, 2) : null,
+      '% de jobs terminais classificados', 'aprender._jobRecords · interrompido / desfechos conhecidos', medidoEm, faixas,
+      baseInterrupcao.length ? interrompidos.length + '/' + baseInterrupcao.length + ' desfechos conhecidos foram interrompidos'
+        : 'não há desfechos terminais classificados',
+    ),
+    interrupcoes_por_dia: metrica(
+      'interrupcoes_por_dia', chamadasMeo.valor, 'chamadas/dia UTC',
+      'seamless.ledgerRead · event=meo_interrupcao', medidoEm, faixas, chamadasMeo.porque,
     ),
     tempo_recuperacao_min: metrica(
       'tempo_recuperacao_min', arredondar(mediana(recuperacoes), 3), 'min (mediana)',
@@ -314,6 +366,7 @@ function construir(ledger, quotaState, gpuState, opts) {
   return {
     gerado_em: medidoEm,
     ledger_eventos: ledger.length,
+    motivos_nao_local: motivosNaoLocal(ledger),
     metricas,
     fontes: {
       ledger: { fonte: 'seamless.ledgerRead', eventos: ledger.length },
@@ -335,6 +388,21 @@ function duracao(desde, ate) {
   return { desde: Number.isFinite(inicio) ? new Date(inicio).toISOString() : null, segundos };
 }
 
+function registarInterrupcao(input, opts) {
+  const item = input || {};
+  const motivos = new Set(['irreversivel', 'divergencia', 'limiar']);
+  if (!motivos.has(item.motivo)) throw new Error('motivo de interrupção inválido: ' + String(item.motivo || 'n/d'));
+  if (!String(item.o_que || '').trim()) throw new Error('o_que é obrigatório na interrupção ao MEO');
+  if (!String(item.quem_pediu || '').trim()) throw new Error('quem_pediu é obrigatório na interrupção ao MEO');
+  const event = {
+    ts: agoraIso(opts), event: 'meo_interrupcao', motivo: item.motivo,
+    o_que: String(item.o_que).trim(), quem_pediu: String(item.quem_pediu).trim(),
+  };
+  const append = opts && typeof opts.ledgerAppend === 'function' ? opts.ledgerAppend : seamless.ledgerAppend;
+  append(event);
+  return event;
+}
+
 function excepcoes(card, opts) {
   const metricas = card && card.metricas && typeof card.metricas === 'object' ? card.metricas : {};
   const donos = Object.assign({}, DONOS, (opts && opts.donos) || {});
@@ -342,7 +410,7 @@ function excepcoes(card, opts) {
   for (const [nome, item] of Object.entries(metricas)) {
     if (!item || item.estado !== 'fora') continue;
     const dono = donos[nome];
-    if (!dono || !['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC'].includes(dono)) {
+    if (!dono || !['MEO', 'MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC'].includes(dono)) {
       throw new Error('excepção sem dono válido: ' + nome);
     }
     out.push({
@@ -372,6 +440,36 @@ function finalizar(card, opts) {
       : card.gerado_em;
   }
   card.excepcoes = excepcoes(card, opts);
+  const ledgerReal = !(opts && (Array.isArray(opts.ledger) || typeof opts.ledgerRead === 'function'));
+  let interrupcoesRegistadas = 0;
+  if (ledgerReal && (!opts || opts.persist !== false)) {
+    for (const excecao of card.excepcoes) {
+      if (excecao.metrica === 'interrupcoes_por_dia') continue;
+      const antiga = anterior && anterior.metricas && anterior.metricas[excecao.metrica];
+      if (antiga && antiga.estado === 'fora') continue;
+      const item = card.metricas[excecao.metrica];
+      try {
+        registarInterrupcao({
+          motivo: 'limiar', quem_pediu: excecao.dono,
+          o_que: 'métrica ' + excecao.metrica + ' fora da faixa [' + item.faixa.join(', ') + ']: ' + item.valor,
+        }, opts);
+        interrupcoesRegistadas++;
+      } catch { /* o scorecard continua; a ausência do evento fica visível no contador */ }
+    }
+  }
+  if (interrupcoesRegistadas) {
+    const item = card.metricas.interrupcoes_por_dia;
+    const anteriorValor = numero(item.valor);
+    item.valor = (anteriorValor == null ? 0 : anteriorValor) + interrupcoesRegistadas;
+    item.estado = item.valor >= item.faixa[0] && item.valor <= item.faixa[1] ? 'dentro' : 'fora';
+    item.porque = item.valor + ' chamada(s) ao MEO registada(s) em '
+      + String(card.gerado_em).slice(0, 10) + ' UTC; valor ' + item.valor
+      + (item.estado === 'dentro' ? ' dentro de ' : ' fora de ') + '[' + item.faixa.join(', ') + ']';
+    if (item.estado === 'fora') item.fora_desde = item.fora_desde || card.gerado_em;
+    card.ledger_eventos += interrupcoesRegistadas;
+    if (card.fontes && card.fontes.ledger) card.fontes.ledger.eventos = card.ledger_eventos;
+    card.excepcoes = excepcoes(card, opts);
+  }
   const nd = Object.values(card.metricas).filter((m) => m.estado === 'n/d').length;
   card.pode_ir_dormir = card.excepcoes.length
     ? { valor: false, porque: card.excepcoes.length + ' métrica(s) fora da faixa' }
@@ -445,8 +543,8 @@ async function scorecardAsync(opts) {
 }
 
 module.exports = {
-  scorecard, scorecardAsync, excepcoes, persistir, persistirAsync, lerFaixas,
+  scorecard, scorecardAsync, excepcoes, registarInterrupcao, persistir, persistirAsync, lerFaixas,
   DEFAULT_FAIXAS, DONOS, RESOURCE, RESOURCE_URI,
   _construir: construir, _temposPrimeiroToken: temposPrimeiroToken,
-  _temposRecuperacao: temposRecuperacao, _paths: paths,
+  _temposRecuperacao: temposRecuperacao, _motivosNaoLocal: motivosNaoLocal, _paths: paths,
 };

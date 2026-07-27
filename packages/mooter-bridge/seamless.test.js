@@ -138,10 +138,16 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   let spawned = null;
   seam.setJobSpawner((cmd, cwd) => { spawned = { cmd, cwd }; const c = fakeChild(); setImmediate(() => c.emit('spawn')); return c; });
 
-  const d = await seam.toolDispatch({ agent: 'cc', worktree: WT, masterprompt: MP, wave: 'm1', allowedTools: 'Read' });
+  const localDecisao = {
+    local: false, porque: 'a tarefa exige rigor de nuvem', confianca: 'alta', forcado_por_quota: false,
+  };
+  const d = await seam.toolDispatch({ agent: 'cc', worktree: WT, masterprompt: MP, wave: 'm1',
+    allowedTools: 'Read', __local_decisao: localDecisao });
   assert.ok(d.job_id, JSON.stringify(d));
   assert.strictEqual(path.resolve(spawned.cwd), path.resolve(WT));
   assert.ok(spawned.cmd.bin === 'claude' && spawned.cmd.args.includes('--output-format'));
+  const dispatchedEv = seam.ledgerRead().find((e) => e.job_id === d.job_id && e.event === 'dispatched');
+  assert.deepStrictEqual(dispatchedEv.local_decisao, localDecisao);
 
   // masterprompt landed in the job dir; CLI is pointed at the file, not inline
   const jobDir = path.join(process.env.MOOTER_HOME, 'jobs', d.job_id);
@@ -161,6 +167,8 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   const doneEv = seam.ledgerRead().find((e) => e.job_id === d.job_id && e.event === 'done');
   assert.strictEqual(doneEv.cost_usd, 0.0123);
   assert.strictEqual(typeof doneEv.duration_s, 'number');
+  assert.strictEqual(doneEv.desfecho, 'entregue');
+  assert.strictEqual(doneEv.ttft_ms, null, 'sem conteúdo observado no stream tem de ser null, nunca 0');
   assert.ok(doneEv.mp_hash && doneEv.mp_hash.length === 64);
 
   // status
@@ -198,6 +206,7 @@ test('posse: worktree com job ativo é recusada até o job terminar', async () =
   await new Promise((r) => setTimeout(r, 20));
   const failed = seam.ledgerRead().find((e) => e.job_id === d3.job_id && e.event === 'failed');
   assert.strictEqual(failed.exit_code, 1);
+  assert.strictEqual(failed.desfecho, 'falhou');
 });
 
 test('collect: resultado grande vem truncado com path do ficheiro completo', async () => {

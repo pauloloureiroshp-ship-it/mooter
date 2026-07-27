@@ -34,6 +34,7 @@ const os = require('os');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn, execFileSync } = require('child_process');
+const { PassThrough } = require('stream');
 const telemetry = require('./telemetry.js');
 const moo = require('./moo.js');
 const plan = require('./plan.js');
@@ -66,14 +67,20 @@ function sha256(s) { return crypto.createHash('sha256').update(s, 'utf8').digest
 // ── ledger (append-only JSONL; this process is the single writer) ─────────
 function ledgerAppend(ev) {
   ensureDirs();
-  const line = JSON.stringify({ ts: nowIso(), ...ev });
+  const payload = { ...(ev || {}) };
+  const desfecho = aprender.classificarDesfecho(payload);
+  if (desfecho) {
+    payload.desfecho = desfecho;
+    if (!Object.prototype.hasOwnProperty.call(payload, 'ttft_ms')) payload.ttft_ms = null;
+  }
+  const line = JSON.stringify({ ts: nowIso(), ...payload });
   fs.appendFileSync(LEDGER_PATH(), line + '\n');
   return line;
 }
 function ledgerRead() {
   try {
     return fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
+      try { return aprender.comDesfecho(JSON.parse(l)); } catch { return null; }
     }).filter(Boolean);
   } catch { return []; }
 }
@@ -1002,6 +1009,14 @@ async function runCrossCheckForJob({ job_id, resultado, worktree, wave, agent, j
     porque: checked.porque || null,
     note: checked.nota || null,
   });
+  if (Array.isArray(checked.divergencias) && checked.divergencias.length) {
+    try {
+      require('./board.js').registarInterrupcao({
+        motivo: 'divergencia', quem_pediu: 'fosso.crossCheck',
+        o_que: 'job ' + job_id + ' produziu ' + checked.divergencias.length + ' divergência(s) verificável(eis)',
+      });
+    } catch { /* a verificação continua; o contador ficará n/d se o append falhar */ }
+  }
   return checked;
 }
 
@@ -1023,6 +1038,14 @@ async function toolDispatch(args) {
   const prepFrom = args && args.__prep_from ? String(args.__prep_from) : null;
   const createdWorktree = args && args.__worktree_created && typeof args.__worktree_created === 'object'
     ? args.__worktree_created : null;
+  const rawLocalDecision = args && args.__local_decisao && typeof args.__local_decisao === 'object'
+    ? args.__local_decisao : null;
+  const localDecision = rawLocalDecision ? {
+    local: rawLocalDecision.local === true,
+    porque: String(rawLocalDecision.porque || 'n/d'),
+    confianca: String(rawLocalDecision.confianca || 'n/d'),
+    forcado_por_quota: rawLocalDecision.forcado_por_quota === true,
+  } : null;
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
@@ -1088,8 +1111,10 @@ async function toolDispatch(args) {
   const jobGoal = args && args.__goal
     ? String(args.__goal)
     : ((String(masterprompt).match(/OBJECTIVO(?: DA WAVE)?:\s*([^\r\n]+)/i) || [])[1] || null);
-  // Keep rate só é atribuível se a árvore estava limpa antes do agente entrar.
-  const gitBase = canWrite ? aprender.captureGitBase(wtNorm) : null;
+  // Keep rate só é atribuível numa worktree que esta chamada criou de fresco.
+  const freshWorktree = !!(canWrite && createdWorktree && createdWorktree.path
+    && P.mesmo(createdWorktree.path, wtNorm));
+  const gitBase = freshWorktree ? aprender.captureGitBase(wtNorm) : null;
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
     // ⚠️ A4 · invariante 3 — PRIMEIRO CAMPO, e é de propósito. O guard de saída
     // corre no `collect`, quando este objecto já morreu há muito: se a evidência
@@ -1105,16 +1130,19 @@ async function toolDispatch(args) {
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
     worktree_criada: createdWorktree,
     goal: jobGoal, escrita: canWrite, preparation: !!chain, git_base: gitBase,
+    local_decisao: localDecision,
     mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque,
     cross_check_requested: args && args.__cross_check === true,
     note: dispatchNote, prep_from: prepFrom,
   }, null, 2));
 
+  const t0 = Date.now();
   ledgerAppend({
     event: 'dispatched',
     permissoes_pedidas: permissions.pedido, permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
     job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree,
+    local_decisao: localDecision,
     mp_hash, model, model_recommended, tier, step: stepId,
     goal: jobGoal, escrita: canWrite, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
@@ -1122,9 +1150,12 @@ async function toolDispatch(args) {
     handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote,
     mapa_injectado: projectMap.injetado, mapa_porque: projectMap.porque });
 
-  const outStream = fs.createWriteStream(path.join(jobDir, 'out.log'));
+  const fileOutStream = fs.createWriteStream(path.join(jobDir, 'out.log'));
+  const outStream = new PassThrough();
+  const contentTiming = telemetry.createContentTiming(t0);
+  outStream.on('data', (chunk) => contentTiming.observe(chunk));
+  outStream.pipe(fileOutStream);
   const errStream = fs.createWriteStream(path.join(jobDir, 'err.log'));
-  const t0 = Date.now();
   let child;
   try {
     if (agent === 'moo') {
@@ -1148,7 +1179,9 @@ async function toolDispatch(args) {
           goal: (String(masterprompt || '').match(/OBJECTIVO: (.+)/) || [])[1] || null });
       const chosen = escolha.model;
       if (!chosen) {
-        ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'no-local-model' });
+        ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
+          exit_code: 'no-local-model', ttft_ms: contentTiming.finish().ttft_ms });
+        try { outStream.end(); errStream.end(); } catch { /* */ }
         return { error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado', job_id };
       }
       // o porquê vai para o ledger append-only: uma escolha que não deixa
@@ -1171,17 +1204,25 @@ async function toolDispatch(args) {
       child = spawnJob(cmd, wtNorm, outStream, errStream);
     }
   } catch (e) {
-    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'spawn-error' });
+    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
+      exit_code: 'spawn-error', ttft_ms: contentTiming.finish().ttft_ms });
+    try { outStream.end(); errStream.end(); } catch { /* */ }
     return { error: 'spawn falhou: ' + ((e && e.message) || e), job_id };
   }
   let prepTimedOut = false;
   let prepFailedOnError = false;
+  let jobTimedOut = false;
+  let processErrored = false;
+  let cancelRequested = false;
   let chainDispatched = false;
   let prepTimer = null;
   const timer = setTimeout(() => {
+    jobTimedOut = true;
     killTree(child);
     REGISTRY.delete(job_id);
-    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'timeout', duration_s: Math.round((Date.now() - t0) / 1000) });
+    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: 'timeout',
+      duration_s: Math.round((Date.now() - t0) / 1000), ttft_ms: contentTiming.finish().ttft_ms });
+    try { outStream.end(); errStream.end(); } catch { /* */ }
   }, JOB_TIMEOUT_MS());
   // ⚠️ unref(): o timeout do job é de dezenas de minutos e, sem isto, o
   // event loop fica preso a ele — o processo nunca termina sozinho e a suite
@@ -1190,7 +1231,8 @@ async function toolDispatch(args) {
   // continua garantida; o que deixa de ser garantido é o processo ficar vivo
   // só por causa de um despertador.
   try { timer.unref(); } catch { /* ambiente sem unref */ }
-  REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm, mp_hash, step: stepId });
+  REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm,
+    mp_hash, step: stepId, contentTiming, markCancelled() { cancelRequested = true; } });
 
   function prepMetrics(durationS, usable) {
     let text = jobResultText(agent, jobDir);
@@ -1235,7 +1277,7 @@ async function toolDispatch(args) {
       const note = 'preparação local excedeu ' + Number((PREP_TIMEOUT_MS() / 1000).toFixed(3)) + 's — fui directo';
       ledgerAppend(Object.assign({
         job_id, wave, agent, worktree: wtNorm, event: 'prep_timeout', mp_hash,
-        exit_code: 'prep-timeout', note,
+        exit_code: 'prep-timeout', note, ttft_ms: contentTiming.finish().ttft_ms,
       }, prepMetrics(durationS, false)));
       try { outStream.end(); } catch { /* */ }
       try { errStream.end(); } catch { /* */ }
@@ -1269,45 +1311,48 @@ async function toolDispatch(args) {
   const logStarted = () => { if (!startedLogged) { startedLogged = true; ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'started', mp_hash }); } };
   child.once('spawn', logStarted);
   child.once('error', (e) => {
+    processErrored = true;
     clearTimeout(timer); clearTimeout(prepTimer); REGISTRY.delete(job_id);
     const exit = 'proc-error:' + ((e && e.message) || '');
-    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: exit, duration_s: Math.round((Date.now() - t0) / 1000) });
+    ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash, exit_code: exit,
+      duration_s: Math.round((Date.now() - t0) / 1000), ttft_ms: contentTiming.finish().ttft_ms });
     if (chain && agent === 'moo') {
       prepFailedOnError = true;
       const prep = prepMetrics(Number(((Date.now() - t0) / 1000).toFixed(3)), false);
       const note = 'a preparação local falhou (exit ' + exit + ') — fui directo';
       ledgerAppend(Object.assign({
         job_id, wave, agent, worktree: wtNorm, event: 'prep_failed_fallback', mp_hash,
-        exit_code: exit, note,
+        exit_code: exit, note, ttft_ms: contentTiming.finish().ttft_ms,
       }, prep));
       dispatchChain(false, note);
     }
   });
   child.once('close', (code) => {
     clearTimeout(timer); clearTimeout(prepTimer); REGISTRY.delete(job_id);
-    if (prepTimedOut || prepFailedOnError) return;
+    if (prepTimedOut || prepFailedOnError || jobTimedOut || processErrored || cancelRequested) return;
     logStarted(); // shells emit no 'spawn' reliably; a close implies it ran
     const dur = Math.round((Date.now() - t0) / 1000);
     // ⚠️ `close` fires when the process ends, NOT when our WriteStream has
     // drained. Reading immediately could miss the final `result` line — which
     // carries cost, model and tokens. Wait for the stream to finish, with a
     // short ceiling so a stuck pipe can never hold the ledger hostage.
-    finalizeWhenFlushed(outStream, () => finish(code, dur));
+    finalizeWhenFlushed(outStream, fileOutStream, () => finish(code, dur));
   });
 
-  function finalizeWhenFlushed(stream, done) {
+  function finalizeWhenFlushed(stream, fileStream, done) {
     let fired = false;
     const go = () => { if (!fired) { fired = true; done(); } };
     try {
-      if (stream.writableFinished || stream.closed) return go();
-      stream.once('finish', go);
-      stream.once('close', go);
+      if (fileStream.writableFinished || fileStream.closed) return go();
+      fileStream.once('finish', go);
+      fileStream.once('close', go);
       stream.end();
       setTimeout(go, 1500).unref?.();
     } catch { go(); }
   }
 
   function finish(code, dur) {
+    const timing = contentTiming.finish();
     const r = readJobResult(agent, jobDir, dur);
     // ⚠️ v1.3.3 — MEDIR O RESULTADO, NÃO A TELEMETRIA.
     //
@@ -1325,7 +1370,8 @@ async function toolDispatch(args) {
     const prep = chain && agent === 'moo'
       ? prepMetrics(Number(((Date.now() - t0) / 1000).toFixed(3)), ok)
       : null;
-    const touched = canWrite ? aprender.captureFilesTouched(wtNorm, gitBase) : null;
+    const touched = freshWorktree ? aprender.captureFilesTouched(wtNorm, gitBase)
+      : (canWrite ? { files: null, reason: 'o job não correu numa worktree criada de fresco' } : null);
     if (code === 0 && producedNothing) log('job ' + job_id + ' saiu 0 sem entregar texto — marcado failed');
     if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
       log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
@@ -1333,7 +1379,7 @@ async function toolDispatch(args) {
     ledgerAppend(Object.assign({
       job_id, wave, agent, worktree: wtNorm, event: ok ? 'done' : 'failed', mp_hash,
       exit_code: producedNothing && code === 0 ? 'empty-output' : code,
-      cost_usd: r.cost_usd, duration_s: dur,
+      cost_usd: r.cost_usd, duration_s: dur, ttft_ms: timing.ttft_ms,
       // model_used comes from the job's own stream. model_recommended is what the
       // router asked for. Keeping both makes the gap between doctrine and reality
       // a metric instead of a surprise.
@@ -1376,7 +1422,7 @@ async function toolDispatch(args) {
         const note = 'a preparação local falhou (exit ' + exit + ') — fui directo';
         ledgerAppend(Object.assign({
           job_id, wave, agent, worktree: wtNorm, event: 'prep_failed_fallback', mp_hash,
-          exit_code: exit, note,
+          exit_code: exit, note, ttft_ms: timing.ttft_ms,
         }, prep || {}));
         dispatchChain(false, note);
       }
@@ -1507,19 +1553,26 @@ async function toolCancel(args) {
   // re-verificamos o pid e, se ele resistir, dizemo-lo em vez de mentir.
   const pids = jobPids(jobId);
   let killed = false;
-  if (live) { clearTimeout(live.timer); killed = killTree(live.child); REGISTRY.delete(jobId); }
+  if (live) {
+    clearTimeout(live.timer);
+    if (typeof live.markCancelled === 'function') live.markCancelled();
+    killed = killTree(live.child);
+    REGISTRY.delete(jobId);
+  }
   else if (pids.child_pid && pidAlive(pids.child_pid)) {
     // o servidor reiniciou mas o trabalho continua vivo — matar pela árvore
     killed = killTree({ pid: pids.child_pid, kill: () => { try { process.kill(pids.child_pid, 'SIGKILL'); return true; } catch { return false; } } });
   }
   await new Promise((r) => setTimeout(r, 250));            // dar tempo ao SO
   const aindaVivo = pids.child_pid ? pidAlive(pids.child_pid) : false;
+  const ttft = live && live.contentTiming ? live.contentTiming.finish().ttft_ms : null;
   ledgerAppend({
     job_id: jobId, wave: last.wave, agent: last.agent, worktree: last.worktree,
     event: 'failed', mp_hash: last.mp_hash,
     exit_code: aindaVivo ? 'cancel_failed' : (killed ? 'cancelled-by-user' : 'cancelled-stale'),
     child_pid: pids.child_pid, pid_verificado: true,
     duration_s: live ? Math.round((Date.now() - live.startedAt) / 1000) : null,
+    ttft_ms: ttft,
   });
   if (aindaVivo) {
     return {
@@ -2019,6 +2072,7 @@ async function toolWork(args) {
         local: aprendizagem.agente === 'moo',
         porque: 'histórico local: ' + aprendizagem.porque,
         confianca: aprendizagem.confianca,
+        forcado_por_quota: false,
       };
       routedBy = 'adaptive-learned';
     }
@@ -2029,6 +2083,22 @@ async function toolWork(args) {
       if (!a.model) model = null;
       log('local-first: ' + escolhaLocal.porque);
     }
+  }
+  if (!escolhaLocal && !a.agent && !a.model) {
+    escolhaLocal = {
+      local: agent === 'moo',
+      porque: agent === 'moo'
+        ? 'o classificador deu T0 e escolheu o motor local'
+        : 'a decisão local-first não encontrou base para trocar o motor escolhido',
+      confianca: 'media', forcado_por_quota: false,
+    };
+  } else if (escolhaLocal) {
+    escolhaLocal = {
+      local: escolhaLocal.local === true,
+      porque: escolhaLocal.porque,
+      confianca: escolhaLocal.confianca,
+      forcado_por_quota: escolhaLocal.forcado_por_quota === true,
+    };
   }
 
   const readOnly = a.write !== true;
@@ -2118,7 +2188,8 @@ async function toolWork(args) {
         __goal: goal, __escrita: false,
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
-          __goal: goal, __escrita: a.write === true, __cross_check: true, __worktree_created: worktreeCriada },
+          __goal: goal, __escrita: a.write === true, __cross_check: true,
+          __worktree_created: worktreeCriada, __local_decisao: escolhaLocal },
       });
       if (prep && prep.job_id) {
         return {
@@ -2152,7 +2223,7 @@ async function toolWork(args) {
 
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
-    __cross_check: agent !== 'moo', __worktree_created: worktreeCriada });
+    __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal });
   if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model, worktree_criada: worktreeCriada }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
@@ -2196,7 +2267,10 @@ async function toolWork(args) {
       politica: calibragem.politica, nivel: calibragem.nivel, pressao: calibragem.pressao,
       desceu_de: calibragem.desceu_de || null, porque: calibragem.porque, tecto: calibragem.tecto,
     } : null,
-    escolha_local: escolhaLocal ? { local: escolhaLocal.local, porque: escolhaLocal.porque, confianca: escolhaLocal.confianca } : null,
+    escolha_local: escolhaLocal ? {
+      local: escolhaLocal.local, porque: escolhaLocal.porque, confianca: escolhaLocal.confianca,
+      forcado_por_quota: escolhaLocal.forcado_por_quota,
+    } : null,
     aprendizagem: aprendizagem ? {
       agente: aprendizagem.agente, porque: aprendizagem.porque,
       confianca: aprendizagem.confianca, base: aprendizagem.base,

@@ -6,6 +6,8 @@ const { execFileSync } = require('child_process');
 const ND = 'n/d';
 const MIN_OBSERVATIONS = 5;
 const REPEAT_WINDOW_MS = 10 * 60 * 1000;
+const DESFECHOS = new Set(['entregue', 'falhou', 'interrompido', 'expirou', 'indeterminado']);
+const EVENTOS_TERMINAIS = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
 const CATEGORY_PATTERNS = [
   ['git_deploy', [/\b(git|commit|push|merge|rebase|branch|pull request|pr)\b/i,
     /\b(deploy|publica|lan[çc]a|release|migra|migration)\b/i]],
@@ -41,6 +43,27 @@ function normalizeOptions(input) {
   return input && typeof input === 'object' ? input : {};
 }
 
+/**
+ * Uma só classificação para escrita nova e leitura histórica.
+ * `event` continua intacto para não quebrar os consumidores do ledger v1.
+ */
+function classificarDesfecho(event) {
+  if (!event || !EVENTOS_TERMINAIS.has(event.event)) return null;
+  if (DESFECHOS.has(event.desfecho)) return event.desfecho;
+  const exit = event.exit_code;
+  if (exit === 'cancelled-by-user' || exit === 'orphaned-by-restart') return 'interrompido';
+  if (exit === 'timeout' || exit === 'prep-timeout') return 'expirou';
+  if (exit == null || exit === '') return 'indeterminado';
+  if (event.event === 'done' && (exit === 0 || exit === '0')) return 'entregue';
+  return 'falhou';
+}
+
+function comDesfecho(event) {
+  const desfecho = classificarDesfecho(event);
+  if (!desfecho || event.desfecho === desfecho) return event;
+  return { ...event, desfecho };
+}
+
 /** Dependência tardia evita o ciclo seamless → aprender → seamless. */
 function readLedger(input) {
   const options = normalizeOptions(input);
@@ -56,7 +79,8 @@ function jobRecords(input) {
     const record = byJob.get(event.job_id) || {
       job_id: event.job_id, agent: null, tier_motor: null, goal: null,
       worktree: null, escrita: null, preparation: false, dispatched_at: null, completed_at: null,
-      status: null, duration_s: null, tokens_in: null, tokens_out: null,
+      worktree_criada: null, git_base_clean: null, git_base_commit: null,
+      status: null, desfecho: null, duration_s: null, tokens_in: null, tokens_out: null,
       cost_usd: null, prep_duration_s: null, tokens_poupados_estimados: null,
       files_touched: null, files_touched_reason: null,
     };
@@ -65,9 +89,17 @@ function jobRecords(input) {
     }
     if (typeof event.escrita === 'boolean') record.escrita = event.escrita;
     if (typeof event.preparation === 'boolean') record.preparation = event.preparation;
-    if (event.event === 'dispatched' && !record.dispatched_at) record.dispatched_at = event.ts || null;
-    if (event.event === 'done' || event.event === 'failed') {
-      record.status = event.event === 'done' && event.exit_code !== 'empty-output' ? 'done' : 'failed';
+    if (event.event === 'dispatched') {
+      if (!record.dispatched_at) record.dispatched_at = event.ts || null;
+      if (event.worktree_criada && typeof event.worktree_criada === 'object') {
+        record.worktree_criada = event.worktree_criada;
+      }
+      if (typeof event.git_base_clean === 'boolean') record.git_base_clean = event.git_base_clean;
+      if (event.git_base_commit) record.git_base_commit = event.git_base_commit;
+    }
+    if (EVENTOS_TERMINAIS.has(event.event)) {
+      record.desfecho = classificarDesfecho(event);
+      record.status = record.desfecho === 'entregue' ? 'done' : 'failed';
       record.completed_at = event.ts || record.completed_at;
       for (const field of ['duration_s', 'tokens_in', 'tokens_out', 'cost_usd',
         'prep_duration_s', 'tokens_poupados_estimados']) {
@@ -271,6 +303,17 @@ function ndKeepRate(reason) {
 function measureKeepRate(job, input) {
   const options = normalizeOptions(input);
   if (!job || !job.worktree) return ndKeepRate('worktree do job não registada');
+  if (!job.worktree_criada || typeof job.worktree_criada !== 'object') {
+    return ndKeepRate('o job não correu numa worktree criada de fresco; keep rate não é atribuível');
+  }
+  const criada = typeof job.worktree_criada.path === 'string' ? job.worktree_criada.path.trim() : '';
+  if (!criada) return ndKeepRate('a worktree criada de fresco não tem caminho registado');
+  if (path.resolve(criada) !== path.resolve(job.worktree)) {
+    return ndKeepRate('a worktree criada não coincide com a worktree onde o job correu');
+  }
+  if (job.git_base_clean !== true) {
+    return ndKeepRate('a base Git limpa da worktree criada não foi provada');
+  }
   if (!Array.isArray(job.files_touched) || !job.files_touched.length) {
     return ndKeepRate(job && job.files_touched_reason
       ? job.files_touched_reason : 'ledger não registou os ficheiros tocados pelo job');
@@ -361,5 +404,5 @@ function resumoDeAprendizagem(input) {
 module.exports = {
   ND, MIN_OBSERVATIONS, categoryForGoal, statistics, inferSatisfaction,
   trigramJaccard, recomendarAgente, measureKeepRate, resumoDeAprendizagem,
-  captureGitBase, captureFilesTouched, _jobRecords: jobRecords,
+  captureGitBase, captureFilesTouched, classificarDesfecho, comDesfecho, _jobRecords: jobRecords,
 };

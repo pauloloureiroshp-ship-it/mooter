@@ -75,6 +75,72 @@ function parseLines(text) {
   return out;
 }
 
+/** Conteúdo que o utilizador pode ler; nunca init, ferramenta ou raciocínio. */
+function eventHasUsefulContent(event) {
+  if (!event || typeof event !== 'object') return false;
+  if (event.item && event.item.type === 'agent_message') {
+    return !!String(event.item.text || '').trim();
+  }
+  if (event.type === 'assistant') {
+    if (event.fase === 'raciocinio' || event.fase === 'raciocinio-cortado') return false;
+    const msg = event.message && typeof event.message === 'object' ? event.message : null;
+    const content = msg ? msg.content : event.content;
+    if (typeof content === 'string') return !!content.trim();
+    if (!Array.isArray(content)) return false;
+    return content.some((block) => block && block.type === 'text' && !!String(block.text || '').trim());
+  }
+  if (event.type === 'result' && event.subtype !== 'error' && event.is_error !== true) {
+    return !!String(event.result || '').trim();
+  }
+  return false;
+}
+
+/**
+ * Observa o stream quando os bytes chegam. Sem timestamps de recepção no
+ * NDJSON, o TTFT útil não pode ser reconstruído depois do job terminar.
+ */
+function createContentTiming(startedAtMs) {
+  const started = Number(startedAtMs);
+  let pending = '';
+  let whole = '';
+  let ttftMs = null;
+
+  const inspect = (text, receivedAtMs) => {
+    if (ttftMs != null || !String(text || '').trim()) return;
+    let event;
+    try { event = JSON.parse(String(text)); } catch { return; }
+    if (!eventHasUsefulContent(event)) return;
+    const received = Number(receivedAtMs);
+    if (Number.isFinite(started) && Number.isFinite(received) && received >= started) {
+      ttftMs = received - started;
+    }
+  };
+
+  return {
+    observe(chunk, receivedAtMs) {
+      const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '');
+      if (!text) return;
+      const at = receivedAtMs == null ? Date.now() : receivedAtMs;
+      whole = (whole + text).slice(-TAIL_BYTES);
+      pending += text;
+      let newline;
+      while ((newline = pending.indexOf('\n')) >= 0) {
+        inspect(pending.slice(0, newline).trim(), at);
+        pending = pending.slice(newline + 1);
+      }
+    },
+    finish(receivedAtMs) {
+      const at = receivedAtMs == null ? Date.now() : receivedAtMs;
+      inspect(pending.trim(), at);
+      if (ttftMs == null) {
+        const first = whole.indexOf('{');
+        if (first >= 0) inspect(whole.slice(first).trim(), at);
+      }
+      return { ttft_ms: ttftMs };
+    },
+  };
+}
+
 /** Human sentence for a tool_use block. Portuguese, because the panel is his. */
 function describeToolUse(name, input) {
   const n = String(name || '');
@@ -277,5 +343,6 @@ function readJobTelemetry(outLogPath, elapsedSeconds, opts) {
 }
 
 module.exports = {
-  readJobTelemetry, foldEvents, parseLines, readTail, describeToolUse, withRate, TAIL_BYTES,
+  readJobTelemetry, foldEvents, parseLines, readTail, describeToolUse, withRate,
+  eventHasUsefulContent, createContentTiming, TAIL_BYTES,
 };

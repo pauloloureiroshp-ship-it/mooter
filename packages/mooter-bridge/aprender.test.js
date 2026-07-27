@@ -77,10 +77,16 @@ test('keep rate sem dados é n/d e nunca zero', () => {
   assert.ok(result.porque);
 });
 
+test('done histórico sem exit_code é indeterminado, nunca entrega presumida', () => {
+  assert.strictEqual(aprender.classificarDesfecho({ event: 'done' }), 'indeterminado');
+  assert.strictEqual(aprender.classificarDesfecho({ event: 'done', exit_code: 0 }), 'entregue');
+});
+
 test('keep rate medido usa o commit seguinte e o diff --stat actual', () => {
   const calls = [];
   const result = aprender.measureKeepRate({
     job_id: 'medido', worktree: 'C:\\repo',
+    worktree_criada: { path: 'C:\\repo' }, git_base_clean: true,
     completed_at: '2026-07-26T12:00:00.000Z',
     files_touched: ['a.js', 'b.js'],
   }, {
@@ -97,6 +103,31 @@ test('keep rate medido usa o commit seguinte e o diff --stat actual', () => {
   assert.strictEqual(result.files_kept, 1);
   assert.strictEqual(result.files_measured, 2);
   assert.strictEqual(calls.filter((args) => args.includes('--stat')).length, 2);
+});
+
+test('keep rate sem worktree criada de fresco fica n/d sem consultar Git', () => {
+  let gitCalls = 0;
+  const result = aprender.measureKeepRate({
+    job_id: 'nao-atribuivel', worktree: 'C:\\repo',
+    completed_at: '2026-07-26T12:00:00.000Z', files_touched: ['a.js'],
+  }, { runGit() { gitCalls++; return ''; } });
+  assert.strictEqual(result.keep_rate, 'n/d');
+  assert.match(result.porque, /worktree criada de fresco/i);
+  assert.strictEqual(gitCalls, 0);
+});
+
+test('keep rate recusa caminho vazio ou divergente sem consultar Git', () => {
+  let gitCalls = 0;
+  const base = {
+    job_id: 'caminho-invalido', worktree: 'C:\\repo', git_base_clean: true,
+    completed_at: '2026-07-26T12:00:00.000Z', files_touched: ['a.js'],
+  };
+  const medir = (worktree_criada) => aprender.measureKeepRate({ ...base, worktree_criada }, {
+    runGit() { gitCalls++; return ''; },
+  });
+  assert.strictEqual(medir({ path: '' }).keep_rate, 'n/d');
+  assert.strictEqual(medir({ path: 'C:\\outra' }).keep_rate, 'n/d');
+  assert.strictEqual(gitCalls, 0);
 });
 
 test('satisfação inferida marca repeat parecido antes de 10 minutos como negativo', () => {
@@ -140,8 +171,8 @@ test('nunca corre git no caminho de leitura — so em jobs de escrita', () => {
   const seamlessSrc = fs.readFileSync(path.join(__dirname, 'seamless.js'), 'utf8');
   const linha = seamlessSrc.split('\n').find((l) => l.includes('aprender.captureGitBase'));
   assert.ok(linha, 'captureGitBase deixou de ser chamado no seamless — o keep rate perdeu a base');
-  assert.ok(/canWrite\s*\?/.test(linha),
-    'captureGitBase passou a correr fora do ramo de escrita: ' + linha.trim());
+  assert.ok(/freshWorktree\s*\?/.test(linha),
+    'captureGitBase passou a correr fora da worktree fresca de escrita: ' + linha.trim());
 });
 
 test('recomendarAgente NUNCA contradiz um veto de risco', () => {
