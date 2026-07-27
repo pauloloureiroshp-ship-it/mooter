@@ -115,6 +115,8 @@ const path = require('path');
 const base = require('./server.js');
 const seam = require('./seamless.js');
 const fleet = require('./fleet.js');
+const capacidades = require('./capacidades.js');
+const board = require('./board.js');
 
 jlog('BOOT', { pid: process.pid, node: process.version, platform: process.platform,
                dirname: __dirname, cwd: process.cwd(), repo: process.env.MOOTER_REPO || null,
@@ -123,6 +125,24 @@ jlog('BOOT', { pid: process.pid, node: process.version, platform: process.platfo
 // protocol versions this server actually implements
 const SUPPORTED_PV = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const DEFAULT_PV = '2025-06-18';
+let clientDeclaraRoots = false;
+let rootsRequestId = null;
+let rootsSeq = 0;
+
+function pedidoRoots() {
+  if (!clientDeclaraRoots || rootsRequestId != null) return null;
+  rootsRequestId = 'mooter-roots-' + process.pid + '-' + (++rootsSeq);
+  return { jsonrpc: '2.0', id: rootsRequestId, method: 'roots/list', params: {} };
+}
+
+function outboundDepoisDe(msg) {
+  if (!msg) return null;
+  if (msg.method === 'notifications/roots/list_changed') rootsRequestId = null;
+  if (msg.method === 'notifications/initialized' || msg.method === 'notifications/roots/list_changed') {
+    return pedidoRoots();
+  }
+  return null;
+}
 
 function send(msg) {
   let line;
@@ -217,6 +237,13 @@ for (const t of [probe.TOOL, probe.TOOL_DESCOBRIR, probe.TOOL_UPDATE]) {
 jlog('REGISTRY_OK', { tools: base.TOOLS.length, publicas: tools6.PUBLICAS.length });
 const RESOURCES = [fleet.UI_RESOURCE];
 
+function resourcesAtuais() {
+  const r = capacidades.ler();
+  const suporta = r && r.capacidades && r.capacidades.resources
+    && r.capacidades.resources.suportado === true;
+  return suporta ? [fleet.UI_RESOURCE, board.RESOURCE] : [fleet.UI_RESOURCE];
+}
+
 /**
  * ⚠️ v1.3.2 — ONE PANEL PER WAVE, NOT ONE PER CALL.
  *
@@ -305,11 +332,29 @@ async function handle(msg) {
   if (!msg || msg.jsonrpc !== '2.0') return null;
   const { id, method, params } = msg;
 
+  // Resposta a um pedido roots/list iniciado pelo servidor. É dado do cliente,
+  // não uma nova chamada RPC, por isso não há resposta de volta.
+  if (!method && rootsRequestId != null && id === rootsRequestId) {
+    try {
+      if (msg.result) capacidades.registarRoots(msg.result);
+      else if (msg.error) capacidades.registarRoots(null);
+    } catch (e) { jlog('ROOTS_WRITE_FAIL', (e && e.message) || String(e)); }
+    rootsRequestId = null;
+    return null;
+  }
+
   // Own initialize outright: never echo a protocol version we do not implement.
   if (method === 'initialize') {
     const want = params && params.protocolVersion;
     const pv = (typeof want === 'string' && SUPPORTED_PV.indexOf(want) >= 0) ? want : DEFAULT_PV;
     elog('initialize: client asked ' + want + ' -> answering ' + pv);
+    try {
+      const sonda = capacidades.registarInitialize(params || {});
+      clientDeclaraRoots = !!(sonda.capacidades && sonda.capacidades.roots
+        && sonda.capacidades.roots.suportado === true);
+      rootsRequestId = null;
+    }
+    catch (e) { jlog('CAPABILITIES_WRITE_FAIL', (e && e.message) || String(e)); }
     return {
       jsonrpc: '2.0', id,
       result: {
@@ -323,10 +368,16 @@ async function handle(msg) {
     };
   }
 
-  if (method === 'resources/list') return { jsonrpc: '2.0', id, result: { resources: RESOURCES } };
+  if (method === 'resources/list') return { jsonrpc: '2.0', id, result: { resources: resourcesAtuais() } };
   if (method === 'resources/templates/list') return { jsonrpc: '2.0', id, result: { resourceTemplates: [] } };
   if (method === 'resources/read') {
     const uri = params && params.uri;
+    if (uri === board.RESOURCE_URI && resourcesAtuais().some((r) => r.uri === board.RESOURCE_URI)) {
+      const card = await board.scorecardAsync({});
+      return { jsonrpc: '2.0', id, result: { contents: [{
+        uri: board.RESOURCE_URI, mimeType: board.RESOURCE.mimeType, text: JSON.stringify(card, null, 2),
+      }] } };
+    }
     if (uri !== fleet.UI_URI) return { jsonrpc: '2.0', id, error: { code: -32602, message: 'unknown resource: ' + uri } };
     /**
      * ⚠️ v1.5 — O `_meta` VAI NO CONTEÚDO, e é por aqui que a CSP viaja.
@@ -437,7 +488,11 @@ function main() {
       jlog('RX', { id: m.id, method: m.method });
       pending++;
       Promise.resolve(handle(m))
-        .then((res) => { if (res) send(res); })
+        .then((res) => {
+          if (res) send(res);
+          const outbound = outboundDepoisDe(m);
+          if (outbound) send(outbound);
+        })
         .catch((e) => { elog('handle err', (e && e.stack) || e); jlog('HANDLE_ERR', (e && e.stack) || String(e)); })
         .finally(() => { pending--; maybeExit(); });
     }
@@ -451,7 +506,7 @@ function main() {
       iv.unref && iv.unref();
     }
   });
-  jlog('READY', { tools: base.TOOLS.map((t) => t.name), resources: RESOURCES.map((r) => r.uri) });
+  jlog('READY', { tools: base.TOOLS.map((t) => t.name), resources: resourcesAtuais().map((r) => r.uri) });
 }
 
 // O host do Claude Desktop carrega o entry_point da extensao SEM que ele seja o
@@ -466,4 +521,4 @@ let _started = false;
 function bootOnce() { if (_started) return; _started = true; main(); }
 if (!process.env.MOOTER_LIB) bootOnce();
 else jlog('MAIN_SKIPPED', 'MOOTER_LIB=1');
-module.exports = { handle, main, bootOnce, RESOURCES };
+module.exports = { handle, main, bootOnce, RESOURCES, resourcesAtuais, pedidoRoots };

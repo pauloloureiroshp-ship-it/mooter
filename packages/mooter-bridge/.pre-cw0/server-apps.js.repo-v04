@@ -1,0 +1,151 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * server-apps.js — mooter-bridge v0.4 entrypoint: the seamless quartet + the
+ * native fleet panel (MCP Apps), packaged so it can run from inside a plugin.
+ *
+ * Purely ADDITIVE. server.js, seamless.js and server-seamless.js are untouched.
+ * This entry composes them and adds what MCP Apps needs and the base does not do:
+ *
+ *   1. `resources` capability + resources/list + resources/read (ui://mooter/fleet)
+ *   2. a tools/list that preserves `_meta` — base.handle() strips it, and _meta.ui
+ *      is exactly how a tool says "I have a face"
+ *   3. a human-readable text result for mooter_fleet — if the host never renders
+ *      the app, the fallback must read like a person wrote it, not raw JSON
+ *   4. host-extra injection via MOOTER_HOME, so the concrete model name still
+ *      resolves when this server ships inside a plugin instead of the repo
+ *
+ * Register as the connector command, or ship it in a plugin's .mcp.json.
+ */
+
+const path = require('path');
+const base = require('./server.js');
+const seam = require('./seamless.js');
+const fleet = require('./fleet.js');
+
+function log(...a) { try { process.stderr.write('[mooter-bridge v0.4] ' + a.join(' ') + '\n'); } catch { /* */ } }
+function send(msg) { try { process.stdout.write(JSON.stringify(msg) + '\n'); } catch (e) { log('send fail', (e && e.message) || ''); } }
+
+// ── host-extra: the cockpit's session model, used to name the concrete model ──
+// server.js resolves it relative to itself (../vscode-extension/...). Inside a
+// plugin that path does not exist, so allow an explicit repo root instead.
+(function wireHostExtra() {
+  const os = require('os');
+  const fs = require('fs');
+  const rel = path.join('packages', 'vscode-extension', 'src', 'host-extra.js');
+
+  // Candidates, best first. MOOTER_HOME wins; otherwise look where the repo
+  // usually lives, then walk up from this file (covers running inside the repo).
+  const cands = [];
+  const env = fleet.envOrNull('MOOTER_HOME');
+  if (env) cands.push(env);
+  cands.push(path.join(os.homedir(), 'frugal'), path.join(os.homedir(), 'Documents', 'frugal'));
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) { cands.push(dir); dir = path.dirname(dir); }
+
+  for (const c of cands) {
+    const p = path.join(c, rel);
+    try {
+      if (!fs.existsSync(p)) continue;
+      base.setHostExtra(require(p));
+      log('host-extra wired from ' + c);
+      return;
+    } catch (e) { /* try the next candidate */ }
+  }
+  log('host-extra not found — model names stay null (honest), set MOOTER_HOME to enable them');
+})();
+
+// ── registry ────────────────────────────────────────────────────────────────
+for (const t of seam.TOOLS) {
+  if (!base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
+}
+for (const t of fleet.TOOLS) {
+  if (base.TOOLS.find((x) => x.name === t.name)) continue;
+  const wired = Object.assign({}, t, {
+    handler: t.handler || ((args) => fleet.toolFleet(args, { sessionsList: base.toolSessionsList })),
+  });
+  base.TOOLS.push(wired);
+}
+
+const RESOURCES = [fleet.UI_RESOURCE];
+
+async function handle(msg) {
+  if (!msg || msg.jsonrpc !== '2.0') return null;
+  const { id, method, params } = msg;
+
+  if (method === 'resources/list') return { jsonrpc: '2.0', id, result: { resources: RESOURCES } };
+  if (method === 'resources/templates/list') return { jsonrpc: '2.0', id, result: { resourceTemplates: [] } };
+  if (method === 'resources/read') {
+    const uri = params && params.uri;
+    if (uri !== fleet.UI_URI) return { jsonrpc: '2.0', id, error: { code: -32602, message: `unknown resource: ${uri}` } };
+    return { jsonrpc: '2.0', id, result: { contents: [{ uri: fleet.UI_URI, mimeType: fleet.UI_MIME, text: fleet.readUiHtml() }] } };
+  }
+
+  // mooter_fleet: own the result shape so the no-UI fallback is readable, and so
+  // the result carries the same _meta.ui the tool declares.
+  if (method === 'tools/call' && params && params.name === 'mooter_fleet') {
+    try {
+      const out = await fleet.toolFleet((params.arguments) || {}, { sessionsList: base.toolSessionsList });
+      return {
+        jsonrpc: '2.0', id,
+        result: {
+          content: [{ type: 'text', text: fleet.formatFleetText(out) }],
+          structuredContent: out,
+          isError: !!(out && out.error),
+          _meta: { ui: { resourceUri: fleet.UI_URI } },
+        },
+      };
+    } catch (e) {
+      return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: 'mooter_fleet falhou: ' + ((e && e.message) || e) }], isError: true } };
+    }
+  }
+
+  const res = await base.handle(msg);
+
+  if (method === 'initialize' && res && res.result) {
+    if (res.result.capabilities) res.result.capabilities.resources = { listChanged: false };
+    // server.js hardcodes 0.1.0; this entrypoint is v0.4 and the host shows it
+    res.result.serverInfo = Object.assign({}, res.result.serverInfo, { version: '0.4.0' });
+    log('negotiated protocolVersion: ' + res.result.protocolVersion);
+  }
+  if (method === 'tools/list' && res && res.result && Array.isArray(res.result.tools)) {
+    for (const shaped of res.result.tools) {
+      const src = base.TOOLS.find((t) => t.name === shaped.name);
+      if (src && src._meta) shaped._meta = src._meta;
+    }
+  }
+  return res;
+}
+
+function main() {
+  let buf = '';
+  let pending = 0;
+  let stdinEnded = false;
+  const maybeExit = () => { if (stdinEnded && pending === 0 && seam.REGISTRY.size === 0) process.exit(0); };
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => {
+    buf += chunk;
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let m; try { m = JSON.parse(line); } catch { log('bad json line'); continue; }
+      pending++;
+      Promise.resolve(handle(m))
+        .then((res) => { if (res) send(res); })
+        .catch((e) => log('handle err', (e && e.message) || ''))
+        .finally(() => { pending--; maybeExit(); });
+    }
+  });
+  process.stdin.on('end', () => {
+    stdinEnded = true; maybeExit();
+    if (seam.REGISTRY.size > 0) {
+      const iv = setInterval(() => { if (seam.REGISTRY.size === 0 && pending === 0) { clearInterval(iv); maybeExit(); } }, 1000);
+      iv.unref && iv.unref();
+    }
+  });
+  log('ready (v0.4 apps) · tools: ' + base.TOOLS.map((t) => t.name).join(', ') + ' · resources: ' + RESOURCES.map((r) => r.uri).join(', '));
+}
+
+if (require.main === module) main();
+module.exports = { handle, main, RESOURCES };

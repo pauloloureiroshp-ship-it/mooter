@@ -1,0 +1,372 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * fleet.js — mooter-bridge: live fleet state + the MCP Apps UI resource.
+ *
+ * Purely ADDITIVE. server.js / seamless.js / server-seamless.js are untouched.
+ *
+ * Three sources, three honesty levels:
+ *   1. ~/.mooter/ledger.jsonl        -> dispatched jobs (subscription agents)
+ *   2. GET 127.0.0.1:11434/api/ps    -> models actually resident on the GPU (local fleet)
+ *   3. ~/.mooter/cowork-session.json -> which Cowork session/project/folder is driving
+ * Unknown => null, NEVER fabricated. Read-only except the session bind.
+ *
+ * Wire format (MCP Apps, spec 2026-01-26):
+ *   tool._meta.ui       = { resourceUri: 'ui://mooter/fleet', visibility: ['model','app'] }
+ *   resource mimeType   = 'text/html;profile=mcp-app'
+ *   resource._meta.ui   = { csp, prefersBorder }
+ *
+ * NOTE: the SERVER declares no UI capability — per spec the CLIENT advertises
+ * `extensions["io.modelcontextprotocol/ui"]`. The server only owes `resources`.
+ */
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const http = require('http');
+
+const UI_URI = 'ui://mooter/fleet';
+const UI_MIME = 'text/html;profile=mcp-app';
+const MOOTER_DIR = path.join(os.homedir(), '.mooter');
+const LEDGER = path.join(MOOTER_DIR, 'ledger.jsonl');
+const SESSION_FILE = path.join(MOOTER_DIR, 'cowork-session.json');
+const UI_FILE = path.join(__dirname, 'fleet-ui.html');
+
+// A plugin .mcp.json declares env as "${OLLAMA_HOST}". When the variable is not
+// set on the machine, some hosts pass the placeholder through VERBATIM — the probe
+// then fails forever and the panel says n/d while Ollama is running fine.
+// Treat an unexpanded placeholder as "not set". (Reproduced, then fixed.)
+function envOrNull(name) {
+  const v = process.env[name];
+  if (!v) return null;
+  const t = String(v).trim();
+  if (!t || t.indexOf('${') >= 0) return null;
+  return t;
+}
+const OLLAMA_HOST = envOrNull('OLLAMA_HOST') || '127.0.0.1:11434';
+const OLLAMA_TIMEOUT_MS = 700; // the panel polls every 3s — never block on a dead daemon
+
+const AGENT_LABEL = { cc: 'Claude Code', codex: 'Codex', gemini: 'Gemini', moo: 'Ollama · local' };
+const LOCAL_AGENTS = new Set(['moo']);
+
+function norm(p) { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase(); }
+function leaf(p) { return String(p || '').split(/[\\/]/).filter(Boolean).pop() || ''; }
+
+// ── 1. ledger ─────────────────────────────────────────────────────────────
+function readLedgerLines(file) {
+  let raw;
+  try { raw = fs.readFileSync(file, 'utf8'); } catch { return null; }
+  const out = [];
+  for (const line of raw.split('\n')) {
+    const s = line.trim();
+    if (!s) continue;
+    try { out.push(JSON.parse(s)); } catch { /* skip malformed, never guess */ }
+  }
+  return out;
+}
+
+function foldJobs(events) {
+  const byId = new Map();
+  for (const e of events) {
+    if (!e || !e.job_id) continue;
+    let j = byId.get(e.job_id);
+    if (!j) {
+      j = { job_id: e.job_id, wave: e.wave || null, agent: e.agent || null, worktree: e.worktree || null,
+            state: null, dispatched_at: null, started_at: null, ended_at: null, exit_code: null, duration_s: null };
+      byId.set(e.job_id, j);
+    }
+    if (e.wave) j.wave = e.wave;
+    if (e.agent) j.agent = e.agent;
+    if (e.worktree) j.worktree = e.worktree;
+    if (e.event === 'dispatched') { j.dispatched_at = e.ts; j.state = 'dispatched'; }
+    else if (e.event === 'started') { j.started_at = e.ts; j.state = 'running'; }
+    else if (e.event === 'done') { j.ended_at = e.ts; j.state = 'done'; }
+    else if (e.event === 'failed') { j.ended_at = e.ts; j.state = 'failed'; }
+    else if (e.event === 'collected' && j.state !== 'failed') { j.state = j.state === 'running' ? 'done' : j.state; }
+    if (e.exit_code != null) j.exit_code = e.exit_code;
+    if (e.duration_s != null) j.duration_s = e.duration_s;
+  }
+  return [...byId.values()];
+}
+
+function elapsedSeconds(job, now) {
+  const from = job.started_at || job.dispatched_at;
+  if (!from) return null;
+  const t0 = Date.parse(from);
+  if (Number.isNaN(t0)) return null;
+  if (job.state === 'running' || job.state === 'dispatched') return Math.max(0, Math.round((now - t0) / 1000));
+  if (job.duration_s != null) return job.duration_s;
+  const t1 = job.ended_at ? Date.parse(job.ended_at) : NaN;
+  return Number.isNaN(t1) ? null : Math.max(0, Math.round((t1 - t0) / 1000));
+}
+
+function attachModels(jobs, sessions) {
+  if (!Array.isArray(sessions) || !sessions.length) return jobs;
+  const byCwd = new Map();
+  for (const s of sessions) if (s && s.cwd) byCwd.set(norm(s.cwd), s);
+  for (const j of jobs) {
+    const s = byCwd.get(norm(j.worktree));
+    if (s) { j.model = s.model || null; j.session_id = s.id || null; j.session_status = s.status || null; }
+  }
+  return jobs;
+}
+
+function isLive(j) { return j.state === 'running' || j.state === 'dispatched'; }
+
+// group live/done rows by wave so the panel can draw a header per wave
+function groupByWave(jobs) {
+  const order = [];
+  const map = new Map();
+  for (const j of jobs) {
+    const k = j.wave || '(sem wave)';
+    if (!map.has(k)) { map.set(k, []); order.push(k); }
+    map.get(k).push(j);
+  }
+  return order.map((wave) => ({
+    wave,
+    jobs: map.get(wave),
+    live: map.get(wave).filter(isLive).length,
+    done: map.get(wave).filter((j) => j.state === 'done').length,
+    total: map.get(wave).length,
+  }));
+}
+
+// ── 2. local fleet: what is actually resident on the GPU right now ────────
+// GET /api/ps is read-only and answers in single-digit ms when Ollama is up.
+// Unreachable => null (the panel says "n/d"), never an empty list pretending zero.
+function probeOllama(timeoutMs) {
+  return new Promise((resolve) => {
+    const [host, port] = OLLAMA_HOST.replace(/^https?:\/\//, '').split(':');
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    let req;
+    try {
+      req = http.get({ host: host || '127.0.0.1', port: Number(port) || 11434, path: '/api/ps', timeout: timeoutMs }, (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (d) => { body += d; if (body.length > 200000) req.destroy(); });
+        res.on('end', () => {
+          try {
+            const j = JSON.parse(body);
+            const models = (j && j.models) || [];
+            finish(models.map((m) => ({
+              model: m.model || m.name || null,
+              parameter_size: (m.details && m.details.parameter_size) || null,
+              quantization: (m.details && m.details.quantization_level) || null,
+              vram_bytes: m.size_vram != null ? m.size_vram : null,
+              context_length: m.context_length != null ? m.context_length : null,
+              expires_at: m.expires_at || null,
+            })));
+          } catch { finish(null); }
+        });
+      });
+    } catch { return finish(null); }
+    req.on('timeout', () => { try { req.destroy(); } catch { /* */ } finish(null); });
+    req.on('error', () => finish(null));
+  });
+}
+
+// ── 3. which Cowork session/project is driving ───────────────────────────
+function readSessionContext() {
+  try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch { return null; }
+}
+
+/**
+ * mooter_session_bind — the MCP server is spawned by the desktop app and has no
+ * idea which Cowork session, folder or project is driving it. Nothing in the
+ * protocol tells it. So the model binds it explicitly, once per session, and
+ * every later snapshot is scoped and labelled.
+ */
+async function toolSessionBind(args) {
+  const a = args || {};
+  const ctx = {
+    bound_at: new Date().toISOString(),
+    session_id: a.sessionId ? String(a.sessionId) : null,
+    project: a.project ? String(a.project) : null,
+    folder: a.folder ? String(a.folder) : null,
+    folder_name: a.folder ? leaf(a.folder) : null,
+    files: Array.isArray(a.files) ? a.files.slice(0, 40).map(String) : [],
+    note: a.note ? String(a.note).slice(0, 200) : null,
+  };
+  if (!ctx.project && !ctx.folder) return { error: 'project or folder is required' };
+  try {
+    fs.mkdirSync(MOOTER_DIR, { recursive: true });
+    fs.writeFileSync(SESSION_FILE, JSON.stringify(ctx, null, 2), 'utf8');
+  } catch (e) {
+    return { error: 'could not write session context: ' + ((e && e.message) || e) };
+  }
+  return { ok: true, context: ctx, file: SESSION_FILE };
+}
+
+// ── the snapshot the panel polls ─────────────────────────────────────────
+async function toolFleet(args, deps) {
+  const now = Date.now();
+  const windowMin = Math.min(Math.max(Number(args && args.windowMinutes) || 30, 1), 1440);
+  const waveFilter = args && args.wave ? String(args.wave) : null;
+  const includeLocal = !(args && args.includeLocal === false);
+
+  const context = readSessionContext();
+  const events = readLedgerLines(LEDGER);
+  const local = includeLocal ? await probeOllama(OLLAMA_TIMEOUT_MS) : null;
+
+  if (events === null) {
+    return {
+      ok: true, ts: new Date(now).toISOString(), context,
+      live: 0, waves: [], jobs: [], sessions: [],
+      local, local_available: local !== null,
+      notice: 'sem ledger — nenhum job foi despachado nesta máquina',
+    };
+  }
+
+  let jobs = foldJobs(events);
+  if (waveFilter) jobs = jobs.filter((j) => j.wave === waveFilter);
+
+  const cutoff = now - windowMin * 60 * 1000;
+  jobs = jobs.filter((j) => {
+    if (isLive(j)) return true;
+    const t = j.ended_at ? Date.parse(j.ended_at) : NaN;
+    return !Number.isNaN(t) && t >= cutoff;
+  });
+
+  let sessions = [];
+  try {
+    const listFn = deps && deps.sessionsList;
+    if (typeof listFn === 'function') {
+      const r = await listFn({ limit: 20 });
+      if (r && Array.isArray(r.sessions)) sessions = r.sessions;
+    }
+  } catch { /* the panel must never die because the cockpit is unavailable */ }
+
+  attachModels(jobs, sessions);
+
+  for (const j of jobs) {
+    j.elapsed_s = elapsedSeconds(j, now);
+    j.agent_label = AGENT_LABEL[j.agent] || j.agent || null;
+    j.local = LOCAL_AGENTS.has(j.agent);
+    j.where = leaf(j.worktree);
+    if (j.subagents === undefined) j.subagents = null;
+    if (j.model === undefined) j.model = null;
+  }
+
+  jobs.sort((a, b) => {
+    const rank = (x) => (isLive(x) ? 0 : 1);
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    return String(b.ended_at || b.dispatched_at || '').localeCompare(String(a.ended_at || a.dispatched_at || ''));
+  });
+
+  const shown = jobs.slice(0, 16);
+  return {
+    ok: true,
+    ts: new Date(now).toISOString(),
+    context,
+    live: shown.filter(isLive).length,
+    waves: groupByWave(shown),
+    jobs: shown,
+    sessions: sessions
+      .filter((s) => s.status === 'working')
+      .map((s) => ({ id: s.id, title: s.title, model: s.model || null, project: s.project || null, cwd: s.cwd || null })),
+    local,                       // null = Ollama unreachable (n/d), [] = up with nothing loaded
+    local_available: local !== null,
+    local_host: OLLAMA_HOST,
+  };
+}
+
+/**
+ * Human-readable fallback. If the host does not render MCP Apps, the tool result
+ * must still read like something a person wrote — not a wall of JSON. This is the
+ * difference between "the panel is missing" and "the connector looks broken".
+ */
+function formatFleetText(d) {
+  if (!d || d.error) return 'Frota: ' + ((d && d.error) || 'sem dados');
+  const L = [];
+  const c = d.context;
+  const head = d.live ? (d.live + ' agente' + (d.live > 1 ? 's' : '') + ' a trabalhar') : 'frota parada';
+  L.push(c && (c.project || c.folder_name) ? (head + '  ·  ' + [c.project, c.folder_name].filter(Boolean).join(' / ')) : head);
+  const live = (d.jobs || []).filter((j) => j.state === 'running' || j.state === 'dispatched');
+  const done = (d.jobs || []).filter((j) => j.state === 'done' || j.state === 'failed');
+  if (live.length) {
+    L.push('', 'A TRABALHAR');
+    for (const w of (d.waves || [])) {
+      const rows = w.jobs.filter((j) => j.state === 'running' || j.state === 'dispatched');
+      if (!rows.length) continue;
+      L.push('  ' + w.wave);
+      for (const j of rows) L.push('    · ' + (j.where || j.job_id) + ' — ' + (j.model || j.agent_label || '?') + (j.elapsed_s != null ? ' — ' + j.elapsed_s + 's' : ''));
+    }
+  }
+  L.push('', 'LOCAL · GPU');
+  if (d.local == null) L.push('  n/d — Ollama nao respondeu em ' + (d.local_host || '127.0.0.1:11434'));
+  else if (!d.local.length) L.push('  Ollama a correr, nenhum modelo residente');
+  else for (const m of d.local) L.push('    · ' + m.model + [m.parameter_size, m.quantization].filter(Boolean).map((x) => ' — ' + x).join(''));
+  if (done.length) {
+    L.push('', 'CONCLUIDAS');
+    for (const j of done) L.push('    ' + (j.state === 'failed' ? 'x' : 'v') + ' ' + (j.where || j.job_id) + ' — ' + (j.model || j.agent_label || '?') + (j.elapsed_s != null ? ' — ' + j.elapsed_s + 's' : ''));
+  }
+  if (d.notice) L.push('', d.notice);
+  return L.join('\n');
+}
+
+function readUiHtml() {
+  try { return fs.readFileSync(UI_FILE, 'utf8'); }
+  catch { return '<p style="font:14px system-ui">fleet-ui.html missing next to fleet.js</p>'; }
+}
+
+const UI_RESOURCE = {
+  uri: UI_URI,
+  name: 'Mooter fleet',
+  description: 'Live panel: which agent is working, on what, with which model — subscription and local.',
+  mimeType: UI_MIME,
+  _meta: {
+    ui: {
+      // the panel is fully self-contained: no external script, style, font or fetch.
+      csp: { resourceDomains: [], connectDomains: [] },
+      prefersBorder: false,
+    },
+  },
+};
+
+const TOOLS = [
+  {
+    name: 'mooter_fleet',
+    description: 'Snapshot of what the Mooter fleet is doing right now, grouped by wave: dispatched jobs (agent, concrete model when known, worktree, state, elapsed), the models actually resident on the local GPU via Ollama, and the bound Cowork session/project. Read-only; unknown fields are null, never guessed. Cheap enough to poll every few seconds.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        wave: { type: 'string', description: 'Optional wave id filter.' },
+        windowMinutes: { type: 'number', description: 'How far back finished jobs stay visible (1-1440, default 30). Live jobs always show.' },
+        includeLocal: { type: 'boolean', description: 'Probe the local Ollama daemon for resident models (default true).' },
+      },
+      additionalProperties: false,
+    },
+    annotations: { title: 'Mooter fleet', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: {
+      ui: { resourceUri: UI_URI, visibility: ['model', 'app'] },
+      // deprecated flat key — kept for hosts that shipped before 2026-01-26
+      'ui/resourceUri': UI_URI,
+    },
+    handler: null, // wired by server-apps.js so this file stays dependency-free
+  },
+  {
+    name: 'mooter_session_bind',
+    description: 'Tell Mooter which Cowork session is driving it: project name, connected folder, and the files being worked on. The MCP server is spawned by the desktop app and cannot discover this by itself — nothing in the protocol carries it. Call once at the start of a session so the fleet panel is scoped and labelled. Writes a single small JSON file under ~/.mooter/.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project name, e.g. "Mooter.ai".' },
+        folder: { type: 'string', description: 'Absolute path of the connected folder.' },
+        files: { type: 'array', items: { type: 'string' }, description: 'Files currently being worked on (max 40).' },
+        sessionId: { type: 'string', description: 'Cowork session id, when known.' },
+        note: { type: 'string', description: 'One line on what this session is doing.' },
+      },
+      additionalProperties: false,
+    },
+    annotations: { title: 'Bind the Cowork session', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    handler: toolSessionBind,
+  },
+];
+
+module.exports = {
+  TOOLS, UI_RESOURCE, UI_URI, UI_MIME,
+  toolFleet, toolSessionBind, readUiHtml, formatFleetText,
+  foldJobs, elapsedSeconds, attachModels, groupByWave, probeOllama, readSessionContext,
+  LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull,
+};

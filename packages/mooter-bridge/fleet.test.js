@@ -6,11 +6,18 @@
  *   node --test packages/mooter-bridge/
  */
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const TEST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-fleet-'));
+process.env.MOOTER_HOME = TEST_HOME;
 process.env.OLLAMA_HOST = '127.0.0.1:1'; // must be set before requiring fleet.js
+process.on('exit', () => { try { fs.rmSync(TEST_HOME, { recursive: true, force: true }); } catch { /* */ } });
 
 const test = require('node:test');
 const assert = require('node:assert');
 const fleet = require('./fleet.js');
+const capacidades = require('./capacidades.js');
 
 const E = (job_id, event, extra) => Object.assign(
   { ts: '2026-07-24T17:47:11.000Z', job_id, wave: 'w1', agent: 'cc', worktree: 'C:\\repo\\wt', event },
@@ -136,11 +143,74 @@ test('herdar não é declarar — o guard olha para ESTA chamada, não para o pa
   assert.ok(so.context.session_model_em, 'a declaração tem de ficar com carimbo de quando foi feita');
 });
 
+test('bind parcial não substitui um bind completo e deixa recibo no ledger', async () => {
+  const fullFolder = fs.mkdtempSync(path.join(TEST_HOME, 'bind-completo-'));
+  const full = await fleet.toolSessionBind({ project: 'Completo', folder: fullFolder });
+  assert.ok(full.ok, full.error);
+
+  const partial = await fleet.toolSessionBind({ project: 'Parcial' });
+  assert.ok(partial.error, 'bind parcial foi aceite');
+  assert.strictEqual(partial.bind_recusado, 'parcial');
+  assert.strictEqual(partial.ledger_registado, true);
+
+  const preserved = fleet.readSessionContext();
+  assert.strictEqual(preserved.project, 'Completo');
+  assert.strictEqual(path.resolve(preserved.folder), path.resolve(fullFolder));
+  const ledger = fs.readFileSync(path.join(TEST_HOME, 'ledger.jsonl'), 'utf8')
+    .trim().split('\n').map((line) => JSON.parse(line));
+  const rejected = ledger.find((event) => event.event === 'session_bind_rejected');
+  assert.ok(rejected, 'a recusa parcial não ficou no ledger');
+  assert.strictEqual(rejected.project_requested, 'Parcial');
+  assert.strictEqual(rejected.folder_requested, null);
+});
+
+test('roots declaradas e válidas ganham ao bind manual', async () => {
+  const manualFolder = fs.mkdtempSync(path.join(TEST_HOME, 'bind-manual-'));
+  const rootFolder = fs.mkdtempSync(path.join(TEST_HOME, 'bind-root-'));
+  const manual = await fleet.toolSessionBind({ project: 'Manual', folder: manualFolder });
+  assert.ok(manual.ok, manual.error);
+
+  capacidades.registarInitialize({
+    capabilities: { roots: {} },
+    roots: [{ uri: rootFolder, name: 'Projecto Root' }],
+  });
+  const context = fleet.readSessionContext();
+  assert.strictEqual(context.project, 'Projecto Root');
+  assert.strictEqual(path.resolve(context.folder), path.resolve(rootFolder));
+  assert.strictEqual(context.fonte, 'mcp-capabilities.json → roots/list');
+});
+
 test('toolFleet reports local_available false instead of pretending zero models', async () => {
   const out = await fleet.toolFleet({}, { sessionsList: async () => ({ sessions: [] }) });
   assert.strictEqual(out.local, null);
   assert.strictEqual(out.local_available, false);
   assert.ok('waves' in out && 'context' in out);
+  assert.ok(out.capacidades && out.capacidades.onboarding,
+    'o painel não expõe a sonda de capacidades do cliente');
+});
+
+test('view board usa o scorecard assíncrono sem correr as sondas da frota', async () => {
+  let chamadas = 0;
+  const scorecard = { metricas: {}, excepcoes: [], pode_ir_dormir: { valor: true } };
+  const out = await fleet.toolFleet({ view: 'board' }, {
+    async boardScorecard() { chamadas++; return scorecard; },
+    probeOllama() { throw new Error('a vista board não deve sondar Ollama'); },
+  });
+  assert.strictEqual(chamadas, 1);
+  assert.strictEqual(out.scorecard, scorecard);
+  assert.deepStrictEqual(out.excepcoes, []);
+});
+
+test('view afericao sem histórico devolve n/d com porquê', async () => {
+  const out = await fleet.toolFleet({ view: 'afericao' }, {
+    afericaoLatest() {
+      return { estado: 'n/d', porque: 'nunca foi guardada uma aferição nesta máquina' };
+    },
+    probeOllama() { throw new Error('a vista aferição não deve sondar Ollama'); },
+  });
+  assert.strictEqual(out.estado, 'n/d');
+  assert.strictEqual(out.afericao, null);
+  assert.match(out.porque, /nunca foi guardada/i);
 });
 
 test('o painel responde em menos de 2s quando uma sonda fica pendurada', async () => {

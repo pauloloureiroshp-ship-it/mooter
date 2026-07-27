@@ -111,8 +111,12 @@ async function livre(seamMod, worktree, maxMs) {
     if (cmd && cmd.args) {
       const i = cmd.args.indexOf('--model');
       const m = i >= 0 ? String(cmd.args[i + 1]) : null;
-      assert.ok(!m || !/^(opus|sonnet|haiku)$/.test(m),
-        'toolWork entregou "' + m + '" a um motor não-Anthropic — foi assim que o Ollama morreu em 0s');
+      if (cmd.bin === 'claude') {
+        assert.strictEqual(r.agent, 'cc', 'vocabulário Anthropic só pode chegar ao Claude Code');
+      } else {
+        assert.ok(!m || !/^(opus|sonnet|haiku)$/.test(m),
+          'toolWork entregou "' + m + '" a um motor não-Anthropic — foi assim que o Ollama morreu em 0s');
+      }
     }
     okmsg('T1 · moo sem Ollama degrada para cc e explica-se');
   } catch (e) { bad('T1', e); }

@@ -35,6 +35,7 @@ const probe = require('./probe.js');
 const quota = require('./quota.js');
 const capacidades = require('./capacidades.js');
 const board = require('./board.js');
+const afericao = require('./afericao.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -523,6 +524,27 @@ function sessionsFast(listFn) {
 // ── the snapshot the panel polls ─────────────────────────────────────────
 async function toolFleet(args, deps) {
   const d = deps || {};
+  if (args && args.view === 'afericao') {
+    const ultima = typeof d.afericaoLatest === 'function'
+      ? await d.afericaoLatest({}) : afericao.lerUltimaAfericao({});
+    if (!ultima || ultima.estado === 'n/d') {
+      const porque = ultima && ultima.porque
+        ? ultima.porque : 'nunca foi guardada uma aferição nesta máquina';
+      return {
+        resumo: '🐮 aferição n/d — ' + porque,
+        estado: 'n/d',
+        porque,
+        afericao: null,
+      };
+    }
+    return {
+      resumo: '🐮 última aferição medida em ' + ultima.medido_em,
+      estado: 'medido',
+      porque: 'medição lida do histórico local guardado pelo condutor',
+      afericao: ultima.resultado,
+      ficheiro: ultima.ficheiro,
+    };
+  }
   if (args && args.view === 'board') {
     const card = await (typeof d.boardScorecard === 'function'
       ? d.boardScorecard({}) : board.scorecardAsync({}));

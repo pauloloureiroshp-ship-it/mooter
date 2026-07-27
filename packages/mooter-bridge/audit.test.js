@@ -141,6 +141,23 @@ t('#10 readTail respeita os bytes lidos', () => {
   assert.ok(telemetry.readTail(f, 1024).includes('m1'));
 });
 
+t('#10b TTFT útil ignora init/raciocínio e fica null sem conteúdo', () => {
+  const timing = telemetry.createContentTiming(1000);
+  timing.observe('{"type":"system","subtype":"init"}\n', 1050);
+  timing.observe('{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"interno"}]}}\n', 1100);
+  timing.observe('{"type":"assistant","fase":"raciocinio","message":{"content":[{"type":"text","text":"🤔 a raciocinar"}]}}\n', 1200);
+  assert.strictEqual(timing.finish(1300).ttft_ms, null);
+  timing.observe('{"type":"assistant","fase":"resposta","message":{"content":[{"type":"text","text":"conteúdo"}]}}\n', 1750);
+  assert.strictEqual(timing.finish(1800).ttft_ms, 750);
+});
+
+t('#10c TTFT reconhece só agent_message do Codex', () => {
+  const timing = telemetry.createContentTiming(2000);
+  timing.observe('{"type":"item.completed","item":{"type":"reasoning","text":"interno"}}\n', 2100);
+  timing.observe('{"type":"item.completed","item":{"type":"agent_message","text":"entrega"}}\n', 2450);
+  assert.strictEqual(timing.finish(2500).ttft_ms, 450);
+});
+
 // ── #11 (baixa) — custo local é de API, não total ────────────────────────
 t('#11 o zero local é rotulado como custo de API', () => {
   const src = fs.readFileSync(path.join(__dirname, 'moo.js'), 'utf8');

@@ -335,6 +335,7 @@ test('Q18 — Onda 0.6: forcar_local INVERTE o default mas nunca os vetos de ris
   // com forcar, o default inverte
   const forcado = lf.cabeNoLocal({ goal: 've la isto por mim', tier: 'T2', temModeloLocal: true, forcar: true });
   assert.strictEqual(forcado.local, true, 'quota critica tem de mandar o trabalho neutro para a GPU');
+  assert.strictEqual(forcado.forcado_por_quota, true);
   // mas NUNCA os vetos: escrita continua na nuvem mesmo com quota critica
   const escrita = lf.cabeNoLocal({ goal: 've la isto', temModeloLocal: true, escrita: true, forcar: true });
   assert.strictEqual(escrita.local, false, 'forcar_local passou por cima do veto de escrita — poupar nunca pode custar correccao');

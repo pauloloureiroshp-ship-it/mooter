@@ -116,7 +116,7 @@ function build(seam, fleet, base) {
       inputSchema: {
         type: 'object',
         properties: {
-          view: { type: 'string', enum: ['tudo', 'board', 'jobs', 'pastas', 'sessoes', 'plano'], description: 'tudo (default) · board · jobs · pastas · sessoes · plano' },
+          view: { type: 'string', enum: ['tudo', 'board', 'afericao', 'jobs', 'pastas', 'sessoes', 'plano'], description: 'tudo (default) · board · afericao · jobs · pastas · sessoes · plano' },
           wave: { type: 'string', description: 'Filtrar por wave.' },
           windowMinutes: { type: 'number', description: 'Quanto tempo para trás mostrar os concluídos (default 30).' },
         },
@@ -127,7 +127,7 @@ function build(seam, fleet, base) {
       handler: async (args) => {
         const a = args || {};
         const view = a.view || 'tudo';
-        if (view === 'board') {
+        if (view === 'board' || view === 'afericao') {
           return fleet.toolFleet(a, { sessionsList: base.toolSessionsList });
         }
         if (view === 'pastas') {

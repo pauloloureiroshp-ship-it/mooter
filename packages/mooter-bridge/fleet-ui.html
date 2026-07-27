@@ -493,6 +493,13 @@
     chips.appendChild(el('span', 'chip ' + (v && v.available ? 'on' : 'off'), v && v.available ? 'vault ligado' : 'vault n/d'));
     chips.appendChild(el('span', 'chip ' + (d.local_available ? 'on' : 'off'),
       d.local_available ? ((d.local || []).length + ' modelo(s) na GPU') : 'Ollama em baixo'));
+    var onb = d.capacidades && d.capacidades.onboarding;
+    if (onb) {
+      var oc = onb.suportado === true ? 'on' : (onb.suportado === false ? 'off' : 'nd');
+      var ochip = el('span', 'chip ' + oc, 'onboarding ' + esc(onb.estado || 'n/d'));
+      ochip.title = onb.porque || '';
+      chips.appendChild(ochip);
+    }
     var av = (d.coherence || []).filter(function (c) { return c.level === 'aviso'; });
     if (av.length) {
       var cc = el('span', 'chip nd', av.length + ' aviso(s)');
@@ -705,7 +712,8 @@
       d.live_preview && d.live_preview.veredicto && d.live_preview.veredicto.estado,
       d.versao && [d.versao.versao_instalada, d.versao.nova && d.versao.nova.versao],
       updEstado && updEstado.msg,
-      lpAberto, lpUrl], function () { pintaCabine(d); });
+      lpAberto, lpUrl,
+      d.capacidades && d.capacidades.onboarding && d.capacidades.onboarding.estado], function () { pintaCabine(d); });
   }
 
   // ── polling: a spec não define push servidor→painel, por isso o painel puxa ──

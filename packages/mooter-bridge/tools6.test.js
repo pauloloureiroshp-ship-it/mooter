@@ -122,6 +122,14 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     okmsg('view:"board" usa o scorecard assíncrono');
   } catch (e) { bad('view board', e); }
 
+  try {
+    const r = await server.handle({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'mooter_fleet', arguments: { view: 'afericao' } } });
+    const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
+    assert.strictEqual(sc.estado, 'n/d');
+    assert.ok(sc.porque, 'view:"afericao" sem histórico não explica o n/d');
+    okmsg('view:"afericao" sem histórico devolve n/d com porquê');
+  } catch (e) { bad('view afericao', e); }
+
   say('\n' + pass + ' testes da onda B' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
   process.on('uncaughtException', () => {});
   setTimeout(() => { try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ } }, 200);
