@@ -42,6 +42,7 @@ const wt = require('./worktrees.js');
 const contexto = require('./context.js');
 const P = require('./paths.js');
 const localfirst = require('./localfirst.js');
+const aprender = require('./aprender.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
@@ -910,9 +911,18 @@ async function toolDispatch(args) {
   try { assertSingleLineArgs(cmd); }
   catch (e) { return { error: '❌ ' + ((e && e.message) || e), hint: 'isto é um bug do conector, não do teu pedido — reporta-o' }; }
   const wtNorm = path.resolve(worktree);
+  const jobGoal = args && args.__goal
+    ? String(args.__goal)
+    : ((String(masterprompt).match(/OBJECTIVO(?: DA WAVE)?:\s*([^\r\n]+)/i) || [])[1] || null);
+  const canWrite = args && typeof args.__escrita === 'boolean'
+    ? args.__escrita
+    : /(?:write|edit|bash)/i.test(String(allowedTools || ''));
+  // Keep rate só é atribuível se a árvore estava limpa antes do agente entrar.
+  const gitBase = canWrite ? aprender.captureGitBase(wtNorm) : null;
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: [cmd.bin, ...cmd.args].join(' '),
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
+    goal: jobGoal, escrita: canWrite, preparation: !!chain, git_base: gitBase,
     note: dispatchNote, prep_from: prepFrom,
     // ⚠️ A4 · invariante 3 — o guard de saída corre no `collect`, quando este
     // objecto já morreu há muito. Se a evidência só existisse na resposta do
@@ -921,6 +931,9 @@ async function toolDispatch(args) {
   }, null, 2));
 
   ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'dispatched', mp_hash, model, model_recommended, tier, step: stepId,
+    goal: jobGoal, escrita: canWrite, preparation: !!chain,
+    git_base_commit: gitBase ? gitBase.commit : null,
+    git_base_clean: gitBase ? gitBase.clean : null,
     handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote });
 
   const outStream = fs.createWriteStream(path.join(jobDir, 'out.log'));
@@ -1126,6 +1139,7 @@ async function toolDispatch(args) {
     const prep = chain && agent === 'moo'
       ? prepMetrics(Number(((Date.now() - t0) / 1000).toFixed(3)), ok)
       : null;
+    const touched = canWrite ? aprender.captureFilesTouched(wtNorm, gitBase) : null;
     if (code === 0 && producedNothing) log('job ' + job_id + ' saiu 0 sem entregar texto — marcado failed');
     if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
       log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
@@ -1142,6 +1156,9 @@ async function toolDispatch(args) {
       session_id: r.session_id,
       tokens_in: r.telemetry ? r.telemetry.tokens_in : null,
       tokens_out: r.telemetry ? r.telemetry.tokens_out : null,
+      goal: jobGoal, escrita: canWrite, preparation: !!chain,
+      files_touched: touched ? touched.files : null,
+      files_touched_reason: touched ? touched.reason : null,
       step: stepId,
     }, prep || {}));
     if (stepId) {
@@ -1543,6 +1560,7 @@ async function toolWork(args) {
   const tier = d ? (d.tier || null) : null;
   let agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
   let escolhaLocal = null;   // preenchido abaixo, depois de sabermos o contexto
+  let aprendizagem = null;   // só existe quando o ledger já tem base suficiente
 
   // ⚠️ v1.3.3 — DEGRADAR, não recusar. (achado dos testes de caminho, não de
   // uma auditoria: quando o classificador dava T0 e a máquina não tinha Ollama
@@ -1727,7 +1745,7 @@ async function toolWork(args) {
   // local nem sequer lia ficheiros. Com `context.js` a fronteira mudou, e esta
   // é a decisão que o classificador nunca teve dados para tomar.
   // ❌ Nunca escolhe local para escrita, git, deploy, testes ou auditoria.
-  if (!a.agent && agent !== 'moo') {
+  if (!a.agent && !a.model && agent !== 'moo') {
     let vram = null; let temLocal = false;
     try {
       const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
@@ -1746,8 +1764,26 @@ async function toolWork(args) {
       // calculado em quota.js e NUNCA lido. Ou se usa, ou se apaga: usa-se.
       forcar: !!(calibragem && calibragem.forcar_local),
     });
+
+    // O resultado anterior pode mudar a decisão, mas nunca ultrapassa um veto
+    // mecânico de risco/capacidade nem altera o modelo cloud já calibrado.
+    aprendizagem = aprender.recomendarAgente({
+      goal, tier, escrita: a.write === true, ledger: ledgerRead(),
+    });
+    const mechanicalVeto = !escolhaLocal.local && escolhaLocal.confianca === 'alta';
+    if (aprendizagem && !mechanicalVeto) {
+      escolhaLocal = {
+        local: aprendizagem.agente === 'moo',
+        porque: 'histórico local: ' + aprendizagem.porque,
+        confianca: aprendizagem.confianca,
+      };
+      routedBy = 'adaptive-learned';
+    }
     if (escolhaLocal.local) {
       agent = 'moo';
+      // Um alias cloud (sonnet/opus) nunca pode viajar como modelo explícito
+      // para o Ollama; o selector local escolhe o modelo instalado real.
+      if (!a.model) model = null;
       log('local-first: ' + escolhaLocal.porque);
     }
   }
@@ -1836,7 +1872,9 @@ async function toolWork(args) {
 
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
-        __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId },
+        __goal: goal, __escrita: false,
+        __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
+          __goal: goal, __escrita: a.write === true },
       });
       if (prep && prep.job_id) {
         return {
@@ -1858,7 +1896,8 @@ async function toolWork(args) {
     }
   }
 
-  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId, routed_by: routedBy, evidencia });
+  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
+    routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true });
   if (r && r.error) return Object.assign({ goal, wave, tier_pedido: tier, agent, model }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
@@ -1896,6 +1935,10 @@ async function toolWork(args) {
       desceu_de: calibragem.desceu_de || null, porque: calibragem.porque, tecto: calibragem.tecto,
     } : null,
     escolha_local: escolhaLocal ? { local: escolhaLocal.local, porque: escolhaLocal.porque, confianca: escolhaLocal.confianca } : null,
+    aprendizagem: aprendizagem ? {
+      agente: aprendizagem.agente, porque: aprendizagem.porque,
+      confianca: aprendizagem.confianca, base: aprendizagem.base,
+    } : null,
     poupanca_estimada: (escolhaLocal && escolhaLocal.local)
       ? localfirst.poupancaEstimada((contextoInjectado ? contextoInjectado.chars : 0) + goal.length, 2000, tier === 'T3' ? 'opus' : 'sonnet')
       : null,
