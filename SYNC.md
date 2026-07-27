@@ -4,11 +4,11 @@
 
 ## Cabeçalho
 
-- versão instalada: 1.24.0
-- HEAD: bc3c4ad1d76401a75824b810b69e22b05a83a27f
+- versão instalada: 1.24.1
+- HEAD: 49727a5a5cdeb60e30f1f6432859bd55830f45c8
 - branch: chore/mooter-20-h0
-- remoto: 0 à frente / 0 atrás de origin/chore/mooter-20-h0 (fonte: git rev-list)
-- gerado_em: 2026-07-27T14:28:01.979Z (derivado do último facto observado; não do relógio da execução)
+- remoto: 1 à frente / 0 atrás de origin/chore/mooter-20-h0 (fonte: git rev-list)
+- gerado_em: 2026-07-27T17:21:55.695Z (derivado do último facto observado; não do relógio da execução)
 
 ## Entregas
 
@@ -17,11 +17,84 @@
 | v1.20 | sentinela.js, afericao.js | 44c9a80 — feat(mooter-bridge): v1.20.0 - os dois loops de self-learning: sentinela horaria que ESCREVE em vez de gritar (so transicoes, custo zero) e afericao com tarefas de resposta conhecida que mede custo por resposta certa por motor; estudo dos pilares de vibe coding com a bateria real (moo 3/3 em 7s a 0 USD contra sonnet a 0.44 USD) |
 | v1.22 | n/d (porque a versão não tem entregas descritas na fonte) | 09e1e94 — fix(mooter-bridge): v1.22.0 - L1 fecha os 14 loopholes da auditoria UX: nenhum agregado nasce a 0 (somatorio sem parcelas medidas e n/d com jobs_sem_medicao), totals e arvore derivam da mesma funcao, medido_em+fresco+idade_h por bloco, blocos vazios desaparecem e o coherence deixa de mostrar stderr de ambiente; e o BUG DE TIJOLO: o verificador rejeitava o shebang dos nossos proprios ficheiros e teria trancado todas as instalacoes futuras |
 | v1.23 | board.js, seamless.js, tools6.js, server-apps.js | cfc3f5d — ﻿feat(bridge): onda 1 - parar a mentira (v1.23.0) |
-| v1.24 | capacidades.js, eta.js, estimativa.js, fleet.js, fleet-ui.html, sync.js | 9678ab4 — chore(release): sync version.json → 1.24.0 [skip ci] |
+| v1.24 | capacidades.js, eta.js, estimativa.js, fleet.js, fleet-ui.html, sync.js, worktrees.js | 49727a5 — fix(bridge): v1.24.1 - o --check deixa de ser auto-referencial e o npm test deixa de mentir |
 
 ## Trabalho recente (até 30 jobs terminais)
 
-- n/d (porque ledger não existe em /sessions/beautiful-wizardly-gates/.mooter/ledger.jsonl)
+### w5-commit
+
+- `job-ms3fvuvr-ddbe` · agente=cc · duração=342 (fonte: ledger.duration_s) · desfecho=entregue · custo=2.7447662999999998 (fonte: ledger.cost_usd) USD
+
+### w4-gitignore
+
+- `job-ms3fpfil-d83e` · agente=cc · duração=76 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.7746507000000001 (fonte: ledger.cost_usd) USD
+
+### revisao-pre-commit
+
+- `job-ms3fjdxm-45e0` · agente=cc · duração=219 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.4341806000000001 (fonte: ledger.cost_usd) USD
+
+### w3-runners
+
+- `job-ms3fbk7o-5884` · agente=cc · duração=197 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.1510193000000002 (fonte: ledger.cost_usd) USD
+
+### w1-divida
+
+- `job-ms3eufhj-e8da` · agente=cc · duração=764 (fonte: ledger.duration_s) · desfecho=entregue · custo=6.140519099999999 (fonte: ledger.cost_usd) USD
+
+### super-auditoria
+
+- `job-ms3e76ec-574f` · agente=cc · duração=53 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.5700399 (fonte: ledger.cost_usd) USD
+- `job-ms3e3not-9a28` · agente=cc · duração=133 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.0960503 (fonte: ledger.cost_usd) USD
+- `job-ms3e1vs6-a9c4` · agente=cc · duração=134 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.9715478999999998 (fonte: ledger.cost_usd) USD
+- `job-ms3e0hem-7786` · agente=cc · duração=103 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.8111004 (fonte: ledger.cost_usd) USD
+- `job-ms3e1pzf-092d` · agente=moo · duração=7 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+- `job-ms3e0tam-30a7` · agente=moo · duração=14 (fonte: ledger.duration_s) · desfecho=interrompido · custo=n/d (porque o ledger do job não contém cost_usd) USD
+- `job-ms3e0c3w-a7ba` · agente=moo · duração=7 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### bateria-real
+
+- `job-ms3dv4mw-8f5f` · agente=cc · duração=106 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.0966488000000003 (fonte: ledger.cost_usd) USD
+- `job-ms3duzk2-15bd` · agente=moo · duração=6 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### mapa-de-testes
+
+- `job-ms3dptcn-41b6` · agente=cc · duração=177 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.3911209999999998 (fonte: ledger.cost_usd) USD
+- `job-ms3dphff-328d` · agente=moo · duração=15 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### prova-eta-v3
+
+- `job-ms3cmaz8-c36c` · agente=cc · duração=157 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.1594085 (fonte: ledger.cost_usd) USD
+- `job-ms3clzix-b2b3` · agente=moo · duração=15 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### eta-v3-barra
+
+- `job-ms3b89a4-96e2` · agente=codex · duração=1091 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
+- `job-ms3b82yy-f7be` · agente=moo · duração=8 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### eta-v2-estimadores
+
+- `job-ms39vd1s-5a5f` · agente=codex · duração=1788 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
+- `job-ms39uxgb-0aff` · agente=moo · duração=20 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### sync-gerado
+
+- `job-ms3a0c73-f579` · agente=codex · duração=1267 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
+- `job-ms3a03py-87e8` · agente=moo · duração=11 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### eta-v1-instrumentacao
+
+- `job-ms389r1r-332a` · agente=codex · duração=1426 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
+- `job-ms389fz7-8fef` · agente=moo · duração=14 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+
+### onda1-parar-a-mentira
+
+- `job-ms36khvh-6b23` · agente=codex · duração=1801 (fonte: ledger.duration_s) · desfecho=expirou · custo=n/d (porque o ledger do job não contém cost_usd) USD
+
+### auditoria-ux
+
+- `job-ms364bff-33b4` · agente=moo · duração=120 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+- `job-ms3652cu-271f` · agente=cc · duração=72 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.6054054 (fonte: ledger.cost_usd) USD
+- `job-ms364x1s-f02e` · agente=moo · duração=7 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
 
 ## Zona humana
 
