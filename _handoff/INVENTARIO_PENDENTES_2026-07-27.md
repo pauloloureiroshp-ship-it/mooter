@@ -25,9 +25,14 @@
 
 ## B. Pendente — por ordem de valor
 
-### B1 · 🔴 Os dois bugs de honestidade (em execução agora, v1.19.0)
-`moo` aceita pedidos de execução que não cumpre · tecto de tier contornado (custou US$ 0,81 num
-job que devia ser Sonnet). **Dono:** MRO e MFO. **Estado:** Codex a fechar.
+### B1 · ✅ FECHADO — os dois bugs de honestidade (`bf358e7`, v1.19.0)
+- **Bug A:** um pedido de execução para um motor sem ferramentas passa a ser **recusado** (quando
+  o `moo` é explícito) ou **reencaminhado para `cc`** (quando a escolha era automática). Deixou de
+  poder responder sem correr.
+- **Bug B:** o tecto de tier é **reaplicado ao modelo final**, imediatamente antes do
+  `buildCommand`, com `desceu_de` e `routed_by:'quota'` expostos. O Codex confirmou o vermelho
+  pré-fix, como pedido.
+- Gate nativo: **23 suites verdes** + require graph. `seamless.test.js` passou de 13 → **22**.
 
 ### B2 · 🔴 Trabalho a $0 em 36,71% (meta 50%) — a única excepção aberta
 **Dono:** MOO. Não se resolve com código novo: precisa de saber **porque** foi recusado, e o
