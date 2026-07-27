@@ -123,11 +123,13 @@ const CACHE = new Map();   // caminho -> { tamanho, mtime, r }
  * O factor de inflação medido (linhas brutas ÷ turnos únicos) VIAJA no resultado
  * para o painel o mostrar — medido, não estimado.
  */
-function lerFicheiro(f, desdeMs) {
+function lerFicheiro(f, desdeMs, conteudo) {
   const r = { entradas: 0, saidas: 0, cache_criado: 0, cache_lido: 0, turnos: 0,
     linhas_brutas: 0, suspeitas: 0, por_modelo: {}, ultimo: 0, linha: [] };
-  let bruto;
-  try { bruto = fs.readFileSync(f, 'utf8'); } catch { return r; }
+  let bruto = conteudo;
+  // `conteudo` chega já lido quando quem chama usou fs.promises (caminho async)
+  if (bruto == null) { try { bruto = fs.readFileSync(f, 'utf8'); } catch { return r; } }
+  if (typeof bruto !== 'string') return r;
   const porTurno = new Map();   // chave de dedup -> turno único (last-wins)
   for (const linha of bruto.split('\n')) {
     if (!linha) continue;
@@ -207,31 +209,23 @@ function pesoDe(modelo) {
 }
 
 /**
- * Quanto é que ESTA máquina gastou nas duas janelas.
- * @returns {{curta:object, longa:object, fonte:string, ressalva:string}}
+ * ⚠️ A LEITURA SÍNCRONA ERA A LENTIDÃO (Onda 2, medido 2026-07-26).
+ *
+ * O painel repolla de 2 em 2 s e chamava `quota.estado()`, que lê 47 ficheiros
+ * de sessão de forma SÍNCRONA. Medição do Codex neste host: **209 ms de event
+ * loop bloqueado** na primeira leitura. Nada mais corre nesse tempo — nem o
+ * `close` de um job. Foi assim que um dispatch que fecha em 75 ms passou a
+ * fechar em 324 ms e o teste E2E (250 ms) começou a falhar: o produto atrasava
+ * o próprio ciclo de vida dos jobs para desenhar um painel.
+ *
+ * Pôr um `Promise.all` à volta de uma função síncrona não a torna paralela —
+ * essa foi a primeira tentativa, e não chegou. A correcção de raiz é ler os
+ * ficheiros com `fs.promises` e CEDER o event loop entre cada um: a leitura
+ * total demora o mesmo, mas nunca prende o processo mais do que um ficheiro.
+ *
+ * A versão síncrona fica, porque há chamadores (router, testes) que a querem.
  */
-function medir(opts) {
-  const o = opts || {};
-  const agora = o.agora || Date.now();
-  const raiz = o.raiz || raizSessoes();
-  if (!raiz) {
-    return {
-      disponivel: false,
-      porque: 'não encontrei as sessões do Claude Code nesta máquina (~/.claude/projects)',
-      curta: null, longa: null,
-    };
-  }
-  const desdeLonga = agora - JANELA_LONGA_D * 24 * 3600 * 1000;
-  const desdeCurta = agora - JANELA_CURTA_H * 3600 * 1000;
-
-  const fich = ficheirosRecentes(raiz, desdeLonga, o.max_ficheiros);
-
-  /**
-   * Um ficheiro só se relê se tiver MUDADO. A chave é (tamanho, mtime): se
-   * ambos batem certo com a última leitura, o resultado guardado ainda vale.
-   * ❌ Nunca confiar só no mtime — em Windows a resolução é grosseira e duas
-   * escritas no mesmo instante ficariam invisíveis.
-   */
+function lerTodos(fich) {
   const lido = new Map();
   for (const { f, mtime, size } of fich) {
     const c = CACHE.get(f);
@@ -240,6 +234,65 @@ function medir(opts) {
     CACHE.set(f, { tamanho: size, mtime, r });
     lido.set(f, r);
   }
+  return lido;
+}
+
+async function lerTodosAsync(fich) {
+  const lido = new Map();
+  for (const { f, mtime, size } of fich) {
+    const c = CACHE.get(f);
+    if (c && c.tamanho === size && c.mtime === mtime) { lido.set(f, c.r); continue; }
+    let bruto = null;
+    try { bruto = await fs.promises.readFile(f, 'utf8'); } catch { /* ficheiro que sumiu */ }
+    const r = { todos: lerFicheiro(f, 0, bruto) };
+    CACHE.set(f, { tamanho: size, mtime, r });
+    lido.set(f, r);
+    // ceder o ciclo: um job a fechar não pode esperar pelo painel
+    await new Promise((res) => setImmediate(res));
+  }
+  return lido;
+}
+
+/**
+ * Quanto é que ESTA máquina gastou nas duas janelas.
+ * @returns {{curta:object, longa:object, fonte:string, ressalva:string}}
+ */
+function medir(opts) {
+  const p = prepararMedida(opts);
+  if (p.erro) return p.erro;
+  return concluirMedida(p, lerTodos(p.fich));
+}
+
+/** O mesmo número, sem prender o event loop. É esta que o painel usa. */
+async function medirAsync(opts) {
+  const p = prepararMedida(opts);
+  if (p.erro) return p.erro;
+  return concluirMedida(p, await lerTodosAsync(p.fich));
+}
+
+function prepararMedida(opts) {
+  const o = opts || {};
+  const agora = o.agora || Date.now();
+  const raiz = o.raiz || raizSessoes();
+  if (!raiz) {
+    return { erro: {
+      disponivel: false,
+      porque: 'não encontrei as sessões do Claude Code nesta máquina (~/.claude/projects)',
+      curta: null, longa: null,
+    } };
+  }
+  const desdeLonga = agora - JANELA_LONGA_D * 24 * 3600 * 1000;
+  const desdeCurta = agora - JANELA_CURTA_H * 3600 * 1000;
+  /**
+   * Um ficheiro só se relê se tiver MUDADO. A chave é (tamanho, mtime): se
+   * ambos batem certo com a última leitura, o resultado guardado ainda vale.
+   * ❌ Nunca confiar só no mtime — em Windows a resolução é grosseira e duas
+   * escritas no mesmo instante ficariam invisíveis.
+   */
+  return { fich: ficheirosRecentes(raiz, desdeLonga, o.max_ficheiros), desdeLonga, desdeCurta };
+}
+
+function concluirMedida({ fich, desdeLonga, desdeCurta }, lido) {
   // a cache não pode crescer para sempre: fora da janela, fora da memória
   if (CACHE.size > 400) {
     const vivos = new Set(fich.map((x) => x.f));
@@ -504,7 +557,18 @@ function calibrar(p, opts) {
 
 /** Tudo junto, pronto para o painel e para o router. */
 function estado(opts) {
-  const m = medir(opts);
+  return montarEstado(medir(opts), opts);
+}
+
+/**
+ * A mesma coisa sem bloquear — o painel usa ESTA. (Onda 2: a versão síncrona
+ * prendia o event loop 209 ms e atrasava o fecho dos jobs.)
+ */
+async function estadoAsync(opts) {
+  return montarEstado(await medirAsync(opts), opts);
+}
+
+function montarEstado(m, opts) {
   const p = pressao(m, (opts && opts.referencia) || null);
   const c = calibrar(p, opts);
   return {
@@ -520,4 +584,4 @@ function estado(opts) {
   };
 }
 
-module.exports = { estado, medir, medirCodex, pressao, calibrar, filtrar, lerReferencia, CACHE, CACHE_CODEX, raizSessoes, raizCodex, pesoDe, JANELA_CURTA_H, JANELA_LONGA_D };
+module.exports = { estado, estadoAsync, medir, medirAsync, medirCodex, pressao, calibrar, filtrar, lerReferencia, CACHE, CACHE_CODEX, raizSessoes, raizCodex, pesoDe, JANELA_CURTA_H, JANELA_LONGA_D };

@@ -268,6 +268,51 @@ test('Q17 — Onda 0.5: o Codex LE-SE dos rollouts locais, com o mesmo contrato 
   assert.ok(/27131/.test(c.nota || ''), 'tem de declarar que estes caminhos nunca entram no contexto de agentes');
 });
 
+test('Q20 — ONDA 2: medirAsync da o MESMO numero e NAO prende o event loop', async () => {
+  /**
+   * A regressao de 2026-07-26: o painel repolla de 2 em 2s e chamava a versao
+   * sincrona, que le 47 ficheiros de uma vez — 209 ms de event loop bloqueado,
+   * medidos. Nesse tempo nem o `close` de um job corre, e um dispatch que
+   * fechava em 75 ms passou a fechar em 324 ms. Um Promise.all a volta de codigo
+   * sincrono NAO o torna paralelo; a correccao e ler com fs.promises e ceder.
+   */
+  const raiz = raizFresca();
+  const agora = Date.now();
+  for (let i = 0; i < 12; i++) {
+    const dir = path.join(raiz, 'p' + i); fs.mkdirSync(dir);
+    const linhas = [];
+    for (let j = 0; j < 400; j++) {
+      linhas.push(JSON.stringify({ type: 'assistant', requestId: 'r' + i + '-' + j,
+        timestamp: new Date(agora - 60e3).toISOString(),
+        message: { model: 'claude-sonnet-5', usage: { input_tokens: 50, output_tokens: 100 } } }));
+    }
+    fs.writeFileSync(path.join(dir, 'x.jsonl'), linhas.join('\n'));
+  }
+  q.CACHE.clear();
+  const sinc = q.medir({ raiz, agora });
+  q.CACHE.clear();
+  // o relogio do event loop: quanto tempo passa entre ticks enquanto se le
+  let piorGap = 0; let ultimo = Date.now();
+  const bater = setInterval(() => { const n = Date.now(); piorGap = Math.max(piorGap, n - ultimo); ultimo = n; }, 5);
+  const asy = await q.medirAsync({ raiz, agora });
+  clearInterval(bater);
+
+  assert.strictEqual(asy.longa.turnos, sinc.longa.turnos, 'a versao async conta turnos diferentes');
+  assert.strictEqual(asy.longa.saidas, sinc.longa.saidas, 'a versao async da saidas diferentes');
+  assert.strictEqual(asy.longa.peso, sinc.longa.peso, 'a versao async da um peso diferente');
+  assert.ok(piorGap < 120, 'a leitura async prendeu o event loop ' + piorGap + 'ms — um job a fechar teria esperado');
+});
+
+test('Q21 — ONDA 2: estadoAsync devolve a mesma forma que estado (o painel depende disso)', async () => {
+  const e1 = q.estado({ raiz: RAIZ });
+  const e2 = await q.estadoAsync({ raiz: RAIZ });
+  for (const k of ['medida', 'pressao', 'calibragem', 'codex']) {
+    assert.ok(k in e2, 'estadoAsync perdeu o campo ' + k);
+  }
+  assert.strictEqual(e2.pressao.nivel, e1.pressao.nivel);
+  assert.strictEqual(e2.medida.disponivel, e1.medida.disponivel);
+});
+
 test('Q19 — Onda 0.3: a referencia e AJUSTAVEL de verdade (preferences.json), e declara a origem', () => {
   const f = path.join(raizFresca(), 'preferences.json');
   fs.writeFileSync(f, JSON.stringify({ statusline_line3: true, quota_referencia: { peso_semana: 12000 } }));
