@@ -190,6 +190,50 @@ test('toolFleet reports local_available false instead of pretending zero models'
     'o painel não expõe a sonda de capacidades do cliente');
 });
 
+test('fleet liga uma estimativa por job vivo e lê o índice uma só vez', async (t) => {
+  const ledgerPath = path.join(TEST_HOME, 'ledger.jsonl');
+  const before = fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath, 'utf8') : '';
+  const now = new Date().toISOString();
+  const wave = 'eta-v2-fleet-test';
+  const events = ['eta-job-a', 'eta-job-b'].flatMap((jobId) => [
+    E(jobId, 'dispatched', { ts: now, wave, goal: 'implementa código', prompt_chars: 2_000 }),
+    E(jobId, 'started', { ts: now, wave, steps_total: 4 }),
+    E(jobId, 'step', { ts: now, wave, step_index: 1, steps_total: 4 }),
+  ]);
+  fs.appendFileSync(ledgerPath, events.map((event) => JSON.stringify(event)).join('\n') + '\n');
+  for (const jobId of ['eta-job-a', 'eta-job-b']) {
+    const dir = path.join(TEST_HOME, 'jobs', jobId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'out.log'), 'medido\n', 'utf8');
+  }
+  t.after(() => {
+    fs.writeFileSync(ledgerPath, before, 'utf8');
+    for (const jobId of ['eta-job-a', 'eta-job-b']) {
+      fs.rmSync(path.join(TEST_HOME, 'jobs', jobId), { recursive: true, force: true });
+    }
+  });
+  let indexReads = 0;
+  let estimates = 0;
+  const out = await fleet.toolFleet({ wave }, {
+    etaReadIndex() { indexReads++; return { version: 1, chaves: {} }; },
+    estimateJob(jobId) {
+      estimates++;
+      return { job_id: jobId, falta_s: { valor: null, porque: 'sem histórico' } };
+    },
+    probeOllama: async () => null,
+    gpuSnapshot: async () => null,
+    vaultStatus: async () => null,
+    uiProbe: async () => null,
+    quotaEstado: async () => null,
+    worktreesList: async () => null,
+    sessionsList: async () => ({ sessions: [] }),
+  });
+  assert.strictEqual(indexReads, 1);
+  assert.strictEqual(estimates, 2);
+  assert.strictEqual(out.jobs.length, 2);
+  assert.deepStrictEqual(out.jobs.map((job) => job.estimativa.job_id).sort(), ['eta-job-a', 'eta-job-b']);
+});
+
 test('view board usa o scorecard assíncrono sem correr as sondas da frota', async () => {
   let chamadas = 0;
   const scorecard = { metricas: {}, excepcoes: [], pode_ir_dormir: { valor: true } };

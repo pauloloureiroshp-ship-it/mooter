@@ -109,6 +109,10 @@ function build(seam, fleet, base) {
               resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used,
             }), w.resumo);
           }
+          if (w && !w.settled) {
+            const live = await seam.toolStatus({ job_id: a.job_id, wave: a.wave });
+            if (live && Array.isArray(live.jobs)) w.jobs = live.jobs;
+          }
           return withWorktreeSummary(w);
         }
         const st = await seam.toolStatus({ job_id: a.job_id, wave: a.wave });

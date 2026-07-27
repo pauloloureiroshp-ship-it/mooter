@@ -67,7 +67,20 @@ function nearestRank(values, percentile) {
   return sorted[Math.max(1, Math.ceil(percentile * sorted.length)) - 1];
 }
 function publicEntry(entry) {
-  return { n: entry.n, p50: entry.p50, p75: entry.p75, p90: entry.p90, max: entry.max, medido_em: entry.medido_em };
+  const out = {
+    n: entry.n, p50: entry.p50, p75: entry.p75, p90: entry.p90, max: entry.max,
+    bytes_n: entry.bytes_n || 0,
+    bytes_p50: entry.bytes_p50 == null ? null : entry.bytes_p50,
+    bytes_p75: entry.bytes_p75 == null ? null : entry.bytes_p75,
+    bytes_p90: entry.bytes_p90 == null ? null : entry.bytes_p90,
+    bytes_max: entry.bytes_max == null ? null : entry.bytes_max,
+    medido_em: entry.medido_em,
+  };
+  if (entry.bytes_porque) out.bytes_porque = entry.bytes_porque;
+  else if (out.bytes_n < MIN_OBSERVATIONS) {
+    out.bytes_porque = 'só há ' + out.bytes_n + ' observação(ões) com bytes medidos; são precisas pelo menos ' + MIN_OBSERVATIONS + ' para normalizar a vivacidade';
+  }
+  return out;
 }
 
 function recompute(entry, measuredAt) {
@@ -77,19 +90,38 @@ function recompute(entry, measuredAt) {
   if (Array.isArray(entry._timeouts) && entry._timeouts.length > JANELA) {
     entry._timeouts = entry._timeouts.slice(-JANELA);
   }
-  const completed = (entry._observacoes || []).map((item) => Number(item.duration_s)).filter((value) => Number.isFinite(value) && value >= 0);
-  const timeouts = (entry._timeouts || []).map((item) => Number(item.duration_s)).filter((value) => Number.isFinite(value) && value >= 0);
+  const observations = entry._observacoes || [];
+  const timeoutObservations = entry._timeouts || [];
+  const completed = observations.map((item) => Number(item.duration_s)).filter((value) => Number.isFinite(value) && value >= 0);
+  const timeouts = timeoutObservations.map((item) => Number(item.duration_s)).filter((value) => Number.isFinite(value) && value >= 0);
   const all = completed.concat(timeouts);
+  const completedBytes = observations
+    .map((item) => item.bytes_finais == null ? null : Number(item.bytes_finais))
+    .filter((value) => value != null && Number.isFinite(value) && value >= 0);
+  const timeoutBytes = timeoutObservations
+    .map((item) => item.bytes_finais == null ? null : Number(item.bytes_finais))
+    .filter((value) => value != null && Number.isFinite(value) && value >= 0);
+  const allBytes = completedBytes.concat(timeoutBytes);
   entry.n = completed.length;
   entry.p50 = completed.length >= MIN_OBSERVATIONS ? nearestRank(completed, 0.50) : null;
   entry.p75 = completed.length >= MIN_OBSERVATIONS ? nearestRank(completed, 0.75) : null;
   entry.p90 = completed.length >= MIN_OBSERVATIONS ? nearestRank(completed, 0.90) : null;
   entry.max = all.length ? Math.max(...all) : null;
+  // Estes percentis normalizam apenas o sinal de vivacidade do out.log.
+  // Nunca entram na ETA: bytes de log não medem duração nem trabalho feito.
+  entry.bytes_n = completedBytes.length;
+  entry.bytes_p50 = completedBytes.length >= MIN_OBSERVATIONS ? nearestRank(completedBytes, 0.50) : null;
+  entry.bytes_p75 = completedBytes.length >= MIN_OBSERVATIONS ? nearestRank(completedBytes, 0.75) : null;
+  entry.bytes_p90 = completedBytes.length >= MIN_OBSERVATIONS ? nearestRank(completedBytes, 0.90) : null;
+  entry.bytes_max = allBytes.length ? Math.max(...allBytes) : null;
   entry.medido_em = measuredAt || entry.medido_em || null;
   entry.timeouts_n = timeouts.length;
   if (completed.length < MIN_OBSERVATIONS) {
     entry.porque = 'só há ' + completed.length + ' observação(ões) completa(s); são precisas pelo menos ' + MIN_OBSERVATIONS + ' para calcular percentis';
   } else delete entry.porque;
+  if (completedBytes.length < MIN_OBSERVATIONS) {
+    entry.bytes_porque = 'só há ' + completedBytes.length + ' observação(ões) com bytes medidos; são precisas pelo menos ' + MIN_OBSERVATIONS + ' para normalizar a vivacidade';
+  } else delete entry.bytes_porque;
   return entry;
 }
 
@@ -108,6 +140,8 @@ function recordObservation(observation, options) {
   if (EXCLUDED_EXITS.has(item.exit_code)) return { ok: true, excluded: true, porque: 'interrupções não medem duração de trabalho' };
   const duration = item.duration_s == null ? null : Number(item.duration_s);
   if (!Number.isFinite(duration) || duration < 0) return { ok: false, porque: 'duration_s não foi medido; o índice não aceita uma duração inventada' };
+  const finalBytesValue = item.bytes_finais == null ? null : Number(item.bytes_finais);
+  const finalBytes = Number.isFinite(finalBytesValue) && finalBytesValue >= 0 ? finalBytesValue : null;
   const bucket = contextBucket(item.prompt_chars);
   if (!bucket) return { ok: false, porque: 'o tamanho real do prompt não foi medido; a faixa de contexto fica n/d' };
   const agent = String(item.agent || '').trim();
@@ -128,7 +162,7 @@ function recordObservation(observation, options) {
   const entry = state.chaves[key] || { n: 0, p50: null, p75: null, p90: null, max: null, medido_em: null, _observacoes: [], _timeouts: [] };
   entry._observacoes = entry._observacoes || [];
   entry._timeouts = entry._timeouts || [];
-  const sample = { job_id: jobId, duration_s: duration };
+  const sample = { job_id: jobId, duration_s: duration, bytes_finais: finalBytes };
   const timedOut = item.desfecho === 'expirou' || TIMEOUT_EXITS.has(item.exit_code);
   (timedOut ? entry._timeouts : entry._observacoes).push(sample);
   const measuredAt = item.ts || new Date().toISOString();
@@ -171,9 +205,14 @@ function observeTerminal(event, options) {
     const ended = Date.parse(ev.ts);
     if (Number.isFinite(started) && Number.isFinite(ended) && ended >= started) duration = Number(((ended - started) / 1000).toFixed(3));
   }
+  let finalBytes = null;
+  try {
+    const measured = Number(io.statSync(path.join(o.jobDir, 'out.log')).size);
+    if (Number.isFinite(measured) && measured >= 0) finalBytes = measured;
+  } catch { /* sem out.log medido, a vivacidade degrada honestamente para n/d */ }
   return recordObservation({
     job_id: ev.job_id, agent: ev.agent || meta.agent, goal: ev.goal || meta.goal,
-    prompt_chars: prompt.length, duration_s: duration, exit_code: ev.exit_code,
+    prompt_chars: prompt.length, duration_s: duration, bytes_finais: finalBytes, exit_code: ev.exit_code,
     desfecho: ev.desfecho, ts: ev.ts,
   }, options);
 }

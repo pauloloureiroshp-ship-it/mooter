@@ -45,6 +45,7 @@ const P = require('./paths.js');
 const localfirst = require('./localfirst.js');
 const aprender = require('./aprender.js');
 const eta = require('./eta.js');
+const estimation = require('./estimativa.js');
 const fosso = require('./fosso.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
@@ -1317,7 +1318,8 @@ async function toolDispatch(args) {
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: commandText,
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
     worktree_criada: createdWorktree,
-    goal: jobGoal, escrita: canWrite, preparation: !!chain, git_base: gitBase,
+    goal: jobGoal, prompt_chars: masterprompt.length,
+    escrita: canWrite, preparation: !!chain, git_base: gitBase,
     local_decisao: localDecision,
     steps_total: stepProgress.steps_total,
     steps_total_porque: stepProgress.porque,
@@ -1334,7 +1336,8 @@ async function toolDispatch(args) {
     job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree,
     local_decisao: localDecision,
     mp_hash, model, model_recommended, tier, step: stepId,
-    goal: jobGoal, escrita: canWrite, preparation: !!chain,
+    goal: jobGoal, prompt_chars: masterprompt.length,
+    escrita: canWrite, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
     git_base_clean: gitBase ? gitBase.clean : null,
     handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote,
@@ -1682,6 +1685,7 @@ async function toolStatus(args) {
       job_id: e.job_id, wave: e.wave, agent: e.agent, worktree: e.worktree,
       events: [], last: null, started_ts: null, steps_done: 0,
       steps_total: null, steps_total_porque: 'o job ainda não emitiu started',
+      goal: null, prompt_chars: null,
     });
     j.events.push({
       ts: e.ts, event: e.event, exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
@@ -1708,7 +1712,14 @@ async function toolStatus(args) {
     if (e.tier_pedido) j.tier_pedido = e.tier_pedido;
     if (e.tier_motor) j.tier_motor = e.tier_motor;
     if (e.step) j.step = e.step;
+    if (e.goal) j.goal = e.goal;
+    if (e.prompt_chars != null) j.prompt_chars = e.prompt_chars;
   }
+  const statusNow = Date.now();
+  const liveJobs = Object.values(byJob).filter((job) => REGISTRY.has(job.job_id));
+  const etaIndex = liveJobs.length
+    ? estimation.readIndex({ indexPath: path.join(MOOTER_HOME_DIR(), 'eta-index.json') })
+    : null;
   for (const j of Object.values(byJob)) {
     j.alive = REGISTRY.has(j.job_id);
     // v1.2 — the third state that was missing. The ledger saying `started` while
@@ -1725,7 +1736,7 @@ async function toolStatus(args) {
     } catch { /* */ }
     // live telemetry, straight from the job's own stream
     try {
-      const elapsed = j.started_ts ? Math.max(1, Math.round((Date.now() - Date.parse(j.started_ts)) / 1000)) : null;
+      const elapsed = j.started_ts ? Math.max(1, Math.round((statusNow - Date.parse(j.started_ts)) / 1000)) : null;
       // ⚠️ v1.3.3 — o mesmo job dava tok_s 34 no `fleet` e 2 no `status`, porque
       // só o fleet congelava a taxa na duração final. Um número derivado
       // calculado em dois sítios diverge sempre; é só uma questão de quando.
@@ -1751,6 +1762,20 @@ async function toolStatus(args) {
     if (!j.now) {
       j.now = { steps_done: j.steps_done, steps_total: j.steps_total };
       if (j.steps_total == null) j.now.steps_total_porque = j.steps_total_porque;
+    }
+    if (j.alive) {
+      j.estimativa = estimation.estimateJob(j.job_id, {
+        agent: j.agent, goal: j.goal, prompt_chars: j.prompt_chars,
+        started_ts: j.started_ts, elapsed_s: j.started_ts
+          ? Math.max(0, Math.round((statusNow - Date.parse(j.started_ts)) / 1000)) : null,
+        steps_done: j.now.steps_done, steps_total: j.now.steps_total,
+        steps_total_porque: j.now.steps_total_porque || j.steps_total_porque,
+      }, {
+        index: etaIndex,
+        indexPath: path.join(MOOTER_HOME_DIR(), 'eta-index.json'),
+        outPath: path.join(JOBS_DIR(), j.job_id, 'out.log'),
+        now: statusNow,
+      });
     }
   }
   return { jobs: Object.values(byJob), ledger_lines: evs.length };

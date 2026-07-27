@@ -36,12 +36,14 @@ const quota = require('./quota.js');
 const capacidades = require('./capacidades.js');
 const board = require('./board.js');
 const afericao = require('./afericao.js');
+const estimation = require('./estimativa.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
 const MOOTER_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const LEDGER = path.join(MOOTER_DIR, 'ledger.jsonl');
 const JOBS_DIR = path.join(MOOTER_DIR, 'jobs');
+const ETA_INDEX = path.join(MOOTER_DIR, 'eta-index.json');
 const SESSION_FILE = path.join(MOOTER_DIR, 'cowork-session.json');
 const UI_FILE = path.join(__dirname, 'fleet-ui.html');
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
@@ -126,6 +128,17 @@ function foldJobs(events) {
     if (e.tokens_in != null) j.tokens_in = e.tokens_in;
     if (e.tokens_out != null) j.tokens_out = e.tokens_out;
     if (e.handoff_from) j.handoff_from = e.handoff_from;
+    if (e.goal) j.goal = e.goal;
+    if (e.prompt_chars != null) j.prompt_chars = e.prompt_chars;
+    if (e.event === 'started' && Object.prototype.hasOwnProperty.call(e, 'steps_total')) {
+      j.steps_total = e.steps_total;
+      if (e.steps_total == null) j.steps_total_porque = e.porque || 'o total de passos é n/d';
+    }
+    if (e.event === 'step') {
+      j.steps_done = Math.max(Number(j.steps_done) || 0, Number(e.step_index) || 0);
+      if (Object.prototype.hasOwnProperty.call(e, 'steps_total')) j.steps_total = e.steps_total;
+      if (e.steps_total == null && e.porque) j.steps_total_porque = e.porque;
+    }
     // v1.4.2 — porque é que ESTE modelo local e não outro. O painel deixa de ter
     // de adivinhar se um 3B foi escolha ou acidente.
     if (e.modelo_porque) j.modelo_porque = e.modelo_porque;
@@ -999,7 +1012,7 @@ async function toolFleet(args, deps) {
           j.tokens_out = t.tokens_out != null ? t.tokens_out : j.tokens_out;
           j.tok_s = t.tok_s != null ? t.tok_s : null;
           j.tok_s_basis = t.tok_s_basis || null;
-          j.steps_done = t.steps_done || 0;
+          j.steps_done = Math.max(Number(j.steps_done) || 0, Number(t.steps_done) || 0);
           j.files_read = t.files_read && t.files_read.length ? t.files_read.slice(-6) : null;
           j.files_written = t.files_written && t.files_written.length ? t.files_written.slice(-6) : null;
           j.commands = t.commands && t.commands.length ? t.commands.slice(-3) : null;
@@ -1007,6 +1020,25 @@ async function toolFleet(args, deps) {
         }
       } catch { /* the panel must never die because a log is mid-write */ }
     }
+  }
+
+  // Um único índice alimenta todos os jobs deste retrato; cada job vivo paga
+  // apenas o seu próprio stat(out.log). Não há barra nem estimativa por wave.
+  const liveForEstimate = jobs.filter(isLive);
+  const etaIndex = liveForEstimate.length
+    ? (typeof d.etaReadIndex === 'function' ? d.etaReadIndex() : estimation.readIndex({ indexPath: ETA_INDEX }))
+    : null;
+  for (const j of liveForEstimate) {
+    const estimate = typeof d.estimateJob === 'function' ? d.estimateJob : estimation.estimateJob;
+    j.estimativa = estimate(j.job_id, {
+      agent: j.agent, goal: j.goal, prompt_chars: j.prompt_chars,
+      started_at: j.started_at, elapsed_s: j.elapsed_s,
+      steps_done: j.steps_done, steps_total: j.steps_total,
+      steps_total_porque: j.steps_total_porque,
+    }, {
+      index: etaIndex, indexPath: ETA_INDEX,
+      outPath: path.join(JOBS_DIR, j.job_id, 'out.log'), now,
+    });
   }
 
   // wave plans: the steps, who did them, and which ones are dangerous

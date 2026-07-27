@@ -496,6 +496,10 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   // (wait a tick first: the module's WriteStream open() truncates out.log async)
   await new Promise((r) => setTimeout(r, 30));
   fs.writeFileSync(path.join(jobDir, 'out.log'), JSON.stringify({ result: 'ok', total_cost_usd: 0.0123, session_id: 'sess-1' }));
+  const liveStatus = await seam.toolStatus({ job_id: d.job_id });
+  assert.ok(liveStatus.jobs[0].estimativa, 'mooter_check perdeu o bloco estimativa do job vivo');
+  assert.strictEqual(liveStatus.jobs[0].estimativa.falta_s.valor, null,
+    'sem histórico suficiente, o check inventou uma duração');
   const reg = seam.REGISTRY.get(d.job_id);
   reg.child.emit('close', 0);
   await new Promise((r) => setTimeout(r, 20));
@@ -508,6 +512,12 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   assert.strictEqual(doneEv.desfecho, 'entregue');
   assert.strictEqual(doneEv.ttft_ms, null, 'sem conteúdo observado no stream tem de ser null, nunca 0');
   assert.ok(doneEv.mp_hash && doneEv.mp_hash.length === 64);
+  const etaState = JSON.parse(fs.readFileSync(path.join(process.env.MOOTER_HOME, 'eta-index.json'), 'utf8'));
+  const etaSample = Object.values(etaState.chaves)
+    .flatMap((entry) => entry._observacoes || [])
+    .find((sample) => sample.job_id === d.job_id);
+  assert.ok(etaSample && etaSample.bytes_finais > 0,
+    'o fecho do job não guardou bytes_finais na mesma amostra ETA');
 
   // status
   const st = await seam.toolStatus({ job_id: d.job_id });

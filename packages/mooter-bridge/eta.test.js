@@ -47,6 +47,9 @@ test('2 — cancelled-by-user e orphaned-by-restart não entram nos percentis', 
   assert.equal(result.valor.n, 5);
   assert.equal(result.valor.p50, 3);
   assert.equal(result.valor.max, 5);
+  assert.equal(result.valor.bytes_n, 0);
+  assert.equal(result.valor.bytes_p50, null);
+  assert.match(result.valor.bytes_porque, /0 observação.*pelo menos 5/i);
 });
 
 test('3 — timeout levanta max sem contaminar p50', (t) => {
@@ -107,4 +110,29 @@ test('5 — codex sem denominador fiável mantém steps_total null com porque', 
   assert.deepEqual(advances, [1]);
   assert.equal(seamless.stepsTotalFor('codex', 3).steps_total, 3);
   assert.equal(seamless.stepsTotalFor('moo', null).steps_total, 1);
+});
+
+test('7 — o fecho mede bytes_finais na mesma amostra sem fabricar percentis', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-eta-terminal-'));
+  const indexPath = path.join(dir, 'eta-index.json');
+  const jobDir = path.join(dir, 'jobs', 'job-terminal');
+  fs.mkdirSync(jobDir, { recursive: true });
+  fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
+    agent: 'codex', goal: 'implementa código', created_at: '2026-07-27T11:59:00.000Z',
+  }));
+  fs.writeFileSync(path.join(jobDir, 'masterprompt.md'), 'implementa código', 'utf8');
+  const output = 'resultado medido\n';
+  fs.writeFileSync(path.join(jobDir, 'out.log'), output, 'utf8');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const result = eta.observeTerminal({
+    event: 'done', job_id: 'job-terminal', agent: 'codex',
+    duration_s: 60, exit_code: 0, ts: '2026-07-27T12:00:00.000Z',
+  }, { indexPath, jobDir });
+  assert.equal(result.ok, true);
+  const entry = Object.values(JSON.parse(fs.readFileSync(indexPath, 'utf8')).chaves)[0];
+  assert.equal(entry._observacoes[0].bytes_finais, Buffer.byteLength(output));
+  assert.equal(entry.bytes_n, 1);
+  assert.equal(entry.bytes_p50, null);
+  assert.match(entry.bytes_porque, /1 observação.*pelo menos 5/i);
 });
