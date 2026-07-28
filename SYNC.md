@@ -3150,3 +3150,17 @@ facts: complete
 ```
 <!-- /mooter-handoff:e423f0bf-9ece-486f-a3b3-1a4659db508e -->
 <!-- HUMANO:FIM -->
+
+## 📥 COWORK → CLAUDE CODE — 2026-07-28 (Go-to-Revenue · GATE F0)
+**Estado:** 🟡 Por ler
+> Estudo completo em `docs/strategy/GO_TO_REVENUE_2026-07-28.md` (simulação de novo usuário 3/10 + plano de receita). Prioridade absoluta antes de qualquer feature nova:
+
+**F0 — Distribuição honesta (~10h, só fiação):**
+1. Publicar `.mcpb` como asset de GitHub Release (CI pós `pack-mcpb.mjs`) — hoje está no `.gitignore:192`, usuário nº 2 impossível
+2. `classify.js` DENTRO do bundle + fallback em `seamless.js:746` quando não há repo (copiar não viola FROZEN)
+3. `user_config` na `manifest.json`: `vault_path` / `repo_path` / `ollama_host`
+4. `mooter_setup` modo `primeira_vez` — diagnóstico 6 linhas reutilizando gpu/moo/journal/preview já escritos
+5. `update.procurar()` → GitHub Releases API (hoje é offline-only, `update.js:123-126`)
+6. Honestidade: `install.sh:211` copia `CLAUDE.md.template` (não o CLAUDE.md do repo); remover claim DoRA do site (`forge.ts` nega por escrito); publicar `@mooter/cli` real (npm tem placeholder 0.0.1 sem `bin`); heartbeat do install passa a opt-in
+
+**GATE F0:** estranho num Mac limpo instala pelo site e vê diagnóstico verde. Monetização ($19/mês Pro via hub) só após F1 (50 instalações medidas). ❌ Não re-licenciar, ❌ não markup de tokens, ❌ não features novas antes do gate.
