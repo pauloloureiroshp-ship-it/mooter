@@ -293,10 +293,24 @@ test('nova excepção automática entra logo no contador e no scorecard persisti
       ts: '2026-07-26T12:01:00.000Z' });
     const card = board.scorecard({ mooterHome: dir, agora: AGORA, quotaState: null, gpuState: null });
     assert.strictEqual(card.metricas.interrupcoes_por_dia.valor, 1);
-    assert.strictEqual(card.ledger_eventos, 3);
+    /**
+     * ⚠️ Eram 3 eventos; passaram a 4 — e o quarto é uma entrega da onda Y1,
+     * não uma regressão. O `done` deste teste não tem jobDir, por isso o
+     * `observeTerminal` recusa a observação — e essa recusa DEIXOU DE SER
+     * SILENCIOSA: fica no ledger como `eta_observacao_recusada`. Era
+     * exactamente o buraco que fazia o Codex aparecer com 10% de captura sem
+     * ninguém saber porquê. O teste conta os quatro e prova qual é o novo, em
+     * vez de aceitar um número maior sem perguntar de onde veio.
+     */
+    assert.strictEqual(card.ledger_eventos, 4);
+    const eventos = fs.readFileSync(path.join(dir, 'ledger.jsonl'), 'utf8')
+      .split('\n').filter(Boolean).map((linha) => JSON.parse(linha));
+    const recusa = eventos.find((e) => e.event === 'eta_observacao_recusada');
+    assert.ok(recusa, 'a recusa do observeTerminal voltou a desaparecer em silêncio');
+    assert.ok(recusa.porque, 'a recusa entrou no ledger sem dizer porquê');
     const persistido = JSON.parse(fs.readFileSync(path.join(dir, 'scorecard.json'), 'utf8'));
     assert.strictEqual(persistido.metricas.interrupcoes_por_dia.valor, 1);
-    assert.strictEqual(persistido.ledger_eventos, 3);
+    assert.strictEqual(persistido.ledger_eventos, 4);
   } finally {
     if (anterior == null) delete process.env.MOOTER_HOME;
     else process.env.MOOTER_HOME = anterior;

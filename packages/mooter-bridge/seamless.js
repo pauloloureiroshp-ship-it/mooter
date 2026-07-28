@@ -67,27 +67,50 @@ function nowIso() { return new Date().toISOString(); }
 function sha256(s) { return crypto.createHash('sha256').update(s, 'utf8').digest('hex'); }
 
 // ── ledger (append-only JSONL; this process is the single writer) ─────────
-function ledgerAppend(ev) {
+function appendLedgerRecord(payload) {
   ensureDirs();
+  const record = { ts: nowIso(), ...(payload || {}) };
+  const line = JSON.stringify(record);
+  fs.appendFileSync(LEDGER_PATH(), line + '\n');
+  return { record, line };
+}
+
+function recordEtaRefusal(record, porque) {
+  try {
+    appendLedgerRecord({
+      event: 'eta_observacao_recusada', job_id: record.job_id || null,
+      agent: record.agent || null, source_event: record.event || null,
+      porque: String(porque || 'motivo n/d'),
+    });
+  } catch (error) {
+    log('ETA recusada e o recibo não entrou no ledger: ' + ((error && error.message) || error));
+  }
+}
+
+function ledgerAppend(ev) {
   const payload = { ...(ev || {}) };
   const desfecho = aprender.classificarDesfecho(payload);
   if (desfecho) {
     payload.desfecho = desfecho;
     if (!Object.prototype.hasOwnProperty.call(payload, 'ttft_ms')) payload.ttft_ms = null;
   }
-  const record = { ts: nowIso(), ...payload };
-  const line = JSON.stringify(record);
-  fs.appendFileSync(LEDGER_PATH(), line + '\n');
+  const appended = appendLedgerRecord(payload);
+  const record = appended.record;
   try {
     const etaResult = eta.observeTerminal(record, {
       indexPath: path.join(MOOTER_HOME_DIR(), 'eta-index.json'),
       jobDir: record.job_id ? path.join(JOBS_DIR(), record.job_id) : null,
     });
-    if (etaResult && etaResult.ok === false) log('ETA ' + (record.job_id || 'n/d') + ': ' + etaResult.porque);
+    if (etaResult && etaResult.ok === false) {
+      recordEtaRefusal(record, etaResult.porque);
+      log('ETA ' + (record.job_id || 'n/d') + ': ' + etaResult.porque);
+    }
   } catch (error) {
-    log('ETA ' + (record.job_id || 'n/d') + ' não actualizada: ' + ((error && error.message) || error));
+    const porque = 'observeTerminal falhou: ' + ((error && error.message) || error);
+    recordEtaRefusal(record, porque);
+    log('ETA ' + (record.job_id || 'n/d') + ' não actualizada: ' + porque);
   }
-  return line;
+  return appended.line;
 }
 function ledgerRead() {
   try {
@@ -97,7 +120,21 @@ function ledgerRead() {
   } catch { return []; }
 }
 const TERMINAL = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
-const NON_STATE_EVENTS = new Set(['cross_check', 'step']);
+/**
+ * ⚠️ Um evento de diagnóstico não é um estado.
+ *
+ * O ledger é ao mesmo tempo a máquina de estados dos jobs e o sítio onde
+ * gravamos observações sobre eles. Confundir as duas coisas parte tudo o que
+ * lê "o último evento" como se fosse "o estado actual".
+ *
+ * `eta_observacao_recusada` entrou nesta lista depois de um teste da onda Y1 o
+ * apanhar em flagrante: a recusa é escrita DEPOIS do `failed` de um cancel, e
+ * o `toolCancel` — que decide idempotência por `TERMINAL.has(last.event)` —
+ * passou a ver a recusa em vez do `failed` e deixou de ser idempotente. Um
+ * evento que só serve para dizer "não consegui medir isto" nunca pode mudar o
+ * que o produto pensa que o job está a fazer.
+ */
+const NON_STATE_EVENTS = new Set(['cross_check', 'step', 'eta_observacao_recusada']);
 function lastStateEvent(events) {
   for (let i = events.length - 1; i >= 0; i--) {
     if (!NON_STATE_EVENTS.has(events[i].event)) return events[i].event;
@@ -1309,6 +1346,10 @@ async function toolDispatch(args) {
   const jobGoal = args && args.__goal
     ? String(args.__goal)
     : ((String(masterprompt).match(/OBJECTIVO(?: DA WAVE)?:\s*([^\r\n]+)/i) || [])[1] || null);
+  const categorySelection = aprender.resolveCategory(jobGoal, args && args.__category);
+  const jobCategory = categorySelection.category || aprender.categoryForGoal(jobGoal);
+  const jobCategoryFonte = args && (args.__category_fonte === 'declarada' || args.__category_fonte === 'inferida')
+    ? args.__category_fonte : categorySelection.category_fonte;
   // Keep rate só é atribuível numa worktree que esta chamada criou de fresco.
   const freshWorktree = !!(canWrite && createdWorktree && createdWorktree.path
     && P.mesmo(createdWorktree.path, wtNorm));
@@ -1327,7 +1368,8 @@ async function toolDispatch(args) {
     job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: commandText,
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
     worktree_criada: createdWorktree,
-    goal: jobGoal, prompt_chars: masterprompt.length,
+    goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
+    prompt_chars: masterprompt.length,
     escrita: canWrite, preparation: !!chain, git_base: gitBase,
     local_decisao: localDecision,
     steps_total: stepProgress.steps_total,
@@ -1345,7 +1387,8 @@ async function toolDispatch(args) {
     job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree,
     local_decisao: localDecision,
     mp_hash, model, model_recommended, tier, step: stepId,
-    goal: jobGoal, prompt_chars: masterprompt.length,
+    goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
+    prompt_chars: masterprompt.length,
     escrita: canWrite, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
     git_base_clean: gitBase ? gitBase.clean : null,
@@ -1817,8 +1860,13 @@ async function toolCancel(args) {
   const live = REGISTRY.get(jobId);
   const evs = ledgerRead().filter((e) => e.job_id === jobId);
   if (!evs.length) return { error: 'job desconhecido: ' + jobId };
+  // O estado é o último evento de ESTADO, não o último evento escrito: um
+  // diagnóstico gravado a seguir ao desfecho não ressuscita o job.
+  // `last` continua a ser a última linha, que é de onde saem os metadados
+  // (wave, agent, worktree) para o evento de cancelamento mais abaixo.
   const last = evs[evs.length - 1];
-  if (TERMINAL.has(last.event)) return { job_id: jobId, state: last.event, note: 'já estava terminado — nada a fazer (idempotente)' };
+  const estado = lastStateEvent(evs);
+  if (TERMINAL.has(estado)) return { job_id: jobId, state: estado, note: 'já estava terminado — nada a fazer (idempotente)' };
 
   // ⚠️ A2 — o cancelamento é CONFIRMADO, não presumido.
   // Antes escrevia-se `cancelled` logo a seguir ao kill. Se o processo
@@ -2100,6 +2148,10 @@ async function toolWork(args) {
   const a = args || {};
   const goal = String(a.goal || '').trim();
   if (!goal) return { error: 'goal é obrigatório — descreve o que queres em linguagem normal' };
+  const workCategory = aprender.resolveCategory(goal, a.category);
+  if (!workCategory.category) {
+    return { error: workCategory.porque, categorias_validas: [...aprender.CATEGORY_NAMES] };
+  }
   const suppliedStepsTotal = Array.isArray(a.steps) ? a.steps.length : null;
   const wave = String(a.wave || ('work-' + new Date().toISOString().slice(0, 10) + '-' + crypto.randomBytes(2).toString('hex')));
   // The guard only checks that a ⇄ header EXISTS. If user text could carry its
@@ -2367,10 +2419,11 @@ async function toolWork(args) {
     // O resultado anterior pode mudar a decisão, mas nunca ultrapassa um veto
     // mecânico de risco/capacidade nem altera o modelo cloud já calibrado.
     aprendizagem = aprender.recomendarAgente({
-      goal, tier, escrita: a.write === true, ledger: ledgerRead(),
+      goal, category: workCategory.category, category_fonte: workCategory.category_fonte,
+      tier, escrita: a.write === true, ledger: ledgerRead(),
     });
     const mechanicalVeto = !escolhaLocal.local && escolhaLocal.confianca === 'alta';
-    if (aprendizagem && !mechanicalVeto) {
+    if (aprendizagem && aprendizagem.agente && !mechanicalVeto) {
       escolhaLocal = {
         local: aprendizagem.agente === 'moo',
         porque: 'histórico local: ' + aprendizagem.porque,
@@ -2523,9 +2576,11 @@ async function toolWork(args) {
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
         __goal: goal, __escrita: false,
+        __category: workCategory.category, __category_fonte: workCategory.category_fonte,
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
+          __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
           __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
           __quota_calibragem: calibragem },
@@ -2535,7 +2590,8 @@ async function toolWork(args) {
           resumo: '🐮 GPU local (' + localModel + ') a preparar o trabalho a $0 · depois entra o ' + agent
             + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id
             + worktreeSuffix(pedida, worktree, relocated),
-          ok: true, goal, wave, tier,
+          ok: true, goal, category: workCategory.category,
+          category_fonte: workCategory.category_fonte, wave, tier,
           phase: 'preparação local',
           agent: 'moo → ' + agent,
           model: (prep.model || localModel) + ' → ' + (model || '(default do CLI)'),
@@ -2550,6 +2606,10 @@ async function toolWork(args) {
           relocated_porque: relocatedPorque,
           chained: true,
           worktree,
+          aprendizagem: aprendizagem ? {
+            agente: aprendizagem.agente, porque: aprendizagem.porque,
+            confianca: aprendizagem.confianca, base: aprendizagem.base,
+          } : null,
           mode: readOnly ? 'só leitura' : 'escrita permitida',
           verificacao_cruzada: {
             estado: 'aguarda_job_pago',
@@ -2567,6 +2627,7 @@ async function toolWork(args) {
 
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
+    __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,
     __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
     __quota_calibragem: calibragem });
@@ -2586,7 +2647,8 @@ async function toolWork(args) {
       + worktreeSuffix(pedida, worktree, relocated)
       + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : '')
       + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
-    ok: true, goal, wave,
+    ok: true, goal, category: workCategory.category,
+    category_fonte: workCategory.category_fonte, wave,
     permissoes_pedidas: r.permissoes_pedidas,
     permissoes_efectivas: r.permissoes_efectivas,
     permissoes_diferenca: r.permissoes_diferenca,
@@ -2696,6 +2758,7 @@ const TOOLS = [
       wave: { type: 'string', description: 'Wave id (auto-generated if omitted).' },
       agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo'], description: 'Force an engine. Omit to let the router decide.' },
       model: { type: 'string', description: 'Force a model. Omit to let the router decide.' },
+      category: { type: 'string', enum: ['git_deploy', 'auditoria', 'codigo', 'leitura_resumo', 'outro'], description: 'Override da categoria de aprendizagem. Quando presente, ganha à inferência e fica registada como declarada.' },
       steps: { type: 'array', items: { type: 'string' }, description: 'Optional plan: the steps the panel should show, with risk inferred per step.' },
       prepare: { type: 'boolean', description: 'Let the local GPU write the handoff brief first, at $0, and start the paid agent with it already embedded. Default true when Ollama is up.' },
       create_worktree: { type: 'boolean', description: 'Create a fresh isolated worktree before dispatch (git worktree add, reversible). If creation fails the job does not start.' },

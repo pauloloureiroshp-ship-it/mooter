@@ -91,6 +91,18 @@ test('guard: aceita worktree git válida e livre', () => {
   assert.deepStrictEqual(g, { ok: true, reasons: [] });
 });
 
+test('recusa do observeTerminal deixa um evento próprio no ledger', () => {
+  const jobId = 'eta-sem-meta-' + Date.now();
+  seam.ledgerAppend({
+    event: 'done', job_id: jobId, agent: 'codex', duration_s: 1, exit_code: 0,
+  });
+  const recusas = seam.ledgerRead().filter((event) => (
+    event.event === 'eta_observacao_recusada' && event.job_id === jobId
+  ));
+  assert.strictEqual(recusas.length, 1);
+  assert.match(recusas[0].porque, /metadata do job/i);
+});
+
 test('route: usa o classifier (stub) e mapeia tier→agent', async () => {
   const r = await seam.toolRoute({ text: 'qualquer tarefa' });
   assert.strictEqual(r.agent, 'cc');
@@ -194,6 +206,38 @@ test('honestidade: goal sem execução continua a ser despachado ao moo', async 
     moo.pickModel = originalPickModel;
     moo.pickModelExplained = originalPickModelExplained;
     moo.runLocal = originalRunLocal;
+  }
+});
+
+test('mooter_work persiste categoria explícita e a fonte declarada', async () => {
+  const worktree = makeWorktree('frugal-wt-category-override');
+  let result = null;
+  seam.setJobSpawner(() => {
+    const child = fakeChild();
+    setImmediate(() => child.emit('spawn'));
+    return child;
+  });
+  try {
+    result = await seam.toolWork({
+      goal: 'Implementa código.\nREGRAS:\n- sem push.',
+      category: 'leitura_resumo', agent: 'cc', worktree,
+      wave: 'category-override', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.category, 'leitura_resumo');
+    assert.strictEqual(result.category_fonte, 'declarada');
+    const dispatched = seam.ledgerRead().find((event) => (
+      event.event === 'dispatched' && event.job_id === result.job_id
+    ));
+    assert.strictEqual(dispatched.category, 'leitura_resumo');
+    assert.strictEqual(dispatched.category_fonte, 'declarada');
+    const meta = JSON.parse(fs.readFileSync(
+      path.join(process.env.MOOTER_HOME, 'jobs', result.job_id, 'meta.json'), 'utf8',
+    ));
+    assert.strictEqual(meta.category, 'leitura_resumo');
+    assert.strictEqual(meta.category_fonte, 'declarada');
+  } finally {
+    await closeJob(result, 0);
   }
 });
 

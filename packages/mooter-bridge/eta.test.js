@@ -119,6 +119,7 @@ test('7 — o fecho mede bytes_finais na mesma amostra sem fabricar percentis', 
   fs.mkdirSync(jobDir, { recursive: true });
   fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify({
     agent: 'codex', goal: 'implementa código', created_at: '2026-07-27T11:59:00.000Z',
+    category: 'leitura_resumo', category_fonte: 'declarada',
   }));
   fs.writeFileSync(path.join(jobDir, 'masterprompt.md'), 'implementa código', 'utf8');
   const output = 'resultado medido\n';
@@ -132,7 +133,46 @@ test('7 — o fecho mede bytes_finais na mesma amostra sem fabricar percentis', 
   assert.equal(result.ok, true);
   const entry = Object.values(JSON.parse(fs.readFileSync(indexPath, 'utf8')).chaves)[0];
   assert.equal(entry._observacoes[0].bytes_finais, Buffer.byteLength(output));
+  assert.equal(entry._observacoes[0].category_fonte, 'declarada');
+  assert.deepEqual(entry.category_fontes, { declarada: 1, inferida: 0, legado: 0 });
   assert.equal(entry.bytes_n, 1);
   assert.equal(entry.bytes_p50, null);
   assert.match(entry.bytes_porque, /1 observação.*pelo menos 5/i);
+});
+
+test('8 — taxa de captura cruza jobs done com observações reais por agente', (t) => {
+  const indexPath = fixture(t);
+  eta.recordObservation({
+    job_id: 'cc-observado', agent: 'cc', goal: 'implementa código',
+    prompt_chars: 2_000, duration_s: 10,
+  }, { indexPath });
+  eta.recordObservation({
+    job_id: 'moo-observado', agent: 'moo', goal: 'resume o ficheiro',
+    prompt_chars: 2_000, duration_s: 5,
+  }, { indexPath });
+  const rates = eta.captureRates([
+    { event: 'done', job_id: 'cc-observado', agent: 'cc' },
+    { event: 'done', job_id: 'cc-perdido', agent: 'cc' },
+    { event: 'eta_observacao_recusada', job_id: 'cc-perdido', agent: 'cc' },
+    { event: 'done', job_id: 'moo-observado', agent: 'moo' },
+  ], eta.readIndex({ indexPath }));
+  assert.deepEqual(rates, [
+    {
+      agente: 'cc', done_no_ledger: 2, observacoes_no_indice: 1,
+      recusas_no_ledger: 1, taxa_captura_pct: 50, porque: null,
+    },
+    {
+      agente: 'moo', done_no_ledger: 1, observacoes_no_indice: 1,
+      recusas_no_ledger: 0, taxa_captura_pct: 100, porque: null,
+    },
+  ]);
+});
+
+test('9 — índice truncado deixa a taxa histórica n/d em vez de a subestimar', () => {
+  const samples = Array.from({ length: eta.JANELA }, (_, index) => ({ job_id: 'job-' + index }));
+  const rates = eta.captureRates([
+    { event: 'done', job_id: 'job-0', agent: 'cc' },
+  ], { chaves: { 'cc|codigo|<4k': { _observacoes: samples, _timeouts: [] } } });
+  assert.strictEqual(rates[0].taxa_captura_pct, null);
+  assert.match(rates[0].porque, /janela deslizante/i);
 });

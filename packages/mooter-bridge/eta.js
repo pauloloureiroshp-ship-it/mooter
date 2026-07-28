@@ -75,6 +75,7 @@ function publicEntry(entry) {
     bytes_p90: entry.bytes_p90 == null ? null : entry.bytes_p90,
     bytes_max: entry.bytes_max == null ? null : entry.bytes_max,
     medido_em: entry.medido_em,
+    category_fontes: entry.category_fontes || { declarada: 0, inferida: 0, legado: 0 },
   };
   if (entry.bytes_porque) out.bytes_porque = entry.bytes_porque;
   else if (out.bytes_n < MIN_OBSERVATIONS) {
@@ -101,6 +102,12 @@ function recompute(entry, measuredAt) {
   const timeoutBytes = timeoutObservations
     .map((item) => item.bytes_finais == null ? null : Number(item.bytes_finais))
     .filter((value) => value != null && Number.isFinite(value) && value >= 0);
+  const categorySources = { declarada: 0, inferida: 0, legado: 0 };
+  for (const item of observations.concat(timeoutObservations)) {
+    const source = item.category_fonte === 'declarada' || item.category_fonte === 'inferida'
+      ? item.category_fonte : 'legado';
+    categorySources[source]++;
+  }
   const allBytes = completedBytes.concat(timeoutBytes);
   entry.n = completed.length;
   entry.p50 = completed.length >= MIN_OBSERVATIONS ? nearestRank(completed, 0.50) : null;
@@ -116,6 +123,7 @@ function recompute(entry, measuredAt) {
   entry.bytes_max = allBytes.length ? Math.max(...allBytes) : null;
   entry.medido_em = measuredAt || entry.medido_em || null;
   entry.timeouts_n = timeouts.length;
+  entry.category_fontes = categorySources;
   if (completed.length < MIN_OBSERVATIONS) {
     entry.porque = 'só há ' + completed.length + ' observação(ões) completa(s); são precisas pelo menos ' + MIN_OBSERVATIONS + ' para calcular percentis';
   } else delete entry.porque;
@@ -146,7 +154,11 @@ function recordObservation(observation, options) {
   if (!bucket) return { ok: false, porque: 'o tamanho real do prompt não foi medido; a faixa de contexto fica n/d' };
   const agent = String(item.agent || '').trim();
   if (!agent) return { ok: false, porque: 'o agente do job é n/d' };
-  const category = item.category || aprender.categoryForGoal(item.goal);
+  const resolvedCategory = aprender.resolveCategory(item.goal, item.category);
+  if (!resolvedCategory.category) return { ok: false, porque: resolvedCategory.porque };
+  const category = resolvedCategory.category;
+  const categoryFonte = item.category_fonte === 'declarada' || item.category_fonte === 'inferida'
+    ? item.category_fonte : resolvedCategory.category_fonte;
   const jobId = String(item.job_id || '').trim();
   if (!jobId) return { ok: false, porque: 'job_id é obrigatório para impedir observações duplicadas' };
   const loaded = loadIndex(options);
@@ -162,7 +174,10 @@ function recordObservation(observation, options) {
   const entry = state.chaves[key] || { n: 0, p50: null, p75: null, p90: null, max: null, medido_em: null, _observacoes: [], _timeouts: [] };
   entry._observacoes = entry._observacoes || [];
   entry._timeouts = entry._timeouts || [];
-  const sample = { job_id: jobId, duration_s: duration, bytes_finais: finalBytes };
+  const sample = {
+    job_id: jobId, duration_s: duration, bytes_finais: finalBytes,
+    category_fonte: categoryFonte,
+  };
   const timedOut = item.desfecho === 'expirou' || TIMEOUT_EXITS.has(item.exit_code);
   (timedOut ? entry._timeouts : entry._observacoes).push(sample);
   const measuredAt = item.ts || new Date().toISOString();
@@ -212,12 +227,71 @@ function observeTerminal(event, options) {
   } catch { /* sem out.log medido, a vivacidade degrada honestamente para n/d */ }
   return recordObservation({
     job_id: ev.job_id, agent: ev.agent || meta.agent, goal: ev.goal || meta.goal,
+    category: ev.category || meta.category,
+    category_fonte: ev.category_fonte || meta.category_fonte,
     prompt_chars: prompt.length, duration_s: duration, bytes_finais: finalBytes, exit_code: ev.exit_code,
     desfecho: ev.desfecho, ts: ev.ts,
   }, options);
 }
 
+function captureRates(ledger, index) {
+  const events = Array.isArray(ledger) ? ledger : [];
+  const state = index && typeof index === 'object' ? index : emptyIndex();
+  const doneByAgent = new Map();
+  const observedByAgent = new Map();
+  const refusedByAgent = new Map();
+  const truncatedAgents = new Set();
+  const add = (map, agent, jobId) => {
+    if (!agent || !jobId) return;
+    const jobs = map.get(agent) || new Set();
+    jobs.add(jobId); map.set(agent, jobs);
+  };
+  for (const event of events) {
+    if (!event || !event.agent || !event.job_id) continue;
+    if (event.event === 'done') add(doneByAgent, String(event.agent), String(event.job_id));
+    if (event.event === 'eta_observacao_recusada') {
+      add(refusedByAgent, String(event.agent), String(event.job_id));
+    }
+  }
+  for (const [key, entry] of Object.entries(state.chaves || {})) {
+    const agent = String(key).split('|')[0];
+    if ((entry._observacoes || []).length >= JANELA || (entry._timeouts || []).length >= JANELA) {
+      truncatedAgents.add(agent);
+    }
+    for (const sample of (entry._observacoes || []).concat(entry._timeouts || [])) {
+      if (sample && sample.job_id) add(observedByAgent, agent, String(sample.job_id));
+    }
+  }
+  const agents = new Set([...doneByAgent.keys(), ...observedByAgent.keys(), ...refusedByAgent.keys()]);
+  return [...agents].sort().map((agent) => {
+    const done = doneByAgent.get(agent) || new Set();
+    const observed = observedByAgent.get(agent) || new Set();
+    const captured = [...done].filter((jobId) => observed.has(jobId)).length;
+    const refused = refusedByAgent.get(agent) || new Set();
+    if (state.porque) {
+      return {
+        agente: agent, done_no_ledger: done.size, observacoes_no_indice: null,
+        recusas_no_ledger: refused.size, taxa_captura_pct: null,
+        porque: state.porque,
+      };
+    }
+    if (truncatedAgents.has(agent)) {
+      return {
+        agente: agent, done_no_ledger: done.size, observacoes_no_indice: captured,
+        recusas_no_ledger: refused.size, taxa_captura_pct: null,
+        porque: 'o índice atingiu a janela deslizante; o denominador histórico deixou de ser comparável',
+      };
+    }
+    return {
+      agente: agent, done_no_ledger: done.size, observacoes_no_indice: captured,
+      recusas_no_ledger: refused.size,
+      taxa_captura_pct: done.size ? Number(((captured / done.size) * 100).toFixed(1)) : null,
+      porque: done.size ? null : 'não há eventos done para formar o denominador',
+    };
+  });
+}
+
 module.exports = {
   VERSION, MIN_OBSERVATIONS, JANELA, etaIndexPath, contextBucket, indexKey,
-  readIndex, recordObservation, lookup, observeTerminal, _nearestRank: nearestRank,
+  readIndex, recordObservation, lookup, observeTerminal, captureRates, _nearestRank: nearestRank,
 };

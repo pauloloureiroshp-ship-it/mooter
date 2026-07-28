@@ -251,11 +251,29 @@ test('view afericao sem histórico devolve n/d com porquê', async () => {
     afericaoLatest() {
       return { estado: 'n/d', porque: 'nunca foi guardada uma aferição nesta máquina' };
     },
+    ledgerRead() {
+      return [
+        { event: 'done', job_id: 'capturado', agent: 'codex' },
+        { event: 'done', job_id: 'perdido', agent: 'codex' },
+      ];
+    },
+    etaReadIndex() {
+      return {
+        version: 1,
+        chaves: {
+          'codex|codigo|<4k': { _observacoes: [{ job_id: 'capturado' }], _timeouts: [] },
+        },
+      };
+    },
     probeOllama() { throw new Error('a vista aferição não deve sondar Ollama'); },
   });
   assert.strictEqual(out.estado, 'n/d');
   assert.strictEqual(out.afericao, null);
   assert.match(out.porque, /nunca foi guardada/i);
+  assert.deepStrictEqual(out.captura_por_agente, [{
+    agente: 'codex', done_no_ledger: 2, observacoes_no_indice: 1,
+    recusas_no_ledger: 0, taxa_captura_pct: 50, porque: null,
+  }]);
 });
 
 test('o painel responde em menos de 2s quando uma sonda fica pendurada', async () => {

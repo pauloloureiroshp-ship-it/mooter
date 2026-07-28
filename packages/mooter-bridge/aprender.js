@@ -9,20 +9,72 @@ const REPEAT_WINDOW_MS = 10 * 60 * 1000;
 const DESFECHOS = new Set(['entregue', 'falhou', 'interrompido', 'expirou', 'indeterminado']);
 const EVENTOS_TERMINAIS = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
 const CATEGORY_PATTERNS = [
-  ['git_deploy', [/\b(git|commit|push|merge|rebase|branch|pull request|pr)\b/i,
+  ['git_deploy', [/\b(git|commit|push|merge|rebase|branch(?:es)?|pull request|pr)\b/i,
     /\b(deploy|publica|lan[çc]a|release|migra|migration)\b/i]],
   ['auditoria', [/\b(audita|auditoria|audit|review|revis[aã]o|seguran[çc]a|security|vulnerabilidad|red.?team)\b/i]],
   ['codigo', [/\b(c[oó]digo|code|implementa|corrige|fix|bug|refactor|fun[çc][aã]o|class|teste|test|javascript|typescript|python|css|html)\b/i,
     /\b(cria|edita|escreve|altera)\b.*\b(ficheiro|arquivo|file|componente|m[oó]dulo)\b/i]],
   ['leitura_resumo', [/\b(l[eê]|leia|read|resume|resumo|sumariza|summariz|explica|explique|compara|extrai|lista|identifica|traduz)\b/i]],
 ];
+const CATEGORY_NAMES = new Set(CATEGORY_PATTERNS.map(([category]) => category).concat('outro'));
+const LEGACY_CATEGORY_PATTERNS = CATEGORY_PATTERNS.map(([category, patterns]) => (
+  category === 'git_deploy'
+    ? [category, [/\b(git|commit|push|merge|rebase|branch|pull request|pr)\b/i, patterns[1]]]
+    : [category, patterns]
+));
 
-function categoryForGoal(goal) {
-  const text = String(goal || '');
-  for (const [category, patterns] of CATEGORY_PATTERNS) {
+function classifyCategoryText(text, categoryPatterns) {
+  for (const [category, patterns] of categoryPatterns || CATEGORY_PATTERNS) {
     if (patterns.some((pattern) => pattern.test(text))) return category;
   }
   return 'outro';
+}
+
+/**
+ * A categoria descreve o trabalho, não o rodapé de processo.
+ *
+ * Contrato para quem escreve briefs: se houver `OBJECTIVO:`, usa-se essa linha;
+ * caso contrário usa-se a primeira frase da primeira linha não vazia. Blocos
+ * posteriores de regras, guardrails ou instruções nunca entram na classificação.
+ */
+function objectiveForCategory(goal) {
+  const text = String(goal || '').trim();
+  if (!text) return '';
+  const beforeRules = text.split(
+    /(?:^|\r?\n)\s*(?:#{1,6}\s*)?(?:REGRAS|INSTRUÇÕES|INSTRUCOES|GUARDRAILS)(?:\s|\(|:)/i,
+  )[0];
+  const declared = beforeRules.match(
+    /(?:^|\r?\n)\s*(?:#{1,6}\s*)?OBJECTIVO(?:\s+DA\s+WAVE)?\s*:\s*([^\r\n]+)/i,
+  );
+  const line = declared
+    ? declared[1].trim()
+    : (beforeRules.split(/\r?\n/).map((item) => item.trim()).find(Boolean) || '');
+  const firstSentence = line.match(/^.*?[.!?](?:\s|$)/);
+  return (firstSentence ? firstSentence[0] : line).trim();
+}
+
+function categoryForGoal(goal) {
+  return classifyCategoryText(objectiveForCategory(goal));
+}
+
+/** Mantém a categoria que os jobs anteriores a esta wave já recebiam. */
+function categoryForLegacyGoal(goal) {
+  return classifyCategoryText(String(goal || ''), LEGACY_CATEGORY_PATTERNS);
+}
+
+function resolveCategory(goal, declaredCategory) {
+  if (declaredCategory != null && String(declaredCategory).trim()) {
+    const category = String(declaredCategory).trim();
+    if (!CATEGORY_NAMES.has(category)) {
+      return {
+        category: null,
+        category_fonte: 'declarada',
+        porque: 'categoria desconhecida: ' + category,
+      };
+    }
+    return { category, category_fonte: 'declarada', porque: null };
+  }
+  return { category: categoryForGoal(goal), category_fonte: 'inferida', porque: null };
 }
 
 function numberOrNull(value) {
@@ -84,12 +136,21 @@ function jobRecords(input) {
       cost_usd: null, prep_duration_s: null, tokens_poupados_estimados: null,
       files_touched: null, files_touched_reason: null,
       motivo_nao_local: null, forcado_por_quota: false,
+      category: null, category_fonte: null, categoria_legado: false,
     };
     for (const field of ['agent', 'tier_motor', 'goal', 'worktree']) {
       if (event[field]) record[field] = event[field];
     }
     if (typeof event.escrita === 'boolean') record.escrita = event.escrita;
     if (typeof event.preparation === 'boolean') record.preparation = event.preparation;
+    if (CATEGORY_NAMES.has(event.category)) {
+      const source = event.category_fonte === 'declarada' ? 'declarada' : 'inferida';
+      if (!record.category || source === 'declarada' || record.category_fonte !== 'declarada') {
+        record.category = event.category;
+        record.category_fonte = source;
+      }
+    }
+    if (event.categoria_legado === true) record.categoria_legado = true;
     if (event.event === 'dispatched') {
       if (!record.dispatched_at) record.dispatched_at = event.ts || null;
       if (event.local_decisao && typeof event.local_decisao === 'object') {
@@ -115,7 +176,15 @@ function jobRecords(input) {
     }
     byJob.set(event.job_id, record);
   }
-  return [...byJob.values()].map((record) => ({ ...record, category: categoryForGoal(record.goal) }));
+  return [...byJob.values()].map((record) => {
+    if (record.category) return record;
+    return {
+      ...record,
+      category: categoryForLegacyGoal(record.goal),
+      category_fonte: 'legado',
+      categoria_legado: true,
+    };
+  });
 }
 
 function statistics(input) {
@@ -209,13 +278,33 @@ function inferSatisfaction(input) {
 
 function recomendarAgente(args) {
   const input = args && typeof args === 'object' ? args : {};
-  const category = categoryForGoal(input.goal);
+  const resolved = resolveCategory(input.goal, input.category);
+  const category = resolved.category;
+  const categoryFonte = input.category_fonte === 'declarada' || input.category_fonte === 'inferida'
+    ? input.category_fonte : resolved.category_fonte;
+  if (!category) return { agente: null, porque: resolved.porque };
   // localfirst continua a autoridade; estes vetos protegem chamadas directas.
-  if (input.escrita === true || category === 'git_deploy' || category === 'auditoria') return null;
-  if (String(input.tier || '').toUpperCase() === 'T3') return null;
+  if (input.escrita === true) {
+    return { agente: null, porque: 'trabalho de escrita tem veto: um erro local pode alterar ficheiros' };
+  }
+  if (category === 'git_deploy') {
+    return { agente: null, porque: 'a categoria git_deploy tem veto: um erro aqui é irreversível' };
+  }
+  if (category === 'auditoria') {
+    return { agente: null, porque: 'a categoria auditoria tem veto: exige revisão independente' };
+  }
+  if (String(input.tier || '').toUpperCase() === 'T3') {
+    return { agente: null, porque: 'o tier T3 tem veto: trabalho de alto risco não é desviado pela aprendizagem' };
+  }
   const records = jobRecords({ ledger: input.ledger, ledgerRead: input.ledgerRead })
     .filter((record) => record.status && !record.preparation && record.category === category);
-  if (records.length < MIN_OBSERVATIONS) return null;
+  if (records.length < MIN_OBSERVATIONS) {
+    return {
+      agente: null,
+      porque: 'só há ' + records.length + ' observações; são precisas ' + MIN_OBSERVATIONS,
+      base: { category, category_fonte: categoryFonte, observations: records.length },
+    };
+  }
   const byAgent = new Map();
   for (const record of records) {
     const list = byAgent.get(record.agent || ND) || [];
@@ -230,7 +319,26 @@ function recomendarAgente(args) {
     .sort((a, b) => b.success_rate - a.success_rate || b.observations - a.observations
       || (a.agent === 'moo' ? -1 : (b.agent === 'moo' ? 1 : a.agent.localeCompare(b.agent))));
   const best = candidates[0];
-  if (!best || best.success_rate < 0.6) return null;
+  if (!best) {
+    return {
+      agente: null,
+      porque: 'há ' + records.length + ' observações, mas nenhum agente tem '
+        + MIN_OBSERVATIONS + ' na categoria ' + category,
+      base: { category, category_fonte: categoryFonte, observations: records.length },
+    };
+  }
+  if (best.success_rate < 0.6) {
+    return {
+      agente: null,
+      porque: best.done + '/' + best.observations + ' jobs de ' + category
+        + ' terminaram em done; a taxa medida fica abaixo de 60%',
+      base: {
+        category, category_fonte: categoryFonte, observations: records.length,
+        agent_observations: best.observations, successes: best.done,
+        success_rate: Number(best.success_rate.toFixed(6)),
+      },
+    };
+  }
   const pct = Number((best.success_rate * 100).toFixed(1));
   return {
     agente: best.agent,
@@ -238,7 +346,7 @@ function recomendarAgente(args) {
       + ' terminaram em done (' + pct + '% medidos)',
     confianca: best.observations >= 10 ? 'alta' : 'media',
     base: {
-      category, observations: records.length,
+      category, category_fonte: categoryFonte, observations: records.length,
       agent_observations: best.observations, successes: best.done,
       success_rate: Number(best.success_rate.toFixed(6)),
       duration_median_s: best.duration_median_s,
@@ -407,7 +515,8 @@ function resumoDeAprendizagem(input) {
 }
 
 module.exports = {
-  ND, MIN_OBSERVATIONS, categoryForGoal, statistics, inferSatisfaction,
+  ND, MIN_OBSERVATIONS, CATEGORY_NAMES, objectiveForCategory, categoryForGoal,
+  categoryForLegacyGoal, resolveCategory, statistics, inferSatisfaction,
   trigramJaccard, recomendarAgente, measureKeepRate, resumoDeAprendizagem,
   captureGitBase, captureFilesTouched, classificarDesfecho, comDesfecho, _jobRecords: jobRecords,
 };

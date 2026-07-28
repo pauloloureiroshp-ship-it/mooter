@@ -205,6 +205,23 @@ ta('mooter_cancel fecha um job stale e liberta a worktree', async () => {
   assert.deepStrictEqual(seam.activeJobsByWorktree(path.join(HOME, 'wt2')), []);
   const again = await seam.toolCancel({ job_id: 'ghost-2' });
   assert.ok(/já estava terminado/.test(again.note), 'cancel devia ser idempotente');
+
+  /**
+   * Regressão da onda Y1: a recusa do `observeTerminal` é escrita DEPOIS do
+   * `failed`, e o cancel decidia idempotência pelo último evento do ledger.
+   * Bastou um evento de diagnóstico a seguir ao desfecho para o job parecer
+   * vivo outra vez. Um diagnóstico nunca é um estado.
+   */
+  seam.ledgerAppend({
+    job_id: 'ghost-2', wave: 'w', agent: 'codex', worktree: path.join(HOME, 'wt2'),
+    event: 'eta_observacao_recusada', porque: 'não consegui ler a metadata do job',
+  });
+  const depoisDoDiagnostico = await seam.toolCancel({ job_id: 'ghost-2' });
+  assert.ok(
+    /já estava terminado/.test(depoisDoDiagnostico.note),
+    'um evento de diagnóstico a seguir ao desfecho ressuscitou o job',
+  );
+  assert.deepStrictEqual(seam.activeJobsByWorktree(path.join(HOME, 'wt2')), []);
 });
 
 console.log('\npainel — o modelo deixou de ser adivinhado');

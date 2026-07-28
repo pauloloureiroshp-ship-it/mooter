@@ -37,6 +37,7 @@ const capacidades = require('./capacidades.js');
 const { suspeita } = require('./worktrees.js');
 const board = require('./board.js');
 const afericao = require('./afericao.js');
+const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 
 const UI_URI = 'ui://mooter/fleet';
@@ -997,6 +998,11 @@ async function toolFleet(args, deps) {
   const d = deps || {};
   if (args && args.view === 'eta') return refreshEtaJobs(args.jobs, d);
   if (args && args.view === 'afericao') {
+    const captureLedger = typeof d.ledgerRead === 'function'
+      ? await d.ledgerRead() : (readLedgerLines(LEDGER) || []);
+    const captureIndex = typeof d.etaReadIndex === 'function'
+      ? await d.etaReadIndex() : eta.readIndex({ indexPath: ETA_INDEX });
+    const capturaPorAgente = eta.captureRates(captureLedger, captureIndex);
     const ultima = typeof d.afericaoLatest === 'function'
       ? await d.afericaoLatest({}) : afericao.lerUltimaAfericao({});
     if (!ultima || ultima.estado === 'n/d') {
@@ -1007,6 +1013,7 @@ async function toolFleet(args, deps) {
         estado: 'n/d',
         porque,
         afericao: null,
+        captura_por_agente: capturaPorAgente,
       };
     }
     return {
@@ -1015,6 +1022,7 @@ async function toolFleet(args, deps) {
       porque: 'medição lida do histórico local guardado pelo condutor',
       afericao: ultima.resultado,
       ficheiro: ultima.ficheiro,
+      captura_por_agente: capturaPorAgente,
     };
   }
   if (args && args.view === 'board') {

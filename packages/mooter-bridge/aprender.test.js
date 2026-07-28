@@ -51,7 +51,49 @@ test('com menos de 5 observações recomendarAgente não decide', () => {
     goal: 'resume este ficheiro', tier: 'T1', escrita: false,
     ledger: syntheticLedger(4, { allDone: true }),
   });
-  assert.strictEqual(result, null);
+  assert.strictEqual(result.agente, null);
+  assert.match(result.porque, /só há 4 observações; são precisas 5/i);
+});
+
+test('objectivo de código ignora o rodapé de regras git', () => {
+  const goal = [
+    'Implementa o tecto de VRAM no código.',
+    '',
+    'REGRAS:',
+    '- git add selectivo; sem push nem merge.',
+  ].join('\n');
+  assert.strictEqual(aprender.objectiveForCategory(goal), 'Implementa o tecto de VRAM no código.');
+  assert.strictEqual(aprender.categoryForGoal(goal), 'codigo');
+});
+
+test('objectivo genuinamente git continua em git_deploy', () => {
+  const goal = 'OBJECTIVO: reconcilia os branches órfãos.\n\nREGRAS:\n- sem push.';
+  assert.strictEqual(aprender.categoryForGoal(goal), 'git_deploy');
+});
+
+test('categoria explícita ganha sempre e declara a fonte', () => {
+  assert.deepStrictEqual(
+    aprender.resolveCategory('faz commit e push', 'codigo'),
+    { category: 'codigo', category_fonte: 'declarada', porque: null },
+  );
+  assert.deepStrictEqual(
+    aprender.resolveCategory('implementa código'),
+    { category: 'codigo', category_fonte: 'inferida', porque: null },
+  );
+  const recommendation = aprender.recomendarAgente({
+    goal: 'implementa código', category: 'codigo', category_fonte: 'inferida',
+    tier: 'T1', escrita: false, ledger: [],
+  });
+  assert.strictEqual(recommendation.base.category_fonte, 'inferida');
+});
+
+test('histórico sem categoria mantém a classificação legada', () => {
+  const goal = 'Implementa o tecto de VRAM no código.\nREGRAS:\n- git add selectivo; sem push.';
+  const records = aprender._jobRecords({ ledger: syntheticLedger(1, { allDone: true, goal }) });
+  assert.strictEqual(records[0].category, 'git_deploy');
+  assert.strictEqual(records[0].category_fonte, 'legado');
+  assert.strictEqual(records[0].categoria_legado, true);
+  assert.strictEqual(aprender.categoryForLegacyGoal('reconcilia os branches órfãos'), 'outro');
 });
 
 test('8 jobs locais bem sucedidos recomendam moo e dizem a base', () => {
@@ -185,12 +227,13 @@ test('recomendarAgente NUNCA contradiz um veto de risco', () => {
       ts: new Date(Date.now() - i * 60000 + 5000).toISOString() });
   }
   // mesmo com 12 sucessos locais, escrita continua a ir para a nuvem
-  assert.strictEqual(aprender.recomendarAgente({ goal: 'implementa a funcao parse', tier: 'T2', escrita: true, ledger }), null,
-    'a aprendizagem mandou trabalho de ESCRITA para o local — poupar nunca pode custar correccao');
-  assert.strictEqual(aprender.recomendarAgente({ goal: 'faz commit e push', tier: 'T2', escrita: false, ledger }), null,
-    'a aprendizagem nao vetou git/deploy');
-  assert.strictEqual(aprender.recomendarAgente({ goal: 'audita a seguranca do modulo', tier: 'T2', escrita: false, ledger }), null,
-    'a aprendizagem nao vetou auditoria');
-  assert.strictEqual(aprender.recomendarAgente({ goal: 'resume o ficheiro', tier: 'T3', escrita: false, ledger }), null,
-    'T3 e trabalho de alto risco — a aprendizagem nao pode desviar');
+  const escrita = aprender.recomendarAgente({ goal: 'implementa a funcao parse', tier: 'T2', escrita: true, ledger });
+  const git = aprender.recomendarAgente({ goal: 'faz commit e push', tier: 'T2', escrita: false, ledger });
+  const auditoria = aprender.recomendarAgente({ goal: 'audita a seguranca do modulo', tier: 'T2', escrita: false, ledger });
+  const tier3 = aprender.recomendarAgente({ goal: 'resume o ficheiro', tier: 'T3', escrita: false, ledger });
+  for (const result of [escrita, git, auditoria, tier3]) assert.strictEqual(result.agente, null);
+  assert.match(escrita.porque, /escrita tem veto/i);
+  assert.match(git.porque, /git_deploy tem veto.*irreversível/i);
+  assert.match(auditoria.porque, /auditoria tem veto/i);
+  assert.match(tier3.porque, /T3 tem veto/i);
 });
