@@ -411,7 +411,7 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 | [docs/wave1-validation.md](docs/wave1-validation.md) | Wave 1 live validation report (recall, latency, signals for Wave 2) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Deep dive into the technical design and rationale |
 | [ROADMAP.md](ROADMAP.md) | Version history and what's next |
-| [SETUP.md](INSTALL.md) | Install, configure, verify |
+| [Setup](#setup) | Install, configure, verify |
 | [REQUEST_ACCESS.md](REQUEST_ACCESS.md) | Legacy access note (repo is now public) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | For approved contributors |
 | [SECURITY.md](SECURITY.md) | Vulnerability disclosure policy |

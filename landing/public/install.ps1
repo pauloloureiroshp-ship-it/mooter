@@ -219,9 +219,12 @@ if (Test-Path (Join-Path $SrcDir "skills")) {
     }
 }
 
-# CLAUDE.md (only if missing or -Force)
+# CLAUDE.md (only if missing or -Force) — install the personal-doctrine
+# template, never the repo's own project-specific CLAUDE.md (that one is
+# Mooter-internal: FROZEN classify.js, sha256, tier ladder — not meant to
+# become the user's global ~/.claude/CLAUDE.md). Mirrors install.sh.
 $claudeMdDst = Join-Path $ClaudeDir "CLAUDE.md"
-$claudeMdSrc = Join-Path $SrcDir "CLAUDE.md"
+$claudeMdSrc = Join-Path $SrcDir "CLAUDE.md.template"
 if ((Test-Path $claudeMdSrc) -and ((-not (Test-Path $claudeMdDst)) -or $Force)) {
     DoRun "Install CLAUDE.md" { Copy-Item $claudeMdSrc $claudeMdDst -Force }
 }
