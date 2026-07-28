@@ -44,6 +44,9 @@ const zlib = require('zlib');
 const MOOTER_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const UPDATE_STATE_FILE = 'update-estado.json';
 const INSTALL_STALE_MS = 5 * 60 * 1000;
+// verificado via `git remote -v` no repo real — não um palpite.
+const RELEASES_REPO = process.env.MOOTER_RELEASES_REPO || 'pauloloureiroshp-ship-it/mooter';
+const RELEASES_TIMEOUT_MS = 4000;
 
 /** A pasta onde ESTE servidor está instalado. É aqui que se escreve, e só aqui. */
 function pastaInstalada() { return __dirname; }
@@ -178,6 +181,97 @@ function procurar(opts) {
       ? ('há a versão ' + nova.versao + ' disponível (tens a ' + versaoAtual + ')')
       : ('estás na versão mais recente que encontrei (' + versaoAtual + ')'),
   };
+}
+
+/**
+ * F0 item 5 — perguntar ao GitHub, não só às pastas locais.
+ *
+ * `procurar()` só via o que já estava no disco — um utilizador que nunca
+ * baixou um `.mcpb` novo nunca sabia que havia versão mais recente. A API de
+ * Releases é pública e não precisa de token para leitura. Nunca lança: sem
+ * rede (CI, máquina offline) devolve `ok:false` com o motivo, e quem chama
+ * decide se ainda tem os locais para mostrar.
+ *
+ * `opts.fetchImpl` é a única forma de testar isto sem tocar na rede — os
+ * testes hermeticos deste pacote nunca podem depender de api.github.com estar
+ * de pé.
+ */
+async function releasesGitHub(opts) {
+  const o = opts || {};
+  const repo = o.repo || RELEASES_REPO;
+  const fetchImpl = o.fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  if (!fetchImpl) return { ok: false, erro: 'este Node não tem fetch disponível', achados: [] };
+
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), o.timeout_ms || RELEASES_TIMEOUT_MS) : null;
+  let resp;
+  try {
+    resp = await fetchImpl('https://api.github.com/repos/' + repo + '/releases', {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'mooter-bridge-update' },
+      signal: controller ? controller.signal : undefined,
+    });
+  } catch (e) {
+    return { ok: false, erro: 'não consegui contactar a GitHub Releases API: ' + ((e && e.message) || e), achados: [] };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (!resp || !resp.ok) {
+    return { ok: false, erro: 'GitHub Releases API respondeu ' + (resp ? resp.status : 'n/d'), achados: [] };
+  }
+  let releases;
+  try { releases = await resp.json(); }
+  catch (e) { return { ok: false, erro: 'resposta da GitHub Releases API não é JSON válido: ' + ((e && e.message) || e), achados: [] }; }
+  if (!Array.isArray(releases)) return { ok: false, erro: 'formato inesperado da GitHub Releases API', achados: [] };
+
+  const achados = [];
+  for (const rel of releases) {
+    for (const asset of Array.isArray(rel && rel.assets) ? rel.assets : []) {
+      if (!asset || !/\.mcpb$/i.test(String(asset.name || ''))) continue;
+      achados.push({
+        versao: String(rel.tag_name || '').replace(/^v/, ''),
+        download_url: asset.browser_download_url || null,
+        bytes: asset.size != null ? asset.size : null,
+        release: rel.tag_name || null,
+        publicado_em: rel.published_at || null,
+      });
+    }
+  }
+  return { ok: true, achados };
+}
+
+/**
+ * `procurar()` local-first + GitHub — separada de `procurar()` (síncrona) de
+ * propósito: `fleet.js` chama `procurar()` a cada 2s para o board do painel, e
+ * uma chamada de rede nesse ritmo esgotaria o limite da API e travaria o
+ * painel. Esta versão async serve só os caminhos accionados pelo utilizador
+ * (mooter_setup atualizar:'ver', o botão "procurar" do painel).
+ */
+async function procurarAsync(opts) {
+  const o = opts || {};
+  const local = procurar(o);
+  const github = await releasesGitHub(o);
+  const remotos = (github.achados || []).map((a) => ({
+    ficheiro: null,
+    download_url: a.download_url,
+    versao: a.versao,
+    bytes: a.bytes,
+    ficheiros: null,
+    origem: 'github',
+    release: a.release,
+    publicado_em: a.publicado_em,
+  }));
+  const locais = (local.encontrados || []).map((a) => Object.assign({ origem: 'local', download_url: null }, a));
+  const todos = [...locais, ...remotos].sort((a, b) => compara(b.versao, a.versao));
+  const nova = todos.find((x) => compara(x.versao, local.versao_instalada) > 0) || null;
+
+  return Object.assign({}, local, {
+    encontrados: todos.length ? todos : null,
+    nova,
+    github: { ok: github.ok, erro: github.erro || null, achados: (github.achados || []).length },
+    resumo: nova
+      ? ('há a versão ' + nova.versao + ' disponível (' + nova.origem + '; tens a ' + local.versao_instalada + ')')
+      : local.resumo,
+  });
 }
 
 /**
@@ -578,6 +672,6 @@ function reverter() {
 }
 
 module.exports = {
-  procurar, aplicar, aplicarAsync, estadoDaInstalacao, reverter, verificar, compara, lerZip,
+  procurar, procurarAsync, releasesGitHub, aplicar, aplicarAsync, estadoDaInstalacao, reverter, verificar, compara, lerZip,
   pastaInstalada, lerManifest,
 };

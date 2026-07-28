@@ -29,5 +29,11 @@
     "seamless.js",
     "tools6.js",
     "fleet.js"
+  ],
+  "1.27": [
+    "manifest.json",
+    "tools6.js",
+    "update.js",
+    "seamless.js"
   ]
 }

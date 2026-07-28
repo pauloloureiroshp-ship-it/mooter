@@ -165,7 +165,7 @@ const TOOL_UPDATE = {
     const a = args || {};
     if (a.accao === 'aplicar') return up.aplicar({ ficheiro: a.ficheiro });
     if (a.accao === 'reverter') return up.reverter();
-    return up.procurar({});
+    return up.procurarAsync({});
   },
 };
 

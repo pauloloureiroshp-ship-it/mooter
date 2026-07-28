@@ -42,8 +42,8 @@ const MARCADORES = {
   'afericao.js': ['avaliarResposta', 'resultadoDaAfericao'],
   // v1.23 — a Onda 1, parar a mentira
   'board.js': ['custo_total_usd', 'cobertura_custo_pct'],
-  'seamless.js': ['relocacao_recusada', 'stepsTotalFor'],
-  'tools6.js': ['permissoes_diferenca'],
+  'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify'],
+  'tools6.js': ['permissoes_diferenca', 'primeira_vez'],
   'server-apps.js': ['resourceUri'],
   // v1.24 — a ETA e o SYNC gerado
   'capacidades.js': ['mcp-capabilities.json', 'registarInitialize'],
@@ -58,6 +58,10 @@ const MARCADORES = {
   'localfirst.js': ['falta_vram'],
   // v1.26 — o trabalho passou a saber de que departamento é
   'recibo.js': ['VALID_CARGOS', 'VERDICT_QUESTION'],
+  // v1.27 — F0: distribuição honesta (release do .mcpb, classify.js no bundle,
+  // user_config, diagnóstico primeira_vez, GitHub Releases API)
+  'manifest.json': ['user_config'],
+  'update.js': ['releasesGitHub', 'procurarAsync'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {

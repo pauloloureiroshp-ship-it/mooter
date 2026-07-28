@@ -361,14 +361,15 @@ test('U21 — mooter_setup aplica em background e ver inclui o recibo', async ()
   const tools6 = require('./tools6.js');
   const originais = {
     aplicarAsync: up.aplicarAsync,
-    procurar: up.procurar,
+    procurarAsync: up.procurarAsync,
     estadoDaInstalacao: up.estadoDaInstalacao,
   };
   up.aplicarAsync = async () => ({
     estado: 'a-instalar', de: '1.20.0', para: '1.21.0', bundle: 'x.mcpb', iniciado_em: 'agora',
   });
-  up.procurar = () => ({
+  up.procurarAsync = async () => ({
     versao_instalada: '1.20.0', nova: { versao: '1.21.0' }, encontrados: [], procurei_em: [], resumo: 'há nova',
+    github: { ok: false, erro: 'não tentei', achados: 0 },
   });
   up.estadoDaInstalacao = () => ({ estado: 'a-instalar', stale: false });
   try {
@@ -378,6 +379,7 @@ test('U21 — mooter_setup aplica em background e ver inclui o recibo', async ()
     assert.match(aplicar.resumo, /atualizar:'ver'/);
     const ver = await setup.handler({ atualizar: 'ver' });
     assert.strictEqual(ver.instalacao.estado, 'a-instalar');
+    assert.strictEqual(ver.github.ok, false, 'o mock de procurarAsync não chegou ao mooter_setup');
   } finally {
     Object.assign(up, originais);
   }
@@ -410,4 +412,92 @@ test('U22 — o verificador aceita o shebang que os nossos proprios ficheiros te
   const problemas = up.verificar(zip).filter((p) => /sintaxe/i.test(p));
   assert.deepStrictEqual(problemas, [],
     'o verificador recusou ficheiros REAIS do pacote: ' + problemas.join(' | '));
+});
+
+// ── F0 item 5 — GitHub Releases API ─────────────────────────────────────────
+// `fetchImpl` é injectado sempre: os testes deste pacote nunca tocam na rede.
+
+function respostaFetch(status, corpo) {
+  return async () => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => corpo,
+  });
+}
+
+test('U23 — releasesGitHub lê os assets .mcpb de cada release', async () => {
+  const fetchImpl = respostaFetch(200, [
+    {
+      tag_name: 'v1.27.0', published_at: '2026-07-28T00:00:00Z',
+      assets: [
+        { name: 'mooter-v1270.mcpb', browser_download_url: 'https://example.test/mooter-v1270.mcpb', size: 12345 },
+        { name: 'checksums.txt', browser_download_url: 'https://example.test/checksums.txt', size: 40 },
+      ],
+    },
+    { tag_name: 'v1.26.0', published_at: '2026-07-20T00:00:00Z', assets: [] },
+  ]);
+  const r = await up.releasesGitHub({ fetchImpl });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.achados.length, 1, 'devia ignorar o asset que não é .mcpb');
+  assert.strictEqual(r.achados[0].versao, '1.27.0');
+  assert.strictEqual(r.achados[0].download_url, 'https://example.test/mooter-v1270.mcpb');
+});
+
+test('U24 — releasesGitHub nunca lança: rede indisponível vira ok:false com motivo', async () => {
+  const fetchImpl = async () => { throw new Error('ENOTFOUND api.github.com'); };
+  const r = await up.releasesGitHub({ fetchImpl });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.erro, /ENOTFOUND/);
+  assert.deepStrictEqual(r.achados, []);
+});
+
+test('U25 — releasesGitHub trata resposta HTTP não-ok como falha honesta, não como "sem novidades"', async () => {
+  const fetchImpl = respostaFetch(403, { message: 'rate limited' });
+  const r = await up.releasesGitHub({ fetchImpl });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.erro, /403/);
+});
+
+// ⚠️ procurar() le SEMPRE a versão instalada REAL (pastaInstalada() é sempre
+// o __dirname deste ficheiro — U20 já documenta que só copiando update.js
+// para outro sítio é que isso muda). As versões sintéticas abaixo usam a
+// convenção "9.x" já usada em B6/U7 para nunca colidirem com a versão real.
+
+test('U26 — procurarAsync junta locais e GitHub e escolhe a versão mais alta das duas fontes', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-u26-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  escreverBundle(path.join(tmp, 'local.mcpb'), '9.21.0', { 'a.js': 'module.exports=1;\n' });
+  const fetchImpl = respostaFetch(200, [
+    { tag_name: 'v9.30.0', published_at: 'x', assets: [{ name: 'mooter-v9300.mcpb', browser_download_url: 'https://example.test/v9300.mcpb', size: 1 }] },
+  ]);
+  const r = await up.procurarAsync({ pasta: tmp, fetchImpl });
+  assert.strictEqual(r.github.ok, true);
+  assert.strictEqual(r.github.achados, 1);
+  assert.ok(r.nova, 'não encontrou nenhuma versão nova');
+  assert.strictEqual(r.nova.versao, '9.30.0', 'devia preferir a versão mais alta entre local (9.21.0) e GitHub (9.30.0)');
+  assert.strictEqual(r.nova.origem, 'github');
+  assert.strictEqual(r.nova.ficheiro, null, 'um achado só-remoto não pode fingir ter um caminho local instalável');
+  // ⚠️ outras pastas ambientes (~/frugal/_handoff, Downloads) também entram na
+  // busca — não se assume que o nosso é o ÚNICO achado local, só que sobrevive.
+  const nosso = r.encontrados.find((x) => x.origem === 'local' && x.versao === '9.21.0');
+  assert.ok(nosso, 'perdeu o achado local ao juntar com o GitHub: ' + JSON.stringify(r.encontrados));
+});
+
+test('U27 — procurarAsync degrada-se para local-only quando o GitHub falha', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-u27-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  escreverBundle(path.join(tmp, 'local.mcpb'), '9.21.0', { 'a.js': 'module.exports=1;\n' });
+  const fetchImpl = async () => { throw new Error('sem rede'); };
+  const r = await up.procurarAsync({ pasta: tmp, fetchImpl });
+  assert.strictEqual(r.github.ok, false);
+  assert.strictEqual(r.nova.versao, '9.21.0', 'devia continuar a mostrar o achado local mesmo sem GitHub');
+  assert.strictEqual(r.nova.origem, 'local');
+});
+
+test('U28 — o painel (probe.js) usa procurarAsync, não só a busca local', () => {
+  const probe = require('./probe.js');
+  const src = fs.readFileSync(path.join(__dirname, 'probe.js'), 'utf8');
+  const bloco = src.slice(src.indexOf("name: 'mooter_ui_update'"), src.indexOf("name: 'mooter_ui_update'") + 800);
+  assert.match(bloco, /procurarAsync/, 'o botão "procurar" do painel ficou preso à busca só-local');
+  assert.ok(typeof probe.TOOL_UPDATE.handler === 'function');
 });
