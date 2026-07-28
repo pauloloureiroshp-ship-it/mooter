@@ -62,6 +62,18 @@ const FILES = [
   ['update.js', 'server/update.js'],
   ['sessao.js', 'server/sessao.js'],
   ['bundle-package.json', 'server/package.json'],
+  // ⚠️ classify.js is FROZEN (CI-enforced sha256) — copying it verbatim is the
+  // one thing this file is allowed to do with it. But classify.js is not
+  // self-contained: it `require('./patterns')` unconditionally at module load
+  // and reads `tuning-state.defaults.json` from its own __dirname with no
+  // fallback if that read fails. Ship classify.js alone and every install
+  // without ~/frugal cloned gets a router that throws on the first require.
+  // version.json is optional (wrapped in try/catch inside classify.js) but
+  // costs nothing to ship — the alternative is a fabricated 'v0.0.0-unknown'.
+  ['../../tools/router/classify.js', 'server/classify.js'],
+  ['../../tools/router/patterns.js', 'server/patterns.js'],
+  ['../../tools/router/tuning-state.defaults.json', 'server/tuning-state.defaults.json'],
+  ['../../tools/router/version.json', 'server/version.json'],
 ];
 
 function minorKey(version) {

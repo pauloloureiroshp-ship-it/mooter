@@ -114,3 +114,47 @@ test('B6 — o pack falha com entrega declarada ausente e passa quando ela exist
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/**
+ * B7 — F0 item 2. `verificarRequires`/B1 só apanham `require('./x.js')` COM
+ * extensão — classify.js faz `require('./patterns')`, sem `.js`, por isso o
+ * detector automático não vê essa dependência. Um `existsSync` sozinho passa
+ * mesmo que falte `patterns.js`: prova-se copiando exactamente o subconjunto
+ * que o pack copia para um directório à parte e correndo `classify()` isolado,
+ * sem o resto de tools/router/ ao lado.
+ */
+test('B7 — classify.js entra no bundle com as dependências que precisa para correr isolado', () => {
+  const files = ficheirosDoBundle();
+  const porDest = new Map(files.map((f) => [f.dest, f.src]));
+  assert.ok(porDest.has('server/classify.js'), 'classify.js não está na lista do bundle');
+  assert.ok(porDest.has('server/patterns.js'), 'patterns.js (require duro de classify.js) não está na lista do bundle');
+  assert.ok(porDest.has('server/tuning-state.defaults.json'),
+    'tuning-state.defaults.json (lido sem try/catch de fallback) não está na lista do bundle');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-classify-isolado-'));
+  try {
+    for (const dest of ['server/classify.js', 'server/patterns.js', 'server/tuning-state.defaults.json', 'server/version.json']) {
+      const src = porDest.get(dest);
+      if (!src) continue; // version.json é opcional — classify.js degrada-se sem ele
+      fs.copyFileSync(path.join(HERE, src), path.join(dir, path.basename(dest)));
+    }
+    const isolado = require(path.join(dir, 'classify.js'));
+    const d = isolado.classify('rename x to y');
+    assert.strictEqual(typeof d.tier, 'string', 'classify() isolado no bundle não devolveu uma decisão válida');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('B8 — manifest.json declara user_config e o mcp_config lê os 3 valores', () => {
+  const man = JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8'));
+  assert.ok(man.user_config, 'falta user_config no manifest');
+  for (const chave of ['vault_path', 'repo_path', 'ollama_host']) {
+    assert.ok(man.user_config[chave], 'user_config não declara ' + chave);
+  }
+  const env = man.server && man.server.mcp_config && man.server.mcp_config.env;
+  assert.ok(env, 'mcp_config não passa nenhum env ao servidor — user_config fica sem efeito');
+  assert.strictEqual(env.MOOTER_VAULT, '${user_config.vault_path}');
+  assert.strictEqual(env.MOOTER_REPO, '${user_config.repo_path}');
+  assert.strictEqual(env.OLLAMA_HOST, '${user_config.ollama_host}');
+});

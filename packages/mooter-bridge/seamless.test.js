@@ -714,3 +714,55 @@ test('server-seamless: regista as 4 tools no registry do server.js base', () => 
     assert.ok('readOnlyHint' in t.annotations, t.name + ' sem readOnlyHint');
   }
 });
+
+/**
+ * F0 item 2 — quem instalou só o .mcpb não tem ~/frugal clonado, logo
+ * `REPO/tools/router/classify.js` não existe. `requireClassify()` (seamless.js)
+ * tem de cair para a cópia empacotada em `server/classify.js` (ao lado deste
+ * ficheiro instalado). REPO é uma const capturada no load do módulo, por isso
+ * este cenário só se prova num processo Node à parte, com o ambiente errado
+ * DESDE o require — não dá para simular mutando process.env a meio do teste.
+ */
+test('F0/2 — toolRoute cai para a cópia empacotada quando o repo não tem classify.js', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'seamless-bundlefallback-'));
+  const semRepo = path.join(tmp, 'sem-repo');
+  fs.mkdirSync(semRepo, { recursive: true }); // sem tools/router/classify.js
+  const bundleDir = path.join(tmp, 'server'); // o "ao lado de seamless.js instalado"
+  fs.mkdirSync(bundleDir, { recursive: true });
+  fs.writeFileSync(path.join(bundleDir, 'classify.js'),
+    "module.exports={classify:(t)=>({tier:'T1',confidence:0.7,reasoning:'stub bundle',recommended_model:'haiku'})};");
+
+  const script = [
+    'process.env.MOOTER_HOME = ' + JSON.stringify(path.join(tmp, 'home')) + ';',
+    'process.env.MOOTER_REPO = ' + JSON.stringify(semRepo) + ';',
+    'process.env.MOOTER_BUNDLE_DIR = ' + JSON.stringify(bundleDir) + ';',
+    'process.env.OLLAMA_HOST = "127.0.0.1:1";',
+    'const seam = require(' + JSON.stringify(path.join(__dirname, 'seamless.js')) + ');',
+    'seam.toolRoute({ text: "diz ola" }).then((r) => { process.stdout.write(JSON.stringify(r)); });',
+  ].join('\n');
+  const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+  const r = JSON.parse(out.trim());
+  assert.strictEqual(r.error, undefined, 'devolveu erro em vez de usar a cópia empacotada: ' + JSON.stringify(r));
+  assert.strictEqual(r.tier, 'T1', 'não caiu para o stub da cópia empacotada: ' + JSON.stringify(r));
+});
+
+test('F0/2 — sem repo NEM cópia empacotada, o erro nomeia os dois sítios onde procurou', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'seamless-bundlefallback-miss-'));
+  const semRepo = path.join(tmp, 'sem-repo');
+  fs.mkdirSync(semRepo, { recursive: true });
+  const bundleVazio = path.join(tmp, 'server-vazio');
+  fs.mkdirSync(bundleVazio, { recursive: true });
+
+  const script = [
+    'process.env.MOOTER_HOME = ' + JSON.stringify(path.join(tmp, 'home')) + ';',
+    'process.env.MOOTER_REPO = ' + JSON.stringify(semRepo) + ';',
+    'process.env.MOOTER_BUNDLE_DIR = ' + JSON.stringify(bundleVazio) + ';',
+    'process.env.OLLAMA_HOST = "127.0.0.1:1";',
+    'const seam = require(' + JSON.stringify(path.join(__dirname, 'seamless.js')) + ');',
+    'seam.toolRoute({ text: "diz ola" }).then((r) => { process.stdout.write(JSON.stringify(r)); });',
+  ].join('\n');
+  const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+  const r = JSON.parse(out.trim());
+  assert.match(r.error, new RegExp(semRepo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(r.error, new RegExp(bundleVazio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});

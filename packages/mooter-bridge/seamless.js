@@ -50,7 +50,54 @@ const fosso = require('./fosso.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
-const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
+/**
+ * ⚠️ v1.27 — user_config no manifest pode chegar por preencher.
+ *
+ * A manifest.json passou a ler `repo_path` de um formulário do host (Claude
+ * Desktop) e a passá-lo como `MOOTER_REPO`. Um campo opcional deixado em
+ * branco por alguns hosts chega como o placeholder POR EXPANDIR — o mesmo bug
+ * que `fleet.js` já documentou para `OLLAMA_HOST` ("Reproduced, then fixed").
+ * Tratar isso como "não definido" em vez de um caminho literal `${...}`.
+ */
+function _repoEnv() {
+  const v = process.env.MOOTER_REPO;
+  if (!v) return null;
+  const t = String(v).trim();
+  return (!t || t.indexOf('${') >= 0) ? null : t;
+}
+const REPO = _repoEnv() || path.resolve(__dirname, '..', '..');
+/**
+ * Onde vive a cópia de classify.js EMPACOTADA (pack-mcpb.mjs copia-a para
+ * `server/classify.js`, ao lado deste ficheiro). Variável de teste
+ * (MOOTER_BUNDLE_DIR) segue o mesmo padrão de MOOTER_HOME/MOOTER_REPO — os
+ * testes hermeticos não podem escrever nesta pasta do repo.
+ */
+const BUNDLE_DIR = () => process.env.MOOTER_BUNDLE_DIR || __dirname;
+
+/**
+ * O classificador FROZEN, com fallback para a cópia empacotada.
+ *
+ * `REPO/tools/router/classify.js` só existe quando há um ~/frugal clonado.
+ * Quem instalou só o `.mcpb` (o caso comum fora da máquina do Paulo) não tem
+ * essa pasta — e até aqui `mooter_route` morria com "classify.js
+ * indisponível". `pack-mcpb.mjs` agora copia classify.js + as suas
+ * dependências reais (patterns.js, tuning-state.defaults.json) para
+ * `server/`, ao lado deste ficheiro: é essa cópia que serve de rede de
+ * segurança.
+ */
+function requireClassify() {
+  try {
+    return require(path.join(REPO, 'tools', 'router', 'classify.js'));
+  } catch (repoError) {
+    try {
+      return require(path.join(BUNDLE_DIR(), 'classify.js'));
+    } catch (bundleError) {
+      throw new Error('classify.js indisponível em ' + REPO + ' nem em ' + BUNDLE_DIR() + ': '
+        + ((bundleError && bundleError.message) || bundleError)
+        + ' (sem repo: ' + ((repoError && repoError.message) || repoError) + ')');
+    }
+  }
+}
 const MOOTER_HOME = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const LEDGER_PATH = () => path.join(MOOTER_HOME_DIR(), 'ledger.jsonl');
 const JOBS_DIR = () => path.join(MOOTER_HOME_DIR(), 'jobs');
@@ -743,8 +790,8 @@ async function toolRoute(args) {
   const text = String((args && args.text) || '').trim();
   if (!text) return { error: 'text is required' };
   let classify;
-  try { classify = require(path.join(REPO, 'tools', 'router', 'classify.js')).classify; }
-  catch (e) { return { error: 'classify.js indisponível em ' + REPO + ': ' + ((e && e.message) || e) }; }
+  try { classify = requireClassify().classify; }
+  catch (e) { return { error: (e && e.message) || String(e) }; }
   let d;
   try { d = classify(text); } catch (e) { return { error: 'classify falhou: ' + ((e && e.message) || e) }; }
   const tierToAgent = { T0: 'moo', T1: 'cc', T2: 'cc', T3: 'cc' };
@@ -1213,7 +1260,7 @@ function veredictoSemEvidencia(meta, body) {
 /** Ask the FROZEN classifier directly. Returns null if it is unavailable. */
 function classifyOrNull(text) {
   try {
-    const { classify } = require(path.join(REPO, 'tools', 'router', 'classify.js'));
+    const { classify } = requireClassify();
     return classify(String(text || ''));
   } catch { return null; }
 }
@@ -2959,4 +3006,5 @@ module.exports = {
   applyQuotaCeiling,
   requestedPermissions, effectivePermissions, permissionReport,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },
+  requireClassify,
 };
