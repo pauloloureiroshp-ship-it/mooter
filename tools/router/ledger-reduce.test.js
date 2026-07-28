@@ -108,3 +108,99 @@ test('reduceSession never throws on a write failure (degrades)', () => {
     assert.equal(res.reason, 'error');
   } finally { fs.writeFileSync = orig; }
 });
+
+test('Gate 2: O_EXCL lock records owner identity and refuses a live holder', () => {
+  const { r } = fresh();
+  const lockPath = path.join(OUT, '.writer.lock');
+  const first = r.acquireFileLock(lockPath, {
+    now: 1000, leaseMs: 5000, pid: 101, host: 'host-a', runtime: 'win32:x64', nonce: 'owner-a',
+    isProcessAlive: () => true,
+  });
+  assert.equal(first.ok, true);
+  const metadata = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  assert.deepEqual(metadata.owner, { pid: 101, host: 'host-a', runtime: 'win32:x64', nonce: 'owner-a' });
+  assert.equal(metadata.lease_expires_at_ms, 6000);
+  const second = r.acquireFileLock(lockPath, {
+    now: 2000, pid: 202, host: 'host-a', runtime: 'win32:x64', nonce: 'owner-b',
+    isProcessAlive: () => true,
+  });
+  assert.equal(second.ok, false);
+  assert.equal(second.reason, 'lock-held');
+  assert.equal(r.releaseFileLock(first), true);
+});
+
+test('Gate 2: an expired lock is recovered only when the same-runtime owner is proven dead', () => {
+  const { r } = fresh();
+  const lockPath = path.join(OUT, '.writer.lock');
+  const old = r.acquireFileLock(lockPath, {
+    now: 1000, leaseMs: 10, pid: 101, host: 'host-a', runtime: 'win32:x64', nonce: 'dead-owner',
+  });
+  assert.equal(old.ok, true);
+  const recovered = r.acquireFileLock(lockPath, {
+    now: 2000, pid: 202, host: 'host-a', runtime: 'win32:x64', nonce: 'new-owner',
+    isProcessAlive: (pid) => pid === 101 ? false : true,
+  });
+  assert.equal(recovered.ok, true);
+  assert.ok(recovered.recovered && fs.existsSync(recovered.recovered), 'expired owner metadata remains auditable');
+  assert.equal(r.releaseFileLock(recovered), true);
+});
+
+test('Gate 2: cross Windows/WSL expiry requires human audit even if the PID looks dead', () => {
+  const { r } = fresh();
+  const lockPath = path.join(OUT, '.writer.lock');
+  const old = r.acquireFileLock(lockPath, {
+    now: 1000, leaseMs: 10, pid: 101, host: 'same-machine', runtime: 'linux:x64', nonce: 'wsl-owner',
+  });
+  assert.equal(old.ok, true);
+  const refused = r.acquireFileLock(lockPath, {
+    now: 2000, pid: 202, host: 'same-machine', runtime: 'win32:x64', nonce: 'windows-owner',
+    isProcessAlive: () => false,
+  });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.reason, 'human-audit-required');
+  assert.equal(r.releaseFileLock(old), true);
+});
+
+test('Gate 3: SYNC handoff projection is deterministic and protocol-versioned', () => {
+  const { r } = fresh();
+  const payload = { sid: 's-1', name: 'session', timestamp: '2026-07-16 08:00', text: 'body' };
+  const first = r.projectSyncHandoff('', payload);
+  const replay = r.projectSyncHandoff('', payload);
+  assert.equal(first, replay, 'same input projects byte-identically');
+  assert.match(first, /mooter-handoff:s-1/);
+  const replaced = r.projectSyncHandoff(first, { ...payload, text: 'new body' });
+  assert.equal((replaced.match(/<!-- mooter-handoff:s-1 -->/g) || []).length, 1);
+  assert.doesNotMatch(replaced, /\nbody\n/);
+  assert.equal(r.handleProtocolRequest({ protocol_version: 'old', operation: 'sync-handoff-upsert' }).reason,
+    'incompatible-protocol');
+});
+
+test('Gate 3: reducer is the single locked writer for SYNC projections', () => {
+  const { r } = fresh();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sync-reducer-'));
+  try {
+    const request = {
+      protocol_version: r.REDUCER_PROTOCOL_VERSION,
+      operation: 'sync-handoff-upsert',
+      root,
+      payload: { sid: 's-2', name: 'two', timestamp: '2026-07-16 08:01', text: 'projected' },
+    };
+    const result = r.handleProtocolRequest(request);
+    assert.equal(result.ok, true);
+    assert.match(fs.readFileSync(path.join(root, 'SYNC.md'), 'utf8'), /projected/);
+    assert.equal(fs.existsSync(path.join(root, '_handoff', 'agent-sync', '.writer.lock')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Gate 3: snapshot refresh replaces stale truth without duplicating sections', () => {
+  const { r } = fresh();
+  const base = '# Mooter — Sync Snapshot\n\n**Atualizado:** old PR #246\n\n## Verdade atual\n\n- PR #246 merged.\n\n## Keep\n\nkeep me\n';
+  const payload = { metadata: '**Atualizado:** 2026-07-16 · main @ 71340b2', truth: ['F1 Gates 1–3 locais.', 'Sem push.'] };
+  const projected = r.projectSyncSnapshot(base, payload);
+  assert.doesNotMatch(projected, /#246/);
+  assert.match(projected, /F1 Gates 1–3 locais/);
+  assert.match(projected, /## Keep\n\nkeep me/);
+  assert.equal(r.projectSyncSnapshot(projected, payload), projected, 'refresh replay is byte-identical');
+});

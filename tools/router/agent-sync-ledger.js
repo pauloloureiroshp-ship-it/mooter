@@ -20,6 +20,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
+const reducer = require('./ledger-reduce.js');
 
 const SCHEMA_VERSION = 'agent-sync-ledger.v2';
 const EXPECTED_CLASSIFY_SHA =
@@ -32,7 +33,8 @@ const VALID_KINDS = new Set(['sync', 'intent', 'brief', 'turn', 'decision', 'art
 const VALID_EVIDENCE = new Set(['code', 'test', 'git', 'doc', 'handoff', 'notion-export', 'obsidian-vault', 'runtime', 'connector', 'inference']);
 const VALID_CONFIDENCE = new Set(['low', 'medium', 'high', 'unknown']);
 const VALID_CHANNELS = new Set(['local', 'subscription', 'api', 'cloud', 'unknown']);
-const MAX_EVENTS = 400;
+const MAX_CONTEXT_EVENTS = 50;
+const CONTEXT_STICKY_KINDS = new Set(['intent', 'decision', 'outcome']);
 const SYNC_AGENTS = ['claude-code', 'codex', 'gemini-roo', 'ollama'];
 const SHARED_LANGUAGE = [
   ['intent', 'what Paulo or an agent is trying to accomplish'],
@@ -121,6 +123,8 @@ function paths(root, dir) {
   return {
     dir: d,
     events: path.join(d, 'events.jsonl'),
+    context: path.join(d, 'context.jsonl'),
+    lock: path.join(d, '.writer.lock'),
     snapshot: path.join(d, 'snapshot.json'),
     latest: path.join(d, 'latest.md'),
     promptsDir: path.join(d, 'prompts'),
@@ -274,22 +278,48 @@ function readEvents(root, dir) {
   return raw.split('\n').filter(Boolean).map((line) => safeJson(line)).filter(Boolean);
 }
 
-function writeEvents(root, events, dir) {
+function selectContextEvents(events, maxEvents) {
+  const list = Array.isArray(events) ? events : [];
+  const max = Number.isInteger(maxEvents) && maxEvents > 0 ? maxEvents : MAX_CONTEXT_EVENTS;
+  const indexed = list.map((event, index) => ({ event, index }));
+  const sticky = indexed.filter(({ event }) => event && CONTEXT_STICKY_KINDS.has(event.kind));
+  if (sticky.length >= max) return sticky.slice(-max).map(({ event }) => event);
+  const stickyIndexes = new Set(sticky.map(({ index }) => index));
+  const recent = indexed
+    .filter(({ index }) => !stickyIndexes.has(index))
+    .slice(-(max - sticky.length));
+  return sticky.concat(recent).sort((a, b) => a.index - b.index).map(({ event }) => event);
+}
+
+function readContextEvents(root, dir) {
+  const raw = safeRead(paths(root, dir).context);
+  if (!raw) return [];
+  return raw.split('\n').filter(Boolean).map((line) => safeJson(line)).filter(Boolean);
+}
+
+function writeContextEvents(root, events, dir) {
   const ps = paths(root, dir);
   fs.mkdirSync(ps.dir, { recursive: true });
-  const keep = events.slice(-MAX_EVENTS);
-  fs.writeFileSync(ps.events, keep.map((e) => JSON.stringify(e)).join('\n') + (keep.length ? '\n' : ''));
+  const context = selectContextEvents(events);
+  reducer.materializeProjectionFile(
+    ps.context,
+    context.map((e) => JSON.stringify(e)).join('\n') + (context.length ? '\n' : ''),
+  );
+  return context;
 }
 
 function appendEvent(root, event, dir, opts) {
+  opts = opts || {};
   const ps = paths(root, dir);
   fs.mkdirSync(ps.dir, { recursive: true });
-  fs.appendFileSync(ps.events, JSON.stringify(event) + '\n');
-  const events = readEvents(root, dir);
-  if (events.length > MAX_EVENTS) writeEvents(root, events, dir);
-  const snapshot = buildSnapshot(root, events.slice(-MAX_EVENTS), dir, opts);
-  writeSnapshot(root, snapshot, dir);
-  return snapshot;
+  return reducer.withFileLock(ps.lock, () => {
+    reducer.appendFileDurablySync(ps.events, JSON.stringify(event) + '\n');
+    const events = readEvents(root, dir);
+    writeContextEvents(root, events, dir);
+    const snapshot = buildSnapshot(root, events, dir, opts);
+    writeSnapshot(root, snapshot, dir, { lockHeld: true });
+    return snapshot;
+  }, opts.lock || {});
 }
 
 function buildSnapshot(root, events, dir, opts) {
@@ -345,9 +375,21 @@ function buildSnapshot(root, events, dir, opts) {
       files: e.files || [],
     }));
   const last = events[events.length - 1] || null;
+  const latestProjection = (key) => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i] && events[i][key]) return events[i][key];
+    }
+    return null;
+  };
+  const now = opts.now instanceof Date ? opts.now.toISOString() : opts.now;
+  const projection = (key) => {
+    if (opts[key] === false) return null;
+    if (opts[key] && typeof opts[key] === 'object') return opts[key];
+    return latestProjection(key);
+  };
   return {
     schema_version: SCHEMA_VERSION,
-    generated_at: new Date().toISOString(),
+    generated_at: now || (last && last.ts) || '1970-01-01T00:00:00.000Z',
     repo_root: root,
     dir: paths(root, dir).dir,
     event_count: events.length,
@@ -357,8 +399,8 @@ function buildSnapshot(root, events, dir, opts) {
     active_briefs: activeBriefs,
     recent_decisions: recentDecisions,
     recent_gates: recentGates,
-    classify: opts.classify === false ? null : classifySnapshot(root),
-    git: opts.git === false ? null : gitSnapshot(root),
+    classify: projection('classify'),
+    git: projection('git'),
   };
 }
 
@@ -526,23 +568,30 @@ function writeBriefPrompts(root, event, snapshot, dir) {
   const ps = paths(root, dir);
   const targets = event.target_agents && event.target_agents.length ? event.target_agents : ['ollama'];
   fs.mkdirSync(ps.briefsDir, { recursive: true });
-  const written = [];
-  for (const target of targets) {
-    const file = path.join(ps.briefsDir, `${event.id}-${target}.md`);
-    fs.writeFileSync(file, renderBriefPrompt(event, snapshot, target) + '\n');
-    written.push(file);
-  }
-  return written;
+  return reducer.withFileLock(ps.lock, () => reducer.materializeProjectionFiles(
+    targets.map((target) => ({
+      file: path.join(ps.briefsDir, `${event.id}-${target}.md`),
+      data: renderBriefPrompt(event, snapshot, target) + '\n',
+    })),
+  ).map((entry) => entry.file));
 }
 
-function writeSnapshot(root, snapshot, dir) {
+function writeSnapshot(root, snapshot, dir, opts) {
+  opts = opts || {};
   const ps = paths(root, dir);
-  fs.mkdirSync(ps.promptsDir, { recursive: true });
-  fs.writeFileSync(ps.snapshot, JSON.stringify(snapshot, null, 2) + '\n');
-  fs.writeFileSync(ps.latest, renderSnapshot(snapshot) + '\n');
-  for (const agent of SYNC_AGENTS) {
-    fs.writeFileSync(path.join(ps.promptsDir, `${agent}.md`), renderAgentPrompt(snapshot, agent) + '\n');
-  }
+  const write = () => {
+    fs.mkdirSync(ps.promptsDir, { recursive: true });
+    reducer.materializeProjectionFiles([
+      { file: ps.snapshot, data: JSON.stringify(snapshot, null, 2) + '\n' },
+      { file: ps.latest, data: renderSnapshot(snapshot) + '\n' },
+      ...SYNC_AGENTS.map((agent) => ({
+        file: path.join(ps.promptsDir, `${agent}.md`),
+        data: renderAgentPrompt(snapshot, agent) + '\n',
+      })),
+    ]);
+  };
+  if (opts.lockHeld) return write();
+  return reducer.withFileLock(ps.lock, write, opts.lock || {});
 }
 
 function simulationEvents() {
@@ -875,6 +924,9 @@ module.exports = {
   normalizeChannel,
   normalizeEvent,
   readEvents,
+  readContextEvents,
+  selectContextEvents,
+  writeContextEvents,
   appendEvent,
   buildSnapshot,
   renderSnapshot,

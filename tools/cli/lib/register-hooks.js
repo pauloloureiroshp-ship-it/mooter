@@ -35,6 +35,13 @@ const ensure = (key, needle, command) => {
   added++;
 };
 
+const ensureScoped = (key, needle, command, matcher) => {
+  s.hooks[key] = s.hooks[key] || [];
+  if (JSON.stringify(s.hooks[key]).includes(needle)) return;
+  s.hooks[key].push({ matcher, hooks: [{ type: 'command', command, timeout: 3 }] });
+  added++;
+};
+
 ensure('UserPromptSubmit', 'inject_context.js', `node "${routerFwd}/inject_context.js"`);
 
 // Kill Frugal W3: migrate any legacy frugal-turn-header entry in place, then
@@ -66,6 +73,14 @@ for (const entry of (s.hooks.UserPromptSubmit || [])) {
 }
 ensure('UserPromptSubmit', 'pack-hint.cjs', `node "${hooksFwd}/pack-hint.cjs"`);
 ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
+
+// Perfect Handoff Gate 5 — serialize conductor-sensitive Bash operations.
+// PreToolUse propagates exit 2 on a live conflict; both post paths release the
+// acquired lock. The bridge delegates lock semantics to worktree-conductor.
+const conductorGuard = `node "${hooksFwd}/conductor-git-guard.js"`;
+ensureScoped('PreToolUse', 'conductor-git-guard.js', conductorGuard, 'Bash');
+ensureScoped('PostToolUse', 'conductor-git-guard.js', `${conductorGuard} --release`, 'Bash');
+ensureScoped('PostToolUseFailure', 'conductor-git-guard.js', `${conductorGuard} --release`, 'Bash');
 
 // Live Preview · MP0 — arm the file-bus tap alongside the existing hooks. Each
 // entry passes the hook name as argv so hook-collector.mapEvent maps it to the

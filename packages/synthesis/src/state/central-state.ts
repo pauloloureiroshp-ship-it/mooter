@@ -10,7 +10,7 @@
 
 import { mooterPath, readJsonSafe, writeJson } from "../config.ts";
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
 /** The doctrine-gated classify.js sha. `mooter wave status` verifies against this.
  *  Wave 49 (Phase 7): bumped after Paulo-approved Tier 5 (Fable 5, opt-in) addition.
@@ -38,6 +38,18 @@ export interface WaveState {
   shippedAt?: string;
   tag?: string;
   mergeCommit?: string;
+  shipmentStatus?: "shipped" | "shipped_with_override";
+  overrideRequestId?: string;
+}
+
+export interface ShipOverrideRequest {
+  id: string;
+  waveNumber: number;
+  failedGates: string[];
+  reason: string;
+  approvedBy: "Paulo";
+  requestedAt: string;
+  consumedAt?: string;
 }
 
 export interface CentralState {
@@ -45,6 +57,7 @@ export interface CentralState {
   classifySha: string | null; // last-recorded sha
   currentWave: WaveState | null;
   history: WaveState[];
+  shipOverrideRequests: ShipOverrideRequest[];
   updatedAt: string;
 }
 
@@ -58,6 +71,7 @@ export function emptyState(): CentralState {
     classifySha: null,
     currentWave: null,
     history: [],
+    shipOverrideRequests: [],
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -67,6 +81,7 @@ export function loadState(): CentralState {
   const s = readJsonSafe<CentralState>(statePath(), emptyState());
   if (typeof s.version !== "number") return emptyState();
   if (!Array.isArray(s.history)) s.history = [];
+  if (!Array.isArray(s.shipOverrideRequests)) s.shipOverrideRequests = [];
   if (s.currentWave && !Array.isArray(s.currentWave.phases)) {
     s.currentWave.phases = [];
   }
@@ -152,12 +167,78 @@ export function classifyShaOk(actual: string): boolean {
 export interface ShipWaveInput {
   tag?: string;
   mergeCommit?: string;
+  overrideRequestId?: string;
 }
 
-/** Close the current wave: stamp shippedAt/tag, move to history, clear currentWave. */
+export interface RequestShipOverrideInput {
+  id: string;
+  reason: string;
+  approvedBy: string;
+}
+
+/** Return the unfinished phase ids that mechanically block normal shipping. */
+export function failedWaveGates(wave: WaveState): string[] {
+  return wave.phases.filter((phase) => phase.status !== "done").map((phase) => phase.id);
+}
+
+/**
+ * Phase 1 of the only emergency path: persist an auditable request tied to the
+ * exact failed gates. The request does not ship anything.
+ */
+export function requestShipOverride(
+  input: RequestShipOverrideInput,
+  now: Date = new Date(),
+): { state: CentralState; request: ShipOverrideRequest } {
+  const s = loadState();
+  if (!s.currentWave) throw new Error("no active wave to ship");
+  const failedGates = failedWaveGates(s.currentWave);
+  if (!failedGates.length) throw new Error("all wave gates pass — ship normally without an override");
+  const reason = input.reason.trim();
+  if (!reason) throw new Error("override request requires a non-empty reason");
+  if (input.approvedBy !== "Paulo") throw new Error("override request requires explicit Paulo approval");
+  if (!input.id.trim()) throw new Error("override request requires an id");
+  if (s.shipOverrideRequests.some((request) => request.id === input.id)) {
+    throw new Error(`override request already exists: ${input.id}`);
+  }
+  const request: ShipOverrideRequest = {
+    id: input.id,
+    waveNumber: s.currentWave.number,
+    failedGates,
+    reason,
+    approvedBy: "Paulo",
+    requestedAt: now.toISOString(),
+  };
+  s.shipOverrideRequests.push(request);
+  return { state: saveState(s, now), request };
+}
+
+/** Close the current wave only when every gate passes or a saved request is consumed. */
 export function shipWave(input: ShipWaveInput = {}, now: Date = new Date()): CentralState {
   const s = loadState();
   if (!s.currentWave) throw new Error("no active wave to ship");
+  const failedGates = failedWaveGates(s.currentWave);
+  if (failedGates.length) {
+    if (!input.overrideRequestId) {
+      throw new Error(`wave gates failed: ${failedGates.join(", ")} — request an override first`);
+    }
+    const request = s.shipOverrideRequests.find((candidate) => candidate.id === input.overrideRequestId);
+    if (!request) throw new Error(`override request not found: ${input.overrideRequestId}`);
+    if (request.consumedAt) throw new Error(`override request already consumed: ${input.overrideRequestId}`);
+    if (request.waveNumber !== s.currentWave.number) {
+      throw new Error(`override request belongs to wave ${request.waveNumber}, not ${s.currentWave.number}`);
+    }
+    if (request.failedGates.join("\0") !== failedGates.join("\0")) {
+      throw new Error("failed gates changed after override request — create a new request");
+    }
+    request.consumedAt = now.toISOString();
+    s.currentWave.shipmentStatus = "shipped_with_override";
+    s.currentWave.overrideRequestId = request.id;
+  } else {
+    if (input.overrideRequestId) {
+      throw new Error("all wave gates pass — an override cannot be consumed");
+    }
+    s.currentWave.shipmentStatus = "shipped";
+  }
   s.currentWave.shippedAt = now.toISOString();
   if (input.tag) s.currentWave.tag = input.tag;
   if (input.mergeCommit) s.currentWave.mergeCommit = input.mergeCommit;

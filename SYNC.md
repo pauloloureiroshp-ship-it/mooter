@@ -3,41 +3,19 @@
 > Canónico em `~/frugal/SYNC.md` (Mac) e `C:\Users\Paulo Loureiro\frugal\SYNC.md` (Windows).
 > Snapshot, não log (regra ≤200 linhas; histórico em `docs/foundation/SYNC_ARCHIVE_2026.md`).
 
-**Atualizado:** 2026-07-13 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
-**extensão em main:** `v0.16.67` · **candidata local instalada:** `v0.16.72` em
-`fix/lp-iframe-reload-rearm` (**push/review/merge pendentes**).
+**Atualizado:** 2026-07-16 · **GitHub main @** 71340b2 (PRs #248 e #249 merged) · **extensão em main:** v0.16.78 · **remediação F1:** Gates 1–3 locais, sem push/PR.
 
 ## Verdade atual
 
-- **LP-COERÊNCIA:** PR #246 merged; os 19 findings COH-01…19 estão em `main`.
-- **Seleção/prompt pós-reload:** o host rearma o tap depois de reload same-URL; se a caixa não couber sem
-  cobrir o pin, o mesmo prompt docka no topo do rail, é revelado mesmo quando o rail estava scrollado e a
-  🐮 sempre reabre com foco. O dock fica sticky durante a seleção, inclusive após resizes tardios do webview.
-- **Estabilidade do preview:** conexão TCP sem status HTTP dentro do budget é inconclusiva, não erro positivo;
-  o porto configurado continua autoritativo nessa ronda e a identidade/pin não são invalidados. Budget do
-  probe subiu para 1,8 s. Erro HTTP real continua fail-closed. Prova Chromium isolada: 100 s, 99 amostras,
-  zero reload/blank/perda de pin/textbox; mais 3 reloads manuais com árvore verde.
-- **Descoberta/recovery do localhost:** probe HTTP 2xx+HTML em IPv4/IPv6, portas configuradas/comuns e ranges
-  auto-incrementados em paralelo. Poll automático e ↻ são latest-wins; ↻ nunca se perde durante outro probe,
-  ignora identidade sticky, recupera override inalcançável e recarrega o iframe same-URL. Reinício exige trust
-  e só encerra listener com ownership do projeto comprovado. Socket reutilizado não acumula listeners. Suite
-  extensão com HOME isolada e ficheiros seriais **1209/1209 pass**; landing **211/211 + typecheck**.
-- **Árvore realmente em teste:** a janela QA, o workspace do VS Code e o processo que possui `:7819` apontam
-  todos para `C:\Users\Paulo Loureiro\frugal-lp-coerencia`; o gate confirmou a raiz servida `landing/` nessa
-  mesma linhagem. As 12 worktrees ainda registadas não causaram esta falha, mas a consolidação para uma única
-  pasta canónica `frugal` ainda não terminou.
-- **MEO Control Tower:** Control/Stream/Sessões cruzam bus, execução real, catálogo de sessões e Ledger tipado.
-  Cada etapa mostra agente, modelo, canal com base de atribuição, título da sessão e wave/PR; handoffs, fleet e
-  sinais de Notion/Obsidian ficam visíveis sem inventar acesso. Suite extensão **1176/1176 pass**.
-- **Tracking durável:** `tools/router/agent-sync-ledger.js` gera `_handoff/agent-sync/{events.jsonl,snapshot.json,
-  latest.md,prompts/,briefs/}` (estado operacional local e gitignored). O Stop hook existente registra turnos
-  Claude automaticamente; Codex/Gemini/Ollama usam checkpoints/briefs tipados.
-- **Landing:** suite **211/211 pass**. Build compila e chega à recolha de páginas, mas para por ausência local
-  de `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`; não é regressão atribuída ao código.
-- **Classificador:** `tools/router/classify.js` SHA
-  `427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f` — FROZEN/intacto.
-- **Bind da landing:** mudança `127.0.0.1 → 0.0.0.0` preservada separadamente em
-  `wip/landing-bind-all-interfaces @ 1f3b9a6`; não integrar sem decisão explícita sobre exposição de rede.
+- PRs #248 e #249 estão integrados em origin/main @ 71340b2.
+- F1: Gates 1–3 implementados localmente em fix/remediation-perfect-handoff-p1; nenhuma publicação autorizada.
+- F1 Gate 1: ledger durável append-only separado do contexto rolante de 50 eventos (commit edc8420).
+- F1 Gate 2: lock O_EXCL com owner/PID/host/nonce/lease, recuperação auditável e escrita durável (commit 77a0318).
+- F1 Gate 3: reducer único versionado, ponte VSIX por subprocesso compatível e replay byte-idêntico; commit local no STOP.
+- F2: copy pública honesta + teste de claims no commit local 31d131f; sem push.
+- F3: ratchet merge-base permanece local no commit 9de33d5; publicação em HOLD.
+- PHASE_A_GATE.md preservado byte a byte com sha256 02282153134eab3d329d68ac3d5ea5414b97509f5cc9dc9d110c9ed6b99bca13.
+- tools/router/classify.js permanece frozen com sha256 427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f.
 
 ## Consolidação dos worktrees
 

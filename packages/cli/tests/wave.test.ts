@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runWave } from "../src/commands/wave.ts";
+import { classifyShipGateError, runWave } from "../src/commands/wave.ts";
 
 function withTempHome<T>(fn: () => T): T {
   const dir = mkdtempSync(join(tmpdir(), "mooter-wave-"));
@@ -80,7 +80,7 @@ test("wave phase without active wave errors", () => {
 test("wave ship succeeds when sha intact and records tag", () => {
   withTempHome(() => {
     runWave(["start", "30"]);
-    runWave(["phase", "A", "--done"]);
+    for (const id of "ABCDEFGHIJKLMNO") runWave(["phase", id, "--done"]);
     const r = runWave(["ship", "--tag", "v1.18.0-mega", "--merge", "deadbeef", "--json"]);
     assert.equal(r.exitCode, 0);
     const shipped = JSON.parse(r.output);
@@ -91,4 +91,35 @@ test("wave ship succeeds when sha intact and records tag", () => {
     assert.equal(st.active, false);
     assert.equal(st.historyCount, 1);
   });
+});
+
+test("wave ship override is two-phase and --force cannot bypass gates", () => {
+  withTempHome(() => {
+    runWave(["start", "30"]);
+    runWave(["phase", "A", "--done"]);
+    const direct = runWave(["ship", "--force"]);
+    assert.equal(direct.exitCode, 2);
+    assert.match(direct.output, /cannot ship/);
+    const requested = runWave([
+      "ship",
+      "--request-override",
+      "--reason",
+      "Emergency recovery",
+      "--approved-by",
+      "Paulo",
+      "--json",
+    ]);
+    assert.equal(requested.exitCode, 0);
+    const request = JSON.parse(requested.output);
+    assert.equal(request.approvedBy, "Paulo");
+    assert.ok(request.failedGates.includes("B"));
+    const consumed = runWave(["ship", "--override", request.id, "--json"]);
+    assert.equal(consumed.exitCode, 0);
+    assert.equal(JSON.parse(consumed.output).shipmentStatus, "shipped_with_override");
+  });
+});
+
+test("classify SHA failure is never overrideable", () => {
+  assert.match(classifyShipGateError("deadbeef") ?? "", /MISMATCH/);
+  assert.match(classifyShipGateError(null) ?? "", /unavailable/);
 });

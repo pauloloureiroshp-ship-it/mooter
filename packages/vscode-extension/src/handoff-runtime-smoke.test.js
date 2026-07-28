@@ -21,6 +21,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
 const path = require('path');
+const LEDGER_REDUCER = path.resolve(__dirname, '..', '..', '..', 'tools', 'router', 'ledger-reduce.js');
 
 const HOST_EXTRA = require.resolve('./host-extra.js');
 
@@ -146,7 +147,7 @@ test('SYNC.md upsert path still works with the deterministic text (no Ollama nee
   try {
     const row = Object.assign({}, ROW_QUICK, { cwd: tmpDir });
     const { text } = await extra.composeHandoff(row, row.pending);
-    const w = extra.writeHandoffToSync(tmpDir, row.fullId, text, { name: row.name });
+    const w = extra.writeHandoffToSync(tmpDir, row.fullId, text, { name: row.name, reducerPaths: [LEDGER_REDUCER] });
     assert.equal(w.ok, true, 'SYNC.md write ok');
     const sync = fs.readFileSync(path.join(tmpDir, 'SYNC.md'), 'utf8');
     assert.ok(sync.includes('⇄ Handoff'), 'SYNC.md upserted with the handoff block');

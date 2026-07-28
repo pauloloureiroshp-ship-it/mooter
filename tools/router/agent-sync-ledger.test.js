@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const childProcess = require('node:child_process');
 
 const sync = require('./agent-sync-ledger.js');
 
@@ -111,10 +112,50 @@ test('appendEvent writes events, snapshot, latest and prompts', () => {
     const snap = sync.appendEvent(root, ev, dir);
     assert.equal(snap.event_count, 1);
     assert.ok(fs.existsSync(path.join(dir, 'events.jsonl')));
+    assert.ok(fs.existsSync(path.join(dir, 'context.jsonl')));
     assert.ok(fs.existsSync(path.join(dir, 'snapshot.json')));
     assert.ok(fs.existsSync(path.join(dir, 'latest.md')));
     assert.ok(fs.existsSync(path.join(dir, 'prompts', 'gemini-roo.md')));
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /implemented sync ledger/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Gate 1: context rolls at 50 while the durable ledger preserves intent, decision and outcome', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    const structural = ['intent', 'decision', 'outcome'].map((kind, index) => sync.normalizeEvent({
+      id: `structural-${kind}`,
+      agent: 'codex',
+      kind,
+      cadence: 'checkpoint',
+      status: kind === 'outcome' ? 'done' : 'ready',
+      summary: `${kind} must survive context rollover`,
+    }, { root, git: false, classify: false, now: `2026-07-09T00:00:0${index}.000Z` }));
+    for (const event of structural) sync.appendEvent(root, event, dir, { git: false, classify: false });
+    for (let i = 0; i < 60; i++) {
+      const turn = sync.normalizeEvent({
+        id: `turn-${i}`,
+        agent: 'claude-code',
+        kind: 'turn',
+        cadence: 'turn',
+        status: 'done',
+        summary: `turn ${i}`,
+      }, { root, git: false, classify: false, now: `2026-07-09T00:01:${String(i).padStart(2, '0')}.000Z` });
+      sync.appendEvent(root, turn, dir, { git: false, classify: false });
+    }
+
+    const ledger = sync.readEvents(root, dir);
+    const context = sync.readContextEvents(root, dir);
+    assert.equal(ledger.length, 63, 'append-only ledger never drops events at context rollover');
+    assert.equal(context.length, 50, 'context buffer stays bounded');
+    for (const event of structural) {
+      assert.ok(ledger.some((item) => item.id === event.id), `${event.kind} remains durable`);
+      assert.ok(context.some((item) => item.id === event.id), `${event.kind} remains in bounded context`);
+    }
+    assert.equal(context.at(-1).id, 'turn-59', 'latest turn remains available to stateless consumers');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -254,4 +295,63 @@ test('command simulate reports pass and writes to requested dir', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('Gate 2: multiprocess writers lose and duplicate zero events', async () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  const script = path.join(__dirname, 'agent-sync-ledger.js');
+  try {
+    const writers = Array.from({ length: 12 }, (_, index) => new Promise((resolve, reject) => {
+      const child = childProcess.spawn(process.execPath, [
+        script, 'record', '--root', root, '--dir', dir, '--agent', 'codex',
+        '--kind', 'turn', '--cadence', 'turn', '--status', 'done',
+        '--summary', `multiprocess-${index}`, '--git', 'false',
+      ], { stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('error', reject);
+      child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`writer ${index} exited ${code}: ${stderr}`)));
+    }));
+    await Promise.all(writers);
+    const events = sync.readEvents(root, dir);
+    assert.equal(events.length, 12, 'every writer lands exactly one event');
+    assert.equal(new Set(events.map((event) => event.id)).size, 12, 'event ids remain unique');
+    assert.deepEqual(events.map((event) => event.summary).sort(),
+      Array.from({ length: 12 }, (_, index) => `multiprocess-${index}`).sort());
+    assert.equal(fs.existsSync(path.join(dir, '.writer.lock')), false, 'writer lock is released');
+    const snapshot = JSON.parse(fs.readFileSync(path.join(dir, 'snapshot.json'), 'utf8'));
+    assert.equal(snapshot.event_count, 12, 'projection covers the complete locked ledger');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+});
+
+test('Gate 3: agent snapshot replay is byte-identical and contains no ambient clock/git reads', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    const event = sync.normalizeEvent({
+      id: 'stable-event', agent: 'codex', kind: 'decision', cadence: 'checkpoint',
+      status: 'ready', summary: 'stable reducer input',
+    }, { root, git: false, classify: false, now: '2026-07-16T11:00:00.000Z' });
+    event.git = { branch: 'fixed', head: 'abc123', dirty: 0, ahead: 1, error: null };
+    event.classify = { path: 'tools/router/classify.js', sha256: 'fixed-sha', intact: true };
+    const one = sync.buildSnapshot(root, [event], dir);
+    const two = sync.buildSnapshot(root, [event], dir);
+    assert.equal(JSON.stringify(one), JSON.stringify(two));
+    assert.equal(sync.renderSnapshot(one), sync.renderSnapshot(two));
+    assert.equal(one.generated_at, event.ts);
+    assert.deepEqual(one.git, event.git);
+    assert.deepEqual(one.classify, event.classify);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Gate 3: agent ledger delegates every projection write to ledger-reduce', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'agent-sync-ledger.js'), 'utf8');
+  assert.doesNotMatch(source, /fs\.(?:writeFileSync|renameSync|appendFileSync)\s*\(/);
+  assert.doesNotMatch(source, /reducer\.atomicWriteFileSync\s*\(/);
+  assert.match(source, /reducer\.materializeProjectionFiles?\s*\(/);
 });

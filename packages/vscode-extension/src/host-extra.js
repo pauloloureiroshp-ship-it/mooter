@@ -2976,39 +2976,75 @@ function generateCombinedHandoff(row, pending, opts) {
   return sessionText + '\n\n── PROJECTO (estado das outras frentes) ──\n' + board;
 }
 
-function _reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const LEDGER_REDUCER_PROTOCOL_VERSION = 'mooter-ledger-reducer.v1';
 
-// UPSERT atómico no SYNC.md na raiz de `cwd`. Substitui a secção anterior do MESMO sid
-// (marcadores HTML estáveis), nunca acumula lixo. Escrita temp+rename. cria o ficheiro se
-// ausente (rota local: "o contexto nunca se perde"). { ok, path, created } | { ok:false }.
+function _ledgerReducerCandidates(cwd, opts) {
+  opts = opts || {};
+  if (Array.isArray(opts.reducerPaths)) return Array.from(new Set(opts.reducerPaths.filter(Boolean).map(String)));
+  return Array.from(new Set([
+    path.join(cwd, 'tools', 'router', 'ledger-reduce.js'),
+    path.join(ROUTER, 'ledger-reduce.js'),
+  ]));
+}
+
+function _probeLedgerReducer(file, opts) {
+  opts = opts || {};
+  try {
+    const version = String(execFileSync(process.execPath, [file, '--protocol-version'], {
+      encoding: 'utf8', timeout: opts.reducerTimeoutMs || 4000,
+      maxBuffer: 64 * 1024, windowsHide: true,
+    }) || '').trim();
+    return version === LEDGER_REDUCER_PROTOCOL_VERSION
+      ? { ok: true, file, version }
+      : { ok: false, file, reason: 'incompatible-protocol', version: version || null };
+  } catch {
+    return { ok: false, file, reason: 'unavailable', version: null };
+  }
+}
+
+function _resolveLedgerReducer(cwd, opts) {
+  const attempts = [];
+  for (const file of _ledgerReducerCandidates(cwd, opts)) {
+    const probe = _probeLedgerReducer(file, opts);
+    attempts.push(probe);
+    if (probe.ok) return { ok: true, file, attempts };
+  }
+  return { ok: false, reason: 'reducer-unavailable', attempts };
+}
+
+// Preserve the public signature, but make the versioned reducer subprocess the
+// only production route that may project SYNC.md. Resolution order is checkout
+// first, then the installed ~/.claude mirror only when protocol-compatible.
 function writeHandoffToSync(cwd, sid, text, opts) {
   opts = opts || {};
-  if (!cwd || typeof cwd !== 'string') return { ok: false };
+  if (!cwd || typeof cwd !== 'string') return { ok: false, reason: 'invalid-input' };
   const sidS = String(sid || '').replace(/[^a-zA-Z0-9._-]/g, '');
-  if (!sidS) return { ok: false };
+  if (!sidS) return { ok: false, reason: 'invalid-input' };
+  const resolved = _resolveLedgerReducer(cwd, opts);
+  if (!resolved.ok) return resolved;
   try {
-    const file = path.join(cwd, 'SYNC.md');
-    let base = ''; let created = false;
-    try { base = fs.readFileSync(file, 'utf8'); } catch { created = true; }
-    const ts = _fmtTs(opts.now || new Date());
-    const name = String(opts.name || sidS).replace(/[\r\n]+/g, ' ').slice(0, 60);
-    const START = '<!-- mooter-handoff:' + sidS + ' -->';
-    const END = '<!-- /mooter-handoff:' + sidS + ' -->';
-    const FENCE = '```';
-    const block = START + '\n### ⇄ Handoff · ' + name + ' · ' + ts + '\n\n'
-      + FENCE + '\n' + String(text || '') + '\n' + FENCE + '\n' + END;
-    const re = new RegExp(_reEsc(START) + '[\\s\\S]*?' + _reEsc(END));
-    let next;
-    if (re.test(base)) { next = base.replace(re, block); }
-    else {
-      if (!base.trim()) base = '# Mooter — Sync Snapshot\n';
-      next = base.replace(/\s*$/, '') + '\n\n' + block + '\n';
-    }
-    const tmp = file + '.tmp';
-    fs.writeFileSync(tmp, next);
-    fs.renameSync(tmp, file);
-    return { ok: true, path: file, created };
-  } catch { return { ok: false }; }
+    const request = {
+      protocol_version: LEDGER_REDUCER_PROTOCOL_VERSION,
+      operation: 'sync-handoff-upsert',
+      root: cwd,
+      payload: {
+        sid: sidS,
+        text: String(text || ''),
+        name: String(opts.name || sidS),
+        timestamp: _fmtTs(opts.now || new Date()),
+      },
+    };
+    const raw = execFileSync(process.execPath, [resolved.file, '--request'], {
+      input: JSON.stringify(request), encoding: 'utf8', timeout: opts.reducerTimeoutMs || 8000,
+      maxBuffer: 1024 * 1024, windowsHide: true,
+    });
+    const result = JSON.parse(String(raw || ''));
+    return result && result.ok
+      ? Object.assign({}, result, { reducer: resolved.file, protocol_version: LEDGER_REDUCER_PROTOCOL_VERSION })
+      : { ok: false, reason: (result && result.reason) || 'reducer-failed', reducer: resolved.file };
+  } catch {
+    return { ok: false, reason: 'reducer-failed', reducer: resolved.file };
+  }
 }
 
 // POST a 127.0.0.1:11434/api/generate (Ollama). Best-effort, bounded, nunca lança.
@@ -3668,7 +3704,9 @@ module.exports = { herd, parseV2, herdMatrix, matrixForUi, insights, execNode, o
   execTool, _sessionCwd, gitBranch, gitRemoteInfo, sanitizeGitRemoteUrl, gitStage, prList, prStage,
   parsePorcelain, defaultCommitMessage, gitHarmony, classifyShaGuard, gitCommitPreview, prepareApprovedSnapshot, gitCommit, gitPush, FROZEN_CLASSIFY_SHA,
   gitSnapshot, vaultFreshness, sessionTag, deriveAsk, _isAskingUser,
-  extractPending, extractTouchedFiles, sessionUnsaved, _relForCwd, generateHandoff, generateCombinedHandoff, _outsideWorktree, writeHandoffToSync, ollamaDoing, ollamaRecap, composeHandoff,
+  extractPending, extractTouchedFiles, sessionUnsaved, _relForCwd, generateHandoff, generateCombinedHandoff, _outsideWorktree,
+  LEDGER_REDUCER_PROTOCOL_VERSION, _ledgerReducerCandidates, _probeLedgerReducer, _resolveLedgerReducer, writeHandoffToSync,
+  ollamaDoing, ollamaRecap, composeHandoff,
   generateProjectHandoff, ollamaProjectSynth, pickLocalGenModel, warmLocalGenModel,
   _ollamaGenerateStream, streamHandoffNarrative, streamProjectSynth,
   readRollingSummary, readJournalLast, projectSynthFromSummaries, localMooState, localSpeed,

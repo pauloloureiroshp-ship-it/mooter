@@ -52,6 +52,7 @@ test('mirrors every wired hook into a fresh dest', () => {
   for (const name of WIRED_HOOKS) {
     assert.ok(fs.existsSync(path.join(dest, name)), `${name} should exist in dest`);
   }
+  assert.ok(WIRED_HOOKS.includes('conductor-git-guard.js'));
 });
 
 test('is idempotent — a second run reports identical and makes no backup', () => {
@@ -189,4 +190,12 @@ test('findWiredStopHook returns null on unparseable settings.json', () => {
   const settingsPath = path.join(home, 'settings.json');
   fs.writeFileSync(settingsPath, '{ not json');
   assert.equal(findWiredStopHook(settingsPath), null);
+});
+
+test('fresh installers copy the blocking conductor guard without running them', () => {
+  const root = path.join(__dirname, '..', '..');
+  const sh = fs.readFileSync(path.join(root, 'install.sh'), 'utf8');
+  const ps1 = fs.readFileSync(path.join(root, 'install.ps1'), 'utf8');
+  assert.match(sh, /PostToolUse\.js conductor-git-guard\.js live-preview-tap\.js/);
+  assert.match(ps1, /'PostToolUse\.js','conductor-git-guard\.js','live-preview-tap\.js'/);
 });

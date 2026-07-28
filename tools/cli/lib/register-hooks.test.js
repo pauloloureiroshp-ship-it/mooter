@@ -32,6 +32,11 @@ function tapEntries(arr, evt) {
       && h.command.trimEnd().endsWith(` ${evt}`)));
 }
 
+function conductorEntries(arr) {
+  return (arr || []).filter((entry) =>
+    (entry.hooks || []).some((h) => h.command && h.command.includes('conductor-git-guard.js')));
+}
+
 test('register-hooks arms the tap in all four hook arrays, idempotently', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-reg-'));
   const settingsPath = path.join(dir, 'settings.json');
@@ -56,12 +61,24 @@ test('register-hooks arms the tap in all four hook arrays, idempotently', () => 
   const upsCmd = s.hooks.UserPromptSubmit.flatMap((e) => e.hooks).find((h) => h.command.includes('live-preview-tap.js'));
   assert.match(upsCmd.command, /"\/opt\/hooks\/live-preview-tap\.js" UserPromptSubmit$/);
 
+  const conductorPre = conductorEntries(s.hooks.PreToolUse);
+  const conductorPost = conductorEntries(s.hooks.PostToolUse);
+  const conductorFailed = conductorEntries(s.hooks.PostToolUseFailure);
+  assert.strictEqual(conductorPre.length, 1, 'blocking guard wired once before Bash');
+  assert.strictEqual(conductorPre[0].matcher, 'Bash');
+  assert.ok(!conductorPre[0].hooks[0].command.includes('--release'));
+  assert.strictEqual(conductorPost.length, 1, 'release wired once after successful Bash');
+  assert.match(conductorPost[0].hooks[0].command, /--release$/);
+  assert.strictEqual(conductorFailed.length, 1, 'release wired once after failed Bash');
+  assert.match(conductorFailed[0].hooks[0].command, /--release$/);
+
   // second run is a no-op — nothing added, no duplicates
   const second = run(settingsPath);
   assert.strictEqual(second.added, 0, 'second run adds nothing (idempotent)');
   const s2 = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   assert.strictEqual(tapEntries(s2.hooks.PostToolUse, 'PostToolUse').length, 1, 'no duplicate PostToolUse tap');
   assert.strictEqual(tapEntries(s2.hooks.Stop, 'Stop').length, 1, 'no duplicate Stop tap');
+  assert.strictEqual(conductorEntries(s2.hooks.PreToolUse).length, 1, 'no duplicate conductor guard');
 
   fs.rmSync(dir, { recursive: true, force: true });
 });

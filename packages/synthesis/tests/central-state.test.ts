@@ -7,6 +7,7 @@ import {
   startWave,
   setPhase,
   shipWave,
+  requestShipOverride,
   summarize,
   loadState,
   emptyState,
@@ -99,6 +100,46 @@ test("shipWave moves current to history and clears currentWave", () => {
     assert.equal(s.history[0].tag, "v1.18.0-mega");
     assert.equal(s.history[0].mergeCommit, "deadbeef");
     assert.ok(s.history[0].shippedAt);
+    assert.equal(s.history[0].shipmentStatus, "shipped");
+  });
+});
+
+test("shipWave requires a two-phase override when gates fail", () => {
+  withTempHome(() => {
+    startWave(
+      { number: 31, branch: "w", phases: [{ id: "A", title: "A" }, { id: "B", title: "B" }] },
+      T0,
+    );
+    setPhase("A", { status: "done" }, T0);
+    assert.throws(() => shipWave({}, T0), /wave gates failed: B/);
+    const { request } = requestShipOverride(
+      { id: "override-31", reason: "Emergency recovery", approvedBy: "Paulo" },
+      T0,
+    );
+    assert.deepEqual(request.failedGates, ["B"]);
+    const shipped = shipWave({ overrideRequestId: request.id }, T0);
+    assert.equal(shipped.history[0].shipmentStatus, "shipped_with_override");
+    assert.equal(shipped.history[0].overrideRequestId, request.id);
+    assert.equal(shipped.shipOverrideRequests[0].consumedAt, T0.toISOString());
+  });
+});
+
+test("override requires Paulo approval and cannot hide changed gates", () => {
+  withTempHome(() => {
+    startWave(
+      { number: 31, branch: "w", phases: [{ id: "A", title: "A" }, { id: "B", title: "B" }] },
+      T0,
+    );
+    assert.throws(
+      () => requestShipOverride({ id: "bad", reason: "Emergency", approvedBy: "someone" }, T0),
+      /explicit Paulo approval/,
+    );
+    requestShipOverride({ id: "override-31", reason: "Emergency", approvedBy: "Paulo" }, T0);
+    setPhase("A", { status: "done" }, T0);
+    assert.throws(
+      () => shipWave({ overrideRequestId: "override-31" }, T0),
+      /failed gates changed/,
+    );
   });
 });
 
