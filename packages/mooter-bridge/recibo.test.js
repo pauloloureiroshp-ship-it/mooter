@@ -232,3 +232,33 @@ test('S2 — uma wave não vira entrega se tiver um job fora da janela ainda abe
   assert.equal(cargo(result, 'MTO').waves.valor, 1);
   assert.equal(cargo(result, 'MTO').entregas.valor, 0);
 });
+/**
+ * ⚠️ Duas garantias que estavam escritas e não impostas. Um refutador construiu
+ * os dois contra-exemplos em 2026-07-28, e ambos passavam.
+ */
+test('D7 — o veredicto recebe uma cópia congelada e não consegue mexer num número', async () => {
+  const agora = new Date().toISOString();
+  const out = await receipt.gerar({
+    ledger: [{ event: 'done', job_id: 'j1', agent: 'moo', wave: 'w1', cargo: 'MTO', cost_usd: 0.05, ts: agora }],
+    pedirVeredicto: (r) => {
+      try { r.cargos.find((c) => c.cargo === 'MTO').custo.valor = 999999; } catch { /* congelado */ }
+      return 'tentei alterar o custo';
+    },
+  });
+  const mto = out.cargos.find((c) => c.cargo === 'MTO');
+  assert.notStrictEqual(mto.custo.valor, 999999, 'a opinião conseguiu corromper um facto');
+  assert.strictEqual(mto.custo.valor, 0.05);
+});
+
+test('D6 — um moo PENDURADO (que nunca resolve) não bloqueia o recibo', async () => {
+  const agora = new Date().toISOString();
+  const t0 = Date.now();
+  const out = await receipt.gerar({
+    ledger: [{ event: 'done', job_id: 'j2', agent: 'moo', wave: 'w2', cargo: 'MIO', ts: agora }],
+    pedirVeredicto: () => new Promise(() => {}), // nunca resolve, nunca rejeita
+    veredictoTimeoutMs: 300,
+  });
+  assert.ok(Date.now() - t0 < 5_000, 'o generate ficou preso à espera do moo');
+  assert.strictEqual(out.cargos.length, receipt.VALID_CARGOS.length, 'o recibo saiu incompleto');
+  assert.match(out.veredicto.texto, /n\/d/);
+});

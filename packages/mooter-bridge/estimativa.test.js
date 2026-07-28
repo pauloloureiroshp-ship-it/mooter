@@ -60,16 +60,27 @@ test('1 — o estimador mais conservador ganha sem fazer médias', (t) => {
   assert.match(result.falta_s.base, /p50 de 5 jobs codex\|codigo\|<4k/);
 });
 
-test('2 — o total projectado nunca encolhe abaixo do tempo já decorrido', (t) => {
+/**
+ * ⚠️ ESTE TESTE PROTEGIA O BUG.
+ *
+ * A versão anterior exigia literalmente `falta_s.valor === 0` para um job com
+ * 600 s decorridos contra um p50 de 300 — ou seja, tinha o incidente de
+ * produção escrito como comportamento correcto, e ficava verde a defendê-lo.
+ * Foi por isso que a onda X6 passou ao lado: procurou o bug no código e o
+ * código estava conforme a suite.
+ *
+ * Um teste que codifica o comportamento observado em vez do comportamento
+ * desejado transforma-se num guarda-costas do defeito.
+ */
+test('2 — passado o p90, o histórico admite que deixou de saber', (t) => {
   const f = fixture(t);
   seed(f.indexPath, [300, 300, 300, 300, 300]);
-  const elapsed = 600;
   const result = estimation.estimateJob(f.jobId, liveJob({
-    elapsed_s: elapsed, steps_done: 0, steps_total: null,
+    elapsed_s: 600, steps_done: 0, steps_total: null,
   }), { indexPath: f.indexPath, outPath: f.outPath, now: Date.now(), track: false });
-  assert.equal(result.manda, 'E2');
-  assert.equal(result.falta_s.valor, 0);
-  assert.ok(elapsed + result.falta_s.valor >= elapsed);
+  assert.equal(result.falta_s.valor, null, 'voltou a projectar zero para um job vivo');
+  assert.match(result.falta_s.porque, /ultrapassou|zero não é uma estimativa/);
+  assert.ok(result.aviso, 'passou o p90 e não avisou');
 });
 
 test('3 — passar o p90 avisa e não cria nenhuma acção de cancelamento', (t) => {
@@ -176,6 +187,41 @@ test('10 — com o E1 desmentido, o E2 assume se tiver base', (t) => {
   assert.equal(r.progresso.valor, null);
   assert.equal(r.manda, 'E2', 'o E1 caiu e ninguém assumiu — a ETA ficou n/d à toa');
   assert.ok(r.falta_s.valor > 0);
+});
+
+/**
+ * ⚠️ O MESMO bug do teste 9, no ramo do histórico — e este passou pela onda X6
+ * sem ser visto. Um refutador reproduziu o incidente de produção original
+ * (959 s vivo, "faltam 0 s") apenas com o E2: `Math.max(elapsed, p50)` colapsa
+ * em `elapsed` assim que o decorrido passa a mediana, e a subtracção dá zero.
+ * Testar só o caminho que corrigimos é como procurar as chaves debaixo do
+ * candeeiro.
+ */
+test('11 — o E2 nunca devolve zero: escala para o p90 e depois admite n/d', (t) => {
+  const f = fixture(t, 'job-e2-escalado');
+  seed(f.indexPath, [80, 90, 100, 110, 120]); // p50=100, p90=120
+  const base = { agent: 'codex', goal: 'implementa código', prompt_chars: 2_000 };
+  const em = (elapsed) => estimation.estimateJob(
+    f.jobId, { ...base, elapsed_s: elapsed }, { indexPath: f.indexPath, outPath: f.outPath },
+  ).falta_s;
+
+  assert.equal(em(50).valor, 50, 'antes do p50 conta o que falta até lá');
+
+  const entre = em(110);
+  assert.ok(entre.valor > 0, 'entre o p50 e o p90 devolveu zero ou nada');
+  assert.match(entre.base, /p90/, 'não disse que a base mudou para o p90');
+
+  const depois = em(959); // o decorrido real do incidente
+  assert.equal(depois.valor, null, 'voltou a dizer "faltam 0 s" com o job vivo');
+  assert.match(depois.porque, /zero não é uma estimativa/);
+});
+
+test('12 — sem tempo decorrido não há ritmo: o E1 não projecta a partir de zero', (t) => {
+  const f = fixture(t, 'job-sem-tempo');
+  const job = liveJob({ steps_done: 1, steps_total: 10, elapsed_s: 0 });
+  const r = estimation.estimateJob(f.jobId, job, { indexPath: f.indexPath, outPath: f.outPath });
+  assert.equal(r.falta_s.valor, null, 'elapsed=0 produziu uma estimativa de zero');
+  assert.match(r.falta_s.porque, /tempo mensurável|ritmo/);
 });
 
 test('7 — vivacidade compara amostras do próprio log sem contaminar a ETA', (t) => {

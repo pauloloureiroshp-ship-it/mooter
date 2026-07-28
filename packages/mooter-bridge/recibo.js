@@ -364,10 +364,49 @@ async function generate(opts) {
     excepcoes: scorecard && Array.isArray(scorecard.excepcoes) ? scorecard.excepcoes : [],
     board_disponivel: boardAvailable,
   }));
+  /**
+   * ⚠️ Duas garantias que estavam escritas mas não impostas — apanhadas por um
+   * refutador em 2026-07-28, com o contra-exemplo já construído:
+   *
+   * 1. «o veredicto nunca altera um número». O `receipt` era passado POR
+   *    REFERÊNCIA a uma função externa, e o `Object.assign` de saída é raso —
+   *    bastava a função escrever `receipt.cargos[0].custo.valor = 999999` para
+   *    o recibo sair corrompido, sem excepção e sem registo. A garantia vivia
+   *    na boa-fé de quem escrevesse o `ask`. Agora a opinião recebe uma CÓPIA
+   *    congelada: não há como estragar o que ela não consegue tocar.
+   *
+   * 2. «o moo em baixo nunca derruba o recibo». O `catch` só apanhava quem
+   *    lança. Um `ask` que nunca resolve nem rejeita — um moo pendurado, não
+   *    um moo em baixo — bloqueava o `generate()` para sempre. O timeout que
+   *    existia vivia DENTRO do `askLocalVerdict`, e portanto desaparecia
+   *    assim que alguém injectasse outra função. O tecto passa a ser deste
+   *    lado, onde nenhuma injecção lhe escapa.
+   */
   let verdict = null;
   try {
     const ask = typeof options.pedirVeredicto === 'function' ? options.pedirVeredicto : askLocalVerdict;
-    verdict = await ask(receipt, options.veredictoOptions || {});
+    const tectoMs = Number.isFinite(Number(options.veredictoTimeoutMs))
+      ? Number(options.veredictoTimeoutMs) : 25_000;
+    const copiaCongelada = congelar(JSON.parse(JSON.stringify(receipt)));
+    /**
+     * ⚠️ Sem `unref()`, e limpo à mão.
+     *
+     * A primeira versão usava `unref()` no timer, e o próprio teste do moo
+     * pendurado apanhou o efeito: um timer sem referência não segura o event
+     * loop, portanto se ele for a única coisa pendente o processo esvazia-se
+     * e o timeout NUNCA dispara — a protecção desaparecia exactamente no
+     * cenário para que foi feita. Agora o timer segura o loop até decidir, e
+     * é cancelado assim que a corrida termina, seja quem for a ganhar.
+     */
+    let cronometro = null;
+    try {
+      verdict = await Promise.race([
+        Promise.resolve(ask(copiaCongelada, options.veredictoOptions || {})),
+        new Promise((resolve) => { cronometro = setTimeout(() => resolve(null), tectoMs); }),
+      ]);
+    } finally {
+      if (cronometro) clearTimeout(cronometro);
+    }
   } catch { verdict = null; }
   return Object.assign({}, receipt, {
     veredicto: {
@@ -380,8 +419,17 @@ async function generate(opts) {
   });
 }
 
+/** Congela em profundidade — um `Object.freeze` raso deixa os aninhados abertos. */
+function congelar(valor) {
+  if (valor && typeof valor === 'object' && !Object.isFrozen(valor)) {
+    Object.freeze(valor);
+    for (const filho of Object.values(valor)) congelar(filho);
+  }
+  return valor;
+}
+
 module.exports = {
-  VALID_CARGOS, PERIODOS, VERDICT_QUESTION,
+  VALID_CARGOS, PERIODOS, VERDICT_QUESTION, _congelar: congelar,
   buildWindow, project, generate, pulse, askLocalVerdict,
   projetar: project, gerar: generate, pulso: pulse,
   _costMetric: costMetric, _tokenMetric: tokenMetric, _cargoOf: cargoOf,

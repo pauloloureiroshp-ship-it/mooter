@@ -95,6 +95,14 @@ function stepEstimate(progress, elapsed) {
   if (elapsed == null) return { valor: null, porque: 'o tempo decorrido do job é n/d' };
   if (progress.passo <= 0) return { valor: null, porque: 'ainda não há um passo concluído para medir o ritmo real' };
   /**
+   * Sem tempo decorrido não há ritmo — e `elapsed * (de/passo)` com `elapsed`
+   * a zero dá zero, que a barra leria como "acabou". Um job que ainda não
+   * consumiu tempo mensurável não tem estimativa nenhuma; tem n/d.
+   */
+  if (elapsed <= 0) {
+    return { valor: null, porque: 'o job ainda não acumulou tempo mensurável; não há ritmo de onde projectar' };
+  }
+  /**
    * ⚠️ "Faltam 0 s" num job que continua vivo é uma impossibilidade, não uma
    * estimativa optimista. Se os passos dizem que acabou e o job não acabou, os
    * passos estão errados — e a resposta certa é dizê-lo, não devolver zero e
@@ -116,18 +124,52 @@ function stepEstimate(progress, elapsed) {
   };
 }
 
+/**
+ * ⚠️ O MESMO bug, no outro caminho — apanhado por um refutador em 2026-07-28.
+ *
+ * A onda X6 corrigiu o E1 (passos) e deu o problema por fechado. Não estava: o
+ * `Math.max(elapsed, p50)` fazia exactamente a mesma coisa aqui. Assim que o
+ * decorrido passava o p50, `projectedTotal` colapsava em `elapsed` e a conta
+ * dava **zero** — "faltam 0 s" com o job vivo, que foi o incidente de 959 s
+ * que julgávamos resolvido. O fix anterior nunca cobriu este ramo.
+ *
+ * A régua agora é escalonada, e admite o fim da sua própria competência:
+ *   decorrido < p50  ⇒ falta o que resta até ao p50
+ *   p50 ≤ dec < p90  ⇒ falta o que resta até ao p90, e a base di-lo
+ *   decorrido ≥ p90  ⇒ n/d. O histórico deixou de descrever este job; nove em
+ *                       dez jobs iguais já teriam acabado. O `aviso` continua
+ *                       a aparecer, e o pulso do E3 diz se ainda está vivo.
+ *
+ * Zero nunca é uma estimativa: é a ausência de uma.
+ */
 function historyEstimate(history, elapsed) {
   if (!history || !history.entry || history.porque) return { valor: null, porque: history && history.porque };
   if (elapsed == null) return { valor: null, porque: 'o tempo decorrido do job é n/d' };
   const p50 = finiteNonNegative(history.entry.p50);
   if (p50 == null) return { valor: null, porque: 'o p50 histórico é n/d' };
-  // O total projectado nunca fica abaixo do tempo já decorrido. A barra pode
-  // chegar ao p50 e ficar cheia; nunca recua para fingir uma precisão nova.
-  const projectedTotal = Math.max(elapsed, p50);
+  const p90 = finiteNonNegative(history.entry.p90);
+  const n = Number(history.entry.n);
+
+  if (elapsed < p50) {
+    return {
+      valor: Math.round(p50 - elapsed),
+      base: 'p50 de ' + n + ' jobs ' + history.key,
+      percentil_actual: actualPercentile(history.entry, elapsed),
+    };
+  }
+  if (p90 != null && elapsed < p90) {
+    return {
+      valor: Math.round(p90 - elapsed),
+      base: 'já passou o p50; conta agora até ao p90 de ' + n + ' jobs ' + history.key,
+      percentil_actual: actualPercentile(history.entry, elapsed),
+    };
+  }
   return {
-    valor: Math.max(0, Math.round(projectedTotal - elapsed)),
-    base: 'p50 de ' + Number(history.entry.n) + ' jobs ' + history.key,
-    percentil_actual: actualPercentile(history.entry, elapsed),
+    valor: null,
+    porque: 'o job já dura ' + Math.round(elapsed) + ' s e ultrapassou '
+      + (p90 != null ? 'o p90 (' + p90 + ' s)' : 'o p50 (' + p50 + ' s)')
+      + ' de ' + n + ' jobs ' + history.key
+      + ' — o histórico deixou de descrever este job, e zero não é uma estimativa',
   };
 }
 
