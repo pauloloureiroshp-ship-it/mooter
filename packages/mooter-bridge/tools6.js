@@ -64,6 +64,7 @@ function build(seam, fleet, base) {
           goal: { type: 'string', description: 'O que queres, em linguagem normal. Cita ficheiros pelo nome e eu procuro-os.' },
           write: { type: 'boolean', description: 'Deixar o agente alterar ficheiros. Por omissão false. Git nunca é permitido.' },
           agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo'], description: '[avançado] forçar um motor. Omite e eu escolho.' },
+          cargo: { type: 'string', enum: seam.VALID_CARGOS, description: 'M-level declarado por quem dispara. Nunca é inferido do texto.' },
           model: { type: 'string', description: '[avançado] forçar um modelo.' },
           wave: { type: 'string', description: '[avançado] agrupar vários trabalhos sob o mesmo nome.' },
           worktree: { type: 'string', description: '[avançado] pasta específica. Omite e eu escolho uma livre.' },
@@ -97,15 +98,23 @@ function build(seam, fleet, base) {
       annotations: { title: 'Ver e receber', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       handler: async (args) => {
         const a = args || {};
+        const comPulso = (result, fallback) => {
+          const out = withWorktreeSummary(result, fallback);
+          const jobs = out && Array.isArray(out.jobs) ? out.jobs : [];
+          const wave = a.wave || ((jobs[0] && jobs[0].wave) || null);
+          const pulso = wave ? require('./recibo.js').pulse(seam.ledgerRead(), wave) : null;
+          if (pulso && out && typeof out === 'object') out.pulso = pulso;
+          return out;
+        };
         if (!a.job_id && !a.wave) {
           const snap = await fleet.toolFleet({ windowMinutes: 30 }, { sessionsList: base.toolSessionsList });
-          return withWorktreeSummary(snap, fleet.formatFleetText(snap).split('\n')[0]);
+          return comPulso(snap, fleet.formatFleetText(snap).split('\n')[0]);
         }
         if (a.wait_s != null && a.wait_s > 0) {
           const w = await seam.toolAwait({ job_id: a.job_id, wave: a.wave, timeout_s: a.wait_s });
           if (w && w.settled && a.job_id) {
             const c = await seam.toolCollect({ job_id: a.job_id });
-            return withWorktreeSummary(Object.assign({}, w, {
+            return comPulso(Object.assign({}, w, {
               resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used,
             }), w.resumo);
           }
@@ -113,7 +122,7 @@ function build(seam, fleet, base) {
             const live = await seam.toolStatus({ job_id: a.job_id, wave: a.wave });
             if (live && Array.isArray(live.jobs)) w.jobs = live.jobs;
           }
-          return withWorktreeSummary(w);
+          return comPulso(w);
         }
         const st = await seam.toolStatus({ job_id: a.job_id, wave: a.wave });
         if (st && st.jobs && a.job_id) {
@@ -121,7 +130,7 @@ function build(seam, fleet, base) {
           const terminal = j && (j.last === 'done' || j.last === 'failed' || j.last === 'collected');
           if (terminal) {
             const c = await seam.toolCollect({ job_id: a.job_id });
-            return withWorktreeSummary(Object.assign({}, st, {
+            return comPulso(Object.assign({}, st, {
               resultado: c.result, custo_usd: c.cost_usd, modelo: c.model_used,
               permissoes_pedidas: c.permissoes_pedidas,
               permissoes_efectivas: c.permissoes_efectivas,
@@ -129,7 +138,7 @@ function build(seam, fleet, base) {
             }), '🐮 ' + a.job_id + ' ' + j.last + (c.model_used ? ' · ' + c.model_used : ''));
           }
         }
-        return withWorktreeSummary(st, '🐮 em curso');
+        return comPulso(st, '🐮 em curso');
       },
     },
 
@@ -140,8 +149,10 @@ function build(seam, fleet, base) {
       inputSchema: {
         type: 'object',
         properties: {
-          view: { type: 'string', enum: ['tudo', 'board', 'afericao', 'jobs', 'pastas', 'sessoes', 'plano'], description: 'tudo (default) · board · afericao · jobs · pastas · sessoes · plano' },
+          view: { type: 'string', enum: ['tudo', 'board', 'afericao', 'recibo', 'jobs', 'pastas', 'sessoes', 'plano'], description: 'tudo (default) · board · afericao · recibo · jobs · pastas · sessoes · plano' },
           wave: { type: 'string', description: 'Filtrar por wave.' },
+          periodo: { type: 'string', enum: ['sessao', 'dia', 'semana'], description: 'Janela do recibo; default dia.' },
+          desde: { type: 'string', description: 'Instante ISO obrigatório quando periodo é sessao.' },
           windowMinutes: { type: 'number', description: 'Quanto tempo para trás mostrar os concluídos (default 30).' },
         },
         additionalProperties: false,
@@ -151,6 +162,16 @@ function build(seam, fleet, base) {
       handler: async (args) => {
         const a = args || {};
         const view = a.view || 'tudo';
+        if (view === 'recibo') {
+          try {
+            const receipt = await require('./recibo.js').generate({
+              ledger: seam.ledgerRead(), periodo: a.periodo || 'dia', desde: a.desde,
+            });
+            return comResumo(receipt, '🐮 recibo por cargo · ' + receipt.janela.periodo);
+          } catch (error) {
+            return { resumo: '⛔ não gerei o recibo', error: (error && error.message) || String(error) };
+          }
+        }
         if (view === 'board' || view === 'afericao') {
           return fleet.toolFleet(a, { sessionsList: base.toolSessionsList });
         }

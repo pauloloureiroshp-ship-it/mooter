@@ -13,7 +13,7 @@
  *
  * Ledger v1 (single-writer = THIS server process; append-only JSONL):
  *   ~/.mooter/ledger.jsonl
- *   {ts, job_id, wave, agent, worktree, event, mp_hash, exit_code?, cost_usd?, duration_s?}
+ *   {ts, job_id, wave, cargo, cargo_porque, local, agent, worktree, event, mp_hash, exit_code?, cost_usd?, duration_s?}
  *
  * Guard v0 — DIVERGENCE, on purpose, reported in the BACK: the handoff names
  * `handoff-guard.js`, which does not exist in the repo under that name (closest:
@@ -49,6 +49,7 @@ const estimation = require('./estimativa.js');
 const fosso = require('./fosso.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
+const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
 const REPO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
 const MOOTER_HOME = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const LEDGER_PATH = () => path.join(MOOTER_HOME_DIR(), 'ledger.jsonl');
@@ -67,9 +68,81 @@ function nowIso() { return new Date().toISOString(); }
 function sha256(s) { return crypto.createHash('sha256').update(s, 'utf8').digest('hex'); }
 
 // ── ledger (append-only JSONL; this process is the single writer) ─────────
+const JOB_DIMENSIONS = new Map();
+
+function normalizarCargo(raw) {
+  if (raw == null || String(raw).trim() === '') {
+    return {
+      ok: true,
+      cargo: null,
+      porque: 'n/d — cargo não declarado por quem disparou; nunca inferido do texto',
+    };
+  }
+  const cargo = String(raw).trim();
+  if (!VALID_CARGOS.includes(cargo)) {
+    return {
+      ok: false,
+      cargo: null,
+      error: 'cargo "' + cargo + '" desconhecido; válidos: ' + VALID_CARGOS.join(', '),
+      cargos_validos: [...VALID_CARGOS],
+    };
+  }
+  return { ok: true, cargo, porque: 'declarado por quem disparou' };
+}
+
+function dimensoesPersistidas(jobId) {
+  try {
+    const lines = fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i]) continue;
+      let event;
+      try { event = JSON.parse(lines[i]); } catch { continue; }
+      if (!event || event.job_id !== jobId) continue;
+      if (!Object.prototype.hasOwnProperty.call(event, 'cargo')
+          && !Object.prototype.hasOwnProperty.call(event, 'local')) continue;
+      return {
+        cargo: Object.prototype.hasOwnProperty.call(event, 'cargo') ? event.cargo : null,
+        cargo_porque: event.cargo_porque || (event.cargo == null
+          ? 'n/d — anterior à instrumentação de cargos'
+          : 'declarado por quem disparou'),
+        local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
+      };
+    }
+  } catch { /* ledger ainda não existe */ }
+  return null;
+}
+
+function enriquecerDimensoesDoJob(payload) {
+  const out = { ...(payload || {}) };
+  if (!out.job_id) return out;
+
+  let known = JOB_DIMENSIONS.get(out.job_id) || dimensoesPersistidas(out.job_id);
+  if (Object.prototype.hasOwnProperty.call(out, 'cargo')) {
+    const declared = normalizarCargo(out.cargo);
+    if (!declared.ok) throw new Error(declared.error);
+    out.cargo = declared.cargo;
+    out.cargo_porque = out.cargo_porque || declared.porque;
+  } else if (known) {
+    out.cargo = known.cargo;
+    out.cargo_porque = known.cargo_porque;
+  } else {
+    out.cargo = null;
+    out.cargo_porque = 'n/d — anterior à instrumentação de cargos';
+  }
+
+  if (typeof out.local !== 'boolean') {
+    out.local = known && typeof known.local === 'boolean'
+      ? known.local
+      : out.agent === 'moo';
+  }
+  known = { cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local };
+  JOB_DIMENSIONS.set(out.job_id, known);
+  return out;
+}
+
 function appendLedgerRecord(payload) {
   ensureDirs();
-  const record = { ts: nowIso(), ...(payload || {}) };
+  const record = { ts: nowIso(), ...enriquecerDimensoesDoJob(payload) };
   const line = JSON.stringify(record);
   fs.appendFileSync(LEDGER_PATH(), line + '\n');
   return { record, line };
@@ -1252,6 +1325,10 @@ function normalizarDecisaoLocal(raw) {
 }
 
 async function toolDispatch(args) {
+  const cargoSelection = normalizarCargo(args && args.cargo);
+  if (!cargoSelection.ok) {
+    return { error: cargoSelection.error, cargos_validos: cargoSelection.cargos_validos };
+  }
   const agent = String((args && args.agent) || '').trim();
   const worktree = String((args && args.worktree) || '').trim();
   let masterprompt = String((args && args.masterprompt) || '');
@@ -1365,7 +1442,8 @@ async function toolDispatch(args) {
     permissoes_pedidas: permissions.pedido,
     permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
-    job_id, wave, agent, worktree: wtNorm, mp_hash, cmd: commandText,
+    job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
+    agent, worktree: wtNorm, mp_hash, cmd: commandText,
     created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
     worktree_criada: createdWorktree,
     goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
@@ -1384,7 +1462,8 @@ async function toolDispatch(args) {
     event: 'dispatched',
     permissoes_pedidas: permissions.pedido, permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
-    job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree,
+    job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
+    agent, worktree: wtNorm, worktree_criada: createdWorktree,
     local_decisao: localDecision,
     mp_hash, model, model_recommended, tier, step: stepId,
     goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
@@ -1706,7 +1785,8 @@ async function toolDispatch(args) {
     permissoes_pedidas: permissions.pedido,
     permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
-    job_id, wave, agent, worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
+    job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
+    agent, worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
     model_recommended, tier,
     mapa_injectado: projectMap.injetado,
@@ -1736,18 +1816,26 @@ async function toolStatus(args) {
   for (const e of evs) {
     const j = byJob[e.job_id] || (byJob[e.job_id] = {
       job_id: e.job_id, wave: e.wave, agent: e.agent, worktree: e.worktree,
+      cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
+      cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
+      local: typeof e.local === 'boolean' ? e.local : e.agent === 'moo',
       events: [], last: null, started_ts: null, steps_done: 0,
       steps_total: null, steps_total_porque: 'o job ainda não emitiu started',
       goal: null, prompt_chars: null,
     });
     j.events.push({
-      ts: e.ts, event: e.event, exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
+      ts: e.ts, event: e.event, cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
+      cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
+      exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
       prep_duration_s: e.prep_duration_s, prep_chars: e.prep_chars,
       tokens_poupados_estimados: e.tokens_poupados_estimados, note: e.note,
       disponivel: e.disponivel, verificado: e.verificado,
       divergencias_count: e.divergencias_count,
       step_index: e.step_index, steps_total: e.steps_total, porque: e.porque,
     });
+    if (Object.prototype.hasOwnProperty.call(e, 'cargo')) j.cargo = e.cargo;
+    if (e.cargo_porque) j.cargo_porque = e.cargo_porque;
+    if (typeof e.local === 'boolean') j.local = e.local;
     if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
     if (e.event === 'started') {
       j.started_ts = e.ts;
@@ -1960,6 +2048,8 @@ async function toolCollect(args) {
     permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
     job_id: jobId, state: last, agent: meta.agent, wave: meta.wave,
+    cargo: Object.prototype.hasOwnProperty.call(meta, 'cargo') ? meta.cargo : null,
+    cargo_porque: meta.cargo_porque || 'n/d — anterior à instrumentação de cargos',
     result: vered.degradado ? vered.texto : body,
     note: meta.note || (([...evs].reverse().find((e) => e.note) || {}).note) || null,
     session_id: session_id || null, cost_usd: cost_usd,
@@ -2033,10 +2123,16 @@ async function toolAwait(args) {
     for (const e of evs) {
       if (!e.job_id) continue;
       const j = byJob.get(e.job_id) || {
-        job_id: e.job_id, agent: e.agent, wave: e.wave, worktree: e.worktree, last: null,
+        job_id: e.job_id, agent: e.agent, wave: e.wave, worktree: e.worktree,
+        cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
+        cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
+        local: typeof e.local === 'boolean' ? e.local : e.agent === 'moo', last: null,
       };
       if (e.worktree) j.worktree = e.worktree;
-      if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
+      if (Object.prototype.hasOwnProperty.call(e, 'cargo')) j.cargo = e.cargo;
+    if (e.cargo_porque) j.cargo_porque = e.cargo_porque;
+    if (typeof e.local === 'boolean') j.local = e.local;
+    if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
       if (e.exit_code != null) j.exit_code = e.exit_code;
       if (e.cost_usd != null) j.cost_usd = e.cost_usd;
       if (e.duration_s != null) j.duration_s = e.duration_s;
@@ -2148,6 +2244,10 @@ async function toolWork(args) {
   const a = args || {};
   const goal = String(a.goal || '').trim();
   if (!goal) return { error: 'goal é obrigatório — descreve o que queres em linguagem normal' };
+  const cargoSelection = normalizarCargo(a.cargo);
+  if (!cargoSelection.ok) {
+    return { error: cargoSelection.error, cargos_validos: cargoSelection.cargos_validos };
+  }
   const workCategory = aprender.resolveCategory(goal, a.category);
   if (!workCategory.category) {
     return { error: workCategory.porque, categorias_validas: [...aprender.CATEGORY_NAMES] };
@@ -2574,11 +2674,13 @@ async function toolWork(args) {
       ].join('\n');
 
       const prep = await toolDispatch({
-        agent: 'moo', worktree, masterprompt: prepMp, wave, step: 'S0', model: localModel,
+        agent: 'moo', worktree, masterprompt: prepMp, wave, cargo: cargoSelection.cargo,
+        step: 'S0', model: localModel,
         __goal: goal, __escrita: false,
         __category: workCategory.category, __category_fonte: workCategory.category_fonte,
         __worktree_created: worktreeCriada,
-        __chain: { agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
+        __chain: { agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
+          allowedTools, model, step: stepId,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
           __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
@@ -2591,7 +2693,8 @@ async function toolWork(args) {
             + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id
             + worktreeSuffix(pedida, worktree, relocated),
           ok: true, goal, category: workCategory.category,
-          category_fonte: workCategory.category_fonte, wave, tier,
+          category_fonte: workCategory.category_fonte, wave,
+          cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque, tier,
           phase: 'preparação local',
           agent: 'moo → ' + agent,
           model: (prep.model || localModel) + ' → ' + (model || '(default do CLI)'),
@@ -2625,7 +2728,8 @@ async function toolWork(args) {
     }
   }
 
-  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, allowedTools, model, step: stepId,
+  const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
+    allowedTools, model, step: stepId,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
     __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,
@@ -2649,6 +2753,7 @@ async function toolWork(args) {
       + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
     ok: true, goal, category: workCategory.category,
     category_fonte: workCategory.category_fonte, wave,
+    cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     permissoes_pedidas: r.permissoes_pedidas,
     permissoes_efectivas: r.permissoes_efectivas,
     permissoes_diferenca: r.permissoes_diferenca,
@@ -2723,6 +2828,7 @@ const TOOLS = [
       worktree: { type: 'string', description: 'Absolute path of the git worktree the job runs in (cwd). Must exist and be free of active jobs.' },
       masterprompt: { type: 'string', description: 'Full masterprompt (must contain the ⇄ routing header). Written to the job dir; the CLI is pointed at the file.' },
       wave: { type: 'string', description: 'Wave id for the ledger (e.g. "mooter-seamless-m1").' },
+      cargo: { type: 'string', enum: VALID_CARGOS, description: 'M-level declarado por quem dispara. Nunca é inferido do texto.' },
       allowedTools: { type: 'string', description: 'cc only: --allowedTools permission list (role matrix). Default "Read".' },
       model: { type: 'string', description: 'Override the model (alias like "haiku"/"sonnet"/"opus", or a full name). Omit and the FROZEN classifier picks the minimum viable tier and passes it to the CLI.' },
       step: { type: 'string', description: 'Plan step id this job executes (see mooter_plan) — the step is marked running, then done/failed with who did it.' },
@@ -2759,6 +2865,7 @@ const TOOLS = [
       agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo'], description: 'Force an engine. Omit to let the router decide.' },
       model: { type: 'string', description: 'Force a model. Omit to let the router decide.' },
       category: { type: 'string', enum: ['git_deploy', 'auditoria', 'codigo', 'leitura_resumo', 'outro'], description: 'Override da categoria de aprendizagem. Quando presente, ganha à inferência e fica registada como declarada.' },
+      cargo: { type: 'string', enum: VALID_CARGOS, description: 'M-level declarado por quem dispara. Nunca é inferido do texto.' },
       steps: { type: 'array', items: { type: 'string' }, description: 'Optional plan: the steps the panel should show, with risk inferred per step.' },
       prepare: { type: 'boolean', description: 'Let the local GPU write the handoff brief first, at $0, and start the paid agent with it already embedded. Default true when Ollama is up.' },
       create_worktree: { type: 'boolean', description: 'Create a fresh isolated worktree before dispatch (git worktree add, reversible). If creation fails the job does not start.' },
@@ -2845,6 +2952,7 @@ module.exports = {
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   isDeicticGoal, worktreeSuffix, stepsTotalFor, createStreamStepTracker,
+  VALID_CARGOS, _normalizarCargo: normalizarCargo,
   _normalizarDecisaoLocal: normalizarDecisaoLocal,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,

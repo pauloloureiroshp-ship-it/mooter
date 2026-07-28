@@ -23,5 +23,11 @@
     "moo.js",
     "localfirst.js",
     "estimativa.js"
+  ],
+  "1.26": [
+    "recibo.js",
+    "seamless.js",
+    "tools6.js",
+    "fleet.js"
   ]
 }

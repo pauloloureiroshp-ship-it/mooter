@@ -97,12 +97,18 @@ function foldJobs(events) {
     let j = byId.get(e.job_id);
     if (!j) {
       j = { job_id: e.job_id, wave: e.wave || null, agent: e.agent || null, worktree: e.worktree || null,
+            cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
+            cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
+            local: typeof e.local === 'boolean' ? e.local : e.agent === 'moo',
             state: null, dispatched_at: null, started_at: null, ended_at: null, exit_code: null, duration_s: null };
       byId.set(e.job_id, j);
     }
     if (e.wave) j.wave = e.wave;
     if (e.agent) j.agent = e.agent;
     if (e.worktree) j.worktree = e.worktree;
+    if (Object.prototype.hasOwnProperty.call(e, 'cargo')) j.cargo = e.cargo;
+    if (e.cargo_porque) j.cargo_porque = e.cargo_porque;
+    if (typeof e.local === 'boolean') j.local = e.local;
     if (e.event === 'dispatched') { j.dispatched_at = e.ts; j.state = 'dispatched'; }
     else if (e.event === 'started') { j.started_at = e.ts; j.state = 'running'; }
     else if (e.event === 'done') { j.ended_at = e.ts; j.state = 'done'; }
@@ -344,6 +350,7 @@ const CAMPOS_DE_CONTRATO = new Set([
   'tok_s', 'tok_s_basis', 'model', 'model_used', 'model_recommended',
   'tier_pedido', 'tier_motor', 'exit_code', 'duration_s', 'elapsed_s',
   'cost_usd', 'tokens_in', 'tokens_out', 'state', 'job_id',
+  'cargo', 'cargo_porque',
 ]);
 
 function compactPayload(value) {

@@ -56,6 +56,8 @@ const MARCADORES = {
   // v1.25 — o tecto de VRAM e a ETA que deixou de fingir 100%
   'moo.js': ['FOLGA_MINIMA_GB', 'falta_vram'],
   'localfirst.js': ['falta_vram'],
+  // v1.26 — o trabalho passou a saber de que departamento é
+  'recibo.js': ['VALID_CARGOS', 'VERDICT_QUESTION'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {
