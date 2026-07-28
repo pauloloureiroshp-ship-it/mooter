@@ -164,6 +164,42 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     okmsg('view:"afericao" sem histórico devolve n/d com porquê');
   } catch (e) { bad('view afericao', e); }
 
+  try {
+    // F0 item 4 — GATE: "um estranho num Mac limpo instala pelo site e vê o
+    // diagnóstico verde." Aqui, sem GPU/Ollama/vault reais, a maioria das
+    // linhas fica vermelha — a prova é a FORMA (6 linhas, sempre), não a cor.
+    const r = await server.handle({
+      jsonrpc: '2.0', id: 8, method: 'tools/call',
+      params: { name: 'mooter_setup', arguments: { primeira_vez: true } },
+    });
+    const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
+    assert.strictEqual(sc.diagnostico.length, 6, 'o diagnóstico deixou de ter 6 linhas: ' + sc.diagnostico.length);
+    for (const linha of sc.diagnostico) {
+      assert.ok(typeof linha.item === 'string' && linha.item, 'linha sem nome: ' + JSON.stringify(linha));
+      assert.strictEqual(typeof linha.ok, 'boolean', linha.item + ' não é verde/vermelho: ' + JSON.stringify(linha));
+    }
+    assert.strictEqual(sc.tudo_verde, sc.diagnostico.every((l) => l.ok), 'tudo_verde não bate com as linhas');
+    assert.ok(/🟢|🔴/.test(sc.resumo), 'o resumo não mostra as bolinhas verde/vermelho');
+    const preview = sc.diagnostico.find((l) => l.item === 'Live Preview');
+    assert.strictEqual(preview.ok, true, 'preview.js é um módulo real do repo — devia estar sempre verde');
+    okmsg('primeira_vez devolve diagnóstico de 6 linhas verde/vermelho');
+  } catch (e) { bad('diagnóstico primeira_vez', e); }
+
+  try {
+    const tools6mod = tools6;
+    const semNada = process.env.PATH;
+    const semPathext = process.env.PATHEXT;
+    process.env.PATH = '';
+    delete process.env.PATHEXT;
+    try {
+      assert.strictEqual(tools6mod.cliNoPath('um-binario-que-nao-existe-de-certeza'), false);
+    } finally {
+      process.env.PATH = semNada;
+      if (semPathext != null) process.env.PATHEXT = semPathext;
+    }
+    okmsg('cliNoPath devolve false para um binário ausente do PATH');
+  } catch (e) { bad('cliNoPath', e); }
+
   say('\n' + pass + ' testes da onda B' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
   process.on('uncaughtException', () => {});
   setTimeout(() => { try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ } }, 200);

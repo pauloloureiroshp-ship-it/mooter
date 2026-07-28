@@ -27,6 +27,72 @@
 const PUBLICAS = ['mooter_work', 'mooter_check', 'mooter_fleet', 'mooter_cancel', 'mooter_journal', 'mooter_setup'];
 const capacidades = require('./capacidades.js');
 const path = require('path');
+const fs = require('fs');
+
+/**
+ * F0 item 4 — diagnóstico de arranque, 6 linhas verde/vermelho.
+ *
+ * GATE: "um estranho num Mac limpo instala pelo site e vê o diagnóstico
+ * verde." Zero lógica nova — cada linha reutiliza uma função que já existe
+ * (gpu.gpuSnapshot, moo.pickModelExplained, journal.vaultStatus) ou uma
+ * verificação de presença directa (classify.js, CLIs de agente, preview.js).
+ * Nunca lança: uma dependência em falta é uma linha vermelha, não um erro.
+ */
+const REPO_PARA_DIAGNOSTICO = process.env.MOOTER_REPO || path.resolve(__dirname, '..', '..');
+const CLIS_DE_AGENTE = ['claude', 'codex', 'gemini'];
+
+/** Zero deps: varre o PATH à procura de um executável, com as extensões do Windows. */
+function cliNoPath(bin) {
+  const dirs = String(process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean);
+  const exts = process.platform === 'win32'
+    ? String(process.env.PATHEXT || '.EXE;.CMD;.BAT').split(path.delimiter).filter(Boolean)
+    : [''];
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      try { if (fs.existsSync(path.join(dir, bin + ext))) return true; } catch { /* pasta ilegível — próxima */ }
+    }
+  }
+  return false;
+}
+
+async function diagnosticoPrimeiraVez() {
+  const linhas = [];
+  const add = (item, ok, detalhe) => linhas.push({ item, ok: !!ok, detalhe: detalhe || null });
+
+  let gpuSnap = null;
+  try { gpuSnap = await require('./gpu.js').gpuSnapshot(0); } catch (e) { gpuSnap = { available: false, reason: (e && e.message) || String(e) }; }
+  add('GPU', gpuSnap && gpuSnap.available,
+    gpuSnap ? (gpuSnap.available
+      ? gpuSnap.name + (gpuSnap.headroom && gpuSnap.headroom.verdict ? ' · ' + gpuSnap.headroom.verdict : '')
+      : gpuSnap.reason) : 'gpu.js indisponível');
+
+  let modelo = null;
+  try {
+    modelo = await require('./moo.js').pickModelExplained(null, process.env.OLLAMA_HOST || '127.0.0.1:11434', []);
+  } catch (e) { modelo = { model: null, porque: (e && e.message) || String(e) }; }
+  add('Modelo local (Ollama)', modelo && modelo.model, modelo ? (modelo.model || modelo.porque) : 'moo.js indisponível');
+
+  let vault = null;
+  try { vault = require('./journal.js').vaultStatus(); } catch (e) { vault = { available: false, reason: (e && e.message) || String(e) }; }
+  add('Vault Obsidian', vault && vault.available, vault ? (vault.available ? vault.root : vault.reason) : 'journal.js indisponível');
+
+  const classifyRepo = path.join(REPO_PARA_DIAGNOSTICO, 'tools', 'router', 'classify.js');
+  const classifyBundle = path.join(__dirname, 'classify.js');
+  const classifyOndeEsta = fs.existsSync(classifyRepo) ? classifyRepo : (fs.existsSync(classifyBundle) ? classifyBundle : null);
+  add('Router (classify.js)', !!classifyOndeEsta,
+    classifyOndeEsta || ('não encontrado em ' + classifyRepo + ' nem em ' + classifyBundle));
+
+  const clisEncontrados = CLIS_DE_AGENTE.filter(cliNoPath);
+  add('CLIs de agente', clisEncontrados.length > 0,
+    clisEncontrados.length ? clisEncontrados.join(', ') : 'nenhum de ' + CLIS_DE_AGENTE.join(', ') + ' encontrado no PATH');
+
+  let previewOk = false;
+  try { previewOk = typeof require('./preview.js').descobrir === 'function'; } catch { previewOk = false; }
+  add('Live Preview', previewOk, previewOk ? 'preview.js carregado' : 'preview.js indisponível');
+
+  const verdes = linhas.filter((l) => l.ok).length;
+  return { linhas, verdes, total: linhas.length, tudo_verde: verdes === linhas.length };
+}
 
 /** Wrap para garantir que TODA a resposta abre com uma frase legível. */
 function comResumo(r, fallback) {
@@ -267,12 +333,21 @@ function build(seam, fleet, base) {
           state: { type: 'string', enum: ['pendente', 'a-correr', 'feito', 'falhou', 'saltado'] },
           by: { type: 'string' },
           note_step: { type: 'string' },
+          primeira_vez: { type: 'boolean', description: 'Diagnóstico de arranque em 6 linhas verde/vermelho: GPU, modelo local (Ollama), vault, router (classify.js), CLIs de agente e Live Preview.' },
         },
         additionalProperties: false,
       },
       annotations: { title: 'Estado da sessão e do plano', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       handler: async (args) => {
         const a = args || {};
+        if (a.primeira_vez) {
+          const diag = await diagnosticoPrimeiraVez();
+          const texto = diag.linhas.map((l) => (l.ok ? '🟢' : '🔴') + ' ' + l.item + (l.detalhe ? ' — ' + l.detalhe : '')).join('\n');
+          return comResumo({
+            diagnostico: diag.linhas,
+            tudo_verde: diag.tudo_verde,
+          }, '🐮 diagnóstico · ' + diag.verdes + '/' + diag.total + ' verde\n' + texto);
+        }
         /**
          * ⚠️ v1.8.2 — O BOTÃO QUE NINGUÉM CONSEGUIA CARREGAR.
          *
@@ -317,7 +392,7 @@ function build(seam, fleet, base) {
             const r = up.reverter();
             return comResumo(r, r.ok ? '🐮 revertido' : '⚠ ' + (r.erro || 'não revertí'));
           }
-          const r = up.procurar({});
+          const r = await up.procurarAsync({});
           const instalacao = up.estadoDaInstalacao();
           // ⚠️ a lista inteira de bundles antigos não interessa a ninguém e
           // enchia a resposta: fica o que há de novo e as 3 mais recentes.
@@ -326,6 +401,7 @@ function build(seam, fleet, base) {
             nova: r.nova,
             recentes: (r.encontrados || []).slice(0, 3),
             procurei_em: r.procurei_em,
+            github: r.github,
             instalacao,
           }, instalacao.stale ? '⚠ ' + instalacao.aviso : '🐮 ' + r.resumo);
         }
@@ -363,4 +439,4 @@ function build(seam, fleet, base) {
   ];
 }
 
-module.exports = { build, PUBLICAS, comResumo };
+module.exports = { build, PUBLICAS, comResumo, diagnosticoPrimeiraVez, cliNoPath };
