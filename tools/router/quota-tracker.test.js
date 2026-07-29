@@ -34,6 +34,11 @@ beforeEach(() => {
   // paths.js reads MOOTER_CLAUDE_DIR; ROUTER_DIR = $DIR/tools/router
   fs.mkdirSync(path.join(TMP_DIR, 'tools', 'router'), { recursive: true });
   process.env.MOOTER_CLAUDE_DIR = TMP_DIR;
+  // MP-Q Q2 — isolate the official-quota read path too: without this, a real
+  // ~/.mooter/quota-live.json (written by the wired statusline) would flip
+  // getQuotaRemaining('anthropic') to basis:"official" and make these
+  // estimate-path assertions machine-state-dependent.
+  process.env.MOOTER_HOME = path.join(TMP_DIR, '.mooter');
   delete process.env.MOOTER_ANTHROPIC_5H_LIMIT;
   delete process.env.MOOTER_CODEX_5H_LIMIT;
   RealDate = Date;
@@ -42,6 +47,7 @@ beforeEach(() => {
 afterEach(() => {
   global.Date = RealDate;
   delete process.env.MOOTER_CLAUDE_DIR;
+  delete process.env.MOOTER_HOME;
   try { fs.rmSync(TMP_DIR, { recursive: true, force: true }); } catch {}
 });
 

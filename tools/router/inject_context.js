@@ -149,6 +149,22 @@ function spawnBudgetRefresh() {
 function getBudget(promptText, isHighRisk) {
   if (V07_DISABLED) return fetchBudgetSyncLegacy();
 
+  // MP-Q Q3 — official rate_limits from the statusline seam (quota-live.json)
+  // replace the /api/oauth/usage child entirely while fresh (≤10 min): no
+  // spawn, no lock, no network. The OAuth child + 2h cache below remain the
+  // fallback for a stale or missing quota-live (e.g. no CC ≥2.1.x render yet).
+  try {
+    const live = require('./quota-live.js').readQuotaLive();
+    if (live && live.fresh && typeof live.five_hour_pct === 'number') {
+      return {
+        five_hour: live.five_hour_pct,
+        seven_day: live.seven_day_pct,
+        basis: 'official',
+        source: 'quota-live',
+      };
+    }
+  } catch { /* fall through to legacy */ }
+
   const state = readBudgetCache();
 
   // Fresh cache → return immediately.
@@ -1026,6 +1042,16 @@ if (budget) {
   decision.max_tier = 'T3';
 }
 
+// ── MP-Q Q3 — quota defcon ──────────────────────────────────────────────────
+// The weekly (7-day) window is the REAL constraint for a subscription user.
+// Runs AFTER the budget cap and BEFORE active-mode/pins, so an explicit user
+// override still wins (doctrine). HIGH_RISK T3 floors never come down —
+// applyQuotaDefcon enforces that internally. Best-effort: never blocks the hint.
+try {
+  const _ql = require('./quota-live.js');
+  _ql.applyQuotaDefcon(decision, _ql.readQuotaLive(), isHighRisk);
+} catch { /* defcon is best-effort */ }
+
 // ── Active Mode override (v0.9.3) ────────────────────────────────────────
 // Reads ~/.claude/tools/router/.mooter-mode.json (with fallback to .frugal-mode.json)
 // set by frugal-mode.js / mooter-mode.js.
@@ -1344,10 +1370,27 @@ try {
       );
     }
     if (typeof quotaSnap.anthropic_remaining_pct === 'number') {
+      // MP-Q Q3 — honest label: with official statusline data the number is
+      // derived from the most-binding window, not just the 5h estimate.
+      const basisLabel = quotaSnap.anthropic_basis === 'official'
+        ? 'official, most-binding window'
+        : '5h window';
       providerLines.push(
-        `anthropic_quota: ${quotaSnap.anthropic_remaining_pct}% remaining (5h window)`
+        `anthropic_quota: ${quotaSnap.anthropic_remaining_pct}% remaining (${basisLabel})`
       );
     }
+    if (quotaSnap.anthropic_basis === 'official' && typeof quotaSnap.anthropic_weekly_pct === 'number') {
+      const rst = quotaSnap.anthropic_weekly_reset_at
+        ? `, resets ${String(quotaSnap.anthropic_weekly_reset_at).slice(0, 10)}`
+        : '';
+      providerLines.push(`anthropic_weekly: ${quotaSnap.anthropic_weekly_pct}% used (official${rst})`);
+    }
+  }
+  if (decision.quota_defcon) {
+    providerLines.push(`quota_defcon: ${decision.quota_defcon.reasoning}`);
+  }
+  if (decision.suppress_fable) {
+    providerLines.push('fable_suppressed: opus/fable weekly at 100% — do not suggest @fable/T5');
   }
 } catch { /* never let this break the hint */ }
 

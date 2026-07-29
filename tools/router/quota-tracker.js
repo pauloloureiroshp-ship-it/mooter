@@ -276,6 +276,18 @@ function recordUsage(provider, payload = {}) {
  * @returns {number}
  */
 function getQuotaRemaining(provider) {
+  // MP-Q Q2 — official-first: a fresh statusline rate_limits snapshot beats
+  // our own estimates; the estimate below remains the fallback. Numeric
+  // contract unchanged for every existing reader.
+  return getQuotaRemainingDetailed(provider).remaining;
+}
+
+/**
+ * The pre-Q2 estimate path (rolling token windows recorded by providers).
+ * @param {ProviderName} provider
+ * @returns {number}
+ */
+function getQuotaRemainingEstimated(provider) {
   const state = getState();
 
   switch (provider) {
@@ -301,6 +313,53 @@ function getQuotaRemaining(provider) {
 /** @param {number} x @returns {number} */
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
+// ── MP-Q Q2 — official-first quota (additive) ───────────────────────────────
+// quota-live.json carries the OFFICIAL rate_limits Claude Code pipes to the
+// wired statusline (see quota-live.js). When that snapshot is fresh (≤10 min)
+// it beats our own token estimates; the estimate becomes the fallback. Every
+// consumer can see which one it got via `basis: "official" | "estimated"`.
+
+/**
+ * Fresh official quota snapshot, or null (missing / stale / unreadable).
+ * @returns {Record<string, any> | null}
+ */
+function getOfficialQuota() {
+  try {
+    const live = require('./quota-live.js').readQuotaLive();
+    return live && live.fresh ? live : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Like getQuotaRemaining, but says WHERE the number came from.
+ * For 'anthropic' with fresh official data, remaining is computed from the
+ * most-binding window (max of 5h/7d percent used) — for a subscription user
+ * the weekly window is usually the one that actually runs out.
+ * @param {ProviderName} provider
+ * @returns {{remaining: number, basis: 'official'|'estimated',
+ *            five_hour_pct?: number|null, seven_day_pct?: number|null,
+ *            opus_or_fable_pct?: number|null, resets?: Record<string, string|null>}}
+ */
+function getQuotaRemainingDetailed(provider) {
+  if (provider === 'anthropic') {
+    const live = getOfficialQuota();
+    if (live) {
+      const used = Math.max(live.five_hour_pct || 0, live.seven_day_pct || 0);
+      return {
+        remaining: clamp01(1 - used / 100),
+        basis: 'official',
+        five_hour_pct: live.five_hour_pct,
+        seven_day_pct: live.seven_day_pct,
+        opus_or_fable_pct: live.opus_or_fable_pct,
+        resets: live.resets,
+      };
+    }
+  }
+  return { remaining: getQuotaRemainingEstimated(provider), basis: 'estimated' };
+}
+
 /**
  * Heuristic the classifier consults: prefer Codex CLI if it still has a
  * comfortable cushion of quota left in the current 5h window. Threshold is
@@ -315,10 +374,19 @@ function shouldPreferCodex() {
 /** Convenience: snapshot used by inject_context.js to print quota lines. */
 function summary() {
   const state = getState();
-  const anth  = getQuotaRemaining('anthropic');
+  const anthD = getQuotaRemainingDetailed('anthropic');
   const cdx   = getQuotaRemaining('openai_codex_cli');
   return {
-    anthropic_remaining_pct: Math.round(anth * 100),
+    anthropic_remaining_pct: Math.round(anthD.remaining * 100),
+    // MP-Q Q2 — honesty fields: where the anthropic number came from, plus
+    // the official weekly window when we have it (the Max-user constraint).
+    anthropic_basis: anthD.basis,
+    anthropic_weekly_pct: anthD.basis === 'official' && typeof anthD.seven_day_pct === 'number'
+      ? anthD.seven_day_pct : null,
+    anthropic_five_hour_pct: anthD.basis === 'official' && typeof anthD.five_hour_pct === 'number'
+      ? anthD.five_hour_pct : null,
+    anthropic_weekly_reset_at: anthD.basis === 'official' && anthD.resets
+      ? (anthD.resets.seven_day || null) : null,
     codex_remaining_pct:     Math.round(cdx * 100),
     codex_exhausted:         !!state.providers.openai_codex_cli.exhausted,
     anthropic_5h_reset_at:   state.providers.anthropic.window_5h.reset_at,
@@ -340,6 +408,9 @@ module.exports = {
   getState,
   recordUsage,
   getQuotaRemaining,
+  getQuotaRemainingEstimated,
+  getQuotaRemainingDetailed,
+  getOfficialQuota,
   shouldPreferCodex,
   resetIfExpired,
   summary,
