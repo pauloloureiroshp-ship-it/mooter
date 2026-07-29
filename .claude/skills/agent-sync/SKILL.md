@@ -12,10 +12,18 @@ Moo workers.
 
 1. Read `_handoff/agent-sync/latest.md` if it exists.
 2. Read `_handoff/agent-context/bundle.md` if it exists.
-3. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
+3. Run the read-only local bootstrap gate:
+
+   ```sh
+   node tools/router/agent-sync-ledger.js doctor --strict
+   ```
+
+   It verifies canonical device identity, frozen classifier, installed runtime,
+   Stop hook wiring, local vault, registry and auto-publish without changing them.
+4. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
    `vault-status --strict` when the private vault is mounted. Do not interpret
    a local event audit as fleet coverage.
-4. Validate any risky claim against code, git and the active handoff.
+5. Validate any risky claim against code, git and the active handoff.
 
 ## Record After Checkpoints
 

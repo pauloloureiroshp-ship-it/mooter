@@ -66,8 +66,8 @@ echo ""
 echo "-- ~/.claude/settings.json (hooks registered?):"
 cat ~/.claude/settings.json | head -30
 echo ""
-echo "-- ~/.frugal/device.id:"
-cat ~/.frugal/device.id
+echo "-- ~/.mooter/device.id:"
+cat ~/.mooter/device.id
 echo ""
 echo "-- ~/.mooter/env (shell profile source):"
 cat ~/.mooter/env

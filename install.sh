@@ -56,7 +56,8 @@ MOOTER_CLI_DIR="$MOOTER_DIR/cli"
 MOOTER_ENV="$MOOTER_DIR/env"
 LOCAL_BIN="$HOME/.local/bin"
 SHIM="$LOCAL_BIN/mooter"
-DEVICE_DIR="$HOME/.frugal"
+DEVICE_DIR="$MOOTER_DIR"
+LEGACY_DEVICE_FILE="$HOME/.frugal/device.id"
 
 # Determine SRC_DIR. When piped from curl, we can't rely on $0 — we detect that
 # and clone/download the repo to a temp dir.
@@ -124,6 +125,7 @@ if ! command -v node >/dev/null 2>&1; then
   fail "Node.js not found. Install from https://nodejs.org or: brew install node"
   exit 3
 fi
+NODE_BIN="$(command -v node)"
 NODE_VER="$(node --version | sed 's/v//')"
 NODE_MAJOR="${NODE_VER%%.*}"
 if [ "$NODE_MAJOR" -lt 18 ]; then
@@ -195,14 +197,15 @@ else
   warn "npm not found — v1.0 commands (feedback/forge/...) unavailable; legacy CLI only."
 fi
 
-# Copy agents + skills (best-effort)
+# Copy agents + versioned product skills (best-effort).
+# The repository stores skills under .claude/skills, not a root skills/ folder.
 do_run "cp '$SRC_DIR/agents/'*.md '$CLAUDE_DIR/agents/' 2>/dev/null || true"
-if [ -d "$SRC_DIR/skills" ]; then
-  for skill in "$SRC_DIR/skills"/*/; do
+if [ -d "$SRC_DIR/.claude/skills" ]; then
+  for skill in "$SRC_DIR/.claude/skills"/*/; do
     [ -d "$skill" ] || continue
     name="$(basename "$skill")"
     do_run "mkdir -p '$CLAUDE_DIR/skills/$name'"
-    do_run "cp '$skill/SKILL.md' '$CLAUDE_DIR/skills/$name/SKILL.md' 2>/dev/null || true"
+    do_run "cp -R '$skill/'* '$CLAUDE_DIR/skills/$name/' 2>/dev/null || true"
   done
 fi
 
@@ -224,13 +227,14 @@ if [ "$DRY_RUN" = "0" ]; then
 export MOOTER_PACKS_DIR="\${MOOTER_PACKS_DIR:-\$HOME/.mooter/packs}"
 V1="\$HOME/.mooter/cli-v1/mooter.js"
 LEGACY="\$HOME/.mooter/cli/mooter.js"
+NODE_BIN="$NODE_BIN"
 case "\$1" in
   feedback|forge|login|logout|adapter|trail|quiet|hub|explain|sync|pack|init|dashboard)
-    if [ -f "\$V1" ]; then exec node "\$V1" "\$@"; else exec node "\$LEGACY" "\$@"; fi ;;
+    if [ -f "\$V1" ]; then exec "\$NODE_BIN" "\$V1" "\$@"; else exec "\$NODE_BIN" "\$LEGACY" "\$@"; fi ;;
   doctor|update|uninstall|--version|-v|version|help|--help|-h|"")
-    exec node "\$LEGACY" "\$@" ;;
+    exec "\$NODE_BIN" "\$LEGACY" "\$@" ;;
   *)
-    if [ -f "\$V1" ]; then exec node "\$V1" "\$@"; else exec node "\$LEGACY" "\$@"; fi ;;
+    if [ -f "\$V1" ]; then exec "\$NODE_BIN" "\$V1" "\$@"; else exec "\$NODE_BIN" "\$LEGACY" "\$@"; fi ;;
 esac
 SHIM_EOF
   chmod +x "$SHIM"
@@ -287,18 +291,25 @@ if [ "$NO_PATH" = "0" ]; then
 fi
 
 # ── Hook registration in settings.json (non-destructive) ────────────────
-if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  say "Registering hooks in settings.json..."
-  do_run "node '$MOOTER_CLI_DIR/lib/register-hooks.js' '$CLAUDE_DIR/settings.json' '$ROUTER_DIR' '$HOOKS_DIR'"
-  ok "Hooks registered (UserPromptSubmit + Stop)"
+if [ ! -f "$CLAUDE_DIR/settings.json" ]; then
+  do_run "printf '{}\n' > '$CLAUDE_DIR/settings.json'"
+  ok "Created empty settings.json"
 fi
+say "Registering hooks in settings.json..."
+do_run "node '$MOOTER_CLI_DIR/lib/register-hooks.js' '$CLAUDE_DIR/settings.json' '$ROUTER_DIR' '$HOOKS_DIR'"
+ok "Hooks registered (UserPromptSubmit + Stop)"
 
 # ── Device ID ───────────────────────────────────────────────────────────
 if [ ! -f "$DEVICE_DIR/device.id" ]; then
-  if [ "$DRY_RUN" = "0" ]; then
-    node -e "require('fs').writeFileSync('$DEVICE_DIR/device.id', require('crypto').randomUUID() + '\\n')"
+  if [ -f "$LEGACY_DEVICE_FILE" ]; then
+    do_run "cp '$LEGACY_DEVICE_FILE' '$DEVICE_DIR/device.id'"
+    ok "Device ID preserved from legacy location"
+  else
+    if [ "$DRY_RUN" = "0" ]; then
+      node -e "require('fs').writeFileSync('$DEVICE_DIR/device.id', require('crypto').randomUUID() + '\\n')"
+    fi
+    ok "Device ID generated"
   fi
-  ok "Device ID generated"
 fi
 
 # ── Ollama (optional, non-blocking) ─────────────────────────────────────

@@ -104,12 +104,13 @@ function atomicWrite(file, content) {
   }
 }
 
-function safeDeviceId() {
+function safeDeviceId(home) {
   // Identity lookup must be read-only. Requiring identity.js here used to run
   // its legacy credential migration as a module-load side effect.
+  const base = home || os.homedir();
   for (const file of [
-    path.join(os.homedir(), '.mooter', 'device.id'),
-    path.join(os.homedir(), '.frugal', 'device.id'),
+    path.join(base, '.mooter', 'device.id'),
+    path.join(base, '.frugal', 'device.id'),
   ]) {
     const value = safeRead(file);
     if (value && value.trim()) return clamp(value.trim(), 120);
@@ -258,7 +259,7 @@ function classifySnapshot(root) {
 function deviceSnapshot(input, opts) {
   opts = opts || {};
   if (opts.device === false) return null;
-  const canonicalId = safeDeviceId();
+  const canonicalId = safeDeviceId(opts.home);
   return {
     id: clamp(input.device_id || input.deviceId || canonicalId || '', 120) || null,
     name: clamp(input.device_name || input.deviceName || os.hostname(), 160) || null,
@@ -566,7 +567,8 @@ function resolveVaultPath(explicitPath) {
     candidate &&
     fs.existsSync(path.join(candidate, 'AGENTS.md')) &&
     fs.existsSync(path.join(candidate, '00-core')) &&
-    fs.existsSync(path.join(candidate, '10-projects'))
+    fs.existsSync(path.join(candidate, '10-projects')) &&
+    fs.existsSync(path.join(candidate, '00-core', 'agent-sync-protocol.md'))
   );
   if (explicitPath) {
     const resolved = path.resolve(String(explicitPath));
@@ -772,19 +774,26 @@ function parseVaultReceipt(text) {
   return verified.ok ? verified.receipt : null;
 }
 
-function readVaultReceipts(vaultRoot, project) {
+function readVaultReceipts(vaultRoot, project, options) {
   const base = path.join(vaultRoot, RECEIPT_ROOT, safeSegment(project, 'mooter'));
   if (!fs.existsSync(base)) return [];
+  const requestedLimit = Number(options && options.maxFiles);
+  const maxFiles = Number.isInteger(requestedLimit) && requestedLimit > 0 ? requestedLimit : 5000;
   const files = [];
   const queue = [base];
-  while (queue.length && files.length < 5000) {
+  while (queue.length) {
     const current = queue.shift();
     let entries = [];
     try { entries = fs.readdirSync(current, { withFileTypes: true }); } catch { continue; }
     for (const entry of entries) {
       const file = path.join(current, entry.name);
       if (entry.isDirectory()) queue.push(file);
-      else if (entry.isFile() && entry.name.endsWith('.md')) files.push(file);
+      else if (entry.isFile() && entry.name.endsWith('.md')) {
+        if (files.length >= maxFiles) {
+          throw new Error(`vault receipt scan limit exceeded (${maxFiles}); refusing partial readiness`);
+        }
+        files.push(file);
+      }
     }
   }
   return files.map((file) => {
@@ -793,6 +802,108 @@ function readVaultReceipts(vaultRoot, project) {
     return { file, receipt: verified.receipt, warnings: verified.warnings };
   })
     .sort((a, b) => String(a.receipt.ended_at || a.receipt.ts).localeCompare(String(b.receipt.ended_at || b.receipt.ts)));
+}
+
+function agentSyncDoctor(root, options) {
+  options = options || {};
+  const home = path.resolve(options.home || os.homedir());
+  const vaultRoot = resolveVaultPath(options.vault);
+  const settingsPath = path.join(home, '.claude', 'settings.json');
+  const sourceLedgerPath = path.join(root, 'tools', 'router', 'agent-sync-ledger.js');
+  const sourceHookPath = path.join(root, 'tools', 'router', 'gsd-turn-end.js');
+  const installedLedgerPath = path.join(home, '.claude', 'tools', 'router', 'agent-sync-ledger.js');
+  const installedHookPath = path.join(home, '.claude', 'hooks', 'gsd-turn-end.js');
+  const settings = safeJson(safeRead(settingsPath) || '');
+  const stopCommands = settings && settings.hooks && Array.isArray(settings.hooks.Stop)
+    ? settings.hooks.Stop.flatMap((entry) => (entry && entry.hooks) || [])
+      .map((hook) => hook && hook.command)
+      .filter((command) => typeof command === 'string' && command.includes('gsd-turn-end.js'))
+    : [];
+  const pinnedNode = stopCommands.map((command) => {
+    const match = command.match(/^\s*"([^"]+)"\s+/);
+    return match && match[1];
+  }).find(Boolean);
+  const hookBody = safeRead(installedHookPath) || '';
+  const runtimeBody = safeRead(installedLedgerPath) || '';
+  const classifier = classifySnapshot(root);
+  const device = deviceSnapshot({}, { home });
+  const autoPublish = process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH === '1';
+  const checks = [
+    { id: 'repo_root', required: true, ok: isMooterRoot(root), detail: root },
+    { id: 'classifier_frozen', required: true, ok: classifier.intact, detail: classifier.sha256 || 'missing' },
+    { id: 'device_identity', required: true, ok: Boolean(device && device.id), detail: device && device.id || 'missing' },
+    {
+      id: 'runtime_installed',
+      required: true,
+      ok: runtimeBody.includes(RECEIPT_SCHEMA_VERSION) &&
+        sha256File(installedLedgerPath) === sha256File(sourceLedgerPath),
+      detail: installedLedgerPath,
+    },
+    {
+      id: 'stop_hook_capture',
+      required: true,
+      ok: hookBody.includes('agent-sync-ledger') &&
+        hookBody.includes('accumulateAgentSync') &&
+        sha256File(installedHookPath) === sha256File(sourceHookPath),
+      detail: installedHookPath,
+    },
+    {
+      id: 'settings_hook_wired',
+      required: true,
+      ok: Boolean(settings && JSON.stringify(settings.hooks || {}).includes('gsd-turn-end.js')),
+      detail: settingsPath,
+    },
+    {
+      id: 'settings_node_pinned',
+      required: true,
+      ok: Boolean(pinnedNode && fs.existsSync(pinnedNode)),
+      detail: pinnedNode || 'bare or missing Node executable',
+    },
+    { id: 'vault_local', required: true, ok: Boolean(vaultRoot), detail: vaultRoot || 'missing' },
+    {
+      id: 'vault_protocol',
+      required: true,
+      ok: Boolean(vaultRoot && fs.existsSync(path.join(vaultRoot, '00-core', 'agent-sync-protocol.md'))),
+      detail: vaultRoot ? path.join(vaultRoot, '00-core', 'agent-sync-protocol.md') : 'missing',
+    },
+    {
+      id: 'vault_registry',
+      required: true,
+      ok: Boolean(vaultRoot && fs.existsSync(path.join(vaultRoot, '00-core', 'agent-sync-registry.json'))),
+      detail: vaultRoot ? path.join(vaultRoot, '00-core', 'agent-sync-registry.json') : 'missing',
+    },
+    {
+      id: 'auto_publish_enabled',
+      required: true,
+      ok: autoPublish,
+      detail: autoPublish ? 'MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH=1' : 'disabled',
+    },
+  ];
+  return {
+    schema_version: SCHEMA_VERSION,
+    checked_at: new Date().toISOString(),
+    device,
+    vault: vaultRoot,
+    remote_sync: 'not_checked',
+    ok: checks.filter((row) => row.required).every((row) => row.ok),
+    checks,
+  };
+}
+
+function renderDoctorReport(doctor) {
+  return [
+    '# Mooter Agent Sync Doctor',
+    '',
+    `LOCAL_AGENT_SYNC=${doctor.ok ? 'pass' : 'fail'}`,
+    'VAULT_REMOTE=not_checked',
+    `device: ${doctor.device && doctor.device.id || 'n/d'} · ${doctor.device && doctor.device.name || 'n/d'} · ${doctor.device && doctor.device.platform || 'n/d'}/${doctor.device && doctor.device.arch || 'n/d'}`,
+    `vault: ${doctor.vault || 'n/d'}`,
+    '',
+    '## Checks',
+    '',
+    ...doctor.checks.map((row) => `- ${row.ok ? 'PASS' : 'FAIL'} ${row.id}: ${row.detail}`),
+    '',
+  ].join('\n');
 }
 
 function buildVaultStatus(vaultRoot, project) {
@@ -1583,6 +1694,11 @@ function command(argv, opts) {
     if (args.strict && !audit.complete) throw new Error(renderAuditReport(audit));
     return args.json ? JSON.stringify(audit, null, 2) + '\n' : renderAuditReport(audit) + '\n';
   }
+  if (cmd === 'doctor') {
+    const doctor = agentSyncDoctor(root, { vault: args.vault, home: args.home });
+    if (args.strict && !doctor.ok) throw new Error(renderDoctorReport(doctor));
+    return args.json ? JSON.stringify(doctor, null, 2) + '\n' : renderDoctorReport(doctor) + '\n';
+  }
   if (cmd === 'publish-vault' || cmd === 'vault-publish') {
     const events = readEvents(root, dir);
     const selected = args.event
@@ -1668,6 +1784,8 @@ module.exports = {
   loadSyncRegistry,
   auditFleet,
   renderFleetAudit,
+  agentSyncDoctor,
+  renderDoctorReport,
   readEvents,
   appendEvent,
   buildSnapshot,

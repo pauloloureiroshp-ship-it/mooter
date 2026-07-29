@@ -57,8 +57,12 @@ agents/providers/channels and an absent registry all fail closed.
 ### Session boundary
 
 At start: read `AGENTS.md`, the tail of `SYNC.md`, local `latest.md`, vault
-`00-core/agent-sync-protocol.md`, and run `vault-status --strict` when the vault
-is mounted. A failed readiness gate must be reported before product work starts.
+`00-core/agent-sync-protocol.md`, run the read-only
+`node tools/router/agent-sync-ledger.js doctor --strict`, and run
+`vault-status --strict` when the vault is mounted. The doctor verifies the
+canonical device identity, frozen classifier, installed runtime and Stop hook,
+settings wiring, vault protocol/registry and auto-publish. A failed local or
+fleet readiness gate must be reported before product work starts.
 At finish: record one outcome/handoff with explicit device, provider, model,
 channel, evidence, result and next step; include `started_at`/`ended_at` when the
 host can measure them; run `audit`; publish the receipt. Unknown timing remains
@@ -240,9 +244,11 @@ node tools/router/agent-sync-ledger.js simulate
 
 It must report `SIMULATION=pass`.
 
-Audit identity/completeness and publish to the private vault:
+Validate the local bootstrap, then audit identity/completeness and publish to
+the private vault:
 
 ```sh
+node tools/router/agent-sync-ledger.js doctor --strict
 node tools/router/agent-sync-ledger.js audit --window 1 --strict
 node tools/router/agent-sync-ledger.js publish-vault \
   --vault "$VAULT_PATH" --project mooter --window 1 --strict
@@ -251,6 +257,9 @@ node tools/router/agent-sync-ledger.js vault-status \
 ```
 
 `EVENT_AUDIT=fail` means an event cannot be trusted or published.
+`LOCAL_AGENT_SYNC=fail` means the current device cannot yet capture and project
+events automatically. The doctor never installs, authenticates, clones, commits
+or pushes; it only reports the smallest missing prerequisites.
 `FLEET_COVERAGE=not_checked` is deliberate: local event audit is not a fleet
 claim. `pass_with_gaps`
 means identity is valid but optional evidence such as exact duration, Git state

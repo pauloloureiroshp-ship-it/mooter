@@ -4,9 +4,12 @@ Roo/Gemini is part of the Mooter multi-agent team. Before acting:
 
 1. Read `_handoff/agent-sync/latest.md` if it exists.
 2. Read `_handoff/agent-context/bundle.md` if it exists.
-3. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
+3. Run `node tools/router/agent-sync-ledger.js doctor --strict`. This gate is
+   read-only and fails when device identity, runtime/hook wiring, vault,
+   registry or auto-publish is missing.
+4. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
    `vault-status --strict` when the private vault is mounted.
-4. Validate docs and handoffs against code before proposing changes.
+5. Validate docs and handoffs against code before proposing changes.
 
 After a meaningful prompt, handoff, PR, wave or review checkpoint, record one
 compact event:

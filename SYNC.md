@@ -5,8 +5,9 @@
 > Snapshot, não log (regra ≤200 linhas; histórico em `docs/foundation/SYNC_ARCHIVE_2026.md`).
 
 **Atualizado:** 2026-07-29 · **GitHub `main` @** `d108a400` (PR #255 merged) ·
-**agent-sync em revisão:** Mooter `codex/cross-device-vault-sync` @ `3870b684`;
-vault `codex/cross-device-agent-sync` @ `44e4a424`.
+**agent-sync em revisão:** Mooter `codex/cross-device-vault-sync`; vault
+`codex/cross-device-agent-sync`. Confirme os heads remotos; este snapshot não
+se auto-referencia por SHA.
 
 ## Gate atual — cross-device agent sync
 
@@ -15,19 +16,22 @@ vault `codex/cross-device-agent-sync` @ `44e4a424`.
 - **Cobertura observada:** 1 recibo Codex no Mac mini
   `ac67a7f5-a962-496e-bf23-a675c6c3db74`; Windows RTX 4090, MacBook M3,
   Claude Code, Roo/Gemini e Ollama ainda não têm enrollment/recibo comprovado.
-- **Mac mini:** `VAULT_PATH` ausente e nenhum runtime Mooter encontrado em
-  `~/.claude/hooks/` ou `~/.claude/tools/router/`; código no repo não equivale a
-  hook instalado.
+- **Mac mini:** runtime, skills, settings e Stop hook agora estão instalados e
+  byte-idênticos à branch, com Node embutido pinado e UUID canônico preservado.
+  `VAULT_PATH`/clone local continuam ausentes e auto-publish está desligado.
 - **Vault:** branch privada contém protocolo e um recibo v1, mas não há PR/merge.
   Projeção local e sincronização remota são estados distintos.
-- **Gates focados:** ledger 23/23 e Stop-hook 15/15 passaram após o hardening;
-  classificador frozen continua no SHA esperado. Suite router completa neste Mac
-  ficou 953 pass / 69 fail / 1 skip porque o runtime live esperado em
-  `~/.claude/tools/router/classify.js` não existe e alguns testes dependem do
-  ambiente/ANSI.
-- **Hardening em curso:** separar event audit de fleet readiness, registry
-  fail-closed, hash de recibo, ledger realmente append-only, corrupção visível,
-  lookup de device sem migração de credencial e falha de projeção observável.
+- **Gates focados:** o gate consolidado mais recente passou 59/59 (ledger,
+  instalador hermético, contrato cross-OS, register-hooks, sync-hooks e Stop hook);
+  classificador frozen continua no SHA esperado. Antes deste bootstrap, a suite
+  router completa ficou 953 pass / 69 fail / 1 skip por runtime live ausente e
+  dependências de ambiente/ANSI; ela não foi repetida porque isso exigiria
+  reinstalar dependências removidas. O gate focado pós-bootstrap é o atual.
+- **Hardening implementado na branch:** separar event audit de fleet readiness,
+  registry fail-closed, hash de recibo, ledger append-only, corrupção/limite de
+  scan visíveis, lookup de device sem migração de credencial, projeção observável,
+  `doctor` read-only, identidade canônica única e instaladores que copiam as
+  skills e armam settings/hook em perfil novo.
 - **Gates humanos pendentes:** revisar/abrir PR das duas branches, cadastrar IDs
   reais por device, instalar/configurar cada runtime e obter um recibo de
   enrollment por superfície. Nenhum merge ou deploy autorizado.

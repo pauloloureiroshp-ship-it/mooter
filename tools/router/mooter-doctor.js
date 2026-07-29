@@ -36,6 +36,8 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
+const MOOTER_DIR = path.join(os.homedir(), '.mooter');
+const LEGACY_DIR = path.join(os.homedir(), '.frugal');
 
 // ── Output helpers ────────────────────────────────────────────────────────
 const C = {
@@ -429,14 +431,22 @@ async function main() {
       }
     } catch {}
 
-    // MP-12: generate stable device_id
-    const deviceIdPath = path.join(os.homedir(), '.frugal', 'device.id');
+    // MP-12: generate one stable device_id in the canonical ~/.mooter location.
+    // Preserve a legacy identity byte-for-byte instead of minting a second ID.
+    const deviceIdPath = path.join(MOOTER_DIR, 'device.id');
+    const legacyDeviceIdPath = path.join(LEGACY_DIR, 'device.id');
     let deviceId;
     try { deviceId = fs.readFileSync(deviceIdPath, 'utf8').trim(); } catch {}
     if (!deviceId) {
-      deviceId = crypto.randomUUID();
-      fs.mkdirSync(path.join(os.homedir(), '.frugal'), { recursive: true });
-      fs.writeFileSync(deviceIdPath, deviceId);
+      try { deviceId = fs.readFileSync(legacyDeviceIdPath, 'utf8').trim(); } catch {}
+      if (!deviceId) deviceId = crypto.randomUUID();
+      fs.mkdirSync(MOOTER_DIR, { recursive: true });
+      try {
+        fs.writeFileSync(deviceIdPath, deviceId + '\n', { flag: 'wx' });
+      } catch (err) {
+        if (!err || err.code !== 'EEXIST') throw err;
+        deviceId = fs.readFileSync(deviceIdPath, 'utf8').trim();
+      }
     }
 
     const syncPayload = {

@@ -30,6 +30,7 @@ function vaultFixture() {
   write(vault, 'AGENTS.md', '# Vault\n');
   fs.mkdirSync(path.join(vault, '00-core'), { recursive: true });
   fs.mkdirSync(path.join(vault, '10-projects'), { recursive: true });
+  write(vault, '00-core/agent-sync-protocol.md', '# Agent sync protocol\n');
   return vault;
 }
 
@@ -280,6 +281,77 @@ test('vault resolver rejects an unrelated repository with only AGENTS.md', () =>
     assert.equal(sync.resolveVaultPath(unrelated), null);
   } finally {
     fs.rmSync(unrelated, { recursive: true, force: true });
+  }
+});
+
+test('vault resolver rejects a lookalike vault without the canonical sync protocol', () => {
+  const unrelated = fs.mkdtempSync(path.join(os.tmpdir(), 'not-paulo-vault-'));
+  try {
+    write(unrelated, 'AGENTS.md', '# unrelated\n');
+    fs.mkdirSync(path.join(unrelated, '00-core'), { recursive: true });
+    fs.mkdirSync(path.join(unrelated, '10-projects'), { recursive: true });
+    assert.equal(sync.resolveVaultPath(unrelated), null);
+  } finally {
+    fs.rmSync(unrelated, { recursive: true, force: true });
+  }
+});
+
+test('vault receipt scan fails closed instead of silently truncating readiness', () => {
+  const { root } = fixture();
+  const vault = vaultFixture();
+  try {
+    for (let i = 0; i < 3; i++) {
+      sync.publishVault(root, [completeEvent(root, { id: `event-scan-${i}` })], { vault, project: 'mooter' });
+    }
+    assert.throws(
+      () => sync.readVaultReceipts(vault, 'mooter', { maxFiles: 2 }),
+      /scan limit exceeded.*refusing partial readiness/
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('agent-sync doctor is read-only and fails closed until runtime, hook, vault and auto-publish exist', () => {
+  const { root } = fixture();
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-agent-sync-doctor-'));
+  const vault = vaultFixture();
+  try {
+    write(home, '.mooter/device.id', 'doctor-device\n');
+    const before = fs.readdirSync(home, { recursive: true }).sort();
+    const failed = sync.agentSyncDoctor(root, { home, vault });
+    assert.equal(failed.ok, false);
+    assert.ok(failed.checks.some((row) => row.id === 'runtime_installed' && !row.ok));
+    assert.deepEqual(fs.readdirSync(home, { recursive: true }).sort(), before, 'doctor writes nothing');
+
+    const runtimeContent = `// ${sync.RECEIPT_SCHEMA_VERSION}\n`;
+    const hookContent = 'function accumulateAgentSync(){} // agent-sync-ledger\n';
+    write(root, 'tools/router/agent-sync-ledger.js', runtimeContent);
+    write(root, 'tools/router/gsd-turn-end.js', hookContent);
+    write(home, '.claude/tools/router/agent-sync-ledger.js', runtimeContent);
+    write(home, '.claude/hooks/gsd-turn-end.js', hookContent);
+    write(home, '.claude/settings.json', JSON.stringify({
+      hooks: { Stop: [{ hooks: [{ command: `"${process.execPath}" ~/.claude/hooks/gsd-turn-end.js` }] }] },
+    }));
+    write(vault, '00-core/agent-sync-registry.json', JSON.stringify({ project: 'mooter', devices: [] }));
+    const previous = process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH;
+    process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH = '1';
+    try {
+      const ready = sync.agentSyncDoctor(root, { home, vault });
+      assert.equal(ready.ok, false, 'fixture classifier is intentionally not the frozen production SHA');
+      assert.deepEqual(
+        ready.checks.filter((row) => row.id !== 'classifier_frozen').map((row) => [row.id, row.ok]),
+        ready.checks.filter((row) => row.id !== 'classifier_frozen').map((row) => [row.id, true])
+      );
+    } finally {
+      if (previous == null) delete process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH;
+      else process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH = previous;
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
   }
 });
 

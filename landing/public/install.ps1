@@ -53,7 +53,8 @@ $MooterDir   = Join-Path $HOME ".mooter"
 $MooterCliDir = Join-Path $MooterDir "cli"
 $LocalBin    = Join-Path $HOME ".local\bin"
 $ShimPath    = Join-Path $LocalBin "mooter.cmd"
-$DeviceDir   = Join-Path $HOME ".frugal"
+$DeviceDir   = $MooterDir
+$LegacyDeviceIdFile = Join-Path $HOME ".frugal\device.id"
 
 # When run via `irm | iex`, $MyInvocation.MyCommand.Path is $null.
 # Clone the repo in that case.
@@ -108,6 +109,7 @@ Ok "Claude Code detected: $((Get-Command claude).Source)"
 
 try {
     $nodeVer = (& node --version 2>$null).TrimStart('v')
+    $NodeExe = (Get-Command node).Source
     $nodeMajor = [int]($nodeVer.Split('.')[0])
     if ($nodeMajor -lt 18) {
         Fail "Node.js $nodeVer found - mooter needs Node 18+."
@@ -151,7 +153,7 @@ DoRun "Copy router .js" {
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
-$hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js')
+$hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js','live-preview-tap.js')
 foreach ($h in $hookNames) {
     $src = Join-Path $SrcDir "tools\router\$h"
     if (Test-Path $src) {
@@ -208,13 +210,13 @@ DoRun "Copy agents" {
     Get-ChildItem (Join-Path $SrcDir "agents") -Filter *.md -ErrorAction SilentlyContinue |
         ForEach-Object { Copy-Item $_.FullName (Join-Path $ClaudeDir "agents") -Force }
 }
-if (Test-Path (Join-Path $SrcDir "skills")) {
-    foreach ($skillDir in (Get-ChildItem (Join-Path $SrcDir "skills") -Directory -ErrorAction SilentlyContinue)) {
+$skillsSrc = Join-Path $SrcDir ".claude\skills"
+if (Test-Path $skillsSrc) {
+    foreach ($skillDir in (Get-ChildItem $skillsSrc -Directory -ErrorAction SilentlyContinue)) {
         $dst = Join-Path $ClaudeDir "skills\$($skillDir.Name)"
         DoRun "Skill $($skillDir.Name)" {
             New-Item -ItemType Directory -Path $dst -Force | Out-Null
-            $skillFile = Join-Path $skillDir.FullName "SKILL.md"
-            if (Test-Path $skillFile) { Copy-Item $skillFile (Join-Path $dst "SKILL.md") -Force }
+            Copy-Item (Join-Path $skillDir.FullName "*") $dst -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -238,6 +240,7 @@ REM   legacy/installer cmds   -> legacy CLI  (%USERPROFILE%\.mooter\cli\mooter.j
 setlocal
 set "V1=%USERPROFILE%\.mooter\cli-v1\mooter.js"
 set "LEGACY=%USERPROFILE%\.mooter\cli\mooter.js"
+set "NODE=__MOOTER_NODE__"
 if "%MOOTER_PACKS_DIR%"=="" set "MOOTER_PACKS_DIR=%USERPROFILE%\.mooter\packs"
 set "MCMD=%~1"
 if /I "%MCMD%"=="doctor"    goto legacy
@@ -250,11 +253,12 @@ if /I "%MCMD%"=="help"      goto legacy
 if /I "%MCMD%"=="--help"    goto legacy
 if /I "%MCMD%"=="-h"        goto legacy
 if "%MCMD%"==""             goto legacy
-if exist "%V1%" ( node "%V1%" %* ) else ( node "%LEGACY%" %* )
+if exist "%V1%" ( "%NODE%" "%V1%" %* ) else ( "%NODE%" "%LEGACY%" %* )
 goto :eof
 :legacy
-node "%LEGACY%" %*
+"%NODE%" "%LEGACY%" %*
 '@
+$shimContent = $shimContent.Replace('__MOOTER_NODE__', $NodeExe)
 if (-not $DryRun) { Set-Content -Path $ShimPath -Value $shimContent -Encoding ASCII }
 if ($DryRun) { Write-Host "  [dry-run] Would write shim to $ShimPath" -ForegroundColor DarkGray } else { Ok "Shim: $ShimPath" }
 
@@ -280,23 +284,30 @@ if (-not $NoPath) {
 
 # -- Hook registration in settings.json -----------------------------------
 $settingsPath = Join-Path $ClaudeDir "settings.json"
-if (Test-Path $settingsPath) {
-    Say "Registering hooks in settings.json..."
-    $registerHooks = Join-Path $MooterCliDir "lib\register-hooks.js"
-    DoRun "Register hooks" { & node $registerHooks $settingsPath $RouterDir $HooksDir | Out-Null }
-    Ok "Hooks registered (UserPromptSubmit + Stop)"
+if (-not (Test-Path $settingsPath)) {
+    DoRun "Create empty settings.json" { Set-Content -Path $settingsPath -Value "{}" -Encoding ASCII }
+    Ok "Created empty settings.json"
 }
+Say "Registering hooks in settings.json..."
+$registerHooks = Join-Path $MooterCliDir "lib\register-hooks.js"
+DoRun "Register hooks" { & node $registerHooks $settingsPath $RouterDir $HooksDir | Out-Null }
+Ok "Hooks registered (UserPromptSubmit + Stop)"
 
 # -- Device ID ------------------------------------------------------------
 $deviceIdFile = Join-Path $DeviceDir "device.id"
 if (-not (Test-Path $deviceIdFile)) {
-    DoRun "Generate device.id" {
-        # Pass path as positional argv[1] (NOT inline interpolation) so paths
-        # with spaces (e.g. "C:/Users/Paulo Loureiro/.frugal/device.id") work.
-        $nodeScript = "require('fs').writeFileSync(process.argv[1], require('crypto').randomUUID() + '\n')"
-        & node -e $nodeScript $deviceIdFile
+    if (Test-Path $LegacyDeviceIdFile) {
+        DoRun "Preserve legacy device.id" { Copy-Item $LegacyDeviceIdFile $deviceIdFile -Force }
+        Ok "Device ID preserved from legacy location"
+    } else {
+        DoRun "Generate device.id" {
+            # Pass path as positional argv[1] (NOT inline interpolation) so paths
+            # with spaces work.
+            $nodeScript = "require('fs').writeFileSync(process.argv[1], require('crypto').randomUUID() + '\n')"
+            & node -e $nodeScript $deviceIdFile
+        }
+        Ok "Device ID generated"
     }
-    Ok "Device ID generated"
 }
 
 # -- Ollama (optional, non-blocking) --------------------------------------

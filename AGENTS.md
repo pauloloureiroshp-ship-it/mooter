@@ -44,7 +44,10 @@ planes (Claude Code · Codex · local moos) start on the same page:
    `…/_sync/manifest.json`; if stale and relevant, say "Notion ~N days behind — run the
    `notion-to-vault` skill." Never present a stale mirror as the current state.
 5. **Cross-device provenance:** read `_handoff/agent-sync/latest.md` when present, then
-   consult vault canon `00-core/agent-sync-protocol.md`. At a meaningful outcome/handoff,
+   run `node tools/router/agent-sync-ledger.js doctor --strict` and consult vault canon
+   `00-core/agent-sync-protocol.md`. The doctor is read-only and must fail visibly when
+   device identity, installed runtime/hook, vault mount, registry or auto-publish is absent.
+   At a meaningful outcome/handoff,
    record who/where/how/result/next with `tools/router/agent-sync-ledger.js`; run `audit`,
    then publish an immutable receipt and run `vault-status --strict` when `VAULT_PATH`
    is mounted. Local `EVENT_AUDIT` never proves fleet coverage; only `READINESS=pass` does.
