@@ -5,8 +5,8 @@
 > Snapshot, não log (regra ≤200 linhas; histórico em `docs/foundation/SYNC_ARCHIVE_2026.md`).
 
 **Atualizado:** 2026-07-29 · **GitHub `main` @** `d108a400` (PR #255 merged) ·
-**agent-sync em revisão:** Mooter `codex/cross-device-vault-sync` @ `bcd4f9e0`
-+ hardening adversarial local; vault `codex/cross-device-agent-sync` @ `b9f0619f`.
+**agent-sync em revisão:** Mooter `codex/cross-device-vault-sync` @ `3870b684`;
+vault `codex/cross-device-agent-sync` @ `44e4a424`.
 
 ## Gate atual — cross-device agent sync
 
@@ -20,7 +20,7 @@
   hook instalado.
 - **Vault:** branch privada contém protocolo e um recibo v1, mas não há PR/merge.
   Projeção local e sincronização remota são estados distintos.
-- **Gates focados:** ledger 16/16 e Stop-hook 15/15 passaram antes do hardening;
+- **Gates focados:** ledger 23/23 e Stop-hook 15/15 passaram após o hardening;
   classificador frozen continua no SHA esperado. Suite router completa neste Mac
   ficou 953 pass / 69 fail / 1 skip porque o runtime live esperado em
   `~/.claude/tools/router/classify.js` não existe e alguns testes dependem do
