@@ -24,6 +24,31 @@ function fixture() {
   return { root, sha };
 }
 
+function completeEvent(root, overrides) {
+  return sync.normalizeEvent({
+    id: 'event-complete-1',
+    agent: 'codex',
+    recorded_by: 'codex',
+    provider: 'openai',
+    model: 'gpt-5',
+    channel: 'subscription',
+    kind: 'outcome',
+    cadence: 'checkpoint',
+    status: 'done',
+    summary: 'validated cross-device receipt flow',
+    next: 'review the remote branch',
+    evidence: 'code,test,git',
+    started_at: '2026-07-29T12:00:00.000Z',
+    ended_at: '2026-07-29T12:00:02.500Z',
+    device_id: 'device-test-1',
+    device_name: 'Mac mini test',
+    device_platform: 'darwin',
+    device_arch: 'arm64',
+    source: 'unit-test',
+    ...overrides,
+  }, { root, git: false, classify: false, now: '2026-07-29T12:00:02.500Z' });
+}
+
 test('global ledger override remains isolated per real repo/worktree root', () => {
   const a = fixture();
   const b = fixture();
@@ -55,6 +80,10 @@ test('normalizeEvent clamps and normalizes agent/cadence/status', () => {
       status: 'ready',
       summary: '  hello   world  ',
       files: 'a.js,b.js',
+      device_id: 'device-test-1',
+      device_name: 'Mac mini test',
+      device_platform: 'darwin',
+      device_arch: 'arm64',
     }, { root, git: false, classify: false, now: '2026-07-09T00:00:00.000Z' });
     assert.equal(ev.agent, 'gemini-roo');
     assert.equal(ev.cadence, 'prompt');
@@ -62,6 +91,12 @@ test('normalizeEvent clamps and normalizes agent/cadence/status', () => {
     assert.equal(ev.kind, 'sync');
     assert.equal(ev.summary, 'hello world');
     assert.deepEqual(ev.files, ['a.js', 'b.js']);
+    assert.deepEqual(ev.device, {
+      id: 'device-test-1',
+      name: 'Mac mini test',
+      platform: 'darwin',
+      arch: 'arm64',
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -96,6 +131,143 @@ test('normalizeEvent captures typed brief contract', () => {
   }
 });
 
+test('normalizeEvent records an honest execution window and derives duration', () => {
+  const { root } = fixture();
+  try {
+    const ev = completeEvent(root);
+    assert.equal(ev.started_at, '2026-07-29T12:00:00.000Z');
+    assert.equal(ev.ended_at, '2026-07-29T12:00:02.500Z');
+    assert.equal(ev.duration_ms, 2500);
+    assert.equal(ev.recorded_by, 'codex');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('audit separates invalid identity from completeness warnings', () => {
+  const { root } = fixture();
+  try {
+    const valid = completeEvent(root);
+    const invalid = sync.normalizeEvent({
+      id: 'event-invalid-1',
+      agent: 'ollama',
+      summary: 'local run returned safely',
+      status: 'done',
+      source: 'host-orchestrator',
+      device_id: 'device-test-1',
+      device_name: 'Mac mini test',
+      device_platform: 'darwin',
+      device_arch: 'arm64',
+    }, { root, git: false, classify: false, now: '2026-07-29T12:00:03.000Z' });
+    const audit = sync.auditEvents([valid, invalid]);
+    assert.equal(audit.ok, false);
+    assert.equal(audit.valid_count, 1);
+    assert.ok(audit.rows[1].errors.includes('provider_missing'));
+    assert.ok(audit.rows[1].errors.includes('model_missing'));
+    assert.ok(audit.rows[1].errors.includes('execution_channel_unknown'));
+    assert.ok(audit.rows[1].errors.includes('local_model_recorder_missing'));
+    assert.ok(audit.rows[0].warnings.includes('git_snapshot_missing'));
+    assert.match(sync.renderAuditReport(audit), /AUDIT=fail/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secret detector fails closed before a vault receipt is published', () => {
+  const { root } = fixture();
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
+  write(vault, 'AGENTS.md', '# Vault\n');
+  try {
+    const event = completeEvent(root, { summary: 'token=super-secret-value-123456' });
+    const result = sync.publishVault(root, [event], { vault, project: 'mooter' });
+    assert.equal(result.ok, false);
+    assert.equal(result.published.length, 0);
+    assert.ok(result.skipped[0].errors.includes('possible_secret'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('vault receipts are immutable, idempotent and aggregatable by device', () => {
+  const { root } = fixture();
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
+  write(vault, 'AGENTS.md', '# Vault\n');
+  try {
+    const event = completeEvent(root);
+    const first = sync.publishVault(root, [event], { vault, project: 'mooter' });
+    assert.equal(first.ok, true);
+    assert.equal(first.published.length, 1);
+    assert.match(first.published[0], /30-learnings\/agent-sync\/mooter\/device-test-1/);
+    const text = fs.readFileSync(first.published[0], 'utf8');
+    assert.match(text, /validated cross-device receipt flow/);
+    assert.equal(sync.parseVaultReceipt(text).duration_ms, 2500);
+
+    const second = sync.publishVault(root, [event], { vault, project: 'mooter' });
+    assert.equal(second.published.length, 0);
+    assert.equal(second.unchanged.length, 1);
+
+    const status = sync.buildVaultStatus(vault, 'mooter');
+    assert.equal(status.receipt_count, 1);
+    assert.equal(status.latest_by_device['device-test-1'].receipt.event_id, 'event-complete-1');
+    assert.match(sync.renderVaultStatus(status), /review the remote branch/);
+
+    fs.appendFileSync(first.published[0], '\nchanged\n');
+    assert.throws(
+      () => sync.publishVault(root, [event], { vault, project: 'mooter' }),
+      /receipt collision/
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('opt-in auto publish remains fail-soft and writes the same immutable receipt', () => {
+  const { root } = fixture();
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  write(vault, 'AGENTS.md', '# Vault\n');
+  const previous = {
+    auto: process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH,
+    vault: process.env.VAULT_PATH,
+    project: process.env.MOOTER_AGENT_SYNC_PROJECT,
+  };
+  try {
+    process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH = '1';
+    process.env.VAULT_PATH = vault;
+    process.env.MOOTER_AGENT_SYNC_PROJECT = 'mooter';
+    sync.appendEvent(root, completeEvent(root), dir, { git: false, classify: false });
+    assert.equal(sync.readVaultReceipts(vault, 'mooter').length, 1);
+  } finally {
+    if (previous.auto == null) delete process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH;
+    else process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH = previous.auto;
+    if (previous.vault == null) delete process.env.VAULT_PATH;
+    else process.env.VAULT_PATH = previous.vault;
+    if (previous.project == null) delete process.env.MOOTER_AGENT_SYNC_PROJECT;
+    else process.env.MOOTER_AGENT_SYNC_PROJECT = previous.project;
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('vault publish keeps prompt and turn telemetry local by default', () => {
+  const { root } = fixture();
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
+  write(vault, 'AGENTS.md', '# Vault\n');
+  try {
+    const event = completeEvent(root, { kind: 'turn', cadence: 'turn' });
+    const result = sync.publishVault(root, [event], { vault, project: 'mooter' });
+    assert.equal(result.ok, true);
+    assert.equal(result.published.length, 0);
+    assert.equal(result.filtered.length, 1);
+    assert.equal(sync.readVaultReceipts(vault, 'mooter').length, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
 test('appendEvent writes events, snapshot, latest and prompts', () => {
   const { root, sha } = fixture();
   const dir = path.join(root, '_handoff', 'agent-sync');
@@ -106,6 +278,10 @@ test('appendEvent writes events, snapshot, latest and prompts', () => {
       status: 'in_progress',
       summary: 'implemented sync ledger',
       next: 'run tests',
+      device_id: 'device-test-1',
+      device_name: 'Mac mini test',
+      device_platform: 'darwin',
+      device_arch: 'arm64',
     }, { root, git: false, now: '2026-07-09T00:00:00.000Z' });
     ev.classify = { path: 'tools/router/classify.js', sha256: sha, intact: false };
     const snap = sync.appendEvent(root, ev, dir);
@@ -115,6 +291,9 @@ test('appendEvent writes events, snapshot, latest and prompts', () => {
     assert.ok(fs.existsSync(path.join(dir, 'latest.md')));
     assert.ok(fs.existsSync(path.join(dir, 'prompts', 'gemini-roo.md')));
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /implemented sync ledger/);
+    assert.equal(snap.latest_by_device['device-test-1'].agent, 'codex');
+    assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /Latest By Device/);
+    assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /Mac mini test/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
