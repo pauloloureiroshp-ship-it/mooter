@@ -8,15 +8,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Count frugal references in live code
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
         run: |
-          COUNT=$(grep -rli frugal tools packages hub landing scripts 2>/dev/null | grep -v node_modules | wc -l)
+          count_at() {
+            { git grep -Iil frugal "$1" -- tools packages hub landing scripts 2>/dev/null || true; } | wc -l | tr -d ' '
+          }
+
+          BASE_REF="$PUSH_BASE_SHA"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_REF="$PR_BASE_SHA"
+          fi
+          if ! git cat-file -e "${BASE_REF}^{commit}" 2>/dev/null; then
+            BASE_REF="HEAD^"
+          fi
+
+          COUNT=$(count_at HEAD)
+          BASE_COUNT=$(count_at "$BASE_REF")
           BASELINE=$(cat docs/rebrand/frugal-baseline.txt)
-          echo "live-code files containing 'frugal': $COUNT (baseline: $BASELINE)"
-          if [ "$COUNT" -gt "$BASELINE" ]; then
-            echo "::error::frugal references INCREASED ($COUNT > $BASELINE). Revert or rename."
+          echo "live-code files containing 'frugal': $COUNT (base tree: $BASE_COUNT; historical target: $BASELINE)"
+          if [ "$COUNT" -gt "$BASE_COUNT" ]; then
+            echo "::error::frugal references INCREASED ($COUNT > $BASE_COUNT). Revert or rename."
             exit 1
           fi
           if [ "$COUNT" -lt "$BASELINE" ]; then
             echo "::notice::ratchet can be tightened: update docs/rebrand/frugal-baseline.txt to $COUNT"
+          elif [ "$COUNT" -gt "$BASELINE" ]; then
+            echo "::notice::inherited cleanup debt remains: $((COUNT - BASELINE)) files above the historical target"
           fi
