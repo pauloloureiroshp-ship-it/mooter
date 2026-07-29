@@ -45,10 +45,11 @@ test('ctxBar: empty at 0%, full at 100%, half at 50%', () => {
 });
 
 test('ctxBar: colour green <50, yellow <80, red >=80', () => {
-  assert.ok(ctxBar(25).includes('\x1b[32m'), 'green');
-  assert.ok(ctxBar(65).includes('\x1b[33m'), 'yellow');
-  assert.ok(ctxBar(90).includes('\x1b[31m'), 'red');
-  assert.ok(ctxBar(25).includes('\x1b[0m'), 'resets colour');
+  assert.ok(ctxBar(25, { color: true }).includes('\x1b[32m'), 'green');
+  assert.ok(ctxBar(65, { color: true }).includes('\x1b[33m'), 'yellow');
+  assert.ok(ctxBar(90, { color: true }).includes('\x1b[31m'), 'red');
+  assert.ok(ctxBar(25, { color: true }).includes('\x1b[0m'), 'resets colour');
+  assert.ok(!ctxBar(25, { color: false }).includes('\x1b['), 'explicit no-colour mode');
 });
 
 test('ctxBar: clamps out-of-range', () => {

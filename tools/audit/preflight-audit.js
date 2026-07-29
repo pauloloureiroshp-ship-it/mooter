@@ -177,14 +177,17 @@ async function runB1() {
     check(B, '\u2705', '~/.frugal/auth.token', 'valid, not expired');
   }
 
-  const deviceIdPath = path.join(FRUGAL_DIR, 'device.id');
+  const canonicalDeviceIdPath = path.join(MOOTER_DIR, 'device.id');
+  const legacyDeviceIdPath = path.join(FRUGAL_DIR, 'device.id');
+  const deviceIdPath = fileExists(canonicalDeviceIdPath) ? canonicalDeviceIdPath : legacyDeviceIdPath;
+  const deviceIdLabel = deviceIdPath === canonicalDeviceIdPath ? '~/.mooter/device.id' : '~/.frugal/device.id (legacy)';
   const deviceId = readFileSafe(deviceIdPath);
   if (!deviceId || !deviceId.trim()) {
-    check(B, '\u274C', '~/.frugal/device.id', 'missing or empty');
+    check(B, '\u274C', '~/.mooter/device.id', 'missing or empty');
   } else if (!isUUID(deviceId.trim())) {
-    check(B, '\u26A0\uFE0F', '~/.frugal/device.id', `not UUID format: ${deviceId.trim().slice(0, 20)}`);
+    check(B, '\u26A0\uFE0F', deviceIdLabel, `not UUID format: ${deviceId.trim().slice(0, 20)}`);
   } else {
-    check(B, '\u2705', '~/.frugal/device.id', deviceId.trim());
+    check(B, '\u2705', deviceIdLabel, deviceId.trim());
   }
 
   const settingsPath = path.join(HOME, '.claude', 'settings.json');
@@ -307,7 +310,11 @@ async function runB3() {
           'profile.devices', `${devices.length} device(s)`);
 
         if (devices.length > 0) {
-          const localDeviceId = (readFileSafe(path.join(FRUGAL_DIR, 'device.id')) || '').trim();
+          const localDeviceId = (
+            readFileSafe(path.join(MOOTER_DIR, 'device.id')) ||
+            readFileSafe(path.join(FRUGAL_DIR, 'device.id')) ||
+            ''
+          ).trim();
           const dev = devices.find(d => d.device_id === localDeviceId) || devices[0];
 
           check(B, dev.device_id === localDeviceId ? '\u2705' : '\u26A0\uFE0F',

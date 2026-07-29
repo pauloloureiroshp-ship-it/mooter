@@ -16,7 +16,7 @@ test('herdChip: empty herd shown by default, dimmed (A.1)', () => {
   // Plain (color off) still shows ×0 — "show by default", never hidden.
   assert.equal(herdChip(0, { color: false }), '🐄×0');
   // With color, an empty herd fades to dim ANSI so it reads as baseline.
-  const dim = herdChip(0);
+  const dim = herdChip(0, { color: true });
   assert.ok(dim.includes('🐄×0'), 'still shows the count');
   assert.ok(dim.includes('\x1b[2m') && dim.includes('\x1b[0m'), 'wrapped in dim ANSI');
 });

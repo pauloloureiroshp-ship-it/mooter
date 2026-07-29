@@ -17,6 +17,65 @@ The generated `_handoff/agent-sync/` directory is local runtime state and is
 gitignored. Source code, Git, tests and external connectors remain the evidence;
 the ledger points to them rather than duplicating transcripts.
 
+## Cross-device truth model
+
+```text
+provider/model execution
+  -> host writes one local typed event
+  -> validator rejects missing identity or possible secrets
+  -> one immutable receipt per event/device in the private vault
+  -> vault Git sync makes the receipt visible on every device
+  -> vault-status verifies receipt hashes and aggregates at read time
+  -> registry coverage fails if an expected device/surface is silent
+```
+
+The layers have distinct authority:
+
+| Question | Canonical source |
+|---|---|
+| What is happening in this worktree now? | local `_handoff/agent-sync/` ledger + Git |
+| What happened on another device/session? | immutable vault receipts |
+| What policy must every surface follow? | vault `00-core/agent-sync-protocol.md` |
+| Did code/tests/deploy really happen? | repo, test output, Git/PR/CI or runtime evidence |
+
+The vault is a durable projection, not a second execution bus. Its receipt path is
+`30-learnings/agent-sync/<project>/<device-id>/<yyyy-mm>/<timestamp>--<event-id>.md`.
+Event IDs make every path single-writer. Republishing identical content is a no-op;
+different content for the same ID fails closed. There is deliberately no shared
+mutable index for agents to race on.
+
+Receipt validity and fleet readiness are separate gates. `EVENT_AUDIT=pass`
+means only that the inspected local events are structurally trustworthy; it
+does **not** mean every device or provider reported. Cross-device readiness is
+`READINESS=pass` only when vault `00-core/agent-sync-registry.json` exists and
+every active device plus its required surfaces has a fresh, identity-matching
+receipt. The registry can require agents, providers and execution channels per
+device; the recorded model remains the real runtime value, never a guessed
+allowlist. Pending enrollment, stale receipts, clock skew, missing
+agents/providers/channels and an absent registry all fail closed.
+
+### Session boundary
+
+At start: read `AGENTS.md`, the tail of `SYNC.md`, local `latest.md`, vault
+`00-core/agent-sync-protocol.md`, run the read-only
+`node tools/router/agent-sync-ledger.js doctor --strict`, and run
+`vault-status --strict` when the vault is mounted. The doctor verifies the
+canonical device identity, frozen classifier, installed runtime and Stop hook,
+settings wiring, vault protocol/registry and auto-publish. A failed local or
+fleet readiness gate must be reported before product work starts.
+At finish: record one outcome/handoff with explicit device, provider, model,
+channel, evidence, result and next step; include `started_at`/`ended_at` when the
+host can measure them; run `audit`; publish the receipt. Unknown timing remains
+`n/d`, never an estimate. `duration_ms` is elapsed wall-clock time unless
+`timing_basis=runtime_reported`; it is never a productivity metric.
+
+Set `MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH=1` only on devices where `VAULT_PATH`
+points to the private vault and its normal Git sync is configured. Auto-publish
+is local, append-only and fail-soft; it records success/failure in
+`vault-projection.jsonl`. A local receipt reports `VAULT_LOCAL`; only Git/connector
+evidence can report `VAULT_REMOTE`. Local projection never commits or pushes a
+product repo.
+
 ## Lingua Franca v1
 
 This section defines the semantic contract for inter-agent messages. It extends,
@@ -159,6 +218,8 @@ node tools/router/agent-sync-ledger.js record \
   --channel subscription \
   --kind outcome --cadence checkpoint --status done \
   --session <id> --session-title "MEO Control Tower" \
+  --started-at "2026-07-29T12:00:00Z" \
+  --ended-at "2026-07-29T12:04:30Z" \
   --wave wave/meo-cto --pr "#247" \
   --evidence code,test,git \
   --summary "what actually changed" --next "next concrete gate"
@@ -183,11 +244,46 @@ node tools/router/agent-sync-ledger.js simulate
 
 It must report `SIMULATION=pass`.
 
+Validate the local bootstrap, then audit identity/completeness and publish to
+the private vault:
+
+```sh
+node tools/router/agent-sync-ledger.js doctor --strict
+node tools/router/agent-sync-ledger.js audit --window 1 --strict
+node tools/router/agent-sync-ledger.js publish-vault \
+  --vault "$VAULT_PATH" --project mooter --window 1 --strict
+node tools/router/agent-sync-ledger.js vault-status \
+  --vault "$VAULT_PATH" --project mooter --strict
+```
+
+`EVENT_AUDIT=fail` means an event cannot be trusted or published.
+`LOCAL_AGENT_SYNC=fail` means the current device cannot yet capture and project
+events automatically. The doctor never installs, authenticates, clones, commits
+or pushes; it only reports the smallest missing prerequisites.
+`FLEET_COVERAGE=not_checked` is deliberate: local event audit is not a fleet
+claim. `pass_with_gaps`
+means identity is valid but optional evidence such as exact duration, Git state
+or next step is `n/d`. `publish-vault` scans every local event, writes only valid
+durable receipts (`decision`, `gate`, `handoff`, `outcome`, `review`, `blocker`,
+or PR/wave/release cadence), and reports filtered events separately from invalid
+skips. Prompt/turn telemetry stays local unless an explicit publication uses
+`--all`. `--strict` fails on both errors and completeness warnings; `--window 1`
+gates only the just-recorded session boundary. `vault-status --strict` is the
+fleet coverage gate. `VAULT_LOCAL=pass` still leaves `VAULT_REMOTE=pending`
+until Git/connector evidence proves the receipt is remote.
+
 ## Event contract
 
-Core identity fields are `agent`, `provider`, `model`, `execution_channel`, `session_id`,
-`session_title`, `kind`, `cadence`, `status` and `ts`. Delivery fields are
-`wave`, `pr`, `git`, `files`, `artifact` and `links`. Knowledge mirrors use
+Core identity fields are `agent`, `recorded_by`, `provider`, `model`,
+`execution_channel`, `session_id`, `session_title`, `kind`, `cadence`, `status`,
+`ts` and `device`. Timing uses `started_at`, `ended_at`, `duration_ms` and
+`timing_basis`; the host records measured values only. `run_id` and
+`parent_event_id` connect
+movements without copying a transcript. The `device` object records the
+canonical `~/.mooter/device.id`, hostname, platform and architecture so elapsed
+work and handoffs can be separated by machine without guessing from prose.
+Delivery fields are `wave`, `pr`, `git`, `files`, `artifact` and `links`.
+Knowledge mirrors use
 `notion_ref`, `obsidian_ref` and concrete evidence tags.
 
 Valid event kinds: `sync`, `intent`, `brief`, `turn`, `decision`, `artifact`,
@@ -208,9 +304,12 @@ PR, Notion sync or Obsidian sync.
 
 - Claude Code: the existing Stop hook records one fail-soft `turn` event after
   `/mooter-update` mirrors the new runtime files.
-- Codex: uses the installed `mooter-agent-sync` skill and records checkpoints.
+- Codex: reads this repo-native `AGENTS.md` and records checkpoints from its
+  worktree; connector access is evidence, not permission to invent vault state.
 - Roo/Gemini: follows `.roo/rules/mooter-agent-sync.md`.
-- Ollama/Moos: receive explicit brief files; they are stateless otherwise.
+- Ollama/Moos: receive explicit brief files; the invoking host records
+  `agent=ollama`, the real provider/model and `channel=local` after the result.
+  They are stateless otherwise and are never expected to write the vault.
 - Cowork/Paulo: record decisions or handoffs explicitly when a connector or
   local mirror supplies evidence.
 
@@ -231,6 +330,16 @@ claimed when the active agent actually has that connector.
 
 - Never edit `tools/router/classify.js`.
 - Never record secrets or full prompt/code bodies in the agent-sync ledger.
+- Vault publication allowlists compact fields and rejects common secret/token
+  patterns before write; a suspected secret is a hard failure.
+- Receipt v2 carries a SHA-256 integrity field; edited machine data fails
+  closed. Legacy v1 receipts remain readable but visibly unverified.
+- The local `events.jsonl` is append-only; only generated projections are
+  limited to the latest 400 events. Malformed JSON fails visibly; mutable
+  snapshot/prompt projections use atomic rename so concurrent agents never
+  expose partially written files.
+- Never edit an existing vault receipt. Correct it with a new event that points
+  to the prior event via `parent_event_id`.
 - Never claim a test, model execution, PR, deployment or mirror sync without
   evidence.
 - Keep events compact; link to durable artifacts.
