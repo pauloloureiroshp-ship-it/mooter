@@ -48,7 +48,7 @@ function fixture() {
   return { base, remote, seed, clone };
 }
 
-function writeReceipt(vault, device, id, timestamp) {
+function writeReceipt(vault, device, id, timestamp, overrides) {
   const event = sync.normalizeEvent({
     id,
     agent: 'codex',
@@ -70,6 +70,7 @@ function writeReceipt(vault, device, id, timestamp) {
     device_platform: 'darwin',
     device_arch: 'arm64',
     source: 'unit-test',
+    ...overrides,
   }, { root: vault, git: false, classify: false, now: timestamp });
   const absolute = sync.vaultReceiptPath(vault, 'mooter', event);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
@@ -139,6 +140,49 @@ test('two devices safely reconcile concurrent append-only receipt commits', () =
     git(fx.clone, ['pull', '--ff-only']);
     assert.equal(fs.existsSync(path.join(fx.clone, receiptA)), true);
     assert.equal(fs.existsSync(path.join(fx.clone, receiptB)), true);
+  } finally {
+    fs.rmSync(fx.base, { recursive: true, force: true });
+  }
+});
+
+test('conflicting receipt-only rebases abort without changing the remote', () => {
+  const fx = fixture();
+  const second = path.join(fx.base, 'second');
+  try {
+    git(fx.base, ['clone', fx.remote, second]);
+    git(second, ['config', 'user.name', 'Agent Sync Test']);
+    git(second, ['config', 'user.email', 'agent-sync@example.invalid']);
+    const receiptA = writeReceipt(
+      fx.clone,
+      'same-device',
+      'same-event',
+      '2026-07-29T12:00:00.000Z',
+      { model: 'gpt-5-a' }
+    );
+    const receiptB = writeReceipt(
+      second,
+      'same-device',
+      'same-event',
+      '2026-07-29T12:00:00.000Z',
+      { model: 'gpt-5-b' }
+    );
+    assert.equal(receiptA, receiptB);
+    git(fx.clone, ['add', '--', receiptA]);
+    git(fx.clone, ['commit', '-m', 'receipt a']);
+    git(second, ['add', '--', receiptB]);
+    git(second, ['commit', '-m', 'receipt b']);
+    git(fx.clone, ['push', 'origin', 'main']);
+    const remoteBefore = git(fx.clone, ['ls-remote', '--heads', 'origin', 'refs/heads/main']).split(/\s+/)[0];
+
+    assert.throws(
+      () => vaultGit.syncVault(second),
+      /rebase conflicted/
+    );
+    assert.equal(git(second, ['status', '--short']), '');
+    assert.equal(
+      git(second, ['ls-remote', '--heads', 'origin', 'refs/heads/main']).split(/\s+/)[0],
+      remoteBefore
+    );
   } finally {
     fs.rmSync(fx.base, { recursive: true, force: true });
   }
