@@ -119,6 +119,23 @@ test('Mooter identity does not depend on a machine-global project environment va
   }
 });
 
+test('Mooter signature outranks a fork remote basename', () => {
+  const { root } = fixture();
+  try {
+    const init = childProcess.spawnSync('git', ['-C', root, 'init'], { encoding: 'utf8' });
+    assert.equal(init.status, 0, init.stderr);
+    const remote = childProcess.spawnSync(
+      'git',
+      ['-C', root, 'remote', 'add', 'origin', 'https://github.com/example/mooter-fork.git'],
+      { encoding: 'utf8' }
+    );
+    assert.equal(remote.status, 0, remote.stderr);
+    assert.equal(sync.resolveProject(root), 'mooter');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('normalizeEvent clamps and normalizes agent/cadence/status', () => {
   const { root } = fixture();
   try {
@@ -711,6 +728,33 @@ test('latest completed scope closes stale needs-human items instead of keeping t
     });
     const snapshot = sync.buildSnapshot(root, [blocked, done], null, { git: false, classify: false });
     assert.deepEqual(snapshot.open_items, []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('open item projection keeps the 12 most recently updated scopes', () => {
+  const { root } = fixture();
+  try {
+    const events = [];
+    for (let i = 0; i < 13; i++) {
+      events.push(completeEvent(root, {
+        id: `scope-${i}-first`,
+        scope: `scope-${i}`,
+        status: 'in_progress',
+        next: `first-${i}`,
+      }));
+    }
+    events.push(completeEvent(root, {
+      id: 'scope-0-latest',
+      scope: 'scope-0',
+      status: 'needs_human',
+      next: 'latest-zero',
+    }));
+    const snapshot = sync.buildSnapshot(root, events, null, { git: false, classify: false });
+    assert.equal(snapshot.open_items.length, 12);
+    assert.equal(snapshot.open_items.at(-1).next, 'latest-zero');
+    assert.equal(snapshot.open_items.some((row) => row.next === 'first-1'), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

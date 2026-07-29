@@ -215,8 +215,8 @@ function resolveProject(root, explicitProject) {
   return safeSegment(
     explicitProject ||
       (config && config.project) ||
-      gitRemoteProject(root) ||
       (isMooterRoot(root) ? 'mooter' : null) ||
+      gitRemoteProject(root) ||
       process.env.MOOTER_AGENT_SYNC_PROJECT ||
       path.basename(root),
     'unknown-project'
@@ -1303,6 +1303,7 @@ function buildSnapshot(root, events, dir, opts) {
   const superseded = new Set(events.map((e) => e.parent_event_id).filter(Boolean));
   for (const e of events) {
     const key = `${e.agent || 'unknown'}:${e.scope || e.session_id || e.id || 'unknown'}`;
+    if (latestByScope.has(key)) latestByScope.delete(key);
     latestByScope.set(key, e);
   }
   const open = Array.from(latestByScope.values())

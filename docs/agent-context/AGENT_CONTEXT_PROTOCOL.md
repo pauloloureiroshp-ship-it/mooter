@@ -79,10 +79,16 @@ evidence can report `VAULT_REMOTE`. `agent-sync-vault-git.js` is the single
 Git publisher: it accepts only new `30-learnings/agent-sync/**` receipts,
 blocks human-managed or mutable changes, reconciles concurrent receipt-only
 commits without force-push and never touches a product repo.
+Installing its scheduler requires the explicit `--ack-receipt-push` flag. That
+acknowledges recurring pushes only for verified, append-only vault receipts; it
+does not authorize product-repo push, merge, deploy, deletion or an allowlist
+change.
 
-Project identity resolves from explicit `--project`, `.agent-sync.json`, remote
-basename, environment fallback and directory basename, in that order. This
-prevents a global environment default from cross-contaminating another project.
+Project identity resolves from explicit `--project`, `.agent-sync.json`, the
+Mooter frozen-engine signature, remote basename, environment fallback and
+directory basename, in that order. This prevents both a Mooter fork from
+splitting its receipts and a global environment default from cross-contaminating
+another project.
 
 ## Lingua Franca v1
 

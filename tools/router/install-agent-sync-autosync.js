@@ -134,6 +134,9 @@ function install(options) {
   options = options || {};
   const config = buildConfig(options);
   const dryRun = options.dryRun === true;
+  if (!dryRun && options.ackReceiptPush !== true) {
+    throw new Error('scheduler install requires --ack-receipt-push for recurring append-only vault pushes');
+  }
   if (config.platform === 'darwin') {
     const file = path.join(config.home, 'Library', 'LaunchAgents', `${LABEL}.plist`);
     const content = launchdPlist(config);
@@ -201,13 +204,14 @@ function parseArgs(argv) {
 function command(argv, options) {
   const args = parseArgs(argv || []);
   if (args.help) {
-    return 'Usage: install-agent-sync-autosync.js --vault <path> [--interval 300] [--dry-run] [--json]\n';
+    return 'Usage: install-agent-sync-autosync.js --vault <path> [--interval 300] [--dry-run] [--ack-receipt-push] [--json]\n';
   }
   const result = install({
     ...options,
     vault: args.vault,
     interval: args.interval,
     dryRun: Boolean(args['dry-run']),
+    ackReceiptPush: Boolean(args['ack-receipt-push']),
   });
   return args.json
     ? JSON.stringify(result, null, 2) + '\n'

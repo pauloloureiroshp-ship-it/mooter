@@ -144,9 +144,31 @@ test('two devices safely reconcile concurrent append-only receipt commits', () =
   }
 });
 
+test('post-push verification accepts a concurrent mechanical advance and fast-forwards', () => {
+  const fx = fixture();
+  const second = path.join(fx.base, 'second');
+  try {
+    writeReceipt(fx.clone, 'device-a', 'receipt-before-verify', '2026-07-29T12:00:00.000Z');
+    const first = vaultGit.syncVault(fx.clone);
+    git(fx.base, ['clone', fx.remote, second]);
+    git(second, ['config', 'user.name', 'Agent Sync Test']);
+    git(second, ['config', 'user.email', 'agent-sync@example.invalid']);
+    writeReceipt(second, 'device-b', 'receipt-concurrent-verify', '2026-07-29T12:00:01.000Z');
+    const concurrent = vaultGit.syncVault(second);
+
+    const verified = vaultGit.verifyPushedHead(fx.clone, 'origin', 'main', first.local_head);
+    assert.equal(verified.remote_advanced, true);
+    assert.equal(verified.local_head, concurrent.remote_head);
+    assert.equal(git(fx.clone, ['rev-parse', 'HEAD']), concurrent.remote_head);
+  } finally {
+    fs.rmSync(fx.base, { recursive: true, force: true });
+  }
+});
+
 test('allowlist rejects traversal, mutable receipts and rename records', () => {
   assert.equal(vaultGit.isAllowedReceiptPath('30-learnings/agent-sync/mooter/a.md'), true);
   assert.equal(vaultGit.isAllowedReceiptPath('../30-learnings/agent-sync/a.md'), false);
+  assert.equal(vaultGit.isAllowedReceiptPath('30-learnings/agent-sync/mooter/..'), false);
   assert.equal(vaultGit.isAllowedReceiptPath('00-core/agent-sync-protocol.md'), false);
   const parsed = vaultGit.parsePorcelainZ('R  old.md\0new.md\0?? 30-learnings/agent-sync/a.md\0');
   assert.equal(parsed.length, 2);
@@ -162,6 +184,49 @@ test('a manually planted file inside the receipt tree is never published', () =>
       /integrity verification/
     );
     assert.equal(git(fx.clone, ['log', '-1', '--pretty=%s']), 'initial');
+  } finally {
+    fs.rmSync(fx.base, { recursive: true, force: true });
+  }
+});
+
+test('stale dead-process lock is reclaimed but an active lock remains fail-closed', () => {
+  const fx = fixture();
+  try {
+    const active = vaultGit.acquireLock(fx.clone, {
+      hostname: 'test-host',
+      pid: 1001,
+      isProcessAlive: (pid) => pid === 1001,
+    });
+    assert.throws(
+      () => vaultGit.acquireLock(fx.clone, {
+        hostname: 'test-host',
+        pid: 1002,
+        isProcessAlive: (pid) => pid === 1001,
+      }),
+      /already running/
+    );
+    active.release();
+
+    const gitDir = git(fx.clone, ['rev-parse', '--git-dir']);
+    const lockFile = path.join(fx.clone, gitDir, 'mooter-agent-sync-vault.lock');
+    fs.writeFileSync(lockFile, JSON.stringify({
+      pid: 9999,
+      hostname: 'test-host',
+      at: '2026-07-29T11:00:00.000Z',
+      token: 'stale',
+    }) + '\n');
+    fs.utimesSync(lockFile, new Date('2026-07-29T11:00:00.000Z'), new Date('2026-07-29T11:00:00.000Z'));
+
+    const reclaimed = vaultGit.acquireLock(fx.clone, {
+      hostname: 'test-host',
+      pid: 1002,
+      now: '2026-07-29T12:00:00.000Z',
+      lockStaleMs: 60 * 1000,
+      isProcessAlive: () => false,
+    });
+    assert.notEqual(reclaimed.owner.token, 'stale');
+    reclaimed.release();
+    assert.equal(fs.existsSync(lockFile), false);
   } finally {
     fs.rmSync(fx.base, { recursive: true, force: true });
   }

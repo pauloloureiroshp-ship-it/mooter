@@ -15,11 +15,14 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
 const childProcess = require('child_process');
 const sync = require('./agent-sync-ledger.js');
 
 const RECEIPT_PREFIX = '30-learnings/agent-sync/';
 const LOCK_NAME = 'mooter-agent-sync-vault.lock';
+const LOCK_STALE_MS = 15 * 60 * 1000;
 
 function clamp(value, max) {
   const text = value == null ? '' : String(value).trim();
@@ -44,8 +47,9 @@ function runGit(vaultRoot, args, options) {
 function isAllowedReceiptPath(file) {
   if (!file || path.isAbsolute(file)) return false;
   const normalized = file.replace(/\\/g, '/').replace(/^\.\//, '');
+  const segments = normalized.split('/');
   return normalized.startsWith(RECEIPT_PREFIX) &&
-    !normalized.includes('/../') &&
+    !segments.includes('..') &&
     !normalized.endsWith('/');
 }
 
@@ -181,26 +185,130 @@ function reconcileRemote(vaultRoot, remote, branch, options) {
   return { action: 'rebase', local, upstream };
 }
 
+function nowMs(options) {
+  const value = options && options.now;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Date.now();
+}
+
+function processAlive(pid, options) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (options && typeof options.isProcessAlive === 'function') {
+    return Boolean(options.isProcessAlive(pid));
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return Boolean(err && err.code === 'EPERM');
+  }
+}
+
+function lockSnapshot(file, options) {
+  try {
+    const stat = fs.statSync(file);
+    let owner = null;
+    try { owner = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* malformed is reported below */ }
+    const ageMs = Math.max(0, nowMs(options) - stat.mtimeMs);
+    const staleMs = Math.max(60 * 1000, Number(options && options.lockStaleMs) || LOCK_STALE_MS);
+    const hostname = options && options.hostname || os.hostname();
+    const ownerHost = owner && owner.hostname || hostname;
+    const alive = Boolean(owner && ownerHost === hostname && processAlive(Number(owner.pid), options));
+    return {
+      file,
+      owner,
+      age_ms: Math.round(ageMs),
+      stale_after_ms: staleMs,
+      reclaimable: ageMs >= staleMs && !alive && ownerHost === hostname,
+      inode: stat.ino,
+      size: stat.size,
+      mtime_ms: stat.mtimeMs,
+    };
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
 function acquireLock(vaultRoot, options) {
+  options = options || {};
   const gitDirResult = runGit(vaultRoot, ['rev-parse', '--git-dir'], options);
   const raw = clamp(gitDirResult.stdout, 1000);
   if (!raw) throw new Error('vault git directory unavailable');
   const gitDir = path.isAbsolute(raw) ? raw : path.join(vaultRoot, raw);
   const file = path.join(gitDir, LOCK_NAME);
+  const owner = {
+    pid: Number(options.pid) || process.pid,
+    hostname: options.hostname || os.hostname(),
+    at: new Date(nowMs(options)).toISOString(),
+    token: crypto.randomUUID(),
+  };
+  const create = () => fs.writeFileSync(file, JSON.stringify(owner) + '\n', {
+    flag: 'wx',
+    mode: 0o600,
+  });
   try {
-    fs.writeFileSync(file, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }) + '\n', {
-      flag: 'wx',
-      mode: 0o600,
-    });
+    create();
   } catch (err) {
-    if (err && err.code === 'EEXIST') throw new Error(`vault sync already running: ${file}`);
-    throw err;
+    if (!err || err.code !== 'EEXIST') throw err;
+    const stale = lockSnapshot(file, options);
+    if (!stale || !stale.reclaimable) {
+      const age = stale ? `${stale.age_ms}ms old` : 'state unavailable';
+      throw new Error(`vault sync already running: ${file} (${age})`);
+    }
+    const current = lockSnapshot(file, options);
+    if (!current ||
+      current.inode !== stale.inode ||
+      current.size !== stale.size ||
+      current.mtime_ms !== stale.mtime_ms) {
+      throw new Error(`vault sync lock changed during stale-lock review: ${file}`);
+    }
+    fs.unlinkSync(file);
+    try {
+      create();
+    } catch (retryErr) {
+      if (retryErr && retryErr.code === 'EEXIST') {
+        throw new Error(`vault sync already running after stale-lock recovery: ${file}`);
+      }
+      throw retryErr;
+    }
   }
   return {
     file,
+    owner,
     release() {
-      try { fs.unlinkSync(file); } catch { /* best effort for our own lock */ }
+      try {
+        const current = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (current && current.token === owner.token) fs.unlinkSync(file);
+      } catch { /* best effort, but never remove another owner's lock */ }
     },
+  };
+}
+
+function verifyPushedHead(vaultRoot, remote, branch, local, options) {
+  if (!local) throw new Error('vault push local HEAD is unavailable');
+  let upstream = remoteSha(vaultRoot, remote, branch, options);
+  if (upstream === local) {
+    return { local_head: local, remote_head: upstream, remote_advanced: false };
+  }
+
+  const remoteRef = `refs/remotes/${remote}/${branch}`;
+  runGit(vaultRoot, ['fetch', '--no-tags', remote, `refs/heads/${branch}:${remoteRef}`], options);
+  upstream = refSha(vaultRoot, remoteRef, options);
+  if (!upstream || !isAncestor(vaultRoot, local, upstream, options)) {
+    throw new Error('vault push could not be verified against remote HEAD');
+  }
+  assertMechanicalCommits(vaultRoot, local, upstream, options);
+  runGit(vaultRoot, ['merge', '--ff-only', upstream], options);
+  return {
+    local_head: refSha(vaultRoot, 'HEAD', options),
+    remote_head: upstream,
+    remote_advanced: true,
   };
 }
 
@@ -275,17 +383,22 @@ function syncVault(vaultRoot, options) {
       throw new Error(`vault push failed after ${attempts} safe attempts: ${clamp(push && push.stderr, 1200) || 'unknown error'}`);
     }
 
-    const local = refSha(resolved, 'HEAD', options);
-    const upstream = remoteSha(resolved, remote, branch, options);
-    if (!local || local !== upstream) throw new Error('vault push could not be verified against remote HEAD');
+    const verification = verifyPushedHead(
+      resolved,
+      remote,
+      branch,
+      refSha(resolved, 'HEAD', options),
+      options
+    );
     return {
       ok: true,
       dry_run: false,
       vault: resolved,
       branch,
       remote,
-      local_head: local,
-      remote_head: upstream,
+      local_head: verification.local_head,
+      remote_head: verification.remote_head,
+      remote_advanced: verification.remote_advanced,
       receipt_paths: refreshed.receipt_paths,
       verified_receipts: verifiedReceipts,
       action: refreshed.receipt_paths.length ? 'committed_and_pushed' : reconciliation.action,
@@ -350,7 +463,9 @@ module.exports = {
   committedPaths,
   assertMechanicalCommits,
   reconcileRemote,
+  lockSnapshot,
   acquireLock,
+  verifyPushedHead,
   syncVault,
   command,
 };

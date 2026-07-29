@@ -94,3 +94,25 @@ test('scheduler interval is clamped to safe operational bounds', () => {
     fs.rmSync(fx.home, { recursive: true, force: true });
   }
 });
+
+test('active scheduler installation requires explicit receipt-push acknowledgement', () => {
+  const fx = fixture();
+  try {
+    assert.throws(
+      () => installer.install({
+        home: fx.home,
+        vault: fx.vault,
+        script: fx.script,
+        node: process.execPath,
+        platform: 'darwin',
+      }),
+      /requires --ack-receipt-push/
+    );
+    assert.equal(
+      fs.existsSync(path.join(fx.home, 'Library', 'LaunchAgents', 'ai.mooter.agent-sync-vault.plist')),
+      false
+    );
+  } finally {
+    fs.rmSync(fx.home, { recursive: true, force: true });
+  }
+});
