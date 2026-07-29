@@ -324,7 +324,9 @@ claimed when the active agent actually has that connector.
 - Receipt v2 carries a SHA-256 integrity field; edited machine data fails
   closed. Legacy v1 receipts remain readable but visibly unverified.
 - The local `events.jsonl` is append-only; only generated projections are
-  limited to the latest 400 events. Malformed JSON fails visibly.
+  limited to the latest 400 events. Malformed JSON fails visibly; mutable
+  snapshot/prompt projections use atomic rename so concurrent agents never
+  expose partially written files.
 - Never edit an existing vault receipt. Correct it with a new event that points
   to the prior event via `parent_event_id`.
 - Never claim a test, model execution, PR, deployment or mirror sync without

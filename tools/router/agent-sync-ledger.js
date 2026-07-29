@@ -93,6 +93,17 @@ function safeRead(file) {
   try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
 }
 
+function atomicWrite(file, content) {
+  const temp = `${file}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  fs.writeFileSync(temp, content, 'utf8');
+  try {
+    fs.renameSync(temp, file);
+  } catch (err) {
+    try { fs.unlinkSync(temp); } catch { /* best effort cleanup */ }
+    throw err;
+  }
+}
+
 function safeDeviceId() {
   // Identity lookup must be read-only. Requiring identity.js here used to run
   // its legacy credential migration as a module-load side effect.
@@ -1201,10 +1212,10 @@ function writeBriefPrompts(root, event, snapshot, dir) {
 function writeSnapshot(root, snapshot, dir) {
   const ps = paths(root, dir);
   fs.mkdirSync(ps.promptsDir, { recursive: true });
-  fs.writeFileSync(ps.snapshot, JSON.stringify(snapshot, null, 2) + '\n');
-  fs.writeFileSync(ps.latest, renderSnapshot(snapshot) + '\n');
+  atomicWrite(ps.snapshot, JSON.stringify(snapshot, null, 2) + '\n');
+  atomicWrite(ps.latest, renderSnapshot(snapshot) + '\n');
   for (const agent of SYNC_AGENTS) {
-    fs.writeFileSync(path.join(ps.promptsDir, `${agent}.md`), renderAgentPrompt(snapshot, agent) + '\n');
+    atomicWrite(path.join(ps.promptsDir, `${agent}.md`), renderAgentPrompt(snapshot, agent) + '\n');
   }
 }
 

@@ -429,6 +429,32 @@ test('ledger is append-only beyond the 400-event projection window', () => {
   }
 });
 
+test('concurrent writers preserve every event and atomic projections', async () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    const runs = Array.from({ length: 12 }, (_, index) => new Promise((resolve) => {
+      const script = [
+        `const s=require(${JSON.stringify(path.join(__dirname, 'agent-sync-ledger.js'))});`,
+        `const root=${JSON.stringify(root)},dir=${JSON.stringify(dir)};`,
+        `const event=s.normalizeEvent({id:"concurrent-${index}",agent:"codex",recorded_by:"codex",provider:"openai",model:"gpt-5",channel:"subscription",kind:"outcome",cadence:"checkpoint",status:"done",summary:"concurrent event ${index}",device_id:"device-test-1",device_name:"Mac mini test",device_platform:"darwin",device_arch:"arm64",source:"unit-test"},{root,git:false,classify:false,now:"2026-07-29T12:00:02.500Z"});`,
+        's.appendEvent(root,event,dir,{git:false,classify:false});',
+      ].join('');
+      const child = childProcess.spawn(process.execPath, ['-e', script], {
+        env: { ...process.env, HOME: root },
+        stdio: 'ignore',
+      });
+      child.on('exit', (code) => resolve(code));
+    }));
+    assert.deepEqual(await Promise.all(runs), Array(12).fill(0));
+    assert.equal(sync.readEvents(root, dir).length, 12);
+    assert.doesNotThrow(() => JSON.parse(fs.readFileSync(path.join(dir, 'snapshot.json'), 'utf8')));
+    assert.equal(fs.readdirSync(dir).some((name) => name.endsWith('.tmp')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('malformed ledger lines fail visibly instead of being discarded', () => {
   const { root } = fixture();
   const dir = path.join(root, '_handoff', 'agent-sync');
