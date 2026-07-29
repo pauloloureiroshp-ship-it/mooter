@@ -475,6 +475,10 @@ function accumulateAgentSync() {
     model,
     execution_channel: 'subscription',
     summary: 'Claude Code turn completed',
+    started_at: payload.started_at || payload.startedAt || null,
+    ended_at: payload.ended_at || payload.endedAt || null,
+    duration_ms: payload.duration_ms != null ? payload.duration_ms : payload.durationMs,
+    recorded_by: 'claude-code',
   };
   try { sync.command(['hook'], { stdin: JSON.stringify(hookPayload), root: cwd }); } catch { /* never block Stop */ }
 }
