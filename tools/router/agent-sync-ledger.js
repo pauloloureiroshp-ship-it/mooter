@@ -1769,7 +1769,6 @@ function command(argv, opts) {
   if (args.help || cmd === 'help') return renderHelp();
   const root = findRepoRoot(args.root || opts.root || process.cwd());
   const dir = args.dir || opts.dir || defaultDir(root);
-  const project = resolveProject(root, args.project);
   if (cmd === 'hook') {
     const raw = opts.stdin != null ? opts.stdin : safeRead(0);
     const payload = safeJson(raw || '') || {};
@@ -1808,6 +1807,7 @@ function command(argv, opts) {
     appendEvent(hookRoot, ev, hookDir, { git: false });
     return '';
   }
+  const project = resolveProject(root, args.project);
   if (cmd === 'record' || cmd === 'checkpoint') {
     const ev = normalizeEvent({
       agent: args.agent,

@@ -889,6 +889,26 @@ test('command prompt renders stateless warning for ollama', () => {
   }
 });
 
+test('hook rejects a non-enrolled repo before spawning Git', () => {
+  const root = genericRepoFixture('not-enrolled');
+  const original = childProcess.spawnSync;
+  let gitCalls = 0;
+  try {
+    childProcess.spawnSync = (...args) => {
+      if (args[0] === 'git') gitCalls++;
+      return original(...args);
+    };
+    const out = sync.command(['hook', '--root', root], {
+      stdin: JSON.stringify({ cwd: root, session_id: 'not-enrolled' }),
+    });
+    assert.equal(out, '');
+    assert.equal(gitCalls, 0);
+  } finally {
+    childProcess.spawnSync = original;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('hook mode writes only inside a Mooter root', () => {
   const { root } = fixture();
   const dir = path.join(root, '_handoff', 'agent-sync');
