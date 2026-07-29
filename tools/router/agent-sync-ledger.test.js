@@ -141,6 +141,22 @@ test('normalizeEvent captures typed brief contract', () => {
   }
 });
 
+test('help is read-only even when attached to a mutating command', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    const out = sync.command(['record', '--help', '--root', root, '--dir', dir]);
+    assert.match(out, /Help is read-only/);
+    assert.equal(fs.existsSync(path.join(dir, 'events.jsonl')), false);
+
+    const globalHelp = sync.command(['help', '--root', root, '--dir', dir]);
+    assert.match(globalHelp, /Usage:/);
+    assert.equal(fs.existsSync(path.join(dir, 'events.jsonl')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('normalizeEvent records an honest execution window and derives duration', () => {
   const { root } = fixture();
   try {
