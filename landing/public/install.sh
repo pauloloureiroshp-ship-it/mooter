@@ -203,9 +203,12 @@ if [ -d "$SRC_DIR/skills" ]; then
   done
 fi
 
-# CLAUDE.md (only if missing or --force)
+# CLAUDE.md (only if missing or --force) — install the personal-doctrine
+# template, never the repo's own project-specific CLAUDE.md (that one is
+# Mooter-internal: FROZEN classify.js, sha256, tier ladder — not meant to
+# become the user's global ~/.claude/CLAUDE.md).
 if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ] || [ "$FORCE" = "1" ]; then
-  do_run "cp '$SRC_DIR/CLAUDE.md' '$CLAUDE_DIR/CLAUDE.md' 2>/dev/null || true"
+  do_run "cp '$SRC_DIR/CLAUDE.md.template' '$CLAUDE_DIR/CLAUDE.md' 2>/dev/null || true"
 fi
 
 ok "Runtime installed"
@@ -336,14 +339,29 @@ fi
 
 # ── Fleet heartbeat (fail-silent, anonymous — device_id only, no PII) ───
 # Confirms install success so mooter.ai fleet counters reflect reality.
-# Endpoint live since 2026-04; this call was lost in a refactor — restored
-# 2026-06-11 (Cowork). Runs in background; never blocks or fails the install.
-HUB_URL="${MOOTER_HUB_URL:-${FRUGAL_HUB_URL:-https://mooter-hub.frugal-hub.workers.dev}}"
-DEVICE_ID_HB="$(cat "$HOME/.mooter/device.id" 2>/dev/null || cat "$HOME/.frugal/device.id" 2>/dev/null || echo unknown)"
-( curl -s -m 5 -X POST "$HUB_URL/api/device-heartbeat" \
-    -H 'Content-Type: application/json' \
-    -d "{\"device_id\":\"$DEVICE_ID_HB\",\"setup_version\":\"install.sh@v$VERSION\",\"event\":\"install_ok\",\"platform\":\"$(uname -s)\",\"node_version\":\"$NODE_VER\",\"ts\":\"$(date -u +%FT%TZ)\"}" \
-    >/dev/null 2>&1 & ) 2>/dev/null
+# Wave F0 (2026-07-28) — this used to fire before consent existed, which
+# contradicted the "telemetry is opt-in" promise made elsewhere (plugin
+# README, PRIVACY.md). Explicit opt-in now, same shape as the Ollama pull
+# consent above: MOOTER_HEARTBEAT=1 forces yes (CI/automation), a real TTY
+# prompts (default No on timeout/empty), anything else skips.
+SEND_HEARTBEAT=0
+if [ "${MOOTER_HEARTBEAT:-0}" = "1" ]; then
+  SEND_HEARTBEAT=1
+elif [ -r /dev/tty ]; then
+  printf "  %s>%s Send anonymous install heartbeat (device id only, no prompt content)? [y/N] " "$C1" "$CR"
+  ans=""; read -t 10 -r ans < /dev/tty 2>/dev/null || ans=""
+  case "$ans" in [Yy]*) SEND_HEARTBEAT=1 ;; esac
+fi
+if [ "$SEND_HEARTBEAT" = "1" ]; then
+  HUB_URL="${MOOTER_HUB_URL:-${FRUGAL_HUB_URL:-https://mooter-hub.frugal-hub.workers.dev}}"
+  DEVICE_ID_HB="$(cat "$HOME/.mooter/device.id" 2>/dev/null || cat "$HOME/.frugal/device.id" 2>/dev/null || echo unknown)"
+  ( curl -s -m 5 -X POST "$HUB_URL/api/device-heartbeat" \
+      -H 'Content-Type: application/json' \
+      -d "{\"device_id\":\"$DEVICE_ID_HB\",\"setup_version\":\"install.sh@v$VERSION\",\"event\":\"install_ok\",\"platform\":\"$(uname -s)\",\"node_version\":\"$NODE_VER\",\"ts\":\"$(date -u +%FT%TZ)\"}" \
+      >/dev/null 2>&1 & ) 2>/dev/null
+else
+  info "Skipped install heartbeat (opt-in, declined). Enable anytime: MOOTER_HEARTBEAT=1 ./install.sh"
+fi
 
 # ── Post-install ────────────────────────────────────────────────────────
 echo ""
