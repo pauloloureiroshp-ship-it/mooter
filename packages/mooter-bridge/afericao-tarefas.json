@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "so_nuvem_rule_count",
+      "question": "Quantas regras existem no array SO_NUVEM de localfirst.js?",
+      "file": "localfirst.js",
+      "expected": 6,
+      "kind": "number",
+      "verification": "SO_NUVEM.length"
+    },
+    {
+      "id": "local_context_limit",
+      "question": "Qual é o valor de CONTEXTO_MAX_LOCAL_CHARS em localfirst.js?",
+      "file": "localfirst.js",
+      "expected": 18000,
+      "kind": "number",
+      "verification": "CONTEXTO_MAX_LOCAL_CHARS"
+    },
+    {
+      "id": "quota_forced_field",
+      "question": "Qual é o nome do campo que indica que a quota forçou a execução local?",
+      "file": "localfirst.js",
+      "expected": "forcado_por_quota",
+      "kind": "identifier",
+      "verification": "cabeNoLocal(...).forcado_por_quota"
+    },
+    {
+      "id": "learning_minimum_observations",
+      "question": "Quantas observações mínimas exige aprender.js antes de recomendar um agente?",
+      "file": "aprender.js",
+      "expected": 5,
+      "kind": "number",
+      "verification": "MIN_OBSERVATIONS"
+    },
+    {
+      "id": "quota_long_window_days",
+      "question": "Quantos dias tem JANELA_LONGA_D em quota.js?",
+      "file": "quota.js",
+      "expected": 7,
+      "kind": "number",
+      "verification": "JANELA_LONGA_D"
+    }
+  ]
+}

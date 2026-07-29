@@ -35,20 +35,30 @@ jobs:
           fi
           echo "version=$CORE" >> "$GITHUB_OUTPUT"
 
-      - name: Update version.json
+      # Writes BOTH version.json files. landing/app/version.json is a build-time
+      # copy (Next.js can only import from inside the app root, so the landing
+      # cannot read tools/router/version.json directly) — but a copy nobody syncs
+      # is just a lie with a timestamp. It sat at 1.39.0 while the router shipped
+      # 1.44.0, so the public site advertised a version 5 minors stale. Both are
+      # derived from the tag here; neither is ever hand-edited.
+      - name: Update version.json (router + landing)
         if: steps.ver.outputs.skip != '1'
         run: |
           node -e '
             const fs = require("fs");
-            const p = "tools/router/version.json";
-            const j = JSON.parse(fs.readFileSync(p, "utf8"));
             const v = process.env.VERSION;
             const today = new Date().toISOString().slice(0, 10);
-            if (j.version === v) { console.log("version.json already " + v + " — no change"); process.exit(0); }
-            j.version = v;
-            j.released = today;
-            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
-            console.log("Bumped version.json → " + v);
+            const targets = ["tools/router/version.json", "landing/app/version.json"];
+            for (const p of targets) {
+              const j = JSON.parse(fs.readFileSync(p, "utf8"));
+              if (j.version === v) { console.log(p + " already " + v + " — no change"); continue; }
+              j.version = v;
+              // Only the router manifest carries a release date; the landing copy
+              // is a mirror of the version string alone.
+              if ("released" in j) j.released = today;
+              fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+              console.log("Bumped " + p + " → " + v);
+            }
           '
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -56,13 +66,13 @@ jobs:
       - name: Commit back if changed
         if: steps.ver.outputs.skip != '1'
         run: |
-          if git diff --quiet -- tools/router/version.json; then
+          if git diff --quiet -- tools/router/version.json landing/app/version.json; then
             echo "No version.json change to commit."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tools/router/version.json
+          git add tools/router/version.json landing/app/version.json
           git commit -m "chore(release): sync version.json → ${{ steps.ver.outputs.version }} [skip ci]"
           # main may have advanced between the tag push and this job — rebase before
           # pushing so a racing commit doesn't cause a non-fast-forward failure.

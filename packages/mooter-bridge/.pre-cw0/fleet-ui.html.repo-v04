@@ -1,0 +1,274 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root{
+    /* without this the iframe canvas stays white in dark mode and the whole
+       panel renders light-text-on-white. Caught by rendering it, not by reading it. */
+    color-scheme: light dark;
+    --tx:#141413; --tx2:#6b6a63; --tx3:#8f8e86; --line:rgba(0,0,0,.10); --hov:rgba(0,0,0,.035);
+    --run:#c15f3c; --ok:#5c8a2f; --bad:#c0392b; --idle:#9b9a92;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --tx:#f0efe9; --tx2:#a8a79e; --tx3:#7e7d75; --line:rgba(255,255,255,.12); --hov:rgba(255,255,255,.04); }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:transparent;color:var(--tx);
+       font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:2px 0}
+
+  .top{display:flex;align-items:center;gap:8px;padding:0 2px 10px}
+  .lv{width:7px;height:7px;border-radius:50%;background:var(--idle);flex:none}
+  .lv.on{background:var(--ok);animation:pl 1.6s ease-in-out infinite}
+  @keyframes pl{0%,100%{opacity:.35}50%{opacity:1}}
+  .top .n{font-size:14px}
+  .top .t{margin-left:auto;font-size:12px;color:var(--tx3);font-variant-numeric:tabular-nums}
+  .ctx{font-size:12px;color:var(--tx3);padding:0 2px 10px;margin-top:-6px;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  details{border-top:1px solid var(--line)}
+  details[open] summary .chev{transform:rotate(45deg);margin-bottom:5px}
+  summary{display:flex;align-items:center;gap:7px;padding:9px 2px;cursor:pointer;list-style:none;
+          font-size:12.5px;font-weight:500;color:var(--tx)}
+  summary::-webkit-details-marker{display:none}
+  summary:hover{background:var(--hov)}
+  .chev{width:9px;height:9px;flex:none;border-right:1.5px solid var(--tx3);border-bottom:1.5px solid var(--tx3);
+        transform:rotate(-45deg);transition:transform .15s;margin:0 2px 3px 2px}
+  .cnt{margin-left:auto;font-size:11.5px;color:var(--tx3);font-variant-numeric:tabular-nums;font-weight:400}
+
+  .wave{font-size:11px;color:var(--tx3);padding:6px 2px 2px 20px;letter-spacing:.02em}
+  .row{display:flex;align-items:center;gap:10px;padding:7px 2px 7px 20px}
+  .row:hover{background:var(--hov)}
+  .ic{width:14px;flex:none;display:flex;justify-content:center}
+  .sp{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--line);border-top-color:var(--run);animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .dn{width:13px;height:13px;border-radius:50%;background:var(--ok);display:flex;align-items:center;justify-content:center}
+  .dn:after{content:"";width:5px;height:2.5px;border-left:1.5px solid #fff;border-bottom:1.5px solid #fff;transform:rotate(-45deg);margin-top:-1px}
+  .fl{width:13px;height:13px;border-radius:50%;background:var(--bad)}
+  .gp{width:9px;height:9px;border-radius:2px;background:#6f66c0}
+  .mid{flex:1;min-width:0}
+  .ttl{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub{display:block;font-size:11.5px;color:var(--tx3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row.done .ttl{text-decoration:line-through;color:var(--tx3)}
+  .mdl{display:flex;align-items:center;gap:6px;flex:none;font-size:12.5px;color:var(--tx2);white-space:nowrap}
+  .cd{width:6px;height:6px;border-radius:50%;flex:none}
+  .el{font-size:12.5px;color:var(--tx3);width:38px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+  .msg{font-size:12px;color:var(--tx3);padding:6px 2px 10px 20px}
+</style>
+
+<div class="top">
+  <span class="lv" id="lv"></span>
+  <span class="n" id="n">a ligar…</span>
+  <span class="t" id="t"></span>
+</div>
+<div class="ctx" id="ctx" style="display:none"></div>
+<div id="secs"></div>
+
+<script>
+(function () {
+  var COLOR = { cc: '#c15f3c', codex: '#3a7fc4', gemini: '#8a7ec4', moo: '#6f66c0' };
+  var pending = {}, seq = 0, haveData = false, fails = 0, timer = null, openState = {};
+
+  function post(m) { try { parent.postMessage(m, '*'); } catch (e) { /* */ } }
+
+  post({ jsonrpc: '2.0', id: 'ui-init', method: 'ui/initialize',
+         params: { protocolVersion: '2026-01-26', capabilities: {},
+                   clientInfo: { name: 'mooter-fleet-panel', version: '0.4.0' } } });
+
+  // A tool pode chegar ao host com o nome simples ou prefixado (quando proxiada).
+  // O painel descobre qual funciona na primeira chamada e fixa-o.
+  // O nome com que a tool chega ao host depende da superficie: directo no desktop,
+  // ou prefixado quando a sessao corre na nuvem e passa pela ponte remote-devices
+  // (o segmento do meio e' o display_name do manifesto -> "Mooter", com maiuscula).
+  // Provado no diario do servidor: as chamadas do painel CHEGAM; so' falhavam o nome.
+  var TOOL_NAMES = [
+    'mooter_fleet',
+    'mcp__remote-devices__Mooter__mooter_fleet',
+    'mcp__remote-devices__mooter__mooter_fleet',
+    'mcp__Mooter__mooter_fleet',
+    'mcp__mooter__mooter_fleet'
+  ];
+  var toolName = null;
+
+  function callAny(args) {
+    if (toolName) return callTool(toolName, args);
+    var i = 0;
+    function attempt() {
+      if (i >= TOOL_NAMES.length) return Promise.reject(new Error('tool not found under any known name'));
+      var n = TOOL_NAMES[i++];
+      return callTool(n, args).then(function (r) { toolName = n; return r; }, function (e) {
+        if (String((e && e.message) || '').indexOf('unknown tool') >= 0) {
+          var k = TOOL_NAMES.indexOf(n); if (k >= 0) TOOL_NAMES.splice(k, 1); i = Math.max(0, i - 1);
+        }
+        return attempt();
+      });
+    }
+    return attempt();
+  }
+
+  function callTool(name, args) {
+    if (window.mcpApp && typeof window.mcpApp.callTool === 'function') return window.mcpApp.callTool(name, args || {});
+    return new Promise(function (resolve, reject) {
+      var id = 'ui-' + (++seq);
+      pending[id] = { resolve: resolve, reject: reject };
+      post({ jsonrpc: '2.0', id: id, method: 'tools/call', params: { name: name, arguments: args || {} } });
+      setTimeout(function () { if (pending[id]) { delete pending[id]; reject(new Error('timeout')); } }, 8000);
+    });
+  }
+
+  function unwrap(res) {
+    if (!res) return null;
+    if (res.structuredContent) return res.structuredContent;
+    if (res.content && res.content[0] && res.content[0].text) {
+      try { return JSON.parse(res.content[0].text); } catch (e) { return null; }
+    }
+    return (res.jobs || res.waves || res.error) ? res : null;
+  }
+
+  window.addEventListener('message', function (ev) {
+    var m = ev.data;
+    if (!m || typeof m !== 'object') return;
+    if (m.id && pending[m.id]) {
+      var p = pending[m.id]; delete pending[m.id];
+      if (m.error) p.reject(new Error((m.error && m.error.message) || 'rpc error')); else p.resolve(m.result);
+      return;
+    }
+    if (m.method === 'ui/notifications/tool-result') {
+      // o host diz-nos o nome exacto com que ELE conhece a tool — fixa-o e poupa tentativas
+      var nm = m.params && (m.params.toolName || m.params.name);
+      if (nm && TOOL_NAMES.indexOf(nm) < 0) { TOOL_NAMES.unshift(nm); }
+      if (nm) toolName = nm;
+      var d = unwrap(m.params && (m.params.result || m.params)); if (d) render(d); return;
+    }
+    if (m.method === 'ui/notifications/tool-input') {
+      var ni = m.params && (m.params.toolName || m.params.name);
+      if (ni) { if (TOOL_NAMES.indexOf(ni) < 0) TOOL_NAMES.unshift(ni); toolName = ni; }
+      return;
+    }
+    var g = m.params && (m.params.structuredContent || m.params.data);
+    if (g && (g.jobs || g.waves || g.error)) render(g);
+  });
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function node(tag, cls, html) { var d = document.createElement(tag); if (cls) d.className = cls; if (html != null) d.innerHTML = html; return d; }
+  function gb(n) { return n == null ? null : (n / 1073741824).toFixed(1) + ' GB'; }
+  function ctxLabel(n) { return n == null ? '—' : (n >= 1024 ? Math.round(n / 1024) + 'k' : String(n)); }
+
+  function jobRow(j, done) {
+    var ic = done ? (j.state === 'failed' ? '<span class="fl"></span>' : '<span class="dn"></span>')
+                  : '<span class="sp"></span>';
+    var label = j.model || j.agent_label || j.agent || '—';
+    var c = COLOR[j.agent] || '#9b9a92';
+    var title = j.where || j.job_id || '';
+    var sub = j.subagents ? (j.subagents + ' subagentes') : '';
+    return node('div', 'row' + (done ? ' done' : ''),
+      '<span class="ic">' + ic + '</span>' +
+      '<span class="mid"><span class="ttl">' + esc(title) + '</span>' +
+        (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</span>' +
+      '<span class="mdl"><span class="cd" style="background:' + c + '"></span>' + esc(label) + '</span>' +
+      '<span class="el">' + (j.elapsed_s != null ? j.elapsed_s + 's' : '—') + '</span>');
+  }
+
+  function sessionRow(s) {
+    return node('div', 'row',
+      '<span class="ic"><span class="sp"></span></span>' +
+      '<span class="mid"><span class="ttl">' + esc(s.title || s.project || s.id) + '</span></span>' +
+      '<span class="mdl"><span class="cd" style="background:#c15f3c"></span>' + esc(s.model || 'Claude Code') + '</span>' +
+      '<span class="el">—</span>');
+  }
+
+  function localRow(m) {
+    var meta = [m.parameter_size, m.quantization, gb(m.vram_bytes)].filter(Boolean).join(' · ');
+    return node('div', 'row',
+      '<span class="ic"><span class="gp"></span></span>' +
+      '<span class="mid"><span class="ttl">' + esc(m.model || '—') + '</span>' +
+        (meta ? '<span class="sub">' + esc(meta) + '</span>' : '') + '</span>' +
+      '<span class="mdl"><span class="cd" style="background:#6f66c0"></span>local</span>' +
+      '<span class="el">' + esc(ctxLabel(m.context_length)) + '</span>');
+  }
+
+  function section(key, title, count, build) {
+    var open = openState[key] !== false;
+    var d = node('details'); d.open = open;
+    d.addEventListener('toggle', function () { openState[key] = d.open; });
+    var s = node('summary', null, '<span class="chev"></span>' + esc(title) + '<span class="cnt">' + esc(count) + '</span>');
+    d.appendChild(s);
+    build(d);
+    return d;
+  }
+
+  function render(d) {
+    haveData = true;
+    var secs = document.getElementById('secs');
+    var n = document.getElementById('n'), lv = document.getElementById('lv'), t = document.getElementById('t');
+    var ctxEl = document.getElementById('ctx');
+    secs.innerHTML = '';
+    t.textContent = new Date(d.ts || Date.now()).toLocaleTimeString();
+
+    if (d.error) { n.textContent = 'frota parada'; lv.classList.remove('on');
+      secs.appendChild(node('div', 'msg', esc(d.error))); return; }
+
+    var c = d.context;
+    if (c && (c.project || c.folder_name)) {
+      ctxEl.style.display = 'block';
+      ctxEl.textContent = [c.project, c.folder_name].filter(Boolean).join(' · ')
+        + (c.files && c.files.length ? '  ·  ' + c.files.length + ' ficheiros' : '');
+    } else { ctxEl.style.display = 'none'; }
+
+    var jobs = d.jobs || [], sess = d.sessions || [], local = d.local;
+    var liveJobs = jobs.filter(function (j) { return j.state === 'running' || j.state === 'dispatched'; });
+    var doneJobs = jobs.filter(function (j) { return j.state === 'done' || j.state === 'failed'; });
+    var localCount = local == null ? null : local.length;
+    var count = liveJobs.length || sess.length;
+
+    n.textContent = count ? (count + ' agente' + (count > 1 ? 's' : '') + ' a trabalhar') : 'frota parada';
+    lv.classList.toggle('on', count > 0);
+
+    // --- a trabalhar, agrupado por wave ---
+    secs.appendChild(section('live', 'A trabalhar', String(count), function (d2) {
+      if (!liveJobs.length && sess.length) { sess.forEach(function (s) { d2.appendChild(sessionRow(s)); }); return; }
+      if (!liveJobs.length) { d2.appendChild(node('div', 'msg', 'nenhum job em curso')); return; }
+      (d.waves || []).forEach(function (w) {
+        var live = w.jobs.filter(function (j) { return j.state === 'running' || j.state === 'dispatched'; });
+        if (!live.length) return;
+        d2.appendChild(node('div', 'wave', esc(w.wave)));
+        live.forEach(function (j) { d2.appendChild(jobRow(j, false)); });
+      });
+    }));
+
+    // --- fleet local (Ollama /api/ps) ---
+    secs.appendChild(section('local', 'Local · GPU', localCount == null ? 'n/d' : String(localCount), function (d2) {
+      if (local == null) { d2.appendChild(node('div', 'msg', 'Ollama não respondeu em ' + esc(d.local_host || '127.0.0.1:11434') + ' — n/d, não zero')); return; }
+      if (!local.length) { d2.appendChild(node('div', 'msg', 'Ollama a correr, nenhum modelo residente')); return; }
+      local.forEach(function (m) { d2.appendChild(localRow(m)); });
+    }));
+
+    // --- concluídas: riscadas, com quem as fez ---
+    if (doneJobs.length) {
+      secs.appendChild(section('done', 'Concluídas', String(doneJobs.length), function (d2) {
+        doneJobs.forEach(function (j) { d2.appendChild(jobRow(j, true)); });
+      }));
+    }
+    if (d.notice) secs.appendChild(node('div', 'msg', esc(d.notice)));
+  }
+
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(tick, ms); }
+
+  function tick() {
+    callAny({ windowMinutes: 30 })
+      .then(function (res) { var d = unwrap(res); if (d) { fails = 0; render(d); } schedule(3000); })
+      .catch(function () {
+        fails++;
+        if (!haveData) {
+          document.getElementById('n').textContent = 'sem ligação ao daemon';
+          document.getElementById('lv').classList.remove('on');
+        }
+        schedule(fails >= 3 ? 15000 : 3000);
+      });
+  }
+
+  tick();
+})();
+</script>

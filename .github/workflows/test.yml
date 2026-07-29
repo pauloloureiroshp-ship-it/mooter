@@ -6,12 +6,14 @@ on:
     paths:
       - 'tools/router/**'
       - 'packages/cli/**'
+      - 'packages/mooter-bridge/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
     paths:
       - 'tools/router/**'
       - 'packages/cli/**'
+      - 'packages/mooter-bridge/**'
       - '.github/workflows/test.yml'
   workflow_dispatch:
 
@@ -153,6 +155,48 @@ jobs:
           node --test --test-force-exit \
             --test-skip-pattern="(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)" \
             "$HOME/.claude/tools/router/backtest.test.js"
+
+      # ── mooter-bridge: a bateria completa e o gate de entrega ──────────
+      # Zero dependências, por isso não precisa de npm ci. `node --test` sem
+      # argumento descobre os *.test.js todos — a 2026-07-27 eram 31 ficheiros
+      # e 357 asserções. Antes disto o pacote inteiro corria fora do CI e uma
+      # sessão chegou a anunciar "140 testes verdes" tendo corrido 11 dos 29
+      # ficheiros. Um número que ninguém verifica não é uma prova.
+      - name: Test mooter-bridge
+        working-directory: packages/mooter-bridge
+        run: node --test
+
+      # O gate de conteúdo isolado, para o vermelho dizer JÁ o que se partiu:
+      # se uma entrega declarada foi regredida, isto falha com o ficheiro e o
+      # marcador em falta, em vez de se perder no meio da bateria.
+      - name: Delivery content gate (mooter-bridge)
+        working-directory: packages/mooter-bridge
+        run: node --test entrega.test.js
+
+      # ⚠️ `sync:check` NÃO entra aqui como gate, de propósito.
+      #
+      # O SYNC.md projecta estado lido ao vivo do ledger local (~/.mooter). No
+      # runner do CI não há ledger nem frota, por isso o ficheiro gerado nunca
+      # coincidiria com o commitado e o passo seria vermelho SEMPRE — por
+      # razões de ambiente, não por deriva real. Um gate que dá falsos
+      # vermelhos acaba desligado, e um guarda desligado não guarda nada.
+      # O que se pode verificar aqui sem mentir é que o gerador não está
+      # partido: que carrega, expõe o contrato e a máscara do HEAD funciona.
+      - name: Sync generator loads and keeps its contract
+        working-directory: packages/mooter-bridge
+        run: |
+          node -e "
+            const s = require('./sync.js');
+            for (const k of ['projectSync','runCli','semHead','HUMAN_START','HUMAN_END']) {
+              if (s[k] === undefined) { console.error('sync.js deixou de exportar ' + k); process.exit(1); }
+            }
+            const masked = s.semHead('- HEAD: ' + 'a'.repeat(40));
+            if (!/^- HEAD: <mascarado>\$/m.test(masked)) {
+              console.error('semHead deixou de reconhecer a linha que o renderSync produz');
+              process.exit(1);
+            }
+            console.log('sync.js OK — contrato e mascara do HEAD intactos');
+          "
 
       - name: Run event-builder self-test
         run: node tools/router/event-builder.js --self-test

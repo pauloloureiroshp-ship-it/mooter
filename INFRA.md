@@ -28,6 +28,22 @@
 
 > **Para qualquer sessão:** usa os padrões abaixo. Nunca precisas de navegar manualmente.
 
+### Capacidades do cliente MCP do Mooter
+
+Sonda M0 implementada em 2026-07-26. A fonte operacional é
+`~/.mooter/mcp-capabilities.json`, escrita a partir de `initialize.params.capabilities`;
+ausência de declaração é `n/d`, nunca `false`. Nesta verificação o ficheiro ainda não
+existia porque o conector com a sonda ainda não tinha sido carregado pelo Cowork.
+
+| Capacidade | Estado medido | Fonte / porque |
+|---|---|---|
+| resources | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| prompts | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| elicitation | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| sampling | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+| roots | n/d | `mcp-capabilities.json` ausente em 2026-07-26; se declarado, o servidor pede `roots/list` e guarda as roots recebidas |
+| logging | n/d | `mcp-capabilities.json` ausente em 2026-07-26; medir no próximo `initialize` |
+
 ### Vercel (MCP ID: `e1fe49cb-32e5-4421-af51-11afacdca0bb`)
 
 ```
@@ -142,9 +158,26 @@ git status --short && git log --oneline -5
 # Push standard
 git push origin main
 
-# Tag nova versão
-git tag -a v0.9.X -m "v0.9.X — descrição" && git push origin v0.9.X
+# Tag nova versão (ver POLÍTICA DE TAGS abaixo antes de escolher o nome)
+git tag -a v1.44.0-slug -m "v1.44.0 — descrição" && git push origin v1.44.0-slug
 ```
+
+### POLÍTICA DE TAGS E VERSÃO (2026-07-16)
+
+A tag de release é `vX.Y.Z[-slug]`, onde o `-slug` nomeia a wave/feature (`v1.44.0-graphify`). Ao dar
+push, `.github/workflows/version-sync.yml` deriva o core semver (tira o `v` e tudo a partir do primeiro
+`-`) e escreve-o em **`tools/router/version.json` — a única fonte de verdade** — e em
+`landing/app/version.json`, que é uma cópia gerada e existe só porque o Next.js não consegue importar
+de fora da app root. **Nenhum dos dois se edita à mão**, e a versão nunca aparece hardcoded em JSX: a
+landing lê o JSON (`app/page.tsx` hero badge, changelog, compare, install, methodology). Várias tags
+podem partilhar o mesmo core semver — `v1.44.0-graphify`, `v1.44.0-first-magic` e
+`v1.44.0-compaction-advisor` são três waves sob o mesmo 1.44.0, e isso é intencional: o core só sobe
+quando o que o produto promete muda. Tags de componente usam prefixo próprio
+(`vscode-cockpit-v0.12.1`) e são deliberadamente ignoradas pelo version-sync, que só faz match em
+`v<dígito>`. Histórico da dor: o sync nasceu porque `version.json` ficou em 1.6.0 com as tags em 1.21.x;
+a mesma classe de drift reapareceu em 2026-07-16 com a landing em 1.39.0 contra o router em 1.44.0 —
+por isso o workflow passou a escrever os dois ficheiros no mesmo run. Regra do 2.0: `v2.0.0` é tag
+**depois** do gate humano, nunca antes (ver `_handoff/MOOTER_20_RELEASE_GATE.md`).
 
 ---
 
@@ -458,7 +491,16 @@ schtasks /query /tn "FrugalRouterBacktest" /fo list
 | Serviço | Plano | Conta | Dashboard | Propósito |
 |---|---|---|---|---|
 | Anthropic API | Pay-as-go | paulo.loureiro.shp@gmail.com | console.anthropic.com | Haiku (T1) |
-| Ollama | Local | — | localhost:11434 | T0 (qwen3:30b) |
+| Ollama | Local | — | localhost:11434 | T0 (selector adequação×capacidade desde v1.12 — Onda 1) |
+
+### Ollama — afinação (Onda 1.5, 2026-07-26)
+
+- `OLLAMA_KV_CACHE_TYPE=q8_0` (env de utilizador Windows) — metade da memória de KV,
+  Δppl 0,002-0,05 (imperceptível). Exige flash attention: automático desde Ollama 0.30.0
+  (esta máquina: 0.32.3 ✅). **Só vale após reiniciar o serviço Ollama.**
+- `num_ctx` agora é enviado pelo bridge (mín. 16384, teto `MOOTER_NUM_CTX_MAX`, default 32768)
+  + `keep_alive` (`MOOTER_KEEP_ALIVE`, default 10m). Antes: default 4096 e truncagem silenciosa.
+- ❌ NVFP4/MXFP4 não é opção: exige Blackwell, a 4090 é Ada. Q4_K_M continua o alvo.
 | Sentry | Free? | — | sentry.io | Error tracking (MCP disponível) |
 
 ---

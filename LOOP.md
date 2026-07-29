@@ -289,7 +289,80 @@ do Paulo. Regra destilável: **primeiro preservar a identidade e o WIP; só depo
 
 ---
 
+### 2026-07-16-phase-a-gate-untracked-enganou-3-agentes
+
+**Contexto:** ciclo de remediação F1–F3. `PHASE_A_GATE.md` foi criado a 10/07 e nunca commitado.
+
+**Resultado observado:** o ficheiro não-commitado enganou 3 agentes em cadeia (auditoria → masterprompt
+→ executor). Um `git add` faltando custou 6 dias de verdade divergente.
+
+**Quem observou:** Cowork (2026-07-16), ao fechar o ciclo de remediação F1–F3.
+
+**Status:** hipótese e experimento registados na secção HIPÓTESE. Relaciona-se com
+`2026-07-12-worktree-sprawl-esconde-wip-real` (mesma raiz: trabalho não-durável).
+
+---
+
+### 2026-07-16-auditoria-d1-h8-citada-mas-inexistente
+
+**Contexto:** o `MOOTER_20_TRUST_RELEASE_MASTERPROMPT.md:36` fundamentou a fase H1 (de-clutter do
+Cockpit) numa "densidade N/V na auditoria **D1-h8**". O executor foi ler a auditoria antes de cortar.
+
+**Resultado observado:** **a auditoria não existe.** A string `D1-h8` ocorre **exactamente uma vez em
+todo o repo — dentro do próprio masterprompt que a cita como fonte**. Citação auto-referencial: o
+documento é a única prova de si mesmo. O executor marcou a densidade como `UNVERIFIED` em vez de a
+repetir como facto, e o inventário mediu o código directamente — foi assim que caíram mais 3 premissas
+do mesmo masterprompt (`extension.js` 823.184 bytes ≠ ~332KB · 8 tabs ≠ 5 superfícies · 7 comandos ≠ 5).
+
+**Quem observou:** CC (2026-07-16), ao executar o H1 do ciclo Mooter 2.0.
+
+**Status:** registado pelo Paulo como o **7º ponteiro morto** do ciclo. Difere dos anteriores (FC-1..FC-8,
+onde o alvo citado simplesmente não existia): aqui o ponteiro **aponta para si próprio**, o que o torna
+invisível a um pointer-check ingénuo — o ficheiro citado existe, o conteúdo citado não. Reforça o job L0
+`pointer-sentinel` da Harmony Mesh (ver HIPÓTESE de `2026-07-16-phase-a-gate-untracked-enganou-3-agentes`):
+o check tem de validar **o conteúdo citado**, não só a existência do path. Regra destilável: **um
+masterprompt não pode ser a única prova das suas próprias premissas.**
+
+---
+
+### 2026-07-16-allowlist-com-paths-errados-executor-parou
+
+**Contexto:** masterprompt do ciclo de remediação emitido com allowlist inválida — o Cowork citou
+`packages/vscode-extension` para ficheiros que vivem em `tools/router`.
+
+**Resultado observado:** o executor bloqueou escopo corretamente em vez de improvisar.
+
+**Quem observou:** Cowork (2026-07-16).
+
+**Status:** learning aceite — o comportamento certo do executor diante de allowlist inválida é
+STOP+confronto, e o autor do masterprompt deve rodar pointer-check antes de emitir (vira job L0).
+
+---
+
+### 2026-07-16-teste-de-copy-pinou-claim-publica
+
+**Contexto:** teste de copy `lp-p1a-w2` a pinar claim pública durante alteração de copy.
+
+**Resultado observado:** o teste falhou ao mudar a copy — funcionou como contrato.
+
+**Quem observou:** Cowork (2026-07-16).
+
+**Status:** learning aceite — testes que pinam claims públicas são o mecanismo certo
+anti-marketing-drift; atualizar o pin junto da copy aprovada, nunca afrouxar para regex genérica.
+
+---
+
 ## HIPÓTESE
+
+### Sobre 2026-07-16-phase-a-gate-untracked-enganou-3-agentes
+
+**Hipótese:** trabalho não-durável (untracked/uncommitted/gitignored) é a fonte nº1 de falha de
+comunicação multi-agente.
+
+**Experimento:** checkers L0 da Harmony Mesh (orphan-watch, pointer-sentinel) — cada um mapeado a uma
+falha FC real deste ciclo.
+
+---
 
 ### Sobre 2026-04-21-classifier-gastou-opus-em-tarefa-descritiva
 
