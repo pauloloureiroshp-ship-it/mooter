@@ -4,8 +4,8 @@ Roo/Gemini is part of the Mooter multi-agent team. Before acting:
 
 1. Read `_handoff/agent-sync/latest.md` if it exists.
 2. Read `_handoff/agent-context/bundle.md` if it exists.
-3. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run `vault-status` when
-   the private vault is mounted.
+3. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
+   `vault-status --strict` when the private vault is mounted.
 4. Validate docs and handoffs against code before proposing changes.
 
 After a meaningful prompt, handoff, PR, wave or review checkpoint, record one
@@ -54,6 +54,7 @@ At the end of a meaningful session:
 ```sh
 node tools/router/agent-sync-ledger.js audit --window 1 --strict
 node tools/router/agent-sync-ledger.js publish-vault --vault "$VAULT_PATH" --project mooter --window 1 --strict
+node tools/router/agent-sync-ledger.js vault-status --vault "$VAULT_PATH" --project mooter --strict
 ```
 
 Hard rules:
@@ -65,6 +66,9 @@ Hard rules:
 - The invoking host records the local model/provider/channel and outcome; the
   stateless model never writes Git or the vault directly.
 - Vault receipts are immutable and per-event/device. Never overwrite one.
+- `EVENT_AUDIT` validates observed events only; only `READINESS=pass` proves
+  registered device/surface coverage.
+- Local vault projection never proves remote Git sync.
 - Never bypass a secret-detection or identity-validation failure.
 - Record `--channel local|subscription|api|cloud` only when the execution path is known.
 - If docs, code and handoffs conflict, name the contradiction.

@@ -1,11 +1,38 @@
 # Mooter — Sync Snapshot
 
-> Canónico em `~/frugal/SYNC.md` (Mac) e `C:\Users\Paulo Loureiro\frugal\SYNC.md` (Windows).
+> Canônico no checkout do repo Mooter de cada device; paths locais não são fonte
+> de verdade e devem ser descobertos com `git rev-parse --show-toplevel`.
 > Snapshot, não log (regra ≤200 linhas; histórico em `docs/foundation/SYNC_ARCHIVE_2026.md`).
 
-**Atualizado:** 2026-07-13 · **GitHub `main` @** `89ff3e3` (PR #246 merged) ·
-**extensão em main:** `v0.16.67` · **candidata local instalada:** `v0.16.72` em
-`fix/lp-iframe-reload-rearm` (**push/review/merge pendentes**).
+**Atualizado:** 2026-07-29 · **GitHub `main` @** `d108a400` (PR #255 merged) ·
+**agent-sync em revisão:** Mooter `codex/cross-device-vault-sync` @ `bcd4f9e0`
++ hardening adversarial local; vault `codex/cross-device-agent-sync` @ `b9f0619f`.
+
+## Gate atual — cross-device agent sync
+
+- **Veredito:** `NOT_READY` para a afirmação “todos os devices/superfícies estão
+  sincronizados”. O evento local é válido, mas cobertura de frota não foi provada.
+- **Cobertura observada:** 1 recibo Codex no Mac mini
+  `ac67a7f5-a962-496e-bf23-a675c6c3db74`; Windows RTX 4090, MacBook M3,
+  Claude Code, Roo/Gemini e Ollama ainda não têm enrollment/recibo comprovado.
+- **Mac mini:** `VAULT_PATH` ausente e nenhum runtime Mooter encontrado em
+  `~/.claude/hooks/` ou `~/.claude/tools/router/`; código no repo não equivale a
+  hook instalado.
+- **Vault:** branch privada contém protocolo e um recibo v1, mas não há PR/merge.
+  Projeção local e sincronização remota são estados distintos.
+- **Gates focados:** ledger 16/16 e Stop-hook 15/15 passaram antes do hardening;
+  classificador frozen continua no SHA esperado. Suite router completa neste Mac
+  ficou 953 pass / 69 fail / 1 skip porque o runtime live esperado em
+  `~/.claude/tools/router/classify.js` não existe e alguns testes dependem do
+  ambiente/ANSI.
+- **Hardening em curso:** separar event audit de fleet readiness, registry
+  fail-closed, hash de recibo, ledger realmente append-only, corrupção visível,
+  lookup de device sem migração de credencial e falha de projeção observável.
+- **Gates humanos pendentes:** revisar/abrir PR das duas branches, cadastrar IDs
+  reais por device, instalar/configurar cada runtime e obter um recibo de
+  enrollment por superfície. Nenhum merge ou deploy autorizado.
+
+## Snapshot histórico — 2026-07-13
 
 ## Verdade atual
 

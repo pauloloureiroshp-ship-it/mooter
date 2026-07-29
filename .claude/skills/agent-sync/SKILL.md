@@ -12,8 +12,9 @@ Moo workers.
 
 1. Read `_handoff/agent-sync/latest.md` if it exists.
 2. Read `_handoff/agent-context/bundle.md` if it exists.
-3. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run `vault-status` when
-   the private vault is mounted.
+3. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
+   `vault-status --strict` when the private vault is mounted. Do not interpret
+   a local event audit as fleet coverage.
 4. Validate any risky claim against code, git and the active handoff.
 
 ## Record After Checkpoints
@@ -43,11 +44,14 @@ At the session boundary, validate and publish:
 ```sh
 node tools/router/agent-sync-ledger.js audit --window 1 --strict
 node tools/router/agent-sync-ledger.js publish-vault --vault "$VAULT_PATH" --project mooter --window 1 --strict
+node tools/router/agent-sync-ledger.js vault-status --vault "$VAULT_PATH" --project mooter --strict
 ```
 
 The private vault stores one immutable receipt per event/device. Exact timing
 may remain `n/d` when the host cannot measure it. Identity, provider, model,
-channel and device may not be guessed.
+channel and device may not be guessed. `VAULT_LOCAL=pass` is not proof of
+remote Git sync; report `VAULT_REMOTE=pending` until Git/connector confirms it.
+`READINESS=fail` blocks a claim that the fleet is synchronized.
 
 ## Delegate With Briefs
 

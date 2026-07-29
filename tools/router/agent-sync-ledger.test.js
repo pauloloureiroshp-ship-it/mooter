@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const childProcess = require('node:child_process');
 
 const sync = require('./agent-sync-ledger.js');
 
@@ -22,6 +23,14 @@ function fixture() {
   const classify = write(root, 'tools/router/classify.js', 'module.exports = {}\n');
   const sha = crypto.createHash('sha256').update(fs.readFileSync(classify)).digest('hex');
   return { root, sha };
+}
+
+function vaultFixture() {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
+  write(vault, 'AGENTS.md', '# Vault\n');
+  fs.mkdirSync(path.join(vault, '00-core'), { recursive: true });
+  fs.mkdirSync(path.join(vault, '10-projects'), { recursive: true });
+  return vault;
 }
 
 function completeEvent(root, overrides) {
@@ -138,9 +147,32 @@ test('normalizeEvent records an honest execution window and derives duration', (
     assert.equal(ev.started_at, '2026-07-29T12:00:00.000Z');
     assert.equal(ev.ended_at, '2026-07-29T12:00:02.500Z');
     assert.equal(ev.duration_ms, 2500);
+    assert.equal(ev.timing_basis, 'wall_clock');
     assert.equal(ev.recorded_by, 'codex');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('device lookup is read-only and never triggers legacy credential migration', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-agent-sync-home-'));
+  try {
+    write(home, '.frugal/auth.token', 'placeholder-not-a-real-secret\n');
+    write(home, '.frugal/device.id', 'legacy-device-test\n');
+    const script = [
+      `const sync=require(${JSON.stringify(path.join(__dirname, 'agent-sync-ledger.js'))});`,
+      'process.stdout.write(JSON.stringify(sync.deviceSnapshot({}, {})));',
+    ].join('');
+    const run = childProcess.spawnSync(process.execPath, ['-e', script], {
+      env: { ...process.env, HOME: home },
+      encoding: 'utf8',
+    });
+    assert.equal(run.status, 0);
+    assert.equal(JSON.parse(run.stdout).id, 'legacy-device-test');
+    assert.equal(fs.existsSync(path.join(home, '.frugal', 'auth.token')), true);
+    assert.equal(fs.existsSync(path.join(home, '.mooter', 'auth.token')), false);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
   }
 });
 
@@ -167,7 +199,8 @@ test('audit separates invalid identity from completeness warnings', () => {
     assert.ok(audit.rows[1].errors.includes('execution_channel_unknown'));
     assert.ok(audit.rows[1].errors.includes('local_model_recorder_missing'));
     assert.ok(audit.rows[0].warnings.includes('git_snapshot_missing'));
-    assert.match(sync.renderAuditReport(audit), /AUDIT=fail/);
+    assert.match(sync.renderAuditReport(audit), /EVENT_AUDIT=fail/);
+    assert.match(sync.renderAuditReport(audit), /FLEET_COVERAGE=not_checked/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -175,8 +208,7 @@ test('audit separates invalid identity from completeness warnings', () => {
 
 test('secret detector fails closed before a vault receipt is published', () => {
   const { root } = fixture();
-  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
-  write(vault, 'AGENTS.md', '# Vault\n');
+  const vault = vaultFixture();
   try {
     const event = completeEvent(root, { summary: 'token=super-secret-value-123456' });
     const result = sync.publishVault(root, [event], { vault, project: 'mooter' });
@@ -191,8 +223,7 @@ test('secret detector fails closed before a vault receipt is published', () => {
 
 test('vault receipts are immutable, idempotent and aggregatable by device', () => {
   const { root } = fixture();
-  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
-  write(vault, 'AGENTS.md', '# Vault\n');
+  const vault = vaultFixture();
   try {
     const event = completeEvent(root);
     const first = sync.publishVault(root, [event], { vault, project: 'mooter' });
@@ -202,6 +233,7 @@ test('vault receipts are immutable, idempotent and aggregatable by device', () =
     const text = fs.readFileSync(first.published[0], 'utf8');
     assert.match(text, /validated cross-device receipt flow/);
     assert.equal(sync.parseVaultReceipt(text).duration_ms, 2500);
+    assert.match(sync.parseVaultReceipt(text).integrity_sha256, /^[a-f0-9]{64}$/);
 
     const second = sync.publishVault(root, [event], { vault, project: 'mooter' });
     assert.equal(second.published.length, 0);
@@ -223,11 +255,92 @@ test('vault receipts are immutable, idempotent and aggregatable by device', () =
   }
 });
 
+test('vault receipt integrity rejects edited machine data', () => {
+  const { root } = fixture();
+  const vault = vaultFixture();
+  try {
+    const event = completeEvent(root);
+    const result = sync.publishVault(root, [event], { vault, project: 'mooter' });
+    const original = fs.readFileSync(result.published[0], 'utf8');
+    const tampered = original.replace('"summary":"validated cross-device receipt flow"', '"summary":"tampered"');
+    const verified = sync.verifyVaultReceipt(tampered);
+    assert.equal(verified.ok, false);
+    assert.deepEqual(verified.errors, ['receipt_integrity_mismatch']);
+    assert.equal(sync.parseVaultReceipt(tampered), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('vault resolver rejects an unrelated repository with only AGENTS.md', () => {
+  const unrelated = fs.mkdtempSync(path.join(os.tmpdir(), 'not-paulo-vault-'));
+  try {
+    write(unrelated, 'AGENTS.md', '# unrelated\n');
+    assert.equal(sync.resolveVaultPath(unrelated), null);
+  } finally {
+    fs.rmSync(unrelated, { recursive: true, force: true });
+  }
+});
+
+test('cross-device readiness fails closed for pending, missing and stale devices', () => {
+  const { root } = fixture();
+  const vault = vaultFixture();
+  try {
+    const event = completeEvent(root);
+    sync.publishVault(root, [event], { vault, project: 'mooter' });
+    const status = sync.buildVaultStatus(vault, 'mooter');
+    const registryPath = write(vault, '00-core/agent-sync-registry.json', JSON.stringify({
+      project: 'mooter',
+      max_age_hours: 24,
+      devices: [
+        {
+          label: 'mac-mini',
+          status: 'active',
+          device_id: 'device-test-1',
+          hostname: 'Mac mini test',
+          platform: 'darwin',
+          arch: 'arm64',
+          required_agents: ['codex'],
+        },
+        {
+          label: 'windows-rtx4090',
+          status: 'pending',
+          device_id: null,
+          required_agents: [],
+        },
+      ],
+    }));
+    const pending = sync.auditFleet(status, sync.loadSyncRegistry(vault, registryPath), '2026-07-29T13:00:00.000Z');
+    assert.equal(pending.ok, false);
+    assert.ok(pending.errors.includes('windows-rtx4090:device_not_enrolled'));
+    assert.ok(pending.errors.includes('windows-rtx4090:device_id_missing'));
+
+    const stale = sync.auditFleet(status, {
+      file: registryPath,
+      registry: {
+        project: 'mooter',
+        max_age_hours: 1,
+        devices: [{
+          label: 'mac-mini',
+          status: 'active',
+          device_id: 'device-test-1',
+          required_agents: ['codex'],
+        }],
+      },
+    }, '2026-07-30T13:00:00.000Z');
+    assert.equal(stale.ok, false);
+    assert.ok(stale.errors.includes('mac-mini:device_receipt_stale'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
 test('opt-in auto publish remains fail-soft and writes the same immutable receipt', () => {
   const { root } = fixture();
-  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
+  const vault = vaultFixture();
   const dir = path.join(root, '_handoff', 'agent-sync');
-  write(vault, 'AGENTS.md', '# Vault\n');
   const previous = {
     auto: process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH,
     vault: process.env.VAULT_PATH,
@@ -239,6 +352,8 @@ test('opt-in auto publish remains fail-soft and writes the same immutable receip
     process.env.MOOTER_AGENT_SYNC_PROJECT = 'mooter';
     sync.appendEvent(root, completeEvent(root), dir, { git: false, classify: false });
     assert.equal(sync.readVaultReceipts(vault, 'mooter').length, 1);
+    assert.match(fs.readFileSync(path.join(dir, 'vault-projection.jsonl'), 'utf8'), /vault_local_published/);
+    assert.match(fs.readFileSync(path.join(dir, 'vault-projection.jsonl'), 'utf8'), /"vault_remote":"pending"/);
   } finally {
     if (previous.auto == null) delete process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH;
     else process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH = previous.auto;
@@ -253,8 +368,7 @@ test('opt-in auto publish remains fail-soft and writes the same immutable receip
 
 test('vault publish keeps prompt and turn telemetry local by default', () => {
   const { root } = fixture();
-  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-vault-'));
-  write(vault, 'AGENTS.md', '# Vault\n');
+  const vault = vaultFixture();
   try {
     const event = completeEvent(root, { kind: 'turn', cadence: 'turn' });
     const result = sync.publishVault(root, [event], { vault, project: 'mooter' });
@@ -294,6 +408,33 @@ test('appendEvent writes events, snapshot, latest and prompts', () => {
     assert.equal(snap.latest_by_device['device-test-1'].agent, 'codex');
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /Latest By Device/);
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /Mac mini test/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ledger is append-only beyond the 400-event projection window', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    for (let i = 0; i < 405; i++) {
+      const event = completeEvent(root, { id: `event-${i}` });
+      sync.appendEvent(root, event, dir, { git: false, classify: false });
+    }
+    assert.equal(sync.readEvents(root, dir).length, 405);
+    const snapshot = JSON.parse(fs.readFileSync(path.join(dir, 'snapshot.json'), 'utf8'));
+    assert.equal(snapshot.event_count, 400);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('malformed ledger lines fail visibly instead of being discarded', () => {
+  const { root } = fixture();
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    write(root, '_handoff/agent-sync/events.jsonl', '{malformed json}\n');
+    assert.throws(() => sync.readEvents(root, dir), /malformed JSON/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

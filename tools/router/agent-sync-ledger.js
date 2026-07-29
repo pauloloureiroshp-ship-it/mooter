@@ -22,7 +22,7 @@ const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
 
 const SCHEMA_VERSION = 'agent-sync-ledger.v3';
-const RECEIPT_SCHEMA_VERSION = 'agent-sync-receipt.v1';
+const RECEIPT_SCHEMA_VERSION = 'agent-sync-receipt.v2';
 const EXPECTED_CLASSIFY_SHA =
   '427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f';
 
@@ -33,7 +33,7 @@ const VALID_KINDS = new Set(['sync', 'intent', 'brief', 'turn', 'decision', 'art
 const VALID_EVIDENCE = new Set(['code', 'test', 'git', 'doc', 'handoff', 'notion-export', 'obsidian-vault', 'runtime', 'connector', 'inference']);
 const VALID_CONFIDENCE = new Set(['low', 'medium', 'high', 'unknown']);
 const VALID_CHANNELS = new Set(['local', 'subscription', 'api', 'cloud', 'unknown']);
-const MAX_EVENTS = 400;
+const MAX_SNAPSHOT_EVENTS = 400;
 const SYNC_AGENTS = ['claude-code', 'codex', 'gemini-roo', 'ollama'];
 const DURABLE_RECEIPT_KINDS = new Set(['decision', 'gate', 'handoff', 'outcome', 'review', 'blocker']);
 const RECEIPT_ROOT = path.join('30-learnings', 'agent-sync');
@@ -93,6 +93,19 @@ function safeRead(file) {
   try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
 }
 
+function safeDeviceId() {
+  // Identity lookup must be read-only. Requiring identity.js here used to run
+  // its legacy credential migration as a module-load side effect.
+  for (const file of [
+    path.join(os.homedir(), '.mooter', 'device.id'),
+    path.join(os.homedir(), '.frugal', 'device.id'),
+  ]) {
+    const value = safeRead(file);
+    if (value && value.trim()) return clamp(value.trim(), 120);
+  }
+  return null;
+}
+
 function parseIso(value) {
   if (!value) return null;
   const ms = Date.parse(String(value));
@@ -113,7 +126,11 @@ function timingSnapshot(input, now) {
   if (!startedAt && endedAt && durationMs != null) {
     startedAt = new Date(Date.parse(endedAt) - durationMs).toISOString();
   }
-  return { started_at: startedAt, ended_at: endedAt, duration_ms: durationMs };
+  const requestedBasis = String(input.timing_basis || input.timingBasis || '').toLowerCase();
+  const timingBasis = ['wall_clock', 'runtime_reported'].includes(requestedBasis)
+    ? requestedBasis
+    : (startedAt && endedAt && durationMs != null ? 'wall_clock' : (durationMs != null ? 'runtime_reported' : 'unknown'));
+  return { started_at: startedAt, ended_at: endedAt, duration_ms: durationMs, timing_basis: timingBasis };
 }
 
 function sanitizeRemote(value) {
@@ -171,6 +188,7 @@ function paths(root, dir) {
     latest: path.join(d, 'latest.md'),
     promptsDir: path.join(d, 'prompts'),
     briefsDir: path.join(d, 'briefs'),
+    projectionLog: path.join(d, 'vault-projection.jsonl'),
   };
 }
 
@@ -229,8 +247,7 @@ function classifySnapshot(root) {
 function deviceSnapshot(input, opts) {
   opts = opts || {};
   if (opts.device === false) return null;
-  let canonicalId = null;
-  try { canonicalId = require('./identity.js').readDeviceId(); } catch { /* fail-soft */ }
+  const canonicalId = safeDeviceId();
   return {
     id: clamp(input.device_id || input.deviceId || canonicalId || '', 120) || null,
     name: clamp(input.device_name || input.deviceName || os.hostname(), 160) || null,
@@ -308,6 +325,7 @@ function normalizeEvent(input, opts) {
     started_at: timing.started_at,
     ended_at: timing.ended_at,
     duration_ms: timing.duration_ms,
+    timing_basis: timing.timing_basis,
     agent,
     provider: clamp(input.provider || '', 80) || null,
     model: clamp(input.model || '', 120) || null,
@@ -350,14 +368,18 @@ function readEvents(root, dir) {
   const p = paths(root, dir).events;
   const raw = safeRead(p);
   if (!raw) return [];
-  return raw.split('\n').filter(Boolean).map((line) => safeJson(line)).filter(Boolean);
-}
-
-function writeEvents(root, events, dir) {
-  const ps = paths(root, dir);
-  fs.mkdirSync(ps.dir, { recursive: true });
-  const keep = events.slice(-MAX_EVENTS);
-  fs.writeFileSync(ps.events, keep.map((e) => JSON.stringify(e)).join('\n') + (keep.length ? '\n' : ''));
+  const events = [];
+  const malformed = [];
+  for (const [index, line] of raw.split('\n').entries()) {
+    if (!line) continue;
+    const event = safeJson(line);
+    if (event) events.push(event);
+    else malformed.push(index + 1);
+  }
+  if (malformed.length) {
+    throw new Error(`agent-sync ledger malformed JSON at ${p}:${malformed.slice(0, 10).join(',')}`);
+  }
+  return events;
 }
 
 function appendEvent(root, event, dir, opts) {
@@ -365,16 +387,32 @@ function appendEvent(root, event, dir, opts) {
   fs.mkdirSync(ps.dir, { recursive: true });
   fs.appendFileSync(ps.events, JSON.stringify(event) + '\n');
   const events = readEvents(root, dir);
-  if (events.length > MAX_EVENTS) writeEvents(root, events, dir);
-  const snapshot = buildSnapshot(root, events.slice(-MAX_EVENTS), dir, opts);
+  // events.jsonl is append-only. Only derived projections are windowed.
+  const snapshot = buildSnapshot(root, events.slice(-MAX_SNAPSHOT_EVENTS), dir, opts);
   writeSnapshot(root, snapshot, dir);
   if (process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH === '1') {
     try {
-      publishVault(root, [event], {
+      const published = publishVault(root, [event], {
         vault: process.env.VAULT_PATH,
         project: process.env.MOOTER_AGENT_SYNC_PROJECT || 'mooter',
       });
-    } catch { /* fail-soft: audit/publish-vault exposes the gap without blocking the agent */ }
+      fs.appendFileSync(ps.projectionLog, JSON.stringify({
+        ts: new Date().toISOString(),
+        event_id: event.id,
+        status: published.published.length ? 'vault_local_published' : 'vault_local_unchanged',
+        vault_remote: 'pending',
+      }) + '\n');
+    } catch (err) {
+      // Hooks stay fail-soft, but projection failures must never be invisible.
+      try {
+        fs.appendFileSync(ps.projectionLog, JSON.stringify({
+          ts: new Date().toISOString(),
+          event_id: event.id,
+          status: 'vault_local_failed',
+          error: clamp(err && err.message ? err.message : String(err), 240),
+        }) + '\n');
+      } catch { /* the local ledger event itself is still durable */ }
+    }
   }
   return snapshot;
 }
@@ -421,6 +459,9 @@ function validateEvent(event) {
   if (!parseIso(event.ended_at || event.ts)) warnings.push('ended_at_missing');
   if (!parseIso(event.started_at)) warnings.push('started_at_missing');
   if (normalizeDuration(event.duration_ms) == null) warnings.push('duration_ms_missing');
+  if (normalizeDuration(event.duration_ms) != null && !['wall_clock', 'runtime_reported'].includes(event.timing_basis)) {
+    warnings.push('timing_basis_unknown');
+  }
   if (!event.next) warnings.push('next_missing');
   if (!Array.isArray(event.evidence) || event.evidence.length === 0) warnings.push('evidence_missing');
   if (!event.git) warnings.push('git_snapshot_missing');
@@ -479,7 +520,8 @@ function renderAuditReport(audit) {
   return [
     '# Mooter Agent Sync Audit',
     '',
-    `AUDIT=${audit.ok ? (audit.complete ? 'pass' : 'pass_with_gaps') : 'fail'}`,
+    `EVENT_AUDIT=${audit.ok ? (audit.complete ? 'pass' : 'pass_with_gaps') : 'fail'}`,
+    'FLEET_COVERAGE=not_checked',
     `events: ${audit.event_count}`,
     `valid: ${audit.valid_count}`,
     `complete: ${audit.complete_count}`,
@@ -509,24 +551,27 @@ function safeSegment(value, fallback) {
 }
 
 function resolveVaultPath(explicitPath) {
+  const isVault = (candidate) => Boolean(
+    candidate &&
+    fs.existsSync(path.join(candidate, 'AGENTS.md')) &&
+    fs.existsSync(path.join(candidate, '00-core')) &&
+    fs.existsSync(path.join(candidate, '10-projects'))
+  );
   if (explicitPath) {
     const resolved = path.resolve(String(explicitPath));
-    return fs.existsSync(path.join(resolved, 'AGENTS.md')) || fs.existsSync(path.join(resolved, '.git'))
-      ? resolved
-      : null;
+    return isVault(resolved) ? resolved : null;
   }
   const candidates = [
     process.env.VAULT_PATH,
     path.join(os.homedir(), 'paulo-vault'),
     path.join(os.homedir(), 'Documents', 'paulo-vault'),
   ].filter(Boolean).map((item) => path.resolve(String(item)));
-  return candidates.find((candidate) =>
-    fs.existsSync(path.join(candidate, 'AGENTS.md')) || fs.existsSync(path.join(candidate, '.git'))) || null;
+  return candidates.find(isVault) || null;
 }
 
 function receiptEvent(event, project) {
   const git = event.git || {};
-  return {
+  const receipt = {
     schema_version: RECEIPT_SCHEMA_VERSION,
     project,
     event_id: event.id,
@@ -534,6 +579,7 @@ function receiptEvent(event, project) {
     started_at: event.started_at || null,
     ended_at: event.ended_at || event.ts || null,
     duration_ms: normalizeDuration(event.duration_ms),
+    timing_basis: event.timing_basis || 'unknown',
     agent: event.agent,
     recorded_by: event.recorded_by || event.agent,
     provider: event.provider || null,
@@ -571,6 +617,8 @@ function receiptEvent(event, project) {
     notion_ref: event.notion_ref || null,
     obsidian_ref: event.obsidian_ref || null,
   };
+  receipt.integrity_sha256 = crypto.createHash('sha256').update(JSON.stringify(receipt)).digest('hex');
+  return receipt;
 }
 
 function yamlValue(value) {
@@ -596,6 +644,7 @@ function renderVaultReceipt(event, project) {
     `model: ${yamlValue(receipt.model)}`,
     `execution_channel: ${yamlValue(receipt.execution_channel)}`,
     `status: ${yamlValue(receipt.status)}`,
+    `integrity_sha256: ${yamlValue(receipt.integrity_sha256)}`,
     '---',
     '',
     '<!-- agent-sync-receipt-json',
@@ -604,7 +653,7 @@ function renderVaultReceipt(event, project) {
     '',
     `# Agent Sync · ${receipt.event_id}`,
     '',
-    `- **Quando:** ${receipt.started_at || 'n/d'} → ${receipt.ended_at || receipt.ts || 'n/d'} · ${timing}`,
+    `- **Quando:** ${receipt.started_at || 'n/d'} → ${receipt.ended_at || receipt.ts || 'n/d'} · ${timing} · basis=${receipt.timing_basis || 'unknown'}`,
     `- **Onde:** ${device.name || 'n/d'} · ${device.id || 'n/d'} · ${device.platform || 'n/d'}/${device.arch || 'n/d'}`,
     `- **Git:** ${git.branch || 'n/d'} @ ${git.head || 'n/d'} · dirty=${git.dirty == null ? 'n/d' : git.dirty} · worktree=${git.worktree || 'n/d'}`,
     `- **Como:** ${receipt.agent || 'n/d'} via ${receipt.provider || 'n/d'}/${receipt.model || 'n/d'} (${receipt.execution_channel || 'n/d'}) · source=${receipt.source || 'n/d'}`,
@@ -687,9 +736,29 @@ function publishVault(root, events, opts) {
   return result;
 }
 
-function parseVaultReceipt(text) {
+function verifyVaultReceipt(text) {
   const match = String(text || '').match(/<!-- agent-sync-receipt-json\n([^\n]+)\n-->/);
-  return match ? safeJson(match[1]) : null;
+  if (!match) return { ok: false, receipt: null, errors: ['receipt_json_missing'], warnings: [] };
+  const receipt = safeJson(match[1]);
+  if (!receipt) return { ok: false, receipt: null, errors: ['receipt_json_invalid'], warnings: [] };
+  if (receipt.schema_version === 'agent-sync-receipt.v1') {
+    return { ok: true, receipt, errors: [], warnings: ['legacy_receipt_unverified'] };
+  }
+  if (receipt.schema_version !== RECEIPT_SCHEMA_VERSION) {
+    return { ok: false, receipt, errors: ['receipt_schema_unknown'], warnings: [] };
+  }
+  const expected = receipt.integrity_sha256;
+  const unsigned = { ...receipt };
+  delete unsigned.integrity_sha256;
+  const actual = crypto.createHash('sha256').update(JSON.stringify(unsigned)).digest('hex');
+  return expected === actual
+    ? { ok: true, receipt, errors: [], warnings: [] }
+    : { ok: false, receipt, errors: ['receipt_integrity_mismatch'], warnings: [] };
+}
+
+function parseVaultReceipt(text) {
+  const verified = verifyVaultReceipt(text);
+  return verified.ok ? verified.receipt : null;
 }
 
 function readVaultReceipts(vaultRoot, project) {
@@ -707,8 +776,11 @@ function readVaultReceipts(vaultRoot, project) {
       else if (entry.isFile() && entry.name.endsWith('.md')) files.push(file);
     }
   }
-  return files.map((file) => ({ file, receipt: parseVaultReceipt(safeRead(file)) }))
-    .filter((item) => item.receipt)
+  return files.map((file) => {
+    const verified = verifyVaultReceipt(safeRead(file));
+    if (!verified.ok) throw new Error(`invalid vault receipt ${file}: ${verified.errors.join(',')}`);
+    return { file, receipt: verified.receipt, warnings: verified.warnings };
+  })
     .sort((a, b) => String(a.receipt.ended_at || a.receipt.ts).localeCompare(String(b.receipt.ended_at || b.receipt.ts)));
 }
 
@@ -716,11 +788,15 @@ function buildVaultStatus(vaultRoot, project) {
   const rows = readVaultReceipts(vaultRoot, project);
   const latestByDevice = {};
   const latestByAgent = {};
+  const latestByDeviceAgent = {};
+  const receiptWarnings = [];
   for (const row of rows) {
     const event = row.receipt;
     const device = event.device && (event.device.id || event.device.name) || 'unknown';
     latestByDevice[device] = row;
     latestByAgent[event.agent || 'unknown'] = row;
+    latestByDeviceAgent[`${device}:${event.agent || 'unknown'}`] = row;
+    for (const warning of row.warnings || []) receiptWarnings.push({ file: row.file, warning });
   }
   return {
     schema_version: RECEIPT_SCHEMA_VERSION,
@@ -729,7 +805,110 @@ function buildVaultStatus(vaultRoot, project) {
     receipt_count: rows.length,
     latest_by_device: latestByDevice,
     latest_by_agent: latestByAgent,
+    latest_by_device_agent: latestByDeviceAgent,
+    receipt_warnings: receiptWarnings,
   };
+}
+
+function loadSyncRegistry(vaultRoot, explicitPath) {
+  const file = explicitPath
+    ? path.resolve(String(explicitPath))
+    : path.join(vaultRoot, '00-core', 'agent-sync-registry.json');
+  const raw = safeRead(file);
+  if (!raw) return { file, registry: null, error: 'registry_missing' };
+  const registry = safeJson(raw);
+  if (!registry || !Array.isArray(registry.devices)) return { file, registry: null, error: 'registry_invalid' };
+  return { file, registry, error: null };
+}
+
+function auditFleet(status, registryResult, now) {
+  const checkedAt = parseIso(now) || new Date().toISOString();
+  const registry = registryResult && registryResult.registry;
+  const rows = [];
+  if (!registry) {
+    return {
+      ok: false,
+      checked_at: checkedAt,
+      registry: registryResult && registryResult.file || null,
+      errors: [registryResult && registryResult.error || 'registry_missing'],
+      rows,
+    };
+  }
+  const project = registry.project || status.project;
+  const defaultMaxAgeHours = Number(registry.max_age_hours);
+  for (const expected of registry.devices) {
+    const label = clamp(expected.label || expected.hostname || expected.device_id || 'unnamed-device', 160);
+    const errors = [];
+    const warnings = [];
+    if (expected.status !== 'active') errors.push('device_not_enrolled');
+    if (!expected.device_id) errors.push('device_id_missing');
+    const latest = expected.device_id ? status.latest_by_device[expected.device_id] : null;
+    if (expected.status === 'active' && !latest) errors.push('device_receipt_missing');
+    if (latest && expected.hostname && latest.receipt.device && latest.receipt.device.name !== expected.hostname) {
+      errors.push('hostname_mismatch');
+    }
+    if (latest && expected.platform && latest.receipt.device && latest.receipt.device.platform !== expected.platform) {
+      errors.push('platform_mismatch');
+    }
+    if (latest && expected.arch && latest.receipt.device && latest.receipt.device.arch !== expected.arch) {
+      errors.push('arch_mismatch');
+    }
+    const maxAgeHours = Number(expected.max_age_hours || defaultMaxAgeHours);
+    if (latest && Number.isFinite(maxAgeHours) && maxAgeHours > 0) {
+      const seen = Date.parse(latest.receipt.ended_at || latest.receipt.ts);
+      const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
+      if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push('clock_skew_future');
+      else if (ageHours > maxAgeHours) errors.push('device_receipt_stale');
+    }
+    for (const agent of normalizeAgents(expected.required_agents, 16)) {
+      const key = `${expected.device_id}:${agent}`;
+      const agentLatest = status.latest_by_device_agent[key];
+      if (expected.status === 'active' && !agentLatest) {
+        errors.push(`agent_receipt_missing:${agent}`);
+      } else if (agentLatest && Number.isFinite(maxAgeHours) && maxAgeHours > 0) {
+        const seen = Date.parse(agentLatest.receipt.ended_at || agentLatest.receipt.ts);
+        const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
+        if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push(`agent_clock_skew_future:${agent}`);
+        else if (ageHours > maxAgeHours) errors.push(`agent_receipt_stale:${agent}`);
+      }
+    }
+    if (!Array.isArray(expected.required_agents) || expected.required_agents.length === 0) {
+      warnings.push('required_agents_not_declared');
+    }
+    rows.push({
+      label,
+      device_id: expected.device_id || null,
+      status: expected.status || 'pending',
+      latest_event_id: latest && latest.receipt.event_id || null,
+      errors,
+      warnings,
+    });
+  }
+  const errors = rows.flatMap((row) => row.errors.map((error) => `${row.label}:${error}`));
+  if (project !== status.project) errors.push('registry_project_mismatch');
+  return {
+    ok: errors.length === 0 && rows.length > 0,
+    checked_at: checkedAt,
+    registry: registryResult.file,
+    errors,
+    rows,
+  };
+}
+
+function renderFleetAudit(audit) {
+  return [
+    '# Mooter Cross-device Readiness',
+    '',
+    `READINESS=${audit.ok ? 'pass' : 'fail'}`,
+    `checked_at: ${audit.checked_at}`,
+    `registry: ${audit.registry || 'n/d'}`,
+    `errors: ${audit.errors.length}`,
+    '',
+    ...((audit.rows || []).length ? audit.rows.map((row) =>
+      `- ${row.label}: ${row.status} · device=${row.device_id || 'n/d'} · latest=${row.latest_event_id || 'n/d'} · errors=${row.errors.join(',') || 'none'} · warnings=${row.warnings.join(',') || 'none'}`
+    ) : ['- no registered devices']),
+    '',
+  ].join('\n');
 }
 
 function renderVaultStatus(status) {
@@ -743,6 +922,7 @@ function renderVaultStatus(status) {
     `vault: ${status.vault}`,
     `project: ${status.project}`,
     `receipts: ${status.receipt_count}`,
+    `receipt_warnings: ${(status.receipt_warnings || []).length}`,
     '',
     '## Latest By Device',
     '',
@@ -1279,6 +1459,7 @@ function command(argv, opts) {
       started_at: args['started-at'],
       ended_at: args['ended-at'],
       duration_ms: args['duration-ms'],
+      timing_basis: args['timing-basis'],
       wave: args.wave,
       pr: args.pr,
       notion_ref: args.notion,
@@ -1328,6 +1509,7 @@ function command(argv, opts) {
       started_at: args['started-at'],
       ended_at: args['ended-at'],
       duration_ms: args['duration-ms'],
+      timing_basis: args['timing-basis'],
       wave: args.wave,
       pr: args.pr,
       notion_ref: args.notion,
@@ -1385,7 +1567,8 @@ function command(argv, opts) {
     return [
       '# Mooter Vault Publish',
       '',
-      `PUBLISH=${result.ok ? (result.complete ? 'pass' : 'pass_with_gaps') : 'fail'}`,
+      `VAULT_LOCAL=${result.ok ? (result.complete ? 'pass' : 'pass_with_gaps') : 'fail'}`,
+      'VAULT_REMOTE=pending',
       `vault: ${result.vault}`,
       `project: ${result.project}`,
       `published: ${result.published.length}`,
@@ -1401,7 +1584,13 @@ function command(argv, opts) {
     const vaultRoot = resolveVaultPath(args.vault);
     if (!vaultRoot) throw new Error('vault not found; set VAULT_PATH or pass --vault <path>');
     const status = buildVaultStatus(vaultRoot, args.project || 'mooter');
-    return args.json ? JSON.stringify(status, null, 2) + '\n' : renderVaultStatus(status) + '\n';
+    const registry = loadSyncRegistry(vaultRoot, args.registry);
+    const readiness = auditFleet(status, registry, args.now || opts.now);
+    const result = { ...status, readiness };
+    if (args.strict && !readiness.ok) throw new Error(renderFleetAudit(readiness));
+    return args.json
+      ? JSON.stringify(result, null, 2) + '\n'
+      : renderVaultStatus(status) + '\n' + renderFleetAudit(readiness) + '\n';
   }
   if (cmd === 'status') {
     const events = readEvents(root, dir);
@@ -1440,9 +1629,13 @@ module.exports = {
   vaultReceiptPath,
   publishVault,
   parseVaultReceipt,
+  verifyVaultReceipt,
   readVaultReceipts,
   buildVaultStatus,
   renderVaultStatus,
+  loadSyncRegistry,
+  auditFleet,
+  renderFleetAudit,
   readEvents,
   appendEvent,
   buildSnapshot,
