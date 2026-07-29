@@ -47,6 +47,7 @@ the runtime hook chain. This README documents the logical grouping instead.
 | `check-local-models.js` | Verify Ollama models |
 | `gpu-probe.js` | GPU detection (NVIDIA/Apple/AMD/CPU) |
 | `install-stop-hook.sh` | Install StopTurn hook |
+| `install-agent-sync-autosync.js` | Install the per-user vault receipt scheduler (launchd/systemd/Task Scheduler) |
 | `ollama-warmup.js` | Pre-warm Ollama models |
 
 ## UI (statusline + turn tracking)
@@ -55,6 +56,8 @@ the runtime hook chain. This README documents the logical grouping instead.
 |---|---|
 | `gsd-statusline.js` | 7-segment statusline renderer |
 | `gsd-turn-end.js` | StopTurn hook — logs decisions |
+| `agent-sync-ledger.js` | Cross-agent/device ledger, receipt validator and readiness gates |
+| `agent-sync-vault-git.js` | Append-only, fail-closed vault Git publisher |
 | `statusline.sh` | Legacy shell statusline |
 
 ## CLI (user commands)

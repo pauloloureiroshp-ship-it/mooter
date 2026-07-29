@@ -441,6 +441,9 @@ function accumulateAgentSync() {
     const m = row && row.message && row.message.model;
     if (typeof m === 'string' && m && m.charAt(0) !== '<') { model = m.slice(0, 120); break; }
   }
+  const measuredTurn = typeof sync.transcriptTurnTiming === 'function'
+    ? sync.transcriptTurnTiming(tail)
+    : { started_at: null, ended_at: null, duration_ms: null, timing_basis: 'unknown' };
 
   let title = null;
   try {
@@ -475,9 +478,12 @@ function accumulateAgentSync() {
     model,
     execution_channel: 'subscription',
     summary: 'Claude Code turn completed',
-    started_at: payload.started_at || payload.startedAt || null,
-    ended_at: payload.ended_at || payload.endedAt || null,
-    duration_ms: payload.duration_ms != null ? payload.duration_ms : payload.durationMs,
+    started_at: payload.started_at || payload.startedAt || measuredTurn.started_at,
+    ended_at: payload.ended_at || payload.endedAt || measuredTurn.ended_at,
+    duration_ms: payload.duration_ms != null
+      ? payload.duration_ms
+      : (payload.durationMs != null ? payload.durationMs : measuredTurn.duration_ms),
+    timing_basis: payload.timing_basis || payload.timingBasis || measuredTurn.timing_basis,
     recorded_by: 'claude-code',
   };
   try { sync.command(['hook'], { stdin: JSON.stringify(hookPayload), root: cwd }); } catch { /* never block Stop */ }

@@ -9,6 +9,8 @@ const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
 
 const sync = require('./agent-sync-ledger.js');
+// Test processes must never inherit a live profile's opt-in vault writer.
+process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH = '0';
 
 function write(root, rel, text) {
   const fp = path.join(root, rel);
@@ -32,6 +34,13 @@ function vaultFixture() {
   fs.mkdirSync(path.join(vault, '10-projects'), { recursive: true });
   write(vault, '00-core/agent-sync-protocol.md', '# Agent sync protocol\n');
   return vault;
+}
+
+function genericRepoFixture(name) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name || 'agent-sync-project'}-`));
+  fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+  write(root, 'AGENTS.md', '# Generic project\n');
+  return root;
 }
 
 function completeEvent(root, overrides) {
@@ -78,6 +87,22 @@ test('global ledger override remains isolated per real repo/worktree root', () =
     fs.rmSync(a.root, { recursive: true, force: true });
     fs.rmSync(b.root, { recursive: true, force: true });
     fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('project resolution prefers repo config and never lets a global Mooter default relabel another repo', () => {
+  const root = genericRepoFixture('cloude-home');
+  const previous = process.env.MOOTER_AGENT_SYNC_PROJECT;
+  try {
+    process.env.MOOTER_AGENT_SYNC_PROJECT = 'mooter';
+    write(root, '.agent-sync.json', JSON.stringify({ project: 'cloude-home' }));
+    assert.equal(sync.resolveProject(root), 'cloude-home');
+    assert.equal(sync.resolveProject(root, 'explicit-project'), 'explicit-project');
+    assert.equal(sync.isTrackableRoot(root), true);
+  } finally {
+    if (previous == null) delete process.env.MOOTER_AGENT_SYNC_PROJECT;
+    else process.env.MOOTER_AGENT_SYNC_PROJECT = previous;
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -169,6 +194,20 @@ test('normalizeEvent records an honest execution window and derives duration', (
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('Claude transcript timing derives one real turn window without estimating', () => {
+  const measured = sync.transcriptTurnTiming([
+    JSON.stringify({ type: 'user', timestamp: '2026-07-29T12:00:00.000Z', message: { role: 'user' } }),
+    JSON.stringify({ type: 'assistant', timestamp: '2026-07-29T12:00:03.250Z', message: { role: 'assistant' } }),
+  ]);
+  assert.deepEqual(measured, {
+    started_at: '2026-07-29T12:00:00.000Z',
+    ended_at: '2026-07-29T12:00:03.250Z',
+    duration_ms: 3250,
+    timing_basis: 'wall_clock',
+  });
+  assert.equal(sync.transcriptTurnTiming([]).timing_basis, 'unknown');
 });
 
 test('device lookup is read-only and never triggers legacy credential migration', () => {
@@ -448,6 +487,123 @@ test('cross-device readiness fails closed for pending, missing and stale devices
   }
 });
 
+test('readiness can require measured timing, declared read-write access and verified remote sync', () => {
+  const { root } = fixture();
+  const vault = vaultFixture();
+  try {
+    const event = completeEvent(root);
+    sync.publishVault(root, [event], { vault, project: 'mooter' });
+    const status = sync.buildVaultStatus(vault, 'mooter');
+    const registry = {
+      file: path.join(vault, '00-core/agent-sync-registry.json'),
+      registry: {
+        project: 'mooter',
+        max_age_hours: 24,
+        require_timing: true,
+        require_remote_sync: true,
+        required_vault_access: 'read_write',
+        devices: [{
+          label: 'mac-mini',
+          status: 'active',
+          device_id: 'device-test-1',
+          required_agents: ['codex'],
+          required_providers: ['openai'],
+          required_channels: ['subscription'],
+          vault_access: {
+            mode: 'read_write',
+            auto_publish: true,
+            remote_sync: 'agent-sync-git',
+          },
+        }],
+      },
+    };
+    const ready = sync.auditFleet(
+      status,
+      registry,
+      '2026-07-29T13:00:00.000Z',
+      { ok: true }
+    );
+    assert.equal(ready.ok, true);
+
+    const noRemote = sync.auditFleet(status, registry, '2026-07-29T13:00:00.000Z', null);
+    assert.equal(noRemote.ok, false);
+    assert.ok(noRemote.errors.includes('vault_remote_not_verified'));
+
+    const untimedEvent = completeEvent(root, {
+      id: 'event-untimed',
+      started_at: null,
+      ended_at: null,
+      duration_ms: null,
+    });
+    untimedEvent.started_at = null;
+    untimedEvent.duration_ms = null;
+    untimedEvent.timing_basis = 'unknown';
+    const otherVault = vaultFixture();
+    try {
+      sync.publishVault(root, [untimedEvent], { vault: otherVault, project: 'mooter' });
+      const untimedStatus = sync.buildVaultStatus(otherVault, 'mooter');
+      const untimed = sync.auditFleet(
+        untimedStatus,
+        registry,
+        '2026-07-29T13:00:00.000Z',
+        { ok: true }
+      );
+      assert.equal(untimed.ok, false);
+      assert.ok(untimed.errors.includes('mac-mini:device_timing_missing'));
+      assert.ok(untimed.errors.includes('mac-mini:agent_timing_missing:codex'));
+    } finally {
+      fs.rmSync(otherVault, { recursive: true, force: true });
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('project-specific registries are selected without duplicating the Mooter legacy registry', () => {
+  const vault = vaultFixture();
+  try {
+    write(vault, '00-core/agent-sync-registry.json', JSON.stringify({ project: 'mooter', devices: [] }));
+    const projectFile = write(
+      vault,
+      '00-core/agent-sync-registries/cloude-home.json',
+      JSON.stringify({ project: 'cloude-home', devices: [] })
+    );
+    const selected = sync.loadSyncRegistry(vault, null, 'cloude-home');
+    assert.equal(selected.file, projectFile);
+    assert.equal(selected.registry.project, 'cloude-home');
+    const legacy = sync.loadSyncRegistry(vault, null, 'mooter');
+    assert.match(legacy.file, /agent-sync-registry\.json$/);
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+test('vault remote status compares clean local and remote heads without mutating Git state', () => {
+  const vault = vaultFixture();
+  const calls = [];
+  const fake = (_cmd, args) => {
+    calls.push(args.slice());
+    const op = args.slice(2).join(' ');
+    if (op === 'rev-parse HEAD') return { status: 0, stdout: 'abc123\n', stderr: '' };
+    if (op === 'branch --show-current') return { status: 0, stdout: 'main\n', stderr: '' };
+    if (op === 'status --porcelain') return { status: 0, stdout: '', stderr: '' };
+    if (op === 'remote get-url origin') return { status: 0, stdout: 'git@github.com:owner/vault.git\n', stderr: '' };
+    if (op === 'ls-remote origin refs/heads/main') return { status: 0, stdout: 'abc123\trefs/heads/main\n', stderr: '' };
+    return { status: 1, stdout: '', stderr: 'unexpected' };
+  };
+  try {
+    const remote = sync.vaultRemoteStatus(vault, { spawnSync: fake });
+    assert.equal(remote.ok, true);
+    assert.equal(remote.clean, true);
+    assert.equal(remote.local_head, 'abc123');
+    assert.equal(remote.remote_head, 'abc123');
+    assert.equal(calls.some((args) => args.includes('fetch') || args.includes('push')), false);
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
 test('opt-in auto publish remains fail-soft and writes the same immutable receipt', () => {
   const { root } = fixture();
   const vault = vaultFixture();
@@ -519,6 +675,29 @@ test('appendEvent writes events, snapshot, latest and prompts', () => {
     assert.equal(snap.latest_by_device['device-test-1'].agent, 'codex');
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /Latest By Device/);
     assert.match(fs.readFileSync(path.join(dir, 'latest.md'), 'utf8'), /Mac mini test/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('latest completed scope closes stale needs-human items instead of keeping them open forever', () => {
+  const { root } = fixture();
+  try {
+    const blocked = completeEvent(root, {
+      id: 'scope-blocked',
+      scope: 'agent-sync',
+      status: 'needs_human',
+      next: 'merge PR',
+    });
+    const done = completeEvent(root, {
+      id: 'scope-done',
+      scope: 'agent-sync',
+      status: 'done',
+      next: 'enroll another device',
+      parent_event_id: 'scope-blocked',
+    });
+    const snapshot = sync.buildSnapshot(root, [blocked, done], null, { git: false, classify: false });
+    assert.deepEqual(snapshot.open_items, []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -642,6 +821,33 @@ test('hook mode writes only inside a Mooter root', () => {
     assert.equal(events[0].session_title, 'MEO control tower');
     assert.equal(events[0].source, 'claude-code-hook');
     assert.equal(events[0].git, null, 'automatic Stop capture must not spawn git');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('hook mode also records an explicitly enrolled non-Mooter repository', () => {
+  const root = genericRepoFixture('cloude-home');
+  const dir = path.join(root, '_handoff', 'agent-sync');
+  try {
+    write(root, '.agent-sync.json', JSON.stringify({ project: 'cloude-home' }));
+    const out = sync.command(['hook', '--dir', dir], {
+      root,
+      now: '2026-07-29T12:00:02.500Z',
+      stdin: JSON.stringify({
+        cwd: root,
+        session_id: 'generic-1',
+        model: 'claude-sonnet-4-6',
+        started_at: '2026-07-29T12:00:00.000Z',
+        ended_at: '2026-07-29T12:00:02.500Z',
+      }),
+    });
+    assert.equal(out, '');
+    const events = sync.readEvents(root, dir);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].model, 'claude-sonnet-4-6');
+    assert.equal(events[0].duration_ms, 2500);
+    assert.equal(events[0].classify.applicable, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -145,6 +145,36 @@ function timingSnapshot(input, now) {
   return { started_at: startedAt, ended_at: endedAt, duration_ms: durationMs, timing_basis: timingBasis };
 }
 
+function transcriptTurnTiming(lines) {
+  const rows = [];
+  for (const line of lines || []) {
+    const row = typeof line === 'string' ? safeJson(line) : line;
+    if (row && typeof row === 'object') rows.push(row);
+  }
+  let assistantIndex = -1;
+  let endedAt = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    const role = row.type || (row.message && row.message.role);
+    if (role !== 'assistant') continue;
+    assistantIndex = i;
+    endedAt = parseIso(row.timestamp || row.ts || (row.message && row.message.timestamp));
+    break;
+  }
+  if (assistantIndex < 0 || !endedAt) {
+    return { started_at: null, ended_at: null, duration_ms: null, timing_basis: 'unknown' };
+  }
+  let startedAt = null;
+  for (let i = assistantIndex - 1; i >= 0; i--) {
+    const row = rows[i];
+    const role = row.type || (row.message && row.message.role);
+    if (role !== 'user') continue;
+    startedAt = parseIso(row.timestamp || row.ts || (row.message && row.message.timestamp));
+    if (startedAt) break;
+  }
+  return timingSnapshot({ started_at: startedAt, ended_at: endedAt }, endedAt);
+}
+
 function sanitizeRemote(value) {
   const remote = clamp(value, 500);
   if (!remote) return null;
@@ -157,13 +187,45 @@ function sha256File(file) {
   try { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); } catch { return null; }
 }
 
+function gitRemoteProject(root) {
+  try {
+    const remote = childProcess.spawnSync('git', ['-C', root, 'remote', 'get-url', 'origin'], {
+      encoding: 'utf8',
+      timeout: 1200,
+    });
+    if (remote.status !== 0) return null;
+    const value = sanitizeRemote(remote.stdout.trim());
+    if (!value) return null;
+    const match = value.replace(/\/+$/, '').match(/(?:[:/])([^/:]+?)(?:\.git)?$/);
+    return match ? safeSegment(match[1], null) : null;
+  } catch {
+    return null;
+  }
+}
+
+function projectConfig(root) {
+  const file = path.join(root, '.agent-sync.json');
+  const config = safeJson(safeRead(file) || '');
+  if (!config || typeof config !== 'object') return { file, config: null };
+  return { file, config };
+}
+
+function resolveProject(root, explicitProject) {
+  const config = projectConfig(root).config;
+  return safeSegment(
+    explicitProject ||
+      (config && config.project) ||
+      gitRemoteProject(root) ||
+      process.env.MOOTER_AGENT_SYNC_PROJECT ||
+      path.basename(root),
+    'unknown-project'
+  );
+}
+
 function findRepoRoot(start) {
   let dir = path.resolve(start || process.cwd());
   for (let i = 0; i < 10; i++) {
-    if (
-      fs.existsSync(path.join(dir, 'AGENTS.md')) &&
-      fs.existsSync(path.join(dir, 'tools', 'router', 'classify.js'))
-    ) return dir;
+    if (fs.existsSync(path.join(dir, '.git')) || fs.existsSync(path.join(dir, '.agent-sync.json'))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -177,6 +239,15 @@ function isMooterRoot(root) {
     fs.existsSync(path.join(root, 'AGENTS.md')) &&
     fs.existsSync(path.join(root, 'tools', 'router', 'classify.js'))
   );
+}
+
+function isTrackableRoot(root, options) {
+  if (!root || !fs.existsSync(path.join(root, '.git'))) return isMooterRoot(root);
+  if (isMooterRoot(root) || fs.existsSync(path.join(root, '.agent-sync.json'))) return true;
+  const vaultRoot = resolveVaultPath(options && options.vault);
+  if (!vaultRoot) return false;
+  const registry = loadSyncRegistry(vaultRoot, null, resolveProject(root));
+  return Boolean(registry.registry);
 }
 
 function defaultDir(root) {
@@ -252,8 +323,16 @@ function gitSnapshot(root) {
 
 function classifySnapshot(root) {
   const file = path.join(root, 'tools', 'router', 'classify.js');
+  if (!fs.existsSync(file)) {
+    return { path: null, sha256: null, intact: null, applicable: false };
+  }
   const sha = sha256File(file);
-  return { path: 'tools/router/classify.js', sha256: sha, intact: sha === EXPECTED_CLASSIFY_SHA };
+  return {
+    path: 'tools/router/classify.js',
+    sha256: sha,
+    intact: sha === EXPECTED_CLASSIFY_SHA,
+    applicable: true,
+  };
 }
 
 function deviceSnapshot(input, opts) {
@@ -406,7 +485,7 @@ function appendEvent(root, event, dir, opts) {
     try {
       const published = publishVault(root, [event], {
         vault: process.env.VAULT_PATH,
-        project: process.env.MOOTER_AGENT_SYNC_PROJECT || 'mooter',
+        project: resolveProject(root),
       });
       fs.appendFileSync(ps.projectionLog, JSON.stringify({
         ts: new Date().toISOString(),
@@ -804,15 +883,64 @@ function readVaultReceipts(vaultRoot, project, options) {
     .sort((a, b) => String(a.receipt.ended_at || a.receipt.ts).localeCompare(String(b.receipt.ended_at || b.receipt.ts)));
 }
 
+function vaultRemoteStatus(vaultRoot, options) {
+  options = options || {};
+  const run = options.spawnSync || childProcess.spawnSync;
+  const remoteName = clamp(options.remoteName || 'origin', 80) || 'origin';
+  const call = (args, timeout) => {
+    try {
+      return run('git', ['-C', vaultRoot, ...args], {
+        encoding: 'utf8',
+        timeout: timeout || 5000,
+        maxBuffer: 512 * 1024,
+      });
+    } catch (err) {
+      return { status: 1, stdout: '', stderr: err && err.message ? err.message : String(err) };
+    }
+  };
+  const head = call(['rev-parse', 'HEAD']);
+  const branch = call(['branch', '--show-current']);
+  const status = call(['status', '--porcelain']);
+  const remote = call(['remote', 'get-url', remoteName]);
+  const branchName = branch.status === 0 ? clamp(branch.stdout, 160) : null;
+  const remoteRef = branchName ? `refs/heads/${branchName}` : null;
+  const remoteHead = remoteRef ? call(['ls-remote', remoteName, remoteRef], options.remoteTimeout || 15000) : null;
+  const remoteSha = remoteHead && remoteHead.status === 0 && remoteHead.stdout.trim()
+    ? remoteHead.stdout.trim().split(/\s+/)[0]
+    : null;
+  const localSha = head.status === 0 ? clamp(head.stdout, 80) : null;
+  const clean = status.status === 0 ? status.stdout.trim() === '' : false;
+  const errors = [];
+  if (!localSha) errors.push('vault_local_head_missing');
+  if (!branchName) errors.push('vault_branch_missing');
+  if (remote.status !== 0) errors.push('vault_remote_missing');
+  if (!remoteSha) errors.push('vault_remote_head_missing');
+  if (!clean) errors.push('vault_worktree_dirty');
+  if (localSha && remoteSha && localSha !== remoteSha) errors.push('vault_remote_head_mismatch');
+  return {
+    ok: errors.length === 0,
+    vault: vaultRoot,
+    branch: branchName,
+    remote: remote.status === 0 ? sanitizeRemote(remote.stdout.trim()) : null,
+    local_head: localSha,
+    remote_head: remoteSha,
+    clean,
+    errors,
+  };
+}
+
 function agentSyncDoctor(root, options) {
   options = options || {};
   const home = path.resolve(options.home || os.homedir());
   const vaultRoot = resolveVaultPath(options.vault);
+  const project = resolveProject(root, options.project);
   const settingsPath = path.join(home, '.claude', 'settings.json');
-  const sourceLedgerPath = path.join(root, 'tools', 'router', 'agent-sync-ledger.js');
-  const sourceHookPath = path.join(root, 'tools', 'router', 'gsd-turn-end.js');
+  const repoLedgerPath = path.join(root, 'tools', 'router', 'agent-sync-ledger.js');
+  const repoHookPath = path.join(root, 'tools', 'router', 'gsd-turn-end.js');
   const installedLedgerPath = path.join(home, '.claude', 'tools', 'router', 'agent-sync-ledger.js');
   const installedHookPath = path.join(home, '.claude', 'hooks', 'gsd-turn-end.js');
+  const sourceLedgerPath = fs.existsSync(repoLedgerPath) ? repoLedgerPath : installedLedgerPath;
+  const sourceHookPath = fs.existsSync(repoHookPath) ? repoHookPath : installedHookPath;
   const settings = safeJson(safeRead(settingsPath) || '');
   const stopCommands = settings && settings.hooks && Array.isArray(settings.hooks.Stop)
     ? settings.hooks.Stop.flatMap((entry) => (entry && entry.hooks) || [])
@@ -828,9 +956,16 @@ function agentSyncDoctor(root, options) {
   const classifier = classifySnapshot(root);
   const device = deviceSnapshot({}, { home });
   const autoPublish = process.env.MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH === '1';
+  const registry = vaultRoot ? loadSyncRegistry(vaultRoot, options.registry, project) : null;
+  const remote = options.remote && vaultRoot ? vaultRemoteStatus(vaultRoot, options) : null;
   const checks = [
-    { id: 'repo_root', required: true, ok: isMooterRoot(root), detail: root },
-    { id: 'classifier_frozen', required: true, ok: classifier.intact, detail: classifier.sha256 || 'missing' },
+    { id: 'repo_root', required: true, ok: isTrackableRoot(root, { vault: vaultRoot }), detail: root },
+    {
+      id: 'classifier_frozen',
+      required: classifier.applicable,
+      ok: classifier.applicable ? classifier.intact : true,
+      detail: classifier.applicable ? (classifier.sha256 || 'missing') : 'n/a outside Mooter',
+    },
     { id: 'device_identity', required: true, ok: Boolean(device && device.id), detail: device && device.id || 'missing' },
     {
       id: 'runtime_installed',
@@ -869,8 +1004,8 @@ function agentSyncDoctor(root, options) {
     {
       id: 'vault_registry',
       required: true,
-      ok: Boolean(vaultRoot && fs.existsSync(path.join(vaultRoot, '00-core', 'agent-sync-registry.json'))),
-      detail: vaultRoot ? path.join(vaultRoot, '00-core', 'agent-sync-registry.json') : 'missing',
+      ok: Boolean(registry && registry.registry),
+      detail: registry ? registry.file : 'missing',
     },
     {
       id: 'auto_publish_enabled',
@@ -878,13 +1013,22 @@ function agentSyncDoctor(root, options) {
       ok: autoPublish,
       detail: autoPublish ? 'MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH=1' : 'disabled',
     },
+    ...(options.remote ? [{
+      id: 'vault_remote_sync',
+      required: true,
+      ok: Boolean(remote && remote.ok),
+      detail: remote
+        ? `${remote.local_head || 'n/d'} local · ${remote.remote_head || 'n/d'} remote · clean=${remote.clean}`
+        : 'not checked',
+    }] : []),
   ];
   return {
     schema_version: SCHEMA_VERSION,
     checked_at: new Date().toISOString(),
+    project,
     device,
     vault: vaultRoot,
-    remote_sync: 'not_checked',
+    remote_sync: remote,
     ok: checks.filter((row) => row.required).every((row) => row.ok),
     checks,
   };
@@ -895,13 +1039,14 @@ function renderDoctorReport(doctor) {
     '# Mooter Agent Sync Doctor',
     '',
     `LOCAL_AGENT_SYNC=${doctor.ok ? 'pass' : 'fail'}`,
-    'VAULT_REMOTE=not_checked',
+    `VAULT_REMOTE=${doctor.remote_sync ? (doctor.remote_sync.ok ? 'pass' : 'fail') : 'not_checked'}`,
+    `project: ${doctor.project || 'n/d'}`,
     `device: ${doctor.device && doctor.device.id || 'n/d'} · ${doctor.device && doctor.device.name || 'n/d'} · ${doctor.device && doctor.device.platform || 'n/d'}/${doctor.device && doctor.device.arch || 'n/d'}`,
     `vault: ${doctor.vault || 'n/d'}`,
     '',
     '## Checks',
     '',
-    ...doctor.checks.map((row) => `- ${row.ok ? 'PASS' : 'FAIL'} ${row.id}: ${row.detail}`),
+    ...doctor.checks.map((row) => `- ${!row.required ? 'SKIP' : (row.ok ? 'PASS' : 'FAIL')} ${row.id}: ${row.detail}`),
     '',
   ].join('\n');
 }
@@ -938,18 +1083,28 @@ function buildVaultStatus(vaultRoot, project) {
   };
 }
 
-function loadSyncRegistry(vaultRoot, explicitPath) {
+function loadSyncRegistry(vaultRoot, explicitPath, project) {
+  const projectFile = path.join(
+    vaultRoot,
+    '00-core',
+    'agent-sync-registries',
+    `${safeSegment(project, 'mooter')}.json`
+  );
+  const legacyFile = path.join(vaultRoot, '00-core', 'agent-sync-registry.json');
   const file = explicitPath
     ? path.resolve(String(explicitPath))
-    : path.join(vaultRoot, '00-core', 'agent-sync-registry.json');
+    : (project && fs.existsSync(projectFile) ? projectFile : legacyFile);
   const raw = safeRead(file);
   if (!raw) return { file, registry: null, error: 'registry_missing' };
   const registry = safeJson(raw);
   if (!registry || !Array.isArray(registry.devices)) return { file, registry: null, error: 'registry_invalid' };
+  if (project && registry.project && safeSegment(registry.project, null) !== safeSegment(project, null)) {
+    return { file, registry: null, error: 'registry_project_mismatch' };
+  }
   return { file, registry, error: null };
 }
 
-function auditFleet(status, registryResult, now) {
+function auditFleet(status, registryResult, now, remoteStatus) {
   const checkedAt = parseIso(now) || new Date().toISOString();
   const registry = registryResult && registryResult.registry;
   const rows = [];
@@ -964,6 +1119,23 @@ function auditFleet(status, registryResult, now) {
   }
   const project = registry.project || status.project;
   const defaultMaxAgeHours = Number(registry.max_age_hours);
+  const requireRemoteSync = registry.require_remote_sync === true;
+  const requiredAccessMode = clamp(registry.required_vault_access || '', 40) || null;
+  const registryRequireTiming = registry.require_timing === true;
+  const timingComplete = (row) => Boolean(
+    row &&
+    parseIso(row.receipt.started_at) &&
+    parseIso(row.receipt.ended_at || row.receipt.ts) &&
+    normalizeDuration(row.receipt.duration_ms) != null &&
+    ['wall_clock', 'runtime_reported'].includes(row.receipt.timing_basis)
+  );
+  const checkFreshness = (row, maxAgeHours, futureError, staleError, errors) => {
+    if (!row || !Number.isFinite(maxAgeHours) || maxAgeHours <= 0) return;
+    const seen = Date.parse(row.receipt.ended_at || row.receipt.ts);
+    const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
+    if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push(futureError);
+    else if (ageHours > maxAgeHours) errors.push(staleError);
+  };
   for (const expected of registry.devices) {
     const label = clamp(expected.label || expected.hostname || expected.device_id || 'unnamed-device', 160);
     const errors = [];
@@ -982,38 +1154,71 @@ function auditFleet(status, registryResult, now) {
       errors.push('arch_mismatch');
     }
     const maxAgeHours = Number(expected.max_age_hours || defaultMaxAgeHours);
-    if (latest && Number.isFinite(maxAgeHours) && maxAgeHours > 0) {
-      const seen = Date.parse(latest.receipt.ended_at || latest.receipt.ts);
-      const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
-      if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push('clock_skew_future');
-      else if (ageHours > maxAgeHours) errors.push('device_receipt_stale');
+    checkFreshness(latest, maxAgeHours, 'clock_skew_future', 'device_receipt_stale', errors);
+    const requireTiming = expected.require_timing == null
+      ? registryRequireTiming
+      : expected.require_timing === true;
+    if (expected.status === 'active' && latest && requireTiming && !timingComplete(latest)) {
+      errors.push('device_timing_missing');
+    }
+    const access = expected.vault_access;
+    if (expected.status === 'active' && (requiredAccessMode || requireRemoteSync)) {
+      if (!access || typeof access !== 'object') {
+        errors.push('vault_access_policy_missing');
+      } else {
+        if (requiredAccessMode && access.mode !== requiredAccessMode) {
+          errors.push(`vault_access_mode_mismatch:${access.mode || 'missing'}`);
+        }
+        if (access.auto_publish !== true) errors.push('vault_auto_publish_disabled');
+        if (requireRemoteSync && !['agent-sync-git', 'obsidian-git', 'manual-verified'].includes(access.remote_sync)) {
+          errors.push('vault_remote_sync_unconfigured');
+        }
+      }
     }
     for (const agent of normalizeAgents(expected.required_agents, 16)) {
       const key = `${expected.device_id}:${agent}`;
       const agentLatest = status.latest_by_device_agent[key];
       if (expected.status === 'active' && !agentLatest) {
         errors.push(`agent_receipt_missing:${agent}`);
-      } else if (agentLatest && Number.isFinite(maxAgeHours) && maxAgeHours > 0) {
-        const seen = Date.parse(agentLatest.receipt.ended_at || agentLatest.receipt.ts);
-        const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
-        if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push(`agent_clock_skew_future:${agent}`);
-        else if (ageHours > maxAgeHours) errors.push(`agent_receipt_stale:${agent}`);
+      } else {
+        checkFreshness(
+          agentLatest,
+          maxAgeHours,
+          `agent_clock_skew_future:${agent}`,
+          `agent_receipt_stale:${agent}`,
+          errors
+        );
+        if (agentLatest && requireTiming && !timingComplete(agentLatest)) {
+          errors.push(`agent_timing_missing:${agent}`);
+        }
       }
     }
     for (const provider of splitList(expected.required_providers, 16).map((item) => item.toLowerCase())) {
       const providerLatest = status.latest_by_device_provider[`${expected.device_id}:${provider}`];
       if (expected.status === 'active' && !providerLatest) {
         errors.push(`provider_receipt_missing:${provider}`);
-      } else if (providerLatest && Number.isFinite(maxAgeHours) && maxAgeHours > 0) {
-        const seen = Date.parse(providerLatest.receipt.ended_at || providerLatest.receipt.ts);
-        const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
-        if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push(`provider_clock_skew_future:${provider}`);
-        else if (ageHours > maxAgeHours) errors.push(`provider_receipt_stale:${provider}`);
+      } else {
+        checkFreshness(
+          providerLatest,
+          maxAgeHours,
+          `provider_clock_skew_future:${provider}`,
+          `provider_receipt_stale:${provider}`,
+          errors
+        );
       }
     }
     for (const channel of splitList(expected.required_channels, 8).map((item) => item.toLowerCase())) {
       const channelLatest = status.latest_by_device_channel[`${expected.device_id}:${channel}`];
       if (expected.status === 'active' && !channelLatest) errors.push(`channel_receipt_missing:${channel}`);
+      else {
+        checkFreshness(
+          channelLatest,
+          maxAgeHours,
+          `channel_clock_skew_future:${channel}`,
+          `channel_receipt_stale:${channel}`,
+          errors
+        );
+      }
     }
     if (!Array.isArray(expected.required_agents) || expected.required_agents.length === 0) {
       warnings.push('required_agents_not_declared');
@@ -1029,10 +1234,14 @@ function auditFleet(status, registryResult, now) {
   }
   const errors = rows.flatMap((row) => row.errors.map((error) => `${row.label}:${error}`));
   if (project !== status.project) errors.push('registry_project_mismatch');
+  if (requireRemoteSync && (!remoteStatus || !remoteStatus.ok)) {
+    errors.push('vault_remote_not_verified');
+  }
   return {
     ok: errors.length === 0 && rows.length > 0,
     checked_at: checkedAt,
     registry: registryResult.file,
+    remote: remoteStatus || null,
     errors,
     rows,
   };
@@ -1045,6 +1254,7 @@ function renderFleetAudit(audit) {
     `READINESS=${audit.ok ? 'pass' : 'fail'}`,
     `checked_at: ${audit.checked_at}`,
     `registry: ${audit.registry || 'n/d'}`,
+    `vault_remote: ${audit.remote ? (audit.remote.ok ? 'pass' : 'fail') : 'not_checked'}`,
     `errors: ${audit.errors.length}`,
     '',
     ...((audit.rows || []).length ? audit.rows.map((row) =>
@@ -1088,8 +1298,15 @@ function buildSnapshot(root, events, dir, opts) {
     const key = e.device.id || e.device.name || 'unknown';
     latestByDevice[key] = e;
   }
-  const open = events
-    .filter((e) => e.status === 'blocked' || e.status === 'needs_human' || e.next)
+  const latestByScope = new Map();
+  const superseded = new Set(events.map((e) => e.parent_event_id).filter(Boolean));
+  for (const e of events) {
+    const key = `${e.agent || 'unknown'}:${e.scope || e.session_id || e.id || 'unknown'}`;
+    latestByScope.set(key, e);
+  }
+  const open = Array.from(latestByScope.values())
+    .filter((e) => !superseded.has(e.id))
+    .filter((e) => ['blocked', 'needs_human', 'in_progress', 'ready'].includes(e.status))
     .slice(-12)
     .map((e) => ({
       ts: e.ts,
@@ -1198,7 +1415,7 @@ function renderSnapshot(snapshot) {
     `generated_at: ${snapshot.generated_at}`,
     `events: ${snapshot.event_count}`,
     `git: ${git.branch || 'n/d'} @${git.head || 'n/d'} dirty=${git.dirty == null ? 'n/d' : git.dirty} ahead=${git.ahead == null ? 'n/d' : git.ahead}`,
-    `classify.js: ${classify.intact ? 'intact' : 'MISMATCH/unknown'} ${classify.sha256 || ''}`,
+    `classify.js: ${classify.applicable === false ? 'n/a' : (classify.intact ? 'intact' : 'MISMATCH/unknown')} ${classify.sha256 || ''}`,
     '',
     '## Latest By Agent',
     '',
@@ -1500,7 +1717,7 @@ function renderSimulationReport(result) {
     `missing_agents: ${result.missingAgents.join(', ') || 'none'}`,
     `missing_prompts: ${result.missingPrompts.length}`,
     `missing_briefs: ${result.missingBriefs ? result.missingBriefs.length : 0}`,
-    `classify.js: ${result.classify && result.classify.intact ? 'intact' : 'MISMATCH/unknown'} ${result.classify && result.classify.sha256 ? result.classify.sha256 : ''}`,
+    `classify.js: ${result.classify && result.classify.applicable === false ? 'n/a' : (result.classify && result.classify.intact ? 'intact' : 'MISMATCH/unknown')} ${result.classify && result.classify.sha256 ? result.classify.sha256 : ''}`,
     '',
     'Flow:',
     '- claude-code writes a handoff plus one typed brief',
@@ -1532,11 +1749,12 @@ function renderHelp() {
     '',
     'Usage:',
     '  agent-sync-ledger.js status [--no-write]',
-    '  agent-sync-ledger.js doctor [--strict] [--vault <path>]',
+    '  agent-sync-ledger.js doctor [--strict] [--remote] [--vault <path>] [--project <name>]',
     '  agent-sync-ledger.js record --agent <name> --provider <name> --model <name> --channel <channel> ...',
     '  agent-sync-ledger.js audit [--window <n>] [--strict]',
     '  agent-sync-ledger.js publish-vault --vault <path> --project <name> [--strict]',
-    '  agent-sync-ledger.js vault-status --vault <path> --project <name> [--strict]',
+    '  agent-sync-ledger.js vault-status --vault <path> [--project <name>] [--remote] [--strict]',
+    '  agent-sync-ledger.js vault-remote-status --vault <path> [--strict]',
     '',
     'Help is read-only. Use command --help or help.',
     '',
@@ -1550,11 +1768,12 @@ function command(argv, opts) {
   if (args.help || cmd === 'help') return renderHelp();
   const root = findRepoRoot(args.root || opts.root || process.cwd());
   const dir = args.dir || opts.dir || defaultDir(root);
+  const project = resolveProject(root, args.project);
   if (cmd === 'hook') {
     const raw = opts.stdin != null ? opts.stdin : safeRead(0);
     const payload = safeJson(raw || '') || {};
     const hookRoot = findRepoRoot(args.root || payload.cwd || payload.project_dir || opts.root || process.cwd());
-    if (!isMooterRoot(hookRoot)) return '';
+    if (!isTrackableRoot(hookRoot, { vault: args.vault })) return '';
     const hookDir = args.dir || opts.dir || defaultDir(hookRoot);
     const sid = payload.session_id || (payload.session && payload.session.id) || payload.sessionId || null;
     const ev = normalizeEvent({
@@ -1576,6 +1795,7 @@ function command(argv, opts) {
       started_at: payload.started_at || payload.startedAt || null,
       ended_at: payload.ended_at || payload.endedAt || null,
       duration_ms: payload.duration_ms != null ? payload.duration_ms : payload.durationMs,
+      timing_basis: payload.timing_basis || payload.timingBasis || null,
       parent_event_id: payload.parent_event_id || payload.parentEventId || null,
       recorded_by: payload.recorded_by || payload.recordedBy || 'claude-code',
       device_id: payload.device_id || payload.deviceId || null,
@@ -1713,7 +1933,13 @@ function command(argv, opts) {
     return args.json ? JSON.stringify(audit, null, 2) + '\n' : renderAuditReport(audit) + '\n';
   }
   if (cmd === 'doctor') {
-    const doctor = agentSyncDoctor(root, { vault: args.vault, home: args.home });
+    const doctor = agentSyncDoctor(root, {
+      vault: args.vault,
+      home: args.home,
+      project,
+      registry: args.registry,
+      remote: Boolean(args.remote),
+    });
     if (args.strict && !doctor.ok) throw new Error(renderDoctorReport(doctor));
     return args.json ? JSON.stringify(doctor, null, 2) + '\n' : renderDoctorReport(doctor) + '\n';
   }
@@ -1725,7 +1951,7 @@ function command(argv, opts) {
     if (args.event && !selected.length) throw new Error(`event not found: ${args.event}`);
     const result = publishVault(root, selected, {
       vault: args.vault,
-      project: args.project || 'mooter',
+      project,
       all: Boolean(args.all),
     });
     if (args.strict && !result.complete) throw new Error(JSON.stringify(result, null, 2));
@@ -1749,14 +1975,34 @@ function command(argv, opts) {
   if (cmd === 'vault-status') {
     const vaultRoot = resolveVaultPath(args.vault);
     if (!vaultRoot) throw new Error('vault not found; set VAULT_PATH or pass --vault <path>');
-    const status = buildVaultStatus(vaultRoot, args.project || 'mooter');
-    const registry = loadSyncRegistry(vaultRoot, args.registry);
-    const readiness = auditFleet(status, registry, args.now || opts.now);
-    const result = { ...status, readiness };
+    const status = buildVaultStatus(vaultRoot, project);
+    const registry = loadSyncRegistry(vaultRoot, args.registry, project);
+    const remote = args.remote ? vaultRemoteStatus(vaultRoot) : null;
+    const readiness = auditFleet(status, registry, args.now || opts.now, remote);
+    const result = { ...status, remote, readiness };
     if (args.strict && !readiness.ok) throw new Error(renderFleetAudit(readiness));
     return args.json
       ? JSON.stringify(result, null, 2) + '\n'
       : renderVaultStatus(status) + '\n' + renderFleetAudit(readiness) + '\n';
+  }
+  if (cmd === 'vault-remote-status') {
+    const vaultRoot = resolveVaultPath(args.vault);
+    if (!vaultRoot) throw new Error('vault not found; set VAULT_PATH or pass --vault <path>');
+    const remote = vaultRemoteStatus(vaultRoot);
+    if (args.strict && !remote.ok) throw new Error(JSON.stringify(remote, null, 2));
+    return args.json
+      ? JSON.stringify(remote, null, 2) + '\n'
+      : [
+        '# Mooter Vault Remote Status',
+        '',
+        `VAULT_REMOTE=${remote.ok ? 'pass' : 'fail'}`,
+        `branch: ${remote.branch || 'n/d'}`,
+        `local_head: ${remote.local_head || 'n/d'}`,
+        `remote_head: ${remote.remote_head || 'n/d'}`,
+        `clean: ${remote.clean}`,
+        `errors: ${remote.errors.join(',') || 'none'}`,
+        '',
+      ].join('\n');
   }
   if (cmd === 'status') {
     const events = readEvents(root, dir);
@@ -1774,8 +2020,12 @@ module.exports = {
   VALID_KINDS,
   VALID_EVIDENCE,
   SHARED_LANGUAGE,
+  projectConfig,
+  resolveProject,
+  gitRemoteProject,
   findRepoRoot,
   isMooterRoot,
+  isTrackableRoot,
   defaultDir,
   paths,
   normalizeAgent,
@@ -1783,6 +2033,7 @@ module.exports = {
   normalizeChannel,
   normalizeEvent,
   timingSnapshot,
+  transcriptTurnTiming,
   deviceSnapshot,
   containsSecret,
   validateEvent,
@@ -1797,6 +2048,7 @@ module.exports = {
   parseVaultReceipt,
   verifyVaultReceipt,
   readVaultReceipts,
+  vaultRemoteStatus,
   buildVaultStatus,
   renderVaultStatus,
   loadSyncRegistry,
