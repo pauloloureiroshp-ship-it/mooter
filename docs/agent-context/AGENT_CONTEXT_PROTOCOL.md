@@ -47,19 +47,21 @@ mutable index for agents to race on.
 Receipt validity and fleet readiness are separate gates. `EVENT_AUDIT=pass`
 means only that the inspected local events are structurally trustworthy; it
 does **not** mean every device or provider reported. Cross-device readiness is
-`READINESS=pass` only when vault `00-core/agent-sync-registry.json` exists and
+`READINESS=pass` only when the Mooter legacy registry or
+`00-core/agent-sync-registries/<project>.json` exists and
 every active device plus its required surfaces has a fresh, identity-matching
-receipt. The registry can require agents, providers and execution channels per
-device; the recorded model remains the real runtime value, never a guessed
-allowlist. Pending enrollment, stale receipts, clock skew, missing
-agents/providers/channels and an absent registry all fail closed.
+receipt. The registry can require measured timing, vault read/write mode,
+verified remote sync, agents, providers and execution channels per device; the
+recorded model remains the real runtime value, never a guessed allowlist.
+Pending enrollment, stale receipts, clock skew, missing
+agents/providers/channels/access and an absent registry all fail closed.
 
 ### Session boundary
 
 At start: read `AGENTS.md`, the tail of `SYNC.md`, local `latest.md`, vault
 `00-core/agent-sync-protocol.md`, run the read-only
-`node tools/router/agent-sync-ledger.js doctor --strict`, and run
-`vault-status --strict` when the vault is mounted. The doctor verifies the
+`node tools/router/agent-sync-ledger.js doctor --remote --strict`, and run
+`vault-status --remote --strict` when the vault is mounted. The doctor verifies the
 canonical device identity, frozen classifier, installed runtime and Stop hook,
 settings wiring, vault protocol/registry and auto-publish. A failed local or
 fleet readiness gate must be reported before product work starts.
@@ -73,8 +75,22 @@ Set `MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH=1` only on devices where `VAULT_PATH`
 points to the private vault and its normal Git sync is configured. Auto-publish
 is local, append-only and fail-soft; it records success/failure in
 `vault-projection.jsonl`. A local receipt reports `VAULT_LOCAL`; only Git/connector
-evidence can report `VAULT_REMOTE`. Local projection never commits or pushes a
-product repo.
+evidence can report `VAULT_REMOTE`. `agent-sync-vault-git.js` is the single
+Git publisher: it accepts only new `30-learnings/agent-sync/**` receipts,
+blocks human-managed or mutable changes, reconciles concurrent receipt-only
+commits without force-push and never touches a product repo.
+Installing its scheduler requires the explicit `--ack-receipt-push` flag. That
+acknowledges recurring pushes only for verified, append-only vault receipts; it
+does not authorize product-repo push, merge, deploy, deletion or an allowlist
+change.
+
+Project identity resolves from explicit `--project`, `.agent-sync.json`, the
+Mooter frozen-engine signature, remote basename, environment fallback and
+directory basename, in that order. This prevents both a Mooter fork from
+splitting its receipts and a global environment default from cross-contaminating
+another project. Outside Mooter, hook writes require a valid repo-local
+`.agent-sync.json`; a coincidentally matching vault registry is audit metadata,
+not enrollment authority.
 
 ## Lingua Franca v1
 
@@ -248,12 +264,13 @@ Validate the local bootstrap, then audit identity/completeness and publish to
 the private vault:
 
 ```sh
-node tools/router/agent-sync-ledger.js doctor --strict
+node tools/router/agent-sync-ledger.js doctor --remote --strict
 node tools/router/agent-sync-ledger.js audit --window 1 --strict
 node tools/router/agent-sync-ledger.js publish-vault \
-  --vault "$VAULT_PATH" --project mooter --window 1 --strict
+  --vault "$VAULT_PATH" --window 1 --strict
+node tools/router/agent-sync-vault-git.js sync --vault "$VAULT_PATH"
 node tools/router/agent-sync-ledger.js vault-status \
-  --vault "$VAULT_PATH" --project mooter --strict
+  --vault "$VAULT_PATH" --remote --strict
 ```
 
 `EVENT_AUDIT=fail` means an event cannot be trusted or published.
@@ -268,7 +285,7 @@ durable receipts (`decision`, `gate`, `handoff`, `outcome`, `review`, `blocker`,
 or PR/wave/release cadence), and reports filtered events separately from invalid
 skips. Prompt/turn telemetry stays local unless an explicit publication uses
 `--all`. `--strict` fails on both errors and completeness warnings; `--window 1`
-gates only the just-recorded session boundary. `vault-status --strict` is the
+gates only the just-recorded session boundary. `vault-status --remote --strict` is the
 fleet coverage gate. `VAULT_LOCAL=pass` still leaves `VAULT_REMOTE=pending`
 until Git/connector evidence proves the receipt is remote.
 

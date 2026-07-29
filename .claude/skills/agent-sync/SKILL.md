@@ -15,13 +15,13 @@ Moo workers.
 3. Run the read-only local bootstrap gate:
 
    ```sh
-   node tools/router/agent-sync-ledger.js doctor --strict
+   node tools/router/agent-sync-ledger.js doctor --remote --strict
    ```
 
    It verifies canonical device identity, frozen classifier, installed runtime,
    Stop hook wiring, local vault, registry and auto-publish without changing them.
 4. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
-   `vault-status --strict` when the private vault is mounted. Do not interpret
+   `vault-status --remote --strict` when the private vault is mounted. Do not interpret
    a local event audit as fleet coverage.
 5. Validate any risky claim against code, git and the active handoff.
 
@@ -51,15 +51,24 @@ At the session boundary, validate and publish:
 
 ```sh
 node tools/router/agent-sync-ledger.js audit --window 1 --strict
-node tools/router/agent-sync-ledger.js publish-vault --vault "$VAULT_PATH" --project mooter --window 1 --strict
-node tools/router/agent-sync-ledger.js vault-status --vault "$VAULT_PATH" --project mooter --strict
+node tools/router/agent-sync-ledger.js publish-vault --vault "$VAULT_PATH" --window 1 --strict
+node tools/router/agent-sync-vault-git.js sync --vault "$VAULT_PATH"
+node tools/router/agent-sync-ledger.js vault-status --vault "$VAULT_PATH" --remote --strict
 ```
 
 The private vault stores one immutable receipt per event/device. Exact timing
 may remain `n/d` when the host cannot measure it. Identity, provider, model,
 channel and device may not be guessed. `VAULT_LOCAL=pass` is not proof of
-remote Git sync; report `VAULT_REMOTE=pending` until Git/connector confirms it.
+remote Git sync; only the append-only Git publisher or connector evidence can
+report `VAULT_REMOTE=pass`.
 `READINESS=fail` blocks a claim that the fleet is synchronized.
+
+Project identity is resolved in this order: explicit `--project`, repo
+`.agent-sync.json`, `origin` basename, environment fallback, directory basename.
+This prevents a global Mooter default from mislabelling work in another repo.
+Enrollment is explicit through
+`$VAULT_PATH/00-core/agent-sync-registries/<project>.json`; do not claim an
+unenrolled repo or pending device is synchronized.
 
 ## Delegate With Briefs
 
@@ -102,6 +111,8 @@ verify targeted brief prompts.
   never ask a stateless local model to write Git or the vault.
 - Never edit an existing vault receipt; issue a new event with `--parent <id>`.
 - A suspected secret blocks publication. Do not weaken or bypass that guard.
+- The Git publisher may stage only new `30-learnings/agent-sync/**` files. Any
+  human-managed vault change, edited receipt or non-mechanical divergence blocks it.
 - Record `--channel local|subscription|api|cloud` when verified; otherwise omit it.
 - Use common event kinds: `sync`, `intent`, `brief`, `turn`, `decision`,
   `artifact`, `gate`, `handoff`, `outcome`, `review`, `blocker`.
