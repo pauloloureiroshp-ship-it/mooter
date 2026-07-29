@@ -106,6 +106,19 @@ test('project resolution prefers repo config and never lets a global Mooter defa
   }
 });
 
+test('Mooter identity does not depend on a machine-global project environment variable', () => {
+  const { root } = fixture();
+  const previous = process.env.MOOTER_AGENT_SYNC_PROJECT;
+  try {
+    delete process.env.MOOTER_AGENT_SYNC_PROJECT;
+    assert.equal(sync.resolveProject(root), 'mooter');
+  } finally {
+    if (previous == null) delete process.env.MOOTER_AGENT_SYNC_PROJECT;
+    else process.env.MOOTER_AGENT_SYNC_PROJECT = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('normalizeEvent clamps and normalizes agent/cadence/status', () => {
   const { root } = fixture();
   try {

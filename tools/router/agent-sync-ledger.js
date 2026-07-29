@@ -216,6 +216,7 @@ function resolveProject(root, explicitProject) {
     explicitProject ||
       (config && config.project) ||
       gitRemoteProject(root) ||
+      (isMooterRoot(root) ? 'mooter' : null) ||
       process.env.MOOTER_AGENT_SYNC_PROJECT ||
       path.basename(root),
     'unknown-project'
