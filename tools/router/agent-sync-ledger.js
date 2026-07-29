@@ -1526,10 +1526,28 @@ function parseArgs(argv) {
   return out;
 }
 
+function renderHelp() {
+  return [
+    '# Mooter Agent Sync',
+    '',
+    'Usage:',
+    '  agent-sync-ledger.js status [--no-write]',
+    '  agent-sync-ledger.js doctor [--strict] [--vault <path>]',
+    '  agent-sync-ledger.js record --agent <name> --provider <name> --model <name> --channel <channel> ...',
+    '  agent-sync-ledger.js audit [--window <n>] [--strict]',
+    '  agent-sync-ledger.js publish-vault --vault <path> --project <name> [--strict]',
+    '  agent-sync-ledger.js vault-status --vault <path> --project <name> [--strict]',
+    '',
+    'Help is read-only. Use command --help or help.',
+    '',
+  ].join('\n');
+}
+
 function command(argv, opts) {
   opts = opts || {};
   const args = parseArgs(argv);
   const cmd = args._[0] || 'status';
+  if (args.help || cmd === 'help') return renderHelp();
   const root = findRepoRoot(args.root || opts.root || process.cwd());
   const dir = args.dir || opts.dir || defaultDir(root);
   if (cmd === 'hook') {
@@ -1796,6 +1814,7 @@ module.exports = {
   simulationEvents,
   simulateConversation,
   renderSimulationReport,
+  renderHelp,
   command,
 };
 
