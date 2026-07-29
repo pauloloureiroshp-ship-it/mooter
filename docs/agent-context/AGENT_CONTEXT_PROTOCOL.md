@@ -17,6 +17,45 @@ The generated `_handoff/agent-sync/` directory is local runtime state and is
 gitignored. Source code, Git, tests and external connectors remain the evidence;
 the ledger points to them rather than duplicating transcripts.
 
+## Cross-device truth model
+
+```text
+provider/model execution
+  -> host writes one local typed event
+  -> validator rejects missing identity or possible secrets
+  -> one immutable receipt per event/device in the private vault
+  -> vault Git sync makes the receipt visible on every device
+  -> vault-status aggregates at read time (no shared mutable "latest" file)
+```
+
+The layers have distinct authority:
+
+| Question | Canonical source |
+|---|---|
+| What is happening in this worktree now? | local `_handoff/agent-sync/` ledger + Git |
+| What happened on another device/session? | immutable vault receipts |
+| What policy must every surface follow? | vault `00-core/agent-sync-protocol.md` |
+| Did code/tests/deploy really happen? | repo, test output, Git/PR/CI or runtime evidence |
+
+The vault is a durable projection, not a second execution bus. Its receipt path is
+`30-learnings/agent-sync/<project>/<device-id>/<yyyy-mm>/<timestamp>--<event-id>.md`.
+Event IDs make every path single-writer. Republishing identical content is a no-op;
+different content for the same ID fails closed. There is deliberately no shared
+mutable index for agents to race on.
+
+### Session boundary
+
+At start: read `AGENTS.md`, the tail of `SYNC.md`, local `latest.md`, vault
+`00-core/agent-sync-protocol.md`, and `vault-status` when the vault is mounted.
+At finish: record one outcome/handoff with explicit device, provider, model,
+channel, evidence, result and next step; include `started_at`/`ended_at` when the
+host can measure them; run `audit`; publish the receipt. Unknown timing remains
+`n/d`, never an estimate.
+
+Set `MOOTER_AGENT_SYNC_VAULT_AUTO_PUBLISH=1` only on devices where `VAULT_PATH`
+points to the private vault and its normal Git sync is configured. Auto-publish
+is local, append-only and fail-soft; it never commits or pushes a product repo.
+
 ## Lingua Franca v1
 
 This section defines the semantic contract for inter-agent messages. It extends,
@@ -159,6 +198,8 @@ node tools/router/agent-sync-ledger.js record \
   --channel subscription \
   --kind outcome --cadence checkpoint --status done \
   --session <id> --session-title "MEO Control Tower" \
+  --started-at "2026-07-29T12:00:00Z" \
+  --ended-at "2026-07-29T12:04:30Z" \
   --wave wave/meo-cto --pr "#247" \
   --evidence code,test,git \
   --summary "what actually changed" --next "next concrete gate"
@@ -183,11 +224,37 @@ node tools/router/agent-sync-ledger.js simulate
 
 It must report `SIMULATION=pass`.
 
+Audit identity/completeness and publish to the private vault:
+
+```sh
+node tools/router/agent-sync-ledger.js audit --window 1 --strict
+node tools/router/agent-sync-ledger.js publish-vault \
+  --vault "$VAULT_PATH" --project mooter --window 1 --strict
+node tools/router/agent-sync-ledger.js vault-status \
+  --vault "$VAULT_PATH" --project mooter
+```
+
+`AUDIT=fail` means an event cannot be trusted or published. `pass_with_gaps`
+means identity is valid but optional evidence such as exact duration, Git state
+or next step is `n/d`. `publish-vault` scans every local event, writes only valid
+durable receipts (`decision`, `gate`, `handoff`, `outcome`, `review`, `blocker`,
+or PR/wave/release cadence), and reports filtered events separately from invalid
+skips. Prompt/turn telemetry stays local unless an explicit publication uses
+`--all`. `--strict` fails on both errors and completeness warnings; `--window 1`
+gates only the just-recorded session boundary while a full `audit` remains the
+coverage check for historical drift.
+
 ## Event contract
 
-Core identity fields are `agent`, `provider`, `model`, `execution_channel`, `session_id`,
-`session_title`, `kind`, `cadence`, `status` and `ts`. Delivery fields are
-`wave`, `pr`, `git`, `files`, `artifact` and `links`. Knowledge mirrors use
+Core identity fields are `agent`, `recorded_by`, `provider`, `model`,
+`execution_channel`, `session_id`, `session_title`, `kind`, `cadence`, `status`,
+`ts` and `device`. Timing uses `started_at`, `ended_at` and `duration_ms`; the
+host records measured values only. `run_id` and `parent_event_id` connect
+movements without copying a transcript. The `device` object records the
+canonical `~/.mooter/device.id`, hostname, platform and architecture so elapsed
+work and handoffs can be separated by machine without guessing from prose.
+Delivery fields are `wave`, `pr`, `git`, `files`, `artifact` and `links`.
+Knowledge mirrors use
 `notion_ref`, `obsidian_ref` and concrete evidence tags.
 
 Valid event kinds: `sync`, `intent`, `brief`, `turn`, `decision`, `artifact`,
@@ -208,9 +275,12 @@ PR, Notion sync or Obsidian sync.
 
 - Claude Code: the existing Stop hook records one fail-soft `turn` event after
   `/mooter-update` mirrors the new runtime files.
-- Codex: uses the installed `mooter-agent-sync` skill and records checkpoints.
+- Codex: reads this repo-native `AGENTS.md` and records checkpoints from its
+  worktree; connector access is evidence, not permission to invent vault state.
 - Roo/Gemini: follows `.roo/rules/mooter-agent-sync.md`.
-- Ollama/Moos: receive explicit brief files; they are stateless otherwise.
+- Ollama/Moos: receive explicit brief files; the invoking host records
+  `agent=ollama`, the real provider/model and `channel=local` after the result.
+  They are stateless otherwise and are never expected to write the vault.
 - Cowork/Paulo: record decisions or handoffs explicitly when a connector or
   local mirror supplies evidence.
 
@@ -231,6 +301,10 @@ claimed when the active agent actually has that connector.
 
 - Never edit `tools/router/classify.js`.
 - Never record secrets or full prompt/code bodies in the agent-sync ledger.
+- Vault publication allowlists compact fields and rejects common secret/token
+  patterns before write; a suspected secret is a hard failure.
+- Never edit an existing vault receipt. Correct it with a new event that points
+  to the prior event via `parent_event_id`.
 - Never claim a test, model execution, PR, deployment or mirror sync without
   evidence.
 - Keep events compact; link to durable artifacts.
