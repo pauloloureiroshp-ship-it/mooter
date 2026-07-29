@@ -242,13 +242,12 @@ function isMooterRoot(root) {
   );
 }
 
-function isTrackableRoot(root, options) {
-  if (!root || !fs.existsSync(path.join(root, '.git'))) return isMooterRoot(root);
-  if (isMooterRoot(root) || fs.existsSync(path.join(root, '.agent-sync.json'))) return true;
-  const vaultRoot = resolveVaultPath(options && options.vault);
-  if (!vaultRoot) return false;
-  const registry = loadSyncRegistry(vaultRoot, null, resolveProject(root));
-  return Boolean(registry.registry);
+function isTrackableRoot(root, _options) {
+  if (!root) return false;
+  if (isMooterRoot(root)) return true;
+  if (!fs.existsSync(path.join(root, '.git'))) return false;
+  const config = projectConfig(root).config;
+  return Boolean(config && safeSegment(config.project, null));
 }
 
 function defaultDir(root) {

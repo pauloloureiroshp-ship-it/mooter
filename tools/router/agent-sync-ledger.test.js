@@ -106,6 +106,37 @@ test('project resolution prefers repo config and never lets a global Mooter defa
   }
 });
 
+test('a matching vault registry never enrolls a generic repo without local config', () => {
+  const root = genericRepoFixture('cloude-home');
+  const vault = vaultFixture();
+  const previous = process.env.MOOTER_AGENT_SYNC_PROJECT;
+  try {
+    delete process.env.MOOTER_AGENT_SYNC_PROJECT;
+    const init = childProcess.spawnSync('git', ['-C', root, 'init'], { encoding: 'utf8' });
+    assert.equal(init.status, 0, init.stderr);
+    const remote = childProcess.spawnSync(
+      'git',
+      ['-C', root, 'remote', 'add', 'origin', 'https://github.com/example/cloude-home.git'],
+      { encoding: 'utf8' }
+    );
+    assert.equal(remote.status, 0, remote.stderr);
+    write(vault, '00-core/agent-sync-registries/cloude-home.json', JSON.stringify({
+      schema_version: 'agent-sync-registry/v2',
+      project: 'cloude-home',
+      devices: [],
+    }));
+    assert.equal(sync.resolveProject(root), 'cloude-home');
+    assert.equal(sync.isTrackableRoot(root, { vault }), false);
+    write(root, '.agent-sync.json', JSON.stringify({ project: 'cloude-home' }));
+    assert.equal(sync.isTrackableRoot(root, { vault }), true);
+  } finally {
+    if (previous == null) delete process.env.MOOTER_AGENT_SYNC_PROJECT;
+    else process.env.MOOTER_AGENT_SYNC_PROJECT = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
 test('Mooter identity does not depend on a machine-global project environment variable', () => {
   const { root } = fixture();
   const previous = process.env.MOOTER_AGENT_SYNC_PROJECT;

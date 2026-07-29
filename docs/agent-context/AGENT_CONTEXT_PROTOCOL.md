@@ -88,7 +88,9 @@ Project identity resolves from explicit `--project`, `.agent-sync.json`, the
 Mooter frozen-engine signature, remote basename, environment fallback and
 directory basename, in that order. This prevents both a Mooter fork from
 splitting its receipts and a global environment default from cross-contaminating
-another project.
+another project. Outside Mooter, hook writes require a valid repo-local
+`.agent-sync.json`; a coincidentally matching vault registry is audit metadata,
+not enrollment authority.
 
 ## Lingua Franca v1
 
