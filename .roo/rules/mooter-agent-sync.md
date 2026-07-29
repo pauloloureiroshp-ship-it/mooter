@@ -4,7 +4,12 @@ Roo/Gemini is part of the Mooter multi-agent team. Before acting:
 
 1. Read `_handoff/agent-sync/latest.md` if it exists.
 2. Read `_handoff/agent-context/bundle.md` if it exists.
-3. Validate docs and handoffs against code before proposing changes.
+3. Run `node tools/router/agent-sync-ledger.js doctor --strict`. This gate is
+   read-only and fails when device identity, runtime/hook wiring, vault,
+   registry or auto-publish is missing.
+4. Read `$VAULT_PATH/00-core/agent-sync-protocol.md` and run
+   `vault-status --strict` when the private vault is mounted.
+5. Validate docs and handoffs against code before proposing changes.
 
 After a meaningful prompt, handoff, PR, wave or review checkpoint, record one
 compact event:
@@ -16,6 +21,8 @@ node tools/router/agent-sync-ledger.js record \
   --kind review \
   --cadence checkpoint \
   --status in_progress \
+  --started-at "<measured ISO timestamp>" \
+  --ended-at "<measured ISO timestamp>" \
   --evidence doc,code \
   --summary "what changed or what was learned" \
   --next "next concrete action"
@@ -45,12 +52,27 @@ It should report `SIMULATION=pass` and generate a temporary flow for
 `claude-code`, `codex`, `gemini-roo` and `ollama` without calling external
 models or live connectors. It also checks targeted brief prompts.
 
+At the end of a meaningful session:
+
+```sh
+node tools/router/agent-sync-ledger.js audit --window 1 --strict
+node tools/router/agent-sync-ledger.js publish-vault --vault "$VAULT_PATH" --project mooter --window 1 --strict
+node tools/router/agent-sync-ledger.js vault-status --vault "$VAULT_PATH" --project mooter --strict
+```
+
 Hard rules:
 
 - Never edit `tools/router/classify.js`.
 - Never fabricate metrics, test results or benchmark numbers.
 - Keep generated sync state under `_handoff/agent-sync/`.
 - Treat local Ollama models as stateless unless context is explicitly supplied.
+- The invoking host records the local model/provider/channel and outcome; the
+  stateless model never writes Git or the vault directly.
+- Vault receipts are immutable and per-event/device. Never overwrite one.
+- `EVENT_AUDIT` validates observed events only; only `READINESS=pass` proves
+  registered device/surface coverage.
+- Local vault projection never proves remote Git sync.
+- Never bypass a secret-detection or identity-validation failure.
 - Record `--channel local|subscription|api|cloud` only when the execution path is known.
 - If docs, code and handoffs conflict, name the contradiction.
 - Use shared event kinds: `sync`, `intent`, `brief`, `turn`, `decision`,

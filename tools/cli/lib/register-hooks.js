@@ -6,6 +6,7 @@
 // Usage: node register-hooks.js <settings.json> <routerDir> <hooksDir>
 
 const fs = require('fs');
+const path = require('path');
 
 const [, , settingsPath, routerDir, hooksDir] = process.argv;
 
@@ -22,11 +23,40 @@ if (!fs.existsSync(settingsPath)) {
 const fwd = (p) => p.replace(/\\/g, '/');
 const routerFwd = fwd(routerDir);
 const hooksFwd = fwd(hooksDir);
+const nodeFwd = fwd(process.execPath);
+const runNode = (script, args = '') => `"${nodeFwd}" "${script}"${args ? ` ${args}` : ''}`;
 
 const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+const original = JSON.stringify(s);
 s.hooks = s.hooks || {};
 
 let added = 0;
+
+// Upgrade older installations that recorded a bare `node` command. A desktop
+// agent may have a bundled Node while the user's future shell PATH does not.
+// Pin only Mooter-managed hook basenames; never rewrite arbitrary user hooks.
+const managedHookFiles = [
+  'inject_context.js',
+  'mooter-turn-header.js',
+  'frugal-turn-header.js',
+  'pack-hint.cjs',
+  'gsd-turn-end.js',
+  'live-preview-tap.js',
+];
+for (const entries of Object.values(s.hooks)) {
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    for (const hook of entry.hooks || []) {
+      if (
+        typeof hook.command === 'string' &&
+        /^\s*node\s+/.test(hook.command) &&
+        managedHookFiles.some((name) => hook.command.includes(name))
+      ) {
+        hook.command = hook.command.replace(/^\s*node\s+/, `"${nodeFwd}" `);
+        added++;
+      }
+    }
+  }
+}
 
 const ensure = (key, needle, command) => {
   s.hooks[key] = s.hooks[key] || [];
@@ -35,7 +65,7 @@ const ensure = (key, needle, command) => {
   added++;
 };
 
-ensure('UserPromptSubmit', 'inject_context.js', `node "${routerFwd}/inject_context.js"`);
+ensure('UserPromptSubmit', 'inject_context.js', runNode(`${routerFwd}/inject_context.js`));
 
 // Kill Frugal W3: migrate any legacy frugal-turn-header entry in place, then
 // ensure the canonical mooter-turn-header hook exists.
@@ -47,7 +77,7 @@ for (const entry of (s.hooks.UserPromptSubmit || [])) {
     }
   }
 }
-ensure('UserPromptSubmit', 'mooter-turn-header.js', `node "${hooksFwd}/mooter-turn-header.js"`);
+ensure('UserPromptSubmit', 'mooter-turn-header.js', runNode(`${hooksFwd}/mooter-turn-header.js`));
 
 // Wave A (Moo Packs wired): migrate any hand-installed pack-hint.js entry to
 // the shipped .cjs bundle in place, then ensure the canonical hook exists.
@@ -64,8 +94,8 @@ for (const entry of (s.hooks.UserPromptSubmit || [])) {
     }
   }
 }
-ensure('UserPromptSubmit', 'pack-hint.cjs', `node "${hooksFwd}/pack-hint.cjs"`);
-ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
+ensure('UserPromptSubmit', 'pack-hint.cjs', runNode(`${hooksFwd}/pack-hint.cjs`));
+ensure('Stop', 'gsd-turn-end.js', runNode(`${hooksFwd}/gsd-turn-end.js`));
 
 // Live Preview · MP0 — arm the file-bus tap alongside the existing hooks. Each
 // entry passes the hook name as argv so hook-collector.mapEvent maps it to the
@@ -73,7 +103,7 @@ ensure('Stop', 'gsd-turn-end.js', `node "${hooksFwd}/gsd-turn-end.js"`);
 // server). ADDITIVE, read-only, fail-soft: the tap never blocks a turn and a
 // missing collector just yields no events. Idempotent — skips if the target hook
 // array already references the tap (needle checked per-key, so all 4 wire once).
-const tapCmd = (evt) => `node "${hooksFwd}/live-preview-tap.js" ${evt}`;
+const tapCmd = (evt) => runNode(`${hooksFwd}/live-preview-tap.js`, evt);
 const ensureTap = (key, entry) => {
   s.hooks[key] = s.hooks[key] || [];
   if (JSON.stringify(s.hooks[key]).includes('live-preview-tap.js')) return;
@@ -105,5 +135,22 @@ if (s.hooks.PostToolUse) {
   }
 }
 
-fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2));
+if (JSON.stringify(s) !== original) {
+  const dir = path.dirname(settingsPath);
+  const temp = path.join(dir, `.${path.basename(settingsPath)}.${process.pid}.${Date.now()}.tmp`);
+  const mode = fs.statSync(settingsPath).mode;
+  try {
+    const fd = fs.openSync(temp, 'wx', mode);
+    try {
+      fs.writeFileSync(fd, JSON.stringify(s, null, 2));
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(temp, settingsPath);
+  } catch (err) {
+    try { fs.unlinkSync(temp); } catch { /* best-effort cleanup */ }
+    throw err;
+  }
+}
 console.log(`hooks_added=${added}`);

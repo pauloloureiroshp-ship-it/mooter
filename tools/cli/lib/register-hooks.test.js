@@ -55,6 +55,7 @@ test('register-hooks arms the tap in all four hook arrays, idempotently', () => 
   // command points at the forward-slashed hooks dir (cross-OS)
   const upsCmd = s.hooks.UserPromptSubmit.flatMap((e) => e.hooks).find((h) => h.command.includes('live-preview-tap.js'));
   assert.match(upsCmd.command, /"\/opt\/hooks\/live-preview-tap\.js" UserPromptSubmit$/);
+  assert.match(upsCmd.command, new RegExp(`^"${process.execPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" `));
 
   // second run is a no-op — nothing added, no duplicates
   const second = run(settingsPath);
@@ -62,6 +63,7 @@ test('register-hooks arms the tap in all four hook arrays, idempotently', () => 
   const s2 = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   assert.strictEqual(tapEntries(s2.hooks.PostToolUse, 'PostToolUse').length, 1, 'no duplicate PostToolUse tap');
   assert.strictEqual(tapEntries(s2.hooks.Stop, 'Stop').length, 1, 'no duplicate Stop tap');
+  assert.deepStrictEqual(fs.readdirSync(dir), ['settings.json'], 'atomic update leaves no temp files');
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -79,6 +81,28 @@ test('register-hooks preserves a pre-existing user hook while arming the tap', (
   const kept = s.hooks.Stop.some((e) => (e.hooks || []).some((h) => h.command === 'node /my/own/hook.js'));
   assert.ok(kept, 'user hook survived');
   assert.strictEqual(tapEntries(s.hooks.Stop, 'Stop').length, 1, 'tap added alongside it');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('register-hooks upgrades bare-node Mooter hooks without rewriting user hooks', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-reg-'));
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(settingsPath, JSON.stringify({
+    hooks: {
+      Stop: [
+        { hooks: [{ type: 'command', command: 'node "/opt/hooks/gsd-turn-end.js"' }] },
+        { hooks: [{ type: 'command', command: 'node /my/own/hook.js' }] },
+      ],
+    },
+  }, null, 2));
+
+  const result = run(settingsPath);
+  assert.equal(result.code, 0);
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  const commands = settings.hooks.Stop.flatMap((entry) => entry.hooks || []).map((hook) => hook.command);
+  assert.ok(commands.includes(`"${process.execPath}" "/opt/hooks/gsd-turn-end.js"`));
+  assert.ok(commands.includes('node /my/own/hook.js'));
 
   fs.rmSync(dir, { recursive: true, force: true });
 });

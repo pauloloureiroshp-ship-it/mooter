@@ -101,6 +101,23 @@
 <!-- HUMANO:INICIO -->
 # Mooter — Sync Snapshot
 
+## Gate atual — cross-device agent sync (2026-07-29)
+
+- **Veredito:** `NOT_READY` para “todos os devices/superfícies sincronizados”.
+  Evento local válido não prova cobertura de frota.
+- **Mac mini `ac67a7f5-a962-496e-bf23-a675c6c3db74`:** runtime, skills,
+  settings e Stop hook instalados; Node embutido pinado e UUID canônico
+  preservado. `VAULT_PATH`/clone local e auto-publish continuam ausentes.
+- **Vault privado:** branch `codex/cross-device-agent-sync` contém protocolo,
+  registry e recibos imutáveis; draft PR #1 aberto. Registry exige Codex,
+  Claude Code e Ollama neste Mac, portanto Claude/Ollama silenciosos falham
+  fechado. MacBook, Windows, Jetson e iPad aguardam enrollment.
+- **Gate focado:** 59/59 testes passaram; instalador hermético/idempotente,
+  contratos Mac/Linux/Windows, ledger, register-hooks, sync-hooks e Stop hook.
+  `git diff --check`, sintaxe shell e classificador frozen verdes.
+- **Branch/PR:** `codex/cross-device-vault-sync-v2`, draft de revisão; merge
+  permanece gate humano. Nenhum deploy de produção.
+
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
