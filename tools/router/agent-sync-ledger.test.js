@@ -302,6 +302,8 @@ test('cross-device readiness fails closed for pending, missing and stale devices
           platform: 'darwin',
           arch: 'arm64',
           required_agents: ['codex'],
+          required_providers: ['openai'],
+          required_channels: ['subscription'],
         },
         {
           label: 'windows-rtx4090',
@@ -326,11 +328,32 @@ test('cross-device readiness fails closed for pending, missing and stale devices
           status: 'active',
           device_id: 'device-test-1',
           required_agents: ['codex'],
+          required_providers: ['openai'],
         }],
       },
     }, '2026-07-30T13:00:00.000Z');
     assert.equal(stale.ok, false);
     assert.ok(stale.errors.includes('mac-mini:device_receipt_stale'));
+    assert.ok(stale.errors.includes('mac-mini:provider_receipt_stale:openai'));
+
+    const wrongProvider = sync.auditFleet(status, {
+      file: registryPath,
+      registry: {
+        project: 'mooter',
+        max_age_hours: 24,
+        devices: [{
+          label: 'mac-mini',
+          status: 'active',
+          device_id: 'device-test-1',
+          required_agents: ['codex'],
+          required_providers: ['anthropic'],
+          required_channels: ['local'],
+        }],
+      },
+    }, '2026-07-29T13:00:00.000Z');
+    assert.equal(wrongProvider.ok, false);
+    assert.ok(wrongProvider.errors.includes('mac-mini:provider_receipt_missing:anthropic'));
+    assert.ok(wrongProvider.errors.includes('mac-mini:channel_receipt_missing:local'));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(vault, { recursive: true, force: true });

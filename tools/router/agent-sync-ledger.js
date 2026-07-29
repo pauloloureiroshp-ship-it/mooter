@@ -800,6 +800,8 @@ function buildVaultStatus(vaultRoot, project) {
   const latestByDevice = {};
   const latestByAgent = {};
   const latestByDeviceAgent = {};
+  const latestByDeviceProvider = {};
+  const latestByDeviceChannel = {};
   const receiptWarnings = [];
   for (const row of rows) {
     const event = row.receipt;
@@ -807,6 +809,8 @@ function buildVaultStatus(vaultRoot, project) {
     latestByDevice[device] = row;
     latestByAgent[event.agent || 'unknown'] = row;
     latestByDeviceAgent[`${device}:${event.agent || 'unknown'}`] = row;
+    latestByDeviceProvider[`${device}:${event.provider || 'unknown'}`] = row;
+    latestByDeviceChannel[`${device}:${event.execution_channel || 'unknown'}`] = row;
     for (const warning of row.warnings || []) receiptWarnings.push({ file: row.file, warning });
   }
   return {
@@ -817,6 +821,8 @@ function buildVaultStatus(vaultRoot, project) {
     latest_by_device: latestByDevice,
     latest_by_agent: latestByAgent,
     latest_by_device_agent: latestByDeviceAgent,
+    latest_by_device_provider: latestByDeviceProvider,
+    latest_by_device_channel: latestByDeviceChannel,
     receipt_warnings: receiptWarnings,
   };
 }
@@ -882,6 +888,21 @@ function auditFleet(status, registryResult, now) {
         if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push(`agent_clock_skew_future:${agent}`);
         else if (ageHours > maxAgeHours) errors.push(`agent_receipt_stale:${agent}`);
       }
+    }
+    for (const provider of splitList(expected.required_providers, 16).map((item) => item.toLowerCase())) {
+      const providerLatest = status.latest_by_device_provider[`${expected.device_id}:${provider}`];
+      if (expected.status === 'active' && !providerLatest) {
+        errors.push(`provider_receipt_missing:${provider}`);
+      } else if (providerLatest && Number.isFinite(maxAgeHours) && maxAgeHours > 0) {
+        const seen = Date.parse(providerLatest.receipt.ended_at || providerLatest.receipt.ts);
+        const ageHours = (Date.parse(checkedAt) - seen) / 3600000;
+        if (!Number.isFinite(ageHours) || ageHours < -0.25) errors.push(`provider_clock_skew_future:${provider}`);
+        else if (ageHours > maxAgeHours) errors.push(`provider_receipt_stale:${provider}`);
+      }
+    }
+    for (const channel of splitList(expected.required_channels, 8).map((item) => item.toLowerCase())) {
+      const channelLatest = status.latest_by_device_channel[`${expected.device_id}:${channel}`];
+      if (expected.status === 'active' && !channelLatest) errors.push(`channel_receipt_missing:${channel}`);
     }
     if (!Array.isArray(expected.required_agents) || expected.required_agents.length === 0) {
       warnings.push('required_agents_not_declared');

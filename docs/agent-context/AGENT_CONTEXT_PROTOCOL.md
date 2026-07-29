@@ -49,8 +49,10 @@ means only that the inspected local events are structurally trustworthy; it
 does **not** mean every device or provider reported. Cross-device readiness is
 `READINESS=pass` only when vault `00-core/agent-sync-registry.json` exists and
 every active device plus its required surfaces has a fresh, identity-matching
-receipt. Pending enrollment, stale receipts, clock skew, missing surfaces and
-an absent registry all fail closed.
+receipt. The registry can require agents, providers and execution channels per
+device; the recorded model remains the real runtime value, never a guessed
+allowlist. Pending enrollment, stale receipts, clock skew, missing
+agents/providers/channels and an absent registry all fail closed.
 
 ### Session boundary
 
