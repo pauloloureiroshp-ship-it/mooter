@@ -27,16 +27,57 @@ function setHostExtra(stub) { hx = stub; }
 
 function log(...a) { try { process.stderr.write('[mooter-bridge] ' + a.join(' ') + '\n'); } catch { /* ignore */ } }
 
+/**
+ * ⚠️ A8 — títulos que dizem alguma coisa.
+ *
+ * Cinco de dez sessões tinham o mesmo título: `"Lê o ficheiro C:\Users\Paulo
+ * Loureiro\.mooter\jobs\j"` — o prompt de arranque, truncado a meio de um path.
+ * A frota inteira ficava indistinguível na lista.
+ *
+ * O prefixo `[wave · step · objectivo]` que o conector já injecta é o que deve
+ * sobrar; o caminho do masterprompt é ruído de máquina e sai fora.
+ */
+function cleanTitle(name) {
+  let t = String(name || '').trim();
+  if (!t) return null;
+  const m = t.match(/^\[([^\]]{3,90})\]/);          // o rótulo que nós pomos
+  if (m) return m[1].trim();
+  t = t.replace(/\bL[eê]\s+o\s+ficheiro\b/i, '').trim();
+  // restos de caminho: qualquer token com barra e comprimento de path.
+  // Um caminho do Windows tem espaços ("Paulo Loureiro"), por isso um único
+  // regex ancorado no `C:\` deixava metade para trás — foi o que aconteceu.
+  t = t.split(/\s+/).filter((w) => !/[\\/]/.test(w) || w.length < 8).join(' ');
+  t = t.replace(/\s{2,}/g, ' ').replace(/^[·\-—,.]+|[·\-—,.]+$/g, '').trim();
+  return t.length >= 3 ? t : 'job Mooter';
+}
+
 // ── tool implementations (read-only) ──────────────────────────────────────
 function shapeSession(r) {
   return {
-    id: r.id, fullId: r.fullId, title: r.name || null,
+    id: r.id, fullId: r.fullId, title: cleanTitle(r.name),
     status: r.working ? 'working' : (r.needsYou ? 'needs_you' : 'idle'),
     model: r.model || null, project: r.project || null,
     cwd: r.cwd || null, branch: r.branch || null,
     pr: r.pr ? { number: r.pr.number, title: r.pr.title, state: r.pr.state, stage: r.pr.stage } : null,
     turns: r.turns, ageMs: r.ageMs,
-    tokensIn: r.tokIn, tokensOut: r.tokOut, costUsd: r.cost, savedUsd: r.saved, tokPerSec: r.tokPerSec,
+    tokensIn: r.tokIn, tokensOut: r.tokOut, tokPerSec: r.tokPerSec,
+    // ⚠️ v1.3.2 — two honesty fixes, both measured on 2026-07-25.
+    //
+    // 1. `costUsd` here is the WHOLE Claude Code session, including turns that
+    //    have nothing to do with a Mooter job. Reported bare, it contradicted
+    //    the ledger for the same job ($1.3909 vs $0.9247) with no way to tell
+    //    which was right. The ledger is the single source of truth for job cost;
+    //    this number keeps its own name so the two can never be confused again.
+    session_cost_usd: r.cost,
+    cost_note: 'custo acumulado da sessão CC, inclui turnos fora do job — o custo por job vem do ledger',
+    //
+    // 2. `savedUsd` was negative in 8 of 8 sessions, because the baseline is
+    //    all-Opus and everything WAS Opus: the formula is structurally unable to
+    //    be positive. A product whose pitch is savings, showing losses 100% of
+    //    the time, is worse than showing nothing. It comes back when there is a
+    //    real A/B measurement to back it.
+    savedUsd: null,
+    saved_note: 'oculto: baseline contrafactual all-Opus dava negativo em 8/8 — volta quando houver medição A/B real',
   };
 }
 
@@ -49,6 +90,26 @@ async function toolSessionsList(args) {
   }
   const rows = await hx.recentSessions(limit);
   const sessions = rows.map(shapeSession);
+  // ⚠️ v1.3.2 — a headless job cannot "need you". Three finished Mooter jobs
+  // showed up as `needs_you`, which would send the user looking for three
+  // things that do not exist. If the ledger says the job is over, it is over.
+  try {
+    const seam = require('./seamless.js');
+    const terminal = new Set();
+    for (const e of seam.ledgerRead()) {
+      if (!e.job_id) continue;
+      if (e.event === 'done' || e.event === 'failed' || e.event === 'collected') terminal.add(e.job_id);
+    }
+    if (terminal.size) {
+      for (const s of sessions) {
+        if (s.status !== 'needs_you') continue;
+        const title = String(s.title || '');
+        for (const jid of terminal) {
+          if (title.includes(jid)) { s.status = 'idle'; s.status_note = 'job headless já terminado no ledger'; break; }
+        }
+      }
+    }
+  } catch { /* never let this break the listing */ }
   const counts = {
     total: sessions.length,
     needs_you: sessions.filter((s) => s.status === 'needs_you').length,

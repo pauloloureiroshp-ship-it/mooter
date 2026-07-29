@@ -240,6 +240,20 @@ Nota: são 10 features numeradas mas "8 canônicas" no nome porque as duas prime
 
 ---
 
+## 2026-07-16 — custo-afundado-e-o-fosso-mesh-com-fronteira-dura
+
+- **Tese afiada:** o fosso do motor = maximização de custo afundado (assinaturas já pagas + GPU já
+  comprada, 24/7, hook-não-proxy, $0 marginal). Router preço×tier = commodity (proxies não usam
+  assinaturas nem GPU do usuário). Cabine continua o produto.
+- **Effort dial por engine** nas 3 personas (LazyMoo/Moo/CrazyMoo) + auto-yield (malha cede GPU a uso
+  interativo sozinha; /moo effort e /moo pause são override). GPU effort é GLOBAL ≠ modo por-sessão do
+  mode-registry. Recibo em toda troca.
+- **Moos executores:** transforms single-shot bounded apenas; nunca agentic <30B; nunca escrita
+  canônica direta (moo-draft + Ledger → reducer). Skills públicas só com score MooterBench local.
+- Detalhe: vault 40-strategy/mooter-agentic-os-playbook §8 + 20-decisions/mooter-harmony-mesh-effort-dial-2026-07-16.
+
+---
+
 ## Seção — Registro de decisões supersedidas
 
 (vazio — será populado conforme decisões evoluem; nova entry superseder aponta para antiga via slug)

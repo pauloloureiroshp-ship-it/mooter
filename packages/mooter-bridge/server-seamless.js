@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * server-seamless.js — mooter-bridge v0.2 entrypoint (P0 + P1 + seamless tools).
+ *
+ * Purely ADDITIVE: server.js (P0/P1, tracked, tested) is not modified — this
+ * entry requires it, extends its TOOLS registry with the seamless quartet
+ * (route/dispatch/status/collect) and runs the same newline-delimited JSON-RPC
+ * stdio loop. Register THIS file in claude_desktop_config.json:
+ *
+ *   { "mcpServers": { "mooter": { "command": "node",
+ *     "args": ["C:/Users/Paulo Loureiro/frugal/packages/mooter-bridge/server-seamless.js"] } } }
+ *
+ * Why a new entrypoint instead of editing server.js: the device-commit rule
+ * (protocolo item 10 — overwriting a tracked file that grew truncates) plus
+ * "reuse, never rewrite". server.js keeps working standalone as P0/P1.
+ */
+
+const base = require('./server.js');
+const seam = require('./seamless.js');
+
+// extend the shared registry — base.handle() reads the same array reference
+for (const t of seam.TOOLS) {
+  if (!base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
+}
+
+function log(...a) { try { process.stderr.write('[mooter-bridge v0.2] ' + a.join(' ') + '\n'); } catch { /* */ } }
+function send(msg) { try { process.stdout.write(JSON.stringify(msg) + '\n'); } catch (e) { log('send fail', (e && e.message) || ''); } }
+
+function main() {
+  let buf = '';
+  let pending = 0;
+  let stdinEnded = false;
+  const maybeExit = () => { if (stdinEnded && pending === 0 && seam.REGISTRY.size === 0) process.exit(0); };
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => {
+    buf += chunk;
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let msg; try { msg = JSON.parse(line); } catch { log('bad json line'); continue; }
+      pending++;
+      Promise.resolve(base.handle(msg))
+        .then((res) => { if (res) send(res); })
+        .catch((e) => log('handle err', (e && e.message) || ''))
+        .finally(() => { pending--; maybeExit(); });
+    }
+  });
+  // Drain in-flight calls AND live jobs before exiting on stdin end — a killed
+  // parent must not orphan-lose ledger `done` events for running jobs.
+  process.stdin.on('end', () => {
+    stdinEnded = true; maybeExit();
+    if (seam.REGISTRY.size > 0) {
+      const iv = setInterval(() => { if (seam.REGISTRY.size === 0 && pending === 0) { clearInterval(iv); maybeExit(); } }, 1000);
+      try { iv.unref(); } catch { /* ambiente sem unref */ }
+      iv.unref && iv.unref();
+    }
+  });
+  log('ready (v0.2 seamless) · tools: ' + base.TOOLS.map((t) => t.name).join(', '));
+}
+
+if (require.main === module) main();
+module.exports = { main };

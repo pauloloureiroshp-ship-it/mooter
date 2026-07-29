@@ -1,0 +1,67 @@
+name: Publish .mcpb to Release
+
+# The .mcpb was built by pack-mcpb.mjs but never left the machine that ran it:
+# it sits in .gitignore (_handoff/*.mcpb) and no workflow ever produced a
+# GitHub Release asset. F0 gate: a stranger on a clean machine installs from
+# the site. The site needs a real download link, and a real download link
+# needs a real release asset.
+#
+# Trigger: `release: published` — fires for ANY release, regardless of who
+# created it (web UI, `gh release create`, or another workflow). Filtered to
+# the product's semver tag scheme (`v1.2.3[-suffix]`, the same pattern
+# version-sync.yml already uses) so package-scoped releases (`cli-v*`,
+# `cockpit-v*`) are skipped — they are not mooter-bridge releases.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the .mcpb to (workflow_dispatch only)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve target tag
+        id: tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then TAG="${{ inputs.tag }}"; fi
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "Tag '$TAG' is not a v<semver> release (e.g. cli-v*/cockpit-v*) — nothing to attach here." >&2
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.tag.outputs.skip != '1'
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        if: steps.tag.outputs.skip != '1'
+        with:
+          node-version: '22'
+
+      # Zero deps in mooter-bridge — no npm ci needed. The pack script gates
+      # itself on entrega.test.js (declared delivery must be real content, not
+      # just a file that exists) before it writes a single byte.
+      - name: Build .mcpb
+        if: steps.tag.outputs.skip != '1'
+        working-directory: packages/mooter-bridge
+        run: |
+          mkdir -p "$RUNNER_TEMP/mcpb-out"
+          node pack-mcpb.mjs "$RUNNER_TEMP/mcpb-out/$(node -p "'mooter-v' + require('./manifest.json').version.replace(/\./g,'')").mcpb"
+
+      - name: Upload .mcpb to the release
+        if: steps.tag.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" "$RUNNER_TEMP"/mcpb-out/*.mcpb --clobber --repo "${{ github.repository }}"

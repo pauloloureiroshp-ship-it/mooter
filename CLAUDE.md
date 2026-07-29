@@ -15,6 +15,9 @@ cockpit is the product. A change earns its place by improving one of five experi
 > The long version that used to live here is archived at
 > `docs/foundation/CLAUDE_MD_ARCHIVE_2026-06-11.md`.
 
+Tool-agnostic canon — architecture map, conventions, multi-agent communication
+protocol, information architecture: see @AGENTS.md (auto-imported into every session).
+
 ## Hard invariants (CI-enforced where noted)
 
 - **`tools/router/classify.js` is FROZEN** — never modify it. Its sha256 is CI-enforced:

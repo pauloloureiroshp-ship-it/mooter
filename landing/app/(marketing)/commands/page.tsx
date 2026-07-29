@@ -55,7 +55,7 @@ const CMD_GROUPS: Group[] = [
     badge: 'Wave 5 · in development',
     cmds: [
       ['/mooter forge status', '', 'Adapter training state — idle, training, or active.'],
-      ['/mooter forge train', '', 'Train a local DoRA r=32 adapter on your codebase. ToS-safe, overnight.'],
+      ['/mooter forge train', '', 'Roadmap — local adapter training is not implemented yet. Today: forge install + forge benchmark.'],
       ['/mooter forge eval', '', 'Evaluate a trained adapter against the blind judge set.'],
     ],
   },

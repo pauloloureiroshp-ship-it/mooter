@@ -1,0 +1,39 @@
+{
+  "1.20": [
+    "sentinela.js",
+    "afericao.js"
+  ],
+  "1.22": [],
+  "1.23": [
+    "board.js",
+    "seamless.js",
+    "tools6.js",
+    "server-apps.js"
+  ],
+  "1.24": [
+    "capacidades.js",
+    "eta.js",
+    "estimativa.js",
+    "fleet.js",
+    "fleet-ui.html",
+    "sync.js",
+    "worktrees.js"
+  ],
+  "1.25": [
+    "moo.js",
+    "localfirst.js",
+    "estimativa.js"
+  ],
+  "1.26": [
+    "recibo.js",
+    "seamless.js",
+    "tools6.js",
+    "fleet.js"
+  ],
+  "1.27": [
+    "manifest.json",
+    "tools6.js",
+    "update.js",
+    "seamless.js"
+  ]
+}
