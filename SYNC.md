@@ -121,6 +121,20 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### 🪞 PERFECT-HANDOFF-V3 — effectiveCwd work-aware · LOW#1 morto (2026-07-03, Claude Code + Opus)
+**Estado:** ✅ **EM PROD — `main @d0e2281` (push directo, gate humano aprovado) + runtime wired sincronizado (v3).**
+
+**O que aterrou:** o handoff journal (`tools/router/handoff-journal.js`) deixou de cruzar de raiz. O v2.5 já matara a mentira do `payload.cwd`, mas ficava o **LOW#1**: `effectiveCwd` escolhia o `cd`/`git -C` **mais recente**, por isso um `cd ../wt && git commit` (o TRABALHO) seguido de `cd ~/frugal && git branch -d x` (navegação/limpeza no tree partilhado) era journalado sob `~/frugal` → o BOARD mostrava `overclock @85e238a` para sessões que trabalhavam noutros worktrees.
+
+**A cura (work > navigation, só ADIÇÕES · additivo · never-throws):**
+- `_isGitWrite(cmd)` — reconhece `commit|merge|rebase|cherry-pick|am|revert|worktree add|checkout/switch -b|-c|stash` (exclui `status|log|branch -d/-D/--list|rev-parse|show|diff|fetch|remote|stash list/show` e `cd` nu).
+- `_workCwdCandidates(lines)` — cwd por comando git-write (último `cd`/`-C` no mesmo comando; write cd-less → `payloadCwd`).
+- `effectiveCwd` ordem nova: **(a)** git-write newest-first ganha → **(b)** fallback navegação v2.5 (byte-identical, zero regressão) → **(c)** `payloadCwd`. Grounded — só devolve paths que `gitInfo` resolve.
+
+**Gate (passado):** `node --check` · `node --test` handoff **23/23** (+7 novos: anti-LOW#1, regressão nav, cd-less, 2 writes, write→navega, stash) · 15 falhas env pré-existentes **idênticas a main** · `classify.js` sha `427d8c0…4bc48f` **FROZEN intacta** · `final-reviewer` (Opus) **SHIP-WITH-NITS** (NIT stash list/show fechado) · prova no vivo E no runtime **PASS** (antes `overclock @85e238a`, depois branch real do git-WRITE) · `LOOP.md` LOW#1 **RESOLVIDO**.
+
+**⚠️ Lacuna de doutrina descoberta ao vivo (importante):** o **stock `/mooter-update` e o `sync-hooks.js` sourceiam de `~/frugal/tools/router` por default**. Se `~/frugal` estiver estacionado num branch != `main` (ex.: `feat/overclock-moo-p1`, stale), correr o update stock **REGRIDE o runtime** para a versão desse branch (dropa `effectiveCwd`). Foi apanhado e curado nesta sessão sincronizando com `--src <worktree-de-main>`. **Recomendação:** devolver `~/frugal` a `main` após fechar o overclock — ou usar sempre `--src` explícito enquanto ~/frugal estiver noutro branch.
+
 ### 🔒 SECURITY-1 — Hardening do tracker local 7821 (2026-06-25, Cowork autónomo)
 **Estado:** 🟡 **Código escrito no working-tree (Cowork, file tools). Falta: correr testes + commit selectivo + verificação live → CLAUDE CODE (VM Cowork em baixo, IDE typing bloqueado).**
 
