@@ -63,6 +63,8 @@ const MARCADORES = {
   'manifest.json': ['user_config'],
   'kimi-adapter.js': ['MOONSHOT_API_KEY', 'calculateCost', 'Moonshot · nuvem'],
   'update.js': ['releasesGitHub', 'procurarAsync'],
+  // v1.29 — install-id.js: UUID persistente por device
+  'install-id.js': ['getInstallId', 'installIdInfo'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {
