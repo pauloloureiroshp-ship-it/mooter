@@ -44,5 +44,8 @@
     "seamless.js",
     "kimi-adapter.js",
     "fleet.js"
+  ],
+  "1.28.1": [
+    "manifest.json"
   ]
 }
