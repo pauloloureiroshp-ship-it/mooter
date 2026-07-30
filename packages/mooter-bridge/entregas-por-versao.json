@@ -47,5 +47,11 @@
   ],
   "1.28.1": [
     "manifest.json"
+  ],
+  "1.29.0": [
+    "manifest.json",
+    "seamless.js",
+    "kimi-adapter.js",
+    "install-id.js"
   ]
 }

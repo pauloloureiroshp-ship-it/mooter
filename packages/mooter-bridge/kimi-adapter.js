@@ -6,7 +6,7 @@ const BASE_URL = 'https://api.moonshot.ai/v1';
 const MODEL = 'kimi-k3';
 const PROVIDER_LABEL = 'Moonshot · nuvem';
 const MISSING_KEY_ERROR = 'MOONSHOT_API_KEY não configurada — platform.moonshot.ai';
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 240000;
 const PRICING_USD_PER_MILLION = Object.freeze({
   input_cache_miss: 3,
   input_cache_hit: 0.30,

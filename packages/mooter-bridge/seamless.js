@@ -501,6 +501,51 @@ function assertSingleLineArgs(cmd) {
   return true;
 }
 
+// ── child-process environment (allowlist — never propagate the full env) ─────
+// Each agent only receives the env vars it actually needs. This prevents
+// MOONSHOT_API_KEY from leaking to claude/codex/gemini processes, and generally
+// reduces the attack surface of all child processes.
+const CHILD_ENV_BASE_KEYS = Object.freeze([
+  'PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR',
+  'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH',
+  'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'TMPDIR',
+  'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME',
+  'LANG', 'LC_ALL', 'TERM', 'COLORTERM', 'NO_COLOR',
+  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY',
+  'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy',
+  'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
+  'MOOTER_HOME', 'MOOTER_REPO', 'MOOTER_WORKTREE_ROOT',
+  'MOOTER_BUNDLE_DIR', 'MOOTER_ROUTER_DIR', 'MOOTER_DECISIONS_LOG',
+  'MOOTER_SESSION_ID', 'MOOTER_TRACKER_PORT', 'MOOTER_CONTEXT_BRIDGE',
+]);
+const CHILD_ENV_AGENT_KEYS = Object.freeze({
+  cc: Object.freeze([
+    'ANTHROPIC_API_KEY', 'CLAUDE_CONFIG_DIR', 'CLAUDE_SESSION_ID',
+    'CLAUDE_CODE_SESSION_ID', 'MOOTER_CLAUDE_DIR', 'MOOTER_ANTHROPIC_5H_LIMIT',
+  ]),
+  codex: Object.freeze([
+    'OPENAI_API_KEY', 'CODEX_HOME', 'MOOTER_CODEX_HOME', 'MOOTER_CODEX_5H_LIMIT',
+  ]),
+  gemini: Object.freeze([
+    'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_APPLICATION_CREDENTIALS',
+  ]),
+  moo: Object.freeze([
+    'OLLAMA_HOST', 'MOOTER_MOO_MODEL', 'MOOTER_NUM_CTX_MAX', 'MOOTER_KEEP_ALIVE',
+  ]),
+  // kimi runs in-process (kimi-adapter.js) — no child process, no env needed here
+  git: Object.freeze([]),
+});
+
+function childEnvFor(agent) {
+  const env = {};
+  const agentKeys = CHILD_ENV_AGENT_KEYS[agent] || [];
+  for (const key of [...CHILD_ENV_BASE_KEYS, ...agentKeys]) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
 // ── spawner (injectable for hermetic tests) ───────────────────────────────
 /**
  * v1.2 — `stdio[0] = 'ignore'`. This one word resurrects the Codex agent.
@@ -513,9 +558,9 @@ function assertSingleLineArgs(cmd) {
  * 8+ minutes, no output) and it is a known upstream bug with a unanimous
  * workaround — close stdin (`< /dev/null`). We do it at the source instead.
  */
-function realSpawnJob(cmd, cwd, outStream, errStream) {
+function realSpawnJob(cmd, cwd, outStream, errStream, agent) {
   const isWin = process.platform === 'win32';
-  const opts = { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] };
+  const opts = { cwd, env: childEnvFor(agent || 'cc'), stdio: ['ignore', 'pipe', 'pipe'] };
   const child = isWin
     ? spawn([cmd.bin, ...cmd.args.map(quoteArg)].join(' '), Object.assign({ shell: true, windowsHide: true }, opts))
     : spawn(cmd.bin, cmd.args, opts);
@@ -1187,7 +1232,7 @@ function correrGit(args, worktree, maxBytes) {
     windowsHide: true,
     // GIT_OPTIONAL_LOCKS=0 impede o `status` de refrescar (e travar) o index.
     // Um conector de LEITURA que deixa um index.lock para trás não é de leitura.
-    env: Object.assign({}, process.env, { GIT_PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }),
+    env: Object.assign(childEnvFor('git'), { GIT_PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }),
   });
   if (r.error) return { erro: (r.error.code === 'ETIMEDOUT' ? 'excedeu ' + (A4_TIMEOUT_MS / 1000) + 's' : String(r.error.message || r.error)), saida: null };
   if (r.status !== 0) return { erro: 'saiu ' + r.status + (r.stderr ? ': ' + String(r.stderr).trim().split('\n')[0].slice(0, 160) : ''), saida: null };
@@ -1632,7 +1677,7 @@ async function toolDispatch(args) {
         timeoutMs: Number(process.env.MOOTER_KIMI_TIMEOUT_MS) || kimi.DEFAULT_TIMEOUT_MS,
       });
     } else {
-      child = spawnJob(cmd, wtNorm, outStream, errStream);
+      child = spawnJob(cmd, wtNorm, outStream, errStream, agent);
     }
   } catch (e) {
     stepTracker.finish();
@@ -2458,7 +2503,9 @@ async function toolWork(args) {
   // contexto. Custa milissegundos, custa $0, e transforma "o teu modelo local
   // não serve para isto" em "o teu modelo local acabou de auditar o ficheiro".
   const executionText = goal + ' ' + (a.context || '');
-  const leitura = pedeLeituraDeFicheiro(executionText);
+  const leitura = a.prepare === false && agent === 'kimi'
+    ? null   // kimi via API — não lê disco; skip da verificação evita erro de UX
+    : pedeLeituraDeFicheiro(executionText);
   const executionIntent = pedeExecucaoDeMotor(executionText);
   let contextoInjectado = null;
   let avisoFabricacao = null;
