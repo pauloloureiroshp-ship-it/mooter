@@ -61,6 +61,7 @@ const MARCADORES = {
   // v1.27 — F0: distribuição honesta (release do .mcpb, classify.js no bundle,
   // user_config, diagnóstico primeira_vez, GitHub Releases API)
   'manifest.json': ['user_config'],
+  'kimi-adapter.js': ['MOONSHOT_API_KEY', 'calculateCost', 'Moonshot · nuvem'],
   'update.js': ['releasesGitHub', 'procurarAsync'],
 };
 

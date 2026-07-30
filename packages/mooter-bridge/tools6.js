@@ -129,7 +129,7 @@ function build(seam, fleet, base) {
         properties: {
           goal: { type: 'string', description: 'O que queres, em linguagem normal. Cita ficheiros pelo nome e eu procuro-os.' },
           write: { type: 'boolean', description: 'Deixar o agente alterar ficheiros. Por omissão false. Git nunca é permitido.' },
-          agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo'], description: '[avançado] forçar um motor. Omite e eu escolho.' },
+          agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo', 'kimi'], description: '[avançado] forçar um motor. `kimi` = Moonshot · nuvem. Omite e eu escolho.' },
           cargo: { type: 'string', enum: seam.VALID_CARGOS, description: 'M-level declarado por quem dispara. Nunca é inferido do texto.' },
           model: { type: 'string', description: '[avançado] forçar um modelo.' },
           wave: { type: 'string', description: '[avançado] agrupar vários trabalhos sob o mesmo nome.' },

@@ -33,6 +33,7 @@ const FILES = [
   ["gpu.js", "server/gpu.js"],
   ['server.js', 'server/server.js'],
   ['seamless.js', 'server/seamless.js'],
+  ['kimi-adapter.js', 'server/kimi-adapter.js'],
   ['fleet.js', 'server/fleet.js'],
   ['fleet-ui.html', 'server/fleet-ui.html'],
   ['telemetry.js', 'server/telemetry.js'],

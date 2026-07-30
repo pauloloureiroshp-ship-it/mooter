@@ -66,7 +66,10 @@ const OLLAMA_HOST = envOrNull('OLLAMA_HOST') || '127.0.0.1:11434';
 const OLLAMA_TIMEOUT_MS = 700; // the panel polls every 3s — never block on a dead daemon
 const PANEL_PROBE_TIMEOUT_MS = 1200;
 
-const AGENT_LABEL = { cc: 'Claude Code', codex: 'Codex', gemini: 'Gemini', moo: 'Ollama · local' };
+const AGENT_LABEL = {
+  cc: 'Claude Code', codex: 'Codex', gemini: 'Gemini',
+  moo: 'Ollama · local', kimi: 'Moonshot · nuvem',
+};
 const LOCAL_AGENTS = new Set(['moo']);
 
 // P.chave() em vez de manipulação de string à mão: em Windows o mesmo sítio tem

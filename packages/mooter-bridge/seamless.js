@@ -37,6 +37,7 @@ const { spawn, execFileSync } = require('child_process');
 const { PassThrough } = require('stream');
 const telemetry = require('./telemetry.js');
 const moo = require('./moo.js');
+const kimi = require('./kimi-adapter.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
 const wt = require('./worktrees.js');
@@ -361,8 +362,11 @@ function sweepOrphans() {
 // v1.2: `moo` joins the enum. Until now the router mapped T0 → moo and then
 // admitted in its own routing_note that moo "não é dispatchável" — the local
 // tier was decoration. The GPU had a model resident and zero jobs.
-const KNOWN_AGENTS = ['cc', 'codex', 'gemini', 'moo'];
+const KNOWN_AGENTS = ['cc', 'codex', 'gemini', 'moo', 'kimi'];
 const LOCAL_AGENTS = new Set(['moo']);
+function agentLabel(agent) {
+  return agent === 'kimi' ? kimi.PROVIDER_LABEL : agent;
+}
 function guardCheck({ agent, worktree, masterprompt, wave, allowedTools }) {
   const reasons = [];
   if (!KNOWN_AGENTS.includes(agent)) reasons.push(`agent "${agent}" desconhecido (esperado: ${KNOWN_AGENTS.join('|')})`);
@@ -469,6 +473,10 @@ function buildCommand(agent, jobDir, allowedTools, model, label) {
   if (agent === 'moo') {
     // handled in-process by moo.js — no CLI, no shell, no PATH lottery
     return { bin: '(ollama)', args: ['/api/chat', model || '(auto)'], local: true };
+  }
+  if (agent === 'kimi') {
+    // handled in-process: the API key never enters argv, meta.json or the ledger
+    return { bin: '(moonshot)', args: ['/v1/chat/completions', kimi.MODEL], cloud: true };
   }
   throw new Error('unknown agent ' + agent);
 }
@@ -714,6 +722,13 @@ function effectivePermissions(meta) {
       fonte: 'caminho in-process de buildCommand',
     };
   }
+  if (meta.agent === 'kimi') {
+    return {
+      valor: [], read_only: true,
+      porque: 'o Kimi corre via API de chat Moonshot e não recebe ferramentas',
+      fonte: 'caminho in-process de buildCommand',
+    };
+  }
   if (meta.agent === 'gemini') {
     return ndPermissions(
       '--approval-mode auto_edit não enumera as ferramentas que o Gemini pode usar',
@@ -836,6 +851,7 @@ const VENDOR_MODELS = {
   // CLI is known to accept. Anything else → null → CLI default.
   codex: { T1: null, T2: null, T3: null, T5: null },
   gemini: { T1: null, T2: null, T3: null, T5: null },
+  kimi: { T1: kimi.MODEL, T2: kimi.MODEL, T3: kimi.MODEL, T5: null },
   // moo never takes a tier name: the model has to be one that is actually
   // installed on this machine. moo.pickModel() resolves it from /api/ps.
   moo: null,
@@ -874,7 +890,7 @@ function tierDoMotor(agent, model) {
 }
 
 function cliModelFor(agent, tier, recommended) {
-  if (!['cc', 'codex', 'gemini', 'moo'].includes(String(agent))) {
+  if (!['cc', 'codex', 'gemini', 'moo', 'kimi'].includes(String(agent))) {
     throw new TypeError('cliModelFor(agent, tier, recommended): agent obrigatório e válido, recebi ' + JSON.stringify(agent));
   }
   const a = String(agent);
@@ -953,7 +969,7 @@ function worktreeSuffix(requested, used, relocated) {
   }
   return ' · em ' + usedName;
 }
-const ENGINES_SEM_FICHEIROS = new Set(['moo']);
+const ENGINES_SEM_FICHEIROS = new Set(['moo', 'kimi']);
 
 function pedeLeituraDeFicheiro(texto) {
   const t = String(texto || '');
@@ -1003,7 +1019,8 @@ function pedeExecucaoDeMotor(texto) {
 }
 
 function executionCapability(agent) {
-  const commandText = agent === 'moo' ? '(ollama) /api/chat' : '(dispatch pendente)';
+  const commandText = agent === 'moo' ? '(ollama) /api/chat'
+    : (agent === 'kimi' ? '(moonshot) /v1/chat/completions' : '(dispatch pendente)');
   const effective = effectivePermissions({ agent, cmd: commandText });
   return {
     supported: !(Array.isArray(effective.valor) && effective.valor.length === 0),
@@ -1234,7 +1251,7 @@ function executarComandos(texto, worktree) {
  * lado nenhum — e vai marcada. O contrário também importa: quando HÁ evidência,
  * isto cala-se. Um aviso que dispara sempre é ruído, e ruído ensina a ignorar.
  */
-const VEREDICTO_RE = /(\bPASS\b|\bFAIL\b|\baprovad[oa]\b|\breprovad[oa]\b|seguro para (?:o )?push|pode(?:s)? fazer push|est[áa] (?:tudo )?(?:ok|correcto|correto)\b)/i;
+const VEREDICTO_RE = /(\bPASS\b|\bFAIL\b|\bNO[-\s]?SHIP\b|\bSHIP\b|\baprovad[oa]\b|\breprovad[oa]\b|seguro para (?:o )?push|pode(?:s)? fazer push|est[áa] (?:tudo )?(?:ok|correcto|correto)\b)/i;
 
 function veredictoSemEvidencia(meta, body) {
   if (!body || !meta) return { degradado: false };
@@ -1244,13 +1261,14 @@ function veredictoSemEvidencia(meta, body) {
   if (teveAlgo) return { degradado: false };
   if (!VEREDICTO_RE.test(String(body))) return { degradado: false };
   const recusados = (ev && ev.comandos_recusados) || [];
+  const origem = meta.agent === 'kimi' ? kimi.PROVIDER_LABEL : 'um motor local';
   const aviso = [
-    '> ⚠️ **VEREDICTO NÃO VERIFICADO** — o que está abaixo foi escrito por um motor local',
+    '> ⚠️ **VEREDICTO NÃO VERIFICADO** — o que está abaixo foi escrito por ' + origem,
     '> sem ferramentas, e o conector não lhe injectou ficheiro nem saída de comando nenhuma.',
     recusados.length
       ? '> Comandos que não correram: ' + recusados.map((r) => r.comando + ' (' + r.porque + ')').join(' · ')
       : '> Nenhuma evidência foi recolhida para este job.',
-    '> Qualquer PASS, FAIL ou "seguro" no texto seguinte é especulação, não observação.',
+    '> Qualquer PASS, FAIL, SHIP, NO-SHIP ou "seguro" no texto seguinte é especulação, não observação.',
     '',
     '',
   ].join('\n');
@@ -1284,7 +1302,9 @@ function embedHandoff(masterprompt, fromJobId) {
       if (evs[i] && evs[i].result != null) { body = String(evs[i].result); break; }
     }
     if (!body) return { mp: masterprompt, ok: false };
-    const who = meta.agent === 'moo' ? ('GPU local' + (meta.model ? ' · ' + meta.model : '')) : (meta.agent + (meta.model ? ' · ' + meta.model : ''));
+    const who = meta.agent === 'moo'
+      ? ('GPU local' + (meta.model ? ' · ' + meta.model : ''))
+      : (agentLabel(meta.agent) + (meta.model ? ' · ' + meta.model : ''));
     const block = [
       '',
       '---',
@@ -1395,6 +1415,12 @@ async function toolDispatch(args) {
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
+  if (agent === 'kimi' && !kimi.configuredApiKey()) {
+    return { error: kimi.MISSING_KEY_ERROR, agent: 'kimi', agent_label: kimi.PROVIDER_LABEL };
+  }
+  if (agent === 'kimi' && args && args.model && String(args.model) !== kimi.MODEL) {
+    return { error: 'o agente kimi usa apenas o modelo kimi-k3', agent: 'kimi', model: kimi.MODEL };
+  }
   const wtNorm = path.resolve(worktree);
   const canWrite = args && typeof args.__escrita === 'boolean'
     ? args.__escrita
@@ -1436,7 +1462,9 @@ async function toolDispatch(args) {
   const classified = classifyOrNull(masterprompt);
   const tier = classified ? (classified.tier || null) : null;
   const model_recommended = classified ? cliModelFor(agent, tier, classified.recommended_model) : null;
-  let model = args && args.model ? String(args.model) : model_recommended;
+  let model = agent === 'kimi'
+    ? kimi.MODEL
+    : (args && args.model ? String(args.model) : model_recommended);
   const quotaCalibration = args && args.__quota_calibragem && typeof args.__quota_calibragem === 'object'
     ? args.__quota_calibragem : null;
   // BUG v1.18: o tecto corria em toolWork antes desta resolução. Quando o T0
@@ -1596,6 +1624,13 @@ async function toolDispatch(args) {
         m.modelo_trocou_residente = escolha.trocou_residente || null;
         fs.writeFileSync(path.join(jobDir, 'meta.json'), JSON.stringify(m, null, 2));
       } catch { /* */ }
+    } else if (agent === 'kimi') {
+      child = kimi.runKimi({
+        prompt: masterprompt,
+        outStream,
+        errStream,
+        timeoutMs: Number(process.env.MOOTER_KIMI_TIMEOUT_MS) || kimi.DEFAULT_TIMEOUT_MS,
+      });
     } else {
       child = spawnJob(cmd, wtNorm, outStream, errStream);
     }
@@ -1701,7 +1736,7 @@ async function toolDispatch(args) {
         .find((l) => l && !l.startsWith('⇄') && !l.startsWith('#')) || ('job ' + agent);
       plan.updateStep(wave, stepId, {
         state: 'a-correr', job_id, title: firstLine.slice(0, 90), agent,
-        by: (agent === 'moo' ? 'Ollama · local' : agent) + (model ? ' · ' + model : ''),
+        by: (agent === 'moo' ? 'Ollama · local' : agentLabel(agent)) + (model ? ' · ' + model : ''),
       });
     } catch { /* */ }
   }
@@ -1806,7 +1841,7 @@ async function toolDispatch(args) {
         plan.updateStep(wave, stepId, {
           state: ok ? 'feito' : 'falhou',
           job_id,
-          by: (agent === 'moo' ? 'Ollama · local' : agent) + (r.model_used ? ' · ' + r.model_used : ''),
+          by: (agent === 'moo' ? 'Ollama · local' : agentLabel(agent)) + (r.model_used ? ' · ' + r.model_used : ''),
           note: r.cost_usd != null ? '$' + Number(r.cost_usd).toFixed(4) + ' · ' + dur + 's' : dur + 's',
         });
       } catch { /* the plan is a convenience; it must never break a job */ }
@@ -1833,7 +1868,7 @@ async function toolDispatch(args) {
     permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
-    agent, worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
+    agent, agent_label: agentLabel(agent), worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
     model_recommended, tier,
     mapa_injectado: projectMap.injetado,
@@ -2520,7 +2555,12 @@ async function toolWork(args) {
     } catch { /* sem leitura de quota, o routing fica como estava */ }
   }
 
-  let model = a.model ? String(a.model) : (d ? cliModelFor(agent, tier, d.recommended_model) : null);
+  if (agent === 'kimi' && a.model && String(a.model) !== kimi.MODEL) {
+    return { error: 'o agente kimi usa apenas o modelo kimi-k3', agent: 'kimi', model: kimi.MODEL };
+  }
+  let model = agent === 'kimi'
+    ? kimi.MODEL
+    : (a.model ? String(a.model) : (d ? cliModelFor(agent, tier, d.recommended_model) : null));
   let routedBy = a.model ? 'user' : (model ? 'work+classify' : 'cli-default');
   // o tecto da calibragem aplica-se DEPOIS do router, e só para baixo
   if (calibragem && calibragem.tecto && agent !== 'moo' && model) {
@@ -2736,7 +2776,7 @@ async function toolWork(args) {
       });
       if (prep && prep.job_id) {
         return {
-          resumo: '🐮 GPU local (' + localModel + ') a preparar o trabalho a $0 · depois entra o ' + agent
+          resumo: '🐮 GPU local (' + localModel + ') a preparar o trabalho a $0 · depois entra o ' + agentLabel(agent)
             + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id
             + worktreeSuffix(pedida, worktree, relocated),
           ok: true, goal, category: workCategory.category,
@@ -2744,6 +2784,7 @@ async function toolWork(args) {
           cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque, tier,
           phase: 'preparação local',
           agent: 'moo → ' + agent,
+          agent_label: 'Ollama · local → ' + agentLabel(agent),
           model: (prep.model || localModel) + ' → ' + (model || '(default do CLI)'),
           job_id: prep.job_id,
           permissoes_pedidas: prep.permissoes_pedidas,
@@ -2767,7 +2808,7 @@ async function toolWork(args) {
             custo_usd: 0,
             porque: 'o job pago nasce automaticamente quando a preparação local terminar',
           },
-          note: 'a GPU local está a preparar o handoff ($0). Quando acabar, o ' + agent + ' arranca sozinho com esse trabalho já dentro do prompt — vê o painel.',
+          note: 'a GPU local está a preparar o handoff ($0). Quando acabar, o ' + agentLabel(agent) + ' arranca sozinho com esse trabalho já dentro do prompt — vê o painel.',
         };
       }
       prepareSkipped = 'a preparação local foi recusada: ' + ((prep && (prep.reasons || prep.error)) || 'motivo desconhecido');
@@ -2792,7 +2833,7 @@ async function toolWork(args) {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
     // A v1.3.2 punha-a em `content[0].text` e este host mostra o
     // `structuredContent`: a prosa era escrita e descartada em 21/21 chamadas.
-    resumo: '🐮 ' + (r.model || model || agent) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
+    resumo: '🐮 ' + (agent === 'kimi' ? agentLabel(agent) : (r.model || model || agent)) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
       + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
       + (prepareSkipped ? ' · sem preparação local' : '')
       + worktreeSuffix(pedida, worktree, relocated)
@@ -2809,6 +2850,7 @@ async function toolWork(args) {
     tier_pedido: tier,                   // o que o classify.js achou do TEXTO
     tier_motor: tierDoMotor(agent, r.model || model),  // o que de facto correu
     agent,
+    agent_label: agentLabel(agent),
     model: r.model || model || '(default do CLI)',
     routed: r.routed,
     routed_by: r.routed_by || routedBy,
@@ -2869,9 +2911,9 @@ const TOOLS = [
   },
   {
     name: 'mooter_dispatch',
-    description: 'Dispatch a masterprompt to a headless agent CLI (cc = claude -p | codex exec | gemini -p) with cwd set to the given git worktree. The guard validates FIRST (⇄ header, worktree ownership via ledger, path allowlist, vault deny) and refuses with reasons. Appends `dispatched` to the append-only ledger (~/.mooter/ledger.jsonl) and returns {job_id} IMMEDIATELY — it never waits for the job. Follow with mooter_status / mooter_collect.',
+    description: 'Dispatch a masterprompt to an agent (cc = claude -p | codex exec | gemini -p | kimi = Moonshot cloud API) with cwd bound to the given git worktree. The guard validates FIRST (⇄ header, worktree ownership via ledger, path allowlist, vault deny) and refuses with reasons. Appends `dispatched` to the append-only ledger (~/.mooter/ledger.jsonl) and returns {job_id} IMMEDIATELY — it never waits for the job. Follow with mooter_status / mooter_collect.',
     inputSchema: { type: 'object', properties: {
-      agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo'], description: 'Which engine executes the job. `moo` = local Ollama on this machine ($0).' },
+      agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo', 'kimi'], description: 'Which engine executes the job. `moo` = local Ollama on this machine ($0); `kimi` = Moonshot · nuvem.' },
       worktree: { type: 'string', description: 'Absolute path of the git worktree the job runs in (cwd). Must exist and be free of active jobs.' },
       masterprompt: { type: 'string', description: 'Full masterprompt (must contain the ⇄ routing header). Written to the job dir; the CLI is pointed at the file.' },
       wave: { type: 'string', description: 'Wave id for the ledger (e.g. "mooter-seamless-m1").' },
@@ -2909,7 +2951,7 @@ const TOOLS = [
       write: { type: 'boolean', description: 'Allow the agent to modify files (default false = analysis only). Git is never allowed.' },
       worktree: { type: 'string', description: 'Where to work. Defaults to the bound Cowork folder.' },
       wave: { type: 'string', description: 'Wave id (auto-generated if omitted).' },
-      agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo'], description: 'Force an engine. Omit to let the router decide.' },
+      agent: { type: 'string', enum: ['cc', 'codex', 'gemini', 'moo', 'kimi'], description: 'Force an engine. Omit to let the router decide. `kimi` = Moonshot · nuvem.' },
       model: { type: 'string', description: 'Force a model. Omit to let the router decide.' },
       category: { type: 'string', enum: ['git_deploy', 'auditoria', 'codigo', 'leitura_resumo', 'outro'], description: 'Override da categoria de aprendizagem. Quando presente, ganha à inferência e fica registada como declarada.' },
       cargo: { type: 'string', enum: VALID_CARGOS, description: 'M-level declarado por quem dispara. Nunca é inferido do texto.' },
