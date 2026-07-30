@@ -1,32 +1,72 @@
 // Wave 4 Phase B — `mooter login`/`logout` CLI. node:test + tsx.
 // The only I/O is a loopback (127.0.0.1) callback — not HTTPS, not external
 // network. Tests inject the "browser open" so no real browser launches.
+//
+// H3 hardening: random port, state CSRF, PKCE infra.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { get } from "node:http";
 import { statSync, mkdtempSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
   buildCliAuthUrl, parseCallback, buildAuthRecord, saveAuth, readAuth,
-  runLogout, authStatus, runLogin, type AuthRecord,
+  runLogout, authStatus, runLogin, generateState, generatePkce,
+  type AuthRecord,
 } from "../src/commands/login.ts";
 
 const NOW = "2026-05-31T18:00:00.000Z";
 function home() { return mkdtempSync(join(tmpdir(), "mooter-login-")); }
 
-test("buildCliAuthUrl: targets the existing /api/cli-token endpoint", () => {
+// ── buildCliAuthUrl ──────────────────────────────────────────────────────────
+
+test("buildCliAuthUrl: no params → clean /api/cli-token (backward compat)", () => {
   assert.equal(buildCliAuthUrl("https://mooter.ai"), "https://mooter.ai/api/cli-token");
   assert.equal(buildCliAuthUrl("http://localhost:3000/"), "http://localhost:3000/api/cli-token");
 });
+
+test("buildCliAuthUrl: includes port + state + PKCE challenge when provided", () => {
+  const raw = buildCliAuthUrl("https://mooter.ai", { port: 54321, state: "abc123", codeChallenge: "xyz_challenge" });
+  const u = new URL(raw);
+  assert.equal(u.searchParams.get("port"), "54321");
+  assert.equal(u.searchParams.get("state"), "abc123");
+  assert.equal(u.searchParams.get("code_challenge"), "xyz_challenge");
+  assert.equal(u.searchParams.get("code_challenge_method"), "S256");
+});
+
+// ── parseCallback ────────────────────────────────────────────────────────────
 
 test("parseCallback: extracts token + user_hash, rejects non-callback", () => {
   assert.deepEqual(parseCallback("/callback?token=tok123&user_hash=abc"), { token: "tok123", userHash: "abc" });
   assert.equal(parseCallback("/callback?user_hash=abc"), null, "no token → null");
   assert.equal(parseCallback("/other?token=x"), null, "wrong path → null");
 });
+
+test("parseCallback: includes state when present in callback URL", () => {
+  const r = parseCallback("/callback?token=t&user_hash=h&state=mystate");
+  assert.deepEqual(r, { token: "t", userHash: "h", state: "mystate" });
+});
+
+// ── PKCE helpers ─────────────────────────────────────────────────────────────
+
+test("generateState: returns non-empty base64url string", () => {
+  const s = generateState();
+  assert.ok(s.length > 0);
+  assert.match(s, /^[A-Za-z0-9_-]+$/);
+});
+
+test("generatePkce: verifier and challenge are valid; challenge = SHA256(verifier)", () => {
+  const { verifier, challenge } = generatePkce();
+  assert.match(verifier, /^[A-Za-z0-9_-]+$/);
+  assert.match(challenge, /^[A-Za-z0-9_-]+$/);
+  const expected = createHash("sha256").update(verifier).digest("base64url");
+  assert.equal(challenge, expected, "challenge must be SHA-256(verifier) base64url");
+});
+
+// ── buildAuthRecord, saveAuth, readAuth ──────────────────────────────────────
 
 test("buildAuthRecord: stores hash (never email/raw id), with source", () => {
   const r = buildAuthRecord("tok", "deadbeef00", NOW);
@@ -45,6 +85,8 @@ test("saveAuth writes 0600 + readAuth roundtrip", () => {
   assert.deepEqual(readAuth(h), rec);
 });
 
+// ── runLogout / authStatus ───────────────────────────────────────────────────
+
 test("runLogout removes auth.json; authStatus reflects state", () => {
   const h = home();
   assert.match(authStatus(h).output, /Not logged in/);
@@ -55,18 +97,41 @@ test("runLogout removes auth.json; authStatus reflects state", () => {
   assert.match(authStatus(h).output, /Not logged in/);
 });
 
-test("runLogin: loopback callback saves the token (injected open, no browser)", async () => {
+// ── runLogin ─────────────────────────────────────────────────────────────────
+
+test("runLogin: loopback callback saves the token (state echoed by injected open)", async () => {
   const h = home();
-  const port = 7841; // test port (not the prod 7822)
-  // Injected "open" fires the loopback callback the landing would redirect to.
-  const open = (_url: string) => {
-    get(`http://127.0.0.1:${port}/callback?token=loop-tok&user_hash=cafef00d99`, (res) => res.resume());
+  const port = 7841; // test port (not the prod random port)
+  // The injected "open" simulates the landing: it reads the state from the auth
+  // URL and echoes it back in the callback — exactly what the real landing does.
+  const open = (url: string) => {
+    const state = new URL(url).searchParams.get("state") ?? "";
+    get(
+      `http://127.0.0.1:${port}/callback?token=loop-tok&user_hash=cafef00d99&state=${encodeURIComponent(state)}`,
+      (res) => res.resume(),
+    );
   };
   const res = await runLogin({ port, mooterHome: h, open, nowIso: NOW, timeoutMs: 5000, print: () => {} });
   assert.equal(res.exitCode, 0);
   const saved = readAuth(h) as AuthRecord;
   assert.equal(saved.access_token, "loop-tok");
   assert.equal(saved.user_id_hash, "cafef00d99");
+});
+
+test("runLogin: rejects callback with wrong state (CSRF protection)", async () => {
+  const h = home();
+  const port = 7843;
+  // Attacker fires callback with a fabricated state — must be rejected.
+  const open = (_url: string) => {
+    get(
+      `http://127.0.0.1:${port}/callback?token=evil-tok&user_hash=hacker&state=wrong-state`,
+      (res) => res.resume(),
+    );
+  };
+  const res = await runLogin({ port, mooterHome: h, open, nowIso: NOW, timeoutMs: 1000, print: () => {} });
+  assert.equal(res.exitCode, 1);
+  assert.match(res.output, /state mismatch|timed out/, "must fail with CSRF or timeout");
+  assert.equal(readAuth(h), null, "malicious token must not be saved");
 });
 
 test("runLogin: times out cleanly when no callback arrives", async () => {

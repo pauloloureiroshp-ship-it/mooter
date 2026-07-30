@@ -1,11 +1,17 @@
 // `mooter login` / `mooter logout` (Wave 4 Phase B) — connects the terminal to a
 // mooter.ai account using the auth flow the landing app ALREADY ships:
 //
-//   CLI opens the browser at  {landing}/api/cli-token
+//   CLI opens the browser at  {landing}/api/cli-token?port=PORT&state=STATE&code_challenge=CC
 //     → landing validates the sb-access-token cookie (browser session)
 //     → redirects token + user_id_hash to the CLI's local server at
-//       http://127.0.0.1:7822/callback?token=…&user_hash=…
-//     → CLI saves it to ~/.mooter/auth.json (0600) and the loopback server closes.
+//       http://127.0.0.1:{PORT}/callback?token=…&user_hash=…&state=STATE
+//     → CLI verifies state (CSRF), saves token to ~/.mooter/auth.json (0600)
+//
+// Security hardening (H3):
+//   • Random loopback port (port 0 → OS-assigned) — prevents port-squatting
+//   • state parameter — CSRF protection; callback rejected if state doesn't match
+//   • PKCE infra — verifier+challenge generated and passed to landing for future
+//     authorization-code flow; current landing echoes state (not code-based yet)
 //
 // Privacy: the landing only ever sends a one-way user_id_hash (never the email or
 // raw user_id), so auth.json stores the hash — matching the existing contract.
@@ -13,10 +19,29 @@
 // calls are made by this code, and tests never start the server or hit the net.
 
 import { writeFileSync, readFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
+import { randomBytes, createHash } from "node:crypto";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { mooterHomeDefault } from "../packs.ts";
+
+// ── Security helpers ────────────────────────────────────────────────────────
+
+/** Random state token for CSRF protection (base64url, 128 bits). */
+export function generateState(): string {
+  return randomBytes(16).toString("base64url");
+}
+
+/**
+ * PKCE pair — SHA-256 S256 method (RFC 7636).
+ * Pass `challenge` to the landing; send `verifier` to the token endpoint when
+ * the landing upgrades to a code-based exchange flow.
+ */
+export function generatePkce(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
+}
 
 export interface CmdResult {
   exitCode: number;
@@ -30,22 +55,42 @@ export interface AuthRecord {
   source: "mooter login";
 }
 
-export const CLI_CALLBACK_PORT = 7822; // must match landing /api/cli-token redirect target
+export const CLI_CALLBACK_PORT = 7822; // legacy default; runLogin uses port 0 (random) by default
 export const DEFAULT_LANDING_URL = "https://mooter.ai";
 
-/** The landing URL the CLI opens to start the handshake. */
-export function buildCliAuthUrl(landingUrl: string = DEFAULT_LANDING_URL): string {
-  return `${landingUrl.replace(/\/$/, "")}/api/cli-token`;
+/** The landing URL the CLI opens to start the handshake.
+ *  Includes port, state, and code_challenge when provided so the landing can:
+ *    • redirect back to the correct loopback port
+ *    • echo the state for CSRF validation
+ *    • store the PKCE challenge for a future code-based exchange
+ */
+export function buildCliAuthUrl(
+  landingUrl: string = DEFAULT_LANDING_URL,
+  opts: { port?: number; state?: string; codeChallenge?: string } = {},
+): string {
+  const base = `${landingUrl.replace(/\/$/, "")}/api/cli-token`;
+  const params = new URLSearchParams();
+  if (opts.port !== undefined) params.set("port", String(opts.port));
+  if (opts.state) params.set("state", opts.state);
+  if (opts.codeChallenge) {
+    params.set("code_challenge", opts.codeChallenge);
+    params.set("code_challenge_method", "S256");
+  }
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
-/** Parse the loopback callback URL → { token, userHash } or null. */
-export function parseCallback(reqUrl: string): { token: string; userHash: string } | null {
+/** Parse the loopback callback URL → { token, userHash, state? } or null. */
+export function parseCallback(reqUrl: string): { token: string; userHash: string; state?: string } | null {
   try {
     const u = new URL(reqUrl, `http://127.0.0.1:${CLI_CALLBACK_PORT}`);
     if (!u.pathname.startsWith("/callback")) return null;
     const token = u.searchParams.get("token");
     const userHash = u.searchParams.get("user_hash") ?? "";
-    return token ? { token, userHash } : null;
+    const stateVal = u.searchParams.get("state");
+    const result: { token: string; userHash: string; state?: string } = { token: token!, userHash };
+    if (stateVal !== null) result.state = stateVal;
+    return token ? result : null;
   } catch {
     return null;
   }
@@ -105,6 +150,7 @@ function openBrowser(url: string): void {
 export interface LoginOptions {
   landingUrl?: string;
   mooterHome?: string;
+  /** Explicit port for tests. Production always uses 0 (OS-assigned random port). */
   port?: number;
   /** Don't open a browser (CI / manual). */
   manual?: boolean;
@@ -119,23 +165,20 @@ export interface LoginOptions {
 }
 
 /**
- * Run the login handshake: start the loopback callback server, open the browser
- * at the landing's /api/cli-token, wait for the redirect, save the token. The
- * loopback server + browser are the only I/O; no external network call is made.
+ * Run the login handshake: start the loopback callback server on a random port
+ * (port 0), generate a CSRF state + PKCE pair, open the browser at the
+ * landing's /api/cli-token with those params, wait for the redirect, verify
+ * state, and save the token.  Only loopback I/O — no external network call.
  */
 export async function runLogin(opts: LoginOptions = {}): Promise<CmdResult> {
   const landingUrl = opts.landingUrl ?? process.env.MOOTER_LANDING_URL ?? DEFAULT_LANDING_URL;
-  const port = opts.port ?? CLI_CALLBACK_PORT;
   const timeoutMs = opts.timeoutMs ?? 180_000;
   const print = opts.print ?? ((l: string) => process.stdout.write(l + "\n"));
   const open = opts.open ?? openBrowser;
-  const authUrl = buildCliAuthUrl(landingUrl);
 
-  print("🐮 Mooter login");
-  print(`   Opening your browser at: ${authUrl}`);
-  print(`   (sign in there; the CLI is listening on 127.0.0.1:${port})`);
-  print("");
-  print("Waiting for authorization... (Ctrl+C to cancel)");
+  // Security: CSRF state + PKCE (both generated fresh per login attempt)
+  const state = generateState();
+  const pkce = generatePkce();
 
   return new Promise<CmdResult>((resolve) => {
     let server: Server;
@@ -150,12 +193,23 @@ export async function runLogin(opts: LoginOptions = {}): Promise<CmdResult> {
     };
 
     server = createServer((req, reply) => {
+      if (done) { reply.writeHead(400).end("done"); return; }
+
       const parsed = parseCallback(req.url || "");
       if (!parsed) {
         reply.writeHead(404, { "Content-Type": "text/plain" });
         reply.end("not found");
         return;
       }
+
+      // CSRF: reject if state doesn't match
+      if (parsed.state !== state) {
+        reply.writeHead(400, { "Content-Type": "text/plain" });
+        reply.end("invalid state");
+        finish({ exitCode: 1, output: "✗ Login failed: state mismatch (possible CSRF attempt). Run `mooter login` to try again." });
+        return;
+      }
+
       const record = buildAuthRecord(parsed.token, parsed.userHash, opts.nowIso ?? new Date().toISOString());
       saveAuth(record, opts.mooterHome);
       reply.writeHead(200, { "Content-Type": "text/html" });
@@ -168,10 +222,25 @@ export async function runLogin(opts: LoginOptions = {}): Promise<CmdResult> {
     });
 
     server.on("error", (err) => {
-      finish({ exitCode: 1, output: `✗ Could not start the local login server on 127.0.0.1:${port}: ${String((err as Error).message)}` });
+      const addr = server.address();
+      const p = (addr && typeof addr === "object") ? addr.port : (opts.port ?? 0);
+      finish({ exitCode: 1, output: `✗ Could not start the local login server on 127.0.0.1:${p}: ${String((err as Error).message)}` });
     });
 
-    server.listen(port, "127.0.0.1", () => {
+    // Port 0 = OS assigns a random ephemeral port (prevents port-squatting).
+    // Tests may pass an explicit port for determinism.
+    const listenPort = opts.port ?? 0;
+    server.listen(listenPort, "127.0.0.1", () => {
+      const addr = server.address();
+      const actualPort = (addr && typeof addr === "object") ? addr.port : listenPort;
+      const authUrl = buildCliAuthUrl(landingUrl, { port: actualPort, state, codeChallenge: pkce.challenge });
+
+      print("🐮 Mooter login");
+      print(`   Opening your browser at: ${authUrl}`);
+      print(`   (sign in there; the CLI is listening on 127.0.0.1:${actualPort})`);
+      print("");
+      print("Waiting for authorization... (Ctrl+C to cancel)");
+
       if (!opts.manual) open(authUrl);
     });
 
