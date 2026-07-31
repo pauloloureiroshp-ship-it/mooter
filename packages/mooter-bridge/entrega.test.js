@@ -58,6 +58,10 @@ const MARCADORES = {
   'localfirst.js': ['falta_vram'],
   // v1.26 — o trabalho passou a saber de que departamento é
   'recibo.js': ['VALID_CARGOS', 'VERDICT_QUESTION'],
+  // v1.32 — J-0d dieta + J-6 contexto/advogado do diabo.
+  // Estes marcadores existem para que a dieta não possa ser desfeita em silêncio:
+  // se alguém apagar a compactação ou o corte do goal, a entrega deixa de provar-se.
+  'recibo-contexto.js': ['perguntasAdversariais', 'proximos_passos', 'advogado_do_diabo', 'nunca geradas por um modelo'],
   // v1.27 — F0: distribuição honesta (release do .mcpb, classify.js no bundle,
   // user_config, diagnóstico primeira_vez, GitHub Releases API)
   'manifest.json': ['user_config'],

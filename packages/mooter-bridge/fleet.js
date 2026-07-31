@@ -776,8 +776,9 @@ function sessionsFast(listFn) {
   });
 }
 
-function publicJob(job, now) {
+function publicJob(job, now, verbose) {
   const out = { ...(job || {}) };
+  if (out.goal != null) out.goal = resumoGoal(out.goal, verbose);
   let value = null;
   let why = 'o ledger não trouxe duração nem timestamps válidos';
   if (job && job.duration_s != null && Number.isFinite(Number(job.duration_s))) {
@@ -939,25 +940,53 @@ function filterCoherence(entries) {
   return (Array.isArray(entries) ? entries : []).filter((entry) => !environmentNoise(entry && entry.msg));
 }
 
-function waveSummary(waveId, jobs, plans) {
+/**
+ * ⚠️ DIETA (J-0d, 2026-07-31) — medido no conector v1.29.1: `view=jobs` chegava
+ * a ~40 KB porque o MESMO goal aparecia 4 vezes no mesmo payload
+ * (wave_activa.goal, wave_activa.current_step, e outra vez dentro de cada job).
+ * Um goal de 3 000 caracteres custava 12 000 caracteres de payload sem
+ * acrescentar um único facto.
+ *
+ * O corte é por linha inteira e declara-se: quem quiser o goal por extenso
+ * pede `verbose:true`. O `goal_chars` fica sempre, para que ninguém tenha de
+ * adivinhar quanto foi cortado.
+ */
+const GOAL_RESUMO_CHARS = 180;
+
+function resumoGoal(goal, verbose) {
+  if (goal == null) return null;
+  const texto = String(goal);
+  if (verbose || texto.length <= GOAL_RESUMO_CHARS) return goal;
+  const primeiraLinha = texto.split('\n')[0].trim();
+  const base = primeiraLinha.length && primeiraLinha.length <= GOAL_RESUMO_CHARS
+    ? primeiraLinha
+    : texto.slice(0, GOAL_RESUMO_CHARS).trimEnd();
+  return {
+    resumo: base + ' …',
+    goal_chars: texto.length,
+    porque: 'goal cortado para o painel — pede verbose:true para o texto completo',
+  };
+}
+
+function waveSummary(waveId, jobs, plans, verbose) {
   if (!waveId) return null;
   const inWave = jobs.filter((job) => job.wave === waveId);
   const wavePlan = plans.find((item) => item && item.wave === waveId);
   return {
     wave: waveId,
-    goal: wavePlan ? wavePlan.goal : null,
+    goal: wavePlan ? resumoGoal(wavePlan.goal, verbose) : null,
     live: inWave.filter(isLive).length,
     done: inWave.filter((job) => job.state === 'done').length,
     failed: inWave.filter((job) => job.state === 'failed').length,
     total: inWave.length,
     steps_done: wavePlan ? wavePlan.done : null,
     steps_total: wavePlan ? wavePlan.total : null,
-    current_step: wavePlan && wavePlan.current ? wavePlan.current.title : null,
+    current_step: wavePlan && wavePlan.current ? resumoGoal(wavePlan.current.title, verbose) : null,
     high_risk_open: wavePlan ? wavePlan.high_risk_open : null,
   };
 }
 
-function waveFocus(jobs, plans) {
+function waveFocus(jobs, plans, verbose) {
   const list = Array.isArray(jobs) ? jobs : [];
   const planList = Array.isArray(plans) ? plans : [];
   const live = list.filter(isLive);
@@ -966,8 +995,8 @@ function waveFocus(jobs, plans) {
     .localeCompare(String(a.ended_at || a.dispatched_at || '')));
   const lastId = !activeId && recent.length ? recent[0].wave : null;
   return {
-    active_wave: waveSummary(activeId, list, planList),
-    ultima_wave: waveSummary(lastId, list, planList),
+    active_wave: waveSummary(activeId, list, planList, verbose),
+    ultima_wave: waveSummary(lastId, list, planList, verbose),
   };
 }
 
@@ -1311,9 +1340,10 @@ async function toolFleet(args, deps) {
     return String(b.ended_at || b.dispatched_at || '').localeCompare(String(a.ended_at || a.dispatched_at || ''));
   });
 
-  const focus = waveFocus(jobs, plans);
+  const verboseGoals = !!(args && args.verbose === true);
+  const focus = waveFocus(jobs, plans, verboseGoals);
   const shown = jobs.slice(0, 16);
-  const publicJobs = shown.map((job) => publicJob(job, now));
+  const publicJobs = shown.map((job) => publicJob(job, now, verboseGoals));
   const tree = decorateTree(arvore.construir(jobs, plans), aggregate.arvore_resumo);
   return compactPayload({
     ok: true,
@@ -1581,4 +1611,5 @@ module.exports = {
   aggregatePanel, addFreshness, closePercentages, summarizeWorktrees, compactPayload,
   filterCoherence, publicJob, sanitizeFuel, waveFocus, etaBarModel, refreshEtaJobs,
   LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull, sessionsFast, SESSIONS_BUDGET_MS, ETA_REFRESH_MS,
+  _resumoGoal: resumoGoal, GOAL_RESUMO_CHARS,
 };

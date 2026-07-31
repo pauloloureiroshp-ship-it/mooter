@@ -140,6 +140,16 @@ function build(seam, fleet, base) {
           steps: { type: 'array', items: { type: 'string' }, description: '[avançado] as etapas que o painel deve mostrar.' },
           context: { type: 'string', description: 'Contexto extra para juntar ao pedido.' },
           force: { type: 'boolean', description: '[avançado] despachar mesmo quando eu aviso que a resposta será inventada.' },
+          /**
+           * ⚠️ J-5 (2026-07-31) — `toolDispatch` já aceitava `args.handoff_from`
+           * (seamless.js:1450) e o painel já sabia desenhar a seta a partir dele,
+           * mas o parâmetro NUNCA esteve no schema. Consequência medida: o
+           * handoff só existia na direcção moo→nuvem, criada internamente pela
+           * cadeia de preparação. Não havia forma de pedir nuvem→moo (verificar
+           * a $0 o que a nuvem produziu) nem nuvem→nuvem (segunda opinião entre
+           * motores). O melhor código do repositório estava fechado por dentro.
+           */
+          handoff_from: { type: 'string', description: '[avançado] job_id cujo resultado deve entrar neste prompt. Abre o handoff em qualquer direcção: nuvem→moo para verificar a $0, ou nuvem→nuvem para segunda opinião. O painel desenha a seta e o ledger regista a origem.' },
         },
         required: ['goal'],
         additionalProperties: false,
@@ -220,6 +230,7 @@ function build(seam, fleet, base) {
           periodo: { type: 'string', enum: ['sessao', 'dia', 'semana'], description: 'Janela do recibo; default dia.' },
           desde: { type: 'string', description: 'Instante ISO obrigatório quando periodo é sessao.' },
           windowMinutes: { type: 'number', description: 'Quanto tempo para trás mostrar os concluídos (default 30).' },
+          verbose: { type: 'boolean', description: 'Por defeito o painel vem em dieta: goals cortados a 180 caracteres e cargos sem trabalho em bloco compacto. Põe true para receber tudo por extenso — nenhum facto é escondido, só encurtado.' },
         },
         additionalProperties: false,
       },
@@ -232,6 +243,7 @@ function build(seam, fleet, base) {
           try {
             const receipt = await require('./recibo.js').generate({
               ledger: seam.ledgerRead(), periodo: a.periodo || 'dia', desde: a.desde,
+              verbose: a.verbose === true,
             });
             return comResumo(receipt, '🐮 recibo por cargo · ' + receipt.janela.periodo);
           } catch (error) {
@@ -318,6 +330,15 @@ function build(seam, fleet, base) {
           files: { type: 'array', items: { type: 'string' } },
           note: { type: 'string' },
           sessao: { type: 'string', enum: ['registar', 'retomar', 'listar', 'esquecer'], description: 'O cérebro da sessão, mantido em disco a $0. "registar" guarda o que foi feito neste bloco; "retomar" devolve o bloco para colar numa conversa nova.' },
+          /**
+           * ⚠️ J-5 (2026-07-31) — `sessao.js` já lia `a.id` e já guardava por id
+           * (sessao.js:78,120), mas `id` NUNCA esteve no schema e o schema é
+           * `additionalProperties:false`. Resultado medido: o id era sempre
+           * 'actual', havia um único slot, e `sessao:"listar"` nunca poderia
+           * devolver mais do que uma entrada. Uma linha em falta anulava
+           * sozinha o estado por projecto e por sessão.
+           */
+          id: { type: 'string', description: 'Qual estado. Um por projecto ou por linha de trabalho (ex.: "mooter", "cloude-home"). Sem isto usa "actual" — e todas as sessões partilham o mesmo slot.' },
           feito: { type: 'array', items: { type: 'string' }, description: 'O que ficou concluído neste bloco.' },
           por_fazer: { type: 'array', items: { type: 'string' }, description: 'O que ficou explicitamente por fazer.' },
           decisoes: { type: 'array', items: { type: 'string' }, description: 'Escolhas com consequência, e o porquê.' },

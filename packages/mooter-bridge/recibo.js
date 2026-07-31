@@ -159,7 +159,52 @@ function waveIndex(jobs) {
   return waves;
 }
 
-function buildCargoRecord(cargo, jobs, allJobs, exceptions, boardAvailable) {
+/**
+ * ⚠️ DIETA (J-0d, 2026-07-31) — medido no conector v1.29.1: 7 dos 8 blocos de
+ * cargo diziam «nenhum trabalho deste cargo na janela», cada um com ~1 KB de
+ * zeros justificados e 4 níveis de aninhamento. ≈67% do recibo era preenchimento.
+ *
+ * A primeira tentativa foi SUPRIMIR os blocos vazios. Partiu 5 testes — e ainda
+ * bem: o teste «S2 — cargo sem trabalho aparece com zero e porquê» defende uma
+ * garantia conquistada na v1.22 (nenhum agregado nasce a zero sem explicação).
+ * Suprimir teria trocado ruído por cegueira.
+ *
+ * A dieta certa é COMPRIMIR, não suprimir. O bloco continua a existir, continua
+ * a dizer zero e a dizer porquê, e as excepções continuam lá — o que desaparece
+ * é só a repetição de estruturas vazias que não descrevem nada.
+ * `verbose: true` devolve o bloco por extenso.
+ */
+function buildEmptyCargoRecord(cargo, exceptions, boardAvailable) {
+  const because = 'nenhum trabalho deste cargo na janela';
+  const own = boardAvailable ? exceptions.filter((item) => item && item.dono === cargo) : null;
+  /**
+   * O `porque` do topo do bloco aplica-se a todos os zeros que se seguem —
+   * repeti-lo em cada sub-campo custava ~460 B por cargo e não acrescentava
+   * um único facto. `sem_trabalho: true` torna a herança explícita.
+   * O `custo.porque` fica porque descreve algo diferente: a soma vazia.
+   */
+  const record = {
+    cargo,
+    sem_trabalho: true,
+    porque: because,
+    waves: { valor: 0 },
+    entregas: { valor: 0 },
+    custo: { valor: 0, porque: 'nenhum job deste cargo na janela; soma vazia medida como zero', unidade: 'USD' },
+    trabalho_a_zero: { jobs: { valor: 0, total: 0 } },
+    excepcoes: own,
+  };
+  if (!boardAvailable) {
+    record.excepcoes_porque = 'n/d — o board não respondeu; não tratei ausência de medição como zero excepções';
+  } else if (own && own.length) {
+    record.excepcoes_porque = 'excepção aberta num cargo sem trabalho na janela — preservada porque um cargo parado pode estar fora da faixa';
+  }
+  return record;
+}
+
+function buildCargoRecord(cargo, jobs, allJobs, exceptions, boardAvailable, verbose) {
+  if (cargo != null && !jobs.length && !verbose) {
+    return buildEmptyCargoRecord(cargo, exceptions, boardAvailable);
+  }
   const names = [...new Set(jobs.map((job) => job.wave).filter(Boolean))].sort();
   const jobsWithoutWave = jobs.filter((job) => !job.wave).length;
   const allWaves = waveIndex(allJobs);
@@ -212,10 +257,11 @@ function project(events, opts) {
   });
   const exceptions = Array.isArray(options.excepcoes) ? options.excepcoes : [];
   const boardAvailable = options.board_disponivel !== false;
+  const verbose = options.verbose === true;
   const cargos = VALID_CARGOS.map((cargo) => buildCargoRecord(
     cargo,
     scopedJobs.filter((job) => cargoOf(job).cargo === cargo),
-    allJobs, exceptions, boardAvailable
+    allJobs, exceptions, boardAvailable, verbose
   ));
   const unassigned = scopedJobs.filter((job) => cargoOf(job).cargo == null);
   return {
@@ -229,7 +275,10 @@ function project(events, opts) {
         : 'todos os jobs tinham timestamp atribuível'),
     },
     cargos,
-    sem_cargo: buildCargoRecord(null, unassigned, allJobs, [], true),
+    sem_cargo: buildCargoRecord(null, unassigned, allJobs, [], true, verbose),
+    ...(verbose || !cargos.some((r) => r.sem_trabalho) ? {} : {
+      cargos_sem_trabalho_nota: 'os cargos com sem_trabalho:true trazem o bloco compacto — o porquê do topo aplica-se a todos os zeros; pede verbose:true para os ver por extenso',
+    }),
   };
 }
 
@@ -408,7 +457,36 @@ async function generate(opts) {
       if (cronometro) clearTimeout(cronometro);
     }
   } catch { verdict = null; }
+  /**
+   * ⚠️ J-6 (2026-07-31) — CONTEXTO E ADVOGADO DO DIABO.
+   * O recibo dizia o que a frota fez, mas não dizia onde, para quê, o que
+   * estava antes, o que ficou no vault, nem o que perguntar a seguir. Uma
+   * sessão nova abria sem nada disto e pagava outra vez contexto já comprado.
+   *
+   * As perguntas são derivadas de REGRAS sobre números medidos — não de um
+   * modelo. Custam $0, são reproduzíveis, e cada uma transporta o facto que a
+   * fez nascer. Uma regra não consegue alucinar um problema inexistente.
+   *
+   * Nunca derruba o recibo: se este bloco falhar, o recibo factual sai na
+   * mesma, com o motivo no lugar do contexto.
+   */
+  let contexto;
+  try {
+    const modulo = options.contextoModule || require('./recibo-contexto.js');
+    contexto = modulo.montar(receipt, Object.assign({}, options, {
+      jobs: fleet.foldJobs(ledger),
+      scorecard,
+    }));
+  } catch (error) {
+    contexto = {
+      rotulo: 'contexto e advogado do diabo',
+      valor: null,
+      porque: 'não consegui montar o contexto: ' + ((error && error.message) || String(error))
+        + ' — o recibo factual acima mantém-se completo',
+    };
+  }
   return Object.assign({}, receipt, {
+    contexto,
     veredicto: {
       rotulo: 'interpretação do moo local — nunca altera os factos',
       pergunta: VERDICT_QUESTION,

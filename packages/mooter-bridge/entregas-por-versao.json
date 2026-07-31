@@ -53,5 +53,12 @@
     "seamless.js",
     "kimi-adapter.js",
     "install-id.js"
+  ],
+  "1.32": [
+    "recibo.js",
+    "recibo-contexto.js",
+    "fleet.js",
+    "tools6.js",
+    "kimi-adapter.js"
   ]
 }
