@@ -343,3 +343,47 @@ test('Q18 — Onda 0.6: forcar_local INVERTE o default mas nunca os vetos de ris
   assert.strictEqual(git.local, false, 'forcar_local passou por cima do veto de git');
   void semForcar;
 });
+
+test('K3-A — pressao() com <7 dias de histórico devolve calibrando: true', () => {
+  const boardDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-board-'));
+  // simula 3 dias de histórico
+  fs.writeFileSync(path.join(boardDir, '2026-07-29.json'), '{}');
+  fs.writeFileSync(path.join(boardDir, '2026-07-30.json'), '{}');
+  fs.writeFileSync(path.join(boardDir, '2026-07-31.json'), '{}');
+
+  const agora = Date.now();
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-k3-'));
+  const sessaoDir = path.join(raiz, 'p1');
+  fs.mkdirSync(sessaoDir);
+  fs.writeFileSync(path.join(sessaoDir, 'x.jsonl'), JSON.stringify({
+    type: 'assistant', timestamp: new Date(agora - 60e3).toISOString(),
+    message: { model: 'claude-opus-4-8', usage: { input_tokens: 100, output_tokens: 1000 } },
+  }));
+
+  const m = q.medir({ raiz, agora });
+  const p = q.pressao(m, null, { boardDir });
+  assert.strictEqual(p.calibrando, true, 'com 3 dias de histórico devia declarar calibrando: true');
+  assert.strictEqual(p.dias_historico, 3, 'não contou o número de dias de histórico');
+});
+
+test('K3-B — pressao() com ≥7 dias de histórico devolve calibrando: false', () => {
+  const boardDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-board-7d-'));
+  // simula 7 dias de histórico
+  for (let i = 0; i < 7; i++) {
+    fs.writeFileSync(path.join(boardDir, '2026-07-' + String(25 + i).padStart(2, '0') + '.json'), '{}');
+  }
+
+  const agora = Date.now();
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-k3-7d-'));
+  const sessaoDir = path.join(raiz, 'p1');
+  fs.mkdirSync(sessaoDir);
+  fs.writeFileSync(path.join(sessaoDir, 'x.jsonl'), JSON.stringify({
+    type: 'assistant', timestamp: new Date(agora - 60e3).toISOString(),
+    message: { model: 'claude-opus-4-8', usage: { input_tokens: 100, output_tokens: 1000 } },
+  }));
+
+  const m = q.medir({ raiz, agora });
+  const p = q.pressao(m, null, { boardDir });
+  assert.strictEqual(p.calibrando, false, 'com 7 dias de histórico devia declarar calibrando: false');
+  assert.strictEqual(p.dias_historico, 7, 'não contou correctamente os 7 dias');
+});

@@ -384,17 +384,34 @@ function lerReferencia(ficheiro) {
   return null;
 }
 
-function pressao(medida, referencia) {
+function contarDiasHistorico(boardDir) {
+  if (!boardDir) return 0;
+  try {
+    const ficheiros = fs.readdirSync(boardDir);
+    const dias = ficheiros.filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
+    return dias.length;
+  } catch {
+    return 0;
+  }
+}
+
+function pressao(medida, referencia, opts) {
   if (!medida || !medida.disponivel) {
     return { valor: null, nivel: 'desconhecido', porque: (medida && medida.porque) || 'sem dados locais' };
   }
+  const o = opts || {};
+  const boardDir = o.boardDir || path.join(os.homedir(), '.mooter', 'board');
+  const dias_historico = contarDiasHistorico(boardDir);
+  const calibrando = dias_historico < 7;
+
   const ref = Object.assign({ peso_semana: 4000, peso_5h: 400, origem: 'default — não é um limite publicado' },
     lerReferencia() || {}, referencia || {});
   const pl = medida.longa.peso / ref.peso_semana;
   const pc = medida.curta.peso / ref.peso_5h;
   const v = Math.max(0, Math.min(1, Math.max(pl, pc)));
   const nivel = v >= 0.85 ? 'critico' : (v >= 0.6 ? 'alto' : (v >= 0.3 ? 'medio' : 'baixo'));
-  return {
+
+  const resultado = {
     valor: Number(v.toFixed(3)),
     nivel,
     manda: pl >= pc ? 'semana' : '5 horas',
@@ -405,7 +422,11 @@ function pressao(medida, referencia) {
       + ' (entradas+saídas por 1000 × família: Opus 5×, Sonnet 1×, Haiku 0,25×; turnos deduplicados por requestId).'
       + ' A referência é ajustável — não é um limite publicado.',
     estimativa: true,
+    calibrando,
+    dias_historico,
   };
+
+  return resultado;
 }
 
 /**
@@ -569,7 +590,7 @@ async function estadoAsync(opts) {
 }
 
 function montarEstado(m, opts) {
-  const p = pressao(m, (opts && opts.referencia) || null);
+  const p = pressao(m, (opts && opts.referencia) || null, opts);
   const c = calibrar(p, opts);
   return {
     medida: m,

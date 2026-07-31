@@ -323,3 +323,21 @@ test('scorecard tem pode_ir_dormir como primeira chave', () => {
   const keys = Object.keys(card);
   assert.strictEqual(keys[0], 'pode_ir_dormir', 'pode_ir_dormir deve ser a primeira chave do objeto retornado');
 });
+
+test('K3: pressao_quota declara-se n/d quando calibrando é true', () => {
+  const quotaState = {
+    pressao: {
+      valor: 0.7,
+      calibrando: true,
+      dias_historico: 3,
+      porque: 'pressão de teste',
+      referencia: { peso_semana: 4000 },
+    },
+  };
+  const card = board.scorecard(deps({ quotaState }));
+  const m = card.metricas.pressao_quota;
+  assert.strictEqual(m.estado, 'n/d', 'pressao_quota deve ter estado n/d quando calibrando é true');
+  assert.ok(/a calibrar/.test(m.porque), 'o porque deve mencionar que está a calibrar');
+  assert.ok(/3\/7/.test(m.porque), 'o porque deve mostrar o progresso dos dias (3/7)');
+  assert.strictEqual(m.valor, 0.7, 'o valor numérico não deve mudar — estado é que muda');
+});

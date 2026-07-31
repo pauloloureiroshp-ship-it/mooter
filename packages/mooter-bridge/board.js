@@ -396,11 +396,21 @@ function construir(ledger, quotaState, gpuState, opts) {
         fatia.porque,
       );
     })(),
-    pressao_quota: metrica(
-      'pressao_quota', pressao, 'rácio 0–1', 'quota.estado' + (o.async ? 'Async' : '') + '.pressao.valor', medidoEm, faixas,
-      pressao == null ? ((quotaState && quotaState.pressao && quotaState.pressao.porque) || 'quota.js não devolveu pressão medida')
-        : ((quotaState.pressao && quotaState.pressao.porque) || 'pressão devolvida por quota.js'),
-    ),
+    pressao_quota: (() => {
+      const m = metrica(
+        'pressao_quota', pressao, 'rácio 0–1', 'quota.estado' + (o.async ? 'Async' : '') + '.pressao.valor', medidoEm, faixas,
+        pressao == null ? ((quotaState && quotaState.pressao && quotaState.pressao.porque) || 'quota.js não devolveu pressão medida')
+          : ((quotaState.pressao && quotaState.pressao.porque) || 'pressão devolvida por quota.js'),
+      );
+      if (quotaState && quotaState.pressao && quotaState.pressao.calibrando === true) {
+        const dias = quotaState.pressao.dias_historico || 0;
+        const peso = (quotaState.pressao.referencia && quotaState.pressao.referencia.peso_semana) || 4000;
+        m.estado = 'n/d';
+        m.porque = 'a calibrar — só ' + dias + '/7 dia(s) de histórico; referência ' + peso
+          + ' ainda não medida, ver quota.js — estado pendente até ter 7 dias de histórico';
+      }
+      return m;
+    })(),
     wip_actual: metrica(
       'wip_actual', records.length ? wip : null, 'jobs', 'aprender._jobRecords · jobs sem estado terminal', medidoEm, faixas,
       records.length ? wip + ' job(s) sem done/failed no ledger' : 'o ledger não tem jobs',
