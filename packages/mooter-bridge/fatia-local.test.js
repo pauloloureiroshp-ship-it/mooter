@@ -83,6 +83,17 @@ test('fatiaLocal: base cases', async (t) => {
     assert.strictEqual(result.jobs_local, 2);
   });
 
+  await t.test('filters out preparation jobs even in state field (K1 bug)', () => {
+    const jobs = [
+      { agent: 'moo', state: 'done', preparation: true },
+    ];
+    const result = fatiaLocal(jobs, { escopo: 'test' });
+    assert.strictEqual(result.valor, null);
+    assert.strictEqual(result.jobs_total, 0);
+    assert.strictEqual(result.jobs_local, 0);
+    assert.strictEqual(result.porque, 'nenhum job concluído');
+  });
+
   await t.test('requires escopo parameter', () => {
     assert.throws(() => {
       fatiaLocal([], { cargo: 'MOO' });

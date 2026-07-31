@@ -23,11 +23,11 @@ function fatiaLocal(jobs, opts) {
 
   // Filtro 1: concluídos
   // board.js style: status === 'done' ou 'failed', preparation falso/ausente
-  // fleet.js style: state === 'done' ou 'failed'
+  // fleet.js style: state === 'done' ou 'failed', preparation falso/ausente
   const concluidos = lista.filter((r) => {
     if (!r) return false;
     if ((r.status === 'done' || r.status === 'failed') && !r.preparation) return true;
-    if (r.state && (r.state === 'done' || r.state === 'failed')) return true;
+    if (r.state && (r.state === 'done' || r.state === 'failed') && !r.preparation) return true;
     return false;
   });
 
