@@ -1083,6 +1083,7 @@ async function toolFleet(args, deps) {
       resumo: dormir === true ? '🐮 scorecard dentro da faixa — podes ir dormir'
         : (dormir === false ? '⚠ scorecard com ' + card.excepcoes.length + ' excepção(ões)'
           : '🐮 scorecard n/d — faltam medições para fechar o estado'),
+      pode_ir_dormir: card.pode_ir_dormir,
       scorecard: card,
       excepcoes: card.excepcoes,
     };

@@ -17,6 +17,7 @@ process.on('exit', () => { try { fs.rmSync(TEST_HOME, { recursive: true, force: 
 const test = require('node:test');
 const assert = require('node:assert');
 const fleet = require('./fleet.js');
+const board = require('./board.js');
 const capacidades = require('./capacidades.js');
 
 const E = (job_id, event, extra) => Object.assign(
@@ -563,4 +564,14 @@ test('L1 — a versão anunciada é semver e tem entrega declarada', () => {
     Object.prototype.hasOwnProperty.call(entregas, minor),
     'manifest anuncia ' + manifest.version + ' mas entregas-por-versao.json não declara ' + minor,
   );
+});
+
+test('toolFleet(view=board) tem pode_ir_dormir como chave de topo e coincide com o scorecard', async () => {
+  const d = { boardScorecard: () => board.scorecard({ ledger: [], agora: '2026-07-26T23:00:00.000Z', persist: false }) };
+  const result = await fleet.toolFleet({ view: 'board' }, d);
+  assert.ok(Object.prototype.hasOwnProperty.call(result, 'pode_ir_dormir'), 'resposta deve ter pode_ir_dormir');
+  assert.strictEqual(result.pode_ir_dormir, result.scorecard.pode_ir_dormir, 'pode_ir_dormir no topo deve ser igual ao do scorecard');
+  const keys = Object.keys(result);
+  const podeDormirIndex = keys.indexOf('pode_ir_dormir');
+  assert.ok(podeDormirIndex >= 0 && podeDormirIndex < 3, 'pode_ir_dormir deve estar entre as primeiras chaves da resposta');
 });

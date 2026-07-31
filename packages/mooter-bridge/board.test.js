@@ -317,3 +317,9 @@ test('nova excepção automática entra logo no contador e no scorecard persisti
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('scorecard tem pode_ir_dormir como primeira chave', () => {
+  const card = board.scorecard(deps());
+  const keys = Object.keys(card);
+  assert.strictEqual(keys[0], 'pode_ir_dormir', 'pode_ir_dormir deve ser a primeira chave do objeto retornado');
+});

@@ -515,11 +515,11 @@ function finalizar(card, opts) {
     card.excepcoes = excepcoes(card, opts);
   }
   const nd = Object.values(card.metricas).filter((m) => numero(m.valor) == null).length;
-  card.pode_ir_dormir = card.excepcoes.length
+  const podeIrDormir = card.excepcoes.length
     ? { valor: false, porque: card.excepcoes.length + ' métrica(s) fora da faixa' }
     : (nd ? { valor: null, porque: nd + ' métrica(s) n/d; não há prova suficiente para dizer sim' }
       : { valor: true, porque: 'todas as métricas medidas estão dentro da faixa' });
-  return card;
+  return Object.assign({ pode_ir_dormir: podeIrDormir }, card);
 }
 
 function persistir(card, opts) {
