@@ -48,7 +48,7 @@ test('resultadoDaAfericao agrega medianas e mantém zero local por resposta cert
     { motor: 'moo', acertou: true, tempo_s: 5, custo_usd: 0 },
     { motor: 'moo', acertou: true, tempo_s: 7, custo_usd: 0 },
     { motor: 'moo', acertou: true, tempo_s: 9, custo_usd: 0 },
-  ]);
+  ], { persist: false });
   assert.deepStrictEqual(result.moo, {
     acertos: 3,
     total: 3,
@@ -64,7 +64,7 @@ test('resultadoDaAfericao não divide por zero nem inventa custos ausentes', () 
     { motor: 'gemini', acertou: false, tempo_s: 6, custo_usd: null },
     { motor: 'gemini', acertou: false, tempo_s: 8 },
     { motor: 'cc', acertou: null, tempo_s: 40, custo_usd: 0.44 },
-  ]);
+  ], { persist: false });
   assert.strictEqual(result.gemini.acertos, 0);
   assert.strictEqual(result.gemini.total, 2);
   assert.strictEqual(result.gemini.acerto_pct, 0);
@@ -92,4 +92,30 @@ test('lerUltimaAfericao é read-only e escolhe a medição mais recente', (t) =>
   assert.strictEqual(latest.estado, 'medido');
   assert.strictEqual(latest.medido_em, '2026-07-27');
   assert.deepStrictEqual(latest.resultado, { motores: { moo: 3 } });
+});
+
+test('resultadoDaAfericao persiste cada corrida e o loader lê o formato timestamped', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-afericao-write-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const now = '2026-07-31T10:20:30.456Z';
+
+  const first = afericao.resultadoDaAfericao([
+    { motor: 'moo', acertou: true, tempo_s: 2, custo_usd: 0 },
+  ], { dir: root, now });
+  const second = afericao.resultadoDaAfericao([
+    { motor: 'kimi', acertou: false, tempo_s: 4, custo_usd: 0.1 },
+  ], { dir: root, now });
+
+  const files = fs.readdirSync(root).sort();
+  assert.deepStrictEqual(files, [
+    '2026-07-31T10-20-30-456Z.json',
+    '2026-07-31T10-20-30-456Z_001.json',
+  ]);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, files[0]), 'utf8')), first);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, files[1]), 'utf8')), second);
+
+  const latest = afericao.lerUltimaAfericao({ dir: root });
+  assert.strictEqual(latest.estado, 'medido');
+  assert.strictEqual(latest.medido_em, now);
+  assert.deepStrictEqual(latest.resultado, second);
 });

@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const aprender = require('./aprender.js');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 function syntheticLedger(count, options) {
@@ -44,6 +45,65 @@ test('ledger sintético de 10 jobs produz estatísticas por agente, tier e categ
   assert.strictEqual(group.prep_duration_median_s, 0.55);
   assert.strictEqual(group.tokens_saved_estimated_median, 5.5);
   assert.strictEqual(group.delivered_cost_median_usd, 0);
+});
+
+test('custo kimi ausente é calculado pelos tokens com fonte explícita', () => {
+  const calculated = aprender.enriquecerCusto({
+    event: 'done', exit_code: 0, agent: 'kimi', model_used: 'kimi-k3',
+    tokens_in: 3492, tokens_out: 3641, cost_usd: null,
+  });
+  assert.strictEqual(calculated.cost_usd, 0.065091);
+  assert.strictEqual(calculated.cost_usd_fonte, 'calculado a partir de tokens e tabela de precos');
+  assert.deepStrictEqual(calculated.cost_usd_calculo.precos_usd_por_milhao, { input: 3, output: 15 });
+
+  const unknown = aprender.enriquecerCusto({
+    event: 'done', exit_code: 0, agent: 'kimi', model_used: 'kimi-k3',
+    tokens_in: 3492, tokens_out: null, cost_usd: null,
+  });
+  assert.strictEqual(unknown.cost_usd, null);
+  assert.strictEqual(unknown.cost_usd_fonte, 'n/d');
+
+  const empty = aprender.enriquecerCusto({
+    event: 'done', exit_code: 0, agent: 'cc',
+    tokens_in: null, tokens_out: null, cost_usd: '',
+  });
+  assert.strictEqual(empty.cost_usd, null, 'string vazia não pode virar custo zero');
+  assert.strictEqual(empty.cost_usd_fonte, 'n/d');
+
+  const reported = aprender.enriquecerCusto({
+    event: 'done', exit_code: 0, agent: 'kimi', tokens_in: 1, tokens_out: 1, cost_usd: 0.25,
+  });
+  assert.strictEqual(reported.cost_usd, 0.25);
+  assert.strictEqual(reported.cost_usd_fonte, 'reportado pelo CLI');
+});
+
+test('snapshot terminal faz append diário idempotente sem reescrever o job histórico', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-aprender-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const terminal = {
+    ts: '2026-07-31T12:00:00.000Z', event: 'done', exit_code: 0,
+    job_id: 'job-memory-1', agent: 'kimi', model_used: 'kimi-k3',
+    tokens_in: 3492, tokens_out: 3641, cost_usd: null,
+  };
+
+  const first = aprender.persistirSnapshotTerminal(terminal, { dir: directory });
+  assert.strictEqual(first.appended, true);
+  const file = path.join(directory, '2026-07-31.json');
+  const firstHistory = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.strictEqual(firstHistory.jobs.length, 1);
+  assert.strictEqual(firstHistory.jobs[0].cost_usd, 0.065091);
+
+  const duplicate = aprender.persistirSnapshotTerminal({
+    ...terminal, event: 'failed', exit_code: 1, cost_usd: 99,
+  }, { dir: directory });
+  assert.strictEqual(duplicate.appended, false);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), firstHistory);
+
+  const nonTerminal = aprender.persistirSnapshotTerminal({
+    ...terminal, job_id: 'job-running', event: 'started',
+  }, { dir: directory });
+  assert.strictEqual(nonTerminal.appended, false);
+  assert.strictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).jobs.length, 1);
 });
 
 test('com menos de 5 observações recomendarAgente não decide', () => {

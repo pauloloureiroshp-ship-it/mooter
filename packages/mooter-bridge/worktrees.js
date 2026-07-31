@@ -63,8 +63,9 @@ function list(repoHint, busyFn) {
   let cur = null;
   for (const line of String(raw).split('\n')) {
     const l = line.trim();
-    if (l.startsWith('worktree ')) { cur = { path: l.slice(9), branch: null, detached: false, bare: false }; out.push(cur); }
+    if (l.startsWith('worktree ')) { cur = { path: l.slice(9), branch: null, head: null, detached: false, bare: false }; out.push(cur); }
     else if (!cur) continue;
+    else if (l.startsWith('HEAD ')) cur.head = l.slice(5) || null;
     else if (l.startsWith('branch ')) cur.branch = l.slice(7).replace(/^refs\/heads\//, '');
     else if (l === 'detached') cur.detached = true;
     else if (l === 'bare') cur.bare = true;
@@ -112,7 +113,8 @@ function list(repoHint, busyFn) {
  * Regras agora:
  *   · exclui `detached` e qualquer coisa sob %TEMP% (nunca são o teu trabalho)
  *   · se o goal cita ficheiros, exclui as pastas onde eles não existem em disco
- *   · prefere as secundárias à principal, para não bloquear a árvore de trabalho
+ *   · prefere menor atraso ao ramo principal e HEAD mais recente
+ *   · em empate de frescura, prefere a secundária para não bloquear a principal
  */
 function isTemp(p) {
   // ⚠️ canon(): os.tmpdir() vem em 8.3 no Windows e o git devolve a forma longa
@@ -130,6 +132,93 @@ function isTemp(p) {
  */
 function suspeita(w, repo) {
   return isTemp(w.path) && !isTemp(repo);
+}
+
+function mainBranchRef(repo) {
+  try {
+    const remote = String(git(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], repo)).trim();
+    if (remote) {
+      const local = remote.replace(/^origin\//, '');
+      try {
+        git(['show-ref', '--verify', '--quiet', 'refs/heads/' + local], repo);
+        return local;
+      } catch { return remote; }
+    }
+  } catch { /* repositório local sem origin/HEAD */ }
+  for (const name of ['main', 'master']) {
+    try {
+      git(['show-ref', '--verify', '--quiet', 'refs/heads/' + name], repo);
+      return name;
+    } catch { /* próximo nome canónico */ }
+  }
+  try {
+    const current = String(git(['branch', '--show-current'], repo)).trim();
+    return current || null;
+  } catch { return null; }
+}
+
+function idadeHumana(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  if (seconds < 60) return Math.floor(seconds) + 's';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h';
+  return Math.floor(seconds / 86400) + 'd';
+}
+
+/** Frescura verificável de uma worktree; falhas ficam n/d (null), nunca estimadas. */
+function frescura(worktree, repoHint, nowMs, hints) {
+  const measuredAt = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const repo = mainRepo(repoHint || worktree);
+  const known = hints && typeof hints === 'object' ? hints : {};
+  const result = {
+    branch: known.branch || null, head: known.head || null, head_short: null,
+    commit_age_seconds: null, commit_age_human: null,
+    main_branch: null, behind_main: null, ahead_main: null,
+    distance_to_main: null,
+  };
+  try {
+    if (!result.branch) result.branch = String(git(['branch', '--show-current'], worktree)).trim() || null;
+    if (!result.head) result.head = String(git(['rev-parse', 'HEAD'], worktree)).trim() || null;
+    result.head_short = result.head ? result.head.slice(0, 7) : null;
+    const epoch = Number(String(git(['show', '-s', '--format=%ct', 'HEAD'], worktree)).trim());
+    if (Number.isFinite(epoch)) {
+      result.commit_age_seconds = Math.max(0, Math.floor(measuredAt / 1000 - epoch));
+      result.commit_age_human = idadeHumana(result.commit_age_seconds);
+    }
+  } catch { /* worktree sem commit legível: os campos continuam n/d */ }
+  if (!repo) return result;
+  result.main_branch = known.main_branch || mainBranchRef(repo);
+  if (!result.main_branch || !result.head) return result;
+  try {
+    const raw = String(git(['rev-list', '--left-right', '--count', result.main_branch + '...HEAD'], worktree)).trim();
+    const parts = raw.split(/\s+/).map(Number);
+    if (parts.length >= 2 && parts.every(Number.isFinite)) {
+      result.behind_main = parts[0];
+      result.ahead_main = parts[1];
+      result.distance_to_main = parts[0] + parts[1];
+    }
+  } catch { /* ramo principal sem relação mensurável: distância n/d */ }
+  return result;
+}
+
+function frescuraRank(w) {
+  const f = w.frescura || {};
+  return [
+    Number.isInteger(f.behind_main) ? f.behind_main : Number.POSITIVE_INFINITY,
+    Number.isFinite(f.commit_age_seconds) ? f.commit_age_seconds : Number.POSITIVE_INFINITY,
+    Number.isInteger(f.distance_to_main) ? f.distance_to_main : Number.POSITIVE_INFINITY,
+    w.is_main ? 1 : 0,
+    String(w.path || ''),
+  ];
+}
+
+function compararFrescura(a, b) {
+  const ar = frescuraRank(a); const br = frescuraRank(b);
+  for (let i = 0; i < ar.length; i++) {
+    if (ar[i] < br[i]) return -1;
+    if (ar[i] > br[i]) return 1;
+  }
+  return 0;
 }
 
 function firstFree(repoHint, busyFn, avoid, requiredPaths) {
@@ -150,8 +239,19 @@ function firstFree(repoHint, busyFn, avoid, requiredPaths) {
     usable = comFicheiros;
   }
   if (!usable.length) return null;
-  const secondary = usable.filter((w) => !w.is_main);
-  return (secondary[0] || usable[0]).path;
+  // Não basta a pasta existir e estar livre: uma worktree antiga pode conter o
+  // ficheiro pedido e, mesmo assim, responder sobre uma versão obsoleta. Mede-se
+  // cada candidata pelo atraso face ao ramo principal e pela idade real do HEAD.
+  const measuredAt = Date.now();
+  const mainBranch = mainBranchRef(r.repo);
+  usable = usable.map((w) => ({
+    ...w,
+    frescura: frescura(w.path, r.repo, measuredAt, {
+      branch: w.branch, head: w.head, main_branch: mainBranch,
+    }),
+  }));
+  usable.sort(compararFrescura);
+  return usable[0].path;
 }
 
 /**
@@ -213,4 +313,7 @@ function create(repoHint, name, sourceWorktree) {
   }
 }
 
-module.exports = { list, firstFree, create, mainRepo, semOsFicheiros, comOsFicheiros, isTemp, suspeita };
+module.exports = {
+  list, firstFree, create, mainRepo, semOsFicheiros, comOsFicheiros,
+  isTemp, suspeita, frescura, idadeHumana,
+};

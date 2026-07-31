@@ -32,6 +32,7 @@ process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
 const moo = require('./moo.js');
+const kimiAdapter = require('./kimi-adapter.js');
 const quotaModule = require('./quota.js');
 const wtModule = require('./worktrees.js');
 
@@ -101,6 +102,25 @@ test('recusa do observeTerminal deixa um evento próprio no ledger', () => {
   ));
   assert.strictEqual(recusas.length, 1);
   assert.match(recusas[0].porque, /metadata do job/i);
+});
+
+test('ledgerAppend persiste uma só memória por job terminal com custo calculado', () => {
+  const jobId = 'memory-kimi-' + Date.now();
+  const terminal = {
+    event: 'done', job_id: jobId, agent: 'kimi', model_used: 'kimi-k3',
+    exit_code: 0, tokens_in: 3492, tokens_out: 3641, cost_usd: null,
+  };
+  seam.ledgerAppend(terminal);
+  seam.ledgerAppend({ ...terminal, event: 'failed', exit_code: 1 });
+
+  const directory = path.join(process.env.MOOTER_HOME, 'aprender');
+  const files = fs.readdirSync(directory).filter((name) => /\.json$/.test(name)).sort();
+  const history = JSON.parse(fs.readFileSync(path.join(directory, files[files.length - 1]), 'utf8'));
+  const memories = history.jobs.filter((job) => job.job_id === jobId);
+  assert.strictEqual(memories.length, 1);
+  assert.strictEqual(memories[0].cost_usd, 0.065091);
+  assert.strictEqual(memories[0].cost_usd_fonte,
+    'calculado a partir de tokens e tabela de precos');
 });
 
 test('route: usa o classifier (stub) e mapeia tier→agent', async () => {
@@ -181,6 +201,93 @@ test('honestidade: detector cobre verbos, crases e comandos canónicos', () => {
     assert.ok(seam.pedeExecucaoDeMotor(goal), 'não detectou: ' + goal);
   }
   assert.strictEqual(seam.pedeExecucaoDeMotor('Resume em duas frases a ideia principal'), null);
+});
+
+test('contrato: prepare legado só controla pre_digest; read_files é independente', () => {
+  assert.deepStrictEqual(seam.resolverPreparacao({ prepare: false }), {
+    read_files: true, pre_digest: false, prepare_legacy: true,
+  });
+  assert.deepStrictEqual(seam.resolverPreparacao({
+    prepare: false, read_files: false, pre_digest: true,
+  }), {
+    read_files: false, pre_digest: true, prepare_legacy: false,
+  });
+});
+
+test('contrato: dispatch directo recusa leitura impossível antes de criar job', async () => {
+  const worktree = makeWorktree('frugal-wt-read-contract-direct');
+  fs.writeFileSync(path.join(worktree, 'sample.js'), 'module.exports = 42;\n');
+  const before = seam.ledgerRead().length;
+  const result = await seam.toolDispatch({
+    agent: 'kimi', worktree, wave: 'read-contract-direct',
+    masterprompt: '⇄ ROUTING\n\nOBJECTIVO: Lê sample.js e resume-o.',
+  });
+  assert.strictEqual(result.erro, 'capacidade_incompativel', JSON.stringify(result));
+  assert.deepStrictEqual(result.capacidade_efectiva.valor, []);
+  assert.match(result.falta, /read_files|ferramentas de leitura/i);
+  assert.strictEqual(seam.ledgerRead().length, before, 'a recusa pré-dispatch escreveu um job no ledger');
+});
+
+test('contrato: prepare:false mantém leitura injectada para Kimi; read_files:false recusa', async () => {
+  const worktree = makeWorktree('frugal-wt-read-kimi');
+  fs.writeFileSync(path.join(worktree, 'sample.js'), 'const answer = 42;\n');
+  const refused = await seam.toolWork({
+    goal: 'Lê sample.js e diz o valor de answer', agent: 'kimi',
+    worktree, wave: 'read-kimi-off', prepare: false, read_files: false,
+  });
+  assert.strictEqual(refused.erro, 'capacidade_incompativel', JSON.stringify(refused));
+  assert.ok(!refused.job_id, 'um contrato impossível criou job');
+
+  const originalRunKimi = kimiAdapter.runKimi;
+  const oldKey = process.env.MOONSHOT_API_KEY;
+  let receivedPrompt = null;
+  let result = null;
+  try {
+    process.env.MOONSHOT_API_KEY = 'test-key';
+    kimiAdapter.runKimi = ({ prompt }) => {
+      receivedPrompt = prompt;
+      const child = fakeChild();
+      setImmediate(() => child.emit('spawn'));
+      return child;
+    };
+    result = await seam.toolWork({
+      goal: 'Lê sample.js e diz o valor de answer', agent: 'kimi',
+      worktree, wave: 'read-kimi-on', prepare: false,
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    assert.strictEqual(result.read_files, true);
+    assert.strictEqual(result.pre_digest, false);
+    assert.deepStrictEqual(result.ficheiros_lidos, ['sample.js']);
+    assert.match(receivedPrompt, /const answer = 42/);
+  } finally {
+    await closeJob(result, 1);
+    kimiAdapter.runKimi = originalRunKimi;
+    if (oldKey === undefined) delete process.env.MOONSHOT_API_KEY;
+    else process.env.MOONSHOT_API_KEY = oldKey;
+  }
+});
+
+test('guarda de recusa ignora incerteza lateral e apanha recusa explícita', () => {
+  assert.match(
+    seam.recusaPorFaltaDeContexto('Não consigo verificar sem acesso ao ficheiro solicitado.'),
+    /recusa do agente/i,
+  );
+  assert.match(
+    seam.recusaPorFaltaDeContexto('Não tenho acesso ao ficheiro solicitado.'),
+    /recusa do agente/i,
+  );
+  assert.strictEqual(
+    seam.recusaPorFaltaDeContexto('Há incerteza residual na versão externa; o ficheiro fornecido demonstra que o valor é 42.'),
+    null,
+  );
+  assert.strictEqual(
+    seam.recusaPorFaltaDeContexto('Não consigo verificar a versão externa, mas com base no conteúdo fornecido concluo que o valor é 42.'),
+    null,
+  );
+  const refused = seam.classificarEntrega(0, 'Não consigo verificar sem acesso ao ficheiro.');
+  assert.strictEqual(refused.ok, false);
+  assert.strictEqual(refused.exit_code, 'agent-refused-missing-context');
+  assert.strictEqual(seam.classificarEntrega(0, 'Resultado verificado: 42.').ok, true);
 });
 
 test('honestidade: goal sem execução continua a ser despachado ao moo', async () => {
@@ -489,12 +596,18 @@ test('goal dêictico recusa worktree ocupada, não relocaliza e regista a recusa
 test('goal sem dêictico continua a relocalizar e nomeia origem e destino no resumo', async () => {
   const alternative = makeWorktree('frugal-wt-relocacao-alt');
   const originalFirstFree = wtModule.firstFree;
+  const originalFrescura = wtModule.frescura;
   let result = null;
   seam.ledgerAppend({
     job_id: 'ocupante-relocacao', wave: 'onda1-relocacao', agent: 'cc',
     worktree: WT, event: 'started',
   });
   wtModule.firstFree = () => alternative;
+  wtModule.frescura = () => ({
+    branch: 'feat/fresca', head: 'abc123456789', head_short: 'abc1234',
+    commit_age_seconds: 120, commit_age_human: '2m',
+    main_branch: 'main', behind_main: 0, ahead_main: 1, distance_to_main: 1,
+  });
   seam.setJobSpawner(() => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; });
   try {
     result = await seam.toolWork({
@@ -504,11 +617,15 @@ test('goal sem dêictico continua a relocalizar e nomeia origem e destino no res
     assert.ok(result.job_id, JSON.stringify(result));
     assert.strictEqual(result.relocated, true);
     assert.strictEqual(result.worktree_usada, alternative);
-    assert.match(result.resumo, new RegExp(' · relocado para ' + path.basename(alternative)
+    assert.match(result.resumo, new RegExp(' · ⚠ relocado para ' + path.basename(alternative)
+      + ' · branch feat/fresca · último commit há 2m · HEAD abc1234'
       + ' \\(pedida: ' + path.basename(WT) + '\\)'));
+    assert.strictEqual(result.worktree_frescura.branch, 'feat/fresca');
+    assert.strictEqual(result.worktree_frescura.head_short, 'abc1234');
   } finally {
     await closeJob(result, 1);
     wtModule.firstFree = originalFirstFree;
+    wtModule.frescura = originalFrescura;
     seam.ledgerAppend({
       job_id: 'ocupante-relocacao', wave: 'onda1-relocacao', agent: 'cc',
       worktree: WT, event: 'failed', exit_code: 'fim-do-teste',
@@ -577,6 +694,45 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   assert.ok(c2.idempotent.includes('já tinha'));
   const collected = seam.ledgerRead().filter((e) => e.job_id === d.job_id && e.event === 'collected');
   assert.strictEqual(collected.length, 1, 'collected não pode duplicar');
+});
+
+test('recusa por falta de contexto sai failed, com motivo no resumo, apesar de exit 0', async () => {
+  const worktree = makeWorktree('frugal-wt-agent-refusal');
+  seam.setJobSpawner(() => {
+    const child = fakeChild();
+    setImmediate(() => child.emit('spawn'));
+    return child;
+  });
+  const dispatched = await seam.toolDispatch({
+    agent: 'cc', worktree, wave: 'agent-refusal',
+    masterprompt: '⇄ ROUTING\n\nOBJECTIVO: Explica o valor pedido.',
+  });
+  assert.ok(dispatched.job_id, JSON.stringify(dispatched));
+  const jobDir = path.join(process.env.MOOTER_HOME, 'jobs', dispatched.job_id);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  fs.writeFileSync(path.join(jobDir, 'out.log'), JSON.stringify({
+    result: 'Não consigo verificar sem acesso ao ficheiro solicitado.',
+  }));
+  seam.REGISTRY.get(dispatched.job_id).child.emit('close', 0);
+  await waitUntil(() => seam.ledgerRead().some((event) => (
+    event.job_id === dispatched.job_id && event.event === 'failed'
+  )));
+
+  const failed = seam.ledgerRead().find((event) => (
+    event.job_id === dispatched.job_id && event.event === 'failed'
+  ));
+  assert.strictEqual(failed.exit_code, 'agent-refused-missing-context');
+  assert.strictEqual(failed.desfecho, 'falhou');
+  assert.match(failed.note, /recusa do agente por falta de contexto/i);
+
+  const awaited = await seam.toolAwait({ job_id: dispatched.job_id, timeout_s: 5 });
+  assert.strictEqual(awaited.done, 0);
+  assert.strictEqual(awaited.failed, 1);
+  assert.match(awaited.resumo, /recusa do agente por falta de contexto/i);
+
+  const collected = await seam.toolCollect({ job_id: dispatched.job_id });
+  assert.strictEqual(collected.state, 'failed');
+  assert.match(collected.note, /recusa do agente por falta de contexto/i);
 });
 
 test('posse: worktree com job ativo é recusada até o job terminar', async () => {

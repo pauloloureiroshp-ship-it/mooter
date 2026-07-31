@@ -25,6 +25,7 @@ const MANIFESTS = new Map([
 const INSTRUCTION_FILES = new Set(['CLAUDE.md', 'AGENTS.md']);
 const CROSS_FILE_LIMIT = 256 * 1024;
 const CROSS_PATH_LIMIT = 20;
+const CROSS_CHECK_LABEL = 'interpretação do moo local — nunca altera os factos medidos';
 
 function known(value, reason) {
   if (value == null || (Array.isArray(value) && value.length === 0)) {
@@ -372,12 +373,34 @@ function resultTextFromNdjson(buffer) {
   return text;
 }
 
-async function defaultLocalRunner({ prompt, host, timeout_ms }) {
-  const selection = await moo.pickModelExplained(null, host, null, {
+function finiteNumberOrNull(value) {
+  const number = Number(value);
+  return value != null && Number.isFinite(number) ? number : null;
+}
+
+async function selectCrossCheckModel({ host, resident_models, vram_snapshot }) {
+  return moo.pickModelExplained(null, host, resident_models, {
     goal: 'verificação factual de caminhos, símbolos e números',
+    vram: vram_snapshot,
+    selection_mode: 'largest_fit',
+  });
+}
+
+async function defaultLocalRunner({ prompt, host, timeout_ms }) {
+  const resident = await require('./fleet.js').probeOllama(700).catch(() => null);
+  const vramSnapshot = await require('./gpu.js')
+    .gpuSnapshot(Array.isArray(resident) ? resident.length : null).catch(() => null);
+  const vramLivreMb = finiteNumberOrNull(vramSnapshot && vramSnapshot.headroom
+    && vramSnapshot.headroom.free_mb);
+  const selection = await selectCrossCheckModel({
+    host, resident_models: resident, vram_snapshot: vramSnapshot,
   }).catch(() => ({ model: null, porque: 'não foi possível consultar o Ollama' }));
   if (!selection.model) {
-    return { available: false, reason: selection.porque || 'nenhum modelo local generativo disponível' };
+    return {
+      available: false,
+      reason: selection.porque || 'nenhum modelo local generativo disponível',
+      vram_livre_mb: vramLivreMb,
+    };
   }
   const out = new PassThrough();
   const err = new PassThrough();
@@ -400,17 +423,26 @@ async function defaultLocalRunner({ prompt, host, timeout_ms }) {
     });
     timer = setTimeout(() => {
       try { child.kill(); } catch { /* já terminou */ }
-      finish({ available: false, reason: 'o modelo local excedeu o timeout da verificação' });
+      finish({
+        available: false,
+        reason: 'o modelo local excedeu o timeout da verificação',
+        vram_livre_mb: vramLivreMb,
+      });
     }, timeout_ms);
     child.once('close', (code) => {
       const text = resultTextFromNdjson(stdout);
       if (code !== 0 || text == null) {
-        finish({ available: false, reason: 'o modelo local não devolveu resultado verificável'
-          + (stderr.trim() ? ': ' + stderr.trim().slice(-300) : '') });
-      } else finish({ available: true, text, model: selection.model });
+        finish({
+          available: false,
+          reason: 'o modelo local não devolveu resultado verificável'
+            + (stderr.trim() ? ': ' + stderr.trim().slice(-300) : ''),
+          vram_livre_mb: vramLivreMb,
+        });
+      } else finish({ available: true, text, model: selection.model, vram_livre_mb: vramLivreMb });
     });
     child.once('error', (error) => finish({
       available: false, reason: 'falha do modelo local: ' + ((error && error.message) || 'erro desconhecido'),
+      vram_livre_mb: vramLivreMb,
     }));
   });
 }
@@ -485,18 +517,24 @@ async function verificacaoCruzada(input, options) {
     prompt: crossCheckPrompt(resultado, evidence), evidence, host,
     timeout_ms: timeoutMs, job_id: jobId,
   });
+  const vramLivreMb = finiteNumberOrNull(local && local.vram_livre_mb);
+  const vramLivreTexto = vramLivreMb == null ? 'n/d' : Math.round(vramLivreMb) + ' MB';
   if (!local || local.available === false) {
     return {
       job_id: jobId, disponivel: false,
       porque: (local && local.reason) || 'nenhum modelo local disponível',
       divergencias: [], verificado: 0, custo_usd: 0,
-      nota: 'sem veredicto: a verificação factual local não correu',
+      vram_livre_mb: vramLivreMb == null ? 'n/d' : vramLivreMb,
+      rotulo: CROSS_CHECK_LABEL,
+      nota: 'sem veredicto: não verificou; VRAM livre no momento: ' + vramLivreTexto,
     };
   }
   const checked = evaluateClaims(paths, parseClaims(local.text), evidence);
   return {
     job_id: jobId, disponivel: true, modelo: local.model || null,
     divergencias: checked.divergencias, verificado: checked.verificado, custo_usd: 0,
+    vram_livre_mb: vramLivreMb == null ? 'n/d' : vramLivreMb,
+    rotulo: CROSS_CHECK_LABEL,
     nota: checked.verificado + ' afirmação(ões) verificadas; '
       + checked.divergencias.length + ' divergência(s); ' + checked.nd
       + ' n/d. Verificação factual apenas; não avaliou qualidade nem reescreveu.',
@@ -506,5 +544,8 @@ async function verificacaoCruzada(input, options) {
 module.exports = {
   CACHE_TTL_MS, SUMMARY_MAX_CHARS, mapaDoProjecto, lerMapaCacheValido,
   mapaParaDispatch, resumoMapa, verificacaoCruzada,
-  _internals: { citedPaths, evidenceForPaths, parseClaims, evaluateClaims, gitHeadInfo, scanTopTwoLevels },
+  _internals: {
+    citedPaths, evidenceForPaths, parseClaims, evaluateClaims, gitHeadInfo, scanTopTwoLevels,
+    selectCrossCheckModel,
+  },
 };

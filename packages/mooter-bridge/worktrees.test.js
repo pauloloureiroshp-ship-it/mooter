@@ -84,6 +84,32 @@ if (!gitOk) {
     assert.notStrictEqual(path.resolve(free), path.resolve(REPO));
   });
 
+  t('firstFree prefere a candidata fresca à desactualizada e mede a distância ao ramo principal', () => {
+    const stalePath = path.join(path.dirname(REPO), path.basename(REPO) + '-stale-candidate');
+    execFileSync('git', ['branch', 'stale-candidate', 'HEAD'], { cwd: REPO, stdio: 'ignore' });
+    execFileSync('git', ['worktree', 'add', stalePath, 'stale-candidate'], { cwd: REPO, stdio: 'ignore' });
+
+    fs.writeFileSync(path.join(REPO, 'fresh.txt'), 'novo\n');
+    execFileSync('git', ['add', 'fresh.txt'], { cwd: REPO, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-qm', 'fresh head'], { cwd: REPO, stdio: 'ignore' });
+
+    const freshPath = path.join(path.dirname(REPO), path.basename(REPO) + '-fresh-candidate');
+    execFileSync('git', ['branch', 'fresh-candidate', 'HEAD'], { cwd: REPO, stdio: 'ignore' });
+    execFileSync('git', ['worktree', 'add', freshPath, 'fresh-candidate'], { cwd: REPO, stdio: 'ignore' });
+
+    const selected = wt.firstFree(REPO, () => [], REPO, ['a.txt']);
+    assert.ok(P.mesmo(selected, freshPath), 'escolheu a candidata desactualizada: ' + selected);
+
+    const stale = wt.frescura(stalePath, REPO);
+    const fresh = wt.frescura(freshPath, REPO);
+    assert.strictEqual(stale.behind_main, 1);
+    assert.strictEqual(fresh.behind_main, 0);
+    assert.strictEqual(fresh.branch, 'fresh-candidate');
+    assert.match(fresh.head_short, /^[0-9a-f]{7}$/i);
+    assert.strictEqual(typeof fresh.commit_age_seconds, 'number');
+    assert.ok(fresh.commit_age_human);
+  });
+
   t('com tudo ocupado, firstFree devolve null (e não improvisa)', () => {
     const free = wt.firstFree(REPO, () => ['job-x']);
     assert.strictEqual(free, null);

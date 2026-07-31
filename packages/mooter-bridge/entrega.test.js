@@ -62,6 +62,12 @@ const MARCADORES = {
   // Estes marcadores existem para que a dieta não possa ser desfeita em silêncio:
   // se alguém apagar a compactação ou o corte do goal, a entrega deixa de provar-se.
   'recibo-contexto.js': ['perguntasAdversariais', 'proximos_passos', 'advogado_do_diabo', 'nunca geradas por um modelo'],
+  // v1.33 — J-1 (a régua persiste), J-2 (contrato + guarda de recusa),
+  // J-3 (frescura da worktree), J-4 (verify cabe na VRAM), J-5b (handoff real).
+  // Estes marcadores existem para que nenhuma destas garantias possa ser
+  // desfeita em silêncio numa entrega futura.
+  'fosso.js': ['mapaParaDispatch', 'SUMMARY_MAX_CHARS'],
+  'aprender.js': ['CUSTO_FONTE_CALCULADO', 'resolveCategory'],
   // v1.27 — F0: distribuição honesta (release do .mcpb, classify.js no bundle,
   // user_config, diagnóstico primeira_vez, GitHub Releases API)
   'manifest.json': ['user_config'],

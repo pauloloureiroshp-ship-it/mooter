@@ -121,6 +121,7 @@ test('verificação cruzada apanha caminho citado que não existe', async () => 
   assert.strictEqual(result.custo_usd, 0);
   assert.strictEqual(result.divergencias.length, 1);
   assert.strictEqual(result.divergencias[0].path, 'src/nao-existe.js');
+  assert.match(result.rotulo, /interpretação do moo local/i);
 });
 
 test('ficheiro real confirma símbolo e conta as verificações', async () => {

@@ -104,7 +104,7 @@ function comResumo(r, fallback) {
 function withWorktreeSummary(r, fallback) {
   const out = comResumo(r, fallback);
   if (!out || typeof out !== 'object' || !out.resumo
-      || / · (?:em|relocado para) [^·]+(?:$| · )/.test(out.resumo)) return out;
+      || / · (?:em|⚠ relocado para) [^·]+(?:$| · )/.test(out.resumo)) return out;
   const jobs = Array.isArray(out.jobs) ? out.jobs : [];
   const usedNames = [...new Set([
     out.worktree_usada, out.worktree,
@@ -112,8 +112,13 @@ function withWorktreeSummary(r, fallback) {
   ].filter(Boolean).map((worktree) => path.basename(String(worktree))))];
   if (!usedNames.length) return out;
   const requestedName = out.worktree_pedida ? path.basename(String(out.worktree_pedida)) : null;
+  const fresh = out.worktree_frescura || {};
   out.resumo += out.relocated === true && requestedName
-    ? ' · relocado para ' + usedNames[0] + ' (pedida: ' + requestedName + ')'
+    ? ' · ⚠ relocado para ' + usedNames[0]
+      + ' · branch ' + (fresh.branch || 'n/d')
+      + ' · último commit há ' + (fresh.commit_age_human || 'n/d')
+      + ' · HEAD ' + (fresh.head_short || 'n/d')
+      + ' (pedida: ' + requestedName + ')'
     : ' · em ' + usedNames.join(', ');
   return out;
 }
@@ -136,10 +141,12 @@ function build(seam, fleet, base) {
           worktree: { type: 'string', description: '[avançado] pasta específica. Omite e eu escolho uma livre.' },
           create_worktree: { type: 'boolean', description: '[avançado] criar sempre uma pasta nova isolada antes do job (escreve no disco; se falhar, o job não arranca).' },
           allowedTools: { type: 'string', description: '[avançado] ferramentas pedidas ao CLI; a resposta distingue pedido de capacidade efectiva.' },
-          prepare: { type: 'boolean', description: '[avançado] deixar a GPU local escrever o briefing primeiro, a $0. Ligado por omissão.' },
+          prepare: { type: 'boolean', description: '[compatibilidade] alias de pre_digest. Deixar a GPU local escrever o briefing primeiro, a $0.' },
+          read_files: { type: 'boolean', description: '[avançado] o conector lê e injecta os ficheiros citados quando o motor não tem ferramentas. Ligado por omissão.' },
+          pre_digest: { type: 'boolean', description: '[avançado] deixar a GPU local pré-digerir o pedido antes do motor pago. Ligado por omissão.' },
           steps: { type: 'array', items: { type: 'string' }, description: '[avançado] as etapas que o painel deve mostrar.' },
           context: { type: 'string', description: 'Contexto extra para juntar ao pedido.' },
-          force: { type: 'boolean', description: '[avançado] despachar mesmo quando eu aviso que a resposta será inventada.' },
+          force: { type: 'boolean', description: '[compatibilidade] aceite, mas nunca ultrapassa o contrato de capacidades nem autoriza uma resposta inventada.' },
           /**
            * ⚠️ J-5 (2026-07-31) — `toolDispatch` já aceitava `args.handoff_from`
            * (seamless.js:1450) e o painel já sabia desenhar a seta a partir dele,

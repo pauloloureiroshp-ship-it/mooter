@@ -1,9 +1,17 @@
 'use strict';
 /** Onda 3: resultados reais mudam routing futuro; desconhecido é `n/d`. */
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { PRICING_USD_PER_MILLION: KIMI_PRICES } = require('./kimi-adapter.js');
 
 const ND = 'n/d';
+const CUSTO_FONTE_CALCULADO = 'calculado a partir de tokens e tabela de precos';
+const CUSTO_FONTE_CLI = 'reportado pelo CLI';
+const PRECOS_USD_POR_MILHAO = Object.freeze({
+  'kimi-k3': Object.freeze({ input: KIMI_PRICES.input_cache_miss, output: KIMI_PRICES.output }),
+});
 const MIN_OBSERVATIONS = 5;
 const REPEAT_WINDOW_MS = 10 * 60 * 1000;
 const DESFECHOS = new Set(['entregue', 'falhou', 'interrompido', 'expirou', 'indeterminado']);
@@ -82,6 +90,108 @@ function numberOrNull(value) {
   return value != null && Number.isFinite(parsed) ? parsed : null;
 }
 
+function costOrNull(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function tokenCountOrNull(value) {
+  if (value == null) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function modeloComTabela(event) {
+  const explicit = String((event && (event.model_used || event.model)) || '').trim().toLowerCase();
+  if (PRECOS_USD_POR_MILHAO[explicit]) return explicit;
+  return event && event.agent === 'kimi' ? 'kimi-k3' : null;
+}
+
+/**
+ * Completa custo ausente apenas quando há tokens inteiros e uma tabela conhecida.
+ * A proveniência viaja ao lado do número para um cálculo nunca parecer medição.
+ */
+function enriquecerCusto(event) {
+  const source = event && typeof event === 'object' ? event : {};
+  const out = { ...source };
+  if (!EVENTOS_TERMINAIS.has(source.event)) return out;
+
+  const reported = costOrNull(source.cost_usd);
+  if (reported != null) {
+    out.cost_usd = reported;
+    out.cost_usd_fonte = source.cost_usd_fonte
+      || (source.agent === 'moo' ? 'inferência local sem custo de API' : CUSTO_FONTE_CLI);
+    return out;
+  }
+
+  const model = modeloComTabela(source);
+  const prices = model && PRECOS_USD_POR_MILHAO[model];
+  const tokensIn = tokenCountOrNull(source.tokens_in);
+  const tokensOut = tokenCountOrNull(source.tokens_out);
+  if (!prices || tokensIn == null || tokensOut == null) {
+    out.cost_usd = null;
+    out.cost_usd_fonte = ND;
+    return out;
+  }
+
+  const cost = (tokensIn * prices.input + tokensOut * prices.output) / 1_000_000;
+  out.cost_usd = Number(cost.toFixed(9));
+  out.cost_usd_fonte = CUSTO_FONTE_CALCULADO;
+  out.cost_usd_calculo = {
+    modelo: model,
+    tokens_in: tokensIn,
+    tokens_out: tokensOut,
+    precos_usd_por_milhao: prices,
+  };
+  return out;
+}
+
+function aprenderDir(options) {
+  const opts = options || {};
+  return opts.dir || opts.directory || path.join(
+    process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter'),
+    'aprender',
+  );
+}
+
+/**
+ * Append lógico num JSON diário válido. Um job já guardado nunca é actualizado:
+ * eventos terminais repetidos são no-op, preservando o primeiro desfecho histórico.
+ */
+function persistirSnapshotTerminal(event, options) {
+  if (!event || !EVENTOS_TERMINAIS.has(event.event)) {
+    return { ok: true, appended: false, porque: 'evento não terminal' };
+  }
+  if (!event.job_id) return { ok: false, appended: false, porque: 'job_id n/d' };
+  const timestamp = Date.parse(event.ts);
+  if (!Number.isFinite(timestamp)) {
+    return { ok: false, appended: false, porque: 'timestamp terminal n/d' };
+  }
+
+  const date = new Date(timestamp).toISOString().slice(0, 10);
+  const directory = aprenderDir(options);
+  const file = path.join(directory, date + '.json');
+  fs.mkdirSync(directory, { recursive: true });
+
+  let history = { schema_version: 1, date, jobs: [] };
+  if (fs.existsSync(file)) {
+    history = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!history || history.schema_version !== 1 || history.date !== date
+        || !Array.isArray(history.jobs)) {
+      throw new Error('histórico de aprendizagem inválido em ' + file);
+    }
+  }
+  if (history.jobs.some((job) => job && job.job_id === event.job_id)) {
+    return { ok: true, appended: false, ficheiro: file, job_id: event.job_id };
+  }
+
+  history.jobs.push(enriquecerCusto(event));
+  fs.writeFileSync(file, JSON.stringify(history, null, 2) + '\n', 'utf8');
+  return { ok: true, appended: true, ficheiro: file, job_id: event.job_id };
+}
+
 function median(values) {
   const measured = values.map(numberOrNull).filter((value) => value != null).sort((a, b) => a - b);
   if (!measured.length) return ND;
@@ -133,7 +243,8 @@ function jobRecords(input) {
       worktree: null, escrita: null, preparation: false, dispatched_at: null, completed_at: null,
       worktree_criada: null, git_base_clean: null, git_base_commit: null,
       status: null, desfecho: null, duration_s: null, tokens_in: null, tokens_out: null,
-      cost_usd: null, prep_duration_s: null, tokens_poupados_estimados: null,
+      model_used: null, cost_usd: null, cost_usd_fonte: ND, cost_usd_calculo: null,
+      prep_duration_s: null, tokens_poupados_estimados: null,
       files_touched: null, files_touched_reason: null,
       motivo_nao_local: null, forcado_por_quota: false,
       category: null, category_fonte: null, categoria_legado: false,
@@ -164,15 +275,17 @@ function jobRecords(input) {
       if (event.git_base_commit) record.git_base_commit = event.git_base_commit;
     }
     if (EVENTOS_TERMINAIS.has(event.event)) {
-      record.desfecho = classificarDesfecho(event);
+      const terminal = enriquecerCusto(event);
+      record.desfecho = classificarDesfecho(terminal);
       record.status = record.desfecho === 'entregue' ? 'done' : 'failed';
-      record.completed_at = event.ts || record.completed_at;
+      record.completed_at = terminal.ts || record.completed_at;
       for (const field of ['duration_s', 'tokens_in', 'tokens_out', 'cost_usd',
+        'cost_usd_fonte', 'cost_usd_calculo', 'model_used',
         'prep_duration_s', 'tokens_poupados_estimados']) {
-        if (event[field] != null) record[field] = event[field];
+        if (terminal[field] != null) record[field] = terminal[field];
       }
-      if (Array.isArray(event.files_touched)) record.files_touched = event.files_touched;
-      if (event.files_touched_reason) record.files_touched_reason = event.files_touched_reason;
+      if (Array.isArray(terminal.files_touched)) record.files_touched = terminal.files_touched;
+      if (terminal.files_touched_reason) record.files_touched_reason = terminal.files_touched_reason;
     }
     byJob.set(event.job_id, record);
   }
@@ -204,7 +317,10 @@ function statistics(input) {
     const totals = list.filter((record) => numberOrNull(record.tokens_in) != null
       && numberOrNull(record.tokens_out) != null)
       .map((record) => Number(record.tokens_in) + Number(record.tokens_out));
-    const costs = done.map((record) => record.cost_usd).map(numberOrNull).filter((value) => value != null);
+    const costed = done.filter((record) => costOrNull(record.cost_usd) != null);
+    const costs = costed.map((record) => costOrNull(record.cost_usd));
+    const calculatedCosts = costed.filter((record) => record.cost_usd_fonte === CUSTO_FONTE_CALCULADO).length;
+    const reportedCosts = costed.length - calculatedCosts;
     return {
       agent, tier_motor, category, jobs: list.length, done: done.length,
       failed: list.length - done.length,
@@ -216,8 +332,9 @@ function statistics(input) {
       prep_duration_median_s: median(list.map((record) => record.prep_duration_s)),
       tokens_saved_estimated_median: median(list.map((record) => record.tokens_poupados_estimados)),
       delivered_cost_median_usd: median(costs),
-      delivered_cost_jobs_measured: costs.length,
-      delivered_cost_jobs_unknown: done.length - costs.length,
+      delivered_cost_jobs_measured: reportedCosts,
+      delivered_cost_jobs_calculated: calculatedCosts,
+      delivered_cost_jobs_unknown: done.length - costed.length,
     };
   }).sort((a, b) => a.category.localeCompare(b.category) || a.agent.localeCompare(b.agent));
   return {
@@ -495,15 +612,19 @@ function resumoDeAprendizagem(input) {
       : 'nenhum job de escrita mensurável';
     lines.push('Keep rate: n/d — ' + reason + '.');
   }
-  const costs = done.map((record) => record.cost_usd).map(numberOrNull).filter((value) => value != null);
+  const costed = done.filter((record) => costOrNull(record.cost_usd) != null);
+  const costs = costed.map((record) => costOrNull(record.cost_usd));
+  const calculatedCosts = costed.filter((record) => record.cost_usd_fonte === CUSTO_FONTE_CALCULADO).length;
+  const reportedCosts = costed.length - calculatedCosts;
   // ⚠️ 4 casas, e não as 16 que o float traz: "US$ 0.4825805000000001" foi o que
   // saiu na primeira prova com o ledger real. Falsa precisão é o oposto de rigor —
   // e um produto que jura não inventar números não pode dar-se ao luxo de PARECER
   // que inventa. Diz-se também de quantos jobs saiu a mediana.
   lines.push(costs.length
     ? 'Custo mediano por tarefa entregue: US$ ' + Number(median(costs)).toFixed(4)
-      + ' (mediana de ' + costs.length + ' job(s) com custo reportado).'
-    : 'Custo mediano por tarefa entregue: n/d — o CLI não reportou custo.');
+      + ' (mediana de ' + costs.length + ' job(s): ' + reportedCosts + ' reportado(s) pelo CLI, '
+      + calculatedCosts + ' ' + CUSTO_FONTE_CALCULADO + ').'
+    : 'Custo mediano por tarefa entregue: n/d — sem custo reportado nem tokens com tabela conhecida.');
   const satisfaction = inferSatisfaction(options);
   const negative = satisfaction.filter((signal) => signal.signal === 'negativo').length;
   const positive = satisfaction.filter((signal) => signal.signal === 'positivo_fraco').length;
@@ -515,8 +636,10 @@ function resumoDeAprendizagem(input) {
 }
 
 module.exports = {
-  ND, MIN_OBSERVATIONS, CATEGORY_NAMES, objectiveForCategory, categoryForGoal,
+  ND, CUSTO_FONTE_CALCULADO, CUSTO_FONTE_CLI, PRECOS_USD_POR_MILHAO,
+  MIN_OBSERVATIONS, CATEGORY_NAMES, objectiveForCategory, categoryForGoal,
   categoryForLegacyGoal, resolveCategory, statistics, inferSatisfaction,
   trigramJaccard, recomendarAgente, measureKeepRate, resumoDeAprendizagem,
-  captureGitBase, captureFilesTouched, classificarDesfecho, comDesfecho, _jobRecords: jobRecords,
+  captureGitBase, captureFilesTouched, classificarDesfecho, comDesfecho,
+  enriquecerCusto, persistirSnapshotTerminal, _jobRecords: jobRecords,
 };

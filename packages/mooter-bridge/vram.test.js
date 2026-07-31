@@ -9,6 +9,7 @@ const localfirst = require('./localfirst.js');
 const board = require('./board.js');
 const aprender = require('./aprender.js');
 const seamless = require('./seamless.js');
+const fosso = require('./fosso.js');
 
 const BYTES_POR_GB = 1024 ** 3;
 const MB_POR_GB = 1024;
@@ -60,6 +61,17 @@ test('placa de 23 GB com 20 GB ocupados não carrega um modelo novo de 8 GB', as
   assert.strictEqual(escolha.vram_influenciou, true);
 });
 
+test('cross-check desce para o maior modelo que cabe quando a VRAM está baixa', async () => {
+  const escolha = await fosso._internals.selectCrossCheckModel({
+    host,
+    resident_models: [],
+    vram_snapshot: fixtureVram(23, 20),
+  });
+  assert.strictEqual(escolha.model, MODELO_PEQUENO);
+  assert.match(escolha.porque, /maior modelo que cabe/i);
+  assert.match(escolha.porque, /folga mínima/i);
+});
+
 test('o mesmo modelo continua elegível quando já está residente', async () => {
   const escolha = await moo.pickModelExplained(null, host, [
     { model: MODELO_PREFERIDO, size: 8 * BYTES_POR_GB },
@@ -96,6 +108,30 @@ test('nenhum modelo cabe: devolve null com motivo legível, nunca o menor às ce
   assert.strictEqual(escolha.motivo_nao_local, 'falta_vram');
   assert.match(escolha.porque, /nenhum modelo novo cabe/i);
   assert.match(escolha.porque, /folga mínima/i);
+});
+
+test('cross-check diz que não verificou e conserva a VRAM livre quando nada cabe', async () => {
+  const escolha = await fosso._internals.selectCrossCheckModel({
+    host,
+    resident_models: [],
+    vram_snapshot: fixtureVram(23, 22),
+  });
+  const result = await fosso.verificacaoCruzada({
+    job_id: 'cross-check-sem-vram',
+    resultado: 'Sem caminhos citados.',
+    worktree: __dirname,
+  }, {
+    runner: async () => ({
+      available: false,
+      reason: escolha.porque,
+      vram_livre_mb: escolha.vram_livre_mb,
+    }),
+  });
+  assert.strictEqual(result.disponivel, false);
+  assert.strictEqual(result.vram_livre_mb, 1024);
+  assert.match(result.nota, /não verificou/i);
+  assert.match(result.nota, /1024 MB/);
+  assert.match(result.rotulo, /interpretação do moo local/i);
 });
 
 test('ledger distingue falta_vram de forcado_por_quota', () => {

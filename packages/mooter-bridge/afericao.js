@@ -3,9 +3,8 @@
 /**
  * afericao.js — avaliação local de execuções já realizadas.
  *
- * Este módulo não despacha jobs, não usa rede e não escreve resultados. Recebe
- * execuções do condutor, avalia-as contra respostas conhecidas e lê, quando
- * pedido, a última aferição que outro componente guardou.
+ * Este módulo não despacha jobs nem usa rede. Recebe execuções do condutor,
+ * avalia-as contra respostas conhecidas, persiste cada corrida e lê a última.
  */
 
 const fs = require('fs');
@@ -127,6 +126,38 @@ function round(value, places) {
   return Number(value.toFixed(places));
 }
 
+function instanteDaCorrida(options) {
+  const opts = options || {};
+  const supplied = typeof opts.now === 'function' ? opts.now() : opts.now;
+  const date = supplied == null ? new Date() : new Date(supplied);
+  if (!Number.isFinite(date.getTime())) throw new Error('timestamp da aferição inválido');
+  return date;
+}
+
+function timestampParaFicheiro(date) {
+  return date.toISOString().replace(/[:.]/g, '-');
+}
+
+function guardarResultadoDaAfericao(result, options) {
+  const opts = options || {};
+  const directory = opts.dir || opts.directory || DEFAULT_DIR;
+  const measuredAt = instanteDaCorrida(opts);
+  const base = timestampParaFicheiro(measuredAt);
+  fs.mkdirSync(directory, { recursive: true });
+
+  for (let sequence = 0; sequence < 1000; sequence++) {
+    const suffix = sequence === 0 ? '' : '_' + String(sequence).padStart(3, '0');
+    const file = path.join(directory, base + suffix + '.json');
+    try {
+      fs.writeFileSync(file, JSON.stringify(result, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+      return { ficheiro: file, medido_em: measuredAt.toISOString() };
+    } catch (error) {
+      if (!error || error.code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error('não foi possível reservar um timestamp único para a aferição');
+}
+
 function recordsFrom(executions) {
   const records = [];
   for (const execution of Array.isArray(executions) ? executions : []) {
@@ -148,7 +179,7 @@ function recordsFrom(executions) {
  * virar erro por acidente. O custo por resposta certa usa o custo total das
  * tentativas; se faltar um custo, o resultado é n/d (null), nunca um parcial.
  */
-function resultadoDaAfericao(executions) {
+function resultadoDaAfericao(executions, options) {
   const groups = new Map();
   for (const record of recordsFrom(executions)) {
     if (!groups.has(record.motor)) groups.set(record.motor, []);
@@ -190,7 +221,17 @@ function resultadoDaAfericao(executions) {
         : null,
     };
   }
+  if (!options || options.persist !== false) guardarResultadoDaAfericao(result, options);
   return result;
+}
+
+const AFERICAO_FILE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}-\d{2}-\d{2}-\d{3}Z(?:_\d{3})?)?\.json$/;
+
+function medidoEmDoNome(name) {
+  const base = String(name || '').replace(/\.json$/, '').replace(/_\d{3}$/, '');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(base)) return base;
+  const match = base.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
+  return match ? match[1] + 'T' + match[2] + ':' + match[3] + ':' + match[4] + '.' + match[5] + 'Z' : 'n/d';
 }
 
 /**
@@ -202,7 +243,7 @@ function lerUltimaAfericao(options) {
   let files;
   try {
     files = fs.readdirSync(directory)
-      .filter((name) => /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
+      .filter((name) => AFERICAO_FILE_RE.test(name))
       .sort()
       .reverse();
   } catch (error) {
@@ -223,7 +264,7 @@ function lerUltimaAfericao(options) {
     return {
       estado: 'medido',
       ficheiro: file,
-      medido_em: files[0].slice(0, 10),
+      medido_em: medidoEmDoNome(files[0]),
       resultado: data,
     };
   } catch (error) {
@@ -240,6 +281,7 @@ module.exports = {
   DEFAULT_DIR,
   avaliarResposta,
   resultadoDaAfericao,
+  guardarResultadoDaAfericao,
   lerUltimaAfericao,
   _median: median,
 };

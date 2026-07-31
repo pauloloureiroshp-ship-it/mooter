@@ -294,10 +294,14 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
   // Onda 1.3 — adequação × capacidade em vez de "o maior que cabe"
   const tarefaCodigo = TAREFA_CODIGO_RE.test(String((opts && opts.goal) || ''));
   const rankingTodos = pontuar(comTamanho, tarefaCodigo);
-  const ranking = rankingTodos.filter((r) => nomesResidentes.has(r.model) || cabeCarregar(r.bytes));
+  const maiorQueCabe = opts && opts.selection_mode === 'largest_fit';
+  const ordem = maiorQueCabe
+    ? rankingTodos.slice().sort((a, b) => (b.bytes || 0) - (a.bytes || 0) || b.score - a.score)
+    : rankingTodos;
+  const ranking = ordem.filter((r) => nomesResidentes.has(r.model) || cabeCarregar(r.bytes));
   const melhor = ranking[0] || null;
   const segundo = ranking[1] || null;
-  const preferido = rankingTodos[0] || null;
+  const preferido = ordem[0] || null;
   const preferidoBloqueado = vram.completa && preferido
     && !nomesResidentes.has(preferido.model) && !cabeCarregar(preferido.bytes)
     ? preferido : null;
@@ -307,6 +311,19 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
   const ressalvaVram = vram.completa
     ? ''
     : ' — leitura completa da VRAM indisponível; mantive o comportamento anterior sem bloquear';
+
+  if (maiorQueCabe && melhor) {
+    const jaResidente = nomesResidentes.has(melhor.model);
+    return {
+      model: melhor.model,
+      porque: jaResidente
+        ? 'escolhi o maior modelo elegível, já carregado na GPU: ' + melhor.model + notaVram(melhor.model)
+        : 'escolhi o maior modelo que cabe mantendo a folga mínima: ' + melhor.model
+          + ' (' + gbLegivel(melhor.bytes / BYTES_POR_MB) + ')' + notaVram(melhor.model) + ressalvaVram,
+      residente: jaResidente || undefined,
+      vram_influenciou: preferidoBloqueado != null,
+    };
+  }
 
   if (residente) {
     const rankRes = ranking.find((r) => r.model === residente.model) || null;
@@ -368,6 +385,7 @@ async function pickModelExplained(explicit, hostStr, residentList, opts) {
         + ': ' + porqueNaoCabe(preferido.model, preferido.bytes, vram),
       motivo_nao_local: 'falta_vram',
       vram_influenciou: true,
+      vram_livre_mb: freeMb,
     };
   }
 

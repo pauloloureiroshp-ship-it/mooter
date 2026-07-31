@@ -60,5 +60,15 @@
     "fleet.js",
     "tools6.js",
     "kimi-adapter.js"
+  ],
+  "1.33": [
+    "seamless.js",
+    "tools6.js",
+    "worktrees.js",
+    "fosso.js",
+    "moo.js",
+    "afericao.js",
+    "aprender.js",
+    "kimi-adapter.js"
   ]
 }

@@ -212,11 +212,25 @@ function ledgerAppend(ev) {
   const payload = { ...(ev || {}) };
   const desfecho = aprender.classificarDesfecho(payload);
   if (desfecho) {
+    Object.assign(payload, aprender.enriquecerCusto(payload));
     payload.desfecho = desfecho;
     if (!Object.prototype.hasOwnProperty.call(payload, 'ttft_ms')) payload.ttft_ms = null;
   }
   const appended = appendLedgerRecord(payload);
   const record = appended.record;
+  if (desfecho) {
+    try {
+      const learned = aprender.persistirSnapshotTerminal(record, {
+        dir: path.join(MOOTER_HOME_DIR(), 'aprender'),
+      });
+      if (learned && learned.ok === false) {
+        log('aprendizagem ' + (record.job_id || 'n/d') + ' não persistiu: ' + learned.porque);
+      }
+    } catch (error) {
+      log('aprendizagem ' + (record.job_id || 'n/d') + ' não persistiu: '
+        + ((error && error.message) || error));
+    }
+  }
   try {
     const etaResult = eta.observeTerminal(record, {
       indexPath: path.join(MOOTER_HOME_DIR(), 'eta-index.json'),
@@ -1006,11 +1020,17 @@ function isDeicticGoal(text) {
   return DEICTIC_GOAL_RE.test(String(text || ''));
 }
 
-function worktreeSuffix(requested, used, relocated) {
+function worktreeSuffix(requested, used, relocated, measuredFreshness) {
   const usedName = path.basename(String(used || requested || 'n/d'));
   if (relocated) {
-    return ' · relocado para ' + usedName + ' (pedida: '
-      + path.basename(String(requested || 'n/d')) + ')';
+    const fresh = measuredFreshness || (() => {
+      try { return wt.frescura(used, REPO); } catch { return null; }
+    })() || {};
+    return ' · ⚠ relocado para ' + usedName
+      + ' · branch ' + (fresh.branch || 'n/d')
+      + ' · último commit há ' + (fresh.commit_age_human || 'n/d')
+      + ' · HEAD ' + (fresh.head_short || 'n/d')
+      + ' (pedida: ' + path.basename(String(requested || 'n/d')) + ')';
   }
   return ' · em ' + usedName;
 }
@@ -1025,6 +1045,79 @@ function pedeLeituraDeFicheiro(texto) {
   // um verbo de leitura sozinho é fraco; um path é prova suficiente
   if (!temPath && temVerbo && !/\b(ficheiro|arquivo|file|c[óo]digo|repo|pasta)\b/i.test(t)) return null;
   return { path: m ? m[1] : null, verbo: temVerbo };
+}
+
+/**
+ * prepare continua compatível como alias do pré-digest local. A leitura dos
+ * ficheiros é independente e fica ligada por omissão: prepare:false nunca mais
+ * retira os olhos ao motor API.
+ */
+function resolverPreparacao(args) {
+  const a = args || {};
+  const explicitPreDigest = Object.prototype.hasOwnProperty.call(a, 'pre_digest');
+  const explicitReadFiles = Object.prototype.hasOwnProperty.call(a, 'read_files');
+  return {
+    read_files: explicitReadFiles ? a.read_files !== false : true,
+    pre_digest: explicitPreDigest ? a.pre_digest !== false : a.prepare !== false,
+    prepare_legacy: !explicitPreDigest && Object.prototype.hasOwnProperty.call(a, 'prepare'),
+  };
+}
+
+function temContextoDeFicheiros(args, masterprompt) {
+  const evidencia = args && args.evidencia;
+  if (evidencia && Array.isArray(evidencia.ficheiros_lidos) && evidencia.ficheiros_lidos.length) return true;
+  return /## FICHEIROS REAIS \(lidos do disco pelo Mooter, não inventados\)/i.test(String(masterprompt || ''));
+}
+
+function recusaContratoDeLeitura(agent, leitura, effective) {
+  return {
+    error: '❌ contrato recusou o dispatch: a tarefa exige leitura de ficheiros, mas o motor não recebe ferramentas de leitura nem contexto injectado',
+    erro: 'capacidade_incompativel',
+    requisito: { tipo: 'leitura_de_ficheiros', ficheiro: leitura && leitura.path ? leitura.path : null },
+    capacidade_efectiva: effective,
+    falta: 'activa read_files para o conector injectar o conteúdo, ou escolhe um motor com ferramentas de leitura',
+    agent,
+    faz_assim: [
+      'mooter_work({goal, agent:"' + agent + '", read_files:true}) — o conector lê e injecta os ficheiros antes do dispatch',
+      'mooter_work({goal, agent:"cc"}) — o Claude Code lê os ficheiros com as suas ferramentas',
+      'mooter_work({goal, agent:"codex"}) — o Codex lê os ficheiros no sandbox declarado',
+    ],
+  };
+}
+
+/**
+ * Guarda mecânico de recusa. Só aceita uma recusa explícita logo no início e
+ * ligada a acesso/contexto em falta; menções laterais a incerteza não contam.
+ */
+function recusaPorFaltaDeContexto(text) {
+  const source = String(text || '').trim();
+  if (!source) return null;
+  const lead = source
+    .replace(/^(?:[#>*\-\s]+|(?:resposta|resultado|análise|analise|answer|result)\s*:\s*)+/i, '')
+    .slice(0, 700);
+  const missing = /\b(?:acesso|access|contexto|context|ficheiro|arquivo|file|conte[úu]do|content|dados|data)\b/i;
+  if (!missing.test(lead)) return null;
+  const explicit = /^(?:desculp[ae],?\s*|sorry,?\s*)?(?:(?:não|nao)\s+(?:consigo|posso|tenho como|sou capaz de|tenho acesso)|(?:i\s+(?:can't|cannot|do not have access|don't have access|am unable to)|unable to)|(?:sem|without)\s+(?:acesso|access|contexto|context)[^.!?]{0,160}\b(?:não|nao|cannot|can't|unable)\b)\b/i;
+  if (!explicit.test(lead)) return null;
+  if (/\b(?:mas|por[ée]m|contudo|however|but)\b.{0,180}\b(?:com base no|baseado no|conte[úu]do fornecido|segue|here is|based on the provided)\b/i.test(lead)) {
+    return null;
+  }
+  const sentence = (lead.match(/^[^\r\n.!?]{1,240}[.!?]?/) || [lead.slice(0, 240)])[0].trim();
+  return 'recusa do agente por falta de contexto: ' + sentence;
+}
+
+function classificarEntrega(code, delivered) {
+  const producedNothing = !delivered || !String(delivered).trim();
+  const refusal = code === 0 && !producedNothing
+    ? recusaPorFaltaDeContexto(delivered)
+    : null;
+  return {
+    producedNothing,
+    refusal,
+    ok: code === 0 && !producedNothing && !refusal,
+    exit_code: refusal ? 'agent-refused-missing-context'
+      : (producedNothing && code === 0 ? 'empty-output' : code),
+  };
 }
 
 const EXECUTION_VERB_RE = /\b(corre|executa|roda|run)\b/i;
@@ -1385,6 +1478,8 @@ async function runCrossCheckForJob({ job_id, resultado, worktree, wave, agent, j
       job_id, disponivel: false,
       porque: 'a verificação cruzada falhou: ' + ((error && error.message) || 'erro desconhecido'),
       divergencias: [], verificado: 0, custo_usd: 0,
+      vram_livre_mb: 'n/d',
+      rotulo: 'interpretação do moo local — nunca altera os factos medidos',
       nota: 'sem veredicto: a verificação factual local não terminou',
     };
   }
@@ -1403,6 +1498,8 @@ async function runCrossCheckForJob({ job_id, resultado, worktree, wave, agent, j
     verificado: Number(checked.verificado) || 0,
     divergencias_count: Array.isArray(checked.divergencias) ? checked.divergencias.length : 0,
     custo_usd: 0,
+    vram_livre_mb: checked.vram_livre_mb == null ? 'n/d' : checked.vram_livre_mb,
+    rotulo: checked.rotulo || 'interpretação do moo local — nunca altera os factos medidos',
     porque: checked.porque || null,
     note: checked.nota || null,
   });
@@ -1460,6 +1557,34 @@ async function toolDispatch(args) {
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
   if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
+  /**
+   * ⚠️ CORRIGIDO na auditoria de 2026-07-31 — o contrato de capacidades chegou
+   * a analisar o MASTERPROMPT inteiro em vez do pedido do utilizador:
+   *
+   *     const leituraExigida = pedeLeituraDeFicheiro(masterprompt);   // ERRADO
+   *
+   * O masterprompt carrega sempre o bootstrap e o mapa do projecto, e esses
+   * mencionam caminhos — `tools/router/classify.js` é o próprio marcador do
+   * repo. Resultado medido: um goal inofensivo («Resume em duas frases a ideia
+   * principal»), que o matcher isolado classifica como `null`, era recusado com
+   * `requisito.ficheiro = "tools/router/classify.js"`. Na prática **todo** o
+   * trabalho para `moo` e `kimi` seria bloqueado — amputava o tier local, que é
+   * exactamente o diferencial do produto. Um guarda que recusa tudo não protege
+   * nada: só desliga a funcionalidade em silêncio.
+   *
+   * O contrato passa a ler o PEDIDO (`__goal` + `context`, o mesmo texto que o
+   * `toolWork` já usa em `pedeLeituraDeFicheiro`), com recurso ao masterprompt
+   * apenas quando o goal não viaja — caso em que o dispatch é directo e o
+   * chamador é responsável pelo contexto.
+   */
+  const pedidoDoUtilizador = args && args.__goal
+    ? String(args.__goal) + ' ' + String((args && args.context) || '')
+    : null;
+  const leituraExigida = pedeLeituraDeFicheiro(pedidoDoUtilizador != null ? pedidoDoUtilizador : masterprompt);
+  if (leituraExigida && ENGINES_SEM_FICHEIROS.has(agent)
+      && !temContextoDeFicheiros(args, masterprompt)) {
+    return recusaContratoDeLeitura(agent, leituraExigida, executionCapability(agent).effective);
+  }
   if (agent === 'kimi' && !kimi.configuredApiKey()) {
     return { error: kimi.MISSING_KEY_ERROR, agent: 'kimi', agent_label: kimi.PROVIDER_LABEL };
   }
@@ -1844,20 +1969,23 @@ async function toolDispatch(args) {
     // vida-ou-morte usava a frágil. O texto é a robusta: se há resultado, houve
     // trabalho. Telemetria em falta é um aviso de coerência, não uma sentença.
     const delivered = jobResultText(agent, jobDir);
-    const producedNothing = !delivered || !String(delivered).trim();
-    const ok = code === 0 && !producedNothing;
+    const outcome = classificarEntrega(code, delivered);
+    const { producedNothing, refusal, ok } = outcome;
     const prep = chain && agent === 'moo'
       ? prepMetrics(Number(((Date.now() - t0) / 1000).toFixed(3)), ok)
       : null;
     const touched = freshWorktree ? aprender.captureFilesTouched(wtNorm, gitBase)
       : (canWrite ? { files: null, reason: 'o job não correu numa worktree criada de fresco' } : null);
     if (code === 0 && producedNothing) log('job ' + job_id + ' saiu 0 sem entregar texto — marcado failed');
+    if (refusal) log('job ' + job_id + ' saiu 0, mas recusou por falta de contexto — marcado failed');
     if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
       log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
     }
     ledgerAppend(Object.assign({
       job_id, wave, agent, worktree: wtNorm, event: ok ? 'done' : 'failed', mp_hash,
-      exit_code: producedNothing && code === 0 ? 'empty-output' : code,
+      exit_code: outcome.exit_code,
+      note: refusal || undefined,
+      recusa_contexto: refusal ? { detectada: true, porque: refusal } : undefined,
       cost_usd: r.cost_usd, duration_s: dur, ttft_ms: timing.ttft_ms,
       // model_used comes from the job's own stream. model_recommended is what the
       // router asked for. Keeping both makes the gap between doctrine and reality
@@ -1887,7 +2015,7 @@ async function toolDispatch(args) {
           state: ok ? 'feito' : 'falhou',
           job_id,
           by: (agent === 'moo' ? 'Ollama · local' : agentLabel(agent)) + (r.model_used ? ' · ' + r.model_used : ''),
-          note: r.cost_usd != null ? '$' + Number(r.cost_usd).toFixed(4) + ' · ' + dur + 's' : dur + 's',
+          note: refusal || (r.cost_usd != null ? '$' + Number(r.cost_usd).toFixed(4) + ' · ' + dur + 's' : dur + 's'),
         });
       } catch { /* the plan is a convenience; it must never break a job */ }
     }
@@ -1897,7 +2025,7 @@ async function toolDispatch(args) {
       if (ok) {
         dispatchChain(true, null);
       } else {
-        const exit = producedNothing && code === 0 ? 'empty-output' : code;
+        const exit = outcome.exit_code;
         const note = 'a preparação local falhou (exit ' + exit + ') — fui directo';
         ledgerAppend(Object.assign({
           job_id, wave, agent, worktree: wtNorm, event: 'prep_failed_fallback', mp_hash,
@@ -1941,6 +2069,7 @@ async function toolStatus(args) {
   if (!evs.length) return { error: 'nada no ledger para ' + (jobId || wave) };
   const byJob = {};
   for (const e of evs) {
+    const observed = aprender.enriquecerCusto(e);
     const j = byJob[e.job_id] || (byJob[e.job_id] = {
       job_id: e.job_id, wave: e.wave, agent: e.agent, worktree: e.worktree,
       cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
@@ -1953,7 +2082,10 @@ async function toolStatus(args) {
     j.events.push({
       ts: e.ts, event: e.event, cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
       cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
-      exit_code: e.exit_code, cost_usd: e.cost_usd, duration_s: e.duration_s,
+      exit_code: e.exit_code, cost_usd: observed.cost_usd,
+      cost_usd_fonte: observed.cost_usd_fonte,
+      cost_usd_calculo: observed.cost_usd_calculo,
+      duration_s: e.duration_s,
       prep_duration_s: e.prep_duration_s, prep_chars: e.prep_chars,
       tokens_poupados_estimados: e.tokens_poupados_estimados, note: e.note,
       disponivel: e.disponivel, verificado: e.verificado,
@@ -1982,6 +2114,7 @@ async function toolStatus(args) {
     if (e.step) j.step = e.step;
     if (e.goal) j.goal = e.goal;
     if (e.prompt_chars != null) j.prompt_chars = e.prompt_chars;
+    if (e.note) j.note = e.note;
   }
   const statusNow = Date.now();
   const liveJobs = Object.values(byJob).filter((job) => REGISTRY.has(job.job_id));
@@ -2046,7 +2179,12 @@ async function toolStatus(args) {
       });
     }
   }
-  return { jobs: Object.values(byJob), ledger_lines: evs.length };
+  const jobs = Object.values(byJob);
+  const refused = jobs.find((job) => job.last === 'failed'
+    && /recusa do agente por falta de contexto/i.test(String(job.note || '')));
+  const result = { jobs, ledger_lines: evs.length };
+  if (refused) result.resumo = '⛔ ' + refused.job_id + ' falhou · ' + refused.note;
+  return result;
 }
 
 /**
@@ -2143,7 +2281,18 @@ async function toolCollect(args) {
   }
   const durEv = evs.find((e) => e.duration_s != null);
   const r = readJobResult(meta.agent, jobDir, durEv ? durEv.duration_s : null);
-  const { cost_usd, session_id } = r;
+  const terminalEvent = [...evs].reverse().find((e) => TERMINAL.has(e.event)) || {};
+  const cost = aprender.enriquecerCusto({
+    ...terminalEvent,
+    event: terminalEvent.event || 'done',
+    agent: meta.agent,
+    model_used: r.model_used || terminalEvent.model_used || meta.model,
+    tokens_in: r.telemetry ? r.telemetry.tokens_in : terminalEvent.tokens_in,
+    tokens_out: r.telemetry ? r.telemetry.tokens_out : terminalEvent.tokens_out,
+    cost_usd: r.cost_usd != null ? r.cost_usd : terminalEvent.cost_usd,
+  });
+  const cost_usd = cost.cost_usd;
+  const session_id = r.session_id;
   // mesma função que `finish()` usa para decidir done/failed — uma só verdade
   let body = jobResultText(meta.agent, jobDir);
   if (body == null) { try { body = fs.readFileSync(path.join(jobDir, 'out.log'), 'utf8'); } catch { body = null; } }
@@ -2180,6 +2329,8 @@ async function toolCollect(args) {
     result: vered.degradado ? vered.texto : body,
     note: meta.note || (([...evs].reverse().find((e) => e.note) || {}).note) || null,
     session_id: session_id || null, cost_usd: cost_usd,
+    cost_usd_fonte: cost.cost_usd_fonte,
+    cost_usd_calculo: cost.cost_usd_calculo || null,
     // ⚠️ A4 — `true` quer dizer: o motor não tinha ferramentas, o disco não
     // regista evidência nenhuma, e mesmo assim a resposta traz um veredicto.
     veredicto_sem_evidencia: vered.degradado || false,
@@ -2249,6 +2400,7 @@ async function toolAwait(args) {
     const byJob = new Map();
     for (const e of evs) {
       if (!e.job_id) continue;
+      const observed = aprender.enriquecerCusto(e);
       const j = byJob.get(e.job_id) || {
         job_id: e.job_id, agent: e.agent, wave: e.wave, worktree: e.worktree,
         cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
@@ -2261,10 +2413,16 @@ async function toolAwait(args) {
     if (typeof e.local === 'boolean') j.local = e.local;
     if (!NON_STATE_EVENTS.has(e.event)) j.last = e.event;
       if (e.exit_code != null) j.exit_code = e.exit_code;
-      if (e.cost_usd != null) j.cost_usd = e.cost_usd;
+      if (Object.prototype.hasOwnProperty.call(observed, 'cost_usd')) {
+        j.cost_usd = observed.cost_usd;
+        j.cost_usd_fonte = observed.cost_usd_fonte;
+        j.cost_usd_calculo = observed.cost_usd_calculo || null;
+      }
       if (e.duration_s != null) j.duration_s = e.duration_s;
       if (e.model_used) j.model_used = e.model_used;
+      if (e.tokens_in != null) j.tokens_in = e.tokens_in;
       if (e.tokens_out != null) j.tokens_out = e.tokens_out;
+      if (e.note) j.note = e.note;
       byJob.set(e.job_id, j);
     }
     return [...byJob.values()];
@@ -2299,20 +2457,45 @@ async function toolAwait(args) {
   // Somar `null`s dá 0 em JS, e a v1.3.2 fechou uma wave que gastou Opus 62 s
   // a dizer `cost_usd: 0`. Num produto cujo diferencial é custo honesto, essa
   // é a linha que destrói mais valor por carácter.
-  const medidos = jobs.filter((j) => typeof j.cost_usd === 'number');
-  const semMedicao = jobs.length - medidos.length;
-  const cost = medidos.reduce((s, j) => s + Number(j.cost_usd), 0);
+  const comValor = jobs.filter((j) => typeof j.cost_usd === 'number');
+  const calculados = comValor.filter((j) => j.cost_usd_fonte === aprender.CUSTO_FONTE_CALCULADO);
+  const reportados = comValor.length - calculados.length;
+  const semValor = jobs.length - comValor.length;
+  const semMedicao = jobs.length - reportados;
+  const cost = comValor.reduce((s, j) => s + Number(j.cost_usd), 0);
+  const costNotes = [];
+  if (calculados.length) {
+    costNotes.push(calculados.length + ' job(s) com custo '
+      + aprender.CUSTO_FONTE_CALCULADO);
+  }
+  if (semValor) costNotes.push(semValor + ' job(s) com custo n/d — o total é parcial');
+  /**
+   * ⚠️ J-2 — o `toolAwait` não construía resumo próprio, e por isso o wrapper
+   * `comResumo` punha "🐮 feito" por omissão, mesmo sobre jobs falhados.
+   * Medido em produção a 2026-07-31: um job cujo agente respondeu "NÃO CONSIGO
+   * VERIFICAR — sem acesso ao ficheiro" fechou com `done:1, failed:0,
+   * exit_code:0` e titular "🐮 feito". O resumo passa a nascer aqui, com o
+   * motivo da falha à frente em vez de escondido no detalhe.
+   */
+  const failureReasons = failed.map((job) => job.note).filter(Boolean);
   return {
+    resumo: failed.length
+      ? '⛔ ' + failed.length + ' job(s) falharam'
+        + (failureReasons.length ? ' · ' + failureReasons.join(' · ') : '')
+      : '🐮 ' + done.length + '/' + jobs.length + ' job(s) concluídos',
     settled: true,
     waited_s: Math.round((Date.now() - t0) / 1000),
     total: jobs.length, done: done.length, failed: failed.length,
-    cost_usd: medidos.length ? Number(cost.toFixed(6)) : null,
-    cost_jobs_medidos: medidos.length,
+    cost_usd: comValor.length ? Number(cost.toFixed(6)) : null,
+    cost_jobs_medidos: reportados,
+    cost_jobs_calculados: calculados.length,
     cost_jobs_sem_medicao: semMedicao,
-    cost_note: semMedicao ? semMedicao + ' job(s) sem custo reportado pelo CLI — o total é parcial' : null,
+    cost_jobs_sem_valor: semValor,
+    cost_note: costNotes.length ? costNotes.join('; ') : null,
     jobs,
     note: failed.length
-      ? failed.length + ' job(s) falharam — usa mooter_collect/mooter_status para o detalhe'
+      ? failed.length + ' job(s) falharam'
+        + (failureReasons.length ? ' — ' + failureReasons.join(' · ') : ' — usa mooter_collect/mooter_status para o detalhe')
       : 'todos terminaram; recolhe com mooter_collect',
   };
 }
@@ -2369,6 +2552,7 @@ async function toolJournal(args) {
  */
 async function toolWork(args) {
   const a = args || {};
+  const preparacao = resolverPreparacao(a);
   const goal = String(a.goal || '').trim();
   if (!goal) return { error: 'goal é obrigatório — descreve o que queres em linguagem normal' };
   const cargoSelection = normalizarCargo(a.cargo);
@@ -2493,6 +2677,10 @@ async function toolWork(args) {
       };
     }
   }
+  let relocationFreshness = null;
+  if (relocated) {
+    try { relocationFreshness = wt.frescura(worktree, REPO); } catch { relocationFreshness = null; }
+  }
 
   // ── A3 (v1.4.1) · DAR OLHOS ao motor local, em vez de o proibir ──────────
   //
@@ -2503,49 +2691,13 @@ async function toolWork(args) {
   // contexto. Custa milissegundos, custa $0, e transforma "o teu modelo local
   // não serve para isto" em "o teu modelo local acabou de auditar o ficheiro".
   const executionText = goal + ' ' + (a.context || '');
-  const leitura = a.prepare === false && agent === 'kimi'
-    ? null   // kimi via API — não lê disco; skip da verificação evita erro de UX
-    : pedeLeituraDeFicheiro(executionText);
+  const leitura = pedeLeituraDeFicheiro(executionText);
   const executionIntent = pedeExecucaoDeMotor(executionText);
+  const contextoParaLeitura = leitura && preparacao.read_files
+    ? contexto.lerParaPrompt(executionText, worktree, a.context_budget)
+    : null;
   let contextoInjectado = null;
   let avisoFabricacao = null;
-  if (leitura && ENGINES_SEM_FICHEIROS.has(agent)) {
-    const ctx = contexto.lerParaPrompt(goal + ' ' + (a.context || ''), worktree, a.context_budget);
-    if (ctx.bloco) {
-      contextoInjectado = ctx;                       // os olhos emprestados
-    } else if (a.force === true) {
-      avisoFabricacao = 'não consegui ler nenhum dos ficheiros citados e despachaste à mesma — trata a resposta como não verificada';
-    } else {
-      // ⚠️ v1.4.2 — recusar sem dizer ONDE está o ficheiro é mandar o utilizador
-      // adivinhar entre 37 pastas. Procuramos por ele antes de responder.
-      let onde = [];
-      try {
-        onde = require('./worktrees.js').comOsFicheiros(REPO, activeJobsByWorktree, contexto.pathsCitados(goal + ' ' + (a.context || '')))
-          .filter((w) => !P.mesmo(w.path, worktree)).slice(0, 5);
-      } catch { /* sem git, seguimos sem sugestão */ }
-      return {
-        resumo: onde.length
-          ? '⛔ não despachei: esse ficheiro não existe em ' + require('path').basename(worktree)
-            + ' — mas existe em ' + onde.map((w) => w.name).join(', ')
-            + worktreeSuffix(pedida, worktree, relocated)
-          : '⛔ não despachei: o motor local não lê ficheiros e eu também não consegui lê-los por ele'
-            + worktreeSuffix(pedida, worktree, relocated),
-        erro: 'sem_contexto_para_o_local',
-        porque: 'tentei ler ' + (ctx.falhados.map((f) => f.path).join(', ') || 'os ficheiros citados')
-          + ' na pasta ' + require('path').basename(worktree) + ' e não consegui',
-        detalhe: ctx.falhados,
-        onde_existe: onde.length ? onde : null,
-        faz_assim: (onde.length
-          ? ['mooter_work({goal, agent:"moo", worktree:"' + onde[0].path + '"}) — a pasta onde o ficheiro existe mesmo']
-          : []).concat([
-          'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
-          'diz o caminho completo a partir da raiz do projecto',
-          'mooter_work({goal, agent:"moo", force:true}) — despacho na mesma, mas a resposta será inventada',
-        ]),
-        nota: 'um modelo sem acesso ao disco responde na mesma, e a resposta parece boa. Reproduzido a 2026-07-25: o moo escreveu "NAO CONSEGUI LER" e a seguir descreveu uma função `emitTelemetry` que não existe em ficheiro nenhum.',
-      };
-    }
-  }
 
   // ── A4 · correr os comandos pedidos, PELO motor local ────────────────────
   // O A3 acima empresta-lhe os olhos para ficheiros. Este empresta-lhos para
@@ -2639,7 +2791,9 @@ async function toolWork(args) {
     } catch { /* sem local, seguimos para a nuvem */ }
 
     // ler os ficheiros ANTES de decidir: é o tamanho do contexto que manda
-    const pre = contexto.lerParaPrompt(goal + ' ' + (a.context || ''), worktree, a.context_budget);
+    const pre = contextoParaLeitura || (preparacao.read_files
+      ? contexto.lerParaPrompt(executionText, worktree, a.context_budget)
+      : { chars: 0 });
     escolhaLocal = localfirst.cabeNoLocal({
       goal, tier, contextoChars: pre.chars, temModeloLocal: temLocal,
       escrita: a.write === true, vramLivreMb: vram,
@@ -2725,6 +2879,54 @@ async function toolWork(args) {
     };
   }
 
+  // Contrato final: só agora o motor está resolvido (o local-first pode tê-lo
+  // mudado). Um /api/chat sem ferramentas só recebe leitura quando o conteúdo
+  // foi realmente injectado; caso contrário o job é impossível e nem nasce.
+  if (leitura && ENGINES_SEM_FICHEIROS.has(agent)) {
+    if (!preparacao.read_files) {
+      return Object.assign({
+        resumo: '⛔ não despachei: a tarefa exige ler ficheiros e read_files está desligado'
+          + worktreeSuffix(pedida, worktree, relocated, relocationFreshness),
+        worktree_pedida: pedida, worktree_usada: worktree,
+        relocated, relocated_porque: relocatedPorque,
+        worktree_frescura: relocationFreshness,
+      }, recusaContratoDeLeitura(agent, leitura, executionCapability(agent).effective));
+    }
+    if (contextoParaLeitura && contextoParaLeitura.bloco) {
+      contextoInjectado = contextoParaLeitura;
+    } else {
+      let onde = [];
+      try {
+        onde = wt.comOsFicheiros(REPO, activeJobsByWorktree, contexto.pathsCitados(executionText))
+          .filter((w) => !P.mesmo(w.path, worktree)).slice(0, 5);
+      } catch { /* sem git, seguimos sem sugestão */ }
+      return {
+        resumo: onde.length
+          ? '⛔ não despachei: esse ficheiro não existe em ' + path.basename(worktree)
+            + ' — mas existe em ' + onde.map((w) => w.name).join(', ')
+            + worktreeSuffix(pedida, worktree, relocated, relocationFreshness)
+          : '⛔ não despachei: o motor não lê ficheiros e eu também não consegui injectá-los'
+            + worktreeSuffix(pedida, worktree, relocated, relocationFreshness),
+        erro: 'sem_contexto_para_o_local',
+        porque: 'tentei ler '
+          + (((contextoParaLeitura && contextoParaLeitura.falhados) || []).map((f) => f.path).join(', ')
+            || 'os ficheiros citados')
+          + ' na pasta ' + path.basename(worktree) + ' e não consegui',
+        detalhe: contextoParaLeitura ? contextoParaLeitura.falhados : [],
+        onde_existe: onde.length ? onde : null,
+        worktree_pedida: pedida, worktree_usada: worktree,
+        relocated, relocated_porque: relocatedPorque,
+        worktree_frescura: relocationFreshness,
+        faz_assim: (onde.length
+          ? ['mooter_work({goal, agent:"' + agent + '", worktree:"' + onde[0].path + '", read_files:true}) — usa a pasta onde o ficheiro existe']
+          : []).concat([
+          'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
+          'diz o caminho completo a partir da raiz do projecto',
+        ]),
+      };
+    }
+  }
+
   const readOnly = a.write !== true;
   const allowedTools = a.allowedTools ? String(a.allowedTools) : (readOnly ? 'Read,Glob,Grep' : 'Read,Glob,Grep,Edit,Write');
   const mp = [
@@ -2759,6 +2961,13 @@ async function toolWork(args) {
     comandos_recusados: execucaoInjectada ? execucaoInjectada.recusados : [],
     chars: (contextoInjectado ? contextoInjectado.chars : 0) + (execucaoInjectada ? execucaoInjectada.chars : 0),
   };
+  const evidenciaPrep = {
+    ficheiros_lidos: contextoParaLeitura && contextoParaLeitura.bloco
+      ? contextoParaLeitura.lidos.map((f) => f.path) : [],
+    comandos_corridos: [],
+    comandos_recusados: [],
+    chars: contextoParaLeitura && contextoParaLeitura.bloco ? contextoParaLeitura.chars : 0,
+  };
 
   if (Array.isArray(a.steps) && a.steps.length) { try { plan.setPlan(wave, a.steps, goal); } catch { /* */ } }
   else { try { plan.addStep(wave, { id: stepId, title: goal, agent, state: 'a-correr' }, goal); } catch { /* */ } }
@@ -2768,7 +2977,7 @@ async function toolWork(args) {
   // moo produces a short brief; the cloud job starts with it already embedded,
   // so the first paid token is spent on the actual problem instead of on
   // orientation. Costs $0 and is measured, not claimed.
-  const wantsPrepare = a.prepare !== false && agent !== 'moo';
+  const wantsPrepare = preparacao.pre_digest && agent !== 'moo';
   let prepareSkipped = null;
   if (wantsPrepare) {
     // ⚠️ v1.3.3 — /api/ps lista o que está RESIDENTE em memória, não o que está
@@ -2805,16 +3014,18 @@ async function toolWork(args) {
         '5. Diz o que NÃO deve ser feito.',
         '',
         '❌ Não inventes ficheiros nem factos. Se não souberes, escreve "a verificar".',
-      ].join('\n');
+      ].join('\n') + (contextoParaLeitura && contextoParaLeitura.bloco
+        ? '\n' + contextoParaLeitura.bloco : '');
 
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, cargo: cargoSelection.cargo,
         step: 'S0', model: localModel,
+        evidencia: evidenciaPrep,
         __goal: goal, __escrita: false,
         __category: workCategory.category, __category_fonte: workCategory.category_fonte,
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-          allowedTools, model, step: stepId,
+          allowedTools, model, step: stepId, evidencia,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
           __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
@@ -2825,7 +3036,7 @@ async function toolWork(args) {
         return {
           resumo: '🐮 GPU local (' + localModel + ') a preparar o trabalho a $0 · depois entra o ' + agentLabel(agent)
             + (model ? ' (' + model + ')' : '') + ' · job ' + prep.job_id
-            + worktreeSuffix(pedida, worktree, relocated),
+            + worktreeSuffix(pedida, worktree, relocated, relocationFreshness),
           ok: true, goal, category: workCategory.category,
           category_fonte: workCategory.category_fonte, wave,
           cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque, tier,
@@ -2842,6 +3053,10 @@ async function toolWork(args) {
           worktree_usada: worktree,
           relocated,
           relocated_porque: relocatedPorque,
+          worktree_frescura: relocationFreshness,
+          read_files: preparacao.read_files,
+          pre_digest: preparacao.pre_digest,
+          prepare_legacy: preparacao.prepare_legacy,
           chained: true,
           worktree,
           aprendizagem: aprendizagem ? {
@@ -2863,18 +3078,36 @@ async function toolWork(args) {
     }
   }
 
+  /**
+   * ⚠️ J-5b (2026-07-31) — `handoff_from` chegava aqui e morria.
+   *
+   * `toolDispatch` sabe usá-lo (linha ~1450 lê-o, ~1478 chama `embedHandoff`)
+   * e `embedHandoff` cola mesmo o corpo do job anterior no masterprompt. Mas
+   * este objecto é montado campo a campo, e `handoff_from` não estava na lista
+   * — portanto chegava sempre `undefined` e o handoff só existia no ramo da
+   * cadeia automática moo→nuvem.
+   *
+   * Apanhado em produção, e pelo próprio mecanismo: pediu-se ao moo que
+   * verificasse a $0 o que o kimi tinha escrito, e ele respondeu «NAO PROCEDE
+   * — o texto de referência não foi incluído na mensagem». O handoff
+   * nuvem→moo funcionou como verificador e denunciou o seu próprio bug.
+   *
+   * A lição de método: o teste que existia validava que o parâmetro estava no
+   * SCHEMA, não que o conteúdo atravessava a porta. Ver `handoff.test.js`.
+   */
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-    allowedTools, model, step: stepId,
+    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
     __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,
     __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
     __quota_calibragem: calibragem });
   if (r && r.error) return Object.assign({
-    resumo: '⛔ não despachei o job' + worktreeSuffix(pedida, worktree, relocated),
+    resumo: '⛔ não despachei o job' + worktreeSuffix(pedida, worktree, relocated, relocationFreshness),
     goal, wave, tier_pedido: tier, agent, model,
     worktree_pedida: pedida, worktree_usada: worktree,
     relocated, relocated_porque: relocatedPorque, worktree_criada: worktreeCriada,
+    worktree_frescura: relocationFreshness,
   }, r);
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
@@ -2883,7 +3116,7 @@ async function toolWork(args) {
     resumo: '🐮 ' + (agent === 'kimi' ? agentLabel(agent) : (r.model || model || agent)) + ' a trabalhar em "' + goal.slice(0, 60) + '"'
       + ' · ' + (readOnly ? 'só leitura' : 'escrita permitida') + ' · job ' + r.job_id
       + (prepareSkipped ? ' · sem preparação local' : '')
-      + worktreeSuffix(pedida, worktree, relocated)
+      + worktreeSuffix(pedida, worktree, relocated, relocationFreshness)
       + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : '')
       + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
     ok: true, goal, category: workCategory.category,
@@ -2908,8 +3141,12 @@ async function toolWork(args) {
     worktree_usada: worktree,
     relocated,
     relocated_porque: relocatedPorque,
+    worktree_frescura: relocationFreshness,
     worktree_criada: worktreeCriada,
     prepared: false,
+    read_files: preparacao.read_files,
+    pre_digest: preparacao.pre_digest,
+    prepare_legacy: preparacao.prepare_legacy,
     mapa_injectado: r.mapa_injectado,
     mapa_porque: r.mapa_porque,
     verificacao_cruzada: r.verificacao_cruzada,
@@ -3003,7 +3240,9 @@ const TOOLS = [
       category: { type: 'string', enum: ['git_deploy', 'auditoria', 'codigo', 'leitura_resumo', 'outro'], description: 'Override da categoria de aprendizagem. Quando presente, ganha à inferência e fica registada como declarada.' },
       cargo: { type: 'string', enum: VALID_CARGOS, description: 'M-level declarado por quem dispara. Nunca é inferido do texto.' },
       steps: { type: 'array', items: { type: 'string' }, description: 'Optional plan: the steps the panel should show, with risk inferred per step.' },
-      prepare: { type: 'boolean', description: 'Let the local GPU write the handoff brief first, at $0, and start the paid agent with it already embedded. Default true when Ollama is up.' },
+      prepare: { type: 'boolean', description: 'Compatibility alias for pre_digest. Let the local GPU write the handoff brief first, at $0.' },
+      read_files: { type: 'boolean', description: 'Read and inject cited files when the selected engine has no file tools. Default true.' },
+      pre_digest: { type: 'boolean', description: 'Let the local GPU pre-digest the request before the paid engine. Default true.' },
       create_worktree: { type: 'boolean', description: 'Create a fresh isolated worktree before dispatch (git worktree add, reversible). If creation fails the job does not start.' },
       allowedTools: { type: 'string', description: 'Override the permission list.' },
       context: { type: 'string', description: 'Extra context to inline in the masterprompt.' },
@@ -3086,8 +3325,13 @@ module.exports = {
   toolRoute, toolDispatch, toolStatus, toolCollect, toolCancel, toolPlan, toolJournal, toolWork, toolAwait,
   buildCommand, bootstrapPrompt, setJobSpawner, setCrossCheckRunner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
-  pedeLeituraDeFicheiro, jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
+  pedeLeituraDeFicheiro, resolverPreparacao, recusaPorFaltaDeContexto, classificarEntrega,
+  _recusaContratoDeLeitura: recusaContratoDeLeitura,
+  jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   isDeicticGoal, worktreeSuffix, stepsTotalFor, createStreamStepTracker,
+  // J-5b — exposto para a suite poder provar que o CONTEÚDO atravessa a porta,
+  // e não apenas que o parâmetro existe no schema. Ver handoff.test.js.
+  _embedHandoff: embedHandoff,
   VALID_CARGOS, _normalizarCargo: normalizarCargo,
   _normalizarDecisaoLocal: normalizarDecisaoLocal,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
