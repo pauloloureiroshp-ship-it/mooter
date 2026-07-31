@@ -810,7 +810,7 @@ function buildNarrowGpuChip(cols) {
 // Wave 2.8 Ponto #2 — context window as a 10-char ANSI bar + percent. Green
 // < 50%, yellow < 80%, red ≥ 80%. Used only in the 2-line layout; the compact
 // 1-line render keeps the bare "ctx N%" text.
-function ctxBar(pct) {
+function ctxBar(pct, { color = useColor() } = {}) {
   const p = Math.max(0, Math.min(100, Math.round(pct)));
   const width = 10;
   const filled = Math.round((p / 100) * width);
@@ -819,7 +819,7 @@ function ctxBar(pct) {
   const code = p < 50 ? ANSI.green : p < 80 ? ANSI.yellow : ANSI.red;
   // Wave 48 (1.1) — 📚 glyph so the Claude context-window chip is recognizable
   // at a glance (was a bare `ctx ▰▱ 16%` that read as noise).
-  return `📚 ctx ${colorize(code, bar)} ${p}%`;
+  return `📚 ctx ${colorize(code, bar, color)} ${p}%`;
 }
 
 // Wave 48 (1.8) — 10-char usage bar for the ☁ Claude Max chip. `pct` is the

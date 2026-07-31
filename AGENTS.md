@@ -43,6 +43,16 @@ planes (Claude Code · Codex · local moos) start on the same page:
 4. **Freshness — Notion (honest):** the `80-notion-mirror/` may be days behind — check
    `…/_sync/manifest.json`; if stale and relevant, say "Notion ~N days behind — run the
    `notion-to-vault` skill." Never present a stale mirror as the current state.
+5. **Cross-device provenance:** read `_handoff/agent-sync/latest.md` when present, then
+   run `node tools/router/agent-sync-ledger.js doctor --strict` and consult vault canon
+   `00-core/agent-sync-protocol.md`. The doctor is read-only and must fail visibly when
+   device identity, installed runtime/hook, vault mount, registry or auto-publish is absent.
+   At a meaningful outcome/handoff,
+   record who/where/how/result/next with `tools/router/agent-sync-ledger.js`; run `audit`,
+   then publish an immutable receipt and run `vault-status --strict` when `VAULT_PATH`
+   is mounted. Local `EVENT_AUDIT` never proves fleet coverage; only `READINESS=pass` does.
+   Local LLMs are recorded by the host/orchestrator that invoked them; never assume a
+   stateless model can write to Git or the vault itself.
 
 **Roles.** Codex works in its own worktree/branch and **never** merges, pushes, deploys, or
 deletes (Paulo's gate). **Output:** every handoff follows `docs/strategy/PERFECT_HANDOFF_SPEC.md`
