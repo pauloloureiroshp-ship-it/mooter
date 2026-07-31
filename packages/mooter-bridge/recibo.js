@@ -2,6 +2,7 @@
 
 const { PassThrough } = require('stream');
 const fleet = require('./fleet.js');
+const { fatiaLocal } = require('./fatia-local.js');
 
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
 const PERIODOS = Object.freeze(['sessao', 'dia', 'semana']);
@@ -111,16 +112,15 @@ function tokenMetric(jobs, field, label) {
   });
 }
 
-function freeWorkMetric(jobs) {
+function freeWorkMetric(jobs, cargo) {
+  const cargoName = cargo || 'n/d';
+  const fatia = fatiaLocal(jobs, { escopo: 'por cargo', cargo: cargoName });
   const localJobs = jobs.filter((job) => job.local === true || job.agent === 'moo');
-  const noWork = jobs.length === 0;
   return {
-    jobs: metric(localJobs.length, noWork
-      ? 'nenhum trabalho deste cargo na janela'
-      : 'jobs com local:true sobre o total do cargo', { total: jobs.length }),
-    percentagem: metric(noWork ? 0 : Number(((localJobs.length / jobs.length) * 100).toFixed(2)), noWork
-      ? 'nenhum trabalho deste cargo na janela'
-      : localJobs.length + ' de ' + jobs.length + ' job(s) têm local:true'),
+    jobs: metric(fatia.jobs_total === 0 ? 0 : fatia.jobs_local, fatia.jobs_total === 0
+      ? 'nenhum trabalho concluído deste cargo na janela'
+      : 'jobs locais concluídos sobre o total de concluídos do cargo', { total: fatia.jobs_total }),
+    percentagem: metric(fatia.valor, fatia.porque),
     tokens_locais: {
       entrada: tokenMetric(localJobs, 'tokens_in', 'tokens de entrada'),
       saida: tokenMetric(localJobs, 'tokens_out', 'tokens de saída'),
@@ -230,7 +230,7 @@ function buildCargoRecord(cargo, jobs, allJobs, exceptions, boardAvailable, verb
         : 'waves cujos jobs terminaram todos em done; jobs não são contados como entregas'),
     { waves: delivered, jobs_sem_wave: jobsWithoutWave }),
     custo: costMetric(jobs),
-    trabalho_a_zero: freeWorkMetric(jobs),
+    trabalho_a_zero: freeWorkMetric(jobs, cargo),
     passou_trabalho_a: handoffs,
     passou_trabalho_a_porque: handoffs.length ? 'derivado de handoff_from no ledger' : (becauseNoWork || 'nenhum handoff provado no ledger'),
     excepcoes: boardAvailable ? exceptions.filter((item) => item && item.dono === cargo) : null,

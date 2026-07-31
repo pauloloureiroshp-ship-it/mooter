@@ -12,6 +12,7 @@ const seamless = require('./seamless.js');
 const quota = require('./quota.js');
 const aprender = require('./aprender.js');
 const gpu = require('./gpu.js');
+const { fatiaLocal } = require('./fatia-local.js');
 
 const RESOURCE_URI = 'mooter://meo/scorecard';
 const RESOURCE = {
@@ -327,7 +328,6 @@ function construir(ledger, quotaState, gpuState, opts) {
       : (costsMissing
         ? 'soma parcial: ' + costsMeasured + ' entrega(s) medida(s) e ' + costsMissing + ' sem medição de custo'
         : 'soma real das ' + costsMeasured + ' entrega(s) com custo reportado pelo CLI'));
-  const locais = concluidos.filter((r) => r.agent === 'moo').length;
   const pressao = quotaState && quotaState.pressao ? numero(quotaState.pressao.valor) : null;
   const wip = records.filter((r) => !r.status).length;
 
@@ -388,12 +388,14 @@ function construir(ledger, quotaState, gpuState, opts) {
         ? costsMeasured + '/' + entregues.length + ' entregas têm custo reportado pelo CLI'
         : 'não há tarefas entregues para calcular cobertura',
     ), { jobs_medidos: costsMeasured, jobs_sem_medicao: costsMissing }),
-    trabalho_zero_pct: metrica(
-      'trabalho_zero_pct', concluidos.length ? arredondar(locais / concluidos.length * 100, 2) : null,
-      '% de jobs concluídos', 'aprender._jobRecords · agent=moo / concluídos', medidoEm, faixas,
-      concluidos.length ? locais + '/' + concluidos.length + ' jobs concluídos correram no moo local'
-        : 'não há jobs concluídos',
-    ),
+    trabalho_zero_pct: (() => {
+      const fatia = fatiaLocal(records, { escopo: 'global — todos os cargos' });
+      return metrica(
+        'trabalho_zero_pct', fatia.valor,
+        '% de jobs concluídos', 'fatiaLocal(aprender._jobRecords)', medidoEm, faixas,
+        fatia.porque,
+      );
+    })(),
     pressao_quota: metrica(
       'pressao_quota', pressao, 'rácio 0–1', 'quota.estado' + (o.async ? 'Async' : '') + '.pressao.valor', medidoEm, faixas,
       pressao == null ? ((quotaState && quotaState.pressao && quotaState.pressao.porque) || 'quota.js não devolveu pressão medida')

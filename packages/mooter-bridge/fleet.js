@@ -39,6 +39,7 @@ const board = require('./board.js');
 const afericao = require('./afericao.js');
 const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
+const { fatiaLocal } = require('./fatia-local.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -226,20 +227,29 @@ function aggregatePanel(jobs) {
   const outputMeasured = cloudOut.jobs_medidos + localOut.jobs_medidos;
   const outputMissing = cloudOut.jobs_sem_medicao + localOut.jobs_sem_medicao;
   const outputTotal = Number((Number(cloudOut.valor || 0) + Number(localOut.valor || 0)).toFixed(3));
-  let shareValue = null;
-  let shareWhy;
-  if (!outputMeasured) shareWhy = 'nenhum job trouxe tokens de saída medidos';
-  else if (outputMissing) shareWhy = 'percentagem n/d: há ' + outputMissing + ' job(s) sem tokens de saída medidos';
-  else if (!outputTotal) shareWhy = 'os jobs medidos reportaram zero tokens de saída';
+  let shareTokenValue = null;
+  let shareTokenWhy;
+  if (!outputMeasured) shareTokenWhy = 'nenhum job trouxe tokens de saída medidos';
+  else if (outputMissing) shareTokenWhy = 'percentagem n/d: há ' + outputMissing + ' job(s) sem tokens de saída medidos';
+  else if (!outputTotal) shareTokenWhy = 'os jobs medidos reportaram zero tokens de saída';
   else {
-    shareValue = Math.round((Number(localOut.valor || 0) / outputTotal) * 100);
-    shareWhy = 'tokens de saída locais divididos pelo total de saída medido';
+    shareTokenValue = Math.round((Number(localOut.valor || 0) / outputTotal) * 100);
+    shareTokenWhy = 'tokens de saída locais divididos pelo total de saída medido';
   }
-  const localShare = {
-    valor: shareValue,
-    porque: shareWhy,
+  const localShareTokensSaida = {
+    valor: shareTokenValue,
+    porque: shareTokenWhy,
     jobs_medidos: outputMeasured,
     jobs_sem_medicao: outputMissing,
+  };
+
+  // Novo local_share usando fatiaLocal (jobs concluídos agent=moo)
+  const fatia = fatiaLocal(list, { escopo: 'global — painel de frota' });
+  const localShare = {
+    valor: fatia.valor,
+    porque: fatia.porque,
+    jobs_medidos: fatia.jobs_total,
+    jobs_sem_medicao: 0,
   };
 
   const totals = {
@@ -251,6 +261,7 @@ function aggregatePanel(jobs) {
     jobs_cloud: countMetric(cloud.length, 'contagem directa dos jobs não locais no ledger', cloud.length),
     jobs_local: countMetric(local.length, 'contagem directa dos jobs locais no ledger', local.length),
     local_share: localShare,
+    local_share_tokens_saida: localShareTokensSaida,
     live_cloud: countMetric(cloud.filter(isLive).length, 'jobs cloud com estado running ou dispatched', cloud.length),
     live_local: countMetric(local.filter(isLive).length, 'jobs locais com estado running ou dispatched', local.length),
   };
