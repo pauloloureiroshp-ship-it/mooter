@@ -3436,3 +3436,80 @@ Blueprint aprovado: `_handoff/COWORK_MOOTER_SYNC_BLUEPRINT.md`
 - Artefato persistente com polling 5s
 
 **Status:** ✅ v1.29.0 em produção
+
+---
+
+## 📥 COWORK → CLAUDE CODE — 2026-07-31 (Seamless multi-device install)
+### Instruções e decisões tomadas no Cowork para a próxima sessão
+> Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
+> Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
+
+**Última actualização Cowork:** 2026-07-31
+**Estado:** 🟡 Por ler
+
+### Diagnóstico (medido hoje, não presumido)
+- `publish-mcpb.yml` está em `origin/main` (2b23941, 2026-07-28) mas tem **0 runs de sempre** — todas as 21 releases do GitHub são de 2026-06-14, anteriores ao workflow. **Nenhuma release tem asset `.mcpb`** (verificado na API: 0 ocorrências).
+- Consequência: nos Macs, `mooter_setup({atualizar:"ver"})` consulta o GitHub (ok:true) e encontra **0** — devolve "estás na versão mais recente" mesmo sem nada instalado ou desactualizado. Falso negativo.
+- `update.js`: `aplicar`/`aplicarAsync` só instalam de **ficheiro local** (`o.ficheiro || procurar().nova.ficheiro`); os achados remotos vêm com `ficheiro:null, download_url` e são ignorados pelo aplicar. `ver` vê o GitHub, `aplicar` não chega lá.
+- `main` local está **ahead 2** de origin — push pendente.
+- ⚠️ Namespace de versões contaminado: tags de Junho `v1.33.0-wave-mega-self-evolving` … `v1.39.0-coherence-audit` (linha antiga) colidem numericamente com a linha actual (1.33.0 instalada hoje). `releasesGitHub()` extrai a versão do tag_name — se alguém anexar um `.mcpb` a uma release de Junho, o comparador escolhe-a como "mais nova".
+
+### Wave proposta — "Release channel" (ordem de execução)
+1. **Push de main** + publicar release `v1.33.0` com o bundle local anexado (Paulo já tem o bloco de comandos; sha256 do bundle local validado: `79d77b07…33a8e8a5`). O CI reconstrói e faz `--clobber` — primeira run de sempre do workflow; verificar que o pack gate (entrega.test.js) passa em ubuntu.
+2. **Asset de nome fixo**: acrescentar ao `publish-mcpb.yml` um segundo upload `mooter.mcpb` → URL evergreen `releases/latest/download/mooter.mcpb` para o site e para o guia Mac.
+3. **`aplicar` com download**: em `update.js`, quando `nova.origem==='github'`, baixar `download_url` para pasta temporária, `verificar()` o zip, e só então instalar — mesmo pipeline de backup/rollback. Testes herméticos com `fetchImpl` injectado (padrão já existe em `releasesGitHub`).
+4. **Higiene de versões**: apagar as releases de Junho sem assets (tags podem ficar) OU saltar a linha actual para v1.40.0 na próxima release — decidir e registar no SYNC. Nunca anexar `.mcpb` a releases da linha antiga.
+5. Guia de instalação macOS criado pelo Cowork: `_handoff/INSTALAR_MAC.md` — rever e manter.
+
+### Critério de aceitação
+Nos 3 devices (PC, Mac mini, MacBook Pro), `/mooter-atualizar` devolve a **mesma** `versao_instalada`, e um device desactualizado chega à versão nova sem tocar no repo — só release pública + restart do Claude Desktop.
+
+### Wave proposta 2 — "Onboarding first-run" (Cowork, 2026-07-31, mesma sessão)
+Base: auditoria real via conector (job `job-ms9ihvcx-f9c1`, cc/haiku, $0.20, file:line) + docs MCPB oficiais.
+1. First-run flag (ausência prévia de `~/.mooter/install-id.json`) → welcome com 3 próximos passos e estado dos opcionais.
+2. Validar `user_config` no boot (paths existem? key com formato válido?) → aviso no diagnóstico, nunca silêncio (manifest.json:40-66).
+3. `which git`/`which gh` no diagnóstico de 6 linhas com mensagem de conserto por OS (gap #1 da auditoria).
+4. Razões distintas no probe Ollama (timeout vs daemon down vs parse) + dica de instalação (moo.js:32-59).
+5. install-id: fallback + aviso quando ~/.mooter não é gravável (install-id.js:45-59).
+6. manifest: `compatibility` (darwin/win32) + conferir `sensitive:true` na moonshot_api_key.
+Prompt de instalação para o Mac mini: `_handoff/SUPERMASTER_MAC_MINI.md` (colável no Cowork de lá).
+⚠️ Dependência dura: release pública com `.mcpb` (Wave "Release channel" acima) — a 2026-07-31 ainda 0 releases com asset.
+
+### 📌 Decisões registadas — 2026-07-31 (handoff Mac mini → Cowork PC)
+**C1 (esquema de versões): tag = `v1.33.0`.** Tem de bater com `manifest.version` do bundle (o CI faz checkout da tag e o validator sinc package.json ↔ tag; tag ≠ manifest geraria "há versão nova" eterno). Próxima release da linha salta para **v1.40.0** para limpar o namespace de Junho. Nunca anexar `.mcpb` a releases de Junho.
+**C2 (updater cego a versão inferior): REFUTADO com código.** `releasesGitHub()` (update.js:227-239) só lista assets `\.mcpb$` — as releases de Junho têm zero, logo são invisíveis ao updater. Publicar v1.33.0 não é mascarado. C2 só se materializa se alguém anexar bundle a tag antiga (proibido acima).
+**Fase 1 (segurança do bundle v1.33.0): ✅ PUBLICÁVEL.** 44 ficheiros varridos: zero valores de segredos (sk-/ghp_/github_pat_/AIza/key=), zero config/vault/install-id embutidos; 4 hits "Paulo Loureiro" = 3 comentários + autor no manifest (cosmético). `moonshot_api_key` TEM `sensitive:true` ✅. `compatibility:null` ❌ (backlog, não bloqueia). ⚠️ `telemetry` object anunciado no SYNC v1.29 NÃO está no manifest v1.33 — reconciliar.
+**Divergência de tools (relato do Mac, confrontado):** as skills estão CERTAS — tools6.js expõe `mooter_work/check/setup/fleet/journal/cancel`. O stale é o registo "bridge v0.2" de 07-24 E as strings de resposta: seamless.js:2060/2280/2498-2499 mandam usar `mooter_status`/`mooter_collect`, que não existem. Fix rápido: strings → `mooter_check`. Acrescentar à wave Onboarding.
+**Vault multi-device (plano):** (1) Paulo rota os 4 segredos pendentes desde 07-24; (2) vault: `.gitignore += cron/.env.save` + `git rm --cached`; (3) como NUNCA houve push, limpar o histórico antes do primeiro push (filter-repo no `cron/.env.save`, ou init de histórico novo) — `git rm --cached` sozinho deixa os blobs antigos no histórico; (4) repo GitHub **privado** + clone em `~/Documents/paulo-vault` nos 2 Macs; (5) `vault_path` do conector aponta lá. Sync contínuo: git (Obsidian Git ou pull/push manual).
+
+### 🚢 RELEASE v1.33.0 PUBLICADA — 2026-07-31 22:48Z (Cowork → mooter_work → cc nativo)
+- Executado pelo conector (job `job-ms9j8yx2-8dd3`, cc/haiku, 61s, $0.164): push main (838dbe1..ca1fc13) · tag `v1.33.0` → 36e53f8 · `gh release create` com o bundle local.
+- Asset: `mooter-v1330.mcpb` · 851.091 bytes · sha256 `79d77b07…33a8e8a5` (idêntico ao instalado no PC).
+- **Fase 4 verificada de fora:** `mooter_setup({atualizar:"ver"})` no PC → `github.achados: 1` (primeira detecção remota de sempre) · versao_instalada 1.33.0 = mais recente ✅. C2 (mascaramento por tags de Junho) refutado em produção.
+- ⚠️ CI `publish-mcpb.yml` dispara na publicação e faz `--clobber` do asset — se o digest mudar, é o rebuild do CI a partir da tag; confirmar 1ª run do workflow.
+- Mac mini destravado: FASE 0 do SUPERMASTER agora passa; download em `releases/download/v1.33.0/mooter-v1330.mcpb`.
+
+---
+
+## ✅ WAVE K — COERÊNCIA ANTES DE SUPERFÍCIE NOVA — 2026-07-31 (fechada)
+
+Três correcções de coerência, zero features novas, conforme masterprompt (arquivado em `_handoff/_archive/2026-07/MASTER_PROMPT_WAVE_K_2026-08-01.md`).
+
+| Item | O quê | Commit(s) | Verificação cruzada |
+|---|---|---|---|
+| K1 | `fatiaLocal()` canónica — board.js, recibo.js, fleet.js passam a dar o mesmo número de fatia local | `0302db9`, `62268d7` (fix pós cross-check: filtro `preparation` em falta no ramo `state`) | codex apanhou o bug do filtro em falta antes de ir para produção |
+| K2 | `pode_ir_dormir` sobe à primeira chave de `board.js` e da vista `fleet(view=board)`; artefacto Cowork "mooter-ao-vivo" passa a cruzar jobs+board em vez de decidir sozinho | `ca1fc13` | pendente (não bloqueante — mudança estrutural simples, testada por `board.test.js`/`fleet.test.js`) |
+| K3 | `pressao_quota` declara-se `n/d` enquanto houver <7 dias de histórico em `~/.mooter/board/*.json` (havia só 1 dia — impossível calibrar sem inventar) | `112b3da` | CONFIRMADA por codex (4/4 afirmações), achado menor não-bloqueante: `contarDiasHistorico()` conta entradas pelo nome, não valida `isFile()` |
+
+**Decisão do Paulo em K3:** perguntado entre (a) declarar n/d até 7 dias, (b) subir a referência para ~7000 já, (c) manter 4000 e ignorar o alarme — respondeu "decides tu com as melhores práticas". Escolhida (a) por ser reversível e não fabricar número: qualquer pessoa pode sobrepor via `~/.mooter/preferences.json` → `quota_referencia` antes disso.
+
+**Gotcha novo (caro, registado em memória):** Codex CLI no Windows recusa-se a correr *unsandboxed* dentro de um git worktree recém-criado (`create_worktree:true`) — erro `windows unelevated restricted-token sandbox cannot enforce split writable root sets directly`. Reproduzido 2×, idêntico. Para escrita em Windows: usar `agent:"cc"` directo na pasta principal, nunca `codex` + `create_worktree:true`. Para verificação read-only, codex funciona bem na pasta principal (sem worktree) — mas o sandbox read-only dele também bloqueia `mkdtemp` em testes que criam directórios temporários (visto na verificação de K3); nesses casos ele testa a lógica manualmente em vez de correr a suite.
+
+**Testes finais:** `fatia-local.test.js` 13/13 · `board.test.js` 18/18 · `fleet.test.js` 41/41 · `quota.test.js` 23/23.
+
+**O que NÃO foi feito** (fora de âmbito, por instrução explícita do masterprompt): PRs no recibo, suporte multi-projecto. Continuam no backlog para waves próprias.
+
+### Próximo
+- Backlog P-M1..M4, P-H1..H6, P-P1..P7 (ver `_handoff/COMO_TESTAR_E_BACKLOG_2026-07-31.md`) — nenhum tocado nesta wave.
+
+**Status:** ✅ K1+K2+K3 shipped e verificados (excepto K2 cross-check, não bloqueante)
