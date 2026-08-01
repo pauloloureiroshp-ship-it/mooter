@@ -36,6 +36,9 @@ SYNC_FILES=(
   classify.js
   patterns.js
   inject_context.js
+  # dependencia directa do inject_context.js: sem ela o require falha, o catch
+  # engole o erro em silencio e o P0 do USER_OVERRIDE fantasma reabre sem aviso.
+  user-override-guard.js
   session-context.js
   router-execute.js
   arbiter.js

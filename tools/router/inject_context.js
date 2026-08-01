@@ -692,7 +692,18 @@ try {
     // Uma decisão cacheada com o fantasma dentro voltaria a servi-lo.
     if (cacheHit) setClassifyCached(classifyInput, decision, null, _prevTier);
   }
-} catch { /* guard best-effort: nunca derruba o hook */ }
+} catch (e) {
+  // O guard nunca derruba o hook — mas um catch MUDO reabria o P0 sem aviso
+  // (o ficheiro faltar numa rota de sync bastava). Falha alto no ledger.
+  try {
+    logDecision({
+      ts: new Date().toISOString(),
+      event: 'user_override_guard_indisponivel',
+      erro: String((e && e.message) || e),
+      consequencia: 'o USER_OVERRIDE fantasma volta a passar sem veto',
+    });
+  } catch { /* o ledger tambem falhou; o hook segue na mesma */ }
+}
 
 // ── /mooter-<slug> Anthropic pin (Sessão A, 2026-05-27) ────────────────
 // A `/mooter-<model>` skill is primarily instruction-driven, but when the
