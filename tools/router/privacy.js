@@ -30,10 +30,20 @@ const RULES = [
   { rx: /\/[a-zA-Z0-9_\-/.]+\.\w{1,6}/g, replace: '<path>' },
   // Anthropic API keys
   { rx: /sk-ant-[a-zA-Z0-9\-_]{20,}/g, replace: '<anthropic_key>' },
-  // Generic sk- keys (OpenAI etc)
-  { rx: /sk-[a-zA-Z0-9]{20,}/g, replace: '<api_key>' },
-  // GitHub tokens
+  // Generic sk- keys (OpenAI etc). A classe TEM de incluir `_` e `-`: as chaves
+  // modernas são `sk-proj-…` e `sk_live_…`, e uma classe só-alfanumérica parava
+  // no primeiro separador — redigia 20 chars e deixava o resto em claro.
+  { rx: /sk-[a-zA-Z0-9_-]{20,}/g, replace: '<api_key>' },
+  // GitHub tokens — clássicos e os `github_pat_` de granularidade fina
   { rx: /gh[ps]_[a-zA-Z0-9]{36,}/g, replace: '<github_token>' },
+  { rx: /github_pat_[A-Za-z0-9_]{20,}/g, replace: '<github_token>' },
+  /**
+   * Credenciais em URL: `https://user:senha@host`. TEM de vir antes da regra do
+   * email — medido: `hunter2@github.com` casa como email primeiro e o resultado
+   * ficava `https://paulo:<email>`, que esconde a senha mas expõe o utilizador
+   * e mente sobre o que ali estava. A ordem das RULES é significativa.
+   */
+  { rx: /(https?:\/\/)[^/\s:@]+:[^/\s@]+@/gi, replace: '$1<credentials>@' },
   // Bearer tokens
   { rx: /Bearer\s+[a-zA-Z0-9\-._~+/]+=*/gi, replace: 'Bearer <token>' },
   // Email addresses
@@ -46,7 +56,39 @@ const RULES = [
   { rx: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, replace: '<uuid>' },
   // Connection strings
   { rx: /(?:postgres|mysql|mongodb|redis):\/\/[^\s"']+/gi, replace: '<connection_string>' },
-  // Base64 blobs (>40 chars of base64)
+
+  /**
+   * ── RECONCILIAÇÃO COM `agent-sync-ledger.js:40-51` (2026-08-01) ─────────────
+   *
+   * Este repo mantinha DUAS listas de padrões de segredo e elas discordavam. A
+   * de `agent-sync-ledger.js` (que guarda os recibos que vão para o vault)
+   * conhecia seis formas que esta não conhecia. Enquanto o `privacy.js` só
+   * limpava `prompt_preview`, a diferença era académica. Deixou de ser: o
+   * `ledger-turn-io.js` passou a guardar o PROMPT HUMANO no journal e depende
+   * desta lista — e o journal tem projecção para o `SYNC.md`, que é versionado
+   * (`host-extra.js` `_eventText` → `'Pediste: '`).
+   *
+   * A regra `<base64>` não tapa isto: exige 40+ caracteres. Uma chave AWS tem
+   * 20 e uma Google tem 39 — ambas passavam por baixo, por um carácter.
+   */
+  // AWS access key IDs
+  { rx: /\bAKIA[0-9A-Z]{16}\b/g, replace: '<aws_key>' },
+  // Google / Firebase API keys
+  { rx: /\bAIza[0-9A-Za-z_-]{20,}/g, replace: '<google_key>' },
+  // Slack tokens (bot, user, app, refresh, legacy)
+  { rx: /\bxox[baprs]-[A-Za-z0-9-]{10,}/g, replace: '<slack_token>' },
+  // Chaves privadas em PEM — o cabeçalho basta para marcar o bloco
+  { rx: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g, replace: '<private_key>' },
+  /**
+   * Segredo declarado em prosa ou em código: `api_key: xxx`, `password = yyy`.
+   * É a regra mais larga da lista e redige por vezes o que não é segredo (um
+   * `apiKey: process.env.FOO` num prompt fica `apiKey: <secret>`). Aceite de
+   * propósito: neste ficheiro o erro caro é deixar passar, não cortar a mais.
+   */
+  { rx: /\b(api[_-]?key|access[_-]?token|token|password|passwd|secret)(\s*[:=]\s*)[^\s,;"']{8,}/gi, replace: '$1$2<secret>' },
+
+  // Base64 blobs (>40 chars of base64) — fica em ÚLTIMO de propósito: é a regra
+  // mais gulosa e engoliria as anteriores se corresse antes delas.
   { rx: /[A-Za-z0-9+/]{40,}={0,3}/g, replace: '<base64>' },
 ];
 
