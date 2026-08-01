@@ -146,7 +146,27 @@ function poupancaEstimada(promptChars, outputChars, tierEvitado) {
     tokens_in_estimados: tin,
     tokens_out_estimados: tout,
     baseline: t,
-    nota: 'ESTIMATIVA (~4 chars/token, tabela advisory do repo) — não é um custo medido',
+    /**
+     * ⚠️ Auditoria E2E 2026-08-01 — a nota tinha de dizer o que o número É.
+     *
+     * `tokens_out_estimados` = `outputChars / 4` = os tokens que o modelo LOCAL
+     * escreveu. Não são tokens que a nuvem deixou de gastar. `prepMetrics`
+     * (seamless.js) só chama esta função no ramo da CADEIA moo→nuvem — e nessa
+     * cadeia o job pago **corre à mesma**: a saída local é COLADA no prompt dele,
+     * não o substitui.
+     *
+     * Medido no ledger real: prompts pagos precedidos de preparação local são
+     * MAIORES que os sem (mediana 2774 vs 2601 chars), e a preparação acrescenta
+     * ~16% ao tempo de parede da cadeia.
+     *
+     * A fórmula continua válida para um job **só-moo** (o local substitui a nuvem
+     * de facto). O que estava errado era a nota deixar passar a leitura de
+     * "poupança líquida" num caso onde ela é, por construção, zero. Ver G12 do
+     * MEO_GAUNTLET: o número está certo, o que ele afirma é que não estava.
+     */
+    nota: 'ESTIMATIVA (~4 chars/token, tabela advisory do repo) — é o VOLUME QUE O MODELO LOCAL PRODUZIU, '
+      + 'não uma poupança líquida medida. Numa cadeia moo→nuvem o job pago corre à mesma e recebe este texto '
+      + 'no prompt: aí a poupança líquida é n/d. Só num job só-local o volume equivale a nuvem evitada.',
   };
 }
 

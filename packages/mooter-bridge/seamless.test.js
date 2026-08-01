@@ -922,3 +922,55 @@ test('F0/2 — sem repo NEM cópia empacotada, o erro nomeia os dois sítios ond
   assert.match(r.error, new RegExp(semRepo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(r.error, new RegExp(bundleVazio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Auditoria E2E 2026-08-01 — regressões das correcções de honestidade.
+ * Cada teste aqui nasceu de uma falha MEDIDA no produto a correr, não de teoria.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+test('E2E-1: verbo de execução em prosa não barra um job de leitura', () => {
+  // Medido 3× em 2026-08-01: goals legítimos barrados com {verbo:'corre', comando:null}.
+  for (const prosa of [
+    'analisa os ficheiros e diz o que corre mal na qualidade do codigo',
+    'o hot-swap de LoRA e codigo que corre de verdade, ou andaime?',
+    'explica porque o build corre lento nesta maquina',
+  ]) {
+    assert.strictEqual(seam.pedeExecucaoDeMotor(prosa), null, 'barrou prosa: ' + prosa);
+  }
+  // E o guard continua a apanhar pedidos reais — incluindo os sem comando literal.
+  for (const real of ['corre os testes', 'roda a suite', 'executa esta verificação', 'npm test']) {
+    assert.ok(seam.pedeExecucaoDeMotor(real), 'deixou passar execução real: ' + real);
+  }
+});
+
+test('E2E-2: job que termina a pedir aprovação não é done — é nao_verificado', () => {
+  // Reproduzido sem provocação: o agente escreveu os ficheiros, pediu aprovação
+  // para `node --test`, e o conector gravou done · exit 0.
+  const texto = 'Criei index.js e index.test.js.\n\nPreciso de aprovação para executar o comando `node --test`. Podes confirmar?';
+  const out = seam.classificarEntrega(0, texto);
+  assert.ok(out.aguarda_aprovacao, 'não detectou o pedido de aprovação');
+  assert.strictEqual(out.ok, false, 'não pode ser ok');
+  assert.strictEqual(out.evento, 'nao_verificado');
+  assert.strictEqual(out.exit_code, 'agent-awaiting-approval');
+
+  // Trabalho entregue de verdade continua done.
+  const bom = seam.classificarEntrega(0, 'Adicionei subtrai(a,b) e os testes passam: 2 pass, 0 fail.');
+  assert.strictEqual(bom.ok, true);
+  assert.strictEqual(bom.evento, undefined);
+
+  // O pedido tem de estar no FIM — citá-lo a meio não desqualifica a entrega.
+  const meio = seam.classificarEntrega(0,
+    'Antes eu precisava de aprovação para isto, mas já está feito.\n' + 'x'.repeat(700) + '\nTestes: 5 pass.');
+  assert.strictEqual(meio.ok, true, 'menção a meio do texto não devia disparar');
+});
+
+test('E2E-3: guard recusado ensina o caminho em vez de morrer numa linha', () => {
+  const passos = seam.guardFazAssim(['worktree fora da raiz permitida (C:\Users\X\AppData\Roaming\Claude)']);
+  assert.ok(Array.isArray(passos) && passos.length, 'faz_assim vazio');
+  const txt = passos.join(' | ');
+  assert.match(txt, /repo_path/, 'não nomeia repo_path — era o buraco do onboarding');
+  assert.match(txt, /MOOTER_WORKTREE_ROOT/, 'não nomeia o escape hatch indescobrível');
+  // Nunca devolve lista vazia, mesmo para um motivo desconhecido.
+  assert.ok(seam.guardFazAssim(['motivo que ninguém previu']).length);
+  assert.ok(seam.guardFazAssim([]).length);
+});

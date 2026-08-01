@@ -140,10 +140,22 @@ function buildHandoffs(scopedJobs, allJobs) {
       seta: target.handoff_from + ' → ' + target.job_id,
       agente_from: source ? source.agent || null : null,
       agente_to: target.agent || null,
-      poupanca: source && Number.isFinite(Number(source.tokens_poupados_estimados))
+      /**
+       * ⚠️ Auditoria E2E 2026-08-01 — este campo chamava-se `poupanca` e não era.
+       *
+       * O valor é `prep_chars/4`: o volume que o moo local PRODUZIU antes de
+       * passar o trabalho ao motor pago. Nesta seta (`handoff_from → job`) o
+       * motor pago corre a seguir e recebe esse texto no prompt — logo não há
+       * poupança líquida a declarar, há trabalho local feito. O campo passa a
+       * dizer o que mede, e a poupança líquida fica explicitamente n/d.
+       */
+      tokens_locais_produzidos: source && Number.isFinite(Number(source.tokens_poupados_estimados))
         ? metric(Number(source.tokens_poupados_estimados), source.tokens_poupados_estimados_nota
           || 'estimativa registada pelo handoff local')
-        : metric(null, 'n/d — o handoff não trouxe tokens_poupados_estimados'),
+        : metric(null, 'n/d — o handoff não trouxe medição do volume local'),
+      poupanca_liquida: metric(null,
+        'n/d — nesta seta o motor pago correu a seguir e recebeu o texto local no prompt; '
+        + 'medir poupança exigiria o mesmo trabalho sem preparação como base de comparação'),
     });
   }
   return out;

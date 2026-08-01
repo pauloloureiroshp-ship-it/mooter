@@ -221,6 +221,29 @@ function build(seam, fleet, base) {
             }), '🐮 ' + a.job_id + ' ' + j.last + (c.model_used ? ' · ' + c.model_used : ''));
           }
         }
+        /**
+         * ⚠️ Auditoria E2E 2026-08-01, ataque #5 (wave fantasma) — inventava.
+         *
+         * Medido: com a frota parada (`live: 0`), `mooter_check({wave:"wave-que-
+         * nunca-existiu-2026"})` respondia **«🐮 em curso»**. Não é um n/d
+         * honesto — é afirmar que algo inexistente está a correr. Um agente que
+         * confie nessa resposta fica à espera para sempre.
+         *
+         * Agora: sem jobs conhecidos, diz-se que não se encontrou nada e
+         * nomeia-se o que foi procurado.
+         */
+        const nenhum = !st || !Array.isArray(st.jobs) || st.jobs.length === 0;
+        if (nenhum) {
+          const alvo = a.job_id ? ('job ' + a.job_id) : (a.wave ? ('wave "' + a.wave + '"') : 'este pedido');
+          return comPulso(Object.assign({}, st || {}, {
+            encontrado: false,
+            porque: 'n/d — não existe nenhum job no ledger para ' + alvo,
+            faz_assim: [
+              'confirma o nome: mooter_fleet({view:"jobs"}) lista as waves e os jobs reais',
+              'se acabaste de despachar, o ledger pode levar 1-2 s a escrever — repete',
+            ],
+          }), '🐮 n/d — não encontrei ' + alvo);
+        }
         return comPulso(st, '🐮 em curso');
       },
     },

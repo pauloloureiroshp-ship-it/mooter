@@ -413,7 +413,20 @@ test('L1(b) — totals e arvore.resumo partilham a mesma agregação', () => {
   assert.strictEqual(aggregate.totals.cost_usd, aggregate.arvore_resumo.custo_usd);
   assert.strictEqual(aggregate.totals.cloud_out, aggregate.arvore_resumo.tokens_nuvem);
   assert.strictEqual(aggregate.totals.local_out, aggregate.arvore_resumo.tokens_local);
-  assert.strictEqual(aggregate.totals.local_share, aggregate.arvore_resumo.quota_local_pct);
+  /**
+   * ⚠️ Auditoria E2E 2026-08-01 — este assert TRANCAVA o bug.
+   *
+   * Afirmava `local_share` (contagem de JOBS) === `quota_local_pct`, que a UI
+   * mostra debaixo de «dos tokens sairam da tua GPU». Igualar uma métrica de
+   * jobs a um campo rotulado como tokens é exactamente a conflação que a G12 do
+   * MEO_GAUNTLET existe para apanhar. Precedente ondaA: não se relaxa um teste
+   * sem estabelecer quem está errado — aqui é o teste, e a prova é o rótulo.
+   *
+   * O invariante certo: `quota_local_pct` acompanha a métrica por TOKENS, e a
+   * contagem de jobs tem campo próprio.
+   */
+  assert.strictEqual(aggregate.totals.local_share_tokens_saida, aggregate.arvore_resumo.quota_local_pct);
+  assert.strictEqual(aggregate.totals.local_share, aggregate.arvore_resumo.quota_local_jobs_pct);
 });
 
 test('L1(c) — o payload não contém null sem porquê', () => {

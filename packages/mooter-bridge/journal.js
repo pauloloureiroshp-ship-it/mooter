@@ -31,13 +31,37 @@ const path = require('path');
  * and the suite wrote a note into the REAL vault. An env var that says "write
  * here" must never mean "write somewhere else instead".
  */
+/**
+ * ⚠️ Auditoria E2E 2026-08-01 — a tool escrevia no vault ERRADO.
+ *
+ * Medido: `mooter_journal({status_only:true})` devolvia
+ * `root: C:\Users\Paulo Loureiro\Documents\paulo-vault` (último commit
+ * 2026-07-02) enquanto o canónico é `~/paulo-vault` (último commit 2026-07-30) —
+ * o mesmo que `VAULT_PATH` aponta e o mesmo que a D10 fixou POR MEDIÇÃO em
+ * 2026-08-01. Ambos têm `.obsidian/`, portanto o detector escolhia o primeiro da
+ * lista, e o primeiro era o clone stale. O `registado_no_vault` do recibo herdava
+ * o mesmo erro.
+ *
+ * Duas correcções, ambas fundamentadas no canon do próprio repo:
+ *
+ * 1. `VAULT_PATH` passa a ser lido. O `AGENTS.md` § «Agent boot & freshness» diz
+ *    que é a variável exportada por máquina; era a única fonte de verdade que
+ *    esta função ignorava.
+ * 2. A raiz do home vem ANTES de `Documents/`. O mesmo `AGENTS.md` é explícito:
+ *    «vault at the home root on both OSes, outside Documents/OneDrive/iCloud».
+ *    A ordem anterior contradizia o canon escrito.
+ */
 function candidates() {
   const home = os.homedir();
+  const usable = (v) => v && String(v).indexOf('${') < 0 && String(v).trim();
+  // authoritative: no fallback. MOOTER_VAULT primeiro (mais específico), VAULT_PATH a seguir.
   const env = process.env.MOOTER_VAULT;
-  if (env && env.indexOf('${') < 0 && env.trim()) return [env.trim()];   // authoritative: no fallback
+  if (usable(env)) return [String(env).trim()];
+  const vaultPath = process.env.VAULT_PATH;
+  if (usable(vaultPath)) return [String(vaultPath).trim()];
   return [
-    path.join(home, 'Documents', 'paulo-vault'),
     path.join(home, 'paulo-vault'),
+    path.join(home, 'Documents', 'paulo-vault'),
     path.join(home, 'Documents', 'vault'),
     path.join(home, 'obsidian'),
     path.join(home, 'Documents', 'Obsidian'),
@@ -51,7 +75,9 @@ function detectVault() {
     checked.push(c);
     try {
       if (fs.existsSync(path.join(c, '.obsidian'))) {
-        return { root: c, source: process.env.MOOTER_VAULT === c ? 'env' : 'auto', checked };
+        const source = process.env.MOOTER_VAULT === c ? 'env'
+          : (process.env.VAULT_PATH === c ? 'env:VAULT_PATH' : 'auto');
+        return { root: c, source, checked };
       }
     } catch { /* next */ }
   }

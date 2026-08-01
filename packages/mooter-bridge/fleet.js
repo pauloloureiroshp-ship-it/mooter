@@ -267,10 +267,24 @@ function aggregatePanel(jobs) {
   };
   return {
     totals,
+    /**
+     * ⚠️ Auditoria E2E 2026-08-01 — `quota_local_pct` tinha de voltar a ser tokens.
+     *
+     * `arvore.js:222` já a calculava por TOKENS (tokLocal/total). Esta agregação
+     * sobrepunha-lhe `localShare`, que é CONTAGEM DE JOBS — e `fleet-ui.html:492`
+     * mostra esse valor debaixo de «dos tokens sairam da tua GPU», com o title a
+     * dizer «percentagem dos tokens de saída medidos». Duas promessas de tokens
+     * sobre um número de jobs. Medido no ledger: 50,9% (jobs) vs 16,1% (tokens).
+     *
+     * Agora `quota_local_pct` = a métrica por tokens (n/d honesto quando algum
+     * job não traz `tokens_out`), e a contagem de jobs fica no seu próprio campo
+     * `quota_local_jobs_pct`, para quem a quiser mostrar COM esse nome. Ver G12.
+     */
     arvore_resumo: {
       tokens_local: localOut,
       tokens_nuvem: cloudOut,
-      quota_local_pct: localShare,
+      quota_local_pct: localShareTokensSaida,
+      quota_local_jobs_pct: localShare,
       custo_usd: cost,
       custo_jobs_sem_medicao: cost.jobs_sem_medicao,
     },
@@ -1473,10 +1487,32 @@ function formatFleetText(d) {
     const t = d.totals;
     const cloudIn = metricValue(t.cloud_in); const cloudOut = metricValue(t.cloud_out);
     const localIn = metricValue(t.local_in); const localOut = metricValue(t.local_out);
-    const share = metricValue(t.local_share); const cost = metricValue(t.cost_usd);
+    const cost = metricValue(t.cost_usd);
+    /**
+     * ⚠️ Auditoria E2E 2026-08-01 — o rótulo mentia, não o número.
+     *
+     * Esta linha dizia «X% do output foi local» lendo `local_share`, que é uma
+     * CONTAGEM DE JOBS (`fatiaLocal`, jobs concluídos com agent==='moo'). Medido
+     * no ledger real: 50,9% por jobs contra 15,0% por tokens de entrada — o
+     * rótulo prometia tokens e mostrava jobs, inflando o fosso ~3,4×.
+     *
+     * `local_share_tokens_saida` já existia (calculada acima), com n/d honesto
+     * quando algum job não traz `tokens_out` — e nenhum consumidor a lia.
+     * Agora: tokens quando forem medíveis, jobs quando não — e o rótulo diz
+     * SEMPRE qual dos dois está a ser mostrado. Ver G12 do MEO_GAUNTLET.
+     */
+    const shareTok = metricValue(t.local_share_tokens_saida);
+    const shareJobs = metricValue(t.local_share);
+    let shareTxt = '';
+    if (shareTok != null) {
+      shareTxt = '  ·  ' + shareTok + '% dos tokens de saída foram locais';
+    } else if (shareJobs != null) {
+      shareTxt = '  ·  ' + shareJobs + '% dos JOBS foram locais (por tokens: n/d — '
+        + ((t.local_share_tokens_saida && t.local_share_tokens_saida.porque) || 'sem medição') + ')';
+    }
     L.push('', 'TOKENS  cloud ' + (cloudIn == null ? 'n/d' : cloudIn) + ' in / ' + (cloudOut == null ? 'n/d' : cloudOut)
       + ' out  ·  local ' + (localIn == null ? 'n/d' : localIn) + ' in / ' + (localOut == null ? 'n/d' : localOut) + ' out'
-      + (share != null ? '  ·  ' + share + '% do output foi local' : '')
+      + shareTxt
       + (cost != null ? '  ·  $' + Number(cost).toFixed(4) : ''));
   }
   if (d.vault) {

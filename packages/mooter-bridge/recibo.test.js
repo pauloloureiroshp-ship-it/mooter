@@ -123,7 +123,18 @@ test('S2 — custo fica parcial quando há jobs sem medição', () => {
   assert.match(cost.porque, /parcial/i);
 });
 
-test('S2 — handoff mostra from → to, agentes e poupança medida', () => {
+/**
+ * ⚠️ Auditoria E2E 2026-08-01 — o nome deste teste era metade do problema.
+ *
+ * Chamava-se «poupança medida» e afirmava `handoff.poupanca.valor === 120`, onde
+ * 120 é `prep_chars/4` — o volume que o moo LOCAL produziu. Nesta seta o motor
+ * pago corre a seguir e recebe esse texto no prompt, portanto não houve poupança
+ * nenhuma a medir. Precedente ondaA: estabelecer quem está errado antes de mexer.
+ * Aqui é o teste — ele carimbava a conflação que a G12 do MEO_GAUNTLET existe
+ * para apanhar. O invariante certo: o volume local é medido, a poupança líquida
+ * é n/d com motivo.
+ */
+test('S2 — handoff mostra from → to, agentes e volume local (poupança líquida n/d)', () => {
   const common = { wave: 'handoff', cargo: 'MTO', cargo_porque: 'declarado' };
   const ledger = [
     event('prep', 'dispatched', Object.assign({}, common, { agent: 'moo', local: true }), 0),
@@ -143,7 +154,10 @@ test('S2 — handoff mostra from → to, agentes e poupança medida', () => {
   assert.equal(handoff.seta, 'prep → cloud');
   assert.equal(handoff.agente_from, 'moo');
   assert.equal(handoff.agente_to, 'cc');
-  assert.equal(handoff.poupanca.valor, 120);
+  assert.equal(handoff.tokens_locais_produzidos.valor, 120);
+  assert.equal(handoff.poupanca_liquida.valor, null, 'poupança líquida não é mensurável nesta seta');
+  assert.match(handoff.poupanca_liquida.porque, /n\/d/);
+  assert.strictEqual(handoff.poupanca, undefined, 'o campo enganador não pode voltar');
 });
 
 test('S2 — excepções do board só aparecem no cargo dono', () => {

@@ -292,7 +292,9 @@ function ledgerRead() {
     }).filter(Boolean);
   } catch { return []; }
 }
-const TERMINAL = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
+// `nao_verificado` (auditoria E2E 2026-08-01): o job produziu trabalho real mas
+// terminou a pedir aprovação — é terminal, e NÃO é `done`. Ver classificarEntrega.
+const TERMINAL = new Set(['done', 'failed', 'nao_verificado', 'prep_timeout', 'prep_failed_fallback']);
 /**
  * ⚠️ Um evento de diagnóstico não é um estado.
  *
@@ -493,6 +495,47 @@ function bootstrapPrompt(mpPath, label) {
  *    is reading. That is what telemetry.js reads. (`--verbose` is required by
  *    the CLI when streaming in print mode.)
  */
+/**
+ * O que fazer a seguir quando o guard recusa — em vez de uma linha morta.
+ *
+ * ⚠️ Auditoria E2E 2026-08-01, achado A1. Numa instalação do `.mcpb` com
+ * `repo_path` por preencher E sem `MOOTER_WORKTREE_ROOT`, `REPO` cai para o avô
+ * da pasta do bundle (`:69`) e a raiz permitida passa a ser `%APPDATA%\Claude`
+ * (`:436`) — logo QUALQUER pasta de projecto real é recusada. Medido: a Estranha
+ * fez 4 gestos e despachou 0 jobs.
+ *
+ * O que ela via era uma linha: `⛔ não despachei o job · em <pasta>`. O motivo
+ * vivia só no `structuredContent` e NUNCA nomeava `repo_path`. O produto já sabe
+ * escrever erros accionáveis — os do kimi trazem `faz_assim` — e faltava
+ * exactamente no caminho que decide o onboarding.
+ *
+ * `MOOTER_WORKTREE_ROOT` desbloqueia sem `repo_path` (é o primeiro operando de
+ * `:436`), mas não está exposto no `user_config` do manifest — só em
+ * `SEAMLESS.md:81`. Por isso é nomeado aqui: é o escape hatch indescobrível.
+ */
+function guardFazAssim(reasons) {
+  const txt = (reasons || []).join(' · ');
+  const passos = [];
+  if (/fora da raiz permitida/i.test(txt)) {
+    passos.push('preenche "Repositório mooter" (repo_path) nas definições do conector com a pasta do teu projecto — é ela que define a raiz de worktrees permitidas, não só a cópia do classify.js');
+    passos.push('ou define a variável de ambiente MOOTER_WORKTREE_ROOT com a pasta-mãe dos teus projectos (sobrepõe-se a repo_path)');
+    passos.push('depois reinicia o Claude Desktop para o conector reler a configuração');
+  }
+  if (/não é uma git worktree/i.test(txt)) {
+    passos.push('a pasta tem de ser um repositório git — corre `git init` nela, ou aponta para uma que já o seja');
+  }
+  if (/worktree já tem job ativo/i.test(txt)) {
+    passos.push('espera que o job em curso acabe, ou usa mooter_cancel({job_id}) — uma worktree só aguenta um job de cada vez');
+  }
+  if (/dentro do vault/i.test(txt)) {
+    passos.push('escolhe uma pasta fora do vault — trabalhar dentro do vault é proibido pela constituição §5');
+  }
+  if (/masterprompt/i.test(txt)) {
+    passos.push('o goal não pode ir vazio; descreve o que queres em linguagem normal');
+  }
+  return passos.length ? passos : ['corre mooter_setup({primeira_vez:true}) para o diagnóstico das 6 verificações'];
+}
+
 function buildCommand(agent, jobDir, allowedTools, model, label) {
   const mpPath = path.join(jobDir, 'masterprompt.md');
   const outFile = path.join(jobDir, 'last-message.txt');
@@ -1144,17 +1187,62 @@ function recusaPorFaltaDeContexto(text) {
   return 'recusa do agente por falta de contexto: ' + sentence;
 }
 
+/**
+ * ⚠️ Auditoria E2E 2026-08-01, loophole #1 — o titular dizia feito a trabalho
+ * por verificar.
+ *
+ * Medido sem provocação: um job `cc` escreveu `index.js` e `index.test.js`
+ * correctamente, terminou a dizer «Preciso de aprovação para executar
+ * `node --test`», e o conector gravou **`done · exit 0`**. Os testes até
+ * passavam — mas isso foi sorte, não prova: o agente nunca os correu.
+ *
+ * A causa estrutural está em `buildCommand` (`:3024`): com `write:true` a lista
+ * é `Read,Glob,Grep,Edit,Write` — **`Bash` fica de fora**. Logo TODO job que
+ * precise de correr testes, build, lint ou git termina a pedir aprovação. Não é
+ * caso raro: é o caminho normal de qualquer tarefa que se queira verificar.
+ *
+ * Segue-se o precedente que este ficheiro já tinha para a recusa por falta de
+ * contexto (`:1096`): sai 0, mas não entregou o que foi pedido ⇒ NÃO é `done`.
+ * Aqui o desfecho é `nao_verificado` — distinto de `failed`, porque houve
+ * trabalho real; e distinto de `done`, porque ninguém o verificou.
+ */
+const PEDIDO_APROVACAO_RE = new RegExp(
+  '(?:preciso|necessito)\\s+(?:de\\s+)?(?:a\\s+tua\\s+)?(?:aprova[çc][ãa]o|permiss[ãa]o|autoriza[çc][ãa]o)'
+  + '|(?:posso|podes\\s+confirmar|queres\\s+que\\s+(?:eu\\s+)?(?:corra|execute))'
+  + '|(?:aguardo|a\\s+aguardar)\\s+(?:a\\s+tua\\s+)?(?:aprova[çc][ãa]o|confirma[çc][ãa]o)'
+  + '|(?:i\\s+need|requesting|awaiting)\\s+(?:your\\s+)?(?:approval|permission)'
+  + '|permission\\s+(?:is\\s+)?required',
+  'i');
+
+/** O pedido de aprovação só conta se estiver no FIM — é aí que trava o trabalho. */
+function terminouAPedirAprovacao(delivered) {
+  const t = String(delivered || '').trim();
+  if (!t) return null;
+  const cauda = t.slice(-600);
+  const m = cauda.match(PEDIDO_APROVACAO_RE);
+  if (!m) return null;
+  return 'terminou a pedir aprovação («' + m[0].trim().slice(0, 60)
+    + '») — o passo pedido não foi executado nem verificado';
+}
+
 function classificarEntrega(code, delivered) {
   const producedNothing = !delivered || !String(delivered).trim();
   const refusal = code === 0 && !producedNothing
     ? recusaPorFaltaDeContexto(delivered)
     : null;
+  const aguardaAprovacao = code === 0 && !producedNothing && !refusal
+    ? terminouAPedirAprovacao(delivered)
+    : null;
   return {
     producedNothing,
     refusal,
-    ok: code === 0 && !producedNothing && !refusal,
+    aguarda_aprovacao: aguardaAprovacao,
+    ok: code === 0 && !producedNothing && !refusal && !aguardaAprovacao,
+    evento: (code === 0 && !producedNothing && !refusal && aguardaAprovacao)
+      ? 'nao_verificado' : undefined,
     exit_code: refusal ? 'agent-refused-missing-context'
-      : (producedNothing && code === 0 ? 'empty-output' : code),
+      : (aguardaAprovacao ? 'agent-awaiting-approval'
+        : (producedNothing && code === 0 ? 'empty-output' : code)),
   };
 }
 
@@ -1185,6 +1273,29 @@ function pedeExecucaoDeMotor(texto) {
     }
   }
   if (!hasVerb && !hasKnownCommand && !backtickCommand) return null;
+  /**
+   * ⚠️ Auditoria E2E 2026-08-01 — o verbo em PROSA deixou de barrar.
+   *
+   * «correr» é um verbo comuníssimo em prosa descritiva portuguesa. Medido três
+   * vezes no mesmo dia, em goals legítimos e sem qualquer comando:
+   *   · «diz-me o que CORRE mal na qualidade do código»
+   *   · «o hot-swap é código que CORRE de verdade, ou andaime?»
+   * Nos dois casos o dispatch foi barrado com `pedido_execucao:{verbo:'corre',
+   * comando:null}` — e o primeiro dizia explicitamente «não executes nada».
+   *
+   * PRIMEIRA TENTATIVA, ERRADA (registada de propósito): exigir sempre um comando
+   * identificado. `seamless.test.js:196` apanhou-a de imediato — «corre os testes»
+   * é um pedido de execução real e não tem comando literal nenhum. O teste tinha
+   * razão; a correcção é que era grosseira. Precedente ondaA: estabelecer quem
+   * está errado antes de mexer. Ver G11 — o instrumento era meu, e falhava.
+   *
+   * A distinção certa não é «tem comando?», é «o verbo tem OBJECTO executável?».
+   * `corre os testes` / `roda a suite` → objecto. `corre mal` / `corre de verdade`
+   * → advérbio, é prosa. Só o segundo caso é descartado, e apenas quando não há
+   * comando nenhum a acompanhar.
+   */
+  const VERBO_EM_PROSA_RE = /\b(?:corre|corr[ea]m|executa|roda|run|runs)\s+(?:mal|bem|melhor|pior|depressa|devagar|lento|r[áa]pido|de\s+verdade|na\s+realidade|o\s+risco|perigo|deep|silent(?:ly)?|smooth(?:ly)?|fine|well|badly)\b/i;
+  if (hasVerb && !hasKnownCommand && !backtickCommand && VERBO_EM_PROSA_RE.test(t)) return null;
   const hasNonGit = EXECUTION_NON_GIT_RE.test(t)
     || !!(backtickCommand && !/^git\s+/i.test(backtickCommand));
   return {
@@ -1631,7 +1742,7 @@ async function toolDispatch(args) {
   const stepProgress = stepsTotalFor(agent, args && args.__steps_total);
 
   const g = guardCheck({ agent, worktree, masterprompt, wave, allowedTools });
-  if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons };
+  if (!g.ok) return { error: '❌ guard recusou o dispatch', reasons: g.reasons, faz_assim: guardFazAssim(g.reasons) };
   /**
    * ⚠️ CORRIGIDO na auditoria de 2026-07-31 — o contrato de capacidades chegou
    * a analisar o MASTERPROMPT inteiro em vez do pedido do utilizador:
@@ -2053,14 +2164,21 @@ async function toolDispatch(args) {
       : (canWrite ? { files: null, reason: 'o job não correu numa worktree criada de fresco' } : null);
     if (code === 0 && producedNothing) log('job ' + job_id + ' saiu 0 sem entregar texto — marcado failed');
     if (refusal) log('job ' + job_id + ' saiu 0, mas recusou por falta de contexto — marcado failed');
+    if (outcome.aguarda_aprovacao) {
+      log('job ' + job_id + ' saiu 0, mas ' + outcome.aguarda_aprovacao + ' — marcado nao_verificado');
+    }
     if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
       log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
     }
     ledgerAppend(Object.assign({
-      job_id, wave, agent, worktree: wtNorm, event: ok ? 'done' : 'failed', mp_hash,
+      job_id, wave, agent, worktree: wtNorm, event: outcome.evento || (ok ? 'done' : 'failed'), mp_hash,
       exit_code: outcome.exit_code,
-      note: refusal || undefined,
+      note: refusal || outcome.aguarda_aprovacao || undefined,
       recusa_contexto: refusal ? { detectada: true, porque: refusal } : undefined,
+      aprovacao_pendente: outcome.aguarda_aprovacao
+        ? { detectada: true, porque: outcome.aguarda_aprovacao,
+          faz_assim: 'passa allowedTools com Bash (ex.: "Read,Glob,Grep,Edit,Write,Bash") para o agente poder verificar o próprio trabalho' }
+        : undefined,
       cost_usd: r.cost_usd, duration_s: dur, ttft_ms: timing.ttft_ms,
       // model_used comes from the job's own stream. model_recommended is what the
       // router asked for. Keeping both makes the gap between doctrine and reality
@@ -3433,6 +3551,7 @@ module.exports = {
   buildCommand, bootstrapPrompt, setJobSpawner, setCrossCheckRunner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, resolverPreparacao, recusaPorFaltaDeContexto, classificarEntrega,
+  terminouAPedirAprovacao, guardFazAssim,
   _recusaContratoDeLeitura: recusaContratoDeLeitura,
   jobResultText, pidAlive, runCrossCheckForJob, readCrossCheck,
   isDeicticGoal, worktreeSuffix, stepsTotalFor, createStreamStepTracker,
