@@ -68,6 +68,28 @@ t('❌ NUNCA lê fora da worktree (path traversal)', () => {
   assert.ok(!(r.bloco || '').includes('SEGREDO'), 'leu um ficheiro fora da pasta de trabalho');
 });
 
+t('caminho ABSOLUTO com espaço no nome de utilizador (Windows por omissão)', () => {
+  const paths = ctx.pathsCitados('lê o C:\\Users\\Paulo Loureiro\\frugal\\src\\alpha.js e diz o que faz');
+  assert.deepStrictEqual(paths, ['C:/Users/Paulo Loureiro/frugal/src/alpha.js'],
+    'partiu o caminho no espaço: ' + JSON.stringify(paths));
+  // o fragmento truncado é o perigoso: procurar() compara só o basename, logo
+  // `Loureiro/frugal/src/alpha.js` resolvia em silêncio para outra worktree.
+  assert.ok(!paths.some((p) => /^Loureiro\//.test(p)), 'devolveu o fragmento truncado');
+});
+
+t('dois caminhos absolutos com espaços na mesma frase', () => {
+  const paths = ctx.pathsCitados(
+    'compara C:\\Users\\Paulo Loureiro\\a\\um.js com C:\\Users\\Paulo Loureiro\\b\\dois.js');
+  assert.deepStrictEqual(paths,
+    ['C:/Users/Paulo Loureiro/a/um.js', 'C:/Users/Paulo Loureiro/b/dois.js']);
+});
+
+t('absoluto com espaços continua a respeitar TEXTO e IGNORAR', () => {
+  const paths = ctx.pathsCitados(
+    'vê C:\\Users\\Paulo Loureiro\\x\\segredo.png e C:\\Users\\Paulo Loureiro\\x\\node_modules\\y.js');
+  assert.strictEqual(paths.length, 0, 'aceitou binário ou node_modules: ' + JSON.stringify(paths));
+});
+
 t('ignora node_modules e binários', () => {
   const paths = ctx.pathsCitados('vê o segredo.png e o node_modules/lixo/alpha.js');
   assert.strictEqual(paths.length, 0, 'aceitou binário ou node_modules: ' + JSON.stringify(paths));

@@ -39,13 +39,28 @@ const IGNORAR = /(node_modules|\.git[\/\\]|dist[\/\\]|build[\/\\]|coverage[\/\\]
 /** Todos os caminhos que o texto cita e que parecem ficheiros. */
 function pathsCitados(texto) {
   const out = [];
+  const aceitar = (bruto) => {
+    const p = bruto.replace(/\\/g, '/');
+    if (!TEXTO.test(p) || IGNORAR.test(p)) return;
+    if (!out.includes(p)) out.push(p);
+  };
+
+  // 1º passo — caminhos ABSOLUTOS, que podem conter ESPAÇOS.
+  // ⚠️ O caminho de utilizador por omissão do Windows é `C:\Users\Nome Apelido\…`.
+  // O padrão relativo abaixo exige um `\s` antes e não aceita espaço lá dentro,
+  // por isso arrancava DEPOIS do espaço e devolvia `Apelido/frugal/x.js` — um
+  // caminho que não existe. Pior que falhar: `procurar()` só compara o basename,
+  // portanto um fragmento truncado com UM único candidato era lido em silêncio
+  // como sucesso, injectando o ficheiro de OUTRA worktree no prompt do modelo.
+  // Não-guloso até à primeira extensão, e a fatia consumida é apagada (mantendo
+  // o comprimento) para o 2º passo não voltar a apanhar o fragmento de dentro.
+  const ABS = /[A-Za-z]:[\\/][^"'`\n\r,;|]*?\.[a-zA-Z0-9]{1,6}(?=$|[\s"'`)\],;|])/g;
+  const resto = String(texto || '').replace(ABS, (m) => { aceitar(m); return ' '.repeat(m.length); });
+
+  // 2º passo — relativos ("worktrees.js", "src/alpha.js").
   const re = /(?:^|[\s"'`(\[])([\w.@-]+(?:[\/\\][\w.@-]+)*\.[a-zA-Z0-9]{1,6})\b/g;
   let m;
-  while ((m = re.exec(String(texto || ''))) !== null) {
-    const p = m[1].replace(/\\/g, '/');
-    if (!TEXTO.test(p) || IGNORAR.test(p)) continue;
-    if (!out.includes(p)) out.push(p);
-  }
+  while ((m = re.exec(resto)) !== null) aceitar(m[1]);
   return out;
 }
 
