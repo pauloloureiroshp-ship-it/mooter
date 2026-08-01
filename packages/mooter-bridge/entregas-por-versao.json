@@ -70,5 +70,8 @@
     "afericao.js",
     "aprender.js",
     "kimi-adapter.js"
+  ],
+  "1.45": [
+    "fatia-local.js"
   ]
 }

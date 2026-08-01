@@ -75,6 +75,8 @@ const MARCADORES = {
   'update.js': ['releasesGitHub', 'procurarAsync'],
   // v1.29 — install-id.js: UUID persistente por device
   'install-id.js': ['getInstallId', 'installIdInfo'],
+  // v1.45 — fatia-local.js: calcular % do trabalho que rodou localmente (agent === 'moo')
+  'fatia-local.js': ['jobs_concluidos_agent_moo', 'fatiaLocal'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {
