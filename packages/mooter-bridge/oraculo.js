@@ -245,8 +245,23 @@ function comparar(antes, depois) {
    * ambiente da máquina, não do trabalho do agente. Ausência de medição não é
    * medição negativa (oraculo.js:110-113); aqui é onde isso se cumpre.
    */
-  const falhAntes = new Set((antes.checks || []).filter((c) => c.passou === false).map((c) => c.id));
-  const falhDepois = (depois.checks || []).filter((c) => c.passou === false).map((c) => c.id);
+
+  /**
+   * E compara-se por PAPEL, não por `id`. `detectarChecks` chama à verificação
+   * de testes `test` quando o `package.json` a declara e `node-test` quando a
+   * infere dos `*.test.js` da raiz (oraculo.js:87-91) — o mesmo papel por duas
+   * fontes. Sem normalizar, um job cuja tarefa É *acrescentar* `scripts.test`
+   * ao `package.json` faz o check mudar de nome e o oráculo lê isso como uma
+   * prova que apareceu do nada e outra que desapareceu. Nos dois sentidos:
+   *   · `node-test` vermelho → `test` vermelho vira «novo vermelho» e escreve
+   *     `followup_quality: 0` num job que não partiu nada (falso castigo);
+   *   · `node-test` verde → `test` verde vira «deixou de ser medido» e escreve
+   *     silêncio num job que fez exactamente o que devia (falso n/d).
+   */
+  const papel = (c) => (c.id === 'node-test' ? 'test' : c.id);
+
+  const falhAntes = new Set((antes.checks || []).filter((c) => c.passou === false).map(papel));
+  const falhDepois = (depois.checks || []).filter((c) => c.passou === false).map(papel);
   const novos = falhDepois.filter((id) => !falhAntes.has(id));
 
   if (novos.length) {
@@ -270,11 +285,11 @@ function comparar(antes, depois) {
    * O que a régua manda é silêncio: sem medição não há veredicto, nem para
    * culpar nem para premiar.
    */
-  const medidoDepois = new Map((depois.checks || []).map((c) => [c.id, c]));
+  const medidoDepois = new Map((depois.checks || []).map((c) => [papel(c), c]));
   const deixaramDeMedir = (antes.checks || [])
     .filter((c) => c.passou === true)
     .filter((c) => {
-      const d = medidoDepois.get(c.id);
+      const d = medidoDepois.get(papel(c));
       return !d || d.passou == null;
     })
     .map((c) => c.id);

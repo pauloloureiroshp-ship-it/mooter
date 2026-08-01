@@ -77,8 +77,34 @@ test('D13/1: um check que DESAPARECE da lista conta como deixou de ser medido', 
   const antes = { veredicto: 'verde', checks: [{ id: 'test', passou: true }, { id: 'lint', passou: true }] };
   const depois = { veredicto: 'verde', checks: [{ id: 'lint', passou: true }] };
   const v = oraculo.comparar(antes, depois);
+  assert.equal(v.veredicto, 'n/d');
   assert.equal(v.followup_quality, null);
   assert.match(v.porque, /test/);
+});
+
+// `node-test` e `test` são o MESMO papel por duas fontes (detectarChecks:77-91):
+// `test` quando o package.json o declara, `node-test` quando é inferido dos
+// *.test.js da raiz. Um job que acrescente `scripts.test` faz o check mudar de
+// nome — e sem normalizar por papel isso lê-se como prova nova + prova perdida.
+
+test('D13/1: acrescentar scripts.test ao package.json é BOM, não silêncio', () => {
+  // node-test verde → test verde. Tudo medido, tudo a passar, e o job fez
+  // exactamente o que devia. Sem normalizar por papel dava n/d.
+  const antes = { veredicto: 'verde', checks: [{ id: 'node-test', passou: true }] };
+  const depois = { veredicto: 'verde', checks: [{ id: 'test', passou: true }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.equal(v.veredicto, 'verde');
+  assert.equal(v.followup_quality, 1, 'castigou com silêncio um job que declarou os testes');
+});
+
+test('D13/1: e a mesma renomeação com a suite vermelha não inventa culpa nova', () => {
+  // node-test vermelho → test vermelho: a MESMA falha crónica por outro nome.
+  // Sem normalizar por papel, `test` entrava em `novos` e escrevia 0.
+  const antes = { veredicto: 'vermelho', checks: [{ id: 'node-test', passou: false }] };
+  const depois = { veredicto: 'vermelho', checks: [{ id: 'test', passou: false }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.notEqual(v.veredicto, 'regressao', 'imputou ao job uma falha que ja existia, so por mudar de nome');
+  assert.deepEqual(v.novos_falhados, []);
 });
 
 test('D13/1: uma falha REAL nova continua a ser imputada — a guarda não cega o oráculo', () => {
