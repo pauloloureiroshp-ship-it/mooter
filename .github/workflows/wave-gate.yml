@@ -1,0 +1,96 @@
+name: wave-gate
+
+# PORQUÊ ISTO EXISTE
+# `tools/wave-gate.mjs` já mede se a suite PIOROU (a régua honesta: falhas
+# crónicas não podem subir). Até aqui só corria quando alguém se lembrava —
+# e a Wave K fechou precisamente porque ninguém se lembrou: dois testes
+# vermelhos, um `.mcpb` que teria instalado um servidor partido.
+# Um gate que depende de memória não é um gate. Este corre em TODOS os PRs
+# e em TODOS os pushes para main, sem filtro de caminhos: uma regressão não
+# pede licença ao path que a causou.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Um push por cima de outro no mesmo ramo cancela a corrida anterior — o que
+# interessa é o veredicto do topo, não o histórico de corridas intermédias.
+concurrency:
+  group: wave-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: a suite não pode piorar
+    runs-on: ubuntu-latest
+    # ⚠️ O `wave-gate.mjs:41` diz que a suite do mooter-bridge "passa dos 2 min".
+    # Medido a 2026-08-01 nesta máquina (Windows, node v24) e confirmado no gate
+    # pré-push: **26 s**. O comentário do .mjs está desactualizado e não é
+    # corrigido aqui para não misturar frentes. O `wave-gate.mjs` dá 10 min por
+    # pacote; 20 min de tecto de job dá margem para o baseline crescer sem cortar
+    # a meio — e um "morto por timeout" conta como PIOROU, por desenho.
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # A justificação de uma falha crónica é obrigatória e mecânica: sem ela,
+      # o baseline vira um sítio onde se esconde vermelho. Este passo é barato
+      # e falha ANTES de correr a suite, para o erro ser óbvio.
+      - name: Baseline é legível e toda a falha crónica tem justificação
+        run: |
+          node -e "
+            const fs = require('node:fs');
+            const b = JSON.parse(fs.readFileSync('tools/wave-gate-baseline.json', 'utf8'));
+            const pacotes = b.pacotes || {};
+            const nomes = Object.keys(pacotes);
+            if (!nomes.length) { console.error('baseline sem pacotes — o gate não guardaria nada'); process.exit(1); }
+            let mau = false;
+            for (const p of nomes) {
+              const e = pacotes[p] || {};
+              if (!Number.isFinite(e.fail)) { console.error('::error::' + p + ': campo fail em falta ou não numérico'); mau = true; continue; }
+              if (e.fail > 0 && !e.porque_ainda_vermelho) {
+                console.error('::error::' + p + ': ' + e.fail + ' falha(s) crónica(s) sem porque_ainda_vermelho. Uma falha tolerada exige justificação escrita, não silêncio.');
+                mau = true;
+              }
+            }
+            if (mau) process.exit(1);
+            console.log('baseline OK: ' + nomes.map(p => p + '=' + pacotes[p].fail).join(' · '));
+          "
+
+      # Os pacotes do baseline são standalone (não há workspace). Instala só os
+      # que tenham lockfile — o mooter-bridge é zero-dep de propósito e não deve
+      # ganhar um `npm ci` que não precisa.
+      - name: Instalar dependências dos pacotes do baseline (quando existem)
+        run: |
+          for pkg in $(node -e "console.log(Object.keys(JSON.parse(require('node:fs').readFileSync('tools/wave-gate-baseline.json','utf8')).pacotes||{}).join(' '))"); do
+            if [ -f "$pkg/package-lock.json" ]; then
+              echo "· npm ci em $pkg"
+              (cd "$pkg" && npm ci --no-audit --no-fund)
+            else
+              echo "· $pkg sem lockfile — zero-dep, nada a instalar"
+            fi
+          done
+
+      # O gate. Saída 0 = pode fechar a wave · 1 = piorou · 2 = erro de execução.
+      #
+      # O baseline commitado foi medido em Windows. A paridade com o Linux não
+      # é suposição: o run 30711619104 (test.yml, `main`, ubuntu-latest,
+      # 2026-08-01) deu `# pass 658 · # fail 1`, com o único `not ok` a ser o
+      # `ondaA.test.js` — a MESMA contagem de falhas do baseline. A falha é de
+      # ambiente-sem-Ollama e não de SO (o teste força `OLLAMA_HOST=127.0.0.1:1`,
+      # igualmente inalcançável no runner), por isso este gate entra verde à
+      # primeira. Se algum dia divergir, a correcção é
+      # `node tools/wave-gate.mjs --update` num commit com justificação —
+      # NUNCA desligar o passo.
+      - name: wave-gate — a suite não pode piorar
+        run: node tools/wave-gate.mjs

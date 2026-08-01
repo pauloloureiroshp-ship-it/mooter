@@ -234,8 +234,34 @@ function comparar(antes, depois) {
         + 'vale mais do que um verde sem prova',
     };
   }
-  const falhAntes = new Set((antes.checks || []).filter((c) => !c.passou).map((c) => c.id));
-  const falhDepois = (depois.checks || []).filter((c) => !c.passou).map((c) => c.id);
+  /**
+   * `c.passou === false`, nunca `!c.passou` — a diferença é o defeito nº1 deste
+   * ficheiro a repetir-se um nível acima. `correrCheck` já distingue os três
+   * estados (`true` passou · `false` correu e saiu != 0 · `null` não arrancou) e
+   * `medir()` respeita-os; era o `comparar()` que os colapsava. Com `!c.passou`,
+   * um check que passou ANTES e que DEPOIS não chega a arrancar (ENOENT/EACCES,
+   * PATH mexido, npm em falta) entra em `falhDepois` sem estar em `falhAntes` —
+   * conta como «novo vermelho» e escreve `followup_quality: 0` por causa do
+   * ambiente da máquina, não do trabalho do agente. Ausência de medição não é
+   * medição negativa (oraculo.js:110-113); aqui é onde isso se cumpre.
+   */
+
+  /**
+   * E compara-se por PAPEL, não por `id`. `detectarChecks` chama à verificação
+   * de testes `test` quando o `package.json` a declara e `node-test` quando a
+   * infere dos `*.test.js` da raiz (oraculo.js:87-91) — o mesmo papel por duas
+   * fontes. Sem normalizar, um job cuja tarefa É *acrescentar* `scripts.test`
+   * ao `package.json` faz o check mudar de nome e o oráculo lê isso como uma
+   * prova que apareceu do nada e outra que desapareceu. Nos dois sentidos:
+   *   · `node-test` vermelho → `test` vermelho vira «novo vermelho» e escreve
+   *     `followup_quality: 0` num job que não partiu nada (falso castigo);
+   *   · `node-test` verde → `test` verde vira «deixou de ser medido» e escreve
+   *     silêncio num job que fez exactamente o que devia (falso n/d).
+   */
+  const papel = (c) => (c.id === 'node-test' ? 'test' : c.id);
+
+  const falhAntes = new Set((antes.checks || []).filter((c) => c.passou === false).map(papel));
+  const falhDepois = (depois.checks || []).filter((c) => c.passou === false).map(papel);
   const novos = falhDepois.filter((id) => !falhAntes.has(id));
 
   if (novos.length) {
@@ -246,6 +272,39 @@ function comparar(antes, depois) {
       porque: 'o job partiu ' + novos.length + ' verificação(ões) que passava(m) antes: ' + novos.join(', '),
     };
   }
+
+  /**
+   * A outra metade da mesma doutrina, e a assimetria que a correcção acima
+   * criou sozinha: um check que passava ANTES e que DEPOIS deixa de arrancar
+   * (ou desaparece da lista) já não é castigado — mas também não pode ser
+   * PREMIADO. Um job que parta a capacidade de correr o check (apagar o
+   * `package.json`, estragar o PATH, remover o script) apagaria a única prova
+   * que existia contra si e levaria `followup_quality: 1`.
+   *
+   * `!c.passou` castigava-o mal; `c.passou === false` sozinho recompensa-o mal.
+   * O que a régua manda é silêncio: sem medição não há veredicto, nem para
+   * culpar nem para premiar.
+   */
+  const medidoDepois = new Map((depois.checks || []).map((c) => [papel(c), c]));
+  const deixaramDeMedir = (antes.checks || [])
+    .filter((c) => c.passou === true)
+    .filter((c) => {
+      const d = medidoDepois.get(papel(c));
+      return !d || d.passou == null;
+    })
+    .map((c) => c.id);
+
+  if (deixaramDeMedir.length) {
+    return {
+      veredicto: 'n/d',
+      followup_quality: null,
+      novos_falhados: [],
+      porque: 'n/d — ' + deixaramDeMedir.length + ' verificação(ões) que passava(m) antes deixou de ser medida ('
+        + deixaramDeMedir.join(', ') + '): não se culpa o job por isso, mas também não se lhe dá crédito '
+        + 'por uma prova que desapareceu',
+    };
+  }
+
   if (falhAntes.size) {
     return {
       veredicto: 'verde',
@@ -283,6 +342,41 @@ function eventoDeQualidade(veredictoComparado, contexto = {}) {
     porque: veredictoComparado.porque,
     job_id: contexto.job_id || null,
     custo_usd: 0,
+  };
+}
+
+/**
+ * Compõe o veredicto da REGRESSÃO com o da ENTREGA — a regra que decide se um
+ * «não entregou nada» chega a virar sinal.
+ *
+ * Vive aqui, e não inline no `seamless.js`, porque é doutrina do oráculo e tem
+ * de ser exercitável pela suite no MESMO caminho que o conector corre — não
+ * numa cópia. (D13, 2026-08-01: com o oráculo ligado por omissão, esta regra
+ * passou a estar no caminho de todos os jobs de escrita.)
+ *
+ * «Não partiu nada» não é «fez alguma coisa»: um job cujas escritas foram todas
+ * negadas responde «✓ concluído», não regride nada, e levaria `1`. Por isso a
+ * entrega manda quando HOUVE medição.
+ *
+ * Mas o inverso mata o sinal todo: quando `comparar()` devolveu `n/d`
+ * (`followup_quality: null` — a worktree não declara verificações nenhumas, que
+ * é o caso da raiz deste repo), o caminho honesto nunca escreve. Se a entrega
+ * pudesse escrever à mesma, o `0` seria o ÚNICO valor que aquela worktree
+ * conseguiria produzir: castigo possível, recompensa impossível, por omissão.
+ * Sem medição, silêncio.
+ *
+ * @returns o veredicto a usar — o original, ou um `nao_entregou` quando a
+ *          entrega o desmente E havia medição para desmentir.
+ */
+function comporEntrega(veredictoComparado, entrega) {
+  if (!veredictoComparado) return veredictoComparado;
+  if (!entrega || entrega.entregou !== false) return veredictoComparado;
+  if (veredictoComparado.followup_quality == null) return veredictoComparado;
+  return {
+    veredicto: 'nao_entregou',
+    followup_quality: 0,
+    novos_falhados: [],
+    porque: entrega.porque,
   };
 }
 
@@ -375,5 +469,5 @@ function entregouAlgo(antes, depois) {
 }
 
 module.exports = {
-  detectarChecks, medir, comparar, eventoDeQualidade, impressao, entregouAlgo, TIMEOUT_MS_DEFAULT,
+  detectarChecks, medir, comparar, eventoDeQualidade, comporEntrega, impressao, entregouAlgo, TIMEOUT_MS_DEFAULT,
 };
