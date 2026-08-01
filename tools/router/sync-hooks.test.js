@@ -20,7 +20,7 @@ const {
 
 // A COMPLETE wired hook: journaling (accumulateHandoff + handoff-journal) AND the v2.5 CAPTURE fix
 // (journal.effectiveCwd) — the marker set the self-check now requires.
-const ACCUMULATOR_BODY = 'function accumulateHandoff(){ const j = require("./handoff-journal.js"); j.effectiveCwd([], null); } function accumulateAgentSync(){ require("./agent-sync-ledger.js"); }';
+const ACCUMULATOR_BODY = 'function accumulateHandoff(){ const j = require("./handoff-journal.js"); j.effectiveCwd([], null); } function accumulateAgentSync(){ require("./agent-sync-ledger.js"); } function accumulateTurnIO(){ require("./ledger-turn-io.js"); }';
 const STALE_BODY = '// old turn-end, no journaling here';
 
 function tmp(prefix) {

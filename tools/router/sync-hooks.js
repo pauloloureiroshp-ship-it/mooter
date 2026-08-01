@@ -48,8 +48,12 @@ const WIRED_HOOKS = [
 // is the Perfect Handoff v2.5 CAPTURE fix — its presence proves the wired hook
 // records the REAL worktree (not the CC launch dir); a stale copy without it would
 // silently re-introduce the worktree-crossing lie, so the self-check flags it.
+// `accumulateTurnIO` is the Ledger Spine intent/outcome pair (2026-08-01): the
+// canonical hook derives both from the transcript, and a wired copy without it
+// goes back to a journal that knows a turn happened but not what was asked or
+// delivered — the exact silence this file exists to make loud.
 const ACCUMULATOR_HOOK = 'gsd-turn-end.js';
-const ACCUMULATOR_MARKERS = ['accumulateHandoff', 'handoff-journal', 'effectiveCwd', 'agent-sync-ledger'];
+const ACCUMULATOR_MARKERS = ['accumulateHandoff', 'handoff-journal', 'effectiveCwd', 'agent-sync-ledger', 'accumulateTurnIO'];
 
 function homeDir() {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();

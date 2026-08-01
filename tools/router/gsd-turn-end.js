@@ -419,6 +419,54 @@ function accumulateDecisions() {
 }
 try { accumulateDecisions(); } catch { /* never block the turn */ }
 
+// ── Ledger Spine L0 — MECHANICAL intent + outcome capture ───────────────────
+// The journal has declared `intent` and `outcome` in EVENT_KINDS since L0 and
+// nothing ever wrote them: measured on 2026-08-01, 263 session journals carried
+// `kind:decision` only. Without the pair, the ledger knows a turn HAPPENED but
+// not what was ASKED nor what was DELIVERED — so the next session re-asks.
+//
+// Derived from the transcript the host already wrote (ledger-turn-io.js is pure
+// and never invents): the last human prompt becomes `intent`, everything after
+// it becomes `outcome` (tool histogram, files written, tool errors, measured
+// token usage, closing snippet). Idempotent by the host's `promptId`, so
+// re-scanning the tail on later turns never duplicates. Best-effort, never
+// blocks the turn — a runtime without ledger-turn-io.js simply emits nothing.
+function accumulateTurnIO() {
+  if (!sessionId || sessionId === 'unknown') return;
+  let journal, turnio;
+  try { journal = require(path.join(ROUTER_DIR, 'handoff-journal.js')); } catch { return; }
+  if (typeof journal.appendEvent !== 'function') return; // pre-ledger runtime → skip
+  try { turnio = require(path.join(ROUTER_DIR, 'ledger-turn-io.js')); } catch { return; }
+
+  let lines = [];
+  try {
+    const tp = payload.transcript_path || payload.transcriptPath || null;
+    if (tp && fs.existsSync(tp)) lines = tailLines(tp, 262144);
+  } catch { return; }
+  if (!lines.length) return;
+
+  let io = null;
+  try { io = turnio.deriveTurnIO(lines); } catch { return; }
+  // No human prompt in the tail ⇒ this is a continuation, not a turn. Honest zero.
+  if (!io || !io.intent || !io.intent.turn_id) return;
+
+  // Mechanical provenance: the architect (cc) + the tier/model this turn routed to.
+  let model = null, tier = null;
+  try {
+    const st = JSON.parse(fs.readFileSync(path.join(ROUTER_DIR, '.last-classified.json'), 'utf8'));
+    if (st && st.session_id === sessionId) { model = st.recommended_model || st.model || null; tier = st.tier || null; }
+  } catch { /* optional */ }
+
+  const tid = io.intent.turn_id;
+  try {
+    journal.appendEvent({ sid: sessionId, agent: 'cc', model, tier, kind: 'intent', input: io.intent, idem_key: 'intent:' + tid });
+  } catch { /* never */ }
+  try {
+    journal.appendEvent({ sid: sessionId, agent: 'cc', model, tier, kind: 'outcome', output: io.outcome, idem_key: 'outcome:' + tid });
+  } catch { /* never */ }
+}
+try { accumulateTurnIO(); } catch { /* never block the turn */ }
+
 // ── MEO Control Tower — typed multi-agent turn checkpoint ──────────────────
 // Reuses this already-wired Stop hook instead of adding another global hook.
 // Local-only, compact and fail-soft: session/title/model pointers only, never
