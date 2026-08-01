@@ -21,7 +21,7 @@ function fixture() {
       message: { role: 'user', content: 'turno anterior, já fechado' } }),
     JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'feito' }] } }),
     JSON.stringify({ type: 'user', promptId: 'p-1', uuid: 'u1', timestamp: '2026-08-01T11:00:00.000Z',
-      cwd: 'C:/Users/Paulo Loureiro/frugal-o1', gitBranch: 'feat/o1',
+      cwd: 'C:/Users/Paulo Loureiro/mooter-wt', gitBranch: 'feat/o1',
       message: { role: 'user', content: 'liga o intent/outcome no gsd-turn-end' } }),
     JSON.stringify({ type: 'assistant', timestamp: '2026-08-01T11:00:05.000Z',
       message: { role: 'assistant', model: 'claude-opus-5', usage: { input_tokens: 100, output_tokens: 40 },
@@ -48,7 +48,7 @@ test('deriva intent do ÚLTIMO prompt humano, com identidade estável', () => {
   assert.equal(intent.text, 'liga o intent/outcome no gsd-turn-end');
   assert.equal(intent.truncated, false);
   assert.equal(intent.git_branch, 'feat/o1');
-  assert.equal(intent.cwd, 'C:/Users/Paulo Loureiro/frugal-o1');
+  assert.equal(intent.cwd, 'C:/Users/Paulo Loureiro/mooter-wt');
 });
 
 test('outcome conta ferramentas, ficheiros escritos e erros — medidos, não inferidos', () => {
