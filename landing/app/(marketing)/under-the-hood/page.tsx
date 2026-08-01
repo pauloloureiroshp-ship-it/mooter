@@ -48,7 +48,7 @@ export default function UnderTheHoodPage() {
         <CrookOutline size={34} /> Two ideas you don&apos;t need a PhD to use.
       </h1>
       <p style={{ color: 'var(--color-muted)', fontSize: 18, maxWidth: 660, marginBottom: 48 }}>
-        Quantization and DoRA make local-first routing work without trading off the answer — 30 seconds each.
+        Quantization is what makes local-first routing work today. DoRA is where it goes next — 30 seconds each.
       </p>
 
       {/* §7.1 Quantization */}
@@ -123,16 +123,17 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       <div className="uth-row m-stack" id="forge" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 28, alignItems: 'start', marginTop: 56 }}>
         <div>
           <Eyebrow>02 · LoRA / DoRA</Eyebrow>
-          <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 6px' }}>Specialize the brain on your code — locally, overnight.</h2>
+          <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 6px' }}>Specialize the brain on your code — the plan, not a promise.</h2>
           <div style={{ color: 'var(--color-accent-2)', fontSize: 13, fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>LoRA and DoRA, in 30 seconds</div>
           <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.65 }}>
             A 7-billion-parameter model knows a lot — but it doesn&apos;t know <em style={{ color: 'var(--color-accent)' }}>your</em> codebase.
             Re-training from scratch would take weeks and a cluster. LoRA (Low-Rank Adaptation) lets you train a tiny &apos;patch&apos; — usually under
             100MB — that adjusts the model toward your specific style, your conventions, your domain. DoRA is the 2024
             refinement: it separates <em>how much</em> the patch moves a weight from <em>which direction</em>, which
-            makes the adapter sharper for the same compute budget. Mooter&apos;s Wave 5 trains a DoRA r=32 adapter on your
-            repo locally on your RTX 4090 in 3-6 hours, overnight. Activate it in your terminal. Your code never leaves
-            your machine.
+            makes the adapter sharper for the same compute budget. Adapter Forge — training a DoRA adapter on your own
+            repo, on your own GPU — is planned for Wave 5 and <strong>is not shipped</strong>. Mooter has never trained
+            an adapter, and today every install runs on the baseline model. Numbers below are targets from the
+            published DoRA/Unsloth literature, not measurements of Mooter.
           </p>
           {/* adapter diagram */}
           <Card style={{ marginTop: 20, background: 'var(--color-surface-2)' }} padding={20}>
@@ -140,7 +141,7 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
               <div style={{ position: 'absolute', top: -10, left: 14, padding: '2px 8px', background: 'var(--color-surface-2)', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--color-muted)' }}>base model · frozen · 7B params · 5 GB</div>
               <div style={{ margin: '10px 0', border: '1.5px solid var(--color-accent)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-accent-08)' }}>
                 <div style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 13, color: 'var(--color-accent)' }}>LoRA adapter · your code</div>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--color-muted)', marginTop: 2 }}>r=32 · ~80 MB · trained ~4h</div>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--color-muted)', marginTop: 2 }}>r=32 · ~80 MB · ~4h — target, not measured</div>
               </div>
             </div>
             <div style={{ textAlign: 'center', marginTop: 10, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-muted)' }}>↓</div>
@@ -204,7 +205,8 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
           them separately — sharper adapters at the same rank. Implementation reference:{' '}
           <a href="https://huggingface.co/docs/peft" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>HuggingFace PEFT</a>.
           As of 2026, fused Triton kernels (e.g. Unsloth&apos;s fused LoRA/DoRA) cut training memory and roughly double
-          throughput vs the naïve implementation — which is what makes the overnight RTX 4090 run above feasible.
+          throughput vs the naïve implementation — which is what would make an overnight RTX 4090 run feasible when
+          Adapter Forge ships.
         </p>
       </div>
 

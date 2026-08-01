@@ -14,7 +14,7 @@ const cards = [
   {
     icon: '🧩',
     title: 'LoRA / DoRA',
-    body: 'Adapter layers fine-tune the base model for your codebase — ~80 MB each, trained overnight on your machine. Free when local.',
+    body: 'Adapter layers can fine-tune a base model for one codebase without re-training it. Not shipped yet — the explainer covers how it works and where Mooter is headed.',
   },
   {
     icon: '🎮',
