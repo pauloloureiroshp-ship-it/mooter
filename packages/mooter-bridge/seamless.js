@@ -302,6 +302,17 @@ const ORACULO_TIMEOUT_MS = Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) > 0
   ? Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) : 180000;
 
 /**
+ * D13 (2026-08-01): o oráculo corre POR OMISSÃO em jobs de escrita. Só um `0`
+ * explícito o desliga — qualquer outro valor (incluindo o antigo `1`) mantém-no
+ * ligado, para que nenhuma configuração existente mude de comportamento ao
+ * contrário do esperado. Lido a cada job (função, não constante) para que a
+ * variável possa ser mudada sem reiniciar o conector.
+ */
+function ORACULO_LIGADO() {
+  return String(process.env.MOOTER_ORACULO || '').trim() !== '0';
+}
+
+/**
  * Escreve o sinal de qualidade onde o learner já o procura.
  *
  * `tools/router/feedback-collector.js:16` define o ficheiro; `auto-feedback.js`
@@ -2059,14 +2070,25 @@ async function toolDispatch(args) {
    * depois e compara. A régua é a do repo — «não piora», nunca «passa» — para
    * que uma falha crónica (o `ondaA.test.js`) não marque todos os jobs como maus.
    *
-   * Só para jobs de ESCRITA (um job de leitura não pode partir nada) e só com
-   * `MOOTER_ORACULO=1`: correr a suite custa segundos reais (20,5 s medidos em
-   * `packages/router`) e essa decisão é de quem opera a máquina, não minha.
+   * Só para jobs de ESCRITA — um job de leitura não pode partir nada.
+   *
+   * **D13, decidida por Paulo a 2026-08-01: LIGADO POR OMISSÃO.** Ficou opt-in
+   * (`MOOTER_ORACULO=1`) quando aterrou, com o argumento de que correr a suite
+   * custa segundos reais (20,5 s medidos em `packages/router`). O argumento é
+   * verdadeiro e é insuficiente: um sinal de qualidade que só existe quando
+   * alguém se lembra de exportar uma variável é o mesmo `/mooter-good` que
+   * ninguém carregou — 0 eventos em toda a história do `decisions.log`. O custo
+   * real do opt-in não são os 20 s por job de escrita; é o learner continuar
+   * cego indefinidamente. Ligado por omissão, os segundos pagam-se; desligado
+   * por omissão, não se paga nada e não se aprende nada.
+   *
+   * Reversível numa variável: `MOOTER_ORACULO=0` desliga-o por completo. Quem
+   * opera a máquina continua a mandar — o que mudou foi só a omissão.
    * Envolto em try/catch: o oráculo pode falhar à vontade, o job segue.
    */
   let oraculoAntes = null;
   let impressaoAntes = null;
-  if (canWrite && process.env.MOOTER_ORACULO === '1') {
+  if (canWrite && ORACULO_LIGADO()) {
     try {
       oraculoAntes = oraculo.medir(wtNorm, { timeoutMs: ORACULO_TIMEOUT_MS });
       impressaoAntes = oraculo.impressao(wtNorm);
@@ -3652,6 +3674,9 @@ module.exports = {
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,
   applyQuotaCeiling,
+  // D13 — exposto para a suite poder provar a OMISSÃO (ligado) e o opt-out
+  // (`MOOTER_ORACULO=0`), em vez de confiar na leitura do `if`.
+  ORACULO_LIGADO,
   requestedPermissions, effectivePermissions, permissionReport,
   _paths: { REPO, LEDGER_PATH, JOBS_DIR },
   requireClassify,
