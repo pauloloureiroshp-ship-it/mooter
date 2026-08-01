@@ -1,4 +1,4 @@
 {
-  "version": "1.45.1",
+  "version": "1.45.2",
   "_comment": "Generated — never hand-edit. Written from the release tag by .github/workflows/version-sync.yml, same run that writes tools/router/version.json (the source of truth). Exists as a copy only because Next.js cannot import from outside the app root. Read by app/page.tsx hero badge, changelog, compare, install and methodology pages."
 }
