@@ -671,6 +671,29 @@ if (!decision) {
   setClassifyCached(classifyInput, decision, null, _prevTier);
 }
 
+// ── USER_OVERRIDE guard (P0, PRIME-0 2026-08-01) ───────────────────────
+// classify.js (FROZEN) aceita as preposições NUAS `com`/`with`/`via` antes de
+// qualquer chave de modelo, e `local`/`claude` são palavras correntes: "compara
+// a nuvem com local" pinava qwen2.5:3b, "sessao fresca com claude code" pinava
+// opus. Como o sha do classify.js é CI-enforced, o veto vive aqui. Corre sobre
+// o prompt ORIGINAL (não o normalizado) — é o texto que o utilizador escreveu
+// que diz se houve intenção. Ver user-override-guard.test.js.
+try {
+  const { applyOverrideGuard } = require('./user-override-guard.js');
+  const guard = applyOverrideGuard(decision, prompt, { t0Model: bestOllamaT0() });
+  if (guard.vetoed) {
+    logDecision({
+      ts: new Date().toISOString(),
+      event: 'user_override_vetoed',
+      reason: guard.reason,
+      restored_tier: guard.restored_tier,
+      cache_hit: cacheHit,
+    });
+    // Uma decisão cacheada com o fantasma dentro voltaria a servi-lo.
+    if (cacheHit) setClassifyCached(classifyInput, decision, null, _prevTier);
+  }
+} catch { /* guard best-effort: nunca derruba o hook */ }
+
 // ── /mooter-<slug> Anthropic pin (Sessão A, 2026-05-27) ────────────────
 // A `/mooter-<model>` skill is primarily instruction-driven, but when the
 // launching shell exports MOOTER_PIN_MODEL=<claude-id> we surface the pin in
