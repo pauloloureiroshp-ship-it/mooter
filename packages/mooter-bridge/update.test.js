@@ -494,6 +494,43 @@ test('U27 — procurarAsync degrada-se para local-only quando o GitHub falha', a
   assert.strictEqual(r.nova.origem, 'local');
 });
 
+test('U29 — REDE 5: reverter repoe o manifest na RAIZ, nao dentro de server/', () => {
+  // ⚠️ MEDIDO EM PRODUCAO (PRIME-0, 2026-08-01), nao imaginado.
+  // Depois de `atualizar:reverter` o conector ficou com TRES versoes ao mesmo
+  // tempo: manifest.json da raiz em 1.45.3 (a versao de que se tinha revertido),
+  // server/manifest.json em 1.45.2, server/version.json em 1.45.1. E porque
+  // `versao_instalada` le o manifest da RAIZ, o updater passou a jurar que
+  // estava na 1.45.3 e RECUSOU-SE a reinstalar: "nao encontrei nenhum bundle
+  // mais recente". Rollback que deixa o utilizador preso e porta so de ida.
+  //
+  // A causa: `aplicar` tem o caso especial (manifest.json vai para a raiz, via
+  // reporBackupAsync) e `reverter` reimplementava o ciclo sem ele. Duas rotas
+  // de restauro, uma certa e uma errada.
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-reverter-'));
+  const { installRoot, installDir, mooterDir } = prepararInstalacao(raiz, '2.0.0');
+
+  // a copia de seguranca e PLANA, como o instalador a escreve
+  const backup = path.join(mooterDir, 'backup-1.0.0-1700000000000');
+  fs.mkdirSync(backup, { recursive: true });
+  fs.writeFileSync(path.join(backup, 'manifest.json'), JSON.stringify({ version: '1.0.0' }));
+  fs.writeFileSync(path.join(backup, 'antigo.js'), 'module.exports = "1.0.0";\n');
+
+  const r = up.reverter({ mooterDir, dest: installDir });
+  assert.ok(r.ok, 'o reverter devia ter corrido: ' + JSON.stringify(r));
+
+  const raizDepois = JSON.parse(fs.readFileSync(path.join(installRoot, 'manifest.json'), 'utf8'));
+  assert.strictEqual(raizDepois.version, '1.0.0',
+    'o manifest da RAIZ ficou na versao de que se reverteu — o updater passa a mentir e recusa reinstalar');
+
+  assert.ok(!fs.existsSync(path.join(installDir, 'manifest.json')),
+    'o manifest foi parar dentro de server/, onde ninguem o le');
+
+  assert.strictEqual(fs.readFileSync(path.join(installDir, 'antigo.js'), 'utf8'), 'module.exports = "1.0.0";\n',
+    'os ficheiros do servidor tambem tem de voltar');
+
+  fs.rmSync(raiz, { recursive: true, force: true });
+});
+
 test('U28 — o painel (probe.js) usa procurarAsync, não só a busca local', () => {
   const probe = require('./probe.js');
   const src = fs.readFileSync(path.join(__dirname, 'probe.js'), 'utf8');

@@ -652,21 +652,43 @@ function estadoDaInstalacao(opts) {
   });
 }
 
-/** Voltar atrás, a partir da cópia de segurança mais recente. */
-function reverter() {
+/**
+ * Voltar atrás, a partir da cópia de segurança mais recente.
+ *
+ * O `manifest.json` da cópia é o da RAIZ da instalação, não o de `server/` —
+ * é assim que `aplicar` o guarda (via `lerManifest`, que procura `../manifest.json`
+ * primeiro). Repô-lo dentro de `server/` deixava a raiz na versão de que se
+ * acabou de reverter, e como é a raiz que `versao_instalada` lê, o updater
+ * passava a jurar que estava na versão nova e recusava reinstalar
+ * ("não encontrei nenhum bundle mais recente"). Medido em produção na PRIME-0:
+ * três versões em simultâneo e o utilizador preso. Ver U29.
+ *
+ * @param {{ mooterDir?: string, dest?: string }} [opts] injectável para teste;
+ *   sem argumentos mantém o comportamento antigo dos dois call sites.
+ */
+function reverter(opts) {
+  const o = opts || {};
+  const mooterDir = o.mooterDir || MOOTER_DIR;
   let dirs;
   try {
-    dirs = fs.readdirSync(MOOTER_DIR).filter((d) => d.startsWith('backup-'))
-      .map((d) => ({ d, p: path.join(MOOTER_DIR, d) }))
+    dirs = fs.readdirSync(mooterDir).filter((d) => d.startsWith('backup-'))
+      .map((d) => ({ d, p: path.join(mooterDir, d) }))
       .filter((x) => { try { return fs.statSync(x.p).isDirectory(); } catch { return false; } })
       .sort((a, b) => b.d.localeCompare(a.d));
   } catch { return { ok: false, erro: 'não há cópias de segurança' }; }
   if (!dirs.length) return { ok: false, erro: 'não há cópias de segurança' };
   const b = dirs[0].p;
-  const dest = pastaInstalada();
+  const dest = o.dest || pastaInstalada();
+  // a mesma regra de `reporBackupAsync` — havia duas rotas de restauro e só uma
+  // estava certa.
+  const atual = lerManifest(dest);
   let n = 0;
   for (const f of fs.readdirSync(b)) {
-    try { fs.copyFileSync(path.join(b, f), path.join(dest, f)); n++; } catch { /* */ }
+    try {
+      const alvo = f === 'manifest.json' && atual ? atual.ficheiro : path.join(dest, f);
+      fs.copyFileSync(path.join(b, f), alvo);
+      n++;
+    } catch { /* continuar a repor o que for possível */ }
   }
   return { ok: true, de: b, ficheiros: n, a_seguir: 'fecha o Claude Desktop por completo e volta a abrir' };
 }
