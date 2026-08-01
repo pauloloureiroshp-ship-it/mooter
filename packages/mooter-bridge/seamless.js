@@ -86,12 +86,50 @@ const BUNDLE_DIR = () => process.env.MOOTER_BUNDLE_DIR || __dirname;
  * `server/`, ao lado deste ficheiro: é essa cópia que serve de rede de
  * segurança.
  */
+/**
+ * ⚠️ O router é o núcleo de valor do produto. Quando ele não corre, o conector
+ * continua a responder — e essa é exactamente a degradação silenciosa que o
+ * `estranho.test.js` existe para impedir. Este objecto é a única fonte de
+ * verdade sobre o que aconteceu ao classificador nesta sessão.
+ *
+ * Doutrina: `null` é ABSTENÇÃO ("ainda não tentei"), `false` é AFIRMAÇÃO
+ * ("tentei e não deu"). Nunca afirmar `false` antes de haver tentativa.
+ */
+const ROUTER_ESTADO = {
+  disponivel: null,
+  porque: 'ainda não foi tentado nesta sessão — abstenção, não afirmação',
+  classify_ms: null,
+  caminho: null,
+  tentativas: 0,
+};
+
+/**
+ * Estado do router, para o painel e para o retorno de `mooter_work`.
+ * Puro acessor: NÃO dispara uma tentativa. Se disparasse, deixaria de ser
+ * possível distinguir "não tentei" de "tentei e falhou".
+ */
+function estadoDoRouter() {
+  return {
+    disponivel: ROUTER_ESTADO.disponivel,
+    porque: ROUTER_ESTADO.porque,
+    classify_ms: ROUTER_ESTADO.classify_ms,
+    caminho: ROUTER_ESTADO.caminho,
+    tentativas: ROUTER_ESTADO.tentativas,
+  };
+}
+
 function requireClassify() {
   try {
-    return require(path.join(REPO, 'tools', 'router', 'classify.js'));
+    const alvo = path.join(REPO, 'tools', 'router', 'classify.js');
+    const mod = require(alvo);
+    ROUTER_ESTADO.caminho = alvo;
+    return mod;
   } catch (repoError) {
     try {
-      return require(path.join(BUNDLE_DIR(), 'classify.js'));
+      const alvo = path.join(BUNDLE_DIR(), 'classify.js');
+      const mod = require(alvo);
+      ROUTER_ESTADO.caminho = alvo;
+      return mod;
     } catch (bundleError) {
       throw new Error('classify.js indisponível em ' + REPO + ' nem em ' + BUNDLE_DIR() + ': '
         + ((bundleError && bundleError.message) || bundleError)
@@ -1413,12 +1451,49 @@ function veredictoSemEvidencia(meta, body) {
   return { degradado: true, texto: aviso + String(body) };
 }
 
-/** Ask the FROZEN classifier directly. Returns null if it is unavailable. */
+/**
+ * Ask the FROZEN classifier directly. Returns null if it is unavailable.
+ *
+ * ⚠️ Até 2026-08-01 este `catch` era `{ return null; }` — engolia a razão e o
+ * conector seguia como se nada fosse. Agora cada tentativa deixa rasto em
+ * ROUTER_ESTADO: disponível ou não, porquê, e quanto tempo levou A MEDIR (nunca
+ * a afirmar). O valor de retorno mantém-se igual — nada a jusante muda.
+ */
 function classifyOrNull(text) {
+  ROUTER_ESTADO.tentativas += 1;
+  let classify;
   try {
-    const { classify } = requireClassify();
-    return classify(String(text || ''));
-  } catch { return null; }
+    ({ classify } = requireClassify());
+  } catch (e) {
+    ROUTER_ESTADO.disponivel = false;
+    ROUTER_ESTADO.porque = 'classify.js não carregou: ' + ((e && e.message) || String(e));
+    ROUTER_ESTADO.classify_ms = null;
+    ROUTER_ESTADO.caminho = null;
+    return null;
+  }
+  const t0 = process.hrtime.bigint();
+  try {
+    const d = classify(String(text || ''));
+    ROUTER_ESTADO.disponivel = true;
+    ROUTER_ESTADO.porque = 'classify.js carregou e classificou; classify_ms é MEDIDO nesta chamada';
+    ROUTER_ESTADO.classify_ms = Math.round(Number(process.hrtime.bigint() - t0) / 1e3) / 1e3;
+    return d;
+  } catch (e) {
+    ROUTER_ESTADO.disponivel = false;
+    ROUTER_ESTADO.porque = 'classify.js carregou mas rebentou a classificar: ' + ((e && e.message) || String(e));
+    ROUTER_ESTADO.classify_ms = null;
+    return null;
+  }
+}
+
+/**
+ * Estado do router garantindo que houve pelo menos UMA tentativa. Usado no
+ * retorno de `mooter_work`: devolver `null` ali seria abstenção sobre algo que
+ * já podia ter sido medido.
+ */
+function routerParaResposta(text) {
+  if (ROUTER_ESTADO.tentativas === 0) classifyOrNull(text);
+  return estadoDoRouter();
 }
 
 /**
@@ -3127,6 +3202,13 @@ async function toolWork(args) {
     relocated, relocated_porque: relocatedPorque, worktree_criada: worktreeCriada,
     worktree_frescura: relocationFreshness,
   }, r);
+  // ⚠️ Medido UMA vez e usado em dois sítios: o campo `router` e o titular.
+  // Se o router não correu, o titular tem de o dizer — um conector sem
+  // classificador continua a responder, e é aí que o valor evapora em silêncio.
+  const routerEstado = routerParaResposta(goal);
+  const routerAviso = routerEstado.disponivel === true
+    ? ''
+    : ' · ⚠ sem router (' + routerEstado.porque + ')';
   return {
     // ⚠️ v1.3.3 — a frase legível vive DENTRO do objecto, como primeira chave.
     // A v1.3.2 punha-a em `content[0].text` e este host mostra o
@@ -3136,7 +3218,8 @@ async function toolWork(args) {
       + (prepareSkipped ? ' · sem preparação local' : '')
       + worktreeSuffix(pedida, worktree, relocated, relocationFreshness)
       + (contextoInjectado ? ' · li ' + contextoInjectado.lidos.length + ' ficheiro(s) por ele ($0)' : '')
-      + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : ''),
+      + (execucaoInjectada ? ' · corri ' + execucaoInjectada.executados.length + ' comando(s) por ele ($0)' : '')
+      + routerAviso,
     ok: true, goal, category: workCategory.category,
     category_fonte: workCategory.category_fonte, wave,
     cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
@@ -3197,6 +3280,10 @@ async function toolWork(args) {
     aviso_fabricacao: avisoFabricacao,   // A3: forçaste um motor que não lê
     downgraded,                          // porque não foi para onde o router queria
     prepare_skipped: prepareSkipped,     // ❌ silêncio nunca; n/d sempre
+    // ⚠️ O router é o núcleo de valor: se ele não correu, isto tem de o dizer.
+    // Sem este campo, um conector sem classificador respondia na mesma e ninguém
+    // notava — a degradação silenciosa que o estranho.test.js persegue.
+    router: routerEstado,
     mode: readOnly ? 'só leitura' : 'escrita permitida',
     note: 'a trabalhar. O painel actualiza-se sozinho; usa mooter_await para esperar e mooter_collect no fim.',
   };
@@ -3341,6 +3428,8 @@ const TOOLS = [
 module.exports = {
   TOOLS, guardCheck, ledgerAppend, ledgerRead, activeJobsByWorktree,
   toolRoute, toolDispatch, toolStatus, toolCollect, toolCancel, toolPlan, toolJournal, toolWork, toolAwait,
+  // o painel precisa de mostrar o estado do router sem disparar uma classificação
+  estadoDoRouter, resumoHonesto,
   buildCommand, bootstrapPrompt, setJobSpawner, setCrossCheckRunner, REGISTRY,
   sweepOrphans, killTree, cliModelFor, tierDoMotor, classifyOrNull, readJobResult, parseCostFromOut,
   pedeLeituraDeFicheiro, resolverPreparacao, recusaPorFaltaDeContexto, classificarEntrega,
