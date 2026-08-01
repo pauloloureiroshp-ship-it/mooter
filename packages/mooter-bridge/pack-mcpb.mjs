@@ -44,6 +44,11 @@ const FILES = [
   ['worktrees.js', 'server/worktrees.js'],
   ['tools6.js', 'server/tools6.js'],
   ['localfirst.js', 'server/localfirst.js'],
+  // Oráculo de regressão (auditoria E2E 2026-08-01). O `bundle.test.js` apanhou a
+  // ausência desta linha no minuto em que o `seamless.js` passou a requerê-lo —
+  // sem ela o conector publicado rebentaria no require, e só se saberia depois
+  // de instalado. É exactamente o género de erro que só um gate mecânico apanha.
+  ['oraculo.js', 'server/oraculo.js'],
   ['aprender.js', 'server/aprender.js'],
   ['eta.js', 'server/eta.js'],
   ['estimativa.js', 'server/estimativa.js'],

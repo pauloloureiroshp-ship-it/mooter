@@ -44,6 +44,7 @@ const wt = require('./worktrees.js');
 const contexto = require('./context.js');
 const P = require('./paths.js');
 const localfirst = require('./localfirst.js');
+const oraculo = require('./oraculo.js');
 const aprender = require('./aprender.js');
 const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
@@ -295,6 +296,31 @@ function ledgerRead() {
 // `nao_verificado` (auditoria E2E 2026-08-01): o job produziu trabalho real mas
 // terminou a pedir aprovação — é terminal, e NÃO é `done`. Ver classificarEntrega.
 const TERMINAL = new Set(['done', 'failed', 'nao_verificado', 'prep_timeout', 'prep_failed_fallback']);
+
+/** Tecto do oráculo por medição. Medido: a suite de packages/router leva ~20,5 s. */
+const ORACULO_TIMEOUT_MS = Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) > 0
+  ? Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) : 180000;
+
+/**
+ * Escreve o sinal de qualidade onde o learner já o procura.
+ *
+ * `tools/router/feedback-collector.js:16` define o ficheiro; `auto-feedback.js`
+ * lê-o. Escrever no MESMO sítio, com a MESMA forma, é o que faz o oráculo entrar
+ * no loop existente em vez de criar um paralelo — a diferença fica declarada no
+ * campo `fonte`, para ninguém confundir medição com opinião.
+ */
+function escreverSinalDeQualidade(evento) {
+  try {
+    const alvo = process.env.MOOTER_DECISIONS_LOG
+      || path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+    fs.mkdirSync(path.dirname(alvo), { recursive: true });
+    fs.appendFileSync(alvo, JSON.stringify(evento) + '\n');
+    return alvo;
+  } catch (e) {
+    log('oráculo: não consegui escrever o sinal (' + (e && e.message) + ')');
+    return null;
+  }
+}
 /**
  * ⚠️ Um evento de diagnóstico não é um estado.
  *
@@ -2020,7 +2046,33 @@ async function toolDispatch(args) {
   // continua garantida; o que deixa de ser garantido é o processo ficar vivo
   // só por causa de um despertador.
   try { timer.unref(); } catch { /* ambiente sem unref */ }
-  REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm,
+  /**
+   * ── O ORÁCULO: fotografia ANTES, para o loop poder atribuir culpa ─────────
+   *
+   * Auditoria E2E 2026-08-01: `followup_quality` existe desde sempre em
+   * `tools/router/feedback-collector.js` e alimenta o reward de
+   * `auto-feedback.js` — com **0 eventos** no `decisions.log`. Ninguém carrega no
+   * polegar. Sem sinal de qualidade a entrar, o learner não aprende nada e a
+   * auto-melhoria é uma intenção.
+   *
+   * `oraculo.js` fecha isso sem juiz-LLM: mede o estado verificável antes e
+   * depois e compara. A régua é a do repo — «não piora», nunca «passa» — para
+   * que uma falha crónica (o `ondaA.test.js`) não marque todos os jobs como maus.
+   *
+   * Só para jobs de ESCRITA (um job de leitura não pode partir nada) e só com
+   * `MOOTER_ORACULO=1`: correr a suite custa segundos reais (20,5 s medidos em
+   * `packages/router`) e essa decisão é de quem opera a máquina, não minha.
+   * Envolto em try/catch: o oráculo pode falhar à vontade, o job segue.
+   */
+  let oraculoAntes = null;
+  let impressaoAntes = null;
+  if (canWrite && process.env.MOOTER_ORACULO === '1') {
+    try {
+      oraculoAntes = oraculo.medir(wtNorm, { timeoutMs: ORACULO_TIMEOUT_MS });
+      impressaoAntes = oraculo.impressao(wtNorm);
+    } catch (e) { log('oráculo: baseline falhou (' + (e && e.message) + ') — job segue sem sinal'); }
+  }
+  REGISTRY.set(job_id, { child, timer, startedAt: t0, wave, agent, worktree: wtNorm, oraculoAntes,
     mp_hash, step: stepId, contentTiming, stepTracker, markCancelled() { cancelRequested = true; } });
 
   function prepMetrics(durationS, usable) {
@@ -2167,6 +2219,38 @@ async function toolDispatch(args) {
     if (outcome.aguarda_aprovacao) {
       log('job ' + job_id + ' saiu 0, mas ' + outcome.aguarda_aprovacao + ' — marcado nao_verificado');
     }
+    // ── O ORÁCULO: fotografia DEPOIS + sinal de qualidade a custo zero ────────
+    let oraculoVeredicto = null;
+    let entrega = null;
+    if (oraculoAntes) {
+      try {
+        const depois = oraculo.medir(wtNorm, { timeoutMs: ORACULO_TIMEOUT_MS });
+        oraculoVeredicto = oraculo.comparar(oraculoAntes, depois);
+        entrega = oraculo.entregouAlgo(impressaoAntes, oraculo.impressao(wtNorm));
+        /**
+         * «Não partiu nada» não é «fez alguma coisa». Medido em 2026-08-01: um
+         * job de escrita com 20 negações de permissão respondeu «✓ Tarefa
+         * concluída», ficou `done`, e teria levado followup_quality:1 — porque
+         * de facto não regrediu nada. Um verde comprado com inacção envenena o
+         * learner tão bem como um vermelho falso.
+         */
+        if (entrega && entrega.entregou === false) {
+          oraculoVeredicto = {
+            veredicto: 'nao_entregou',
+            followup_quality: 0,
+            novos_falhados: [],
+            porque: entrega.porque,
+          };
+        }
+        const ev = oraculo.eventoDeQualidade(oraculoVeredicto, {
+          job_id, tier, task_category: args && args.__category, session_id: r.session_id,
+        });
+        if (ev) escreverSinalDeQualidade(ev);
+        log('oráculo: ' + oraculoVeredicto.veredicto + ' — ' + oraculoVeredicto.porque);
+      } catch (e) {
+        log('oráculo: comparação falhou (' + (e && e.message) + ') — sem sinal, nunca sinal inventado');
+      }
+    }
     if (ok && (!r.telemetry || r.telemetry.tokens_out == null)) {
       log('job ' + job_id + ' entregou resultado sem telemetria — tokens n/d, mas o job correu');
     }
@@ -2175,6 +2259,11 @@ async function toolDispatch(args) {
       exit_code: outcome.exit_code,
       note: refusal || outcome.aguarda_aprovacao || undefined,
       recusa_contexto: refusal ? { detectada: true, porque: refusal } : undefined,
+      oraculo: oraculoVeredicto
+        ? { veredicto: oraculoVeredicto.veredicto, porque: oraculoVeredicto.porque,
+          followup_quality: oraculoVeredicto.followup_quality,
+          novos_falhados: oraculoVeredicto.novos_falhados, custo_usd: 0 }
+        : undefined,
       aprovacao_pendente: outcome.aguarda_aprovacao
         ? { detectada: true, porque: outcome.aguarda_aprovacao,
           faz_assim: 'passa allowedTools com Bash (ex.: "Read,Glob,Grep,Edit,Write,Bash") para o agente poder verificar o próprio trabalho' }
