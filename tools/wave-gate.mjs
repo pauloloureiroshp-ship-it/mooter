@@ -49,7 +49,12 @@ function lerBaseline() {
 
 function correr(pkg) {
   return new Promise((res) => {
-    execFile(process.execPath, ['--test'], {
+    // ⚠️ `--test-reporter=tap` é obrigatório, não é preferência. O reporter por
+    // omissão do `node --test` mudou para `spec` no Node 24 (`ℹ pass N` em vez de
+    // `# pass N`), e `medir()` deixou de encontrar os totais — o gate passou a
+    // devolver "não consegui ler" em TODAS as corridas. Fixar o reporter torna a
+    // medição imune à versão do Node que estiver no PATH.
+    execFile(process.execPath, ['--test', '--test-reporter=tap'], {
       cwd: join(REPO, pkg), timeout: TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
       windowsHide: true,
     }, (err, stdout, stderr) => {
