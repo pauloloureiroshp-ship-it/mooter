@@ -2371,6 +2371,27 @@ async function toolCollect(args) {
  * `progressToken` (anthropics/claude-code#58687), so notifications would be dead
  * work. The server waits, the panel polls itself, and the chat stays clean.
  */
+
+/**
+ * ⚠️ J-2 — o titular de `mooter_check`. Existe como função NOMEADA de propósito:
+ * `estranho.test.js` verifica que ela existe, porque quando este resumo nascia
+ * inline (ou não nascia de todo) o wrapper `comResumo` de `tools6.js` punha
+ * "🐮 feito" por omissão — inclusive sobre jobs falhados.
+ *
+ * ⚠️ LIMITE CONHECIDO (medido 2026-08-01): `failed` só contém jobs com
+ * `exit_code ≠ 0`. Um agente que RECUSA — "preciso de permissão", "não consigo
+ * ler o ficheiro" — sai com 0 e cai no ramo verde. Nessa sessão quatro jobs
+ * bloqueados apareceram como concluídos e custaram $0,44 sem trabalho nenhum.
+ * Detectar recusa semântica é trabalho por fazer, não coberto por esta função.
+ */
+function resumoHonesto(done, failed, jobs, failureReasons) {
+  if (failed.length) {
+    return '⛔ ' + failed.length + ' job(s) falharam'
+      + (failureReasons.length ? ' · ' + failureReasons.join(' · ') : '');
+  }
+  return '🐮 ' + done.length + '/' + jobs.length + ' job(s) concluídos';
+}
+
 async function toolAwait(args) {
   const a = args || {};
   const wave = a.wave ? String(a.wave) : null;
@@ -2479,10 +2500,7 @@ async function toolAwait(args) {
    */
   const failureReasons = failed.map((job) => job.note).filter(Boolean);
   return {
-    resumo: failed.length
-      ? '⛔ ' + failed.length + ' job(s) falharam'
-        + (failureReasons.length ? ' · ' + failureReasons.join(' · ') : '')
-      : '🐮 ' + done.length + '/' + jobs.length + ' job(s) concluídos',
+    resumo: resumoHonesto(done, failed, jobs, failureReasons),
     settled: true,
     waited_s: Math.round((Date.now() - t0) / 1000),
     total: jobs.length, done: done.length, failed: failed.length,
