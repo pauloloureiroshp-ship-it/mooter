@@ -10,6 +10,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { ORACULO_LIGADO } = require('./seamless.js');
+const oraculo = require('./oraculo.js');
 
 function comEnv(valor, fn) {
   const antes = process.env.MOOTER_ORACULO;
@@ -37,4 +38,67 @@ test('D13: o antigo `MOOTER_ORACULO=1` continua a ligar — nada quebra a montan
 test('D13: um valor desconhecido mantém-no ligado — a falha é para o lado do sinal', () => {
   assert.equal(comEnv('talvez', ORACULO_LIGADO), true);
   assert.equal(comEnv('', ORACULO_LIGADO), true);
+});
+
+// ── Os dois defeitos que ligar por omissão transformou de teóricos em diários ──
+// Apanhados pelo gate pré-push desta wave. Enquanto o oráculo era opt-in
+// (MOOTER_ORACULO=1) quase ninguém os atingia; a partir de D13 estão no caminho
+// de TODOS os jobs de escrita, e por isso são bloqueadores e não notas.
+
+test('D13/1: um check que passava e que DEPOIS não arranca não é regressão do job', () => {
+  // ENOENT/EACCES/PATH mexido a meio ⇒ `passou: null` (não arrancou), nunca
+  // `false`. Com o antigo filtro `!c.passou` isto entrava em falhDepois sem
+  // estar em falhAntes e escrevia followup_quality:0 por causa da máquina.
+  const antes = { veredicto: 'verde', checks: [{ id: 'test', passou: true }, { id: 'lint', passou: true }] };
+  const depois = { veredicto: 'verde', checks: [{ id: 'test', passou: null, correu: false }, { id: 'lint', passou: true }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.equal(v.veredicto, 'verde', 'ausência de medição virou medição negativa');
+  assert.equal(v.followup_quality, 1);
+  assert.deepEqual(v.novos_falhados, []);
+});
+
+test('D13/1: uma falha REAL nova continua a ser imputada — a guarda não cega o oráculo', () => {
+  const antes = { veredicto: 'verde', checks: [{ id: 'test', passou: true }] };
+  const depois = { veredicto: 'vermelho', checks: [{ id: 'test', passou: false }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.equal(v.veredicto, 'regressao');
+  assert.equal(v.followup_quality, 0);
+  assert.deepEqual(v.novos_falhados, ['test']);
+});
+
+test('D13/1: um check que já não arrancava ANTES e falha a sério DEPOIS conta como novo', () => {
+  const antes = { veredicto: 'verde', checks: [{ id: 'a', passou: true }, { id: 'test', passou: null, correu: false }] };
+  const depois = { veredicto: 'vermelho', checks: [{ id: 'a', passou: true }, { id: 'test', passou: false }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.deepEqual(v.novos_falhados, ['test'], 'um vermelho medido tem de contar mesmo vindo de um n/d');
+});
+
+test('D13/2: sem medição, «não entregou» NÃO escreve — senão o 0 era o único valor possível', () => {
+  // A raiz deste repo não declara scripts.test/lint/build nem tem *.test.js na
+  // raiz ⇒ medir() devolve n/d ⇒ comparar() devolve followup_quality null ⇒ o
+  // caminho honesto nunca escreve. Se a entrega escrevesse à mesma, aquela
+  // worktree só sabia produzir castigo, nunca recompensa.
+  const nd = oraculo.comparar({ veredicto: 'n/d', checks: [] }, { veredicto: 'n/d', checks: [] });
+  assert.equal(nd.followup_quality, null);
+  const composto = oraculo.comporEntrega(nd, { entregou: false, porque: 'a worktree ficou igual' });
+  assert.equal(composto.followup_quality, null, 'n/d virou 0 — sinal unidireccional');
+  assert.equal(oraculo.eventoDeQualidade(composto), null, 'escreveu evento sem ter medido nada');
+});
+
+test('D13/2: COM medição, «não entregou» continua a matar o verde comprado com inacção', () => {
+  const verde = oraculo.comparar(
+    { veredicto: 'verde', checks: [{ id: 'test', passou: true }] },
+    { veredicto: 'verde', checks: [{ id: 'test', passou: true }] });
+  assert.equal(verde.followup_quality, 1);
+  const composto = oraculo.comporEntrega(verde, { entregou: false, porque: '20 escritas negadas' });
+  assert.equal(composto.veredicto, 'nao_entregou');
+  assert.equal(composto.followup_quality, 0);
+  assert.match(oraculo.eventoDeQualidade(composto).porque, /negadas/);
+});
+
+test('D13/2: quem entregou passa incólume, e um veredicto ausente não é inventado', () => {
+  const verde = { veredicto: 'verde', followup_quality: 1, novos_falhados: [], porque: 'tudo passa' };
+  assert.deepEqual(oraculo.comporEntrega(verde, { entregou: true }), verde);
+  assert.deepEqual(oraculo.comporEntrega(verde, null), verde);
+  assert.equal(oraculo.comporEntrega(null, { entregou: false }), null);
 });

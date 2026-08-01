@@ -234,8 +234,19 @@ function comparar(antes, depois) {
         + 'vale mais do que um verde sem prova',
     };
   }
-  const falhAntes = new Set((antes.checks || []).filter((c) => !c.passou).map((c) => c.id));
-  const falhDepois = (depois.checks || []).filter((c) => !c.passou).map((c) => c.id);
+  /**
+   * `c.passou === false`, nunca `!c.passou` — a diferença é o defeito nº1 deste
+   * ficheiro a repetir-se um nível acima. `correrCheck` já distingue os três
+   * estados (`true` passou · `false` correu e saiu != 0 · `null` não arrancou) e
+   * `medir()` respeita-os; era o `comparar()` que os colapsava. Com `!c.passou`,
+   * um check que passou ANTES e que DEPOIS não chega a arrancar (ENOENT/EACCES,
+   * PATH mexido, npm em falta) entra em `falhDepois` sem estar em `falhAntes` —
+   * conta como «novo vermelho» e escreve `followup_quality: 0` por causa do
+   * ambiente da máquina, não do trabalho do agente. Ausência de medição não é
+   * medição negativa (oraculo.js:110-113); aqui é onde isso se cumpre.
+   */
+  const falhAntes = new Set((antes.checks || []).filter((c) => c.passou === false).map((c) => c.id));
+  const falhDepois = (depois.checks || []).filter((c) => c.passou === false).map((c) => c.id);
   const novos = falhDepois.filter((id) => !falhAntes.has(id));
 
   if (novos.length) {
@@ -283,6 +294,41 @@ function eventoDeQualidade(veredictoComparado, contexto = {}) {
     porque: veredictoComparado.porque,
     job_id: contexto.job_id || null,
     custo_usd: 0,
+  };
+}
+
+/**
+ * Compõe o veredicto da REGRESSÃO com o da ENTREGA — a regra que decide se um
+ * «não entregou nada» chega a virar sinal.
+ *
+ * Vive aqui, e não inline no `seamless.js`, porque é doutrina do oráculo e tem
+ * de ser exercitável pela suite no MESMO caminho que o conector corre — não
+ * numa cópia. (D13, 2026-08-01: com o oráculo ligado por omissão, esta regra
+ * passou a estar no caminho de todos os jobs de escrita.)
+ *
+ * «Não partiu nada» não é «fez alguma coisa»: um job cujas escritas foram todas
+ * negadas responde «✓ concluído», não regride nada, e levaria `1`. Por isso a
+ * entrega manda quando HOUVE medição.
+ *
+ * Mas o inverso mata o sinal todo: quando `comparar()` devolveu `n/d`
+ * (`followup_quality: null` — a worktree não declara verificações nenhumas, que
+ * é o caso da raiz deste repo), o caminho honesto nunca escreve. Se a entrega
+ * pudesse escrever à mesma, o `0` seria o ÚNICO valor que aquela worktree
+ * conseguiria produzir: castigo possível, recompensa impossível, por omissão.
+ * Sem medição, silêncio.
+ *
+ * @returns o veredicto a usar — o original, ou um `nao_entregou` quando a
+ *          entrega o desmente E havia medição para desmentir.
+ */
+function comporEntrega(veredictoComparado, entrega) {
+  if (!veredictoComparado) return veredictoComparado;
+  if (!entrega || entrega.entregou !== false) return veredictoComparado;
+  if (veredictoComparado.followup_quality == null) return veredictoComparado;
+  return {
+    veredicto: 'nao_entregou',
+    followup_quality: 0,
+    novos_falhados: [],
+    porque: entrega.porque,
   };
 }
 
@@ -375,5 +421,5 @@ function entregouAlgo(antes, depois) {
 }
 
 module.exports = {
-  detectarChecks, medir, comparar, eventoDeQualidade, impressao, entregouAlgo, TIMEOUT_MS_DEFAULT,
+  detectarChecks, medir, comparar, eventoDeQualidade, comporEntrega, impressao, entregouAlgo, TIMEOUT_MS_DEFAULT,
 };

@@ -2255,15 +2255,15 @@ async function toolDispatch(args) {
          * concluída», ficou `done`, e teria levado followup_quality:1 — porque
          * de facto não regrediu nada. Um verde comprado com inacção envenena o
          * learner tão bem como um vermelho falso.
+         *
+         * A composição vive em `oraculo.comporEntrega` — é doutrina do oráculo e
+         * a suite tem de a exercitar no MESMO caminho que corre aqui, não numa
+         * cópia. Ela é que garante a guarda que D13 tornou indispensável: sem
+         * medição (`followup_quality: null`, o caso da raiz deste repo, que não
+         * declara verificações), a entrega não escreve nada — senão o `0` seria
+         * o único valor que aquela worktree conseguiria produzir.
          */
-        if (entrega && entrega.entregou === false) {
-          oraculoVeredicto = {
-            veredicto: 'nao_entregou',
-            followup_quality: 0,
-            novos_falhados: [],
-            porque: entrega.porque,
-          };
-        }
+        oraculoVeredicto = oraculo.comporEntrega(oraculoVeredicto, entrega);
         const ev = oraculo.eventoDeQualidade(oraculoVeredicto, {
           job_id, tier, task_category: args && args.__category, session_id: r.session_id,
         });
