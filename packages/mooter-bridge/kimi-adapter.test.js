@@ -170,9 +170,14 @@ test('wiring expõe kimi nas duas tools, no manifest e sem key no comando', () =
     assert.doesNotMatch(guarded.texto, /motor local/);
   }
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf8'));
-  const minor = manifest.version.split('.').slice(0, 2).join('.');
+  // O kimi tem de constar das entregas de ALGUMA versão — não da corrente. Exigir
+  // a corrente fazia o teste rebentar em todo o bump que não tocasse no kimi (foi
+  // o que aconteceu na 1.45.0, que entregou só fatia-local.js).
   const deliveries = JSON.parse(fs.readFileSync(path.join(__dirname, 'entregas-por-versao.json'), 'utf8'));
-  assert.ok(deliveries[minor].includes('kimi-adapter.js'));
+  assert.ok(
+    Object.values(deliveries).some((ficheiros) => ficheiros.includes('kimi-adapter.js')),
+    'kimi-adapter.js tem de constar das entregas de alguma versão',
+  );
   assert.strictEqual(manifest.server.mcp_config.env.MOONSHOT_API_KEY, '${user_config.moonshot_api_key}');
   assert.strictEqual(manifest.user_config.moonshot_api_key.sensitive, true);
 });
