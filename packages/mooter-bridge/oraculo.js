@@ -257,6 +257,39 @@ function comparar(antes, depois) {
       porque: 'o job partiu ' + novos.length + ' verificação(ões) que passava(m) antes: ' + novos.join(', '),
     };
   }
+
+  /**
+   * A outra metade da mesma doutrina, e a assimetria que a correcção acima
+   * criou sozinha: um check que passava ANTES e que DEPOIS deixa de arrancar
+   * (ou desaparece da lista) já não é castigado — mas também não pode ser
+   * PREMIADO. Um job que parta a capacidade de correr o check (apagar o
+   * `package.json`, estragar o PATH, remover o script) apagaria a única prova
+   * que existia contra si e levaria `followup_quality: 1`.
+   *
+   * `!c.passou` castigava-o mal; `c.passou === false` sozinho recompensa-o mal.
+   * O que a régua manda é silêncio: sem medição não há veredicto, nem para
+   * culpar nem para premiar.
+   */
+  const medidoDepois = new Map((depois.checks || []).map((c) => [c.id, c]));
+  const deixaramDeMedir = (antes.checks || [])
+    .filter((c) => c.passou === true)
+    .filter((c) => {
+      const d = medidoDepois.get(c.id);
+      return !d || d.passou == null;
+    })
+    .map((c) => c.id);
+
+  if (deixaramDeMedir.length) {
+    return {
+      veredicto: 'n/d',
+      followup_quality: null,
+      novos_falhados: [],
+      porque: 'n/d — ' + deixaramDeMedir.length + ' verificação(ões) que passava(m) antes deixou de ser medida ('
+        + deixaramDeMedir.join(', ') + '): não se culpa o job por isso, mas também não se lhe dá crédito '
+        + 'por uma prova que desapareceu',
+    };
+  }
+
   if (falhAntes.size) {
     return {
       veredicto: 'verde',

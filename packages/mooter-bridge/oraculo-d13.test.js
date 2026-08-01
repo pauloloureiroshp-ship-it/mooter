@@ -52,9 +52,33 @@ test('D13/1: um check que passava e que DEPOIS não arranca não é regressão d
   const antes = { veredicto: 'verde', checks: [{ id: 'test', passou: true }, { id: 'lint', passou: true }] };
   const depois = { veredicto: 'verde', checks: [{ id: 'test', passou: null, correu: false }, { id: 'lint', passou: true }] };
   const v = oraculo.comparar(antes, depois);
-  assert.equal(v.veredicto, 'verde', 'ausência de medição virou medição negativa');
-  assert.equal(v.followup_quality, 1);
+  assert.notEqual(v.veredicto, 'regressao', 'ausência de medição virou medição negativa');
   assert.deepEqual(v.novos_falhados, []);
+  assert.notEqual(v.followup_quality, 0, 'castigou o job pelo ambiente da máquina');
+});
+
+test('D13/1: mas também não é PRÉMIO — quem apaga a prova não leva followup_quality 1', () => {
+  // A assimetria que a própria correcção acima criou: se `passou:null` deixa de
+  // castigar, um job que parta a CAPACIDADE de correr o check (apagar o
+  // package.json, estragar o PATH) apagava a única prova contra si e caía no
+  // ramo verde. Sem medição, silêncio — nem culpa nem crédito.
+  const antes = { veredicto: 'verde', checks: [{ id: 'test', passou: true }, { id: 'lint', passou: true }] };
+  const depois = { veredicto: 'verde', checks: [{ id: 'test', passou: null, correu: false }, { id: 'lint', passou: true }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.equal(v.veredicto, 'n/d');
+  assert.equal(v.followup_quality, null, 'premiou um job por uma prova que desapareceu');
+  assert.match(v.porque, /deixou de ser medida/);
+  assert.equal(oraculo.eventoDeQualidade(v), null);
+});
+
+test('D13/1: um check que DESAPARECE da lista conta como deixou de ser medido', () => {
+  // Remover o script do package.json faz o check sumir de `detectarChecks`,
+  // não aparecer como null. É a mesma perda de prova por outra porta.
+  const antes = { veredicto: 'verde', checks: [{ id: 'test', passou: true }, { id: 'lint', passou: true }] };
+  const depois = { veredicto: 'verde', checks: [{ id: 'lint', passou: true }] };
+  const v = oraculo.comparar(antes, depois);
+  assert.equal(v.followup_quality, null);
+  assert.match(v.porque, /test/);
 });
 
 test('D13/1: uma falha REAL nova continua a ser imputada — a guarda não cega o oráculo', () => {
