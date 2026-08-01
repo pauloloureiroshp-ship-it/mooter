@@ -48,6 +48,7 @@ const FILES = [
   ['eta.js', 'server/eta.js'],
   ['estimativa.js', 'server/estimativa.js'],
   ['sync.js', 'server/sync.js'],
+  ['fatia-local.js', 'server/fatia-local.js'],
   ['board.js', 'server/board.js'],
   ['recibo.js', 'server/recibo.js'],
   ['recibo-contexto.js', 'server/recibo-contexto.js'],
