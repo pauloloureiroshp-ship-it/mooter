@@ -112,10 +112,61 @@ test('linhas ilegíveis são ignoradas, nunca lançam', () => {
 });
 
 test('texto acima do tecto é cortado e marcado truncated — nunca em silêncio', () => {
-  const longo = 'x'.repeat(5000);
+  // Prosa a sério, não 5000 x's: uma corrida longa de alfanuméricos é redigida
+  // como `<base64>` pelo privacy.js e nunca chegaria ao tecto. O corte tem de
+  // ser medido sobre o texto que de facto vai para disco — o já sanitizado.
+  const longo = ('o oráculo mede o estado antes e depois do job. ').repeat(80);
   const { intent } = deriveTurnIO([JSON.stringify({ type: 'user', promptId: 'p-4', message: { role: 'user', content: longo } })]);
   assert.equal(intent.text.length, 1200);
   assert.equal(intent.truncated, true);
+});
+
+// ── Privacidade: o prompt humano é a categoria de conteúdo NOVA que este ──────
+// módulo trouxe para o journal, e é onde se colam chaves. O caminho está ligado
+// por omissão (hook Stop), por isso não pode ser o único sem redacção.
+
+test('privacidade: uma chave colada no prompt NÃO aterra em claro no journal', () => {
+  const chave = 'sk-ant-api03-' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
+  const { intent } = deriveTurnIO([JSON.stringify({
+    type: 'user', promptId: 'p-sec',
+    message: { role: 'user', content: 'a minha chave é ' + chave + ' — porque é que falha?' },
+  })]);
+  assert.ok(!intent.text.includes(chave), 'a chave da API foi para disco em claro');
+  assert.match(intent.text, /<anthropic_key>/);
+  assert.match(intent.text, /porque é que falha/, 'a redacção comeu o pedido todo em vez do segredo');
+});
+
+test('privacidade: o remate do assistente também é redigido', () => {
+  const token = 'ghp_' + 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8';
+  const { outcome } = deriveTurnIO([
+    JSON.stringify({ type: 'user', promptId: 'p-sec2', message: { role: 'user', content: 'mostra o token' } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'é ' + token }] } }),
+  ]);
+  assert.ok(!outcome.assistant_snippet.includes(token));
+  assert.match(outcome.assistant_snippet, /<github_token>/);
+});
+
+test('privacidade: um segredo a cavalo no tecto não escapa pela metade', () => {
+  // Sanitizar DEPOIS de cortar deixaria meia chave em disco. O corte é a última
+  // coisa que acontece, por isso o padrão inteiro chega ao privacy.js.
+  const chave = 'sk-ant-api03-' + 'Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3i2H1g0';
+  const enchimento = 'contexto irrelevante mas comprido. '.repeat(34); // ~1190 chars
+  const { intent } = deriveTurnIO([JSON.stringify({
+    type: 'user', promptId: 'p-sec3', message: { role: 'user', content: enchimento + chave },
+  })]);
+  assert.ok(!intent.text.includes('sk-ant-api03-'), 'metade de uma chave ainda é uma chave');
+});
+
+test('privacidade: caminhos de ficheiro escrito NÃO são redigidos — são o campo', () => {
+  // `files_written` é estrutural, não texto livre. A regra <winpath> apagaria
+  // exactamente o que torna o campo útil, e o journal já regista o cwd noutros
+  // eventos — redigir aqui daria privacidade nenhuma e custaria o campo todo.
+  const { outcome } = deriveTurnIO([
+    JSON.stringify({ type: 'user', promptId: 'p-path', message: { role: 'user', content: 'escreve o ficheiro' } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [
+      { type: 'tool_use', id: 'w1', name: 'Write', input: { file_path: 'C:\\Users\\alguem\\repo\\a.js' } }] } }),
+  ]);
+  assert.deepEqual(outcome.files_written, ['C:\\Users\\alguem\\repo\\a.js']);
 });
 
 // ── Integração com o journal: os eventos aterram com o kind certo e deduplicam ──

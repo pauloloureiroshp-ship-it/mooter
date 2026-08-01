@@ -40,6 +40,38 @@ const FILES_MAX = 40;      // um turno que toca >40 ficheiros conta-se, não se 
 // vive em `file_path` (Edit/Write) ou `notebook_path` (NotebookEdit).
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
 
+/**
+ * ── PORQUE O TEXTO LIVRE PASSA POR AQUI ANTES DE IR PARA DISCO ────────────────
+ *
+ * O `intent` introduz no journal uma CATEGORIA DE CONTEÚDO NOVA: o prompt humano.
+ * Até aqui o journal só guardava `assistant_snippet` — e o sítio onde as pessoas
+ * colam uma chave de API é o prompt, não a resposta do modelo. O repo já tem a
+ * doutrina escrita e o antídoto pronto: `session-context.js:14` declara-se
+ * «opt-in (default OFF), sanitized (privacy.sanitize), 0600, local-only», e
+ * `privacy.js` redige `sk-ant-…`, `sk-…`, `ghp_…`, `Bearer …`, emails, IPs,
+ * strings de ligação e blobs base64.
+ *
+ * Este caminho está LIGADO por omissão (é um hook Stop), por isso não pode
+ * também ser o único sem redacção. Sanitiza-se o texto livre — o `intent.text`
+ * e o remate do assistente.
+ *
+ * O que NÃO se sanitiza, e porquê: `files_written`, `cwd` e `git_branch`. São
+ * campos estruturais, não texto livre; a regra `<winpath>` do `privacy.js`
+ * apagaria exactamente a informação que os torna úteis, e o journal já regista
+ * o `cwd` da worktree noutros eventos (`handoff-journal.js`, `effectiveCwd`) —
+ * redigi-los aqui daria privacidade nenhuma e custaria o campo todo.
+ *
+ * Degrada em silêncio: sem `privacy.js` o texto passa como está, exactamente
+ * como `session-context.js:57` faz. Nunca lança.
+ */
+function _sanitize(text) {
+  try {
+    const pv = require('./privacy.js');
+    if (pv && typeof pv.sanitize === 'function') return pv.sanitize(String(text));
+  } catch { /* privacy é opcional — nunca partir o turno por causa dela */ }
+  return String(text);
+}
+
 // PURE: deriva { intent, outcome } de um tail JSONL do transcript (linhas cruas OU
 // objectos já parseados). Devolve `null` quando não há prompt humano no tail.
 function deriveTurnIO(lines) {
@@ -62,10 +94,13 @@ function deriveTurnIO(lines) {
   if (!text) return null;
 
   const turn_id = _turnId(head);
+  // Sanitiza ANTES de cortar: um segredo a cavalo no limite dos 1200 chars não
+  // pode escapar por metade — a régua do `privacy.js` precisa do padrão inteiro.
+  const textoSeguro = _sanitize(text);
   const intent = {
     turn_id,
-    text: text.slice(0, PROMPT_MAX),
-    truncated: text.length > PROMPT_MAX,
+    text: textoSeguro.slice(0, PROMPT_MAX),
+    truncated: textoSeguro.length > PROMPT_MAX,
     ts: head.timestamp || null,
     cwd: head.cwd || null,
     git_branch: head.gitBranch || null,
@@ -129,7 +164,7 @@ function deriveTurnIO(lines) {
     tool_errors,
     models,
     usage: sawUsage ? usage : null,                  // n/d, nunca zero inventado
-    assistant_snippet: snippet.slice(0, SNIPPET_MAX),
+    assistant_snippet: _sanitize(snippet).slice(0, SNIPPET_MAX),
     started_at: head.timestamp || null,
     ended_at,
   };
