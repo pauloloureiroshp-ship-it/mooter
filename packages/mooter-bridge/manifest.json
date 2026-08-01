@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "mooter",
   "display_name": "Mooter",
-  "version": "1.45.2",
+  "version": "1.45.3",
   "description": "A cabine do Mooter no Cowork: mede quanto ja gastaste, baixa o tier sozinho quando aperta, manda para a tua GPU o que ela consegue, e guarda o estado da sessao para a conversa seguinte nascer informada em vez de arrastar tudo atras de si.",
   "long_description": "Mooter poe a frota de agentes dentro da conversa, num unico bloco que se le de cima para baixo.\n\nQUEM CONDUZ - o modelo desta conversa, declarado por quem chama (o MCP nao o expoe; sem declaracao aparece n/d, nunca um palpite).\n\nO TRABALHO - cada tarefa em arvore: o motor de subscricao que rematou (Claude Code, Codex) e, por baixo dele, os moos locais que lhe prepararam o caminho a custo zero. Modelo real lido do stream do proprio job, tokens ao vivo, tokens por segundo, e o porque de cada modelo local ter sido escolhido.\n\nO SALDO - que percentagem dos tokens saiu da tua GPU, quanto custou mesmo em subscricoes, e uma poupanca estimada com a base de calculo a vista, valorizada ao modelo pago mais barato para nunca exagerar.\n\nA CABINE - GPU, vault Obsidian, avisos de coerencia, e o Live Preview: o painel embebe o teu servidor local (so localhost) e mede se este host o permite, em vez de o assumir.\n\nO motor: um router local-first determinista (classify.js, congelado por sha em CI, $0 para classificar) que escolhe o tier minimo viavel e passa esse modelo ao CLI. Nada e proxiado e nada e fabricado: o que nao se sabe aparece como n/d.\n\nTELEMETRIA - o conector nao envia telemetria automatica. O install-id (UUID local em ~/.mooter/install-id.json) e gerado na primeira sessao e nunca transmitido sem consentimento explicito.",
   "author": {
