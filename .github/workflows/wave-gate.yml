@@ -26,9 +26,12 @@ jobs:
   gate:
     name: a suite não pode piorar
     runs-on: ubuntu-latest
-    # A suite completa do mooter-bridge passa dos 2 min e o wave-gate.mjs dá-lhe
-    # 10 min por pacote. 20 dá margem para o baseline crescer sem cortar a meio —
-    # um "morto por timeout" conta como PIOROU, por desenho.
+    # ⚠️ O `wave-gate.mjs:41` diz que a suite do mooter-bridge "passa dos 2 min".
+    # Medido a 2026-08-01 nesta máquina (Windows, node v24) e confirmado no gate
+    # pré-push: **26 s**. O comentário do .mjs está desactualizado e não é
+    # corrigido aqui para não misturar frentes. O `wave-gate.mjs` dá 10 min por
+    # pacote; 20 min de tecto de job dá margem para o baseline crescer sem cortar
+    # a meio — e um "morto por timeout" conta como PIOROU, por desenho.
     timeout-minutes: 20
 
     steps:
@@ -80,11 +83,14 @@ jobs:
 
       # O gate. Saída 0 = pode fechar a wave · 1 = piorou · 2 = erro de execução.
       #
-      # ⚠️ O baseline commitado foi medido em Windows (2026-08-01: 1 falha
-      # crónica, `ondaA`, 658 pass). A falha é de ambiente-sem-Ollama, não de
-      # SO — o teste força `OLLAMA_HOST=127.0.0.1:1`, que é igualmente
-      # inalcançável no runner. Se ainda assim a contagem no Linux divergir, a
-      # correcção é `node tools/wave-gate.mjs --update` num commit com
-      # justificação — NUNCA desligar o passo.
+      # O baseline commitado foi medido em Windows. A paridade com o Linux não
+      # é suposição: o run 30711619104 (test.yml, `main`, ubuntu-latest,
+      # 2026-08-01) deu `# pass 658 · # fail 1`, com o único `not ok` a ser o
+      # `ondaA.test.js` — a MESMA contagem de falhas do baseline. A falha é de
+      # ambiente-sem-Ollama e não de SO (o teste força `OLLAMA_HOST=127.0.0.1:1`,
+      # igualmente inalcançável no runner), por isso este gate entra verde à
+      # primeira. Se algum dia divergir, a correcção é
+      # `node tools/wave-gate.mjs --update` num commit com justificação —
+      # NUNCA desligar o passo.
       - name: wave-gate — a suite não pode piorar
         run: node tools/wave-gate.mjs

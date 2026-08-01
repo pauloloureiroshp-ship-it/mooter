@@ -421,9 +421,12 @@ try { accumulateDecisions(); } catch { /* never block the turn */ }
 
 // ── Ledger Spine L0 — MECHANICAL intent + outcome capture ───────────────────
 // The journal has declared `intent` and `outcome` in EVENT_KINDS since L0 and
-// nothing ever wrote them: measured on 2026-08-01, 263 session journals carried
-// `kind:decision` only. Without the pair, the ledger knows a turn HAPPENED but
-// not what was ASKED nor what was DELIVERED — so the next session re-asks.
+// nothing has written them in over a month. Measured 2026-08-01 across the 273
+// session journals: 56 `decision` events in 24 files, but `intent`/`outcome`
+// appear in exactly ONE file — 16 events, all stamped 2026-07-01T02:28:13.013Z,
+// the day the v3/v4 handoff was designed. Proven once, never wired. Without the
+// pair the ledger knows a turn HAPPENED but not what was ASKED nor what was
+// DELIVERED — so the next session re-asks.
 //
 // Derived from the transcript the host already wrote (ledger-turn-io.js is pure
 // and never invents): the last human prompt becomes `intent`, everything after

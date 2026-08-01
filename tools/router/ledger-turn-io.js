@@ -2,13 +2,22 @@
 // ledger-turn-io.js — Moo Ledger Spine L0: MECHANICAL intent + outcome capture.
 //
 // PORQUÊ ISTO EXISTE (2026-08-01)
-// O `handoff-journal.js` declara oito `EVENT_KINDS` desde o L0, mas só um deles
-// era alguma vez escrito: `kind:'decision'` (ledger-decision.js, via o Stop hook).
-// Medido na Wave O-0: 263 ficheiros `.jsonl` em `~/.claude/tools/router/handoff/`
-// — 263 sessões — e ZERO eventos `intent` ou `outcome`. O handoff v3/v4 marcou-os
-// como o próximo passo a 2026-07-01 e ninguém os ligou. Sem eles, o journal sabe
-// que houve um turno e não sabe o que foi PEDIDO nem o que foi ENTREGUE, e cada
-// sessão nova volta a perguntar.
+// O `handoff-journal.js` declara oito `EVENT_KINDS` desde o L0, mas na prática
+// só um era escrito de forma continuada: `kind:'decision'` (ledger-decision.js,
+// via o Stop hook).
+//
+// Medido a 2026-08-01 em `~/.claude/tools/router/handoff/` — e o número corrige
+// o que a Wave O-0 tinha dito («263 sessões, ZERO intent/outcome»), que era
+// literalmente falso:
+//   · 273 ficheiros `.jsonl` (273 sessões)
+//   · `decision` — 56 eventos, espalhados por 24 ficheiros
+//   · `intent`/`outcome` — 16 eventos num ÚNICO ficheiro, todos carimbados
+//     `2026-07-01T02:28:13.013Z`: uma única rajada no dia em que o handoff v3/v4
+//     foi desenhado, e nunca mais nada nas 272 sessões seguintes.
+//
+// Portanto não é «nunca existiu»: é «foi provado uma vez e nunca foi ligado».
+// Sem estes eventos o journal sabe que houve um turno e não sabe o que foi
+// PEDIDO nem o que foi ENTREGUE, e cada sessão nova volta a perguntar.
 //
 // Este módulo é PURO: DERIVA do transcript que o host já escreveu e NUNCA inventa.
 //   • intent  — o prompt humano deste turno (não um tool_result, não uma injecção
