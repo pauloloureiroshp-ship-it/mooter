@@ -45,7 +45,18 @@ function noPath(bin) {
     : [''];
   for (const dir of dirs) {
     for (const ext of exts) {
-      try { if (fs.existsSync(path.join(dir, bin + ext))) return true; } catch { /* pasta ilegível */ }
+      const p = path.join(dir, bin + ext);
+      try {
+        if (!fs.existsSync(p)) continue;
+        /**
+         * ⚠️ G4 (codex, 2026-08-02), achado nº7: em macOS/Linux bastava EXISTIR um ficheiro
+         * chamado `git`. Um `git` sem bit de execução passava o diagnóstico a verde e falhava
+         * depois com EACCES — o padrão exacto que este trabalho existe para matar (verde no
+         * arranque, falha no primeiro job). Em Windows a extensão do PATHEXT já é a prova.
+         */
+        if (process.platform !== 'win32') { fs.accessSync(p, fs.constants.X_OK); }
+        return true;
+      } catch { /* não existe, ou existe e não é executável — próxima */ }
     }
   }
   return false;
@@ -121,8 +132,28 @@ function probeOllama(hostStr, timeoutMs) {
 
   return new Promise((resolve) => {
     let done = false;
-    const finish = (v) => { if (!done) { done = true; resolve(Object.assign({ alvo }, v)); } };
+    let prazo = null;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      if (prazo) { clearTimeout(prazo); prazo = null; }
+      try { if (req) req.destroy(); } catch { /* já fechado */ }
+      resolve(Object.assign({ alvo }, v));
+    };
+    /**
+     * ⚠️ G4 (codex, 2026-08-02), achado nº3: o `timeout` do `http.get` é de INACTIVIDADE, não um
+     * prazo absoluto. Um servidor que envie um byte de header a cada segundo nunca dispara o
+     * `timeout` e nunca termina a resposta — a Promise ficava pendurada para sempre e o socket
+     * aberto. Isto é um prazo real: ao fim dele, acabou, independentemente de haver tráfego.
+     */
     let req;
+    prazo = setTimeout(() => finish({
+      estado: 'timeout',
+      modelos: null,
+      porque: 'a resposta de ' + alvo + ' não terminou dentro de ' + (timeout * 2) + ' ms (prazo absoluto)',
+      conserto: 'algo está a responder devagar em ' + alvo + ' — reinicia o Ollama e repete',
+    }), timeout * 2);
+    if (prazo.unref) prazo.unref();
     try {
       req = http.get({ host, port, path: '/api/tags', timeout }, (res) => {
         let body = '';
@@ -146,7 +177,23 @@ function probeOllama(hostStr, timeoutMs) {
               conserto: 'actualiza o Ollama (ollama.com/download) — a API /api/tags mudou ou está corrompida',
             });
           }
-          const modelos = ((j && j.models) || []).map((m) => m.model || m.name).filter(Boolean);
+          /**
+           * ⚠️ G4 (codex, 2026-08-02), achado nº2: `((j && j.models) || []).map(...)` rebentava
+           * com `{"models":{}}` — um objecto é truthy, `||` não o apanha, e o `.map` lançava
+           * TypeError DENTRO do handler de `end`, onde não há catch: a Promise nunca resolvia.
+           * JSON válido com a forma errada não é "ilegível", é resposta inesperada — e um probe
+           * que existe para diagnosticar falhas não pode ser a falha.
+           */
+          if (!j || !Array.isArray(j.models)) {
+            return finish({
+              estado: 'resposta_inesperada',
+              modelos: null,
+              porque: 'em ' + alvo + ' o /api/tags devolveu JSON sem a lista `models` (recebido: '
+                + (j === null ? 'null' : Array.isArray(j) ? 'array' : typeof j) + ')',
+              conserto: 'confirma que ' + alvo + ' é mesmo o Ollama e não outro serviço na mesma porta',
+            });
+          }
+          const modelos = j.models.map((m) => (m && (m.model || m.name)) || null).filter(Boolean);
           if (!modelos.length) {
             return finish({
               estado: 'sem_modelos',

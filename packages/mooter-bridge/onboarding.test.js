@@ -111,6 +111,38 @@ test('gap 2 · timeout distingue-se de daemon em baixo', async () => {
   mudo.close();
 });
 
+test('G4 nº2 · JSON válido com a forma errada não rebenta o probe', async () => {
+  // O codex apanhou isto: `((j && j.models) || []).map(...)` — um objecto é truthy, o `||` não o
+  // apanha, e o `.map` lançava TypeError DENTRO do handler de `end`, onde não há catch.
+  for (const corpo of ['{"models":{}}', '{"models":"nenhum"}', '{}', 'null', '[]', '{"models":[null,{},{"name":"bom"}]}']) {
+    const srv = http.createServer((req, res) => { res.statusCode = 200; res.end(corpo); });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const r = await onboarding.probeOllama('127.0.0.1:' + srv.address().port, 1500);
+    assert.ok(r && r.estado, 'corpo ' + corpo + ' não devolveu estado — a Promise rebentou ou ficou pendurada');
+    assert.ok(['resposta_inesperada', 'sem_modelos', 'ok'].includes(r.estado),
+      'corpo ' + corpo + ' deu estado inesperado: ' + r.estado);
+    if (r.estado !== 'ok') assert.ok(r.porque && r.conserto, 'corpo ' + corpo + ' sem porquê/conserto');
+    srv.close();
+  }
+});
+
+test('G4 nº3 · servidor que responde a conta-gotas não pendura a Promise para sempre', async () => {
+  // Timeout de inactividade nunca dispara se houver tráfego lento e constante. O prazo é absoluto.
+  const lento = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    // escreve um byte a cada 60 ms e NUNCA termina
+    const t = setInterval(() => { try { res.write(' '); } catch { clearInterval(t); } }, 60);
+    res.on('close', () => clearInterval(t));
+  });
+  await new Promise((r) => lento.listen(0, '127.0.0.1', r));
+  const inicio = Date.now();
+  const r = await onboarding.probeOllama('127.0.0.1:' + lento.address().port, 300);
+  const decorrido = Date.now() - inicio;
+  assert.strictEqual(r.estado, 'timeout', 'o conta-gotas devia dar timeout, veio ' + r.estado);
+  assert.ok(decorrido < 5000, 'demorou ' + decorrido + ' ms — o prazo absoluto não disparou');
+  lento.close();
+});
+
 test('gap 2 · a degradação sem Ollama é dita, não escondida', () => {
   assert.strictEqual(onboarding.degradacaoSemOllama('ok'), null, 'com Ollama não há degradação a declarar');
   const d = onboarding.degradacaoSemOllama('sem_daemon');

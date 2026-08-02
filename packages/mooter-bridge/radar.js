@@ -36,15 +36,40 @@ const IGNORAR = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.next'
 
 function existe(p) { try { return fs.existsSync(p); } catch { return false; } }
 function stat(p) { try { return fs.statSync(p); } catch { return null; } }
+
+/**
+ * ⚠️ G4 (codex, 2026-08-02), achado nº5: `readFileSync` SEGUE symlinks. Num repo onde o
+ * `.gitignore` fosse um symlink para o `.env`, o radar lia o `.env` inteiro para memória — não o
+ * devolvia, mas lia. A promessa deste ficheiro («nunca abre, nunca lê» o `.env`) era mais forte
+ * do que o código, e uma promessa a mais é a mesma doença que um número a mais.
+ *
+ * A partir daqui, o radar **recusa-se a seguir symlinks**: `lstatSync` decide, e um symlink é
+ * tratado como ficheiro que não se lê. Um repo legítimo com `.gitignore` simbólico perde uma
+ * verificação; um repo malicioso perde um vector. A troca é óbvia num relatório que se vende
+ * como seguro para apontar a uma máquina desconhecida.
+ */
 function ler(p, maxBytes) {
   try {
-    const st = fs.statSync(p);
-    if (!st.isFile()) return null;
-    if (maxBytes && st.size > maxBytes) return fs.readFileSync(p, 'utf8').slice(0, maxBytes);
+    const l = fs.lstatSync(p);
+    if (l.isSymbolicLink()) return null;
+    if (!l.isFile()) return null;
+    if (maxBytes && l.size > maxBytes) return fs.readFileSync(p, 'utf8').slice(0, maxBytes);
     return fs.readFileSync(p, 'utf8');
   } catch { return null; }
 }
 function listar(p) { try { return fs.readdirSync(p, { withFileTypes: true }); } catch { return []; } }
+
+/**
+ * ⚠️ G4 (codex, 2026-08-02), achado nº7 (2ª parte): `existsSync('README.md')` encontra `ReadMe.md`
+ * em Windows e macOS e **não** o encontra em Linux — o mesmo repositório dava relatórios
+ * diferentes conforme a máquina de quem corre. Um radar que muda de resposta com o sistema de
+ * ficheiros não é um radar. Aqui a procura é sempre sem sensibilidade a maiúsculas, em todo o lado.
+ */
+function encontrarSemCaso(entradas, nome) {
+  const alvo = String(nome).toLowerCase();
+  const e = entradas.find((x) => x.name.toLowerCase() === alvo);
+  return e ? e.name : null;
+}
 function idadeDias(p) {
   const st = stat(p);
   if (!st) return null;
@@ -275,8 +300,11 @@ function pilarEstrutura(raiz, varrimento) {
         : 'nenhum ficheiro *.test/*.spec nem pasta de testes encontrada (até 4 níveis)',
   });
 
-  achados.push({ item: 'README', presente: existe(path.join(raiz, 'README.md')) || existe(path.join(raiz, 'readme.md')), detalhe: null });
-  achados.push({ item: '.gitignore', presente: existe(path.join(raiz, '.gitignore')), detalhe: null });
+  const naRaiz = listar(raiz);
+  const readme = encontrarSemCaso(naRaiz, 'README.md');
+  achados.push({ item: 'README', presente: !!readme, detalhe: readme && readme !== 'README.md' ? 'encontrado como ' + readme : null });
+  const gi = encontrarSemCaso(naRaiz, '.gitignore');
+  achados.push({ item: '.gitignore', presente: !!gi, detalhe: gi && gi !== '.gitignore' ? 'encontrado como ' + gi : null });
 
   const notas = [];
   if (varrimento.truncado) notas.push('a varredura foi truncada (repo grande) — as contagens são um mínimo, não um total');
@@ -331,10 +359,16 @@ function pilarGit(raiz) {
 
   const notas = [];
   // .env: presença e se está a ser IGNORADO. Nunca abrimos o ficheiro.
-  const envs = ['.env', '.env.local', '.env.production'].filter((f) => existe(path.join(raiz, f)));
+  // Procura sem sensibilidade a maiúsculas (achado nº7 do G4): `.ENV` conta como `.env`.
+  const naRaiz = listar(raiz);
+  const envs = ['.env', '.env.local', '.env.production']
+    .map((f) => encontrarSemCaso(naRaiz, f)).filter(Boolean);
   if (envs.length) {
     const gi = ler(path.join(raiz, '.gitignore'), 100000) || '';
-    const cobertos = envs.filter((f) => gi.split(/\r?\n/).some((l) => l.trim() === f || l.trim() === '.env*' || l.trim() === '*.env'));
+    const cobertos = envs.filter((f) => gi.split(/\r?\n/).some((l) => {
+      const t = l.trim().toLowerCase();
+      return t === f.toLowerCase() || t === '.env*' || t === '*.env';
+    }));
     const expostos = envs.filter((f) => !cobertos.includes(f));
     achados.push({
       item: 'ficheiros .env',

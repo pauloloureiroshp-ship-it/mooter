@@ -134,7 +134,8 @@ async function diagnosticoPrimeiraVez() {
 
   const clisEncontrados = CLIS_DE_AGENTE.filter(cliNoPath);
   add('CLIs de agente', clisEncontrados.length > 0,
-    clisEncontrados.length ? clisEncontrados.join(', ') : 'nenhum de ' + CLIS_DE_AGENTE.join(', ') + ' encontrado no PATH');
+    clisEncontrados.length ? clisEncontrados.join(', ')
+      : 'nenhum de ' + CLIS_DE_AGENTE.join(', ') + ' encontrado no PATH → instala pelo menos um (ex.: npm i -g @anthropic-ai/claude-code)');
 
   let previewOk = false;
   try { previewOk = typeof require('./preview.js').descobrir === 'function'; } catch { previewOk = false; }
@@ -188,6 +189,30 @@ async function diagnosticoPrimeiraVez() {
   for (const it of ferramentas.itens) {
     if (!it.presente && it.obrigatorio) passos.push({ prioridade: 'bloqueia', o_que: 'Instalar ' + it.binario, comando: it.conserto, porque: 'sem isto o 1º job com write:true falha' });
   }
+  /**
+   * ⚠️ G4 (codex, 2026-08-02), achado nº6 — o mais grave dos cinco, e exactamente o padrão que
+   * este trabalho existe para matar: numa máquina COM git, SEM Ollama utilizável, SEM nenhum CLI
+   * de agente e SEM chave Moonshot, o veredicto saía `pronto_para_trabalhar: true` — e nenhum dos
+   * motores conseguia executar o primeiro job. As linhas estavam todas certas; faltava a
+   * pergunta que as junta: **sobra algum motor?**
+   *
+   * `git` responde a «consegue escrever»; isto responde a «consegue PENSAR». São bloqueios
+   * diferentes e ambos têm de existir.
+   */
+  const temKimi = !!(process.env.MOONSHOT_API_KEY && String(process.env.MOONSHOT_API_KEY).trim()
+    && String(process.env.MOONSHOT_API_KEY).indexOf('${') < 0);
+  const motores = [];
+  if (clisEncontrados.length) motores.push(...clisEncontrados);
+  if (modelo && modelo.model) motores.push('moo (local)');
+  if (temKimi) motores.push('kimi');
+  if (!motores.length) {
+    passos.push({
+      prioridade: 'bloqueia',
+      o_que: 'Arranjar pelo menos um motor',
+      comando: 'instala um CLI de agente (ex.: npm i -g @anthropic-ai/claude-code), ou põe o Ollama a servir um modelo, ou preenche a Moonshot API key',
+      porque: 'nem CLI de agente, nem modelo local, nem chave de nuvem: não há quem execute o primeiro trabalho',
+    });
+  }
   for (const c of config.campos.filter((x) => !x.ok)) passos.push({ prioridade: 'bloqueia', o_que: 'Corrigir ' + c.campo, comando: c.conserto, porque: c.detalhe });
   if (!(modelo && modelo.model)) {
     passos.push({
@@ -216,6 +241,8 @@ async function diagnosticoPrimeiraVez() {
     primeira_vez: primeiraVez,
     bloqueios,
     pronto_para_trabalhar: bloqueios === 0,
+    // Declarado à vista: quem é que consegue executar o primeiro trabalho nesta máquina.
+    motores_disponiveis: motores,
     proximos_passos: passos.slice(0, 3),
     passos_todos: passos,
   };

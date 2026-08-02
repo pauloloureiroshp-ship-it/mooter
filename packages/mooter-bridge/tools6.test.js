@@ -260,6 +260,38 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
   } catch (e) { bad('vermelhos mudos', e); }
 
   try {
+    /**
+     * G4 (codex, 2026-08-02), achado nº6 — o mais grave. Numa máquina com git mas SEM nenhum CLI
+     * de agente, sem modelo local e sem chave de nuvem, `pronto_para_trabalhar` saía `true` e
+     * nenhum motor conseguia executar o primeiro job. As linhas estavam certas; faltava a
+     * pergunta que as junta.
+     *
+     * Simulação: PATH vazio (nenhum CLI, nenhum git), OLLAMA_HOST numa porta morta, sem key.
+     */
+    const pathAntes = process.env.PATH;
+    const ollamaAntes = process.env.OLLAMA_HOST;
+    const keyAntes = process.env.MOONSHOT_API_KEY;
+    process.env.PATH = '';
+    process.env.OLLAMA_HOST = '127.0.0.1:1';
+    delete process.env.MOONSHOT_API_KEY;
+    let semMotores;
+    try {
+      semMotores = await tools6.diagnosticoPrimeiraVez();
+    } finally {
+      process.env.PATH = pathAntes;
+      if (ollamaAntes === undefined) delete process.env.OLLAMA_HOST; else process.env.OLLAMA_HOST = ollamaAntes;
+      if (keyAntes !== undefined) process.env.MOONSHOT_API_KEY = keyAntes;
+    }
+    assert.deepStrictEqual(semMotores.motores_disponiveis, [],
+      'sem PATH, sem Ollama e sem key não pode haver motores: ' + JSON.stringify(semMotores.motores_disponiveis));
+    assert.strictEqual(semMotores.pronto_para_trabalhar, false,
+      'REGRESSÃO do achado nº6: máquina sem NENHUM motor a declarar-se pronta para trabalhar');
+    assert.ok(semMotores.passos_todos.some((p) => /motor/i.test(p.o_que)),
+      'faltou o passo que diz que não há motor nenhum: ' + JSON.stringify(semMotores.passos_todos.map((p) => p.o_que)));
+    okmsg('máquina sem motor nenhum NÃO se declara pronta (achado nº6 do G4)');
+  } catch (e) { bad('sem motores', e); }
+
+  try {
     const tools6mod = tools6;
     const semNada = process.env.PATH;
     const semPathext = process.env.PATHEXT;

@@ -93,6 +93,42 @@ test('radar · .env coberto pelo .gitignore não gera alarme falso', () => {
   assert.strictEqual(git.notas.length, 0, 'não devia haver aviso com o .env já ignorado: ' + git.notas.join(' / '));
 });
 
+test('G4 nº5 · o radar recusa-se a seguir symlinks — o .gitignore não pode ser uma porta para o .env', (t) => {
+  // O codex apanhou: `readFileSync` segue symlinks. Com `.gitignore -> .env`, o radar LIA o .env
+  // inteiro. Não o devolvia, mas lia — e a promessa deste módulo é "nunca abre".
+  const raiz = repoFalso('symlink', { '.env': 'SEGREDO=xyz', '.git/HEAD': 'ref: refs/heads/main\n', '.git/config': '' });
+  try {
+    fs.symlinkSync(path.join(raiz, '.env'), path.join(raiz, '.gitignore'));
+  } catch (e) {
+    // Windows sem modo de programador não deixa criar symlinks sem privilégios.
+    t.skip('symlink não criável neste ambiente: ' + ((e && e.code) || e));
+    return;
+  }
+  const r = radar(raiz);
+  assert.ok(!JSON.stringify(r).includes('xyz'), 'o conteúdo do .env vazou via symlink');
+  const git = r.pilares.find((p) => p.pilar === 'Git');
+  // Com o .gitignore ilegível (por ser symlink), o .env conta como NÃO coberto — o aviso tem de sair.
+  assert.ok(git.notas.some((n) => /gitignore/.test(n)),
+    'o .gitignore não foi lido (bem), mas o aviso de .env exposto tinha de sair na mesma');
+});
+
+test('G4 nº7 · README e .env são encontrados sem sensibilidade a maiúsculas', () => {
+  // O mesmo repo dava relatórios diferentes em Linux e em Windows. Um radar assim não é um radar.
+  const raiz = repoFalso('caso', {
+    'ReadMe.MD': '# r',
+    '.ENV': 'X=1',
+    '.gitignore': 'node_modules\n',
+    '.git/HEAD': 'ref: refs/heads/main\n', '.git/config': '',
+  });
+  const r = radar(raiz);
+  const est = r.pilares.find((p) => p.pilar === 'Estrutura');
+  const readme = est.achados.find((a) => a.item === 'README');
+  assert.strictEqual(readme.presente, true, 'ReadMe.MD tinha de contar como README');
+  const git = r.pilares.find((p) => p.pilar === 'Git');
+  assert.ok(git.achados.some((a) => a.item === 'ficheiros .env'), '.ENV tinha de contar como .env');
+  assert.ok(git.notas.some((n) => /gitignore/.test(n)), '.ENV fora do .gitignore tinha de avisar');
+});
+
 test('radar · repo vazio dá 0/6 e diz o que fazer primeiro — sem inventar nota', () => {
   const raiz = repoFalso('vazio', { 'a.txt': 'nada' });
   const r = radar(raiz);
