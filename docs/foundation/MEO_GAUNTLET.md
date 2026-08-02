@@ -32,6 +32,7 @@
 | G10 | **O que me faria dizer que está ERRADO — defini o critério de refutação ANTES e fui procurá-lo?** | ACH/Heuer · distingue "os testes passam" de "tentei partir" (era a G11 da v2) |
 | G11 | **Validaste o INSTRUMENTO antes de acreditares na medição? Um negativo é ausência do facto, ou defeito do teu método — provaste qual?** | Auditoria E2E 08-01 · retro-prova ×4 abaixo. G1 verifica a afirmação contra a fonte; esta verifica o APARELHO que produziu a fonte |
 | G12 | **O número que publicas mede a coisa que importa, ou a coisa fácil de contar? Declara o denominador ao lado do valor.** | Auditoria E2E 08-01 + Wave K · retro-prova ×4 abaixo. G1 pergunta se o número é verdadeiro; esta pergunta se mede o que interessa |
+| G13 | **Antes de mandar o dono fazer um gesto: consultaste `O_QUE_O_SOCIO_FAZ_SOZINHO.md` E corriste o ToolSearch? Cada gesto que lhe passas é IMPOSSÍVEL para ti (com prova), ou não verificaste?** | Paulo · retro-prova ×3 abaixo. G8 pergunta se podias resolver com menos interações; esta pergunta se sequer PROCURASTE. Inventário vive em `docs/foundation/O_QUE_O_SOCIO_FAZ_SOZINHO.md` |
 
 ### Retro-prova da G11 (instrumento) — 4 falhas reais, todas de 2026-08-01
 
@@ -56,7 +57,63 @@
 4. `custo_total` declarado "parcial" enquanto 292 259 tokens de entrada de um único job codex
    ficavam sem preço — a parcialidade era honesta, a magnitude nunca aparecia.
 
-**1 slot livre** (eram 3; a G11 e a G12 entraram na v4 com retro-prova ×4 cada).
+### Retro-prova da G13 (procura-antes-de-delegar) — 3 falhas reais, 2026-08-01 noite
+
+1. Mandei o Paulo "abrir o PR no GitHub e clicar Merge" — SEM verificar. Tinha
+   `merge_diff` (aceita URL de PR do GitHub) o tempo todo. Um gesto humano inventado por preguiça.
+2. Padrão do dia inteiro: `.bat` de duplo-clique para o Paulo, quando muitos eram despacháveis
+   à frota — só descobri o limite real (index.lock, política) DEPOIS de tentar, não antes.
+3. O próprio Paulo teve de perguntar "você não consegue sozinho?" 3× em sessões diferentes —
+   o sinal de que a delegação estava a ser o default, não o último recurso.
+**A régua: um gesto só chega ao dono depois de um ToolSearch provar que é impossível para o agente.**
+
+**0 slots livres · tecto ELEVADO para 14** (decisão consciente 2026-08-01: o Paulo, como CEO,
+apanhou que o gauntlet inteiro media corretude técnica e NADA media valor de negócio — um
+checklist que garante que o código está certo mas não que alguém paga por ele. Elevar o tecto
+por 1 é a exceção justificada da regra Urbach: entra por PROVA de lacuna, não por entusiasmo).
+
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G14 | **Esta wave move a agulha do NEGÓCIO — e qual (aquisição, activação, receita, retenção, referência)? Ou é polimento que não muda a disposição de alguém a pagar?** Se for polimento, porque está à frente do que gera receita? | Paulo-CEO 2026-08-01 · retro-prova ×3 abaixo. G3 pergunta se está forçado por mecanismo; G14 pergunta se o mecanismo importa para o VALOR. É o "kill list" e o "custo de oportunidade" virados pergunta |
+
+### Retro-prova da G14 (valor de negócio) — 3 falhas reais do próprio dia
+
+1. **O dia inteiro (35 turnos) não produziu UM cêntimo de disposição-a-pagar provada.** Titular
+   honesto, oráculo, gauntlet — tudo corretude. A demo de 90s (a única coisa que um cliente vê)
+   e o F0 (o que abre ao 2º cliente) ficaram sempre para "a próxima wave". Ordenámos por elegância
+   técnica, não por receita.
+2. **A nota do produto foi 6/10 ponderada — mas "6 em quê?".** Motor 8,5 · produto-para-o-mundo 4.
+   O único número que importa para valuation (clientes que pagam) foi **zero**, e nem entrou na conta.
+3. **O radar competitivo e o benchmark público** — as duas únicas coisas que criam defesa de mercado
+   e à-frente-da-concorrência — esperam um "sim" do Paulo desde as 10h da manhã e nenhuma wave os
+   priorizou. Construímos o motor; ninguém construiu a prova de que o motor vale dinheiro.
+
+**A régua de negócio (nova, ao lado da técnica):** nenhuma wave passa da PRIME-0 sem declarar a que
+métrica pirata (AARRR) serve. Wave de corretude só ganha prioridade sobre wave de receita se um
+BUG estiver a bloquear a receita — senão, receita primeiro. O CEO não pergunta "está certo?";
+pergunta "quem paga, quanto, e quando?".
+
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G15 | **O que aprendeste ficou REGISTADO onde a próxima sessão (qualquer superfície, qualquer device) o encontra sem tu contares — E as decisões que afectam outra "cadeira" (CFO/COO/CMO/CISO/CRO/UX — ver `CONSELHO_C_LEVEL.md`) foram escritas onde essa cadeira as lê?** | Paulo-CEO 2026-08-01 · retro-prova ×3 abaixo. G13 é sobre não delegar gestos ao humano; G15 é sobre não delegar MEMÓRIA ao humano — o conhecimento tem de sobreviver à sessão E cruzar silos |
+
+### Retro-prova da G15 (memória cross-superfície e cross-silo) — 3 falhas reais
+
+1. A sessão CC de 11:16 fechou **sem escrever nada no vault** — o learning morreu com a sessão até
+   alguém (eu) o resgatar. Memória delegada ao humano é memória perdida.
+2. **Dois vaults com `.obsidian`** (D10): o `mooter_journal` escrevia no clone abandonado — o
+   conhecimento ia para um sítio que a próxima sessão não lê. Registado ≠ registado no sítio certo.
+3. O `custo por resposta certa` (a métrica do CFO/CRO) foi discutido 3× e nunca escrito onde a
+   lente financeira o encontraria — ficou preso na conversa, invisível ao "conselho".
+
+**A régua:** fechar uma wave sem `mooter_journal` no vault CANÓNICO é violação. E se a wave tocou
+numa métrica de outra cadeira (custo, activação, segurança, receita, UX), essa cadeira tem de ter
+o número escrito onde o lê — senão o silo vence e o MEO decide às cegas.
+
+**Tecto 15 · 0 slots.** Elevações desde v4 (13): G13 (procura-antes-de-delegar), G14 (valor de
+negócio), G15 (memória cross-silo) — todas com retro-prova ×3 do próprio dia, nenhuma da literatura.
+**A partir daqui, entra uma → sai uma.** As lentes C-level NÃO entram: vivem em `CONSELHO_C_LEVEL.md`,
+por rotação, porque persona-por-entrega é o inchaço que Urbach mata.
 Candidatas em fila de espera, à espera de RETRO-PROVA (correr contra ≥3 falhas
 reais do registo e apanhar ≥1 que as 12 não apanham):
 - *Pre-mortem* (Klein) — cortada por sobreposição com G10 e evidência mais fraca (lab 1989 vs teste executado).
