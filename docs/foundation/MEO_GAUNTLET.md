@@ -169,16 +169,26 @@ escolha de modelo declara-o à cabeça e justifica porque está à frente do flu
 
 ### Retro-prova da G18 (claim sem [medido]) — 3 falhas reais
 
-1. **O site vende o que o repo declara stub:** `landing/app/(marketing)/under-the-hood/page.tsx:131-133`
-   descreve o Adapter Forge a "treinar um adaptador DoRA no teu próprio código", enquanto o
-   treinador no código é um *"HONEST STUB: this never runs training"* (citado em
-   `_handoff/HANDOFF_CC-COWORK_AUDITORIA_E2E_2026-08-01.md:244`). Honesto no código, fantasma na copy.
-2. **Rácio com metade do denominador estimado:** `landing/app/(marketing)/workflow/page.tsx:74-77`
-   publica "160× gap" a partir de `$0,0028` medido **contra `$0,45` estimado** — a palavra
-   *estimated* está no próprio parágrafo, mas não no número que o leitor retém.
-3. **O contra-exemplo que já funcionou:** `pressao_quota` declarou-se `n/d` até haver 7 dias de
-   histórico (Wave K3, `112b3da`) em vez de extrapolar de 1 dia. A disciplina existe no runtime e
-   nunca atravessou para a copy pública — é o mesmo produto a aplicar duas réguas diferentes.
+1. **A correcção honesta existe e nunca chegou ao leitor.** `_handoff/ROADMAP_MOOTER_PRIME.md:74`
+   declara, na PRIME-4: *"Deploy do site (copy honesta de DoRA + versão real — hoje o repo está
+   certo, o ar não)"*. A copy do repo está exemplar (ver §2); o que o estranho lê continua a ser a
+   versão anterior. **Estado do site em produção: `n/d` — não o medi nesta sessão.** Claim honesto
+   que fica no disco é indistinguível, para o leitor, de claim desonesto.
+2. **A primeira retro-prova desta própria pergunta nasceu falsa — e foi apanhada no mesmo dia.**
+   Ao escrever a G18 (2026-08-02) afirmei que `under-the-hood/page.tsx:131-133` vendia o Adapter
+   Forge como entregue. A leitura verbatim do ficheiro diz o contrário: *"is planned for Wave 5 and
+   **is not shipped**. Mooter has never trained an adapter... Numbers below are targets from the
+   published DoRA/Unsloth literature, not measurements of Mooter"* — e até o diagrama diz *"target,
+   not measured"*. Foi a G1 (verificar contra a fonte, passagem separada) que a derrubou; a G18
+   sozinha ter-se-ia carimbado a si própria. **Lição: a pergunta que caça claims não se auto-verifica.**
+3. **Rácio com metade do denominador estimado:** `landing/app/(marketing)/workflow/page.tsx:74-77`
+   publica "160× gap" a partir de `$0,0028` **medido** contra `$0,45` **estimado**. O parágrafo
+   declara-o em prosa, mas o `$0,45` não traz `[medido: onde]` nem fonte — metade do rácio não tem
+   origem verificável, e é o rácio que o leitor retém.
+
+**Contra-exemplo que já funciona (a régua importada do runtime):** `pressao_quota` declarou-se `n/d`
+até haver 7 dias de histórico (Wave K3, `112b3da`) em vez de extrapolar de 1 dia. A disciplina existe
+no código e nunca atravessou para a copy pública — o mesmo produto com duas réguas.
 
 **A régua:** cada claim público carrega `[medido: onde]` ou desce a "auditável: corre X e vê".
 Superlativo sem fonte possível não se suaviza — sai.
