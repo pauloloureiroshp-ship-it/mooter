@@ -127,6 +127,13 @@ Indie skill (Julius Brussee, GitHub). Reduz tokens fazendo Claude responder em "
 
 **Paulo já usa vault canónico em `~/Documents/paulo-vault/` (Johnny-Decimal, 42+ ficheiros, git desde 2026-04-26).** Profile menciona explicitamente: *"Em conflito: vault > este profile > Project > conversa."*
 
+> ⚠️ **SUPERADO (2026-08-02).** O caminho acima já não é o canónico. O canónico é `$VAULT_PATH` —
+> a raiz do home (`~/paulo-vault`), fora de Documents/OneDrive/iCloud — como fixa `AGENTS.md`
+> § Agent boot & freshness e como o detector do `mooter_journal` implementa
+> (`packages/mooter-bridge/journal.js`). `~/Documents/paulo-vault/` é o clone stale que a
+> retro-prova #2 da G15 (`docs/foundation/MEO_GAUNTLET.md`) descreve como causa de conhecimento
+> perdido. A frase fica como registo histórico do que era verdade em Wave 30.
+
 Isto significa:
 1. Vault é **fonte de verdade** para Paulo
 2. Mooter pode **enriquecer** com sync inverso: Pastor learnings → vault notes
