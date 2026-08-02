@@ -204,3 +204,10 @@ scripts/lpsk-*/
 scripts/gj[0-9]-*/
 scripts/guardian-prebake-*/
 scripts/node-compile-cache/
+
+# ── Mina de segurança (2026-08-02) ─────────────────────────────────────────
+# Ficheiro solto no working tree, untracked E não ignorado — num repo PÚBLICO,
+# bastava um `git add -A` para o publicar. Verificado antes de ignorar: nunca
+# esteve no index nem em nenhuma ref (`git log --all -- scripts/outside-secret.txt`
+# vazio), logo não há nada a purgar do histórico. Conteúdo NÃO lido.
+scripts/outside-secret.txt
