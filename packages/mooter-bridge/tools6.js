@@ -29,6 +29,7 @@ const capacidades = require('./capacidades.js');
 const onboarding = require('./onboarding.js');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 /**
  * F0 item 4 — diagnóstico de arranque, 6 linhas verde/vermelho.
@@ -556,6 +557,18 @@ function build(seam, fleet, base) {
           const veredicto = diag.pronto_para_trabalhar
             ? 'podes trabalhar já'
             : diag.bloqueios + ' coisa(s) bloqueiam o primeiro trabalho';
+          /**
+           * A pergunta que separa "gostaram" de "pagam" — e o único sítio onde ela apanha alguém
+           * no momento certo. Só aparece a quem JÁ trabalhou (ledger com linhas): perguntar
+           * "pagarias?" a quem ainda não viu nada é pedir um palpite, não um sinal. Fica em texto,
+           * sem parâmetro novo — o orçamento das definições tinha 82 bytes livres.
+           */
+          let convite = null;
+          try {
+            const ledger = path.join(os.homedir(), '.mooter', 'ledger.jsonl');
+            const jaTrabalhou = fs.existsSync(ledger) && fs.statSync(ledger).size > 0;
+            convite = require('./sinal-valor.js').convite(jaTrabalhou);
+          } catch { convite = null; }
           return comResumo({
             diagnostico: diag.linhas,
             tudo_verde: diag.tudo_verde,
@@ -564,7 +577,9 @@ function build(seam, fleet, base) {
             bloqueios: diag.bloqueios,
             proximos_passos: diag.proximos_passos,
             passos_todos: diag.passos_todos,
-          }, cabecalho + ' · ' + diag.verdes + '/' + diag.total + ' verde · ' + veredicto + '\n' + texto + passosTexto);
+            sinal_valor_convite: convite,
+          }, cabecalho + ' · ' + diag.verdes + '/' + diag.total + ' verde · ' + veredicto + '\n' + texto + passosTexto
+            + (convite ? '\n\n' + convite : ''));
         }
         /**
          * ⚠️ v1.8.2 — O BOTÃO QUE NINGUÉM CONSEGUIA CARREGAR.
