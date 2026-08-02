@@ -129,12 +129,24 @@ function temPedidoExplicito(prompt, key, modo) {
 // (bestOllamaT0); nunca o inventamos aqui. T5 entra porque sem ele um
 // original_tier=T5 devolvia null e o guard apagava o override deixando o tier
 // pinado de pé — meio-veto é pior que nenhum (achado do G4).
+// `suggested_providers` TEM de vir junto. Sem ele o veto ficava meio feito e o
+// P0 sobrevivia por outra porta: `router-execute.js` começa a cadeia de
+// despacho por `classification.suggested_providers` VERBATIM (§6.1). Medido:
+// "faz o diff com claude" → o guard repunha tier T0/ollama e deixava
+// providers=["opus"] → despacho em Opus para uma decisão T0. Ou seja, corrigia
+// o texto do hint e continuava a queimar dinheiro. (Achado do G4 de fecho.)
+//
+// Espelho de DEFAULT_PROVIDERS_BY_TIER (classify.js:1193). Perde-se a
+// consciência de quota que o `getSuggestedProviders` tem — é interno ao
+// ficheiro congelado. Trocamos "ordenado por quota" por "certo para o tier",
+// que é exactamente o fallback ultra-seguro que o próprio classify usa quando
+// a leitura de quota falha (classify.js:1179).
 const TIER_PROFILE = {
-  T0: { recommended_backend: 'ollama',          suggested_subagent: 'local-summarizer' },
-  T1: { recommended_backend: 'anthropic_api',   recommended_model: 'claude-haiku-4-5-20251001', suggested_subagent: 'cheap-triage' },
-  T2: { recommended_backend: 'claude_subagent', recommended_model: 'claude-sonnet-4-6',         suggested_subagent: 'model-reasoner' },
-  T3: { recommended_backend: 'claude_subagent', recommended_model: 'claude-opus-4-6',           suggested_subagent: 'model-architect' },
-  T5: { recommended_backend: 'claude_subagent', recommended_model: 'claude-fable-5',            suggested_subagent: 'model-architect' },
+  T0: { recommended_backend: 'ollama',          suggested_subagent: 'local-summarizer', suggested_providers: ['ollama'] },
+  T1: { recommended_backend: 'anthropic_api',   recommended_model: 'claude-haiku-4-5-20251001', suggested_subagent: 'cheap-triage',    suggested_providers: ['haiku'] },
+  T2: { recommended_backend: 'claude_subagent', recommended_model: 'claude-sonnet-4-6',         suggested_subagent: 'model-reasoner',  suggested_providers: ['sonnet'] },
+  T3: { recommended_backend: 'claude_subagent', recommended_model: 'claude-opus-4-6',           suggested_subagent: 'model-architect', suggested_providers: ['opus'] },
+  T5: { recommended_backend: 'claude_subagent', recommended_model: 'claude-fable-5',            suggested_subagent: 'model-architect', suggested_providers: ['fable'] },
 };
 
 // classify.js põe confidence a 0.99 POR CAUSA do override. Deixá-la lá depois

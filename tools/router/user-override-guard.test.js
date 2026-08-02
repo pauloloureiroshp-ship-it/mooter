@@ -140,6 +140,30 @@ test('vetar repoe a confianca, nao so o tier', () => {
   assert.equal(d.override_vetoed.confidence_antes, 0.99, 'o valor original fica declarado');
 });
 
+// ── Grupo 5b · o veto tem de repor TAMBÉM os providers (G4 de fecho) ────────
+// router-execute.js §6.1 começa a cadeia de despacho por
+// `classification.suggested_providers` VERBATIM. Repor tier/model/backend e
+// deixar a lista velha corrigia o texto do hint e continuava a despachar para o
+// motor errado — o P0 sobrevivia por outra porta.
+test('vetar repoe suggested_providers, nao so tier/model/backend', async (t) => {
+  const CASOS = [
+    { prompt: 'faz o diff com claude', providers: ['ollama'] },      // T3/opus -> T0
+    { prompt: 'sessao fresca com claude code', providers: ['ollama'] },
+    { prompt: 'compara a nuvem com local', providers: ['ollama'] },
+  ];
+  for (const { prompt } of CASOS) {
+    await t.test(`"${prompt}"`, () => {
+      const d = classify(prompt);
+      if (!(d.user_override && d.user_override.honored)) return; // nada a vetar
+      const r = guard(d, prompt);
+      assert.ok(r.vetoed);
+      const esperado = { T0: ['ollama'], T1: ['haiku'], T2: ['sonnet'], T3: ['opus'], T5: ['fable'] }[d.tier];
+      assert.deepEqual(d.suggested_providers, esperado,
+        `tier ${d.tier} com providers ${JSON.stringify(d.suggested_providers)} — o despacho ia para o motor errado`);
+    });
+  }
+});
+
 // ── Grupo 6 · inócuo quando não há override ─────────────────────────────────
 test('o guard e inocuo quando nao ha override nenhum', () => {
   const prompt = 'explica este erro: TypeError x is not a function';

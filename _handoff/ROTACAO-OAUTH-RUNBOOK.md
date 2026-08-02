@@ -77,8 +77,11 @@ Eram o instrumento errado para esta pergunta desde o início.
 
 - A release **1.45.3 não sai** — o script aborta sozinho.
 - O `.mcpb` já está construído e verificado localmente
-  (`_handoff/mooter-v1453.mcpb`, 46 ficheiros, sha256 `69e5d3fc96d82b94…`);
-  só falta o teu gatilho.
+  (`_handoff/mooter-v1453.mcpb`, 46 ficheiros, 903 640 B, sha256 `14b2a6b4a639c1b3…`);
+  só falta o teu gatilho. *(O sha mudou face à 1ª construção — o bundle foi
+  refeito depois de restaurar ficheiros-fonte que estavam revertidos na working
+  tree. O `RUN-RELEASE-1453.ps1` reconstrói e reverifica sozinho, por isso o
+  número aqui é informativo, não é o que o script compara.)*
 
 ## Depois de rodares — o que fica por fechar (não é desta wave)
 
