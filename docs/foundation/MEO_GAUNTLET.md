@@ -1,4 +1,4 @@
-# MEO GAUNTLET v4 — 12 perguntas, régua de disparo, crítico ≠ autor
+# MEO GAUNTLET v5 — 15 perguntas, régua de disparo, crítico ≠ autor
 > v1: as 8 do Paulo (terreno real). v2: +5 da literatura. **v3: uma sessão de contexto fresco
 > correu o gauntlet SOBRE o gauntlet, apanhou um erro factual (números do CoVe colados pelo
 > autor na compressão — os três valores são de três tarefas distintas: MultiSpanQA F1 0.39→0.48,
@@ -7,6 +7,9 @@
 > contra as fontes, e mudou o entregável.
 > **v4 (2026-08-01, auditoria E2E): +2 entradas, ambas por RETRO-PROVA, ambas de falhas medidas
 > na própria auditoria — G11 (instrumento) e G12 (denominador). Restam 1 slot livre.**
+> **v5 (2026-08-01/02, sessão Cowork + CC): +3 entradas, todas por RETRO-PROVA ×3 de falhas do
+> próprio dia — G13 (procura-antes-de-delegar), G14 (valor de negócio), G15 (memória cross-silo).
+> Tecto elevado 13→15, 0 slots. A partir daqui: entra uma → sai uma.**
 
 ## Régua de disparo (o buraco mais caro da v2 — sem "quando", ou não corre ou corre a fingir)
 
@@ -14,9 +17,9 @@
 |---|---|---|
 | **Trivial** | reversível em <5 min, não sai da sessão | **nenhum** |
 | **Rotina** | entregável que o dono vai ler mas não re-verificar linha a linha | **G1, G3, G7 auto-aplicadas** + declaração de 1 linha |
-| **Alto risco** | toca produção/secrets/CI/release/site público, OU o dono vai agir sem reler, OU vira masterprompt para outra sessão | **as 10, com G4 num MOTOR DIFERENTE.** Sem segundo motor disponível: o entregável não sai, ou sai carimbado `não-verificado` — nunca sai limpo |
+| **Alto risco** | toca produção/secrets/CI/release/site público, OU o dono vai agir sem reler, OU vira masterprompt para outra sessão | **as 15, com G4 num MOTOR DIFERENTE.** Sem segundo motor disponível: o entregável não sai, ou sai carimbado `não-verificado` — nunca sai limpo |
 
-## As 10
+## As 15 — G1 a G13 na tabela abaixo; G14 e G15 seguem, cada uma colada à sua retro-prova
 
 | # | Pergunta | Origem · prova de terreno |
 |---|---|---|
@@ -32,7 +35,7 @@
 | G10 | **O que me faria dizer que está ERRADO — defini o critério de refutação ANTES e fui procurá-lo?** | ACH/Heuer · distingue "os testes passam" de "tentei partir" (era a G11 da v2) |
 | G11 | **Validaste o INSTRUMENTO antes de acreditares na medição? Um negativo é ausência do facto, ou defeito do teu método — provaste qual?** | Auditoria E2E 08-01 · retro-prova ×4 abaixo. G1 verifica a afirmação contra a fonte; esta verifica o APARELHO que produziu a fonte |
 | G12 | **O número que publicas mede a coisa que importa, ou a coisa fácil de contar? Declara o denominador ao lado do valor.** | Auditoria E2E 08-01 + Wave K · retro-prova ×4 abaixo. G1 pergunta se o número é verdadeiro; esta pergunta se mede o que interessa |
-| G13 | **Antes de mandar o dono fazer um gesto: consultaste `O_QUE_O_SOCIO_FAZ_SOZINHO.md` E corriste o ToolSearch? Cada gesto que lhe passas é IMPOSSÍVEL para ti (com prova), ou não verificaste?** | Paulo · retro-prova ×3 abaixo. G8 pergunta se podias resolver com menos interações; esta pergunta se sequer PROCURASTE. Inventário vive em `docs/foundation/O_QUE_O_SOCIO_FAZ_SOZINHO.md` |
+| G13 | **Antes de mandar o dono fazer um gesto: consultaste `O_QUE_O_SOCIO_FAZ_SOZINHO.md` E corriste o ToolSearch? Cada gesto que lhe passas é IMPOSSÍVEL para ti (com prova), ou não verificaste?** | Paulo · retro-prova ×3 abaixo. G8 pergunta se podias resolver com menos interações; esta pergunta se sequer PROCURASTE. Inventário em `docs/foundation/O_QUE_O_SOCIO_FAZ_SOZINHO.md` — ficheiro **local, não versionado** (lista os conectores ligados do Paulo; fica fora do repo público por decisão dele, 2026-08-02) |
 
 ### Retro-prova da G11 (instrumento) — 4 falhas reais, todas de 2026-08-01
 
@@ -67,7 +70,8 @@
    o sinal de que a delegação estava a ser o default, não o último recurso.
 **A régua: um gesto só chega ao dono depois de um ToolSearch provar que é impossível para o agente.**
 
-**0 slots livres · tecto ELEVADO para 14** (decisão consciente 2026-08-01: o Paulo, como CEO,
+**Passo histórico: tecto 13→14, com a entrada da G14** — não é o estado final (a v5 fecha em 15 · 0
+slots; ver o fecho abaixo). (decisão consciente 2026-08-01: o Paulo, como CEO,
 apanhou que o gauntlet inteiro media corretude técnica e NADA media valor de negócio — um
 checklist que garante que o código está certo mas não que alguém paga por ele. Elevar o tecto
 por 1 é a exceção justificada da regra Urbach: entra por PROVA de lacuna, não por entusiasmo).
@@ -106,16 +110,21 @@ pergunta "quem paga, quanto, e quando?".
 3. O `custo por resposta certa` (a métrica do CFO/CRO) foi discutido 3× e nunca escrito onde a
    lente financeira o encontraria — ficou preso na conversa, invisível ao "conselho".
 
-**A régua:** fechar uma wave sem `mooter_journal` no vault CANÓNICO é violação. E se a wave tocou
+**A régua:** fechar uma wave sem `mooter_journal` no vault CANÓNICO é violação. Onde fica o canónico
+NÃO se decide aqui — está em `AGENTS.md` § Agent boot & freshness (raiz do home, `~/paulo-vault`, fora
+de Documents/OneDrive/iCloud). A precedência que o detector aplica de facto
+(`packages/mooter-bridge/journal.js`) é `MOOTER_VAULT` → `VAULT_PATH` → raiz do home: se as duas
+variáveis divergirem, o canónico deixa de ser mecanicamente garantido — mede antes de assumir (G11). E se a wave tocou
 numa métrica de outra cadeira (custo, activação, segurança, receita, UX), essa cadeira tem de ter
 o número escrito onde o lê — senão o silo vence e o MEO decide às cegas.
 
-**Tecto 15 · 0 slots.** Elevações desde v4 (13): G13 (procura-antes-de-delegar), G14 (valor de
-negócio), G15 (memória cross-silo) — todas com retro-prova ×3 do próprio dia, nenhuma da literatura.
+**Tecto 15 · 0 slots.** Entradas desde a v4 (12 perguntas, tecto 13): a G13 (procura-antes-de-delegar)
+ocupou o slot que estava livre — **não** elevou o tecto; a G14 (valor de negócio) elevou 13→14 e a G15
+(memória cross-silo) elevou 14→15. Todas com retro-prova ×3 do próprio dia, nenhuma da literatura.
 **A partir daqui, entra uma → sai uma.** As lentes C-level NÃO entram: vivem em `CONSELHO_C_LEVEL.md`,
 por rotação, porque persona-por-entrega é o inchaço que Urbach mata.
 Candidatas em fila de espera, à espera de RETRO-PROVA (correr contra ≥3 falhas
-reais do registo e apanhar ≥1 que as 12 não apanham):
+reais do registo e apanhar ≥1 que as 15 não apanham):
 - *Pre-mortem* (Klein) — cortada por sobreposição com G10 e evidência mais fraca (lab 1989 vs teste executado).
 - *Pontos de revisão anteriores abertos* (NASA) — volta QUANDO o registo de acções abertas existir
   como artefacto (cérebro da Wave M). Sem ficheiro grep-ável, é pergunta retórica.
@@ -137,9 +146,12 @@ reais do registo e apanhar ≥1 que as 12 não apanham):
 
 ## Regras de crescimento
 
-- Tecto **13 efectivas**: hoje 12 + 1 slot. Entrada SÓ por retro-prova (≥3 falhas reais, apanha ≥1 nova).
+- Tecto **15 efectivas**: hoje 15 + 0 slots. Entrada SÓ por retro-prova (≥3 falhas reais, apanha ≥1 nova).
   A v2 violou isto (5 entraram por autoridade da literatura numa tarde) — a v3 pagou a multa.
   A v4 respeitou-a: G11 e G12 entraram com 4 falhas medidas cada, todas do registo, nenhuma da literatura.
+  A v5 respeitou-a: G13, G14 e G15 entraram com 3 falhas medidas cada, todas do próprio dia.
+  Com 0 slots vale a regra do fecho: entra uma → sai uma. Elevar o tecto outra vez NÃO é alternativa
+  a essa regra — exige decisão explícita do dono, registada, como a que o levou de 13 a 15.
 - Pergunta que não muda nada em 3+ sessões de alto risco → o juiz distingue internalizada de
   carimbada; carimbada sai para a fila de espera.
 - O log de deltas (`gauntlet:` nas declarações registadas) é o dado de calibração — N5 do Sócio.
