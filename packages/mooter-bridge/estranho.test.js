@@ -167,12 +167,20 @@ test('estranho — o bundle traz o motor, arranca estéril e não mente', async 
   assert.ok(!/\bdora\b/i.test(montra), 'REGRESSÃO: o manifest afirma DoRA, que não existe no produto');
 
   // ── Jornada estéril ─────────────────────────────────────────────────────
+  // S7/S8 juntam-se aqui de propósito: o diagnóstico e o radar são as duas
+  // primeiras coisas que um estranho toca, e têm de correr no MESMO arranque
+  // estéril que já provava o resto. Um segundo teste com outro HOME provaria
+  // menos, não mais.
+  const t0 = process.hrtime.bigint();
   const { porId } = await jornada(instalacao, homeVazio, projecto, [
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'mooter_work', arguments: {
       goal: 'Explica o que faz o app.js', worktree: projecto, write: false, prepare: false,
     } } },
+    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'mooter_setup', arguments: { primeira_vez: true } } },
+    { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'mooter_setup', arguments: { radar: projecto } } },
   ]);
+  const jornadaMs = Number((process.hrtime.bigint() - t0) / 1000000n);
 
   // ── S4 · ARRANCA SEM npm install E EXPÕE AS 6 PORTAS ────────────────────
   const lista = porId.get(2);
@@ -212,6 +220,52 @@ test('estranho — o bundle traz o motor, arranca estéril e não mente', async 
     'REGRESSÃO: um caminho do autor chegou ao output de um estranho: ' + usados,
   );
 
+  // ── S7 · O DIAGNÓSTICO NÃO DÁ VERDE A UMA MÁQUINA QUE VAI FALHAR ────────
+  // A auditoria de onboarding (`_handoff/SUPERMASTER_MAC_MINI.md:100-111`) mediu
+  // o oposto: 6 verdes e o primeiro job a falhar com "git not found". Aqui o
+  // veredicto que conta é `pronto_para_trabalhar`, e cada vermelho tem de
+  // ensinar a consertar-se — um vermelho mudo é o mesmo que silêncio.
+  const diag = porId.get(4);
+  assert.ok(diag && diag.result, 'mooter_setup({primeira_vez}) não respondeu num ambiente estéril');
+  const d = diag.result.structuredContent || {};
+  assert.ok(Array.isArray(d.diagnostico) && d.diagnostico.length >= 9,
+    'REGRESSÃO: o diagnóstico encolheu abaixo das 9 linhas — os gaps 1/4/5 voltaram a ser invisíveis');
+  assert.strictEqual(typeof d.pronto_para_trabalhar, 'boolean',
+    'REGRESSÃO: sem `pronto_para_trabalhar`, o estranho volta a ler cores em vez de um veredicto');
+  for (const linha of d.diagnostico) {
+    if (!linha.ok) assert.ok(linha.detalhe && String(linha.detalhe).trim(),
+      'linha vermelha muda: ' + linha.item + ' — um vermelho sem conserto não ajuda ninguém');
+  }
+  for (const p of (d.proximos_passos || [])) {
+    assert.ok(p.comando, 'próximo passo sem comando: ' + p.o_que);
+  }
+  // Numa máquina estéril há sempre algo a dizer. Zero passos = o diagnóstico
+  // voltou a ser decorativo.
+  assert.ok((d.proximos_passos || []).length > 0,
+    'REGRESSÃO: ambiente estéril (sem Ollama, sem vault, sem repo) e nenhum próximo passo proposto');
+
+  // ── S8 · O RADAR CORRE NO REPO DO ESTRANHO E NÃO LHE TOCA ───────────────
+  // É o momento-aha: a primeira coisa que devolve algo sobre o trabalho DELE.
+  const rad = porId.get(5);
+  assert.ok(rad && rad.result, 'mooter_setup({radar}) não respondeu');
+  const rr = rad.result.structuredContent || {};
+  assert.strictEqual(rr.ok, true, 'o radar não correu no repo do estranho: ' + JSON.stringify(rr).slice(0, 200));
+  assert.strictEqual(rr.escreveu, false, 'REGRESSÃO: o radar deixou de declarar que não escreve');
+  assert.ok(rr.pilares && rr.pilares.length === 6, 'o radar tem de devolver os 6 pilares');
+  assert.ok(!/paulo-vault|Paulo Loureiro/i.test(JSON.stringify(rr)),
+    'REGRESSÃO: um caminho do autor apareceu no radar de um estranho');
+
+  // ── S9 · O TEMPO ATÉ AO PRIMEIRO RESULTADO ─────────────────────────────
+  // Não é o TTFW do humano (esse inclui download, formulário e restart do
+  // Claude Desktop, e não se mede daqui). É o tecto mecânico: o que o produto
+  // demora depois de instalado. Se ISTO estourar, o TTFW humano nunca cabe.
+  assert.ok(jornadaMs < 10 * 60 * 1000,
+    'a jornada estéril demorou ' + jornadaMs + ' ms — acima do tecto de 10 min do DoD de onboarding');
+  t.diagnostic('jornada estéril (tools/list + work + diagnóstico + radar): ' + jornadaMs + ' ms');
+  t.diagnostic('diagnóstico: ' + d.diagnostico.filter((l) => l.ok).length + '/' + d.diagnostico.length
+    + ' verde · pronto_para_trabalhar=' + d.pronto_para_trabalhar
+    + ' · passos=' + (d.proximos_passos || []).length);
+  t.diagnostic('radar: ' + rr.pontuacao.presentes + '/' + rr.pontuacao.total_pilares + ' pilares');
   t.diagnostic('router: ' + JSON.stringify(w.router));
 });
 

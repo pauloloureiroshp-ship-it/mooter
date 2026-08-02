@@ -83,10 +83,42 @@ async function diagnosticoPrimeiraVez() {
   if (!(modelo && modelo.model)) {
     try { probe = await onboarding.probeOllama(process.env.OLLAMA_HOST); } catch { probe = null; }
   }
+  /**
+   * ⚠️ Apanhado na simulação do estranho (HOME estéril, 2026-08-02): a linha saía
+   * «🔴 Modelo local (Ollama) — ok — null → null». O caso que faltava é o mais informativo de
+   * todos: o Ollama RESPONDE e TEM modelos (`probe.estado === 'ok'`), e mesmo assim a escolha
+   * falhou — logo o problema não é o daemon, é a selecção. Tratar isso como "falha do Ollama"
+   * mandava o utilizador reinstalar uma coisa que estava boa. Era um vermelho mudo dentro do
+   * trabalho que existe para acabar com vermelhos mudos.
+   */
+  let ollamaDetalhe;
+  let ollamaConserto = null;
+  if (modelo && modelo.model) {
+    ollamaDetalhe = modelo.model;
+  } else if (probe && probe.estado === 'ok') {
+    ollamaDetalhe = 'o Ollama responde em ' + probe.alvo + ' com ' + probe.modelos.length
+      + ' modelo(s) — mas nenhum foi escolhido: ' + (modelo && modelo.porque ? modelo.porque : 'motivo n/d');
+    /**
+     * ⚠️ Segunda correcção do mesmo sítio, no mesmo dia. A primeira versão dizia «nenhum dos
+     * modelos instalados serve para gerar código; tenta ollama pull». Ao correr a sério, o motivo
+     * REAL era outro: 2004 MB de VRAM livres com a GPU ocupada por outros jobs. O conselho teria
+     * mandado descarregar 5 GB para resolver um problema que se resolve fechando uma janela.
+     *
+     * `pickModelExplained` já sabe o motivo exacto e já o escreveu acima. O conserto não o
+     * re-diagnostica — aponta para ele e dá as duas saídas possíveis, declaradas como
+     * condicionais. Adivinhar a causa para poder dar uma ordem limpa é como se fabrica um número.
+     */
+    ollamaConserto = 'o motivo exacto está na linha acima: se for falta de VRAM, liberta a GPU '
+      + '(fecha o que a está a usar) e repete; se for falta de um modelo capaz, `ollama pull qwen2.5-coder:7b`';
+  } else if (probe) {
+    ollamaDetalhe = probe.estado + ' — ' + probe.porque;
+    ollamaConserto = probe.conserto;
+  } else {
+    ollamaDetalhe = (modelo && modelo.porque) || 'moo.js indisponível';
+    ollamaConserto = 'ver ollama.com/download';
+  }
   add('Modelo local (Ollama)', modelo && modelo.model,
-    (modelo && modelo.model) ? modelo.model
-      : probe ? (probe.estado + ' — ' + probe.porque + ' → ' + probe.conserto)
-        : (modelo ? modelo.porque : 'moo.js indisponível'));
+    ollamaDetalhe + (ollamaConserto ? ' → ' + ollamaConserto : ''));
 
   // GAP 3 (`:106`): vault ausente devolvia `n/d` sem dizer como se configura.
   const vaultEstado = onboarding.estadoVault();
@@ -159,9 +191,12 @@ async function diagnosticoPrimeiraVez() {
   if (!(modelo && modelo.model)) {
     passos.push({
       prioridade: 'degrada',
-      o_que: 'Pôr o Ollama a responder',
-      comando: probe ? probe.conserto : 'ver ollama.com/download',
-      porque: onboarding.degradacaoSemOllama(probe ? probe.estado : 'sem_daemon'),
+      o_que: (probe && probe.estado === 'ok') ? 'Instalar um modelo local que sirva para código' : 'Pôr o Ollama a responder',
+      // Nunca null: um passo sem comando é a mesma doença que um vermelho mudo.
+      comando: ollamaConserto || 'ver ollama.com/download',
+      porque: (probe && probe.estado === 'ok')
+        ? 'o daemon está bom; o que falta é um modelo que o router possa escolher — sem ele o modo $0 não arranca'
+        : onboarding.degradacaoSemOllama(probe ? probe.estado : 'sem_daemon'),
     });
   }
   if (!vaultEstado.ok) passos.push({ prioridade: 'degrada', o_que: 'Apontar o vault', comando: vaultEstado.conserto, porque: vaultEstado.perde });

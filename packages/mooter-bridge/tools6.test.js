@@ -234,6 +234,32 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
   } catch (e) { bad('diagnóstico primeira_vez', e); }
 
   try {
+    /**
+     * Regressão medida 2026-08-02 na simulação do estranho: com HOME estéril a linha do Ollama
+     * saía «🔴 Modelo local (Ollama) — ok — null → null» e o passo correspondente vinha com
+     * `comando: null`. Um vermelho mudo dentro do trabalho feito para acabar com vermelhos mudos.
+     *
+     * A trava é sobre TODOS os passos (não só os 3 mostrados) e sobre as linhas vermelhas: em
+     * qualquer ambiente, ninguém sai sem saber o que fazer, e nenhum texto contém "null".
+     */
+    const diag = await tools6.diagnosticoPrimeiraVez();
+    for (const p of diag.passos_todos) {
+      assert.ok(p.comando && String(p.comando).trim() && p.comando !== 'null',
+        'passo sem comando: ' + JSON.stringify(p));
+      assert.ok(p.porque && String(p.porque).trim() && p.porque !== 'null',
+        'passo sem porquê: ' + JSON.stringify(p));
+    }
+    for (const l of diag.linhas) {
+      if (!l.ok) {
+        assert.ok(l.detalhe && String(l.detalhe).trim(), 'linha vermelha muda: ' + l.item);
+        assert.ok(!/\bnull\b/.test(String(l.detalhe)),
+          'a linha «' + l.item + '» tem "null" no texto que o utilizador lê: ' + l.detalhe);
+      }
+    }
+    okmsg('nenhuma linha vermelha nem passo sai sem conserto legível (' + diag.passos_todos.length + ' passo(s) verificados)');
+  } catch (e) { bad('vermelhos mudos', e); }
+
+  try {
     const tools6mod = tools6;
     const semNada = process.env.PATH;
     const semPathext = process.env.PATHEXT;
