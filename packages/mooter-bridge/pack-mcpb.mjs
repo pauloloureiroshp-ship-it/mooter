@@ -47,6 +47,7 @@ const FILES = [
   // conector publicado rebentava no `require('./onboarding.js')` do tools6.js — e só se saberia
   // já instalado, na máquina do estranho. O `bundle.test.js` apanhou-a no minuto exacto.
   ['onboarding.js', 'server/onboarding.js'],
+  ['radar.js', 'server/radar.js'],
   ['localfirst.js', 'server/localfirst.js'],
   // Oráculo de regressão (auditoria E2E 2026-08-01). O `bundle.test.js` apanhou a
   // ausência desta linha no minuto em que o `seamless.js` passou a requerê-lo —

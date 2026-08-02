@@ -49,8 +49,28 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     // a razão de existir: 15 definições custavam milhares de tokens por chamada
     const bytes = JSON.stringify(lista).length;
     assert.ok(bytes < 9000, 'as definições ocupam ' + bytes + ' bytes — demasiado para o budget de contexto');
-    okmsg('definições cabem em ' + bytes + ' bytes (~' + Math.round(bytes / 4) + ' tokens)');
+    okmsg('definições cabem em ' + bytes + ' bytes (~' + Math.round(bytes / 4) + ' tokens)'
+      + ' · folga: ' + (9000 - bytes) + ' bytes');
   } catch (e) { bad('tamanho das definições', e); }
+
+  try {
+    // O radar tem de estar ALCANÇÁVEL, não só existir no ficheiro. E tem de continuar a
+    // declarar que não escreveu quando chega pela porta do MCP — é aí que o estranho o vê.
+    const setup = lista.find((t) => t.name === 'mooter_setup');
+    assert.ok(setup.inputSchema.properties.radar, 'o parâmetro `radar` não está no schema — a tool ficava inalcançável');
+    const alvo = fs.mkdtempSync(path.join(os.tmpdir(), 'radar-mcp-'));
+    fs.writeFileSync(path.join(alvo, 'README.md'), '# alvo', 'utf8');
+    const r = await server.handle({
+      jsonrpc: '2.0', id: 81, method: 'tools/call',
+      params: { name: 'mooter_setup', arguments: { radar: alvo } },
+    });
+    const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
+    assert.strictEqual(sc.ok, true, 'o radar não correu pela porta do MCP: ' + JSON.stringify(sc).slice(0, 200));
+    assert.strictEqual(sc.escreveu, false, 'o radar tem de declarar que não escreveu');
+    assert.strictEqual(sc.pontuacao.total_pilares, 6);
+    assert.match(sc.resumo, /só leitura/, 'o texto visível tem de repetir a promessa');
+    okmsg('radar alcançável por mooter_setup({radar}) e declara-se só-leitura');
+  } catch (e) { bad('radar pelo MCP', e); }
 
   try {
     for (const t of lista) {

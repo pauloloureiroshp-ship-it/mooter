@@ -475,13 +475,32 @@ function build(seam, fleet, base) {
           state: { type: 'string', enum: ['pendente', 'a-correr', 'feito', 'falhou', 'saltado'] },
           by: { type: 'string' },
           note_step: { type: 'string' },
-          primeira_vez: { type: 'boolean', description: 'Diagnóstico de arranque em 6 linhas verde/vermelho: GPU, modelo local (Ollama), vault, router (classify.js), CLIs de agente e Live Preview.' },
+          /**
+           * A descrição encolheu (de 9 linhas enumeradas para «arranque») porque o teste do
+           * orçamento de contexto (`tools6.test.js:51`, tecto 9000 bytes) ficou vermelho quando
+           * lhe juntei o `radar`. É a doutrina da Onda B a funcionar: o custo das DEFINIÇÕES é
+           * real e paga-se em cada conversa. Detalhe fica no `resumo` da resposta, que só se paga
+           * quando alguém chama.
+           */
+          primeira_vez: { type: 'boolean', description: 'Diagnóstico de arranque verde/vermelho + os próximos passos que resultam do que foi medido.' },
+          /**
+           * O radar é o momento-aha de quem acabou de instalar: aponta-se ao repositório DELE e
+           * devolve-se algo sobre o trabalho dele. Por isso tinha de ser a coisa mais segura do
+           * conector — **só leitura, sem rede, sem subprocessos, sem abrir ficheiros de segredos**.
+           * Vive numa tool que já escreve (`mooter_setup`), o que é permitido: a regra da Block que
+           * seguimos proíbe dar poder de ESCRITA a uma tool de leitura, não o contrário.
+           */
+          radar: { type: 'string', description: 'Caminho de um repo. Relatório de fundações (instruções, skills, memória, loops, estrutura, git) sem escrever lá nada.' },
         },
         additionalProperties: false,
       },
       annotations: { title: 'Estado da sessão e do plano', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       handler: async (args) => {
         const a = args || {};
+        if (a.radar) {
+          const r = require('./radar.js').radar(a.radar);
+          return comResumo(r, r.resumo || '🐮 radar');
+        }
         if (a.primeira_vez) {
           const diag = await diagnosticoPrimeiraVez();
           const texto = diag.linhas.map((l) => (l.ok ? '🟢' : '🔴') + ' ' + l.item + (l.detalhe ? ' — ' + l.detalhe : '')).join('\n');
