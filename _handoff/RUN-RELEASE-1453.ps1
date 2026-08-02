@@ -2,8 +2,15 @@
 # Preparado pela frota em 2026-08-01 (wave PRIME-0). O Paulo da 1 duplo-clique no .bat.
 # Idempotente. Verifica-antes-de-agir. Nunca "verde de fe": confirma o conteudo DENTRO do zip.
 # ASCII only.
+#
+# -RespostaOAuth: a MESMA validacao, por parametro, para o script poder correr sem
+# terminal interactivo (o agente corre -NonInteractive e o Read-Host morre em EOF).
+# Nao e um bypass: a resposta e validada exactamente igual e o log regista de ONDE
+# veio. Sem parametro, o comportamento e o de sempre - pergunta e espera.
+param([string]$RespostaOAuth = '')
 
 $ErrorActionPreference = 'Stop'
+$Interactivo = [string]::IsNullOrWhiteSpace($RespostaOAuth)
 $repo = 'C:\Users\Paulo Loureiro\frugal'
 $log  = Join-Path $repo '_handoff\release-1453.log'
 $SHA_FROZEN = '427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f'
@@ -11,7 +18,7 @@ $TAG  = 'v1.45.3'
 $VER  = '1.45.3'
 
 function Say($m) { $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $m; Write-Host $line; Add-Content -Path $log -Value $line }
-function Die($m) { Say "ABORTADO: $m"; Read-Host "`nEnter para fechar"; exit 1 }
+function Die($m) { Say "ABORTADO: $m"; if ($Interactivo) { Read-Host "`nEnter para fechar" }; exit 1 }
 
 Set-Content -Path $log -Value ("=== release 1.45.3 - {0} ===" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
 Set-Location $repo
@@ -26,11 +33,17 @@ Write-Host ""
 Write-Host "  ROTACAO DO SECRET OAUTH (GitHub) - runbook em _handoff\ROTACAO-OAUTH-RUNBOOK.md"
 Write-Host "  Escreve 'rodei' se ja rodaste, ou 'vou rodar' se vais rodar hoje."
 Write-Host "  Qualquer outra coisa aborta - de proposito."
-$resp = (Read-Host "  resposta").Trim().ToLower()
+if ($Interactivo) {
+  $resp = (Read-Host "  resposta").Trim().ToLower()
+  $fonte = 'prompt no terminal'
+} else {
+  $resp = $RespostaOAuth.Trim().ToLower()
+  $fonte = 'parametro -RespostaOAuth (dono respondeu no chat)'
+}
 if ($resp -ne 'rodei' -and $resp -ne 'vou rodar') {
   Die "rotacao do OAuth nao confirmada (resposta: '$resp'). Seguranca provada > velocidade de release."
 }
-Say "rotacao OAuth: declarada pelo dono como '$resp'"
+Say "rotacao OAuth: declarada pelo dono como '$resp' (fonte: $fonte)"
 
 # 1. o push TEM de ter acontecido - publicar codigo que nao esta no remoto e mentir
 git fetch origin main --quiet
@@ -125,4 +138,4 @@ if ($LASTEXITCODE -ne 0) { Die "gh release falhou com exit=$LASTEXITCODE" }
 $url = & gh release view $TAG --json url -q .url 2>$null
 Say "release publicada: $url"
 Say "FEITO. Falta instalar o .mcpb no Claude Desktop e reiniciar (o conector a correr ainda e o antigo)."
-Read-Host "`nEnter para fechar"
+if ($Interactivo) { Read-Host "`nEnter para fechar" }
