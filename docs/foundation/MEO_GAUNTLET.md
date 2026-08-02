@@ -1,4 +1,4 @@
-# MEO GAUNTLET v5 — 15 perguntas, régua de disparo, crítico ≠ autor
+# MEO GAUNTLET v6 — 18 perguntas, régua de disparo, crítico ≠ autor
 > v1: as 8 do Paulo (terreno real). v2: +5 da literatura. **v3: uma sessão de contexto fresco
 > correu o gauntlet SOBRE o gauntlet, apanhou um erro factual (números do CoVe colados pelo
 > autor na compressão — os três valores são de três tarefas distintas: MultiSpanQA F1 0.39→0.48,
@@ -10,6 +10,11 @@
 > **v5 (2026-08-01/02, sessão Cowork + CC): +3 entradas, todas por RETRO-PROVA ×3 de falhas do
 > próprio dia — G13 (procura-antes-de-delegar), G14 (valor de negócio), G15 (memória cross-silo).
 > Tecto elevado 13→15, 0 slots. A partir daqui: entra uma → sai uma.**
+> **v6 (2026-08-02, masterprompt "O FLUXO, O ESTRANHO E O JUIZ"): +3 entradas — G16 (juiz ou
+> estranho), G17 (modelo vs fluxo), G18 (claim sem [medido]). Tecto elevado 15→18 por DECISÃO
+> EXPLÍCITA DO DONO, registada: o Paulo mandou-as commitar antes de a wave arrancar. É a segunda
+> vez que o tecto sobe — e a regra do fecho (entra uma → sai uma) só se suspende assim, por gesto
+> do dono, nunca por entusiasmo do agente. Retro-prova ×3 anexada a cada uma, toda do registo.**
 
 ## Régua de disparo (o buraco mais caro da v2 — sem "quando", ou não corre ou corre a fingir)
 
@@ -17,9 +22,9 @@
 |---|---|---|
 | **Trivial** | reversível em <5 min, não sai da sessão | **nenhum** |
 | **Rotina** | entregável que o dono vai ler mas não re-verificar linha a linha | **G1, G3, G7 auto-aplicadas** + declaração de 1 linha |
-| **Alto risco** | toca produção/secrets/CI/release/site público, OU o dono vai agir sem reler, OU vira masterprompt para outra sessão | **as 15, com G4 num MOTOR DIFERENTE.** Sem segundo motor disponível: o entregável não sai, ou sai carimbado `não-verificado` — nunca sai limpo |
+| **Alto risco** | toca produção/secrets/CI/release/site público, OU o dono vai agir sem reler, OU vira masterprompt para outra sessão | **as 18, com G4 num MOTOR DIFERENTE.** Sem segundo motor disponível: o entregável não sai, ou sai carimbado `não-verificado` — nunca sai limpo |
 
-## As 15 — G1 a G13 na tabela abaixo; G14 e G15 seguem, cada uma colada à sua retro-prova
+## As 18 — G1 a G13 na tabela abaixo; G14 a G18 seguem, cada uma colada à sua retro-prova
 
 | # | Pergunta | Origem · prova de terreno |
 |---|---|---|
@@ -118,13 +123,79 @@ variáveis divergirem, o canónico deixa de ser mecanicamente garantido — mede
 numa métrica de outra cadeira (custo, activação, segurança, receita, UX), essa cadeira tem de ter
 o número escrito onde o lê — senão o silo vence e o MEO decide às cegas.
 
-**Tecto 15 · 0 slots.** Entradas desde a v4 (12 perguntas, tecto 13): a G13 (procura-antes-de-delegar)
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G16 | **Isto serve o JUIZ ou os ESTRANHOS? Se nenhum, é conforto disfarçado.** | Paulo 2026-08-02 · retro-prova ×3 abaixo. A G14 pergunta QUAL métrica de negócio a wave move; a G16 corta antes: hoje só existem dois instrumentos que medem alguma coisa — o juiz (`~/.mooter/afericao/`) e um estranho com o produto instalado. Sem um deles, não há métrica para mover |
+
+### Retro-prova da G16 (juiz ou estranho) — 3 falhas reais
+
+1. **`~/.mooter/afericao/` não existe** — medido 2026-08-02 (`ls` → *No such file or directory*).
+   Não está vazio à espera de tarefas: nunca foi criado. E o loop foi **declarado entregue** na
+   v1.20 (`44c9a80`, § Entregas do `SYNC.md`: "sentinela.js, afericao.js"). Treze dias de waves
+   depois, o instrumento que mede `custo por resposta certa` continua a zero tarefas.
+2. **Zero estranhos, medido:** release `v1.45.3` publicada 2026-08-02T05:54:19Z com **downloads 0**
+   (`_handoff/HANDOFF-PRIME-0-FECHO-para-cowork.md:16`). 0 clientes, 0 receita. Todo o produto
+   validado até hoje foi validado pela máquina de quem o escreveu.
+3. **Waves I, J, K e PRIME-0 fecharam todas com gate verde** e nenhuma alimentou o juiz nem pôs o
+   produto na mão de alguém de fora. Cada uma era defensável isoladamente; o padrão só aparece
+   quando se pergunta pelos dois instrumentos ao mesmo tempo.
+
+**A régua:** antes de abrir frente nova, responder "quantos já tocaram no que está feito?" com um
+número, não com uma intenção. Se a resposta for 0 e a wave não alimenta o juiz, a wave é conforto.
+
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G17 | **Estou a rotear o MODELO (commodity) ou o FLUXO (o produto)?** | Paulo 2026-08-02 · retro-prova ×3 abaixo. G5 pergunta se o ecossistema já resolveu isto; a G17 é mais dura: mesmo que ninguém tenha resolvido HOJE, escolher o eixo comoditizado é escolher perder daqui a dois trimestres |
+
+### Retro-prova da G17 (modelo vs fluxo) — 3 falhas reais
+
+1. **O único número medido que a PRIME-0 propõe para a demo é `classify_ms 3,296 ms`**
+   (`_handoff/HANDOFF-PRIME-0-FECHO-para-cowork.md:116-117`) — latência de escolha de modelo,
+   exactamente a métrica que qualquer router publica. Eleger esse número como herói da demo é
+   eleger competir no eixo que se copia.
+2. **O argumento de venda do roteamento de modelo está sem número:** a poupança líquida é `n/d`
+   nas cadeias moo→nuvem porque o motor pago corre à mesma (mesma fonte, `:116`). O próprio
+   handoff conclui: *"enquanto a poupança for n/d, o argumento é 'confia em mim'"*.
+3. **Três waves gastas a acertar a `fatia local`** (Wave K + auditoria E2E: 50,9% por jobs vs
+   15,0% por tokens — retro-prova da G12 §1) — esforço no eixo commodity. Zero waves no eixo que
+   ninguém copia: PRÉ→DURANTE→PÓS→APRENDER com recibo e scorecard por resposta.
+
+**A régua:** o router é nota de rodapé; o fluxo + o recibo são o produto. Wave que só melhora a
+escolha de modelo declara-o à cabeça e justifica porque está à frente do fluxo.
+
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G18 | **Afirmo "único/perfeito/melhor que todos"? Onde está o `[medido]`? Sem prova, troca por auditável.** | Paulo 2026-08-02 · retro-prova ×3 abaixo. G1 verifica a afirmação contra a fonte e G12 verifica o denominador; a G18 ataca a classe de afirmação que **não tem fonte possível** — superlativos e comparações com todo o mercado. A troca honesta não é apagar: é passar de "somos os melhores" a "corre X e vê" |
+
+### Retro-prova da G18 (claim sem [medido]) — 3 falhas reais
+
+1. **O site vende o que o repo declara stub:** `landing/app/(marketing)/under-the-hood/page.tsx:131-133`
+   descreve o Adapter Forge a "treinar um adaptador DoRA no teu próprio código", enquanto o
+   treinador no código é um *"HONEST STUB: this never runs training"* (citado em
+   `_handoff/HANDOFF_CC-COWORK_AUDITORIA_E2E_2026-08-01.md:244`). Honesto no código, fantasma na copy.
+2. **Rácio com metade do denominador estimado:** `landing/app/(marketing)/workflow/page.tsx:74-77`
+   publica "160× gap" a partir de `$0,0028` medido **contra `$0,45` estimado** — a palavra
+   *estimated* está no próprio parágrafo, mas não no número que o leitor retém.
+3. **O contra-exemplo que já funcionou:** `pressao_quota` declarou-se `n/d` até haver 7 dias de
+   histórico (Wave K3, `112b3da`) em vez de extrapolar de 1 dia. A disciplina existe no runtime e
+   nunca atravessou para a copy pública — é o mesmo produto a aplicar duas réguas diferentes.
+
+**A régua:** cada claim público carrega `[medido: onde]` ou desce a "auditável: corre X e vê".
+Superlativo sem fonte possível não se suaviza — sai.
+
+**Tecto 18 · 0 slots.** Entradas desde a v4 (12 perguntas, tecto 13): a G13 (procura-antes-de-delegar)
 ocupou o slot que estava livre — **não** elevou o tecto; a G14 (valor de negócio) elevou 13→14 e a G15
 (memória cross-silo) elevou 14→15. Todas com retro-prova ×3 do próprio dia, nenhuma da literatura.
-**A partir daqui, entra uma → sai uma.** As lentes C-level NÃO entram: vivem em `CONSELHO_C_LEVEL.md`,
+A v6 elevou 15→18 (G16, G17, G18) **por decisão explícita do dono no masterprompt de 2026-08-02** —
+a única porta que a regra do fecho deixa aberta. As três atacam o mesmo buraco por ângulos
+diferentes: o gauntlet media corretude (G1-G13), depois valor (G14-G15), e continuava sem perguntar
+se o trabalho chega a alguém de fora (G16), se está no eixo defensável (G17), e se o que se promete
+em público existe (G18).
+**A partir daqui, entra uma → sai uma — e o tecto não volta a subir sem novo gesto do dono.**
+As lentes C-level NÃO entram: vivem em `CONSELHO_C_LEVEL.md`,
 por rotação, porque persona-por-entrega é o inchaço que Urbach mata.
 Candidatas em fila de espera, à espera de RETRO-PROVA (correr contra ≥3 falhas
-reais do registo e apanhar ≥1 que as 15 não apanham):
+reais do registo e apanhar ≥1 que as 18 não apanham):
 - *Pre-mortem* (Klein) — cortada por sobreposição com G10 e evidência mais fraca (lab 1989 vs teste executado).
 - *Pontos de revisão anteriores abertos* (NASA) — volta QUANDO o registo de acções abertas existir
   como artefacto (cérebro da Wave M). Sem ficheiro grep-ável, é pergunta retórica.
@@ -146,12 +217,16 @@ reais do registo e apanhar ≥1 que as 15 não apanham):
 
 ## Regras de crescimento
 
-- Tecto **15 efectivas**: hoje 15 + 0 slots. Entrada SÓ por retro-prova (≥3 falhas reais, apanha ≥1 nova).
+- Tecto **18 efectivas**: hoje 18 + 0 slots. Entrada SÓ por retro-prova (≥3 falhas reais, apanha ≥1 nova).
   A v2 violou isto (5 entraram por autoridade da literatura numa tarde) — a v3 pagou a multa.
   A v4 respeitou-a: G11 e G12 entraram com 4 falhas medidas cada, todas do registo, nenhuma da literatura.
   A v5 respeitou-a: G13, G14 e G15 entraram com 3 falhas medidas cada, todas do próprio dia.
-  Com 0 slots vale a regra do fecho: entra uma → sai uma. Elevar o tecto outra vez NÃO é alternativa
-  a essa regra — exige decisão explícita do dono, registada, como a que o levou de 13 a 15.
+  A v6 respeitou-a: G16, G17 e G18 entraram com 3 falhas medidas cada, todas do registo verificável.
+  Com 0 slots vale a regra do fecho: entra uma → sai uma. Elevar o tecto NÃO é alternativa a essa
+  regra — exige decisão explícita do dono, registada. Aconteceu 2×: 13→15 (2026-08-01) e 15→18
+  (2026-08-02, masterprompt "O FLUXO, O ESTRANHO E O JUIZ"). Um agente **nunca** eleva o tecto sozinho.
+  **Aviso de calibração:** 18 perguntas é muito para correr a sério em cada entrega de alto risco.
+  Se o juiz O-1 (estágio 3) mostrar perguntas carimbadas às cegas, a resposta é PODAR, não crescer.
 - Pergunta que não muda nada em 3+ sessões de alto risco → o juiz distingue internalizada de
   carimbada; carimbada sai para a fila de espera.
 - O log de deltas (`gauntlet:` nas declarações registadas) é o dado de calibração — N5 do Sócio.
