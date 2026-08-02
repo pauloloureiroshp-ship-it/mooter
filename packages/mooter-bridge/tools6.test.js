@@ -167,22 +167,50 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
   try {
     // F0 item 4 — GATE: "um estranho num Mac limpo instala pelo site e vê o
     // diagnóstico verde." Aqui, sem GPU/Ollama/vault reais, a maioria das
-    // linhas fica vermelha — a prova é a FORMA (6 linhas, sempre), não a cor.
+    // linhas fica vermelha — a prova é a FORMA, não a cor.
+    //
+    // 6 → 9 linhas em 2026-08-02. O "6 linhas, sempre" era a trava certa para a forma e a
+    // trava errada para o conteúdo: a auditoria de onboarding
+    // (`_handoff/SUPERMASTER_MAC_MINI.md:100-111`) mostrou que dava para ter as 6 verdes e o
+    // primeiro job falhar com "git not found". As 3 novas são os gaps 1, 4 e 5 dessa tabela.
+    const ESPERADAS = ['GPU', 'Modelo local (Ollama)', 'Vault Obsidian', 'Router (classify.js)',
+      'CLIs de agente', 'Live Preview', 'git / gh', 'Configuração', 'Identidade da instalação'];
+    // Uma suite não escreve no $HOME de quem a corre (lição de 2026-07-25, a nota no vault real).
+    const skipAntes = process.env.MOOTER_SKIP_INSTALL_ID;
+    process.env.MOOTER_SKIP_INSTALL_ID = '1';
     const r = await server.handle({
       jsonrpc: '2.0', id: 8, method: 'tools/call',
       params: { name: 'mooter_setup', arguments: { primeira_vez: true } },
     });
+    if (skipAntes === undefined) delete process.env.MOOTER_SKIP_INSTALL_ID; else process.env.MOOTER_SKIP_INSTALL_ID = skipAntes;
     const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
-    assert.strictEqual(sc.diagnostico.length, 6, 'o diagnóstico deixou de ter 6 linhas: ' + sc.diagnostico.length);
+    assert.strictEqual(sc.diagnostico.length, ESPERADAS.length, 'o diagnóstico deixou de ter ' + ESPERADAS.length + ' linhas: ' + sc.diagnostico.length);
+    for (const nome of ESPERADAS) {
+      assert.ok(sc.diagnostico.some((l) => l.item === nome), 'falta a linha «' + nome + '» no diagnóstico');
+    }
     for (const linha of sc.diagnostico) {
       assert.ok(typeof linha.item === 'string' && linha.item, 'linha sem nome: ' + JSON.stringify(linha));
       assert.strictEqual(typeof linha.ok, 'boolean', linha.item + ' não é verde/vermelho: ' + JSON.stringify(linha));
+      // Uma linha vermelha sem conserto é o mesmo que silêncio para quem acabou de instalar.
+      if (!linha.ok) assert.ok(linha.detalhe && String(linha.detalhe).trim(), linha.item + ' está vermelha e não diz porquê');
     }
     assert.strictEqual(sc.tudo_verde, sc.diagnostico.every((l) => l.ok), 'tudo_verde não bate com as linhas');
     assert.ok(/🟢|🔴/.test(sc.resumo), 'o resumo não mostra as bolinhas verde/vermelho');
     const preview = sc.diagnostico.find((l) => l.item === 'Live Preview');
     assert.strictEqual(preview.ok, true, 'preview.js é um módulo real do repo — devia estar sempre verde');
-    okmsg('primeira_vez devolve diagnóstico de 6 linhas verde/vermelho');
+
+    // O first-run: veredicto accionável, não só cores.
+    assert.strictEqual(typeof sc.pronto_para_trabalhar, 'boolean', 'falta o veredicto pronto_para_trabalhar');
+    assert.strictEqual(typeof sc.bloqueios, 'number', 'falta a contagem de bloqueios');
+    assert.ok(Array.isArray(sc.proximos_passos), 'falta proximos_passos');
+    assert.ok(sc.proximos_passos.length <= 3, 'proximos_passos passou de 3: ' + sc.proximos_passos.length);
+    for (const p of sc.proximos_passos) {
+      assert.ok(p.o_que && p.prioridade, 'passo sem o_que/prioridade: ' + JSON.stringify(p));
+      assert.ok(['bloqueia', 'degrada', 'regista', 'opcional'].includes(p.prioridade), 'prioridade desconhecida: ' + p.prioridade);
+    }
+    // pronto_para_trabalhar tem de bater com a contagem de bloqueios — não pode ser optimismo solto.
+    assert.strictEqual(sc.pronto_para_trabalhar, sc.bloqueios === 0, 'pronto_para_trabalhar não bate com bloqueios');
+    okmsg('primeira_vez devolve diagnóstico de ' + ESPERADAS.length + ' linhas + próximos passos accionáveis');
   } catch (e) { bad('diagnóstico primeira_vez', e); }
 
   try {

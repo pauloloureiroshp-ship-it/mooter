@@ -26,6 +26,7 @@
 
 const PUBLICAS = ['mooter_work', 'mooter_check', 'mooter_fleet', 'mooter_cancel', 'mooter_journal', 'mooter_setup'];
 const capacidades = require('./capacidades.js');
+const onboarding = require('./onboarding.js');
 const path = require('path');
 const fs = require('fs');
 
@@ -59,6 +60,9 @@ async function diagnosticoPrimeiraVez() {
   const linhas = [];
   const add = (item, ok, detalhe) => linhas.push({ item, ok: !!ok, detalhe: detalhe || null });
 
+  // Lido ANTES de qualquer coisa lhe tocar — é a ausência do ficheiro que define "primeira vez".
+  const primeiraVez = onboarding.ehPrimeiraVez();
+
   let gpuSnap = null;
   try { gpuSnap = await require('./gpu.js').gpuSnapshot(0); } catch (e) { gpuSnap = { available: false, reason: (e && e.message) || String(e) }; }
   add('GPU', gpuSnap && gpuSnap.available,
@@ -66,15 +70,28 @@ async function diagnosticoPrimeiraVez() {
       ? gpuSnap.name + (gpuSnap.headroom && gpuSnap.headroom.verdict ? ' · ' + gpuSnap.headroom.verdict : '')
       : gpuSnap.reason) : 'gpu.js indisponível');
 
+  /**
+   * GAP 2 da auditoria de onboarding (`_handoff/SUPERMASTER_MAC_MINI.md:105`): "modelo local
+   * indisponível" era o mesmo texto para daemon em baixo, timeout, porta ocupada e JSON ilegível.
+   * O `pickModelExplained` continua a decidir; o `probeOllama` só diz PORQUÊ e como consertar.
+   */
   let modelo = null;
   try {
     modelo = await require('./moo.js').pickModelExplained(null, process.env.OLLAMA_HOST || '127.0.0.1:11434', []);
   } catch (e) { modelo = { model: null, porque: (e && e.message) || String(e) }; }
-  add('Modelo local (Ollama)', modelo && modelo.model, modelo ? (modelo.model || modelo.porque) : 'moo.js indisponível');
+  let probe = null;
+  if (!(modelo && modelo.model)) {
+    try { probe = await onboarding.probeOllama(process.env.OLLAMA_HOST); } catch { probe = null; }
+  }
+  add('Modelo local (Ollama)', modelo && modelo.model,
+    (modelo && modelo.model) ? modelo.model
+      : probe ? (probe.estado + ' — ' + probe.porque + ' → ' + probe.conserto)
+        : (modelo ? modelo.porque : 'moo.js indisponível'));
 
-  let vault = null;
-  try { vault = require('./journal.js').vaultStatus(); } catch (e) { vault = { available: false, reason: (e && e.message) || String(e) }; }
-  add('Vault Obsidian', vault && vault.available, vault ? (vault.available ? vault.root : vault.reason) : 'journal.js indisponível');
+  // GAP 3 (`:106`): vault ausente devolvia `n/d` sem dizer como se configura.
+  const vaultEstado = onboarding.estadoVault();
+  add('Vault Obsidian', vaultEstado.ok,
+    vaultEstado.ok ? vaultEstado.root : (vaultEstado.porque + ' → ' + vaultEstado.conserto));
 
   const classifyRepo = path.join(REPO_PARA_DIAGNOSTICO, 'tools', 'router', 'classify.js');
   const classifyBundle = path.join(__dirname, 'classify.js');
@@ -90,8 +107,82 @@ async function diagnosticoPrimeiraVez() {
   try { previewOk = typeof require('./preview.js').descobrir === 'function'; } catch { previewOk = false; }
   add('Live Preview', previewOk, previewOk ? 'preview.js carregado' : 'preview.js indisponível');
 
+  /**
+   * As três linhas que faltavam — e que faziam o diagnóstico dar 6 verdes a uma máquina onde o
+   * primeiro job ia falhar. Fonte: `_handoff/SUPERMASTER_MAC_MINI.md:100-111`.
+   * GAP 1 (git/gh) · GAP 4 (user_config) · GAP 5 (install-id efémero em silêncio).
+   */
+  const ferramentas = onboarding.verificarFerramentas();
+  add('git / gh', ferramentas.ok, ferramentas.detalhe);
+
+  const config = onboarding.validarUserConfig();
+  add('Configuração', config.ok, config.detalhe);
+
+  /**
+   * ⚠️ Medido 2026-08-02, e é pior do que a auditoria dizia: `install-id.js` era **código morto**.
+   * Nenhum caminho do conector chamava `getInstallId()` — grep em `packages/mooter-bridge/`,
+   * `tools/` e `hub/` devolveu zero chamadores — e `~/.mooter/install-id.json` não existia numa
+   * máquina com semanas de uso. Enquanto isso, `manifest.json:7` promete à loja: «O install-id
+   * (UUID local em ~/.mooter/install-id.json) é gerado na primeira sessão».
+   *
+   * O arranque passa a cumprir a promessa: gera-o aqui (UUID local, nunca transmitido — a mesma
+   * frase do manifest continua verdadeira do outro lado). Se não conseguir escrever, DIZ.
+   *
+   * `MOOTER_SKIP_INSTALL_ID=1` desliga a geração. Existe por duas razões medidas, não por gosto:
+   * (1) uma suite de testes não pode escrever no `$HOME` de quem a corre — foi assim que em
+   * 2026-07-25 uma suite deixou uma nota no vault REAL; (2) sem o interruptor, o caminho de
+   * «primeira vez» só é observável UMA vez por máquina, e um caminho que não se pode voltar a
+   * correr não se pode voltar a testar.
+   */
+  let install = onboarding.estadoInstallId();
+  const podeGerar = String(process.env.MOOTER_SKIP_INSTALL_ID || '') !== '1';
+  if (podeGerar && install.ok && install.persistente && !install.first_seen) {
+    try { require('./install-id.js').getInstallId(); install = onboarding.estadoInstallId(); }
+    catch { /* geração falhou — a linha abaixo mostra o estado real, seja ele qual for */ }
+  }
+  add('Identidade da instalação', install.ok,
+    install.ok ? (install.persistente ? 'persistente' + (install.first_seen ? ' desde ' + install.first_seen : ' (gerada agora)') : 'n/d')
+      : (install.porque + ' → ' + install.conserto));
+
+  /**
+   * O first-run que não existia (`:110`): «nenhum flag "primeira instalação" que dispare um
+   * welcome board com próximos passos. O diagnóstico corre sempre e não diz o que fazer a seguir.»
+   *
+   * Os passos NÃO são uma lista fixa — derivam do que acabou de ser medido, por prioridade:
+   * `bloqueia` (o 1º job falha) → `degrada` (funciona, mas pior ou mais caro) → `regista`.
+   */
+  const passos = [];
+  for (const it of ferramentas.itens) {
+    if (!it.presente && it.obrigatorio) passos.push({ prioridade: 'bloqueia', o_que: 'Instalar ' + it.binario, comando: it.conserto, porque: 'sem isto o 1º job com write:true falha' });
+  }
+  for (const c of config.campos.filter((x) => !x.ok)) passos.push({ prioridade: 'bloqueia', o_que: 'Corrigir ' + c.campo, comando: c.conserto, porque: c.detalhe });
+  if (!(modelo && modelo.model)) {
+    passos.push({
+      prioridade: 'degrada',
+      o_que: 'Pôr o Ollama a responder',
+      comando: probe ? probe.conserto : 'ver ollama.com/download',
+      porque: onboarding.degradacaoSemOllama(probe ? probe.estado : 'sem_daemon'),
+    });
+  }
+  if (!vaultEstado.ok) passos.push({ prioridade: 'degrada', o_que: 'Apontar o vault', comando: vaultEstado.conserto, porque: vaultEstado.perde });
+  if (!install.ok) passos.push({ prioridade: 'regista', o_que: 'Tornar ~/.mooter gravável', comando: install.conserto, porque: install.porque });
+  for (const it of ferramentas.itens) {
+    if (!it.presente && !it.obrigatorio) passos.push({ prioridade: 'opcional', o_que: 'Instalar ' + it.binario, comando: it.conserto, porque: it.para });
+  }
+
   const verdes = linhas.filter((l) => l.ok).length;
-  return { linhas, verdes, total: linhas.length, tudo_verde: verdes === linhas.length };
+  const bloqueios = passos.filter((p) => p.prioridade === 'bloqueia').length;
+  return {
+    linhas,
+    verdes,
+    total: linhas.length,
+    tudo_verde: verdes === linhas.length,
+    primeira_vez: primeiraVez,
+    bloqueios,
+    pronto_para_trabalhar: bloqueios === 0,
+    proximos_passos: passos.slice(0, 3),
+    passos_todos: passos,
+  };
 }
 
 /** Wrap para garantir que TODA a resposta abre com uma frase legível. */
@@ -394,10 +485,32 @@ function build(seam, fleet, base) {
         if (a.primeira_vez) {
           const diag = await diagnosticoPrimeiraVez();
           const texto = diag.linhas.map((l) => (l.ok ? '🟢' : '🔴') + ' ' + l.item + (l.detalhe ? ' — ' + l.detalhe : '')).join('\n');
+          /**
+           * O welcome board que faltava (`SUPERMASTER_MAC_MINI.md:110`): o diagnóstico dizia o
+           * ESTADO e nunca o PRÓXIMO PASSO. Agora as duas coisas saem juntas, e o veredicto de
+           * cima é `pronto_para_trabalhar` — não `tudo_verde`. A diferença é o ponto: uma máquina
+           * sem Ollama e sem vault trabalha (mais caro e sem memória, ambos declarados); uma
+           * máquina sem git não trabalha. Verde-a-toda-a-força escondia essa diferença.
+           */
+          const passosTexto = diag.proximos_passos.length
+            ? '\n\nPRÓXIMO PASSO:\n' + diag.proximos_passos
+              .map((p, i) => (i + 1) + '. [' + p.prioridade + '] ' + p.o_que
+                + (p.comando ? '\n   → ' + p.comando : '')
+                + (p.porque ? '\n   porquê: ' + p.porque : '')).join('\n')
+            : '';
+          const cabecalho = diag.primeira_vez ? '🐮 bem-vindo ao Mooter · primeira execução' : '🐮 diagnóstico';
+          const veredicto = diag.pronto_para_trabalhar
+            ? 'podes trabalhar já'
+            : diag.bloqueios + ' coisa(s) bloqueiam o primeiro trabalho';
           return comResumo({
             diagnostico: diag.linhas,
             tudo_verde: diag.tudo_verde,
-          }, '🐮 diagnóstico · ' + diag.verdes + '/' + diag.total + ' verde\n' + texto);
+            primeira_vez: diag.primeira_vez,
+            pronto_para_trabalhar: diag.pronto_para_trabalhar,
+            bloqueios: diag.bloqueios,
+            proximos_passos: diag.proximos_passos,
+            passos_todos: diag.passos_todos,
+          }, cabecalho + ' · ' + diag.verdes + '/' + diag.total + ' verde · ' + veredicto + '\n' + texto + passosTexto);
         }
         /**
          * ⚠️ v1.8.2 — O BOTÃO QUE NINGUÉM CONSEGUIA CARREGAR.

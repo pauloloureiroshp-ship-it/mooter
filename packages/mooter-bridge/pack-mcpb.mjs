@@ -43,6 +43,10 @@ const FILES = [
   ['journal.js', 'server/journal.js'],
   ['worktrees.js', 'server/worktrees.js'],
   ['tools6.js', 'server/tools6.js'],
+  // Os 5 gaps do onboarding (`_handoff/SUPERMASTER_MAC_MINI.md:100-111`). Sem esta linha o
+  // conector publicado rebentava no `require('./onboarding.js')` do tools6.js — e só se saberia
+  // já instalado, na máquina do estranho. O `bundle.test.js` apanhou-a no minuto exacto.
+  ['onboarding.js', 'server/onboarding.js'],
   ['localfirst.js', 'server/localfirst.js'],
   // Oráculo de regressão (auditoria E2E 2026-08-01). O `bundle.test.js` apanhou a
   // ausência desta linha no minuto em que o `seamless.js` passou a requerê-lo —
