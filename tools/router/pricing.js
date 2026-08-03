@@ -14,7 +14,7 @@
  * FALLBACK_PRICE (Sonnet-tier) so we never crash on a typo — but the
  * estimate will be wrong until added here.
  *
- * Last reviewed: 2026-04-16. Cross-check against:
+ * Last reviewed: 2026-08-03. Cross-check against:
  *   https://www.anthropic.com/pricing
  *   https://platform.openai.com/docs/pricing
  *   https://ai.google.dev/pricing
@@ -68,13 +68,14 @@ const PRICES = {
   'gemma3:12b':                       { input: 0, output: 0, strengths: ['general','summarize','translate'],              tier: 'T0', subtier: 'general' },
   'ollama':                          { input: 0, output: 0 }, // generic
 
-  // ── Google (Gemini) — verified 2026-04-16 from ai.google.dev ────────
+  // ── Google (Gemini) — verified 2026-08-03 from ai.google.dev ────────
   'gemini-2.5-pro':                  { input: 1.25,  output: 10.0,  strengths: ['reasoning','long-context','code'], tier: 'T2' },
   'gemini-2.5-pro[200k+]':          { input: 2.50,  output: 15.0,  strengths: ['long-context'],                    tier: 'T2' },
   'gemini-2.5-flash':                { input: 0.30,  output: 2.50,  strengths: ['fast','cheap','multimodal'],       tier: 'T1' },
   'gemini-2.5-flash-lite':           { input: 0.10,  output: 0.40,  strengths: ['ultra-cheap','fast'],              tier: 'T0' },
   // Wave 58.4 — Gemini 3 Flash (Preview), web-searched 2026-06-14: $0.50/$3.00.
-  // Distinct from Gemini 3.5 Flash ($1.50/$9.00). Matrix id: gemini-3-flash (price-only, cells empty).
+  // Distinct from Gemini 3.5 Flash ($1.50/$9.00). Note: live id on ai.google.dev may be
+  // gemini-3-flash-preview; using gemini-3-flash here for routing (price-only, cells empty).
   'gemini-3-flash':                  { input: 0.50,  output: 3.00,  strengths: ['fast','cheap','multimodal'],       tier: 'T1' },
 
   // ── OpenAI — verified 2026-04-16 from developers.openai.com ───────

@@ -70,7 +70,7 @@ export const MATRIX_MODELS = [
   "gpt-5",
   "gpt-5-3-codex",
   "gpt-oss",
-  "gemini-3.1-pro",
+  "gemini-3.1-pro",  // No pricing entry in tools/router/pricing.js; cells empty; do not use in cost calculations
   "gemini-3-flash",  // Wave 58.4 — Gemini 3 Flash (Preview); price-only, cells empty
   "deepseek-v3.2",
   "deepseek-v4-pro", // Wave 58.4 — DeepSeek V4 Pro; price-only, cells empty
