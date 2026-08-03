@@ -431,7 +431,26 @@ function build(seam, fleet, base) {
             });
             return comResumo(receipt, '🐮 recibo por cargo · ' + receipt.janela.periodo);
           } catch (error) {
-            return { resumo: '⛔ não gerei o recibo', error: (error && error.message) || String(error) };
+            /**
+             * ⚠️ O recibo É a prova. Uma falha MUDA é pior do que não haver recibo:
+             * quem a vê não sabe se o trabalho não aconteceu, se a janela estava
+             * mal pedida, ou se o ledger é que rebentou.
+             *
+             * Medido 2026-08-02: `view:"recibo"` devolveu `⛔ não gerei o recibo` e
+             * a causa — «desde é obrigatório para o âmbito sessao» — vivia só no
+             * campo `error`, que o painel não mostra. É o mesmo buraco que o achado
+             * A1 fechou no despacho (`seamless.js:544`): o motivo tem de viajar na
+             * ÚNICA linha que a pessoa lê. E nunca pode sair vazio — um erro sem
+             * `message` continua a ter de dizer o que era.
+             */
+            const causa = (error && error.message)
+              || (error == null ? '' : String(error))
+              || ('o erro subiu sem mensagem — ' + Object.prototype.toString.call(error));
+            return {
+              resumo: '⛔ não gerei o recibo: ' + causa,
+              error: causa,
+              porque: 'o recibo é a prova; uma falha sem causa declarada não é auditável',
+            };
           }
         }
         if (view === 'board' || view === 'afericao') {

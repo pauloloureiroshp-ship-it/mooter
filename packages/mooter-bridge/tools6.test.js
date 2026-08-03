@@ -306,6 +306,39 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
     okmsg('cliNoPath devolve false para um binário ausente do PATH');
   } catch (e) { bad('cliNoPath', e); }
 
+  try {
+    // O recibo é a prova. Medido 2026-08-02: `view:"recibo"` devolveu
+    // `⛔ não gerei o recibo` e a causa ficou só no campo `error`, que o painel
+    // não mostra — falha muda. Forçamos o throw determinístico mais barato
+    // (`periodo:"sessao"` sem `desde`) e exigimos a causa na linha visível.
+    const r = await server.handle({
+      jsonrpc: '2.0', id: 82, method: 'tools/call',
+      params: { name: 'mooter_fleet', arguments: { view: 'recibo', periodo: 'sessao' } },
+    });
+    const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
+    assert.match(sc.resumo, /^⛔ não gerei o recibo: .+/, 'o resumo saiu mudo: ' + JSON.stringify(sc.resumo));
+    assert.match(sc.resumo, /desde/, 'o resumo não nomeia a causa real (`desde` em falta)');
+    assert.ok(sc.error && String(sc.error).trim(), 'o campo error ficou vazio');
+    okmsg('a falha do recibo traz a causa na linha visível, nunca "sem motivo"');
+  } catch (e) { bad('recibo: falha nunca muda', e); }
+
+  try {
+    // A outra metade do contrato: quando NÃO há motivo para falhar, não falha.
+    // A queixa original era intermitente — uma corrida só não prova nada.
+    const vistos = [];
+    for (let i = 0; i < 5; i++) {
+      const r = await server.handle({
+        jsonrpc: '2.0', id: 830 + i, method: 'tools/call',
+        params: { name: 'mooter_fleet', arguments: { view: 'recibo', periodo: 'dia' } },
+      });
+      const sc = r.result.structuredContent || JSON.parse(r.result.content[0].text);
+      vistos.push(sc.resumo);
+    }
+    const falhas = vistos.filter((s) => /^⛔/.test(String(s)));
+    assert.strictEqual(falhas.length, 0, '5 corridas, ' + falhas.length + ' falha(s): ' + JSON.stringify(falhas));
+    okmsg('recibo gerado 5×  seguidas sem erro-mudo');
+  } catch (e) { bad('recibo: 5 corridas seguidas', e); }
+
   say('\n' + pass + ' testes da onda B' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
   process.on('uncaughtException', () => {});
   setTimeout(() => { try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ } }, 200);
