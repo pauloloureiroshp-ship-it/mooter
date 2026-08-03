@@ -92,9 +92,13 @@ const JUDGEMENT_FIELDS = {
   'NEXT FOR COWORK': 'só se genuinamente limpo',
 };
 
-function sh(cmd, args, cwd = REPO) {
+function sh(cmd, args, cwd = REPO, { raw = false } = {}) {
   try {
-    return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    // Do NOT trim command output here when raw=true. Some machine-readable
+    // formats use leading spaces as structural data (`git status --porcelain`
+    // is the important example: " M path" means an unstaged modification).
+    const out = execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return raw ? out : out.trim();
   } catch {
     return null; // caller turns null into n/d — never into a guess
   }
@@ -720,7 +724,10 @@ function gitFacts(run = sh) {
   const upstream = run('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
   const counts = upstream ? run('git', ['rev-list', '--left-right', '--count', `${upstream}...HEAD`]) : null;
   const [behind, ahead] = counts ? counts.split(/\s+/).map(Number) : [null, null];
-  const status = parseStatus(run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
+  // cwd stays `undefined` like every other call here: pinning only this one to REPO
+  // would let branch/HEAD/upstream come from an injected runner's repo while the
+  // status came from another — a handoff describing two repositories at once.
+  const status = parseStatus(run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], undefined, { raw: true }));
   const dirty = status.known ? status.entries.filter((e) => e.code !== '??').length : null;
   const untracked = status.known ? status.entries.filter((e) => e.code === '??').length : null;
   const uncommitted = status.known ? status.entries.length : null;
@@ -765,7 +772,7 @@ function unpushedInventory(wts, run = sh) {
   const rows = wts.map((w) => {
     const upstream = run('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], w.path);
     const counts = upstream ? run('git', ['rev-list', '--left-right', '--count', `${upstream}...HEAD`], w.path) : null;
-    const status = parseStatus(run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], w.path), w.path);
+    const status = parseStatus(run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], w.path, { raw: true }), w.path);
     if (!upstream || !counts || !status.known) {
       complete = false;
       return `  ${w.branch || w.head}  n/d`;
@@ -1094,7 +1101,7 @@ function main() {
 if (require.main === module) main();
 
 module.exports = {
-  specFields, checkSpecDrift, gitFacts, worktrees, gateFacts, canonChecks,
+  sh, specFields, checkSpecDrift, gitFacts, worktrees, gateFacts, canonChecks,
   extractQA, renderQA, render, KNOWN_FIELDS, parseStatus, parseMessageContracts,
   normalizeMessageType, parseBrief, projectBrief, renderTemplate,
   renderTypedFixture, validateTypedArtifacts, parseProjectionFrontmatter,

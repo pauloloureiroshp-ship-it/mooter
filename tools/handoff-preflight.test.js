@@ -511,3 +511,52 @@ test('worktree UNPUSHED uses each branch upstream, never origin/main distance', 
   assert.match(inventory.text, /nada unpushed ou uncommitted/);
   assert.doesNotMatch(inventory.text, /1 unpushed/);
 });
+
+test('porcelain -z keeps the leading status space: the first tracked-modified path is never truncated', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-porcelain-'));
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd: tmp, encoding: 'utf8' });
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test User');
+    fs.mkdirSync(path.join(tmp, 'docs', 'foundation'), { recursive: true });
+    const tracked = path.join(tmp, 'docs', 'foundation', 'MEO_GAUNTLET.md');
+    fs.writeFileSync(tracked, 'seed\n');
+    git('add', 'docs/foundation/MEO_GAUNTLET.md');
+    git('commit', '-q', '-m', 'seed');
+
+    // The tracked-modified record sorts FIRST and the untracked one after it: the
+    // first record is exactly the one whose leading status space a blind .trim() ate.
+    fs.writeFileSync(tracked, 'modified\n');
+    fs.writeFileSync(path.join(tmp, 'zz-untracked.md'), 'untracked\n');
+
+    // The REAL sh(), only pointed at the fixture repo. Re-implementing it here would
+    // prove the double instead of the tool — which is how this bug survived. The cwd
+    // it receives is recorded, not discarded: a runner that swallows cwd cannot see
+    // gitFacts pinning one call to a different repo than the rest.
+    const seenCwd = [];
+    const run = (cmd, args, cwd, opts) => {
+      seenCwd.push(cwd);
+      return pre.sh(cmd, args, cwd === undefined ? tmp : cwd, opts);
+    };
+
+    const raw = run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], tmp, { raw: true });
+    assert.ok(raw.startsWith(' M '), `raw mode must keep the status code intact, got ${JSON.stringify(raw)}`);
+
+    seenCwd.length = 0;
+    const facts = pre.gitFacts(run);
+    assert.deepEqual(
+      [...new Set(seenCwd)], [undefined],
+      `gitFacts pinned some calls to a different repo than the others: ${JSON.stringify(seenCwd)}`,
+    );
+    const paths = (facts.uncommittedPaths || []).map((p) => p.replace(/\\/g, '/'));
+    assert.ok(
+      paths.some((p) => p.endsWith('docs/foundation/MEO_GAUNTLET.md')),
+      `RED ALERT path truncated: ${JSON.stringify(paths)}`,
+    );
+    // The exact symptom: the eaten space shifts slice(3) and swallows the first char.
+    for (const p of paths) assert.doesNotMatch(p, /\/ocs\/foundation\//);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 3 });
+  }
+});
