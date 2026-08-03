@@ -26,7 +26,9 @@ $VER  = '1.45.4'
 function Say($m) { $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $m; Write-Host $line; Add-Content -Path $log -Value $line }
 function Die($m) { Say "ABORTADO: $m"; if ($Interactivo) { Read-Host "`nEnter para fechar" }; exit 1 }
 
-Set-Content -Path $log -Value ("=== release 1.45.4 - {0} ===" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+# append, nao Set-Content: o caminho idempotente (re-upload do asset) corre este
+# script uma segunda vez, e truncar apagaria a prova da primeira publicacao.
+Add-Content -Path $log -Value ("`n=== release 1.45.4 - {0} ===" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
 Set-Location $repo
 Say ("node: " + (node -v))
 
@@ -49,11 +51,18 @@ if ($resp -ne 'rodei' -and $resp -ne 'vou rodar') {
 }
 Say "rotacao OAuth: declarada pelo dono como '$resp' (fonte: $fonte)"
 
-# 1. o push TEM de ter acontecido - publicar codigo que nao esta no remoto e mentir
+# 1. o push TEM de ter acontecido - publicar codigo que nao esta no remoto e mentir.
+#    Igualdade, nao contagem: `rev-list --count origin/main..HEAD` tambem da 0 quando
+#    HEAD esta ATRAS do remoto, e ai o log afirmava uma igualdade que nao mediu. Com
+#    sessoes paralelas a empurrar para main, esse caso e real, nao teorico.
 git fetch origin main --quiet
-$pend = (git rev-list --count 'origin/main..HEAD')
-if ($pend -ne '0') { Die "ha $pend commit(s) por empurrar. Faz o push do branch antes." }
-$head = (git rev-parse HEAD)
+$head   = (git rev-parse HEAD).Trim()
+$remoto = (git rev-parse origin/main).Trim()
+if ($head -ne $remoto) {
+  $pend  = (git rev-list --count 'origin/main..HEAD')
+  $atras = (git rev-list --count 'HEAD..origin/main')
+  Die "origin/main ($remoto) != HEAD ($head): $pend por empurrar, $atras por puxar. Alinha antes de publicar."
+}
 Say "origin/main == HEAD == $head  OK"
 
 # 2. invariante congelado
@@ -130,9 +139,11 @@ try {
 
     $hZip = (& git hash-object --no-filters $tmp).Trim()
     # git rev-parse falha (exit != 0 + stderr) quando o caminho nao existe em HEAD.
-    # Em pwsh 7.4 um exit != 0 de comando nativo pode ser lancado como erro terminante,
-    # por isso este e o unico sitio do script que precisa de try/catch: a ausencia em
-    # HEAD e um resultado esperado, nao uma avaria.
+    # MEDIDO em pwsh 7.6.4: $PSNativeCommandUseErrorActionPreference = False, logo um
+    # exit != 0 nativo NAO e lancado e o try/catch e defensivo, nao necessario. Fica
+    # porque quem correr isto com essa preferencia ligada (ou noutra versao que mude o
+    # default) veria o script morrer aqui em vez de registar a divergencia. A ausencia
+    # em HEAD e um resultado esperado deste ciclo, nao uma avaria.
     $hHead = $null
     try { $hHead = (& git rev-parse "HEAD:$rp" 2>$null) } catch { $hHead = $null }
     if ([string]::IsNullOrWhiteSpace($hHead)) {
@@ -163,7 +174,10 @@ try {
   # (a) invariante da 1.45.2 - caminhos com espaco
   $ctx = LerDoZip $zip '*context.js'
   if (-not $ctx) { Die "context.js NAO esta dentro do bundle" }
-  if ($ctx.corpo -notmatch '\[A-Za-z\]\[') { Die "regressao: context.js sem o fix de caminhos com espaco" }
+  # o ':' NAO e decorativo - o padrao real em context.js:57 e /[A-Za-z]:[\\/]...
+  # (transcrever isto sem os dois pontos fez o gate acusar regressao num ficheiro
+  # byte-a-byte igual a HEAD. Apanhado pelo final-reviewer antes de publicar.)
+  if ($ctx.corpo -notmatch '\[A-Za-z\]:\[') { Die "regressao: context.js sem o fix de caminhos com espaco" }
   Say ("fix de caminhos com espaco CONFIRMADO em " + $ctx.nome)
 
   # (b) invariante da 1.45.3 - oraculo D13
@@ -187,9 +201,12 @@ try {
   Say "tools6.js liga aos 3 modulos do P1: OK"
 
   # (d) a versao dentro do bundle
+  # sem o `if (-not $vj) Die`, a asserção passava por AUSENCIA - exactamente o
+  # "verde de fe" que o cabecalho deste script diz combater.
   $vj = LerDoZip $zip '*server/version.json'
-  if ($vj -and $vj.corpo -notmatch [regex]::Escape($VER)) { Die "version.json dentro do bundle nao diz $VER" }
-  if ($vj) { Say "version.json dentro do bundle: $VER OK" }
+  if (-not $vj) { Die "server/version.json NAO esta dentro do bundle" }
+  if ($vj.corpo -notmatch [regex]::Escape($VER)) { Die "version.json dentro do bundle nao diz $VER" }
+  Say "version.json dentro do bundle: $VER OK"
   $mf = LerDoZip $zip 'manifest.json'
   if (-not $mf -or $mf.corpo -notmatch [regex]::Escape('"version": "' + $VER + '"')) { Die "manifest.json dentro do bundle nao diz $VER" }
   Say "manifest.json dentro do bundle: $VER OK"
@@ -231,20 +248,33 @@ O QUE NAO VEM NESTE BUNDLE (de proposito, para nao prometer o que nao leva)
 - hooks do Claude Code (inject_context.js e afins) chegam por /mooter-update, nunca
   por este bundle.
 
-PROVA NO MOMENTO DA PUBLICACAO (ver _handoff/release-1454.log)
-- classify.js sha256 427d8c0b...4bc48f intacto, no repo E dentro do bundle
-- wave-gate exit=0 (o script aborta se a suite piorar)
-- bundle == HEAD ficheiro-a-ficheiro por hash de blob, 0 a faltar e 0 a mais
+O QUE FOI PROVADO ANTES DE ESTE ARTEFACTO EXISTIR
+O script que publicou esta release (_handoff/RUN-RELEASE-1454.ps1, versionado)
+aborta - nao avisa, aborta - se qualquer destas falhar:
+- classify.js com sha256 diferente de 427d8c0b...4bc48f, no repo OU dentro do zip
+- wave-gate com exit != 0 (a suite pior do que o baseline versionado)
+- qualquer entrada do zip diferente do blob em HEAD, ou uma entrada a mais
+- onboarding.js / radar.js / sinal-valor.js ausentes, vazios, ou nao ligados ao tools6.js
+- manifest.json ou server/version.json dentro do zip a dizer outra versao
+Le o script para veres as verificacoes; o log da corrida (_handoff/release-1454.log)
+fica na maquina de quem publicou e nao e versionado.
+
+BUNDLE
+sha256 do .mcpb: impresso pelo pack-mcpb.mjs e no log local da corrida.
 "@
-  & gh release create $TAG $mcpb --title "Mooter v1.45.4" --notes $notas 2>&1 | ForEach-Object { Say "   $_" }
+  & gh release create $TAG $mcpb --title "Mooter v1.45.4" --notes $notas --target $head 2>&1 | ForEach-Object { Say "   $_" }
 }
 if ($LASTEXITCODE -ne 0) { Die "gh release falhou com exit=$LASTEXITCODE" }
 
 # 9. UMA TAG NAO E UMA RELEASE. Ja saiu release sem .mcpb anexado - e uma release
 #    sem asset nao actualiza desktop nenhum. Confirma o artefacto, nao so a tag.
-$assets = & gh release view $TAG --json assets -q '.assets[].name' 2>$null
-if (-not $assets -or ($assets -notmatch '\.mcpb$')) {
-  Die "a release $TAG existe mas NAO tem asset .mcpb anexado (assets: $assets). Nada para instalar."
+# `$array -notmatch 'x'` e um FILTRO, nao um booleano: um array com 2 assets em que
+# so um bate devolve o outro, que e truthy, e o Die disparava DEPOIS do passo
+# irreversivel. Teste explicito de "existe pelo menos um .mcpb".
+$assets = @((& gh release view $TAG --json assets -q '.assets[].name' 2>$null) | Where-Object { $_ })
+$mcpbAnexados = @($assets | Where-Object { $_ -like '*.mcpb' })
+if ($mcpbAnexados.Count -lt 1) {
+  Die ("a release $TAG existe mas NAO tem asset .mcpb anexado (assets: " + ($assets -join ', ') + "). Nada para instalar.")
 }
 $assets | ForEach-Object { Say "asset anexado: $_" }
 $url = & gh release view $TAG --json url -q .url 2>$null
