@@ -26,6 +26,17 @@ const OUT = process.argv[2] || path.join(HERE, '..', '..', '_handoff', `mooter-v
 // exact file list — never a glob. A stray file in a bundle is a supply-chain bug.
 const FILES = [
   ['manifest.json', 'manifest.json'],
+  // ⚠️ SEGUNDA COPIA, DE PROPOSITO. `install-id.js` faz `require('./manifest.json')`
+  // (install-id.js:50). No repo isso resolve, porque manifest.json e o vizinho dele.
+  // No bundle NAO: install-id.js viaja para `server/` e o manifest fica na raiz do
+  // zip (onde o formato .mcpb o exige). O require rebentava com MODULE_NOT_FOUND,
+  // e o `catch` da linha 53 — escrito para "sem permissao de escrita" — engolia-o.
+  // Efeito medido numa instalacao limpa: `~/.mooter/install-id.json` NUNCA era
+  // escrito, o painel dizia "Identidade da instalacao: persistente (gerada agora)"
+  // sem ter persistido nada, e cada sessao voltava a anunciar "🐮 primeira vez".
+  // Ou seja: o GAP 5 do onboarding ("install-id efemero em silencio") continuava
+  // aberto DENTRO da release que o vinha fechar. Herdado desde a v1.29.0 (f46d9ac).
+  ['manifest.json', 'server/manifest.json'],
   ['entregas-por-versao.json', 'entregas-por-versao.json'],
   ['icon.png', 'icon.png'],
   ['README.md', 'README.md'],
@@ -184,20 +195,38 @@ function semComentarios(texto) {
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1 '); // linha (sem apanhar http://)
 }
 
+/**
+ * ⚠️ Perguntar "o ficheiro vai no bundle?" NÃO é a pergunta certa.
+ *
+ * A pergunta que o Node faz em runtime é outra: "o ficheiro está ao lado de quem
+ * o pede, DEPOIS de o zip ser desempacotado?". Este detector comparava o nome do
+ * require contra a lista de ORIGENS (`src`) e dava verde a
+ * `install-id.js -> manifest.json` — que está mesmo na lista, mas com destino na
+ * RAIZ do zip, enquanto o install-id.js aterra em `server/`. O require rebentava
+ * na máquina de quem instala e ninguém sabia, porque o `catch` que existia para
+ * "sem permissão de escrita" engolia o MODULE_NOT_FOUND.
+ *
+ * Agora a verificação é feita nos DESTINOS: para um ficheiro que aterra em
+ * `server/x.js`, `require('./y.json')` exige um destino `server/y.json`. É a
+ * mesma resolução que o Node faz, e é por isso que apanha o que a outra não
+ * apanhava. `.json` conta tanto como `.js`.
+ */
 function verificarRequires(files) {
-  const dentro = new Set(files.map(([src]) => src));
+  const destinos = new Set(files.map(([, dest]) => dest));
   const faltam = [];
-  for (const [src] of files) {
+  for (const [src, dest] of files) {
     if (!src.endsWith('.js')) continue;
     const texto = semComentarios(fs.readFileSync(path.join(HERE, src), 'utf8'));
-    const re = /require\(\s*['"]\.\/([\w.-]+\.js)['"]\s*\)/g;
+    const pasta = path.posix.dirname(dest);
+    const re = /require\(\s*['"]\.\/([\w.-]+\.(?:js|json))['"]\s*\)/g;
     let m;
     while ((m = re.exec(texto)) !== null) {
-      if (!dentro.has(m[1])) faltam.push(src + ' -> ' + m[1]);
+      const alvo = path.posix.join(pasta === '.' ? '' : pasta, m[1]);
+      if (!destinos.has(alvo)) faltam.push(dest + ' -> require("./' + m[1] + '") => ' + alvo + ' (nao existe no bundle)');
     }
   }
   if (faltam.length) {
-    console.error('BUNDLE INCOMPLETO — estes require ficariam sem ficheiro:');
+    console.error('BUNDLE INCOMPLETO — estes require ficariam sem ficheiro depois de instalado:');
     for (const f of faltam) console.error('  ' + f);
     process.exit(1);
   }
