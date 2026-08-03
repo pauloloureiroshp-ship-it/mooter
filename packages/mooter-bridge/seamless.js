@@ -598,7 +598,10 @@ function buildCommand(agent, jobDir, allowedTools, model, label) {
     return { bin: 'codex', args };
   }
   if (agent === 'gemini') {
-    const args = ['-p', boot, '--output-format', 'json', '--approval-mode', 'auto_edit'];
+    const readOnly = !allowedTools || /^\s*(read|read-only)\s*$/i.test(String(allowedTools))
+      || !/(write|edit|bash)/i.test(String(allowedTools));
+    const args = ['-p', boot, '--output-format', 'json'];
+    if (!readOnly) args.push('--approval-mode', 'auto_edit');
     if (model) args.push('--model', String(model));
     return { bin: 'gemini', args };
   }
