@@ -49,6 +49,13 @@ GPU (Ollama), routing every prompt to the minimum viable tier and learning forev
 telemetry — never proxying prompts, never fabricating metrics. The engine is the moat; the
 cockpit is the product. A change earns its place by improving one of five experiences:
 **Resume · Plan · Route (invisible) · Watch · Review**.
+
+> ⚠️ **TESE SUPERADA (2026-08-02).** «The engine is the moat» já não é a tese. O router está
+> comoditizado (Bifrost 11µs, RouteLLM, agent-fleet-o), o codex apanhou-o no G4 da PRIME-0, e o
+> Paulo chegou à mesma conclusão. A tese viva é: **o fosso é a confiança — um recibo auditável e
+> verificação adversarial (crítico ≠ autor) sobre trabalho que um não-dev consegue conferir; o
+> motor é table stakes, a cabine é onde a prova aparece** (`AGENTS.md` § Project overview).
+> O parágrafo acima fica intacto como registo do que era verdade a 2026-07-15.
 Mission: **"Your LLM router. Local-first. Learns forever."**
 ```
 

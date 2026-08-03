@@ -4,7 +4,7 @@
 
 ### Operate like a master without studying every day — real multi-agent projects in VS Code. Local-first.
 
-Mooter sets up, watches, and pilots your project with total visibility: foundation-gap alerts, best practices applied automatically, and the magic visible (Live Preview). The engine is the moat; the cockpit is the product. Five experiences: **Resume · Plan · Route (invisible) · Watch · Review.**
+Mooter sets up, watches, and pilots your project with total visibility: foundation-gap alerts, best practices applied automatically, and the magic visible (Live Preview). The moat is trust: an auditable receipt and adversarial verification (critic ≠ author) on work a non-dev can check. The engine is table stakes; the cockpit is where the proof shows. Five experiences: **Resume · Plan · Route (invisible) · Watch · Review.**
 
 **Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · 65–82% cost vs all-Opus (measured — [SYSTEM_DESIGN §0](docs/foundation/SYSTEM_DESIGN.md#0-executive-summary-read-this-if-you-read-nothing-else) · [validation runs](docs/strategy/MOOTER_PERF_VALIDATION.md)).**
 

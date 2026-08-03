@@ -4,12 +4,13 @@
 every day: it sets up, watches, and pilots a real multi-agent project from inside VS Code with
 total visibility — alerting foundation gaps (skills, memory, loops, file structure), applying
 vibe-coding best practices automatically, and making the magic visible (Live Preview).
-Under the hood, the engine and moat: a deterministic local-first router (<50ms, $0 to classify)
+Under the hood, the engine: a deterministic local-first router (<50ms, $0 to classify)
 that orchestrates multiple LLM subscriptions (Anthropic, OpenAI, Google) plus the user's own
 GPU (Ollama), routing every prompt to the minimum viable tier and learning forever from local
-telemetry — never proxying prompts, never fabricating metrics. The engine is the moat; the
-cockpit is the product. A change earns its place by improving one of five experiences:
-**Resume · Plan · Route (invisible) · Watch · Review**.
+telemetry — never proxying prompts, never fabricating metrics. The moat is trust: an auditable
+receipt and adversarial verification (critic ≠ author) on work a non-dev can check.
+The engine is table stakes; the cockpit is where the proof shows. A change earns its place by
+improving one of five experiences: **Resume · Plan · Route (invisible) · Watch · Review**.
 
 > Paulo's personal routing doctrine lives in `~/.claude/CLAUDE.md` and still applies globally.
 > The long version that used to live here is archived at
