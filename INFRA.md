@@ -275,7 +275,7 @@ savings_usd, created_at
 | Provider | Estado | Callback URL |
 |---|---|---|
 | Magic Link (email) | ✅ Activo | — |
-| GitHub OAuth | ✅ Activo (confirmado 2026-04-13) | `https://eymtobwinevywmmlmxqa.supabase.co/auth/v1/callback` |
+| GitHub OAuth | ✅ Activo (confirmado 2026-04-13) · **client secret rodado 2026-08-03** | `https://eymtobwinevywmmlmxqa.supabase.co/auth/v1/callback` |
 
 ### GitHub OAuth App (já configurada)
 
@@ -285,6 +285,7 @@ savings_usd, created_at
 | Homepage URL | `https://landing-five-azure-16.vercel.app` |
 | Callback URL | `https://eymtobwinevywmmlmxqa.supabase.co/auth/v1/callback` |
 | Estado | ✅ Criada e activa em github.com/settings/developers |
+| Client secret — última rotação | **2026-08-03**, declarada pelo dono. Runbook: `_handoff/ROTACAO-OAUTH-RUNBOOK.md`. Motivo: o secret esteve exposto em plaintext pela Management API da Supabase (~abril 2026) e a trava do `RUN-RELEASE-*.ps1` recusa publicar sem esta resposta. |
 
 ---
 
