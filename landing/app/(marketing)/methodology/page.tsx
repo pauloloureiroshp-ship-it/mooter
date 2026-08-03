@@ -27,7 +27,7 @@ type OsId = (typeof OS)[number]['id'];
 const SUBS: { logo: Provider; name: string; plans: string[] }[] = [
   { logo: 'anthropic', name: 'Anthropic Claude', plans: ['Free', 'Pro', 'Max', 'Team', 'API'] },
   { logo: 'openai', name: 'OpenAI ChatGPT', plans: ['Free', 'Plus', 'Pro', 'Codex', 'API'] },
-  { logo: 'google', name: 'Google Gemini', plans: ['Free', 'Advanced', 'Ultra'] },
+  // Google Gemini removed: calculator metrics fabricated; restore when backed by real data
 ];
 
 const fmt = (n: number) => `$${n.toFixed(2)}`;
@@ -73,7 +73,7 @@ export default function MethodologyPage() {
   const [os, setOs] = useState<OsId>('macos');
   const [subs, toggleSub] = useReducer(
     (state: Record<Provider, boolean>, logo: Provider) => ({ ...state, [logo]: !state[logo] }),
-    { anthropic: true, openai: true, google: false } as Record<Provider, boolean>,
+    { anthropic: true, openai: true } as Record<Provider, boolean>,
   );
   const [promptsPerDay, setPromptsPerDay] = useState(80);
   const [pctCritical, setPctCritical] = useState(8);
@@ -88,7 +88,6 @@ export default function MethodologyPage() {
     [hardware === 'none' ? '—' : '✓', hardware === 'none' ? 'No local tier (no discrete GPU)' : `All local models (${HARDWARE.find((h) => h.id === hardware)?.label})`, hardware === 'none' ? 'no' : 'ok'],
     [subs.anthropic ? '✓' : '—', 'Sonnet & Opus (Anthropic)', subs.anthropic ? 'ok' : 'no'],
     [subs.openai ? '✓' : '—', 'GPT-4o (OpenAI)', subs.openai ? 'ok' : 'no'],
-    [subs.google ? '✓' : '—', 'Gemini (Google)', subs.google ? 'ok' : 'no'],
   ];
 
   return (
