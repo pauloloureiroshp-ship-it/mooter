@@ -277,7 +277,21 @@ if ($LASTEXITCODE -eq 0) {
   Say "release $TAG ja existe e a tag aponta para $head (alvo declarado: $alvo) - a substituir o asset"
   Nativo { & gh release upload $TAG $mcpb --clobber 2>&1 } | ForEach-Object { Say "   $_" }
 } else {
-  $notas = @"
+  <#
+    NOTAS POR FICHEIRO, NAO POR ARGUMENTO.
+
+    MEDIDO na primeira tentativa de publicacao (2026-08-03 08:46): passar o texto
+    em `--notes $notas` fez o Windows PowerShell 5.1 partir o argumento nas aspas
+    embebidas ("sem permissao de escrita"), e o `gh` leu os fragmentos como
+    ficheiros de asset:  no matches found for `permissao`  -> exit 1.
+    A release nao chegou a ser criada, o que so por sorte nao deixou meia release
+    publicada. `--notes-file` nao passa por nenhuma camada de quoting.
+
+    E here-string LITERAL (@'...'@), nao interpolante: o texto tem backticks a
+    volta de nomes de ficheiro, e num @"..."@ o backtick e o caracter de escape —
+    desaparecia silenciosamente do texto publicado.
+  #>
+  $notas = @'
 Mooter conector v1.45.4
 
 O QUE MUDA PARA QUEM INSTALA
@@ -321,8 +335,11 @@ fica na maquina de quem publicou e nao e versionado.
 
 BUNDLE
 sha256 do .mcpb: impresso pelo pack-mcpb.mjs e no log local da corrida.
-"@
-  Nativo { & gh release create $TAG $mcpb --title "Mooter v1.45.4" --notes $notas --target $head 2>&1 } | ForEach-Object { Say "   $_" }
+'@
+  $notasFile = Join-Path $repo '_handoff\release-1454-notas.md'
+  Set-Content -Path $notasFile -Value $notas -Encoding UTF8
+  Say "notas em $notasFile ($((Get-Item $notasFile).Length) bytes)"
+  Nativo { & gh release create $TAG $mcpb --title "Mooter v1.45.4" --notes-file $notasFile --target $head 2>&1 } | ForEach-Object { Say "   $_" }
 }
 if ($LASTEXITCODE -ne 0) { Die "gh release falhou com exit=$LASTEXITCODE" }
 
