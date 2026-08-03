@@ -101,6 +101,12 @@
 <!-- HUMANO:INICIO -->
 # Mooter — Sync Snapshot
 
+### 🅿️ PARQUEADO — miscalibração T3 vs trabalho crítico (2026-08-03)
+
+- Classificador decide **T3 nativamente em 85,7%** das classificações (108/126), com `escalation_rule: none` em 91 e `task_category: architecture_or_critical` em 98 — sem beast, sem safety_boost, sem override [medido: `decisions.log`, janela 03:23→13:44 de 2026-08-03].
+- `haiku_unavailable_no_provider_degraded_to_local` em **9,8%** (376/3845) — o T1 cai para local por falta de provider [medido: `decisions_v2.jsonl`, 2026-06-13→2026-08-03].
+- **Investigar** se é quota a arder por miscalibração ou se o trabalho é mesmo crítico. `classify.js` é FROZEN (sha CI-enforced), portanto o fix vive **fora** dele. Descartado nesta sessão: beast mode — 2 disparos em 3845 decisões (0,05%), `.mooter-mode.json` em `auto` [medido: `decisions_v2.jsonl` + `~/.claude/tools/router/.mooter-mode.json`].
+
 ## Gate atual — cross-device agent sync (2026-07-29)
 
 - **Veredito:** `NOT_READY` para “todos os devices/superfícies sincronizados”.
