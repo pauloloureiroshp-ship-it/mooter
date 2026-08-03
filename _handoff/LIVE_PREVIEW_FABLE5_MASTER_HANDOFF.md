@@ -11,7 +11,7 @@
 Founder pós-exit, não-dev, sabbatical técnica. **PT-PT** ("ficheiro/ecrã/actualizar"), "tu",
 founder-pragmatic, tabelas>prosa, marcadores ✅🔜🟡⚠️❌🔥❄️🛠. ❌ hype vazio, ❌ inventar números
 ("verifica em X"). Nomes próprios não se traduzem. Antes de afirmar sobre LLMs/dev-tools → web_search.
-Vault `~/Documents/paulo-vault` (cruzar em decisões — hoje foi subusado, corrigir). Invariantes CI:
+Vault canónico: `$MOOTER_VAULT` → `$VAULT_PATH` → `~/paulo-vault` (cruzar em decisões — hoje foi subusado, corrigir); `~/Documents/paulo-vault` é o clone stale, não usar. Invariantes CI:
 `classify.js` sha `427d8c0b…` FROZEN, packages frozen, sem `.md` novos na raiz, sem push/merge sem OK.
 
 ## 1. Estado ACTUAL em produção (confirmar nativo antes de construir)

@@ -37,7 +37,7 @@ function writeAtomic(file, text) { const tmp = file + ".tmp"; writeFileSync(tmp,
 const RULES = [
   "REGRAS DURAS: classify.js FROZEN (não tocar; prova a sha 427d8c0b…364bc48f no fim).",
   "Tudo ADITIVO; git add seletivo (nunca -A). NUNCA merge/push/tag para main — isso é gate humano (reporta em BLOCKERS).",
-  "No fim da wave ALIMENTA o Notion (sub-página sob a log page) E o vault Obsidian (~/Documents/paulo-vault/).",
+  "No fim da wave ALIMENTA o Notion (sub-página sob a log page) E o vault Obsidian (precedência canónica do AGENTS.md: $MOOTER_VAULT → $VAULT_PATH → raiz do home ~/paulo-vault; NUNCA ~/Documents/paulo-vault, que é o clone stale).",
   "Termina sempre com o bloco ```status``` (DID/TESTS/BLOCKERS/NEXT/DONE).",
 ].join("\n");
 

@@ -5,7 +5,7 @@ CONTINUA na branch `wave-WCOCKPIT` (NÃO criar nova). 100% ADITIVO. Lê docs/str
 Acrescenta 5 elementos por live session no cockpit (cada um com fonte de dado real):
 1. **Última interação** (`lastActiveTs`): do mtime do transcript / ts do decisions.log (host-extra já tem). Mostra "2m ago" + title com timestamp exacto. Ordenar sessões por: needs-you primeiro, depois mais recente.
 2. **Notion** por sessão/projeto: campos no mode-registry `notionPageId`, `notionSyncedAt`. Mini-logo SVG (quadrado + N, currentColor). Mostra "Nh" desde o sync; se nunca → CTA "sync".
-3. **Obsidian (2nd brain)**: campos `obsidianPath`, `obsidianSyncedAt`. Existência+mtime do ficheiro em ~/Documents/paulo-vault. Mini-logo SVG (gema roxa). Amber "sync" quando stale/ausente.
+3. **Obsidian (2nd brain)**: campos `obsidianPath`, `obsidianSyncedAt`. Existência+mtime do ficheiro no vault canónico (`$MOOTER_VAULT` → `$VAULT_PATH` → `~/paulo-vault`; nunca `~/Documents/paulo-vault`, o clone stale). Mini-logo SVG (gema roxa). Amber "sync" quando stale/ausente.
 4. **Botão refresh/registar** por sessão: handler `refreshIntegrations(sid)` -> escreve a nota no Notion (via o canal do governador/bus, NÃO chamar APIs destrutivas no runner) + no vault, e actualiza os `*SyncedAt` no registry (escrita atómica). Mostra a hora do último update.
 5. **Worktree-linked**: `git worktree list --porcelain` -> mapear `cwd` de cada sessão ao worktree; campo `worktree` no row. Sessões no mesmo worktree partilham o chip "⌥ wt:<nome>"; o header do projeto conta "N em wt:<nome>".
 

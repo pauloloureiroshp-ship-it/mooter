@@ -122,7 +122,7 @@ Barra competitiva: **Lovable · Bolt · v0 · Replit · Cursor · Onlook** (estu
 
 ## 11. Onde está tudo registado (rastreável)
 - **Specs/masterprompts:** `_handoff/LIVE_EDIT_MP5_2_SelectLock_Spec.md` (5.2a+5.2b) · `_handoff/LIVE_EDIT_MP5_SPEC.md` (auditoria+5.0→5.3) · `_handoff/WAVE_LP2_MP5_SelectToEdit.md` (5.0/5.1, executado) · `_handoff/WAVE_LP1_MP3v2_MP4polish.md` (MP3-v2) · `_handoff/LIVE_PREVIEW_POSTMORTEM_PROTOCOL.md` (R1–R6) · `_handoff/LIVE_PREVIEW_FEATURE_STUDY.md` (competitivo).
-- **Vault:** `~/Documents/paulo-vault/30-learnings/mooter-live-edit-mp5-2-select-lock-2026-07-06.md` + `[[10-projects/mooter]]`.
+- **Vault:** `30-learnings/mooter-live-edit-mp5-2-select-lock-2026-07-06.md` + `[[10-projects/mooter]]` — escrito em 2026-07-06 em `~/Documents/paulo-vault` (**registo histórico**: esse clone é o stale da G15; o canónico é `$MOOTER_VAULT` → `$VAULT_PATH` → `~/paulo-vault`).
 - **Notion HQ:** "Live Edit · MP5.2" (`3956f6e4-2bc4-816c-b71e-c0283bba8a11`), sob a página-mãe "Live Preview".
 - **Memória Cowork:** `project_mooter_live_edit_mp5` (actualizada 2026-07-06 com o desenho MP5.2).
 

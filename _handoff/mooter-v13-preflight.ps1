@@ -103,10 +103,13 @@ Say ""
 
 # 7. vault
 Say "[7] Vault Obsidian"
+# Precedencia canonica (AGENTS.md § Agent boot & freshness, e journal.js): MOOTER_VAULT ->
+# VAULT_PATH -> raiz do home. Documents\paulo-vault e o clone STALE (G15) e nao entra na lista.
 $cands = @(
-  (Join-Path $env:USERPROFILE 'Documents\paulo-vault'),
+  $env:MOOTER_VAULT,
+  $env:VAULT_PATH,
   (Join-Path $env:USERPROFILE 'paulo-vault')
-)
+) | Where-Object { $_ }
 $vaultFound = $false
 foreach ($c in $cands) {
   if (Test-Path (Join-Path $c '.obsidian')) { Say "    OK       : $c"; $vaultFound = $true; break }

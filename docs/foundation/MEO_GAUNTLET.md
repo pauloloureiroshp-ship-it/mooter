@@ -134,7 +134,7 @@ o número escrito onde o lê — senão o silo vence e o MEO decide às cegas.
    v1.20 (`44c9a80`, § Entregas do `SYNC.md`: "sentinela.js, afericao.js"). Treze dias de waves
    depois, o instrumento que mede `custo por resposta certa` continua a zero tarefas.
 2. **Zero estranhos, medido:** release `v1.45.3` publicada 2026-08-02T05:54:19Z com **downloads 0**
-   (`_handoff/HANDOFF-PRIME-0-FECHO-para-cowork.md:16`). 0 clientes, 0 receita. Todo o produto
+   (`_handoff/_archive/2026-08/HANDOFF-PRIME-0-FECHO-para-cowork.md:16`). 0 clientes, 0 receita. Todo o produto
    validado até hoje foi validado pela máquina de quem o escreveu.
 3. **Waves I, J, K e PRIME-0 fecharam todas com gate verde** e nenhuma alimentou o juiz nem pôs o
    produto na mão de alguém de fora. Cada uma era defensável isoladamente; o padrão só aparece
@@ -150,7 +150,7 @@ número, não com uma intenção. Se a resposta for 0 e a wave não alimenta o j
 ### Retro-prova da G17 (modelo vs fluxo) — 3 falhas reais
 
 1. **O único número medido que a PRIME-0 propõe para a demo é `classify_ms 3,296 ms`**
-   (`_handoff/HANDOFF-PRIME-0-FECHO-para-cowork.md:116-117`) — latência de escolha de modelo,
+   (`_handoff/_archive/2026-08/HANDOFF-PRIME-0-FECHO-para-cowork.md:116-117`) — latência de escolha de modelo,
    exactamente a métrica que qualquer router publica. Eleger esse número como herói da demo é
    eleger competir no eixo que se copia.
 2. **O argumento de venda do roteamento de modelo está sem número:** a poupança líquida é `n/d`

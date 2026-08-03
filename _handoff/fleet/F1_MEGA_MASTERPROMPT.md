@@ -30,7 +30,7 @@ Dynamic workflow (`packages/workflow/src/`): `parallel(items,fn,{concurrency})`,
 ## GATES (honestos)
 - Smoke do orquestrador verde (DRY_RUN). Testes verdes. classify.js sha intacta. Diff 100% aditivo (zero toques em engine frozen).
 - Push da branch + PR = GATE HUMANO → reporta em BLOCKERS, não faças.
-- No fim, ALIMENTA Notion (sub-página sob a log page 3876f6e4-2bc4-812b-b5d3-e6433a6cc8af) + vault (~/Documents/paulo-vault/).
+- No fim, ALIMENTA Notion (sub-página sob a log page 3876f6e4-2bc4-812b-b5d3-e6433a6cc8af) + vault (precedência canónica do AGENTS.md: `$MOOTER_VAULT` → `$VAULT_PATH` → raiz do home `~/paulo-vault`; `~/Documents/paulo-vault` é o clone stale — G15).
 
 Termina sempre com o bloco ```status``` (DID/TESTS/BLOCKERS/NEXT/DONE). DONE:yes só quando o orquestrador F1 passa o smoke, os 12 charters existem, e Notion+vault alimentados. Se precisares de mais que uma ronda, divide e continua na mesma sessão.
 

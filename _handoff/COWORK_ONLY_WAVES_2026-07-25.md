@@ -126,7 +126,7 @@ Copiar o conteúdo real do `.mcpb` v1.1 para `packages/mooter-bridge/`, commit s
 **Aceite:** uma wave em que o moo faz o preparo e o `cc` recebe MP encurtado — com os dois custos lado a lado.
 
 ### CW6 · O VAULT (1-2 h · $0) — *lacuna 9*
-1. **Detectar** a raiz do vault (testar `~/Documents/paulo-vault` e `~/paulo-vault`; achar `.obsidian/`). Se não achar → `n/d`, ❌ nunca escrever às cegas.
+1. **Detectar** a raiz do vault pela precedência canónica do `AGENTS.md` (`$MOOTER_VAULT` → `$VAULT_PATH` → raiz do home `~/paulo-vault`; achar `.obsidian/`). Se não achar → `n/d`, ❌ nunca escrever às cegas. *(2026-08-02: a lista original começava por `~/Documents/paulo-vault` — o clone stale da G15.)*
 2. `mooter_journal(wave)` escreve `30-learnings/` ou `20-decisions/` com frontmatter e link para o `job_id`.
 3. Chip **Obsidian** no painel com estado real: `✅ escrito 12:04` · `🟡 por escrever` · `⚠️ vault não encontrado`.
 **Aceite:** fechar uma wave e ver a nota aparecer no Obsidian sem tocar no teclado.
