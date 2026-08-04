@@ -297,3 +297,23 @@ test('recomendarAgente NUNCA contradiz um veto de risco', () => {
   assert.match(auditoria.porque, /auditoria tem veto/i);
   assert.match(tier3.porque, /T3 tem veto/i);
 });
+
+test('nao_verificado é evento terminal e não conta no pending_jobs', () => {
+  const ledger = [
+    { ts: '2026-07-26T12:00:00.000Z', event: 'dispatched', job_id: 'job-approved',
+      agent: 'moo', worktree: 'C:\\repo', goal: 'resume o ficheiro' },
+    { ts: '2026-07-26T12:01:00.000Z', event: 'nao_verificado', job_id: 'job-approved' },
+    { ts: '2026-07-26T12:02:00.000Z', event: 'dispatched', job_id: 'job-running',
+      agent: 'moo', worktree: 'C:\\repo', goal: 'explica o codigo' },
+  ];
+  const records = aprender._jobRecords({ ledger });
+  const stats = aprender.statistics({ ledger });
+  // job com nao_verificado tem status (não é vivo)
+  assert.strictEqual(records[0].desfecho, 'indeterminado');
+  assert.ok(records[0].status);
+  // job sem evento terminal não tem status (é vivo)
+  assert.strictEqual(records[1].status, null);
+  assert.strictEqual(records[1].desfecho, null);
+  // pending_jobs só conta o que não tem status
+  assert.strictEqual(stats.pending_jobs, 1);
+});

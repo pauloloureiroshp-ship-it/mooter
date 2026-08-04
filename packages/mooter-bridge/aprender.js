@@ -15,7 +15,7 @@ const PRECOS_USD_POR_MILHAO = Object.freeze({
 const MIN_OBSERVATIONS = 5;
 const REPEAT_WINDOW_MS = 10 * 60 * 1000;
 const DESFECHOS = new Set(['entregue', 'falhou', 'interrompido', 'expirou', 'indeterminado']);
-const EVENTOS_TERMINAIS = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
+const EVENTOS_TERMINAIS = new Set(['done', 'failed', 'nao_verificado', 'prep_timeout', 'prep_failed_fallback']);
 const CATEGORY_PATTERNS = [
   ['git_deploy', [/\b(git|commit|push|merge|rebase|branch(?:es)?|pull request|pr)\b/i,
     /\b(deploy|publica|lan[çc]a|release|migra|migration)\b/i]],
