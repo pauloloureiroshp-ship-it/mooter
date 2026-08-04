@@ -36,8 +36,9 @@ node tools/cockpit/build-snapshot.js
 exit 0 · 5 ids · 11 métricas · 50 pastas · setup=sim · 531431 bytes
 ```
 
-## Release
+## Release (corrigido)
 
-Commit: `9770ba63c80f47b0428d5b16633176fa824d6db6`
+Commit: `336288d26cf8d7ad017ffb655e5aedf86c80902e` (fix: versão única para conector)
 Push: `origin/main` atualizado
 Tag: v1.47.0
+Teste novo: `packages/mooter-bridge/versao-coerente.test.js` — gate de divergência de versão
