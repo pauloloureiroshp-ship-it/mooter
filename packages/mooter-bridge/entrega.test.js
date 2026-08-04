@@ -77,6 +77,10 @@ const MARCADORES = {
   'install-id.js': ['getInstallId', 'installIdInfo'],
   // v1.45 — fatia-local.js: calcular % do trabalho que rodou localmente (agent === 'moo')
   'fatia-local.js': ['jobs_concluidos_agent_moo', 'fatiaLocal'],
+  // v1.47 — retry.js: gauntlet de diagnóstico e escalada automática
+  'retry.js': ['GAUNTLET DE RETRY', 'lock-git-preso', 'gauntlet'],
+  // v1.47 — terminal.js: definição única de terminalidade
+  'terminal.js': ['TERMINAL_STATES', 'isTerminal'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {
