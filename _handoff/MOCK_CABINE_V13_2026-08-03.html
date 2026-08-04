@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOCK v13 — Mooter Cabin · quiet prompt log + side-drawer breakdown · measured data 2026-08-04T01:07:51Z</title>
+<style>
+  /* ================= v13 = THE PROMPT LOG GOES QUIET =========================
+     Starts from v12 — ONE change: the prompt log. Everything else (signature
+     bar, devil's advocate, attention, project strip, themes, tooltips, the
+     ◌/⚑ counters) is v12, untouched. Owner's words (2026-08-03): "linhas
+     simples do resumo de cada prompt com horário e quais LLMs foram
+     utilizadas ... somente com os logos ... todo o restante ... apertar um
+     botão na lateral para fazer o breakdown. Tudo o mais simples possível."
+       ① THE ROW is a strict budget — three things and a side button:
+          local time (zone resolved at runtime, in the tooltip; ◌ when the
+          receipt has no start time — never invented) · one-line summary
+          ≤60 chars that never wraps · engine logos ONLY (no text, no model
+          names), one per engine that touched the prompt, in run order —
+          ANIMATED only while that engine is live on that prompt, still and
+          slightly dimmed once done. Cut from the surface: cost, duration,
+          tokens, thumbs, tier, step chips, state text. All of it moved to ②.
+       ② THE BREAKDOWN is a SIDE DRAWER, not an accordion — an accordion
+          pushes rows around and breaks the scan. The › (or the row, or Enter
+          on it) slides a panel in from the right (~180 ms, honours
+          prefers-reduced-motion), with its own scroll and a header repeating
+          time + summary + logos. Esc, ✕ and the scrim dismiss it; one drawer
+          at a time; the open row stays highlighted; focus returns to the row
+          on close. The drawer holds everything v12's expanded rows held:
+          asked · understood (⚑) · ran (engines + tier asked→ran) · finished ·
+          remains (⚑) · gauntlet changes (⚑) · cost & duration · tokens ·
+          savings (ESTIMATE) · context-window impact · 👍/👎 · skill dropdown ·
+          job ids.
+       ③ ZEBRA kept (the owner asked for it) but QUIETER than v12 — it helps
+          the eye track across a row, not stripe the page. Hover raises the
+          row 1 px; the open row carries a terracotta edge.
+       ④ Small footer strip: 2 jobs agent-awaiting-approval — "running", not
+          working — the distinction the Cabin exists to make.
+       ⑤ Honesty deviation, declared: the brief listed row #1's engines as
+          cow + sunburst; the v12 receipts for wave painel-nativo show
+          codex ×2 + moo. The receipts win — the row shows cow + hexagons.
+     The wave replay now narrates ONLY through the signature rotor; log rows
+     are static lines and nothing inside a closed drawer ever animates. */
+  /* ================= v12 = PROMPT LOG + THEMES + HONEST BUTTONS ================
+     Starts from v11 — EVERYTHING kept. This file is the visual spec a Claude
+     Code session will implement; comments are implementation notes. New in v12:
+       ① PROMPT LOG (centrepiece): one zebra-striped row per user prompt —
+          local time (Intl.DateTimeFormat().resolvedOptions().timeZone, the
+          resolved zone appended to the tooltip AT RUNTIME so it is provably
+          automatic) · auto-title ≤60 chars (⚑ not instrumented: would be one
+          $0 local qwen call on the prompt text, same detached pattern as
+          handoff-rollup.js) · engine glyphs · cost · duration · 👍/👎 ·
+          animated mini-cow ONLY while that prompt still has live work.
+          Each row expands into the full v11 breakdown + context-window impact.
+       ② Cow rumination sped up 1.6 s → 1.0 s (owner: closer to the Claude
+          logo's rhythm; smooth, never frantic). Same mark, smaller, per-row.
+       ③ Dark/light toggle, top-right of the signature bar. CSS custom
+          properties; initial = prefers-color-scheme; remembered in memory
+          ONLY (no localStorage — mock). All 5 colour semantics survive both.
+       ④ Update check: installed 1.45.3 · 1.45.4 available (bundle already at
+          _handoff/mooter-v1454.mcpb, NOT installed) · plugin.json 1.38.0 =
+          7 minors behind. Mechanism: mooter_setup({atualizar:"ver"|"aplicar"}),
+          skill /mooter-atualizar, then RESTART the desktop app.
+       ⑤ /cabine · /mooter-cockpit-launch — honest caveat: a slash command
+          CANNOT open a side panel in Claude Code; it renders the Cabin inline
+          and registers the session.
+       ⑥ Parallelism, measured distinction: capacity 47 · busy 0 · 1 stalled.
+          It HAPPENED today (32 jobs / 15 waves / 4 folders); nothing runs in
+          parallel right now.
+       ⑦ Vault "recorded" strip: count + latest at a glance, list on expand. */
+  /* ================= v11 = ENGLISH + RESTRAINT + THE WASTED CONNECTOR ==========
+     Starts from v10 (three source states intact: measured · ◌ not measured yet ·
+     ⚑ not instrumented). What changes in v11:
+       ① Everything user-facing in ENGLISH. Verbatim codebase quotes stay in
+         their original language, marked "verbatim (PT)". Moo verbs re-invented
+         in English — ~30 verbs, 9 phases; the pun is the wrapper, the fact is
+         the payload (every verb ships glued to a measured number).
+       ② NEW: "Apply a skill" dropdown on each prompt's result — real skills
+         from skills/ (meo-* role skills + plugin mooter skill) + a curated
+         community slot. Action is ⚑ not instrumented; the pane states the cost.
+       ③ Connector features the Cabin was wasting, all measured today via
+         mooter_fleet view:recibo @ 2026-08-04T01:07:51Z:
+         a) deterministic devil's advocate (first-class block)
+         b) next steps (3, verbatim)
+         c) session registry (mooter_setup sessao:registar) — gets a button
+         d) vault: 8 notes with folder+file+timestamp
+         e) roles (cargos) with per-role receipts — 31/32 jobs cargo:null
+         f) handoff arrows with honest savings (net savings: refused ×9)
+         g) local verdict (n/d — the moo did not answer)
+       ④ Design critique applied:
+         - LESS motion: only state-change animation survives (rumination while
+           working, live dots, the one handoff packet, refresh spin). Entry
+           animations cut. Nothing done or dead ever animates.
+         - Strict type scale 11/13/16/22 px · exactly 2 weights (400/700).
+         - Cut from the surface: job IDs (expand only), raw token in/out
+           (expand/tooltip only), worktree list, per-metric range bounds
+           (tooltip only — except the out-of-range cards, which ARE the
+           exceptions and get the largest size on the page).
+         - Denser vertical rhythm; breathing room only between sections.
+     Intact rules: ≤5 elements on first view, no scroll, all collapsed; the
+     rotor reads the real phase and STOPS when nothing is alive; highlight only
+     exceptions; ◌/⚑ counted from the DOM; every button alive; tooltips explain
+     in plain English; prefers-reduced-motion; self-contained, no CDN. */
+  :root{
+    --bg:#1f1e1b; --panel:#262522; --panel2:#2b2a26; --card:#242320; --term:#141311;
+    --border:#3a3833; --border-soft:#33322d;
+    --fg:#e8e6e1; --dim:#9c988e; --faint:#6b675e;
+    --terracotta:#D97757;
+    --green:#6fbf85; --green-dim:rgba(111,191,133,.10); --green-bd:rgba(111,191,133,.40);
+    --amber:#dfae5e; --amber-dim:rgba(223,174,94,.09); --amber-bd:rgba(223,174,94,.38);
+    --red:#e0705c;  --red-dim:rgba(224,112,92,.08);  --red-bd:rgba(224,112,92,.40);
+    --blue:#8fb8d8;
+    --nd:#8ea4b8; --nd-dim:rgba(142,164,184,.07); --nd-bd:rgba(142,164,184,.30);
+    --flag:#a89f8d; --flag-dim:rgba(168,159,141,.06); --flag-bd:rgba(168,159,141,.38);
+    --zebra:#21201d; --zebraq:rgba(0,0,0,.09); --hairline:#2c2b27; --barbg:#33312b; --bar2:#2b2a26;
+    --glyph:#d5d2ca; --tipbg:#141311;
+    --mono:ui-monospace,'Cascadia Code','SF Mono',Consolas,Menlo,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    /* strict type scale — the only four sizes on the page */
+    --fs1:11px; --fs2:13px; --fs3:16px; --fs4:22px;
+  }
+  /* ③ LIGHT THEME — initial default follows prefers-color-scheme; the toggle
+     (top-right of the signature bar) overrides it, remembered in memory only.
+     Every semantic re-inked for paper-white: the amber and the slate-blue ◌
+     are the two that fail naive inversion, so they get darker inks with the
+     same meaning. The brand fills (terracotta sun, cow, gemini gradient)
+     keep their hues; only text/border inks change. */
+  html[data-theme="light"]{
+    --bg:#f2f0ea; --panel:#fbfaf6; --panel2:#edeae1; --card:#f6f4ee; --term:#eceadf;
+    --border:#c6c2b6; --border-soft:#d7d3c7;
+    --fg:#26241f; --dim:#57534a; --faint:#7d7869;
+    --terracotta:#b9532f;
+    --green:#1d7a43; --green-dim:rgba(29,122,67,.10); --green-bd:rgba(29,122,67,.45);
+    --amber:#8a5f00; --amber-dim:rgba(138,95,0,.09); --amber-bd:rgba(138,95,0,.50);
+    --red:#b13a26; --red-dim:rgba(177,58,38,.08); --red-bd:rgba(177,58,38,.45);
+    --blue:#2b6ca3;
+    --nd:#3e6280; --nd-dim:rgba(62,98,128,.09); --nd-bd:rgba(62,98,128,.45);
+    --flag:#6f6753; --flag-dim:rgba(111,103,83,.08); --flag-bd:rgba(111,103,83,.50);
+    --zebra:#eeebe2; --zebraq:rgba(73,63,36,.05); --hairline:#dedacd; --barbg:#d9d5c8; --bar2:#e4e0d4;
+    --glyph:#4a4538; --tipbg:#fffdf6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scrollbar-color:#4a4842 var(--bg)}
+  body{
+    background:var(--bg);color:var(--fg);
+    font-family:var(--mono);font-size:var(--fs2);line-height:1.45;
+    padding:14px 18px 28px;max-width:920px;margin:0 auto;
+    -webkit-font-smoothing:antialiased;
+  }
+  b,strong{font-weight:700}
+  code{font-family:var(--mono);color:var(--dim)}
+  .num{font-variant-numeric:tabular-nums}
+  .xs{font-size:var(--fs1)}
+
+  /* ---------- tooltips for-dummies: what it is · where it comes from · why it matters */
+  [data-tip]{position:relative;cursor:help}
+  [data-tip]:hover::after{
+    content:attr(data-tip);position:absolute;left:0;bottom:calc(100% + 7px);z-index:40;
+    background:var(--tipbg);border:1px solid var(--border);color:var(--fg);
+    padding:8px 11px;border-radius:7px;font-size:var(--fs1);font-family:var(--sans);
+    width:340px;white-space:normal;line-height:1.5;font-weight:400;
+    box-shadow:0 8px 24px -8px rgba(0,0,0,.7);
+  }
+
+  /* ---------- the 3 source states (intact) ---------- */
+  .src{
+    color:var(--faint);font-size:var(--fs1);text-transform:uppercase;letter-spacing:.06em;
+    border-bottom:1px dotted var(--faint);cursor:help;white-space:nowrap;
+  }
+  .nd{
+    display:inline-flex;align-items:center;gap:4px;
+    color:var(--nd);font-size:var(--fs1);font-weight:700;letter-spacing:.02em;
+    border:1px dashed var(--nd-bd);background:var(--nd-dim);
+    padding:0 7px;border-radius:8px;white-space:nowrap;cursor:help;
+  }
+  .nd::before{content:"◌";font-weight:400}
+  .flag{
+    display:inline-flex;align-items:center;gap:4px;
+    color:var(--flag);font-size:var(--fs1);font-weight:700;letter-spacing:.02em;
+    border:1px dashed var(--flag-bd);background:var(--flag-dim);
+    padding:0 7px;border-radius:8px;white-space:nowrap;cursor:help;
+  }
+  .flag::before{content:"⚑";font-weight:400}
+  .flag-cost{color:var(--flag);font-size:var(--fs1);font-style:italic;white-space:nowrap}
+  .flag-cost::before{content:"≈ ";font-style:normal}
+  .flagbox{
+    border:1px dashed var(--flag-bd);background:var(--flag-dim);border-radius:8px;
+    padding:6px 10px;font-size:var(--fs1);color:var(--dim);line-height:1.55;
+  }
+  .flagbox b{color:var(--flag)} .flagbox code{color:var(--fg)}
+  .est{color:var(--dim);font-style:italic;border-bottom:1px dashed var(--faint);cursor:help}
+  .est::before{content:"≈ "}
+  .tipline{border-bottom:1px dotted var(--faint);cursor:help}
+  .warn{color:var(--amber)} .ok{color:var(--green)} .bad{color:var(--red)}
+  q.vb-pt{color:var(--faint);font-style:italic;quotes:"“" "”"}
+
+  /* ---------- top-level elements: tighter rhythm than v10 ---------- */
+  .el{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    margin-bottom:8px;
+    box-shadow:0 1px 0 rgba(0,0,0,.25);
+  }
+  details.el > summary, .el > .rowline{
+    list-style:none;cursor:pointer;outline:none;
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    padding:6px 12px;font-size:var(--fs2);
+  }
+  details.el > summary::-webkit-details-marker{display:none}
+  details.el > summary:hover{background:var(--panel2);border-radius:10px}
+  .hint{
+    margin-left:auto;color:var(--faint);font-size:var(--fs1);white-space:nowrap;
+    border:1px solid var(--border-soft);padding:1px 9px;border-radius:9px;
+  }
+  details[open] > summary .hint::after{content:" ▴"}
+  details:not([open]) > summary .hint::after{content:" ▾"}
+  .el-body{padding:4px 12px 9px;border-top:1px solid var(--border-soft)}
+  .sec{color:var(--faint);text-transform:uppercase;font-size:var(--fs1);letter-spacing:.1em;margin:9px 0 4px}
+
+  /* ================= the official cow — landing/public/mooter-logo.svg ========
+     One animation, done well: RUMINATION (muzzle chews, 1.6 s ease) while
+     anything is genuinely working. Idle: still, occasional blink. Refresh:
+     one spin. All CSS; prefers-reduced-motion respected. */
+  .moo-logo{width:42px;height:42px;flex:none;overflow:visible}
+  .moo-logo .muzzle{transform-box:fill-box;transform-origin:50% 18%}
+  .moo-logo.working .muzzle{animation:ruminate 1s ease-in-out infinite}
+  @keyframes ruminate{0%,100%{transform:scaleY(1) translateX(0)}50%{transform:scaleY(.90) translateX(.4px)}}
+  .moo-logo .eye{transform-box:fill-box;transform-origin:50% 50%;animation:blink 4.8s ease-in-out infinite}
+  @keyframes blink{0%,91%,100%{transform:scaleY(1)}94%,96%{transform:scaleY(.12)}}
+  .moo-logo.refreshing{animation:cowspin 1s ease-in-out}
+  @keyframes cowspin{to{transform:rotate(360deg)}}
+  /* v13 · the row cow: same mark, row-logo size. It ruminates (same 1.0 s)
+     ONLY while that prompt still has live local work; finished = still and
+     dimmed like any other engine mark. */
+  .pcow{overflow:visible;display:block}
+  .pcow .muzzle{transform-box:fill-box;transform-origin:50% 18%}
+  .g.live .pcow .muzzle{animation:ruminate 1s ease-in-out infinite}
+
+  /* ================= 1 · LIVE SIGNATURE ================= */
+  .sig{display:flex;align-items:flex-start;gap:12px;padding:9px 12px}
+  .sig h1{font-size:var(--fs3);font-weight:700;letter-spacing:.01em}
+  .sig .slash{
+    display:inline-flex;align-items:center;gap:5px;font-size:var(--fs1);color:var(--terracotta);
+    border:1px solid rgba(217,119,87,.35);background:rgba(217,119,87,.07);
+    padding:0 8px;border-radius:9px;vertical-align:2px;cursor:help;font-weight:700;
+  }
+  .fresh{
+    display:inline-flex;align-items:center;gap:5px;font-size:var(--fs1);color:var(--dim);
+    border:1px solid var(--border-soft);padding:0 8px;border-radius:9px;
+    vertical-align:2px;cursor:help;white-space:nowrap;
+  }
+  .fresh b{color:var(--fg)}
+  .verb-wrap{min-width:0;flex:1}
+  /* the verb rotor: 16 px on the scale, swaps every ~2.5 s with a fade */
+  .verb{
+    display:flex;align-items:center;gap:8px;margin-top:3px;
+    font-size:var(--fs3);color:var(--dim);min-height:24px;
+    opacity:1;transition:opacity .5s ease;
+  }
+  .verb.fade{opacity:0}
+  .verb .vb{font-weight:700;font-style:italic;letter-spacing:.01em}
+  .verb .vb.vloc{color:var(--green)}
+  .verb .vb.vpaid{color:var(--amber)}
+  .verb .vb.vmoo{color:var(--terracotta)}
+  .verb .vb.vstuck{color:var(--red)}
+  .verb .vfact{color:var(--dim);font-size:var(--fs2)}
+  .verb .vfact b{color:var(--fg)}
+  .verb .vtail{color:var(--faint);font-size:var(--fs1)}
+  .live-dot{
+    display:inline-flex;align-items:center;gap:4px;font-size:var(--fs1);color:var(--green);
+    border:1px solid var(--green-bd);background:var(--green-dim);
+    padding:0 7px;border-radius:8px;white-space:nowrap;cursor:help;font-weight:700;
+  }
+  .live-dot::before{content:"●";font-size:7px;animation:pw 1.6s ease-in-out infinite}
+  .live-dot.off{color:var(--faint);border-color:var(--border-soft);background:transparent}
+  .live-dot.off::before{animation:none;color:var(--faint)}
+  @keyframes pw{0%,100%{opacity:1}50%{opacity:.35}}
+  .pulseBad{color:var(--red);animation:pw 1.9s ease-in-out infinite}
+  .sig-right{margin-left:auto;text-align:right;color:var(--faint);font-size:var(--fs1);line-height:1.6;white-space:nowrap}
+  .sig-right b.bnd{color:var(--nd)}
+  .sig-right b.bfl{color:var(--flag)}
+  .seclne{color:var(--faint);font-size:var(--fs1);margin-top:3px}
+
+  /* buttons — every one alive */
+  .btn{
+    background:transparent;border:1px solid var(--border);color:var(--fg);
+    padding:3px 11px;border-radius:8px;cursor:pointer;font-family:var(--mono);
+    font-size:var(--fs1);font-weight:700;letter-spacing:.01em;white-space:nowrap;
+  }
+  .btn:hover{border-color:#6a6558;background:var(--panel2)}
+  .btn.on{border-color:var(--terracotta);color:var(--terracotta);background:rgba(217,119,87,.07)}
+  .btn .sub{font-weight:400;color:var(--faint)}
+  .btn.mini{padding:1px 8px}
+  .btn.thumb{padding:1px 8px;border-style:dashed;border-color:var(--flag-bd)}
+  .btn.thumb.sel{border-color:var(--terracotta);background:rgba(217,119,87,.09)}
+
+  /* panes */
+  .pane{display:none;padding:8px 12px 10px;border-top:1px solid var(--border-soft)}
+  .pane.on{display:block}
+  .pane-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .pane-head b{font-size:var(--fs2)}
+  .pane-head .k{color:var(--faint);font-size:var(--fs1)}
+  .ndhero{
+    border:1px dashed var(--nd-bd);background:var(--nd-dim);border-radius:9px;
+    padding:8px 12px;margin-bottom:7px;
+  }
+  .ndhero .big{color:var(--nd);font-weight:700;font-size:var(--fs2)}
+  .ndhero .why{color:var(--dim);font-size:var(--fs1);margin-top:4px;line-height:1.55}
+  .ndhero .why b{color:var(--fg)} .ndhero .why code{color:var(--nd)}
+  .schema{
+    background:var(--term);border:1px solid var(--border-soft);border-radius:8px;
+    padding:7px 10px;font-size:var(--fs1);color:var(--dim);line-height:1.7;margin-top:6px;
+  }
+  .schema b{color:var(--fg)} .schema .k{color:var(--nd)}
+
+  /* engine glyphs — nominative use. One size in rows (14 px); the Mooter mark
+     is larger ONLY in the signature. Never two logo sizes in the same row. */
+  .g{display:inline-flex;width:15px;height:15px;flex:none;align-items:center;justify-content:center;font-size:var(--fs2);color:var(--glyph)}
+  .g svg{width:14px;height:14px;display:block}
+  .g.work-local{animation:chew 2.6s ease-in-out infinite}
+  @keyframes chew{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
+  .g.work-claude svg{transform-origin:50% 50%;animation:sunspin 2.8s linear infinite}
+  @keyframes sunspin{to{transform:rotate(360deg)}}
+  .g.work-blink svg{animation:gblink 1.8s ease-in-out infinite}
+  @keyframes gblink{0%,100%{opacity:.4}50%{opacity:1}}
+
+  /* ================= 2 · PROMPT CYCLE ================= */
+  .cyc-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:6px 12px}
+  /* ---- v13 ① the row: time · summary · logos · › — nothing else ---- */
+  .plog{margin:0 12px 4px;border:1px solid var(--border-soft);border-radius:9px;background:var(--card);overflow:hidden}
+  .prow{
+    display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+    padding:7px 12px;border:none;border-left:2px solid transparent;
+    background:transparent;color:var(--fg);
+    font-family:var(--mono);font-size:var(--fs2);line-height:1.45;cursor:pointer;
+    transition:transform .12s ease,background .12s ease;
+  }
+  /* ③ zebra, quieter than v12: track the row, don't stripe the page */
+  .prow:nth-child(even){background:var(--zebraq)}
+  .prow:hover{transform:translateY(-1px);background:var(--panel2)}
+  .prow:focus-visible{outline:1px solid var(--terracotta);outline-offset:-1px}
+  .prow.sel{border-left-color:var(--terracotta);background:var(--panel2)}
+  .ptime{color:var(--dim);font-size:var(--fs1);min-width:52px;flex:none;cursor:help}
+  .psum{
+    font-weight:700;min-width:0;flex:1;cursor:help;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .plogos{display:inline-flex;align-items:center;gap:7px;flex:none;cursor:help}
+  .plogos .g.done{opacity:.55}   /* finished engines: dimmed, never animated */
+  .pbtn{
+    flex:none;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--border);border-radius:7px;color:var(--dim);
+    font-size:var(--fs2);font-weight:700;
+  }
+  .prow:hover .pbtn,.prow.sel .pbtn{border-color:var(--terracotta);color:var(--terracotta)}
+  /* ④ the running-not-working strip — small, quiet; only the ● pulses */
+  .stalefoot{
+    margin:0 12px 8px;padding:5px 10px;
+    border:1px dashed var(--border-soft);border-left:2px solid var(--amber-bd);
+    border-radius:0 8px 8px 0;font-size:var(--fs1);color:var(--dim);line-height:1.6;
+  }
+  .stalefoot code{color:var(--fg)}
+  /* ---- v13 ② the side drawer ---- */
+  .scrim{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.30);opacity:0;pointer-events:none;transition:opacity .18s ease}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;bottom:0;z-index:60;width:min(460px,94vw);
+    background:var(--panel);border-left:1px solid var(--border);
+    box-shadow:-20px 0 44px -20px rgba(0,0,0,.75);
+    transform:translateX(103%);transition:transform .18s ease;
+  }
+  .drawer.open{transform:translateX(0)}
+  .dpage{display:flex;flex-direction:column;height:100%}
+  .dpage[hidden]{display:none}
+  .dhead{
+    flex:none;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-bottom:1px solid var(--border-soft);background:var(--panel2);
+  }
+  .dhead .psum{cursor:default}
+  .dclose{
+    flex:none;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+    background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--dim);
+    font-family:var(--mono);font-size:var(--fs2);cursor:pointer;
+  }
+  .dclose:hover{border-color:var(--terracotta);color:var(--terracotta)}
+  .dbody{flex:1;overflow-y:auto;padding:2px 14px 16px}
+  .dhand{margin:2px 0 2px 12px;color:var(--green);font-size:var(--fs1)}
+  .dgrid{
+    display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:baseline;
+    border:1px solid var(--border-soft);border-radius:8px;background:var(--card);
+    padding:6px 10px;font-size:var(--fs1);color:var(--dim);line-height:1.6;
+  }
+  .dgrid .dk{color:var(--faint);white-space:nowrap}
+  .dgrid b{color:var(--fg)}
+  @media (max-width:560px){.drawer{width:100vw;border-left:none}}
+
+  .role{
+    display:inline-flex;align-items:center;gap:4px;font-size:var(--fs1);font-weight:700;
+    letter-spacing:.06em;padding:0 7px;border-radius:8px;white-space:nowrap;cursor:help;
+  }
+  .role.prep{color:var(--green);border:1px solid var(--green-bd);background:var(--green-dim)}
+  .role.exec{color:var(--amber);border:1px solid var(--amber-bd);background:var(--amber-dim)}
+  .tnode{position:relative;margin-left:12px;padding:5px 10px 5px 13px;border-left:2px solid var(--border-soft)}
+  .tnode::before{content:"";position:absolute;left:-2px;top:15px;width:10px;height:2px;background:var(--border-soft)}
+  .tnode.local{border-left-color:var(--green-bd)}
+  .tnode.cloud{border-left-color:var(--amber-bd)}
+  .tnode.local.runlive{animation:edgeG 2.2s ease-in-out infinite}
+  @keyframes edgeG{0%,100%{border-left-color:var(--green-bd)}50%{border-left-color:var(--green)}}
+  .tnode.cloud.runlive{animation:edgeA 2.2s ease-in-out infinite}
+  @keyframes edgeA{0%,100%{border-left-color:var(--amber-bd)}50%{border-left-color:var(--amber)}}
+  .tline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs2)}
+  .tline .who{font-weight:700}
+  .tline .mod{color:var(--dim);font-size:var(--fs1)}
+  .tsub{color:var(--dim);font-size:var(--fs1);margin-top:2px}
+  .tsub b{color:var(--fg)}
+  .cost-free{
+    display:inline-flex;align-items:center;gap:5px;color:var(--green);font-weight:700;font-size:var(--fs1);
+    background:var(--green-dim);border:1px solid var(--green-bd);padding:1px 8px;border-radius:9px;white-space:nowrap;
+  }
+  .cost-paid{
+    display:inline-flex;align-items:center;gap:5px;color:var(--amber);font-weight:700;font-size:var(--fs1);
+    background:var(--amber-dim);border:1px solid var(--amber-bd);padding:1px 8px;border-radius:9px;white-space:nowrap;
+  }
+  /* v13: the animated handoff packet left the log — the replay narrates only
+     through the signature rotor; inside the drawer the handoff is one static
+     line (.dhand). Nothing done or dead animates. */
+  .xcheck{
+    display:flex;gap:8px;align-items:baseline;margin:6px 0 0 12px;
+    border:1px solid var(--red-bd);background:var(--red-dim);color:var(--dim);
+    border-radius:7px;padding:5px 10px;font-size:var(--fs1);line-height:1.5;
+  }
+  .xcheck b{color:var(--red)}
+  .att-item{
+    border:1px solid var(--border-soft);border-left:2px solid var(--amber-bd);
+    border-radius:0 8px 8px 0;background:var(--card);
+    padding:5px 10px;margin-bottom:4px;font-size:var(--fs1);color:var(--dim);line-height:1.5;
+  }
+  .att-item b{color:var(--fg)} .att-item .crit{color:var(--red);font-weight:700}
+
+  /* apply-a-skill dropdown (② — the owner's idea, ⚑ not instrumented) */
+  details.skillmenu{display:inline-block;position:relative}
+  details.skillmenu > summary{
+    list-style:none;cursor:pointer;outline:none;
+    display:inline-flex;align-items:center;gap:5px;
+    border:1px dashed var(--flag-bd);color:var(--flag);background:var(--flag-dim);
+    padding:1px 9px;border-radius:8px;font-size:var(--fs1);font-weight:700;white-space:nowrap;
+  }
+  details.skillmenu > summary::-webkit-details-marker{display:none}
+  details.skillmenu > summary:hover{border-color:var(--flag)}
+  details.skillmenu[open] > summary{border-style:solid}
+  .skill-list{
+    position:absolute;z-index:30;left:0;top:calc(100% + 4px);width:300px;
+    background:var(--term);border:1px solid var(--border);border-radius:9px;
+    box-shadow:0 10px 26px -10px rgba(0,0,0,.8);overflow:hidden;
+  }
+  .skill-it{
+    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    background:transparent;border:none;border-bottom:1px solid var(--hairline);cursor:pointer;
+    padding:5px 10px;color:var(--fg);font-family:var(--mono);font-size:var(--fs1);
+  }
+  .skill-it:hover{background:var(--panel2)}
+  .skill-it .sk-name{font-weight:700}
+  .skill-it .sk-what{color:var(--faint);margin-left:auto;font-size:var(--fs1)}
+  .skill-it.commu{color:var(--faint);cursor:help}
+  .skill-hd{padding:4px 10px;color:var(--faint);font-size:var(--fs1);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--hairline)}
+
+  /* gauntlet */
+  .stamp{
+    display:inline-flex;align-items:center;gap:5px;color:var(--amber);font-weight:700;
+    border:1.5px dashed var(--amber-bd);background:var(--amber-dim);
+    padding:1px 9px;border-radius:8px;font-size:var(--fs1);letter-spacing:.05em;
+    transform:rotate(-1.2deg);cursor:help;
+  }
+  .gq{
+    display:grid;grid-template-columns:20px 34px 1fr;gap:0 8px;align-items:baseline;
+    padding:3px 10px;border-bottom:1px solid var(--hairline);font-size:var(--fs1);
+  }
+  .gq:last-child{border-bottom:none}
+  .gq:hover{background:var(--panel2)}
+  .gq .gid{color:var(--faint);font-weight:700}
+  .gq .gt{color:var(--dim);line-height:1.5}
+  .gq .gt b{color:var(--fg)}
+  .gq .r-ok{color:var(--green)} .gq .r-warn{color:var(--amber)}
+  .gq .r-nd{color:var(--nd)} .gq .r-flag{color:var(--flag)}
+  .gqbox{border:1px solid var(--border-soft);border-radius:8px;background:var(--card);overflow:hidden;margin-top:6px}
+  .decl{
+    margin-top:7px;border-left:3px solid var(--terracotta);background:var(--card);
+    border-radius:0 8px 8px 0;padding:6px 10px;font-size:var(--fs1);color:var(--dim);line-height:1.55;
+  }
+  .decl code{color:var(--fg)}
+
+  /* ================= 3 · DEVIL'S ADVOCATE (first-class) ================= */
+  .daq{
+    border:1px solid var(--border-soft);border-left:3px solid var(--terracotta);
+    border-radius:0 9px 9px 0;background:var(--card);
+    padding:7px 11px;margin-bottom:5px;
+  }
+  .daq .q{font-size:var(--fs2);color:var(--fg);line-height:1.5}
+  .daq .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:var(--fs1);color:var(--dim)}
+  .daq .meta b{color:var(--fg)}
+  .daq blockquote,.pride blockquote{
+    border-left:2px solid var(--border);margin:5px 0 0;padding:2px 9px;
+    font-size:var(--fs1);color:var(--faint);font-style:italic;line-height:1.5;
+  }
+  .owner{color:var(--red);font-size:var(--fs1);font-weight:700;border:1px solid var(--red-bd);padding:0 7px;border-radius:8px;cursor:help;white-space:nowrap}
+  .owner.moo{color:var(--green);border-color:var(--green-bd)}
+  .ins-row{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    border:1px solid var(--border-soft);border-radius:8px;background:var(--card);
+    padding:5px 10px;margin-bottom:4px;font-size:var(--fs1);color:var(--dim);
+  }
+  .ins-row b{color:var(--fg)}
+  .ins-row .btn{margin-left:auto}
+  .ins-row.crit{border-left:2px solid var(--red-bd)}
+  .ins-row.sug{border-left:2px solid var(--green-bd)}
+  .actpane{
+    display:none;border:1px dashed var(--border);border-radius:8px;background:var(--panel2);
+    padding:7px 11px;margin:2px 0 6px;font-size:var(--fs1);color:var(--dim);line-height:1.6;
+  }
+  .actpane.on{display:block}
+  .actpane b{color:var(--fg)} .actpane code{color:var(--terracotta)}
+  .chip-local{
+    display:inline-flex;align-items:center;gap:4px;font-size:var(--fs1);color:var(--green);
+    border:1px solid var(--green-bd);background:var(--green-dim);padding:0 7px;border-radius:8px;white-space:nowrap;cursor:help;
+  }
+
+  /* ================= 4 · ATTENTION ================= */
+  .att-count{color:var(--amber);font-weight:700}
+  .att-mini{color:var(--dim);font-size:var(--fs1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .att-mini .bad{font-weight:700}
+  .zcard{border:1px solid var(--red-bd);border-left:3px solid var(--red);border-radius:0 8px 8px 0;background:var(--panel2);padding:7px 10px;margin:5px 0}
+  .ibar{height:3px;border-radius:2px;background:var(--barbg);overflow:hidden;margin:6px 0 5px;position:relative;cursor:help}
+  .ibar i{position:absolute;top:0;left:0;width:34%;height:100%;border-radius:2px;background:var(--red);opacity:.45}
+
+  /* ================= 5 · PROJECT ================= */
+  .pchip{
+    display:inline-flex;align-items:center;gap:5px;font-size:var(--fs1);color:var(--dim);
+    border:1px solid var(--border-soft);padding:1px 9px;border-radius:9px;white-space:nowrap;cursor:help;
+  }
+  .pchip b{color:var(--fg)}
+  .oneline{
+    border:1px solid var(--border-soft);border-radius:8px;background:var(--card);
+    padding:6px 10px;font-size:var(--fs1);color:var(--dim);line-height:1.6;margin-bottom:5px;
+  }
+  .oneline b{color:var(--fg)}
+  .pride{
+    border:1px solid var(--green-bd);border-left:3px solid var(--green);
+    border-radius:0 9px 9px 0;background:var(--green-dim);
+    padding:7px 12px;margin:5px 0;
+  }
+  .pride .ptitle{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs2);margin-bottom:3px}
+  .pride .ptitle b{color:var(--fg)}
+  .pastor-chip{
+    display:inline-flex;align-items:center;gap:5px;font-size:var(--fs1);font-weight:700;
+    color:var(--green);border:1px solid var(--green-bd);background:var(--panel2);
+    padding:1px 9px;border-radius:9px;white-space:nowrap;cursor:help;
+  }
+  .pride .pbody{color:var(--dim);font-size:var(--fs1);line-height:1.6}
+  .pride .pbody b{color:var(--fg)}
+  .sleep-no{color:var(--red);font-weight:700;font-size:var(--fs2)}
+  .fora-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px;margin:5px 0 7px}
+  .fora-card{
+    border:1px solid var(--red-bd);border-left:3px solid var(--red);
+    background:var(--red-dim);border-radius:0 9px 9px 0;padding:7px 11px 6px;
+  }
+  .fora-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs2);margin-bottom:2px}
+  .fora-top b{color:var(--fg)}
+  .fora-top .owner{margin-left:auto}
+  .fora-mark{color:var(--red);font-weight:700;font-size:var(--fs1);letter-spacing:.08em}
+  /* the exceptions are the ONLY place the 22 px size appears */
+  .fora-val{font-size:var(--fs4);font-weight:700;line-height:1.2}
+  .fora-val .un{font-size:var(--fs1);font-weight:400;color:var(--dim)}
+  .fora-range{color:var(--faint);font-size:var(--fs1)}
+  .fora-since{color:var(--red);font-size:var(--fs1);margin-top:1px}
+  .mgrid{border:1px solid var(--border-soft);border-radius:8px;background:var(--card);overflow:hidden}
+  .mrow{
+    display:grid;grid-template-columns:15px 1.35fr 1fr;gap:0 10px;align-items:center;
+    padding:3px 10px;border-bottom:1px solid var(--hairline);font-size:var(--fs1);
+  }
+  .mrow:last-child{border-bottom:none}
+  .mrow:hover{background:var(--panel2)}
+  .m-ic.okk{color:var(--green)}
+  .m-name{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:help;border-bottom:1px dotted transparent}
+  .m-name:hover{border-bottom-color:var(--faint)}
+  .m-val{color:var(--fg);font-weight:700}
+  .m-val .un{color:var(--dim);font-weight:400}
+  .mrow.ndrow{background:var(--nd-dim)}
+  .mrow.ndrow .m-name{color:var(--nd)}
+  .m-part{color:var(--dim);font-weight:400}
+  .cwrow{
+    display:grid;grid-template-columns:16px 170px 1fr 150px 54px;gap:0 10px;align-items:center;
+    padding:4px 0;border-bottom:1px solid var(--hairline);font-size:var(--fs1);
+  }
+  .cwrow:last-child{border-bottom:none}
+  .cw-name{color:var(--fg);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cw-name .sub{color:var(--faint);font-weight:400}
+  .cwbar{position:relative;height:8px;border-radius:5px;background:var(--barbg);overflow:hidden;cursor:help}
+  .cwbar i{position:absolute;top:0;left:0;height:100%;border-radius:5px}
+  .cwbar.ok i{background:var(--green);opacity:.75}
+  .cwbar.empty{background:repeating-linear-gradient(90deg,var(--bar2) 0 6px,var(--barbg) 6px 12px)}
+  .cw-val{color:var(--dim);text-align:right;white-space:nowrap}
+  .cw-val b{color:var(--fg)}
+  .cw-pct{font-weight:700;text-align:right;white-space:nowrap}
+  details.sub{border:1px solid var(--border-soft);border-radius:8px;background:var(--card);margin:5px 0}
+  details.sub > summary{
+    list-style:none;cursor:pointer;padding:5px 10px;font-size:var(--fs1);color:var(--dim);outline:none;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  }
+  details.sub > summary::-webkit-details-marker{display:none}
+  details.sub > summary:hover{background:var(--panel2);border-radius:8px}
+  details.sub[open] > summary{border-bottom:1px solid var(--border-soft)}
+  details.sub .sub-body{padding:6px 10px 8px}
+  .upd{
+    display:inline-flex;align-items:center;gap:4px;color:var(--terracotta);
+    border:1px solid rgba(217,119,87,.35);background:rgba(217,119,87,.07);
+    padding:0 6px;border-radius:8px;font-size:var(--fs1);cursor:pointer;font-family:var(--mono);
+  }
+  /* roles (cargos) with per-role receipts */
+  .rolegrid{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0}
+  .rolecard{
+    border:1px solid var(--border-soft);border-radius:8px;background:var(--card);
+    padding:4px 9px;font-size:var(--fs1);color:var(--faint);cursor:help;white-space:nowrap;
+  }
+  .rolecard b{color:var(--dim)}
+  .rolecard.haswork{border-color:var(--green-bd);background:var(--green-dim);color:var(--dim)}
+  .rolecard.haswork b{color:var(--green)}
+  /* handoff rows with honest savings */
+  .handrow{
+    display:grid;grid-template-columns:150px 1fr 170px;gap:0 10px;align-items:center;
+    padding:3px 10px;border-bottom:1px solid var(--hairline);font-size:var(--fs1);color:var(--dim);
+  }
+  .handrow:last-child{border-bottom:none}
+  .handrow:hover{background:var(--panel2)}
+  .handrow .arrow{color:var(--green);font-weight:700}
+  /* vault rows */
+  .vrow{
+    display:grid;grid-template-columns:110px 1fr 80px;gap:0 10px;align-items:center;
+    padding:3px 10px;border-bottom:1px solid var(--hairline);font-size:var(--fs1);color:var(--dim);
+  }
+  .vrow:last-child{border-bottom:none}
+  .vrow:hover{background:var(--panel2)}
+  .vrow .vf{color:var(--faint)}
+  .vrow .vn{color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .vrow .vt{text-align:right;color:var(--faint)}
+  .legend{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-top:8px;color:var(--faint);font-size:var(--fs1)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .mark-sm{width:13px;height:13px;flex:none;display:inline-block;vertical-align:-2px;color:var(--glyph)}
+  .brandnote{color:var(--faint);font-size:var(--fs1);line-height:1.5;margin-top:7px;font-family:var(--sans);max-width:880px}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+</style>
+</head>
+<body>
+<!-- ===== engine glyphs: original geometric SVG (nominative use).
+     In production this lives in landing/components/ProviderLogo.tsx. ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="grad-gem" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4E8AEE"/><stop offset="1" stop-color="#9168C9"/>
+    </linearGradient>
+  </defs>
+  <symbol id="m-claude" viewBox="0 0 24 24">
+    <g fill="#D97757">
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(45 12 12)"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(90 12 12)"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(135 12 12)"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(180 12 12)"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(225 12 12)"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(270 12 12)"/>
+      <rect x="11" y="2.4" width="2" height="6.6" rx="1" transform="rotate(315 12 12)"/>
+      <circle cx="12" cy="12" r="1.7"/>
+    </g>
+  </symbol>
+  <symbol id="m-openai" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+      <path d="M12 3.2 19.6 7.6 19.6 16.4 12 20.8 4.4 16.4 4.4 7.6 Z"/>
+      <path d="M12 3.2 19.6 7.6 19.6 16.4 12 20.8 4.4 16.4 4.4 7.6 Z" transform="rotate(30 12 12) scale(.72) translate(4.66 4.66)"/>
+    </g>
+  </symbol>
+  <symbol id="m-gemini" viewBox="0 0 24 24">
+    <path fill="url(#grad-gem)" d="M12 2c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10 5.6-.9 9.1-4.4 10-10Z"/>
+  </symbol>
+  <symbol id="m-kimi" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+      <path d="M7.5 4.5v15"/><path d="M17 4.5 8.5 12l8.5 7.5"/>
+    </g>
+  </symbol>
+  <symbol id="m-cow" viewBox="0 0 36 36">
+    <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/>
+    <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/>
+    <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/>
+    <g class="muzzle"><path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/><ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"/><ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"/></g>
+    <path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>
+    <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>
+  </symbol>
+</svg>
+
+<!-- ============================================================
+     1 · LIVE SIGNATURE — the official cow (mooter-logo.svg inline, verbatim
+     paths) + the English moo verb rotor + ⟳ Refresh.
+     ============================================================ -->
+<div class="el sig">
+  <span data-tip="The official Mooter logo (landing/public/mooter-logo.svg). While Mooter is genuinely working, the muzzle RUMINATES in a 1.0 s cycle — sped up on the owner's request (2026-08-03) to sit closer to the Claude logo's rhythm, still smooth, never frantic. Idle: still, with an occasional blink. Refreshing: one full spin. Motion here only ever reports a state change." style="flex:none">
+  <svg class="moo-logo working" id="mooLogo" viewBox="0 0 36 36" role="img" aria-label="Mooter">
+    <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/>
+    <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/>
+    <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"/>
+    <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"/>
+    <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/>
+    <g class="muzzle">
+      <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/>
+      <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"/>
+      <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"/>
+    </g>
+    <g class="eye"><path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><circle fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"/></g>
+    <g class="eye" style="animation-delay:.12s"><path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><circle fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"/></g>
+  </svg>
+  </span>
+  <div class="verb-wrap">
+    <h1>Mooter Cabin
+      <span class="slash" onclick="toggleAct('actSlash')" style="cursor:pointer" data-tip="⑤ How this panel opens — two names, one command: /cabine (short) and /mooter-cockpit-launch (explicit, matches the /mooter-* family). Click for the honest fine print: a slash command CANNOT open a side panel in Claude Code. Sessions are addressed by id, never by title — titles collide ('Fecho do dia mooter' exists 6 times).">⌘ /cabine · /mooter-cockpit-launch</span>
+      <span class="fresh" data-tip="What it is: how old the data on screen is. Where it comes from: this panel is PULL — it refreshes when you open it or press ⟳; calling it 'live' would be a lie. Why it matters: you always know the age of what you are looking at.">refreshed <b class="num" id="freshS">0 s</b> ago · <b>pull</b></span>
+      <button class="btn mini" id="btnRefresh" onclick="doRefresh()" data-tip="Re-runs everything: re-reads the data (pull), replays the wave once, recounts the ◌/⚑ badges. The cow spins while it reloads.">⟳ Refresh</button>
+    </h1>
+    <div class="verb" id="verb" aria-live="polite"><!-- moo verb rotor --></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:2px;flex-wrap:wrap">
+      <span class="live-dot" id="rotorDot" data-tip="Proof the rotor is alive — the verb swaps every ~2.5 s with a fade, and every verb ships glued to a measured number. When nothing is genuinely working, the rotor STOPS and the dot goes dark: motion without work would be decoration.">rotor live · swaps every 2.5 s</span>
+      <details class="tmore" style="display:inline-block">
+        <summary style="list-style:none;cursor:pointer;color:var(--faint);font-size:var(--fs1);border:1px solid var(--border-soft);border-radius:8px;padding:0 8px">▸ moo vocabulary · 30 verbs · 9 phases</summary>
+        <div style="margin-top:5px;padding:6px 10px;background:var(--term);border:1px solid var(--border-soft);border-radius:8px;font-size:var(--fs1);color:var(--dim);line-height:1.7">
+          <div><b style="color:var(--terracotta)">1 route</b> Sniffing out the tier… · Sizing up the herd… · Picking the trough… · Reading the ear tag…</div>
+          <div><b style="color:var(--green)">2 local GPU · $0</b> Ruminating… · Chewing the cud… · Grazing (free)… · Milking the GPU…</div>
+          <div><b style="color:var(--green)">3 handoff</b> Opening the gate… · Moo-ving to the cloud… · Passing the plan over the fence…</div>
+          <div><b style="color:var(--amber)">4 paid cloud</b> Grazing the paid pasture… · Chewing through the subscription… · Burning hay…</div>
+          <div><b style="color:var(--blue)">5 verify</b> Chewing on the verdict… · Counting heads… · A second cow walks the fence…</div>
+          <div><b style="color:var(--terracotta)">6 ship</b> Branding the commit… · Rounding up the herd… · Loading the truck…</div>
+          <div><b style="color:var(--green)">7 context</b> Herding the context… · Chewing yesterday's cud… · Stacking the hay…</div>
+          <div><b style="color:var(--red)">8 stalled</b> Stuck in the mud… · No moo-vement… · Out standing in its field…</div>
+          <div><b style="color:var(--green)">9 done</b> Barn's closed. · Herd's home. · Trough licked clean.</div>
+          <div style="margin-top:5px;padding-top:5px;border-top:1px dashed var(--border);font-size:var(--fs1)">
+            <b style="color:var(--fg)">Rules:</b> the verb is indexed to the connector's real phase, never random; colour and glyph = the
+            engine doing the work; the pun is the wrapper, <b style="color:var(--fg)">the fact is the payload</b> — every verb ships glued
+            to a measured number; with no live work the rotor <b style="color:var(--fg)">stops</b>.
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="seclne">🔒 <span class="tipline" data-tip="Security, no fine print: Mooter is a HOOK (it watches receipts and local telemetry), not a proxy — your prompts NEVER pass through it and never leave this machine. Telemetry stays in ~/.mooter. The only data that would ever leave is 👍/👎 feedback — opt-in and anonymous by install-id.">hook, not proxy — your prompts never leave this machine</span></div>
+    <div class="actpane" id="actSlash">
+      <b>⌘ /cabine · /mooter-cockpit-launch — what it really does.</b>
+      Two names, one command: <code>/cabine</code> is the short alias; <code>/mooter-cockpit-launch</code> is the
+      explicit name, consistent with the <code>/mooter-*</code> family. <b>⚠ Honest caveat:</b> a slash command
+      <b>cannot open a side panel</b> in Claude Code — commands emit text/prompts. The side surfaces that exist are the
+      <b>statusline</b>, the <b>task panel</b> and <b>monitors</b> (experimental, CLI-only — never a foundation).
+      What the command would actually do: <b>render this Cabin inline</b> in the conversation and
+      <b>register the session</b> (<code>mooter_setup({sessao:"registar"})</code>) so the Cowork⇄CC pair stops being null.
+    </div>
+  </div>
+  <div class="sig-right">
+    <button class="btn mini" id="btnTheme" onclick="toggleTheme()" data-tip="③ Dark / light. Starts on your system preference (prefers-color-scheme) — this mock runs inside the Claude desktop app, so it must sit well on both. Your choice is remembered in memory only (no localStorage — mock). Every colour semantic — measured · ◌ not measured · ⚑ not instrumented · out-of-range · free-local vs paid-cloud — survives both themes.">◐ theme</button><br>
+    <span class="nd" data-tip="What it is: a value whose measuring mechanism exists but has not written anything yet. Why it matters: we show the hole instead of inventing a number.">not measured</span> ×<b class="bnd" id="ndCount">—</b><br>
+    <span class="flag" data-tip="What it is: a value NOBODY records today. Every ⚑ carries the estimated cost of instrumenting it — the panel is its own implementation plan.">not instrumented</span> ×<b class="bfl" id="flagCount">—</b><br>
+    <span style="color:var(--faint)">🐮 mock v13 · measured 2026-08-04T01:07:51Z</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     2 · PROMPT LOG (v13 ①) — the owner's words: "linhas simples … horário e
+     quais LLMs … somente com os logos … todo o restante … apertar um botão na
+     lateral para fazer o breakdown". The row: time · summary · logos · ›.
+     Nothing else. The whole row is clickable; › is the visible affordance.
+     The breakdown is the SIDE DRAWER at the end of this element.
+     ============================================================ -->
+<div class="el" id="cycEl">
+  <div class="cyc-head">
+    <span>🔁</span>
+    <span><b>prompt log</b> <span style="color:var(--faint);font-size:var(--fs1)">· one line per prompt</span>
+      <span style="color:var(--faint);font-size:var(--fs1)">· current session <code data-tip="The unique id of this chat window. It is the true key — titles collide, ids do not.">local_3c304556…</code></span>
+      <span class="flag" data-tip="The one-line summaries are auto-titles (≤60 chars) that nothing generates today. What would produce them: one $0 local qwen call on the prompt text (qwen2.5:3b, reply capped, ~1–2 s), the same detached pattern as handoff-rollup.js — cost ≈ ~25 lines in gsd-turn-end.js + one $0 GPU call per prompt. The titles below are hand-written examples of that output.">titles: examples</span></span>
+    <span style="font-size:var(--fs1);color:var(--dim)">today, 24 h window:
+      <b style="color:var(--fg)" data-tip="Measured via mooter_fleet view:recibo at 2026-08-04T01:07:51Z: 32 jobs, 0 without timestamp, across 15 waves. Engines that worked: cc, codex, gemini, moo. Folders used: frugal, frugal/packages/mooter-bridge, frugal-site, frugal-site-s0s3." class="tipline num">32 jobs · 15 waves</b>
+      · <span class="num tipline" data-tip="Total cost of the 24 h window — PARTIAL: 7 of 31 jobs carried no measured cost. A partial sum is declared, never rounded into a 'total'.">$1.697544 <span class="src">partial</span></span></span>
+    <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center">
+      <button class="btn mini" id="btnResume" onclick="togglePane('resume')" data-tip="Resume the session: reads the summary ALREADY BUILT on the local GPU (<sid>.summary.txt) — never generated on the spot, cost $0. Today: ◌ (the pane explains why).">▶ Resume <span class="sub">· $0</span></button>
+      <button class="btn mini" id="btnGauntlet" onclick="togglePane('gauntlet')" data-tip="The gauntlet is 18 adversarial questions Mooter asks itself before handing you work — a critic that is not the author. Opens the state of the questions.">⚖ Gauntlet <span class="sub">· 18</span></button>
+    </span>
+  </div>
+
+  <!-- ① the rows — strict budget: time · summary · logos · › -->
+  <div class="plog">
+    <!-- row 1 · wave painel-nativo · everything finished, nothing animates -->
+    <button class="prow" id="prow1" onclick="openDrawer(1)" aria-haspopup="dialog" aria-controls="drawer">
+      <span class="ptime"><span class="nd" data-tip="◌ — this wave's receipts carry durations but no start timestamp; the journal field that would fill this is not written on this machine yet. No timestamp, no time — never invented.">no time</span></span>
+      <span class="psum" data-tip="⚑ auto-title (≤60 chars) — hand-written example of the $0 local qwen output for this prompt. Everything else about it lives in the breakdown (›).">Investigate the native CC panel — 2 audits, 0 verdicts</span>
+      <span class="plogos" data-tip="Engines that touched this prompt, in run order: local GPU (cow — the prep, it timed out) then codex (hexagons — the 2 audit jobs). Dimmed = finished; a finished engine never animates. Receipts note: the brief listed cow + sunburst here, but the v12 receipts for this wave show codex ×2 + moo — the receipts win.">
+        <span class="g done"><svg class="pcow"><use href="#m-cow"/></svg></span>
+        <span class="g done"><svg><use href="#m-openai"/></svg></span>
+      </span>
+      <span class="pbtn" aria-hidden="true">›</span>
+    </button>
+    <!-- row 2 · wave R-balde-A · finished -->
+    <button class="prow" id="prow2" onclick="openDrawer(2)" aria-haspopup="dialog" aria-controls="drawer">
+      <span class="ptime"><span class="nd" data-tip="◌ — no start timestamp on this receipt either; same journal gap as the row above. No timestamp, no time — never invented.">no time</span></span>
+      <span class="psum" data-tip="⚑ auto-title (≤60 chars) — hand-written example of the $0 local qwen output for this prompt. Everything else about it lives in the breakdown (›).">Rewrite page.tsx — plan local, execute on Haiku</span>
+      <span class="plogos" data-tip="Engines in run order: local GPU (cow) prepared the plan, then Claude (sunburst) executed it. Both finished — both still and dimmed.">
+        <span class="g done"><svg class="pcow"><use href="#m-cow"/></svg></span>
+        <span class="g done"><svg><use href="#m-claude"/></svg></span>
+      </span>
+      <span class="pbtn" aria-hidden="true">›</span>
+    </button>
+    <!-- row 3 · wave cabine-prova · the cow still ruminates: live local work -->
+    <button class="prow" id="prow3" onclick="openDrawer(3)" aria-haspopup="dialog" aria-controls="drawer">
+      <span class="ptime num" id="ptime3" data-iso="2026-08-04T01:07:51Z" data-tip="Local time — the instant the receipts were read (mooter_fleet), the only measured timestamp this wave carries; the prompt's own start is ◌ not on the receipt. In production the journal's per-turn timestamp fills this."></span>
+      <span class="psum" data-tip="⚑ auto-title (≤60 chars) — hand-written example of the $0 local qwen output for this prompt. Everything else about it lives in the breakdown (›).">Prove the Cabin against the connector's live receipts</span>
+      <span class="plogos" data-tip="Engines in run order: local GPU (cow) then Claude (sunburst). The cow still RUMINATES because the local engine still holds live work on this prompt — a logo only ever animates while its engine is live. Claude finished: still and dimmed.">
+        <span class="g live"><svg class="pcow" viewBox="0 0 36 36" role="img" aria-label="local GPU, working"><path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/><path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/><path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/><g class="muzzle"><path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/><ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"/><ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"/></g><path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/></svg></span>
+        <span class="g done"><svg><use href="#m-claude"/></svg></span>
+      </span>
+      <span class="pbtn" aria-hidden="true">›</span>
+    </button>
+  </div>
+
+  <!-- ④ running ≠ working — the distinction the Cabin exists to make -->
+  <div class="stalefoot">
+    <span class="pulseBad" style="font-size:8px" data-tip="The ● pulses because these processes are ALIVE; nothing else here animates, because nothing here is advancing.">●</span>
+    <b style="color:var(--fg)">2 jobs</b> <code>agent-awaiting-approval</code> — “running”, not working:
+    <code>job-msdsy95l-5b8a</code> cc · <span class="tipline" data-tip="The process is alive but its log has not grown for 3h 02m — 'running' without work.">no log growth for <b class="num" style="color:var(--fg)">3h 02m</b></span> ·
+    <code>job-msd2hwgy-aea8</code> moo · <b class="num" style="color:var(--fg)">15h 23m</b> <span class="tipline" data-tip="Historical p90 of finished moo jobs: 14.7 min. This job is at 15h 23m.">vs p90 14.7 min</span>
+  </div>
+
+  <!-- ---------- RESUME pane (unchanged from v12) ---------- -->
+  <div class="pane" id="paneResume">
+    <div class="pane-head">
+      <b>▶ Resume</b>
+      <span class="k">reads <code>&lt;sid&gt;.summary.txt</code> <b style="color:var(--fg)">already built</b> — never generated on the spot · $0</span>
+    </div>
+    <div class="ndhero">
+      <div class="big">◌ not measured — the accumulator has not written this session yet</div>
+      <div class="why">
+        Health on this machine: <b>unverified</b>. Likely causes, in order:
+        <b>1)</b> stale Stop hook in <code>~/.claude/hooks/</code> — already caused <b>63 sessions / 0 journals</b>;
+        the check: <code>node ~/.claude/tools/router/sync-hooks.js --check</code> → <code>OK self-check</code>.
+        <b>2)</b> the throttle has not fired — the rollup runs at ≥<b>5</b> new entries OR ≥<b>90 s</b>
+        (<code>MIN_TURNS</code>/<code>MIN_MS</code>).
+        <b>3)</b> Ollama down — the file's doctrine (PT): <q class="vb-pt">o summary simplesmente não actualiza</q> — the summary
+        simply does not update; one is never invented.
+      </div>
+    </div>
+    <div class="schema">
+      when it exists, it will always state its provenance: <b>written by qwen2.5-coder:14b on the local GPU · N min ago · $0.0000</b> —
+      last <b>12</b> journal entries (<code class="k">DELTA_MAX</code>), reply ≤<b>90</b> tokens
+      (<code class="k">SUMMARY_NUM_PREDICT</code>), detached by <code class="k">gsd-turn-end.js:366</code>.
+      A paid model is <b style="color:var(--amber)">never</b> called to fabricate memory.
+    </div>
+  </div>
+
+  <!-- ---------- GAUNTLET pane (unchanged from v12; declaration updated) ---------- -->
+  <div class="pane" id="paneGauntlet">
+    <div class="pane-head">
+      <b>⚖ Gauntlet</b>
+      <span class="k">18 adversarial questions over the whole history · MEO Gauntlet v6</span>
+      <span class="stamp" style="margin-left:auto" data-tip="v6 rule, verbatim doctrine: on high-risk work, G4 runs on a DIFFERENT ENGINE from the author. No second engine: the deliverable does not ship, or ships stamped unverified.">STAMP: UNVERIFIED</span>
+    </div>
+    <div class="flagbox" style="margin-bottom:7px">
+      <b>⚑ how many times the gauntlet CHANGED the result</b> — internal iterations without the owner stepping in.
+      The most impressive feature on the list, and the one with <b>the least data: no record exists</b>.
+      Once instrumented, this tile will say "the gauntlet corrected me N× before handing this to you".
+      <span class="flag-cost" data-tip="effort estimate, not a measurement">~15 lines in tools/router/gsd-turn-end.js — journal type:'gauntlet' with {question, changed:bool, what_changed}</span>
+    </div>
+    <div class="gqbox">
+      <div class="gq"><span class="r-ok">✅</span><span class="gid">G1</span>
+        <span class="gt"><b>every claim against its source</b> — visual law: every value carries measured / ◌ / ⚑.</span></div>
+      <div class="gq"><span class="r-warn">⚠</span><span class="gid">G3</span>
+        <span class="gt"><b>enforced by mechanism</b> — the metric ranges are still <code>default MEO M1</code>, not measured; declared on the scorecard.</span></div>
+      <div class="gq"><span class="r-nd">◌</span><span class="gid">G4</span>
+        <span class="gt"><b>a different engine found ≥1 error</b> — <span class="nd" data-tip="G4 requires engine ≠ author. Author: Claude; candidate: codex (gemini killed by the provider on 06-18; kimi costs $ per API call). Until it runs: the stamp stays visible.">not run yet</span>
+        · on cabine-prova the cross-check DID run and returned <b>0 verified</b> — verifying and failing is also G4 working.</span></div>
+      <div class="gq"><span class="r-flag">⚑</span><span class="gid">G-it</span>
+        <span class="gt"><b>iterations that changed the result</b> — not instrumented (box above).</span></div>
+      <div class="gq"><span class="r-ok">✅</span><span class="gid">G12</span>
+        <span class="gt"><b>denominator next to the value</b> — 12/17 costs, 2/19 failures, 27 jobs with first token, 15 of 1760 sessions, 1/7 days of quota.</span></div>
+      <div class="gq"><span class="r-nd">◌</span><span class="gid">G2…</span>
+        <span class="gt" style="color:var(--faint)">the rest run at close-of-day; hiding the pending ones would fake 18/18.</span></div>
+    </div>
+    <div class="decl">
+      declaration → <code>gauntlet: v13 changed ONLY the prompt log — row cut to time·summary·logos·› ·
+      breakdown moved to a side drawer · zebra quieted · G13: row #1 engines follow the v12 receipts
+      (cow + hexagons), not the brief's cow + sunburst — declared, not hidden</code>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     v13 ② THE SIDE DRAWER — one drawer, three pages; slides in from the
+     right over the log (~180 ms; prefers-reduced-motion turns it off).
+     Header repeats time + summary + logos so context is never lost.
+     Esc, ✕ and the scrim dismiss it. Everything v12 kept inside the
+     expanded rows lives here now.
+     ============================================================ -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-label="Prompt breakdown">
+
+  <!-- ===== page 1 · wave painel-nativo ===== -->
+  <div class="dpage" id="dpage1" hidden>
+    <div class="dhead">
+      <span class="ptime"><span class="nd" data-tip="◌ — no start timestamp on the receipts; never invented.">no time</span></span>
+      <b class="psum">Investigate the native CC panel — 2 audits, 0 verdicts</b>
+      <span class="plogos"><span class="g done"><svg class="pcow"><use href="#m-cow"/></svg></span><span class="g done"><svg><use href="#m-openai"/></svg></span></span>
+      <button class="dclose" onclick="closeDrawer()" data-tip="Close this breakdown — Esc works too." aria-label="Close">✕</button>
+    </div>
+    <div class="dbody">
+      <div class="sec">what was asked</div>
+      <div class="ndhero"><div class="big">◌ full prompt text — the journal has not written this session yet</div>
+        <div class="why">The per-turn journal line is the source; the accumulator's health on this machine is <b>unverified</b>
+        (the stale-hook precedent: <b>63 sessions / 0 journals</b>). No record, no text — never reconstructed from memory.</div></div>
+
+      <div class="sec">what was understood</div>
+      <div class="flagbox"><b>⚑ not instrumented</b> — nobody records what the agent understood before acting.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~20 lines in tools/router/handoff-rollup.js — a one-sentence 'understood' field next to the summary</span></div>
+
+      <div class="sec">what ran · wave painel-nativo · 3 jobs · 2 relocated</div>
+      <div class="tnode local">
+        <div class="tline"><span class="g">🐮</span><span class="who">moo</span>
+          <span class="role prep" data-tip="PREPARER: produces a PLAN on the local GPU, $0. It is not the result — it is the package the executor receives.">PREPARER · plan</span>
+          <span class="mod">qwen3.6:35b-a3b · local GPU</span>
+          <span class="cost-free num">🐮 $0.0000</span></div>
+        <div class="tsub"><span class="bad">prep-timeout at 20 s</span> · tokens <span class="nd" data-tip="fell into prep-timeout — it never produced a count.">not measured</span></div>
+      </div>
+      <div class="tnode cloud">
+        <div class="tline"><span class="g"><svg><use href="#m-openai"/></svg></span><span class="who">codex ×2</span>
+          <span class="role exec" data-tip="EXECUTOR: the output that counts as a result — here, two audit jobs relocated to worktrees.">EXECUTOR · audits</span>
+          <span class="mod">relocated to worktrees</span></div>
+        <div class="tsub"><b>frugal-site</b> (<span class="bad">3 commits behind main</span>): <span class="num">job-msdo8c49-1cd5 · 9.65M↓ / 44.2k↑ · 20m 36s</span><br>
+          <b>frugal-site-s0s3</b>: <span class="num">job-msdo9jm9-b1fe · 3.74M↓ / 20.5k↑ · 13m 8s</span></div>
+      </div>
+      <div class="oneline">tier asked→ran: <span class="nd" data-tip="the requested→ran pair was not carried on these receipts. No field, no number.">not on the receipt</span></div>
+
+      <div class="sec">what finished</div>
+      <div class="xcheck"><span>⚠</span><span><b>0 verdicts:</b> 2 jobs closed with the literal note
+        <q class="vb-pt">sem veredicto: não verificou</q> <span class="src" data-tip="Verbatim (PT): 'no verdict: did not verify' — work with no proof it works.">verbatim (PT)</span>
+        — and an audit of code <b style="color:var(--fg)">3 commits behind is not an audit of HEAD</b>.</span></div>
+
+      <div class="sec">what remains</div>
+      <div class="flagbox"><b>⚑ partial</b> — 'what is left before push' (gauntlet → commit → gate → push) is not modelled.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~60 lines in tools/router/agent-sync-ledger.js</span></div>
+
+      <div class="sec">gauntlet changes</div>
+      <div class="flagbox"><b>⚑ unrecorded</b> — how many times the gauntlet changed this result before delivery: no record exists.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~15 lines in gsd-turn-end.js (journal type:'gauntlet')</span></div>
+
+      <div class="sec">cost · duration · tokens · savings</div>
+      <div class="dgrid">
+        <span class="dk">cost</span><span><span class="chip-local">🐮 free</span> local · codex jobs: <span class="nd" data-tip="no cost_usd carried on these receipts — a missing cost is declared, never zeroed.">no measured cost_usd</span></span>
+        <span class="dk">duration</span><span><b class="num">20m 36s</b> + <b class="num">13m 8s</b> per job · prep-timeout at <b class="num">20 s</b></span>
+        <span class="dk">tokens</span><span><b class="num">13.4M</b> read in total (per job above) · moo <span class="nd">not measured</span></span>
+        <span class="dk">savings</span><span><span class="nd" data-tip="the prep timed out — it produced no local volume to even estimate.">none — prep-timeout</span></span>
+      </div>
+
+      <div class="sec">context-window impact</div>
+      <div class="oneline">codex <span class="nd" data-tip="◌ — the codex CLI does not expose context usage in any field the connector reads today.">not exposed</span>
+        · moo <span class="nd" data-tip="the prep job died at 20 s — it never produced a token count.">tokens not measured (prep-timeout)</span></div>
+
+      <div class="sec">your verdict</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="btn thumb" id="th1up" onclick="thumb('1','up')" data-tip="Rate what Mooter did on THIS prompt. ⚑ not instrumented: grep thumbs|feedback_score in tools/router/ = empty. Your click is marked in this mock only.">👍</button>
+        <button class="btn thumb" id="th1dn" onclick="thumb('1','dn')" data-tip="The 👎 is worth more than the 👍: it tells the Pastor which route NOT to repeat. ⚑ not instrumented.">👎</button>
+        <span class="xs" style="color:var(--faint)" id="fbEcho1"></span>
+      </div>
+      <div class="flagbox" style="margin-top:5px">⚑ record that would be written (opt-in, anonymous by install-id — never the prompt text):
+        {prompt_id, session_id, route_chosen, tier_requested, tier_ran, cost, verdict}
+        · <span class="flag-cost" data-tip="effort estimate, not a measurement">~1 worker endpoint + 1 D1 table + this button</span></div>
+
+      <div class="sec">apply a skill</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <details class="skillmenu" id="sm1">
+          <summary data-tip="Run a Mooter skill on this wave's output. Real skills from skills/; the action is ⚑ not instrumented.">⚡ Apply a skill to this result ▾</summary>
+          <div class="skill-list">
+            <div class="skill-hd">MEO role skills · real files in skills/</div>
+            <button class="skill-it" onclick="applySkill('1','meo-conselho')"><span class="sk-name">meo-conselho</span><span class="sk-what">full board review</span></button>
+            <button class="skill-it" onclick="applySkill('1','meo-mro')"><span class="sk-name">meo-mro</span><span class="sk-what">role: MRO</span></button>
+            <button class="skill-it" onclick="applySkill('1','meo-mcc')"><span class="sk-name">meo-mcc</span><span class="sk-what">role: MCC</span></button>
+            <div class="skill-hd">community</div>
+            <div class="skill-it commu" data-tip="Curated public skills adapted to Mooter's method — nothing curated yet.">◌ curated from the community — coming</div>
+          </div>
+        </details>
+        <span class="xs" style="color:var(--faint)" id="skillEcho1"></span>
+      </div>
+      <div class="actpane" id="skillPane1"></div>
+
+      <div class="sec">job ids</div>
+      <div class="oneline"><code>job-msdo8c49-1cd5</code> · <code>job-msdo9jm9-b1fe</code> · prep-timeout: <code>job-msdo942t-f63f</code></div>
+    </div>
+  </div>
+
+  <!-- ===== page 2 · wave R-balde-A ===== -->
+  <div class="dpage" id="dpage2" hidden>
+    <div class="dhead">
+      <span class="ptime"><span class="nd" data-tip="◌ — no start timestamp on the receipts; never invented.">no time</span></span>
+      <b class="psum">Rewrite page.tsx — plan local, execute on Haiku</b>
+      <span class="plogos"><span class="g done"><svg class="pcow"><use href="#m-cow"/></svg></span><span class="g done"><svg><use href="#m-claude"/></svg></span></span>
+      <button class="dclose" onclick="closeDrawer()" data-tip="Close this breakdown — Esc works too." aria-label="Close">✕</button>
+    </div>
+    <div class="dbody">
+      <div class="sec">what was asked</div>
+      <div class="ndhero"><div class="big">◌ full prompt text — the journal has not written this session yet</div>
+        <div class="why">Same journal gap as the other rows: no record, no text — never reconstructed from memory.</div></div>
+
+      <div class="sec">what was understood</div>
+      <div class="flagbox"><b>⚑ not instrumented</b> — nobody records what the agent understood before acting.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~20 lines in tools/router/handoff-rollup.js</span></div>
+
+      <div class="sec">what ran · wave R-balde-A · handoff local → cloud</div>
+      <div class="tnode local">
+        <div class="tline"><span class="g">🐮</span><span class="who">S0 · moo</span>
+          <span class="role prep" data-tip="PREPARER: produces a PLAN on the local GPU, $0. It is not the result — it is the package the executor receives.">PREPARER · plan</span>
+          <span class="mod">qwen2.5-coder:14b · local GPU</span>
+          <span class="num" style="color:var(--dim);font-size:var(--fs1)">17.43 s</span>
+          <span class="cost-free num">🐮 $0.0000</span></div>
+        <div class="tsub">tier <b>T1→T0</b> <span class="src" data-tip="asked for Haiku, solved on the local GPU — cheaper than requested.">asked→ran</span>
+          · <span class="num">29 tok/s</span> · prep <b>1674 chars</b> · <span class="num">9225↓/497↑ tok</span></div>
+      </div>
+      <div class="dhand">↓ preparer's plan → executor <span class="src" data-tip="The handoff: the local plan goes up to the paid executor. Static here — this wave is finished, and nothing done animates.">handoff</span></div>
+      <div class="tnode cloud">
+        <div class="tline"><span class="g"><svg><use href="#m-claude"/></svg></span><span class="who">S1 · cc</span>
+          <span class="role exec" data-tip="EXECUTOR: the paid output, the only thing that counts as a result.">EXECUTOR · paid output</span>
+          <span class="mod">claude-haiku-4-5-20251001 · subscription</span>
+          <span class="num" style="color:var(--dim);font-size:var(--fs1)">147 s</span>
+          <span class="cost-paid num">$0.3902</span></div>
+        <div class="tsub">tier <b class="warn">T3→T1 ⚠</b> <span class="src" data-tip="asked for Opus, ran Haiku — see the coherence warning below.">asked→ran</span>
+          · <span class="num">71 tok/s</span> · <span class="num">277↓/10495↑ tok</span> · 31 steps · read+wrote <code>page.tsx</code></div>
+      </div>
+      <div class="att-item" style="margin-top:5px">
+        ⚠ coherence: <q class="vb-pt">router asked for opus and ran haiku</q>
+        <span class="src" data-tip="Real connector warning on this wave, verbatim. Active calibration: local-first · forcar_local:true · haiku ceiling. Calibration debt — amber, not red.">verbatim</span>
+      </div>
+
+      <div class="sec">what finished</div>
+      <div class="oneline"><span class="ok">✓ herd's home</span> — the wave closed. done · summary:
+        <span class="nd" data-tip="◌ — the summary of what was done would come from the rolling GPU summary ($0); the accumulator's health on THIS machine is unverified. An unverified summary is not shown.">not measured</span></div>
+
+      <div class="sec">what remains</div>
+      <div class="flagbox"><b>⚑ partial</b> — 'what is left before push' (gauntlet → commit → gate → push) is not modelled.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~60 lines in tools/router/agent-sync-ledger.js</span></div>
+
+      <div class="sec">gauntlet changes</div>
+      <div class="flagbox"><b>⚑ unrecorded</b> — how many times the gauntlet changed this result before delivery: no record exists.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~15 lines in gsd-turn-end.js (journal type:'gauntlet')</span></div>
+
+      <div class="sec">cost · duration · tokens · savings</div>
+      <div class="dgrid">
+        <span class="dk">cost</span><span><b class="num">$0.3902</b> paid (CLI-reported) + <span class="chip-local">🐮 $0.0000</span> local</span>
+        <span class="dk">duration</span><span><b class="num">17.43 s</b> local + <b class="num">147 s</b> paid</span>
+        <span class="dk">tokens</span><span>local <b class="num">9225↓/497↑</b> · cc <b class="num">277↓/10495↑</b></span>
+        <span class="dk">savings</span><span><span class="est" data-tip="Literal caveat on the field (PT): 'ESTIMATIVA (~4 chars/token) — é o VOLUME QUE O MODELO LOCAL PRODUZIU, não uma poupança líquida medida' — the volume the local model produced, not a measured net saving.">419 tok</span> <span class="src">ESTIMATE — volume produced, not net savings</span></span>
+      </div>
+
+      <div class="sec">context-window impact</div>
+      <div class="oneline">local <span class="num">9 722</span> / 32 768 = <span class="num ok">29.7%</span>
+        <span class="src" data-tip="Derived from measured values: receipt tokens (9225 in + 497 out) over the model's known num_ctx.">derived from receipt</span>
+        · cc <span class="nd" data-tip="measured inside Claude Code, not received here — pair unregistered.">measured in CC, not here</span></div>
+
+      <div class="sec">your verdict</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="btn thumb" id="th2up" onclick="thumb('2','up')" data-tip="Rate what Mooter did on THIS prompt. ⚑ not instrumented — your click is marked in this mock only.">👍</button>
+        <button class="btn thumb" id="th2dn" onclick="thumb('2','dn')" data-tip="The 👎 is worth more than the 👍. ⚑ not instrumented.">👎</button>
+        <span class="xs" style="color:var(--faint)" id="fbEcho2"></span>
+      </div>
+      <div class="flagbox" style="margin-top:5px">⚑ record that would be written (opt-in, anonymous by install-id — never the prompt text):
+        {prompt_id, session_id, route_chosen, tier_requested, tier_ran, cost, verdict}</div>
+
+      <div class="sec">apply a skill</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <details class="skillmenu" id="sm2">
+          <summary data-tip="Run a Mooter skill on this wave's output. Real skills from skills/; the action is ⚑ not instrumented.">⚡ Apply a skill to this result ▾</summary>
+          <div class="skill-list">
+            <div class="skill-hd">MEO role skills · real files in skills/</div>
+            <button class="skill-it" onclick="applySkill('2','meo-conselho')"><span class="sk-name">meo-conselho</span><span class="sk-what">full board review</span></button>
+            <button class="skill-it" onclick="applySkill('2','meo-mto')"><span class="sk-name">meo-mto</span><span class="sk-what">role: MTO</span></button>
+            <button class="skill-it" onclick="applySkill('2','meo-mro')"><span class="sk-name">meo-mro</span><span class="sk-what">role: MRO</span></button>
+            <div class="skill-hd">community</div>
+            <div class="skill-it commu" data-tip="Curated public skills adapted to Mooter's method — nothing curated yet.">◌ curated from the community — coming</div>
+          </div>
+        </details>
+        <span class="xs" style="color:var(--faint)" id="skillEcho2"></span>
+      </div>
+      <div class="actpane" id="skillPane2"></div>
+
+      <div class="sec">job ids</div>
+      <div class="oneline"><span class="nd" data-tip="the receipts carry ids; this mock's v12 source did not copy them for this wave — nothing is invented.">not in this mock's extract</span></div>
+    </div>
+  </div>
+
+  <!-- ===== page 3 · wave cabine-prova ===== -->
+  <div class="dpage" id="dpage3" hidden>
+    <div class="dhead">
+      <span class="ptime num" data-iso="2026-08-04T01:07:51Z" data-tip="Local time — the instant the receipts were read (mooter_fleet)."></span>
+      <b class="psum">Prove the Cabin against the connector's live receipts</b>
+      <span class="plogos"><span class="g live" data-tip="The cow ruminates: the local engine still holds live work on this prompt."><svg class="pcow" viewBox="0 0 36 36" role="img" aria-label="local GPU, working"><path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/><path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/><path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/><g class="muzzle"><path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/><ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"/><ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"/></g><path fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/></svg></span><span class="g done"><svg><use href="#m-claude"/></svg></span></span>
+      <button class="dclose" onclick="closeDrawer()" data-tip="Close this breakdown — Esc works too." aria-label="Close">✕</button>
+    </div>
+    <div class="dbody">
+      <div class="sec">what was asked</div>
+      <div class="ndhero"><div class="big">◌ full prompt text — the journal has not written this session yet</div>
+        <div class="why">The per-turn journal line is the source; the accumulator's health on this machine is <b>unverified</b>
+        (the stale-hook precedent: <b>63 sessions / 0 journals</b>). No record, no text — never reconstructed from memory.</div></div>
+
+      <div class="sec">what was understood</div>
+      <div class="flagbox"><b>⚑ not instrumented</b> — nobody records what the agent understood before acting.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~20 lines in tools/router/handoff-rollup.js</span></div>
+
+      <div class="sec">what ran · wave cabine-prova · 2 jobs · 69 s</div>
+      <div class="tnode local">
+        <div class="tline"><span class="g">🐮</span><span class="who">S0 · moo</span>
+          <span class="role prep" data-tip="PREPARER: produces a PLAN on the local GPU, $0. Today's real defect: asking for the chain's result returned THIS. Hence the stamped role.">PREPARER · plan</span>
+          <span class="mod">qwen2.5-coder:14b · local GPU</span>
+          <span class="num" style="color:var(--dim);font-size:var(--fs1)">9 s</span>
+          <span class="cost-free num">🐮 $0.0000</span></div>
+        <div class="tsub"><span class="num">2114↓/357↑ tok</span> <span class="src" data-tip="Ledger receipt: 2114 in / 357 out, 9 s, $0.0000 — measured by the connector.">receipt</span></div>
+      </div>
+      <div class="dhand">↓ preparer's plan → executor <span class="src" data-tip="The handoff: the local plan goes up to the paid executor. Static — this leg is finished.">handoff</span></div>
+      <div class="tnode cloud">
+        <div class="tline"><span class="g"><svg><use href="#m-claude"/></svg></span><span class="who">S1 · cc</span>
+          <span class="role exec" data-tip="EXECUTOR: the paid output, the only thing that counts as a result. The 'result' action ALWAYS and ONLY reads the EXECUTOR node.">EXECUTOR · paid output</span>
+          <span class="mod">claude-haiku-4-5-20251001 · subscription</span>
+          <span class="num" style="color:var(--dim);font-size:var(--fs1)">60 s</span>
+          <span class="cost-paid num">$0.184595</span></div>
+        <div class="tsub"><span class="num">98↓/3540↑ tok</span> <span class="src" data-tip="Ledger receipt: 98 in / 3540 out, 60 s, $0.184595 — cost reported by the CLI.">receipt</span></div>
+      </div>
+      <div class="oneline">tier asked→ran: <span class="nd" data-tip="for THIS wave the receipt did not carry the requested→ran pair. No field, no number (the R-balde-A page has it: T1→T0 and T3→T1).">not on the receipt</span></div>
+
+      <div class="sec">what finished</div>
+      <div class="xcheck"><span>⚠</span>
+        <span><b>cross-check:</b> <q class="vb-pt">0 afirmação(ões) verificadas; 8 divergência(s); 10 n/d</q>
+        <span class="src" data-tip="Verbatim note (PT) from this wave's adversarial verifier: '0 claims verified; 8 divergences; 10 n/d'. Zero verified = the result does not yet deserve trust.">verbatim (PT)</span>
+        — <b style="color:var(--fg)">exit 0 is not a verdict</b>.</span></div>
+      <div class="att-item" style="border-left-color:var(--red-bd);margin-top:6px">
+        <span class="crit">defect found today:</span> asking for the result by <code>job_id</code> returned
+        <b>the PREPARER's plan</b>, not the paid executor's output. Design fix: stamped roles;
+        "result" points only at the EXECUTOR. Code:
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">resolve the chain in <code>packages/mcp-server</code> (frozen — wave allowlist required)</span>
+      </div>
+
+      <div class="sec">what remains</div>
+      <div class="flagbox"><b>⚑ partial</b> — 'what is left before push' (gauntlet → commit → gate → push) is not modelled.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~60 lines in tools/router/agent-sync-ledger.js</span></div>
+
+      <div class="sec">gauntlet changes</div>
+      <div class="flagbox"><b>⚑ unrecorded</b> — how many times the gauntlet changed this result before delivery: no record exists.
+        <span class="flag-cost" data-tip="effort estimate, not a measurement">~15 lines in gsd-turn-end.js (journal type:'gauntlet')</span></div>
+
+      <div class="sec">cost · duration · tokens · savings</div>
+      <div class="dgrid">
+        <span class="dk">cost</span><span><b class="num">$0.184595</b> paid (CLI-reported) + <span class="chip-local">🐮 $0.0000</span> local</span>
+        <span class="dk">duration</span><span><b class="num">69 s</b> total · <span class="num">9 s</span> local + <span class="num">60 s</span> paid</span>
+        <span class="dk">tokens</span><span>local <b class="num">2114↓/357↑</b> · cc <b class="num">98↓/3540↑</b></span>
+        <span class="dk">savings</span><span><span class="est" data-tip="Honest 'gain': the field literally says it is an ESTIMATE — the VOLUME THE LOCAL MODEL PRODUCED, not a measured net saving.">local volume 357↑ tok</span> <span class="src">ESTIMATE — volume produced, not net savings</span></span>
+      </div>
+
+      <div class="sec">context-window impact</div>
+      <div class="oneline">local qwen2.5-coder:14b <span class="num">2 471</span> / 32 768 = <span class="num ok">7.5%</span>
+        <span class="src" data-tip="Derived from measured values: receipt tokens (2114 in + 357 out) over the model's known num_ctx. Derived arithmetic, declared as such.">derived from receipt</span>
+        · cc <span class="nd" data-tip="The official field exists and is measured inside Claude Code (context_window.* on the statusline stdin); this surface does not receive it — pair unregistered.">measured in CC, not here</span></div>
+
+      <div class="sec">your verdict</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="btn thumb" id="th3up" onclick="thumb('3','up')" data-tip="Rate what Mooter did on THIS prompt. ⚑ not instrumented: grep thumbs|feedback_score in tools/router/ = empty. Your click is marked in this mock only.">👍</button>
+        <button class="btn thumb" id="th3dn" onclick="thumb('3','dn')" data-tip="The 👎 is worth more than the 👍: it tells the Pastor which route NOT to repeat. ⚑ not instrumented.">👎</button>
+        <span class="xs" style="color:var(--faint)" id="fbEcho3"></span>
+      </div>
+      <div class="flagbox" style="margin-top:5px">⚑ record that would be written (opt-in, anonymous by install-id — never the prompt text):
+        {prompt_id, session_id, route_chosen, tier_requested, tier_ran, cost, verdict}</div>
+
+      <div class="sec">apply a skill</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <details class="skillmenu" id="sm3">
+          <summary data-tip="The owner's idea: take this prompt's result and run a Mooter skill on it — curated public skills adapted to Mooter's method, applied at prompt level. The skills listed are REAL (repo skills/ folder). The action itself is ⚑ not instrumented.">⚡ Apply a skill to this result ▾</summary>
+          <div class="skill-list">
+            <div class="skill-hd">MEO role skills · real files in skills/</div>
+            <button class="skill-it" onclick="applySkill('3','meo-conselho')"><span class="sk-name">meo-conselho</span><span class="sk-what">full board review</span></button>
+            <button class="skill-it" onclick="applySkill('3','meo-moo')"><span class="sk-name">meo-moo</span><span class="sk-what">role: MOO</span></button>
+            <button class="skill-it" onclick="applySkill('3','meo-mto')"><span class="sk-name">meo-mto</span><span class="sk-what">role: MTO</span></button>
+            <button class="skill-it" onclick="applySkill('3','meo-mfo')"><span class="sk-name">meo-mfo</span><span class="sk-what">role: MFO</span></button>
+            <button class="skill-it" onclick="applySkill('3','meo-mio')"><span class="sk-name">meo-mio</span><span class="sk-what">role: MIO</span></button>
+            <button class="skill-it" onclick="applySkill('3','meo-mro')"><span class="sk-name">meo-mro</span><span class="sk-what">role: MRO</span></button>
+            <button class="skill-it" onclick="applySkill('3','meo-mcc')"><span class="sk-name">meo-mcc</span><span class="sk-what">role: MCC</span></button>
+            <div class="skill-hd">plugin</div>
+            <button class="skill-it" onclick="applySkill('3','mooter')"><span class="sk-name">mooter</span><span class="sk-what">plugin/mooter/skills</span></button>
+            <div class="skill-hd">community</div>
+            <div class="skill-it commu" data-tip="The vision: curate the best public skills/repos, adapt them to Mooter's methodology, and offer them here — applied to any prompt's result. Nothing curated yet; this slot exists so the dropdown is honest about where it is going.">◌ curated from the community — coming</div>
+          </div>
+        </details>
+        <span class="xs" style="color:var(--faint)" id="skillEcho3"></span>
+      </div>
+      <div class="actpane" id="skillPane3"></div>
+
+      <div class="sec">job ids</div>
+      <div class="oneline"><span class="nd" data-tip="the receipts carry ids; this mock's v12 source did not copy them for this wave — nothing is invented.">not in this mock's extract</span></div>
+    </div>
+  </div>
+</aside>
+<!-- ============================================================
+     3 · DEVIL'S ADVOCATE — ③a first-class. The strongest unused asset:
+     questions derived from RULES over measured numbers, never generated
+     by a model. + ③b next steps + ③g local verdict.
+     Everything below is REAL, measured via mooter_fleet view:recibo
+     at 2026-08-04T01:07:51Z.
+     ============================================================ -->
+<details class="el" id="daEl">
+  <summary>
+    <span>😈</span>
+    <span><b>devil's advocate</b> <span style="color:var(--faint);font-size:var(--fs1)">· 2 questions today · rule-derived · $0</span></span>
+    <span class="src" data-tip="The connector's own label, verbatim (PT): 'contexto e advogado do diabo — perguntas derivadas de regras sobre números medidos, nunca geradas por um modelo' — questions derived from rules over measured numbers, never generated by a model. This is what a professional vibe coder's method looks like: the system argues with itself using arithmetic, not vibes.">deterministic · verbatim label (PT)</span>
+    <span class="hint">2 questions · 3 next steps · 1 verdict</span>
+  </summary>
+  <div class="el-body">
+    <div class="oneline" style="border-left:3px solid var(--terracotta);border-radius:0 8px 8px 0">
+      <q class="vb-pt">contexto e advogado do diabo — perguntas derivadas de regras sobre números medidos, nunca geradas por um modelo</q>
+      <span class="src" data-tip="Verbatim (PT): 'context and devil's advocate — questions derived from rules over measured numbers, never generated by a model'. No LLM writes these; an IF over the ledger does.">verbatim (PT)</span>
+    </div>
+
+    <div class="sec">today's questions <span class="src" style="text-transform:none" data-tip="Each question carries the measured fact that triggered its rule, and why it matters. Shown translated; the original PT is quoted under each card.">rule + measured fact + why it matters</span></div>
+    <div class="daq">
+      <div class="q">Local prep failed on 1 job and saved no tokens. Is serial prep paying for itself, or just adding latency?</div>
+      <div class="meta">
+        <span>fact: <b class="tipline" data-tip="The measured trigger, verbatim (PT): 'prep-timeout em: job-msdo942t-f63f'. Job id kept here because this is the expanded view.">prep-timeout on job-msdo942t-f63f</b></span>
+        <span class="tipline" data-tip="Why it matters, verbatim (PT): 'o handoff local é vendido como poupança; quando expira, é só espera' — the local handoff is sold as a saving; when it times out, it is just waiting.">why: local handoff is sold as a saving; when it expires, it is only waiting</span>
+      </div>
+      <blockquote>“A preparação local falhou em 1 job(s) e não poupou tokens. O prep em série está a pagar-se, ou só a adicionar latência?” — verbatim (PT)</blockquote>
+    </div>
+    <div class="daq">
+      <div class="q">1 metric is out of range (zero_cost_work_pct). Which one is the cause of the others, and which is only a symptom?</div>
+      <div class="meta">
+        <span class="owner moo" data-tip="Owner = who must act on this question. MOO: the local engine is the one that has to route more work to the GPU.">owner: MOO</span>
+        <span class="tipline" data-tip="Why it matters, verbatim (PT): 'tratar sintomas de forma independente multiplica trabalho e não move a causa' — treating symptoms independently multiplies work and does not move the cause.">why: treating symptoms independently multiplies work and does not move the cause</span>
+      </div>
+      <blockquote>“Há 1 métrica(s) fora da faixa (trabalho_zero_pct). Qual delas é causa das outras, e qual é só sintoma?” — verbatim (PT)</blockquote>
+    </div>
+
+    <div class="sec">next steps <span class="src" style="text-transform:none" data-tip="Also produced by the connector today — 3 concrete moves, verbatim (PT) under each. Not a to-do list a model dreamed up: each one answers a measured exception above.">3 real · from the same receipt</span></div>
+    <div class="ins-row sug">
+      <span>1</span>
+      <span>run local prep <b>in parallel</b> with the paid job — or turn it off
+        <span class="src" data-tip="Verbatim (PT): 'correr a preparação local em paralelo com o job pago, ou desligá-la'.">verbatim (PT)</span></span>
+    </div>
+    <div class="ins-row sug">
+      <span>2</span>
+      <span>pick <b>ONE</b> exception as the cause and treat only that one before touching the others
+        <span class="src" data-tip="Verbatim (PT): 'escolher UMA excepção como causa e tratar só essa antes de tocar nas outras'.">verbatim (PT)</span></span>
+    </div>
+    <div class="ins-row sug">
+      <span>3</span>
+      <span>declare the session state with <code style="color:var(--terracotta)">mooter_setup({sessao:"registar", id:"&lt;projecto&gt;"})</code> so a new session starts on the same page
+        <span class="src" data-tip="Verbatim (PT): 'declarar o estado da sessão com mooter_setup({sessao:&quot;registar&quot;, id:&quot;&lt;projecto&gt;&quot;}) para que uma sessão nova comece na mesma página'.">verbatim (PT)</span></span>
+      <button class="btn mini" onclick="toggleAct('actRegister')" data-tip="③c The session registry ALREADY EXISTS in the connector and nobody is calling it. This is the missing half of the Cowork⇄CC bridge — it gets a button.">⛭ register session</button>
+    </div>
+    <div class="actpane" id="actRegister">
+      <b>What it will do:</b> call <code>mooter_setup({sessao:"registar", id:"&lt;projecto&gt;"})</code> — the session registry
+      that already ships in the connector. Today, measured: <code>contexto.onde.sessao_id</code> = <b>null</b>, reason verbatim (PT):
+      <q class="vb-pt">sem estado de sessão registado — usa `mooter_setup({sessao:"registar", id:"&lt;projecto&gt;"})`</q>.
+      And <code>conversa_do_host</code> = <b>null</b> because, verbatim (PT):
+      <q class="vb-pt">o MCP não expõe o identificador da conversa ao servidor; só o que for declarado explicitamente</q>
+      — the MCP does not expose the conversation id to the server; only what is declared explicitly.
+      <b>This is the missing half of the Cowork⇄CC bridge.</b> In this mock the call does not run; in the real Cabin, it does.
+    </div>
+
+    <div class="sec">local verdict <span class="src" style="text-transform:none" data-tip="③g Definition verbatim (PT): 'interpretação do moo local — nunca altera os factos' — the local moo's interpretation; it never alters the facts.">moo · interpretation, never facts</span></div>
+    <div class="ins-row" style="border-left:2px dashed var(--nd-bd)">
+      <span>🐮</span>
+      <span>question put to the moo: <q class="vb-pt">Que cargos é que o MEO pode ignorar hoje, e porquê?</q>
+        <span class="src" data-tip="Verbatim (PT): 'Which roles can the MEO ignore today, and why?' — asked of the local model as interpretation on top of the measured facts.">verbatim (PT)</span>
+        · answer today: <span class="nd" data-tip="Verbatim (PT): 'n/d — o moo não respondeu' — the moo did not answer. An empty verdict is shown empty; nothing is ghost-written for the local model.">n/d — the moo did not answer</span></span>
+    </div>
+  </div>
+</details>
+
+<!-- ============================================================
+     4 · ATTENTION — collapsed; disappears at zero. Job ids expand-only.
+     ============================================================ -->
+<details class="el">
+  <summary>
+    <span class="att-count">⚠ Attention (4)</span>
+    <span class="att-mini"><span class="bad">zombie 9h 59m</span> · result≠plan · 2 no verdict · plugin 7 minors behind</span>
+    <span class="hint" data-tip="When nothing demands action, this element disappears entirely.">open</span>
+  </summary>
+  <div class="el-body">
+    <div class="zcard">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="chip-local">🐮 local GPU</span>
+        <span style="font-weight:700">moo</span>
+        <span style="color:var(--dim);font-size:var(--fs1)">· qwen3.6:27b · <span data-tip="Job id — shown only here, in the expanded view. Nobody reads job-msd2hwgy-aea8 at a glance.">job-msd2hwgy-aea8</span></span>
+        <span style="margin-left:auto" class="pulseBad">● stuck in the mud</span>
+      </div>
+      <div class="ibar" data-tip="Bar FROZEN on purpose: no output growth for 598 min. Animating a stalled job would lie about activity. Only the ● pulses: process alive, no progress."><i></i></div>
+      <div style="font-size:var(--fs1);color:var(--dim)">
+        running for <b class="num" style="color:var(--fg)">9h 59m</b> <span class="num" style="color:var(--faint)">(35 959 s)</span> ·
+        exit_code <code>agent-awaiting-approval</code> ·
+        <span class="bad num tipline" data-tip="Verbatim: 'no growth for 598 min'.">no growth for 598 min</span> ·
+        ETA <span class="nd" data-tip="'n/d — not enough history' is the eta_bar's literal position. Mooter refuses to fabricate time remaining.">not measured</span> ·
+        cost <span class="cost-free">🐮 free</span>
+        <button class="btn mini" style="margin-left:8px" onclick="toggleAct('actZombie')" data-tip="Opens what this button will do and the known risk.">⛔ cancel</button>
+      </div>
+      <div class="actpane" id="actZombie">
+        <b>What it will do:</b> <code>mooter_cancel job-msd2hwgy-aea8</code> — frees the VRAM the stalled job is holding.
+        <b>Known risk (measured):</b> we have seen a dispatched job vanish from both fleet AND cancel — if that happens,
+        the fallback is restarting the runner. In this mock the command does not run; in the real Cabin, it does.
+      </div>
+    </div>
+    <div class="att-item">
+      <span class="crit">result ≠ plan</span> — the connector returned the <b>preparer's</b> plan when asked for the chain's
+      result. Design fixed in lane #3; code still to fix in <code>packages/mcp-server</code>.
+    </div>
+    <div class="att-item">
+      <span class="crit">2 jobs with no verdict</span> — wave painel-nativo, 13.4M input tokens,
+      literal note (PT) <q class="vb-pt">sem veredicto: não verificou</q>. Detail in lane #2.
+    </div>
+    <div class="att-item">
+      <span class="warn">⚠ <code>plugin/mooter/plugin.json</code> <b class="num">1.38.0</b></span> — 7 minors behind the
+      connector (1.45.3). First debt to pay.
+    </div>
+  </div>
+</details>
+<!-- ============================================================
+     5 · PROJECT & FOUNDATIONS — 1 line of chips; inside: the project in one
+     sentence + sessions line + roles receipts (③e) + handoff savings (③f) +
+     vault (③d) + Learning (Pastor) + context windows + scorecard.
+     ============================================================ -->
+<details class="el" id="projEl">
+  <summary style="font-size:var(--fs1)">
+    <span class="pchip" data-tip="④ Installed connector: 1.45.3. A 1.45.4 exists and its bundle already sits at _handoff/mooter-v1454.mcpb — downloaded, NOT installed. plugin/mooter/plugin.json is 1.38.0 — 7 minors behind, flagged. The button opens the exact non-developer steps."><b class="num">1.45.3</b> <button class="upd" onclick="event.preventDefault();toggleAct('actUpdate')">↑ 1.45.4 · update check</button> · plugin <span class="warn num">1.38.0</span></span>
+    <span class="pchip" data-tip="Quota = how much of your subscription you have burned. The 5 h window comes MEASURED from Claude Code itself (rate_limits.five_hour.used_percentage). Daily pressure is still calibrating: only 1 of 7 days of history.">quota 5h <b class="num">94%</b> · daily <span style="color:var(--nd)">◌ 1/7</span></span>
+    <span class="pchip" data-tip="Your graphics card, measured by nvidia-smi: RTX 4090, 23 028 MB memory, 31% busy, 5 852 MB free, 50 °C. A near-idle GPU is consistent with the zero_cost_work_pct 31.58% alarm."><b>4090</b> <span class="num">31%</span> · <span class="ok num">5 852 free</span></span>
+    <span class="pchip" data-tip="⑥ Parallel capacity, measured by mooter_fleet view:pastas at 2026-08-04T01:07Z: 47 of 47 folders free, 0 occupied. Parallelism HAPPENED today (32 jobs across 15 waves, 4 folders) but nothing runs in parallel right now — the only live process is the stalled zombie in Attention.">⑂ capacity <b class="num">47</b> · busy <b class="num">0</b> · <span class="bad num">1 stalled</span></span>
+    <span class="pchip" data-tip="Your notes vault (paulo-vault, auto-detected by .obsidian/ — never assumed). Latest note: _evolution-drafts.md, today 20:00Z — fresh. 8 notes today; list inside.">🗄 vault <span class="ok">✓ fresh · 8 today</span></span>
+    <span class="hint">full project</span>
+  </summary>
+  <div class="el-body">
+
+    <div class="oneline">
+      <b>The project in one sentence:</b> Mooter picks the cheapest engine that solves each request —
+      local GPU first (<span class="ok">$0</span>), paid cloud only when needed — and proves it with receipts.
+    </div>
+    <div class="oneline">
+      <b>How sessions talk:</b> Cowork (this window) ⇄ Claude Code exchange state through files and the
+      <code>mooter:origem</code> stamp · this session's pair:
+      <span class="nd" data-tip="The CC session name arrives measured on the statusline stdin, but nothing records it PAIRED with this Cowork session. No recorded pair, no invented name. The registry that fixes this already exists — the ⛭ button.">pair not registered</span>
+      <button class="btn mini" onclick="toggleAct('actRegister2')" data-tip="③c The fix already ships in the connector: mooter_setup({sessao:'registar', id:'<projecto>'}). Nobody calls it. One click away from the Cowork⇄CC bridge's missing half.">⛭ register session</button>
+      · siblings: <b>15 of 1760</b> titled <span class="tipline" data-tip="list_sessions returns 1760 Cowork sessions with a title. 'Fecho do dia mooter' repeats 6× among the 15 — titles collide, the key is always the session id. Timestamp: not measured (the API gives order, not time).">("Fecho do dia mooter" ×6 — the key is the session id)</span>
+    </div>
+    <div class="actpane" id="actRegister2">
+      <b>What it will do:</b> <code>mooter_setup({sessao:"registar", id:"&lt;projecto&gt;"})</code>. Measured today:
+      <code>contexto.onde.sessao_id</code> = <b>null</b> — verbatim (PT):
+      <q class="vb-pt">sem estado de sessão registado — usa `mooter_setup({sessao:"registar", id:"&lt;projecto&gt;"})`</q> ·
+      <code>conversa_do_host</code> = <b>null</b> — verbatim (PT):
+      <q class="vb-pt">o MCP não expõe o identificador da conversa ao servidor; só o que for declarado explicitamente</q>.
+    </div>
+
+    <div class="oneline">
+      <b>⑥ Parallel work — the honest distinction:</b> capacity <b class="num">47</b> folders · busy <b class="num">0</b> ·
+      <span class="bad">1 stalled</span> (the zombie in Attention). Parallelism <b>happened today</b> —
+      <b class="num">32 jobs</b> across <b class="num">15 waves</b> on <b>cc · codex · gemini · moo</b>, in 4 folders
+      (<code>frugal</code>, <code>frugal/packages/mooter-bridge</code>, <code>frugal-site</code>, <code>frugal-site-s0s3</code>) —
+      but <b>nothing is running in parallel right now</b>.
+      <span class="src" data-tip="Measured: mooter_fleet view:pastas @ 2026-08-04T01:07Z (folders) + view:recibo (jobs/waves/engines/folders of the 24 h window).">measured</span>
+    </div>
+
+    <!-- ---------- ③e ROLES — per-role receipts. The finding IS the empty column. -->
+    <details class="sub">
+      <summary><span>🎭</span> <b style="color:var(--fg)">roles (cargos)</b>
+        <span style="color:var(--faint)">· 7 roles · today only MRO worked</span>
+        <span class="bad" data-tip="The real finding of the day: the role system exists end-to-end, and almost nothing declares a role. 31 of 32 jobs ran with cargo:null.">31/32 jobs role-less</span>
+        <span class="hint">open</span></summary>
+      <div class="sub-body">
+        <div class="rolegrid">
+          <span class="rolecard" data-tip="MEO — governance role. Today: sem_trabalho:true (no work). Owner of the interruptions_per_day alarm and the metric ranges.">MEO <b>—</b></span>
+          <span class="rolecard" data-tip="MOO — local engine role. Today: sem_trabalho:true (no work as a declared role — the moo engine itself ran plenty). Owner of the zero_cost_work_pct alarm.">MOO <b>—</b></span>
+          <span class="rolecard" data-tip="MTO — today: sem_trabalho:true (no work).">MTO <b>—</b></span>
+          <span class="rolecard" data-tip="MFO — today: sem_trabalho:true (no work).">MFO <b>—</b></span>
+          <span class="rolecard" data-tip="MIO — today: sem_trabalho:true (no work).">MIO <b>—</b></span>
+          <span class="rolecard haswork" data-tip="MRO — the only role with work today: 1 wave (BACKLOG-1). Cost: not measured — verbatim (PT): 'nenhum dos 1 job(s) trouxe cost_usd medido' — none of the 1 job(s) carried a measured cost_usd.">MRO <b>1 wave</b></span>
+          <span class="rolecard" data-tip="MCC — today: sem_trabalho:true (no work).">MCC <b>—</b></span>
+        </div>
+        <div class="oneline" style="margin-bottom:4px">
+          <b>MRO receipt:</b> 1 wave <code>BACKLOG-1</code> · cost <span class="nd" data-tip="Verbatim (PT): 'nenhum dos 1 job(s) trouxe cost_usd medido'.">not measured</span>
+          · all other roles: <q class="vb-pt">sem_trabalho: true</q> <span class="src" data-tip="Verbatim field (PT): 'no work'. An idle role is shown idle — never padded with activity.">verbatim (PT)</span>
+        </div>
+        <div class="att-item" style="border-left-color:var(--red-bd)">
+          <span class="crit">the finding:</span> <b>31 of 32 jobs ran with <code>cargo: null</code></b> — reason verbatim (PT):
+          <q class="vb-pt">n/d — cargo não declarado por quem disparou; nunca inferido do texto</q>
+          <span class="src" data-tip="'role not declared by whoever fired the job; never inferred from the text'. The role system exists and almost nothing declares a role — Mooter refuses to guess the role from the prompt text.">verbatim (PT)</span>.
+          The per-role receipts exist; the callers just never fill the column. The skill dropdown (②) is the
+          designed fix: applying a role skill dispatches <code>mooter_work</code> <b>with the cargo set</b>.
+        </div>
+      </div>
+    </details>
+
+    <!-- ---------- ③f HANDOFFS — honest savings as a badge of honour ---------- -->
+    <details class="sub">
+      <summary><span>⇄</span> <b style="color:var(--fg)">handoffs</b>
+        <span style="color:var(--faint)">· 9 today · all moo → {cc, codex, gemini}</span>
+        <span class="chip-local" data-tip="Badge of honour, not a gap: all 9 handoffs report net savings NULL, reason verbatim (PT): 'medir poupança exigiria o mesmo trabalho sem preparação como base de comparação' — measuring the saving would require running the same work without prep as a baseline. A router that refuses to claim savings it cannot measure.">net savings: refused ×9 — honesty</span>
+        <span class="hint">open</span></summary>
+      <div class="sub-body">
+        <div style="border:1px solid var(--border-soft);border-radius:8px;background:var(--card);overflow:hidden">
+          <div class="handrow" style="color:var(--faint);text-transform:uppercase;letter-spacing:.06em"><span>route</span><span>local tokens produced</span><span style="text-align:right">net saving</span></div>
+          <div class="handrow"><span class="arrow">moo → cc</span><span class="num">282</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → cc</span><span class="num">450</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → codex</span><span class="num">299</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → cc</span><span class="num">419</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → codex</span><span class="num">394</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → gemini</span><span class="num">332</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → cc</span><span class="num">377</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → codex</span><span class="num">485</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+          <div class="handrow"><span class="arrow">moo → cc</span><span class="num">288</span><span style="text-align:right"><span class="nd">null — refused</span></span></div>
+        </div>
+        <div class="oneline" style="margin-top:5px">
+          <b>Why every saving is null — and why that is the product:</b> verbatim (PT):
+          <q class="vb-pt">medir poupança exigiria o mesmo trabalho sem preparação como base de comparação</q>
+          — measuring a saving would require running the same work <b>without</b> prep as a baseline.
+          Other routers print the saving anyway. <b>This one refuses.</b> The tokens column is what IS measured:
+          the volume the local GPU produced, per handoff. Split by destination: cc ×5 · codex ×3 · gemini ×1.
+        </div>
+      </div>
+    </details>
+
+    <!-- ---------- ③d VAULT — 8 notes today, folder + file + timestamp ---------- -->
+    <details class="sub">
+      <summary><span>🗄</span> <b style="color:var(--fg)">vault — recorded</b>
+        <span class="ok" data-tip="⑦ Proof of record: 8 notes written today, each with folder + file + timestamp. Latest: 30-learnings/_evolution-drafts.md at 20:00:43Z. This strip is the at-a-glance receipt; expand for the full list.">✓ <b class="num">8</b> today · latest <code style="color:inherit">_evolution-drafts.md</code> <span class="num">20:00:43Z</span></span>
+        <span style="color:var(--faint)">· root <code>C:\Users\Paulo Loureiro\paulo-vault</code></span>
+        <span class="hint">open</span></summary>
+      <div class="sub-body">
+        <div style="border:1px solid var(--border-soft);border-radius:8px;background:var(--card);overflow:hidden">
+          <div class="vrow"><span class="vf">30-learnings</span><span class="vn" title="_evolution-drafts.md">_evolution-drafts.md</span><span class="vt num">20:00:43Z</span></div>
+          <div class="vrow"><span class="vf">20-decisions</span><span class="vn" title="2026-08-03-plano-2-frentes-site-landing-motor-supermaster-2-0.md">2026-08-03-plano-2-frentes-site-landing-motor-supermaster-2-0.md</span><span class="vt num">13:38:47Z</span></div>
+          <div class="vrow"><span class="vf">20-decisions</span><span class="vn" title="…pitch-deck-mooter-auditoria-anti-delirio-correcoes-v7.md">…pitch-deck-mooter-auditoria-anti-delirio-correcoes-v7.md</span><span class="vt num">13:15:36Z</span></div>
+          <div class="vrow"><span class="vf">20-decisions</span><span class="vn" title="…deep-diligence-vc-tese-modelo-5-anos-roi…">…deep-diligence-vc-tese-modelo-5-anos-roi…</span><span class="vt num">10:19:20Z</span></div>
+          <div class="vrow"><span class="vf">20-decisions</span><span class="vn" title="…playbook-vc-m-a-fundability-do-mooter…">…playbook-vc-m-a-fundability-do-mooter…</span><span class="vt num">10:06:10Z</span></div>
+          <div class="vrow"><span class="vf">20-decisions</span><span class="vn" title="…oauth-github-rodado-p0-de-seguranca-fechado…">…oauth-github-rodado-p0-de-seguranca-fechado…</span><span class="vt num">09:07:25Z</span></div>
+          <div class="vrow"><span class="vf">30-learnings</span><span class="vn" title="…backlog-1-a-divida-de-integridade-fechada…">…backlog-1-a-divida-de-integridade-fechada…</span><span class="vt num">03:33:39Z</span></div>
+          <div class="vrow"><span class="vf">30-learnings</span><span class="vn" title="…ledger-de-aprendizado-semana-de-2026-07-27-a-2026-08-03.md">…ledger-de-aprendizado-semana-de-2026-07-27-a-2026-08-03.md</span><span class="vt num">03:16:14Z</span></div>
+        </div>
+        <div class="oneline" style="margin-top:5px">
+          <b>Reading of the day, by rule (folder counts, not model):</b> 5 decisions · 3 learnings.
+          The connector already knows folder + file + timestamp for every note — the Cabin was showing only "fresh ✓".
+        </div>
+      </div>
+    </details>
+
+    <!-- ---------- LEARNING — the Pastor. Pride, not apology. ---------- -->
+    <div class="pride">
+      <div class="ptitle">
+        <b>🎓 Learning — the Pastor</b>
+        <span class="pastor-chip" data-tip="The real statusline chip: 🎓 Pastor v2 · N decisions · TF-IDF (Occam-aligned). N = real non-empty lines of decisions.log — 'No invented number'. The chip stays SILENT below 50 decisions (DEFAULT_ON_THRESHOLD) and silent if the log is missing (N=0): honest degrade. Budget: one readFileSync + a newline count; any failure → empty string.">🎓 Pastor v2 · <span class="nd" style="font-size:inherit" data-tip="N on this machine: not measured — decisions.log was not read for this mock. The number only ever appears counted from the real file.">n/d decisions</span> · TF-IDF (Occam-aligned)</span>
+      </div>
+      <div class="pbody">
+        <b>For non-devs, in 2 lines:</b> Mooter learns from your routing decisions using classic text-comparison
+        maths (TF-IDF) — not a neural network. Every decision is explainable and reproducible: you can ask
+        "why this route?" and get the arithmetic, not a black-box guess.<br>
+        <b>And that is not a limitation — it is the right choice, with research behind it:</b>
+        <span class="tipline" data-tip="arXiv 2505.12601 — 'Simple kNN Beats Complex Learned Routers': simple deterministic methods beat learned neural routers. The Pastor chose TF-IDF on purpose (Occam-aligned); the validation lives in PASTOR_RESEARCH_VALIDATION.md.">arXiv 2505.12601, "Simple kNN Beats Complex Learned Routers"</span>
+        — simple beats complex, and we can audit simple.
+        <blockquote>
+          "The mechanism is TF-IDF, NOT a neural LoRA. The file is named pastor-lora-status.js for continuity
+          with the 'LoRA' routing story, but the DISPLAYED text says 'TF-IDF' so we never imply neural training."
+          — <code>tools/router/pastor-lora-status.js</code>, verbatim
+        </blockquote>
+        Honesty rules of the chip: <b>N</b> = real lines of <code>decisions.log</code>; silent below
+        <b>50</b> decisions (<code>DEFAULT_ON_THRESHOLD</code>) and silent if the log is missing — <i>honest degrade</i>.
+      </div>
+    </div>
+
+    <!-- ---------- context per engine (collapsed) ---------- -->
+    <details class="sub">
+      <summary><span>▤</span> <b style="color:var(--fg)">context window per engine</b>
+        <span style="color:var(--faint)">· used / total — a full context window is the antechamber of hallucination</span>
+        <span class="hint">open</span></summary>
+      <div class="sub-body">
+        <div class="cwrow">
+          <span class="g">🐮</span>
+          <span class="cw-name">qwen2.5-coder:14b <span class="sub">· local GPU</span></span>
+          <span class="cwbar ok" data-tip="Derived from measured values: this session's latest receipt (cabine-prova S0) = 2114 in + 357 out = 2 471 tokens, against the model's 32 768 window. 7.5% — plenty of headroom."><i style="width:7.5%"></i></span>
+          <span class="cw-val num"><b>2 471</b> / 32 768 <span class="src" data-tip="used: ledger receipt · total: the model's known num_ctx.">receipt·num_ctx</span></span>
+          <span class="cw-pct ok num">7.5%</span>
+        </div>
+        <div class="cwrow">
+          <span class="g">🐮</span>
+          <span class="cw-name">qwen2.5:3b <span class="sub">· rollup</span></span>
+          <span class="cwbar empty" data-tip="Window of 4 096 — TIGHT: this truncated window is exactly what the 15-point audit caught. Usage: ◌ — no receipt from this session went through this model."></span>
+          <span class="cw-val"><span class="nd" data-tip="the rollup has not run here yet (health ◌).">usage n/d</span> <span class="num">/ 4 096</span></span>
+          <span class="cw-pct" style="color:var(--nd)">◌</span>
+        </div>
+        <div class="cwrow">
+          <span class="g"><svg><use href="#m-claude"/></svg></span>
+          <span class="cw-name">cc · claude-haiku-4-5 <span class="sub">· subscription</span></span>
+          <span class="cwbar empty" data-tip="The source is OFFICIAL and MEASURED inside Claude Code (context_window.total_input_tokens / context_window_size / used_percentage on the statusline stdin). But it reaches the CC session, not this panel — the Cowork⇄CC pair is not registered yet. The ⛭ button above is the fix."></span>
+          <span class="cw-val"><span class="nd" data-tip="the official field exists and is measured in CC; this surface does not receive it yet — pair unregistered.">◌ here — measured in CC</span></span>
+          <span class="cw-pct" style="color:var(--nd)">◌</span>
+        </div>
+        <div class="cwrow">
+          <span class="g"><svg><use href="#m-openai"/></svg></span>
+          <span class="cw-name">codex <span class="sub">· CLI</span></span>
+          <span class="cwbar empty" data-tip="◌ — the codex CLI does not expose context usage in any field the connector reads today."></span>
+          <span class="cw-val"><span class="nd" data-tip="no field, no bar.">n/d</span></span>
+          <span class="cw-pct" style="color:var(--nd)">◌</span>
+        </div>
+        <div class="cwrow">
+          <span class="g"><svg><use href="#m-kimi"/></svg></span>
+          <span class="cw-name">kimi <span class="sub">· API</span></span>
+          <span class="cwbar empty" data-tip="◌ — the kimi API was not queried for context usage this session."></span>
+          <span class="cw-val"><span class="nd" data-tip="no query, no number.">n/d</span></span>
+          <span class="cw-pct" style="color:var(--nd)">◌</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- ---------- scorecard (collapsed; opened via devil's advocate) ---------- -->
+    <details class="sub" id="scoreSub">
+      <summary><span>⚖</span> <b style="color:var(--fg)">scorecard</b>
+        <span class="sleep-no">✗ can I sleep? NO</span>
+        <span style="color:var(--faint)" data-tip="Measured 2026-08-03T23:46:07Z over the ledger: 599 events, 30 jobs. Range bounds live in tooltips (design cut v11) — except on the out-of-range cards, which ARE the exceptions.">· 2 out of range · 599 events · 30 jobs</span>
+        <span class="hint">open</span></summary>
+      <div class="sub-body">
+        <div class="fora-grid">
+          <div class="fora-card">
+            <div class="fora-top"><span class="fora-mark">● OUT OF RANGE</span><b data-tip="How many times per day Mooter interrupted you for approval. 9 times, in a system that should bother you 0-1×.">interruptions_per_day</b><span class="owner" data-tip="Owner MEO = governance must act (review the approval rules), not the machine.">owner: MEO</span></div>
+            <div class="fora-val"><span class="num">9</span> <span class="un">calls/day</span> <span class="fora-range">· range [0,1]</span></div>
+            <div class="fora-since">out for <b>20h 04m</b> <span class="num" style="color:var(--dim)">(72 236 s)</span></div>
+          </div>
+          <div class="fora-card">
+            <div class="fora-top"><span class="fora-mark">● OUT OF RANGE</span><b data-tip="What share of the work ran on the local GPU at zero cost. 31.58% against a ≥50% target — you are paying cloud for work your own card would do free.">zero_cost_work_pct</b><span class="owner moo" data-tip="Owner MOO = the local engine must act (route more to the GPU).">owner: MOO</span></div>
+            <div class="fora-val"><span class="num">31.58%</span> <span class="un">on the local GPU</span> <span class="fora-range">· range [50,100]</span></div>
+            <div class="fora-since">out for <b>20h 04m</b> <span class="num" style="color:var(--dim)">(72 236 s)</span></div>
+          </div>
+        </div>
+        <div class="mgrid">
+          <div class="mrow"><span class="m-ic okk">✓</span><span class="m-name" data-tip="Tasks finished per day. Range [1,1000] — default MEO M1, not a measured value.">deliveries_per_day</span><span class="m-val num">17 <span class="un">tasks/day</span></span></div>
+          <div class="mrow"><span class="m-ic okk">✓</span><span class="m-name" data-tip="How long you wait for the first word of a reply (median of 27 jobs). Range [0,120] — default MEO M1.">first_token_lead_time_s</span><span class="m-val num">13.042 s <span class="un">median · 27 jobs</span></span></div>
+          <div class="mrow"><span class="m-ic okk">✓</span><span class="m-name" data-tip="Jobs that failed: 2 of 19. Range [0,20] — default MEO M1.">failure_rate_pct</span><span class="m-val num">10.53% <span class="un m-part">· 2/19</span></span></div>
+          <div class="mrow"><span class="m-ic okk">✓</span><span class="m-name" data-tip="Average cost per delivered task (12 of 17 with measured cost). Range [0,1] — default MEO M1.">cost_per_delivered_task_usd</span><span class="m-val num">$0.0618 <span class="un m-part">· 12/17</span></span></div>
+          <div class="mrow"><span class="m-ic okk">✓</span><span class="m-name" data-tip="Work in progress at the same time. More than 3 = dispersion. Range [0,3] — default MEO M1.">wip</span><span class="m-val num">2 <span class="un">jobs</span></span></div>
+          <div class="mrow ndrow"><span class="m-ic" style="color:var(--nd)">◌</span><span class="m-name" data-tip="Range [0,60] — default MEO M1.">recovery_time_min</span><span class="m-val"><span class="nd" data-tip="no failed → later done pair in the same wave — measuring it would be inventing it.">not measured</span></span></div>
+          <div class="mrow ndrow"><span class="m-ic" style="color:var(--nd)">◌</span><span class="m-name" data-tip="Range [50,100] — default MEO M1.">keep_rate_pct</span><span class="m-val"><span class="nd" data-tip="no delivered write job ran in a fresh worktree with a proven clean base — no honest denominator.">not measured</span></span></div>
+          <div class="mrow ndrow"><span class="m-ic" style="color:var(--nd)">◌</span><span class="m-name" data-tip="No range defined.">cost_coverage_pct</span><span class="m-val num">70.59% <span class="un m-part">· 12/17</span></span></div>
+          <div class="mrow ndrow"><span class="m-ic" style="color:var(--nd)">◌</span><span class="m-name" data-tip="Range [0,0.85] — default MEO M1.">quota_pressure</span><span class="m-val"><span class="nd" data-tip="calibrating — 1/7 days of history; reference not measured. No reference, no verdict.">n/d — calibrating · 1/7 days</span></span></div>
+        </div>
+        <div class="oneline" style="margin-top:6px">
+          ⚖ <b>Every range is <code>default MEO M1</code> — not a measured value</b>
+          <span class="src" data-tip="Verbatim: 'default MEO M1 — not a measured value'. Calibratable in preferences.json.">verbatim</span>
+          — we are judging against rulers we set ourselves, and we say so.
+        </div>
+      </div>
+    </details>
+
+    <div class="actpane" id="actUpdate">
+      <b>④ Update check — measured now:</b> installed <b class="num">1.45.3</b> · remote <b class="num">1.45.4</b> available
+      (the updater already detected it — findings:1) · the bundle is already on disk at
+      <code>_handoff/mooter-v1454.mcpb</code>, <b>not yet installed</b> ·
+      <code>plugin/mooter/plugin.json</code> still <b class="warn num">1.38.0</b> — <b>7 minors behind</b>, first debt.<br>
+      <b>Steps, written for a non-developer:</b><br>
+      1 · <b>check</b>: say “check for Mooter updates” or run <code>mooter_setup({atualizar:"ver"})</code> — read-only, it only reports.<br>
+      2 · <b>install</b>: run <code>mooter_setup({atualizar:"aplicar"})</code> — or the skill <code>/mooter-atualizar</code>, which does 1+2 for you.<br>
+      3 · <b>restart the Claude desktop app</b> — the connector only reloads on restart; skip this and the old 1.45.3 keeps running.<br>
+      4 · <b>verify</b>: reopen the Cabin — the version chip must read <b class="num">1.45.4</b>. If it does not, the install did not take.<br>
+      In this mock the buttons explain; in the real Cabin they run and report.
+    </div>
+
+    <div class="legend">
+      <span><svg class="mark-sm"><use href="#m-claude"/></svg> Claude <span class="src" data-tip="Working: the sunburst spins slowly, like in the desktop app — the only faithful signature animation we have. The others blink (fallback authorised by the owner).">spins</span></span>
+      <span><svg class="mark-sm"><use href="#m-openai"/></svg> Codex <span class="src">blinks</span></span>
+      <span><svg class="mark-sm"><use href="#m-gemini"/></svg> Gemini <span class="src">blinks</span></span>
+      <span><svg class="mark-sm"><use href="#m-kimi"/></svg> Kimi <span class="src">blinks</span></span>
+      <span>🐮 local GPU <span class="src">ruminates</span></span>
+      <span><span class="nd" data-tip="mechanism exists, has not written yet — reason one hover away.">not measured</span></span>
+      <span><span class="flag" data-tip="nobody records this today — cost to instrument in plain sight.">not instrumented</span></span>
+      <span><span class="est" data-tip="marked estimate — never confusable with a measurement.">estimate</span></span>
+    </div>
+    <div class="brandnote">
+      The marks referenced belong to their owners (Anthropic, OpenAI, Google, Moonshot AI, Ollama).
+      Owner's decision (2026-08-03): show the provider glyph <i>while it works</i>, with the signature animation
+      when we have it faithfully (Claude: sunburst spinning slowly) and BLINKING when we do not — an explicitly
+      authorised fallback. The symbols are original geometric drawings; no third-party asset is redistributed.
+      In production this lives in <code>landing/components/ProviderLogo.tsx</code>. For public distribution:
+      review each provider's brand guidelines before shipping; fallback = text wordmark + colour.
+    </div>
+  </div>
+</details>
+<script>
+  /* ================= utilities ================= */
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function togglePane(which){
+    const map = { resume:['paneResume','btnResume'], gauntlet:['paneGauntlet','btnGauntlet'] };
+    const [paneId, btnId] = map[which];
+    const pane = document.getElementById(paneId);
+    const wasOn = pane.classList.contains('on');
+    ['paneResume','paneGauntlet'].forEach(id => document.getElementById(id).classList.remove('on'));
+    ['btnResume','btnGauntlet'].forEach(id => document.getElementById(id).classList.remove('on'));
+    if (!wasOn){
+      pane.classList.add('on');
+      if (btnId) document.getElementById(btnId).classList.add('on');
+      pane.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block:'nearest'});
+    }
+  }
+  function toggleAct(id){ document.getElementById(id).classList.toggle('on'); }
+  function openScorecard(){
+    document.getElementById('projEl').open = true;
+    document.getElementById('scoreSub').open = true;
+    document.getElementById('scoreSub').scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block:'start'});
+  }
+
+  /* ============ v13 ② THE SIDE DRAWER =======================================
+     One drawer, three pages. The slide is CSS (~180 ms; prefers-reduced-motion
+     collapses it to instant). Esc, ✕ and the scrim dismiss; one drawer at a
+     time; the open row keeps a terracotta edge; focus moves to ✕ on open and
+     returns to the row on close. Clicking another row swaps the page. */
+  let dOpen = null, dOpener = null;
+  function openDrawer(n){
+    [1,2,3].forEach(i => {
+      document.getElementById('dpage'+i).hidden = (i !== n);
+      document.getElementById('prow'+i).classList.toggle('sel', i === n);
+    });
+    dOpen = n; dOpener = document.getElementById('prow'+n);
+    document.getElementById('scrim').classList.add('on');
+    document.getElementById('drawer').classList.add('open');
+    const c = document.querySelector('#dpage'+n+' .dclose');
+    if (c) c.focus({preventScroll:true});
+  }
+  function closeDrawer(){
+    if (dOpen === null) return;
+    document.getElementById('drawer').classList.remove('open');
+    document.getElementById('scrim').classList.remove('on');
+    document.getElementById('prow'+dOpen).classList.remove('sel');
+    if (dOpener) dOpener.focus({preventScroll:true});
+    dOpen = null;
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  /* ============ apply a skill to a prompt's result — ⚑ not instrumented =====
+     The dropdown is real; the wiring is not. Picking a skill opens a pane that
+     states exactly what would run and what it costs to build. */
+  const SKILLS = {
+    'meo-conselho': 'the full MEO board reviews this result — every role skill, one verdict',
+    'meo-moo': 'cargo: MOO', 'meo-mto': 'cargo: MTO', 'meo-mfo': 'cargo: MFO',
+    'meo-mio': 'cargo: MIO', 'meo-mro': 'cargo: MRO', 'meo-mcc': 'cargo: MCC',
+    'mooter': 'plugin/mooter/skills/mooter/SKILL.md'
+  };
+  const WAVES = {'1':'wave painel-nativo','2':'wave R-balde-A','3':'wave cabine-prova'};
+  function applySkill(fx, name){
+    document.getElementById('sm'+fx).open = false;
+    document.getElementById('skillEcho'+fx).textContent = '· picked ' + name + ' — marked in this mock only';
+    const pane = document.getElementById('skillPane'+fx);
+    pane.innerHTML =
+      '<b>⚑ Not instrumented — here is exactly what is missing.</b> ' +
+      'What it would do: take the EXECUTOR output of ' + WAVES[fx] + ' and dispatch ' +
+      '<code>mooter_work({cargo})</code> running the real skill <code>skills/' + name + '</code> ' +
+      '(' + SKILLS[name] + ') over it. What it costs to wire: a resolver that maps ' +
+      '<b>result → skill → mooter_work with the right cargo</b> — the same resolver that fixes ' +
+      'the 31/32 role-less jobs, because the dispatch would finally declare a cargo. ' +
+      'In this mock nothing runs; the dropdown exists so the design is judged whole.';
+    pane.classList.add('on');
+  }
+
+  /* ============ 👍/👎 — ⚑ not instrumented; echoed inside the drawer ======== */
+  function thumb(fx, dir){
+    ['up','dn'].forEach(d => document.getElementById('th'+fx+d).classList.remove('sel'));
+    document.getElementById('th'+fx+dir).classList.add('sel');
+    document.getElementById('fbEcho'+fx).textContent =
+      '· you chose ' + (dir==='up'?'👍':'👎') + ' for ' + WAVES[fx] + ' — marked in this mock only';
+  }
+
+  /* ============ freshness: declared pull, never "live" ============ */
+  let t0fresh = Date.now();
+  setInterval(() => {
+    const s = Math.round((Date.now() - t0fresh) / 1000);
+    document.getElementById('freshS').textContent = s < 60 ? s + ' s' : Math.floor(s/60) + ' min';
+  }, 1000);
+
+  /* ================= THE MOO VERB ROTOR — English, phase-indexed =============
+     The pun is the wrapper, the fact is the payload: every verb ships glued to
+     a measured number. The rotor reads the real phase and STOPS when nothing
+     is alive. */
+  const GL = {
+    localWork : '<span class="g work-local">🐮</span>',
+    claudeWork: '<span class="g work-claude"><svg><use href="#m-claude"/></svg></span>',
+    moo  : '<span class="g" style="color:var(--terracotta)">✳</span>',
+    flow : '<span class="g" style="color:var(--green)">⑂</span>',
+    stuck: '<span class="g pulseBad">●</span>'
+  };
+  const PHASES = {
+    classify: [
+      {g:GL.moo, c:'vmoo', v:'Sniffing out the tier…',
+       f:'calibration: local-first · <b>forcar_local:true</b> · haiku ceiling',
+       tip:'The router decides on your machine, in milliseconds, without spending a paid token. Active calibration measured on the connector.'},
+      {g:GL.moo, c:'vmoo', v:'Picking the trough…',
+       f:'local preparer first · executor only after',
+       tip:'Chain doctrine: the plan is born on the GPU ($0); the paid output only exists if the plan goes up.'}
+    ],
+    local: [
+      {g:GL.localWork, c:'vloc', v:'Ruminating…',
+       f:'qwen2.5-coder:14b · <b class="num">9 s</b> · <b class="num">$0.0000</b>',
+       tip:'Receipt of S0, wave cabine-prova: 9 s on the local GPU, $0.0000 measured. PREPARER: this is a plan, not the result.'},
+      {g:GL.localWork, c:'vloc', v:'Milking the GPU…',
+       f:'<b class="num">2 471</b> tokens local · PREPARER · plan, not verdict',
+       tip:'Token count from the receipt (2114 in + 357 out). The role is stamped because today a plan was returned as if it were the result.'}
+    ],
+    handoff: [
+      {g:GL.flow, c:'vloc', v:'Opening the gate…',
+       f:"preparer's plan → paid executor",
+       tip:'Real handoff of the wave: the local plan goes up to the executor. 9 handoffs today, all moo → {cc, codex, gemini}.'}
+    ],
+    cloud: [
+      {g:GL.claudeWork, c:'vpaid', v:'Grazing the paid pasture…',
+       f:'claude-haiku-4-5 · <b class="num">$0.184595</b>',
+       tip:'Cost reported by the CLI on the executor. Amber verb = money leaving. EXECUTOR: only this is a result.'},
+      {g:GL.claudeWork, c:'vpaid', v:'Chewing through the subscription…',
+       f:'<b class="num">3 540</b> tokens out · <b class="num">60 s</b>',
+       tip:"Count and duration from the executor's receipt."}
+    ],
+    verify: [
+      {g:'<span class="g" style="color:var(--blue)">◈</span>', c:'vmoo', v:'Chewing on the verdict…',
+       f:'cross-check running',
+       tip:'The cross-check really ran on this wave — and returned (PT verbatim) "0 afirmação(ões) verificadas; 8 divergência(s); 10 n/d". The verb announces the phase, never promises the outcome.'}
+    ]
+  };
+  const verbEl = document.getElementById('verb');
+  let phaseList = [], phaseIdx = 0, verbTimer = null;
+  function renderVerb(item){
+    verbEl.innerHTML = item.g +
+      '<span class="tipline" data-tip="' + item.tip.replace(/"/g,'&quot;') + '">' +
+      '<span class="vb ' + item.c + '">' + item.v + '</span> ' +
+      '<span class="vfact">· ' + item.f + '</span></span>';
+  }
+  function cycle(){
+    if (!phaseList.length) return;
+    phaseIdx = (phaseIdx + 1) % phaseList.length;
+    if (reduced){ renderVerb(phaseList[phaseIdx]); verbTimer = setTimeout(cycle, 6000); return; }
+    verbEl.classList.add('fade');
+    setTimeout(() => { renderVerb(phaseList[phaseIdx]); verbEl.classList.remove('fade'); }, 450);
+    verbTimer = setTimeout(cycle, 2500);
+  }
+  function setPhase(name){
+    clearTimeout(verbTimer);
+    phaseList = PHASES[name]; phaseIdx = 0;
+    renderVerb(phaseList[0]);
+    if (phaseList.length > 1) verbTimer = setTimeout(cycle, reduced ? 6000 : 2500);
+  }
+  /* no live work advancing: the rotor STOPS on the worst true fact; the big cow
+     goes still (only blinks). The row cow in the log is governed by its OWN
+     truth (live local work on that prompt), not by the rotor. */
+  function stopRotorStuck(){
+    clearTimeout(verbTimer); phaseList = [];
+    verbEl.classList.remove('fade');
+    verbEl.innerHTML = GL.stuck +
+      '<span class="tipline" data-tip="moo qwen3.6:27b · running for 35 959 s · exit_code agent-awaiting-approval · no growth for 598 min. The rotor stopped because no work is advancing. Job id in the Attention element.">' +
+      '<span class="vb vstuck">Stuck in the mud…</span> ' +
+      '<span class="vfact">no growth for <b class="num">598 min</b> · moo qwen3.6:27b</span></span>' +
+      ' <span class="vtail">· wave cabine-prova: barn\'s closed ✓ · cross-check: 0 verified</span>';
+    const dot = document.getElementById('rotorDot');
+    dot.classList.add('off');
+    dot.innerHTML = 'rotor stopped — no live work';
+    document.getElementById('mooLogo').classList.remove('working');
+  }
+
+  /* ================= the wave replays once on load (and on each ⟳) ==========
+     v13: the replay narrates ONLY through the signature rotor — the log rows
+     are static lines and the drawer never replays (never animate what is
+     done). At the end the rotor falls onto the stalled truth and stops. */
+  let waveTimers = [];
+  function schedule(fn, ms){ waveTimers.push(setTimeout(fn, ms)); }
+  function playWave(){
+    waveTimers.forEach(clearTimeout); waveTimers = [];
+    const dot = document.getElementById('rotorDot');
+    dot.classList.remove('off');
+    dot.innerHTML = 'rotor live · swaps every 2.5 s';
+    document.getElementById('mooLogo').classList.add('working');
+    setPhase('classify');
+    schedule(() => setPhase('local'), 2200);
+    schedule(() => setPhase('handoff'), 5200);
+    schedule(() => setPhase('cloud'), 7000);
+    schedule(() => setPhase('verify'), 11600);
+    schedule(() => stopRotorStuck(), 14600);
+  }
+
+  /* ================= ⟳ Refresh — re-runs everything; the cow spins ========== */
+  function doRefresh(){
+    const logo = document.getElementById('mooLogo');
+    logo.classList.remove('refreshing');
+    void logo.offsetWidth;                    // restart the spin animation
+    logo.classList.add('refreshing');
+    t0fresh = Date.now();
+    document.getElementById('freshS').textContent = '0 s';
+    playWave();
+    countBadges();
+  }
+
+  /* ============ the panel counts its own ◌ and ⚑ (from the DOM) ============ */
+  function countBadges(){
+    document.getElementById('ndCount').textContent =
+      document.querySelectorAll('.nd, .step.s-nd').length;
+    document.getElementById('flagCount').textContent =
+      document.querySelectorAll('.flag, .step.s-flag').length;
+  }
+  /* ============ theme — prefers-color-scheme default, memory only ========== */
+  let themeChoice = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  function applyTheme(){
+    document.documentElement.dataset.theme = themeChoice;
+    document.getElementById('btnTheme').textContent = themeChoice === 'dark' ? '◐ dark' : '◑ light';
+  }
+  function toggleTheme(){ themeChoice = themeChoice === 'dark' ? 'light' : 'dark'; applyTheme(); }
+  applyTheme();
+
+  /* ============ local times — provably automatic, never hardcoded ==========
+     Formats every .ptime[data-iso] (the row AND the drawer header) and appends
+     the runtime-resolved zone to the tooltip. */
+  const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  document.querySelectorAll('.ptime[data-iso]').forEach(el => {
+    el.textContent = new Intl.DateTimeFormat(undefined, {hour:'2-digit', minute:'2-digit'})
+      .format(new Date(el.dataset.iso));
+    el.dataset.tip += ' Zone resolved at runtime by Intl.DateTimeFormat().resolvedOptions().timeZone: ' + TZ + '.';
+  });
+
+  countBadges();
+  playWave();
+</script>
+</body>
+</html>

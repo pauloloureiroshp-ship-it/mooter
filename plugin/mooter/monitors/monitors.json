@@ -1,0 +1,8 @@
+[
+  {
+    "name": "mooter-fleet",
+    "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-fleet.js\"",
+    "description": "Jobs do Mooter: mudanças de estado, jobs encravados e alertas de coerência",
+    "when": "always"
+  }
+]
