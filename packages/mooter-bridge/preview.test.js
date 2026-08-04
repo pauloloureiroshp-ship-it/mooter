@@ -119,3 +119,70 @@ test('P9 — ACHADO CODEX: ECONNREFUSED e ausencia clara; timeout nao e', async 
   // a distincao tem de existir no resultado, senao nao se pode tentar outra vez
   assert.ok('recusada' in r || r.erro, 'sem distinguir recusa de timeout, um dev server a arrancar fica perdido');
 });
+
+test('P10 — retrato só lança o browser depois de uma resposta HTTP boa', async () => {
+  const { s, porta } = await servir((q, r) => {
+    r.setHeader('content-type', 'text/html');
+    r.end('<html><body>app viva</body></html>');
+  });
+  let capturas = 0;
+  try {
+    const r = await pv.retrato('http://localhost:' + porta, {
+      sonda_timeout_ms: 900,
+      capturarImpl: async (candidato, url, ficheiro) => {
+        capturas++;
+        const png = Buffer.alloc(25);
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
+        fs.writeFileSync(ficheiro, png);
+        return { encontrado: true, erro: null };
+      },
+    });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(capturas, 1);
+  } finally { s.close(); }
+});
+
+test('P11 — retrato recusa uma porta morta sem lançar o browser', async () => {
+  const { s, porta } = await servir((q, r) => r.end('provisório'));
+  await new Promise((resolve) => s.close(resolve));
+  let capturas = 0;
+  const r = await pv.retrato('http://localhost:' + porta, {
+    sonda_timeout_ms: 200,
+    capturarImpl: async () => { capturas++; return { encontrado: true, erro: null }; },
+  });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.status, null);
+  assert.match(r.erro, /ECONNREFUSED|recus/i);
+  assert.match(r.erro, /não capturei/);
+  assert.strictEqual(capturas, 0);
+});
+
+test('P12 — retrato recusa HTTP 500 com o status literal e sem browser', async () => {
+  const { s, porta } = await servir((q, r) => {
+    r.statusCode = 500;
+    r.setHeader('content-type', 'text/html');
+    r.end('<html><body>erro</body></html>');
+  });
+  let capturas = 0;
+  try {
+    const r = await pv.retrato('http://localhost:' + porta, {
+      sonda_timeout_ms: 900,
+      capturarImpl: async () => { capturas++; return { encontrado: true, erro: null }; },
+    });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.status, 500);
+    assert.match(r.erro, /HTTP 500/);
+    assert.strictEqual(capturas, 0);
+  } finally { s.close(); }
+});
+
+test('P13 — retrato continua a recusar URLs externas antes do browser', async () => {
+  let capturas = 0;
+  const r = await pv.retrato('http://evil.example.com:3000/', {
+    capturarImpl: async () => { capturas++; return { encontrado: true, erro: null }; },
+  });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.erro, /localhost|127\.0\.0\.1/);
+  assert.strictEqual(capturas, 0);
+});

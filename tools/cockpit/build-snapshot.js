@@ -12,6 +12,7 @@ const VIEWS = ['jobs', 'board', 'recibo', 'pastas'];
 const SNAPSHOT_BEGIN = '<!-- MOOTER_SNAPSHOT:BEGIN -->';
 const SNAPSHOT_END = '<!-- MOOTER_SNAPSHOT:END -->';
 const REPORTED_VIEWS = [...VIEWS, 'setup', 'preview'];
+const SNAPSHOT_MAX_BYTES = 2 * 1024 * 1024;
 
 function literalError(error) {
   return String((error && error.message) || error || 'erro sem mensagem');
@@ -165,7 +166,11 @@ function defaultReaders() {
       ? fleet.toolFleet({ view }, { boardScorecard:() => board.scorecardAsync({ persist:false }) })
       : fleetTool.handler({ view }),
     readSetup: () => setupTool.handler({}),
-    readPreview: () => preview.descobrir({}),
+    readPreview: () => preview.descobrir({ retrato: true }),
+    readPreviewCompact: () => preview.descobrir({
+      retrato: true,
+      retrato_opts: { largura: 1000, altura: 640 },
+    }),
   };
 }
 
@@ -217,10 +222,15 @@ async function generateSnapshot(options = {}) {
   }
 
   const source = fs.readFileSync(sourcePath, 'utf8');
-  const rendered = injectSnapshot(source, snapshot);
+  let rendered = injectSnapshot(source, snapshot);
+  let bytes = Buffer.byteLength(rendered, 'utf8');
+  if (bytes > SNAPSHOT_MAX_BYTES && typeof readers.readPreviewCompact === 'function') {
+    snapshot.preview = await readers.readPreviewCompact();
+    rendered = injectSnapshot(source, snapshot);
+    bytes = Buffer.byteLength(rendered, 'utf8');
+  }
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, rendered, 'utf8');
-  const bytes = Buffer.byteLength(rendered, 'utf8');
   const reports = REPORTED_VIEWS.map((name) => viewReport(name, snapshot[name]));
   const logger = options.logger || console.log;
   for (const report of reports) {
@@ -262,4 +272,5 @@ module.exports = {
   SOURCE,
   OUTPUT,
   REPO,
+  SNAPSHOT_MAX_BYTES,
 };

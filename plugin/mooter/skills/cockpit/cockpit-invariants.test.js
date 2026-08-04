@@ -88,6 +88,9 @@ function livePreviewApi(windowValue, documentValue) {
     window: windowValue || {},
     document: documentValue || {},
     renderLP: () => {},
+    esc: (value) => String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
+    URL,
     setTimeout: () => 0,
     clearTimeout: () => {},
     console,
@@ -96,7 +99,8 @@ function livePreviewApi(windowValue, documentValue) {
   vm.runInContext(
     grab('literalError') + '\n' + grab('unwrapMcp') + '\nasync ' + grab('callBridgeNamed') + '\n'
       + html.slice(start, detectAt + detect.length)
-      + '\nwindow.__cockpitLpApi = { state:LP, detect:lpDetect };',
+      + '\nwindow.__cockpitLpApi = { state:LP, detect:lpDetect, apply:lpAplicarMedicao, '
+      + 'csp:lpTratarViolacaoCsp, retratoHtml:lpRetratoHtml };',
     ctx,
     { timeout: 5000 },
   );
@@ -353,6 +357,7 @@ bloco('live preview · connector escolhe a candidata de maior peso', async () =>
   });
   await api.detect();
   t('chama a tool de preview pela ponte', chamada && chamada.name === 'mooter_ui_preview', chamada && chamada.name);
+  t('pede o retrato ao mesmo tempo que mede', chamada && chamada.args.retrato === true, JSON.stringify(chamada));
   t('fica aberto pela medição do connector', api.state.estado === 'aberto' && api.state.fonte === 'connector');
   t('não confia numa escolhida pior: usa o maior peso', api.state.url === 'http://localhost:5173', api.state.url);
   t('leva a confiança da escolhida', api.state.confianca === 'alta', api.state.confianca);
@@ -400,6 +405,69 @@ bloco('live preview · iframe onload numa porta morta nunca abre', async () => {
   await api.detect();
   t('onload não produz estado aberto', api.state.estado !== 'aberto', api.state.estado);
   t('o detector nem cria iframe', criados === 0, criados + ' iframe(s) criado(s)');
+});
+
+bloco('live preview · CSP frame-src troca para retrato e conserva a prova literal', () => {
+  const api = livePreviewApi({});
+  api.apply({
+    candidatas:[{ url:'http://localhost:3000', porta:3000, peso:100 }],
+    sondadas:1, portas:[3000],
+    retrato:{
+      ok:true, data_url:'data:image/png;base64,iVBORw0KGgo=', browser:'chrome',
+      capturado_em:'2026-08-04T20:00:00.000Z',
+    },
+  }, 'connector');
+  const mudou = api.csp({
+    violatedDirective:'frame-src',
+    blockedURI:'http://localhost:3000/',
+  });
+  t('a violação aplicável é reconhecida', mudou === true);
+  t('passa automaticamente para retrato', api.state.modo === 'retrato' && api.state.frameBloqueado === true);
+  t('a directiva literal fica no estado e no motivo',
+    api.state.directivaCsp === 'frame-src' && String(api.state.porque).includes('frame-src'),
+    JSON.stringify(api.state));
+});
+
+bloco('live preview · sem violação conserva o frame interactivo', () => {
+  const api = livePreviewApi({});
+  api.apply({
+    candidatas:[{ url:'http://localhost:3000', porta:3000, peso:100 }],
+    sondadas:1, portas:[3000],
+    retrato:{ ok:true, data_url:'data:image/png;base64,iVBORw0KGgo=' },
+  }, 'connector');
+  t('fica em frame', api.state.estado === 'aberto' && api.state.modo === 'frame');
+  t('não inventa bloqueio', api.state.frameBloqueado === false && api.state.directivaCsp === null);
+});
+
+bloco('live preview · retrato sem data_url é não medível, nunca img vazio', async () => {
+  const api = livePreviewApi({ __MOOTER_SNAPSHOT__:{ preview:{
+    candidatas:[{ url:'http://localhost:3000', porta:3000, peso:100 }],
+    sondadas:1, portas:[3000], retrato:{ ok:false, erro:'captura falhou' },
+  } } });
+  await api.detect();
+  t('fica não medível', api.state.estado === 'não medível', api.state.estado);
+  t('não rende img vazio', api.retratoHtml(api.state.retrato) === '');
+});
+
+bloco('live preview · retrato recusa tudo o que não é loopback HTTP com porta', async () => {
+  const preview = require(path.resolve(__dirname, '..', '..', '..', '..', 'packages', 'mooter-bridge', 'preview.js'));
+  const externo = await preview.retrato('https://example.com/app');
+  const semPorta = await preview.retrato('http://localhost/app');
+  t('recusa URL externa antes de abrir browser', externo.ok === false && /localhost|127\.0\.0\.1/.test(externo.erro), externo.erro);
+  t('recusa localhost sem porta', semPorta.ok === false && /porta/.test(semPorta.erro), semPorta.erro);
+});
+
+bloco('snapshot · preview.retrato.data_url rende img sem ponte', async () => {
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+  const api = livePreviewApi({ __MOOTER_SNAPSHOT__:{ preview:{
+    candidatas:[{ url:'http://localhost:3000', porta:3000, peso:100 }],
+    sondadas:1, portas:[3000],
+    retrato:{ ok:true, data_url:dataUrl, browser:'chrome', capturado_em:'2026-08-04T20:00:00.000Z' },
+  } } });
+  await api.detect();
+  const rendered = api.retratoHtml(api.state.retrato);
+  t('snapshot escolhe retrato sem tentar ponte', api.state.fonte === 'snapshot' && api.state.modo === 'retrato');
+  t('rende o img com o data_url recebido', rendered.includes('<img') && rendered.includes(dataUrl), rendered);
 });
 
 bloco('tour · 🎓 por bloco, para quem já sabe', () => {

@@ -385,6 +385,11 @@
   .lpframe{border:1px solid var(--nd-bd);border-radius:9px;overflow:hidden;margin:6px 0 8px;
     aspect-ratio:16/10;background:var(--nd-dim)}
   .lpframe iframe{width:100%;height:100%;border:0;display:block}
+  .lpframe img{width:100%;height:100%;object-fit:contain;border:0;display:block}
+  .lp-caption{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:5px 0 8px;
+    color:var(--dim);font-size:var(--fs1)}
+  .lp-mode{border-left:3px solid var(--terracotta);padding-left:9px;margin-bottom:8px;
+    color:var(--dim);font-size:var(--fs1);line-height:1.55}
   /* ── session fuel: os dois números por que se decide continuar ou passar ── */
   .fuel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin-bottom:10px}
   .fuel-card{border:1px solid var(--border-soft);border-radius:10px;padding:9px 12px}
@@ -3267,8 +3272,11 @@ const LP_HUES = [['slate','#475569'],['red','#dc2626'],['orange','#ea580c'],['am
 /* O detector não toca na rede do browser: pede uma medição HTTP ao conector
    e só usa o snapshot quando essa ponte não existe. */
 const LP = { estado:'não sondado', url:null, porque:null, larg:0, prod:null, auto:false,
-  fonte:null, sondadas:null, candidatas:null, confianca:null, portasSondadas:[] };
+  fonte:null, sondadas:null, candidatas:null, confianca:null, portasSondadas:[],
+  modo:'frame', frameBloqueado:false, directivaCsp:null, retrato:null };
 const LP_PREVIEW_NAMES = ['mooter_ui_preview'];
+const LP_PROBE_NAMES = ['mooter_ui_probe'];
+let lpCspListener = null;
 
 /* O iframe é apenas o ecrã de uma URL já confirmada pela sonda do servidor.
    Nenhum evento do iframe altera o estado de medição. */
@@ -3281,6 +3289,10 @@ function lpNaoMedivel(fonte, motivo){
   LP.confianca = null;
   LP.portasSondadas = [];
   LP.porque = motivo;
+}
+function lpTemRetrato(retrato){
+  return !!(retrato && retrato.ok === true && typeof retrato.data_url === 'string'
+    && retrato.data_url.startsWith('data:image/png;base64,'));
 }
 function lpAplicarMedicao(payload, fonte){
   if (!payload || typeof payload !== 'object') throw new Error('resposta de preview ausente');
@@ -3307,11 +3319,34 @@ function lpAplicarMedicao(payload, fonte){
     ? payload.portas.map(Number).filter(p => Number.isFinite(p) && p > 0 && p < 65536)
     : [];
   LP.confianca = escolhida && escolhida.confianca ? String(escolhida.confianca) : null;
+  LP.retrato = payload.retrato && typeof payload.retrato === 'object' ? payload.retrato : null;
 
   if (escolhida){
     LP.estado = 'aberto';
     LP.url = escolhida.url;
     LP.porque = String(payload.nota || ('a sonda do servidor confirmou ' + escolhida.url));
+    const guardado = payload.host_probe && payload.host_probe.relatorio;
+    const guardadoDaUrl = guardado && guardado.iframe_tentado === escolhida.url;
+    if (fonte === 'snapshot' && LP.retrato){
+      LP.modo = 'retrato';
+      if (!lpTemRetrato(LP.retrato)){
+        lpNaoMedivel(fonte, 'o snapshot pediu retrato mas não trouxe data_url: '
+          + String(LP.retrato.erro || 'captura sem motivo'));
+      }else{
+        LP.porque = 'retrato estático incluído no snapshot; não depende de iframe nem da ponte';
+      }
+    }else if (guardadoDaUrl && guardado.display_mode === 'retrato'){
+      LP.modo = 'retrato';
+      LP.frameBloqueado = true;
+      LP.directivaCsp = guardado.csp_directiva || 'frame-src';
+      if (!lpTemRetrato(LP.retrato)){
+        lpNaoMedivel(fonte, 'o host já recusou o frame com a directiva CSP literal '
+          + LP.directivaCsp + ', mas o retrato não trouxe data_url: '
+          + String((LP.retrato && LP.retrato.erro) || 'captura ausente'));
+      }else{
+        LP.porque = 'o host já recusou esta URL com a directiva CSP literal ' + LP.directivaCsp;
+      }
+    }
     return;
   }
 
@@ -3320,6 +3355,101 @@ function lpAplicarMedicao(payload, fonte){
   const portas = LP.portasSondadas.length ? LP.portasSondadas.join(', ') : 'n/d';
   LP.porque = 'Portas sondadas: ' + portas + '. Nenhuma respondeu com HTML utilizável.'
     + (payload.nota ? ' ' + String(payload.nota) : '');
+}
+function lpReportarModo(modo, erro, directiva, carregou, alvo){
+  const bridge = window.cowork;
+  if (!(bridge && typeof bridge.callMcpTool === 'function')) return;
+  try{
+    Promise.resolve(bridge.callMcpTool(LP_PROBE_NAMES[0], {
+      iframe_tentado:alvo || LP.url,
+      iframe_carregou:carregou,
+      iframe_erro:erro || null,
+      csp_directiva:directiva || null,
+      display_mode:modo,
+    })).catch(() => {});
+  }catch(_){ /* a sonda é memória; nunca derruba o preview */ }
+}
+function lpUrlDaViolacao(blockedUri){
+  if (!LP.url || !blockedUri) return false;
+  try{ return new URL(blockedUri).origin === new URL(LP.url).origin; }
+  catch(_){ return String(blockedUri).startsWith(LP.url); }
+}
+function lpTratarViolacaoCsp(evento){
+  const directiva = String((evento && (evento.violatedDirective || evento.effectiveDirective)) || '');
+  if (!/frame-src/i.test(directiva) || !lpUrlDaViolacao(evento && evento.blockedURI)) return false;
+  const alvo = LP.url;
+  LP.frameBloqueado = true;
+  LP.directivaCsp = directiva;
+  LP.modo = 'retrato';
+  LP.porque = 'o host recusou o iframe com a directiva CSP literal ' + directiva;
+  if (!lpTemRetrato(LP.retrato)){
+    lpNaoMedivel(LP.fonte, LP.porque + '; o retrato não trouxe data_url: '
+      + String((LP.retrato && LP.retrato.erro) || 'captura ausente'));
+    LP.modo = 'retrato';
+    LP.frameBloqueado = true;
+    LP.directivaCsp = directiva;
+  }
+  lpReportarModo('retrato', LP.porque, directiva, false, alvo);
+  renderLP();
+  return true;
+}
+function lpDesarmarFrame(){
+  if (lpCspListener && document.removeEventListener){
+    document.removeEventListener('securitypolicyviolation', lpCspListener);
+  }
+  lpCspListener = null;
+}
+function lpArmarFrame(frame){
+  lpDesarmarFrame();
+  if (!frame || !document.addEventListener) return;
+  lpCspListener = (evento) => lpTratarViolacaoCsp(evento);
+  document.addEventListener('securitypolicyviolation', lpCspListener);
+  frame.addEventListener('load', () => {
+    setTimeout(() => {
+      if (LP.estado === 'aberto' && LP.modo === 'frame' && !LP.frameBloqueado){
+        lpReportarModo('frame', null, null, true);
+      }
+    }, 100);
+  });
+}
+function lpRetratoHtml(retrato){
+  if (!lpTemRetrato(retrato)) return '';
+  return '<div class="lpframe"><img id="lpRetrato" src="' + esc(retrato.data_url)
+    + '" alt="retrato estático da app local"></div>'
+    + '<div class="lp-caption"><span>imagem estática · captura '
+    + esc(retrato.capturado_em || 'n/d') + ' · browser ' + esc(retrato.browser || 'n/d')
+    + '</span><button class="btn mini" id="lpRetratoAgain">actualizar imagem</button></div>';
+}
+async function lpActualizarRetrato(){
+  const bridge = window.cowork;
+  if (!(bridge && typeof bridge.callMcpTool === 'function')){
+    LP.porque = 'imagem estática do snapshot; actualizar exige a ponte window.cowork.callMcpTool';
+    renderLP();
+    return;
+  }
+  const directiva = LP.directivaCsp || 'frame-src';
+  try{
+    let porta = null;
+    try{ porta = Number(new URL(LP.url).port) || null; }catch(_){ /* url ausente */ }
+    const payload = await callBridgeNamed(bridge, LP_PREVIEW_NAMES,
+      { retrato:true, ...(porta ? { portas:[porta] } : {}) },
+      window.__cockpitDiag || { attempts:[] });
+    lpAplicarMedicao(payload, 'connector');
+    LP.modo = 'retrato';
+    LP.frameBloqueado = true;
+    LP.directivaCsp = directiva;
+    if (!lpTemRetrato(LP.retrato)){
+      lpNaoMedivel('connector', 'o retrato actualizado não trouxe data_url: '
+        + String((LP.retrato && LP.retrato.erro) || 'captura ausente'));
+      LP.modo = 'retrato';
+    }else{
+      LP.porque = 'retrato actualizado porque o host recusou o frame com a directiva CSP literal ' + directiva;
+    }
+  }catch(error){
+    lpNaoMedivel('connector', 'não consegui actualizar o retrato: ' + literalError(error));
+    LP.modo = 'retrato';
+  }
+  renderLP();
 }
 async function lpDetect(){
   const bridge = window.cowork;
@@ -3334,12 +3464,16 @@ async function lpDetect(){
   LP.confianca = null;
   LP.portasSondadas = [];
   LP.porque = null;
+  LP.modo = 'frame';
+  LP.frameBloqueado = false;
+  LP.directivaCsp = null;
+  LP.retrato = null;
   renderLP();
 
   if (bridge && typeof bridge.callMcpTool === 'function'){
     try{
       const diag = window.__cockpitDiag || { attempts:[] };
-      const payload = await callBridgeNamed(bridge, LP_PREVIEW_NAMES, {}, diag);
+      const payload = await callBridgeNamed(bridge, LP_PREVIEW_NAMES, { retrato:true }, diag);
       lpAplicarMedicao(payload, 'connector');
     }catch(error){
       lpNaoMedivel('connector', 'mooter_ui_preview recusada pela ponte: ' + literalError(error));
@@ -4033,7 +4167,9 @@ function renderLP(){
     + ' (' + esc(portasMedidas) + ')'
     + ' · <b>candidates:</b> ' + esc(LP.candidatas == null ? 'n/d' : LP.candidatas)
     + ' · <b>confidence:</b> ' + esc(LP.confianca || 'n/d')
-    + '</div>';
+    + '</div>'
+    + '<div class="lp-mode"><b>mode:</b> ' + esc(LP.modo || 'n/d')
+    + ' · <b>why:</b> ' + esc(LP.porque || 'ainda não medido') + '</div>';
 
   let h = '';
   if (LP.estado === 'não sondado'){
@@ -4047,12 +4183,19 @@ function renderLP(){
     h = '<div class="oneline"><span class="pulseBad" style="font-size:8px">●</span> asking '
       + esc(LP.fonte || 'the available source') + ' to probe localhost over HTTP</div>';
   } else if (LP.estado === 'aberto'){
+    const rota = LP.rota || '/';
+    if (LP.modo === 'retrato'){
+      h = '<div class="lp-nav"><span class="lp-url">' + esc(LP.url) + '</span>'
+        + '<button class="btn mini" id="lpAgain">🔎 probe again</button></div>'
+        + lpRetratoHtml(LP.retrato)
+        + '<div class="chnote" style="padding-left:0">Este é um retrato estático: não aceita cliques '
+        + 'nem hot reload. Continua visível quando a CSP do host recusa o iframe.</div>';
+    }else{
     /* ⚠️ A CAIXA CINZENTA: com `sandbox` sem `allow-same-origin`, quase nenhuma
        app moderna carrega — o browser nega-lhe origem própria e o JS morre.
        Tirar a restrição faz a app aparecer, mas dá-lhe origem no contexto do
        painel. É o teu localhost e a tua app, e o plugin VS Code faz o mesmo —
        mas é uma escolha com risco, e por isso é TUA, não minha por defeito. */
-    const rota = LP.rota || '/';
     h = '<div class="lp-nav">'
       + '<button class="btn mini" id="lpBack" data-tip="Back to the app root.">‹</button>'
       + '<input id="lpPath" class="lp-path" value="' + esc(rota) + '" spellcheck="false" '
@@ -4124,6 +4267,7 @@ function renderLP(){
       + '<div class="lp-gap-r"><span>error strip</span><span>runtime and build errors with <code>file:line</code> and a send-to-agent button.</span></div>'
       + '<div class="chnote" style="padding-left:0">For those three, open <code>Mooter — Live Preview ⚡</code> in VS Code. '
       + 'This block is the window; that one is the cockpit.</div></div>';
+    }
   } else if (LP.estado === 'fechado'){
     h = '<div class="ndhero"><div class="big">🎬 no measured dev server candidate</div>'
       + '<div class="why">' + esc(LP.porque || '') + '</div></div>'
@@ -4137,6 +4281,9 @@ function renderLP(){
       + '<div class="cta-bar"><button class="btn mini" id="lpAgain">🔎 try again</button></div>';
   }
   body.innerHTML = medicao + h;
+  const frame = $('lpIframe');
+  if (frame && LP.modo === 'frame') lpArmarFrame(frame);
+  else lpDesarmarFrame();
   const irPara = (r) => { LP.rota = r.startsWith('/') ? r : '/' + r; renderLP(); };
   const pth = $('lpPath'), go = $('lpGo'), bk = $('lpBack');
   if (go && pth) go.addEventListener('click', () => irPara(pth.value.trim() || '/'));
@@ -4185,6 +4332,7 @@ function renderLP(){
   if (pi) pi.addEventListener('keydown', e => { if (e.key === 'Enter') guardar(); });
   if (pc) pc.addEventListener('click', () => { LP.prod = null; renderLP(); });
   const a = $('lpAgain'); if (a) a.addEventListener('click', lpDetect);
+  const ri = $('lpRetratoAgain'); if (ri) ri.addEventListener('click', lpActualizarRetrato);
   const c = $('btnLpCmd'); if (c) c.addEventListener('click', () => emitText(
     'cd "C:\\Users\\Paulo Loureiro\\frugal"   # aspas obrigatórias — sem elas o shell parte no espaço\nnpm run dev'));
   tornarTooltipsAlcancaveis();

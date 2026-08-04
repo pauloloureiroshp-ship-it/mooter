@@ -33,6 +33,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const MOOTER_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const MEM = path.join(MOOTER_DIR, 'preview.json');
@@ -65,6 +66,170 @@ const NAO_E_APP = [
   { re: /jupyter|notebook server/i, nome: 'Jupyter' },
   { re: /minio|portainer|pgadmin|adminer/i, nome: 'painel de administração' },
 ];
+
+const RETRATO_TIMEOUT_MS = 15000;
+const RETRATO_TAMANHO = { largura: 1280, altura: 800 };
+
+function urlLocalValida(valor) {
+  const bruto = String(valor || '');
+  if (!/^http:\/\//i.test(bruto)) return { ok: false, erro: 'só é permitido http:// em localhost' };
+  const local = bruto.match(/^http:\/\/(localhost|127\.0\.0\.1):(\d{1,5})(?:[/?#]|$)/i);
+  if (!local) return { ok: false, erro: 'só é permitido localhost ou 127.0.0.1 com porta explícita' };
+  const porta = Number(local[2]);
+  if (!(porta > 0 && porta < 65536)) return { ok: false, erro: 'a url local tem de declarar uma porta válida' };
+  let url;
+  try { url = new URL(bruto); }
+  catch { return { ok: false, erro: 'url inválida' }; }
+  if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+    return { ok: false, erro: 'só é permitido localhost ou 127.0.0.1' };
+  }
+  if (url.username || url.password) return { ok: false, erro: 'a url local não pode conter credenciais' };
+  return { ok: true, url: url.href };
+}
+
+function candidatosBrowser() {
+  const drive = process.env.SystemDrive || 'C:';
+  const programFiles = process.env.ProgramFiles || path.join(drive + path.sep, 'Program Files');
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || path.join(drive + path.sep, 'Program Files (x86)');
+  return [
+    {
+      browser: path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      comando: path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      absoluto: true,
+    },
+    {
+      browser: path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      comando: path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      absoluto: true,
+    },
+    { browser: 'msedge', comando: 'msedge', absoluto: false },
+    { browser: 'chrome', comando: 'chrome', absoluto: false },
+  ];
+}
+
+function pngValido(buffer) {
+  return Buffer.isBuffer(buffer) && buffer.length > 24
+    && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+}
+
+function capturarComBrowser(candidato, url, ficheiro, tamanho, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!candidato.comando || (candidato.absoluto && !fs.existsSync(candidato.comando))) {
+      resolve({ encontrado: false });
+      return;
+    }
+    const argumentos = [
+      '--headless=new', '--disable-gpu', '--hide-scrollbars',
+      '--window-size=' + tamanho.largura + ',' + tamanho.altura,
+      '--screenshot=' + ficheiro, url,
+    ];
+    let terminou = false;
+    let stderr = '';
+    let processo;
+    let timer;
+    const concluir = (resultado) => {
+      if (terminou) return;
+      terminou = true;
+      clearTimeout(timer);
+      resolve(resultado);
+    };
+    try {
+      processo = spawn(candidato.comando, argumentos, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+    } catch (error) {
+      resolve({ encontrado: error && error.code !== 'ENOENT', erro: (error && error.message) || 'não arrancou' });
+      return;
+    }
+    timer = setTimeout(() => {
+      try { processo.kill(); } catch { /* já terminou */ }
+      concluir({ encontrado: true, erro: 'timeout após ' + timeoutMs + ' ms' });
+    }, timeoutMs);
+    processo.stderr.on('data', (chunk) => {
+      if (stderr.length < 1000) stderr += String(chunk).slice(0, 1000 - stderr.length);
+    });
+    processo.on('error', (error) => {
+      concluir({ encontrado: error && error.code !== 'ENOENT', erro: (error && error.message) || 'erro ao arrancar' });
+    });
+    processo.on('exit', (code) => {
+      concluir({
+        encontrado: true,
+        erro: code === 0 ? null : ('browser terminou com código ' + code + (stderr.trim() ? ': ' + stderr.trim() : '')),
+      });
+    });
+  });
+}
+
+/** Captura a app local sem nunca passar uma URL externa ao processo do browser. */
+async function retrato(url, opts) {
+  const t0 = Date.now();
+  const valida = urlLocalValida(url);
+  if (!valida.ok) return { ok: false, erro: valida.erro, ms: Date.now() - t0 };
+  const o = opts || {};
+  const alvo = new URL(valida.url);
+  const porta = Number(alvo.port);
+  const hosts = alvo.hostname === 'localhost' ? ['127.0.0.1', '::1'] : [alvo.hostname];
+  const sondas = await Promise.all(hosts.map((host) => sondar(porta, o.sonda_timeout_ms, host)));
+  const autorizou = sondas.find((r) => r.viva && Number(r.status) >= 200 && Number(r.status) < 400);
+  const prova = autorizou || sondas.find((r) => Number(r.status) > 0) || sondas[0];
+  const status = Number(prova.status) > 0 ? Number(prova.status) : null;
+  if (!autorizou) {
+    const detalhe = prova.erro || (status === null ? 'sem status HTTP' : 'HTTP ' + status);
+    return {
+      ok: false,
+      erro: 'a porta ' + porta + ' não respondeu (' + detalhe
+        + ') — não capturei para não fotografar a página de erro do browser',
+      status,
+      ms: Date.now() - t0,
+    };
+  }
+  const tamanho = {
+    largura: Number(o.largura) === 1000 ? 1000 : RETRATO_TAMANHO.largura,
+    altura: Number(o.altura) === 640 ? 640 : RETRATO_TAMANHO.altura,
+  };
+  const capturarImpl = o.capturarImpl || capturarComBrowser;
+  const ficheiro = path.join(os.tmpdir(), 'mooter-retrato-' + process.pid + '-' + Date.now()
+    + '-' + Math.random().toString(16).slice(2) + '.png');
+  const tentados = [];
+  const falhas = [];
+  let encontrou = false;
+  try {
+    for (const candidato of candidatosBrowser()) {
+      tentados.push(candidato.browser);
+      const captura = await capturarImpl(
+        candidato, valida.url, ficheiro, tamanho, RETRATO_TIMEOUT_MS,
+      );
+      if (!captura.encontrado) continue;
+      encontrou = true;
+      if (captura.erro) {
+        falhas.push(candidato.browser + ': ' + captura.erro);
+        continue;
+      }
+      let png;
+      try { png = fs.readFileSync(ficheiro); }
+      catch (error) {
+        falhas.push(candidato.browser + ': PNG não foi escrito (' + ((error && error.code) || 'erro') + ')');
+        continue;
+      }
+      if (!pngValido(png)) {
+        falhas.push(candidato.browser + ': resultado não é um PNG válido');
+        continue;
+      }
+      return {
+        ok: true,
+        data_url: 'data:image/png;base64,' + png.toString('base64'),
+        bytes: png.length,
+        ms: Date.now() - t0,
+        status,
+        browser: candidato.browser,
+        capturado_em: new Date().toISOString(),
+        erro: null,
+      };
+    }
+    if (!encontrou) return { ok: false, erro: 'nenhum browser headless encontrado', tentados, status, ms: Date.now() - t0 };
+    return { ok: false, erro: falhas.join('; ') || 'o browser não produziu um PNG', tentados, status, ms: Date.now() - t0 };
+  } finally {
+    try { fs.unlinkSync(ficheiro); } catch { /* captura ausente ou já removida */ }
+  }
+}
 
 function lerMemoria() {
   try { return JSON.parse(fs.readFileSync(MEM, 'utf8')); } catch { return { ultima: null, historico: {} }; }
@@ -146,7 +311,7 @@ function classificar(r) {
  * Procura a app do utilizador em localhost.
  *
  * @param {object} opts  { timeout_ms, portas, incluir_mortas }
- * @returns {Promise<{candidatas:Array, escolhida:object|null, sondadas:number, nota:string}>}
+ * @returns {Promise<{candidatas:Array, escolhida:object|null, sondadas:number, portas:Array, nota:string}>}
  */
 async function descobrir(opts) {
   const o = opts || {};
@@ -196,11 +361,12 @@ async function descobrir(opts) {
   candidatas.sort((a, b) => (b.peso - a.peso) || (a.ms - b.ms));
 
   const escolhida = candidatas[0] || null;
-  return {
+  const resultado = {
     candidatas,
     escolhida,
     descartadas: descartadas.length ? descartadas : null,
     sondadas: lista.length,
+    portas: lista.slice(),
     // ⚠️ nunca dizer "não tens nada a correr" — dizer o que se procurou e onde
     nota: escolhida
       ? ('encontrei ' + candidatas.length + ' servidor(es) local(is); escolhi ' + escolhida.url
@@ -210,6 +376,8 @@ async function descobrir(opts) {
          + 'Arranca o teu servidor de desenvolvimento (npm run dev) e volta a procurar, '
          + 'ou diz-me a porta se ela não estiver na lista.'),
   };
+  if (o.retrato === true && escolhida) resultado.retrato = await retrato(escolhida.url, o.retrato_opts);
+  return resultado;
 }
 
 /** Confirmar que a escolha do utilizador funcionou, para acertar melhor à próxima. */
@@ -225,4 +393,7 @@ function lembrar(porta) {
   return { ok: true, ultima: p, vezes: mem.historico[p] };
 }
 
-module.exports = { descobrir, lembrar, sondar, classificar, PORTAS, SINAIS_DEV, NAO_E_APP, MEM };
+module.exports = {
+  descobrir, retrato, lembrar, sondar, classificar, urlLocalValida,
+  PORTAS, SINAIS_DEV, NAO_E_APP, MEM, RETRATO_TIMEOUT_MS, RETRATO_TAMANHO,
+};

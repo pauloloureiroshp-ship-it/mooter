@@ -46,6 +46,7 @@ function normalizar(bruto) {
     iframe_tentado: s(b.iframe_tentado, 200),
     iframe_carregou: bo(b.iframe_carregou),
     iframe_erro: s(b.iframe_erro, 300),
+    csp_directiva: s(b.csp_directiva, 120),
     fetch_tentado: s(b.fetch_tentado, 200),
     fetch_ok: bo(b.fetch_ok),
     fetch_erro: s(b.fetch_erro, 300),
@@ -125,6 +126,7 @@ const TOOL_DESCOBRIR = {
     properties: {
       timeout_ms: { type: 'number' },
       portas: { type: 'array', items: { type: 'number' } },
+      retrato: { type: 'boolean', description: 'capturar um PNG estático da candidata escolhida' },
       lembrar: { type: 'number', description: 'confirmar que esta porta funcionou, para acertar melhor à próxima' },
     },
     additionalProperties: false,
@@ -135,7 +137,9 @@ const TOOL_DESCOBRIR = {
     const preview = require('./preview.js');
     const a = args || {};
     if (a.lembrar) return preview.lembrar(a.lembrar);
-    return preview.descobrir(a);
+    const resultado = await preview.descobrir(a);
+    resultado.host_probe = estado();
+    return resultado;
   },
 };
 
