@@ -27,6 +27,7 @@
 const PUBLICAS = ['mooter_work', 'mooter_check', 'mooter_fleet', 'mooter_cancel', 'mooter_journal', 'mooter_setup'];
 const capacidades = require('./capacidades.js');
 const onboarding = require('./onboarding.js');
+const { isTerminal } = require('./terminal.js');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -364,7 +365,7 @@ function build(seam, fleet, base) {
         const st = await seam.toolStatus({ job_id: a.job_id, wave: a.wave });
         if (st && st.jobs && a.job_id) {
           const j = st.jobs[0];
-          const terminal = j && (j.last === 'done' || j.last === 'failed' || j.last === 'collected');
+          const terminal = isTerminal(j);
           if (terminal) {
             const c = await seam.toolCollect({ job_id: a.job_id });
             return comPulso(Object.assign({}, st, {

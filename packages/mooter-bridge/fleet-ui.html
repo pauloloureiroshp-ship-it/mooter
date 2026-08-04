@@ -2,7 +2,7 @@
 <html lang="pt">
 <meta charset="utf-8">
 <!--
-  fleet-ui.html — mooter-bridge v1.5 · A CABINE.
+  fleet-ui.html — mooter-bridge v1.5 · O COCKPIT.
 
   O QUE MUDOU, E PORQUÊ
 
@@ -17,7 +17,7 @@
     QUEM CONDUZ   o modelo desta conversa (declarado, nunca adivinhado)
     O TRABALHO    tarefa → ☁ quem rematou → 🐮 quem preparou a $0
     O SALDO       quota local, custo real, poupança estimada com a base à vista
-    A CABINE      GPU, vault, e se o Live Preview é possível neste host
+    O COCKPIT      GPU, vault, e se o Live Preview é possível neste host
 
   Regras que não se negoceiam:
     · nenhum número aparece sem se saber de onde veio; o que não se sabe é n/d
@@ -59,6 +59,41 @@
   .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); display: inline-block; animation: bp 1.6s ease-in-out infinite; }
   @keyframes bp { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
   .conduz { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+  /* ── modo compacto: uma linha por motor, e mais nada ────────────────────
+     Segue o desenho do proprio desktop app: pouca cor, muito espaco branco,
+     e o movimento reservado para o que esta MESMO a acontecer. */
+  .compact { padding: 10px 14px 12px; }
+  .motores { display: flex; flex-direction: column; gap: 7px; }
+  .mrow { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .mdot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: #C9CDD2; }
+  /* so pulsa o motor que esta vivo. Um ponto parado e uma informacao. */
+  .mrow.on .mdot { animation: mpulse 1.25s ease-in-out infinite; }
+  @keyframes mpulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.75); } }
+  .mname { font-weight: 600; color: #1f1f1f; }
+  .mmodel { color: #8a8f94; font-size: 11.5px; }
+  .mstate { margin-left: auto; color: #6b7075; font-size: 11.5px; white-space: nowrap; }
+  .mstate.warn { color: #B4762A; }
+  /* barra de progresso por motor: so aparece quando ha percentagem MEDIDA */
+  .mbar { height: 3px; border-radius: 2px; background: #ECEEF0; overflow: hidden; flex: 0 0 46px; }
+  .mbar i { display: block; height: 100%; background: #C4623F; border-radius: 2px; transition: width .45s cubic-bezier(.4,0,.2,1); }
+  .mbar.ind i { width: 34%; animation: mcrawl 2.4s ease-in-out infinite; }
+  @keyframes mcrawl { 0% { transform: translateX(-110%); } 100% { transform: translateX(320%); } }
+  .vazio { color: #8a8f94; font-size: 12.5px; }
+  .acoes { display: flex; align-items: center; gap: 8px; margin-top: 11px; }
+  .abrir { border: 0; border-radius: 8px; background: #1f1f1f; color: #fff; font: inherit;
+    font-size: 12.5px; font-weight: 600; padding: 6px 13px; cursor: pointer; }
+  .abrir:hover { background: #000; }
+  .maisdet { border: 0; background: none; color: #8a8f94; font: inherit; font-size: 12px;
+    cursor: pointer; padding: 6px 2px; text-decoration: underline; }
+  .maisdet:hover { color: #1f1f1f; }
+  @media (prefers-reduced-motion: reduce) {
+    .mrow.on .mdot, .mbar.ind i { animation: none; }
+  }
+  @media (prefers-color-scheme: dark) {
+    .mname { color: #ECEDEE; } .mbar { background: #2A2D30; }
+    .abrir { background: #ECEDEE; color: #17181A; }
+    .maisdet:hover { color: #ECEDEE; }
+  }
   .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1.5px 8px; font-size: 10.5px; color: var(--fg2); white-space: nowrap; }
   .chip.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 38%, transparent); }
   .chip.off { color: var(--fg3); }
@@ -153,9 +188,25 @@
     </div>
     <div style="margin-left:auto"><div class="conduz" id="conduz"></div></div>
   </div>
-  <div class="sec" id="s-trab"></div>
-  <div class="sec" id="s-saldo"></div>
-  <div class="sec" id="s-cab"></div>
+  <!-- ══════════════════════════════════════════════════════════════════════
+       MODO COMPACTO — o que a thread mostra por defeito.
+       Uma thread nao e um painel. Quem esta a conversar quer saber TRES coisas:
+       esta a trabalhar? quem? quanto falta? Tudo o resto rouba atencao ao
+       texto da conversa, que e o que a pessoa foi ali ler.
+       O detalhe nao desaparece — passa para tras de um toque.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="compact" id="compact">
+    <div class="motores" id="motores"></div>
+    <div class="acoes">
+      <button class="abrir" id="btnCockpit">Abrir o Cockpit</button>
+      <button class="maisdet" id="btnMais">mais detalhe</button>
+    </div>
+  </div>
+  <div id="detalhe" hidden>
+    <div class="sec" id="s-trab"></div>
+    <div class="sec" id="s-saldo"></div>
+    <div class="sec" id="s-cab"></div>
+  </div>
 </div>
 
 <script>
@@ -172,7 +223,7 @@
   post({ jsonrpc: '2.0', id: 'ui-init', method: 'ui/initialize',
          params: { protocolVersion: '2026-01-26', capabilities: {},
                    appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
-                   clientInfo: { name: 'mooter-cabine', version: '1.5.0' } } });
+                   clientInfo: { name: 'mooter-cockpit', version: '1.5.0' } } });
   post({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} });
 
   // A tool pode chegar ao host com o nome simples ou prefixado (quando proxiada).
@@ -223,6 +274,41 @@
    * quer o ciclo ao vivo. O host pode dizer que nao; nesse caso ficamos inline
    * e nao se finge que mudou.
    */
+  /* ══════════════════════════════════════════════════════════════════════
+     OS DOIS BOTOES DA THREAD
+
+     "Abrir o Cockpit" usa `ui/message`: o painel fala com a conversa como se
+     o utilizador escrevesse. Nao ha outra forma — um iframe MCP nao abre
+     paineis laterais nem invoca skills directamente, e fingir que abre seria
+     pior do que nao ter botao.
+     Por isso a frase e explicita: quem a ler no historico percebe o que
+     aconteceu, e o modelo do outro lado sabe exactamente o que fazer.
+
+     "mais detalhe" nao chama nada — so revela o que ja estava no DOM.
+     Zero custo, zero rede, e a thread arranca limpa.
+     ══════════════════════════════════════════════════════════════════════ */
+  function ligarBotoes() {
+    var b = document.getElementById('btnCockpit');
+    if (b && !b.__wired) {
+      b.__wired = true;
+      b.onclick = function () {
+        say('Abre o Mooter Cockpit desta sessao na barra lateral.');
+        b.textContent = 'a abrir…';
+        setTimeout(function () { b.textContent = 'Abrir o Cockpit'; }, 2500);
+      };
+    }
+    var m = document.getElementById('btnMais');
+    if (m && !m.__wired) {
+      m.__wired = true;
+      m.onclick = function () {
+        var det = document.getElementById('detalhe');
+        if (!det) return;
+        det.hidden = !det.hidden;
+        m.textContent = det.hidden ? 'mais detalhe' : 'menos detalhe';
+      };
+    }
+  }
+
   function pedirModo(modo) {
     post({ jsonrpc: '2.0', id: 'ui-mode-' + (++seq), method: 'ui/request-display-mode',
            params: { mode: modo } });
@@ -748,6 +834,82 @@
    * o DOM fica exactamente onde esta.
    */
   var assinatura = {};
+  /* ══════════════════════════════════════════════════════════════════════
+     MODO COMPACTO — uma linha por motor vivo, e mais nada.
+     ⚠️ A REGRA VALE AQUI TAMBEM: `state:"running"` nao e "a trabalhar". Se o
+     eta_bar disser `parado`, a linha diz "parado ha Xm" e o ponto NAO pulsa.
+     Um ponto a pulsar sobre trabalho que nao anda e a unica coisa que este
+     produto nao pode fazer — e a thread e onde mais gente o veria.
+     ══════════════════════════════════════════════════════════════════════ */
+  function pintaCompacto(d) {
+    var box = document.getElementById('motores');
+    if (!box) return;
+    box.textContent = '';
+    var vivos = (d.jobs || []).filter(function (j) { return vivo(j.state); });
+
+    if (!vivos.length) {
+      var v = el('div', 'vazio', d.ultima_wave
+        ? 'Nada a correr. Ultima wave: ' + esc(d.ultima_wave.wave) + '.'
+        : 'Nada a correr nesta janela.');
+      box.appendChild(v);
+      return;
+    }
+
+    /* agrupar por motor: seis jobs no mesmo motor sao uma linha, nao seis */
+    var porMotor = {};
+    vivos.forEach(function (j) {
+      var k = j.agent || 'motor';
+      var g = porMotor[k] || (porMotor[k] = { n: 0, label: j.agent_label || k, modelos: {}, parado: 0, pct: null, msg: null });
+      g.n++;
+      var m = j.model_used || (j.model && (typeof j.model === 'string' ? j.model : j.model.valor));
+      if (m) g.modelos[m] = 1;
+      var eb = j.eta_bar || {};
+      var pulse = eb.pulse || {};
+      if (pulse.state === 'parado' || (eb.state && /stall|parad/i.test(eb.state))) {
+        g.parado++;
+        g.msg = pulse.text || 'sem crescer';
+      }
+      if (typeof eb.percentage === 'number' && g.pct === null) g.pct = eb.percentage;
+      if (!g.msg && eb.warning) g.msg = eb.warning;
+    });
+
+    Object.keys(porMotor).forEach(function (k) {
+      var g = porMotor[k];
+      var anda = g.parado < g.n;                       // ha pelo menos um a crescer
+      var row = el('div', 'mrow' + (anda ? ' on' : ''));
+
+      var dot = el('span', 'mdot');
+      dot.style.background = anda ? (COR[k] || '#C4623F') : '#C9CDD2';
+      row.appendChild(dot);
+
+      row.appendChild(el('span', 'mname', esc(g.label)));
+      var mods = Object.keys(g.modelos);
+      if (mods.length) row.appendChild(el('span', 'mmodel', esc(mods.slice(0, 2).join(' · '))));
+      else row.appendChild(el('span', 'mmodel', 'modelo n/d'));
+
+      /* barra: percentagem quando existe, rastejo quando ha trabalho mas sem
+         numero, e NADA quando esta parado — uma barra a mexer sobre um job
+         encravado seria decoracao a mentir. */
+      if (anda) {
+        var bar = el('div', 'mbar' + (g.pct === null ? ' ind' : ''));
+        var fill = el('i');
+        if (g.pct !== null) fill.style.width = Math.max(2, Math.min(100, g.pct)) + '%';
+        bar.appendChild(fill);
+        row.appendChild(bar);
+      }
+
+      var estado;
+      if (!anda) estado = (g.msg || 'parado');
+      else if (g.n > 1) estado = g.n + ' jobs';
+      else estado = 'a trabalhar';
+      var st = el('span', 'mstate' + (!anda ? ' warn' : ''), esc(estado));
+      if (!anda) st.title = 'O processo esta vivo, mas o registo nao cresce. Nao e o mesmo que estar a trabalhar.';
+      row.appendChild(st);
+
+      box.appendChild(row);
+    });
+  }
+
   function seMudou(chave, valor, pintar) {
     var s;
     try { s = JSON.stringify(valor); } catch (e) { s = String(Math.random()); }
@@ -768,6 +930,12 @@
       if (nLive) { st.appendChild(el('span', 'pulse')); st.appendChild(document.createTextNode(' ' + nLive + ' a trabalhar')); }
       else st.textContent = d.ultima_wave ? ('parado · última wave ' + d.ultima_wave.wave) : 'parado';
     });
+    /* o compacto e o que a thread mostra: repinta sempre que um motor muda
+       de estado, de modelo, ou de progresso */
+    seMudou('compacto', (d.jobs || []).filter(function (j) { return vivo(j.state); }).map(function (j) {
+      var eb = j.eta_bar || {}, p = eb.pulse || {};
+      return [j.agent, j.model_used, j.model && j.model.valor, p.state, eb.percentage, eb.warning];
+    }), function () { pintaCompacto(d); });
     seMudou('conduz', [d.sessao, d.context && d.context.project, d.context && d.context.folder_name,
       d.gpu && d.gpu.live && [d.gpu.live.util_pct, d.gpu.live.memory_used_mb],
       d.sessao && [d.sessao.fresco, d.sessao.idade_h], d.gpu && [d.gpu.fresco, d.gpu.idade_h]], function () { pintaConduz(d); });
@@ -789,6 +957,7 @@
       updEstado && updEstado.msg,
       d.capacidades && d.capacidades.onboarding && d.capacidades.onboarding.estado,
       d.capacidades && [d.capacidades.fresco, d.capacidades.idade_h]], function () { pintaCabine(d); });
+    ligarBotoes();
     if (!nLive && timer !== null) { clearTimeout(timer); timer = null; }
     else if (nLive && timer === null) schedule(2000);
   }

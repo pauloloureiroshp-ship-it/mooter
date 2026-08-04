@@ -49,6 +49,7 @@ const aprender = require('./aprender.js');
 const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const fosso = require('./fosso.js');
+const { isTerminal } = require('./terminal.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
@@ -293,10 +294,6 @@ function ledgerRead() {
     }).filter(Boolean);
   } catch { return []; }
 }
-// `nao_verificado` (auditoria E2E 2026-08-01): o job produziu trabalho real mas
-// terminou a pedir aprovação — é terminal, e NÃO é `done`. Ver classificarEntrega.
-const TERMINAL = new Set(['done', 'failed', 'nao_verificado', 'prep_timeout', 'prep_failed_fallback']);
-
 /** Tecto do oráculo por medição. Medido: a suite de packages/router leva ~20,5 s. */
 const ORACULO_TIMEOUT_MS = Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) > 0
   ? Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) : 180000;
@@ -341,17 +338,42 @@ function escreverSinalDeQualidade(evento) {
  *
  * `eta_observacao_recusada` entrou nesta lista depois de um teste da onda Y1 o
  * apanhar em flagrante: a recusa é escrita DEPOIS do `failed` de um cancel, e
- * o `toolCancel` — que decide idempotência por `TERMINAL.has(last.event)` —
+ * o `toolCancel` — que decide idempotência pelo último evento de estado —
  * passou a ver a recusa em vez do `failed` e deixou de ser idempotente. Um
  * evento que só serve para dizer "não consegui medir isto" nunca pode mudar o
  * que o produto pensa que o job está a fazer.
  */
-const NON_STATE_EVENTS = new Set(['cross_check', 'step', 'eta_observacao_recusada']);
-function lastStateEvent(events) {
+const NON_STATE_EVENTS = new Set(['cross_check', 'step', 'eta_observacao_recusada', 'collected']);
+function lastStateRecord(events) {
   for (let i = events.length - 1; i >= 0; i--) {
-    if (!NON_STATE_EVENTS.has(events[i].event)) return events[i].event;
+    if (!NON_STATE_EVENTS.has(events[i].event)) return events[i];
   }
   return null;
+}
+function lastStateEvent(events) {
+  const record = lastStateRecord(events);
+  return record ? record.event : null;
+}
+
+function terminalLedgerAgrees(record) {
+  if (!isTerminal(record) || !isTerminal(record && record.event)) return false;
+  // Builds antigas projectavam nao_verificado como running. Um fecho marcado
+  // torna a reparação append-only observável e a segunda chamada idempotente.
+  return record.event !== 'nao_verificado' || record.terminal_reconciled === true;
+}
+
+function appendTerminalReconciliation(record) {
+  const source = record || {};
+  const event = source.event === 'nao_verificado'
+    ? 'nao_verificado'
+    : (source.exit_code === 0 || source.exit_code === '0' ? 'done' : 'failed');
+  ledgerAppend({
+    job_id: source.job_id, wave: source.wave, agent: source.agent, worktree: source.worktree,
+    event, mp_hash: source.mp_hash, exit_code: source.exit_code,
+    note: source.note || 'estado terminal reconciliado a partir do exit_code',
+    terminal_reconciled: true, reconciled_from_event: source.event || null,
+  });
+  return event;
 }
 function activeJobsByWorktree(worktree) {
   // ⚠️ canon(): em Windows o mesmo sítio aparece como C:\Users\PAULOL~1\… e
@@ -363,7 +385,7 @@ function activeJobsByWorktree(worktree) {
     if (!ev.job_id) continue;
     if (ev.worktree && P.chave(ev.worktree) !== norm) continue;
     if (ev.event === 'dispatched' || ev.event === 'started') state.set(ev.job_id, ev.event);
-    if (TERMINAL.has(ev.event)) state.delete(ev.job_id);
+    if (isTerminal(ev)) state.delete(ev.job_id);
   }
   return [...state.keys()];
 }
@@ -430,10 +452,17 @@ function sweepOrphans() {
   const state = new Map();
   for (const ev of ledgerRead()) {
     if (!ev.job_id) continue;
-    if (ev.event === 'dispatched' || ev.event === 'started') state.set(ev.job_id, ev);
-    if (TERMINAL.has(ev.event) || ev.event === 'collected') state.delete(ev.job_id);
+    if (ev.event === 'dispatched' || ev.event === 'started' || isTerminal(ev)) state.set(ev.job_id, ev);
   }
   for (const [job_id, ev] of state) {
+    if (isTerminal(ev)) {
+      if (!terminalLedgerAgrees(ev)) {
+        appendTerminalReconciliation(ev);
+        swept.push(job_id);
+      }
+      continue;
+    }
+    if (ev.event !== 'dispatched' && ev.event !== 'started') continue;
     if (REGISTRY.has(job_id)) continue;   // ours and alive
     if (ownerAlive(job_id)) continue;     // someone else's, and still running
     // o pid verificado vai para o ledger: quem ler depois sabe COMO se concluiu
@@ -2422,20 +2451,21 @@ async function toolStatus(args) {
     if (e.goal) j.goal = e.goal;
     if (e.prompt_chars != null) j.prompt_chars = e.prompt_chars;
     if (e.note) j.note = e.note;
+    if (e.exit_code != null) j.exit_code = e.exit_code;
   }
   const statusNow = Date.now();
-  const liveJobs = Object.values(byJob).filter((job) => REGISTRY.has(job.job_id));
+  const liveJobs = Object.values(byJob).filter((job) => REGISTRY.has(job.job_id) && !isTerminal(job));
   const etaIndex = liveJobs.length
     ? estimation.readIndex({ indexPath: path.join(MOOTER_HOME_DIR(), 'eta-index.json') })
     : null;
   for (const j of Object.values(byJob)) {
-    j.alive = REGISTRY.has(j.job_id);
+    j.alive = REGISTRY.has(j.job_id) && !isTerminal(j);
     // v1.2 — the third state that was missing. The ledger saying `started` while
     // this process knows nothing about the job does NOT mean it is running: it
     // means the connector restarted and the truth was lost. Reporting alive:false
     // next to last:"started" and calling it a day was two contradictory fields
     // with no name. Now it has a name, and the sweeper can act on it.
-    j.stale = !j.alive && (j.last === 'started' || j.last === 'dispatched');
+    j.stale = !j.alive && !isTerminal(j) && (j.last === 'started' || j.last === 'dispatched');
     if (j.stale) j.stale_note = 'o ledger diz "' + j.last + '" mas este processo não conhece o job — provável restart do conector. Usa mooter_cancel para o encerrar honestamente.';
     try {
       const errPath = path.join(JOBS_DIR(), j.job_id, 'err.log');
@@ -2449,7 +2479,7 @@ async function toolStatus(args) {
       // só o fleet congelava a taxa na duração final. Um número derivado
       // calculado em dois sítios diverge sempre; é só uma questão de quando.
       const finalDur = (j.events.find((e) => e.duration_s != null) || {}).duration_s;
-      const isDone = TERMINAL.has(j.last) || j.last === 'collected';
+      const isDone = isTerminal(j);
       const t = telemetry.readJobTelemetry(path.join(JOBS_DIR(), j.job_id, 'out.log'), elapsed,
         { finished: isDone, duration_s: finalDur });
       if (t) {
@@ -2512,7 +2542,7 @@ async function toolCancel(args) {
     return {
       swept, count: swept.length,
       note: swept.length
-        ? 'órfãos encerrados no ledger (exit_code "orphaned-by-restart") — as worktrees ficaram livres'
+        ? 'jobs órfãos ou terminais divergentes reconciliados no ledger append-only — as worktrees ficaram livres'
         : 'nenhum órfão: todos os jobs do ledger têm estado terminal ou estão vivos neste processo',
     };
   }
@@ -2525,8 +2555,26 @@ async function toolCancel(args) {
   // `last` continua a ser a última linha, que é de onde saem os metadados
   // (wave, agent, worktree) para o evento de cancelamento mais abaixo.
   const last = evs[evs.length - 1];
-  const estado = lastStateEvent(evs);
-  if (TERMINAL.has(estado)) return { job_id: jobId, state: estado, note: 'já estava terminado — nada a fazer (idempotente)' };
+  const stateRecord = lastStateRecord(evs);
+  const estado = stateRecord ? stateRecord.event : null;
+  if (isTerminal(stateRecord)) {
+    if (terminalLedgerAgrees(stateRecord)) {
+      return { job_id: jobId, state: estado, note: 'já estava terminado — nada a fazer (idempotente)' };
+    }
+    const reconciled = appendTerminalReconciliation(stateRecord);
+    if (live) {
+      clearTimeout(live.timer);
+      if (live.stepTracker) live.stepTracker.finish();
+      REGISTRY.delete(jobId);
+    }
+    if (live && live.step) {
+      try { plan.updateStep(live.wave, live.step, { state: reconciled === 'done' ? 'feito' : 'falhou', note: 'estado terminal reconciliado' }); } catch { /* */ }
+    }
+    return {
+      job_id: jobId, state: reconciled, reconciled: true,
+      note: 'estado terminal acrescentado ao ledger append-only; a releitura já não vê o job como vivo',
+    };
+  }
 
   // ⚠️ A2 — o cancelamento é CONFIRMADO, não presumido.
   // Antes escrevia-se `cancelled` logo a seguir ao kill. Se o processo
@@ -2583,12 +2631,12 @@ async function toolCollect(args) {
   catch { return { error: 'job desconhecido: ' + jobId }; }
   const evs = ledgerRead().filter((e) => e.job_id === jobId);
   const last = lastStateEvent(evs);
-  if (!TERMINAL.has(last) && !['collected'].includes(last)) {
+  if (!isTerminal(last)) {
     return { job_id: jobId, state: last || 'unknown', note: 'job ainda não terminou — usa mooter_status e volta' };
   }
   const durEv = evs.find((e) => e.duration_s != null);
   const r = readJobResult(meta.agent, jobDir, durEv ? durEv.duration_s : null);
-  const terminalEvent = [...evs].reverse().find((e) => TERMINAL.has(e.event)) || {};
+  const terminalEvent = [...evs].reverse().find(isTerminal) || {};
   const cost = aprender.enriquecerCusto({
     ...terminalEvent,
     event: terminalEvent.event || 'done',
@@ -2756,12 +2804,12 @@ async function toolAwait(args) {
     return [...byJob.values()];
   };
 
-  const settled = (jobs) => jobs.length > 0 && jobs.every((j) => TERMINAL.has(j.last) || j.last === 'collected');
+  const settled = (jobs) => jobs.length > 0 && jobs.every(isTerminal);
 
   let jobs = snapshot();
   while (!settled(jobs)) {
     if (Date.now() - t0 > timeoutS * 1000) {
-      const vivos = jobs.filter((j) => !TERMINAL.has(j.last) && j.last !== 'collected');
+      const vivos = jobs.filter((j) => !isTerminal(j));
       return {
         resumo: '🐮 ainda a trabalhar ao fim de ' + timeoutS + 's · ' + vivos.length + ' job(s) a correr — volta a chamar com o mesmo '
           + (jobId ? 'job_id' : 'wave'),
@@ -2779,8 +2827,8 @@ async function toolAwait(args) {
     jobs = snapshot();
   }
 
-  const done = jobs.filter((j) => j.last === 'done' || j.last === 'collected');
-  const failed = jobs.filter((j) => j.last === 'failed');
+  const done = jobs.filter((j) => j.last === 'done');
+  const failed = jobs.filter((j) => isTerminal(j) && j.last !== 'done');
   // ⚠️ v1.3.3 — `0` é uma afirmação; `null` é uma abstenção.
   // Somar `null`s dá 0 em JS, e a v1.3.2 fechou uma wave que gastou Opus 62 s
   // a dizer `cost_usd: 0`. Num produto cujo diferencial é custo honesto, essa

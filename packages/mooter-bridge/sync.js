@@ -9,6 +9,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { isTerminal } = require('./terminal.js');
 
 const HUMAN_START = '<!-- HUMANO:INICIO -->';
 const HUMAN_END = '<!-- HUMANO:FIM -->';
@@ -105,7 +106,7 @@ function readLedger(file) {
 function terminalJobs(records, maxJobs = DEFAULT_MAX_JOBS) {
   const jobs = new Map();
   for (const record of records || []) {
-    if (!record || !['done', 'failed'].includes(record.event)) continue;
+    if (!isTerminal(record)) continue;
     const key = record.job_id || `sem-job-id:${record.ts || jobs.size}`;
     const previous = jobs.get(key);
     if (!previous || String(record.ts || '') >= String(previous.ts || '')) jobs.set(key, record);
@@ -176,7 +177,7 @@ function measured(job, field) {
 function renderJobs(ledger, maxJobs) {
   if (!ledger.available) return `- n/d (porque ${ledger.because})`;
   const jobs = terminalJobs(ledger.records, maxJobs);
-  if (!jobs.length) return '- n/d (porque o ledger não contém jobs terminais done/failed)';
+  if (!jobs.length) return '- n/d (porque o ledger não contém jobs terminais)';
   const groups = new Map();
   for (const job of jobs) {
     const wave = job.wave || 'n/d (porque o ledger do job não contém wave)';

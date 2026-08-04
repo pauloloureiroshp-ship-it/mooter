@@ -22,6 +22,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { isTerminal } = require('./terminal.js');
 
 const MOOTER_DIR = () => process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const PLANS_DIR = () => path.join(MOOTER_DIR(), 'plans');
@@ -170,7 +171,6 @@ function updateStep(wave, stepId, patch) {
  */
 function reconcile(plan, ledgerStates) {
   if (!plan || !ledgerStates) return plan;
-  const TERMINAL = new Set(['done', 'failed', 'collected']);
   for (const s of (plan.steps || [])) {
     if (!s.job_id) {
       // um passo sem job nunca pode estar a correr — nada o está a executar
@@ -179,9 +179,11 @@ function reconcile(plan, ledgerStates) {
     }
     const ev = ledgerStates.get(s.job_id);
     if (!ev) continue;
-    if (s.state === 'a-correr' && TERMINAL.has(ev)) {
-      s.state = ev === 'failed' ? 'falhou' : 'feito';
-      s.reconciliado = 'o ledger diz ' + ev + ' — o plano estava atrasado';
+    if (s.state === 'a-correr' && isTerminal(ev)) {
+      const estado = typeof ev === 'string' ? ev : (ev.event || ev.state || ev.last || 'terminal');
+      const exitOk = typeof ev === 'object' && (ev.exit_code === 0 || ev.exit_code === '0');
+      s.state = estado === 'done' || (!isTerminal(estado) && exitOk) ? 'feito' : 'falhou';
+      s.reconciliado = 'o ledger diz ' + estado + ' — o plano estava atrasado';
     }
   }
   return plan;

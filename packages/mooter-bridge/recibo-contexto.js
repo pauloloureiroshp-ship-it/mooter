@@ -34,6 +34,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { isTerminal } = require('./terminal.js');
 
 const LIMIAR_COBERTURA_CUSTO = 80; // %
 const LIMIAR_TRABALHO_LOCAL = 50; // %
@@ -161,8 +162,14 @@ function perguntasAdversariais(recibo, opts) {
   const add = (pergunta, facto, porque_importa) => perguntas.push({ pergunta, facto, porque_importa });
 
   // 1. Cobertura de custo — sem custo não há "custo por resposta certa".
-  const comCusto = jobs.filter((j) => Number.isFinite(Number(j.cost_usd)));
-  const terminais = jobs.filter((j) => j.state === 'done' || j.state === 'failed');
+  /* ⚠️ BUG CORRIGIDO 2026-08-04 (gauntlet G1/G11): o numerador filtrava TODOS
+     os jobs e o denominador só os terminais. Um job ainda a correr que já
+     trouxesse `cost_usd` inflava a cobertura — e com jobs vivos suficientes o
+     rácio podia passar de 100%. Uma pergunta sobre a validade de uma medição,
+     construída sobre uma medição inválida, é o pior defeito possível NESTA
+     regra em particular: é a única que existe para pregar a G11. */
+  const terminais = jobs.filter(isTerminal);
+  const comCusto = terminais.filter((j) => Number.isFinite(Number(j.cost_usd)));
   if (terminais.length) {
     const pct = Math.round((comCusto.length / terminais.length) * 100);
     if (pct < LIMIAR_COBERTURA_CUSTO) {
@@ -180,22 +187,56 @@ function perguntasAdversariais(recibo, opts) {
   const concluidos = jobs.filter((j) => j.state === 'done');
   if (concluidos.length) {
     const pct = Math.round((locais.filter((j) => j.state === 'done').length / concluidos.length) * 100);
+    /* ⚠️ 2026-08-04 (gauntlet G11): contar JOBS é o denominador lisonjeiro.
+       Um job local de 900 tokens e um job pago de 30 000 contam 1 e 1. A
+       medição por TOKENS deu 15% onde a contagem por jobs deu 51% — 3,4× de
+       diferença, e a regra até se calaria se os jobs batessem o limiar
+       enquanto a fatia real de trabalho continuasse pequena.
+       Não trocamos o numerador (a contagem por jobs também interessa): dizemos
+       os DOIS, e a pergunta passa a ser sobre a distância entre eles. */
+    const tokDe = (arr) => arr.reduce((n, j) => n + (Number(j.tokens_out) || 0), 0);
+    const tokLocais = tokDe(locais.filter((j) => j.state === 'done'));
+    const tokTodos = tokDe(concluidos);
+    const semTok = concluidos.filter((j) => j.tokens_out == null).length;
+    const pctTok = tokTodos > 0 ? Math.round((tokLocais / tokTodos) * 100) : null;
     if (pct < LIMIAR_TRABALHO_LOCAL) {
       add(
-        'O diferencial declarado é a GPU que já pagaste. Com ' + pct + '% do trabalho concluído a correr local, o diferencial está a operar ou só a ser afirmado?',
-        pct + '% dos jobs concluídos correram no moo',
+        'O diferencial declarado é a GPU que já pagaste. Com ' + pct + '% do trabalho concluído a correr local'
+          + (pctTok !== null && pctTok !== pct ? ' — mas só ' + pctTok + '% dos tokens produzidos' : '')
+          + ', o diferencial está a operar ou só a ser afirmado?',
+        pct + '% dos jobs concluídos correram no moo'
+          + (pctTok !== null ? ' · por TOKENS a fatia local é ' + pctTok + '%' : ' · fatia por tokens n/d')
+          + (semTok ? ' (⚠️ ' + semTok + ' job(s) sem tokens medidos — o número por tokens é um piso)' : ''),
         'um fosso que não opera na maioria dos casos é uma intenção, não um fosso'
+          + (pctTok !== null && pct - pctTok >= 10
+              ? '. E contar JOBS lisonjeia: a distância para a contagem por tokens é de '
+                + (pct - pctTok) + ' pontos'
+              : '')
       );
     }
   }
 
   // 3. Jobs que fecharam sem produzir — o padrão que já nos custou 3 vezes.
-  const semSaida = jobs.filter((j) => j.state === 'done'
-    && (j.tokens_out == null || Number(j.tokens_out) === 0));
+  /* ⚠️ 2026-08-04 (gauntlet G11): isto tratava `null` e `0` como a mesma coisa.
+     São opostos. `0` é uma AFIRMAÇÃO — o motor mediu e não produziu nada, o que
+     é um sinal forte de recusa carimbada como sucesso. `null` é uma ABSTENÇÃO —
+     ninguém mediu, e não se sabe se produziu.
+     Juntá-los era a violação da doutrina da casa dentro da própria regra que
+     existe para a defender. Agora são duas perguntas, com forças diferentes. */
+  const zeroMedido = jobs.filter((j) => j.state === 'done' && Number(j.tokens_out) === 0);
+  const naoMedido  = jobs.filter((j) => j.state === 'done' && j.tokens_out == null);
+  if (naoMedido.length) {
+    add(
+      naoMedido.length + ' job(s) fecharam como entregues sem NINGUÉM medir os tokens de saída. Sabes se entregaram?',
+      'job(s) done com tokens_out não medido: ' + naoMedido.map((j) => j.job_id).join(', '),
+      'não é o mesmo que terem produzido zero — é não se saber. E um "done" que ninguém mediu não prova entrega'
+    );
+  }
+  const semSaida = zeroMedido;
   if (semSaida.length) {
     add(
-      semSaida.length + ' job(s) fecharam como entregues sem tokens de saída medidos. Foram entregas ou recusas carimbadas como sucesso?',
-      'job(s) done sem tokens_out: ' + semSaida.map((j) => j.job_id).join(', '),
+      semSaida.length + ' job(s) fecharam como entregues com tokens de saída MEDIDOS a zero. Foram entregas ou recusas carimbadas como sucesso?',
+      'job(s) done com tokens_out = 0 medido: ' + semSaida.map((j) => j.job_id).join(', '),
       'um exit_code 0 sobre uma recusa é indistinguível de uma entrega — já aconteceu três vezes'
     );
   }

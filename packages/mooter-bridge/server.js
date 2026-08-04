@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+const { isTerminal } = require('./terminal.js');
 /**
  * mooter-bridge — local stdio MCP server exposing the Mooter agent fleet to an MCP client
  * (e.g. Cowork / Claude Desktop). P0: read-only session visibility.
@@ -98,7 +99,7 @@ async function toolSessionsList(args) {
     const terminal = new Set();
     for (const e of seam.ledgerRead()) {
       if (!e.job_id) continue;
-      if (e.event === 'done' || e.event === 'failed' || e.event === 'collected') terminal.add(e.job_id);
+      if (isTerminal(e)) terminal.add(e.job_id);
     }
     if (terminal.size) {
       for (const s of sessions) {

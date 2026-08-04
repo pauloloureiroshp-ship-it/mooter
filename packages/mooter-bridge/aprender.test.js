@@ -100,7 +100,7 @@ test('snapshot terminal faz append diário idempotente sem reescrever o job hist
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), firstHistory);
 
   const nonTerminal = aprender.persistirSnapshotTerminal({
-    ...terminal, job_id: 'job-running', event: 'started',
+    ...terminal, job_id: 'job-running', event: 'started', exit_code: null,
   }, { dir: directory });
   assert.strictEqual(nonTerminal.appended, false);
   assert.strictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).jobs.length, 1);

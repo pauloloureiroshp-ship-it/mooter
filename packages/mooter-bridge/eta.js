@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const aprender = require('./aprender.js');
+const { isTerminal } = require('./terminal.js');
 
 const VERSION = 1;
 const MIN_OBSERVATIONS = 5;
@@ -22,7 +23,6 @@ const MIN_OBSERVATIONS = 5;
  * a mediana de 5 000 que inclui uma GPU que já não está cá.
  */
 const JANELA = 200;
-const TERMINAL_EVENTS = new Set(['done', 'failed', 'prep_timeout', 'prep_failed_fallback']);
 const EXCLUDED_EXITS = new Set(['cancelled-by-user', 'orphaned-by-restart']);
 const TIMEOUT_EXITS = new Set(['timeout', 'prep-timeout']);
 
@@ -201,7 +201,7 @@ function lookup(query, options) {
 
 function observeTerminal(event, options) {
   const ev = event || {};
-  if (!TERMINAL_EVENTS.has(ev.event)) return { ok: true, ignored: true };
+  if (!isTerminal(ev)) return { ok: true, ignored: true };
   if (EXCLUDED_EXITS.has(ev.exit_code)) return { ok: true, excluded: true, porque: 'interrupções não medem duração de trabalho' };
   const o = options || {};
   const io = o.fs || fs;

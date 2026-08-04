@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { PRICING_USD_PER_MILLION: KIMI_PRICES } = require('./kimi-adapter.js');
+const { isTerminal } = require('./terminal.js');
 
 const ND = 'n/d';
 const CUSTO_FONTE_CALCULADO = 'calculado a partir de tokens e tabela de precos';
@@ -15,7 +16,6 @@ const PRECOS_USD_POR_MILHAO = Object.freeze({
 const MIN_OBSERVATIONS = 5;
 const REPEAT_WINDOW_MS = 10 * 60 * 1000;
 const DESFECHOS = new Set(['entregue', 'falhou', 'interrompido', 'expirou', 'indeterminado']);
-const EVENTOS_TERMINAIS = new Set(['done', 'failed', 'nao_verificado', 'prep_timeout', 'prep_failed_fallback']);
 const CATEGORY_PATTERNS = [
   ['git_deploy', [/\b(git|commit|push|merge|rebase|branch(?:es)?|pull request|pr)\b/i,
     /\b(deploy|publica|lan[çc]a|release|migra|migration)\b/i]],
@@ -116,7 +116,7 @@ function modeloComTabela(event) {
 function enriquecerCusto(event) {
   const source = event && typeof event === 'object' ? event : {};
   const out = { ...source };
-  if (!EVENTOS_TERMINAIS.has(source.event)) return out;
+  if (!isTerminal(source)) return out;
 
   const reported = costOrNull(source.cost_usd);
   if (reported != null) {
@@ -161,7 +161,7 @@ function aprenderDir(options) {
  * eventos terminais repetidos são no-op, preservando o primeiro desfecho histórico.
  */
 function persistirSnapshotTerminal(event, options) {
-  if (!event || !EVENTOS_TERMINAIS.has(event.event)) {
+  if (!isTerminal(event)) {
     return { ok: true, appended: false, porque: 'evento não terminal' };
   }
   if (!event.job_id) return { ok: false, appended: false, porque: 'job_id n/d' };
@@ -210,7 +210,7 @@ function normalizeOptions(input) {
  * `event` continua intacto para não quebrar os consumidores do ledger v1.
  */
 function classificarDesfecho(event) {
-  if (!event || !EVENTOS_TERMINAIS.has(event.event)) return null;
+  if (!isTerminal(event)) return null;
   if (DESFECHOS.has(event.desfecho)) return event.desfecho;
   const exit = event.exit_code;
   if (exit === 'cancelled-by-user' || exit === 'orphaned-by-restart') return 'interrompido';
@@ -274,7 +274,7 @@ function jobRecords(input) {
       if (typeof event.git_base_clean === 'boolean') record.git_base_clean = event.git_base_clean;
       if (event.git_base_commit) record.git_base_commit = event.git_base_commit;
     }
-    if (EVENTOS_TERMINAIS.has(event.event)) {
+    if (isTerminal(event)) {
       const terminal = enriquecerCusto(event);
       record.desfecho = classificarDesfecho(terminal);
       record.status = record.desfecho === 'entregue' ? 'done' : 'failed';

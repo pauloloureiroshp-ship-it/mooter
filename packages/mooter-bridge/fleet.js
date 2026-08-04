@@ -40,6 +40,7 @@ const afericao = require('./afericao.js');
 const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const { fatiaLocal } = require('./fatia-local.js');
+const { isTerminal } = require('./terminal.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -115,10 +116,12 @@ function foldJobs(events) {
     if (typeof e.local === 'boolean') j.local = e.local;
     if (e.event === 'dispatched') { j.dispatched_at = e.ts; j.state = 'dispatched'; }
     else if (e.event === 'started') { j.started_at = e.ts; j.state = 'running'; }
-    else if (e.event === 'done') { j.ended_at = e.ts; j.state = 'done'; }
-    else if (e.event === 'failed') { j.ended_at = e.ts; j.state = 'failed'; }
-    else if (e.event === 'prep_timeout' || e.event === 'prep_failed_fallback') { j.ended_at = e.ts; j.state = 'failed'; }
-    else if (e.event === 'collected' && j.state !== 'failed') { j.state = j.state === 'running' ? 'done' : j.state; }
+    if (isTerminal(e)) {
+      j.ended_at = e.ts;
+      if (e.event === 'prep_timeout' || e.event === 'prep_failed_fallback') j.state = 'failed';
+      else if (e.event === 'done' || e.event === 'failed' || e.event === 'nao_verificado') j.state = e.event;
+      else j.state = e.exit_code === 0 || e.exit_code === '0' ? 'done' : 'failed';
+    }
     if (e.exit_code != null) j.exit_code = e.exit_code;
     if (e.duration_s != null) j.duration_s = e.duration_s;
     if (e.cost_usd != null) j.cost_usd = e.cost_usd;
@@ -165,7 +168,7 @@ function elapsedSeconds(job, now) {
   if (!from) return null;
   const t0 = Date.parse(from);
   if (Number.isNaN(t0)) return null;
-  if (job.state === 'running' || job.state === 'dispatched') return Math.max(0, Math.round((now - t0) / 1000));
+  if (isLive(job)) return Math.max(0, Math.round((now - t0) / 1000));
   if (job.duration_s != null) return job.duration_s;
   const t1 = job.ended_at ? Date.parse(job.ended_at) : NaN;
   return Number.isNaN(t1) ? null : Math.max(0, Math.round((t1 - t0) / 1000));
@@ -479,7 +482,9 @@ function attachModels(jobs, sessions) {
   return jobs;
 }
 
-function isLive(j) { return j.state === 'running' || j.state === 'dispatched'; }
+function isLive(j) {
+  return !isTerminal(j) && (j.state === 'running' || j.state === 'dispatched');
+}
 
 // group live/done rows by wave so the panel can draw a header per wave
 function groupByWave(jobs) {
@@ -563,7 +568,7 @@ function activeJobsFromEvents(events, worktree) {
   for (const e of (events || [])) {
     if (!e || !e.job_id || (e.worktree && norm(e.worktree) !== key)) continue;
     if (e.event === 'dispatched' || e.event === 'started') state.set(e.job_id, e.event);
-    if (e.event === 'done' || e.event === 'failed' || e.event === 'prep_timeout' || e.event === 'prep_failed_fallback') state.delete(e.job_id);
+    if (isTerminal(e)) state.delete(e.job_id);
   }
   return [...state.keys()];
 }
@@ -1254,7 +1259,11 @@ async function toolFleet(args, deps) {
   if (waveFilter && !planWaves.includes(waveFilter)) planWaves.push(waveFilter);
   // A7 — o plano é reconciliado contra o ledger ANTES de ser contado
   const ledgerStates = new Map();
-  for (const e of events) { if (e && e.job_id && e.event) ledgerStates.set(e.job_id, e.event); }
+  for (const e of events) {
+    if (e && e.job_id && (e.event === 'dispatched' || e.event === 'started' || isTerminal(e))) {
+      ledgerStates.set(e.job_id, e);
+    }
+  }
   const plans = [];
   for (const w of planWaves) {
     try { const p = plan.readPlan(w); if (p) plans.push(plan.summarize(plan.reconcile(p, ledgerStates))); } catch { /* */ }
@@ -1455,12 +1464,12 @@ function formatFleetText(d) {
   const c = d.context;
   const head = d.live ? (d.live + ' agente' + (d.live > 1 ? 's' : '') + ' a trabalhar') : 'frota parada';
   L.push(c && (c.project || c.folder_name) ? (head + '  ·  ' + [c.project, c.folder_name].filter(Boolean).join(' / ')) : head);
-  const live = (d.jobs || []).filter((j) => j.state === 'running' || j.state === 'dispatched');
-  const done = (d.jobs || []).filter((j) => j.state === 'done' || j.state === 'failed');
+  const live = (d.jobs || []).filter(isLive);
+  const done = (d.jobs || []).filter(isTerminal);
   if (live.length) {
     L.push('', 'A TRABALHAR');
     for (const w of (d.waves || [])) {
-      const rows = w.jobs.filter((j) => j.state === 'running' || j.state === 'dispatched');
+      const rows = w.jobs.filter(isLive);
       if (!rows.length) continue;
       L.push('  ' + w.wave);
       for (const j of rows) {
@@ -1656,6 +1665,7 @@ module.exports = {
   TOOLS, UI_RESOURCE, UI_URI, UI_MIME, LOCAL_ORIGINS, LOCAL_PORTS,
   toolFleet, toolSessionBind, readUiHtml, formatFleetText,
   foldJobs, elapsedSeconds, attachModels, groupByWave, probeOllama, readSessionContext,
+  isLive, activeJobsFromEvents,
   aggregatePanel, addFreshness, closePercentages, summarizeWorktrees, compactPayload,
   filterCoherence, publicJob, sanitizeFuel, waveFocus, etaBarModel, refreshEtaJobs,
   LEDGER, SESSION_FILE, OLLAMA_HOST, envOrNull, sessionsFast, SESSIONS_BUDGET_MS, ETA_REFRESH_MS,

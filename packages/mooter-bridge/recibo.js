@@ -3,10 +3,10 @@
 const { PassThrough } = require('stream');
 const fleet = require('./fleet.js');
 const { fatiaLocal } = require('./fatia-local.js');
+const { isTerminal } = require('./terminal.js');
 
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
 const PERIODOS = Object.freeze(['sessao', 'dia', 'semana']);
-const TERMINAL = new Set(['done', 'failed']);
 const VERDICT_QUESTION = 'Que cargos é que o MEO pode ignorar hoje, e porquê?';
 
 function iso(value) {
@@ -297,7 +297,7 @@ function project(events, opts) {
 function pulse(events, wave) {
   const ledger = (Array.isArray(events) ? events : []).filter((event) => event && event.wave === wave);
   const jobs = fleet.foldJobs(ledger);
-  if (!wave || !jobs.length || !jobs.every((job) => TERMINAL.has(job.state))) return null;
+  if (!wave || !jobs.length || !jobs.every(isTerminal)) return null;
   const cargos = [...new Set(jobs.map((job) => cargoOf(job).cargo).filter(Boolean))].sort();
   const agents = [...new Set(jobs.map((job) => job.agent).filter(Boolean))].sort();
   const starts = jobs.map((job) => Date.parse(job.dispatched_at || job.started_at || '')).filter(Number.isFinite);

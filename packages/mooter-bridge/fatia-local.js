@@ -1,5 +1,7 @@
 'use strict';
 
+const { isTerminal } = require('./terminal.js');
+
 /**
  * fatiaLocal: calcula o % de trabalho concluído que rodou localmente (agent==='moo').
  *
@@ -21,15 +23,8 @@ function fatiaLocal(jobs, opts) {
 
   const lista = Array.isArray(jobs) ? jobs : [];
 
-  // Filtro 1: concluídos
-  // board.js style: status === 'done' ou 'failed', preparation falso/ausente
-  // fleet.js style: state === 'done' ou 'failed', preparation falso/ausente
-  const concluidos = lista.filter((r) => {
-    if (!r) return false;
-    if ((r.status === 'done' || r.status === 'failed') && !r.preparation) return true;
-    if (r.state && (r.state === 'done' || r.state === 'failed') && !r.preparation) return true;
-    return false;
-  });
+  // Filtro 1: concluídos, independentemente da projecção que forneceu o job.
+  const concluidos = lista.filter((r) => r && isTerminal(r) && !r.preparation);
 
   // Filtro 2: por cargo, se indicado
   const filtrados = o.cargo
