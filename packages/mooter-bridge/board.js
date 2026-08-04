@@ -296,6 +296,12 @@ function interrupcoesNoDia(ledger, medidoEm) {
   return { valor: n, porque: n + ' chamada(s) ao MEO registada(s) em ' + dia + ' UTC' };
 }
 
+function jaTemInterrupcaoHojeParaMetrica(ledger, metrica, medidoEm) {
+  const dia = String(medidoEm || '').slice(0, 10);
+  const noDia = ledger.filter((event) => event && String(event.ts || '').slice(0, 10) === dia);
+  return noDia.some((event) => event.event === 'meo_interrupcao' && event.metrica === metrica);
+}
+
 function construir(ledger, quotaState, gpuState, opts) {
   const o = opts || {};
   const medidoEm = agoraIso(o);
@@ -452,6 +458,9 @@ function registarInterrupcao(input, opts) {
     ts: agoraIso(opts), event: 'meo_interrupcao', motivo: item.motivo,
     o_que: String(item.o_que).trim(), quem_pediu: String(item.quem_pediu).trim(),
   };
+  if (item.metrica) {
+    event.metrica = String(item.metrica).trim();
+  }
   const append = opts && typeof opts.ledgerAppend === 'function' ? opts.ledgerAppend : seamless.ledgerAppend;
   append(event);
   return event;
@@ -484,7 +493,7 @@ function lerAnterior(opts) {
   catch { return null; }
 }
 
-function finalizar(card, opts) {
+function finalizar(card, ledger, opts) {
   const anterior = lerAnterior(opts);
   for (const [nome, item] of Object.entries(card.metricas)) {
     if (item.estado !== 'fora') continue;
@@ -501,10 +510,11 @@ function finalizar(card, opts) {
       if (excecao.metrica === 'interrupcoes_por_dia') continue;
       const antiga = anterior && anterior.metricas && anterior.metricas[excecao.metrica];
       if (antiga && antiga.estado === 'fora') continue;
+      if (jaTemInterrupcaoHojeParaMetrica(ledger || [], excecao.metrica, card.gerado_em)) continue;
       const item = card.metricas[excecao.metrica];
       try {
         registarInterrupcao({
-          motivo: 'limiar', quem_pediu: excecao.dono,
+          motivo: 'limiar', quem_pediu: excecao.dono, metrica: excecao.metrica,
           o_que: 'métrica ' + excecao.metrica + ' fora da faixa [' + item.faixa.join(', ') + ']: ' + item.valor,
         }, opts);
         interrupcoesRegistadas++;
@@ -561,7 +571,7 @@ function scorecard(opts) {
   const quotaState = Object.prototype.hasOwnProperty.call(o, 'quotaState') ? o.quotaState
     : (o.quotaEstado || qmod.estado)(o.quotaOpts || {});
   const gpuState = Object.prototype.hasOwnProperty.call(o, 'gpuState') ? o.gpuState : null;
-  const card = finalizar(construir(ledger, quotaState, gpuState, o), o);
+  const card = finalizar(construir(ledger, quotaState, gpuState, o), ledger, o);
   if (o.persist !== false) card.persistencia = persistir(card, o);
   return card;
 }
@@ -588,7 +598,7 @@ async function scorecardAsync(opts) {
   await ceder();
   const [quotaState, gpuState] = await Promise.all([quotaPromise, gpuPromise]);
   await ceder();
-  const card = finalizar(construir(ledger, quotaState, gpuState, { ...o, async: true }), o);
+  const card = finalizar(construir(ledger, quotaState, gpuState, { ...o, async: true }), ledger, o);
   if (o.persist !== false) {
     await ceder();
     card.persistencia = await persistirAsync(card, o);

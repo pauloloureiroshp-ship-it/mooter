@@ -341,3 +341,99 @@ test('K3: pressao_quota declara-se n/d quando calibrando é true', () => {
   assert.ok(/3\/7/.test(m.porque), 'o porque deve mostrar o progresso dos dias (3/7)');
   assert.strictEqual(m.valor, 0.7, 'o valor numérico não deve mudar — estado é que muda');
 });
+
+test('interrupcoes_por_dia: deduplicação por (métrica + dia) — oscilação no mesmo dia gera 1 interrupção', () => {
+  const ledgerEvents = [];
+  const opts = {
+    agora: AGORA,
+    ledgerAppend(event) { ledgerEvents.push(event); },
+  };
+  // Simula: wip_actual sai da faixa, volta a entrar, sai outra vez no mesmo dia
+  board.registarInterrupcao({
+    motivo: 'limiar', quem_pediu: 'MOO', metrica: 'wip_actual',
+    o_que: 'métrica wip_actual fora da faixa [0, 5]: 6',
+  }, opts);
+  // Segunda chamada para a mesma métrica no mesmo dia — sem campo metrica no ledgerEvents
+  // Simula: scorecard rodou novamente, wip_actual oscilou, tentou registar outra interrupção
+  const cardComDedup = board.scorecard(deps({
+    ledger: ledgerEvents,
+    donos: { wip_actual: 'MOO' },
+    persist: false,
+    keepResults: [],
+  }));
+  // Apenas 1 interrupção deve estar registada (a primeira)
+  assert.strictEqual(ledgerEvents.filter((e) => e.event === 'meo_interrupcao').length, 1);
+});
+
+test('interrupcoes_por_dia: duas métricas diferentes fora no mesmo dia geram 2 interrupções', () => {
+  const ledgerEvents = [];
+  const opts = {
+    agora: AGORA,
+    ledgerAppend(event) { ledgerEvents.push(event); },
+  };
+  board.registarInterrupcao({
+    motivo: 'limiar', quem_pediu: 'MOO', metrica: 'wip_actual',
+    o_que: 'métrica wip_actual fora da faixa [0, 5]: 6',
+  }, opts);
+  board.registarInterrupcao({
+    motivo: 'limiar', quem_pediu: 'MTO', metrica: 'taxa_falha_pct',
+    o_que: 'métrica taxa_falha_pct fora da faixa [0, 10]: 15',
+  }, opts);
+  assert.strictEqual(ledgerEvents.filter((e) => e.event === 'meo_interrupcao').length, 2);
+  assert.ok(ledgerEvents.some((e) => e.event === 'meo_interrupcao' && e.metrica === 'wip_actual'));
+  assert.ok(ledgerEvents.some((e) => e.event === 'meo_interrupcao' && e.metrica === 'taxa_falha_pct'));
+});
+
+test('interrupcoes_por_dia: métrica fora ontem e ainda fora hoje gera 0 novas interrupções hoje (guarda antiga)', () => {
+  const dia_ontem = '2026-07-25T12:00:00.000Z';
+  const dia_hoje = '2026-07-26T23:00:00.000Z';
+  const ledgerComOntem = [
+    {
+      ts: dia_ontem, event: 'meo_interrupcao', motivo: 'limiar',
+      o_que: 'métrica wip_actual fora da faixa [0, 5]: 6', quem_pediu: 'MOO', metrica: 'wip_actual',
+    },
+    ...ledger30().slice(0, 15),
+  ];
+  const anterior = board.scorecard(deps({
+    ledger: ledgerComOntem.filter((e) => !e.ts || e.ts.slice(0, 10) === '2026-07-25'),
+    agora: dia_ontem,
+    persist: false,
+  }));
+  const hoje = board.scorecard(deps({
+    ledger: ledgerComOntem,
+    agora: dia_hoje,
+    persist: false,
+  }));
+  // Verificar que a anterior tem wip_actual fora (ou n/d)
+  const nInterrupcoesHoje = ledgerComOntem.filter((e) => e.event === 'meo_interrupcao' && String(e.ts || '').slice(0, 10) === '2026-07-26').length;
+  // Não deve haver novas interrupções hoje para wip_actual porque já estava fora ontem
+  assert.strictEqual(nInterrupcoesHoje, 0, 'nenhuma nova interrupção deve ser registada hoje se a métrica já estava fora ontem');
+});
+
+test('interrupcoes_por_dia: mesma métrica em dias UTC diferentes gera 1 interrupção por dia', () => {
+  const ledgerEvents = [];
+  const opts1 = {
+    agora: '2026-07-26T12:00:00.000Z',
+    ledgerAppend(event) { ledgerEvents.push(event); },
+  };
+  const opts2 = {
+    agora: '2026-07-27T12:00:00.000Z',
+    ledgerAppend(event) { ledgerEvents.push(event); },
+  };
+  // Dia 1: registar interrupção
+  board.registarInterrupcao({
+    motivo: 'limiar', quem_pediu: 'MOO', metrica: 'wip_actual',
+    o_que: 'métrica wip_actual fora da faixa [0, 5]: 6',
+  }, opts1);
+  // Dia 2: registar outra para a mesma métrica (dia diferente)
+  board.registarInterrupcao({
+    motivo: 'limiar', quem_pediu: 'MOO', metrica: 'wip_actual',
+    o_que: 'métrica wip_actual fora da faixa [0, 5]: 7',
+  }, opts2);
+  // Deve haver 2 interrupções (1 por dia)
+  assert.strictEqual(ledgerEvents.filter((e) => e.event === 'meo_interrupcao').length, 2);
+  const dia1 = ledgerEvents.filter((e) => e.event === 'meo_interrupcao' && e.ts.slice(0, 10) === '2026-07-26').length;
+  const dia2 = ledgerEvents.filter((e) => e.event === 'meo_interrupcao' && e.ts.slice(0, 10) === '2026-07-27').length;
+  assert.strictEqual(dia1, 1, 'deve haver 1 interrupção no dia 1');
+  assert.strictEqual(dia2, 1, 'deve haver 1 interrupção no dia 2');
+});
