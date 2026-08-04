@@ -69,6 +69,7 @@ vscode-extension/node_modules/
 
 # Generated output artifacts
 output/
+dist/
 
 # Investor decks (keep in Google Drive, not git)
 *.pptx

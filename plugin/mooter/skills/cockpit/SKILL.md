@@ -19,6 +19,22 @@ subscriptions.
 ⚠️ **You cannot open an artifact.** There is no tool for it. In Cowork the user opens it from
 `Artifacts` in the left sidebar. Your job is to say where it is, not to try to open it.
 
+## Publishing without hiding the source
+
+Remote `update_artifact` replaces the HTML and **clears the connector grants**. After any remote
+update, the user must re-authorize the Mooter connector in the desktop UI; the page itself has no
+authorization API and cannot repair those grants.
+
+The low-friction publication path is:
+
+1. Run `node tools/cockpit/build-snapshot.js` from the repo root.
+2. Publish `dist/cockpit-snapshot.html`, not the clean source file. The generated artifact carries
+   a dated, explicitly **frozen** snapshot, so it still has data while grants are absent.
+3. Re-authorize the connector in the desktop UI to restore live `bridge` readings and actions.
+
+The source remains `plugin/mooter/skills/cockpit/cockpit.html`; the generator never writes to it.
+There is still no tool that opens an artifact — the user opens it from `Artifacts`.
+
 ## In Claude Code — render it
 
 1. Read the state. `~/.mooter/` holds everything, and the MCP tools are usually absent here:
