@@ -73,5 +73,13 @@
   ],
   "1.45": [
     "fatia-local.js"
+  ],
+  "1.47": [
+    "retry.js",
+    "terminal.js",
+    "cockpit.html",
+    "board.js",
+    "fleet.js",
+    "seamless.js"
   ]
 }
