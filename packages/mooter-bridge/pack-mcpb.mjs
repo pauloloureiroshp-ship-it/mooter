@@ -72,6 +72,7 @@ const FILES = [
   ['sync.js', 'server/sync.js'],
   ['fatia-local.js', 'server/fatia-local.js'],
   ['terminal.js', 'server/terminal.js'],
+  ['retry.js', 'server/retry.js'],
   ['board.js', 'server/board.js'],
   ['recibo.js', 'server/recibo.js'],
   ['recibo-contexto.js', 'server/recibo-contexto.js'],
