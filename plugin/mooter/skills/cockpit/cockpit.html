@@ -3264,51 +3264,98 @@ const SECGATE = { estado:'blocked', porque:'nunca foi corrido nesta janela', em:
 const LP_HUES = [['slate','#475569'],['red','#dc2626'],['orange','#ea580c'],['amber','#d97706'],
   ['yellow','#ca8a04'],['green','#16a34a'],['teal','#0d9488'],['sky','#0284c7'],
   ['blue','#2563eb'],['indigo','#4f46e5'],['violet','#7c3aed'],['pink','#db2777']];
-/* As portas que o plugin VS Code sonda, na mesma ordem (`lp-stage.js:41`).
-   7819 primeiro porque é a do Mooter; o resto é o que a indústria usa. */
+/* O detector não toca na rede do browser: pede uma medição HTTP ao conector
+   e só usa o snapshot quando essa ponte não existe. */
 const LP = { estado:'não sondado', url:null, porque:null, larg:0, prod:null, auto:false,
-  portas:[7819,3000,3001,3002,5173,5174,4173,4200,4321,5000,8000,8080,8787,8888] };
+  fonte:null, sondadas:null, candidatas:null, confianca:null, portasSondadas:[] };
+const LP_PREVIEW_NAMES = ['mooter_ui_preview'];
 
-/* Sonda honesta do dev server. Um artifact não pode fazer `fetch` a localhost
-   (CORS + CSP), por isso NÃO se finge um probe HTTP: declara-se que a única
-   verificação possível daqui é o próprio iframe carregar. Prometer "porta
-   activa" sem a ter medido seria exactamente a mentira que o Cockpit existe
-   para não contar. */
-function lpProbe(porta){
-  return new Promise(resolve => {
-    const f = document.createElement('iframe');
-    f.setAttribute('sandbox','');   // ⚠️ #21: a sonda NUNCA executa nada do que carrega
-    f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
-    let feito = false;
-    const acabar = (ok) => { if (feito) return; feito = true; try{ f.remove(); }catch(e){} resolve(ok); };
-    f.onload  = () => acabar(true);
-    f.onerror = () => acabar(false);
-    setTimeout(() => acabar(false), 2200);      // sem resposta = sem servidor, e diz-se
-    f.src = 'http://localhost:' + porta + '/';
-    document.body.appendChild(f);
-  });
+/* O iframe é apenas o ecrã de uma URL já confirmada pela sonda do servidor.
+   Nenhum evento do iframe altera o estado de medição. */
+function lpNaoMedivel(fonte, motivo){
+  LP.estado = 'não medível';
+  LP.url = null;
+  LP.fonte = fonte || null;
+  LP.sondadas = null;
+  LP.candidatas = null;
+  LP.confianca = null;
+  LP.portasSondadas = [];
+  LP.porque = motivo;
+}
+function lpAplicarMedicao(payload, fonte){
+  if (!payload || typeof payload !== 'object') throw new Error('resposta de preview ausente');
+  const erro = payload.erro != null ? payload.erro : payload.error;
+  if (erro != null) throw new Error(String(erro));
+  if (!Array.isArray(payload.candidatas)) throw new Error('preview.candidatas ausente');
+
+  const candidatas = payload.candidatas
+    .filter(c => c && typeof c === 'object' && typeof c.url === 'string' && c.url)
+    .slice()
+    .sort((a,b) => {
+      const ap = Number.isFinite(Number(a.peso)) ? Number(a.peso) : 0;
+      const bp = Number.isFinite(Number(b.peso)) ? Number(b.peso) : 0;
+      if (bp !== ap) return bp - ap;
+      const am = Number.isFinite(Number(a.ms)) ? Number(a.ms) : Infinity;
+      const bm = Number.isFinite(Number(b.ms)) ? Number(b.ms) : Infinity;
+      return am - bm;
+    });
+  const escolhida = candidatas[0] || null;
+  LP.fonte = fonte;
+  LP.sondadas = Number.isFinite(Number(payload.sondadas)) ? Number(payload.sondadas) : null;
+  LP.candidatas = candidatas.length;
+  LP.portasSondadas = Array.isArray(payload.portas)
+    ? payload.portas.map(Number).filter(p => Number.isFinite(p) && p > 0 && p < 65536)
+    : [];
+  LP.confianca = escolhida && escolhida.confianca ? String(escolhida.confianca) : null;
+
+  if (escolhida){
+    LP.estado = 'aberto';
+    LP.url = escolhida.url;
+    LP.porque = String(payload.nota || ('a sonda do servidor confirmou ' + escolhida.url));
+    return;
+  }
+
+  LP.estado = 'fechado';
+  LP.url = null;
+  const portas = LP.portasSondadas.length ? LP.portasSondadas.join(', ') : 'n/d';
+  LP.porque = 'Portas sondadas: ' + portas + '. Nenhuma respondeu com HTML utilizável.'
+    + (payload.nota ? ' ' + String(payload.nota) : '');
 }
 async function lpDetect(){
-  LP.estado = 'a sondar'; renderLP();
-  /* ⚠️ Sondar 14 portas em série a 2,2 s daria 30 s no pior caso. O plugin
-     faz-lhes probe CONCORRENTE; aqui o orçamento é mais curto por porta e a
-     primeira que responder ganha — a ordem da lista continua a ser a
-     preferência, não o acaso. */
-  for (const p of LP.portas){
-    let ok = false;
-    try{ ok = await lpProbe(p); }catch(e){ ok = false; }
-    if (ok){
-      LP.estado = 'aberto'; LP.url = 'http://localhost:' + p;
-      LP.porque = 'o iframe carregou — é a única prova que um painel sandboxed consegue obter. '
-        + 'NÃO valida que o HTML é 2xx nem que é a tua app: pode ser outro serviço na mesma porta.';
-      renderLP(); return;
+  const bridge = window.cowork;
+  const snapshot = window.__MOOTER_SNAPSHOT__;
+  LP.estado = 'a sondar';
+  LP.url = null;
+  LP.fonte = bridge && typeof bridge.callMcpTool === 'function'
+    ? 'connector'
+    : (snapshot && snapshot.preview ? 'snapshot' : null);
+  LP.sondadas = null;
+  LP.candidatas = null;
+  LP.confianca = null;
+  LP.portasSondadas = [];
+  LP.porque = null;
+  renderLP();
+
+  if (bridge && typeof bridge.callMcpTool === 'function'){
+    try{
+      const diag = window.__cockpitDiag || { attempts:[] };
+      const payload = await callBridgeNamed(bridge, LP_PREVIEW_NAMES, {}, diag);
+      lpAplicarMedicao(payload, 'connector');
+    }catch(error){
+      lpNaoMedivel('connector', 'mooter_ui_preview recusada pela ponte: ' + literalError(error));
     }
+    renderLP();
+    return;
   }
-  LP.estado = 'fechado'; LP.url = null;
-  LP.porque = 'nenhuma das portas ' + LP.portas.join(', ') + ' respondeu em 2,2 s. '
-    + 'Pode ser: (a) o dev server está mesmo em baixo, (b) está noutra porta, '
-    + '(c) o sandbox deste painel bloqueia o pedido. As três são indistinguíveis daqui — '
-    + 'e a terceira é a razão pela qual isto não substitui o plugin do VS Code.';
+
+  if (snapshot && snapshot.preview && typeof snapshot.preview === 'object'){
+    try{ lpAplicarMedicao(snapshot.preview, 'snapshot'); }
+    catch(error){ lpNaoMedivel('snapshot', 'snapshot.preview não pôde ser lido: ' + literalError(error)); }
+    renderLP();
+    return;
+  }
+
+  lpNaoMedivel(null, 'window.cowork.callMcpTool indisponível e window.__MOOTER_SNAPSHOT__.preview ausente.');
   renderLP();
 }
 
@@ -3973,9 +4020,20 @@ function renderLP(){
     'não sondado': '· not probed',
     'a sondar'   : '· probing…',
     'aberto'     : '· ' + (LP.url || ''),
-    'fechado'    : '· nothing reachable'
+    'fechado'    : '· 0 candidates',
+    'não medível': '· not measurable here'
   };
   mini.textContent = R[LP.estado] || '· ' + LP.estado;
+  const portasMedidas = LP.portasSondadas && LP.portasSondadas.length
+    ? LP.portasSondadas.join(', ')
+    : 'n/d';
+  const medicao = '<div class="chnote" style="padding-left:0;margin-bottom:8px">'
+    + '<b>source:</b> ' + esc(LP.fonte || 'n/d')
+    + ' · <b>ports probed:</b> ' + esc(LP.sondadas == null ? 'n/d' : LP.sondadas)
+    + ' (' + esc(portasMedidas) + ')'
+    + ' · <b>candidates:</b> ' + esc(LP.candidatas == null ? 'n/d' : LP.candidatas)
+    + ' · <b>confidence:</b> ' + esc(LP.confianca || 'n/d')
+    + '</div>';
 
   let h = '';
   if (LP.estado === 'não sondado'){
@@ -3986,8 +4044,8 @@ function renderLP(){
       + 'exactly how much of it it managed to verify.<br>'
       + 'Press <b>find my dev server</b>. Nothing is started on your machine — it only looks.</div></div>';
   } else if (LP.estado === 'a sondar'){
-    h = '<div class="oneline"><span class="pulseBad" style="font-size:8px">●</span> probing localhost '
-      + LP.portas.join(', ') + ' — 2.2 s each, in order</div>';
+    h = '<div class="oneline"><span class="pulseBad" style="font-size:8px">●</span> asking '
+      + esc(LP.fonte || 'the available source') + ' to probe localhost over HTTP</div>';
   } else if (LP.estado === 'aberto'){
     /* ⚠️ A CAIXA CINZENTA: com `sandbox` sem `allow-same-origin`, quase nenhuma
        app moderna carrega — o browser nega-lhe origem própria e o JS morre.
@@ -4066,15 +4124,19 @@ function renderLP(){
       + '<div class="lp-gap-r"><span>error strip</span><span>runtime and build errors with <code>file:line</code> and a send-to-agent button.</span></div>'
       + '<div class="chnote" style="padding-left:0">For those three, open <code>Mooter — Live Preview ⚡</code> in VS Code. '
       + 'This block is the window; that one is the cockpit.</div></div>';
-  } else {
-    h = '<div class="ndhero"><div class="big">🎬 no dev server reachable from here</div>'
+  } else if (LP.estado === 'fechado'){
+    h = '<div class="ndhero"><div class="big">🎬 no measured dev server candidate</div>'
       + '<div class="why">' + esc(LP.porque || '') + '</div></div>'
       + '<div class="cta-bar"><button class="btn mini" id="lpAgain">🔎 probe again</button>'
       + '<button class="cta ghost mini" id="btnLpCmd" '
       + 'data-tip="Copies the command. The Cockpit never starts processes on your machine.">📋 copy the start command</button>'
       + '<span class="cta-note">start it in your terminal, then probe again</span></div>';
+  } else {
+    h = '<div class="ndhero"><div class="big">🎬 not measurable from here</div>'
+      + '<div class="why">' + esc(LP.porque || '') + '</div></div>'
+      + '<div class="cta-bar"><button class="btn mini" id="lpAgain">🔎 try again</button></div>';
   }
-  body.innerHTML = h;
+  body.innerHTML = medicao + h;
   const irPara = (r) => { LP.rota = r.startsWith('/') ? r : '/' + r; renderLP(); };
   const pth = $('lpPath'), go = $('lpGo'), bk = $('lpBack');
   if (go && pth) go.addEventListener('click', () => irPara(pth.value.trim() || '/'));

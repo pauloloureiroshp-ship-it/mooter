@@ -11,7 +11,7 @@ const OUTPUT = path.join(REPO, 'dist', 'cockpit-snapshot.html');
 const VIEWS = ['jobs', 'board', 'recibo', 'pastas'];
 const SNAPSHOT_BEGIN = '<!-- MOOTER_SNAPSHOT:BEGIN -->';
 const SNAPSHOT_END = '<!-- MOOTER_SNAPSHOT:END -->';
-const REPORTED_VIEWS = [...VIEWS, 'setup'];
+const REPORTED_VIEWS = [...VIEWS, 'setup', 'preview'];
 
 function literalError(error) {
   return String((error && error.message) || error || 'erro sem mensagem');
@@ -118,6 +118,16 @@ function markEmptyView(snapshot, finding) {
     : { valor: current == null ? null : current, vazia: true, motivo: finding.reason };
 }
 
+function emptyPreview(preview) {
+  if (!preview || typeof preview !== 'object' || !Array.isArray(preview.candidatas)
+      || preview.candidatas.length > 0) return null;
+  return {
+    view: 'preview',
+    reason: 'nenhuma candidata encontrada'
+      + (preview.nota ? ': ' + String(preview.nota) : ''),
+  };
+}
+
 function viewReport(name, value) {
   const bytes = Buffer.byteLength(JSON.stringify(value == null ? null : value), 'utf8');
   let signal;
@@ -126,6 +136,7 @@ function viewReport(name, value) {
     signal = Object.values(boardMetrics(value)).filter(metricHasValue).length + ' métricas com valor';
   } else if (name === 'pastas') signal = folderCount(value) + ' pastas';
   else if (name === 'setup') signal = 'contexto=' + (value && value.contexto != null ? 'sim' : 'não');
+  else if (name === 'preview') signal = ((value && Array.isArray(value.candidatas)) ? value.candidatas.length : 0) + ' candidatas';
   else signal = Object.keys(value && typeof value === 'object' ? value : {}).length + ' campos';
   return {
     name,
@@ -142,6 +153,7 @@ function defaultReaders() {
   const tools6 = require(path.join(REPO, 'packages', 'mooter-bridge', 'tools6.js'));
   const base = require(path.join(REPO, 'packages', 'mooter-bridge', 'server.js'));
   const board = require(path.join(REPO, 'packages', 'mooter-bridge', 'board.js'));
+  const preview = require(path.join(REPO, 'packages', 'mooter-bridge', 'preview.js'));
   const tools = tools6.build(seamless, fleet, base);
   const fleetTool = tools.find((tool) => tool.name === 'mooter_fleet');
   const setupTool = tools.find((tool) => tool.name === 'mooter_setup');
@@ -153,6 +165,7 @@ function defaultReaders() {
       ? fleet.toolFleet({ view }, { boardScorecard:() => board.scorecardAsync({ persist:false }) })
       : fleetTool.handler({ view }),
     readSetup: () => setupTool.handler({}),
+    readPreview: () => preview.descobrir({}),
   };
 }
 
@@ -163,7 +176,7 @@ async function generateSnapshot(options = {}) {
     ? options.now
     : (typeof options.now === 'function' ? options.now() : new Date());
   const iso = now.toISOString();
-  const readers = options.readView && options.readSetup ? options : defaultReaders();
+  const readers = options.readView && options.readSetup && options.readPreview ? options : defaultReaders();
   const snapshot = { __tirado_em: iso };
   let successes = 0;
 
@@ -180,6 +193,11 @@ async function generateSnapshot(options = {}) {
   } catch (error) {
     snapshot.setup = { erro: literalError(error) };
   }
+  try {
+    snapshot.preview = await readers.readPreview();
+  } catch (error) {
+    snapshot.preview = { erro: literalError(error) };
+  }
 
   const resolvedHome = options.homeDir || os.homedir();
   const mooterHome = options.mooterHome || process.env.MOOTER_HOME
@@ -192,6 +210,11 @@ async function generateSnapshot(options = {}) {
       + ' · snapshot NÃO escrito — uma fotografia vazia lê-se como facto');
   }
   if (findings.length === 1) markEmptyView(snapshot, findings[0]);
+  const previewFinding = emptyPreview(snapshot.preview);
+  if (previewFinding) {
+    markEmptyView(snapshot, previewFinding);
+    findings.push(previewFinding);
+  }
 
   const source = fs.readFileSync(sourcePath, 'utf8');
   const rendered = injectSnapshot(source, snapshot);
@@ -231,6 +254,7 @@ module.exports = {
   stripSnapshotBlocks,
   scriptSafeJson,
   emptyViews,
+  emptyPreview,
   viewReport,
   runCli,
   SNAPSHOT_BEGIN,

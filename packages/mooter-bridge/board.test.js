@@ -53,6 +53,7 @@ test('ledger sintético de 30 eventos bate com o cálculo feito à mão', () => 
   assert.strictEqual(m.taxa_falha_pct.valor, 20);           // 2 / 10
   assert.strictEqual(m.taxa_interrupcao_pct.valor, 0);      // 0 / 10
   assert.strictEqual(m.interrupcoes_por_dia.valor, 0);      // ledger cobre o dia
+  assert.strictEqual(m.divergencias_por_dia.valor, 0);      // nenhum cross-check divergente
   assert.strictEqual(m.tempo_recuperacao_min.valor, 10);    // falha → done seguinte
   assert.strictEqual(m.keep_rate_pct.valor, 80);            // 8 / 10 ficheiros
   assert.strictEqual(m.custo_por_tarefa_entregue_usd.valor, 0.55); // mediana dos 8 done
@@ -191,6 +192,27 @@ test('registarInterrupcao incrementa o dia e a faixa [0,1] abre excepção MEO',
   assert.deepStrictEqual(metrica.faixa, [0, 1]);
   assert.strictEqual(metrica.estado, 'fora');
   assert.strictEqual(card.excepcoes.find((item) => item.metrica === 'interrupcoes_por_dia').dono, 'MEO');
+});
+
+test('interrupções excluem divergências e o MTO recebe a soma diária dos cross-checks', () => {
+  const limiares = Array.from({ length: 4 }, (_, index) => ({
+    ts: `2026-07-26T10:0${index}:00.000Z`, event: 'meo_interrupcao', motivo: 'limiar',
+    metrica: 'wip_actual-' + index,
+  }));
+  const divergencias = Array.from({ length: 15 }, (_, index) => [
+    { ts: `2026-07-26T12:${String(index).padStart(2, '0')}:00.000Z`, event: 'cross_check',
+      job_id: 'div-' + index, divergencias_count: index + 1 },
+    { ts: `2026-07-26T12:${String(index).padStart(2, '0')}:01.000Z`, event: 'meo_interrupcao',
+      motivo: 'divergencia', metrica: 'cross_check' },
+  ]).flat();
+  const card = board.scorecard(deps({ ledger: [...limiares, ...divergencias], keepResults: [] }));
+
+  assert.strictEqual(card.metricas.interrupcoes_por_dia.valor, 4);
+  assert.match(card.metricas.interrupcoes_por_dia.porque, /exclui 15 evento\(s\) motivo=divergencia/i);
+  assert.strictEqual(card.metricas.divergencias_por_dia.valor, 15);
+  assert.deepStrictEqual(card.metricas.divergencias_por_dia.faixa, [0, 10]);
+  assert.match(card.metricas.divergencias_por_dia.porque, /15 job\(s\).+soma de divergencias_count: 120/i);
+  assert.strictEqual(card.excepcoes.find((item) => item.metrica === 'divergencias_por_dia').dono, 'MTO');
 });
 
 test('keep rate só é numérico em worktree criada de fresco com base limpa provada', () => {

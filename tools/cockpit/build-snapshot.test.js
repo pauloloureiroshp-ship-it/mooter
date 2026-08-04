@@ -35,6 +35,13 @@ function readers(overrides = {}) {
   return {
     readView: async (view) => views[view],
     readSetup: async () => ({ contexto: { project: 'frugal' } }),
+    readPreview: async () => ({
+      candidatas: [{ url: 'http://localhost:5173', porta: 5173, peso: 100, confianca: 'alta' }],
+      escolhida: { url: 'http://localhost:5173', porta: 5173, peso: 100, confianca: 'alta' },
+      sondadas: 1,
+      portas: [5173],
+      nota: 'preview de teste',
+    }),
   };
 }
 
@@ -102,14 +109,17 @@ test('vistas cheias escrevem snapshot e relatam bytes mais conteúdo por vista',
 
     assert.equal(code, 0);
     assert.equal(fs.existsSync(files.outputPath), true);
-    assert.equal(embeddedSnapshot(files.outputPath).jobs.jobs[0].job_id, 'job-real');
-    assert.equal(logs.length, 6);
+    const snapshot = embeddedSnapshot(files.outputPath);
+    assert.equal(snapshot.jobs.jobs[0].job_id, 'job-real');
+    assert.equal(snapshot.preview.escolhida.url, 'http://localhost:5173');
+    assert.equal(logs.length, 7);
     assert.match(logs[0], /^cockpit snapshot · jobs: \d+ bytes · 1 ids$/);
     assert.match(logs[1], /^cockpit snapshot · board: \d+ bytes · 1 métricas com valor$/);
     assert.match(logs[2], /^cockpit snapshot · recibo: \d+ bytes · \d+ campos$/);
     assert.match(logs[3], /^cockpit snapshot · pastas: \d+ bytes · 1 pastas$/);
     assert.match(logs[4], /^cockpit snapshot · setup: \d+ bytes · contexto=sim$/);
-    assert.match(logs[5], /^cockpit snapshot escrito: \d+ bytes · 2026-08-04T15:30:00\.000Z · /);
+    assert.match(logs[5], /^cockpit snapshot · preview: \d+ bytes · 1 candidatas$/);
+    assert.match(logs[6], /^cockpit snapshot escrito: \d+ bytes · 2026-08-04T15:30:00\.000Z · /);
     assert.equal(logs.some((line) => line.includes('views read')), false);
   } finally {
     fs.rmSync(files._dir, { recursive: true, force: true });
@@ -133,6 +143,34 @@ test('uma única vista vazia é escrita com marca e motivo explícitos', async (
     assert.equal(result.emptyViews[0].view, 'setup');
     assert.equal(snapshot.setup.vazia, true);
     assert.equal(snapshot.setup.motivo, 'contexto null');
+  } finally {
+    fs.rmSync(files._dir, { recursive: true, force: true });
+  }
+});
+
+test('preview sem candidatas é medição vazia com motivo explícito', async () => {
+  const files = fixture();
+  try {
+    const full = readers();
+    full.readPreview = async () => ({
+      candidatas: [],
+      escolhida: null,
+      sondadas: 3,
+      portas: [3000, 5173, 8080],
+      nota: 'sondei 3 portas e nenhuma devolveu HTML utilizável',
+    });
+
+    await generateSnapshot({
+      ...files,
+      ...full,
+      logger: () => {},
+    });
+
+    const preview = embeddedSnapshot(files.outputPath).preview;
+    assert.deepEqual(preview.candidatas, []);
+    assert.equal(preview.vazia, true);
+    assert.match(preview.motivo, /nenhuma candidata/);
+    assert.deepEqual(preview.portas, [3000, 5173, 8080]);
   } finally {
     fs.rmSync(files._dir, { recursive: true, force: true });
   }

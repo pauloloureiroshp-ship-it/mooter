@@ -213,7 +213,8 @@ function classificarDesfecho(event) {
   if (!isTerminal(event)) return null;
   if (DESFECHOS.has(event.desfecho)) return event.desfecho;
   const exit = event.exit_code;
-  if (exit === 'cancelled-by-user' || exit === 'orphaned-by-restart') return 'interrompido';
+  if (exit === 'cancelled-by-user' || exit === 'orphaned-by-restart'
+      || exit === 'agent-awaiting-approval') return 'interrompido';
   if (exit === 'timeout' || exit === 'prep-timeout') return 'expirou';
   if (exit == null || exit === '') return 'indeterminado';
   if (event.event === 'done' && (exit === 0 || exit === '0')) return 'entregue';

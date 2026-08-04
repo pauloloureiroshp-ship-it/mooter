@@ -29,6 +29,7 @@ const DEFAULT_FAIXAS = Object.freeze({
   taxa_falha_pct: Object.freeze([0, 20]),
   taxa_interrupcao_pct: Object.freeze([0, 100]),
   interrupcoes_por_dia: Object.freeze([0, 1]),
+  divergencias_por_dia: Object.freeze([0, 10]),
   tempo_recuperacao_min: Object.freeze([0, 60]),
   keep_rate_pct: Object.freeze([50, 100]),
   custo_por_tarefa_entregue_usd: Object.freeze([0, 1]),
@@ -45,6 +46,7 @@ const DONOS = Object.freeze({
   taxa_falha_pct: 'MTO',
   taxa_interrupcao_pct: 'MEO',
   interrupcoes_por_dia: 'MEO',
+  divergencias_por_dia: 'MTO',
   tempo_recuperacao_min: 'MTO',
   keep_rate_pct: 'MIO',
   custo_por_tarefa_entregue_usd: 'MFO',
@@ -59,6 +61,7 @@ const EFEITOS = Object.freeze({
   taxa_falha_pct: 'mais trabalho termina sem entrega e exige repetição',
   taxa_interrupcao_pct: 'mais trabalho é interrompido antes de chegar a um desfecho útil',
   interrupcoes_por_dia: 'o MEO continua a ser chamado acima do limiar diário acordado',
+  divergencias_por_dia: 'mais divergências verificáveis ficam abertas para o MTO investigar',
   tempo_recuperacao_min: 'falhas ficam abertas por mais tempo e bloqueiam a wave',
   keep_rate_pct: 'mais alterações entregues são desfeitas ou refeitas',
   custo_por_tarefa_entregue_usd: 'cada entrega continua a consumir mais orçamento pago',
@@ -288,12 +291,49 @@ function motivosNaoLocal(ledger) {
   }).sort((a, b) => b.n - a.n || a.porque.localeCompare(b.porque));
 }
 
-function interrupcoesNoDia(ledger, medidoEm) {
+function eventosNoDia(ledger, medidoEm) {
   const dia = String(medidoEm || '').slice(0, 10);
   const noDia = ledger.filter((event) => event && String(event.ts || '').slice(0, 10) === dia);
-  if (!noDia.length) return { valor: null, porque: 'o ledger não tem cobertura no dia UTC medido' };
-  const n = noDia.filter((event) => event.event === 'meo_interrupcao').length;
-  return { valor: n, porque: n + ' chamada(s) ao MEO registada(s) em ' + dia + ' UTC' };
+  return { dia, eventos: noDia };
+}
+
+function porqueInterrupcoes(valor, dia, divergenciasExcluidas) {
+  return valor + ' chamada(s) ao MEO registada(s) em ' + dia + ' UTC; exclui '
+    + divergenciasExcluidas + ' evento(s) motivo=divergencia porque o cross-check não interrompe o humano';
+}
+
+function interrupcoesNoDia(ledger, medidoEm) {
+  const { dia, eventos } = eventosNoDia(ledger, medidoEm);
+  if (!eventos.length) {
+    return { valor: null, divergenciasExcluidas: 0,
+      porque: 'o ledger não tem cobertura no dia UTC medido; divergências excluídas: n/d' };
+  }
+  const interrupcoes = eventos.filter((event) => event.event === 'meo_interrupcao');
+  const divergenciasExcluidas = interrupcoes.filter((event) => event.motivo === 'divergencia').length;
+  const valor = interrupcoes.length - divergenciasExcluidas;
+  return { valor, divergenciasExcluidas, porque: porqueInterrupcoes(valor, dia, divergenciasExcluidas) };
+}
+
+function divergenciasNoDia(ledger, medidoEm) {
+  const { dia, eventos } = eventosNoDia(ledger, medidoEm);
+  if (!eventos.length) {
+    return { valor: null,
+      porque: 'jobs com divergências: n/d; soma de divergencias_count: n/d — o ledger não tem cobertura no dia UTC medido' };
+  }
+  const crossChecks = eventos.filter((event) => {
+    const count = numero(event && event.divergencias_count);
+    return event && event.event === 'cross_check' && count != null && count > 0;
+  });
+  if (crossChecks.length) {
+    const jobsComId = new Set(crossChecks.map((event) => event.job_id).filter(Boolean));
+    const jobs = jobsComId.size || crossChecks.length;
+    const soma = crossChecks.reduce((total, event) => total + numero(event.divergencias_count), 0);
+    return { valor: jobs, porque: jobs + ' job(s) com divergências em ' + dia
+      + ' UTC; soma de divergencias_count: ' + soma };
+  }
+  const sinais = eventos.filter((event) => event.event === 'meo_interrupcao' && event.motivo === 'divergencia');
+  return { valor: sinais.length, porque: sinais.length + ' job(s) sinalizado(s) por motivo=divergencia em ' + dia
+    + ' UTC; soma de divergencias_count: n/d — não há eventos cross_check medidos no dia' };
 }
 
 function jaTemInterrupcaoHojeParaMetrica(ledger, metrica, medidoEm) {
@@ -320,6 +360,7 @@ function construir(ledger, quotaState, gpuState, opts) {
   const recuperacoes = temposRecuperacao(ledger);
   const keep = keepRate(records, o);
   const chamadasMeo = interrupcoesNoDia(ledger, medidoEm);
+  const divergencias = divergenciasNoDia(ledger, medidoEm);
   const custos = entregues.map((r) => numero(r.cost_usd)).filter((v) => v != null);
   const costsMeasured = custos.length;
   const costsMissing = entregues.length - costsMeasured;
@@ -365,7 +406,11 @@ function construir(ledger, quotaState, gpuState, opts) {
     ),
     interrupcoes_por_dia: metrica(
       'interrupcoes_por_dia', chamadasMeo.valor, 'chamadas/dia UTC',
-      'seamless.ledgerRead · event=meo_interrupcao', medidoEm, faixas, chamadasMeo.porque,
+      'seamless.ledgerRead · event=meo_interrupcao · motivo!=divergencia', medidoEm, faixas, chamadasMeo.porque,
+    ),
+    divergencias_por_dia: metrica(
+      'divergencias_por_dia', divergencias.valor, 'jobs/dia UTC',
+      'seamless.ledgerRead · event=cross_check · jobs com divergencias_count>0', medidoEm, faixas, divergencias.porque,
     ),
     tempo_recuperacao_min: metrica(
       'tempo_recuperacao_min', arredondar(mediana(recuperacoes), 3), 'min (mediana)',
@@ -526,8 +571,9 @@ function finalizar(card, ledger, opts) {
     const anteriorValor = numero(item.valor);
     item.valor = (anteriorValor == null ? 0 : anteriorValor) + interrupcoesRegistadas;
     item.estado = item.valor >= item.faixa[0] && item.valor <= item.faixa[1] ? 'dentro' : 'fora';
-    item.porque = item.valor + ' chamada(s) ao MEO registada(s) em '
-      + String(card.gerado_em).slice(0, 10) + ' UTC; valor ' + item.valor
+    const contagem = interrupcoesNoDia(ledger || [], card.gerado_em);
+    item.porque = porqueInterrupcoes(item.valor, String(card.gerado_em).slice(0, 10), contagem.divergenciasExcluidas)
+      + '; valor ' + item.valor
       + (item.estado === 'dentro' ? ' dentro de ' : ' fora de ') + '[' + item.faixa.join(', ') + ']';
     if (item.estado === 'fora') item.fora_desde = item.fora_desde || card.gerado_em;
     card.ledger_eventos += interrupcoesRegistadas;

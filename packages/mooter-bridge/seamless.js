@@ -1761,7 +1761,7 @@ async function runCrossCheckForJob({ job_id, resultado, worktree, wave, agent, j
   if (Array.isArray(checked.divergencias) && checked.divergencias.length) {
     try {
       require('./board.js').registarInterrupcao({
-        motivo: 'divergencia', quem_pediu: 'fosso.crossCheck',
+        motivo: 'divergencia', quem_pediu: 'fosso.crossCheck', metrica: 'cross_check',
         o_que: 'job ' + job_id + ' produziu ' + checked.divergencias.length + ' divergência(s) verificável(eis)',
       });
     } catch { /* a verificação continua; o contador ficará n/d se o append falhar */ }

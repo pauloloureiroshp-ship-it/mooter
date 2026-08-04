@@ -184,6 +184,15 @@ test('done histórico sem exit_code é indeterminado, nunca entrega presumida', 
   assert.strictEqual(aprender.classificarDesfecho({ event: 'done', exit_code: 0 }), 'entregue');
 });
 
+test('aprovação pendente e cancelamento pelo utilizador contam como interrupções', () => {
+  assert.strictEqual(aprender.classificarDesfecho({
+    event: 'nao_verificado', exit_code: 'agent-awaiting-approval',
+  }), 'interrompido');
+  assert.strictEqual(aprender.classificarDesfecho({
+    event: 'failed', exit_code: 'cancelled-by-user',
+  }), 'interrompido');
+});
+
 test('keep rate medido usa o commit seguinte e o diff --stat actual', () => {
   const calls = [];
   const result = aprender.measureKeepRate({

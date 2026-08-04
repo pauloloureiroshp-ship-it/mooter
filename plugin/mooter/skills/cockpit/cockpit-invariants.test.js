@@ -79,6 +79,30 @@ function sourceApi(windowValue, fetchImpl) {
   return ctx.window.__cockpitSourceApi;
 }
 
+function livePreviewApi(windowValue, documentValue) {
+  const start = html.indexOf('const LP =');
+  const detect = grab('lpDetect');
+  const detectAt = html.indexOf(detect, start);
+  if (start < 0 || detectAt < start) throw new Error('bloco do detector de Live Preview ausente');
+  const ctx = {
+    window: windowValue || {},
+    document: documentValue || {},
+    renderLP: () => {},
+    setTimeout: () => 0,
+    clearTimeout: () => {},
+    console,
+  };
+  vm.createContext(ctx);
+  vm.runInContext(
+    grab('literalError') + '\n' + grab('unwrapMcp') + '\nasync ' + grab('callBridgeNamed') + '\n'
+      + html.slice(start, detectAt + detect.length)
+      + '\nwindow.__cockpitLpApi = { state:LP, detect:lpDetect };',
+    ctx,
+    { timeout: 5000 },
+  );
+  return ctx.window.__cockpitLpApi;
+}
+
 bloco('sintaxe — um painel que não parseia não mostra nada', () => {
   const re = /<script(?:[^>]*)>([\s\S]*?)<\/script>/g;
   let m, i = 0, mau = 0;
@@ -302,12 +326,80 @@ bloco('live preview · bloco próprio e sem promessas a mais', () => {
   t('tem render próprio', /function renderLP\(\)/.test(html));
   t('nasce "não sondado", sem pulso a fingir trabalho',
     /const LP = \{ estado:'não sondado'/.test(html));
-  t('a sonda não executa nada do que carrega',
-    /f\.setAttribute\('sandbox',\s*''\)/.test(html),
-    'um serviço local hostil não pode correr no contexto do painel');
+  t('o iframe só aparece no render, não no detector',
+    !html.slice(html.indexOf('const LP ='), html.indexOf('function renderLP()')).includes('createElement(\'iframe\')'),
+    'o iframe é ecrã; onload nunca pode voltar a ser prova de que uma porta está viva');
   t('declara o que NÃO faz face ao editor',
     /click-to-code/.test(html) && /lp-gap/.test(html),
     'um preview que promete o que não entrega é pior do que não haver preview');
+});
+
+bloco('live preview · connector escolhe a candidata de maior peso', async () => {
+  let chamada = null;
+  const api = livePreviewApi({
+    cowork: { callMcpTool: async (name, args) => {
+      chamada = { name, args };
+      return { structuredContent:{
+        candidatas:[
+          { url:'http://localhost:3000', porta:3000, peso:10, confianca:'baixa' },
+          { url:'http://localhost:5173', porta:5173, peso:100, confianca:'alta' },
+        ],
+        escolhida:{ url:'http://localhost:3000', porta:3000, peso:10, confianca:'baixa' },
+        sondadas:2,
+        portas:[3000,5173],
+        nota:'duas candidatas medidas',
+      } };
+    } },
+  });
+  await api.detect();
+  t('chama a tool de preview pela ponte', chamada && chamada.name === 'mooter_ui_preview', chamada && chamada.name);
+  t('fica aberto pela medição do connector', api.state.estado === 'aberto' && api.state.fonte === 'connector');
+  t('não confia numa escolhida pior: usa o maior peso', api.state.url === 'http://localhost:5173', api.state.url);
+  t('leva a confiança da escolhida', api.state.confianca === 'alta', api.state.confianca);
+});
+
+bloco('live preview · recusa app-only fica literal e não vira falso estado', async () => {
+  const recusa = "visibility:['app'] recusada pelo host";
+  const api = livePreviewApi({
+    cowork: { callMcpTool: async () => { throw new Error(recusa); } },
+  });
+  await api.detect();
+  t('recusa deixa o estado não medível', api.state.estado === 'não medível', api.state.estado);
+  t('mensagem literal da recusa fica no estado', String(api.state.porque).includes(recusa), api.state.porque);
+});
+
+bloco('live preview · snapshot é a única segunda fonte', async () => {
+  const api = livePreviewApi({ __MOOTER_SNAPSHOT__:{ preview:{
+    candidatas:[{ url:'http://localhost:4321', porta:4321, peso:90, confianca:'alta' }],
+    sondadas:1,
+    portas:[4321],
+    nota:'snapshot mediu uma candidata',
+  } } });
+  await api.detect();
+  t('usa snapshot quando não há ponte', api.state.fonte === 'snapshot', api.state.fonte);
+  t('abre apenas a URL medida no snapshot', api.state.estado === 'aberto' && api.state.url === 'http://localhost:4321');
+});
+
+bloco('live preview · sem connector nem snapshot não inventa medição', async () => {
+  const api = livePreviewApi({});
+  await api.detect();
+  t('estado é não medível', api.state.estado === 'não medível', api.state.estado);
+  t('não chama desconhecido de aberto nem fechado', api.state.estado !== 'aberto' && api.state.estado !== 'fechado');
+});
+
+bloco('live preview · iframe onload numa porta morta nunca abre', async () => {
+  let criados = 0;
+  const documento = {
+    createElement: () => {
+      criados++;
+      return { style:{}, setAttribute:()=>{}, remove:()=>{}, onload:null, onerror:null };
+    },
+    body:{ appendChild:(frame) => { if (frame.onload) frame.onload(); } },
+  };
+  const api = livePreviewApi({}, documento);
+  await api.detect();
+  t('onload não produz estado aberto', api.state.estado !== 'aberto', api.state.estado);
+  t('o detector nem cria iframe', criados === 0, criados + ' iframe(s) criado(s)');
 });
 
 bloco('tour · 🎓 por bloco, para quem já sabe', () => {
@@ -643,6 +735,11 @@ bloco('snapshot · gerador idempotente e seguro para </script>', async () => {
       }
     },
     readSetup:async () => ({ resumo:'', contexto:{ project:'frugal' } }),
+    readPreview:async () => ({
+      candidatas:[{ url:'http://localhost:5173', porta:5173, peso:100, confianca:'alta' }],
+      escolhida:{ url:'http://localhost:5173', porta:5173, peso:100, confianca:'alta' },
+      sondadas:1, portas:[5173], nota:'preview de teste',
+    }),
   };
   try {
     await builder.generateSnapshot(options);
