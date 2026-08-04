@@ -610,12 +610,39 @@ bloco('snapshot · gerador idempotente e seguro para </script>', async () => {
   const output = path.join(temp, 'dist', 'cockpit-snapshot.html');
   const fixture = '<!doctype html><html><body><script>window.main=true;</script></body></html>';
   fs.writeFileSync(source, fixture, 'utf8');
+  const repoPathForTest = path.resolve(__dirname, '..', '..', '..', '..');
   const options = {
     sourcePath:source, outputPath:output, now:new Date('2026-08-04T13:30:00Z'), logger:() => {},
-    readView:async (view) => view === 'jobs'
-      ? { danger:'</script><script>window.broken=true</script>' }
-      : { view },
-    readSetup:async () => ({ contexto:{ project:'Mooter' } }),
+    readView:async (view) => {
+      switch (view) {
+        case 'jobs':
+          return {
+            resumo:'',
+            jobs:[{ job_id:'job-teste-0001', state:'done', exit_code:0, goal:'test', danger:'</script><script>window.broken=true</script>' }],
+            totais:{ cost_usd:{valor:0}, jobs_cloud:{valor:1} }
+          };
+        case 'board':
+          return {
+            resumo:'',
+            scorecard:{
+              metricas:{
+                entregas_por_dia:{ valor:1, unidade:'x', estado:'dentro' }
+              }
+            }
+          };
+        case 'pastas':
+          return {
+            repo:repoPathForTest,
+            total:1,
+            pastas:[{ nome:'frugal', ocupada:false }]
+          };
+        case 'recibo':
+          return { ok:true };
+        default:
+          return { view };
+      }
+    },
+    readSetup:async () => ({ resumo:'', contexto:{ project:'frugal' } }),
   };
   try {
     await builder.generateSnapshot(options);

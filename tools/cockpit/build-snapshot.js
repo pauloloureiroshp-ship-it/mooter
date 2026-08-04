@@ -2,6 +2,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const REPO = path.resolve(__dirname, '..', '..');
@@ -10,6 +11,7 @@ const OUTPUT = path.join(REPO, 'dist', 'cockpit-snapshot.html');
 const VIEWS = ['jobs', 'board', 'recibo', 'pastas'];
 const SNAPSHOT_BEGIN = '<!-- MOOTER_SNAPSHOT:BEGIN -->';
 const SNAPSHOT_END = '<!-- MOOTER_SNAPSHOT:END -->';
+const REPORTED_VIEWS = [...VIEWS, 'setup'];
 
 function literalError(error) {
   return String((error && error.message) || error || 'erro sem mensagem');
@@ -40,6 +42,98 @@ function injectSnapshot(html, snapshot) {
     + '<script>window.__MOOTER_SNAPSHOT__ = ' + scriptSafeJson(snapshot) + ';</script>\n'
     + SNAPSHOT_END + '\n';
   return clean.slice(0, scriptAt) + block + clean.slice(scriptAt);
+}
+
+function jobIds(view) {
+  const jobs = view && Array.isArray(view.jobs) ? view.jobs : [];
+  return jobs.map((job) => {
+    if (typeof job === 'string') return job;
+    return job && (job.job_id || job.id);
+  }).filter(Boolean);
+}
+
+function totalIsEmpty(total) {
+  if (total == null) return true;
+  if (typeof total !== 'object' || Array.isArray(total)) return total == null;
+  if (!Object.prototype.hasOwnProperty.call(total, 'valor')) return false;
+  if (total.valor == null) return true;
+  return total.valor === 0 && Number(total.jobs_medidos) === 0;
+}
+
+function boardMetrics(view) {
+  const scorecard = view && view.scorecard;
+  const metrics = (scorecard && scorecard.metricas) || (view && view.metricas);
+  return metrics && typeof metrics === 'object' && !Array.isArray(metrics) ? metrics : {};
+}
+
+function metricHasValue(metric) {
+  if (metric == null) return false;
+  if (typeof metric !== 'object' || Array.isArray(metric)) return true;
+  return Object.prototype.hasOwnProperty.call(metric, 'valor') && metric.valor != null;
+}
+
+function folderCount(view) {
+  return view && Array.isArray(view.pastas) ? view.pastas.length : 0;
+}
+
+function isInsideRepo(repoPath, ownRepo) {
+  if (typeof repoPath !== 'string' || !repoPath.trim()) return false;
+  const relative = path.relative(path.resolve(ownRepo), path.resolve(repoPath));
+  return relative === '' || (!relative.startsWith('..' + path.sep)
+    && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function emptyViews(snapshot, ownRepo = REPO) {
+  const totals = snapshot.jobs && snapshot.jobs.totais;
+  const totalValues = totals && typeof totals === 'object' ? Object.values(totals) : [];
+  const metrics = Object.values(boardMetrics(snapshot.board));
+  const findings = [];
+
+  if (jobIds(snapshot.jobs).length === 0 && totalValues.every(totalIsEmpty)) {
+    findings.push({
+      view: 'jobs',
+      reason: 'nenhum id de job e totais sem medição (null ou zero sem jobs medidos)',
+    });
+  }
+  if (metrics.filter(metricHasValue).length === 0) {
+    findings.push({ view: 'board', reason: 'scorecard sem métricas com valor não-null' });
+  }
+  if (!isInsideRepo(snapshot.pastas && snapshot.pastas.repo, ownRepo)) {
+    findings.push({
+      view: 'pastas',
+      reason: 'repo fora do directório do gerador: '
+        + String((snapshot.pastas && snapshot.pastas.repo) || 'n/d'),
+    });
+  }
+  if (!snapshot.setup || snapshot.setup.contexto == null) {
+    findings.push({ view: 'setup', reason: 'contexto null' });
+  }
+  return findings;
+}
+
+function markEmptyView(snapshot, finding) {
+  const current = snapshot[finding.view];
+  snapshot[finding.view] = current && typeof current === 'object' && !Array.isArray(current)
+    ? { ...current, vazia: true, motivo: finding.reason }
+    : { valor: current == null ? null : current, vazia: true, motivo: finding.reason };
+}
+
+function viewReport(name, value) {
+  const bytes = Buffer.byteLength(JSON.stringify(value == null ? null : value), 'utf8');
+  let signal;
+  if (name === 'jobs') signal = jobIds(value).length + ' ids';
+  else if (name === 'board') {
+    signal = Object.values(boardMetrics(value)).filter(metricHasValue).length + ' métricas com valor';
+  } else if (name === 'pastas') signal = folderCount(value) + ' pastas';
+  else if (name === 'setup') signal = 'contexto=' + (value && value.contexto != null ? 'sim' : 'não');
+  else signal = Object.keys(value && typeof value === 'object' ? value : {}).length + ' campos';
+  return {
+    name,
+    bytes,
+    signal,
+    empty: !!(value && value.vazia),
+    reason: value && value.motivo,
+  };
 }
 
 function defaultReaders() {
@@ -87,22 +181,48 @@ async function generateSnapshot(options = {}) {
     snapshot.setup = { erro: literalError(error) };
   }
 
+  const resolvedHome = options.homeDir || os.homedir();
+  const mooterHome = options.mooterHome || process.env.MOOTER_HOME
+    || path.join(resolvedHome, '.mooter');
+  const findings = emptyViews(snapshot, options.repoPath || REPO);
+  if (findings.length >= 2) {
+    throw new Error('vistas vazias: ' + findings.map((item) => item.view).join(', ')
+      + ' · HOME resolvido: ' + resolvedHome
+      + ' · .mooter tentado: ' + mooterHome
+      + ' · snapshot NÃO escrito — uma fotografia vazia lê-se como facto');
+  }
+  if (findings.length === 1) markEmptyView(snapshot, findings[0]);
+
   const source = fs.readFileSync(sourcePath, 'utf8');
   const rendered = injectSnapshot(source, snapshot);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, rendered, 'utf8');
   const bytes = Buffer.byteLength(rendered, 'utf8');
-  const line = 'cockpit snapshot: ' + bytes + ' bytes · ' + iso + ' · '
-    + successes + '/' + VIEWS.length + ' views read';
-  (options.logger || console.log)(line);
-  return { outputPath, bytes, instant: iso, successes, total: VIEWS.length, snapshot };
+  const reports = REPORTED_VIEWS.map((name) => viewReport(name, snapshot[name]));
+  const logger = options.logger || console.log;
+  for (const report of reports) {
+    logger('cockpit snapshot · ' + report.name + ': ' + report.bytes + ' bytes · '
+      + report.signal + (report.empty ? ' · VAZIA: ' + report.reason : ''));
+  }
+  logger('cockpit snapshot escrito: ' + bytes + ' bytes · ' + iso + ' · ' + outputPath);
+  return {
+    outputPath, bytes, instant: iso, successes, total: VIEWS.length, snapshot,
+    reports, emptyViews: findings,
+  };
+}
+
+async function runCli(options = {}) {
+  try {
+    await generateSnapshot(options);
+    return 0;
+  } catch (error) {
+    (options.errorLogger || console.error)('cockpit snapshot failed: ' + literalError(error));
+    return 1;
+  }
 }
 
 if (require.main === module) {
-  generateSnapshot().catch((error) => {
-    console.error('cockpit snapshot failed: ' + literalError(error));
-    process.exitCode = 1;
-  });
+  runCli().then((code) => { process.exitCode = code; });
 }
 
 module.exports = {
@@ -110,8 +230,12 @@ module.exports = {
   injectSnapshot,
   stripSnapshotBlocks,
   scriptSafeJson,
+  emptyViews,
+  viewReport,
+  runCli,
   SNAPSHOT_BEGIN,
   SNAPSHOT_END,
   SOURCE,
   OUTPUT,
+  REPO,
 };

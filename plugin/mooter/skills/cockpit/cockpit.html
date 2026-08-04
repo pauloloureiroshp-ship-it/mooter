@@ -6882,6 +6882,25 @@ function mdLite(src){
 function sonda(fn, def){ try{ const v = fn(); return (v===undefined||v===null) ? def : v; }catch(e){ return def; } }
 const S = () => (typeof state !== 'undefined' && state) ? state : {};
 
+/* A cascata do codex (loadAll) regista qual das 3 fontes venceu.
+   O Moo TEM de a ler: em modo snapshot, dizer "agora" sobre um número
+   congelado é a mesma mentira que o painel existe para matar. */
+function fonteActiva(){
+  const src = sonda(() => S().source, null);
+  const at  = sonda(() => S().sourceAt, null);
+  const falhas = sonda(() => S().sourceFailures, null);
+  if (src === 'snapshot'){
+    const q = at ? new Date(at) : null;
+    const hh = q && !isNaN(q) ? q.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : null;
+    return { k:'snapshot', quando: hh, rot: hh ? 'fotografia de ' + hh : 'fotografia congelada',
+             prefixo: hh ? 'na fotografia de ' + hh + ':' : 'na fotografia:' };
+  }
+  if (src) return { k:'vivo', fonte: src, rot: src + ' · leitura viva', prefixo: 'agora:' };
+  if (falhas && (Array.isArray(falhas) ? falhas.length : Object.keys(falhas).length))
+    return { k:'falhou', rot:'nenhuma das fontes respondeu', prefixo:'sem leitura:' };
+  return { k:'a-ler', rot:'ainda a escolher a fonte', prefixo:'sem leitura:' };
+}
+
 function fundo(caminho){                   // procura um caminho pontuado nas 4 vistas
   const partes = caminho.split('.');
   for (const v of ['jobs','board','recibo','pastas']){
@@ -6923,13 +6942,15 @@ function pendencias(){ return presos().length + excepcoes().length; }
 function ctasVivos(entry){
   const cs = [];
   const gancho = entry && entry.live;
+  const F = fonteActiva();
+  const AG = F.prefixo;   // "agora:" só quando a leitura é mesmo viva
 
   if (gancho === 'stalled'){
     const ps = presos();
     if (ps.length){
       const j = ps[0];
       const jid = (j && (j.job_id || j.id)) || '';
-      cs.push({ t:'focus', alvo:'cycEl', label:'▤ ver o log — ' + ps.length + ' preso(s) agora' });
+      cs.push({ t:'focus', alvo:'cycEl', label:'▤ ver o log — ' + ps.length + ' preso(s) ' + (F.k==='snapshot' ? 'na fotografia' : 'agora') });
       if (jid) cs.push({ t:'copy', label:'📋 prompt para destravar ' + jid.slice(0,18),
         txt:'📥 COLAR EM: Claude Code · sessão FRESCA na pasta do projecto\n\n'
           + 'O job `' + jid + '` está em `running` mas não avança (suspeita: agent-awaiting-approval, ou registo preso).\n'
@@ -6945,7 +6966,7 @@ function ctasVivos(entry){
     const m = metrica('trabalho_zero_pct');
     if (m && m.valor != null){
       const fora = m.estado === 'fora';
-      cs.push({ t:'nota', label:(fora?'⚠ ':'✓ ') + 'agora: ' + m.valor + '% · ' + (m.porque||'') });
+      cs.push({ t:'nota', label:(fora?'⚠ ':'✓ ') + AG + ' ' + m.valor + '% · ' + (m.porque||'') });
       if (fora) cs.push({ t:'ask', label:'→ porque é que o local não pega?', alvo:'prep-circuit-breaker' });
     } else {
       cs.push({ t:'nota', label:'◌ n/d — o board ainda não respondeu nesta sessão' });
@@ -6956,7 +6977,7 @@ function ctasVivos(entry){
     const g = fundo('gpu');
     if (g && g.live){
       const v = g.headroom && g.headroom.verdict;
-      cs.push({ t:'nota', label:'agora: ' + (g.name||'GPU') + ' · ' + g.live.util_pct + '% util · '
+      cs.push({ t:'nota', label:AG + ' ' + (g.name||'GPU') + ' · ' + g.live.util_pct + '% util · '
         + (g.headroom && g.headroom.free_mb != null ? g.headroom.free_mb + ' MB livres' : '◌ n/d')
         + (v ? ' · ' + v : '') });
     } else cs.push({ t:'nota', label:'◌ n/d — sem leitura de GPU nesta sessão' });
@@ -6965,7 +6986,7 @@ function ctasVivos(entry){
   if (gancho === 'quota'){
     const q = metrica('pressao_quota');
     if (q) cs.push({ t:'nota', label: q.valor != null
-      ? 'agora: pressão ' + q.valor + ' · ' + (q.estado||'')
+      ? AG + ' pressão ' + q.valor + ' · ' + (q.estado||'')
       : '◌ n/d — ' + (q.porque||'sem medição') });
   }
 
@@ -7099,14 +7120,26 @@ function perguntar(txt){
 /* ---------- 8. ecrã inicial ---------- */
 function estadoVivo(){
   const js = jobsVivos(), ps = presos(), xs = excepcoes();
+  const F = fonteActiva();
   const semDados = !js.length && !xs.length && !fundo('scorecard');
   if (semDados){
-    return '<div class="moo-live"><span class="lk">esta sessão</span>'
-      + '◌ ainda sem leitura do conector — carrega em <b>Refresh</b> no topo do Cockpit e volta cá.</div>';
+    /* ⚠️ A 1ª versão dizia sempre "sem leitura — carrega em Refresh".
+       Com a cascata de 3 fontes isso passou a ser falso de duas maneiras:
+       o painel pode estar AINDA a escolher a fonte, e em modo snapshot
+       ele LEU (de uma fotografia) — mandar carregar em Refresh não ajuda
+       e faz o utilizador procurar um problema que não existe. */
+    const msg = F.k === 'a-ler'
+      ? '◌ o painel ainda está a escolher a fonte — volta num instante.'
+      : (F.k === 'snapshot'
+          ? '◌ ' + F.rot + ' sem jobs na janela. Não é falta de leitura: é o que a fotografia tinha.'
+          : '◌ nenhuma das três fontes respondeu (bridge · http · snapshot). '
+            + 'Se acabaste de republicar o artifact, os grants do conector foram limpos — '
+            + 're-autoriza o conector no cartão do artifact.');
+    return '<div class="moo-live"><span class="lk">esta sessão</span>' + msg + '</div>';
   }
   const custo = sonda(() => fundo('totals.cost_usd').valor, null);
   const tz = metrica('trabalho_zero_pct');
-  let h = '<div class="moo-live"><span class="lk">esta sessão, agora</span>';
+  let h = '<div class="moo-live"><span class="lk">esta sessão · ' + E(F.rot) + '</span>';
   h += '<b>' + js.length + '</b> job(s) na janela';
   h += ' · ' + (ps.length ? '<b class="bad">' + ps.length + ' preso(s)</b>' : '<span class="ok">0 presos</span>');
   if (custo != null) h += ' · <b>$' + Number(custo).toFixed(4) + '</b>';
@@ -7259,7 +7292,18 @@ function arrancar(){
 
   // o ponto vermelho segue o painel: repinta quando os dados mudarem
   pintarPonto();
-  setInterval(() => { try{ pintarPonto(); if (MOO.aberto && !MOO.turnos) inicial(); }catch(e){} }, 6000);
+  /* A cascata pode demorar (HTTP tenta 2-3 portas a 1500 ms cada). Se o painel
+     abrir antes de os dados chegarem, o ecrã inicial fica com "a escolher a fonte"
+     para sempre. Repinta em passos curtos no primeiro minuto, depois abranda. */
+  let ticks = 0;
+  setInterval(() => {
+    try{
+      pintarPonto();
+      ticks++;
+      const rapido = ticks <= 30;                       // ~60 s a 2 s
+      if (MOO.aberto && !MOO.turnos && (rapido || ticks % 3 === 0)) inicial();
+    }catch(e){}
+  }, 2000);
 
   window.__moo = MOO;   // superfície de teste; não é usada pelo painel
 }
