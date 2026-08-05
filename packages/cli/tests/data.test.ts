@@ -6,14 +6,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runData } from "../src/commands/data.ts";
 
+// HOME alone is NOT isolation on Windows — os.homedir() reads USERPROFILE and
+// ignored it, so on 2026-08-05 the delete-all test below wiped the real
+// ~/.mooter (232 ledger events) and ~/.claude/tools/router/decisions.log.
+// MOOTER_HOME and MOOTER_CLAUDE_DIR are the mechanisms the code under test
+// honours; HOME stays for the POSIX read paths.
 function withHome<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = process.env.HOME;
+  const prev: Record<string, string | undefined> = {
+    HOME: process.env.HOME,
+    MOOTER_HOME: process.env.MOOTER_HOME,
+    MOOTER_CLAUDE_DIR: process.env.MOOTER_CLAUDE_DIR,
+  };
   const home = mkdtempSync(join(tmpdir(), "mooter-data-"));
   mkdirSync(join(home, ".mooter"), { recursive: true });
   writeFileSync(join(home, ".mooter", "effort.json"), JSON.stringify({ mode: "high" }));
   process.env.HOME = home;
+  process.env.MOOTER_HOME = join(home, ".mooter");
+  process.env.MOOTER_CLAUDE_DIR = join(home, ".claude");
   return fn().finally(() => {
-    if (prev === undefined) delete process.env.HOME; else process.env.HOME = prev;
+    for (const k of Object.keys(prev)) {
+      if (prev[k] === undefined) delete process.env[k]; else process.env[k] = prev[k]!;
+    }
   });
 }
 

@@ -18,6 +18,16 @@ function mooterDir(home: string): string {
   return join(home, ".mooter");
 }
 
+// On Windows os.homedir() reads USERPROFILE and ignores HOME, so a caller that
+// "isolated" itself via HOME still aims this delete at the real ~/.mooter —
+// that is how the live ledger was wiped on 2026-08-05. MOOTER_HOME (the same
+// contract every mooter-bridge test uses) is the isolation mechanism here;
+// an explicit opts.home still wins.
+function stateDir(opts: { home?: string }): string {
+  if (opts.home) return mooterDir(opts.home);
+  return process.env.MOOTER_HOME || mooterDir(homedir());
+}
+
 /**
  * Delete everything under ~/.mooter (+ the router decisions.log, if given).
  * @param opts.confirm  must be true to actually delete (else dry-run report)
@@ -26,8 +36,7 @@ function mooterDir(home: string): string {
  * @param opts.dryRun   force a listing without deletion
  */
 export function deleteAll(opts: { confirm?: boolean; home?: string; decisionsLog?: string; dryRun?: boolean } = {}): DeleteResult {
-  const home = opts.home ?? homedir();
-  const dir = mooterDir(home);
+  const dir = stateDir(opts);
   const dryRun = opts.dryRun || !opts.confirm;
 
   const targets: string[] = [];
