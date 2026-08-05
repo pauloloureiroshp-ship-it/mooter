@@ -1633,7 +1633,7 @@ const TOOLS = [
       },
       additionalProperties: false,
     },
-    annotations: { title: 'Mooter fleet', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · fleet and receipts', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     _meta: {
       ui: { resourceUri: UI_URI, visibility: ['model', 'app'] },
       // deprecated flat key — kept for hosts that shipped before 2026-01-26
@@ -1656,7 +1656,7 @@ const TOOLS = [
       },
       additionalProperties: false,
     },
-    annotations: { title: 'Bind the Cowork session', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · bind this session', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolSessionBind,
   },
 ];

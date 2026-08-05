@@ -24,6 +24,28 @@ for (const t of seam.TOOLS) {
   if (!base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
 }
 
+/**
+ * ⚠️ AS TOOLS DO PAINEL TÊM DE SER REGISTADAS AQUI TAMBÉM.
+ *
+ * Estavam só no `server-apps.js`. Mas o `claude_desktop_config.json` arranca
+ * **este** ficheiro — `server-seamless.js` — e este só carrega `server.js` e
+ * `seamless.js`. Resultado: o painel do Cowork pedia `mooter_ui_mapa` a um
+ * servidor que nunca ouvira falar dela, e a resposta era indistinguível de
+ * "a funcionalidade não existe".
+ *
+ * Custou duas horas a encontrar, e a razão foi eu procurar o conector numa
+ * pasta de extensões que **não existe** nesta máquina: o Desktop corre-o
+ * directamente do repo. Registar nos dois pontos de entrada custa quatro
+ * linhas; assumir qual deles está vivo custou a noite.
+ *
+ * `visibility:['app']` mantém-se — o modelo continua a não as ver.
+ */
+const probe = require('./probe.js');
+const trilhaTool = require('./trilha-tool.js');
+for (const t of [probe.TOOL, probe.TOOL_DESCOBRIR, probe.TOOL_UPDATE, probe.TOOL_MAPA, trilhaTool.TOOL]) {
+  if (t && !base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
+}
+
 function log(...a) { try { process.stderr.write('[mooter-bridge v0.2] ' + a.join(' ') + '\n'); } catch { /* */ } }
 function send(msg) { try { process.stdout.write(JSON.stringify(msg) + '\n'); } catch (e) { log('send fail', (e && e.message) || ''); } }
 

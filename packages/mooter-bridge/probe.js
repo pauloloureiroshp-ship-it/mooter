@@ -103,9 +103,9 @@ function estado() {
  */
 const TOOL = {
   name: 'mooter_ui_probe',
-  description: 'Interno ao painel: regista o que o host permitiu (iframe externo, fetch, modo de apresentação). Não é para o modelo chamar.',
+  description: 'Panel-internal: records what the host allowed (external iframe, fetch, presentation mode). Not for the model to call.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: true },
-  annotations: { title: 'Sonda do painel', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  annotations: { title: '🐄 Mooter · live preview · host probe', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   _meta: { ui: { visibility: ['app'] } },
   handler: async (args) => guardar(args),
 };
@@ -120,7 +120,7 @@ const TOOL = {
  */
 const TOOL_DESCOBRIR = {
   name: 'mooter_ui_preview',
-  description: 'Interno ao painel: procura o servidor de desenvolvimento do utilizador em 127.0.0.1 e devolve os candidatos. Não é para o modelo chamar.',
+  description: 'Panel-internal: probes 127.0.0.1 for the dev server of this session and returns the candidates. Not for the model to call.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -131,7 +131,7 @@ const TOOL_DESCOBRIR = {
     },
     additionalProperties: false,
   },
-  annotations: { title: 'Procurar a app local', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  annotations: { title: '🐄 Mooter · live preview · find the app', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   _meta: { ui: { visibility: ['app'] } },
   handler: async (args) => {
     const preview = require('./preview.js');
@@ -193,7 +193,7 @@ function pastaDaSessao() {
  */
 const TOOL_UPDATE = {
   name: 'mooter_ui_update',
-  description: 'Interno ao painel: procura e instala uma versão mais recente do conector. Não é para o modelo chamar.',
+  description: 'Panel-internal: looks for a newer build of the connector and installs it. Not for the model to call.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -202,7 +202,7 @@ const TOOL_UPDATE = {
     },
     additionalProperties: false,
   },
-  annotations: { title: 'Actualizar o Mooter', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  annotations: { title: '🐄 Mooter · panel · update the connector', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   _meta: { ui: { visibility: ['app'] } },
   handler: async (args) => {
     const up = require('./update.js');
@@ -228,7 +228,7 @@ const TOOL_UPDATE = {
  */
 const TOOL_MAPA = {
   name: 'mooter_ui_mapa',
-  description: 'Interno ao painel: fotografa uma rota local e devolve, do mesmo carregamento, onde está cada elemento e de que linha de código veio. Não é para o modelo chamar.',
+  description: 'Panel-internal: screenshots one local route and returns, from that same load, where each element sits and which line of code it came from. Not for the model to call.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -240,7 +240,7 @@ const TOOL_MAPA = {
     required: ['url'],
     additionalProperties: false,
   },
-  annotations: { title: 'Mapa de elementos', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  annotations: { title: '🐄 Mooter · live preview · element map', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   _meta: { ui: { visibility: ['app'] } },
   handler: async (args) => {
     const a = args || {};

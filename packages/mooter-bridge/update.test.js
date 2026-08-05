@@ -534,7 +534,13 @@ test('U29 — REDE 5: reverter repoe o manifest na RAIZ, nao dentro de server/',
 test('U28 — o painel (probe.js) usa procurarAsync, não só a busca local', () => {
   const probe = require('./probe.js');
   const src = fs.readFileSync(path.join(__dirname, 'probe.js'), 'utf8');
-  const bloco = src.slice(src.indexOf("name: 'mooter_ui_update'"), src.indexOf("name: 'mooter_ui_update'") + 800);
+  /* ⚠️ A janela era 800 chars e partiu-se quando os títulos ganharam o prefixo
+     `🐄 Mooter · ` (2026-08-05): o handler saiu da fatia e o teste acusou uma
+     regressão que não existia. O invariante é sobre o HANDLER — a fatia vai
+     até ao fecho do descriptor, não até um número mágico. */
+  const inicio = src.indexOf("name: 'mooter_ui_update'");
+  const fim = src.indexOf("name: '", inicio + 1);
+  const bloco = src.slice(inicio, fim < 0 ? src.length : fim);
   assert.match(bloco, /procurarAsync/, 'o botão "procurar" do painel ficou preso à busca só-local');
   assert.ok(typeof probe.TOOL_UPDATE.handler === 'function');
 });

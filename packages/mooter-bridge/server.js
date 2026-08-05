@@ -186,14 +186,14 @@ const TOOLS = [
     name: 'mooter_sessions_list',
     description: 'List the live Claude Code sessions the Mooter cockpit sees, with honest status (working / needs_you / idle), git branch, open PR + CI stage, model, token usage, cost and savings. Read-only; data comes from ~/.claude logs + git/gh, null when unknown. Use to know at a glance what the agent fleet is doing and which sessions are waiting on the user.',
     inputSchema: { type: 'object', properties: { limit: { type: 'number', description: 'Max sessions to return (1-50, default 8), most-recent first.' } }, additionalProperties: false },
-    annotations: { title: 'List Mooter sessions', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · list live sessions', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolSessionsList,
   },
   {
     name: 'mooter_session_read',
     description: 'Read one Claude Code session in detail by id (full id or 8-char short id / prefix): title, status, working directory, git branch, open PR + CI stage, turns, tokens, cost and savings. Read-only. Use after mooter_sessions_list to inspect a specific session.',
     inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Session id (fullId or 8-char short id / prefix).' } }, required: ['id'], additionalProperties: false },
-    annotations: { title: 'Read a Mooter session', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · read one session', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolSessionRead,
   },
   {
@@ -205,7 +205,7 @@ const TOOLS = [
       cwd: { type: 'string', description: 'Optional working directory. Defaults to a fresh isolated temp dir. Pass a path only when the task must run in a specific repo/worktree.' },
       maxTurns: { type: 'number', description: 'Max agent turns (1-20, default 6).' },
     }, required: ['prompt'], additionalProperties: false },
-    annotations: { title: 'Run a headless Mooter agent', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    annotations: { title: '🐄 Mooter · run a headless agent', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolRun,
   },
 ];

@@ -42,14 +42,14 @@ const MARCADORES = {
   'afericao.js': ['avaliarResposta', 'resultadoDaAfericao'],
   // v1.23 — a Onda 1, parar a mentira
   'board.js': ['custo_total_usd', 'cobertura_custo_pct'],
-  'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify'],
-  'tools6.js': ['permissoes_diferenca', 'primeira_vez'],
+  'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify', '🐄 Mooter · '],
+  'tools6.js': ['permissoes_diferenca', 'primeira_vez', '🐄 Mooter · '],
   'server-apps.js': ['resourceUri'],
   // v1.24 — a ETA e o SYNC gerado
   'capacidades.js': ['mcp-capabilities.json', 'registarInitialize'],
   'eta.js': ['eta-index.json', 'MIN_OBSERVATIONS'],
   'estimativa.js': ['estimateJob', 'a-trabalhar'],
-  'fleet.js': ['etaBarModel', 'summarizeWorktrees'],
+  'fleet.js': ['etaBarModel', 'summarizeWorktrees', '🐄 Mooter · '],
   'fleet-ui.html': ['eta-track', 'fill_pct'],
   'sync.js': ['semHead'],
   'worktrees.js': ['total_bruto', 'suspeita'],
@@ -81,6 +81,19 @@ const MARCADORES = {
   'retry.js': ['GAUNTLET DE RETRY', 'lock-git-preso', 'gauntlet'],
   // v1.47 — terminal.js: definição única de terminalidade
   'terminal.js': ['TERMINAL_STATES', 'isTerminal'],
+  // v1.48 — a Trilha: quem trabalhou, quanto custou, onde ficou registo.
+  // `corrente` é a marca "estás aqui"; se desaparecer, o índice deixa de ter dono.
+  'trilha.js': ['lerHost', 'dosJobs', 'fundir', 'corrente'],
+  // A porta MCP da Trilha — registada nos DOIS entrypoints (trilha-tool.test.js
+  // prova o registo; aqui prova-se que a porta e a honestidade dos registos existem).
+  'trilha-tool.js': ['mooter_trilha', 'registos_fonte', 'corrente_indice_refere'],
+  // v1.48 — os títulos falam a língua do produto (inglês), com a marca à frente.
+  // O marcador é o prefixo literal nos MÓDULOS entregues: se um title o perder,
+  // a entrega regrediu. (`titulos.test.js` NÃO entra na entrega — o packer
+  // recusa entregas com ficheiros fora de FILES, e testes não se empacotam;
+  // a trava completa — 40 cp, sem acentos, léxico — vive lá na mesma.)
+  'probe.js': ['🐄 Mooter · live preview', 'mooter_ui_probe'],
+  'server.js': ['🐄 Mooter · ', 'mooter_sessions_list'],
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {

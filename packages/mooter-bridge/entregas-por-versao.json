@@ -80,5 +80,14 @@
     "board.js",
     "fleet.js",
     "seamless.js"
+  ],
+  "1.48": [
+    "trilha.js",
+    "trilha-tool.js",
+    "seamless.js",
+    "fleet.js",
+    "tools6.js",
+    "probe.js",
+    "server.js"
   ]
 }

@@ -3575,7 +3575,7 @@ const TOOLS = [
     name: 'mooter_route',
     description: 'Classify a task with the FROZEN Mooter router (tools/router/classify.js, read-only, <50ms, $0) and return {agent, tier, confidence, rationale}. Deterministic heuristics, no LLM call. Use before dispatching to pick the minimum viable tier.',
     inputSchema: { type: 'object', properties: { text: { type: 'string', description: 'The task/prompt text to classify.' } }, required: ['text'], additionalProperties: false },
-    annotations: { title: 'Route a task (Mooter classifier)', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · classify locally · <50ms · $0', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolRoute,
   },
   {
@@ -3592,7 +3592,7 @@ const TOOLS = [
       step: { type: 'string', description: 'Plan step id this job executes (see mooter_plan) — the step is marked running, then done/failed with who did it.' },
       handoff_from: { type: 'string', description: 'Job id whose result should be embedded into this masterprompt. Records a proven handoff chain in the ledger.' },
     }, required: ['agent', 'worktree', 'masterprompt', 'wave'], additionalProperties: false },
-    annotations: { title: 'Dispatch a headless Mooter job', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    annotations: { title: '🐄 Mooter · dispatch to the fleet', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolDispatch,
   },
   {
@@ -3602,14 +3602,14 @@ const TOOLS = [
       job_id: { type: 'string', description: 'Job id returned by mooter_dispatch.' },
       wave: { type: 'string', description: 'Wave id — returns every job in the wave.' },
     }, additionalProperties: false },
-    annotations: { title: 'Mooter job/wave status', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · job status', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolStatus,
   },
   {
     name: 'mooter_collect',
     description: 'Collect the result of a finished job: result text (CC json result / Codex last message / raw output), session id and cost when known. Results >100k chars come back as head+tail excerpt plus the full-file path. Idempotent — the `collected` ledger event is appended once.',
     inputSchema: { type: 'object', properties: { job_id: { type: 'string', description: 'Job id returned by mooter_dispatch.' } }, required: ['job_id'], additionalProperties: false },
-    annotations: { title: 'Collect a Mooter job result', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · collect the result', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolCollect,
   },
   {
@@ -3632,14 +3632,14 @@ const TOOLS = [
       allowedTools: { type: 'string', description: 'Override the permission list.' },
       context: { type: 'string', description: 'Extra context to inline in the masterprompt.' },
     }, required: ['goal'], additionalProperties: false },
-    annotations: { title: 'Mooter: just do this', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    annotations: { title: '🐄 Mooter · route to the right model', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolWork,
   },
   {
     name: 'mooter_worktrees',
     description: 'Where can work happen right now: every git worktree of this project with its branch and whether an agent is already using it. Two agents in the same folder corrupt each other, so the Mooter refuses to double-book — this tool is how you see the free ones without knowing anything about git. Read-only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    annotations: { title: 'Where work can happen', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · where work can run', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: async () => {
       const r = wt.list(REPO, activeJobsByWorktree);
       if (r.error) return r;
@@ -3657,7 +3657,7 @@ const TOOLS = [
       job_id: { type: 'string', description: 'Single job to wait for.' },
       timeout_s: { type: 'number', minimum: 5, maximum: 45, default: 30, description: 'Quanto tempo esperar, em segundos (5-45, default 30). O tecto é curto de propósito: uma espera longa faz o host derrubar a ligação e deixa o job órfão. Para esperar mais, chama outra vez com o mesmo job_id/wave.' },
     }, additionalProperties: false },
-    annotations: { title: 'Wait for a Mooter wave', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · await the wave', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolAwait,
   },
   {
@@ -3667,12 +3667,17 @@ const TOOLS = [
       job_id: { type: 'string', description: 'Job to cancel.' },
       sweep: { type: 'boolean', description: 'Close all orphaned jobs (no job_id needed).' },
     }, additionalProperties: false },
-    annotations: { title: 'Cancel a Mooter job', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · stop a job', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     handler: toolCancel,
   },
   {
     name: 'mooter_plan',
-    description: 'The steps of a wave, who executed each one, and how risky it is. Risk is inferred from the step text (push/merge/delete/deploy/secrets = alto; writes = médio; reads = baixo) and can be overridden. The fleet panel renders this as a checklist so the user sees what is mapped, what is running, what is done and by whom — without opening an IDE.',
+    /* ⚠️ Os níveis de risco NÃO são citados aqui de propósito: os valores do
+       enum (`baixo`/`médio`/`alto`) são o contrato da API e levam acento.
+       Citá-los na descrição punha PT no texto customer-facing; traduzi-los na
+       descrição mentia sobre o que a tool aceita. Ficam onde são verdade — no
+       inputSchema — e a descrição aponta para lá. */
+    description: 'The steps of a wave, who executed each one, and how risky it is. Risk is inferred from the step text (push/merge/delete/deploy/secrets is the top level, writes the middle one, reads the lowest) and can be overridden with `risk` — see its enum in the schema. The fleet panel renders this as a checklist, so the user sees what is mapped, what is running, what is done and by whom, without opening an IDE.',
     inputSchema: { type: 'object', properties: {
       wave: { type: 'string', description: 'Wave id.' },
       action: { type: 'string', enum: ['get', 'set', 'update'], description: 'get (default) | set (replace the steps) | update (move one step).' },
@@ -3685,7 +3690,7 @@ const TOOLS = [
       note: { type: 'string' },
       risk: { type: 'string', enum: ['baixo', 'médio', 'alto'] },
     }, required: ['wave'], additionalProperties: false },
-    annotations: { title: 'Mooter wave plan', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · the wave plan', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: toolPlan,
   },
   {
@@ -3700,7 +3705,7 @@ const TOOLS = [
       subfolder: { type: 'string', description: 'Override the destination folder.' },
       status_only: { type: 'boolean', description: 'Do not write; just report vault status.' },
     }, additionalProperties: false },
-    annotations: { title: 'Write to the vault', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: { title: '🐄 Mooter · write to the vault', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     handler: toolJournal,
   },
 ];

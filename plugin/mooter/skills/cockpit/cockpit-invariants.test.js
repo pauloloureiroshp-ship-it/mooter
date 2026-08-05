@@ -826,6 +826,109 @@ bloco('snapshot · gerador idempotente e seguro para </script>', async () => {
   }
 });
 
+/* ══════════════════════════════════════════════════════════════════════════
+   TRILHA — os três invariantes da wave trilha-thread (2026-08-05).
+   O componente HTML da Trilha entra numa wave futura; estes blocos prendem
+   JÁ as funções do cockpit de que ele vai depender, porque cada um destes
+   três contratos já foi violado uma vez neste produto:
+     (a) `soma || null` — cadeia local somava $0 e o painel dizia "custo n/d"
+         sobre o número mais importante que o produto tem para mostrar;
+     (b) contagens de vivos calculadas em dois sítios divergem à primeira
+         pressa — o aviso diz 2 e a marca anima 3;
+     (c) renderLog desenhava a ordem CRUA e openDrawer indexava a ORDENADA —
+         clicavas no job A e abria o job B (auditoria Fable 5, 2026-08-04).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+bloco('trilha (a) · custo zero MEDIDO nunca aparece como n/d', () => {
+  const ctx = { console };
+  vm.createContext(ctx);
+  vm.runInContext(
+    'const esc = (s) => String(s == null ? "" : s);\n'
+    + grab('fv') + '\n' + grab('fmtCost') + '\n' + grab('ndChip') + '\n' + grab('valOrNd') + '\n'
+    + 'globalThis.fv = fv; globalThis.fmtCost = fmtCost; globalThis.valOrNd = valOrNd;', ctx);
+  /* A doença exacta: `0` é falsy, e qualquer `||` no caminho transforma
+     medido-zero em não-medido. fv() é a única porta — se ela segura o 0,
+     nenhuma vista a jusante o perde. */
+  t('fv({valor:0}) é MEDIDO, não buraco', ctx.fv({ valor: 0, porque: 'soma da cadeia local' }).has === true,
+    'medido-zero e não-medido são estados diferentes; um `||` algures fundiu-os');
+  t('fv(0) cru também é medido', ctx.fv(0).has === true);
+  t('fv({valor:null}) continua buraco declarado', ctx.fv({ valor: null, porque: 'x' }).has === false,
+    'a correcção do zero não pode abrir a porta ao contrário: null a passar por medição');
+  t('fmtCost(0) escreve $0, não $0.000', ctx.fmtCost(0) === '$0',
+    'devolveu ' + JSON.stringify(ctx.fmtCost(0)));
+  const rendZero = ctx.valOrNd({ valor: 0, porque: 'medido' }, ctx.fmtCost);
+  t('a linha renderizada de custo 0 diz $0', rendZero.includes('$0') && !/n\/d/.test(rendZero),
+    'saiu: ' + rendZero);
+  const rendNull = ctx.valOrNd({ valor: null, porque: 'sem cost_usd' }, ctx.fmtCost, 'cost n/d');
+  t('e a de custo ausente diz n/d com o porquê', /n\/d/.test(rendNull) && rendNull.includes('sem cost_usd'),
+    'saiu: ' + rendNull);
+});
+
+bloco('trilha (b) · a contagem de vivos é UMA — o aviso e as marcas leem da mesma', () => {
+  /* chainMarks produz DUAS coisas: o número no tooltip («N a trabalhar agora»)
+     e as marcas animadas (markHtml(j, live)). Se alguma vez vierem de
+     predicados diferentes, divergem. Prova funcional: com o realState
+     controlado, o número do tooltip TEM de ser igual às marcas vivas — nos
+     dois cenários, para provar que mexer num mexe no outro. */
+  const corre = (estados) => {
+    const jobs = [
+      { job_id: 'j1', agent: 'moo', agent_label: 'moo' },
+      { job_id: 'j2', agent: 'kimi', agent_label: 'kimi', prep_from: 'j1' },
+    ];
+    const ctx = { console, marcas: [] };
+    vm.createContext(ctx);
+    vm.runInContext(
+      'const esc = (s) => String(s == null ? "" : s);\n'
+      + 'const jobsCanon = () => ' + JSON.stringify(jobs) + ';\n'
+      + 'const realState = (j) => ({ k: (' + JSON.stringify(estados) + ')[j.job_id] || "done" });\n'
+      + 'const markHtml = (j, live) => { marcas.push({ id: j.job_id, live: !!live }); return live ? "<viva>" : "<parada>"; };\n'
+      + grab('chainOf') + '\n' + grab('chainMarks') + '\n'
+      + 'globalThis.out = chainMarks(jobsCanon()[1]);', ctx);
+    const vivasNasMarcas = ctx.marcas.filter((m) => m.live).length;
+    const doTooltip = /(\d+) a trabalhar agora/.exec(ctx.out);
+    return { vivasNasMarcas, tooltip: doTooltip ? Number(doTooltip[1]) : 0, out: ctx.out };
+  };
+  const um = corre({ j2: 'working' });
+  t('1 vivo: tooltip e marcas dizem o MESMO', um.tooltip === 1 && um.vivasNasMarcas === 1,
+    'tooltip=' + um.tooltip + ' marcas vivas=' + um.vivasNasMarcas);
+  const dois = corre({ j1: 'working', j2: 'working' });
+  t('2 vivos: as duas leituras mexem JUNTAS', dois.tooltip === 2 && dois.vivasNasMarcas === 2,
+    'tooltip=' + dois.tooltip + ' marcas vivas=' + dois.vivasNasMarcas);
+  const zero = corre({});
+  t('0 vivos: nenhuma marca anima e o tooltip diz nenhum',
+    zero.vivasNasMarcas === 0 && /nenhum a trabalhar/.test(zero.out),
+    'marcas vivas=' + zero.vivasNasMarcas + ' out=' + zero.out.slice(0, 120));
+});
+
+bloco('trilha (c) · o índice refere-se SEMPRE à lista ordenada', () => {
+  /* O defeito original: renderLog desenhava a ordem crua do ledger e
+     openDrawer(i) indexava a ordenada. A prova tem duas metades:
+     funcional (jobsCanon devolve MESMO ordenado) e mecânica (os dois lados
+     leem do MESMO sítio, por nome, dentro do corpo de cada função). */
+  const ctx = { console };
+  vm.createContext(ctx);
+  vm.runInContext(
+    'const state = { jobs: { jobs: [\n'
+    + '  { job_id: "antigo", dispatched_at: "2026-08-05T02:00:00Z" },\n'
+    + '  { job_id: "sem-tempo" },\n'
+    + '  { job_id: "novo", dispatched_at: "2026-08-05T04:00:00Z" },\n'
+    + '] } };\n'
+    + grab('porTempoDesc') + '\n' + grab('jobsCanon') + '\n'
+    + 'globalThis.ordem = jobsCanon().map((j) => j.job_id);', ctx);
+  t('jobsCanon ordena por tempo, mais recente primeiro, sem-tempo no fim',
+    JSON.stringify(ctx.ordem) === JSON.stringify(['novo', 'antigo', 'sem-tempo']),
+    'saiu ' + JSON.stringify(ctx.ordem));
+  const render = grab('renderLog');
+  const drawer = grab('openDrawer');
+  t('renderLog desenha jobsCanon(), nunca a lista crua',
+    render.includes('jobsCanon()') && !/state\.jobs\s*&&\s*state\.jobs\.jobs/.test(render));
+  t('openDrawer indexa jobsCanon(), o MESMO sítio',
+    /const jobs = jobsCanon\(\);\s*\n?\s*const j = jobs\[i\]/.test(drawer),
+    'se o drawer ler doutro lado, o índice volta a apontar para o job errado');
+  t('o data-idx nasce do índice da lista ordenada',
+    /jobs\.map\(\(j,\s*i\)/.test(render) && render.includes("data-idx=\"'+i+'\""));
+});
+
 async function main(){
   for (const item of blocos){
     console.log('\n▸ ' + item.titulo);

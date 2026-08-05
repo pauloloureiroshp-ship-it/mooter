@@ -85,6 +85,17 @@ const FILES = [
   ['paths.js', 'server/paths.js'],
   ['arvore.js', 'server/arvore.js'],
   ['probe.js', 'server/probe.js'],
+  // Wave LP (2026-08-05): probe.js passou a requerer retrato-mapa.js, e
+  // preview.js passou a requerer dono.js + portas-do-projecto.js. Ficaram fora
+  // desta lista — o B1 apanhou-o ANTES de custar uma release, que é o trabalho dele.
+  ['retrato-mapa.js', 'server/retrato-mapa.js'],
+  ['dono.js', 'server/dono.js'],
+  ['portas-do-projecto.js', 'server/portas-do-projecto.js'],
+  // v1.48 — a Trilha. `trilha-tool.js` é requerido pelos DOIS entrypoints;
+  // `trilha.js` é requerido preguiçosamente por ele. Fora da lista, o bundle
+  // morre no primeiro require e o Cowork só sabe dizer "o servidor falhou".
+  ['trilha-tool.js', 'server/trilha-tool.js'],
+  ['trilha.js', 'server/trilha.js'],
   ['preview.js', 'server/preview.js'],
   ['quota.js', 'server/quota.js'],
   ['update.js', 'server/update.js'],

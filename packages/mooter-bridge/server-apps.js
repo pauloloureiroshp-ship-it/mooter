@@ -230,7 +230,15 @@ for (const t of SEIS) {
 // contar o que o host lhe permitiu fazer. É assim que sabemos se o Live Preview
 // é possível sem pedir a ninguém para descrever o ecrã.
 const probe = require('./probe.js');
-for (const t of [probe.TOOL, probe.TOOL_DESCOBRIR, probe.TOOL_UPDATE]) {
+/**
+ * ⚠️ `mooter_trilha` vai na mesma lista, e nos DOIS pontos de entrada.
+ * Registar só num deles produz uma resposta indistinguível de «a
+ * funcionalidade não existe» — foi o que custou duas horas com o
+ * `mooter_ui_mapa`. `trilha-tool.test.js` arranca cada entrypoint num processo
+ * separado e exige a tool nos dois: é a trava mecânica, não a memória.
+ */
+const trilhaTool = require('./trilha-tool.js');
+for (const t of [probe.TOOL, probe.TOOL_DESCOBRIR, probe.TOOL_UPDATE, probe.TOOL_MAPA, trilhaTool.TOOL]) {
   if (!base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
 }
 

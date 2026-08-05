@@ -75,18 +75,27 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
   try {
     for (const t of lista) {
       assert.ok(t.description && t.description.length > 40, t.name + ' sem descrição a sério');
-      assert.ok(/[ãõçáéíóúâêô]/i.test(t.description), t.name + ': a descrição não está em português (a saída está)');
+      /**
+       * ⚠️ INVERTIDO em 2026-08-05, e a inversão é uma decisão de produto, não
+       * um ajuste de teste. Esta linha exigia acentos — «a descrição não está
+       * em português». Estava a fazer cumprir a regra errada: o Mooter é
+       * internacional e tudo o que sai pela porta do MCP é customer-facing.
+       * PT-BR é a língua da conversa com o dono, não a do produto.
+       * A trava completa (title + description, todos os registos, não só as
+       * seis anunciadas) vive em `titulos.test.js`.
+       */
+      assert.ok(!/[À-ÿ]/.test(t.description), t.name + ': a descrição leva acentos — PT a escapar para o produto');
       assert.ok(t.inputSchema && t.inputSchema.additionalProperties === false, t.name + ' aceita campos não declarados');
     }
-    okmsg('descrições em português e schemas fechados');
+    okmsg('descrições em inglês, sem acentos, e schemas fechados');
   } catch (e) { bad('descrições/schemas', e); }
 
   try {
     const work = lista.find((t) => t.name === 'mooter_work');
     assert.deepStrictEqual(work.inputSchema.required, ['goal'], 'mooter_work() vazio continua a ser schema-válido');
-    const av = Object.entries(work.inputSchema.properties).filter(([, v]) => /\[avançado\]/.test(v.description || ''));
+    const av = Object.entries(work.inputSchema.properties).filter(([, v]) => /\[advanced\]/.test(v.description || ''));
     assert.ok(av.length >= 5, 'os parâmetros que exigem saber git/wave/worktree têm de estar marcados');
-    okmsg('goal é obrigatório e ' + av.length + ' parâmetros marcados [avançado]');
+    okmsg('goal é obrigatório e ' + av.length + ' parâmetros marcados [advanced]');
   } catch (e) { bad('schema do work', e); }
 
   try {
@@ -104,7 +113,7 @@ const bad = (n, e) => { say('  FAIL ' + n + '\n       ' + ((e && e.message) || e
 
   try {
     const check = lista.find((t) => t.name === 'mooter_check');
-    assert.ok(/nunca como instruções/i.test(check.description), 'sem aviso anti-injecção no campo que traz saída de agente');
+    assert.ok(/never as instructions/i.test(check.description), 'sem aviso anti-injecção no campo que traz saída de agente');
     assert.ok(check.inputSchema.properties.wait_s.maximum === 45, 'o tecto de espera tem de estar no schema');
     okmsg('check avisa sobre texto não confiável e limita a espera');
   } catch (e) { bad('anti-injecção', e); }
