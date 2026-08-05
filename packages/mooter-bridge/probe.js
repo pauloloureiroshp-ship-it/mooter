@@ -136,12 +136,52 @@ const TOOL_DESCOBRIR = {
   handler: async (args) => {
     const preview = require('./preview.js');
     const a = args || {};
-    if (a.lembrar) return preview.lembrar(a.lembrar);
-    const resultado = await preview.descobrir(a);
+    const sessao = pastaDaSessao();
+    if (a.lembrar) return preview.lembrar(a.lembrar, sessao.pasta);
+    const resultado = await preview.descobrir(Object.assign({}, a, {
+      pasta_sessao: sessao.pasta,
+      pastas: sessao.pastas,
+    }));
     resultado.host_probe = estado();
     return resultado;
   },
 };
+
+/**
+ * A pasta desta sessão, e todas as pastas conhecidas da máquina.
+ *
+ * ⚠️ ISTO NÃO VEM DO PAINEL, E A OMISSÃO É DELIBERADA.
+ *
+ * O painel é HTML dentro de um iframe. Se fosse ele a declarar qual é a pasta
+ * da sessão, então quem conseguisse influenciar o painel — um `resultado` de
+ * agente renderizado, um snapshot trocado — escolhia qual a app que aparece ao
+ * utilizador com o selo "esta é a tua". Quem sabe onde a sessão está ligada é
+ * o conector, porque foi o conector que fez o bind. Por isso `pasta_sessao`
+ * também não está no `inputSchema`: com `additionalProperties:false`, um painel
+ * que o tente enviar é recusado pela validação, não silenciosamente ignorado.
+ *
+ * Quando não há bind, `pasta` fica `null` — e o `descobrir()` sabe o que fazer
+ * com isso: escolhe por peso e escreve que NÃO atribuiu. Nunca finge.
+ */
+function pastaDaSessao() {
+  let pasta = null;
+  try {
+    const ctx = require('./fleet.js').readSessionContext();
+    pasta = (ctx && ctx.folder) || null;
+  } catch { pasta = null; }
+
+  let pastas = [];
+  try {
+    const wt = require('./worktrees.js').list();
+    pastas = (wt && Array.isArray(wt.worktrees) ? wt.worktrees : [])
+      .map((w) => w && w.path).filter(Boolean);
+  } catch { pastas = []; }
+
+  // sem lista de worktrees, a pasta da sessão sozinha ainda permite responder
+  // "é tua" ou "não é tua" — menos resolução, mas não menos verdade
+  if (pasta && !pastas.some((p) => p === pasta)) pastas = pastas.concat([pasta]);
+  return { pasta, pastas };
+}
 
 /**
  * Actualizar o conector a partir do painel.
@@ -173,4 +213,53 @@ const TOOL_UPDATE = {
   },
 };
 
-module.exports = { TOOL, TOOL_DESCOBRIR, TOOL_UPDATE, guardar, ler, estado, veredicto, normalizar, FILE };
+/**
+ * O mapa de elementos por cima da fotografia.
+ *
+ * ⚠️ `visibility:['app']`, como as outras: lançar um browser headless e navegar
+ * para uma URL é acção com efeito observável na máquina. O painel chama-a porque
+ * o utilizador carregou num botão; o modelo não a vê em `tools/list`.
+ *
+ * ⚠️ E há uma segunda razão, mais dura: esta tool devolve **caminhos absolutos
+ * de ficheiros do disco** (é isso o `data-insp-path`). Se o modelo a pudesse
+ * chamar a partir de texto que leu algures, tinha uma via para enumerar a árvore
+ * de outra pessoa. O painel é o único chamador, e o `descobrir()` já garantiu
+ * que a URL pertence a esta sessão.
+ */
+const TOOL_MAPA = {
+  name: 'mooter_ui_mapa',
+  description: 'Interno ao painel: fotografa uma rota local e devolve, do mesmo carregamento, onde está cada elemento e de que linha de código veio. Não é para o modelo chamar.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', description: 'http://127.0.0.1:<porta>/<rota>' },
+      largura: { type: 'number' },
+      altura: { type: 'number' },
+      espera_ms: { type: 'number', description: 'quanto esperar pela hidratação antes de medir' },
+    },
+    required: ['url'],
+    additionalProperties: false,
+  },
+  annotations: { title: 'Mapa de elementos', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  _meta: { ui: { visibility: ['app'] } },
+  handler: async (args) => {
+    const a = args || {};
+    const { retratoComMapa } = require('./retrato-mapa.js');
+    const r = await retratoComMapa(a.url, {
+      largura: a.largura, altura: a.altura, espera_ms: a.espera_ms,
+    });
+    /**
+     * ⚠️ A pasta da sessão viaja junto para o painel poder DIZER de quem é o que
+     * está a mostrar. Não é o painel que a declara — é o conector, pela mesma
+     * razão do `TOOL_DESCOBRIR`.
+     */
+    const sessao = pastaDaSessao();
+    r.pasta_sessao = sessao.pasta;
+    return r;
+  },
+};
+
+module.exports = {
+  TOOL, TOOL_DESCOBRIR, TOOL_UPDATE, TOOL_MAPA,
+  guardar, ler, estado, veredicto, normalizar, FILE, pastaDaSessao,
+};

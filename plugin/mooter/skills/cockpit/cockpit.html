@@ -3273,7 +3273,10 @@ const LP_HUES = [['slate','#475569'],['red','#dc2626'],['orange','#ea580c'],['am
    e só usa o snapshot quando essa ponte não existe. */
 const LP = { estado:'não sondado', url:null, porque:null, larg:0, prod:null, auto:false,
   fonte:null, sondadas:null, candidatas:null, confianca:null, portasSondadas:[],
-  modo:'frame', frameBloqueado:false, directivaCsp:null, retrato:null };
+  modo:'frame', frameBloqueado:false, directivaCsp:null, retrato:null,
+  /* de quem é a porta: `minha` é true/false MEDIDO, ou null quando não se soube.
+     null nunca se lê como false. */
+  atribuicao:null, minha:null, deOutraPasta:null };
 const LP_PREVIEW_NAMES = ['mooter_ui_preview'];
 const LP_PROBE_NAMES = ['mooter_ui_probe'];
 let lpCspListener = null;
@@ -3288,6 +3291,12 @@ function lpNaoMedivel(fonte, motivo){
   LP.candidatas = null;
   LP.confianca = null;
   LP.portasSondadas = [];
+  /* ⚠️ limpar TAMBÉM a atribuição. Um `minha:true` de uma sondagem anterior a
+     sobreviver a uma que falhou seria o painel a afirmar posse sobre uma URL
+     que já nem tem. */
+  LP.atribuicao = null;
+  LP.minha = null;
+  LP.deOutraPasta = null;
   LP.porque = motivo;
 }
 function lpTemRetrato(retrato){
@@ -3311,7 +3320,31 @@ function lpAplicarMedicao(payload, fonte){
       const bm = Number.isFinite(Number(b.ms)) ? Number(b.ms) : Infinity;
       return am - bm;
     });
-  const escolhida = candidatas[0] || null;
+  /* ⚠️ O PAINEL NÃO ESCOLHE — QUEM ESCOLHE É QUEM MEDIU.
+     Esta linha era `candidatas[0]`: o painel refazia a decisão a partir do peso
+     e deitava fora o `escolhida` que o servidor tinha calculado. Enquanto só
+     houve uma pasta na máquina as duas contas deram o mesmo e ninguém reparou;
+     com 47 worktrees, é a diferença entre mostrar a tua app e mostrar a de
+     outra sessão com o teu nome em cima. Mesmo padrão do `preview.descobrir()`
+     que existia e que o painel nunca chamava: a medição certa não serve de nada
+     se quem a mostra a refizer por conta própria. */
+  const atribuicao = (payload.atribuicao && typeof payload.atribuicao === 'object')
+    ? payload.atribuicao : null;
+  const estadoAtrib = atribuicao ? String(atribuicao.estado || '') : 'ausente';
+  const minhas = candidatas.filter(c => c.minha === true);
+  const deOutraPasta = candidatas.filter(c => c.minha === false);
+  let escolhida;
+  if (estadoAtrib === 'medida') escolhida = minhas[0] || null;
+  else if (estadoAtrib === 'nenhuma_minha') escolhida = null;
+  /* `sem_pasta_sessao` e `ausente` (conector mais antigo, que não sabe atribuir)
+     caem no comportamento antigo — mas o rótulo diz que não foi atribuído. */
+  else escolhida = candidatas[0] || null;
+  LP.atribuicao = atribuicao;
+  LP.minha = escolhida ? escolhida.minha : null;
+  LP.deOutraPasta = deOutraPasta.length ? deOutraPasta.map(c => ({
+    porta: c.porta,
+    pasta: (c.dono && c.dono.pasta) ? String(c.dono.pasta).split(/[\\/]/).pop() : null,
+  })) : null;
   LP.fonte = fonte;
   LP.sondadas = Number.isFinite(Number(payload.sondadas)) ? Number(payload.sondadas) : null;
   LP.candidatas = candidatas.length;
@@ -3352,9 +3385,19 @@ function lpAplicarMedicao(payload, fonte){
 
   LP.estado = 'fechado';
   LP.url = null;
-  const portas = LP.portasSondadas.length ? LP.portasSondadas.join(', ') : 'n/d';
-  LP.porque = 'Portas sondadas: ' + portas + '. Nenhuma respondeu com HTML utilizável.'
-    + (payload.nota ? ' ' + String(payload.nota) : '');
+  /* ⚠️ FECHADO POR DUAS RAZÕES DIFERENTES, E NÃO SE CONFUNDEM.
+     "nada respondeu" manda arrancar o dev server. "respondeu, mas não é teu"
+     manda arrancá-lo NESTA pasta — ou abrir de propósito o de outra. Dizer
+     "nenhuma respondeu com HTML utilizável" quando três responderam seria uma
+     mentira nova, criada pela correcção da anterior. */
+  if (candidatas.length){
+    LP.porque = String(payload.nota
+      || ('encontrei ' + candidatas.length + ' servidor(es) local(is), nenhum desta pasta.'));
+  }else{
+    const portas = LP.portasSondadas.length ? LP.portasSondadas.join(', ') : 'n/d';
+    LP.porque = 'Portas sondadas: ' + portas + '. Nenhuma respondeu com HTML utilizável.'
+      + (payload.nota ? ' ' + String(payload.nota) : '');
+  }
 }
 function lpReportarModo(modo, erro, directiva, carregou, alvo){
   const bridge = window.cowork;
@@ -3468,6 +3511,9 @@ async function lpDetect(){
   LP.frameBloqueado = false;
   LP.directivaCsp = null;
   LP.retrato = null;
+  LP.atribuicao = null;
+  LP.minha = null;
+  LP.deOutraPasta = null;
   renderLP();
 
   if (bridge && typeof bridge.callMcpTool === 'function'){

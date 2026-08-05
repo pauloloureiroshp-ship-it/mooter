@@ -155,6 +155,19 @@ function defaultReaders() {
   const base = require(path.join(REPO, 'packages', 'mooter-bridge', 'server.js'));
   const board = require(path.join(REPO, 'packages', 'mooter-bridge', 'board.js'));
   const preview = require(path.join(REPO, 'packages', 'mooter-bridge', 'preview.js'));
+  const probe = require(path.join(REPO, 'packages', 'mooter-bridge', 'probe.js'));
+  /**
+   * ⚠️ O SNAPSHOT TEM DE ATRIBUIR TAL COMO O CONECTOR VIVO ATRIBUI.
+   *
+   * Isto chamava `preview.descobrir({retrato:true})` a seco. Sem `pasta_sessao`
+   * a descoberta cai em `sem_pasta_sessao` e volta a escolher pelo peso — ou
+   * seja, o snapshot mostraria a app de outra worktree exactamente como antes,
+   * enquanto o painel vivo já recusava. Duas superfícies com verdades
+   * diferentes sobre o mesmo facto é a doutrina ao contrário, e ninguém daria
+   * por isso porque o snapshot é o caminho que se usa quando os grants caem —
+   * o pior sítio possível para esconder uma regressão.
+   */
+  const sessao = probe.pastaDaSessao();
   const tools = tools6.build(seamless, fleet, base);
   const fleetTool = tools.find((tool) => tool.name === 'mooter_fleet');
   const setupTool = tools.find((tool) => tool.name === 'mooter_setup');
@@ -166,9 +179,15 @@ function defaultReaders() {
       ? fleet.toolFleet({ view }, { boardScorecard:() => board.scorecardAsync({ persist:false }) })
       : fleetTool.handler({ view }),
     readSetup: () => setupTool.handler({}),
-    readPreview: () => preview.descobrir({ retrato: true }),
+    readPreview: () => preview.descobrir({
+      retrato: true,
+      pasta_sessao: sessao.pasta,
+      pastas: sessao.pastas,
+    }),
     readPreviewCompact: () => preview.descobrir({
       retrato: true,
+      pasta_sessao: sessao.pasta,
+      pastas: sessao.pastas,
       retrato_opts: { largura: 1000, altura: 640 },
     }),
   };

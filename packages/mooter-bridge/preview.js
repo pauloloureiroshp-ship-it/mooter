@@ -34,6 +34,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const dono = require('./dono.js');
+const { chave } = require('./paths.js');
+const { portasDoProjecto } = require('./portas-do-projecto.js');
 
 const MOOTER_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const MEM = path.join(MOOTER_DIR, 'preview.json');
@@ -70,18 +73,36 @@ const NAO_E_APP = [
 const RETRATO_TIMEOUT_MS = 15000;
 const RETRATO_TAMANHO = { largura: 1280, altura: 800 };
 
+/**
+ * ⚠️ `[::1]` passou a ser aceite, e não é laxismo — é o contrário.
+ *
+ * A descoberta sonda IPv4 **e** IPv6. Quando quem responde é o `::1`, a única
+ * forma de nomear esse servidor sem ambiguidade é `http://[::1]:porta`; dizer
+ * `localhost` deixa a resolução ao sistema, que pode escolher a OUTRA família —
+ * e aí os sinais mostrados vêm de um servidor e o retrato vem de outro, na
+ * mesma porta. (codex, 2026-08-04.) `::1` é loopback tal como `127.0.0.1`: o
+ * perímetro não se alargou, ficou é escrito com precisão.
+ *
+ * E escreve-se `[::1]` COM PARÊNTESES RECTOS, não `::1`.
+ * `new URL('http://[::1]:5173').hostname` devolve `'[::1]'` — a WHATWG mantém
+ * os parênteses no hostname de um literal IPv6. Escrever `'::1'` aqui deixava
+ * a guarda a recusar exactamente o endereço que ela existe para permitir, e o
+ * teste apanhou-o. Mais uma vez: valida o instrumento.
+ */
+const HOSTS_LOCAIS = ['localhost', '127.0.0.1', '[::1]'];
+
 function urlLocalValida(valor) {
   const bruto = String(valor || '');
   if (!/^http:\/\//i.test(bruto)) return { ok: false, erro: 'só é permitido http:// em localhost' };
-  const local = bruto.match(/^http:\/\/(localhost|127\.0\.0\.1):(\d{1,5})(?:[/?#]|$)/i);
-  if (!local) return { ok: false, erro: 'só é permitido localhost ou 127.0.0.1 com porta explícita' };
+  const local = bruto.match(/^http:\/\/(localhost|127\.0\.0\.1|\[::1\]):(\d{1,5})(?:[/?#]|$)/i);
+  if (!local) return { ok: false, erro: 'só é permitido localhost, 127.0.0.1 ou [::1] com porta explícita' };
   const porta = Number(local[2]);
   if (!(porta > 0 && porta < 65536)) return { ok: false, erro: 'a url local tem de declarar uma porta válida' };
   let url;
   try { url = new URL(bruto); }
   catch { return { ok: false, erro: 'url inválida' }; }
-  if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
-    return { ok: false, erro: 'só é permitido localhost ou 127.0.0.1' };
+  if (!HOSTS_LOCAIS.includes(url.hostname)) {
+    return { ok: false, erro: 'só é permitido localhost, 127.0.0.1 ou ::1' };
   }
   if (url.username || url.password) return { ok: false, erro: 'a url local não pode conter credenciais' };
   return { ok: true, url: url.href };
@@ -231,12 +252,54 @@ async function retrato(url, opts) {
   }
 }
 
+/**
+ * ⚠️ A MEMÓRIA ERA GLOBAL À MÁQUINA — e era isso que a tornava perigosa.
+ *
+ * `mem.ultima` ia para a frente da lista de portas e `mem.historico` dava até
+ * +25 de peso, **em todas as sessões**. Confirmar a porta 5173 a trabalhar na
+ * pasta A passava a empurrar a sessão da pasta B para a app da pasta A — e
+ * quanto mais o utilizador confirmasse, mais errado ficava. Uma memória que
+ * aprende a resposta errada com mais confiança a cada uso é pior do que não ter
+ * memória nenhuma. (codex + kimi, ambos, 2026-08-04.)
+ *
+ * Agora a memória é POR PASTA. O ficheiro guarda `por_pasta` e a chave é a do
+ * `paths.js`, para que `C:\Users\PAULOL~1\frugal` e `C:\Users\Paulo Loureiro\frugal`
+ * não abram duas entradas para a mesma pasta.
+ */
 function lerMemoria() {
-  try { return JSON.parse(fs.readFileSync(MEM, 'utf8')); } catch { return { ultima: null, historico: {} }; }
+  try {
+    const m = JSON.parse(fs.readFileSync(MEM, 'utf8'));
+    return m && typeof m === 'object' ? m : { por_pasta: {} };
+  } catch { return { por_pasta: {} }; }
 }
+
+function chaveDaPasta(pasta) { return pasta ? chave(pasta) : '_sem_pasta'; }
+
+/**
+ * O que se sabe sobre ESTA pasta. Nunca herda da entrada global antiga: herdar
+ * seria reintroduzir exactamente o enviesamento que se está a fechar.
+ */
+function memoriaDaPasta(mem, pasta) {
+  const e = (mem && mem.por_pasta && mem.por_pasta[chaveDaPasta(pasta)]) || null;
+  return { ultima: (e && e.ultima) || null, historico: (e && e.historico) || {} };
+}
+
 function gravarMemoria(m) {
-  try { fs.mkdirSync(MOOTER_DIR, { recursive: true }); fs.writeFileSync(MEM, JSON.stringify(m, null, 2)); }
-  catch { /* a memória é um luxo; a descoberta funciona sem ela */ }
+  try {
+    fs.mkdirSync(MOOTER_DIR, { recursive: true });
+    /**
+     * Escrita atómica: duas sessões a confirmar portas ao mesmo tempo já não
+     * deixam o ficheiro a meio.
+     * ⚠️ Isto NÃO fecha a corrida ler-alterar-escrever — a última escrita ainda
+     * ganha. O que a desarma na prática é o corte por pasta: duas sessões em
+     * pastas diferentes escrevem chaves diferentes. Duas sessões na MESMA pasta
+     * ainda se podem sobrepor, e essa dívida fica declarada aqui em vez de
+     * fingida resolvida.
+     */
+    const tmp = MEM + '.' + process.pid + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(m, null, 2));
+    fs.renameSync(tmp, MEM);
+  } catch { /* a memória é um luxo; a descoberta funciona sem ela */ }
 }
 
 /**
@@ -316,15 +379,48 @@ function classificar(r) {
 async function descobrir(opts) {
   const o = opts || {};
   const timeout = Math.min(Math.max(Number(o.timeout_ms) || 700, 150), 4000);
-  const mem = lerMemoria();
+  const pastaSessao = o.pasta_sessao || null;
+  const mem = memoriaDaPasta(lerMemoria(), pastaSessao);
 
-  // a porta que funcionou da última vez vai à frente: o mesmo utilizador
-  // tende a usar sempre o mesmo projecto, e acertar à primeira parece magia
-  const lista = Array.isArray(o.portas) && o.portas.length
+  const explicita = Array.isArray(o.portas) && o.portas.length > 0;
+  const lista = explicita
     ? o.portas.map(Number).filter((p) => p > 0 && p < 65536)
     : PORTAS.slice();
-  if (mem.ultima && !lista.includes(mem.ultima)) lista.unshift(mem.ultima);
-  else if (mem.ultima) { lista.splice(lista.indexOf(mem.ultima), 1); lista.unshift(mem.ultima); }
+  /**
+   * ⚠️ UMA LISTA PEDIDA É UMA LISTA PEDIDA.
+   * A versão anterior injectava aqui a porta memorizada mesmo quando o chamador
+   * tinha dito exactamente quais queria sondar: `descobrir({portas:[3000]})`
+   * acabava a sondar também a 5173 de outra pasta, e a devolvê-la como
+   * candidata. (codex, 2026-08-04.) A memória só ordena o que já lá estava.
+   */
+  /**
+   * ⚠️ AS PORTAS DO PROJECTO VÊM À FRENTE DAS 14 DA INDÚSTRIA.
+   *
+   * As 14 são as mais prováveis *em geral*. Não são as deste projecto: o
+   * `landing` deste repo corre em **7819** e o `dashboard` em **7820**, e
+   * nenhuma das duas lá estava. O Paulo podia ter a app dele de pé e o painel
+   * dizia-lhe "não tens nada a correr" — depois de sondar catorze portas de
+   * outra gente. Pior: se houvesse um servidor de outra worktree numa das 14,
+   * era esse o encontrado.
+   *
+   * O projecto já declara isto nos `scripts` do `package.json`. Perguntar-lhe é
+   * medição com fonte; adivinhar não é. E o resultado leva a proveniência para
+   * o painel poder dizer de onde saiu cada porta.
+   */
+  const declaradas = explicita ? { portas: [], detalhe: [], porque: 'o chamador deu a lista de portas' }
+    : portasDoProjecto(pastaSessao, { fsImpl: o.fsImpl });
+  for (const porta of declaradas.portas.slice().reverse()) {
+    const i = lista.indexOf(porta);
+    if (i >= 0) lista.splice(i, 1);
+    lista.unshift(porta);
+  }
+
+  // a que funcionou da última vez NESTA pasta fica em primeiro de todas
+  if (!explicita && mem.ultima) {
+    const i = lista.indexOf(mem.ultima);
+    if (i >= 0) lista.splice(i, 1);
+    lista.unshift(mem.ultima);
+  }
 
   /**
    * ⚠️ IPv4 **E** IPv6. Um dev server que escute só em `::1` era invisível a uma
@@ -349,51 +445,176 @@ async function descobrir(opts) {
     if (!c) continue;
     if (c.descartar) { descartadas.push({ porta: r.porta, porque: c.porque }); continue; }
     candidatas.push({
-      url: 'http://localhost:' + r.porta,
+      /**
+       * ⚠️ A URL nomeia a FAMÍLIA que respondeu, não `localhost`.
+       * Com dois servidores diferentes na mesma porta — um em 127.0.0.1, outro
+       * em ::1 — `localhost` deixava a escolha ao resolvedor: os sinais e o
+       * título vinham de um, e o iframe/retrato abriam o outro. (codex, 08-04.)
+       */
+      url: 'http://' + (r.host === '::1' ? '[::1]' : '127.0.0.1') + ':' + r.porta,
       porta: r.porta,
+      host: r.host || '127.0.0.1',
       titulo: c.titulo,
       sinais: c.sinais.length ? c.sinais : null,
+      /**
+       * ⚠️ `confianca` mede QUE FRAMEWORK é, nunca DE QUEM é. Duas worktrees da
+       * mesma base dão as duas "alta". Quem responde "de quem é" é o `minha`,
+       * já a seguir — e são campos separados de propósito, para ninguém ler um
+       * como se fosse o outro. (kimi, 08-04.)
+       */
       confianca: c.peso >= 90 ? 'alta' : (c.peso >= 40 ? 'media' : 'baixa'),
+      confianca_mede: 'o framework servido, não a pasta de origem',
       peso: c.peso + (mem.historico && mem.historico[r.porta] ? Math.min(mem.historico[r.porta] * 5, 25) : 0),
       ms: r.ms,
     });
   }
   candidatas.sort((a, b) => (b.peso - a.peso) || (a.ms - b.ms));
 
-  const escolhida = candidatas[0] || null;
+  /* ── DE QUEM É CADA PORTA ────────────────────────────────────────────────
+     Até aqui só se sabe o que cada servidor É. Agora mede-se de quem É — e é
+     esta medição, não o peso, que decide o que o painel mostra. */
+  const atribuicao = await dono.donosDasPortas(candidatas.map((c) => c.porta), {
+    pastas: o.pastas, plataforma: o.plataforma, execImpl: o.execImpl,
+    timeout_ms: o.dono_timeout_ms,
+  });
+  for (const c of candidatas) {
+    c.dono = atribuicao.porPorta.get(c.porta)
+      || dono.semDono(c.porta, 'a porta não entrou na atribuição');
+    c.minha = dono.eMinha(c.dono, pastaSessao);
+  }
+
+  /**
+   * ⚠️ A ESCOLHA É A PARTE QUE MENTIA.
+   *
+   * `candidatas[0]` respondia sempre alguma coisa, e o painel rotulava-a "o
+   * preview DESTA sessão" sem nunca ter medido de quem era. Passa a haver três
+   * mundos, e cada um diz o seu nome:
+   *   · medida            — há uma que é PROVADAMENTE desta pasta
+   *   · nenhuma_minha     — há servidores, nenhum é desta pasta → não se escolhe
+   *   · sem_pasta_sessao  — ninguém disse qual é a pasta → escolhe-se por peso,
+   *                          mas fica escrito que a atribuição não foi feita
+   */
+  const minhas = candidatas.filter((c) => c.minha === true);
+  /**
+   * ⚠️ ZERO CANDIDATAS NÃO É "NENHUMA É TUA".
+   * `nenhuma_minha` afirma que há servidores e que nenhum pertence a esta pasta
+   * — uma frase sobre servidores que existem. Com a lista vazia essa frase é
+   * falsa, e manda o utilizador procurar um conflito que não há em vez de
+   * arrancar a app. Apanhado no veredicto real, não em teste.
+   */
+  const atribuicaoEstado = !candidatas.length ? 'nada_encontrado'
+    : (!pastaSessao ? 'sem_pasta_sessao'
+    : (minhas.length ? 'medida' : 'nenhuma_minha'));
+  const escolhida = atribuicaoEstado === 'medida' ? minhas[0]
+    : (atribuicaoEstado === 'sem_pasta_sessao' ? (candidatas[0] || null) : null);
+  const deOutraPasta = candidatas.filter((c) => c.minha === false);
+  const semAtribuicao = candidatas.filter((c) => c.minha === null);
+  const listarOutras = () => deOutraPasta
+    .map((c) => c.porta + ' → ' + path.basename(c.dono.pasta || '?')).join(', ');
+
+  let nota;
+  if (!candidatas.length) {
+    // ⚠️ nunca dizer "não tens nada a correr" — dizer o que se procurou e onde
+    /**
+     * ⚠️ Quando o projecto declara portas, o conselho deixa de ser genérico.
+     * "arranca o npm run dev" não ajuda quem não sabe em que pasta; dizer
+     * `cd landing && npm run dev` (porta 7819, lida do package.json dele) é a
+     * diferença entre uma mensagem simpática e uma que resolve.
+     */
+    const sugestao = declaradas.detalhe.length
+      ? ('Este projecto declara ' + declaradas.detalhe.length + ' porta(s) e nenhuma respondeu: '
+         + declaradas.detalhe.map((d) => d.porta + ' em ' + d.onde + ' → ' + d.script).join('; ')
+         + '. Arranca uma delas e volta a procurar.')
+      : ('Arranca o teu servidor de desenvolvimento (npm run dev) e volta a procurar, '
+         + 'ou diz-me a porta se ela não estiver na lista.'
+         + (declaradas.porque ? ' (' + declaradas.porque + ')' : ''));
+    nota = 'sondei ' + lista.length + ' portas em 127.0.0.1 e ::1 e nenhuma devolveu HTML utilizável. '
+      + (descartadas.length ? 'Descartei ' + descartadas.length + ': '
+         + descartadas.map((x) => x.porta + ' (' + x.porque + ')').join('; ') + '. ' : '')
+      + sugestao;
+  } else if (atribuicaoEstado === 'medida') {
+    nota = 'encontrei ' + candidatas.length + ' servidor(es) local(is); '
+      + escolhida.url + ' é desta pasta — medido pela ' + escolhida.dono.base
+      + (escolhida.sinais ? ' (' + escolhida.sinais.join(', ') + ')' : '')
+      + (deOutraPasta.length ? '. Os outros são de outras pastas: ' + listarOutras() : '');
+  } else if (atribuicaoEstado === 'nenhuma_minha') {
+    /**
+     * ⚠️ ESTE É O CAMINHO QUE JUSTIFICA A FEATURE INTEIRA.
+     * Antes, aqui, o painel mostrava a app de outra pasta e chamava-lhe tua.
+     * Agora recusa-se — e um preview vazio COM motivo é o resultado certo,
+     * não uma falha.
+     */
+    nota = 'encontrei ' + candidatas.length + ' servidor(es) local(is), mas nenhum é desta pasta ('
+      + path.basename(pastaSessao) + '), por isso não mostro nenhum: mostrar a app de outra pasta '
+      + 'como se fosse a tua é a única coisa pior do que não mostrar nada.'
+      + (deOutraPasta.length ? ' De outras pastas: ' + listarOutras() + '.' : '')
+      + (semAtribuicao.length ? ' Sem dono medível: '
+         + semAtribuicao.map((c) => c.porta + ' (' + c.dono.porque + ')').join('; ') + '.' : '')
+      + ' Arranca o dev server nesta pasta, ou usa "abrir mesmo assim" numa das de cima.';
+  } else {
+    nota = 'encontrei ' + candidatas.length + ' servidor(es) local(is) e escolhi ' + escolhida.url
+      + ' pelo peso — mas ninguém me disse qual é a pasta desta sessão, por isso '
+      + '**não posso afirmar que é a tua app**'
+      + (atribuicao.porque ? ' (' + atribuicao.porque + ')' : '') + '.';
+  }
+
   const resultado = {
     candidatas,
     escolhida,
+    /** Como é que a escolha foi feita — o painel precisa disto para não mentir no rótulo. */
+    atribuicao: {
+      estado: atribuicaoEstado,
+      pasta_sessao: pastaSessao,
+      base: atribuicao.base,
+      porque: atribuicao.porque,
+      minhas: minhas.length,
+      de_outra_pasta: deOutraPasta.length,
+      sem_dono: semAtribuicao.length,
+    },
     descartadas: descartadas.length ? descartadas : null,
     sondadas: lista.length,
     portas: lista.slice(),
-    // ⚠️ nunca dizer "não tens nada a correr" — dizer o que se procurou e onde
-    nota: escolhida
-      ? ('encontrei ' + candidatas.length + ' servidor(es) local(is); escolhi ' + escolhida.url
-         + (escolhida.sinais ? ' (' + escolhida.sinais.join(', ') + ')' : ''))
-      : ('sondei ' + lista.length + ' portas em 127.0.0.1 e ::1 e nenhuma devolveu HTML utilizável. '
-         + (descartadas.length ? 'Descartei ' + descartadas.length + ': ' + descartadas.map((x) => x.porta + ' (' + x.porque + ')').join('; ') + '. ' : '')
-         + 'Arranca o teu servidor de desenvolvimento (npm run dev) e volta a procurar, '
-         + 'ou diz-me a porta se ela não estiver na lista.'),
+    /** De onde veio cada porta que não é das 14 genéricas — com ficheiro e script. */
+    portas_declaradas: declaradas.detalhe.length ? declaradas.detalhe : null,
+    portas_declaradas_porque: declaradas.porque,
+    nota,
   };
   if (o.retrato === true && escolhida) resultado.retrato = await retrato(escolhida.url, o.retrato_opts);
   return resultado;
 }
 
-/** Confirmar que a escolha do utilizador funcionou, para acertar melhor à próxima. */
-function lembrar(porta) {
+/**
+ * Confirmar que a escolha do utilizador funcionou, para acertar melhor à
+ * próxima — **nesta pasta e só nesta pasta**.
+ *
+ * ⚠️ Sem a pasta, a confirmação vai para o balde `_sem_pasta` e nunca enviesa
+ * uma sessão que sabe onde está. O aprendizado sem contexto não contamina o
+ * aprendizado com contexto.
+ */
+function lembrar(porta, pasta) {
   const p = Number(porta);
   if (!(p > 0 && p < 65536)) return { ok: false, erro: 'porta inválida' };
   const mem = lerMemoria();
-  mem.ultima = p;
-  mem.historico = mem.historico || {};
-  mem.historico[p] = (mem.historico[p] || 0) + 1;
-  mem.em = new Date().toISOString();
+  const k = chaveDaPasta(pasta);
+  mem.por_pasta = mem.por_pasta || {};
+  const entrada = mem.por_pasta[k] || { ultima: null, historico: {} };
+  entrada.historico = entrada.historico || {};
+  entrada.ultima = p;
+  entrada.historico[p] = (entrada.historico[p] || 0) + 1;
+  entrada.pasta = pasta || null;
+  entrada.em = new Date().toISOString();
+  mem.por_pasta[k] = entrada;
+  mem.em = entrada.em;
   gravarMemoria(mem);
-  return { ok: true, ultima: p, vezes: mem.historico[p] };
+  return {
+    ok: true, ultima: p, vezes: entrada.historico[p],
+    pasta: pasta || null,
+    escopo: pasta ? 'esta pasta' : 'sem pasta declarada — não influencia sessões que declarem a sua',
+  };
 }
 
 module.exports = {
   descobrir, retrato, lembrar, sondar, classificar, urlLocalValida,
-  PORTAS, SINAIS_DEV, NAO_E_APP, MEM, RETRATO_TIMEOUT_MS, RETRATO_TAMANHO,
+  lerMemoria, gravarMemoria, memoriaDaPasta, chaveDaPasta,
+  PORTAS, SINAIS_DEV, NAO_E_APP, MEM, HOSTS_LOCAIS, RETRATO_TIMEOUT_MS, RETRATO_TAMANHO,
 };
