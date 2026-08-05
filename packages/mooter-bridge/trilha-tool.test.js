@@ -29,12 +29,25 @@ const trilha = require('./trilha.js');
 
 /* ── 1 · registo nos DOIS pontos de entrada ─────────────────────────────── */
 
-function toolsDoEntrypoint(entry) {
+/**
+ * Cada entrypoint num processo limpo, e DUAS leituras que não se substituem:
+ *   REGISTO   — a tool existe no dispatcher (chamável por tools/call);
+ *   ANUNCIADO — o que o `tools/list` RESPONDE ao modelo.
+ * ⚠️ A segunda existe porque a primeira mentiu por omissão: o gate pré-push da
+ * v1.48.0 mediu o server-seamless a anunciar as 18 tools — incluindo as
+ * `mooter_ui_*` (uma instala código) e a `mooter_trilha` (caminhos absolutos)
+ * — enquanto o teste só olhava para o campo `_meta` e ficava verde. Testar o
+ * campo dá garantia sobre a propriedade que ele NOMEIA sem a testar.
+ */
+function sondaEntrypoint(entry) {
   const dir = __dirname.replace(/\\/g, '/');
   const script = 'process.env.MOOTER_LIB="1";'
-    + 'require(' + JSON.stringify(dir + '/' + entry) + ');'
-    + 'const n=require(' + JSON.stringify(dir + '/server.js') + ').TOOLS.map(t=>t.name);'
-    + 'require("fs").writeSync(1,"\\nTOOLS=" + JSON.stringify(n));';
+    + 'const ep=require(' + JSON.stringify(dir + '/' + entry) + ');'
+    + 'const reg=require(' + JSON.stringify(dir + '/server.js') + ').TOOLS.map(t=>t.name);'
+    + 'Promise.resolve(ep.handle({jsonrpc:"2.0",id:1,method:"tools/list"})).then(r=>{'
+    + '  const anunciadas=(r&&r.result&&r.result.tools||[]).map(t=>t.name);'
+    + '  require("fs").writeSync(1,"\\nSONDA=" + JSON.stringify({reg,anunciadas}));'
+    + '});';
   const out = execFileSync(process.execPath, ['-e', script], {
     cwd: __dirname,
     encoding: 'utf8',
@@ -46,21 +59,32 @@ function toolsDoEntrypoint(entry) {
       MOOTER_SKIP_INSTALL_ID: '1',
     }),
   });
-  const m = /\nTOOLS=(\[.*\])/.exec(out);
-  assert.ok(m, entry + ' nao imprimiu o registo: ' + out.slice(-400));
+  const m = /\nSONDA=(\{.*\})/.exec(out);
+  assert.ok(m, entry + ' nao respondeu a sonda: ' + out.slice(-400));
   return JSON.parse(m[1]);
 }
 
-test('mooter_trilha esta registada em server-seamless.js', () => {
-  const nomes = toolsDoEntrypoint('server-seamless.js');
-  assert.ok(nomes.includes('mooter_trilha'),
-    'registar so num entrypoint da uma resposta indistinguivel de "a funcionalidade nao existe": ' + nomes.join(', '));
+const SO_DO_PAINEL = ['mooter_trilha', 'mooter_ui_probe', 'mooter_ui_preview', 'mooter_ui_update', 'mooter_ui_mapa'];
+
+test('server-seamless.js: mooter_trilha registada mas NUNCA anunciada ao modelo', () => {
+  const s = sondaEntrypoint('server-seamless.js');
+  assert.ok(s.reg.includes('mooter_trilha'),
+    'registar so num entrypoint da uma resposta indistinguivel de "a funcionalidade nao existe": ' + s.reg.join(', '));
+  for (const nome of SO_DO_PAINEL) {
+    assert.ok(!s.anunciadas.includes(nome),
+      nome + ' esta no tools/list deste entrypoint — o modelo ve uma tool que instala codigo ou devolve caminhos absolutos. Anunciadas: ' + s.anunciadas.join(', '));
+  }
+  assert.ok(s.anunciadas.includes('mooter_work'), 'o filtro nao pode levar as tools do modelo atras: ' + s.anunciadas.join(', '));
 });
 
-test('mooter_trilha esta registada em server-apps.js', () => {
-  const nomes = toolsDoEntrypoint('server-apps.js');
-  assert.ok(nomes.includes('mooter_trilha'),
+test('server-apps.js: mooter_trilha registada mas NUNCA anunciada ao modelo', () => {
+  const s = sondaEntrypoint('server-apps.js');
+  assert.ok(s.reg.includes('mooter_trilha'),
     'o Cowork arranca por aqui — sem registo o painel pede uma tool que o servidor nunca ouviu falar');
+  for (const nome of SO_DO_PAINEL) {
+    assert.ok(!s.anunciadas.includes(nome), nome + ' vazou para o tools/list: ' + s.anunciadas.join(', '));
+  }
+  assert.deepStrictEqual(s.anunciadas.length, 6, 'este entrypoint anuncia as SEIS, nem mais nem menos: ' + s.anunciadas.join(', '));
 });
 
 test('a tool declara-se do painel: visibility app, porque devolve caminhos absolutos', () => {

@@ -37,13 +37,41 @@ for (const t of seam.TOOLS) {
  * pasta de extensões que **não existe** nesta máquina: o Desktop corre-o
  * directamente do repo. Registar nos dois pontos de entrada custa quatro
  * linhas; assumir qual deles está vivo custou a noite.
+ * (Registo de 2026-08-05, medido no gate pré-push: o entrypoint VIVO nesta
+ * máquina é `server-apps.js`, via extensão MCPB — `mcpServers` está vazio no
+ * claude_desktop_config.json. Este ficheiro é o entrypoint de dev/manual.)
  *
  * `visibility:['app']` mantém-se — o modelo continua a não as ver.
+ * ⚠️ E isso tem de ser MECANISMO, não legenda: este entrypoint não tem o
+ * filtro das seis do server-apps.js, e o server.js copia TODAS as TOOLS para
+ * o `tools/list` sem olhar ao `_meta`. Medido no gate pré-push da v1.48.0:
+ * 18 tools anunciadas, incluindo as quatro `mooter_ui_*` e a `mooter_trilha`
+ * — uma delas instala código (`mooter_ui_update`) e outra devolve caminhos
+ * absolutos. O filtro em `handle()` abaixo é o que torna a frase verdadeira;
+ * `trilha-tool.test.js` verifica a RESPOSTA do tools/list, não o campo.
  */
 const probe = require('./probe.js');
 const trilhaTool = require('./trilha-tool.js');
 for (const t of [probe.TOOL, probe.TOOL_DESCOBRIR, probe.TOOL_UPDATE, probe.TOOL_MAPA, trilhaTool.TOOL]) {
   if (t && !base.TOOLS.find((x) => x.name === t.name)) base.TOOLS.push(t);
+}
+
+/** Uma tool é só-do-painel quando o registo declara visibility sem 'model'. */
+function soDoPainel(nome) {
+  const t = base.TOOLS.find((x) => x.name === nome);
+  const vis = t && t._meta && t._meta.ui && t._meta.ui.visibility;
+  return Array.isArray(vis) && !vis.includes('model');
+}
+
+/** base.handle + o filtro que faz `visibility:['app']` ser verdade aqui.
+ *  As tools ficam CHAMÁVEIS por `tools/call` (o painel chama por ui/call-tool,
+ *  que passa pelo mesmo dispatcher) — só deixam de ser ANUNCIADAS ao modelo. */
+async function handle(msg) {
+  const res = await base.handle(msg);
+  if (msg && msg.method === 'tools/list' && res && res.result && Array.isArray(res.result.tools)) {
+    res.result.tools = res.result.tools.filter((t) => !soDoPainel(t.name));
+  }
+  return res;
 }
 
 function log(...a) { try { process.stderr.write('[mooter-bridge v0.2] ' + a.join(' ') + '\n'); } catch { /* */ } }
@@ -63,7 +91,7 @@ function main() {
       if (!line) continue;
       let msg; try { msg = JSON.parse(line); } catch { log('bad json line'); continue; }
       pending++;
-      Promise.resolve(base.handle(msg))
+      Promise.resolve(handle(msg))
         .then((res) => { if (res) send(res); })
         .catch((e) => log('handle err', (e && e.message) || ''))
         .finally(() => { pending--; maybeExit(); });
@@ -83,4 +111,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { main };
+module.exports = { main, handle };
