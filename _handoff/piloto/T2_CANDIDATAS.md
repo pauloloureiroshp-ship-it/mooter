@@ -95,3 +95,14 @@ lança Error. Escreve PRIMEIRO tools/cockpit/fps-stats.test.js com node:test (ca
 constante, deltas mistos, <11 frames, não crescente lança), vê-o falhar, depois implementa
 até `node --test tools/cockpit/fps-stats.test.js` passar. Não toques em mais nenhum ficheiro.
 ```
+
+---
+
+## SORTEIO REGISTADO
+
+- Data: 2026-08-06 · depois das 5 candidatas commitadas em `17c128ef` (Δ F7 cumprido)
+- Método: dado d6 via `crypto.randomInt(1,7)` em Node; 6 relança; comando e output verbatim:
+  - comando: `node -e "const{randomInt}=require('crypto');const rolls=[];let r;do{r=randomInt(1,7);rolls.push(r)}while(r===6);console.log(JSON.stringify({lancamentos:rolls,sorteada:'C'+r}))"`
+  - output: `{"lancamentos":[4],"sorteada":"C4"}`
+- Lançamentos: [4] · candidata sorteada: **C4** — validador mínimo de handoff
+
