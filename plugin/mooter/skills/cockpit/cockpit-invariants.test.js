@@ -1081,6 +1081,27 @@ bloco('reorderable blocks · motor do arrastar', () => {
   t('painel não usa sessionStorage', !/sessionStorage/.test(html));
 });
 
+/* W1 :108/:124 — "faz grep no CONSUMIDOR antes de dizer que está feito".
+   Uma medição correcta no servidor que o painel ignora é inerte: aconteceu 3×
+   na mesma feature. O chip do scorecard mostrava `N events` sem nunca dizer
+   "N em quanto tempo" — e foi exactamente essa a pergunta que ninguém fez
+   quando o ledger foi apagado a 2026-08-05. */
+bloco('recibo · o chip do scorecard leva a janela do ledger', () => {
+  t('o painel lê ledger_janela do scorecard', /scd\.ledger_janela/.test(html),
+    'o cockpit continua a publicar contagens sem denominador');
+  t('dias_representados é lido como número, não como texto',
+    /typeof jan\.dias_representados === 'number'/.test(html),
+    'ler o campo como texto devolve o problema ao consumidor');
+  t('janela ausente degrada para n/d, nunca para um dia inventado',
+    /window n\/d/.test(html),
+    'sem ramo n/d o painel inventa profundidade que o servidor não mediu');
+  t('o tooltip publica primeiro_ts → ultimo_ts',
+    /jan\.primeiro_ts \|\| 'n\/d'/.test(html) && /jan\.ultimo_ts \|\| 'n\/d'/.test(html),
+    'a janela tem de ser auditável no próprio painel, não só no JSON');
+  t('o porquê do servidor chega ao painel', /jan\.porque \|\| 'n\/d'/.test(html),
+    'o motivo é do servidor — o painel não o reescreve');
+});
+
 async function main(){
   for (const item of blocos){
     console.log('\n▸ ' + item.titulo);

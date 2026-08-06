@@ -54,8 +54,9 @@ function parseMaybe(text: string): unknown {
  * are injectable so tests run against a fixture without touching the real home.
  */
 export function buildExport(opts: { home?: string; knownSecrets?: string[] } = {}): ExportResult {
-  const home = opts.home ?? homedir();
-  const dir = mooterDir(home);
+  // Same isolation contract as delete.ts: MOOTER_HOME wins over homedir(),
+  // because on Windows homedir() ignores HOME and reads the real USERPROFILE.
+  const dir = opts.home ? mooterDir(opts.home) : (process.env.MOOTER_HOME || mooterDir(homedir()));
 
   const data: Record<string, unknown> = {};
   for (const name of INCLUDE) {

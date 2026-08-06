@@ -6127,8 +6127,17 @@ function renderProject(){
   if (scd){
     const met = scd.metricas || {};
     const names = Object.keys(met);
+    // W1 :108 — an event count with no window behind it is how "14 deliveries a
+    // day" survived a ledger that only held minutes. The depth travels with the
+    // count, and stays n/d when the server could not measure it.
+    const jan = scd.ledger_janela || null;
+    const dias = jan && typeof jan.dias_representados === 'number' ? jan.dias_representados : null;
+    const janelaChip = dias === null ? ' · window n/d' : ' · ' + dias + 'd';
+    const janelaTip = jan
+      ? ' · window: ' + (jan.primeiro_ts || 'n/d') + ' → ' + (jan.ultimo_ts || 'n/d') + ' (' + (jan.porque || 'n/d') + ')'
+      : ' · window: n/d (the server did not report ledger_janela)';
     h += '<details class="sub"><summary><span>⚖</span> <b style="color:var(--fg)">scorecard</b>'
-      + '<span style="color:var(--faint)" data-tip="'+esc('generated '+(scd.gerado_em||'?')+' over '+(scd.ledger_eventos ?? '?')+' ledger events')+'">· '+names.length+' metrics · '+esc(scd.ledger_eventos ?? '?')+' events</span>'
+      + '<span style="color:var(--faint)" data-tip="'+esc('generated '+(scd.gerado_em||'?')+' over '+(scd.ledger_eventos ?? '?')+' ledger events'+janelaTip)+'">· '+names.length+' metrics · '+esc(scd.ledger_eventos ?? '?')+' events'+esc(janelaChip)+'</span>'
       + '<span class="hint">open</span></summary><div class="sub-body"><div class="mgrid">'
       + names.map(nm => {
           const m = met[nm]; const v = fv(m.valor);
