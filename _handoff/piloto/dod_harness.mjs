@@ -8,7 +8,7 @@
 // NUNCA correr `playwright install` — se faltar, o harness diz e sai.
 
 import { createRequire } from "node:module";
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
@@ -44,10 +44,11 @@ await page.goto(pathToFileURL(resolve(artefacto)).href, { waitUntil: "load", tim
 await page.screenshot({ path: join(outDir, "captura-inicial.png") });
 
 // --- 12 itens S/N ---
+const ctx = { artefacto: resolve(artefacto), outDir };
 const itens = [];
 for (const c of CHECKS) {
   if (c.humano) { itens.push({ id: c.id, desc: c.desc, resultado: "n/d (humano)" }); continue; }
-  try { itens.push({ id: c.id, desc: c.desc, resultado: (await c.fn(page)) ? "S" : "N" }); }
+  try { itens.push({ id: c.id, desc: c.desc, resultado: (await c.fn(page, ctx)) ? "S" : "N" }); }
   catch (e) { itens.push({ id: c.id, desc: c.desc, resultado: "N", erro: e.message.slice(0, 200) }); }
 }
 
