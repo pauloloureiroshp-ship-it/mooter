@@ -1,0 +1,6 @@
+{
+  "disableAllHooks": true,
+  "env": {
+    "MOOTER_PIN_MODEL": ""
+  }
+}

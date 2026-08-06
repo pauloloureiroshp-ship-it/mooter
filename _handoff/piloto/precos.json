@@ -1,0 +1,11 @@
+{
+  "_fonte": "skill frugal:pricing-correto-2026 — lista 2026-06, USD por M tokens. Nunca inventar precos; modelo fora desta tabela => n/d.",
+  "_nota_fable": "Fable 5: janela gratis em subscricao terminou 2026-06-22; preco de lista API aplica-se sempre ao proxy.",
+  "por_modelo": {
+    "ollama": { "tier": "T0", "input": 0, "output": 0 },
+    "haiku": { "tier": "T1", "input": 1, "output": 5 },
+    "sonnet": { "tier": "T2", "input": 3, "output": 15 },
+    "opus": { "tier": "T3", "input": 5, "output": 25 },
+    "fable": { "tier": "T5", "input": 10, "output": 50 }
+  }
+}
