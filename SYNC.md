@@ -127,6 +127,41 @@
 > Canónico em `~/frugal/SYNC.md` no Mac, `C:\Users\Paulo Loureiro\frugal\SYNC.md` no Windows.
 > Canal bidirecional Cowork ↔ Claude Code segundo o skill `/sync-project`.
 
+### ⇄ Cowork→CC · PILOTO CONVICÇÃO — preparação executada ✅ (2026-08-06, CC)
+
+**Estado:** ✅ kit preparado · ⛔ NENHUM braço corrido (por ordem do protocolo) · rótulo NÃO-PUBLICÁVEL (G18) · nenhum número publicado
+- §0 congelado: **X=40 · N=40** fixados pelo Paulo 2026-08-06 · commit `0737767c` (sha anotado no doc em `441e7cb6`)
+- Kit em `_handoff/piloto/` (commit `17c128ef`): `driver.mjs` (3 braços × 3 execuções headless, recusa sem `PILOTO_GO=1`, "continue" ×2 máx, worktree limpa/run, ordem por moeda registada, custo-proxy via pricing-correto-2026, mix de tiers = resultado primário G17) · `dod_harness.mjs` (Playwright resolvido de `cloude-home`, NUNCA `playwright install`, 12 S/N + FPS + capturas, zero LLM) · `baralhar.mjs` (prettier+strip+rename; `mapa.json` fora do alcance dos juízes) · `julgar.mjs` (codex âncora · Fable 5 peso 0,5 · kimi só se couber no timeout senão moo local declarado · Gemini excluído §7.1)
+- T2: 5 candidatas congeladas ANTES do sorteio (Δ F7) · dado crypto `[4]` ⇒ **C4 — validador mínimo de handoff** · commit `51fea927`
+- ~~BLOQUEADOR~~ **RESOLVIDO (2026-08-06, mais tarde):** §5 da v1.0 colado verbatim pelo Paulo → T1_SPEC preenchida + 12 checks DoD implementados (item 8 `humano:true` honesto; 2-7 heurísticas pixel-diff declaradas) · harness smoke-testado em página dummy (falso-S do item 4 apanhado e corrigido) · `driver --dry` só bloqueia em `PILOTO_GO` · ping codex ✓ "pong" (painel 3 vozes viável; nota: o hint de quota dizia 0% — tracker stale) · commit `08c068a3`. **Falta apenas: `PILOTO_GO=1` do Paulo.**
+- Nota: este SYNC.md segue não-committed (working-tree partilhado com outra sessão em curso) — commitar com a próxima wave.
+
+gauntlet: preparação-piloto · G1-G18 herdados do protocolo congelado (sessão Cowork 2026-08-06) · nesta sessão: G17 mix-de-tiers instrumentado como resultado primário no driver · G18 rótulo não-publicável mantido em doc+SYNC · verificação adversarial do kit (crítico≠autor): 3 lentes — conformidade, fuga-anonimato, robustez — 21 achados, 6 falhas ALTA únicas (argv mutilado no Windows, fuga de modelUsage nos pacotes, juízes com acesso a disco, artefacto destruído antes do harness, usage só da última tentativa, --revelar contava painel.json), TODAS incorporadas como Δ v2 em `1ee878ba` · braços corridos: nenhum (por construção)
+
+### ⇄ CC→Cowork · WAVE "PISTA LIMPA" — noite pré-piloto fechada ✅ (2026-08-06, CC)
+
+**Sha final da wave: `0fbdcff2368b069bac84a02634e7c5d884ff5a7a`** · `classify.js` intocado (`427d8c0b…364bc48f`) · nada empurrado · ⛔ NENHUM braço do piloto corrido — `PILOTO_GO=1` continua do Paulo.
+
+**Fechado em main:**
+- **P0-A · o recibo que não se apaga** (`f23314a7`) — retomado da branch `fix/w1-recibo` que já existia (G5: reexecutar teria sido desperdício). Causa confirmada **por repro**, não por leitura: `deleteAll()` mirava o `USERPROFILE` real mesmo com `HOME` isolado (`os.homedir()` ignora `HOME` no Windows). Traz o `ledger_janela` da W1 PASSO 3 e os **três** consumidores reais. Correcção à W1 `:128`: a statusline não é consumidor — grep por `ledger_eventos|entregas_por_dia|scorecard` em `tools/router/` devolve zero. Eram três, não quatro.
+- **P0-B · telemetria que o piloto consome** (`c65f9aee`) — executado pelo codex (`job-mshys18a-bffe`, 1030s), verificado aqui (crítico≠autor). `classify_ms`+`classify_path` no evento `classified` dos hooks; medição do bridge propagada em vez de re-medida; `ollama{}` deixa de ser deitado fora pelo `telemetry.js`.
+- **P0-C · prova de bundle** (`0fbdcff2`) — o braço B nunca correu o repo: o `settings.json` liga o UserPromptSubmit a `~/.claude/tools/router/inject_context.js`. Comparação ficheiro-a-ficheiro por sha256, **nunca um manifest**. Demonstrado em vivo esta noite: depois dos merges a prova deu `DIVERGENTE` e nomeou os 3 ficheiros (`gsd-statusline.js`, `inject_context.js`, `quota-honesta.js` ausente); após rebuild+reinstall, `IGUAL 198/198` no sha final. O `resultado.md` passa a ser gerado dos `meta.json` e **recusa-se a existir** com shas mistos.
+- **P1-E parcial** (`0fbdcff2`) — quota honesta + tecto do kimi por categoria.
+
+**O achado que não estava no brief.** O `<router-hint>` desta sessão anunciou `codex_quota: 0% remaining`; onze minutos depois despachei um codex que correu 1030s sem falhar um pedido — o 0% vinha de `quota-tracker.js:319`, um contador **local** de orçamento. (A sessão do piloto viu o mesmo sintoma e chamou-lhe "tracker stale", acima.) Mas era pior do que o achado #8 supunha: `quota-live.onStatuslineRender()` estava escrito e **nenhum ficheiro o chamava** — `~/.mooter/quota-live.json` não existia. Logo `anthropic_quota` tinha a mesma origem: as **duas** linhas eram o mesmo contador local, e a "fonte oficial" nunca chegou a existir, só o seu capturador desligado. Ao ligá-lo apanhei um erro meu: `five_hour_pct` é percentagem **usada**, e eu publicava-a como *remaining* — 62% gasto sairia como 62% disponível e o router relaxaria quando devia apertar.
+
+**Gate mecânico (corrido nativamente; o sandbox do codex não conseguiu — `spawn EPERM`):**
+- `tools/router`: baseline main limpo 1070/1067/2 → main mergido **1079/1075/3** (+9 do `quota-honesta.test.js`, que também foi **ligado ao `npm test`** — passava despercebido).
+- `bridge`: baseline main limpo 909/907/1 → **+3 testes do P0-B, todos verdes**.
+- **Falhas pré-existentes, nomeadas:** `ondaA.test.js` A3/A3b (sonda Ollama em `127.0.0.1:1`) · `agent-sync-ledger` (device lookup, vault receipts) · `tuned_demote still works when no quality_intent present` — esta **não é regressão**: reproduz-se em main puro, sem uma linha da wave, bastando copiar o `tools/router/tuning-state.json` local (não versionado, `generated_at 2026-06-05`, `sample_size 8`) para uma worktree limpa; desaparece ao removê-lo. `retrato-mapa.test.js` falha só com o WIP não-commitado desta working-tree partilhada — verde em main limpo, e só requer builtins de Node.
+- Cross-check do moo sobre o relatório do codex: 18 divergências, **todas do instrumento** — 7 `path` truncados no espaço de "Paulo Loureiro" ao partir o link markdown, 11 `number` que o verificador não sabe verificar. Amostrei 4 à mão contra o disco (`inject_context.js:631`, `:996`, `telemetry.js:201`, `seamless.js:2389`): 4/4 verdadeiras nas linhas exactas.
+
+**Nota de convivência:** esta working-tree é partilhada. O WIP de `cockpit.html`, `retrato-mapa.js`, `worktrees.js` e `build-snapshot.js` **não entrou** em nenhum commit desta wave. O `cockpit.html` teve de ser guardado (`git stash` só desse caminho, com cópia de segurança em disco) para os merges passarem, e foi devolvido — as duas alterações coexistem no ficheiro.
+
+**NÃO feito, por ordem do Paulo — vão para a wave pós-piloto:** P1-D (dispatch sem mentiras) · P2-F (juiz interno) · P1-E #2 (probe do Gemini por modo de autenticação).
+
+gauntlet: alto-risco · G4 em MOTOR DIFERENTE (codex, 545s, 10 achados file:line, todos incorporados) · G5: fix da W1 já existia em branch, reexecução evitada · G3: cada fix nasceu com teste vermelho (5 do `ledger_janela`, 2 do `delete-isolation`, 9 da prova de bundle, 10 da quota, 5 do kimi) · G11: "gemini morto" era generalização — probe por auth-mode fica para a próxima wave · G18: nenhum número publicado, `n/d` onde não há medição · braços do piloto corridos: **nenhum**
+
 ### 🟢 WAVE H LAUNCHED — 2026-07-29T14:35
 
 **Status:** ✅ GO-LIVE
@@ -3519,3 +3554,40 @@ Três correcções de coerência, zero features novas, conforme masterprompt (ar
 - Backlog P-M1..M4, P-H1..H6, P-P1..P7 (ver `_handoff/COMO_TESTAR_E_BACKLOG_2026-07-31.md`) — nenhum tocado nesta wave.
 
 **Status:** ✅ K1+K2+K3 shipped e verificados (excepto K2 cross-check, não bloqueante)
+
+---
+
+## 🔒 REGRA DURA — o artifact `mooter-cockpit` NÃO se republica de sessão cloud — 2026-08-05
+
+**A partir daqui, nenhuma sessão Cowork cloud republica o artifact `mooter-cockpit`.** Só uma sessão que corra NA máquina (Cowork "on your computer" ou Claude Code local) o pode fazer.
+
+### Porquê — duas causas medidas hoje
+
+1. **O schema remoto não tem `mcp_tools`.** `mcp__remote-devices__update_artifact` aceita exactamente 4 propriedades: `id`, `file_uuid`, `update_summary`, `description`. Não existe campo para declarar tools do conector. Verificado às 11:15Z depois de `RefreshMcpTools` (servidor `refreshed`, 59 tools, 0 adicionadas / 0 removidas). O `create_artifact` é pior: *"Remote-created artifacts start with no connector grants."* Nenhuma outra tool da sessão aceita `mcp_tools` — a tool local `Artifact` não está exposta ao cloud (`select:Artifact` → "No matching deferred tools found").
+2. **Publicar de fora corta a ponte.** Descrição da própria tool: *"A remote update clears the artifact's connector grants."* Foi o que aconteceu às **11:09:16Z de hoje** — o `mooter-cockpit` foi actualizado por uma sessão cloud e ficou sem grants. É a **3ª ocorrência** do mesmo padrão (1ª e 2ª a 2026-08-04).
+
+**Consequência prática:** de uma sessão cloud o chip do painel **nunca** pode dizer `bridge` — no máximo `snapshot`. O gesto de publicar é o mesmo gesto que corta a fonte.
+
+**Detalhe que fecha a porta de vez (namespace):** o `cockpit.html` chama as tools pelos nomes do host local — `mcp__Mooter__mooter_fleet`, `mcp__Mooter__mooter_setup`, `mcp__Mooter__mooter_work`, `mcp__Mooter__mooter_cancel`. Da cloud as mesmas tools só existem como `mcp__remote-devices__Mooter__*`. Mesmo que existisse um campo `mcp_tools`, uma sessão cloud declararia o namespace errado.
+
+### Segundo bloqueio, independente do primeiro
+
+O snapshot não pode ser gerado da cloud. Pelo mount, `HOME` resolve para o sandbox da sessão (`/sessions/rcw-.../`) e a pasta `.mooter` é procurada lá; só `C:\Users\Paulo Loureiro\frugal` está montado — `C:\Users\Paulo Loureiro\.mooter` não está. O `build-snapshot` recusou-se a escrever, e **fez bem**: *"vistas vazias: jobs, board, setup · snapshot NÃO escrito — uma fotografia vazia lê-se como facto"*.
+
+### Estado do artifact a 2026-08-05 11:09:16Z
+
+Publicado a partir de `dist/cockpit-snapshot.html` — **correcto**: 5 ocorrências de `__MOOTER_SNAPSHOT__`, payload de 32.473 chars, `gerado_em` 11:07:25.413Z, `medido_em` 11:04:24.497Z, 534.472 bytes. A regra "publicar o snapshot, nunca o HTML cru" foi respeitada. O que falta é o **grant**, e o grant é gesto de UI do desktop.
+
+### Como se faz correctamente (sessão local)
+
+1. Gerar `dist/cockpit-snapshot.html` na máquina, com `.mooter` alcançável.
+2. Publicar no `mooter-cockpit` **de uma sessão local**, declarando `mcp__Mooter__mooter_fleet`, `mcp__Mooter__mooter_setup`, `mcp__Mooter__mooter_check`.
+3. Aceite: abrir o painel e o chip dizer `bridge · read HH:MM`. Se disser `snapshot`, o grant não passou.
+
+### ❌ Não fazer
+
+`update_artifact` / `create_artifact` sobre `mooter-cockpit` a partir de **qualquer** sessão cloud, por mais fresco que esteja o snapshot. Fresco sem ponte continua a ser `snapshot`, e a republicação apaga o grant que uma sessão local tenha acabado de pôr.
+
+### Conector saudável (para não confundir sintomas)
+
+`mooter_check` às 11:16:13.883Z → `ok:true`, `live:0`, "frota parada · em codex-mooter-plugin, frugal-work, frugal, frugal-site". O que está cortado é o **grant do artifact**, não o conector.
