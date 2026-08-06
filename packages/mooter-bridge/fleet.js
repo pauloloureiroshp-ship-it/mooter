@@ -1182,6 +1182,7 @@ async function toolFleet(args, deps) {
       live: 0, waves: [], jobs: [], sessions: [],
       plans: [], handoffs: [], coherence: [], active_wave: null,
       totals: emptyAggregate.totals,
+      ledger_janela: board.ledgerJanela([]),
       ...freshBlocks,
       worktrees,
       local, local_available: local !== null, local_host: OLLAMA_HOST,
@@ -1392,6 +1393,9 @@ async function toolFleet(args, deps) {
       .map((s) => ({ id: s.id, title: s.title, model: s.model || null, project: s.project || null, cwd: s.cwd || null })),
     plans,                       // steps × risk × who did them
     totals,                      // tokens split cloud vs local, real cost
+    // A profundidade real do ficheiro que alimenta todas as contagens acima —
+    // um denominador de minutos apresentado como "um dia" foi o buraco de 2026-08-05.
+    ledger_janela: board.ledgerJanela(events),
     handoffs,                    // proven chains: who prepared for whom
     coherence: filterCoherence(coherence),
     active_wave: focus.active_wave,

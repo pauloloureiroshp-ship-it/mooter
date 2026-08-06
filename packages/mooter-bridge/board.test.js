@@ -432,6 +432,83 @@ test('interrupcoes_por_dia: métrica fora ontem e ainda fora hoje gera 0 novas i
   assert.strictEqual(nInterrupcoesHoje, 0, 'nenhuma nova interrupção deve ser registada hoje se a métrica já estava fora ontem');
 });
 
+// --- W1 PASSO 3 · ledger_janela ------------------------------------------------
+// Regressão do buraco de 2026-08-05: o ledger foi apagado e o painel continuou a
+// publicar "entregas_por_dia" sobre uma janela de minutos sem o dizer. O defeito
+// não é o número — é o denominador invisível. Estes testes falham em `main`
+// (onde `ledgerJanela` não existe e as métricas agregadas não levam
+// `dias_representados`) e passam com o fix.
+
+test('ledgerJanela mede a profundidade real do ficheiro, não a que se assume', () => {
+  const janela = board.ledgerJanela(ledger30());
+  assert.strictEqual(janela.eventos, 30);
+  assert.strictEqual(janela.dias_representados, 1);
+  assert.strictEqual(typeof janela.dias_representados, 'number',
+    'dias_representados é um número — o consumidor decide como o mostra, não interpreta texto');
+  assert.strictEqual(janela.primeiro_ts, '2026-07-26T12:00:00.000Z');
+  assert.strictEqual(janela.ultimo_ts, '2026-07-26T13:31:00.000Z');
+  assert.match(janela.porque, /janela real do ficheiro/);
+});
+
+test('ledgerJanela conta dias UTC distintos, não o intervalo entre extremos', () => {
+  const doisDias = [
+    { ts: '2026-08-04T23:59:00.000Z', event: 'done' },
+    { ts: '2026-08-05T00:01:00.000Z', event: 'done' },
+  ];
+  // 2 minutos de intervalo real, mas 2 dias UTC representados — e vice-versa:
+  // 23h no mesmo dia continuam a ser 1. Confundir os dois é o bug.
+  assert.strictEqual(board.ledgerJanela(doisDias).dias_representados, 2);
+  assert.strictEqual(board.ledgerJanela([
+    { ts: '2026-08-05T00:30:00.000Z', event: 'done' },
+    { ts: '2026-08-05T23:30:00.000Z', event: 'done' },
+  ]).dias_representados, 1);
+});
+
+test('ledger vazio ou sem ts válido devolve janela n/d com porquê — nunca um dia inventado', () => {
+  const vazio = board.ledgerJanela([]);
+  assert.strictEqual(vazio.primeiro_ts, null);
+  assert.strictEqual(vazio.ultimo_ts, null);
+  assert.strictEqual(vazio.dias_representados, 0);
+  assert.strictEqual(vazio.eventos, 0);
+  assert.match(vazio.porque, /não tem eventos/);
+
+  const semTs = board.ledgerJanela([{ event: 'done' }, { ts: 'não é uma data', event: 'done' }]);
+  assert.strictEqual(semTs.eventos, 2, 'os eventos contam-se mesmo quando o ts é inutilizável');
+  assert.strictEqual(semTs.dias_representados, 0);
+  assert.strictEqual(semTs.primeiro_ts, null);
+  assert.match(semTs.porque, /indetermin/);
+});
+
+test('toda a métrica agregada viaja com dias_representados ao lado (regra dura da W1)', () => {
+  const card = board.scorecard(deps());
+  assert.strictEqual(card.ledger_janela.dias_representados, 1);
+  assert.strictEqual(card.fontes.ledger.dias_representados, 1);
+  // W1 :131 — um denominador de minutos apresentado como um dia é a mesma classe
+  // de mentira que um snapshot apresentado como leitura viva.
+  for (const nome of ['entregas_por_dia', 'taxa_falha_pct', 'custo_por_tarefa_entregue_usd', 'trabalho_zero_pct']) {
+    assert.strictEqual(card.metricas[nome].dias_representados, 1,
+      `${nome} publicada sem dias_representados — o denominador volta a ficar invisível`);
+  }
+});
+
+test('uma janela de minutos não se disfarça de dia inteiro', () => {
+  // 3 entregas em 12 minutos: entregas_por_dia diz 3, e só dias_representados
+  // impede que isso seja lido como "3 por dia" sobre história real.
+  const curto = [0, 1, 2].flatMap((i) => {
+    const comum = { job_id: 'curto' + i, wave: 'w', agent: 'moo', worktree: 'C:\\repo', goal: 'g', escrita: true };
+    return [
+      { ...comum, event: 'dispatched', ts: `2026-08-05T09:0${i}:00.000Z` },
+      { ...comum, event: 'done', exit_code: 0, ts: `2026-08-05T09:0${i}:30.000Z` },
+    ];
+  });
+  const card = board.scorecard(deps({ ledger: curto, keepResults: [] }));
+  assert.strictEqual(card.metricas.entregas_por_dia.valor, 3);
+  assert.strictEqual(card.metricas.entregas_por_dia.dias_representados, 1);
+  assert.strictEqual(card.ledger_janela.primeiro_ts, '2026-08-05T09:00:00.000Z');
+  assert.strictEqual(card.ledger_janela.ultimo_ts, '2026-08-05T09:02:30.000Z');
+  assert.strictEqual(card.ledger_janela.eventos, 6);
+});
+
 test('interrupcoes_por_dia: mesma métrica em dias UTC diferentes gera 1 interrupção por dia', () => {
   const ledgerEvents = [];
   const opts1 = {

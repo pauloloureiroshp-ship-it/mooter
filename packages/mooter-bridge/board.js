@@ -342,6 +342,40 @@ function jaTemInterrupcaoHojeParaMetrica(ledger, metrica, medidoEm) {
   return noDia.some((event) => event.event === 'meo_interrupcao' && event.metrica === metrica);
 }
 
+/**
+ * A profundidade REAL de história do ficheiro. Existe porque em 2026-08-05 o
+ * ledger foi apagado duas vezes e todas as médias "por dia" continuaram a ser
+ * publicadas sobre uma janela de minutos sem o dizer. `dias_representados` é
+ * um número, nunca texto — o consumidor decide como o mostrar, não interpreta.
+ */
+function ledgerJanela(ledger) {
+  const eventos = Array.isArray(ledger) ? ledger.length : 0;
+  let primeiro = null;
+  let ultimo = null;
+  const diasUtc = new Set();
+  for (const event of (Array.isArray(ledger) ? ledger : [])) {
+    const t = Date.parse((event && event.ts) || '');
+    if (!Number.isFinite(t)) continue;
+    if (primeiro == null || t < primeiro) primeiro = t;
+    if (ultimo == null || t > ultimo) ultimo = t;
+    diasUtc.add(new Date(t).toISOString().slice(0, 10));
+  }
+  if (primeiro == null) {
+    return {
+      primeiro_ts: null, ultimo_ts: null, dias_representados: 0, eventos,
+      porque: eventos ? 'nenhum evento do ledger tem ts válido — janela indeterminável'
+        : 'o ledger não tem eventos — janela vazia',
+    };
+  }
+  return {
+    primeiro_ts: new Date(primeiro).toISOString(),
+    ultimo_ts: new Date(ultimo).toISOString(),
+    dias_representados: diasUtc.size,
+    eventos,
+    porque: 'janela real do ficheiro: ' + diasUtc.size + ' dia(s) UTC com eventos entre o primeiro e o último ts',
+  };
+}
+
 function construir(ledger, quotaState, gpuState, opts) {
   const o = opts || {};
   const medidoEm = agoraIso(o);
@@ -377,26 +411,27 @@ function construir(ledger, quotaState, gpuState, opts) {
         : 'soma real das ' + costsMeasured + ' entrega(s) com custo reportado pelo CLI'));
   const pressao = quotaState && quotaState.pressao ? numero(quotaState.pressao.valor) : null;
   const wip = records.filter((r) => !r.status).length;
+  const janela = ledgerJanela(ledger);
 
   const metricas = {
-    entregas_por_dia: metrica(
+    entregas_por_dia: Object.assign(metrica(
       'entregas_por_dia', entregues.length && dias.size ? arredondar(entregues.length / dias.size, 3) : null,
       'tarefas/dia UTC', 'seamless.ledgerRead · done / dias UTC representados no ledger', medidoEm, faixas,
       entregues.length ? entregues.length + ' entregas em ' + dias.size + ' dia(s) UTC representado(s)'
         : 'o ledger não tem tarefas entregues',
-    ),
+    ), { dias_representados: janela.dias_representados }),
     lead_time_primeiro_token_s: metrica(
       'lead_time_primeiro_token_s', arredondar(mediana(ttft), 3), 's (mediana)',
       'seamless.ledgerRead · dispatched → first_token/ttft_ms', medidoEm, faixas,
       ttft.length ? ttft.length + ' job(s) com primeiro token explicitamente medido'
         : 'o ledger não regista first_token, first_token_at ou ttft_ms; done não é usado como palpite',
     ),
-    taxa_falha_pct: metrica(
+    taxa_falha_pct: Object.assign(metrica(
       'taxa_falha_pct', baseFalha.length ? arredondar(falharam.length / baseFalha.length * 100, 2) : null,
       '% de jobs com sucesso/falha', 'aprender._jobRecords · falhou / (entregue + falhou)', medidoEm, faixas,
       baseFalha.length ? falharam.length + '/' + baseFalha.length + ' desfechos elegíveis foram falha de trabalho'
         : 'não há desfechos entregue/falhou comparáveis',
-    ),
+    ), { dias_representados: janela.dias_representados }),
     taxa_interrupcao_pct: metrica(
       'taxa_interrupcao_pct', baseInterrupcao.length
         ? arredondar(interrompidos.length / baseInterrupcao.length * 100, 2) : null,
@@ -421,12 +456,12 @@ function construir(ledger, quotaState, gpuState, opts) {
     keep_rate_pct: metrica(
       'keep_rate_pct', keep.valor, '% de ficheiros mantidos', 'aprender.measureKeepRate', medidoEm, faixas, keep.porque,
     ),
-    custo_por_tarefa_entregue_usd: metrica(
+    custo_por_tarefa_entregue_usd: Object.assign(metrica(
       'custo_por_tarefa_entregue_usd', arredondar(mediana(custos), 4), 'USD/tarefa (mediana)',
       'aprender._jobRecords · cost_usd das tarefas done', medidoEm, faixas,
       custos.length ? custos.length + '/' + entregues.length + ' entregas com custo reportado pelo CLI'
         : 'nenhuma tarefa entregue tem cost_usd reportado pelo CLI',
-    ),
+    ), { dias_representados: janela.dias_representados }),
     custo_total_usd: Object.assign(metrica(
       'custo_total_usd', totalCost, 'USD (soma)',
       'aprender._jobRecords · soma de cost_usd das tarefas done', medidoEm, faixas,
@@ -441,11 +476,11 @@ function construir(ledger, quotaState, gpuState, opts) {
     ), { jobs_medidos: costsMeasured, jobs_sem_medicao: costsMissing }),
     trabalho_zero_pct: (() => {
       const fatia = fatiaLocal(records, { escopo: 'global — todos os cargos' });
-      return metrica(
+      return Object.assign(metrica(
         'trabalho_zero_pct', fatia.valor,
         '% de jobs concluídos', 'fatiaLocal(aprender._jobRecords)', medidoEm, faixas,
         fatia.porque,
-      );
+      ), { dias_representados: janela.dias_representados });
     })(),
     pressao_quota: (() => {
       const m = metrica(
@@ -471,10 +506,11 @@ function construir(ledger, quotaState, gpuState, opts) {
   return {
     gerado_em: medidoEm,
     ledger_eventos: ledger.length,
+    ledger_janela: janela,
     motivos_nao_local: motivosNaoLocal(ledger),
     metricas,
     fontes: {
-      ledger: { fonte: 'seamless.ledgerRead', eventos: ledger.length },
+      ledger: { fonte: 'seamless.ledgerRead', eventos: ledger.length, dias_representados: janela.dias_representados },
       quota: { fonte: 'quota.estado' + (o.async ? 'Async' : ''), medido: pressao != null },
       aprender: { fonte: 'aprender.js', jobs: records.length },
       gpu: gpuState == null
@@ -654,6 +690,7 @@ async function scorecardAsync(opts) {
 
 module.exports = {
   scorecard, scorecardAsync, excepcoes, registarInterrupcao, persistir, persistirAsync, lerFaixas,
+  ledgerJanela,
   DEFAULT_FAIXAS, DONOS, RESOURCE, RESOURCE_URI,
   _construir: construir, _temposPrimeiroToken: temposPrimeiroToken,
   _temposRecuperacao: temposRecuperacao, _motivosNaoLocal: motivosNaoLocal, _paths: paths,
