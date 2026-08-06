@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, sta
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomInt } from "node:crypto";
+import { comparar as provaBundle, relatorio as relatorioBundle } from "./prova-bundle.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
@@ -285,17 +286,44 @@ const taskId = (idxTask >= 0 ? argv[idxTask + 1] || "" : "").toUpperCase();
 if (!dry && !["T1", "T2"].includes(taskId)) { console.error("uso: driver.mjs --task T1|T2 (ou --dry)"); process.exit(2); }
 
 const erros = precondicoes(taskId || "T1");
+
+// P0-C — o braço B não corre o repo, corre o runtime INSTALADO
+// (`settings.json` liga o UserPromptSubmit a ~/.claude/tools/router/inject_context.js).
+// Sem esta prova o meta.json carimba um base_sha que descreve código que NÃO
+// correu — o gotcha que já custou 3× (achado #6). Corre no arranque, ANTES do
+// --dry sair, para o Paulo poder verificar amanhã sem correr um único braço.
+const baseSha = execFileSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const prova = provaBundle(baseSha, process.env.USERPROFILE || process.env.HOME || "");
+console.log(relatorioBundle(prova));
+
 if (dry) {
-  console.log(erros.length ? `DRY: bloqueado por:\n- ${erros.join("\n- ")}` : "DRY: pré-condições OK (PILOTO_GO à parte).");
+  const bloqueio = !prova.repo_bundle_sha ? "prova de bundle indeterminável (n/d)"
+    : (!prova.igual ? "runtime_bundle_sha ≠ repo_bundle_sha" : null);
+  const todos = [...erros, ...(bloqueio ? [bloqueio] : [])];
+  console.log(todos.length ? `DRY: bloqueado por:\n- ${todos.join("\n- ")}` : "DRY: pré-condições OK (PILOTO_GO à parte).");
   process.exit(0);
 }
 if (erros.length) { console.error(`RECUSADO:\n- ${erros.join("\n- ")}`); process.exit(1); }
 
 mkdirSync(RUNS_DIR, { recursive: true });
 const log = join(RUNS_DIR, "driver.log");
-const baseSha = execFileSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+appendFileSync(log, JSON.stringify({
+  ts: new Date().toISOString(), evento: "prova_bundle", base_sha: baseSha,
+  repo_bundle_sha: prova.repo_bundle_sha, runtime_bundle_sha: prova.runtime_bundle_sha,
+  igual: prova.igual, medidos: prova.medidos, total: prova.total,
+  divergentes: prova.divergentes, ausentes: prova.ausentes, porque: prova.porque,
+}) + "\n");
+if (!prova.repo_bundle_sha) {
+  console.error("RECUSADO: prova de bundle indeterminável (n/d) — medir antes de correr, nunca assumir.");
+  process.exit(1);
+}
+if (!prova.igual) {
+  console.error("RECUSADO: runtime_bundle_sha ≠ repo_bundle_sha — empacota, instala e reinicia o bridge a partir deste sha antes de medir.");
+  process.exit(1);
+}
+
 const task = tarefa(taskId);
-appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "inicio", tarefa: task.id, base_sha: baseSha }) + "\n");
+appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "inicio", tarefa: task.id, base_sha: baseSha, runtime_bundle_sha: prova.runtime_bundle_sha }) + "\n");
 
 for (let e = 1; e <= EXECUCOES; e++) {
   // ordem por moeda registada (§2.4): permutação de A/B/C por sorteios crypto, lançamentos gravados
