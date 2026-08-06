@@ -628,13 +628,32 @@ try {
 // Hook cache lookup before spawning classify.js
 let decision = null;
 let cacheHit = false;
+let classifyMs = null;
+let classifyPorque = null;
+let classifyPath = null;
+let classifyStartedNs = null;
+try { classifyStartedNs = process.hrtime.bigint(); }
+catch { classifyPorque = 'process.hrtime.bigint() indisponível neste runtime'; }
+const finishClassifyMeasurement = () => {
+  if (classifyStartedNs == null) return;
+  try {
+    const elapsedNs = process.hrtime.bigint() - classifyStartedNs;
+    if (elapsedNs > 0n) classifyMs = Number(elapsedNs) / 1e6;
+    else classifyPorque = 'o relógio monotónico não avançou durante a classificação';
+  } catch {
+    classifyPorque = 'o relógio monotónico falhou ao terminar a medição';
+  }
+};
 const cachedResult = getClassifyCached(classifyInput, _prevTier);
 if (cachedResult) {
   decision = cachedResult.decision;
   cacheHit = true;
+  classifyPath = 'cache';
+  finishClassifyMeasurement();
 }
 
 if (!decision) {
+  classifyPath = 'spawn';
   const classifier = path.join(__dirname, 'classify.js');
   // v0.9.1: pass hw-recommended T0 model via env var
   const classifyEnv = Object.assign({}, process.env);
@@ -664,6 +683,7 @@ if (!decision) {
     logDecision({ ts: new Date().toISOString(), event: 'parse_failed', prompt_len: prompt.length });
     process.exit(0);
   }
+  finishClassifyMeasurement();
 
   // Cache the fresh decision under the normalised key (skipped if user_override
   // detected — handled inside setClassifyCached). Wave 21 (C2): caching on the
@@ -973,6 +993,11 @@ logDecision({
   escalation_rule: decision.escalation_rule,
   quality_intent: decision.quality_intent || false,
   cache_hit: cacheHit,
+  classify_ms: classifyMs,
+  classify_path: classifyPath,
+  classify_porque: classifyMs == null
+    ? (classifyPorque || 'o caminho de classificação não produziu uma medição')
+    : null,
   // v0.9.1: prompt features from classifier
   has_code_block: decision.has_code_block || false,
   has_file_refs: decision.has_file_refs || false,

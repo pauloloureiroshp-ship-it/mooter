@@ -672,6 +672,27 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   assert.strictEqual(typeof doneEv.duration_s, 'number');
   assert.strictEqual(doneEv.desfecho, 'entregue');
   assert.strictEqual(doneEv.ttft_ms, null, 'sem conteúdo observado no stream tem de ser null, nunca 0');
+  assert.ok(typeof doneEv.classify_ms === 'number' && doneEv.classify_ms > 0,
+    'a medição já feita por classifyOrNull evaporou antes do ledger');
+  assert.strictEqual(doneEv.classify_porque, null);
+  assert.deepStrictEqual(doneEv.ollama, {
+    tok_s: null,
+    load_duration_ns: null,
+    prompt_eval_duration_ns: null,
+    eval_duration_ns: null,
+    num_ctx: null,
+    porque: 'out.log não contém métricas Ollama para este job',
+  });
+  assert.deepStrictEqual(doneEv.pressao_quota, {
+    valor: null,
+    porque: 'o dispatch não recebeu calibragem de quota',
+  });
+  assert.deepStrictEqual(doneEv.calibragem, {
+    politica: null,
+    nivel: null,
+    tecto: null,
+    porque: 'o dispatch não recebeu calibragem de quota',
+  });
   assert.ok(doneEv.mp_hash && doneEv.mp_hash.length === 64);
   const etaState = JSON.parse(fs.readFileSync(path.join(process.env.MOOTER_HOME, 'eta-index.json'), 'utf8'));
   const etaSample = Object.values(etaState.chaves)
@@ -694,6 +715,63 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   assert.ok(c2.idempotent.includes('já tinha'));
   const collected = seam.ledgerRead().filter((e) => e.job_id === d.job_id && e.event === 'collected');
   assert.strictEqual(collected.length, 1, 'collected não pode duplicar');
+});
+
+test('P0-B — evento terminal propaga Ollama e calibragem sem re-medir', async () => {
+  const worktree = makeWorktree('frugal-wt-p0b-telemetria');
+  const originalPickModelExplained = moo.pickModelExplained;
+  const originalRunLocal = moo.runLocal;
+  let result = null;
+  try {
+    moo.pickModelExplained = async () => ({ model: 'qwen3:30b', porque: 'stub P0-B' });
+    moo.runLocal = () => { const child = fakeChild(); setImmediate(() => child.emit('spawn')); return child; };
+    result = await seam.toolDispatch({
+      agent: 'moo', worktree, masterprompt: MP, wave: 'pista-limpa-p0b',
+      model: 'qwen3:30b',
+      __quota_calibragem: {
+        pressao: 0.73, politica: 'nuvem-com-conta', nivel: 'alto', tecto: 'sonnet', porque: 'stub P0-B',
+      },
+    });
+    assert.ok(result.job_id, JSON.stringify(result));
+    const jobDir = path.join(process.env.MOOTER_HOME, 'jobs', result.job_id);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    fs.writeFileSync(path.join(jobDir, 'out.log'), JSON.stringify({
+      type: 'result', subtype: 'success', local: true, model: 'qwen3:30b', result: 'ok',
+      num_ctx: 32768,
+      total_cost_usd: 0,
+      usage: { input_tokens: 20, output_tokens: 10 },
+      ollama: {
+        tok_s: 41,
+        load_duration_ns: 12,
+        prompt_eval_duration_ns: 34,
+        eval_duration_ns: 56,
+      },
+    }));
+    seam.REGISTRY.get(result.job_id).child.emit('close', 0);
+    await waitUntil(() => seam.ledgerRead().some((event) => (
+      event.job_id === result.job_id && event.event === 'done'
+    )));
+
+    const done = seam.ledgerRead().find((event) => event.job_id === result.job_id && event.event === 'done');
+    assert.ok(typeof done.classify_ms === 'number' && done.classify_ms > 0);
+    assert.strictEqual(done.classify_porque, null);
+    assert.deepStrictEqual(done.ollama, {
+      tok_s: 41,
+      load_duration_ns: 12,
+      prompt_eval_duration_ns: 34,
+      eval_duration_ns: 56,
+      num_ctx: 32768,
+      porque: null,
+    });
+    assert.deepStrictEqual(done.pressao_quota, { valor: 0.73, porque: null });
+    assert.deepStrictEqual(done.calibragem, {
+      politica: 'nuvem-com-conta', nivel: 'alto', tecto: 'sonnet', porque: null,
+    });
+  } finally {
+    await closeJob(result, 1);
+    moo.pickModelExplained = originalPickModelExplained;
+    moo.runLocal = originalRunLocal;
+  }
 });
 
 test('recusa por falta de contexto sai failed, com motivo no resumo, apesar de exit 0', async () => {

@@ -198,6 +198,7 @@ function foldEvents(events) {
     commands: [],           // shell commands actually run
     cost_usd: null,
     num_turns: null,
+    ollama: null,
     finished: false,
     first_ts: null,
     last_ts: null,
@@ -220,6 +221,26 @@ function foldEvents(events) {
     const model = e.model || (msg && msg.model) || null;
     if (model && typeof model === 'string') t.model = model;
     if (e.session_id) t.session_id = e.session_id;
+    if (e.ollama && typeof e.ollama === 'object') {
+      const required = {
+        tok_s: e.ollama.tok_s,
+        load_duration_ns: e.ollama.load_duration_ns,
+        prompt_eval_duration_ns: e.ollama.prompt_eval_duration_ns,
+        eval_duration_ns: e.ollama.eval_duration_ns,
+        num_ctx: e.ollama.num_ctx != null ? e.ollama.num_ctx : e.num_ctx,
+      };
+      const missing = Object.entries(required)
+        .filter(([, value]) => value == null)
+        .map(([key]) => key);
+      t.ollama = {
+        tok_s: required.tok_s != null ? required.tok_s : null,
+        load_duration_ns: required.load_duration_ns != null ? required.load_duration_ns : null,
+        prompt_eval_duration_ns: required.prompt_eval_duration_ns != null ? required.prompt_eval_duration_ns : null,
+        eval_duration_ns: required.eval_duration_ns != null ? required.eval_duration_ns : null,
+        num_ctx: required.num_ctx != null ? required.num_ctx : null,
+        porque: missing.length ? 'out.log não forneceu: ' + missing.join(', ') : null,
+      };
+    }
 
     // Usage arrives twice: per-turn on each assistant message, and again as a
     // TOTAL on the final `result` event. Summing both double-counts — the fake
@@ -299,7 +320,7 @@ function foldEvents(events) {
   // how many tokens it used, what it cost, or which session it is. Only when we
   // know none of those do we say null — because that is the honest answer.
   const knowsSomething = t.model != null || t.tokens_in != null || t.tokens_out != null
-    || t.cost_usd != null || t.session_id != null;
+    || t.cost_usd != null || t.session_id != null || t.ollama != null;
   return knowsSomething ? t : null;
 }
 

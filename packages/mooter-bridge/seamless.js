@@ -785,6 +785,59 @@ function readJobResult(agent, jobDir, elapsedSeconds) {
   } catch { return empty; }
 }
 
+function ollamaParaLedger(jobTelemetry) {
+  const source = jobTelemetry && jobTelemetry.ollama;
+  if (!source || typeof source !== 'object') {
+    return {
+      tok_s: null,
+      load_duration_ns: null,
+      prompt_eval_duration_ns: null,
+      eval_duration_ns: null,
+      num_ctx: null,
+      porque: 'out.log não contém métricas Ollama para este job',
+    };
+  }
+  const fields = ['tok_s', 'load_duration_ns', 'prompt_eval_duration_ns', 'eval_duration_ns', 'num_ctx'];
+  const missing = fields.filter((field) => source[field] == null);
+  const out = {};
+  for (const field of fields) out[field] = source[field] != null ? source[field] : null;
+  out.porque = missing.length
+    ? (source.porque || 'out.log não forneceu: ' + missing.join(', '))
+    : null;
+  return out;
+}
+
+function quotaParaLedger(quotaCalibration) {
+  const absent = 'o dispatch não recebeu calibragem de quota';
+  if (!quotaCalibration || typeof quotaCalibration !== 'object') {
+    return {
+      pressao_quota: { valor: null, porque: absent },
+      calibragem: { politica: null, nivel: null, tecto: null, porque: absent },
+    };
+  }
+  const has = (field) => Object.prototype.hasOwnProperty.call(quotaCalibration, field)
+    && quotaCalibration[field] !== undefined;
+  const pressaoKnown = has('pressao') && quotaCalibration.pressao != null;
+  const missing = ['politica', 'nivel', 'tecto']
+    .filter((field) => !has(field) || quotaCalibration[field] == null);
+  return {
+    pressao_quota: {
+      valor: pressaoKnown ? quotaCalibration.pressao : null,
+      porque: pressaoKnown
+        ? null
+        : (quotaCalibration.porque || 'a calibragem não trouxe pressao'),
+    },
+    calibragem: {
+      politica: has('politica') ? quotaCalibration.politica : null,
+      nivel: has('nivel') ? quotaCalibration.nivel : null,
+      tecto: has('tecto') ? quotaCalibration.tecto : null,
+      porque: missing.length
+        ? (quotaCalibration.porque || 'a calibragem não trouxe: ' + missing.join(', '))
+        : null,
+    },
+  };
+}
+
 function stepsTotalFor(agent, suppliedTotal) {
   if (Number.isInteger(suppliedTotal) && suppliedTotal >= 0) return { steps_total: suppliedTotal, porque: null };
   if (agent === 'moo') return { steps_total: 1, porque: null };
@@ -1885,6 +1938,7 @@ async function toolDispatch(args) {
   // FROZEN classifier picks the minimum viable tier and we pass it to the CLI.
   // Before this, `recommended_model` was computed and thrown away.
   const classified = classifyOrNull(masterprompt);
+  const classifyMeasurement = estadoDoRouter();
   const tier = classified ? (classified.tier || null) : null;
   const model_recommended = classified ? cliModelFor(agent, tier, classified.recommended_model) : null;
   let model = agent === 'kimi'
@@ -2250,6 +2304,7 @@ async function toolDispatch(args) {
     stepTracker.finish();
     const timing = contentTiming.finish();
     const r = readJobResult(agent, jobDir, dur);
+    const quotaReceipt = quotaParaLedger(quotaCalibration);
     // ⚠️ v1.3.3 — MEDIR O RESULTADO, NÃO A TELEMETRIA.
     //
     // A v1.3.2 perguntava "a telemetria trouxe tokens?" e marcava `failed` quando
@@ -2331,6 +2386,13 @@ async function toolDispatch(args) {
       session_id: r.session_id,
       tokens_in: r.telemetry ? r.telemetry.tokens_in : null,
       tokens_out: r.telemetry ? r.telemetry.tokens_out : null,
+      classify_ms: classifyMeasurement.classify_ms,
+      classify_porque: classifyMeasurement.classify_ms == null
+        ? classifyMeasurement.porque
+        : null,
+      ollama: ollamaParaLedger(r.telemetry),
+      pressao_quota: quotaReceipt.pressao_quota,
+      calibragem: quotaReceipt.calibragem,
       goal: jobGoal, escrita: canWrite, preparation: !!chain,
       files_touched: touched ? touched.files : null,
       files_touched_reason: touched ? touched.reason : null,

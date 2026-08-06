@@ -14,6 +14,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
@@ -63,4 +65,38 @@ test('pin-down on HIGH_RISK prompt is REFUSED (haiku on deploy/push)', () => {
   const out = runHook('deploy to production and push the release now', 'claude-haiku-4-5');
   assert.match(out, /USER_OVERRIDE: REFUSED/);
   assert.ok(!/honored — pinned to claude-haiku-4-5/.test(out), 'high-risk downgrade must not be honored');
+});
+
+test('P0-B — classified mede e identifica os caminhos spawn e cache usados pelo piloto', (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-p0b-hook-'));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const routerHome = path.join(home, '.claude', 'tools', 'router');
+  fs.mkdirSync(routerHome, { recursive: true });
+  const env = Object.assign({}, process.env, { HOME: home, USERPROFILE: home });
+  delete env.MOOTER_PIN_MODEL;
+  const prompt = 'resume esta frase curta para provar a telemetria do piloto';
+  const run = (sessionId) => spawnSync(process.execPath, [SCRIPT], {
+    input: JSON.stringify({ prompt, session_id: sessionId }),
+    encoding: 'utf8',
+    timeout: 15000,
+    env,
+  });
+
+  const first = run('p0b-hook-spawn');
+  assert.strictEqual(first.status, 0, first.stderr || first.stdout);
+  const second = run('p0b-hook-cache');
+  assert.strictEqual(second.status, 0, second.stderr || second.stdout);
+
+  const events = fs.readFileSync(path.join(routerHome, 'decisions.log'), 'utf8')
+    .trim().split('\n').map((line) => JSON.parse(line))
+    .filter((event) => event.event === 'classified' && /^p0b-hook-(spawn|cache)$/.test(event.session_id));
+  assert.strictEqual(events.length, 2, JSON.stringify(events));
+  assert.strictEqual(events[0].classify_path, 'spawn');
+  assert.strictEqual(events[1].classify_path, 'cache');
+  for (const event of events) {
+    assert.ok(typeof event.classify_ms === 'number' && event.classify_ms > 0,
+      'classify_ms tem de ser medido e positivo: ' + JSON.stringify(event));
+    assert.strictEqual(event.classify_porque, null,
+      'uma medição presente não pode trazer uma razão de ausência');
+  }
 });

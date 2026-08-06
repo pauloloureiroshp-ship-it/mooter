@@ -64,6 +64,28 @@ t('sem stream → null, nunca um palpite', () => {
   assert.strictEqual(telemetry.readJobTelemetry(path.join(HOME, 'nao-existe.log'), 10), null);
 });
 
+t('P0-B — conserva as métricas nativas do Ollama e num_ctx do result', () => {
+  const r = telemetry.foldEvents([{
+    type: 'result', subtype: 'success', local: true, model: 'qwen3:30b', result: 'ok',
+    num_ctx: 32768,
+    usage: { input_tokens: 20, output_tokens: 10 },
+    ollama: {
+      tok_s: 41,
+      load_duration_ns: 12,
+      prompt_eval_duration_ns: 34,
+      eval_duration_ns: 56,
+    },
+  }]);
+  assert.deepStrictEqual(r.ollama, {
+    tok_s: 41,
+    load_duration_ns: 12,
+    prompt_eval_duration_ns: 34,
+    eval_duration_ns: 56,
+    num_ctx: 32768,
+    porque: null,
+  });
+});
+
 console.log('\nrouter — o fosso deixou de ser decorativo');
 
 t('tier → alias de CLI (aliases, não versões que apodrecem)', () => {
