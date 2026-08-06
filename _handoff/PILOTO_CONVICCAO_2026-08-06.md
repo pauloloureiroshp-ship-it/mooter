@@ -1,6 +1,6 @@
 # PILOTO DE CONVICÇÃO v1.1 — "com Mooter vs sem Mooter", juiz cego, pós-G4
 **Data:** 2026-08-06 · **Estado:** 🟢 CONGELADO (X=40 · N=40 fixados pelo Paulo em 2026-08-06, antes de qualquer run)
-**Sha do commit de congelamento:** `<preenchido no 2º commit>`
+**Sha do commit de congelamento:** `0737767c714956bb7912a708b126f77f230bb4ed`
 **Decisões do Paulo (2026-08-06):** piloto já · 1 visual + 1 repo · controlo Fable 5 direto · painel cego 3 motores
 **G4 corrido:** crítico de contexto fresco (mesma família — **auto-DEGRADADO**, motores externos falharam por infra: Gemini CLI morto/Antigravity, kimi-k3 timeout 240s). 8 falhas encontradas, todas incorporadas abaixo como Δ.
 **Rótulo:** PILOTO NÃO-PUBLICÁVEL (G18). A versão publicável exige o gate de 11 itens do `BENCH_AB_PLANO_2026-07-28.md`.
