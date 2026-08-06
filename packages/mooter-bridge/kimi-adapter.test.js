@@ -181,3 +181,35 @@ test('wiring expõe kimi nas duas tools, no manifest e sem key no comando', () =
   assert.strictEqual(manifest.server.mcp_config.env.MOONSHOT_API_KEY, '${user_config.moonshot_api_key}');
   assert.strictEqual(manifest.user_config.moonshot_api_key.sensitive, true);
 });
+
+// --- P1-E #3 · tecto por categoria -------------------------------------------
+// Uma auditoria pede leitura longa + escrita longa e, com stream:false, nada
+// chega antes do fim: o tecto de 240 s matava o pedido inteiro e o trabalho
+// perdia-se completo, não parcial.
+
+test('auditoria tem tecto maior que o default, e o default não se mexeu', () => {
+  assert.strictEqual(kimi.timeoutParaCategoria('auditoria').ms, 900000);
+  assert.ok(kimi.timeoutParaCategoria('auditoria').ms > kimi.DEFAULT_TIMEOUT_MS);
+  assert.strictEqual(kimi.DEFAULT_TIMEOUT_MS, 240000, 'o default é a rede de segurança — não sobe por arrasto');
+});
+
+test('categoria desconhecida ou ausente cai no default — nunca herda o tecto generoso', () => {
+  for (const cat of [undefined, null, '', '   ', 'inventada', 42]) {
+    const t = kimi.timeoutParaCategoria(cat);
+    assert.strictEqual(t.ms, kimi.DEFAULT_TIMEOUT_MS, `categoria ${JSON.stringify(cat)} escapou para um tecto maior`);
+  }
+});
+
+test('o tecto diz sempre de onde veio — um número mudo não se audita', () => {
+  assert.match(kimi.timeoutParaCategoria('auditoria').fonte, /categoria "auditoria"/);
+  assert.match(kimi.timeoutParaCategoria('inventada').fonte, /desconhecida/);
+  assert.match(kimi.timeoutParaCategoria(undefined, 5000).fonte, /explícito/);
+});
+
+test('opts.timeoutMs explícito ganha à categoria', () => {
+  assert.strictEqual(kimi.timeoutParaCategoria('auditoria', 1234).ms, 1234);
+});
+
+test('a categoria é normalizada, não é sensível a maiúsculas ou espaços', () => {
+  assert.strictEqual(kimi.timeoutParaCategoria('  AUDITORIA  ').ms, 900000);
+});

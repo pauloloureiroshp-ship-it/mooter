@@ -7,6 +7,31 @@ const MODEL = 'kimi-k3';
 const PROVIDER_LABEL = 'Moonshot · nuvem';
 const MISSING_KEY_ERROR = 'MOONSHOT_API_KEY não configurada — platform.moonshot.ai';
 const DEFAULT_TIMEOUT_MS = 240000;
+
+// P1-E #3 — o tecto de 240 s foi calibrado para respostas curtas. Uma auditoria
+// pede ao Kimi que leia muito e escreva muito, e com `stream: false` (:175) nada
+// chega antes do fim: o pedido inteiro morre no timeout e o trabalho perde-se
+// completo, não parcial. Sobe-se o tecto POR CATEGORIA; mudar para streaming na
+// véspera do piloto seria trocar de transporte por causa de um número — risco
+// gratuito. Categoria desconhecida cai no default: nunca se herda um tecto
+// generoso por engano.
+const TIMEOUT_MS_POR_CATEGORIA = Object.freeze({
+  auditoria: 900000,      // 15 min — leitura longa + escrita longa, sem streaming
+  revisao: 600000,        // 10 min
+  sumarizacao: 240000,
+  outro: 240000,
+});
+
+/** @returns {{ms:number, fonte:string}} o tecto e PORQUÊ — nunca um número mudo. */
+function timeoutParaCategoria(categoria, override) {
+  const explicito = numberOrNull(override);
+  if (explicito) return { ms: Math.max(1, explicito), fonte: 'opts.timeoutMs explícito' };
+  const cat = typeof categoria === 'string' ? categoria.trim().toLowerCase() : '';
+  if (Object.prototype.hasOwnProperty.call(TIMEOUT_MS_POR_CATEGORIA, cat)) {
+    return { ms: TIMEOUT_MS_POR_CATEGORIA[cat], fonte: `categoria "${cat}"` };
+  }
+  return { ms: DEFAULT_TIMEOUT_MS, fonte: cat ? `categoria "${cat}" desconhecida — default` : 'sem categoria — default' };
+}
 const PRICING_USD_PER_MILLION = Object.freeze({
   input_cache_miss: 3,
   input_cache_hit: 0.30,
@@ -117,7 +142,8 @@ function runKimi(options) {
   const errStream = opts.errStream;
   const key = configuredApiKey(opts.apiKey);
   const fetchImpl = opts.fetchImpl || globalThis.fetch;
-  const timeoutMs = Math.max(1, numberOrNull(opts.timeoutMs) || DEFAULT_TIMEOUT_MS);
+  const tecto = timeoutParaCategoria(opts.categoria, opts.timeoutMs);
+  const timeoutMs = tecto.ms;
   const emitter = new EventEmitter();
   let controller = null;
   let closed = false;
@@ -157,7 +183,7 @@ function runKimi(options) {
       const timeoutPromise = new Promise((resolve, reject) => {
         timeout = setTimeout(() => {
           try { controller.abort(); } catch { /* */ }
-          const error = new Error('Kimi excedeu o timeout de ' + timeoutMs + ' ms');
+          const error = new Error('Kimi excedeu o timeout de ' + timeoutMs + ' ms (' + tecto.fonte + ')');
           error.code = 'KIMI_TIMEOUT';
           reject(error);
         }, timeoutMs);
@@ -245,5 +271,6 @@ function runKimi(options) {
 module.exports = {
   BASE_URL, MODEL, PROVIDER_LABEL, MISSING_KEY_ERROR,
   PRICING_USD_PER_MILLION, DEFAULT_TIMEOUT_MS,
+  TIMEOUT_MS_POR_CATEGORIA, timeoutParaCategoria,
   configuredApiKey, calculateCost, extractText, runKimi,
 };
