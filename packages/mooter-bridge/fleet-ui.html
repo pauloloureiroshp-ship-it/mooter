@@ -768,6 +768,7 @@
         if (reportado || sondaFeita) return;
         reportado = true; sondaFeita = true;
         callAny(PROBE_NAMES, {
+          motivo: 'live-preview',
           host: 'cowork', iframe_tentado: lpUrl, iframe_carregou: ok, iframe_erro: erro || null,
           ms: Date.now() - t0, display_mode: modoActual,
           largura: document.body.scrollWidth, altura: document.body.scrollHeight,
@@ -1010,6 +1011,39 @@
       });
   }
   tick();
+
+  /**
+   * ⚠️ 2026-08-06 — A SONDA DE ARRANQUE. É a única prova de que isto correu.
+   *
+   * `mooter_ui_probe` é `visibility:['app']`: não aparece em `tools/list`, o
+   * modelo não a vê nem a pode chamar. Logo, um `ui-probe.json` com
+   * `motivo:'boot'` só pode ter sido escrito por ESTE ficheiro, dentro do
+   * iframe, depois de o host o ter montado. Não há outra forma de o produzir.
+   *
+   * Porque é que não existia: a sonda estava presa ao Live Preview (`sondaFeita`),
+   * atrás de um botão. Sem ninguém carregar nele, o ficheiro nunca nascia — e a
+   * pergunta «o painel apareceu no ecrã?» ficou sem resposta possível durante
+   * uma sessão inteira, com três instrumentos a apontarem para lado nenhum.
+   *
+   * Trava PRÓPRIA (`sondaBootFeita`), separada da do LP de propósito: são duas
+   * perguntas diferentes e o `motivo` tem de as manter distinguíveis.
+   * Atrasada 1,5 s para o handshake assentar; se falhar, cala-se — uma sonda
+   * nunca pode partir o painel que veio medir.
+   */
+  var sondaBootFeita = false;
+  setTimeout(function () {
+    if (sondaBootFeita) return;
+    sondaBootFeita = true;
+    try {
+      callAny(PROBE_NAMES, {
+        motivo: 'boot',
+        host: 'cowork',
+        display_mode: modoActual,
+        largura: document.body.scrollWidth,
+        altura: document.body.scrollHeight
+      }).catch(function () { /* o host pode não permitir; não é fatal */ });
+    } catch (e) { /* */ }
+  }, 1500);
 
   try {
     var ro = new ResizeObserver(function () {

@@ -37,6 +37,19 @@ function normalizar(bruto) {
   const bo = (v) => (v === true ? true : (v === false ? false : null));
   return {
     at: new Date().toISOString(),
+    /**
+     * ⚠️ 2026-08-06 — `motivo` distingue as DUAS perguntas que este ficheiro
+     * responde, e que estavam fundidas numa só.
+     *
+     *   'boot'         → o painel foi montado e executou. Prova de RENDER.
+     *   'live-preview' → o utilizador abriu o LP. Prova sobre frameDomains/CSP.
+     *
+     * Até aqui só a segunda existia, e por isso a ausência do ficheiro não
+     * distinguia «o painel não apareceu» de «ninguém carregou no botão». Uma
+     * sessão inteira ficou sem poder responder à primeira pergunta por causa
+     * disto. Sem `motivo`, um ficheiro presente continuaria ambíguo.
+     */
+    motivo: b.motivo === 'boot' ? 'boot' : (b.motivo === 'live-preview' ? 'live-preview' : null),
     host: s(b.host, 80),                      // nome da app anfitriã, como ela se diz
     host_version: s(b.host_version, 40),
     // o que o host declarou suportar

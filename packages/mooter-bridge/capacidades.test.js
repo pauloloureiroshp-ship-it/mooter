@@ -111,3 +111,73 @@ test('servidor pede roots/list depois de o cliente declarar roots e guarda a res
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/**
+ * ⚠️ 2026-08-06 — os quatro testes que travam o defeito que custou uma sessão.
+ *
+ * `extensions` não estava em NOMES e o blob bruto era descartado, por isso a
+ * pergunta «este host suporta MCP Apps?» respondia n/d por construção. Estes
+ * testes existem para que a resposta volte a ser n/d só quando o cliente
+ * realmente não disser nada — nunca porque a sonda não olhou.
+ */
+test('extensions ausente: mcp_apps fica null com porquê, e nunca false', () => {
+  const r = capacidades.sondar({ roots: {} }, { agora: '2026-08-06T22:00:00.000Z' });
+  assert.strictEqual(r.mcp_apps.suportado, null);
+  assert.notStrictEqual(r.mcp_apps.suportado, false);
+  assert.strictEqual(r.mcp_apps.extensao, 'io.modelcontextprotocol/ui');
+  assert.match(r.mcp_apps.porque, /não declarou "extensions".+ausência não prova/i);
+  // e a capacidade crua entra na tabela como as outras sete
+  assert.ok(capacidades.NOMES.includes('extensions'));
+  assert.strictEqual(r.capacidades.extensions.suportado, null);
+});
+
+test('extensions presente sem a chave da UI: null, e diz quais viu', () => {
+  const r = capacidades.sondar(
+    { extensions: { 'io.modelcontextprotocol/tasks': {} } },
+    { agora: '2026-08-06T22:00:00.000Z' },
+  );
+  assert.strictEqual(r.mcp_apps.suportado, null);
+  assert.deepStrictEqual(r.mcp_apps.extensoes_vistas, ['io.modelcontextprotocol/tasks']);
+  assert.match(r.mcp_apps.porque, /1 entrada\(s\), nenhuma delas/i);
+});
+
+test('extensions com io.modelcontextprotocol/ui: suportado true e mimeTypes preservados', () => {
+  const r = capacidades.sondar(
+    { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } },
+    { agora: '2026-08-06T22:00:00.000Z' },
+  );
+  assert.strictEqual(r.mcp_apps.suportado, true);
+  assert.deepStrictEqual(r.mcp_apps.mime_types, ['text/html;profile=mcp-app']);
+  // negociar não é desenhar — a frase tem de o dizer, senão o painel mente
+  assert.match(r.mcp_apps.porque, /não que um painel tenha sido desenhado/i);
+});
+
+test('capabilities_bruto guarda o que o cliente enviou, e trunca sem partir', () => {
+  const pequeno = capacidades.sondar({ roots: {}, extensions: {} }, { agora: '2026-08-06T22:00:00.000Z' });
+  assert.strictEqual(pequeno.capabilities_bruto.truncado, false);
+  assert.deepStrictEqual(JSON.parse(pequeno.capabilities_bruto.texto), { roots: {}, extensions: {} });
+
+  const enorme = capacidades.sondar(
+    { lixo: 'x'.repeat(9000) }, { agora: '2026-08-06T22:00:00.000Z' },
+  );
+  assert.strictEqual(enorme.capabilities_bruto.truncado, true);
+  assert.strictEqual(enorme.capabilities_bruto.texto.length, 4096);
+  assert.ok(enorme.capabilities_bruto.bytes > 9000);
+});
+
+test('estado() expõe mcp_apps sem o fundir com o onboarding', () => {
+  const dir = temporario();
+  try {
+    capacidades.registarInitialize({
+      clientInfo: { name: 'cowork', version: '1.2.3' },
+      capabilities: { elicitation: {}, extensions: { 'io.modelcontextprotocol/ui': {} } },
+    }, { mooterHome: dir, agora: '2026-08-06T22:00:00.000Z' });
+    const e = capacidades.estado({ mooterHome: dir });
+    assert.strictEqual(e.mcp_apps.suportado, true);
+    assert.ok(e.capabilities_bruto && e.capabilities_bruto.texto);
+    assert.match(e.resumo, /onboarding no Cowork: suportado/i);
+    assert.match(e.resumo, /MCP Apps: anunciado/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

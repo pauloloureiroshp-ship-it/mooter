@@ -57,7 +57,22 @@ let LOGFILE = null;
   for (const d of cands) {
     try {
       if (!_fsx.existsSync(d)) { if (d.endsWith('.mooter')) { try { _fsx.mkdirSync(d, { recursive: true }); } catch { continue; } } else continue; }
-      const f = _pathx.join(d, 'mooter-mcp-boot.log');
+      /**
+       * ⚠️ 2026-08-06 — UM FICHEIRO POR PROCESSO.
+       *
+       * Até aqui o caminho era fixo (`mooter-mcp-boot.log`) e as CINCO
+       * instalações que coexistem nesta máquina — cache do plugin Codex, Claude
+       * Extensions, `packages/mooter-bridge`, worktrees, `%TEMP%` — escreviam
+       * todas para lá. Medido nesse dia: 38 boots num só ficheiro, que ainda por
+       * cima se apaga inteiro aos 256 KiB.
+       *
+       * O efeito não é ruído: é a impossibilidade de atribuir. Uma sessão inteira
+       * argumentou sobre a origem de umas mensagens a partir de sequências de id,
+       * e o argumento era inadmissível — as linhas de dois processos estavam
+       * intercaladas e nada as distinguia. Com o pid no nome, `RX`/`TX` do mesmo
+       * ficheiro são do mesmo processo por construção, e não por esperança.
+       */
+      const f = _pathx.join(d, 'mooter-mcp-boot.' + process.pid + '.log');
       _fsx.appendFileSync(f, '');
       LOGFILE = f;
       return;
@@ -148,7 +163,7 @@ function send(msg) {
   let line;
   try { line = JSON.stringify(msg) + '\n'; }
   catch (e) { jlog('TX_SERIALIZE_FAIL', (e && e.message) || String(e)); return; }
-  try { _realStdoutWrite(line); jlog('TX', { id: msg.id, bytes: line.length, error: msg.error ? msg.error.message : undefined }); }
+  try { _realStdoutWrite(line); jlog('TX', { id: msg.id, bytes: line.length, pid: process.pid, error: msg.error ? msg.error.message : undefined }); }
   catch (e) { elog('send fail', (e && e.message) || ''); jlog('TX_FAIL', (e && e.message) || String(e)); }
 }
 
@@ -295,8 +310,31 @@ for (const t of base.TOOLS) {
 /** One sentence a person can read, before the JSON. */
 function humanLine(name, d) {
   if (!d || typeof d !== 'object') return null;
+  /**
+   * ⚠️ 2026-08-06 — O ERRO VINHA PRIMEIRO E NUNCA ERA ALCANÇADO.
+   *
+   * A linha do `resumo` estava ANTES da do `error`, e `mooter_work` traz sempre
+   * um `resumo` (`seamless.js:3541` monta-o mesmo no ramo de recusa). Resultado:
+   * para a única tool onde o motivo interessa, `d.error` era código morto.
+   *
+   * O que quem chama via era `⛔ não despachei o job · em <pasta>` e mais nada —
+   * exactamente o que a auditoria E2E de 2026-08-01 já tinha registado em
+   * `seamless.js:573` para a Estranha (4 gestos, 0 jobs). A correcção de então
+   * foi escrever `faz_assim`; ninguém reparou que ele não chegava ao ecrã.
+   * Medido de novo a 2026-08-06: três dispatches recusados às cegas.
+   *
+   * Uma recusa tem de dizer o motivo NO CANAL QUE O CHAMADOR LÊ.
+   */
+  if (d.error) {
+    const passos = Array.isArray(d.faz_assim) && d.faz_assim.length
+      ? ' · faz assim: ' + d.faz_assim.join(' · ') : '';
+    const razoes = Array.isArray(d.reasons) && d.reasons.length
+      ? ' (' + d.reasons.join(' · ') + ')' : '';
+    const cabeca = (name === 'mooter_work' || name === 'mooter_check') && d.resumo
+      ? d.resumo + ' — ' : '⚠ ';
+    return cabeca + d.error + razoes + passos;
+  }
   if ((name === 'mooter_work' || name === 'mooter_check') && d.resumo) return d.resumo;
-  if (d.error) return '⚠ ' + d.error;
   switch (name) {
     case 'mooter_work':
       return '🐮 ' + (d.agent === 'moo' ? 'GPU local' : (d.model || d.agent)) + ' a trabalhar em "' + String(d.goal || '').slice(0, 60) + '" · ' + d.mode + ' · job ' + d.job_id;
@@ -494,7 +532,15 @@ function main() {
       const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
       if (!line) continue;
       let m; try { m = JSON.parse(line); } catch { elog('bad json line'); jlog('RX_BAD_JSON', line.slice(0, 200)); continue; }
-      jlog('RX', { id: m.id, method: m.method });
+      /**
+       * ⚠️ `name` é o campo que faltava. Sem ele, `tools/call` em 11h30 de
+       * registo não dizia UMA vez qual tool foi chamada — e a pergunta «o painel
+       * pediu isto, ou foi o modelo?» ficava sem resposta possível a partir do
+       * log. `params.name` é o nome da tool, não conteúdo do utilizador: não há
+       * risco de entornar o prompt para dentro do ficheiro.
+       */
+      jlog('RX', { id: m.id, method: m.method, name: (m.params && m.params.name) || undefined,
+        uri: (m.params && m.params.uri) || undefined });
       pending++;
       Promise.resolve(handle(m))
         .then((res) => {
@@ -530,4 +576,7 @@ let _started = false;
 function bootOnce() { if (_started) return; _started = true; main(); }
 if (!process.env.MOOTER_LIB) bootOnce();
 else jlog('MAIN_SKIPPED', 'MOOTER_LIB=1');
-module.exports = { handle, main, bootOnce, RESOURCES, resourcesAtuais, pedidoRoots };
+// `humanLine` é exportado para ser TESTÁVEL. A regressão que ele acabou de
+// deixar de ter (o erro inalcançável) só se trava com um teste que o chame
+// directamente — via `handle()` seria preciso o servidor inteiro de pé.
+module.exports = { handle, main, bootOnce, RESOURCES, resourcesAtuais, pedidoRoots, humanLine, LOGFILE_PATH: () => LOGFILE };
