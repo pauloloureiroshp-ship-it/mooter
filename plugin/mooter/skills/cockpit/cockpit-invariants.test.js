@@ -929,6 +929,158 @@ bloco('trilha (c) · o índice refere-se SEMPRE à lista ordenada', () => {
     /jobs\.map\(\(j,\s*i\)/.test(render) && render.includes("data-idx=\"'+i+'\""));
 });
 
+bloco('reorderable blocks · cabeçalho sticky no topo', () => {
+  t('cabeçalho tem position: sticky', /\.sig\{[^}]*position\s*:\s*sticky/.test(html));
+  t('cabeçalho tem top: 0', /\.sig\{[^}]*top\s*:\s*0/.test(html));
+  t('cabeçalho tem z-index para ficar acima dos blocos', /\.sig\{[^}]*z-index\s*:\s*\d+/.test(html));
+  t('cabeçalho tem background opaco', /\.sig\{[^}]*background\s*:\s*var\(--bg\)/.test(html));
+});
+
+bloco('reorderable blocks · drag-and-drop CSS', () => {
+  t('existe .drag-handle', /\.drag-handle\{/.test(html));
+  t('.drag-handle tem cursor:grab', /\.drag-handle\{[^}]*cursor\s*:\s*grab/.test(html));
+  t('existe .dragging para estado de drag', /\.el\.dragging\{/.test(html));
+  t('.dragging tem opacity reduzida', /\.el\.dragging\{[^}]*opacity\s*:\s*\.5/.test(html));
+  t('existe .drag-over-above para linha de destino', /\.el\.drag-over-above/.test(html));
+});
+
+bloco('reorderable blocks · botões de controlo', () => {
+  t('existe botão guardar ordem', /id="btnSaveOrder"/.test(html));
+  t('existe botão repor ordem', /id="btnResetOrder"/.test(html));
+  t('btnSaveOrder tem data-tip', /id="btnSaveOrder"[^>]*data-tip/.test(html));
+  t('btnResetOrder tem data-tip', /id="btnResetOrder"[^>]*data-tip/.test(html));
+});
+
+bloco('reorderable blocks · zero storage local', () => {
+  t('painel não usa localStorage', !/localStorage/.test(html));
+  t('painel não usa sessionStorage', !/sessionStorage/.test(html));
+  t('painel não usa indexedDB', !/indexedDB/.test(html));
+});
+
+bloco('snapshot · preferências injectadas', async () => {
+  const builder = require(path.resolve(__dirname, '..', '..', '..', '..', 'tools', 'cockpit', 'build-snapshot.js'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-cockpit-prefs-'));
+  const prefsDir = path.join(temp, '.mooter');
+  const prefsFile = path.join(prefsDir, 'preferences.json');
+  const source = path.join(temp, 'cockpit.html');
+  const output = path.join(temp, 'dist', 'cockpit-snapshot.html');
+  const fixture = '<!doctype html><html><body><script>window.main=true;</script></body></html>';
+  const repoPathForTest = path.resolve(__dirname, '..', '..', '..', '..');
+
+  fs.mkdirSync(prefsDir, { recursive: true });
+  fs.writeFileSync(source, fixture, 'utf8');
+  fs.writeFileSync(prefsFile, JSON.stringify({ cockpit_ordem: ['flowEl', 'fuelEl', 'brainEl'] }), 'utf8');
+
+  const options = {
+    sourcePath: source,
+    outputPath: output,
+    now: new Date('2026-08-04T13:30:00Z'),
+    logger: () => {},
+    homeDir: temp,
+    readView: async (view) => {
+      switch (view) {
+        case 'jobs': return { jobs: [], totais: { cost_usd: { valor: 0 } } };
+        case 'board': return { scorecard: { metricas: { entregas_por_dia: { valor: 1 } } } };
+        case 'pastas': return { repo: repoPathForTest, pastas: [] };
+        case 'recibo': return { ok: true };
+        default: return { view };
+      }
+    },
+    readSetup: async () => ({ contexto: {} }),
+    readPreview: async () => ({ candidatas: [] }),
+  };
+
+  try {
+    const result = await builder.generateSnapshot(options);
+    const rendered = fs.readFileSync(output, 'utf8');
+    const m = rendered.match(/window\.__MOOTER_SNAPSHOT__ = ({[\s\S]*?});/);
+    t('preferências injectadas no snapshot', !!m, 'snapshot não encontrado');
+    if (m) {
+      const snap = JSON.parse(m[1]);
+      t('snapshot tem preferencias', !!snap.preferencias);
+      t('preferencias.cockpit_ordem vem do ficheiro',
+        snap.preferencias && JSON.stringify(snap.preferencias.cockpit_ordem) === JSON.stringify(['flowEl', 'fuelEl', 'brainEl']));
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+bloco('snapshot · preferências ausentes devolvem null com motivo', async () => {
+  const builder = require(path.resolve(__dirname, '..', '..', '..', '..', 'tools', 'cockpit', 'build-snapshot.js'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-cockpit-no-prefs-'));
+  const source = path.join(temp, 'cockpit.html');
+  const output = path.join(temp, 'dist', 'cockpit-snapshot.html');
+  const fixture = '<!doctype html><html><body><script>window.main=true;</script></body></html>';
+  const repoPathForTest = path.resolve(__dirname, '..', '..', '..', '..');
+
+  fs.writeFileSync(source, fixture, 'utf8');
+
+  const options = {
+    sourcePath: source,
+    outputPath: output,
+    now: new Date('2026-08-04T13:30:00Z'),
+    logger: () => {},
+    homeDir: temp,
+    readView: async (view) => {
+      switch (view) {
+        case 'jobs': return { jobs: [], totais: { cost_usd: { valor: 0 } } };
+        case 'board': return { scorecard: { metricas: { entregas_por_dia: { valor: 1 } } } };
+        case 'pastas': return { repo: repoPathForTest, pastas: [] };
+        case 'recibo': return { ok: true };
+        default: return { view };
+      }
+    },
+    readSetup: async () => ({ contexto: {} }),
+    readPreview: async () => ({ candidatas: [] }),
+  };
+
+  try {
+    const result = await builder.generateSnapshot(options);
+    const rendered = fs.readFileSync(output, 'utf8');
+    const m = rendered.match(/window\.__MOOTER_SNAPSHOT__ = ({[\s\S]*?});/);
+    t('preferências ausentes não causam erro', !!m);
+    if (m) {
+      const snap = JSON.parse(m[1]);
+      t('snapshot.preferencias.cockpit_ordem é null', snap.preferencias && snap.preferencias.cockpit_ordem === null);
+      t('tem motivo da ausência', snap.preferencias && snap.preferencias.motivo && snap.preferencias.motivo.length > 0);
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+bloco('reorderable blocks · motor do arrastar', () => {
+  const m = html.match(/const BLOCOS = \[([\s\S]*?)\];\s*const ORDEM_DEFAULT/);
+  t('BLOCOS tem exactamente 11 blocos', m && (m[0].match(/\[/g) || []).length === 11 + 1,
+    'contagem: ' + (m ? (m[0].match(/\[/g) || []).length : 'não encontrado'));
+  t('ORDEM_DEFAULT existe e tem 11', /const ORDEM_DEFAULT = BLOCOS\.map/.test(html));
+  t('arrancarOrdem está definida', /function arrancarOrdem\(\)/.test(html));
+  t('arrancarOrdem é chamada no boot', /arrancarOrdem\(\)/.test(html.slice(html.indexOf('async function boot()'))));
+
+  t('pegas levam tabindex="0"', /pega\.setAttribute\('tabindex','0'\)/.test(html));
+  t('pegas levam role="button"', /pega\.setAttribute\('role','button'\)/.test(html));
+  t('pegas levam aria-label descritivo', /aria-label.*Reordenar/.test(html));
+
+  t('handler de teclado trata ArrowUp com altKey', /if \(ev\.key === 'ArrowUp'\)/.test(html) && /ev\.altKey/.test(html));
+  t('handler de teclado trata ArrowDown com altKey', /if \(ev\.key === 'ArrowDown'\)/.test(html));
+  t('ArrowUp chama moverBloco com delta -1', /moverBloco\(id, -1\)/.test(html));
+  t('ArrowDown chama moverBloco com delta 1', /moverBloco\(id, 1\)/.test(html));
+
+  const guardar = grab('guardarOrdem');
+  t('guardarOrdem existe', !!guardar);
+  t('guardarOrdem tem branch sem-ponte com texto correcto',
+    /sem ponte — copia isto/.test(guardar),
+    'mensagem de fallback ausente ou diferente');
+
+  const colar = grab('blocoColarOrdem');
+  t('blocoColarOrdem produz "📥 COLAR EM:"', /📥 COLAR EM:/.test(colar));
+  t('blocoColarOrdem inclui "cockpit_ordem"', /cockpit_ordem/.test(colar));
+
+  t('painel não usa localStorage', !/localStorage/.test(html));
+  t('painel não usa sessionStorage', !/sessionStorage/.test(html));
+});
+
 async function main(){
   for (const item of blocos){
     console.log('\n▸ ' + item.titulo);

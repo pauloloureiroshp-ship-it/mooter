@@ -142,8 +142,12 @@
   .pcow .muzzle{transform-box:fill-box;transform-origin:50% 18%}
   .g.live .pcow .muzzle{animation:ruminate 1s ease-in-out infinite}
   /* ---------- signature ---------- */
-  .sig{display:flex;align-items:flex-start;gap:12px;padding:9px 12px}
+  .sig{display:flex;align-items:flex-start;gap:12px;padding:9px 12px;position:sticky;top:0;z-index:50;
+    background:var(--bg);border-bottom:1px solid var(--border-soft)}
   .sig h1{font-size:var(--fs3);font-weight:700;letter-spacing:.01em}
+  .hslug{font-weight:700}
+  .hsub{font-size:var(--fs1);font-weight:400;color:var(--faint);letter-spacing:0}
+  .btn.mini.suja{border-color:var(--terracotta);color:var(--terracotta)}
   .hsess{color:var(--terracotta);font-weight:600;cursor:help}
   .hwave{font-size:var(--fs1);font-weight:600;color:var(--dim);border:1px solid var(--border-soft);
     border-radius:8px;padding:1px 7px;vertical-align:2px;cursor:help}
@@ -171,6 +175,13 @@
   @keyframes pw{0%,100%{opacity:1}50%{opacity:.35}}
   .pulseBad{color:var(--red);animation:pw 1.9s ease-in-out infinite}
   .sig-right{margin-left:auto;text-align:right;color:var(--faint);font-size:var(--fs1);line-height:1.6;white-space:nowrap}
+  /* ---------- reorderable blocks ---------- */
+  .drag-handle{cursor:grab;padding:4px 8px;color:var(--faint);font-size:var(--fs1);margin-right:auto;user-select:none}
+  .drag-handle:active{cursor:grabbing}
+  .el.dragging{opacity:.5;pointer-events:none}
+  .el.drag-over-above::before{content:'';display:block;height:2px;background:var(--terracotta);margin-bottom:8px}
+  .reorder-buttons{display:flex;gap:4px;margin-left:auto}
+  .btn.reorder-btn{padding:2px 8px;font-size:var(--fs1)}
   .sig-right b.bnd{color:var(--nd)}
   .sig-right b.bfl{color:var(--flag)}
   .seclne{color:var(--faint);font-size:var(--fs1);margin-top:3px}
@@ -713,6 +724,29 @@
 .rt-conf{border-color:#d9534f}
 .rt-nohost{color:var(--faint);font-size:var(--fs0)}
 .rt-run{font-family:ui-monospace,monospace;font-size:var(--fs0);margin:2px 0}
+/* MOOTER:HITMAP:v1 */
+/* ── hit-map: zonas invisíveis por cima do retrato ──────────────────────── */
+.lpwrap{position:relative;display:inline-block;max-width:100%}
+.lpwrap img{display:block;max-width:100%;height:auto}
+.lpzona{position:absolute;border:1px solid transparent;border-radius:2px;cursor:pointer;
+  transition:background .08s,border-color .08s}
+.lpzona:hover{background:rgba(37,99,235,.14);border-color:rgba(37,99,235,.75)}
+.lpzona.sel{background:rgba(37,99,235,.20);border-color:#2563eb;border-width:2px}
+.lpsel{margin-top:.5rem;padding:.6rem .7rem;border:1px solid var(--linha,#d7d3cc);
+  border-radius:6px;background:var(--fundo2,#faf9f7);font-size:.82rem;line-height:1.5}
+.lpsel code{font-size:.8rem}
+.lpsel .lpsel-alvo{font-weight:600}
+.lpsel textarea{width:100%;margin-top:.45rem;min-height:3.2rem;font:inherit;font-size:.82rem;
+  padding:.4rem .5rem;border:1px solid var(--linha,#d7d3cc);border-radius:5px;resize:vertical}
+.lpsel .lpsel-acts{margin-top:.45rem;display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.lpsel .lpsel-nota{color:var(--suave,#8a857d);font-style:italic}
+/* MOOTER:HITMAP:v3 */
+.lprotas{margin-top:.5rem;padding:.55rem .7rem;border:1px solid var(--linha,#d7d3cc);border-radius:6px}
+.lprotas-lbl{font-size:.78rem;font-weight:600;margin-bottom:.4rem}
+.lprota{margin:0 .25rem .25rem 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.74rem}
+.lprota.sel{outline:2px solid #2563eb;outline-offset:1px}
+.lprotas .lpsel-nota{display:block;margin-top:.4rem;font-size:.75rem;color:var(--suave,#8a857d);font-style:italic}
+
 </style>
 </head>
 <body>
@@ -854,6 +888,8 @@
     <button class="btn icon" id="btnTheme" aria-label="theme" data-tip="Sun or moon. Every colour semantic — measured · ◌ n/d · ⚑ not instrumented · out of range · free-local vs paid-cloud — survives both.">☾</button><br>
     <span class="nd" data-tip="A value whose measuring mechanism exists but carried nothing this time. We show the hole instead of inventing a number — the source's own reason is one hover away on each ◌.">not measured</span> ×<b class="bnd" id="ndCount">—</b><br>
     <span class="flag" data-tip="A value NOBODY records today. The panel is its own implementation plan: every ⚑ says what is missing.">not instrumented</span> ×<b class="bfl" id="flagCount">—</b><br>
+    <button class="btn mini" id="btnSaveOrder" data-tip="Save this block order to preferences · no bridge: copy the list below">💾 save order</button>
+    <button class="btn mini" id="btnResetOrder" data-tip="Restore default block order">↶ reset</button><br>
     <span style="color:var(--faint)">🐮 <span id="stampMode">not read</span> · <span id="stampWhen">not read yet</span></span>
   </div>
 </div>
@@ -2446,7 +2482,15 @@ function renderTitulo(){
   const c = state.setupCtx || {};
   const nome = c.project || c.folder_name || null;
   const wv = (state.jobs && state.jobs.wave_activa && state.jobs.wave_activa.wave) || null;
-  el.innerHTML = 'Mooter Cockpit'
+  const slug = (c.id || c.sessao_slug || null);
+  el.innerHTML = (slug
+      ? '<span class="hslug">'+esc(slug)+'</span>'
+        + ' <span class="hsub" data-tip="'+esc('O identificador da sessão, declarado por mooter_setup. '
+            + 'O nome da conversa do Cowork não é legível daqui: callMcpTool chega a conectores, '
+            + 'não ao transcript do host.')+'">Mooter Cockpit</span>'
+      : 'Mooter Cockpit'
+        + ' <span class="hsess" data-tip="'+esc('Esta sessão ainda não foi registada. '
+            + 'mooter_setup({sessao:\'registar\', id:\'<slug>\'}) dá-lhe nome e recibo.')+'">· sem sessão registada</span>')
     + (nome ? ' <span class="hsess" data-tip="'+esc('Session bound to project "'+nome+'"'
         + (c.folder ? ' · folder ' + c.folder : '')
         + (c.bound_at ? ' · bound at ' + c.bound_at : '')
@@ -3353,6 +3397,21 @@ function lpAplicarMedicao(payload, fonte){
     : [];
   LP.confianca = escolhida && escolhida.confianca ? String(escolhida.confianca) : null;
   LP.retrato = payload.retrato && typeof payload.retrato === 'object' ? payload.retrato : null;
+  /* MOOTER:HITMAP:v2 — zonas que vieram DENTRO do payload.
+     Quando o snapshot já traz o mapa, não há nada a pedir à ponte: o painel
+     fica clicável em modo congelado, tal como o retrato já era visível sem
+     ponte. Um mapa é dado; só a acção precisava de canal, e o mapa não é acção. */
+  if (Array.isArray(payload.zonas) && payload.zonas.length){
+    LPMAPA.zonas = payload.zonas;
+    LPMAPA.links = Array.isArray(payload.links) ? payload.links : [];
+    LPMAPA.url = (payload.escolhida && payload.escolhida.url) || null;
+    LPMAPA.sel = null;
+    LPMAPA.estado = 'medido';
+    LPMAPA.porque = null;
+  } else if (payload.zonas_porque){
+    LPMAPA.estado = 'falhou';
+    LPMAPA.porque = String(payload.zonas_porque);
+  }
 
   if (escolhida){
     LP.estado = 'aberto';
@@ -3455,10 +3514,198 @@ function lpArmarFrame(frame){
     }, 100);
   });
 }
+
+/* ══ HIT-MAP ═══════════════════════════════════════════════════════════════
+   O retrato é uma imagem estática. O que o torna útil é o mapa que vem com
+   ela: para cada elemento visível, o ficheiro e a linha que o produziram,
+   carimbados pelo compilador (code-inspector-plugin), não adivinhados.
+
+   ⚠️ O painel ESCREVE O PROMPT, NUNCA EDITA. Carregar numa zona dá-te o
+   pedido pronto a colar com o ficheiro e a linha lá dentro. Um painel que
+   escrevesse no disco a partir de um mapa que veio de uma página seria dar
+   à página o poder de escolher o que se altera. */
+const LPMAPA = { zonas:null, links:null, escala:1, sel:null, estado:'não pedido', porque:null, url:null };
+
+function lpMapaReset(){
+  LPMAPA.zonas = null; LPMAPA.links = null; LPMAPA.sel = null;
+  LPMAPA.estado = 'não pedido'; LPMAPA.porque = null; LPMAPA.url = null;
+}
+
+async function lpPedirMapa(urlAlvo){
+  const bridge = window.cowork;
+  if (!(bridge && typeof bridge.callMcpTool === 'function')){
+    LPMAPA.estado = 'não medível';
+    LPMAPA.porque = 'o mapa exige a ponte window.cowork.callMcpTool; um snapshot congelado não a tem';
+    renderLP(); return;
+  }
+  const alvo = urlAlvo || LP.url;
+  if (!alvo){ LPMAPA.estado='não medível'; LPMAPA.porque='não há URL escolhida'; renderLP(); return; }
+  LPMAPA.estado = 'a medir'; LPMAPA.sel = null; renderLP();
+  try{
+    const r = await bridge.callMcpTool('mooter_ui_mapa', { url: alvo });
+    if (!r || r.ok !== true){
+      LPMAPA.estado = 'não medível';
+      LPMAPA.porque = String((r && r.porque) || 'a tool não devolveu resultado');
+    }else{
+      LPMAPA.zonas = Array.isArray(r.zonas) ? r.zonas : [];
+      LPMAPA.links = Array.isArray(r.links) ? r.links : [];
+      LPMAPA.url = r.url || LP.url;
+      /* ⚠️ o retrato do mapa substitui o anterior: os dois têm de vir do MESMO
+         carregamento, senão as zonas ficam por cima de uma imagem que já não é
+         a delas — e carregas no título para editar o rodapé. */
+      if (r.data_url) LP.retrato = { ok:true, data_url:r.data_url, bytes:r.bytes,
+        capturado_em:r.capturado_em, browser:'CDP', largura:r.largura, altura:r.altura };
+      LPMAPA.estado = LPMAPA.zonas.length ? 'medido' : 'vazio';
+      LPMAPA.porque = r.porque || null;
+    }
+  }catch(e){
+    LPMAPA.estado = 'não medível';
+    LPMAPA.porque = 'mooter_ui_mapa recusada pela ponte: ' + literalError(e);
+  }
+  renderLP();
+}
+
+/* ⚠️ TUDO EM PERCENTAGEM, NOS DOIS EIXOS.
+   A imagem tem max-width:100% e encolhe com o painel. Uma zona posicionada em
+   pixels ficava certa a 1280 de largura e errada em qualquer outra — e uma zona
+   desalinhada NÃO falha à vista: mostra o ficheiro do elemento ao lado. Como as
+   coordenadas vêm do viewport da captura, dividir por esse viewport dá uma
+   fracção que sobrevive a qualquer escala. */
+function lpZonasHtml(){
+  if (!LPMAPA.zonas || !LPMAPA.zonas.length) return '';
+  const larg = (LP.retrato && LP.retrato.largura) || 1280;
+  const alt = (LP.retrato && LP.retrato.altura) || 900;
+  const pc = (v, total) => (Math.max(0, v) / total * 100).toFixed(4) + '%';
+  return LPMAPA.zonas.map((z, i) =>
+    '<div class="lpzona' + (LPMAPA.sel === i ? ' sel' : '') + '" data-lpz="' + i + '"'
+    + ' title="' + esc((z.texto || z.tag || '') + ' — '
+        + String(z.ficheiro || '').split(/[\\/]/).pop() + ':' + z.linha) + '"'
+    + ' style="left:' + pc(z.x, larg) + ';top:' + pc(z.y, alt)
+    + ';width:' + pc(z.w, larg) + ';height:' + pc(z.h, alt) + '"></div>'
+  ).join('');
+}
+
+function lpSelHtml(){
+  if (LPMAPA.estado === 'a medir') return '<div class="lpsel">a medir o mapa de elementos…</div>';
+  if (LPMAPA.estado === 'não medível' || LPMAPA.estado === 'vazio'){
+    return '<div class="lpsel"><span class="lpsel-nota">mapa: ' + esc(LPMAPA.estado)
+      + (LPMAPA.porque ? ' — ' + esc(LPMAPA.porque) : '') + '</span></div>';
+  }
+  if (LPMAPA.estado !== 'medido') {
+    return '<div class="lpsel"><button class="btn mini" id="lpMapaBtn">🖱️ tornar clicável</button>'
+      + ' <span class="lpsel-nota">mede onde está cada elemento e de que linha veio</span></div>';
+  }
+  const z = LPMAPA.sel != null ? LPMAPA.zonas[LPMAPA.sel] : null;
+  if (!z){
+    return '<div class="lpsel"><span class="lpsel-alvo">' + LPMAPA.zonas.length
+      + ' elementos clicáveis.</span> <span class="lpsel-nota">carrega num para veres de que linha veio.</span></div>';
+  }
+  const curto = String(z.ficheiro || '').split(/[\\/]/).pop();
+  return '<div class="lpsel">'
+    + '<div class="lpsel-alvo">&lt;' + esc(z.tag) + '&gt; ' + (z.texto ? '“' + esc(z.texto) + '”' : '')
+    + ' → <code>' + esc(curto) + ':' + z.linha + ':' + z.coluna + '</code>'
+    + (z.repetido ? ' <span class="lpsel-nota">(este ficheiro:linha aparece mais do que uma vez na página)</span>' : '')
+    + '</div>'
+    + '<textarea id="lpPedido" placeholder="o que queres mudar neste elemento?"></textarea>'
+    + '<div class="lpsel-acts">'
+    + '<button class="btn mini" id="lpCopiarPrompt">📋 copiar o prompt</button>'
+    + '<span class="lpsel-nota">o painel escreve o pedido; quem edita és tu, no Claude Code</span>'
+    + '</div></div>';
+}
+
+function lpPromptDaSeleccao(){
+  const z = LPMAPA.sel != null && LPMAPA.zonas ? LPMAPA.zonas[LPMAPA.sel] : null;
+  if (!z) return '';
+  const pedido = (document.getElementById('lpPedido') || {}).value || '<descreve a alteração>';
+  return 'No ficheiro ' + z.ficheiro + ', linha ' + z.linha + ', coluna ' + z.coluna
+    + ' está o elemento <' + z.tag + '>' + (z.texto ? ' com o texto "' + z.texto + '"' : '') + '.\n'
+    + 'Pedido: ' + pedido + '\n'
+    + '(origem: Mooter Live Preview em ' + (LPMAPA.url || LP.url) + ', carimbo do code-inspector-plugin)';
+}
+
+/* MOOTER:HITMAP:v3 — as rotas que a própria página declarou.
+   Uma medição nova precisa da ponte; um snapshot só tem a rota medida. Aqui
+   não se finge: com ponte, a rota é medida; sem ponte, copia-se o endereço. */
+function lpTemPonte(){ return !!(window.cowork && typeof window.cowork.callMcpTool === 'function'); }
+
+function lpRotasBase(){
+  const base = LPMAPA.url || LP.url;
+  if (!base) return null;
+  try { const u = new URL(base); return { origem: u.origin, aqui: u.pathname + u.search, base: base }; }
+  catch(_){ return null; }
+}
+
+function lpRotas(){
+  const b = lpRotasBase();
+  if (!b || !LPMAPA.links || !LPMAPA.links.length) return [];
+  const vistos = new Set(); const fora = [];
+  for (const l of LPMAPA.links){
+    let u; try { u = new URL(String((l && l.href) || ''), b.base); } catch(_){ continue; }
+    /* ⚠️ Outra origem não é "outra aba do site" — é outro sítio. O mapa mede
+       uma origem de cada vez e o carimbo do code-inspector só existe na nossa. */
+    if (u.origin !== b.origem) continue;
+    const r = u.pathname + u.search;
+    if (vistos.has(r)) continue;
+    vistos.add(r); fora.push(r);
+  }
+  fora.sort((x, y) => (x === b.aqui ? -1 : y === b.aqui ? 1 : x.localeCompare(y)));
+  return fora;
+}
+
+function lpRotasHtml(){
+  const b = lpRotasBase();
+  const rotas = lpRotas();
+  if (!b || !rotas.length) return '';
+  const TETO = 24;
+  const ponte = lpTemPonte();
+  const btns = rotas.slice(0, TETO).map((r) =>
+    '<button class="btn mini lprota' + (r === b.aqui ? ' sel' : '') + '" data-lprota="' + esc(r) + '">'
+    + esc(r === '/' ? '/ (raiz)' : r) + '</button>').join(' ');
+  return '<div class="lprotas"><div class="lprotas-lbl">' + rotas.length + ' rotas nesta página'
+    + (rotas.length > TETO ? ' · mostro as primeiras ' + TETO : '') + '</div>' + btns
+    + '<span class="lpsel-nota">' + (ponte
+      ? 'carrega numa rota para a medir — foto e mapa novos, do mesmo carregamento'
+      : 'congelado: só a rota ' + esc(b.aqui) + ' foi medida. Carregar copia o endereço para abrires no browser.')
+    + '</span></div>';
+}
+
+function lpLigarRotas(){
+  const b = lpRotasBase();
+  document.querySelectorAll('.lprota').forEach((el) => {
+    el.addEventListener('click', () => {
+      const r = el.getAttribute('data-lprota');
+      let alvo; try { alvo = new URL(r, b && b.base).href; } catch(_){ return; }
+      if (lpTemPonte()){ lpPedirMapa(alvo); return; }
+      try { navigator.clipboard.writeText(alvo); el.textContent = '✓ copiado'; }
+      catch(_){ el.textContent = alvo; }
+    });
+  });
+}
+
+function lpLigarZonas(){
+  const btn = document.getElementById('lpMapaBtn');
+  if (btn) btn.addEventListener('click', lpPedirMapa);
+  document.querySelectorAll('.lpzona').forEach((el) => {
+    el.addEventListener('click', (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      LPMAPA.sel = Number(el.getAttribute('data-lpz'));
+      renderLP();
+    });
+  });
+  lpLigarRotas(); /* MOOTER:HITMAP:v3 */
+  const cp = document.getElementById('lpCopiarPrompt');
+  if (cp) cp.addEventListener('click', () => {
+    const t = lpPromptDaSeleccao();
+    try{ navigator.clipboard.writeText(t); cp.textContent = '✓ copiado — cola no Claude Code'; }
+    catch(_){ cp.textContent = 'copia à mão: ' + t.slice(0, 40) + '…'; }
+  });
+}
+/* ══ fim do HIT-MAP ═══════════════════════════════════════════════════════ */
+
 function lpRetratoHtml(retrato){
   if (!lpTemRetrato(retrato)) return '';
-  return '<div class="lpframe"><img id="lpRetrato" src="' + esc(retrato.data_url)
-    + '" alt="retrato estático da app local"></div>'
+  return '<div class="lpframe"><div class="lpwrap"><img id="lpRetrato" src="' + esc(retrato.data_url)
+    + '" alt="retrato estático da app local">' + lpZonasHtml() + '</div></div>' + lpSelHtml() + lpRotasHtml()
     + '<div class="lp-caption"><span>imagem estática · captura '
     + esc(retrato.capturado_em || 'n/d') + ' · browser ' + esc(retrato.browser || 'n/d')
     + '</span><button class="btn mini" id="lpRetratoAgain">actualizar imagem</button></div>';
@@ -3514,6 +3761,7 @@ async function lpDetect(){
   LP.atribuicao = null;
   LP.minha = null;
   LP.deOutraPasta = null;
+  lpMapaReset();
   renderLP();
 
   if (bridge && typeof bridge.callMcpTool === 'function'){
@@ -4379,6 +4627,7 @@ function renderLP(){
   if (pc) pc.addEventListener('click', () => { LP.prod = null; renderLP(); });
   const a = $('lpAgain'); if (a) a.addEventListener('click', lpDetect);
   const ri = $('lpRetratoAgain'); if (ri) ri.addEventListener('click', lpActualizarRetrato);
+  lpLigarZonas();
   const c = $('btnLpCmd'); if (c) c.addEventListener('click', () => emitText(
     'cd "C:\\Users\\Paulo Loureiro\\frugal"   # aspas obrigatórias — sem elas o shell parte no espaço\nnpm run dev'));
   tornarTooltipsAlcancaveis();
@@ -6674,6 +6923,147 @@ function pintarSessoes(){
   tornarTooltipsAlcancaveis();
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ORDEM DOS BLOCOS — arrastar, teclado, e persistência honesta
+   ⚠️ O armazenamento do browser é PROIBIDO num artifact Claude.ai. A ordem
+   vive em memória; persiste pelo conector (preferences.json → cockpit_ordem),
+   injectado no snapshot. Sem ponte, o botão dá o bloco para colar — e diz que
+   é isso que fez. Nunca finge que guardou.
+   ══════════════════════════════════════════════════════════════════════════ */
+const BLOCOS = [
+  ['attEl','Attention'], ['daEl',"Devil's advocate"], ['cycEl','Prompt log'],
+  ['flowEl','Project flow'], ['fuelEl','Session fuel'], ['brainEl','Second brain'],
+  ['actEl','Skills & actions'], ['lpEl','Live preview'], ['connEl','Connected'],
+  ['sessEl','Sessions'], ['projEl','Project'],
+];
+const ORDEM_DEFAULT = BLOCOS.map(b => b[0]);
+const NOME_BLOCO = Object.fromEntries(BLOCOS);
+let ORDEM = ORDEM_DEFAULT.slice();
+let ordemArrastada = null;
+
+function ordemDoSnapshot(){
+  try{
+    const p = (window.__MOOTER_SNAPSHOT__ || {}).preferencias;
+    const v = p && p.cockpit_ordem;
+    return Array.isArray(v) ? v : null;
+  }catch(e){ return null; }
+}
+/* id desconhecido é ignorado; bloco em falta vai para o fim — nunca desaparece */
+function ordemCanonica(lista){
+  const conhecidos = new Set(ORDEM_DEFAULT);
+  const vistos = new Set();
+  const out = [];
+  for (const id of (Array.isArray(lista) ? lista : [])){
+    if (conhecidos.has(id) && !vistos.has(id)){ out.push(id); vistos.add(id); }
+  }
+  for (const id of ORDEM_DEFAULT) if (!vistos.has(id)) out.push(id);
+  return out;
+}
+function aplicarOrdem(){
+  const primeiro = document.getElementById(ORDEM_DEFAULT[0]) || document.getElementById('attEl');
+  const pai = primeiro && primeiro.parentNode; if (!pai) return;
+  const ancora = document.getElementById('projEl');
+  const depois = ancora ? ancora.nextSibling : null;
+  for (const id of ORDEM){
+    const el = document.getElementById(id);
+    if (el) pai.insertBefore(el, depois);
+  }
+}
+function moverBloco(id, delta){
+  const i = ORDEM.indexOf(id); if (i < 0) return false;
+  const j = i + delta; if (j < 0 || j >= ORDEM.length) return false;
+  ORDEM.splice(j, 0, ORDEM.splice(i, 1)[0]);
+  aplicarOrdem(); marcarOrdemSuja();
+  const pega = document.querySelector('[data-pega="'+id+'"]'); if (pega) pega.focus();
+  return true;
+}
+function marcarOrdemSuja(){
+  const b = document.getElementById('btnSaveOrder');
+  if (b) b.classList.toggle('suja', ORDEM.join(',') !== ordemGravada);
+}
+let ordemGravada = ORDEM_DEFAULT.join(',');
+
+function injectarPegas(){
+  for (const [id, nome] of BLOCOS){
+    const el = document.getElementById(id); if (!el) continue;
+    const cab = el.querySelector('summary') || el.firstElementChild; if (!cab) continue;
+    if (cab.querySelector('.drag-handle')) continue;
+    const pega = document.createElement('span');
+    pega.className = 'drag-handle';
+    pega.textContent = '⠿';
+    pega.setAttribute('draggable','true');
+    pega.setAttribute('tabindex','0');
+    pega.setAttribute('role','button');
+    pega.setAttribute('data-pega', id);
+    pega.setAttribute('aria-label', 'Reordenar ' + nome + ' — Alt+seta cima ou baixo');
+    pega.setAttribute('data-tip', 'Arrasta, ou Alt+↑ / Alt+↓ com o teclado');
+    pega.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); });
+    pega.addEventListener('keydown', ev => {
+      if (!ev.altKey) return;
+      if (ev.key === 'ArrowUp'){ ev.preventDefault(); moverBloco(id, -1); }
+      else if (ev.key === 'ArrowDown'){ ev.preventDefault(); moverBloco(id, 1); }
+    });
+    pega.addEventListener('dragstart', ev => {
+      ordemArrastada = id; el.classList.add('dragging');
+      try{ ev.dataTransfer.setData('text/plain', id); ev.dataTransfer.effectAllowed = 'move'; }catch(e){}
+    });
+    pega.addEventListener('dragend', () => {
+      ordemArrastada = null; el.classList.remove('dragging');
+      document.querySelectorAll('.drag-over-above').forEach(n => n.classList.remove('drag-over-above'));
+    });
+    cab.insertBefore(pega, cab.firstChild);
+
+    el.addEventListener('dragover', ev => {
+      if (!ordemArrastada || ordemArrastada === id) return;
+      ev.preventDefault(); el.classList.add('drag-over-above');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over-above'));
+    el.addEventListener('drop', ev => {
+      if (!ordemArrastada || ordemArrastada === id) return;
+      ev.preventDefault(); el.classList.remove('drag-over-above');
+      const de = ORDEM.indexOf(ordemArrastada), para = ORDEM.indexOf(id);
+      if (de < 0 || para < 0) return;
+      ORDEM.splice(para, 0, ORDEM.splice(de, 1)[0]);
+      aplicarOrdem(); marcarOrdemSuja();
+    });
+  }
+}
+function blocoColarOrdem(){
+  return '📥 COLAR EM: ~/.mooter/preferences.json\n\n'
+    + JSON.stringify({ cockpit_ordem: ORDEM }, null, 2)
+    + '\n\n(junta esta chave ao ficheiro; não substituas o resto)';
+}
+async function guardarOrdem(){
+  const b = document.getElementById('btnSaveOrder'); if (!b) return;
+  const antes = b.textContent;
+  const temPonte = !!(window.cowork && typeof window.cowork.callMcpTool === 'function');
+  if (temPonte){
+    try{
+      await window.cowork.callMcpTool('mcp__Mooter__mooter_setup',
+        { note: 'cockpit_ordem: ' + ORDEM.join(',') });
+      ordemGravada = ORDEM.join(','); marcarOrdemSuja();
+      b.textContent = '✓ guardado';
+      setTimeout(() => { b.textContent = antes; }, 2400);
+      return;
+    }catch(e){ /* cai para o bloco de colar, com o motivo */ }
+  }
+  b.textContent = 'sem ponte — copia isto';
+  setTimeout(() => { b.textContent = antes; }, 3200);
+  try{ emitText(blocoColarOrdem()); }catch(e){ console.log(blocoColarOrdem()); }
+}
+function reporOrdem(){
+  ORDEM = ORDEM_DEFAULT.slice(); aplicarOrdem(); marcarOrdemSuja();
+}
+function arrancarOrdem(){
+  const doSnap = ordemDoSnapshot();
+  ORDEM = ordemCanonica(doSnap || ORDEM_DEFAULT);
+  ordemGravada = doSnap ? ORDEM.join(',') : ORDEM_DEFAULT.join(',');
+  injectarPegas(); aplicarOrdem(); marcarOrdemSuja();
+  const s = document.getElementById('btnSaveOrder'); if (s) s.addEventListener('click', guardarOrdem);
+  const r = document.getElementById('btnResetOrder'); if (r) r.addEventListener('click', reporOrdem);
+}
+
 async function boot(){
   // Até ~3 s à espera da ponte do host. 10 tentativas de 300 ms.
   for (let i = 0; i < 10; i++){
@@ -6688,6 +7078,7 @@ async function boot(){
   await loadAll();          // loadAll já lida com a ausência de window.cowork
   try{ paintCanary(); }catch(e){ /* o canário nunca pode derrubar o painel */ }
   hideBootMsg();
+  try{ arrancarOrdem(); }catch(e){ /* a ordem nunca derruba o painel */ }
   // O histórico de sessões é secundário: carrega depois, e a falha dele
   // nunca pode levar o painel principal atrás.
   if (window.cowork && typeof window.cowork.callMcpTool === 'function'){
