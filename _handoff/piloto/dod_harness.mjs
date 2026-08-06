@@ -35,8 +35,10 @@ try {
   process.exit(1);
 }
 
+if (!existsSync(artefacto)) { console.error(`RECUSADO: artefacto não existe: ${artefacto} (usar runs/<id>/artefacto/<caminho>)`); process.exit(1); }
 mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch();
+try {
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 await page.goto(pathToFileURL(resolve(artefacto)).href, { waitUntil: "load", timeout: 30000 });
 await page.screenshot({ path: join(outDir, "captura-inicial.png") });
@@ -70,7 +72,6 @@ const inputLag = await page.evaluate(() => new Promise((res) => {
 // nota: o click dispara depois de armar o listener; null => n/d
 
 await page.screenshot({ path: join(outDir, "captura-final.png") });
-await browser.close();
 
 const resultado = {
   gerado_por: "dod_harness.mjs (Playwright, zero LLM)",
@@ -82,3 +83,4 @@ const resultado = {
 };
 writeFileSync(join(outDir, "dod.json"), JSON.stringify(resultado, null, 2));
 console.log(JSON.stringify({ score: resultado.score_dod, fluidez: resultado.fluidez }, null, 2));
+} finally { await browser.close(); } // Δ verificação: browser nunca fica órfão em crash

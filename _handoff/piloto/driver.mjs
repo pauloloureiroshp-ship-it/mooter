@@ -1,21 +1,26 @@
 #!/usr/bin/env node
-// driver.mjs — PILOTO DE CONVICÇÃO v1.1 (protocolo congelado em 0737767c).
+// driver.mjs v2 — PILOTO DE CONVICÇÃO v1.1 (protocolo congelado em 0737767c).
 // Dispara cada braço em sessão headless limpa, zero teclado humano (§2).
+// v2 incorpora as falhas da verificação adversarial de 2026-08-06 (crítico≠autor):
+//   Δ prompt por STDIN (nunca argv — shell:true no Windows mutila multi-linha)
+//   Δ transcrição COMPLETA via --output-format stream-json --verbose (§2.2)
+//   Δ usage/custo/mix agregados sobre TODAS as tentativas, não só a última (§0 b-c)
+//   Δ artefacto copiado da worktree ANTES de a desmontar (harness/baralhar precisam dele)
+//   Δ worktree com nome opaco (uuid) — a letra do braço não entra em paths que o agente vê
+//   Δ warm-up da GPU quando cold (§2.5) · Δ pré-condições nunca crasham cru
 //
 //   A — TECTO    : claude -p, modelo fixo claude-fable-5, hooks OFF (sem Mooter)
 //   B — MOOTER   : claude -p, settings por omissão (mooter-first, T0-T3 auto)
 //   C — ESTÁTICO : claude -p, modelo fixo claude-sonnet-5, hooks OFF
 //
-// Uso (SÓ quando o Paulo autorizar o run — NUNCA nesta sessão de preparação):
-//   PILOTO_GO=1 node driver.mjs --task T1            # 9 runs (3 braços × 3 execuções)
-//   PILOTO_GO=1 node driver.mjs --task T2            # idem, tarefa repo sorteada
-//   node driver.mjs --dry                            # valida pré-condições, corre nada
+// Uso (SÓ quando o Paulo autorizar o run — NUNCA na sessão de preparação):
+//   PILOTO_GO=1 node driver.mjs --task T1|T2      # 9 runs (3 braços × 3 execuções)
+//   node driver.mjs --dry [--task T1|T2]          # valida pré-condições, corre nada
 //
-// Recusa arrancar se: PILOTO_GO≠1 · T1_SPEC.md com <<TODO · T2 sem sorteio registado.
 // Tudo o que não consegue medir escreve "n/d" — nunca inventa (doutrina honest-copy).
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, statSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, statSync, cpSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomInt } from "node:crypto";
@@ -36,16 +41,22 @@ const ARMS = {
   C: { nome: "ESTATICO", args: ["--model", "claude-sonnet-5"], settings: join(HERE, "settings.no-mooter.json") },
 };
 
-// ---------- pré-condições (falham ALTO, nunca meio-correm) ----------
+// ---------- pré-condições (falham ALTO em lista, nunca crash cru) ----------
 
 function precondicoes(task) {
   const erros = [];
   if (process.env.PILOTO_GO !== "1") erros.push("PILOTO_GO≠1 — este driver não corre sem autorização explícita do Paulo.");
-  const spec = readFileSync(join(HERE, "T1_SPEC.md"), "utf8");
-  if (task === "T1" && spec.includes("<<TODO")) erros.push("T1_SPEC.md ainda tem <<TODO — colar o §5 da v1.0 primeiro.");
+  if (task === "T1") {
+    try {
+      const spec = readFileSync(join(HERE, "T1_SPEC.md"), "utf8");
+      if (spec.includes("<<TODO")) erros.push("T1_SPEC.md ainda tem <<TODO — colar o §5 da v1.0 primeiro.");
+    } catch (e) { erros.push(`T1_SPEC.md ilegível: ${e.message}`); }
+  }
   if (task === "T2") {
-    const cand = readFileSync(join(HERE, "T2_CANDIDATAS.md"), "utf8");
-    if (!/SORTEIO REGISTADO/.test(cand)) erros.push("T2_CANDIDATAS.md sem sorteio registado.");
+    try {
+      const cand = readFileSync(join(HERE, "T2_CANDIDATAS.md"), "utf8");
+      if (!/SORTEIO REGISTADO/.test(cand)) erros.push("T2_CANDIDATAS.md sem sorteio registado.");
+    } catch (e) { erros.push(`T2_CANDIDATAS.md ilegível: ${e.message}`); }
   }
   try { execFileSync("claude", ["--version"], { encoding: "utf8", shell: true }); }
   catch { erros.push("claude CLI não encontrado no PATH."); }
@@ -62,7 +73,6 @@ function tarefa(task) {
     if (!prompt || !artefacto) throw new Error("T1_SPEC.md ilegível — prompt ou caminho do artefacto em falta.");
     return { id: "T1", prompt: prompt.trim(), done: (wt) => existsSync(join(wt, artefacto)) };
   }
-  // T2: bloco da candidata sorteada, campos PROMPT / TEST_CMD
   const cand = readFileSync(join(HERE, "T2_CANDIDATAS.md"), "utf8");
   const sorteada = (cand.match(/SORTEIO REGISTADO[\s\S]*?candidata sorteada: \*\*C(\d)\*\*/) || [])[1];
   if (!sorteada) throw new Error("Sorteio não legível em T2_CANDIDATAS.md.");
@@ -76,21 +86,22 @@ function tarefa(task) {
   };
 }
 
-// ---------- worktree limpa por run (§2.3) ----------
+// ---------- worktree limpa por run (§2.3) — nome OPACO: a letra do braço nunca ----------
+// ---------- aparece em paths que o agente do braço possa ecoar no artefacto  ----------
 
-function worktreeLimpa(runId, baseSha) {
-  const wt = join(REPO, "..", `piloto-run-${runId}`);
+function worktreeLimpa(baseSha) {
+  const opaco = randomUUID().slice(0, 8);
+  const wt = join(REPO, "..", `piloto-wt-${opaco}`);
   execFileSync("git", ["-C", REPO, "worktree", "add", "--detach", wt, baseSha], { encoding: "utf8" });
-  // caches limpos: worktree nasce sem node_modules nem .tmp; nada herdado do repo principal
-  return wt;
+  return wt; // nasce sem node_modules nem .tmp; nada herdado do repo principal
 }
 
-function desmontarWorktree(wt) {
+function desmontarWorktree(wt, log) {
   try { execFileSync("git", ["-C", REPO, "worktree", "remove", "--force", wt], { encoding: "utf8" }); }
-  catch { /* fica para limpeza manual; registado no log */ }
+  catch (e) { appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), aviso: `worktree não desmontada: ${wt} — ${e.message.slice(0, 120)}` }) + "\n"); }
 }
 
-// ---------- medição ----------
+// ---------- GPU (§2.5: aquecida; cold/warm anotado) ----------
 
 function gpuEstado() {
   try {
@@ -98,6 +109,22 @@ function gpuEstado() {
     return out.trim().split("\n").length > 1 ? "warm" : "cold";
   } catch { return "n/d"; }
 }
+
+async function aquecerGpu(log) {
+  const estado = gpuEstado();
+  if (estado !== "cold") return estado;
+  try {
+    await fetch("http://localhost:11434/api/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: process.env.MOO_WARM_MODEL || "qwen3:30b", prompt: "ok", stream: false, keep_alive: "30m" }),
+      signal: AbortSignal.timeout(180000),
+    });
+    appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "gpu_warmup", de: "cold" }) + "\n");
+    return gpuEstado();
+  } catch { return "cold (warm-up falhou — anotado)"; }
+}
+
+// ---------- medição ----------
 
 function offsetDecisions() {
   try { return statSync(DECISIONS_LOG).size; } catch { return null; }
@@ -112,10 +139,27 @@ function sliceDecisions(desde, sessionIds) {
     }).filter(Boolean);
     return {
       da_sessao: novas.filter((e) => sessionIds.includes(e.session_id)),
-      janela_completa: novas, // inclui possível ruído de outras sessões — declarado, não escondido
+      janela_completa: novas, // pode conter ruído de outras sessões/órfãos — declarado, não escondido
       nota: "atribuição por session_id é a fiável; a janela completa vai junto para auditoria",
     };
   } catch (e) { return { linhas: [], nota: `n/d — ${e.message}` }; }
+}
+
+function somaModelUsage(porTentativa) {
+  // Δ verificação: soma sobre TODAS as tentativas. PRESSUPOSTO DECLARADO: o CLI
+  // reporta usage POR INVOCAÇÃO em -p/--resume. Validar no run 1 comparando
+  // tentativa-0 vs tentativa-1; se for cumulativo, isto SOBRECONTA — corrigir antes
+  // de citar números (nunca publicar sem essa validação; rótulo já é não-publicável).
+  const soma = {};
+  for (const mu of porTentativa) {
+    if (!mu) continue;
+    for (const [modelo, u] of Object.entries(mu)) {
+      soma[modelo] = soma[modelo] || { inputTokens: 0, outputTokens: 0 };
+      soma[modelo].inputTokens += u.inputTokens || 0;
+      soma[modelo].outputTokens += u.outputTokens || 0;
+    }
+  }
+  return Object.keys(soma).length ? soma : null;
 }
 
 function custoProxy(modelUsage) {
@@ -127,7 +171,7 @@ function custoProxy(modelUsage) {
     if (!chave) { detalhe[modelo] = "n/d — fora da tabela precos.json"; incompleto = true; continue; }
     const p = PRECOS.por_modelo[chave];
     const usd = ((u.inputTokens || 0) * p.input + (u.outputTokens || 0) * p.output) / 1e6;
-    detalhe[modelo] = { tier: p.tier, inputTokens: u.inputTokens ?? "n/d", outputTokens: u.outputTokens ?? "n/d", usd: +usd.toFixed(4) };
+    detalhe[modelo] = { tier: p.tier, inputTokens: u.inputTokens, outputTokens: u.outputTokens, usd: +usd.toFixed(4) };
     total += usd;
   }
   return { total_usd: incompleto ? `≥${total.toFixed(4)} (incompleto)` : +total.toFixed(4), detalhe };
@@ -135,7 +179,7 @@ function custoProxy(modelUsage) {
 
 function mixTiers(modelUsage) {
   // Mix de tiers de B é o resultado PRIMÁRIO (§6 / G17). Tokens locais (T0) não
-  // aparecem em modelUsage — o slice do decisions.log complementa; discrepância é declarada.
+  // aparecem em modelUsage — o slice do decisions.log complementa; discrepância declarada.
   if (!modelUsage) return "n/d";
   const porTier = {};
   for (const [modelo, u] of Object.entries(modelUsage)) {
@@ -148,62 +192,87 @@ function mixTiers(modelUsage) {
 }
 
 // ---------- uma tentativa headless ----------
+// Δ verificação: prompt entra por STDIN (argv com shell:true no Windows mutila
+// multi-linha e rebenta aos 32k chars); transcrição COMPLETA via stream-json (§2.2).
 
 function tentativa(arm, prompt, cwd, sessionId, resume) {
-  const args = ["-p", prompt, "--output-format", "json", "--dangerously-skip-permissions", ...ARMS[arm].args];
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", ...ARMS[arm].args];
   if (ARMS[arm].settings) args.push("--settings", ARMS[arm].settings);
   args.push(resume ? "--resume" : "--session-id", sessionId);
   const t0 = Date.now();
-  const r = spawnSync("claude", args, { cwd, encoding: "utf8", timeout: TIMEOUT_MS, shell: true, maxBuffer: 64 * 1024 * 1024 });
-  let json = null;
-  try { json = JSON.parse(r.stdout); } catch { /* transcrição crua fica na mesma */ }
-  return { wall_ms: Date.now() - t0, exit: r.status, timeout: r.error?.code === "ETIMEDOUT" || null, stdout: r.stdout, stderr: r.stderr, json };
+  const r = spawnSync("claude", args, { cwd, input: prompt, encoding: "utf8", timeout: TIMEOUT_MS, shell: true, maxBuffer: 256 * 1024 * 1024 });
+  let resultado = null;
+  for (const linha of (r.stdout || "").split("\n").filter(Boolean)) {
+    try { const j = JSON.parse(linha); if (j.type === "result") resultado = j; } catch { /* linha parcial (ex. timeout a meio) fica na transcrição crua */ }
+  }
+  const timeout = r.error?.code === "ETIMEDOUT" || null;
+  return { wall_ms: Date.now() - t0, exit: r.status, timeout, stdout: r.stdout, stderr: r.stderr, resultado };
 }
 
 // ---------- run completo de um braço ----------
 
-function run(arm, task, execucao, baseSha, log) {
+function run(arm, task, execucao, baseSha, log, gpu) {
   const runId = `${task.id}-${arm}-e${execucao}-${Date.now()}`;
   const dir = join(RUNS_DIR, runId);
   mkdirSync(dir, { recursive: true });
   const sessionId = randomUUID();
-  const wt = worktreeLimpa(runId, baseSha);
-  const gpu = gpuEstado();
+  const wt = worktreeLimpa(baseSha);
   const off = offsetDecisions();
   const t0 = Date.now();
   const tentativas = [];
   const sessionIds = [sessionId];
+  const usagePorTentativa = [];
+  const modelUsagePorTentativa = [];
+  let orfaosPossiveis = false;
 
   let done = false;
   for (let i = 0; i <= MAX_FOLLOWUPS && !done; i++) {
     const prompt = i === 0 ? task.prompt : "continue"; // follow-ups pré-escritos (§2.2)
     const t = tentativa(arm, prompt, wt, sessionId, i > 0);
     tentativas.push({ n: i, prompt: i === 0 ? "(prompt da tarefa)" : prompt, wall_ms: t.wall_ms, exit: t.exit, timeout: t.timeout });
-    writeFileSync(join(dir, `tentativa-${i}.stdout.json`), t.stdout || "");
-    if (t.stderr) writeFileSync(join(dir, `tentativa-${i}.stderr.txt`), t.stderr);
-    if (t.json?.session_id && !sessionIds.includes(t.json.session_id)) sessionIds.push(t.json.session_id);
+    writeFileSync(join(dir, `transcricao-${i}.jsonl`), t.stdout || ""); // transcrição completa (§2.2)
+    if (t.stderr) writeFileSync(join(dir, `transcricao-${i}.stderr.txt`), t.stderr);
+    if (t.timeout) orfaosPossiveis = true; // Windows: kill atinge o cmd.exe, não o neto — declarado
+    usagePorTentativa.push(t.resultado?.usage ?? null);
+    modelUsagePorTentativa.push(t.resultado?.modelUsage ?? null);
+    if (t.resultado?.session_id && !sessionIds.includes(t.resultado.session_id)) sessionIds.push(t.resultado.session_id);
     done = task.done(wt);
   }
 
-  const ultima = tentativas.length ? JSON.parse(readFileSync(join(dir, `tentativa-${tentativas.length - 1}.stdout.json`), "utf8").trim() || "null") : null;
-  const modelUsage = ultima?.modelUsage ?? null;
+  // Δ verificação: copiar o ARTEFACTO REAL (ficheiros alterados vs base + novos)
+  // antes de desmontar — o harness e o baralhar precisam dos ficheiros, não do diff.
+  const artDir = join(dir, "artefacto");
+  mkdirSync(artDir, { recursive: true });
+  try {
+    const alterados = execFileSync("git", ["-C", wt, "diff", "--name-only", baseSha], { encoding: "utf8" }).split("\n").filter(Boolean);
+    const novos = execFileSync("git", ["-C", wt, "ls-files", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n").filter(Boolean);
+    for (const rel of [...new Set([...alterados, ...novos])]) {
+      if (rel.startsWith("node_modules")) continue;
+      try { cpSync(join(wt, rel), join(artDir, rel), { recursive: true }); } catch { /* apagados/binários exóticos: diff cobre */ }
+    }
+    execFileSync("git", ["-C", wt, "add", "-N", "."], { encoding: "utf8" });
+    writeFileSync(join(dir, "artefacto.diff"), execFileSync("git", ["-C", wt, "diff", "--binary", baseSha], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
+  } catch (e) { writeFileSync(join(dir, "artefacto.ERRO.txt"), `captura do artefacto falhou: ${e.message}`); }
+  desmontarWorktree(wt, log);
+
+  const modelUsageTotal = somaModelUsage(modelUsagePorTentativa);
   const meta = {
     runId, braço: arm, braço_nome: ARMS[arm].nome, tarefa: task.id, execucao,
-    base_sha: baseSha, session_ids: sessionIds, gpu_no_arranque: gpu,
-    wall_ms_total: Date.now() - t0, tentativas, criterio_paragem: done ? "cumprido" : "TECTO ATINGIDO — incompleto (registado, sem resgate humano)",
-    usage: ultima?.usage ?? "n/d", custo_proxy: custoProxy(modelUsage), mix_tiers: mixTiers(modelUsage),
+    base_sha: baseSha, session_ids: sessionIds, worktree_opaca: wt, gpu_no_arranque: gpu,
+    wall_ms_total: Date.now() - t0, tentativas,
+    criterio_paragem: done ? "cumprido" : "TECTO ATINGIDO — incompleto (registado, sem resgate humano)",
+    usage_por_tentativa: usagePorTentativa,
+    modelUsage_por_tentativa: modelUsagePorTentativa,
+    agregacao: "soma por tentativa — PRESSUPOSTO: usage por invocação em --resume; validar no run 1 (ver somaModelUsage)",
+    custo_proxy: custoProxy(modelUsageTotal), mix_tiers: mixTiers(modelUsageTotal),
     custo_marginal_subscricao: "≈0 nos planos actuais — dito abertamente (§5.2)",
     energia_local: "n/d — sem medição de Wh nesta bateria (§5.3)",
     decisions_slice: sliceDecisions(off, sessionIds),
+    possivel_processo_orfao: orfaosPossiveis ? "SIM — timeout com shell:true no Windows não mata o neto; verificar claude órfão e janela decisions poluída" : false,
     intervencoes_humanas: 0,
   };
   writeFileSync(join(dir, "meta.json"), JSON.stringify(meta, null, 2));
-  // artefactos ficam NA worktree; copiar antes de desmontar
-  execFileSync("git", ["-C", wt, "add", "-N", "."], { encoding: "utf8" }); // torna novos ficheiros visíveis ao diff
-  const diff = execFileSync("git", ["-C", wt, "diff", "--binary", "HEAD"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  writeFileSync(join(dir, "artefacto.diff"), diff);
-  desmontarWorktree(wt);
-  appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), runId, braço: arm, done }) + "\n");
+  appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), runId, braço: arm, done, orfaosPossiveis }) + "\n");
   return meta;
 }
 
@@ -234,9 +303,11 @@ for (let e = 1; e <= EXECUCOES; e++) {
   const resto = ["A", "B", "C"];
   while (resto.length) { const i = randomInt(resto.length); lancamentos.push(i); ordem.push(resto.splice(i, 1)[0]); }
   appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "ordem", execucao: e, ordem, lancamentos_crypto: lancamentos }) + "\n");
+  const gpu = await aquecerGpu(log); // §2.5: GPU aquecida; estado anotado por execução
   for (const arm of ordem) {
     console.log(`execução ${e} · braço ${arm} (${ARMS[arm].nome}) · ${task.id}`);
-    run(arm, task, e, baseSha, log);
+    try { run(arm, task, e, baseSha, log, gpu); }
+    catch (err) { appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "RUN_FALHOU", execucao: e, braço: arm, erro: err.message.slice(0, 300) }) + "\n"); }
   }
 }
-console.log(`FIM. Resultados em ${RUNS_DIR}. Próximo passo: dod_harness.mjs (T1) e baralhar.mjs.`);
+console.log(`FIM. Resultados em ${RUNS_DIR}. Próximo passo: dod_harness.mjs sobre runs/<id>/artefacto/ (T1) e baralhar.mjs sobre os dirs artefacto/.`);
