@@ -2232,6 +2232,14 @@ process.stdin.on('end', () => {
   clearTimeout(stdinTimeout);
   try {
     const data = JSON.parse(input);
+    // P1-E — a ÚNICA fonte oficial de quota que existe nesta máquina é o
+    // `rate_limits` que o Claude Code entrega aqui, neste payload. `quota-live.js`
+    // foi escrito para o capturar mas `onStatuslineRender` nunca era chamado por
+    // ninguém: ~/.mooter/quota-live.json não existia, e o hint publicava o
+    // contador LOCAL de orçamento como se fosse quota do fornecedor. Esta linha
+    // é a que faz a fonte oficial existir. Fail-soft: capturar quota nunca pode
+    // partir a statusline.
+    try { require('./quota-live.js').onStatuslineRender(data); } catch { /* sem captura, o consumidor diz n/d */ }
     // v6.5 — trailing \n required: Claude Code parses statusline stdout
     // line-by-line, and without a trailing newline the last row is
     // sometimes dropped or treated as a continuation of the previous one.

@@ -1396,17 +1396,22 @@ try {
   if (providers && providers.length) {
     providerLines.push(`suggested_providers: ${providers.join(', ')}`);
   }
-  if (quotaSnap) {
-    if (typeof quotaSnap.codex_remaining_pct === 'number') {
-      providerLines.push(
-        `codex_quota: ${quotaSnap.codex_remaining_pct}% remaining (5h window)`
-      );
-    }
-    if (typeof quotaSnap.anthropic_remaining_pct === 'number') {
-      providerLines.push(
-        `anthropic_quota: ${quotaSnap.anthropic_remaining_pct}% remaining (5h window)`
-      );
-    }
+  // P1-E — `quota-tracker` conta o ORÇAMENTO LOCAL desta máquina; não sabe nada
+  // sobre a quota real de nenhum fornecedor. Publicar um pelo outro já mandou
+  // trabalho para longe de um motor vivo: a 2026-08-06T20:13Z este hint disse
+  // `codex_quota: 0% remaining` e onze minutos depois um job codex correu 30+
+  // passos sem falhar um pedido. `quota-honesta` só devolve percentagem quando
+  // há fonte oficial (Anthropic: o `rate_limits` que o Claude Code injecta na
+  // statusline); tudo o resto é `n/d` com o porquê.
+  try {
+    providerLines.push(...require('./quota-honesta').linhasDoHint(
+      require('./quota-honesta').estado({ trackerSummary: () => quotaSnap })
+    ));
+  } catch {
+    // Módulo ausente (runtime por actualizar): dizer que não se sabe é sempre
+    // melhor do que voltar ao número que mentia.
+    providerLines.push('anthropic_quota: n/d (quota-honesta ausente neste runtime)');
+    providerLines.push('codex_quota: n/d (quota-honesta ausente neste runtime)');
   }
 } catch { /* never let this break the hint */ }
 
