@@ -140,7 +140,7 @@ gauntlet: preparação-piloto · G1-G18 herdados do protocolo congelado (sessão
 
 ### ⇄ CC→Cowork · WAVE "PISTA LIMPA" — noite pré-piloto fechada ✅ (2026-08-06, CC)
 
-**Sha final da wave: `0fbdcff2368b069bac84a02634e7c5d884ff5a7a`** · `classify.js` intocado (`427d8c0b…364bc48f`) · nada empurrado · ⛔ NENHUM braço do piloto corrido — `PILOTO_GO=1` continua do Paulo.
+**Sha do último commit de CÓDIGO: `0fbdcff2368b069bac84a02634e7c5d884ff5a7a`** — é este que a prova de bundle carimba (`runtime_bundle_sha == repo_bundle_sha == 27fb623d…`, 198/198). Os commits de documentação que vêm a seguir (este, e a correcção deste número) tocam apenas `SYNC.md` e `tools/router/package.json`: **nenhum ficheiro do runtime**, portanto a prova continua `IGUAL` em qualquer um deles — verificado em `e95abc0a`, mesmo `runtime_bundle_sha`. Um documento não consegue conter o seu próprio sha; o que fica declarado é a regra, não só o número. · `classify.js` intocado (`427d8c0b…364bc48f`) · nada empurrado · ⛔ NENHUM braço do piloto corrido — `PILOTO_GO=1` continua do Paulo.
 
 **Fechado em main:**
 - **P0-A · o recibo que não se apaga** (`f23314a7`) — retomado da branch `fix/w1-recibo` que já existia (G5: reexecutar teria sido desperdício). Causa confirmada **por repro**, não por leitura: `deleteAll()` mirava o `USERPROFILE` real mesmo com `HOME` isolado (`os.homedir()` ignora `HOME` no Windows). Traz o `ledger_janela` da W1 PASSO 3 e os **três** consumidores reais. Correcção à W1 `:128`: a statusline não é consumidor — grep por `ledger_eventos|entregas_por_dia|scorecard` em `tools/router/` devolve zero. Eram três, não quatro.
@@ -152,7 +152,7 @@ gauntlet: preparação-piloto · G1-G18 herdados do protocolo congelado (sessão
 
 **Gate mecânico (corrido nativamente; o sandbox do codex não conseguiu — `spawn EPERM`):**
 - `tools/router`: baseline main limpo 1070/1067/2 → main mergido **1079/1075/3** (+9 do `quota-honesta.test.js`, que também foi **ligado ao `npm test`** — passava despercebido).
-- `bridge`: baseline main limpo 909/907/1 → **+3 testes do P0-B, todos verdes**.
+- `bridge`: baseline main limpo 909/907/1 → main mergido **922/919/2** (+13 testes: 3 do P0-B, 5 do `ledger_janela`, 5 do tecto do kimi; +12 pass — a 13ª "falta" é o `retrato-mapa` que passou a vermelho, ver abaixo).
 - **Falhas pré-existentes, nomeadas:** `ondaA.test.js` A3/A3b (sonda Ollama em `127.0.0.1:1`) · `agent-sync-ledger` (device lookup, vault receipts) · `tuned_demote still works when no quality_intent present` — esta **não é regressão**: reproduz-se em main puro, sem uma linha da wave, bastando copiar o `tools/router/tuning-state.json` local (não versionado, `generated_at 2026-06-05`, `sample_size 8`) para uma worktree limpa; desaparece ao removê-lo. `retrato-mapa.test.js` falha só com o WIP não-commitado desta working-tree partilhada — verde em main limpo, e só requer builtins de Node.
 - Cross-check do moo sobre o relatório do codex: 18 divergências, **todas do instrumento** — 7 `path` truncados no espaço de "Paulo Loureiro" ao partir o link markdown, 11 `number` que o verificador não sabe verificar. Amostrei 4 à mão contra o disco (`inject_context.js:631`, `:996`, `telemetry.js:201`, `seamless.js:2389`): 4/4 verdadeiras nas linhas exactas.
 
