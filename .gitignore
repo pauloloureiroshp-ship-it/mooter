@@ -158,6 +158,15 @@ _handoff/loop/transcript/
 _handoff/loop/STATE.json
 _handoff/loop/heartbeat.json
 
+# Saida das baterias do piloto de conviccao (runtime — o KIT fica versionado).
+# Cada bateria produz transcricoes stream-json na ordem dos MB por tentativa (a
+# bateria-1 da T1 deu ~1,6 GB em 9 runs) e artefactos copiados das worktrees.
+# A quarentena guarda o que os bracos escreveram fora da worktree (v2.3): e prova
+# de fuga de isolamento, nao codigo do repo.
+_handoff/piloto/runs/
+_handoff/piloto/runs-*/
+_handoff/piloto/quarentena/
+
 # Multi-agent operational ledger projections (generated locally; source is tools/router/agent-sync-ledger.js).
 _handoff/agent-sync/
 
