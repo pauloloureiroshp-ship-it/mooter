@@ -26,6 +26,7 @@ import { runAudit } from "./commands/audit.ts";
 import { runEnvDetect } from "./commands/env-detect.ts";
 import { runFeedback, runFeedbackList } from "./commands/feedback.ts";
 import { runWorkflow } from "./commands/workflow.ts";
+import { runCouncil } from "./commands/council.ts";
 import { runWorkflows } from "./commands/workflows.ts";
 import { runAgents } from "./commands/agents.ts";
 import { runCompression } from "./commands/compression.ts";
@@ -539,6 +540,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "workflow") {
     const res = await runWorkflow(rest);
+    if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
+    return res.exitCode;
+  }
+
+  if (command === "council") {
+    const res = await runCouncil(rest);
     if (res.output) process.stdout.write(res.output + (res.output.endsWith("\n") ? "" : "\n"));
     return res.exitCode;
   }
