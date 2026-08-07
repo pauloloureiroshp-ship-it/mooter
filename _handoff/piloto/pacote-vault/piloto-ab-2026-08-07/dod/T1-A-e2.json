@@ -40,7 +40,10 @@
     {
       "id": 8,
       "desc": "Condição de vitória dispara quando a vaca está cercada",
-      "resultado": "n/d (humano)"
+      "resultado": "n/d",
+      "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+      "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+      "nota_humana": "preso em \"Loading three.js\" (CDN) — o jogo nunca abriu"
     },
     {
       "id": 9,
@@ -63,7 +66,7 @@
       "resultado": "S"
     }
   ],
-  "score_dod": "10/12",
+  "score_dod": "10/11",
   "fluidez": {
     "frames": 204,
     "fps_mediana": 59.9,
@@ -73,5 +76,6 @@
   "capturas": [
     "captura-inicial.png",
     "captura-final.png"
-  ]
+  ],
+  "score_base": "11 itens com resposta objectiva (dos 12; os restantes ficam n/d)"
 }

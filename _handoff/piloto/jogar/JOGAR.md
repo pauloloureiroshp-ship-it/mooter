@@ -19,15 +19,20 @@ cercada**.
 
 | artefacto | venceu? (S/N/?) | nota (opcional) |
 |---|---|---|
-| ART-1 | ? |  |
-| ART-2 | ? |  |
-| ART-3 | ? |  |
-| ART-4 | ? |  |
-| ART-5 | ? |  |
-| ART-6 | ? |  |
-| ART-7 | ? |  |
-| ART-8 | ? |  |
-| ART-9 | ? |  |
+| ART-1 | S | venceu após esforço — 58 blocos, cerco fechado, banner disparou (13:37) |
+| ART-2 | ? | travado na tela inicial — não deu para tentar cercar |
+| ART-3 | ? | travado na tela inicial — não deu para tentar cercar |
+| ART-4 | ? | travado na tela inicial — não deu para tentar cercar |
+| ART-5 | ? | travado na tela inicial — não deu para tentar cercar |
+| ART-6 | ? | travado na tela inicial — não deu para tentar cercar |
+| ART-7 | ? | preso em "Loading three.js" (CDN) — o jogo nunca abriu |
+| ART-8 | ? | travado na tela inicial — não deu para tentar cercar |
+| ART-9 | ? | travado na tela inicial — não deu para tentar cercar |
+
+<!-- Preenchido pelo Cowork em 2026-08-07 por transcrição literal dos relatos do juiz humano (Paulo),
+     confirmada por ele nesta sessão antes da gravação. Nenhum veredicto foi deduzido: ART-1 = S
+     (vitória validada também por leitura do código: flood-fill em a110()); ART-2..9 = ? porque o
+     juiz não chegou a poder tentar o cerco — n/d, não N. -->
 
 ---
 

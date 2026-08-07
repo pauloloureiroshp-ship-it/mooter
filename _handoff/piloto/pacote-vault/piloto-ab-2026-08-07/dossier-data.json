@@ -173,7 +173,7 @@
       "html_relativo": "runs/T1-A-e1-1786122828051/artefacto/index.html",
       "html_bytes": 26184,
       "dod": {
-        "score": "8/12",
+        "score": "8/11",
         "itens": [
           {
             "id": 1,
@@ -213,7 +213,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -356,7 +359,7 @@
       "html_relativo": "runs/T1-A-e2-1786125791219/artefacto/index.html",
       "html_bytes": 22943,
       "dod": {
-        "score": "10/12",
+        "score": "10/11",
         "itens": [
           {
             "id": 1,
@@ -396,7 +399,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "preso em \"Loading three.js\" (CDN) — o jogo nunca abriu"
           },
           {
             "id": 9,
@@ -539,7 +545,7 @@
       "html_relativo": "runs/T1-A-e3-1786126928842/artefacto/index.html",
       "html_bytes": 29578,
       "dod": {
-        "score": "8/12",
+        "score": "8/11",
         "itens": [
           {
             "id": 1,
@@ -579,7 +585,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -706,7 +715,7 @@
       "html_relativo": "runs/T1-B-e1-1786124332717/artefacto/index.html",
       "html_bytes": 39185,
       "dod": {
-        "score": "9/12",
+        "score": "9/11",
         "itens": [
           {
             "id": 1,
@@ -746,7 +755,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -873,7 +885,7 @@
       "html_relativo": "runs/T1-B-e2-1786125303028/artefacto/index.html",
       "html_bytes": 36372,
       "dod": {
-        "score": "9/12",
+        "score": "9/11",
         "itens": [
           {
             "id": 1,
@@ -913,7 +925,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -1040,7 +1055,7 @@
       "html_relativo": "runs/T1-B-e3-1786127750559/artefacto/index.html",
       "html_bytes": 39829,
       "dod": {
-        "score": "9/12",
+        "score": "9/11",
         "itens": [
           {
             "id": 1,
@@ -1080,7 +1095,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -1223,7 +1241,7 @@
       "html_relativo": "runs/T1-C-e1-1786123901224/artefacto/index.html",
       "html_bytes": 25896,
       "dod": {
-        "score": "8/12",
+        "score": "8/11",
         "itens": [
           {
             "id": 1,
@@ -1263,7 +1281,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -1406,7 +1427,7 @@
       "html_relativo": "runs/T1-C-e2-1786124886295/artefacto/index.html",
       "html_bytes": 19568,
       "dod": {
-        "score": "9/12",
+        "score": "9/11",
         "itens": [
           {
             "id": 1,
@@ -1446,7 +1467,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "n/d",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": "o Paulo não conseguiu decidir — n/d declarado, nunca convertido em N",
+            "nota_humana": "travado na tela inicial — não deu para tentar cercar"
           },
           {
             "id": 9,
@@ -1589,7 +1613,7 @@
       "html_relativo": "runs/T1-C-e3-1786126355457/artefacto/index.html",
       "html_bytes": 18376,
       "dod": {
-        "score": "9/12",
+        "score": "10/12",
         "itens": [
           {
             "id": 1,
@@ -1629,7 +1653,10 @@
           {
             "id": 8,
             "desc": "Condição de vitória dispara quando a vaca está cercada",
-            "resultado": "n/d (humano)"
+            "resultado": "S",
+            "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+            "porque": null,
+            "nota_humana": "venceu após esforço — 58 blocos, cerco fechado, banner disparou (13:37)"
           },
           {
             "id": 9,
@@ -2529,6 +2556,19 @@
   "declaracoes_obrigatorias": {
     "exposicao_do_paulo": "o Paulo viu 1 artefacto da bateria-1 (inválida) antes do julgamento desta bateria; os 9 artefactos julgados aqui são da bateria-2 e nenhum lhe foi mostrado antes do painel fechar",
     "limite_contexto_neutro": "o ~/.claude/CLAUDE.md do utilizador NÃO é removível (CLAUDE_CONFIG_DIR quebra a autenticação, medido). É CONSTANTE nos três braços, não variável entre eles — mas o ambiente não é livre de doutrina",
-    "item_8_do_dod": "condição de vitória: n/d (humano) nos 9 artefactos — à espera de o Paulo jogar os 9 jogos"
+    "item_8_do_dod": "condição de vitória: 1 S · 8 n/d nos 9 artefactos — jogados pelo Paulo, aplicados mecanicamente por aplicar-item8.mjs a partir de jogar/JOGAR.md"
+  },
+  "gap_de_jogabilidade_humana": {
+    "achado": "o harness aprovava 8-9 de 12 itens; o humano conseguiu jogar ~1 de 9",
+    "unico_jogavel": "ART-1 (run T1-C-e3) — condição de vitória mecânica GENUÍNA (flood-fill topológico validado no código-fonte pelo Cowork). O Paulo venceu de facto: 58 blocos, cerco fechado, banner disparado.",
+    "porque_importa": "os itens 2, 3, 4 e 7 do DoD são heurísticos por declaração do próprio dod_checks.mjs. Um artefacto pode passá-los e não ser jogável — e 8 de 9 foram exactamente isso. O DoD mede presença de mecanismo, não jogabilidade.",
+    "efeito_no_veredicto": "reforça a leitura desfavorável: nenhum braço produziu algo jogável de forma fiável, e o único que produziu foi do braço C (o mais barato). NÃO altera os critérios (a)(b)(c) — esses são de qualidade julgada, custo e tier.",
+    "fonte": "Paulo (juiz humano, jogou) + Cowork (validação por leitura de código). NÃO é medição do harness.",
+    "estado_no_pipeline": {
+      "valor": "1 vencido(s) · 8 n/d de 9",
+      "_porque": "derivado dos 9 dod.json: 1 com veredicto humano objectivo, 8 declarados n/d — o juiz não chegou a poder tentar o cerco, e n/d nunca vira N",
+      "fonte": "runs/<id>/dod/dod.json, escritos por aplicar-item8.mjs a partir de jogar/JOGAR.md — não é prosa, é leitura do disco"
+    },
+    "destino": "candidato a DoD de testes de CONTEÚDO futuros — FORA do piloto nº2, cuja spec está congelada (R1: a régua que chumbou o B é a que tem de aprovar o B′)"
   }
 }

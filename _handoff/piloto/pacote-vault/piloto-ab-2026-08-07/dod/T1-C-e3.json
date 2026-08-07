@@ -40,7 +40,10 @@
     {
       "id": 8,
       "desc": "Condição de vitória dispara quando a vaca está cercada",
-      "resultado": "n/d (humano)"
+      "resultado": "S",
+      "fonte": "humano (Paulo), jogado — o harness não verifica este item",
+      "porque": null,
+      "nota_humana": "venceu após esforço — 58 blocos, cerco fechado, banner disparou (13:37)"
     },
     {
       "id": 9,
@@ -63,7 +66,7 @@
       "resultado": "S"
     }
   ],
-  "score_dod": "9/12",
+  "score_dod": "10/12",
   "fluidez": {
     "frames": 302,
     "fps_mediana": 59.9,
@@ -73,5 +76,6 @@
   "capturas": [
     "captura-inicial.png",
     "captura-final.png"
-  ]
+  ],
+  "score_base": "12 itens com resposta objectiva (dos 12; os restantes ficam n/d)"
 }

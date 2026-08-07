@@ -153,6 +153,17 @@ if (existsSync(LEDGER)) {
   };
 }
 
+// ---------- item 8: estado DERIVADO dos dod.json, nunca uma frase congelada ----------
+// A primeira versão deste bloco era texto fixo a declarar "o JOGAR.md continua com 9 '?'".
+// Assim que o aplicar-item8.mjs correu, a frase ficou falsa e o dossier passou a publicar
+// uma segunda verdade sobre si próprio — exactamente o defeito nº 10, noutra superfície.
+// Um estado que se lê do disco não pode envelhecer mal.
+const item8 = runs.map((r) => (r.dod?.itens || []).find((i) => i.id === 8) || null);
+const item8Objectivos = item8.filter((i) => i && (i.resultado === "S" || i.resultado === "N"));
+const item8Vencidos = item8Objectivos.filter((i) => i.resultado === "S");
+const item8Nd = item8.length - item8Objectivos.length;
+const item8Aplicado = item8Objectivos.length > 0;
+
 const dossier = {
   gerado_por: "dossier.mjs",
   aviso: "APRESENTAÇÃO. A fonte canónica é resultado.md, gerado mecanicamente dos meta.json. Este ficheiro não decide nada.",
@@ -170,7 +181,9 @@ const dossier = {
   declaracoes_obrigatorias: {
     exposicao_do_paulo: "o Paulo viu 1 artefacto da bateria-1 (inválida) antes do julgamento desta bateria; os 9 artefactos julgados aqui são da bateria-2 e nenhum lhe foi mostrado antes do painel fechar",
     limite_contexto_neutro: "o ~/.claude/CLAUDE.md do utilizador NÃO é removível (CLAUDE_CONFIG_DIR quebra a autenticação, medido). É CONSTANTE nos três braços, não variável entre eles — mas o ambiente não é livre de doutrina",
-    item_8_do_dod: "condição de vitória: n/d (humano) nos 9 artefactos — à espera de o Paulo jogar os 9 jogos",
+    item_8_do_dod: item8Aplicado
+      ? `condição de vitória: ${item8Vencidos.length} S · ${item8Nd} n/d nos ${runs.length} artefactos — jogados pelo Paulo, aplicados mecanicamente por aplicar-item8.mjs a partir de jogar/JOGAR.md`
+      : `condição de vitória: n/d (humano) nos ${runs.length} artefactos — à espera de o Paulo jogar os jogos`,
   },
   gap_de_jogabilidade_humana: {
     achado: "o harness aprovava 8-9 de 12 itens; o humano conseguiu jogar ~1 de 9",
@@ -178,7 +191,13 @@ const dossier = {
     porque_importa: "os itens 2, 3, 4 e 7 do DoD são heurísticos por declaração do próprio dod_checks.mjs. Um artefacto pode passá-los e não ser jogável — e 8 de 9 foram exactamente isso. O DoD mede presença de mecanismo, não jogabilidade.",
     efeito_no_veredicto: "reforça a leitura desfavorável: nenhum braço produziu algo jogável de forma fiável, e o único que produziu foi do braço C (o mais barato). NÃO altera os critérios (a)(b)(c) — esses são de qualidade julgada, custo e tier.",
     fonte: "Paulo (juiz humano, jogou) + Cowork (validação por leitura de código). NÃO é medição do harness.",
-    estado_no_pipeline: { valor: null, _porque: "os veredictos por artefacto ainda não entraram pela mesa de jogo (jogar/JOGAR.md continua com 9 '?'); o item 8 permanece n/d no dod.json de todos os 9" },
+    estado_no_pipeline: {
+      valor: item8Aplicado ? `${item8Vencidos.length} vencido(s) · ${item8Nd} n/d de ${runs.length}` : null,
+      _porque: item8Aplicado
+        ? `derivado dos ${runs.length} dod.json: ${item8Objectivos.length} com veredicto humano objectivo, ${item8Nd} declarados n/d — o juiz não chegou a poder tentar o cerco, e n/d nunca vira N`
+        : "os veredictos por artefacto ainda não entraram pela mesa de jogo; o item 8 permanece n/d nos dod.json",
+      fonte: "runs/<id>/dod/dod.json, escritos por aplicar-item8.mjs a partir de jogar/JOGAR.md — não é prosa, é leitura do disco",
+    },
     destino: "candidato a DoD de testes de CONTEÚDO futuros — FORA do piloto nº2, cuja spec está congelada (R1: a régua que chumbou o B é a que tem de aprovar o B′)",
   },
 };
