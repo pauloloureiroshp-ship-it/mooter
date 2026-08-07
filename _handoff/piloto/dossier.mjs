@@ -172,6 +172,15 @@ const dossier = {
     limite_contexto_neutro: "o ~/.claude/CLAUDE.md do utilizador NÃO é removível (CLAUDE_CONFIG_DIR quebra a autenticação, medido). É CONSTANTE nos três braços, não variável entre eles — mas o ambiente não é livre de doutrina",
     item_8_do_dod: "condição de vitória: n/d (humano) nos 9 artefactos — à espera de o Paulo jogar os 9 jogos",
   },
+  gap_de_jogabilidade_humana: {
+    achado: "o harness aprovava 8-9 de 12 itens; o humano conseguiu jogar ~1 de 9",
+    unico_jogavel: "ART-1 (run T1-C-e3) — condição de vitória mecânica GENUÍNA (flood-fill topológico validado no código-fonte pelo Cowork). O Paulo venceu de facto: 58 blocos, cerco fechado, banner disparado.",
+    porque_importa: "os itens 2, 3, 4 e 7 do DoD são heurísticos por declaração do próprio dod_checks.mjs. Um artefacto pode passá-los e não ser jogável — e 8 de 9 foram exactamente isso. O DoD mede presença de mecanismo, não jogabilidade.",
+    efeito_no_veredicto: "reforça a leitura desfavorável: nenhum braço produziu algo jogável de forma fiável, e o único que produziu foi do braço C (o mais barato). NÃO altera os critérios (a)(b)(c) — esses são de qualidade julgada, custo e tier.",
+    fonte: "Paulo (juiz humano, jogou) + Cowork (validação por leitura de código). NÃO é medição do harness.",
+    estado_no_pipeline: { valor: null, _porque: "os veredictos por artefacto ainda não entraram pela mesa de jogo (jogar/JOGAR.md continua com 9 '?'); o item 8 permanece n/d no dod.json de todos os 9" },
+    destino: "candidato a DoD de testes de CONTEÚDO futuros — FORA do piloto nº2, cuja spec está congelada (R1: a régua que chumbou o B é a que tem de aprovar o B′)",
+  },
 };
 
 const OUT = join(HERE, "dossier-data.json");

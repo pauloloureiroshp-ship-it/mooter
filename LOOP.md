@@ -20,6 +20,24 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-07-gap-de-jogabilidade-humana-o-dod-mede-mecanismo-nao-jogo
+
+**Contexto:** fecho do piloto de convicção nº1. O `dod_harness.mjs` (Playwright, determinístico) aprovou 8-9 de 12 itens em cada um dos 9 artefactos da T1. O Paulo abriu os nove para responder ao item 8 (condição de vitória), o único que o harness não verifica.
+
+**Resultado observado:** o humano conseguiu jogar **~1 de 9**. O único jogável foi **ART-1** (run `T1-C-e3`, braço C/ESTATICO): condição de vitória mecânica **genuína** — flood-fill topológico, validado por leitura do código-fonte pelo Cowork — e o Paulo venceu de facto: 58 blocos, cerco fechado, banner disparado.
+
+**Porque é que isto importa mais do que parece:** quatro dos doze itens (2, 3, 4 e 7) são **heurísticos por declaração do próprio `dod_checks.mjs`** — pixel-diff no clique, ausência de input para o NPC, etc. Um artefacto pode passá-los e não ser jogável. Oito de nove foram exactamente isso. **O DoD mede presença de mecanismo, não jogabilidade.** Um score de 9/12 pode descrever um jogo que ninguém consegue jogar.
+
+**Efeito no veredicto do piloto:** reforça a leitura desfavorável já registada — nenhum braço produziu algo jogável de forma fiável, e o único que produziu veio do **braço C**, o mais barato (20,9% do custo de A). **Não** altera os critérios (a), (b) e (c) do §0: esses são de qualidade julgada, custo-proxy e tier, e continuam como estão.
+
+**Fonte:** Paulo (juiz humano, jogou) + Cowork (validação por código). **Não é medição do harness** e está declarado como tal no `dossier-data.json`.
+
+**Quem observou:** Paulo, ao jogar para o item 8; registado por CC.
+
+**Status:** REGISTADO como candidato a **DoD de testes de CONTEÚDO futuros** — **fora do piloto nº2**, cuja spec está congelada (R1: "a régua que chumbou o B é a que tem de aprovar o B′"; mexer no DoD a meio seria mexer na régua). Os veredictos por artefacto ainda **não entraram no pipeline**: o `jogar/JOGAR.md` continua com nove `?` e o item 8 permanece `n/d` nos nove `dod.json`.
+
+---
+
 ### 2026-08-07-piloto-tres-defeitos-de-instrumento-numa-manha
 
 **Contexto:** manhã do piloto de convicção (PILOTO_GO dado pelo Paulo). Bateria T1, 3 braços × 3 execuções.
