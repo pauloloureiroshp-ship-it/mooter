@@ -38,6 +38,9 @@ const TMP_CLAUDE = join(tmpdir(), "claude");
 // Onde vão as sobras que um run anterior deixou na HOME (v2.3). Fora de `runs/`
 // para não entrarem no baralhar/julgar como se fossem artefacto de alguém.
 const QUARENTENA_DIR = join(HERE, "quarentena");
+// Preenchido pela prova de bundle no arranque, antes de qualquer run; cada meta.json
+// leva-o consigo para o resultado.md não depender só do driver.log.
+let runtimeBundleSha = null;
 const DECISIONS_LOG = join(process.env.USERPROFILE || "", ".claude", "tools", "router", "decisions.log");
 const PRECOS = JSON.parse(readFileSync(join(HERE, "precos.json"), "utf8"));
 
@@ -403,6 +406,11 @@ function run(arm, task, execucao, baseSha, log, gpu) {
   const meta = {
     runId, braço: arm, braço_nome: ARMS[arm].nome, tarefa: task.id, execucao,
     base_sha: baseSha, session_ids: sessionIds, worktree_opaca: wt, gpu_no_arranque: gpu,
+    // O sha do bundle que ESTE run exercitou. Vivia só no driver.log, e por isso o
+    // resultado.md da T1 de 2026-08-07 saiu a acusar 9 runs de serem "anteriores à
+    // prova de bundle" com a prova a dar IGUAL 198/198 na mesma bateria. Cada run
+    // passa a carregar a sua própria prova; o log deixa de ser a única cópia.
+    runtime_bundle_sha: runtimeBundleSha,
     wall_ms_total: Date.now() - t0, tentativas,
     criterio_paragem: done ? "cumprido" : "TECTO ATINGIDO — incompleto (registado, sem resgate humano)",
     // v2.2 §1 — "cumpriu" e "cumpriu ONDE" são factos diferentes; ambos ficam.
@@ -447,6 +455,7 @@ const erros = precondicoes(taskId || "T1");
 // --dry sair, para o Paulo poder verificar amanhã sem correr um único braço.
 const baseSha = execFileSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const prova = provaBundle(baseSha, process.env.USERPROFILE || process.env.HOME || "");
+runtimeBundleSha = prova.runtime_bundle_sha;   // vai em cada meta.json (ver run())
 console.log(relatorioBundle(prova));
 
 if (dry) {

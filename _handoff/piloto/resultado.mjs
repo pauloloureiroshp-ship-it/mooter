@@ -65,10 +65,47 @@ function coerencia(metas, campo) {
   };
 }
 
+/**
+ * A prova de bundle escrita pelo driver no `driver.log` da própria bateria.
+ *
+ * O driver mede-a e regista-a lá (`driver.mjs`, evento `prova_bundle`) mas NÃO a
+ * copia para cada `meta.json`. Sem esta leitura, o `resultado.md` da T1 de
+ * 2026-08-07 saía com `runtime_bundle_sha: n/d` e a acusar 9 runs de serem
+ * "anteriores à prova de bundle" — quando a prova tinha corrido nessa mesma
+ * bateria e dado `IGUAL 198/198`. O documento canónico publicava uma segunda
+ * verdade, que é exactamente o que ele existe para não fazer.
+ *
+ * Lê-se a fonte onde o driver a pôs; não se escreve nos `meta.json` a posteriori.
+ */
+function provaDoLog(runsDir) {
+  const f = join(runsDir, "driver.log");
+  if (!existsSync(f)) return null;
+  let ultima = null;
+  for (const linha of readFileSync(f, "utf8").split("\n")) {
+    if (!linha.trim()) continue;
+    try {
+      const o = JSON.parse(linha);
+      if (o.evento === "prova_bundle" && o.runtime_bundle_sha) ultima = o;
+    } catch { /* linha truncada: ignora-se, e a ausência sai n/d */ }
+  }
+  return ultima;
+}
+
 function agregar(runsDir) {
   const { metas, ilegiveis, porque } = lerMetas(runsDir);
   const base = coerencia(metas, "base_sha");
   const runtime = coerencia(metas, "runtime_bundle_sha");
+  // Precedência: o que o próprio run mediu > o log da bateria. O log só preenche
+  // o que falta, e a proveniência fica declarada no render.
+  const prova = provaDoLog(runsDir);
+  if (!runtime.valor_unico && !runtime.misto && prova) {
+    runtime.valor_unico = prova.runtime_bundle_sha;
+    runtime.fonte = "driver.log da bateria (evento prova_bundle)";
+    runtime.prova = { igual: prova.igual, medidos: prova.medidos, total: prova.total, base_sha: prova.base_sha };
+    runtime.ausente_em = [];
+  } else if (runtime.valor_unico) {
+    runtime.fonte = "meta.json de cada run";
+  }
   const bloqueios = [];
   if (porque) bloqueios.push(porque);
   if (!metas.length) bloqueios.push("nenhum meta.json legível — nada para relatar (n/d, não zero)");
@@ -88,8 +125,15 @@ function render(ag) {
   l.push("");
   l.push(`- \`base_sha\`: \`${nd(ag.base_sha.valor_unico)}\` — o commit que a bateria diz ter medido.`);
   l.push(`- \`runtime_bundle_sha\`: \`${nd(ag.runtime_bundle_sha.valor_unico)}\` — o que o braço B REALMENTE correu (prova ficheiro-a-ficheiro por sha256, sem manifest).`);
+  if (ag.runtime_bundle_sha.fonte) {
+    l.push(`  - fonte: ${ag.runtime_bundle_sha.fonte}`);
+  }
+  if (ag.runtime_bundle_sha.prova) {
+    const p = ag.runtime_bundle_sha.prova;
+    l.push(`  - veredicto da prova: **${p.igual ? "IGUAL — o runtime é o repo" : "DIVERGENTE"}**, ${p.medidos}/${p.total} ficheiros medidos.`);
+  }
   if (ag.runtime_bundle_sha.ausente_em.length) {
-    l.push(`- ⚠️ ${ag.runtime_bundle_sha.ausente_em.length} run(s) sem \`runtime_bundle_sha\` — anteriores à prova de bundle: \`${ag.runtime_bundle_sha.ausente_em.join("`, `")}\`.`);
+    l.push(`- ⚠️ ${ag.runtime_bundle_sha.ausente_em.length} run(s) sem \`runtime_bundle_sha\` no \`meta.json\` **e sem prova no \`driver.log\`** da bateria — não há como saber o que correu: \`${ag.runtime_bundle_sha.ausente_em.join("`, `")}\`.`);
   }
   l.push("");
   l.push("## Runs");
