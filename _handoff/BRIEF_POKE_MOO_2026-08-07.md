@@ -1,7 +1,10 @@
-# WAVE "POKE-MOO" — v1.1
+# WAVE "POKE-MOO" — v1.2
 
-> **Estado:** v1.1 — achados do G4 nº2 incorporados. **Bloco B+ continua NO-SHIP** até o §C
-> ser reconstruído sobre `StepReceiptV1` e `runDecision()`, que ainda **não existem**.
+> **Estado:** v1.2 — achados do G4 nº2 incorporados (v1.1) **+ três restrições medidas em
+> B0-B3 que o desenho tem de respeitar** (§B-medido). **Bloco C continua NO-SHIP** até ser
+> reconstruído sobre `StepReceiptV1` e `runDecision()`, que ainda **não existem**.
+> Bloco B: **B0, B1, B2, B3 fechados** · **B5 = `determinismo: n/d`, não medido** ·
+> B4/B6 à espera do gesto humano. Repo: `~/poke-lab`.
 >
 > `gauntlet: alto-risco`
 > · **G4 nº1** = painel-ultracode do Cowork (21 agentes, 4 lentes + verificação adversarial:
@@ -106,6 +109,40 @@ execuções. Passa → o desenho por replay vale. Falha → declarar `determinis
 **B6. Mapa de verdade da RAM** *(bloqueado até B4)*: endereços de badges/party/espécie
 verificados contra o disassembly público `pret/pokered`, fonte citada em comentário + teste
 que lê um save conhecido.
+
+---
+
+## §B-medido — três restrições que B0-B3 mediram, e que mudam o desenho
+
+Todas medidas em 2026-08-07 no `~/poke-lab`, com `pyboy==2.7.0` e o harness em `f8a03e4a`.
+Nenhuma vem de leitura de documentação.
+
+**R1 — o eixo de frames não existe fora de nós.** Falha por dois lados independentes:
+`load_state` do PyBoy **não repõe o `frame_count`** (o contador é da instância, não do
+save-state: restaurar um estado do frame 200 deixa o relógio em 400), e
+`GET /state` devolve **sempre** `metadata.frame_count: null` (`server.py:194` chama o
+construtor sem passar o frame; `builder.py:21` tem default `None`).
+**Consequência normativa:** o `game_step_idx` e o índice de frame são **propriedade do nosso
+harness** — contador próprio, semeado do checkpoint, escrito no recibo. Nunca lidos do
+emulador após retoma nem de `/state`. Sem isto, C6 retomava um run com o eixo de tempo
+deslocado em silêncio e dois runs "iguais" ficavam incomparáveis.
+
+**R2 — `/state` traz relógio de parede lá dentro.** `metadata.timestamp` é
+`datetime.now(utc)` (`builder.py:41`). **Consequência normativa:** o `state_hash` de C6/D1
+**exclui `metadata.timestamp`, explicitamente**. Hashear a resposta crua tornaria a
+comparação de replay impossível — dois runs idênticos dariam hashes diferentes só pela hora.
+
+**R3 — `determinismo: n/d`, e o "passe" que quase se publicou.** O teste B5 passou à
+primeira, e o passe era **vazio**: na ROM homebrew que vem dentro do PyBoy a WRAM
+`C000-E000` nunca é escrita e o programa chega a um ponto fixo (medido em 1200 frames: VRAM e
+IO/HRAM mudam, WRAM e OAM não). Dois hashes iguais de uma RAM imóvel não distinguem
+determinismo de imobilidade. O teste passou a verificar o substrato primeiro e a declarar
+`n/d` por skip. **Consequência normativa:** enquanto isto não correr sobre uma ROM cujo
+estado evolua, o §0 **NÃO pode usar replay como selo** — exactamente o ramo que B5 já previa.
+
+*Nota lateral, boa:* o contrato de falha do harness deles já é "secção que falha = `null` +
+`<secção>_error`", o que coincide com a regra da casa. É confirmação, não sorte — e leva
+teste, porque é código deles e pode mudar num bump.
 
 ---
 
