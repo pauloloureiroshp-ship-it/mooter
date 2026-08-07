@@ -16,6 +16,7 @@
 //       node julgar.mjs --revelar     # só abre o mapa se existirem ≥3 veredictos REAIS
 
 import { spawnSync } from "node:child_process";
+import { citaArg } from "./guardas.mjs";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -81,7 +82,12 @@ try {
 
 // 2) Fable 5 — contexto fresco, hooks OFF, SEM tools, prompt por STDIN, cwd isolado; peso 0,5 (§4.4)
 try {
-  const args = ["-p", "--model", "claude-fable-5", "--settings", join(HERE, "settings.no-mooter.json"),
+  // ⚠️ `citaArg` — quarta aparição do mesmo defeito (ver julgar-args.test.mjs).
+  // Sem aspas, `shell: true` parte o caminho no espaço de "Paulo Loureiro", o CLI
+  // responde `Settings file not found: C:\Users\Paulo`, e o catch abaixo limita-se
+  // a escrever `fable5 ✗` no painel: o veredicto sairia com DOIS juízes em vez de
+  // três, com ar de "o terceiro falhou" quando nunca chegou a correr.
+  const args = ["-p", "--model", "claude-fable-5", "--settings", citaArg(join(HERE, "settings.no-mooter.json")),
     "--disallowedTools", "Bash,Read,Glob,Grep,Write,Edit,WebFetch,WebSearch,Agent,Task,NotebookEdit",
     "--output-format", "json"];
   const r = spawnSync("claude", args, { input: prompt, cwd: cwdIsolado(), encoding: "utf8", timeout: 900000, shell: true, maxBuffer: 64 * 1024 * 1024 });
