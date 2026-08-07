@@ -221,3 +221,8 @@ scripts/node-compile-cache/
 # esteve no index nem em nenhuma ref (`git log --all -- scripts/outside-secret.txt`
 # vazio), logo não há nada a purgar do histórico. Conteúdo NÃO lido.
 scripts/outside-secret.txt
+
+# VERIFICADOR-0: corpus e saida do spike sao derivados das baterias (runtime).
+_handoff/verificador-0/corpus/
+_handoff/verificador-0/_ensaio-dod/
+_handoff/verificador-0/juizos/
