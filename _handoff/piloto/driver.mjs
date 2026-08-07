@@ -324,8 +324,17 @@ function run(arm, task, execucao, baseSha, log, gpu) {
   try {
     const alterados = execFileSync("git", ["-C", wt, "diff", "--name-only", baseSha], { encoding: "utf8" }).split("\n").filter(Boolean);
     const novos = execFileSync("git", ["-C", wt, "ls-files", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n").filter(Boolean);
+    const neutro = readFileSync(join(HERE, "CLAUDE.neutro.md"), "utf8");
     for (const rel of [...new Set([...alterados, ...novos])]) {
       if (rel.startsWith("node_modules")) continue;
+      // O CLAUDE.md neutro é ALTERAÇÃO NOSSA (neutralizaContexto), não do braço, e o
+      // git vê-o como modificado vs baseSha. Apanhado na T2: aparecia no artefacto
+      // dos 9 runs — e como o prompt da C4 diz "Não toques em mais nenhum ficheiro",
+      // um juiz cego leria violação em todos. Sai da captura, MAS só se continuar
+      // byte-a-byte igual ao neutro: se um braço lhe mexeu, isso é dele e fica.
+      if (rel === "CLAUDE.md") {
+        try { if (readFileSync(join(wt, rel), "utf8") === neutro) continue; } catch { /* ilegível: captura */ }
+      }
       try { cpSync(join(wt, rel), join(artDir, rel), { recursive: true }); } catch { /* apagados/binários exóticos: diff cobre */ }
     }
     execFileSync("git", ["-C", wt, "add", "-N", "."], { encoding: "utf8" });
