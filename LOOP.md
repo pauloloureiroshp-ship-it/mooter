@@ -20,6 +20,70 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-07-piloto-tres-defeitos-de-instrumento-numa-manha
+
+**Contexto:** manhã do piloto de convicção (PILOTO_GO dado pelo Paulo). Bateria T1, 3 braços × 3 execuções.
+
+**Resultado observado:** três defeitos no INSTRUMENTO, nenhum no produto, todos capazes de produzir um vencedor falso.
+
+1. **`--settings` partido no espaço.** `driver.mjs` usa `spawnSync(..., {shell:true})` (obrigatório: o `claude` no Windows é um shim, `shell:false` dá ENOENT). Com shell:true o Node concatena args sem escapar (DEP0190). O caminho das settings tem um espaço em "Paulo Loureiro", partia-se, e o CLI respondia `Settings file not found: C:\Users\Paulo`. Só os braços A e C passam `--settings` — **só os controlos morriam**; o braço B (MOOTER) não usa a flag e corria. O piloto ia declarar MOOTER 3-0 contra dois braços que nunca arrancaram. Mesma família dos 18 falsos positivos do cross_check (caminho partido no espaço de "Paulo Loureiro").
+2. **Braço vazio registado como "incompleto".** 0 bytes em 3/3 tentativas era gravado como `TECTO ATINGIDO — incompleto` e a bateria seguia. O P0-C prova que correu o código certo; nada provava que o braço correu de todo.
+3. **Gate do artefacto inganhável por construção.** `done = existsSync(<wt>/moo-ranch/index.html)`, mas o prompt congelado **nunca diz onde** pôr o ficheiro (verificado: não contém "moo-ranch" nem "worktree"; o caminho vive só na secção *Artefacto esperado*, que o `tarefa()` não envia aos braços). Resultado: 9/9 `TECTO ATINGIDO` com os três braços a reportar `success` e jogos verificados (B: suite headless 23/23; C: página conduzida por CDP; A: screenshot do estado de vitória).
+
+**Dados brutos:** destinos reais, extraídos por grep das transcrições —
+
+- A (3/3): `<worktree>\index.html` (raiz da worktree)
+- B e C (6/6): `<tmp>\claude\<chave>\<session-id>\scratchpad\[moo-ranch\]index.html`
+- **fuga de isolamento:** B/e2 e B/e3 escreveram em `~\moo-ranch\` e `~\moo-ranch-b\` — HOME do Paulo, fora de qualquer worktree. A transcrição do B/e3 diz textualmente ter encontrado lá *"build anterior (não minha), intacta"*, ou seja **as execuções viram-se umas às outras**; a worktree opaca do §2.3 não isolou.
+- `session_ids[0]` do meta.json é igual ao uuid no caminho do scratchpad (verificado no B/e1) — é isso que torna o scratchpad localizável sem reproduzir a derivação da chave-de-projecto.
+- Custo da bateria inválida: 158 min de relógio; custo_proxy somado A 9,93 · B 6,67 · C 2,68.
+
+**Quem observou:** CC, durante a execução. Bateria abortada à 2ª execução assim que o defeito 1 apareceu.
+
+**Status:** 1 e 2 corrigidos com teste vermelho primeiro (`b62146cc`, `guardas.mjs` + `guardas.test.mjs`). 3 corrigido no kit v2.2. **Fuga de isolamento para a HOME por corrigir** — `~/moo-ranch` e `~/moo-ranch-b` ficam no disco como prova, à espera de decisão do Paulo.
+
+---
+
+### 2026-08-07-o-contexto-neutro-tem-um-limite-que-nao-se-contorna
+
+**Contexto:** kit v2.2 item 2 (G17) — "a única variável entre braços é o Mooter on/off".
+
+**Resultado observado:** a worktree é um checkout do `frugal`, portanto levava o `CLAUDE.md` e o `AGENTS.md` do Mooter (doutrina de routing, tiers, delegação, local-first) para dentro dos TRÊS braços, controlos incluídos. Isso era neutralizável, e ficou neutralizado.
+
+Mas o `~/.claude/CLAUDE.md` do utilizador **não é removível**: `CLAUDE_CONFIG_DIR` leva as credenciais atrás e o CLI responde `Not logged in` (medido, status 1); `--exclude-dynamic-system-prompt-sections` só MOVE secções para a primeira mensagem, não as remove; não existe `--config-dir`.
+
+**Implicação:** o ambiente do piloto não é livre de doutrina. É doutrina **constante nos três braços** — não variável entre eles. Serve o G17 (não medimos doutrina como diferenciador), mas o `resultado.md` tem de declarar o limite em vez de afirmar "contexto neutro".
+
+**Quem observou:** CC, ao implementar o v2.2.
+
+**Status:** implementado o alcançável (`CLAUDE.neutro.md` idêntico nos 3 braços; `AGENTS.md`, `CLAUDE.local.md` e `.claude/` removidos da worktree). Limite registado em cada `meta.json`, campo `contexto_neutralizado.limite`.
+
+---
+
+### 2026-08-07-baseline-cascata-aprende-b-routou-100-por-cento-t3
+
+**Contexto:** bateria-1 da T1. A bateria está arquivada como inválida para comparar braços, mas o `mix_tiers` de cada run é medição própria e sobrevive à invalidação — não depende do gate do artefacto que falhou.
+
+**Resultado observado:** `mix_tiers` da execução 1 —
+
+- A (TECTO / fable-5): T5 99,1% · T1 0,9%
+- **B (MOOTER): T3 100%** — 66 244 tokens, zero noutro tier
+- C (ESTATICO / sonnet-5): T2 98,6% · T1 1,4%
+
+O router "tier mínimo viável" mandou **tudo** para T3 numa tarefa de construção de front-end.
+
+**Status:** REGISTADO como baseline oficial da wave pós-piloto **CASCATA-APRENDE** (decisão Paulo + Cowork, 2026-08-07). **Nada implementado agora.** O desenho completo vive na memória do Cowork (`cascata-aprende`). Forma acordada:
+
+- cascata host-side com **verificador moo externo a $0** — nunca self-confidence ("low alignment" medido na literatura);
+- thresholds **aprendidos do ledger** em `preferences.json` (bandit-style), com `classify.js` **intocado**;
+- rotina semanal de aferição que valida **o verificador** antes do gate.
+
+Métricas-alvo da régua pública: % de chamadas caras evitadas @ <5% de degradação · pick-consistency >90% · custo por tarefa resolvida · Pareto.
+
+⚠️ Ressalva de honestidade: é **um** ponto de dados, de uma bateria arquivada como inválida, numa só tarefa. É baseline de partida para a wave, não evidência de que o router está mal calibrado.
+
+---
+
 ### 2026-04-21-classifier-gastou-opus-em-tarefa-descritiva
 
 **Contexto:** inventário descoberta do Mooter gerando `docs/CURRENT-STATE.md`. Tarefa envolvia ler filesystem, concatenar outputs, formatar markdown. Perfil de custo esperado: T0/T1 majoritário.

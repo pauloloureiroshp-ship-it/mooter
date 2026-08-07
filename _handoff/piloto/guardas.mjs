@@ -7,6 +7,8 @@
  *
  * Ambas nasceram de falha medida, não de precaução — ver `guardas.test.mjs`.
  */
+import { readdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Torna um argumento seguro para `spawnSync(..., { shell: true })`.
@@ -48,4 +50,69 @@ export function bracoSemSaida(tentativas) {
   const t = Array.isArray(tentativas) ? tentativas : [];
   if (!t.length) return true;
   return t.every((x) => !String((x && x.stdout) || "").trim());
+}
+
+// ---------------------------------------------------------------------------
+// kit v2.2 · item 1 — onde vive o artefacto
+// ---------------------------------------------------------------------------
+
+/**
+ * As raízes onde o artefacto de um run pode legitimamente estar.
+ *
+ * A bateria-1 (2026-08-07) mediu TRÊS destinos para o mesmo prompt:
+ *   · braço A → raiz da worktree (`<wt>\index.html`)
+ *   · braços B e C → scratchpad da sessão
+ *     (`<tmp>\claude\<chave-do-projecto>\<session-id>\scratchpad\...`)
+ *   · e, fora de qualquer sandbox, a HOME do Paulo (`~\moo-ranch\`) — essa NÃO
+ *     entra aqui de propósito: um artefacto na home é uma fuga de isolamento a
+ *     reportar, não um sítio onde procurar. Aceitá-lo seria legitimar que dois
+ *     runs se vejam um ao outro.
+ *
+ * O `<session-id>` é o mesmo `--session-id` que o driver gera (confirmado contra
+ * `meta.json.session_ids[0]` do B/e1), portanto o scratchpad é localizável sem
+ * reproduzir a derivação da chave-de-projecto que o Claude Code faz do cwd — é
+ * essa chave que fica no glob.
+ */
+export function raizesDeProcura(worktree, sessionIds, tmpClaudeRoot) {
+  const raizes = [{ raiz: worktree, onde: "worktree" }];
+  const ids = (Array.isArray(sessionIds) ? sessionIds : []).filter(Boolean);
+  if (!tmpClaudeRoot || !ids.length) return raizes;
+  let projectos = [];
+  try { projectos = readdirSync(tmpClaudeRoot, { withFileTypes: true }).filter((e) => e.isDirectory()); }
+  catch { return raizes; }
+  for (const p of projectos) {
+    for (const id of ids) {
+      const sp = join(tmpClaudeRoot, p.name, id, "scratchpad");
+      if (existsSync(sp)) raizes.push({ raiz: sp, onde: "scratchpad" });
+    }
+  }
+  return raizes;
+}
+
+/** Pastas que nunca contêm o artefacto de um braço — só ruído de ferramentas. */
+const IGNORAR = new Set(["node_modules", ".git", ".vscode", "dist", "build"]);
+
+/**
+ * Primeiro ficheiro com este nome sob as raízes dadas, em largura (o mais raso
+ * ganha). Devolve o caminho absoluto, ou `null` — nunca um palpite.
+ */
+export function achaFicheiro(raizes, nome, limiteProfundidade = 6) {
+  for (const { raiz } of raizes || []) {
+    let fila = [{ dir: raiz, prof: 0 }];
+    while (fila.length) {
+      const seguinte = [];
+      for (const { dir, prof } of fila) {
+        let entradas = [];
+        try { entradas = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+        for (const e of entradas) if (e.isFile() && e.name === nome) return join(dir, nome);
+        if (prof >= limiteProfundidade) continue;
+        for (const e of entradas) {
+          if (!e.isDirectory() || IGNORAR.has(e.name)) continue;
+          seguinte.push({ dir: join(dir, e.name), prof: prof + 1 });
+        }
+      }
+      fila = seguinte;
+    }
+  }
+  return null;
 }

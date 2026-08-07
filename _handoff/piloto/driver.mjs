@@ -20,16 +20,19 @@
 // Tudo o que não consegue medir escreve "n/d" — nunca inventa (doutrina honest-copy).
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, statSync, cpSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, statSync, cpSync, rmSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomInt } from "node:crypto";
+import { tmpdir } from "node:os";
 import { comparar as provaBundle, relatorio as relatorioBundle } from "./prova-bundle.mjs";
-import { citaArg, bracoSemSaida } from "./guardas.mjs";
+import { citaArg, bracoSemSaida, achaFicheiro, raizesDeProcura } from "./guardas.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 const RUNS_DIR = join(HERE, "runs");
+// Raiz dos scratchpads por sessão — a segunda morada legítima do artefacto (v2.2 §1).
+const TMP_CLAUDE = join(tmpdir(), "claude");
 const DECISIONS_LOG = join(process.env.USERPROFILE || "", ".claude", "tools", "router", "decisions.log");
 const PRECOS = JSON.parse(readFileSync(join(HERE, "precos.json"), "utf8"));
 
@@ -73,7 +76,17 @@ function tarefa(task) {
     const prompt = (spec.match(/## Prompt[^\n]*\n\n```\n([\s\S]*?)```/) || [])[1];
     const artefacto = (spec.match(/Caminho relativo na worktree do run: `([^`]+)`/) || [])[1];
     if (!prompt || !artefacto) throw new Error("T1_SPEC.md ilegível — prompt ou caminho do artefacto em falta.");
-    return { id: "T1", prompt: prompt.trim(), done: (wt) => existsSync(join(wt, artefacto)) };
+    // v2.2 §1 — o prompt congelado NÃO diz onde pôr o ficheiro (verificado: não
+    // contém "moo-ranch" nem "worktree"), portanto exigir `moo-ranch/index.html`
+    // era um gate inganhável por construção: 9/9 `TECTO ATINGIDO` na bateria-1
+    // enquanto os três braços reportavam `success` com jogos verificados.
+    // Passa a procurar o NOME do artefacto na worktree e no scratchpad da sessão.
+    const nome = basename(artefacto);
+    return {
+      id: "T1", prompt: prompt.trim(), artefacto_nome: nome,
+      acha: (wt, sids) => achaFicheiro(raizesDeProcura(wt, sids, TMP_CLAUDE), nome),
+      done: (wt, sids) => !!achaFicheiro(raizesDeProcura(wt, sids, TMP_CLAUDE), nome),
+    };
   }
   const cand = readFileSync(join(HERE, "T2_CANDIDATAS.md"), "utf8");
   const sorteada = (cand.match(/SORTEIO REGISTADO[\s\S]*?candidata sorteada: \*\*C(\d)\*\*/) || [])[1];
@@ -83,7 +96,8 @@ function tarefa(task) {
   const testCmd = (bloco.match(/TEST_CMD: `([^`]+)`/) || [])[1];
   if (!prompt || !testCmd) throw new Error(`Candidata C${sorteada} sem PROMPT/TEST_CMD.`);
   return {
-    id: `T2-C${sorteada}`, prompt: prompt.trim(),
+    id: `T2-C${sorteada}`, prompt: prompt.trim(), artefacto_nome: null,
+    acha: () => null,   // T2 prova-se pelo TEST_CMD, não pela existência de um ficheiro
     done: (wt) => spawnSync(testCmd, { cwd: wt, shell: true, timeout: 120000 }).status === 0,
   };
 }
@@ -95,7 +109,34 @@ function worktreeLimpa(baseSha) {
   const opaco = randomUUID().slice(0, 8);
   const wt = join(REPO, "..", `piloto-wt-${opaco}`);
   execFileSync("git", ["-C", REPO, "worktree", "add", "--detach", wt, baseSha], { encoding: "utf8" });
+  neutralizaContexto(wt);
   return wt; // nasce sem node_modules nem .tmp; nada herdado do repo principal
+}
+
+/**
+ * kit v2.2 · item 2 — G17: a única variável entre braços é o Mooter on/off.
+ *
+ * A worktree é um checkout do `frugal`, portanto trazia consigo o `CLAUDE.md` e o
+ * `AGENTS.md` do Mooter — centenas de linhas de doutrina sobre routing, tiers,
+ * delegação e "local-first" — para dentro dos TRÊS braços, incluindo os de
+ * controlo. Medir com isso lá dentro é medir doutrina, não produto.
+ *
+ * Trocados por um `CLAUDE.md` neutro IDÊNTICO nos três, e a pasta `.claude/` do
+ * repo (skills, settings de projecto) sai.
+ *
+ * ⚠️ LIMITE MEDIDO, declarado e não contornado: o `~/.claude/CLAUDE.md` do Paulo
+ * continua a carregar. `CLAUDE_CONFIG_DIR` levaria as credenciais atrás e o CLI
+ * responde `Not logged in` (medido 2026-08-07, status 1); não há flag que o
+ * exclua (`--exclude-dynamic-system-prompt-sections` só o MOVE de sítio). Fica
+ * como CONSTANTE dos três braços — não é variável entre eles, mas também não é
+ * um ambiente sem doutrina, e o `resultado.md` tem de o dizer.
+ */
+function neutralizaContexto(wt) {
+  const neutro = readFileSync(join(HERE, "CLAUDE.neutro.md"), "utf8");
+  writeFileSync(join(wt, "CLAUDE.md"), neutro);
+  for (const rel of ["AGENTS.md", "CLAUDE.local.md", ".claude"]) {
+    try { rmSync(join(wt, rel), { recursive: true, force: true }); } catch { /* ausente = já neutro */ }
+  }
 }
 
 function desmontarWorktree(wt, log) {
@@ -247,8 +288,12 @@ function run(arm, task, execucao, baseSha, log, gpu) {
     modelUsagePorTentativa.push(t.resultado?.modelUsage ?? null);
     if (t.resultado?.session_id && !sessionIds.includes(t.resultado.session_id)) sessionIds.push(t.resultado.session_id);
     saidas.push({ stdout: t.stdout });
-    done = task.done(wt);
+    done = task.done(wt, sessionIds);
   }
+  // Onde é que ele apareceu, de facto. Vai para o meta.json: se a T1 fechar com o
+  // artefacto no scratchpad e não na worktree, isso é um facto do run, não uma
+  // nota de rodapé — e é o que distingue "cumpriu" de "cumpriu noutro sítio".
+  const artefactoEm = task.acha ? task.acha(wt, sessionIds) : null;
 
   // ---------- guarda do braço vazio ----------
   // Zero bytes de transcrição em TODAS as tentativas não é `TECTO ATINGIDO —
@@ -286,6 +331,24 @@ function run(arm, task, execucao, baseSha, log, gpu) {
     execFileSync("git", ["-C", wt, "add", "-N", "."], { encoding: "utf8" });
     writeFileSync(join(dir, "artefacto.diff"), execFileSync("git", ["-C", wt, "diff", "--binary", baseSha], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
   } catch (e) { writeFileSync(join(dir, "artefacto.ERRO.txt"), `captura do artefacto falhou: ${e.message}`); }
+
+  // v2.2 §1 — a captura acima só vê o git da WORKTREE. Na bateria-1 os braços B e
+  // C fecharam com `ficheiros=0` no artefacto/ apesar de 5-7 MB de transcrição:
+  // tinham escrito no scratchpad, que nenhum `git ls-files` alcança. Sem isto o
+  // `dod_harness` e o `baralhar` ficam sem material e o piloto mede o vazio.
+  if (artefactoEm && !artefactoEm.startsWith(wt)) {
+    try {
+      const pasta = dirname(artefactoEm);
+      cpSync(pasta, join(artDir, "_fora-da-worktree"), {
+        recursive: true,
+        filter: (src) => !/[\\/](node_modules|\.git)([\\/]|$)/.test(src),
+      });
+      writeFileSync(join(dir, "artefacto.FORA.txt"),
+        `o artefacto não estava na worktree.\norigem: ${artefactoEm}\ncopiado para: artefacto/_fora-da-worktree/\n`);
+    } catch (e) {
+      writeFileSync(join(dir, "artefacto.FORA.ERRO.txt"), `${artefactoEm}\nfalhou a copiar: ${e.message}`);
+    }
+  }
   desmontarWorktree(wt, log);
 
   const modelUsageTotal = somaModelUsage(modelUsagePorTentativa);
@@ -294,6 +357,12 @@ function run(arm, task, execucao, baseSha, log, gpu) {
     base_sha: baseSha, session_ids: sessionIds, worktree_opaca: wt, gpu_no_arranque: gpu,
     wall_ms_total: Date.now() - t0, tentativas,
     criterio_paragem: done ? "cumprido" : "TECTO ATINGIDO — incompleto (registado, sem resgate humano)",
+    // v2.2 §1 — "cumpriu" e "cumpriu ONDE" são factos diferentes; ambos ficam.
+    artefacto_encontrado_em: artefactoEm,
+    artefacto_onde: artefactoEm ? (artefactoEm.startsWith(wt) ? "worktree" : "fora_da_worktree") : null,
+    artefacto_porque: artefactoEm ? null : "nenhum ficheiro com o nome do artefacto na worktree nem no scratchpad da sessão",
+    contexto_neutralizado: { claude_md: "neutro (CLAUDE.neutro.md)", agents_md: "removido", dot_claude: "removido",
+      limite: "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles" },
     usage_por_tentativa: usagePorTentativa,
     modelUsage_por_tentativa: modelUsagePorTentativa,
     agregacao: "soma por tentativa — PRESSUPOSTO: usage por invocação em --resume; validar no run 1 (ver somaModelUsage)",
