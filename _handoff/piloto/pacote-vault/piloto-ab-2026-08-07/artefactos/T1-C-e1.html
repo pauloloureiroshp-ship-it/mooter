@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Moo Ranch</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a12; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  canvas { display: block; touch-action: none; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; color: #f4f1e8; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+
+  #topbar { position: absolute; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: flex-start; font-size: 15px; }
+  .panel { background: rgba(20,18,14,.55); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 8px 14px; backdrop-filter: blur(3px); }
+  #stats { display: flex; gap: 18px; }
+  #stats > div { display: flex; flex-direction: column; align-items: flex-start; min-width: 82px; }
+  #stats span.label { font-size: 10px; letter-spacing: .08em; opacity: .65; text-transform: uppercase; }
+  #stats span.val { font-size: 18px; font-weight: 600; }
+  #cycleWrap { display: flex; align-items: center; gap: 8px; }
+  #cycleIcon { font-size: 20px; }
+  #cycleBar { width: 110px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; }
+  #cycleFill { height: 100%; width: 0%; background: linear-gradient(90deg,#ffd76a,#ff9d4d); border-radius: 3px; transition: width .2s linear; }
+
+  #crosshair { position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border: 2px solid rgba(255,255,255,.85); border-radius: 50%; mix-blend-mode: difference; display: none; }
+  #crosshair.show { display: block; }
+
+  #hotbar { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+  .slot { width: 58px; height: 58px; border-radius: 10px; border: 2px solid rgba(255,255,255,.25); background: rgba(20,18,14,.6); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform .1s, border-color .15s; position: relative; }
+  .slot:hover { transform: translateY(-2px); }
+  .slot.active { border-color: #ffd76a; box-shadow: 0 0 0 2px rgba(255,215,106,.35), 0 4px 14px rgba(255,215,106,.25); }
+  .swatch { width: 22px; height: 22px; border-radius: 4px; margin-bottom: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+  .key { position: absolute; top: 3px; left: 5px; font-size: 10px; opacity: .6; }
+  .slotname { font-size: 9px; opacity: .8; }
+
+  #hint { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .75; text-align: center; white-space: nowrap; }
+
+  #startOverlay, #winOverlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(ellipse at center, rgba(20,30,20,.55), rgba(4,6,4,.92)); z-index: 20; text-align: center; color: #f4f1e8; }
+  #startOverlay h1, #winOverlay h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: .02em; }
+  #startOverlay p, #winOverlay p { font-size: 15px; opacity: .85; margin: 4px 0; max-width: 460px; line-height: 1.5; }
+  #startOverlay .cta, #winOverlay .cta { margin-top: 22px; padding: 12px 28px; font-size: 16px; font-weight: 600; border-radius: 999px; border: none; background: #ffd76a; color: #26210f; cursor: pointer; }
+  #startOverlay .cta:hover, #winOverlay .cta:hover { background: #ffe08c; }
+  #startOverlay .controls, #winOverlay .controls { margin-top: 18px; font-size: 12px; opacity: .7; display: grid; grid-template-columns: auto auto; gap: 4px 14px; text-align: left; }
+  #startOverlay .controls b, #winOverlay .controls b { color: #ffd76a; }
+  .hidden { display: none !important; }
+  #winOverlay .cow { font-size: 54px; margin-bottom: 4px; }
+  #fps { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 11px; opacity: .5; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="topbar">
+    <div class="panel" id="stats">
+      <div><span class="label">Blocks</span><span class="val" id="blockCount">0</span></div>
+      <div><span class="label">Time</span><span class="val" id="timer">00:00</span></div>
+    </div>
+    <div class="panel" id="cycleWrap">
+      <span id="cycleIcon">&#9728;</span>
+      <div id="cycleBar"><div id="cycleFill"></div></div>
+    </div>
+  </div>
+  <div id="fps">60 fps</div>
+  <div id="hint">WASD move &middot; mouse look &middot; L-click place &middot; R-click remove &middot; 1/2/3 block &middot; Esc release mouse</div>
+  <div id="hotbar">
+    <div class="slot active" data-slot="1"><span class="key">1</span><span class="swatch" style="background:#8b5a2b"></span><span class="slotname">Fence</span></div>
+    <div class="slot" data-slot="2"><span class="key">2</span><span class="swatch" style="background:#8d8d92"></span><span class="slotname">Stone</span></div>
+    <div class="slot" data-slot="3"><span class="key">3</span><span class="swatch" style="background:#4c8a3f"></span><span class="slotname">Hedge</span></div>
+  </div>
+</div>
+
+<div id="crosshair"></div>
+
+<div id="startOverlay">
+  <h1>&#127808; Moo Ranch</h1>
+  <p>Fence the wandering cow inside a closed loop of blocks within the 16&times;16 field to win. Build, don't let her slip through the gaps.</p>
+  <button class="cta" id="startBtn">Click to Play</button>
+  <div class="controls">
+    <div><b>WASD</b> move</div><div><b>Mouse</b> look around</div>
+    <div><b>Left click</b> place block</div><div><b>Right click</b> remove block</div>
+    <div><b>1 2 3</b> choose block</div><div><b>Esc</b> release mouse</div>
+  </div>
+</div>
+
+<div id="winOverlay" class="hidden">
+  <div class="cow">&#128004;</div>
+  <h1>Fenced In!</h1>
+  <p id="winStats">The cow is home. You placed N blocks in mm:ss.</p>
+  <button class="cta" id="againBtn">Build Again</button>
+</div>
+
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- constants ----------
+  var GRID = 16;
+  var HALF = GRID / 2;
+  var DAY_LENGTH = 60; // seconds per full day/night loop
+  var PLAYER_RADIUS = 0.32;
+  var COW_RADIUS = 0.42;
+  var PLAYER_SPEED = 4.2;
+  var COW_SPEED = 1.35;
+  var CAM_DIST = 6.2;
+  var CAM_HEIGHT = 2.6;
+
+  var BLOCK_DEFS = {
+    1: { name: 'Fence', color: 0x8b5a2b, rough: 0.9, metal: 0.0 },
+    2: { name: 'Stone', color: 0x8d8d92, rough: 0.75, metal: 0.05 },
+    3: { name: 'Hedge', color: 0x4c8a3f, rough: 0.95, metal: 0.0 }
+  };
+
+  // ---------- three.js setup ----------
+  var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  var DAY_SKY = new THREE.Color(0x8fd0ff);
+  var NIGHT_SKY = new THREE.Color(0x060714);
+  scene.background = DAY_SKY.clone();
+  scene.fog = new THREE.Fog(DAY_SKY.getHex(), 22, 70);
+
+  var camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 200);
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ---------- lights ----------
+  var ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
+  var hemi = new THREE.HemisphereLight(0xbfd9ff, 0x2b3a1f, 0.5);
+  scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xfff3d6, 1.0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -16;
+  sun.shadow.camera.right = 16;
+  sun.shadow.camera.top = 16;
+  sun.shadow.camera.bottom = -16;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 60;
+  sun.shadow.bias = -0.0025;
+  scene.add(sun);
+  scene.add(sun.target);
+  var moonAmbientFloor = 0.16;
+
+  // ---------- ground ----------
+  function makeGrassTexture() {
+    var c = document.createElement('canvas');
+    c.width = c.height = 128;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#5aa348';
+    ctx.fillRect(0, 0, 128, 128);
+    for (var i = 0; i < 900; i++) {
+      var shade = 40 + Math.random() * 60;
+      ctx.fillStyle = 'rgba(' + (60 + shade * 0.3 | 0) + ',' + (110 + shade * 0.5 | 0) + ',' + (55 + shade * 0.3 | 0) + ',0.5)';
+      ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+    }
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+  var grassTex = makeGrassTexture();
+  grassTex.repeat.set(40, 40);
+
+  var outerGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(120, 120),
+    new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 })
+  );
+  outerGround.rotation.x = -Math.PI / 2;
+  outerGround.receiveShadow = true;
+  scene.add(outerGround);
+
+  var fieldTex = grassTex.clone();
+  fieldTex.repeat.set(16, 16);
+  var fieldGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(GRID, GRID),
+    new THREE.MeshStandardMaterial({ map: fieldTex, roughness: 1, color: 0xcfe9c0 })
+  );
+  fieldGround.rotation.x = -Math.PI / 2;
+  fieldGround.position.y = 0.003;
+  fieldGround.receiveShadow = true;
+  scene.add(fieldGround);
+
+  var grid = new THREE.GridHelper(GRID, GRID, 0x2c4a22, 0x2c4a22);
+  grid.position.y = 0.01;
+  grid.material.opacity = 0.25;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  // ---------- voxel grid state ----------
+  var occ = [];
+  for (var gx = 0; gx < GRID; gx++) { occ.push(new Array(GRID).fill(0)); }
+  var cellsByType = { 1: [], 2: [], 3: [] };
+  var blockCount = 0;
+
+  function cellToWorld(cx, cz) {
+    return { x: cx - HALF + 0.5, z: cz - HALF + 0.5 };
+  }
+  function worldToCell(x, z) {
+    return { cx: Math.floor(x + HALF), cz: Math.floor(z + HALF) };
+  }
+  function inBounds(cx, cz) { return cx >= 0 && cx < GRID && cz >= 0 && cz < GRID; }
+
+  var blockGeo = new THREE.BoxGeometry(0.96, 1, 0.96);
+  var instancedMeshes = {};
+  var dummy = new THREE.Object3D();
+
+  Object.keys(BLOCK_DEFS).forEach(function (key) {
+    var t = parseInt(key, 10);
+    var def = BLOCK_DEFS[t];
+    var mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: def.rough, metalness: def.metal });
+    var im = new THREE.InstancedMesh(blockGeo, mat, GRID * GRID);
+    im.castShadow = true;
+    im.receiveShadow = true;
+    im.count = 0;
+    scene.add(im);
+    instancedMeshes[t] = im;
+  });
+
+  function rebuildType(t) {
+    var list = cellsByType[t];
+    var im = instancedMeshes[t];
+    im.count = list.length;
+    for (var i = 0; i < list.length; i++) {
+      var w = cellToWorld(list[i].cx, list[i].cz);
+      dummy.position.set(w.x, 0.5, w.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      im.setMatrixAt(i, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+  }
+
+  function addBlock(cx, cz, type) {
+    if (!inBounds(cx, cz) || occ[cx][cz] !== 0) return false;
+    occ[cx][cz] = type;
+    cellsByType[type].push({ cx: cx, cz: cz });
+    rebuildType(type);
+    blockCount++;
+    updateHUDCounts();
+    checkWin();
+    return true;
+  }
+
+  function removeBlock(cx, cz) {
+    if (!inBounds(cx, cz)) return false;
+    var type = occ[cx][cz];
+    if (type === 0) return false;
+    occ[cx][cz] = 0;
+    var list = cellsByType[type];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].cx === cx && list[i].cz === cz) { list.splice(i, 1); break; }
+    }
+    rebuildType(type);
+    blockCount--;
+    updateHUDCounts();
+    checkWin();
+    return true;
+  }
+
+  // ---------- player ----------
+  var player = new THREE.Group();
+  (function buildPlayer() {
+    var body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.32), new THREE.MeshStandardMaterial({ color: 0x3d6ea5, roughness: 0.7 }));
+    body.position.y = 0.75;
+    body.castShadow = true;
+    var head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.36), new THREE.MeshStandardMaterial({ color: 0xe3b48a, roughness: 0.8 }));
+    head.position.y = 1.32;
+    head.castShadow = true;
+    var hat = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.12, 10), new THREE.MeshStandardMaterial({ color: 0x6b3f22, roughness: 0.9 }));
+    hat.position.y = 1.55;
+    hat.castShadow = true;
+    player.add(body, head, hat);
+  })();
+  player.position.set(0, 0, 3.5);
+  scene.add(player);
+
+  var playerYaw = Math.PI; // facing -z initially
+  var camYaw = 0, camPitch = 0.42;
+
+  // ---------- cow ----------
+  var cow = new THREE.Group();
+  (function buildCow() {
+    var bodyMat = new THREE.MeshStandardMaterial({ color: 0xf5f1e6, roughness: 0.9 });
+    var spotMat = new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.9 });
+    var body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.62, 0.55), bodyMat);
+    body.position.y = 0.55;
+    body.castShadow = true;
+    var spot1 = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.2, 0.02), spotMat);
+    spot1.position.set(0.15, 0.6, 0.28);
+    var spot2 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.02), spotMat);
+    spot2.position.set(-0.22, 0.45, -0.28);
+    spot2.rotation.y = Math.PI;
+    var head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.3), bodyMat);
+    head.position.set(0.62, 0.62, 0);
+    head.castShadow = true;
+    var snout = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.24), new THREE.MeshStandardMaterial({ color: 0x3a3330, roughness: 0.9 }));
+    snout.position.set(0.78, 0.55, 0);
+    var legGeo = new THREE.BoxGeometry(0.12, 0.42, 0.12);
+    var legMat = new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.9 });
+    var legOffsets = [[0.35, 0.21], [0.35, -0.21], [-0.35, 0.21], [-0.35, -0.21]];
+    legOffsets.forEach(function (o) {
+      var leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(o[0], 0.21, o[1]);
+      leg.castShadow = true;
+      cow.add(leg);
+    });
+    cow.add(body, spot1, spot2, head, snout);
+  })();
+  cow.position.set(0.5, 0, -0.5);
+  scene.add(cow);
+
+  var cowTarget = new THREE.Vector3(cow.position.x, 0, cow.position.z);
+  var cowYaw = 0;
+  function pickCowTarget() {
+    for (var tries = 0; tries < 12; tries++) {
+      var x = (Math.random() * (GRID - 2) - (HALF - 1));
+      var z = (Math.random() * (GRID - 2) - (HALF - 1));
+      var c = worldToCell(x, z);
+      if (inBounds(c.cx, c.cz) && occ[c.cx][c.cz] === 0) {
+        cowTarget.set(x, 0, z);
+        return;
+      }
+    }
+  }
+  pickCowTarget();
+
+  // ---------- collision helpers ----------
+  function cellBlocked(cx, cz) {
+    if (cx < 0 || cx >= GRID || cz < 0 || cz >= GRID) return false; // open range outside field
+    return occ[cx][cz] !== 0;
+  }
+  function circleBlocked(x, z, radius) {
+    var minCx = Math.floor(x - radius + HALF), maxCx = Math.floor(x + radius + HALF);
+    var minCz = Math.floor(z - radius + HALF), maxCz = Math.floor(z + radius + HALF);
+    for (var cx = minCx; cx <= maxCx; cx++) {
+      for (var cz = minCz; cz <= maxCz; cz++) {
+        if (!cellBlocked(cx, cz)) continue;
+        var w = cellToWorld(cx, cz);
+        var closeX = Math.max(w.x - 0.5, Math.min(x, w.x + 0.5));
+        var closeZ = Math.max(w.z - 0.5, Math.min(z, w.z + 0.5));
+        var dx = x - closeX, dz = z - closeZ;
+        if (dx * dx + dz * dz < radius * radius) return true;
+      }
+    }
+    return false;
+  }
+  var WORLD_LIMIT = 45;
+  function moveWithCollision(pos, dx, dz, radius) {
+    var nx = pos.x + dx;
+    if (!circleBlocked(nx, pos.z, radius) && Math.abs(nx) < WORLD_LIMIT) pos.x = nx;
+    var nz = pos.z + dz;
+    if (!circleBlocked(pos.x, nz, radius) && Math.abs(nz) < WORLD_LIMIT) pos.z = nz;
+  }
+
+  // ---------- win check (flood fill) ----------
+  var gameWon = false;
+  function checkWin() {
+    if (gameWon) return;
+    var c = worldToCell(cow.position.x, cow.position.z);
+    if (!inBounds(c.cx, c.cz) || occ[c.cx][c.cz] !== 0) return;
+    var seen = [];
+    for (var i = 0; i < GRID; i++) seen.push(new Array(GRID).fill(false));
+    var stack = [[c.cx, c.cz]];
+    seen[c.cx][c.cz] = true;
+    var reachedBorder = false;
+    while (stack.length) {
+      var cur = stack.pop();
+      var cx = cur[0], cz = cur[1];
+      if (cx === 0 || cx === GRID - 1 || cz === 0 || cz === GRID - 1) reachedBorder = true;
+      var neigh = [[cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]];
+      for (var n = 0; n < 4; n++) {
+        var nx2 = neigh[n][0], nz2 = neigh[n][1];
+        if (!inBounds(nx2, nz2) || seen[nx2][nz2] || occ[nx2][nz2] !== 0) continue;
+        seen[nx2][nz2] = true;
+        stack.push([nx2, nz2]);
+      }
+    }
+    if (!reachedBorder) declareWin();
+  }
+
+  function declareWin() {
+    gameWon = true;
+    exitPointerLock();
+    var mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    var ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
+    document.getElementById('winStats').textContent = 'You placed ' + blockCount + ' blocks and fenced her in at ' + mm + ':' + ss + '.';
+    document.getElementById('winOverlay').classList.remove('hidden');
+  }
+
+  function resetGame() {
+    Object.keys(BLOCK_DEFS).forEach(function (k) {
+      var t = parseInt(k, 10);
+      cellsByType[t] = [];
+      rebuildType(t);
+    });
+    for (var x = 0; x < GRID; x++) occ[x].fill(0);
+    blockCount = 0;
+    updateHUDCounts();
+    elapsed = 0;
+    gameWon = false;
+    player.position.set(0, 0, 3.5);
+    playerYaw = Math.PI;
+    cow.position.set(0.5, 0, -0.5);
+    pickCowTarget();
+    document.getElementById('winOverlay').classList.add('hidden');
+  }
+
+  // ---------- input ----------
+  var keys = {};
+  window.addEventListener('keydown', function (e) {
+    keys[e.code] = true;
+    if (e.code === 'Digit1') selectSlot(1);
+    if (e.code === 'Digit2') selectSlot(2);
+    if (e.code === 'Digit3') selectSlot(3);
+  });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+
+  var selectedType = 1;
+  function selectSlot(t) {
+    selectedType = t;
+    document.querySelectorAll('.slot').forEach(function (el) {
+      el.classList.toggle('active', parseInt(el.dataset.slot, 10) === t);
+    });
+  }
+  document.querySelectorAll('.slot').forEach(function (el) {
+    el.addEventListener('click', function () { selectSlot(parseInt(el.dataset.slot, 10)); });
+  });
+
+  var locked = false;
+  var canvas = renderer.domElement;
+  function requestLock() { canvas.requestPointerLock(); }
+  function exitPointerLock() { if (document.pointerLockElement) document.exitPointerLock(); }
+
+  document.addEventListener('pointerlockchange', function () {
+    locked = document.pointerLockElement === canvas;
+    document.getElementById('crosshair').classList.toggle('show', locked);
+  });
+
+  document.getElementById('startBtn').addEventListener('click', function () {
+    document.getElementById('startOverlay').classList.add('hidden');
+    requestLock();
+  });
+  document.getElementById('againBtn').addEventListener('click', function () {
+    resetGame();
+    document.getElementById('winOverlay').classList.add('hidden');
+    requestLock();
+  });
+  canvas.addEventListener('click', function () {
+    if (!locked && document.getElementById('startOverlay').classList.contains('hidden') && document.getElementById('winOverlay').classList.contains('hidden')) {
+      requestLock();
+    }
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!locked) return;
+    camYaw -= e.movementX * 0.0024;
+    camPitch -= e.movementY * 0.0018;
+    camPitch = Math.max(0.08, Math.min(1.15, camPitch));
+  });
+
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  var raycaster = new THREE.Raycaster();
+  var raycastTargets = [];
+  function refreshRaycastTargets() {
+    raycastTargets = [fieldGround, instancedMeshes[1], instancedMeshes[2], instancedMeshes[3]];
+  }
+  refreshRaycastTargets();
+
+  function typeForInstancedMesh(mesh) {
+    for (var k = 1; k <= 3; k++) if (instancedMeshes[k] === mesh) return k;
+    return 0;
+  }
+
+  document.addEventListener('mousedown', function (e) {
+    if (!locked || gameWon) return;
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    var hits = raycaster.intersectObjects(raycastTargets, false);
+    if (!hits.length) return;
+    var hit = hits[0];
+
+    if (e.button === 0) { // place
+      var targetCell;
+      if (hit.object === fieldGround) {
+        targetCell = worldToCell(hit.point.x, hit.point.z);
+      } else {
+        var t = typeForInstancedMesh(hit.object);
+        var srcCell = cellsByType[t][hit.instanceId];
+        if (!srcCell) return;
+        var nrm = hit.face.normal;
+        if (Math.abs(nrm.y) > 0.5) return; // no stacking on top faces
+        var dx = Math.round(nrm.x), dz = Math.round(nrm.z);
+        targetCell = { cx: srcCell.cx + dx, cz: srcCell.cz + dz };
+      }
+      var pc = worldToCell(player.position.x, player.position.z);
+      if (targetCell.cx === pc.cx && targetCell.cz === pc.cz) return; // don't trap yourself
+      addBlock(targetCell.cx, targetCell.cz, selectedType);
+    } else if (e.button === 2) { // remove
+      if (hit.object === fieldGround) return;
+      var t2 = typeForInstancedMesh(hit.object);
+      var cell = cellsByType[t2][hit.instanceId];
+      if (!cell) return;
+      removeBlock(cell.cx, cell.cz);
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.code === 'Escape') exitPointerLock();
+  });
+
+  // ---------- HUD ----------
+  var blockCountEl = document.getElementById('blockCount');
+  var timerEl = document.getElementById('timer');
+  var cycleIconEl = document.getElementById('cycleIcon');
+  var cycleFillEl = document.getElementById('cycleFill');
+  var fpsEl = document.getElementById('fps');
+  function updateHUDCounts() { blockCountEl.textContent = String(blockCount); }
+  function updateTimerHUD() {
+    var mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    var ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
+    timerEl.textContent = mm + ':' + ss;
+  }
+
+  // ---------- main loop ----------
+  var clock = new THREE.Clock();
+  var elapsed = 0;
+  var cowRetarget = 0;
+  var winCheckTimer = 0;
+  var fpsAccum = 0, fpsFrames = 0, fpsTimer = 0;
+
+  function updateDayNight(dt) {
+    var cycleT = (elapsed % DAY_LENGTH) / DAY_LENGTH;
+    var angle = cycleT * Math.PI * 2;
+    var sunHeight = Math.sin(angle);
+    sun.position.set(Math.cos(angle) * 28, sunHeight * 28 + 6, 14);
+    sun.target.position.copy(player.position);
+    var dayFactor = Math.max(0, sunHeight); // 0..1
+    sun.intensity = 0.15 + dayFactor * 1.15;
+    ambient.intensity = moonAmbientFloor + dayFactor * 0.55;
+    hemi.intensity = 0.15 + dayFactor * 0.5;
+    var bg = new THREE.Color().lerpColors(NIGHT_SKY, DAY_SKY, dayFactor);
+    scene.background.copy(bg);
+    scene.fog.color.copy(bg);
+    var isDay = sunHeight > 0;
+    cycleIconEl.innerHTML = isDay ? '&#9728;' : '&#127768;';
+    cycleFillEl.style.width = (cycleT * 100).toFixed(1) + '%';
+  }
+
+  function updatePlayer(dt) {
+    var fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    fwd.y = 0; fwd.normalize();
+    var right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).negate();
+
+    var move = new THREE.Vector3();
+    if (keys['KeyW']) move.add(fwd);
+    if (keys['KeyS']) move.sub(fwd);
+    if (keys['KeyD']) move.add(right);
+    if (keys['KeyA']) move.sub(right);
+
+    if (move.lengthSq() > 0) {
+      move.normalize();
+      var step = move.multiplyScalar(PLAYER_SPEED * dt);
+      moveWithCollision(player.position, step.x, step.z, PLAYER_RADIUS);
+      playerYaw = Math.atan2(move.x, move.z);
+    }
+    player.rotation.y = lerpAngle(player.rotation.y, playerYaw, 0.22);
+
+    var camX = player.position.x + Math.sin(camYaw) * CAM_DIST * Math.cos(camPitch);
+    var camZ = player.position.z + Math.cos(camYaw) * CAM_DIST * Math.cos(camPitch);
+    var camY = 1.2 + CAM_HEIGHT * Math.sin(camPitch) + Math.sin(camPitch) * 1.0;
+    camera.position.set(camX, camY, camZ);
+    camera.lookAt(player.position.x, 1.1, player.position.z);
+  }
+
+  function lerpAngle(a, b, t) {
+    var diff = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
+    return a + diff * t;
+  }
+
+  function updateCow(dt) {
+    cowRetarget -= dt;
+    var toTarget = new THREE.Vector3(cowTarget.x - cow.position.x, 0, cowTarget.z - cow.position.z);
+    if (toTarget.length() < 0.25 || cowRetarget <= 0) {
+      pickCowTarget();
+      cowRetarget = 2.5 + Math.random() * 2.5;
+      toTarget.set(cowTarget.x - cow.position.x, 0, cowTarget.z - cow.position.z);
+    }
+    if (toTarget.lengthSq() > 0.0001) {
+      toTarget.normalize();
+      var step = toTarget.multiplyScalar(COW_SPEED * dt);
+      var before = cow.position.x + '_' + cow.position.z;
+      moveWithCollision(cow.position, step.x, step.z, COW_RADIUS);
+      var after = cow.position.x + '_' + cow.position.z;
+      if (before === after) { cowRetarget = 0; } // stuck, pick a new target next frame
+      var desiredYaw = Math.atan2(toTarget.x, toTarget.z) + Math.PI / 2;
+      cowYaw = lerpAngle(cowYaw, desiredYaw, 0.06);
+      cow.rotation.y = cowYaw;
+    }
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    var dt = Math.min(clock.getDelta(), 0.05);
+    if (!gameWon) elapsed += dt;
+
+    updateDayNight(dt);
+    updatePlayer(dt);
+    updateCow(dt);
+    updateTimerHUD();
+
+    winCheckTimer -= dt;
+    if (winCheckTimer <= 0 && !gameWon) { checkWin(); winCheckTimer = 0.5; }
+
+    fpsAccum += dt; fpsFrames++;
+    fpsTimer += dt;
+    if (fpsTimer > 0.5) {
+      fpsEl.textContent = Math.round(fpsFrames / fpsAccum) + ' fps';
+      fpsAccum = 0; fpsFrames = 0; fpsTimer = 0;
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  selectSlot(1);
+  updateHUDCounts();
+  updateTimerHUD();
+  animate();
+})();
+</script>
+</body>
+</html>

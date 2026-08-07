@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moo Ranch</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐄</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+canvas{display:block}
+.panel{background:rgba(12,16,24,.66);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:10px 14px;color:#fff}
+#hud{position:fixed;top:14px;left:14px}
+#title{font-weight:800;letter-spacing:1px;font-size:16px;color:#ffd54a}
+#statsRow{display:flex;gap:16px;font-variant-numeric:tabular-nums;font-size:14px;margin-top:5px;white-space:nowrap}
+#statsRow b{font-weight:600}
+#status{margin-top:5px;font-size:12px;color:#bfe3ff}
+#controls{position:fixed;top:14px;right:14px;font-size:12px;line-height:1.6;color:#e6edf3}
+#controls b{color:#ffd54a;font-weight:600}
+#toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);font-size:13px;color:#fff;transition:opacity .8s;pointer-events:none;max-width:min(90vw,520px);text-align:center}
+#toast.hide{opacity:0}
+#hotbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:10px}
+.slot{width:56px;height:56px;border-radius:12px;border:2px solid rgba(255,255,255,.25);background:rgba(12,16,24,.6);position:relative;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s}
+.slot .ic{position:absolute;inset:9px;border-radius:7px}
+.slot .key{position:absolute;top:2px;left:6px;font-size:10px;color:#cfd8e3;text-shadow:0 1px 2px #000}
+.slot .cnt{position:absolute;bottom:2px;right:6px;font-size:10px;color:#fff;text-shadow:0 1px 2px #000}
+.slot.sel{border-color:#ffd54a;transform:translateY(-6px);box-shadow:0 6px 18px rgba(0,0,0,.45),0 0 0 3px rgba(255,213,74,.25)}
+.ic.wood{background:repeating-linear-gradient(90deg,#8a5a2b 0 6px,#6e4620 6px 8px)}
+.ic.stone{background:linear-gradient(145deg,#aaafb7,#7e848d)}
+.ic.hay{background:repeating-linear-gradient(0deg,#e0b84f 0 7px,#a9832f 7px 10px)}
+#winOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,8,14,.55);backdrop-filter:blur(3px)}
+#winOverlay.show{display:flex}
+#winCard{text-align:center;padding:26px 34px;animation:pop .35s ease}
+#winCard h2{color:#ffd54a;letter-spacing:2px;margin:6px 0 4px}
+#winCard p{font-size:14px;color:#dbe6f0;margin-bottom:16px}
+#winCard .big{font-size:44px}
+@keyframes pop{from{transform:scale(.8);opacity:0}}
+.btns{display:flex;gap:10px;justify-content:center}
+button{font:inherit;font-weight:700;padding:9px 16px;border-radius:10px;border:0;cursor:pointer;background:#ffd54a;color:#1a1409}
+button.ghostBtn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35)}
+button:hover{filter:brightness(1.08)}
+#moo{position:fixed;display:none;background:#fff;color:#333;font-weight:800;font-size:13px;padding:4px 11px;border-radius:12px;transform:translate(-50%,-130%);pointer-events:none;box-shadow:0 3px 10px rgba(0,0,0,.3)}
+#moo::after{content:'';position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:#fff;border-bottom:0}
+#fps{position:fixed;bottom:8px;right:10px;font-size:11px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+
+<div id="hud" class="panel">
+  <div id="title">🐄 MOO RANCH</div>
+  <div id="statsRow">
+    <span>⏱ <b id="timeEl">00:00</b></span>
+    <span>🧱 <b id="blocksEl">0</b></span>
+    <span id="clockEl">☀️ 09:00</span>
+  </div>
+  <div id="status">Fence in the cow to win!</div>
+</div>
+
+<div id="controls" class="panel">
+  <b>WASD</b> move<br>
+  <b>Click</b> place · <b>Right-click</b> remove<br>
+  <b>1·2·3</b> block type · <b>R</b> restart
+</div>
+
+<div id="toast" class="panel">Trap <b>Bessie</b> inside a closed fence — win when she can no longer reach the edge of the ranch! 🐄</div>
+
+<div id="hotbar">
+  <div class="slot sel" id="s1" title="Wood fence"><div class="ic wood"></div><span class="key">1</span><span class="cnt">0</span></div>
+  <div class="slot" id="s2" title="Stone"><div class="ic stone"></div><span class="key">2</span><span class="cnt">0</span></div>
+  <div class="slot" id="s3" title="Hay bale"><div class="ic hay"></div><span class="key">3</span><span class="cnt">0</span></div>
+</div>
+
+<div id="winOverlay"><div id="winCard" class="panel">
+  <div class="big">🎉🐄🎉</div>
+  <h2>MOO-VELLOUS!</h2>
+  <p id="winStats"></p>
+  <div class="btns">
+    <button id="btnAgain">Play again (R)</button>
+    <button id="btnKeep" class="ghostBtn">Keep building</button>
+  </div>
+</div></div>
+
+<div id="moo">Moo!</div>
+<div id="fps"></div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+/* ---------------- constants & helpers ---------------- */
+const N = 16, H = N / 2, PR = 0.32;                 // grid size, half, player radius
+const c2w = i => i - H + 0.5;                       // cell index -> world centre
+const w2c = x => Math.floor(x + H);                 // world -> cell index
+const inGrid = (i, j) => i >= 0 && i < N && j >= 0 && j < N;
+const K = (i, j) => i + ',' + j;
+const { clamp } = THREE.MathUtils;
+const smooth = (x, a, b) => THREE.MathUtils.smoothstep(x, a, b);
+const lerpAngle = (a, b, t) => { const d = (b - a + Math.PI * 3) % (Math.PI * 2) - Math.PI; return a + d * t; };
+
+/* ---------------- renderer / scene / camera ---------------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const skyCol = new THREE.Color(0x8ec9ef);
+scene.background = skyCol;
+scene.fog = new THREE.Fog(0x8ec9ef, 34, 95);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 300);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ---------------- lights ---------------- */
+const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x39502e, 0.7);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d9, 1.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 5, far: 130 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.normalBias = 0.03;
+scene.add(sun, sun.target);
+const moon = new THREE.DirectionalLight(0x8899ff, 0);
+scene.add(moon);
+
+const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xffe08a, fog: false, transparent: true }));
+const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xdfe6ff, fog: false, transparent: true }));
+scene.add(sunDisc, moonDisc);
+
+/* stars */
+const starGeo = new THREE.BufferGeometry();
+{
+  const pos = [];
+  while (pos.length < 260 * 3) {
+    const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random(), Math.random() * 2 - 1);
+    if (v.length() > 1 || v.y < 0.12) continue;
+    v.normalize().multiplyScalar(130);
+    pos.push(v.x, v.y, v.z);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+}
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, transparent: true, opacity: 0, fog: false, depthWrite: false });
+const stars = new THREE.Points(starGeo, starMat);
+stars.frustumCulled = false;
+scene.add(stars);
+
+/* ---------------- shared geometry / materials ---------------- */
+const BOX = new THREE.BoxGeometry(1, 1, 1);
+const std = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, metalness: 0 });
+const M = {
+  wood: std(0x8a5a2b), woodDark: std(0x6e4620),
+  stone: std(0x969ba3), stoneD: std(0x82868e),
+  hay: std(0xe0b84f), strap: std(0xa9832f),
+  white: std(0xf2efe6), black: std(0x2b2b2b), pink: std(0xe89aa4),
+  skin: std(0xf2c18f), denim: std(0x3f66b0), shirt: std(0xc0492f),
+  hat: std(0xd8a43c), horn: std(0xded4c2), green: std(0x3f8f3f),
+};
+function box(mat, sx, sy, sz, x, y, z, parent) {
+  const m = new THREE.Mesh(BOX, mat);
+  m.scale.set(sx, sy, sz);
+  m.position.set(x, y, z);
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+/* ---------------- ground ---------------- */
+{
+  const m4 = new THREE.Matrix4(), col = new THREE.Color();
+  const grass = new THREE.InstancedMesh(BOX, std(0xffffff), N * N);
+  grass.receiveShadow = true; grass.frustumCulled = false;
+  let idx = 0;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    m4.makeTranslation(c2w(i), -0.5, c2w(j));
+    grass.setMatrixAt(idx, m4);
+    col.setHex(0x5da24d).offsetHSL(0, (Math.random() - .5) * .06, (Math.random() - .5) * .04 - ((i + j) % 2 ? .022 : 0));
+    grass.setColorAt(idx, col);
+    idx++;
+  }
+  scene.add(grass);
+
+  const apron = new THREE.InstancedMesh(BOX, std(0xffffff), 20 * 20 - N * N);
+  apron.receiveShadow = true; apron.frustumCulled = false;
+  idx = 0;
+  for (let i = -2; i < N + 2; i++) for (let j = -2; j < N + 2; j++) {
+    if (inGrid(i, j)) continue;
+    m4.makeTranslation(c2w(i), -0.55, c2w(j));
+    apron.setMatrixAt(idx, m4);
+    col.setHex(0x8a6b45).offsetHSL(0, (Math.random() - .5) * .05, (Math.random() - .5) * .05);
+    apron.setColorAt(idx, col);
+    idx++;
+  }
+  scene.add(apron);
+
+  const plain = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), std(0x69884b));
+  plain.rotation.x = -Math.PI / 2;
+  plain.position.y = -0.12;
+  plain.receiveShadow = true;
+  scene.add(plain);
+}
+
+/* ---------------- decorative flowers / tufts ---------------- */
+const flowers = new Map();
+{
+  const petalMats = [0xe86a92, 0xf2f2f2, 0xe8c14a, 0x9a6ae8].map(std);
+  const used = new Set();
+  while (flowers.size < 16) {
+    const i = (Math.random() * N) | 0, j = (Math.random() * N) | 0, k = K(i, j);
+    if (used.has(k)) continue;
+    used.add(k);
+    const g = new THREE.Group();
+    if (Math.random() < 0.55) {
+      box(M.green, .04, .22, .04, 0, .11, 0, g);
+      box(petalMats[(Math.random() * petalMats.length) | 0], .13, .1, .13, 0, .27, 0, g);
+    } else {
+      for (let t = 0; t < 3; t++)
+        box(M.green, .05, .16 + Math.random() * .12, .05, (Math.random() - .5) * .22, .1, (Math.random() - .5) * .22, g);
+    }
+    g.position.set(c2w(i) + (Math.random() - .5) * .4, 0, c2w(j) + (Math.random() - .5) * .4);
+    scene.add(g);
+    flowers.set(k, g);
+  }
+}
+
+/* ---------------- player (little farmer) ---------------- */
+const playerG = new THREE.Group();
+scene.add(playerG);
+const P = {};
+{
+  P.legL = new THREE.Group(); P.legL.position.set(0.11, 0.37, 0);
+  box(M.denim, .15, .37, .15, 0, -.185, 0, P.legL);
+  P.legR = new THREE.Group(); P.legR.position.set(-0.11, 0.37, 0);
+  box(M.denim, .15, .37, .15, 0, -.185, 0, P.legR);
+  playerG.add(P.legL, P.legR);
+  box(M.denim, .44, .4, .28, 0, .57, 0, playerG);        // overalls
+  box(M.shirt, .46, .14, .3, 0, .8, 0, playerG);         // shoulders
+  P.armL = new THREE.Group(); P.armL.position.set(0.28, 0.82, 0);
+  box(M.shirt, .11, .32, .11, 0, -.14, 0, P.armL);
+  P.armR = new THREE.Group(); P.armR.position.set(-0.28, 0.82, 0);
+  box(M.shirt, .11, .32, .11, 0, -.14, 0, P.armR);
+  playerG.add(P.armL, P.armR);
+  box(M.skin, .3, .28, .26, 0, .97, 0, playerG);         // head
+  box(M.hat, .46, .06, .46, 0, 1.13, 0, playerG);        // hat brim
+  box(M.hat, .26, .12, .26, 0, 1.2, 0, playerG);         // hat top
+}
+const player = { x: -5, z: 5, yaw: 0, walk: 0, amp: 0 };
+
+/* ---------------- cow (Bessie) — model faces +Z ---------------- */
+const cowG = new THREE.Group();
+scene.add(cowG);
+const cowLegs = [];
+{
+  for (const [lx, lz] of [[.17, .28], [-.17, .28], [.17, -.28], [-.17, -.28]]) {
+    const p = new THREE.Group(); p.position.set(lx, 0.4, lz);
+    box(M.white, .13, .4, .13, 0, -.2, 0, p);
+    cowG.add(p); cowLegs.push(p);
+  }
+  box(M.white, .55, .42, .95, 0, .6, 0, cowG);           // body
+  box(M.black, .57, .2, .3, 0, .66, .18, cowG);          // patch
+  box(M.black, .57, .24, .26, 0, .54, -.28, cowG);       // patch
+  box(M.white, .3, .3, .28, 0, .78, .58, cowG);          // head
+  box(M.pink, .24, .14, .1, 0, .7, .74, cowG);           // snout
+  box(M.black, .045, .05, .03, .09, .85, .72, cowG);     // eyes
+  box(M.black, .045, .05, .03, -.09, .85, .72, cowG);
+  box(M.black, .11, .05, .08, .2, .88, .56, cowG);       // ears
+  box(M.black, .11, .05, .08, -.2, .88, .56, cowG);
+  box(M.horn, .05, .1, .05, .1, .96, .55, cowG);         // horns
+  box(M.horn, .05, .1, .05, -.1, .96, .55, cowG);
+  const tail = box(M.white, .05, .32, .05, 0, .68, -.5, cowG);
+  tail.rotation.x = 0.55;
+  box(M.pink, .22, .12, .24, 0, .36, -.14, cowG);        // udder
+}
+const cow = { ci: 8, cj: 8, ti: 8, tj: 8, x: 0, z: 0, yaw: 0, tyaw: 0, state: 'idle', t: 1, p: 0, dur: .6, phase: 0 };
+
+/* ---------------- blocks ---------------- */
+const blockRoot = new THREE.Group();
+scene.add(blockRoot);
+const blocks = new Map();                                // "i,j" -> {type, group}
+const counts = { 1: 0, 2: 0, 3: 0 };
+let popAnims = [];
+
+function buildWood(i, j, g) {
+  box(M.wood, .16, .95, .16, 0, .475, 0, g);             // centre post
+  let links = 0;
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    if (inGrid(i + dx, j + dz) && blocks.has(K(i + dx, j + dz))) {
+      links++;
+      for (const h of [.32, .62])
+        box(M.woodDark, dx ? .5 : .09, .09, dz ? .5 : .09, dx * .25, h, dz * .25, g);
+    }
+  }
+  if (!links) {                                          // lone segment: rails + end posts
+    for (const h of [.32, .62]) box(M.woodDark, .98, .09, .09, 0, h, 0, g);
+    box(M.wood, .13, .8, .13, .38, .4, 0, g);
+    box(M.wood, .13, .8, .13, -.38, .4, 0, g);
+  }
+}
+function buildBlockGroup(type, i, j) {
+  const g = new THREE.Group();
+  if (type === 1) buildWood(i, j, g);
+  else if (type === 2) {
+    box(M.stone, .92, .9, .92, 0, .45, 0, g);
+    box(M.stoneD, .42, .16, .42, -.16, .95, .14, g);
+  } else {
+    box(M.hay, .92, .9, .92, 0, .45, 0, g);
+    box(M.strap, .96, .14, .96, 0, .3, 0, g);
+    box(M.strap, .96, .14, .96, 0, .62, 0, g);
+  }
+  return g;
+}
+function rebuildCell(i, j) {
+  const b = blocks.get(K(i, j));
+  if (!b) return;
+  if (b.group) blockRoot.remove(b.group);
+  const g = buildBlockGroup(b.type, i, j);
+  g.position.set(c2w(i), 0, c2w(j));
+  g.userData = { i, j };
+  blockRoot.add(g);
+  b.group = g;
+}
+function refreshNeighbours(i, j) {
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nb = blocks.get(K(i + dx, j + dz));
+    if (nb && nb.type === 1) rebuildCell(i + dx, j + dz);
+  }
+}
+function playerOverlap(i, j) {
+  return Math.abs(player.x - c2w(i)) < 0.5 + PR && Math.abs(player.z - c2w(j)) < 0.5 + PR;
+}
+function canPlace(i, j) {
+  if (!inGrid(i, j) || blocks.has(K(i, j))) return false;
+  if (i === cow.ci && j === cow.cj) return false;
+  if (cow.state === 'walk' && i === cow.ti && j === cow.tj) return false;
+  return !playerOverlap(i, j);
+}
+function placeBlock(i, j, type) {
+  blocks.set(K(i, j), { type, group: null });
+  rebuildCell(i, j);
+  refreshNeighbours(i, j);
+  const f = flowers.get(K(i, j)); if (f) f.visible = false;
+  counts[type]++;
+  popAnims.push({ g: blocks.get(K(i, j)).group, t: 0 });
+  blip(560);
+  updateHUD();
+  checkWin();
+}
+function removeBlock(i, j) {
+  const b = blocks.get(K(i, j));
+  if (!b) return;
+  blockRoot.remove(b.group);
+  blocks.delete(K(i, j));
+  refreshNeighbours(i, j);
+  const f = flowers.get(K(i, j)); if (f) f.visible = true;
+  counts[b.type]--;
+  blip(300);
+  updateHUD();
+  checkWin();
+}
+
+/* ---------------- win logic: flood fill from cow ---------------- */
+function computeFenced() {
+  const seen = new Uint8Array(N * N);
+  const q = [cow.ci + cow.cj * N];
+  seen[q[0]] = 1;
+  while (q.length) {
+    const c = q.pop(), i = c % N, j = (c / N) | 0;
+    if (i === 0 || j === 0 || i === N - 1 || j === N - 1) return false;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + dx, nj = j + dz, nc = ni + nj * N;
+      if (inGrid(ni, nj) && !seen[nc] && !blocks.has(K(ni, nj))) { seen[nc] = 1; q.push(nc); }
+    }
+  }
+  return true;
+}
+function checkWin() {
+  if (won) return;
+  if (computeFenced()) triggerWin();
+  else statusEl.textContent = 'Bessie is roaming free…';
+}
+function triggerWin() {
+  won = true;
+  winTime = elapsed;
+  statusEl.textContent = '🎉 Bessie is fenced in!';
+  winStats.textContent = `You fenced Bessie in ${fmt(winTime)} using ${blocks.size} blocks.`;
+  winOverlay.classList.add('show');
+  doMoo('MOO!!', 0.16);
+}
+
+/* ---------------- ghost cursor ---------------- */
+const ghost = new THREE.Group();
+const ghostFill = new THREE.Mesh(BOX, new THREE.MeshBasicMaterial({ color: 0x54e06a, transparent: true, opacity: .15, depthWrite: false }));
+const ghostEdges = new THREE.LineSegments(new THREE.EdgesGeometry(BOX), new THREE.LineBasicMaterial({ color: 0x54e06a, transparent: true, opacity: .95 }));
+ghost.add(ghostFill, ghostEdges);
+ghost.scale.set(1.02, 1.02, 1.02);
+ghost.visible = false;
+scene.add(ghost);
+
+/* ---------------- picking ---------------- */
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let hasMouse = false;
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _pp = new THREE.Vector3();
+function setNdc(e) {
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  hasMouse = true;
+}
+function pick() {
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(blockRoot.children, true);
+  if (hits.length) {
+    let o = hits[0].object;
+    while (o && o.userData.i === undefined) o = o.parent;
+    if (o) return { i: o.userData.i, j: o.userData.j, block: true };
+  }
+  if (ray.ray.intersectPlane(groundPlane, _pp)) {
+    const i = w2c(_pp.x), j = w2c(_pp.z);
+    if (inGrid(i, j)) return { i, j, block: blocks.has(K(i, j)) };
+  }
+  return null;
+}
+function updateGhost() {
+  if (!hasMouse) return;
+  const pk = pick();
+  if (!pk) { ghost.visible = false; return; }
+  ghost.visible = true;
+  ghost.position.set(c2w(pk.i), 0.5, c2w(pk.j));
+  let col, op;
+  if (pk.block) { col = 0xffffff; op = 0.05; }
+  else if (canPlace(pk.i, pk.j)) { col = 0x54e06a; op = 0.16; }
+  else { col = 0xe05454; op = 0.12; }
+  ghostFill.material.color.setHex(col);
+  ghostFill.material.opacity = op;
+  ghostEdges.material.color.setHex(col);
+}
+
+/* ---------------- input ---------------- */
+const keys = new Set();
+addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (e.code === 'Digit1') select(1);
+  if (e.code === 'Digit2') select(2);
+  if (e.code === 'Digit3') select(3);
+  if (e.code === 'KeyR') restart();
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+const key = c => keys.has(c);
+
+renderer.domElement.addEventListener('pointermove', setNdc);
+renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+renderer.domElement.addEventListener('pointerdown', e => {
+  setNdc(e);
+  const pk = pick();
+  if (!pk) return;
+  if (e.button === 0) {
+    if (!pk.block && canPlace(pk.i, pk.j)) placeBlock(pk.i, pk.j, selected);
+  } else if (e.button === 2) {
+    if (blocks.has(K(pk.i, pk.j))) removeBlock(pk.i, pk.j);
+  }
+});
+
+/* ---------------- HUD ---------------- */
+const $ = id => document.getElementById(id);
+const timeEl = $('timeEl'), blocksEl = $('blocksEl'), clockEl = $('clockEl'), statusEl = $('status');
+const winOverlay = $('winOverlay'), winStats = $('winStats');
+const mooEl = $('moo'), fpsEl = $('fps'), toast = $('toast');
+const slots = [null, $('s1'), $('s2'), $('s3')];
+let selected = 1;
+function select(t) {
+  selected = t;
+  for (let k = 1; k <= 3; k++) slots[k].classList.toggle('sel', k === t);
+}
+slots[1].onclick = () => select(1);
+slots[2].onclick = () => select(2);
+slots[3].onclick = () => select(3);
+$('btnAgain').onclick = restart;
+$('btnKeep').onclick = () => winOverlay.classList.remove('show');
+setTimeout(() => toast.classList.add('hide'), 7000);
+
+const fmt = t => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function updateHUD() {
+  blocksEl.textContent = blocks.size;
+  for (let k = 1; k <= 3; k++) slots[k].querySelector('.cnt').textContent = counts[k];
+}
+
+/* ---------------- audio (synth, no assets) ---------------- */
+let actx = null;
+function ctx() {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume().catch(() => {});
+  return actx;
+}
+function moo(vol = 0.1) {
+  try {
+    const a = ctx(), t0 = a.currentTime;
+    const o = a.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(196, t0);
+    o.frequency.exponentialRampToValueAtTime(98, t0 + 0.55);
+    const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 520; f.Q.value = 4;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.08);
+    g.gain.setValueAtTime(vol, t0 + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.75);
+    o.connect(f).connect(g).connect(a.destination);
+    o.start(t0); o.stop(t0 + 0.8);
+  } catch (e) { /* audio unavailable */ }
+}
+function blip(freq) {
+  try {
+    const a = ctx(), t0 = a.currentTime;
+    const o = a.createOscillator(); o.type = 'square'; o.frequency.value = freq;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.04, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
+    o.connect(g).connect(a.destination);
+    o.start(t0); o.stop(t0 + 0.08);
+  } catch (e) { /* audio unavailable */ }
+}
+let bubbleT = 0, mooT = 6 + Math.random() * 8;
+function doMoo(text, vol) {
+  moo(vol);
+  mooEl.textContent = text;
+  bubbleT = 1.5;
+}
+
+/* ---------------- game state ---------------- */
+let elapsed = 0, worldTime = 9, won = false, winTime = 0, lastSec = -1, lastClock = '';
+
+function resetCow() {
+  cow.ci = cow.ti = 5 + ((Math.random() * 6) | 0);
+  cow.cj = cow.tj = 5 + ((Math.random() * 6) | 0);
+  cow.x = c2w(cow.ci); cow.z = c2w(cow.cj);
+  cow.state = 'idle'; cow.t = 1; cow.p = 0; cow.yaw = cow.tyaw = Math.random() * Math.PI * 2;
+  cowG.position.set(cow.x, 0, cow.z);
+}
+function restart() {
+  blockRoot.clear();
+  blocks.clear();
+  counts[1] = counts[2] = counts[3] = 0;
+  popAnims = [];
+  for (const f of flowers.values()) f.visible = true;
+  player.x = -5; player.z = 5; player.yaw = 0; player.amp = 0;
+  camFocus.set(player.x, 0, player.z);
+  resetCow();
+  elapsed = 0; worldTime = 9; won = false; lastSec = -1;
+  winOverlay.classList.remove('show');
+  statusEl.textContent = 'Bessie is roaming free…';
+  updateHUD();
+}
+
+/* ---------------- player update ---------------- */
+function hitsSolid(x, z) {
+  const i0 = w2c(x - PR), i1 = w2c(x + PR), j0 = w2c(z - PR), j1 = w2c(z + PR);
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++)
+    if (inGrid(i, j) && blocks.has(K(i, j))) return true;
+  return false;
+}
+function updatePlayer(dt) {
+  let dx = 0, dz = 0;
+  if (key('KeyW') || key('ArrowUp')) dz -= 1;
+  if (key('KeyS') || key('ArrowDown')) dz += 1;
+  if (key('KeyA') || key('ArrowLeft')) dx -= 1;
+  if (key('KeyD') || key('ArrowRight')) dx += 1;
+  const mv = Math.hypot(dx, dz);
+  if (mv > 0) {
+    dx /= mv; dz /= mv;
+    const sp = 4.3 * dt;
+    const nx = clamp(player.x + dx * sp, -H + PR, H - PR);
+    if (!hitsSolid(nx, player.z)) player.x = nx;
+    const nz = clamp(player.z + dz * sp, -H + PR, H - PR);
+    if (!hitsSolid(player.x, nz)) player.z = nz;
+    player.yaw = lerpAngle(player.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 12));
+    player.walk += dt * 10;
+  }
+  player.amp += ((mv > 0 ? 1 : 0) - player.amp) * (1 - Math.exp(-dt * 10));
+  playerG.position.set(player.x, 0, player.z);
+  playerG.rotation.y = player.yaw;
+  const s = Math.sin(player.walk) * 0.7 * player.amp;
+  P.legL.rotation.x = s; P.legR.rotation.x = -s;
+  P.armL.rotation.x = -s * 0.8; P.armR.rotation.x = s * 0.8;
+}
+
+/* ---------------- cow update ---------------- */
+function chooseCowMove() {
+  if (Math.random() < 0.3) { cow.t = 1 + Math.random() * 2; return; }   // graze a while
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].sort(() => Math.random() - .5);
+  for (const [dx, dz] of dirs) {
+    const ni = cow.ci + dx, nj = cow.cj + dz;
+    if (!inGrid(ni, nj) || blocks.has(K(ni, nj))) continue;
+    if (ni === w2c(player.x) && nj === w2c(player.z)) continue;
+    cow.ti = ni; cow.tj = nj;
+    cow.state = 'walk'; cow.p = 0;
+    cow.dur = .5 + Math.random() * .35;
+    cow.tyaw = Math.atan2(dx, dz);
+    return;
+  }
+  cow.t = 0.9;                                            // boxed in — just wait
+}
+function updateCow(dt) {
+  if (cow.state === 'idle') {
+    cow.t -= dt;
+    for (const l of cowLegs) l.rotation.x *= Math.exp(-dt * 8);
+    cowG.position.y = won ? Math.abs(Math.sin(worldTime * 7)) * 0.09 : 0;
+    if (cow.t <= 0) chooseCowMove();
+  } else {
+    cow.p += dt / cow.dur;
+    const q = Math.min(1, cow.p);
+    cow.x = THREE.MathUtils.lerp(c2w(cow.ci), c2w(cow.ti), q);
+    cow.z = THREE.MathUtils.lerp(c2w(cow.cj), c2w(cow.tj), q);
+    cowG.position.y = Math.abs(Math.sin(q * Math.PI * 2)) * 0.05;
+    cow.phase += dt * 9;
+    cowLegs.forEach((l, n) => { l.rotation.x = Math.sin(cow.phase + (n % 3 ? Math.PI : 0)) * 0.55; });
+    if (cow.p >= 1) {
+      cow.ci = cow.ti; cow.cj = cow.tj;
+      cow.state = 'idle';
+      cow.t = 0.4 + Math.random() * 1.8;
+    }
+  }
+  cow.yaw = lerpAngle(cow.yaw, cow.tyaw, 1 - Math.exp(-dt * 8));
+  cowG.position.x = cow.x; cowG.position.z = cow.z;
+  cowG.rotation.y = cow.yaw;
+  mooT -= dt;
+  if (mooT <= 0) { mooT = 8 + Math.random() * 12; doMoo('Moo!', 0.09); }
+}
+
+/* ---------------- day / night cycle (60 s) ---------------- */
+const DAY = new THREE.Color(0x8ec9ef), NIGHT = new THREE.Color(0x0a1228), DUSK = new THREE.Color(0xe2703f);
+const SUNW = new THREE.Color(0xfff2d9), SUND = new THREE.Color(0xff8a4a);
+const HDAY = new THREE.Color(0xcfe8ff), HNIGHT = new THREE.Color(0x2a3560);
+function updateSky(dt) {
+  const cyc = (worldTime % 60) / 60;
+  const th = cyc * Math.PI * 2;
+  const sinTh = Math.sin(th);
+  sun.position.set(Math.cos(th) * 34, sinTh * 34, 14);
+  moon.position.set(-Math.cos(th) * 34, -sinTh * 34, -14);
+  const dayF = smooth(sinTh, -0.06, 0.22);
+  const duskF = clamp(1 - Math.abs(sinTh) / 0.3, 0, 1);
+  skyCol.copy(NIGHT).lerp(DAY, dayF).lerp(DUSK, duskF * 0.55);
+  scene.fog.color.copy(skyCol);
+  sun.intensity = Math.pow(Math.max(0, sinTh), 0.6) * 1.5;
+  sun.color.copy(SUNW).lerp(SUND, duskF);
+  moon.intensity = 0.22 * (1 - dayF);
+  hemi.intensity = 0.18 + 0.55 * dayF;
+  hemi.color.copy(HNIGHT).lerp(HDAY, dayF);
+  starMat.opacity = (1 - dayF) * 0.9;
+  stars.rotation.y += dt * 0.005;
+  sunDisc.position.copy(sun.position).multiplyScalar(2.8);
+  sunDisc.material.opacity = clamp(sinTh * 4 + 0.5, 0, 1);
+  moonDisc.position.copy(moon.position).multiplyScalar(2.8);
+  moonDisc.material.opacity = clamp(-sinTh * 4 + 0.5, 0, 1);
+  const hrs = (cyc * 24 + 6) % 24;
+  const icon = sinTh > 0.15 ? '☀️' : (sinTh > -0.06 ? '🌇' : '🌙');
+  const str = `${icon} ${String(Math.floor(hrs)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}`;
+  if (str !== lastClock) { lastClock = str; clockEl.textContent = str; }
+}
+
+/* ---------------- camera ---------------- */
+const camFocus = new THREE.Vector3(player.x, 0, player.z);
+const _look = new THREE.Vector3();
+function updateCamera(dt) {
+  camFocus.x += (player.x - camFocus.x) * (1 - Math.exp(-dt * 6));
+  camFocus.z += (player.z - camFocus.z) * (1 - Math.exp(-dt * 6));
+  camera.position.set(camFocus.x, 12.5, camFocus.z + 10.5);
+  camera.lookAt(_look.set(camFocus.x, 0.5, camFocus.z));
+}
+
+/* ---------------- misc per-frame ---------------- */
+const _pv = new THREE.Vector3();
+let frames = 0, fpsT = 0;
+function hudFrame(dt) {
+  const sec = Math.floor(elapsed);
+  if (sec !== lastSec) { lastSec = sec; timeEl.textContent = fmt(elapsed); }
+  if (bubbleT > 0) {
+    bubbleT -= dt;
+    _pv.set(cow.x, 1.35, cow.z).project(camera);
+    mooEl.style.display = _pv.z < 1 ? 'block' : 'none';
+    mooEl.style.left = ((_pv.x * .5 + .5) * innerWidth) + 'px';
+    mooEl.style.top = ((-_pv.y * .5 + .5) * innerHeight) + 'px';
+    if (bubbleT <= 0) mooEl.style.display = 'none';
+  }
+  frames++; fpsT += dt;
+  if (fpsT >= 0.5) { fpsEl.textContent = Math.round(frames / fpsT) + ' fps'; frames = 0; fpsT = 0; }
+}
+function updatePops(dt) {
+  for (const p of popAnims) {
+    p.t += dt / 0.15;
+    const t = Math.min(1, p.t);
+    const s = 0.25 + 0.75 * (1 - Math.pow(1 - t, 3));
+    p.g.scale.set(s, s, s);
+  }
+  popAnims = popAnims.filter(p => p.t < 1);
+}
+
+/* ---------------- main loop ---------------- */
+resetCow();
+updateHUD();
+statusEl.textContent = 'Bessie is roaming free…';
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (!won) elapsed += dt;
+  worldTime += dt;
+  updatePlayer(dt);
+  updateCow(dt);
+  updateSky(dt);
+  updateCamera(dt);
+  updateGhost();
+  updatePops(dt);
+  hudFrame(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

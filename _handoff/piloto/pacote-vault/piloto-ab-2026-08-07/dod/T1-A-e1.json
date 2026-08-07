@@ -1,0 +1,77 @@
+{
+  "gerado_por": "dod_harness.mjs (Playwright, zero LLM)",
+  "artefacto_avaliado": "(anonimizado no pacote — o mapa vive fora do alcance dos juízes)",
+  "itens": [
+    {
+      "id": 1,
+      "desc": "Abre sem erros de consola",
+      "resultado": "S"
+    },
+    {
+      "id": 2,
+      "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+      "resultado": "S"
+    },
+    {
+      "id": 3,
+      "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+      "resultado": "N"
+    },
+    {
+      "id": 4,
+      "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+      "resultado": "N"
+    },
+    {
+      "id": 5,
+      "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+      "resultado": "S"
+    },
+    {
+      "id": 6,
+      "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+      "resultado": "S"
+    },
+    {
+      "id": 7,
+      "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+      "resultado": "S"
+    },
+    {
+      "id": 8,
+      "desc": "Condição de vitória dispara quando a vaca está cercada",
+      "resultado": "n/d (humano)"
+    },
+    {
+      "id": 9,
+      "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+      "resultado": "S"
+    },
+    {
+      "id": 10,
+      "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+      "resultado": "N"
+    },
+    {
+      "id": 11,
+      "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+      "resultado": "S"
+    },
+    {
+      "id": 12,
+      "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+      "resultado": "S"
+    }
+  ],
+  "score_dod": "8/12",
+  "fluidez": {
+    "frames": 170,
+    "fps_mediana": 30,
+    "fps_p95_pior": 29.9,
+    "input_lag_ms": "n/d"
+  },
+  "capturas": [
+    "captura-inicial.png",
+    "captura-final.png"
+  ]
+}

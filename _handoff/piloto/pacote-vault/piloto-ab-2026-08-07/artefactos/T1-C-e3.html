@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Moo Ranch</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0b1030; }
+  body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; user-select: none; }
+  canvas { display: block; }
+
+  #hud {
+    position: fixed; top: 12px; left: 12px; color: #fff;
+    background: rgba(0, 0, 0, 0.38); padding: 10px 14px; border-radius: 10px;
+    font-size: 14px; line-height: 1.6; text-shadow: 0 1px 3px rgba(0,0,0,.8);
+    pointer-events: none;
+  }
+  #hud .row span.val { font-weight: 700; }
+
+  #hint {
+    position: fixed; top: 12px; right: 12px; max-width: 260px; color: #fff;
+    background: rgba(0, 0, 0, 0.38); padding: 10px 14px; border-radius: 10px;
+    font-size: 12px; line-height: 1.6; text-shadow: 0 1px 3px rgba(0,0,0,.8);
+    pointer-events: none;
+  }
+
+  #hotbar {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; pointer-events: none;
+  }
+  .slot {
+    width: 60px; height: 64px; border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.45);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,.9);
+  }
+  .slot.active { border-color: #ffd54a; box-shadow: 0 0 10px rgba(255, 213, 74, 0.8); }
+  .slot .key { position: absolute; margin-top: -46px; margin-left: -46px; font-size: 10px; opacity: 0.7; }
+  .swatch { width: 24px; height: 24px; border-radius: 6px; margin-bottom: 4px; }
+
+  #winBanner {
+    position: fixed; top: 38%; left: 50%; transform: translate(-50%, -50%);
+    display: none; text-align: center;
+    background: rgba(10, 20, 10, 0.72); color: #ffd54a;
+    padding: 22px 46px; border-radius: 18px; letter-spacing: 1px;
+    font-size: 34px; font-weight: 800; text-shadow: 0 3px 10px rgba(0,0,0,.9);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="row">Blocks placed: <span id="blockCount" class="val">0</span></div>
+  <div class="row">Time: <span id="timer" class="val">00:00</span></div>
+  <div class="row"><span id="phaseIcon">day</span> <span id="phaseLabel" class="val">Day</span></div>
+  <div class="row">Selected: <span id="selectedLabel" class="val">Fence</span></div>
+</div>
+
+<div id="hint">
+  WASD move player<br>
+  Left click: place block<br>
+  Right click: remove block<br>
+  1 / 2 / 3: switch block type<br>
+  Enclose the cow with fences to win.
+</div>
+
+<div id="hotbar">
+  <div class="slot active" data-slot="1">
+    <div class="swatch" style="background:#8a5a2e"></div>
+    Fence (1)
+  </div>
+  <div class="slot" data-slot="2">
+    <div class="swatch" style="background:#e85fa0"></div>
+    Flower (2)
+  </div>
+  <div class="slot" data-slot="3">
+    <div class="swatch" style="background:#8d8d90"></div>
+    Stone (3)
+  </div>
+</div>
+
+<div id="winBanner">Cow enclosed &mdash; you win!</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var GRID = 16;
+  var HALF = GRID / 2;
+  var EMPTY = 0, FENCE = 1, FLOWER = 2, STONE = 3;
+  var BLOCK_LABELS = { 1: 'Fence', 2: 'Flower', 3: 'Stone' };
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b1030);
+
+  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 300);
+
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  var ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambient);
+  var sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  sunLight.position.set(10, 20, 10);
+  scene.add(sunLight);
+
+  var sunMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+  var sunMesh = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 10), sunMat);
+  scene.add(sunMesh);
+
+  function cellCenter(i, j) {
+    return { x: i - HALF + 0.5, z: j - HALF + 0.5 };
+  }
+
+  var groundGeo = new THREE.BoxGeometry(1, 0.3, 1);
+  var groundMatLight = new THREE.MeshLambertMaterial({ color: 0x6fbf5e });
+  var groundMatDark = new THREE.MeshLambertMaterial({ color: 0x5fae4f });
+  var groundLight = new THREE.InstancedMesh(groundGeo, groundMatLight, (GRID * GRID) / 2);
+  var groundDark = new THREE.InstancedMesh(groundGeo, groundMatDark, (GRID * GRID) / 2);
+  (function buildGround() {
+    var m = new THREE.Matrix4();
+    var li = 0, di = 0;
+    for (var i = 0; i < GRID; i++) {
+      for (var j = 0; j < GRID; j++) {
+        var c = cellCenter(i, j);
+        m.makeTranslation(c.x, -0.15, c.z);
+        if ((i + j) % 2 === 0) groundLight.setMatrixAt(li++, m);
+        else groundDark.setMatrixAt(di++, m);
+      }
+    }
+    groundLight.instanceMatrix.needsUpdate = true;
+    groundDark.instanceMatrix.needsUpdate = true;
+  })();
+  scene.add(groundLight, groundDark);
+
+  var scratchMatrix = new THREE.Matrix4();
+  var hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+
+  function makeBlockType(geometry, color, yOffset) {
+    var capacity = GRID * GRID;
+    var material = new THREE.MeshLambertMaterial({ color: color });
+    var mesh = new THREE.InstancedMesh(geometry, material, capacity);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for (var k = 0; k < capacity; k++) mesh.setMatrixAt(k, hiddenMatrix);
+    mesh.instanceMatrix.needsUpdate = true;
+    scene.add(mesh);
+    var free = new Array(capacity);
+    for (var f = 0; f < capacity; f++) free[f] = capacity - 1 - f;
+    return { mesh: mesh, free: free, yOffset: yOffset };
+  }
+
+  var fenceGeo = new THREE.BoxGeometry(0.85, 0.8, 0.2);
+  var flowerGeo = new THREE.IcosahedronGeometry(0.38, 0);
+  var stoneGeo = new THREE.BoxGeometry(0.75, 0.75, 0.75);
+
+  var blockTypes = {};
+  blockTypes[FENCE] = makeBlockType(fenceGeo, 0x8a5a2e, 0.4);
+  blockTypes[FLOWER] = makeBlockType(flowerGeo, 0xe85fa0, 0.38);
+  blockTypes[STONE] = makeBlockType(stoneGeo, 0x8d8d90, 0.375);
+
+  var grid = new Uint8Array(GRID * GRID);
+  var cellSlot = {};
+  cellSlot[FENCE] = new Int16Array(GRID * GRID).fill(-1);
+  cellSlot[FLOWER] = new Int16Array(GRID * GRID).fill(-1);
+  cellSlot[STONE] = new Int16Array(GRID * GRID).fill(-1);
+
+  var totalBlocks = 0;
+  var blockCountEl = document.getElementById('blockCount');
+
+  function placeBlock(i, j, type) {
+    var idx = i * GRID + j;
+    if (grid[idx] !== EMPTY) return false;
+    var bt = blockTypes[type];
+    if (bt.free.length === 0) return false;
+    var slot = bt.free.pop();
+    var c = cellCenter(i, j);
+    scratchMatrix.makeTranslation(c.x, bt.yOffset, c.z);
+    bt.mesh.setMatrixAt(slot, scratchMatrix);
+    bt.mesh.instanceMatrix.needsUpdate = true;
+    grid[idx] = type;
+    cellSlot[type][idx] = slot;
+    totalBlocks++;
+    blockCountEl.textContent = String(totalBlocks);
+    return true;
+  }
+
+  function removeBlock(i, j) {
+    var idx = i * GRID + j;
+    var type = grid[idx];
+    if (type === EMPTY) return false;
+    var bt = blockTypes[type];
+    var slot = cellSlot[type][idx];
+    bt.mesh.setMatrixAt(slot, hiddenMatrix);
+    bt.mesh.instanceMatrix.needsUpdate = true;
+    bt.free.push(slot);
+    grid[idx] = EMPTY;
+    cellSlot[type][idx] = -1;
+    totalBlocks--;
+    blockCountEl.textContent = String(totalBlocks);
+    return true;
+  }
+
+  var player = new THREE.Group();
+  var playerBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.6, 0.35),
+    new THREE.MeshLambertMaterial({ color: 0x3a6ea5 })
+  );
+  playerBody.position.y = 0.45;
+  var playerHead = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.34, 0.34),
+    new THREE.MeshLambertMaterial({ color: 0xe0b090 })
+  );
+  playerHead.position.y = 0.45 + 0.3 + 0.17;
+  player.add(playerBody, playerHead);
+  player.position.set(0, 0, 4);
+  scene.add(player);
+
+  var keys = Object.create(null);
+  window.addEventListener('keydown', function (e) {
+    keys[e.code] = true;
+    if (e.code === 'Digit1') selectSlot(FENCE);
+    else if (e.code === 'Digit2') selectSlot(FLOWER);
+    else if (e.code === 'Digit3') selectSlot(STONE);
+  });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+  window.addEventListener('blur', function () {
+    for (var k in keys) keys[k] = false;
+  });
+
+  var PLAYER_SPEED = 4.5;
+  var playerMoveDir = new THREE.Vector3();
+
+  function updatePlayer(dt) {
+    playerMoveDir.set(0, 0, 0);
+    if (keys.KeyW) playerMoveDir.z -= 1;
+    if (keys.KeyS) playerMoveDir.z += 1;
+    if (keys.KeyA) playerMoveDir.x -= 1;
+    if (keys.KeyD) playerMoveDir.x += 1;
+    if (playerMoveDir.lengthSq() > 0) {
+      playerMoveDir.normalize();
+      player.position.x += playerMoveDir.x * PLAYER_SPEED * dt;
+      player.position.z += playerMoveDir.z * PLAYER_SPEED * dt;
+      player.rotation.y = Math.atan2(playerMoveDir.x, playerMoveDir.z);
+    }
+    var bound = HALF - 0.3;
+    if (player.position.x < -bound) player.position.x = -bound;
+    if (player.position.x > bound) player.position.x = bound;
+    if (player.position.z < -bound) player.position.z = -bound;
+    if (player.position.z > bound) player.position.z = bound;
+  }
+
+  var camOffset = new THREE.Vector3(0, 9, 7);
+  var camTarget = new THREE.Vector3();
+  camTarget.copy(player.position).add(camOffset);
+  camera.position.copy(camTarget);
+
+  function updateCamera(dt) {
+    camTarget.copy(player.position).add(camOffset);
+    camera.position.lerp(camTarget, Math.min(1, dt * 4));
+    camera.lookAt(player.position.x, 0.6, player.position.z);
+  }
+
+  var cow = new THREE.Group();
+  var cowBodyMat = new THREE.MeshLambertMaterial({ color: 0xf5f2e9 });
+  var cowSpotMat = new THREE.MeshLambertMaterial({ color: 0x33291f });
+  var cowBody = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.5), cowBodyMat);
+  cowBody.position.y = 0.55;
+  var cowSpot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.52), cowSpotMat);
+  cowSpot.position.set(0.15, 0.6, 0);
+  var cowHead = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), cowBodyMat);
+  cowHead.position.set(0.55, 0.55, 0);
+  var legGeo = new THREE.BoxGeometry(0.14, 0.35, 0.14);
+  var legPositions = [
+    [0.32, 0.175, 0.18], [0.32, 0.175, -0.18],
+    [-0.32, 0.175, 0.18], [-0.32, 0.175, -0.18]
+  ];
+  for (var lp = 0; lp < legPositions.length; lp++) {
+    var leg = new THREE.Mesh(legGeo, cowSpotMat);
+    leg.position.set(legPositions[lp][0], legPositions[lp][1], legPositions[lp][2]);
+    cow.add(leg);
+  }
+  cow.add(cowBody, cowSpot, cowHead);
+  cow.position.set(3, 0, -3);
+  scene.add(cow);
+
+  var COW_SPEED = 1.8;
+  var cowTarget = new THREE.Vector3(cow.position.x, 0, cow.position.z);
+  var cowRetargetTimer = 0;
+
+  function pickCowTarget() {
+    var margin = 1.2;
+    cowTarget.x = (Math.random() * 2 - 1) * (HALF - margin);
+    cowTarget.z = (Math.random() * 2 - 1) * (HALF - margin);
+  }
+
+  function updateCow(dt) {
+    cowRetargetTimer -= dt;
+    var dx = cowTarget.x - cow.position.x;
+    var dz = cowTarget.z - cow.position.z;
+    var distSq = dx * dx + dz * dz;
+    if (cowRetargetTimer <= 0 || distSq < 0.05) {
+      pickCowTarget();
+      cowRetargetTimer = 3 + Math.random() * 3;
+    } else {
+      var dist = Math.sqrt(distSq);
+      var nx = dx / dist, nz = dz / dist;
+      cow.position.x += nx * COW_SPEED * dt;
+      cow.position.z += nz * COW_SPEED * dt;
+      cow.rotation.y = Math.atan2(nx, nz);
+    }
+    var bound = HALF - 0.6;
+    if (cow.position.x < -bound) cow.position.x = -bound;
+    if (cow.position.x > bound) cow.position.x = bound;
+    if (cow.position.z < -bound) cow.position.z = -bound;
+    if (cow.position.z > bound) cow.position.z = bound;
+  }
+
+  var CYCLE = 60;
+  var keyframes = [
+    { t: 0.00, sky: new THREE.Color(0x0b1030), ambI: 0.18, ambC: new THREE.Color(0x223355), dirI: 0.15, dirC: new THREE.Color(0x88aaff), body: new THREE.Color(0xcfd8e8), label: 'Night', icon: 'moon' },
+    { t: 0.25, sky: new THREE.Color(0xffc98a), ambI: 0.45, ambC: new THREE.Color(0xffcf9e), dirI: 0.75, dirC: new THREE.Color(0xffcf9e), body: new THREE.Color(0xffe0a0), label: 'Dawn', icon: 'sunrise' },
+    { t: 0.50, sky: new THREE.Color(0x8ecbff), ambI: 0.65, ambC: new THREE.Color(0xffffff), dirI: 1.10, dirC: new THREE.Color(0xffffff), body: new THREE.Color(0xfff2b0), label: 'Day', icon: 'sun' },
+    { t: 0.75, sky: new THREE.Color(0xff8a5c), ambI: 0.40, ambC: new THREE.Color(0xff9a6a), dirI: 0.60, dirC: new THREE.Color(0xff9a6a), body: new THREE.Color(0xffab6e), label: 'Dusk', icon: 'sunset' },
+    { t: 1.00, sky: new THREE.Color(0x0b1030), ambI: 0.18, ambC: new THREE.Color(0x223355), dirI: 0.15, dirC: new THREE.Color(0x88aaff), body: new THREE.Color(0xcfd8e8), label: 'Night', icon: 'moon' }
+  ];
+  var scratchColor = new THREE.Color();
+  var phaseLabelEl = document.getElementById('phaseLabel');
+  var phaseIconEl = document.getElementById('phaseIcon');
+
+  function updateDayNight(elapsed) {
+    var t = (elapsed % CYCLE) / CYCLE;
+    var k0 = keyframes[0], k1 = keyframes[1];
+    for (var k = 0; k < keyframes.length - 1; k++) {
+      if (t >= keyframes[k].t && t <= keyframes[k + 1].t) {
+        k0 = keyframes[k];
+        k1 = keyframes[k + 1];
+        break;
+      }
+    }
+    var span = k1.t - k0.t;
+    var u = span > 0 ? (t - k0.t) / span : 0;
+    var su = u * u * (3 - 2 * u);
+
+    scratchColor.copy(k0.sky).lerp(k1.sky, su);
+    scene.background.copy(scratchColor);
+
+    ambient.intensity = k0.ambI + (k1.ambI - k0.ambI) * su;
+    ambient.color.copy(k0.ambC).lerp(k1.ambC, su);
+
+    sunLight.intensity = k0.dirI + (k1.dirI - k0.dirI) * su;
+    sunLight.color.copy(k0.dirC).lerp(k1.dirC, su);
+
+    var angle = t * Math.PI * 2 - Math.PI / 2;
+    var radius = 18;
+    sunLight.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius + 6, 6);
+    sunMesh.position.copy(sunLight.position);
+    sunMat.color.copy(k0.body).lerp(k1.body, su);
+
+    var nearer = su < 0.5 ? k0 : k1;
+    phaseLabelEl.textContent = nearer.label;
+    phaseIconEl.textContent = nearer.icon;
+  }
+
+  var raycaster = new THREE.Raycaster();
+  var ndc = new THREE.Vector2();
+  var hitPoint = new THREE.Vector3();
+  var groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+  function handlePointer(e) {
+    if (gameWon) return;
+    if (e.button !== 0 && e.button !== 2) return;
+    var rect = renderer.domElement.getBoundingClientRect();
+    ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    var hit = raycaster.ray.intersectPlane(groundPlane, hitPoint);
+    if (!hit) return;
+    var i = Math.floor(hitPoint.x + HALF);
+    var j = Math.floor(hitPoint.z + HALF);
+    if (i < 0 || i >= GRID || j < 0 || j >= GRID) return;
+    if (e.button === 0) placeBlock(i, j, selectedType);
+    else removeBlock(i, j);
+  }
+  renderer.domElement.addEventListener('mousedown', handlePointer);
+  renderer.domElement.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  var selectedType = FENCE;
+  var selectedLabelEl = document.getElementById('selectedLabel');
+  var slotEls = document.querySelectorAll('.slot');
+
+  function selectSlot(type) {
+    selectedType = type;
+    selectedLabelEl.textContent = BLOCK_LABELS[type];
+    for (var s = 0; s < slotEls.length; s++) {
+      var el = slotEls[s];
+      el.classList.toggle('active', Number(el.getAttribute('data-slot')) === type);
+    }
+  }
+
+  function clampInt(v, min, max) {
+    return v < min ? min : (v > max ? max : v);
+  }
+
+  var visited = new Uint8Array(GRID * GRID);
+  var queueX = new Int16Array(GRID * GRID);
+  var queueY = new Int16Array(GRID * GRID);
+
+  // Escape means the flood fill reaches past the edge of the 16x16 grid
+  // through cells that are not fenced off; a cow standing on the outer
+  // ring therefore can never be enclosed, which is topologically correct.
+  function isCowEnclosed() {
+    visited.fill(0);
+    var ci = clampInt(Math.floor(cow.position.x + HALF), 0, GRID - 1);
+    var cj = clampInt(Math.floor(cow.position.z + HALF), 0, GRID - 1);
+    var head = 0, tail = 1;
+    queueX[0] = ci; queueY[0] = cj;
+    visited[ci * GRID + cj] = 1;
+    var escaped = false;
+
+    while (head < tail) {
+      var i = queueX[head], j = queueY[head];
+      head++;
+
+      var ni = i + 1, nj = j, idx;
+      if (ni >= GRID) escaped = true;
+      else {
+        idx = ni * GRID + nj;
+        if (!visited[idx] && grid[idx] !== FENCE) { visited[idx] = 1; queueX[tail] = ni; queueY[tail] = nj; tail++; }
+      }
+
+      ni = i - 1; nj = j;
+      if (ni < 0) escaped = true;
+      else {
+        idx = ni * GRID + nj;
+        if (!visited[idx] && grid[idx] !== FENCE) { visited[idx] = 1; queueX[tail] = ni; queueY[tail] = nj; tail++; }
+      }
+
+      ni = i; nj = j + 1;
+      if (nj >= GRID) escaped = true;
+      else {
+        idx = ni * GRID + nj;
+        if (!visited[idx] && grid[idx] !== FENCE) { visited[idx] = 1; queueX[tail] = ni; queueY[tail] = nj; tail++; }
+      }
+
+      ni = i; nj = j - 1;
+      if (nj < 0) escaped = true;
+      else {
+        idx = ni * GRID + nj;
+        if (!visited[idx] && grid[idx] !== FENCE) { visited[idx] = 1; queueX[tail] = ni; queueY[tail] = nj; tail++; }
+      }
+    }
+    return !escaped;
+  }
+
+  var gameWon = false;
+  var winBannerEl = document.getElementById('winBanner');
+  var timerEl = document.getElementById('timer');
+
+  function updateTimerDisplay(elapsed) {
+    var s = Math.floor(elapsed);
+    var mm = String(Math.floor(s / 60)).padStart(2, '0');
+    var ss = String(s % 60).padStart(2, '0');
+    timerEl.textContent = mm + ':' + ss;
+  }
+
+  var clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    var dt = Math.min(clock.getDelta(), 0.1);
+    var elapsed = clock.getElapsedTime();
+
+    updatePlayer(dt);
+    updateCow(dt);
+    updateCamera(dt);
+    updateDayNight(elapsed);
+
+    if (!gameWon) {
+      updateTimerDisplay(elapsed);
+      if (isCowEnclosed()) {
+        gameWon = true;
+        winBannerEl.style.display = 'block';
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  selectSlot(FENCE);
+  animate();
+})();
+</script>
+</body>
+</html>

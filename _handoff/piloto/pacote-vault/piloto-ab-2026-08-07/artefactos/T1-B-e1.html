@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Moo Ranch — a 3D voxel garden</title>
+<style>
+  :root{
+    --panel: rgba(14,18,26,.62);
+    --panel-solid: #10141c;
+    --edge: rgba(255,255,255,.14);
+    --ink: #f2f5f8;
+    --dim: #9fb0c2;
+    --accent: #ffd166;
+    --good: #7ee081;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b1026;}
+  body{
+    font: 13px/1.45 ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    user-select:none;
+  }
+  canvas{display:block;width:100%;height:100%}
+
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--edge);
+    border-radius:10px;
+    padding:8px 11px;
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    box-shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  .k{color:var(--dim);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:2px}
+  .v{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .v small{font-size:11px;font-weight:500;color:var(--dim)}
+
+  #topleft{position:absolute;top:14px;left:14px;display:flex;gap:8px}
+  #topright{position:absolute;top:14px;right:14px;display:flex;gap:8px;text-align:right}
+
+  #cowstate{position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.02em}
+  #cowdot{width:9px;height:9px;border-radius:50%;background:#ff7a7a;box-shadow:0 0 10px #ff7a7a}
+  #cowstate.penned #cowdot{background:var(--good);box-shadow:0 0 12px var(--good)}
+
+  #cross{position:absolute;top:50%;left:50%;width:22px;height:22px;transform:translate(-50%,-50%);opacity:.85}
+  #cross:before,#cross:after{content:"";position:absolute;background:#fff;box-shadow:0 0 3px rgba(0,0,0,.8)}
+  #cross:before{left:50%;top:3px;bottom:3px;width:2px;margin-left:-1px}
+  #cross:after{top:50%;left:3px;right:3px;height:2px;margin-top:-1px}
+
+  #hotbar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+  .slot{
+    width:78px;padding:8px 6px 7px;border-radius:10px;text-align:center;
+    background:var(--panel);border:1px solid var(--edge);
+    backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+    transition:transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .slot.on{border-color:var(--accent);background:rgba(255,209,102,.16);transform:translateY(-5px)}
+  .swatch{width:26px;height:26px;margin:0 auto 5px;border-radius:5px;border:1px solid rgba(0,0,0,.45);
+          box-shadow:inset 0 -8px 10px rgba(0,0,0,.25), inset 0 6px 8px rgba(255,255,255,.18)}
+  .sname{font-size:10.5px;font-weight:600;letter-spacing:.02em}
+  .snum{font-size:9.5px;color:var(--dim);margin-top:1px;font-variant-numeric:tabular-nums}
+
+  #hint{position:absolute;bottom:96px;left:50%;transform:translateX(-50%);
+        font-size:11.5px;color:var(--dim);text-shadow:0 1px 3px #000;text-align:center}
+
+  .overlay{
+    position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 90% at 50% 20%, rgba(20,30,48,.72), rgba(5,8,16,.93));
+    backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+    cursor:pointer;
+  }
+  .card{
+    max-width:560px;width:calc(100% - 40px);
+    background:var(--panel-solid);border:1px solid var(--edge);border-radius:16px;
+    padding:26px 28px;box-shadow:0 24px 70px rgba(0,0,0,.6);text-align:center;
+  }
+  .card h1{margin:0 0 4px;font-size:30px;letter-spacing:-.02em}
+  .card h1 span{color:var(--accent)}
+  .card .sub{color:var(--dim);margin:0 0 18px;font-size:13px}
+  .keys{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;text-align:left;margin:0 auto 20px;max-width:420px}
+  .keys b{
+    font:600 11px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:#1b2130;border:1px solid var(--edge);border-bottom-width:2px;border-radius:6px;
+    padding:1px 7px;white-space:nowrap;text-align:center;color:#fff;
+  }
+  .keys span{color:#cfd8e3;font-size:12.5px}
+  .goal{background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.28);border-radius:10px;
+        padding:10px 14px;font-size:12.5px;color:#f6e7c4;margin-bottom:18px;text-align:left}
+  .cta{display:inline-block;background:var(--accent);color:#20180a;font-weight:750;font-size:14px;
+       padding:11px 26px;border-radius:10px;letter-spacing:.01em}
+  .tiny{margin-top:14px;color:#63748a;font-size:11px}
+
+  #win{display:none;pointer-events:auto}
+  #win .card{border-color:rgba(126,224,129,.5)}
+  #win h1 span{color:var(--good)}
+  .stats{display:flex;justify-content:center;gap:26px;margin:16px 0 20px}
+  .stats div{min-width:78px}
+  .stats .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+  .stats .l{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+
+  #err{display:none;position:fixed;inset:0;z-index:20;align-items:center;justify-content:center;
+       background:#0b1026;text-align:center;padding:30px}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="topleft">
+    <div class="panel"><div class="k">Blocks placed</div><div class="v" id="hBlocks">0</div></div>
+    <div class="panel"><div class="k">Elapsed</div><div class="v" id="hTime">0:00</div></div>
+  </div>
+
+  <div id="cowstate"><span id="cowdot"></span><span id="hCow">Bella is roaming free</span></div>
+
+  <div id="topright">
+    <div class="panel"><div class="k">Ranch clock</div><div class="v" id="hClock">06:00 <small id="hPhase">dawn</small></div></div>
+    <div class="panel"><div class="k">FPS</div><div class="v" id="hFps">—</div></div>
+  </div>
+
+  <div id="cross"></div>
+  <div id="hint">Left click break · Right click place · 1 2 3 pick · R reset ranch</div>
+  <div id="hotbar"></div>
+</div>
+
+<div class="overlay" id="start">
+  <div class="card">
+    <h1>Moo <span>Ranch</span></h1>
+    <p class="sub">A 16×16 voxel garden. One cow. One fence to build.</p>
+    <div class="goal"><b style="color:#ffd166">Goal —</b> pen <b>Bella the cow</b> in. Build a closed wall of blocks around her so that no gap connects her to the edge of the field. Hold her for 1.5s and the ranch is yours.</div>
+    <div class="keys">
+      <b>W A S D</b><span>Walk around the field</span>
+      <b>Shift</b><span>Sprint</span>
+      <b>Space</b><span>Jump (and hop onto blocks)</span>
+      <b>Mouse</b><span>Look around</span>
+      <b>Left click</b><span>Break the highlighted block</span>
+      <b>Right click</b><span>Place the selected block</span>
+      <b>1 2 3 / wheel</b><span>Choose fence, stone or hay</span>
+      <b>R</b><span>Clear every block and re-release the cow</span>
+      <b>Esc</b><span>Release the mouse</span>
+    </div>
+    <div class="cta" id="startBtn">Click anywhere to start</div>
+    <div class="tiny">Day and night pass every 60 seconds. Mouse + keyboard only.</div>
+  </div>
+</div>
+
+<div class="overlay" id="win">
+  <div class="card">
+    <h1>Bella is <span>home</span> 🐄</h1>
+    <p class="sub">The pen holds. Not a gap in sight.</p>
+    <div class="stats">
+      <div><div class="n" id="wTime">0:00</div><div class="l">Time</div></div>
+      <div><div class="n" id="wBlocks">0</div><div class="l">Blocks</div></div>
+      <div><div class="n" id="wArea">0</div><div class="l">Pen tiles</div></div>
+    </div>
+    <div class="cta" id="againBtn">Press R for a new ranch</div>
+  </div>
+</div>
+
+<div id="err"><div>
+  <h2 style="margin:0 0 8px">Could not load three.js</h2>
+  <p style="color:#9fb0c2;max-width:460px">Moo Ranch needs the three.js library from a CDN on first load. Check the
+  network connection (or open the page once online — the browser cache handles the rest).</p>
+</div></div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  three.js loader — a few CDN mirrors, first one that answers wins.
+ * ------------------------------------------------------------------ */
+(function () {
+  var CDNS = [
+    'https://unpkg.com/three@0.149.0/build/three.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.149.0/three.min.js'
+  ];
+  function next(i) {
+    if (i >= CDNS.length) { document.getElementById('err').style.display = 'flex'; return; }
+    var s = document.createElement('script');
+    s.src = CDNS[i];
+    s.onload = function () { window.THREE ? boot() : next(i + 1); };
+    s.onerror = function () { next(i + 1); };
+    document.head.appendChild(s);
+  }
+  next(0);
+})();
+
+/* ================================================================== *
+ *  MOO RANCH
+ * ================================================================== */
+function boot() {
+
+const N       = 16;    // field is N x N tiles
+const MAXY    = 5;     // buildable levels above the ground layer (y = 1..MAXY)
+const DAY     = 60;    // seconds per full day/night cycle
+const REACH   = 6;     // block interaction distance
+const GRAV    = 22;
+const JUMP    = 7.4;
+const WALK    = 4.3;
+const RUN     = 7.0;
+const STEP    = 0.55;  // how high an entity can walk up without jumping
+const PEN_HOLD= 1.5;   // seconds the cow must stay penned to win
+
+/* ---------------------------------------------------------------- *
+ *  Procedural textures (canvas only — no external assets)
+ * ---------------------------------------------------------------- */
+function makeTex(draw, size) {
+  size = size || 32;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const g = cv.getContext('2d');
+  draw(g, size);
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.encoding  = THREE.sRGBEncoding;
+  t.anisotropy = 4;
+  return t;
+}
+function noise(g, s, n, colors, min, max) {
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = colors[(Math.random() * colors.length) | 0];
+    const w = min + Math.random() * (max - min);
+    g.fillRect((Math.random() * s) | 0, (Math.random() * s) | 0, w, w);
+  }
+}
+const TEX = {
+  grass: makeTex((g, s) => {
+    g.fillStyle = '#5aa04a'; g.fillRect(0, 0, s, s);
+    noise(g, s, 240, ['#68b356', '#4f9142', '#74c05f', '#579a48'], 1, 3);
+    g.fillStyle = '#3f7d38';
+    for (let i = 0; i < 26; i++) g.fillRect((Math.random()*s)|0, (Math.random()*s)|0, 1, 2);
+  }),
+  dirt: makeTex((g, s) => {
+    g.fillStyle = '#7a5738'; g.fillRect(0, 0, s, s);
+    noise(g, s, 200, ['#8a6440', '#6b4b31', '#946d47', '#5f4229'], 1, 3);
+    g.fillStyle = '#5aa04a'; g.fillRect(0, 0, s, 5);
+    g.fillStyle = '#4f9142';
+    for (let i = 0; i < 14; i++) g.fillRect((Math.random()*s)|0, 4 + ((Math.random()*3)|0), 2, 2);
+  }),
+  wood: makeTex((g, s) => {
+    g.fillStyle = '#8a5a2b'; g.fillRect(0, 0, s, s);
+    for (let y = 0; y < s; y += 8) {
+      g.fillStyle = ['#9a6733', '#7d5027', '#a3703b', '#8a5a2b'][(y / 8) & 3];
+      g.fillRect(0, y, s, 7);
+      g.fillStyle = 'rgba(60,36,16,.55)'; g.fillRect(0, y + 7, s, 1);
+    }
+    g.fillStyle = 'rgba(90,55,25,.55)';
+    for (let i = 0; i < 30; i++) g.fillRect((Math.random()*s)|0, (Math.random()*s)|0, 3, 1);
+  }),
+  stone: makeTex((g, s) => {
+    g.fillStyle = '#8d9199'; g.fillRect(0, 0, s, s);
+    noise(g, s, 260, ['#9aa0a8', '#7d838b', '#a6acb4', '#71767d'], 1, 4);
+    g.strokeStyle = 'rgba(70,74,80,.7)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, 11); g.lineTo(s, 13); g.moveTo(0, 23); g.lineTo(s, 21);
+    g.moveTo(9, 0); g.lineTo(11, 11); g.moveTo(21, 13); g.lineTo(19, 23); g.stroke();
+  }),
+  hay: makeTex((g, s) => {
+    g.fillStyle = '#d9b451'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 150; i++) {
+      g.fillStyle = ['#e6c463', '#c9a141', '#efd07d', '#bb9339'][(Math.random()*4)|0];
+      g.fillRect((Math.random()*s)|0, (Math.random()*s)|0, 4 + ((Math.random()*5)|0), 1);
+    }
+    g.fillStyle = '#8a6a24';
+    g.fillRect(0, 6, s, 1); g.fillRect(0, 24, s, 1);
+  }),
+  cow: makeTex((g, s) => {
+    g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, s, s);
+    g.fillStyle = '#2e2a28';
+    g.beginPath(); g.ellipse(9, 10, 6, 5, .4, 0, 7); g.fill();
+    g.beginPath(); g.ellipse(24, 22, 7, 5, -.3, 0, 7); g.fill();
+    g.beginPath(); g.ellipse(26, 6, 4, 3, .2, 0, 7); g.fill();
+  }, 32)
+};
+
+/* ---------------------------------------------------------------- *
+ *  Block palette
+ * ---------------------------------------------------------------- */
+const BLOCKS = [
+  { name: 'Oak Fence', tex: TEX.wood,  css: '#8a5a2b' },
+  { name: 'Stone',     tex: TEX.stone, css: '#8d9199' },
+  { name: 'Hay Bale',  tex: TEX.hay,   css: '#d9b451' }
+];
+
+/* ---------------------------------------------------------------- *
+ *  Renderer / scene
+ * ---------------------------------------------------------------- */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x87c5f0, 22, 78);
+
+const camera = new THREE.PerspectiveCamera(66, 1, 0.1, 400);
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+/* --- lights --- */
+const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x4a6b3a, 0.7);
+scene.add(hemi);
+const ambient = new THREE.AmbientLight(0xffffff, 0.28);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xfff3d6, 1.1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -15; sun.shadow.camera.right = 15;
+sun.shadow.camera.top = 15;   sun.shadow.camera.bottom = -15;
+sun.shadow.camera.near = 1;   sun.shadow.camera.far = 90;
+sun.shadow.bias = -0.0012;
+sun.shadow.normalBias = 0.03;
+sun.target.position.set(N / 2, 0, N / 2);
+scene.add(sun, sun.target);
+
+/* --- stars (night only) --- */
+const starGeo = new THREE.BufferGeometry();
+{
+  const n = 700, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * Math.PI * 2, v = Math.random() * 0.85 + 0.05;
+    const r = 190, ph = Math.acos(1 - v);
+    pos[i*3]   = N/2 + r * Math.sin(ph) * Math.cos(u);
+    pos[i*3+1] = r * Math.cos(ph) * 0.9 + 10;
+    pos[i*3+2] = N/2 + r * Math.sin(ph) * Math.sin(u);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+}
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+  color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false
+}));
+scene.add(stars);
+
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(4.5, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xdfe6ff, fog: false })
+);
+scene.add(moon);
+const sunDisc = new THREE.Mesh(
+  new THREE.SphereGeometry(5.5, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xfff0b8, fog: false })
+);
+scene.add(sunDisc);
+
+/* ---------------------------------------------------------------- *
+ *  World data
+ *  world[x + z*N + (y-1)*N*N] = 0 empty | 1..3 block type
+ *  y = 0 is the untouchable grass ground layer.
+ * ---------------------------------------------------------------- */
+const world   = new Uint8Array(N * N * MAXY);
+const heights = new Float32Array(N * N);   // surface height per column (top of the stack)
+const wi = (x, y, z) => x + z * N + (y - 1) * N * N;
+
+const inXZ  = (x, z) => x >= 0 && z >= 0 && x < N && z < N;
+const getB  = (x, y, z) => (inXZ(x, z) && y >= 1 && y <= MAXY) ? world[wi(x, y, z)] : 0;
+const solid = (x, y, z) => inXZ(x, z) && y >= 0 && (y === 0 || (y <= MAXY && world[wi(x, y, z)] !== 0));
+
+function colTop(x, z) {
+  if (!inXZ(x, z)) return 99;                 // world edge acts as a wall
+  return heights[x + z * N];
+}
+function recalcHeights() {
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    let h = 1;
+    for (let y = MAXY; y >= 1; y--) if (world[wi(x, y, z)]) { h = y + 1; break; }
+    heights[x + z * N] = h;
+  }
+}
+
+/* --- ground --- */
+{
+  const sideMat = new THREE.MeshLambertMaterial({ map: TEX.dirt });
+  const topMat  = new THREE.MeshLambertMaterial({ map: TEX.grass });
+  const g = new THREE.BoxGeometry(N, 1, N);
+  const ground = new THREE.Mesh(g, [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]);
+  ground.position.set(N / 2, 0.5, N / 2);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // a soft skirt so the field does not float in the void
+  const skirt = new THREE.Mesh(
+    new THREE.BoxGeometry(N + 34, 1, N + 34),
+    new THREE.MeshLambertMaterial({ color: 0x4a7c3f })
+  );
+  skirt.position.set(N / 2, -0.55, N / 2);
+  skirt.receiveShadow = true;
+  scene.add(skirt);
+}
+
+/* --- one InstancedMesh per block type --- */
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+const meshes = BLOCKS.map(b => {
+  const m = new THREE.InstancedMesh(
+    boxGeo,
+    new THREE.MeshLambertMaterial({ map: b.tex }),
+    N * N * MAXY
+  );
+  m.castShadow = m.receiveShadow = true;
+  m.frustumCulled = false;     // instance matrices live outside the geometry bounds
+  m.count = 0;
+  scene.add(m);
+  return m;
+});
+
+let blockCount = 0;
+const perType = [0, 0, 0];
+
+function rebuild() {
+  const m = new THREE.Matrix4();
+  const n = [0, 0, 0];
+  for (let y = 1; y <= MAXY; y++)
+    for (let z = 0; z < N; z++)
+      for (let x = 0; x < N; x++) {
+        const v = world[wi(x, y, z)];
+        if (!v) continue;
+        const t = v - 1;
+        m.makeTranslation(x + 0.5, y + 0.5, z + 0.5);
+        meshes[t].setMatrixAt(n[t]++, m);
+      }
+  for (let t = 0; t < 3; t++) {
+    meshes[t].count = n[t];
+    meshes[t].instanceMatrix.needsUpdate = true;
+    perType[t] = n[t];
+  }
+  blockCount = n[0] + n[1] + n[2];
+  recalcHeights();
+  hudDirty = true;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Character builder (little voxel figures)
+ * ---------------------------------------------------------------- */
+function box(w, h, d, color, map) {
+  const mat = map
+    ? new THREE.MeshLambertMaterial({ map })
+    : new THREE.MeshLambertMaterial({ color });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+function part(parent, mesh, x, y, z) { mesh.position.set(x, y, z); parent.add(mesh); return mesh; }
+
+/* --- the rancher --- */
+const rancher = new THREE.Group();
+{
+  const legL = part(rancher, box(0.22, 0.55, 0.24, 0x3a4a6b), -0.14, 0.28, 0);
+  const legR = part(rancher, box(0.22, 0.55, 0.24, 0x3a4a6b),  0.14, 0.28, 0);
+  part(rancher, box(0.48, 0.55, 0.30, 0xc9503f), 0, 0.83, 0);           // shirt
+  const armL = part(rancher, box(0.15, 0.50, 0.17, 0xd9a273), -0.32, 0.83, 0);
+  const armR = part(rancher, box(0.15, 0.50, 0.17, 0xd9a273),  0.32, 0.83, 0);
+  part(rancher, box(0.36, 0.34, 0.34, 0xe8b98d), 0, 1.28, 0);           // head
+  part(rancher, box(0.30, 0.06, 0.06, 0x2b2118), 0, 1.34, -0.18);       // eyes strip
+  part(rancher, box(0.42, 0.10, 0.42, 0xd7b25e), 0, 1.50, 0);           // hat crown
+  part(rancher, box(0.72, 0.05, 0.72, 0xc79f4c), 0, 1.45, 0);           // hat brim
+  rancher.userData = { legL, legR, armL, armR };
+}
+scene.add(rancher);
+
+/* --- Bella --- */
+const cowMesh = new THREE.Group();
+{
+  part(cowMesh, box(0.72, 0.62, 1.18, 0xffffff, TEX.cow), 0, 0.72, 0);          // body
+  const head = part(cowMesh, box(0.46, 0.44, 0.44, 0xf4f1ea), 0, 0.92, -0.76);
+  part(head, box(0.34, 0.22, 0.14, 0xe6a2a8), 0, -0.08, -0.24);                 // muzzle
+  part(head, box(0.07, 0.07, 0.05, 0x2b2422), -0.12, 0.08, -0.23);
+  part(head, box(0.07, 0.07, 0.05, 0x2b2422),  0.12, 0.08, -0.23);
+  part(head, box(0.18, 0.10, 0.10, 0x2e2a28), -0.30, 0.10, 0.02);               // ears
+  part(head, box(0.18, 0.10, 0.10, 0x2e2a28),  0.30, 0.10, 0.02);
+  part(head, box(0.08, 0.14, 0.08, 0xe8dcc0), -0.15, 0.28, 0.02);               // horns
+  part(head, box(0.08, 0.14, 0.08, 0xe8dcc0),  0.15, 0.28, 0.02);
+  const legs = [
+    part(cowMesh, box(0.17, 0.44, 0.17, 0x3b332f), -0.22, 0.22, -0.38),
+    part(cowMesh, box(0.17, 0.44, 0.17, 0x3b332f),  0.22, 0.22, -0.38),
+    part(cowMesh, box(0.17, 0.44, 0.17, 0x3b332f), -0.22, 0.22,  0.38),
+    part(cowMesh, box(0.17, 0.44, 0.17, 0x3b332f),  0.22, 0.22,  0.38)
+  ];
+  part(cowMesh, box(0.08, 0.34, 0.08, 0x2e2a28), 0, 0.80, 0.62);                // tail
+  cowMesh.userData = { head, legs };
+}
+scene.add(cowMesh);
+
+/* --- block highlight + placement ghost --- */
+const hiliteMat = new THREE.LineBasicMaterial({ color: 0x101418, transparent: true, opacity: 0.85 });
+const hilite = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005, 1.005, 1.005)), hiliteMat);
+hilite.visible = false;
+scene.add(hilite);
+
+const ghost = new THREE.Mesh(
+  new THREE.BoxGeometry(0.96, 0.96, 0.96),
+  new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.28, depthWrite: false })
+);
+ghost.visible = false;
+scene.add(ghost);
+
+/* ---------------------------------------------------------------- *
+ *  Entities
+ * ---------------------------------------------------------------- */
+const player = { x: 3.5, y: 1, z: 3.5, vy: 0, ground: true, yaw: Math.PI * 0.25, face: 0, gait: 0, moving: 0 };
+const cow    = { x: 11.5, y: 1, z: 11.5, vy: 0, tx: 11.5, tz: 11.5, wait: 0, face: 0, gait: 0, moving: 0, moo: 0 };
+
+let yaw = Math.PI * 0.25, pitch = -0.28;
+
+function surfaceAt(x, z) {                 // highest column under a 0.3-radius footprint
+  const r = 0.3;
+  let h = 1;
+  for (const dx of [-r, r]) for (const dz of [-r, r]) {
+    const cx = Math.floor(x + dx), cz = Math.floor(z + dz);
+    if (inXZ(cx, cz)) h = Math.max(h, heights[cx + cz * N]);
+  }
+  return h;
+}
+function blockedAt(x, z, y) {              // would a body at (x,z) standing at height y collide?
+  const r = 0.3;
+  for (const dx of [-r, r]) for (const dz of [-r, r]) {
+    const cx = Math.floor(x + dx), cz = Math.floor(z + dz);
+    if (!inXZ(cx, cz)) return true;
+    if (colTop(cx, cz) > y + STEP) return true;
+  }
+  return false;
+}
+function moveEntity(e, dx, dz) {           // axis-separated so you slide along walls
+  if (dx && !blockedAt(e.x + dx, e.z, e.y)) e.x += dx;
+  if (dz && !blockedAt(e.x, e.z + dz, e.y)) e.z += dz;
+  e.x = Math.min(N - 0.31, Math.max(0.31, e.x));
+  e.z = Math.min(N - 0.31, Math.max(0.31, e.z));
+}
+function gravity(e, dt) {
+  e.vy -= GRAV * dt;
+  e.y += e.vy * dt;
+  const floor = surfaceAt(e.x, e.z);
+  if (e.y <= floor) { e.y = floor; e.vy = 0; e.ground = true; }
+  else e.ground = false;
+}
+function occupies(e, x, y, z) {            // does a block at this voxel overlap the body?
+  const r = 0.32;
+  if (x + 1 < e.x - r || x > e.x + r) return false;
+  if (z + 1 < e.z - r || z > e.z + r) return false;
+  return y + 1 > e.y + 0.02 && y < e.y + 1.85;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Voxel ray march (Amanatides & Woo) — exact, and far cheaper than
+ *  raycasting thousands of instances every frame.
+ * ---------------------------------------------------------------- */
+const _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
+function voxelCast(o, d, maxD) {
+  const EPS = 1e-7;
+  const ddx = Math.abs(d.x) < EPS ? EPS : d.x;
+  const ddy = Math.abs(d.y) < EPS ? EPS : d.y;
+  const ddz = Math.abs(d.z) < EPS ? EPS : d.z;
+  let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z);
+  const sx = ddx > 0 ? 1 : -1, sy = ddy > 0 ? 1 : -1, sz = ddz > 0 ? 1 : -1;
+  const dX = Math.abs(1 / ddx), dY = Math.abs(1 / ddy), dZ = Math.abs(1 / ddz);
+  let tX = (ddx > 0 ? x + 1 - o.x : o.x - x) * dX;
+  let tY = (ddy > 0 ? y + 1 - o.y : o.y - y) * dY;
+  let tZ = (ddz > 0 ? z + 1 - o.z : o.z - z) * dZ;
+  let px = x, py = y, pz = z, t = 0;
+  if (solid(x, y, z)) return { hx: x, hy: y, hz: z, px: x, py: y, pz: z };
+  for (let i = 0; i < 160; i++) {
+    px = x; py = y; pz = z;
+    if (tX < tY && tX < tZ)      { x += sx; t = tX; tX += dX; }
+    else if (tY < tZ)            { y += sy; t = tY; tY += dY; }
+    else                         { z += sz; t = tZ; tZ += dZ; }
+    if (t > maxD) return null;
+    if (y > MAXY + 2 && sy > 0) return null;
+    if (y < -2) return null;
+    if (solid(x, y, z)) return { hx: x, hy: y, hz: z, px, py, pz };
+  }
+  return null;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Enclosure test — flood fill from the cow, does she reach the rim?
+ * ---------------------------------------------------------------- */
+const visited = new Uint8Array(N * N);
+const queue = new Int32Array(N * N);
+let penArea = 0;
+function cowIsPenned() {
+  visited.fill(0);
+  const cx = Math.floor(cow.x), cz = Math.floor(cow.z);
+  if (!inXZ(cx, cz)) return false;
+  const lvl = cow.y;                       // walls are columns she cannot step onto
+  let head = 0, tail = 0, area = 0;
+  queue[tail++] = cx + cz * N;
+  visited[cx + cz * N] = 1;
+  while (head < tail) {
+    const c = queue[head++], x = c % N, z = (c / N) | 0;
+    area++;
+    if (x === 0 || z === 0 || x === N - 1 || z === N - 1) { penArea = 0; return false; }
+    const nb = [[x-1,z],[x+1,z],[x,z-1],[x,z+1]];
+    for (const [nx, nz] of nb) {
+      if (!inXZ(nx, nz)) continue;
+      const k = nx + nz * N;
+      if (visited[k]) continue;
+      if (colTop(nx, nz) > lvl + STEP) continue;   // a wall she cannot cross
+      visited[k] = 1;
+      queue[tail++] = k;
+    }
+  }
+  penArea = area;
+  return true;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Tiny procedural audio (no assets)
+ * ---------------------------------------------------------------- */
+let actx = null;
+function beep(freq, dur, type, vol, slide) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.07, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  } catch (e) { /* audio is optional */ }
+}
+const sfx = {
+  place:  () => beep(300, 0.09, 'square', 0.05, 460),
+  break_: () => beep(200, 0.11, 'sawtooth', 0.05, 90),
+  pick:   () => beep(680, 0.05, 'sine', 0.04),
+  jump:   () => beep(520, 0.08, 'sine', 0.04, 700),
+  nope:   () => beep(140, 0.08, 'square', 0.04),
+  win:    () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0.08), i * 130)); },
+  moo:    () => beep(150, 0.5, 'sawtooth', 0.045, 105)
+};
+
+/* ---------------------------------------------------------------- *
+ *  Input
+ * ---------------------------------------------------------------- */
+const keys = Object.create(null);
+let slot = 0, locked = false, won = false;
+
+addEventListener('keydown', e => {
+  if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') {
+    slot = +e.code.slice(5) - 1; paintHotbar(); sfx.pick();
+  }
+  if (e.code === 'KeyR') resetRanch();
+  if (['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight'].indexOf(e.code) >= 0) e.preventDefault();
+  keys[e.code] = true;
+});
+addEventListener('keyup',   e => { keys[e.code] = false; });
+addEventListener('blur',    () => { for (const k in keys) keys[k] = false; });
+
+addEventListener('wheel', e => {
+  if (!locked) return;
+  slot = (slot + (e.deltaY > 0 ? 1 : 2)) % 3;
+  paintHotbar(); sfx.pick();
+}, { passive: true });
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+function lock() { canvas.requestPointerLock && canvas.requestPointerLock(); }
+document.getElementById('start').addEventListener('mousedown', e => { e.preventDefault(); lock(); });
+document.getElementById('win').addEventListener('mousedown', e => { e.preventDefault(); resetRanch(); lock(); });
+
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+  document.getElementById('start').style.display = (locked || won) ? 'none' : 'flex';
+});
+document.addEventListener('mousemove', e => {
+  if (!locked) return;
+  yaw   -= e.movementX * 0.0024;
+  pitch -= e.movementY * 0.0022;
+  pitch = Math.max(-1.30, Math.min(0.95, pitch));
+});
+document.addEventListener('mousedown', e => {
+  if (!locked) { if (!won) lock(); return; }
+  if (e.button === 0) breakBlock();
+  else if (e.button === 2) placeBlock();
+});
+
+/* ---------------------------------------------------------------- *
+ *  Block editing
+ * ---------------------------------------------------------------- */
+let aim = null;   // { hx,hy,hz, px,py,pz } from the last frame's ray march
+
+function breakBlock() {
+  if (!aim || aim.hy < 1) { sfx.nope(); return; }
+  if (!getB(aim.hx, aim.hy, aim.hz)) { sfx.nope(); return; }
+  world[wi(aim.hx, aim.hy, aim.hz)] = 0;
+  rebuild(); sfx.break_();
+}
+function placeBlock() {
+  if (!aim) { sfx.nope(); return; }
+  const { px, py, pz } = aim;
+  if (!inXZ(px, pz) || py < 1 || py > MAXY) { sfx.nope(); return; }
+  if (getB(px, py, pz)) { sfx.nope(); return; }
+  if (occupies(player, px, py, pz) || occupies(cow, px, py, pz)) { sfx.nope(); return; }
+  world[wi(px, py, pz)] = slot + 1;
+  rebuild(); sfx.place();
+}
+
+function resetRanch() {
+  world.fill(0);
+  rebuild();
+  cow.x = 11.5; cow.z = 11.5; cow.y = 1; cow.vy = 0; cow.tx = 11.5; cow.tz = 11.5; cow.wait = 0.6;
+  player.x = 3.5; player.z = 3.5; player.y = 1; player.vy = 0;
+  pennedFor = 0; won = false; elapsed = 0;
+  document.getElementById('win').style.display = 'none';
+  document.getElementById('start').style.display = locked ? 'none' : 'flex';
+  hudDirty = true;
+}
+
+/* ---------------------------------------------------------------- *
+ *  HUD
+ * ---------------------------------------------------------------- */
+const hotbarEl = document.getElementById('hotbar');
+BLOCKS.forEach((b, i) => {
+  const d = document.createElement('div');
+  d.className = 'slot';
+  d.innerHTML = '<div class="swatch" style="background:' + b.css + '"></div>' +
+                '<div class="sname">' + b.name + '</div>' +
+                '<div class="snum"><span id="cnt' + i + '">0</span> placed · ' + (i + 1) + '</div>';
+  d.addEventListener('mousedown', e => { e.preventDefault(); slot = i; paintHotbar(); lock(); });
+  hotbarEl.appendChild(d);
+});
+function paintHotbar() {
+  [].forEach.call(hotbarEl.children, (el, i) => el.classList.toggle('on', i === slot));
+}
+paintHotbar();
+
+const $ = id => document.getElementById(id);
+let hudDirty = true;
+function fmt(s) { const m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
+
+function paintHud(hour, phase) {
+  $('hBlocks').textContent = blockCount;
+  for (let i = 0; i < 3; i++) $('cnt' + i).textContent = perType[i];
+  $('hTime').textContent = fmt(elapsed);
+  const hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
+  $('hClock').innerHTML = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') +
+                          ' <small>' + phase + '</small>';
+  const cs = $('cowstate');
+  cs.classList.toggle('penned', penned);
+  $('hCow').textContent = won
+    ? 'Bella is penned in — ranch complete'
+    : penned
+      ? 'Bella is penned (' + penArea + ' tiles) — hold it…'
+      : 'Bella is roaming free';
+}
+
+/* ---------------------------------------------------------------- *
+ *  Day / night
+ * ---------------------------------------------------------------- */
+const C_NIGHT = new THREE.Color(0x0b1026);
+const C_DUSK  = new THREE.Color(0xef9a5b);
+const C_DAY   = new THREE.Color(0x87c5f0);
+const skyCol  = new THREE.Color();
+scene.background = skyCol;
+
+function skyFor(elev) {
+  const s = (elev + 1) / 2;
+  if (s < 0.5) skyCol.copy(C_NIGHT).lerp(C_DUSK, Math.pow(s / 0.5, 1.6));
+  else         skyCol.copy(C_DUSK).lerp(C_DAY, Math.pow((s - 0.5) / 0.5, 0.55));
+  return skyCol;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Main loop
+ * ---------------------------------------------------------------- */
+let elapsed = 0, penned = false, pennedFor = 0, penCheck = 0;
+let fpsAcc = 0, fpsN = 0, fpsT = 0;
+let last = performance.now();
+
+const camTarget = new THREE.Vector3();
+const fwd = new THREE.Vector3(), right = new THREE.Vector3();
+const tmp = new THREE.Vector3();
+
+rebuild();
+resize();
+renderer.setAnimationLoop(frame);
+
+function frame(now) {
+  const raw = (now - last) / 1000; last = now;
+  const dt = Math.min(raw, 0.05);
+
+  if (!won) elapsed += dt;
+
+  /* --- day/night --- */
+  const hour = ((elapsed / DAY) * 24 + 6) % 24;
+  const ang  = ((hour - 6) / 24) * Math.PI * 2;
+  const elev = Math.sin(ang);
+  const dayK = Math.max(0, elev);
+  const night = elev < -0.05;
+
+  const sx = Math.cos(ang), sy = Math.sin(ang);
+  sun.position.set(N/2 + sx * 45, sy * 45, N/2 + 18);
+  if (night) {
+    sun.position.set(N/2 - sx * 45, -sy * 45, N/2 - 18);
+    sun.color.setHex(0x9fb6ff);
+    sun.intensity = 0.22;
+  } else {
+    sun.color.setHex(elev < 0.25 ? 0xffb977 : 0xfff3d6);
+    sun.intensity = 0.35 + dayK * 0.95;
+  }
+  hemi.intensity    = 0.22 + dayK * 0.6;
+  hemi.color.setHex(night ? 0x2c3a63 : 0xbfd8ff);
+  ambient.intensity = 0.22 + dayK * 0.22;
+
+  skyFor(elev);
+  scene.fog.color.copy(skyCol);
+  stars.material.opacity = Math.max(0, Math.min(1, -elev * 2.2));
+  sunDisc.position.set(N/2 + sx * 150, sy * 150, N/2 + 60);
+  sunDisc.visible = sy > -0.12;
+  moon.position.set(N/2 - sx * 150, -sy * 150, N/2 - 60);
+  moon.visible = sy < 0.12;
+
+  const phase = elev > 0.35 ? 'day' : elev > 0.02 ? (hour < 12 ? 'dawn' : 'dusk')
+              : elev > -0.2 ? 'twilight' : 'night';
+
+  /* --- player --- */
+  let mx = 0, mz = 0;
+  if (locked && !won) {
+    if (keys.KeyW) mz -= 1;
+    if (keys.KeyS) mz += 1;
+    if (keys.KeyA) mx -= 1;
+    if (keys.KeyD) mx += 1;
+  }
+  const spd = (keys.ShiftLeft || keys.ShiftRight) ? RUN : WALK;
+  if (mx || mz) {
+    const l = Math.hypot(mx, mz);
+    const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+    const dx = (mx / l * cosY - mz / l * sinY) * spd * dt;
+    const dz = (-mx / l * sinY - mz / l * cosY) * spd * dt;
+    moveEntity(player, dx, dz);
+    player.face = Math.atan2(-dx, -dz);   // models look down their local -Z
+    player.moving = Math.min(1, player.moving + dt * 8);
+    player.gait += dt * spd * 2.4;
+  } else {
+    player.moving = Math.max(0, player.moving - dt * 8);
+  }
+  if (keys.Space && player.ground && locked && !won) { player.vy = JUMP; player.ground = false; sfx.jump(); }
+  gravity(player, dt);
+
+  rancher.position.set(player.x, player.y, player.z);
+  rancher.rotation.y = lerpAngle(rancher.rotation.y, player.face, 1 - Math.pow(0.0005, dt));
+  {
+    const sw = Math.sin(player.gait) * 0.62 * player.moving;
+    const u = rancher.userData;
+    u.legL.rotation.x =  sw; u.legR.rotation.x = -sw;
+    u.armL.rotation.x = -sw * 0.8; u.armR.rotation.x = sw * 0.8;
+    u.legL.position.y = 0.28 - Math.abs(sw) * 0.03;
+    u.legR.position.y = 0.28 - Math.abs(sw) * 0.03;
+  }
+
+  /* --- cow --- */
+  updateCow(dt);
+
+  /* --- camera (third person, over the right shoulder) --- */
+  fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)).normalize();
+  right.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  camTarget.set(player.x, player.y + 1.35, player.z).addScaledVector(right, 0.55);
+  camera.position.copy(camTarget).addScaledVector(fwd, -5.2);
+  const minY = surfaceAt(camera.position.x, camera.position.z) + 0.45;
+  if (camera.position.y < minY) camera.position.y = minY;
+  camera.lookAt(tmp.copy(camTarget).addScaledVector(fwd, 4));
+
+  /* --- aim + highlight --- */
+  _ro.copy(camera.position);
+  camera.getWorldDirection(_rd);
+  aim = voxelCast(_ro, _rd, REACH);
+  if (aim && aim.hy >= 1) {
+    hilite.position.set(aim.hx + 0.5, aim.hy + 0.5, aim.hz + 0.5);
+    hilite.visible = true;
+  } else hilite.visible = false;
+
+  if (aim && inXZ(aim.px, aim.pz) && aim.py >= 1 && aim.py <= MAXY &&
+      !getB(aim.px, aim.py, aim.pz) &&
+      !occupies(player, aim.px, aim.py, aim.pz) && !occupies(cow, aim.px, aim.py, aim.pz)) {
+    ghost.position.set(aim.px + 0.5, aim.py + 0.5, aim.pz + 0.5);
+    ghost.material.color.set(BLOCKS[slot].css);
+    ghost.visible = true;
+  } else ghost.visible = false;
+
+  /* --- win condition --- */
+  penCheck -= dt;
+  if (penCheck <= 0) { penCheck = 0.25; penned = cowIsPenned(); hudDirty = true; }
+  if (!won) {
+    if (penned) {
+      pennedFor += dt;
+      if (pennedFor >= PEN_HOLD) doWin();
+    } else pennedFor = 0;
+  }
+
+  /* --- hud --- */
+  fpsAcc += raw; fpsN++;
+  if (fpsAcc >= 0.5) { $('hFps').textContent = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
+  fpsT += dt;
+  if (hudDirty || fpsT > 0.2) { paintHud(hour, phase); fpsT = 0; hudDirty = false; }
+
+  renderer.render(scene, camera);
+}
+
+function lerpAngle(a, b, t) {
+  let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return a + d * t;
+}
+
+function updateCow(dt) {
+  cow.wait -= dt;
+  cow.moo  -= dt;
+
+  const dx = cow.tx - cow.x, dz = cow.tz - cow.z;
+  const dist = Math.hypot(dx, dz);
+
+  if (cow.wait <= 0 && dist < 0.35) {
+    // pick a new patch of grass to nibble
+    cow.tx = 1 + Math.random() * (N - 2);
+    cow.tz = 1 + Math.random() * (N - 2);
+    cow.wait = 1.2 + Math.random() * 3.2;
+    if (Math.random() < 0.35) { sfx.moo(); cow.moo = 0.6; }
+  }
+
+  if (dist >= 0.35 && cow.wait <= 0.001) {
+    const s = 1.35;
+    const bx = cow.x, bz = cow.z;
+    moveEntity(cow, (dx / dist) * s * dt, (dz / dist) * s * dt);
+    const md = Math.hypot(cow.x - bx, cow.z - bz);
+    if (md < 0.0004) {                       // wall in the way — try elsewhere
+      cow.tx = 1 + Math.random() * (N - 2);
+      cow.tz = 1 + Math.random() * (N - 2);
+      cow.wait = 0.3 + Math.random();
+    } else {
+      cow.face = Math.atan2(bx - cow.x, bz - cow.z);
+      cow.gait += dt * 7;
+      cow.moving = Math.min(1, cow.moving + dt * 6);
+    }
+  } else {
+    cow.moving = Math.max(0, cow.moving - dt * 6);
+  }
+  gravity(cow, dt);
+
+  cowMesh.position.set(cow.x, cow.y, cow.z);
+  cowMesh.rotation.y = lerpAngle(cowMesh.rotation.y, cow.face, 1 - Math.pow(0.002, dt));
+  const u = cowMesh.userData;
+  const sw = Math.sin(cow.gait) * 0.5 * cow.moving;
+  u.legs[0].rotation.x = sw;  u.legs[3].rotation.x = sw;
+  u.legs[1].rotation.x = -sw; u.legs[2].rotation.x = -sw;
+  // grazing head bob when idle, lifted head when moving or mooing
+  const graze = (1 - cow.moving) * (cow.moo > 0 ? 0 : 1);
+  u.head.rotation.x = graze * (0.55 + Math.sin(elapsed * 1.7) * 0.12) - (cow.moo > 0 ? 0.35 : 0);
+  u.head.position.y = 0.92 - graze * 0.22;
+}
+
+function doWin() {
+  won = true;
+  sfx.win();
+  $('wTime').textContent   = fmt(elapsed);
+  $('wBlocks').textContent = blockCount;
+  $('wArea').textContent   = penArea;
+  $('win').style.display   = 'flex';
+  if (document.exitPointerLock) document.exitPointerLock();
+  hudDirty = true;
+}
+
+} /* end boot */
+</script>
+</body>
+</html>

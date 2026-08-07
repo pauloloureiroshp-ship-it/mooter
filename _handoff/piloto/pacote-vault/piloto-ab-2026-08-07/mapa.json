@@ -1,0 +1,26 @@
+{
+  "gerado": "2026-08-07T19:03:49.634Z",
+  "lancamentos_crypto": [
+    2,
+    3,
+    1,
+    3,
+    0,
+    1,
+    1,
+    0
+  ],
+  "atribuicao": {
+    "ART-1": "runs/T1-C-e3-1786126355457/artefacto",
+    "ART-2": "runs/T1-B-e2-1786125303028/artefacto",
+    "ART-3": "runs/T1-B-e3-1786127750559/artefacto",
+    "ART-4": "runs/T1-C-e1-1786123901224/artefacto",
+    "ART-5": "runs/T1-A-e1-1786122828051/artefacto",
+    "ART-6": "runs/T1-C-e2-1786124886295/artefacto",
+    "ART-7": "runs/T1-A-e2-1786125791219/artefacto",
+    "ART-8": "runs/T1-B-e1-1786124332717/artefacto",
+    "ART-9": "runs/T1-A-e3-1786126928842/artefacto"
+  },
+  "prettier_activo": true,
+  "aviso": "FORA DO ALCANCE DOS JUÍZES — abrir só depois dos 3 veredictos (§4.3). julgar.mjs corre os juízes em cwd isolado."
+}

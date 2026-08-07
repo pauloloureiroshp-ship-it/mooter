@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moo Ranch</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0d1327;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;}
+  canvas{display:block;cursor:crosshair;}
+  #ui *{user-select:none;-webkit-user-select:none;}
+  .panel{position:fixed;top:12px;left:12px;background:rgba(10,16,28,.72);color:#fff;
+         padding:10px 16px;border-radius:12px;pointer-events:none;line-height:1.5;
+         box-shadow:0 4px 14px rgba(0,0,0,.35);}
+  #title{font-weight:800;letter-spacing:1.5px;font-size:17px;}
+  #stats{font-size:14px;opacity:.95;}
+  #goal{font-size:13px;color:#ffd35a;}
+  #hotbar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:8px;}
+  .slot{pointer-events:auto;cursor:pointer;width:76px;background:rgba(10,16,28,.72);
+        border:2px solid rgba(255,255,255,.25);border-radius:10px;padding:6px 4px;
+        text-align:center;color:#fff;font-size:12px;position:relative;transition:border-color .15s,transform .15s;}
+  .slot:hover{transform:translateY(-2px);}
+  .slot.sel{border-color:#ffd35a;box-shadow:0 0 10px rgba(255,211,90,.35);}
+  .slot .key{position:absolute;top:3px;left:5px;font-size:10px;opacity:.7;border:1px solid rgba(255,255,255,.4);
+             border-radius:4px;padding:0 4px;}
+  .slot .swatch{width:26px;height:26px;margin:4px auto 2px;border-radius:6px;border:1px solid rgba(0,0,0,.45);}
+  .slot .cnt{font-weight:700;font-size:13px;}
+  #msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+       pointer-events:none;opacity:0;transition:opacity .6s;}
+  #msg.show{opacity:1;}
+  #msg .card{background:rgba(10,16,28,.88);border:2px solid #ffd35a;border-radius:16px;
+             color:#fff;text-align:center;font-size:26px;padding:26px 44px;line-height:1.5;}
+  #msg .card span{font-size:15px;opacity:.8;}
+  #intro{position:fixed;top:16%;left:50%;transform:translateX(-50%);pointer-events:none;
+         background:rgba(10,16,28,.8);color:#fff;padding:14px 26px;border-radius:12px;
+         text-align:center;font-size:15px;line-height:1.7;transition:opacity 1.2s;}
+  #intro.fade{opacity:0;}
+  #help{position:fixed;bottom:14px;right:14px;color:rgba(255,255,255,.75);font-size:12px;
+        background:rgba(10,16,28,.55);padding:6px 10px;border-radius:8px;pointer-events:none;}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+           color:#fff;background:#0d1327;z-index:50;font-size:16px;}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="panel">
+    <div id="title">&#x1F404; MOO RANCH</div>
+    <div id="stats"><span id="clockIcon">&#x2600;&#xFE0F;</span> <span id="timer">00:00</span> &middot; Day <span id="day">1</span> &middot; Placed: <span id="placed">0</span></div>
+    <div id="goal">Fence in the cow &mdash; pen must not touch the field edge!</div>
+  </div>
+  <div id="hotbar"></div>
+  <div id="msg"><div class="card" id="msgCard"></div></div>
+  <div id="intro">
+    <b>Welcome to Moo Ranch!</b><br>
+    WASD / arrows &mdash; move &middot; Left-click &mdash; place block &middot; Right-click &mdash; remove<br>
+    1 / 2 / 3 &mdash; choose block &middot; Build a closed pen around the cow to win &#x1F42E;
+  </div>
+  <div id="help">WASD move &middot; L-click place &middot; R-click remove &middot; 1/2/3 block &middot; R restart</div>
+  <div id="loading">Loading three.js&hellip;</div>
+</div>
+
+<script>
+  // Fallback if the CDN never loads (first load needs internet; cached afterwards)
+  setTimeout(function(){
+    if (!window.__mooReady) {
+      document.getElementById('loading').textContent =
+        'Could not load three.js from the CDN — an internet connection is needed on first load.';
+    }
+  }, 9000);
+</script>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+// ---------- constants & state ----------
+const SIZE = 16, HALF = SIZE / 2, MAXY = 3, DAY_LEN = 60;
+const BLOCK_TYPES = [
+  { name: 'Fence', color: 0x9a6a33, start: 48 },
+  { name: 'Hay',   color: 0xd7a94b, start: 32 },
+  { name: 'Stone', color: 0x9a9aa2, start: 32 },
+];
+const inv = BLOCK_TYPES.map(t => t.start);
+let sel = 0, placed = 0, won = false, playTime = 0, worldTime = 0;
+
+// ---------- renderer / scene ----------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8ec9ef);
+scene.fog = new THREE.Fog(0x8ec9ef, 26, 72);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 10, 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+// ---------- lights & sky bodies ----------
+const hemi = new THREE.HemisphereLight(0xbfdcff, 0x6a8f4f, 0.7);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xfff2cc, 1.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -16; sun.shadow.camera.right = 16;
+sun.shadow.camera.top = 16;   sun.shadow.camera.bottom = -16;
+sun.shadow.camera.near = 1;   sun.shadow.camera.far = 90;
+sun.shadow.bias = -0.0006;
+scene.add(sun); scene.add(sun.target);
+
+const moon = new THREE.DirectionalLight(0x8fa0ff, 0);
+scene.add(moon);
+
+const sunBall = new THREE.Mesh(new THREE.SphereGeometry(2.2, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xffe17a, fog: false }));
+const moonBall = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xdfe6ff, fog: false }));
+scene.add(sunBall, moonBall);
+
+const DAY_SKY = new THREE.Color(0x8ec9ef);
+const NIGHT_SKY = new THREE.Color(0x0d1327);
+const DUSK_SKY = new THREE.Color(0xef8050);
+
+// ---------- ground (instanced: 16x16 grass field + dirt apron) ----------
+const APRON = 2, GSIZE = SIZE + APRON * 2;
+const groundIM = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(1, 1, 1),
+  new THREE.MeshLambertMaterial({ color: 0xffffff }),
+  GSIZE * GSIZE);
+{
+  const m4 = new THREE.Matrix4(), col = new THREE.Color();
+  let idx = 0;
+  for (let i = -APRON; i < SIZE + APRON; i++) {
+    for (let j = -APRON; j < SIZE + APRON; j++) {
+      m4.setPosition(i - HALF + 0.5, -0.5, j - HALF + 0.5);
+      groundIM.setMatrixAt(idx, m4);
+      const inField = i >= 0 && i < SIZE && j >= 0 && j < SIZE;
+      const check = (i + j) & 1;
+      col.setHex(inField ? (check ? 0x67a84e : 0x5d9a45) : (check ? 0x8a6a45 : 0x816044));
+      groundIM.setColorAt(idx, col);
+      idx++;
+    }
+  }
+  groundIM.instanceMatrix.needsUpdate = true;
+  if (groundIM.instanceColor) groundIM.instanceColor.needsUpdate = true;
+  groundIM.receiveShadow = true;
+  scene.add(groundIM);
+}
+
+// white outline marking the playable field edge
+{
+  const pts = [
+    new THREE.Vector3(-HALF, 0.02, -HALF), new THREE.Vector3(HALF, 0.02, -HALF),
+    new THREE.Vector3(HALF, 0.02, HALF),   new THREE.Vector3(-HALF, 0.02, HALF)];
+  scene.add(new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 })));
+}
+
+// ---------- small helpers ----------
+const matCache = new Map();
+function mat(color) {
+  if (!matCache.has(color)) matCache.set(color, new THREE.MeshLambertMaterial({ color }));
+  return matCache.get(color);
+}
+function box(parent, w, h, d, color, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
+  m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+function angleLerp(a, b, t) {
+  const d = ((b - a) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+  return a + d * t;
+}
+function fmt(s) {
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+}
+
+// ---------- decorative trees on the apron ----------
+function tree(x, z, s) {
+  const g = new THREE.Group();
+  box(g, 0.35 * s, 1.1 * s, 0.35 * s, 0x6d4a2f, 0, 0.55 * s, 0);
+  box(g, 1.4 * s, 0.9 * s, 1.4 * s, 0x3f7d3a, 0, 1.45 * s, 0);
+  box(g, 0.85 * s, 0.6 * s, 0.85 * s, 0x468a41, 0, 2.1 * s, 0);
+  g.position.set(x, 0, z);
+  scene.add(g);
+}
+tree(-9.2, -9.0, 1.0); tree(9.1, -8.8, 0.85); tree(-8.9, 9.1, 0.9); tree(9.2, 8.9, 1.05);
+box(scene, 0.5, 0.35, 0.6, 0x7c7c84, -9.3, 0.17, 2.5);
+box(scene, 0.4, 0.28, 0.4, 0x86868e, 9.3, 0.14, -3.2);
+
+// ---------- blocks ----------
+const blocks = new Map();               // "i,y,j" -> root Object3D
+const blockGroup = new THREE.Group();
+scene.add(blockGroup);
+const bkey = (i, y, j) => i + ',' + y + ',' + j;
+const hasBlock = (i, y, j) => blocks.has(bkey(i, y, j));
+const solidAt = (i, j) => hasBlock(i, 0, j);
+
+function buildBlockMesh(type) {
+  const g = new THREE.Group();
+  if (type === 0) {            // fence: centre post + cross rails
+    box(g, 0.18, 1.0, 0.18, 0x8a5a2b, 0, 0.5, 0);
+    box(g, 1.0, 0.12, 0.14, 0x9a6a33, 0, 0.34, 0);
+    box(g, 1.0, 0.12, 0.14, 0x9a6a33, 0, 0.74, 0);
+    box(g, 0.14, 0.12, 1.0, 0x9a6a33, 0, 0.34, 0);
+    box(g, 0.14, 0.12, 1.0, 0x9a6a33, 0, 0.74, 0);
+  } else if (type === 1) {     // hay bale with a darker strap
+    box(g, 0.98, 0.96, 0.98, 0xd7a94b, 0, 0.5, 0);
+    box(g, 1.0, 0.12, 1.0, 0x8f6b2f, 0, 0.5, 0);
+  } else {                     // stone
+    box(g, 0.98, 0.96, 0.98, 0x9a9aa2, 0, 0.5, 0);
+    box(g, 0.6, 0.2, 0.6, 0x86868e, 0, 1.0, 0);
+  }
+  return g;
+}
+
+function placeBlock(i, y, j, type) {
+  const root = buildBlockMesh(type);
+  root.position.set(i - HALF + 0.5, y, j - HALF + 0.5);
+  root.userData = { i, y, j, type };
+  blockGroup.add(root);
+  blocks.set(bkey(i, y, j), root);
+  inv[type]--; placed++;
+  refreshHud(); checkWin();
+}
+function removeBlock(root) {
+  const { i, y, j, type } = root.userData;
+  blocks.delete(bkey(i, y, j));
+  blockGroup.remove(root);
+  inv[type]++; placed--;
+  refreshHud(); checkWin();
+}
+
+// ---------- player ----------
+const player = { speed: 4.5, walkT: 0, moving: false, limbs: [] };
+{
+  const g = new THREE.Group();
+  const legGeo = new THREE.BoxGeometry(0.16, 0.38, 0.2); legGeo.translate(0, -0.19, 0);
+  const armGeo = new THREE.BoxGeometry(0.12, 0.38, 0.14); armGeo.translate(0, -0.17, 0);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, mat(0x5b3d2a));
+    leg.position.set(sx * 0.11, 0.42, 0); leg.castShadow = true;
+    g.add(leg); player.limbs.push(leg);
+  }
+  box(g, 0.46, 0.44, 0.26, 0x2f6fd0, 0, 0.66, 0);
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(armGeo, mat(0xe0ac7e));
+    arm.position.set(sx * 0.30, 0.84, 0); arm.castShadow = true;
+    g.add(arm); player.limbs.push(arm);
+  }
+  box(g, 0.34, 0.32, 0.32, 0xe0ac7e, 0, 1.05, 0);
+  box(g, 0.04, 0.05, 0.02, 0x222222, -0.08, 1.08, 0.165);
+  box(g, 0.04, 0.05, 0.02, 0x222222,  0.08, 1.08, 0.165);
+  box(g, 0.5, 0.06, 0.5, 0xd9b445, 0, 1.24, 0);
+  box(g, 0.3, 0.14, 0.3, 0xd9b445, 0, 1.33, 0);
+  g.position.set(-3.5, 0, 0.5);
+  scene.add(g);
+  player.root = g;
+}
+
+// ---------- cow ----------
+const cow = { speed: 1.1, walkT: 0, idle: 1.5, target: null, tile: { i: 10, j: 9 }, legs: [] };
+{
+  const g = new THREE.Group();
+  box(g, 0.62, 0.6, 1.15, 0xf3f3f0, 0, 0.72, 0);
+  box(g, 0.66, 0.30, 0.35, 0x2b2b2b, 0, 0.78,  0.18);
+  box(g, 0.66, 0.24, 0.30, 0x2b2b2b, 0, 0.62, -0.34);
+  box(g, 0.30, 0.14, 0.28, 0xe8a0a8, 0, 0.38, -0.30);
+  const legGeo = new THREE.BoxGeometry(0.16, 0.42, 0.16); legGeo.translate(0, -0.21, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, mat(0xf3f3f0));
+    leg.position.set(sx * 0.20, 0.44, sz * 0.42); leg.castShadow = true;
+    g.add(leg); cow.legs.push(leg);
+  }
+  const head = new THREE.Group();
+  box(head, 0.40, 0.38, 0.34, 0xf3f3f0, 0, 0, 0.06);
+  box(head, 0.30, 0.18, 0.14, 0xe8a0a8, 0, -0.10, 0.26);
+  box(head, 0.05, 0.06, 0.03, 0x222222, -0.12, 0.07, 0.24);
+  box(head, 0.05, 0.06, 0.03, 0x222222,  0.12, 0.07, 0.24);
+  box(head, 0.14, 0.10, 0.08, 0x2b2b2b, -0.26, 0.13, -0.02);
+  box(head, 0.14, 0.10, 0.08, 0x2b2b2b,  0.26, 0.13, -0.02);
+  head.position.set(0, 1.02, 0.62);
+  g.add(head);
+  cow.head = head;
+  g.position.set(cow.tile.i - HALF + 0.5, 0, cow.tile.j - HALF + 0.5);
+  scene.add(g);
+  cow.root = g;
+}
+
+// ---------- HUD ----------
+const timerEl = document.getElementById('timer');
+const dayEl = document.getElementById('day');
+const placedEl = document.getElementById('placed');
+const clockIcon = document.getElementById('clockIcon');
+const goalEl = document.getElementById('goal');
+const msgEl = document.getElementById('msg');
+const msgCard = document.getElementById('msgCard');
+
+const hotbar = document.getElementById('hotbar');
+const slotEls = BLOCK_TYPES.map((t, i) => {
+  const d = document.createElement('div');
+  d.className = 'slot';
+  d.innerHTML = '<span class="key">' + (i + 1) + '</span>' +
+    '<div class="swatch" style="background:#' + t.color.toString(16).padStart(6, '0') + '"></div>' +
+    '<div>' + t.name + '</div><span class="cnt"></span>';
+  d.addEventListener('click', () => select(i));
+  hotbar.appendChild(d);
+  return d;
+});
+function select(i) {
+  sel = i;
+  slotEls.forEach((el, k) => el.classList.toggle('sel', k === sel));
+}
+function refreshHud() {
+  slotEls.forEach((el, k) => { el.querySelector('.cnt').textContent = inv[k]; });
+  placedEl.textContent = placed;
+}
+select(0); refreshHud();
+setTimeout(() => document.getElementById('intro').classList.add('fade'), 6500);
+
+// ---------- input ----------
+const keys = new Set();
+addEventListener('keydown', e => {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  keys.add(e.code);
+  if (e.code === 'Digit1') select(0);
+  if (e.code === 'Digit2') select(1);
+  if (e.code === 'Digit3') select(2);
+  if (e.code === 'KeyR') location.reload();
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('contextmenu', e => e.preventDefault());
+
+const mouseNDC = new THREE.Vector2(0, 0);
+function updateMouse(e) {
+  mouseNDC.x = (e.clientX / innerWidth) * 2 - 1;
+  mouseNDC.y = -(e.clientY / innerHeight) * 2 + 1;
+}
+addEventListener('pointermove', updateMouse);
+
+// ---------- aiming / place / remove ----------
+const raycaster = new THREE.Raycaster();
+function computeAim() {
+  raycaster.setFromCamera(mouseNDC, camera);
+  const hits = raycaster.intersectObjects([groundIM, blockGroup], true);
+  if (!hits.length) return null;
+  const h = hits[0];
+  let blockRoot = null;
+  if (h.object !== groundIM) {
+    let o = h.object;
+    while (o.parent && o.parent !== blockGroup) o = o.parent;
+    if (o.parent === blockGroup) blockRoot = o;
+  }
+  let place;
+  if (blockRoot) {
+    const n = h.face.normal;   // children have no rotation, so local == world
+    place = {
+      i: blockRoot.userData.i + Math.round(n.x),
+      y: blockRoot.userData.y + Math.round(n.y),
+      j: blockRoot.userData.j + Math.round(n.z),
+    };
+  } else {
+    place = { i: Math.floor(h.point.x + HALF), y: 0, j: Math.floor(h.point.z + HALF) };
+  }
+  return { place, blockRoot };
+}
+function circleHitsCell(x, z, r, i, j) {
+  const cx = THREE.MathUtils.clamp(x, i - HALF, i - HALF + 1);
+  const cz = THREE.MathUtils.clamp(z, j - HALF, j - HALF + 1);
+  return (x - cx) * (x - cx) + (z - cz) * (z - cz) < r * r;
+}
+function canPlace(c) {
+  if (!c) return false;
+  if (c.i < 0 || c.i >= SIZE || c.j < 0 || c.j >= SIZE || c.y < 0 || c.y >= MAXY) return false;
+  if (hasBlock(c.i, c.y, c.j)) return false;
+  if (inv[sel] <= 0) return false;
+  if (c.y > 0 && !hasBlock(c.i, c.y - 1, c.j)) return false;
+  if (c.y === 0) {
+    if (circleHitsCell(player.root.position.x, player.root.position.z, 0.45, c.i, c.j)) return false;
+    if (circleHitsCell(cow.root.position.x, cow.root.position.z, 0.6, c.i, c.j)) return false;
+    if (cow.target && cow.target.i === c.i && cow.target.j === c.j) return false;
+  }
+  return true;
+}
+function canRemove(root) {
+  if (!root) return false;
+  const u = root.userData;
+  return !hasBlock(u.i, u.y + 1, u.j);   // keep stacks supported
+}
+renderer.domElement.addEventListener('pointerdown', e => {
+  updateMouse(e);
+  const aim = computeAim();
+  if (!aim) return;
+  if (e.button === 0 && canPlace(aim.place)) placeBlock(aim.place.i, aim.place.y, aim.place.j, sel);
+  else if (e.button === 2 && canRemove(aim.blockRoot)) removeBlock(aim.blockRoot);
+});
+
+// placement preview outline
+const preview = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
+  new THREE.LineBasicMaterial({ color: 0x7cff6e }));
+preview.visible = false;
+scene.add(preview);
+
+// ---------- movement & collision ----------
+function collides(x, z) {
+  const r = 0.3;
+  const i0 = Math.floor(x - r + HALF), i1 = Math.floor(x + r + HALF);
+  const j0 = Math.floor(z - r + HALF), j1 = Math.floor(z + r + HALF);
+  for (let i = i0; i <= i1; i++)
+    for (let j = j0; j <= j1; j++)
+      if (solidAt(i, j) && circleHitsCell(x, z, r, i, j)) return true;
+  return false;
+}
+function movePlayer(dt) {
+  let dx = 0, dz = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) dz -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) dz += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) dx -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) dx += 1;
+  player.moving = (dx !== 0 || dz !== 0);
+  if (!player.moving) {
+    player.limbs.forEach(l => l.rotation.x *= 0.8);
+    return;
+  }
+  const len = Math.hypot(dx, dz);
+  dx = dx / len * player.speed * dt;
+  dz = dz / len * player.speed * dt;
+  const p = player.root.position;
+  const lim = HALF - 0.32;
+  let nx = THREE.MathUtils.clamp(p.x + dx, -lim, lim);
+  if (!collides(nx, p.z)) p.x = nx;
+  let nz = THREE.MathUtils.clamp(p.z + dz, -lim, lim);
+  if (!collides(p.x, nz)) p.z = nz;
+  const targetRot = Math.atan2(dx, dz);
+  player.root.rotation.y = angleLerp(player.root.rotation.y, targetRot, 1 - Math.pow(0.0001, dt));
+  player.walkT += dt;
+  player.limbs.forEach((l, k) => { l.rotation.x = Math.sin(player.walkT * 11 + (k % 2) * Math.PI) * 0.65; });
+}
+
+// ---------- cow AI ----------
+function cowPickTarget() {
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].sort(() => Math.random() - 0.5);
+  for (const [di, dj] of dirs) {
+    const ni = cow.tile.i + di, nj = cow.tile.j + dj;
+    if (ni < 0 || ni >= SIZE || nj < 0 || nj >= SIZE) continue;
+    if (solidAt(ni, nj)) continue;
+    cow.target = { i: ni, j: nj, cx: ni - HALF + 0.5, cz: nj - HALF + 0.5 };
+    return;
+  }
+  cow.idle = 0.8;   // fully boxed in — just wait
+}
+function updateCow(dt) {
+  const p = cow.root.position;
+  if (cow.target) {
+    const dx = cow.target.cx - p.x, dz = cow.target.cz - p.z;
+    const d = Math.hypot(dx, dz), step = cow.speed * dt;
+    cow.walkT += dt;
+    cow.head.rotation.x *= 0.85;
+    if (d <= step) {
+      p.x = cow.target.cx; p.z = cow.target.cz;
+      cow.tile = { i: cow.target.i, j: cow.target.j };
+      cow.target = null;
+      cow.idle = 0.6 + Math.random() * 2.4;
+      checkWin();
+    } else {
+      p.x += dx / d * step; p.z += dz / d * step;
+      cow.root.rotation.y = angleLerp(cow.root.rotation.y, Math.atan2(dx, dz), 1 - Math.pow(0.001, dt));
+    }
+    cow.legs.forEach((l, k) => { l.rotation.x = Math.sin(cow.walkT * 7 + (k % 2) * Math.PI) * 0.5; });
+  } else {
+    cow.idle -= dt;
+    cow.legs.forEach(l => l.rotation.x *= 0.85);
+    cow.head.rotation.x = 0.4 * Math.max(0, Math.sin(worldTime * 0.7));   // graze
+    if (cow.idle <= 0) cowPickTarget();
+  }
+}
+
+// ---------- win condition: BFS from cow, must not reach field border ----------
+function isCowFenced() {
+  const ci = Math.floor(cow.root.position.x + HALF);
+  const cj = Math.floor(cow.root.position.z + HALF);
+  if (ci < 0 || ci >= SIZE || cj < 0 || cj >= SIZE) return false;
+  if (solidAt(ci, cj)) return false;
+  const seen = new Uint8Array(SIZE * SIZE);
+  const stack = [[ci, cj]];
+  seen[cj * SIZE + ci] = 1;
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    if (i === 0 || i === SIZE - 1 || j === 0 || j === SIZE - 1) return false;  // escape route
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || ni >= SIZE || nj < 0 || nj >= SIZE) continue;
+      if (seen[nj * SIZE + ni] || solidAt(ni, nj)) continue;
+      seen[nj * SIZE + ni] = 1;
+      stack.push([ni, nj]);
+    }
+  }
+  return true;
+}
+function checkWin() {
+  if (won || !isCowFenced()) return;
+  won = true;
+  msgCard.innerHTML = '&#x1F389; <b>MOO-VELOUS!</b><br>Cow fenced in ' + fmt(playTime) +
+    '<br><span>Press R to play again</span>';
+  msgEl.classList.add('show');
+  goalEl.innerHTML = '&#x2705; Cow fenced in!';
+}
+
+// ---------- day / night ----------
+function updateDayNight() {
+  const tod = (worldTime % DAY_LEN) / DAY_LEN;       // 0 = noon
+  const theta = tod * Math.PI * 2;
+  const sunH = Math.cos(theta);                       // 1 noon, -1 midnight
+  const daylight = THREE.MathUtils.smoothstep(sunH, -0.12, 0.25);
+  sun.position.set(Math.sin(theta) * 34, sunH * 34, 14);
+  moon.position.set(-Math.sin(theta) * 30, -sunH * 30, -12);
+  sun.intensity = 1.45 * daylight;
+  moon.intensity = 0.3 * (1 - daylight);
+  hemi.intensity = 0.18 + 0.55 * daylight;
+  const sky = NIGHT_SKY.clone().lerp(DAY_SKY, daylight);
+  const dusk = Math.max(0, 1 - Math.abs(sunH) * 3.5);
+  sky.lerp(DUSK_SKY, dusk * 0.4);
+  scene.background.copy(sky);
+  scene.fog.color.copy(sky);
+  sunBall.position.copy(sun.position).multiplyScalar(1.6);
+  moonBall.position.copy(moon.position).multiplyScalar(1.6);
+  sunBall.visible = sunH > -0.15;
+  moonBall.visible = -sunH > -0.15;
+  clockIcon.textContent = sunH > 0 ? '☀️' : '\u{1F319}';
+}
+
+// ---------- camera ----------
+const camDesired = new THREE.Vector3();
+function updateCamera(dt) {
+  const p = player.root.position;
+  camDesired.set(p.x, 9.5, p.z + 9);
+  camera.position.lerp(camDesired, 1 - Math.pow(0.0005, dt));
+  camera.lookAt(p.x, 0.8, p.z);
+}
+
+// ---------- main loop ----------
+const clock = new THREE.Clock();
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  worldTime += dt;
+  if (!won) playTime += dt;
+
+  movePlayer(dt);
+  updateCow(dt);
+  updateDayNight();
+  updateCamera(dt);
+
+  const aim = computeAim();
+  if (aim && aim.place) {
+    preview.visible = true;
+    preview.position.set(aim.place.i - HALF + 0.5, aim.place.y + 0.5, aim.place.j - HALF + 0.5);
+    preview.material.color.set(canPlace(aim.place) ? 0x7cff6e : 0xff5f5f);
+  } else {
+    preview.visible = false;
+  }
+
+  timerEl.textContent = fmt(playTime);
+  dayEl.textContent = Math.floor(worldTime / DAY_LEN) + 1;
+
+  renderer.render(scene, camera);
+}
+renderer.setAnimationLoop(tick);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+document.getElementById('loading').remove();
+window.__mooReady = true;
+</script>
+</body>
+</html>

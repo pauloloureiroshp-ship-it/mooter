@@ -1,0 +1,2534 @@
+{
+  "gerado_por": "dossier.mjs",
+  "aviso": "APRESENTAÇÃO. A fonte canónica é resultado.md, gerado mecanicamente dos meta.json. Este ficheiro não decide nada.",
+  "pre_commitment": {
+    "verbatim": "> \"Convence-me se: (a) qualidade mediana cega de B dentro de ±0,5/10 de A ou acima, nas 2 tarefas,\n> sobre as 3 execuções; (b) custo-proxy de B ≤ **40**% de A; (c) ≤ **40**% dos tokens de B saíram\n> de T3 — senão o 'empate' é só o Fable/Opus a trabalhar com outro nome (tautologia por escalada).\n> Amplitudes sobrepostas sem separação clara = INCONCLUSIVO, não empate.\n> Resultado contra o Mooter é registado no vault na mesma; a wave seguinte é arrumar a casa.\"\n> — Paulo · data: **2026-08-06** · X=**40** e N=**40** fixados ANTES de qualquer run [Δ F2 + Δ tautologia]\n\nSugestão de arranque (era X=40 · N=40): **adoptada pelo Paulo em 2026-08-06, sem alteração.**",
+    "fonte": "_handoff/PILOTO_CONVICCAO_2026-08-06.md §0",
+    "congelado_em": "0737767c714956bb7912a708b126f77f230bb4ed"
+  },
+  "shas": {
+    "pre_commitment_congelado": {
+      "sha": "0737767c714956bb7912a708b126f77f230bb4ed",
+      "sha_curto": "0737767c",
+      "data": "2026-08-06T13:44:58-03:00",
+      "assunto": "chore(piloto): congela §0 do protocolo de convicção — X=40 · N=40 fixados antes de qualquer run"
+    },
+    "fix_settings_bracos_de_controlo": {
+      "sha": "b62146cc6d81f5818e701143f1b239f25ed0ab5c",
+      "sha_curto": "b62146cc",
+      "data": "2026-08-07T05:28:55-03:00",
+      "assunto": "fix(piloto): o --settings partia-se no espaco e matava os dois bracos de controlo"
+    },
+    "kit_v2_2_artefacto_e_contexto": {
+      "sha": "7f78c72b2cac3910b48f579a9e66ec44d8e7704a",
+      "sha_curto": "7f78c72b",
+      "data": "2026-08-07T08:29:42-03:00",
+      "assunto": "feat(piloto): kit v2.2 — o done procura onde os bracos poem, e o contexto e igual nos tres"
+    },
+    "kit_v2_3_quarentena_isolamento": {
+      "sha": "77814da356c1243fc346399e27e5a77ec1714ae8",
+      "sha_curto": "77814da3",
+      "data": "2026-08-07T09:00:00-03:00",
+      "assunto": "feat(piloto): kit v2.3 — quarentena determinista contra a fuga de isolamento"
+    },
+    "base_sha_da_bateria_T1": {
+      "sha": "e8f9b25c9d7b9c0daf2f6a988da66105ce4cc073",
+      "sha_curto": "e8f9b25c",
+      "data": "2026-08-07T12:17:18-03:00",
+      "assunto": "docs(vantagem): brief v1.1 — 12 achados do G4 incorporados, Bloco C muda de ambito"
+    }
+  },
+  "veredicto_contra_pre_commitment": {
+    "criterio_a_qualidade": {
+      "medida": "B 6.66 vs A 6.64 (delta +0.02)",
+      "tecto": "dentro de ±0,5 de A ou acima",
+      "cumpre": true,
+      "ressalva": "AMPLITUDES SOBREPOSTAS (A 6,48–7,9 · B 6,52–7,18 · C 6,14–7,62) — o §0 manda ler isto como INCONCLUSIVO, não como empate"
+    },
+    "criterio_b_custo": {
+      "medida": "43.7% (B 3.91 / A 8.94)",
+      "tecto": "≤ 40%",
+      "cumpre": false
+    },
+    "criterio_c_tier": {
+      "medida": "100% dos tokens de B em T3",
+      "tecto": "≤ 40%",
+      "cumpre": false,
+      "ressalva": "o §0 previu-o: 'senão o empate é só o Fable/Opus a trabalhar com outro nome (tautologia por escalada)'"
+    },
+    "braco_mais_barato": {
+      "braco": "C",
+      "custo": 1.87,
+      "pct_de_A": 20.9,
+      "mediana": 7.4,
+      "ressalva": "o §0 previu-o: 'Se um modelo médio chegava, o router não provou nada'"
+    },
+    "sintese": "2 de 3 critérios FALHAM e o terceiro é INCONCLUSIVO pela regra do próprio §0. O piloto NÃO convence a favor do Mooter nesta tarefa.",
+    "o_que_o_protocolo_manda_fazer": "'Resultado contra o Mooter é registado no vault na mesma; a wave seguinte é arrumar a casa.' — §0/§6"
+  },
+  "runs": [
+    {
+      "run_id": "T1-A-e1-1786122828051",
+      "braco": "A",
+      "braco_nome": "TECTO",
+      "tarefa": "T1",
+      "execucao": 1,
+      "wall_ms": {
+        "valor": 1071813
+      },
+      "custo_proxy_usd": {
+        "valor": 3.79
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 29,
+          "cache_creation_input_tokens": 150942,
+          "cache_read_input_tokens": 1833452,
+          "output_tokens": 75778,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 150942,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 2143,
+              "cache_read_input_tokens": 147837,
+              "cache_creation_input_tokens": 3105,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 3105
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 683,
+            "outputTokens": 18,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000773,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty"
+          },
+          "claude-fable-5": {
+            "inputTokens": 29,
+            "outputTokens": 75778,
+            "cacheReadInputTokens": 1833452,
+            "cacheCreationInputTokens": 150942,
+            "webSearchRequests": 0,
+            "costUSD": 8.641481999999998,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-fable-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T1": {
+          "tokens": 701,
+          "pct": 0.9
+        },
+        "T5": {
+          "tokens": 75807,
+          "pct": 99.1
+        }
+      },
+      "tokens_total": 76508,
+      "pct_T3": 0,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-fb6cf0db\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-A-e1-1786122828051/artefacto/index.html",
+      "html_bytes": 26184,
+      "dod": {
+        "score": "8/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "S"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "N"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 170,
+          "fps_mediana": 30,
+          "fps_p95_pior": 29.9,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-A-e2-1786125791219",
+      "braco": "A",
+      "braco_nome": "TECTO",
+      "tarefa": "T1",
+      "execucao": 2,
+      "wall_ms": {
+        "valor": 562847
+      },
+      "custo_proxy_usd": {
+        "valor": 2.1297
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 8,
+          "cache_creation_input_tokens": 88443,
+          "cache_read_input_tokens": 318270,
+          "output_tokens": 42577,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 88443,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1019,
+              "cache_read_input_tokens": 111790,
+              "cache_creation_input_tokens": 939,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 939
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 683,
+            "outputTokens": 20,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.0007830000000000001,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty"
+          },
+          "claude-fable-5": {
+            "inputTokens": 8,
+            "outputTokens": 42577,
+            "cacheReadInputTokens": 318270,
+            "cacheCreationInputTokens": 88443,
+            "webSearchRequests": 0,
+            "costUSD": 4.21606,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-fable-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T1": {
+          "tokens": 703,
+          "pct": 1.6
+        },
+        "T5": {
+          "tokens": 42585,
+          "pct": 98.4
+        }
+      },
+      "tokens_total": 43288,
+      "pct_T3": 0,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-39d846f0\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-A-e2-1786125791219/artefacto/index.html",
+      "html_bytes": 22943,
+      "dod": {
+        "score": "10/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "S"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "S"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 204,
+          "fps_mediana": 59.9,
+          "fps_p95_pior": 29.9,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-A-e3-1786126928842",
+      "braco": "A",
+      "braco_nome": "TECTO",
+      "tarefa": "T1",
+      "execucao": 3,
+      "wall_ms": {
+        "valor": 820422
+      },
+      "custo_proxy_usd": {
+        "valor": 3.0165
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 8,
+          "cache_creation_input_tokens": 106561,
+          "cache_read_input_tokens": 346997,
+          "output_tokens": 60313,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 106561,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 984,
+              "cache_read_input_tokens": 127185,
+              "cache_creation_input_tokens": 3662,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 3662
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 683,
+            "outputTokens": 21,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000788,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty"
+          },
+          "claude-fable-5": {
+            "inputTokens": 8,
+            "outputTokens": 60313,
+            "cacheReadInputTokens": 346997,
+            "cacheCreationInputTokens": 106561,
+            "webSearchRequests": 0,
+            "costUSD": 5.493947,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-fable-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T1": {
+          "tokens": 704,
+          "pct": 1.2
+        },
+        "T5": {
+          "tokens": 60321,
+          "pct": 98.8
+        }
+      },
+      "tokens_total": 61025,
+      "pct_T3": 0,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-7a4f26cf\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-A-e3-1786126928842/artefacto/index.html",
+      "html_bytes": 29578,
+      "dod": {
+        "score": "8/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "N"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "N"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 123,
+          "fps_mediana": 29.9,
+          "fps_p95_pior": 20,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-B-e1-1786124332717",
+      "braco": "B",
+      "braco_nome": "MOOTER",
+      "tarefa": "T1",
+      "execucao": 1,
+      "wall_ms": {
+        "valor": 552044
+      },
+      "custo_proxy_usd": {
+        "valor": 1.1134
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 23,
+          "cache_creation_input_tokens": 91628,
+          "cache_read_input_tokens": 1192705,
+          "output_tokens": 44532,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 91628,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1587,
+              "cache_read_input_tokens": 115413,
+              "cache_creation_input_tokens": 502,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 502
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-opus-5[1m]": {
+            "inputTokens": 23,
+            "outputTokens": 44532,
+            "cacheReadInputTokens": 1192705,
+            "cacheCreationInputTokens": 91628,
+            "webSearchRequests": 0,
+            "costUSD": 2.6260475,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-opus-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T3": {
+          "tokens": 44555,
+          "pct": 100
+        }
+      },
+      "tokens_total": 44555,
+      "pct_T3": 100,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-ef210d91\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-B-e1-1786124332717/artefacto/index.html",
+      "html_bytes": 39185,
+      "dod": {
+        "score": "9/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "S"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "N"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 174,
+          "fps_mediana": 30,
+          "fps_p95_pior": 29.9,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-B-e2-1786125303028",
+      "braco": "B",
+      "braco_nome": "MOOTER",
+      "tarefa": "T1",
+      "execucao": 2,
+      "wall_ms": {
+        "valor": 486682
+      },
+      "custo_proxy_usd": {
+        "valor": 0.9927
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 15,
+          "cache_creation_input_tokens": 86494,
+          "cache_read_input_tokens": 722976,
+          "output_tokens": 39705,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 86494,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1147,
+              "cache_read_input_tokens": 110107,
+              "cache_creation_input_tokens": 674,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 674
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-opus-5[1m]": {
+            "inputTokens": 15,
+            "outputTokens": 39705,
+            "cacheReadInputTokens": 722976,
+            "cacheCreationInputTokens": 86494,
+            "webSearchRequests": 0,
+            "costUSD": 2.219128,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-opus-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T3": {
+          "tokens": 39720,
+          "pct": 100
+        }
+      },
+      "tokens_total": 39720,
+      "pct_T3": 100,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-55894132\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-B-e2-1786125303028/artefacto/index.html",
+      "html_bytes": 36372,
+      "dod": {
+        "score": "9/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "N"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "S"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 117,
+          "fps_mediana": 20,
+          "fps_p95_pior": 20,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-B-e3-1786127750559",
+      "braco": "B",
+      "braco_nome": "MOOTER",
+      "tarefa": "T1",
+      "execucao": 3,
+      "wall_ms": {
+        "valor": 1041466
+      },
+      "custo_proxy_usd": {
+        "valor": 1.7993
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 97,
+          "cache_creation_input_tokens": 130887,
+          "cache_read_input_tokens": 6286958,
+          "output_tokens": 71954,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 130887,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1081,
+              "cache_read_input_tokens": 154827,
+              "cache_creation_input_tokens": 347,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 347
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-opus-5[1m]": {
+            "inputTokens": 97,
+            "outputTokens": 71954,
+            "cacheReadInputTokens": 6286958,
+            "cacheCreationInputTokens": 130887,
+            "webSearchRequests": 0,
+            "costUSD": 6.251684,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-opus-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T3": {
+          "tokens": 72051,
+          "pct": 100
+        }
+      },
+      "tokens_total": 72051,
+      "pct_T3": 100,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-d9fb18e6\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-B-e3-1786127750559/artefacto/index.html",
+      "html_bytes": 39829,
+      "dod": {
+        "score": "9/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "N"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "N"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 109,
+          "fps_mediana": 20,
+          "fps_p95_pior": 15,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-C-e1-1786123901224",
+      "braco": "C",
+      "braco_nome": "ESTATICO",
+      "tarefa": "T1",
+      "execucao": 1,
+      "wall_ms": {
+        "valor": 430022
+      },
+      "custo_proxy_usd": {
+        "valor": 0.5253
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 38,
+          "cache_creation_input_tokens": 133169,
+          "cache_read_input_tokens": 2111967,
+          "output_tokens": 34960,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 133169,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 710,
+              "cache_read_input_tokens": 132269,
+              "cache_creation_input_tokens": 900,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 900
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 683,
+            "outputTokens": 21,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000788,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty"
+          },
+          "claude-sonnet-5": {
+            "inputTokens": 38,
+            "outputTokens": 34960,
+            "cacheReadInputTokens": 2111967,
+            "cacheCreationInputTokens": 133169,
+            "webSearchRequests": 0,
+            "costUSD": 1.9571181000000002,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-sonnet-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T1": {
+          "tokens": 704,
+          "pct": 2
+        },
+        "T2": {
+          "tokens": 34998,
+          "pct": 98
+        }
+      },
+      "tokens_total": 35702,
+      "pct_T3": 0,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-ba5b2e14\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-C-e1-1786123901224/artefacto/index.html",
+      "html_bytes": 25896,
+      "dod": {
+        "score": "8/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "N"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "N"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "N"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 168,
+          "fps_mediana": 30,
+          "fps_p95_pior": 29.9,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-C-e2-1786124886295",
+      "braco": "C",
+      "braco_nome": "ESTATICO",
+      "tarefa": "T1",
+      "execucao": 2,
+      "wall_ms": {
+        "valor": 415259
+      },
+      "custo_proxy_usd": {
+        "valor": 0.5161
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 47,
+          "cache_creation_input_tokens": 96654,
+          "cache_read_input_tokens": 2671142,
+          "output_tokens": 34345,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 96654,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 518,
+              "cache_read_input_tokens": 129080,
+              "cache_creation_input_tokens": 416,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 416
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 683,
+            "outputTokens": 21,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000788,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty"
+          },
+          "claude-sonnet-5": {
+            "inputTokens": 47,
+            "outputTokens": 34345,
+            "cacheReadInputTokens": 2671142,
+            "cacheCreationInputTokens": 96654,
+            "webSearchRequests": 0,
+            "costUSD": 1.8965825999999995,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-sonnet-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T1": {
+          "tokens": 704,
+          "pct": 2
+        },
+        "T2": {
+          "tokens": 34392,
+          "pct": 98
+        }
+      },
+      "tokens_total": 35096,
+      "pct_T3": 0,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-53864ac1\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-C-e2-1786124886295/artefacto/index.html",
+      "html_bytes": 19568,
+      "dod": {
+        "score": "9/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "S"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "N"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "S"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 302,
+          "fps_mediana": 59.9,
+          "fps_p95_pior": 59.9,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    },
+    {
+      "run_id": "T1-C-e3-1786126355457",
+      "braco": "C",
+      "braco_nome": "ESTATICO",
+      "tarefa": "T1",
+      "execucao": 3,
+      "wall_ms": {
+        "valor": 571958
+      },
+      "custo_proxy_usd": {
+        "valor": 0.8285
+      },
+      "custo_marginal_subscricao": {
+        "valor": null,
+        "_porque": "≈0 nos planos actuais — o custo_proxy é preço de tabela, não desembolso"
+      },
+      "usage_por_tentativa": [
+        {
+          "input_tokens": 18,
+          "cache_creation_input_tokens": 65946,
+          "cache_read_input_tokens": 750351,
+          "output_tokens": 8962,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 65946,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 293,
+              "cache_read_input_tokens": 98360,
+              "cache_creation_input_tokens": 428,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 428
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        }
+      ],
+      "modelUsage_por_tentativa": [
+        {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 683,
+            "outputTokens": 21,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000788,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty"
+          },
+          "claude-sonnet-5": {
+            "inputTokens": 28,
+            "outputTokens": 55174,
+            "cacheReadInputTokens": 956743,
+            "cacheCreationInputTokens": 163989,
+            "webSearchRequests": 0,
+            "costUSD": 1.87805415,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "canonicalModel": "claude-sonnet-5",
+            "provider": "firstParty"
+          }
+        }
+      ],
+      "mix_tiers": {
+        "T1": {
+          "tokens": 704,
+          "pct": 1.3
+        },
+        "T2": {
+          "tokens": 55202,
+          "pct": 98.7
+        }
+      },
+      "tokens_total": 55906,
+      "pct_T3": 0,
+      "artefacto_onde": "worktree",
+      "artefacto_encontrado_em": "C:\\Users\\Paulo Loureiro\\piloto-wt-808a200f\\index.html",
+      "criterio_paragem": "cumprido",
+      "tentativas": 1,
+      "violacao_isolamento": {
+        "houve": false,
+        "caminhos": [],
+        "porque": null
+      },
+      "contexto_neutralizado": {
+        "claude_md": "neutro (CLAUDE.neutro.md)",
+        "agents_md": "removido",
+        "dot_claude": "removido",
+        "limite": "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles"
+      },
+      "html_relativo": "runs/T1-C-e3-1786126355457/artefacto/index.html",
+      "html_bytes": 18376,
+      "dod": {
+        "score": "9/12",
+        "itens": [
+          {
+            "id": 1,
+            "desc": "Abre sem erros de consola",
+            "resultado": "S"
+          },
+          {
+            "id": 2,
+            "desc": "WASD move o personagem no campo 16×16 (heurística pixel-diff: mover tem de exceder 2× a deriva idle)",
+            "resultado": "S"
+          },
+          {
+            "id": 3,
+            "desc": "Clique coloca bloco (heurística pixel-diff na região central vs controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 4,
+            "desc": "Clique remove bloco (heurística: novo clique no mesmo ponto — esquerdo, senão direito — muda a região acima do controlo sem clique)",
+            "resultado": "N"
+          },
+          {
+            "id": 5,
+            "desc": "3 tipos de bloco seleccionáveis via hotbar 1-2-3 (heurística: teclas 2,3,1 mudam a faixa inferior do ecrã em ≥2 de 3)",
+            "resultado": "S"
+          },
+          {
+            "id": 6,
+            "desc": "Ciclo dia/noite visível (luminância média a 30s de distância — meia volta do loop de 60s — difere >8/255)",
+            "resultado": "S"
+          },
+          {
+            "id": 7,
+            "desc": "A vaca NPC move-se sozinha (heurística: sem input, 2s produzem mudança forte localizada — entre 0,05% e 50% do frame)",
+            "resultado": "S"
+          },
+          {
+            "id": 8,
+            "desc": "Condição de vitória dispara quando a vaca está cercada",
+            "resultado": "n/d (humano)"
+          },
+          {
+            "id": 9,
+            "desc": "HUD completo: contagem de blocos + timer + estado de vitória (mecânico-DOM: ≥2 tokens numéricos no texto da página)",
+            "resultado": "S"
+          },
+          {
+            "id": 10,
+            "desc": "FPS ≥ 50 medido no browser (mediana rAF sobre 5s)",
+            "resultado": "S"
+          },
+          {
+            "id": 11,
+            "desc": "Um único ficheiro index.html (mecânico: o dir do artefacto contém exactamente 1 ficheiro, chamado index.html)",
+            "resultado": "S"
+          },
+          {
+            "id": 12,
+            "desc": "Zero assets externos além do script three.js do CDN (mecânico: reload com captura de pedidos; só http(s) com 'three' no URL)",
+            "resultado": "S"
+          }
+        ],
+        "fluidez": {
+          "frames": 302,
+          "fps_mediana": 59.9,
+          "fps_p95_pior": 59.9,
+          "input_lag_ms": "n/d"
+        },
+        "item_8": {
+          "valor": null,
+          "_porque": "condição de vitória: n/d (humano) — o harness não a consegue verificar; fica à espera de o Paulo jogar os 9 jogos"
+        },
+        "ressalva_fps": "item 10 = mediana de rAF numa única corrida headless, na mesma máquina onde a bateria correu — comparável entre braços, não é benchmark de hardware",
+        "ressalva_heuristicas": "itens 2, 3, 4 e 7 são heurísticos por declaração do próprio dod_checks.mjs"
+      }
+    }
+  ],
+  "juizes": [
+    {
+      "juiz": "codex (âncora, outra casa)",
+      "ficheiro": "codex.json",
+      "peso": 1,
+      "motivo_peso": null,
+      "parseou": true,
+      "porque_nao": null,
+      "artefactos_pontuados": 9
+    },
+    {
+      "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+      "ficheiro": "fable5.json",
+      "peso": 0.5,
+      "motivo_peso": "mesma família do braço A — sub-ponderado (§4.4)",
+      "parseou": true,
+      "porque_nao": null,
+      "artefactos_pontuados": 9
+    },
+    {
+      "juiz": "kimi-k3 (streaming)",
+      "ficheiro": "terceira-voz.json",
+      "peso": 1,
+      "motivo_peso": null,
+      "parseou": true,
+      "porque_nao": null,
+      "artefactos_pontuados": 9
+    }
+  ],
+  "por_artefacto": [
+    {
+      "rotulo": "ART-1",
+      "braco": "C",
+      "braco_nome": "ESTATICO (sonnet-5)",
+      "execucao": 3,
+      "run": "runs/T1-C-e3-1786126355457/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 7.4,
+          "codigo": 7.2,
+          "experiencia": 10,
+          "final": 7.9,
+          "proveniencia_palpite": "Palpite: Gemini Pro num setup one-shot de geração de artefacto; o IIFE ES5, o desenho top-down compacto e a cobertura funcional ampla mas pouco testada apontam para esse perfil.",
+          "justificacao": "O harness confirma 9/12: movimento, hotbar, ciclo, NPC, HUD, empacotamento e FPS passam, mas colocar e remover blocos falham e a vitória fica n/d. Typed arrays, instancing, limites, limpeza de teclas e flood-fill pré-alocado dão boa robustez, embora haja acoplamento frágil entre selectores e DOM. A experiência recebe 10,0 pelos 59,9 FPS estáveis; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 7.5,
+          "robustez": 6,
+          "codigo": 7.5,
+          "experiencia": 9,
+          "final": 7.5,
+          "proveniencia_palpite": "Sonnet (tier médio): âmbito deliberadamente mínimo mas com optimizações de instancing (free-lists, typed arrays) pouco típicas de modelos pequenos.",
+          "justificacao": "DoD 9/12 com falha precisamente nos dois itens de colocar/remover bloco, mas fluidez perfeita (59.9 fps em mediana e p95). O código é eficiente e estruturado — InstancedMesh com free-lists, typed arrays no flood-fill, keyframes de dia/noite — embora sem colisão entidade-bloco (a vaca atravessa cercas) e sem restart. Experiência pontuada exclusivamente pela fluidez medida; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 6,
+          "codigo": 7,
+          "experiencia": 9,
+          "final": 7.4,
+          "proveniencia_palpite": "Código linear em IIFE sem pointer lock, sem som e sem overlays, mas com keyframes de ciclo dia/noite bem definidos — palpito modelo de gama média em single-shot (GPT-4o-mini ou Claude Haiku).",
+          "justificacao": "DoD 9/12: falha os dois itens de clique (colocar/remover) segundo o harness, embora o raycast para o plano e as funções de place/remove existam e pareçam correctas — suspeita de interacção entre a heurística de clique central e a câmara que segue o jogador. Robustez mediana: clamps de campo e BFS de vitória por frame são sólidos, mas não há fallback de CDN nem overlay de erro se o three.js falhar. Código simples e eficiente (InstancedMesh com free-list, ciclo dia/noite por keyframes com smoothstep) e a fluidez medida é perfeita (59,9 fps mediana e p95), o que sustenta a experiência apesar do acabamento visual ser n/d."
+        }
+      ],
+      "final_ponderado": 7.62,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.5,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-2",
+      "braco": "B",
+      "braco_nome": "MOOTER",
+      "execucao": 2,
+      "run": "runs/T1-B-e2-1786125303028/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 7.3,
+          "codigo": 8,
+          "experiencia": 3.3,
+          "final": 6.7,
+          "proveniencia_palpite": "Palpite: Claude Opus via Claude Code em modo high-effort; a primeira pessoa, a cópia de UX detalhada, o áudio e os fallbacks defensivos são sinais de uma solução longa e agentic.",
+          "justificacao": "O score anexado é 9/12: colocação passa, mas remoção e movimento autónomo da vaca falham; o item FPS está incoerentemente marcado S apesar dos 20 FPS medidos. Há fallbacks de CDN, pointer lock, pausa, colisões, limites e flood-fill, mas a complexidade excessiva e as falhas observadas reduzem a robustez operacional. A experiência recebe 3,3 pelos 20 FPS de mediana e p95; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 7.5,
+          "robustez": 8,
+          "codigo": 7.5,
+          "experiencia": 3,
+          "final": 6.7,
+          "proveniencia_palpite": "Fable/Opus (top-tier, effort alto): a ambição máxima — pointer lock, áudio, 3 CDNs, RNG semeado — é assinatura de modelo grande a maximizar features.",
+          "justificacao": "O artefacto mais ambicioso: pointer lock, texturas procedurais em canvas, áudio WebAudio, fallback de 3 CDNs e overlays de estado — mas o overlay inicial obrigatório custou-lhe no harness os itens de remover bloco e de vaca autónoma (nada anima sem clique de arranque). Robustez de engenharia elevada: RNG semeado, pausa em perda de pointer lock, try/catch no áudio, ecrã de erro dedicado. A fluidez fraca (20 fps mediana) arrasta a experiência; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 7,
+          "codigo": 8,
+          "experiencia": 3,
+          "final": 6.6,
+          "proveniencia_palpite": "Copy literária e polida («the sun waits for you», ecrã de erro encenado) com mecânica de herding e HUD elaborada — palpito Claude Sonnet (estilo de agente com capricho narrativo).",
+          "justificacao": "DoD 9/12: o gating por pointer lock e a inversão da convenção (LMB quebra / RMB coloca) explicam plausivelmente o remove falhado e a vaca parada (o update dela só corre com lock activo, que o harness não garante). É o artefacto mais robusto em tooling: fallback em cadeia de 3 CDNs com ecrã de erro, pause, restart, sprint e áudio WebAudio com try/catch. A arquitectura é rica (herding AI com fuga ao jogador, flood fill com detecção de fuga à borda, rebuild de instâncias por jogada), mas a fluidez medida de 20 fps — coerente com shadows PCFSoft + pixelRatio 1,75 — arrasta a experiência para o fundo, apesar do item 10 constar como S."
+        }
+      ],
+      "final_ponderado": 6.66,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.1,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-3",
+      "braco": "B",
+      "braco_nome": "MOOTER",
+      "execucao": 3,
+      "run": "runs/T1-B-e3-1786127750559/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 6.8,
+          "codigo": 7.6,
+          "experiencia": 3.1,
+          "final": 6.5,
+          "proveniencia_palpite": "Palpite: Claude Opus via Claude Code em modo high-effort; a combinação de mundo voxel completo, primeira e terceira pessoa, áudio e UI editorial sugere esse setup.",
+          "justificacao": "O harness confirma 9/12, incluindo colocação e remoção, mas a vaca autónoma e o requisito de FPS falham e a vitória permanece n/d. Colisões, raycast voxel, reinício, áudio e flood-fill mostram boa cobertura estrutural, embora a dimensão do monólito e a instabilidade medida aumentem o risco. A experiência recebe 3,1 pelos 20 FPS de mediana e 15 FPS no p95 pior; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 7.5,
+          "robustez": 7.5,
+          "codigo": 8,
+          "experiencia": 2.5,
+          "final": 6.6,
+          "proveniencia_palpite": "Fable/Opus, mesma família de ART-2/ART-8 (padrão idêntico de painéis CSS com variáveis e helper de áudio com a mesma assinatura), noutra run.",
+          "justificacao": "Voxel first-person completo (raycast DDA, viewmodel numa segunda cena, heightmap, UV atlas) e um dos raros artefactos onde colocar E remover passaram no harness. Robustez boa: bedrock protegido contra remoção, resgate automático da vaca encurralada, colisões de colocação contra entidades. Paga tudo na fluidez (20 fps mediana, p95 15), que domina a nota de experiência; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 7,
+          "codigo": 8,
+          "experiencia": 2.5,
+          "final": 6.5,
+          "proveniencia_palpite": "Engenharia voxel pesada escrita à mão (DDA, física de salto, heightmap) com copy à base de emojis e tom de tutorial — palpito GPT-4o em modo agente de coding.",
+          "justificacao": "DoD 9/12: place/remove passam, mas a vaca falha o teste de movimento autónomo e o FPS fica abaixo de 50 (20 mediana, p95 15 — o pior do lote). Na porção de código fornecida vê-se engenharia séria: DDA voxel traversal manual, mundo 3D com alturas e heightmap, salto com gravidade, alternância primeira/terceira pessoa, atlas de texturas com remap de UVs e relocalização da vaca quando fica encurralada. Essa ambição (shadows 1024 + MeshLambert + pixelRatio 1,5 + rebuilds) cobra-se na fluidez medida, e a experiência fica limitada a esses 20 fps com quedas a 15."
+        }
+      ],
+      "final_ponderado": 6.52,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.1,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-4",
+      "braco": "C",
+      "braco_nome": "ESTATICO (sonnet-5)",
+      "execucao": 1,
+      "run": "runs/T1-C-e1-1786123901224/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 6.7,
+          "robustez": 6.4,
+          "codigo": 7,
+          "experiencia": 5,
+          "final": 6.4,
+          "proveniencia_palpite": "Palpite: Gemini Pro num setup one-shot de geração web; o IIFE baseado em var, a arquitectura directa e a implementação extensa mas irregular são compatíveis com esse perfil.",
+          "justificacao": "O harness confirma 8/12: construção, remoção, hotbar, ciclo e HUD passam, mas WASD, NPC e FPS falham e a vitória fica n/d. Limites, colisões, pointer lock, instancing e flood-fill estão presentes, mas alocações frequentes no loop e falhas em dois comportamentos centrais enfraquecem a robustez. A experiência recebe 5,0 pelos cerca de 30 FPS estáveis; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 6.5,
+          "robustez": 6,
+          "codigo": 6,
+          "experiencia": 4.5,
+          "final": 5.9,
+          "proveniencia_palpite": "Modelo mais pequeno ou com training data datado (Haiku ou GPT-4o): three r128, ES5 e menos rigor de performance apontam para tier inferior.",
+          "justificacao": "DoD mais fraco do lote (8/12), com o próprio WASD a falhar — efeito provável do overlay de arranque bloqueante que o harness não fecha — e vaca sem movimento detectado. Código funcional mas com alocações de Vector3 por frame, three r128 antigo e materiais standard com sombras que o seguram nos 30 fps. Robustez mediana (colisões círculo-célula correctas, mas sem fallback de CDN); experiência avaliada só pela fluidez; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 6.7,
+          "robustez": 5.5,
+          "codigo": 6,
+          "experiencia": 5,
+          "final": 6,
+          "proveniencia_palpite": "three@0.128 via unpkg, overlays estilo landing-page com grelha de controlos e estrutura conservadora — palpito Gemini (1.5 Pro / 2.0 Flash), que usa frequentemente essa versão antiga do three.",
+          "justificacao": "DoD 8/12: reprova em WASD (surpreendente, dado que o handler existe — possível interacção entre pointer lock e a heurística de pixel-diff), na vaca autónoma e no FPS (30 medidos). Robustez fraca: three r128 antigo sem qualquer fallback de CDN, sem som, e o flood fill de vitória corre apenas de 0,5 em 0,5 s. A estrutura é razoável (instancing de blocos, colisão circular com slide, overlays de início/vitória), mas é a menos sofisticada tecnicamente e os 30 fps medidos dão uma experiência apenas mediana."
+        }
+      ],
+      "final_ponderado": 6.14,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.5,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-5",
+      "braco": "A",
+      "braco_nome": "TECTO (fable-5)",
+      "execucao": 1,
+      "run": "runs/T1-A-e1-1786122828051/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 6.7,
+          "robustez": 7,
+          "codigo": 7.5,
+          "experiencia": 5,
+          "final": 6.6,
+          "proveniencia_palpite": "Palpite: GPT-5 Codex via Codex CLI ou app com esforço alto; Maps, instancing, inventário, flood-fill e uma câmara pragmática para o harness são típicos desse setup.",
+          "justificacao": "O harness confirma 8/12: movimento, hotbar, ciclo, NPC e HUD passam, mas colocar, remover e atingir 50 FPS falham e a vitória fica n/d. Inventário finito, colisões, limites, instancing, tratamento de erro do CDN e flood-fill da área livre são boas salvaguardas, apesar da interacção principal não ser fiável no teste. A experiência recebe 5,0 pelos 30 FPS de mediana e p95; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 6.5,
+          "robustez": 7.5,
+          "codigo": 7,
+          "experiencia": 4.5,
+          "final": 6.4,
+          "proveniencia_palpite": "Sonnet: mecânicas ricas e execução sólida em estilo ES5 conservador, sem a ambição arquitectural dos first-person — partilha padrões (lerp angular, balão projetado) com ART-9.",
+          "justificacao": "Rico em mecânicas (inventário limitado com contadores, empilhamento com regra de suporte, balões 'Moo!', toasts, zoom), mas colocar/remover falharam no harness — a colocação é recusada sobre a célula do jogador, exactamente onde o clique central do teste cai. Robustez acima da média: try/catch na criação do WebGL, ecrã de erro sem THREE, limpeza de teclas em blur. Os 30 fps de mediana penalizam a experiência; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 6.7,
+          "robustez": 7.5,
+          "codigo": 8,
+          "experiencia": 5,
+          "final": 6.8,
+          "proveniencia_palpite": "Polish de game-feel (deny shake, toasts, stocks, wheel zoom) com arquitectura limpa sem pointer lock — palpito Claude Sonnet 4 em setup agente (Claude Code).",
+          "justificacao": "DoD 8/12: place e remove falham no harness muito provavelmente porque a câmara em 3ª pessoa mira o centro exactamente na célula do jogador e a regra anti-ocupação (correcta para humanos) bloqueia a jogada — falha de testabilidade, não necessariamente de jogo. Robustez acima da média: verificação de THREE undefined com overlay de erro, stocks por tipo de bloco, regra de suporte vertical, «remove o bloco de cima primeiro» e contagem de roam area por BFS. Código com game-feel cuidado (ghost preview verde/vermelho, shake de «sem stock», bolhas de Moo projectadas, zoom por roda), mas os 30 fps medidos mantêm a experiência a meio da tabela."
+        }
+      ],
+      "final_ponderado": 6.64,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.4,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-6",
+      "braco": "C",
+      "braco_nome": "ESTATICO (sonnet-5)",
+      "execucao": 2,
+      "run": "runs/T1-C-e2-1786124886295/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 6.6,
+          "codigo": 6.8,
+          "experiencia": 10,
+          "final": 7.7,
+          "proveniencia_palpite": "Palpite: Gemini Pro num setup one-shot de geração de artefacto; a implementação compacta em ES5, a câmara top-down e as escolhas simples de cena sugerem esse perfil.",
+          "justificacao": "O harness confirma 9/12: remoção, movimento, hotbar, ciclo, HUD e FPS passam, mas a colocação e o NPC falham e a vitória fica n/d. A solução possui limites, colisões, resize e flood-fill claros, porém cria meshes individualmente, aloca vectores no loop e usa uma interacção de clique ambígua. A experiência recebe 10,0 pelos 59,9 FPS estáveis; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 7.5,
+          "robustez": 6.5,
+          "codigo": 6.5,
+          "experiencia": 9,
+          "final": 7.4,
+          "proveniencia_palpite": "Haiku ou Ollama local (qwen): a solução mais simples do lote, r128 via cdnjs, sem overlays nem extras — perfil clássico de modelo pequeno.",
+          "justificacao": "Abordagem minimalista que compensa: 9/12 no DoD e 59.9 fps constantes, com um único clique a alternar colocar/remover conforme a célula. Código simples e legível — um Mesh por bloco num Map, sem instancing — adequado à escala 16×16 mas sem sofisticação, sem fallback de CDN e sem limpeza de teclas em blur. Experiência forte assente apenas na fluidez medida; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 5.5,
+          "codigo": 6,
+          "experiencia": 9,
+          "final": 7.1,
+          "proveniencia_palpite": "Solução minimalista de baixo risco (toggle de clique único, sem pointer lock, sem extras) — palpito modelo pequeno/rápido (GPT-4o-mini ou Llama 70B).",
+          "justificacao": "DoD 9/12: o remove passa mas o place falha — sintoma consistente com o design de clique único que alterna colocar/remover conforme a célula está ocupada, ambíguo para a heurística e para o utilizador. Robustez limitada: mesh individual por bloco em vez de instancing, sem fallback de CDN, sem sombras nem som, e restart por R só disponível após vitória. Em compensação a fluidez medida é impecável (59,9 fps mediana e p95) e o código, embora minimalista, é directo e legível, com BFS de vitória correcto e highlight de mira verde/vermelho."
+        }
+      ],
+      "final_ponderado": 7.4,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.6,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-7",
+      "braco": "A",
+      "braco_nome": "TECTO (fable-5)",
+      "execucao": 2,
+      "run": "runs/T1-A-e2-1786125791219/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 8.3,
+          "robustez": 7.8,
+          "codigo": 8,
+          "experiencia": 8.5,
+          "final": 8.2,
+          "proveniencia_palpite": "Palpite: GPT-5 Codex via Codex CLI ou app com esforço alto; a composição pragmática, o estado em Maps, as guardas de colocação e o flood-fill bem delimitado apontam para esse setup.",
+          "justificacao": "O harness confirma 10/12, o melhor resultado do conjunto: apenas a remoção falha mecanicamente e a vitória permanece n/d. Inventário, carregamento com fallback visível, colisões, bloqueio sobre actores, flood-fill e reinício formam uma base sólida, embora a queda no p95 e a remoção falhada revelem arestas. A experiência recebe 8,5 pela mediana de 59,9 FPS com p95 pior de 29,9 FPS; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 8.3,
+          "robustez": 7,
+          "codigo": 7.5,
+          "experiencia": 7.5,
+          "final": 7.7,
+          "proveniencia_palpite": "Sonnet 5: âmbito calibrado, ES6 limpo e pragmatismo assumido (R = reload) — o equilíbrio custo/qualidade típico do tier médio-alto, e ganhou o DoD com isso.",
+          "justificacao": "Melhor DoD do lote (10/12) — só o item de remover falhou — com preview de validade a verde/vermelho, inventário com contagens e âmbito bem calibrado. Código ES6 limpo com cache de materiais, BFS em typed array e validações de colocação contra jogador e vaca; o restart por location.reload é a solução mais tosca do ficheiro, e há timeout de 9s com mensagem se o CDN falhar. Fluidez boa mas irregular (mediana 59.9, p95 29.9); acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 8.3,
+          "robustez": 7,
+          "codigo": 8,
+          "experiencia": 7,
+          "final": 7.7,
+          "proveniencia_palpite": "Acabamento estrutural e copy com personalidade («MOO-VELOUS!», loading screen, fences com rails) com setAnimationLoop e instancing colorido — palpito Claude Opus 4.",
+          "justificacao": "Melhor DoD do lote (10/12): só o remove falha, e tudo o resto — incluindo vaca autónoma e FPS — passa. Boa robustez: ecrã de loading com timeout e mensagem de falha de CDN, guards de colocação (suporte, ocupação pelo jogador/vaca/alvo da vaca), flood fill de vitória reavaliado a cada jogada; o R = location.reload() é o atalho menos elegante. Código cheio de charme estrutural (fences com posts e rails procedurais, árvores decorativas, pastar com cabeça animada, sol/lua visíveis) e a fluidez é muito boa na mediana (59,9) embora o p95 de 29,9 revele soluços — experiência forte mas não perfeita."
+        }
+      ],
+      "final_ponderado": 7.9,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.5,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-8",
+      "braco": "B",
+      "braco_nome": "MOOTER",
+      "execucao": 1,
+      "run": "runs/T1-B-e1-1786124332717/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 8.2,
+          "codigo": 8.5,
+          "experiencia": 5,
+          "final": 7.3,
+          "proveniencia_palpite": "Palpite: Claude Opus via Claude Code em modo high-effort; a profundidade de mecânicas, os fallbacks, o áudio, a física e a UX muito especificada sugerem esse setup.",
+          "justificacao": "O harness confirma 9/12: movimento, colocação, hotbar, ciclo, NPC e HUD passam, mas remoção e FPS falham e a vitória fica n/d. DDA voxel, typed arrays, instancing, física vertical, colisões, blocos empilháveis, CDN redundante e vitória sustentada por 1,5 segundos compõem a estrutura mais defensiva, à custa de elevada complexidade. A experiência recebe 5,0 pelos cerca de 30 FPS estáveis; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 7.5,
+          "robustez": 8,
+          "codigo": 8,
+          "experiencia": 4.5,
+          "final": 7.1,
+          "proveniencia_palpite": "Fable/Opus, mesma família de ART-2/ART-3 (loader de 3 CDNs e helper de áudio com assinatura idêntica) — a run mais completa do trio first-person.",
+          "justificacao": "First-person ambicioso com física real (salto, gravidade, sprint), raycast DDA, texturas procedurais, fallback de 3 CDNs e condição de vitória com retenção de 1.5s — e é dos poucos onde a vaca autónoma passou no harness. Robustez muito boa: ecrã de erro, limpeza de teclas em blur, colisões de colocação contra ambas as entidades, áudio em try/catch. Os 30 fps de mediana cortam a experiência; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 7.5,
+          "robustez": 7.5,
+          "codigo": 8,
+          "experiencia": 5,
+          "final": 7.1,
+          "proveniencia_palpite": "Motor pesado com física, DDA e texturas procedurais, tutorial copy muito detalhado («Hold her for 1.5s…») e boot por loader — palpito GPT-4o (ou o1) em agente de coding.",
+          "justificacao": "DoD 9/12: place e vaca passam, mas o remove via DDA falha no harness e o FPS fica nos 30. Robustez forte: cadeia de 3 CDNs com ecrã de erro, DDA com guards de limites, gravidade com ground clamp, e condição de vitória com «hold 1,5 s» que evita vitórias acidentais por flood fill transitório. Na porção visível o código é dos mais completos (texturas procedurais em canvas incluindo o pelo da vaca, heightmap com step-assist, física de salto, hotbar por roda, sons sintetizados), mas a conta gráfica (r149 + shadows + sRGB) reflecte-se nos 30 fps medidos e a experiência fica no meio da tabela."
+        }
+      ],
+      "final_ponderado": 7.18,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.2,
+      "dispersao_porque": null
+    },
+    {
+      "rotulo": "ART-9",
+      "braco": "A",
+      "braco_nome": "TECTO (fable-5)",
+      "execucao": 3,
+      "run": "runs/T1-A-e3-1786126928842/artefacto",
+      "notas": [
+        {
+          "juiz": "codex (âncora, outra casa)",
+          "peso": 1,
+          "dod": 6.7,
+          "robustez": 7,
+          "codigo": 8,
+          "experiencia": 4.5,
+          "final": 6.6,
+          "proveniencia_palpite": "Palpite: GPT-5 Codex via Codex CLI ou app com esforço alto; a estrutura baseada em Maps, geometria conectada, guardas explícitas e gameplay top-down pragmático é compatível com esse setup.",
+          "justificacao": "O harness confirma 8/12: movimento, colocação, hotbar, ciclo e HUD passam, mas remoção, NPC e FPS falham e a vitória fica n/d. Guardas de colocação, conectividade visual das cercas, colisões, flood-fill, reinício e tolerância a falhas de áudio são bons, mas grupos reconstruídos por bloco e sombras de 2048 elevam o custo. A experiência recebe 4,5 pelos 29,9 FPS de mediana e 20 FPS no p95 pior; input lag e acabamento visual são n/d e não foram inferidos."
+        },
+        {
+          "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+          "peso": 0.5,
+          "dod": 6.5,
+          "robustez": 6.5,
+          "codigo": 7.5,
+          "experiencia": 4,
+          "final": 6.2,
+          "proveniencia_palpite": "Opus (ou Sonnet com foco visual): mesma família dos top-down polidos ART-5/ART-7 (lerp angular idêntico, sol/lua em esferas, balão projetado), mas a run que sacrificou performance por estética.",
+          "justificacao": "Aposta forte no polimento (cercas que se ligam visualmente às vizinhas, ACES tone mapping, sombras 2048, balão 'Moo!' com filtro lowpass), mas fica em 8/12 no DoD com remover e vaca a falharem, e fluidez fraca (29.9 mediana, p95 20) precisamente por esse peso gráfico. O código ES6 é organizado, com paleta de materiais reutilizada e validações de colocação correctas incluindo o tile-alvo da vaca. Sem fallback de CDN nem mensagem de erro de load; experiência pontuada só pela fluidez; acabamento visual n/d."
+        },
+        {
+          "juiz": "kimi-k3 (streaming)",
+          "peso": 1,
+          "dod": 6.7,
+          "robustez": 6.5,
+          "codigo": 8.5,
+          "experiencia": 4,
+          "final": 6.5,
+          "proveniencia_palpite": "Obsessão de designer/front-end (fences conectadas, pop-in, moo com formante, favicon 🐄 em SVG) — palpito Claude Sonnet 4.5.",
+          "justificacao": "DoD 8/12: falha o remove, a vaca autónoma (o idle aleatório de 1–3 s com 30% de hipótese de prolongar pode não produzir movimento na janela de 2 s do harness) e o FPS (29,9 mediana, p95 20). É o artefacto mais polido em detalhe: fences que se ligam geometricamente aos vizinhos com rebuild local, animação pop-in dos blocos, «moo» sintetizado com filtro lowpass, relógio de 24 h no HUD, e vitória com opção «keep building» — mas o shadow map 2048 + MeshStandardMaterial + ACES explica a fluidez fraca medida. Robustez razoável (guards de colocação, restart limpo, bolha de Moo projectada), embora dependa de um único CDN por module import sem fallback."
+        }
+      ],
+      "final_ponderado": 6.48,
+      "final_ponderado_porque": "média dos 3 finais, pesos 1/0.5/1",
+      "dispersao": 0.4,
+      "dispersao_porque": null
+    }
+  ],
+  "por_braco": [
+    {
+      "braco": "A",
+      "nome": "TECTO (fable-5)",
+      "finais": [
+        6.64,
+        7.9,
+        6.48
+      ],
+      "artefactos": [
+        "ART-5",
+        "ART-7",
+        "ART-9"
+      ],
+      "n": 3,
+      "media": 7.007,
+      "min": 6.48,
+      "max": 7.9,
+      "porque": "média de 3 artefacto(s), nota final ponderada pelos pesos dos juízes"
+    },
+    {
+      "braco": "B",
+      "nome": "MOOTER",
+      "finais": [
+        6.66,
+        6.52,
+        7.18
+      ],
+      "artefactos": [
+        "ART-2",
+        "ART-3",
+        "ART-8"
+      ],
+      "n": 3,
+      "media": 6.787,
+      "min": 6.52,
+      "max": 7.18,
+      "porque": "média de 3 artefacto(s), nota final ponderada pelos pesos dos juízes"
+    },
+    {
+      "braco": "C",
+      "nome": "ESTATICO (sonnet-5)",
+      "finais": [
+        7.62,
+        6.14,
+        7.4
+      ],
+      "artefactos": [
+        "ART-1",
+        "ART-4",
+        "ART-6"
+      ],
+      "n": 3,
+      "media": 7.053,
+      "min": 6.14,
+      "max": 7.62,
+      "porque": "média de 3 artefacto(s), nota final ponderada pelos pesos dos juízes"
+    }
+  ],
+  "concordancia_entre_juizes": [
+    {
+      "juizes": [
+        "codex (âncora, outra casa)",
+        "Fable 5 (contexto fresco, sem tools, cwd isolado)"
+      ],
+      "pares_comparaveis": 36,
+      "empates": 1,
+      "concordancia_ordenacao_pct": 94.3,
+      "concordancia_porque": "33/35 pares ordenados igual (empates excluídos)",
+      "baseline_acaso_pct": 50,
+      "baseline_porque": "ordenar dois artefactos ao acaso acerta metade das vezes"
+    },
+    {
+      "juizes": [
+        "codex (âncora, outra casa)",
+        "kimi-k3 (streaming)"
+      ],
+      "pares_comparaveis": 36,
+      "empates": 3,
+      "concordancia_ordenacao_pct": 97,
+      "concordancia_porque": "32/33 pares ordenados igual (empates excluídos)",
+      "baseline_acaso_pct": 50,
+      "baseline_porque": "ordenar dois artefactos ao acaso acerta metade das vezes"
+    },
+    {
+      "juizes": [
+        "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "kimi-k3 (streaming)"
+      ],
+      "pares_comparaveis": 36,
+      "empates": 2,
+      "concordancia_ordenacao_pct": 94.1,
+      "concordancia_porque": "32/34 pares ordenados igual (empates excluídos)",
+      "baseline_acaso_pct": 50,
+      "baseline_porque": "ordenar dois artefactos ao acaso acerta metade das vezes"
+    }
+  ],
+  "sonda_proveniencia": {
+    "itens": [
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-1",
+        "palpite": "Palpite: Gemini Pro num setup one-shot de geração de artefacto; o IIFE ES5, o desenho top-down compacto e a cobertura funcional ampla mas pouco testada apontam para esse perfil.",
+        "palpite_normalizado": "A",
+        "verdade": "C",
+        "acertou": false
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-2",
+        "palpite": "Palpite: Claude Opus via Claude Code em modo high-effort; a primeira pessoa, a cópia de UX detalhada, o áudio e os fallbacks defensivos são sinais de uma solução longa e agentic.",
+        "palpite_normalizado": "B",
+        "verdade": "B",
+        "acertou": true
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-3",
+        "palpite": "Palpite: Claude Opus via Claude Code em modo high-effort; a combinação de mundo voxel completo, primeira e terceira pessoa, áudio e UI editorial sugere esse setup.",
+        "palpite_normalizado": "B",
+        "verdade": "B",
+        "acertou": true
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-4",
+        "palpite": "Palpite: Gemini Pro num setup one-shot de geração web; o IIFE baseado em var, a arquitectura directa e a implementação extensa mas irregular são compatíveis com esse perfil.",
+        "palpite_normalizado": "A",
+        "verdade": "C",
+        "acertou": false
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-5",
+        "palpite": "Palpite: GPT-5 Codex via Codex CLI ou app com esforço alto; Maps, instancing, inventário, flood-fill e uma câmara pragmática para o harness são típicos desse setup.",
+        "palpite_normalizado": "C",
+        "verdade": "A",
+        "acertou": false
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-6",
+        "palpite": "Palpite: Gemini Pro num setup one-shot de geração de artefacto; a implementação compacta em ES5, a câmara top-down e as escolhas simples de cena sugerem esse perfil.",
+        "palpite_normalizado": "A",
+        "verdade": "C",
+        "acertou": false
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-7",
+        "palpite": "Palpite: GPT-5 Codex via Codex CLI ou app com esforço alto; a composição pragmática, o estado em Maps, as guardas de colocação e o flood-fill bem delimitado apontam para esse setup.",
+        "palpite_normalizado": "A",
+        "verdade": "A",
+        "acertou": true
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-8",
+        "palpite": "Palpite: Claude Opus via Claude Code em modo high-effort; a profundidade de mecânicas, os fallbacks, o áudio, a física e a UX muito especificada sugerem esse setup.",
+        "palpite_normalizado": "B",
+        "verdade": "B",
+        "acertou": true
+      },
+      {
+        "juiz": "codex (âncora, outra casa)",
+        "rotulo": "ART-9",
+        "palpite": "Palpite: GPT-5 Codex via Codex CLI ou app com esforço alto; a estrutura baseada em Maps, geometria conectada, guardas explícitas e gameplay top-down pragmático é compatível com esse setup.",
+        "palpite_normalizado": "A",
+        "verdade": "A",
+        "acertou": true
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-1",
+        "palpite": "Sonnet (tier médio): âmbito deliberadamente mínimo mas com optimizações de instancing (free-lists, typed arrays) pouco típicas de modelos pequenos.",
+        "palpite_normalizado": "C",
+        "verdade": "C",
+        "acertou": true
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-2",
+        "palpite": "Fable/Opus (top-tier, effort alto): a ambição máxima — pointer lock, áudio, 3 CDNs, RNG semeado — é assinatura de modelo grande a maximizar features.",
+        "palpite_normalizado": "B",
+        "verdade": "B",
+        "acertou": true
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-3",
+        "palpite": "Fable/Opus, mesma família de ART-2/ART-8 (padrão idêntico de painéis CSS com variáveis e helper de áudio com a mesma assinatura), noutra run.",
+        "palpite_normalizado": "B",
+        "verdade": "B",
+        "acertou": true
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-4",
+        "palpite": "Modelo mais pequeno ou com training data datado (Haiku ou GPT-4o): three r128, ES5 e menos rigor de performance apontam para tier inferior.",
+        "verdade": "C",
+        "acertou": null,
+        "porque": "palpite não mapeável a um braço"
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-5",
+        "palpite": "Sonnet: mecânicas ricas e execução sólida em estilo ES5 conservador, sem a ambição arquitectural dos first-person — partilha padrões (lerp angular, balão projetado) com ART-9.",
+        "palpite_normalizado": "C",
+        "verdade": "A",
+        "acertou": false
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-6",
+        "palpite": "Haiku ou Ollama local (qwen): a solução mais simples do lote, r128 via cdnjs, sem overlays nem extras — perfil clássico de modelo pequeno.",
+        "palpite_normalizado": "A",
+        "verdade": "C",
+        "acertou": false
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-7",
+        "palpite": "Sonnet 5: âmbito calibrado, ES6 limpo e pragmatismo assumido (R = reload) — o equilíbrio custo/qualidade típico do tier médio-alto, e ganhou o DoD com isso.",
+        "palpite_normalizado": "C",
+        "verdade": "A",
+        "acertou": false
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-8",
+        "palpite": "Fable/Opus, mesma família de ART-2/ART-3 (loader de 3 CDNs e helper de áudio com assinatura idêntica) — a run mais completa do trio first-person.",
+        "palpite_normalizado": "B",
+        "verdade": "B",
+        "acertou": true
+      },
+      {
+        "juiz": "Fable 5 (contexto fresco, sem tools, cwd isolado)",
+        "rotulo": "ART-9",
+        "palpite": "Opus (ou Sonnet com foco visual): mesma família dos top-down polidos ART-5/ART-7 (lerp angular idêntico, sol/lua em esferas, balão projetado), mas a run que sacrificou performance por estética.",
+        "palpite_normalizado": "B",
+        "verdade": "A",
+        "acertou": false
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-1",
+        "palpite": "Código linear em IIFE sem pointer lock, sem som e sem overlays, mas com keyframes de ciclo dia/noite bem definidos — palpito modelo de gama média em single-shot (GPT-4o-mini ou Claude Haiku).",
+        "palpite_normalizado": "C",
+        "verdade": "C",
+        "acertou": true
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-2",
+        "palpite": "Copy literária e polida («the sun waits for you», ecrã de erro encenado) com mecânica de herding e HUD elaborada — palpito Claude Sonnet (estilo de agente com capricho narrativo).",
+        "palpite_normalizado": "C",
+        "verdade": "B",
+        "acertou": false
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-3",
+        "palpite": "Engenharia voxel pesada escrita à mão (DDA, física de salto, heightmap) com copy à base de emojis e tom de tutorial — palpito GPT-4o em modo agente de coding.",
+        "verdade": "B",
+        "acertou": null,
+        "porque": "palpite não mapeável a um braço"
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-4",
+        "palpite": "three@0.128 via unpkg, overlays estilo landing-page com grelha de controlos e estrutura conservadora — palpito Gemini (1.5 Pro / 2.0 Flash), que usa frequentemente essa versão antiga do three.",
+        "verdade": "C",
+        "acertou": null,
+        "porque": "palpite não mapeável a um braço"
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-5",
+        "palpite": "Polish de game-feel (deny shake, toasts, stocks, wheel zoom) com arquitectura limpa sem pointer lock — palpito Claude Sonnet 4 em setup agente (Claude Code).",
+        "palpite_normalizado": "C",
+        "verdade": "A",
+        "acertou": false
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-6",
+        "palpite": "Solução minimalista de baixo risco (toggle de clique único, sem pointer lock, sem extras) — palpito modelo pequeno/rápido (GPT-4o-mini ou Llama 70B).",
+        "verdade": "C",
+        "acertou": null,
+        "porque": "palpite não mapeável a um braço"
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-7",
+        "palpite": "Acabamento estrutural e copy com personalidade («MOO-VELOUS!», loading screen, fences com rails) com setAnimationLoop e instancing colorido — palpito Claude Opus 4.",
+        "palpite_normalizado": "B",
+        "verdade": "A",
+        "acertou": false
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-8",
+        "palpite": "Motor pesado com física, DDA e texturas procedurais, tutorial copy muito detalhado («Hold her for 1.5s…») e boot por loader — palpito GPT-4o (ou o1) em agente de coding.",
+        "verdade": "B",
+        "acertou": null,
+        "porque": "palpite não mapeável a um braço"
+      },
+      {
+        "juiz": "kimi-k3 (streaming)",
+        "rotulo": "ART-9",
+        "palpite": "Obsessão de designer/front-end (fences conectadas, pop-in, moo com formante, favicon 🐄 em SVG) — palpito Claude Sonnet 4.5.",
+        "palpite_normalizado": "C",
+        "verdade": "A",
+        "acertou": false
+      }
+    ],
+    "acertos": 10,
+    "palpites_validos": 22,
+    "sem_palpite": 5,
+    "taxa_acerto_pct": 45.5,
+    "taxa_porque": "10/22 palpites mapeáveis",
+    "baseline_acaso_pct": 33.3,
+    "baseline_porque": "3 braços equiprováveis — adivinhar ao acaso acerta 1 em 3 (33,3%). Acima disto a cegueira do painel está comprometida; ao nível disto, o painel julgou às cegas."
+  },
+  "defeitos_de_instrumento": {
+    "total": 10,
+    "_nota": "o brief falava em 7; o registo dá 10 — a contagem sai do registo, não da memória",
+    "lista": [
+      {
+        "n": 1,
+        "data": "2026-08-07",
+        "o_que_era": "`--settings` partia-se no espaço de 'Paulo Loureiro' com shell:true — braços A e C faziam 3/3 tentativas com 0 bytes",
+        "consequencia": "o piloto ia declarar MOOTER 3-0 contra dois braços que nunca arrancaram",
+        "commit_fix": "b62146cc"
+      },
+      {
+        "n": 2,
+        "data": "2026-08-07",
+        "o_que_era": "braço com 0 bytes em 3/3 tentativas era registado como 'TECTO ATINGIDO — incompleto' e a bateria seguia",
+        "consequencia": "avaria do instrumento virava medição do produto",
+        "commit_fix": "b62146cc"
+      },
+      {
+        "n": 3,
+        "data": "2026-08-07",
+        "o_que_era": "gate do artefacto exigia `moo-ranch/index.html` mas o prompt congelado nunca diz onde pôr o ficheiro",
+        "consequencia": "9/9 'TECTO ATINGIDO' com os três braços a reportar success e jogos verificados",
+        "commit_fix": "7f78c72b"
+      },
+      {
+        "n": 4,
+        "data": "2026-08-07",
+        "o_que_era": "captura do artefacto só olhava para o git da worktree; B e C escreviam no scratchpad",
+        "consequencia": "artefacto/ vazio em 6 de 9 runs apesar de 5-7 MB de transcrição",
+        "commit_fix": "7f78c72b"
+      },
+      {
+        "n": 5,
+        "data": "2026-08-07",
+        "o_que_era": "worktree opaca não isolava: braços escreveram em ~/moo-ranch e ~/moo-ranch-b e viram-se uns aos outros",
+        "consequencia": "run N partia com o build do run N-1",
+        "commit_fix": "77814da3"
+      },
+      {
+        "n": 6,
+        "data": "2026-08-07",
+        "o_que_era": "o CLAUDE.md neutro (alteração nossa) entrava no artefacto dos 9 runs",
+        "consequencia": "juiz cego leria violação de 'não toques em mais nenhum ficheiro' em todos os braços",
+        "commit_fix": "279b5d8d"
+      },
+      {
+        "n": 7,
+        "data": "2026-08-07",
+        "o_que_era": "juiz Fable 5 com o mesmo bug do `--settings` — e o julgar.mjs apanhava a falha e seguia",
+        "consequencia": "painel sairia com 2 juízes de 3, com ar de 'o terceiro falhou'",
+        "commit_fix": "dbb8142a"
+      },
+      {
+        "n": 8,
+        "data": "2026-08-07",
+        "o_que_era": "juiz âncora (codex) recusado: cwd isolado é mkdtemp, não repo git",
+        "consequencia": "perdia-se o único juiz de outra casa — o painel avaliava-se a si próprio",
+        "commit_fix": "a5642ae2"
+      },
+      {
+        "n": 9,
+        "data": "2026-08-07",
+        "o_que_era": "juiz local marcado '✓' com veredicto VAZIO (sem num_ctx: 82k tokens contra 4096; sem think:false: qwen3 põe o texto em 'thinking')",
+        "consequencia": "um ✓ sobre nada no painel",
+        "commit_fix": "a5642ae2"
+      },
+      {
+        "n": 10,
+        "data": "2026-08-07",
+        "o_que_era": "resultado.md dizia 'runtime_bundle_sha: n/d' e acusava 9 runs de serem anteriores à prova de bundle — com a prova a dar IGUAL 198/198",
+        "consequencia": "o documento canónico publicava uma segunda verdade",
+        "commit_fix": "13779a6d"
+      }
+    ]
+  },
+  "ledger_semana": {
+    "janela": "7 dias",
+    "jobs": 8,
+    "jobs_locais": 5,
+    "tokens_in": 18165314,
+    "tokens_out": 99151,
+    "tokens_out_locais": 5222,
+    "pct_tokens_saida_local": 5.3,
+    "custo_usd_medido": 0,
+    "jobs_sem_custo_medido": 3,
+    "_porque_parcial": "3 job(s) sem cost_usd medido — o total é um limite inferior",
+    "_ressalva": "só o que passou por esta máquina; não inclui claude.ai nem outros computadores",
+    "_ressalva_piloto": "os braços do piloto NÃO passam por aqui — o driver invoca `claude -p` directamente, sem o bridge. Este total é do trabalho da frota (mooter_work), não da bateria. Cruzar os dois seria somar coisas diferentes."
+  },
+  "declaracoes_obrigatorias": {
+    "exposicao_do_paulo": "o Paulo viu 1 artefacto da bateria-1 (inválida) antes do julgamento desta bateria; os 9 artefactos julgados aqui são da bateria-2 e nenhum lhe foi mostrado antes do painel fechar",
+    "limite_contexto_neutro": "o ~/.claude/CLAUDE.md do utilizador NÃO é removível (CLAUDE_CONFIG_DIR quebra a autenticação, medido). É CONSTANTE nos três braços, não variável entre eles — mas o ambiente não é livre de doutrina",
+    "item_8_do_dod": "condição de vitória: n/d (humano) nos 9 artefactos — à espera de o Paulo jogar os 9 jogos"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "ts": "2026-08-07T19:33:23.499Z",
+  "painel": [
+    "codex ✓",
+    "fable5 ✓ (peso 0,5)",
+    "kimi ✓ (coube em 600000ms com streaming — fix §7.2)"
+  ],
+  "gemini": "EXCLUÍDO — CLI morto/Antigravity (§7.1)",
+  "kimi_timeout_ms": 600000,
+  "riscos_residuais_declarados": [
+    "codex read-only pode em teoria ler disco fora do cwd isolado; mitigação = cwd tmp + prompt manda usar só o material fornecido",
+    "acabamento visual julgado como n/d pelos juízes de texto — parcela da rubrica coberta só pela fluidez medida do harness"
+  ]
+}
