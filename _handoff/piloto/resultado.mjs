@@ -136,6 +136,20 @@ function render(ag) {
     l.push(`- ⚠️ ${ag.runtime_bundle_sha.ausente_em.length} run(s) sem \`runtime_bundle_sha\` no \`meta.json\` **e sem prova no \`driver.log\`** da bateria — não há como saber o que correu: \`${ag.runtime_bundle_sha.ausente_em.join("`, `")}\`.`);
   }
   l.push("");
+  l.push("## Declarações obrigatórias (condições desta bateria)");
+  l.push("");
+  l.push("- **Exposição do Paulo:** viu **1 artefacto da bateria-1** (arquivada como inválida) antes deste");
+  l.push("  julgamento. Os 9 artefactos julgados aqui são da bateria-2 e **nenhum lhe foi mostrado antes");
+  l.push("  de o painel fechar**. A exposição é declarada por ter existido, não por se saber que enviesou.");
+  l.push("- **Limite do contexto neutro:** o `CLAUDE.md` do projecto foi substituído por um neutro idêntico");
+  l.push("  nos três braços e o `AGENTS.md` removido. O **`~/.claude/CLAUDE.md` do utilizador NÃO é");
+  l.push("  removível** — `CLAUDE_CONFIG_DIR` quebra a autenticação (medido: `Not logged in`). É");
+  l.push("  **constante nos três braços**, logo não é variável entre eles, mas o ambiente **não é livre de");
+  l.push("  doutrina**. Quem ler isto como \"contexto neutro\" está a ler mais do que foi medido.");
+  l.push("- **Item 8 do DoD** (condição de vitória quando a vaca está cercada): **`n/d (humano)` nos 9");
+  l.push("  artefactos** — o harness não o consegue verificar. Fica à espera de o Paulo jogar os 9 jogos.");
+  l.push("  O `score_dod` de cada artefacto é sobre 11 itens verificáveis, não 12.");
+  l.push("");
   l.push("## Runs");
   l.push("");
   l.push("| run | braço | tarefa | exec | critério de paragem | tentativas | wall_ms | custo proxy | intervenções |");

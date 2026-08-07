@@ -210,6 +210,49 @@ reais do registo e apanhar ≥1 que as 18 não apanham):
 - *Pontos de revisão anteriores abertos* (NASA) — volta QUANDO o registo de acções abertas existir
   como artefacto (cérebro da Wave M). Sem ficheiro grep-ável, é pergunta retórica.
 
+- **C1 — "o ✓ tem corpo?"** · candidata, retro-prova abaixo. *Um estado de sucesso só conta se o
+  artefacto que ele descreve existir e tiver conteúdo. `ok`, `✓`, `done` e `exit 0` são afirmações
+  sobre o processo, não sobre o produto — medir o produto.*
+- **C2 — "congelaste todas as superfícies?"** · candidata, retro-prova abaixo. *Um invariante
+  aplicado a uma superfície e não às irmãs não é invariante, é um hábito. Quando se corrige uma
+  classe de defeito, varrer TODAS as superfícies onde ela cabe, no mesmo commit.*
+
+#### Retro-prova da C1 ("o ✓ tem corpo?") — 3 falhas reais, todas de 2026-08-07
+
+1. **`moo local ✓` com `bruto: ""`** (painel de juízes, 19:18Z). O `julgar.mjs` escrevia ✓ só por
+   `r.ok`; o ramo irmão (kimi) já exigia `texto.trim()`. Um veredicto vazio entrou no painel como
+   juiz válido. Fix `a5642ae2`. **As 18 não apanham:** a G18 exige `[medido]` num *claim*; aqui o
+   claim era um símbolo de estado, não um número.
+2. **Braço com 0 bytes registado como `TECTO ATINGIDO — incompleto`** (bateria T1). O run tinha
+   3/3 tentativas sem uma linha de transcrição e o harness classificou-o como tentativa falhada,
+   não como braço que não correu. Fix `b62146cc`.
+3. **`artefacto/` vazio em 6 de 9 runs** com 5-7 MB de transcrição e `success` reportado pelos
+   próprios agentes. A captura olhava para o git da worktree; o trabalho estava no scratchpad.
+   Fix `7f78c72b`.
+
+**O que a C1 apanha e as 18 não:** a G12 (denominador) pergunta *sobre quantos*; a G18 pergunta se
+o número foi medido. Nenhuma pergunta se o **objecto que o estado descreve existe**. Os três casos
+passariam as 18 sem tocar em nada.
+
+#### Retro-prova da C2 ("congelaste todas as superfícies?") — 3 falhas reais, todas de 2026-08-07
+
+1. **`--settings` por citar, quarta aparição.** Corrigido no `driver.mjs:258` (`b62146cc`) às 05:28.
+   O mesmo defeito ficou vivo no `julgar.mjs:87` até às 14:5x (`dbb8142a`) — 9 horas — e teria
+   custado o juiz Fable 5 no fecho. Só apareceu porque fui verificar as fontes do dossier.
+2. **`think:false` do qwen3.** Medido e documentado no VERIFICADOR-0 de manhã (`5ae49188`); o
+   `julgar.mjs` chamava o mesmo modelo sem ele e produziu o veredicto vazio da C1-1. Eu conhecia o
+   defeito e não o generalizei. Fix `a5642ae2`.
+3. **`runtime_bundle_sha` só no `driver.log`.** O driver provava o bundle e escrevia a prova numa
+   superfície (o log) mas não na outra (o `meta.json`), e o `resultado.md` — o documento canónico —
+   saiu a negar que a prova existisse. Fix `13779a6d`.
+
+**O que a C2 apanha e as 18 não:** a G11 (instrumento) pergunta se o instrumento está calibrado
+para *esta* medição. Nenhuma das 18 pergunta se o fix de ontem foi aplicado às **outras** superfícies
+onde o mesmo defeito cabe. É a diferença entre corrigir um bug e fechar uma classe.
+
+> **Tecto 18 intocado.** C1 e C2 ficam em FILA, não entram. A entrada é decisão do Paulo e obedece à
+> regra do fecho (entra uma → sai uma), ou a um gesto explícito do dono que eleve o tecto.
+
 ## Como funciona — os 3 estágios de automação (honestidade sobre o que é automático HOJE)
 
 1. **Hoje — contrato de prompt** (§3.9.6 do SUPERMASTER_MOOTER_2_0): o agente corre porque o
