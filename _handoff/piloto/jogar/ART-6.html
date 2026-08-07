@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moo Ranch</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+      }
+      canvas {
+        display: block;
+        cursor: crosshair;
+      }
+
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        background: rgba(15, 20, 15, 0.65);
+        color: #eafbe6;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.6;
+        pointer-events: none;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+        min-width: 190px;
+      }
+      #hud b {
+        color: #ffe9a8;
+      }
+      #hud .label {
+        opacity: 0.75;
+        margin-right: 6px;
+      }
+
+      #instructions {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        background: rgba(15, 20, 15, 0.55);
+        color: #dfeee0;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 12.5px;
+        line-height: 1.7;
+        pointer-events: none;
+        text-align: right;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      }
+
+      #hotbar {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        background: rgba(15, 20, 15, 0.55);
+        padding: 8px;
+        border-radius: 12px;
+      }
+      .slot {
+        width: 58px;
+        height: 58px;
+        border-radius: 8px;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 11px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        transition:
+          transform 0.08s ease,
+          border-color 0.08s ease;
+      }
+      .slot .key {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 4px;
+        opacity: 0.85;
+      }
+      .slot.selected {
+        border-color: #ffe9a8;
+        transform: translateY(-4px) scale(1.06);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      }
+
+      #winBanner {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 10;
+      }
+      #winBanner.show {
+        display: flex;
+      }
+      #winCard {
+        background: linear-gradient(160deg, #2a3d24, #16231a);
+        border: 2px solid #ffe9a8;
+        border-radius: 16px;
+        padding: 32px 44px;
+        text-align: center;
+        color: #fff8e8;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      }
+      #winCard h1 {
+        font-size: 30px;
+        margin-bottom: 10px;
+        color: #ffe9a8;
+      }
+      #winCard p {
+        font-size: 15px;
+        opacity: 0.9;
+        margin-bottom: 18px;
+      }
+      #winCard button {
+        background: #ffe9a8;
+        color: #16231a;
+        border: none;
+        padding: 10px 22px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      #winCard button:hover {
+        background: #fff2c4;
+      }
+
+      #fps {
+        position: fixed;
+        bottom: 10px;
+        right: 12px;
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 11px;
+        font-family: monospace;
+        pointer-events: none;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <div><span class="label">Blocks</span><b id="hudBlocks">0</b></div>
+      <div><span class="label">Time</span><b id="hudTime">00:00</b></div>
+      <div>
+        <span class="label">Day</span><b id="hudDay">1</b>
+        <span id="hudPhase">☀ day</span>
+      </div>
+    </div>
+
+    <div id="instructions">
+      WASD — move<br />
+      Click — place / remove block<br />
+      1 2 3 — select block<br />
+      Fence the cow in to win 🐄
+    </div>
+
+    <div id="hotbar">
+      <div class="slot selected" data-slot="1">
+        <div class="key">1</div>
+        Fence
+      </div>
+      <div class="slot" data-slot="2">
+        <div class="key">2</div>
+        Hedge
+      </div>
+      <div class="slot" data-slot="3">
+        <div class="key">3</div>
+        Stone
+      </div>
+    </div>
+
+    <div id="fps">60 fps</div>
+
+    <div id="winBanner">
+      <div id="winCard">
+        <h1>🎉 The cow is home!</h1>
+        <p id="winStats">Fenced in at 00:00 using 0 blocks.</p>
+        <button id="restartBtn">Build again</button>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var a1 = 16;
+        var a2 = 4.2;
+        var a3 = 1.6;
+        var a4 = 0.32;
+        var a5 = 0.4;
+        var a6 = 60;
+        var a7 = [
+          { name: "Fence", color: 0x8a5a34 },
+          { name: "Hedge", color: 0x3f7d3a },
+          { name: "Stone", color: 0x8d8f92 },
+        ];
+
+        var a8 = new THREE.WebGLRenderer({ antialias: true });
+        a8.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        a8.setSize(window.innerWidth, window.innerHeight);
+        document.a41.appendChild(a8.domElement);
+
+        var a9 = new THREE.Scene();
+        var a10 = new THREE.Color(0x8fd3ff);
+        a9.background = a10.clone();
+        a9.fog = new THREE.Fog(a10.getHex(), 14, 34);
+
+        var a11 = new THREE.PerspectiveCamera(
+          52,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          100,
+        );
+        var a12 = new THREE.Vector3(0, 9.5, 8.5);
+        a11.position.copy(a12).add(new THREE.Vector3(a1 / 2, 0, a1 / 2));
+        a11.lookAt(a1 / 2, 0, a1 / 2);
+
+        var a13 = new THREE.HemisphereLight(0xbfe3ff, 0x3b3223, 0.7);
+        a9.add(a13);
+        var a14 = new THREE.DirectionalLight(0xffffff, 1.0);
+        a14.position.set(10, 20, 6);
+        a9.add(a14);
+        var a15 = new THREE.AmbientLight(0xffffff, 0.15);
+        a9.add(a15);
+
+        var a16 = new THREE.Group();
+        a9.add(a16);
+
+        var a17 = new THREE.MeshLambertMaterial({ color: 0x5fa956 });
+        var a18 = new THREE.Mesh(new THREE.PlaneGeometry(a1, a1), a17);
+        a18.rotation.x = -Math.PI / 2;
+        a18.position.set(a1 / 2, 0, a1 / 2);
+        a18.userData.isGround = true;
+        a16.add(a18);
+
+        var a19 = new THREE.GridHelper(a1, a1, 0x2f5a2c, 0x3d6b3a);
+        a19.position.set(a1 / 2, 0.02, a1 / 2);
+        a19.material.transparent = true;
+        a19.material.opacity = 0.35;
+        a9.add(a19);
+
+        var a20 = [
+          new THREE.Vector3(0, 0.05, 0),
+          new THREE.Vector3(a1, 0.05, 0),
+          new THREE.Vector3(a1, 0.05, a1),
+          new THREE.Vector3(0, 0.05, a1),
+          new THREE.Vector3(0, 0.05, 0),
+        ];
+        var a21 = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(a20),
+          new THREE.LineBasicMaterial({ color: 0xffcf5c, linewidth: 2 }),
+        );
+        a9.add(a21);
+
+        var a22 = new THREE.BoxGeometry(0.94, 1, 0.94);
+        var a23 = a7.map(function (a107) {
+          return new THREE.MeshLambertMaterial({ color: a107.color });
+        });
+        var a24 = new Map();
+        var a25 = 0;
+
+        function a26(a36, cz) {
+          return a36 + "," + cz;
+        }
+        function a27(a36, cz) {
+          return a36 >= 0 && a36 < a1 && cz >= 0 && cz < a1;
+        }
+
+        function a28(a36, cz, type) {
+          if (!a27(a36, cz)) return;
+          var a29 = a26(a36, cz);
+          if (a24.has(a29)) return;
+          var a30 = new THREE.Mesh(a22, a23[type]);
+          a30.position.set(a36 + 0.5, 0.5, cz + 0.5);
+          a30.userData.isBlock = true;
+          a30.userData.a36 = a36;
+          a30.userData.cz = cz;
+          a16.add(a30);
+          a24.set(a29, a30);
+          a82();
+        }
+
+        function a31(a36, cz) {
+          var a29 = a26(a36, cz);
+          var a30 = a24.get(a29);
+          if (!a30) return;
+          a16.remove(a30);
+          a24.delete(a29);
+          a82();
+        }
+
+        function a32(a36, cz) {
+          return a24.has(a26(a36, cz));
+        }
+
+        function a33(x, z, r) {
+          var a34 = [
+            [x - r, z - r],
+            [x + r, z - r],
+            [x - r, z + r],
+            [x + r, z + r],
+          ];
+          for (var a35 = 0; a35 < a34.length; a35++) {
+            var a36 = a34[a35][0],
+              cz = a34[a35][1];
+            if (a36 < 0 || a36 >= a1 || cz < 0 || cz >= a1) return false;
+            if (a32(Math.floor(a36), Math.floor(cz))) return false;
+          }
+          return true;
+        }
+
+        function a37(w, h, d, color) {
+          var a38 = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshLambertMaterial({ color: color }),
+          );
+          return a38;
+        }
+
+        function a39() {
+          var a40 = new THREE.Group();
+          var a41 = a37(0.5, 0.6, 0.32, 0xd9663b);
+          a41.position.y = 0.55;
+          var a42 = a37(0.4, 0.4, 0.4, 0xf2c197);
+          a42.position.y = 1.0;
+          var a43 = a37(0.44, 0.14, 0.44, 0x4b3621);
+          a43.position.y = 1.24;
+          var a44 = a37(0.18, 0.4, 0.18, 0x3b4a6b);
+          a44.position.set(-0.13, 0.2, 0);
+          var a45 = a44.clone();
+          a45.position.x = 0.13;
+          a40.add(a41, a42, a43, a44, a45);
+          a40.traverse(function (o) {
+            if (o.isMesh) o.castShadow = false;
+          });
+          return a40;
+        }
+
+        function a46() {
+          var a40 = new THREE.Group();
+          var a41 = a37(0.9, 0.5, 0.5, 0xf5f2ea);
+          a41.position.y = 0.55;
+          var a47 = a37(0.3, 0.2, 0.52, 0x2b2b2b);
+          a47.position.set(-0.15, 0.6, 0);
+          var a48 = a37(0.22, 0.16, 0.52, 0x2b2b2b);
+          a48.position.set(0.22, 0.48, 0);
+          var a42 = a37(0.34, 0.32, 0.3, 0xf5f2ea);
+          a42.position.set(0.58, 0.58, 0);
+          var a49 = a37(0.16, 0.14, 0.32, 0xdba7a1);
+          a49.position.set(0.72, 0.5, 0);
+          var a50 = a37(0.12, 0.1, 0.06, 0xf5f2ea);
+          a50.position.set(0.55, 0.72, 0.18);
+          var a51 = a50.clone();
+          a51.position.z = -0.18;
+          var a52 = a37(0.14, 0.35, 0.14, 0xefe8da);
+          a52.position.set(0.28, 0.18, 0.16);
+          var a53 = a52.clone();
+          a53.position.z = -0.16;
+          var a54 = a52.clone();
+          a54.position.x = -0.28;
+          var a55 = a54.clone();
+          a55.position.z = -0.16;
+          var a56 = a37(0.06, 0.35, 0.06, 0x2b2b2b);
+          a56.position.set(-0.46, 0.55, 0);
+          a40.add(a41, a47, a48, a42, a49, a50, a51, a52, a53, a54, a55, a56);
+          return a40;
+        }
+
+        var a57 = a39();
+        a57.position.set(a1 / 2 - 3, 0, a1 / 2);
+        a9.add(a57);
+        var a58 = { x: a1 / 2 - 3, z: a1 / 2, a108: 0 };
+
+        var a59 = a46();
+        a9.add(a59);
+        var a60 = {
+          x: a1 / 2 + 2,
+          z: a1 / 2,
+          a108: 0,
+          target: null,
+          retarget: 0,
+        };
+
+        var a61 = {};
+        window.addEventListener("keydown", function (e) {
+          a61[e.a29.toLowerCase()] = true;
+          if (e.a29 === "1" || e.a29 === "2" || e.a29 === "3")
+            a63(parseInt(e.a29, 10) - 1);
+          if (e.a29.toLowerCase() === "r" && a73) a83();
+        });
+        window.addEventListener("keyup", function (e) {
+          a61[e.a29.toLowerCase()] = false;
+        });
+
+        var a62 = document.querySelectorAll(".slot");
+        function a63(a35) {
+          a25 = a35;
+          a62.forEach(function (el, idx) {
+            el.classList.toggle("selected", idx === a35);
+          });
+        }
+        a62.forEach(function (el, idx) {
+          el.addEventListener("click", function () {
+            a63(idx);
+          });
+        });
+
+        var a64 = new THREE.Vector2(10, 10);
+        var a65 = new THREE.Raycaster();
+        a8.domElement.addEventListener("mousemove", function (e) {
+          a64.x = (e.clientX / window.innerWidth) * 2 - 1;
+          a64.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+        a8.domElement.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+        });
+
+        var a66 = null;
+        a8.domElement.addEventListener("click", function () {
+          if (!a66 || a73) return;
+          if (a66.occupied) a31(a66.a36, a66.cz);
+          else a28(a66.a36, a66.cz, a25);
+        });
+
+        function a67() {
+          a65.setFromCamera(a64, a11);
+          var a68 = a65.intersectObjects(a16.children, false);
+          if (!a68.length) {
+            a66 = null;
+            a72();
+            return;
+          }
+          var a69 = a68[0];
+          var a36, cz, occupied;
+          if (a69.object.userData.isBlock) {
+            a36 = a69.object.userData.a36;
+            cz = a69.object.userData.cz;
+            occupied = true;
+          } else {
+            a36 = Math.floor(a69.point.x);
+            cz = Math.floor(a69.point.z);
+            if (!a27(a36, cz)) {
+              a66 = null;
+              a72();
+              return;
+            }
+            occupied = a32(a36, cz);
+          }
+          a66 = { a36: a36, cz: cz, occupied: occupied };
+          a71(a36, cz, occupied);
+        }
+
+        var a70 = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+          new THREE.LineBasicMaterial({ color: 0x69ff8f }),
+        );
+        a70.visible = false;
+        a9.add(a70);
+        function a71(a36, cz, occupied) {
+          a70.visible = true;
+          a70.position.set(a36 + 0.5, 0.5, cz + 0.5);
+          a70.material.color.setHex(occupied ? 0xff6b6b : 0x69ff8f);
+        }
+        function a72() {
+          a70.visible = false;
+        }
+
+        var a73 = false;
+        function a74() {
+          var a75 = Math.max(0, Math.min(a1 - 1, Math.floor(a60.x)));
+          var a76 = Math.max(0, Math.min(a1 - 1, Math.floor(a60.z)));
+          if (a32(a75, a76)) return false;
+          var a77 = new Set([a26(a75, a76)]);
+          var a78 = [[a75, a76]];
+          var a79 = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ];
+          while (a78.length) {
+            var a80 = a78.pop();
+            var a36 = a80[0],
+              cz = a80[1];
+            if (a36 === 0 || a36 === a1 - 1 || cz === 0 || cz === a1 - 1)
+              return false;
+            for (var a35 = 0; a35 < a79.length; a35++) {
+              var a81 = a36 + a79[a35][0],
+                a89 = cz + a79[a35][1];
+              if (a81 < 0 || a81 >= a1 || a89 < 0 || a89 >= a1) continue;
+              var a29 = a26(a81, a89);
+              if (a77.has(a29) || a32(a81, a89)) continue;
+              a77.add(a29);
+              a78.push([a81, a89]);
+            }
+          }
+          return true;
+        }
+
+        function a82() {
+          if (a73) return;
+          if (a74()) {
+            a73 = true;
+            document.getElementById("winStats").textContent =
+              "Fenced in at " + a114(a120) + " using " + a24.size + " a24.";
+            document.getElementById("winBanner").classList.add("show");
+          }
+        }
+
+        document.getElementById("restartBtn").addEventListener("click", a83);
+        function a83() {
+          a24.forEach(function (a30) {
+            a16.remove(a30);
+          });
+          a24.clear();
+          a73 = false;
+          a120 = 0;
+          document.getElementById("winBanner").classList.remove("show");
+          a58.x = a1 / 2 - 3;
+          a58.z = a1 / 2;
+          a60.x = a1 / 2 + 2;
+          a60.z = a1 / 2;
+          a60.target = null;
+        }
+
+        function a84(a124) {
+          var a85 = 0,
+            a94 = 0;
+          if (a61["w"]) a94 -= 1;
+          if (a61["s"]) a94 += 1;
+          if (a61["a"]) a85 -= 1;
+          if (a61["d"]) a85 += 1;
+          if (a85 !== 0 || a94 !== 0) {
+            var a86 = Math.sqrt(a85 * a85 + a94 * a94);
+            a85 = (a85 / a86) * a2 * a124;
+            a94 = (a94 / a86) * a2 * a124;
+            var a87 = Math.atan2(a85, a94);
+            var a88 = a87 - a58.a108;
+            a88 = Math.atan2(Math.sin(a88), Math.cos(a88));
+            a58.a108 += a88 * Math.min(1, a124 * 12);
+
+            var a81 = a58.x + a85;
+            if (a33(a81, a58.z, a4)) a58.x = a81;
+            var a89 = a58.z + a94;
+            if (a33(a58.x, a89, a4)) a58.z = a89;
+          }
+          a57.position.set(a58.x, 0, a58.z);
+          a57.rotation.y = a58.a108;
+        }
+
+        function a90(a124) {
+          a60.retarget -= a124;
+          if (!a60.target || a60.retarget <= 0) {
+            var a91 = null;
+            for (var a92 = 0; a92 < 12 && !a91; a92++) {
+              var a93 = Math.random() * a1,
+                tz = Math.random() * a1;
+              if (a33(a93, tz, a5)) a91 = { x: a93, z: tz };
+            }
+            a60.target = a91;
+            a60.retarget = 2.5 + Math.random() * 2.5;
+          }
+          if (a60.target) {
+            var a85 = a60.target.x - a60.x;
+            var a94 = a60.target.z - a60.z;
+            var a95 = Math.sqrt(a85 * a85 + a94 * a94);
+            if (a95 < 0.15) {
+              a60.target = null;
+            } else {
+              var a96 = Math.min(a95, a3 * a124);
+              var a97 = (a85 / a95) * a96;
+              var a98 = (a94 / a95) * a96;
+              a60.a108 = Math.atan2(a97, a98);
+              var a81 = a60.x + a97;
+              if (a33(a81, a60.z, a5)) a60.x = a81;
+              else a60.target = null;
+              var a89 = a60.z + a98;
+              if (a33(a60.x, a89, a5)) a60.z = a89;
+              else a60.target = null;
+            }
+          }
+          a59.position.set(a60.x, 0, a60.z);
+          a59.rotation.y = a60.a108;
+        }
+
+        function a99(a124) {
+          var a100 = new THREE.Vector3(a58.x, 0, a58.z).add(a12);
+          a11.position.lerp(a100, Math.min(1, a124 * 4));
+          a11.lookAt(a58.x, 0.6, a58.z);
+        }
+
+        var a101 = a6 * 0.25;
+        var a102 = 1;
+        var a103 = new THREE.Color(0x0b1330);
+        var a104 = new THREE.Color(0xffa86b);
+        var a105 = new THREE.Color(0x8fd3ff);
+        function a106(a124) {
+          a101 += a124;
+          if (a101 >= a6) {
+            a101 -= a6;
+            a102++;
+          }
+          var a107 = a101 / a6;
+          var a108 = a107 * Math.PI * 2;
+          var a109 = Math.sin(a108);
+          a14.position.set(Math.cos(a108) * 18, Math.max(2, a109 * 20 + 4), 8);
+
+          var a110 = Math.max(0, a109);
+          var a111 = Math.max(0, 1 - Math.abs(a109) * 2.2);
+
+          a14.intensity = 0.15 + a110 * 1.0;
+          a13.intensity = 0.25 + a110 * 0.55;
+          a15.intensity = 0.08 + a110 * 0.12;
+
+          var a112 = a103
+            .clone()
+            .lerp(a105, a110)
+            .lerp(a104, a111 * 0.5);
+          a9.background.copy(a112);
+          a9.fog.color.copy(a112);
+
+          var a113 = document.getElementById("hudPhase");
+          a113.textContent =
+            a110 > 0.15 ? "☀ day" : a111 > 0.4 ? "🌅 dusk" : "🌙 night";
+          document.getElementById("hudDay").textContent = a102;
+        }
+
+        function a114(s) {
+          var a38 = Math.floor(s / 60);
+          var a115 = Math.floor(s % 60);
+          return (
+            (a38 < 10 ? "0" : "") + a38 + ":" + (a115 < 10 ? "0" : "") + a115
+          );
+        }
+        var a116 = document.getElementById("hudBlocks");
+        var a117 = document.getElementById("hudTime");
+        function a118() {
+          a116.textContent = a24.size;
+          a117.textContent = a114(a120);
+        }
+
+        window.addEventListener("resize", function () {
+          a11.aspect = window.innerWidth / window.innerHeight;
+          a11.updateProjectionMatrix();
+          a8.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        var a119 = new THREE.Clock();
+        var a120 = 0;
+        var a121 = document.getElementById("fps");
+        var a122 = 0,
+          fpsFrames = 0,
+          fpsTimer = 0;
+
+        function a123() {
+          requestAnimationFrame(a123);
+          var a124 = Math.min(0.1, a119.getDelta());
+
+          a84(a124);
+          a90(a124);
+          a99(a124);
+          a106(a124);
+          a67();
+
+          if (!a73) a120 += a124;
+          a118();
+
+          fpsFrames++;
+          fpsTimer += a124;
+          if (fpsTimer >= 0.5) {
+            a121.textContent = Math.round(fpsFrames / fpsTimer) + " fps";
+            fpsFrames = 0;
+            fpsTimer = 0;
+          }
+
+          a8.render(a9, a11);
+        }
+        a123();
+      })();
+    </script>
+  </body>
+</html>

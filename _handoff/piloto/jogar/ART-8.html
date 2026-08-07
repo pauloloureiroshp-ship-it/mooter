@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,user-scalable=no"
+    />
+    <title>Moo Ranch — a 3D voxel garden</title>
+    <style>
+      :root {
+        --panel: rgba(14, 18, 26, 0.62);
+        --panel-solid: #10141c;
+        --edge: rgba(255, 255, 255, 0.14);
+        --ink: #f2f5f8;
+        --dim: #9fb0c2;
+        --accent: #ffd166;
+        --good: #7ee081;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0b1026;
+      }
+      body {
+        font:
+          13px/1.45 ui-sans-serif,
+          system-ui,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        padding: 8px 11px;
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+      }
+      .k {
+        color: var(--dim);
+        font-size: 10.5px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+      }
+      .v {
+        font-size: 18px;
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.01em;
+      }
+      .v small {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--dim);
+      }
+
+      #topleft {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: flex;
+        gap: 8px;
+      }
+      #topright {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        display: flex;
+        gap: 8px;
+        text-align: right;
+      }
+
+      #cowstate {
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      #cowdot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #ff7a7a;
+        box-shadow: 0 0 10px #ff7a7a;
+      }
+      #cowstate.penned #cowdot {
+        background: var(--good);
+        box-shadow: 0 0 12px var(--good);
+      }
+
+      #cross {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 22px;
+        height: 22px;
+        transform: translate(-50%, -50%);
+        opacity: 0.85;
+      }
+      #cross:before,
+      #cross:after {
+        content: "";
+        position: absolute;
+        background: #fff;
+        box-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+      }
+      #cross:before {
+        left: 50%;
+        top: 3px;
+        bottom: 3px;
+        width: 2px;
+        margin-left: -1px;
+      }
+      #cross:after {
+        top: 50%;
+        left: 3px;
+        right: 3px;
+        height: 2px;
+        margin-top: -1px;
+      }
+
+      #hotbar {
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+      }
+      .slot {
+        width: 78px;
+        padding: 8px 6px 7px;
+        border-radius: 10px;
+        text-align: center;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
+        transition:
+          transform 0.12s ease,
+          border-color 0.12s ease,
+          background 0.12s ease;
+      }
+      .slot.on {
+        border-color: var(--accent);
+        background: rgba(255, 209, 102, 0.16);
+        transform: translateY(-5px);
+      }
+      .swatch {
+        width: 26px;
+        height: 26px;
+        margin: 0 auto 5px;
+        border-radius: 5px;
+        border: 1px solid rgba(0, 0, 0, 0.45);
+        box-shadow:
+          inset 0 -8px 10px rgba(0, 0, 0, 0.25),
+          inset 0 6px 8px rgba(255, 255, 255, 0.18);
+      }
+      .sname {
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .snum {
+        font-size: 9.5px;
+        color: var(--dim);
+        margin-top: 1px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #hint {
+        position: absolute;
+        bottom: 96px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 11.5px;
+        color: var(--dim);
+        text-shadow: 0 1px 3px #000;
+        text-align: center;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(
+          120% 90% at 50% 20%,
+          rgba(20, 30, 48, 0.72),
+          rgba(5, 8, 16, 0.93)
+        );
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        cursor: pointer;
+      }
+      .card {
+        max-width: 560px;
+        width: calc(100% - 40px);
+        background: var(--panel-solid);
+        border: 1px solid var(--edge);
+        border-radius: 16px;
+        padding: 26px 28px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+        text-align: center;
+      }
+      .card h1 {
+        margin: 0 0 4px;
+        font-size: 30px;
+        letter-spacing: -0.02em;
+      }
+      .card h1 span {
+        color: var(--accent);
+      }
+      .card .sub {
+        color: var(--dim);
+        margin: 0 0 18px;
+        font-size: 13px;
+      }
+      .keys {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 7px 14px;
+        text-align: left;
+        margin: 0 auto 20px;
+        max-width: 420px;
+      }
+      .keys b {
+        font:
+          600 11px/1.6 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        background: #1b2130;
+        border: 1px solid var(--edge);
+        border-bottom-width: 2px;
+        border-radius: 6px;
+        padding: 1px 7px;
+        white-space: nowrap;
+        text-align: center;
+        color: #fff;
+      }
+      .keys span {
+        color: #cfd8e3;
+        font-size: 12.5px;
+      }
+      .goal {
+        background: rgba(255, 209, 102, 0.1);
+        border: 1px solid rgba(255, 209, 102, 0.28);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 12.5px;
+        color: #f6e7c4;
+        margin-bottom: 18px;
+        text-align: left;
+      }
+      .cta {
+        display: inline-block;
+        background: var(--accent);
+        color: #20180a;
+        font-weight: 750;
+        font-size: 14px;
+        padding: 11px 26px;
+        border-radius: 10px;
+        letter-spacing: 0.01em;
+      }
+      .tiny {
+        margin-top: 14px;
+        color: #63748a;
+        font-size: 11px;
+      }
+
+      #win {
+        display: none;
+        pointer-events: auto;
+      }
+      #win .card {
+        border-color: rgba(126, 224, 129, 0.5);
+      }
+      #win h1 span {
+        color: var(--good);
+      }
+      .stats {
+        display: flex;
+        justify-content: center;
+        gap: 26px;
+        margin: 16px 0 20px;
+      }
+      .stats div {
+        min-width: 78px;
+      }
+      .stats .n {
+        font-size: 24px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .stats .l {
+        font-size: 10.5px;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      #err {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        align-items: center;
+        justify-content: center;
+        background: #0b1026;
+        text-align: center;
+        padding: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+
+    <div id="hud">
+      <div id="topleft">
+        <div class="panel">
+          <div class="k">Blocks placed</div>
+          <div class="v" id="hBlocks">0</div>
+        </div>
+        <div class="panel">
+          <div class="k">Elapsed</div>
+          <div class="v" id="hTime">0:00</div>
+        </div>
+      </div>
+
+      <div id="cowstate">
+        <span id="cowdot"></span><span id="hCow">Bella is roaming free</span>
+      </div>
+
+      <div id="topright">
+        <div class="panel">
+          <div class="k">Ranch clock</div>
+          <div class="v" id="hClock">06:00 <small id="hPhase">dawn</small></div>
+        </div>
+        <div class="panel">
+          <div class="k">FPS</div>
+          <div class="v" id="hFps">—</div>
+        </div>
+      </div>
+
+      <div id="cross"></div>
+      <div id="hint">
+        Left click break · Right click place · 1 2 3 pick · R reset ranch
+      </div>
+      <div id="hotbar"></div>
+    </div>
+
+    <div class="overlay" id="start">
+      <div class="card">
+        <h1>Moo <span>Ranch</span></h1>
+        <p class="sub">A 16×16 voxel garden. One cow. One fence to build.</p>
+        <div class="goal">
+          <b style="color: #ffd166">Goal —</b> pen <b>Bella the cow</b> in.
+          Build a closed wall of blocks around her so that no gap connects her
+          to the edge of the field. Hold her for 1.5s and the ranch is yours.
+        </div>
+        <div class="keys">
+          <b>W A S D</b><span>Walk around the field</span> <b>Shift</b
+          ><span>Sprint</span> <b>Space</b
+          ><span>Jump (and hop onto blocks)</span> <b>Mouse</b
+          ><span>Look around</span> <b>Left click</b
+          ><span>Break the highlighted block</span> <b>Right click</b
+          ><span>Place the selected block</span> <b>1 2 3 / wheel</b
+          ><span>Choose fence, stone or hay</span> <b>R</b
+          ><span>Clear every block and re-release the cow</span> <b>Esc</b
+          ><span>Release the mouse</span>
+        </div>
+        <div class="cta" id="startBtn">Click anywhere to start</div>
+        <div class="tiny">
+          Day and night pass every 60 seconds. Mouse + keyboard only.
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="win">
+      <div class="card">
+        <h1>Bella is <span>home</span> 🐄</h1>
+        <p class="sub">The pen holds. Not a gap in sight.</p>
+        <div class="stats">
+          <div>
+            <div class="n" id="wTime">0:00</div>
+            <div class="l">Time</div>
+          </div>
+          <div>
+            <div class="n" id="wBlocks">0</div>
+            <div class="l">Blocks</div>
+          </div>
+          <div>
+            <div class="n" id="wArea">0</div>
+            <div class="l">Pen tiles</div>
+          </div>
+        </div>
+        <div class="cta" id="againBtn">Press R for a new ranch</div>
+      </div>
+    </div>
+
+    <div id="err">
+      <div>
+        <h2 style="margin: 0 0 8px">Could not load three.js</h2>
+        <p style="color: #9fb0c2; max-width: 460px">
+          Moo Ranch needs the three.js library from a CDN on first load. Check
+          the network connection (or open the page once online — the browser
+          cache handles the rest).
+        </p>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var a1 = [
+          "https://unpkg.com/three@0.149.0/build/three.min.js",
+          "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js",
+          "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.149.0/three.min.js",
+        ];
+        function a2(a20) {
+          if (a20 >= a1.length) {
+            document.getElementById("err").style.display = "flex";
+            return;
+          }
+          var a3 = document.createElement("script");
+          a3.src = a1[a20];
+          a3.onload = function () {
+            window.THREE ? a4() : a2(a20 + 1);
+          };
+          a3.onerror = function () {
+            a2(a20 + 1);
+          };
+          document.a71.appendChild(a3);
+        }
+        a2(0);
+      })();
+
+      function a4() {
+        const a5 = 16;
+        const a6 = 5;
+        const a7 = 60;
+        const a8 = 6;
+        const a9 = 22;
+        const a10 = 7.4;
+        const a11 = 4.3;
+        const a12 = 7.0;
+        const a13 = 0.55;
+        const a14 = 1.5;
+
+        function a15(draw, size) {
+          size = size || 32;
+          const a16 = document.createElement("a25");
+          a16.width = a16.height = size;
+          const a17 = a16.getContext("2d");
+          draw(a17, size);
+          const a18 = new THREE.CanvasTexture(a16);
+          a18.magFilter = THREE.NearestFilter;
+          a18.minFilter = THREE.LinearMipmapLinearFilter;
+          a18.encoding = THREE.sRGBEncoding;
+          a18.anisotropy = 4;
+          return a18;
+        }
+        function a19(a17, a3, a34, colors, min, max) {
+          for (let a20 = 0; a20 < a34; a20++) {
+            a17.fillStyle = colors[(Math.random() * colors.length) | 0];
+            const a21 = min + Math.random() * (max - min);
+            a17.fillRect(
+              (Math.random() * a3) | 0,
+              (Math.random() * a3) | 0,
+              a21,
+              a21,
+            );
+          }
+        }
+        const a22 = {
+          grass: a15((a17, a3) => {
+            a17.fillStyle = "#5aa04a";
+            a17.fillRect(0, 0, a3, a3);
+            a19(
+              a17,
+              a3,
+              240,
+              ["#68b356", "#4f9142", "#74c05f", "#579a48"],
+              1,
+              3,
+            );
+            a17.fillStyle = "#3f7d38";
+            for (let a20 = 0; a20 < 26; a20++)
+              a17.fillRect(
+                (Math.random() * a3) | 0,
+                (Math.random() * a3) | 0,
+                1,
+                2,
+              );
+          }),
+          dirt: a15((a17, a3) => {
+            a17.fillStyle = "#7a5738";
+            a17.fillRect(0, 0, a3, a3);
+            a19(
+              a17,
+              a3,
+              200,
+              ["#8a6440", "#6b4b31", "#946d47", "#5f4229"],
+              1,
+              3,
+            );
+            a17.fillStyle = "#5aa04a";
+            a17.fillRect(0, 0, a3, 5);
+            a17.fillStyle = "#4f9142";
+            for (let a20 = 0; a20 < 14; a20++)
+              a17.fillRect(
+                (Math.random() * a3) | 0,
+                4 + ((Math.random() * 3) | 0),
+                2,
+                2,
+              );
+          }),
+          wood: a15((a17, a3) => {
+            a17.fillStyle = "#8a5a2b";
+            a17.fillRect(0, 0, a3, a3);
+            for (let a23 = 0; a23 < a3; a23 += 8) {
+              a17.fillStyle = ["#9a6733", "#7d5027", "#a3703b", "#8a5a2b"][
+                (a23 / 8) & 3
+              ];
+              a17.fillRect(0, a23, a3, 7);
+              a17.fillStyle = "rgba(60,36,16,.55)";
+              a17.fillRect(0, a23 + 7, a3, 1);
+            }
+            a17.fillStyle = "rgba(90,55,25,.55)";
+            for (let a20 = 0; a20 < 30; a20++)
+              a17.fillRect(
+                (Math.random() * a3) | 0,
+                (Math.random() * a3) | 0,
+                3,
+                1,
+              );
+          }),
+          stone: a15((a17, a3) => {
+            a17.fillStyle = "#8d9199";
+            a17.fillRect(0, 0, a3, a3);
+            a19(
+              a17,
+              a3,
+              260,
+              ["#9aa0a8", "#7d838b", "#a6acb4", "#71767d"],
+              1,
+              4,
+            );
+            a17.strokeStyle = "rgba(70,74,80,.7)";
+            a17.lineWidth = 1;
+            a17.beginPath();
+            a17.moveTo(0, 11);
+            a17.lineTo(a3, 13);
+            a17.moveTo(0, 23);
+            a17.lineTo(a3, 21);
+            a17.moveTo(9, 0);
+            a17.lineTo(11, 11);
+            a17.moveTo(21, 13);
+            a17.lineTo(19, 23);
+            a17.stroke();
+          }),
+          hay: a15((a17, a3) => {
+            a17.fillStyle = "#d9b451";
+            a17.fillRect(0, 0, a3, a3);
+            for (let a20 = 0; a20 < 150; a20++) {
+              a17.fillStyle = ["#e6c463", "#c9a141", "#efd07d", "#bb9339"][
+                (Math.random() * 4) | 0
+              ];
+              a17.fillRect(
+                (Math.random() * a3) | 0,
+                (Math.random() * a3) | 0,
+                4 + ((Math.random() * 5) | 0),
+                1,
+              );
+            }
+            a17.fillStyle = "#8a6a24";
+            a17.fillRect(0, 6, a3, 1);
+            a17.fillRect(0, 24, a3, 1);
+          }),
+          a77: a15((a17, a3) => {
+            a17.fillStyle = "#f4f1ea";
+            a17.fillRect(0, 0, a3, a3);
+            a17.fillStyle = "#2e2a28";
+            a17.beginPath();
+            a17.ellipse(9, 10, 6, 5, 0.4, 0, 7);
+            a17.fill();
+            a17.beginPath();
+            a17.ellipse(24, 22, 7, 5, -0.3, 0, 7);
+            a17.fill();
+            a17.beginPath();
+            a17.ellipse(26, 6, 4, 3, 0.2, 0, 7);
+            a17.fill();
+          }, 32),
+        };
+
+        const a24 = [
+          { name: "Oak Fence", tex: a22.wood, css: "#8a5a2b" },
+          { name: "Stone", tex: a22.stone, css: "#8d9199" },
+          { name: "Hay Bale", tex: a22.hay, css: "#d9b451" },
+        ];
+
+        const a25 = document.getElementById("a105");
+        const a26 = new THREE.WebGLRenderer({
+          a25,
+          antialias: true,
+          powerPreference: "high-performance",
+        });
+        a26.setPixelRatio(Math.min(devicePixelRatio, 2));
+        a26.outputEncoding = THREE.sRGBEncoding;
+        a26.shadowMap.enabled = true;
+        a26.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const a27 = new THREE.Scene();
+        a27.fog = new THREE.Fog(0x87c5f0, 22, 78);
+
+        const a28 = new THREE.PerspectiveCamera(66, 1, 0.1, 400);
+
+        function a29() {
+          const a21 = innerWidth,
+            a50 = innerHeight;
+          a26.setSize(a21, a50, false);
+          a28.aspect = a21 / a50;
+          a28.updateProjectionMatrix();
+        }
+        addEventListener("a29", a29);
+
+        const a30 = new THREE.HemisphereLight(0xbfd8ff, 0x4a6b3a, 0.7);
+        a27.add(a30);
+        const a31 = new THREE.AmbientLight(0xffffff, 0.28);
+        a27.add(a31);
+
+        const a32 = new THREE.DirectionalLight(0xfff3d6, 1.1);
+        a32.castShadow = true;
+        a32.shadow.mapSize.set(1024, 1024);
+        a32.shadow.a28.left = -15;
+        a32.shadow.a28.right = 15;
+        a32.shadow.a28.top = 15;
+        a32.shadow.a28.bottom = -15;
+        a32.shadow.a28.near = 1;
+        a32.shadow.a28.far = 90;
+        a32.shadow.bias = -0.0012;
+        a32.shadow.normalBias = 0.03;
+        a32.target.position.set(a5 / 2, 0, a5 / 2);
+        a27.add(a32, a32.target);
+
+        const a33 = new THREE.BufferGeometry();
+        {
+          const a34 = 700,
+            pos = new Float32Array(a34 * 3);
+          for (let a20 = 0; a20 < a34; a20++) {
+            const a35 = Math.random() * Math.PI * 2,
+              a61 = Math.random() * 0.85 + 0.05;
+            const a36 = 190,
+              ph = Math.acos(1 - a61);
+            pos[a20 * 3] = a5 / 2 + a36 * Math.sin(ph) * Math.cos(a35);
+            pos[a20 * 3 + 1] = a36 * Math.cos(ph) * 0.9 + 10;
+            pos[a20 * 3 + 2] = a5 / 2 + a36 * Math.sin(ph) * Math.sin(a35);
+          }
+          a33.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        }
+        const a37 = new THREE.Points(
+          a33,
+          new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1.6,
+            sizeAttenuation: false,
+            transparent: true,
+            opacity: 0,
+            fog: false,
+            depthWrite: false,
+          }),
+        );
+        a27.add(a37);
+
+        const a38 = new THREE.Mesh(
+          new THREE.SphereGeometry(4.5, 16, 12),
+          new THREE.MeshBasicMaterial({ color: 0xdfe6ff, fog: false }),
+        );
+        a27.add(a38);
+        const a39 = new THREE.Mesh(
+          new THREE.SphereGeometry(5.5, 16, 12),
+          new THREE.MeshBasicMaterial({ color: 0xfff0b8, fog: false }),
+        );
+        a27.add(a39);
+
+        const a40 = new Uint8Array(a5 * a5 * a6);
+        const a41 = new Float32Array(a5 * a5);
+        const a42 = (a49, a23, a48) => a49 + a48 * a5 + (a23 - 1) * a5 * a5;
+
+        const a43 = (a49, a48) => a49 >= 0 && a48 >= 0 && a49 < a5 && a48 < a5;
+        const a44 = (a49, a23, a48) =>
+          a43(a49, a48) && a23 >= 1 && a23 <= a6 ? a40[a42(a49, a23, a48)] : 0;
+        const a45 = (a49, a23, a48) =>
+          a43(a49, a48) &&
+          a23 >= 0 &&
+          (a23 === 0 || (a23 <= a6 && a40[a42(a49, a23, a48)] !== 0));
+
+        function a46(a49, a48) {
+          if (!a43(a49, a48)) return 99;
+          return a41[a49 + a48 * a5];
+        }
+        function a47() {
+          for (let a48 = 0; a48 < a5; a48++)
+            for (let a49 = 0; a49 < a5; a49++) {
+              let a50 = 1;
+              for (let a23 = a6; a23 >= 1; a23--)
+                if (a40[a42(a49, a23, a48)]) {
+                  a50 = a23 + 1;
+                  break;
+                }
+              a41[a49 + a48 * a5] = a50;
+            }
+        }
+
+        {
+          const a51 = new THREE.MeshLambertMaterial({ map: a22.dirt });
+          const a52 = new THREE.MeshLambertMaterial({ map: a22.grass });
+          const a17 = new THREE.BoxGeometry(a5, 1, a5);
+          const a53 = new THREE.Mesh(a17, [a51, a51, a52, a51, a51, a51]);
+          a53.position.set(a5 / 2, 0.5, a5 / 2);
+          a53.receiveShadow = true;
+          a27.add(a53);
+
+          const a54 = new THREE.Mesh(
+            new THREE.BoxGeometry(a5 + 34, 1, a5 + 34),
+            new THREE.MeshLambertMaterial({ color: 0x4a7c3f }),
+          );
+          a54.position.set(a5 / 2, -0.55, a5 / 2);
+          a54.receiveShadow = true;
+          a27.add(a54);
+        }
+
+        const a55 = new THREE.BoxGeometry(1, 1, 1);
+        const a56 = a24.map((b) => {
+          const a57 = new THREE.InstancedMesh(
+            a55,
+            new THREE.MeshLambertMaterial({ map: b.tex }),
+            a5 * a5 * a6,
+          );
+          a57.castShadow = a57.receiveShadow = true;
+          a57.frustumCulled = false;
+          a57.count = 0;
+          a27.add(a57);
+          return a57;
+        });
+
+        let a58 = 0;
+        const a59 = [0, 0, 0];
+
+        function a60() {
+          const a57 = new THREE.Matrix4();
+          const a34 = [0, 0, 0];
+          for (let a23 = 1; a23 <= a6; a23++)
+            for (let a48 = 0; a48 < a5; a48++)
+              for (let a49 = 0; a49 < a5; a49++) {
+                const a61 = a40[a42(a49, a23, a48)];
+                if (!a61) continue;
+                const a18 = a61 - 1;
+                a57.makeTranslation(a49 + 0.5, a23 + 0.5, a48 + 0.5);
+                a56[a18].setMatrixAt(a34[a18]++, a57);
+              }
+          for (let a18 = 0; a18 < 3; a18++) {
+            a56[a18].count = a34[a18];
+            a56[a18].instanceMatrix.needsUpdate = true;
+            a59[a18] = a34[a18];
+          }
+          a58 = a34[0] + a34[1] + a34[2];
+          a47();
+          a123 = true;
+        }
+
+        function a62(a21, a50, a120, color, map) {
+          const a63 = map
+            ? new THREE.MeshLambertMaterial({ map })
+            : new THREE.MeshLambertMaterial({ color });
+          const a57 = new THREE.Mesh(
+            new THREE.BoxGeometry(a21, a50, a120),
+            a63,
+          );
+          a57.castShadow = true;
+          a57.receiveShadow = true;
+          return a57;
+        }
+        function a64(parent, mesh, a49, a23, a48) {
+          mesh.position.set(a49, a23, a48);
+          parent.add(mesh);
+          return mesh;
+        }
+
+        const a65 = new THREE.Group();
+        {
+          const a66 = a64(a65, a62(0.22, 0.55, 0.24, 0x3a4a6b), -0.14, 0.28, 0);
+          const a67 = a64(a65, a62(0.22, 0.55, 0.24, 0x3a4a6b), 0.14, 0.28, 0);
+          a64(a65, a62(0.48, 0.55, 0.3, 0xc9503f), 0, 0.83, 0);
+          const a68 = a64(a65, a62(0.15, 0.5, 0.17, 0xd9a273), -0.32, 0.83, 0);
+          const a69 = a64(a65, a62(0.15, 0.5, 0.17, 0xd9a273), 0.32, 0.83, 0);
+          a64(a65, a62(0.36, 0.34, 0.34, 0xe8b98d), 0, 1.28, 0);
+          a64(a65, a62(0.3, 0.06, 0.06, 0x2b2118), 0, 1.34, -0.18);
+          a64(a65, a62(0.42, 0.1, 0.42, 0xd7b25e), 0, 1.5, 0);
+          a64(a65, a62(0.72, 0.05, 0.72, 0xc79f4c), 0, 1.45, 0);
+          a65.userData = { a66, a67, a68, a69 };
+        }
+        a27.add(a65);
+
+        const a70 = new THREE.Group();
+        {
+          a64(a70, a62(0.72, 0.62, 1.18, 0xffffff, a22.a77), 0, 0.72, 0);
+          const a71 = a64(a70, a62(0.46, 0.44, 0.44, 0xf4f1ea), 0, 0.92, -0.76);
+          a64(a71, a62(0.34, 0.22, 0.14, 0xe6a2a8), 0, -0.08, -0.24);
+          a64(a71, a62(0.07, 0.07, 0.05, 0x2b2422), -0.12, 0.08, -0.23);
+          a64(a71, a62(0.07, 0.07, 0.05, 0x2b2422), 0.12, 0.08, -0.23);
+          a64(a71, a62(0.18, 0.1, 0.1, 0x2e2a28), -0.3, 0.1, 0.02);
+          a64(a71, a62(0.18, 0.1, 0.1, 0x2e2a28), 0.3, 0.1, 0.02);
+          a64(a71, a62(0.08, 0.14, 0.08, 0xe8dcc0), -0.15, 0.28, 0.02);
+          a64(a71, a62(0.08, 0.14, 0.08, 0xe8dcc0), 0.15, 0.28, 0.02);
+          const a72 = [
+            a64(a70, a62(0.17, 0.44, 0.17, 0x3b332f), -0.22, 0.22, -0.38),
+            a64(a70, a62(0.17, 0.44, 0.17, 0x3b332f), 0.22, 0.22, -0.38),
+            a64(a70, a62(0.17, 0.44, 0.17, 0x3b332f), -0.22, 0.22, 0.38),
+            a64(a70, a62(0.17, 0.44, 0.17, 0x3b332f), 0.22, 0.22, 0.38),
+          ];
+          a64(a70, a62(0.08, 0.34, 0.08, 0x2e2a28), 0, 0.8, 0.62);
+          a70.userData = { a71, a72 };
+        }
+        a27.add(a70);
+
+        const a73 = new THREE.LineBasicMaterial({
+          color: 0x101418,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const a74 = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005, 1.005, 1.005)),
+          a73,
+        );
+        a74.visible = false;
+        a27.add(a74);
+
+        const a75 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.96, 0.96, 0.96),
+          new THREE.MeshBasicMaterial({
+            color: 0xffd166,
+            transparent: true,
+            opacity: 0.28,
+            depthWrite: false,
+          }),
+        );
+        a75.visible = false;
+        a27.add(a75);
+
+        const a76 = {
+          a49: 3.5,
+          a23: 1,
+          a48: 3.5,
+          vy: 0,
+          a53: true,
+          a78: Math.PI * 0.25,
+          face: 0,
+          gait: 0,
+          moving: 0,
+        };
+        const a77 = {
+          a49: 11.5,
+          a23: 1,
+          a48: 11.5,
+          vy: 0,
+          tx: 11.5,
+          tz: 11.5,
+          wait: 0,
+          face: 0,
+          gait: 0,
+          moving: 0,
+          moo: 0,
+        };
+
+        let a78 = Math.PI * 0.25,
+          pitch = -0.28;
+
+        function a79(a49, a48) {
+          const a36 = 0.3;
+          let a50 = 1;
+          for (const a80 of [-a36, a36])
+            for (const a81 of [-a36, a36]) {
+              const a82 = Math.a86(a49 + a80),
+                cz = Math.a86(a48 + a81);
+              if (a43(a82, cz)) a50 = Math.max(a50, a41[a82 + cz * a5]);
+            }
+          return a50;
+        }
+        function a83(a49, a48, a23) {
+          const a36 = 0.3;
+          for (const a80 of [-a36, a36])
+            for (const a81 of [-a36, a36]) {
+              const a82 = Math.a86(a49 + a80),
+                cz = Math.a86(a48 + a81);
+              if (!a43(a82, cz)) return true;
+              if (a46(a82, cz) > a23 + a13) return true;
+            }
+          return false;
+        }
+        function a84(e, a80, a81) {
+          if (a80 && !a83(e.a49 + a80, e.a48, e.a23)) e.a49 += a80;
+          if (a81 && !a83(e.a49, e.a48 + a81, e.a23)) e.a48 += a81;
+          e.a49 = Math.min(a5 - 0.31, Math.max(0.31, e.a49));
+          e.a48 = Math.min(a5 - 0.31, Math.max(0.31, e.a48));
+        }
+        function a85(e, a141) {
+          e.vy -= a9 * a141;
+          e.a23 += e.vy * a141;
+          const a86 = a79(e.a49, e.a48);
+          if (e.a23 <= a86) {
+            e.a23 = a86;
+            e.vy = 0;
+            e.a53 = true;
+          } else e.a53 = false;
+        }
+        function a87(e, a49, a23, a48) {
+          const a36 = 0.32;
+          if (a49 + 1 < e.a49 - a36 || a49 > e.a49 + a36) return false;
+          if (a48 + 1 < e.a48 - a36 || a48 > e.a48 + a36) return false;
+          return a23 + 1 > e.a23 + 0.02 && a23 < e.a23 + 1.85;
+        }
+
+        const a88 = new THREE.Vector3(),
+          _rd = new THREE.Vector3();
+        function a89(a110, a120, maxD) {
+          const a90 = 1e-7;
+          const a91 = Math.abs(a120.a49) < a90 ? a90 : a120.a49;
+          const a92 = Math.abs(a120.a23) < a90 ? a90 : a120.a23;
+          const a93 = Math.abs(a120.a48) < a90 ? a90 : a120.a48;
+          let a49 = Math.a86(a110.a49),
+            a23 = Math.a86(a110.a23),
+            a48 = Math.a86(a110.a48);
+          const a94 = a91 > 0 ? 1 : -1,
+            sy = a92 > 0 ? 1 : -1,
+            sz = a93 > 0 ? 1 : -1;
+          const a95 = Math.abs(1 / a91),
+            dY = Math.abs(1 / a92),
+            dZ = Math.abs(1 / a93);
+          let a96 = (a91 > 0 ? a49 + 1 - a110.a49 : a110.a49 - a49) * a95;
+          let a97 = (a92 > 0 ? a23 + 1 - a110.a23 : a110.a23 - a23) * dY;
+          let a98 = (a93 > 0 ? a48 + 1 - a110.a48 : a110.a48 - a48) * dZ;
+          let a99 = a49,
+            py = a23,
+            pz = a48,
+            a18 = 0;
+          if (a45(a49, a23, a48))
+            return { hx: a49, hy: a23, hz: a48, a99: a49, py: a23, pz: a48 };
+          for (let a20 = 0; a20 < 160; a20++) {
+            a99 = a49;
+            py = a23;
+            pz = a48;
+            if (a96 < a97 && a96 < a98) {
+              a49 += a94;
+              a18 = a96;
+              a96 += a95;
+            } else if (a97 < a98) {
+              a23 += sy;
+              a18 = a97;
+              a97 += dY;
+            } else {
+              a48 += sz;
+              a18 = a98;
+              a98 += dZ;
+            }
+            if (a18 > maxD) return null;
+            if (a23 > a6 + 2 && sy > 0) return null;
+            if (a23 < -2) return null;
+            if (a45(a49, a23, a48))
+              return { hx: a49, hy: a23, hz: a48, a99, py, pz };
+          }
+          return null;
+        }
+
+        const a100 = new Uint8Array(a5 * a5);
+        const a101 = new Int32Array(a5 * a5);
+        let a102 = 0;
+        function a103() {
+          a100.fill(0);
+          const a82 = Math.a86(a77.a49),
+            cz = Math.a86(a77.a48);
+          if (!a43(a82, cz)) return false;
+          const a104 = a77.a23;
+          let a71 = 0,
+            tail = 0,
+            area = 0;
+          a101[tail++] = a82 + cz * a5;
+          a100[a82 + cz * a5] = 1;
+          while (a71 < tail) {
+            const a105 = a101[a71++],
+              a49 = a105 % a5,
+              a48 = (a105 / a5) | 0;
+            area++;
+            if (a49 === 0 || a48 === 0 || a49 === a5 - 1 || a48 === a5 - 1) {
+              a102 = 0;
+              return false;
+            }
+            const a106 = [
+              [a49 - 1, a48],
+              [a49 + 1, a48],
+              [a49, a48 - 1],
+              [a49, a48 + 1],
+            ];
+            for (const [nx, nz] of a106) {
+              if (!a43(nx, nz)) continue;
+              const a107 = nx + nz * a5;
+              if (a100[a107]) continue;
+              if (a46(nx, nz) > a104 + a13) continue;
+              a100[a107] = 1;
+              a101[tail++] = a107;
+            }
+          }
+          a102 = area;
+          return true;
+        }
+
+        let a108 = null;
+        function a109(freq, dur, type, vol, slide) {
+          try {
+            if (!a108)
+              a108 = new (window.AudioContext || window.webkitAudioContext)();
+            const a110 = a108.createOscillator(),
+              a17 = a108.createGain(),
+              a18 = a108.currentTime;
+            a110.type = type || "square";
+            a110.frequency.setValueAtTime(freq, a18);
+            if (slide)
+              a110.frequency.exponentialRampToValueAtTime(
+                Math.max(40, slide),
+                a18 + dur,
+              );
+            a17.gain.setValueAtTime(0.0001, a18);
+            a17.gain.exponentialRampToValueAtTime(vol || 0.07, a18 + 0.012);
+            a17.gain.exponentialRampToValueAtTime(0.0001, a18 + dur);
+            a110.connect(a17);
+            a17.connect(a108.destination);
+            a110.start(a18);
+            a110.stop(a18 + dur + 0.02);
+          } catch (e) {}
+        }
+        const a111 = {
+          place: () => a109(300, 0.09, "square", 0.05, 460),
+          break_: () => a109(200, 0.11, "sawtooth", 0.05, 90),
+          pick: () => a109(680, 0.05, "sine", 0.04),
+          jump: () => a109(520, 0.08, "sine", 0.04, 700),
+          nope: () => a109(140, 0.08, "square", 0.04),
+          win: () => {
+            [523, 659, 784, 1047].forEach((f, a20) =>
+              setTimeout(() => a109(f, 0.22, "triangle", 0.08), a20 * 130),
+            );
+          },
+          moo: () => a109(150, 0.5, "sawtooth", 0.045, 105),
+        };
+
+        const a112 = Object.create(null);
+        let a113 = 0,
+          locked = false,
+          won = false;
+
+        addEventListener("keydown", (e) => {
+          if (
+            e.code === "Digit1" ||
+            e.code === "Digit2" ||
+            e.code === "Digit3"
+          ) {
+            a113 = +e.code.slice(5) - 1;
+            a121();
+            a111.pick();
+          }
+          if (e.code === "KeyR") a118();
+          if (
+            [
+              "KeyW",
+              "KeyA",
+              "KeyS",
+              "KeyD",
+              "Space",
+              "ShiftLeft",
+              "ShiftRight",
+            ].indexOf(e.code) >= 0
+          )
+            e.preventDefault();
+          a112[e.code] = true;
+        });
+        addEventListener("keyup", (e) => {
+          a112[e.code] = false;
+        });
+        addEventListener("blur", () => {
+          for (const a107 in a112) a112[a107] = false;
+        });
+
+        addEventListener(
+          "wheel",
+          (e) => {
+            if (!locked) return;
+            a113 = (a113 + (e.deltaY > 0 ? 1 : 2)) % 3;
+            a121();
+            a111.pick();
+          },
+          { passive: true },
+        );
+
+        a25.addEventListener("contextmenu", (e) => e.preventDefault());
+
+        function a114() {
+          a25.requestPointerLock && a25.requestPointerLock();
+        }
+        document.getElementById("start").addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          a114();
+        });
+        document.getElementById("win").addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          a118();
+          a114();
+        });
+
+        document.addEventListener("pointerlockchange", () => {
+          locked = document.pointerLockElement === a25;
+          document.getElementById("start").style.display =
+            locked || won ? "none" : "flex";
+        });
+        document.addEventListener("mousemove", (e) => {
+          if (!locked) return;
+          a78 -= e.movementX * 0.0024;
+          pitch -= e.movementY * 0.0022;
+          pitch = Math.max(-1.3, Math.min(0.95, pitch));
+        });
+        document.addEventListener("mousedown", (e) => {
+          if (!locked) {
+            if (!won) a114();
+            return;
+          }
+          if (e.button === 0) a116();
+          else if (e.button === 2) a117();
+        });
+
+        let a115 = null;
+
+        function a116() {
+          if (!a115 || a115.hy < 1) {
+            a111.nope();
+            return;
+          }
+          if (!a44(a115.hx, a115.hy, a115.hz)) {
+            a111.nope();
+            return;
+          }
+          a40[a42(a115.hx, a115.hy, a115.hz)] = 0;
+          a60();
+          a111.break_();
+        }
+        function a117() {
+          if (!a115) {
+            a111.nope();
+            return;
+          }
+          const { a99, py, pz } = a115;
+          if (!a43(a99, pz) || py < 1 || py > a6) {
+            a111.nope();
+            return;
+          }
+          if (a44(a99, py, pz)) {
+            a111.nope();
+            return;
+          }
+          if (a87(a76, a99, py, pz) || a87(a77, a99, py, pz)) {
+            a111.nope();
+            return;
+          }
+          a40[a42(a99, py, pz)] = a113 + 1;
+          a60();
+          a111.place();
+        }
+
+        function a118() {
+          a40.fill(0);
+          a60();
+          a77.a49 = 11.5;
+          a77.a48 = 11.5;
+          a77.a23 = 1;
+          a77.vy = 0;
+          a77.tx = 11.5;
+          a77.tz = 11.5;
+          a77.wait = 0.6;
+          a76.a49 = 3.5;
+          a76.a48 = 3.5;
+          a76.a23 = 1;
+          a76.vy = 0;
+          pennedFor = 0;
+          won = false;
+          a133 = 0;
+          document.getElementById("win").style.display = "none";
+          document.getElementById("start").style.display = locked
+            ? "none"
+            : "flex";
+          a123 = true;
+        }
+
+        const a119 = document.getElementById("hotbar");
+        a24.forEach((b, a20) => {
+          const a120 = document.createElement("div");
+          a120.className = "a113";
+          a120.innerHTML =
+            '<div class="swatch" style="background:' +
+            b.css +
+            '"></div>' +
+            '<div class="sname">' +
+            b.name +
+            "</div>" +
+            '<div class="snum"><span id="cnt' +
+            a20 +
+            '">0</span> placed · ' +
+            (a20 + 1) +
+            "</div>";
+          a120.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            a113 = a20;
+            a121();
+            a114();
+          });
+          a119.appendChild(a120);
+        });
+        function a121() {
+          [].forEach.call(a119.children, (el, a20) =>
+            el.classList.toggle("on", a20 === a113),
+          );
+        }
+        a121();
+
+        const $ = (id) => document.getElementById(id);
+        let a123 = true;
+        function a124(a3) {
+          const a57 = Math.a86(a3 / 60);
+          return a57 + ":" + String(Math.a86(a3 % 60)).padStart(2, "0");
+        }
+
+        function a125(a142, a147) {
+          $("hBlocks").textContent = a58;
+          for (let a20 = 0; a20 < 3; a20++)
+            $("cnt" + a20).textContent = a59[a20];
+          $("hTime").textContent = a124(a133);
+          const a126 = Math.a86(a142),
+            mm = Math.a86((a142 - a126) * 60);
+          $("hClock").innerHTML =
+            String(a126).padStart(2, "0") +
+            ":" +
+            String(mm).padStart(2, "0") +
+            " <small>" +
+            a147 +
+            "</small>";
+          const a127 = $("cowstate");
+          a127.classList.toggle("penned", penned);
+          $("hCow").textContent = won
+            ? "Bella is penned in — ranch complete"
+            : penned
+              ? "Bella is penned (" + a102 + " tiles) — hold it…"
+              : "Bella is roaming free";
+        }
+
+        const a128 = new THREE.Color(0x0b1026);
+        const a129 = new THREE.Color(0xef9a5b);
+        const a130 = new THREE.Color(0x87c5f0);
+        const a131 = new THREE.Color();
+        a27.background = a131;
+
+        function a132(a144) {
+          const a3 = (a144 + 1) / 2;
+          if (a3 < 0.5) a131.copy(a128).lerp(a129, Math.pow(a3 / 0.5, 1.6));
+          else a131.copy(a129).lerp(a130, Math.pow((a3 - 0.5) / 0.5, 0.55));
+          return a131;
+        }
+
+        let a133 = 0,
+          penned = false,
+          pennedFor = 0,
+          penCheck = 0;
+        let a134 = 0,
+          fpsN = 0,
+          fpsT = 0;
+        let a135 = performance.now();
+
+        const a136 = new THREE.Vector3();
+        const a137 = new THREE.Vector3(),
+          right = new THREE.Vector3();
+        const a138 = new THREE.Vector3();
+
+        a60();
+        a29();
+        a26.setAnimationLoop(a139);
+
+        function a139(now) {
+          const a140 = (now - a135) / 1000;
+          a135 = now;
+          const a141 = Math.min(a140, 0.05);
+
+          if (!won) a133 += a141;
+
+          const a142 = ((a133 / a7) * 24 + 6) % 24;
+          const a143 = ((a142 - 6) / 24) * Math.PI * 2;
+          const a144 = Math.sin(a143);
+          const a145 = Math.max(0, a144);
+          const a146 = a144 < -0.05;
+
+          const a94 = Math.cos(a143),
+            sy = Math.sin(a143);
+          a32.position.set(a5 / 2 + a94 * 45, sy * 45, a5 / 2 + 18);
+          if (a146) {
+            a32.position.set(a5 / 2 - a94 * 45, -sy * 45, a5 / 2 - 18);
+            a32.color.setHex(0x9fb6ff);
+            a32.intensity = 0.22;
+          } else {
+            a32.color.setHex(a144 < 0.25 ? 0xffb977 : 0xfff3d6);
+            a32.intensity = 0.35 + a145 * 0.95;
+          }
+          a30.intensity = 0.22 + a145 * 0.6;
+          a30.color.setHex(a146 ? 0x2c3a63 : 0xbfd8ff);
+          a31.intensity = 0.22 + a145 * 0.22;
+
+          a132(a144);
+          a27.fog.color.copy(a131);
+          a37.material.opacity = Math.max(0, Math.min(1, -a144 * 2.2));
+          a39.position.set(a5 / 2 + a94 * 150, sy * 150, a5 / 2 + 60);
+          a39.visible = sy > -0.12;
+          a38.position.set(a5 / 2 - a94 * 150, -sy * 150, a5 / 2 - 60);
+          a38.visible = sy < 0.12;
+
+          const a147 =
+            a144 > 0.35
+              ? "day"
+              : a144 > 0.02
+                ? a142 < 12
+                  ? "dawn"
+                  : "dusk"
+                : a144 > -0.2
+                  ? "twilight"
+                  : "a146";
+
+          let a148 = 0,
+            mz = 0;
+          if (locked && !won) {
+            if (a112.KeyW) mz -= 1;
+            if (a112.KeyS) mz += 1;
+            if (a112.KeyA) a148 -= 1;
+            if (a112.KeyD) a148 += 1;
+          }
+          const a149 = a112.ShiftLeft || a112.ShiftRight ? a12 : a11;
+          if (a148 || mz) {
+            const a150 = Math.hypot(a148, mz);
+            const a151 = Math.sin(a78),
+              cosY = Math.cos(a78);
+            const a80 =
+              ((a148 / a150) * cosY - (mz / a150) * a151) * a149 * a141;
+            const a81 =
+              ((-a148 / a150) * a151 - (mz / a150) * cosY) * a149 * a141;
+            a84(a76, a80, a81);
+            a76.face = Math.atan2(-a80, -a81);
+            a76.moving = Math.min(1, a76.moving + a141 * 8);
+            a76.gait += a141 * a149 * 2.4;
+          } else {
+            a76.moving = Math.max(0, a76.moving - a141 * 8);
+          }
+          if (a112.Space && a76.a53 && locked && !won) {
+            a76.vy = a10;
+            a76.a53 = false;
+            a111.jump();
+          }
+          a85(a76, a141);
+
+          a65.position.set(a76.a49, a76.a23, a76.a48);
+          a65.rotation.a23 = a154(
+            a65.rotation.a23,
+            a76.face,
+            1 - Math.pow(0.0005, a141),
+          );
+          {
+            const a152 = Math.sin(a76.gait) * 0.62 * a76.moving;
+            const a35 = a65.userData;
+            a35.a66.rotation.a49 = a152;
+            a35.a67.rotation.a49 = -a152;
+            a35.a68.rotation.a49 = -a152 * 0.8;
+            a35.a69.rotation.a49 = a152 * 0.8;
+            a35.a66.position.a23 = 0.28 - Math.abs(a152) * 0.03;
+            a35.a67.position.a23 = 0.28 - Math.abs(a152) * 0.03;
+          }
+
+          a155(a141);
+
+          a137
+            .set(
+              -Math.sin(a78) * Math.cos(pitch),
+              Math.sin(pitch),
+              -Math.cos(a78) * Math.cos(pitch),
+            )
+            .normalize();
+          right.set(Math.cos(a78), 0, -Math.sin(a78));
+          a136
+            .set(a76.a49, a76.a23 + 1.35, a76.a48)
+            .addScaledVector(right, 0.55);
+          a28.position.copy(a136).addScaledVector(a137, -5.2);
+          const a153 = a79(a28.position.a49, a28.position.a48) + 0.45;
+          if (a28.position.a23 < a153) a28.position.a23 = a153;
+          a28.lookAt(a138.copy(a136).addScaledVector(a137, 4));
+
+          a88.copy(a28.position);
+          a28.getWorldDirection(_rd);
+          a115 = a89(a88, _rd, a8);
+          if (a115 && a115.hy >= 1) {
+            a74.position.set(a115.hx + 0.5, a115.hy + 0.5, a115.hz + 0.5);
+            a74.visible = true;
+          } else a74.visible = false;
+
+          if (
+            a115 &&
+            a43(a115.a99, a115.pz) &&
+            a115.py >= 1 &&
+            a115.py <= a6 &&
+            !a44(a115.a99, a115.py, a115.pz) &&
+            !a87(a76, a115.a99, a115.py, a115.pz) &&
+            !a87(a77, a115.a99, a115.py, a115.pz)
+          ) {
+            a75.position.set(a115.a99 + 0.5, a115.py + 0.5, a115.pz + 0.5);
+            a75.material.color.set(a24[a113].css);
+            a75.visible = true;
+          } else a75.visible = false;
+
+          penCheck -= a141;
+          if (penCheck <= 0) {
+            penCheck = 0.25;
+            penned = a103();
+            a123 = true;
+          }
+          if (!won) {
+            if (penned) {
+              pennedFor += a141;
+              if (pennedFor >= a14) a160();
+            } else pennedFor = 0;
+          }
+
+          a134 += a140;
+          fpsN++;
+          if (a134 >= 0.5) {
+            $("hFps").textContent = Math.round(fpsN / a134);
+            a134 = 0;
+            fpsN = 0;
+          }
+          fpsT += a141;
+          if (a123 || fpsT > 0.2) {
+            a125(a142, a147);
+            fpsT = 0;
+            a123 = false;
+          }
+
+          a26.render(a27, a28);
+        }
+
+        function a154(a, b, a18) {
+          let a120 =
+            ((((b - a + Math.PI) % (Math.PI * 2)) + Math.PI * 2) %
+              (Math.PI * 2)) -
+            Math.PI;
+          return a + a120 * a18;
+        }
+
+        function a155(a141) {
+          a77.wait -= a141;
+          a77.moo -= a141;
+
+          const a80 = a77.tx - a77.a49,
+            a81 = a77.tz - a77.a48;
+          const a156 = Math.hypot(a80, a81);
+
+          if (a77.wait <= 0 && a156 < 0.35) {
+            a77.tx = 1 + Math.random() * (a5 - 2);
+            a77.tz = 1 + Math.random() * (a5 - 2);
+            a77.wait = 1.2 + Math.random() * 3.2;
+            if (Math.random() < 0.35) {
+              a111.moo();
+              a77.moo = 0.6;
+            }
+          }
+
+          if (a156 >= 0.35 && a77.wait <= 0.001) {
+            const a3 = 1.35;
+            const a157 = a77.a49,
+              bz = a77.a48;
+            a84(a77, (a80 / a156) * a3 * a141, (a81 / a156) * a3 * a141);
+            const a158 = Math.hypot(a77.a49 - a157, a77.a48 - bz);
+            if (a158 < 0.0004) {
+              a77.tx = 1 + Math.random() * (a5 - 2);
+              a77.tz = 1 + Math.random() * (a5 - 2);
+              a77.wait = 0.3 + Math.random();
+            } else {
+              a77.face = Math.atan2(a157 - a77.a49, bz - a77.a48);
+              a77.gait += a141 * 7;
+              a77.moving = Math.min(1, a77.moving + a141 * 6);
+            }
+          } else {
+            a77.moving = Math.max(0, a77.moving - a141 * 6);
+          }
+          a85(a77, a141);
+
+          a70.position.set(a77.a49, a77.a23, a77.a48);
+          a70.rotation.a23 = a154(
+            a70.rotation.a23,
+            a77.face,
+            1 - Math.pow(0.002, a141),
+          );
+          const a35 = a70.userData;
+          const a152 = Math.sin(a77.gait) * 0.5 * a77.moving;
+          a35.a72[0].rotation.a49 = a152;
+          a35.a72[3].rotation.a49 = a152;
+          a35.a72[1].rotation.a49 = -a152;
+          a35.a72[2].rotation.a49 = -a152;
+
+          const a159 = (1 - a77.moving) * (a77.moo > 0 ? 0 : 1);
+          a35.a71.rotation.a49 =
+            a159 * (0.55 + Math.sin(a133 * 1.7) * 0.12) -
+            (a77.moo > 0 ? 0.35 : 0);
+          a35.a71.position.a23 = 0.92 - a159 * 0.22;
+        }
+
+        function a160() {
+          won = true;
+          a111.win();
+          $("wTime").textContent = a124(a133);
+          $("wBlocks").textContent = a58;
+          $("wArea").textContent = a102;
+          $("win").style.display = "flex";
+          if (document.exitPointerLock) document.exitPointerLock();
+          a123 = true;
+        }
+      }
+    </script>
+  </body>
+</html>

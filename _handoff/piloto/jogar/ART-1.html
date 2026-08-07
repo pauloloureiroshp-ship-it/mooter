@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Moo Ranch</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b1030;
+      }
+      body {
+        font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+        user-select: none;
+      }
+      canvas {
+        display: block;
+      }
+
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.38);
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.6;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+      }
+      #hud .row span.val {
+        font-weight: 700;
+      }
+
+      #hint {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        max-width: 260px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.38);
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.6;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+      }
+
+      #hotbar {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        pointer-events: none;
+      }
+      .slot {
+        width: 60px;
+        height: 64px;
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        background: rgba(0, 0, 0, 0.45);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 11px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+      }
+      .slot.active {
+        border-color: #ffd54a;
+        box-shadow: 0 0 10px rgba(255, 213, 74, 0.8);
+      }
+      .slot .key {
+        position: absolute;
+        margin-top: -46px;
+        margin-left: -46px;
+        font-size: 10px;
+        opacity: 0.7;
+      }
+      .swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        margin-bottom: 4px;
+      }
+
+      #winBanner {
+        position: fixed;
+        top: 38%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        text-align: center;
+        background: rgba(10, 20, 10, 0.72);
+        color: #ffd54a;
+        padding: 22px 46px;
+        border-radius: 18px;
+        letter-spacing: 1px;
+        font-size: 34px;
+        font-weight: 800;
+        text-shadow: 0 3px 10px rgba(0, 0, 0, 0.9);
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <div class="row">
+        Blocks placed: <span id="blockCount" class="val">0</span>
+      </div>
+      <div class="row">Time: <span id="timer" class="val">00:00</span></div>
+      <div class="row">
+        <span id="phaseIcon">day</span>
+        <span id="phaseLabel" class="val">Day</span>
+      </div>
+      <div class="row">
+        Selected: <span id="selectedLabel" class="val">Fence</span>
+      </div>
+    </div>
+
+    <div id="hint">
+      WASD move player<br />
+      Left click: place block<br />
+      Right click: remove block<br />
+      1 / 2 / 3: switch block type<br />
+      Enclose the cow with fences to win.
+    </div>
+
+    <div id="hotbar">
+      <div class="slot active" data-slot="1">
+        <div class="swatch" style="background: #8a5a2e"></div>
+        Fence (1)
+      </div>
+      <div class="slot" data-slot="2">
+        <div class="swatch" style="background: #e85fa0"></div>
+        Flower (2)
+      </div>
+      <div class="slot" data-slot="3">
+        <div class="swatch" style="background: #8d8d90"></div>
+        Stone (3)
+      </div>
+    </div>
+
+    <div id="winBanner">Cow enclosed &mdash; you win!</div>
+
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var a1 = 16;
+        var a2 = a1 / 2;
+        var a3 = 0,
+          FENCE = 1,
+          FLOWER = 2,
+          STONE = 3;
+        var a4 = { 1: "Fence", 2: "Flower", 3: "Stone" };
+
+        var a5 = new THREE.Scene();
+        a5.background = new THREE.Color(0x0b1030);
+
+        var a6 = new THREE.PerspectiveCamera(
+          55,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          300,
+        );
+
+        var a7 = new THREE.WebGLRenderer({ antialias: true });
+        a7.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        a7.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(a7.domElement);
+
+        window.addEventListener("resize", function () {
+          a6.aspect = window.innerWidth / window.innerHeight;
+          a6.updateProjectionMatrix();
+          a7.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        var a8 = new THREE.AmbientLight(0xffffff, 0.6);
+        a5.add(a8);
+        var a9 = new THREE.DirectionalLight(0xffffff, 1.0);
+        a9.position.set(10, 20, 10);
+        a5.add(a9);
+
+        var a10 = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+        var a11 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 10), a10);
+        a5.add(a11);
+
+        function a12(a21, a22) {
+          return { x: a21 - a2 + 0.5, z: a22 - a2 + 0.5 };
+        }
+
+        var a13 = new THREE.BoxGeometry(1, 0.3, 1);
+        var a14 = new THREE.MeshLambertMaterial({ color: 0x6fbf5e });
+        var a15 = new THREE.MeshLambertMaterial({ color: 0x5fae4f });
+        var a16 = new THREE.InstancedMesh(a13, a14, (a1 * a1) / 2);
+        var a17 = new THREE.InstancedMesh(a13, a15, (a1 * a1) / 2);
+        (function a18() {
+          var a19 = new THREE.Matrix4();
+          var a20 = 0,
+            di = 0;
+          for (var a21 = 0; a21 < a1; a21++) {
+            for (var a22 = 0; a22 < a1; a22++) {
+              var a23 = a12(a21, a22);
+              a19.makeTranslation(a23.x, -0.15, a23.z);
+              if ((a21 + a22) % 2 === 0) a16.setMatrixAt(a20++, a19);
+              else a17.setMatrixAt(di++, a19);
+            }
+          }
+          a16.instanceMatrix.needsUpdate = true;
+          a17.instanceMatrix.needsUpdate = true;
+        })();
+        a5.add(a16, a17);
+
+        var a24 = new THREE.Matrix4();
+        var a25 = new THREE.Matrix4().makeScale(0, 0, 0);
+
+        function a26(geometry, color, yOffset) {
+          var a27 = a1 * a1;
+          var a28 = new THREE.MeshLambertMaterial({ color: color });
+          var a29 = new THREE.InstancedMesh(geometry, a28, a27);
+          a29.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          for (var a30 = 0; a30 < a27; a30++) a29.setMatrixAt(a30, a25);
+          a29.instanceMatrix.needsUpdate = true;
+          a5.add(a29);
+          var a31 = new Array(a27);
+          for (var a32 = 0; a32 < a27; a32++) a31[a32] = a27 - 1 - a32;
+          return { a29: a29, a31: a31, yOffset: yOffset };
+        }
+
+        var a33 = new THREE.BoxGeometry(0.85, 0.8, 0.2);
+        var a34 = new THREE.IcosahedronGeometry(0.38, 0);
+        var a35 = new THREE.BoxGeometry(0.75, 0.75, 0.75);
+
+        var a36 = {};
+        a36[FENCE] = a26(a33, 0x8a5a2e, 0.4);
+        a36[FLOWER] = a26(a34, 0xe85fa0, 0.38);
+        a36[STONE] = a26(a35, 0x8d8d90, 0.375);
+
+        var a37 = new Uint8Array(a1 * a1);
+        var a38 = {};
+        a38[FENCE] = new Int16Array(a1 * a1).fill(-1);
+        a38[FLOWER] = new Int16Array(a1 * a1).fill(-1);
+        a38[STONE] = new Int16Array(a1 * a1).fill(-1);
+
+        var a39 = 0;
+        var a40 = document.getElementById("blockCount");
+
+        function a41(a21, a22, a46) {
+          var a42 = a21 * a1 + a22;
+          if (a37[a42] !== a3) return false;
+          var a43 = a36[a46];
+          if (a43.a31.length === 0) return false;
+          var a44 = a43.a31.pop();
+          var a23 = a12(a21, a22);
+          a24.makeTranslation(a23.x, a43.yOffset, a23.z);
+          a43.a29.setMatrixAt(a44, a24);
+          a43.a29.instanceMatrix.needsUpdate = true;
+          a37[a42] = a46;
+          a38[a46][a42] = a44;
+          a39++;
+          a40.textContent = String(a39);
+          return true;
+        }
+
+        function a45(a21, a22) {
+          var a42 = a21 * a1 + a22;
+          var a46 = a37[a42];
+          if (a46 === a3) return false;
+          var a43 = a36[a46];
+          var a44 = a38[a46][a42];
+          a43.a29.setMatrixAt(a44, a25);
+          a43.a29.instanceMatrix.needsUpdate = true;
+          a43.a31.push(a44);
+          a37[a42] = a3;
+          a38[a46][a42] = -1;
+          a39--;
+          a40.textContent = String(a39);
+          return true;
+        }
+
+        var a47 = new THREE.Group();
+        var a48 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 0.6, 0.35),
+          new THREE.MeshLambertMaterial({ color: 0x3a6ea5 }),
+        );
+        a48.position.y = 0.45;
+        var a49 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.34, 0.34, 0.34),
+          new THREE.MeshLambertMaterial({ color: 0xe0b090 }),
+        );
+        a49.position.y = 0.45 + 0.3 + 0.17;
+        a47.add(a48, a49);
+        a47.position.set(0, 0, 4);
+        a5.add(a47);
+
+        var a50 = Object.create(null);
+        window.addEventListener("keydown", function (e) {
+          a50[e.code] = true;
+          if (e.code === "Digit1") a103(FENCE);
+          else if (e.code === "Digit2") a103(FLOWER);
+          else if (e.code === "Digit3") a103(STONE);
+        });
+        window.addEventListener("keyup", function (e) {
+          a50[e.code] = false;
+        });
+        window.addEventListener("blur", function () {
+          for (var a30 in a50) a50[a30] = false;
+        });
+
+        var a51 = 4.5;
+        var a52 = new THREE.Vector3();
+
+        function a53(a124) {
+          a52.set(0, 0, 0);
+          if (a50.KeyW) a52.z -= 1;
+          if (a50.KeyS) a52.z += 1;
+          if (a50.KeyA) a52.x -= 1;
+          if (a50.KeyD) a52.x += 1;
+          if (a52.lengthSq() > 0) {
+            a52.normalize();
+            a47.position.x += a52.x * a51 * a124;
+            a47.position.z += a52.z * a51 * a124;
+            a47.rotation.y = Math.atan2(a52.x, a52.z);
+          }
+          var a54 = a2 - 0.3;
+          if (a47.position.x < -a54) a47.position.x = -a54;
+          if (a47.position.x > a54) a47.position.x = a54;
+          if (a47.position.z < -a54) a47.position.z = -a54;
+          if (a47.position.z > a54) a47.position.z = a54;
+        }
+
+        var a55 = new THREE.Vector3(0, 9, 7);
+        var a56 = new THREE.Vector3();
+        a56.copy(a47.position).add(a55);
+        a6.position.copy(a56);
+
+        function a57(a124) {
+          a56.copy(a47.position).add(a55);
+          a6.position.lerp(a56, Math.min(1, a124 * 4));
+          a6.lookAt(a47.position.x, 0.6, a47.position.z);
+        }
+
+        var a58 = new THREE.Group();
+        var a59 = new THREE.MeshLambertMaterial({ color: 0xf5f2e9 });
+        var a60 = new THREE.MeshLambertMaterial({ color: 0x33291f });
+        var a61 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.5), a59);
+        a61.position.y = 0.55;
+        var a62 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.52), a60);
+        a62.position.set(0.15, 0.6, 0);
+        var a63 = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), a59);
+        a63.position.set(0.55, 0.55, 0);
+        var a64 = new THREE.BoxGeometry(0.14, 0.35, 0.14);
+        var a65 = [
+          [0.32, 0.175, 0.18],
+          [0.32, 0.175, -0.18],
+          [-0.32, 0.175, 0.18],
+          [-0.32, 0.175, -0.18],
+        ];
+        for (var a66 = 0; a66 < a65.length; a66++) {
+          var a67 = new THREE.Mesh(a64, a60);
+          a67.position.set(a65[a66][0], a65[a66][1], a65[a66][2]);
+          a58.add(a67);
+        }
+        a58.add(a61, a62, a63);
+        a58.position.set(3, 0, -3);
+        a5.add(a58);
+
+        var a68 = 1.8;
+        var a69 = new THREE.Vector3(a58.position.x, 0, a58.position.z);
+        var a70 = 0;
+
+        function a71() {
+          var a72 = 1.2;
+          a69.x = (Math.random() * 2 - 1) * (a2 - a72);
+          a69.z = (Math.random() * 2 - 1) * (a2 - a72);
+        }
+
+        function a73(a124) {
+          a70 -= a124;
+          var a74 = a69.x - a58.position.x;
+          var a75 = a69.z - a58.position.z;
+          var a76 = a74 * a74 + a75 * a75;
+          if (a70 <= 0 || a76 < 0.05) {
+            a71();
+            a70 = 3 + Math.random() * 3;
+          } else {
+            var a77 = Math.sqrt(a76);
+            var a78 = a74 / a77,
+              nz = a75 / a77;
+            a58.position.x += a78 * a68 * a124;
+            a58.position.z += nz * a68 * a124;
+            a58.rotation.y = Math.atan2(a78, nz);
+          }
+          var a54 = a2 - 0.6;
+          if (a58.position.x < -a54) a58.position.x = -a54;
+          if (a58.position.x > a54) a58.position.x = a54;
+          if (a58.position.z < -a54) a58.position.z = -a54;
+          if (a58.position.z > a54) a58.position.z = a54;
+        }
+
+        var a79 = 60;
+        var a80 = [
+          {
+            a85: 0.0,
+            sky: new THREE.Color(0x0b1030),
+            ambI: 0.18,
+            ambC: new THREE.Color(0x223355),
+            dirI: 0.15,
+            dirC: new THREE.Color(0x88aaff),
+            body: new THREE.Color(0xcfd8e8),
+            label: "Night",
+            icon: "moon",
+          },
+          {
+            a85: 0.25,
+            sky: new THREE.Color(0xffc98a),
+            ambI: 0.45,
+            ambC: new THREE.Color(0xffcf9e),
+            dirI: 0.75,
+            dirC: new THREE.Color(0xffcf9e),
+            body: new THREE.Color(0xffe0a0),
+            label: "Dawn",
+            icon: "sunrise",
+          },
+          {
+            a85: 0.5,
+            sky: new THREE.Color(0x8ecbff),
+            ambI: 0.65,
+            ambC: new THREE.Color(0xffffff),
+            dirI: 1.1,
+            dirC: new THREE.Color(0xffffff),
+            body: new THREE.Color(0xfff2b0),
+            label: "Day",
+            icon: "sun",
+          },
+          {
+            a85: 0.75,
+            sky: new THREE.Color(0xff8a5c),
+            ambI: 0.4,
+            ambC: new THREE.Color(0xff9a6a),
+            dirI: 0.6,
+            dirC: new THREE.Color(0xff9a6a),
+            body: new THREE.Color(0xffab6e),
+            label: "Dusk",
+            icon: "sunset",
+          },
+          {
+            a85: 1.0,
+            sky: new THREE.Color(0x0b1030),
+            ambI: 0.18,
+            ambC: new THREE.Color(0x223355),
+            dirI: 0.15,
+            dirC: new THREE.Color(0x88aaff),
+            body: new THREE.Color(0xcfd8e8),
+            label: "Night",
+            icon: "moon",
+          },
+        ];
+        var a81 = new THREE.Color();
+        var a82 = document.getElementById("phaseLabel");
+        var a83 = document.getElementById("phaseIcon");
+
+        function a84(a125) {
+          var a85 = (a125 % a79) / a79;
+          var a86 = a80[0],
+            k1 = a80[1];
+          for (var a30 = 0; a30 < a80.length - 1; a30++) {
+            if (a85 >= a80[a30].a85 && a85 <= a80[a30 + 1].a85) {
+              a86 = a80[a30];
+              k1 = a80[a30 + 1];
+              break;
+            }
+          }
+          var a87 = k1.a85 - a86.a85;
+          var a88 = a87 > 0 ? (a85 - a86.a85) / a87 : 0;
+          var a89 = a88 * a88 * (3 - 2 * a88);
+
+          a81.copy(a86.sky).lerp(k1.sky, a89);
+          a5.background.copy(a81);
+
+          a8.intensity = a86.ambI + (k1.ambI - a86.ambI) * a89;
+          a8.color.copy(a86.ambC).lerp(k1.ambC, a89);
+
+          a9.intensity = a86.dirI + (k1.dirI - a86.dirI) * a89;
+          a9.color.copy(a86.dirC).lerp(k1.dirC, a89);
+
+          var a90 = a85 * Math.PI * 2 - Math.PI / 2;
+          var a91 = 18;
+          a9.position.set(Math.cos(a90) * a91, Math.sin(a90) * a91 + 6, 6);
+          a11.position.copy(a9.position);
+          a10.color.copy(a86.body).lerp(k1.body, a89);
+
+          var a92 = a89 < 0.5 ? a86 : k1;
+          a82.textContent = a92.label;
+          a83.textContent = a92.icon;
+        }
+
+        var a93 = new THREE.Raycaster();
+        var a94 = new THREE.Vector2();
+        var a95 = new THREE.Vector3();
+        var a96 = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+        function a97(e) {
+          if (a116) return;
+          if (e.button !== 0 && e.button !== 2) return;
+          var a98 = a7.domElement.getBoundingClientRect();
+          a94.x = ((e.clientX - a98.left) / a98.width) * 2 - 1;
+          a94.y = -((e.clientY - a98.top) / a98.height) * 2 + 1;
+          a93.setFromCamera(a94, a6);
+          var a99 = a93.ray.intersectPlane(a96, a95);
+          if (!a99) return;
+          var a21 = Math.floor(a95.x + a2);
+          var a22 = Math.floor(a95.z + a2);
+          if (a21 < 0 || a21 >= a1 || a22 < 0 || a22 >= a1) return;
+          if (e.button === 0) a41(a21, a22, a100);
+          else a45(a21, a22);
+        }
+        a7.domElement.addEventListener("mousedown", a97);
+        a7.domElement.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+        });
+
+        var a100 = FENCE;
+        var a101 = document.getElementById("selectedLabel");
+        var a102 = document.querySelectorAll(".a44");
+
+        function a103(a46) {
+          a100 = a46;
+          a101.textContent = a4[a46];
+          for (var a104 = 0; a104 < a102.length; a104++) {
+            var a105 = a102[a104];
+            a105.classList.toggle(
+              "active",
+              Number(a105.getAttribute("data-a44")) === a46,
+            );
+          }
+        }
+
+        function a106(v, min, max) {
+          return v < min ? min : v > max ? max : v;
+        }
+
+        var a107 = new Uint8Array(a1 * a1);
+        var a108 = new Int16Array(a1 * a1);
+        var a109 = new Int16Array(a1 * a1);
+
+        function a110() {
+          a107.fill(0);
+          var a111 = a106(Math.floor(a58.position.x + a2), 0, a1 - 1);
+          var a112 = a106(Math.floor(a58.position.z + a2), 0, a1 - 1);
+          var a113 = 0,
+            tail = 1;
+          a108[0] = a111;
+          a109[0] = a112;
+          a107[a111 * a1 + a112] = 1;
+          var a114 = false;
+
+          while (a113 < tail) {
+            var a21 = a108[a113],
+              a22 = a109[a113];
+            a113++;
+
+            var a115 = a21 + 1,
+              nj = a22,
+              a42;
+            if (a115 >= a1) a114 = true;
+            else {
+              a42 = a115 * a1 + nj;
+              if (!a107[a42] && a37[a42] !== FENCE) {
+                a107[a42] = 1;
+                a108[tail] = a115;
+                a109[tail] = nj;
+                tail++;
+              }
+            }
+
+            a115 = a21 - 1;
+            nj = a22;
+            if (a115 < 0) a114 = true;
+            else {
+              a42 = a115 * a1 + nj;
+              if (!a107[a42] && a37[a42] !== FENCE) {
+                a107[a42] = 1;
+                a108[tail] = a115;
+                a109[tail] = nj;
+                tail++;
+              }
+            }
+
+            a115 = a21;
+            nj = a22 + 1;
+            if (nj >= a1) a114 = true;
+            else {
+              a42 = a115 * a1 + nj;
+              if (!a107[a42] && a37[a42] !== FENCE) {
+                a107[a42] = 1;
+                a108[tail] = a115;
+                a109[tail] = nj;
+                tail++;
+              }
+            }
+
+            a115 = a21;
+            nj = a22 - 1;
+            if (nj < 0) a114 = true;
+            else {
+              a42 = a115 * a1 + nj;
+              if (!a107[a42] && a37[a42] !== FENCE) {
+                a107[a42] = 1;
+                a108[tail] = a115;
+                a109[tail] = nj;
+                tail++;
+              }
+            }
+          }
+          return !a114;
+        }
+
+        var a116 = false;
+        var a117 = document.getElementById("winBanner");
+        var a118 = document.getElementById("timer");
+
+        function a119(a125) {
+          var a104 = Math.floor(a125);
+          var a120 = String(Math.floor(a104 / 60)).padStart(2, "0");
+          var a121 = String(a104 % 60).padStart(2, "0");
+          a118.textContent = a120 + ":" + a121;
+        }
+
+        var a122 = new THREE.Clock();
+
+        function a123() {
+          requestAnimationFrame(a123);
+          var a124 = Math.min(a122.getDelta(), 0.1);
+          var a125 = a122.getElapsedTime();
+
+          a53(a124);
+          a73(a124);
+          a57(a124);
+          a84(a125);
+
+          if (!a116) {
+            a119(a125);
+            if (a110()) {
+              a116 = true;
+              a117.style.display = "block";
+            }
+          }
+
+          a7.render(a5, a6);
+        }
+
+        a103(FENCE);
+        a123();
+      })();
+    </script>
+  </body>
+</html>

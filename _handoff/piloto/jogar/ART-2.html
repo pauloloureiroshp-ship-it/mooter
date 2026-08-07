@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, user-scalable=no"
+    />
+    <title>Moo Ranch — a tiny voxel garden</title>
+    <style>
+      :root {
+        --ink: #f4efe4;
+        --panel: rgba(18, 22, 17, 0.72);
+        --panel-line: rgba(255, 255, 255, 0.14);
+        --gold: #ffcf5c;
+        --grass: #7ec850;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #0a1024;
+        overflow: hidden;
+      }
+      body {
+        font-family:
+          ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
+          monospace;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        cursor: default;
+      }
+      canvas {
+        display: block;
+      }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--panel-line);
+        border-radius: 10px;
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        padding: 10px 12px;
+      }
+
+      #stats {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        min-width: 196px;
+        font-size: 12px;
+        line-height: 1.7;
+      }
+      #stats h1 {
+        margin: 0 0 6px;
+        font-size: 14px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold);
+        font-weight: 700;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .row b {
+        font-weight: 600;
+        color: #fff;
+      }
+      .muted {
+        opacity: 0.6;
+      }
+      #penrow b {
+        color: #ff9a76;
+      }
+      #penrow.sealed b {
+        color: var(--grass);
+      }
+
+      #clock {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 176px;
+        font-size: 12px;
+        text-align: right;
+      }
+      #phase {
+        font-size: 14px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+      #daybar {
+        margin-top: 8px;
+        height: 6px;
+        border-radius: 3px;
+        overflow: hidden;
+        background: linear-gradient(
+          90deg,
+          #f59f5b,
+          #8fc7f0 22%,
+          #8fc7f0 46%,
+          #f59f5b 55%,
+          #101a3a 72%,
+          #101a3a
+        );
+        position: relative;
+      }
+      #dayneedle {
+        position: absolute;
+        top: -3px;
+        width: 2px;
+        height: 12px;
+        background: #fff;
+        box-shadow: 0 0 6px #fff;
+        border-radius: 1px;
+      }
+
+      #hotbar {
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+      }
+      .slot {
+        width: 82px;
+        padding: 8px 6px;
+        text-align: center;
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        background: var(--panel);
+        border: 1px solid var(--panel-line);
+        border-radius: 10px;
+        transition:
+          transform 0.12s ease,
+          border-color 0.12s ease,
+          background 0.12s ease;
+      }
+      .slot .sw {
+        width: 100%;
+        height: 26px;
+        border-radius: 6px;
+        margin-bottom: 6px;
+        border: 1px solid rgba(0, 0, 0, 0.35);
+      }
+      .slot .k {
+        display: block;
+        margin-top: 3px;
+        opacity: 0.5;
+      }
+      .slot.on {
+        border-color: var(--gold);
+        background: rgba(255, 207, 92, 0.16);
+        transform: translateY(-5px);
+      }
+
+      #cross {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        transform: translate(-50%, -50%);
+        opacity: 0.85;
+      }
+      #cross:before,
+      #cross:after {
+        content: "";
+        position: absolute;
+        background: #fff;
+        box-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+      }
+      #cross:before {
+        left: 8px;
+        top: 0;
+        width: 2px;
+        height: 18px;
+      }
+      #cross:after {
+        top: 8px;
+        left: 0;
+        height: 2px;
+        width: 18px;
+      }
+
+      #tip {
+        position: absolute;
+        bottom: 104px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        opacity: 0.55;
+        text-shadow: 0 1px 3px #000;
+        white-space: nowrap;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(
+          120% 90% at 50% 40%,
+          rgba(10, 16, 36, 0.72),
+          rgba(4, 6, 14, 0.94)
+        );
+        text-align: center;
+        padding: 24px;
+      }
+      .card {
+        max-width: 560px;
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid var(--panel-line);
+        border-radius: 16px;
+        padding: 26px 28px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+      }
+      .card h2 {
+        margin: 0 0 4px;
+        font-size: 26px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+      .card .sub {
+        margin: 0 0 18px;
+        font-size: 12px;
+        opacity: 0.65;
+        letter-spacing: 0.08em;
+      }
+      .keys {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 7px 14px;
+        font-size: 12px;
+        text-align: left;
+        margin: 0 auto 20px;
+        max-width: 400px;
+      }
+      .keys kbd {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--panel-line);
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        padding: 2px 7px;
+        font: inherit;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .keys span {
+        opacity: 0.75;
+        align-self: center;
+      }
+      .cta {
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--grass);
+        animation: pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.45;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      .score {
+        display: flex;
+        justify-content: center;
+        gap: 26px;
+        margin: 16px 0 20px;
+        font-size: 12px;
+      }
+      .score div b {
+        display: block;
+        font-size: 22px;
+        color: #fff;
+        margin-bottom: 2px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      #err {
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      #err code {
+        background: rgba(255, 255, 255, 0.08);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud" class="hidden">
+      <div id="stats" class="panel">
+        <h1>Moo Ranch</h1>
+        <div class="row">
+          <span class="muted">Blocks</span><b id="s-blocks">0</b>
+        </div>
+        <div class="row">
+          <span class="muted">Time</span><b id="s-time">0:00</b>
+        </div>
+        <div class="row" id="penrow">
+          <span class="muted">Pen</span><b id="s-pen">open</b>
+        </div>
+        <div class="row"><span class="muted">FPS</span><b id="s-fps">—</b></div>
+      </div>
+
+      <div id="clock" class="panel">
+        <div id="phase">Dawn</div>
+        <div class="muted" id="daytime">day 1 · 00:00</div>
+        <div id="daybar"><div id="dayneedle"></div></div>
+      </div>
+
+      <div id="cross"></div>
+      <div id="tip">
+        left click <span class="muted">break</span> · right click
+        <span class="muted">place</span> · herd the cow, then seal the fence
+      </div>
+      <div id="hotbar"></div>
+    </div>
+
+    <div class="overlay" id="start">
+      <div class="card">
+        <h2>Moo Ranch</h2>
+        <p class="sub">16 × 16 voxels · one cow · one fence to build</p>
+        <div class="keys">
+          <kbd>W A S D</kbd><span>walk the ranch</span> <kbd>mouse</kbd
+          ><span>look around</span> <kbd>left click</kbd
+          ><span>break a block</span> <kbd>right click</kbd
+          ><span>place the selected block</span> <kbd>1 2 3</kbd
+          ><span>pick fence · hedge · stone</span> <kbd>Shift</kbd
+          ><span>sprint</span> <kbd>R</kbd><span>new ranch</span> <kbd>M</kbd
+          ><span>mute</span> <kbd>Esc</kbd><span>pause</span>
+        </div>
+        <p class="sub" style="margin-bottom: 14px">
+          Build a closed pen around the cow — one that never touches the edge of
+          the field. She spooks when you get close, so use yourself to herd her
+          in.
+        </p>
+        <div class="cta" id="start-cta">Click to play</div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="pause">
+      <div class="card">
+        <h2>Paused</h2>
+        <p class="sub">the sun waits for you</p>
+        <div class="cta">Click to resume</div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="win">
+      <div class="card">
+        <h2>Pen Sealed</h2>
+        <p class="sub">the cow is home</p>
+        <div class="score">
+          <div><b id="w-time">0:00</b>time</div>
+          <div><b id="w-blocks">0</b>blocks</div>
+          <div><b id="w-pen">0</b>pen tiles</div>
+        </div>
+        <div class="cta">Press R to build another ranch</div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="fail">
+      <div class="card">
+        <h2 style="color: #ff9a76">No three.js</h2>
+        <p class="sub">the CDN could not be reached</p>
+        <div id="err">
+          Moo Ranch needs the three.js library on first load.<br />
+          Connect once and reload — after that the browser cache keeps it
+          offline.<br /><br />
+          <span class="muted">tried:</span> <code>unpkg</code>
+          <code>jsdelivr</code> <code>cdnjs</code>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var a1 = [
+          "https://unpkg.com/three@0.158.0/build/three.min.js",
+          "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js",
+          "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js",
+        ];
+        function a2(i) {
+          if (i >= a1.length) {
+            document.getElementById("start").classList.add("hidden");
+            document.getElementById("fail").classList.remove("hidden");
+            return;
+          }
+          var a3 = document.createElement("script");
+          a3.src = a1[i];
+          a3.onload = function () {
+            window.THREE ? window.__mooBoot() : a2(i + 1);
+          };
+          a3.onerror = function () {
+            a2(i + 1);
+          };
+          document.head.appendChild(a3);
+        }
+        window.addEventListener("DOMContentLoaded", function () {
+          a2(0);
+        });
+      })();
+    </script>
+
+    <script>
+      window.__mooBoot = function () {
+        "use strict";
+
+        const a1 = 16,
+          MAXY = 8,
+          CELLS = a1 * a1;
+        const a2 = (a11, a25, a10) => (a25 * a1 + a10) * a1 + a11;
+        const a3 = new Uint8Array(a1 * MAXY * a1);
+
+        const a4 = 0,
+          GRASS = 1,
+          FENCE = 2,
+          HEDGE = 3,
+          STONE = 4;
+        const a5 = [
+          { a91: FENCE, name: "Fence", swatch: "#b9813f" },
+          { a91: HEDGE, name: "Hedge", swatch: "#4f9b3a" },
+          { a91: STONE, name: "Stone", swatch: "#9aa0a6" },
+        ];
+
+        const a6 = (a11, a10) => a11 >= 0 && a10 >= 0 && a11 < a1 && a10 < a1;
+        const a7 = (a11, a25, a10) =>
+          !a6(a11, a10) || a25 < 0 || a25 >= MAXY ? a4 : a3[a2(a11, a25, a10)];
+
+        const a8 = (a11, a10) => a6(a11, a10) && a3[a2(a11, 1, a10)] === a4;
+
+        function a9() {
+          a3.fill(a4);
+          for (let a10 = 0; a10 < a1; a10++)
+            for (let a11 = 0; a11 < a1; a11++) a3[a2(a11, 0, a10)] = GRASS;
+        }
+
+        const a12 = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: "high-performance",
+        });
+        a12.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+        a12.setSize(innerWidth, innerHeight);
+        a12.shadowMap.enabled = true;
+        a12.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(a12.domElement);
+
+        const a13 = new THREE.Scene();
+        a13.fog = new THREE.Fog(0x8fc7f0, 26, 78);
+
+        const a14 = new THREE.PerspectiveCamera(
+          62,
+          innerWidth / innerHeight,
+          0.1,
+          260,
+        );
+
+        addEventListener("resize", () => {
+          a14.aspect = innerWidth / innerHeight;
+          a14.updateProjectionMatrix();
+          a12.setSize(innerWidth, innerHeight);
+        });
+
+        function a15(size, draw) {
+          const a16 = document.createElement("canvas");
+          a16.width = a16.height = size;
+          draw(a16.getContext("2d"), size);
+          const a17 = new THREE.CanvasTexture(a16);
+          a17.magFilter = THREE.NearestFilter;
+          a17.minFilter = THREE.NearestMipmapNearestFilter;
+          a17.colorSpace = THREE.SRGBColorSpace;
+          return a17;
+        }
+
+        let a18 = 1337;
+        const a19 = () =>
+          (a18 = (a18 * 1664525 + 1013904223) >>> 0) / 4294967296;
+
+        function a20(base, spots, density, size) {
+          return a15(size || 16, (g, a42) => {
+            g.fillStyle = base;
+            g.fillRect(0, 0, a42, a42);
+            for (let a21 = 0; a21 < a42 * a42 * density; a21++) {
+              g.fillStyle = spots[(a19() * spots.length) | 0];
+              g.fillRect((a19() * a42) | 0, (a19() * a42) | 0, 1, 1);
+            }
+          });
+        }
+        const a22 = a20("#6fb43f", ["#7ec850", "#63a337", "#8ad45e"], 0.55);
+        const a23 = a15(16, (g, a42) => {
+          g.fillStyle = "#8a6135";
+          g.fillRect(0, 0, a42, a42);
+          g.fillStyle = "#6fb43f";
+          g.fillRect(0, 0, a42, 4);
+          g.fillStyle = "#63a337";
+          for (let a11 = 0; a11 < a42; a11++)
+            g.fillRect(a11, 4, 1, (a19() * 2) | 0);
+          for (let a21 = 0; a21 < 40; a21++) {
+            g.fillStyle = a19() > 0.5 ? "#7a5530" : "#9a6f3e";
+            g.fillRect((a19() * a42) | 0, 5 + ((a19() * (a42 - 5)) | 0), 1, 1);
+          }
+        });
+        const a24 = a15(16, (g, a42) => {
+          g.fillStyle = "#b9813f";
+          g.fillRect(0, 0, a42, a42);
+          g.fillStyle = "#9a6730";
+          for (let a25 = 0; a25 < a42; a25 += 5) g.fillRect(0, a25, a42, 1);
+          for (let a21 = 0; a21 < 26; a21++)
+            g.fillRect((a19() * a42) | 0, (a19() * a42) | 0, 1, 1);
+          g.fillStyle = "#d19a55";
+          for (let a21 = 0; a21 < 20; a21++)
+            g.fillRect((a19() * a42) | 0, (a19() * a42) | 0, 1, 1);
+        });
+        const a26 = a20("#4f9b3a", ["#3d7d2c", "#63b84a", "#2f6b23"], 0.9);
+        const a27 = a20("#9aa0a6", ["#868c92", "#b0b6bc", "#787e84"], 0.7);
+        const a28 = a15(16, (g, a42) => {
+          g.fillStyle = "#f4f0e8";
+          g.fillRect(0, 0, a42, a42);
+          g.fillStyle = "#3d3229";
+          g.beginPath();
+          g.arc(4, 5, 3, 0, 7);
+          g.fill();
+          g.beginPath();
+          g.arc(12, 11, 3.4, 0, 7);
+          g.fill();
+          g.beginPath();
+          g.arc(11, 3, 2, 0, 7);
+          g.fill();
+        });
+
+        const a29 = (a17) => new THREE.MeshLambertMaterial({ map: a17 });
+        const a30 = new THREE.BoxGeometry(1, 1, 1);
+
+        const a31 = a1 * a1 * MAXY;
+        const a32 = {};
+
+        function a33(a91, material) {
+          const a34 = new THREE.InstancedMesh(a30, material, a31);
+          a34.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          a34.castShadow = a34.receiveShadow = true;
+          a34.count = 0;
+          a34.frustumCulled = false;
+          a13.add(a34);
+          a32[a91] = { mesh: a34, cells: [] };
+        }
+        a33(
+          GRASS,
+          [a23, a23, a22, a23, a23, a23].map(
+            (a17) => new THREE.MeshLambertMaterial({ map: a17 }),
+          ),
+        );
+        a33(FENCE, a29(a24));
+        a33(HEDGE, a29(a26));
+        a33(STONE, a29(a27));
+
+        const a35 = new THREE.Matrix4();
+        function a36() {
+          for (const a37 in a32) {
+            a32[a37].cells.length = 0;
+          }
+          for (let a25 = 0; a25 < MAXY; a25++)
+            for (let a10 = 0; a10 < a1; a10++)
+              for (let a11 = 0; a11 < a1; a11++) {
+                const a17 = a3[a2(a11, a25, a10)];
+                if (a17 === a4) continue;
+                const a38 = a32[a17];
+                a35.makeTranslation(a11 + 0.5, a25 + 0.5, a10 + 0.5);
+                a38.mesh.setMatrixAt(a38.cells.length, a35);
+                a38.cells.push({ a11, a25, a10 });
+              }
+          for (const a37 in a32) {
+            const a38 = a32[a37];
+            a38.mesh.count = a38.cells.length;
+            a38.mesh.instanceMatrix.needsUpdate = true;
+            a38.mesh.computeBoundingSphere();
+          }
+        }
+
+        const a39 = new THREE.Mesh(
+          new THREE.PlaneGeometry(220, 220),
+          new THREE.MeshLambertMaterial({ color: 0x3f6b2c }),
+        );
+        a39.rotation.a11 = -Math.PI / 2;
+        a39.position.set(a1 / 2, 0.98, a1 / 2);
+        a39.receiveShadow = true;
+        a13.add(a39);
+
+        const a40 = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(a1, 0.02, a1)),
+          new THREE.LineBasicMaterial({
+            color: 0xffcf5c,
+            transparent: true,
+            opacity: 0.5,
+          }),
+        );
+        a40.position.set(a1 / 2, 1.02, a1 / 2);
+        a13.add(a40);
+
+        const a41 = new THREE.BufferGeometry();
+        {
+          const a42 = 420,
+            a84 = new Float32Array(a42 * 3);
+          for (let a21 = 0; a21 < a42; a21++) {
+            const a43 = a19() * Math.PI * 2,
+              a94 = 0.12 + a19() * 0.85,
+              r = 150;
+            a84[a21 * 3] =
+              a1 / 2 + Math.cos(a43) * r * Math.sqrt(1 - a94 * a94);
+            a84[a21 * 3 + 1] = a94 * r;
+            a84[a21 * 3 + 2] =
+              a1 / 2 + Math.sin(a43) * r * Math.sqrt(1 - a94 * a94);
+          }
+          a41.setAttribute("position", new THREE.BufferAttribute(a84, 3));
+        }
+        const a44 = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 1.4,
+          sizeAttenuation: false,
+          transparent: true,
+          opacity: 0,
+        });
+        a13.add(new THREE.Points(a41, a44));
+
+        const a45 = new THREE.HemisphereLight(0xbfe3ff, 0x3d5a2a, 1.0);
+        a13.add(a45);
+        const a46 = new THREE.DirectionalLight(0xfff3d6, 2.2);
+        a46.castShadow = true;
+        a46.shadow.mapSize.set(1024, 1024);
+        a46.shadow.a14.left = -16;
+        a46.shadow.a14.right = 16;
+        a46.shadow.a14.top = 16;
+        a46.shadow.a14.bottom = -16;
+        a46.shadow.a14.a121 = 1;
+        a46.shadow.a14.far = 90;
+        a46.shadow.bias = -0.0009;
+        a46.a88.position.set(a1 / 2, 0, a1 / 2);
+        a13.add(a46, a46.a88);
+        const a47 = new THREE.DirectionalLight(0x9fb6ff, 0.0);
+        a13.add(a47);
+
+        const a48 = new THREE.PointLight(0xffb35c, 0, 11, 2);
+        a13.add(a48);
+
+        function a49(w, a94, a122, mat, a11, a25, a10) {
+          const a34 = new THREE.Mesh(new THREE.BoxGeometry(w, a94, a122), mat);
+          a34.position.set(a11, a25, a10);
+          a34.castShadow = true;
+          return a34;
+        }
+        const a50 = (a16) => new THREE.MeshLambertMaterial({ color: a16 });
+
+        const a51 = new THREE.Group();
+        const a52 = {};
+        {
+          const a53 = a50(0xe0a878),
+            denim = a50(0x3f5f9e),
+            shirt = a50(0xd9584c),
+            straw = a50(0xe8c66a);
+          a52.legL = a49(0.22, 0.5, 0.22, denim, -0.13, 0.25, 0);
+          a52.legR = a49(0.22, 0.5, 0.22, denim, 0.13, 0.25, 0);
+          a51.add(a52.legL, a52.legR);
+          a51.add(a49(0.5, 0.52, 0.3, shirt, 0, 0.76, 0));
+          a51.add(a49(0.36, 0.24, 0.3, denim, 0, 0.58, 0));
+          a52.armL = a49(0.14, 0.44, 0.16, shirt, -0.32, 0.78, 0);
+          a52.armR = a49(0.14, 0.44, 0.16, shirt, 0.32, 0.78, 0);
+          a51.add(a52.armL, a52.armR);
+          a51.add(a49(0.32, 0.32, 0.3, a53, 0, 1.18, 0));
+          a51.add(a49(0.36, 0.12, 0.34, straw, 0, 1.38, 0));
+          a51.add(a49(0.62, 0.05, 0.6, straw, 0, 1.33, 0));
+        }
+        a13.add(a51);
+
+        const a54 = new THREE.Group();
+        const a55 = {};
+        {
+          const a56 = new THREE.MeshLambertMaterial({ map: a28 });
+          const a57 = a50(0x3d3229),
+            pink = a50(0xe89a9a),
+            horn = a50(0xe8e0cc);
+          a54.add(a49(0.78, 0.62, 1.18, a56, 0, 0.72, 0));
+          a55.a102 = new THREE.Group();
+          a55.a102.add(a49(0.46, 0.42, 0.42, a56, 0, 0, 0));
+          a55.a102.add(a49(0.3, 0.2, 0.1, pink, 0, -0.08, -0.24));
+          a55.a102.add(a49(0.12, 0.08, 0.16, a57, -0.26, 0.06, 0.02));
+          a55.a102.add(a49(0.12, 0.08, 0.16, a57, 0.26, 0.06, 0.02));
+          a55.a102.add(a49(0.08, 0.12, 0.08, horn, -0.15, 0.24, 0.04));
+          a55.a102.add(a49(0.08, 0.12, 0.08, horn, 0.15, 0.24, 0.04));
+          a55.a102.position.set(0, 0.82, -0.72);
+          a54.add(a55.a102);
+          const a58 = (a11, a10) => a49(0.17, 0.44, 0.17, a57, a11, 0.22, a10);
+          a55.l1 = a58(-0.24, -0.38);
+          a55.l2 = a58(0.24, -0.38);
+          a55.l3 = a58(-0.24, 0.38);
+          a55.l4 = a58(0.24, 0.38);
+          a54.add(a55.l1, a55.l2, a55.l3, a55.l4);
+          a55.tail = a49(0.08, 0.42, 0.08, a57, 0, 0.8, 0.62);
+          a54.add(a55.tail);
+        }
+        a13.add(a54);
+
+        const a59 = new THREE.Mesh(
+          new THREE.ConeGeometry(0.22, 0.42, 4),
+          new THREE.MeshBasicMaterial({
+            color: 0xffcf5c,
+            transparent: true,
+            opacity: 0.9,
+          }),
+        );
+        a59.rotation.a11 = Math.PI;
+        a13.add(a59);
+
+        const a60 = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
+          new THREE.LineBasicMaterial({ color: 0xffffff }),
+        );
+        a60.visible = false;
+        a13.add(a60);
+
+        const a61 = new THREE.Mesh(
+          a30,
+          new THREE.MeshLambertMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.34,
+            depthWrite: false,
+          }),
+        );
+        a61.visible = false;
+        a13.add(a61);
+
+        let a62 = null,
+          muted = false;
+        function a63(freq, dur, type, gain, slideTo) {
+          if (muted) return;
+          try {
+            if (!a62)
+              a62 = new (window.AudioContext || window.webkitAudioContext)();
+            if (a62.state === "suspended") a62.resume();
+            const a64 = a62.createOscillator(),
+              g = a62.createGain(),
+              a17 = a62.currentTime;
+            a64.type = type || "square";
+            a64.frequency.setValueAtTime(freq, a17);
+            if (slideTo)
+              a64.frequency.exponentialRampToValueAtTime(slideTo, a17 + dur);
+            g.gain.setValueAtTime(gain || 0.07, a17);
+            g.gain.exponentialRampToValueAtTime(0.0001, a17 + dur);
+            a64.connect(g);
+            g.connect(a62.destination);
+            a64.start(a17);
+            a64.stop(a17 + dur + 0.02);
+          } catch (e) {}
+        }
+        const a65 = () => a63(440, 0.09, "square", 0.05, 660);
+        const a66 = () => a63(260, 0.1, "square", 0.05, 150);
+        const a67 = () => a63(120, 0.09, "sawtooth", 0.04);
+        const a68 = () => a63(150, 0.55, "sawtooth", 0.05, 105);
+        const a69 = () =>
+          [0, 120, 240, 400].forEach((a122, a21) =>
+            setTimeout(
+              () => a63([523, 659, 784, 1046][a21], 0.28, "triangle", 0.06),
+              a122,
+            ),
+          );
+
+        const a70 = {
+          root: document.getElementById("hud"),
+          blocks: document.getElementById("a151-blocks"),
+          time: document.getElementById("a151-time"),
+          pen: document.getElementById("a151-pen"),
+          penRow: document.getElementById("penrow"),
+          fps: document.getElementById("a151-fps"),
+          phase: document.getElementById("phase"),
+          daytime: document.getElementById("daytime"),
+          needle: document.getElementById("dayneedle"),
+          hotbar: document.getElementById("hotbar"),
+        };
+        const a71 = document.getElementById("start");
+        const a72 = document.getElementById("pause");
+        const a73 = document.getElementById("a105");
+
+        const a74 = 60;
+        const a75 = { a11: 3.5, a10: 3.5, yaw: 0, pitch: 0.42, facing: 0 };
+        const a76 = {
+          a11: 11.5,
+          a10: 11.5,
+          dir: 0,
+          speed: 0,
+          timer: 0,
+          a109: 0,
+          moo: 4,
+        };
+        const a77 = {
+          placed: 0,
+          elapsed: 0,
+          won: false,
+          penSize: 0,
+          sealed: false,
+          started: false,
+        };
+        let a78 = 0;
+
+        function a79() {
+          a9();
+          a36();
+          a75.a11 = 3.5;
+          a75.a10 = 3.5;
+          a75.yaw = Math.PI * 0.25;
+          a75.pitch = 0.42;
+          a76.a11 = 11.5;
+          a76.a10 = 11.5;
+          a76.dir = a19() * 6.28;
+          a76.speed = 0;
+          a76.timer = 0.6;
+          a76.moo = 5;
+          a77.placed = 0;
+          a77.elapsed = 0;
+          a77.won = false;
+          a77.sealed = false;
+          a77.penSize = 0;
+          a78 = 0;
+          a80();
+          a73.classList.add("hidden");
+          a131();
+          a139(true);
+        }
+
+        function a80() {
+          a70.hotbar.innerHTML = a5
+            .map(
+              (a17, a21) => `
+    <div class="slot ${a21 === a78 ? "a85" : ""}">
+      <div class="sw" style="background:${a17.swatch}"></div>
+      ${a17.name}<span class="a37">${a21 + 1}</span>
+    </div>`,
+            )
+            .join("");
+        }
+
+        const a81 = Object.create(null);
+        addEventListener("keydown", (e) => {
+          const a37 = e.key.toLowerCase();
+          a81[a37] = true;
+          if (a37 === "1" || a37 === "2" || a37 === "3") {
+            a78 = +a37 - 1;
+            a80();
+          }
+          if (a37 === "r") {
+            a79();
+            if (a77.started && !a82()) a72.classList.remove("hidden");
+          }
+          if (a37 === "a34") {
+            muted = !muted;
+          }
+          if (
+            [" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(
+              a37,
+            )
+          )
+            e.preventDefault();
+        });
+        addEventListener("keyup", (e) => {
+          a81[e.key.toLowerCase()] = false;
+        });
+        addEventListener("blur", () => {
+          for (const a37 in a81) a81[a37] = false;
+        });
+
+        const a82 = () => document.pointerLockElement === a12.domElement;
+
+        function a83() {
+          if (a77.won) return;
+
+          const a84 = a12.domElement.requestPointerLock();
+          if (a84 && typeof a84.catch === "function") a84.catch(() => {});
+        }
+        a71.addEventListener("click", a83);
+        a72.addEventListener("click", a83);
+        a12.domElement.addEventListener("click", () => {
+          if (!a82()) a83();
+        });
+        a12.domElement.addEventListener("contextmenu", (e) =>
+          e.preventDefault(),
+        );
+
+        document.addEventListener("pointerlockchange", () => {
+          const a85 = a82();
+          a71.classList.toggle("hidden", a85 || a77.started);
+          a70.root.classList.toggle("hidden", !a77.started && !a85);
+          if (a85) {
+            a77.started = true;
+            a71.classList.add("hidden");
+            a72.classList.add("hidden");
+            a70.root.classList.remove("hidden");
+          } else if (!a77.won && a77.started) a72.classList.remove("hidden");
+        });
+
+        addEventListener("mousemove", (e) => {
+          if (!a82()) return;
+          a75.yaw -= e.movementX * 0.0024;
+          a75.pitch += e.movementY * 0.002;
+          a75.pitch = Math.max(-0.22, Math.min(1.32, a75.pitch));
+        });
+
+        addEventListener("mousedown", (e) => {
+          if (!a82() || a77.won) return;
+          if (e.button === 0) a97();
+          else if (e.button === 2) a96();
+        });
+
+        const a86 = new THREE.Raycaster();
+        a86.far = 6.5;
+        const a87 = new THREE.Vector3(),
+          view = new THREE.Vector3();
+        let a88 = null;
+
+        const a89 = [];
+        const a90 = new Map();
+        for (const a91 of [GRASS, FENCE, HEDGE, STONE])
+          a90.set(a32[a91].mesh, a32[a91]);
+
+        function a92() {
+          a87.set(a75.a11, 1.45, a75.a10);
+          a86.set(a87, view);
+          a89.length = 0;
+          a90.forEach((a38, mesh) => {
+            if (mesh.count > 0) a89.push(mesh);
+          });
+          const a93 = a86.intersectObjects(a89, false);
+          if (!a93.length) return null;
+          const a94 = a93[0];
+          const a38 = a90.get(a94.object);
+          const a16 = a38 && a38.cells[a94.instanceId];
+          if (!a16) return null;
+          const a42 = a94.face ? a94.face.normal : { a11: 0, a25: 1, a10: 0 };
+          return {
+            cell: a16,
+            place: {
+              a11: a16.a11 + a42.a11,
+              a25: a16.a25 + a42.a25,
+              a10: a16.a10 + a42.a10,
+            },
+          };
+        }
+
+        function a95(a11, a25, a10) {
+          if (a25 !== 1 && a25 !== 2) return false;
+          const a93 = (ex, ez, r) =>
+            ex + r > a11 &&
+            ex - r < a11 + 1 &&
+            ez + r > a10 &&
+            ez - r < a10 + 1;
+          return a93(a75.a11, a75.a10, 0.34) || a93(a76.a11, a76.a10, 0.4);
+        }
+
+        function a96() {
+          if (!a88) return a67();
+          const a84 = a88.place;
+          if (!a6(a84.a11, a84.a10) || a84.a25 < 1 || a84.a25 >= MAXY)
+            return a67();
+          if (a7(a84.a11, a84.a25, a84.a10) !== a4) return a67();
+          if (a95(a84.a11, a84.a25, a84.a10)) return a67();
+          a3[a2(a84.a11, a84.a25, a84.a10)] = a5[a78].a91;
+          a77.placed++;
+          a36();
+          a100();
+          a65();
+        }
+
+        function a97() {
+          if (!a88) return a67();
+          const a16 = a88.cell;
+          if (a16.a25 < 1) return a67();
+          a3[a2(a16.a11, a16.a25, a16.a10)] = a4;
+          a77.placed = Math.max(0, a77.placed - 1);
+          a36();
+          a100();
+          a66();
+        }
+
+        const a98 = new Uint8Array(CELLS);
+        const a99 = new Int32Array(CELLS);
+        function a100() {
+          const a101 = Math.floor(a76.a11),
+            sz = Math.floor(a76.a10);
+          a77.sealed = false;
+          a77.penSize = 0;
+          if (!a8(a101, sz)) return;
+
+          a98.fill(0);
+          let a102 = 0,
+            tail = 0,
+            size = 0,
+            escapes = false;
+          a99[tail++] = sz * a1 + a101;
+          a98[sz * a1 + a101] = 1;
+          while (a102 < tail) {
+            const a16 = a99[a102++],
+              a11 = a16 % a1,
+              a10 = (a16 / a1) | 0;
+            size++;
+            if (a11 === 0 || a10 === 0 || a11 === a1 - 1 || a10 === a1 - 1)
+              escapes = true;
+            const a103 = [
+              [a11 + 1, a10],
+              [a11 - 1, a10],
+              [a11, a10 + 1],
+              [a11, a10 - 1],
+            ];
+            for (let a21 = 0; a21 < 4; a21++) {
+              const a104 = a103[a21][0],
+                nz = a103[a21][1];
+              if (!a8(a104, nz)) continue;
+              const a37 = nz * a1 + a104;
+              if (a98[a37]) continue;
+              a98[a37] = 1;
+              a99[tail++] = a37;
+            }
+          }
+          a77.penSize = size;
+          a77.sealed = !escapes;
+          if (a77.sealed && !a77.won) a105();
+        }
+
+        function a105() {
+          a77.won = true;
+          document.getElementById("w-time").textContent = a137(a77.elapsed);
+          document.getElementById("w-blocks").textContent = a77.placed;
+          document.getElementById("w-pen").textContent = a77.penSize;
+          a73.classList.remove("hidden");
+          if (a82()) document.exitPointerLock();
+          a69();
+        }
+
+        function a106(a11, a10, r) {
+          for (let a21 = 0; a21 < 4; a21++) {
+            const a107 = Math.floor(a11 + (a21 & 1 ? r : -r));
+            const a108 = Math.floor(a10 + (a21 & 2 ? r : -r));
+            if (!a6(a107, a108)) return true;
+            if (a3[a2(a107, 1, a108)] !== a4 || a3[a2(a107, 2, a108)] !== a4)
+              return true;
+          }
+          return false;
+        }
+        function a109(ent, a119, dz, r) {
+          const a110 = a106(ent.a11, ent.a10, r);
+          let a111 = false;
+          if (a119 && (a110 || !a106(ent.a11 + a119, ent.a10, r))) {
+            ent.a11 += a119;
+            a111 = true;
+          }
+          if (dz && (a110 || !a106(ent.a11, ent.a10 + dz, r))) {
+            ent.a10 += dz;
+            a111 = true;
+          }
+          return a111 && !a110;
+        }
+
+        function a112(a143) {
+          const a113 = a81.shift ? 1.75 : 1;
+          const a114 = 4.2 * a113 * a143;
+          let a115 = 0,
+            a151 = 0;
+          if (a81.w || a81.arrowup) a115 += 1;
+          if (a81.a151 || a81.arrowdown) a115 -= 1;
+          if (a81.a43 || a81.arrowleft) a151 -= 1;
+          if (a81.a122 || a81.arrowright) a151 += 1;
+          if (!a115 && !a151) return false;
+          const a116 = Math.hypot(a115, a151);
+          a115 /= a116;
+          a151 /= a116;
+
+          const a117 = -Math.sin(a75.yaw),
+            fz = -Math.cos(a75.yaw);
+          const a118 = -fz,
+            rz = a117;
+          const a119 = (a117 * a115 + a118 * a151) * a114,
+            dz = (fz * a115 + rz * a151) * a114;
+          a109(a75, a119, dz, 0.3);
+          a75.facing = Math.atan2(a119, dz);
+          return true;
+        }
+
+        function a120(a143) {
+          if (a77.won) {
+            a76.speed = 0;
+            return;
+          }
+          a76.timer -= a143;
+          a76.moo -= a143;
+          if (a76.moo <= 0) {
+            a76.moo = 9 + a19() * 12;
+            a68();
+          }
+
+          const a119 = a76.a11 - a75.a11,
+            dz = a76.a10 - a75.a10;
+          const a121 = Math.hypot(a119, dz);
+          if (a121 < 2.6) {
+            a76.dir = Math.atan2(a119, dz);
+            a76.speed = 2.5;
+            a76.timer = 0.35;
+          } else if (a76.timer <= 0) {
+            if (a76.speed > 0.1) {
+              a76.speed = 0;
+              a76.timer = 0.7 + a19() * 1.8;
+            } else {
+              a76.speed = 1.15;
+              a76.dir = a19() * Math.PI * 2;
+              a76.timer = 1.0 + a19() * 2.0;
+            }
+          }
+          if (a76.speed <= 0.1) return;
+
+          const a122 = a76.speed * a143;
+          if (
+            !a109(a76, Math.sin(a76.dir) * a122, Math.cos(a76.dir) * a122, 0.36)
+          ) {
+            a76.dir += 1.6 + a19();
+            a76.timer = 0.5 + a19();
+          }
+          a76.a109 += a122 * 5.5;
+        }
+
+        const a123 = new THREE.Color(0x8fc7f0),
+          cDusk = new THREE.Color(0xf3944e),
+          cNight = new THREE.Color(0x0a1024),
+          sky = new THREE.Color();
+        const a124 = new THREE.Color(0xbfe3ff),
+          cHemiNight = new THREE.Color(0x5d74ad);
+        const a125 = 78,
+          fogNight = 44;
+
+        function a126() {
+          const a17 = (a77.elapsed % a74) / a74;
+          const a43 = a17 * Math.PI * 2;
+          const a94 = Math.sin(a43);
+
+          a46.position.set(a1 / 2 + Math.cos(a43) * 42, a94 * 42, a1 / 2 + 16);
+          const a127 = Math.max(0, Math.min(1, a94 / 0.32));
+          a46.intensity = 2.4 * Math.max(0, a94) + 0.05;
+          a46.color.setHSL(0.11, 0.55 - 0.35 * a127, 0.55 + 0.25 * a127);
+          a46.visible = a94 > -0.02;
+
+          const a128 = Math.max(0, Math.min(1, -a94 / 0.28));
+          a47.position.set(a1 / 2 - Math.cos(a43) * 40, -a94 * 40, a1 / 2 - 14);
+          a47.intensity = 0.55 * a128;
+
+          a45.intensity = 0.28 + 0.95 * a127;
+          a45.color.copy(cHemiNight).lerp(a124, a127);
+
+          if (a94 >= 0) sky.copy(cDusk).lerp(a123, a127);
+          else sky.copy(cDusk).lerp(cNight, a128);
+          a13.background = sky;
+          a13.fog.color.copy(sky);
+          a13.fog.far = fogNight + (a125 - fogNight) * (1 - a128);
+
+          a44.opacity = a128 * 0.9;
+          a48.intensity = a128 * 16;
+          a48.position.set(a75.a11, 2.1, a75.a10);
+          a40.material.opacity = 0.28 + 0.32 * a128;
+
+          return { a17, a94, a127, a128 };
+        }
+        const a129 = (a94) =>
+          a94 > 0.35
+            ? "Day"
+            : a94 > 0.02
+              ? "Golden"
+              : a94 > -0.12
+                ? "Dusk"
+                : "Night";
+
+        const a130 = new THREE.Vector3();
+        function a131() {
+          a130.set(a75.a11, 1.45, a75.a10);
+          const a132 = 5.6;
+          const a133 = Math.cos(a75.pitch);
+          const a134 = Math.sin(a75.yaw) * a133 * a132;
+          const a135 = Math.sin(a75.pitch) * a132;
+          const a136 = Math.cos(a75.yaw) * a133 * a132;
+          a14.position.set(
+            a130.a11 + a134,
+            Math.max(1.35, a130.a25 + a135),
+            a130.a10 + a136,
+          );
+          a14.lookAt(a130);
+          view.copy(a130).sub(a14.position).normalize();
+        }
+
+        const a137 = (a151) =>
+          `${Math.floor(a151 / 60)}:${String(Math.floor(a151 % 60)).padStart(2, "0")}`;
+        let a138 = 0,
+          frames = 0,
+          fpsClock = 0,
+          fps = 0;
+
+        function a139(force) {
+          a70.blocks.textContent = a77.placed;
+          a70.time.textContent = a137(a77.elapsed);
+          a70.fps.textContent = fps ? fps : "—";
+          if (a77.sealed) {
+            a70.pen.textContent = `sealed · ${a77.penSize}`;
+            a70.penRow.classList.add("sealed");
+          } else {
+            a70.pen.textContent = "open";
+            a70.penRow.classList.remove("sealed");
+          }
+          const a17 = (a77.elapsed % a74) / a74;
+          a70.needle.style.left = (a17 * 100).toFixed(1) + "%";
+          const a140 = Math.floor(a77.elapsed / a74) + 1;
+          a70.daytime.textContent = `a140 ${a140} · ${a137(a77.elapsed % a74)}`;
+        }
+
+        let a141 = performance.now();
+        function a142(now) {
+          requestAnimationFrame(a142);
+          let a143 = (now - a141) / 1000;
+          a141 = now;
+          if (a143 > 0.1) a143 = 0.1;
+
+          frames++;
+          fpsClock += a143;
+          if (fpsClock >= 0.5) {
+            fps = Math.round(frames / fpsClock);
+            frames = 0;
+            fpsClock = 0;
+          }
+
+          const a144 = a82() && !a77.won;
+          if (a144) {
+            a77.elapsed += a143;
+            a112(a143);
+            const a145 = `${Math.floor(a76.a11)},${Math.floor(a76.a10)}`;
+            a120(a143);
+            if (`${Math.floor(a76.a11)},${Math.floor(a76.a10)}` !== a145)
+              a100();
+          }
+
+          a51.position.set(a75.a11, 1, a75.a10);
+          const a146 =
+            a144 &&
+            (a81.w ||
+              a81.a43 ||
+              a81.a151 ||
+              a81.a122 ||
+              a81.arrowup ||
+              a81.arrowdown ||
+              a81.arrowleft ||
+              a81.arrowright)
+              ? a75.facing
+              : a51.rotation.a25;
+          let a147 = a146 - a51.rotation.a25;
+          while (a147 > Math.PI) a147 -= Math.PI * 2;
+          while (a147 < -Math.PI) a147 += Math.PI * 2;
+          a51.rotation.a25 += a147 * Math.min(1, a143 * 12);
+          const a148 =
+            a144 &&
+            (a81.w ||
+              a81.a43 ||
+              a81.a151 ||
+              a81.a122 ||
+              a81.arrowup ||
+              a81.arrowdown ||
+              a81.arrowleft ||
+              a81.arrowright);
+          const a149 = a148 ? Math.sin(now / 105) * 0.55 : 0;
+          a52.legL.rotation.a11 = a149;
+          a52.legR.rotation.a11 = -a149;
+          a52.armL.rotation.a11 = -a149;
+          a52.armR.rotation.a11 = a149;
+
+          a54.position.set(a76.a11, 1, a76.a10);
+          a54.rotation.a25 = a76.dir + Math.PI;
+          const a150 = a76.speed > 0.1 ? Math.sin(a76.a109) * 0.5 : 0;
+          a55.l1.rotation.a11 = a150;
+          a55.l4.rotation.a11 = a150;
+          a55.l2.rotation.a11 = -a150;
+          a55.l3.rotation.a11 = -a150;
+          a55.a102.rotation.a11 =
+            a76.speed > 0.1
+              ? Math.sin(a76.a109 * 0.5) * 0.08
+              : Math.sin(now / 900) * 0.16 - 0.1;
+          a55.tail.rotation.a10 = Math.sin(now / 380) * 0.28;
+          a59.position.set(a76.a11, 2.55 + Math.sin(now / 420) * 0.12, a76.a10);
+          a59.rotation.a25 = now / 900;
+          a59.material.color.setHex(a77.sealed ? 0x7ec850 : 0xffcf5c);
+
+          a131();
+          const a151 = a126();
+
+          a88 = a144 ? a92() : null;
+          if (a88) {
+            a60.visible = true;
+            a60.position.set(
+              a88.cell.a11 + 0.5,
+              a88.cell.a25 + 0.5,
+              a88.cell.a10 + 0.5,
+            );
+            const a84 = a88.place;
+            const a152 =
+              a6(a84.a11, a84.a10) &&
+              a84.a25 >= 1 &&
+              a84.a25 < MAXY &&
+              a7(a84.a11, a84.a25, a84.a10) === a4 &&
+              !a95(a84.a11, a84.a25, a84.a10);
+            a61.visible = a152;
+            if (a152) {
+              a61.position.set(a84.a11 + 0.5, a84.a25 + 0.5, a84.a10 + 0.5);
+              a61.material.color.set(a5[a78].swatch);
+            }
+          } else {
+            a60.visible = a61.visible = false;
+          }
+
+          a138 += a143;
+          if (a138 > 0.1) {
+            a138 = 0;
+            a139();
+            a70.phase.textContent = a129(a151.a94);
+          }
+
+          a12.render(a13, a14);
+        }
+
+        a79();
+        requestAnimationFrame(a142);
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moo Ranch</title>
+    <link rel="icon" href="data:," />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b1230;
+        font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #game {
+        display: block;
+        cursor: crosshair;
+      }
+      #ui {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        color: #fff;
+        z-index: 10;
+      }
+      .chip {
+        background: rgba(15, 20, 30, 0.55);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+      #topbar {
+        position: absolute;
+        top: 14px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 0 12px;
+      }
+      #hint {
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        opacity: 0.78;
+        background: rgba(15, 20, 30, 0.45);
+        padding: 5px 14px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      #hotbar {
+        position: absolute;
+        bottom: 44px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        pointer-events: auto;
+      }
+      .slot {
+        width: 66px;
+        padding: 7px 6px 6px;
+        background: rgba(15, 20, 30, 0.62);
+        border: 2px solid rgba(255, 255, 255, 0.16);
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        cursor: pointer;
+        transition:
+          transform 0.12s,
+          border-color 0.12s;
+      }
+      .slot.sel {
+        border-color: #ffd94d;
+        transform: translateY(-6px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      }
+      .slot .ky {
+        font-size: 10px;
+        opacity: 0.65;
+        font-weight: 700;
+      }
+      .slot .sw {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.25);
+      }
+      .slot .nm {
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .slot .ct {
+        font-size: 11px;
+        opacity: 0.85;
+      }
+      .slot.deny {
+        animation: shake 0.3s;
+        border-color: #ff5555;
+      }
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-4px);
+        }
+        75% {
+          transform: translateX(4px);
+        }
+      }
+      #toast {
+        position: absolute;
+        top: 64px;
+        left: 50%;
+        transform: translate(-50%, -8px);
+        background: rgba(15, 20, 30, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        opacity: 0;
+        transition:
+          opacity 0.3s,
+          transform 0.3s;
+      }
+      #toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      #moob {
+        position: absolute;
+        background: #fff;
+        color: #222;
+        font-weight: 800;
+        font-size: 13px;
+        padding: 4px 10px;
+        border-radius: 10px;
+        transform: translate(-50%, -100%);
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      #winov,
+      #err {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(4, 8, 16, 0.55);
+        pointer-events: auto;
+      }
+      .card {
+        background: #141d29;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 22px;
+        padding: 34px 44px;
+        text-align: center;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+        max-width: min(92vw, 460px);
+      }
+      .card h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+      .card p {
+        font-size: 14px;
+        line-height: 1.6;
+        opacity: 0.9;
+      }
+      .card button {
+        margin-top: 18px;
+        background: #ffd94d;
+        color: #222;
+        font-weight: 800;
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .card button:hover {
+        filter: brightness(1.08);
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <div id="topbar">
+        <div class="chip" id="chipTime">&#9201; 00:00</div>
+        <div class="chip" id="chipDay">&#9728;&#65039; Day 1</div>
+        <div class="chip" id="chipBlocks">&#129521; 0 placed</div>
+        <div class="chip" id="chipRoam">&#128004; roam 256</div>
+      </div>
+      <div id="toast"></div>
+      <div id="moob">Moo!</div>
+      <div id="hotbar">
+        <div class="slot sel">
+          <div class="ky">1</div>
+          <div class="sw" style="background: #a06534"></div>
+          <div class="nm">Wood</div>
+          <div class="ct" id="ct0">48</div>
+        </div>
+        <div class="slot">
+          <div class="ky">2</div>
+          <div class="sw" style="background: #9199a1"></div>
+          <div class="nm">Stone</div>
+          <div class="ct" id="ct1">32</div>
+        </div>
+        <div class="slot">
+          <div class="ky">3</div>
+          <div class="sw" style="background: #e3b93f"></div>
+          <div class="nm">Hay</div>
+          <div class="ct" id="ct2">24</div>
+        </div>
+      </div>
+      <div id="hint">
+        WASD move &nbsp;&middot;&nbsp; LMB place &nbsp;&middot;&nbsp; RMB remove
+        &nbsp;&middot;&nbsp; 1/2/3 block &nbsp;&middot;&nbsp; wheel zoom
+        &nbsp;&middot;&nbsp; R restart
+      </div>
+      <div id="winov" class="hidden">
+        <div class="card">
+          <h1>&#128004;&#127881; Cow penned &mdash; you win!</h1>
+          <p id="winStats"></p>
+          <p style="margin-top: 8px; opacity: 0.7">
+            Press <b>R</b> or the button to play again.
+          </p>
+          <button id="btnAgain">Play again</button>
+        </div>
+      </div>
+      <div id="err" class="hidden">
+        <div class="card">
+          <h1>&#128308; Couldn't start Moo Ranch</h1>
+          <p>
+            The first load needs an internet connection (three.js comes from a
+            CDN) and a WebGL-capable browser. After the first successful load it
+            works offline.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <script>
+      "use strict";
+      (function () {
+        var a1 = document.getElementById("err");
+        if (typeof THREE === "undefined") {
+          a1.classList.remove("hidden");
+          return;
+        }
+
+        var a2 = 16,
+          HALF = a2 / 2,
+          MAXY = 3,
+          GOAL = 24,
+          DAY_LEN = 60;
+        var a3 = [
+          { name: "Wood", color: 0xa06534, stock: 48 },
+          { name: "Stone", color: 0x9199a1, stock: 32 },
+          { name: "Hay", color: 0xe3b93f, stock: 24 },
+        ];
+        var a4 = new Map();
+        var a5 = a3.map(function (a87) {
+          return a87.stock;
+        });
+        var a6 = 0,
+          won = false,
+          playTime = 0,
+          elapsedAll = 0,
+          roam = a2 * a2;
+
+        var a7 = THREE.MathUtils.a7,
+          smooth = THREE.MathUtils.smoothstep;
+        function a8(a98) {
+          return a98 - HALF + 0.5;
+        }
+        function a9(w) {
+          return Math.floor(w + HALF);
+        }
+        function a10(a81, y, z) {
+          return a81 + "," + y + "," + z;
+        }
+        function a11(a81, z) {
+          return a81 >= 0 && a81 < a2 && z >= 0 && z < a2;
+        }
+        function a12(a81, z) {
+          return a4.has(a10(a81, 0, z));
+        }
+        function a13(a124, b, a87) {
+          var a14 = ((b - a124 + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          return a124 + a14 * a87;
+        }
+        function a15(a87) {
+          var a16 = Math.floor(a87);
+          return (
+            String(Math.floor(a16 / 60)).padStart(2, "0") +
+            ":" +
+            String(a16 % 60).padStart(2, "0")
+          );
+        }
+
+        var a17;
+        try {
+          a17 = new THREE.WebGLRenderer({ antialias: true });
+        } catch (e) {
+          a1.classList.remove("hidden");
+          return;
+        }
+        a17.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        a17.setSize(innerWidth, innerHeight);
+        a17.shadowMap.enabled = true;
+        a17.shadowMap.type = THREE.PCFSoftShadowMap;
+        a17.domElement.id = "game";
+        document.a57.appendChild(a17.domElement);
+
+        var a18 = new THREE.Scene();
+        var a19 = new THREE.Color(0x8fd0f0),
+          nightSky = new THREE.Color(0x0b1230),
+          skyCol = new THREE.Color(0x8fd0f0);
+        a18.background = skyCol;
+        a18.fog = new THREE.Fog(0x8fd0f0, 34, 95);
+        var a20 = new THREE.PerspectiveCamera(
+          50,
+          innerWidth / innerHeight,
+          0.1,
+          300,
+        );
+
+        var a21 = new THREE.HemisphereLight(0xcfe8ff, 0x46693a, 0.9);
+        a18.add(a21);
+        var a22 = new THREE.DirectionalLight(0xffffff, 1.1);
+        a22.castShadow = true;
+        a22.shadow.mapSize.set(1024, 1024);
+        a22.shadow.a20.left = -14;
+        a22.shadow.a20.right = 14;
+        a22.shadow.a20.top = 14;
+        a22.shadow.a20.bottom = -14;
+        a22.shadow.a20.near = 1;
+        a22.shadow.a20.far = 70;
+        a22.shadow.bias = -0.0006;
+        a18.add(a22);
+        a18.add(a22.target);
+
+        function a23(a98) {
+          return new THREE.MeshLambertMaterial({ color: a98 });
+        }
+
+        var a24 = new THREE.Matrix4(),
+          tmpC = new THREE.Color();
+        var a25 = new THREE.BoxGeometry(1, 1, 1);
+        var a26 = new THREE.InstancedMesh(a25, a23(0xffffff), a2 * a2);
+        a26.receiveShadow = true;
+        var a27 = 0,
+          gx,
+          gz;
+        for (gx = 0; gx < a2; gx++)
+          for (gz = 0; gz < a2; gz++) {
+            a24.makeTranslation(a8(gx), -0.5, a8(gz));
+            a26.setMatrixAt(a27, a24);
+            tmpC
+              .setHex((gx + gz) % 2 === 0 ? 0x6fbf4a : 0x63b243)
+              .offsetHSL(
+                0,
+                (Math.random() - 0.5) * 0.04,
+                (Math.random() - 0.5) * 0.03,
+              );
+            a26.setColorAt(a27, tmpC);
+            a27++;
+          }
+        a26.instanceMatrix.needsUpdate = true;
+        if (a26.instanceColor) a26.instanceColor.needsUpdate = true;
+        a18.add(a26);
+
+        var a28 = new THREE.Mesh(
+          new THREE.BoxGeometry(a2 + 0.9, 1.1, a2 + 0.9),
+          a23(0x6b4a2f),
+        );
+        a28.position.y = -0.62;
+        a18.add(a28);
+
+        var a29 = new Map();
+        var a30 = [a23(0xff7eb6), a23(0xfff1f1), a23(0xffd166), a23(0xc77dff)];
+        var a31 = new THREE.BoxGeometry(0.06, 0.26, 0.06),
+          headGeo = new THREE.BoxGeometry(0.16, 0.14, 0.16);
+        var a32 = a23(0x3c8c3c);
+        var a33;
+        for (a33 = 0; a33 < 26; a33++) {
+          var a34 = (Math.random() * a2) | 0,
+            fz = (Math.random() * a2) | 0,
+            fk = a34 + "," + fz;
+          if (a29.has(fk)) continue;
+          var a35 = new THREE.Group();
+          var a36 = new THREE.Mesh(a31, a32);
+          a36.position.y = 0.13;
+          a35.add(a36);
+          var a37 = new THREE.Mesh(headGeo, a30[a33 % 4]);
+          a37.position.y = 0.3;
+          a35.add(a37);
+          a35.position.set(
+            a8(a34) + (Math.random() - 0.5) * 0.4,
+            0,
+            a8(fz) + (Math.random() - 0.5) * 0.4,
+          );
+          a18.add(a35);
+          a29.set(fk, a35);
+        }
+
+        var a38 = new THREE.BufferGeometry();
+        var a39 = 260,
+          starPos = new Float32Array(a39 * 3),
+          si;
+        for (si = 0; si < a39; si++) {
+          var a40 = Math.random() * Math.PI * 2,
+            ph = Math.acos(Math.random() * 0.85),
+            sr = 120;
+          starPos[si * 3] = sr * Math.sin(ph) * Math.cos(a40);
+          starPos[si * 3 + 1] = sr * Math.cos(ph);
+          starPos[si * 3 + 2] = sr * Math.sin(ph) * Math.sin(a40);
+        }
+        a38.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+        var a41 = new THREE.Points(
+          a38,
+          new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1.3,
+            sizeAttenuation: true,
+            transparent: true,
+            opacity: 0,
+            fog: false,
+            depthWrite: false,
+          }),
+        );
+        a18.add(a41);
+
+        var a42 = new THREE.BoxGeometry(1, 1, 1);
+        var a43 = [],
+          typeLists = [];
+        a3.forEach(function (a87, a78) {
+          var a44 = new THREE.InstancedMesh(a42, a23(a87.color), a87.stock);
+          a44.count = 0;
+          a44.castShadow = true;
+          a44.receiveShadow = true;
+          a44.userData.type = a78;
+          a18.add(a44);
+          a43.push(a44);
+          typeLists.push([]);
+        });
+
+        var a45 = {
+          pos: new THREE.Vector3(a8(3), 0, a8(12)),
+          angle: 0,
+          phase: 0,
+          speed: 4.3,
+          r: 0.32,
+        };
+        var a46 = {};
+        (function () {
+          var a47 = new THREE.Group();
+          function a48(w, a103, a14, a98) {
+            return new THREE.Mesh(
+              new THREE.BoxGeometry(w, a103, a14),
+              a23(a98),
+            );
+          }
+          function a49(w, a103, a14, a98) {
+            var a50 = new THREE.BoxGeometry(w, a103, a14);
+            a50.translate(0, -a103 / 2, 0);
+            return new THREE.Mesh(a50, a23(a98));
+          }
+          a46.legL = a49(0.13, 0.32, 0.13, 0x2f4460);
+          a46.legL.position.set(-0.09, 0.32, 0);
+          a46.legR = a49(0.13, 0.32, 0.13, 0x2f4460);
+          a46.legR.position.set(0.09, 0.32, 0);
+          var a51 = a48(0.36, 0.42, 0.24, 0x3f7fbf);
+          a51.position.y = 0.53;
+          a46.armL = a49(0.09, 0.32, 0.09, 0x3f7fbf);
+          a46.armL.position.set(-0.24, 0.71, 0);
+          a46.armR = a49(0.09, 0.32, 0.09, 0x3f7fbf);
+          a46.armR.position.set(0.24, 0.71, 0);
+          var a52 = a48(0.3, 0.28, 0.28, 0xf0c090);
+          a52.position.y = 0.9;
+          var a53 = a48(0.46, 0.06, 0.46, 0xd9a441);
+          a53.position.y = 1.05;
+          var a54 = a48(0.26, 0.14, 0.26, 0xd9a441);
+          a54.position.y = 1.14;
+          a47.add(a46.legL, a46.legR, a51, a46.armL, a46.armR, a52, a53, a54);
+          a47.traverse(function (o) {
+            if (o.isMesh) o.castShadow = true;
+          });
+          a18.add(a47);
+          a46.group = a47;
+        })();
+
+        var a55 = {
+          cx: 11,
+          cz: 5,
+          tx: 11,
+          tz: 5,
+          dir: [0, -1],
+          mode: "idle",
+          idleT: 1.2,
+          a87: 0,
+          dur: 0.85,
+          a34: 0,
+          fz: 0,
+          gxw: 0,
+          gzw: 0,
+          angle: Math.PI,
+        };
+        var a56 = { legs: [], phase: 0 };
+        (function () {
+          var a47 = new THREE.Group();
+          function a48(w, a103, a14, a98) {
+            return new THREE.Mesh(
+              new THREE.BoxGeometry(w, a103, a14),
+              a23(a98),
+            );
+          }
+          function a49(w, a103, a14, a98) {
+            var a50 = new THREE.BoxGeometry(w, a103, a14);
+            a50.translate(0, -a103 / 2, 0);
+            return new THREE.Mesh(a50, a23(a98));
+          }
+          var a57 = a48(0.5, 0.45, 0.9, 0xf5f0e6);
+          a57.position.y = 0.62;
+          var a58 = a48(0.54, 0.2, 0.26, 0x2b2b2b);
+          a58.position.set(0, 0.68, 0.14);
+          var a59 = a48(0.54, 0.16, 0.2, 0x2b2b2b);
+          a59.position.set(0, 0.54, -0.26);
+          var a60 = a48(0.54, 0.14, 0.16, 0x2b2b2b);
+          a60.position.set(0, 0.72, -0.05);
+          var a52 = a48(0.34, 0.3, 0.3, 0xf5f0e6);
+          a52.position.set(0, 0.78, 0.55);
+          var a61 = a48(0.26, 0.14, 0.08, 0xe8a2b0);
+          a61.position.set(0, 0.68, 0.72);
+          var a62 = a48(0.12, 0.08, 0.1, 0xf5f0e6);
+          a62.position.set(-0.24, 0.88, 0.5);
+          var a63 = a48(0.12, 0.08, 0.1, 0xf5f0e6);
+          a63.position.set(0.24, 0.88, 0.5);
+          var a64 = a48(0.06, 0.1, 0.06, 0xefe6d0);
+          a64.position.set(-0.12, 0.97, 0.5);
+          var a65 = a48(0.06, 0.1, 0.06, 0xefe6d0);
+          a65.position.set(0.12, 0.97, 0.5);
+          var a66 = a48(0.05, 0.05, 0.02, 0x1a1a1a);
+          a66.position.set(-0.09, 0.84, 0.705);
+          var a67 = a48(0.05, 0.05, 0.02, 0x1a1a1a);
+          a67.position.set(0.09, 0.84, 0.705);
+          var a68 = a49(0.05, 0.32, 0.05, 0xf5f0e6);
+          a68.position.set(0, 0.8, -0.46);
+          a68.rotation.a81 = 0.35;
+          a47.add(
+            a57,
+            a58,
+            a59,
+            a60,
+            a52,
+            a61,
+            a62,
+            a63,
+            a64,
+            a65,
+            a66,
+            a67,
+            a68,
+          );
+          var a69 = [-0.17, 0.17, -0.17, 0.17],
+            lz = [0.3, 0.3, -0.3, -0.3],
+            li;
+          for (li = 0; li < 4; li++) {
+            var a70 = a49(0.13, 0.4, 0.13, 0xf5f0e6);
+            a70.position.set(a69[li], 0.4, lz[li]);
+            a47.add(a70);
+            a56.legs.push(a70);
+          }
+          a47.traverse(function (o) {
+            if (o.isMesh) o.castShadow = true;
+          });
+          a47.position.set(a8(a55.cx), 0, a8(a55.cz));
+          a47.rotation.y = a55.angle;
+          a18.add(a47);
+          a56.group = a47;
+        })();
+
+        var a71 = new THREE.Mesh(
+          new THREE.BoxGeometry(1.002, 1.002, 1.002),
+          new THREE.MeshBasicMaterial({
+            transparent: true,
+            opacity: 0.35,
+            depthWrite: false,
+          }),
+        );
+        a71.add(
+          new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)),
+            new THREE.LineBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.7,
+            }),
+          ),
+        );
+        a71.visible = false;
+        a18.add(a71);
+        var a72 = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(1.03, 1.03, 1.03)),
+          new THREE.LineBasicMaterial({ color: 0xff5555 }),
+        );
+        a72.visible = false;
+        a18.add(a72);
+
+        var a73 = document.getElementById("a73"),
+          chipDay = document.getElementById("chipDay"),
+          chipBlocks = document.getElementById("chipBlocks"),
+          chipRoam = document.getElementById("chipRoam"),
+          toastEl = document.getElementById("a75"),
+          moob = document.getElementById("moob"),
+          winov = document.getElementById("winov"),
+          winStats = document.getElementById("winStats"),
+          slots = Array.prototype.slice.call(
+            document.querySelectorAll("#hotbar .slot"),
+          ),
+          cts = [
+            document.getElementById("ct0"),
+            document.getElementById("ct1"),
+            document.getElementById("ct2"),
+          ];
+
+        var a74 = null;
+        function a75(msg, ms) {
+          toastEl.textContent = msg;
+          toastEl.classList.add("show");
+          if (a74) clearTimeout(a74);
+          a74 = setTimeout(function () {
+            toastEl.classList.remove("show");
+          }, ms || 2600);
+        }
+        function a76(a78) {
+          slots[a78].classList.remove("deny");
+          void slots[a78].offsetWidth;
+          slots[a78].classList.add("deny");
+        }
+        function a77() {
+          chipBlocks.innerHTML = "&#129521; " + a4.size + " placed";
+          chipRoam.innerHTML =
+            "&#128004; roam " + roam + " &middot; pen &le; " + GOAL + " to win";
+          var a78;
+          for (a78 = 0; a78 < 3; a78++) {
+            cts[a78].textContent = a5[a78];
+            slots[a78].classList.toggle("sel", a78 === a6);
+          }
+        }
+
+        function a79() {
+          var a80 = new Uint8Array(a2 * a2),
+            q = [a55.cx + a55.cz * a2],
+            n = 0;
+          a80[q[0]] = 1;
+          while (q.length) {
+            var a78 = q.pop();
+            n++;
+            var a81 = a78 % a2,
+              z = (a78 / a2) | 0;
+            var a82 = [
+                [a81 + 1, z],
+                [a81 - 1, z],
+                [a81, z + 1],
+                [a81, z - 1],
+              ],
+              a95;
+            for (a95 = 0; a95 < 4; a95++) {
+              var a83 = a82[a95][0],
+                a112 = a82[a95][1];
+              if (!a11(a83, a112)) continue;
+              var a84 = a83 + a112 * a2;
+              if (a80[a84] || a12(a83, a112)) continue;
+              a80[a84] = 1;
+              q.push(a84);
+            }
+          }
+          return n;
+        }
+
+        function a85() {
+          typeLists.forEach(function (l) {
+            l.length = 0;
+          });
+          a4.forEach(function (a87, a95) {
+            var a86 = a95.split(",");
+            typeLists[a87].push({ a81: +a86[0], y: +a86[1], z: +a86[2] });
+          });
+          var a87, a78;
+          for (a87 = 0; a87 < 3; a87++) {
+            var a44 = a43[a87],
+              list = typeLists[a87];
+            a44.count = list.length;
+            for (a78 = 0; a78 < list.length; a78++) {
+              a24.makeTranslation(
+                a8(list[a78].a81),
+                list[a78].y + 0.5,
+                a8(list[a78].z),
+              );
+              a44.setMatrixAt(a78, a24);
+            }
+            a44.instanceMatrix.needsUpdate = true;
+
+            if (a44.computeBoundingSphere) a44.computeBoundingSphere();
+          }
+          a29.forEach(function (a47, a95) {
+            var a86 = a95.split(",");
+            a47.visible = !a12(+a86[0], +a86[1]);
+          });
+          roam = a79();
+          a77();
+          if (!won && roam <= GOAL) a88();
+        }
+
+        function a88() {
+          won = true;
+          a71.visible = false;
+          a72.visible = false;
+          winStats.innerHTML =
+            "&#9201; Time: <b>" +
+            a15(playTime) +
+            "</b> &nbsp;&middot;&nbsp; &#129521; Blocks used: <b>" +
+            a4.size +
+            "</b> &nbsp;&middot;&nbsp; &#128004; Pen size: <b>" +
+            roam +
+            " tiles</b>";
+          winov.classList.remove("hidden");
+        }
+
+        function a89() {
+          a4.clear();
+          a5 = a3.map(function (a87) {
+            return a87.stock;
+          });
+          a6 = 0;
+          won = false;
+          playTime = 0;
+          a45.pos.set(a8(3), 0, a8(12));
+          a45.angle = 0;
+          a45.phase = 0;
+          a55.cx = 11;
+          a55.cz = 5;
+          a55.tx = 11;
+          a55.tz = 5;
+          a55.mode = "idle";
+          a55.idleT = 1.2;
+          a55.angle = Math.PI;
+          a56.group.position.set(a8(11), 0, a8(5));
+          a56.group.rotation.set(0, Math.PI, 0);
+          winov.classList.add("hidden");
+          a85();
+        }
+
+        function a90(a105, pz, r) {
+          var a91 = a9(a105 - r),
+            maxx = a9(a105 + r),
+            minz = a9(pz - r),
+            maxz = a9(pz + r),
+            a81,
+            z;
+          for (a81 = a91; a81 <= maxx; a81++)
+            for (z = minz; z <= maxz; z++) {
+              if (!a11(a81, z) || !a12(a81, z)) continue;
+              var a83 = a7(a105, a81 - HALF, a81 - HALF + 1),
+                a112 = a7(pz, z - HALF, z - HALF + 1);
+              var a92 = a105 - a83,
+                dz = pz - a112;
+              if (a92 * a92 + dz * dz < r * r) return true;
+            }
+          return false;
+        }
+        function a93(a81, z, a105, pz, r) {
+          var a83 = a7(a105, a81 - HALF, a81 - HALF + 1),
+            a112 = a7(pz, z - HALF, z - HALF + 1);
+          var a92 = a105 - a83,
+            dz = pz - a112;
+          return a92 * a92 + dz * dz < r * r;
+        }
+
+        var a94 = new Set();
+        addEventListener("keydown", function (e) {
+          var a95 = e.key.toLowerCase();
+          if (a95.indexOf("arrow") === 0 || a95 === " ") e.preventDefault();
+          if (a95 === "1" || a95 === "2" || a95 === "3") {
+            a6 = +a95 - 1;
+            a77();
+            return;
+          }
+          if (a95 === "r") {
+            a89();
+            return;
+          }
+          a94.add(a95);
+        });
+        addEventListener("keyup", function (e) {
+          a94.delete(e.key.toLowerCase());
+        });
+        addEventListener("blur", function () {
+          a94.clear();
+        });
+
+        var a96 = new THREE.Vector2(),
+          pointerActive = false;
+        addEventListener("mousemove", function (e) {
+          a96.a81 = (e.clientX / innerWidth) * 2 - 1;
+          a96.y = -(e.clientY / innerHeight) * 2 + 1;
+          pointerActive = true;
+        });
+
+        var a97 = 1;
+        addEventListener(
+          "wheel",
+          function (e) {
+            a97 = a7(a97 * (e.deltaY > 0 ? 1.08 : 0.926), 0.55, 1.9);
+          },
+          { passive: true },
+        );
+
+        a17.domElement.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+        });
+        a17.domElement.addEventListener("mousedown", function (e) {
+          if (won) return;
+          a101();
+          if (e.button === 0) {
+            if (a100) {
+              a4.set(a10(a100.a81, a100.y, a100.z), a6);
+              a5[a6]--;
+              a85();
+            } else if (a5[a6] <= 0 && a71.visible) {
+              a76(a6);
+              a75("Out of " + a3[a6].name + " a4!");
+            }
+          } else if (e.button === 2 && removeTarget) {
+            var a98 = removeTarget;
+            if (a4.has(a10(a98.a81, a98.y + 1, a98.z))) {
+              a75("Remove the block on top first");
+              return;
+            }
+            var a87 = a4.get(a10(a98.a81, a98.y, a98.z));
+            a4.delete(a10(a98.a81, a98.y, a98.z));
+            a5[a87]++;
+            a85();
+          }
+        });
+
+        slots.forEach(function (a16, a78) {
+          a16.addEventListener("click", function () {
+            a6 = a78;
+            a77();
+          });
+        });
+        document.getElementById("btnAgain").addEventListener("click", a89);
+
+        addEventListener("resize", function () {
+          a20.aspect = innerWidth / innerHeight;
+          a20.updateProjectionMatrix();
+          a17.setSize(innerWidth, innerHeight);
+        });
+
+        var a99 = new THREE.Raycaster();
+        var a100 = null,
+          removeTarget = null;
+        function a101() {
+          a100 = null;
+          removeTarget = null;
+          a71.visible = false;
+          a72.visible = false;
+          if (won || !pointerActive) return;
+          a99.setFromCamera(a96, a20);
+          var a102 = a99.intersectObjects([a26].concat(a43), false);
+          if (!a102.length) return;
+          var a103 = a102[0],
+            n = a103.face.normal;
+          if (a103.object !== a26) {
+            var a104 = typeLists[a103.object.userData.type][a103.instanceId];
+            if (a104) {
+              removeTarget = a104;
+              a72.position.set(a8(a104.a81), a104.y + 0.5, a8(a104.z));
+              a72.visible = true;
+            }
+          }
+          var a105 = a103.point.a81 + n.a81 * 0.5,
+            py = a103.point.y + n.y * 0.5,
+            pz = a103.point.z + n.z * 0.5;
+          var a81 = a9(a105),
+            z = a9(pz),
+            y = Math.floor(py + 0.0001);
+          if (!a11(a81, z) || y < 0 || y >= MAXY) return;
+          var a106 = !a4.has(a10(a81, y, z));
+          if (a106 && y > 0 && !a4.has(a10(a81, y - 1, z))) a106 = false;
+          if (a106 && y === 0) {
+            if (
+              (a81 === a55.cx && z === a55.cz) ||
+              (a81 === a55.tx && z === a55.tz)
+            )
+              a106 = false;
+            else if (a93(a81, z, a45.pos.a81, a45.pos.z, a45.r + 0.02))
+              a106 = false;
+          }
+          var a107 = a5[a6] > 0;
+          a71.position.set(a8(a81), y + 0.5, a8(z));
+          a71.material.color.setHex(a106 && a107 ? a3[a6].color : 0xff4444);
+          a71.material.opacity = a106 && a107 ? 0.4 : 0.22;
+          a71.visible = true;
+          if (a106 && a107) a100 = { a81: a81, y: y, z: z };
+        }
+
+        function a108(a132) {
+          var a109 = 0,
+            mz = 0;
+          if (a94.has("w") || a94.has("arrowup")) mz -= 1;
+          if (a94.has("a16") || a94.has("arrowdown")) mz += 1;
+          if (a94.has("a124") || a94.has("arrowleft")) a109 -= 1;
+          if (a94.has("a14") || a94.has("arrowright")) a109 += 1;
+          if (a109 !== 0 || mz !== 0) {
+            var a110 = Math.hypot(a109, mz);
+            a109 /= a110;
+            mz /= a110;
+            var a111 = HALF - 0.34,
+              step = a45.speed * a132;
+            var a83 = a7(a45.pos.a81 + a109 * step, -a111, a111);
+            if (!a90(a83, a45.pos.z, a45.r)) a45.pos.a81 = a83;
+            var a112 = a7(a45.pos.z + mz * step, -a111, a111);
+            if (!a90(a45.pos.a81, a112, a45.r)) a45.pos.z = a112;
+            a45.angle = a13(
+              a45.angle,
+              Math.atan2(a109, mz),
+              1 - Math.pow(0.00001, a132),
+            );
+            a45.phase += a132 * 10;
+            var a113 = Math.sin(a45.phase) * 0.7;
+            a46.legL.rotation.a81 = a113;
+            a46.legR.rotation.a81 = -a113;
+            a46.armL.rotation.a81 = -a113 * 0.8;
+            a46.armR.rotation.a81 = a113 * 0.8;
+          } else {
+            a46.legL.rotation.a81 *= 0.82;
+            a46.legR.rotation.a81 *= 0.82;
+            a46.armL.rotation.a81 *= 0.82;
+            a46.armR.rotation.a81 *= 0.82;
+          }
+          a46.group.position.copy(a45.pos);
+          a46.group.rotation.y = a45.angle;
+        }
+
+        var a114 = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ];
+        function a115(a132) {
+          var a47 = a56.group;
+          if (won) {
+            a56.phase += a132 * 6;
+            a47.position.y = Math.abs(Math.sin(a56.phase)) * 0.18;
+            a47.rotation.y += a132 * 2.5;
+            return;
+          }
+          if (a55.mode === "idle") {
+            a55.idleT -= a132;
+            a56.legs.forEach(function (l) {
+              l.rotation.a81 *= 0.85;
+            });
+            if (a55.idleT <= 0) {
+              var a116 = a114.filter(function (a14) {
+                var a83 = a55.cx + a14[0],
+                  a112 = a55.cz + a14[1];
+                return a11(a83, a112) && !a12(a83, a112);
+              });
+              if (a116.length === 0) {
+                a55.idleT = 0.8;
+                return;
+              }
+              var a14 = null,
+                a95;
+              for (a95 = 0; a95 < a116.length; a95++)
+                if (a116[a95][0] === a55.dir[0] && a116[a95][1] === a55.dir[1])
+                  a14 = a116[a95];
+              if (!a14 || Math.random() >= 0.45)
+                a14 = a116[(Math.random() * a116.length) | 0];
+              a55.dir = a14;
+              a55.tx = a55.cx + a14[0];
+              a55.tz = a55.cz + a14[1];
+              a55.a34 = a8(a55.cx);
+              a55.fz = a8(a55.cz);
+              a55.gxw = a8(a55.tx);
+              a55.gzw = a8(a55.tz);
+              a55.mode = "walk";
+              a55.a87 = 0;
+            }
+          } else {
+            a55.a87 += a132 / a55.dur;
+            a56.phase += a132 * 9;
+            var a87 = Math.min(a55.a87, 1);
+            a47.position.a81 = a55.a34 + (a55.gxw - a55.a34) * a87;
+            a47.position.z = a55.fz + (a55.gzw - a55.fz) * a87;
+            var a78;
+            for (a78 = 0; a78 < 4; a78++)
+              a56.legs[a78].rotation.a81 =
+                Math.sin(a56.phase + (a78 === 0 || a78 === 3 ? 0 : Math.PI)) *
+                0.5;
+            a55.angle = a13(
+              a55.angle,
+              Math.atan2(a55.dir[0], a55.dir[1]),
+              1 - Math.pow(0.0001, a132),
+            );
+            a47.rotation.y = a55.angle;
+            if (a55.a87 >= 1) {
+              a55.cx = a55.tx;
+              a55.cz = a55.tz;
+              a55.mode = "idle";
+              a55.idleT = 0.3 + Math.random() * 1.6;
+            }
+          }
+        }
+
+        var a117 = new THREE.Vector3();
+        function a118(a132) {
+          var a119 = 2.2 + 9.6 * a97,
+            dz = 1.6 + 7.8 * a97;
+          a117.set(a45.pos.a81, a119, a45.pos.z + dz);
+          a20.position.lerp(a117, 1 - Math.pow(0.0001, a132));
+          a20.lookAt(a45.pos.a81, 0.6, a45.pos.z);
+        }
+
+        var a120 = new THREE.Color(0xffd9a0),
+          sunWhite = new THREE.Color(0xfff6e8);
+        var a121 = "";
+        function a122(a132) {
+          var a123 = (elapsedAll % DAY_LEN) / DAY_LEN;
+          var a124 = a123 * Math.PI * 2,
+            elev = Math.sin(a124);
+          var a14 = smooth(elev, 0.02, 0.28);
+          var a16 = smooth(elev, -0.18, 0.22);
+          skyCol.copy(nightSky).lerp(a19, a16);
+          a18.fog.color.copy(skyCol);
+          a21.intensity = 0.22 + 0.75 * a14;
+          if (elev >= 0) {
+            a22.position.set(Math.cos(a124) * 24, Math.max(elev * 26, 2), 10);
+            a22.color.copy(a120).lerp(sunWhite, a7(elev * 1.6, 0, 1));
+            a22.intensity = 1.25 * a14 + 0.05;
+          } else {
+            a22.position.set(
+              Math.cos(a124 + Math.PI) * 24,
+              Math.max(-elev * 26, 2),
+              10,
+            );
+            a22.color.setHex(0xaebfff);
+            a22.intensity = 0.3 * smooth(-elev, 0.06, 0.3) + 0.02;
+          }
+          a41.material.opacity = 1 - a16;
+          a41.visible = a16 < 0.98;
+          a41.rotation.y += a132 * 0.01;
+          var a125 = elev > 0.18 ? "☀️" : elev > -0.06 ? "🌅" : "🌙";
+          var a126 = a125 + " Day " + (Math.floor(elapsedAll / DAY_LEN) + 1);
+          if (a126 !== a121) {
+            a121 = a126;
+            chipDay.textContent = a126;
+          }
+        }
+
+        var a127 = 8,
+          bubbleT = 0,
+          tmpV = new THREE.Vector3();
+        var a128 = ["Moo!", "Moo~", "Mooo?", "Moo moo."];
+        function a129(a132) {
+          if (!won) {
+            a127 -= a132;
+            if (a127 <= 0) {
+              a127 = 12 + Math.random() * 14;
+              bubbleT = 2.2;
+              moob.textContent = a128[(Math.random() * a128.length) | 0];
+            }
+          }
+          if (bubbleT > 0) {
+            bubbleT -= a132;
+            tmpV
+              .set(a56.group.position.a81, 1.5, a56.group.position.z)
+              .project(a20);
+            if (tmpV.z < 1) {
+              moob.style.left = (tmpV.a81 * 0.5 + 0.5) * innerWidth + "a105";
+              moob.style.top = (-tmpV.y * 0.5 + 0.5) * innerHeight + "a105";
+            }
+            moob.style.opacity = Math.max(0, Math.min(1, bubbleT / 0.4));
+          } else {
+            moob.style.opacity = 0;
+          }
+        }
+
+        var a130 = new THREE.Clock();
+        function a131() {
+          requestAnimationFrame(a131);
+          var a132 = Math.min(a130.getDelta(), 0.05);
+          elapsedAll += a132;
+          if (!won) playTime += a132;
+          a108(a132);
+          a115(a132);
+          a122(a132);
+          a118(a132);
+          a101();
+          a129(a132);
+          a73.innerHTML = "&#9201; " + a15(playTime);
+          a17.render(a18, a20);
+        }
+
+        a89();
+        a20.position.set(
+          a45.pos.a81,
+          2.2 + 9.6 * a97,
+          a45.pos.z + 1.6 + 7.8 * a97,
+        );
+        a75(
+          "🎯 Pen the a55! Build fences until her roam area is ≤ " +
+            GOAL +
+            " tiles.",
+          6500,
+        );
+        a131();
+      })();
+    </script>
+  </body>
+</html>

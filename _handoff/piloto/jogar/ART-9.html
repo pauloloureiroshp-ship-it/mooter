@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Moo Ranch</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐄</text></svg>"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      canvas {
+        display: block;
+      }
+      .panel {
+        background: rgba(12, 16, 24, 0.66);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        padding: 10px 14px;
+        color: #fff;
+      }
+      #hud {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+      }
+      #title {
+        font-weight: 800;
+        letter-spacing: 1px;
+        font-size: 16px;
+        color: #ffd54a;
+      }
+      #statsRow {
+        display: flex;
+        gap: 16px;
+        font-variant-numeric: tabular-nums;
+        font-size: 14px;
+        margin-top: 5px;
+        white-space: nowrap;
+      }
+      #statsRow b {
+        font-weight: 600;
+      }
+      #status {
+        margin-top: 5px;
+        font-size: 12px;
+        color: #bfe3ff;
+      }
+      #controls {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        font-size: 12px;
+        line-height: 1.6;
+        color: #e6edf3;
+      }
+      #controls b {
+        color: #ffd54a;
+        font-weight: 600;
+      }
+      #toast {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 13px;
+        color: #fff;
+        transition: opacity 0.8s;
+        pointer-events: none;
+        max-width: min(90vw, 520px);
+        text-align: center;
+      }
+      #toast.hide {
+        opacity: 0;
+      }
+      #hotbar {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+      }
+      .slot {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        background: rgba(12, 16, 24, 0.6);
+        position: relative;
+        cursor: pointer;
+        transition:
+          transform 0.12s,
+          border-color 0.12s,
+          box-shadow 0.12s;
+      }
+      .slot .ic {
+        position: absolute;
+        inset: 9px;
+        border-radius: 7px;
+      }
+      .slot .key {
+        position: absolute;
+        top: 2px;
+        left: 6px;
+        font-size: 10px;
+        color: #cfd8e3;
+        text-shadow: 0 1px 2px #000;
+      }
+      .slot .cnt {
+        position: absolute;
+        bottom: 2px;
+        right: 6px;
+        font-size: 10px;
+        color: #fff;
+        text-shadow: 0 1px 2px #000;
+      }
+      .slot.sel {
+        border-color: #ffd54a;
+        transform: translateY(-6px);
+        box-shadow:
+          0 6px 18px rgba(0, 0, 0, 0.45),
+          0 0 0 3px rgba(255, 213, 74, 0.25);
+      }
+      .ic.wood {
+        background: repeating-linear-gradient(
+          90deg,
+          #8a5a2b 0 6px,
+          #6e4620 6px 8px
+        );
+      }
+      .ic.stone {
+        background: linear-gradient(145deg, #aaafb7, #7e848d);
+      }
+      .ic.hay {
+        background: repeating-linear-gradient(
+          0deg,
+          #e0b84f 0 7px,
+          #a9832f 7px 10px
+        );
+      }
+      #winOverlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(4, 8, 14, 0.55);
+        backdrop-filter: blur(3px);
+      }
+      #winOverlay.show {
+        display: flex;
+      }
+      #winCard {
+        text-align: center;
+        padding: 26px 34px;
+        animation: pop 0.35s ease;
+      }
+      #winCard h2 {
+        color: #ffd54a;
+        letter-spacing: 2px;
+        margin: 6px 0 4px;
+      }
+      #winCard p {
+        font-size: 14px;
+        color: #dbe6f0;
+        margin-bottom: 16px;
+      }
+      #winCard .big {
+        font-size: 44px;
+      }
+      @keyframes pop {
+        from {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+      }
+      .btns {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+      button {
+        font: inherit;
+        font-weight: 700;
+        padding: 9px 16px;
+        border-radius: 10px;
+        border: 0;
+        cursor: pointer;
+        background: #ffd54a;
+        color: #1a1409;
+      }
+      button.ghostBtn {
+        background: transparent;
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      #moo {
+        position: fixed;
+        display: none;
+        background: #fff;
+        color: #333;
+        font-weight: 800;
+        font-size: 13px;
+        padding: 4px 11px;
+        border-radius: 12px;
+        transform: translate(-50%, -130%);
+        pointer-events: none;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+      }
+      #moo::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: -6px;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: #fff;
+        border-bottom: 0;
+      }
+      #fps {
+        position: fixed;
+        bottom: 8px;
+        right: 10px;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.55);
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud" class="panel">
+      <div id="title">🐄 MOO RANCH</div>
+      <div id="statsRow">
+        <span>⏱ <b id="timeEl">00:00</b></span>
+        <span>🧱 <b id="blocksEl">0</b></span>
+        <span id="clockEl">☀️ 09:00</span>
+      </div>
+      <div id="status">Fence in the cow to win!</div>
+    </div>
+
+    <div id="controls" class="panel">
+      <b>WASD</b> move<br />
+      <b>Click</b> place · <b>Right-click</b> remove<br />
+      <b>1·2·3</b> block type · <b>R</b> restart
+    </div>
+
+    <div id="toast" class="panel">
+      Trap <b>Bessie</b> inside a closed fence — win when she can no longer
+      reach the edge of the ranch! 🐄
+    </div>
+
+    <div id="hotbar">
+      <div class="slot sel" id="s1" title="Wood fence">
+        <div class="ic wood"></div>
+        <span class="key">1</span><span class="cnt">0</span>
+      </div>
+      <div class="slot" id="s2" title="Stone">
+        <div class="ic stone"></div>
+        <span class="key">2</span><span class="cnt">0</span>
+      </div>
+      <div class="slot" id="s3" title="Hay bale">
+        <div class="ic hay"></div>
+        <span class="key">3</span><span class="cnt">0</span>
+      </div>
+    </div>
+
+    <div id="winOverlay">
+      <div id="winCard" class="panel">
+        <div class="big">🎉🐄🎉</div>
+        <h2>MOO-VELLOUS!</h2>
+        <p id="winStats"></p>
+        <div class="btns">
+          <button id="btnAgain">Play again (R)</button>
+          <button id="btnKeep" class="ghostBtn">Keep building</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="moo">Moo!</div>
+    <div id="fps"></div>
+
+    <script type="module">
+      import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+      const a1 = 16,
+        H = a1 / 2,
+        PR = 0.32;
+      const a2 = (a31) => a31 - H + 0.5;
+      const a3 = (x) => Math.floor(x + H);
+      const a4 = (a31, a32) => a31 >= 0 && a31 < a1 && a32 >= 0 && a32 < a1;
+      const a5 = (a31, a32) => a31 + "," + a32;
+      const { clamp } = THREE.MathUtils;
+      const a6 = (x, a102, a57) => THREE.MathUtils.smoothstep(x, a102, a57);
+      const a7 = (a102, a57, a39) => {
+        const a8 = ((a57 - a102 + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        return a102 + a8 * a39;
+      };
+
+      const a9 = new THREE.WebGLRenderer({ antialias: true });
+      a9.setPixelRatio(Math.min(devicePixelRatio, 2));
+      a9.setSize(innerWidth, innerHeight);
+      a9.shadowMap.enabled = true;
+      a9.shadowMap.type = THREE.PCFSoftShadowMap;
+      a9.toneMapping = THREE.ACESFilmicToneMapping;
+      a9.toneMappingExposure = 1.05;
+      document.body.appendChild(a9.domElement);
+
+      const a10 = new THREE.Scene();
+      const a11 = new THREE.Color(0x8ec9ef);
+      a10.background = a11;
+      a10.fog = new THREE.Fog(0x8ec9ef, 34, 95);
+
+      const a12 = new THREE.PerspectiveCamera(
+        50,
+        innerWidth / innerHeight,
+        0.1,
+        300,
+      );
+
+      addEventListener("resize", () => {
+        a12.aspect = innerWidth / innerHeight;
+        a12.updateProjectionMatrix();
+        a9.setSize(innerWidth, innerHeight);
+      });
+
+      const a13 = new THREE.HemisphereLight(0xcfe8ff, 0x39502e, 0.7);
+      a10.add(a13);
+      const a14 = new THREE.DirectionalLight(0xfff2d9, 1.4);
+      a14.castShadow = true;
+      a14.shadow.mapSize.set(2048, 2048);
+      Object.assign(a14.shadow.a12, {
+        left: -16,
+        right: 16,
+        top: 16,
+        bottom: -16,
+        near: 5,
+        far: 130,
+      });
+      a14.shadow.a12.updateProjectionMatrix();
+      a14.shadow.normalBias = 0.03;
+      a10.add(a14, a14.target);
+      const a15 = new THREE.DirectionalLight(0x8899ff, 0);
+      a10.add(a15);
+
+      const a16 = new THREE.Mesh(
+        new THREE.SphereGeometry(4, 16, 12),
+        new THREE.MeshBasicMaterial({
+          color: 0xffe08a,
+          fog: false,
+          transparent: true,
+        }),
+      );
+      const a17 = new THREE.Mesh(
+        new THREE.SphereGeometry(2.6, 16, 12),
+        new THREE.MeshBasicMaterial({
+          color: 0xdfe6ff,
+          fog: false,
+          transparent: true,
+        }),
+      );
+      a10.add(a16, a17);
+
+      const a18 = new THREE.BufferGeometry();
+      {
+        const a19 = [];
+        while (a19.length < 260 * 3) {
+          const a20 = new THREE.Vector3(
+            Math.random() * 2 - 1,
+            Math.random(),
+            Math.random() * 2 - 1,
+          );
+          if (a20.length() > 1 || a20.y < 0.12) continue;
+          a20.normalize().multiplyScalar(130);
+          a19.push(a20.x, a20.y, a20.z);
+        }
+        a18.setAttribute("position", new THREE.Float32BufferAttribute(a19, 3));
+      }
+      const a21 = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.9,
+        transparent: true,
+        opacity: 0,
+        fog: false,
+        depthWrite: false,
+      });
+      const a22 = new THREE.Points(a18, a21);
+      a22.frustumCulled = false;
+      a10.add(a22);
+
+      const a23 = new THREE.BoxGeometry(1, 1, 1);
+      const a24 = (a68) =>
+        new THREE.MeshStandardMaterial({
+          color: a68,
+          roughness: 0.95,
+          metalness: 0,
+        });
+      const a25 = {
+        wood: a24(0x8a5a2b),
+        woodDark: a24(0x6e4620),
+        stone: a24(0x969ba3),
+        stoneD: a24(0x82868e),
+        hay: a24(0xe0b84f),
+        strap: a24(0xa9832f),
+        white: a24(0xf2efe6),
+        black: a24(0x2b2b2b),
+        pink: a24(0xe89aa4),
+        skin: a24(0xf2c18f),
+        denim: a24(0x3f66b0),
+        shirt: a24(0xc0492f),
+        hat: a24(0xd8a43c),
+        horn: a24(0xded4c2),
+        green: a24(0x3f8f3f),
+      };
+      function a26(mat, sx, sy, sz, x, y, z, parent) {
+        const a27 = new THREE.Mesh(a23, mat);
+        a27.scale.set(sx, sy, sz);
+        a27.position.set(x, y, z);
+        a27.castShadow = a27.receiveShadow = true;
+        parent.add(a27);
+        return a27;
+      }
+
+      {
+        const a28 = new THREE.Matrix4(),
+          a86 = new THREE.Color();
+        const a29 = new THREE.InstancedMesh(a23, a24(0xffffff), a1 * a1);
+        a29.receiveShadow = true;
+        a29.frustumCulled = false;
+        let a30 = 0;
+        for (let a31 = 0; a31 < a1; a31++)
+          for (let a32 = 0; a32 < a1; a32++) {
+            a28.makeTranslation(a2(a31), -0.5, a2(a32));
+            a29.setMatrixAt(a30, a28);
+            a86
+              .setHex(0x5da24d)
+              .offsetHSL(
+                0,
+                (Math.random() - 0.5) * 0.06,
+                (Math.random() - 0.5) * 0.04 - ((a31 + a32) % 2 ? 0.022 : 0),
+              );
+            a29.setColorAt(a30, a86);
+            a30++;
+          }
+        a10.add(a29);
+
+        const a33 = new THREE.InstancedMesh(
+          a23,
+          a24(0xffffff),
+          20 * 20 - a1 * a1,
+        );
+        a33.receiveShadow = true;
+        a33.frustumCulled = false;
+        a30 = 0;
+        for (let a31 = -2; a31 < a1 + 2; a31++)
+          for (let a32 = -2; a32 < a1 + 2; a32++) {
+            if (a4(a31, a32)) continue;
+            a28.makeTranslation(a2(a31), -0.55, a2(a32));
+            a33.setMatrixAt(a30, a28);
+            a86
+              .setHex(0x8a6b45)
+              .offsetHSL(
+                0,
+                (Math.random() - 0.5) * 0.05,
+                (Math.random() - 0.5) * 0.05,
+              );
+            a33.setColorAt(a30, a86);
+            a30++;
+          }
+        a10.add(a33);
+
+        const a34 = new THREE.Mesh(
+          new THREE.PlaneGeometry(500, 500),
+          a24(0x69884b),
+        );
+        a34.rotation.x = -Math.PI / 2;
+        a34.position.y = -0.12;
+        a34.receiveShadow = true;
+        a10.add(a34);
+      }
+
+      const a35 = new Map();
+      {
+        const a36 = [0xe86a92, 0xf2f2f2, 0xe8c14a, 0x9a6ae8].map(a24);
+        const a37 = new Set();
+        while (a35.size < 16) {
+          const a31 = (Math.random() * a1) | 0,
+            a32 = (Math.random() * a1) | 0,
+            a96 = a5(a31, a32);
+          if (a37.has(a96)) continue;
+          a37.add(a96);
+          const a38 = new THREE.Group();
+          if (Math.random() < 0.55) {
+            a26(a25.green, 0.04, 0.22, 0.04, 0, 0.11, 0, a38);
+            a26(
+              a36[(Math.random() * a36.length) | 0],
+              0.13,
+              0.1,
+              0.13,
+              0,
+              0.27,
+              0,
+              a38,
+            );
+          } else {
+            for (let a39 = 0; a39 < 3; a39++)
+              a26(
+                a25.green,
+                0.05,
+                0.16 + Math.random() * 0.12,
+                0.05,
+                (Math.random() - 0.5) * 0.22,
+                0.1,
+                (Math.random() - 0.5) * 0.22,
+                a38,
+              );
+          }
+          a38.position.set(
+            a2(a31) + (Math.random() - 0.5) * 0.4,
+            0,
+            a2(a32) + (Math.random() - 0.5) * 0.4,
+          );
+          a10.add(a38);
+          a35.set(a96, a38);
+        }
+      }
+
+      const a40 = new THREE.Group();
+      a10.add(a40);
+      const a41 = {};
+      {
+        a41.legL = new THREE.Group();
+        a41.legL.position.set(0.11, 0.37, 0);
+        a26(a25.denim, 0.15, 0.37, 0.15, 0, -0.185, 0, a41.legL);
+        a41.legR = new THREE.Group();
+        a41.legR.position.set(-0.11, 0.37, 0);
+        a26(a25.denim, 0.15, 0.37, 0.15, 0, -0.185, 0, a41.legR);
+        a40.add(a41.legL, a41.legR);
+        a26(a25.denim, 0.44, 0.4, 0.28, 0, 0.57, 0, a40);
+        a26(a25.shirt, 0.46, 0.14, 0.3, 0, 0.8, 0, a40);
+        a41.armL = new THREE.Group();
+        a41.armL.position.set(0.28, 0.82, 0);
+        a26(a25.shirt, 0.11, 0.32, 0.11, 0, -0.14, 0, a41.armL);
+        a41.armR = new THREE.Group();
+        a41.armR.position.set(-0.28, 0.82, 0);
+        a26(a25.shirt, 0.11, 0.32, 0.11, 0, -0.14, 0, a41.armR);
+        a40.add(a41.armL, a41.armR);
+        a26(a25.skin, 0.3, 0.28, 0.26, 0, 0.97, 0, a40);
+        a26(a25.hat, 0.46, 0.06, 0.46, 0, 1.13, 0, a40);
+        a26(a25.hat, 0.26, 0.12, 0.26, 0, 1.2, 0, a40);
+      }
+      const a42 = { x: -5, z: 5, yaw: 0, walk: 0, amp: 0 };
+
+      const a43 = new THREE.Group();
+      a10.add(a43);
+      const a44 = [];
+      {
+        for (const [lx, lz] of [
+          [0.17, 0.28],
+          [-0.17, 0.28],
+          [0.17, -0.28],
+          [-0.17, -0.28],
+        ]) {
+          const a45 = new THREE.Group();
+          a45.position.set(lx, 0.4, lz);
+          a26(a25.white, 0.13, 0.4, 0.13, 0, -0.2, 0, a45);
+          a43.add(a45);
+          a44.push(a45);
+        }
+        a26(a25.white, 0.55, 0.42, 0.95, 0, 0.6, 0, a43);
+        a26(a25.black, 0.57, 0.2, 0.3, 0, 0.66, 0.18, a43);
+        a26(a25.black, 0.57, 0.24, 0.26, 0, 0.54, -0.28, a43);
+        a26(a25.white, 0.3, 0.3, 0.28, 0, 0.78, 0.58, a43);
+        a26(a25.pink, 0.24, 0.14, 0.1, 0, 0.7, 0.74, a43);
+        a26(a25.black, 0.045, 0.05, 0.03, 0.09, 0.85, 0.72, a43);
+        a26(a25.black, 0.045, 0.05, 0.03, -0.09, 0.85, 0.72, a43);
+        a26(a25.black, 0.11, 0.05, 0.08, 0.2, 0.88, 0.56, a43);
+        a26(a25.black, 0.11, 0.05, 0.08, -0.2, 0.88, 0.56, a43);
+        a26(a25.horn, 0.05, 0.1, 0.05, 0.1, 0.96, 0.55, a43);
+        a26(a25.horn, 0.05, 0.1, 0.05, -0.1, 0.96, 0.55, a43);
+        const a46 = a26(a25.white, 0.05, 0.32, 0.05, 0, 0.68, -0.5, a43);
+        a46.rotation.x = 0.55;
+        a26(a25.pink, 0.22, 0.12, 0.24, 0, 0.36, -0.14, a43);
+      }
+      const a47 = {
+        ci: 8,
+        cj: 8,
+        ti: 8,
+        tj: 8,
+        x: 0,
+        z: 0,
+        yaw: 0,
+        tyaw: 0,
+        state: "idle",
+        a39: 1,
+        a45: 0,
+        dur: 0.6,
+        phase: 0,
+      };
+
+      const a48 = new THREE.Group();
+      a10.add(a48);
+      const a49 = new Map();
+      const a50 = { 1: 0, 2: 0, 3: 0 };
+      let a51 = [];
+
+      function a52(a31, a32, a38) {
+        a26(a25.wood, 0.16, 0.95, 0.16, 0, 0.475, 0, a38);
+        let a53 = 0;
+        for (const [a112, dz] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          if (a4(a31 + a112, a32 + dz) && a49.has(a5(a31 + a112, a32 + dz))) {
+            a53++;
+            for (const a54 of [0.32, 0.62])
+              a26(
+                a25.woodDark,
+                a112 ? 0.5 : 0.09,
+                0.09,
+                dz ? 0.5 : 0.09,
+                a112 * 0.25,
+                a54,
+                dz * 0.25,
+                a38,
+              );
+          }
+        }
+        if (!a53) {
+          for (const a54 of [0.32, 0.62])
+            a26(a25.woodDark, 0.98, 0.09, 0.09, 0, a54, 0, a38);
+          a26(a25.wood, 0.13, 0.8, 0.13, 0.38, 0.4, 0, a38);
+          a26(a25.wood, 0.13, 0.8, 0.13, -0.38, 0.4, 0, a38);
+        }
+      }
+      function a55(type, a31, a32) {
+        const a38 = new THREE.Group();
+        if (type === 1) a52(a31, a32, a38);
+        else if (type === 2) {
+          a26(a25.stone, 0.92, 0.9, 0.92, 0, 0.45, 0, a38);
+          a26(a25.stoneD, 0.42, 0.16, 0.42, -0.16, 0.95, 0.14, a38);
+        } else {
+          a26(a25.hay, 0.92, 0.9, 0.92, 0, 0.45, 0, a38);
+          a26(a25.strap, 0.96, 0.14, 0.96, 0, 0.3, 0, a38);
+          a26(a25.strap, 0.96, 0.14, 0.96, 0, 0.62, 0, a38);
+        }
+        return a38;
+      }
+      function a56(a31, a32) {
+        const a57 = a49.get(a5(a31, a32));
+        if (!a57) return;
+        if (a57.group) a48.remove(a57.group);
+        const a38 = a55(a57.type, a31, a32);
+        a38.position.set(a2(a31), 0, a2(a32));
+        a38.userData = { a31, a32 };
+        a48.add(a38);
+        a57.group = a38;
+      }
+      function a58(a31, a32) {
+        for (const [a112, dz] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const a59 = a49.get(a5(a31 + a112, a32 + dz));
+          if (a59 && a59.type === 1) a56(a31 + a112, a32 + dz);
+        }
+      }
+      function a60(a31, a32) {
+        return (
+          Math.abs(a42.x - a2(a31)) < 0.5 + PR &&
+          Math.abs(a42.z - a2(a32)) < 0.5 + PR
+        );
+      }
+      function a61(a31, a32) {
+        if (!a4(a31, a32) || a49.has(a5(a31, a32))) return false;
+        if (a31 === a47.ci && a32 === a47.cj) return false;
+        if (a47.state === "walk" && a31 === a47.ti && a32 === a47.tj)
+          return false;
+        return !a60(a31, a32);
+      }
+      function a62(a31, a32, type) {
+        a49.set(a5(a31, a32), { type, group: null });
+        a56(a31, a32);
+        a58(a31, a32);
+        const a63 = a35.get(a5(a31, a32));
+        if (a63) a63.visible = false;
+        a50[type]++;
+        a51.push({ a38: a49.get(a5(a31, a32)).group, a39: 0 });
+        a103(560);
+        a98();
+        a70();
+      }
+      function a64(a31, a32) {
+        const a57 = a49.get(a5(a31, a32));
+        if (!a57) return;
+        a48.remove(a57.group);
+        a49.delete(a5(a31, a32));
+        a58(a31, a32);
+        const a63 = a35.get(a5(a31, a32));
+        if (a63) a63.visible = true;
+        a50[a57.type]--;
+        a103(300);
+        a98();
+        a70();
+      }
+
+      function a65() {
+        const a66 = new Uint8Array(a1 * a1);
+        const a67 = [a47.ci + a47.cj * a1];
+        a66[a67[0]] = 1;
+        while (a67.length) {
+          const a68 = a67.pop(),
+            a31 = a68 % a1,
+            a32 = (a68 / a1) | 0;
+          if (a31 === 0 || a32 === 0 || a31 === a1 - 1 || a32 === a1 - 1)
+            return false;
+          for (const [a112, dz] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ]) {
+            const a69 = a31 + a112,
+              nj = a32 + dz,
+              nc = a69 + nj * a1;
+            if (a4(a69, nj) && !a66[nc] && !a49.has(a5(a69, nj))) {
+              a66[nc] = 1;
+              a67.push(nc);
+            }
+          }
+        }
+        return true;
+      }
+      function a70() {
+        if (won) return;
+        if (a65()) a71();
+        else statusEl.textContent = "Bessie is roaming free…";
+      }
+      function a71() {
+        won = true;
+        winTime = a106;
+        statusEl.textContent = "🎉 Bessie is fenced in!";
+        winStats.textContent = `You fenced Bessie in ${a97(winTime)} using ${a49.size} a49.`;
+        a91.classList.add("show");
+        a105("MOO!!", 0.16);
+      }
+
+      const a72 = new THREE.Group();
+      const a73 = new THREE.Mesh(
+        a23,
+        new THREE.MeshBasicMaterial({
+          color: 0x54e06a,
+          transparent: true,
+          opacity: 0.15,
+          depthWrite: false,
+        }),
+      );
+      const a74 = new THREE.LineSegments(
+        new THREE.EdgesGeometry(a23),
+        new THREE.LineBasicMaterial({
+          color: 0x54e06a,
+          transparent: true,
+          opacity: 0.95,
+        }),
+      );
+      a72.add(a73, a74);
+      a72.scale.set(1.02, 1.02, 1.02);
+      a72.visible = false;
+      a10.add(a72);
+
+      const a75 = new THREE.Raycaster();
+      const a76 = new THREE.Vector2();
+      let a77 = false;
+      const a78 = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const a79 = new THREE.Vector3();
+      function a80(e) {
+        a76.set(
+          (e.clientX / innerWidth) * 2 - 1,
+          -(e.clientY / innerHeight) * 2 + 1,
+        );
+        a77 = true;
+      }
+      function a81() {
+        a75.setFromCamera(a76, a12);
+        const a82 = a75.intersectObjects(a48.children, true);
+        if (a82.length) {
+          let a83 = a82[0].object;
+          while (a83 && a83.userData.a31 === undefined) a83 = a83.parent;
+          if (a83)
+            return {
+              a31: a83.userData.a31,
+              a32: a83.userData.a32,
+              block: true,
+            };
+        }
+        if (a75.a75.intersectPlane(a78, a79)) {
+          const a31 = a3(a79.x),
+            a32 = a3(a79.z);
+          if (a4(a31, a32)) return { a31, a32, block: a49.has(a5(a31, a32)) };
+        }
+        return null;
+      }
+      function a84() {
+        if (!a77) return;
+        const a85 = a81();
+        if (!a85) {
+          a72.visible = false;
+          return;
+        }
+        a72.visible = true;
+        a72.position.set(a2(a85.a31), 0.5, a2(a85.a32));
+        let a86, op;
+        if (a85.block) {
+          a86 = 0xffffff;
+          op = 0.05;
+        } else if (a61(a85.a31, a85.a32)) {
+          a86 = 0x54e06a;
+          op = 0.16;
+        } else {
+          a86 = 0xe05454;
+          op = 0.12;
+        }
+        a73.material.color.setHex(a86);
+        a73.material.opacity = op;
+        a74.material.color.setHex(a86);
+      }
+
+      const a87 = new Set();
+      addEventListener("keydown", (e) => {
+        a87.add(e.code);
+        if (e.code === "Digit1") a95(1);
+        if (e.code === "Digit2") a95(2);
+        if (e.code === "Digit3") a95(3);
+        if (e.code === "KeyR") a108();
+      });
+      addEventListener("keyup", (e) => a87.delete(e.code));
+      addEventListener("blur", () => a87.clear());
+      const a88 = (a68) => a87.has(a68);
+
+      a9.domElement.addEventListener("pointermove", a80);
+      a9.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
+      a9.domElement.addEventListener("pointerdown", (e) => {
+        a80(e);
+        const a85 = a81();
+        if (!a85) return;
+        if (e.button === 0) {
+          if (!a85.block && a61(a85.a31, a85.a32)) a62(a85.a31, a85.a32, a94);
+        } else if (e.button === 2) {
+          if (a49.has(a5(a85.a31, a85.a32))) a64(a85.a31, a85.a32);
+        }
+      });
+
+      const $ = (id) => document.getElementById(id);
+      const a90 = $("a90"),
+        blocksEl = $("blocksEl"),
+        clockEl = $("clockEl"),
+        statusEl = $("status");
+      const a91 = $("a91"),
+        winStats = $("winStats");
+      const a92 = $("a101"),
+        fpsEl = $("fps"),
+        toast = $("toast");
+      const a93 = [null, $("s1"), $("s2"), $("s3")];
+      let a94 = 1;
+      function a95(a39) {
+        a94 = a39;
+        for (let a96 = 1; a96 <= 3; a96++)
+          a93[a96].classList.toggle("sel", a96 === a39);
+      }
+      a93[1].onclick = () => a95(1);
+      a93[2].onclick = () => a95(2);
+      a93[3].onclick = () => a95(3);
+      $("btnAgain").onclick = a108;
+      $("btnKeep").onclick = () => a91.classList.remove("show");
+      setTimeout(() => toast.classList.add("hide"), 7000);
+
+      const a97 = (a39) =>
+        `${String(Math.floor(a39 / 60)).padStart(2, "0")}:${String(Math.floor(a39 % 60)).padStart(2, "0")}`;
+      function a98() {
+        blocksEl.textContent = a49.size;
+        for (let a96 = 1; a96 <= 3; a96++)
+          a93[a96].querySelector(".cnt").textContent = a50[a96];
+      }
+
+      let a99 = null;
+      function a100() {
+        a99 = a99 || new (window.AudioContext || window.webkitAudioContext)();
+        if (a99.state === "suspended") a99.resume().catch(() => {});
+        return a99;
+      }
+      function a101(vol = 0.1) {
+        try {
+          const a102 = a100(),
+            t0 = a102.currentTime;
+          const a83 = a102.createOscillator();
+          a83.type = "sawtooth";
+          a83.frequency.setValueAtTime(196, t0);
+          a83.frequency.exponentialRampToValueAtTime(98, t0 + 0.55);
+          const a63 = a102.createBiquadFilter();
+          a63.type = "lowpass";
+          a63.frequency.value = 520;
+          a63.Q.value = 4;
+          const a38 = a102.createGain();
+          a38.gain.setValueAtTime(0.0001, t0);
+          a38.gain.exponentialRampToValueAtTime(vol, t0 + 0.08);
+          a38.gain.setValueAtTime(vol, t0 + 0.35);
+          a38.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.75);
+          a83.connect(a63).connect(a38).connect(a102.destination);
+          a83.start(t0);
+          a83.stop(t0 + 0.8);
+        } catch (e) {}
+      }
+      function a103(freq) {
+        try {
+          const a102 = a100(),
+            t0 = a102.currentTime;
+          const a83 = a102.createOscillator();
+          a83.type = "square";
+          a83.frequency.value = freq;
+          const a38 = a102.createGain();
+          a38.gain.setValueAtTime(0.04, t0);
+          a38.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
+          a83.connect(a38).connect(a102.destination);
+          a83.start(t0);
+          a83.stop(t0 + 0.08);
+        } catch (e) {}
+      }
+      let a104 = 0,
+        mooT = 6 + Math.random() * 8;
+      function a105(text, vol) {
+        a101(vol);
+        a92.textContent = text;
+        a104 = 1.5;
+      }
+
+      let a106 = 0,
+        worldTime = 9,
+        won = false,
+        winTime = 0,
+        lastSec = -1,
+        lastClock = "";
+
+      function a107() {
+        a47.ci = a47.ti = 5 + ((Math.random() * 6) | 0);
+        a47.cj = a47.tj = 5 + ((Math.random() * 6) | 0);
+        a47.x = a2(a47.ci);
+        a47.z = a2(a47.cj);
+        a47.state = "idle";
+        a47.a39 = 1;
+        a47.a45 = 0;
+        a47.yaw = a47.tyaw = Math.random() * Math.PI * 2;
+        a43.position.set(a47.x, 0, a47.z);
+      }
+      function a108() {
+        a48.clear();
+        a49.clear();
+        a50[1] = a50[2] = a50[3] = 0;
+        a51 = [];
+        for (const a63 of a35.values()) a63.visible = true;
+        a42.x = -5;
+        a42.z = 5;
+        a42.yaw = 0;
+        a42.amp = 0;
+        a134.set(a42.x, 0, a42.z);
+        a107();
+        a106 = 0;
+        worldTime = 9;
+        won = false;
+        lastSec = -1;
+        a91.classList.remove("show");
+        statusEl.textContent = "Bessie is roaming free…";
+        a98();
+      }
+
+      function a109(x, z) {
+        const a110 = a3(x - PR),
+          i1 = a3(x + PR),
+          j0 = a3(z - PR),
+          j1 = a3(z + PR);
+        for (let a31 = a110; a31 <= i1; a31++)
+          for (let a32 = j0; a32 <= j1; a32++)
+            if (a4(a31, a32) && a49.has(a5(a31, a32))) return true;
+        return false;
+      }
+      function a111(a144) {
+        let a112 = 0,
+          dz = 0;
+        if (a88("KeyW") || a88("ArrowUp")) dz -= 1;
+        if (a88("KeyS") || a88("ArrowDown")) dz += 1;
+        if (a88("KeyA") || a88("ArrowLeft")) a112 -= 1;
+        if (a88("KeyD") || a88("ArrowRight")) a112 += 1;
+        const a113 = Math.hypot(a112, dz);
+        if (a113 > 0) {
+          a112 /= a113;
+          dz /= a113;
+          const a114 = 4.3 * a144;
+          const a115 = clamp(a42.x + a112 * a114, -H + PR, H - PR);
+          if (!a109(a115, a42.z)) a42.x = a115;
+          const a116 = clamp(a42.z + dz * a114, -H + PR, H - PR);
+          if (!a109(a42.x, a116)) a42.z = a116;
+          a42.yaw = a7(a42.yaw, Math.atan2(a112, dz), 1 - Math.exp(-a144 * 12));
+          a42.walk += a144 * 10;
+        }
+        a42.amp += ((a113 > 0 ? 1 : 0) - a42.amp) * (1 - Math.exp(-a144 * 10));
+        a40.position.set(a42.x, 0, a42.z);
+        a40.rotation.y = a42.yaw;
+        const a117 = Math.sin(a42.walk) * 0.7 * a42.amp;
+        a41.legL.rotation.x = a117;
+        a41.legR.rotation.x = -a117;
+        a41.armL.rotation.x = -a117 * 0.8;
+        a41.armR.rotation.x = a117 * 0.8;
+      }
+
+      function a118() {
+        if (Math.random() < 0.3) {
+          a47.a39 = 1 + Math.random() * 2;
+          return;
+        }
+        const a119 = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ].sort(() => Math.random() - 0.5);
+        for (const [a112, dz] of a119) {
+          const a69 = a47.ci + a112,
+            nj = a47.cj + dz;
+          if (!a4(a69, nj) || a49.has(a5(a69, nj))) continue;
+          if (a69 === a3(a42.x) && nj === a3(a42.z)) continue;
+          a47.ti = a69;
+          a47.tj = nj;
+          a47.state = "walk";
+          a47.a45 = 0;
+          a47.dur = 0.5 + Math.random() * 0.35;
+          a47.tyaw = Math.atan2(a112, dz);
+          return;
+        }
+        a47.a39 = 0.9;
+      }
+      function a120(a144) {
+        if (a47.state === "idle") {
+          a47.a39 -= a144;
+          for (const a121 of a44) a121.rotation.x *= Math.exp(-a144 * 8);
+          a43.position.y = won ? Math.abs(Math.sin(worldTime * 7)) * 0.09 : 0;
+          if (a47.a39 <= 0) a118();
+        } else {
+          a47.a45 += a144 / a47.dur;
+          const a67 = Math.min(1, a47.a45);
+          a47.x = THREE.MathUtils.lerp(a2(a47.ci), a2(a47.ti), a67);
+          a47.z = THREE.MathUtils.lerp(a2(a47.cj), a2(a47.tj), a67);
+          a43.position.y = Math.abs(Math.sin(a67 * Math.PI * 2)) * 0.05;
+          a47.phase += a144 * 9;
+          a44.forEach((a121, n) => {
+            a121.rotation.x =
+              Math.sin(a47.phase + (n % 3 ? Math.PI : 0)) * 0.55;
+          });
+          if (a47.a45 >= 1) {
+            a47.ci = a47.ti;
+            a47.cj = a47.tj;
+            a47.state = "idle";
+            a47.a39 = 0.4 + Math.random() * 1.8;
+          }
+        }
+        a47.yaw = a7(a47.yaw, a47.tyaw, 1 - Math.exp(-a144 * 8));
+        a43.position.x = a47.x;
+        a43.position.z = a47.z;
+        a43.rotation.y = a47.yaw;
+        mooT -= a144;
+        if (mooT <= 0) {
+          mooT = 8 + Math.random() * 12;
+          a105("Moo!", 0.09);
+        }
+      }
+
+      const a122 = new THREE.Color(0x8ec9ef),
+        NIGHT = new THREE.Color(0x0a1228),
+        DUSK = new THREE.Color(0xe2703f);
+      const a123 = new THREE.Color(0xfff2d9),
+        SUND = new THREE.Color(0xff8a4a);
+      const a124 = new THREE.Color(0xcfe8ff),
+        HNIGHT = new THREE.Color(0x2a3560);
+      function a125(a144) {
+        const a126 = (worldTime % 60) / 60;
+        const a127 = a126 * Math.PI * 2;
+        const a128 = Math.sin(a127);
+        a14.position.set(Math.cos(a127) * 34, a128 * 34, 14);
+        a15.position.set(-Math.cos(a127) * 34, -a128 * 34, -14);
+        const a129 = a6(a128, -0.06, 0.22);
+        const a130 = clamp(1 - Math.abs(a128) / 0.3, 0, 1);
+        a11
+          .copy(NIGHT)
+          .lerp(a122, a129)
+          .lerp(DUSK, a130 * 0.55);
+        a10.fog.color.copy(a11);
+        a14.intensity = Math.pow(Math.max(0, a128), 0.6) * 1.5;
+        a14.color.copy(a123).lerp(SUND, a130);
+        a15.intensity = 0.22 * (1 - a129);
+        a13.intensity = 0.18 + 0.55 * a129;
+        a13.color.copy(HNIGHT).lerp(a124, a129);
+        a21.opacity = (1 - a129) * 0.9;
+        a22.rotation.y += a144 * 0.005;
+        a16.position.copy(a14.position).multiplyScalar(2.8);
+        a16.material.opacity = clamp(a128 * 4 + 0.5, 0, 1);
+        a17.position.copy(a15.position).multiplyScalar(2.8);
+        a17.material.opacity = clamp(-a128 * 4 + 0.5, 0, 1);
+        const a131 = (a126 * 24 + 6) % 24;
+        const a132 = a128 > 0.15 ? "☀️" : a128 > -0.06 ? "🌇" : "🌙";
+        const a133 = `${a132} ${String(Math.floor(a131)).padStart(2, "0")}:${String(Math.floor((a131 % 1) * 60)).padStart(2, "0")}`;
+        if (a133 !== lastClock) {
+          lastClock = a133;
+          clockEl.textContent = a133;
+        }
+      }
+
+      const a134 = new THREE.Vector3(a42.x, 0, a42.z);
+      const a135 = new THREE.Vector3();
+      function a136(a144) {
+        a134.x += (a42.x - a134.x) * (1 - Math.exp(-a144 * 6));
+        a134.z += (a42.z - a134.z) * (1 - Math.exp(-a144 * 6));
+        a12.position.set(a134.x, 12.5, a134.z + 10.5);
+        a12.lookAt(a135.set(a134.x, 0.5, a134.z));
+      }
+
+      const a137 = new THREE.Vector3();
+      let a138 = 0,
+        fpsT = 0;
+      function a139(a144) {
+        const a140 = Math.floor(a106);
+        if (a140 !== lastSec) {
+          lastSec = a140;
+          a90.textContent = a97(a106);
+        }
+        if (a104 > 0) {
+          a104 -= a144;
+          a137.set(a47.x, 1.35, a47.z).project(a12);
+          a92.style.display = a137.z < 1 ? "block" : "none";
+          a92.style.left = (a137.x * 0.5 + 0.5) * innerWidth + "px";
+          a92.style.top = (-a137.y * 0.5 + 0.5) * innerHeight + "px";
+          if (a104 <= 0) a92.style.display = "none";
+        }
+        a138++;
+        fpsT += a144;
+        if (fpsT >= 0.5) {
+          fpsEl.textContent = Math.round(a138 / fpsT) + " fps";
+          a138 = 0;
+          fpsT = 0;
+        }
+      }
+      function a141(a144) {
+        for (const a45 of a51) {
+          a45.a39 += a144 / 0.15;
+          const a39 = Math.min(1, a45.a39);
+          const a117 = 0.25 + 0.75 * (1 - Math.pow(1 - a39, 3));
+          a45.a38.scale.set(a117, a117, a117);
+        }
+        a51 = a51.filter((a45) => a45.a39 < 1);
+      }
+
+      a107();
+      a98();
+      statusEl.textContent = "Bessie is roaming free…";
+      let a142 = performance.now();
+      function a143(now) {
+        const a144 = Math.min(0.05, (now - a142) / 1000);
+        a142 = now;
+        if (!won) a106 += a144;
+        worldTime += a144;
+        a111(a144);
+        a120(a144);
+        a125(a144);
+        a136(a144);
+        a84();
+        a141(a144);
+        a139(a144);
+        a9.render(a10, a12);
+        requestAnimationFrame(a143);
+      }
+      requestAnimationFrame(a143);
+    </script>
+  </body>
+</html>

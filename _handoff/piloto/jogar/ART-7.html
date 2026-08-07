@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Moo Ranch</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0d1327;
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      canvas {
+        display: block;
+        cursor: crosshair;
+      }
+      #ui * {
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .panel {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        background: rgba(10, 16, 28, 0.72);
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 12px;
+        pointer-events: none;
+        line-height: 1.5;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      }
+      #title {
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        font-size: 17px;
+      }
+      #stats {
+        font-size: 14px;
+        opacity: 0.95;
+      }
+      #goal {
+        font-size: 13px;
+        color: #ffd35a;
+      }
+      #hotbar {
+        position: fixed;
+        left: 50%;
+        bottom: 14px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+      }
+      .slot {
+        pointer-events: auto;
+        cursor: pointer;
+        width: 76px;
+        background: rgba(10, 16, 28, 0.72);
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+        padding: 6px 4px;
+        text-align: center;
+        color: #fff;
+        font-size: 12px;
+        position: relative;
+        transition:
+          border-color 0.15s,
+          transform 0.15s;
+      }
+      .slot:hover {
+        transform: translateY(-2px);
+      }
+      .slot.sel {
+        border-color: #ffd35a;
+        box-shadow: 0 0 10px rgba(255, 211, 90, 0.35);
+      }
+      .slot .key {
+        position: absolute;
+        top: 3px;
+        left: 5px;
+        font-size: 10px;
+        opacity: 0.7;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        border-radius: 4px;
+        padding: 0 4px;
+      }
+      .slot .swatch {
+        width: 26px;
+        height: 26px;
+        margin: 4px auto 2px;
+        border-radius: 6px;
+        border: 1px solid rgba(0, 0, 0, 0.45);
+      }
+      .slot .cnt {
+        font-weight: 700;
+        font-size: 13px;
+      }
+      #msg {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.6s;
+      }
+      #msg.show {
+        opacity: 1;
+      }
+      #msg .card {
+        background: rgba(10, 16, 28, 0.88);
+        border: 2px solid #ffd35a;
+        border-radius: 16px;
+        color: #fff;
+        text-align: center;
+        font-size: 26px;
+        padding: 26px 44px;
+        line-height: 1.5;
+      }
+      #msg .card span {
+        font-size: 15px;
+        opacity: 0.8;
+      }
+      #intro {
+        position: fixed;
+        top: 16%;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: none;
+        background: rgba(10, 16, 28, 0.8);
+        color: #fff;
+        padding: 14px 26px;
+        border-radius: 12px;
+        text-align: center;
+        font-size: 15px;
+        line-height: 1.7;
+        transition: opacity 1.2s;
+      }
+      #intro.fade {
+        opacity: 0;
+      }
+      #help {
+        position: fixed;
+        bottom: 14px;
+        right: 14px;
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 12px;
+        background: rgba(10, 16, 28, 0.55);
+        padding: 6px 10px;
+        border-radius: 8px;
+        pointer-events: none;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: #0d1327;
+        z-index: 50;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <div class="panel">
+        <div id="title">&#x1F404; MOO RANCH</div>
+        <div id="stats">
+          <span id="clockIcon">&#x2600;&#xFE0F;</span>
+          <span id="timer">00:00</span> &middot; Day
+          <span id="day">1</span> &middot; Placed: <span id="placed">0</span>
+        </div>
+        <div id="goal">
+          Fence in the cow &mdash; pen must not touch the field edge!
+        </div>
+      </div>
+      <div id="hotbar"></div>
+      <div id="msg"><div class="card" id="msgCard"></div></div>
+      <div id="intro">
+        <b>Welcome to Moo Ranch!</b><br />
+        WASD / arrows &mdash; move &middot; Left-click &mdash; place block
+        &middot; Right-click &mdash; remove<br />
+        1 / 2 / 3 &mdash; choose block &middot; Build a closed pen around the
+        cow to win &#x1F42E;
+      </div>
+      <div id="help">
+        WASD move &middot; L-click place &middot; R-click remove &middot; 1/2/3
+        block &middot; R restart
+      </div>
+      <div id="loading">Loading three.js&hellip;</div>
+    </div>
+
+    <script>
+      setTimeout(function () {
+        if (!window.__mooReady) {
+          document.getElementById("loading").textContent =
+            "Could not load three.js from the CDN — an internet connection is needed on first load.";
+        }
+      }, 9000);
+    </script>
+
+    <script type="module">
+      import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+      const a1 = 16,
+        HALF = a1 / 2,
+        MAXY = 3,
+        DAY_LEN = 60;
+      const a2 = [
+        { name: "Fence", color: 0x9a6a33, start: 48 },
+        { name: "Hay", color: 0xd7a94b, start: 32 },
+        { name: "Stone", color: 0x9a9aa2, start: 32 },
+      ];
+      const a3 = a2.map((t) => t.start);
+      let a4 = 0,
+        placed = 0,
+        won = false,
+        playTime = 0,
+        worldTime = 0;
+
+      const a5 = new THREE.Scene();
+      a5.background = new THREE.Color(0x8ec9ef);
+      a5.fog = new THREE.Fog(0x8ec9ef, 26, 72);
+
+      const a6 = new THREE.PerspectiveCamera(
+        55,
+        innerWidth / innerHeight,
+        0.1,
+        200,
+      );
+      a6.position.set(0, 10, 10);
+
+      const a7 = new THREE.WebGLRenderer({ antialias: true });
+      a7.setSize(innerWidth, innerHeight);
+      a7.setPixelRatio(Math.min(devicePixelRatio, 2));
+      a7.shadowMap.enabled = true;
+      a7.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(a7.domElement);
+
+      const a8 = new THREE.HemisphereLight(0xbfdcff, 0x6a8f4f, 0.7);
+      a5.add(a8);
+
+      const a9 = new THREE.DirectionalLight(0xfff2cc, 1.4);
+      a9.castShadow = true;
+      a9.shadow.mapSize.set(1024, 1024);
+      a9.shadow.a6.left = -16;
+      a9.shadow.a6.right = 16;
+      a9.shadow.a6.top = 16;
+      a9.shadow.a6.bottom = -16;
+      a9.shadow.a6.near = 1;
+      a9.shadow.a6.far = 90;
+      a9.shadow.bias = -0.0006;
+      a5.add(a9);
+      a5.add(a9.target);
+
+      const a10 = new THREE.DirectionalLight(0x8fa0ff, 0);
+      a5.add(a10);
+
+      const a11 = new THREE.Mesh(
+        new THREE.SphereGeometry(2.2, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffe17a, fog: false }),
+      );
+      const a12 = new THREE.Mesh(
+        new THREE.SphereGeometry(1.6, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xdfe6ff, fog: false }),
+      );
+      a5.add(a11, a12);
+
+      const a13 = new THREE.Color(0x8ec9ef);
+      const a14 = new THREE.Color(0x0d1327);
+      const a15 = new THREE.Color(0xef8050);
+
+      const a16 = 2,
+        GSIZE = a1 + a16 * 2;
+      const a17 = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshLambertMaterial({ color: 0xffffff }),
+        GSIZE * GSIZE,
+      );
+      {
+        const a18 = new THREE.Matrix4(),
+          col = new THREE.Color();
+        let a19 = 0;
+        for (let a20 = -a16; a20 < a1 + a16; a20++) {
+          for (let a21 = -a16; a21 < a1 + a16; a21++) {
+            a18.setPosition(a20 - HALF + 0.5, -0.5, a21 - HALF + 0.5);
+            a17.setMatrixAt(a19, a18);
+            const a22 = a20 >= 0 && a20 < a1 && a21 >= 0 && a21 < a1;
+            const a23 = (a20 + a21) & 1;
+            col.setHex(
+              a22 ? (a23 ? 0x67a84e : 0x5d9a45) : a23 ? 0x8a6a45 : 0x816044,
+            );
+            a17.setColorAt(a19, col);
+            a19++;
+          }
+        }
+        a17.instanceMatrix.needsUpdate = true;
+        if (a17.instanceColor) a17.instanceColor.needsUpdate = true;
+        a17.receiveShadow = true;
+        a5.add(a17);
+      }
+
+      {
+        const a24 = [
+          new THREE.Vector3(-HALF, 0.02, -HALF),
+          new THREE.Vector3(HALF, 0.02, -HALF),
+          new THREE.Vector3(HALF, 0.02, HALF),
+          new THREE.Vector3(-HALF, 0.02, HALF),
+        ];
+        a5.add(
+          new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(a24),
+            new THREE.LineBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.45,
+            }),
+          ),
+        );
+      }
+
+      const a25 = new Map();
+      function a26(color) {
+        if (!a25.has(color))
+          a25.set(color, new THREE.MeshLambertMaterial({ color }));
+        return a25.get(color);
+      }
+      function a27(parent, w, a69, a30, color, x, y, z) {
+        const a28 = new THREE.Mesh(
+          new THREE.BoxGeometry(w, a69, a30),
+          a26(color),
+        );
+        a28.position.set(x, y, z);
+        a28.castShadow = true;
+        a28.receiveShadow = true;
+        parent.add(a28);
+        return a28;
+      }
+      function a29(a, b, t) {
+        const a30 =
+          ((((b - a) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        return a + a30 * t;
+      }
+      function a31(s) {
+        return (
+          String(Math.floor(s / 60)).padStart(2, "0") +
+          ":" +
+          String(Math.floor(s % 60)).padStart(2, "0")
+        );
+      }
+
+      function a32(x, z, s) {
+        const a33 = new THREE.Group();
+        a27(a33, 0.35 * s, 1.1 * s, 0.35 * s, 0x6d4a2f, 0, 0.55 * s, 0);
+        a27(a33, 1.4 * s, 0.9 * s, 1.4 * s, 0x3f7d3a, 0, 1.45 * s, 0);
+        a27(a33, 0.85 * s, 0.6 * s, 0.85 * s, 0x468a41, 0, 2.1 * s, 0);
+        a33.position.set(x, 0, z);
+        a5.add(a33);
+      }
+      a32(-9.2, -9.0, 1.0);
+      a32(9.1, -8.8, 0.85);
+      a32(-8.9, 9.1, 0.9);
+      a32(9.2, 8.9, 1.05);
+      a27(a5, 0.5, 0.35, 0.6, 0x7c7c84, -9.3, 0.17, 2.5);
+      a27(a5, 0.4, 0.28, 0.4, 0x86868e, 9.3, 0.14, -3.2);
+
+      const a34 = new Map();
+      const a35 = new THREE.Group();
+      a5.add(a35);
+      const a36 = (a20, y, a21) => a20 + "," + y + "," + a21;
+      const a37 = (a20, y, a21) => a34.has(a36(a20, y, a21));
+      const a38 = (a20, a21) => a37(a20, 0, a21);
+
+      function a39(type) {
+        const a33 = new THREE.Group();
+        if (type === 0) {
+          a27(a33, 0.18, 1.0, 0.18, 0x8a5a2b, 0, 0.5, 0);
+          a27(a33, 1.0, 0.12, 0.14, 0x9a6a33, 0, 0.34, 0);
+          a27(a33, 1.0, 0.12, 0.14, 0x9a6a33, 0, 0.74, 0);
+          a27(a33, 0.14, 0.12, 1.0, 0x9a6a33, 0, 0.34, 0);
+          a27(a33, 0.14, 0.12, 1.0, 0x9a6a33, 0, 0.74, 0);
+        } else if (type === 1) {
+          a27(a33, 0.98, 0.96, 0.98, 0xd7a94b, 0, 0.5, 0);
+          a27(a33, 1.0, 0.12, 1.0, 0x8f6b2f, 0, 0.5, 0);
+        } else {
+          a27(a33, 0.98, 0.96, 0.98, 0x9a9aa2, 0, 0.5, 0);
+          a27(a33, 0.6, 0.2, 0.6, 0x86868e, 0, 1.0, 0);
+        }
+        return a33;
+      }
+
+      function a40(a20, y, a21, type) {
+        const a41 = a39(type);
+        a41.position.set(a20 - HALF + 0.5, y, a21 - HALF + 0.5);
+        a41.userData = { a20, y, a21, type };
+        a35.add(a41);
+        a34.set(a36(a20, y, a21), a41);
+        a3[type]--;
+        placed++;
+        a62();
+        a103();
+      }
+      function a42(a41) {
+        const { a20, y, a21, type } = a41.userData;
+        a34.delete(a36(a20, y, a21));
+        a35.remove(a41);
+        a3[type]++;
+        placed--;
+        a62();
+        a103();
+      }
+
+      const a43 = { speed: 4.5, walkT: 0, moving: false, limbs: [] };
+      {
+        const a33 = new THREE.Group();
+        const a44 = new THREE.BoxGeometry(0.16, 0.38, 0.2);
+        a44.translate(0, -0.19, 0);
+        const a45 = new THREE.BoxGeometry(0.12, 0.38, 0.14);
+        a45.translate(0, -0.17, 0);
+        for (const a46 of [-1, 1]) {
+          const a47 = new THREE.Mesh(a44, a26(0x5b3d2a));
+          a47.position.set(a46 * 0.11, 0.42, 0);
+          a47.castShadow = true;
+          a33.add(a47);
+          a43.limbs.push(a47);
+        }
+        a27(a33, 0.46, 0.44, 0.26, 0x2f6fd0, 0, 0.66, 0);
+        for (const a46 of [-1, 1]) {
+          const a48 = new THREE.Mesh(a45, a26(0xe0ac7e));
+          a48.position.set(a46 * 0.3, 0.84, 0);
+          a48.castShadow = true;
+          a33.add(a48);
+          a43.limbs.push(a48);
+        }
+        a27(a33, 0.34, 0.32, 0.32, 0xe0ac7e, 0, 1.05, 0);
+        a27(a33, 0.04, 0.05, 0.02, 0x222222, -0.08, 1.08, 0.165);
+        a27(a33, 0.04, 0.05, 0.02, 0x222222, 0.08, 1.08, 0.165);
+        a27(a33, 0.5, 0.06, 0.5, 0xd9b445, 0, 1.24, 0);
+        a27(a33, 0.3, 0.14, 0.3, 0xd9b445, 0, 1.33, 0);
+        a33.position.set(-3.5, 0, 0.5);
+        a5.add(a33);
+        a43.a41 = a33;
+      }
+
+      const a49 = {
+        speed: 1.1,
+        walkT: 0,
+        idle: 1.5,
+        target: null,
+        tile: { a20: 10, a21: 9 },
+        legs: [],
+      };
+      {
+        const a33 = new THREE.Group();
+        a27(a33, 0.62, 0.6, 1.15, 0xf3f3f0, 0, 0.72, 0);
+        a27(a33, 0.66, 0.3, 0.35, 0x2b2b2b, 0, 0.78, 0.18);
+        a27(a33, 0.66, 0.24, 0.3, 0x2b2b2b, 0, 0.62, -0.34);
+        a27(a33, 0.3, 0.14, 0.28, 0xe8a0a8, 0, 0.38, -0.3);
+        const a44 = new THREE.BoxGeometry(0.16, 0.42, 0.16);
+        a44.translate(0, -0.21, 0);
+        for (const a46 of [-1, 1])
+          for (const a50 of [-1, 1]) {
+            const a47 = new THREE.Mesh(a44, a26(0xf3f3f0));
+            a47.position.set(a46 * 0.2, 0.44, a50 * 0.42);
+            a47.castShadow = true;
+            a33.add(a47);
+            a49.legs.push(a47);
+          }
+        const a51 = new THREE.Group();
+        a27(a51, 0.4, 0.38, 0.34, 0xf3f3f0, 0, 0, 0.06);
+        a27(a51, 0.3, 0.18, 0.14, 0xe8a0a8, 0, -0.1, 0.26);
+        a27(a51, 0.05, 0.06, 0.03, 0x222222, -0.12, 0.07, 0.24);
+        a27(a51, 0.05, 0.06, 0.03, 0x222222, 0.12, 0.07, 0.24);
+        a27(a51, 0.14, 0.1, 0.08, 0x2b2b2b, -0.26, 0.13, -0.02);
+        a27(a51, 0.14, 0.1, 0.08, 0x2b2b2b, 0.26, 0.13, -0.02);
+        a51.position.set(0, 1.02, 0.62);
+        a33.add(a51);
+        a49.a51 = a51;
+        a33.position.set(
+          a49.tile.a20 - HALF + 0.5,
+          0,
+          a49.tile.a21 - HALF + 0.5,
+        );
+        a5.add(a33);
+        a49.a41 = a33;
+      }
+
+      const a52 = document.getElementById("timer");
+      const a53 = document.getElementById("day");
+      const a54 = document.getElementById("placed");
+      const a55 = document.getElementById("a55");
+      const a56 = document.getElementById("goal");
+      const a57 = document.getElementById("msg");
+      const a58 = document.getElementById("a58");
+
+      const a59 = document.getElementById("a59");
+      const a60 = a2.map((t, a20) => {
+        const a30 = document.createElement("div");
+        a30.className = "slot";
+        a30.innerHTML =
+          '<span class="key">' +
+          (a20 + 1) +
+          "</span>" +
+          '<div class="swatch" style="background:#' +
+          t.color.toString(16).padStart(6, "0") +
+          '"></div>' +
+          "<div>" +
+          t.name +
+          '</div><span class="cnt"></span>';
+        a30.addEventListener("click", () => a61(a20));
+        a59.appendChild(a30);
+        return a30;
+      });
+      function a61(a20) {
+        a4 = a20;
+        a60.forEach((el, k) => el.classList.toggle("a4", k === a4));
+      }
+      function a62() {
+        a60.forEach((el, k) => {
+          el.querySelector(".cnt").textContent = a3[k];
+        });
+        a54.textContent = placed;
+      }
+      a61(0);
+      a62();
+      setTimeout(
+        () => document.getElementById("intro").classList.add("fade"),
+        6500,
+      );
+
+      const a63 = new Set();
+      addEventListener("keydown", (e) => {
+        if (
+          ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(
+            e.code,
+          )
+        )
+          e.preventDefault();
+        a63.add(e.code);
+        if (e.code === "Digit1") a61(0);
+        if (e.code === "Digit2") a61(1);
+        if (e.code === "Digit3") a61(2);
+        if (e.code === "KeyR") location.reload();
+      });
+      addEventListener("keyup", (e) => a63.delete(e.code));
+      addEventListener("contextmenu", (e) => e.preventDefault());
+
+      const a64 = new THREE.Vector2(0, 0);
+      function a65(e) {
+        a64.x = (e.clientX / innerWidth) * 2 - 1;
+        a64.y = -(e.clientY / innerHeight) * 2 + 1;
+      }
+      addEventListener("pointermove", a65);
+
+      const a66 = new THREE.Raycaster();
+      function a67() {
+        a66.setFromCamera(a64, a6);
+        const a68 = a66.intersectObjects([a17, a35], true);
+        if (!a68.length) return null;
+        const a69 = a68[0];
+        let a70 = null;
+        if (a69.object !== a17) {
+          let a71 = a69.object;
+          while (a71.parent && a71.parent !== a35) a71 = a71.parent;
+          if (a71.parent === a35) a70 = a71;
+        }
+        let a72;
+        if (a70) {
+          const a73 = a69.face.normal;
+          a72 = {
+            a20: a70.userData.a20 + Math.round(a73.x),
+            y: a70.userData.y + Math.round(a73.y),
+            a21: a70.userData.a21 + Math.round(a73.z),
+          };
+        } else {
+          a72 = {
+            a20: Math.floor(a69.point.x + HALF),
+            y: 0,
+            a21: Math.floor(a69.point.z + HALF),
+          };
+        }
+        return { a72, a70 };
+      }
+      function a74(x, z, a83, a20, a21) {
+        const a75 = THREE.MathUtils.clamp(x, a20 - HALF, a20 - HALF + 1);
+        const a76 = THREE.MathUtils.clamp(z, a21 - HALF, a21 - HALF + 1);
+        return (x - a75) * (x - a75) + (z - a76) * (z - a76) < a83 * a83;
+      }
+      function a77(c) {
+        if (!c) return false;
+        if (
+          c.a20 < 0 ||
+          c.a20 >= a1 ||
+          c.a21 < 0 ||
+          c.a21 >= a1 ||
+          c.y < 0 ||
+          c.y >= MAXY
+        )
+          return false;
+        if (a37(c.a20, c.y, c.a21)) return false;
+        if (a3[a4] <= 0) return false;
+        if (c.y > 0 && !a37(c.a20, c.y - 1, c.a21)) return false;
+        if (c.y === 0) {
+          if (a74(a43.a41.position.x, a43.a41.position.z, 0.45, c.a20, c.a21))
+            return false;
+          if (a74(a49.a41.position.x, a49.a41.position.z, 0.6, c.a20, c.a21))
+            return false;
+          if (
+            a49.target &&
+            a49.target.a20 === c.a20 &&
+            a49.target.a21 === c.a21
+          )
+            return false;
+        }
+        return true;
+      }
+      function a78(a41) {
+        if (!a41) return false;
+        const a79 = a41.userData;
+        return !a37(a79.a20, a79.y + 1, a79.a21);
+      }
+      a7.domElement.addEventListener("pointerdown", (e) => {
+        a65(e);
+        const a80 = a67();
+        if (!a80) return;
+        if (e.button === 0 && a77(a80.a72))
+          a40(a80.a72.a20, a80.a72.y, a80.a72.a21, a4);
+        else if (e.button === 2 && a78(a80.a70)) a42(a80.a70);
+      });
+
+      const a81 = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
+        new THREE.LineBasicMaterial({ color: 0x7cff6e }),
+      );
+      a81.visible = false;
+      a5.add(a81);
+
+      function a82(x, z) {
+        const a83 = 0.3;
+        const a84 = Math.floor(x - a83 + HALF),
+          i1 = Math.floor(x + a83 + HALF);
+        const a85 = Math.floor(z - a83 + HALF),
+          j1 = Math.floor(z + a83 + HALF);
+        for (let a20 = a84; a20 <= i1; a20++)
+          for (let a21 = a85; a21 <= j1; a21++)
+            if (a38(a20, a21) && a74(x, z, a83, a20, a21)) return true;
+        return false;
+      }
+      function a86(a115) {
+        let a87 = 0,
+          dz = 0;
+        if (a63.has("KeyW") || a63.has("ArrowUp")) dz -= 1;
+        if (a63.has("KeyS") || a63.has("ArrowDown")) dz += 1;
+        if (a63.has("KeyA") || a63.has("ArrowLeft")) a87 -= 1;
+        if (a63.has("KeyD") || a63.has("ArrowRight")) a87 += 1;
+        a43.moving = a87 !== 0 || dz !== 0;
+        if (!a43.moving) {
+          a43.limbs.forEach((l) => (l.rotation.x *= 0.8));
+          return;
+        }
+        const a88 = Math.hypot(a87, dz);
+        a87 = (a87 / a88) * a43.speed * a115;
+        dz = (dz / a88) * a43.speed * a115;
+        const a89 = a43.a41.position;
+        const a90 = HALF - 0.32;
+        let a91 = THREE.MathUtils.clamp(a89.x + a87, -a90, a90);
+        if (!a82(a91, a89.z)) a89.x = a91;
+        let a92 = THREE.MathUtils.clamp(a89.z + dz, -a90, a90);
+        if (!a82(a89.x, a92)) a89.z = a92;
+        const a93 = Math.atan2(a87, dz);
+        a43.a41.rotation.y = a29(
+          a43.a41.rotation.y,
+          a93,
+          1 - Math.pow(0.0001, a115),
+        );
+        a43.walkT += a115;
+        a43.limbs.forEach((l, k) => {
+          l.rotation.x = Math.sin(a43.walkT * 11 + (k % 2) * Math.PI) * 0.65;
+        });
+      }
+
+      function a94() {
+        const a95 = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ].sort(() => Math.random() - 0.5);
+        for (const [di, dj] of a95) {
+          const a96 = a49.tile.a20 + di,
+            nj = a49.tile.a21 + dj;
+          if (a96 < 0 || a96 >= a1 || nj < 0 || nj >= a1) continue;
+          if (a38(a96, nj)) continue;
+          a49.target = {
+            a20: a96,
+            a21: nj,
+            a75: a96 - HALF + 0.5,
+            a76: nj - HALF + 0.5,
+          };
+          return;
+        }
+        a49.idle = 0.8;
+      }
+      function a97(a115) {
+        const a89 = a49.a41.position;
+        if (a49.target) {
+          const a87 = a49.target.a75 - a89.x,
+            dz = a49.target.a76 - a89.z;
+          const a30 = Math.hypot(a87, dz),
+            step = a49.speed * a115;
+          a49.walkT += a115;
+          a49.a51.rotation.x *= 0.85;
+          if (a30 <= step) {
+            a89.x = a49.target.a75;
+            a89.z = a49.target.a76;
+            a49.tile = { a20: a49.target.a20, a21: a49.target.a21 };
+            a49.target = null;
+            a49.idle = 0.6 + Math.random() * 2.4;
+            a103();
+          } else {
+            a89.x += (a87 / a30) * step;
+            a89.z += (dz / a30) * step;
+            a49.a41.rotation.y = a29(
+              a49.a41.rotation.y,
+              Math.atan2(a87, dz),
+              1 - Math.pow(0.001, a115),
+            );
+          }
+          a49.legs.forEach((l, k) => {
+            l.rotation.x = Math.sin(a49.walkT * 7 + (k % 2) * Math.PI) * 0.5;
+          });
+        } else {
+          a49.idle -= a115;
+          a49.legs.forEach((l) => (l.rotation.x *= 0.85));
+          a49.a51.rotation.x = 0.4 * Math.max(0, Math.sin(worldTime * 0.7));
+          if (a49.idle <= 0) a94();
+        }
+      }
+
+      function a98() {
+        const a99 = Math.floor(a49.a41.position.x + HALF);
+        const a100 = Math.floor(a49.a41.position.z + HALF);
+        if (a99 < 0 || a99 >= a1 || a100 < 0 || a100 >= a1) return false;
+        if (a38(a99, a100)) return false;
+        const a101 = new Uint8Array(a1 * a1);
+        const a102 = [[a99, a100]];
+        a101[a100 * a1 + a99] = 1;
+        while (a102.length) {
+          const [a20, a21] = a102.pop();
+          if (a20 === 0 || a20 === a1 - 1 || a21 === 0 || a21 === a1 - 1)
+            return false;
+          for (const [di, dj] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ]) {
+            const a96 = a20 + di,
+              nj = a21 + dj;
+            if (a96 < 0 || a96 >= a1 || nj < 0 || nj >= a1) continue;
+            if (a101[nj * a1 + a96] || a38(a96, nj)) continue;
+            a101[nj * a1 + a96] = 1;
+            a102.push([a96, nj]);
+          }
+        }
+        return true;
+      }
+      function a103() {
+        if (won || !a98()) return;
+        won = true;
+        a58.innerHTML =
+          "&#x1F389; <b>MOO-VELOUS!</b><br>Cow fenced in " +
+          a31(playTime) +
+          "<br><span>Press R to play again</span>";
+        a57.classList.add("show");
+        a56.innerHTML = "&#x2705; Cow fenced in!";
+      }
+
+      function a104() {
+        const a105 = (worldTime % DAY_LEN) / DAY_LEN;
+        const a106 = a105 * Math.PI * 2;
+        const a107 = Math.cos(a106);
+        const a108 = THREE.MathUtils.smoothstep(a107, -0.12, 0.25);
+        a9.position.set(Math.sin(a106) * 34, a107 * 34, 14);
+        a10.position.set(-Math.sin(a106) * 30, -a107 * 30, -12);
+        a9.intensity = 1.45 * a108;
+        a10.intensity = 0.3 * (1 - a108);
+        a8.intensity = 0.18 + 0.55 * a108;
+        const a109 = a14.clone().lerp(a13, a108);
+        const a110 = Math.max(0, 1 - Math.abs(a107) * 3.5);
+        a109.lerp(a15, a110 * 0.4);
+        a5.background.copy(a109);
+        a5.fog.color.copy(a109);
+        a11.position.copy(a9.position).multiplyScalar(1.6);
+        a12.position.copy(a10.position).multiplyScalar(1.6);
+        a11.visible = a107 > -0.15;
+        a12.visible = -a107 > -0.15;
+        a55.textContent = a107 > 0 ? "☀️" : "\a79{1F319}";
+      }
+
+      const a111 = new THREE.Vector3();
+      function a112(a115) {
+        const a89 = a43.a41.position;
+        a111.set(a89.x, 9.5, a89.z + 9);
+        a6.position.lerp(a111, 1 - Math.pow(0.0005, a115));
+        a6.lookAt(a89.x, 0.8, a89.z);
+      }
+
+      const a113 = new THREE.Clock();
+      function a114() {
+        const a115 = Math.min(a113.getDelta(), 0.05);
+        worldTime += a115;
+        if (!won) playTime += a115;
+
+        a86(a115);
+        a97(a115);
+        a104();
+        a112(a115);
+
+        const a80 = a67();
+        if (a80 && a80.a72) {
+          a81.visible = true;
+          a81.position.set(
+            a80.a72.a20 - HALF + 0.5,
+            a80.a72.y + 0.5,
+            a80.a72.a21 - HALF + 0.5,
+          );
+          a81.material.color.set(a77(a80.a72) ? 0x7cff6e : 0xff5f5f);
+        } else {
+          a81.visible = false;
+        }
+
+        a52.textContent = a31(playTime);
+        a53.textContent = Math.floor(worldTime / DAY_LEN) + 1;
+
+        a7.render(a5, a6);
+      }
+      a7.setAnimationLoop(a114);
+
+      addEventListener("resize", () => {
+        a6.aspect = innerWidth / innerHeight;
+        a6.updateProjectionMatrix();
+        a7.setSize(innerWidth, innerHeight);
+      });
+
+      document.getElementById("loading").remove();
+      window.__mooReady = true;
+    </script>
+  </body>
+</html>
