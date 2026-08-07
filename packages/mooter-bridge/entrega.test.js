@@ -44,13 +44,13 @@ const MARCADORES = {
   'board.js': ['custo_total_usd', 'cobertura_custo_pct'],
   'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify', '🐄 Mooter · '],
   'tools6.js': ['permissoes_diferenca', 'primeira_vez', '🐄 Mooter · '],
-  'server-apps.js': ['resourceUri'],
+  'server-apps.js': ['resourceUri', "process.pid + '.log'", 'faz assim: '], // +v1.49
   // v1.24 — a ETA e o SYNC gerado
-  'capacidades.js': ['mcp-capabilities.json', 'registarInitialize'],
+  'capacidades.js': ['mcp-capabilities.json', 'registarInitialize', 'registoMcpApps', 'capabilities_bruto'], // +v1.49
   'eta.js': ['eta-index.json', 'MIN_OBSERVATIONS'],
   'estimativa.js': ['estimateJob', 'a-trabalhar'],
   'fleet.js': ['etaBarModel', 'summarizeWorktrees', '🐄 Mooter · '],
-  'fleet-ui.html': ['eta-track', 'fill_pct'],
+  'fleet-ui.html': ['eta-track', 'fill_pct', 'sondaBootFeita', "motivo: 'boot'"], // +v1.49
   'sync.js': ['semHead'],
   'worktrees.js': ['total_bruto', 'suspeita'],
   // v1.25 — o tecto de VRAM e a ETA que deixou de fingir 100%
@@ -92,8 +92,14 @@ const MARCADORES = {
   // a entrega regrediu. (`titulos.test.js` NÃO entra na entrega — o packer
   // recusa entregas com ficheiros fora de FILES, e testes não se empacotam;
   // a trava completa — 40 cp, sem acentos, léxico — vive lá na mesma.)
-  'probe.js': ['🐄 Mooter · live preview', 'mooter_ui_probe'],
+  'probe.js': ['🐄 Mooter · live preview', 'mooter_ui_probe', "b.motivo === 'boot'"], // +v1.49
   'server.js': ['🐄 Mooter · ', 'mooter_sessions_list'],
+  // v1.49 — o spike-0a: tornar mensurável se o painel MCP Apps renderiza
+  // (extensions na sonda, pid no diário, motivo:'boot', recusa legível).
+  // Os marcadores desta ronda foram ACRESCENTADOS às listas acima — capacidades.js,
+  // server-apps.js, probe.js e fleet-ui.html, assinalados com `// +v1.49` — e não
+  // substituem nenhum marcador anterior: as entregas 1.23/1.24/1.48 continuam a
+  // proteger exactamente o que protegiam antes desta ronda.
 };
 
 test('entregas-por-versao.json declara a versão actual do manifest', () => {

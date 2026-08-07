@@ -89,5 +89,11 @@
     "tools6.js",
     "probe.js",
     "server.js"
+  ],
+  "1.49": [
+    "capacidades.js",
+    "server-apps.js",
+    "probe.js",
+    "fleet-ui.html"
   ]
 }
