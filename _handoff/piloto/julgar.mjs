@@ -73,7 +73,12 @@ const cwdIsolado = () => mkdtempSync(join(tmpdir(), "piloto-juiz-")); // longe d
 
 // 1) codex — âncora (outra casa). Prompt por stdin; cwd isolado (read-only lê na mesma — isolar o que há para ler).
 try {
-  const r = spawnSync("codex", ["exec", "--sandbox", "read-only", "-"], { input: prompt, cwd: cwdIsolado(), encoding: "utf8", timeout: 900000, shell: true, maxBuffer: 64 * 1024 * 1024 });
+  // ⚠️ `--skip-git-repo-check`: o cwd isolado é um `mkdtemp`, não um repo git, e o
+  // codex recusa-se — "Not inside a trusted directory". Foi assim que o painel de
+  // 2026-08-07T19:18Z perdeu o juiz ÂNCORA, o único de outra casa, com exit 1 e
+  // sem motivo visível. O isolamento do cwd mantém-se: é ele que afasta o juiz do
+  // `mapa.json` e dos `runs/`. Continua `--sandbox read-only`.
+  const r = spawnSync("codex", ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-"], { input: prompt, cwd: cwdIsolado(), encoding: "utf8", timeout: 900000, shell: true, maxBuffer: 64 * 1024 * 1024 });
   if (r.status === 0 && r.stdout?.trim()) {
     writeFileSync(join(VEREDICTOS, "codex.json"), JSON.stringify({ juiz: "codex (âncora, outra casa)", peso: 1, bruto: r.stdout }, null, 2));
     painel.push("codex ✓");
@@ -128,10 +133,20 @@ if (!terceiraVoz) {
   try {
     const r = await fetch("http://localhost:11434/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.MOO_JUDGE_MODEL || "qwen3:30b", prompt, stream: false }),
+      // ⚠️ `num_ctx` e `think:false` — sem os dois o juiz local não julga, finge.
+      // O prompt do painel são ~82 600 tokens (9 pacotes, 330 KB). O default do
+      // Ollama é 4096: o modelo via ~5% do material. E o qwen3 é modelo de
+      // raciocínio — o texto vai para `thinking` e `response` vem vazio (medido no
+      // VERIFICADOR-0). Foi a soma dos dois que produziu `bruto: ""` marcado ✓.
+      body: JSON.stringify({ model: process.env.MOO_JUDGE_MODEL || "qwen3:30b", prompt, stream: false,
+        think: false, options: { num_ctx: 131072 } }),
       signal: AbortSignal.timeout(1200000),
     });
-    if (r.ok) { terceiraVoz = { juiz: `moo local (${process.env.MOO_JUDGE_MODEL || "qwen3:30b"})`, peso: 1, declarado: "substituto do kimi — DECLARADO no resultado (§4.4)", bruto: (await r.json()).response ?? "n/d" }; painel.push("moo local ✓ (declarado)"); }
+    // Um veredicto vazio NÃO é um veredicto. O ramo do kimi já exigia texto; este
+    // não exigia, e escreveu ✓ sobre nada. Um ✓ falso é pior do que um ✗ honesto.
+    const bruto = r.ok ? ((await r.json()).response ?? "") : "";
+    if (r.ok && bruto.trim()) { terceiraVoz = { juiz: `moo local (${process.env.MOO_JUDGE_MODEL || "qwen3:30b"})`, peso: 1, declarado: "substituto do kimi — DECLARADO no resultado (§4.4)", bruto }; painel.push("moo local ✓ (declarado)"); }
+    else if (r.ok) painel.push("moo local ✗ (resposta vazia — veredicto não conta)");
     else painel.push(`moo local ✗ HTTP ${r.status}`);
   } catch (e) { painel.push(`moo local ✗ (${e.message.slice(0, 80)}) — painel fica a 2 vozes, DECLARADO`); }
 }

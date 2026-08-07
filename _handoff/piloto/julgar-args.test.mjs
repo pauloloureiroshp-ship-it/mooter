@@ -43,3 +43,33 @@ test("os spawn de julgar.mjs continuam com shell:true — o fix é citar, não t
   // shell:false daria ENOENT: o `claude` no Windows é um shim. Medido em 2026-08-07.
   assert.match(FONTE, /shell:\s*true/);
 });
+
+/**
+ * Painel de 2026-08-07T19:18Z — os três defeitos que o deixaram com UM juiz real.
+ *
+ *   codex ✗ (exit 1)        → o cwd isolado (mkdtemp) não é repo git e o codex
+ *                             recusa: "Not inside a trusted directory". O juiz
+ *                             ÂNCORA, o único de outra casa, morreu por isto.
+ *   moo local ✓ com bruto:"" → o ramo do moo empurrava ✓ sem olhar para a
+ *                             resposta. Um ✓ sobre nada é pior do que um ✗.
+ *   prompt 82 600 tokens     → sem `num_ctx` o Ollama usa 4096: o juiz local viu
+ *                             ~5% do material. Não julgou mal — não chegou a ver.
+ */
+
+test("codex corre com --skip-git-repo-check — o cwd isolado não é repo git", () => {
+  assert.match(FONTE, /--skip-git-repo-check/,
+    "sem isto o codex recusa o mkdtemp e o painel perde o juiz âncora");
+});
+
+test("o juiz local pede num_ctx — 82k tokens não cabem nos 4096 por omissão", () => {
+  assert.match(FONTE, /num_ctx/,
+    "sem num_ctx o Ollama trunca o prompt e o veredicto mede outra coisa");
+});
+
+test("nenhum juiz é dado por bom com veredicto vazio", () => {
+  // O ramo do kimi já fazia `if (texto.trim())`. O do moo não fazia — e mentiu.
+  const ramoMoo = FONTE.slice(FONTE.indexOf("if (!terceiraVoz)"));
+  const okMoo = ramoMoo.slice(0, ramoMoo.indexOf("moo local ✓"));
+  assert.match(okMoo, /\.trim\(\)/,
+    "o ramo do moo tem de exigir resposta não-vazia antes de escrever ✓ no painel");
+});
