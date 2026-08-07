@@ -25,6 +25,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomInt } from "node:crypto";
 import { comparar as provaBundle, relatorio as relatorioBundle } from "./prova-bundle.mjs";
+import { citaArg, bracoSemSaida } from "./guardas.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
@@ -198,7 +199,14 @@ function mixTiers(modelUsage) {
 
 function tentativa(arm, prompt, cwd, sessionId, resume) {
   const args = ["-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", ...ARMS[arm].args];
-  if (ARMS[arm].settings) args.push("--settings", ARMS[arm].settings);
+  // ⚠️ `citaArg` NÃO é cosmético — ver `guardas.mjs` e `guardas.test.mjs`.
+  // Com `shell: true` (obrigatório: o `claude` no Windows é um shim, sem shell dá
+  // ENOENT) o Node concatena os argumentos sem os escapar. Este caminho tem um
+  // espaço em "Paulo Loureiro", partia-se, e o CLI respondia
+  // `Settings file not found: C:\Users\Paulo`. Só os braços A e C passam
+  // `--settings`, portanto só ELES morriam: a bateria de 2026-08-07 ia declarar
+  // MOOTER 3-0 contra dois braços de controlo que nunca arrancaram.
+  if (ARMS[arm].settings) args.push("--settings", citaArg(ARMS[arm].settings));
   args.push(resume ? "--resume" : "--session-id", sessionId);
   const t0 = Date.now();
   const r = spawnSync("claude", args, { cwd, input: prompt, encoding: "utf8", timeout: TIMEOUT_MS, shell: true, maxBuffer: 256 * 1024 * 1024 });
@@ -224,6 +232,7 @@ function run(arm, task, execucao, baseSha, log, gpu) {
   const sessionIds = [sessionId];
   const usagePorTentativa = [];
   const modelUsagePorTentativa = [];
+  const saidas = [];   // só o stdout cru, para a guarda do braço vazio
   let orfaosPossiveis = false;
 
   let done = false;
@@ -237,7 +246,30 @@ function run(arm, task, execucao, baseSha, log, gpu) {
     usagePorTentativa.push(t.resultado?.usage ?? null);
     modelUsagePorTentativa.push(t.resultado?.modelUsage ?? null);
     if (t.resultado?.session_id && !sessionIds.includes(t.resultado.session_id)) sessionIds.push(t.resultado.session_id);
+    saidas.push({ stdout: t.stdout });
     done = task.done(wt);
+  }
+
+  // ---------- guarda do braço vazio ----------
+  // Zero bytes de transcrição em TODAS as tentativas não é `TECTO ATINGIDO —
+  // incompleto`: é um braço que nunca falou com o modelo. Registá-lo como
+  // incompleto transforma uma avaria do instrumento numa medição do produto, e
+  // o `resultado.md` sai mecanicamente correcto e factualmente falso. O P0-C
+  // prova que correu o código certo; isto prova que o braço correu de todo.
+  // Aborta a bateria inteira — um braço de controlo morto invalida a comparação,
+  // não só a sua própria linha.
+  if (bracoSemSaida(saidas)) {
+    desmontarWorktree(wt, log);
+    const errPath = join(dir, "transcricao-0.stderr.txt");   // só existe se houve stderr
+    const primeiroErro = existsSync(errPath)
+      ? String(readFileSync(errPath, "utf8").split("\n")[0] || "").trim()
+      : "";
+    const err = new Error(
+      `braço ${arm} (${ARMS[arm].nome}) não produziu um único byte em ${saidas.length} tentativa(s)`
+      + (primeiroErro ? ` — stderr: ${primeiroErro}` : ""),
+    );
+    err.bracoVazio = { arm, nome: ARMS[arm].nome, runId, dir, tentativas: saidas.length, stderr: primeiroErro };
+    throw err;
   }
 
   // Δ verificação: copiar o ARTEFACTO REAL (ficheiros alterados vs base + novos)
@@ -335,7 +367,20 @@ for (let e = 1; e <= EXECUCOES; e++) {
   for (const arm of ordem) {
     console.log(`execução ${e} · braço ${arm} (${ARMS[arm].nome}) · ${task.id}`);
     try { run(arm, task, e, baseSha, log, gpu); }
-    catch (err) { appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "RUN_FALHOU", execucao: e, braço: arm, erro: err.message.slice(0, 300) }) + "\n"); }
+    catch (err) {
+      appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "RUN_FALHOU", execucao: e, braço: arm, erro: err.message.slice(0, 300) }) + "\n");
+      // Um braço que não correu não é uma linha falhada entre outras: contamina
+      // a comparação toda. Pára a bateria em vez de seguir e produzir um
+      // `resultado.md` que parece limpo e mede o instrumento (2026-08-07).
+      if (err.bracoVazio) {
+        appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "BATERIA_ABORTADA", motivo: "braco_sem_saida", ...err.bracoVazio }) + "\n");
+        console.error(`\nRECUSADO: ${err.message}`);
+        console.error(`Isto não é um braço incompleto — é um braço que não correu. A bateria pára aqui:`);
+        console.error(`um braço de controlo morto faz o piloto medir o instrumento, não o produto.`);
+        console.error(`Transcrições em ${err.bracoVazio.dir}`);
+        process.exit(1);
+      }
+    }
   }
 }
 console.log(`FIM. Resultados em ${RUNS_DIR}. Próximo passo: dod_harness.mjs sobre runs/<id>/artefacto/ (T1) e baralhar.mjs sobre os dirs artefacto/.`);
