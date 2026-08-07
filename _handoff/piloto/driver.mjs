@@ -26,13 +26,18 @@ import { fileURLToPath } from "node:url";
 import { randomUUID, randomInt } from "node:crypto";
 import { tmpdir } from "node:os";
 import { comparar as provaBundle, relatorio as relatorioBundle } from "./prova-bundle.mjs";
-import { citaArg, bracoSemSaida, achaFicheiro, raizesDeProcura } from "./guardas.mjs";
+import { citaArg, bracoSemSaida, achaFicheiro, raizesDeProcura,
+         padroesDeFuga, listaCandidatos, quarentena, fugasNovas } from "./guardas.mjs";
+import { homedir } from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 const RUNS_DIR = join(HERE, "runs");
 // Raiz dos scratchpads por sessão — a segunda morada legítima do artefacto (v2.2 §1).
 const TMP_CLAUDE = join(tmpdir(), "claude");
+// Onde vão as sobras que um run anterior deixou na HOME (v2.3). Fora de `runs/`
+// para não entrarem no baralhar/julgar como se fossem artefacto de alguém.
+const QUARENTENA_DIR = join(HERE, "quarentena");
 const DECISIONS_LOG = join(process.env.USERPROFILE || "", ".claude", "tools", "router", "decisions.log");
 const PRECOS = JSON.parse(readFileSync(join(HERE, "precos.json"), "utf8"));
 
@@ -83,7 +88,7 @@ function tarefa(task) {
     // Passa a procurar o NOME do artefacto na worktree e no scratchpad da sessão.
     const nome = basename(artefacto);
     return {
-      id: "T1", prompt: prompt.trim(), artefacto_nome: nome,
+      id: "T1", prompt: prompt.trim(), artefacto_nome: nome, artefacto_rel: artefacto,
       acha: (wt, sids) => achaFicheiro(raizesDeProcura(wt, sids, TMP_CLAUDE), nome),
       done: (wt, sids) => !!achaFicheiro(raizesDeProcura(wt, sids, TMP_CLAUDE), nome),
     };
@@ -96,7 +101,7 @@ function tarefa(task) {
   const testCmd = (bloco.match(/TEST_CMD: `([^`]+)`/) || [])[1];
   if (!prompt || !testCmd) throw new Error(`Candidata C${sorteada} sem PROMPT/TEST_CMD.`);
   return {
-    id: `T2-C${sorteada}`, prompt: prompt.trim(), artefacto_nome: null,
+    id: `T2-C${sorteada}`, prompt: prompt.trim(), artefacto_nome: null, artefacto_rel: null,
     acha: () => null,   // T2 prova-se pelo TEST_CMD, não pela existência de um ficheiro
     done: (wt) => spawnSync(testCmd, { cwd: wt, shell: true, timeout: 120000 }).status === 0,
   };
@@ -276,6 +281,18 @@ function run(arm, task, execucao, baseSha, log, gpu) {
   const saidas = [];   // só o stdout cru, para a guarda do braço vazio
   let orfaosPossiveis = false;
 
+  // ---------- v2.3 · isolamento: quarentena ANTES, retrato para comparar ----------
+  // Não tentamos prender o braço dentro da worktree — `CLAUDE_CONFIG_DIR` já provou
+  // que a sandbox de OS parte o login. Tiramos é o que a fuga tem de venenoso: o
+  // run N não pode NASCER a ver o build do run N-1. O resto detecta-se e declara-se.
+  const HOME = homedir();
+  const padroes = padroesDeFuga(task.artefacto_rel || "");
+  const quarentenados = quarentena(
+    listaCandidatos(HOME, padroes),
+    join(QUARENTENA_DIR, `${runId}-antes`),
+  );
+  const homeAntes = listaCandidatos(HOME, padroes).map((c) => c.nome);
+
   let done = false;
   for (let i = 0; i <= MAX_FOLLOWUPS && !done; i++) {
     const prompt = i === 0 ? task.prompt : "continue"; // follow-ups pré-escritos (§2.2)
@@ -294,6 +311,28 @@ function run(arm, task, execucao, baseSha, log, gpu) {
   // artefacto no scratchpad e não na worktree, isso é um facto do run, não uma
   // nota de rodapé — e é o que distingue "cumpriu" de "cumpriu noutro sítio".
   const artefactoEm = task.acha ? task.acha(wt, sessionIds) : null;
+
+  // ---------- v2.3 · isolamento: o que apareceu na HOME é fuga DESTE run ----------
+  // Anexada ao run (sai da HOME, para o run seguinte nascer cego) e DECLARADA no
+  // meta.json. Nunca invalida em silêncio: o resultado.md decide o que fazer com ela.
+  const homeDepois = listaCandidatos(HOME, padroes).map((c) => c.nome);
+  const novas = fugasNovas(homeAntes, homeDepois);
+  const fugasMovidas = quarentena(
+    listaCandidatos(HOME, padroes).filter((c) => novas.includes(c.nome)),
+    join(dir, "fuga-para-home"),
+  );
+  const violacaoIsolamento = novas.length ? {
+    houve: true,
+    caminhos: novas,
+    anexadas: fugasMovidas.map((m) => m.nome),
+    nao_anexadas: novas.filter((n) => !fugasMovidas.some((m) => m.nome === n)),
+    movidas_para: join(dir, "fuga-para-home"),
+    porque: "o braço escreveu na HOME, fora da worktree opaca do §2.3 — anexado ao run e retirado da HOME para o run seguinte não o herdar",
+  } : { houve: false, caminhos: [], porque: null };
+  if (novas.length) {
+    appendFileSync(log, JSON.stringify({ ts: new Date().toISOString(), evento: "VIOLACAO_ISOLAMENTO", runId, braço: arm, caminhos: novas }) + "\n");
+    console.error(`  ⚠ fuga de isolamento em ${runId}: ${novas.join(", ")} (anexada ao run, declarada no meta.json)`);
+  }
 
   // ---------- guarda do braço vazio ----------
   // Zero bytes de transcrição em TODAS as tentativas não é `TECTO ATINGIDO —
@@ -370,6 +409,10 @@ function run(arm, task, execucao, baseSha, log, gpu) {
     artefacto_encontrado_em: artefactoEm,
     artefacto_onde: artefactoEm ? (artefactoEm.startsWith(wt) ? "worktree" : "fora_da_worktree") : null,
     artefacto_porque: artefactoEm ? null : "nenhum ficheiro com o nome do artefacto na worktree nem no scratchpad da sessão",
+    // v2.3 — isolamento: o que se limpou antes, e o que escapou durante.
+    violacao_isolamento: violacaoIsolamento,
+    quarentena_antes: { movidas: quarentenados.map((m) => m.nome), padroes,
+      porque: quarentenados.length ? "sobras de um run anterior tiradas da HOME para este run nascer cego a elas" : null },
     contexto_neutralizado: { claude_md: "neutro (CLAUDE.neutro.md)", agents_md: "removido", dot_claude: "removido",
       limite: "~/.claude/CLAUDE.md do utilizador NÃO removível (CLAUDE_CONFIG_DIR quebra a autenticação) — constante nos 3 braços, não variável entre eles" },
     usage_por_tentativa: usagePorTentativa,

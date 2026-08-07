@@ -7,8 +7,8 @@
  *
  * Ambas nasceram de falha medida, não de precaução — ver `guardas.test.mjs`.
  */
-import { readdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, existsSync, mkdirSync, renameSync, cpSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
 
 /**
  * Torna um argumento seguro para `spawnSync(..., { shell: true })`.
@@ -115,4 +115,69 @@ export function achaFicheiro(raizes, nome, limiteProfundidade = 6) {
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// kit v2.3 · detecção + quarentena de fugas de isolamento
+// ---------------------------------------------------------------------------
+
+/** Comprimento mínimo de um segmento para servir de padrão. Abaixo disto recusa-se:
+ *  varrer a HOME por um prefixo de 2 letras é como não ter padrão nenhum. */
+const MIN_SEGMENTO = 4;
+
+/**
+ * O padrão de fuga sai do PRÓPRIO caminho do artefacto declarado na spec
+ * (`moo-ranch/index.html` → `moo-ranch`), nunca de uma lista escrita à mão que
+ * envelhece à parte da tarefa.
+ *
+ * Um artefacto sem pasta (`index.html`) não produz padrão: preferimos não
+ * detectar a andar a mexer na HOME do Paulo por um prefixo genérico.
+ */
+export function padroesDeFuga(artefactoRel) {
+  const seg = String(artefactoRel || "").split(/[\\/]/).filter(Boolean)[0] || "";
+  if (!seg || seg.length < MIN_SEGMENTO) return [];
+  if (seg === String(artefactoRel || "").trim()) return [];   // era só o ficheiro, sem pasta
+  return [seg];
+}
+
+/** Directórios de topo da HOME cujo nome começa por um dos padrões. Só topo, só pastas. */
+export function listaCandidatos(homeDir, padroes) {
+  const ps = (padroes || []).filter((p) => p && p.length >= MIN_SEGMENTO);
+  if (!homeDir || !ps.length) return [];
+  let entradas = [];
+  try { entradas = readdirSync(homeDir, { withFileTypes: true }); } catch { return []; }
+  return entradas
+    .filter((e) => e.isDirectory() && ps.some((p) => e.name.startsWith(p)))
+    .map((e) => ({ nome: e.name, caminho: join(homeDir, e.name) }));
+}
+
+/**
+ * Move os candidatos para `destino`. É isto que mata o veneno real: o run N nasce
+ * sem conseguir ver o build do run N-1. Não impede a fuga — impede a herança.
+ * Sem candidatos não cria a pasta (não se produz lixo para dizer que não houve nada).
+ */
+export function quarentena(candidatos, destino) {
+  const cs = candidatos || [];
+  if (!cs.length) return [];
+  mkdirSync(destino, { recursive: true });
+  const movidos = [];
+  for (const c of cs) {
+    const alvo = join(destino, c.nome);
+    try {
+      renameSync(c.caminho, alvo);                 // mesmo volume: instantâneo
+    } catch {
+      try {                                        // volumes diferentes: copia e remove
+        cpSync(c.caminho, alvo, { recursive: true });
+        rmSync(c.caminho, { recursive: true, force: true });
+      } catch { continue; }                        // não conseguiu: fica declarado por ausência
+    }
+    movidos.push({ nome: c.nome, de: c.caminho, para: alvo });
+  }
+  return movidos;
+}
+
+/** O que apareceu entre os dois retratos. Desaparecer não é fuga. */
+export function fugasNovas(antes, depois) {
+  const a = new Set(antes || []);
+  return (depois || []).filter((n) => !a.has(n));
 }
