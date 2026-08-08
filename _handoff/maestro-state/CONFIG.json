@@ -1,0 +1,15 @@
+{
+  "_escritor": "o DONO. Um agente propoe; nao preenche. Campo n/d so bloqueia a fase que o consome (config_requires na spec).",
+  "poke_lab_repo_slug": "pauloloureiroshp-ship-it/poke-lab",
+  "remote_name": "origin",
+  "visibility": "private",
+  "video_policy": "HUD-only publicavel; frames persistentes exigem fase juridica separada",
+  "F2_repo": "frugal",
+  "F2_brief_sha": "1ad0fe297aa35272b4c9ddabe2fe9f02dadb8846550837d7c479f837627c6c0b",
+  "quota_predicate": "n/d",
+  "N2_protocol_sha": "n/d",
+  "N2_result_path": "n/d",
+  "arm_a_provider": "n/d",
+  "arm_a_transport": "n/d",
+  "arm_a_model": "n/d"
+}

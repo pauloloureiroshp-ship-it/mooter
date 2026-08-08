@@ -1,0 +1,11 @@
+{
+  "phase": "F0",
+  "attempt_id": "job-mskch6ok-9cac+job-mskurzba-b4e2",
+  "comandos": [
+    {"cmd": "mooter_work wave=maestro-g4 agent=codex write=false pre_digest=false", "rc": 0, "resumo": "ronda 1: NO-SHIP, 13 achados (11 ALTO, 2 MEDIO)"},
+    {"cmd": "mooter_work wave=maestro-v11-verify agent=codex write=false pre_digest=false", "rc": 0, "resumo": "ronda 2 sobre o remendo: NO-SHIP, 3 FECHADO / 8 COSMETICO / 2 PIOR"}
+  ],
+  "veredicto": "duas rondas NO-SHIP, ambas incorporadas; v1.0 -> v1.1 -> v1.1.1",
+  "ressalva": "verificacao cruzada local nao correu em NENHUMA das rondas => um motor, nao dois. Revisao INTERNA, nao auditoria independente. Nao houve ronda 3: afirma-se o que esta na tabela, nao 'todos os achados incorporados'.",
+  "notas": "residual declarado: autoria de gesto n/d; guard do exportador publico nao existe; PROTOCOLO_v2.md nao existe."
+}

@@ -1,0 +1,23 @@
+{
+  "phase": "F0",
+  "descricao": "G4 adversarial da propria maquina de estados, incorporado.",
+  "master": "_handoff/MAESTRO_POKEMOO_2026-08-08.md",
+  "brief": "_handoff/BRIEF_POKE_MOO_2026-08-07.md",
+  "inputs": [
+    "_handoff/BRIEF_POKE_MOO_2026-08-07.md",
+    "_handoff/piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md"
+  ],
+  "inputs_esperados": {
+    "_handoff/BRIEF_POKE_MOO_2026-08-07.md": "b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6",
+    "_handoff/piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md": "49c2cd2f6048422322868c5fc8e40224cf2770d48935a8cc074d8589b713b448"
+  },
+  "outputs": [
+    "_handoff/MAESTRO_POKEMOO_2026-08-08.md",
+    "_handoff/maestro-g4/resultado.md",
+    "_handoff/maestro-g4/verificacao-v1.1.md",
+    "tools/maestro/validar-fase.js"
+  ],
+  "config_requires": [],
+  "owner_gesture": null,
+  "porque_o_maestro_e_output": "o G4 revê a maquina de estados e a versao incorporada E o resultado da fase. Se o maestro mudar, o --check diverge e a F0 reabre — que e exactamente o que o proprio ficheiro promete ('um v1.2 que mexa no grafo exige G4 novo')."
+}
