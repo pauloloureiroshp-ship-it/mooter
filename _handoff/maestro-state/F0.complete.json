@@ -1,0 +1,26 @@
+{
+  "phase": "F0",
+  "status": "complete",
+  "attempt_id": "job-mskch6ok-9cac",
+  "master_sha256": "ff4ae3efe924ad0afdfbea96d38066e5eb4ab012207bf1d9211aaf21575c727b",
+  "brief_sha256": "b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6",
+  "input_hashes": {
+    "_handoff/MAESTRO_POKEMOO_2026-08-08.md@v1.0": "159413c716b8ef4eba7787448485dd3771056d5587f1337b630a4b2148102cb4",
+    "_handoff/BRIEF_POKE_MOO_2026-08-07.md": "b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6",
+    "_handoff/piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md": "49c2cd2f6048422322868c5fc8e40224cf2770d48935a8cc074d8589b713b448",
+    "poke-lab/README.md": "8dd32d07a9a26123b571bcdaa84ca68ec98ee7f996a6a67c0d300b9df4b2cb86"
+  },
+  "output_hashes": {
+    "_handoff/maestro-g4/resultado.md": "2f3c088657384c5ad3741db04e1f8ca6b3b3f731c96d542dba29b8caef2da771",
+    "~/.mooter/jobs/job-mskch6ok-9cac/last-message.txt": "a107e8622a2052973f50b5801802cb8ea10173fd70112df8b5b3c536c116b49d"
+  },
+  "repo": "frugal",
+  "branch": "main",
+  "commit_sha": "PENDENTE-mesmo-commit",
+  "comandos": [
+    {"cmd": "mooter_work wave=maestro-g4 agent=codex write=false pre_digest=false", "rc": 0, "resumo": "NO-SHIP · 13 achados (11 ALTO, 2 MEDIO) · 19755 tokens out"}
+  ],
+  "veredicto": "NO-SHIP ao v1.0; 13/13 achados incorporados no v1.1",
+  "ressalva": "verificacao cruzada local nao correu (cross-check pendente) => este gate teve UM motor, nao dois; readiness da frota n/d (LOCAL_AGENT_SYNC=fail)",
+  "completed_at": "2026-08-08T20:52:04Z"
+}
