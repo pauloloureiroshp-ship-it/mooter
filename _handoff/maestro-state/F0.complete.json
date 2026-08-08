@@ -1,0 +1,41 @@
+{
+  "phase": "F0",
+  "status": "complete",
+  "attempt_id": "job-mskch6ok-9cac+job-mskurzba-b4e2",
+  "validator_sha": "0c7059e399b71c68abf7f5f02422f5d6355da49b944b62681a7df49db168d32a",
+  "spec_sha256": "f9ae56ffa9c1865f55164fbbfeadd94e360fae917f85de5ceb0926ae2ec382f4",
+  "master_sha256": "88c597ff59e4759fbca46675b892ddddb06cd29417cc68cf72a85df8d1ee0be9",
+  "brief_sha256": "b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6",
+  "input_hashes": {
+    "_handoff/BRIEF_POKE_MOO_2026-08-07.md": "b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6",
+    "_handoff/piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md": "49c2cd2f6048422322868c5fc8e40224cf2770d48935a8cc074d8589b713b448"
+  },
+  "output_hashes": {
+    "_handoff/MAESTRO_POKEMOO_2026-08-08.md": "88c597ff59e4759fbca46675b892ddddb06cd29417cc68cf72a85df8d1ee0be9",
+    "_handoff/maestro-g4/resultado.md": "2f3c088657384c5ad3741db04e1f8ca6b3b3f731c96d542dba29b8caef2da771",
+    "_handoff/maestro-g4/verificacao-v1.1.md": "a279dbe2a2d91b30def346981e95edd81c68e71910dffcb9b3880eced826bf29",
+    "tools/maestro/validar-fase.js": "0c7059e399b71c68abf7f5f02422f5d6355da49b944b62681a7df49db168d32a"
+  },
+  "repo": "frugal",
+  "branch": "main",
+  "evidence_commit_sha": "bebde643ddcbb01fb4b5518dec69ca04ef53c23c",
+  "config_requires": [],
+  "owner_gesture": null,
+  "comandos": [
+    {
+      "cmd": "mooter_work wave=maestro-g4 agent=codex write=false pre_digest=false",
+      "rc": 0,
+      "resumo": "ronda 1: NO-SHIP, 13 achados (11 ALTO, 2 MEDIO)"
+    },
+    {
+      "cmd": "mooter_work wave=maestro-v11-verify agent=codex write=false pre_digest=false",
+      "rc": 0,
+      "resumo": "ronda 2 sobre o remendo: NO-SHIP, 3 FECHADO / 8 COSMETICO / 2 PIOR"
+    }
+  ],
+  "veredicto": "duas rondas NO-SHIP, ambas incorporadas; v1.0 -> v1.1 -> v1.1.1",
+  "ressalva": "verificacao cruzada local nao correu em NENHUMA das rondas => um motor, nao dois. Revisao INTERNA, nao auditoria independente. Nao houve ronda 3: afirma-se o que esta na tabela, nao 'todos os achados incorporados'.",
+  "notas": "residual declarado: autoria de gesto n/d; guard do exportador publico nao existe; PROTOCOLO_v2.md nao existe.",
+  "validated_at": "2026-08-08T21:18:35Z",
+  "aviso": "PROJECÇÃO validada. A verdade são os outputs e o Git. Este ficheiro entra num closure commit próprio e NÃO contém o sha desse commit."
+}
