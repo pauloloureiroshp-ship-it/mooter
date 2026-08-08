@@ -3591,3 +3591,92 @@ Publicado a partir de `dist/cockpit-snapshot.html` — **correcto**: 5 ocorrênc
 ### Conector saudável (para não confundir sintomas)
 
 `mooter_check` às 11:16:13.883Z → `ok:true`, `live:0`, "frota parada · em codex-mooter-plugin, frugal-work, frugal, frugal-site". O que está cortado é o **grant do artifact**, não o conector.
+
+---
+
+## 📥 COWORK → CLAUDE CODE — 2026-08-07 (Estudo Mooter Desktop App)
+**Estado:** 🟡 Por ler
+
+### Contexto
+Empresa interessada acha que o Mooter precisa de interface própria (desktop Win+Mac). Estágio: SÓ INTERESSE — sem pedido, sem dinheiro. Estudo completo + mock navegável entregues hoje pelo Cowork.
+
+### Artefactos
+- `_handoff/ESTUDO_MOOTER_DESKTOP_APP_2026-08-07.md` — stack dos 5+ apps de referência (web hoje), recomendação Electron-primeiro (bridge é Node; Tauri registado como opção futura), cruzamento 5 experiências × telas, onboarding first-run, arquitectura conta/SSO (doutrina 08-04 mantida: sem login no free, Polar license key, GitHub/Google só conveniência, SSO Anthropic nunca), gauntlet 18 aplicado, sequência com gates.
+- `_handoff/mooter-desktop-mock-2026-08-07.html` — mock single-file navegável (onboarding→Resume→Plan→Watch→Review→Settings), identidade mooter.ai, inglês, dados marcados MOCK. Também publicado como artifact `mooter-desktop-mock` (novo — NÃO é o `mooter-cockpit`; sem grants necessários).
+
+### Decisão pendente do Paulo
+`avançar` / `avançar-depois-de-X` / `não-avançar` sobre a sequência §10 do estudo. GATE DURO: nenhuma wave de construção do app antes de pedido pago da empresa (2ª conversa termina em pedido — protocolo Corporate 08-06). Falsificador: 2 semanas sem pedido → backlog atrás do F0.
+
+### ❌ Não fazer (próxima sessão CC)
+- Não arrancar shell Electron/Tauri sem o gate acima.
+- Não tocar em `mooter-cockpit` (regra dura 08-05 mantém-se).
+- G4 do estudo pendente: despachar revisão adversarial ao codex ANTES de qualquer wave de construção.
+
+---
+
+## 💡 IDEIA REGISTADA — 3 pools de fornecimento (subscription · local fleet · rental) — 2026-08-07
+**Estado:** ❄️ backlog — sem wave, gate Corporate mantém-se
+
+Tese do Paulo: router orquestra 3 pools — subscription LLMs · GPUs locais (frota multi-agente) · capacidade alugada (burst). Crítica Cowork aceite: (a) forma mais barata de "rental" é serverless open-model API com chave do próprio usuário (trust moat "never proxying prompts" intacto); GPU crua por hora só ganha em batch sustentado (frota overnight saturando a GPU local). (b) Não cria T4 — expande o fulfillment DENTRO de T0–T2; classify.js congelado não é tocado (padrão adição-only wave 58). Detalhe na conversa Cowork 08-07.
+
+### ❌ Não fazer
+- Nenhuma spec/wave disto antes do gate Corporate (pedido pago) e da decisão `avançar/não-avançar` do desktop app.
+
+### Addendum 2026-08-07 (mesma sessão Cowork) — Mock v2 + FEATURE MAP
+- `_handoff/FEATURE_MAP_MOOTER_DESKTOP_2026-08-07.md` — contrato entrada⇄saída: 22 capacidades (A1-A22, cada uma com estado real no motor: ✅ shipped / 🟡 parcial / 🔜 planned) × 14 insumos do utilizador (B1-B14, cada um com a degradação honesta sem ele) + Readiness Score (insumos ligados/14, núcleo pesa dobro) + 7 regras de honestidade viradas mecanismo de UI.
+- `_handoff/mooter-desktop-mock-v2-2026-08-07.html` — substitui o v1 no artifact `mooter-desktop-mock`. Telas novas: Savings (denominador comutável tokens/jobs, custo por resposta certa n/d até alimentar o juiz), Doctor/Setup Radar (os 14 insumos com fix de 1 clique), Approvals inbox (approve-with-receipt, badge planned), Packs c/ hardware-fit, night queue, ledger timeline c/ integridade, ⌘K.
+- Regra do mock: tudo que NÃO está no motor leva badge `planned` — nunca vender ao cliente o que não existe (G18).
+- Gate do §10 do estudo INALTERADO: construção só com pedido pago.
+
+### Addendum 2 — 2026-08-07 (mesma sessão) — Mock v3: Chat + Team + integrações
+- `_handoff/mooter-desktop-mock-v3-2026-08-07.html` (artifact `mooter-desktop-mock` → v3). Novo:
+  - **Chat estilo Cursor, superado**: composer com Auto default + override por mensagem (dropdown com preços; escolher Opus à mão avisa "o router teria escolhido T2 · 14x mais caro"), context pills, trace colapsável e recibo POR MENSAGEM · **Second Opinion**: 1 clique re-roteia a mesma pergunta para outro motor, lado a lado, com veredicto do juiz — é o crítico≠autor virado botão de UI.
+  - **Team**: humanos E agentes no MESMO roster (mesmos cards, mesmos recibos) · regras de aprovação por tier (T3 = Paulo ou Ana, receipt required) · feed de actividade intercalado · pitch: "agents as accountable coworkers".
+  - **Integrações = peles do broker local** (doutrina slack-sweet-spot 08-06 respeitada): Slack (mock de mensagem com botões Approve/Deny + recibo), Teams (digest diário), Discord (needs-input pings), Meet (transcript → draft dispatches no Plan). TUDO `planned` · adapter Slack continua pilot-gated.
+- Multi-user inteiro marcado `planned · needs paid pilot` — nada disto entra em wave antes do gate do §10.
+
+---
+
+## 🎼 MAESTRO POKE-MOO v1.1 — F0 fechada, e a máquina de estados mudou de forma — 2026-08-08
+**Estado:** F0 `COMPLETE` `[medido]` · F1a em curso · F1b `BLOCKED_ROM` · F2 pré-staged
+
+O G4 do próprio maestro (`job-mskch6ok-9cac`, codex read-only) deu **NO-SHIP** ao v1.0:
+**13 achados, 11 ALTO**. As fases fechavam por prosa, os quatro gestos do dono eram forjáveis
+pelo próprio agente, a F4 mandava o escritor criar a sua própria chave, e uma F2 morta a meio
+ficava indistinguível de uma F2 fechada.
+
+- Prova: `_handoff/maestro-g4/resultado.md` · manifesto `_handoff/maestro-state/F0.complete.json`
+- v1.0 revisto: sha `159413c7…` → v1.1: sha `ff4ae3ef…` · commit `168f598d`
+- **Ressalva que fica:** a verificação cruzada local do G4 **não correu** ⇒ o gate teve **um**
+  motor, não dois. Rótulo honesto: revisão INTERNA, não auditoria independente.
+
+**O que mudou por mecanismo:** fase fechada = `maestro-state/<FASE>.complete.json` com bindings
+de sha (nunca declaração) · estados `NOT_STARTED → RUNNING(attempt_id) → COMPLETE|BLOCKED|FAILED`
+· `BLOCKED` nunca conta como `COMPLETE` · F1 partida em F1a/F1b · adapters saem da F1 e nascem
+na **F4b** (só MOCK, depois do §0) · gesto vazio é INVÁLIDO e agentes ficam **proibidos** de
+escrever em `pokemoo-gestos/` · o §0 exige literalmente E1–E6 do brief · F5 gera **HUD-only**
+e frames persistentes passam a exigir fase jurídica separada · bloco CONFIG congelado pelo
+dono, `n/d` ⇒ PARAR.
+
+### Insumo OBRIGATÓRIO da F4 (§0) e da F5 — série "MOO RUN"
+`_handoff/ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` · sha `7a3b0ff7a22e76c2ce995a7cd725b8f46881a2eb1d7c352e19c322f6d9643462`
+
+Registado aqui como **insumo, não como sugestão**: o §0 tem de pré-registar os **dois formatos**
+(corrida-ao-marco **e** mesmo-orçamento, ambos publicados sempre — anti-cherry-pick), e a F5
+tem de carimbar cada frame com `game_step_idx` + `record_hash` + QR para o jsonl ancorado.
+Baselines do PokeAgent Challenge: avaliar **na F5**, com licença verificada, nunca antes.
+Não altera a fila F1→F5 nem a REGRA 0. Nada disto foi executado nesta sessão.
+
+### poke-lab — remoto criado, ZERO push
+`https://github.com/pauloloureiroshp-ship-it/poke-lab` · **privado** · **vazio** (`isEmpty:true`).
+Auditoria antes de criar: 19 ficheiros rastreados, **zero** `.gb/.gbc/.mp4/.gif/.state`; o
+próprio git confirma que ignoraria `roms/ videos/ states/ runs/` e que o código não é ignorado
+por acidente. Suite **18 → 27 passed** (D0: captura de vídeo com gate que se recusa a entregar
+vídeo preto ou estático, com controlo a prová-lo).
+
+### ❌ Não fazer
+- Não declarar fase fechada sem o `<FASE>.complete.json` no disco.
+- Não criar nem alterar nada em `_handoff/pokemoo-gestos/` — é do dono.
+- Não tocar nos adapters C1/C2 antes da F4b (o brief trava-os até ao §0).
+- Não correr a F2 sem fonte de quota **identificada**: a medição local é limite inferior contra
+  uma referência default que não é um limite publicado, e por isso não serve de gate.
