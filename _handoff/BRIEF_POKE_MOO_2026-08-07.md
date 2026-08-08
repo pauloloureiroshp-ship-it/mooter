@@ -1,10 +1,13 @@
-# WAVE "POKE-MOO" — v1.2
+# WAVE "POKE-MOO" — v1.3
 
-> **Estado:** v1.2 — achados do G4 nº2 incorporados (v1.1) **+ três restrições medidas em
-> B0-B3 que o desenho tem de respeitar** (§B-medido). **Bloco C continua NO-SHIP** até ser
-> reconstruído sobre `StepReceiptV1` e `runDecision()`, que ainda **não existem**.
-> Bloco B: **B0, B1, B2, B3 fechados** · **B5 = `determinismo: n/d`, não medido** ·
-> B4/B6 à espera do gesto humano. Repo: `~/poke-lab`.
+> **Estado:** v1.3. O NO-SHIP do G4 nº2 ao Bloco C **levantou-se**: as duas peças que ele
+> disse não existirem — `StepReceiptV1` e o ciclo síncrono por lance — **existem agora** e
+> estão provadas pela matriz C9 (5/5, a $0).
+>
+> **Fechados** `[medido]`: B0 · B1 · B2 · **B5 = determinismo PASSA** · B3 · **C0** · **C9** ·
+> **D3 protótipo (plano B, zero frames)**. Suite do `~/poke-lab`: **18 passed**.
+> **À espera do gesto humano:** B4 (ROM) → destrava B6 · E1 (§0 assinado) · D4 (âncora pública).
+> **Travado por desenho:** C1/C2 (adapters dos dois braços) até ao §0 · runs A/B até `POKE_GO`.
 >
 > `gauntlet: alto-risco`
 > · **G4 nº1** = painel-ultracode do Cowork (21 agentes, 4 lentes + verificação adversarial:
@@ -132,13 +135,28 @@ deslocado em silêncio e dois runs "iguais" ficavam incomparáveis.
 **exclui `metadata.timestamp`, explicitamente**. Hashear a resposta crua tornaria a
 comparação de replay impossível — dois runs idênticos dariam hashes diferentes só pela hora.
 
-**R3 — `determinismo: n/d`, e o "passe" que quase se publicou.** O teste B5 passou à
-primeira, e o passe era **vazio**: na ROM homebrew que vem dentro do PyBoy a WRAM
+**R3 — determinismo: `PASSA`, depois de um "passe" que quase se publicou.** O teste B5 passou
+à primeira, e o passe era **vazio**: na ROM homebrew que vem dentro do PyBoy a WRAM
 `C000-E000` nunca é escrita e o programa chega a um ponto fixo (medido em 1200 frames: VRAM e
 IO/HRAM mudam, WRAM e OAM não). Dois hashes iguais de uma RAM imóvel não distinguem
-determinismo de imobilidade. O teste passou a verificar o substrato primeiro e a declarar
-`n/d` por skip. **Consequência normativa:** enquanto isto não correr sobre uma ROM cujo
-estado evolua, o §0 **NÃO pode usar replay como selo** — exactamente o ramo que B5 já previa.
+determinismo de imobilidade.
+
+Com um substrato que evolui — a ROM-sonda `tools/build_probe_rom.py`, construída no repo
+(`sha256 64255c38…`) e **adversarial de propósito**, porque mistura o `DIV` (`$FF04`, a fonte
+do RNG da Gen 1 e o sítio mais provável de deriva de ciclos) na WRAM a cada iteração — o
+veredicto é **PASSA** `[medido 2026-08-08]`: 3 corridas do mesmo save-state com a mesma
+sequência indexada por frame dão RAM `sha256` idêntico
+(`872cbcffcbf2bd1bbd2fcbf9e05b9af09f412d3e3f933c7cb04d76a6aebd78c0`).
+
+**Consequência normativa:** o desenho por replay frame-indexado **vale**. Mas o §0 tem de
+registar o limite: a sonda **não é um jogo** — sem MBC, sem interrupções (arranca com `DI`),
+sem som. Um PASS aqui **não** autoriza afirmar que uma ROM comercial inteira é
+determinística; essa medição só existe depois do gate B4.
+
+**R4 — a cadeia do ledger resiste a remendo, medido.** Adulterar `action_parsed` no `seq` 25
+de um `steps.jsonl` fechado faz o ledger recusar com `record_hash inválido no seq 25`; um
+atacante que recalcule o hash dessa linha é recusado na mesma. A integridade é mecanismo, não
+promessa.
 
 *Nota lateral, boa:* o contrato de falha do harness deles já é "secção que falha = `null` +
 `<secção>_error`", o que coincide com a regra da casa. É confirmação, não sorte — e leva
