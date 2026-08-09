@@ -1,15 +1,38 @@
 {
   "_escritor": "o DONO. Um agente propoe; nao preenche. Campo n/d so bloqueia a fase que o consome (config_requires na spec).",
+  "owner_tz": "America/Sao_Paulo",
+  "_owner_tz_regra": "UTC-3. Armazenamento em UTC ISO-8601; APRESENTACAO ao dono sempre convertida para America/Sao_Paulo e rotulada como tal. Nunca apresentar UTC cru nem assumir Europa/Lisboa.",
+  "quota_predicate": {
+    "fonte": "~/.mooter/quota-live.json",
+    "fonte_tipo": "oficial - source:cc-statusline-stdin, o proprio Claude Code empurra os limites reais e os instantes de reset para a statusline",
+    "regra": "now >= resets.seven_day AND (now - ts) <= 30min",
+    "frescura_max_s": 1800,
+    "escolhido_por": "o dono, 2026-08-09 - opcao 'so depois do reset': simples e indiscutivel de auditar; nao ha folga real antes do reset de qualquer forma",
+    "nunca": "data escrita de memoria. O instante le-se de resets.seven_day NO MOMENTO do dispatch. Ficheiro obsoleto (>30min) = n/d = STOP, nunca 'assume-se que ja resetou'.",
+    "campo_ausente": "null nunca vale 0 - resets ausente ou ts ausente => n/d => STOP",
+    "gate_separado": "mooter_check live:0 continua a ser gate a parte, antes de qualquer dispatch ou run"
+  },
   "poke_lab_repo_slug": "pauloloureiroshp-ship-it/poke-lab",
   "remote_name": "origin",
   "visibility": "private",
   "video_policy": "HUD-only publicavel; frames persistentes exigem fase juridica separada",
   "F2_repo": "frugal",
   "F2_brief_sha": "1ad0fe297aa35272b4c9ddabe2fe9f02dadb8846550837d7c479f837627c6c0b",
-  "quota_predicate": "n/d",
   "N2_protocol_sha": "n/d",
   "N2_result_path": "n/d",
   "arm_a_provider": "n/d",
   "arm_a_transport": "n/d",
-  "arm_a_model": "n/d"
+  "arm_a_model": "n/d",
+  "F2_learner_decision": {
+    "escolha": "B - estender tools/router/backtest.js + update-router.js",
+    "bandit_thompson": "FORA do hot path",
+    "principio": "um learner, um escritor",
+    "escritor_unico_estado": "tools/router/update-router.js -> tuning-state.json",
+    "proposta_descartavel": "router-tuning.json",
+    "classify_js": "intocado - a aprendizagem entra por tuning-state.json, que ele ja le",
+    "decidido_por": "o dono, 2026-08-09",
+    "limitacao_aceite": "aprende por cadencia e assinaturas grosseiras; menos contextual que o bandit. Escolha consciente: hot path deterministico vale mais.",
+    "pre_requisito": "ID estavel + tier final/efectivo nos eventos - o pairing por sessao/tempo pode atribuir feedback ao classified errado (backtest.js:134-167)"
+  },
+  "_N2_protocol_sha_nota": "= sha256 de _handoff/piloto2/DECLARACAO_RUN_N2.md (o ficheiro NOVO da declaracao do run), NAO das regras congeladas. As regras congeladas (49c2cd2f...) sao base imutavel e nunca se duplicam."
 }

@@ -22,7 +22,19 @@ O Paulo cola sempre: **"Executa _handoff/MAESTRO_POKEMOO_2026-08-08.md"**.
 | `BRIEF_POKE_MOO_2026-08-07.md` (v1.3) | `b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6` |
 | `SUPERMASTER_VANTAGEM_2026-08-07_v1.1.md` | `1ad0fe297aa35272b4c9ddabe2fe9f02dadb8846550837d7c479f837627c6c0b` |
 | `ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` (insumo de F4 e F5) | `7a3b0ff7a22e76c2ce995a7cd725b8f46881a2eb1d7c352e19c322f6d9643462` |
-| `piloto2/PROTOCOLO_v2.md` (F3) | **não existe** — o que existe são *regras*, não protocolo |
+| `piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md` (base imutável da F3) | `49c2cd2f6048422322868c5fc8e40224cf2770d48935a8cc074d8589b713b448` |
+
+> **Correcção 2026-08-09.** Uma versão anterior deste ficheiro procurava
+> `piloto2/PROTOCOLO_v2.md` — um nome que eu inventei — e declarava a F3 "travada por
+> construção" por ele não existir. O ficheiro real é o `..._REGRAS_CONGELADAS.md` acima, e
+> **não se duplica um ficheiro congelado para lhe dar outro nome.** Ver §F3 para o que
+> realmente falta.
+
+## 0.1 Fuso do dono
+
+`owner_tz = America/Sao_Paulo` (UTC-3). Armazenamento em **UTC ISO-8601**; **apresentação ao
+dono sempre convertida** para a hora dele e rotulada. Nunca UTC cru, nunca assumir Lisboa.
+*(`2026-08-14T01:00Z` = **quinta 13/08 às 22:00** na hora dele.)*
 
 ---
 
@@ -82,7 +94,7 @@ O brief diz que o gesto da ROM é privado e que o repo **só** regista `rom_sha2
 | ficheiro | tem de conter | destrava |
 |---|---|---|
 | `ROM_PATH.txt` | caminho absoluto do dump | F1b |
-| `GO_N2` | o sha256 de `piloto2/PROTOCOLO_v2.md` | F3 |
+| `GO_N2` | o sha256 de `piloto2/DECLARACAO_RUN_N2.md` | F3 |
 | `PREREG_FREEZE` | o sha256 do `prereg-poke.md` **preenchido** | F4 |
 | `POKE_GO` | o sha256 do θ0 congelado | F5 |
 
@@ -101,9 +113,21 @@ O brief diz que o gesto da ROM é privado e que o repo **só** regista `rom_sha2
 - `mooter_check` tem de dar **`live:0`** para piloto-1 e WAVE VANTAGEM. Job concorrente ou
   estado `n/d` ⇒ **BLOCKED**. *(o brief proíbe concorrência globalmente, não só na F2)*
 - **F1a: zero dispatch Anthropic/Fable.** Local, `$0` e MOCK.
-- A medição de quota do `mooter_check` é **limite inferior** (só esta máquina) contra uma
-  **referência default que não é um limite publicado** ⇒ **não serve de gate numérico**.
-  Fonte oficial `n/d` ⇒ **PARAR e perguntar**.
+
+**`quota_predicate` (congelado pelo dono, 2026-08-09) — em `CONFIG.json`:**
+
+| campo | valor |
+|---|---|
+| fonte | `~/.mooter/quota-live.json`, `source: cc-statusline-stdin` — **oficial**: é o próprio Claude Code a empurrar os limites reais e os instantes de reset para a statusline |
+| regra | `now >= resets.seven_day` **AND** `(now - ts) <= 30 min` |
+| ficheiro obsoleto (>30 min) | `n/d` ⇒ **STOP**. Nunca "assume-se que já resetou" |
+| campo ausente | `null` **nunca** vale 0 ⇒ `n/d` ⇒ STOP |
+
+**O instante lê-se do campo `resets.seven_day` NO MOMENTO do dispatch — nunca de uma data
+escrita neste ficheiro.** Uma data em prosa envelhece e mente; o campo não.
+A medição de quota do `mooter_check` é **limite inferior** (só esta máquina) contra uma
+**referência default que não é um limite publicado** ⇒ **não serve de gate** e não substitui
+o predicado.
 
 ## 5. Leitura de estado (início de toda sessão)
 
@@ -137,8 +161,8 @@ Conflito com uma destas ⇒ **declara e NÃO aplica**.
 | **F0** | — | G4 adversarial desta máquina de estados | `F0.complete.json` |
 | **F1a** | F0 `COMPLETE` | pista sem ROM: suite corrida · máquina de captura com gate · higiene de push | `F1a.complete.json` |
 | **F1b** | gesto `ROM_PATH.txt` | B4 → B6 → B5-real | `F1b.complete.json` |
-| **F2** | F1a `COMPLETE` · `live:0` · quota | VANTAGEM **Bloco C** | `F2.complete.json` |
-| **F3** | F2 `COMPLETE` · `PROTOCOLO_v2.md` + `GO_N2` | teste nº2, braço B′ | `F3.complete.json` |
+| **F2** | F1a `COMPLETE` · `live:0` · `quota_predicate` | VANTAGEM **Bloco C** | `F2.complete.json` |
+| **F3** | F2 `COMPLETE` · `DECLARACAO_RUN_N2.md` + `GO_N2` | teste nº2, braço B′ | `F3.complete.json` |
 | **F4** | F3 `COMPLETE` | §0 do POKÉ (papel) | `F4.complete.json` |
 | **F4b** | F4 `COMPLETE` | adapters C1/C2, **só MOCK** | `F4b.complete.json` |
 | **F5** | F1b+F4+F4b `COMPLETE` · E2 verde · `POKE_GO` | M1 (badge do Brock) | `F5.complete.json` |
@@ -173,11 +197,22 @@ Prioridade única. **DoD é o do brief**, integralmente. Passo 0 de qualquer ses
 `RUNNING`: rebase + reconfirmar que os vermelhos ainda falham **pelo motivo certo**.
 Pré-stage em `mooter/wt-f2-prestage` (base_sha `168f598d`) — **não fecha a fase**.
 
-## F3 — teste nº2
-Só destrava com `piloto2/PROTOCOLO_v2.md` **completo e congelado** e `GO_N2` a conter o sha
-dele. **R1 IMUTÁVEL: X=40 · N=40.** Verificar mecanicamente X, N, amplitudes sobrepostas,
-tarefas, corpus, n, juízes e commits de entrada **antes** de correr. Publicar contra o §0 seja
-qual for o veredicto.
+## F3 — teste nº2 · **não está travada por construção**
+A base existe e está congelada: `piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md` (`49c2cd2f…`).
+**Não se duplica nem se reescreve** — o resto do protocolo escreve-se *por cima* dela, nunca
+contra ela, como o próprio ficheiro manda.
+
+**Imutável (R1):** `X=40` · `N=40` · amplitudes sobrepostas são **INCONCLUSIVO, não empate**.
+Não se movem nem "recalibrados", nem que o B′ falhe por 1 ponto. **R2:** o baseline é o nº1
+medido (A 6,64/8,94/0% · B 6,66/**3,91**/**100%** · C 7,40/1,87/0%), que **não se re-corre**.
+**R3/R4:** accuracy nunca sem baseline+recall da minoritária; proveniência sempre com o acaso
+ao lado.
+
+**O que falta é um entregável nomeável, não um impedimento estrutural.** As próprias regras
+listam o que *pode* mudar e *tem* de ser declarado antes de correr: **tarefas · corpus · nº de
+execuções · juízes · a introdução do braço B′**. Isso vive num ficheiro **novo**,
+`piloto2/DECLARACAO_RUN_N2.md`, que cita o sha das regras congeladas; e `GO_N2` carrega o sha
+**da declaração**. Publicar contra o §0 seja qual for o veredicto.
 
 ## F4 — §0 do POKÉ
 Gera `_handoff/prereg-poke-template.md` — **fora** da pasta de gestos, termina em `DRAFT`. O
@@ -212,4 +247,4 @@ BOARD `[medido]` · `SYNC.md` · journal no vault · `gauntlet:` grep-ável · p
 payload · **nunca** declarar fase fechada sem `validar-fase.js` a escrevê-la.
 
 ---
-gauntlet: alto-risco · duas rondas de G4 corridas, ambas NO-SHIP, ambas incorporadas (prova em `_handoff/maestro-g4/`) · verificação cruzada local não correu em nenhuma ⇒ um motor, não dois · G3: a ordem é imposta por validador, não por prosa · G18: fase fechada = manifesto escrito pelo validador sobre outputs commitados · limitações DECLARADAS: autoria de gesto não é mecanicamente provável (`autoria: n/d`) · guard do exportador público não existe · `PROTOCOLO_v2.md` não existe · não corridos: nenhum
+gauntlet: alto-risco · duas rondas de G4 corridas, ambas NO-SHIP, ambas incorporadas (prova em `_handoff/maestro-g4/`) · verificação cruzada local não correu em nenhuma ⇒ um motor, não dois · G3: a ordem é imposta por validador, não por prosa · G18: fase fechada = manifesto escrito pelo validador sobre outputs commitados · limitações DECLARADAS: autoria de gesto não é mecanicamente provável (`autoria: n/d`) · guard do exportador público não existe · a F3 NÃO está travada por construção: falta a DECLARACAO_RUN_N2 (tarefas·corpus·n·juízes·B′) sobre as regras congeladas · não corridos: nenhum

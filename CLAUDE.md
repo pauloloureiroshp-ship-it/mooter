@@ -31,6 +31,12 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
+- **`owner_tz = America/Sao_Paulo` (UTC-3).** Paulo mora em São Paulo. Armazenamento sempre
+  em UTC ISO-8601; **apresentação ao dono sempre convertida** para a hora dele e rotulada
+  como tal. Nunca apresentar UTC cru, nunca assumir Europa/Lisboa. Registado também em
+  `_handoff/maestro-state/CONFIG.json`. *(Custou uma "correcção" errada a dois ficheiros
+  normativos em 2026-08-08: `2026-08-14T01:00Z` é quinta 13/08 às 22:00 na hora dele, que
+  era exactamente o que o plano já dizia.)*
 
 ## Tier ladder (the truth, no embellishment)
 
