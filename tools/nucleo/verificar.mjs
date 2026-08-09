@@ -24,11 +24,14 @@
  *     reescrita integral a partir do ponto adulterado, porque nada aqui esta
  *     ancorado fora do proprio ficheiro. `ancora_externa: "n/d"`.
  *  2. PROVENIENCIA: a cadeia prova "ninguem editou isto depois de selado". NAO
- *     prova "esta medicao aconteceu" — quem tem o repo corre `selar()` e fabrica
- *     um ledger internamente coerente. O que a C8 acrescenta e mais fraco e
- *     honesto: o veredito e RE-DERIVAVEL da saida guardada, logo um `sucesso`
- *     nao pode divergir do que o grader diria. Fabricar um ledger inteiro
- *     continua possivel para quem tem o repo. `proveniencia: "n/d"`.
+ *     prova "esta medicao aconteceu". O que a C8 acrescenta e mais fraco: o
+ *     veredito e RE-DERIVAVEL da saida guardada, logo nao pode divergir do que o
+ *     grader diria *sobre essa saida*. Continua aberto — e o gate demonstrou-o —
+ *     apagar a saida real, por tokens a null e alegar falha: a assinatura inteira
+ *     e forjavel com uma edicao de tres campos. A latencia cruzada com o motivo
+ *     estreita isso, nao o fecha (basta nao mencionar "timeout"). Uma execucao
+ *     que nunca aconteceu nao deixa rasto que este ficheiro possa exigir.
+ *     `proveniencia: "n/d"`.
  *  3. O PRE-REGISTO e local e apagavel: `registar()` protege contra sobrescrita
  *     (`flag:'wx'`), nao contra um `rm`. A C9 confere que ele existe e bate com o
  *     ledger, o que fecha o lado do auditor; nao fecha o lado de quem manda no
@@ -150,8 +153,16 @@ export function verificar(registos, corpus, { lerPrereg: lerPreregIn = lerPrereg
     // Por isso exige-se a ASSINATURA que medir.mjs sempre produz numa falha
     // (saida vazia, tokens a null), nunca a declaracao.
     if (r.sucesso === null && /^execucao falhou:/.test(String(r.motivo))) {
-      if (r.saida === '' && r.tokens_in === null && r.tokens_out === null) continue;
-      falhas.push(`C8 seq ${r.seq} (${r.tarefa_id}): alega "execucao falhou" mas traz saida/tokens de uma execucao que aconteceu — derrota lavada em n/d`);
+      if (r.saida !== '' || r.tokens_in !== null || r.tokens_out !== null) {
+        falhas.push(`C8 seq ${r.seq} (${r.tarefa_id}): alega "execucao falhou" mas traz saida/tokens de uma execucao que aconteceu — derrota lavada em n/d`);
+        continue;
+      }
+      // Um timeout de N ms nao termina em 300 ms. Cruzar o motivo com a latencia
+      // fecha a variante que sobrava: forjar a assinatura completa da falha.
+      const alegado = /timeout (\d+)ms/.exec(String(r.motivo));
+      if (alegado && r.latencia_ms < Number(alegado[1]) * 0.9) {
+        falhas.push(`C8 seq ${r.seq} (${r.tarefa_id}): alega timeout de ${alegado[1]}ms mas a latencia registada e ${r.latencia_ms}ms — falha forjada`);
+      }
       continue;
     }
     const rederivado = avaliar(tarefa.verificacao, r.saida);
@@ -171,6 +182,26 @@ export function verificar(registos, corpus, { lerPrereg: lerPreregIn = lerPrereg
     for (const r of registos) {
       if (r.ambiente?.prereg_em !== prereg.registado_em) {
         falhas.push(`C9 seq ${r.seq}: prereg_em "${r.ambiente?.prereg_em}" != "${prereg.registado_em}" do registo em disco`);
+      }
+    }
+    // COMPLETUDE. Sem isto sobrava um caminho mais barato que a lavandaria da C8:
+    // apagar as derrotas e re-selar a cadeia. Demonstrado pelo gate — 4/12 virava
+    // 4/4 com o portao verde. O conjunto pregado diz quantas tarefas cada
+    // candidato TEM de trazer; um denominador encolhido deixa de passar.
+    if (!Array.isArray(prereg.tarefas)) {
+      falhas.push('C9: o pre-registo nao lista as tarefas — sem elas nao se pode provar que o ledger esta completo');
+    } else {
+      const pregadas = new Set(prereg.tarefas.map((t) => t.id));
+      const porCandidato = new Map();
+      for (const r of registos) {
+        if (!porCandidato.has(r.candidato_id)) porCandidato.set(r.candidato_id, new Set());
+        porCandidato.get(r.candidato_id).add(r.tarefa_id);
+      }
+      for (const [candidato, vistas] of porCandidato) {
+        const faltam = [...pregadas].filter((id) => !vistas.has(id));
+        const extra = [...vistas].filter((id) => !pregadas.has(id));
+        if (faltam.length) falhas.push(`C9 ${candidato}: LEDGER INCOMPLETO — faltam ${faltam.length}/${pregadas.size} tarefas pregadas (${faltam.join(', ')})`);
+        if (extra.length) falhas.push(`C9 ${candidato}: tarefas fora do conjunto pregado (${extra.join(', ')})`);
       }
     }
   }

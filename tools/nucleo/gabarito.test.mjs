@@ -57,6 +57,8 @@ test('a entrada do gabarito esta presa ao prompt: mudar o enunciado quebra o tes
     const ancoras = f.entrada_no_prompt ?? (typeof f.entrada === 'string' ? [f.entrada] : null);
     assert.ok(ancoras, `${t.id}: entrada nao-string sem 'entrada_no_prompt' — nada prende o gabarito ao enunciado`);
     for (const a of ancoras) {
+      // Uma ancora de 1-2 chars ("a") esta em qualquer prompt e nao prende nada.
+      assert.ok(a.length >= 4, `${t.id}: ancora "${a}" curta demais para provar seja o que for`);
       assert.ok(t.prompt.includes(a), `${t.id}: o prompt nao contem a ancora "${a}" — o enunciado mudou e o gabarito nao`);
     }
   }

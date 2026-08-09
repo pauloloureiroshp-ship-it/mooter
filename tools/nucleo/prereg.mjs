@@ -7,8 +7,15 @@
  *
  * Porque isto e um mecanismo e nao um paragrafo: apertar o corpus depois de ver
  * qual candidato ganhou e fabricar discriminacao. O `medir.mjs` recusa correr sem
- * um pre-registo para o `corpus_sha` exacto. Mudar uma virgula no corpus muda o
- * sha e obriga a um novo registo — datado, visivel, irreversivel por omissao.
+ * um pre-registo para o `corpus_sha` exacto, e o `verificar.mjs` confere-o do lado
+ * de quem audita (C9: existe, bate com o ledger, e o ledger esta completo face ao
+ * conjunto pregado). Mudar uma virgula no corpus muda o sha e obriga a um novo
+ * registo, datado.
+ *
+ * LIMITE, dito por extenso porque uma versao anterior deste comentario chamou a
+ * isto "irreversivel por omissao" e era falso: `flag:'wx'` protege contra
+ * SOBRESCRITA, nao contra um `rm`. Este ficheiro e local e apagavel. A ancora
+ * durvel contra cherry-pick e o `corpus.json` estar em git, com historico.
  *
  * O molde e o poke_lab/portao_demo.py: consulta o estado real no disco em vez de
  * acreditar em quem chama.

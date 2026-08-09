@@ -29,8 +29,8 @@ const AMBIENTE = {
   sandbox: 'n/d', host: 'test',
 };
 /** Pre-registo injectado: o I/O e substituivel, como no resto do repo. */
-const PREREG = { lerPrereg: () => ({ registado_em: PREREG_EM }) };
-const conferir = (regs, corpus, opts = PREREG) => verificar(regs, corpus, opts);
+const preregDe = (corpus) => ({ registado_em: PREREG_EM, tarefas: corpus.tarefas.map((t) => ({ id: t.id })) });
+const conferir = (regs, corpus, opts) => verificar(regs, corpus, opts ?? { lerPrereg: () => preregDe(corpus) });
 
 /** Saida que um candidato daria para produzir aquele veredito. */
 const SAIDA = { true: 'ok', false: 'nope', null: '' };
@@ -253,7 +253,7 @@ test('C8: uma falha GENUINA passa — traz a assinatura que medir.mjs produz', (
   const l = BOA();
   const genuina = selar({
     ...l[2], sucesso: null, motivo: 'execucao falhou: timeout 120000ms',
-    ...guardarSaida(''), tokens_in: null, tokens_out: null,
+    ...guardarSaida(''), tokens_in: null, tokens_out: null, latencia_ms: 120004,
   });
   const r = conferir([...l.slice(0, 2), genuina, ...l.slice(3)], CORPUS_BOM());
   assert.ok(!r.falhas.some((f) => f.startsWith('C8')), r.falhas.join('\n'));
@@ -266,8 +266,37 @@ test('C9: sem pre-registo, o portao recusa — o auditor deixa de confiar no pro
 });
 
 test('C9: ledger medido contra outro pre-registo e apanhado', () => {
-  const r = conferir(BOA(), CORPUS_BOM(), { lerPrereg: () => ({ registado_em: '2030-01-01T00:00:00.000Z' }) });
+  const corpus = CORPUS_BOM();
+  const r = conferir(BOA(), corpus, { lerPrereg: () => ({ ...preregDe(corpus), registado_em: '2030-01-01T00:00:00.000Z' }) });
   assert.ok(r.falhas.some((f) => f.startsWith('C9 seq 0')), r.falhas.join('\n'));
+});
+
+test('C9: APAGAR as derrotas e re-selar nao passa — o denominador nao encolhe em silencio', () => {
+  // O caminho mais barato que a lavandaria da C8: tirar os registos maus. Sem a
+  // completude, 4/12 virava 4/4 com o portao verde.
+  const corpus = CORPUS_BOM();
+  const sobreviventes = LINHAS_BOAS.filter(([, , , , , , sucesso]) => sucesso !== false);
+  const r = conferir(cadeia(sobreviventes), corpus);
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.includes('LEDGER INCOMPLETO') && f.includes('cod-a')), r.falhas.join('\n'));
+});
+
+test('C9: pre-registo sem lista de tarefas nao serve de prova de completude', () => {
+  const r = conferir(BOA(), CORPUS_BOM(), { lerPrereg: () => ({ registado_em: PREREG_EM }) });
+  assert.ok(r.falhas.some((f) => f.includes('nao lista as tarefas')), r.falhas.join('\n'));
+});
+
+test('C8: assinatura de falha forjada com latencia impossivel e apanhada', () => {
+  const l = BOA();
+  // Assinatura completa (saida vazia, tokens null) mas o "timeout de 120s"
+  // aconteceu em 100ms. Um timeout de N ms nao termina antes de N.
+  const forjado = selar({
+    ...l[2], sucesso: null, motivo: 'execucao falhou: timeout 120000ms',
+    ...guardarSaida(''), tokens_in: null, tokens_out: null,
+  });
+  const r = conferir([...l.slice(0, 2), forjado, ...l.slice(3)], CORPUS_BOM());
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.startsWith('C8 seq 2') && f.includes('forjada')), r.falhas.join('\n'));
 });
 
 test('C10: saida trocada por baixo do sha e apanhada', () => {

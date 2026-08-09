@@ -135,10 +135,14 @@ export function carregarCorpus(caminho = path.join(AQUI, 'corpus.json')) {
   return { ...corpus, corpus_sha: provHash(corpus), caminho };
 }
 
-/** true se a verificacao decide apenas por regex (sem parser nem valor exacto). */
+/**
+ * true se ALGUMA perna da verificacao decide por regex. Deliberadamente `some` e
+ * nao `every`: um `todos` que misture uma regex com um parser continua a ter a
+ * fraqueza da regex, e com `every` escapava a exigencia de contra-exemplos.
+ */
 export function soRegex(check) {
   if (check.tipo === 'regex-presente' || check.tipo === 'regex-ausente') return true;
-  if (check.tipo === 'todos') return check.checks.every(soRegex);
+  if (check.tipo === 'todos') return check.checks.some(soRegex);
   return false;
 }
 

@@ -153,7 +153,7 @@
         "a.length",
         "usa new Set e depois .size"
       ],
-      "gabarito_fonte": { "tipo": "computado", "fn": "expressaoDistintos", "entrada": "a" }
+      "gabarito_fonte": { "tipo": "computado", "fn": "expressaoDistintos", "entrada": "a", "entrada_no_prompt": ["no array a"] }
     }
   ]
 }
