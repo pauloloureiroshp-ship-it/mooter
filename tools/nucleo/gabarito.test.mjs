@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { carregarCorpus, avaliar, RAIZ } from './nucleo.mjs';
+import { carregarCorpus, avaliar, soRegex, RAIZ } from './nucleo.mjs';
 import { derivarGabarito } from './gabarito.mjs';
 
 const corpus = carregarCorpus();
@@ -33,6 +33,32 @@ test('todo gabarito se re-deriva da fonte declarada e passa a propria verificaca
       r.sucesso, true,
       `${t.id}: a resposta de referencia (${comoTexto(g.valor).slice(0, 40)}, de ${g.origem}) NAO passa a propria verificacao — ${r.motivo}`,
     );
+  }
+});
+
+test('toda verificacao so-regex RECUSA os seus contra-exemplos', () => {
+  const soRegexTarefas = corpus.tarefas.filter((t) => soRegex(t.verificacao));
+  assert.ok(soRegexTarefas.length >= 1, 'nenhuma tarefa so-regex — este teste ficaria vazio sem se notar');
+  for (const t of soRegexTarefas) {
+    assert.ok(t.contra_exemplos?.length, `${t.id}: sem contra_exemplos`);
+    for (const mau of t.contra_exemplos) {
+      assert.notEqual(
+        avaliar(t.verificacao, mau).sucesso, true,
+        `${t.id}: a verificacao ACEITA a resposta errada "${mau}" — provar que a certa passa nao chega`,
+      );
+    }
+  }
+});
+
+test('a entrada do gabarito esta presa ao prompt: mudar o enunciado quebra o teste', () => {
+  for (const t of corpus.tarefas) {
+    const f = t.gabarito_fonte;
+    if (f.tipo !== 'computado') continue;
+    const ancoras = f.entrada_no_prompt ?? (typeof f.entrada === 'string' ? [f.entrada] : null);
+    assert.ok(ancoras, `${t.id}: entrada nao-string sem 'entrada_no_prompt' — nada prende o gabarito ao enunciado`);
+    for (const a of ancoras) {
+      assert.ok(t.prompt.includes(a), `${t.id}: o prompt nao contem a ancora "${a}" — o enunciado mudou e o gabarito nao`);
+    }
   }
 });
 

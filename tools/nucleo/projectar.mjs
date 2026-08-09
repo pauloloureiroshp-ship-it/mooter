@@ -102,7 +102,7 @@ export function projectar(registos, cadeia = 'NAO VERIFICADA') {
   const ultimo = registos[registos.length - 1];
   return {
     schema: 'projeccao_v1',
-    aviso: 'derivada do ledger; nao e 2a verdade. A fonte e o measurement_v1.',
+    aviso: 'derivada do ledger; nao e 2a verdade. A fonte e o measurement_v2.',
     derivada_de: {
       registos: registos.length,
       // Sem isto, uma projeccao de um ledger PARTIDO ficava indistinguivel de uma

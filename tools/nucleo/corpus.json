@@ -82,10 +82,16 @@
       "verificacao": {
         "tipo": "todos",
         "checks": [
-          { "tipo": "regex-presente", "padrao": "currentUser" },
+          { "tipo": "regex-presente", "padrao": "function\\s+greet\\s*\\(\\s*currentUser\\s*\\)" },
+          { "tipo": "regex-presente", "padrao": "currentUser\\.name" },
           { "tipo": "regex-ausente", "padrao": "\\busr\\b" }
         ]
       },
+      "contra_exemplos": [
+        "currentUser",
+        "function greet(usr){ return 'hi ' + usr.name }",
+        "Renomeei a variavel para currentUser."
+      ],
       "gabarito_fonte": { "tipo": "computado", "fn": "renomeiaUsr", "entrada": "function greet(usr){ return 'hi ' + usr.name }" }
     },
     {
@@ -95,7 +101,7 @@
       "tier": "T1",
       "prompt": "Uma cache tem 3 entradas com TTL de 60 segundos. Duas delas expiraram ha 10 segundos. Quantas entradas continuam validas?",
       "verificacao": { "tipo": "constante", "esperado": 1, "kind": "number" },
-      "gabarito_fonte": { "tipo": "computado", "fn": "entradasValidas", "entrada": { "total": 3, "expiradas": 2 } }
+      "gabarito_fonte": { "tipo": "computado", "fn": "entradasValidas", "entrada": { "total": 3, "expiradas": 2 }, "entrada_no_prompt": ["3 entradas", "Duas delas expiraram"] }
     },
     {
       "id": "d4-retentativas",
@@ -104,7 +110,7 @@
       "tier": "T1",
       "prompt": "Um job tenta 1 vez e, se falhar, faz ate 4 retentativas. Ele falhou em todas. Quantas chamadas foram feitas ao todo?",
       "verificacao": { "tipo": "constante", "esperado": 5, "kind": "number" },
-      "gabarito_fonte": { "tipo": "computado", "fn": "chamadasTotais", "entrada": { "primeira": 1, "retentativas": 4 } }
+      "gabarito_fonte": { "tipo": "computado", "fn": "chamadasTotais", "entrada": { "primeira": 1, "retentativas": 4 }, "entrada_no_prompt": ["tenta 1 vez", "ate 4 retentativas"] }
     },
     {
       "id": "d4-distintos",
@@ -137,10 +143,16 @@
       "verificacao": {
         "tipo": "todos",
         "checks": [
-          { "tipo": "regex-presente", "padrao": "new\\s+Set" },
-          { "tipo": "regex-presente", "padrao": "\\.size|\\.length" }
+          { "tipo": "regex-presente", "padrao": "new\\s+Set\\s*\\(\\s*a\\s*\\)" },
+          { "tipo": "regex-presente", "padrao": "\\.size\\b" }
         ]
       },
+      "contra_exemplos": [
+        "new Set(b).size",
+        "new Set([1,2,3]).size",
+        "a.length",
+        "usa new Set e depois .size"
+      ],
       "gabarito_fonte": { "tipo": "computado", "fn": "expressaoDistintos", "entrada": "a" }
     }
   ]

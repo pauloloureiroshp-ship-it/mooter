@@ -70,15 +70,16 @@ export const CAMPOS_OBRIGATORIOS = [
 /** Campos numericos que as projeccoes somam. `null` e legitimo; texto nao e. */
 export const CAMPOS_NUMERICOS = ['tokens_in', 'tokens_out', 'latencia_ms', 'custo_usd'];
 
-/** Tecto do que se guarda no ledger. O sha cobre sempre a saida INTEIRA. */
-export const TETO_SAIDA_LEDGER = 4000;
-
+/**
+ * A saida guarda-se INTEIRA. Uma versao anterior cortava-a a 4000 chars e isso
+ * partia a C8 num ledger honesto: o grader via o texto todo, a C8 re-derivava do
+ * texto cortado, e um `regex-presente` cujo padrao caisse depois do corte dava
+ * portao vermelho num registo correcto. Um tecto que faz o verificador mentir e
+ * pior do que um ficheiro grande — e `num_predict` ja limita o tamanho na origem.
+ */
 export function guardarSaida(texto) {
   const s = String(texto ?? '');
-  return {
-    saida: s.length > TETO_SAIDA_LEDGER ? s.slice(0, TETO_SAIDA_LEDGER) : s,
-    saida_sha: provHash(s),
-  };
+  return { saida: s, saida_sha: provHash(s) };
 }
 
 const TIPOS_CHECK = new Set([
@@ -123,9 +124,22 @@ export function carregarCorpus(caminho = path.join(AQUI, 'corpus.json')) {
     if (!t.verificacao) erros.push(`${t.id}: SEM verificacao — tarefa sem verificador nao corre`);
     else erros.push(...errosDeCheck(t.id, t.verificacao));
     if (!t.gabarito_fonte) erros.push(`${t.id}: SEM gabarito_fonte — gabarito que nao se re-deriva apodrece em silencio`);
+    // Verificacao so-regex aceita demasiado (`new Set(b).size` passa um /new\s+Set/).
+    // Provar que a resposta certa passa e METADE do trabalho; a outra metade e
+    // provar que a errada NAO passa. Por isso estas exigem contra-exemplos.
+    if (t.verificacao && soRegex(t.verificacao) && !(t.contra_exemplos?.length > 0)) {
+      erros.push(`${t.id}: verificacao so-regex SEM contra_exemplos — provar que a resposta certa passa nao prova que a errada falha`);
+    }
   }
   if (erros.length) throw new Error(`corpus invalido:\n  - ${erros.join('\n  - ')}`);
   return { ...corpus, corpus_sha: provHash(corpus), caminho };
+}
+
+/** true se a verificacao decide apenas por regex (sem parser nem valor exacto). */
+export function soRegex(check) {
+  if (check.tipo === 'regex-presente' || check.tipo === 'regex-ausente') return true;
+  if (check.tipo === 'todos') return check.checks.every(soRegex);
+  return false;
 }
 
 function errosDeCheck(id, check, profundidade = 0) {
@@ -184,6 +198,14 @@ export function avaliar(check, saida) {
   switch (check.tipo) {
     case 'constante': {
       // Reuso verbatim do grader do Mooter (packages/mooter-bridge/afericao.js:60).
+      //
+      // ASSIMETRIA DECLARADA: este grader e mais generoso que `resposta-exata`.
+      // Uma resposta sem numero concreto devolve `null` ("nao encontrei um numero
+      // na resposta", afericao.js:74) onde `resposta-exata` devolveria `false`.
+      // Consequencia: um candidato que nunca emite um numero sai do denominador
+      // em vez de ser penalizado. E a semantica do afericao — "so se marca false
+      // quando ha uma resposta concreta e divergente" — e mantem-se de proposito,
+      // mas fica dita, porque muda a leitura das celulas que a usam.
       const r = avaliarResposta({ expected: check.esperado, kind: check.kind }, saida);
       return { sucesso: r.acertou, motivo: r.porque };
     }

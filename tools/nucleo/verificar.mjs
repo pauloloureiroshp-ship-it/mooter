@@ -14,9 +14,9 @@
  *               mas nao os modelos, ISSO E O RESULTADO e publica-se. Transformar
  *               isto em gate convidaria a apertar o corpus ate o numero sair
  *               bonito, que e fabricar discriminacao.
- *   (A primeira versao deste ficheiro tinha um C4 que passava com discriminacao
- *   no eixo errado — a skill — e deixava passar por bom um corpus incapaz de
- *   distinguir dois modelos. Esta a corrigir isso.)
+ *   Nota exacta: a C4 continua a aceitar separacao por qualquer par, incluindo
+ *   modelo-vs-skill. O que mudou nao foi o gate — foi o RELATORIO passar a dizer
+ *   em que eixo separa. A escolha e deliberada, pelas razoes acima.
  *
  * LIMITES DECLARADOS (o que este portao NAO prova):
  *  1. Adulteracao: apanha (a) campo alterado com hash intacto e (b) campo
@@ -27,14 +27,20 @@
  *     prova "esta medicao aconteceu" — quem tem o repo corre `selar()` e fabrica
  *     um ledger internamente coerente. O que a C8 acrescenta e mais fraco e
  *     honesto: o veredito e RE-DERIVAVEL da saida guardada, logo um `sucesso`
- *     nao pode divergir do que o grader diria. Fabricar continua possivel;
- *     mentir sobre o grader deixou de ser. `proveniencia: "n/d"`.
+ *     nao pode divergir do que o grader diria. Fabricar um ledger inteiro
+ *     continua possivel para quem tem o repo. `proveniencia: "n/d"`.
+ *  3. O PRE-REGISTO e local e apagavel: `registar()` protege contra sobrescrita
+ *     (`flag:'wx'`), nao contra um `rm`. A C9 confere que ele existe e bate com o
+ *     ledger, o que fecha o lado do auditor; nao fecha o lado de quem manda no
+ *     disco. A ancora durvel contra cherry-pick e o `corpus.json` estar em git,
+ *     nao este ficheiro. `prereg_inviolavel: "n/d"`.
  */
 
 import {
-  lerLedger, hashEsperado, avaliar, carregarCorpus,
+  lerLedger, hashEsperado, avaliar, carregarCorpus, provHash,
   CAMPOS_OBRIGATORIOS, CAMPOS_NUMERICOS, CLASSES_CANDIDATO, SCHEMA,
 } from './nucleo.mjs';
+import { lerPrereg } from './prereg.mjs';
 
 /** Pares (candidato_a, candidato_b) numa tarefa em que um acertou e o outro falhou. */
 function tarefasQueSeparam(registos, filtro) {
@@ -51,7 +57,8 @@ function tarefasQueSeparam(registos, filtro) {
     .map(([id]) => id);
 }
 
-export function verificar(registos, corpus) {
+/** `lerPrereg` e injectavel para teste; por omissao le o registo real em disco. */
+export function verificar(registos, corpus, { lerPrereg: lerPreregIn = lerPrereg } = {}) {
   const falhas = [];
   if (!corpus) throw new Error('verificar() exige o corpus: sem ele nao se pode conferir o sha nem re-derivar os vereditos');
   const porId = new Map((corpus.tarefas || []).map((t) => [t.id, t]));
@@ -136,11 +143,44 @@ export function verificar(registos, corpus) {
   for (const r of registos) {
     const tarefa = porId.get(r.tarefa_id);
     if (!tarefa) { falhas.push(`C8 seq ${r.seq}: tarefa "${r.tarefa_id}" nao existe no corpus`); continue; }
-    // Execucao falhada nao tem saida para re-derivar; fica de fora, e visivel.
-    if (r.sucesso === null && /^execucao falhou:/.test(String(r.motivo))) continue;
+    // Execucao falhada nao tem saida para re-derivar. Mas aceitar a ALEGACAO pela
+    // palavra abria uma lavandaria, demonstrada pelo gate: bastava por
+    // sucesso:null com este motivo, MANTER a saida real (que grada false) e
+    // re-selar — e uma derrota saia do denominador, subindo a taxa publicada.
+    // Por isso exige-se a ASSINATURA que medir.mjs sempre produz numa falha
+    // (saida vazia, tokens a null), nunca a declaracao.
+    if (r.sucesso === null && /^execucao falhou:/.test(String(r.motivo))) {
+      if (r.saida === '' && r.tokens_in === null && r.tokens_out === null) continue;
+      falhas.push(`C8 seq ${r.seq} (${r.tarefa_id}): alega "execucao falhou" mas traz saida/tokens de uma execucao que aconteceu — derrota lavada em n/d`);
+      continue;
+    }
     const rederivado = avaliar(tarefa.verificacao, r.saida);
     if (rederivado.sucesso !== r.sucesso) {
       falhas.push(`C8 seq ${r.seq} (${r.tarefa_id}): ledger diz sucesso=${r.sucesso}, re-derivar da saida da ${rederivado.sucesso}`);
+    }
+  }
+
+  // C9 — o pre-registo tambem tem de ser conferido do lado de QUEM AUDITA. Ate
+  // agora so o medir.mjs o exigia — isto e, so o produtor, que e a parte com
+  // incentivo para batota. Sem isto, `ambiente.prereg_em` era escrito em todos os
+  // registos e nunca comparado com nada.
+  const prereg = lerPreregIn(corpus.corpus_sha);
+  if (!prereg) {
+    falhas.push(`C9: nao existe pre-registo para o corpus ${corpus.corpus_sha.slice(0, 12)} — o conjunto tinha de estar pregado antes da corrida`);
+  } else {
+    for (const r of registos) {
+      if (r.ambiente?.prereg_em !== prereg.registado_em) {
+        falhas.push(`C9 seq ${r.seq}: prereg_em "${r.ambiente?.prereg_em}" != "${prereg.registado_em}" do registo em disco`);
+      }
+    }
+  }
+
+  // C10 — a saida guardada e integra. Sem isto o saida_sha era campo obrigatorio
+  // que ninguem conferia, e a C8 podia estar a re-derivar de um texto trocado.
+  for (const r of registos) {
+    const esperado = provHash(String(r.saida ?? ''));
+    if (r.saida_sha !== esperado) {
+      falhas.push(`C10 seq ${r.seq}: saida_sha nao cobre a saida guardada (${String(r.saida_sha).slice(0, 12)} != ${esperado.slice(0, 12)})`);
     }
   }
 
@@ -155,6 +195,7 @@ export function verificar(registos, corpus) {
       registos: registos.length,
       ancora_externa: 'n/d',
       proveniencia: 'n/d',
+      prereg_inviolavel: 'n/d',
       corpus_sha: corpus.corpus_sha.slice(0, 12),
       truncados: registos.filter((r) => r.truncado).map((r) => `${r.candidato_id}/${r.tarefa_id}`),
       candidatos: [...candidatos],

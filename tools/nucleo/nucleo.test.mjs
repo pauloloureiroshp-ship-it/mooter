@@ -22,10 +22,15 @@ function tmp(nome) {
 }
 
 const CORPUS_SHA = 'sha-de-fixture';
+const PREREG_EM = '2026-08-09T00:00:00.000Z';
 const AMBIENTE = {
-  corpus_sha: CORPUS_SHA, nucleo_versao: NUCLEO_VERSAO, transporte: 'fixture',
-  amostragem: { temperature: 0, num_predict: 256 }, sandbox: 'n/d', host: 'test',
+  corpus_sha: CORPUS_SHA, prereg_em: PREREG_EM, nucleo_versao: NUCLEO_VERSAO,
+  transporte: 'fixture', amostragem: { temperature: 0, num_predict: 256 },
+  sandbox: 'n/d', host: 'test',
 };
+/** Pre-registo injectado: o I/O e substituivel, como no resto do repo. */
+const PREREG = { lerPrereg: () => ({ registado_em: PREREG_EM }) };
+const conferir = (regs, corpus, opts = PREREG) => verificar(regs, corpus, opts);
 
 /** Saida que um candidato daria para produzir aquele veredito. */
 const SAIDA = { true: 'ok', false: 'nope', null: '' };
@@ -143,14 +148,14 @@ test('skill com ferramentas esta NOMEADA e recusada, nao aceite em silencio', ()
   assert.equal(CLASSES_CANDIDATO.skill_ferramentas.suportada, false);
   const l = cadeia([['m1', 'modelo', 'm1', 'a', 'extracao', 'T0', true], ['s', 'modelo', 'm1', 'a', 'extracao', 'T0', false]]);
   const futuro = selar({ ...l[1], classe_candidato: 'skill_ferramentas', skill_sha: 'x' });
-  const r = verificar([l[0], futuro], corpusFixture([['m1', 'modelo', 'm1', 'a', 'extracao', 'T0', true]]));
+  const r = conferir([l[0], futuro], corpusFixture([['m1', 'modelo', 'm1', 'a', 'extracao', 'T0', true]]));
   assert.ok(r.falhas.some((f) => f.includes('skill_ferramentas') && f.includes('nao e suportada')), r.falhas.join('\n'));
 });
 
 // --- portao ----------------------------------------------------------------
 
 test('ledger valido passa o portao', () => {
-  const r = verificar(BOA(), CORPUS_BOM());
+  const r = conferir(BOA(), CORPUS_BOM());
   assert.deepEqual(r.falhas, []);
   assert.equal(r.ok, true);
   assert.equal(r.resumo.separa_modelos.separa, true);
@@ -160,7 +165,7 @@ test('ledger valido passa o portao', () => {
 test('adulterar um byte e deixar o hash: o portao nomeia o seq corrompido', () => {
   const l = BOA();
   l[2].motivo = 'fixture adulterada';
-  const r = verificar(l, CORPUS_BOM());
+  const r = conferir(l, CORPUS_BOM());
   assert.equal(r.ok, false);
   assert.ok(r.falhas.some((f) => f.startsWith('C2 seq 2') && f.includes('ADULTERADO')), r.falhas.join('\n'));
 });
@@ -168,7 +173,7 @@ test('adulterar um byte e deixar o hash: o portao nomeia o seq corrompido', () =
 test('adulterar e recalcular o hash: a cadeia parte no elo seguinte', () => {
   const l = BOA();
   l[2] = selar({ ...l[2], motivo: 'fixture adulterada' });
-  const r = verificar(l, CORPUS_BOM());
+  const r = conferir(l, CORPUS_BOM());
   assert.equal(r.ok, false);
   assert.ok(!r.falhas.some((f) => f.startsWith('C2 seq 2') && f.includes('ADULTERADO')));
   assert.ok(r.falhas.some((f) => f.startsWith('C2 seq 3') && f.includes('CADEIA PARTIDA')), r.falhas.join('\n'));
@@ -181,7 +186,7 @@ test('C4: corpus inerte e recusado (o defeito dos 72/72)', () => {
     ['m2', 'modelo', 'm2', 'a', 'extracao', 'T0', true],
     ['m2', 'modelo', 'm2', 'b', 'codigo', 'T1', true],
   ];
-  const r = verificar(cadeia(linhas), corpusFixture(linhas));
+  const r = conferir(cadeia(linhas), corpusFixture(linhas));
   assert.equal(r.ok, false);
   assert.ok(r.falhas.some((f) => f.startsWith('C4')), r.falhas.join('\n'));
 });
@@ -193,18 +198,18 @@ test('C6: categoria confundida com tier e recusada', () => {
     ['m2', 'modelo', 'm2', 'a', 'extracao', 'T0', false],
     ['m2', 'modelo', 'm2', 'b', 'codigo', 'T1', true],
   ];
-  const r = verificar(cadeia(linhas), corpusFixture(linhas));
+  const r = conferir(cadeia(linhas), corpusFixture(linhas));
   assert.ok(r.falhas.some((f) => f.startsWith('C6')), r.falhas.join('\n'));
 });
 
 test('C5: seed ou determinismo prometidos sao recusados', () => {
   const l = BOA();
-  const r = verificar([selar({ ...l[0], seed: 42 }), ...l.slice(1)], CORPUS_BOM());
+  const r = conferir([selar({ ...l[0], seed: 42 }), ...l.slice(1)], CORPUS_BOM());
   assert.ok(r.falhas.some((f) => f.startsWith('C5')), r.falhas.join('\n'));
 });
 
 test('C7: corpus trocado depois da corrida e apanhado', () => {
-  const r = verificar(BOA(), { ...CORPUS_BOM(), corpus_sha: 'outro-sha-qualquer' });
+  const r = conferir(BOA(), { ...CORPUS_BOM(), corpus_sha: 'outro-sha-qualquer' });
   assert.equal(r.ok, false);
   assert.ok(r.falhas.some((f) => f.startsWith('C7') && f.includes('mudou depois da corrida')), r.falhas.join('\n'));
 });
@@ -213,14 +218,14 @@ test('C8: sucesso que nao se re-deriva da saida guardada e apanhado', () => {
   const l = BOA();
   // A saida diz "nope" (falha) mas o registo afirma sucesso.
   const mentiroso = selar({ ...l[2], sucesso: true });
-  const r = verificar([...l.slice(0, 2), mentiroso, ...l.slice(3)], CORPUS_BOM());
+  const r = conferir([...l.slice(0, 2), mentiroso, ...l.slice(3)], CORPUS_BOM());
   assert.equal(r.ok, false);
   assert.ok(r.falhas.some((f) => f.startsWith('C8 seq 2')), r.falhas.join('\n'));
 });
 
 test('C1: campo numerico com lixo e apanhado', () => {
   const l = BOA();
-  const r = verificar([selar({ ...l[0], tokens_in: 'muitos' }), ...l.slice(1)], CORPUS_BOM());
+  const r = conferir([selar({ ...l[0], tokens_in: 'muitos' }), ...l.slice(1)], CORPUS_BOM());
   assert.ok(r.falhas.some((f) => f.includes('tokens_in') && f.includes('nao e numero nem null')), r.falhas.join('\n'));
 });
 
@@ -232,6 +237,45 @@ test('a saida guardada e integra: saida_sha cobre o texto', () => {
 test('os criterios pregados cobrem C1..C6 e declaram o que e reportado', () => {
   for (const c of ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']) assert.ok(CRITERIOS[c], `falta ${c}`);
   assert.match(CRITERIOS.reportado_nao_gated, /publica-se/);
+});
+
+test('C8: NAO se lava uma derrota em n/d alegando "execucao falhou"', () => {
+  const l = BOA();
+  // O ataque que o gate demonstrou: por sucesso:null com motivo de falha, MANTER
+  // a saida real (que grada false) e re-selar. A derrota saia do denominador.
+  const lavado = selar({ ...l[2], sucesso: null, motivo: 'execucao falhou: timeout 120000ms' });
+  const r = conferir([...l.slice(0, 2), lavado, ...l.slice(3)], CORPUS_BOM());
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.startsWith('C8 seq 2') && f.includes('lavada')), r.falhas.join('\n'));
+});
+
+test('C8: uma falha GENUINA passa — traz a assinatura que medir.mjs produz', () => {
+  const l = BOA();
+  const genuina = selar({
+    ...l[2], sucesso: null, motivo: 'execucao falhou: timeout 120000ms',
+    ...guardarSaida(''), tokens_in: null, tokens_out: null,
+  });
+  const r = conferir([...l.slice(0, 2), genuina, ...l.slice(3)], CORPUS_BOM());
+  assert.ok(!r.falhas.some((f) => f.startsWith('C8')), r.falhas.join('\n'));
+});
+
+test('C9: sem pre-registo, o portao recusa — o auditor deixa de confiar no produtor', () => {
+  const r = conferir(BOA(), CORPUS_BOM(), { lerPrereg: () => null });
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.startsWith('C9') && f.includes('nao existe pre-registo')), r.falhas.join('\n'));
+});
+
+test('C9: ledger medido contra outro pre-registo e apanhado', () => {
+  const r = conferir(BOA(), CORPUS_BOM(), { lerPrereg: () => ({ registado_em: '2030-01-01T00:00:00.000Z' }) });
+  assert.ok(r.falhas.some((f) => f.startsWith('C9 seq 0')), r.falhas.join('\n'));
+});
+
+test('C10: saida trocada por baixo do sha e apanhada', () => {
+  const l = BOA();
+  const trocado = selar({ ...l[0], saida: 'outra coisa qualquer' });
+  const r = conferir([trocado, ...l.slice(1)], CORPUS_BOM());
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.startsWith('C10 seq 0')), r.falhas.join('\n'));
 });
 
 // --- projeccoes ------------------------------------------------------------
@@ -279,6 +323,6 @@ test('ledger sobrevive a ida e volta ao disco', () => {
   escreverLedger(p, l);
   const lido = lerLedger(p);
   assert.deepEqual(lido, l);
-  assert.equal(verificar(lido, CORPUS_BOM()).ok, true);
+  assert.equal(conferir(lido, CORPUS_BOM()).ok, true);
   assert.equal(hashEsperado(lido[0]), lido[0].record_hash);
 });
