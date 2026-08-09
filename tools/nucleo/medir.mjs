@@ -141,6 +141,10 @@ async function main() {
   const ambiente = {
     corpus_sha: corpus.corpus_sha,
     prereg_em: prereg.registado_em,
+    // A corrida declara os seus candidatos. Sem isto, apagar um candidato
+    // inteiro do ledger era invisivel — o pre-registo (de proposito) nao os
+    // prega, portanto nao havia contra o que comparar.
+    candidatos: candidatos.map((c) => c.id).sort(),
     nucleo_versao: NUCLEO_VERSAO,
     transporte: `ollama ${OLLAMA}`,
     amostragem: AMOSTRAGEM,

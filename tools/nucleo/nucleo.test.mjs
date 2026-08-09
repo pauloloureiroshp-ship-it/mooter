@@ -45,9 +45,11 @@ function corpusFixture(linhas) {
 }
 
 /** [candidato_id, classe, host, tarefa_id, categoria, tier, sucesso] */
-function cadeia(linhas) {
+function cadeia(linhas, candidatosDeclarados) {
   const out = [];
   let prev = null;
+  const candidatos = candidatosDeclarados ?? [...new Set(linhas.map((l) => l[0]))].sort();
+  const ambiente = { ...AMBIENTE, candidatos };
   linhas.forEach(([candidato_id, classe_candidato, host_model, tarefa_id, categoria, tier, sucesso], i) => {
     const r = selar({
       seq: i, schema: SCHEMA, candidato_id, classe_candidato, host_model,
@@ -55,7 +57,7 @@ function cadeia(linhas) {
       tarefa_id, categoria, dificuldade: 'D1', tier, sucesso, motivo: 'fixture',
       ...guardarSaida(SAIDA[String(sucesso)]), truncado: false,
       tokens_in: 10, tokens_out: 5, latencia_ms: 100 + i, custo_usd: 0,
-      seed: 'n/d', determinismo: 'n/d', ambiente: AMBIENTE,
+      seed: 'n/d', determinismo: 'n/d', ambiente,
       timestamp: '2026-08-09T00:00:00.000Z', prev_hash: prev,
     });
     prev = r.record_hash;
@@ -271,14 +273,46 @@ test('C9: ledger medido contra outro pre-registo e apanhado', () => {
   assert.ok(r.falhas.some((f) => f.startsWith('C9 seq 0')), r.falhas.join('\n'));
 });
 
-test('C9: APAGAR as derrotas e re-selar nao passa — o denominador nao encolhe em silencio', () => {
-  // O caminho mais barato que a lavandaria da C8: tirar os registos maus. Sem a
-  // completude, 4/12 virava 4/4 com o portao verde.
+test('C9: APAGAR as derrotas e re-selar nao passa — falta tarefa do conjunto pregado', () => {
   const corpus = CORPUS_BOM();
   const sobreviventes = LINHAS_BOAS.filter(([, , , , , , sucesso]) => sucesso !== false);
-  const r = conferir(cadeia(sobreviventes), corpus);
+  const r = conferir(cadeia(sobreviventes, ['m1', 'm2']), corpus);
   assert.equal(r.ok, false);
   assert.ok(r.falhas.some((f) => f.includes('LEDGER INCOMPLETO') && f.includes('cod-a')), r.falhas.join('\n'));
+});
+
+test('C11: duplicar acertos para inflar a taxa e recusado', () => {
+  const corpus = CORPUS_BOM();
+  // O gate mediu 4/12 a virar 12/20 por esta porta: manter as 12 e ADICIONAR
+  // copias das que acertou.
+  const r = conferir(cadeia([...LINHAS_BOAS, LINHAS_BOAS[0]]), corpus);
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.startsWith('C11') && f.includes('ext-a')), r.falhas.join('\n'));
+});
+
+test('C12: apagar um candidato INTEIRO deixa de ser invisivel', () => {
+  const corpus = CORPUS_BOM();
+  const soM1 = LINHAS_BOAS.filter(([c]) => c === 'm1');
+  // A corrida declarou m1 e m2; o ledger so traz m1.
+  const r = conferir(cadeia(soM1, ['m1', 'm2']), corpus);
+  assert.equal(r.ok, false);
+  assert.ok(r.falhas.some((f) => f.startsWith('C12') && f.includes('AUSENTE')), r.falhas.join('\n'));
+});
+
+test('C12: corrida sem candidatos declarados nao serve', () => {
+  const corpus = CORPUS_BOM();
+  const l = cadeia(LINHAS_BOAS).map((r) => selar({ ...r, ambiente: { ...r.ambiente, candidatos: undefined } }));
+  let prev = null;
+  const rezelado = l.map((r) => { const s = selar({ ...r, prev_hash: prev }); prev = s.record_hash; return s; });
+  const r = conferir(rezelado, corpus);
+  assert.ok(r.falhas.some((f) => f.startsWith('C12') && f.includes('nao declarou')), r.falhas.join('\n'));
+});
+
+test('o resumo publica a cobertura — um denominador encolhido fica barulhento', () => {
+  const corpus = CORPUS_BOM();
+  const comNd = LINHAS_BOAS.map((l) => (l[6] === false ? [...l.slice(0, 6), null] : l));
+  const r = conferir(cadeia(comNd), corpus);
+  assert.match(r.resumo.cobertura.m1, /2 avaliadas de 3 pregadas · 1 n\/d/);
 });
 
 test('C9: pre-registo sem lista de tarefas nao serve de prova de completude', () => {

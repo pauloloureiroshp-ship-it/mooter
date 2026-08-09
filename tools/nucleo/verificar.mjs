@@ -26,17 +26,25 @@
  *  2. PROVENIENCIA: a cadeia prova "ninguem editou isto depois de selado". NAO
  *     prova "esta medicao aconteceu". O que a C8 acrescenta e mais fraco: o
  *     veredito e RE-DERIVAVEL da saida guardada, logo nao pode divergir do que o
- *     grader diria *sobre essa saida*. Continua aberto — e o gate demonstrou-o —
- *     apagar a saida real, por tokens a null e alegar falha: a assinatura inteira
- *     e forjavel com uma edicao de tres campos. A latencia cruzada com o motivo
- *     estreita isso, nao o fecha (basta nao mencionar "timeout"). Uma execucao
- *     que nunca aconteceu nao deixa rasto que este ficheiro possa exigir.
- *     `proveniencia: "n/d"`.
+ *     grader diria *sobre essa saida*. `proveniencia: "n/d"`.
  *  3. O PRE-REGISTO e local e apagavel: `registar()` protege contra sobrescrita
  *     (`flag:'wx'`), nao contra um `rm`. A C9 confere que ele existe e bate com o
  *     ledger, o que fecha o lado do auditor; nao fecha o lado de quem manda no
- *     disco. A ancora durvel contra cherry-pick e o `corpus.json` estar em git,
+ *     disco. A ancora duravel contra cherry-pick e o `corpus.json` estar em git,
  *     nao este ficheiro. `prereg_inviolavel: "n/d"`.
+ *  4. O QUE CONTINUA ABERTO, medido pelo gate no ledger real e dito por extenso
+ *     em vez de escondido — todos movem a taxa publicada com o portao verde:
+ *       (a) trocar derrotas por `sucesso:null` com assinatura de falha completa
+ *           (saida vazia, tokens null, latencia coerente): 4/12 vira 4/4. A C9
+ *           garante que a TAREFA esta la, nao que houve veredito.
+ *       (b) forjar vitorias copiando a saida de um candidato que acertou:
+ *           4/12 vira 12/12. A C8 re-deriva e concorda, porque a saida e valida.
+ *       (c) o cruzamento motivo<->latencia da C8 evita-se de duas maneiras: nao
+ *           escrever "timeout", ou escrever e por `latencia_ms` coerente. E o
+ *           quarto campo sob o mesmo controlo dos outros tres; acrescenta pouco.
+ *     Todos exigem a mesma coisa para fechar: uma ancora FORA do ficheiro. Ela
+ *     nao existe. Por isso `taxa_inforjavel: "n/d"`, e o resumo publica
+ *     `avaliadas/pregadas` por candidato — nao impede (a), torna-o barulhento.
  */
 
 import {
@@ -184,10 +192,11 @@ export function verificar(registos, corpus, { lerPrereg: lerPreregIn = lerPrereg
         falhas.push(`C9 seq ${r.seq}: prereg_em "${r.ambiente?.prereg_em}" != "${prereg.registado_em}" do registo em disco`);
       }
     }
-    // COMPLETUDE. Sem isto sobrava um caminho mais barato que a lavandaria da C8:
-    // apagar as derrotas e re-selar a cadeia. Demonstrado pelo gate — 4/12 virava
-    // 4/4 com o portao verde. O conjunto pregado diz quantas tarefas cada
-    // candidato TEM de trazer; um denominador encolhido deixa de passar.
+    // COMPLETUDE do CONJUNTO — e so isso. Fecha "apagar registos e re-selar".
+    // NAO fecha o denominador publicado: um registo presente mas com
+    // `sucesso:null` sai do denominador na mesma (ver LIMITE 4 no cabecalho).
+    // Uma versao anterior deste comentario dizia "um denominador encolhido deixa
+    // de passar" e era falso — o gate mediu 4/12 a virar 4/4 por essa porta.
     if (!Array.isArray(prereg.tarefas)) {
       falhas.push('C9: o pre-registo nao lista as tarefas — sem elas nao se pode provar que o ledger esta completo');
     } else {
@@ -204,6 +213,37 @@ export function verificar(registos, corpus, { lerPrereg: lerPreregIn = lerPrereg
         if (extra.length) falhas.push(`C9 ${candidato}: tarefas fora do conjunto pregado (${extra.join(', ')})`);
       }
     }
+  }
+
+  // C11 — um registo por (candidato, tarefa). Sem isto, a C9 usava um Set e
+  // duplicar acertos inflava a taxa sem falhar nada: o gate mediu 4/12 a virar
+  // 12/20 duplicando, e 16/24 acrescentando tarefas faceis.
+  const vistos = new Map();
+  for (const r of registos) {
+    const chave = JSON.stringify([r.candidato_id, r.tarefa_id]);
+    if (vistos.has(chave)) falhas.push(`C11 seq ${r.seq}: (${r.candidato_id}, ${r.tarefa_id}) ja aparece no seq ${vistos.get(chave)} — duplicar registos move a taxa`);
+    else vistos.set(chave, r.seq);
+  }
+
+  // C12 — o conjunto de candidatos tem de bater com o que a corrida declarou.
+  // Fecha "apagar um candidato inteiro", que ate agora era invisivel: nada havia
+  // contra o que comparar, porque o pre-registo (de proposito) nao prega
+  // candidatos. Agora a propria corrida di-lo, e todos os registos tem de o dizer
+  // igual.
+  const declarados = registos[0]?.ambiente?.candidatos;
+  if (!Array.isArray(declarados)) {
+    falhas.push('C12: a corrida nao declarou os seus candidatos (ambiente.candidatos) — apagar um candidato inteiro ficaria invisivel');
+  } else {
+    for (const r of registos) {
+      if (JSON.stringify(r.ambiente?.candidatos) !== JSON.stringify(declarados)) {
+        falhas.push(`C12 seq ${r.seq}: ambiente.candidatos diverge do resto do ledger`);
+      }
+    }
+    const presentes = [...new Set(registos.map((r) => r.candidato_id))].sort();
+    const emFalta = declarados.filter((c) => !presentes.includes(c));
+    const aMais = presentes.filter((c) => !declarados.includes(c));
+    if (emFalta.length) falhas.push(`C12: candidato(s) declarado(s) mas AUSENTE(S) do ledger: ${emFalta.join(', ')}`);
+    if (aMais.length) falhas.push(`C12: candidato(s) no ledger mas nao declarado(s): ${aMais.join(', ')}`);
   }
 
   // C10 — a saida guardada e integra. Sem isto o saida_sha era campo obrigatorio
@@ -227,6 +267,13 @@ export function verificar(registos, corpus, { lerPrereg: lerPreregIn = lerPrereg
       ancora_externa: 'n/d',
       proveniencia: 'n/d',
       prereg_inviolavel: 'n/d',
+      taxa_inforjavel: 'n/d',
+      // Um denominador encolhido nao e ilegal, mas passa a ser barulhento.
+      cobertura: Object.fromEntries([...new Set(registos.map((r) => r.candidato_id))].map((c) => {
+        const seus = registos.filter((r) => r.candidato_id === c);
+        const nd = seus.filter((r) => r.sucesso === null).length;
+        return [c, `${seus.length - nd} avaliadas de ${seus.length} pregadas${nd ? ` · ${nd} n/d` : ''}`];
+      })),
       corpus_sha: corpus.corpus_sha.slice(0, 12),
       truncados: registos.filter((r) => r.truncado).map((r) => `${r.candidato_id}/${r.tarefa_id}`),
       candidatos: [...candidatos],

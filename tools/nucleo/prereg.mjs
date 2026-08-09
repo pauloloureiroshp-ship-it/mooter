@@ -15,7 +15,7 @@
  * LIMITE, dito por extenso porque uma versao anterior deste comentario chamou a
  * isto "irreversivel por omissao" e era falso: `flag:'wx'` protege contra
  * SOBRESCRITA, nao contra um `rm`. Este ficheiro e local e apagavel. A ancora
- * durvel contra cherry-pick e o `corpus.json` estar em git, com historico.
+ * duravel contra cherry-pick e o `corpus.json` estar em git, com historico.
  *
  * O molde e o poke_lab/portao_demo.py: consulta o estado real no disco em vez de
  * acreditar em quem chama.
