@@ -169,6 +169,14 @@ test('as duas projeccoes saem da mesma cadeia, e a forja e delta pareado', () =>
   assert.equal(p.derivada_de.ultimo_record_hash, l[l.length - 1].record_hash);
 });
 
+test('nenhuma fonte tem bytes nulos — git tratava o ficheiro como binario e a revisao cegava', () => {
+  for (const nome of ['nucleo.mjs', 'medir.mjs', 'verificar.mjs', 'projectar.mjs', 'nucleo.test.mjs', 'corpus.json']) {
+    const b = fs.readFileSync(path.join(AQUI, nome));
+    const i = b.indexOf(0);
+    assert.equal(i, -1, `${nome}: byte NUL no offset ${i}`);
+  }
+});
+
 test('ledger sobrevive a ida e volta ao disco', () => {
   const p = tmp('ledger.jsonl');
   const l = BOA();
