@@ -1,0 +1,81 @@
+{
+  "schema": "corpus_v1",
+  "versao": 1,
+  "nota": "Toda tarefa TEM de trazer 'verificacao'. Tarefa sem verificador falha no carregamento, antes de qualquer execucao — o buraco oposto ao de packages/validation/src/benchmark/task-loader.ts:56, onde a ausencia de check devolve pass:true.",
+  "tarefas": [
+    {
+      "id": "ext-porta",
+      "categoria": "extracao",
+      "tier": "T0",
+      "prompt": "Extrai o numero da porta desta linha de log:\nserver listening on 0.0.0.0:8412 (pid 991)",
+      "verificacao": { "tipo": "resposta-exata", "esperado": "8412" }
+    },
+    {
+      "id": "ext-retries",
+      "categoria": "extracao",
+      "tier": "T1",
+      "prompt": "Qual e o valor de MAX_RETRIES neste codigo?\nconst MAX_RETRIES = 7;",
+      "verificacao": { "tipo": "constante", "esperado": 7, "kind": "number" }
+    },
+    {
+      "id": "trans-snake",
+      "categoria": "transformacao",
+      "tier": "T0",
+      "prompt": "Converte este identificador para snake_case: currentUserName",
+      "verificacao": { "tipo": "resposta-exata", "esperado": "current_user_name" }
+    },
+    {
+      "id": "trans-json",
+      "categoria": "transformacao",
+      "tier": "T1",
+      "prompt": "Converte esta lista num array JSON de strings: a, b, c",
+      "verificacao": {
+        "tipo": "regex-presente",
+        "padrao": "^\\s*\\[\\s*\"a\"\\s*,\\s*\"b\"\\s*,\\s*\"c\"\\s*\\]\\s*$"
+      }
+    },
+    {
+      "id": "rac-cache",
+      "categoria": "raciocinio_curto",
+      "tier": "T1",
+      "prompt": "Uma cache tem 3 entradas com TTL de 60 segundos. Duas delas expiraram ha 10 segundos. Quantas entradas continuam validas?",
+      "verificacao": { "tipo": "constante", "esperado": 1, "kind": "number" }
+    },
+    {
+      "id": "cod-rename",
+      "categoria": "codigo",
+      "tier": "T0",
+      "prompt": "Renomeia a variavel usr para currentUser e devolve o codigo:\nfunction greet(usr){ return 'hi ' + usr.name }",
+      "verificacao": {
+        "tipo": "todos",
+        "checks": [
+          { "tipo": "regex-presente", "padrao": "currentUser" },
+          { "tipo": "regex-ausente", "padrao": "\\busr\\b" }
+        ]
+      }
+    },
+    {
+      "id": "cod-unicos",
+      "categoria": "codigo",
+      "tier": "T2",
+      "prompt": "Escreve uma expressao JavaScript de uma linha que devolve quantos valores distintos existem no array a.",
+      "verificacao": {
+        "tipo": "todos",
+        "checks": [
+          { "tipo": "regex-presente", "padrao": "new\\s+Set" },
+          { "tipo": "regex-presente", "padrao": "\\.size|\\.length" }
+        ]
+      }
+    },
+    {
+      "id": "fmt-tabela",
+      "categoria": "formatacao",
+      "tier": "T0",
+      "prompt": "Apresenta estes pares como tabela markdown com cabecalho k e v: a=1, b=2",
+      "verificacao": {
+        "tipo": "regex-presente",
+        "padrao": "\\|\\s*k\\s*\\|\\s*v\\s*\\|"
+      }
+    }
+  ]
+}
