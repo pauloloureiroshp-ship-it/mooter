@@ -237,6 +237,14 @@ das decisões e **recibos separados de executor e juiz**. Braço A nomeia provid
 modelo exactos ("Fable 5" à solta não é um modelo). Zero runs de medição.
 
 ## F5 — M1, o primeiro speedtest
+> **O mock e o banner saem JUNTOS — e isto é código, não um parágrafo.**
+> A DEMO-FORMATO tem hoje um MOCK rotulado na tela 2 e o banner "DEMO DE FORMATO".
+> Trocar o mock por um motor real transforma a demo numa comparação de medição e cai
+> na REGRA 0. `poke_lab/portao_demo.py` recusa mecanicamente essa troca sem: **F3
+> fechada** (`maestro-state/F3.complete.json`) · **`POKE_GO` não vazio** · **run
+> pré-registado** (`--prereg-sha`). Provado a recusar em `tests/test_portao_demo.py`.
+> Tirar o mock e deixar o banner é pior que um erro: é comparação real vestida de
+> brincadeira.
 Runs numerados **antes**, **todos** publicados (incl. abortados) · recibo por lance na cadeia
 C0 · leaderboard dos jsonl · âncora externa fica `anchor_status:"pending"` até aprovação
 explícita do dono.

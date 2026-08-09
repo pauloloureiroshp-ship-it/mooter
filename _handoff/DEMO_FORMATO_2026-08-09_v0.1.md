@@ -133,3 +133,36 @@ Isto **não** fura a REGRA 0: é schema e recibo, não é run de medição. E o 
 - **Contagem de tokens por componente:** exige um tokenizador por motor. Para o braço local é
   medível; para o remoto, se a API não devolver a decomposição, o painel mostra **estimativa
   rotulada como tal** ou `n/d` — nunca um número apresentado como medido.
+
+
+---
+
+## 8. O acordo mock↔banner — imposto por `poke_lab/portao_demo.py`
+
+**O MOCK da tela 2 e o banner "DEMO DE FORMATO" saem JUNTOS. Nunca um sem o outro.**
+
+Hoje a tela 2 é um mock rotulado e o banner diz em letras grandes que aquilo não é medição.
+No dia em que alguém trocar o mock por um modelo de topo real — e vai apetecer, porque a demo
+fica mais bonita — a comparação passa a ter peso de resultado, e nesse instante cai na
+**REGRA 0**: zero runs A/B antes da F3 fechada e do `POKE_GO`.
+
+Tirar o mock e deixar o banner produz uma coisa pior que um erro: **uma comparação real
+vestida de brincadeira**. Tirar o banner e deixar o mock produz o contrário — um mock a passar
+por modelo.
+
+Isto não é uma recomendação. `poke_lab/portao_demo.py` corre **antes** de qualquer run do
+launcher e recusa `--braco2-modelo` sem as três condições, verificadas no disco e não
+declaradas por quem chama:
+
+1. `maestro-state/F3.complete.json` existe (o teste nº2 correu);
+2. `POKE_GO` existe **e não está vazio** (um ficheiro de 0 bytes prova um `touch`, não uma
+   decisão);
+3. `--prereg-sha` presente (runs numerados **antes**, todos publicados — D4, anti-cherry-pick).
+
+`tests/test_portao_demo.py` prende a invariante nos dois sentidos: prova que o portão recusa
+com cada condição em falta **e** que, quando abre, o banner cai junto com o mock. Um teste que
+só provasse a recusa passaria à toa se o portão nunca abrisse.
+
+**Artefacto desta sessão:** `_handoff/demo-formato-2026-08-09.html`
+(sha256 `6bacb54806df2832993f30242f49f525d48e032ae45870dba4e7466db76ab91f`) — 14 lances reais,
+ROM-sonda homebrew construída no repo, **zero assets Nintendo**. Seguro para galeria.
