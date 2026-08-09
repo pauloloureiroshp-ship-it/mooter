@@ -21,7 +21,8 @@ O Paulo cola sempre: **"Executa _handoff/MAESTRO_POKEMOO_2026-08-08.md"**.
 |---|---|
 | `BRIEF_POKE_MOO_2026-08-07.md` (v1.3) | `b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6` |
 | `SUPERMASTER_VANTAGEM_2026-08-07_v1.1.md` | `1ad0fe297aa35272b4c9ddabe2fe9f02dadb8846550837d7c479f837627c6c0b` |
-| `ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` (insumo de F4 e F5) | `7a3b0ff7a22e76c2ce995a7cd725b8f46881a2eb1d7c352e19c322f6d9643462` |
+| `ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` (insumo de F4 e F5) | `bfead0f8d2636f6cc3b5879917bb9490cc6430bed35ec2b26728c380db26fb73` |
+| `DEMO_FORMATO_2026-08-09_v0.1.md` (insumo de F4 e F5) | `65372ae03481c4ae51ba909f57a0052e766d180d7fbc1e44252eca68591a21dd` |
 | `piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md` (base imutável da F3) | `49c2cd2f6048422322868c5fc8e40224cf2770d48935a8cc074d8589b713b448` |
 
 > **Correcção 2026-08-09.** Uma versão anterior deste ficheiro procurava
@@ -225,6 +226,12 @@ campo-ausente=`null` · E4 teste dos três hashes exactos (`rom_sha256`, `initia
 Insumo obrigatório: o addendum MOO RUN (dois formatos pré-registados; carimbo por frame).
 
 ## F4b — adapters C1 e C2, só MOCK
+> **Pré-requisito de ordem, medido em 2026-08-09:** o `StepReceiptV1` **v2** (campos de prompt,
+> contexto, `routing_reason` e guardrails — ver `DEMO_FORMATO_2026-08-09_v0.1.md` §6) tem de
+> existir **antes** desta fase. O brief congela o schema antes dos adapters (C0.a); se os
+> adapters nascerem contra a v1, o painel da demo não tem de onde sair e a F5 vira reescrita
+> dos dois braços. É schema, não é run — não fura a REGRA 0.
+
 Executa **integralmente** C1 e C2 do brief soberano — incluindo `StepReceiptV1`, proveniência
 das decisões e **recibos separados de executor e juiz**. Braço A nomeia provider · transporte ·
 modelo exactos ("Fable 5" à solta não é um modelo). Zero runs de medição.

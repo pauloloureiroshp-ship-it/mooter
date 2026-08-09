@@ -3659,7 +3659,7 @@ e frames persistentes passam a exigir fase jurídica separada · bloco CONFIG co
 dono, `n/d` ⇒ PARAR.
 
 ### Insumo OBRIGATÓRIO da F4 (§0) e da F5 — série "MOO RUN"
-`_handoff/ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` · sha `7a3b0ff7a22e76c2ce995a7cd725b8f46881a2eb1d7c352e19c322f6d9643462`
+`_handoff/ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` · sha `bfead0f8d2636f6cc3b5879917bb9490cc6430bed35ec2b26728c380db26fb73`
 
 Registado aqui como **insumo, não como sugestão**: o §0 tem de pré-registar os **dois formatos**
 (corrida-ao-marco **e** mesmo-orçamento, ambos publicados sempre — anti-cherry-pick), e a F5
