@@ -19,7 +19,8 @@
  * corpus_sha e o record_hash do ultimo registo de que deriva.
  */
 
-import { lerLedger } from './nucleo.mjs';
+import { lerLedger, carregarCorpus } from './nucleo.mjs';
+import { verificar } from './verificar.mjs';
 
 function taxa(registos) {
   const acertos = registos.filter((r) => r.sucesso === true).length;
@@ -30,9 +31,17 @@ function taxa(registos) {
     acertos, falhas, n_d: nd,
     // Denominador exclui n/d: "sem prova" nunca vira zero.
     taxa_acerto: denom === 0 ? 'n/d' : Number((acertos / denom).toFixed(4)),
-    latencia_mediana_ms: mediana(registos.map((r) => r.latencia_ms)),
-    tokens_out_total: registos.reduce((s, r) => s + (r.tokens_out ?? 0), 0),
-    custo_usd: registos.every((r) => typeof r.custo_usd === 'number')
+    // Latencia so das chamadas que produziram veredito: um timeout de 120s
+    // entrar na mediana faria a projeccao mentir sobre o candidato.
+    latencia_mediana_ms: mediana(registos.filter((r) => r.sucesso !== null).map((r) => r.latencia_ms)),
+    // `null` NAO vira zero (a regra que a linha do denominador acima ja aplica):
+    // soma-se o que foi medido e conta-se o que nao foi.
+    tokens_out_total: registos.some((r) => Number.isFinite(r.tokens_out))
+      ? registos.reduce((s, r) => s + (Number.isFinite(r.tokens_out) ? r.tokens_out : 0), 0)
+      : 'n/d',
+    tokens_out_n_d: registos.filter((r) => !Number.isFinite(r.tokens_out)).length,
+    truncados: registos.filter((r) => r.truncado).length,
+    custo_usd: registos.every((r) => Number.isFinite(r.custo_usd))
       ? Number(registos.reduce((s, r) => s + r.custo_usd, 0).toFixed(6))
       : 'n/d',
   };
@@ -51,9 +60,9 @@ function par(host, tarefa) {
   return JSON.stringify([host, tarefa]);
 }
 
-export function projectar(registos) {
-  const modelos = registos.filter((r) => r.tipo === 'modelo');
-  const skills = registos.filter((r) => r.tipo === 'skill');
+export function projectar(registos, cadeia = 'NAO VERIFICADA') {
+  const modelos = registos.filter((r) => r.classe_candidato === 'modelo');
+  const skills = registos.filter((r) => r.classe_candidato === 'skill_prefixo');
 
   // --- Projeccao 1: cascata (nivel absoluto por modelo x categoria) ---
   const cascata = {};
@@ -96,6 +105,9 @@ export function projectar(registos) {
     aviso: 'derivada do ledger; nao e 2a verdade. A fonte e o measurement_v1.',
     derivada_de: {
       registos: registos.length,
+      // Sem isto, uma projeccao de um ledger PARTIDO ficava indistinguivel de uma
+      // valida — e os hashes por baixo davam-lhe ar de prova.
+      cadeia,
       corpus_sha: ultimo?.ambiente?.corpus_sha ?? 'n/d',
       ultimo_record_hash: ultimo?.record_hash ?? 'n/d',
     },
@@ -107,5 +119,12 @@ export function projectar(registos) {
 if (process.argv[1]?.endsWith('projectar.mjs')) {
   const caminho = process.argv[2];
   if (!caminho) { process.stderr.write('uso: node tools/nucleo/projectar.mjs <ledger.jsonl>\n'); process.exit(1); }
-  process.stdout.write(JSON.stringify(projectar(lerLedger(caminho)), null, 2) + '\n');
+  const registos = lerLedger(caminho);
+  // Projectar um ledger que o portao recusaria e produzir prova falsa.
+  const v = verificar(registos, carregarCorpus());
+  if (!v.ok) {
+    process.stderr.write('RECUSADO: nao projecto um ledger que o portao recusa.\n  - ' + v.falhas.join('\n  - ') + '\n');
+    process.exit(1);
+  }
+  process.stdout.write(JSON.stringify(projectar(registos, 'VERIFICADA'), null, 2) + '\n');
 }

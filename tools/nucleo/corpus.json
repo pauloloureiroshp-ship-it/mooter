@@ -1,50 +1,83 @@
 {
-  "schema": "corpus_v1",
-  "versao": 1,
-  "nota": "Toda tarefa TEM de trazer 'verificacao'. Tarefa sem verificador falha no carregamento, antes de qualquer execucao — o buraco oposto ao de packages/validation/src/benchmark/task-loader.ts:56, onde a ausencia de check devolve pass:true.",
+  "schema": "corpus_v2",
+  "versao": 2,
+  "nota": "Toda tarefa TEM de trazer 'verificacao' e 'gabarito_fonte'. Tarefa sem verificador nao carrega — falha antes de correr (o oposto de packages/validation/src/benchmark/task-loader.ts:58, onde a ausencia de check devolve pass:true). Tarefa cujo gabarito nao se re-deriva da fonte faz o gabarito.test.mjs ficar vermelho.",
+
+  "rubrica": {
+    "porque": "As tarefas foram escolhidas por DIFICULDADE declarada, nunca por 'quais separam os meus modelos'. A rubrica foi fixada antes das tarefas e o conjunto e pre-registado por sha antes de qualquer corrida. Escolher tarefas olhando para o resultado e fabricar discriminacao.",
+    "niveis": {
+      "D1": "copia literal — o valor esta no prompt, sem transformacao",
+      "D2": "transformacao deterministica de um passo",
+      "D3": "transformacao com duas ou mais restricoes simultaneas",
+      "D4": "inferencia — o valor NAO esta no prompt, tem de ser derivado (contar, somar, deduzir estado)",
+      "D5": "producao de estrutura que valida por PARSER (JSON, tabela, codigo), nunca por presenca de palavra"
+    }
+  },
+
   "tarefas": [
     {
-      "id": "ext-porta",
+      "id": "d1-porta",
+      "dificuldade": "D1",
       "categoria": "extracao",
       "tier": "T0",
       "prompt": "Extrai o numero da porta desta linha de log:\nserver listening on 0.0.0.0:8412 (pid 991)",
-      "verificacao": { "tipo": "resposta-exata", "esperado": "8412" }
+      "verificacao": { "tipo": "resposta-exata", "esperado": "8412" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "portaDeLog", "entrada": "server listening on 0.0.0.0:8412 (pid 991)" }
     },
     {
-      "id": "ext-retries",
+      "id": "d1-ctxmax",
+      "dificuldade": "D1",
       "categoria": "extracao",
       "tier": "T1",
-      "prompt": "Qual e o valor de MAX_RETRIES neste codigo?\nconst MAX_RETRIES = 7;",
-      "verificacao": { "tipo": "constante", "esperado": 7, "kind": "number" }
-    },
-    {
-      "id": "trans-snake",
-      "categoria": "transformacao",
-      "tier": "T0",
-      "prompt": "Converte este identificador para snake_case: currentUserName",
-      "verificacao": { "tipo": "resposta-exata", "esperado": "current_user_name" }
-    },
-    {
-      "id": "trans-json",
-      "categoria": "transformacao",
-      "tier": "T1",
-      "prompt": "Converte esta lista num array JSON de strings: a, b, c",
-      "verificacao": {
-        "tipo": "regex-presente",
-        "padrao": "^\\s*\\[\\s*\"a\"\\s*,\\s*\"b\"\\s*,\\s*\"c\"\\s*\\]\\s*$"
+      "prompt": "Qual e o valor desta constante?\nconst CONTEXTO_MAX_LOCAL_CHARS = 18000;",
+      "verificacao": { "tipo": "resposta-exata", "esperado": "18000" },
+      "gabarito_fonte": {
+        "tipo": "ficheiro",
+        "caminho": "packages/mooter-bridge/localfirst.js",
+        "padrao": "^const CONTEXTO_MAX_LOCAL_CHARS = (\\d+);$"
       }
     },
     {
-      "id": "rac-cache",
-      "categoria": "raciocinio_curto",
-      "tier": "T1",
-      "prompt": "Uma cache tem 3 entradas com TTL de 60 segundos. Duas delas expiraram ha 10 segundos. Quantas entradas continuam validas?",
-      "verificacao": { "tipo": "constante", "esperado": 1, "kind": "number" }
+      "id": "d2-snake",
+      "dificuldade": "D2",
+      "categoria": "transformacao",
+      "tier": "T0",
+      "prompt": "Converte este identificador para snake_case: currentUserName",
+      "verificacao": { "tipo": "resposta-exata", "esperado": "current_user_name" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "paraSnake", "entrada": "currentUserName" }
     },
     {
-      "id": "cod-rename",
-      "categoria": "codigo",
+      "id": "d2-minobs",
+      "dificuldade": "D2",
+      "categoria": "transformacao",
       "tier": "T0",
+      "prompt": "Escreve este nome em minusculas com hifens em vez de underscores: MIN_OBSERVATIONS",
+      "verificacao": { "tipo": "resposta-exata", "esperado": "min-observations" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "paraKebabMinusculas", "entrada": "MIN_OBSERVATIONS" }
+    },
+    {
+      "id": "d2-inverte",
+      "dificuldade": "D2",
+      "categoria": "transformacao",
+      "tier": "T1",
+      "prompt": "Inverte a ordem desta lista e devolve-a separada por virgulas: alfa, beta, gama, delta",
+      "verificacao": { "tipo": "resposta-exata", "esperado": "delta, gama, beta, alfa" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "inverteLista", "entrada": "alfa, beta, gama, delta" }
+    },
+    {
+      "id": "d3-json",
+      "dificuldade": "D3",
+      "categoria": "formatacao",
+      "tier": "T0",
+      "prompt": "Converte esta lista num array JSON de strings, pela mesma ordem: a, b, c",
+      "verificacao": { "tipo": "json-igual", "esperado": ["a", "b", "c"] },
+      "gabarito_fonte": { "tipo": "computado", "fn": "listaParaArray", "entrada": "a, b, c" }
+    },
+    {
+      "id": "d3-rename",
+      "dificuldade": "D3",
+      "categoria": "codigo",
+      "tier": "T1",
       "prompt": "Renomeia a variavel usr para currentUser e devolve o codigo:\nfunction greet(usr){ return 'hi ' + usr.name }",
       "verificacao": {
         "tipo": "todos",
@@ -52,10 +85,52 @@
           { "tipo": "regex-presente", "padrao": "currentUser" },
           { "tipo": "regex-ausente", "padrao": "\\busr\\b" }
         ]
-      }
+      },
+      "gabarito_fonte": { "tipo": "computado", "fn": "renomeiaUsr", "entrada": "function greet(usr){ return 'hi ' + usr.name }" }
     },
     {
-      "id": "cod-unicos",
+      "id": "d4-cache",
+      "dificuldade": "D4",
+      "categoria": "raciocinio_curto",
+      "tier": "T1",
+      "prompt": "Uma cache tem 3 entradas com TTL de 60 segundos. Duas delas expiraram ha 10 segundos. Quantas entradas continuam validas?",
+      "verificacao": { "tipo": "constante", "esperado": 1, "kind": "number" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "entradasValidas", "entrada": { "total": 3, "expiradas": 2 } }
+    },
+    {
+      "id": "d4-retentativas",
+      "dificuldade": "D4",
+      "categoria": "raciocinio_curto",
+      "tier": "T1",
+      "prompt": "Um job tenta 1 vez e, se falhar, faz ate 4 retentativas. Ele falhou em todas. Quantas chamadas foram feitas ao todo?",
+      "verificacao": { "tipo": "constante", "esperado": 5, "kind": "number" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "chamadasTotais", "entrada": { "primeira": 1, "retentativas": 4 } }
+    },
+    {
+      "id": "d4-distintos",
+      "dificuldade": "D4",
+      "categoria": "raciocinio_curto",
+      "tier": "T2",
+      "prompt": "Quantos valores DISTINTOS existem nesta lista? 7, 3, 7, 9, 3, 3, 1, 9",
+      "verificacao": { "tipo": "constante", "esperado": 4, "kind": "number" },
+      "gabarito_fonte": { "tipo": "computado", "fn": "contaDistintos", "entrada": "7, 3, 7, 9, 3, 3, 1, 9" }
+    },
+    {
+      "id": "d5-tabela",
+      "dificuldade": "D5",
+      "categoria": "formatacao",
+      "tier": "T1",
+      "prompt": "Apresenta estes pares como tabela markdown com as colunas k e v: a=1, b=2",
+      "verificacao": {
+        "tipo": "tabela-markdown",
+        "colunas": ["k", "v"],
+        "linhas": [["a", "1"], ["b", "2"]]
+      },
+      "gabarito_fonte": { "tipo": "computado", "fn": "paresParaLinhas", "entrada": "a=1, b=2" }
+    },
+    {
+      "id": "d5-set",
+      "dificuldade": "D5",
       "categoria": "codigo",
       "tier": "T2",
       "prompt": "Escreve uma expressao JavaScript de uma linha que devolve quantos valores distintos existem no array a.",
@@ -65,17 +140,8 @@
           { "tipo": "regex-presente", "padrao": "new\\s+Set" },
           { "tipo": "regex-presente", "padrao": "\\.size|\\.length" }
         ]
-      }
-    },
-    {
-      "id": "fmt-tabela",
-      "categoria": "formatacao",
-      "tier": "T0",
-      "prompt": "Apresenta estes pares como tabela markdown com cabecalho k e v: a=1, b=2",
-      "verificacao": {
-        "tipo": "regex-presente",
-        "padrao": "\\|\\s*k\\s*\\|\\s*v\\s*\\|"
-      }
+      },
+      "gabarito_fonte": { "tipo": "computado", "fn": "expressaoDistintos", "entrada": "a" }
     }
   ]
 }
