@@ -8,13 +8,13 @@ f2_wave_status: NOT_STARTED
 learner_owner_decision: PENDING
 ```
 
-Este plano prepara a execução de quinta-feira, 13/08/2026. Não executa nem fecha F2.
+Este plano prepara a execução da janela que abre em `resets.seven_day` — **quinta-feira, 13/08/2026 às 22:00 na hora do dono** (`America/Sao_Paulo`, UTC-3; `2026-08-14T01:00:00Z`). **A data acima é informativa: o gate é o campo, lido no instante do dispatch, nunca esta linha.** Uma data em prosa envelhece e mente. Não executa nem fecha F2.
 
 ## Estado actual medido no pré-stage
 
 - Branch/worktree correctos e HEAD igual ao `prestage_base_sha`.
 - Só existe `_handoff/maestro-state/F0.complete.json`; `F1a.complete.json` não existe. A entrada de F2 ainda não está satisfeita.
-- O predicado/fonte oficial de quota está `n/d` no maestro (`_handoff/MAESTRO_POKEMOO_2026-08-08.md:64-72`, `:97-104`). F2 não pode arrancar enquanto o dono não o fixar.
+- **`quota_predicate` CONGELADO pelo dono (2026-08-09)**, em `_handoff/maestro-state/CONFIG.json`: fonte oficial `~/.mooter/quota-live.json` (`source: cc-statusline-stdin` — o próprio Claude Code empurra os limites reais e os instantes de reset). Regra: `now >= resets.seven_day` **AND** `(now - ts) <= 30 min`. Ficheiro obsoleto ou campo ausente ⇒ `n/d` ⇒ **STOP** — nunca "assume-se que já resetou".
 - `mooter_check` não foi invocado neste pré-stage; jobs vivos são `n/d`.
 - `npm install` falhou tanto em `packages/cli` como em `packages/router` com `spawn EPERM`; não houve workaround e nenhum lockfile tracked mudou.
 - O gate cross-device também não está pronto: `agent-sync-ledger doctor --strict` deu `LOCAL_AGENT_SYNC=fail` por device identity ausente, Node não pinado e auto-publish desligado. Não foi alterado por estar fora de âmbito.
@@ -439,3 +439,30 @@ test at packages\mooter-bridge\f2-prestage.test.js:187:1
 ```
 
 A execução anterior sem `--test-isolation=none` falhou em `spawn EPERM` antes de carregar o ficheiro e foi rejeitada como vermelho pelo motivo errado.
+
+
+---
+
+## Decisão do learner — TOMADA pelo dono, 2026-08-09
+
+**Opção B: estender `backtest.js` + `update-router.js`.** O bandit Thompson fica **FORA do hot
+path**. Um learner, um escritor.
+
+Porquê, com o que o mapa mediu: o ciclo offline já consome `quality_feedback`
+(`tools/router/backtest.js:126-171`), já gera proposta (`:568-582`) e o `update-router.js` já é
+**o único escritor** de `tuning-state.json` (`:65-102`), que o classifier congelado já lê
+(`classify.js:29-51`) — sem lhe tocar. A opção A exigia uma ponte do runtime CommonJS zero-deps
+para um package ESM/TypeScript e metia **exploração aleatória Thompson no hot path**, com um
+writer sem rename/lock (`packages/synthesis/src/config.ts:32-35`).
+
+**Consequências que este plano tem de respeitar:**
+
+1. `router-tuning.json` é **proposta descartável e reconstruível**; `tuning-state.json` é o
+   **único estado de runtime**, e só `update-router.js` lhe toca.
+2. É preciso **ID estável + tier final/efectivo** nos eventos: o pairing actual por
+   sessão/tempo pode atribuir feedback ao `classified` errado (`backtest.js:134-167`).
+   Isto não é polimento — é a diferença entre aprender e aprender a coisa errada.
+3. **`classify.js` continua intocado** (`427d8c0b…48f`). A aprendizagem entra por
+   `tuning-state.json`, que ele já lê.
+4. Limitação aceite e declarada: aprende por cadência e assinaturas grosseiras, e é menos
+   contextual que o bandit. Foi escolha consciente — hot path determinístico vale mais.
