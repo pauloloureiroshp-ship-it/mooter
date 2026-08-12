@@ -216,6 +216,13 @@ reais do registo e apanhar ≥1 que as 18 não apanham):
 - **C2 — "congelaste todas as superfícies?"** · candidata, retro-prova abaixo. *Um invariante
   aplicado a uma superfície e não às irmãs não é invariante, é um hábito. Quando se corrige uma
   classe de defeito, varrer TODAS as superfícies onde ela cabe, no mesmo commit.*
+- **C3 — "Leste a tabela de preços/regras INTEIRA do fornecedor, ou só a linha que a tua pergunta
+  trouxe?"** · candidata, retro-prova abaixo. *Desconto garantido por regra publicada (batch,
+  off-peak, TTL longo, assimetria input/output, tier) vale mais que a optimização engenhosa em
+  desenho — e não aparece se a pesquisa for guiada só pelo tópico.*
+- **C4 — "É a versão mais SIMPLES que atinge o objectivo — o que tentaste REMOVER antes de
+  entregar?"** · candidata, retro-prova abaixo. *Nenhuma das 18 força SUBTRACÇÃO no entregável.
+  Origem: pergunta do Paulo "vamos criar complexidade e perder eficiência por prompt?" (08-12).*
 
 #### Retro-prova da C1 ("o ✓ tem corpo?") — 3 falhas reais, todas de 2026-08-07
 
@@ -250,8 +257,36 @@ passariam as 18 sem tocar em nada.
 para *esta* medição. Nenhuma das 18 pergunta se o fix de ontem foi aplicado às **outras** superfícies
 onde o mesmo defeito cabe. É a diferença entre corrigir um bug e fechar uma classe.
 
-> **Tecto 18 intocado.** C1 e C2 ficam em FILA, não entram. A entrada é decisão do Paulo e obedece à
-> regra do fecho (entra uma → sai uma), ou a um gesto explícito do dono que eleve o tecto.
+#### Retro-prova da C3 ("leste a tabela INTEIRA?") — 3 falhas reais, todas de 2026-08-12
+
+Fonte: conversa Cowork 2026-08-12, artefactos em `_handoff/*2026-08-12*`.
+
+1. **Batch API −50% empilhável com caching** apareceu só ao **6º turno**, e por pergunta do dono —
+   não pela pesquisa. Custo: o masterprompt teve de ir de v1.0 para v1.1 (entrada do M4).
+2. **Assimetria output ≈ 5× input ignorada** enquanto se optimizava o input. Entrou também só ao
+   6º turno, como M5.
+3. **Preço do Kimi lido de um agregador**, não do fornecedor. A regra "verificar o fornecedor no
+   dia" foi escrita *a posteriori* (virou DO-NOT do M2).
+
+**O que a C3 apanha e as 18 não:** a G5 pergunta pelo ecossistema/arte prévia; a G12 e a G18
+perguntam pelos números que **eu** publico. Nenhuma das 18 varre os **descontos publicados pelo
+fornecedor** que eu deixei na mesa.
+
+#### Retro-prova da C4 ("o que tentaste REMOVER?") — 3 falhas reais, todas de 2026-08-12
+
+Fonte: a própria conversa Cowork de 2026-08-12.
+
+1. **Bloco v3 kitchen-sink**: 8 passos numa só sessão — apanhado pelo dono, não por mim.
+2. **v1.0 → v1.1 → v3**: três gerações no mesmo dia, todas **ADICIONARAM**, nenhuma removeu.
+3. **8 artefactos + 6 appends** numa conversa cujo tema é, precisamente, economia de tokens.
+
+**O que a C4 apanha e as 18 não:** a G8 cobre gestos do **dono**; a G17 cobre o eixo (modelo vs
+fluxo). Nenhuma das 18 força **subtracção** no entregável antes de ele sair.
+
+> **Tecto 18 intocado.** C1, C2, C3 e C4 ficam em FILA, não entram. A entrada é decisão do Paulo e
+> obedece à regra do fecho (entra uma → sai uma), ou a um gesto explícito do dono que eleve o tecto.
+> **D8 (Paulo, aberta):** C3 e C4 entram? Se sim, quais das 18 saem, OU gesto explícito de elevar o
+> tecto. Sem dados do juiz O-1 não há recomendação de poda — tecto ou fila é decisão do dono.
 
 ## Como funciona — os 3 estágios de automação (honestidade sobre o que é automático HOJE)
 
