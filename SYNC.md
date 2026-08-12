@@ -3826,3 +3826,82 @@ gauntlet: G11 mudou (instrumento forte disponível — gitleaks, não o fallback
 re-executado do zero, com sha) · C2 mudou (varridas as DUAS superfícies, história **e** árvore) ·
 C4 mudou (recusei alargar A1 às retro-provas de G5/G15/C1) · G4 **auto-DEGRADADO** — sem 2º motor: o G4 é
 precisamente o passo A3 que ficou por correr.
+
+---
+
+## 🔒 FECHO B — 2026-08-12 (sessão paralela) · **A3/G4 EXECUTADO — veredicto `no-ship`**
+**O quê:** corri o **G4 adversarial num segundo motor** — exactamente o passo que o FECHO A declarou
+em falta (`A3 ⛔ NÃO EXECUTADO`, `G4 auto-DEGRADADO — sem 2º motor`). As duas sessões correram em
+paralelo em `main` sem colidir: o FECHO A viu a minha marca `✅ Lido em sessão #53` e não a reescreveu;
+eu vi o `6c928ca1` (C3/C4 na fila) e **não** dupliquei o addendum 2.
+
+**Quando:** dispatch `2026-08-12T07:34:15Z` → fecho `07:51:29Z` (**~17 min** wall) · auditoria
+`07:57Z` — **hora do dono: 2026-08-12 04:34 → 04:51, fecho 04:57 (America/Sao_Paulo, UTC-3)**.
+*(Nota de instrumento: `TZ=America/Sao_Paulo date` é no-op no Git Bash desta máquina — devolve UTC.
+Conversão feita à mão, UTC-3.)*
+
+**Porquê:** a fila 08-12 põe `② G4 codex dos textos` **antes** de `③ colar BENCH-CACHE`. Sem crítico
+distinto do autor, o bench correria em cima de specs por refutar — e gastaria dinheiro para produzir
+um REPORT que o próprio G4 mostra que não seria reproduzível.
+
+**Veredicto: `no-ship` nos 4 artefactos** (Codex CLI 0.144.1 / `gpt-5.6-sol`, xhigh, `--sandbox read-only`).
+Achados HIGH: (1) `saved_vs_cold` do VDQ é **contrafactual rotulado `[medido]`** — usa o prefixo *planeado*,
+não `cache_read_input_tokens` observado, e omite o prémio de criação; (2) **M2 não é A/B causal** e o cap
+de \$2 não tem executor — os braços recebem inputs diferentes; (3) o BENCH **não mede o gate que a própria
+SPEC exige** (falta rework e time-to-gate; 10 jobs contra o mínimo pré-registado de 20); (4) **M1 nomeia
+fontes erradas** — a que capta `usage` é `tools/router/ledger-turn-io.js`, omitida; (5) **M4 não tem
+população** — zero jobs Anthropic API no ledger; (6) **M5 não tem medidor** e "output é 5x" não é regra
+geral; (7) **Token Autopilot R1 dispara jobs pagos sem gesto do dono**.
+
+**A pergunta que não estava a ser feita (e que manda em tudo):** *existe hoje workload API-metered real
+para optimizar?* Ledger observado: **12 codex · 5 moo · 1 cc · 0 Kimi · 0 Anthropic API** [medido, re-executado
+por mim]. M2 e M4 mediriam uma workload que **não existe**.
+
+**Confronto antes de aceitar** (a palavra do crítico também não basta): re-executei 5 afirmações empíricas
+do codex → **4 exactas, 1 erro literal sem consequência** (disse que `logs/` não existe; existe, com 3 logs
+LoRA e zero `usage`, logo o furo de M1 mantém-se). Aritmética refeita à mão: reproduz toda, incluindo o
+`$0.023`→`$0.021` que nasce de arredondar 1.4k→1.5k. **Não verifiquei** os preços de provider que o codex
+diz ter lido nas páginas oficiais — sem web fetch nesta sessão, fica `n/d`, não "confirmado por dois motores".
+
+**Custo desta sessão: `n/d`.** O turn-io desta sessão (`~/.claude/tools/router/handoff/d2fac6e2-….jsonl`)
+tem 1 linha com campos `ts,assistant_snippet,tools,git,n_turn` — **nenhum campo `usage` ou `cost_usd`**.
+Isto não é falha de diligência: é a **confirmação ao vivo do achado M1 do G4** — a instrumentação de custo
+por sessão não existe nesta máquina. Número sem fonte = `n/d`.
+
+**Assets:**
+| Ficheiro | sha256 | Estado |
+|---|---|---|
+| `_handoff/g4-tokeneconomy/resultado.md` | `d1782b3fb422c7b27a3b272f0729aff04a45ff9906218732332acbd64d400e0e` | novo (18.3 KB) — veredicto verbatim + confronto |
+| `reports/bench-cache-2026-08/AUDIT.json` | (ver ficheiro — gerado após este bloco) | novo — manifesto re-executado |
+| `~/.mooter/preferences.json` | — | criado: `{"statusline_line3": true}` (estava **ausente**; `MOOTER_MODE=1` já lá estava) |
+| `reports/bench-cache-2026-08/REPORT.md` | — | **NÃO existe e não deve ser fabricado** — passo bloqueado |
+
+**BLOQUEADO por este veredicto:** ③ colar BENCH-CACHE v1.1 · ④ REPORT.md · ⑨ landing com número `[medido]`
+· **GPU-AUDIT (roadmap §7)**, que era STAGED "só após REPORT do BENCH-CACHE".
+**Aplicar os fixes é gesto do autor (Cowork), não do executor** — é reescrita de spec, ou seja construção.
+
+### Decisões que esperam o Paulo (adicionais às do FECHO A)
+**D-B1:** a família token-economy reescreve-se (Cowork aplica os 7 HIGH), encolhe-se (só M1+M3, que não
+dependem de workload API), ou arquiva-se? · **D-B2:** antes de qualquer reescrita — **queres criar** workload
+API-metered para optimizar, ou o valor real está em manter tudo em codex/local, onde o custo já é ~\$0?
+· **D-B3 (herdada, confirmo a leitura do FECHO A):** a chave *anon* na história não exige rotação — mas isso
+depende **inteiramente** de RLS. `INFRA.md:252-254` **declara** RLS activa nas 3 tabelas; declaração ≠ verificação.
+
+**CHANGELOG (listado, não corrigido — 2ª confirmação independente):** topo `1.34.0` (2026-06-10, `7393abbd`)
+vs `version.json` **1.48.1**. Entre os dois: **767 commits**, **20 tags** sem entrada (`v1.38.4.1`→`v1.48.0`),
+waves **55, 56, 58(+.2/.3/.4/.5/.7/.8), 59, 60, 60.5, 61–66**. `1.48.1` não tem tag.
+
+🤝 SOCIO: receita? **na** · despesa↓? **S** (o `no-ship` impediu um bench que mediria workload inexistente)
+· risco↓? **S** (G4 deixou de ser auto-declarado) · reversível? **S** (zero push; 1 ficheiro novo + 1 append)
+· escopo? **S** (não apliquei fixes, não corri M1–M5, não toquei no addendum 2)
+gauntlet: **G4 mudou** — deixou de `auto-DEGRADADO` para executado noutro motor, com refutação obrigatória ·
+**G12 mudou** — denominador dito (12/5/1/0/0 jobs no ledger; 4/5 afirmações reverificadas) · **C1 mudou** —
+o ✓ tem corpo: `AUDIT.json` re-executado do zero + sha do artefacto
+📮 DESTINO: Paulo — D-B1, D-B2, D-B3.
+
+**Addendum 4 — 08-12 (Cowork) — D-A2 resolvido + G4 despachado pela frota**
+D-A2: advisor Supabase = 0 lints security no projecto da chave anon → SEM rotação [medido];
+prova em `reports/bench-cache-2026-08/D-A2-RESOLUTION.md`. G4 dos 5 textos: despachado pelo
+Cowork via mooter (job-mspsuh60-08c5, wave g4-tokeneconomy, codex read-only) — o detector-substring
+NÃO recusou desta vez [medido]. CC: ao retomar, actualizar AUDIT-A (a2 CLOSED, a3 job ref) e
+aguardar resultado.md antes da PARTE B.
