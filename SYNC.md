@@ -3905,3 +3905,77 @@ prova em `reports/bench-cache-2026-08/D-A2-RESOLUTION.md`. G4 dos 5 textos: desp
 Cowork via mooter (job-mspsuh60-08c5, wave g4-tokeneconomy, codex read-only) — o detector-substring
 NÃO recusou desta vez [medido]. CC: ao retomar, actualizar AUDIT-A (a2 CLOSED, a3 job ref) e
 aguardar resultado.md antes da PARTE B.
+
+## 🔒 FECHO A (v2) — 2026-08-12 (bloco COLAR_NO_CC_v4, PARTE A) · **CLOSED**
+**Auditoria re-executada do zero (2ª vez, do zero — nada copiado da v1):** `reports/bench-cache-2026-08/AUDIT-A.json`
+v2 sha256 `7e2bfb5332c42d71d55f08caf66b8dc939c6a47591cdb01c2d32b2f734218fb2` — **substitui** a v1 `e86af231…`
+citada no FECHO A acima. HEAD ao escrever `0c1df783` · nada pushado.
+
+**O que mudou:** A2 desbloqueado por decisão do dono · A3 executado **e completado** (a passagem anterior cobria
+4 dos 5 alvos) · A4 fechado. **PARTE A fecha CLOSED — e a PARTE B continua BLOQUEADA**, porque o veredicto G4 é
+`no-ship` nos 5 textos. Fechar A ≠ autorizar B.
+
+- **A2 ✅ CLOSED** (era ⚠️ BLOCKED). Decisão do dono: **sem rotação, sem filter-repo**
+  (`reports/bench-cache-2026-08/D-A2-RESOLUTION.md`). Não fechei com o relato — re-executei as três provas:
+  advisor Supabase corrido **por mim** → `{"lints":[]}`, 0 achados · JWT descodificado em memória →
+  `role=anon`, ref `eymtobwinevywmmlmxqa`, sha do token `f2063675…` · gitleaks re-corrido → **2045 commits,
+  41 achados, 3 JWTs distintos** (1 anon real + 2 fixtures de manual, `{"sub":"1234567890"}` e `{"sub":"12345"}`),
+  **zero `service_role` provado por descodificar todos**, não por ler nomes de ficheiro.
+  - ⚠️ **Correcção ao FECHO A:** «já removido da árvore actual» é **falso**. O mesmo token está **tracked em HEAD**,
+    em `docs/archive/master-prompts-2026-04/SHIP_SESSION_25_COWORK_MASTER.md:77` — `git grep -l` em HEAD devolve
+    exactamente 1 ficheiro. O `SYNC.md` em HEAD está limpo; essa metade estava certa. **Não muda a decisão**
+    (anon é pública por desenho, RLS limpo); **muda o facto**: tirá-la da árvore é um commit normal, não precisa
+    de reescrever história. → **D-A2d**.
+  - Correcção menor: `.claude/`, `dashboard/` e `scripts/` não são "untracked" — são **parcialmente tracked**
+    (33/26/11 ficheiros) e não ignorados. O risco é o conteúdo untracked lá dentro: **worktrees aninhadas com
+    cópia integral do repo**, que contêm o mesmo ficheiro de archive com a chave.
+- **A3 ✅ CLOSED** (era NOT_RUN). **5/5 alvos revistos**, crítico ≠ autor, motor read-only nas duas passagens.
+  - **Passagem 1** (já existia): codex `gpt-5.6-sol`, sessão `019ff4e4`, 07:34→07:51Z → `resultado.md`
+    (`d1782b3f…`) — **4 alvos**.
+  - **O buraco:** contei as menções por ficheiro no rollout dessa sessão — **12·12·12·11 nos quatro textos e
+    ZERO em `COLAR_NO_CC_v4`**. O 5.º alvo nunca foi despachado. E o `sha256 do resultado.md`, única prova que o
+    A4 pedia para o A3, teria fechado o passo na mesma. É literalmente o achado nº1 do crítico — encontrado antes
+    de ele o escrever.
+  - **Passagem 2** (nova): mesmo motor, sessão `019ff4fc`, 08:00→08:08Z, read-only,
+    `codex exec --sandbox read-only --skip-git-repo-check - < _handoff/g4-tokeneconomy/g4-prompt-colar-v4.txt`
+    → `_handoff/g4-tokeneconomy/resultado-colar-v4.md` (`2ce5790d…`). **`no-ship`: 8 HIGH + 2 MED**, todos com
+    cenário de falha concreto e `ficheiro:linha` — era a regra de scoping do A3.
+  - `resultado.md` **não foi tocado**: o seu sha está citado como prova no `AUDIT.json` do FECHO B. Mutar um
+    artefacto já hasheado noutra auditoria falsificaria essa prova — daí ficheiro irmão, não append.
+- ⚠️ **O "G4 pela frota" do addendum 4 não foi codex.** `job-mspsuh60-08c5`: o `meta.json` regista
+  `"cmd": "(ollama) /api/chat gemma4:e4b"`, `"agent": "moo"`, `"permissoes_efectivas": []` («o moo corre via
+  /api/chat e não recebe ferramentas»). O `out.log` tem **4193 chars de raciocínio e 0 chars de resposta**, e
+  morre 19 s depois de arrancar. Não produziu veredicto nenhum. Se tivesse sido aceite como G4, o gate
+  «crítico ≠ autor» teria fechado com um modelo local sem ferramentas e sem resposta. → **D-SYNC-1**.
+- **A4 ✅** Este bloco + `AUDIT-A.json` v2, com A0 e A1 também re-executados do zero: `sync-hooks --check` →
+  `OK self-check` · `classify.js` `427d8c0b…364bc48f` intacto **repo e runtime** · version.json **1.48.1** =
+  runtime 1.48.1 · CHANGELOG topo **1.34.0** (gap listado, não corrigido) · **20** processos claude vivos,
+  **17** de 2026-08-10 · `MEO_GAUNTLET.md` sha `9bc65f31…` **idêntico** ao do FECHO A (C3 L219, C4 L223,
+  tecto 18 em 196/286/308, sem G19). A marca `✅ Lido` continua a ser prova fraca (o G4 tem um [HIGH] sobre isso);
+  o A1 fecha pelo **output** — C3+C4 na FILA, tecto intacto, commit próprio — não pelo grep.
+- **`spend`: `UNMEASURABLE`**, não um `n/d` disfarçado. `/cost` é interactivo e a sessão é headless; não existe
+  fonte medida de custo por sessão nesta máquina — que é a confirmação ao vivo do achado M1 do G4. O campo **não
+  conta** como prova de fecho (fix [MED] do crítico, aplicado ao próprio audit).
+
+**Terceiros durante a sessão:** o commit `0c1df783` (FECHO B) aterrou no `main` entre o meu `git status` de
+abertura e o fim do A3 — demonstração ao vivo do achado [HIGH] do G4 sobre escritor único no `main`.
+
+### Decisões que esperam o Paulo
+**D-B1 (manda em tudo):** G4 = `no-ship` nos 5 → a família token-economy **reescreve-se** (o Cowork aplica os
+HIGH), **encolhe-se** (só o que não depende de workload API) ou **arquiva-se**? A PARTE B fica bloqueada até isso.
+· **D-A2d (novo):** tirar a chave anon da árvore actual (`docs/archive/…/SHIP_SESSION_25_COWORK_MASTER.md:77`)?
+Commit normal, história fica na mesma — a decisão de não reescrever história já está tomada.
+· **D-A2c:** `.gitignore` para o conteúdo untracked de `.claude/`, `dashboard/`, `scripts/` — hoje a única barreira
+entre as worktrees aninhadas e o remoto público é a proibição de `git add -A`.
+· **D-SYNC-1:** o addendum 4 diz «codex read-only» para um job que correu `gemma4:e4b` local e não devolveu nada;
+deixei a linha original como está (é história) e a correcção aqui.
+· **Herdadas:** D-A1b (retro-provas G5/G15/C1 do addendum 2) · A0b (17 claude de 08-10 por matar) · A0c (CHANGELOG).
+
+🤝 SOCIO: receita? **na** · despesa↓? **S** (o `no-ship` continua a travar um bench que mediria workload
+inexistente) · risco↓? **S** (o G4 deixou de ter um alvo por rever e um job local disfarçado de codex) ·
+reversível? **S** (zero push; 1 ficheiro novo + 2 alterados) · escopo? **S** (não apliquei fixes do G4, não corri
+M1–M5, não toquei no motor, não alarguei ao addendum 2)
+gauntlet: **G4 mudou** — de 4/5 alvos para **5/5**, com o buraco **medido** (contagem no rollout), não presumido ·
+**G11 mudou** — o instrumento foi **re-corrido** em vez de citado (advisor, gitleaks, descodificação do JWT) ·
+**C1 mudou** — o ✓ do A2 deixou de assentar numa frase («removido da árvore») que era falsa
+📮 DESTINO: Paulo — D-B1, D-A2d, D-A2c, D-SYNC-1.
