@@ -184,6 +184,26 @@
     "numero_sem_fonte": "nenhum — todo número aqui tem comando, ficheiro:linha ou sha atrás."
   },
 
+  "posfacio_pos_fecho": {
+    "escrito_em_utc": "2026-08-12T08:32:00Z",
+    "porque_existe": "Minutos depois do fecho (commit 4c146fca) apareceu uma TERCEIRA passagem G4 e o ficheiro resultado.md foi SUBSTITUÍDO em disco. Um audit que cita hashes tem de dizer o que aconteceu aos hashes que cita — senão quem os recalcular amanhã conclui que o audit mentiu.",
+    "terceira_passagem_g4": {
+      "job": "job-mspsuwo4-984f (despachado pelo Cowork, wave g4-tokeneconomy)",
+      "motor_verificado_por_mim": "codex — ~/.mooter/jobs/job-mspsuwo4-984f/meta.json regista `codex exec ... --json --sandbox read-only --output-last-message ...`, \"agent\": \"codex\", \"escrita\": false, comandos_corridos 0. Verifiquei o meta.json em vez de aceitar o rótulo, pela mesma razão que apanhou o job anterior a correr gemma4:e4b.",
+      "janela": "created_at 2026-08-12T08:00:41Z · last-message.txt escrito 08:13:01Z (~12 min, consistente com os 740 s declarados no addendum 5)",
+      "cobertura": "os 5 textos",
+      "veredicto": "no-ship — 20 achados, 15 ALTO (números do addendum 5 do Cowork; não os re-contei um a um)",
+      "efeito_no_step_a3": "NENHUM — o A3 já estava fechado com 5/5 por duas passagens codex independentes. A terceira converge no mesmo veredicto a partir de outro despacho, o que reforça em vez de contradizer. Três passagens, três `no-ship`."
+    },
+    "resultado_md_substituido": {
+      "o_que": "O Cowork gravou o output da 3ª passagem POR CIMA de _handoff/g4-tokeneconomy/resultado.md (49 inserções / 155 remoções — substituição, não append). O sha em disco passou de d1782b3f… para 89e09443… .",
+      "a_prova_perdeu_se": "NÃO. O conteúdo hasheado como d1782b3f… continua no objecto git do commit 0c1df783 (`git show 0c1df783:_handoff/g4-tokeneconomy/resultado.md`). O hash citado neste audit refere-se ao artefacto no momento do fecho, e essa versão é recuperável.",
+      "o_que_se_perde_na_pratica": "Quem abrir o ficheiro hoje já não vê o veredicto da passagem 1 nem o confronto que o executor lhe fez. Ficou só a 3ª passagem.",
+      "o_meu_ficheiro": "_handoff/g4-tokeneconomy/resultado-colar-v4.md (2ce5790d…) não foi tocado — continua a valer."
+    },
+    "terceiro_incidente_de_escritor_unico": "É a terceira vez no mesmo dia que duas sessões escrevem nos mesmos ficheiros do main sem lock (0c1df783 durante o A3 · addendum 5 + substituição do resultado.md durante o A4). O achado [HIGH] do G4 sobre escritor único deixou de ser hipótese."
+  },
+
   "pendentes_para_o_paulo": [
     "D-B1 (o que manda agora): G4 = no-ship nos 5 textos. A família token-economy reescreve-se (o Cowork aplica os HIGH), encolhe-se, ou arquiva-se? A PARTE B fica bloqueada até isso.",
     "D-A2d (novo, desta re-execução): a chave anon está TRACKED em HEAD (docs/archive/master-prompts-2026-04/SHIP_SESSION_25_COWORK_MASTER.md:77). Não exige rotação — mas queres tirá-la da árvore? É um commit normal, não é filter-repo, e a história fica na mesma (decisão já tomada).",
