@@ -3680,3 +3680,149 @@ vídeo preto ou estático, com controlo a prová-lo).
 - Não tocar nos adapters C1/C2 antes da F4b (o brief trava-os até ao §0).
 - Não correr a F2 sem fonte de quota **identificada**: a medição local é limite inferior contra
   uma referência default que não é um limite publicado, e por isso não serve de gate.
+
+---
+
+## 📥 COWORK → CLAUDE CODE — 2026-08-11 (Identidade Mooter/MOOGEN — decisão de arquitectura)
+**Estado:** 🟡 Aguarda D1–D5 do Paulo · nenhuma wave antes dos gates vigentes
+
+### Decisão proposta (estudo completo em `_handoff/ESTUDO_IDENTIDADE_MOOGEN_2026-08-11.md`)
+- **Bifurcação MCP resolvida [verificado]:** OAuth 2.1 do MCP = só transportes HTTP; stdio "SHOULD NOT follow this specification, and instead retrieve credentials from the environment" (spec 2025-06-18, mantido em 2025-11-25). MCP connector Anthropic: "Local STDIO servers cannot be connected directly".
+- **Arquitectura B:** GitHub **Device Flow (RFC 8628)**, scope `read:user`, mesmo gesto em conector/CLI/jogo, zero servidor, zero client_secret em código MIT. Não estender a superfície C (Supabase/`/api/cli-token`) — AUTH-0 continua aberto.
+- **Correcção de premissa:** stdio local PODE fazer loopback+browser (RFC 8252 — a Wave H3 prova); a razão do device flow é o client_secret, não o callback.
+- **2 estados, não 3:** anónimo → reclamado (GitHub). Pseudónimo = display_name sobre claim, nunca estado público próprio (squatting).
+- **Doutrina 08-04 mantida:** identidade zero no free · Polar cobra · identidade só para RECLAMAR · SSO Anthropic nunca.
+- **⚠️ R1:** FNV-1a não é criptográfico — cabeça da cadeia ganha âncora SHA-256 no fecho da partida antes de virar credencial. **R4 (n/d):** ToS dos fornecedores sobre publicar recibos — verificar ANTES de leaderboard público.
+- **Fase 2 (opt-in):** recibo = in-toto attestation assinada via Sigstore keyless (cosign sign-blob) — sem servidor nosso; aviso: Rekor torna email público para sempre.
+- **Bónus spec:** URL-mode elicitation (SEP-1036, MCP 2025-11-25) é o veículo spec-nativo para o device flow num conector stdio — candidato a demo exemplar (ângulo Boris). Suporte no Claude Desktop: n/d, testar.
+
+### ❌ Não fazer
+- Nenhum código de identidade antes de D1 aprovado e dos gates (Corporate, §10 desktop, F1→F5 maestro).
+- Não usar o token GitHub para telemetria — identidade e telemetria têm consentimentos e ficheiros separados (REGRA DURA do estudo).
+- Não pôr install-id nem email em match.json.
+
+gauntlet: alto-risco · G2 mudou (premissa stdio corrigida) · G11 mudou (âncora SHA-256) · G5 mudou (Sigstore/OB3 em vez de formato próprio) · G4 auto-DEGRADADO (sem 2º motor nesta sessão)
+
+---
+
+## 📥 COWORK → CLAUDE CODE — 2026-08-12 (Família token-economy: 4 artefactos + masterprompt v1.1)
+**Estado:** ✅ Lido em sessão #53 — 2026-08-12 (numeração retomada de #52/2026-05-31, a última registada em SYNC.md [medido]) · nenhuma wave de construção — só a wave de MEDIÇÃO após G4
+
+### O que existe (tudo em `_handoff/`, 2026-08-12)
+- `CACHE_GUARD_SKILL` — política cache-aware do router (multiplicadores verificados: write 1.25x/2x · hit 0.1x renova TTL grátis · tabela por gap)
+- `SPEC_WARM_WINDOW_VDQ` — Dead-Air Review: fila de dívida de verificação como combustível do keep-alive; SELF ≠ independente (G16)
+- `TOKEN_AUTOPILOT_SKILL` — skill de produto p/ conector Desktop: R1 route-don't-burn · R2 prefix hygiene · R3 batching · R5 checkpoint `[today]`; R4 turn-end drain `[planned]`
+- `MASTERPROMPT_BENCH_CACHE_v1.1` — SUPERSEDE v1.0 (nunca despachado; apagar v1.0 = gesto do dono). Wave de medição M1–M5, read-only no motor, outputs em `reports/`
+
+### Alavancas novas registadas 08-12 (web hoje, fontes no chat Cowork)
+- **Batch API −50% empilhável com caching** → night queue/cheques diferíveis; M4 quantifica por aritmética
+- **Output é 5x input** → disciplina diff-only + caps pode valer mais que cache; M5 mede regurgitação
+- Repos-referência: aider (edit formats), microsoft/LLMLingua (compressão 20x claim), sliday/tamp, vLLM APC/SGLang RadixAttention, GPTCache (padrão vivo, lib datada)
+- Ideia Cowork: "Token Lint" — pré-flight determinístico local $0 (DNA classify.js) que apara prompt desperdiçador antes do dispatch — SEM SPEC ainda, aguarda números
+
+### Fila (ordem dura)
+① ⚠️ auditar INFRA.md (não está no .gitignore [medido]; CLAUDE.md diz que guarda credentials; repo público) → ② G4 codex dos textos → ③ colar BENCH-CACHE v1.1 → ④ REPORT.md → ⑤ D1–D4 Paulo → ⑥ masterprompt construção (Cowork redige) → ⑦ wave VDQ adição-only + fix detector-substring do mooter_work → ⑧ Release A (skill) / B (motor) → ⑨ landing com número [medido]
+
+### ❌ Não fazer
+- Nada de construção/release antes de ④+⑤; CHANGELOG conferir (última entrada 1.34.0/Wave 53 — stale vs wave 58?)
+- Cowork NÃO faz release (git write só pela frota nativa); vault não montado nesta sessão — espelho Notion/vault fica para sessão CC ou notion-to-vault
+
+**Addendum 08-12 (mesma sessão Cowork):** + `_handoff/ROADMAP_GPU_REFINERY_2026-08-12.md` — GPU ociosa como refinaria (P1 assets read-only → P2 guardians → P3 especulativo → P4 flywheel adaptativo/LoRA), regras duras (proposals-only, recibo energético kWh, tier ladder) + masterprompt GPU-AUDIT embutido no §7, STAGED: só despachar após REPORT do BENCH-CACHE. Decisões novas D5–D7. Fila ①–⑨ INALTERADA.
+
+**Addendum 2 — 08-12 (mesma sessão Cowork) — Gauntlet: candidata C3 + retro-provas novas**
+Instrução p/ CC (mesma sessão do bloco anterior, edição NATIVA + commit próprio): integrar em
+`docs/foundation/MEO_GAUNTLET.md`, secção de candidatas em fila (padrão C1/C2 — fila NÃO é entrada;
+tecto 18 intocado; entrada = decisão do dono, entra-uma-sai-uma):
+
+- **C3 — "Leste a tabela de preços/regras INTEIRA do fornecedor, ou só a linha que a tua pergunta
+  trouxe?"** Desconto garantido por regra publicada (batch, off-peak, TTL longo, assimetria
+  input/output, tier) vale mais que a optimização engenhosa em desenho — e não aparece se a
+  pesquisa for guiada só pelo tópico. Retro-prova ×3 (conversa Cowork 2026-08-12, artefactos em
+  `_handoff/*2026-08-12*`): (1) Batch −50% empilhável só ao 6º turno, por pergunta do dono —
+  custo: masterprompt v1.0→v1.1 (M4); (2) output 5x input ignorado enquanto se optimizava input
+  (M5 só ao 6º turno); (3) preço Kimi de agregador — regra "verificar fornecedor no dia" escrita
+  a posteriori (DO-NOT do M2). O que as 18 não apanham: G5 = ecossistema/arte prévia; G12/G18 =
+  números que EU publico. Nenhuma varre os descontos que deixei na mesa.
+
+Retro-provas NOVAS p/ existentes (anexar às respectivas secções): **G5** — política de cache
+desenhada 2 turnos antes de pesquisar GPTCache/vLLM/aider; a pesquisa inverteu o ranking das
+alavancas; apanhada pelo dono. **G15** — roadmap GPU Refinery v1 sem duct de registro (R7 §8 só
+por pergunta do dono): G15 estendida ao DESIGN — o sistema desenhado tem de registar-se a si
+próprio. **C1 (fila)** — bloco de dispatch v1 fechava por prosa; v2 ganhou AUDIT.json com
+evidência re-executada.
+
+Decisão nova **D8 (Paulo):** C3 entra? Se sim: qual das 18 sai, OU gesto explícito de tecto
+18→19. Sem dados do juiz O-1 não recomendo poda — tecto ou fila é decisão tua.
+
+**Addendum 3 — 08-12 (mesma sessão Cowork) — bloco v4 FINAL + candidata C4**
+- `_handoff/COLAR_NO_CC_v4_2026-08-12.md` é o ÚNICO bloco válido (v1–v3 superseded). Partido em
+  PARTE A (update+segurança+G4+C3/C4) e PARTE B (M1–M5 em sessão FRESCA, só após G4=ship) —
+  correcção por best practices oficiais Anthropic (kitchen-sink session, subagents, revisor
+  com scoping de corretude; fonte: code.claude.com/docs/en/best-practices, lida 08-12).
+- **C4 (candidata à FILA do gauntlet, junto com a C3):** "É a versão mais SIMPLES que atinge o
+  objectivo — o que tentaste REMOVER antes de entregar?" Retro-prova ×3 (esta conversa):
+  (1) bloco v3 kitchen-sink de 8 passos numa sessão — apanhado pelo dono, não por mim;
+  (2) v1.0→v1.1→v3: três gerações no mesmo dia, todas ADICIONARAM, nenhuma removeu;
+  (3) 8 artefactos + 6 appends numa conversa cujo tema é economia de tokens.
+  O que as 18 não apanham: G8 = gestos do DONO; G17 = eixo; nenhuma força SUBTRAÇÃO no
+  entregável. Origem: pergunta do Paulo "vamos criar complexidade e perder eficiência por
+  prompt?" (08-12). D8 passa a cobrir C3 E C4.
+
+---
+
+## 🔒 FECHO A — 2026-08-12 (bloco COLAR_NO_CC_v4, PARTE A) · **NOT_CLOSED, parado em A2**
+**Auditoria re-executada do zero:** `reports/bench-cache-2026-08/AUDIT-A.json`
+(sha256 `e86af231664afda58329eb9d4f1feda6fd92d85333cc195581e3ad6e0895afb5`) · HEAD `6c928ca1` · nada pushado.
+
+- **A0 ✅** `git pull` no-op (0 atrás, **2 commits locais por pushar**) · `/mooter-update` idempotente
+  (backtest 93 aceites · hub up-to-date · 22 skills + 6 agents · mirror 7 ficheiros idênticos) ·
+  `sync-hooks --check` → `OK self-check` · `classify.js` sha `427d8c0b…364bc48f` intacto repo E runtime ·
+  self-test T3 pass. **Gap listado, não corrigido:** version.json **1.48.1** vs CHANGELOG topo **1.34.0**
+  (14 minors sem entrada). **22 processos claude vivos, 17 de 2026-08-10** (matar = gesto do Paulo).
+  Statusline: `MOOTER_MODE=1` + `statusline_line3:true` — estado de máquina intacto, nada a re-aplicar.
+- **A1 ✅** Secção 08-12 já estava marcada `✅ Lido em sessão #53` (não a reescrevi — não invento numeração).
+  **C3 e C4 na FILA** do `MEO_GAUNTLET.md`, padrão C1/C2, com retro-prova ×3 cada · commit próprio
+  `6c928ca1` (37+/2−, add selectivo) · **tecto 18 intacto** (G1..G18, sem G19; linhas 196 e 308 intocadas) ·
+  D8 registada a cobrir C3 **e** C4. *Não feito de propósito:* as retro-provas novas de G5/G15/C1 do
+  addendum 2 — A1 pedia só as candidatas; alargar escopo sozinho seria a própria C4 a falhar.
+- **A2 ⚠️ PARA AQUI.** Instrumento **forte**: gitleaks 8.30.1 (já instalado — não houve fallback grep).
+  Duas superfícies varridas: **história** (2044 commits) **e** árvore (1.07 GB) + `INFRA.md` isolado.
+  **História: 41 achados → 38 fixtures + 3 ocorrências de UM único segredo.** Árvore *tracked*: 30, todos
+  fixtures, 0 a rever. Os 38 são corpora de benchmark e ficheiros `.test.*` — incluindo
+  `lp-secret-scan.test.js`, que é o teste do **próprio** detector e por isso tem de conter iscos.
+  - **O achado:** JWT Supabase `role=**anon**`, ref `eymtobwinevywmmlmxqa`, em `SYNC.md:77` e `:297`
+    (commit `8af879f9`, 2026-04-09) e `docs/MASTER_PROMPTS/SHIP_SESSION_25_COWORK_MASTER.md:77`
+    (commit `0175cb31`, 2026-04-17). Já **removido da árvore actual**; vivo na **história** (repo público).
+  - **Leitura (minha, para o Paulo confirmar):** a chave *anon* é **pública por desenho** — viaja no bundle
+    do browser como `NEXT_PUBLIC_SUPABASE_ANON_KEY`. **Não é** `service_role`. Logo **não vejo emergência
+    de rotação** — o que ela expõe depende inteiramente de **RLS** estar ligada. **Zero** `service_role`,
+    zero chave Anthropic/OpenAI/Google, zero token GitHub, zero Stripe live, zero private key reais.
+  - **`INFRA.md` (fila ①): auditado, sem segredo.** Tracked e fora do `.gitignore`, mas guarda **ponteiros**
+    (`[Supabase → Settings → API]`), não valores — gitleaks: `no leaks found`. Expõe refs/IDs/URLs:
+    reconhecimento, não credencial.
+  - **Quase-acidente:** `.claude/`, `dashboard/` e `scripts/` estão *untracked* mas **não** no `.gitignore`
+    (37 achados lá dentro, todos fixtures). A única barreira até ao remoto público é a proibição de
+    `git add -A` — uma regra de prosa a segurar uma superfície é exactamente o que a **C2** pergunta.
+- **A3 ⛔ NÃO EXECUTADO** (bloqueado por A2). Os 5 textos existem e estão localizados;
+  `_handoff/g4-tokeneconomy/` existe e está **vazio**. Falta só o despacho ao codex.
+
+### Decisões que esperam o Paulo
+**D-A2 (bloqueante):** confirmas que a chave *anon* na história não exige rotação e autorizas retomar em A3?
+Se discordares, o gesto é rotacionar `eymtobwinevywmmlmxqa` **e** reescrever a história (`filter-repo`) —
+irreversível, decisão tua. · **D-A2b:** RLS está ligada em todas as tabelas desse projecto? (não verifiquei —
+seria tocar em prod, fora do escopo da PARTE A). · **D-A2c:** pôr `.claude/`, `dashboard/`, `scripts/` no
+`.gitignore`? · **D-A1b:** anexar as retro-provas novas de G5/G15/C1? · **D8:** C3/C4 entram nas 18, e quais saem?
+
+**Proposta (NÃO implementada):** (1) pre-commit `gitleaks protect --staged` via `.githooks/` + `core.hooksPath`;
+(2) CI `gitleaks-action@v2` com `fetch-depth: 0` — varre a **história**, que é a superfície suja e que o
+pre-commit nunca alcança; (3) `.gitleaks.toml` com allowlist explícita dos 38 fixtures — sem ela o gate nasce
+a ~93% de falsos positivos e é desligado na primeira semana.
+
+**Custo desta sessão: `n/d`** — `/cost` é comando interactivo e esta sessão é não-interactiva; não há fonte
+medida que eu possa citar. Número sem fonte = `n/d`.
+
+gauntlet: G11 mudou (instrumento forte disponível — gitleaks, não o fallback grep; declarado) · G12 mudou
+(denominador dito: 41/2044 commits e 411/1.07 GB, não "uns achados") · C1 mudou (o ✓ tem corpo: AUDIT-A.json
+re-executado do zero, com sha) · C2 mudou (varridas as DUAS superfícies, história **e** árvore) ·
+C4 mudou (recusei alargar A1 às retro-provas de G5/G15/C1) · G4 **auto-DEGRADADO** — sem 2º motor: o G4 é
+precisamente o passo A3 que ficou por correr.

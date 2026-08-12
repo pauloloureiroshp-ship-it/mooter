@@ -1,0 +1,129 @@
+{
+  "artefacto": "AUDIT-A",
+  "bloco": "_handoff/COLAR_NO_CC_v4_2026-08-12.md — PARTE A",
+  "gerado_em_utc": "2026-08-12T07:52:00Z",
+  "gerado_em_hora_do_dono": "2026-08-12 04:52 (America/Sao_Paulo, UTC-3)",
+  "repo": "~/frugal",
+  "branch": "main",
+  "head_no_fecho": "6c928ca1315dd8da1818551ad9b649596e5fe4c4",
+  "veredicto_global": "NOT_CLOSED — parado em A2 por achado na historia (ordem dura). A3 nao executado.",
+  "metodo": "Cada campo abaixo foi re-executado do zero no fecho, nao copiado do corpo da sessao.",
+
+  "step_a0": {
+    "estado": "CLOSED",
+    "git_pull_origin_main": "Already up to date. (0 commits atras; 2 commits locais NAO pushados a entrada: f67a960e, dda8513e)",
+    "mooter_update": "executado (idempotente): backtest 93 decisoes aceites -> router-tuning.json (complexity_threshold 0.25, 0 promote, 0 demote) | hub-pull: already up to date | runtime glob tools/router/*.js + version.json | sync-hooks mirror: 7 ficheiros identicos | 22 skills + 6 agents sincronizados",
+    "sync_hooks_check_saida_literal": "  OK self-check: wired Stop hook has the accumulator -> C:/Users/Paulo Loureiro/.claude/hooks/gsd-turn-end.js",
+    "sync_hooks_check_veredicto": "PASS",
+    "versao_repo": "1.48.1 (tools/router/version.json, released 2026-08-06)",
+    "versao_runtime": "1.48.1 (~/.claude/tools/router/version.json) — sem drift",
+    "changelog_ultima_entrada": "## [1.34.0] — 2026-06-10 — Local CC Mirror + Anthropic Pride (Wave 53)",
+    "gap_changelog": "SIM — version.json 1.48.1 vs CHANGELOG topo 1.34.0. 14 minors sem entrada. Entradas existentes: 1.34.0, 1.15.0, 1.0.0, Strategy Canonical V1.0, 0.11, 0.9.8, 0.9.4, 0.9.3. LISTADO, NAO CORRIGIDO (conforme instrucao).",
+    "classify_js_sha256_repo": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+    "classify_js_sha256_runtime": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+    "classify_js_frozen_intacto": true,
+    "self_test_classifier": "PASS — 'refactor architecture for multi-tenant' -> T3",
+    "stale_count": 22,
+    "stale_detalhe": "22 processos claude vivos: 5 iniciados hoje 2026-08-12, 17 iniciados 2026-08-10 (>=2 dias). Quem mata e o Paulo — nao foi tocado.",
+    "statusline_3_linhas": {
+      "MOOTER_MODE_User": "1",
+      "mooter_preferences_statusline_line3": true,
+      "PREFERENCES_md_existe": true,
+      "veredicto": "estado de maquina INTACTO — nada a re-aplicar"
+    }
+  },
+
+  "step_a1": {
+    "estado": "CLOSED",
+    "grep_lido_S_N": "S",
+    "grep_lido_detalhe": "SYNC.md:3709 — '✅ Lido em sessão #53 — 2026-08-12'. JA ESTAVA PRESENTE antes desta sessao (parte do diff nao-commitado de 87 linhas). NAO foi escrito por mim — nao inventei numeracao de sessao nova.",
+    "diff_gauntlet_mostra_C3_C4_na_FILA_S_N": "S",
+    "commit_proprio": "6c928ca1315dd8da1818551ad9b649596e5fe4c4 — 'docs(gauntlet): C3 e C4 entram na FILA, e o tecto continua 18'",
+    "diff_numstat": "37 insercoes / 2 remocoes em docs/foundation/MEO_GAUNTLET.md (unico ficheiro no commit — git add seletivo)",
+    "sha256_MEO_GAUNTLET_pos_edicao": "9bc65f311ebe5967886b877709b6a098eae9d010e880bf090bf76b7f6c544f93",
+    "C3_bullet_na_lista_de_candidatas": 1,
+    "C4_bullet_na_lista_de_candidatas": 1,
+    "retro_provas_adicionadas": "C3 (3 falhas, 2026-08-12) e C4 (3 falhas, 2026-08-12), padrao C1/C2",
+    "tecto_18_intacto_S_N": "S",
+    "tecto_18_evidencia": "MEO_GAUNTLET.md:196 '**Tecto 18 · 0 slots.**' e :308 '- Tecto **18 efectivas**: hoje 18 + 0 slots' — nenhuma das duas tocada. Grep de identificadores devolve exactamente G1..G18, sem G19.",
+    "D8_registada": "S — nota de fecho do gauntlet passa a dizer que D8 (Paulo) cobre C3 E C4",
+    "fora_de_escopo_NAO_executado": "O addendum 2 tambem manda anexar retro-provas NOVAS a G5, G15 e C1 ('anexar as respectivas seccoes'). A1 do bloco v4 so pede 'integrar candidatas C3 E C4 na FILA', pelo que NAO as anexei — para nao alargar escopo por conta propria. FICA PENDENTE, decisao do Paulo."
+  },
+
+  "step_a2": {
+    "estado": "BLOCKED — achado na historia. PAROU AQUI conforme ordem dura.",
+    "instrumento_usado": "gitleaks 8.30.1 (scoop, ja instalado — nao foi preciso winget nem download). NAO foi usado o fallback grep; o instrumento forte estava disponivel.",
+    "superficie_historia_S_N": "S",
+    "superficie_historia_comando": "gitleaks git . (2044 commits, ~51.57 MB)",
+    "superficie_tree_S_N": "S",
+    "superficie_tree_comando": "gitleaks dir . (~1.07 GB) + gitleaks dir INFRA.md",
+    "achados_historia_total": 41,
+    "achados_historia_fixture": 38,
+    "achados_historia_a_rever": 3,
+    "achados_tree_total": 411,
+    "achados_tree_tracked": 30,
+    "achados_tree_tracked_a_rever": 0,
+    "achados_tree_untracked": 381,
+    "achado_unico_real": {
+      "o_que": "1 (um) segredo distinto, repetido em 3 sitios da historia. sha256[0:8] do valor = f2063675 (o valor nao e transcrito neste ficheiro).",
+      "tipo": "JWT Supabase, payload {iss: supabase, ref: eymtobwinevywmmlmxqa, role: anon, iat: 1775721303, exp: 2091297303}",
+      "ocorrencias": [
+        { "path": "SYNC.md", "line": 77, "commit": "8af879f9", "date": "2026-04-09", "author": "pauloloureiroshp-ship-it" },
+        { "path": "SYNC.md", "line": 297, "commit": "8af879f9", "date": "2026-04-09", "author": "pauloloureiroshp-ship-it" },
+        { "path": "docs/MASTER_PROMPTS/SHIP_SESSION_25_COWORK_MASTER.md", "line": 77, "commit": "0175cb31", "date": "2026-04-17", "author": "pauloloureiroshp-ship-it" }
+      ],
+      "estado_actual": "REMOVIDO da arvore actual (SYNC.md HEAD tem 0 ocorrencias de 'eyJhbGciOi'; o masterprompt migrou para docs/archive/ ja sem o valor). Continua na HISTORIA — repo publico, removido != apagado.",
+      "leitura_tecnica": "role=anon. A chave anon do Supabase e PUBLICA por desenho — viaja no bundle do browser como NEXT_PUBLIC_SUPABASE_ANON_KEY. NAO e equivalente a service_role. Logo: na minha leitura NAO e emergencia de rotacao. O que ela expoe depende inteiramente de RLS estar ligada nas tabelas do projecto eymtobwinevywmmlmxqa.",
+      "o_que_NAO_foi_encontrado": "Zero service_role. Zero chave Anthropic/OpenAI/Google real. Zero token GitHub real. Zero chave Stripe live real. Zero private key real."
+    },
+    "porque_os_outros_38_sao_fixture": "Corpora de benchmark (prompts.jsonl / RAW_RESULTS.jsonl com 'sk-live-...' inventado), ficheiros .test.js/.test.ts, e — o caso mais claro — packages/vscode-extension/src/lp-secret-scan.test.js, que e o teste do PROPRIO detector de segredos e por isso TEM de conter iscos (AKIAABCD..., -----BEGIN..., glpat-ab...).",
+    "infra_md_fila_item_1": {
+      "tracked": true,
+      "no_gitignore": false,
+      "gitleaks_infra_md": "no leaks found (21.27 KB)",
+      "leitura": "INFRA.md NAO guarda valores de credencial — guarda PONTEIROS ('[Supabase → Settings → API]') e uma nota honesta de que a rotacao do client secret de 2026-08-03 foi DECLARADA e nao verificada. Expoe project refs, IDs de MCP, URLs e nomes de servico: reconhecimento, nao credencial. Fila ① fecha como 'auditado, sem segredo'."
+    },
+    "quase_acidente": {
+      "o_que": ".claude/ , dashboard/ e scripts/ estao UNTRACKED mas NAO estao no .gitignore — 37 achados gitleaks la dentro (todos fixture: uma worktree aninhada com copia do repo, cache do .next, um ficheiro IPC do gitlens).",
+      "porque_importa": "Hoje nenhum e real, mas a unica barreira entre esses ficheiros e o remoto publico e a proibicao de 'git add -A'. Uma regra de prosa a segurar uma superficie e exactamente o que a C2 ('congelaste todas as superficies?') pergunta.",
+      "ja_ignorados_corretamente": ".mooter/ (.gitignore:187), _to_delete/ (.gitignore:204), landing/node_modules (landing/.gitignore:1)"
+    },
+    "nada_pushado": true,
+    "proposta_nao_implementada_pre_commit_e_CI": [
+      "1. pre-commit: hook local `gitleaks protect --staged --redact --no-banner` (so o staged, ~ms) — falha o commit antes de o segredo entrar no objecto git; instalar via .githooks/ + `git config core.hooksPath .githooks` para viajar com o repo.",
+      "2. CI: job `gitleaks/gitleaks-action@v2` com `fetch-depth: 0` em push+PR — varre a HISTORIA, nao so o diff, que e a superficie que este scan provou estar suja e que o pre-commit nunca alcanca.",
+      "3. `.gitleaks.toml` com allowlist EXPLICITA por path (os 38 fixtures acima: *.test.*, prompts.jsonl, RAW_RESULTS.jsonl, lp-secret-scan.test.js) — sem isto o gate nasce a 93% de falsos positivos e e desligado na primeira semana."
+    ]
+  },
+
+  "step_a3": {
+    "estado": "NOT_RUN — bloqueado por A2 (ordem dura: parar em qualquer ⚠️).",
+    "sha256_resultado_md": "n/d",
+    "path_esperado": "_handoff/g4-tokeneconomy/resultado.md",
+    "dir_existe": true,
+    "dir_conteudo": "vazio",
+    "inputs_prontos_para_despacho": [
+      "_handoff/CACHE_GUARD_SKILL_2026-08-12.md",
+      "_handoff/SPEC_WARM_WINDOW_VDQ_2026-08-12.md",
+      "_handoff/TOKEN_AUTOPILOT_SKILL_2026-08-12.md",
+      "_handoff/MASTERPROMPT_BENCH_CACHE_v1.1_2026-08-12.md",
+      "_handoff/COLAR_NO_CC_v4_2026-08-12.md"
+    ],
+    "nota": "Os 5 textos existem e estao localizados. Falta so o despacho ao codex (read-only, critico != autor), com o scoping de corretude: so gaps de corretude ou de requisito declarado; achado sem cenario de falha concreto nao conta."
+  },
+
+  "spend": {
+    "valor": "n/d",
+    "porque": "/cost e um comando interactivo do CLI e esta sessao e nao-interactiva — nao ha fonte medida acessivel. Numero sem fonte = n/d, nunca palpite.",
+    "proxy_disponivel": "n/d — nao foi encontrada fonte local de custo por sessao que eu possa citar como medida."
+  },
+
+  "pendentes_para_o_paulo": [
+    "D-A2 (bloqueante): confirmar a leitura de que a chave anon exposta na historia NAO exige rotacao, e — se concordar — autorizar retomar em A3. Se discordar, o gesto e rotacionar as chaves do projecto eymtobwinevywmmlmxqa e reescrever a historia (filter-repo), o que e irreversivel e e decisao dele.",
+    "D-A2b: RLS esta ligada em todas as tabelas de eymtobwinevywmmlmxqa? E o unico controlo que restringe a chave anon. Nao verifiquei — seria escrita/leitura em prod fora do escopo da PARTE A.",
+    "D-A2c: por .claude/, dashboard/ e scripts/ no .gitignore (fecha o quase-acidente).",
+    "D-A1b: anexar (ou nao) as retro-provas novas de G5/G15/C1 do addendum 2, que A1 nao pediu.",
+    "A0b: 17 processos claude de 2026-08-10 por matar (gesto do Paulo).",
+    "A0c: CHANGELOG parado em 1.34.0 com o repo em 1.48.1 — listado, nao corrigido."
+  ]
+}
