@@ -52,7 +52,7 @@
   "integridade_ledger_por_prefixo": {
     "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
     "bytes_baseline": 1220668,
-    "bytes_actual": 1661979,
+    "bytes_actual": 1754688,
     "sha_prefixo_medido": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2",
     "veredicto": "PASS — só cresceu, prefixo intacto, zero reescrita",
     "nota": "re-medido em cada ronda; a ultima medicao e a que vale"
@@ -75,15 +75,15 @@
     },
     "A-VERDE.txt": {
       "comando": "cd packages/mooter-bridge && node --test",
-      "bytes": 95971,
-      "sha256": "946696894f01e4ea37ce426632705595b9329faf511e004b3d3b4911d19d2bf5",
+      "bytes": 95335,
+      "sha256": "69b172a60e522268d9436f39047816a83e7a269aa994d07a61d357f4e2d64a00",
       "totais": {
-        "tests": 998,
-        "pass": 996,
+        "tests": 989,
+        "pass": 987,
         "fail": 1,
         "skipped": 1
       },
-      "delta_vs_vermelho": "960→998 testes; fail 2 → 1; a única falha que resta é a pré-existente",
+      "delta_vs_vermelho": "960→989 testes; fail 2 → 1; a unica falha que resta e a pre-existente",
       "falhas": [
         "ondaA.test.js A3/A3b — pré-existente, ver vermelho_pre_existente"
       ],
@@ -92,7 +92,8 @@
         "ronda 2 (a14bcd0b): 985/983",
         "ronda 3 (453ef6cb): 990/988, sha c0e6b874…",
         "ronda 4 (fd73b3d3): 993/991, sha 43393140…",
-        "ronda 5 (esta): 998/996, sha 94669689…"
+        "ronda 5 (esta): 998/996, sha 94669689…",
+        "ronda 6 / opcao B (esta): 989/987, sha 69b172a6…"
       ],
       "correccao": "o G4 #3 apanhou este ficheiro e o SYNC.md a AFIRMAR 978/976 e sha 53cedd68 quando o A-VERDE.txt já ia em 990/988. Documentos meus a mentir sobre os meus próprios números — exactamente o que esta frente existe para impedir. Corrigido, e o histórico fica à vista em vez de ser reescrito."
     },
@@ -389,8 +390,23 @@
       ]
     },
     "G4_5": {
+      "job": "job-msui70k8-916d",
+      "alvo": "fd73b3d3..58849d19",
+      "veredicto": "NO-SHIP",
+      "achados": "2 ALTO + 2 MEDIO",
+      "ALTO": [
+        "empates continuavam dependentes da ordem: substituiDono(a,b) e substituiDono(b,a) ambos false com relogios iguais ou ausentes; o A14b testava uma direccao so e eu chamei-lhe deterministico",
+        "ACTOR_LEGACY servia ao mesmo tempo de marcador de ausencia e de valor de ator valido, por isso como candidato conseguia roubar o job"
+      ],
+      "MEDIO": [
+        "A17 passava com a correccao revertida (testava o comparador, nao o sitio real)",
+        "A18c dizia tres projeccoes e exercitava duas"
+      ],
+      "retro_prova_do_critico": "A16 falha, A17 passa, A18 falha, A18b falha, A18c passa"
+    },
+    "G4_6": {
       "job": "n/d — a despachar",
-      "alvo": "fd73b3d3..HEAD",
+      "alvo": "58849d19..HEAD",
       "veredicto": "PENDENTE"
     }
   },
@@ -405,5 +421,13 @@
     "GATE A→B: só abre com o Paulo a escrever, literal, `avanço B <sha-final-de-A>` — o sha já NÃO é o 98bd2066",
     "Parte B — NÃO AUTORIZADA. Rollback declarado: git reset --hard <sha-final-de-A> na worktree; nenhuma decisão pendente foi tocada, nada fica órfão.",
     "fora de âmbito por decisão do dono, e declarados ao crítico em vez de escondidos: `request_id` sem porta de entrada em produção; a trilha atribui a cadeia ao ator do job final"
-  ]
+  ],
+  "decisao_do_dono_ronda_6": {
+    "pergunta": "cinco rondas, sempre a mesma classe de ALTO: arbitragem de propriedade",
+    "escolha": "B — voltar a spec",
+    "o_que_mudou": "removida a arbitragem de propriedade. O actor propaga como o cargo: ultimo-a-falar. E o que o A1 literalmente pede.",
+    "porque": "a spec diz que o actor propaga junto com cargo/local, e o cargo e ultimo-a-falar. A imutabilidade nao veio da spec — veio de um MEDIO do G4 #1 que eu aceitei e implementei. Arbitrar autoridade e o tema declarado da Parte B, onde ha lock, CAS e decisao duravel para a sustentar.",
+    "divida_declarada_para_a_parte_B": "se a imutabilidade do dono for precisa, tem de ser uma ordem TOTAL (relogio + chave estavel) e viver no broker",
+    "forma_do_delta": "96 insercoes / 344 remocoes — a correccao foi tirar codigo, nao acrescentar"
+  }
 }

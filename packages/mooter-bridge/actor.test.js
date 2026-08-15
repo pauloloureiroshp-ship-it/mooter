@@ -174,7 +174,6 @@ test('A4c — evento que não é resultado não ganha visibilidade', () => {
     'só eventos de resultado carregam a etiqueta; o resto seria ruído');
 });
 
-// ── ronda 2 · os três achados do G4 que eram meus ─────────────────────────
 test('A7 — ator histórico ILEGÍVEL não se herda, e não derruba o evento seguinte', () => {
   // O caminho que isto protege não tem rede: o ledgerAppend do timeout do job
   // corre dentro de um setTimeout sem try/catch (seamless.js). Se a herança
@@ -216,27 +215,6 @@ test('A9 — o default é PROMOVIDO por um ator declarado que chegue depois', ()
   assert.equal(fim.actor_porque, actorMod.PORQUE_DECLARADO);
 });
 
-test('A9b — declarado→OUTRO declarado não é silencioso, e o job continua de quem o pediu', () => {
-  seamless.ledgerAppend({ event: 'dispatched', job_id: 'job-a9b', actor: { type: 'human', id: 'ana' } });
-  seamless.ledgerAppend({ event: 'step', job_id: 'job-a9b', actor: { type: 'human', id: 'paulo' } });
-
-  const intruso = eventoDoTipo('job-a9b', 'step');
-  assert.equal(intruso.actor.id, 'paulo', 'o evento continua a dizer a verdade sobre si próprio');
-  assert.ok(intruso.actor_reatribuido, 'a troca tem de ficar MARCADA — silenciosa é que não');
-  assert.equal(intruso.actor_reatribuido.de.id, 'ana');
-
-  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a9b' });
-  assert.equal(eventoDoTipo('job-a9b', 'collected').actor.id, 'ana',
-    'quem herda é quem PEDIU o job, não o último a falar');
-});
-
-test('A9c — mesmoActor ignora a origem: mudar de porta não é mudar de pessoa', () => {
-  assert.equal(actorMod.mesmoActor({ type: 'human', id: 'paulo', origem: 'cc:f-mu0' },
-    { type: 'human', id: 'paulo', origem: 'slack:U1' }), true);
-  assert.equal(actorMod.mesmoActor({ type: 'human', id: 'paulo' },
-    { type: 'agent', id: 'paulo' }), false, 'o tipo faz parte da identidade');
-});
-
 // ── a porta MCP ───────────────────────────────────────────────────────────
 test('A6 — mooter_dispatch e mooter_work declaram `actor` no schema', () => {
   // os schemas são additionalProperties:false: sem esta declaração, o host
@@ -270,7 +248,6 @@ test('A6b — o handler RECUSA um ator inválido antes de pôr um job de pé', a
   assert.equal(lines().length, antes, 'uma recusa não pode deixar rasto no ledger');
 });
 
-// ── ronda 3 · os dois ALTO do G4 #2 ───────────────────────────────────────
 test('A10 — a porta principal NÃO carimba "declarado" quando ninguém declarou', async () => {
   // O ALTO #2 do crítico: o toolWork normalizava cedo e reencaminhava o objecto
   // JÁ normalizado; o toolDispatch via um actor não-nulo, concluía "então foi
@@ -322,26 +299,6 @@ test('A10 — a porta principal NÃO carimba "declarado" quando ninguém declaro
   }
 });
 
-test('A11 — a imutabilidade do dono sobrevive a um REINÍCIO', () => {
-  // O ALTO #1 do crítico: a regra "o job é de quem o pediu" só vivia no mapa em
-  // memória. Um processo novo relia o ledger, encontrava o evento MAIS RECENTE e
-  // adoptava-o como dono — bastava reiniciar para o último a falar ganhar.
-  // Estes eventos vão DIRECTOS ao ficheiro: é o que outro processo veria.
-  const base = { cargo: null, local: false };
-  fs.appendFileSync(LEDGER, JSON.stringify({
-    ts: '2026-08-15T09:00:00.000Z', event: 'dispatched', job_id: 'job-a11', ...base,
-    actor: { type: 'human', id: 'ana', origem: null }, actor_porque: actorMod.PORQUE_DECLARADO,
-  }) + '\n');
-  fs.appendFileSync(LEDGER, JSON.stringify({
-    ts: '2026-08-15T09:05:00.000Z', event: 'step', job_id: 'job-a11', ...base,
-    actor: { type: 'human', id: 'paulo', origem: null }, actor_porque: actorMod.PORQUE_DECLARADO,
-  }) + '\n');
-
-  seamless.ledgerAppend({ event: 'done', job_id: 'job-a11', exit_code: 0 });
-  assert.equal(eventoDoTipo('job-a11', 'done').actor.id, 'ana',
-    'quem herda continua a ser quem PEDIU, mesmo vindo do ficheiro e não da memória');
-});
-
 test('A12 — uma linha ilegível não APAGA o ator válido que veio antes', () => {
   // MÉDIO do G4 #2: o saneamento parava no evento estragado mais recente, e o job
   // caía em system/default apesar de ter um ator válido antes. Trocar um crash
@@ -375,141 +332,90 @@ test('A13 — o porque só existe ao lado de um ator LEGÍVEL', () => {
   actorMod.PORQUE_DECLARADO);
 });
 
-// ── ronda 4 · a regra de propriedade passa a ter UMA casa ─────────────────
-test('A14 — substituiDono: promove, prefere o mais antigo, e não se deixa roubar', () => {
-  const ana = { actor: { type: 'human', id: 'ana' }, porque: actorMod.PORQUE_DECLARADO, ts: 1000 };
-  const paulo = { actor: { type: 'human', id: 'paulo' }, porque: actorMod.PORQUE_DECLARADO, ts: 2000 };
-  const sistema = { actor: actorMod.ACTOR_SYSTEM, porque: actorMod.PORQUE_DEFAULT, ts: 500 };
+// ── o ator viaja como o cargo: último-a-falar, e as três projecções concordam ──
+test('A19 — o ator mais RECENTE ganha, e o evento guarda sempre a sua verdade', () => {
+  // A arbitragem de propriedade saiu da Parte A (ver a nota no actor.js). O
+  // contrato que resta é o que o A1 pede: o actor propaga junto com cargo/local,
+  // e o cargo é último-a-falar. Menos regra, menos sítios onde mentir.
+  seamless.ledgerAppend({ event: 'dispatched', job_id: 'job-a19',
+    actor: { type: 'human', id: 'ana', origem: null } });
+  seamless.ledgerAppend({ event: 'step', job_id: 'job-a19',
+    actor: { type: 'human', id: 'paulo', origem: null } });
+  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a19' });
 
-  assert.equal(actorMod.substituiDono(null, ana), true, 'sem dono, o primeiro fica');
-  assert.equal(actorMod.substituiDono(sistema, ana), true, 'declarado PROMOVE um default, mesmo sendo posterior');
-  assert.equal(actorMod.substituiDono(ana, sistema), false, 'nunca se despromove um declarado');
-  assert.equal(actorMod.substituiDono(paulo, ana), true, 'entre iguais ganha o mais ANTIGO');
-  assert.equal(actorMod.substituiDono(ana, paulo), false, 'o job é de quem o pediu');
+  assert.equal(eventoDoTipo('job-a19', 'dispatched').actor.id, 'ana',
+    'cada evento continua a dizer a verdade sobre si próprio');
+  assert.equal(eventoDoTipo('job-a19', 'step').actor.id, 'paulo');
+  assert.equal(eventoDoTipo('job-a19', 'collected').actor.id, 'paulo',
+    'quem não declara herda o mais recente — exactamente como o cargo');
 });
 
-test('A14b — um timestamp inválido NÃO rouba o job, e o empate é determinístico', () => {
-  const ana = { actor: { type: 'human', id: 'ana' }, porque: actorMod.PORQUE_DECLARADO, ts: 1000 };
-  const semRelogio = { actor: { type: 'human', id: 'x' }, porque: actorMod.PORQUE_DECLARADO, ts: null };
-  const empate = { actor: { type: 'human', id: 'y' }, porque: actorMod.PORQUE_DECLARADO, ts: 1000 };
-
-  // `Date.parse(x) || 0` punha o lixo em 0 — antes de qualquer ISO válido
-  assert.equal(actorMod.tsDoEvento({ ts: 'not-a-date' }), null, 'lixo não é um relógio');
-  assert.equal(actorMod.tsDoEvento({}), null);
-  assert.equal(actorMod.substituiDono(ana, semRelogio), false, 'sem relógio não se rouba a quem o tem');
-  assert.equal(actorMod.substituiDono(semRelogio, ana), true, 'mas um relógio válido ganha a quem não tem');
-  assert.equal(actorMod.substituiDono(ana, empate), false,
-    'empate real => fica o incumbente; é isto que torna o resultado imune à ordem de leitura');
-});
-
-test('A15 — fleet, aprender e a releitura concordam sobre o dono do MESMO job', () => {
-  // Era este o ALTO 2: cada sítio tinha a sua regra, e o mesmo job podia
-  // aparecer com donos diferentes conforme quem o projectava. Agora todos
-  // chamam a mesma função — e este teste é a prova, não a promessa.
+test('A20 — fleet, aprender e releitura concordam sobre o MESMO job', () => {
+  // Esta propriedade sobreviveu à remoção da arbitragem, e é a que interessa:
+  // três projecções da mesma verdade não podem responder coisas diferentes.
   const fleet = require('./fleet.js');
   const aprender = require('./aprender.js');
-  const ana = { type: 'human', id: 'ana', origem: null };
-  const paulo = { type: 'human', id: 'paulo', origem: null };
   const D = actorMod.PORQUE_DECLARADO;
-
-  // de propósito FORA de ordem: o dispatched é anterior mas vem depois no array
   const eventos = [
-    { job_id: 'j-cross', event: 'step', ts: '2026-08-15T10:05:00.000Z', actor: paulo, actor_porque: D },
-    { job_id: 'j-cross', event: 'dispatched', ts: '2026-08-15T10:00:00.000Z', actor: ana, actor_porque: D },
-    { job_id: 'j-cross', event: 'done', ts: '2026-08-15T10:09:00.000Z', exit_code: 0, actor: paulo, actor_porque: D },
+    { job_id: 'j-conv', event: 'dispatched', ts: '2026-08-15T10:00:00.000Z',
+      actor: { type: 'human', id: 'ana', origem: null }, actor_porque: D },
+    { job_id: 'j-conv', event: 'done', ts: '2026-08-15T10:09:00.000Z', exit_code: 0,
+      actor: { type: 'human', id: 'paulo', origem: null }, actor_porque: D },
   ];
-
   const doFleet = fleet.foldJobs(eventos)[0].actor;
   const doAprender = aprender._jobRecords({ ledger: eventos })
-    .find((r) => r.job_id === 'j-cross').actor;
+    .find((r) => r.job_id === 'j-conv').actor;
 
   for (const ev of eventos) fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n');
-  seamless.ledgerAppend({ event: 'collected', job_id: 'j-cross' });
-  const daReleitura = eventoDoTipo('j-cross', 'collected').actor;
-
-  assert.equal(doFleet.id, 'ana', 'fleet');
-  assert.equal(doAprender.id, 'ana', 'aprender — era aqui que o último a falar ainda ganhava');
-  assert.equal(daReleitura.id, 'ana', 'releitura do ledger');
-  assert.deepStrictEqual(doFleet, doAprender);
-  assert.deepStrictEqual(doAprender, daReleitura);
-});
-
-// ── ronda 5 · os três ALTO do G4 #4 ───────────────────────────────────────
-test('A16 — o relógio do dono SOBREVIVE ao reinício, e o ladrão seguinte falha', () => {
-  // O A11 provava que o dono sobrevivia, mas não que o RELÓGIO dele sobrevivia:
-  // o dimensoesPersistidas calculava o ts e não o devolvia, por isso o primeiro
-  // evento pós-reinício com outro ator declarado ainda roubava o job.
-  const D = actorMod.PORQUE_DECLARADO;
-  const base = { cargo: null, local: false };
-  fs.appendFileSync(LEDGER, JSON.stringify({
-    ts: '2026-08-15T08:00:00.000Z', event: 'dispatched', job_id: 'job-a16', ...base,
-    actor: { type: 'human', id: 'ana', origem: null }, actor_porque: D,
-  }) + '\n');
-
-  // primeiro evento depois do "reinício" declara OUTRO ator — é este o ladrão
-  seamless.ledgerAppend({
-    event: 'step', job_id: 'job-a16', actor: { type: 'human', id: 'paulo', origem: null } });
-  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a16' });
-
-  assert.equal(eventoDoTipo('job-a16', 'collected').actor.id, 'ana',
-    'o relógio da Ana veio do ficheiro; o Paulo é posterior e não leva o job');
-});
-
-test('A17 — um relógio legítimo de 0 (epoch) não é confundido com ausência', () => {
-  const D = actorMod.PORQUE_DECLARADO;
-  const epoch = { actor: { type: 'human', id: 'ana' }, porque: D, ts: 0 };
-  const umMsDepois = { actor: { type: 'human', id: 'paulo' }, porque: D, ts: 1 };
-  // `x || null` mandava o 0 para null e o dono passava a "sem relógio"
-  assert.equal(actorMod.substituiDono(epoch, umMsDepois), false,
-    '1970 é um instante válido, não uma ausência de instante');
-  assert.equal(actorMod.substituiDono(umMsDepois, epoch), true, 'e continua a ser o mais antigo');
-});
-
-test('A18 — `legacy` não é um dono: qualquer identidade conhecida ganha-lhe', () => {
-  // As projecções semeiam legacy a partir do primeiro evento do job. Sem esta
-  // regra, o legacy semeado ganhava a um ator real que chegasse depois sem
-  // relógio — e o fleet dizia `legacy` onde a releitura dizia `system/default`.
-  const legacy = { actor: actorMod.ACTOR_LEGACY, porque: null, ts: null };
-  const defaultSemRelogio = { actor: actorMod.ACTOR_SYSTEM, porque: actorMod.PORQUE_DEFAULT, ts: null };
-  assert.equal(actorMod.substituiDono(legacy, defaultSemRelogio), true,
-    'uma ausência confessada perde para qualquer coisa que se saiba');
-});
-
-test('A18b — a divergência que o crítico construiu deixa de existir', () => {
-  const fleet = require('./fleet.js');
-  const aprender = require('./aprender.js');
-  // histórico sem actor nem ts, seguido de um default também sem ts
-  const eventos = [
-    { job_id: 'j-div', event: 'dispatched' },
-    { job_id: 'j-div', event: 'done', exit_code: 0,
-      actor: actorMod.ACTOR_SYSTEM, actor_porque: actorMod.PORQUE_DEFAULT },
-  ];
-  const doFleet = fleet.foldJobs(eventos)[0].actor;
-  const doAprender = aprender._jobRecords({ ledger: eventos }).find((r) => r.job_id === 'j-div').actor;
-
-  for (const ev of eventos) fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n');
-  seamless.ledgerAppend({ event: 'collected', job_id: 'j-div' });
-  const daReleitura = eventoDoTipo('j-div', 'collected').actor;
+  seamless.ledgerAppend({ event: 'collected', job_id: 'j-conv' });
+  const daReleitura = eventoDoTipo('j-conv', 'collected').actor;
 
   assert.deepStrictEqual(doFleet, doAprender, 'fleet e aprender têm de concordar');
-  assert.deepStrictEqual(doAprender, daReleitura, 'e a releitura tem de concordar com eles');
-  assert.equal(doFleet.id, 'system', 'há um ator conhecido no job — nenhum dos três pode dizer legacy');
+  assert.deepStrictEqual(doAprender, daReleitura, 'e a releitura com eles');
+  assert.equal(doFleet.id, 'paulo', 'último-a-falar, nos três');
 });
 
-test('A18c — ator malformado não entra em NENHUMA das três projecções', () => {
+test('A21 — ator ilegível não entra em NENHUMA das três projecções', () => {
+  // Fecha o MÉDIO do G4 #5: o teste antigo dizia três e exercitava duas.
   const fleet = require('./fleet.js');
   const aprender = require('./aprender.js');
+  const D = actorMod.PORQUE_DECLARADO;
   const eventos = [
     { job_id: 'j-mal', event: 'dispatched', ts: '2026-08-15T08:00:00.000Z',
-      actor: { id: 'sem-type' }, actor_porque: actorMod.PORQUE_DECLARADO },
+      actor: { type: 'human', id: 'ana', origem: null }, actor_porque: D },
+    // ilegível E mais recente: não pode apagar a Ana em nenhuma das três
+    { job_id: 'j-mal', event: 'step', ts: '2026-08-15T08:05:00.000Z',
+      actor: { id: 'sem-type' }, actor_porque: D },
   ];
   const doFleet = fleet.foldJobs(eventos)[0];
   const doAprender = aprender._jobRecords({ ledger: eventos }).find((r) => r.job_id === 'j-mal');
 
-  assert.equal(doFleet.actor.id, 'legacy', 'ilegível degrada — não se promove a dono');
-  assert.equal(doFleet.actor_porque, null, 'e o porque cai com ele');
-  assert.equal(doAprender.actor.id, 'legacy');
-  assert.equal(doAprender.actor_porque, null);
+  for (const ev of eventos) fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n');
+  seamless.ledgerAppend({ event: 'collected', job_id: 'j-mal' });
+  const daReleitura = eventoDoTipo('j-mal', 'collected');
+
+  assert.equal(doFleet.actor.id, 'ana', 'fleet');
+  assert.equal(doAprender.actor.id, 'ana', 'aprender');
+  assert.equal(daReleitura.actor.id, 'ana', 'releitura — a terceira, que faltava');
+  assert.equal(doFleet.actor_porque, D);
+  assert.equal(doAprender.actor_porque, D);
+});
+
+test('A22 — projectar um job antigo e carimbar um evento novo são perguntas DIFERENTES', () => {
+  // Um job sem nenhum ator legível: as projecções dizem `legacy` (não se sabe
+  // quem foi) e um evento NOVO desse job nasce com o default `system/system`
+  // (ninguém declarou agora). Não é incoerência — são duas perguntas.
+  const fleet = require('./fleet.js');
+  const eventos = [{ job_id: 'j-vazio', event: 'dispatched' }];
+  assert.equal(fleet.foldJobs(eventos)[0].actor.id, 'legacy',
+    'sobre o passado, a resposta honesta é "não sei"');
+  assert.equal(fleet.foldJobs(eventos)[0].actor_porque, null);
+
+  for (const ev of eventos) fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n');
+  seamless.ledgerAppend({ event: 'collected', job_id: 'j-vazio' });
+  const novo = eventoDoTipo('j-vazio', 'collected');
+  assert.equal(novo.actor.id, 'system', 'sobre o evento novo, a resposta é "ninguém declarou"');
+  assert.equal(novo.actor_porque, actorMod.PORQUE_DEFAULT);
 });
 
 // ── canónico único ────────────────────────────────────────────────────────

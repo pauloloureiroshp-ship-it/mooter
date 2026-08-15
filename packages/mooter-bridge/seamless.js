@@ -221,23 +221,15 @@ function dimensoesPersistidas(jobId) {
         };
       }
 
+      // O ator viaja como o `cargo`: vale o evento MAIS RECENTE que traga um
+      // ator LEGÍVEL. Não se arbitra propriedade aqui — ver a nota no actor.js
+      // sobre porque é que essa regra saiu da Parte A.
       if (identidade.temActorValido(event)) {
-        // G4 #3 ALTO — antes decidia-se aqui pela ordem FÍSICA do ficheiro,
-        // enquanto o fold do fleet decidia pelo relógio: duas regras diferentes
-        // para a mesma pergunta, capazes de mostrar donos diferentes para o
-        // mesmo job. Agora ambos chamam a mesma função.
-        const candidato = identidade.donoDoEvento(event);
-        const actual = ident
-          ? { actor: ident.actor, porque: ident.actor_porque, ts: ident.ts }
-          : null;
-        if (identidade.substituiDono(actual, candidato)) {
-          ident = {
-            actor: candidato.actor,
-            actor_porque: candidato.porque,
-            ts: candidato.ts,
-            request_id: ident ? ident.request_id : null,
-          };
-        }
+        ident = {
+          actor: event.actor,
+          actor_porque: identidade.porqueDoEvento(event),
+          request_id: ident ? ident.request_id : null,
+        };
       }
       if (tem('request_id') && event.request_id != null && ident && ident.request_id == null) {
         ident.request_id = event.request_id;
@@ -255,11 +247,6 @@ function dimensoesPersistidas(jobId) {
     local: dims ? dims.local : undefined,
     actor: ident ? ident.actor : null,
     actor_porque: ident ? ident.actor_porque : null,
-    // G4 #4 ALTO — o relógio do dono era CALCULADO aqui e depois deitado fora
-    // por não vir no retorno. Quem reconstruía o estado depois de um reinício
-    // recebia "dono sem relógio", e o primeiro evento seguinte com outro ator
-    // declarado roubava o job. A regra existia; faltava-lhe o dado para correr.
-    actor_ts: ident ? ident.ts : null,
     request_id: ident ? ident.request_id : null,
   };
 }
@@ -294,22 +281,6 @@ function enriquecerDimensoesDoJob(payload) {
   if (!declarouActor && known && known.actor != null) {
     out.actor = known.actor;
     out.actor_porque = out.actor_porque || known.actor_porque;
-  } else if (declarouActor && known && known.actor != null
-             && known.actor_porque === identidade.PORQUE_DECLARADO) {
-    // G4 #1 MÉDIO — reatribuição silenciosa. Um evento posterior que declarasse
-    // OUTRO ator substituía o do job, e as projecções passavam a mostrar o
-    // segundo como se tivesse sido ele a pedir. Promoção (default → declarado)
-    // continua a valer: só isto, declarado→declarado diferente, é que é suspeito.
-    // Não se recusa — o evento é verdade sobre si próprio — mas deixa de ser
-    // silencioso, e o job continua a pertencer a quem o pediu (ver appendLedgerRecord).
-    const proposto = identidade.normalizarActor(out.actor);
-    if (proposto.ok && !identidade.mesmoActor(proposto.actor, known.actor)) {
-      out.actor_reatribuido = {
-        de: known.actor,
-        para: proposto.actor,
-        porque: 'evento posterior declarou outro ator; o job mantém quem o pediu',
-      };
-    }
   }
   if (out.request_id == null && known && known.request_id != null) {
     out.request_id = known.request_id;
@@ -323,10 +294,6 @@ function enriquecerDimensoesDoJob(payload) {
     cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local,
     actor: known && known.actor != null ? known.actor : null,
     actor_porque: (known && known.actor_porque) || null,
-    // o relógio do dono TEM de sobreviver a esta reconstrução: sem ele o
-    // comparador lia "dono sem relógio" a cada evento e deixava o seguinte
-    // roubar o job — a regra existia e não se aplicava a si própria.
-    actor_ts: known && known.actor_ts != null ? known.actor_ts : null,
     request_id: known && known.request_id != null ? known.request_id : null,
   };
   JOB_DIMENSIONS.set(out.job_id, known);
@@ -375,20 +342,10 @@ function appendLedgerRecord(payload) {
   if (record.job_id) {
     const known = JOB_DIMENSIONS.get(record.job_id);
     if (known) {
-      // Um ator DECLARADO não é substituído por outro ator declarado: o job
-      // pertence a quem o pediu, e um evento posterior de outra pessoa não o
-      // rouba. Já a promoção do default para um ator declarado é bem-vinda —
-      // é informação a chegar, não a mudar. O evento em si guarda sempre a sua
-      // própria verdade; isto é só a memória do JOB.
-      const candidato = identidade.donoDoEvento(record);
-      // `|| null` apagava um relógio legítimo de 0 (1970-01-01T00:00:00.000Z) e
-      // transformava o dono em "sem relógio" — `??` distingue zero de ausência.
-      const actual = { actor: known.actor, porque: known.actor_porque, ts: known.actor_ts ?? null };
-      if (identidade.substituiDono(actual, candidato)) {
-        known.actor = record.actor;
-        known.actor_porque = record.actor_porque;
-        known.actor_ts = candidato.ts;
-      }
+      // Último-a-falar, como o cargo. O evento acabou de ser aceite e
+      // normalizado, por isso é ele a verdade mais recente do job.
+      known.actor = record.actor;
+      known.actor_porque = record.actor_porque;
       if (record.request_id != null) known.request_id = record.request_id;
     }
   }

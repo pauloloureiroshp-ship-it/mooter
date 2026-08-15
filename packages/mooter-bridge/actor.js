@@ -115,72 +115,25 @@ function porqueDoEvento(event) {
 }
 
 /**
- * O relógio de um evento, ou null quando não há relógio utilizável.
- * `Date.parse` devolve NaN para lixo; tratar NaN como 0 punha um evento com
- * `ts:"not-a-date"` ANTES de qualquer ISO válido — e um timestamp inválido
- * passava a poder roubar o job. (G4 #3 ALTO)
- */
-function tsDoEvento(event) {
-  const t = Date.parse((event && event.ts) || '');
-  return Number.isFinite(t) ? t : null;
-}
-
-/**
- * A REGRA DE PROPRIEDADE, num sítio só.
+ * ⚠️ NÃO existe aqui uma regra de PROPRIEDADE de job — e a ausência é deliberada.
  *
- * Isto existe porque a mesma regra estava escrita em quatro sítios — o mapa em
- * memória, a releitura do ledger, o fold do fleet e o fold do aprender — e cada
- * ronda do gauntlet encontrava mais um que discordava dos outros. Quatro cópias
- * de uma invariante não são uma invariante: são quatro oportunidades de mentir
- * sobre quem pediu o quê. Quem quiser saber o dono de um job chama isto.
+ * Houve uma: `substituiDono()`, com promoção, desempate por relógio e "o job
+ * pertence a quem o pediu". Nasceu de um MÉDIO do primeiro gauntlet e custou
+ * cinco rondas de ALTOs — relógios que não sobreviviam a reinícios, epochs
+ * lidos como ausência, empates dependentes da ordem de leitura, `legacy` a
+ * servir ao mesmo tempo de marcador de ausência e de valor de ator.
  *
- * Decide se o `candidato` deve substituir o dono `actual`. Pela ordem:
- *   1. um ator DECLARADO promove um default/legacy — informação a chegar não é
- *      informação a mudar; e nunca se despromove.
- *   2. entre dois iguais em estatuto, ganha o mais ANTIGO: o job pertence a
- *      quem o pediu, não ao último a falar.
- *   3. um evento sem relógio utilizável nunca rouba a um que o tenha.
- *   4. empate real => fica quem já lá estava. É isto que torna o resultado
- *      independente da ordem por que os eventos são lidos.
+ * A causa não era nenhum desses bugs: era eu estar a inventar semântica de
+ * autoridade que a spec nunca pediu. O contrato da Parte A é uma frase — o
+ * `actor` propaga "junto com `cargo`/`local`" — e o `cargo` é último-a-falar.
+ * Arbitrar quem MANDA num job é o tema declarado da Parte B, o broker, onde a
+ * autoridade tem lock, CAS e decisão durável para o sustentar. Aqui a
+ * identidade só viaja.
  *
- * @param {{actor:object, porque:string, ts:number|null}|null} actual
- * @param {{actor:object, porque:string, ts:number|null}} candidato
+ * Se um dia a imutabilidade do dono for mesmo precisa, o sítio é o broker e a
+ * regra tem de ser uma ordem TOTAL (relógio, depois uma chave estável), ou os
+ * empates voltam a depender da ordem por que o ficheiro é lido.
  */
-function substituiDono(actual, candidato) {
-  if (!candidato || candidato.actor == null) return false;
-  if (!actual || actual.actor == null) return true;
-
-  // G4 #4 ALTO — `legacy` não é um dono, é a confissão de que não se sabe quem
-  // foi. As projecções semeiam-no a partir do primeiro evento do job, e sem esta
-  // linha ele ficava a ganhar a um ator real que chegasse depois sem relógio:
-  // o fleet dizia `legacy` e a releitura dizia `system/default` para o MESMO job.
-  // Qualquer identidade conhecida ganha a uma ausência confessada.
-  if (actual.actor.type === ACTOR_LEGACY.type && actual.actor.id === ACTOR_LEGACY.id) return true;
-
-  const actualDeclarado = actual.porque === PORQUE_DECLARADO;
-  const candidatoDeclarado = candidato.porque === PORQUE_DECLARADO;
-  if (candidatoDeclarado !== actualDeclarado) return candidatoDeclarado;
-
-  if (actual.ts == null && candidato.ts != null) return true;
-  if (candidato.ts == null) return false;
-  return candidato.ts < actual.ts;
-}
-
-/** Açúcar: monta o registo de dono a partir de um evento cru do ledger. */
-function donoDoEvento(event) {
-  return { actor: event && event.actor, porque: porqueDoEvento(event), ts: tsDoEvento(event) };
-}
-
-/**
- * Dois atores são o mesmo quando type+id batem. A `origem` NÃO entra: o mesmo
- * humano pode entrar pelo CC num evento e por outro caminho no seguinte, e isso
- * não é uma pessoa diferente. Comparar a origem transformaria mudança de porta
- * em reatribuição de identidade.
- */
-function mesmoActor(a, b) {
-  if (!a || !b) return false;
-  return a.type === b.type && a.id === b.id;
-}
 
 function eEventoDeResultado(event) {
   if (!event) return false;
@@ -217,10 +170,6 @@ module.exports = {
   temActor,
   temActorValido,
   porqueDoEvento,
-  tsDoEvento,
-  substituiDono,
-  donoDoEvento,
-  mesmoActor,
   eEventoDeResultado,
   normalizarVisibilidade,
 };
