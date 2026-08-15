@@ -317,7 +317,16 @@ function JOBS_DIR() { return path.join(MOOTER_HOME_DIR(), 'jobs'); }
  * com o cabecalho. A ronda anterior nao dava por isso porque os testes usavam
  * stubs — o stub aceitava tudo, e a integracao real teria falhado no cliente.
  */
+/**
+ * O `request_id` vem de quem chama e ia direito a um `path.join`. Um
+ * `../../algures` lia um ficheiro fora da pasta de jobs e o broker despachava-o
+ * como se fosse o masterprompt do pedido. Um job_id e um identificador, nao um
+ * caminho — e valida-se como identificador.
+ */
+const JOB_ID_VALIDO = /^[A-Za-z0-9._-]+$/;
+
 function masterpromptDoJob(jobId) {
+  if (typeof jobId !== 'string' || !JOB_ID_VALIDO.test(jobId)) return null;
   for (const nome of ['masterprompt.md', 'masterprompt.txt']) {
     try {
       const txt = fs.readFileSync(path.join(JOBS_DIR(), jobId, nome), 'utf8');
@@ -564,6 +573,7 @@ module.exports = {
   capacidadesDoPedido,
   estadoCorrente,
   masterpromptDoJob,
+  JOB_ID_VALIDO,
   TODAS_AS_CAPACIDADES,
   lerPapeis,
   setDispatcher,

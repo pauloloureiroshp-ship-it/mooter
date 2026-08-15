@@ -628,3 +628,16 @@ test('B30 — a fila nao esconde um pendente por causa de um `collected`', async
   assert.equal(broker.listPending().map((p) => p.job_id).includes('job-obs'), true,
     'a espera continua por decidir — o collected nao decide nada');
 });
+
+test('B31 — o request_id e um identificador, nao um caminho', async () => {
+  // ia direito a um path.join: `../../algures` lia um ficheiro fora da pasta de
+  // jobs e o broker despachava-o como se fosse o masterprompt do pedido.
+  assert.equal(broker.masterpromptDoJob('../../../etc/passwd'), null);
+  assert.equal(broker.masterpromptDoJob('job/../../fora'), null);
+  assert.equal(broker.masterpromptDoJob(''), null);
+  assert.equal(broker.masterpromptDoJob(null), null);
+
+  limpar();
+  jobPendente('job-ok');
+  assert.ok(broker.masterpromptDoJob('job-ok'), 'um job_id normal continua a funcionar');
+});

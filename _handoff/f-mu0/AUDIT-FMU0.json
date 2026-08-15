@@ -125,17 +125,17 @@
       ]
     },
     "B-VERDE.txt": {
-      "bytes": 98251,
-      "sha256": "460c68d1db59b6c3d2043fd127ef6b0885b74431e5412a62c9198e4cfa047905",
+      "bytes": 98310,
+      "sha256": "49540825ce5aef46021a4b5c94c66c81aa212cd2ec1d73028ee876964ebdb4f6",
       "totais": {
-        "tests": 1030,
-        "pass": 1028,
+        "tests": 1031,
+        "pass": 1029,
         "fail": 1,
         "skipped": 1
       },
-      "broker": "41/41",
+      "broker": "42/42",
       "falhas": [
-        "ondaA A3/A3b — herdado, excepcao declarada e aceite"
+        "ondaA A3/A3b — herdado, excepcao aceite"
       ]
     }
   },
@@ -678,5 +678,11 @@
       "classify.js com o sha frozen; prefixo de 1.220.668 bytes do ledger intacto",
       "NENHUM dos testes novos passaria com a correccao exacta revertida"
     ]
+  },
+  "achado_proprio_travessia": {
+    "quando": "a reler o modulo para escrever o brief do G4 #3, nao por veredicto",
+    "o_que": "o request_id vem de quem chama e ia direito a um path.join no masterpromptDoJob; um ../ lia um ficheiro FORA da pasta de jobs e o broker despachava-o como se fosse o masterprompt do pedido",
+    "atrito_real": "so se chega ali depois de encontrar um evento dispatched com esse job_id no ledger — mas dificil de alcancar nao e uma defesa",
+    "correccao": "um job_id valida-se como identificador (/^[A-Za-z0-9._-]+$/), nao como caminho. Teste B31."
   }
 }
