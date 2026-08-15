@@ -222,13 +222,19 @@ function dimensoesPersistidas(jobId) {
       }
 
       if (identidade.temActorValido(event)) {
-        const esteDeclarado = event.actor_porque === identidade.PORQUE_DECLARADO;
-        const jaDeclarado = !!ident && ident.actor_porque === identidade.PORQUE_DECLARADO;
-        // primeiro a chegar fica; um declarado ainda promove um default anterior
-        if (!ident || (esteDeclarado && !jaDeclarado)) {
+        // G4 #3 ALTO — antes decidia-se aqui pela ordem FÍSICA do ficheiro,
+        // enquanto o fold do fleet decidia pelo relógio: duas regras diferentes
+        // para a mesma pergunta, capazes de mostrar donos diferentes para o
+        // mesmo job. Agora ambos chamam a mesma função.
+        const candidato = identidade.donoDoEvento(event);
+        const actual = ident
+          ? { actor: ident.actor, porque: ident.actor_porque, ts: ident.ts }
+          : null;
+        if (identidade.substituiDono(actual, candidato)) {
           ident = {
-            actor: event.actor,
-            actor_porque: identidade.porqueDoEvento(event),
+            actor: candidato.actor,
+            actor_porque: candidato.porque,
+            ts: candidato.ts,
             request_id: ident ? ident.request_id : null,
           };
         }
@@ -312,6 +318,10 @@ function enriquecerDimensoesDoJob(payload) {
     cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local,
     actor: known && known.actor != null ? known.actor : null,
     actor_porque: (known && known.actor_porque) || null,
+    // o relógio do dono TEM de sobreviver a esta reconstrução: sem ele o
+    // comparador lia "dono sem relógio" a cada evento e deixava o seguinte
+    // roubar o job — a regra existia e não se aplicava a si própria.
+    actor_ts: known && known.actor_ts != null ? known.actor_ts : null,
     request_id: known && known.request_id != null ? known.request_id : null,
   };
   JOB_DIMENSIONS.set(out.job_id, known);
@@ -365,10 +375,12 @@ function appendLedgerRecord(payload) {
       // rouba. Já a promoção do default para um ator declarado é bem-vinda —
       // é informação a chegar, não a mudar. O evento em si guarda sempre a sua
       // própria verdade; isto é só a memória do JOB.
-      const jaDeclarado = known.actor != null && known.actor_porque === identidade.PORQUE_DECLARADO;
-      if (!jaDeclarado) {
+      const candidato = identidade.donoDoEvento(record);
+      const actual = { actor: known.actor, porque: known.actor_porque, ts: known.actor_ts || null };
+      if (identidade.substituiDono(actual, candidato)) {
         known.actor = record.actor;
         known.actor_porque = record.actor_porque;
+        known.actor_ts = candidato.ts;
       }
       if (record.request_id != null) known.request_id = record.request_id;
     }

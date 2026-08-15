@@ -6,7 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { PRICING_USD_PER_MILLION: KIMI_PRICES } = require('./kimi-adapter.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento, temActor, porqueDoEvento } = require('./actor.js');
+const { actorDoEvento, temActor, porqueDoEvento, substituiDono, donoDoEvento } = require('./actor.js');
 
 const ND = 'n/d';
 const CUSTO_FONTE_CALCULADO = 'calculado a partir de tokens e tabela de precos';
@@ -238,6 +238,10 @@ function readLedger(input) {
 
 function jobRecords(input) {
   const byJob = new Map();
+  // Relógio do dono, FORA do record: é contabilidade do fold, não um campo da
+  // projecção. Acrescentá-lo ao record mudava a forma pública de um objecto que
+  // outros consomem, e esta frente é aditiva — acrescenta o `actor`, não o resto.
+  const actorTs = new Map();
   for (const event of readLedger(input)) {
     if (!event || !event.job_id) continue;
     const eventActor = actorDoEvento(event);
@@ -255,8 +259,18 @@ function jobRecords(input) {
       category: null, category_fonte: null, categoria_legado: false,
     };
     if (temActor(event)) {
-      record.actor = eventActor;
-      record.actor_porque = porqueDoEvento(event);
+      // G4 #3 ALTO — isto substituía o ator a CADA evento, por isso o record
+      // acabava com o último a falar e não com quem pediu o job. O fleet já
+      // respeitava a regra e o aprender não: a mesma pergunta com duas respostas.
+      // Agora chamam ambos a mesma função, que vive no actor.js.
+      const candidato = donoDoEvento(event);
+      const actual = { actor: record.actor, porque: record.actor_porque,
+        ts: actorTs.has(event.job_id) ? actorTs.get(event.job_id) : null };
+      if (substituiDono(actual, candidato)) {
+        record.actor = eventActor;
+        record.actor_porque = candidato.porque;
+        actorTs.set(event.job_id, candidato.ts);
+      }
     }
     for (const field of ['agent', 'tier_motor', 'goal', 'worktree']) {
       if (event[field]) record[field] = event[field];

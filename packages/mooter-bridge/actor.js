@@ -115,6 +115,56 @@ function porqueDoEvento(event) {
 }
 
 /**
+ * O relógio de um evento, ou null quando não há relógio utilizável.
+ * `Date.parse` devolve NaN para lixo; tratar NaN como 0 punha um evento com
+ * `ts:"not-a-date"` ANTES de qualquer ISO válido — e um timestamp inválido
+ * passava a poder roubar o job. (G4 #3 ALTO)
+ */
+function tsDoEvento(event) {
+  const t = Date.parse((event && event.ts) || '');
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * A REGRA DE PROPRIEDADE, num sítio só.
+ *
+ * Isto existe porque a mesma regra estava escrita em quatro sítios — o mapa em
+ * memória, a releitura do ledger, o fold do fleet e o fold do aprender — e cada
+ * ronda do gauntlet encontrava mais um que discordava dos outros. Quatro cópias
+ * de uma invariante não são uma invariante: são quatro oportunidades de mentir
+ * sobre quem pediu o quê. Quem quiser saber o dono de um job chama isto.
+ *
+ * Decide se o `candidato` deve substituir o dono `actual`. Pela ordem:
+ *   1. um ator DECLARADO promove um default/legacy — informação a chegar não é
+ *      informação a mudar; e nunca se despromove.
+ *   2. entre dois iguais em estatuto, ganha o mais ANTIGO: o job pertence a
+ *      quem o pediu, não ao último a falar.
+ *   3. um evento sem relógio utilizável nunca rouba a um que o tenha.
+ *   4. empate real => fica quem já lá estava. É isto que torna o resultado
+ *      independente da ordem por que os eventos são lidos.
+ *
+ * @param {{actor:object, porque:string, ts:number|null}|null} actual
+ * @param {{actor:object, porque:string, ts:number|null}} candidato
+ */
+function substituiDono(actual, candidato) {
+  if (!candidato || candidato.actor == null) return false;
+  if (!actual || actual.actor == null) return true;
+
+  const actualDeclarado = actual.porque === PORQUE_DECLARADO;
+  const candidatoDeclarado = candidato.porque === PORQUE_DECLARADO;
+  if (candidatoDeclarado !== actualDeclarado) return candidatoDeclarado;
+
+  if (actual.ts == null && candidato.ts != null) return true;
+  if (candidato.ts == null) return false;
+  return candidato.ts < actual.ts;
+}
+
+/** Açúcar: monta o registo de dono a partir de um evento cru do ledger. */
+function donoDoEvento(event) {
+  return { actor: event && event.actor, porque: porqueDoEvento(event), ts: tsDoEvento(event) };
+}
+
+/**
  * Dois atores são o mesmo quando type+id batem. A `origem` NÃO entra: o mesmo
  * humano pode entrar pelo CC num evento e por outro caminho no seguinte, e isso
  * não é uma pessoa diferente. Comparar a origem transformaria mudança de porta
@@ -160,6 +210,9 @@ module.exports = {
   temActor,
   temActorValido,
   porqueDoEvento,
+  tsDoEvento,
+  substituiDono,
+  donoDoEvento,
   mesmoActor,
   eEventoDeResultado,
   normalizarVisibilidade,

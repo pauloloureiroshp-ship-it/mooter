@@ -41,7 +41,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento, temActor, normalizarActor, porqueDoEvento, PORQUE_DECLARADO } = require('./actor.js');
+const { actorDoEvento, temActor, normalizarActor, porqueDoEvento, substituiDono, donoDoEvento } = require('./actor.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -124,16 +124,16 @@ function foldJobs(events) {
     // PEDIU: um ator declarado não é substituído por outro evento mais tarde.
     // Promover o default para um declarado continua a valer.
     if (temActor(e)) {
-      const ts = Date.parse(e.ts || 0) || 0;
-      const tsActual = actorTs.has(e.job_id) ? actorTs.get(e.job_id) : Infinity;
-      const jaDeclarado = j.actor_porque === PORQUE_DECLARADO;
-      const esteDeclarado = e.actor_porque === PORQUE_DECLARADO;
-      const promove = esteDeclarado && !jaDeclarado;
-      const maisCedo = esteDeclarado === jaDeclarado && ts < tsActual;
-      if (promove || maisCedo) {
+      // a regra vive no actor.js e é a MESMA que a releitura do ledger usa.
+      // `Date.parse(x) || 0` (o que estava aqui) punha um ts inválido ANTES de
+      // qualquer ISO válido — bastava um `ts` estragado para roubar o job.
+      const actual = { actor: j.actor, porque: j.actor_porque,
+        ts: actorTs.has(e.job_id) ? actorTs.get(e.job_id) : null };
+      const candidato = donoDoEvento(e);
+      if (substituiDono(actual, candidato)) {
         j.actor = actorDoEvento(e);
-        j.actor_porque = porqueDoEvento(e);
-        actorTs.set(e.job_id, ts);
+        j.actor_porque = candidato.porque;
+        actorTs.set(e.job_id, candidato.ts);
       }
     }
     if (e.wave) j.wave = e.wave;

@@ -375,6 +375,65 @@ test('A13 — o porque só existe ao lado de um ator LEGÍVEL', () => {
   actorMod.PORQUE_DECLARADO);
 });
 
+// ── ronda 4 · a regra de propriedade passa a ter UMA casa ─────────────────
+test('A14 — substituiDono: promove, prefere o mais antigo, e não se deixa roubar', () => {
+  const ana = { actor: { type: 'human', id: 'ana' }, porque: actorMod.PORQUE_DECLARADO, ts: 1000 };
+  const paulo = { actor: { type: 'human', id: 'paulo' }, porque: actorMod.PORQUE_DECLARADO, ts: 2000 };
+  const sistema = { actor: actorMod.ACTOR_SYSTEM, porque: actorMod.PORQUE_DEFAULT, ts: 500 };
+
+  assert.equal(actorMod.substituiDono(null, ana), true, 'sem dono, o primeiro fica');
+  assert.equal(actorMod.substituiDono(sistema, ana), true, 'declarado PROMOVE um default, mesmo sendo posterior');
+  assert.equal(actorMod.substituiDono(ana, sistema), false, 'nunca se despromove um declarado');
+  assert.equal(actorMod.substituiDono(paulo, ana), true, 'entre iguais ganha o mais ANTIGO');
+  assert.equal(actorMod.substituiDono(ana, paulo), false, 'o job é de quem o pediu');
+});
+
+test('A14b — um timestamp inválido NÃO rouba o job, e o empate é determinístico', () => {
+  const ana = { actor: { type: 'human', id: 'ana' }, porque: actorMod.PORQUE_DECLARADO, ts: 1000 };
+  const semRelogio = { actor: { type: 'human', id: 'x' }, porque: actorMod.PORQUE_DECLARADO, ts: null };
+  const empate = { actor: { type: 'human', id: 'y' }, porque: actorMod.PORQUE_DECLARADO, ts: 1000 };
+
+  // `Date.parse(x) || 0` punha o lixo em 0 — antes de qualquer ISO válido
+  assert.equal(actorMod.tsDoEvento({ ts: 'not-a-date' }), null, 'lixo não é um relógio');
+  assert.equal(actorMod.tsDoEvento({}), null);
+  assert.equal(actorMod.substituiDono(ana, semRelogio), false, 'sem relógio não se rouba a quem o tem');
+  assert.equal(actorMod.substituiDono(semRelogio, ana), true, 'mas um relógio válido ganha a quem não tem');
+  assert.equal(actorMod.substituiDono(ana, empate), false,
+    'empate real => fica o incumbente; é isto que torna o resultado imune à ordem de leitura');
+});
+
+test('A15 — fleet, aprender e a releitura concordam sobre o dono do MESMO job', () => {
+  // Era este o ALTO 2: cada sítio tinha a sua regra, e o mesmo job podia
+  // aparecer com donos diferentes conforme quem o projectava. Agora todos
+  // chamam a mesma função — e este teste é a prova, não a promessa.
+  const fleet = require('./fleet.js');
+  const aprender = require('./aprender.js');
+  const ana = { type: 'human', id: 'ana', origem: null };
+  const paulo = { type: 'human', id: 'paulo', origem: null };
+  const D = actorMod.PORQUE_DECLARADO;
+
+  // de propósito FORA de ordem: o dispatched é anterior mas vem depois no array
+  const eventos = [
+    { job_id: 'j-cross', event: 'step', ts: '2026-08-15T10:05:00.000Z', actor: paulo, actor_porque: D },
+    { job_id: 'j-cross', event: 'dispatched', ts: '2026-08-15T10:00:00.000Z', actor: ana, actor_porque: D },
+    { job_id: 'j-cross', event: 'done', ts: '2026-08-15T10:09:00.000Z', exit_code: 0, actor: paulo, actor_porque: D },
+  ];
+
+  const doFleet = fleet.foldJobs(eventos)[0].actor;
+  const doAprender = aprender._jobRecords({ ledger: eventos })
+    .find((r) => r.job_id === 'j-cross').actor;
+
+  for (const ev of eventos) fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n');
+  seamless.ledgerAppend({ event: 'collected', job_id: 'j-cross' });
+  const daReleitura = eventoDoTipo('j-cross', 'collected').actor;
+
+  assert.equal(doFleet.id, 'ana', 'fleet');
+  assert.equal(doAprender.id, 'ana', 'aprender — era aqui que o último a falar ainda ganhava');
+  assert.equal(daReleitura.id, 'ana', 'releitura do ledger');
+  assert.deepStrictEqual(doFleet, doAprender);
+  assert.deepStrictEqual(doAprender, daReleitura);
+});
+
 // ── canónico único ────────────────────────────────────────────────────────
 test('A5 — há uma única definição canónica de identidade', () => {
   assert.deepStrictEqual(actorMod.ACTOR_TYPES, ['human', 'agent', 'system']);

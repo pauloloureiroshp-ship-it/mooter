@@ -77,11 +77,18 @@
     },
     "A-VERDE.txt": {
       "comando": "cd packages/mooter-bridge && node --test",
-      "bytes": 93780,
-      "sha256": "53cedd687354267cbff3d481ab481a60c50ec0ebeb6896e644bcb1620cf84a3a",
-      "totais": { "tests": 978, "pass": 976, "fail": 1, "skipped": 1 },
-      "delta_vs_vermelho": "+18 testes (13 do A1 + 6 do A2, menos o 1 que o ficheiro em falta contava); fail 2 → 1; a única falha que resta é a pré-existente",
-      "falhas": ["ondaA.test.js A3/A3b — pré-existente, ver vermelho_pre_existente"]
+      "bytes": 95511,
+      "sha256": "43393140edfe55e03e0ad04a56489ff2ef706aefa7565b3c2aad429ab150a1e1",
+      "totais": { "tests": 993, "pass": 991, "fail": 1, "skipped": 1 },
+      "delta_vs_vermelho": "960→993 testes; fail 2 → 1; a única falha que resta é a pré-existente",
+      "falhas": ["ondaA.test.js A3/A3b — pré-existente, ver vermelho_pre_existente"],
+      "historico_das_capturas": [
+        "ronda 1 (98bd2066): 978/976, sha 53cedd68…",
+        "ronda 2 (a14bcd0b): 985/983",
+        "ronda 3 (453ef6cb): 990/988, sha c0e6b874…",
+        "ronda 4 (esta): 993/991, sha 43393140…"
+      ],
+      "correccao": "o G4 #3 apanhou este ficheiro e o SYNC.md a AFIRMAR 978/976 e sha 53cedd68 quando o A-VERDE.txt já ia em 990/988. Documentos meus a mentir sobre os meus próprios números — exactamente o que esta frente existe para impedir. Corrigido, e o histórico fica à vista em vez de ser reescrito."
     },
     "flake_registado_em_vez_de_escondido": {
       "ficheiro": "packages/mooter-bridge/moo.test.js",
@@ -297,9 +304,47 @@
     "recomendacao_do_autor": "A, mais os 3 fixes que são inequivocamente meus (throw seguro no timer, validar visibilidade fora do ramo de resultado, imutabilidade do ator no job), depois G4 #2. A opção C não a recomendo: o ALTO é real."
   },
 
+  "rondas_do_gauntlet": {
+    "porque_ha_quatro": "o gate é 'ship só sem ALTO aberto'. Cada ronda do crítico encontrou ALTOs reais e todos eram meus. Fica escrito porque uma frente que só mostra a última ronda esconde como lá chegou.",
+    "G4_1": {
+      "job": "job-msud7kv6-48fe", "alvo": "98bd2066", "veredicto": "NO-SHIP",
+      "achados": "1 ALTO (default system/system é atribuição afirmativa) + 4 MÉDIO + 1 BAIXO",
+      "decisao_do_dono": "opção A — manter o default da spec e fazer o actor_porque viajar até às projecções"
+    },
+    "G4_2": {
+      "job": "job-msug0itk-9a3e", "alvo": "792f32c6..a14bcd0b", "veredicto": "NO-SHIP",
+      "achados": "2 ALTO (o discriminador mentia na porta mooter_work; a imutabilidade do dono não sobrevivia a um reinício) + 3 MÉDIO"
+    },
+    "G4_3": {
+      "job": "job-msugu8hj-1b9c", "alvo": "a14bcd0b..453ef6cb", "veredicto": "NO-SHIP",
+      "achados": "4 ALTO + 1 MÉDIO + 2 BAIXO",
+      "ALTO_confirmados": [
+        "aprender/board continuavam a dar o job ao último ator (o fleet já respeitava a regra, o aprender não)",
+        "releitura e fleet aplicavam regras de propriedade INCOMPATÍVEIS (ordem física vs relógio)",
+        "`Date.parse(x) || 0` punha um ts inválido antes de qualquer ISO válido — um timestamp estragado roubava o job",
+        "a cadeia de prova estava desactualizada: AUDIT e SYNC afirmavam 978/976 quando o A-VERDE já ia em 990/988"
+      ],
+      "MEDIO_refutado_com_evidencia": {
+        "alegacao": "cargo/local mudaram de comportamento",
+        "porque_nao_procede": "o crítico comparou com o estado INTERMÉDIO (rondas 1-2), não com a base. `git show 06bdc2c2:packages/mooter-bridge/seamless.js` mostra a guarda original `cargo || local` — eventos só-com-actor eram SALTADOS. Foram as rondas 1-2 que desviaram ao acrescentar actor/request_id à guarda; a ronda 3 restaurou o comportamento da base. Verificado por medição, não por memória.",
+        "equivalencia_do_null": "quando não há cargo/local devolve-se `local: undefined` de propósito, para o chamador cair no seu próprio fallback (`agent === 'moo'`) — exactamente o que fazia quando isto devolvia null"
+      },
+      "BAIXO_que_virou_medicao": "o scan síncrono do ledger deixou de ser n/d: o crítico mediu 1,58 MB / 2446 linhas, p50 6,131 ms e p95 6,850 ms em 100 corridas. Dívida linear declarada, não bloqueante."
+    },
+    "G4_4": { "job": "n/d — a despachar sobre 453ef6cb..HEAD", "veredicto": "PENDENTE" }
+  },
+
+  "licao_de_desenho_da_ronda_4": {
+    "sintoma": "três rondas seguidas a corrigir a MESMA invariante em sítios diferentes",
+    "causa": "a regra 'o job pertence a quem o pediu' estava escrita em QUATRO sítios — o mapa em memória, a releitura do ledger, o fold do fleet e o fold do aprender — cada um com a sua versão",
+    "correccao": "a regra passou a ter uma casa: actor.js · substituiDono(). Quatro cópias de uma invariante não são uma invariante, são quatro oportunidades de mentir sobre quem pediu o quê.",
+    "prova": "o teste A15 alimenta a MESMA lista de eventos (deliberadamente fora de ordem) às três projecções e exige que devolvam o mesmo dono"
+  },
+
   "pendente": [
-    "veredicto do G4 (job-msud7kv6-48fe)",
-    "GATE A→B: só abre com o Paulo a escrever, literal, `avanço B 98bd2066`",
-    "Parte B — NÃO AUTORIZADA. Se for recusada ou abortar: git reset --hard 98bd2066 na worktree; nenhuma decisão pendente foi tocada, portanto nada fica órfão."
+    "veredicto do G4 #4",
+    "GATE A→B: só abre com o Paulo a escrever, literal, `avanço B <sha-final-de-A>` — o sha já NÃO é o 98bd2066",
+    "Parte B — NÃO AUTORIZADA. Rollback declarado: git reset --hard <sha-final-de-A> na worktree; nenhuma decisão pendente foi tocada, nada fica órfão.",
+    "fora de âmbito por decisão do dono, e declarados ao crítico em vez de escondidos: `request_id` sem porta de entrada em produção; a trilha atribui a cadeia ao ator do job final"
   ]
 }
