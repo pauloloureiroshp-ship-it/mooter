@@ -1,7 +1,7 @@
 {
   "frente": "f-mu0",
   "parte": "A (envelope de identidade) + B (broker de decisao)",
-  "estado": "PARTE A + PARTE B entregues — a aguardar novo G4 da Parte B",
+  "estado": "PARTE A + PARTE B entregues · 5 rondas de G4 na B · a aguardar gesto do dono",
   "gerado_em_utc": "2026-08-15T12:40:00Z",
   "owner_tz": "America/Sao_Paulo (UTC-3) — 2026-08-15 09:40 na hora do dono",
   "precedencia": {
@@ -44,16 +44,17 @@
     "push": "zero, em toda a frente"
   },
   "prova_de_fronteira": {
-    "nota": "esta prova era da PARTE A, quando a Parte B ainda nao estava autorizada. Ficou a dizer \"o commit de A nao traz broker\", o que era verdade nessa altura e passou a ler-se como contradicao depois de a Parte B entrar. O G4 apanhou-o.",
+    "porque_esta_dividida": "a prova original era da PARTE A e falava de 06bdc2c2..HEAD. O HEAD andou para a frente e passou a incluir a Parte B, logo a afirmacao \"sem broker\" tornou-se falsa sem ninguem lhe tocar. Os intervalos passam a ser FIXOS.",
     "parte_A": {
-      "alvo": "06bdc2c2..086a5dac (a Parte A inteira)",
+      "alvo": "06bdc2c2..086a5dac",
       "broker_ou_decisao": "nenhum",
-      "veredicto": "PASS — a Parte A e mergeavel sozinha, sem a Parte B"
+      "veredicto": "PASS — a Parte A e mergeavel sozinha"
     },
     "parte_B": {
       "alvo": "086a5dac..HEAD",
-      "nota": "aqui o broker ENTRA, de proposito: e o gate A->B que o autorizou"
-    }
+      "nota": "aqui o broker ENTRA, de proposito: foi o gate A->B que o autorizou"
+    },
+    "contagens": "n/d por desenho — `git diff --name-only <intervalo>` da o numero na hora. Pinar contagens neste ficheiro foi o que o fez mentir cinco vezes."
   },
   "integridade_ledger_por_prefixo": {
     "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
@@ -125,18 +126,18 @@
       ]
     },
     "B-VERDE.txt": {
-      "bytes": 99499,
-      "sha256": "59cba2055ebfb256186434d5bb3ac42b4b9edf099f8233c3d1378394d0a4c9c1",
+      "bytes": 99549,
+      "sha256": "e381c2ea81fd32b91d8eba0bb9f0f72547862156ebc2b9d14064ec3d781d434c",
       "totais": {
-        "tests": 1046,
-        "pass": 1044,
+        "tests": 1047,
+        "pass": 1045,
         "fail": 1,
         "skipped": 1
       },
-      "broker": "57/57",
       "falhas": [
-        "ondaA A3/A3b — herdado, excepcao aceite"
-      ]
+        "ondaA A3/A3b — herdado da base, excepcao aceite pelo dono"
+      ],
+      "nota": "este ficheiro e a fonte. Os numeros nao se repetem em prosa noutro sitio."
     }
   },
   "vermelho_pre_existente": {
@@ -737,6 +738,32 @@
       "NEGADO nao fecha o pedido, logo idem_keys novas podem acrescentar eventos sem limite. E um flood possivel do ledger. Nao ha rate-limit nesta frente; fica declarado.",
       "INDETERMINADO e permanente: nao ha reconciliacao implementada. Um pedido preso fica preso ate intervencao manual. E fail-safe por desenho, mas e uma limitacao real.",
       "a barreira da travessia e LEXICAL: nao cobre junctions nem symlinks."
+    ]
+  },
+  "g4_parte_B_5": {
+    "job": "job-msut6zo5-30e6",
+    "alvo": "2627c7db..e86e816f",
+    "duracao_s": 609,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 3,
+      "MEDIO": 2
+    },
+    "convergencia": "8 -> 4 -> 3",
+    "ALTO_1_corrigido": "a projeccao virou fonte canonica: o `approval_rejected` era gravado antes do `approval.decided` e eu aceitava-o SOZINHO como decisao final — fechava o pedido sem hashes, sem seq e sem veredicto. Agora a recusa e UM append completo, com os mesmos campos de qualquer outra decisao, e um fragmento sem `estado` nao decide nada (o pedido fica pendente, que e o lado seguro). B47, B39, B44.",
+    "ALTO_2_corrigido": "SYNC e AUDIT materialmente falsos pela QUINTA vez. A causa nao foi distraccao: foi eu continuar a escrever numeros DERIVADOS em prosa depois de duas vezes prometer que parava. Agora os numeros vivem so no B-VERDE.txt, e as contagens de ficheiros sao n/d por desenho — quem quiser sabe corre o git.",
+    "ALTO_3_e_a_excepcao_ja_aceite": "o artefacto continua vermelho por causa do ondaA herdado, e o gate final-reviewer-honest nao deixa SHIP com suite vermelha. Nao e achado novo: e a excepcao que o dono aceitou explicitamente, com a evidencia toda registada.",
+    "MEDIO_honesto_sobre_os_testes": "o critico mostrou que nenhum de B41-B46 passa com a correccao COMPLETA revertida, mas que B41 e B43 sobrevivem a reversoes PARCIAIS porque as defesas redundantes se mascaram uma a outra. Fica escrito assim, em vez de \"cobertura mutation-killing\", que era o exagero que ele ja me tinha apanhado.",
+    "MEDIO_limites_que_precisam_de_aceitacao_do_dono": [
+      "NEGADO e STALE nao fecham o pedido, logo idem_keys novas fazem crescer o ledger sem limite. Nao ha rate-limit nesta frente.",
+      "INDETERMINADO nao tem reconciliacao: um pedido preso fica preso ate intervencao manual.",
+      "a barreira de caminho e LEXICAL — nao cobre junctions nem symlinks."
+    ],
+    "o_que_o_critico_CONFIRMOU_bom": [
+      "sem_mp_hash e fail-closed correcto e nao trava trabalho real: no ledger MEDIDO, 135/135 eventos dispatched tem hash, e os 3 pendentes tambem",
+      "um papel literalmente chamado __proto__ funciona; ambos os mapas tem prototipo null",
+      "Parte A funcional intacta",
+      "prefixo de 1.220.668 bytes e sha do classify.js confirmados"
     ]
   }
 }

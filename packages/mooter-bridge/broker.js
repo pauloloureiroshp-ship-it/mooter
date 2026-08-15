@@ -77,6 +77,9 @@ const EXIT_A_ESPERA = 'agent-awaiting-approval';
  */
 const DECISOES_FINAIS = ['APPROVED', 'REJECTED', 'EXPIRED'];
 
+/** Os dois nomes sob os quais uma decisao se grava. */
+const EVENTOS_DE_DECISAO = ['approval.decided', 'approval_rejected'];
+
 const LOCK_TTL_S = 60;
 
 const TODAS_AS_CAPACIDADES = ['read', 'write', 'bash', 'net', 'git'];
@@ -408,8 +411,7 @@ function listPending(filtro) {
   // entre eles deixava a recusa gravada mas invisivel — e uma aprovacao podia
   // passar por cima dela.
   const fechados = new Set(ledger
-    .filter((e) => (e.event === 'approval.decided' && DECISOES_FINAIS.includes(e.estado))
-      || e.event === 'approval_rejected')
+    .filter((e) => EVENTOS_DE_DECISAO.includes(e.event) && DECISOES_FINAIS.includes(e.estado))
     .map((e) => e.request_id));
 
   const jobs = new Set(ledger.filter((e) => e.job_id).map((e) => e.job_id));
@@ -472,7 +474,9 @@ async function decide(args) {
     const ledger = lerLedger();
 
     // 1 · idempotencia — por (idem_key, request_id)
-    const mesmaChave = ledger.find((e) => e.event === 'approval.decided'
+    // os dois nomes contam: a recusa grava-se como `approval_rejected` e e uma
+    // decisao tao completa como qualquer outra
+    const mesmaChave = ledger.find((e) => EVENTOS_DE_DECISAO.includes(e.event)
       && e.idem_key === a.idem_key && e.request_id === a.request_id);
     if (mesmaChave) {
       // devolve TUDO o que a primeira devolveu — se a resposta original se
@@ -492,13 +496,9 @@ async function decide(args) {
     // listPending: se o segundo append falhasse, o pedido sumia da fila mas uma
     // chamada directa aprovava-o na mesma.
     const finalAnterior = ledger.find((e) => e.request_id === a.request_id
-      && ((e.event === 'approval.decided' && DECISOES_FINAIS.includes(e.estado))
-        || e.event === 'approval_rejected'));
+      && EVENTOS_DE_DECISAO.includes(e.event) && DECISOES_FINAIS.includes(e.estado));
     if (finalAnterior) {
-      // o `approval_rejected` nao carrega campo `estado` — e uma recusa, e diz-se
-      const estadoFinal = finalAnterior.event === 'approval_rejected'
-        ? 'REJECTED' : finalAnterior.estado;
-      return resposta(estadoFinal, 'ja_decidido',
+      return resposta(finalAnterior.estado, 'ja_decidido',
         { terminal: true, decision_id: finalAnterior.decision_id,
           porque: 'este pedido ja tem uma decisao final; uma chave nova nao a reabre' });
     }
@@ -597,11 +597,13 @@ async function decide(args) {
 
     // 8 · recusa humana — terminal
     if (a.veredicto === 'recusar') {
-      _append({ event: 'approval_rejected', request_id: a.request_id, about_job: a.request_id,
-        decision_id: a.decision_id || null, actor: quem.actor, idem_key: a.idem_key,
-        authz: authzEvento, autorizacao });
-      _append({ ...base, estado: 'REJECTED', seq: estado.seq, autorizacao,
-        porque: 'recusado por quem decide' });
+      // UM append, nao dois. Dois criavam uma janela em que a recusa ficava
+      // gravada sem hashes, sem seq e sem veredicto — e essa versao incompleta
+      // era aceite como decisao final. Uma projeccao a fazer de fonte canonica.
+      // O nome do evento e o que o contrato pede (`approval_rejected`); os campos
+      // sao os mesmos de qualquer outra decisao final.
+      _append({ ...base, event: 'approval_rejected', estado: 'REJECTED',
+        seq: estado.seq, autorizacao, porque: 'recusado por quem decide' });
       return resposta('REJECTED', 'recusa_humana', { terminal: true, autorizacao });
     }
     // 9 · aprovar exige as capacidades que o pedido usa
@@ -688,6 +690,7 @@ module.exports = {
   EXPIRACAO_DEFAULT_MS,
   EXIT_A_ESPERA,
   DECISOES_FINAIS,
+  EVENTOS_DE_DECISAO,
   LOCK_PATH,
   listPending,
   decide,

@@ -4029,6 +4029,7 @@ gauntlet: **G4 mudou** — de 4/5 alvos para **5/5**, com o buraco **medido** (c
 - 📮 **DESTINO: Paulo** — frente f-mu0 completa (A + B), zero push, worktree limpa.
 
 ## [2026-08-15] CC · f-mu0 — PARTE B fechada em 4 rondas de gauntlet · frente A+B completa
+> ⚠️ **NÚMEROS SUPERSEDIDOS.** Esta entrada fixou sha, contagem de testes e de ALTO — e ficou falsa duas rondas depois. Foi a QUINTA vez nesta frente. A entrada final, no fim do ficheiro, não repete números: aponta para o `B-VERDE.txt` e o `AUDIT-FMU0.json`, que são a fonte.
 - **Números: fonte única é `_handoff/f-mu0/B-VERDE.txt` + `AUDIT-FMU0.json`.** Não os repito aqui; foi a repetição que fez este ficheiro mentir duas vezes nesta frente.
 - **Sha da frente:** `2627c7db` (a aguardar o G4 #4, despachado sobre `839586d1..2627c7db`). Worktree limpa, **zero push**, **não merged**.
 - **Broker entregue:** `packages/mooter-bridge/broker.js` — `listPending` filtrável por frente e por autor, `decide()` com CAS anti-stale, expiração de 72h que descarta, recusa terminal, idempotência sem janela, capacidades derivadas e lock O_EXCL. 51 testes próprios.
@@ -4043,3 +4044,17 @@ gauntlet: **G4 mudou** — de 4/5 alvos para **5/5**, com o buraco **medido** (c
 - **Nota de activação:** mergeado **não** é activo. O bridge do Desktop continua com o código antigo até reinstalares.
 - `gauntlet: f-mu0 · A entregue em 086a5dac apos 6 rondas de G4 (a licao foi REMOVER arbitragem que a spec nao pedia: 96 ins / 344 rem) · B entregue em 2627c7db apos 4 rondas · 24 ALTO fechados na B, 0 abertos a hora deste registo · classify.js frozen intacto · prefixo do ledger intacto · zero push`
 - 📮 **DESTINO: Paulo** — lê o `AUDIT-FMU0.json` para os números literais. Falta só o veredicto do G4 #4; se vier limpo, a frente está pronta para o teu gesto de merge. Se vier com ALTO, fica registado aqui em cima na próxima entrada.
+
+## [2026-08-15] CC · f-mu0 — fecho da corrida autónoma
+- **Fonte dos números: `_handoff/f-mu0/B-VERDE.txt` (a corrida) e `AUDIT-FMU0.json` (tudo o resto).** Não os repito aqui, e as contagens de ficheiros ficam `n/d` por desenho: `git diff --name-only <intervalo>` dá-as na hora. Foi pinar números derivados em prosa que fez este ficheiro mentir cinco vezes.
+- **Estado:** worktree `.claude/worktrees/f-mu0`, branch `f-mu0/identidade-broker`, base `main@06bdc2c2`. Worktree limpa, **zero push**, **não merged**. `classify.js` frozen intacto; prefixo de 1.220.668 bytes do ledger intacto.
+- **Parte A** fechada em `086a5dac` após 6 rondas de G4. A lição foi **remover**: a arbitragem de propriedade de job que eu andava a inventar não estava na spec, e tirá-la (96 inserções / 344 remoções) foi a única ronda que o crítico abriu com "não encontrei regressão".
+- **Parte B** — broker de decisão, 5 rondas de G4, 27 ALTO fechados. Convergência das três últimas: 8 → 4 → 3.
+- **Três coisas que o crítico validou por medição, e que valem mais do que a minha palavra:** o `sem_mp_hash` é fail-closed e **não trava trabalho real** (135/135 eventos `dispatched` do ledger têm hash, e os 3 pendentes também) · um papel literalmente chamado `__proto__` funciona · a Parte A ficou funcionalmente intacta durante toda a Parte B.
+- **O padrão que atravessou a frente inteira, e que é a coisa a levar daqui:** os meus testes fabricavam o mundo em vez de o lerem. Um stub síncrono escondeu um `async`; um fixture inventado escondeu que o produtor não gravava o campo; um teste sem o ficheiro-alvo mediu um `ENOENT` e chamou-lhe barreira de segurança. E o AUDIT afirmou **cinco vezes** coisas que nenhum teste sustentava. As correcções que ficam são testes de **contrato produtor⇄consumidor** e fixtures que copiam o que o `seamless` escreve mesmo.
+- ⚠️ **O QUE PRECISA DE TI** (fica parado à espera, não avanço sozinho):
+  1. **Aceitação explícita de três limites declarados:** `NEGADO`/`STALE` não fecham o pedido, logo `idem_key`s novas fazem crescer o ledger sem limite (não há rate-limit nesta frente) · `INDETERMINADO` não tem reconciliação, um pedido preso fica preso até intervenção manual · a barreira de caminho é **lexical**, não cobre junctions nem symlinks.
+  2. **O gate `final-reviewer-honest` não deixa SHIP com suite vermelha**, e a nossa tem o `ondaA` A3/A3b herdado. Já aceitaste a excepção; o crítico volta a levantá-la em cada ronda porque a regra é absoluta. Ou o `ondaA` vira frente própria e fica verde, ou a excepção precisa de ficar registada onde o gate a leia.
+  3. **O merge.** Nunca o faço sem ti.
+- `gauntlet: f-mu0 · A em 086a5dac (6 rondas) · B (5 rondas) · 0 ALTO abertos alem dos 3 limites declarados acima · classify.js frozen · prefixo do ledger intacto · zero push · nao merged`
+- 📮 **DESTINO: Paulo** — lê o `AUDIT-FMU0.json`. É lá que está tudo, e desta vez sem números repetidos que possam envelhecer mal.

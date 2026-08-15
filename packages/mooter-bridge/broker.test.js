@@ -48,7 +48,10 @@ function eventos() {
   if (!fs.existsSync(LEDGER)) return [];
   return fs.readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
 }
-function decididos() { return eventos().filter((e) => e.event === 'approval.decided'); }
+// uma decisao grava-se sob um de DOIS nomes; contar so um era contar metade
+function decididos() {
+  return eventos().filter((e) => broker.EVENTOS_DE_DECISAO.includes(e.event));
+}
 
 /** Dispatcher ASSÍNCRONO por defeito — o real é async, e um stub síncrono mente. */
 function stubDispatcher(registo) {
@@ -314,7 +317,7 @@ test('B19 — a autorização declara-se ADVISORY, no retorno e no ledger', asyn
   assert.equal(r.authz.advisory, true);
   assert.equal(r.authz.actor_autenticado, false,
     'o actor é proveniência declarada; um RBAC que se dissesse seguro sem authn era teatro');
-  assert.equal(decididos()[0].authz.advisory, true, 'e fica no ficheiro, não só na resposta');
+  assert.equal(decididos()[0].authz.advisory, true, 'e fica no ficheiro, nao so na resposta');
 });
 
 test('B7 — a capacidade é DERIVADA do pedido; a declarada no payload é ignorada', async () => {
@@ -798,15 +801,23 @@ test('B38 — o replay devolve o job_novo, nao so o estado', async () => {
     'se a primeira resposta se perdeu, o chamador precisa do identificador — nao so de saber que ja decidiu');
 });
 
-test('B39 — o approval_rejected sozinho ja fecha o pendente', () => {
-  // sao dois appends: uma falha entre eles deixava a recusa gravada e invisivel,
-  // e uma aprovacao podia passar-lhe por cima.
+test('B39 — uma recusa COMPLETA fecha; um fragmento incompleto NAO fecha nem tranca', () => {
+  // Antes eram dois appends e eu aceitava o primeiro sozinho como decisao final:
+  // fechava o pedido sem hashes, sem seq e sem veredicto. Agora a recusa e UM
+  // evento completo, e um fragmento sem `estado` nao decide nada — o pedido
+  // fica pendente, que e o lado seguro de falhar.
   limpar();
-  jobPendente('job-meio');
+  jobPendente('job-frag');
   escrever({ ts: new Date().toISOString(), event: 'approval_rejected',
-    request_id: 'job-meio', actor: PAULO, idem_key: 'k' });
-  assert.equal(broker.listPending().length, 0,
-    'a recusa conta por si, mesmo sem o approval.decided que devia vir a seguir');
+    request_id: 'job-frag', actor: PAULO, idem_key: 'k' });   // sem estado
+  assert.equal(broker.listPending().length, 1,
+    'um fragmento nao e uma decisao; esconder o pedido por causa dele era perde-lo');
+
+  limpar();
+  jobPendente('job-comp');
+  escrever({ ts: new Date().toISOString(), event: 'approval_rejected', estado: 'REJECTED',
+    request_id: 'job-comp', actor: PAULO, idem_key: 'k' });
+  assert.equal(broker.listPending().length, 0, 'a recusa completa fecha por si');
 });
 
 test('B40 — a fila e o decide tratam um relogio futuro da MESMA maneira', () => {
@@ -863,20 +874,17 @@ test('B43 — um id herdado de Object nao da papel a ninguem', async () => {
   assert.equal(eventos().some((e) => e.event === 'approval_rejected'), false);
 });
 
-test('B44 — uma recusa PARCIALMENTE gravada nao se deixa aprovar', async () => {
-  // sao dois appends. Se o segundo falhar, o pedido some da fila — e antes uma
-  // chamada directa aprovava-o na mesma, porque o decide() so olhava para o
-  // approval.decided.
+test('B44 — uma recusa completa bloqueia uma aprovacao posterior', async () => {
   limpar();
-  jobPendente('job-meia');
-  escrever({ ts: new Date().toISOString(), event: 'approval_rejected',
-    request_id: 'job-meia', actor: PAULO, idem_key: 'k-antiga' });
+  jobPendente('job-bloq');
+  escrever({ ts: new Date().toISOString(), event: 'approval_rejected', estado: 'REJECTED',
+    request_id: 'job-bloq', actor: PAULO, idem_key: 'k-antiga' });
   const despachos = []; stubDispatcher(despachos);
-  const r = await broker.decide({ decision_id: 'd', request_id: 'job-meia', actor: PAULO,
-    veredicto: 'aprovar', idem_key: 'k-nova', expected_state_hash: hashDe('job-meia') });
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-bloq', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k-nova', expected_state_hash: hashDe('job-bloq') });
   assert.equal(r.estado, 'REJECTED');
   assert.equal(r.motivo, 'ja_decidido');
-  assert.equal(despachos.length, 0, 'a recusa vale mesmo sem o par que devia vir a seguir');
+  assert.equal(despachos.length, 0, 'a recusa vale, e uma chave nova nao a reabre');
 });
 
 test('B45 — o replay nao promove um estado nao-final a terminal', async () => {
@@ -903,4 +911,26 @@ test('B46 — um veredicto invalido nao deixa rasto nenhum', async () => {
   assert.equal(r.motivo, 'veredicto_invalido');
   assert.equal(eventos().length, antes,
     'era validado tarde, depois de caminhos que ja podiam ter gravado EXPIRED ou STALE');
+});
+
+test('B47 — a recusa e UM evento completo, nao dois a meio', async () => {
+  // Dois appends criavam uma janela: a recusa ficava gravada sem hashes, sem seq
+  // e sem veredicto, e essa versao incompleta era aceite como decisao final —
+  // uma projeccao a fazer de fonte canonica.
+  limpar();
+  jobPendente('job-um');
+  const h = hashDe('job-um');
+  await broker.decide({ decision_id: 'd', request_id: 'job-um', actor: PAULO,
+    veredicto: 'recusar', idem_key: 'k', expected_state_hash: h });
+
+  const recusas = eventos().filter((e) => e.event === 'approval_rejected');
+  assert.equal(recusas.length, 1);
+  assert.equal(eventos().filter((e) => e.event === 'approval.decided').length, 0,
+    'nao ha segundo append: a recusa e completa por si');
+  const r = recusas[0];
+  assert.equal(r.estado, 'REJECTED');
+  assert.equal(r.veredicto, 'recusar');
+  assert.equal(r.expected_state_hash, h, 'a prova forense tem de estar NO evento que decide');
+  assert.ok(r.actual_state_hash);
+  assert.equal(typeof r.seq, 'number');
 });
