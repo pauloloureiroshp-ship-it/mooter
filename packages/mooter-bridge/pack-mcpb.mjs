@@ -77,6 +77,13 @@ const FILES = [
   // passou a requerê-la. Sem esta linha, quem instalasse o .mcpb tinha um
   // conector que morre no primeiro require, com o repo todo verde.
   ['actor.js', 'server/actor.js'],
+  // f-mu0 PARTE B — o broker e a primitiva de hash que ele PROMOVE em vez de
+  // recriar. O ledger-prov vem de tools/router/ pela mesma porta que o
+  // classify.js: o broker resolve-o em runtime (repo primeiro, bundle depois),
+  // por isso o detector de requires do bundle.test.js NAO o apanha sozinho —
+  // esta linha e o teste B10 sao a rede.
+  ['broker.js', 'server/broker.js'],
+  ['../../tools/router/ledger-prov.js', 'server/ledger-prov.js'],
   ['retry.js', 'server/retry.js'],
   ['board.js', 'server/board.js'],
   ['recibo.js', 'server/recibo.js'],
