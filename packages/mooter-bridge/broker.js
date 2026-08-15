@@ -32,6 +32,19 @@
  * privado sem entrypoint compilado, e este bridge é CommonJS. O crítico
  * confirmou que não era importável no runtime actual.
  *
+ * ⚠️ O QUE O CAS GARANTE, E O QUE NÃO GARANTE.
+ *
+ * A comparação corre sob o lock do broker — mas o `seamless.ledgerAppend` NÃO
+ * toma esse lock. Existe portanto uma janela real entre comparar e despachar em
+ * que outro processo pode escrever no mesmo job. O CAS apanha tudo o que
+ * aconteceu ANTES da comparação; não apanha o que acontece durante a janela.
+ *
+ * Isto não se corrige aqui por âmbito: fechar a janela é pôr o outro escritor a
+ * tomar o mesmo lock, e isso é o single-writer interprocessos que o masterprompt
+ * adiou para MU0-c. O que se faz é dizê-lo — no módulo, no retorno (`cas`) e no
+ * evento gravado. Um CAS que se apresentasse como atómico seria a mesma mentira
+ * que um RBAC que se apresentasse como autenticado.
+ *
  * ÂMBITO: o CONTRATO-BROKER da crítica descreve tenant_id, correlation_id,
  * causation_id e uma máquina de estados completa. Isso é F-MU1+. Aqui está o
  * núcleo que o masterprompt estreitou (kimi #7/#11/#13).
@@ -56,6 +69,8 @@ const EXIT_A_ESPERA = 'agent-awaiting-approval';
 const DECISOES_FINAIS = ['APPROVED', 'REJECTED', 'EXPIRED'];
 
 const LOCK_TTL_S = 60;
+
+const TODAS_AS_CAPACIDADES = ['read', 'write', 'bash', 'net', 'git'];
 
 function MOOTER_HOME_DIR() {
   return process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
@@ -118,12 +133,43 @@ function estadoDoJob(jobId, ledger) {
  */
 function capacidadesDoPedido(pedido) {
   const p = pedido || {};
-  const tools = String(p.allowedTools || '');
+  // A capacidade EFECTIVA manda sobre a pedida: o proprio seamless documenta que
+  // `--allowedTools` PRE-APROVA ferramentas e NAO LIMITA o conjunto disponivel.
+  // Derivar autorizacao do que foi PEDIDO, ignorando o que ficou efectivamente
+  // disponivel, era medir a fechadura errada.
+  const efectivas = p.permissoes_efectivas && p.permissoes_efectivas.valor;
+  const fonte = Array.isArray(efectivas) ? efectivas.join(',') : p.allowedTools;
+
+  if (fonte == null || String(fonte).trim() === '') {
+    // Job legado ou sem informacao de ferramentas. Antes degradava para `read`, o
+    // que o tornava MAIS FACIL de aprovar — fail-open exactamente onde doi. Sem
+    // saber o que o job pode fazer, assume-se o pior.
+    return [...TODAS_AS_CAPACIDADES];
+  }
+  const tools = String(fonte);
   const out = ['read'];
-  if (p.escrita === true || /\b(Edit|Write|MultiEdit|NotebookEdit)\b/.test(tools)) out.push('write');
-  if (/\bBash\b/.test(tools)) out.push('bash');
-  if (/\b(WebFetch|WebSearch)\b/.test(tools)) out.push('net');
-  if (/\bgit\b/i.test(tools)) out.push('git');
+  if (p.escrita === true || /(Edit|Write|MultiEdit|NotebookEdit)/.test(tools)) out.push('write');
+  if (/Bash/.test(tools)) out.push('bash');
+  if (/(WebFetch|WebSearch)/.test(tools)) out.push('net');
+  if (/git/i.test(tools)) out.push('git');
+  return out;
+}
+
+/**
+ * Eventos que descrevem o ESTADO de um job. Allowlist de proposito: `step`,
+ * `collected`, `cross_check` e companhia sao OBSERVACOES, e trata-las como
+ * estado escondia pendentes — um `mooter_collect` normal passava a ser o ultimo
+ * evento e a espera desaparecia da fila. Uma denylist deixaria o proximo evento
+ * novo entrar por engano; esta nao deixa.
+ */
+function eEstado(ev) {
+  return isTerminal(ev) || ev.event === 'dispatched' || ev.event === 'started';
+}
+
+/** O ultimo evento que descreve ESTADO — nao o ultimo evento. */
+function estadoCorrente(jobId, ledger) {
+  let out = null;
+  for (const e of ledger) { if (e.job_id === jobId && eEstado(e)) out = e; }
   return out;
 }
 
@@ -147,8 +193,18 @@ function lerPapeis() {
   try { r = JSON.parse(bruto); } catch (e) {
     return { modo: 'ilegivel', porque: 'roles.json não é JSON válido: ' + e.message };
   }
-  if (!r || typeof r !== 'object' || typeof r.papeis !== 'object' || typeof r.capacidades !== 'object') {
+  if (!r || typeof r !== 'object' || typeof r.papeis !== 'object' || r.papeis === null
+      || typeof r.capacidades !== 'object' || r.capacidades === null
+      || Array.isArray(r.papeis) || Array.isArray(r.capacidades)) {
     return { modo: 'ilegivel', porque: 'roles.json sem os campos `papeis` e `capacidades`' };
+  }
+  // Uma capacidade que nao fosse array passava a validacao e depois o `.includes`
+  // fazia correspondencia de SUBSTRING numa string: 'readwrite'.includes('read')
+  // e true, e o papel ganhava uma capacidade que ninguem lhe deu.
+  for (const [papel, caps] of Object.entries(r.capacidades)) {
+    if (!Array.isArray(caps) || caps.some((c) => typeof c !== 'string')) {
+      return { modo: 'ilegivel', porque: 'capacidades de "' + papel + '" não são uma lista de strings' };
+    }
   }
   return { modo: 'roles', papeis: r.papeis, capacidades: r.capacidades };
 }
@@ -235,139 +291,199 @@ function _despachar(args) {
   return require('./seamless.js').toolDispatch(args);
 }
 
+// ── contratos do retorno ──────────────────────────────────────────────────
+// TODO o retorno leva `authz` e `cas`. Faltavam no INVALIDO, no LOCKED e no
+// idempotente, e um consumidor que so olhasse para `estado` nao distinguia
+// recusa humana de configuracao avariada. O `motivo` e o discriminador estavel.
+const AUTHZ = Object.freeze({
+  advisory: true, actor_autenticado: false,
+  porque: 'o actor e proveniencia declarada, nao identidade autenticada; a fronteira real e F-MU1',
+});
+const CAS = Object.freeze({
+  atomico: false,
+  porque: 'a comparacao corre sob o lock do broker, mas o seamless.ledgerAppend nao o toma; '
+    + 'existe uma janela entre comparar e despachar. Fecha-la e o single-writer '
+    + 'interprocessos, adiado para MU0-c.',
+});
+function resposta(estado, motivo, extra) {
+  return { estado, motivo, authz: AUTHZ, cas: CAS, ...(extra || {}) };
+}
+
+function JOBS_DIR() { return path.join(MOOTER_HOME_DIR(), 'jobs'); }
+
+/**
+ * O masterprompt COMPLETO vive na pasta do job; o ledger so guarda `goal` e
+ * hash. Re-despachar com o `goal` nao funciona: o guard exige o texto integral
+ * com o cabecalho. A ronda anterior nao dava por isso porque os testes usavam
+ * stubs — o stub aceitava tudo, e a integracao real teria falhado no cliente.
+ */
+function masterpromptDoJob(jobId) {
+  for (const nome of ['masterprompt.md', 'masterprompt.txt']) {
+    try {
+      const txt = fs.readFileSync(path.join(JOBS_DIR(), jobId, nome), 'utf8');
+      if (txt && txt.trim()) return txt;
+    } catch { /* tenta o seguinte */ }
+  }
+  return null;
+}
+
+/** O instante do pedido de aprovacao, ou null quando nao ha relogio utilizavel. */
+function nascimentoDoPedido(jobId, ledger) {
+  const esperas = ledger.filter((e) => e.job_id === jobId && e.exit_code === EXIT_A_ESPERA);
+  const instantes = esperas.map((e) => Date.parse(e.ts || '')).filter((t) => Number.isFinite(t));
+  if (!instantes.length) return null;
+  // a PRIMEIRA espera manda: usar a ultima deixava o prazo esticar-se a cada
+  // re-pedido, e um `.pop()` sobre a ordem do ficheiro nao e uma regra.
+  return Math.min(...instantes);
+}
+
 // ── B1 · a fila ───────────────────────────────────────────────────────────
 function listPending(filtro) {
   const f = filtro || {};
   const ledger = lerLedger();
 
-  // Só uma decisão FINAL fecha um pendente. Um STALE diz "o teu clique estava
-  // velho" — o job continua à espera de alguém, e escondê-lo era perdê-lo.
+  // So uma decisao FINAL fecha um pendente. Um STALE diz "o teu clique estava
+  // velho" — o job continua a espera de alguem, e esconde-lo era perde-lo.
   const fechados = new Set(ledger
     .filter((e) => e.event === 'approval.decided' && DECISOES_FINAIS.includes(e.estado))
     .map((e) => e.request_id));
 
-  // O pendente é o job cujo ÚLTIMO evento é o de espera. Olhar só para "existe
-  // um evento de espera algures" mantinha na fila jobs que já tinham seguido.
-  const ultimo = new Map();
-  for (const e of ledger) { if (e.job_id) ultimo.set(e.job_id, e); }
-
+  const jobs = new Set(ledger.filter((e) => e.job_id).map((e) => e.job_id));
   const out = [];
-  for (const [job_id, ev] of ultimo) {
-    if (ev.exit_code !== EXIT_A_ESPERA || !isTerminal(ev)) continue;
+  for (const job_id of jobs) {
+    const ev = estadoCorrente(job_id, ledger);
+    if (!ev || ev.exit_code !== EXIT_A_ESPERA || !isTerminal(ev)) continue;
     if (fechados.has(job_id)) continue;
     const quem = identidade.actorDoEvento(ev);
     if (f.worktree && ev.worktree !== f.worktree) continue;
     if (f.actor && quem.id !== (typeof f.actor === 'string' ? f.actor : f.actor && f.actor.id)) continue;
     const estado = estadoDoJob(job_id, ledger);
+    const nascido = nascimentoDoPedido(job_id, ledger);
     out.push({
       job_id, wave: ev.wave || null, worktree: ev.worktree || null,
       event: ev.event, exit_code: ev.exit_code, ts: ev.ts || null,
       actor: quem, actor_porque: identidade.porqueDoEvento(ev),
       state_hash: estado ? estado.state_hash : null,
       seq: estado ? estado.seq : null,
-      expira_em: ev.ts ? new Date(Date.parse(ev.ts) + EXPIRACAO_DEFAULT_MS).toISOString() : null,
+      // sem relogio utilizavel nao se inventa um prazo — `new Date(NaN)` rebentava
+      expira_em: nascido == null ? null : new Date(nascido + EXPIRACAO_DEFAULT_MS).toISOString(),
+      expira_em_porque: nascido == null ? 'n/d — o pedido nao tem ts utilizavel' : null,
     });
   }
   return out;
 }
 
-// ── a decisão ─────────────────────────────────────────────────────────────
-/** ⚠️ ASSÍNCRONA: o re-despacho é async e o resultado dele faz parte da decisão. */
+// ── a decisao ─────────────────────────────────────────────────────────────
+/** ASSINCRONA: o re-despacho e async e o resultado dele faz parte da decisao. */
 async function decide(args) {
   const a = args || {};
   const quem = identidade.normalizarActor(a.actor == null ? null : a.actor);
-  if (!quem.ok) return { estado: 'INVALIDO', porque: quem.error };
-  if (!a.request_id) return { estado: 'INVALIDO', porque: 'request_id é obrigatório' };
-  if (!a.idem_key) return { estado: 'INVALIDO', porque: 'idem_key é obrigatória' };
-  // O CAS não é opcional. Deixá-lo cair quando o campo vinha vazio era oferecer
-  // um interruptor para o desligar a quem quisesse.
+  if (!quem.ok) return resposta('INVALIDO', 'actor_invalido', { porque: quem.error });
+  if (!a.request_id) return resposta('INVALIDO', 'sem_request_id', { porque: 'request_id e obrigatorio' });
+  if (!a.idem_key) return resposta('INVALIDO', 'sem_idem_key', { porque: 'idem_key e obrigatoria' });
   if (!a.expected_state_hash) {
-    return { estado: 'INVALIDO', porque: 'expected_state_hash é obrigatório — sem CAS não há decisão' };
+    return resposta('INVALIDO', 'sem_cas',
+      { porque: 'expected_state_hash e obrigatorio — sem CAS nao ha decisao' });
   }
 
   const dono = 'broker-' + process.pid + '-' + (a.decision_id || a.idem_key);
   const lock = _adquirirLock(dono);
   if (!lock.acquired) {
-    return { estado: 'LOCKED', held_by: lock.held_by, stale: lock.stale,
-      porque: lock.porque || 'outro processo tem o lock do broker; nada foi escrito' };
+    return resposta('LOCKED', 'lock_tomado', { held_by: lock.held_by, stale: lock.stale,
+      porque: lock.porque || 'outro processo tem o lock do broker; nada foi escrito' });
   }
 
   try {
     const ledger = lerLedger();
 
-    // 1 · idempotência — por (idem_key, request_id). Só pela chave, uma chave
-    //     reutilizada noutro job devolvia a decisão do PRIMEIRO: sem CAS, sem
-    //     autorização e sem despacho do segundo. Era um buraco, não um atalho.
-    const jaDecidido = ledger.find((e) => e.event === 'approval.decided'
+    // 1 · idempotencia — por (idem_key, request_id)
+    const mesmaChave = ledger.find((e) => e.event === 'approval.decided'
       && e.idem_key === a.idem_key && e.request_id === a.request_id);
-    if (jaDecidido) {
-      return { estado: jaDecidido.estado, terminal: true, idempotente: true,
-        decision_id: jaDecidido.decision_id, porque: 'idem_key já decidida para este pedido' };
+    if (mesmaChave) {
+      return resposta(mesmaChave.estado, 'ja_decidido',
+        { terminal: true, idempotente: true, decision_id: mesmaChave.decision_id });
     }
 
-    const authz = { advisory: true, actor_autenticado: false,
-      porque: 'o actor é proveniência declarada, não identidade autenticada; a fronteira real é F-MU1' };
+    // 2 · ESTADO TERMINAL: uma decisao final e final. So a idem_key nao chegava —
+    //     uma chave NOVA deixava decidir outra vez o mesmo pedido, porque as
+    //     decisoes nao mudam o state_hash e o CAS nao dava por nada.
+    const finalAnterior = ledger.find((e) => e.event === 'approval.decided'
+      && e.request_id === a.request_id && DECISOES_FINAIS.includes(e.estado));
+    if (finalAnterior) {
+      return resposta(finalAnterior.estado, 'ja_decidido',
+        { terminal: true, decision_id: finalAnterior.decision_id,
+          porque: 'este pedido ja tem uma decisao final; uma chave nova nao a reabre' });
+    }
+
+    // 3 · o pedido tem de estar MESMO a espera agora
+    const corrente = estadoCorrente(a.request_id, ledger);
+    if (!corrente) return resposta('INVALIDO', 'sem_eventos', { porque: 'request_id sem estado no ledger' });
+    if (corrente.exit_code !== EXIT_A_ESPERA || !isTerminal(corrente)) {
+      return resposta('INVALIDO', 'nao_esta_a_espera',
+        { porque: 'o job nao esta a espera de aprovacao agora (estado: ' + corrente.event + ')' });
+    }
+
+    const authzEvento = { advisory: true, actor_autenticado: false };
     const base = {
       event: 'approval.decided', decision_id: a.decision_id || null,
       request_id: a.request_id, about_job: a.request_id,
-      idem_key: a.idem_key, actor: quem.actor, veredicto: a.veredicto || null, authz,
+      idem_key: a.idem_key, actor: quem.actor, veredicto: a.veredicto || null,
+      authz: authzEvento, cas: { atomico: false },
     };
 
     const estado = estadoDoJob(a.request_id, ledger);
-    if (!estado) return { estado: 'INVALIDO', porque: 'request_id sem eventos no ledger' };
 
-    // 2 · expiração — o default de 72h conta do PEDIDO. Só valer o `expires_at`
-    //     que o decisor mandasse era deixá-lo escolher o seu próprio prazo.
-    const pedidoEspera = ledger.filter((e) => e.job_id === a.request_id
-      && e.exit_code === EXIT_A_ESPERA).pop();
-    const nascido = pedidoEspera && pedidoEspera.ts ? Date.parse(pedidoEspera.ts) : null;
+    // 4 · expiracao — o default de 72h conta do PEDIDO, e sem relogio FECHA.
+    const nascido = nascimentoDoPedido(a.request_id, ledger);
+    if (nascido == null) {
+      return resposta('INVALIDO', 'sem_relogio',
+        { porque: 'o pedido nao tem ts utilizavel — sem ele nao ha prazo, e sem prazo nao se aprova' });
+    }
     const limiteDeclarado = a.expires_at ? Date.parse(a.expires_at) : null;
-    const limitePorDefeito = nascido != null && Number.isFinite(nascido)
-      ? nascido + EXPIRACAO_DEFAULT_MS : null;
-    // o mais APERTADO dos dois manda: um expires_at generoso não estica as 72h
-    const limite = [limiteDeclarado, limitePorDefeito]
-      .filter((x) => x != null && Number.isFinite(x)).sort((x, y) => x - y)[0];
-    if (limite != null && Date.now() > limite) {
+    // um ts no FUTURO nao estica o prazo: o relogio do pedido e, no maximo, agora
+    const limitePorDefeito = Math.min(nascido, Date.now()) + EXPIRACAO_DEFAULT_MS;
+    const limite = Number.isFinite(limiteDeclarado)
+      ? Math.min(limiteDeclarado, limitePorDefeito) : limitePorDefeito;
+    if (Date.now() > limite) {
       _append({ ...base, estado: 'EXPIRED', expira_em: new Date(limite).toISOString(),
-        porque: 'a decisão expirou antes do clique' });
-      return { estado: 'EXPIRED', terminal: true, descartada: true, authz };
+        porque: 'a decisao expirou antes do clique' });
+      return resposta('EXPIRED', 'expirou', { terminal: true, descartada: true });
     }
 
-    // 3 · CAS anti-stale
+    // 5 · CAS anti-stale (ver o limite declarado no cabecalho do modulo)
     if (a.expected_state_hash !== estado.state_hash) {
       _append({ ...base, estado: 'STALE', seq: estado.seq,
         expected_state_hash: a.expected_state_hash, actual_state_hash: estado.state_hash,
         porque: 'o estado do job mudou entre o pedido e o clique' });
-      return { estado: 'STALE', terminal: true, authz,
-        expected_state_hash: a.expected_state_hash, actual_state_hash: estado.state_hash };
+      return resposta('STALE', 'estado_mudou', { terminal: true,
+        expected_state_hash: a.expected_state_hash, actual_state_hash: estado.state_hash });
     }
 
-    // 4 · recusa humana — terminal, e não despacha nada
+    // 6 · recusa humana
     if (a.veredicto === 'recusar') {
       _append({ event: 'approval_rejected', request_id: a.request_id, about_job: a.request_id,
-        decision_id: a.decision_id || null, actor: quem.actor, idem_key: a.idem_key, authz });
+        decision_id: a.decision_id || null, actor: quem.actor, idem_key: a.idem_key, authz: authzEvento });
       _append({ ...base, estado: 'REJECTED', seq: estado.seq, porque: 'recusado por quem decide' });
-      return { estado: 'REJECTED', terminal: true, authz };
+      return resposta('REJECTED', 'recusa_humana', { terminal: true });
     }
     if (a.veredicto !== 'aprovar') {
-      return { estado: 'INVALIDO', porque: 'veredicto tem de ser "aprovar" ou "recusar"' };
+      return resposta('INVALIDO', 'veredicto_invalido',
+        { porque: 'veredicto tem de ser "aprovar" ou "recusar"' });
     }
 
-    // 5 · autorização ADVISORY por capacidade, derivada do pedido original
+    // 7 · autorizacao ADVISORY por capacidade efectiva
     const pedido = ledger.find((e) => e.job_id === a.request_id && e.event === 'dispatched');
     if (!pedido) {
-      // Sem o pedido original não se sabe o que o job faria. Derivar `read` e
-      // aprovar era autorizar às cegas com cara de rigor.
-      return { estado: 'INVALIDO',
-        porque: 'não há evento `dispatched` para este request_id — não é possível derivar capacidades' };
+      return resposta('INVALIDO', 'sem_pedido_original',
+        { porque: 'nao ha evento `dispatched` para este request_id — nao da para derivar capacidades' });
     }
     const exigidas = capacidadesDoPedido(pedido);
     const papeis = lerPapeis();
     if (papeis.modo === 'ilegivel') {
       _append({ ...base, estado: 'REJECTED', seq: estado.seq,
         porque_negado: 'roles_ilegivel', detalhe: papeis.porque });
-      return { estado: 'REJECTED', terminal: true, porque_negado: 'roles_ilegivel',
-        detalhe: papeis.porque, authz };
+      return resposta('REJECTED', 'roles_ilegivel',
+        { terminal: true, porque_negado: 'roles_ilegivel', detalhe: papeis.porque });
     }
     let autorizacao = 'single_user';
     if (papeis.modo === 'roles') {
@@ -378,40 +494,60 @@ async function decide(args) {
         _append({ ...base, estado: 'REJECTED', seq: estado.seq,
           porque_negado: 'capacidade_em_falta', papel, capacidades_exigidas: exigidas,
           capacidades_em_falta: faltam });
-        return { estado: 'REJECTED', terminal: true, porque_negado: 'capacidade_em_falta',
-          papel, capacidades_exigidas: exigidas, capacidades_em_falta: faltam, authz };
+        return resposta('REJECTED', 'capacidade_em_falta', { terminal: true,
+          porque_negado: 'capacidade_em_falta', papel,
+          capacidades_exigidas: exigidas, capacidades_em_falta: faltam });
       }
       autorizacao = 'roles:' + papel;
     }
 
-    // 6 · aprovar = RE-DESPACHAR autenticado. E ESPERAR: o despacho é async, e
-    //     gravar APPROVED antes de saber o resultado era inventar um sucesso.
+    // 8 · o masterprompt COMPLETO, do disco. O `goal` nao passa o guard.
+    const mp = masterpromptDoJob(a.request_id);
+    if (!mp) {
+      return resposta('INVALIDO', 'sem_masterprompt',
+        { porque: 'o masterprompt completo do job nao esta em disco; re-despachar so com o goal '
+          + 'seria despachar outra coisa' });
+    }
+
+    // 9 · DURABILIDADE: a intencao entra ANTES do efeito externo. Um crash entre
+    //     despachar e gravar deixava um job novo sem decisao, e o retry podia
+    //     despachar OUTRA VEZ. Com a intencao gravada, o retry ve-a e para.
+    const pendurado = ledger.find((e) => e.event === 'approval.dispatching'
+      && e.request_id === a.request_id);
+    if (pendurado) {
+      return resposta('INDETERMINADO', 'despacho_pendurado', { terminal: false,
+        porque: 'ha um despacho iniciado e nao confirmado para este pedido; repetir podia '
+          + 'despachar duas vezes. Resolver a mao antes de decidir de novo.',
+        decision_id: pendurado.decision_id });
+    }
+    _append({ event: 'approval.dispatching', request_id: a.request_id, about_job: a.request_id,
+      decision_id: a.decision_id || null, idem_key: a.idem_key, actor: quem.actor, authz: authzEvento });
+
     let despacho = null;
     try {
       despacho = await _despachar({
         agent: pedido.agent || 'cc', worktree: pedido.worktree, wave: pedido.wave,
-        masterprompt: pedido.masterprompt || pedido.goal || '',
-        handoff_from: a.request_id, actor: quem.actor,
+        masterprompt: mp, handoff_from: a.request_id, actor: quem.actor,
         allowedTools: pedido.allowedTools || undefined,
       });
     } catch (e) {
       _append({ ...base, estado: 'REJECTED', seq: estado.seq,
         porque_negado: 'despacho_falhou', detalhe: e.message });
-      return { estado: 'REJECTED', terminal: true, porque_negado: 'despacho_falhou',
-        detalhe: e.message, authz };
+      return resposta('REJECTED', 'despacho_falhou', { terminal: true,
+        porque_negado: 'despacho_falhou', detalhe: e.message });
     }
     if (!despacho || despacho.error || !despacho.job_id) {
+      const detalhe = (despacho && (despacho.error || despacho.erro)) || 'sem job_id';
       _append({ ...base, estado: 'REJECTED', seq: estado.seq,
-        porque_negado: 'despacho_recusado',
-        detalhe: (despacho && (despacho.error || despacho.erro)) || 'sem job_id' });
-      return { estado: 'REJECTED', terminal: true, porque_negado: 'despacho_recusado',
-        detalhe: (despacho && (despacho.error || despacho.erro)) || 'sem job_id', authz };
+        porque_negado: 'despacho_recusado', detalhe });
+      return resposta('REJECTED', 'despacho_recusado',
+        { terminal: true, porque_negado: 'despacho_recusado', detalhe });
     }
 
     _append({ ...base, estado: 'APPROVED', seq: estado.seq, autorizacao,
       capacidades_exigidas: exigidas, job_novo: despacho.job_id });
-    return { estado: 'APPROVED', terminal: true, autorizacao, authz,
-      capacidades_exigidas: exigidas, job_novo: despacho.job_id };
+    return resposta('APPROVED', 'aprovado', { terminal: true, autorizacao,
+      capacidades_exigidas: exigidas, job_novo: despacho.job_id });
   } finally {
     _libertarLock(dono);
   }
@@ -426,6 +562,9 @@ module.exports = {
   decide,
   estadoDoJob,
   capacidadesDoPedido,
+  estadoCorrente,
+  masterpromptDoJob,
+  TODAS_AS_CAPACIDADES,
   lerPapeis,
   setDispatcher,
   _prov,

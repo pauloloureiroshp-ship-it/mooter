@@ -1,7 +1,7 @@
 {
   "frente": "f-mu0",
   "parte": "A (envelope de identidade) + B (broker de decisao)",
-  "estado": "PARTE B ENTREGUE — a aguardar G4 do fecho",
+  "estado": "PARTE A + PARTE B entregues — a aguardar novo G4 da Parte B",
   "gerado_em_utc": "2026-08-15T12:40:00Z",
   "owner_tz": "America/Sao_Paulo (UTC-3) — 2026-08-15 09:40 na hora do dono",
   "precedencia": {
@@ -44,10 +44,16 @@
     "push": "zero, em toda a frente"
   },
   "prova_de_fronteira": {
-    "regra": "o git diff --stat do commit de A não pode conter nenhum ficheiro de broker/decisão",
-    "comando": "git show --stat --name-only --format='' 98bd2066 | grep -iE 'broker|decis|approval|roles|lease|lock'",
-    "resultado": "nenhuma correspondência",
-    "veredicto": "PASS — a Parte A entrega-se sozinha e é mergeável sem a Parte B"
+    "nota": "esta prova era da PARTE A, quando a Parte B ainda nao estava autorizada. Ficou a dizer \"o commit de A nao traz broker\", o que era verdade nessa altura e passou a ler-se como contradicao depois de a Parte B entrar. O G4 apanhou-o.",
+    "parte_A": {
+      "alvo": "06bdc2c2..086a5dac (a Parte A inteira)",
+      "broker_ou_decisao": "nenhum",
+      "veredicto": "PASS — a Parte A e mergeavel sozinha, sem a Parte B"
+    },
+    "parte_B": {
+      "alvo": "086a5dac..HEAD",
+      "nota": "aqui o broker ENTRA, de proposito: e o gate A->B que o autorizou"
+    }
   },
   "integridade_ledger_por_prefixo": {
     "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
@@ -119,17 +125,17 @@
       ]
     },
     "B-VERDE.txt": {
-      "bytes": 97393,
-      "sha256": "4198a24b5e6dd4e53d80a420e0c9d8fa4f20b79018047ccee732fa63269d2a4a",
+      "bytes": 98251,
+      "sha256": "460c68d1db59b6c3d2043fd127ef6b0885b74431e5412a62c9198e4cfa047905",
       "totais": {
-        "tests": 1018,
-        "pass": 1016,
+        "tests": 1030,
+        "pass": 1028,
         "fail": 1,
         "skipped": 1
       },
-      "broker": "28/28",
+      "broker": "41/41",
       "falhas": [
-        "ondaA A3/A3b — herdado, excepcao declarada"
+        "ondaA A3/A3b — herdado, excepcao declarada e aceite"
       ]
     }
   },
@@ -605,6 +611,72 @@
       "o finally cobre os returns",
       "locks.ts mesmo nao era importavel no runtime CommonJS",
       "ledger-prov e promovido e os dois ficheiros constam do pack"
+    ]
+  },
+  "g4_parte_B_2": {
+    "job": "job-msuot8a3-5b06",
+    "alvo": "ff90796d..565092a7",
+    "duracao_s": 681,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 8,
+      "MEDIO": 3
+    },
+    "nota": "achados NOVOS, nao repeticao: os 8 da ronda anterior ficaram fechados e ele confirmou-o.",
+    "ALTO_e_o_que_foi_feito": [
+      {
+        "n": 1,
+        "titulo": "o CAS nao e atomico entre processos",
+        "feito": "DECLARADO, por decisao do dono. Fechar a janela e por o seamless.ledgerAppend a tomar o mesmo lock — o single-writer interprocessos, adiado para MU0-c. O limite fica no cabecalho do modulo, no campo `cas` de TODO o retorno e no evento gravado. Um CAS que se dissesse atomico era a mesma mentira que um RBAC que se dissesse autenticado."
+      },
+      {
+        "n": 2,
+        "titulo": "faltava maquina de estados final",
+        "feito": "uma decisao FINAL fecha o pedido para sempre; uma idem_key nova ja nao a reabre. E so se decide um job que esteja MESMO a espera agora (B23, B24)."
+      },
+      {
+        "n": 3,
+        "titulo": "listPending perdia pendentes legitimos",
+        "feito": "passou a olhar para o ultimo evento de ESTADO, por allowlist. O `collected`, o `step` e o `cross_check` sao observacoes — trata-los como estado fazia um mooter_collect normal apagar uma espera por decidir (B30)."
+      },
+      {
+        "n": 4,
+        "titulo": "as 72h continuavam fail-open",
+        "feito": "manda a PRIMEIRA espera com relogio valido; um ts no futuro nao estica (limita-se a agora); sem relogio utilizavel FECHA em vez de viver para sempre; e a fila ja nao rebenta com RangeError (B25, B25b)."
+      },
+      {
+        "n": 5,
+        "titulo": "a aprovacao real nao conseguia re-despachar",
+        "feito": "o masterprompt completo le-se do DISCO (jobs/<id>/masterprompt.md). O `goal` nao passa o guard. Sem o ficheiro, NAO se aprova — despachar outra coisa e pior do que nao despachar (B26, B26b). Os stubs escondiam isto."
+      },
+      {
+        "n": 6,
+        "titulo": "capacidades do pedido, nao da capacidade efectiva",
+        "feito": "a `permissoes_efectivas` manda sobre o `allowedTools`, porque o proprio seamless documenta que o segundo PRE-APROVA e nao LIMITA. E um job legado sem informacao assume TODAS as capacidades — antes degradava para `read`, o que o tornava mais facil de aprovar (B21, B22)."
+      },
+      {
+        "n": 7,
+        "titulo": "dispatch e decisao nao eram duraveis como unidade",
+        "feito": "a intencao (`approval.dispatching`) entra ANTES do efeito externo. Um retry que a encontre devolve INDETERMINADO em vez de despachar outra vez (B27)."
+      },
+      {
+        "n": 8,
+        "titulo": "a declaracao ADVISORY nao cobria todos os retornos",
+        "feito": "todo o retorno leva `authz`, `cas` e um `motivo` estavel. Um consumidor passa a distinguir recusa humana, capacidade em falta, roles avariado e falha de despacho (B28)."
+      }
+    ],
+    "MEDIO_e_o_que_foi_feito": [
+      "roles.json com capacidades que nao sao lista de strings: \"readwrite\".includes(\"read\") era true e o papel ganhava o que ninguem lhe deu — agora fecha (B29).",
+      "rede de testes parcial — 10 testes novos, e o B7b passou a usar um job proprio em vez de reutilizar um ja decidido.",
+      "o audit tinha estados contraditorios — corrigido acima, com a nota de porque aconteceu."
+    ],
+    "o_que_resistiu": [
+      "o await nao grava APPROVED quando o dispatcher lanca ou recusa; o finally liberta o lock",
+      "a limpeza do lock vazio nao apaga o lock de outro processo",
+      "os leitores nomeados aguentam eventos sem job_id",
+      "a Parte A esta inalterada desde 086a5dac, e o ondaA.test.js tambem",
+      "classify.js com o sha frozen; prefixo de 1.220.668 bytes do ledger intacto",
+      "NENHUM dos testes novos passaria com a correccao exacta revertida"
     ]
   }
 }

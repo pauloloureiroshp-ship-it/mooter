@@ -39,6 +39,7 @@ test.after(() => fs.rmSync(HOME, { recursive: true, force: true }));
 function limpar() {
   for (const f of [LEDGER, ROLES]) { try { fs.rmSync(f, { force: true }); } catch { /* */ } }
   try { fs.rmSync(broker.LOCK_PATH(), { force: true }); } catch { /* */ }
+  try { fs.rmSync(path.join(HOME, 'jobs'), { recursive: true, force: true }); } catch { /* */ }
   broker.setDispatcher(null);
 }
 function escrever(ev) { fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n'); }
@@ -70,6 +71,15 @@ function jobPendente(jobId, opts) {
     wave: o.wave || 'w-b', worktree: o.worktree || 'C:\\wt\\um',
     exit_code: 'agent-awaiting-approval',
     actor: o.actor || ANA, actor_porque: identidade.PORQUE_DECLARADO });
+  // o masterprompt COMPLETO vive na pasta do job, nao no ledger — e o broker
+  // tem de o ler DE LA para re-despachar. Os testes tem de reproduzir isso,
+  // porque foi exactamente a sua ausencia que escondeu o furo de integracao.
+  if (o.semMasterprompt !== true) {
+    const dir = path.join(HOME, 'jobs', jobId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'masterprompt.md'),
+      o.masterprompt || ('\u21c4 COWORK -> CC\nGOAL  ' + jobId + '\n'));
+  }
 }
 const hashDe = (jobId) => broker.estadoDoJob(jobId).state_hash;
 
@@ -316,9 +326,12 @@ test('B7b — papel sem a capacidade que o pedido EXIGE é recusado', async () =
   assert.equal(negado.porque_negado, 'capacidade_em_falta');
   assert.deepStrictEqual(negado.capacidades_em_falta, ['write']);
 
+  // job NOVO de proposito: o job-esc1 ja tem uma decisao final, e reutiliza-lo
+  // aqui bateria na regra do B23 em vez de testar o que este teste quer testar.
+  jobPendente('job-esc2', { escrita: true, allowedTools: 'Read,Edit,Write' });
   const despachos = []; stubDispatcher(despachos);
-  const ok = await broker.decide({ decision_id: 'd-o', request_id: 'job-esc1', actor: PAULO,
-    veredicto: 'aprovar', idem_key: 'k-o', expected_state_hash: hashDe('job-esc1') });
+  const ok = await broker.decide({ decision_id: 'd-o', request_id: 'job-esc2', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k-o', expected_state_hash: hashDe('job-esc2') });
   assert.equal(ok.estado, 'APPROVED', 'o owner tem write');
 });
 
@@ -466,4 +479,152 @@ test('B10 — o broker e o ledger-prov entram no .mcpb', () => {
   for (const alvo of ['server/broker.js', 'server/ledger-prov.js']) {
     assert.ok(bloco.includes("'" + alvo + "'"), alvo + ' não está na lista do bundle');
   }
+});
+
+// ── ronda 3 · os 8 ALTO do G4 #2 ──────────────────────────────────────────
+test('B21 — job legado sem ferramentas conhecidas assume o PIOR, nao o melhor', () => {
+  // antes degradava para ['read'], o que o tornava MAIS FACIL de aprovar.
+  // Fail-open exactamente onde doi.
+  assert.deepStrictEqual(broker.capacidadesDoPedido({}), broker.TODAS_AS_CAPACIDADES);
+  assert.deepStrictEqual(broker.capacidadesDoPedido({ escrita: false, allowedTools: '' }),
+    broker.TODAS_AS_CAPACIDADES, 'sem saber o que o job pode fazer, assume-se tudo');
+});
+
+test('B22 — a capacidade EFECTIVA manda sobre a pedida', () => {
+  // o seamless documenta que --allowedTools PRE-APROVA e nao LIMITA. Derivar do
+  // pedido, ignorando o efectivo, era medir a fechadura errada.
+  const caps = broker.capacidadesDoPedido({
+    allowedTools: 'Read',
+    permissoes_efectivas: { valor: ['Read', 'Bash', 'WebFetch'] } });
+  assert.deepStrictEqual(caps, ['read', 'bash', 'net']);
+});
+
+test('B23 — uma decisao FINAL nao se reabre com uma idem_key nova', async () => {
+  limpar();
+  jobPendente('job-fin');
+  await broker.decide({ decision_id: 'd1', request_id: 'job-fin', actor: PAULO,
+    veredicto: 'recusar', idem_key: 'k1', expected_state_hash: hashDe('job-fin') });
+  const outra = await broker.decide({ decision_id: 'd2', request_id: 'job-fin', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'CHAVE-NOVA', expected_state_hash: hashDe('job-fin') });
+  assert.equal(outra.estado, 'REJECTED');
+  assert.equal(outra.motivo, 'ja_decidido',
+    'a idempotencia por chave nao chegava: as decisoes nao mudam o state_hash, logo o CAS nao dava por nada');
+});
+
+test('B24 — nao se decide um job que ja nao esta a espera', async () => {
+  limpar();
+  jobPendente('job-passou');
+  escrever({ ts: new Date().toISOString(), event: 'done', job_id: 'job-passou', exit_code: 0, actor: ANA });
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-passou', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k', expected_state_hash: hashDe('job-passou') });
+  assert.equal(r.motivo, 'nao_esta_a_espera');
+});
+
+test('B25 — sem relogio utilizavel FECHA, e a fila nao rebenta', async () => {
+  limpar();
+  escrever({ event: 'dispatched', job_id: 'job-sem-ts', actor: ANA, allowedTools: 'Read' });
+  escrever({ ts: 'nao-e-uma-data', event: 'nao_verificado', job_id: 'job-sem-ts',
+    exit_code: 'agent-awaiting-approval', actor: ANA });
+
+  assert.doesNotThrow(() => broker.listPending(), 'um ts invalido lancava RangeError na fila');
+  const p = broker.listPending().find((x) => x.job_id === 'job-sem-ts');
+  assert.equal(p.expira_em, null);
+  assert.ok(p.expira_em_porque, 'e diz porque e que nao ha prazo, em vez de inventar um');
+
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-sem-ts', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k', expected_state_hash: hashDe('job-sem-ts') });
+  assert.equal(r.motivo, 'sem_relogio', 'sem prazo nao se aprova — antes vivia para sempre');
+});
+
+test('B25b — um ts no FUTURO nao estica o prazo', async () => {
+  limpar();
+  const daquiA10dias = new Date(Date.now() + 10 * 24 * 3600e3).toISOString();
+  jobPendente('job-futuro', { ts0: daquiA10dias, ts1: daquiA10dias });
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-futuro', actor: PAULO,
+    veredicto: 'recusar', idem_key: 'k', expected_state_hash: hashDe('job-futuro') });
+  assert.equal(r.estado, 'REJECTED', 'o relogio do pedido vale no maximo agora; nao ha viagem no tempo');
+});
+
+test('B26 — re-despacha o masterprompt DO DISCO, nao o goal', async () => {
+  limpar();
+  const texto = '⇄ COWORK -> CC\nGOAL  fazer a coisa certa\nGUARD sem push\n';
+  jobPendente('job-mp', { masterprompt: texto });
+  const despachos = []; stubDispatcher(despachos);
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-mp', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k', expected_state_hash: hashDe('job-mp') });
+  assert.equal(r.estado, 'APPROVED');
+  assert.equal(despachos[0].masterprompt, texto,
+    'reenviar o `goal` nao passa o guard, que exige o texto integral com cabecalho');
+});
+
+test('B26b — sem o masterprompt em disco NAO se aprova', async () => {
+  limpar();
+  jobPendente('job-nomp', { semMasterprompt: true });
+  const despachos = []; stubDispatcher(despachos);
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-nomp', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k', expected_state_hash: hashDe('job-nomp') });
+  assert.equal(r.motivo, 'sem_masterprompt');
+  assert.equal(despachos.length, 0, 'despachar outra coisa e pior do que nao despachar');
+});
+
+test('B27 — um despacho iniciado e nao confirmado PARA o retry', async () => {
+  // sem isto, um crash entre despachar e gravar deixava um job novo sem decisao
+  // e a repeticao despachava OUTRA VEZ.
+  limpar();
+  jobPendente('job-crash');
+  escrever({ ts: new Date().toISOString(), event: 'approval.dispatching',
+    request_id: 'job-crash', actor: PAULO, idem_key: 'k-antiga' });
+  const despachos = []; stubDispatcher(despachos);
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-crash', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k-nova', expected_state_hash: hashDe('job-crash') });
+  assert.equal(r.estado, 'INDETERMINADO');
+  assert.equal(r.motivo, 'despacho_pendurado');
+  assert.equal(despachos.length, 0, 'nao se despacha duas vezes por causa de um crash');
+});
+
+test('B28 — TODO o retorno leva authz, cas e motivo', async () => {
+  limpar();
+  jobPendente('job-cx');
+  const casos = [];
+  casos.push(await broker.decide({}));                                            // INVALIDO
+  casos.push(await broker.decide({ request_id: 'job-cx', actor: PAULO, idem_key: 'k' })); // sem CAS
+  casos.push(await broker.decide({ request_id: 'job-cx', actor: PAULO, idem_key: 'k2',
+    veredicto: 'recusar', expected_state_hash: hashDe('job-cx') }));               // REJECTED
+
+  fs.mkdirSync(path.dirname(broker.LOCK_PATH()), { recursive: true });
+  fs.writeFileSync(broker.LOCK_PATH(), JSON.stringify({ acquired_by: 'x', acquired_at_ms: Date.now(), ttl_seconds: 60 }));
+  casos.push(await broker.decide({ request_id: 'job-cx', actor: PAULO, idem_key: 'k3',
+    veredicto: 'recusar', expected_state_hash: 'x' }));                            // LOCKED
+  fs.rmSync(broker.LOCK_PATH(), { force: true });
+
+  for (const c of casos) {
+    assert.equal(c.authz.advisory, true, 'authz em falta em ' + c.estado);
+    assert.equal(c.cas.atomico, false, 'cas em falta em ' + c.estado);
+    assert.ok(c.motivo, 'motivo em falta em ' + c.estado);
+  }
+  const motivos = casos.map((c) => c.motivo);
+  assert.equal(new Set(motivos).size, motivos.length,
+    'motivos repetidos nao discriminam nada — era isso que o consumidor nao conseguia distinguir');
+});
+
+test('B29 — capacidades que nao sao lista de strings fecham o roles.json', async () => {
+  limpar();
+  jobPendente('job-sub', { escrita: true, allowedTools: 'Read,Edit,Write' });
+  // 'readwrite'.includes('read') === true — uma string passava por lista e dava
+  // ao papel uma capacidade que ninguem lhe deu.
+  fs.writeFileSync(ROLES, JSON.stringify({ papeis: { paulo: 'x' }, capacidades: { x: 'readwrite' } }));
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-sub', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k', expected_state_hash: hashDe('job-sub') });
+  assert.equal(r.motivo, 'roles_ilegivel');
+});
+
+test('B30 — a fila nao esconde um pendente por causa de um `collected`', async () => {
+  // o `collected` e uma OBSERVACAO, nao um estado. Trata-lo como estado fazia um
+  // mooter_collect normal apagar uma espera ainda por decidir.
+  limpar();
+  jobPendente('job-obs');
+  escrever({ ts: new Date().toISOString(), event: 'collected', job_id: 'job-obs', actor: ANA });
+  escrever({ ts: new Date().toISOString(), event: 'step', job_id: 'job-obs', actor: ANA });
+  assert.equal(broker.listPending().map((p) => p.job_id).includes('job-obs'), true,
+    'a espera continua por decidir — o collected nao decide nada');
 });
