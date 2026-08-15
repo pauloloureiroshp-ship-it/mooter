@@ -13,7 +13,7 @@ const quota = require('./quota.js');
 const aprender = require('./aprender.js');
 const gpu = require('./gpu.js');
 const { fatiaLocal } = require('./fatia-local.js');
-const { actorDoEvento } = require('./actor.js');
+const { actorDoEvento, porqueDoEvento } = require('./actor.js');
 
 const RESOURCE_URI = 'mooter://meo/scorecard';
 const RESOURCE = {
@@ -518,7 +518,7 @@ function construir(ledger, quotaState, gpuState, opts) {
         // Sem esta guarda, a coerência do board depende de um guard noutro
         // ficheiro — e um evento legacy com um actor_porque perdido passaria a
         // mostrar "declarado por quem disparou" ao lado de um ator `legacy`.
-        actor_porque: record.actor == null ? null : (record.actor_porque ?? null),
+        actor_porque: porqueDoEvento(record),
       };
     }),
     motivos_nao_local: motivosNaoLocal(ledger),

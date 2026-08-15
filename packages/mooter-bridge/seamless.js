@@ -179,40 +179,78 @@ function normalizarCargo(raw) {
   return { ok: true, cargo, porque: 'declarado por quem disparou' };
 }
 
+/**
+ * As dimensões de um job, relidas do ficheiro quando o mapa em memória não sabe
+ * (o job nasceu noutro processo, ou este reiniciou).
+ *
+ * Duas regras DIFERENTES numa só passagem, e é de propósito:
+ *
+ * · `cargo`/`local` — vale o evento MAIS RECENTE. É o que sempre valeu; não mexo.
+ * · `actor`/`request_id` — vale o PRIMEIRO ator declarado do job.
+ *
+ * G4 #2 ALTO: a imutabilidade do dono só existia no mapa em memória. A varredura
+ * era de trás para a frente e devolvia o evento mais recente, por isso bastava
+ * um reinício para o último a falar voltar a ganhar o job — a protecção contra
+ * reatribuição evaporava-se entre processos. A regra tem de viver nos DOIS
+ * caminhos, ou não é uma regra.
+ *
+ * G4 #2 MÉDIO: e uma linha ilegível deixa de PARAR a procura. Antes, o
+ * saneamento parava no evento estragado mais recente e o job caía em
+ * `system/default` mesmo tendo um ator válido antes — trocava um crash por uma
+ * mentira, que é o pior dos dois. Agora salta-se a linha má e continua-se.
+ */
 function dimensoesPersistidas(jobId) {
+  let dims = null;        // cargo/local — o mais recente ganha
+  let ident = null;       // actor/request_id — o primeiro DECLARADO ganha
   try {
     const lines = fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!lines[i]) continue;
+    for (const linha of lines) {
+      if (!linha) continue;
       let event;
-      try { event = JSON.parse(lines[i]); } catch { continue; }
+      try { event = JSON.parse(linha); } catch { continue; }
       if (!event || event.job_id !== jobId) continue;
       const tem = (k) => Object.prototype.hasOwnProperty.call(event, k);
-      // f-mu0: o ator e o request_id entram na mesma varredura. Um job pode ter
-      // nascido noutro processo (o mapa em memória não o viu) e o evento onde a
-      // identidade ficou pode não trazer cargo nenhum — daí entrarem na guarda.
-      if (!tem('cargo') && !tem('local') && !tem('actor') && !tem('request_id')) continue;
-      return {
-        cargo: tem('cargo') ? event.cargo : null,
-        cargo_porque: event.cargo_porque || (event.cargo == null
-          ? 'n/d — anterior à instrumentação de cargos'
-          : 'declarado por quem disparou'),
-        local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
-        // G4 #1 MÉDIO — o ator herdado é SANEADO aqui, e não mais à frente.
-        // Herdar o objecto cru fazia com que uma linha malformada no ledger
-        // (escrita à mão, ou por uma versão futura) rebentasse em aplicarIdentidade
-        // no evento SEGUINTE do mesmo job — e há call-sites onde esse throw não
-        // tem rede: o ledgerAppend do timeout do job corre dentro de um setTimeout
-        // sem try/catch. Um ficheiro estragado não pode derrubar um processo vivo.
-        // Ilegível => não se herda nada, e o default explícito toma conta.
-        actor: tem('actor') && identidade.normalizarActor(event.actor).ok ? event.actor : null,
-        actor_porque: tem('actor') && identidade.normalizarActor(event.actor).ok
-          ? (event.actor_porque || null) : null,
-        request_id: tem('request_id') ? event.request_id : null,
-      };
+
+      if (tem('cargo') || tem('local')) {
+        dims = {
+          cargo: tem('cargo') ? event.cargo : null,
+          cargo_porque: event.cargo_porque || (event.cargo == null
+            ? 'n/d — anterior à instrumentação de cargos'
+            : 'declarado por quem disparou'),
+          local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
+        };
+      }
+
+      if (identidade.temActorValido(event)) {
+        const esteDeclarado = event.actor_porque === identidade.PORQUE_DECLARADO;
+        const jaDeclarado = !!ident && ident.actor_porque === identidade.PORQUE_DECLARADO;
+        // primeiro a chegar fica; um declarado ainda promove um default anterior
+        if (!ident || (esteDeclarado && !jaDeclarado)) {
+          ident = {
+            actor: event.actor,
+            actor_porque: identidade.porqueDoEvento(event),
+            request_id: ident ? ident.request_id : null,
+          };
+        }
+      }
+      if (tem('request_id') && event.request_id != null && ident && ident.request_id == null) {
+        ident.request_id = event.request_id;
+      }
     }
   } catch { /* ledger ainda não existe */ }
-  return null;
+
+  if (!dims && !ident) return null;
+  return {
+    // sem `dims`, devolvem-se exactamente os valores que o chamador usaria se
+    // isto tivesse devolvido null — `local` fica NÃO-booleano de propósito, para
+    // ele cair no seu próprio fallback e nada mudar de comportamento.
+    cargo: dims ? dims.cargo : null,
+    cargo_porque: dims ? dims.cargo_porque : 'n/d — anterior à instrumentação de cargos',
+    local: dims ? dims.local : undefined,
+    actor: ident ? ident.actor : null,
+    actor_porque: ident ? ident.actor_porque : null,
+    request_id: ident ? ident.request_id : null,
+  };
 }
 
 function enriquecerDimensoesDoJob(payload) {
@@ -3113,6 +3151,13 @@ async function toolWork(args) {
   if (!actorPedido.ok) {
     return { error: actorPedido.error, actor_types_validos: [...identidade.ACTOR_TYPES] };
   }
+  // G4 #2 ALTO — o que segue para o toolDispatch é o valor CRU, não o normalizado.
+  // Reencaminhar o objecto já normalizado destruía a única coisa que a opção A
+  // existe para preservar: o toolDispatch recebia um actor não-nulo, concluía
+  // "então foi declarado" e gravava PORQUE_DECLARADO num job onde ninguém
+  // declarou nada. A validação acima continua a ser cedo (o caminho com
+  // preparação dispara DOIS jobs), mas a normalização acontece UMA vez só, lá.
+  const actorCru = a.actor != null ? a.actor : null;
   const workCategory = aprender.resolveCategory(goal, a.category);
   if (!workCategory.category) {
     return { error: workCategory.porque, categorias_validas: [...aprender.CATEGORY_NAMES] };
@@ -3574,13 +3619,13 @@ async function toolWork(args) {
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, cargo: cargoSelection.cargo,
         step: 'S0', model: localModel,
-        actor: actorPedido.actor,
+        actor: actorCru,
         evidencia: evidenciaPrep,
         __goal: goal, __escrita: false,
         __category: workCategory.category, __category_fonte: workCategory.category_fonte,
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-          allowedTools, model, step: stepId, evidencia, actor: actorPedido.actor,
+          allowedTools, model, step: stepId, evidencia, actor: actorCru,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
           __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
@@ -3651,7 +3696,7 @@ async function toolWork(args) {
    * SCHEMA, não que o conteúdo atravessava a porta. Ver `handoff.test.js`.
    */
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null, actor: actorPedido.actor,
+    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null, actor: actorCru,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
     __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,

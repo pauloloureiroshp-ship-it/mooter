@@ -11,7 +11,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { isTerminal } = require('./terminal.js');
 const {
-  PORQUE_DEFAULT, PORQUE_DECLARADO, actorDoEvento,
+  PORQUE_DEFAULT, PORQUE_DECLARADO, actorDoEvento, porqueDoEvento,
 } = require('./actor.js');
 
 const HUMAN_START = '<!-- HUMANO:INICIO -->';
@@ -120,7 +120,7 @@ function terminalJobs(records, maxJobs = DEFAULT_MAX_JOBS) {
       return {
         ...record,
         actor,
-        actor_porque: record.actor == null ? null : (record.actor_porque ?? null),
+        actor_porque: porqueDoEvento(record),
       };
     })
     .sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')))

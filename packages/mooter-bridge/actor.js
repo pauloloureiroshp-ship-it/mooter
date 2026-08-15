@@ -95,6 +95,25 @@ function temActor(event) {
   return !!(event && event.actor != null);
 }
 
+/** true só quando o ator do evento é LEGÍVEL. Presente mas malformado não conta. */
+function temActorValido(event) {
+  return temActor(event) && normalizarActor(event.actor).ok;
+}
+
+/**
+ * O `porque` do lado da LEITURA — canónico, uma vez só.
+ *
+ * G4 #2 MÉDIO: as seis projecções guardavam isto à mão com `actor == null`, e
+ * todas falhavam no mesmo sítio — um ator PRESENTE mas malformado não é null,
+ * por isso a guarda deixava passar o porque enquanto `actorDoEvento` degradava o
+ * ator para `legacy`. Ficava "declarado por quem disparou" ao lado de um ator
+ * que ninguém declarou. O porque só existe ao lado de um ator que se consegue ler.
+ */
+function porqueDoEvento(event) {
+  if (!temActorValido(event)) return null;
+  return (event && event.actor_porque) || null;
+}
+
 /**
  * Dois atores são o mesmo quando type+id batem. A `origem` NÃO entra: o mesmo
  * humano pode entrar pelo CC num evento e por outro caminho no seguinte, e isso
@@ -139,6 +158,8 @@ module.exports = {
   normalizarActor,
   actorDoEvento,
   temActor,
+  temActorValido,
+  porqueDoEvento,
   mesmoActor,
   eEventoDeResultado,
   normalizarVisibilidade,

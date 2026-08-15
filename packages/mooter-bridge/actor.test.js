@@ -270,6 +270,111 @@ test('A6b — o handler RECUSA um ator inválido antes de pôr um job de pé', a
   assert.equal(lines().length, antes, 'uma recusa não pode deixar rasto no ledger');
 });
 
+// ── ronda 3 · os dois ALTO do G4 #2 ───────────────────────────────────────
+test('A10 — a porta principal NÃO carimba "declarado" quando ninguém declarou', async () => {
+  // O ALTO #2 do crítico: o toolWork normalizava cedo e reencaminhava o objecto
+  // JÁ normalizado; o toolDispatch via um actor não-nulo, concluía "então foi
+  // declarado" e gravava PORQUE_DECLARADO num job onde ninguém declarou nada.
+  // A opção A morria exactamente na porta que mais se usa.
+  const { EventEmitter } = require('events');
+  const { execFileSync } = require('child_process');
+  // HOME próprio: os jobs dos testes acima não têm evento terminal, por isso o
+  // selector de pastas vê tudo ocupado. Isolar é o padrão do board.test.js.
+  const HOME10 = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-a10-'));
+  const anterior = process.env.MOOTER_HOME;
+  const raizAnterior = process.env.MOOTER_WORKTREE_ROOT;
+  process.env.MOOTER_HOME = HOME10;
+  process.env.MOOTER_WORKTREE_ROOT = HOME10;   // o guard só aceita pastas sob a raiz declarada
+  const wt = path.join(HOME10, 'wt-a10');
+  fs.mkdirSync(wt, { recursive: true });
+  execFileSync('git', ['init', '-q', wt]);
+
+  seamless.setJobSpawner(() => {
+    const c = new EventEmitter();
+    c.stdout = new EventEmitter(); c.stdout.pipe = () => {};
+    c.stderr = new EventEmitter(); c.stderr.pipe = () => {};
+    c.kill = () => { c.emit('close', 137); };
+    setImmediate(() => c.emit('spawn'));
+    return c;
+  });
+  try {
+    const r = await seamless.toolWork({
+      goal: 'sem ator declarado', agent: 'cc', worktree: wt, wave: 'w-a10', prepare: false,
+    });
+    assert.ok(!r.erro && !r.error,
+      'o dispatch não pode ter sido recusado: ' + String(r.error).slice(0, 300));
+    const linhas10 = fs.readFileSync(path.join(HOME10, 'ledger.jsonl'), 'utf8')
+      .split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    const ev = linhas10.find((e) => e.event === 'dispatched');
+    assert.ok(ev, 'o dispatch tem de ter chegado ao ledger');
+    assert.deepStrictEqual(ev.actor, { type: 'system', id: 'system', origem: null });
+    assert.equal(ev.actor_porque, actorMod.PORQUE_DEFAULT,
+      'ninguém declarou — dizer "declarado por quem disparou" seria mentira gravada');
+  } finally {
+    seamless.setJobSpawner(null);
+    if (anterior == null) delete process.env.MOOTER_HOME; else process.env.MOOTER_HOME = anterior;
+    if (raizAnterior == null) delete process.env.MOOTER_WORKTREE_ROOT;
+    else process.env.MOOTER_WORKTREE_ROOT = raizAnterior;
+    // NÃO se apaga o HOME10: o job simulado ainda tem streams abertos sobre
+    // out.log/err.log, e apagar a pasta debaixo deles dava um ENOENT assíncrono
+    // DEPOIS do teste acabar — verde no teste, uncaughtException no ficheiro.
+    // É um tmpdir do SO; deixá-lo é mais barato do que uma corrida.
+  }
+});
+
+test('A11 — a imutabilidade do dono sobrevive a um REINÍCIO', () => {
+  // O ALTO #1 do crítico: a regra "o job é de quem o pediu" só vivia no mapa em
+  // memória. Um processo novo relia o ledger, encontrava o evento MAIS RECENTE e
+  // adoptava-o como dono — bastava reiniciar para o último a falar ganhar.
+  // Estes eventos vão DIRECTOS ao ficheiro: é o que outro processo veria.
+  const base = { cargo: null, local: false };
+  fs.appendFileSync(LEDGER, JSON.stringify({
+    ts: '2026-08-15T09:00:00.000Z', event: 'dispatched', job_id: 'job-a11', ...base,
+    actor: { type: 'human', id: 'ana', origem: null }, actor_porque: actorMod.PORQUE_DECLARADO,
+  }) + '\n');
+  fs.appendFileSync(LEDGER, JSON.stringify({
+    ts: '2026-08-15T09:05:00.000Z', event: 'step', job_id: 'job-a11', ...base,
+    actor: { type: 'human', id: 'paulo', origem: null }, actor_porque: actorMod.PORQUE_DECLARADO,
+  }) + '\n');
+
+  seamless.ledgerAppend({ event: 'done', job_id: 'job-a11', exit_code: 0 });
+  assert.equal(eventoDoTipo('job-a11', 'done').actor.id, 'ana',
+    'quem herda continua a ser quem PEDIU, mesmo vindo do ficheiro e não da memória');
+});
+
+test('A12 — uma linha ilegível não APAGA o ator válido que veio antes', () => {
+  // MÉDIO do G4 #2: o saneamento parava no evento estragado mais recente, e o job
+  // caía em system/default apesar de ter um ator válido antes. Trocar um crash
+  // por uma mentira é a pior das duas — a procura tem de SALTAR a linha má.
+  fs.appendFileSync(LEDGER, JSON.stringify({
+    ts: '2026-08-15T09:00:00.000Z', event: 'dispatched', job_id: 'job-a12', cargo: null, local: false,
+    actor: { type: 'human', id: 'ana', origem: null }, actor_porque: actorMod.PORQUE_DECLARADO,
+  }) + '\n');
+  fs.appendFileSync(LEDGER, JSON.stringify({
+    ts: '2026-08-15T09:05:00.000Z', event: 'step', job_id: 'job-a12', cargo: null, local: false,
+    actor: { id: 'estragado-sem-type' },
+  }) + '\n');
+
+  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a12' });
+  const ev = eventoDoTipo('job-a12', 'collected');
+  assert.equal(ev.actor.id, 'ana', 'o ator válido anterior tem de sobreviver à linha estragada');
+  assert.equal(ev.actor_porque, actorMod.PORQUE_DECLARADO);
+});
+
+test('A13 — o porque só existe ao lado de um ator LEGÍVEL', () => {
+  // MÉDIO do G4 #2: as seis projecções guardavam com `actor == null`, e um ator
+  // presente mas malformado não é null — passava o porque enquanto o ator
+  // degradava para legacy. "declarado por quem disparou" ao lado de `legacy`.
+  assert.equal(actorMod.porqueDoEvento({ actor_porque: actorMod.PORQUE_DECLARADO }), null,
+    'sem ator não há porque');
+  assert.equal(actorMod.porqueDoEvento({
+    actor: { id: 'sem-type' }, actor_porque: actorMod.PORQUE_DECLARADO }), null,
+  'ator ilegível degrada para legacy — o porque tem de cair com ele');
+  assert.equal(actorMod.porqueDoEvento({
+    actor: { type: 'human', id: 'ana' }, actor_porque: actorMod.PORQUE_DECLARADO }),
+  actorMod.PORQUE_DECLARADO);
+});
+
 // ── canónico único ────────────────────────────────────────────────────────
 test('A5 — há uma única definição canónica de identidade', () => {
   assert.deepStrictEqual(actorMod.ACTOR_TYPES, ['human', 'agent', 'system']);

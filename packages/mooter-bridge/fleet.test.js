@@ -92,6 +92,21 @@ test('A2c — o job pertence a quem o PEDIU, não ao último a falar', () => {
   assert.strictEqual(promovido[0].actor.id, 'paulo', 'informação a chegar não é informação a mudar');
 });
 
+test('A2d — quem fixa o dono é o RELÓGIO, não a ordem do array', () => {
+  // G4 #2 MÉDIO: os eventos vêm de um ficheiro escrito por vários processos, e
+  // um `started` pode aparecer no array antes do `dispatched` do mesmo job. Com
+  // a regra a olhar só para a ordem de leitura, o dono era quem calhasse.
+  const { PORQUE_DECLARADO } = require('./actor.js');
+  const jobs = fleet.foldJobs([
+    { job_id: 'z', event: 'started', ts: '2026-08-15T10:05:00.000Z',
+      actor: { type: 'human', id: 'paulo' }, actor_porque: PORQUE_DECLARADO },
+    { job_id: 'z', event: 'dispatched', ts: '2026-08-15T10:00:00.000Z',
+      actor: { type: 'human', id: 'ana' }, actor_porque: PORQUE_DECLARADO },
+  ]);
+  assert.strictEqual(jobs[0].actor.id, 'ana',
+    'o dispatched é 5 minutos ANTERIOR — é dele o job, apareça onde aparecer no array');
+});
+
 test('a failed job is never downgraded by a later collected event', () => {
   const jobs = fleet.foldJobs([E('c', 'started'), E('c', 'failed', { exit_code: 1 }), E('c', 'collected')]);
   assert.strictEqual(jobs[0].state, 'failed');

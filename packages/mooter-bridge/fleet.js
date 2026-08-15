@@ -41,7 +41,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento, temActor, normalizarActor, PORQUE_DECLARADO } = require('./actor.js');
+const { actorDoEvento, temActor, normalizarActor, porqueDoEvento, PORQUE_DECLARADO } = require('./actor.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -98,6 +98,12 @@ function readLedgerLines(file) {
 
 function foldJobs(events) {
   const byId = new Map();
+  // G4 #2 MÉDIO — "primeiro declarado ganha" não pode querer dizer "primeiro no
+  // array". Os eventos chegam de um ficheiro escrito por vários processos, e um
+  // `started` pode aparecer antes do `dispatched` do mesmo job. Sem isto, quem
+  // fixava o dono era a ordem de leitura; agora é o RELÓGIO. Fica fora do objecto
+  // público de propósito: é contabilidade do fold, não um campo do job.
+  const actorTs = new Map();
   for (const e of events) {
     if (!e || !e.job_id) continue;
     let j = byId.get(e.job_id);
@@ -109,7 +115,7 @@ function foldJobs(events) {
             // opção A do dono, contra o ALTO do G4: sem o porque, um default
             // system/system lê-se como "o sistema fez isto" quando na verdade
             // significa "ninguém declarou". O discriminador viaja com o ator.
-            actor_porque: e.actor_porque || null,
+            actor_porque: porqueDoEvento(e),
             local: typeof e.local === 'boolean' ? e.local : e.agent === 'moo',
             state: null, dispatched_at: null, started_at: null, ended_at: null, exit_code: null, duration_s: null };
       byId.set(e.job_id, j);
@@ -117,9 +123,18 @@ function foldJobs(events) {
     // G4 #1 MÉDIO — antes ficava o ÚLTIMO ator a falar. O job pertence a quem o
     // PEDIU: um ator declarado não é substituído por outro evento mais tarde.
     // Promover o default para um declarado continua a valer.
-    if (temActor(e) && j.actor_porque !== PORQUE_DECLARADO) {
-      j.actor = actorDoEvento(e);
-      j.actor_porque = e.actor_porque || null;
+    if (temActor(e)) {
+      const ts = Date.parse(e.ts || 0) || 0;
+      const tsActual = actorTs.has(e.job_id) ? actorTs.get(e.job_id) : Infinity;
+      const jaDeclarado = j.actor_porque === PORQUE_DECLARADO;
+      const esteDeclarado = e.actor_porque === PORQUE_DECLARADO;
+      const promove = esteDeclarado && !jaDeclarado;
+      const maisCedo = esteDeclarado === jaDeclarado && ts < tsActual;
+      if (promove || maisCedo) {
+        j.actor = actorDoEvento(e);
+        j.actor_porque = porqueDoEvento(e);
+        actorTs.set(e.job_id, ts);
+      }
     }
     if (e.wave) j.wave = e.wave;
     if (e.agent) j.agent = e.agent;
