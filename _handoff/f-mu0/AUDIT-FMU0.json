@@ -1,7 +1,7 @@
 {
   "frente": "f-mu0",
   "parte": "A — envelope de identidade (aditivo)",
-  "estado": "EM CURSO — fecha no GATE HUMANO A→B",
+  "estado": "PARTE A FECHADA — a aguardar o GATE HUMANO A→B",
   "gerado_em_utc": "2026-08-15T12:40:00Z",
   "owner_tz": "America/Sao_Paulo (UTC-3) — 2026-08-15 09:40 na hora do dono",
   "precedencia": {
@@ -230,8 +230,8 @@
     "actor_retroactivo_em_legacy": "não — leitura degrada, ficheiro não muda"
   },
   "nota_de_activacao": {
-    "regra": "kimi #14 — fora de escopo declarado",
-    "texto": "o bridge que corre no Desktop continua com o código ANTIGO até o Paulo reinstalar/reiniciar. Esta frente não reiniciou nada (doutrina: nunca reiniciar com job vivo — e havia jobs vivos). Mergeado ≠ activo."
+    "regra": "kimi #14",
+    "texto": "o bridge que corre no Desktop continua com o codigo ANTIGO ate o Paulo reinstalar/reiniciar. Esta frente nao reiniciou nada. Mergeado NAO e activo."
   },
   "efeito_colateral_declarado": {
     "o_que": "arranquei o serviço Ollama (estava em baixo: HTTP 000, zero processos)",
@@ -434,10 +434,11 @@
     "prova": "o teste A15 alimenta a MESMA lista de eventos (deliberadamente fora de ordem) às três projecções e exige que devolvam o mesmo dono"
   },
   "pendente": [
-    "veredicto do G4 #4",
-    "GATE A→B: só abre com o Paulo a escrever, literal, `avanço B <sha-final-de-A>` — o sha já NÃO é o 98bd2066",
-    "Parte B — NÃO AUTORIZADA. Rollback declarado: git reset --hard <sha-final-de-A> na worktree; nenhuma decisão pendente foi tocada, nada fica órfão.",
-    "fora de âmbito por decisão do dono, e declarados ao crítico em vez de escondidos: `request_id` sem porta de entrada em produção; a trilha atribui a cadeia ao ator do job final"
+    "GATE A-B: so abre com o Paulo a escrever, literal, \"avanco B <sha>\" com o SHA FINAL desta branch (ja NAO e o 98bd2066). Silencio, \"ok\" ou mensagem ambigua NAO sao aprovacao.",
+    "Parte B — NAO AUTORIZADA. Rollback: git reset --hard <sha-final> na worktree; nenhuma decisao pendente foi tocada, nada fica orfao.",
+    "fora de ambito por decisao do dono: request_id sem porta de entrada em producao; a trilha atribui a cadeia ao ator do job final",
+    "divida declarada para a Parte B: se a imutabilidade do dono for precisa, tem de ser ordem TOTAL e viver no broker",
+    "frente propria: ondaA A3/A3b vermelho na base"
   ],
   "decisao_do_dono_ronda_6": {
     "pergunta": "cinco rondas, sempre a mesma classe de ALTO: arbitragem de propriedade",
@@ -448,9 +449,30 @@
     "forma_do_delta": "96 insercoes / 344 remocoes — a correccao foi tirar codigo, nao acrescentar"
   },
   "bloqueio_final": {
-    "o_que_falta_para_ship": "apenas o vermelho HERDADO do ondaA A3/A3b",
-    "porque_nao_e_da_parte_A": "falha na base 06bdc2c2, falha no checkout principal, falha com o Ollama em baixo e de pe, e o critico confirma que o ficheiro e identico a base",
-    "porque_bloqueia_na_mesma": "o gate final-reviewer-honest da NO-SHIP com qualquer suite vermelha, independentemente de quem a pintou",
-    "decisao": "do dono — ver a pergunta na sessao"
+    "decisao_do_dono": "excepcao declarada, 2026-08-15",
+    "o_que_e": "a suite tem 1 vermelho: ondaA A3/A3b",
+    "porque_nao_e_da_parte_A": [
+      "falha na base 06bdc2c2, sem nenhum ficheiro meu na corrida",
+      "falha igualmente no checkout principal (1b8a2ead)",
+      "falha com o Ollama EM BAIXO e com o Ollama DE PE — nao e ambiente",
+      "o G4 #6 confirmou de forma independente que o ficheiro e identico a base e alheio a identidade"
+    ],
+    "porque_bloqueava": "o gate final-reviewer-honest da NO-SHIP com qualquer suite vermelha, seja de quem for",
+    "consequencia_honesta": "a Parte A NAO declara suite verde. Declara verde no delta, com um vermelho herdado, nomeado, medido e agora aceite por decisao do dono.",
+    "proximo_dono": "o ondaA A3/A3b fica como frente propria; nao foi tocado aqui porque nao e desta frente"
+  },
+  "fronteira_final": {
+    "alvo": "06bdc2c2..HEAD (a Parte A inteira, nao so o primeiro commit)",
+    "ficheiros": 20,
+    "broker_ou_decisao": "nenhum",
+    "veredicto": "PASS — a Parte A e mergeavel sem a Parte B"
+  },
+  "invariantes_no_fecho": {
+    "classify_js_frozen": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f — intacto",
+    "ledger_prefixo": "25d2d545…cab4a2 sobre os primeiros 1.220.668 bytes — intacto",
+    "ledger_bytes_actual": 1813991,
+    "push": "zero em toda a frente",
+    "worktree": "limpa",
+    "pacotes_frozen": "nenhum tocado"
   }
 }
