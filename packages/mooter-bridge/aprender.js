@@ -6,7 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { PRICING_USD_PER_MILLION: KIMI_PRICES } = require('./kimi-adapter.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento, temActor, porqueDoEvento, substituiDono, donoDoEvento } = require('./actor.js');
+const { actorDoEvento, temActorValido, porqueDoEvento, substituiDono, donoDoEvento } = require('./actor.js');
 
 const ND = 'n/d';
 const CUSTO_FONTE_CALCULADO = 'calculado a partir de tokens e tabela de precos';
@@ -258,7 +258,7 @@ function jobRecords(input) {
       motivo_nao_local: null, forcado_por_quota: false,
       category: null, category_fonte: null, categoria_legado: false,
     };
-    if (temActor(event)) {
+    if (temActorValido(event)) {
       // G4 #3 ALTO — isto substituía o ator a CADA evento, por isso o record
       // acabava com o último a falar e não com quem pediu o job. O fleet já
       // respeitava a regra e o aprender não: a mesma pergunta com duas respostas.

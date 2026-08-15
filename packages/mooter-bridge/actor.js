@@ -150,6 +150,13 @@ function substituiDono(actual, candidato) {
   if (!candidato || candidato.actor == null) return false;
   if (!actual || actual.actor == null) return true;
 
+  // G4 #4 ALTO — `legacy` não é um dono, é a confissão de que não se sabe quem
+  // foi. As projecções semeiam-no a partir do primeiro evento do job, e sem esta
+  // linha ele ficava a ganhar a um ator real que chegasse depois sem relógio:
+  // o fleet dizia `legacy` e a releitura dizia `system/default` para o MESMO job.
+  // Qualquer identidade conhecida ganha a uma ausência confessada.
+  if (actual.actor.type === ACTOR_LEGACY.type && actual.actor.id === ACTOR_LEGACY.id) return true;
+
   const actualDeclarado = actual.porque === PORQUE_DECLARADO;
   const candidatoDeclarado = candidato.porque === PORQUE_DECLARADO;
   if (candidatoDeclarado !== actualDeclarado) return candidatoDeclarado;

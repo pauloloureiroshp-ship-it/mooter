@@ -434,6 +434,84 @@ test('A15 — fleet, aprender e a releitura concordam sobre o dono do MESMO job'
   assert.deepStrictEqual(doAprender, daReleitura);
 });
 
+// ── ronda 5 · os três ALTO do G4 #4 ───────────────────────────────────────
+test('A16 — o relógio do dono SOBREVIVE ao reinício, e o ladrão seguinte falha', () => {
+  // O A11 provava que o dono sobrevivia, mas não que o RELÓGIO dele sobrevivia:
+  // o dimensoesPersistidas calculava o ts e não o devolvia, por isso o primeiro
+  // evento pós-reinício com outro ator declarado ainda roubava o job.
+  const D = actorMod.PORQUE_DECLARADO;
+  const base = { cargo: null, local: false };
+  fs.appendFileSync(LEDGER, JSON.stringify({
+    ts: '2026-08-15T08:00:00.000Z', event: 'dispatched', job_id: 'job-a16', ...base,
+    actor: { type: 'human', id: 'ana', origem: null }, actor_porque: D,
+  }) + '\n');
+
+  // primeiro evento depois do "reinício" declara OUTRO ator — é este o ladrão
+  seamless.ledgerAppend({
+    event: 'step', job_id: 'job-a16', actor: { type: 'human', id: 'paulo', origem: null } });
+  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a16' });
+
+  assert.equal(eventoDoTipo('job-a16', 'collected').actor.id, 'ana',
+    'o relógio da Ana veio do ficheiro; o Paulo é posterior e não leva o job');
+});
+
+test('A17 — um relógio legítimo de 0 (epoch) não é confundido com ausência', () => {
+  const D = actorMod.PORQUE_DECLARADO;
+  const epoch = { actor: { type: 'human', id: 'ana' }, porque: D, ts: 0 };
+  const umMsDepois = { actor: { type: 'human', id: 'paulo' }, porque: D, ts: 1 };
+  // `x || null` mandava o 0 para null e o dono passava a "sem relógio"
+  assert.equal(actorMod.substituiDono(epoch, umMsDepois), false,
+    '1970 é um instante válido, não uma ausência de instante');
+  assert.equal(actorMod.substituiDono(umMsDepois, epoch), true, 'e continua a ser o mais antigo');
+});
+
+test('A18 — `legacy` não é um dono: qualquer identidade conhecida ganha-lhe', () => {
+  // As projecções semeiam legacy a partir do primeiro evento do job. Sem esta
+  // regra, o legacy semeado ganhava a um ator real que chegasse depois sem
+  // relógio — e o fleet dizia `legacy` onde a releitura dizia `system/default`.
+  const legacy = { actor: actorMod.ACTOR_LEGACY, porque: null, ts: null };
+  const defaultSemRelogio = { actor: actorMod.ACTOR_SYSTEM, porque: actorMod.PORQUE_DEFAULT, ts: null };
+  assert.equal(actorMod.substituiDono(legacy, defaultSemRelogio), true,
+    'uma ausência confessada perde para qualquer coisa que se saiba');
+});
+
+test('A18b — a divergência que o crítico construiu deixa de existir', () => {
+  const fleet = require('./fleet.js');
+  const aprender = require('./aprender.js');
+  // histórico sem actor nem ts, seguido de um default também sem ts
+  const eventos = [
+    { job_id: 'j-div', event: 'dispatched' },
+    { job_id: 'j-div', event: 'done', exit_code: 0,
+      actor: actorMod.ACTOR_SYSTEM, actor_porque: actorMod.PORQUE_DEFAULT },
+  ];
+  const doFleet = fleet.foldJobs(eventos)[0].actor;
+  const doAprender = aprender._jobRecords({ ledger: eventos }).find((r) => r.job_id === 'j-div').actor;
+
+  for (const ev of eventos) fs.appendFileSync(LEDGER, JSON.stringify(ev) + '\n');
+  seamless.ledgerAppend({ event: 'collected', job_id: 'j-div' });
+  const daReleitura = eventoDoTipo('j-div', 'collected').actor;
+
+  assert.deepStrictEqual(doFleet, doAprender, 'fleet e aprender têm de concordar');
+  assert.deepStrictEqual(doAprender, daReleitura, 'e a releitura tem de concordar com eles');
+  assert.equal(doFleet.id, 'system', 'há um ator conhecido no job — nenhum dos três pode dizer legacy');
+});
+
+test('A18c — ator malformado não entra em NENHUMA das três projecções', () => {
+  const fleet = require('./fleet.js');
+  const aprender = require('./aprender.js');
+  const eventos = [
+    { job_id: 'j-mal', event: 'dispatched', ts: '2026-08-15T08:00:00.000Z',
+      actor: { id: 'sem-type' }, actor_porque: actorMod.PORQUE_DECLARADO },
+  ];
+  const doFleet = fleet.foldJobs(eventos)[0];
+  const doAprender = aprender._jobRecords({ ledger: eventos }).find((r) => r.job_id === 'j-mal');
+
+  assert.equal(doFleet.actor.id, 'legacy', 'ilegível degrada — não se promove a dono');
+  assert.equal(doFleet.actor_porque, null, 'e o porque cai com ele');
+  assert.equal(doAprender.actor.id, 'legacy');
+  assert.equal(doAprender.actor_porque, null);
+});
+
 // ── canónico único ────────────────────────────────────────────────────────
 test('A5 — há uma única definição canónica de identidade', () => {
   assert.deepStrictEqual(actorMod.ACTOR_TYPES, ['human', 'agent', 'system']);

@@ -41,7 +41,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento, temActor, normalizarActor, porqueDoEvento, substituiDono, donoDoEvento } = require('./actor.js');
+const { actorDoEvento, temActorValido, normalizarActor, porqueDoEvento, substituiDono, donoDoEvento } = require('./actor.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -123,7 +123,7 @@ function foldJobs(events) {
     // G4 #1 MÉDIO — antes ficava o ÚLTIMO ator a falar. O job pertence a quem o
     // PEDIU: um ator declarado não é substituído por outro evento mais tarde.
     // Promover o default para um declarado continua a valer.
-    if (temActor(e)) {
+    if (temActorValido(e)) {
       // a regra vive no actor.js e é a MESMA que a releitura do ledger usa.
       // `Date.parse(x) || 0` (o que estava aqui) punha um ts inválido ANTES de
       // qualquer ISO válido — bastava um `ts` estragado para roubar o job.

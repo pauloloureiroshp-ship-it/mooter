@@ -255,6 +255,11 @@ function dimensoesPersistidas(jobId) {
     local: dims ? dims.local : undefined,
     actor: ident ? ident.actor : null,
     actor_porque: ident ? ident.actor_porque : null,
+    // G4 #4 ALTO — o relógio do dono era CALCULADO aqui e depois deitado fora
+    // por não vir no retorno. Quem reconstruía o estado depois de um reinício
+    // recebia "dono sem relógio", e o primeiro evento seguinte com outro ator
+    // declarado roubava o job. A regra existia; faltava-lhe o dado para correr.
+    actor_ts: ident ? ident.ts : null,
     request_id: ident ? ident.request_id : null,
   };
 }
@@ -376,7 +381,9 @@ function appendLedgerRecord(payload) {
       // é informação a chegar, não a mudar. O evento em si guarda sempre a sua
       // própria verdade; isto é só a memória do JOB.
       const candidato = identidade.donoDoEvento(record);
-      const actual = { actor: known.actor, porque: known.actor_porque, ts: known.actor_ts || null };
+      // `|| null` apagava um relógio legítimo de 0 (1970-01-01T00:00:00.000Z) e
+      // transformava o dono em "sem relógio" — `??` distingue zero de ausência.
+      const actual = { actor: known.actor, porque: known.actor_porque, ts: known.actor_ts ?? null };
       if (identidade.substituiDono(actual, candidato)) {
         known.actor = record.actor;
         known.actor_porque = record.actor_porque;
