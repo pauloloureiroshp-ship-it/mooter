@@ -6,6 +6,7 @@ const aprender = require('./aprender.js');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { ACTOR_SYSTEM, PORQUE_DEFAULT, PORQUE_DECLARADO } = require('./actor.js');
 
 function syntheticLedger(count, options) {
   const opts = options || {};
@@ -156,20 +157,34 @@ test('histórico sem categoria mantém a classificação legada', () => {
   assert.strictEqual(aprender.categoryForLegacyGoal('reconcilia os branches órfãos'), 'outro');
 });
 
-test('A2 — o record por job preserva actor e degrada histórico para legacy', () => {
-  const actor = { type: 'agent', id: 'codex-1', origem: 'mooter_work' };
+test('A2 — o record por job distingue actor default de declarado e degrada histórico para legacy', () => {
+  const actor = { ...ACTOR_SYSTEM };
   const records = aprender._jobRecords({ ledger: [
-    { job_id: 'com-actor', event: 'dispatched', actor, goal: 'resume o ficheiro' },
-    { job_id: 'com-actor', event: 'done', exit_code: 0 },
-    { job_id: 'historico', event: 'done', exit_code: 0, goal: 'resume o ficheiro' },
+    { job_id: 'declarado', event: 'dispatched', actor, actor_porque: PORQUE_DECLARADO, goal: 'resume o ficheiro' },
+    { job_id: 'declarado', event: 'done', exit_code: 0 },
+    { job_id: 'default', event: 'done', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT, exit_code: 0, goal: 'resume o ficheiro' },
+    { job_id: 'historico', event: 'done', actor_porque: PORQUE_DECLARADO, exit_code: 0, goal: 'resume o ficheiro' },
   ] });
 
-  assert.deepStrictEqual(records.find((record) => record.job_id === 'com-actor').actor, actor);
-  assert.deepStrictEqual(records.find((record) => record.job_id === 'historico').actor, {
+  assert.deepStrictEqual(records.find((record) => record.job_id === 'declarado').actor, actor);
+  assert.strictEqual(records.find((record) => record.job_id === 'declarado').actor_porque, PORQUE_DECLARADO);
+  assert.deepStrictEqual(records.find((record) => record.job_id === 'default').actor, ACTOR_SYSTEM);
+  assert.deepStrictEqual(
+    records.find((record) => record.job_id === 'default').actor,
+    records.find((record) => record.job_id === 'declarado').actor,
+  );
+  assert.strictEqual(records.find((record) => record.job_id === 'default').actor_porque, PORQUE_DEFAULT);
+  assert.notStrictEqual(
+    records.find((record) => record.job_id === 'default').actor_porque,
+    records.find((record) => record.job_id === 'declarado').actor_porque,
+  );
+  const historico = records.find((record) => record.job_id === 'historico');
+  assert.deepStrictEqual(historico.actor, {
     type: 'system',
     id: 'legacy',
     origem: 'evento anterior à instrumentação de identidade (f-mu0)',
   });
+  assert.strictEqual(historico.actor_porque, null);
 });
 
 test('8 jobs locais bem sucedidos recomendam moo e dizem a base', () => {

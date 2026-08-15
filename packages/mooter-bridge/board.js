@@ -508,7 +508,19 @@ function construir(ledger, quotaState, gpuState, opts) {
     gerado_em: medidoEm,
     ledger_eventos: ledger.length,
     ledger_janela: janela,
-    jobs: records.map((record) => ({ job_id: record.job_id, actor: actorDoEvento(record) })),
+    jobs: records.map((record) => {
+      const actor = actorDoEvento(record);
+      return {
+        job_id: record.job_id,
+        actor,
+        // O porque só faz sentido ao lado de um ator REAL. Hoje isto já sai
+        // certo, mas por acaso: o input vem do aprender.js, que filtra a montante.
+        // Sem esta guarda, a coerência do board depende de um guard noutro
+        // ficheiro — e um evento legacy com um actor_porque perdido passaria a
+        // mostrar "declarado por quem disparou" ao lado de um ator `legacy`.
+        actor_porque: record.actor == null ? null : (record.actor_porque ?? null),
+      };
+    }),
     motivos_nao_local: motivosNaoLocal(ledger),
     metricas,
     fontes: {

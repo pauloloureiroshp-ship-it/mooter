@@ -8,6 +8,7 @@ const path = require('path');
 const { performance } = require('perf_hooks');
 const board = require('./board.js');
 const seamless = require('./seamless.js');
+const { ACTOR_SYSTEM, PORQUE_DEFAULT, PORQUE_DECLARADO } = require('./actor.js');
 
 const AGORA = '2026-07-26T23:00:00.000Z';
 
@@ -70,21 +71,34 @@ test('ledger sintético de 30 eventos bate com o cálculo feito à mão', () => 
     'uma métrica medida sem faixa não pode contar como dado ausente');
 });
 
-test('A2 — o scorecard expõe actor por job e degrada histórico para legacy', () => {
-  const actor = { type: 'agent', id: 'codex-1', origem: 'mooter_work' };
+test('A2 — o scorecard distingue actor default de declarado e degrada histórico para legacy', () => {
+  const actor = { ...ACTOR_SYSTEM };
   const ledger = [
-    { job_id: 'com-actor', event: 'dispatched', actor, ts: '2026-07-26T12:00:00.000Z' },
-    { job_id: 'com-actor', event: 'done', actor, exit_code: 0, ts: '2026-07-26T12:00:01.000Z' },
-    { job_id: 'historico', event: 'done', exit_code: 0, ts: '2026-07-26T12:01:00.000Z' },
+    { job_id: 'declarado', event: 'done', actor, actor_porque: PORQUE_DECLARADO, exit_code: 0, ts: '2026-07-26T12:00:00.000Z' },
+    { job_id: 'default', event: 'done', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT, exit_code: 0, ts: '2026-07-26T12:00:01.000Z' },
+    { job_id: 'historico', event: 'done', actor_porque: PORQUE_DECLARADO, exit_code: 0, ts: '2026-07-26T12:01:00.000Z' },
   ];
   const jobs = board.scorecard(deps({ ledger, keepResults: [] })).jobs;
 
-  assert.deepStrictEqual(jobs.find((job) => job.job_id === 'com-actor').actor, actor);
-  assert.deepStrictEqual(jobs.find((job) => job.job_id === 'historico').actor, {
+  assert.deepStrictEqual(jobs.find((job) => job.job_id === 'declarado').actor, actor);
+  assert.strictEqual(jobs.find((job) => job.job_id === 'declarado').actor_porque, PORQUE_DECLARADO);
+  assert.deepStrictEqual(jobs.find((job) => job.job_id === 'default').actor, ACTOR_SYSTEM);
+  assert.deepStrictEqual(
+    jobs.find((job) => job.job_id === 'default').actor,
+    jobs.find((job) => job.job_id === 'declarado').actor,
+  );
+  assert.strictEqual(jobs.find((job) => job.job_id === 'default').actor_porque, PORQUE_DEFAULT);
+  assert.notStrictEqual(
+    jobs.find((job) => job.job_id === 'default').actor_porque,
+    jobs.find((job) => job.job_id === 'declarado').actor_porque,
+  );
+  const historico = jobs.find((job) => job.job_id === 'historico');
+  assert.deepStrictEqual(historico.actor, {
     type: 'system',
     id: 'legacy',
     origem: 'evento anterior à instrumentação de identidade (f-mu0)',
   });
+  assert.strictEqual(historico.actor_porque, null);
 });
 
 test('custo total e cobertura coexistem com a mediana sem esconder zero medido', () => {

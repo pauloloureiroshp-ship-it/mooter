@@ -240,8 +240,11 @@ function jobRecords(input) {
   const byJob = new Map();
   for (const event of readLedger(input)) {
     if (!event || !event.job_id) continue;
+    const eventActor = actorDoEvento(event);
     const record = byJob.get(event.job_id) || {
-      job_id: event.job_id, actor: actorDoEvento(event), agent: null, tier_motor: null, goal: null,
+      job_id: event.job_id, actor: eventActor,
+      actor_porque: temActor(event) ? (event.actor_porque ?? null) : null,
+      agent: null, tier_motor: null, goal: null,
       worktree: null, escrita: null, preparation: false, dispatched_at: null, completed_at: null,
       worktree_criada: null, git_base_clean: null, git_base_commit: null,
       status: null, desfecho: null, duration_s: null, tokens_in: null, tokens_out: null,
@@ -251,7 +254,10 @@ function jobRecords(input) {
       motivo_nao_local: null, forcado_por_quota: false,
       category: null, category_fonte: null, categoria_legado: false,
     };
-    if (temActor(event)) record.actor = actorDoEvento(event);
+    if (temActor(event)) {
+      record.actor = eventActor;
+      record.actor_porque = event.actor_porque ?? null;
+    }
     for (const field of ['agent', 'tier_motor', 'goal', 'worktree']) {
       if (event[field]) record[field] = event[field];
     }

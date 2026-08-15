@@ -272,10 +272,12 @@ function dosJobs(jobs, opts) {
     const custos = cadeia.map(c => c.cost_usd).filter(v => typeof v === 'number');
     const durs = cadeia.map(c => c.duration_s).filter(v => typeof v === 'number');
     const registos = (o.registos && o.registos[j.job_id]) || [];
+    const actor = actorDoEvento(j);
 
     linhas.push({
       kind: 'mooter', fonte: 'ledger', job_id: j.job_id,
-      actor: actorDoEvento(j),
+      actor,
+      actor_porque: j.actor == null ? null : (j.actor_porque ?? null),
       rotulo: cadeia.length > 1 ? 'Chained work' : 'Dispatched work',
       sub: [j.wave ? 'wave ' + j.wave : null, j.agent_label || j.agent].filter(Boolean).join(' · ') || null,
       at: Date.parse(cadeia[0].dispatched_at || cadeia[0].started_at || 0) || null,

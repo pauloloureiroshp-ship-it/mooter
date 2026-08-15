@@ -4,7 +4,7 @@ const { PassThrough } = require('stream');
 const fleet = require('./fleet.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento } = require('./actor.js');
+const { ACTOR_LEGACY, actorDoEvento } = require('./actor.js');
 
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
 const PERIODOS = Object.freeze(['sessao', 'dia', 'semana']);
@@ -59,6 +59,18 @@ function jobTime(job, firstTimes) {
     if (Number.isFinite(time)) return time;
   }
   return firstTimes.get(job.job_id) ?? null;
+}
+
+function projectActor(job) {
+  const actor = actorDoEvento(job);
+  const legacy = actor.type === ACTOR_LEGACY.type
+    && actor.id === ACTOR_LEGACY.id
+    && actor.origem === ACTOR_LEGACY.origem;
+  return {
+    job_id: job.job_id,
+    actor,
+    actor_porque: legacy ? null : (job.actor_porque ?? null),
+  };
 }
 
 function cargoOf(job) {
@@ -281,7 +293,7 @@ function project(events, opts) {
     gerado_em: window.ate,
     janela: window,
     fonte: 'ledger append-only + board determinístico',
-    jobs: scopedJobs.map((job) => ({ job_id: job.job_id, actor: actorDoEvento(job) })),
+    jobs: scopedJobs.map(projectActor),
     cobertura: {
       jobs_na_janela: metric(scopedJobs.length, 'jobs com timestamp atribuível dentro da janela'),
       jobs_sem_timestamp: metric(withoutTimestamp, withoutTimestamp
@@ -325,7 +337,7 @@ function pulse(events, wave) {
   if (localOut.valor != null && localOut.valor > 0) lines.push(localOut.valor + ' tokens de saída locais medidos');
   return {
     wave, cargo, cargo_porque: cargoPorque, agentes: agents,
-    jobs: jobs.map((job) => ({ job_id: job.job_id, actor: actorDoEvento(job) })),
+    jobs: jobs.map(projectActor),
     duracao_s: metric(duration, duration == null
       ? 'n/d — faltam timestamps válidos de início ou fim'
       : 'do primeiro dispatch ao último terminal da wave'),

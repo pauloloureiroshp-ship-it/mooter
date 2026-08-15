@@ -8,6 +8,7 @@ const path = require('path');
 const receipt = require('./recibo.js');
 const seamless = require('./seamless.js');
 const tools6 = require('./tools6.js');
+const { ACTOR_SYSTEM, PORQUE_DEFAULT, PORQUE_DECLARADO } = require('./actor.js');
 
 const START = Date.parse('2026-07-28T10:00:00.000Z');
 
@@ -34,22 +35,41 @@ function cargo(result, name) {
   return result.cargos.find((item) => item.cargo === name);
 }
 
-test('A2 — a projecção do recibo expõe actor por job e degrada histórico para legacy', () => {
-  const actor = { type: 'human', id: 'ana', origem: 'mcp-session' };
+test('A2 — recibo distingue actor default de declarado e degrada histórico para legacy', () => {
+  const actor = { ...ACTOR_SYSTEM };
   const ledger = [
-    event('com-actor', 'dispatched', { cargo: 'MIO', actor }, 0),
-    event('com-actor', 'done', { cargo: 'MIO', actor, cost_usd: 0 }, 1),
-    event('historico', 'dispatched', { cargo: 'MIO' }, 2),
-    event('historico', 'done', { cargo: 'MIO', cost_usd: 0 }, 3),
+    event('declarado', 'dispatched', { cargo: 'MIO', actor, actor_porque: PORQUE_DECLARADO }, 0),
+    event('declarado', 'done', { cargo: 'MIO', actor, actor_porque: PORQUE_DECLARADO, cost_usd: 0 }, 1),
+    event('default', 'dispatched', { cargo: 'MIO', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT }, 2),
+    event('default', 'done', { cargo: 'MIO', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT, cost_usd: 0 }, 3),
+    event('historico', 'dispatched', { cargo: 'MIO', actor_porque: PORQUE_DECLARADO }, 4),
+    event('historico', 'done', { cargo: 'MIO', cost_usd: 0 }, 5),
   ];
   const jobs = receipt.project(ledger, scope()).jobs;
 
-  assert.deepEqual(jobs.find((job) => job.job_id === 'com-actor').actor, actor);
-  assert.deepEqual(jobs.find((job) => job.job_id === 'historico').actor, {
+  assert.deepEqual(jobs.find((job) => job.job_id === 'declarado').actor, actor);
+  assert.equal(jobs.find((job) => job.job_id === 'declarado').actor_porque, PORQUE_DECLARADO);
+  assert.deepEqual(jobs.find((job) => job.job_id === 'default').actor, ACTOR_SYSTEM);
+  assert.deepEqual(
+    jobs.find((job) => job.job_id === 'default').actor,
+    jobs.find((job) => job.job_id === 'declarado').actor,
+  );
+  assert.equal(jobs.find((job) => job.job_id === 'default').actor_porque, PORQUE_DEFAULT);
+  assert.notEqual(
+    jobs.find((job) => job.job_id === 'default').actor_porque,
+    jobs.find((job) => job.job_id === 'declarado').actor_porque,
+  );
+  const historico = jobs.find((job) => job.job_id === 'historico');
+  assert.deepEqual(historico.actor, {
     type: 'system',
     id: 'legacy',
     origem: 'evento anterior à instrumentação de identidade (f-mu0)',
   });
+  assert.equal(historico.actor_porque, null);
+
+  const pulseJobs = receipt.pulse(ledger, 'w1').jobs;
+  assert.equal(pulseJobs.find((job) => job.job_id === 'declarado').actor_porque, PORQUE_DECLARADO);
+  assert.equal(pulseJobs.find((job) => job.job_id === 'default').actor_porque, PORQUE_DEFAULT);
 });
 
 test('S1 — wave sem cargo fica n/d com porquê e o texto nunca decide o cargo', () => {
