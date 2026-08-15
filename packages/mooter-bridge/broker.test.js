@@ -275,11 +275,14 @@ test('B15 — o despacho é ESPERADO; um dispatcher que falha não vira APPROVED
   // antes de saber o resultado, e um stub SÍNCRONO escondia-o.
   limpar();
   jobPendente('job-w1');
-  broker.setDispatcher(async () => { throw new Error('spawn recusado'); });
+  broker.setDispatcher(async () => { throw new Error('spawn rebentou a meio'); });
   const r = await broker.decide({ decision_id: 'd-w', request_id: 'job-w1', actor: PAULO,
     veredicto: 'aprovar', idem_key: 'k-w', expected_state_hash: hashDe('job-w1') });
-  assert.equal(r.estado, 'REJECTED');
-  assert.equal(r.porque_negado, 'despacho_falhou');
+  assert.equal(r.estado, 'INDETERMINADO',
+    'uma excepcao NAO diz se o job nasceu; fechar aqui era transformar incerteza em '
+    + 'certeza, e na certeza errada');
+  assert.equal(r.motivo, 'despacho_incerto');
+  assert.equal(r.terminal, false);
 
   limpar();
   jobPendente('job-w2');
@@ -322,9 +325,19 @@ test('B7b — papel sem a capacidade que o pedido EXIGE é recusado', async () =
 
   const negado = await broker.decide({ decision_id: 'd-n', request_id: 'job-esc1', actor: ANA,
     veredicto: 'aprovar', idem_key: 'k-n', expected_state_hash: hashDe('job-esc1') });
-  assert.equal(negado.estado, 'REJECTED');
-  assert.equal(negado.porque_negado, 'capacidade_em_falta');
+  assert.equal(negado.estado, 'NEGADO', 'falha de politica NAO e uma recusa humana');
+  assert.equal(negado.terminal, false,
+    'e nao pode fechar o pedido: enquanto fechava, a tentativa de um viewer impedia '
+    + 'o owner de aprovar para sempre');
   assert.deepStrictEqual(negado.capacidades_em_falta, ['write']);
+
+  // e o owner continua a poder decidir o MESMO pedido, que era o ponto todo
+  const despachos0 = []; stubDispatcher(despachos0);
+  const okMesmoJob = await broker.decide({ decision_id: 'd-ow', request_id: 'job-esc1',
+    actor: PAULO, veredicto: 'aprovar', idem_key: 'k-ow',
+    expected_state_hash: hashDe('job-esc1') });
+  assert.equal(okMesmoJob.estado, 'APPROVED',
+    'a autorizacao nao pode envenenar o pedido que existe para proteger');
 
   // job NOVO de proposito: o job-esc1 ja tem uma decisao final, e reutiliza-lo
   // aqui bateria na regra do B23 em vez de testar o que este teste quer testar.
@@ -351,7 +364,8 @@ test('B13 — roles.json ILEGÍVEL fecha; não é o mesmo que roles.json ausente
   fs.writeFileSync(ROLES, '{ "papeis": { "paulo": "owner" ');   // truncado a meio
   const r = await broker.decide({ decision_id: 'd-il', request_id: 'job-il', actor: PAULO,
     veredicto: 'aprovar', idem_key: 'k-il', expected_state_hash: hashDe('job-il') });
-  assert.equal(r.estado, 'REJECTED');
+  assert.equal(r.estado, 'NEGADO');
+  assert.equal(r.terminal, false, 'uma avaria de configuracao nao decide nada');
   assert.equal(r.porque_negado, 'roles_ilegivel',
     'apagar metade do ficheiro de papéis dava autoridade TOTAL — fail-open na autorização');
 
@@ -640,4 +654,156 @@ test('B31 — o request_id e um identificador, nao um caminho', async () => {
   limpar();
   jobPendente('job-ok');
   assert.ok(broker.masterpromptDoJob('job-ok'), 'um job_id normal continua a funcionar');
+});
+
+test('B32 — a intencao pendurada nao trava um pedido que JA teve desfecho final', async () => {
+  // A intencao `approval.dispatching` nunca e limpa — de proposito, porque
+  // apaga-la seria perder a prova de que houve um efeito externo. O que a
+  // impede de travar tudo para sempre e a ORDEM dos checks: o desfecho final
+  // e consultado ANTES dela. Isto estava afirmado e nao provado.
+  limpar();
+  jobPendente('job-ord');
+  const despachos = []; stubDispatcher(despachos);
+  const ok = await broker.decide({ decision_id: 'd1', request_id: 'job-ord', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k1', expected_state_hash: hashDe('job-ord') });
+  assert.equal(ok.estado, 'APPROVED');
+  assert.equal(eventos().some((e) => e.event === 'approval.dispatching'), true,
+    'a intencao ficou gravada, como tem de ficar');
+
+  const outra = await broker.decide({ decision_id: 'd2', request_id: 'job-ord', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'CHAVE-NOVA', expected_state_hash: hashDe('job-ord') });
+  assert.equal(outra.motivo, 'ja_decidido',
+    'com a ordem trocada, isto responderia INDETERMINADO e o pedido ficava preso para sempre');
+  assert.equal(despachos.length, 1, 'e nao se despacha outra vez');
+});
+
+test('B33 — um despacho RECUSADO fecha; um despacho INCERTO prende', async () => {
+  // A distincao e o ponto: `{error}` do guard quer dizer "nao despachei" — ha
+  // certeza, e fecha. Uma excepcao quer dizer "nao sei" — e a incerteza nao se
+  // resolve inventando um desfecho.
+  limpar();
+  jobPendente('job-recusado');
+  broker.setDispatcher(async () => ({ error: 'guard recusou o dispatch' }));
+  const r1 = await broker.decide({ decision_id: 'd1', request_id: 'job-recusado', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k1', expected_state_hash: hashDe('job-recusado') });
+  assert.equal(r1.motivo, 'despacho_recusado');
+  assert.equal(r1.terminal, true);
+
+  limpar();
+  jobPendente('job-incerto');
+  broker.setDispatcher(async () => { throw new Error('rebentou'); });
+  const i1 = await broker.decide({ decision_id: 'd1', request_id: 'job-incerto', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k1', expected_state_hash: hashDe('job-incerto') });
+  assert.equal(i1.motivo, 'despacho_incerto');
+
+  const i2 = await broker.decide({ decision_id: 'd2', request_id: 'job-incerto', actor: PAULO,
+    veredicto: 'recusar', idem_key: 'k2', expected_state_hash: hashDe('job-incerto') });
+  assert.equal(i2.motivo, 'despacho_pendurado',
+    'nem uma RECUSA passa por cima de um efeito de resultado desconhecido');
+});
+
+// ── ronda 4 · os 8 ALTO do G4 #3 ──────────────────────────────────────────
+test('B34 — "." e ".." tambem sao travessia, e a segunda barreira apanha-os', () => {
+  // a primeira correccao pos o ponto no charset e declarou-se feita. Nao estava:
+  // `path.join(jobs, '..', 'masterprompt.md')` sai da pasta na mesma.
+  for (const mau of ['.', '..', '...', '../..', 'a/../..']) {
+    assert.equal(broker.masterpromptDoJob(mau), null, 'passou: ' + mau);
+  }
+  limpar();
+  jobPendente('job-bom');
+  assert.ok(broker.masterpromptDoJob('job-bom'), 'um job_id normal continua a funcionar');
+});
+
+test('B35 — "n/d" nas permissoes efectivas FECHA, e [] quer dizer vazio', () => {
+  // o produtor escreve literalmente "n/d" para cc/codex/gemini, e [] para
+  // moo/kimi. Recuar para o allowedTools no primeiro caso era fail-open; e
+  // transformar o segundo em TODAS era o oposto do que o produtor diz.
+  assert.deepStrictEqual(
+    broker.capacidadesDoPedido({ allowedTools: 'Read', permissoes_efectivas: { valor: 'n/d' } }),
+    broker.TODAS_AS_CAPACIDADES, 'desconhecido assume o pior, nao o pedido');
+  assert.deepStrictEqual(
+    broker.capacidadesDoPedido({ allowedTools: 'Read,Bash', permissoes_efectivas: { valor: [] } }),
+    ['read'], 'lista efectiva VAZIA quer dizer sem ferramentas');
+});
+
+test('B36 — o masterprompt esta amarrado ao mp_hash aprovado', async () => {
+  limpar();
+  const texto = '⇄ COWORK -> CC\nGOAL  o que foi aprovado\n';
+  const hash = require('crypto').createHash('sha256').update(texto, 'utf8').digest('hex');
+  escrever({ ts: HA_UMA_HORA, event: 'dispatched', job_id: 'job-mph', agent: 'cc',
+    worktree: 'C:\\wt\\um', actor: ANA, actor_porque: identidade.PORQUE_DECLARADO,
+    escrita: false, allowedTools: 'Read', mp_hash: hash });
+  escrever({ ts: HA_UMA_HORA, event: 'nao_verificado', job_id: 'job-mph',
+    exit_code: 'agent-awaiting-approval', actor: ANA });
+  const dir = path.join(HOME, 'jobs', 'job-mph');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'masterprompt.md'), texto);
+
+  const despachos = []; stubDispatcher(despachos);
+  const ok = await broker.decide({ decision_id: 'd', request_id: 'job-mph', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k1', expected_state_hash: hashDe('job-mph') });
+  assert.equal(ok.estado, 'APPROVED');
+
+  // agora alguem MEXE no ficheiro entre o pedido e o clique
+  limpar();
+  escrever({ ts: HA_UMA_HORA, event: 'dispatched', job_id: 'job-mph2', agent: 'cc',
+    worktree: 'C:\\wt\\um', actor: ANA, escrita: false, allowedTools: 'Read', mp_hash: hash });
+  escrever({ ts: HA_UMA_HORA, event: 'nao_verificado', job_id: 'job-mph2',
+    exit_code: 'agent-awaiting-approval', actor: ANA });
+  const dir2 = path.join(HOME, 'jobs', 'job-mph2');
+  fs.mkdirSync(dir2, { recursive: true });
+  fs.writeFileSync(path.join(dir2, 'masterprompt.md'), texto + 'E MAIS ISTO QUE NINGUEM APROVOU\n');
+
+  const despachos2 = []; stubDispatcher(despachos2);
+  const mau = await broker.decide({ decision_id: 'd', request_id: 'job-mph2', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k2', expected_state_hash: hashDe('job-mph2') });
+  assert.equal(mau.motivo, 'masterprompt_mudou',
+    'aprovar isto era despachar um texto que ninguem viu');
+  assert.equal(despachos2.length, 0);
+});
+
+test('B37 — recusar tambem e um acto de autoridade', async () => {
+  limpar();
+  jobPendente('job-rec');
+  fs.writeFileSync(ROLES, JSON.stringify({
+    papeis: { paulo: 'owner' }, capacidades: { owner: ['read', 'write'] } }));
+  const semPapel = await broker.decide({ decision_id: 'd', request_id: 'job-rec', actor: ANA,
+    veredicto: 'recusar', idem_key: 'k', expected_state_hash: hashDe('job-rec') });
+  assert.equal(semPapel.motivo, 'sem_papel',
+    'gravava-se a recusa ANTES de olhar para os papeis: qualquer um fechava o pedido alheio');
+  assert.equal(eventos().some((e) => e.event === 'approval_rejected'), false);
+});
+
+test('B38 — o replay devolve o job_novo, nao so o estado', async () => {
+  limpar();
+  jobPendente('job-rep');
+  const despachos = []; stubDispatcher(despachos);
+  const args = { decision_id: 'd', request_id: 'job-rep', actor: PAULO, veredicto: 'aprovar',
+    idem_key: 'k', expected_state_hash: hashDe('job-rep') };
+  const primeira = await broker.decide(args);
+  const segunda = await broker.decide(args);
+  assert.equal(primeira.job_novo, 'job-novo');
+  assert.equal(segunda.motivo, 'replay_exacto');
+  assert.equal(segunda.job_novo, 'job-novo',
+    'se a primeira resposta se perdeu, o chamador precisa do identificador — nao so de saber que ja decidiu');
+});
+
+test('B39 — o approval_rejected sozinho ja fecha o pendente', () => {
+  // sao dois appends: uma falha entre eles deixava a recusa gravada e invisivel,
+  // e uma aprovacao podia passar-lhe por cima.
+  limpar();
+  jobPendente('job-meio');
+  escrever({ ts: new Date().toISOString(), event: 'approval_rejected',
+    request_id: 'job-meio', actor: PAULO, idem_key: 'k' });
+  assert.equal(broker.listPending().length, 0,
+    'a recusa conta por si, mesmo sem o approval.decided que devia vir a seguir');
+});
+
+test('B40 — a fila e o decide tratam um relogio futuro da MESMA maneira', () => {
+  limpar();
+  const daqui = new Date(Date.now() + 10 * 24 * 3600e3).toISOString();
+  jobPendente('job-fut', { ts0: daqui, ts1: daqui });
+  const p = broker.listPending().find((x) => x.job_id === 'job-fut');
+  assert.ok(Date.parse(p.expira_em) <= Date.now() + broker.EXPIRACAO_DEFAULT_MS + 5000,
+    'a fila anunciava um prazo esticado que o decide nao respeitaria');
 });

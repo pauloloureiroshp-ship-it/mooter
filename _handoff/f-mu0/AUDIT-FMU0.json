@@ -58,7 +58,7 @@
   "integridade_ledger_por_prefixo": {
     "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
     "bytes_baseline": 1220668,
-    "bytes_actual": 1813991,
+    "bytes_actual": 2036742,
     "sha_prefixo_medido": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2",
     "veredicto": "PASS — só cresceu, prefixo intacto, zero reescrita",
     "nota": "re-medido em cada ronda; a ultima medicao e a que vale"
@@ -125,15 +125,15 @@
       ]
     },
     "B-VERDE.txt": {
-      "bytes": 98310,
-      "sha256": "49540825ce5aef46021a4b5c94c66c81aa212cd2ec1d73028ee876964ebdb4f6",
+      "bytes": 99017,
+      "sha256": "486680d010bebe1ed4ace1a035653a7e3e20bb235a6c8f464632d92a11b4751b",
       "totais": {
-        "tests": 1031,
-        "pass": 1029,
+        "tests": 1040,
+        "pass": 1038,
         "fail": 1,
         "skipped": 1
       },
-      "broker": "42/42",
+      "broker": "51/51",
       "falhas": [
         "ondaA A3/A3b — herdado, excepcao aceite"
       ]
@@ -679,10 +679,35 @@
       "NENHUM dos testes novos passaria com a correccao exacta revertida"
     ]
   },
-  "achado_proprio_travessia": {
-    "quando": "a reler o modulo para escrever o brief do G4 #3, nao por veredicto",
-    "o_que": "o request_id vem de quem chama e ia direito a um path.join no masterpromptDoJob; um ../ lia um ficheiro FORA da pasta de jobs e o broker despachava-o como se fosse o masterprompt do pedido",
-    "atrito_real": "so se chega ali depois de encontrar um evento dispatched com esse job_id no ledger — mas dificil de alcancar nao e uma defesa",
-    "correccao": "um job_id valida-se como identificador (/^[A-Za-z0-9._-]+$/), nao como caminho. Teste B31."
+  "g4_parte_B_3": {
+    "job": "job-msurrrmy-1093",
+    "alvo": "565092a7..839586d1",
+    "duracao_s": 904,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 8,
+      "MEDIO": 5,
+      "BAIXO": 1
+    },
+    "o_achado_sobre_MIM": "ALTO 1 — a minha correccao da travessia estava INCOMPLETA e eu tinha-a declarado feita neste ficheiro. O charset aceitava o ponto, logo . e .. passavam e o path.join saia da pasta na mesma. O meu teste so cobria valores com barra. E a TERCEIRA vez nesta frente que este AUDIT afirma algo que nenhum teste sustenta.",
+    "regra_nova_para_mim": "o AUDIT so afirma o que um teste prova. Onde nao houver teste, escreve-se n/d.",
+    "ALTO_corrigidos": [
+      "travessia: . e .. passavam — regex que recusa nomes so-de-pontos MAIS segunda barreira que confirma que o caminho resolvido fica dentro da raiz (B34)",
+      "permissoes_efectivas com valor n/d (o que o produtor escreve para cc/codex/gemini) recuava para allowedTools — fail-open. Agora desconhecido assume TODAS (B35)",
+      "a aprovacao nao estava amarrada ao mp_hash: o masterprompt podia mudar entre o pedido e o clique. Agora compara-se (B36)",
+      "qualquer ator recusava antes da avaliacao de papeis — recusar tambem e acto de autoridade (B37)",
+      "falha de POLITICA era REJECTED final, logo a tentativa de um viewer impedia o owner de aprovar para sempre. Passou a NEGADO, nao final (B7b)",
+      "a intencao pendurada nao dominava a recusa, e uma excepcao do dispatcher virava recusa final: incerteza tratada como certeza. Agora INDETERMINADO (B33)",
+      "a recusa sao dois appends e uma falha no meio deixava-a invisivel; o approval_rejected passa a fechar por si (B39)",
+      "o replay idempotente perdia o job_novo (B38)"
+    ],
+    "MEDIO_corrigidos": [
+      "[] nas efectivas virava TODAS quando o produtor esta a dizer VAZIO (B35)",
+      "STALE dizia terminal:true sem ser final",
+      "o clamp do relogio futuro faltava na fila (B40)",
+      "motivos ambiguos: replay_exacto separa-se de ja_decidido, e lock_indisponivel de lock_tomado",
+      "cobertura mutation-killing sobre-afirmada — B25b, B31, B22, B26 e B27 eram fracos e foram substituidos ou reforcados"
+    ],
+    "BAIXO_corrigido": "os hashes esperado/observado passam a ficar em TODAS as decisoes finais, nao so no STALE"
   }
 }

@@ -52,6 +52,7 @@
 
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const path = require('path');
 const { isTerminal } = require('./terminal.js');
 const identidade = require('./actor.js');
@@ -65,7 +66,15 @@ const EXPIRACAO_DEFAULT_MS = 72 * 60 * 60 * 1000;
  */
 const EXIT_A_ESPERA = 'agent-awaiting-approval';
 
-/** Só estas fecham um pendente. STALE não: um clique obsoleto não decide nada. */
+/**
+ * Só estas fecham um pendente.
+ *
+ * STALE não: um clique obsoleto não decide nada. E NEGADO também não — uma
+ * falha de POLÍTICA (papel sem capacidade, roles.json avariado) não é uma
+ * recusa humana. Enquanto eram a mesma coisa, a tentativa de um viewer fechava
+ * o pedido e o owner deixava de o poder aprovar: a autorização envenenava o que
+ * devia proteger.
+ */
 const DECISOES_FINAIS = ['APPROVED', 'REJECTED', 'EXPIRED'];
 
 const LOCK_TTL_S = 60;
@@ -137,16 +146,32 @@ function capacidadesDoPedido(pedido) {
   // `--allowedTools` PRE-APROVA ferramentas e NAO LIMITA o conjunto disponivel.
   // Derivar autorizacao do que foi PEDIDO, ignorando o que ficou efectivamente
   // disponivel, era medir a fechadura errada.
-  const efectivas = p.permissoes_efectivas && p.permissoes_efectivas.valor;
-  const fonte = Array.isArray(efectivas) ? efectivas.join(',') : p.allowedTools;
+  const temCampo = !!(p.permissoes_efectivas
+    && Object.prototype.hasOwnProperty.call(p.permissoes_efectivas, 'valor'));
+  const efectivas = temCampo ? p.permissoes_efectivas.valor : undefined;
 
-  if (fonte == null || String(fonte).trim() === '') {
-    // Job legado ou sem informacao de ferramentas. Antes degradava para `read`, o
-    // que o tornava MAIS FACIL de aprovar — fail-open exactamente onde doi. Sem
-    // saber o que o job pode fazer, assume-se o pior.
+  if (temCampo && Array.isArray(efectivas)) {
+    // Lista efectiva CONHECIDA. Vazia quer dizer vazia — o moo e o kimi correm
+    // mesmo sem ferramentas. Antes o [] virava TODAS, que e o oposto do que o
+    // produtor esta a dizer.
+    if (!efectivas.length) return ['read'];
+    return derivarDeFerramentas(p, efectivas.join(','));
+  }
+  if (temCampo) {
+    // O produtor escreve literalmente "n/d" para cc, codex e gemini. Recuar para
+    // o `allowedTools` era fail-open: o campo que ele proprio documenta como
+    // "pre-aprova, nao limita" passava a valer como se fosse o limite.
     return [...TODAS_AS_CAPACIDADES];
   }
-  const tools = String(fonte);
+  const fonte = p.allowedTools;
+  if (fonte == null || String(fonte).trim() === '') {
+    // Job legado, sem informacao nenhuma. Sem saber o que pode fazer, o pior.
+    return [...TODAS_AS_CAPACIDADES];
+  }
+  return derivarDeFerramentas(p, String(fonte));
+}
+
+function derivarDeFerramentas(p, tools) {
   const out = ['read'];
   if (p.escrita === true || /(Edit|Write|MultiEdit|NotebookEdit)/.test(tools)) out.push('write');
   if (/Bash/.test(tools)) out.push('bash');
@@ -323,13 +348,28 @@ function JOBS_DIR() { return path.join(MOOTER_HOME_DIR(), 'jobs'); }
  * como se fosse o masterprompt do pedido. Um job_id e um identificador, nao um
  * caminho — e valida-se como identificador.
  */
-const JOB_ID_VALIDO = /^[A-Za-z0-9._-]+$/;
+// Um ponto NAO chega: `.` e `..` passavam este teste e o path.join resolvia-os
+// para fora da pasta de jobs. A primeira correccao declarou-se feita e nao
+// estava — por isso agora ha DUAS barreiras, e a segunda nao depende de eu ter
+// pensado em todos os casos: confirma-se que o caminho resolvido fica DENTRO.
+const JOB_ID_VALIDO = /^(?!\.+$)[A-Za-z0-9._-]+$/;
+
+function jobIdSeguro(jobId) {
+  return typeof jobId === 'string' && jobId.length > 0 && jobId.length < 256
+    && JOB_ID_VALIDO.test(jobId);
+}
 
 function masterpromptDoJob(jobId) {
-  if (typeof jobId !== 'string' || !JOB_ID_VALIDO.test(jobId)) return null;
+  if (!jobIdSeguro(jobId)) return null;
+  const raiz = path.resolve(JOBS_DIR());
+  const pasta = path.resolve(raiz, jobId);
+  // cinto e suspensorios: mesmo que a regex deixe passar algo, o caminho tem de
+  // ficar debaixo da raiz. `path.relative` diz-nos se saiu.
+  const rel = path.relative(raiz, pasta);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
   for (const nome of ['masterprompt.md', 'masterprompt.txt']) {
     try {
-      const txt = fs.readFileSync(path.join(JOBS_DIR(), jobId, nome), 'utf8');
+      const txt = fs.readFileSync(path.join(pasta, nome), 'utf8');
       if (txt && txt.trim()) return txt;
     } catch { /* tenta o seguinte */ }
   }
@@ -353,8 +393,12 @@ function listPending(filtro) {
 
   // So uma decisao FINAL fecha um pendente. Um STALE diz "o teu clique estava
   // velho" — o job continua a espera de alguem, e esconde-lo era perde-lo.
+  // O `approval_rejected` conta por si. Sao dois appends separados, e uma falha
+  // entre eles deixava a recusa gravada mas invisivel — e uma aprovacao podia
+  // passar por cima dela.
   const fechados = new Set(ledger
-    .filter((e) => e.event === 'approval.decided' && DECISOES_FINAIS.includes(e.estado))
+    .filter((e) => (e.event === 'approval.decided' && DECISOES_FINAIS.includes(e.estado))
+      || e.event === 'approval_rejected')
     .map((e) => e.request_id));
 
   const jobs = new Set(ledger.filter((e) => e.job_id).map((e) => e.job_id));
@@ -375,7 +419,9 @@ function listPending(filtro) {
       state_hash: estado ? estado.state_hash : null,
       seq: estado ? estado.seq : null,
       // sem relogio utilizavel nao se inventa um prazo — `new Date(NaN)` rebentava
-      expira_em: nascido == null ? null : new Date(nascido + EXPIRACAO_DEFAULT_MS).toISOString(),
+      // o mesmo clamp que o decide() usa: um relogio no futuro nao estica o prazo
+      expira_em: nascido == null ? null
+        : new Date(Math.min(nascido, Date.now()) + EXPIRACAO_DEFAULT_MS).toISOString(),
       expira_em_porque: nascido == null ? 'n/d — o pedido nao tem ts utilizavel' : null,
     });
   }
@@ -398,8 +444,11 @@ async function decide(args) {
   const dono = 'broker-' + process.pid + '-' + (a.decision_id || a.idem_key);
   const lock = _adquirirLock(dono);
   if (!lock.acquired) {
-    return resposta('LOCKED', 'lock_tomado', { held_by: lock.held_by, stale: lock.stale,
-      porque: lock.porque || 'outro processo tem o lock do broker; nada foi escrito' });
+    // uma falha a ESCREVER o lock nao e o mesmo que outro processo o ter, e
+    // devolver o mesmo motivo para as duas tornava o campo inutil
+    return resposta('LOCKED', lock.held_by === 'n/d' ? 'lock_indisponivel' : 'lock_tomado',
+      { held_by: lock.held_by, stale: lock.stale,
+        porque: lock.porque || 'outro processo tem o lock do broker; nada foi escrito' });
   }
 
   try {
@@ -409,8 +458,11 @@ async function decide(args) {
     const mesmaChave = ledger.find((e) => e.event === 'approval.decided'
       && e.idem_key === a.idem_key && e.request_id === a.request_id);
     if (mesmaChave) {
-      return resposta(mesmaChave.estado, 'ja_decidido',
-        { terminal: true, idempotente: true, decision_id: mesmaChave.decision_id });
+      // devolve TUDO o que a primeira devolveu — se a resposta original se
+      // perdeu, o chamador precisa do job_novo, nao so de saber que ja decidiu
+      return resposta(mesmaChave.estado, 'replay_exacto',
+        { terminal: true, idempotente: true, decision_id: mesmaChave.decision_id,
+          job_novo: mesmaChave.job_novo || null, autorizacao: mesmaChave.autorizacao || null });
     }
 
     // 2 · ESTADO TERMINAL: uma decisao final e final. So a idem_key nao chegava —
@@ -433,14 +485,17 @@ async function decide(args) {
     }
 
     const authzEvento = { advisory: true, actor_autenticado: false };
+    const estado = estadoDoJob(a.request_id, ledger);
     const base = {
       event: 'approval.decided', decision_id: a.decision_id || null,
       request_id: a.request_id, about_job: a.request_id,
       idem_key: a.idem_key, actor: quem.actor, veredicto: a.veredicto || null,
       authz: authzEvento, cas: { atomico: false },
+      // os dois hashes ficam em TODAS as decisoes, nao so no STALE: sem eles a
+      // prova forense de uma aprovacao nao diz sobre que estado se aprovou
+      expected_state_hash: a.expected_state_hash,
+      actual_state_hash: estado ? estado.state_hash : null,
     };
-
-    const estado = estadoDoJob(a.request_id, ledger);
 
     // 4 · expiracao — o default de 72h conta do PEDIDO, e sem relogio FECHA.
     const nascido = nascimentoDoPedido(a.request_id, ledger);
@@ -464,23 +519,12 @@ async function decide(args) {
       _append({ ...base, estado: 'STALE', seq: estado.seq,
         expected_state_hash: a.expected_state_hash, actual_state_hash: estado.state_hash,
         porque: 'o estado do job mudou entre o pedido e o clique' });
-      return resposta('STALE', 'estado_mudou', { terminal: true,
+      // terminal:false — o STALE nao decide nada, e o pedido continua na fila
+      return resposta('STALE', 'estado_mudou', { terminal: false,
         expected_state_hash: a.expected_state_hash, actual_state_hash: estado.state_hash });
     }
 
-    // 6 · recusa humana
-    if (a.veredicto === 'recusar') {
-      _append({ event: 'approval_rejected', request_id: a.request_id, about_job: a.request_id,
-        decision_id: a.decision_id || null, actor: quem.actor, idem_key: a.idem_key, authz: authzEvento });
-      _append({ ...base, estado: 'REJECTED', seq: estado.seq, porque: 'recusado por quem decide' });
-      return resposta('REJECTED', 'recusa_humana', { terminal: true });
-    }
-    if (a.veredicto !== 'aprovar') {
-      return resposta('INVALIDO', 'veredicto_invalido',
-        { porque: 'veredicto tem de ser "aprovar" ou "recusar"' });
-    }
-
-    // 7 · autorizacao ADVISORY por capacidade efectiva
+    // 6 · o pedido original — precisa-se dele para AMBOS os veredictos
     const pedido = ledger.find((e) => e.job_id === a.request_id && e.event === 'dispatched');
     if (!pedido) {
       return resposta('INVALIDO', 'sem_pedido_original',
@@ -489,48 +533,92 @@ async function decide(args) {
     const exigidas = capacidadesDoPedido(pedido);
     const papeis = lerPapeis();
     if (papeis.modo === 'ilegivel') {
-      _append({ ...base, estado: 'REJECTED', seq: estado.seq,
+      _append({ ...base, estado: 'NEGADO', seq: estado.seq,
         porque_negado: 'roles_ilegivel', detalhe: papeis.porque });
-      return resposta('REJECTED', 'roles_ilegivel',
-        { terminal: true, porque_negado: 'roles_ilegivel', detalhe: papeis.porque });
+      return resposta('NEGADO', 'roles_ilegivel',
+        { terminal: false, porque_negado: 'roles_ilegivel', detalhe: papeis.porque,
+          porque: 'falha de politica nao fecha o pedido — arranja-se o roles.json e decide-se' });
     }
     let autorizacao = 'single_user';
+    let papel = null;
     if (papeis.modo === 'roles') {
-      const papel = papeis.papeis[quem.actor.id] || null;
-      const tem = (papel && papeis.capacidades[papel]) || [];
-      const faltam = exigidas.filter((c) => !tem.includes(c));
-      if (faltam.length) {
-        _append({ ...base, estado: 'REJECTED', seq: estado.seq,
-          porque_negado: 'capacidade_em_falta', papel, capacidades_exigidas: exigidas,
-          capacidades_em_falta: faltam });
-        return resposta('REJECTED', 'capacidade_em_falta', { terminal: true,
-          porque_negado: 'capacidade_em_falta', papel,
-          capacidades_exigidas: exigidas, capacidades_em_falta: faltam });
+      papel = papeis.papeis[quem.actor.id] || null;
+      // RECUSAR tambem e um acto de autoridade: fecha o pedido de outra pessoa.
+      // Antes gravava-se a recusa ANTES de olhar para os papeis, e qualquer um
+      // conseguia encerrar o pedido alheio mesmo no modelo advisory.
+      if (!papel) {
+        _append({ ...base, estado: 'NEGADO', seq: estado.seq, porque_negado: 'sem_papel' });
+        return resposta('NEGADO', 'sem_papel', { terminal: false, porque_negado: 'sem_papel',
+          porque: 'quem nao tem papel declarado nao decide — nem para aprovar nem para recusar' });
       }
       autorizacao = 'roles:' + papel;
     }
 
-    // 8 · o masterprompt COMPLETO, do disco. O `goal` nao passa o guard.
+    // 7 · a intencao pendurada domina QUALQUER veredicto. Estava depois da
+    //     recusa, por isso uma recusa passava por cima de um despacho de
+    //     resultado desconhecido e fechava o pedido como se nada tivesse
+    //     acontecido.
+    const pendurado = ledger.find((e) => e.event === 'approval.dispatching'
+      && e.request_id === a.request_id);
+    if (pendurado) {
+      return resposta('INDETERMINADO', 'despacho_pendurado', { terminal: false,
+        porque: 'ha um despacho iniciado e nao confirmado para este pedido; decidir agora '
+          + 'podia esconder um efeito que ja aconteceu. Resolver a mao.',
+        decision_id: pendurado.decision_id });
+    }
+
+    // 8 · recusa humana — terminal
+    if (a.veredicto === 'recusar') {
+      _append({ event: 'approval_rejected', request_id: a.request_id, about_job: a.request_id,
+        decision_id: a.decision_id || null, actor: quem.actor, idem_key: a.idem_key,
+        authz: authzEvento, autorizacao });
+      _append({ ...base, estado: 'REJECTED', seq: estado.seq, autorizacao,
+        porque: 'recusado por quem decide' });
+      return resposta('REJECTED', 'recusa_humana', { terminal: true, autorizacao });
+    }
+    if (a.veredicto !== 'aprovar') {
+      return resposta('INVALIDO', 'veredicto_invalido',
+        { porque: 'veredicto tem de ser "aprovar" ou "recusar"' });
+    }
+
+    // 9 · aprovar exige as capacidades que o pedido usa
+    if (papeis.modo === 'roles') {
+      const tem = (papel && papeis.capacidades[papel]) || [];
+      const faltam = exigidas.filter((c) => !tem.includes(c));
+      if (faltam.length) {
+        _append({ ...base, estado: 'NEGADO', seq: estado.seq,
+          porque_negado: 'capacidade_em_falta', papel, capacidades_exigidas: exigidas,
+          capacidades_em_falta: faltam });
+        return resposta('NEGADO', 'capacidade_em_falta', { terminal: false,
+          porque_negado: 'capacidade_em_falta', papel,
+          capacidades_exigidas: exigidas, capacidades_em_falta: faltam,
+          porque: 'quem tiver a capacidade continua a poder decidir este pedido' });
+      }
+    }
+
+    // 10 · o masterprompt COMPLETO, do disco, E AMARRADO AO HASH APROVADO.
+    //      Ler o ficheiro sem o comparar deixava-o mudar entre o pedido e o
+    //      clique: aprovava-se um texto e despachava-se outro.
     const mp = masterpromptDoJob(a.request_id);
     if (!mp) {
       return resposta('INVALIDO', 'sem_masterprompt',
         { porque: 'o masterprompt completo do job nao esta em disco; re-despachar so com o goal '
           + 'seria despachar outra coisa' });
     }
-
-    // 9 · DURABILIDADE: a intencao entra ANTES do efeito externo. Um crash entre
-    //     despachar e gravar deixava um job novo sem decisao, e o retry podia
-    //     despachar OUTRA VEZ. Com a intencao gravada, o retry ve-a e para.
-    const pendurado = ledger.find((e) => e.event === 'approval.dispatching'
-      && e.request_id === a.request_id);
-    if (pendurado) {
-      return resposta('INDETERMINADO', 'despacho_pendurado', { terminal: false,
-        porque: 'ha um despacho iniciado e nao confirmado para este pedido; repetir podia '
-          + 'despachar duas vezes. Resolver a mao antes de decidir de novo.',
-        decision_id: pendurado.decision_id });
+    if (pedido.mp_hash) {
+      const agora = crypto.createHash('sha256').update(mp, 'utf8').digest('hex');
+      if (agora !== pedido.mp_hash) {
+        return resposta('INVALIDO', 'masterprompt_mudou',
+          { porque: 'o masterprompt em disco nao bate com o mp_hash do pedido; aprovar isto '
+            + 'seria despachar um texto que ninguem aprovou',
+            mp_hash_pedido: pedido.mp_hash, mp_hash_disco: agora });
+      }
     }
+
+    // 11 · a intencao entra ANTES do efeito externo
     _append({ event: 'approval.dispatching', request_id: a.request_id, about_job: a.request_id,
-      decision_id: a.decision_id || null, idem_key: a.idem_key, actor: quem.actor, authz: authzEvento });
+      decision_id: a.decision_id || null, idem_key: a.idem_key, actor: quem.actor,
+      authz: authzEvento });
 
     let despacho = null;
     try {
@@ -540,15 +628,18 @@ async function decide(args) {
         allowedTools: pedido.allowedTools || undefined,
       });
     } catch (e) {
-      _append({ ...base, estado: 'REJECTED', seq: estado.seq,
-        porque_negado: 'despacho_falhou', detalhe: e.message });
-      return resposta('REJECTED', 'despacho_falhou', { terminal: true,
-        porque_negado: 'despacho_falhou', detalhe: e.message });
+      // NAO se grava REJECTED: uma excepcao nao diz se o efeito aconteceu. Fechar
+      // aqui era transformar incerteza em certeza — e a certeza errada.
+      return resposta('INDETERMINADO', 'despacho_incerto', { terminal: false,
+        detalhe: e.message,
+        porque: 'o dispatcher lancou; nao se sabe se o job chegou a nascer. A intencao ficou '
+          + 'gravada e o pedido nao fecha ate alguem confirmar.' });
     }
     if (!despacho || despacho.error || !despacho.job_id) {
+      // Aqui SIM ha certeza: o guard respondeu que nao despachou.
       const detalhe = (despacho && (despacho.error || despacho.erro)) || 'sem job_id';
       _append({ ...base, estado: 'REJECTED', seq: estado.seq,
-        porque_negado: 'despacho_recusado', detalhe });
+        porque_negado: 'despacho_recusado', detalhe, autorizacao });
       return resposta('REJECTED', 'despacho_recusado',
         { terminal: true, porque_negado: 'despacho_recusado', detalhe });
     }
