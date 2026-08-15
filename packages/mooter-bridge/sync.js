@@ -10,6 +10,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { isTerminal } = require('./terminal.js');
+const { actorDoEvento } = require('./actor.js');
 
 const HUMAN_START = '<!-- HUMANO:INICIO -->';
 const HUMAN_END = '<!-- HUMANO:FIM -->';
@@ -112,6 +113,7 @@ function terminalJobs(records, maxJobs = DEFAULT_MAX_JOBS) {
     if (!previous || String(record.ts || '') >= String(previous.ts || '')) jobs.set(key, record);
   }
   return [...jobs.values()]
+    .map((record) => ({ ...record, actor: actorDoEvento(record) }))
     .sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')))
     .slice(0, maxJobs);
 }
@@ -188,7 +190,7 @@ function renderJobs(ledger, maxJobs) {
   for (const [wave, waveJobs] of groups) {
     lines.push(`### ${wave}`, '');
     for (const job of waveJobs) {
-      lines.push(`- \`${job.job_id || 'n/d'}\` · agente=${job.agent || 'n/d (porque o ledger do job não contém agent)'} · duração=${measured(job, 'duration_s')} · desfecho=${job.desfecho || job.event || 'n/d (porque o ledger do job não contém desfecho)'} · custo=${measured(job, 'cost_usd')} USD`);
+      lines.push(`- \`${job.job_id || 'n/d'}\` · agente=${job.agent || 'n/d (porque o ledger do job não contém agent)'} · actor=${cell(JSON.stringify(job.actor))} · duração=${measured(job, 'duration_s')} · desfecho=${job.desfecho || job.event || 'n/d (porque o ledger do job não contém desfecho)'} · custo=${measured(job, 'cost_usd')} USD`);
     }
     lines.push('');
   }

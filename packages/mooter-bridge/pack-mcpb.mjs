@@ -72,6 +72,11 @@ const FILES = [
   ['sync.js', 'server/sync.js'],
   ['fatia-local.js', 'server/fatia-local.js'],
   ['terminal.js', 'server/terminal.js'],
+  // f-mu0: identidade no envelope do ledger. Entra pela mesma porta e pela mesma
+  // razão que o oraculo.js acima — o B1 apanhou-a no minuto em que o seamless.js
+  // passou a requerê-la. Sem esta linha, quem instalasse o .mcpb tinha um
+  // conector que morre no primeiro require, com o repo todo verde.
+  ['actor.js', 'server/actor.js'],
   ['retry.js', 'server/retry.js'],
   ['board.js', 'server/board.js'],
   ['recibo.js', 'server/recibo.js'],

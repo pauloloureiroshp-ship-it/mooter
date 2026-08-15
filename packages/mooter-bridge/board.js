@@ -13,6 +13,7 @@ const quota = require('./quota.js');
 const aprender = require('./aprender.js');
 const gpu = require('./gpu.js');
 const { fatiaLocal } = require('./fatia-local.js');
+const { actorDoEvento } = require('./actor.js');
 
 const RESOURCE_URI = 'mooter://meo/scorecard';
 const RESOURCE = {
@@ -507,6 +508,7 @@ function construir(ledger, quotaState, gpuState, opts) {
     gerado_em: medidoEm,
     ledger_eventos: ledger.length,
     ledger_janela: janela,
+    jobs: records.map((record) => ({ job_id: record.job_id, actor: actorDoEvento(record) })),
     motivos_nao_local: motivosNaoLocal(ledger),
     metricas,
     fontes: {

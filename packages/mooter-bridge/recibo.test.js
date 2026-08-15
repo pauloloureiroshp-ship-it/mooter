@@ -34,6 +34,24 @@ function cargo(result, name) {
   return result.cargos.find((item) => item.cargo === name);
 }
 
+test('A2 — a projecção do recibo expõe actor por job e degrada histórico para legacy', () => {
+  const actor = { type: 'human', id: 'ana', origem: 'mcp-session' };
+  const ledger = [
+    event('com-actor', 'dispatched', { cargo: 'MIO', actor }, 0),
+    event('com-actor', 'done', { cargo: 'MIO', actor, cost_usd: 0 }, 1),
+    event('historico', 'dispatched', { cargo: 'MIO' }, 2),
+    event('historico', 'done', { cargo: 'MIO', cost_usd: 0 }, 3),
+  ];
+  const jobs = receipt.project(ledger, scope()).jobs;
+
+  assert.deepEqual(jobs.find((job) => job.job_id === 'com-actor').actor, actor);
+  assert.deepEqual(jobs.find((job) => job.job_id === 'historico').actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+});
+
 test('S1 — wave sem cargo fica n/d com porquê e o texto nunca decide o cargo', () => {
   const common = {
     wave: 'sem-cargo', agent: 'cc', cargo: null,
@@ -207,7 +225,10 @@ test('S2 — o mesmo gerador suporta sessão, dia e semana', () => {
 });
 
 test('S3 — pulso só nasce quando toda a wave está terminal e cabe em três linhas', async () => {
-  const common = { wave: 'pulso', cargo: 'MOO', cargo_porque: 'declarado', agent: 'moo', local: true };
+  const common = {
+    wave: 'pulso', cargo: 'MOO', cargo_porque: 'declarado', agent: 'moo', local: true,
+    actor: { type: 'agent', id: 'moo', origem: 'mooter_work' },
+  };
   const open = [
     event('a', 'dispatched', common, 0),
     event('a', 'done', Object.assign({}, common, { cost_usd: 0, tokens_out: 10 }), 1),
@@ -219,6 +240,7 @@ test('S3 — pulso só nasce quando toda a wave está terminal e cabe em três l
   const pulse = receipt.pulse(closed, 'pulso');
   assert.equal(pulse.cargo, 'MOO');
   assert.deepEqual(pulse.agentes, ['moo']);
+  assert.deepEqual(pulse.jobs[0].actor, common.actor);
   assert.equal(pulse.custo.valor, 0);
   assert.equal(pulse.moo_a_zero.jobs.valor, 2);
   assert.ok(pulse.resumo.split('\n').length <= 3);

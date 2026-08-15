@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
-  HUMAN_START, HUMAN_END, extractHumanBlock, projectSync, runCli, semHead,
+  HUMAN_START, HUMAN_END, extractHumanBlock, projectSync, runCli, semHead, terminalJobs,
 } = require('./sync.js');
 
 const COMMIT = '0123456789abcdef0123456789abcdef01234567';
@@ -97,6 +97,28 @@ test('3. métricas ausentes saem n/d com porque, nunca 0', () => {
   assert.match(result, /duração=n\/d \(porque o ledger do job não contém duration_s\)/);
   assert.match(result, /custo=n\/d \(porque o ledger do job não contém cost_usd\)/);
   assert.doesNotMatch(result, /(?:duração|custo)=0(?:\D|$)/);
+});
+
+test('A2 — o leitor e o texto do SYNC mostram actor; histórico degrada para legacy', () => {
+  const actor = { type: 'agent', id: 'codex-1', origem: 'mooter_work' };
+  const projected = terminalJobs([
+    { ts: '2026-07-27T10:01:00.000Z', event: 'done', job_id: 'com-actor', actor },
+    { ts: '2026-07-27T10:00:00.000Z', event: 'done', job_id: 'historico' },
+  ]);
+  assert.deepEqual(projected.find((job) => job.job_id === 'com-actor').actor, actor);
+  assert.deepEqual(projected.find((job) => job.job_id === 'historico').actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+
+  const env = fixture({ ledger: [{
+    ts: '2026-07-27T10:01:00.000Z', event: 'done', job_id: 'com-actor',
+    wave: 'sync-gerado', agent: 'codex', actor,
+  }] });
+  projectSync({ ...env });
+  const result = fs.readFileSync(env.syncPath, 'utf8');
+  assert.ok(result.includes('actor={"type":"agent","id":"codex-1","origem":"mooter_work"}'));
 });
 
 test('4. --check não escreve e devolve código diferente de zero quando está velho', () => {

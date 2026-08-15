@@ -29,6 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { actorDoEvento } = require('./actor.js');
 
 /* ── vocabulário dos motores ────────────────────────────────────────────── */
 /* `local:true` = corre na GPU do utilizador, a custo zero real. Tudo o resto
@@ -274,6 +275,7 @@ function dosJobs(jobs, opts) {
 
     linhas.push({
       kind: 'mooter', fonte: 'ledger', job_id: j.job_id,
+      actor: actorDoEvento(j),
       rotulo: cadeia.length > 1 ? 'Chained work' : 'Dispatched work',
       sub: [j.wave ? 'wave ' + j.wave : null, j.agent_label || j.agent].filter(Boolean).join(' · ') || null,
       at: Date.parse(cadeia[0].dispatched_at || cadeia[0].started_at || 0) || null,

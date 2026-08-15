@@ -70,6 +70,23 @@ test('ledger sintético de 30 eventos bate com o cálculo feito à mão', () => 
     'uma métrica medida sem faixa não pode contar como dado ausente');
 });
 
+test('A2 — o scorecard expõe actor por job e degrada histórico para legacy', () => {
+  const actor = { type: 'agent', id: 'codex-1', origem: 'mooter_work' };
+  const ledger = [
+    { job_id: 'com-actor', event: 'dispatched', actor, ts: '2026-07-26T12:00:00.000Z' },
+    { job_id: 'com-actor', event: 'done', actor, exit_code: 0, ts: '2026-07-26T12:00:01.000Z' },
+    { job_id: 'historico', event: 'done', exit_code: 0, ts: '2026-07-26T12:01:00.000Z' },
+  ];
+  const jobs = board.scorecard(deps({ ledger, keepResults: [] })).jobs;
+
+  assert.deepStrictEqual(jobs.find((job) => job.job_id === 'com-actor').actor, actor);
+  assert.deepStrictEqual(jobs.find((job) => job.job_id === 'historico').actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+});
+
 test('custo total e cobertura coexistem com a mediana sem esconder zero medido', () => {
   const base = { wave: 'onda1', agent: 'cc', worktree: 'C:\\repo', escrita: false };
   const ledger = [0, 0, 0.6054].flatMap((cost, index) => {

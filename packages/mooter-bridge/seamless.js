@@ -50,6 +50,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const fosso = require('./fosso.js');
 const { isTerminal } = require('./terminal.js');
+const identidade = require('./actor.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
@@ -186,14 +187,20 @@ function dimensoesPersistidas(jobId) {
       let event;
       try { event = JSON.parse(lines[i]); } catch { continue; }
       if (!event || event.job_id !== jobId) continue;
-      if (!Object.prototype.hasOwnProperty.call(event, 'cargo')
-          && !Object.prototype.hasOwnProperty.call(event, 'local')) continue;
+      const tem = (k) => Object.prototype.hasOwnProperty.call(event, k);
+      // f-mu0: o ator e o request_id entram na mesma varredura. Um job pode ter
+      // nascido noutro processo (o mapa em memória não o viu) e o evento onde a
+      // identidade ficou pode não trazer cargo nenhum — daí entrarem na guarda.
+      if (!tem('cargo') && !tem('local') && !tem('actor') && !tem('request_id')) continue;
       return {
-        cargo: Object.prototype.hasOwnProperty.call(event, 'cargo') ? event.cargo : null,
+        cargo: tem('cargo') ? event.cargo : null,
         cargo_porque: event.cargo_porque || (event.cargo == null
           ? 'n/d — anterior à instrumentação de cargos'
           : 'declarado por quem disparou'),
         local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
+        actor: tem('actor') ? event.actor : null,
+        actor_porque: event.actor_porque || null,
+        request_id: tem('request_id') ? event.request_id : null,
       };
     }
   } catch { /* ledger ainda não existe */ }
@@ -223,14 +230,73 @@ function enriquecerDimensoesDoJob(payload) {
       ? known.local
       : out.agent === 'moo';
   }
-  known = { cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local };
+  // f-mu0 · o ator viaja pelos MESMOS caminhos que o cargo, e pela mesma razão:
+  // quem lê o evento terminal precisa de saber de quem foi o pedido sem ter de
+  // reconstruir o job todo. A normalização é uma só, em aplicarIdentidade().
+  if (!Object.prototype.hasOwnProperty.call(out, 'actor') && known && known.actor != null) {
+    out.actor = known.actor;
+    out.actor_porque = out.actor_porque || known.actor_porque;
+  }
+  if (out.request_id == null && known && known.request_id != null) {
+    out.request_id = known.request_id;
+  }
+
+  // O que o chamador escreveu ainda NÃO é identidade — só passa a ser depois de
+  // aplicarIdentidade() o aceitar. Por isso aqui preserva-se o ator anterior e é
+  // o appendLedgerRecord que grava o final: uma escrita RECUSADA não pode deixar
+  // um ator malformado a envenenar os eventos seguintes do mesmo job.
+  known = {
+    cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local,
+    actor: known && known.actor != null ? known.actor : null,
+    actor_porque: (known && known.actor_porque) || null,
+    request_id: known && known.request_id != null ? known.request_id : null,
+  };
   JOB_DIMENSIONS.set(out.job_id, known);
+  return out;
+}
+
+/**
+ * f-mu0 · o portão por onde TODOS os eventos passam antes de tocar no disco.
+ *
+ * Está aqui, e não em enriquecerDimensoesDoJob, de propósito: aquela função
+ * devolve cedo quando não há `job_id`, e um evento sem job_id continua a ser um
+ * evento que tem de dizer quem o escreveu. Aqui não há saída pela frente.
+ *
+ * Rebenta em vez de corrigir: ator malformado ou visibilidade fora do enum
+ * param a escrita. Um evento meio-identificado no ledger é pior do que um erro
+ * na cara de quem o tentou escrever.
+ */
+function aplicarIdentidade(payload) {
+  const out = { ...(payload || {}) };
+
+  const declarado = Object.prototype.hasOwnProperty.call(out, 'actor');
+  const actor = identidade.normalizarActor(declarado ? out.actor : null);
+  if (!actor.ok) throw new Error(actor.error);
+  out.actor = actor.actor;
+  out.actor_porque = out.actor_porque || actor.porque;
+
+  if (identidade.eEventoDeResultado(out)) {
+    const vis = identidade.normalizarVisibilidade(
+      Object.prototype.hasOwnProperty.call(out, 'visibilidade') ? out.visibilidade : null);
+    if (!vis.ok) throw new Error(vis.error);
+    out.visibilidade = vis.visibilidade;
+  }
   return out;
 }
 
 function appendLedgerRecord(payload) {
   ensureDirs();
-  const record = { ts: nowIso(), ...enriquecerDimensoesDoJob(payload) };
+  const record = { ts: nowIso(), ...aplicarIdentidade(enriquecerDimensoesDoJob(payload)) };
+  // memoriza o ator JÁ normalizado: o próximo evento do job herda a forma final,
+  // nunca o que o chamador escreveu à mão.
+  if (record.job_id) {
+    const known = JOB_DIMENSIONS.get(record.job_id);
+    if (known) {
+      known.actor = record.actor;
+      known.actor_porque = record.actor_porque;
+      if (record.request_id != null) known.request_id = record.request_id;
+    }
+  }
   const line = JSON.stringify(record);
   fs.appendFileSync(LEDGER_PATH(), line + '\n');
   return { record, line };
@@ -1846,6 +1912,12 @@ async function toolDispatch(args) {
   if (!cargoSelection.ok) {
     return { error: cargoSelection.error, cargos_validos: cargoSelection.cargos_validos };
   }
+  // f-mu0 · quem pede. Recusa-se cedo, como o cargo: um ator malformado que
+  // passasse aqui só rebentaria na escrita do ledger, já com o job de pé.
+  const actorSelection = identidade.normalizarActor(args && args.actor != null ? args.actor : null);
+  if (!actorSelection.ok) {
+    return { error: actorSelection.error, actor_types_validos: [...identidade.ACTOR_TYPES] };
+  }
   const agent = String((args && args.agent) || '').trim();
   const worktree = String((args && args.worktree) || '').trim();
   let masterprompt = String((args && args.masterprompt) || '');
@@ -2016,6 +2088,9 @@ async function toolDispatch(args) {
     event: 'dispatched',
     permissoes_pedidas: permissions.pedido, permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
+    // o ator entra UMA vez, no nascimento do job: a propagação de dimensões
+    // leva-o daqui a todos os eventos seguintes, incluindo o terminal.
+    actor: actorSelection.actor, actor_porque: actorSelection.porque,
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     agent, worktree: wtNorm, worktree_criada: createdWorktree,
     local_decisao: localDecision,
@@ -2994,6 +3069,12 @@ async function toolWork(args) {
   if (!cargoSelection.ok) {
     return { error: cargoSelection.error, cargos_validos: cargoSelection.cargos_validos };
   }
+  // f-mu0 · valida antes de qualquer efeito: o caminho com preparação local
+  // dispara DOIS jobs, e um ator inválido não pode ser descoberto só no segundo.
+  const actorPedido = identidade.normalizarActor(a.actor != null ? a.actor : null);
+  if (!actorPedido.ok) {
+    return { error: actorPedido.error, actor_types_validos: [...identidade.ACTOR_TYPES] };
+  }
   const workCategory = aprender.resolveCategory(goal, a.category);
   if (!workCategory.category) {
     return { error: workCategory.porque, categorias_validas: [...aprender.CATEGORY_NAMES] };
@@ -3455,12 +3536,13 @@ async function toolWork(args) {
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, cargo: cargoSelection.cargo,
         step: 'S0', model: localModel,
+        actor: actorPedido.actor,
         evidencia: evidenciaPrep,
         __goal: goal, __escrita: false,
         __category: workCategory.category, __category_fonte: workCategory.category_fonte,
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-          allowedTools, model, step: stepId, evidencia,
+          allowedTools, model, step: stepId, evidencia, actor: actorPedido.actor,
           __goal: goal, __escrita: a.write === true, __cross_check: true,
           __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
@@ -3531,7 +3613,7 @@ async function toolWork(args) {
    * SCHEMA, não que o conteúdo atravessava a porta. Ver `handoff.test.js`.
    */
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null,
+    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null, actor: actorPedido.actor,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
     __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,
@@ -3631,6 +3713,24 @@ async function toolWork(args) {
   };
 }
 
+/**
+ * f-mu0 · o ator na porta MCP. Uma definição só, usada pelas duas tools: os
+ * schemas são `additionalProperties:false`, por isso sem esta declaração o host
+ * rejeitava o campo antes de o código o ver. Opcional de propósito — omitir dá
+ * o default `system/system` explícito, nunca um nome adivinhado.
+ */
+const ACTOR_INPUT_SCHEMA = {
+  type: 'object',
+  description: 'Quem pede. Omite e fica {type:"system", id:"system"} explícito no ledger.',
+  properties: {
+    type: { type: 'string', enum: [...identidade.ACTOR_TYPES], description: 'human decide · agent executa · system é o próprio Mooter.' },
+    id: { type: 'string', description: 'Identificador estável de quem pede (ex.: "paulo", "codex").' },
+    origem: { type: 'string', description: 'Por onde entrou o pedido (ex.: "cc:f-mu0"). Opcional.' },
+  },
+  required: ['type', 'id'],
+  additionalProperties: false,
+};
+
 // ── MCP tool descriptors (annotations per MCP directory requirements) ─────
 const TOOLS = [
   {
@@ -3653,6 +3753,7 @@ const TOOLS = [
       model: { type: 'string', description: 'Override the model (alias like "haiku"/"sonnet"/"opus", or a full name). Omit and the FROZEN classifier picks the minimum viable tier and passes it to the CLI.' },
       step: { type: 'string', description: 'Plan step id this job executes (see mooter_plan) — the step is marked running, then done/failed with who did it.' },
       handoff_from: { type: 'string', description: 'Job id whose result should be embedded into this masterprompt. Records a proven handoff chain in the ledger.' },
+      actor: ACTOR_INPUT_SCHEMA,
     }, required: ['agent', 'worktree', 'masterprompt', 'wave'], additionalProperties: false },
     annotations: { title: '🐄 Mooter · dispatch to the fleet', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolDispatch,
@@ -3693,6 +3794,7 @@ const TOOLS = [
       create_worktree: { type: 'boolean', description: 'Create a fresh isolated worktree before dispatch (git worktree add, reversible). If creation fails the job does not start.' },
       allowedTools: { type: 'string', description: 'Override the permission list.' },
       context: { type: 'string', description: 'Extra context to inline in the masterprompt.' },
+      actor: ACTOR_INPUT_SCHEMA,
     }, required: ['goal'], additionalProperties: false },
     annotations: { title: '🐄 Mooter · route to the right model', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolWork,

@@ -1,0 +1,215 @@
+{
+  "frente": "f-mu0",
+  "parte": "A — envelope de identidade (aditivo)",
+  "estado": "EM CURSO — fecha no GATE HUMANO A→B",
+  "gerado_em_utc": "2026-08-15T12:40:00Z",
+  "owner_tz": "America/Sao_Paulo (UTC-3) — 2026-08-15 09:40 na hora do dono",
+
+  "precedencia": {
+    "condicao_a_ronda4_duelo_ship": false,
+    "porque": "G4 #8 (job-msubcj99-e59f, codex, 425s) devolveu NO-SHIP sobre a ronda 6; _handoff/g4-duelo-ab-r6/resultado.md fecha com 'GO CONTINUA BLOQUEADO' e especifica a ronda 7",
+    "condicao_b_dono_escreveu_f_mu0_primeiro": true,
+    "quando": "2026-08-15, na sessão, literal 'f-mu0 primeiro'"
+  },
+
+  "ack_medido": {
+    "branch_origem": "onda-q/m1-fechar-o-laboratorio @ fb524d69 (bate com o sha da emissão)",
+    "main_local": "06bdc2c2693466505cc79d24a9e247c92f04890d",
+    "main_vs_origin": "7 commits À FRENTE de origin/main (f4a60a8b); 0 atrás — coerente com zero-push",
+    "porcelain_no_ack": 431,
+    "worktrees": 60,
+    "codex_version": "codex-cli 0.144.1",
+    "tres_docs_presentes": true,
+    "ledger_baseline": {
+      "bytes": 1220668,
+      "sha256": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2"
+    }
+  },
+
+  "housekeeping_pedido_pelo_dono": {
+    "lock_stale_apagado": ".git/index.lock.stale-cowork-1815 (0 B, não era o index.lock activo — esse não existia)",
+    "outros_locks_stale_deixados": 7,
+    "wip_commit": {
+      "sha": "1b8a2ead16ce6918a0c0c2c359260f5ea58c9b8e",
+      "branch": "onda-q/m1-fechar-o-laboratorio",
+      "ficheiros": 11,
+      "linhas": "+1183 / -230",
+      "adds": "selectivos — 420 untracked deixados intocados; nunca git add -A"
+    }
+  },
+
+  "worktree": {
+    "path": ".claude/worktrees/f-mu0",
+    "branch": "f-mu0/identidade-broker",
+    "base": "main @ 06bdc2c2",
+    "commit_parte_a": "n/d — pendente"
+  },
+
+  "integridade_ledger_por_prefixo": {
+    "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
+    "bytes_baseline": 1220668,
+    "bytes_actual": 1327236,
+    "sha_prefixo_medido": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2",
+    "veredicto": "PASS — só cresceu, prefixo intacto, zero reescrita",
+    "nota": "medição intermédia; repetida no fecho"
+  },
+
+  "provas": {
+    "A-VERMELHO.txt": {
+      "comando": "cd packages/mooter-bridge && node --test (definição de suite completa da v3.4)",
+      "bytes": 93013,
+      "sha256": "dcf7a78b42b3b8b417ca6cb75fe86424d637a9df86da22fccda320ffe4946934",
+      "totais": { "tests": 960, "pass": 957, "fail": 2, "skipped": 1 },
+      "falhas": [
+        "actor.test.js — INTENCIONAL: o módulo actor.js ainda não existia",
+        "ondaA.test.js A3/A3b — PRÉ-EXISTENTE, ver vermelho_pre_existente"
+      ]
+    },
+    "A-VERDE.txt": {
+      "comando": "cd packages/mooter-bridge && node --test",
+      "bytes": 93780,
+      "sha256": "53cedd687354267cbff3d481ab481a60c50ec0ebeb6896e644bcb1620cf84a3a",
+      "totais": { "tests": 978, "pass": 976, "fail": 1, "skipped": 1 },
+      "delta_vs_vermelho": "+18 testes (13 do A1 + 6 do A2, menos o 1 que o ficheiro em falta contava); fail 2 → 1; a única falha que resta é a pré-existente",
+      "falhas": ["ondaA.test.js A3/A3b — pré-existente, ver vermelho_pre_existente"]
+    },
+    "flake_registado_em_vez_de_escondido": {
+      "ficheiro": "packages/mooter-bridge/moo.test.js",
+      "o_que_aconteceu": "a PRIMEIRA captura do A-VERDE deu fail 2: moo.test.js falhou com ENOENT em C:\\...\\Temp\\moo-ctx-sxNZl3\\out.log",
+      "causa": "corrida de tmpdir sob carga paralela do node --test — o directório temporário do teste desapareceu enquanto algo ainda abria out.log",
+      "prova_de_que_e_flake": "passa isolado 2/2 vezes; não toca em actor, ledger nem em nenhuma projecção alterada nesta frente",
+      "o_que_fiz": "re-corri a captura em vez de a aceitar; a corrida gravada é a segunda. Fica registado porque um flake apagado volta como mistério."
+    }
+  },
+
+  "vermelho_pre_existente": {
+    "ficheiro": "packages/mooter-bridge/ondaA.test.js",
+    "testes": ["A3 · despachou leitura sem contexto nenhum", "A3b · não leu o ficheiro pelo modelo local"],
+    "nao_e_meu_porque": [
+      "falha sozinho, sem o actor.test.js na corrida, na worktree f-mu0 (base 06bdc2c2)",
+      "falha igualmente no checkout principal (1b8a2ead)",
+      "falha com o Ollama EM BAIXO e com o Ollama DE PÉ — não é ambiente"
+    ],
+    "fora_de_escopo_porque": "corrigi-lo é outra frente; a f-mu0 não toca em testes que não são seus",
+    "consequencia_honesta": "a Parte A NÃO pode declarar 'suite completa verde' — declara 'verde no delta, com 1 vermelho pré-existente herdado e nomeado'"
+  },
+
+  "routing": {
+    "regra": "wave sem routing declarado não fecha",
+    "waves": [
+      {
+        "wave": "w0 · ACK + housekeeping",
+        "motor": "maestro (CC/Opus)",
+        "jobs": 0,
+        "porque_maestro": "medição de estado de campo e escritas git — a frota chega sem Bash",
+        "tokens": "n/d (sessão)",
+        "custo_usd": "n/d",
+        "local_pct": 0
+      },
+      {
+        "wave": "f-mu0-w1-mapa",
+        "motor": "codex (read-only)",
+        "jobs": 1,
+        "job_id": "job-msuc5vi2-5102",
+        "model_used": "n/d — o CLI do codex não reporta modelo; meta.json model:null",
+        "tier_pedido": "T3",
+        "divergencia_model_vs_tier": "não verificável (n/d) — declarado, não fingido",
+        "duracao_s": 606,
+        "tokens_in": 10041477,
+        "tokens_out": 26479,
+        "custo_usd": "n/d — o CLI não reporta cost_usd",
+        "local_pct": 0,
+        "cross_check_moo": {
+          "modelo": "qwen3:30b",
+          "custo_usd": 0,
+          "verificado": 19,
+          "divergencias": 1,
+          "divergencia": "path .mooter/ledger.js citado não existe — afirmação descartada"
+        },
+        "valor_entregue": "mapa com file:line que apanhou o 2º escritor do ledger (fleet.js:692) e o additionalProperties:false das tools MCP"
+      },
+      {
+        "wave": "w2 · A1 envelope",
+        "motor": "maestro (CC/Opus)",
+        "jobs": 0,
+        "porque_maestro": "é o ponto único de escrita da verdade do sistema; e as suites correm sempre no maestro",
+        "custo_usd": "n/d (sessão)",
+        "local_pct": 0
+      },
+      {
+        "wave": "f-mu0-w3-projeccoes",
+        "motor": "moo (prep, T0) → codex (escrita)",
+        "jobs": 2,
+        "job_prep": {
+          "job_id": "job-msucq1do-1eed",
+          "model_used": "qwen3:30b",
+          "tier_motor": "T0",
+          "custo_usd": 0,
+          "duracao_s": 19,
+          "tokens_in": 8713,
+          "tokens_out": 1931,
+          "divergencia_model_vs_tier": "nenhuma — T0 local, como pedido"
+        },
+        "job_escrita": {
+          "job_id": "job-msucqfwc-b8d0",
+          "model_used": "n/d — o motor não declarou modelo atribuível",
+          "tier_pedido": "T3",
+          "divergencia_model_vs_tier": "não verificável (n/d). A regra manda cancelar e re-despachar com model explícito quando DIVERGE; aqui não diverge nem confirma — é n/d, e fica escrito como n/d.",
+          "estado": "done, exit_code 0",
+          "duracao_s": 426,
+          "custo_usd": "n/d — o CLI do codex não reporta cost_usd",
+          "cross_check": "NÃO CORREU — o modelo local excedeu o timeout da verificação (2063 MB de VRAM livre no momento; o Ollama tinha modelos carregados). verificado: 0, sem veredicto.",
+          "quem_verificou_entao": "o maestro: leitura do diff completo dos 6 ficheiros de produção (19 inserções, todas aditivas, todas a usar o actor.js canónico) + suite completa. Nenhum 'testei' foi aceite do job — ele não tem Bash.",
+          "entregue": "6 ficheiros de produção + 6 de teste; 1 teste A2 por consumidor, cada um a provar ator presente E degradação para legacy"
+        },
+        "local_pct": "50 (1 de 2 jobs da wave em GPU local, $0)"
+      }
+    ],
+    "trabalho_zero_pct": {
+      "no_ack": 20.41,
+      "fonte": "mooter_fleet scorecard, medido 2026-08-15T12:11:28Z",
+      "faixa_alvo": [50, 100],
+      "estado": "FORA — excepção aberta desde 2026-08-14T19:27:52Z",
+      "nota_honesta": "o masterprompt dizia 25%; o valor medido no arranque desta frente era 20,41%. Uso o medido.",
+      "o_que_esta_frente_fez": "o Ollama estava EM BAIXO no arranque (HTTP 000, zero processos) — nenhum trabalho local era possível. Arrancá-lo devolveu o moo à frota e a wave w3 já correu 1 de 2 jobs em GPU local a $0."
+    }
+  },
+
+  "achados_que_mudaram_o_trabalho": [
+    {
+      "achado": "fleet.js:692 faz appendFileSync DIRECTO ao ~/.mooter/ledger.jsonl (session_bind_rejected), contornando o ledgerAppend",
+      "fonte": "codex job-msuc5vi2-5102, confirmado por medição própria (grep de appendFileSync sobre todo o repo: só 2 escritores de produção do ledger do bridge)",
+      "consequencia": "sem correcção, 'actor em TODOS os eventos' seria falso; entrou no âmbito da wave w3"
+    },
+    {
+      "achado": "mooter_dispatch e mooter_work têm additionalProperties:false",
+      "consequencia": "o parâmetro actor tinha de ser DECLARADO no schema, senão era rejeitado na porta antes de o código o ver"
+    },
+    {
+      "achado": "plan.js NÃO é consumidor de ledgerRead — recebe um Map<job_id, último evento> montado pelo fleet.js",
+      "consequencia": "o A2 do masterprompt nomeia plan.js; a lista real de consumidores é outra e está coberta pela medição, não pelo texto"
+    },
+    {
+      "achado": "bundle.test.js B1 apanhou o require novo fora do manifesto do .mcpb",
+      "consequencia": "actor.js entrou em pack-mcpb.mjs; sem isso o conector instalado morria no primeiro require com o repo todo verde"
+    }
+  ],
+
+  "nao_fazer_respeitado": {
+    "push": "zero",
+    "classify_js_frozen": "não tocado",
+    "testes_duelo_piloto1": "não tocados",
+    "ledger_reescrito": "não — prefixo provado",
+    "schema_migrado": "não — só campos novos",
+    "actor_retroactivo_em_legacy": "não — leitura degrada, ficheiro não muda"
+  },
+
+  "pendente": [
+    "A2 nas projecções (wave w3 em curso)",
+    "A-VERDE.txt (suite completa)",
+    "commit da Parte A + prova de fronteira (git diff --stat sem ficheiros de broker)",
+    "append ao SYNC.md com a pergunta do gate",
+    "G4 crítico≠autor no fecho",
+    "MASTERPROMPTS_INDEX.md"
+  ]
+}

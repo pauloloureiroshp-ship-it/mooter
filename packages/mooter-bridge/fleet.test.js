@@ -37,6 +37,25 @@ test('foldJobs collapses an event stream into one row per job', () => {
   assert.strictEqual(jobs.find((j) => j.job_id === 'b').state, 'running');
 });
 
+test('A2 — foldJobs e publicJob preservam actor; histórico degrada para legacy', () => {
+  const actor = { type: 'human', id: 'ana', origem: 'mcp-session' };
+  const jobs = fleet.foldJobs([
+    E('com-actor', 'dispatched', { actor }),
+    E('com-actor', 'done', { exit_code: 0 }),
+    E('historico', 'done', { exit_code: 0 }),
+  ]);
+  const declarado = jobs.find((job) => job.job_id === 'com-actor');
+  const historico = jobs.find((job) => job.job_id === 'historico');
+
+  assert.deepStrictEqual(declarado.actor, actor);
+  assert.deepStrictEqual(fleet.publicJob(declarado, Date.now()).actor, actor);
+  assert.deepStrictEqual(historico.actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+});
+
 test('a failed job is never downgraded by a later collected event', () => {
   const jobs = fleet.foldJobs([E('c', 'started'), E('c', 'failed', { exit_code: 1 }), E('c', 'collected')]);
   assert.strictEqual(jobs[0].state, 'failed');
@@ -163,6 +182,8 @@ test('bind parcial não substitui um bind completo e deixa recibo no ledger', as
   assert.ok(rejected, 'a recusa parcial não ficou no ledger');
   assert.strictEqual(rejected.project_requested, 'Parcial');
   assert.strictEqual(rejected.folder_requested, null);
+  assert.deepStrictEqual(rejected.actor, { type: 'system', id: 'system', origem: null });
+  assert.match(rejected.actor_porque, /ator não declarado/i);
 });
 
 test('roots declaradas e válidas ganham ao bind manual', async () => {

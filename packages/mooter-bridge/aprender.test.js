@@ -156,6 +156,22 @@ test('histórico sem categoria mantém a classificação legada', () => {
   assert.strictEqual(aprender.categoryForLegacyGoal('reconcilia os branches órfãos'), 'outro');
 });
 
+test('A2 — o record por job preserva actor e degrada histórico para legacy', () => {
+  const actor = { type: 'agent', id: 'codex-1', origem: 'mooter_work' };
+  const records = aprender._jobRecords({ ledger: [
+    { job_id: 'com-actor', event: 'dispatched', actor, goal: 'resume o ficheiro' },
+    { job_id: 'com-actor', event: 'done', exit_code: 0 },
+    { job_id: 'historico', event: 'done', exit_code: 0, goal: 'resume o ficheiro' },
+  ] });
+
+  assert.deepStrictEqual(records.find((record) => record.job_id === 'com-actor').actor, actor);
+  assert.deepStrictEqual(records.find((record) => record.job_id === 'historico').actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+});
+
 test('8 jobs locais bem sucedidos recomendam moo e dizem a base', () => {
   const result = aprender.recomendarAgente({
     goal: 'resume e explica outro ficheiro', tier: 'T1', escrita: false,

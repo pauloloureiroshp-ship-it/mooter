@@ -126,6 +126,16 @@ test('dosJobs: uma cadeia dá UMA linha, não uma por job', () => {
   assert.strictEqual(r[0].ms.valor, 10000);
 });
 
+test('A2 — dosJobs projecta actor e degrada um job histórico para legacy', () => {
+  const actor = { type: 'agent', id: 'codex-1', origem: 'mooter_work' };
+  assert.deepStrictEqual(dosJobs([J({ job_id: 'com-actor', actor })])[0].actor, actor);
+  assert.deepStrictEqual(dosJobs([J({ job_id: 'historico' })])[0].actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+});
+
 test('dosJobs: custo parcial é declarado parcial, nunca somado como total', () => {
   const jobs = [
     J({ job_id: 'j1', agent: 'moo', cost_usd: 0 }),
