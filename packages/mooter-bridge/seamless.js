@@ -2145,7 +2145,11 @@ async function toolDispatch(args) {
     mp_hash, model, model_recommended, tier, step: stepId,
     goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
     prompt_chars: masterprompt.length,
-    escrita: canWrite, preparation: !!chain,
+    // f-mu0 PARTE B — o broker DERIVA as capacidades do pedido a partir daqui.
+    // Sem esta linha ele lia um campo inexistente e nunca via `bash`, `net`
+    // nem `git` — as tres perigosas. O G4 apanhou-o porque os testes do
+    // broker fabricavam o campo em vez de o lerem de onde ele nasce.
+    escrita: canWrite, allowedTools: allowedTools || null, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
     git_base_clean: gitBase ? gitBase.clean : null,
     handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote,

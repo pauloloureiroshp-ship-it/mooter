@@ -119,16 +119,17 @@
       ]
     },
     "B-VERDE.txt": {
-      "bytes": 96593,
-      "sha256": "7b0891b911707878ab73561b95849452ccc55b0f40bb14e0c32bb54ebc004e9e",
+      "bytes": 97393,
+      "sha256": "4198a24b5e6dd4e53d80a420e0c9d8fa4f20b79018047ccee732fa63269d2a4a",
       "totais": {
-        "tests": 1008,
-        "pass": 1006,
+        "tests": 1018,
+        "pass": 1016,
         "fail": 1,
         "skipped": 1
       },
+      "broker": "28/28",
       "falhas": [
-        "ondaA A3/A3b — herdado, excepcao ja declarada"
+        "ondaA A3/A3b — herdado, excepcao declarada"
       ]
     }
   },
@@ -519,7 +520,8 @@
     "porque_o_padrao_e_nao_o_modulo": "locks.ts e TypeScript ESM num pacote privado sem entrypoint compilado; o bridge e CommonJS. Importa-lo exigia construir-lhe um build — mais invasivo do que reutilizar a disciplina. Declarado no cabecalho do broker.js.",
     "promocao_nao_recriacao": "o hash canonico vem do tools/router/ledger-prov.js (canonicalize/provHash). O teste B9 falha se aparecer uma segunda implementacao no pacote.",
     "bundle": "broker.js e ledger-prov.js entraram no pack-mcpb.mjs. O broker resolve o prov em runtime (repo->bundle, padrao do classify.js), por isso o detector de requires do bundle.test.js NAO o apanha — o teste B10 e a rede.",
-    "ambito_declarado": "o CONTRATO-BROKER da critica descreve envelope com tenant_id/correlation_id/causation_id e maquina de estados completa. Isso e F-MU1+. Aqui esta o nucleo que o masterprompt estreitou (kimi #7/#11/#13)."
+    "ambito_declarado": "o CONTRATO-BROKER da critica descreve envelope com tenant_id/correlation_id/causation_id e maquina de estados completa. Isso e F-MU1+. Aqui esta o nucleo que o masterprompt estreitou (kimi #7/#11/#13).",
+    "authz_advisory": "decisao do dono: o B3 fica, mas declarado ADVISORY. Todo o evento gravado leva authz.advisory:true e actor_autenticado:false, e o retorno tambem. Um RBAC sem authn que se apresentasse como controlo de seguranca seria teatro — e teatro e pior do que nada, porque alguem confia nele."
   },
   "divida_MU0c": {
     "single_writer_interprocessos": {
@@ -540,8 +542,69 @@
     "ondaA": "A3/A3b vermelho na base 06bdc2c2 — frente propria, excepcao declarada e aceite"
   },
   "g4_parte_B": {
-    "job": "job-msuloq9q-18b4 (prep) → codex",
+    "job": "job-msulp5sl-96d1",
     "alvo": "086a5dac..ff90796d",
-    "veredicto": "PENDENTE — o job ainda corria quando este fecho foi escrito. O veredicto INTEIRO entra aqui quando chegar; um fecho que dissesse ship antes do critico responder nao seria um fecho."
+    "duracao_s": 564,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 8,
+      "MEDIO": 3,
+      "BAIXO": 1
+    },
+    "nota": "o pior veredicto da frente, e justo. Seis dos oito eram erros basicos meus, e quase todos tinham a mesma raiz: os TESTES fabricavam o mundo em vez de o lerem.",
+    "ALTO": [
+      {
+        "n": 1,
+        "titulo": "autorizacao sem autenticacao",
+        "avaliacao": "PROCEDE e e o mais fundo de toda a frente. Construi RBAC sobre o campo \"actor\", que a Parte A criou para PROVENIENCIA e que ninguem autentica: e declarado pelo chamador e validado so na forma, e e esse id que escolhe o papel. Decisao do dono: manter o B3 como o masterprompt pede, mas declara-lo ADVISORY em todo o lado — protege contra ENGANO, nao contra ADVERSARIO. A fronteira real e F-MU1 (o estudo aponta o Obot como edge de authn). O que nao era aceitavel era a coisa parecer o que nao e."
+      },
+      {
+        "n": 2,
+        "titulo": "sucesso sincrono sobre dispatcher assincrono",
+        "avaliacao": "PROCEDE. toolDispatch e async e eu nao esperava: gravava APPROVED com job_novo:null antes de saber o resultado. O meu B6 mascarava-o com um stub SINCRONO. decide() passou a async e os stubs a async por defeito (B15)."
+      },
+      {
+        "n": 3,
+        "titulo": "CAS contornavel",
+        "avaliacao": "PROCEDE. Omitir expected_state_hash desligava o CAS — um interruptor. Agora e obrigatorio (B17)."
+      },
+      {
+        "n": 4,
+        "titulo": "expiracao de 72h nao implementada",
+        "avaliacao": "PROCEDE. A constante existia e nunca era aplicada; so valia o prazo que o decisor mandasse. Agora conta do PEDIDO e manda o mais apertado dos dois (B11, B11b). O B3b era tautologico e foi substituido."
+      },
+      {
+        "n": 5,
+        "titulo": "capacidades derivadas de campo inexistente",
+        "avaliacao": "PROCEDE, medido por mim: grep ao evento dispatched deu 0 para allowedTools. Em producao nunca se derivava bash, net nem git. Corrigido na RAIZ — o seamless passa a gravar o campo — e amarrado por um teste de CONTRATO produtor-consumidor (B16)."
+      },
+      {
+        "n": 6,
+        "titulo": "os eventos novos quebram leitores existentes",
+        "avaliacao": "PROCEDE, e violava a invariante que a Parte A inteira respeitou. Os eventos do broker deixaram de levar job_id: ligam-se por request_id e o foldJobs nunca os ve (B14)."
+      },
+      {
+        "n": 7,
+        "titulo": "idempotencia cruza jobs",
+        "avaliacao": "PROCEDE. A chave passou a ser (idem_key, request_id) — antes, reutiliza-la noutro job devolvia a decisao do primeiro sem CAS nem autorizacao (B12)."
+      },
+      {
+        "n": 8,
+        "titulo": "falha de configuracao concede autoridade",
+        "avaliacao": "PROCEDE. roles.json AUSENTE e uma escolha (single-user); ILEGIVEL e uma avaria, e uma avaria na autorizacao fecha (B13)."
+      }
+    ],
+    "MEDIO_corrigidos": [
+      "listPending mantinha jobs concluidos e escondia STALE — agora so uma decisao FINAL fecha, e o pendente e quem tem o evento de espera como ULTIMO (B1c, B20)",
+      "sem evento dispatched derivava read e podia aprovar — agora recusa (B18)",
+      "lock vazio apos falha a meio ficava eterno — limpa-se, e a data do ficheiro serve de relogio de recurso (B8c)"
+    ],
+    "o_que_resistiu": [
+      "o seq distingue eventos identicos",
+      "eventos de outro job nao alteram o CAS",
+      "o finally cobre os returns",
+      "locks.ts mesmo nao era importavel no runtime CommonJS",
+      "ledger-prov e promovido e os dois ficheiros constam do pack"
+    ]
   }
 }
