@@ -522,8 +522,26 @@
     "ambito_declarado": "o CONTRATO-BROKER da critica descreve envelope com tenant_id/correlation_id/causation_id e maquina de estados completa. Isso e F-MU1+. Aqui esta o nucleo que o masterprompt estreitou (kimi #7/#11/#13)."
   },
   "divida_MU0c": {
-    "single_writer": "o broker toma o lock; o seamless.ledgerAppend NAO. O single-writer de hoje continua a ser POR PROCESSO (seamless.js:142; plan.js:53), nao interprocessos. Nao se construiu IPC nem daemon nesta frente, por instrucao.",
-    "ancora_externa": "OpenTimestamps para o passo anchor.published",
-    "imutabilidade_do_dono": "se for precisa, ordem TOTAL e no broker"
+    "single_writer_interprocessos": {
+      "estado_de_hoje": "o broker toma o lock O_EXCL; o seamless.ledgerAppend NAO. Logo o ledger continua a ter DOIS escritores de producao e so um deles se coordena.",
+      "evidencia_no_codigo": [
+        "seamless.js:14 — comentario de cabecalho: \"Ledger v1 (single-writer = THIS server process; append-only JSONL)\"",
+        "seamless.js:159 — \"// ledger (append-only JSONL; this process is the single writer)\"",
+        "plan.js:53-58 — a cicatriz: \"two concurrent writers (two connector processes...) clobbered each other's temp file\""
+      ],
+      "correccao_a_citacao_do_masterprompt": "a v3.4 cita seamless.js:142 e plan.js:53. O :142 e a constante MOOTER_HOME, nao o single-writer — a evidencia real e :14 e :159. Corrigido aqui em vez de repetido.",
+      "evidencia_medida_noutra_frente": "W1 (2026-08-15): 3 PIDs MCP a escrever o mesmo ledger sem lock, todos append-only. O claim do deck passou de \"single writer\" para \"append-only\".",
+      "o_que_falta": "ou o seamless passa a tomar o mesmo lock, ou nasce o IPC/daemon. Nenhum dos dois foi construido nesta frente, por instrucao explicita do masterprompt."
+    },
+    "ancora_externa": "OpenTimestamps (padrao aberto, gratuito, sem ToS de vendor) para o passo anchor.published — candidato oficial, dividia MU0-c",
+    "imutabilidade_do_dono": "removida da Parte A por decisao do dono apos 6 rondas de gauntlet. Se for precisa, tem de ser ordem TOTAL (relogio + chave estavel) e viver no broker, nao na propagacao",
+    "request_id": "propaga mas nao tem porta de entrada em producao — fora de ambito por decisao do dono",
+    "trilha": "atribui a cadeia inteira ao ator do job final — fora de ambito por decisao do dono",
+    "ondaA": "A3/A3b vermelho na base 06bdc2c2 — frente propria, excepcao declarada e aceite"
+  },
+  "g4_parte_B": {
+    "job": "job-msuloq9q-18b4 (prep) → codex",
+    "alvo": "086a5dac..ff90796d",
+    "veredicto": "PENDENTE — o job ainda corria quando este fecho foi escrito. O veredicto INTEIRO entra aqui quando chegar; um fecho que dissesse ship antes do critico responder nao seria um fecho."
   }
 }
