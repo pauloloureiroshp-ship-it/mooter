@@ -41,7 +41,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
-const { actorDoEvento, temActor, normalizarActor } = require('./actor.js');
+const { actorDoEvento, temActor, normalizarActor, PORQUE_DECLARADO } = require('./actor.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -106,11 +106,21 @@ function foldJobs(events) {
             cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
             cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
             actor: actorDoEvento(e),
+            // opção A do dono, contra o ALTO do G4: sem o porque, um default
+            // system/system lê-se como "o sistema fez isto" quando na verdade
+            // significa "ninguém declarou". O discriminador viaja com o ator.
+            actor_porque: e.actor_porque || null,
             local: typeof e.local === 'boolean' ? e.local : e.agent === 'moo',
             state: null, dispatched_at: null, started_at: null, ended_at: null, exit_code: null, duration_s: null };
       byId.set(e.job_id, j);
     }
-    if (temActor(e)) j.actor = actorDoEvento(e);
+    // G4 #1 MÉDIO — antes ficava o ÚLTIMO ator a falar. O job pertence a quem o
+    // PEDIU: um ator declarado não é substituído por outro evento mais tarde.
+    // Promover o default para um declarado continua a valer.
+    if (temActor(e) && j.actor_porque !== PORQUE_DECLARADO) {
+      j.actor = actorDoEvento(e);
+      j.actor_porque = e.actor_porque || null;
+    }
     if (e.wave) j.wave = e.wave;
     if (e.agent) j.agent = e.agent;
     if (e.worktree) j.worktree = e.worktree;

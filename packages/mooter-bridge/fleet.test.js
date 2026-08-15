@@ -56,6 +56,42 @@ test('A2 — foldJobs e publicJob preservam actor; histórico degrada para legac
   });
 });
 
+test('A2b — o fold distingue ator DECLARADO de ator por DEFAULT (ALTO do G4)', () => {
+  // sem isto, um default system/system lê-se no painel como "o sistema fez isto",
+  // quando só quer dizer "ninguém declarou quem foi". Ausência disfarçada de
+  // afirmação — foi o achado ALTO do crítico.
+  const { PORQUE_DECLARADO, PORQUE_DEFAULT } = require('./actor.js');
+  const jobs = fleet.foldJobs([
+    E('declarado', 'dispatched', {
+      actor: { type: 'human', id: 'ana' }, actor_porque: PORQUE_DECLARADO }),
+    E('defaultado', 'dispatched', {
+      actor: { type: 'system', id: 'system', origem: null }, actor_porque: PORQUE_DEFAULT }),
+  ]);
+  const d = jobs.find((j) => j.job_id === 'declarado');
+  const s = jobs.find((j) => j.job_id === 'defaultado');
+
+  assert.strictEqual(d.actor_porque, PORQUE_DECLARADO);
+  assert.strictEqual(s.actor_porque, PORQUE_DEFAULT);
+  assert.notStrictEqual(d.actor_porque, s.actor_porque,
+    'se as duas projecções forem indistinguíveis, o ALTO continua aberto');
+});
+
+test('A2c — o job pertence a quem o PEDIU, não ao último a falar', () => {
+  const { PORQUE_DECLARADO, PORQUE_DEFAULT } = require('./actor.js');
+  const jobs = fleet.foldJobs([
+    E('x', 'dispatched', { actor: { type: 'human', id: 'ana' }, actor_porque: PORQUE_DECLARADO }),
+    E('x', 'step', { actor: { type: 'human', id: 'paulo' }, actor_porque: PORQUE_DECLARADO }),
+  ]);
+  assert.strictEqual(jobs[0].actor.id, 'ana', 'um evento posterior não rouba o job a quem o pediu');
+
+  // mas promover um default para um declarado continua a ser certo
+  const promovido = fleet.foldJobs([
+    E('y', 'started', { actor: { type: 'system', id: 'system', origem: null }, actor_porque: PORQUE_DEFAULT }),
+    E('y', 'step', { actor: { type: 'human', id: 'paulo' }, actor_porque: PORQUE_DECLARADO }),
+  ]);
+  assert.strictEqual(promovido[0].actor.id, 'paulo', 'informação a chegar não é informação a mudar');
+});
+
 test('a failed job is never downgraded by a later collected event', () => {
   const jobs = fleet.foldJobs([E('c', 'started'), E('c', 'failed', { exit_code: 1 }), E('c', 'collected')]);
   assert.strictEqual(jobs[0].state, 'failed');

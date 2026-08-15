@@ -95,6 +95,17 @@ function temActor(event) {
   return !!(event && event.actor != null);
 }
 
+/**
+ * Dois atores são o mesmo quando type+id batem. A `origem` NÃO entra: o mesmo
+ * humano pode entrar pelo CC num evento e por outro caminho no seguinte, e isso
+ * não é uma pessoa diferente. Comparar a origem transformaria mudança de porta
+ * em reatribuição de identidade.
+ */
+function mesmoActor(a, b) {
+  if (!a || !b) return false;
+  return a.type === b.type && a.id === b.id;
+}
+
 function eEventoDeResultado(event) {
   if (!event) return false;
   if (EVENTOS_RESULTADO.includes(event.event)) return true;
@@ -128,6 +139,7 @@ module.exports = {
   normalizarActor,
   actorDoEvento,
   temActor,
+  mesmoActor,
   eEventoDeResultado,
   normalizarVisibilidade,
 };

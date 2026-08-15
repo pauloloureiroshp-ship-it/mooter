@@ -174,6 +174,69 @@ test('A4c — evento que não é resultado não ganha visibilidade', () => {
     'só eventos de resultado carregam a etiqueta; o resto seria ruído');
 });
 
+// ── ronda 2 · os três achados do G4 que eram meus ─────────────────────────
+test('A7 — ator histórico ILEGÍVEL não se herda, e não derruba o evento seguinte', () => {
+  // O caminho que isto protege não tem rede: o ledgerAppend do timeout do job
+  // corre dentro de um setTimeout sem try/catch (seamless.js). Se a herança
+  // trouxesse o objecto cru, uma linha estragada no ficheiro derrubava o
+  // processo — um ficheiro mau não pode matar um processo vivo.
+  fs.appendFileSync(LEDGER, JSON.stringify({
+    ts: '2026-08-15T11:00:00.000Z', event: 'dispatched', job_id: 'job-a7',
+    actor: { id: 'sem-type-nenhum' }, cargo: null, local: false,
+  }) + '\n');
+
+  assert.doesNotThrow(() => seamless.ledgerAppend({ event: 'failed', job_id: 'job-a7', exit_code: 'timeout' }));
+  const ev = eventoDoTipo('job-a7', 'failed');
+  assert.deepStrictEqual(ev.actor, { type: 'system', id: 'system', origem: null },
+    'ilegível não se herda — cai no default explícito');
+  assert.equal(ev.actor_porque, actorMod.PORQUE_DEFAULT);
+});
+
+test('A8 — visibilidade inválida rebenta MESMO num evento que não é resultado', () => {
+  // antes: a validação vivia dentro do ramo dos eventos de resultado, por isso
+  // um valor bogus num `started` chegava intacto ao JSONL. Fail-open num campo
+  // cuja razão de existir é ser fail-closed.
+  assert.throws(
+    () => seamless.ledgerAppend({ event: 'started', job_id: 'job-a8', visibilidade: 'publico' }),
+    /visibilidade/i);
+  assert.equal(lines().some((e) => e.job_id === 'job-a8'), false, 'não pode ter deixado rasto');
+
+  seamless.ledgerAppend({ event: 'started', job_id: 'job-a8b', visibilidade: 'shareable' });
+  assert.equal(eventoDoTipo('job-a8b', 'started').visibilidade, 'shareable',
+    'declarada e válida continua a passar, mesmo fora de um evento de resultado');
+});
+
+test('A9 — o default é PROMOVIDO por um ator declarado que chegue depois', () => {
+  seamless.ledgerAppend({ event: 'started', job_id: 'job-a9' });               // default system
+  seamless.ledgerAppend({ event: 'step', job_id: 'job-a9', actor: { type: 'human', id: 'paulo' } });
+  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a9' });             // herda
+
+  const fim = eventoDoTipo('job-a9', 'collected');
+  assert.equal(fim.actor.id, 'paulo', 'informação a chegar não é informação a mudar — promover é certo');
+  assert.equal(fim.actor_porque, actorMod.PORQUE_DECLARADO);
+});
+
+test('A9b — declarado→OUTRO declarado não é silencioso, e o job continua de quem o pediu', () => {
+  seamless.ledgerAppend({ event: 'dispatched', job_id: 'job-a9b', actor: { type: 'human', id: 'ana' } });
+  seamless.ledgerAppend({ event: 'step', job_id: 'job-a9b', actor: { type: 'human', id: 'paulo' } });
+
+  const intruso = eventoDoTipo('job-a9b', 'step');
+  assert.equal(intruso.actor.id, 'paulo', 'o evento continua a dizer a verdade sobre si próprio');
+  assert.ok(intruso.actor_reatribuido, 'a troca tem de ficar MARCADA — silenciosa é que não');
+  assert.equal(intruso.actor_reatribuido.de.id, 'ana');
+
+  seamless.ledgerAppend({ event: 'collected', job_id: 'job-a9b' });
+  assert.equal(eventoDoTipo('job-a9b', 'collected').actor.id, 'ana',
+    'quem herda é quem PEDIU o job, não o último a falar');
+});
+
+test('A9c — mesmoActor ignora a origem: mudar de porta não é mudar de pessoa', () => {
+  assert.equal(actorMod.mesmoActor({ type: 'human', id: 'paulo', origem: 'cc:f-mu0' },
+    { type: 'human', id: 'paulo', origem: 'slack:U1' }), true);
+  assert.equal(actorMod.mesmoActor({ type: 'human', id: 'paulo' },
+    { type: 'agent', id: 'paulo' }), false, 'o tipo faz parte da identidade');
+});
+
 // ── a porta MCP ───────────────────────────────────────────────────────────
 test('A6 — mooter_dispatch e mooter_work declaram `actor` no schema', () => {
   // os schemas são additionalProperties:false: sem esta declaração, o host

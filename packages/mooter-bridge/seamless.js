@@ -198,8 +198,16 @@ function dimensoesPersistidas(jobId) {
           ? 'n/d — anterior à instrumentação de cargos'
           : 'declarado por quem disparou'),
         local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
-        actor: tem('actor') ? event.actor : null,
-        actor_porque: event.actor_porque || null,
+        // G4 #1 MÉDIO — o ator herdado é SANEADO aqui, e não mais à frente.
+        // Herdar o objecto cru fazia com que uma linha malformada no ledger
+        // (escrita à mão, ou por uma versão futura) rebentasse em aplicarIdentidade
+        // no evento SEGUINTE do mesmo job — e há call-sites onde esse throw não
+        // tem rede: o ledgerAppend do timeout do job corre dentro de um setTimeout
+        // sem try/catch. Um ficheiro estragado não pode derrubar um processo vivo.
+        // Ilegível => não se herda nada, e o default explícito toma conta.
+        actor: tem('actor') && identidade.normalizarActor(event.actor).ok ? event.actor : null,
+        actor_porque: tem('actor') && identidade.normalizarActor(event.actor).ok
+          ? (event.actor_porque || null) : null,
         request_id: tem('request_id') ? event.request_id : null,
       };
     }
@@ -233,9 +241,26 @@ function enriquecerDimensoesDoJob(payload) {
   // f-mu0 · o ator viaja pelos MESMOS caminhos que o cargo, e pela mesma razão:
   // quem lê o evento terminal precisa de saber de quem foi o pedido sem ter de
   // reconstruir o job todo. A normalização é uma só, em aplicarIdentidade().
-  if (!Object.prototype.hasOwnProperty.call(out, 'actor') && known && known.actor != null) {
+  const declarouActor = Object.prototype.hasOwnProperty.call(out, 'actor');
+  if (!declarouActor && known && known.actor != null) {
     out.actor = known.actor;
     out.actor_porque = out.actor_porque || known.actor_porque;
+  } else if (declarouActor && known && known.actor != null
+             && known.actor_porque === identidade.PORQUE_DECLARADO) {
+    // G4 #1 MÉDIO — reatribuição silenciosa. Um evento posterior que declarasse
+    // OUTRO ator substituía o do job, e as projecções passavam a mostrar o
+    // segundo como se tivesse sido ele a pedir. Promoção (default → declarado)
+    // continua a valer: só isto, declarado→declarado diferente, é que é suspeito.
+    // Não se recusa — o evento é verdade sobre si próprio — mas deixa de ser
+    // silencioso, e o job continua a pertencer a quem o pediu (ver appendLedgerRecord).
+    const proposto = identidade.normalizarActor(out.actor);
+    if (proposto.ok && !identidade.mesmoActor(proposto.actor, known.actor)) {
+      out.actor_reatribuido = {
+        de: known.actor,
+        para: proposto.actor,
+        porque: 'evento posterior declarou outro ator; o job mantém quem o pediu',
+      };
+    }
   }
   if (out.request_id == null && known && known.request_id != null) {
     out.request_id = known.request_id;
@@ -275,9 +300,14 @@ function aplicarIdentidade(payload) {
   out.actor = actor.actor;
   out.actor_porque = out.actor_porque || actor.porque;
 
-  if (identidade.eEventoDeResultado(out)) {
-    const vis = identidade.normalizarVisibilidade(
-      Object.prototype.hasOwnProperty.call(out, 'visibilidade') ? out.visibilidade : null);
+  // G4 #1 BAIXO — a validação estava DENTRO do ramo dos eventos de resultado, por
+  // isso uma visibilidade inválida num evento que não é resultado (um `started`,
+  // por exemplo) atravessava intacta até ao JSONL. Fail-open num campo cuja razão
+  // de existir é ser fail-closed. Agora: declarada, valida-se sempre; o default
+  // continua a nascer só onde há resultado, para não encher o resto de ruído.
+  const declarouVisibilidade = Object.prototype.hasOwnProperty.call(out, 'visibilidade');
+  if (declarouVisibilidade || identidade.eEventoDeResultado(out)) {
+    const vis = identidade.normalizarVisibilidade(declarouVisibilidade ? out.visibilidade : null);
     if (!vis.ok) throw new Error(vis.error);
     out.visibilidade = vis.visibilidade;
   }
@@ -292,8 +322,16 @@ function appendLedgerRecord(payload) {
   if (record.job_id) {
     const known = JOB_DIMENSIONS.get(record.job_id);
     if (known) {
-      known.actor = record.actor;
-      known.actor_porque = record.actor_porque;
+      // Um ator DECLARADO não é substituído por outro ator declarado: o job
+      // pertence a quem o pediu, e um evento posterior de outra pessoa não o
+      // rouba. Já a promoção do default para um ator declarado é bem-vinda —
+      // é informação a chegar, não a mudar. O evento em si guarda sempre a sua
+      // própria verdade; isto é só a memória do JOB.
+      const jaDeclarado = known.actor != null && known.actor_porque === identidade.PORQUE_DECLARADO;
+      if (!jaDeclarado) {
+        known.actor = record.actor;
+        known.actor_porque = record.actor_porque;
+      }
       if (record.request_id != null) known.request_id = record.request_id;
     }
   }
