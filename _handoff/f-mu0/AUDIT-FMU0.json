@@ -42,7 +42,17 @@
     "path": ".claude/worktrees/f-mu0",
     "branch": "f-mu0/identidade-broker",
     "base": "main @ 06bdc2c2",
-    "commit_parte_a": "n/d — pendente"
+    "commit_parte_a": "98bd2066e1b5c847f3b2ddbe683749a5995a0d21",
+    "commit_sync_do_gate": "44055357 — deliberadamente FORA do commit A, para a prova de fronteira ficar limpa",
+    "porcelain_final": 0,
+    "push": "zero, em toda a frente"
+  },
+
+  "prova_de_fronteira": {
+    "regra": "o git diff --stat do commit de A não pode conter nenhum ficheiro de broker/decisão",
+    "comando": "git show --stat --name-only --format='' 98bd2066 | grep -iE 'broker|decis|approval|roles|lease|lock'",
+    "resultado": "nenhuma correspondência",
+    "veredicto": "PASS — a Parte A entrega-se sozinha e é mergeável sem a Parte B"
   },
 
   "integridade_ledger_por_prefixo": {
@@ -204,12 +214,29 @@
     "actor_retroactivo_em_legacy": "não — leitura degrada, ficheiro não muda"
   },
 
+  "nota_de_activacao": {
+    "regra": "kimi #14 — fora de escopo declarado",
+    "texto": "o bridge que corre no Desktop continua com o código ANTIGO até o Paulo reinstalar/reiniciar. Esta frente não reiniciou nada (doutrina: nunca reiniciar com job vivo — e havia jobs vivos). Mergeado ≠ activo."
+  },
+
+  "efeito_colateral_declarado": {
+    "o_que": "arranquei o serviço Ollama (estava em baixo: HTTP 000, zero processos)",
+    "porque": "sem ele nenhum trabalho local era possível, e o masterprompt manda puxar o trabalho_zero_pct para cima usando o moo",
+    "reversivel": true,
+    "efeito_medido": "a wave w3 correu a preparação em GPU local a $0 (qwen3:30b, T0, 19s); e provou-se que o vermelho do ondaA NÃO era o Ollama — falha na mesma com ele de pé"
+  },
+
+  "g4_critico_nao_autor": {
+    "job_id": "job-msud7kv6-48fe",
+    "motor": "codex read-only (crítico ≠ autor: não escreveu nada do que audita)",
+    "alvo": "commit 98bd2066",
+    "instrucao": "derrubar as promessas 1-6 da Parte A com evidência ficheiro:linha; gate que só aprova não correu",
+    "veredicto": "PENDENTE — job em curso à hora deste ficheiro; o veredicto INTEIRO entra aqui quando fechar"
+  },
+
   "pendente": [
-    "A2 nas projecções (wave w3 em curso)",
-    "A-VERDE.txt (suite completa)",
-    "commit da Parte A + prova de fronteira (git diff --stat sem ficheiros de broker)",
-    "append ao SYNC.md com a pergunta do gate",
-    "G4 crítico≠autor no fecho",
-    "MASTERPROMPTS_INDEX.md"
+    "veredicto do G4 (job-msud7kv6-48fe)",
+    "GATE A→B: só abre com o Paulo a escrever, literal, `avanço B 98bd2066`",
+    "Parte B — NÃO AUTORIZADA. Se for recusada ou abortar: git reset --hard 98bd2066 na worktree; nenhuma decisão pendente foi tocada, portanto nada fica órfão."
   ]
 }
