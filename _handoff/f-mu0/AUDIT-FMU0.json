@@ -231,7 +231,70 @@
     "motor": "codex read-only (crítico ≠ autor: não escreveu nada do que audita)",
     "alvo": "commit 98bd2066",
     "instrucao": "derrubar as promessas 1-6 da Parte A com evidência ficheiro:linha; gate que só aprova não correu",
-    "veredicto": "PENDENTE — job em curso à hora deste ficheiro; o veredicto INTEIRO entra aqui quando fechar"
+    "duracao_s": 422,
+    "custo_usd": "n/d — o CLI do codex não reporta",
+    "cross_check": "não produziu ficheiro (sem veredicto do moo)",
+    "veredicto": "NO-SHIP",
+    "contagem": { "ALTO": 1, "MEDIO": 4, "BAIXO": 1 },
+    "gate_do_masterprompt": "ship só sem ALTO aberto → a Parte A NÃO tem ship",
+    "achados": [
+      {
+        "nivel": "ALTO",
+        "titulo": "identidade falsa por omissão",
+        "argumento": "o default system/system é uma ATRIBUIÇÃO AFIRMATIVA, não uma ausência. Clientes existentes não enviam o campo novo, logo pedidos que vieram de uma pessoa ficam gravados como 'system'. A ausência não vira uma pessoa — vira uma afirmação igualmente fabricada.",
+        "evidencia": ["actor.js:55", "seamless.js:1917", "seamless.js:3074", "seamless.js:3757", "fleet.js:113"],
+        "avaliacao_do_autor": "PROCEDE, e é o achado que interessa. Mas colide com o masterprompt: a v3.4 prescreve verbatim o default {type:'system', id:'system'} (kimi #6, 'nunca omissão silenciosa'). Implementei o que estava escrito. Resolver isto é decisão do dono, não minha — ver decisao_pendente_do_dono.",
+        "mitigacao_ja_presente": "o discriminador existe no ficheiro: actor_porque = 'n/d — ator não declarado por quem disparou; nunca inferido' vs 'declarado por quem disparou'. O que falta é ele SOBREVIVER às projecções, que hoje só levam o actor."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "request_id não tem porta de entrada em produção",
+        "evidencia": ["seamless.js:191", "seamless.js:240", "actor.test.js:121", "actor.test.js:139"],
+        "avaliacao_do_autor": "PROCEDE. O mecanismo propaga, mas nada em produção o define — nem o schema nem o evento de dispatch. Os testes fabricam-no. Isso é testar o mecanismo interno, não o comportamento prometido. Culpa minha: o masterprompt manda o request_id viajar, e eu fiz a viagem sem construir a partida."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "o ator de um job não é imutável",
+        "evidencia": ["seamless.js:236", "seamless.js:273", "seamless.js:295"],
+        "avaliacao_do_autor": "PROCEDE. Um evento posterior com actor explícito substitui o memorizado e as projecções adoptam-no: reatribuição silenciosa dentro do mesmo job_id. Não pensei nisto."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "a trilha atribui a cadeia inteira ao ator do job final",
+        "evidencia": ["trilha.js:263", "trilha.js:278"],
+        "avaliacao_do_autor": "PLAUSÍVEL — não re-verifiquei linha a linha. Se procede, um handoff_from entre atores diferentes perde a proveniência dos antepassados, que é precisamente o que a frente existe para dar."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "ator histórico malformado pode derrubar um caminho quente",
+        "evidencia": ["seamless.js:184", "seamless.js:274", "seamless.js:2205"],
+        "avaliacao_do_autor": "PROCEDE e CONFIRMADO por medição própria: em seamless.js:2205 o ledgerAppend do timeout do job corre dentro de um setTimeout SEM try/catch. Antes da Parte A aquele caminho não podia rebentar por identidade; agora pode, se dimensoesPersistidas herdar um actor cru malformado. É regressão introduzida por mim, não teoria."
+      },
+      {
+        "nivel": "BAIXO",
+        "titulo": "visibilidade inválida escapa em evento não-resultado",
+        "evidencia": ["seamless.js:278", "seamless.js:301", "actor.test.js:171"],
+        "avaliacao_do_autor": "PROCEDE e CONFIRMADO: a validação vive dentro do ramo eEventoDeResultado. Um valor bogus num evento 'started' chega intacto ao JSONL. O meu teste cobre a ausência automática, não o valor inválido fornecido."
+      }
+    ],
+    "o_que_o_critico_TENTOU_e_NAO_conseguiu_derrubar": [
+      "não encontrou nenhum escritor do ledger que omita completamente o actor — o portão central e o append directo do fleet.js:692 carimbam ambos",
+      "não encontrou nenhum leitor existente partido pelas chaves novas",
+      "confirmou que a Parte A NÃO recria locks, leases, handoff-journal nem ledger-prov — o meio-caminho continua separado e intacto"
+    ]
+  },
+
+  "decisao_pendente_do_dono": {
+    "conflito": "o ALTO do G4 contra o texto verbatim do masterprompt v3.4",
+    "o_masterprompt_diz": "default explícito {type:'system', id:'system'} quando o chamador não o passar — nunca omissão silenciosa (kimi #6)",
+    "o_critico_diz": "esse default é uma atribuição afirmativa fabricada, porque hoje NENHUM cliente envia o campo",
+    "porque_nao_decido_sozinho": "mudar o default é alterar a spec que o dono aprovou, no campo que é a razão de ser da frente",
+    "opcoes": [
+      "A) manter o default e fazer o actor_porque viajar até às projecções — em spec, aditivo, o consumidor distingue sempre declarado de defaultado",
+      "B) mudar o id do default para algo que não se leia como afirmação (ex.: 'nao_declarado') — fora do texto da v3.4, exige o dono",
+      "C) aceitar o ALTO como dívida declarada e seguir — contraria 'ship só sem ALTO aberto'"
+    ],
+    "recomendacao_do_autor": "A, mais os 3 fixes que são inequivocamente meus (throw seguro no timer, validar visibilidade fora do ramo de resultado, imutabilidade do ator no job), depois G4 #2. A opção C não a recomendo: o ALTO é real."
   },
 
   "pendente": [
