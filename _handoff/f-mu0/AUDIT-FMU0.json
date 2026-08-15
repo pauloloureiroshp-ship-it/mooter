@@ -52,7 +52,7 @@
   "integridade_ledger_por_prefixo": {
     "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
     "bytes_baseline": 1220668,
-    "bytes_actual": 1754688,
+    "bytes_actual": 1813991,
     "sha_prefixo_medido": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2",
     "veredicto": "PASS — só cresceu, prefixo intacto, zero reescrita",
     "nota": "re-medido em cada ronda; a ultima medicao e a que vale"
@@ -75,8 +75,8 @@
     },
     "A-VERDE.txt": {
       "comando": "cd packages/mooter-bridge && node --test",
-      "bytes": 95335,
-      "sha256": "69b172a60e522268d9436f39047816a83e7a269aa994d07a61d357f4e2d64a00",
+      "bytes": 95021,
+      "sha256": "454bc6e67fcf379d38899540783972890c02f424c3b10583e23e9a92a8e2939e",
       "totais": {
         "tests": 989,
         "pass": 987,
@@ -93,7 +93,7 @@
         "ronda 3 (453ef6cb): 990/988, sha c0e6b874…",
         "ronda 4 (fd73b3d3): 993/991, sha 43393140…",
         "ronda 5 (esta): 998/996, sha 94669689…",
-        "ronda 6 / opcao B (esta): 989/987, sha 69b172a6…"
+        "ronda 6 / opcao B (esta): 989/987, sha 454bc6e67fcf379d38899540783972890c02f424c"
       ],
       "correccao": "o G4 #3 apanhou este ficheiro e o SYNC.md a AFIRMAR 978/976 e sha 53cedd68 quando o A-VERDE.txt já ia em 990/988. Documentos meus a mentir sobre os meus próprios números — exactamente o que esta frente existe para impedir. Corrigido, e o histórico fica à vista em vez de ser reescrito."
     },
@@ -405,9 +405,26 @@
       "retro_prova_do_critico": "A16 falha, A17 passa, A18 falha, A18b falha, A18c passa"
     },
     "G4_6": {
-      "job": "n/d — a despachar",
-      "alvo": "58849d19..HEAD",
-      "veredicto": "PENDENTE"
+      "job": "job-msujsfk4-f489",
+      "alvo": "58849d19..ddb74081",
+      "veredicto": "NO-SHIP",
+      "frase_chave": "nao encontrei regressao funcional na remocao",
+      "o_unico_ALTO": "suite vermelha — mas a falha e o ondaA HERDADO da base; o gate final-reviewer-honest da NO-SHIP com qualquer vermelho, seja de quem for",
+      "MEDIO_corrigidos_nesta_ronda": [
+        "o docstring do dimensoesPersistidas ainda dizia primeiro-declarado e imutabilidade quando o codigo ja fazia ultimo-a-falar — um comentario que mente e exactamente o que esta frente combate",
+        "SYNC e AUDIT outra vez desactualizados: a entrada antiga fica marcada SUPERSEDIDA e os numeros deixam de ser repetidos em prosa"
+      ],
+      "BAIXO_corrigidos_nesta_ronda": [
+        "recibo.js calculava legacy sem o usar, e o import de ACTOR_LEGACY ficou inutil",
+        "o A20 sobredeclarava: fleet+aprender sao duas projeccoes do mesmo snapshot, a terceira comparacao e a HERANCA na escrita. Renomeado para dizer o que prova."
+      ],
+      "validacoes": [
+        "tabela adversarial: fleet, aprender e heranca concordam em ilegivel-a-meio, sem-ator-a-meio, ordem-invertida e so-defaults",
+        "A22 declarado DEFENSAVEL pelo critico: legacy responde sobre o passado, system/system sobre o evento novo",
+        "A19 e A20 FALHAM se a ronda 6 for revertida — nao sao tautologicos",
+        "visibilidade fail-closed e default explicito do actor intactos",
+        "zero referencias executaveis aos simbolos removidos"
+      ]
     }
   },
   "licao_de_desenho_da_ronda_4": {
@@ -429,5 +446,11 @@
     "porque": "a spec diz que o actor propaga junto com cargo/local, e o cargo e ultimo-a-falar. A imutabilidade nao veio da spec — veio de um MEDIO do G4 #1 que eu aceitei e implementei. Arbitrar autoridade e o tema declarado da Parte B, onde ha lock, CAS e decisao duravel para a sustentar.",
     "divida_declarada_para_a_parte_B": "se a imutabilidade do dono for precisa, tem de ser uma ordem TOTAL (relogio + chave estavel) e viver no broker",
     "forma_do_delta": "96 insercoes / 344 remocoes — a correccao foi tirar codigo, nao acrescentar"
+  },
+  "bloqueio_final": {
+    "o_que_falta_para_ship": "apenas o vermelho HERDADO do ondaA A3/A3b",
+    "porque_nao_e_da_parte_A": "falha na base 06bdc2c2, falha no checkout principal, falha com o Ollama em baixo e de pe, e o critico confirma que o ficheiro e identico a base",
+    "porque_bloqueia_na_mesma": "o gate final-reviewer-honest da NO-SHIP com qualquer suite vermelha, independentemente de quem a pintou",
+    "decisao": "do dono — ver a pergunta na sessao"
   }
 }

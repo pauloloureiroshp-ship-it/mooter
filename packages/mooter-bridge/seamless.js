@@ -183,25 +183,21 @@ function normalizarCargo(raw) {
  * As dimensões de um job, relidas do ficheiro quando o mapa em memória não sabe
  * (o job nasceu noutro processo, ou este reiniciou).
  *
- * Duas regras DIFERENTES numa só passagem, e é de propósito:
+ * `cargo`, `local`, `actor` e `request_id` seguem TODOS a mesma regra: vale o
+ * evento mais recente que os traga. Para o ator acrescenta-se uma condição — tem
+ * de ser LEGÍVEL — e uma linha estragada não pára a procura, salta-se. Herdar um
+ * objecto cru fazia o evento seguinte rebentar em aplicarIdentidade, e há
+ * call-sites sem rede: o ledgerAppend do timeout do job corre dentro de um
+ * setTimeout sem try/catch. Um ficheiro estragado não pode derrubar um processo.
  *
- * · `cargo`/`local` — vale o evento MAIS RECENTE. É o que sempre valeu; não mexo.
- * · `actor`/`request_id` — vale o PRIMEIRO ator declarado do job.
- *
- * G4 #2 ALTO: a imutabilidade do dono só existia no mapa em memória. A varredura
- * era de trás para a frente e devolvia o evento mais recente, por isso bastava
- * um reinício para o último a falar voltar a ganhar o job — a protecção contra
- * reatribuição evaporava-se entre processos. A regra tem de viver nos DOIS
- * caminhos, ou não é uma regra.
- *
- * G4 #2 MÉDIO: e uma linha ilegível deixa de PARAR a procura. Antes, o
- * saneamento parava no evento estragado mais recente e o job caía em
- * `system/default` mesmo tendo um ator válido antes — trocava um crash por uma
- * mentira, que é o pior dos dois. Agora salta-se a linha má e continua-se.
+ * Aqui NÃO se arbitra propriedade de job. Houve uma versão que o fazia — primeiro
+ * declarado, desempate por relógio — e custou cinco rondas de gauntlet até ficar
+ * claro que era semântica de autoridade que a spec nunca pediu. Ver a nota no
+ * actor.js.
  */
 function dimensoesPersistidas(jobId) {
   let dims = null;        // cargo/local — o mais recente ganha
-  let ident = null;       // actor/request_id — o primeiro DECLARADO ganha
+  let ident = null;       // actor/request_id — o mais recente LEGÍVEL ganha
   try {
     const lines = fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n');
     for (const linha of lines) {

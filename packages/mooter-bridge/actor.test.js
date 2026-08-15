@@ -350,9 +350,12 @@ test('A19 — o ator mais RECENTE ganha, e o evento guarda sempre a sua verdade'
     'quem não declara herda o mais recente — exactamente como o cargo');
 });
 
-test('A20 — fleet, aprender e releitura concordam sobre o MESMO job', () => {
-  // Esta propriedade sobreviveu à remoção da arbitragem, e é a que interessa:
-  // três projecções da mesma verdade não podem responder coisas diferentes.
+test('A20 — fleet e aprender projectam o mesmo dono, e a herança na escrita chega lá', () => {
+  // Precisão em vez de slogan: o fleet e o aprender SÃO duas projecções do mesmo
+  // snapshot e têm de bater exactamente. A terceira comparação é de outra
+  // natureza — é a HERANÇA no caminho de escrita — e o G4 #6 tinha razão a
+  // apontar que chamar-lhe "três projecções" era sobredeclarar. Prova-se na
+  // mesma, mas com o nome certo.
   const fleet = require('./fleet.js');
   const aprender = require('./aprender.js');
   const D = actorMod.PORQUE_DECLARADO;
@@ -370,9 +373,11 @@ test('A20 — fleet, aprender e releitura concordam sobre o MESMO job', () => {
   seamless.ledgerAppend({ event: 'collected', job_id: 'j-conv' });
   const daReleitura = eventoDoTipo('j-conv', 'collected').actor;
 
-  assert.deepStrictEqual(doFleet, doAprender, 'fleet e aprender têm de concordar');
-  assert.deepStrictEqual(doAprender, daReleitura, 'e a releitura com eles');
-  assert.equal(doFleet.id, 'paulo', 'último-a-falar, nos três');
+  assert.deepStrictEqual(doFleet, doAprender,
+    'duas projecções do MESMO snapshot: têm de ser iguais');
+  assert.deepStrictEqual(daReleitura, doFleet,
+    'e a herança na escrita tem de aterrar no mesmo ator que as projecções mostram');
+  assert.equal(doFleet.id, 'paulo', 'último-a-falar');
 });
 
 test('A21 — ator ilegível não entra em NENHUMA das três projecções', () => {

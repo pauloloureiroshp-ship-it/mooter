@@ -4,7 +4,7 @@ const { PassThrough } = require('stream');
 const fleet = require('./fleet.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
-const { ACTOR_LEGACY, actorDoEvento, porqueDoEvento } = require('./actor.js');
+const { actorDoEvento, porqueDoEvento } = require('./actor.js');
 
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
 const PERIODOS = Object.freeze(['sessao', 'dia', 'semana']);
@@ -63,9 +63,6 @@ function jobTime(job, firstTimes) {
 
 function projectActor(job) {
   const actor = actorDoEvento(job);
-  const legacy = actor.type === ACTOR_LEGACY.type
-    && actor.id === ACTOR_LEGACY.id
-    && actor.origem === ACTOR_LEGACY.origem;
   return {
     job_id: job.job_id,
     actor,
