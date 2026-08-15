@@ -33,6 +33,7 @@ const ROLES = path.join(HOME, 'roles.json');
 
 const ANA = { type: 'human', id: 'ana', origem: 'slack:U1' };
 const PAULO = { type: 'human', id: 'paulo', origem: 'cc:f-mu0' };
+const WT = ['C:', 'wt', 'um'].join(path.sep);
 
 test.after(() => fs.rmSync(HOME, { recursive: true, force: true }));
 
@@ -63,22 +64,31 @@ const HA_UMA_HORA = new Date(AGORA - 3600e3).toISOString();
  */
 function jobPendente(jobId, opts) {
   const o = opts || {};
-  escrever({ ts: o.ts0 || HA_UMA_HORA, event: 'dispatched', job_id: jobId,
-    wave: o.wave || 'w-b', agent: 'cc', worktree: o.worktree || 'C:\\wt\\um',
+  // O mp_hash e sha256(masterprompt) — e o que o seamless.js:2087 faz. O fixture
+  // TEM de o escrever, porque o produtor real escreve-o. Um pedido sem hash e um
+  // pedido legado, e esse caminho tem o seu proprio teste (B41).
+  const mp = o.masterprompt || ('\u21c4 COWORK -> CC\nGOAL  ' + jobId + '\n');
+  const dispatched = {
+    ts: o.ts0 || HA_UMA_HORA, event: 'dispatched', job_id: jobId,
+    wave: o.wave || 'w-b', agent: 'cc', worktree: o.worktree || WT,
     actor: o.actor || ANA, actor_porque: identidade.PORQUE_DECLARADO,
-    escrita: o.escrita === true, allowedTools: o.allowedTools || 'Read' });
+    escrita: o.escrita === true, allowedTools: o.allowedTools || 'Read',
+  };
+  if (o.semHash !== true) {
+    dispatched.mp_hash = require('crypto').createHash('sha256').update(mp, 'utf8').digest('hex');
+  }
+  escrever(dispatched);
   escrever({ ts: o.ts1 || HA_UMA_HORA, event: 'nao_verificado', job_id: jobId,
-    wave: o.wave || 'w-b', worktree: o.worktree || 'C:\\wt\\um',
+    wave: o.wave || 'w-b', worktree: o.worktree || WT,
     exit_code: 'agent-awaiting-approval',
     actor: o.actor || ANA, actor_porque: identidade.PORQUE_DECLARADO });
   // o masterprompt COMPLETO vive na pasta do job, nao no ledger — e o broker
-  // tem de o ler DE LA para re-despachar. Os testes tem de reproduzir isso,
-  // porque foi exactamente a sua ausencia que escondeu o furo de integracao.
+  // tem de o ler DE LA para re-despachar. Os testes reproduzem isso, porque foi
+  // a sua ausencia que escondeu o furo de integracao inteiro.
   if (o.semMasterprompt !== true) {
     const dir = path.join(HOME, 'jobs', jobId);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'masterprompt.md'),
-      o.masterprompt || ('\u21c4 COWORK -> CC\nGOAL  ' + jobId + '\n'));
+    fs.writeFileSync(path.join(dir, 'masterprompt.md'), mp);
   }
 }
 const hashDe = (jobId) => broker.estadoDoJob(jobId).state_hash;
@@ -806,4 +816,91 @@ test('B40 — a fila e o decide tratam um relogio futuro da MESMA maneira', () =
   const p = broker.listPending().find((x) => x.job_id === 'job-fut');
   assert.ok(Date.parse(p.expira_em) <= Date.now() + broker.EXPIRACAO_DEFAULT_MS + 5000,
     'a fila anunciava um prazo esticado que o decide nao respeitaria');
+});
+
+// ── ronda 5 · os 4 ALTO do G4 #4 ──────────────────────────────────────────
+test('B41 — a travessia prova-se com o alvo A EXISTIR do outro lado', async () => {
+  // O B34 passava com a correccao revertida: nao criava masterprompts nos
+  // caminhos de fuga, por isso `.` e `..` devolviam null por ENOENT de qualquer
+  // maneira. Um teste que passa pela razao errada nao prova nada.
+  limpar();
+  const raizJobs = path.join(HOME, 'jobs');
+  fs.mkdirSync(raizJobs, { recursive: true });
+  // masterprompt PLANTADO exactamente onde um `..` aterraria
+  fs.writeFileSync(path.join(HOME, 'masterprompt.md'), 'TEXTO QUE NINGUEM APROVOU');
+  fs.writeFileSync(path.join(raizJobs, 'masterprompt.md'), 'TEXTO DA RAIZ DOS JOBS');
+
+  assert.equal(broker.masterpromptDoJob('..'), null, 'o `..` aterrava no HOME, onde ha ficheiro');
+  assert.equal(broker.masterpromptDoJob('.'), null, 'o `.` aterrava na raiz dos jobs, onde ha ficheiro');
+  assert.equal(broker.masterpromptDoJob('../..'), null);
+});
+
+test('B42 — um pedido SEM mp_hash nao se aprova', async () => {
+  // a validacao vivia dentro de `if (pedido.mp_hash)`: o caminho legado era
+  // exactamente por onde alguem entraria.
+  limpar();
+  jobPendente('job-semhash', { semHash: true });
+  const despachos = []; stubDispatcher(despachos);
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-semhash', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k', expected_state_hash: hashDe('job-semhash') });
+  assert.equal(r.motivo, 'sem_mp_hash');
+  assert.equal(despachos.length, 0, 'sem hash nao ha a que amarrar, logo nao se despacha');
+});
+
+test('B43 — um id herdado de Object nao da papel a ninguem', async () => {
+  // `papeis['toString']` devolvia uma funcao herdada — truthy — e o actor
+  // passava a ter papel. Poluicao de prototipo no sitio mais caro possivel.
+  limpar();
+  jobPendente('job-proto');
+  fs.writeFileSync(ROLES, JSON.stringify({
+    papeis: { paulo: 'owner' }, capacidades: { owner: ['read', 'write'] } }));
+  for (const id of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+    const r = await broker.decide({ decision_id: 'd-' + id, request_id: 'job-proto',
+      actor: { type: 'human', id }, veredicto: 'recusar', idem_key: 'k-' + id,
+      expected_state_hash: hashDe('job-proto') });
+    assert.equal(r.motivo, 'sem_papel', 'o id "' + id + '" arranjou papel do prototipo');
+  }
+  assert.equal(eventos().some((e) => e.event === 'approval_rejected'), false);
+});
+
+test('B44 — uma recusa PARCIALMENTE gravada nao se deixa aprovar', async () => {
+  // sao dois appends. Se o segundo falhar, o pedido some da fila — e antes uma
+  // chamada directa aprovava-o na mesma, porque o decide() so olhava para o
+  // approval.decided.
+  limpar();
+  jobPendente('job-meia');
+  escrever({ ts: new Date().toISOString(), event: 'approval_rejected',
+    request_id: 'job-meia', actor: PAULO, idem_key: 'k-antiga' });
+  const despachos = []; stubDispatcher(despachos);
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-meia', actor: PAULO,
+    veredicto: 'aprovar', idem_key: 'k-nova', expected_state_hash: hashDe('job-meia') });
+  assert.equal(r.estado, 'REJECTED');
+  assert.equal(r.motivo, 'ja_decidido');
+  assert.equal(despachos.length, 0, 'a recusa vale mesmo sem o par que devia vir a seguir');
+});
+
+test('B45 — o replay nao promove um estado nao-final a terminal', async () => {
+  limpar();
+  jobPendente('job-rep2');
+  const velho = hashDe('job-rep2');
+  escrever({ ts: new Date().toISOString(), event: 'step', job_id: 'job-rep2', actor: ANA });
+  const args = { decision_id: 'd', request_id: 'job-rep2', actor: PAULO, veredicto: 'aprovar',
+    idem_key: 'k', expected_state_hash: velho };
+  const um = await broker.decide(args);
+  const dois = await broker.decide(args);
+  assert.equal(um.estado, 'STALE');
+  assert.equal(um.terminal, false);
+  assert.equal(dois.estado, 'STALE');
+  assert.equal(dois.terminal, false, 'repetir um STALE nao o torna final');
+});
+
+test('B46 — um veredicto invalido nao deixa rasto nenhum', async () => {
+  limpar();
+  jobPendente('job-vi');
+  const antes = eventos().length;
+  const r = await broker.decide({ decision_id: 'd', request_id: 'job-vi', actor: PAULO,
+    veredicto: 'talvez', idem_key: 'k', expected_state_hash: 'errado-de-proposito' });
+  assert.equal(r.motivo, 'veredicto_invalido');
+  assert.equal(eventos().length, antes,
+    'era validado tarde, depois de caminhos que ja podiam ter gravado EXPIRED ou STALE');
 });

@@ -125,15 +125,15 @@
       ]
     },
     "B-VERDE.txt": {
-      "bytes": 99017,
-      "sha256": "486680d010bebe1ed4ace1a035653a7e3e20bb235a6c8f464632d92a11b4751b",
+      "bytes": 99499,
+      "sha256": "59cba2055ebfb256186434d5bb3ac42b4b9edf099f8233c3d1378394d0a4c9c1",
       "totais": {
-        "tests": 1040,
-        "pass": 1038,
+        "tests": 1046,
+        "pass": 1044,
         "fail": 1,
         "skipped": 1
       },
-      "broker": "51/51",
+      "broker": "57/57",
       "falhas": [
         "ondaA A3/A3b — herdado, excepcao aceite"
       ]
@@ -515,19 +515,20 @@
     "sha_conferido": "086a5daccf983565af45e4166f5b8f30f5313823 — bate exactamente com o HEAD entregue"
   },
   "parte_B": {
-    "modulo": "packages/mooter-bridge/broker.js (novo) + broker.test.js (19 testes)",
+    "modulo": "packages/mooter-bridge/broker.js (novo) + broker.test.js (57 testes)",
     "B1_decisao_duravel": "listPending filtravel por worktree e por actor, e cada pendente devolve QUEM pediu. Fonte de terminal = terminal.js; o estado real e nao_verificado com exit_code agent-awaiting-approval (achado 6, nomes do codigo). decide() com CAS, expiracao, recusa e idempotencia.",
     "escopo_do_CAS": "expected_state_hash = provHash({seq, event_hash}) sobre o ULTIMO evento DESTE job. Nem fila nem diario — um evento noutro job nao invalida esta decisao (teste B2b).",
     "expiracao": "default 72h; expirada => EXPIRED terminal e DESCARTA. Nunca re-enfileira: re-pedir e gesto humano novo.",
-    "idempotencia": "a mesma idem_key devolve o resultado gravado e NAO escreve segundo evento. Sem cap de 50 — o teste B4b prova reconhecimento 60 decisoes depois, que e onde o handoff-journal falhava.",
-    "B2_aprovar": "aprovar = re-despachar autenticado, com handoff_from e o actor do DECISOR. Nunca resume.",
+    "idempotencia": "a mesma (idem_key, request_id) devolve o estado, o decision_id, o job_novo e a autorizacao gravados. NAO devolve o resultado completo do job — isso nunca foi implementado.",
+    "B2_aprovar": "aprovar = re-despachar com handoff_from e o actor do DECISOR. O actor NAO e autenticado (ver authz_advisory) — chamar-lhe autenticado era exagero e foi corrigido aqui.",
     "B3_capacidades": "DERIVADAS do pedido (escrita/allowedTools). Um campo `capacidades` no payload e IGNORADO — teste B7 forja deploy+secrets e nao ganha nada. Sem roles.json => single_user, regressao zero (B7c).",
     "B4_single_writer": "lock O_EXCL (flag wx) com TTL, seguindo o PADRAO do worktree-conductor/src/locks.ts. Lock orfao e REPORTADO, nunca roubado (B8c). Concorrencia provada com barreira forcada, nao corrida a sorte (B8b, kimi #9).",
     "porque_o_padrao_e_nao_o_modulo": "locks.ts e TypeScript ESM num pacote privado sem entrypoint compilado; o bridge e CommonJS. Importa-lo exigia construir-lhe um build — mais invasivo do que reutilizar a disciplina. Declarado no cabecalho do broker.js.",
     "promocao_nao_recriacao": "o hash canonico vem do tools/router/ledger-prov.js (canonicalize/provHash). O teste B9 falha se aparecer uma segunda implementacao no pacote.",
     "bundle": "broker.js e ledger-prov.js entraram no pack-mcpb.mjs. O broker resolve o prov em runtime (repo->bundle, padrao do classify.js), por isso o detector de requires do bundle.test.js NAO o apanha — o teste B10 e a rede.",
     "ambito_declarado": "o CONTRATO-BROKER da critica descreve envelope com tenant_id/correlation_id/causation_id e maquina de estados completa. Isso e F-MU1+. Aqui esta o nucleo que o masterprompt estreitou (kimi #7/#11/#13).",
-    "authz_advisory": "decisao do dono: o B3 fica, mas declarado ADVISORY. Todo o evento gravado leva authz.advisory:true e actor_autenticado:false, e o retorno tambem. Um RBAC sem authn que se apresentasse como controlo de seguranca seria teatro — e teatro e pior do que nada, porque alguem confia nele."
+    "authz_advisory": "decisao do dono: o B3 fica, mas declarado ADVISORY. Todo o evento gravado leva authz.advisory:true e actor_autenticado:false, e o retorno tambem. Um RBAC sem authn que se apresentasse como controlo de seguranca seria teatro — e teatro e pior do que nada, porque alguem confia nele.",
+    "hashes_na_prova": "expected_state_hash e actual_state_hash ficam em todas as decisoes que passam pelo envelope comum. n/d para os retornos que saem ANTES de esse envelope existir (INVALIDO precoce, LOCKED) — dizer \"todas\" era exagero."
   },
   "divida_MU0c": {
     "single_writer_interprocessos": {
@@ -709,5 +710,33 @@
       "cobertura mutation-killing sobre-afirmada — B25b, B31, B22, B26 e B27 eram fracos e foram substituidos ou reforcados"
     ],
     "BAIXO_corrigido": "os hashes esperado/observado passam a ficar em TODAS as decisoes finais, nao so no STALE"
+  },
+  "g4_parte_B_4": {
+    "job": "job-msusl185-681c",
+    "alvo": "839586d1..2627c7db",
+    "duracao_s": 680,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 4,
+      "MEDIO": 5
+    },
+    "convergencia": "8 -> 4 ALTO",
+    "o_achado_sobre_MIM_outra_vez": "ALTO 4 — o meu teste da travessia (B34) PASSARIA com a correccao revertida: nao criava masterprompts nos caminhos de fuga, logo . e .. devolviam null por ENOENT de qualquer maneira. QUARTA vez que uma afirmacao deste audit nao tinha prova. O B41 planta o ficheiro exactamente onde o .. aterraria.",
+    "ALTO_corrigidos": [
+      "uma recusa PARCIALMENTE gravada ainda podia ser aprovada: o approval_rejected fechava a fila mas o decide() so olhava para approval.decided (B44)",
+      "mp_hash ausente continuava fail-open — o caminho legado era por onde alguem entraria. Sem hash nao se despacha (B42)",
+      "poluicao de prototipo: um actor com id toString/constructor/__proto__ recebia propriedade herdada truthy e conseguia recusar. Object.create(null) + hasOwn + validacao dos valores (B43)",
+      "o teste da travessia era tautologico — substituido pelo B41, que planta o alvo do outro lado"
+    ],
+    "MEDIO_corrigidos": [
+      "o replay forcava terminal:true em STALE e NEGADO (B45)",
+      "o veredicto era validado tarde, depois de caminhos que ja gravavam (B46)",
+      "afirmacoes deste audit sem prova — purgadas nesta entrada"
+    ],
+    "MEDIO_declarados_sem_correccao": [
+      "NEGADO nao fecha o pedido, logo idem_keys novas podem acrescentar eventos sem limite. E um flood possivel do ledger. Nao ha rate-limit nesta frente; fica declarado.",
+      "INDETERMINADO e permanente: nao ha reconciliacao implementada. Um pedido preso fica preso ate intervencao manual. E fail-safe por desenho, mas e uma limitacao real.",
+      "a barreira da travessia e LEXICAL: nao cobre junctions nem symlinks."
+    ]
   }
 }

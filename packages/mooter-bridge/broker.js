@@ -231,7 +231,18 @@ function lerPapeis() {
       return { modo: 'ilegivel', porque: 'capacidades de "' + papel + '" não são uma lista de strings' };
     }
   }
-  return { modo: 'roles', papeis: r.papeis, capacidades: r.capacidades };
+  for (const [quem, papel] of Object.entries(r.papeis)) {
+    if (typeof papel !== 'string' || !papel.trim()) {
+      return { modo: 'ilegivel', porque: 'o papel de "' + quem + '" não é uma string' };
+    }
+  }
+  // Object.create(null): um actor com id `toString`, `constructor` ou `__proto__`
+  // recebia uma propriedade HERDADA truthy e passava a ter papel. O lookup usa
+  // hasOwn por cima disto — cinto e suspensorios, porque a heranca de Object e
+  // exactamente o tipo de coisa em que ninguem pensa a segunda vez.
+  const papeis = Object.assign(Object.create(null), r.papeis);
+  const capacidades = Object.assign(Object.create(null), r.capacidades);
+  return { modo: 'roles', papeis, capacidades };
 }
 
 // ── lock (padrão do worktree-conductor/src/locks.ts) ──────────────────────
@@ -440,6 +451,12 @@ async function decide(args) {
     return resposta('INVALIDO', 'sem_cas',
       { porque: 'expected_state_hash e obrigatorio — sem CAS nao ha decisao' });
   }
+  // cedo: estava depois de caminhos que ja podiam ter gravado EXPIRED, STALE ou
+  // NEGADO — ou seja, um veredicto invalido deixava rasto antes de ser recusado
+  if (a.veredicto !== 'aprovar' && a.veredicto !== 'recusar') {
+    return resposta('INVALIDO', 'veredicto_invalido',
+      { porque: 'veredicto tem de ser "aprovar" ou "recusar"' });
+  }
 
   const dono = 'broker-' + process.pid + '-' + (a.decision_id || a.idem_key);
   const lock = _adquirirLock(dono);
@@ -460,18 +477,28 @@ async function decide(args) {
     if (mesmaChave) {
       // devolve TUDO o que a primeira devolveu — se a resposta original se
       // perdeu, o chamador precisa do job_novo, nao so de saber que ja decidiu
+      // o replay devolve o que a decisao FOI, nao um terminal:true de conveniencia:
+      // um STALE ou um NEGADO nao passam a finais por serem repetidos
       return resposta(mesmaChave.estado, 'replay_exacto',
-        { terminal: true, idempotente: true, decision_id: mesmaChave.decision_id,
+        { terminal: DECISOES_FINAIS.includes(mesmaChave.estado), idempotente: true,
+          decision_id: mesmaChave.decision_id,
           job_novo: mesmaChave.job_novo || null, autorizacao: mesmaChave.autorizacao || null });
     }
 
     // 2 · ESTADO TERMINAL: uma decisao final e final. So a idem_key nao chegava —
     //     uma chave NOVA deixava decidir outra vez o mesmo pedido, porque as
     //     decisoes nao mudam o state_hash e o CAS nao dava por nada.
-    const finalAnterior = ledger.find((e) => e.event === 'approval.decided'
-      && e.request_id === a.request_id && DECISOES_FINAIS.includes(e.estado));
+    // O `approval_rejected` conta AQUI tambem, nao so na fila. Estava so no
+    // listPending: se o segundo append falhasse, o pedido sumia da fila mas uma
+    // chamada directa aprovava-o na mesma.
+    const finalAnterior = ledger.find((e) => e.request_id === a.request_id
+      && ((e.event === 'approval.decided' && DECISOES_FINAIS.includes(e.estado))
+        || e.event === 'approval_rejected'));
     if (finalAnterior) {
-      return resposta(finalAnterior.estado, 'ja_decidido',
+      // o `approval_rejected` nao carrega campo `estado` — e uma recusa, e diz-se
+      const estadoFinal = finalAnterior.event === 'approval_rejected'
+        ? 'REJECTED' : finalAnterior.estado;
+      return resposta(estadoFinal, 'ja_decidido',
         { terminal: true, decision_id: finalAnterior.decision_id,
           porque: 'este pedido ja tem uma decisao final; uma chave nova nao a reabre' });
     }
@@ -542,7 +569,8 @@ async function decide(args) {
     let autorizacao = 'single_user';
     let papel = null;
     if (papeis.modo === 'roles') {
-      papel = papeis.papeis[quem.actor.id] || null;
+      papel = Object.prototype.hasOwnProperty.call(papeis.papeis, quem.actor.id)
+        ? papeis.papeis[quem.actor.id] : null;
       // RECUSAR tambem e um acto de autoridade: fecha o pedido de outra pessoa.
       // Antes gravava-se a recusa ANTES de olhar para os papeis, e qualquer um
       // conseguia encerrar o pedido alheio mesmo no modelo advisory.
@@ -576,14 +604,10 @@ async function decide(args) {
         porque: 'recusado por quem decide' });
       return resposta('REJECTED', 'recusa_humana', { terminal: true, autorizacao });
     }
-    if (a.veredicto !== 'aprovar') {
-      return resposta('INVALIDO', 'veredicto_invalido',
-        { porque: 'veredicto tem de ser "aprovar" ou "recusar"' });
-    }
-
     // 9 · aprovar exige as capacidades que o pedido usa
     if (papeis.modo === 'roles') {
-      const tem = (papel && papeis.capacidades[papel]) || [];
+      const tem = (papel && Object.prototype.hasOwnProperty.call(papeis.capacidades, papel)
+        && papeis.capacidades[papel]) || [];
       const faltam = exigidas.filter((c) => !tem.includes(c));
       if (faltam.length) {
         _append({ ...base, estado: 'NEGADO', seq: estado.seq,
@@ -605,7 +629,14 @@ async function decide(args) {
         { porque: 'o masterprompt completo do job nao esta em disco; re-despachar so com o goal '
           + 'seria despachar outra coisa' });
     }
-    if (pedido.mp_hash) {
+    if (!pedido.mp_hash) {
+      // Sem hash nao ha a que amarrar. Despachar assim era aprovar um texto que
+      // ninguem consegue provar ser o que foi pedido — e o caminho legado e
+      // exactamente onde um atacante escolheria entrar.
+      return resposta('INVALIDO', 'sem_mp_hash',
+        { porque: 'o pedido nao tem mp_hash; sem ele o masterprompt nao se pode amarrar ao que foi aprovado' });
+    }
+    {
       const agora = crypto.createHash('sha256').update(mp, 'utf8').digest('hex');
       if (agora !== pedido.mp_hash) {
         return resposta('INVALIDO', 'masterprompt_mudou',
