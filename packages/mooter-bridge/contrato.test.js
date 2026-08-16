@@ -81,10 +81,33 @@ fs.mkdirSync(WT, { recursive: true });
 // O `guardCheck` EXIGE uma worktree git, portanto isto não é opcional: se o init
 // falhar, os testes que passam pelo dispatch são recusados pelo guard — e o
 // `exerceuMesmo` grita em vez de os deixar passar a verde vazio. Apanhado pelo G4 #4.
-const GIT_ENV_LIMPO = { ...process.env };
-for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
-  'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_NAMESPACE',
-  'GIT_CEILING_DIRECTORIES']) delete GIT_ENV_LIMPO[k];
+// ⚠️ POR PREFIXO, não por lista. A primeira versão enumerava oito variáveis e
+// deixava passar `GIT_TRACE*`/`GIT_TRACE2*` — medido em 2026-08-16:
+// `GIT_TRACE2_EVENT=<fora>` fez o `git init` escrever 2036 bytes FORA do repo,
+// e `GIT_TRACE` outros 176. Uma denylist enumerada é uma corrida contra a
+// documentação do git que se perde sempre que ele ganha uma variável nova.
+// Para um `git init` local nenhuma variável `GIT_*` é necessária, portanto
+// removem-se TODAS e neutraliza-se a config, que também pode definir
+// `trace2.*Target` e redireccionar escrita por essa via. Apanhado pelo G4 #5.
+const GIT_ENV_LIMPO = {};
+for (const [k, v] of Object.entries(process.env)) {
+  if (!/^GIT_/i.test(k)) GIT_ENV_LIMPO[k] = v;
+}
+GIT_ENV_LIMPO.GIT_CONFIG_NOSYSTEM = '1';
+GIT_ENV_LIMPO.GIT_CONFIG_GLOBAL = path.join(HOME, 'gitconfig-inexistente');
+//
+// ⚠️ ATÉ ONDE ISTO CHEGA, e nem um passo além — medido, não assumido.
+// Este env limpo cobre o `git` que ESTE FICHEIRO invoca. Não cobre o git que o
+// próprio motor invoca: `seamless.js:628` corre `git rev-parse` sem env próprio,
+// e `seamless.js:1704` usa `childEnvFor('git')`. Com `GIT_TRACE2_EVENT` no
+// ambiente, esses continuam a escrever o trace fora do sandbox.
+// Medido com o ambiente sujo de propósito (GIT_DIR + GIT_TRACE + GIT_TRACE2_EVENT):
+//   GIT_DIR roubado pelo nosso init? não  ← esta linha resolve isso
+//   trace escrito fora?               sim ← vem do git do motor, não do nosso
+//   e a suite: 6 pass / 4 fail            ← FALHA ruidosamente, não corrompe
+// Fechar o resto exige passar env limpo aos `git` de produção, o que é mudança
+// no motor e não cabe numa frente sobre isolar um ficheiro de teste. Fica
+// declarado aqui em vez de implícito.
 try {
   require('node:child_process').execFileSync('git', ['-C', WT, 'init', '-q'],
     { stdio: 'ignore', env: GIT_ENV_LIMPO });
@@ -170,6 +193,31 @@ function exerceuMesmo(r, ondeE) {
   assert.ok(!(r && Array.isArray(r.reasons)),
     'o guard recusou antes do contrato e ' + ondeE + ' não exerceu nada — este verde '
     + 'seria vazio: ' + JSON.stringify(r && r.reasons));
+
+  // ⚠️ `reasons` não cobre TODOS os retornos pré-contrato. Cargo ou actor
+  // inválidos saem em `seamless.js:1959` só com `error` — sem `reasons` e sem
+  // `exit_code`. Os defaults deste ficheiro são válidos, portanto era um gap
+  // latente e não um falso verde; mas a função afirmava cobrir a classe inteira,
+  // e uma guarda que promete mais do que verifica é o defeito que esta frente
+  // veio corrigir. Apanhado pelo G4 #5.
+  //
+  // Três formas de `error`, e só uma é o defeito:
+  //   · o CONTRATO recusou      → tem `erro:'capacidade_incompativel'` (:1392).
+  //                                É o que o K10 quer. NÃO é pré-contrato.
+  //   · o dispatch falhou depois → tem `exit_code` (`no-local-model`, :2213).
+  //                                O contrato já correu.
+  //   · saiu ANTES do contrato   → só `error`, sem `erro` e sem `exit_code`
+  //                                (cargo/actor inválidos, :1959). É este o gap.
+  //
+  // A primeira versão desta verificação não tinha o `!r.erro` e fazia o K10
+  // falhar — o próprio teste da recusa foi acusado de não exercer a recusa.
+  // Ficou aqui porque o erro é instrutivo: uma guarda demasiado larga acusa o
+  // caso certo, e a diferença entre "não exerceu" e "exerceu e recusou" é uma
+  // chave que os dois primeiros G4 desta frente já tinham mostrado importar.
+  if (r && r.error && !r.exit_code && !r.erro) {
+    assert.fail(ondeE + ' recebeu um erro pré-contrato (sem `erro` nem `exit_code`) — '
+      + 'não chegou a exercer o que diz exercer: ' + JSON.stringify(r.error).slice(0, 160));
+  }
 }
 
 // ─────────────────────────────── o matcher: o que conta como pedir leitura ──

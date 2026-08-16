@@ -20,16 +20,42 @@ W="${1:-contrato-test}"
 
 [ -f "$L" ] || { echo "ABORTAR: não encontrei o ledger em $L"; exit 2; }
 
-linhas=$(grep -c "\"wave\":\"$W\"" "$L" || true)
+# ⚠️ Duas coisas que o G4 #5 apanhou nesta fonte "única":
+#  1. `$W` entrava directamente no regex do grep — uma wave com `.` ou `|`
+#     contaria linhas a mais em silêncio. Passa a ser comparada como STRING.
+#  2. uma linha truncada podia ser contada como evento sem `job_id`, dando
+#     "1 evento, 0 jobs" com exit 0. Agora as linhas inválidas são CONTADAS e
+#     declaradas — um ledger corrompido tem de ser visível, não arredondado.
+if ! command -v node >/dev/null 2>&1; then
+  echo "ABORTAR: preciso do node para ler o ledger como JSON, não como texto"; exit 2
+fi
+INVALIDAS=$(node -e '
+const fs=require("fs");
+const [f,w]=process.argv.slice(1);
+let mau=0;
+for (const l of fs.readFileSync(f,"utf8").split(String.fromCharCode(10))) {
+  if (!l.trim()) continue;
+  try { const o=JSON.parse(l); if (o && o.wave===w && !o.job_id) mau++; }
+  catch { mau++; }
+}
+console.log(mau);
+' "$L" "$W" 2>/dev/null || echo "?")
+if [ "${INVALIDAS:-?}" != "0" ]; then
+  echo "⚠️  $INVALIDAS linha(s) do ledger inválidas ou sem job_id — as contagens abaixo"
+  echo "    podem estar incompletas. Um ledger corrompido não se arredonda em silêncio."
+  echo
+fi
+
+linhas=$(grep -cF "\"wave\":\"$W\"" "$L" || true)
 [ "${linhas:-0}" -gt 0 ] 2>/dev/null || { echo "wave '$W': 0 eventos no ledger."; exit 0; }
 
-ev_moo=$(grep "\"wave\":\"$W\"" "$L" | grep -c '"agent":"moo"' || true)
-ev_cc=$(grep "\"wave\":\"$W\"" "$L" | grep -c '"agent":"cc"' || true)
-jobs=$(grep "\"wave\":\"$W\"" "$L" | grep -oE '"job_id":"[^"]*"' | sort -u | wc -l)
-jobs_moo=$(grep "\"wave\":\"$W\"" "$L" | grep '"agent":"moo"' | grep -oE '"job_id":"[^"]*"' | sort -u | wc -l)
-jobs_cc=$(grep "\"wave\":\"$W\"" "$L" | grep '"agent":"cc"' | grep -oE '"job_id":"[^"]*"' | sort -u | wc -l)
-disp=$(grep "\"wave\":\"$W\"" "$L" | grep -c '"event":"dispatched"' || true)
-orf=$(grep "\"wave\":\"$W\"" "$L" | grep -c 'orphaned-by-restart' || true)
+ev_moo=$(grep -F "\"wave\":\"$W\"" "$L" | grep -c '"agent":"moo"' || true)
+ev_cc=$(grep -F "\"wave\":\"$W\"" "$L" | grep -c '"agent":"cc"' || true)
+jobs=$(grep -F "\"wave\":\"$W\"" "$L" | grep -oE '"job_id":"[^"]*"' | sort -u | wc -l)
+jobs_moo=$(grep -F "\"wave\":\"$W\"" "$L" | grep '"agent":"moo"' | grep -oE '"job_id":"[^"]*"' | sort -u | wc -l)
+jobs_cc=$(grep -F "\"wave\":\"$W\"" "$L" | grep '"agent":"cc"' | grep -oE '"job_id":"[^"]*"' | sort -u | wc -l)
+disp=$(grep -F "\"wave\":\"$W\"" "$L" | grep -c '"event":"dispatched"' || true)
+orf=$(grep -F "\"wave\":\"$W\"" "$L" | grep -c 'orphaned-by-restart' || true)
 
 echo "ledger : $L"
 echo "wave   : $W"
