@@ -97,15 +97,60 @@ async function livre(seamMod, worktree, maxMs) {
 (async () => {
   console.log('\ncaminho observável — os 4 bugs que a suite anterior não viu');
 
-  // ── T1a · moo INFERIDO degrada; vocabulário nunca cruza vendors ──────────
+  // ── T1a · sem GPU o trabalho continua, a decisão é explicada, e o recibo
+  //         nunca se contradiz; vocabulário nunca cruza vendors ─────────────
+  //
+  // ⚠️ Este teste JÁ EXIGIU `r.downgraded` truthy, e esteve vermelho meses por
+  // isso. A razão, medida em 2026-08-16: neste harness o `MOOTER_REPO` é um
+  // temp sem `tools/router/classify.js`, logo o router NÃO carrega
+  // (`r.router.disponivel === false`). Sem classificador não há tier inferido,
+  // `agent` nunca chega a ser 'moo' por inferência, e o ramo de downgrade
+  // (seamless.js, `agent === 'moo' && !motorExplicito`) nunca corre. O teste
+  // pedia um campo que o seu próprio sandbox nunca produz — era inalcançável,
+  // não regressivo.
+  //
+  // O que interessa provar é o contrato que o utilizador vê, e esse é
+  // verificável com ou sem router: o trabalho continua, a decisão de NÃO usar
+  // a GPU é explícita e explicada, o recibo não se contradiz, e o vocabulário
+  // de um vendor nunca chega ao motor de outro.
   try {
     const seen = fakeSpawner((out) => {
       out.write('{"type":"result","subtype":"success","result":"feito","total_cost_usd":0}\n');
     });
-    // sem Ollama no sandbox, o T0 inferido pelo router degrada para cc e DIZ que degradou
     const r = await seam.toolWork({ goal: 'diz três cores', worktree: WT, prepare: false, wave: 'T1a' });
-    assert.ok(!r.error, 'work inferido recusou em vez de degradar: ' + JSON.stringify(r.reasons || r.error));
-    assert.ok(r.downgraded, 'moo inferido degradou em silêncio — o utilizador tem de saber que não foi para a GPU');
+
+    // 1. sem GPU o trabalho não pára — quem não pediu `moo` não é castigado
+    assert.ok(!r.error, 'work inferido recusou em vez de continuar: ' + JSON.stringify(r.reasons || r.error));
+
+    // 2. a decisão de não ir para a GPU é EXPLÍCITA e EXPLICADA. Silêncio aqui
+    //    é o bug: o utilizador tem de saber que a GPU não foi usada, e porquê.
+    assert.ok(r.escolha_local, 'não houve decisão local-first registada no recibo');
+    assert.strictEqual(r.escolha_local.local, false,
+      'escolheu a GPU local com o Ollama numa porta morta');
+    assert.ok(r.escolha_local.porque && String(r.escolha_local.porque).trim(),
+      'a decisão de não usar a GPU saiu sem razão — "não deu" não é um recibo');
+
+    // 3. COERÊNCIA DO RECIBO. Um `downgraded` a dizer "passei para o Claude
+    //    Code" ao lado de `agent:'moo'` é o recibo a mentir sobre o que
+    //    aconteceu. Não é hipotético: em 2026-08-16 uma tentativa de partilhar
+    //    a sonda do Ollama entre o guard e o local-first produziu exactamente
+    //    este par, e nenhum dos 1047 testes o apanhou — foi preciso revisão
+    //    adversarial para o ver.
+    if (r.downgraded) {
+      assert.notStrictEqual(r.agent, 'moo',
+        'o recibo diz que degradou para outro motor mas o agent ficou em moo: ' + r.downgraded);
+    }
+
+    // 3b. A guarda acima é uma REDE, e hoje não dispara. Isso fica provado
+    //     aqui em vez de assumido: sem router não há tier inferido, logo não há
+    //     ramo de downgrade a percorrer. Se alguém tornar o classify.js
+    //     carregável neste sandbox, esta asserção cai — e é isso que se quer,
+    //     porque nesse mundo o T1a passa a poder (e dever) exigir o downgrade
+    //     a sério, em vez de o cobrir com uma condição que nunca corre.
+    assert.strictEqual(r.router && r.router.disponivel, false,
+      'o router passou a carregar neste harness: o ramo de downgrade deixou de ser '
+      + 'inalcançável e o T1a tem de voltar a exigi-lo em vez de o proteger com um if');
+
     await wait(150);
     const cmd = seen[0];
     if (cmd && cmd.args) {
@@ -118,7 +163,7 @@ async function livre(seamMod, worktree, maxMs) {
           'toolWork entregou "' + m + '" a um motor não-Anthropic — foi assim que o Ollama morreu em 0s');
       }
     }
-    okmsg('T1a · moo inferido sem Ollama degrada para cc e explica-se');
+    okmsg('T1a · sem GPU continua, explica a decisão e o recibo não se contradiz');
   } catch (e) { bad('T1a', e); }
 
   // ── T1b · moo EXPLÍCITO recusa com recuperação e evidência ──────────────
