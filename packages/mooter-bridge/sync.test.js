@@ -6,8 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
-  HUMAN_START, HUMAN_END, extractHumanBlock, projectSync, runCli, semHead,
+  HUMAN_START, HUMAN_END, extractHumanBlock, projectSync, runCli, semHead, terminalJobs,
 } = require('./sync.js');
+const { ACTOR_SYSTEM, PORQUE_DEFAULT, PORQUE_DECLARADO } = require('./actor.js');
 
 const COMMIT = '0123456789abcdef0123456789abcdef01234567';
 
@@ -97,6 +98,57 @@ test('3. métricas ausentes saem n/d com porque, nunca 0', () => {
   assert.match(result, /duração=n\/d \(porque o ledger do job não contém duration_s\)/);
   assert.match(result, /custo=n\/d \(porque o ledger do job não contém cost_usd\)/);
   assert.doesNotMatch(result, /(?:duração|custo)=0(?:\D|$)/);
+});
+
+test('A2 — o leitor e o texto do SYNC distinguem actor default de declarado; histórico fica legacy', () => {
+  const actor = { ...ACTOR_SYSTEM };
+  const projected = terminalJobs([
+    { ts: '2026-07-27T10:02:00.000Z', event: 'done', job_id: 'declarado', actor, actor_porque: PORQUE_DECLARADO },
+    { ts: '2026-07-27T10:01:00.000Z', event: 'done', job_id: 'default', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT },
+    { ts: '2026-07-27T10:00:00.000Z', event: 'done', job_id: 'historico', actor_porque: PORQUE_DECLARADO },
+  ]);
+  assert.deepEqual(projected.find((job) => job.job_id === 'declarado').actor, actor);
+  assert.equal(projected.find((job) => job.job_id === 'declarado').actor_porque, PORQUE_DECLARADO);
+  assert.deepEqual(projected.find((job) => job.job_id === 'default').actor, ACTOR_SYSTEM);
+  assert.deepEqual(
+    projected.find((job) => job.job_id === 'default').actor,
+    projected.find((job) => job.job_id === 'declarado').actor,
+  );
+  assert.equal(projected.find((job) => job.job_id === 'default').actor_porque, PORQUE_DEFAULT);
+  assert.notEqual(
+    projected.find((job) => job.job_id === 'default').actor_porque,
+    projected.find((job) => job.job_id === 'declarado').actor_porque,
+  );
+  const historico = projected.find((job) => job.job_id === 'historico');
+  assert.deepEqual(historico.actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+  assert.equal(historico.actor_porque, null);
+
+  const env = fixture({ ledger: [
+    {
+      ts: '2026-07-27T10:02:00.000Z', event: 'done', job_id: 'declarado',
+      wave: 'sync-gerado', agent: 'codex', actor, actor_porque: PORQUE_DECLARADO,
+    },
+    {
+      ts: '2026-07-27T10:01:00.000Z', event: 'done', job_id: 'default',
+      wave: 'sync-gerado', agent: 'mooter', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT,
+    },
+  ] });
+  projectSync({ ...env });
+  const result = fs.readFileSync(env.syncPath, 'utf8');
+  const declaradoLine = result.split('\n').find((line) => line.startsWith('- `declarado`'));
+  const defaultLine = result.split('\n').find((line) => line.startsWith('- `default`'));
+  assert.ok(declaradoLine);
+  assert.ok(defaultLine);
+  assert.ok(declaradoLine.includes(
+    `actor=${JSON.stringify(actor)} · actor_porque=DECLARADO (${PORQUE_DECLARADO})`,
+  ));
+  assert.ok(defaultLine.includes(
+    `actor=${JSON.stringify(ACTOR_SYSTEM)} · actor_porque=DEFAULT (${PORQUE_DEFAULT})`,
+  ));
 });
 
 test('4. --check não escreve e devolve código diferente de zero quando está velho', () => {
