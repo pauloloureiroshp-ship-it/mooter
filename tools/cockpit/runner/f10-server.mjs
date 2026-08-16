@@ -15,6 +15,34 @@ import os from 'node:os';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
+import { PILLAR_IDS } from './context-pack.mjs';
+
+const MAX_BODY_BYTES = 4096;
+
+/** Bounded body read: a control endpoint must not be a memory sink. */
+export function readBody(req, limit = MAX_BODY_BYTES) {
+  return new Promise((resolve) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        req.destroy();
+        resolve(null);
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
+      } catch {
+        resolve(null);
+      }
+    });
+    req.on('error', () => resolve(null));
+  });
+}
 
 export const HOST = '127.0.0.1';
 export const PORT = 4290;
@@ -90,6 +118,7 @@ export function createServer({
   const stopFile = path.join(mooDir, 'STOP');
   const ledgerPath = path.join(mooDir, 'runner-ledger.jsonl');
   const statePath = path.join(mooDir, 'runner-state.json');
+  const focusFile = path.join(mooDir, 'runner-focus.json');
 
   return http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
@@ -147,9 +176,26 @@ export function createServer({
       });
     }
 
-    if (req.method === 'POST' && (route === '/play' || route === '/stop')) {
+    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus')) {
       if (!originAllowed(req.headers.origin)) {
         return sendJson(res, 403, { erro: 'origem nao local recusada' }, { cors: false });
+      }
+
+      // Per-pillar focus. The cockpit must never show a control that does
+      // nothing, so the button writes a preference the loop actually reads.
+      if (route === '/focus') {
+        const body = await readBody(req);
+        const pilar = body && body.pilar;
+        if (pilar !== null && !PILLAR_IDS.includes(pilar)) {
+          return sendJson(res, 400, { erro: 'pilar desconhecido', aceites: PILLAR_IDS });
+        }
+        try {
+          if (pilar === null) fs.rmSync(focusFile, { force: true });
+          else fs.writeFileSync(focusFile, JSON.stringify({ pilar }));
+        } catch (err) {
+          return sendJson(res, 500, { ok: false, erro: String(err.message) });
+        }
+        return sendJson(res, 200, { ok: true, foco: pilar });
       }
       if (route === '/stop') {
         try {

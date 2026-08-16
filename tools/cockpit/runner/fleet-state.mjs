@@ -70,6 +70,35 @@ export function freshness(lastTs, nowMs) {
   return { estado: 'morto', idade_s: age, motivo: `sem recibo ha ${age}s` };
 }
 
+/** Last receipt per pillar, plus that pillar's own verdict split. */
+export function perPillar(receipts) {
+  const out = {};
+  for (const r of receipts || []) {
+    if (!r || !r.pilar) continue;
+    const slot = (out[r.pilar] ||= {
+      ultimo: null,
+      total: 0,
+      citacao_ok: 0,
+      refutado: 0,
+      sem_citacao: 0,
+      sem_achado: 0,
+      sem_veredicto: 0,
+    });
+    slot.total += 1;
+    const key = { 'citacao-ok': 'citacao_ok', refutado: 'refutado', 'sem-citacao': 'sem_citacao', 'sem-achado': 'sem_achado' }[r.verdict];
+    if (key) slot[key] += 1;
+    else slot.sem_veredicto += 1;
+    slot.ultimo = {
+      ts: r.ts ?? null,
+      verdict: r.verdict ?? null,
+      ficheiro: r.ficheiro ?? null,
+      evidencia: r.evidencia ?? null,
+      resumo: r.resultado_resumo ?? null,
+    };
+  }
+  return out;
+}
+
 /**
  * Builds the whole payload.
  *
@@ -118,7 +147,12 @@ export function buildFleetState({
     owner_tz: OWNER_TZ,
 
     pilar_atual: state.pilar_atual ?? null,
+    foco: state.foco ?? null,
     modelo_atual: state.modelo ?? null,
+
+    // Per-pillar last word, so the cockpit can show six honest cards instead of
+    // one aggregate that hides a pillar which has produced nothing all day.
+    pilares: perPillar(receipts),
 
     frescura: fresh,
     ultimo_recibo: last,

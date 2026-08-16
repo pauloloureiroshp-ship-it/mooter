@@ -29,6 +29,7 @@ const LEDGER = path.join(MOO_DIR, 'runner-ledger.jsonl');
 const STATE = path.join(MOO_DIR, 'runner-state.json');
 const LOCK = path.join(MOO_DIR, 'runner.lock');
 const CURSOR = path.join(MOO_DIR, 'runner-cursor.json');
+const FOCUS = path.join(MOO_DIR, 'runner-focus.json');
 
 const SLEEP_MIN_S = 15;
 const SLEEP_MAX_S = 30;
@@ -72,6 +73,16 @@ function releaseLock() {
     if (Number(fs.readFileSync(LOCK, 'utf8').trim()) === process.pid) fs.rmSync(LOCK, { force: true });
   } catch {
     /* nothing to release */
+  }
+}
+
+/** An unreadable or unknown focus is no focus — never a crash, never a guess. */
+function readFocus() {
+  try {
+    const { pilar } = JSON.parse(fs.readFileSync(FOCUS, 'utf8'));
+    return PILLAR_IDS.includes(pilar) ? pilar : null;
+  } catch {
+    return null;
   }
 }
 
@@ -130,13 +141,18 @@ async function main() {
       continue;
     }
 
-    const pillar = nextPillar(i, PILLAR_IDS);
+    // A focus set from the cockpit pins the rotation to one pillar; clearing it
+    // resumes the round robin. Read every round so the button takes effect on
+    // the next one instead of at the next restart.
+    const focus = readFocus();
+    const pillar = focus || nextPillar(i, PILLAR_IDS);
     const cursor = Math.floor(i / PILLAR_IDS.length);
     fs.writeFileSync(
       STATE,
       JSON.stringify({
         device: process.env.MOOTER_DEVICE || 'mac-mini',
         pilar_atual: pillar,
+        foco: focus,
         modelo: DEFAULT_MODEL,
         ts: Math.floor(Date.now() / 1000),
       }),
