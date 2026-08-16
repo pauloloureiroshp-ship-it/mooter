@@ -3,6 +3,9 @@
 const http = require('http');
 const { retratoComMapa } = require('./retrato-mapa.js');
 
+/** Tem de bater LETRA A LETRA com retrato-mapa.js:270 — ver retrato-mapa.contrato.test.js. */
+const SEM_BROWSER = 'nenhum browser aceitou abrir a porta de depuração';
+
 const PAGINA = `<!doctype html><html><head><title>prova do mapa</title>
 <style>body{margin:0;font:16px sans-serif}h1{height:80px;margin:0}
 button{display:block;width:200px;height:50px}img{width:120px;height:90px}</style></head><body>
@@ -21,7 +24,22 @@ button{display:block;width:200px;height:50px}img{width:120px;height:90px}</style
   const check = (nome, cond, extra) => { console.log((cond ? '  ok   ' : '  FALHA ') + nome + (cond ? '' : '  ' + (extra||''))); if(!cond) mau++; };
   try {
     const r = await retratoComMapa('http://127.0.0.1:' + porta + '/', { espera_ms: 700 });
-    if (!r.ok) { console.log('  FALHA arranque: ' + r.porque); process.exit(1); }
+    if (!r.ok) {
+      // Um runner sem browser não é uma regressão do extractor: é uma máquina
+      // que não consegue correr esta prova. Falhar aí ensina toda a gente a
+      // ignorar o vermelho; passar em silêncio esconde o dia em que ele quebra
+      // mesmo. Por isso salta-se — alto, com a razão e os browsers tentados —
+      // e SÓ neste caso. Qualquer outra falha continua a ser falha.
+      if (r.porque === SEM_BROWSER) {
+        console.log('  SKIP · ' + r.porque);
+        console.log('  tentados: ' + JSON.stringify(r.tentados || []));
+        console.log('  (define MOOTER_REQUIRE_BROWSER=1 para exigir que esta prova corra)');
+        s.close();
+        process.exit(process.env.MOOTER_REQUIRE_BROWSER === '1' ? 1 : 0);
+      }
+      console.log('  FALHA arranque: ' + r.porque);
+      process.exit(1);
+    }
     console.log('\nmapa de ' + r.zonas.length + ' zona(s) · ' + r.links.length + ' link(s) · PNG ' + r.bytes + ' bytes · ' + r.ms + ' ms\n');
 
     const h1 = r.zonas.find(z => z.tag === 'h1');

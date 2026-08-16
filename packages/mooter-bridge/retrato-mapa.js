@@ -124,11 +124,41 @@ function candidatosBrowser() {
   const declarado = process.env.MOOTER_BROWSER;
   const pf = process.env.ProgramFiles || 'C:\\Program Files';
   const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
-  return [
-    ...(declarado ? [declarado] : []),
+
+  // A lista era só de Windows mais três nomes de PATH. No macOS o Chrome vive
+  // dentro de um .app e NUNCA está no PATH, por isso o Live Preview não podia
+  // funcionar num Mac — não por falta de browser, mas por nunca o procurar onde
+  // ele está. Descoberto porque a prova saltava numa máquina com Chrome
+  // instalado e a lista de `tentados` só trazia caminhos de `C:\`.
+  const macos = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+  ];
+  const linux = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/microsoft-edge',
+  ];
+  const windows = [
     path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
     path.join(pf86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    'chrome', 'msedge', 'chromium',
+  ];
+
+  // Primeiro a plataforma em que estamos: um Mac não ganha nada em tentar
+  // `C:\Program Files` antes de `/Applications`, e a lista de `tentados` que
+  // sai num erro fica legível em vez de ruidosa.
+  const porPlataforma =
+    process.platform === 'darwin' ? [...macos, ...linux, ...windows]
+    : process.platform === 'win32' ? [...windows, ...macos, ...linux]
+    : [...linux, ...macos, ...windows];
+
+  return [
+    ...(declarado ? [declarado] : []),
+    ...porPlataforma,
+    'chrome', 'msedge', 'chromium', 'google-chrome',
   ];
 }
 
@@ -332,4 +362,4 @@ async function retratoComMapa(url, opts) {
   }
 }
 
-module.exports = { retratoComMapa, EXTRACTOR, TAMANHO, MAX_ZONAS };
+module.exports = { retratoComMapa, candidatosBrowser, EXTRACTOR, TAMANHO, MAX_ZONAS };
