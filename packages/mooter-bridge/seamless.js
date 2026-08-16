@@ -3311,6 +3311,47 @@ async function toolWork(args) {
     }
   }
 
+  // Onda A3 · cada FACTO do Ollama lê-se uma só vez por toolWork.
+  //
+  // Duas leituras separadas deixavam o local-first voltar a escolher `moo`
+  // depois de o downgrade o ter degradado — a sonda de um não via a do outro.
+  //
+  // Memoiza-se o facto medido, nunca a interpretação: o downgrade continua a
+  // aplicar `pickModel` e o local-first `pickModelExplained`. Unificar também o
+  // SELECTOR tornava o downgrade mais estrito do que sempre foi, e isso ninguém
+  // pediu — custou a regressão de `seamless.test.js:162`.
+  //
+  // Cada leitura é PREGUIÇOSA e independente. Um único memo que lesse tudo de
+  // uma vez obrigava o caminho feliz do T0 (guard encontra modelo, local-first
+  // nem chega a correr por causa da guarda `agent !== 'moo'`) a pagar um spawn
+  // de nvidia-smi que ninguém lê — e com MOOTER_MOO_MODEL definida o guard nem
+  // sequer tocava em gpu.js antes desta frente.
+  //
+  // A GPU nunca é condicionada ao sucesso do /api/ps: `gpuSnapshot` fala com o
+  // nvidia-smi e não depende do Ollama (`residentes.length` só alimenta o flag
+  // `can_overclock`). Amarrá-los punha o tecto de VRAM refém de outro processo:
+  // com o /api/ps a estourar os 700ms — o que acontece justamente com a GPU
+  // ocupada — o local-first recebia {vram:null}, `lerVram` curto-circuitava em
+  // hasOwnProperty (moo.js:195), `cabeCarregar` deixava passar tudo, e o agent
+  // voltava a 'moo' DEPOIS do downgrade, com o recibo a dizer o contrário.
+  const hostOllama = () => process.env.OLLAMA_HOST || '127.0.0.1:11434';
+  let memoResidentes = null;
+  let memoGpu = null;
+  const lerResidentes = () => {
+    if (!memoResidentes) {
+      memoResidentes = (async () => require('./fleet.js').probeOllama(700))()
+        .then((r) => (Array.isArray(r) ? r : null)).catch(() => null);
+    }
+    return memoResidentes;
+  };
+  const lerGpu = (residentes) => {
+    if (!memoGpu) {
+      memoGpu = (async () => require('./gpu.js')
+        .gpuSnapshot(residentes ? residentes.length : null))().catch(() => null);
+    }
+    return memoGpu;
+  };
+
   let downgraded = null;
   // ⚠️ SO se o motor foi INFERIDO. A mensagem deste ramo diz 'o router escolheu
   // a GPU local', e quando o chamador passou agent:'moo' isso e falso — foi ele.
@@ -3318,9 +3359,8 @@ async function toolWork(args) {
   // recibo auditavel que este projecto vende. Se pediram moo, ou corre em moo ou
   // falha a dize-lo: o exit_code `no-local-model` existe exactamente para isso.
   if (agent === 'moo' && !motorExplicito) {
-    const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
-    const res = await require('./fleet.js').probeOllama(700).catch(() => null);
-    const has = await moo.pickModel(null, host, res).catch(() => null);
+    const host = hostOllama();
+    const has = await moo.pickModel(null, host, await lerResidentes()).catch(() => null);
     if (!has) {
       downgraded = 'o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em ' + host + ' — passei para o Claude Code';
       agent = 'cc';
@@ -3381,11 +3421,11 @@ async function toolWork(args) {
   if (!a.agent && !a.model && agent !== 'moo') {
     let vram = null; let temLocal = false; let escolhaModeloLocal = null;
     try {
-      const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
-      const res = await require('./fleet.js').probeOllama(700).catch(() => null);
-      const g = await require('./gpu.js').gpuSnapshot(res ? res.length : null).catch(() => null);
+      const host = hostOllama();
+      const residentes = await lerResidentes();
+      const g = await lerGpu(residentes);
       vram = g && g.headroom ? g.headroom.free_mb : null;
-      escolhaModeloLocal = await moo.pickModelExplained(null, host, res, { vram: g, goal }).catch(() => null);
+      escolhaModeloLocal = await moo.pickModelExplained(null, host, residentes, { vram: g, goal }).catch(() => null);
       temLocal = !!(escolhaModeloLocal && escolhaModeloLocal.model);
     } catch { /* sem local, seguimos para a nuvem */ }
 
