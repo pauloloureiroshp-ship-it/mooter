@@ -79,21 +79,54 @@ echo "  linhas escritas no ledger que lhe demos: $LINHAS_C  (0 = isolado)"
 
 echo
 echo "=== VEREDICTO ==="
-VA="${A%%|*}"; VB="${B%%|*}"; DB="${B##*|}"
+# ⚠️ VERSÃO 3 — a v2 validava UMAS premissas e ignorava outras (G4 #2, ALTO).
+# Ignorava as falhas de A/B, ignorava por completo o resultado do HEAD que ela
+# própria media, e as comparações `-lt` com valores não-numéricos falhavam em
+# silêncio sem activar `falhou`. Aqui TODAS as premissas são verificadas, e
+# qualquer valor não-numérico é ele próprio uma premissa falhada.
 falhou=0
-[ "$A" = "TIMEOUT|-|-" ] && { echo "  !! A pendurou — não é possível concluir"; falhou=1; }
-[ "$B" = "TIMEOUT|-|-" ] && { echo "  !! B pendurou — não é possível concluir"; falhou=1; }
-[ "${A##*|}" -lt 1 ] 2>/dev/null && { echo "  !! A não despachou nada: o cenário 'ledger limpo' não se realizou"; falhou=1; }
-[ "$DB" != "1" ] && { echo "  !! B tinha $DB dispatches, esperava 1 (só o probe)"; falhou=1; }
-[ "$VA" -lt 1 ] 2>/dev/null && { echo "  !! A não teve verdes nenhuns — o teste não correu"; falhou=1; }
+num() {  # $1=valor $2=descrição — falha se não for um inteiro
+  case "${1:-}" in
+    ''|*[!0-9]*) echo "  !! $2 não é um número: '${1:-vazio}'"; falhou=1; return 1 ;;
+    *) return 0 ;;
+  esac
+}
+avalia() {  # $1=rótulo $2=resultado "verdes|falhas|dispatches"
+  local rot="$1" res="$2"
+  [ "$res" = "TIMEOUT|-|-" ] && { echo "  !! $rot pendurou — nenhuma conclusão é válida"; falhou=1; return; }
+  local v f d
+  v=$(echo "$res" | cut -d'|' -f1); f=$(echo "$res" | cut -d'|' -f2); d=$(echo "$res" | cut -d'|' -f3)
+  num "$v" "$rot: verdes" && num "$f" "$rot: falhas" && num "$d" "$rot: dispatches" || return
+  [ "$v" -lt 1 ] && { echo "  !! $rot não teve verdes nenhuns — o teste não chegou a correr"; falhou=1; }
+  [ "$f" -gt 0 ] && { echo "  !! $rot teve $f falhas — o cenário não é o esperado"; falhou=1; }
+}
+avalia "A" "$A"
+avalia "B" "$B"
+avalia "HEAD" "$C"
 
-if [ "$falhou" = "0" ] && [ "$VA" = "$VB" ]; then
-  echo "  >> VERDE VAZIO CONFIRMADO na versão antiga: $VA verdes com $((${A##*|})) dispatches,"
-  echo "     e os mesmos $VB verdes com 0 dispatches. O resultado não depende de exercer o contrato."
-elif [ "$falhou" = "0" ]; then
-  echo "  >> NÃO reproduziu: A=$VA verdes, B=$VB verdes. Investigar antes de confiar."
-else
+VA=$(echo "$A" | cut -d'|' -f1); DA=$(echo "$A" | cut -d'|' -f3)
+VB=$(echo "$B" | cut -d'|' -f1); DB=$(echo "$B" | cut -d'|' -f3)
+
+if [ "$falhou" = "0" ]; then
+  [ "$DA" -lt 1 ] && { echo "  !! A não despachou nada: o cenário 'ledger limpo' não se realizou"; falhou=1; }
+  [ "$DB" != "1" ] && { echo "  !! B tinha $DB dispatches, esperava 1 (só o probe)"; falhou=1; }
+  # o HEAD tem de estar isolado — é metade do que este script existe para mostrar
+  num "$LINHAS_C" "HEAD: linhas escritas no ledger externo" \
+    && [ "$LINHAS_C" -ne 0 ] \
+    && { echo "  !! o HEAD escreveu $LINHAS_C linhas no ledger que lhe demos — não está isolado"; falhou=1; }
+fi
+
+if [ "$falhou" != "0" ]; then
   echo "  >> INCONCLUSIVO — uma premissa falhou acima. Nenhuma conclusão é válida."
+  exit 1
+fi
+if [ "$VA" = "$VB" ]; then
+  echo "  >> VERDE VAZIO CONFIRMADO na versão antiga: $VA verdes com $DA dispatches,"
+  echo "     e os mesmos $VB verdes com 0 dispatches do teste. O resultado não"
+  echo "     depende de exercer o contrato."
+  echo "  >> E o HEAD, no mesmo banco de ensaio, não escreveu uma linha no ledger externo."
+else
+  echo "  >> NÃO reproduziu: A=$VA verdes, B=$VB verdes. Investigar antes de confiar."
   exit 1
 fi
 echo

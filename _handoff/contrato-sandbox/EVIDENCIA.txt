@@ -60,19 +60,27 @@ mesma worktree e o guard serializa-os. Com a GPU saturada:
 E esse CLI real que corre minutos e produz a linha do «posso» — assinatura de
 um agente de CLI, nao de um modelo local.
 
---- 7. CORRECCAO DE UNIDADE (apanhada pelo G4, 2026-08-16) ---
-A seccao 2 conta EVENTOS. Em varios sitios chamei-lhes "jobs", e isso e falso:
-um job escreve varios eventos, logo o numero fica ~5x inflacionado.
+--- 7. CORRECCAO DE UNIDADE, E A LICAO ESTRUTURAL (G4 #1 e #2, 2026-08-16) ---
 
-Os numeros por UNIDADE, medidos:
-  eventos "wave":"contrato-test"  : 497
-  JOBS unicos (job_id distintos)  :  96   <- e este o numero de jobs
-    dos quais agent moo           :  92
-    dos quais agent cc (CLI pago) :   4
-  eventos com agent moo           : 473   <- eventos, NAO jobs
-  eventos com agent cc            :  25   <- eventos, NAO jobs
-  dispatches                      :  96   (bate com os 96 jobs unicos)
+A seccao 2 acima conta EVENTOS. Em varios sitios chamei-lhes "jobs", e isso e
+falso: um job escreve varios eventos, logo o numero fica ~5x inflacionado.
 
-O que NAO muda com a correccao: o teste escrevia mesmo no ledger de producao,
-e lancou mesmo 4 jobs do CLI pago. O que muda e a escala do numero moo:
-92 jobs, nao 473.
+Mas a correccao tambem falhou, e e isso que vale a pena guardar. Corrigi o
+numero em tres sitios, esqueci o BRIEF (que ficou com um valor ainda mais
+antigo), e entretanto o ledger cresceu — deixando esta propria seccao
+internamente incoerente. Foi o G4 #2 que o apanhou.
+
+CAUSA: estava a perseguir um numero VIVO com snapshots pinados em cinco sitios.
+Cada correccao fica obsoleta enquanto se escreve.
+
+REGRA, a partir daqui: nenhum documento desta frente pina uma contagem do
+ledger. A fonte unica e:
+
+    bash _handoff/contrato-sandbox/contar.sh
+
+Ela separa EVENTOS de JOBS de forma explicita, carimba a leitura com data UTC,
+e verifica se as contagens fecham entre si (jobs unicos == dispatches).
+
+Os numeros acima nesta seccao ficam como estao: sao o registo do que foi medido
+naquele momento, e uma prova que se reescreve deixa de ser prova. Para o valor
+de hoje, corre o script.

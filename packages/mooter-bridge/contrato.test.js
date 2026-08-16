@@ -261,8 +261,18 @@ test('K8 — motores COM ferramentas nunca são travados por este contrato', asy
   }
 });
 
-test.after(() => {
-  setTimeout(() => { try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ } }, 250);
+test.after(async () => {
+  // ⚠️ Uma tentativa única engolia EPERM em silêncio e deixava a pasta temp a
+  // acumular a cada corrida — no Windows o handle do último `close` pode ainda
+  // não ter caído aos 250ms. Tenta algumas vezes com recuo; se mesmo assim não
+  // sair, DIZ (o `warn` é a diferença entre lixo conhecido e lixo invisível).
+  // Não falha o teste: a suite não deve ficar vermelha por um handle do SO.
+  for (const espera of [250, 500, 1000, 2000]) {
+    await new Promise((r) => setTimeout(r, espera));
+    try { fs.rmSync(HOME, { recursive: true, force: true }); return; } catch { /* tenta outra vez */ }
+  }
+  console.warn('[contrato.test.js] não consegui remover ' + HOME
+    + ' — provável handle ainda aberto. Limpa com: rm -rf ' + path.dirname(HOME) + '/mooter-contrato-*');
 });
 
 // ────────────────────────────────────── prepare separado em duas decisões ──

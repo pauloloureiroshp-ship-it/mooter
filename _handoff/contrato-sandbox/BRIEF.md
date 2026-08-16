@@ -29,12 +29,20 @@ K4, K7 e K8 chamam `seam.toolDispatch` **real**. Não é mock: lança jobs verda
 
 ## Medido no ledger de PRODUÇÃO (`~/.mooter/ledger.jsonl`)
 
+**Os números vivem num script, não nesta página.** Corre:
+
 ```
-eventos com "wave":"contrato-test" ........ 497
-dispatches reais .......................... 87+
-jobs "agent":"moo" (GPU do dono) .......... 461
-dispatches do CLI `claude` REAL ............. 4   <- consome subscrição
+bash _handoff/contrato-sandbox/contar.sh
 ```
+
+Esta frente já teve a mesma contagem escrita com três valores diferentes em
+cinco sítios, e um deles trocava EVENTOS por JOBS (inflaciona ~5x). Um número
+de ledger pinado num documento apodrece: o ledger é vivo. O que fica aqui é a
+forma do problema, não o valor.
+
+Snapshot de 2026-08-16T16:00Z, para dar ordem de grandeza a quem lê:
+**498 eventos** que são **96 jobs únicos** — 92 `moo` na GPU do dono e
+**4 `cc`, o CLI pago**, mais 96 dispatches e 40 `orphaned-by-restart`.
 
 Os worktrees registados incluem `scratchpad/ensaio-merge` e `scratchpad/merge-final`
 — worktrees temporários que a própria validação do merge da `onda-a3` criou. Ou
@@ -57,7 +65,7 @@ watchdog de 30 min está `unref()`-ado (`seamless.js:2294`), logo não mata nada
 com `--test-timeout=0` nada limita a espera.
 
 Mas repare-se: **mesmo com o Ollama morto, o ficheiro continuou a escrever no
-ledger de produção** (467 → 497 eventos). São dois defeitos independentes.
+ledger de produção**. São dois defeitos independentes: o hang e a poluição.
 
 ## O DEFEITO CENTRAL: os asserts leem uma chave que a recusa nunca escreve
 
@@ -133,11 +141,11 @@ quase fiz. É o mesmo género de bloqueio que fez nascer a `onda-a3`.
    Provar com **mutação**: partir o contrato de capacidade e verificar que K
    falha. Verde sem prova de que morde não conta — este ficheiro já demonstrou
    saber ficar verde sem exercer nada.
-3. **Decidir o que fazer com os 497 eventos** já no ledger de produção. Não é
+4. **Decidir o que fazer com os eventos de teste** já no ledger de produção (ver `contar.sh`). Não é
    cosmético: contaminam qualquer medição de volume de jobs `moo` lida do ledger,
    incluindo as que a `onda-a3` usou para decidir. Opções: deixar e declarar ·
    marcar como teste · segregar por `MOOTER_HOME`. **Decisão do dono.**
-4. **Considerar** (pode virar frente própria): o watchdog `unref()`-ado que nunca
+5. **Considerar** (pode virar frente própria): o watchdog `unref()`-ado que nunca
    mata um job encravado, e a janela `dispatched` → `owner.json` que produz
    `orphaned-by-restart` em quase metade dos dispatches.
 
