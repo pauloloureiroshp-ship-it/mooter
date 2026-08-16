@@ -59,24 +59,55 @@ com `--test-timeout=0` nada limita a espera.
 Mas repare-se: **mesmo com o Ollama morto, o ficheiro continuou a escrever no
 ledger de produção** (467 → 497 eventos). São dois defeitos independentes.
 
-## Porque é INTERMITENTE (e porque "isolado passa 3/3" enganou)
+## O DEFEITO CENTRAL: os asserts leem uma chave que a recusa nunca escreve
+
+Este é o achado que vale mais que o hang, e é verificável em três linhas:
+
+```
+guardCheck recusado → { error: '❌ guard recusou o dispatch', reasons }   seamless.js:1987
+asserts K4/K7/K8    → assert.notEqual(r && r.erro, 'capacidade_incompativel')
+                                        ^^^^                contrato.test.js:95, 133, 144
+```
+
+`error` é inglês, `erro` é português. **São chaves diferentes.** A chave `erro`
+só é escrita por `recusaContratoDeLeitura` (`seamless.js:1392`) e por três
+caminhos de worktree (`:3228`, `:3246`, `:3287`) — nunca pelo guard.
+
+Quando o guard recusa, `r.erro` é `undefined`, e
+`assert.notEqual(undefined, 'capacidade_incompativel')` **passa trivialmente**.
+
+**O teste fica verde tanto quando exerce o contrato como quando não exerce
+absolutamente nada.** Não é uma fragilidade teórica: é o que acontece sempre que
+o ledger partilhado tem lixo de uma corrida anterior.
+
+## Porque é INTERMITENTE (e porque "isolado passa 3/3" me enganou)
 
 O WIP guard (`seamless.js:630-631`) recusa o dispatch se `activeJobsByWorktree`
-devolver algo — e lê o **ledger partilhado**. Se a corrida anterior deixou lá um
-job sem evento terminal, **todos** os dispatches são recusados, o ficheiro passa
-em milissegundos e os asserts passam na mesma (uma recusa do guard não é
-`capacidade_incompativel`, que é o que K8 afere).
+devolver algo — e lê o **ledger partilhado**. Daí os dois regimes:
 
-Ou seja: **o teste fica verde tanto quando exerce o contrato como quando não
-exerce nada**, e alterna entre "segundos" e "pendurado" conforme o lixo que a
-corrida anterior deixou. Foi isto que produziu os 3/3 isolados logo a seguir aos
-dois hangs — e que me levou a concluir, erradamente, que o ficheiro estava bem.
+- **ledger com lixo** → tudo recusado → passa em milissegundos, verde vazio (é o
+  "isolado passa 3/3" que me levou a concluir, erradamente, que estava bem)
+- **ledger limpo** → despacha a sério → nascem processos reais
 
-Agravante medido: 40 dos 87 dispatches terminaram em `orphaned-by-restart`,
+O mecanismo sob carga é mais subtil do que parece, e ao contrário do que se
+poderia supor **não é o job local lento que pendura**. K4/K7/K8 são `await`
+sequenciais sobre a mesma worktree, e o guard serializa-os. Com a GPU saturada:
+
+1. `pickModelExplained` filtra por VRAM (`moo.js:301`) e devolve `model:null`
+   com `motivo_nao_local:'falta_vram'` (`moo.js:381-389`)
+2. o ramo `no-local-model` (`seamless.js:2210-2237`) escreve um evento
+   **terminal** de imediato → **a worktree fica livre**
+3. K7 volta a tentar, K8 passa o guard e faz **`spawn` real do `claude`/`codex`**
+   (`realSpawnJob`, `seamless.js:839-848`)
+
+É esse **CLI real** que corre minutos e produz a linha
+«saiu 0, mas terminou a pedir aprovação («posso»)» — assinatura de um agente de
+CLI, não de um modelo local de 3B. É ele que segura o event loop.
+
+Agravante medido: 40 dos 96 dispatches terminaram em `orphaned-by-restart`,
 porque `ledgerAppend({event:'dispatched'})` corre em `seamless.js:2135` mas o
 `owner.json` só é escrito depois do spawn (`:2392`). Nessa janela outro processo
-que corra `sweepOrphans` marca o job como órfão — o que **limpa o WIP guard** e
-deixa K7/K8 despachar em paralelo em vez de serem serializados.
+que corra `sweepOrphans` marca o job como órfão — o que **limpa o WIP guard**.
 
 ## Porque isto bloqueia toda a gente
 
@@ -90,10 +121,18 @@ quase fiz. É o mesmo género de bloqueio que fez nascer a `onda-a3`.
    `MOOTER_WORKTREE_ROOT` temp, `OLLAMA_HOST='127.0.0.1:1'`, `setJobSpawner`
    falso. Tudo **antes** dos `require` — `seamless.js` lê `MOOTER_REPO` no topo do
    módulo.
-2. **Confirmar que os K continuam a provar o que provavam.** Um teste que passa
-   a correr em sandbox e continua verde pode ter deixado de exercer o contrato —
-   é exactamente o defeito descrito acima. Provar com **mutação**: partir o
-   contrato de capacidade e verificar que K falha.
+2. **Corrigir os asserts para falharem alto quando o guard recusa.** É o ponto
+   mais importante e sem ele os pontos 1 e 3 produzem verde vazio na mesma:
+   ```js
+   assert.ok(!r.error, 'o guard recusou e o teste não exerceu nada: '
+     + JSON.stringify(r && r.reasons));
+   assert.notEqual(r && r.erro, 'capacidade_incompativel');   // o que já lá está
+   ```
+3. **Confirmar que os K continuam a provar o que provavam.** Um teste que passa
+   a correr em sandbox e continua verde pode ter deixado de exercer o contrato.
+   Provar com **mutação**: partir o contrato de capacidade e verificar que K
+   falha. Verde sem prova de que morde não conta — este ficheiro já demonstrou
+   saber ficar verde sem exercer nada.
 3. **Decidir o que fazer com os 497 eventos** já no ledger de produção. Não é
    cosmético: contaminam qualquer medição de volume de jobs `moo` lida do ledger,
    incluindo as que a `onda-a3` usou para decidir. Opções: deixar e declarar ·
