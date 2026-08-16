@@ -1,216 +1,198 @@
 <!--
-  moo-pilot-shell.html — the cockpit for one device.
+  moo-pilot-shell.html — the cockpit for ONE device: this machine's GPU, this
+  machine's receipts, this machine's repo.
 
-  Design rule, above every other: this page never shows a number it did not
-  receive. There is no default zero, no optimistic green, no last-known value
-  quietly redrawn as if it were current. When the endpoint is unreachable the
-  page says so and greys the data it can no longer vouch for; when it is running
-  on an embedded snapshot it says how old that snapshot is.
+  Two rules fight each other in a page like this, and both have to win:
 
-  Data ladder, in order:
-    1. window.__MOOTER_SNAPSHOT__   (embedded by build-shell-snapshot.mjs)
-    2. GET /fleet.json              (live, from the local F10 endpoint)
-    3. honest disconnected state    (never a fabricated payload)
+  1. Never show a number you did not receive. No default zero, no optimistic
+     green, no stale payload silently redrawn as current.
+  2. Never show a control that looks broken. A greyed-out button is how a user
+     learns the product is unreliable — even when the truth is "it is already
+     doing exactly what you wanted". The primary control is therefore a TOGGLE
+     that is always actionable while the endpoint is reachable, and when the
+     endpoint is NOT reachable the control area is replaced by instructions,
+     not by a dead button.
+
+  Data ladder: live GET /fleet.json → embedded __MOOTER_SNAPSHOT__ → honest
+  silence. A snapshot can never operate the machine, so in snapshot mode the
+  page says how to reach the live cockpit instead of pretending to drive.
 -->
 <title>Moo Pilot</title>
 <style>
   :root {
-    --bg: #f6f7f9;
-    --panel: #ffffff;
-    --panel-2: #f0f2f5;
-    --ink: #14171c;
-    --ink-2: #5b6472;
-    --ink-3: #8b95a4;
-    --line: #dfe3e9;
-    --ok: #197a4b;
-    --ok-bg: #e6f4ec;
-    --warn: #8a5a00;
-    --warn-bg: #fdf3e0;
-    --bad: #a52222;
-    --bad-bg: #fbeaea;
-    --dead: #5b6472;
-    --dead-bg: #eceef1;
-    --accent: #2f5fd8;
-    --radius: 12px;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-    --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --bg:#f5f6f8; --panel:#fff; --panel-2:#f0f2f5; --ink:#14171c; --ink-2:#59626f;
+    --ink-3:#8b95a4; --line:#dfe3e9;
+    --ok:#0f7a45; --ok-bg:#e4f4ec; --warn:#8a5600; --warn-bg:#fdf2e0;
+    --bad:#a51f1f; --bad-bg:#fbe9e9; --dead:#59626f; --dead-bg:#ebeef1;
+    --accent:#2b5ede; --accent-ink:#fff;
+    --r:14px; --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #0e1116;
-      --panel: #161a21;
-      --panel-2: #1d222b;
-      --ink: #e8ecf2;
-      --ink-2: #a3adbb;
-      --ink-3: #6e7887;
-      --line: #262c36;
-      --ok: #5fd39b;
-      --ok-bg: #14301f;
-      --warn: #e3b25c;
-      --warn-bg: #33260f;
-      --bad: #f08a8a;
-      --bad-bg: #351919;
-      --dead: #8b95a4;
-      --dead-bg: #20252d;
-      --accent: #7aa2f7;
-    }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0d1015; --panel:#161a21; --panel-2:#1c212a; --ink:#e9edf3; --ink-2:#a6b0bd;
+    --ink-3:#6d7787; --line:#252b35;
+    --ok:#5ed49b; --ok-bg:#13301f; --warn:#e6b45f; --warn-bg:#32250f;
+    --bad:#f28c8c; --bad-bg:#341818; --dead:#8b95a4; --dead-bg:#1f242c;
+    --accent:#6f9bfb; --accent-ink:#0d1015;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0d1015; --panel:#161a21; --panel-2:#1c212a; --ink:#e9edf3; --ink-2:#a6b0bd;
+    --ink-3:#6d7787; --line:#252b35;
+    --ok:#5ed49b; --ok-bg:#13301f; --warn:#e6b45f; --warn-bg:#32250f;
+    --bad:#f28c8c; --bad-bg:#341818; --dead:#8b95a4; --dead-bg:#1f242c;
+    --accent:#6f9bfb; --accent-ink:#0d1015;
   }
-  :root[data-theme="dark"] {
-    --bg: #0e1116; --panel: #161a21; --panel-2: #1d222b;
-    --ink: #e8ecf2; --ink-2: #a3adbb; --ink-3: #6e7887; --line: #262c36;
-    --ok: #5fd39b; --ok-bg: #14301f; --warn: #e3b25c; --warn-bg: #33260f;
-    --bad: #f08a8a; --bad-bg: #351919; --dead: #8b95a4; --dead-bg: #20252d;
-    --accent: #7aa2f7;
+  *{box-sizing:border-box}
+  body{margin:0;padding:18px;background:var(--bg);color:var(--ink);
+       font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;display:grid;gap:14px}
+
+  /* Data we can no longer vouch for is visibly demoted, never hidden. */
+  body[data-trust="stale"] .vouched{opacity:.6}
+  body[data-trust="dead"]  .vouched{opacity:.32;filter:grayscale(1)}
+
+  header{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  h1{font-size:19px;margin:0;letter-spacing:-.015em;white-space:nowrap}
+  h1 b{color:var(--accent)}
+  h1 span{color:var(--ink-3);font-weight:400;font-size:14px}
+  .grow{flex:1 1 auto}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+        font-size:12.5px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+  .chip.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+  .chip.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+  .chip.bad{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+  .chip.dead{background:var(--dead-bg);color:var(--dead);border-color:var(--line)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .live .dot{animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
+
+  button{font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 15px;
+         border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+         transition:transform .1s ease,border-color .15s ease}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button:active{transform:scale(.97)}
+  button[aria-disabled="true"]{opacity:.5;cursor:progress}
+  #toggle{font-size:14.5px;padding:10px 20px;border:none;color:var(--accent-ink)}
+  #toggle.run{background:var(--ok)}
+  #toggle.idle{background:var(--accent)}
+  #toggle:hover{color:var(--accent-ink);filter:brightness(1.1)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px}
+  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);
+           margin:0 0 11px;font-weight:700}
+  .note{margin:11px 0 0;font-size:12.5px;color:var(--ink-2)}
+  .row{display:grid;gap:14px;grid-template-columns:300px 1fr}
+  @media (max-width:860px){.row{grid-template-columns:1fr}}
+
+  /* GPU ------------------------------------------------------------------ */
+  .gpu{display:grid;gap:6px;justify-items:center}
+  .gpu svg.dial{width:190px;height:112px}
+  .arc-bg{stroke:var(--panel-2)}
+  .arc-fg{stroke:var(--accent);transition:stroke-dashoffset .45s cubic-bezier(.4,0,.2,1),stroke .3s}
+  .gpu .val{font:700 34px/1 var(--mono);letter-spacing:-.02em}
+  .gpu .sub{font-size:12px;color:var(--ink-3);text-align:center}
+  .spark{width:100%;height:44px;display:block}
+  .spark path{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round}
+  .spark .fill{fill:var(--accent);opacity:.13;stroke:none}
+
+  /* tallies --------------------------------------------------------------- */
+  .tally{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
+  .box{padding:10px 12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line)}
+  .box b{display:block;font:700 24px/1.15 var(--mono)}
+  .box small{color:var(--ink-2);font-size:11px;display:block;margin-top:2px}
+  .box.ok b{color:var(--ok)} .box.bad b{color:var(--bad)}
+  .box.warn b{color:var(--warn)} .box.dead b{color:var(--dead)}
+
+  /* pillars --------------------------------------------------------------- */
+  .pillars{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(272px,1fr))}
+  .pillar{padding:13px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);
+          display:flex;flex-direction:column;gap:7px}
+  .pillar.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .pillar .hd{display:flex;align-items:center;gap:7px}
+  .pillar .id{font:700 13px var(--mono);color:var(--accent)}
+  .pillar .nm{font-size:13px;font-weight:600;flex:1 1 auto}
+  .pillar .ask{font-size:12px;color:var(--ink-2);line-height:1.4}
+  .pillar .found{font-size:12px;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:7px}
+  .pillar code{font-family:var(--mono);font-size:11px;color:var(--ink-3);overflow-wrap:anywhere}
+  .pillar button{align-self:flex-start;font-size:12px;padding:5px 11px}
+
+  /* tables ---------------------------------------------------------------- */
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+     color:var(--ink-3);padding:0 10px 8px 0;font-weight:700;white-space:nowrap}
+  td{padding:8px 10px 8px 0;border-top:1px solid var(--line);vertical-align:top}
+  td code{font-family:var(--mono);font-size:11.5px;overflow-wrap:anywhere}
+  tbody tr{animation:slidein .3s ease}
+  @keyframes slidein{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:13.5px;margin:0}
+  .kv dt{color:var(--ink-2)}
+  .kv dd{margin:0;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+  .nd{color:var(--ink-3);font-style:italic;font-family:var(--sans)}
+
+  .banner{padding:15px 17px;border-radius:var(--r);font-size:14px;border:1px solid var(--warn);
+          background:var(--warn-bg);color:var(--warn)}
+  .banner.bad{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+  .banner b{display:block;margin-bottom:4px;font-size:15px}
+  .banner pre{margin:9px 0 0;padding:9px 11px;border-radius:8px;background:var(--panel);
+              color:var(--ink);font:12.5px var(--mono);overflow-x:auto;border:1px solid var(--line)}
+  [hidden]{display:none!important}
+  footer{font-size:11.5px;color:var(--ink-3);padding-bottom:10px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
   }
-
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 20px; background: var(--bg); color: var(--ink);
-    font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
-
-  /* Everything the page cannot currently vouch for is visibly demoted. */
-  body[data-trust="stale"] .vouched { opacity: .55; }
-  body[data-trust="dead"] .vouched { opacity: .35; filter: grayscale(1); }
-
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-  h1 { font-size: 19px; margin: 0; letter-spacing: -.01em; }
-  h1 span { color: var(--ink-3); font-weight: 400; }
-  .spacer { flex: 1 1 auto; }
-
-  .chip {
-    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
-    border-radius: 999px; font-size: 12.5px; font-weight: 600;
-    border: 1px solid transparent; white-space: nowrap;
-  }
-  .chip.ok   { background: var(--ok-bg);   color: var(--ok);   border-color: var(--ok); }
-  .chip.warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
-  .chip.bad  { background: var(--bad-bg);  color: var(--bad);  border-color: var(--bad); }
-  .chip.dead { background: var(--dead-bg); color: var(--dead); border-color: var(--line); }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .chip.ok .dot { animation: pulse 2s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
-  @media (prefers-reduced-motion: reduce) { .chip.ok .dot { animation: none } }
-
-  button {
-    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-    padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
-    background: var(--panel); color: var(--ink);
-  }
-  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.primary:hover:not(:disabled) { color: #fff; filter: brightness(1.08); }
-
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 16px;
-  }
-  .card h2 {
-    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
-    color: var(--ink-3); margin: 0 0 12px;
-  }
-  .row { display: grid; gap: 16px; grid-template-columns: 260px 1fr; }
-  @media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
-
-  .gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .gauge svg { width: 168px; height: 100px; }
-  .gauge .val { font: 700 30px/1 var(--mono); }
-  .gauge .lbl { font-size: 12px; color: var(--ink-3); }
-  .arc-bg { stroke: var(--panel-2); }
-  .arc-fg { stroke: var(--accent); transition: stroke-dashoffset .6s ease; }
-
-  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13.5px; }
-  .kv dt { color: var(--ink-2); }
-  .kv dd { margin: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
-  .nd { color: var(--ink-3); font-style: italic; }
-
-  .tally { display: flex; flex-wrap: wrap; gap: 8px; }
-  .tally .box {
-    flex: 1 1 120px; padding: 10px 12px; border-radius: 10px;
-    background: var(--panel-2); border: 1px solid var(--line);
-  }
-  .tally .box b { display: block; font: 700 22px/1.2 var(--mono); }
-  .tally .box small { color: var(--ink-2); font-size: 11.5px; }
-  .tally .box.ok b   { color: var(--ok); }
-  .tally .box.bad b  { color: var(--bad); }
-  .tally .box.warn b { color: var(--warn); }
-  .tally .box.dead b { color: var(--dead); }
-
-  .pillars { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-  .pillar { padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); }
-  .pillar.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .pillar .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .pillar .id { font: 700 13px var(--mono); }
-  .pillar .nm { font-size: 12px; color: var(--ink-2); flex: 1 1 auto; }
-  .pillar .last { font-size: 12px; color: var(--ink-2); min-height: 32px; }
-  .pillar code { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); overflow-wrap: anywhere; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
-       color: var(--ink-3); padding: 0 8px 8px 0; font-weight: 600; }
-  td { padding: 8px 8px 8px 0; border-top: 1px solid var(--line); vertical-align: top; }
-  td code { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
-  .scroll { overflow-x: auto; }
-
-  .banner {
-    padding: 14px 16px; border-radius: var(--radius); font-size: 14px;
-    border: 1px solid var(--bad); background: var(--bad-bg); color: var(--bad);
-  }
-  .banner.warn { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
-  .banner b { display: block; margin-bottom: 2px; }
-  [hidden] { display: none !important; }
-  footer { font-size: 12px; color: var(--ink-3); padding-bottom: 8px; }
 </style>
 
 <div class="wrap">
   <header>
-    <h1>Moo Pilot <span id="device">—</span></h1>
-    <span class="chip ok" id="cost"><span class="dot"></span>$0 · só local</span>
-    <span class="chip dead" id="conn"><span class="dot"></span>a ligar…</span>
-    <span class="spacer"></span>
-    <button id="btn-play" class="primary" disabled>▶ Trabalhar</button>
-    <button id="btn-stop" disabled>⏸ Parar</button>
+    <h1><b>Moo</b> Pilot <span id="device">—</span></h1>
+    <span class="chip ok" id="cost"><span class="dot"></span>$0 · só GPU local</span>
+    <span class="chip dead" id="conn" role="status" aria-live="polite"><span class="dot"></span>a ligar…</span>
+    <span class="grow"></span>
+    <button id="toggle" class="idle">▶ Trabalhar</button>
   </header>
 
-  <div class="banner" id="offline" hidden>
-    <b>Desconectado do motor deste device.</b>
+  <div class="banner bad" id="offline" hidden>
+    <b>Este painel não está ligado ao motor deste device.</b>
     <span id="offline-why"></span>
+    <pre id="offline-cmd">cd ~/frugal &amp;&amp; npm run pilot</pre>
   </div>
-  <div class="banner warn" id="snapshot" hidden>
-    <b>A ver um instantâneo, não o estado ao vivo.</b>
-    <span id="snapshot-why"></span>
-  </div>
+  <div class="banner" id="applying" hidden role="status" aria-live="polite"></div>
 
   <div class="row">
-    <div class="card gauge vouched">
+    <div class="card gpu vouched">
       <h2>GPU deste device</h2>
-      <svg viewBox="0 0 168 96" aria-hidden="true">
-        <path class="arc-bg" d="M14 88 A70 70 0 0 1 154 88" fill="none" stroke-width="13" stroke-linecap="round"/>
-        <path class="arc-fg" id="arc" d="M14 88 A70 70 0 0 1 154 88" fill="none" stroke-width="13"
-              stroke-linecap="round" stroke-dasharray="220" stroke-dashoffset="220"/>
+      <svg class="dial" viewBox="0 0 190 112" aria-hidden="true">
+        <path class="arc-bg" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14" stroke-linecap="round"/>
+        <path class="arc-fg" id="arc" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14"
+              stroke-linecap="round" stroke-dasharray="248" stroke-dashoffset="248"/>
       </svg>
       <div class="val" id="gpu-val">n/d</div>
-      <div class="lbl" id="gpu-src">sem amostra</div>
+      <div class="sub" id="gpu-sub">sem amostra</div>
+      <svg class="spark" id="spark" viewBox="0 0 240 44" preserveAspectRatio="none" aria-hidden="true">
+        <path class="fill" id="spark-fill" d=""/><path id="spark-line" d=""/>
+      </svg>
+      <div class="sub" id="spark-sub">histórico desta sessão do painel</div>
     </div>
 
     <div class="card vouched">
-      <h2>Recibos — por veredicto, nunca só por volume</h2>
+      <h2>O que a GPU produziu — por veredicto, nunca só por volume</h2>
       <div class="tally" id="tally"></div>
-      <p style="margin:12px 0 0;font-size:12.5px;color:var(--ink-2)">
-        <b>citação-ok</b> quer dizer que a linha citada existe e foi lida do disco —
-        <b>não</b> que o achado está certo. A triagem do achado é outro passo.
+      <p class="note">
+        <b>citação-ok</b> = a linha citada existe e foi lida do disco. <b>Não</b> quer dizer que o
+        achado está certo — isso é triagem, e é outro passo. <b>refutado</b> = o modelo citou algo
+        que não existe. <b>sem veredicto</b> = recibos antigos, de antes deste verificador.
       </p>
     </div>
   </div>
 
   <div class="card vouched">
-    <h2>Pilares — o que cada um produziu neste device</h2>
+    <h2>Os 6 pilares — o que cada um procura neste repo</h2>
     <div class="pillars" id="pillars"></div>
-    <p style="margin:12px 0 0;font-size:12.5px;color:var(--ink-2)">
-      Focar prende o loop a um pilar; <b>Rodar tudo</b> volta ao rodízio.
-    </p>
+    <p class="note">Cada ronda dá ao modelo local um excerto real do repo com números de linha e
+      pede-lhe UM achado citado. <b>Focar</b> prende o loop a um pilar; <b>Rodar tudo</b> volta ao rodízio.</p>
   </div>
 
   <div class="row">
@@ -219,15 +201,15 @@
       <dl class="kv" id="engine"></dl>
     </div>
     <div class="card vouched">
-      <h2>Alinhamento do projeto</h2>
+      <h2>Situação do projeto</h2>
       <dl class="kv" id="align"></dl>
     </div>
   </div>
 
   <div class="card vouched">
-    <h2>Últimos recibos</h2>
+    <h2>Trabalhos — os últimos recibos, ao vivo</h2>
     <div class="scroll"><table>
-      <thead><tr><th>Hora</th><th>Pilar</th><th>Veredicto</th><th>Evidência</th></tr></thead>
+      <thead><tr><th>Hora</th><th>Pilar</th><th>Veredicto</th><th>Evidência</th><th>Dur</th></tr></thead>
       <tbody id="feed"></tbody>
     </table></div>
   </div>
@@ -240,305 +222,345 @@
   'use strict';
 
   const BASE = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:4290';
-  const POLL_MS = 4000;
-  const PILLARS = {
-    P1: 'Routing & Custo', P2: 'Qualidade & Verificação', P3: 'Coerência Doc↔Produto',
-    P4: 'Segurança & Higiene', P5: 'Motor Local & GPU', P6: 'Produto & Experiência',
-  };
+  const POLL_MS = 3000;
+  const SPARK_MAX = 80;
+  const CONFIRM_TRIES = 5;          // how long we wait for a control to take effect
+
   const VERDICTS = {
-    'citacao-ok':  { cls: 'ok',   label: 'citação-ok' },
-    'refutado':    { cls: 'bad',  label: 'refutado' },
-    'sem-citacao': { cls: 'warn', label: 'sem citação' },
-    'sem-achado':  { cls: 'dead', label: 'sem achado' },
+    'citacao-ok':  { cls:'ok',   label:'citação-ok' },
+    'refutado':    { cls:'bad',  label:'refutado' },
+    'sem-citacao': { cls:'warn', label:'sem citação' },
+    'sem-achado':  { cls:'dead', label:'sem achado' },
   };
+  // Fallback only — the live catalogue comes from GET /pilares.json so the
+  // page and the runner can never disagree about what a pillar is.
+  let CATALOGO = [
+    { id:'P1', label:'Routing & Custo' },      { id:'P2', label:'Qualidade & Verificação' },
+    { id:'P3', label:'Coerência Doc↔Produto' },{ id:'P4', label:'Segurança & Higiene' },
+    { id:'P5', label:'Motor Local & GPU' },    { id:'P6', label:'Produto & Experiência' },
+  ];
 
   const $ = (id) => document.getElementById(id);
-  const el = (tag, cls, text) => {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text !== undefined) n.textContent = text;
-    return n;
+  const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c;
+                            if (x !== undefined) n.textContent = x; return n; };
+
+  /** The one place absence becomes visible. Never returns a number. */
+  const nd = (v, fmt) => (v === null || v === undefined || v === ''
+    ? el('span', 'nd', 'n/d')
+    : document.createTextNode(fmt ? fmt(v) : String(v)));
+
+  const hhmm = (iso) => { const t = Date.parse(iso); return Number.isFinite(t)
+    ? new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'; };
+  const ago = (s) => s == null ? 'n/d' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.round(s/3600)} h`;
+
+  let state = null, source = null, fails = 0, busy = false;
+  let expecting = null;             // {running:bool, tries:int} — a control awaiting confirmation
+  const spark = [];                 // GPU history, client-side only
+  const sig = {};                   // per-section change signature (perf: skip identical redraws)
+
+  const changed = (key, value) => {
+    const s = JSON.stringify(value);
+    if (sig[key] === s) return false;
+    sig[key] = s; return true;
   };
 
-  /** The single place a missing value becomes visible text. Never returns 0. */
-  function nd(value, render) {
-    if (value === null || value === undefined || value === '') {
-      const s = el('span', 'nd', 'n/d');
-      return s;
-    }
-    return document.createTextNode(render ? render(value) : String(value));
-  }
-
-  const hhmm = (iso) => {
-    const t = Date.parse(iso);
-    return Number.isFinite(t)
-      ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      : '—';
-  };
-  const ago = (s) => (s == null ? 'n/d' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${Math.round(s / 3600)}h`);
-
-  let state = null;       // last payload we are willing to vouch for
-  let source = null;      // 'live' | 'snapshot'
-  let consecutiveFails = 0;
-  let busy = false;
-
-  // ---------------------------------------------------------------- fetching
+  // ---------------------------------------------------------------- network
 
   async function poll() {
     try {
-      const res = await fetch(`${BASE}/fleet.json`, { cache: 'no-store' });
+      const res = await fetch(`${BASE}/fleet.json`, { cache:'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       state = await res.json();
-      source = 'live';
-      consecutiveFails = 0;
+      source = 'live'; fails = 0;
+      if (typeof state?.gpu?.util_pct === 'number') {
+        spark.push(state.gpu.util_pct);
+        if (spark.length > SPARK_MAX) spark.shift();
+      }
+      confirmPending();
       render();
     } catch (err) {
-      consecutiveFails += 1;
-      // One miss is a hiccup; two in a row is a disconnection, and we say so
-      // rather than leaving the last payload on screen pretending to be current.
-      if (consecutiveFails >= 2) disconnected(err && err.message);
+      fails += 1;
+      // One miss is a hiccup. Two in a row is a disconnection, and we say so
+      // instead of leaving the last payload up pretending to be current.
+      if (fails >= 2) offline(err?.message);
     }
   }
 
-  function disconnected(why) {
+  async function loadCatalogue() {
+    try {
+      const res = await fetch(`${BASE}/pilares.json`, { cache:'no-store' });
+      if (!res.ok) return;
+      const body = await res.json();
+      if (Array.isArray(body.pilares) && body.pilares.length) { CATALOGO = body.pilares; delete sig.pillars; render(); }
+    } catch { /* the fallback list keeps the page usable */ }
+  }
+
+  function offline(why) {
     const snap = window.__MOOTER_SNAPSHOT__;
-    if (snap && source !== 'live') {
-      state = snap;
-      source = 'snapshot';
-      render();
-      return;
-    }
+    if (snap && source !== 'live') { state = snap; source = 'snapshot'; }
     document.body.dataset.trust = 'dead';
     $('offline').hidden = false;
-    $('offline-why').textContent =
-      `O endpoint local (127.0.0.1:4290) não respondeu${why ? ` — ${why}` : ''}. ` +
-      `Os números abaixo, se existirem, são do último contacto e não valem como estado actual.`;
-    setChip($('conn'), 'dead', 'desconectado');
-    $('btn-play').disabled = true;
-    $('btn-stop').disabled = true;
+    $('offline-why').textContent = source === 'snapshot'
+      ? 'Estás a ver um instantâneo gravado, não o estado ao vivo — por isso nada aqui é clicável. '
+        + 'Para conduzir o device, abre o cockpit ao vivo em http://127.0.0.1:4290/panel:'
+      : `O endpoint local (127.0.0.1:4290) não respondeu${why ? ` — ${why}` : ''}. `
+        + 'Enquanto isso, nada nesta página vale como estado actual. Para o levantar:';
+    setChip($('conn'), 'dead', source === 'snapshot' ? 'instantâneo' : 'desconectado');
+    renderToggleOffline();
+    if (state) render({ keepOffline:true });
   }
 
-  function setChip(node, cls, text) {
-    node.className = `chip ${cls}`;
-    node.replaceChildren(el('span', 'dot'), document.createTextNode(text));
-  }
-
-  // ---------------------------------------------------------------- rendering
-
-  function render() {
-    if (!state) return;
-    const live = source === 'live';
-    const fresh = state.frescura || {};
-
-    $('offline').hidden = live;
-    $('snapshot').hidden = source !== 'snapshot';
-    if (source === 'snapshot') {
-      $('snapshot-why').textContent =
-        `Instantâneo do device ${state.device || 'n/d'}. Nada nesta página está a ser actualizado.`;
-    }
-
-    document.body.dataset.trust = !live ? 'dead' : fresh.estado === 'vivo' ? 'ok' : fresh.estado || 'dead';
-    $('device').textContent = `· ${state.device || 'n/d'}`;
-
-    if (live) {
-      if (!state.running) setChip($('conn'), 'warn', 'parado (STOP)');
-      else if (fresh.estado === 'vivo') setChip($('conn'), 'ok', `a trabalhar · há ${ago(fresh.idade_s)}`);
-      else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'dead',
-                   `${fresh.estado || 'sem sinal'} — ${fresh.motivo || 'sem recibo recente'}`);
-    }
-
-    // `usd` is structurally zero (the engine cannot be non-local), so this chip
-    // is the one claim on the page that does not depend on a measurement.
-    setChip($('cost'), state.usd === 0 ? 'ok' : 'bad',
-            state.usd === 0 ? '$0 · só local' : `custo ${state.usd}`);
-
-    $('btn-play').disabled = !live || busy || state.running;
-    $('btn-stop').disabled = !live || busy || !state.running;
-
-    renderGauge(state.gpu || {});
-    renderTally(state.recibos || {});
-    renderPillars(state);
-    renderEngine(state);
-    renderAlign(state.projeto);
-    renderFeed(state);
-
-    $('foot').textContent =
-      `conector ${state.conector || 'n/d'} · fuso do dono ${state.owner_tz || 'n/d'} · ` +
-      `fonte: ${live ? 'ao vivo' : 'instantâneo'} · actualizado ${new Date().toLocaleTimeString()}`;
-  }
-
-  function renderGauge(gpu) {
-    const pct = typeof gpu.util_pct === 'number' ? gpu.util_pct : null;
-    const LEN = 220;
-    $('arc').style.strokeDashoffset = pct === null ? LEN : LEN - (LEN * Math.min(100, Math.max(0, pct))) / 100;
-    $('gpu-val').textContent = pct === null ? 'n/d' : `${pct}%`;
-    $('gpu-val').className = pct === null ? 'val nd' : 'val';
-    $('gpu-src').textContent =
-      pct === null
-        ? gpu.motivo || 'sem amostra'
-        : `${gpu.fonte || 'n/d'}${gpu.vram_inuse_gb != null ? ` · ${gpu.vram_inuse_gb} GB VRAM` : ''}`;
-  }
-
-  function renderTally(r) {
-    const boxes = [
-      ['ok',   'citacao_ok',    'citação-ok'],
-      ['bad',  'refutado',      'refutado'],
-      ['warn', 'sem_citacao',   'sem citação'],
-      ['dead', 'sem_achado',    'sem achado'],
-      ['dead', 'sem_veredicto', 'sem veredicto (legado)'],
-    ];
-    const wrap = $('tally');
-    wrap.replaceChildren();
-    for (const [cls, key, label] of boxes) {
-      const box = el('div', `box ${cls}`);
-      const b = el('b');
-      b.appendChild(nd(r[key]));
-      box.append(b, el('small', null, label));
-      wrap.appendChild(box);
-    }
-  }
-
-  function renderPillars(s) {
-    const wrap = $('pillars');
-    wrap.replaceChildren();
-    const per = s.pilares || {};
-    for (const [id, name] of Object.entries(PILLARS)) {
-      const data = per[id] || {};
-      const last = data.ultimo || null;
-      const card = el('div', `pillar${s.pilar_atual === id ? ' active' : ''}`);
-
-      const top = el('div', 'top');
-      top.append(el('span', 'id', id), el('span', 'nm', name));
-      const v = last && VERDICTS[last.verdict];
-      top.appendChild(v ? el('span', `chip ${v.cls}`, v.label) : el('span', 'chip dead', 'sem rondas'));
-      card.appendChild(top);
-
-      const info = el('div', 'last');
-      if (last) {
-        info.append(document.createTextNode(`${hhmm(last.ts)} · ${data.total} ronda(s)`));
-        info.appendChild(el('br'));
-        info.appendChild(el('code', null, last.evidencia || last.ficheiro || '—'));
-      } else {
-        info.appendChild(el('span', 'nd', 'nenhuma ronda registada'));
-      }
-      card.appendChild(info);
-
-      const btn = el('button', null, s.foco === id ? '◉ Focado' : 'Focar');
-      btn.disabled = source !== 'live' || busy;
-      btn.onclick = () => control('/focus', { pilar: s.foco === id ? null : id });
-      card.appendChild(btn);
-      wrap.appendChild(card);
-    }
-    const all = el('button', null, '↻ Rodar tudo');
-    all.disabled = source !== 'live' || busy || !s.foco;
-    all.onclick = () => control('/focus', { pilar: null });
-    wrap.appendChild(all);
-  }
-
-  function renderEngine(s) {
-    const dl = $('engine');
-    dl.replaceChildren();
-    const put = (k, node) => { dl.append(el('dt', null, k), (() => { const d = el('dd'); d.appendChild(node); return d; })()); };
-    put('motor', nd(s.engine === 'down' ? null : s.engine));
-    put('modelo', nd(s.modelo_atual));
-    put('pilar activo', nd(s.pilar_atual));
-    put('foco', s.foco ? nd(s.foco) : el('span', 'nd', 'rodízio'));
-    const models = s.modelos_carregados || [];
-    put('residentes', models.length
-      ? document.createTextNode(models.map((m) => `${m.name} (${m.vram_gb} GB)`).join(', '))
-      : el('span', 'nd', 'nenhum modelo residente'));
-  }
-
-  function renderAlign(p) {
-    const dl = $('align');
-    dl.replaceChildren();
-    const put = (k, node) => { dl.append(el('dt', null, k), (() => { const d = el('dd'); d.appendChild(node); return d; })()); };
-    if (!p) {
-      put('estado', el('span', 'nd', 'não foi possível medir'));
-      return;
-    }
-    put('branch', nd(p.repo_branch));
-    put('repo limpo', p.repo_clean === null
-      ? el('span', 'nd', 'n/d')
-      : el('span', `chip ${p.repo_clean ? 'ok' : 'warn'}`,
-           p.repo_clean ? `sim (${p.repo_untracked ?? 0} untracked)` : `${p.repo_sujo_rastreado} por commitar`));
-    put('vs upstream', p.ahead === null && p.behind === null
-      ? el('span', 'nd', p.comparacao || 'n/d')
-      : document.createTextNode(`↑${p.ahead} ↓${p.behind} · ${p.comparacao}`));
-    const sha = p.classify_sha || {};
-    put('classify.js', sha.ok === null
-      ? el('span', 'nd', sha.motivo || 'n/d')
-      : el('span', `chip ${sha.ok ? 'ok' : 'bad'}`, sha.ok ? 'sha bate o canon' : sha.motivo));
-    const vault = p.vault || {};
-    put('vault', vault.ts
-      ? document.createTextNode(`${hhmm(vault.ts)} · ${vault.ficheiro} (via ${vault.fonte})`)
-      : el('span', 'nd', vault.motivo || 'n/d'));
-  }
-
-  function renderFeed(s) {
-    const body = $('feed');
-    body.replaceChildren();
-    const last = s.ultimo_recibo;
-    const rows = last ? [last] : [];
-    for (const [id, d] of Object.entries(s.pilares || {})) {
-      if (d.ultimo && d.ultimo !== last) rows.push({ ...d.ultimo, pilar: id });
-    }
-    rows.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
-    if (!rows.length) {
-      const tr = el('tr');
-      const td = el('td');
-      td.colSpan = 4;
-      td.appendChild(el('span', 'nd', 'nenhum recibo ainda'));
-      tr.appendChild(td);
-      body.appendChild(tr);
-      return;
-    }
-    for (const r of rows.slice(0, 10)) {
-      const tr = el('tr');
-      tr.append(el('td', null, hhmm(r.ts)), el('td', null, r.pilar || '—'));
-      const v = VERDICTS[r.verdict];
-      const tdv = el('td');
-      tdv.appendChild(v ? el('span', `chip ${v.cls}`, v.label) : el('span', 'chip dead', 'sem veredicto'));
-      tr.appendChild(tdv);
-      const tde = el('td');
-      tde.appendChild(el('code', null, r.evidencia || r.resumo || '—'));
-      tr.appendChild(tde);
-      body.appendChild(tr);
-    }
+  function setChip(node, cls, text, live) {
+    node.className = `chip ${cls}${live ? ' live' : ''}`;
+    node.replaceChildren(el('span','dot'), document.createTextNode(text));
   }
 
   // ---------------------------------------------------------------- controls
 
-  async function control(route, payload) {
-    if (source !== 'live') return;
-    busy = true;
-    render();
+  /**
+   * The primary control never renders as a dead grey box. While the endpoint is
+   * reachable it is always actionable, and its label always states the action it
+   * will perform — not the state the system is in.
+   */
+  function renderToggle() {
+    const b = $('toggle');
+    b.hidden = false;
+    b.removeAttribute('aria-disabled');
+    if (busy) {
+      b.setAttribute('aria-disabled','true');
+      b.textContent = '… a aplicar';
+      return;
+    }
+    const running = !!state?.running;
+    b.className = running ? 'run' : 'idle';
+    b.textContent = running ? '⏸ Parar de trabalhar' : '▶ Trabalhar';
+    b.title = running
+      ? 'A GPU deste device está a trabalhar. Carrega para parar.'
+      : 'Carrega para pôr a GPU deste device a trabalhar sem parar, a $0.';
+  }
+
+  function renderToggleOffline() {
+    const b = $('toggle');
+    b.hidden = true;    // an unreachable endpoint gets instructions, not a dead button
+  }
+
+  /** A control is only "done" when the next poll shows the state it asked for. */
+  function confirmPending() {
+    if (!expecting) return;
+    if (!!state?.running === expecting.running) {
+      expecting = null; $('applying').hidden = true; return;
+    }
+    expecting.tries -= 1;
+    if (expecting.tries > 0) {
+      $('applying').hidden = false;
+      $('applying').textContent = expecting.running
+        ? 'Pedido enviado — à espera que o loop confirme que arrancou…'
+        : 'Pedido enviado — à espera que o loop confirme que parou…';
+      return;
+    }
+    $('applying').hidden = false;
+    $('applying').textContent =
+      'O pedido foi aceite pelo endpoint mas o loop ainda não mudou de estado. '
+      + 'Provável causa: o processo do loop não está a correr (só o endpoint está).';
+    expecting = null;
+  }
+
+  async function control(route, payload, expectRunning) {
+    if (source !== 'live' || busy) return;
+    busy = true; renderToggle();
     try {
-      await fetch(`${BASE}${route}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${BASE}${route}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payload || {}),
       });
-    } catch {
-      /* the next poll reports the real state; we never fake a success */
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (expectRunning !== undefined) expecting = { running:expectRunning, tries:CONFIRM_TRIES };
+    } catch (err) {
+      $('applying').hidden = false;
+      $('applying').textContent = `O pedido falhou: ${err?.message}. Nada foi alterado.`;
     } finally {
       busy = false;
       await poll();
     }
   }
 
-  $('btn-play').onclick = () => control('/play');
-  $('btn-stop').onclick = () => control('/stop');
+  $('toggle').onclick = () => {
+    const running = !!state?.running;
+    control(running ? '/stop' : '/play', {}, !running);
+  };
 
-  // A backgrounded tab must not keep drawing a "live" badge over frozen data.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
-    consecutiveFails = 0;
-    poll();
-  });
+  // ---------------------------------------------------------------- render
 
-  // Boot: try live first, fall back to the embedded snapshot, then to honest silence.
-  if (window.__MOOTER_SNAPSHOT__) { state = window.__MOOTER_SNAPSHOT__; source = 'snapshot'; render(); }
+  function render(opts = {}) {
+    if (!state) return;
+    const live = source === 'live';
+    const fresh = state.frescura || {};
+
+    if (!opts.keepOffline) $('offline').hidden = live;
+    document.body.dataset.trust = !live ? 'dead' : (fresh.estado === 'vivo' ? 'ok' : fresh.estado || 'dead');
+    $('device').textContent = `· ${state.device || 'n/d'}`;
+
+    if (live) {
+      if (!state.running) setChip($('conn'),'warn','parado — carrega em Trabalhar');
+      else if (fresh.estado === 'vivo') setChip($('conn'),'ok',`a trabalhar · último recibo há ${ago(fresh.idade_s)}`,true);
+      else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'bad',
+                   `${fresh.estado} — ${fresh.motivo || 'sem recibo recente'}`);
+      renderToggle();
+    }
+    setChip($('cost'), state.usd === 0 ? 'ok' : 'bad',
+            state.usd === 0 ? '$0 · só GPU local' : `custo ${state.usd}`);
+
+    if (changed('gpu', [state.gpu, spark.length, spark[spark.length-1]])) renderGpu(state.gpu || {});
+    if (changed('tally', state.recibos))   renderTally(state.recibos || {});
+    if (changed('pillars', [state.pilares, state.pilar_atual, state.foco, CATALOGO, live, busy])) renderPillars(state, live);
+    if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados])) renderEngine(state);
+    if (changed('align', state.projeto))   renderAlign(state.projeto);
+    if (changed('feed', state.feed))       renderFeed(state.feed);
+
+    $('foot').textContent =
+      `conector ${state.conector || 'n/d'} · fuso do dono ${state.owner_tz || 'n/d'} · `
+      + `fonte ${live ? 'ao vivo' : 'instantâneo gravado'} · ecrã actualizado ${new Date().toLocaleTimeString()}`;
+  }
+
+  function renderGpu(gpu) {
+    const pct = typeof gpu.util_pct === 'number' ? gpu.util_pct : null;
+    const LEN = 248;
+    const arc = $('arc');
+    arc.style.strokeDashoffset = pct === null ? LEN : LEN - LEN * Math.min(100, Math.max(0, pct)) / 100;
+    arc.style.stroke = pct === null ? 'var(--line)' : pct > 80 ? 'var(--ok)' : 'var(--accent)';
+    $('gpu-val').textContent = pct === null ? 'n/d' : `${pct}%`;
+    $('gpu-val').className = pct === null ? 'val nd' : 'val';
+    $('gpu-sub').textContent = pct === null
+      ? (gpu.motivo || 'sem amostra')
+      : `${gpu.fonte || 'n/d'}${gpu.vram_inuse_gb != null ? ` · ${gpu.vram_inuse_gb} GB VRAM em uso` : ''}`;
+
+    // Sparkline over the samples this page has actually seen. It is explicitly
+    // labelled as the panel's own session so nobody reads it as device history.
+    const W = 240, H = 44;
+    if (spark.length < 2) {
+      $('spark-line').setAttribute('d',''); $('spark-fill').setAttribute('d','');
+      $('spark-sub').textContent = 'a recolher amostras…';
+      return;
+    }
+    const step = W / (spark.length - 1);
+    const y = (v) => H - 2 - (Math.min(100, Math.max(0, v)) / 100) * (H - 4);
+    const pts = spark.map((v,i) => `${(i*step).toFixed(1)},${y(v).toFixed(1)}`);
+    $('spark-line').setAttribute('d', `M${pts.join('L')}`);
+    $('spark-fill').setAttribute('d', `M0,${H}L${pts.join('L')}L${W},${H}Z`);
+    const avg = Math.round(spark.reduce((a,b)=>a+b,0) / spark.length);
+    $('spark-sub').textContent = `${spark.length} amostras nesta sessão do painel · média ${avg}%`;
+  }
+
+  function renderTally(r) {
+    const wrap = $('tally'); wrap.replaceChildren();
+    for (const [cls,key,label] of [
+      ['ok','citacao_ok','citação-ok'], ['bad','refutado','refutado'],
+      ['warn','sem_citacao','sem citação'], ['dead','sem_achado','sem achado'],
+      ['dead','sem_veredicto','sem veredicto'], ['dead','total','recibos ao todo'],
+    ]) {
+      const box = el('div',`box ${cls}`); const b = el('b'); b.appendChild(nd(r[key]));
+      box.append(b, el('small',null,label)); wrap.appendChild(box);
+    }
+  }
+
+  function renderPillars(s, live) {
+    const wrap = $('pillars'); wrap.replaceChildren();
+    const per = s.pilares || {};
+    for (const spec of CATALOGO) {
+      const d = per[spec.id] || {}; const last = d.ultimo || null;
+      const card = el('div', `pillar${s.pilar_atual === spec.id ? ' active' : ''}`);
+
+      const hd = el('div','hd');
+      hd.append(el('span','id',spec.id), el('span','nm',spec.label));
+      const v = last && VERDICTS[last.verdict];
+      hd.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem rondas'));
+      card.appendChild(hd);
+
+      if (spec.pergunta) card.appendChild(el('div','ask',spec.pergunta));
+
+      const found = el('div','found');
+      if (last) {
+        // `?? '?'` e não `|| 0`: um contador em falta é desconhecido, não zero.
+        found.append(document.createTextNode(
+          `${hhmm(last.ts)} · ${d.total ?? '?'} ronda(s) · ${d.citacao_ok ?? '?'} com citação`));
+        found.appendChild(el('br'));
+        found.appendChild(el('code',null,last.evidencia || last.ficheiro || '—'));
+      } else found.appendChild(el('span','nd','ainda sem rondas neste device'));
+      card.appendChild(found);
+
+      const focused = s.foco === spec.id;
+      const btn = el('button', null, focused ? '◉ Focado — carrega para largar' : 'Focar só este pilar');
+      if (!live || busy) btn.setAttribute('aria-disabled','true');
+      btn.onclick = () => live && !busy && control('/focus', { pilar: focused ? null : spec.id });
+      card.appendChild(btn);
+      wrap.appendChild(card);
+    }
+  }
+
+  function putRow(dl, k, node) {
+    dl.append(el('dt',null,k), (() => { const d = el('dd'); d.appendChild(node); return d; })());
+  }
+
+  function renderEngine(s) {
+    const dl = $('engine'); dl.replaceChildren();
+    putRow(dl,'motor', nd(s.engine === 'down' ? null : s.engine));
+    putRow(dl,'modelo', nd(s.modelo_atual));
+    putRow(dl,'pilar activo', nd(s.pilar_atual));
+    putRow(dl,'modo', s.foco ? document.createTextNode(`focado em ${s.foco}`) : el('span','nd','rodízio pelos 6'));
+    const m = s.modelos_carregados || [];
+    putRow(dl,'residentes', m.length
+      ? document.createTextNode(m.map(x => `${x.name} (${x.vram_gb} GB)`).join(', '))
+      : el('span','nd','nenhum modelo residente'));
+  }
+
+  function renderAlign(p) {
+    const dl = $('align'); dl.replaceChildren();
+    if (!p) { putRow(dl,'estado', el('span','nd','não foi possível medir')); return; }
+    putRow(dl,'branch', nd(p.repo_branch));
+    putRow(dl,'por commitar', p.repo_clean === null
+      ? el('span','nd','n/d')
+      : el('span',`chip ${p.repo_clean ? 'ok' : 'warn'}`,
+           p.repo_clean ? `nada (${p.repo_untracked ?? 0} untracked)` : `${p.repo_sujo_rastreado} ficheiro(s)`));
+    putRow(dl,'vs upstream', (p.ahead === null && p.behind === null)
+      ? el('span','nd', p.comparacao || 'n/d')
+      : document.createTextNode(`↑${p.ahead} ↓${p.behind} · ${p.comparacao}`));
+    const sha = p.classify_sha || {};
+    putRow(dl,'classify.js', sha.ok === null
+      ? el('span','nd', sha.motivo || 'n/d')
+      : el('span',`chip ${sha.ok ? 'ok' : 'bad'}`, sha.ok ? 'sha bate o canon' : sha.motivo));
+    const vault = p.vault || {};
+    putRow(dl,'vault', vault.ts
+      ? document.createTextNode(`${hhmm(vault.ts)} · ${vault.ficheiro} (via ${vault.fonte})`)
+      : el('span','nd', vault.motivo || 'n/d'));
+  }
+
+  function renderFeed(feed) {
+    const body = $('feed'); body.replaceChildren();
+    if (!feed || !feed.length) {
+      const tr = el('tr'), td = el('td'); td.colSpan = 5;
+      td.appendChild(el('span','nd','nenhum recibo ainda — carrega em Trabalhar'));
+      tr.appendChild(td); body.appendChild(tr); return;
+    }
+    for (const r of feed) {
+      const tr = el('tr');
+      tr.append(el('td',null,hhmm(r.ts)), el('td',null,r.pilar || '—'));
+      const v = VERDICTS[r.verdict]; const tdv = el('td');
+      tdv.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto'));
+      tr.appendChild(tdv);
+      const tde = el('td'); tde.appendChild(el('code',null,r.evidencia || r.resumo || '—')); tr.appendChild(tde);
+      tr.appendChild(el('td',null, r.dur_s != null ? `${r.dur_s}s` : '—'));
+      body.appendChild(tr);
+    }
+  }
+
+  // ---------------------------------------------------------------- boot
+
+  // A hidden tab must not keep painting "a trabalhar" over frozen data.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { fails = 0; poll(); } });
+
+  if (window.__MOOTER_SNAPSHOT__) { state = window.__MOOTER_SNAPSHOT__; source = 'snapshot'; }
+  renderToggleOffline();
+  loadCatalogue();
   poll();
   setInterval(() => { if (!document.hidden) poll(); }, POLL_MS);
 })();

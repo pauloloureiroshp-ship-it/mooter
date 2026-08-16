@@ -15,7 +15,7 @@ import os from 'node:os';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
-import { PILLAR_IDS } from './context-pack.mjs';
+import { PILLAR_IDS, PILLARS } from './context-pack.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -153,6 +153,19 @@ export function createServer({
           alignment,
         }),
       );
+    }
+
+    // Static catalogue, fetched once at boot instead of riding every poll: the
+    // pillar names and questions never change while the process is up.
+    if (req.method === 'GET' && route === '/pilares.json') {
+      return sendJson(res, 200, {
+        pilares: PILLAR_IDS.map((id) => ({
+          id,
+          label: PILLARS[id].label,
+          pergunta: PILLARS[id].ask,
+          ancoras: PILLARS[id].files,
+        })),
+      });
     }
 
     if (req.method === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {

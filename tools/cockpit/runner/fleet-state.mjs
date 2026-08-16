@@ -70,6 +70,29 @@ export function freshness(lastTs, nowMs) {
   return { estado: 'morto', idade_s: age, motivo: `sem recibo ha ${age}s` };
 }
 
+export const FEED_LENGTH = 14;
+
+/**
+ * The last N receipts, newest first — the cockpit's actual event stream.
+ * Trimmed server-side so the page never holds the whole ledger in memory, and
+ * so a 50 MB ledger cannot turn the payload into a page freeze.
+ */
+export function buildFeed(receipts, limit = FEED_LENGTH) {
+  return (receipts || [])
+    .slice(-limit)
+    .reverse()
+    .map((r) => ({
+      ts: r.ts ?? null,
+      pilar: r.pilar ?? null,
+      verdict: r.verdict ?? null,
+      ficheiro: r.ficheiro ?? null,
+      dur_s: r.dur_s ?? null,
+      tokens_out: r.tokens_out ?? null,
+      evidencia: r.evidencia ?? null,
+      resumo: r.resultado_resumo ?? null,
+    }));
+}
+
 /** Last receipt per pillar, plus that pillar's own verdict split. */
 export function perPillar(receipts) {
   const out = {};
@@ -156,6 +179,7 @@ export function buildFleetState({
 
     frescura: fresh,
     ultimo_recibo: last,
+    feed: buildFeed(receipts),
 
     // Volume is reported, but never alone — the verdict split is what says
     // whether any of it was work.
