@@ -2212,7 +2212,23 @@ async function toolDispatch(args) {
         ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
           exit_code: 'no-local-model', ttft_ms: contentTiming.finish().ttft_ms });
         try { outStream.end(); errStream.end(); } catch { /* */ }
-        return { error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado', job_id };
+        const evidenciaLocal = args && args.evidencia && typeof args.evidencia === 'object'
+          ? args.evidencia : null;
+        return {
+          error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado',
+          exit_code: 'no-local-model',
+          faz_assim: [
+            'ollama serve — arranca o Ollama e volta a tentar',
+            'ollama pull <modelo> — instala pelo menos um modelo local e volta a tentar',
+            'mooter_work({goal, agent:"cc"}) — usa o Claude Code se aceitares consumir a subscrição',
+            'mooter_work({goal, agent:"moo", force:true}) — força nova tentativa local depois de restaurares o Ollama',
+          ],
+          ficheiros_lidos: evidenciaLocal && Array.isArray(evidenciaLocal.ficheiros_lidos)
+            ? evidenciaLocal.ficheiros_lidos : [],
+          contexto_chars: evidenciaLocal && Number.isFinite(evidenciaLocal.chars)
+            ? evidenciaLocal.chars : 0,
+          job_id,
+        };
       }
       // o porquê vai para o ledger append-only: uma escolha que não deixa
       // rasto não se pode auditar três dias depois

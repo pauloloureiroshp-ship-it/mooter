@@ -97,15 +97,15 @@ async function livre(seamMod, worktree, maxMs) {
 (async () => {
   console.log('\ncaminho observável — os 4 bugs que a suite anterior não viu');
 
-  // ── T1 · toolWork NUNCA entrega vocabulário Anthropic a outro vendor ────
+  // ── T1a · moo INFERIDO degrada; vocabulário nunca cruza vendors ──────────
   try {
     const seen = fakeSpawner((out) => {
       out.write('{"type":"result","subtype":"success","result":"feito","total_cost_usd":0}\n');
     });
-    // sem Ollama no sandbox, o work degrada para cc e DIZ que degradou
-    const r = await seam.toolWork({ goal: 'resume isto em 3 linhas', agent: 'moo', worktree: WT, prepare: false, wave: 'T1' });
-    assert.ok(!r.error, 'work recusou em vez de degradar: ' + JSON.stringify(r.reasons || r.error));
-    assert.ok(r.downgraded, 'degradou em silêncio — o utilizador tem de saber que não foi para a GPU');
+    // sem Ollama no sandbox, o T0 inferido pelo router degrada para cc e DIZ que degradou
+    const r = await seam.toolWork({ goal: 'diz três cores', worktree: WT, prepare: false, wave: 'T1a' });
+    assert.ok(!r.error, 'work inferido recusou em vez de degradar: ' + JSON.stringify(r.reasons || r.error));
+    assert.ok(r.downgraded, 'moo inferido degradou em silêncio — o utilizador tem de saber que não foi para a GPU');
     await wait(150);
     const cmd = seen[0];
     if (cmd && cmd.args) {
@@ -118,8 +118,28 @@ async function livre(seamMod, worktree, maxMs) {
           'toolWork entregou "' + m + '" a um motor não-Anthropic — foi assim que o Ollama morreu em 0s');
       }
     }
-    okmsg('T1 · moo sem Ollama degrada para cc e explica-se');
-  } catch (e) { bad('T1', e); }
+    okmsg('T1a · moo inferido sem Ollama degrada para cc e explica-se');
+  } catch (e) { bad('T1a', e); }
+
+  // ── T1b · moo EXPLÍCITO recusa com recuperação e evidência ──────────────
+  try {
+    fs.writeFileSync(path.join(WT, 't1-explicito.js'), 'function escolhaExplicita() { return 1; }\n');
+    await livre(seam, WT);
+    const r = await seam.toolWork({
+      goal: 'lê o t1-explicito.js e resume-o',
+      agent: 'moo', worktree: WT, prepare: false, wave: 'T1b',
+    });
+    assert.strictEqual(r.exit_code, 'no-local-model', 'moo explícito não preservou a recusa local');
+    assert.strictEqual(r.agent, 'moo', 'moo explícito foi trocado por outro motor');
+    assert.ok(Array.isArray(r.faz_assim) && /ollama serve/.test(r.faz_assim.join(' ')),
+      'recusa sem passo para arrancar o Ollama');
+    assert.ok(/ollama pull/.test(r.faz_assim.join(' ')), 'recusa sem passo para instalar um modelo');
+    assert.ok(/agent:"cc"/.test(r.faz_assim.join(' ')), 'recusa sem opt-in explícito para motor pago');
+    assert.ok(/force:true/.test(r.faz_assim.join(' ')), 'recusa sem via de escape explícita');
+    assert.deepStrictEqual(r.ficheiros_lidos, ['t1-explicito.js'], 'a recusa descartou a evidência já recolhida');
+    assert.ok(r.contexto_chars > 0, 'a recusa descartou o tamanho do contexto injectado');
+    okmsg('T1b · moo explícito sem Ollama recusa com recuperação e evidência');
+  } catch (e) { bad('T1b', e); }
 
   // ── T2 · o embedder nunca é escolhido, mesmo residente ──────────────────
   try {
