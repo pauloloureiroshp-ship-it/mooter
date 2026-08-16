@@ -125,7 +125,21 @@ function fakeSpawner(write, pid) {
     });
     assert.strictEqual(r.erro, 'sem_contexto_para_o_local', 'despachou leitura sem contexto nenhum');
     assert.ok(Array.isArray(r.faz_assim) && r.faz_assim.length >= 2, 'erro sem saída accionável');
-    assert.ok(/force/.test(JSON.stringify(r.faz_assim)), 'não oferece a via de escape explícita');
+    // ⚠️ Esta asserção já exigiu /force/ — e era satisfeita por ESCREVER a
+    // string. `force` é aceite pelo schema (tools6.js: "[compat] accepted, but
+    // it never overrides the capability contract") e não é lido por linha
+    // nenhuma do despacho. Medido em 2026-08-16: seguir esse passo devolve byte
+    // a byte a mesma recusa. Um teste que pede texto é satisfeito com texto;
+    // este passa a pedir a saída que DESPACHA mesmo — medida no mesmo ensaio,
+    // a única das três candidatas que produziu job_id.
+    // (join, não JSON.stringify: o stringify escapa as aspas e `agent:"cc"`
+    //  passaria a `agent:\"cc\"`, que nenhum regex legível apanha.)
+    assert.ok(/agent:"cc"/.test(r.faz_assim.join(' ')),
+      'não oferece a única via de escape que realmente despacha');
+    for (const passo of r.faz_assim) {
+      assert.ok(!/force\s*:\s*true/.test(passo),
+        'a recusa oferece um passo que o código não implementa: ' + passo);
+    }
     okmsg('A3 · leitura impossível para o local é recusada com saída');
   } catch (e) { bad('A3', e); }
 

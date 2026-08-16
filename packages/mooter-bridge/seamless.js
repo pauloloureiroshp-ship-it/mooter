@@ -2218,10 +2218,16 @@ async function toolDispatch(args) {
           error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado',
           exit_code: 'no-local-model',
           faz_assim: [
+            // ⚠️ Cada passo daqui tem de FUNCIONAR quando o utilizador o segue.
+            // Houve aqui um `force:true` que não funcionava: `force` é aceite
+            // pelo schema (tools6.js: "[compat] accepted, but it never overrides
+            // the capability contract") e não é lido por linha nenhuma do
+            // despacho. Medido em 2026-08-16: seguir esse passo devolvia byte a
+            // byte a mesma recusa. Um beco com uma placa a dizer SAÍDA é pior
+            // que um beco — e o que este produto vende é o recibo ser verdade.
             'ollama serve — arranca o Ollama e volta a tentar',
             'ollama pull <modelo> — instala pelo menos um modelo local e volta a tentar',
             'mooter_work({goal, agent:"cc"}) — usa o Claude Code se aceitares consumir a subscrição',
-            'mooter_work({goal, agent:"moo", force:true}) — força nova tentativa local depois de restaurares o Ollama',
           ],
           ficheiros_lidos: evidenciaLocal && Array.isArray(evidenciaLocal.ficheiros_lidos)
             ? evidenciaLocal.ficheiros_lidos : [],
@@ -3559,11 +3565,15 @@ async function toolWork(args) {
         faz_assim: (onde.length
           ? ['mooter_work({goal, agent:"' + agent + '", worktree:"' + onde[0].path + '", read_files:true}) — usa a pasta onde o ficheiro existe']
           : []).concat([
+          // ⚠️ A via de escape tem de EXISTIR. Esteve aqui um
+          // `force:true` — "despacha sem contexto, assumindo que o motor se
+          // desenrasca" — que não despachava nada: `force` é aceite pelo schema
+          // e ignorado pelo código. Medido em 2026-08-16, os quatro cenários:
+          // sem nada → sem_contexto_para_o_local · com force:true → a MESMA
+          // recusa · com read_files:false → capacidade_incompativel ·
+          // com agent:"cc" → despacha. Só a última é uma saída, e é a que fica.
           'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
           'diz o caminho completo a partir da raiz do projecto',
-          // a via de escape EXPLICITA: quem sabe o que esta a fazer despacha na
-          // mesma sem contexto. Faltava, e uma recusa sem saida e um beco.
-          'mooter_work({goal, agent:"' + agent + '", force:true}) — despacha sem contexto, assumindo que o motor se desenrasca',
         ]),
       };
     }

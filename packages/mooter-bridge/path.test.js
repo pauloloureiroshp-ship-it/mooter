@@ -180,7 +180,16 @@ async function livre(seamMod, worktree, maxMs) {
       'recusa sem passo para arrancar o Ollama');
     assert.ok(/ollama pull/.test(r.faz_assim.join(' ')), 'recusa sem passo para instalar um modelo');
     assert.ok(/agent:"cc"/.test(r.faz_assim.join(' ')), 'recusa sem opt-in explícito para motor pago');
-    assert.ok(/force:true/.test(r.faz_assim.join(' ')), 'recusa sem via de escape explícita');
+    // ⚠️ Aqui exigia-se também /force:true/. Removido, e não por conveniência:
+    // `force` nunca foi lido pelo despacho, e o próprio schema o documenta como
+    // "[compat] accepted, but it never overrides the capability contract".
+    // A asserção só provava que a string tinha sido escrita. Em vez dela, a
+    // exigência que interessa: TODOS os passos oferecidos têm de ser accionáveis
+    // — nenhum pode citar um parâmetro que o código ignora.
+    for (const passo of r.faz_assim) {
+      assert.ok(!/force\s*:\s*true/.test(passo),
+        'a recusa oferece um passo que o código não implementa: ' + passo);
+    }
     assert.deepStrictEqual(r.ficheiros_lidos, ['t1-explicito.js'], 'a recusa descartou a evidência já recolhida');
     assert.ok(r.contexto_chars > 0, 'a recusa descartou o tamanho do contexto injectado');
     okmsg('T1b · moo explícito sem Ollama recusa com recuperação e evidência');
