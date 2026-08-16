@@ -16,8 +16,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
-// ATENÇÃO ao caminho: `/mooter-update` sincroniza `~/frugal/.claude/skills/` para
-// `~/.claude/skills/`. Uma skill em `~/frugal/skills/` fica canónica no repo e
+// ATENÇÃO ao caminho: `/mooter-update` sincroniza `<repo>/.claude/skills/` para
+// `~/.claude/skills/`. Uma skill em `<repo>/skills/` fica canónica no repo e
 // NUNCA é instalada — canónica e morta. É aqui que ela tem de viver para ser
 // invocável, e este teste é a guarda contra alguém a mover de volta.
 const SKILL_DIR = path.join(REPO, '.claude', 'skills', 'moo-pilot');
@@ -32,7 +32,7 @@ test('a skill vive no directorio que o /mooter-update sincroniza', () => {
   assert.ok(fs.existsSync(SKILL_PATH), `a skill tem de estar em ${SKILL_DIR}`);
   assert.ok(
     !fs.existsSync(path.join(REPO, 'skills', 'moo-pilot', 'SKILL.md')),
-    'duas cópias = duas verdades; `~/frugal/skills/` não é sincronizado',
+    'duas cópias = duas verdades; `<repo>/skills/` não é sincronizado',
   );
 });
 

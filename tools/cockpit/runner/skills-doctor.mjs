@@ -5,12 +5,12 @@
  * Existe porque o repo tem DUAS moradas para skills e a máquina tem TRÊS, e nada
  * avisava quando o mesmo nome aparecia em mais do que uma:
  *
- *   ~/frugal/.claude/skills/   → sincronizado por /mooter-update  (canónico)
- *   ~/frugal/skills/           → NÃO é sincronizado               (fica no repo)
+ *   <repo>/.claude/skills/     → sincronizado por /mooter-update  (canónico)
+ *   <repo>/skills/             → NÃO é sincronizado               (fica no repo)
  *   ~/.claude/skills/          → o que o Claude Code lê
  *   bundle da app (conta)      → skills da conta, cache local descartável
  *
- * Uma skill em `~/frugal/skills/` é canónica e morta: versionada, revista, e
+ * Uma skill em `<repo>/skills/` é canónica e morta: versionada, revista, e
  * nunca instalada. Uma skill duplicada entre o bundle da conta e `~/.claude/`
  * dá dois `/nome` com comportamentos diferentes e nenhum aviso.
  *

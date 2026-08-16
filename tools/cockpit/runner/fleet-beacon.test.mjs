@@ -185,7 +185,7 @@ test('o shim protege-se do agendador', () => {
 });
 
 test('a receita do Windows nao inventa privilegios', () => {
-  const c = windowsCommand({ nodePath: 'node.exe', runnerPath: 'r.mjs', repo: 'C:\\frugal' });
+  const c = windowsCommand({ nodePath: 'node.exe', runnerPath: 'r.mjs', repo: 'C:\\mooter' });
   assert.match(c, /schtasks \/Create/);
   assert.match(c, /\/RL LIMITED/, 'sem elevacao desnecessaria');
   assert.ok(!c.includes('--play'));
