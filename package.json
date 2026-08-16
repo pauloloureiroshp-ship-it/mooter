@@ -13,7 +13,7 @@
     "runner": "node tools/cockpit/runner/moo-runner.mjs",
     "runner:once": "node tools/cockpit/runner/moo-runner.mjs --once",
     "runner:endpoint": "node tools/cockpit/runner/f10-server.mjs",
-    "test:cockpit-runner": "node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/alignment.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/queixas.test.mjs tools/cockpit/runner/fleet-beacon.test.mjs",
+    "test:cockpit-runner": "node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/alignment.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/queixas.test.mjs tools/cockpit/runner/fleet-beacon.test.mjs tools/cockpit/runner/skill-moo-pilot.test.mjs",
     "pilot": "node tools/cockpit/runner/launch.mjs",
     "pilot:status": "node tools/cockpit/runner/launch.mjs --status"
   },
