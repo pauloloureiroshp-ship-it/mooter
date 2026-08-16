@@ -43,26 +43,31 @@ corre() {  # $1=MOOTER_HOME  $2=ficheiro  -> ecoa "verdes|falhas|dispatches"
   MOOTER_HOME="$home" OLLAMA_HOST=127.0.0.1:1 MOOTER_JOB_TIMEOUT_MS=8000 \
     timeout 120 node --test --test-name-pattern='K4|K7' "$alvo" > "$out" 2>&1
   local rc=$?
-  [ $rc -eq 124 ] && { echo "TIMEOUT|-|-"; return; }
+  [ $rc -eq 124 ] && { echo "TIMEOUT|-|-|124"; return; }
   # ⚠️ `grep -c` imprime 0 E sai com código 1 quando não há match; um
   # `|| echo 0` a seguir imprimiria um SEGUNDO zero. Usa-se `|| true`.
   local v f d
   v=$(grep -cE '^✔' "$out" || true)
   f=$(grep -cE '^✖' "$out" || true)
   d=$(grep -c '"event":"dispatched"' "$home/ledger.jsonl" 2>/dev/null || true)
-  echo "${v:-0}|${f:-0}|${d:-0}"
+  # ⚠️ O RC DO RUNNER VIAJA. A v3 só tratava 124 e descartava tudo o resto: um
+  # node que rebentasse com rc=1 depois de imprimir um ✔ era contado como corrida
+  # válida, e o veredicto podia sair CONFIRMADO. Demonstrado pelo G4 #3 com
+  # `1 pass · 0 fail · rc=1`. Contar linhas de output sem olhar ao código de
+  # saída é ler o resultado de uma corrida que pode nem ter acontecido.
+  echo "${v:-0}|${f:-0}|${d:-0}|${rc}"
 }
 
 echo "=== VERSÃO PRÉ-CORRECÇÃO (o defeito) ==="
 HA="$BASE/a"; mkdir -p "$HA"
 A=$(corre "$HA" ".contrato-antigo.test.js")
-echo "  A) ledger limpo          -> ${A%%|*} verdes · dispatches: ${A##*|}"
+echo "  A) ledger limpo          -> $(echo "$A"|cut -d'|' -f1) verdes · dispatches: $(echo "$A"|cut -d'|' -f3) · rc: $(echo "$A"|cut -d'|' -f4)"
 
 HB="$BASE/b"; mkdir -p "$HB"
 printf '{"ts":"2026-01-01T00:00:00.000Z","job_id":"probe-wip","event":"dispatched","agent":"moo","wave":"probe","worktree":%s}\n' \
   "$(node -e 'console.log(JSON.stringify(process.cwd()))')" > "$HB/ledger.jsonl"
 B=$(corre "$HB" ".contrato-antigo.test.js")
-echo "  B) ledger com job activo -> ${B%%|*} verdes · dispatches: ${B##*|} (1 = só o probe)"
+echo "  B) ledger com job activo -> $(echo "$B"|cut -d'|' -f1) verdes · dispatches: $(echo "$B"|cut -d'|' -f3) · rc: $(echo "$B"|cut -d'|' -f4) (1 dispatch = só o probe)"
 
 echo
 echo "=== VERSÃO ACTUAL (HEAD): já não toca em ledger nenhum de fora ==="
@@ -91,12 +96,16 @@ num() {  # $1=valor $2=descrição — falha se não for um inteiro
     *) return 0 ;;
   esac
 }
-avalia() {  # $1=rótulo $2=resultado "verdes|falhas|dispatches"
+avalia() {  # $1=rótulo $2=resultado "verdes|falhas|dispatches|rc"
   local rot="$1" res="$2"
-  [ "$res" = "TIMEOUT|-|-" ] && { echo "  !! $rot pendurou — nenhuma conclusão é válida"; falhou=1; return; }
-  local v f d
-  v=$(echo "$res" | cut -d'|' -f1); f=$(echo "$res" | cut -d'|' -f2); d=$(echo "$res" | cut -d'|' -f3)
-  num "$v" "$rot: verdes" && num "$f" "$rot: falhas" && num "$d" "$rot: dispatches" || return
+  [ "$res" = "TIMEOUT|-|-|124" ] && { echo "  !! $rot pendurou — nenhuma conclusão é válida"; falhou=1; return; }
+  local v f d rc
+  v=$(echo "$res" | cut -d'|' -f1); f=$(echo "$res" | cut -d'|' -f2)
+  d=$(echo "$res" | cut -d'|' -f3); rc=$(echo "$res" | cut -d'|' -f4)
+  num "$v" "$rot: verdes" && num "$f" "$rot: falhas" && num "$d" "$rot: dispatches"     && num "$rc" "$rot: exit code" || return
+  # o exit code do RUNNER é premissa, não decoração: um node que rebenta depois
+  # de imprimir alguns ✔ não é uma corrida válida, por muitos verdes que tenha.
+  [ "$rc" -ne 0 ] && { echo "  !! $rot: o runner saiu com código $rc — a corrida não é fiável"; falhou=1; }
   [ "$v" -lt 1 ] && { echo "  !! $rot não teve verdes nenhuns — o teste não chegou a correr"; falhou=1; }
   [ "$f" -gt 0 ] && { echo "  !! $rot teve $f falhas — o cenário não é o esperado"; falhou=1; }
 }

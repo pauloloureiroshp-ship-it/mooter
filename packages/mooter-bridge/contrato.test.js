@@ -44,12 +44,12 @@ const { EventEmitter } = require('node:events');
  * Este ficheiro era o ÚNICO do pacote que despachava sem isolamento nenhum, e
  * isso custou caro de três maneiras, todas medidas:
  *
- *  1. Escrevia no ledger REAL do dono. Contados em `~/.mooter/ledger.jsonl`,
- *     wave `contrato-test`: 497 EVENTOS, que são **96 jobs únicos** — 92 `moo`
- *     na GPU dele e 4 `cc`, o CLI pago, lançado por K8 a sério.
- *     (Um job escreve vários eventos; contar eventos como se fossem jobs
- *      multiplica o número por ~5. Este comentário já disse "473 jobs" e era
- *      falso — apanhado pelo G4.)
+ *  1. Escrevia no ledger REAL do dono — centenas de eventos, dezenas de jobs,
+ *     incluindo o CLI pago lançado por K8 a sério.
+ *     Os números NÃO ficam aqui: `bash _handoff/contrato-sandbox/contar.sh`.
+ *     Este comentário já pinou duas contagens diferentes e ambas apodreceram —
+ *     o ledger é vivo, e um número sem data não é um facto, é uma memória.
+ *     (Uma delas trocava EVENTOS por JOBS, inflacionando ~5x. G4 #1 e #3.)
  *  2. PENDURAVA a suite completa. `toolDispatch` devolve imediatamente
  *     (`seamless.js:2586`), mas o socket do Ollama e os processos-filho ficam
  *     ref'd no event loop; com `--test-timeout=0` e o watchdog de 30 min
@@ -78,6 +78,12 @@ process.env.OLLAMA_HOST = '127.0.0.1:1';
 // read-only), mas dizer "sandbox" sem fechar isto seria falso — e a afirmação
 // tem de valer para quem acrescentar um teste de escrita amanhã. Apanhado pelo G4.
 process.env.MOOTER_DECISIONS_LOG = path.join(HOME, 'decisions.log');
+// ⚠️ `MOOTER_BUNDLE_DIR` (seamless.js:79) é uma FONTE DE CÓDIGO externa: como o
+// repo temp não tem `tools/router/classify.js`, uma variável herdada do ambiente
+// podia fazer o teste carregar um bundle de fora do sandbox. Estava unset nesta
+// máquina — logo nunca escapou — mas um sandbox que depende de uma variável
+// estar por definir não é um sandbox. Apanhado pelo G4 #3.
+process.env.MOOTER_BUNDLE_DIR = path.join(HOME, 'bundle-inexistente');
 
 const seam = require('./seamless.js');
 
@@ -271,11 +277,47 @@ test.after(async () => {
     await new Promise((r) => setTimeout(r, espera));
     try { fs.rmSync(HOME, { recursive: true, force: true }); return; } catch { /* tenta outra vez */ }
   }
+  // ⚠️ o comando nomeia ESTA pasta, não um glob `mooter-contrato-*`: uma suite a
+  // correr em paralelo tem a sua própria, e apagá-la a meio seria pior que o lixo.
   console.warn('[contrato.test.js] não consegui remover ' + HOME
-    + ' — provável handle ainda aberto. Limpa com: rm -rf ' + path.dirname(HOME) + '/mooter-contrato-*');
+    + ' — provável handle ainda aberto. Limpa quando a suite terminar: rm -rf "' + HOME + '"');
 });
 
 // ────────────────────────────────────── prepare separado em duas decisões ──
+
+/**
+ * ⚠️ K10 — O TESTE QUE FALTAVA, e a razão pela qual faltava.
+ *
+ * O cabeçalho deste ficheiro promete que "metade destes testes verifica que o
+ * contrato RECUSA". Não era verdade quando integrado: K5/K6 chamam
+ * `_recusaContratoDeLeitura` DIRECTAMENTE — testam o construtor da mensagem, não
+ * o enforcement — e K4/K7/K8 só afirmam `notEqual(..., 'capacidade_incompativel')`,
+ * ou seja, só cobrem caminhos que devem PASSAR.
+ *
+ * Consequência, medida pelo G4 #3 em 2026-08-16 e reproduzida pelo autor:
+ * substituir `const leituraExigida = ...` por `null` em seamless.js:2011 — matar
+ * o enforcement por completo — deixava os NOVE K verdes.
+ *
+ * K10 é o inverso exacto de K7: mesmo goal, mesmo motor, mas SEM o contexto
+ * injectado no masterprompt. Se o contrato estiver vivo, recusa. Se alguém o
+ * desligar, este teste é o único que grita.
+ */
+test('K10 — INTEGRADO: sem contexto injectado, o dispatch RECUSA mesmo', async () => {
+  await livre('K10');
+  const r = await seam.toolDispatch(dispatchArgs({
+    __goal: 'Lê packages/mooter-bridge/worktrees.js e diz se valida frescura',
+    // repare-se no que NÃO está aqui: o bloco "## FICHEIROS REAIS" que o K7 põe.
+    // Sem ele o `moo` não tem olhos, e é precisamente isso que o contrato existe
+    // para travar antes de gastar tokens.
+  }));
+  exerceuMesmo(r, 'K10');
+  assert.equal(r.erro, 'capacidade_incompativel',
+    'o contrato deixou de recusar quando integrado — despachou leitura para um '
+    + 'motor sem ferramentas. É este o buraco que os outros K não viam.');
+  assert.ok(r.requisito && r.requisito.ficheiro, 'a recusa integrada tem de nomear o ficheiro');
+  assert.ok(Array.isArray(r.faz_assim) && r.faz_assim.length, 'e tem de dar saída');
+  await livre('fim de K10');
+});
 
 test('K9 — read_files e pre_digest são independentes, e prepare continua a valer', () => {
   const r = seam.resolverPreparacao;
