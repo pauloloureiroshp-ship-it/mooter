@@ -1,3 +1,44 @@
+################################################################
+# ERRATA (2026-08-16) — ESTE FICHEIRO CONTEM UMA AFIRMACAO FALSA
+################################################################
+# O corpo abaixo fica INTACTO de proposito: uma prova que se reescreve
+# deixa de ser prova. Mas duas afirmacoes suas foram REFUTADAS por
+# medicao posterior, e quem ler isto tem de o saber antes de as usar.
+#
+# AFIRMADO (linhas 31-33 abaixo):
+#   "Era INALCANCAVEL, nao regressivo — e nao foi a opcao (c) que o
+#    partiu: ja estava vermelho no baseline, e por esta razao."
+#
+# FALSO. Medido em main puro:
+#   $ git worktree add --detach <tmp> main
+#   $ cd <tmp>/packages/mooter-bridge && node --test path.test.js
+#     ok  T1 · moo sem Ollama degrada para cc e explica-se
+#     tests 1 · pass 1 · fail 0
+#
+# Em main o teste chamava-se T1, chamava toolWork com agent:'moo'
+# EXPLICITO, e o guard era incondicional (if (agent === 'moo')), logo
+# degradava e r.downgraded existia. ESTAVA VERDE.
+#   1. 6ce75e00 estreitou o guard para && !motorExplicito -> PARTIU-O.
+#      O proprio commit escreve: "path.test.js REGREDIU com esta
+#      alteracao. Nao investiguei a causa."
+#   2. f3aa6ad3 alterou a chamada (sem agent, outro goal) -> passou a
+#      falhar tambem por falta de router.
+#   3. so entao se mediu, ja no mundo alterado duas vezes, e concluiu-se
+#      "sempre foi inalcancavel". Mediu-se o mundo depois de o mudar.
+#
+# CONSEQUENCIA CORRIGIDA: o ramo de downgrade ficou sem asserção nenhuma
+# e continua vivo em producao. A cobertura foi restaurada em
+# packages/mooter-bridge/downgrade.test.js (D1 inferido, D2 explicito,
+# D3 coerencia do recibo, D4 a via de escape que se SEGUE em vez de se
+# procurar por regex, D5 nenhum passo cita parametro morto), com prova
+# de mutacao: desfazer o guard mata D2/D3/D4; matar o downgrade mata
+# D1/D3.
+#
+# O QUE ABAIXO CONTINUA VERDADEIRO: a saida da suite, e o facto de o
+# T1a reescrito cobrir o caminho SEM router. O que nao vale e a causa
+# que lhe foi atribuida.
+################################################################
+
 T1a REESCRITO — SUITE COMPLETAMENTE VERDE
 ==========================================================================
 Frente : onda-a3 · branch onda-a3/moo-sem-contexto

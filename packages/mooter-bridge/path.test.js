@@ -100,14 +100,29 @@ async function livre(seamMod, worktree, maxMs) {
   // ── T1a · sem GPU o trabalho continua, a decisão é explicada, e o recibo
   //         nunca se contradiz; vocabulário nunca cruza vendors ─────────────
   //
-  // ⚠️ Este teste JÁ EXIGIU `r.downgraded` truthy, e esteve vermelho meses por
-  // isso. A razão, medida em 2026-08-16: neste harness o `MOOTER_REPO` é um
-  // temp sem `tools/router/classify.js`, logo o router NÃO carrega
-  // (`r.router.disponivel === false`). Sem classificador não há tier inferido,
-  // `agent` nunca chega a ser 'moo' por inferência, e o ramo de downgrade
-  // (seamless.js, `agent === 'moo' && !motorExplicito`) nunca corre. O teste
-  // pedia um campo que o seu próprio sandbox nunca produz — era inalcançável,
-  // não regressivo.
+  // ⚠️ CORRECÇÃO DE UMA AFIRMAÇÃO FALSA QUE ESTEVE AQUI (2026-08-16).
+  // Este comentário chegou a dizer que a exigência de `r.downgraded` "esteve
+  // vermelha meses" e "era inalcançável, não regressiva". As duas eram FALSAS,
+  // e o erro merece ficar escrito porque a sua forma se repete: mediu-se o
+  // mundo DEPOIS de o ter mudado.
+  //   · em `main` este teste chamava-se T1, chamava `toolWork` com
+  //     `agent:'moo'` EXPLÍCITO, e o guard de então era incondicional
+  //     (`if (agent === 'moo')`) — degradava, e o teste estava VERDE.
+  //   · o commit 6ce75e00 desta frente estreitou o guard para
+  //     `&& !motorExplicito` (decisão deliberada: uma escolha do chamador não
+  //     se troca em silêncio) e PARTIU-O. O próprio commit admite:
+  //     "path.test.js REGREDIU com esta alteração. Não investiguei a causa."
+  //   · só depois a chamada foi alterada (sem `agent`, outro goal), o que o
+  //     tornou vermelho por uma SEGUNDA razão — a que se mediu e se tomou
+  //     erradamente pela primeira.
+  // O ramo de downgrade continua vivo em produção e passou a estar coberto por
+  // `downgrade.test.js` (D1/D2/D3), que monta um sandbox com o classificador
+  // real e por isso alcança o caminho inferido.
+  //
+  // O que este teste cobre AQUI é outra coisa, e continua a valer: neste
+  // harness o `MOOTER_REPO` é um temp sem `tools/router/classify.js`, logo o
+  // router não carrega e nenhum tier é inferido. É o contrato do caminho SEM
+  // router.
   //
   // O que interessa provar é o contrato que o utilizador vê, e esse é
   // verificável com ou sem router: o trabalho continua, a decisão de NÃO usar

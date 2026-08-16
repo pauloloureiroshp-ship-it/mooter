@@ -3178,11 +3178,25 @@ async function toolWork(args) {
   let escolhaLocal = null;   // preenchido abaixo, depois de sabermos o contexto
   let aprendizagem = null;   // só existe quando o ledger já tem base suficiente
 
-  // ⚠️ v1.3.3 — DEGRADAR, não recusar. (achado dos testes de caminho, não de
-  // uma auditoria: quando o classificador dava T0 e a máquina não tinha Ollama
-  // a correr, o `mooter_work` devolvia "nenhum modelo local disponível" e o
-  // utilizador ficava sem nada. A porta única não pode fechar-se porque um
-  // motor opcional está em baixo — cai para a nuvem e diz que caiu.)
+  // ⚠️ v1.3.3 — DEGRADAR, não recusar, QUANDO O MOTOR FOI INFERIDO. (achado dos
+  // testes de caminho, não de uma auditoria: quando o classificador dava T0 e a
+  // máquina não tinha Ollama a correr, o `mooter_work` devolvia "nenhum modelo
+  // local disponível" e o utilizador ficava sem nada. A porta única não pode
+  // fechar-se porque um motor opcional está em baixo — cai para a nuvem e diz
+  // que caiu.)
+  //
+  // ⚠️ onda-a3 (2026-08-16) — A REGRA ACIMA VALE SÓ PARA O MOTOR INFERIDO.
+  // Se foi o CHAMADOR a escrever `agent:"moo"`, não há degradação: ou corre em
+  // moo ou falha a dizê-lo (`exit_code:'no-local-model'`, com recuperação
+  // estruturada). Trocar um motor gratuito por um pago sem o contrato o dizer é
+  // o oposto do recibo auditável que este produto vende, e o Cockpit depende
+  // dessa semântica — gera `agent:"moo"` e manda escrever à mão se o local
+  // falhar, em vez de gastar subscrição.
+  // A distinção vive em `motorExplicito` (abaixo) e é o guard `agent === 'moo'
+  // && !motorExplicito` que a aplica. Ambos os lados estão cobertos por
+  // `downgrade.test.js` (D1 o inferido, D2 o explícito, D3 a coerência do
+  // recibo), com prova de mutação: desfazer o guard mata D2/D3/D4, e matar o
+  // downgrade mata D1/D3.
   let worktree = a.worktree ? String(a.worktree) : null;
   if (!worktree) {
     const ctx = (() => { try { return require('./fleet.js').readSessionContext(); } catch { return null; } })();
