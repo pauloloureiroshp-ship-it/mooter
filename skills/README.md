@@ -36,5 +36,10 @@ As sessões **não** falam umas com as outras — nem precisam. O barramento é 
 
 ## Instalação
 
-As skills vivem no repo (`skills/`) e são embaladas no plugin (M3). Enquanto o plugin não sai,
-podem ser copiadas para a pasta de skills do Cowork/Claude Code.
+As skills vivem em **`.claude/skills/`**, que é o directório que o `/mooter-update` sincroniza
+para `~/.claude/skills/`. Não é uma preferência de arrumação: uma skill em `skills/` é
+versionada, revista, documentada — e **nunca instalada em máquina nenhuma**. Estas sete
+estiveram assim desde que nasceram, porque este ficheiro dizia "podem ser copiadas" e ninguém
+copiou. Canónica e morta é pior que ausente, porque parece feita.
+
+`npm run skills:doctor` mapeia as moradas e denuncia órfãs e colisões de nome.
