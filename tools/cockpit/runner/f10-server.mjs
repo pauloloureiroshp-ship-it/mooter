@@ -65,13 +65,31 @@ export function panelCandidates(repoRoot) {
  * shell); `null` is a `file://` page, which is how the cockpit is opened.
  */
 export function originAllowed(origin) {
-  if (!origin || origin === 'null') return true;
+  // `null` used to be allowed here so a `file://` panel could drive the runner.
+  // That also hands control to any sandboxed iframe on any website the owner
+  // visits, because a sandboxed document's origin is the string "null" too.
+  // The cockpit is served over http from loopback and sends a real Origin, so
+  // the convenience bought nothing and cost a remote kill-switch.
+  if (origin === 'null') return false;
+  // Absent Origin means a non-browser client on this machine (curl, the CLI).
+  if (!origin) return true;
   try {
     const { hostname } = new URL(origin);
     return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
   } catch {
     return false;
   }
+}
+
+/**
+ * Defence in depth against DNS rebinding: a hostile page can resolve its own
+ * domain to 127.0.0.1 and then talk to this server as same-origin. The Host
+ * header is what gives that away, since it carries the attacker's name.
+ */
+export function hostAllowed(host) {
+  if (!host) return false;
+  const name = String(host).replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  return name === '127.0.0.1' || name === 'localhost' || name === '::1';
 }
 
 async function engineAlive(fetchImpl = fetch) {
@@ -122,6 +140,10 @@ export function createServer({
 
   return http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
+
+    if (!hostAllowed(req.headers.host)) {
+      return sendJson(res, 403, { erro: 'Host nao local recusado' }, { cors: false });
+    }
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {

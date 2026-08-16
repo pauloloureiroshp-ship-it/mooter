@@ -50,13 +50,25 @@ export function assertLocalEngine(endpoint) {
   return `${url.protocol}//${url.hostname}:${url.port}`;
 }
 
-/** Fail-closed by construction: any doubt about the flag counts as STOP. */
-export function isStopped(stopFile, exists = fs.existsSync) {
+/**
+ * Fail-closed for real.
+ *
+ * The first version wrapped `fs.existsSync` in a try/catch and called itself
+ * fail-closed. It was not: `existsSync` swallows EACCES/EPERM internally and
+ * returns `false`, so a STOP flag the process could not read looked exactly
+ * like a STOP flag that was not there — and the runner dispatched. The catch
+ * never fired because nothing ever threw.
+ *
+ * `statSync` throws, which lets us tell the two apart: only ENOENT is proof of
+ * absence. Every other error is doubt, and doubt means stop.
+ */
+export function isStopped(stopFile, statImpl = fs.statSync) {
   if (!stopFile) return true;
   try {
-    return Boolean(exists(stopFile));
-  } catch {
+    statImpl(stopFile);
     return true;
+  } catch (err) {
+    return !(err && err.code === 'ENOENT');
   }
 }
 
@@ -91,9 +103,10 @@ export async function runRound({
   endpoint = DEFAULT_OLLAMA,
   stopFile,
   fetchImpl = fetch,
-  existsImpl = fs.existsSync,
+  statImpl = fs.statSync,
   clock = Date.now,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  stopPollMs = 1000,
 }) {
   const base = assertLocalEngine(endpoint);
   const started = clock();
@@ -107,7 +120,7 @@ export async function runRound({
     engine: 'ollama-local',
   });
 
-  if (isStopped(stopFile, existsImpl)) {
+  if (isStopped(stopFile, statImpl)) {
     return {
       dispatched: false,
       receipt: {
@@ -138,7 +151,7 @@ export async function runRound({
 
   // Last instruction before the wire: closes the check-then-act race, so a STOP
   // that lands during the (filesystem-bound) pack build still stops this round.
-  if (isStopped(stopFile, existsImpl)) {
+  if (isStopped(stopFile, statImpl)) {
     return {
       dispatched: false,
       receipt: {
@@ -154,15 +167,34 @@ export async function runRound({
 
   let body;
   let httpOk = false;
+  let abortedByStop = false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // A STOP that lands mid-generation used to be ignored for up to 90s while the
+  // round finished, and the work was still delivered and counted. The flag now
+  // aborts the in-flight request too, so pressing stop stops.
+  const stopWatch = setInterval(() => {
+    if (isStopped(stopFile, statImpl)) {
+      abortedByStop = true;
+      controller.abort();
+    }
+  }, stopPollMs);
+  if (typeof stopWatch.unref === 'function') stopWatch.unref();
   try {
     const res = await fetchImpl(`${base}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildPayload({ model, pack })),
       signal: controller.signal,
+      // Without this, `assertLocalEngine` only guards the FIRST hop: fetch
+      // follows a 307 anywhere, method and body intact, so anything answering
+      // on :11434 could bounce the prompt to a paid API and the "$0 hard"
+      // guarantee would be a URL check that proves nothing.
+      redirect: 'error',
     });
+    // Belt and braces: if a fetch implementation ignores `redirect`, the final
+    // URL still has to be the loopback engine we vetted.
+    if (res && res.url) assertLocalEngine(new URL(res.url).origin);
     httpOk = Boolean(res && res.ok);
     body = httpOk ? await res.json() : null;
     if (!httpOk) {
@@ -187,18 +219,28 @@ export async function runRound({
         dur_s: Math.round((clock() - started) / 1000),
         tokens_out: 0,
         ficheiro: pack.file,
-        verdict: VERDICT.UNCITED,
-        resultado_resumo: `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
-        evidencia: 'n/d',
+        verdict: VERDICT.NO_FINDING,
+        resultado_resumo: abortedByStop
+          ? 'STOP durante a geracao — ronda abortada, trabalho descartado'
+          : `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
+        evidencia: abortedByStop ? 'kill-switch: abortou a ronda em voo' : 'n/d',
       },
     };
   } finally {
     clearTimeout(timer);
+    clearInterval(stopWatch);
   }
 
   const text = String((body && (body.response || body.thinking)) || '').trim();
   const tokens = Number((body && body.eval_count) || 0);
-  const check = verifyEvidence({ repoRoot, text, allowedFiles: pack.allowedFiles });
+  const check = verifyEvidence({
+    repoRoot,
+    text,
+    allowedFiles: pack.allowedFiles,
+    // The window the model was actually shown. Without it, a citation to a real
+    // line the model never saw is indistinguishable from one it read.
+    window: { file: pack.file, startLine: pack.startLine, endLine: pack.endLine },
+  });
 
   return {
     dispatched: true,
@@ -214,7 +256,11 @@ export async function runRound({
         ref: `${c.file}:${c.line}`,
         ok: c.ok,
         motivo: c.reason,
+        // Surfaced, not just computed: this is the only signal separating
+        // "cited what it was shown" from "cited some file at random".
+        fora_da_janela: Boolean(c.off_window),
       })),
+      fora_da_janela: check.offWindow,
       resultado_resumo: (text.replace(/\s+/g, ' ').slice(0, 280) || 'resposta_vazia'),
       evidencia: check.evidence,
     },

@@ -8,9 +8,10 @@ import {
   freshness,
   OWNER_TZ,
   STALE_AFTER_S,
+  emptyStreak,
 } from './fleet-state.mjs';
 import { parseIoreg, sampleGpu } from './gpu-sampler.mjs';
-import { originAllowed, panelCandidates } from './f10-server.mjs';
+import { originAllowed, hostAllowed, panelCandidates } from './f10-server.mjs';
 
 const T0 = Date.parse('2026-08-16T16:24:25Z');
 
@@ -185,16 +186,82 @@ test('sampleGpu com ioreg em falha nao inventa numero', async () => {
 // ---------------------------------------------------------------- endpoint
 
 test('play/stop so aceitam origem da propria maquina', () => {
-  assert.equal(originAllowed(undefined), true, 'curl/shell local');
-  assert.equal(originAllowed('null'), true, 'painel aberto de file://');
-  assert.equal(originAllowed('http://127.0.0.1:4290'), true);
+  assert.equal(originAllowed(undefined), true, 'curl/shell local, sem browser');
+  assert.equal(originAllowed('http://127.0.0.1:4290'), true, 'o cockpit servido em loopback');
   assert.equal(originAllowed('http://localhost:5173'), true);
   assert.equal(originAllowed('https://site-qualquer.com'), false, 'drive-by control');
   assert.equal(originAllowed('http://evil.127.0.0.1.nip.io'), false);
+});
+
+test('Origin "null" e recusado — e a origem de um iframe sandboxed de qualquer site', () => {
+  // Custou-nos permitir isto para o painel abrir de file://. O painel passou a
+  // ser servido por http de loopback, e a conveniencia so oferecia ao mundo um
+  // kill-switch remoto.
+  assert.equal(originAllowed('null'), false);
+});
+
+test('hostAllowed fecha DNS rebinding: o Host denuncia o nome do atacante', () => {
+  assert.equal(hostAllowed('127.0.0.1:4290'), true);
+  assert.equal(hostAllowed('localhost:4290'), true);
+  assert.equal(hostAllowed('[::1]:4290'), true);
+  assert.equal(hostAllowed('rebind.attacker.com:4290'), false);
+  assert.equal(hostAllowed('evil.127.0.0.1.nip.io:4290'), false);
+  assert.equal(hostAllowed(undefined), false, 'sem Host => recusado');
 });
 
 test('o painel prefere a copia canonica do repo a prototipo untracked', () => {
   const [first, second] = panelCandidates('/repo');
   assert.match(first, /tools\/cockpit\/moo-pilot-shell\.html$/);
   assert.match(second, /moo-pilot-preview\.html$/);
+});
+
+// ── correcções que vieram do gauntlet adversarial (F9) ───────────────────────
+
+test('recibo datado no futuro nao pode prender o cockpit em verde', () => {
+  const futuro = new Date(T0 + 3600_000).toISOString();
+  const f = freshness(futuro, T0);
+  assert.equal(f.estado, 'morto');
+  assert.match(f.motivo, /futuro/);
+});
+
+test('a tolerancia de relogio nao transforma desvio pequeno em falha', () => {
+  const quase = new Date(T0 + 2000).toISOString();
+  assert.equal(freshness(quase, T0).estado, 'vivo');
+});
+
+test('um ts corrompido no ledger nao pode rebentar o endpoint', () => {
+  const fs_ = fakeFs({
+    '/l': jsonl({ ts: 'nao-e-data', verdict: 'citacao-ok' }, { ts: '2026-08-16T16:24:20Z', verdict: 'citacao-ok' }),
+    '/s': '{}',
+  });
+  const s = buildFleetState({
+    ledgerPath: '/l', statePath: '/s', stopFile: '/STOP', now: T0,
+    readImpl: fs_.read, existsImpl: fs_.exists,
+  });
+  assert.equal(s.recibos.total, 2);
+  assert.equal(s.recibos.hoje, 1, 'a linha ilegivel e excluida do "hoje", nao rebenta');
+});
+
+test('a janela de "vivo" nao pode ser varias vezes maior que a ronda real', () => {
+  // Uma ronda + sleep no pior caso ronda os 45s. 180s davam 3 minutos de verde
+  // sobre um loop morto com o endpoint ainda de pe.
+  assert.ok(STALE_AFTER_S <= 90, `STALE_AFTER_S=${STALE_AFTER_S} e demasiado permissivo`);
+});
+
+test('rondas vazias seguidas disparam alarme — GPU ocupada nao e trabalho', () => {
+  const vazias = Array.from({ length: 12 }, () => ({ ts: '2026-08-16T16:24:20Z', verdict: 'sem-achado' }));
+  const fs_ = fakeFs({ '/l': jsonl(...vazias), '/s': '{}' });
+  const s = buildFleetState({
+    ledgerPath: '/l', statePath: '/s', stopFile: '/STOP', now: T0,
+    readImpl: fs_.read, existsImpl: fs_.exists,
+  });
+  assert.equal(s.recibos.vazias_seguidas, 12);
+  assert.equal(s.recibos.alarme_ocioso, true);
+});
+
+test('emptyStreak conta so a corrida actual, nao o historico todo', () => {
+  assert.equal(emptyStreak([
+    { verdict: 'sem-achado' }, { verdict: 'citacao-ok' }, { verdict: 'sem-achado' }, { verdict: 'sem-citacao' },
+  ]), 2);
+  assert.equal(emptyStreak([{ verdict: 'citacao-ok' }]), 0);
 });

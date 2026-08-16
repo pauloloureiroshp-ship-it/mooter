@@ -223,6 +223,8 @@
 
   const BASE = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:4290';
   const POLL_MS = 3000;
+  const FETCH_TIMEOUT_MS = 6000;    // a hung endpoint must fail, not hang the page
+  const OWN_STALE_MS = 12000;       // the page's own clock, independent of the server
   const SPARK_MAX = 80;
   const CONFIRM_TRIES = 5;          // how long we wait for a control to take effect
 
@@ -253,7 +255,7 @@
     ? new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'; };
   const ago = (s) => s == null ? 'n/d' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.round(s/3600)} h`;
 
-  let state = null, source = null, fails = 0, busy = false;
+  let state = null, source = null, fails = 0, busy = false, lastFetchAt = 0;
   let expecting = null;             // {running:bool, tries:int} — a control awaiting confirmation
   const spark = [];                 // GPU history, client-side only
   const sig = {};                   // per-section change signature (perf: skip identical redraws)
@@ -266,11 +268,25 @@
 
   // ---------------------------------------------------------------- network
 
+  /** A payload has to prove it is one. `null` used to sail straight through. */
+  function usable(p) {
+    return !!p && typeof p === 'object' && !Array.isArray(p)
+      && ('running' in p) && ('recibos' in p);
+  }
+
   async function poll() {
     try {
-      const res = await fetch(`${BASE}/fleet.json`, { cache:'no-store' });
+      // Without a timeout, an endpoint that accepts the socket and never
+      // answers keeps this promise pending for ever — and the page stays green
+      // for ever, because `fails` is only incremented by a rejection.
+      const res = await fetch(`${BASE}/fleet.json`, {
+        cache:'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      state = await res.json();
+      const body = await res.json();
+      if (!usable(body)) throw new Error('resposta 200 sem payload utilizável');
+      state = body; lastFetchAt = Date.now();
       source = 'live'; fails = 0;
       if (typeof state?.gpu?.util_pct === 'number') {
         spark.push(state.gpu.util_pct);
@@ -397,11 +413,22 @@
     const fresh = state.frescura || {};
 
     if (!opts.keepOffline) $('offline').hidden = live;
-    document.body.dataset.trust = !live ? 'dead' : (fresh.estado === 'vivo' ? 'ok' : fresh.estado || 'dead');
+
+    // The page keeps its OWN clock. Trusting only the server's `frescura` means
+    // a frozen tab or a re-served old file looks exactly like a healthy one.
+    const mine = Date.now() - lastFetchAt;
+    const selfStale = live && lastFetchAt > 0 && mine > OWN_STALE_MS;
+
+    document.body.dataset.trust = !live ? 'dead'
+      : selfStale ? 'stale'
+      : (fresh.estado === 'vivo' ? 'ok' : fresh.estado || 'dead');
     $('device').textContent = `· ${state.device || 'n/d'}`;
 
     if (live) {
-      if (!state.running) setChip($('conn'),'warn','parado — carrega em Trabalhar');
+      if (selfStale) setChip($('conn'),'warn',`ecrã parado há ${Math.round(mine/1000)}s — a revalidar`);
+      else if (!state.running) setChip($('conn'),'warn','parado — carrega em Trabalhar');
+      else if (state.recibos && state.recibos.alarme_ocioso)
+        setChip($('conn'),'warn',`a rodar sem produzir · ${state.recibos.vazias_seguidas} rondas vazias seguidas`);
       else if (fresh.estado === 'vivo') setChip($('conn'),'ok',`a trabalhar · último recibo há ${ago(fresh.idade_s)}`,true);
       else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'bad',
                    `${fresh.estado} — ${fresh.motivo || 'sem recibo recente'}`);

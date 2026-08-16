@@ -56,16 +56,18 @@ test('assertLocalEngine recusa qualquer motor que nao seja local', () => {
 
 // ---------------------------------------------------------------- kill-switch
 
-test('isStopped e fail-closed quando nao ha caminho ou o fs lanca', () => {
-  assert.equal(isStopped(''), true);
+const enoent = () => { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; };
+const eacces = () => { const e = new Error('EACCES'); e.code = 'EACCES'; throw e; };
+
+test('isStopped e fail-closed a serio: so ENOENT prova ausencia', () => {
+  assert.equal(isStopped(''), true, 'sem caminho => parado');
   assert.equal(isStopped(null), true);
-  assert.equal(
-    isStopped('/x/STOP', () => {
-      throw new Error('fs em baixo');
-    }),
-    true,
-  );
-  assert.equal(isStopped('/x/STOP', () => false), false);
+  assert.equal(isStopped('/x/STOP', () => ({ isFile: () => true })), true, 'existe => parado');
+  assert.equal(isStopped('/x/STOP', enoent), false, 'ENOENT e a UNICA prova de ausencia');
+  // A regressao real: existsSync engolia EACCES e devolvia false, e o runner
+  // despachava com o STOP no disco mas ilegivel.
+  assert.equal(isStopped('/x/STOP', eacces), true, 'STOP ilegivel => parado');
+  assert.equal(isStopped('/x/STOP', () => { throw new Error('fs em baixo'); }), true);
 });
 
 test('STOP presente antes da ronda nao despacha e deixa recibo', async () => {
@@ -74,7 +76,7 @@ test('STOP presente antes da ronda nao despacha e deixa recibo', async () => {
     repoRoot: root,
     pillar: 'P1',
     stopFile: '/x/STOP',
-    existsImpl: () => true,
+    statImpl: () => ({ isFile: () => true }),
     fetchImpl: () => assert.fail('nao devia chegar ao motor'),
     clock: () => 0,
   });
@@ -90,9 +92,10 @@ test('STOP que chega durante a construcao ainda trava o despacho (race fechado)'
     repoRoot: root,
     pillar: 'P1',
     stopFile: '/x/STOP',
-    existsImpl: () => {
+    statImpl: () => {
       calls += 1;
-      return calls > 1; // livre ao entrar, STOP mesmo antes do despacho
+      if (calls === 1) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; }
+      return { isFile: () => true }; // STOP mesmo antes do despacho
     },
     fetchImpl: () => assert.fail('o race nao foi fechado — despachou com STOP'),
     clock: () => 0,
@@ -229,7 +232,7 @@ test('verifyEvidence: SEM ACHADO e uma ronda honesta, nao um erro', () => {
   assert.equal(v.verdict, VERDICT.NO_FINDING);
 });
 
-test('verifyEvidence marca off_slice sem refutar ficheiro real fora da janela', () => {
+test('verifyEvidence marca fora-da-janela sem refutar um ficheiro real', () => {
   const root = fixtureRepo();
   const v = verifyEvidence({
     repoRoot: root,
@@ -237,7 +240,33 @@ test('verifyEvidence marca off_slice sem refutar ficheiro real fora da janela', 
     allowedFiles: ['tools/router/classify.js'],
   });
   assert.equal(v.verdict, VERDICT.CITED);
-  assert.equal(v.offSlice, 1);
+  assert.equal(v.offWindow, 1);
+  assert.match(v.evidence, /fora da janela mostrada/, 'o sinal tem de chegar ao recibo');
+});
+
+test('citar uma linha REAL que o modelo nunca viu conta como fora da janela', () => {
+  const root = fixtureRepo();
+  const v = verifyEvidence({
+    repoRoot: root,
+    text: 'o bug esta em tools/router/classify.js:4',
+    allowedFiles: ['tools/router/classify.js'],
+    window: { file: 'tools/router/classify.js', startLine: 1, endLine: 2 },
+  });
+  assert.equal(v.offWindow, 1, 'linha 4 fora da janela 1-2 e um palpite com sorte');
+});
+
+test('"SEM ACHADO" com citacao inventada NAO escapa pela porta benigna', () => {
+  // O buraco que o gauntlet abriu: isNoFinding corria ANTES da extraccao, por
+  // isso bastava escrever a frase magica para nunca tocar no disco.
+  const v = verifyEvidence({ repoRoot: fixtureRepo(), text: 'SEM ACHADO. Ver src/nada.js:9' });
+  assert.equal(v.verdict, VERDICT.REFUTED, 'a citacao inventada tem de mandar no veredicto');
+});
+
+test('linha citada em branco e dita em voz alta, nao pintada de verde vazio', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-branco-'));
+  fs.writeFileSync(path.join(root, 'vazio.md'), 'topo\n\nfundo\n');
+  const v = verifyEvidence({ repoRoot: root, text: 'o problema esta em vazio.md:2' });
+  assert.match(v.evidence, /LINHA EM BRANCO/);
 });
 
 test('tallyVerdicts conta por veredicto e nao por volume', () => {
@@ -268,7 +297,7 @@ test('runRound devolve citacao-ok quando o modelo cita uma linha real', async ()
   const out = await runRound({
     repoRoot: root,
     pillar: 'P1',
-    stopFile: path.join(root, 'STOP'),
+    stopFile: path.join(root, 'STOP'), stopPollMs: 60_000,
     clock: () => 0,
     fetchImpl: async (url) => {
       assert.match(url, /^http:\/\/127\.0\.0\.1:11434\//);
@@ -292,7 +321,7 @@ test('runRound refuta a alucinacao em vez de a contar como trabalho', async () =
   const out = await runRound({
     repoRoot: root,
     pillar: 'P1',
-    stopFile: path.join(root, 'STOP'),
+    stopFile: path.join(root, 'STOP'), stopPollMs: 60_000,
     clock: () => 0,
     fetchImpl: async () => ({
       ok: true,
@@ -307,7 +336,7 @@ test('runRound faz recibo honesto quando o motor local esta em baixo', async () 
   const out = await runRound({
     repoRoot: root,
     pillar: 'P1',
-    stopFile: path.join(root, 'STOP'),
+    stopFile: path.join(root, 'STOP'), stopPollMs: 60_000,
     clock: () => 0,
     fetchImpl: async () => {
       throw new Error('ECONNREFUSED');

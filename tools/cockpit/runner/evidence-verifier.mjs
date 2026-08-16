@@ -119,60 +119,62 @@ export function checkCitation(repoRoot, { file, line }) {
  * @returns {{verdict: string, citations: Array, checked: number, failed: number,
  *            offSlice: number, evidence: string}}
  */
-export function verifyEvidence({ repoRoot, text, allowedFiles = [] }) {
-  if (isNoFinding(text)) {
-    return {
-      verdict: VERDICT.NO_FINDING,
-      citations: [],
-      checked: 0,
-      failed: 0,
-      offSlice: 0,
-      evidence: 'sem-achado: a ronda declarou nada a reportar',
-    };
-  }
-
+export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win = null }) {
   const citations = extractCitations(text);
+
+  // ORDER MATTERS. The first version tested `SEM ACHADO` before extracting
+  // citations, which meant an answer containing both the escape hatch and a
+  // fabricated citation returned the most benign verdict without the disk ever
+  // being touched — the exact hole this module exists to close. The empty
+  // verdict is now only available to an answer that cites nothing at all.
   if (citations.length === 0) {
-    return {
-      verdict: VERDICT.UNCITED,
-      citations: [],
-      checked: 0,
-      failed: 0,
-      offSlice: 0,
-      evidence: 'sem-citacao: resposta sem ficheiro:linha, nao verificavel',
-    };
+    return isNoFinding(text)
+      ? {
+          verdict: VERDICT.NO_FINDING, citations: [], checked: 0, failed: 0,
+          offWindow: 0, evidence: 'sem-achado: a ronda declarou nada a reportar',
+        }
+      : {
+          verdict: VERDICT.UNCITED, citations: [], checked: 0, failed: 0,
+          offWindow: 0, evidence: 'sem-citacao: resposta sem ficheiro:linha, nao verificavel',
+        };
   }
 
   const allow = new Set(allowedFiles);
   const checked = citations.map((c) => {
     const res = checkCitation(repoRoot, c);
-    return { ...res, off_slice: res.ok && allow.size > 0 && !allow.has(res.file) };
+    const offFile = res.ok && allow.size > 0 && !allow.has(res.file);
+    // A real line the model was never shown is not evidence of reading — it is
+    // a lucky guess. Both "wrong file" and "right file, unseen line" count.
+    const offLine =
+      res.ok && win && res.file === win.file && (res.line < win.startLine || res.line > win.endLine);
+    return { ...res, off_window: Boolean(offFile || offLine) };
   });
 
   const failed = checked.filter((c) => !c.ok);
-  const offSlice = checked.filter((c) => c.off_slice).length;
+  const offWindow = checked.filter((c) => c.off_window).length;
 
   if (failed.length > 0) {
     const first = failed[0];
     return {
       verdict: VERDICT.REFUTED,
-      citations: checked,
-      checked: checked.length,
-      failed: failed.length,
-      offSlice,
+      citations: checked, checked: checked.length, failed: failed.length, offWindow,
       evidence: `refutado: ${first.file}:${first.line} ${first.reason}`,
     };
   }
 
-  const head = checked[0];
+  // Prefer a citation inside the window as the headline evidence, so the string
+  // the owner reads is the strongest one available rather than merely the first.
+  const head = checked.find((c) => !c.off_window) || checked[0];
+  const blank = !head.snippet;
+  const suffix = offWindow > 0 ? ` · ${offWindow} citacao(oes) fora da janela mostrada` : '';
   return {
-    verdict: VERDICT.CITED,
-    citations: checked,
-    checked: checked.length,
-    failed: 0,
-    offSlice,
+    verdict: blank && offWindow === checked.length ? VERDICT.UNCITED : VERDICT.CITED,
+    citations: checked, checked: checked.length, failed: 0, offWindow,
     // "linha existe", never "achado confirmado" — the claim stays untriaged.
-    evidence: `citacao-ok (achado NAO triado): ${head.file}:${head.line} => ${head.snippet}`,
+    // A blank cited line is said out loud instead of rendering as green nothing.
+    evidence: blank
+      ? `citacao-ok (achado NAO triado): ${head.file}:${head.line} => LINHA EM BRANCO${suffix}`
+      : `citacao-ok (achado NAO triado): ${head.file}:${head.line} => ${head.snippet}${suffix}`,
   };
 }
 

@@ -19,8 +19,14 @@ import fs from 'node:fs';
 import { VERDICT, tallyVerdicts } from './evidence-verifier.mjs';
 
 export const OWNER_TZ = 'America/Sao_Paulo';
-export const STALE_AFTER_S = 180;
-export const DEAD_AFTER_S = 900;
+// The longest healthy gap between receipts is one round plus its sleep (~45s).
+// 180s was 4x that: a loop that died with the endpoint still up stayed green for
+// three minutes. 75s still tolerates a slow round without inventing patience.
+export const STALE_AFTER_S = 75;
+export const DEAD_AFTER_S = 300;
+export const CLOCK_SKEW_TOLERANCE_S = 5;
+/** Enough consecutive empty rounds to mean the loop is spinning, not working. */
+export const IDLE_STREAK_ALARM = 8;
 
 /** Reads a jsonl ledger into objects, skipping unparseable lines honestly. */
 export function readLedger(ledgerPath, { readImpl = fs.readFileSync, maxLines = 5000 } = {}) {
@@ -62,7 +68,14 @@ export function freshness(lastTs, nowMs) {
   if (!lastTs) return { estado: 'morto', idade_s: null, motivo: 'sem recibo' };
   const t = Date.parse(lastTs);
   if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'timestamp ilegivel' };
-  const age = Math.max(0, Math.round((nowMs - t) / 1000));
+  const raw = Math.round((nowMs - t) / 1000);
+  // A receipt dated in the future used to clamp to age 0 and read as `vivo`
+  // forever — a clock skew, or one bad line, would pin the cockpit green.
+  // A timestamp we cannot place in the past is not freshness, it is a fault.
+  if (raw < -CLOCK_SKEW_TOLERANCE_S) {
+    return { estado: 'morto', idade_s: null, motivo: `recibo datado no futuro (${-raw}s)` };
+  }
+  const age = Math.max(0, raw);
   if (age <= STALE_AFTER_S) return { estado: 'vivo', idade_s: age, motivo: null };
   if (age <= DEAD_AFTER_S) {
     return { estado: 'stale', idade_s: age, motivo: `sem recibo ha ${age}s` };
@@ -91,6 +104,17 @@ export function buildFeed(receipts, limit = FEED_LENGTH) {
       evidencia: r.evidencia ?? null,
       resumo: r.resultado_resumo ?? null,
     }));
+}
+
+/** How many receipts in a row produced no finding at all, counting backwards. */
+export function emptyStreak(receipts) {
+  let n = 0;
+  for (let i = (receipts || []).length - 1; i >= 0; i -= 1) {
+    const v = receipts[i] && receipts[i].verdict;
+    if (v === VERDICT.NO_FINDING || v === VERDICT.UNCITED) n += 1;
+    else break;
+  }
+  return n;
 }
 
 /** Last receipt per pillar, plus that pillar's own verdict split. */
@@ -153,11 +177,17 @@ export function buildFleetState({
   const { receipts, corrompidas, existe } = readLedger(ledgerPath, { readImpl });
   const last = receipts.length ? receipts[receipts.length - 1] : null;
   const today = ownerDay(now);
-  const todays = receipts.filter((r) => r && r.ts && ownerDay(Date.parse(r.ts)) === today);
+  // `Date.parse` on junk yields NaN, and `Intl.DateTimeFormat` throws on it —
+  // one malformed line in the ledger would take the whole endpoint down.
+  const todays = receipts.filter((r) => {
+    const t = r && r.ts ? Date.parse(r.ts) : NaN;
+    return Number.isFinite(t) && ownerDay(t) === today;
+  });
 
   const tally = tallyVerdicts(receipts);
   const tallyToday = tallyVerdicts(todays);
   const fresh = freshness(last && last.ts, now);
+  const idleStreak = emptyStreak(receipts);
 
   return {
     device: state.device || device,
@@ -193,6 +223,11 @@ export function buildFleetState({
       sem_veredicto: tally.erro,
       linhas_corrompidas: corrompidas,
       ledger_existe: existe,
+      // A model that answers "SEM ACHADO" forever burns the GPU and produces
+      // nothing, while every other indicator stays green. This is the counter
+      // that makes busy-but-useless visible.
+      vazias_seguidas: idleStreak,
+      alarme_ocioso: idleStreak >= IDLE_STREAK_ALARM,
     },
 
     // Alignment is measured by `alignment.mjs`, never assumed. When it could not
