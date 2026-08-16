@@ -3149,6 +3149,9 @@ async function toolWork(args) {
 
   const d = classifyOrNull(goal);
   const tier = d ? (d.tier || null) : null;
+  // Quem escolheu o motor importa: uma inferencia do router pode ser corrigida
+  // por baixo, uma ESCOLHA do chamador nao pode ser trocada em silencio.
+  const motorExplicito = !!a.agent;
   let agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
   let escolhaLocal = null;   // preenchido abaixo, depois de sabermos o contexto
   let aprendizagem = null;   // só existe quando o ledger já tem base suficiente
@@ -3293,7 +3296,12 @@ async function toolWork(args) {
   }
 
   let downgraded = null;
-  if (agent === 'moo') {
+  // ⚠️ SO se o motor foi INFERIDO. A mensagem deste ramo diz 'o router escolheu
+  // a GPU local', e quando o chamador passou agent:'moo' isso e falso — foi ele.
+  // Trocar um motor gratuito por um pago sem o contrato o dizer e o oposto do
+  // recibo auditavel que este projecto vende. Se pediram moo, ou corre em moo ou
+  // falha a dize-lo: o exit_code `no-local-model` existe exactamente para isso.
+  if (agent === 'moo' && !motorExplicito) {
     const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
     const res = await require('./fleet.js').probeOllama(700).catch(() => null);
     const has = await moo.pickModel(null, host, res).catch(() => null);
@@ -3497,6 +3505,9 @@ async function toolWork(args) {
           : []).concat([
           'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
           'diz o caminho completo a partir da raiz do projecto',
+          // a via de escape EXPLICITA: quem sabe o que esta a fazer despacha na
+          // mesma sem contexto. Faltava, e uma recusa sem saida e um beco.
+          'mooter_work({goal, agent:"' + agent + '", force:true}) — despacha sem contexto, assumindo que o motor se desenrasca',
         ]),
       };
     }
