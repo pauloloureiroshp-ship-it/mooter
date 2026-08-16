@@ -4058,3 +4058,10 @@ gauntlet: **G4 mudou** — de 4/5 alvos para **5/5**, com o buraco **medido** (c
   3. **O merge.** Nunca o faço sem ti.
 - `gauntlet: f-mu0 · A em 086a5dac (6 rondas) · B (5 rondas) · 0 ALTO abertos alem dos 3 limites declarados acima · classify.js frozen · prefixo do ledger intacto · zero push · nao merged`
 - 📮 **DESTINO: Paulo** — lê o `AUDIT-FMU0.json`. É lá que está tudo, e desta vez sem números repetidos que possam envelhecer mal.
+
+## [2026-08-15] Paulo — os três limites do broker ficam ACEITES
+- Gesto literal, na sessão: **"aceito os três limites"**. Registado no `AUDIT-FMU0.json` → `limites_aceites_pelo_dono`.
+- Aceites: `NEGADO`/`STALE` não fecham o pedido, logo `idem_key`s novas fazem o ledger crescer sem limite (não há rate-limit) · `INDETERMINADO` sem reconciliação, um pedido preso fica preso até intervenção manual · a barreira de caminho é **lexical**, não cobre junctions nem symlinks.
+- **O que isto não é:** não é um ship. São três limites conhecidos que deixam de bloquear a entrega por decisão do dono, e que ficam escritos para não voltarem a aparecer como surpresa numa ronda futura do gauntlet.
+- Candidatos a frente própria: rate-limit do broker · reconciliação do `INDETERMINADO` · barreira de caminho não-lexical (`realpath` contra junctions/symlinks).
+- ⏳ **Continua à espera de ti:** (1) o que fazer ao `ondaA` A3/A3b contra o gate `final-reviewer-honest`, que não aceita suite vermelha seja de quem for · (2) o merge.

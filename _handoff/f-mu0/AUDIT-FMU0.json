@@ -754,16 +754,23 @@
     "ALTO_2_corrigido": "SYNC e AUDIT materialmente falsos pela QUINTA vez. A causa nao foi distraccao: foi eu continuar a escrever numeros DERIVADOS em prosa depois de duas vezes prometer que parava. Agora os numeros vivem so no B-VERDE.txt, e as contagens de ficheiros sao n/d por desenho — quem quiser sabe corre o git.",
     "ALTO_3_e_a_excepcao_ja_aceite": "o artefacto continua vermelho por causa do ondaA herdado, e o gate final-reviewer-honest nao deixa SHIP com suite vermelha. Nao e achado novo: e a excepcao que o dono aceitou explicitamente, com a evidencia toda registada.",
     "MEDIO_honesto_sobre_os_testes": "o critico mostrou que nenhum de B41-B46 passa com a correccao COMPLETA revertida, mas que B41 e B43 sobrevivem a reversoes PARCIAIS porque as defesas redundantes se mascaram uma a outra. Fica escrito assim, em vez de \"cobertura mutation-killing\", que era o exagero que ele ja me tinha apanhado.",
-    "MEDIO_limites_que_precisam_de_aceitacao_do_dono": [
-      "NEGADO e STALE nao fecham o pedido, logo idem_keys novas fazem crescer o ledger sem limite. Nao ha rate-limit nesta frente.",
-      "INDETERMINADO nao tem reconciliacao: um pedido preso fica preso ate intervencao manual.",
-      "a barreira de caminho e LEXICAL — nao cobre junctions nem symlinks."
-    ],
+    "MEDIO_limites_que_precisam_de_aceitacao_do_dono": "ACEITES em 2026-08-15 — ver limites_aceites_pelo_dono",
     "o_que_o_critico_CONFIRMOU_bom": [
       "sem_mp_hash e fail-closed correcto e nao trava trabalho real: no ledger MEDIDO, 135/135 eventos dispatched tem hash, e os 3 pendentes tambem",
       "um papel literalmente chamado __proto__ funciona; ambos os mapas tem prototipo null",
       "Parte A funcional intacta",
       "prefixo de 1.220.668 bytes e sha do classify.js confirmados"
     ]
+  },
+  "limites_aceites_pelo_dono": {
+    "quando": "2026-08-15, na sessao",
+    "gesto": "aceito os tres limites",
+    "o_que_fica_aceite": [
+      "NEGADO e STALE nao fecham o pedido, logo idem_keys novas fazem o ledger crescer sem limite. Nao ha rate-limit nesta frente.",
+      "INDETERMINADO nao tem reconciliacao: um pedido preso fica preso ate intervencao manual.",
+      "a barreira de caminho e LEXICAL — nao cobre junctions nem symlinks."
+    ],
+    "o_que_isto_NAO_e": "nao e um ship. Sao tres limites conhecidos que deixam de bloquear a entrega por decisao do dono, e que ficam escritos para nao voltarem a aparecer como surpresa numa ronda futura.",
+    "candidatos_a_frente_propria": "rate-limit do broker · reconciliacao do INDETERMINADO · barreira de caminho nao-lexical (realpath contra junctions/symlinks)"
   }
 }
