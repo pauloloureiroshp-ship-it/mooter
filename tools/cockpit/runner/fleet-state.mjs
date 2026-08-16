@@ -84,6 +84,7 @@ export function buildFleetState({
   gpu = null,
   loadedModels = [],
   engineAlive = false,
+  alignment = null,
   now = Date.now(),
   readImpl = fs.readFileSync,
   existsImpl = fs.existsSync,
@@ -135,6 +136,11 @@ export function buildFleetState({
       linhas_corrompidas: corrompidas,
       ledger_existe: existe,
     },
+
+    // Alignment is measured by `alignment.mjs`, never assumed. When it could not
+    // be computed the whole block is null, so the cockpit shows `n/d` rather
+    // than a row of ticks it never earned.
+    projeto: alignment,
 
     gpu: gpu || { util_pct: null, vram_inuse_gb: null, fonte: 'n/d' },
     modelos_carregados: loadedModels,

@@ -14,6 +14,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
+import { buildAlignment } from './alignment.mjs';
 
 export const HOST = '127.0.0.1';
 export const PORT = 4290;
@@ -103,10 +104,11 @@ export function createServer({
     }
 
     if (req.method === 'GET' && (route === '/fleet.json' || route === '/fleet')) {
-      const [gpu, alive, models] = await Promise.all([
+      const [gpu, alive, models, alignment] = await Promise.all([
         sampleGpu(),
         engineAlive(fetchImpl),
         loadedModels(fetchImpl),
+        buildAlignment({ repoRoot }).catch(() => null),
       ]);
       return sendJson(
         res,
@@ -119,6 +121,7 @@ export function createServer({
           gpu,
           engineAlive: alive,
           loadedModels: models,
+          alignment,
         }),
       );
     }
