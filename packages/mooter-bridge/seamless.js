@@ -38,6 +38,7 @@ const { PassThrough } = require('stream');
 const telemetry = require('./telemetry.js');
 const moo = require('./moo.js');
 const kimi = require('./kimi-adapter.js');
+const kimiValvula = require('./kimi-valvula.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
 const wt = require('./worktrees.js');
@@ -3176,6 +3177,7 @@ async function toolWork(args) {
   const motorExplicito = !!a.agent;
   let agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
   let escolhaLocal = null;   // preenchido abaixo, depois de sabermos o contexto
+  let valvulaKimi = null;    // a decisão da válvula de quota, para o recibo
   let aprendizagem = null;   // só existe quando o ledger já tem base suficiente
 
   // ⚠️ v1.3.3 — DEGRADAR, não recusar, QUANDO O MOTOR FOI INFERIDO. (achado dos
@@ -3486,6 +3488,41 @@ async function toolWork(args) {
       // para o Ollama; o selector local escolhe o modelo instalado real.
       if (!a.model) model = null;
       log('local-first: ' + escolhaLocal.porque);
+    } else {
+      // ⚠️ A VÁLVULA DE QUOTA (2026-08-16) — a terceira via que não existia.
+      //
+      // Chegámos aqui: o classificador não deu T0, ou a GPU não chega. Até hoje
+      // isso significava `cc`, e sob pressão de quota o `cc` levava tecto de
+      // Haiku (`quota.js`). O kimi-k3 é nuvem capaz que NÃO consome a quota
+      // Anthropic — mas custa USD reais, portanto só compensa quando a quota é
+      // o recurso escasso. Daí ser uma válvula: abre sob pressão, fecha depois.
+      //
+      // A decisão vive em `kimi-valvula.js`, pura e com sete vetos testados um
+      // a um. Aqui só se recolhem os factos e se aplica o resultado — enterrar
+      // sete condições neste `if` tornava-as impossíveis de auditar.
+      valvulaKimi = kimiValvula.valvulaKimi({
+        // opt-in: ver o veto 0 em kimi-valvula.js — a quota não é isolável nos
+        // testes, e ligar isto por omissão tornaria cinco suites dependentes do
+        // consumo do dono nesse dia.
+        ligada: process.env.MOOTER_VALVULA_KIMI === '1',
+        motorExplicito,
+        temChave: kimi.configuredApiKey(),
+        pressaoNivel: calibragem && calibragem.nivel,
+        tier,
+        escrita: a.write === true,
+        categoria: workCategory && workCategory.category,
+        // o kimi está em ENGINES_SEM_FICHEIROS: sem contexto injectado o
+        // contrato de capacidade recusaria, e escolhê-lo seria empurrar o
+        // utilizador para uma recusa em vez de para um motor mais lento.
+        pedeLeitura: !!pedeLeituraDeFicheiro(executionText),
+        contextoInjectado: !!(pre && pre.chars > 0),
+      });
+      if (valvulaKimi.usar) {
+        agent = 'kimi';
+        model = kimi.MODEL;
+        routedBy = 'valvula-de-quota';
+        log('válvula de quota → kimi: ' + valvulaKimi.porque);
+      }
     }
   }
   if (!escolhaLocal && !a.agent && !a.model) {
@@ -3842,6 +3879,11 @@ async function toolWork(args) {
       agente: aprendizagem.agente, porque: aprendizagem.porque,
       confianca: aprendizagem.confianca, base: aprendizagem.base,
     } : null,
+    // ⚠️ A válvula viaja no recibo mesmo quando NÃO abre. Um motor pago
+    // escolhido sem o utilizador saber porquê é o oposto do recibo auditável
+    // que este produto vende — e saber porque é que ele NÃO foi escolhido vale
+    // tanto como saber porque foi (é o que distingue "não serve" de "não tentei").
+    valvula_kimi: valvulaKimi ? { usar: valvulaKimi.usar, porque: valvulaKimi.porque } : null,
     poupanca_estimada: (escolhaLocal && escolhaLocal.local)
       ? localfirst.poupancaEstimada((contextoInjectado ? contextoInjectado.chars : 0) + goal.length, 2000, tier === 'T3' ? 'opus' : 'sonnet')
       : null,

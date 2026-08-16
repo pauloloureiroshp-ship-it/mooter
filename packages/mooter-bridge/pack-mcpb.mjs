@@ -45,6 +45,7 @@ const FILES = [
   ['server.js', 'server/server.js'],
   ['seamless.js', 'server/seamless.js'],
   ['kimi-adapter.js', 'server/kimi-adapter.js'],
+  ['kimi-valvula.js', 'server/kimi-valvula.js'],
   ['install-id.js', 'server/install-id.js'],
   ['fleet.js', 'server/fleet.js'],
   ['fleet-ui.html', 'server/fleet-ui.html'],
