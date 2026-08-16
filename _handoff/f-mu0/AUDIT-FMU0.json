@@ -152,7 +152,23 @@
       "falha com o Ollama EM BAIXO e com o Ollama DE PÉ — não é ambiente"
     ],
     "fora_de_escopo_porque": "corrigi-lo é outra frente; a f-mu0 não toca em testes que não são seus",
-    "consequencia_honesta": "a Parte A NÃO pode declarar 'suite completa verde' — declara 'verde no delta, com 1 vermelho pré-existente herdado e nomeado'"
+    "consequencia_honesta": "a Parte A NÃO pode declarar 'suite completa verde' — declara 'verde no delta, com 1 vermelho pré-existente herdado e nomeado'",
+    "resolucao": {
+      "quando": "2026-08-15, na sessao",
+      "gesto": "o ondaA vira frente propria",
+      "o_que_muda": "o vermelho deixa de ser uma excepcao ORFA dentro da f-mu0 e passa a ter dono, lugar e evidencia. Registado no _handoff/MASTERPROMPTS_INDEX.md como frente `onda-a3`.",
+      "o_que_NAO_muda": "a suite continua vermelha ate essa frente a arranjar, e o gate final-reviewer-honest continua a nao aceitar suite vermelha. Isto nao desbloqueia o ship da f-mu0 — arruma a divida. Dizer o contrario era vender uma decisao administrativa como uma correccao tecnica.",
+      "evidencia_para_quem_pegar": {
+        "ficheiro": "packages/mooter-bridge/ondaA.test.js",
+        "testes": [
+          "A3 · despachou leitura sem contexto nenhum — esperado \"sem_contexto_para_o_local\", obtido undefined",
+          "A3b · nao leu o ficheiro pelo modelo local — esperado [\"alvo.js\"], obtido null"
+        ],
+        "ambos_exercitam": "o caminho `moo` (Ollama local)",
+        "medido_3x": "falha sozinho na base 06bdc2c2 · falha no checkout principal · falha com o Ollama EM BAIXO e DE PE (logo nao e ambiente)",
+        "confirmado_por": "o G4 #6 da Parte A e todas as rondas de G4 da Parte B, de forma independente, sempre como alheio a identidade"
+      }
+    }
   },
   "routing": {
     "regra": "wave sem routing declarado não fecha",

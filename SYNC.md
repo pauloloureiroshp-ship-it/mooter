@@ -4065,3 +4065,10 @@ gauntlet: **G4 mudou** — de 4/5 alvos para **5/5**, com o buraco **medido** (c
 - **O que isto não é:** não é um ship. São três limites conhecidos que deixam de bloquear a entrega por decisão do dono, e que ficam escritos para não voltarem a aparecer como surpresa numa ronda futura do gauntlet.
 - Candidatos a frente própria: rate-limit do broker · reconciliação do `INDETERMINADO` · barreira de caminho não-lexical (`realpath` contra junctions/symlinks).
 - ⏳ **Continua à espera de ti:** (1) o que fazer ao `ondaA` A3/A3b contra o gate `final-reviewer-honest`, que não aceita suite vermelha seja de quem for · (2) o merge.
+
+## [2026-08-15] Paulo — o `ondaA` A3/A3b vira frente própria
+- Gesto na sessão: **"o ondaA vira frente própria"**. Registado no `AUDIT-FMU0.json` → `vermelho_pre_existente.resolucao` e no `_handoff/MASTERPROMPTS_INDEX.md` como frente **`onda-a3`**.
+- **O que muda:** o vermelho deixa de ser uma excepção órfã dentro da f-mu0 e passa a ter dono, lugar e a evidência toda.
+- **O que NÃO muda, e digo-o antes que alguém se engane:** a suite continua vermelha até essa frente a arranjar, e o gate `final-reviewer-honest` continua a não aceitar suite vermelha. **Isto não desbloqueia o ship da f-mu0** — arruma a dívida. Vender uma decisão administrativa como correcção técnica seria o mesmo erro que esta frente passou o dia a corrigir.
+- **Evidência para quem pegar:** `packages/mooter-bridge/ondaA.test.js`, testes **A3** (esperado `"sem_contexto_para_o_local"`, obtido `undefined`) e **A3b** (esperado `["alvo.js"]`, obtido `null`). Ambos exercitam o caminho `moo` (Ollama local). Medido 3×: falha sozinho na base `06bdc2c2`, falha no checkout principal, e falha com o Ollama **em baixo e de pé** — logo não é ambiente. Confirmado de forma independente pelo G4 #6 da Parte A e por todas as rondas da Parte B.
+- ⏳ **Continua à espera de ti: o merge.** É a única coisa que falta na f-mu0.
