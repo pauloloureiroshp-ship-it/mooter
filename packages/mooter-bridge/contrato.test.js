@@ -33,8 +33,98 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { EventEmitter } = require('node:events');
+
+/**
+ * ⚠️ SANDBOX — TUDO ANTES DO `require('./seamless.js')` (2026-08-16)
+ *
+ * Este ficheiro era o ÚNICO do pacote que despachava sem isolamento nenhum, e
+ * isso custou caro de três maneiras, todas medidas:
+ *
+ *  1. Escrevia no ledger REAL do dono. Contados 497 eventos `wave:"contrato-test"`
+ *     em `~/.mooter/ledger.jsonl`, 96 dispatches, 473 jobs na GPU dele e 24
+ *     eventos `agent:"cc"` — o CLI pago, lançado por K8 a sério.
+ *  2. PENDURAVA a suite completa. `toolDispatch` devolve imediatamente
+ *     (`seamless.js:2586`), mas o socket do Ollama e os processos-filho ficam
+ *     ref'd no event loop; com `--test-timeout=0` e o watchdog de 30 min
+ *     `unref()`-ado, nada desiste. Medido: 9 minutos sem escrever um byte.
+ *  3. Ficava VERDE SEM EXERCER NADA — ver o comentário em K4.
+ *
+ * O ficheiro já sabia disto e resolveu-o só a meio: o comentário de K5/K6
+ * explica que não passam por `toolDispatch` porque o `guardCheck` "tornaria o
+ * teste dependente de haver ou não um job a correr na máquina — falharia às
+ * terças e passaria às quartas". K4/K7/K8 ficaram de fora dessa protecção.
+ */
+const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-contrato-'));
+const WT = path.join(HOME, 'repo');
+fs.mkdirSync(WT, { recursive: true });
+try { require('node:child_process').execFileSync('git', ['-C', WT, 'init', '-q'], { stdio: 'ignore' }); } catch { /* sem git, os testes deste ficheiro não precisam dele */ }
+process.env.MOOTER_HOME = HOME;
+process.env.MOOTER_LIB = '1';
+process.env.MOOTER_WORKTREE_ROOT = HOME;
+process.env.MOOTER_REPO = WT;
+// porta morta: apagar a variável não isola nada — o código cai para
+// 127.0.0.1:11434, que na máquina do dono TEM um daemon a responder.
+process.env.OLLAMA_HOST = '127.0.0.1:1';
 
 const seam = require('./seamless.js');
+
+// K8 itera ['cc','codex'] e, sem isto, `realSpawnJob` lança os binários a sério.
+seam.setJobSpawner((cmd, cwd, out) => {
+  const em = new EventEmitter();
+  setImmediate(() => {
+    out.write('{"type":"result","subtype":"success","result":"feito","total_cost_usd":0}\n');
+    out.end();
+    em.emit('spawn');
+    setTimeout(() => em.emit('close', 0), 20);
+  });
+  em.stdout = { pipe() {} }; em.stderr = { pipe() {} }; em.kill = () => true;
+  return em;
+});
+
+/**
+ * Espera pelo FACTO (a worktree ficar livre), com tecto — nunca por tempo fixo.
+ * Sem isto, K4/K7/K8 disputam o WIP guard entre si e o segundo é recusado.
+ */
+async function livre(maxMs) {
+  const fim = Date.now() + (maxMs || 8000);
+  for (;;) {
+    let n = 0;
+    try { n = (seam.activeJobsByWorktree(WT) || []).length; } catch { n = 0; }
+    if (!n) return true;
+    if (Date.now() > fim) return false;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+/**
+ * ⚠️ A GUARDA QUE FALTAVA, e sem a qual o sandbox acima não vale nada.
+ *
+ * `guardCheck` recusado devolve `{ error: '❌ guard recusou o dispatch' }` —
+ * chave INGLESA (`seamless.js:1987`). Os asserts deste ficheiro liam `r.erro` —
+ * chave PORTUGUESA, que só `recusaContratoDeLeitura` escreve (`seamless.js:1392`).
+ * São chaves diferentes: quando o guard recusava, `r.erro` era `undefined` e
+ * `assert.notEqual(undefined, 'capacidade_incompativel')` passava trivialmente.
+ *
+ * Medido em 2026-08-16, com o mesmo ficheiro e dois ledgers:
+ *     ledger limpo            -> 3 dispatches reais -> 9 verdes
+ *     ledger com job activo   -> 0 dispatches       -> 9 verdes
+ * O mesmo resultado com e sem exercer o contrato.
+ */
+function exerceuMesmo(r, ondeE) {
+  // O marcador é ESTRUTURAL, não uma string: `reasons` é devolvido num único
+  // sítio de todo o seamless.js — `:1987`, a recusa do guard. Confirmado por
+  // grep. Distinguir isto de qualquer `error` importa: `no-local-model` também
+  // é um erro, mas chega DEPOIS de o contrato ter sido avaliado (é o Ollama
+  // morto que este sandbox impõe de propósito), e nesse caso o teste exerceu
+  // mesmo o que diz exercer. Só a recusa do guard salta o contrato por inteiro.
+  assert.ok(!(r && Array.isArray(r.reasons)),
+    'o guard recusou antes do contrato e ' + ondeE + ' não exerceu nada — este verde '
+    + 'seria vazio: ' + JSON.stringify(r && r.reasons));
+}
 
 // ─────────────────────────────── o matcher: o que conta como pedir leitura ──
 
@@ -77,7 +167,7 @@ const MP_REAL = '⇄ ROUTING\nDE: teste\nPARA: moo\n\n'
 function dispatchArgs(extra) {
   return Object.assign({
     agent: 'moo',
-    worktree: process.cwd(),
+    worktree: WT,           // sandbox, não process.cwd() — ver o preâmbulo
     masterprompt: MP_REAL,
     wave: 'contrato-test',
   }, extra || {});
@@ -89,12 +179,15 @@ test('K4 — REGRESSÃO: o contrato lê o PEDIDO, não o masterprompt', async ()
    * que ele é na vida real. O goal não pede leitura nenhuma. Se o contrato
    * recusar isto, voltou a analisar o texto errado.
    */
+  await livre();
   const r = await seam.toolDispatch(dispatchArgs({
     __goal: 'Resume em duas frases a ideia principal',
   }));
+  exerceuMesmo(r, 'K4');
   assert.notEqual(r && r.erro, 'capacidade_incompativel',
     'REGRESSÃO: o contrato voltou a avaliar o masterprompt em vez do goal — '
     + 'isto bloqueia TODO o trabalho local, que é o diferencial do produto');
+  await livre();
 });
 
 /**
@@ -126,24 +219,34 @@ test('K6 — a recusa nomeia o ficheiro pedido e a capacidade real do motor', ()
 });
 
 test('K7 — com contexto já injectado, o mesmo pedido PASSA', async () => {
+  await livre();
   const r = await seam.toolDispatch(dispatchArgs({
     __goal: 'Lê packages/mooter-bridge/worktrees.js e diz se valida frescura',
     masterprompt: MP_REAL + '\n## FICHEIROS REAIS (lidos do disco pelo Mooter, não inventados)\n<conteúdo>',
   }));
+  exerceuMesmo(r, 'K7');
   assert.notEqual(r && r.erro, 'capacidade_incompativel',
     'se o conector já injectou os ficheiros, o motor tem olhos e o contrato não tem nada a dizer');
+  await livre();
 });
 
 test('K8 — motores COM ferramentas nunca são travados por este contrato', async () => {
   for (const agent of ['cc', 'codex']) {
+    await livre();
     const r = await seam.toolDispatch(dispatchArgs({
       agent,
       __goal: 'Lê packages/mooter-bridge/worktrees.js e diz se valida frescura',
       read_files: false,
     }));
+    exerceuMesmo(r, 'K8/' + agent);
     assert.notEqual(r && r.erro, 'capacidade_incompativel',
       agent + ' tem ferramentas de leitura próprias — travá-lo seria um falso positivo');
+    await livre();
   }
+});
+
+test.after(() => {
+  setTimeout(() => { try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* */ } }, 250);
 });
 
 // ────────────────────────────────────── prepare separado em duas decisões ──
