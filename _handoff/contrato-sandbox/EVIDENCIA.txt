@@ -1,0 +1,36 @@
+EVIDENCIA MEDIDA — frente contrato-sandbox
+===========================================
+data: 2026-08-16 (hora do dono, UTC-3)
+
+--- 1. ZERO ISOLAMENTO no ficheiro ---
+MOOTER_HOME    em contrato.test.js: 0
+OLLAMA_HOST    em contrato.test.js: 0
+setJobSpawner  em contrato.test.js: 0
+process.cwd()  em contrato.test.js: 1
+
+irmaos que ISOLAM (grep -l setJobSpawner *.test.js):
+  actor.test.js
+  downgrade.test.js
+  ondaA.test.js
+  path.test.js
+  seamless.test.js
+  v12.test.js
+
+--- 2. ESCRITA NO LEDGER DE PRODUCAO ---
+eventos wave=contrato-test : 497
+  dispatched               : 96
+  agent moo (GPU do dono)  : 473
+  agent cc  (CLI pago)     : 24
+  orphaned-by-restart      : 40
+
+--- 3. EXPERIENCIA DECISIVA (ja corrida) ---
+OLLAMA_HOST=127.0.0.1:1 node --test contrato.test.js
+  corrida 1: 28s rc=0 9 verdes
+  corrida 2: 33s rc=0 9 verdes
+  corrida 3: 29s rc=0 9 verdes
+  => com o Ollama inalcancavel o hang DESAPARECE.
+  => mas o ledger de producao cresceu 467 -> 497: sao dois defeitos.
+
+--- 4. O HANG, medido ---
+processo 63672 (node --test contrato.test.js) parado 9 min sem escrever;
+flags incluem --test-timeout=0; watchdog do job e 30 min e esta unref()-ado.
