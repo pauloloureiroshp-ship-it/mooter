@@ -152,7 +152,10 @@ export function perPillar(receipts) {
  * @returns the object served at `/fleet.json`
  */
 export function buildFleetState({
-  device = 'mac-mini',
+  // Sem default cravado: quem chama diz quem é, e a identidade vem toda de
+  // `fleet-beacon.deviceName()`. Um nome inventado aqui foi o que fez o cockpit
+  // do mac deixar de se reconhecer a si próprio na frota.
+  device = null,
   ledgerPath,
   statePath,
   stopFile,
@@ -161,6 +164,7 @@ export function buildFleetState({
   loadedModels = [],
   engineAlive = false,
   alignment = null,
+  fleet = null,
   now = Date.now(),
   readImpl = fs.readFileSync,
   existsImpl = fs.existsSync,
@@ -190,7 +194,7 @@ export function buildFleetState({
   const idleStreak = emptyStreak(receipts);
 
   return {
-    device: state.device || device,
+    device: state.device || device || 'device-sem-nome',
     running,
     // $0 is structural: `runner-core.assertLocalEngine` refuses any non-loopback
     // engine, so this field cannot drift away from the truth.
@@ -234,6 +238,10 @@ export function buildFleetState({
     // be computed the whole block is null, so the cockpit shows `n/d` rather
     // than a row of ticks it never earned.
     projeto: alignment,
+
+    // Other devices, read from beacons they wrote. Null when we could not look
+    // at all — an empty fleet and an unread fleet are different claims.
+    frota: fleet,
 
     gpu: gpu || { util_pct: null, vram_inuse_gb: null, fonte: 'n/d' },
     modelos_carregados: loadedModels,

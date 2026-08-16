@@ -16,6 +16,7 @@ import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { PILLAR_IDS, PILLARS } from './context-pack.mjs';
+import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -130,7 +131,7 @@ function sendJson(res, code, obj, { cors = true } = {}) {
 export function createServer({
   repoRoot = path.resolve(new URL('../../..', import.meta.url).pathname),
   mooDir = MOO_DIR,
-  device = 'mac-mini',
+  device = deviceName(),
   fetchImpl = fetch,
 } = {}) {
   const stopFile = path.join(mooDir, 'STOP');
@@ -161,6 +162,8 @@ export function createServer({
         loadedModels(fetchImpl),
         buildAlignment({ repoRoot }).catch(() => null),
       ]);
+      const where = beaconDir();
+      const fleet = readBeacons({ ...where, selfDevice: device });
       return sendJson(
         res,
         200,
@@ -173,6 +176,7 @@ export function createServer({
           engineAlive: alive,
           loadedModels: models,
           alignment,
+          fleet,
         }),
       );
     }

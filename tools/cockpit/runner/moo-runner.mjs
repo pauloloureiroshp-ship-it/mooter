@@ -19,6 +19,10 @@ import path from 'node:path';
 import os from 'node:os';
 import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
 import { PILLAR_IDS } from './context-pack.mjs';
+import { buildFleetState } from './fleet-state.mjs';
+import { sampleGpu } from './gpu-sampler.mjs';
+import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
+import { buildAlignment } from './alignment.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
@@ -107,6 +111,42 @@ function appendReceipt(receipt) {
   fs.appendFileSync(LEDGER, `${JSON.stringify(receipt)}\n`);
 }
 
+/**
+ * Publishes this device's beacon so other machines' cockpits can see it. The
+ * loop is the right writer because it is the thing that actually works — an
+ * endpoint that is up while the loop is dead must not keep the beacon warm.
+ * Failures are logged once and never block a round.
+ */
+let beaconWarned = false;
+async function publishBeacon() {
+  try {
+    const [gpu, alignment] = await Promise.all([
+      sampleGpu(),
+      buildAlignment({ repoRoot: REPO_ROOT }).catch(() => null),
+    ]);
+    const state = buildFleetState({
+      device: deviceName(),
+      ledgerPath: LEDGER,
+      statePath: STATE,
+      stopFile: STOP_FILE,
+      gpu,
+      alignment,
+      engineAlive: true,
+    });
+    const where = beaconDir();
+    const res = writeBeacon(state, where);
+    if (!res.ok && !beaconWarned) {
+      beaconWarned = true;
+      log(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);
+    }
+  } catch (err) {
+    if (!beaconWarned) {
+      beaconWarned = true;
+      log(`beacon falhou: ${String(err && err.message).slice(0, 100)}`);
+    }
+  }
+}
+
 async function main() {
   const args = new Set(process.argv.slice(2));
   assertHome();
@@ -150,7 +190,7 @@ async function main() {
     fs.writeFileSync(
       STATE,
       JSON.stringify({
-        device: process.env.MOOTER_DEVICE || 'mac-mini',
+        device: deviceName(),
         pilar_atual: pillar,
         foco: focus,
         modelo: DEFAULT_MODEL,
@@ -187,6 +227,7 @@ async function main() {
     appendReceipt(receipt);
     i += 1;
     writeCursor(i);
+    await publishBeacon();
     log(
       `${pillar} ${receipt.verdict} · ${receipt.dur_s}s · ${receipt.tokens_out} tok · $0 · ` +
         `${String(receipt.evidencia).slice(0, 90)}`,

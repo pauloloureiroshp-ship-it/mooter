@@ -24,6 +24,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { HOST, PORT } from './f10-server.mjs';
+import { deviceName } from './fleet-beacon.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO = path.resolve(HERE, '..', '..', '..');
@@ -36,14 +37,9 @@ const OLLAMA_PORT = 11434;
 const say = (s) => process.stdout.write(`${s}\n`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** The device name the whole cockpit is keyed on. */
-export function deviceName() {
-  return (
-    process.env.MOOTER_DEVICE ||
-    os.hostname().replace(/\.local$/i, '').toLowerCase() ||
-    'device-sem-nome'
-  );
-}
+// A identidade vive em fleet-beacon.mjs e só lá. Reexportada por conveniência,
+// nunca re-derivada: foi exactamente a segunda derivação que partiu a frota.
+export { deviceName } from './fleet-beacon.mjs';
 
 /** A port check that answers in milliseconds and never throws. */
 export function portOpen(port, host = '127.0.0.1', timeoutMs = 700) {

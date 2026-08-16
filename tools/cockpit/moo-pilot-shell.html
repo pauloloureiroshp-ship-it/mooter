@@ -104,6 +104,18 @@
   .box.ok b{color:var(--ok)} .box.bad b{color:var(--bad)}
   .box.warn b{color:var(--warn)} .box.dead b{color:var(--dead)}
 
+  /* fleet ----------------------------------------------------------------- */
+  .fleet{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+  .dev{padding:11px 13px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2)}
+  .dev.self{border-color:var(--accent)}
+  /* Outro device nunca se pinta com a mesma confianca do que esta a nossa frente. */
+  .dev:not(.self){opacity:.94}
+  .dev.morto{opacity:.5;filter:grayscale(1)}
+  .dev .hd{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .dev .nm{font:600 13.5px var(--sans);flex:1 1 auto;overflow-wrap:anywhere}
+  .dev .meta{font-size:12px;color:var(--ink-2);line-height:1.5}
+  .dev .meta b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+
   /* pillars --------------------------------------------------------------- */
   .pillars{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(272px,1fr))}
   .pillar{padding:13px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);
@@ -186,6 +198,12 @@
         que não existe. <b>sem veredicto</b> = recibos antigos, de antes deste verificador.
       </p>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>A frota — todos os devices, cada um com a sua idade</h2>
+    <div class="fleet" id="fleet"></div>
+    <p class="note" id="fleet-note"></p>
   </div>
 
   <div class="card vouched">
@@ -439,6 +457,7 @@
 
     if (changed('gpu', [state.gpu, spark.length, spark[spark.length-1]])) renderGpu(state.gpu || {});
     if (changed('tally', state.recibos))   renderTally(state.recibos || {});
+    if (changed('fleet', [state.frota, state.device])) renderFleet(state);
     if (changed('pillars', [state.pilares, state.pilar_atual, state.foco, CATALOGO, live, busy])) renderPillars(state, live);
     if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados])) renderEngine(state);
     if (changed('align', state.projeto))   renderAlign(state.projeto);
@@ -476,6 +495,58 @@
     $('spark-fill').setAttribute('d', `M0,${H}L${pts.join('L')}L${W},${H}Z`);
     const avg = Math.round(spark.reduce((a,b)=>a+b,0) / spark.length);
     $('spark-sub').textContent = `${spark.length} amostras nesta sessão do painel · média ${avg}%`;
+  }
+
+  /**
+   * A frota. Um device que nunca escreveu beacon não aparece como "parado" —
+   * aparece como não visto, que é uma afirmação diferente e mais honesta.
+   * Nenhuma linha de outro device usa o mesmo verde do device local: a frescura
+   * deles vale o que o sync do vault valer, e isso vai escrito por baixo.
+   */
+  function renderFleet(s) {
+    const wrap = $('fleet'); wrap.replaceChildren();
+    const f = s.frota;
+    if (!f) {
+      wrap.appendChild(el('div','dev',''))
+        .appendChild(el('span','nd','não foi possível ler a frota'));
+      $('fleet-note').textContent = '';
+      return;
+    }
+    const devices = f.frota || [];
+    if (!devices.length) {
+      const box = el('div','dev');
+      box.appendChild(el('span','nd','nenhum beacon encontrado — nem sequer o deste device'));
+      wrap.appendChild(box);
+    }
+    for (const d of devices) {
+      const fr = d.frescura || {};
+      const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' ? ' morto' : ''}`);
+      const hd = el('div','hd');
+      hd.appendChild(el('span','nm', d.device + (d.self ? ' · este' : '')));
+      const cls = fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
+                : fr.estado === 'stale' ? 'warn' : 'dead';
+      hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
+        fr.estado === 'vivo' ? (d.running ? `há ${ago(fr.idade_s)}` : 'parado')
+                             : (fr.motivo || fr.estado)));
+      box.appendChild(hd);
+
+      const meta = el('div','meta');
+      const gpu = typeof d.gpu_pct === 'number' ? `${d.gpu_pct}%` : 'n/d';
+      meta.append(document.createTextNode('GPU '));
+      meta.appendChild(typeof d.gpu_pct === 'number' ? el('b',null,gpu) : el('span','nd','n/d'));
+      meta.append(document.createTextNode(` · ${d.gpu_fonte || 'n/d'} · ${d.plataforma || 'n/d'}`));
+      meta.appendChild(el('br'));
+      const r = d.recibos;
+      if (r) {
+        meta.append(document.createTextNode('citação-ok '));
+        meta.appendChild(el('b',null,String(r.citacao_ok ?? '?')));
+        meta.append(document.createTextNode(` de ${r.total ?? '?'} · refutado ${r.refutado ?? '?'}`));
+      } else meta.appendChild(el('span','nd','sem contagem de recibos'));
+      if (d.branch) { meta.appendChild(el('br')); meta.append(document.createTextNode(`branch ${d.branch}`)); }
+      box.appendChild(meta);
+      wrap.appendChild(box);
+    }
+    $('fleet-note').textContent = f.aviso || '';
   }
 
   function renderTally(r) {

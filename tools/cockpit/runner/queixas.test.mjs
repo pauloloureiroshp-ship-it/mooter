@@ -49,8 +49,34 @@ test('q03 · há progresso visível e movimento, com respeito por reduced-motion
 });
 
 // ── 4 · cross-device em tempo real ───────────────────────────────────────────
-test('q04 · a frota inteira (Mac + 4090) visível em cada painel', { todo: 'F7 — só existe este device; o painel mostra UM device, não a frota' }, () => {
-  assert.match(read(SHELL), /frota|devices/i);
+test('q04 · a frota inteira visível em cada painel, cada device com a sua idade', () => {
+  const shell = read(SHELL);
+  assert.match(shell, /renderFleet/, 'o painel tem de desenhar a frota');
+  assert.match(shell, /state\.frota/, 'e consumir o campo do payload');
+  assert.match(shell, /d\.self/, 'tem de distinguir este device dos outros');
+
+  const beacon = read(`${RUNNER}/fleet-beacon.mjs`);
+  assert.match(beacon, /export function writeBeacon/, 'cada device tem de se anunciar');
+  assert.match(beacon, /export function readBeacons/, 'e ler os outros');
+  assert.match(beacon, /beaconFreshness/, 'com idade própria por device');
+
+  // O ponto que separa isto de um mural decorativo: um device que parou de
+  // sincronizar tem de escurecer, e a página tem de dizer que a frescura dos
+  // outros vale o que o sync valer.
+  assert.match(beacon, /vale o que o sync do vault valer/);
+  assert.match(shell, /\.dev\.morto\{opacity/, 'device morto tem de ser visivelmente demovido');
+
+  // E o 4090 tem de conseguir medir a sua GPU, senão aparece sempre a n/d.
+  assert.match(read(`${RUNNER}/gpu-sampler.mjs`), /nvidia-smi/, 'sem amostrador NVIDIA não há 4090');
+  assert.ok(exists('moo-runner.cmd'), 'o Windows precisa do seu shim');
+});
+
+test('q04b · nenhum device remoto é conduzido a partir daqui — só lido', () => {
+  // A alternativa óbvia (endpoint a ouvir na LAN) seria um kill-switch remoto.
+  // Os beacons são ficheiros: escrita local, leitura local, zero portas abertas.
+  const beacon = read(`${RUNNER}/fleet-beacon.mjs`);
+  assert.ok(!/fetch\(|http:|createServer/.test(beacon), 'beacons não falam pela rede');
+  assert.match(read(`${RUNNER}/f10-server.mjs`), /HOST = '127\.0\.0\.1'/, 'o endpoint fica em loopback');
 });
 
 // ── 5 · GPU% durante o play ──────────────────────────────────────────────────
@@ -113,11 +139,23 @@ test('q11 · GPU% é utilização, e o painel não a confunde com valor entregue
 
 // ── 12 · features bem distribuídos ───────────────────────────────────────────
 test('q12 · a lógica está distribuída por módulos testáveis, não num monólito', () => {
-  const modulos = ['context-pack', 'evidence-verifier', 'runner-core', 'fleet-state', 'gpu-sampler', 'alignment', 'f10-server', 'moo-runner'];
+  const modulos = ['context-pack', 'evidence-verifier', 'runner-core', 'fleet-state',
+                   'gpu-sampler', 'alignment', 'f10-server', 'moo-runner', 'fleet-beacon',
+                   'autostart', 'launch'];
   for (const m of modulos) assert.ok(exists(`${RUNNER}/${m}.mjs`), `falta ${m}.mjs`);
-  const shim = read('moo-runner.command');
-  assert.ok(shim.split('\n').length < 45, 'o .command tem de ser um shim fino');
-  assert.match(shim, /SHIM FINO/, 'e declará-lo');
+  for (const shimPath of ['moo-runner.command', 'moo-runner.cmd']) {
+    const shim = read(shimPath);
+    assert.ok(shim.split('\n').length < 60, `${shimPath} tem de continuar um shim fino`);
+    // Sem comentários: os shims EXPLICAM as garantias do código canónico, e
+    // nomeá-las num comentário não é implementá-las.
+    const code = shim
+      .split('\n')
+      .filter((l) => !/^\s*(#|REM\b|::)/i.test(l))
+      .join('\n');
+    assert.ok(!/verifyEvidence|assertLocalEngine|api\/generate/.test(code),
+              `${shimPath} nao pode conter logica — ela vive no repo, com testes`);
+  }
+  assert.match(read('moo-runner.command'), /SHIM FINO/, 'e declará-lo');
 });
 
 // ── 13 · research de repos públicos ──────────────────────────────────────────

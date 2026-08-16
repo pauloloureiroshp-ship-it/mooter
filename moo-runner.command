@@ -33,5 +33,12 @@ else
   echo "[moo-runner] endpoint F10 no ar (PID $!) em 127.0.0.1:4290."
 fi
 
-# `--play` levanta um STOP anterior: o duplo-clique É o gesto do dono.
+# `--play` levanta um STOP anterior, porque um duplo-clique É o gesto do dono.
+# Um agendador não é gesto nenhum: se o LaunchAgent ou o Task Scheduler
+# chamassem este ficheiro, o STOP deixaria de sobreviver a um reboot. Daí a
+# guarda — e daí o autostart.mjs invocar o runner directamente.
+if [ "${MOOTER_AUTOSTART:-}" = "1" ]; then
+  echo "[moo-runner] arranque automatico — nao levanto o STOP (o ▶ e do dono)."
+  exec node "$RUNNER" "$@"
+fi
 exec node "$RUNNER" --play "$@"

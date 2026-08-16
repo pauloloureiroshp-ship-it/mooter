@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import { buildContextPack, PILLAR_IDS } from './context-pack.mjs';
 import { verifyEvidence, VERDICT } from './evidence-verifier.mjs';
+import { deviceName } from './fleet-beacon.mjs';
 
 export const DEFAULT_OLLAMA = 'http://127.0.0.1:11434';
 export const DEFAULT_MODEL = 'qwen2.5-coder:14b';
@@ -113,7 +114,7 @@ export async function runRound({
 
   const receiptBase = () => ({
     ts: nowIso(clock),
-    device: process.env.MOOTER_DEVICE || 'mac-mini',
+    device: deviceName(),
     pilar: pillar,
     modelo: model,
     usd: 0,

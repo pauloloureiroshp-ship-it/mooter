@@ -171,10 +171,11 @@ test('parseIoreg devolve n/d em vez de zero quando nao ha amostra', () => {
   assert.equal(g.fonte, 'n/d');
 });
 
-test('sampleGpu fora do macOS diz porque nao mediu', async () => {
-  const g = await sampleGpu({ platform: 'win32', runImpl: async () => assert.fail('nao corre') });
+test('numa plataforma sem amostrador conhecido diz porque nao mediu', async () => {
+  // win32/linux passaram a ter caminho (nvidia-smi) — ver fleet-beacon.test.mjs.
+  const g = await sampleGpu({ platform: 'aix', runImpl: async () => assert.fail('nao corre') });
   assert.equal(g.util_pct, null);
-  assert.match(g.motivo, /sem amostrador para win32/);
+  assert.match(g.motivo, /sem amostrador para aix/);
 });
 
 test('sampleGpu com ioreg em falha nao inventa numero', async () => {

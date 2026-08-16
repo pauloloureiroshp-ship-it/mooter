@@ -59,25 +59,62 @@ export function parseIoreg(text) {
  * reason rather than pretending zero, so a Windows/Linux device is visibly
  * unmeasured instead of visibly idle.
  */
+/**
+ * NVIDIA path (Windows / Linux). `nvidia-smi` is the only sampler here that
+ * needs no driver SDK and no elevation, which matters because the RTX 4090 box
+ * must be able to report without a privileged install.
+ *
+ * Multi-GPU: the busiest card wins the headline number and the count travels,
+ * so a 2-GPU box is never silently reported as if it had one.
+ */
+export function parseNvidiaSmi(text) {
+  if (!text) return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d' };
+  const cards = [];
+  for (const line of String(text).trim().split('\n')) {
+    const parts = line.split(',').map((s) => s.trim());
+    if (parts.length < 3) continue;
+    const [util, used, total] = parts.map((n) => Number(n));
+    if (!Number.isFinite(util) || !Number.isFinite(used) || !Number.isFinite(total)) continue;
+    cards.push({ util, usedGb: used / 1024, totalGb: total / 1024 });
+  }
+  if (cards.length === 0) {
+    return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
+             motivo: 'nvidia-smi sem linhas legiveis' };
+  }
+  const hottest = cards.reduce((a, b) => (b.util > a.util ? b : a));
+  return {
+    util_pct: Math.round(hottest.util),
+    vram_inuse_gb: Math.round(hottest.usedGb * 100) / 100,
+    vram_alloc_gb: Math.round(hottest.totalGb * 100) / 100,
+    fonte: 'nvidia-smi',
+    gpus: cards.length,
+  };
+}
+
+const NVIDIA_ARGS = [
+  '--query-gpu=utilization.gpu,memory.used,memory.total',
+  '--format=csv,noheader,nounits',
+];
+
 export async function sampleGpu({ runImpl = run, platform = os.platform() } = {}) {
-  if (platform !== 'darwin') {
-    return {
-      util_pct: null,
-      vram_inuse_gb: null,
-      vram_alloc_gb: null,
-      fonte: 'n/d',
-      motivo: `sem amostrador para ${platform}`,
-    };
+  if (platform === 'darwin') {
+    const out = await runImpl('ioreg', ['-r', '-d', '1', '-c', 'IOAccelerator'], IOREG_TIMEOUT_MS);
+    return out === null
+      ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
+          motivo: 'ioreg falhou ou expirou' }
+      : parseIoreg(out);
   }
-  const out = await runImpl('ioreg', ['-r', '-d', '1', '-c', 'IOAccelerator'], IOREG_TIMEOUT_MS);
-  if (out === null) {
-    return {
-      util_pct: null,
-      vram_inuse_gb: null,
-      vram_alloc_gb: null,
-      fonte: 'n/d',
-      motivo: 'ioreg falhou ou expirou',
-    };
+
+  if (platform === 'win32' || platform === 'linux') {
+    const out = await runImpl('nvidia-smi', NVIDIA_ARGS, IOREG_TIMEOUT_MS);
+    return out === null
+      ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
+          motivo: 'nvidia-smi ausente ou sem resposta (GPU nao-NVIDIA?)' }
+      : parseNvidiaSmi(out);
   }
-  return parseIoreg(out);
+
+  return {
+    util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
+    motivo: `sem amostrador para ${platform}`,
+  };
 }
