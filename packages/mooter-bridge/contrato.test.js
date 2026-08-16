@@ -44,9 +44,12 @@ const { EventEmitter } = require('node:events');
  * Este ficheiro era o ÚNICO do pacote que despachava sem isolamento nenhum, e
  * isso custou caro de três maneiras, todas medidas:
  *
- *  1. Escrevia no ledger REAL do dono. Contados 497 eventos `wave:"contrato-test"`
- *     em `~/.mooter/ledger.jsonl`, 96 dispatches, 473 jobs na GPU dele e 24
- *     eventos `agent:"cc"` — o CLI pago, lançado por K8 a sério.
+ *  1. Escrevia no ledger REAL do dono. Contados em `~/.mooter/ledger.jsonl`,
+ *     wave `contrato-test`: 497 EVENTOS, que são **96 jobs únicos** — 92 `moo`
+ *     na GPU dele e 4 `cc`, o CLI pago, lançado por K8 a sério.
+ *     (Um job escreve vários eventos; contar eventos como se fossem jobs
+ *      multiplica o número por ~5. Este comentário já disse "473 jobs" e era
+ *      falso — apanhado pelo G4.)
  *  2. PENDURAVA a suite completa. `toolDispatch` devolve imediatamente
  *     (`seamless.js:2586`), mas o socket do Ollama e os processos-filho ficam
  *     ref'd no event loop; com `--test-timeout=0` e o watchdog de 30 min
@@ -69,6 +72,12 @@ process.env.MOOTER_REPO = WT;
 // porta morta: apagar a variável não isola nada — o código cai para
 // 127.0.0.1:11434, que na máquina do dono TEM um daemon a responder.
 process.env.OLLAMA_HOST = '127.0.0.1:1';
+// ⚠️ `MOOTER_HOME` NÃO cobre tudo: `escreverSinalDeQualidade` (seamless.js:434)
+// escreve em `os.homedir()/.claude/tools/router/decisions.log`, o log real do
+// router, e tem override PRÓPRIO. Os K actuais não alcançam esse ramo (é
+// read-only), mas dizer "sandbox" sem fechar isto seria falso — e a afirmação
+// tem de valer para quem acrescentar um teste de escrita amanhã. Apanhado pelo G4.
+process.env.MOOTER_DECISIONS_LOG = path.join(HOME, 'decisions.log');
 
 const seam = require('./seamless.js');
 
@@ -89,13 +98,20 @@ seam.setJobSpawner((cmd, cwd, out) => {
  * Espera pelo FACTO (a worktree ficar livre), com tecto — nunca por tempo fixo.
  * Sem isto, K4/K7/K8 disputam o WIP guard entre si e o segundo é recusado.
  */
-async function livre(maxMs) {
+async function livre(ondeE, maxMs) {
   const fim = Date.now() + (maxMs || 8000);
   for (;;) {
     let n = 0;
     try { n = (seam.activeJobsByWorktree(WT) || []).length; } catch { n = 0; }
-    if (!n) return true;
-    if (Date.now() > fim) return false;
+    if (!n) return;
+    // ⚠️ Estourar o tecto FALHA o teste, não devolve `false` em silêncio.
+    // A primeira versão devolvia um booleano que nenhum chamador lia: se o
+    // último `close` não chegasse, o job ficava vivo, o teste seguinte era
+    // recusado pelo WIP guard — e ficava verde a vazio, que é exactamente o
+    // defeito que este ficheiro veio corrigir. Apanhado pelo G4.
+    assert.ok(Date.now() <= fim,
+      'a worktree não ficou livre em ' + (maxMs || 8000) + 'ms antes de ' + ondeE
+      + ' — há um job que não drenou, e o próximo dispatch seria recusado pelo guard');
     await new Promise((r) => setTimeout(r, 25));
   }
 }
@@ -179,7 +195,7 @@ test('K4 — REGRESSÃO: o contrato lê o PEDIDO, não o masterprompt', async ()
    * que ele é na vida real. O goal não pede leitura nenhuma. Se o contrato
    * recusar isto, voltou a analisar o texto errado.
    */
-  await livre();
+  await livre('K4');
   const r = await seam.toolDispatch(dispatchArgs({
     __goal: 'Resume em duas frases a ideia principal',
   }));
@@ -187,7 +203,7 @@ test('K4 — REGRESSÃO: o contrato lê o PEDIDO, não o masterprompt', async ()
   assert.notEqual(r && r.erro, 'capacidade_incompativel',
     'REGRESSÃO: o contrato voltou a avaliar o masterprompt em vez do goal — '
     + 'isto bloqueia TODO o trabalho local, que é o diferencial do produto');
-  await livre();
+  await livre('fim de K4');
 });
 
 /**
@@ -219,7 +235,7 @@ test('K6 — a recusa nomeia o ficheiro pedido e a capacidade real do motor', ()
 });
 
 test('K7 — com contexto já injectado, o mesmo pedido PASSA', async () => {
-  await livre();
+  await livre('K7');
   const r = await seam.toolDispatch(dispatchArgs({
     __goal: 'Lê packages/mooter-bridge/worktrees.js e diz se valida frescura',
     masterprompt: MP_REAL + '\n## FICHEIROS REAIS (lidos do disco pelo Mooter, não inventados)\n<conteúdo>',
@@ -227,12 +243,12 @@ test('K7 — com contexto já injectado, o mesmo pedido PASSA', async () => {
   exerceuMesmo(r, 'K7');
   assert.notEqual(r && r.erro, 'capacidade_incompativel',
     'se o conector já injectou os ficheiros, o motor tem olhos e o contrato não tem nada a dizer');
-  await livre();
+  await livre('fim de K7');
 });
 
 test('K8 — motores COM ferramentas nunca são travados por este contrato', async () => {
   for (const agent of ['cc', 'codex']) {
-    await livre();
+    await livre('K8/' + agent);
     const r = await seam.toolDispatch(dispatchArgs({
       agent,
       __goal: 'Lê packages/mooter-bridge/worktrees.js e diz se valida frescura',
@@ -241,7 +257,7 @@ test('K8 — motores COM ferramentas nunca são travados por este contrato', asy
     exerceuMesmo(r, 'K8/' + agent);
     assert.notEqual(r && r.erro, 'capacidade_incompativel',
       agent + ' tem ferramentas de leitura próprias — travá-lo seria um falso positivo');
-    await livre();
+    await livre('fim de K8/' + agent);
   }
 });
 

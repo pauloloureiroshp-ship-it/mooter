@@ -59,3 +59,20 @@ mesma worktree e o guard serializa-os. Com a GPU saturada:
      (realSpawnJob, seamless.js:839-848)
 E esse CLI real que corre minutos e produz a linha do «posso» — assinatura de
 um agente de CLI, nao de um modelo local.
+
+--- 7. CORRECCAO DE UNIDADE (apanhada pelo G4, 2026-08-16) ---
+A seccao 2 conta EVENTOS. Em varios sitios chamei-lhes "jobs", e isso e falso:
+um job escreve varios eventos, logo o numero fica ~5x inflacionado.
+
+Os numeros por UNIDADE, medidos:
+  eventos "wave":"contrato-test"  : 497
+  JOBS unicos (job_id distintos)  :  96   <- e este o numero de jobs
+    dos quais agent moo           :  92
+    dos quais agent cc (CLI pago) :   4
+  eventos com agent moo           : 473   <- eventos, NAO jobs
+  eventos com agent cc            :  25   <- eventos, NAO jobs
+  dispatches                      :  96   (bate com os 96 jobs unicos)
+
+O que NAO muda com a correccao: o teste escrevia mesmo no ledger de producao,
+e lancou mesmo 4 jobs do CLI pago. O que muda e a escala do numero moo:
+92 jobs, nao 473.
