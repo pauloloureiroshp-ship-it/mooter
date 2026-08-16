@@ -1,0 +1,53 @@
+
+onda A — um teste por achado
+  ok  A1 · await com 600s responde em 4s e manda voltar
+[mooter-seamless] ETA A1-vivo: não consegui ler a metadata do job: ENOENT: no such file or directory, open 'C:\Users\PAULOL~1\AppData\Local\Temp\mooter-A-Bf18jR\jobs\A1-vivo\meta.json'
+[mooter-seamless] job job-msve75hd-508f entregou resultado sem telemetria — tokens n/d, mas o job correu
+  ok  A2 · pid do trabalho no ledger e órfão só com pid verificado
+[mooter-seamless] o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em 127.0.0.1:1 — passei para o Claude Code
+  FAIL A3
+       despachou leitura sem contexto nenhum
++ actual - expected
+
++ undefined
+- 'sem_contexto_para_o_local'
+
+[mooter-seamless] job job-msve76cl-f50b entregou resultado sem telemetria — tokens n/d, mas o job correu
+[mooter-seamless] o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em 127.0.0.1:1 — passei para o Claude Code
+  FAIL A3b
+       não leu o ficheiro pelo modelo local
++ actual - expected
+
++ null
+- [
+-   'alvo.js'
+- ]
+
+[mooter-seamless] job job-msve76i3-3492 entregou resultado sem telemetria — tokens n/d, mas o job correu
+  ok  A4 · tier_motor deriva do que correu, não do que se pediu
+  ok  A4b · work devolve tier_pedido e tier_motor, nunca `tier`
+[mooter-seamless] job job-msve76nr-5a4b entregou resultado sem telemetria — tokens n/d, mas o job correu
+  ok  A5 · picker recusa %TEMP%, detached e pastas sem os ficheiros
+  ok  A5b · worktree_pedida/usada/relocated vêm sempre
+  ok  A7 · passo cujo job terminou deixa de estar a-correr
+  ok  A7b · passo sem job_id volta a pendente
+  ok  A8 · título sem caminho de máquina ("job Mooter")
+
+9 testes da onda A — COM FALHAS
+
+[mooter-seamless] job job-msve76u9-ad46 entregou resultado sem telemetria — tokens n/d, mas o job correu
+✖ ondaA.test.js (6689.4805ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6694.156
+
+✖ failing tests:
+
+test at ondaA.test.js:1:1
+✖ ondaA.test.js (6689.4805ms)
+  'test failed'
