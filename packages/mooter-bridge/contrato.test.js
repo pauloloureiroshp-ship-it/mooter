@@ -27,8 +27,17 @@
  *
  * A LIÇÃO: um guarda tem duas maneiras de falhar. Deixar passar o que devia
  * travar, e travar o que devia passar. A segunda é mais difícil de ver, porque
- * parece rigor. Por isso metade destes testes verifica que o contrato RECUSA, e
- * a outra metade que ele DEIXA PASSAR.
+ * parece rigor. Por isso estes testes cobrem os dois lados.
+ *
+ * ⚠️ Este parágrafo dizia "metade... e a outra metade", e era falso — apanhado
+ * pelo G4 #4. A contagem real, de dez testes:
+ *   DEIXA PASSAR (integrado) : K4, K7, K8
+ *   RECUSA (integrado)       : K10          <- só existiu a partir de 2026-08-16
+ *   RECUSA (unitário)        : K5, K6        (chamam o helper, não o dispatch)
+ *   o matcher, isolado       : K1, K2, K3
+ *   preparação               : K9
+ * A recusa integrada para o `kimi` — o outro motor de `ENGINES_SEM_FICHEIROS` —
+ * vive em `seamless.test.js:217`, e já existia. O que faltava era o `moo`.
  */
 
 const test = require('node:test');
@@ -49,7 +58,8 @@ const { EventEmitter } = require('node:events');
  *     Os números NÃO ficam aqui: `bash _handoff/contrato-sandbox/contar.sh`.
  *     Este comentário já pinou duas contagens diferentes e ambas apodreceram —
  *     o ledger é vivo, e um número sem data não é um facto, é uma memória.
- *     (Uma delas trocava EVENTOS por JOBS, inflacionando ~5x. G4 #1 e #3.)
+ *     (Uma delas trocava EVENTOS por JOBS. O `contar.sh` calcula o rácio real
+ *      entre os dois; nunca o afirma. G4 #1, #3 e #4.)
  *  2. PENDURAVA a suite completa. `toolDispatch` devolve imediatamente
  *     (`seamless.js:2586`), mas o socket do Ollama e os processos-filho ficam
  *     ref'd no event loop; com `--test-timeout=0` e o watchdog de 30 min
@@ -64,7 +74,21 @@ const { EventEmitter } = require('node:events');
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-contrato-'));
 const WT = path.join(HOME, 'repo');
 fs.mkdirSync(WT, { recursive: true });
-try { require('node:child_process').execFileSync('git', ['-C', WT, 'init', '-q'], { stdio: 'ignore' }); } catch { /* sem git, os testes deste ficheiro não precisam dele */ }
+// ⚠️ O `-C WT` NÃO protege: `GIT_DIR` no ambiente prevalece sobre ele. Medido em
+// 2026-08-16 — com GIT_DIR apontado para outra pasta, `git -C A init` criou o
+// repositório em B, não em A. Estas variáveis estão unset nesta máquina, mas um
+// sandbox que depende de uma variável estar por definir não é um sandbox.
+// O `guardCheck` EXIGE uma worktree git, portanto isto não é opcional: se o init
+// falhar, os testes que passam pelo dispatch são recusados pelo guard — e o
+// `exerceuMesmo` grita em vez de os deixar passar a verde vazio. Apanhado pelo G4 #4.
+const GIT_ENV_LIMPO = { ...process.env };
+for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_NAMESPACE',
+  'GIT_CEILING_DIRECTORIES']) delete GIT_ENV_LIMPO[k];
+try {
+  require('node:child_process').execFileSync('git', ['-C', WT, 'init', '-q'],
+    { stdio: 'ignore', env: GIT_ENV_LIMPO });
+} catch { /* o guard recusará, e o exerceuMesmo torna isso visível */ }
 process.env.MOOTER_HOME = HOME;
 process.env.MOOTER_LIB = '1';
 process.env.MOOTER_WORKTREE_ROOT = HOME;

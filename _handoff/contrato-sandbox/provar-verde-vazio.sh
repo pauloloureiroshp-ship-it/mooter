@@ -18,10 +18,21 @@
 #
 set -uo pipefail
 
-BR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../packages/mooter-bridge" && pwd)"
-BASE="$(mktemp -d)"
+# ⚠️ `BR` vazio não é apanhado por `cd "$BR"` — `cd ""` fica no cwd e o script
+# segue a escrever em sítios errados até falhar com uma mensagem sobre outra
+# coisa. Descoberto ao correr este script a partir do scratchpad: a mensagem que
+# saiu foi "não consegui copiar a versão antiga", que manda investigar o `cp`
+# quando o problema era a localização. Uma premissa não verificada mente sobre
+# qual premissa falhou.
+BR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../packages/mooter-bridge" 2>/dev/null && pwd)"
+[ -n "${BR:-}" ] && [ -d "$BR" ] \
+  || { echo "ABORTAR: não encontrei packages/mooter-bridge a partir de $(dirname "${BASH_SOURCE[0]}")"; exit 2; }
+[ -f "$BR/contrato.test.js" ] \
+  || { echo "ABORTAR: $BR não parece o pacote certo — falta contrato.test.js"; exit 2; }
+BASE="$(mktemp -d)" || { echo "ABORTAR: mktemp -d falhou — sem sítio para os artefactos"; exit 2; }
+[ -d "$BASE" ] || { echo "ABORTAR: o temp devolvido por mktemp não existe"; exit 2; }
 ANTIGO="$BASE/contrato-antigo.test.js"
-cd "$BR" || { echo "ABORTAR: não encontrei packages/mooter-bridge"; exit 2; }
+cd "$BR" || { echo "ABORTAR: não consegui entrar em $BR"; exit 2; }
 
 # A versão pré-correcção. `main` tem-na; se um dia deixar de ter, o script
 # aborta em vez de medir a versão errada e chamar-lhe prova.
@@ -32,8 +43,19 @@ if grep -q "process.env.MOOTER_HOME" "$ANTIGO"; then
   echo "         (é isto que tornava a v1 deste script tautológica)"
   exit 2
 fi
-cp "$ANTIGO" "$BR/.contrato-antigo.test.js"
+# ⚠️ Um SIGKILL numa corrida anterior deixa `.contrato-antigo.test.js` para tras
+# (o trap nao corre). Se o `cp` seguinte falhar em silencio — e `set -e` NAO esta
+# ligado — A e B correriam esse ficheiro velho e o script atribuiria o resultado
+# ao `git show main`. Apaga-se primeiro, copia-se depois, e verifica-se as duas
+# coisas. Apanhado pelo G4 #4.
+rm -f "$BR/.contrato-antigo.test.js"
+cp "$ANTIGO" "$BR/.contrato-antigo.test.js"   || { echo "ABORTAR: nao consegui copiar a versao antiga para o pacote"; exit 2; }
 trap 'rm -f "$BR/.contrato-antigo.test.js"' EXIT
+[ -s "$BR/.contrato-antigo.test.js" ]   || { echo "ABORTAR: a copia da versao antiga ficou vazia"; exit 2; }
+if ! cmp -s "$ANTIGO" "$BR/.contrato-antigo.test.js"; then
+  echo "ABORTAR: a copia nao bate com o que saiu do git — nao corro um ficheiro que nao reconheco"
+  exit 2
+fi
 
 corre() {  # $1=MOOTER_HOME  $2=ficheiro  -> ecoa "verdes|falhas|dispatches"
   local home="$1"
@@ -76,9 +98,16 @@ echo "=== VERSÃO ACTUAL (HEAD): já não toca em ledger nenhum de fora ==="
 # nada — foi essa confusão que tornou a v1 deste script tautológica.
 # O que se pode verificar, e é o que interessa: correr o HEAD não escreve
 # UMA linha no ledger que lhe pomos à frente.
-HC="$BASE/c"; mkdir -p "$HC"; : > "$HC/ledger.jsonl"
+# ⚠️ "zero escritas" so significa alguma coisa se o observador EXISTIR. Sem estas
+# verificacoes, um mkdir falhado ou um ledger inexistente davam `wc || echo 0` =>
+# 0 => "isolado", declarando isolamento sem nunca ter observado nada. G4 #4.
+HC="$BASE/c"
+mkdir -p "$HC" || { echo "ABORTAR: nao consegui criar o sandbox do observador"; exit 2; }
+: > "$HC/ledger.jsonl" || { echo "ABORTAR: nao consegui criar o ledger-observador"; exit 2; }
+[ -f "$HC/ledger.jsonl" ] || { echo "ABORTAR: o ledger-observador nao existe depois de o criar"; exit 2; }
 C=$(corre "$HC" "contrato.test.js")
-LINHAS_C=$(wc -l < "$HC/ledger.jsonl" 2>/dev/null || echo 0)
+[ -f "$HC/ledger.jsonl" ]   || { echo "ABORTAR: o ledger-observador desapareceu durante a corrida — nada foi observado"; exit 2; }
+LINHAS_C=$(wc -l < "$HC/ledger.jsonl")
 echo "  HEAD -> ${C%%|*} verdes, $(echo "$C" | cut -d'|' -f2) falhas"
 echo "  linhas escritas no ledger que lhe demos: $LINHAS_C  (0 = isolado)"
 

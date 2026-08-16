@@ -5,7 +5,8 @@
 # ⚠️ Existe porque a mesma classe de erro apareceu TRÊS vezes: números do ledger
 # pinados em documentos, que apodrecem porque o ledger é vivo. Contados em
 # sítios diferentes e momentos diferentes, ficaram incoerentes entre si e com a
-# realidade — e um deles trocou eventos por jobs, inflacionando ~5x.
+# realidade — e um deles trocou eventos por jobs (o racio real entre os dois
+# e calculado no fim desta saida, nunca afirmado aqui).
 #
 # Regra desta frente, a partir daqui: NENHUM documento pina uma contagem do
 # ledger. Ou aponta para este script, ou apresenta um snapshot com data e a
@@ -53,4 +54,13 @@ fi
 if [ "$jobs" -ne "$disp" ]; then
   echo "  nota: jobs únicos ($jobs) != dispatches ($disp) — esperado que batam."
 fi
-echo "EVENTOS != JOBS. Um job escreve vários eventos; trocá-los infla o número ~5x."
+# ⚠️ O racio e CALCULADO, nunca afirmado. Este script ja teve "~5x" escrito a mao
+# — uma afirmacao corrente pinada, exactamente o que ele existe para eliminar.
+# Apanhado pelo G4 #4.
+if [ "$jobs" -gt 0 ] 2>/dev/null; then
+  racio=$(awk -v e="$linhas" -v j="$jobs" 'BEGIN{ printf "%.1f", e/j }')
+  echo "EVENTOS != JOBS. Nesta wave, cada job escreveu ${racio} eventos em media:"
+  echo "  trocar uma contagem pela outra multiplica o numero por ${racio}."
+else
+  echo "EVENTOS != JOBS. Um job escreve varios eventos; trocá-los infla o numero."
+fi

@@ -36,7 +36,8 @@ bash _handoff/contrato-sandbox/contar.sh
 ```
 
 Esta frente já teve a mesma contagem escrita com três valores diferentes em
-cinco sítios, e um deles trocava EVENTOS por JOBS (inflaciona ~5x). Um número
+cinco sítios, e um deles trocava EVENTOS por JOBS — o `contar.sh` calcula o
+rácio real em vez de o afirmar. Um número
 de ledger pinado num documento apodrece: o ledger é vivo. O que fica aqui é a
 forma do problema, não o valor.
 
