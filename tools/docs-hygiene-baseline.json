@@ -1,8 +1,8 @@
 {
   "_comment": "Ratchet de higiene: estes números nunca podem SUBIR. Descer é bom e deve ser commitado com o baseline actualizado. Subir exige uma decisão humana explícita no commit. Ver tools/docs-hygiene.js.",
-  "medido_em": "2026-08-15T13:49:21.067Z",
+  "medido_em": "2026-08-16T02:45:43.365Z",
   "limites": {
-    "sync_lines": 3682,
+    "sync_lines": 606,
     "active_packets": 204,
     "top_level_handoff_files": 312,
     "untracked_active_packets": 0,

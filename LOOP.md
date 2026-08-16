@@ -434,6 +434,66 @@ anti-marketing-drift; atualizar o pin junto da copy aprovada, nunca afrouxar par
 
 ---
 
+### 2026-08-15-clone-raso-produziu-tres-premissas-falsas-em-canon
+
+**Contexto:** arranque da fase F0 de GPU-por-pilar. O masterprompt e o bloco 📥 do `SYNC.md`
+mandavam aterrar o `local-loop-runner` a partir de `feat/fleet-local-runner @ef51a37`, declarada
+"ausente neste clone Mac", com instrução de reconstruir da spec §11 se o fetch não a trouxesse.
+
+**Resultado observado:** as três premissas eram falsas, e a causa era a mesma. O clone
+`~/frugal` estava `--depth` (raso) com refspec de um só ramo
+(`+refs/heads/main:refs/remotes/origin/main`) e 135 commits atrás.
+(1) A branch **existe** — `1c06e5ae`, uma de 175 no servidor; `git fetch` não a trazia porque o
+refspec só pedia `main`. (2) O sha `ef51a37` **nunca existiu** — não é objecto git nem com o
+repo completo. (3) O runner **já estava em main** desde `1c0c077a`: `main` é superconjunto da
+branch, os 12 ficheiros lá estão, suite nativa 11/11 verde. O contador P8 idem — `board.js` já
+calculava `interrupcoes_por_dia` do ledger, com `n/d` honesto.
+
+**Porque é que isto importa mais do que parece:** o erro não estava no clone — estava no facto de
+o diagnóstico do clone ter sido escrito em canon como se fosse o estado do repositório. Uma
+sessão que confiasse no bloco teria reconstruído 1764 linhas que já existiam, e provavelmente
+teria aberto um PR a duplicar `packages/fleet-commander/`.
+
+**Regra mecânica que sai daqui:** `git branch -r` é a verdade do teu clone; `git ls-remote` é a
+verdade do servidor. Antes de reconstruir seja o que for a partir de uma spec, confrontar o
+segundo — e verificar `git rev-parse --is-shallow-repository` **antes** de concluir "não existe".
+Aplicado já: o workflow novo `docs-hygiene.yml` faz checkout com `fetch-depth: 0` por esta razão,
+com o porquê escrito no ficheiro.
+
+**Quem observou:** CC (Claude Code, Mac mini), sessão de 2026-08-15.
+
+**Status:** REGISTADO. Bloco do `SYNC.md` corrigido na mesma sessão.
+
+---
+
+### 2026-08-15-o-kill-switch-so-cumpria-a-meta-no-modelo-em-que-ninguem-trabalha
+
+**Contexto:** F3 — construir o STOP (`~/.mooter/stop.json`), que não existia em código nenhum
+(só citado nos masterprompts). Primeira implementação: gate verificado **entre turns** do loop,
+com meta declarada de <5s da queda do switch até a GPU ficar livre.
+
+**Resultado observado:** o drill com fila de 6 jobs deu **232ms com `qwen2.5:3b`** e
+**6327ms com `gpt-oss:20b`** — contra uma meta de 5000ms. Ou seja: passava no modelo mais
+pequeno e falhava exactamente no modelo em que um pilar corre de facto. O limite inferior nunca
+foi o gate; era o *turn* já em voo, que o gate entre-turns espera até ao fim por construção.
+
+**Correcção:** watcher a sondar o STOP **durante** a chamada (`peek()` sem efeitos colaterais +
+`AbortController` propagado ao fetch do Ollama). O **mesmo** `gpt-oss:20b` passou a **117ms** —
+54× melhor, meta cumprida com folga. Trancado num teste que falha se o loop voltar a esperar
+pelo turn.
+
+**Regra que sai daqui:** um kill-switch medido só com o modelo mais rápido é um kill-switch por
+medir. E a métrica publicável não é a latência do mecanismo (`t_refuse`), é o tempo até a GPU
+estar mesmo livre (`t_idle`) — o drill passou a reportar as duas em separado, precisamente para
+não se poder citar a bonita.
+
+**Quem observou:** CC, ao correr `_handoff/loop/stop-drill.mjs` (o drill é o artefacto, e fica
+no repo para se repetir por device).
+
+**Status:** REGISTADO e corrigido em `feat/f3-stop-killswitch`.
+
+---
+
 ## HIPÓTESE
 
 ### Sobre 2026-07-16-phase-a-gate-untracked-enganou-3-agentes
