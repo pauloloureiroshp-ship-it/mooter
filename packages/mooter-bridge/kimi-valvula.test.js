@@ -25,7 +25,8 @@ const ABRE = Object.freeze({
   escrita: false,
   categoria: 'outro',
   pedeLeitura: false,
-  contextoInjectado: false,
+  contextoInjectado: true,   // o veto 8 exige-o
+  allowedTools: null,
 });
 
 test('V0 — o caso base abre, senão os outros testes não provam nada', () => {
@@ -97,20 +98,46 @@ test('V6 — git_deploy e auditoria têm veto próprio', () => {
   assert.equal(valvulaKimi({ ...ABRE, categoria: 'outro' }).usar, true);
 });
 
-test('V7 — pede leitura sem contexto injectado: o contrato recusaria, logo não escolhemos', () => {
-  const r = valvulaKimi({ ...ABRE, pedeLeitura: true, contextoInjectado: false });
+test('V7 — allowedTools veta: o kimi tem permissões efectivas []', () => {
+  // G4 2026-08-16: a `escrita` sozinha não cobria isto. Um `Read,Bash` é
+  // read-only e passava — para um motor que não usa ferramenta nenhuma, e pago.
+  for (const t of ['Read,Bash', 'Read', 'Edit,Write', 'Glob,Grep']) {
+    const r = valvulaKimi({ ...ABRE, allowedTools: t });
+    assert.equal(r.usar, false, 'deixou passar allowedTools=' + t);
+    assert.match(r.porque, /ferramentas/);
+  }
+  // string vazia ou ausente não é um pedido de ferramentas
+  assert.equal(valvulaKimi({ ...ABRE, allowedTools: '' }).usar, true);
+  assert.equal(valvulaKimi({ ...ABRE, allowedTools: '   ' }).usar, true);
+});
+
+test('V8 — sem contexto injectado NÃO abre (decisão do dono)', () => {
+  // regra de CAPACIDADE: sem contexto o kimi só tem o goal. Note-se que NÃO é
+  // um veto de privacidade — quando o contexto existe é ele que viaja.
+  const r = valvulaKimi({ ...ABRE, contextoInjectado: false });
   assert.equal(r.usar, false);
-  assert.match(r.porque, /contrato de capacidade/);
+  assert.match(r.porque, /sem contexto injectado/);
+  assert.equal(valvulaKimi({ ...ABRE, contextoInjectado: undefined }).usar, false);
 });
 
-test('V7b — pede leitura MAS o conector já injectou: pode ir', () => {
-  const r = valvulaKimi({ ...ABRE, pedeLeitura: true, contextoInjectado: true });
+test('V8b — com contexto injectado, abre', () => {
+  assert.equal(valvulaKimi({ ...ABRE, contextoInjectado: true }).usar, true);
+});
+
+test('V-EGRESS — DÍVIDA CONHECIDA: um goal sobre segredos NÃO é vetado', () => {
+  // Este teste documenta um buraco aberto, não um comportamento desejado.
+  // Medido pelo G4 e reproduzido: `analisa credenciais em config.json` é
+  // T2/`outro`, passa todos os vetos, e com contexto injectado o CONTEÚDO do
+  // ficheiro segue para a Moonshot. O piso T3 não serve de substituto.
+  // Se alguém acrescentar o veto de privacidade, este teste falha — e é o
+  // sinal de que a dívida foi paga, não de uma regressão.
+  const r = valvulaKimi({ ...ABRE, contextoInjectado: true, categoria: 'outro', tier: 'T2' });
   assert.equal(r.usar, true,
-    'com o contexto injectado o kimi tem olhos, e travá-lo seria o falso positivo '
-    + 'que o contrato de capacidade foi desenhado para não cometer');
+    'se isto falhou, alguém acrescentou o veto de privacidade — actualiza o '
+    + 'comentário de dívida no fim de kimi-valvula.js e apaga este teste');
 });
 
-test('V8 — a ordem dos vetos: devolve o PRIMEIRO motivo, não um qualquer', () => {
+test('V11 — a ordem dos vetos: devolve o PRIMEIRO motivo, não um qualquer', () => {
   // quem pediu explicitamente E não tem chave: a mensagem útil é a primeira,
   // porque a segunda seria um detalhe de configuração que não vem ao caso
   const r = valvulaKimi({ ...ABRE, motorExplicito: true, temChave: false, tier: 'T3' });

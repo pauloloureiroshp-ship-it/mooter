@@ -52,7 +52,8 @@ const CATEGORIAS_VETADAS = new Set(['git_deploy', 'auditoria']);
  *   tier?: string,              // 'T0'..'T3' do classificador
  *   escrita?: boolean,          // o job pode escrever ficheiros?
  *   categoria?: string,         // categoria inferida do goal
- *   pedeLeitura?: boolean,      // o goal cita ficheiros?
+ *   allowedTools?: string,      // ferramentas pedidas — o kimi tem []
+ *   pedeLeitura?: boolean,      // o goal cita ficheiros? (informativo)
  *   contextoInjectado?: boolean // o conector já os leu e injectou?
  * }} f
  * @returns {{usar: boolean, porque: string}}
@@ -122,15 +123,34 @@ function valvulaKimi(f) {
     return { usar: false, porque: 'a categoria ' + o.categoria + ' tem veto: não é desviada por quota' };
   }
 
-  // 7. O kimi está em `ENGINES_SEM_FICHEIROS`. Se a tarefa pede leitura e o
-  //    conector não injectou o contexto, o contrato de capacidade recusaria o
-  //    dispatch — e o utilizador ficava sem trabalho feito em vez de com um
-  //    motor mais lento. Escolher aqui seria empurrá-lo para uma recusa.
-  if (o.pedeLeitura === true && o.contextoInjectado !== true) {
+  // 7. `allowedTools` que o kimi não pode honrar (G4, 2026-08-16).
+  //    As permissões efectivas do kimi são `[]` (seamless.js:1102-1107): ele
+  //    corre via API de chat e não recebe ferramentas. Um pedido que peça
+  //    Read/Bash/Edit iria para um motor incapaz de as usar — e o utilizador
+  //    pagava o token na mesma. A `escrita` sozinha não cobre isto: um
+  //    `allowedTools:"Read,Bash"` é read-only e passava.
+  if (o.allowedTools && String(o.allowedTools).trim()) {
     return {
       usar: false,
-      porque: 'a tarefa pede leitura de ficheiros e o contexto não foi injectado — '
-        + 'o contrato de capacidade recusaria o kimi',
+      porque: 'o pedido exige ferramentas (' + String(o.allowedTools).slice(0, 40)
+        + ') e as permissões efectivas do kimi são []',
+    };
+  }
+
+  // 8. SEM CONTEXTO INJECTADO NÃO ABRE — decisão do dono, 2026-08-16.
+  //    O kimi está em `ENGINES_SEM_FICHEIROS`. A regra anterior só travava
+  //    quando a tarefa CITAVA ficheiros; esta é mais apertada e mais simples de
+  //    raciocinar: sem contexto na mão, o kimi só tem o goal, e mandá-lo fazer
+  //    trabalho sobre um repositório que não vê é pagar por uma resposta que
+  //    não pode ser boa.
+  //    ⚠️ Isto é um veto de CAPACIDADE, não de privacidade. Quando o contexto
+  //    existe, é precisamente o conteúdo dos ficheiros que viaja para a
+  //    Moonshot — ver a dívida declarada no fim deste ficheiro.
+  if (o.contextoInjectado !== true) {
+    return {
+      usar: false,
+      porque: 'sem contexto injectado o kimi só tem o goal — não se paga por '
+        + 'trabalho que ele não consegue fazer bem',
     };
   }
 
@@ -141,4 +161,18 @@ function valvulaKimi(f) {
   };
 }
 
+// ⚠️ DÍVIDA DECLARADA — EGRESS PARA OUTRO FORNECEDOR (G4, 2026-08-16)
+//
+// Quando a válvula abre, o contexto injectado — o CONTEÚDO dos ficheiros lidos —
+// viaja para a Moonshot. Não existe veto de privacidade aqui, e o piso T3 não
+// serve de substituto: medido, `analisa credenciais em config.json` classifica
+// T2/`outro` e passaria todos os vetos acima.
+//
+// Não foi fechado porque a regra certa é uma decisão de produto, não de código:
+// um regex sobre `.env|credencial|token|secret|key` bloqueia trabalho legítimo,
+// e a alternativa — nunca desviar nada com contexto — esvazia a válvula, já que
+// o veto 8 exige precisamente que haja contexto.
+//
+// Enquanto isto não for decidido, a válvula é opt-in e quem a liga está a
+// aceitar que ficheiros do repositório sejam enviados para a Moonshot.
 module.exports = { valvulaKimi, PRESSAO_QUE_ABRE, CATEGORIAS_VETADAS };

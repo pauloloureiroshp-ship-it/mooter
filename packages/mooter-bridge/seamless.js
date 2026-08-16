@@ -2268,6 +2268,26 @@ async function toolDispatch(args) {
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
       exit_code: 'spawn-error', ttft_ms: contentTiming.finish().ttft_ms });
     try { outStream.end(); errStream.end(); } catch { /* */ }
+    // ⚠️ FALLBACK kimi → cc, no arranque (decisão do dono, 2026-08-16).
+    //
+    // Se o kimi nem chega a arrancar — chave revogada, adapter em erro — o job
+    // NÃO morre: quem não escolheu o kimi (foi a válvula) não deve perder o
+    // trabalho por causa de uma poupança que não se concretizou.
+    //
+    // Só aqui, e só neste caso. Uma falha DEPOIS do arranque (timeout, 5xx) não
+    // pode ser recuperada deste modo: o evento terminal deste job só é escrito
+    // mais abaixo, em `finish`, e um re-dispatch antes disso encontra a worktree
+    // ainda ocupada e é recusado pelo próprio WIP guard — medido. Esse caminho
+    // precisa de desenho próprio e está declarado como dívida.
+    if (agent === 'kimi' && args && args.__valvula_abriu === true) {
+      ledgerAppend({ job_id, wave, agent: 'cc', worktree: wtNorm, event: 'step', mp_hash,
+        nota: 'fallback da válvula: o kimi não arrancou, o trabalho segue no Claude Code' });
+      return toolDispatch(Object.assign({}, args, {
+        agent: 'cc', model: null,
+        __valvula_abriu: false,   // uma vez só: sem isto, um cc em erro voltaria aqui
+        __fallback_de: 'kimi',
+      }));
+    }
     return { error: 'spawn falhou: ' + ((e && e.message) || e), job_id };
   }
   let prepTimedOut = false;
@@ -3511,10 +3531,12 @@ async function toolWork(args) {
         tier,
         escrita: a.write === true,
         categoria: workCategory && workCategory.category,
-        // o kimi está em ENGINES_SEM_FICHEIROS: sem contexto injectado o
-        // contrato de capacidade recusaria, e escolhê-lo seria empurrar o
-        // utilizador para uma recusa em vez de para um motor mais lento.
+        // as permissões efectivas do kimi são [] — um pedido que exija
+        // ferramentas iria para um motor incapaz de as usar, e pago na mesma
+        allowedTools: a.allowedTools,
         pedeLeitura: !!pedeLeituraDeFicheiro(executionText),
+        // sem contexto injectado não abre (decisão do dono): o kimi não lê
+        // ficheiros, e sem eles só tem o goal
         contextoInjectado: !!(pre && pre.chars > 0),
       });
       if (valvulaKimi.usar) {
@@ -3568,6 +3590,18 @@ async function toolWork(args) {
     agent = 'cc';
     model = d ? cliModelFor(agent, tier, d.recommended_model) : null;
     routedBy = 'capacidade-execucao';
+    // ⚠️ A decisão da válvula deixa de valer aqui, e TEM de ser invalidada no
+    // recibo. Sem isto saía `agent:"cc"` com `valvula_kimi.usar:true` — o mesmo
+    // género de recibo contraditório que custou três rondas de G4 na onda-a3
+    // (lá era `downgraded` a dizer "passei para o cc" com `agent:"moo"`).
+    // Apanhado pelo G4 desta frente.
+    if (valvulaKimi && valvulaKimi.usar) {
+      valvulaKimi = {
+        usar: false,
+        porque: 'a válvula tinha aberto, mas a capacidade de execução exigiu o '
+          + 'Claude Code — ' + valvulaKimi.porque,
+      };
+    }
     escolhaLocal = {
       local: false,
       porque: 'o goal pede execução e o motor local não recebe ferramentas',
@@ -3730,6 +3764,12 @@ async function toolWork(args) {
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
           allowedTools, model, step: stepId, evidencia, actor: actorCru,
+          // ⚠️ `routed_by` VIAJA na cadeia. Sem ele, o dispatch encadeado via o
+          // `model` do kimi sem saber quem o escolheu e registava
+          // `routed_by:"user"` — "forçado pelo chamador" — quando fora a válvula.
+          // Proveniência falsa no recibo, o mesmo defeito da onda-a3. G4 2026-08-16.
+          routed_by: routedBy,
+          __valvula_abriu: !!(valvulaKimi && valvulaKimi.usar),
           __goal: goal, __escrita: a.write === true, __cross_check: true,
           __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
@@ -3805,6 +3845,9 @@ async function toolWork(args) {
     __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,
     __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
+    // sinaliza ao dispatch que este kimi foi escolha da válvula, não do chamador:
+    // é o que autoriza o fallback para cc se ele não arrancar
+    __valvula_abriu: !!(valvulaKimi && valvulaKimi.usar),
     __quota_calibragem: calibragem });
   if (r && r.error) return Object.assign({
     resumo: '⛔ não despachei o job' + worktreeSuffix(pedida, worktree, relocated, relocationFreshness),

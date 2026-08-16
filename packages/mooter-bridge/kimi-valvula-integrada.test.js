@@ -31,6 +31,11 @@ try {
   require('node:child_process').execFileSync('git', ['-C', WT, 'init', '-q'],
     { stdio: 'ignore', env: GIT_ENV_LIMPO });
 } catch { /* o guard recusará e os asserts mostram-no */ }
+// ⚠️ O veto 8 exige contexto injectado. Sem um ficheiro real na worktree para o
+// conector ler, a válvula NUNCA abre e os testes que a exercitam seriam verdes
+// a vazio — o defeito que a contrato-sandbox passou cinco rondas a extinguir.
+fs.writeFileSync(path.join(WT, 'alvo-kimi.js'),
+  'module.exports = function soma(a, b) { return a + b; };' + '\n');
 process.env.MOOTER_HOME = HOME;
 process.env.MOOTER_LIB = '1';
 process.env.MOOTER_WORKTREE_ROOT = HOME;
@@ -120,8 +125,10 @@ test('I1 — sob pressão crítica, um job inferido vai mesmo para o kimi', asyn
   try {
     await livre('I1');
     const r = await seam.toolWork({
-      goal: 'diz três cores', worktree: WT, prepare: false, wave: 'I1',
+      // cita um ficheiro REAL: sem contexto injectado o veto 8 fecha a válvula
+      goal: 'lê o alvo-kimi.js e resume o que faz', worktree: WT, prepare: false, wave: 'I1',
     });
+    assert.ok(r.contexto_chars > 0, 'sem contexto injectado este teste não exercita a válvula');
     assert.equal(r.agent, 'kimi', 'a válvula não chegou ao dispatch: ' + JSON.stringify(r.valvula_kimi));
     assert.equal(r.model, kimi.MODEL, 'o kimi só aceita o seu próprio modelo');
     assert.equal(r.routed_by, 'valvula-de-quota', 'o recibo não diz quem decidiu');
@@ -137,7 +144,7 @@ test('I0 — sem o opt-in, a válvula não desvia nada, nem sob pressão crític
   try {
     await livre('I0');
     const r = await seam.toolWork({
-      goal: 'diz três cores', worktree: WT, prepare: false, wave: 'I0',
+      goal: 'lê o alvo-kimi.js e resume o que faz', worktree: WT, prepare: false, wave: 'I0',
     });
     assert.notEqual(r.agent, 'kimi', 'desviou sem o opt-in: ' + JSON.stringify(r.valvula_kimi));
     assert.match(String(r.valvula_kimi && r.valvula_kimi.porque), /MOOTER_VALVULA_KIMI/);
@@ -154,7 +161,7 @@ test('I2 — sem pressão, o mesmo job NÃO vai para o kimi', async () => {
   try {
     await livre('I2');
     const r = await seam.toolWork({
-      goal: 'diz três cores', worktree: WT, prepare: false, wave: 'I2',
+      goal: 'lê o alvo-kimi.js e resume o que faz', worktree: WT, prepare: false, wave: 'I2',
     });
     assert.notEqual(r.agent, 'kimi',
       'gastou USD com a subscrição disponível: ' + JSON.stringify(r.valvula_kimi));
@@ -217,6 +224,49 @@ test('I6 — trabalho de escrita não é desviado, mesmo sob pressão crítica',
     assert.notEqual(r.agent, 'kimi', 'mandou escrita para um motor sem ferramentas');
     await livre('fim de I6');
   } finally { restaurarK(); restaurarQ(); }
+});
+
+test('I7 — o recibo NÃO se contradiz: capacidade-execução invalida a válvula', async () => {
+  // G4 2026-08-16: quando falta capacidade de execução o código repõe agent='cc'
+  // mas não invalidava a decisão da válvula — saía agent:"cc" com usar:true.
+  // É o mesmo recibo contraditório que custou três rondas na onda-a3.
+  const restaurarQ = comPressao('critico');
+  const restaurarK = comChave(true);
+  try {
+    await livre('I7');
+    const r = await seam.toolWork({
+      // um goal de execução: dispara o ramo capacidade-execucao
+      goal: 'corre `node --version` e devolve a saída',
+      worktree: WT, prepare: false, wave: 'I7',
+    });
+    if (r.valvula_kimi && r.valvula_kimi.usar) {
+      assert.equal(r.agent, 'kimi',
+        'o recibo diz que a válvula abriu mas o agente é ' + r.agent
+        + ' — recibo contraditório: ' + JSON.stringify(r.valvula_kimi));
+    }
+    await livre('fim de I7');
+  } finally { restaurarK(); restaurarQ(); }
+});
+
+test('I8 — o fallback: se o kimi não arranca, o trabalho segue em cc', async () => {
+  // decisão do dono. Só cobre a falha NO ARRANQUE: uma falha posterior não é
+  // recuperável assim, porque o evento terminal do job só é escrito no `finish`
+  // e um re-dispatch antes disso bate no WIP guard — medido, e declarado como
+  // dívida no comentário de seamless.js.
+  const restaurarQ = comPressao('critico');
+  const restaurarK = comChave(true);
+  const origRun = kimi.runKimi;
+  kimi.runKimi = () => { throw new Error('kimi em erro no arranque (simulado)'); };
+  try {
+    await livre('I8');
+    const r = await seam.toolWork({
+      goal: 'diz três cores', worktree: WT, prepare: false, wave: 'I8',
+    });
+    assert.ok(!r.error,
+      'o job morreu em vez de cair para cc: ' + JSON.stringify(r.error));
+    assert.notEqual(r.agent, 'kimi', 'ficou em kimi apesar de ele não ter arrancado');
+    await livre('fim de I8');
+  } finally { kimi.runKimi = origRun; restaurarK(); restaurarQ(); }
 });
 
 test.after(async () => {
