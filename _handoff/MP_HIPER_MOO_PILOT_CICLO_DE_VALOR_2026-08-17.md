@@ -34,8 +34,17 @@ Transformar o Moo Pilot de *mostrador* em *ferramenta que entrega fixes*: **acha
 
 ## ✅ FASES — cada uma = 1 WORKFLOW (subagentes + verify adversarial · recibo no fecho)
 
-**F-A · TRIAGEM (o desbloqueio — prioridade absoluta).**
-Sonda de auto-verificação: por cada achado, **2-3 subagentes moo LOCAIS** votam (é real? risco/oportunidade/ruído? confiança?). Só sobe ao painel o que ≥2 confirmam, com `ficheiro:linha` relido do disco. Mata o "829 não triados". Novo campo no ledger/estado: `veredicto_triagem`, `classe`, `confianca`, `votos`. **$0.** Workflow: fan-out de votantes → dedup → ranking por (risco×confiança).
+**F-A · CONSERTAR A GERAÇÃO + ÂNCORA ESTÁTICA (o desbloqueio real — prioridade absoluta).**
+> ⚠️ **A triagem JÁ FOI CORRIDA (2026-08-17, $0, ver `dist/shortlist-triada.json`) e o veredicto mudou o plano:** 860 achados citados → **todas as citações existem no disco** → **272 distintos** (3× repetição) → mas **27% em `.md`**, **14% a citar comentários/code-fences**, 7 a citar **linha vazia**, ~65% nitpick "pode confundir o utilizador". **Só ~41 (15%) sobrevivem a "só código, fora comentários, cheiro real".** Exemplos do lixo: `evidence-verifier.mjs:174` "campo enganador" → a linha é um **comentário**; `README.md:386` → a linha é um **code-fence**; `README.md:243` cita "T1" mas a linha é **T2** (citou linha errada).
+> **Conclusão: o problema NÃO é a triagem — é a GERAÇÃO.** O runner faz "olha 70 linhas e acha algo" e acha sempre algo. Construir o executor (F-C) sobre isto seria automatizar a correção de comentários.
+
+Por isso o F-A passa a ser **consertar a fonte**, em três frentes:
+1. **Só código executável.** O scanner exclui `.md`/docs, **comentários, code-fences e linhas vazias** (o alvo é a linha executável, não a prosa). Filtro no gerador *e* no verificador.
+2. **Âncora estática — o repo NÃO TEM NENHUMA** (medido: sem `.eslintrc`/`eslint.config`/semgrep; a CI só corre `npm audit`). Adotar **eslint (+ regras de segurança) ou semgrep** e fazer o moo **explicar/priorizar os achados do analisador**, em vez de inventar do zero (lição Datadog: o LLM é bom a julgar contexto, mau a ser o detetor primário).
+3. **Prompt afiado + recusa honesta.** Trocar "encontra UM achado" por "**acha bug/segurança REAL; se não houver, diz SEM ACHADO**" — recompensar o silêncio. Banir a família de claims vazios ("pode confundir o utilizador", "pode ser null"). Exigir: sintoma + condição de disparo + impacto.
+
+**Ground-truth (não votos):** a citação existe **e** é linha executável **e** — para subir a 🔴 — tem **repro ou teste que falha**. Votação de modelos = só prioridade fraca. Campos novos: `classe`, `confianca_fonte` (repro|teste|estatico|so-citacao), `dedup_key`.
+**Aceitação do F-A:** numa ronda de 100 achados, **≥50% classificáveis como risco/oportunidade acionável** (hoje: ~15%) e **0% a citar comentário/doc**. Enquanto não bater isto, **não avançar para o F-C**.
 
 **F-B · CARD ACIONÁVEL + DROPDOWN.**
 O shell (`tools/cockpit/moo-pilot-shell.html`) ganha, por achado: classe (🔴risco/🟢oportunidade), confiança, e os botões **[Verificar] [Aplicar] [Abrir PR] [Descartar] [🔕]** + **selector de modelo** (T0 moo $0 · T1 Haiku · T2 Sonnet · T3 Opus · T5 Fable · codex/gemini/kimi) com **custo estimado à frente**. Ligados a endpoints novos **F11**: `POST /triar`, `/aplicar`, `/pr`, `/descartar`. Em SNAPSHOT ficam desabilitados com o porquê no tooltip (nunca simular).
