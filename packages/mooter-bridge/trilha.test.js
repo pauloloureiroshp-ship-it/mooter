@@ -3,6 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { lerHost, dosJobs, fundir, texto, sessaoMaisRecente, ehMooter } = require('./trilha.js');
+const { ACTOR_SYSTEM, PORQUE_DEFAULT, PORQUE_DECLARADO } = require('./actor.js');
 
 /* Constrói linhas .jsonl como o Claude Code as escreve. */
 function linhaAssistant(at, blocos) {
@@ -124,6 +125,27 @@ test('dosJobs: uma cadeia dá UMA linha, não uma por job', () => {
   assert.strictEqual(r[0].motores[1].local, false);
   assert.strictEqual(r[0].usd.valor, 0.02);
   assert.strictEqual(r[0].ms.valor, 10000);
+});
+
+test('A2 — dosJobs distingue actor default de declarado e degrada histórico para legacy', () => {
+  const actor = { ...ACTOR_SYSTEM };
+  const declarado = dosJobs([J({ job_id: 'declarado', actor, actor_porque: PORQUE_DECLARADO })])[0];
+  const defaultActor = dosJobs([J({
+    job_id: 'default', actor: ACTOR_SYSTEM, actor_porque: PORQUE_DEFAULT,
+  })])[0];
+  const historico = dosJobs([J({ job_id: 'historico', actor_porque: PORQUE_DECLARADO })])[0];
+  assert.deepStrictEqual(declarado.actor, actor);
+  assert.strictEqual(declarado.actor_porque, PORQUE_DECLARADO);
+  assert.deepStrictEqual(defaultActor.actor, ACTOR_SYSTEM);
+  assert.deepStrictEqual(defaultActor.actor, declarado.actor);
+  assert.strictEqual(defaultActor.actor_porque, PORQUE_DEFAULT);
+  assert.notStrictEqual(defaultActor.actor_porque, declarado.actor_porque);
+  assert.deepStrictEqual(historico.actor, {
+    type: 'system',
+    id: 'legacy',
+    origem: 'evento anterior à instrumentação de identidade (f-mu0)',
+  });
+  assert.strictEqual(historico.actor_porque, null);
 });
 
 test('dosJobs: custo parcial é declarado parcial, nunca somado como total', () => {

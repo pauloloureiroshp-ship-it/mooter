@@ -6,6 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { PRICING_USD_PER_MILLION: KIMI_PRICES } = require('./kimi-adapter.js');
 const { isTerminal } = require('./terminal.js');
+const { actorDoEvento, temActorValido, porqueDoEvento } = require('./actor.js');
 
 const ND = 'n/d';
 const CUSTO_FONTE_CALCULADO = 'calculado a partir de tokens e tabela de precos';
@@ -239,8 +240,11 @@ function jobRecords(input) {
   const byJob = new Map();
   for (const event of readLedger(input)) {
     if (!event || !event.job_id) continue;
+    const eventActor = actorDoEvento(event);
     const record = byJob.get(event.job_id) || {
-      job_id: event.job_id, agent: null, tier_motor: null, goal: null,
+      job_id: event.job_id, actor: eventActor,
+      actor_porque: porqueDoEvento(event),
+      agent: null, tier_motor: null, goal: null,
       worktree: null, escrita: null, preparation: false, dispatched_at: null, completed_at: null,
       worktree_criada: null, git_base_clean: null, git_base_commit: null,
       status: null, desfecho: null, duration_s: null, tokens_in: null, tokens_out: null,
@@ -250,6 +254,11 @@ function jobRecords(input) {
       motivo_nao_local: null, forcado_por_quota: false,
       category: null, category_fonte: null, categoria_legado: false,
     };
+    if (temActorValido(event)) {
+      // Último-a-falar, como o cargo — ver a nota no actor.js.
+      record.actor = eventActor;
+      record.actor_porque = porqueDoEvento(event);
+    }
     for (const field of ['agent', 'tier_motor', 'goal', 'worktree']) {
       if (event[field]) record[field] = event[field];
     }

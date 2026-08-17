@@ -125,26 +125,44 @@ function fakeSpawner(write, pid) {
     });
     assert.strictEqual(r.erro, 'sem_contexto_para_o_local', 'despachou leitura sem contexto nenhum');
     assert.ok(Array.isArray(r.faz_assim) && r.faz_assim.length >= 2, 'erro sem saída accionável');
-    assert.ok(/force/.test(JSON.stringify(r.faz_assim)), 'não oferece a via de escape explícita');
+    // ⚠️ Esta asserção já exigiu /force/ — e era satisfeita por ESCREVER a
+    // string. `force` é aceite pelo schema (tools6.js: "[compat] accepted, but
+    // it never overrides the capability contract") e não é lido por linha
+    // nenhuma do despacho. Medido em 2026-08-16: seguir esse passo devolve byte
+    // a byte a mesma recusa. Um teste que pede texto é satisfeito com texto;
+    // este passa a pedir a saída que DESPACHA mesmo — medida no mesmo ensaio,
+    // a única das três candidatas que produziu job_id.
+    // (join, não JSON.stringify: o stringify escapa as aspas e `agent:"cc"`
+    //  passaria a `agent:\"cc\"`, que nenhum regex legível apanha.)
+    assert.ok(/agent:"cc"/.test(r.faz_assim.join(' ')),
+      'não oferece a única via de escape que realmente despacha');
+    for (const passo of r.faz_assim) {
+      assert.ok(!/force\s*:\s*true/.test(passo),
+        'a recusa oferece um passo que o código não implementa: ' + passo);
+    }
     okmsg('A3 · leitura impossível para o local é recusada com saída');
   } catch (e) { bad('A3', e); }
 
   try {
-    // o ficheiro EXISTE na worktree de teste → o conector lê-o e injecta-o
+    // O ficheiro EXISTE: numa suite hermética o conector consegue provar leitura,
+    // injecção e evidência — não consegue fingir que um Ollama inacessível executou.
     fs.writeFileSync(path.join(WT, 'alvo.js'), 'function realmenteExiste() { return 42; }\n');
-    fakeSpawner((out) => { out.write('{"type":"result","result":"analisei o ficheiro real","total_cost_usd":0}\n'); });
     await livre(seam, WT);
     const r = await seam.toolWork({
       goal: 'analisa o alvo.js', agent: 'moo',
       worktree: WT, wave: 'A3b', prepare: false,
     });
-    assert.ok(!r.erro, 'devia ter lido o ficheiro pelo modelo: ' + JSON.stringify(r.erro || ''));
-    assert.deepStrictEqual(r.ficheiros_lidos, ['alvo.js'], 'não leu o ficheiro pelo modelo local');
-    assert.ok(r.contexto_chars > 0);
-    const mp = fs.readFileSync(path.join(HOME, 'jobs', r.job_id, 'masterprompt.md'), 'utf8');
-    assert.ok(mp.includes('realmenteExiste'), 'o conteúdo real não chegou ao prompt do modelo');
-    assert.ok(/não inventes/i.test(mp), 'sem a instrução anti-fabricação o modelo continua a inventar');
-    okmsg('A3b · o conector lê o ficheiro PELO modelo local ($0)');
+    assert.strictEqual(r.exit_code, 'no-local-model', 'a porta morta devia recusar sem fingir execução local');
+    assert.deepStrictEqual(r.ficheiros_lidos, ['alvo.js'], 'a recusa descartou a leitura real');
+    assert.ok(r.contexto_chars > 0, 'a recusa descartou o tamanho do contexto injectado');
+    const jobDir = path.join(HOME, 'jobs', r.job_id);
+    const mp = fs.readFileSync(path.join(jobDir, 'masterprompt.md'), 'utf8');
+    assert.ok(mp.includes('realmenteExiste'), 'o conteúdo real não chegou ao masterprompt');
+    assert.ok(/não inventes/i.test(mp), 'o masterprompt perdeu a instrução anti-fabricação');
+    const meta = JSON.parse(fs.readFileSync(path.join(jobDir, 'meta.json'), 'utf8'));
+    assert.deepStrictEqual(meta.evidencia.ficheiros_lidos, ['alvo.js'], 'a leitura não ficou registada como evidência');
+    assert.strictEqual(meta.evidencia.chars, r.contexto_chars, 'a evidência registada diverge da recuperação');
+    okmsg('A3b · conector lê, injecta e regista evidência antes da recusa local');
   } catch (e) { bad('A3b', e); }
   await livre(seam, WT);   // o WIP guard é real: um job por worktree de cada vez
 

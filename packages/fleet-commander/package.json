@@ -5,6 +5,6 @@
   "type": "module",
   "description": "Fleet Commander — proposal FSM + transition-guard + Proof Gate for the Mooter Evolution Fleet (F1 spine).",
   "scripts": {
-    "test": "node --test tests/fsm.test.mjs tests/proof-gate.test.mjs tests/scheduler.test.mjs tests/lease.test.mjs"
+    "test": "node --test tests/fsm.test.mjs tests/proof-gate.test.mjs tests/scheduler.test.mjs tests/lease.test.mjs tests/stop-gate.test.mjs"
   }
 }

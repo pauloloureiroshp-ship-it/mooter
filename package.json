@@ -3,21 +3,23 @@
   "private": true,
   "description": "Workspace anchor for the Live Preview anchored-task agent (LP-4.5 / W2). Declares the headless @anthropic-ai/claude-agent-sdk that live-edit-task-runner.mjs import()s FROM THE WORKSPACE at edit time. Dev-only: the shipped mooter router + landing product never import it, and it is NEVER bundled in the vscode-extension vsix (a separate package; live-edit-packaging.test.js pins that the extension deps must not carry it). Workspace Trust is required before the agent runs.",
   "scripts": {
+    "handoff:hygiene": "node tools/docs-hygiene.js",
+    "handoff:hygiene:baseline": "node tools/docs-hygiene.js --update-baseline",
+    "handoff:hygiene:ratchet": "node tools/docs-hygiene.js --ratchet",
+    "handoff:hygiene:strict": "node tools/docs-hygiene.js --strict",
     "handoff:preflight": "node tools/handoff-preflight.js",
     "handoff:preflight:check": "node tools/handoff-preflight.js --check",
     "handoff:qa": "node tools/handoff-preflight.js --qa",
-    "test:handoff-preflight": "node --test tools/handoff-preflight.test.js",
-    "handoff:hygiene": "node tools/docs-hygiene.js",
-    "handoff:hygiene:strict": "node tools/docs-hygiene.js --strict",
-    "test:docs-hygiene": "node --test tools/docs-hygiene.test.js",
-    "runner": "node tools/cockpit/runner/moo-runner.mjs",
-    "runner:once": "node tools/cockpit/runner/moo-runner.mjs --once",
-    "runner:endpoint": "node tools/cockpit/runner/f10-server.mjs",
-    "test:cockpit-runner": "node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/alignment.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/queixas.test.mjs tools/cockpit/runner/fleet-beacon.test.mjs tools/cockpit/runner/skill-moo-pilot.test.mjs tools/cockpit/runner/skills-doctor.test.mjs",
     "pilot": "node tools/cockpit/runner/launch.mjs",
     "pilot:status": "node tools/cockpit/runner/launch.mjs --status",
+    "runner": "node tools/cockpit/runner/moo-runner.mjs",
+    "runner:endpoint": "node tools/cockpit/runner/f10-server.mjs",
+    "runner:once": "node tools/cockpit/runner/moo-runner.mjs --once",
     "skills:doctor": "node tools/cockpit/runner/skills-doctor.mjs",
-    "skills:doctor:strict": "node tools/cockpit/runner/skills-doctor.mjs --strict"
+    "skills:doctor:strict": "node tools/cockpit/runner/skills-doctor.mjs --strict",
+    "test:cockpit-runner": "node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/alignment.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/queixas.test.mjs tools/cockpit/runner/fleet-beacon.test.mjs tools/cockpit/runner/skill-moo-pilot.test.mjs tools/cockpit/runner/skills-doctor.test.mjs",
+    "test:docs-hygiene": "node --test tools/docs-hygiene.test.js",
+    "test:handoff-preflight": "node --test tools/handoff-preflight.test.js"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.186"

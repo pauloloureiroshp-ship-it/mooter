@@ -22,7 +22,7 @@ O Paulo cola sempre: **"Executa _handoff/MAESTRO_POKEMOO_2026-08-08.md"**.
 | `BRIEF_POKE_MOO_2026-08-07.md` (v1.3) | `b272265329a32cec6de702a28658106846cfc900b46817f1f60ec3d0eac582e6` |
 | `SUPERMASTER_VANTAGEM_2026-08-07_v1.1.md` | `1ad0fe297aa35272b4c9ddabe2fe9f02dadb8846550837d7c479f837627c6c0b` |
 | `ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` (insumo de F4 e F5) | `bfead0f8d2636f6cc3b5879917bb9490cc6430bed35ec2b26728c380db26fb73` |
-| `DEMO_FORMATO_2026-08-09_v0.1.md` (insumo de F4 e F5) | `65372ae03481c4ae51ba909f57a0052e766d180d7fbc1e44252eca68591a21dd` |
+| `DEMO_FORMATO_2026-08-09_v0.1.md` (insumo de F4 e F5) | `1ab5b9563398a7615c1c8f11a1eb9dbec1cc306f24f4bdd935a07ac9ad7e45c2` |
 | `piloto2/PROTOCOLO_v2_REGRAS_CONGELADAS.md` (base imutável da F3) | `49c2cd2f6048422322868c5fc8e40224cf2770d48935a8cc074d8589b713b448` |
 
 > **Correcção 2026-08-09.** Uma versão anterior deste ficheiro procurava
@@ -237,6 +237,14 @@ das decisões e **recibos separados de executor e juiz**. Braço A nomeia provid
 modelo exactos ("Fable 5" à solta não é um modelo). Zero runs de medição.
 
 ## F5 — M1, o primeiro speedtest
+> **O mock e o banner saem JUNTOS — e isto é código, não um parágrafo.**
+> A DEMO-FORMATO tem hoje um MOCK rotulado na tela 2 e o banner "DEMO DE FORMATO".
+> Trocar o mock por um motor real transforma a demo numa comparação de medição e cai
+> na REGRA 0. `poke_lab/portao_demo.py` recusa mecanicamente essa troca sem: **F3
+> fechada** (`maestro-state/F3.complete.json`) · **`POKE_GO` não vazio** · **run
+> pré-registado** (`--prereg-sha`). Provado a recusar em `tests/test_portao_demo.py`.
+> Tirar o mock e deixar o banner é pior que um erro: é comparação real vestida de
+> brincadeira.
 Runs numerados **antes**, **todos** publicados (incl. abortados) · recibo por lance na cadeia
 C0 · leaderboard dos jsonl · âncora externa fica `anchor_status:"pending"` até aprovação
 explícita do dono.

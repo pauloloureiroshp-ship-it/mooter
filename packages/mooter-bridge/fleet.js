@@ -41,6 +41,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const { fatiaLocal } = require('./fatia-local.js');
 const { isTerminal } = require('./terminal.js');
+const { actorDoEvento, temActorValido, normalizarActor, porqueDoEvento } = require('./actor.js');
 
 const UI_URI = 'ui://mooter/fleet';
 const UI_MIME = 'text/html;profile=mcp-app';
@@ -104,9 +105,20 @@ function foldJobs(events) {
       j = { job_id: e.job_id, wave: e.wave || null, agent: e.agent || null, worktree: e.worktree || null,
             cargo: Object.prototype.hasOwnProperty.call(e, 'cargo') ? e.cargo : null,
             cargo_porque: e.cargo_porque || 'n/d — anterior à instrumentação de cargos',
+            actor: actorDoEvento(e),
+            // opção A do dono, contra o ALTO do G4: sem o porque, um default
+            // system/system lê-se como "o sistema fez isto" quando na verdade
+            // significa "ninguém declarou". O discriminador viaja com o ator.
+            actor_porque: porqueDoEvento(e),
             local: typeof e.local === 'boolean' ? e.local : e.agent === 'moo',
             state: null, dispatched_at: null, started_at: null, ended_at: null, exit_code: null, duration_s: null };
       byId.set(e.job_id, j);
+    }
+    // O ator viaja como o cargo: vale o evento mais recente com ator LEGÍVEL.
+    // Não se arbitra propriedade — ver a nota no actor.js.
+    if (temActorValido(e)) {
+      j.actor = actorDoEvento(e);
+      j.actor_porque = porqueDoEvento(e);
     }
     if (e.wave) j.wave = e.wave;
     if (e.agent) j.agent = e.agent;
@@ -688,12 +700,15 @@ function readSessionContext() {
 
 function registarBindRecusado(args, porque) {
   try {
+    const actorNormalizado = normalizarActor(null);
     fs.mkdirSync(MOOTER_DIR, { recursive: true });
     fs.appendFileSync(LEDGER, JSON.stringify({
       ts: new Date().toISOString(), event: 'session_bind_rejected',
       project_requested: args && args.project ? String(args.project) : null,
       folder_requested: args && args.folder ? String(args.folder) : null,
       reason: porque,
+      actor: actorNormalizado.actor,
+      actor_porque: actorNormalizado.porque,
     }) + '\n', 'utf8');
     return true;
   } catch { return false; }

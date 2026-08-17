@@ -1,0 +1,86 @@
+EVIDENCIA MEDIDA — frente contrato-sandbox
+===========================================
+data: 2026-08-16 (hora do dono, UTC-3)
+
+--- 1. ZERO ISOLAMENTO no ficheiro ---
+MOOTER_HOME    em contrato.test.js: 0
+OLLAMA_HOST    em contrato.test.js: 0
+setJobSpawner  em contrato.test.js: 0
+process.cwd()  em contrato.test.js: 1
+
+irmaos que ISOLAM (grep -l setJobSpawner *.test.js):
+  actor.test.js
+  downgrade.test.js
+  ondaA.test.js
+  path.test.js
+  seamless.test.js
+  v12.test.js
+
+--- 2. ESCRITA NO LEDGER DE PRODUCAO ---
+eventos wave=contrato-test : 497
+  dispatched               : 96
+  agent moo (GPU do dono)  : 473
+  agent cc  (CLI pago)     : 24
+  orphaned-by-restart      : 40
+
+--- 3. EXPERIENCIA DECISIVA (ja corrida) ---
+OLLAMA_HOST=127.0.0.1:1 node --test contrato.test.js
+  corrida 1: 28s rc=0 9 verdes
+  corrida 2: 33s rc=0 9 verdes
+  corrida 3: 29s rc=0 9 verdes
+  => com o Ollama inalcancavel o hang DESAPARECE.
+  => mas o ledger de producao cresceu 467 -> 497: sao dois defeitos.
+
+--- 4. O HANG, medido ---
+processo 63672 (node --test contrato.test.js) parado 9 min sem escrever;
+flags incluem --test-timeout=0; watchdog do job e 30 min e esta unref()-ado.
+
+--- 5. O DEFEITO CENTRAL: chaves error vs erro (medido) ---
+seamless.js:1987   guardCheck recusado -> { error: '...guard recusou...' }   INGLES
+contrato.test.js:95,133,144   assert.notEqual(r && r.erro, 'capacidade_incompativel')   PORTUGUES
+
+quem escreve a chave 'erro' em seamless.js (6 ocorrencias):
+  :1392  erro: 'capacidade_incompativel'      <- o unico que os testes procuram
+  :3228  erro: 'sem_worktree_viavel'
+  :3246  erro: 'create_worktree_falhou'
+  :3287  erro: 'sem_worktree_viavel' / 'todas_ocupadas'
+
+O guard NUNCA escreve 'erro'. Logo, quando recusa, r.erro e undefined e
+assert.notEqual(undefined, 'capacidade_incompativel') passa trivialmente.
+=> o teste fica verde tanto quando exerce o contrato como quando nao exerce nada.
+
+--- 6. CORRECCAO DO MECANISMO DO HANG (a sintese refutou a 1a leitura) ---
+NAO e o job local lento que pendura. K4/K7/K8 sao await SEQUENCIAIS sobre a
+mesma worktree e o guard serializa-os. Com a GPU saturada:
+  1. pickModelExplained filtra por VRAM (moo.js:301) -> model:null, falta_vram
+  2. o ramo no-local-model (seamless.js:2210-2237) escreve evento TERMINAL ja
+     -> a worktree fica LIVRE
+  3. K7 re-tenta, K8 passa o guard e faz spawn REAL de claude/codex
+     (realSpawnJob, seamless.js:839-848)
+E esse CLI real que corre minutos e produz a linha do «posso» — assinatura de
+um agente de CLI, nao de um modelo local.
+
+--- 7. CORRECCAO DE UNIDADE, E A LICAO ESTRUTURAL (G4 #1 e #2, 2026-08-16) ---
+
+A seccao 2 acima conta EVENTOS. Em varios sitios chamei-lhes "jobs", e isso e
+falso: um job escreve varios eventos, logo o numero fica ~5x inflacionado.
+
+Mas a correccao tambem falhou, e e isso que vale a pena guardar. Corrigi o
+numero em tres sitios, esqueci o BRIEF (que ficou com um valor ainda mais
+antigo), e entretanto o ledger cresceu — deixando esta propria seccao
+internamente incoerente. Foi o G4 #2 que o apanhou.
+
+CAUSA: estava a perseguir um numero VIVO com snapshots pinados em cinco sitios.
+Cada correccao fica obsoleta enquanto se escreve.
+
+REGRA, a partir daqui: nenhum documento desta frente pina uma contagem do
+ledger. A fonte unica e:
+
+    bash _handoff/contrato-sandbox/contar.sh
+
+Ela separa EVENTOS de JOBS de forma explicita, carimba a leitura com data UTC,
+e verifica se as contagens fecham entre si (jobs unicos == dispatches).
+
+Os numeros acima nesta seccao ficam como estao: sao o registo do que foi medido
+naquele momento, e uma prova que se reescreve deixa de ser prova. Para o valor
+de hoje, corre o script.
