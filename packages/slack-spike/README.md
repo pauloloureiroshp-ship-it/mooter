@@ -20,6 +20,36 @@ sha256 `7a608ed2…`). G4 pré-entrega: kimi-k3 (job-msx255a9-cd52, $0,088) — 
 | **CONSTRUÇÃO** | já, em paralelo com a kimi-egress | adapter + suite em dry-run. **Zero dispatch real.** |
 | **VIVO** | só quando o `SYNC.md` tiver a linha `kimi-egress FECHADA — slack-spike destravado` | 1º dispatch real, 1º pendente real, teste 2-devices |
 
+> **Estado em 2026-08-17:** a linha **está** no `SYNC.md` (decisão do Cowork,
+> **GO CONDICIONADO**) e o gate destrava. O que falta para o MODO VIVO é o `.env`
+> com os tokens. Ver **A condição dura do GO** abaixo — o destrave veio com uma
+> obrigação, não em branco.
+
+## A condição dura do GO CONDICIONADO — o kimi fora por construção
+
+A frente `kimi-egress` fechou **por congelamento**, com um ALTO de CÓDIGO em aberto:
+na recusa por `agent:"kimi"`, fica um plano no disco que o recibo não declara. Esse
+ALTO vive **exclusivamente** no caminho kimi/Moonshot. A decisão do Cowork foi GO
+**com** a condição de o spike guardar o vendor fora da rota — com prova, antes do
+1º dispatch vivo. Com o vendor fora, o ALTO não é alcançável pelo caminho vivo.
+
+`despacho.js` tem uma **allowlist de motores** (`cc`, `codex`, `gemini`, `moo`) e
+uma exclusão declarada **com a razão datada**. Três decisões que importam:
+
+- **Allowlist, não denylist.** Com denylist, um vendor novo entrava por omissão e
+  ninguém dava por isso.
+- **O motor tem de vir declarado.** `agent` ausente era herdar o default do
+  `seamless.js` — hoje `moo`/`cc`, mas um default é um sítio onde um vendor pode
+  aparecer amanhã sem passar por esta porta.
+- **Morre na porta, não no núcleo.** O `agent:"kimi"` é recusado antes de o
+  `toolWork` ser chamado — precisamente porque o ALTO está lá dentro.
+
+Provado por mutação: adicionar `kimi` à allowlist, remover a barreira, ou esvaziar
+a exclusão ⇒ **suite vermelha** nas três. Para o estranho, isto declara-se como
+feature: *«Moonshot desligado até o veto de egress entrar em main»* — custódia por
+enforcement, não por promessa. O kimi volta quando a `kimi-egress` mergear em
+`main`, **por decisão explícita, nunca por default**.
+
 O gate é um `if` real, não uma nota: `gate.js` lê o `SYNC.md` e `daemon.js` recusa
 arrancar sem a linha exacta. Fail-closed em todos os ramos (ficheiro ausente,
 ilegível, ou frase apenas parecida ⇒ trancado).
@@ -113,6 +143,7 @@ explícito gravado no ledger — não esta allowlist. Fica dito.
 | `despacho.js` | a porta de despacho **real** (`toolWork`) + allowlist de **saída** |
 | `transporte.js` | o **único** ficheiro que fala com o Slack (Socket Mode à mão, 0 deps) |
 | `correr.js` | a raiz de composição: quem liga a quem. `--seco` = ensaio offline |
+| `descobrir.js` | deriva canal + id do bot + id do humano do **próprio** Slack |
 
 **Nada aqui altera o núcleo.** `broker.js`, `actor.js` e `seamless.js` são importados
 como qualquer consumidor; a porta de despacho é **injectada** (duplo em construção,
@@ -159,8 +190,8 @@ falhou.
 cd packages/slack-spike && node --test
 ```
 
-**88/88 a passar** (47 do MODO CONSTRUÇÃO inicial + 41 do transporte, do despacho,
-do formato do gate e do round-trip do cartão). Inclui o **ensaio do infeliz**
+**111/111 a passar** (47 do MODO CONSTRUÇÃO inicial + 41 do transporte/despacho/gate/
+round-trip + 6 da condição do GO + 17 da derivação). Inclui o **ensaio do infeliz**
 (kimi #4) contra o broker **real** em dry-run (`MOOTER_HOME` numa pasta temporária,
 dispatcher duplo):
 
@@ -181,7 +212,10 @@ clique, nunca o cartão a **alimentar** o clique.
 ### Vermelho→verde, provado por mutação
 
 Cada guarda nova tem um teste que a guarda — verificado a mutar o código e a
-confirmar que a suite fica vermelha (baseline verde, árvore reposta verde):
+confirmar que a suite fica vermelha. **9 mutações, 9 vermelhas**, baseline verde,
+árvore reposta verde. *(À primeira, o medidor deu falso-verde: `node --test` usa `✖`
+e eu procurava o `not ok` do TAP. O medidor estava errado, não a guarda — mas um
+medidor que diz `OK` sem medir é pior que nenhum.)*
 
 | Mutação | Testes que caem |
 |---|---|
@@ -191,20 +225,54 @@ confirmar que a suite fica vermelha (baseline verde, árvore reposta verde):
 | sem dedupe de re-entrega | 1 |
 | sem allowlist de saída no despacho | 1 |
 | `publicar` sem allowlist de campos | 2 |
+| `kimi` adicionado à allowlist de motores | 1 |
+| barreira de motores removida da porta | 5 |
+| exclusão do `kimi` esvaziada | 3 |
+
+## Só 2 das 5 variáveis se pedem — as outras 3 derivam-se
+
+O dono dá os **tokens**; o canal e os dois ids o próprio bot sabe perguntar.
+`descobrir.js` corre no arranque vivo (depois do daemon, logo só com o gate aberto)
+e escreve o que faltava no `.env`:
+
+| Variável | Origem | Fail-closed |
+|---|---|---|
+| `SLACK_APP_TOKEN` | **o dono** (`xapp-…`) | — |
+| `SLACK_BOT_TOKEN` | **o dono** (`xoxb-…`) | — |
+| `SLACK_BOT_USER_ID` | `auth.test` | sem `user_id` ⇒ pára |
+| `SLACK_CANAL` | `conversations.list`, nome **exacto** `mooter-demo` | 0 resultados ⇒ pára e diz o nome que procurou; **nunca** devolve o parecido mais próximo |
+| `SLACK_ALLOW_USER_ID` | `users.list`, o único humano | 0 ou 2+ humanos ⇒ **recusa** e lista os ids |
+
+O caso do humano é o que mais importa: a allowlist aceita **um** id. Se o workspace
+tiver dois humanos, escolher um era escolher **quem pode aprovar gastos** — e isso
+não se adivinha, pergunta-se. O dono disse «sou o único humano do workspace»; isto
+**verifica** a afirmação em vez de a assumir.
+
+A escrita no `.env` nunca faz round-trip de parser: as linhas que não são destas 3
+chaves ficam **byte-a-byte** como estavam, comentários incluídos — um ficheiro com
+tokens dentro não é sítio para reescrever a partir de um objecto. É idempotente, e
+uma chave que o dono já tenha posto à mão **manda** sobre a derivada.
+
+As chamadas passam todas pelo `chamarSlack` do `transporte.js`: `descobrir.js` não
+abre um segundo caminho para fora, e a afirmação «um único ficheiro fala com o
+Slack» continua verdadeira.
 
 ## O que falta para o MODO VIVO
 
-1. **A linha no `SYNC.md`** (depende da kimi-egress fechar) — hoje ausente, e há um
-   teste que falha se ela aparecer sem alguém dar por isso.
-2. **App Slack + `.env`** com as 5 variáveis (`correr.js` diz quais **faltam**, nunca
-   o que tem). `packages/slack-spike/.env` está coberto por `*.env`
-   (`.gitignore:13`) — verificado; um ficheiro com outro nome (`tokens.txt`) **não**
-   estaria. O `daemon.js` reconfirma com `git check-ignore` **antes** de tocar no
-   token (kimi #7).
-3. ~~Ligar `despachar` ao `toolWork` real e `enviar` ao `chat.postMessage`~~ — feito
-   (`despacho.js`, `transporte.js`, `correr.js`). Falta correr **uma vez** a sério.
-4. Teste 2-devices (aprovar do telemóvel com a frota no desktop).
-5. **Condição de sócio:** a demo nasce agendada — data marcada com ≥1 estranho
+1. ~~A linha no `SYNC.md`~~ — **está lá** (Cowork, GO CONDICIONADO, 2026-08-17). O
+   tripwire que garantia que ninguém destravava às escondidas ficou vermelho no
+   momento exacto em que a linha entrou, e passou a guardar a verdade nova: a linha
+   **nunca pode estar sozinha** sem a decisão escrita ao lado.
+2. ~~A exclusão do kimi por construção~~ — **feita e provada** (condição dura do GO).
+3. **App Slack + os 2 tokens no `.env`** — o único bloqueador que resta.
+   `packages/slack-spike/.env` está coberto por `*.env` (`.gitignore:13`) —
+   verificado; um ficheiro com outro nome (`tokens.txt`) **não** estaria. O
+   `daemon.js` reconfirma com `git check-ignore` **antes** de tocar no token (kimi #7).
+4. ~~Ligar `despachar` ao `toolWork` real e `enviar` ao `chat.postMessage`~~ — feito.
+   Falta correr **uma vez** a sério.
+5. Teste 2-devices (aprovar do telemóvel com a frota no desktop) — **o dono pediu
+   para ser avisado ANTES**, para estar com o telemóvel na mão.
+6. **Condição de sócio:** a demo nasce agendada — data marcada com ≥1 estranho
    **antes** do merge do spike.
 
 ### O que NÃO está provado (e só o dia vivo prova)

@@ -111,3 +111,65 @@ test('criarDespachador · sem toolWork ou sem syncPath nao se monta', () => {
   assert.throws(() => criarDespachador({ syncPath: DESTRAVADO() }), /toolWork/);
   assert.throws(() => criarDespachador({ toolWork: async () => ({}) }), /syncPath/);
 });
+
+// ── CONDICAO DURA DO GO CONDICIONADO (Cowork, 2026-08-17) ─────────────────
+// O ALTO de CODIGO aberto da kimi-egress vive so no caminho kimi/Moonshot. A
+// condicao do GO e que o spike o exclua POR CONSTRUCAO, com prova. Estes testes
+// SAO essa prova: se alguem tirar a barreira, a suite fica vermelha.
+const { MOTORES_PERMITIDOS, MOTORES_EXCLUIDOS, validarMotor } = require('./despacho.js');
+
+test('GO · agent:"kimi" e RECUSADO na porta e o motor NUNCA e chamado', async () => {
+  let chamou = false;
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async () => { chamou = true; return { job_id: 'job-kimi' }; } });
+  const r = await despachar(Object.assign({}, PEDIDO, { agent: 'kimi' }));
+  assert.equal(r.job_id, null);
+  assert.equal(chamou, false, 'o kimi nao pode chegar ao toolWork — o ALTO vive la dentro');
+  assert.match(r.porque_local, /EXCLUIDO POR CONSTRUCAO/);
+  assert.match(r.porque_local, /kimi-egress/);
+});
+
+test('GO · a exclusao nao se contorna com maiusculas nem espacos', async () => {
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async () => { throw new Error('nunca devia ser chamado'); } });
+  for (const v of ['KIMI', ' kimi ', 'Kimi', 'kImI']) {
+    const r = await despachar(Object.assign({}, PEDIDO, { agent: v }));
+    assert.equal(r.job_id, null, 'passou: ' + JSON.stringify(v));
+    assert.match(r.porque_local, /EXCLUIDO POR CONSTRUCAO/);
+  }
+});
+
+test('GO · e uma ALLOWLIST: um vendor novo e recusado sem alguem o ter de proibir', async () => {
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async () => { throw new Error('nunca devia ser chamado'); } });
+  const r = await despachar(Object.assign({}, PEDIDO, { agent: 'vendor-novo-qualquer' }));
+  assert.equal(r.job_id, null);
+  assert.match(r.porque_local, /fora da allowlist de motores/);
+});
+
+test('GO · motor ausente e recusado (um default e por onde um vendor entra amanha)', async () => {
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async () => { throw new Error('nunca devia ser chamado'); } });
+  for (const p of [{ agent: undefined }, { agent: null }, { agent: '  ' }]) {
+    const r = await despachar(Object.assign({}, PEDIDO, p));
+    assert.equal(r.job_id, null);
+    assert.match(r.porque_local, /sem motor declarado/);
+  }
+});
+
+test('GO · o motor que a demo usa (cc) passa, e chega normalizado ao nucleo', async () => {
+  const vistos = [];
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async (a) => { vistos.push(a); return { job_id: 'job-cc' }; } });
+  assert.equal((await despachar(Object.assign({}, PEDIDO, { agent: ' CC ' }))).job_id, 'job-cc');
+  assert.equal(vistos[0].agent, 'cc');
+});
+
+test('GO · "kimi" NAO esta na allowlist — o invariante e codigo, nao um comentario', () => {
+  assert.ok(!MOTORES_PERMITIDOS.includes('kimi'));
+  assert.ok(Object.prototype.hasOwnProperty.call(MOTORES_EXCLUIDOS, 'kimi'),
+    'a exclusao tem de estar declarada COM a razao datada, nao apenas ausente');
+  assert.match(MOTORES_EXCLUIDOS.kimi, /main/, 'a razao tem de dizer o que faz o kimi voltar');
+  assert.equal(validarMotor('kimi').ok, false);
+  assert.equal(validarMotor('cc').ok, true);
+});

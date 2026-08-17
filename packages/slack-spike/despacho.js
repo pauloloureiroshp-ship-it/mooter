@@ -33,6 +33,56 @@ const gateOmissao = require('./gate.js');
 const CAMPOS_PARA_O_MOTOR = Object.freeze(['goal', 'agent', 'wave', 'actor']);
 
 /**
+ * ─────────────────────────────────────────────────────────────────────────
+ * CONDICAO DURA DO GO CONDICIONADO (Cowork, 2026-08-17)
+ *
+ * O ALTO de CODIGO que ficou aberto na frente kimi-egress — a recusa por
+ * `agent:"kimi"` deixa um plano no disco que o recibo nao declara — vive
+ * EXCLUSIVAMENTE no caminho kimi/Moonshot. Com o vendor guardado fora da rota,
+ * o ALTO nao e alcancavel pelo caminho vivo, e a demo pode correr.
+ *
+ * ALLOWLIST, nao denylist. A diferenca importa: com uma denylist, um vendor novo
+ * entrava por omissao e ninguem dava por isso. Aqui um motor desconhecido e
+ * recusado sem alguem ter de se lembrar de o proibir.
+ *
+ * E o motor tem de vir DECLARADO. Aceitar `agent` ausente era herdar o default
+ * do `seamless.js` — hoje `moo`/`cc`, mas um default e um sitio onde um vendor
+ * pode aparecer amanha sem passar por aqui.
+ *
+ * O kimi volta quando a kimi-egress mergear em main, por decisao explicita,
+ * nunca por default. Isto e uma condicao do GO, nao uma sugestao: ha um teste
+ * que prova a recusa, e a suite fica vermelha se alguem tirar esta barreira.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+const MOTORES_PERMITIDOS = Object.freeze(['cc', 'codex', 'gemini', 'moo']);
+
+/** Motor -> porque esta fora. Estar aqui e uma decisao datada, nao um esquecimento. */
+const MOTORES_EXCLUIDOS = Object.freeze({
+  kimi: 'a kimi-egress fechou por CONGELAMENTO com um ALTO de CODIGO em aberto (o plano '
+    + 'que fica no disco sem o recibo o declarar). O spike existe para mostrar recibos a um '
+    + 'estranho, logo o vendor fica fora da rota viva ate o veto de egress entrar em main '
+    + '— decisao Cowork 2026-08-17, GO CONDICIONADO',
+});
+
+/** @returns {{ok:boolean, motor?:string, porque?:string}} */
+function validarMotor(agent) {
+  const motor = String(agent == null ? '' : agent).trim().toLowerCase();
+  if (!motor) {
+    return { ok: false, porque: 'despacho sem motor declarado — o `agent` tem de vir explicito '
+      + '(um default e um sitio onde um vendor pode aparecer sem passar por esta porta)' };
+  }
+  if (Object.prototype.hasOwnProperty.call(MOTORES_EXCLUIDOS, motor)) {
+    return { ok: false, porque: 'motor "' + motor + '" EXCLUIDO POR CONSTRUCAO: '
+      + MOTORES_EXCLUIDOS[motor] };
+  }
+  if (!MOTORES_PERMITIDOS.includes(motor)) {
+    return { ok: false, porque: 'motor "' + motor + '" fora da allowlist de motores do spike ('
+      + MOTORES_PERMITIDOS.join(', ') + ') — um motor desconhecido nao entra por omissao' };
+  }
+  return { ok: true, motor };
+}
+
+/**
  * @param {{toolWork:Function, syncPath:string, gate?:object}} opcoes
  * @returns {{despachar:Function, CAMPOS_PARA_O_MOTOR:string[]}}
  */
@@ -70,10 +120,18 @@ function criarDespachador(opcoes) {
       return { job_id: null, porque_local: 'despacho sem goal' };
     }
 
-    // 3 · o motor
+    // 3 · a allowlist de MOTORES — a condicao dura do GO CONDICIONADO.
+    //     Antes de chamar o motor: um `agent:"kimi"` morre AQUI, na porta, e nao
+    //     no ponto de estrangulamento do nucleo (que e onde esta o ALTO aberto).
+    const m = validarMotor(p.agent);
+    if (!m.ok) {
+      return { job_id: null, porque_local: m.porque };
+    }
+
+    // 4 · o motor
     let r;
     try {
-      r = await toolWork({ goal: p.goal, agent: p.agent, wave: p.wave, actor: p.actor });
+      r = await toolWork({ goal: p.goal, agent: m.motor, wave: p.wave, actor: p.actor });
     } catch (e) {
       return { job_id: null,
         porque_local: 'toolWork lancou: ' + ((e && e.message) || 'erro sem mensagem') };
@@ -91,7 +149,8 @@ function criarDespachador(opcoes) {
     return { job_id: r.job_id };
   }
 
-  return { despachar, CAMPOS_PARA_O_MOTOR };
+  return { despachar, CAMPOS_PARA_O_MOTOR, MOTORES_PERMITIDOS };
 }
 
-module.exports = { criarDespachador, CAMPOS_PARA_O_MOTOR };
+module.exports = { criarDespachador, CAMPOS_PARA_O_MOTOR, MOTORES_PERMITIDOS,
+  MOTORES_EXCLUIDOS, validarMotor };

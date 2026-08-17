@@ -28,6 +28,7 @@ const { criarPublicador } = require('./publicar.js');
 const { criarAdaptador } = require('./adapter.js');
 const { criarDespachador } = require('./despacho.js');
 const { criarTransporte } = require('./transporte.js');
+const { descobrirTudo, escreverEnv } = require('./descobrir.js');
 
 const RAIZ_REPO = path.resolve(__dirname, '..', '..');
 const ENV_PATH = path.join(__dirname, '.env');
@@ -71,6 +72,31 @@ async function montar(opcoes) {
   } else {
     const d = daemon.arrancar({ repo: RAIZ_REPO, envPath, syncPath });
     if (!d.arrancou) return { montado: false, passo: d.passo, porque: d.porque };
+  }
+
+  // 1.5 · as 3 derivaveis. O dono da os TOKENS; o canal e os dois ids o proprio
+  //       bot sabe perguntar (`auth.test` · `conversations.list` · `users.list`).
+  //       Corre so depois do daemon: ou seja, so com o gate aberto e token presente.
+  const derivacao = { corrida: false, notas: [], escritas: [], actualizadas: [] };
+  if (!seco) {
+    const emFalta = faltamVariaveis();
+    const derivaveis = [VARS.canal, VARS.botUserId, VARS.allowUserId];
+    if (emFalta.some((v) => derivaveis.includes(v))) {
+      derivacao.corrida = true;
+      const r = await descobrirTudo({ botToken: process.env[VARS.botToken],
+        canalNome: o.canalNome || 'mooter-demo' });
+      if (!r.ok) {
+        return { montado: false, passo: 'derivacao:' + r.passo, porque: r.porque };
+      }
+      // escreve SO as que faltavam — uma que o dono ja tenha posto a mao manda
+      const aEscrever = {};
+      for (const [k, v] of Object.entries(r.valores)) if (emFalta.includes(k)) aEscrever[k] = v;
+      const w = escreverEnv(envPath, aEscrever);
+      if (!w.ok) return { montado: false, passo: 'derivacao:escrita', porque: w.porque };
+      Object.assign(derivacao, { notas: r.notas, escritas: w.escritas,
+        actualizadas: w.actualizadas, e_membro: r.e_membro });
+      for (const [k, v] of Object.entries(aEscrever)) process.env[k] = v;   // sem reler o .env
+    }
   }
 
   const faltam = seco ? [] : faltamVariaveis();
@@ -124,7 +150,7 @@ async function montar(opcoes) {
   const adaptador = criarAdaptador({ allowlist, publicador, broker, despachar });
 
   return { montado: true, seco, adaptador, transporte, publicador, broker, allowlist, syncPath,
-    despachos };
+    despachos, derivacao };
 }
 
 async function principal(argv) {
@@ -140,6 +166,13 @@ async function principal(argv) {
     process.exitCode = 1;
     return m;
   }
+  if (m.derivacao && m.derivacao.corrida) {
+    console.error('🔎 derivei do proprio Slack:');
+    for (const n of m.derivacao.notas) console.error('   · ' + n);
+    if (m.derivacao.escritas.length) console.error('   escritas no .env: ' + m.derivacao.escritas.join(', '));
+    if (m.derivacao.actualizadas.length) console.error('   actualizadas: ' + m.derivacao.actualizadas.join(', '));
+  }
+
   const maos = {
     aoMencionar: (d) => m.adaptador.receberMencao(d),
     aoInteragir: (d) => m.adaptador.receberInteraccao(d),

@@ -97,10 +97,21 @@ test('gate · NAO destrava com a frase dentro de prosa (a tolerancia so anda par
   }
 });
 
-test('gate · o SYNC.md real deste repo NAO destrava (a frente kimi-egress esta aberta)', () => {
+// O tripwire ANTERIOR afirmava que o SYNC.md deste repo NAO destrava, para que
+// ninguem pudesse destravar sem alguem dar por isso. Cumpriu: ficou vermelho no
+// momento em que a linha entrou (Cowork, GO CONDICIONADO, 2026-08-17). Agora
+// guarda a verdade nova, e uma mais forte — a linha nunca pode estar SOZINHA.
+test('gate · o SYNC.md deste repo destrava, e a linha vem ACOMPANHADA da decisao', () => {
   const real = path.join(__dirname, '..', '..', 'SYNC.md');
-  const r = gate.modoVivo({ syncPath: real });
-  assert.equal(r.vivo, false, 'se isto falhar, a linha entrou no SYNC.md e o MODO VIVO esta destravado');
+  assert.equal(gate.modoVivo({ syncPath: real }).vivo, true);
+
+  // um destrave sem a decisao escrita ao lado seria alguem a passar a linha para
+  // o ficheiro para o gate calar — e isso e indistinguivel de uma autorizacao
+  const texto = fs.readFileSync(real, 'utf8');
+  assert.match(texto, /GO CONDICIONADO/,
+    'a linha destrava mas nao ha decisao escrita ao lado — quem autorizou, e com que fundamento?');
+  assert.match(texto, /kimi/i,
+    'a condicao dura do GO (exclusao do kimi) tem de estar declarada onde o destrave esta');
 });
 
 // ── allowlist de UM id, usada nos DOIS caminhos (kimi #1 — ALTO) ──────────
