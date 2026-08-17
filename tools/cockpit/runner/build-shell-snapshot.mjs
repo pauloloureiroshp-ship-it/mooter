@@ -17,6 +17,7 @@ import path from 'node:path';
 import { buildFleetState } from './fleet-state.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
+import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO = path.resolve(HERE, '..', '..', '..');
@@ -56,16 +57,20 @@ export function stripSnapshot(html) {
 
 async function main() {
   const out = process.argv[2] || path.join(REPO, 'dist', 'moo-pilot-snapshot.html');
+  const device = deviceName();
   const [gpu, alignment] = await Promise.all([
     sampleGpu(),
     buildAlignment({ repoRoot: REPO }).catch(() => null),
   ]);
+  const fleet = readBeacons({ ...beaconDir(), selfDevice: device });
 
   const snapshot = buildFleetState({
+    device,
     ledgerPath: path.join(MOO_DIR, 'runner-ledger.jsonl'),
     statePath: path.join(MOO_DIR, 'runner-state.json'),
     stopFile: path.join(MOO_DIR, 'STOP'),
     gpu,
+    fleet,
     alignment,
     // Deliberately false: a snapshot cannot vouch for a process being up right
     // now, so it never claims the engine is alive.
