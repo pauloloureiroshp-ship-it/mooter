@@ -25,6 +25,8 @@
 const LIMITE_SECTION = 300;
 const MAX_FIELDS = 10;          // limite do Block Kit
 const CHARS_HASH = 8;           // suficiente para cruzar a olho, curto para o telemovel
+/** O hash e a prova; o rotulo tem de ser um substantivo PROPRIO, nao «estado». */
+const SELO_EXPLICA = '(muda se o pedido mudar)';
 
 /**
  * Dinheiro legivel. O ledger da 0.1372512; ninguem le dinheiro assim.
@@ -143,18 +145,29 @@ function blocosDePendente(p) {
   const d = dinheiro(p.custo);
   const blocos = [
     cabecalho('🐮 Aprovação pendente'),
+    // ⚠️ A CONSEQUÊNCIA VEM ANTES DO TOQUE. Estava só dentro do `confirm`, ou
+    // seja: o leitor só a via DEPOIS de ter tocado no botão. Um pedido de
+    // autorização que não declara o que vai acontecer não é custódia, é um botão.
+    // E o Recusar não dizia nada — quem lê tem de saber que é recuperável.
+    secao('*Aprovar* retoma o trabalho e gasta.  *Recusar* pára aqui — '
+      + 'nada se perde, podes pedir outra vez.'),
     campos([
-      ['Custo', d.texto],
+      ['Custo até agora', d.texto],
       ['Modelo', modeloCurto(p.modelo)],
       ['Quem pediu', mencaoDeActor(valorDe(p.autor))],
-      ['Motor', valorDe(p.motor) + '  ·  _não é quem pediu_'],
+      ['Quem executou', valorDe(p.motor)],
     ]),
   ];
   const accoes = blocosDeAccoes(p);
   if (accoes) { blocos.push({ type: 'divider' }); blocos.push(accoes); }
   return { blocos, rodape: contexto([
     '`' + String(p.job_id || 'n/d') + '`',
-    'estado `' + hashCurto(p.hash_esperado) + '`',
+    // ⚠️ «SELO», não «estado». A palavra «estado» tinha três sentidos no mesmo
+    // ecrã: o tipo do payload, o valor da máquina de estados (APPROVED/REJECTED)
+    // e este hash. Um estranho que lesse «estado ae0ab448…» aqui e
+    // «estado=APPROVED» na auditoria concluía, com razão, que uma das duas estava
+    // errada — e o hash é a única peça que sustenta a palavra «custódia».
+    'selo ' + SELO_EXPLICA + ' `' + hashCurto(p.hash_esperado) + '`',
     'custo: ' + d.sufixo,
     'ficheiros: ' + valorDe(p.diff_stat, 'n/d'),
   ].join('  ·  ')) };
@@ -181,8 +194,8 @@ function blocosDeDecisao(p) {
   const blocos = [secao(linhas.join('\n'))];
   if (p.hash_esperado && p.hash_actual) {
     blocos.push(campos([
-      ['Estado no cartão', '`' + hashCurto(p.hash_esperado) + '`'],
-      ['Estado agora', '`' + hashCurto(p.hash_actual) + '`'],
+      ['Selo do cartão', '`' + hashCurto(p.hash_esperado) + '`'],
+      ['Selo agora', '`' + hashCurto(p.hash_actual) + '`'],
     ]));
     blocos.push(contexto('O pedido **continua** à espera: o estado mudou entre o cartão '
       + 'e o clique, por isso a decisão não foi aceite.'));
@@ -225,7 +238,7 @@ function notificacao(p) {
   return String(p.texto || 'slack-spike');
 }
 
-module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, ROSTO, ACCOES,
+module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, SELO_EXPLICA, ROSTO, ACCOES,
   valorDoBotao, lerValorDoBotao, blocosDeAccoes,
   dinheiro, hashCurto, mencaoDeActor, valorDe, modeloCurto,
   blocosDePendente, blocosDeDecisao, blocosDeEstado, notificacao, construir };

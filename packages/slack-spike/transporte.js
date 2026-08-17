@@ -41,6 +41,9 @@ const API = 'https://slack.com/api/';
 /** Accoes que o cartao oferece -> action_id do bloco. */
 const { ACCOES, valorDoBotao, lerValorDoBotao } = cartao;   // o contrato vive no cartao.js
 
+/** So estes fecham um pedido. O STALE nao fecha nada — ver `enviar()`. */
+const ESTADOS_FINAIS = Object.freeze(['APPROVED', 'REJECTED', 'EXPIRED', 'NEGADO']);
+
 // ── nucleo puro (testavel sem rede) ─────────────────────────────────────────
 
 /**
@@ -246,8 +249,18 @@ function criarTransporte(opcoes) {
     const thread = (p.job_id && threads.get(p.job_id)) || threadCorrente || null;
     const blocks = blocos || blocosDoCartao(texto, p);
 
-    // decisao sobre um cartao que ainda esta no ecra -> substitui-o no lugar
-    const alvo = p.tipo === 'decisao' && p.job_id ? cartoes.get(p.job_id) : null;
+    /**
+     * Decisao FINAL sobre um cartao que ainda esta no ecra -> substitui-o no lugar.
+     *
+     * ⚠️ SO as finais. O STALE nao e uma decisao: e um clique que nao passou, e o
+     * pedido CONTINUA a espera de alguem. Substituir o cartao por um aviso sem
+     * botoes deixava o pendente indecidivel — o utilizador perdia a unica forma de
+     * decidir sobre um pedido que ainda estava vivo. Com o STALE de fora, o cartao
+     * fica intacto e, se o estado mudou (que e a razao do STALE), o poller publica
+     * um cartao novo com o hash novo em <=5s, e a decisao volta a ser possivel.
+     */
+    const alvo = p.tipo === 'decisao' && p.job_id && ESTADOS_FINAIS.includes(p.estado)
+      ? cartoes.get(p.job_id) : null;
     if (alvo) {
       const corpo = { channel: canal, ts: alvo, text: String(texto), blocks };
       enviados.push({ metodo: 'chat.update', corpo });
@@ -416,7 +429,7 @@ function criarTransporte(opcoes) {
 }
 
 module.exports = {
-  ACCOES, API,
+  ACCOES, API, ESTADOS_FINAIS,
   extrairGoal, chaveDeEvento, classificarEnvelope, valorDoBotao, lerValorDoBotao, blocosDoCartao,
   chamarSlack, pedirUrlDoSocket, abrirSocketPorOmissao, criarTransporte,
 };

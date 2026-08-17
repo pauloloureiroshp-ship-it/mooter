@@ -180,6 +180,28 @@ function criarPublicador(opcoes) {
       }
     }
 
+    /**
+     * ⚠️ BARREIRA 4 — PROSA. A allowlist de campos e de PROFUNDIDADE 1: valida os
+     * NOMES dos campos no topo, mas os valores sao objectos `{valor, fonte,
+     * porque, rotulo}` cujas folhas sao texto livre que vem do ledger e nunca foi
+     * validado. Um `fonte` ou um `porque` que um dia traga uma frase inteira
+     * (ou pior, um pedaco de goal) atravessava tudo o que esta acima, porque nao e
+     * um nome de segredo nem um campo proibido — e apenas comprido.
+     *
+     * Nao se trunca: truncar publicaria metade do vazamento. Recusa-se, porque uma
+     * string longa NUM CARTAO e sempre sinal de que algo entrou por onde nao devia.
+     * O cartao e feito de rotulos curtos e valores derivados; nada legitimo aqui
+     * chega perto do limite.
+     */
+    for (const s of stringsDe([blocos, texto], [])) {
+      if (s.length > cartao.LIMITE_SECTION) {
+        return { publicado: false,
+          porque: 'string de ' + s.length + ' chars no cartao (limite ' + cartao.LIMITE_SECTION
+            + ') — um cartao e feito de valores derivados curtos; isto e prosa a entrar '
+            + 'por uma folha nao validada' };
+      }
+    }
+
     const lista = [...removidos];
     const registo = { texto, blocos, removidos: lista, ts: new Date().toISOString() };
     historico.push(registo);

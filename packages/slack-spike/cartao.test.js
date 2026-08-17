@@ -238,3 +238,69 @@ test('transporte · usa os blocos que a PORTA aprovou, nao uns que ele proprio i
   await tr.enviar('fallback', { tipo: 'estado' }, meus);
   assert.deepEqual(tr.enviados[0].corpo.blocks, meus);
 });
+
+// ── o STALE nao pode consumir o cartao ─────────────────────────────────────
+// Um STALE nao e decisao: o pedido CONTINUA a espera. Substituir o cartao por um
+// aviso sem botoes deixava o pendente indecidivel — o utilizador perdia a unica
+// forma de decidir sobre um pedido ainda vivo.
+test('STALE · NAO actualiza o cartao no lugar (senao o pendente fica indecidivel)', async () => {
+  const tr = criarTransporte({ canal: 'C', syncPath: comSyncDestravado(), dryRun: true });
+  await tr.enviar('pendente', { tipo: 'pendente', job_id: 'job-7' }, []);
+  await tr.enviar('stale', { tipo: 'decisao', job_id: 'job-7', estado: 'STALE',
+    hash_esperado: HASH, hash_actual: 'ffff' }, []);
+  assert.deepEqual(tr.enviados.map((e) => e.metodo), ['chat.postMessage', 'chat.postMessage']);
+  assert.ok(tr.cartoes.has('job-7'), 'o cartao tem de continuar vivo e clicavel apos um STALE');
+});
+
+test('STALE · e depois de um STALE uma decisao FINAL ainda actualiza o cartao', async () => {
+  const tr = criarTransporte({ canal: 'C', syncPath: comSyncDestravado(), dryRun: true });
+  await tr.enviar('pendente', { tipo: 'pendente', job_id: 'job-7' }, []);
+  await tr.enviar('stale', { tipo: 'decisao', job_id: 'job-7', estado: 'STALE' }, []);
+  await tr.enviar('recusado', { tipo: 'decisao', job_id: 'job-7', estado: 'REJECTED' }, []);
+  assert.equal(tr.enviados[2].metodo, 'chat.update');
+});
+
+test('ESTADOS_FINAIS · o STALE nao esta la, e os que fecham estao', () => {
+  const { ESTADOS_FINAIS } = require('./transporte.js');
+  assert.ok(!ESTADOS_FINAIS.includes('STALE'));
+  assert.ok(ESTADOS_FINAIS.includes('APPROVED') && ESTADOS_FINAIS.includes('REJECTED'));
+});
+
+// ── barreira 4: prosa a entrar por uma folha nao validada ──────────────────
+// A allowlist de campos e de profundidade 1: valida NOMES no topo, e as folhas
+// (`fonte`, `porque`) sao texto livre do ledger. Uma frase inteira atravessava
+// tudo o resto — nao e nome de segredo nem campo proibido, e apenas comprida.
+test('barreira 4 · uma folha com prosa longa RECUSA o cartao (nao se trunca)', () => {
+  const pub = criarPublicador({ dryRun: true });
+  const r = pub.publicar(pendente({
+    custo: { valor: null, porque: 'x'.repeat(400) },   // `porque` e renderizado no rodape
+  }));
+  assert.equal(r.publicado, false);
+  assert.match(r.porque, /prosa a entrar/);
+});
+
+test('barreira 4 · um cartao normal passa folgadamente (a barreira nao estorva)', () => {
+  const pub = criarPublicador({ dryRun: true });
+  assert.equal(pub.publicar(pendente()).publicado, true);
+});
+
+// ── copy: as tres ALTO das lentes de UX ────────────────────────────────────
+test('copy · a CONSEQUENCIA de cada botao esta no cartao, antes do toque', () => {
+  const t = tudo(c.construir(pendente()).blocos);
+  assert.match(t, /Aprovar\* retoma o trabalho e gasta/, 'aprovar sem consequencia declarada');
+  assert.match(t, /Recusar\* pára aqui/, 'recusar sem consequencia declarada');
+  assert.match(t, /nada se perde/, 'quem le tem de saber que recusar e recuperavel');
+});
+
+test('copy · a palavra «estado» NAO rotula o hash (tinha 3 sentidos no mesmo ecra)', () => {
+  const t = tudo(c.construir(pendente()).blocos);
+  assert.ok(!/estado `/.test(t), 'o hash nao se chama «estado»: colide com APPROVED/REJECTED');
+  assert.match(t, /selo/, 'o hash precisa de um substantivo proprio');
+});
+
+test('copy · o STALE tambem chama selo aos dois hashes', () => {
+  const t = tudo(c.construir({ tipo: 'decisao', job_id: 'j', estado: 'STALE',
+    hash_esperado: HASH, hash_actual: 'ffffffff' + HASH.slice(8) }).blocos);
+  assert.match(t, /Selo do cartão/);
+  assert.match(t, /Selo agora/);
+});
