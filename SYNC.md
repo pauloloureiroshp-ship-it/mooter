@@ -685,3 +685,53 @@ não há fonte fiável na máquina e não se inventa.
 **185/185** · mutação: **9/9 vermelhas** nas guardas do 3b (+12 anteriores) ·
 `classify.js` `427d8c0b…` **intacto** · nada tocado em `packages/mooter-bridge/` ·
 adds selectivos · **0 uncommitted**.
+
+### ⚠️ CORRECÇÃO AO REGISTO ACIMA — três números que reportei ao dono estavam ERRADOS
+
+O crítico externo (codex, read-only) refutou-os. Corrijo aqui em vez de os deixar:
+
+| Reportei | É, medido |
+|---|---|
+| Balde 1 custou **US$ 0,00** | **US$ 0,1218961** — o que custou zero foi a *preparação* |
+| Balde 1 demorou **19,8s** | **51,2s** — 19,8s da prep + 31,4s do trabalho |
+| O evento chama-se `approval_granted` | **`approval.decided`** (6×) e `approval.dispatching` (6×). `approval_granted` **não existe** no ledger |
+
+A cadeia real do «pedido grátis»:
+```
+job-msxmsv76-30f8  moo/gemma4:e4b  preparation:true  done  US$ 0        19,8s
+     └─ handoff_from
+job-msxmtann-e20c  cc/haiku-4-5    done              US$ 0,1218961      31,4s   ← nunca apareceu no Slack
+```
+O `🏁 Trabalho concluído · US$ 0,00` que o dono viu **fechou o job da preparação**. O
+trabalho real terminou 31s depois, noutro job, e o Slack nunca o disse. Eu celebrei o
+número da prep e repeti-o em duas mensagens e num handoff.
+
+**Custo total corrigido da frente: US$ 4,4675 → não muda** (o filho já estava contado);
+o que muda é a atribuição: **não houve nenhum pedido grátis end-to-end**. O único job a
+US$ 0 foi uma preparação que entregou trabalho pago a seguir.
+
+### Veredictos dos dois críticos (anexados sem filtrar)
+
+**codex (read-only, 18 min, `job-msxqfbak-3911`): NO-GO** no SHA auditado. ALTO:
+(1) a claim de não-egress **refutada** por um canário em `modelo.valor`; (2) envio
+recusado declarado publicado; (3) `handoff_from` desconhecido → o caminho feliz perde o
+filho; (4) corrida entre threads concorrentes; (5) crítico operacional: rotação de tokens.
+Também: `prep` tem **39,13% de sucesso** (18/46) e **todos os 18 sucessos** foram seguidos
+91–236 ms depois por um dispatch cloud pago — *a prep prepara, não substitui a cloud*.
+
+**final-reviewer (Opus): SHIP-WITH-NITS.** Portões mecânicos todos verdes. ALTO: o poller
+inteiro era indemonstrável (4 mutações → suite verde), e era a sexta instância do mesmo
+padrão — escrita **por baixo do meu próprio comentário** que explica a quinta.
+
+### O que foi fechado depois dos veredictos
+Vocabulário fechado a sério (`agent`→n/d fora do mapa, `model_used`→gramática) ·
+`poller.js` extraído com 14 testes que chamam as funções reais (as 4 mutações do crítico:
+**4/4 vermelhas**) · `handoff_from` seguido · uma prep nunca se anuncia como trabalho ·
+publicado≠entregue (retenta) · `ACCOES_COM_CAS_ESTRITO` passa a governar · corrida
+resolvida com `AsyncLocalStorage`. **208/208.**
+
+### Continua por fazer (do dono, ou bloqueado)
+Rotação dos tokens (**crítico operacional**, o codex confirma) · demo agendada (gate nº1) ·
+`reactions:write` para a reacção ⏳ · recusa e STALE ao vivo (precisam de clique) ·
+`git merge origin/main` + suite na árvore fundida antes do push (o branch está 28 atrás) ·
+`slack-spike` não corre em CI nenhum.
