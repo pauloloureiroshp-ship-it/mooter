@@ -33,6 +33,14 @@ else
   echo "[moo-runner] endpoint F10 no ar (PID $!) em 127.0.0.1:4290."
 fi
 
+# Abrir o cockpit ao vivo no browser, no path certo — só num gesto do dono
+# (nao no autostart, para nao abrir uma aba em cada boot). Arrancar o motor
+# passa a mostrar o painel certo sozinho.
+if [ "${MOOTER_AUTOSTART:-}" != "1" ]; then
+  ( sleep 1; open "http://127.0.0.1:4290/panel" >/dev/null 2>&1 ) &
+  echo "[moo-runner] a abrir o cockpit ao vivo em 127.0.0.1:4290/panel"
+fi
+
 # `--play` levanta um STOP anterior, porque um duplo-clique É o gesto do dono.
 # Um agendador não é gesto nenhum: se o LaunchAgent ou o Task Scheduler
 # chamassem este ficheiro, o STOP deixaria de sobreviver a um reboot. Daí a
