@@ -1,0 +1,8 @@
+{
+  "name": "@mooter/slack-spike",
+  "version": "0.0.0-throwaway",
+  "description": "THROWAWAY · demo de bolso no Slack (1 workspace, 1 canal, 1 id). Nasce com data de morte em morte.js. Nao e produto, nao e multi-tenant, nao tem HTTP. So IMPORTA APIs existentes — zero alteracoes ao nucleo.",
+  "scripts": { "test": "node --test" },
+  "license": "MIT",
+  "private": true
+}

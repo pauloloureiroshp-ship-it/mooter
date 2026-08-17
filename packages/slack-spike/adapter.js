@@ -1,0 +1,160 @@
+'use strict';
+/**
+ * ⚠️ THROWAWAY — spike Slack. O adapter inteiro.
+ *
+ * Regra de ouro deste ficheiro: NAO altera nada do nucleo. Importa
+ * `broker.js` e `actor.js` como qualquer consumidor, e recebe a porta de
+ * despacho INJECTADA — em MODO CONSTRUCAO e um duplo (zero dispatch real), em
+ * MODO VIVO liga-se ao `toolWork` do seamless.js.
+ *
+ * O loop, incluindo o infeliz:
+ *   1. mencao -> allowlist -> despacho com actor do Slack
+ *   2. pendente -> cartao com campos DERIVADOS (nunca conteudo)
+ *   3. clique  -> A MESMA allowlist (kimi #1) -> broker.decide
+ *   4. decisao -> confirmacao + entrada de auditoria do ledger (kimi #8)
+ */
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const { derivarDoPendente } = require('./leitura.js');
+
+/** Leitor de ledger por omissao: SO LE. Nunca escreve — quem escreve e o broker. */
+function lerLedgerPorOmissao() {
+  const home = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
+  try {
+    return fs.readFileSync(path.join(home, 'ledger.jsonl'), 'utf8').split('\n').filter(Boolean)
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean);
+  } catch { return []; }
+}
+
+/** Motivos do broker que significam "este pedido ja tem dono": resposta efemera. */
+const JA_DECIDIDO = ['ja_decidido', 'replay_exacto'];
+
+function criarAdaptador(opcoes) {
+  const o = opcoes || {};
+  const allowlist = o.allowlist;
+  const publicador = o.publicador;
+  const broker = o.broker;
+  const despachar = o.despachar;
+  const lerEventos = o.lerEventos || lerLedgerPorOmissao;
+  for (const [nome, v] of [['allowlist', allowlist], ['publicador', publicador],
+    ['broker', broker], ['despachar', despachar]]) {
+    if (!v) throw new Error('criarAdaptador precisa de `' + nome + '` — nada aqui e opcional');
+  }
+
+  /** Tudo o que foi ignorado fica REGISTADO. Ignorar em silencio nao e ignorar. */
+  const registo = [];
+  const agora = () => new Date().toISOString();
+
+  function actorDe(userId) {
+    return { type: 'human', id: 'slack:' + userId, origem: 'slack' };
+  }
+
+  // ── 1 · a mencao ────────────────────────────────────────────────────────
+  async function receberMencao(m) {
+    const ev = m || {};
+    const p = allowlist.permite(ev.user_id);
+    if (!p.ok) {
+      registo.push({ tipo: 'mencao_de_fora', user_id: ev.user_id, ts: agora(), porque: p.porque });
+      return { aceite: false, porque: p.porque };
+    }
+    const goal = String(ev.texto == null ? '' : ev.texto).trim();
+    if (!goal) return { aceite: false, porque: 'mencao sem goal' };
+
+    // ⚠️ O CONTEXTO DO THREAD NAO ENTRA AQUI. `ev.thread_context` existe no
+    // objecto que o Slack entrega e e deliberadamente ignorado: arrastar as
+    // mensagens anteriores para dentro do prompt seria mandar para um modelo
+    // tudo o que se disse no canal, incluindo o que ninguem escreveu para o bot.
+    const r = await despachar({ goal, agent: 'cc', wave: 'slack-spike', actor: actorDe(ev.user_id) });
+    const jobId = r && r.job_id ? r.job_id : null;
+    publicador.publicar({ tipo: 'estado', job_id: jobId,
+      texto: jobId ? 'despachado — sigo neste thread' : 'nao despachou' });
+    return { aceite: true, job_id: jobId };
+  }
+
+  // ── 2 · o cartao do pendente ────────────────────────────────────────────
+  function cartaoDe(pendente, ledger) {
+    // o ultimo evento de ESTADO do job — nao o ultimo evento (um `step` a seguir
+    // ao pendente nao pode roubar-lhe os campos)
+    const evento = broker.estadoCorrente(pendente.job_id, ledger);
+    const d = derivarDoPendente(evento);
+    return { tipo: 'pendente', job_id: pendente.job_id, wave: pendente.wave || null,
+      autor: d.autor, motor: d.motor, modelo: d.modelo, custo: d.custo, diff_stat: d.diff_stat,
+      accoes: ['aprovar', 'recusar'],
+      texto: 'aprova ou recusa este pedido' };
+  }
+
+  async function publicarPendentes() {
+    const ledger = lerEventos();
+    const out = [];
+    for (const pend of broker.listPending()) {
+      const r = publicador.publicar(cartaoDe(pend, ledger));
+      out.push({ job_id: pend.job_id, state_hash: pend.state_hash, publicado: r.publicado,
+        porque: r.porque || null });
+    }
+    return out;
+  }
+
+  // ── 3 · o clique ────────────────────────────────────────────────────────
+  async function receberInteraccao(i) {
+    const ev = i || {};
+    // kimi #1 (ALTO): a MESMA allowlist do caminho da mencao. Um clique de
+    // terceiro nem chega ao broker — e nao se responde no canal, porque
+    // responder confirmaria a um estranho que o pedido existe.
+    const p = allowlist.permite(ev.user_id);
+    if (!p.ok) {
+      registo.push({ tipo: 'clique_de_fora', user_id: ev.user_id, request_id: ev.request_id,
+        accao: ev.accao, ts: agora(), porque: p.porque });
+      return { estado: 'IGNORADO', porque: p.porque, efemero: true };
+    }
+
+    const veredicto = ev.accao === 'aprovar' ? 'aprovar' : 'recusar';
+    const r = await broker.decide({
+      actor: actorDe(ev.user_id),
+      request_id: ev.request_id,
+      idem_key: ev.idem_key,
+      expected_state_hash: ev.expected_state_hash,
+      decision_id: ev.decision_id || ('slack-' + ev.idem_key),
+      veredicto,
+    });
+
+    // pendente ja decidido -> efemero, nao se publica no canal
+    if (JA_DECIDIDO.includes(r.motivo)) {
+      return { estado: r.estado, porque: 'ja decidido — nada a fazer', efemero: true };
+    }
+
+    // clique atrasado -> o CAS a trabalhar, com os DOIS hashes a vista
+    if (r.estado === 'STALE') {
+      publicador.publicar({ tipo: 'decisao', job_id: ev.request_id, estado: 'STALE',
+        hash_esperado: r.expected_state_hash, hash_actual: r.actual_state_hash,
+        texto: 'o estado mudou entre o cartao e o clique — o pedido CONTINUA a espera' });
+      return { estado: 'STALE', porque: r.porque || 'estado mudou', efemero: false };
+    }
+
+    // decisao final -> confirmacao + auditoria (kimi #8)
+    const linhaAuditoria = [
+      'request=' + ev.request_id,
+      'veredicto=' + veredicto,
+      'estado=' + r.estado,
+      'actor=' + actorDe(ev.user_id).id,
+      'hash_decidido=' + String(ev.expected_state_hash || 'n/d').slice(0, 12) + '…',
+      'autorizacao=' + (r.autorizacao || 'n/d'),
+      r.job_novo ? 'job_novo=' + r.job_novo : 'job_novo=n/d',
+    ].join(' · ');
+
+    publicador.publicar({ tipo: 'decisao', job_id: ev.request_id, estado: r.estado,
+      auditoria: linhaAuditoria,
+      texto: r.estado === 'APPROVED' ? 'aprovado — re-despachado'
+        : (r.estado === 'REJECTED' ? 'recusado por quem decide'
+          : 'sem decisao: ' + (r.motivo || 'motivo n/d')) });
+
+    return { estado: r.estado, motivo: r.motivo, porque: r.porque || null, efemero: false };
+  }
+
+  return { receberMencao, receberInteraccao, publicarPendentes, cartaoDe, registo };
+}
+
+module.exports = { criarAdaptador, lerLedgerPorOmissao, JA_DECIDIDO };

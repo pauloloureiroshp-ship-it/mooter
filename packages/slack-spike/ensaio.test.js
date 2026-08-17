@@ -1,0 +1,210 @@
+'use strict';
+/** ⚠️ THROWAWAY — spike Slack. Ver README.md e morte.js. Nao copiar para o produto. */
+
+/**
+ * O ensaio do infeliz (kimi #4) + o loop feliz, contra o broker REAL em
+ * dry-run: MOOTER_HOME aponta para uma pasta temporaria e o dispatcher e um
+ * duplo. NENHUM despacho real acontece nesta suite.
+ */
+
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+
+const broker = require('../mooter-bridge/broker.js');
+const { criarAllowlist } = require('./allowlist.js');
+const { criarPublicador } = require('./publicar.js');
+const { criarAdaptador } = require('./adapter.js');
+
+const MP_TEXTO = '# masterprompt de ensaio\n\nfaz uma coisa pequena.\n';
+const MP_HASH = crypto.createHash('sha256').update(MP_TEXTO, 'utf8').digest('hex');
+
+/** Cria um MOOTER_HOME temporario com UM pendente real, pronto a decidir. */
+function bancada({ jobId = 'job-ensaio-1', actor = null } = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-home-'));
+  fs.mkdirSync(path.join(home, 'jobs', jobId), { recursive: true });
+  fs.writeFileSync(path.join(home, 'jobs', jobId, 'masterprompt.md'), MP_TEXTO, 'utf8');
+
+  const agora = new Date().toISOString();
+  const eventos = [
+    { ts: agora, job_id: jobId, event: 'dispatched', agent: 'cc', wave: 'slack-spike',
+      worktree: 'C:\\repo', goal: 'uma coisa pequena', mp_hash: MP_HASH, tier: 'T3',
+      permissoes_efectivas: { valor: ['Read', 'Edit'] }, escrita: true },
+    { ts: agora, job_id: jobId, event: 'nao_verificado', agent: 'cc', wave: 'slack-spike',
+      worktree: 'C:\\repo', exit_code: 'agent-awaiting-approval', mp_hash: MP_HASH,
+      cost_usd: 0.62, cost_usd_fonte: 'reportado pelo CLI', model_used: 'claude-opus-5',
+      files_touched: null, visibilidade: 'local_only',
+      actor: actor || { type: 'system', id: 'system', origem: null },
+      actor_porque: actor ? 'declarado por quem disparou'
+        : 'n/d — ator não declarado por quem disparou; nunca inferido' },
+  ];
+  fs.writeFileSync(path.join(home, 'ledger.jsonl'),
+    eventos.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8');
+  process.env.MOOTER_HOME = home;
+  return { home, jobId };
+}
+
+function montar({ despachar } = {}) {
+  const enviados = [];
+  const publicador = criarPublicador({ enviar: (t) => { enviados.push(t); return { ok: true }; } });
+  const ad = criarAdaptador({
+    allowlist: criarAllowlist(['U_PAULO']),
+    publicador,
+    broker,
+    despachar: despachar || (async () => ({ job_id: 'job-novo-dry-run' })),
+  });
+  return { ad, enviados };
+}
+
+test.beforeEach(() => { broker.setDispatcher(async () => ({ job_id: 'job-redespacho-dry-run' })); });
+test.afterEach(() => { delete process.env.MOOTER_HOME; });
+
+// ── o caminho feliz ───────────────────────────────────────────────────────
+test('feliz · mencao do id da allowlist e aceite e despachada com actor do Slack', async () => {
+  bancada();
+  const vistos = [];
+  const { ad } = montar({ despachar: async (a) => { vistos.push(a); return { job_id: 'job-novo' }; } });
+  const r = await ad.receberMencao({ user_id: 'U_PAULO', texto: 'arruma os testes', thread: 'T1' });
+  assert.equal(r.aceite, true);
+  assert.equal(vistos.length, 1);
+  assert.deepEqual(vistos[0].actor, { type: 'human', id: 'slack:U_PAULO', origem: 'slack' });
+});
+
+test('feliz · o thread-context NUNCA entra no prompt', async () => {
+  bancada();
+  const vistos = [];
+  const { ad } = montar({ despachar: async (a) => { vistos.push(a); return { job_id: 'job-novo' }; } });
+  await ad.receberMencao({
+    user_id: 'U_PAULO', texto: 'arruma os testes', thread: 'T1',
+    thread_context: ['msg anterior com a password hunter2', 'outra msg'],
+  });
+  const serializado = JSON.stringify(vistos[0]);
+  assert.ok(!serializado.includes('hunter2'), 'o contexto do thread entrou no despacho: ' + serializado);
+  assert.ok(!serializado.includes('msg anterior'));
+});
+
+test('feliz · aprovar publica a ENTRADA DE AUDITORIA do ledger no thread (kimi #8)', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  const pend = broker.listPending()[0];
+  assert.ok(pend, 'a bancada devia ter um pendente');
+
+  const r = await ad.receberInteraccao({
+    user_id: 'U_PAULO', accao: 'aprovar', request_id: jobId,
+    idem_key: 'k1', expected_state_hash: pend.state_hash, thread: 'T1',
+  });
+  assert.equal(r.estado, 'APPROVED');
+  const texto = enviados.join('\n');
+  assert.match(texto, /APPROVED/);
+  assert.ok(texto.includes(jobId), 'a auditoria devia identificar o pedido');
+  assert.ok(texto.includes(pend.state_hash.slice(0, 12)), 'a auditoria devia mostrar o hash aprovado');
+});
+
+// ── falha 1 · recusa ──────────────────────────────────────────────────────
+test('infeliz 1 · recusar grava REJECTED e diz-se no thread', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  const pend = broker.listPending()[0];
+  const r = await ad.receberInteraccao({
+    user_id: 'U_PAULO', accao: 'recusar', request_id: jobId,
+    idem_key: 'k-recusa', expected_state_hash: pend.state_hash, thread: 'T1',
+  });
+  assert.equal(r.estado, 'REJECTED');
+  assert.match(enviados.join('\n'), /recus|REJECTED/i);
+});
+
+// ── falha 2 · clique atrasado (STALE com o hash a trabalhar) ──────────────
+test('infeliz 2 · clique atrasado da STALE e MOSTRA os dois hashes', async () => {
+  const { home, jobId } = bancada();
+  const { ad, enviados } = montar();
+  const hashVelho = broker.listPending()[0].state_hash;
+
+  // o mundo mexeu-se entre o cartao e o clique
+  fs.appendFileSync(path.join(home, 'ledger.jsonl'),
+    JSON.stringify({ ts: new Date().toISOString(), job_id: jobId, event: 'step', step_index: 1 }) + '\n');
+  const hashNovo = broker.listPending()[0].state_hash;
+  assert.notEqual(hashVelho, hashNovo, 'o ensaio nao mexeu no estado — o STALE nao seria real');
+
+  const r = await ad.receberInteraccao({
+    user_id: 'U_PAULO', accao: 'aprovar', request_id: jobId,
+    idem_key: 'k-stale', expected_state_hash: hashVelho, thread: 'T1',
+  });
+  assert.equal(r.estado, 'STALE');
+  const texto = enviados.join('\n');
+  assert.ok(texto.includes(hashVelho.slice(0, 12)), 'faltou o hash esperado');
+  assert.ok(texto.includes(hashNovo.slice(0, 12)), 'faltou o hash actual');
+  // e o pendente CONTINUA na fila — um clique obsoleto nao decide nada
+  assert.equal(broker.listPending().length, 1);
+});
+
+// ── falha 3 · daemon offline (o pendente sobrevive e reaparece) ───────────
+test('infeliz 3 · daemon morre e ao religar o pendente reaparece', async () => {
+  bancada();
+  const a = montar();
+  const antes = await a.ad.publicarPendentes({ thread: 'T1' });
+  assert.equal(antes.length, 1);
+
+  // "o daemon morreu": instancia nova, memoria nova, mesmo ledger
+  const b = montar();
+  const depois = await b.ad.publicarPendentes({ thread: 'T1' });
+  assert.equal(depois.length, 1, 'o pendente devia sobreviver ao daemon');
+  assert.equal(depois[0].job_id, antes[0].job_id);
+  assert.match(b.enviados.join('\n'), /aprova|pendente/i);
+});
+
+// ── kimi #1 (ALTO) · a allowlist vale nos DOIS caminhos ───────────────────
+test('kimi #1 · clique de TERCEIRO e ignorado, registado, e NAO chega ao broker', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  const pend = broker.listPending()[0];
+
+  const r = await ad.receberInteraccao({
+    user_id: 'U_ESTRANHO', accao: 'aprovar', request_id: jobId,
+    idem_key: 'k-estranho', expected_state_hash: pend.state_hash, thread: 'T1',
+  });
+  assert.equal(r.estado, 'IGNORADO');
+  assert.equal(broker.listPending().length, 1, 'o estranho mexeu no pendente');
+  assert.equal(enviados.length, 0, 'nao se responde a um estranho no canal');
+  assert.equal(ad.registo.filter((x) => x.tipo === 'clique_de_fora').length, 1);
+});
+
+test('kimi #1 · mencao de TERCEIRO nao despacha nada', async () => {
+  bancada();
+  let despachos = 0;
+  const { ad } = montar({ despachar: async () => { despachos++; return { job_id: 'x' }; } });
+  const r = await ad.receberMencao({ user_id: 'U_ESTRANHO', texto: 'apaga tudo', thread: 'T1' });
+  assert.equal(r.aceite, false);
+  assert.equal(despachos, 0);
+});
+
+// ── pendente ja decidido · resposta efemera ───────────────────────────────
+test('pendente ja decidido responde "ja decidido" de forma efemera', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  const pend = broker.listPending()[0];
+  await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'recusar', request_id: jobId,
+    idem_key: 'k1', expected_state_hash: pend.state_hash, thread: 'T1' });
+  enviados.length = 0;
+
+  const r = await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'aprovar', request_id: jobId,
+    idem_key: 'k2', expected_state_hash: pend.state_hash, thread: 'T1' });
+  assert.match(r.porque, /ja decidido|já decidido/i);
+  assert.equal(r.efemero, true);
+  assert.equal(enviados.length, 0, 'uma resposta efemera nao se publica no canal');
+});
+
+// ── o cartao nunca leva conteudo ──────────────────────────────────────────
+test('cartao · leva custo/modelo/autor e NUNCA goal, worktree ou masterprompt', async () => {
+  bancada();
+  const { ad, enviados } = montar();
+  await ad.publicarPendentes({ thread: 'T1' });
+  const texto = enviados.join('\n');
+  assert.match(texto, /0\.62/);
+  assert.match(texto, /claude-opus-5/);
+  assert.ok(!texto.includes('uma coisa pequena'), 'o goal vazou para o cartao');
+  assert.ok(!texto.includes('C:\\repo'), 'o worktree vazou para o cartao');
+  assert.ok(!texto.includes(MP_HASH), 'o mp_hash vazou para o cartao');
+});
