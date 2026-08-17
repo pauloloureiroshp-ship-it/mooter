@@ -25,7 +25,7 @@ const gate = require('./gate.js');
 const morte = require('./morte.js');
 const { criarAllowlist } = require('./allowlist.js');
 const { criarPublicador } = require('./publicar.js');
-const { criarAdaptador } = require('./adapter.js');
+const { criarAdaptador, lerLedgerPorOmissao } = require('./adapter.js');
 const { criarDespachador } = require('./despacho.js');
 const { criarTransporte } = require('./transporte.js');
 const { descobrirTudo, escreverEnv } = require('./descobrir.js');
@@ -218,8 +218,36 @@ async function principal(argv) {
     // Slack. So sai o que nasceu aqui.
     const meuActor = 'slack:' + process.env[VARS.allowUserId];
     const vistos = new Set();
+
+    /**
+     * ⚠️ A CORRENTE prep -> job real, ou o cartao cai fora do thread.
+     *
+     * Quando ha preparacao local, o `toolWork` dispara DOIS jobs e devolve o id do
+     * PRIMEIRO (a prep, `agent:moo`). Foi esse que o thread anunciou. Se a prep
+     * expira, o motor encadeia o job real com um id NOVO — e o cartao desse job
+     * nao tinha thread conhecido, logo aterrava no canal em vez de debaixo da
+     * mencao. A promessa «sigo neste thread» passava a falsa por um detalhe de
+     * implementacao do motor.
+     *
+     * O elo esta no ledger: o `dispatched` do job real traz `prep_from`. Herda-se
+     * o thread do pai antes de publicar.
+     */
+    const herdarThread = (jobId, ledger) => {
+      if (m.transporte.threads.has(jobId)) return;
+      const disp = ledger.find((e) => e.job_id === jobId && e.event === 'dispatched');
+      const pai = disp && disp.prep_from;
+      const ts = pai && m.transporte.threads.get(pai);
+      if (ts) {
+        m.transporte.lembrarThread(jobId, ts);
+        console.error('[registo] ' + JSON.stringify({ tipo: 'thread_herdado',
+          job: jobId, de: pai }));
+      }
+    };
+
     const tique = async () => {
       try {
+        const ledger = lerLedgerPorOmissao();
+        for (const p of m.broker.listPending({ actor: meuActor })) herdarThread(p.job_id, ledger);
         const pubs = await m.adaptador.publicarPendentes({
           filtro: { actor: meuActor },
           jaVisto: (p) => vistos.has(p.job_id + ':' + p.state_hash),
