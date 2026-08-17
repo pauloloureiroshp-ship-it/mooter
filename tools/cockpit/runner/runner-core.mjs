@@ -109,6 +109,7 @@ export async function runRound({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   stopPollMs = 1000,
   anchorPath = null,
+  diffBase = null,
 }) {
   const base = assertLocalEngine(endpoint);
   const started = clock();
@@ -138,7 +139,7 @@ export async function runRound({
 
   // A âncora estática (eslint) é o detetor; o moo é o juiz. Se o ficheiro não
   // existir, readAnchor devolve [] e a ronda volta ao modo de caça — nunca falha.
-  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath });
+  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase });
   if (!pack.ok) {
     return {
       dispatched: false,
@@ -253,6 +254,7 @@ export async function runRound({
       dur_s: Math.round((clock() - started) / 1000),
       tokens_out: Number.isFinite(tokens) ? tokens : 0,
       pilar_label: pack.label,
+      modo: pack.mode || (pack.anchored ? 'ancorado' : 'caca'),
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,

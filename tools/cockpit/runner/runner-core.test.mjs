@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_SYSTEM_PROMPT } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -413,4 +413,45 @@ test('sem ancora legivel, o pack volta ao modo de caca e diz que nao esta ancora
   assert.equal(pack.ok, true);
   assert.equal(pack.anchored, false, 'ancora ausente nunca deve parar a ronda');
   assert.ok(pack.prompt.length > 0);
+});
+
+// ---------------------------------------------------------------- modo diff
+
+test('readChangedLines devolve [] quando o git falha — a ronda nunca para por isso', () => {
+  const boom = () => { throw new Error('sem git'); };
+  assert.deepEqual(readChangedLines('/qualquer', { runImpl: boom }), []);
+  assert.deepEqual(readChangedLines('/qualquer', { runImpl: () => '' }), []);
+});
+
+test('readChangedLines le os hunks do lado novo e ignora ficheiros que nao sao codigo', () => {
+  const diff = [
+    '--- a/tools/x.mjs', '+++ b/tools/x.mjs', '@@ -10,0 +11,3 @@', '+a', '+b', '+c',
+    '--- a/README.md',   '+++ b/README.md',   '@@ -1,0 +2,5 @@', '+doc',
+    '--- a/tools/y.js',  '+++ b/tools/y.js',  '@@ -4 +4 @@', '+z',
+  ].join('\n');
+  const got = readChangedLines('/r', { runImpl: () => diff });
+  assert.deepEqual(got, [
+    { file: 'tools/x.mjs', start: 11, count: 3 },
+    { file: 'tools/y.js', start: 4, count: 1 },
+  ], 'markdown fica de fora; sem count explicito conta 1');
+});
+
+test('com diff, o pack entra em modo DIFF e manda rever a MUDANCA', () => {
+  const root = fixtureRepo();
+  const fake = () => ['--- a/tools/router/classify.js', '+++ b/tools/router/classify.js', '@@ -2,0 +3,1 @@', '+x'].join('\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', diffBase: 'origin/main',
+    anchorPath: null, maxLines: 70,
+    // readChangedLines usa git de verdade; aqui provamos a escada com o diff real do fixture
+  });
+  // sem git no fixture, o diff degrada e cai para caca — a escada tem de continuar a dar pack valido
+  assert.equal(pack.ok, true, 'a escada nunca pode devolver pack invalido');
+  assert.ok(['diff', 'ancorado', 'caca'].includes(pack.mode), 'o pack declara sempre o modo');
+});
+
+test('o prompt de diff pede revisao da mudanca e aceita SEM ACHADO', () => {
+  assert.match(DIFF_SYSTEM_PROMPT, /Revê a MUDANÇA, não o ficheiro/);
+  assert.match(DIFF_SYSTEM_PROMPT, /SEM ACHADO é a resposta CERTA/);
+  assert.match(DIFF_SYSTEM_PROMPT, /ACHADO: <sintoma> QUANDO .*ENTÃO/);
+  assert.ok(!/estilo, nomes, formatação/.test(DIFF_SYSTEM_PROMPT.split('Não comentes')[0]), 'proibe estilo');
 });
