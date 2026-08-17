@@ -13,9 +13,19 @@
 
 const MARCADOR = '[nome-de-ficheiro-sensivel removido]';
 
+/**
+ * ⚠️ `(?![A-Za-z0-9])` E NAO `\b`. O `_` conta como caracter de palavra para o
+ * `\b`, logo `segredo.env_` NAO casava — e um `_` a seguir a um nome aparece por
+ * duas vias banais: o proprio ledger (`prod.env_bak`) e a decoracao de markdown
+ * (`_segredo.env_`, italico no Slack). Encontrei-o a mutar a ordem do varrimento:
+ * a ordem certa (varrer os dados antes de formatar) resolve a segunda via, mas nao
+ * a primeira — se o nome ja vier colado a um `_` do ledger, nenhuma ordem ajuda.
+ * O lookahead trata as duas, e continua a NAO apanhar `prod.environment`, porque
+ * ai o que segue e uma letra.
+ */
 const PADROES = [
   // qualquer ficheiro com extensao de segredo: segredo.env, prod.env, chave.pem
-  /\S*\.(env|pem|key|p12|pfx|jks|keystore|asc|gpg)\b/gi,
+  /\S*\.(env|pem|key|p12|pfx|jks|keystore|asc|gpg)(?![A-Za-z0-9])/gi,
   // chaves ssh por nome proprio
   /\b(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?\b/gi,
   // dotfiles de credenciais

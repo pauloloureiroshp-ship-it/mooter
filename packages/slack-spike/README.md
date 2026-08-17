@@ -144,6 +144,7 @@ explícito gravado no ledger — não esta allowlist. Fica dito.
 | `transporte.js` | o **único** ficheiro que fala com o Slack (Socket Mode à mão, 0 deps) |
 | `correr.js` | a raiz de composição: quem liga a quem. `--seco` = ensaio offline |
 | `descobrir.js` | deriva canal + id do bot + id do humano do **próprio** Slack |
+| `cartao.js` | a **apresentação**: puro, dados → Block Kit. Vocabulário fechado |
 
 **Nada aqui altera o núcleo.** `broker.js`, `actor.js` e `seamless.js` são importados
 como qualquer consumidor; a porta de despacho é **injectada** (duplo em construção,
@@ -190,7 +191,7 @@ falhou.
 cd packages/slack-spike && node --test
 ```
 
-**111/111 a passar** (47 do MODO CONSTRUÇÃO inicial + 41 do transporte/despacho/gate/
+**163/163 a passar** (47 do MODO CONSTRUÇÃO inicial + 41 do transporte/despacho/gate/
 round-trip + 6 da condição do GO + 17 da derivação). Inclui o **ensaio do infeliz**
 (kimi #4) contra o broker **real** em dry-run (`MOOTER_HOME` numa pasta temporária,
 dispatcher duplo):

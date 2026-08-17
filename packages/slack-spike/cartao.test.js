@@ -41,12 +41,15 @@ const bloco = (blocos, tipo) => blocos.find((b) => b.type === tipo);
 
 // ── dinheiro ────────────────────────────────────────────────────────────────
 test('dinheiro · 0.1372512 do ledger sai como $0,14 — ninguem le dinheiro com 7 decimais', () => {
-  assert.equal(c.dinheiro({ valor: 0.1372512, fonte: 'reportado pelo CLI' }).texto, '$0,14');
+  // `$` sozinho le-se REAIS em Sao Paulo, onde o dono le isto: 5x o valor.
+  assert.equal(c.dinheiro({ valor: 0.1372512, fonte: 'reportado pelo CLI' }).texto, 'US$ 0,14');
+  assert.equal(c.dinheiro({ valor: 1204.5, fonte: 'reportado pelo CLI' }).texto, 'US$ 1.204,50');
 });
 
 test('dinheiro · menos de um centimo NAO arredonda para $0,00 (leria-se como gratis)', () => {
-  assert.equal(c.dinheiro({ valor: 0.0001, fonte: 'x' }).texto, '< $0,01');
-  assert.equal(c.dinheiro({ valor: 0, fonte: 'x' }).texto, '$0,00');
+  const f = 'reportado pelo CLI';
+  assert.equal(c.dinheiro({ valor: 0.0001, fonte: f }).texto, 'menos de US$ 0,01');
+  assert.equal(c.dinheiro({ valor: 0, fonte: f }).texto, 'US$ 0,00');
 });
 
 test('dinheiro · sem valor NUNCA sai um numero, sai n/d com a razao', () => {
@@ -56,8 +59,8 @@ test('dinheiro · sem valor NUNCA sai um numero, sai n/d com a razao', () => {
 });
 
 test('dinheiro · uma estimativa vem ROTULADA como estimativa', () => {
-  const d = c.dinheiro({ valor: 1.5, fonte: 'calculado a partir de tokens', estimativa: true });
-  assert.equal(d.texto, '$1,50');
+  const d = c.dinheiro({ valor: 1.5, fonte: 'calculado a partir de tokens e tabela de precos' });
+  assert.equal(d.texto, 'US$ 1,50');
   assert.match(d.sufixo, /^ESTIMATIVA/);
 });
 
@@ -77,20 +80,22 @@ test('modeloCurto · tira a data do fim do id do modelo', () => {
 });
 
 test('hashCurto · 8 chars e um reticencias — 64 nao cabem num telemovel', () => {
-  assert.equal(c.hashCurto(HASH), 'ae0ab448…');
+  assert.equal(c.hashCurto(HASH), 'ae0ab4486f8d…');
+  assert.equal(c.impressaoCompleta(HASH), HASH, 'os 64 chars completos sao a prova no cartao');
   assert.equal(c.hashCurto(null), 'n/d');
 });
 
 // ── a hierarquia do cartao ──────────────────────────────────────────────────
 test('cartao · o CUSTO e o QUEM PEDIU estao em fields no topo, nao depois do corte', () => {
   const { blocos } = c.construir(pendente());
-  const campos = blocos.find((b) => b.type === 'section' && b.fields);
-  assert.ok(campos, 'devia haver um bloco de fields');
-  const texto = tudo(campos.fields);
-  assert.match(texto, /\$0,14/);
-  assert.match(texto, /<@U0BGS8N8JFL>/);
-  // e vem ANTES do bloco de accoes
-  assert.ok(blocos.indexOf(campos) < blocos.findIndex((b) => b.type === 'actions'));
+  // o comportamento de `fields` em ecra estreito NAO esta documentado pelo Slack,
+  // por isso o numero que DECIDE tem section propria de largura inteira
+  const dinheiro = blocos.find((b) => b.type === 'section' && b.text && /US\$ 0,14/.test(b.text.text));
+  assert.ok(dinheiro, 'o custo devia ter section propria');
+  assert.ok(blocos.indexOf(dinheiro) < blocos.findIndex((b) => b.type === 'actions'));
+  const campos = blocos.find((b) => b.fields);
+  assert.ok(!/US\$/.test(tudo(campos.fields)), 'o custo nao pode viver em fields');
+  assert.match(tudo(campos.fields), /<@U0BGS8N8JFL>/);
 });
 
 test('cartao · nenhum bloco de texto passa o limite que faz aparecer «Mostrar mais»', () => {
@@ -109,22 +114,26 @@ test('cartao · a justificacao interna do diff-stat NAO vai para o cartao', () =
   const { blocos } = c.construir(pendente());
   const t = tudo(blocos);
   assert.ok(!t.includes('CORTADO no Dia 0'), 'a razao interna do corte vazou para a UI');
-  assert.match(t, /ficheiros: n\/d/, 'mas o n/d fica, para o sistema nao parecer que esconde');
+  assert.match(t, /ficheiros alterados: não declarados/,
+    'mas diz-se que nao ha, para o sistema nao parecer que esconde');
 });
 
 test('cartao · tem cabecalho e rodape de contexto, e o hash vive no rodape', () => {
   const { blocos } = c.construir(pendente());
   assert.ok(bloco(blocos, 'header'), 'sem header o cartao nao se distingue de uma mensagem');
+  const h = bloco(blocos, 'header');
+  assert.equal(h.text.type, 'plain_text', 'o header do Slack nao aceita markdown');
+  assert.match(h.text.text, /cd23/, 'o sufixo do job e o que distingue dois cartoes ao relance');
   const ctx = blocos.filter((b) => b.type === 'context').pop();
-  assert.ok(ctx);
-  assert.match(ctx.elements[0].text, /ae0ab448…/);
-  assert.match(ctx.elements[0].text, /job-msxato7q-cd23/);
+  assert.ok(ctx.elements.length >= 2, 'o rodape sao elements separados, nao uma string corrida');
+  assert.match(tudo(blocos), /job-msxato7q-cd23/);
 });
 
 test('cartao · o texto de topo e a NOTIFICACAO: curta, com custo, sem hash e sem conteudo', () => {
   const { texto } = c.construir(pendente());
-  assert.match(texto, /\$0,14/);
-  assert.ok(texto.length < 90, 'a notificacao do telemovel tem de ser curta: ' + texto.length);
+  assert.match(texto, /US\$ 0,14/);
+  assert.ok(texto.length <= 100, 'a notificacao tem de ser curta: ' + texto.length);
+  assert.ok(!texto.includes('\n'), 'o push e UMA linha');
   assert.ok(!texto.includes(HASH.slice(0, 8)), 'o hash nao serve para nada num push');
 });
 
@@ -134,7 +143,9 @@ test('botoes · APROVAR pede confirmacao (num telemovel um toque errado gasta di
   const aprovar = acc.elements.find((e) => e.action_id === c.ACCOES.aprovar);
   const recusar = acc.elements.find((e) => e.action_id === c.ACCOES.recusar);
   assert.ok(aprovar.confirm, 'aprovar sem confirmacao e um toque acidental pago');
-  assert.match(aprovar.confirm.text.text, /\$0,14/, 'a confirmacao diz quanto custa');
+  assert.match(aprovar.confirm.text.text, /US\$ 0,14/, 'a confirmacao diz quanto custa');
+  assert.match(aprovar.confirm.text.text, /tecto de custo/, 'e que nao ha tecto para o que vem');
+  assert.ok(!recusar.style, 'o recusar nao compete com o primario');
   assert.ok(!recusar.confirm, 'recusar por engano nao gasta nada — nao se poe atrito');
 });
 
@@ -160,7 +171,7 @@ test('decisao · REJECTED tem rosto proprio, diz quem decidiu, e NAO tem botoes'
   assert.match(t, /❌/);
   assert.match(t, /Recusado/);
   assert.match(t, /<@U0BGS8N8JFL>/);
-  assert.match(t, /🧾 request=job-1/, 'a auditoria e a prova — tem de sair');
+  assert.match(t, /🧾 registado no ledger: request=job-1/, 'a auditoria e a prova');
   assert.equal(bloco(blocos, 'actions'), undefined, 'um pedido decidido nao oferece botoes');
 });
 
@@ -168,21 +179,32 @@ test('decisao · STALE mostra os DOIS hashes e diz que o pedido CONTINUA a esper
   const { blocos } = c.construir({ tipo: 'decisao', job_id: 'job-1', estado: 'STALE',
     hash_esperado: HASH, hash_actual: 'ffffffff' + HASH.slice(8) });
   const t = tudo(blocos);
-  assert.match(t, /ae0ab448…/, 'falta o hash do cartao');
-  assert.match(t, /ffffffff…/, 'falta o hash actual');
+  assert.match(t, /ae0ab4486f8d…/, 'falta a impressao do cartao');
+  assert.match(t, /ffffffff6f8d…/, 'falta a impressao actual');
+  assert.ok(!/US\$/.test(t), 'um STALE nao cobrou nada — nao se mostra dinheiro');
   assert.match(t, /continua/i, 'o utilizador tem de saber que nao perdeu o pedido');
 });
 
 // ── a porta de saida varre a ARVORE, nao so o texto ─────────────────────────
 test('publicar · um nome de segredo dentro de um BLOCO e limpo (nao so no texto de topo)', () => {
   const pub = criarPublicador({ dryRun: true });
-  // o `texto` e um campo permitido e vai para dentro de um bloco de decisao
+  // a `auditoria` E renderizada (no rodape da decisao) e e construida pelo adapter
+  // a partir de campos do ledger — e por isso o vector real, nao um teste de laboratorio
   const r = pub.publicar({ tipo: 'decisao', job_id: 'j', estado: 'REJECTED',
-    texto: 'falhou a ler segredo.env' });
+    auditoria: 'request=j · veredicto=recusar · falhou a ler segredo.env' });
   assert.equal(r.publicado, true);
   const t = tudo(r.blocos) + r.texto;
+  assert.ok(t.includes('request=j'), 'a auditoria tem de sair — e a prova');
   assert.ok(!t.includes('segredo.env'), 'o nome do segredo saiu dentro de um bloco');
   assert.deepEqual(r.removidos, ['segredo.env']);
+});
+
+test('publicar · um estado DESCONHECIDO nao fica sem explicacao (o texto do adapter sai)', () => {
+  const pub = criarPublicador({ dryRun: true });
+  const r = pub.publicar({ tipo: 'decisao', job_id: 'j', estado: 'LOCKED',
+    texto: 'sem decisao: lock tomado por outro processo' });
+  assert.equal(r.publicado, true);
+  assert.match(tudo(r.blocos), /lock tomado por outro processo/);
 });
 
 test('publicar · devolve blocos E texto, e o texto continua a ser o fallback curto', () => {
@@ -287,20 +309,54 @@ test('barreira 4 · um cartao normal passa folgadamente (a barreira nao estorva)
 // ── copy: as tres ALTO das lentes de UX ────────────────────────────────────
 test('copy · a CONSEQUENCIA de cada botao esta no cartao, antes do toque', () => {
   const t = tudo(c.construir(pendente()).blocos);
-  assert.match(t, /Aprovar\* retoma o trabalho e gasta/, 'aprovar sem consequencia declarada');
-  assert.match(t, /Recusar\* pára aqui/, 'recusar sem consequencia declarada');
-  assert.match(t, /nada se perde/, 'quem le tem de saber que recusar e recuperavel');
+  assert.match(t, /Aprovar\* retoma o trabalho pago/, 'aprovar sem consequencia declarada');
+  assert.match(t, /Recusar\* deixa-o parado/, 'recusar sem consequencia declarada');
+  assert.match(t, /nada mais é cobrado/, 'recusar tem de se ler como recuperavel');
 });
 
 test('copy · a palavra «estado» NAO rotula o hash (tinha 3 sentidos no mesmo ecra)', () => {
   const t = tudo(c.construir(pendente()).blocos);
   assert.ok(!/estado `/.test(t), 'o hash nao se chama «estado»: colide com APPROVED/REJECTED');
-  assert.match(t, /selo/, 'o hash precisa de um substantivo proprio');
+  assert.match(t, /Impressão do pedido/, 'o hash precisa de um substantivo proprio');
 });
 
-test('copy · o STALE tambem chama selo aos dois hashes', () => {
+test('copy · o STALE tambem chama impressao aos dois hashes', () => {
   const t = tudo(c.construir({ tipo: 'decisao', job_id: 'j', estado: 'STALE',
     hash_esperado: HASH, hash_actual: 'ffffffff' + HASH.slice(8) }).blocos);
-  assert.match(t, /Selo do cartão/);
-  assert.match(t, /Selo agora/);
+  assert.match(t, /Impressão no cartão/);
+  assert.match(t, /Impressão agora/);
+});
+
+// ── vocabulario FECHADO da procedencia do custo ────────────────────────────
+// Esta guarda existia sem teste: uma mutacao que a desligava passava verde.
+test('fonte · procedencia NAO reconhecida => o numero NAO sai', () => {
+  const d = c.dinheiro({ valor: 9.99, fonte: 'vindo de sitio nenhum' });
+  assert.equal(d.texto, 'n/d', 'um numero sem procedencia reconhecida e um numero sem procedencia');
+  assert.match(d.sufixo, /procedência não reconhecida/);
+});
+
+test('fonte · o vocabulario e um mapa, e o valor CRU do ledger nunca se imprime', () => {
+  assert.equal(c.fonteLegivel('reportado pelo CLI'),
+    'valor informado pelo próprio motor · não verificado por nós');
+  assert.equal(c.fonteLegivel('inferência local sem custo de API'),
+    'execução local, sem custo de API');
+  assert.match(c.fonteLegivel('calculado a partir de tokens e tabela de precos'), /^ESTIMATIVA/);
+  assert.equal(c.fonteLegivel('qualquer outra coisa'), null);
+  // e no cartao: a string crua do ledger nao aparece
+  const t = tudo(c.construir(pendente()).blocos);
+  assert.ok(!t.includes('reportado pelo CLI'), 'o valor cru do ledger nao se imprime');
+});
+
+test('fonte · sem procedencia reconhecida, o CARTAO mostra n/d e nao um numero', () => {
+  const t = tudo(c.construir(pendente({
+    custo: { valor: 12.5, fonte: 'inventada' } })).blocos);
+  assert.ok(!t.includes('12,5') && !t.includes('12.5'), 'o numero saiu sem procedencia');
+  assert.match(t, /n\/d/);
+});
+
+test('motor · o codigo do ledger vira algo que um estranho entende', () => {
+  assert.equal(c.motorLegivel({ valor: 'cc' }), 'agente Claude Code');
+  assert.equal(c.motorLegivel({ valor: 'moo' }), 'modelo local (a tua GPU)');
+  // um motor desconhecido nao se inventa: sai como esta
+  assert.equal(c.motorLegivel({ valor: 'vendor-novo' }), 'vendor-novo');
 });

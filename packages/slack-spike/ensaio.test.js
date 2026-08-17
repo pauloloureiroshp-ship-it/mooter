@@ -215,7 +215,7 @@ test('cartao · leva custo/modelo/autor e NUNCA goal, worktree ou masterprompt',
   const texto = enviados.join('\n');
   // dinheiro sai formatado ($0,62), nao cru (0.62): o ledger da 0.1372512 e
   // ninguem le dinheiro assim. O que importa e que o VALOR continua a sair.
-  assert.match(texto, /\$0,62/);
+  assert.match(texto, /US\$ 0,62/);
   assert.ok(!/0\.6200000|0\.62[0-9]/.test(texto), 'o valor cru nao devia sair');
   assert.match(texto, /claude-opus-5/);
   assert.ok(!texto.includes('uma coisa pequena'), 'o goal vazou para o cartao');

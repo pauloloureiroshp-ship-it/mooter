@@ -2,59 +2,106 @@
 /**
  * ⚠️ THROWAWAY — spike Slack. A APRESENTACAO. Puro: dados -> Block Kit.
  *
- * Este ficheiro nasceu de um problema real, visto no Slack a funcionar: o cartao
- * saia como UM bloco de texto corrido «chave: valor», o Slack truncava-o com
- * «Mostrar mais», e o que ficava escondido era o CUSTO e o HASH — exactamente as
- * duas coisas que provam custodia a um estranho. Um cartao que esconde a prova
- * nao e um cartao de custodia, e um dump de debug com botoes.
+ * Nasceu de um problema visto no Slack a funcionar: o cartao saia como UM bloco de
+ * texto corrido «chave: valor», o Slack truncava-o com «Mostrar mais», e o que
+ * ficava escondido era o CUSTO e a IMPRESSAO — as duas coisas que provam custodia
+ * a um estranho. Um cartao que esconde a prova nao e um cartao de custodia, e um
+ * dump de debug com botoes.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * PORQUE A FORMATACAO VIVE AQUI E NAO NO TRANSPORTE
  *
  * O `publicar.js` e a UNICA porta de saida e o unico sitio que varre nomes
- * sensiveis. Se os blocos fossem construidos no `transporte.js` (depois da
- * porta), cada string dentro de um bloco seria texto NAO VARRIDO a sair da
- * maquina — o varrimento cobria o `text` de topo e mais nada. Por isso:
- * este modulo e PURO (nao fala com o Slack, nao le ficheiros), o `publicar.js`
- * chama-o e varre a arvore INTEIRA, e o transporte so entrega o que a porta
- * aprovou.
+ * sensiveis. Se os blocos fossem construidos no `transporte.js` (depois da porta),
+ * cada string dentro de um bloco seria texto NAO VARRIDO a sair da maquina. Por
+ * isso: este modulo e PURO, a porta chama-o, varre a arvore inteira, e o
+ * transporte so entrega o que a porta aprovou.
+ *
+ * VOCABULARIO FECHADO. Nada do ledger e impresso cru. `cost_usd_fonte`,
+ * `agent` e `model_used` passam por mapas de traducao; um valor que os mapas nao
+ * conhecam nao e mostrado — e, no caso do custo, o NUMERO tambem nao sai. Isto
+ * fecha na origem o unico vector que a allowlist de campos nao cobria: as folhas
+ * (`fonte`, `porque`) sao texto livre que vem do ledger.
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-/** Slack corta um `section` por volta dos 300 chars; abaixo disto nao ha «Mostrar mais». */
+/** Slack corta um `section` acima disto («Mostrar mais»). */
 const LIMITE_SECTION = 300;
-const MAX_FIELDS = 10;          // limite do Block Kit
-const CHARS_HASH = 8;           // suficiente para cruzar a olho, curto para o telemovel
-/** O hash e a prova; o rotulo tem de ser um substantivo PROPRIO, nao «estado». */
-const SELO_EXPLICA = '(muda se o pedido mudar)';
+const MAX_FIELDS = 10;
+/** Forma curta da impressao. 12 e nao 8: 8 colide mais depressa a olho. */
+const CHARS_HASH = 12;
 
 /**
- * Dinheiro legivel. O ledger da 0.1372512; ninguem le dinheiro assim.
- * Sem fonte NUNCA sai um numero — a regra do Dia 0.
+ * ⚠️ `US$` E NAO `$`. O dono le isto em Sao Paulo, onde `$` sozinho se le
+ * REAIS — cinco vezes o valor. O ledger grava USD; a moeda tem de vir dita.
+ */
+const MOEDA = 'US$ ';
+
+/** O que o motor E, em vez do que se chama no ledger. */
+const MOTORES_LEGIVEIS = Object.freeze({
+  cc: 'agente Claude Code',
+  codex: 'agente Codex',
+  gemini: 'agente Gemini',
+  moo: 'modelo local (a tua GPU)',
+});
+
+/**
+ * Vocabulario FECHADO para a procedencia do custo. Um valor desconhecido nao se
+ * imprime — e o numero tambem nao sai, porque um numero sem procedencia
+ * reconhecida e um numero sem procedencia.
+ */
+const FONTES_LEGIVEIS = Object.freeze([
+  [/reportado pelo cli/i, 'valor informado pelo próprio motor · não verificado por nós'],
+  [/infer[eê]ncia local|sem custo de api/i, 'execução local, sem custo de API'],
+  [/calculad|tabela|estimativ/i, 'ESTIMATIVA calculada a partir de tokens · não medida'],
+]);
+
+function fonteLegivel(fonte) {
+  const s = String(fonte == null ? '' : fonte);
+  for (const [re, texto] of FONTES_LEGIVEIS) if (re.test(s)) return texto;
+  return null;                       // desconhecida => o numero nao sai
+}
+
+/**
+ * Dinheiro legivel, um ramo por caso e nenhum a inventar precisao.
+ * O ledger da 0.1372512; ninguem le dinheiro assim, e 4 decimais seriam precisao
+ * falsa sobre um numero que o proprio ledger diz nao ter verificado.
  */
 function dinheiro(custo) {
   const c = custo || {};
-  if (c.valor == null) return { texto: 'n/d', sufixo: c.porque || 'sem fonte no ledger' };
+  const fonte = fonteLegivel(c.fonte);
+  if (c.valor == null) {
+    return { texto: 'n/d', sufixo: c.porque || 'sem fonte no ledger', tem: false };
+  }
+  if (!fonte) {
+    return { texto: 'n/d', tem: false,
+      sufixo: 'procedência não reconhecida — um número sem procedência não se publica' };
+  }
   const v = Number(c.valor);
-  if (!Number.isFinite(v)) return { texto: 'n/d', sufixo: 'valor ilegivel no ledger' };
-  // < 1 centimo nao se arredonda para "$0,00": isso leria-se como gratis
-  const texto = v === 0 ? '$0,00'
-    : (v < 0.01 ? '< $0,01' : '$' + v.toFixed(2).replace('.', ','));
-  const fonte = c.estimativa ? 'ESTIMATIVA · ' + (c.fonte || 'n/d') : (c.fonte || 'n/d');
-  return { texto, sufixo: fonte };
+  if (!Number.isFinite(v)) return { texto: 'n/d', sufixo: 'valor ilegível no ledger', tem: false };
+  if (v < 0) return { texto: 'n/d', sufixo: 'valor negativo no ledger', tem: false };
+  if (v === 0) return { texto: MOEDA + '0,00', sufixo: fonte, tem: true };
+  if (v < 0.01) return { texto: 'menos de ' + MOEDA + '0,01', sufixo: fonte, tem: true };
+  const [inteiro, dec] = v.toFixed(2).split('.');
+  const comMilhar = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return { texto: MOEDA + comMilhar + ',' + dec, sufixo: fonte, tem: true };
 }
 
-/** Um sha256 de 64 chars nao cabe num telemovel e ninguem o le todo. */
+/** A impressao completa: e ESTA a string que o CAS compara. */
+function impressaoCompleta(h) {
+  const s = String(h == null ? '' : h);
+  return s || 'n/d';
+}
+
+/** Forma curta, para referencias em linha (confirmacao, auditoria, comparacao). */
 function hashCurto(h) {
   const s = String(h == null ? '' : h);
-  if (!s) return 'n/d';
-  return s.slice(0, CHARS_HASH) + '…';
+  return s ? s.slice(0, CHARS_HASH) + '…' : 'n/d';
 }
 
 /**
- * `slack:U0BGS8N8JFL` -> `<@U0BGS8N8JFL>`, que o Slack RENDERIZA como o nome da
- * pessoa. Resolve o id opaco sem precisar do scope `users:read`: e o cliente que
- * o traduz, nao nos. Um actor que nao venha do Slack fica como texto simples.
+ * `slack:U0BGS8N8JFL` -> `<@U0BGS8N8JFL>`, que o CLIENTE renderiza como o nome da
+ * pessoa. Resolve o id opaco sem pedir o scope `users:read` a uma app throwaway.
  */
 function mencaoDeActor(actorId) {
   const s = String(actorId == null ? '' : actorId);
@@ -62,27 +109,35 @@ function mencaoDeActor(actorId) {
   return m ? '<@' + m[1] + '>' : (s || 'n/d');
 }
 
-/** Valor de um campo derivado, sem o `porque` (que e longo e interno). */
 function valorDe(campo, omissao) {
   if (campo == null) return omissao || 'n/d';
   if (typeof campo !== 'object') return String(campo);
   return campo.valor == null ? (omissao || 'n/d') : String(campo.valor);
 }
 
-/** O modelo com o `-20251001` no fim nao acrescenta nada a um estranho. */
+/** O `-20251001` no fim do id do modelo nao acrescenta nada a um estranho. */
 function modeloCurto(campo) {
   const v = valorDe(campo);
   return v === 'n/d' ? v : v.replace(/-\d{8}$/, '');
 }
 
-/** Accao -> action_id do bloco. */
+function motorLegivel(campo) {
+  const v = valorDe(campo).toLowerCase();
+  return MOTORES_LEGIVEIS[v] || (v === 'n/d' ? 'n/d' : v);
+}
+
+/** Sufixo curto do job: e o que distingue dois cartoes ao relance. */
+function apelido(jobId) {
+  const s = String(jobId || '');
+  const m = /-([a-z0-9]{2,6})$/i.exec(s);
+  return m ? m[1] : (s.slice(-4) || 'n/d');
+}
+
+// ── botoes ──────────────────────────────────────────────────────────────────
+
 const ACCOES = Object.freeze({ aprovar: 'mooter_aprovar', recusar: 'mooter_recusar' });
 
-/**
- * O valor que o botao carrega de volta: identificadores e o HASH DO CARTAO, nunca
- * conteudo. O hash e o que faz o CAS funcionar — ler um hash fresco no clique
- * fazia o clique atrasado passar por valido, e o STALE deixava de existir.
- */
+/** Identificadores e a IMPRESSAO do cartao — nunca conteudo. */
 function valorDoBotao(jobId, accao, hash) {
   return JSON.stringify({ j: String(jobId), a: accao, h: String(hash == null ? '' : hash) });
 }
@@ -99,25 +154,27 @@ function lerValorDoBotao(valor) {
 }
 
 /**
- * Os dois botoes. `confirm` no APROVAR e deliberado: num telemovel os botoes ficam
- * lado a lado e um toque errado dispara trabalho pago. A recusa nao leva confirmacao
- * — recusar por engano nao gasta nada e o pedido continua recuperavel.
+ * `confirm` SO no aprovar: num telemovel os botoes ficam lado a lado e um toque
+ * errado dispara trabalho pago. Recusar por engano nao gasta e e recuperavel, por
+ * isso nao leva atrito — nem `style`, para nao competir com o primario.
  */
 function blocosDeAccoes(p) {
   const accoes = [].concat(p.accoes || []).filter((a) => ACCOES[a]);
   if (!accoes.length || !p.job_id || !p.hash_esperado) return null;
-  return { type: 'actions', block_id: 'mooter_decisao', elements: accoes.map((a) => {
+  const d = dinheiro(p.custo);
+  return { type: 'actions', block_id: 'moo_a', elements: accoes.map((a) => {
     const b = { type: 'button', action_id: ACCOES[a],
-      text: { type: 'plain_text', text: a === 'aprovar' ? 'Aprovar' : 'Recusar', emoji: false },
-      style: a === 'aprovar' ? 'primary' : 'danger',
+      text: { type: 'plain_text', emoji: false, text: a === 'aprovar' ? 'Aprovar' : 'Recusar' },
       value: valorDoBotao(p.job_id, a, p.hash_esperado) };
     if (a === 'aprovar') {
+      b.style = 'primary';
       b.confirm = {
-        title: { type: 'plain_text', text: 'Aprovar este pedido?' },
-        text: { type: 'mrkdwn', text: 'Vai retomar trabalho pago. Custo declarado até agora: *'
-          + dinheiro(p.custo).texto + '*.' },
+        title: { type: 'plain_text', text: 'Aprovar e retomar o trabalho?' },
+        text: { type: 'mrkdwn', text: 'Já gasto até agora: *' + d.texto + '*.\n'
+          + 'Não há tecto de custo declarado para o que vem a seguir.\n'
+          + 'Impressão do pedido: `' + hashCurto(p.hash_esperado) + '`' },
         confirm: { type: 'plain_text', text: 'Aprovar' },
-        deny: { type: 'plain_text', text: 'Voltar atrás' },
+        deny: { type: 'plain_text', text: 'Voltar' },
         style: 'primary',
       };
     }
@@ -125,120 +182,134 @@ function blocosDeAccoes(p) {
   }) };
 }
 
-const secao = (texto) => ({ type: 'section', text: { type: 'mrkdwn', text: texto } });
-const contexto = (texto) => ({ type: 'context', elements: [{ type: 'mrkdwn', text: texto }] });
-const cabecalho = (texto) => ({ type: 'header', text: { type: 'plain_text', text: texto, emoji: true } });
+// ── blocos ──────────────────────────────────────────────────────────────────
 
-function campos(pares) {
-  return { type: 'section', fields: pares.slice(0, MAX_FIELDS)
-    .map(([k, v]) => ({ type: 'mrkdwn', text: '*' + k + '*\n' + v })) };
-}
+const secao = (texto, extra) => Object.assign(
+  { type: 'section', text: { type: 'mrkdwn', text: texto } }, extra || {});
+const contexto = (partes) => ({ type: 'context',
+  elements: partes.filter(Boolean).map((t) => ({ type: 'mrkdwn', text: t })) });
+const cabecalho = (texto) => ({ type: 'header',
+  text: { type: 'plain_text', emoji: false, text: texto } });
+const campos = (pares) => ({ type: 'section', fields: pares.slice(0, MAX_FIELDS)
+  .map(([k, v]) => ({ type: 'mrkdwn', text: '*' + k + '*\n' + v })) });
 
-/**
- * O cartao de um pedido a espera de decisao.
- *
- * Hierarquia deliberada: o que decide (custo, quem pediu) em cima e em campos —
- * nunca depois do corte; a prova criptografica em `context` (cinza, pequeno),
- * porque um nao-tecnico nao a le mas precisa de a VER para o argumento existir.
- */
-function blocosDePendente(p) {
+/** O dinheiro em section de largura INTEIRA: nunca em `fields`, nunca em `context`. */
+function blocoDoDinheiro(p) {
   const d = dinheiro(p.custo);
-  const blocos = [
-    cabecalho('🐮 Aprovação pendente'),
-    // ⚠️ A CONSEQUÊNCIA VEM ANTES DO TOQUE. Estava só dentro do `confirm`, ou
-    // seja: o leitor só a via DEPOIS de ter tocado no botão. Um pedido de
-    // autorização que não declara o que vai acontecer não é custódia, é um botão.
-    // E o Recusar não dizia nada — quem lê tem de saber que é recuperável.
-    secao('*Aprovar* retoma o trabalho e gasta.  *Recusar* pára aqui — '
-      + 'nada se perde, podes pedir outra vez.'),
-    campos([
-      ['Custo até agora', d.texto],
-      ['Modelo', modeloCurto(p.modelo)],
-      ['Quem pediu', mencaoDeActor(valorDe(p.autor))],
-      ['Quem executou', valorDe(p.motor)],
-    ]),
-  ];
-  const accoes = blocosDeAccoes(p);
-  if (accoes) { blocos.push({ type: 'divider' }); blocos.push(accoes); }
-  return { blocos, rodape: contexto([
-    '`' + String(p.job_id || 'n/d') + '`',
-    // ⚠️ «SELO», não «estado». A palavra «estado» tinha três sentidos no mesmo
-    // ecrã: o tipo do payload, o valor da máquina de estados (APPROVED/REJECTED)
-    // e este hash. Um estranho que lesse «estado ae0ab448…» aqui e
-    // «estado=APPROVED» na auditoria concluía, com razão, que uma das duas estava
-    // errada — e o hash é a única peça que sustenta a palavra «custódia».
-    'selo ' + SELO_EXPLICA + ' `' + hashCurto(p.hash_esperado) + '`',
-    'custo: ' + d.sufixo,
-    'ficheiros: ' + valorDe(p.diff_stat, 'n/d'),
-  ].join('  ·  ')) };
+  return secao('*Já gasto até agora neste pedido:* ' + d.texto + '\n' + d.sufixo);
 }
 
-/**
- * Depois de decidir, a MESMA mensagem passa a isto (via `chat.update`), sem
- * botoes. Deixar botoes vivos num pedido ja decidido convida um clique que so
- * pode responder «ja decidido» — e num ecra pequeno e um toque a mais numa accao
- * que gasta dinheiro.
- */
+/** A prova, completa, em code span. E esta a string que o CAS compara. */
+function blocoDaImpressao(h) {
+  return secao('*Impressão do pedido* (muda se o pedido mudar)\n`' + impressaoCompleta(h) + '`',
+    { text: { type: 'mrkdwn', verbatim: true,
+      text: '*Impressão do pedido* (muda se o pedido mudar)\n`' + impressaoCompleta(h) + '`' } });
+}
+
+function rodapeComum(p) {
+  return contexto([
+    'pedido `' + String(p.job_id || 'n/d') + '`',
+    'modelo `' + modeloCurto(p.modelo) + '`',
+    'ficheiros alterados: não declarados — este motor nunca os reporta',
+  ]);
+}
+
+function blocosDePendente(p) {
+  return { blocos: [
+    cabecalho('Aprovação pendente · ' + (p.wave || 'slack-spike') + ' · ' + apelido(p.job_id)),
+    // a consequencia ANTES do toque, e para os DOIS botoes: estava so dentro do
+    // `confirm`, ou seja o leitor so a via depois de ja ter tocado
+    secao('*Aprovar* retoma o trabalho pago deste pedido. *Recusar* deixa-o parado — '
+      + 'nada mais é cobrado e podes pedir de novo.'),
+    blocoDoDinheiro(p),
+    campos([
+      ['Pedido por', mencaoDeActor(valorDe(p.autor))],
+      ['Executado por', motorLegivel(p.motor)],
+    ]),
+    blocoDaImpressao(p.hash_esperado),
+  ].concat(blocosDeAccoes(p) ? [{ type: 'divider' }, blocosDeAccoes(p)] : []),
+  rodape: rodapeComum(p) };
+}
+
 const ROSTO = Object.freeze({
-  APPROVED: { emoji: '✅', verbo: 'Aprovado' },
-  REJECTED: { emoji: '❌', verbo: 'Recusado' },
-  STALE: { emoji: '⏳', verbo: 'Clique fora de tempo' },
-  EXPIRED: { emoji: '⌛', verbo: 'Expirado' },
+  APPROVED: { emoji: '✅', verbo: 'Aprovado', extra: 'O trabalho foi retomado.' },
+  REJECTED: { emoji: '❌', verbo: 'Recusado', extra: null },
+  STALE: { emoji: '⏳', verbo: 'Decisão não aplicada', extra: null },
+  EXPIRED: { emoji: '⌛', verbo: 'Expirado', extra: null },
 });
 
 function blocosDeDecisao(p) {
   const r = ROSTO[p.estado] || { emoji: '•', verbo: String(p.estado || 'sem estado') };
   const quem = p.autor ? mencaoDeActor(valorDe(p.autor)) : null;
-  const linhas = [r.emoji + ' *' + r.verbo + '*' + (quem ? ' por ' + quem : '')];
-  if (p.texto) linhas.push('_' + p.texto + '_');
-  const blocos = [secao(linhas.join('\n'))];
-  if (p.hash_esperado && p.hash_actual) {
-    blocos.push(campos([
-      ['Selo do cartão', '`' + hashCurto(p.hash_esperado) + '`'],
-      ['Selo agora', '`' + hashCurto(p.hash_actual) + '`'],
-    ]));
-    blocos.push(contexto('O pedido **continua** à espera: o estado mudou entre o cartão '
-      + 'e o clique, por isso a decisão não foi aceite.'));
+
+  // STALE nao e decisao: o pedido CONTINUA a espera e um cartao novo vai aparecer
+  if (p.estado === 'STALE') {
+    return { blocos: [
+      cabecalho('Decisão não aplicada · ' + apelido(p.job_id)),
+      secao('⏳ *A decisão não foi aplicada* — o pedido mudou entre o cartão e o toque.\n'
+        + 'O pedido *continua* à espera, e vai aparecer um cartão novo.'),
+      campos([
+        ['Impressão no cartão', '`' + hashCurto(p.hash_esperado) + '`'],
+        ['Impressão agora', '`' + hashCurto(p.hash_actual) + '`'],
+      ]),
+    ], rodape: contexto(['pedido `' + String(p.job_id || 'n/d') + '`',
+      'nada foi cobrado por este toque']) };
   }
-  return { blocos, rodape: p.auditoria ? contexto('🧾 ' + p.auditoria) : null };
+
+  const linhas = [r.emoji + ' *' + r.verbo + '*' + (quem ? ' por ' + quem : '')];
+  if (r.extra) linhas.push(r.extra);
+  // ⚠️ Um estado que este modulo nao conhece NAO pode ficar sem explicacao: o
+  // `texto` que o adapter escreveu ("sem decisao: motivo n/d") e a unica coisa
+  // que diz o que aconteceu. Ao reescrever o cartao deixei de o renderizar, e o
+  // resultado era informacao a desaparecer em silencio — e, de passagem, um teste
+  // de vazamento que passou a ser vacuo, porque o campo ja nao ia a lado nenhum.
+  if (!ROSTO[p.estado] && p.texto) linhas.push(String(p.texto));
+  return { blocos: [
+    cabecalho(r.verbo + ' · ' + apelido(p.job_id)),
+    secao(linhas.join('\n')),
+    blocoDoDinheiro(p),
+    blocoDaImpressao(p.hash_esperado),
+  ], rodape: contexto([
+    'pedido `' + String(p.job_id || 'n/d') + '`',
+    p.auditoria ? '🧾 registado no ledger: ' + p.auditoria : null,
+  ]) };
 }
 
-/** Estado curto (despachado / não despachou). Uma linha, sem cerimonia. */
 function blocosDeEstado(p) {
   const linha = p.job_id
-    ? '⚙️ ' + (p.texto || 'a trabalhar') + '  ·  `' + p.job_id + '`'
-    : '⚠️ ' + (p.texto || 'sem estado');
+    ? '⚙️ Recebido. Vou trabalhar e volto aqui quando precisar de uma decisão.  ·  `'
+      + p.job_id + '`'
+    : '⚠️ Não consegui aceitar este pedido. Nada foi iniciado.';
   return { blocos: [secao(linha)], rodape: null };
 }
 
-/**
- * @returns {{blocos:Array, texto:string}} `texto` e o fallback da NOTIFICACAO
- *   (o que aparece no telemovel antes de abrir). Nao e decorativo: sem ele o
- *   push diz apenas o nome da app.
- */
+/** O texto do push: o unico que o telemovel mostra antes de abrir. */
+function notificacao(p) {
+  const nome = apelido(p.job_id);
+  if (p.tipo === 'pendente') {
+    const d = dinheiro(p.custo);
+    return 'Aprovação pendente · ' + nome + ' · já gasto ' + d.texto;
+  }
+  if (p.tipo === 'decisao') {
+    const r = ROSTO[p.estado] || { verbo: String(p.estado || 'decisão') };
+    return r.verbo + ' · ' + nome;
+  }
+  return p.job_id ? 'Recebido · ' + nome : 'Não aceitei o pedido';
+}
+
 function construir(payload) {
   const p = payload || {};
   const por = p.tipo === 'pendente' ? blocosDePendente
     : (p.tipo === 'decisao' ? blocosDeDecisao : blocosDeEstado);
   const { blocos, rodape } = por(p);
   const fora = blocos.slice();
-  if (rodape) fora.push(rodape);
+  if (rodape && rodape.elements.length) fora.push(rodape);
   return { blocos: fora, texto: notificacao(p) };
 }
 
-/** O texto do push. Curto, sem hash, sem conteudo — so o que decide se abres. */
-function notificacao(p) {
-  if (p.tipo === 'pendente') {
-    return 'Aprovação pendente · ' + dinheiro(p.custo).texto + ' · ' + modeloCurto(p.modelo);
-  }
-  if (p.tipo === 'decisao') {
-    const r = ROSTO[p.estado] || { verbo: String(p.estado || 'decisão') };
-    return r.verbo + ' · ' + String(p.job_id || '');
-  }
-  return String(p.texto || 'slack-spike');
-}
-
-module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, SELO_EXPLICA, ROSTO, ACCOES,
+module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
+  MOTORES_LEGIVEIS, FONTES_LEGIVEIS,
+  fonteLegivel, dinheiro, impressaoCompleta, hashCurto, mencaoDeActor, valorDe,
+  modeloCurto, motorLegivel, apelido,
   valorDoBotao, lerValorDoBotao, blocosDeAccoes,
-  dinheiro, hashCurto, mencaoDeActor, valorDe, modeloCurto,
   blocosDePendente, blocosDeDecisao, blocosDeEstado, notificacao, construir };

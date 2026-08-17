@@ -154,3 +154,20 @@ test('denylist · nao inventa segredos em texto normal', () => {
   assert.equal(r.removidos.length, 0);
   assert.equal(r.texto, 'custo 0.08 USD, modelo claude-opus-5, 4 ficheiros');
 });
+
+// ── o `_` era um buraco no denylist ────────────────────────────────────────
+// O `\b` trata `_` como caracter de palavra, logo `segredo.env_` escapava. E um `_`
+// colado a um nome aparece por duas vias banais: o ledger (`prod.env_bak`) e o
+// italico do markdown (`_segredo.env_`). Trocado por um lookahead explicito.
+test('denylist · apanha o nome quando vem colado a um underscore', () => {
+  for (const t of ['ler _segredo.env_ falhou', 'prod.env_bak', 'a chave.pem_velha']) {
+    assert.ok(denylist.nomesSensiveis(t).length > 0, 'escapou: ' + t);
+    assert.ok(!denylist.limpar(t).texto.includes('.env_')
+      && !denylist.limpar(t).texto.includes('.pem_'), 'sobrou o nome em: ' + t);
+  }
+});
+
+test('denylist · continua a NAO apanhar uma palavra que so comeca igual', () => {
+  // `prod.environment` nao e um ficheiro de segredo; `.env` seguido de LETRA nao conta
+  assert.deepEqual(denylist.nomesSensiveis('ver prod.environment e app.keystore2'), []);
+});
