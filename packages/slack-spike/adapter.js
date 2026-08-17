@@ -122,12 +122,43 @@ function criarAdaptador(opcoes) {
    *             muda, e o cartao antigo passou a ter um botao que ja da STALE —
    *             ai um cartao novo e a coisa certa a publicar.
    */
+  /**
+   * ⚠️ UM PENDENTE NOSSO NAO PODE DESAPARECER PORQUE O MOTOR SE ESQUECEU DE QUEM PEDIU.
+   *
+   * Visto ao vivo em 2026-08-17 21:14:50: a reconciliacao do motor
+   * (`appendTerminalReconciliation` <- `sweepOrphans`, disparada por um dispatch
+   * qualquer) RE-CARIMBA o estado de um job antigo com um evento novo — e esse
+   * evento vai SEM `actor`. O `estadoCorrente` passa a devolver o carimbo novo, o
+   * actor degrada para `legacy`, e um `listPending({actor:'slack:U…'})` deixa de o
+   * ver. O pedido continua a espera no motor e some do Slack. Ninguem dava por isso.
+   *
+   * Por isso a pertenca deriva do LEDGER INTEIRO e nao do estado corrente: um job e
+   * nosso se ALGUM dos seus eventos alguma vez declarou o nosso actor. Isso e
+   * imune a re-carimbos e sobrevive a religares do daemon (ao contrario de um mapa
+   * em memoria).
+   */
+  function jobsNossos(ledger, actorId) {
+    const meus = new Set();
+    for (const e of ledger) {
+      if (e.job_id && e.actor && e.actor.id === actorId) meus.add(e.job_id);
+    }
+    // e os encadeados: o job que ACABA e filho da preparacao
+    for (const e of ledger) {
+      if (e.job_id && e.prep_from && meus.has(e.prep_from)) meus.add(e.job_id);
+    }
+    return meus;
+  }
+
   async function publicarPendentes(opcoes) {
     const oo = opcoes || {};
     const jaVisto = typeof oo.jaVisto === 'function' ? oo.jaVisto : () => false;
     const ledger = lerEventos();
+    // `pertence` (derivado do ledger) SUBSTITUI o filtro por actor quando existe:
+    // o filtro do broker olha para o estado corrente, que a reconciliacao apaga.
+    const pertence = typeof oo.pertence === 'function' ? oo.pertence : null;
     const out = [];
-    for (const pend of broker.listPending(oo.filtro)) {
+    for (const pend of broker.listPending(pertence ? null : oo.filtro)) {
+      if (pertence && !pertence(pend.job_id)) continue;
       if (jaVisto(pend)) {
         out.push({ job_id: pend.job_id, state_hash: pend.state_hash, publicado: false,
           porque: 'cartao ja publicado para este estado' });
@@ -275,7 +306,8 @@ function criarAdaptador(opcoes) {
     return out;
   }
 
-  return { receberMencao, receberInteraccao, publicarPendentes, publicarFechos, cartaoDe, registo };
+  return { receberMencao, receberInteraccao, publicarPendentes, publicarFechos, cartaoDe,
+    jobsNossos, registo };
 }
 
 module.exports = { criarAdaptador, lerLedgerPorOmissao, JA_DECIDIDO };

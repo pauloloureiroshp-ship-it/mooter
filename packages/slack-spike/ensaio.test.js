@@ -524,3 +524,45 @@ test('cartao de estado · tem botao PARAR, e sem confirmacao (stop com atrito na
   assert.ok(!acc.elements[0].confirm, 'um stop de emergencia com confirmacao chega tarde');
   assert.ok(!acc.elements[0].style, 'o vermelho aqui leria-se como "acao perigosa"');
 });
+
+// ── um pendente nosso nao desaparece por o motor esquecer quem pediu ───────
+// Visto ao vivo: a reconciliacao do motor re-carimba o estado de um job antigo com
+// um evento SEM actor; o actor degrada para `legacy` e um listPending({actor}) deixa
+// de o ver. O pedido continua a espera no motor e SOME do Slack.
+test('pertenca · um job re-carimbado SEM actor continua a ser nosso', async () => {
+  const { home, jobId } = bancada({ actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } });
+  const { ad } = montar();
+  const ledger0 = lerLedgerPorOmissao();
+  assert.ok(ad.jobsNossos(ledger0, 'slack:U_PAULO').has(jobId), 'devia ser nosso a partida');
+
+  // a reconciliacao do motor: mesmo estado, evento novo, SEM actor
+  fs.appendFileSync(path.join(home, 'ledger.jsonl'), JSON.stringify({
+    ts: new Date().toISOString(), job_id: jobId, event: 'nao_verificado',
+    exit_code: 'agent-awaiting-approval' }) + '\n');
+
+  const ledger1 = lerLedgerPorOmissao();
+  assert.equal(broker.listPending({ actor: 'slack:U_PAULO' }).length, 0,
+    'o filtro do broker perde-o — e este o comportamento que nos mordeu');
+  assert.ok(ad.jobsNossos(ledger1, 'slack:U_PAULO').has(jobId),
+    'a pertenca derivada do ledger tem de sobreviver ao re-carimbo');
+});
+
+test('pertenca · o cartao continua a sair depois do re-carimbo', async () => {
+  const { home, jobId } = bancada({ actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } });
+  const { ad, enviados } = montar();
+  fs.appendFileSync(path.join(home, 'ledger.jsonl'), JSON.stringify({
+    ts: new Date().toISOString(), job_id: jobId, event: 'nao_verificado',
+    exit_code: 'agent-awaiting-approval' }) + '\n');
+  const nossos = ad.jobsNossos(lerLedgerPorOmissao(), 'slack:U_PAULO');
+  const r = await ad.publicarPendentes({ pertence: (j) => nossos.has(j) });
+  assert.equal(r.length, 1, 'o cartao desapareceu do Slack com o pedido ainda a espera');
+  assert.equal(enviados.length, 1);
+});
+
+test('pertenca · um job de OUTRA origem continua fora (a pertenca nao alargou)', async () => {
+  bancada();   // actor `system`, nao nosso
+  const { ad, enviados } = montar();
+  const nossos = ad.jobsNossos(lerLedgerPorOmissao(), 'slack:U_PAULO');
+  assert.deepEqual(await ad.publicarPendentes({ pertence: (j) => nossos.has(j) }), []);
+  assert.equal(enviados.length, 0);
+});

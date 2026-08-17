@@ -324,9 +324,12 @@ async function principal(argv) {
       try {
         const ledger = lerLedgerPorOmissao();
         seguirCorrente(ledger);
-        for (const p of m.broker.listPending({ actor: meuActor })) herdarThread(p.job_id, ledger);
+        for (const p of m.broker.listPending()) herdarThread(p.job_id, ledger);
+        // pertenca derivada do LEDGER, nao do estado corrente: a reconciliacao do
+        // motor re-carimba jobs antigos SEM actor e um filtro por actor perde-os
+        const nossos = m.adaptador.jobsNossos(ledger, meuActor);
         const pubs = await m.adaptador.publicarPendentes({
-          filtro: { actor: meuActor },
+          pertence: (job) => nossos.has(job),
           jaVisto: (p) => ignorados.has(p.job_id) || vistos.has(p.job_id + ':' + p.state_hash),
         });
         // ⚠️ O RESULTADO DA PUBLICACAO TEM DE SE VER. O cartao deste pendente
