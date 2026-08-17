@@ -15,6 +15,26 @@ repo, evoluem com o produto e são a mesma coisa em todas as máquinas.
 
 O MEO é o Paulo. Não há skill para ele: as decisões irreversíveis são dele, e é isso que o define.
 
+## A camada dos pilares — a mesma empresa, agora a correr na GPU
+
+Os cargos acima **decidem**; os pilares **rondam**. Cada pilar é uma ronda *bounded* que corre no
+tier local ($0), produz um recibo e pára — nunca um daemon a moer GPU sem prestar contas.
+
+| Skill | Pilar | Cargo dono |
+|---|---|---|
+| `moo-talo` | consola: abre UMA ronda do pilar certo para este device | — (despacha) |
+| `moo-pilar-routing` | P1 — Routing & Custo | MFO + MIO |
+| `moo-pilar-qualidade` | P2 — Qualidade & Verificação | MTO |
+| `moo-pilar-coerencia` | P3 — Coerência Doc↔Produto | MCC |
+| `moo-pilar-higiene` | P4 — Segurança & Higiene do Repo | MRO |
+| `moo-pilar-motor` | P5 — Motor Local & GPU | MOO |
+| `moo-pilar-produto` | P6 — Produto & Experiência | MEO |
+
+As três leis da ronda, que valem para todos: **um pilar activo por GPU** (lease, nunca roubada) ·
+**folga de VRAM** medida ou `n/d`, nunca presumida · **STOP do humano** (`~/.mooter/stop.json`)
+verificado antes de cada dispatch e a falhar FECHADO. O mecanismo está em
+`packages/fleet-commander/src/stop-gate.mjs`; a métrica "% de GPU" é banida dos recibos.
+
 ## Como se usa
 
 **Uma sessão do Cowork por cargo.** Numa sessão dedicada, invoca-se `/meo-mfo` (ou o cargo que
