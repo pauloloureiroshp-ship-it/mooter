@@ -187,7 +187,17 @@ function criarAdaptador(opcoes) {
       r.job_novo ? 'job_novo=' + r.job_novo : 'job_novo=n/d',
     ].join(' · ');
 
+    // ⚠️ O CARTAO DA DECISAO TEM DE LEVAR OS NUMEROS. Sem isto publicava-se
+    // `{estado, auditoria}` e mais nada — e o cartao mostrava «Já gasto: n/d — sem
+    // fonte no ledger» e «Impressão: n/d» num pedido onde o custo ESTAVA no ledger
+    // (US$ 0,65, reportado pelo CLI). Um cartao de custodia que mostra n/d onde tem
+    // o numero nao parece honesto, parece avariado — e destroi exactamente o
+    // argumento que a demo existe para fazer. Deriva-se do mesmo sitio que o
+    // cartao do pendente: o estado corrente do job no ledger.
+    const dec = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
     publicador.publicar({ tipo: 'decisao', job_id: ev.request_id, estado: r.estado,
+      autor: dec.autor, motor: dec.motor, modelo: dec.modelo, custo: dec.custo,
+      hash_esperado: ev.expected_state_hash || null,
       auditoria: linhaAuditoria,
       texto: r.estado === 'APPROVED' ? 'aprovado — re-despachado'
         : (r.estado === 'REJECTED' ? 'recusado por quem decide'

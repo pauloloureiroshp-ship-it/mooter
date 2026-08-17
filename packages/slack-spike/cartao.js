@@ -271,6 +271,9 @@ function blocosDeDecisao(p) {
     blocoDaImpressao(p.hash_esperado),
   ], rodape: contexto([
     'pedido `' + String(p.job_id || 'n/d') + '`',
+    // o modelo entra aqui porque quem paga quer saber QUAL motor gastou — estava
+    // so no cartao do pendente, e a decisao e o sitio onde o dinheiro se confirma
+    'modelo `' + modeloCurto(p.modelo) + '`',
     p.auditoria ? '🧾 registado no ledger: ' + p.auditoria : null,
   ]) };
 }

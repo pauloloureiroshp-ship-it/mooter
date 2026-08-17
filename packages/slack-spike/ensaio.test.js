@@ -387,3 +387,21 @@ test('fecho · nao se repete a cada tique do poller', async () => {
   marcar(await ad.publicarFechos({ jobs: [jobId], jaVisto: (j) => fechados.has(j) }));
   assert.equal(enviados.length, 1, 'dois tiques, um fecho');
 });
+
+// ── o cartao da decisao tem de levar os NUMEROS ────────────────────────────
+// Visto no Slack do dono: «Já gasto: n/d — sem fonte no ledger» num pedido cujo
+// custo ESTAVA no ledger (US$ 0,65, reportado pelo CLI). Publicava-se a decisao
+// com {estado, auditoria} e mais nada. Um cartao de custodia que mostra n/d onde
+// tem o numero nao parece honesto, parece avariado.
+test('decisao · o cartao publicado leva custo, modelo e impressao — nao n/d', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  const pend = broker.listPending()[0];
+  await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'aprovar', request_id: jobId,
+    idem_key: 'k-num', expected_state_hash: pend.state_hash });
+  const t = enviados.join('\n');
+  assert.match(t, /US\$ 0,62/, 'o custo estava no ledger e o cartao disse n/d');
+  assert.match(t, /claude-opus-5/, 'faltou o modelo');
+  assert.ok(t.includes(pend.state_hash), 'faltou a impressao completa do pedido');
+  assert.ok(!/sem fonte no ledger/.test(t), 'disse «sem fonte» com a fonte presente');
+});
