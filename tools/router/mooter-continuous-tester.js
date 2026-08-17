@@ -265,7 +265,7 @@ const PROMPT_TEMPLATES = {
   ],
   T1: [
     'generate a commit message for this diff: changed {var} from {val1} to {val2}',
-    'write a regex that matches {pattern}',
+    'write a regex that matches {textPattern}',
     'explain the difference between {concept1} and {concept2}',
     'convert this JSON to TypeScript interface: {{ "name": "string", "age": "number" }}',
     'add JSDoc to this function: function {func}({params}) {{ return {val1}; }}',
@@ -303,7 +303,7 @@ const FILLS = {
   func: ['handleClick', 'processOrder', 'validateInput', 'renderChart', 'fetchData'],
   n: ['12', '42', '87', '156', '231', '8', '99'],
   comment: ['isto calcula o total', 'verificar se o user existe', 'temporal fix para o bug #42'],
-  pattern: ['email addresses', 'URLs', 'ISO dates', 'phone numbers', 'semantic versions', 'UUIDs'],
+  textPattern: ['email addresses', 'URLs', 'ISO dates', 'phone numbers', 'semantic versions', 'UUIDs'],
   concept1: ['useEffect', 'Promise', 'REST', 'SQL', 'TCP', 'mutex', 'index'],
   concept2: ['useLayoutEffect', 'Observable', 'GraphQL', 'NoSQL', 'UDP', 'semaphore', 'view'],
   params: ['a, b', 'items', 'config', 'user, options', 'data'],
