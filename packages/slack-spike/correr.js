@@ -146,8 +146,16 @@ async function montar(opcoes) {
   };
   const { despachar } = seco
     ? { despachar: despachoSeco }
-    : criarDespachador({ toolWork: seamless.toolWork, syncPath });
-  const adaptador = criarAdaptador({ allowlist, publicador, broker, despachar });
+    : criarDespachador({ toolWork: seamless.toolWork, syncPath,
+      // Onde o agente escreve. Isolada de proposito: o que a demo produzir nao se
+      // mistura com o codigo do spike, e desaparece com um
+      // `git worktree remove .claude/worktrees/slack-demo`.
+      // Sem isto, o toolWork herdava `(ctx && ctx.folder) || REPO` e o 1o despacho
+      // real morreu em «worktree fora da raiz permitida».
+      worktree: process.env.SLACK_WORKTREE
+        || path.join(RAIZ_REPO, '..', 'slack-demo') });
+  const adaptador = criarAdaptador({ allowlist, publicador, broker, despachar,
+    registar: (r) => console.error('[registo]', JSON.stringify(r)) });
 
   return { montado: true, seco, adaptador, transporte, publicador, broker, allowlist, syncPath,
     despachos, derivacao };

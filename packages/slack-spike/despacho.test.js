@@ -173,3 +173,33 @@ test('GO · "kimi" NAO esta na allowlist — o invariante e codigo, nao um comen
   assert.equal(validarMotor('kimi').ok, false);
   assert.equal(validarMotor('cc').ok, true);
 });
+
+// ── onde o agente escreve ─────────────────────────────────────────────────
+// O 1o despacho real falhou em «worktree fora da raiz permitida»: o toolWork
+// resolve `(ctx && ctx.folder) || REPO` e herdou uma pasta ambiente. O spike passou
+// a dizer onde quer trabalhar — por CONFIGURACAO, nunca pelo pedido.
+test('worktree · vai por configuracao para o motor', async () => {
+  const vistos = [];
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(), worktree: 'C:\\wt\\demo',
+    toolWork: async (a) => { vistos.push(a); return { job_id: 'j' }; } });
+  await despachar(PEDIDO);
+  assert.equal(vistos[0].worktree, 'C:\\wt\\demo');
+});
+
+test('worktree · NAO se aceita do pedido: quem menciona nao escolhe onde se escreve', async () => {
+  let chamou = false;
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(), worktree: 'C:\\wt\\demo',
+    toolWork: async () => { chamou = true; return { job_id: 'j' }; } });
+  const r = await despachar(Object.assign({}, PEDIDO, { worktree: 'C:\\Users\\Paulo\\paulo-vault' }));
+  assert.equal(r.job_id, null);
+  assert.match(r.porque_local, /fora da allowlist de despacho/);
+  assert.equal(chamou, false, 'nem chegou ao motor');
+});
+
+test('worktree · sem configuracao nao se inventa uma (o motor mantem o seu default)', async () => {
+  const vistos = [];
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async (a) => { vistos.push(a); return { job_id: 'j' }; } });
+  await despachar(PEDIDO);
+  assert.ok(!('worktree' in vistos[0]));
+});

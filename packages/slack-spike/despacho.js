@@ -91,6 +91,19 @@ function criarDespachador(opcoes) {
   const toolWork = o.toolWork;
   const syncPath = o.syncPath;
   const gate = o.gate || gateOmissao;
+  /**
+   * ⚠️ ONDE O AGENTE ESCREVE. Sem isto, o `toolWork` resolve
+   * `worktree = (ctx && ctx.folder) || REPO` — herda uma pasta AMBIENTE, e no
+   * primeiro despacho real do Slack essa pasta caiu fora da raiz permitida:
+   * «worktree fora da raiz permitida (…\.claude\worktrees)». A guarda do motor
+   * estava certa; o que faltava era o spike DIZER onde quer trabalhar.
+   *
+   * Vem por configuracao e NAO pela allowlist de saida: o `worktree` e injectado
+   * aqui, nao aceito do chamador. Assim a allowlist continua a ser 4 campos —
+   * se alguem tentar passar `worktree` no pedido, e recusado como forasteiro. A
+   * pasta onde um agente escreve nao e coisa que deva poder vir de uma mencao.
+   */
+  const worktree = o.worktree || null;
   if (typeof toolWork !== 'function') {
     throw new Error('criarDespachador precisa de `toolWork` — a porta do motor nao se adivinha');
   }
@@ -128,10 +141,12 @@ function criarDespachador(opcoes) {
       return { job_id: null, porque_local: m.porque };
     }
 
-    // 4 · o motor
+    // 4 · o motor. O `worktree` entra AQUI, de configuracao — nunca do pedido.
+    const args = { goal: p.goal, agent: m.motor, wave: p.wave, actor: p.actor };
+    if (worktree) args.worktree = worktree;
     let r;
     try {
-      r = await toolWork({ goal: p.goal, agent: m.motor, wave: p.wave, actor: p.actor });
+      r = await toolWork(args);
     } catch (e) {
       return { job_id: null,
         porque_local: 'toolWork lancou: ' + ((e && e.message) || 'erro sem mensagem') };

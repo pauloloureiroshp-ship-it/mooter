@@ -70,6 +70,22 @@ function criarAdaptador(opcoes) {
     // tudo o que se disse no canal, incluindo o que ninguem escreveu para o bot.
     const r = await despachar({ goal, agent: 'cc', wave: 'slack-spike', actor: actorDe(ev.user_id) });
     const jobId = r && r.job_id ? r.job_id : null;
+
+    // ⚠️ O `porque_local` MORRIA AQUI. O primeiro despacho real falhou e o thread
+    // disse «nao despachou» — verdade, e inutil: a razao (a guarda do worktree)
+    // existia dentro do `r` e nunca chegava a lado nenhum. O canal continua a NAO
+    // a ver (cita o goal, por isso o `publicar.js` recusa-a por construcao), mas
+    // quem opera o daemon TEM de a ler. Uma recusa sem razao legivel obriga a
+    // adivinhar, e adivinhar em cima de dinheiro real e o que se quer evitar.
+    if (!jobId) {
+      registo.push({ tipo: 'despacho_recusado', ts: agora(),
+        porque_local: (r && r.porque_local) || 'sem razao declarada' });
+      if (typeof o.registar === 'function') {
+        o.registar({ tipo: 'despacho_recusado',
+          porque_local: (r && r.porque_local) || 'sem razao declarada' });
+      }
+    }
+
     publicador.publicar({ tipo: 'estado', job_id: jobId,
       texto: jobId ? 'despachado — sigo neste thread' : 'nao despachou' });
     return { aceite: true, job_id: jobId };
