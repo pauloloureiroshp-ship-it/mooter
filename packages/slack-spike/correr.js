@@ -199,6 +199,33 @@ async function principal(argv) {
   }
 
   const r = await m.transporte.correr(maos);
+  if (r.correu) {
+    // ⚠️ O SOCKET NAO TRAZ PENDENTES. Ele traz mencoes e cliques; o pendente
+    // nasce no ledger, minutos depois, quando o agente para a pedir aprovacao.
+    // Sem este poller o cartao nunca aparecia e a demo morria no passo 3 — havia
+    // `publicarPendentes()` desde o inicio e ninguem o chamava.
+    //
+    // O filtro por actor nao e afinacao: e o que impede o primeiro tique de
+    // despejar no canal os pendentes historicos do ledger, que ninguem pediu no
+    // Slack. So sai o que nasceu aqui.
+    const meuActor = 'slack:' + process.env[VARS.allowUserId];
+    const vistos = new Set();
+    const tique = async () => {
+      try {
+        const pubs = await m.adaptador.publicarPendentes({
+          filtro: { actor: meuActor },
+          jaVisto: (p) => vistos.has(p.job_id + ':' + p.state_hash),
+        });
+        for (const p of pubs) if (p.publicado) vistos.add(p.job_id + ':' + p.state_hash);
+      } catch (e) {
+        console.error('[registo] ' + JSON.stringify({ tipo: 'poller_falhou',
+          porque: (e && e.message) || 'erro' }));
+      }
+    };
+    m.poller = setInterval(tique, Number(process.env.SLACK_POLL_MS || 5000));
+    m.poller.unref?.();
+    await tique();
+  }
   if (!r.correu) {
     console.error('✋ o socket nao abriu: ' + r.porque);
     process.exitCode = 1;

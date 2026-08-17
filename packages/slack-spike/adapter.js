@@ -93,10 +93,30 @@ function criarAdaptador(opcoes) {
       texto: 'aprova ou recusa este pedido' };
   }
 
-  async function publicarPendentes() {
+  /**
+   * @param {{filtro?:object, jaVisto?:Function}} [opcoes]
+   *   `filtro`  passa direito ao `broker.listPending` — em MODO VIVO leva
+   *             `{actor:'slack:U…'}`, porque o canal so deve mostrar os pedidos
+   *             que NASCERAM no Slack. Sem isso, o primeiro tique do poller
+   *             despejava no canal os pendentes historicos do ledger (12, no dia
+   *             em que isto se escreveu) — uma demo a abrir com 12 cartoes de
+   *             trabalho que ninguem no Slack pediu.
+   *   `jaVisto` evita republicar o MESMO cartao a cada tique. A chave e
+   *             (job_id, state_hash) e nao so o job: se o estado mudar, o hash
+   *             muda, e o cartao antigo passou a ter um botao que ja da STALE —
+   *             ai um cartao novo e a coisa certa a publicar.
+   */
+  async function publicarPendentes(opcoes) {
+    const oo = opcoes || {};
+    const jaVisto = typeof oo.jaVisto === 'function' ? oo.jaVisto : () => false;
     const ledger = lerEventos();
     const out = [];
-    for (const pend of broker.listPending()) {
+    for (const pend of broker.listPending(oo.filtro)) {
+      if (jaVisto(pend)) {
+        out.push({ job_id: pend.job_id, state_hash: pend.state_hash, publicado: false,
+          porque: 'cartao ja publicado para este estado' });
+        continue;
+      }
       const r = publicador.publicar(cartaoDe(pend, ledger));
       out.push({ job_id: pend.job_id, state_hash: pend.state_hash, publicado: r.publicado,
         porque: r.porque || null });

@@ -260,3 +260,54 @@ test('round-trip · o botao do cartao ANTIGO leva um clique atrasado a STALE, na
   const r = await ad.receberInteraccao(c.dados);
   assert.equal(r.estado, 'STALE', 'o hash do cartao e que manda — ler um hash fresco matava isto');
 });
+
+// ── o poller: o cartao so aparece se alguem o publicar ────────────────────
+// Havia `publicarPendentes()` desde o inicio e ninguem o chamava: o socket traz
+// mencoes e cliques, mas o pendente nasce no LEDGER, minutos depois. Sem poller
+// a demo morria no passo 3, com a suite toda verde.
+test('poller · o mesmo cartao NAO se republica a cada tique', async () => {
+  bancada();
+  const { ad, enviados } = montar();
+  const vistos = new Set();
+  const jaVisto = (p) => vistos.has(p.job_id + ':' + p.state_hash);
+  const marcar = (r) => { for (const x of r) if (x.publicado) vistos.add(x.job_id + ':' + x.state_hash); };
+
+  marcar(await ad.publicarPendentes({ jaVisto }));
+  assert.equal(enviados.length, 1);
+  marcar(await ad.publicarPendentes({ jaVisto }));
+  marcar(await ad.publicarPendentes({ jaVisto }));
+  assert.equal(enviados.length, 1, 'tres tiques, um cartao');
+});
+
+test('poller · se o ESTADO mudar, sai cartao novo (o botao antigo ja daria STALE)', async () => {
+  const { home, jobId } = bancada();
+  const { ad, enviados } = montar();
+  const vistos = new Set();
+  const jaVisto = (p) => vistos.has(p.job_id + ':' + p.state_hash);
+  const marcar = (r) => { for (const x of r) if (x.publicado) vistos.add(x.job_id + ':' + x.state_hash); };
+
+  marcar(await ad.publicarPendentes({ jaVisto }));
+  assert.equal(enviados.length, 1);
+
+  fs.appendFileSync(path.join(home, 'ledger.jsonl'),
+    JSON.stringify({ ts: new Date().toISOString(), job_id: jobId, event: 'step', step_index: 7 }) + '\n');
+
+  marcar(await ad.publicarPendentes({ jaVisto }));
+  assert.equal(enviados.length, 2, 'estado novo => cartao novo, com um hash que ainda decide');
+});
+
+test('poller · o filtro por actor impede o canal de receber pendentes que NAO nasceram no Slack', async () => {
+  bancada();   // o pendente da bancada tem actor `system`, nao `slack:…`
+  const { ad, enviados } = montar();
+  const r = await ad.publicarPendentes({ filtro: { actor: 'slack:U_PAULO' } });
+  assert.equal(r.length, 0, 'um pendente de outra origem nao se mostra no canal da demo');
+  assert.equal(enviados.length, 0);
+});
+
+test('poller · e MOSTRA o pendente que nasceu no Slack', async () => {
+  bancada({ actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } });
+  const { ad, enviados } = montar();
+  const r = await ad.publicarPendentes({ filtro: { actor: 'slack:U_PAULO' } });
+  assert.equal(r.length, 1);
+  assert.equal(enviados.length, 1);
+});
