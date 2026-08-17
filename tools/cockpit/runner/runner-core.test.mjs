@@ -145,15 +145,31 @@ test('todos os pilares apontam para linhas do excerto, nao para o vazio', () => 
   }
 });
 
-test('o contrato de saida exige ACHADO + PROVA e nao oferece escapatoria barata', () => {
+// CONTRATO INVERTIDO A 2026-08-17, com medição a suportar.
+// O contrato antigo empurrava "SEM ACHADO" para o fundo, para o modelo não fugir
+// barato. Mediu-se o resultado ao fim de 860 achados: 27% citavam .md, 14%
+// citavam comentários/cercas de código, ~65% eram nitpick do género "pode
+// confundir o utilizador" — só ~15% eram acionáveis. Forçar um achado por ronda
+// não produz vigilância, produz ruído. O contrato novo exige um DEFEITO REAL
+// (sintoma+condição+impacto), proíbe citar linhas não executáveis, e trata
+// "SEM ACHADO" como resposta certa. A guarda contra a fuga barata deixa de ser
+// a ordem no prompt e passa a ser a taxa de achados acionáveis, medida no ledger.
+test('o contrato de saida exige ACHADO + PROVA e um defeito REAL, nao um nitpick', () => {
   const pack = buildContextPack({ repoRoot: fixtureRepo(), pillar: 'P1' });
   assert.match(pack.system, /ACHADO:/);
   assert.match(pack.system, /PROVA: <caminho do ficheiro>:<número da linha>/);
-  // A saída vazia existe, mas só depois das regras — nunca como primeira opção.
-  assert.ok(
-    pack.system.indexOf('SEM ACHADO') > pack.system.indexOf('Nunca inventes'),
-    'SEM ACHADO nao pode aparecer antes das regras',
-  );
+  // Exige a forma sintoma → condição → impacto (mata o "pode ser null").
+  assert.match(pack.system, /QUANDO .*ENTÃO/, 'o achado tem de ligar condição a impacto');
+  // Proíbe explicitamente citar o que não é código executável.
+  assert.match(pack.system, /comentário/, 'tem de proibir citar comentários');
+  assert.match(pack.system, /em branco/, 'tem de proibir citar linhas vazias');
+  // As frases-nitpick medidas no ledger têm de estar banidas por escrito.
+  assert.match(pack.system, /pode confundir o utilizador/, 'tem de banir o nitpick medido');
+  // "SEM ACHADO" é agora uma resposta CERTA — e o prompt tem de o dizer.
+  assert.match(pack.system, /SEM ACHADO/);
+  assert.match(pack.system, /resposta CERTA/, 'o silêncio honesto tem de ser recompensado');
+  // Continua proibido inventar ficheiros/números — isso nunca muda.
+  assert.match(pack.system, /Nunca inventes/);
 });
 
 // ---------------------------------------------------------------- verifier
