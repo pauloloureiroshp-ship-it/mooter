@@ -72,3 +72,20 @@ test('asciiGlyphs: reads MOOTER_GLYPH_MODE from the given env', () => {
   assert.equal(asciiGlyphs({ MOOTER_GLYPH_MODE: 'emoji' }), false);
   assert.equal(asciiGlyphs({}), false);
 });
+
+// ── kimi / Moonshot (2026-08-16) ────────────────────────────────────────────
+// O kimi estava implementado, pago e configurado, e NENHUM ficheiro do router
+// o conhecia: badge.js, post_tool_badge.js, inject_context.js e gsd-statusline.js
+// davam todos 0 ocorrencias. Um motor que o dono paga e que nao aparece em lado
+// nenhum e capacidade a render zero.
+test('providerBucket: kimi e moonshot sao cloud, nao max', () => {
+  assert.equal(providerBucket('kimi'), 'cloud');
+  assert.equal(providerBucket('moonshot'), 'cloud');
+  assert.equal(providerBucket('kimi-k3'), 'cloud');
+  // a distincao que importa ao dono: `max` e capacidade JA PAGA por subscricao
+  // (gasta-la nao acrescenta custo marginal); `cloud` e pago ao token. O kimi
+  // custa USD reais, logo nao pode partilhar balde com o Codex CLI.
+  assert.notEqual(providerBucket('kimi'), 'max');
+  assert.equal(providerBucket('codex_cli'), 'max');
+});
+

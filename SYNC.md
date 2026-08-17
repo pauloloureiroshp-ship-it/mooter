@@ -3680,3 +3680,395 @@ vídeo preto ou estático, com controlo a prová-lo).
 - Não tocar nos adapters C1/C2 antes da F4b (o brief trava-os até ao §0).
 - Não correr a F2 sem fonte de quota **identificada**: a medição local é limite inferior contra
   uma referência default que não é um limite publicado, e por isso não serve de gate.
+
+---
+
+## 📥 COWORK → CLAUDE CODE — 2026-08-11 (Identidade Mooter/MOOGEN — decisão de arquitectura)
+**Estado:** 🟡 Aguarda D1–D5 do Paulo · nenhuma wave antes dos gates vigentes
+
+### Decisão proposta (estudo completo em `_handoff/ESTUDO_IDENTIDADE_MOOGEN_2026-08-11.md`)
+- **Bifurcação MCP resolvida [verificado]:** OAuth 2.1 do MCP = só transportes HTTP; stdio "SHOULD NOT follow this specification, and instead retrieve credentials from the environment" (spec 2025-06-18, mantido em 2025-11-25). MCP connector Anthropic: "Local STDIO servers cannot be connected directly".
+- **Arquitectura B:** GitHub **Device Flow (RFC 8628)**, scope `read:user`, mesmo gesto em conector/CLI/jogo, zero servidor, zero client_secret em código MIT. Não estender a superfície C (Supabase/`/api/cli-token`) — AUTH-0 continua aberto.
+- **Correcção de premissa:** stdio local PODE fazer loopback+browser (RFC 8252 — a Wave H3 prova); a razão do device flow é o client_secret, não o callback.
+- **2 estados, não 3:** anónimo → reclamado (GitHub). Pseudónimo = display_name sobre claim, nunca estado público próprio (squatting).
+- **Doutrina 08-04 mantida:** identidade zero no free · Polar cobra · identidade só para RECLAMAR · SSO Anthropic nunca.
+- **⚠️ R1:** FNV-1a não é criptográfico — cabeça da cadeia ganha âncora SHA-256 no fecho da partida antes de virar credencial. **R4 (n/d):** ToS dos fornecedores sobre publicar recibos — verificar ANTES de leaderboard público.
+- **Fase 2 (opt-in):** recibo = in-toto attestation assinada via Sigstore keyless (cosign sign-blob) — sem servidor nosso; aviso: Rekor torna email público para sempre.
+- **Bónus spec:** URL-mode elicitation (SEP-1036, MCP 2025-11-25) é o veículo spec-nativo para o device flow num conector stdio — candidato a demo exemplar (ângulo Boris). Suporte no Claude Desktop: n/d, testar.
+
+### ❌ Não fazer
+- Nenhum código de identidade antes de D1 aprovado e dos gates (Corporate, §10 desktop, F1→F5 maestro).
+- Não usar o token GitHub para telemetria — identidade e telemetria têm consentimentos e ficheiros separados (REGRA DURA do estudo).
+- Não pôr install-id nem email em match.json.
+
+gauntlet: alto-risco · G2 mudou (premissa stdio corrigida) · G11 mudou (âncora SHA-256) · G5 mudou (Sigstore/OB3 em vez de formato próprio) · G4 auto-DEGRADADO (sem 2º motor nesta sessão)
+
+---
+
+## 📥 COWORK → CLAUDE CODE — 2026-08-12 (Família token-economy: 4 artefactos + masterprompt v1.1)
+**Estado:** ✅ Lido em sessão #53 — 2026-08-12 (numeração retomada de #52/2026-05-31, a última registada em SYNC.md [medido]) · nenhuma wave de construção — só a wave de MEDIÇÃO após G4
+
+### O que existe (tudo em `_handoff/`, 2026-08-12)
+- `CACHE_GUARD_SKILL` — política cache-aware do router (multiplicadores verificados: write 1.25x/2x · hit 0.1x renova TTL grátis · tabela por gap)
+- `SPEC_WARM_WINDOW_VDQ` — Dead-Air Review: fila de dívida de verificação como combustível do keep-alive; SELF ≠ independente (G16)
+- `TOKEN_AUTOPILOT_SKILL` — skill de produto p/ conector Desktop: R1 route-don't-burn · R2 prefix hygiene · R3 batching · R5 checkpoint `[today]`; R4 turn-end drain `[planned]`
+- `MASTERPROMPT_BENCH_CACHE_v1.1` — SUPERSEDE v1.0 (nunca despachado; apagar v1.0 = gesto do dono). Wave de medição M1–M5, read-only no motor, outputs em `reports/`
+
+### Alavancas novas registadas 08-12 (web hoje, fontes no chat Cowork)
+- **Batch API −50% empilhável com caching** → night queue/cheques diferíveis; M4 quantifica por aritmética
+- **Output é 5x input** → disciplina diff-only + caps pode valer mais que cache; M5 mede regurgitação
+- Repos-referência: aider (edit formats), microsoft/LLMLingua (compressão 20x claim), sliday/tamp, vLLM APC/SGLang RadixAttention, GPTCache (padrão vivo, lib datada)
+- Ideia Cowork: "Token Lint" — pré-flight determinístico local $0 (DNA classify.js) que apara prompt desperdiçador antes do dispatch — SEM SPEC ainda, aguarda números
+
+### Fila (ordem dura)
+① ⚠️ auditar INFRA.md (não está no .gitignore [medido]; CLAUDE.md diz que guarda credentials; repo público) → ② G4 codex dos textos → ③ colar BENCH-CACHE v1.1 → ④ REPORT.md → ⑤ D1–D4 Paulo → ⑥ masterprompt construção (Cowork redige) → ⑦ wave VDQ adição-only + fix detector-substring do mooter_work → ⑧ Release A (skill) / B (motor) → ⑨ landing com número [medido]
+
+### ❌ Não fazer
+- Nada de construção/release antes de ④+⑤; CHANGELOG conferir (última entrada 1.34.0/Wave 53 — stale vs wave 58?)
+- Cowork NÃO faz release (git write só pela frota nativa); vault não montado nesta sessão — espelho Notion/vault fica para sessão CC ou notion-to-vault
+
+**Addendum 08-12 (mesma sessão Cowork):** + `_handoff/ROADMAP_GPU_REFINERY_2026-08-12.md` — GPU ociosa como refinaria (P1 assets read-only → P2 guardians → P3 especulativo → P4 flywheel adaptativo/LoRA), regras duras (proposals-only, recibo energético kWh, tier ladder) + masterprompt GPU-AUDIT embutido no §7, STAGED: só despachar após REPORT do BENCH-CACHE. Decisões novas D5–D7. Fila ①–⑨ INALTERADA.
+
+**Addendum 2 — 08-12 (mesma sessão Cowork) — Gauntlet: candidata C3 + retro-provas novas**
+Instrução p/ CC (mesma sessão do bloco anterior, edição NATIVA + commit próprio): integrar em
+`docs/foundation/MEO_GAUNTLET.md`, secção de candidatas em fila (padrão C1/C2 — fila NÃO é entrada;
+tecto 18 intocado; entrada = decisão do dono, entra-uma-sai-uma):
+
+- **C3 — "Leste a tabela de preços/regras INTEIRA do fornecedor, ou só a linha que a tua pergunta
+  trouxe?"** Desconto garantido por regra publicada (batch, off-peak, TTL longo, assimetria
+  input/output, tier) vale mais que a optimização engenhosa em desenho — e não aparece se a
+  pesquisa for guiada só pelo tópico. Retro-prova ×3 (conversa Cowork 2026-08-12, artefactos em
+  `_handoff/*2026-08-12*`): (1) Batch −50% empilhável só ao 6º turno, por pergunta do dono —
+  custo: masterprompt v1.0→v1.1 (M4); (2) output 5x input ignorado enquanto se optimizava input
+  (M5 só ao 6º turno); (3) preço Kimi de agregador — regra "verificar fornecedor no dia" escrita
+  a posteriori (DO-NOT do M2). O que as 18 não apanham: G5 = ecossistema/arte prévia; G12/G18 =
+  números que EU publico. Nenhuma varre os descontos que deixei na mesa.
+
+Retro-provas NOVAS p/ existentes (anexar às respectivas secções): **G5** — política de cache
+desenhada 2 turnos antes de pesquisar GPTCache/vLLM/aider; a pesquisa inverteu o ranking das
+alavancas; apanhada pelo dono. **G15** — roadmap GPU Refinery v1 sem duct de registro (R7 §8 só
+por pergunta do dono): G15 estendida ao DESIGN — o sistema desenhado tem de registar-se a si
+próprio. **C1 (fila)** — bloco de dispatch v1 fechava por prosa; v2 ganhou AUDIT.json com
+evidência re-executada.
+
+Decisão nova **D8 (Paulo):** C3 entra? Se sim: qual das 18 sai, OU gesto explícito de tecto
+18→19. Sem dados do juiz O-1 não recomendo poda — tecto ou fila é decisão tua.
+
+**Addendum 3 — 08-12 (mesma sessão Cowork) — bloco v4 FINAL + candidata C4**
+- `_handoff/COLAR_NO_CC_v4_2026-08-12.md` é o ÚNICO bloco válido (v1–v3 superseded). Partido em
+  PARTE A (update+segurança+G4+C3/C4) e PARTE B (M1–M5 em sessão FRESCA, só após G4=ship) —
+  correcção por best practices oficiais Anthropic (kitchen-sink session, subagents, revisor
+  com scoping de corretude; fonte: code.claude.com/docs/en/best-practices, lida 08-12).
+- **C4 (candidata à FILA do gauntlet, junto com a C3):** "É a versão mais SIMPLES que atinge o
+  objectivo — o que tentaste REMOVER antes de entregar?" Retro-prova ×3 (esta conversa):
+  (1) bloco v3 kitchen-sink de 8 passos numa sessão — apanhado pelo dono, não por mim;
+  (2) v1.0→v1.1→v3: três gerações no mesmo dia, todas ADICIONARAM, nenhuma removeu;
+  (3) 8 artefactos + 6 appends numa conversa cujo tema é economia de tokens.
+  O que as 18 não apanham: G8 = gestos do DONO; G17 = eixo; nenhuma força SUBTRAÇÃO no
+  entregável. Origem: pergunta do Paulo "vamos criar complexidade e perder eficiência por
+  prompt?" (08-12). D8 passa a cobrir C3 E C4.
+
+---
+
+## 🔒 FECHO A — 2026-08-12 (bloco COLAR_NO_CC_v4, PARTE A) · **NOT_CLOSED, parado em A2**
+**Auditoria re-executada do zero:** `reports/bench-cache-2026-08/AUDIT-A.json`
+(sha256 `e86af231664afda58329eb9d4f1feda6fd92d85333cc195581e3ad6e0895afb5`) · HEAD `6c928ca1` · nada pushado.
+
+- **A0 ✅** `git pull` no-op (0 atrás, **2 commits locais por pushar**) · `/mooter-update` idempotente
+  (backtest 93 aceites · hub up-to-date · 22 skills + 6 agents · mirror 7 ficheiros idênticos) ·
+  `sync-hooks --check` → `OK self-check` · `classify.js` sha `427d8c0b…364bc48f` intacto repo E runtime ·
+  self-test T3 pass. **Gap listado, não corrigido:** version.json **1.48.1** vs CHANGELOG topo **1.34.0**
+  (14 minors sem entrada). **22 processos claude vivos, 17 de 2026-08-10** (matar = gesto do Paulo).
+  Statusline: `MOOTER_MODE=1` + `statusline_line3:true` — estado de máquina intacto, nada a re-aplicar.
+- **A1 ✅** Secção 08-12 já estava marcada `✅ Lido em sessão #53` (não a reescrevi — não invento numeração).
+  **C3 e C4 na FILA** do `MEO_GAUNTLET.md`, padrão C1/C2, com retro-prova ×3 cada · commit próprio
+  `6c928ca1` (37+/2−, add selectivo) · **tecto 18 intacto** (G1..G18, sem G19; linhas 196 e 308 intocadas) ·
+  D8 registada a cobrir C3 **e** C4. *Não feito de propósito:* as retro-provas novas de G5/G15/C1 do
+  addendum 2 — A1 pedia só as candidatas; alargar escopo sozinho seria a própria C4 a falhar.
+- **A2 ⚠️ PARA AQUI.** Instrumento **forte**: gitleaks 8.30.1 (já instalado — não houve fallback grep).
+  Duas superfícies varridas: **história** (2044 commits) **e** árvore (1.07 GB) + `INFRA.md` isolado.
+  **História: 41 achados → 38 fixtures + 3 ocorrências de UM único segredo.** Árvore *tracked*: 30, todos
+  fixtures, 0 a rever. Os 38 são corpora de benchmark e ficheiros `.test.*` — incluindo
+  `lp-secret-scan.test.js`, que é o teste do **próprio** detector e por isso tem de conter iscos.
+  - **O achado:** JWT Supabase `role=**anon**`, ref `eymtobwinevywmmlmxqa`, em `SYNC.md:77` e `:297`
+    (commit `8af879f9`, 2026-04-09) e `docs/MASTER_PROMPTS/SHIP_SESSION_25_COWORK_MASTER.md:77`
+    (commit `0175cb31`, 2026-04-17). Já **removido da árvore actual**; vivo na **história** (repo público).
+  - **Leitura (minha, para o Paulo confirmar):** a chave *anon* é **pública por desenho** — viaja no bundle
+    do browser como `NEXT_PUBLIC_SUPABASE_ANON_KEY`. **Não é** `service_role`. Logo **não vejo emergência
+    de rotação** — o que ela expõe depende inteiramente de **RLS** estar ligada. **Zero** `service_role`,
+    zero chave Anthropic/OpenAI/Google, zero token GitHub, zero Stripe live, zero private key reais.
+  - **`INFRA.md` (fila ①): auditado, sem segredo.** Tracked e fora do `.gitignore`, mas guarda **ponteiros**
+    (`[Supabase → Settings → API]`), não valores — gitleaks: `no leaks found`. Expõe refs/IDs/URLs:
+    reconhecimento, não credencial.
+  - **Quase-acidente:** `.claude/`, `dashboard/` e `scripts/` estão *untracked* mas **não** no `.gitignore`
+    (37 achados lá dentro, todos fixtures). A única barreira até ao remoto público é a proibição de
+    `git add -A` — uma regra de prosa a segurar uma superfície é exactamente o que a **C2** pergunta.
+- **A3 ⛔ NÃO EXECUTADO** (bloqueado por A2). Os 5 textos existem e estão localizados;
+  `_handoff/g4-tokeneconomy/` existe e está **vazio**. Falta só o despacho ao codex.
+
+### Decisões que esperam o Paulo
+**D-A2 (bloqueante):** confirmas que a chave *anon* na história não exige rotação e autorizas retomar em A3?
+Se discordares, o gesto é rotacionar `eymtobwinevywmmlmxqa` **e** reescrever a história (`filter-repo`) —
+irreversível, decisão tua. · **D-A2b:** RLS está ligada em todas as tabelas desse projecto? (não verifiquei —
+seria tocar em prod, fora do escopo da PARTE A). · **D-A2c:** pôr `.claude/`, `dashboard/`, `scripts/` no
+`.gitignore`? · **D-A1b:** anexar as retro-provas novas de G5/G15/C1? · **D8:** C3/C4 entram nas 18, e quais saem?
+
+**Proposta (NÃO implementada):** (1) pre-commit `gitleaks protect --staged` via `.githooks/` + `core.hooksPath`;
+(2) CI `gitleaks-action@v2` com `fetch-depth: 0` — varre a **história**, que é a superfície suja e que o
+pre-commit nunca alcança; (3) `.gitleaks.toml` com allowlist explícita dos 38 fixtures — sem ela o gate nasce
+a ~93% de falsos positivos e é desligado na primeira semana.
+
+**Custo desta sessão: `n/d`** — `/cost` é comando interactivo e esta sessão é não-interactiva; não há fonte
+medida que eu possa citar. Número sem fonte = `n/d`.
+
+gauntlet: G11 mudou (instrumento forte disponível — gitleaks, não o fallback grep; declarado) · G12 mudou
+(denominador dito: 41/2044 commits e 411/1.07 GB, não "uns achados") · C1 mudou (o ✓ tem corpo: AUDIT-A.json
+re-executado do zero, com sha) · C2 mudou (varridas as DUAS superfícies, história **e** árvore) ·
+C4 mudou (recusei alargar A1 às retro-provas de G5/G15/C1) · G4 **auto-DEGRADADO** — sem 2º motor: o G4 é
+precisamente o passo A3 que ficou por correr.
+
+---
+
+## 🔒 FECHO B — 2026-08-12 (sessão paralela) · **A3/G4 EXECUTADO — veredicto `no-ship`**
+**O quê:** corri o **G4 adversarial num segundo motor** — exactamente o passo que o FECHO A declarou
+em falta (`A3 ⛔ NÃO EXECUTADO`, `G4 auto-DEGRADADO — sem 2º motor`). As duas sessões correram em
+paralelo em `main` sem colidir: o FECHO A viu a minha marca `✅ Lido em sessão #53` e não a reescreveu;
+eu vi o `6c928ca1` (C3/C4 na fila) e **não** dupliquei o addendum 2.
+
+**Quando:** dispatch `2026-08-12T07:34:15Z` → fecho `07:51:29Z` (**~17 min** wall) · auditoria
+`07:57Z` — **hora do dono: 2026-08-12 04:34 → 04:51, fecho 04:57 (America/Sao_Paulo, UTC-3)**.
+*(Nota de instrumento: `TZ=America/Sao_Paulo date` é no-op no Git Bash desta máquina — devolve UTC.
+Conversão feita à mão, UTC-3.)*
+
+**Porquê:** a fila 08-12 põe `② G4 codex dos textos` **antes** de `③ colar BENCH-CACHE`. Sem crítico
+distinto do autor, o bench correria em cima de specs por refutar — e gastaria dinheiro para produzir
+um REPORT que o próprio G4 mostra que não seria reproduzível.
+
+**Veredicto: `no-ship` nos 4 artefactos** (Codex CLI 0.144.1 / `gpt-5.6-sol`, xhigh, `--sandbox read-only`).
+Achados HIGH: (1) `saved_vs_cold` do VDQ é **contrafactual rotulado `[medido]`** — usa o prefixo *planeado*,
+não `cache_read_input_tokens` observado, e omite o prémio de criação; (2) **M2 não é A/B causal** e o cap
+de \$2 não tem executor — os braços recebem inputs diferentes; (3) o BENCH **não mede o gate que a própria
+SPEC exige** (falta rework e time-to-gate; 10 jobs contra o mínimo pré-registado de 20); (4) **M1 nomeia
+fontes erradas** — a que capta `usage` é `tools/router/ledger-turn-io.js`, omitida; (5) **M4 não tem
+população** — zero jobs Anthropic API no ledger; (6) **M5 não tem medidor** e "output é 5x" não é regra
+geral; (7) **Token Autopilot R1 dispara jobs pagos sem gesto do dono**.
+
+**A pergunta que não estava a ser feita (e que manda em tudo):** *existe hoje workload API-metered real
+para optimizar?* Ledger observado: **12 codex · 5 moo · 1 cc · 0 Kimi · 0 Anthropic API** [medido, re-executado
+por mim]. M2 e M4 mediriam uma workload que **não existe**.
+
+**Confronto antes de aceitar** (a palavra do crítico também não basta): re-executei 5 afirmações empíricas
+do codex → **4 exactas, 1 erro literal sem consequência** (disse que `logs/` não existe; existe, com 3 logs
+LoRA e zero `usage`, logo o furo de M1 mantém-se). Aritmética refeita à mão: reproduz toda, incluindo o
+`$0.023`→`$0.021` que nasce de arredondar 1.4k→1.5k. **Não verifiquei** os preços de provider que o codex
+diz ter lido nas páginas oficiais — sem web fetch nesta sessão, fica `n/d`, não "confirmado por dois motores".
+
+**Custo desta sessão: `n/d`.** O turn-io desta sessão (`~/.claude/tools/router/handoff/d2fac6e2-….jsonl`)
+tem 1 linha com campos `ts,assistant_snippet,tools,git,n_turn` — **nenhum campo `usage` ou `cost_usd`**.
+Isto não é falha de diligência: é a **confirmação ao vivo do achado M1 do G4** — a instrumentação de custo
+por sessão não existe nesta máquina. Número sem fonte = `n/d`.
+
+**Assets:**
+| Ficheiro | sha256 | Estado |
+|---|---|---|
+| `_handoff/g4-tokeneconomy/resultado.md` | `d1782b3fb422c7b27a3b272f0729aff04a45ff9906218732332acbd64d400e0e` | novo (18.3 KB) — veredicto verbatim + confronto |
+| `reports/bench-cache-2026-08/AUDIT.json` | (ver ficheiro — gerado após este bloco) | novo — manifesto re-executado |
+| `~/.mooter/preferences.json` | — | criado: `{"statusline_line3": true}` (estava **ausente**; `MOOTER_MODE=1` já lá estava) |
+| `reports/bench-cache-2026-08/REPORT.md` | — | **NÃO existe e não deve ser fabricado** — passo bloqueado |
+
+**BLOQUEADO por este veredicto:** ③ colar BENCH-CACHE v1.1 · ④ REPORT.md · ⑨ landing com número `[medido]`
+· **GPU-AUDIT (roadmap §7)**, que era STAGED "só após REPORT do BENCH-CACHE".
+**Aplicar os fixes é gesto do autor (Cowork), não do executor** — é reescrita de spec, ou seja construção.
+
+### Decisões que esperam o Paulo (adicionais às do FECHO A)
+**D-B1:** a família token-economy reescreve-se (Cowork aplica os 7 HIGH), encolhe-se (só M1+M3, que não
+dependem de workload API), ou arquiva-se? · **D-B2:** antes de qualquer reescrita — **queres criar** workload
+API-metered para optimizar, ou o valor real está em manter tudo em codex/local, onde o custo já é ~\$0?
+· **D-B3 (herdada, confirmo a leitura do FECHO A):** a chave *anon* na história não exige rotação — mas isso
+depende **inteiramente** de RLS. `INFRA.md:252-254` **declara** RLS activa nas 3 tabelas; declaração ≠ verificação.
+
+**CHANGELOG (listado, não corrigido — 2ª confirmação independente):** topo `1.34.0` (2026-06-10, `7393abbd`)
+vs `version.json` **1.48.1**. Entre os dois: **767 commits**, **20 tags** sem entrada (`v1.38.4.1`→`v1.48.0`),
+waves **55, 56, 58(+.2/.3/.4/.5/.7/.8), 59, 60, 60.5, 61–66**. `1.48.1` não tem tag.
+
+🤝 SOCIO: receita? **na** · despesa↓? **S** (o `no-ship` impediu um bench que mediria workload inexistente)
+· risco↓? **S** (G4 deixou de ser auto-declarado) · reversível? **S** (zero push; 1 ficheiro novo + 1 append)
+· escopo? **S** (não apliquei fixes, não corri M1–M5, não toquei no addendum 2)
+gauntlet: **G4 mudou** — deixou de `auto-DEGRADADO` para executado noutro motor, com refutação obrigatória ·
+**G12 mudou** — denominador dito (12/5/1/0/0 jobs no ledger; 4/5 afirmações reverificadas) · **C1 mudou** —
+o ✓ tem corpo: `AUDIT.json` re-executado do zero + sha do artefacto
+📮 DESTINO: Paulo — D-B1, D-B2, D-B3.
+
+**Addendum 4 — 08-12 (Cowork) — D-A2 resolvido + G4 despachado pela frota**
+D-A2: advisor Supabase = 0 lints security no projecto da chave anon → SEM rotação [medido];
+prova em `reports/bench-cache-2026-08/D-A2-RESOLUTION.md`. G4 dos 5 textos: despachado pelo
+Cowork via mooter (job-mspsuh60-08c5, wave g4-tokeneconomy, codex read-only) — o detector-substring
+NÃO recusou desta vez [medido]. CC: ao retomar, actualizar AUDIT-A (a2 CLOSED, a3 job ref) e
+aguardar resultado.md antes da PARTE B.
+
+## 🔒 FECHO A (v2) — 2026-08-12 (bloco COLAR_NO_CC_v4, PARTE A) · **CLOSED**
+**Auditoria re-executada do zero (2ª vez, do zero — nada copiado da v1):** `reports/bench-cache-2026-08/AUDIT-A.json`
+v2 sha256 `7e2bfb5332c42d71d55f08caf66b8dc939c6a47591cdb01c2d32b2f734218fb2` — **substitui** a v1 `e86af231…`
+citada no FECHO A acima. HEAD ao escrever `0c1df783` · nada pushado.
+
+**O que mudou:** A2 desbloqueado por decisão do dono · A3 executado **e completado** (a passagem anterior cobria
+4 dos 5 alvos) · A4 fechado. **PARTE A fecha CLOSED — e a PARTE B continua BLOQUEADA**, porque o veredicto G4 é
+`no-ship` nos 5 textos. Fechar A ≠ autorizar B.
+
+- **A2 ✅ CLOSED** (era ⚠️ BLOCKED). Decisão do dono: **sem rotação, sem filter-repo**
+  (`reports/bench-cache-2026-08/D-A2-RESOLUTION.md`). Não fechei com o relato — re-executei as três provas:
+  advisor Supabase corrido **por mim** → `{"lints":[]}`, 0 achados · JWT descodificado em memória →
+  `role=anon`, ref `eymtobwinevywmmlmxqa`, sha do token `f2063675…` · gitleaks re-corrido → **2045 commits,
+  41 achados, 3 JWTs distintos** (1 anon real + 2 fixtures de manual, `{"sub":"1234567890"}` e `{"sub":"12345"}`),
+  **zero `service_role` provado por descodificar todos**, não por ler nomes de ficheiro.
+  - ⚠️ **Correcção ao FECHO A:** «já removido da árvore actual» é **falso**. O mesmo token está **tracked em HEAD**,
+    em `docs/archive/master-prompts-2026-04/SHIP_SESSION_25_COWORK_MASTER.md:77` — `git grep -l` em HEAD devolve
+    exactamente 1 ficheiro. O `SYNC.md` em HEAD está limpo; essa metade estava certa. **Não muda a decisão**
+    (anon é pública por desenho, RLS limpo); **muda o facto**: tirá-la da árvore é um commit normal, não precisa
+    de reescrever história. → **D-A2d**.
+  - Correcção menor: `.claude/`, `dashboard/` e `scripts/` não são "untracked" — são **parcialmente tracked**
+    (33/26/11 ficheiros) e não ignorados. O risco é o conteúdo untracked lá dentro: **worktrees aninhadas com
+    cópia integral do repo**, que contêm o mesmo ficheiro de archive com a chave.
+- **A3 ✅ CLOSED** (era NOT_RUN). **5/5 alvos revistos**, crítico ≠ autor, motor read-only nas duas passagens.
+  - **Passagem 1** (já existia): codex `gpt-5.6-sol`, sessão `019ff4e4`, 07:34→07:51Z → `resultado.md`
+    (`d1782b3f…`) — **4 alvos**.
+  - **O buraco:** contei as menções por ficheiro no rollout dessa sessão — **12·12·12·11 nos quatro textos e
+    ZERO em `COLAR_NO_CC_v4`**. O 5.º alvo nunca foi despachado. E o `sha256 do resultado.md`, única prova que o
+    A4 pedia para o A3, teria fechado o passo na mesma. É literalmente o achado nº1 do crítico — encontrado antes
+    de ele o escrever.
+  - **Passagem 2** (nova): mesmo motor, sessão `019ff4fc`, 08:00→08:08Z, read-only,
+    `codex exec --sandbox read-only --skip-git-repo-check - < _handoff/g4-tokeneconomy/g4-prompt-colar-v4.txt`
+    → `_handoff/g4-tokeneconomy/resultado-colar-v4.md` (`2ce5790d…`). **`no-ship`: 8 HIGH + 2 MED**, todos com
+    cenário de falha concreto e `ficheiro:linha` — era a regra de scoping do A3.
+  - `resultado.md` **não foi tocado**: o seu sha está citado como prova no `AUDIT.json` do FECHO B. Mutar um
+    artefacto já hasheado noutra auditoria falsificaria essa prova — daí ficheiro irmão, não append.
+- ⚠️ **O "G4 pela frota" do addendum 4 não foi codex.** `job-mspsuh60-08c5`: o `meta.json` regista
+  `"cmd": "(ollama) /api/chat gemma4:e4b"`, `"agent": "moo"`, `"permissoes_efectivas": []` («o moo corre via
+  /api/chat e não recebe ferramentas»). O `out.log` tem **4193 chars de raciocínio e 0 chars de resposta**, e
+  morre 19 s depois de arrancar. Não produziu veredicto nenhum. Se tivesse sido aceite como G4, o gate
+  «crítico ≠ autor» teria fechado com um modelo local sem ferramentas e sem resposta. → **D-SYNC-1**.
+- **A4 ✅** Este bloco + `AUDIT-A.json` v2, com A0 e A1 também re-executados do zero: `sync-hooks --check` →
+  `OK self-check` · `classify.js` `427d8c0b…364bc48f` intacto **repo e runtime** · version.json **1.48.1** =
+  runtime 1.48.1 · CHANGELOG topo **1.34.0** (gap listado, não corrigido) · **20** processos claude vivos,
+  **17** de 2026-08-10 · `MEO_GAUNTLET.md` sha `9bc65f31…` **idêntico** ao do FECHO A (C3 L219, C4 L223,
+  tecto 18 em 196/286/308, sem G19). A marca `✅ Lido` continua a ser prova fraca (o G4 tem um [HIGH] sobre isso);
+  o A1 fecha pelo **output** — C3+C4 na FILA, tecto intacto, commit próprio — não pelo grep.
+- **`spend`: `UNMEASURABLE`**, não um `n/d` disfarçado. `/cost` é interactivo e a sessão é headless; não existe
+  fonte medida de custo por sessão nesta máquina — que é a confirmação ao vivo do achado M1 do G4. O campo **não
+  conta** como prova de fecho (fix [MED] do crítico, aplicado ao próprio audit).
+
+**Terceiros durante a sessão:** o commit `0c1df783` (FECHO B) aterrou no `main` entre o meu `git status` de
+abertura e o fim do A3 — demonstração ao vivo do achado [HIGH] do G4 sobre escritor único no `main`.
+
+### Decisões que esperam o Paulo
+**D-B1 (manda em tudo):** G4 = `no-ship` nos 5 → a família token-economy **reescreve-se** (o Cowork aplica os
+HIGH), **encolhe-se** (só o que não depende de workload API) ou **arquiva-se**? A PARTE B fica bloqueada até isso.
+· **D-A2d (novo):** tirar a chave anon da árvore actual (`docs/archive/…/SHIP_SESSION_25_COWORK_MASTER.md:77`)?
+Commit normal, história fica na mesma — a decisão de não reescrever história já está tomada.
+· **D-A2c:** `.gitignore` para o conteúdo untracked de `.claude/`, `dashboard/`, `scripts/` — hoje a única barreira
+entre as worktrees aninhadas e o remoto público é a proibição de `git add -A`.
+· **D-SYNC-1:** o addendum 4 diz «codex read-only» para um job que correu `gemma4:e4b` local e não devolveu nada;
+deixei a linha original como está (é história) e a correcção aqui.
+· **Herdadas:** D-A1b (retro-provas G5/G15/C1 do addendum 2) · A0b (17 claude de 08-10 por matar) · A0c (CHANGELOG).
+
+🤝 SOCIO: receita? **na** · despesa↓? **S** (o `no-ship` continua a travar um bench que mediria workload
+inexistente) · risco↓? **S** (o G4 deixou de ter um alvo por rever e um job local disfarçado de codex) ·
+reversível? **S** (zero push; 1 ficheiro novo + 2 alterados) · escopo? **S** (não apliquei fixes do G4, não corri
+M1–M5, não toquei no motor, não alarguei ao addendum 2)
+gauntlet: **G4 mudou** — de 4/5 alvos para **5/5**, com o buraco **medido** (contagem no rollout), não presumido ·
+**G11 mudou** — o instrumento foi **re-corrido** em vez de citado (advisor, gitleaks, descodificação do JWT) ·
+**C1 mudou** — o ✓ do A2 deixou de assentar numa frase («removido da árvore») que era falsa
+📮 DESTINO: Paulo — D-B1, D-A2d, D-A2c, D-SYNC-1.
+
+## [2026-08-15] CC · f-mu0 — PARTE A entregue (actor aditivo) · GATE A→B ABERTO À ESPERA DO DONO
+- **Precedência:** a ronda 4 do duelo NÃO fechou com ship — G4 #8 deu NO-SHIP na ronda 6 e o `_handoff/g4-duelo-ab-r6/resultado.md` diz "GO CONTINUA BLOQUEADO". Entrei pela via (b): o Paulo escreveu `f-mu0 primeiro` na sessão. Perguntei antes, não assumi.
+- **Parte A committed:** `98bd2066` na worktree `.claude/worktrees/f-mu0` (branch `f-mu0/identidade-broker`, base `main@06bdc2c2`). 19 ficheiros, +3383/-11. Zero push.
+- **A1:** `actor {type,id,origem}` no ponto único de escrita, via módulo canónico novo `packages/mooter-bridge/actor.js` (padrão do `terminal.js`; o A5 falha se aparecer uma 2ª lista). Default EXPLÍCITO `system/system` — omissão silenciosa é bug com teste. Carimbo em `aplicarIdentidade()` chamado do `appendLedgerRecord()`, não do enriquecedor: aquele devolve cedo sem `job_id` e um evento sem job_id também tem de dizer quem o escreveu. Propagação pelos dois caminhos (mapa em memória + releitura do ledger); escrita RECUSADA não ensina identidade ao mapa. `visibilidade` fail-closed (`local_only`) nos eventos de resultado; fora do enum rebenta. Porta MCP: `actor` declarado no schema de `mooter_dispatch`/`mooter_work` (eram `additionalProperties:false` — sem isso o campo era rejeitado antes de o código o ver).
+- **A2:** fleet · recibo · trilha · board · aprender · sync expõem o ator e degradam para `legacy`. Nunca "paulo". 1 teste por consumidor, a provar as duas direcções.
+- **[medido] 2 achados que alargaram o âmbito:** (1) `fleet.js:692` fazia `appendFileSync` DIRECTO ao ledger, a contornar o `ledgerAppend` — "actor em todos os eventos" era falso sem isso; confirmei por grep que são exactamente 2 os escritores de produção deste ledger. (2) `bundle.test.js` B1 apanhou o `require` novo fora do manifesto do `.mcpb` — sem a linha em `pack-mcpb.mjs` o conector instalado morria no primeiro require com o repo todo verde.
+- **Provas:** `_handoff/f-mu0/A-VERMELHO.txt` (93013 B, sha `dcf7a78b…`, 960/957/2) → `A-VERDE.txt` (93780 B, sha `53cedd68…`, 978 testes, **976 verdes, 1 vermelho**). Suite = `cd packages/mooter-bridge && node --test` (o comando `--workspace` da v3.3 não existia; a v3.4 corrigiu-o com o meu D2).
+- **Honestidade sobre o vermelho:** o que resta é `ondaA.test.js` A3/A3b e **não é meu** — falha sozinho na base `06bdc2c2`, falha igual no checkout principal, e falha com o Ollama em baixo E de pé. Não declaro "suite verde": declaro verde no delta com um vermelho herdado e nomeado. Também registei um flake real (`moo.test.js`, ENOENT de tmpdir sob carga paralela, passa isolado 2/2) em vez de o apagar.
+- **Ledger:** baseline do ACK (1220668 B, sha `25d2d545…`) continua **prefixo byte-a-byte** do ficheiro actual (1327236 B). Só cresceu — zero reescrita.
+- **Routing 🐮 (medido):** w1 mapa = codex read-only 606s, 10,04M tok in, custo n/d, cross-check moo `qwen3:30b` $0 (19 verificadas, 1 divergência: path fabricado, descartado) · w3 projecções = moo prep `qwen3:30b` **T0 $0** 19s + codex escrita 426s custo n/d (cross-check NÃO correu — timeout do modelo local com 2063 MB de VRAM; quem verificou fui eu, a ler o diff e a correr a suite). `model_used` do codex é **n/d** nas duas — o CLI não o declara; fica n/d, não fica fingido. `trabalho_zero_pct` estava a **20,41%** (medido, não os 25% do texto) e o Ollama estava EM BAIXO no arranque; arranquei-o e a w3 já correu 1 de 2 jobs local a $0.
+- **G4 crítico≠autor:** despachado (`job-msud7kv6-48fe`, codex read-only sobre o `98bd2066`) — veredicto INTEIRO no fecho.
+- 📮 **DESTINO: Paulo — GATE A→B.** A Parte B migra a autoridade do sistema (broker único escritor). **Avanço?** Resposta válida é só uma: escrever `avanço B 98bd2066`. Silêncio, "ok" ou mensagem ambígua NÃO são aprovação — nesse caso a frente termina aqui, com a worktree limpa e mergeável e o índice a dizer "A entregue, B não autorizada".
+
+## [2026-08-15] CC · f-mu0 — CORRECÇÃO aos números acima + rondas 2, 3 e 4 do gauntlet
+> ⚠️ **SUPERSEDIDA.** Os números e o desenho descritos aqui foram substituídos pelas rondas 5 e 6 — ver a entrada no fim do ficheiro. Fica por reescrever de propósito: apagar o percurso esconderia como se lá chegou.
+- ⚠️ **A entrada anterior ficou a mentir.** Dizia suite 978/976 e sha `53cedd68…`; o A-VERDE.txt já ia noutros números. Foi o G4 #3 que o apanhou, não eu. Numa frente cujo tema é proveniência honesta, documentos meus desactualizados sobre os meus próprios números são o pior achado da série. Fica corrigido aqui em vez de reescrito lá atrás.
+- **Estado real:** suite `cd packages/mooter-bridge && node --test` = **993 testes, 991 verdes, 1 vermelho, 1 skipped**. `A-VERDE.txt` 95511 B, sha `43393140…`. O vermelho continua a ser `ondaA` A3/A3b, pré-existente na base `06bdc2c2` (falha sozinho, falha no checkout principal, falha com o Ollama em baixo e de pé).
+- **Três NO-SHIP seguidos, todos com ALTOs reais e todos meus.** G4 #1 (`job-msud7kv6-48fe`): o default `system/system` é uma atribuição afirmativa, não uma ausência → o dono escolheu a opção A. G4 #2 (`job-msug0itk-9a3e`): o discriminador mentia na porta `mooter_work` (eu reencaminhava o objecto já normalizado) e a imutabilidade do dono não sobrevivia a um reinício. G4 #3 (`job-msugu8hj-1b9c`): o `aprender` continuava a dar o job ao último ator, a releitura e o fleet usavam regras INCOMPATÍVEIS, e um `ts` inválido roubava o job (`Date.parse(x) || 0` põe lixo em 0, antes de qualquer ISO).
+- **A lição da ronda 4 vale mais do que os fixes:** três rondas a corrigir a mesma invariante em sítios diferentes não é azar, é desenho errado. A regra "o job pertence a quem o pediu" vivia em QUATRO casas — mapa em memória, releitura, fold do fleet, fold do aprender. Passou a ter uma: `actor.js · substituiDono()`. O teste A15 dá a mesma lista de eventos (fora de ordem) às três projecções e exige o mesmo dono.
+- **Um achado do crítico REFUTADO com evidência:** o MÉDIO "cargo/local mudaram de comportamento" compara com o estado intermédio, não com a base. `git show 06bdc2c2:...seamless.js` mostra a guarda original `cargo || local`; as rondas 1-2 é que desviaram, e a ronda 3 restaurou. Não "corrigi" para o estado partido.
+- **Um n/d que virou medição:** o scan síncrono do ledger — o crítico mediu 1,58 MB, 2446 linhas, p50 6,131 ms, p95 6,850 ms em 100 corridas. Dívida linear declarada, não bloqueante.
+- **Ledger:** baseline do ACK (1220668 B, sha `25d2d545…`) continua prefixo byte-a-byte do ficheiro actual (1610804 B). Só cresceu.
+- **Commits:** `98bd2066` (A) · `be845b7c` (ronda 2 núcleo) · `a14bcd0b` (ronda 2 projecções) · `453ef6cb` (ronda 3) · ronda 4 a seguir. Zero push em toda a frente.
+- 📮 **DESTINO: Paulo — o gate A→B continua FECHADO** e o sha da resposta já não é o `98bd2066`. G4 #4 a correr sobre a ronda 4; sem ALTO aberto, dou-te o sha final para o `avanço B <sha>`.
+
+## [2026-08-15] CC · f-mu0 — a arbitragem SAIU, e a Parte A voltou à spec
+- **Fonte única dos números:** `_handoff/f-mu0/A-VERDE.txt` e `AUDIT-FMU0.json`. Deixo de os repetir aqui em prosa — foi assim que este ficheiro ficou a mentir duas vezes, e o G4 apanhou-me as duas.
+- **A decisão que interessa:** seis rondas de gauntlet, e a classe de ALTO era sempre a mesma — arbitragem de propriedade de job. A causa não era nenhum dos bugs; era eu estar a inventar semântica de autoridade que a spec nunca pediu. O A1 diz que o `actor` propaga *"junto com `cargo`/`local`"*, e o `cargo` é último-a-falar. A imutabilidade veio de um MÉDIO do G4 #1, não do contrato.
+- **O dono escolheu voltar à spec.** Saíram `substituiDono`, `donoDoEvento`, `tsDoEvento`, `mesmoActor`, `actor_reatribuido` e os mapas de relógio: **96 inserções contra 344 remoções**. Ficou uma nota no `actor.js` a dizer que a ausência é deliberada e o que seria preciso para o fazer bem — ordem TOTAL, no broker — para ninguém o reintroduzir por acidente.
+- **Dívida declarada para a Parte B:** se a imutabilidade do dono for mesmo precisa, o sítio é o broker, onde há lock O_EXCL, CAS e decisão durável para a sustentar.
+- **O G4 #6 não encontrou regressão funcional na remoção.** A tabela adversarial dele mostra fleet, aprender e a herança na escrita a concordar em todos os cenários (ilegível a meio, sem ator a meio, ordem invertida, só defaults). O único ponto de divergência — job só com eventos ilegíveis — ele próprio classifica como desenho defensável: `legacy` responde "não sei quem foi" sobre o passado, `system/system` responde "ninguém declarou agora" sobre o evento novo. Está escrito no teste A22.
+- **Confirmado pelo crítico:** `visibilidade` continua fail-closed, o default do ator continua explícito, não há referências executáveis aos símbolos removidos, a Parte A continua aditiva, `classify.js` mantém o sha frozen, e o prefixo de 1.220.668 bytes do ledger continua intacto.
+- **O que fica aberto, e é decisão tua:** o gate `final-reviewer-honest` dá NO-SHIP com **qualquer** suite vermelha, e a nossa tem 1 vermelho — o `ondaA` A3/A3b, **pré-existente na base `06bdc2c2`**, que o próprio crítico confirma ser idêntico à base e alheio à identidade. Não é um defeito da Parte A: é uma colisão entre o gate e um vermelho herdado.
+- 📮 **DESTINO: Paulo** — ver a pergunta na sessão. O gate A→B continua fechado.
+
+## [2026-08-15] CC · f-mu0 — PARTE B entregue (broker de decisão) · frente completa, fecho a aguardar G4
+- **Gate A→B aberto** pelo dono com `avanço B 086a5dac`; o sha foi conferido byte-a-byte contra o HEAD antes de eu tocar em nada.
+- **Números:** fonte única é `_handoff/f-mu0/B-VERDE.txt` + `AUDIT-FMU0.json`. Não os repito aqui — foi assim que este ficheiro ficou a mentir duas vezes nesta mesma frente.
+- **`packages/mooter-bridge/broker.js`** (novo, +19 testes): `listPending({worktree?, actor?})` filtrável por frente E por autor, com quem pediu em cada pendente; `decide()` com CAS anti-stale, expiração 72h que **descarta**, recusa terminal, idempotência **sem janela**, capacidades **derivadas** e lock O_EXCL.
+- **Escopo do CAS declarado:** o último evento **deste** job. Um evento noutro job não invalida a decisão — senão dois utilizadores bloqueavam-se sem razão (teste B2b).
+- **Promover, não recriar:** o hash canónico vem do `tools/router/ledger-prov.js` e há um teste que falha se aparecer uma segunda implementação no pacote. O lock segue o **padrão** do `worktree-conductor/src/locks.ts` — não o módulo, porque é TypeScript ESM num pacote privado sem entrypoint compilado e o bridge é CommonJS. Está dito no cabeçalho do broker.
+- **Modo de falha subtil, com rede:** o broker resolve o `ledger-prov` em runtime (repo → bundle, padrão do `classify.js`), por isso o detector de requires do `bundle.test.js` **não o vê**. Sem o teste B10, o conector instalado morria no primeiro `decide()` com o repo todo verde.
+- **DÍVIDA MU0-c, medida e com a citação corrigida:** o broker toma o lock, o `seamless.ledgerAppend` **não** — o ledger continua com dois escritores de produção e só um coordena. Evidência real: `seamless.js:14` e `seamless.js:159` (os dois comentários que afirmam single-writer = este processo) e a cicatriz em `plan.js:53-58`. ⚠️ A v3.4 do masterprompt cita `seamless.js:142`, que é a constante `MOOTER_HOME` — a evidência certa é outra. Corroborado pela medição da W1: 3 PIDs MCP no mesmo ledger, sem lock. Não se construiu IPC nem daemon, por instrução.
+- **Outras dívidas declaradas:** OpenTimestamps para o `anchor.published` · imutabilidade do dono (se for precisa, ordem TOTAL e no broker, não na propagação) · `request_id` sem porta de entrada · trilha a atribuir a cadeia ao job final · `ondaA` A3/A3b como frente própria.
+- **Nota de activação:** mergeado **não** é activo. O bridge do Desktop continua com o código antigo até reinstalares. Esta frente não reiniciou nada.
+- ⏳ **G4 crítico≠autor da Parte B a correr** (`086a5dac..ff90796d`). O veredicto INTEIRO entra no AUDIT quando fechar — um fecho que dissesse ship antes do crítico responder não seria um fecho.
+- 📮 **DESTINO: Paulo** — frente f-mu0 completa (A + B), zero push, worktree limpa.
+
+## [2026-08-15] CC · f-mu0 — PARTE B fechada em 4 rondas de gauntlet · frente A+B completa
+> ⚠️ **NÚMEROS SUPERSEDIDOS.** Esta entrada fixou sha, contagem de testes e de ALTO — e ficou falsa duas rondas depois. Foi a QUINTA vez nesta frente. A entrada final, no fim do ficheiro, não repete números: aponta para o `B-VERDE.txt` e o `AUDIT-FMU0.json`, que são a fonte.
+- **Números: fonte única é `_handoff/f-mu0/B-VERDE.txt` + `AUDIT-FMU0.json`.** Não os repito aqui; foi a repetição que fez este ficheiro mentir duas vezes nesta frente.
+- **Sha da frente:** `2627c7db` (a aguardar o G4 #4, despachado sobre `839586d1..2627c7db`). Worktree limpa, **zero push**, **não merged**.
+- **Broker entregue:** `packages/mooter-bridge/broker.js` — `listPending` filtrável por frente e por autor, `decide()` com CAS anti-stale, expiração de 72h que descarta, recusa terminal, idempotência sem janela, capacidades derivadas e lock O_EXCL. 51 testes próprios.
+- **4 rondas de G4, 24 ALTO no total, todos fechados.** Não foi um erro repetido: cada ronda encontrou classes novas. As três lições que ficam:
+  1. **Os meus testes fabricavam o mundo.** Um stub síncrono escondeu que o dispatcher era `async`; um fixture com `allowedTools` escondeu que o produtor não grava esse campo; um stub permissivo escondeu que re-despachar com o `goal` **nunca teria funcionado** (o guard exige o masterprompt completo). Agora há testes de **contrato produtor⇄consumidor** e os stubs são async por defeito.
+  2. **O AUDIT afirmou três vezes coisas que nenhum teste sustentava** — números desactualizados (2×) e uma travessia de caminho declarada corrigida quando `.` e `..` ainda passavam. Regra nova escrita no próprio ficheiro: **o AUDIT só afirma o que um teste prova; onde não houver teste, escreve-se `n/d`**.
+  3. **Duas correcções minhas colidiram e criaram um buraco pior:** "decisão final fecha para sempre" + "falha de política é REJECTED" fazia com que a tentativa de um *viewer* impedisse o *owner* de aprovar. Falha de política passou a `NEGADO`, que não é final.
+- **Três decisões tuas, todas na mesma direcção — declarar em vez de fingir:** o RBAC é **advisory** (`authz.advisory: true` em todo o evento e retorno) porque o `actor` não é autenticado e a authn é F-MU1 · o **CAS não é atómico** (`cas.atomico: false`) porque o `seamless.ledgerAppend` não toma o lock do broker · e o vermelho do `ondaA` é **excepção herdada** com a evidência toda.
+- **Consequência conhecida que quero que vejas:** em modo `roles`, o actor default (`system/system`) não tem papel, logo `decide()` devolve `NEGADO · sem_papel`. É fail-closed por desenho, mas quer dizer que **quem usar `roles.json` tem de declarar sempre o actor**. Mandei o crítico atacar isto explicitamente.
+- **DÍVIDA MU0-c** (evidência corrigida, a do masterprompt não batia): o broker toma o lock, o `seamless.ledgerAppend` **não** — `seamless.js:14` e `:159` afirmam single-writer = este processo, e `plan.js:53-58` tem a cicatriz dos escritores concorrentes. A v3.4 cita `seamless.js:142`, que é a constante `MOOTER_HOME`. Corroborado pela W1: 3 PIDs MCP no mesmo ledger, sem lock. Fechar isto é MU0-c, não esta frente.
+- **Outras dívidas:** OpenTimestamps para o `anchor.published` · imutabilidade do dono (ordem TOTAL, no broker) · `request_id` sem porta de entrada em produção · trilha a atribuir a cadeia ao job final · `ondaA` A3/A3b como frente própria.
+- **Nota de activação:** mergeado **não** é activo. O bridge do Desktop continua com o código antigo até reinstalares.
+- `gauntlet: f-mu0 · A entregue em 086a5dac apos 6 rondas de G4 (a licao foi REMOVER arbitragem que a spec nao pedia: 96 ins / 344 rem) · B entregue em 2627c7db apos 4 rondas · 24 ALTO fechados na B, 0 abertos a hora deste registo · classify.js frozen intacto · prefixo do ledger intacto · zero push`
+- 📮 **DESTINO: Paulo** — lê o `AUDIT-FMU0.json` para os números literais. Falta só o veredicto do G4 #4; se vier limpo, a frente está pronta para o teu gesto de merge. Se vier com ALTO, fica registado aqui em cima na próxima entrada.
+
+## [2026-08-15] CC · f-mu0 — fecho da corrida autónoma
+- **Fonte dos números: `_handoff/f-mu0/B-VERDE.txt` (a corrida) e `AUDIT-FMU0.json` (tudo o resto).** Não os repito aqui, e as contagens de ficheiros ficam `n/d` por desenho: `git diff --name-only <intervalo>` dá-as na hora. Foi pinar números derivados em prosa que fez este ficheiro mentir cinco vezes.
+- **Estado:** worktree `.claude/worktrees/f-mu0`, branch `f-mu0/identidade-broker`, base `main@06bdc2c2`. Worktree limpa, **zero push**, **não merged**. `classify.js` frozen intacto; prefixo de 1.220.668 bytes do ledger intacto.
+- **Parte A** fechada em `086a5dac` após 6 rondas de G4. A lição foi **remover**: a arbitragem de propriedade de job que eu andava a inventar não estava na spec, e tirá-la (96 inserções / 344 remoções) foi a única ronda que o crítico abriu com "não encontrei regressão".
+- **Parte B** — broker de decisão, 5 rondas de G4, 27 ALTO fechados. Convergência das três últimas: 8 → 4 → 3.
+- **Três coisas que o crítico validou por medição, e que valem mais do que a minha palavra:** o `sem_mp_hash` é fail-closed e **não trava trabalho real** (135/135 eventos `dispatched` do ledger têm hash, e os 3 pendentes também) · um papel literalmente chamado `__proto__` funciona · a Parte A ficou funcionalmente intacta durante toda a Parte B.
+- **O padrão que atravessou a frente inteira, e que é a coisa a levar daqui:** os meus testes fabricavam o mundo em vez de o lerem. Um stub síncrono escondeu um `async`; um fixture inventado escondeu que o produtor não gravava o campo; um teste sem o ficheiro-alvo mediu um `ENOENT` e chamou-lhe barreira de segurança. E o AUDIT afirmou **cinco vezes** coisas que nenhum teste sustentava. As correcções que ficam são testes de **contrato produtor⇄consumidor** e fixtures que copiam o que o `seamless` escreve mesmo.
+- ⚠️ **O QUE PRECISA DE TI** (fica parado à espera, não avanço sozinho):
+  1. **Aceitação explícita de três limites declarados:** `NEGADO`/`STALE` não fecham o pedido, logo `idem_key`s novas fazem crescer o ledger sem limite (não há rate-limit nesta frente) · `INDETERMINADO` não tem reconciliação, um pedido preso fica preso até intervenção manual · a barreira de caminho é **lexical**, não cobre junctions nem symlinks.
+  2. **O gate `final-reviewer-honest` não deixa SHIP com suite vermelha**, e a nossa tem o `ondaA` A3/A3b herdado. Já aceitaste a excepção; o crítico volta a levantá-la em cada ronda porque a regra é absoluta. Ou o `ondaA` vira frente própria e fica verde, ou a excepção precisa de ficar registada onde o gate a leia.
+  3. **O merge.** Nunca o faço sem ti.
+- `gauntlet: f-mu0 · A em 086a5dac (6 rondas) · B (5 rondas) · 0 ALTO abertos alem dos 3 limites declarados acima · classify.js frozen · prefixo do ledger intacto · zero push · nao merged`
+- 📮 **DESTINO: Paulo** — lê o `AUDIT-FMU0.json`. É lá que está tudo, e desta vez sem números repetidos que possam envelhecer mal.
+
+## [2026-08-15] Paulo — os três limites do broker ficam ACEITES
+- Gesto literal, na sessão: **"aceito os três limites"**. Registado no `AUDIT-FMU0.json` → `limites_aceites_pelo_dono`.
+- Aceites: `NEGADO`/`STALE` não fecham o pedido, logo `idem_key`s novas fazem o ledger crescer sem limite (não há rate-limit) · `INDETERMINADO` sem reconciliação, um pedido preso fica preso até intervenção manual · a barreira de caminho é **lexical**, não cobre junctions nem symlinks.
+- **O que isto não é:** não é um ship. São três limites conhecidos que deixam de bloquear a entrega por decisão do dono, e que ficam escritos para não voltarem a aparecer como surpresa numa ronda futura do gauntlet.
+- Candidatos a frente própria: rate-limit do broker · reconciliação do `INDETERMINADO` · barreira de caminho não-lexical (`realpath` contra junctions/symlinks).
+- ⏳ **Continua à espera de ti:** (1) o que fazer ao `ondaA` A3/A3b contra o gate `final-reviewer-honest`, que não aceita suite vermelha seja de quem for · (2) o merge.
+
+## [2026-08-15] Paulo — o `ondaA` A3/A3b vira frente própria
+- Gesto na sessão: **"o ondaA vira frente própria"**. Registado no `AUDIT-FMU0.json` → `vermelho_pre_existente.resolucao` e no `_handoff/MASTERPROMPTS_INDEX.md` como frente **`onda-a3`**.
+- **O que muda:** o vermelho deixa de ser uma excepção órfã dentro da f-mu0 e passa a ter dono, lugar e a evidência toda.
+- **O que NÃO muda, e digo-o antes que alguém se engane:** a suite continua vermelha até essa frente a arranjar, e o gate `final-reviewer-honest` continua a não aceitar suite vermelha. **Isto não desbloqueia o ship da f-mu0** — arruma a dívida. Vender uma decisão administrativa como correcção técnica seria o mesmo erro que esta frente passou o dia a corrigir.
+- **Evidência para quem pegar:** `packages/mooter-bridge/ondaA.test.js`, testes **A3** (esperado `"sem_contexto_para_o_local"`, obtido `undefined`) e **A3b** (esperado `["alvo.js"]`, obtido `null`). Ambos exercitam o caminho `moo` (Ollama local). Medido 3×: falha sozinho na base `06bdc2c2`, falha no checkout principal, e falha com o Ollama **em baixo e de pé** — logo não é ambiente. Confirmado de forma independente pelo G4 #6 da Parte A e por todas as rondas da Parte B.
+- ⏳ **Continua à espera de ti: o merge.** É a única coisa que falta na f-mu0.

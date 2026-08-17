@@ -29,6 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { actorDoEvento, porqueDoEvento } = require('./actor.js');
 
 /* ── vocabulário dos motores ────────────────────────────────────────────── */
 /* `local:true` = corre na GPU do utilizador, a custo zero real. Tudo o resto
@@ -271,9 +272,12 @@ function dosJobs(jobs, opts) {
     const custos = cadeia.map(c => c.cost_usd).filter(v => typeof v === 'number');
     const durs = cadeia.map(c => c.duration_s).filter(v => typeof v === 'number');
     const registos = (o.registos && o.registos[j.job_id]) || [];
+    const actor = actorDoEvento(j);
 
     linhas.push({
       kind: 'mooter', fonte: 'ledger', job_id: j.job_id,
+      actor,
+      actor_porque: porqueDoEvento(j),
       rotulo: cadeia.length > 1 ? 'Chained work' : 'Dispatched work',
       sub: [j.wave ? 'wave ' + j.wave : null, j.agent_label || j.agent].filter(Boolean).join(' · ') || null,
       at: Date.parse(cadeia[0].dispatched_at || cadeia[0].started_at || 0) || null,

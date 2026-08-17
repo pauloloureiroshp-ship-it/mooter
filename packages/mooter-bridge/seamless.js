@@ -38,6 +38,7 @@ const { PassThrough } = require('stream');
 const telemetry = require('./telemetry.js');
 const moo = require('./moo.js');
 const kimi = require('./kimi-adapter.js');
+const kimiValvula = require('./kimi-valvula.js');
 const plan = require('./plan.js');
 const journal = require('./journal.js');
 const wt = require('./worktrees.js');
@@ -50,6 +51,7 @@ const eta = require('./eta.js');
 const estimation = require('./estimativa.js');
 const fosso = require('./fosso.js');
 const { isTerminal } = require('./terminal.js');
+const identidade = require('./actor.js');
 
 // ── config (env-overridable; defaults follow the handoff) ─────────────────
 const VALID_CARGOS = Object.freeze(['MOO', 'MTO', 'MFO', 'MIO', 'MRO', 'MCC', 'MEO']);
@@ -178,26 +180,72 @@ function normalizarCargo(raw) {
   return { ok: true, cargo, porque: 'declarado por quem disparou' };
 }
 
+/**
+ * As dimensões de um job, relidas do ficheiro quando o mapa em memória não sabe
+ * (o job nasceu noutro processo, ou este reiniciou).
+ *
+ * `cargo`, `local`, `actor` e `request_id` seguem TODOS a mesma regra: vale o
+ * evento mais recente que os traga. Para o ator acrescenta-se uma condição — tem
+ * de ser LEGÍVEL — e uma linha estragada não pára a procura, salta-se. Herdar um
+ * objecto cru fazia o evento seguinte rebentar em aplicarIdentidade, e há
+ * call-sites sem rede: o ledgerAppend do timeout do job corre dentro de um
+ * setTimeout sem try/catch. Um ficheiro estragado não pode derrubar um processo.
+ *
+ * Aqui NÃO se arbitra propriedade de job. Houve uma versão que o fazia — primeiro
+ * declarado, desempate por relógio — e custou cinco rondas de gauntlet até ficar
+ * claro que era semântica de autoridade que a spec nunca pediu. Ver a nota no
+ * actor.js.
+ */
 function dimensoesPersistidas(jobId) {
+  let dims = null;        // cargo/local — o mais recente ganha
+  let ident = null;       // actor/request_id — o mais recente LEGÍVEL ganha
   try {
     const lines = fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!lines[i]) continue;
+    for (const linha of lines) {
+      if (!linha) continue;
       let event;
-      try { event = JSON.parse(lines[i]); } catch { continue; }
+      try { event = JSON.parse(linha); } catch { continue; }
       if (!event || event.job_id !== jobId) continue;
-      if (!Object.prototype.hasOwnProperty.call(event, 'cargo')
-          && !Object.prototype.hasOwnProperty.call(event, 'local')) continue;
-      return {
-        cargo: Object.prototype.hasOwnProperty.call(event, 'cargo') ? event.cargo : null,
-        cargo_porque: event.cargo_porque || (event.cargo == null
-          ? 'n/d — anterior à instrumentação de cargos'
-          : 'declarado por quem disparou'),
-        local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
-      };
+      const tem = (k) => Object.prototype.hasOwnProperty.call(event, k);
+
+      if (tem('cargo') || tem('local')) {
+        dims = {
+          cargo: tem('cargo') ? event.cargo : null,
+          cargo_porque: event.cargo_porque || (event.cargo == null
+            ? 'n/d — anterior à instrumentação de cargos'
+            : 'declarado por quem disparou'),
+          local: typeof event.local === 'boolean' ? event.local : event.agent === 'moo',
+        };
+      }
+
+      // O ator viaja como o `cargo`: vale o evento MAIS RECENTE que traga um
+      // ator LEGÍVEL. Não se arbitra propriedade aqui — ver a nota no actor.js
+      // sobre porque é que essa regra saiu da Parte A.
+      if (identidade.temActorValido(event)) {
+        ident = {
+          actor: event.actor,
+          actor_porque: identidade.porqueDoEvento(event),
+          request_id: ident ? ident.request_id : null,
+        };
+      }
+      if (tem('request_id') && event.request_id != null && ident && ident.request_id == null) {
+        ident.request_id = event.request_id;
+      }
     }
   } catch { /* ledger ainda não existe */ }
-  return null;
+
+  if (!dims && !ident) return null;
+  return {
+    // sem `dims`, devolvem-se exactamente os valores que o chamador usaria se
+    // isto tivesse devolvido null — `local` fica NÃO-booleano de propósito, para
+    // ele cair no seu próprio fallback e nada mudar de comportamento.
+    cargo: dims ? dims.cargo : null,
+    cargo_porque: dims ? dims.cargo_porque : 'n/d — anterior à instrumentação de cargos',
+    local: dims ? dims.local : undefined,
+    actor: ident ? ident.actor : null,
+    actor_porque: ident ? ident.actor_porque : null,
+    request_id: ident ? ident.request_id : null,
+  };
 }
 
 function enriquecerDimensoesDoJob(payload) {
@@ -223,14 +271,81 @@ function enriquecerDimensoesDoJob(payload) {
       ? known.local
       : out.agent === 'moo';
   }
-  known = { cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local };
+  // f-mu0 · o ator viaja pelos MESMOS caminhos que o cargo, e pela mesma razão:
+  // quem lê o evento terminal precisa de saber de quem foi o pedido sem ter de
+  // reconstruir o job todo. A normalização é uma só, em aplicarIdentidade().
+  const declarouActor = Object.prototype.hasOwnProperty.call(out, 'actor');
+  if (!declarouActor && known && known.actor != null) {
+    out.actor = known.actor;
+    out.actor_porque = out.actor_porque || known.actor_porque;
+  }
+  if (out.request_id == null && known && known.request_id != null) {
+    out.request_id = known.request_id;
+  }
+
+  // O que o chamador escreveu ainda NÃO é identidade — só passa a ser depois de
+  // aplicarIdentidade() o aceitar. Por isso aqui preserva-se o ator anterior e é
+  // o appendLedgerRecord que grava o final: uma escrita RECUSADA não pode deixar
+  // um ator malformado a envenenar os eventos seguintes do mesmo job.
+  known = {
+    cargo: out.cargo, cargo_porque: out.cargo_porque, local: out.local,
+    actor: known && known.actor != null ? known.actor : null,
+    actor_porque: (known && known.actor_porque) || null,
+    request_id: known && known.request_id != null ? known.request_id : null,
+  };
   JOB_DIMENSIONS.set(out.job_id, known);
+  return out;
+}
+
+/**
+ * f-mu0 · o portão por onde TODOS os eventos passam antes de tocar no disco.
+ *
+ * Está aqui, e não em enriquecerDimensoesDoJob, de propósito: aquela função
+ * devolve cedo quando não há `job_id`, e um evento sem job_id continua a ser um
+ * evento que tem de dizer quem o escreveu. Aqui não há saída pela frente.
+ *
+ * Rebenta em vez de corrigir: ator malformado ou visibilidade fora do enum
+ * param a escrita. Um evento meio-identificado no ledger é pior do que um erro
+ * na cara de quem o tentou escrever.
+ */
+function aplicarIdentidade(payload) {
+  const out = { ...(payload || {}) };
+
+  const declarado = Object.prototype.hasOwnProperty.call(out, 'actor');
+  const actor = identidade.normalizarActor(declarado ? out.actor : null);
+  if (!actor.ok) throw new Error(actor.error);
+  out.actor = actor.actor;
+  out.actor_porque = out.actor_porque || actor.porque;
+
+  // G4 #1 BAIXO — a validação estava DENTRO do ramo dos eventos de resultado, por
+  // isso uma visibilidade inválida num evento que não é resultado (um `started`,
+  // por exemplo) atravessava intacta até ao JSONL. Fail-open num campo cuja razão
+  // de existir é ser fail-closed. Agora: declarada, valida-se sempre; o default
+  // continua a nascer só onde há resultado, para não encher o resto de ruído.
+  const declarouVisibilidade = Object.prototype.hasOwnProperty.call(out, 'visibilidade');
+  if (declarouVisibilidade || identidade.eEventoDeResultado(out)) {
+    const vis = identidade.normalizarVisibilidade(declarouVisibilidade ? out.visibilidade : null);
+    if (!vis.ok) throw new Error(vis.error);
+    out.visibilidade = vis.visibilidade;
+  }
   return out;
 }
 
 function appendLedgerRecord(payload) {
   ensureDirs();
-  const record = { ts: nowIso(), ...enriquecerDimensoesDoJob(payload) };
+  const record = { ts: nowIso(), ...aplicarIdentidade(enriquecerDimensoesDoJob(payload)) };
+  // memoriza o ator JÁ normalizado: o próximo evento do job herda a forma final,
+  // nunca o que o chamador escreveu à mão.
+  if (record.job_id) {
+    const known = JOB_DIMENSIONS.get(record.job_id);
+    if (known) {
+      // Último-a-falar, como o cargo. O evento acabou de ser aceite e
+      // normalizado, por isso é ele a verdade mais recente do job.
+      known.actor = record.actor;
+      known.actor_porque = record.actor_porque;
+      if (record.request_id != null) known.request_id = record.request_id;
+    }
+  }
   const line = JSON.stringify(record);
   fs.appendFileSync(LEDGER_PATH(), line + '\n');
   return { record, line };
@@ -1846,6 +1961,12 @@ async function toolDispatch(args) {
   if (!cargoSelection.ok) {
     return { error: cargoSelection.error, cargos_validos: cargoSelection.cargos_validos };
   }
+  // f-mu0 · quem pede. Recusa-se cedo, como o cargo: um ator malformado que
+  // passasse aqui só rebentaria na escrita do ledger, já com o job de pé.
+  const actorSelection = identidade.normalizarActor(args && args.actor != null ? args.actor : null);
+  if (!actorSelection.ok) {
+    return { error: actorSelection.error, actor_types_validos: [...identidade.ACTOR_TYPES] };
+  }
   const agent = String((args && args.agent) || '').trim();
   const worktree = String((args && args.worktree) || '').trim();
   let masterprompt = String((args && args.masterprompt) || '');
@@ -2016,13 +2137,20 @@ async function toolDispatch(args) {
     event: 'dispatched',
     permissoes_pedidas: permissions.pedido, permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
+    // o ator entra UMA vez, no nascimento do job: a propagação de dimensões
+    // leva-o daqui a todos os eventos seguintes, incluindo o terminal.
+    actor: actorSelection.actor, actor_porque: actorSelection.porque,
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     agent, worktree: wtNorm, worktree_criada: createdWorktree,
     local_decisao: localDecision,
     mp_hash, model, model_recommended, tier, step: stepId,
     goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
     prompt_chars: masterprompt.length,
-    escrita: canWrite, preparation: !!chain,
+    // f-mu0 PARTE B — o broker DERIVA as capacidades do pedido a partir daqui.
+    // Sem esta linha ele lia um campo inexistente e nunca via `bash`, `net`
+    // nem `git` — as tres perigosas. O G4 apanhou-o porque os testes do
+    // broker fabricavam o campo em vez de o lerem de onde ele nasce.
+    escrita: canWrite, allowedTools: allowedTools || null, preparation: !!chain,
     git_base_commit: gitBase ? gitBase.commit : null,
     git_base_clean: gitBase ? gitBase.clean : null,
     handoff_from: handoff.ok ? handoffFrom : null, prep_from: prepFrom, note: dispatchNote,
@@ -2085,7 +2213,29 @@ async function toolDispatch(args) {
         ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
           exit_code: 'no-local-model', ttft_ms: contentTiming.finish().ttft_ms });
         try { outStream.end(); errStream.end(); } catch { /* */ }
-        return { error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado', job_id };
+        const evidenciaLocal = args && args.evidencia && typeof args.evidencia === 'object'
+          ? args.evidencia : null;
+        return {
+          error: 'nenhum modelo local disponível (Ollama sem modelos ou inalcançável) — nada foi inventado',
+          exit_code: 'no-local-model',
+          faz_assim: [
+            // ⚠️ Cada passo daqui tem de FUNCIONAR quando o utilizador o segue.
+            // Houve aqui um `force:true` que não funcionava: `force` é aceite
+            // pelo schema (tools6.js: "[compat] accepted, but it never overrides
+            // the capability contract") e não é lido por linha nenhuma do
+            // despacho. Medido em 2026-08-16: seguir esse passo devolvia byte a
+            // byte a mesma recusa. Um beco com uma placa a dizer SAÍDA é pior
+            // que um beco — e o que este produto vende é o recibo ser verdade.
+            'ollama serve — arranca o Ollama e volta a tentar',
+            'ollama pull <modelo> — instala pelo menos um modelo local e volta a tentar',
+            'mooter_work({goal, agent:"cc"}) — usa o Claude Code se aceitares consumir a subscrição',
+          ],
+          ficheiros_lidos: evidenciaLocal && Array.isArray(evidenciaLocal.ficheiros_lidos)
+            ? evidenciaLocal.ficheiros_lidos : [],
+          contexto_chars: evidenciaLocal && Number.isFinite(evidenciaLocal.chars)
+            ? evidenciaLocal.chars : 0,
+          job_id,
+        };
       }
       // o porquê vai para o ledger append-only: uma escolha que não deixa
       // rasto não se pode auditar três dias depois
@@ -2118,6 +2268,26 @@ async function toolDispatch(args) {
     ledgerAppend({ job_id, wave, agent, worktree: wtNorm, event: 'failed', mp_hash,
       exit_code: 'spawn-error', ttft_ms: contentTiming.finish().ttft_ms });
     try { outStream.end(); errStream.end(); } catch { /* */ }
+    // ⚠️ FALLBACK kimi → cc, no arranque (decisão do dono, 2026-08-16).
+    //
+    // Se o kimi nem chega a arrancar — chave revogada, adapter em erro — o job
+    // NÃO morre: quem não escolheu o kimi (foi a válvula) não deve perder o
+    // trabalho por causa de uma poupança que não se concretizou.
+    //
+    // Só aqui, e só neste caso. Uma falha DEPOIS do arranque (timeout, 5xx) não
+    // pode ser recuperada deste modo: o evento terminal deste job só é escrito
+    // mais abaixo, em `finish`, e um re-dispatch antes disso encontra a worktree
+    // ainda ocupada e é recusado pelo próprio WIP guard — medido. Esse caminho
+    // precisa de desenho próprio e está declarado como dívida.
+    if (agent === 'kimi' && args && args.__valvula_abriu === true) {
+      ledgerAppend({ job_id, wave, agent: 'cc', worktree: wtNorm, event: 'step', mp_hash,
+        nota: 'fallback da válvula: o kimi não arrancou, o trabalho segue no Claude Code' });
+      return toolDispatch(Object.assign({}, args, {
+        agent: 'cc', model: null,
+        __valvula_abriu: false,   // uma vez só: sem isto, um cc em erro voltaria aqui
+        __fallback_de: 'kimi',
+      }));
+    }
     return { error: 'spawn falhou: ' + ((e && e.message) || e), job_id };
   }
   let prepTimedOut = false;
@@ -2994,6 +3164,19 @@ async function toolWork(args) {
   if (!cargoSelection.ok) {
     return { error: cargoSelection.error, cargos_validos: cargoSelection.cargos_validos };
   }
+  // f-mu0 · valida antes de qualquer efeito: o caminho com preparação local
+  // dispara DOIS jobs, e um ator inválido não pode ser descoberto só no segundo.
+  const actorPedido = identidade.normalizarActor(a.actor != null ? a.actor : null);
+  if (!actorPedido.ok) {
+    return { error: actorPedido.error, actor_types_validos: [...identidade.ACTOR_TYPES] };
+  }
+  // G4 #2 ALTO — o que segue para o toolDispatch é o valor CRU, não o normalizado.
+  // Reencaminhar o objecto já normalizado destruía a única coisa que a opção A
+  // existe para preservar: o toolDispatch recebia um actor não-nulo, concluía
+  // "então foi declarado" e gravava PORQUE_DECLARADO num job onde ninguém
+  // declarou nada. A validação acima continua a ser cedo (o caminho com
+  // preparação dispara DOIS jobs), mas a normalização acontece UMA vez só, lá.
+  const actorCru = a.actor != null ? a.actor : null;
   const workCategory = aprender.resolveCategory(goal, a.category);
   if (!workCategory.category) {
     return { error: workCategory.porque, categorias_validas: [...aprender.CATEGORY_NAMES] };
@@ -3009,15 +3192,33 @@ async function toolWork(args) {
 
   const d = classifyOrNull(goal);
   const tier = d ? (d.tier || null) : null;
+  // Quem escolheu o motor importa: uma inferencia do router pode ser corrigida
+  // por baixo, uma ESCOLHA do chamador nao pode ser trocada em silencio.
+  const motorExplicito = !!a.agent;
   let agent = a.agent ? String(a.agent) : (tier === 'T0' ? 'moo' : 'cc');
   let escolhaLocal = null;   // preenchido abaixo, depois de sabermos o contexto
+  let valvulaKimi = null;    // a decisão da válvula de quota, para o recibo
   let aprendizagem = null;   // só existe quando o ledger já tem base suficiente
 
-  // ⚠️ v1.3.3 — DEGRADAR, não recusar. (achado dos testes de caminho, não de
-  // uma auditoria: quando o classificador dava T0 e a máquina não tinha Ollama
-  // a correr, o `mooter_work` devolvia "nenhum modelo local disponível" e o
-  // utilizador ficava sem nada. A porta única não pode fechar-se porque um
-  // motor opcional está em baixo — cai para a nuvem e diz que caiu.)
+  // ⚠️ v1.3.3 — DEGRADAR, não recusar, QUANDO O MOTOR FOI INFERIDO. (achado dos
+  // testes de caminho, não de uma auditoria: quando o classificador dava T0 e a
+  // máquina não tinha Ollama a correr, o `mooter_work` devolvia "nenhum modelo
+  // local disponível" e o utilizador ficava sem nada. A porta única não pode
+  // fechar-se porque um motor opcional está em baixo — cai para a nuvem e diz
+  // que caiu.)
+  //
+  // ⚠️ onda-a3 (2026-08-16) — A REGRA ACIMA VALE SÓ PARA O MOTOR INFERIDO.
+  // Se foi o CHAMADOR a escrever `agent:"moo"`, não há degradação: ou corre em
+  // moo ou falha a dizê-lo (`exit_code:'no-local-model'`, com recuperação
+  // estruturada). Trocar um motor gratuito por um pago sem o contrato o dizer é
+  // o oposto do recibo auditável que este produto vende, e o Cockpit depende
+  // dessa semântica — gera `agent:"moo"` e manda escrever à mão se o local
+  // falhar, em vez de gastar subscrição.
+  // A distinção vive em `motorExplicito` (abaixo) e é o guard `agent === 'moo'
+  // && !motorExplicito` que a aplica. Ambos os lados estão cobertos por
+  // `downgrade.test.js` (D1 o inferido, D2 o explícito, D3 a coerência do
+  // recibo), com prova de mutação: desfazer o guard mata D2/D3/D4, e matar o
+  // downgrade mata D1/D3.
   let worktree = a.worktree ? String(a.worktree) : null;
   if (!worktree) {
     const ctx = (() => { try { return require('./fleet.js').readSessionContext(); } catch { return null; } })();
@@ -3152,11 +3353,56 @@ async function toolWork(args) {
     }
   }
 
+  // Onda A3 · cada FACTO do Ollama lê-se uma só vez por toolWork.
+  //
+  // Duas leituras separadas deixavam o local-first voltar a escolher `moo`
+  // depois de o downgrade o ter degradado — a sonda de um não via a do outro.
+  //
+  // Memoiza-se o facto medido, nunca a interpretação: o downgrade continua a
+  // aplicar `pickModel` e o local-first `pickModelExplained`. Unificar também o
+  // SELECTOR tornava o downgrade mais estrito do que sempre foi, e isso ninguém
+  // pediu — custou a regressão de `seamless.test.js:162`.
+  //
+  // Cada leitura é PREGUIÇOSA e independente. Um único memo que lesse tudo de
+  // uma vez obrigava o caminho feliz do T0 (guard encontra modelo, local-first
+  // nem chega a correr por causa da guarda `agent !== 'moo'`) a pagar um spawn
+  // de nvidia-smi que ninguém lê — e com MOOTER_MOO_MODEL definida o guard nem
+  // sequer tocava em gpu.js antes desta frente.
+  //
+  // A GPU nunca é condicionada ao sucesso do /api/ps: `gpuSnapshot` fala com o
+  // nvidia-smi e não depende do Ollama (`residentes.length` só alimenta o flag
+  // `can_overclock`). Amarrá-los punha o tecto de VRAM refém de outro processo:
+  // com o /api/ps a estourar os 700ms — o que acontece justamente com a GPU
+  // ocupada — o local-first recebia {vram:null}, `lerVram` curto-circuitava em
+  // hasOwnProperty (moo.js:195), `cabeCarregar` deixava passar tudo, e o agent
+  // voltava a 'moo' DEPOIS do downgrade, com o recibo a dizer o contrário.
+  const hostOllama = () => process.env.OLLAMA_HOST || '127.0.0.1:11434';
+  let memoResidentes = null;
+  let memoGpu = null;
+  const lerResidentes = () => {
+    if (!memoResidentes) {
+      memoResidentes = (async () => require('./fleet.js').probeOllama(700))()
+        .then((r) => (Array.isArray(r) ? r : null)).catch(() => null);
+    }
+    return memoResidentes;
+  };
+  const lerGpu = (residentes) => {
+    if (!memoGpu) {
+      memoGpu = (async () => require('./gpu.js')
+        .gpuSnapshot(residentes ? residentes.length : null))().catch(() => null);
+    }
+    return memoGpu;
+  };
+
   let downgraded = null;
-  if (agent === 'moo') {
-    const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
-    const res = await require('./fleet.js').probeOllama(700).catch(() => null);
-    const has = await moo.pickModel(null, host, res).catch(() => null);
+  // ⚠️ SO se o motor foi INFERIDO. A mensagem deste ramo diz 'o router escolheu
+  // a GPU local', e quando o chamador passou agent:'moo' isso e falso — foi ele.
+  // Trocar um motor gratuito por um pago sem o contrato o dizer e o oposto do
+  // recibo auditavel que este projecto vende. Se pediram moo, ou corre em moo ou
+  // falha a dize-lo: o exit_code `no-local-model` existe exactamente para isso.
+  if (agent === 'moo' && !motorExplicito) {
+    const host = hostOllama();
+    const has = await moo.pickModel(null, host, await lerResidentes()).catch(() => null);
     if (!has) {
       downgraded = 'o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em ' + host + ' — passei para o Claude Code';
       agent = 'cc';
@@ -3217,11 +3463,11 @@ async function toolWork(args) {
   if (!a.agent && !a.model && agent !== 'moo') {
     let vram = null; let temLocal = false; let escolhaModeloLocal = null;
     try {
-      const host = process.env.OLLAMA_HOST || '127.0.0.1:11434';
-      const res = await require('./fleet.js').probeOllama(700).catch(() => null);
-      const g = await require('./gpu.js').gpuSnapshot(res ? res.length : null).catch(() => null);
+      const host = hostOllama();
+      const residentes = await lerResidentes();
+      const g = await lerGpu(residentes);
       vram = g && g.headroom ? g.headroom.free_mb : null;
-      escolhaModeloLocal = await moo.pickModelExplained(null, host, res, { vram: g, goal }).catch(() => null);
+      escolhaModeloLocal = await moo.pickModelExplained(null, host, residentes, { vram: g, goal }).catch(() => null);
       temLocal = !!(escolhaModeloLocal && escolhaModeloLocal.model);
     } catch { /* sem local, seguimos para a nuvem */ }
 
@@ -3262,6 +3508,43 @@ async function toolWork(args) {
       // para o Ollama; o selector local escolhe o modelo instalado real.
       if (!a.model) model = null;
       log('local-first: ' + escolhaLocal.porque);
+    } else {
+      // ⚠️ A VÁLVULA DE QUOTA (2026-08-16) — a terceira via que não existia.
+      //
+      // Chegámos aqui: o classificador não deu T0, ou a GPU não chega. Até hoje
+      // isso significava `cc`, e sob pressão de quota o `cc` levava tecto de
+      // Haiku (`quota.js`). O kimi-k3 é nuvem capaz que NÃO consome a quota
+      // Anthropic — mas custa USD reais, portanto só compensa quando a quota é
+      // o recurso escasso. Daí ser uma válvula: abre sob pressão, fecha depois.
+      //
+      // A decisão vive em `kimi-valvula.js`, pura e com sete vetos testados um
+      // a um. Aqui só se recolhem os factos e se aplica o resultado — enterrar
+      // sete condições neste `if` tornava-as impossíveis de auditar.
+      valvulaKimi = kimiValvula.valvulaKimi({
+        // opt-in: ver o veto 0 em kimi-valvula.js — a quota não é isolável nos
+        // testes, e ligar isto por omissão tornaria cinco suites dependentes do
+        // consumo do dono nesse dia.
+        ligada: process.env.MOOTER_VALVULA_KIMI === '1',
+        motorExplicito,
+        temChave: kimi.configuredApiKey(),
+        pressaoNivel: calibragem && calibragem.nivel,
+        tier,
+        escrita: a.write === true,
+        categoria: workCategory && workCategory.category,
+        // as permissões efectivas do kimi são [] — um pedido que exija
+        // ferramentas iria para um motor incapaz de as usar, e pago na mesma
+        allowedTools: a.allowedTools,
+        pedeLeitura: !!pedeLeituraDeFicheiro(executionText),
+        // sem contexto injectado não abre (decisão do dono): o kimi não lê
+        // ficheiros, e sem eles só tem o goal
+        contextoInjectado: !!(pre && pre.chars > 0),
+      });
+      if (valvulaKimi.usar) {
+        agent = 'kimi';
+        model = kimi.MODEL;
+        routedBy = 'valvula-de-quota';
+        log('válvula de quota → kimi: ' + valvulaKimi.porque);
+      }
     }
   }
   if (!escolhaLocal && !a.agent && !a.model) {
@@ -3307,6 +3590,18 @@ async function toolWork(args) {
     agent = 'cc';
     model = d ? cliModelFor(agent, tier, d.recommended_model) : null;
     routedBy = 'capacidade-execucao';
+    // ⚠️ A decisão da válvula deixa de valer aqui, e TEM de ser invalidada no
+    // recibo. Sem isto saía `agent:"cc"` com `valvula_kimi.usar:true` — o mesmo
+    // género de recibo contraditório que custou três rondas de G4 na onda-a3
+    // (lá era `downgraded` a dizer "passei para o cc" com `agent:"moo"`).
+    // Apanhado pelo G4 desta frente.
+    if (valvulaKimi && valvulaKimi.usar) {
+      valvulaKimi = {
+        usar: false,
+        porque: 'a válvula tinha aberto, mas a capacidade de execução exigiu o '
+          + 'Claude Code — ' + valvulaKimi.porque,
+      };
+    }
     escolhaLocal = {
       local: false,
       porque: 'o goal pede execução e o motor local não recebe ferramentas',
@@ -3355,6 +3650,13 @@ async function toolWork(args) {
         faz_assim: (onde.length
           ? ['mooter_work({goal, agent:"' + agent + '", worktree:"' + onde[0].path + '", read_files:true}) — usa a pasta onde o ficheiro existe']
           : []).concat([
+          // ⚠️ A via de escape tem de EXISTIR. Esteve aqui um
+          // `force:true` — "despacha sem contexto, assumindo que o motor se
+          // desenrasca" — que não despachava nada: `force` é aceite pelo schema
+          // e ignorado pelo código. Medido em 2026-08-16, os quatro cenários:
+          // sem nada → sem_contexto_para_o_local · com force:true → a MESMA
+          // recusa · com read_files:false → capacidade_incompativel ·
+          // com agent:"cc" → despacha. Só a última é uma saída, e é a que fica.
           'mooter_work({goal, agent:"cc"}) — o Claude Code procura os ficheiros sozinho',
           'diz o caminho completo a partir da raiz do projecto',
         ]),
@@ -3455,12 +3757,19 @@ async function toolWork(args) {
       const prep = await toolDispatch({
         agent: 'moo', worktree, masterprompt: prepMp, wave, cargo: cargoSelection.cargo,
         step: 'S0', model: localModel,
+        actor: actorCru,
         evidencia: evidenciaPrep,
         __goal: goal, __escrita: false,
         __category: workCategory.category, __category_fonte: workCategory.category_fonte,
         __worktree_created: worktreeCriada,
         __chain: { agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-          allowedTools, model, step: stepId, evidencia,
+          allowedTools, model, step: stepId, evidencia, actor: actorCru,
+          // ⚠️ `routed_by` VIAJA na cadeia. Sem ele, o dispatch encadeado via o
+          // `model` do kimi sem saber quem o escolheu e registava
+          // `routed_by:"user"` — "forçado pelo chamador" — quando fora a válvula.
+          // Proveniência falsa no recibo, o mesmo defeito da onda-a3. G4 2026-08-16.
+          routed_by: routedBy,
+          __valvula_abriu: !!(valvulaKimi && valvulaKimi.usar),
           __goal: goal, __escrita: a.write === true, __cross_check: true,
           __category: workCategory.category, __category_fonte: workCategory.category_fonte,
           __steps_total: suppliedStepsTotal,
@@ -3531,11 +3840,14 @@ async function toolWork(args) {
    * SCHEMA, não que o conteúdo atravessava a porta. Ver `handoff.test.js`.
    */
   const r = await toolDispatch({ agent, worktree, masterprompt: mpFinal, wave, cargo: cargoSelection.cargo,
-    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null,
+    allowedTools, model, step: stepId, handoff_from: a.handoff_from || null, actor: actorCru,
     routed_by: routedBy, evidencia, __goal: goal, __escrita: a.write === true,
     __category: workCategory.category, __category_fonte: workCategory.category_fonte,
     __steps_total: suppliedStepsTotal,
     __cross_check: agent !== 'moo', __worktree_created: worktreeCriada, __local_decisao: escolhaLocal,
+    // sinaliza ao dispatch que este kimi foi escolha da válvula, não do chamador:
+    // é o que autoriza o fallback para cc se ele não arrancar
+    __valvula_abriu: !!(valvulaKimi && valvulaKimi.usar),
     __quota_calibragem: calibragem });
   if (r && r.error) return Object.assign({
     resumo: '⛔ não despachei o job' + worktreeSuffix(pedida, worktree, relocated, relocationFreshness),
@@ -3610,6 +3922,11 @@ async function toolWork(args) {
       agente: aprendizagem.agente, porque: aprendizagem.porque,
       confianca: aprendizagem.confianca, base: aprendizagem.base,
     } : null,
+    // ⚠️ A válvula viaja no recibo mesmo quando NÃO abre. Um motor pago
+    // escolhido sem o utilizador saber porquê é o oposto do recibo auditável
+    // que este produto vende — e saber porque é que ele NÃO foi escolhido vale
+    // tanto como saber porque foi (é o que distingue "não serve" de "não tentei").
+    valvula_kimi: valvulaKimi ? { usar: valvulaKimi.usar, porque: valvulaKimi.porque } : null,
     poupanca_estimada: (escolhaLocal && escolhaLocal.local)
       ? localfirst.poupancaEstimada((contextoInjectado ? contextoInjectado.chars : 0) + goal.length, 2000, tier === 'T3' ? 'opus' : 'sonnet')
       : null,
@@ -3630,6 +3947,24 @@ async function toolWork(args) {
     note: 'a trabalhar. O painel actualiza-se sozinho; usa mooter_await para esperar e mooter_collect no fim.',
   };
 }
+
+/**
+ * f-mu0 · o ator na porta MCP. Uma definição só, usada pelas duas tools: os
+ * schemas são `additionalProperties:false`, por isso sem esta declaração o host
+ * rejeitava o campo antes de o código o ver. Opcional de propósito — omitir dá
+ * o default `system/system` explícito, nunca um nome adivinhado.
+ */
+const ACTOR_INPUT_SCHEMA = {
+  type: 'object',
+  description: 'Quem pede. Omite e fica {type:"system", id:"system"} explícito no ledger.',
+  properties: {
+    type: { type: 'string', enum: [...identidade.ACTOR_TYPES], description: 'human decide · agent executa · system é o próprio Mooter.' },
+    id: { type: 'string', description: 'Identificador estável de quem pede (ex.: "paulo", "codex").' },
+    origem: { type: 'string', description: 'Por onde entrou o pedido (ex.: "cc:f-mu0"). Opcional.' },
+  },
+  required: ['type', 'id'],
+  additionalProperties: false,
+};
 
 // ── MCP tool descriptors (annotations per MCP directory requirements) ─────
 const TOOLS = [
@@ -3653,6 +3988,7 @@ const TOOLS = [
       model: { type: 'string', description: 'Override the model (alias like "haiku"/"sonnet"/"opus", or a full name). Omit and the FROZEN classifier picks the minimum viable tier and passes it to the CLI.' },
       step: { type: 'string', description: 'Plan step id this job executes (see mooter_plan) — the step is marked running, then done/failed with who did it.' },
       handoff_from: { type: 'string', description: 'Job id whose result should be embedded into this masterprompt. Records a proven handoff chain in the ledger.' },
+      actor: ACTOR_INPUT_SCHEMA,
     }, required: ['agent', 'worktree', 'masterprompt', 'wave'], additionalProperties: false },
     annotations: { title: '🐄 Mooter · dispatch to the fleet', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolDispatch,
@@ -3693,6 +4029,7 @@ const TOOLS = [
       create_worktree: { type: 'boolean', description: 'Create a fresh isolated worktree before dispatch (git worktree add, reversible). If creation fails the job does not start.' },
       allowedTools: { type: 'string', description: 'Override the permission list.' },
       context: { type: 'string', description: 'Extra context to inline in the masterprompt.' },
+      actor: ACTOR_INPUT_SCHEMA,
     }, required: ['goal'], additionalProperties: false },
     annotations: { title: '🐄 Mooter · route to the right model', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     handler: toolWork,

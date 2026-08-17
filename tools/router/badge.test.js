@@ -106,3 +106,14 @@ test('hook suppresses <tier-badge> when quiet=true', () => {
   assert.ok(/<router-hint>/.test(out), 'hint still emitted');
   assert.ok(!/<tier-badge>/.test(out), 'badge suppressed under quiet');
 });
+
+// ── kimi visivel no tier-badge (2026-08-16) ─────────────────────────────────
+test('buildBadge: kimi aparece com nome proprio, distinto dos motores Anthropic', () => {
+  const kimi = buildBadge({ tier: 'T2', recommended_model: 'kimi-k3', recommended_backend: 'kimi', confidence: 0.84 });
+  assert.match(kimi, /kimi/, 'o motor que o dono paga tem de ser nomeado');
+  assert.doesNotMatch(kimi, /kimi-k3/, 'o id cru nao vai para o badge — colapsa para o nome curto');
+  // e nao pode ser confundido com um motor de subscricao
+  const sonnet = buildBadge({ tier: 'T2', recommended_model: 'claude-sonnet-4-6', recommended_backend: 'anthropic', confidence: 0.84 });
+  assert.notEqual(kimi, sonnet, 'kimi e sonnet no mesmo tier tem de ler-se diferente');
+});
+

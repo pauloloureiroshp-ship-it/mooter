@@ -58,8 +58,16 @@ function glyphFor(spec) {
 
 /**
  * Map a router backend / provider hint to one of the three provider buckets.
- *   'ollama' → 'local' · 'sonnet'/'opus'/'haiku'/'openai_api' → 'cloud'
+ *   'ollama' → 'local' · 'sonnet'/'opus'/'haiku'/'openai_api'/'kimi' → 'cloud'
  *   'codex_cli' → 'max'
+ *
+ * ⚠️ `kimi`/`moonshot` é `cloud`, não `max`, e a distinção importa para o dono:
+ * `max` é capacidade JÁ PAGA por subscrição (Claude, Codex CLI) — gastá-la não
+ * acrescenta custo marginal. `cloud` é pago ao token. O kimi-k3 custa USD reais
+ * ($3/M in, $15/M out; $0,30/M com cache hit), portanto pertence ao mesmo balde
+ * das APIs medidas, mesmo sendo de outro fornecedor. Quem lê o badge distingue-o
+ * na etiqueta do modelo (`☁ kimi` vs `☁ sonnet`), não no glifo do provedor.
+ *
  * @param {unknown} backend
  * @returns {'local'|'cloud'|'max'|undefined}
  */
@@ -68,7 +76,7 @@ function providerBucket(backend) {
   if (!b) return undefined;
   if (b.includes('ollama') || b.includes('local')) return 'local';
   if (b.includes('codex') || b.includes('max') || b.includes('subscription')) return 'max';
-  if (/anthropic|claude|subagent|sonnet|opus|haiku|openai|gpt|gemini|cloud/.test(b)) return 'cloud';
+  if (/anthropic|claude|subagent|sonnet|opus|haiku|openai|gpt|gemini|kimi|moonshot|cloud/.test(b)) return 'cloud';
   return undefined;
 }
 
