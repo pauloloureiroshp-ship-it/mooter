@@ -449,9 +449,19 @@ test('com diff, o pack entra em modo DIFF e manda rever a MUDANCA', () => {
   assert.ok(['diff', 'ancorado', 'caca'].includes(pack.mode), 'o pack declara sempre o modo');
 });
 
-test('o prompt de diff pede revisao da mudanca e aceita SEM ACHADO', () => {
-  assert.match(DIFF_SYSTEM_PROMPT, /Revê a MUDANÇA, não o ficheiro/);
-  assert.match(DIFF_SYSTEM_PROMPT, /SEM ACHADO é a resposta CERTA/);
+// Reequilibrado a 2026-08-17 depois de um canario com bugs plantados: a versao
+// anterior martelava "SEM ACHADO e a resposta certa" e o modelo passou a responder
+// SEM ACHADO a TUDO — falhou uma condicao de permissao invertida e um off-by-one.
+// Silencio perante um bug e pior do que um falso alarme; o prompt tem de dizer isso.
+test('o prompt de diff manda caçar defeitos reais e proibe nitpick, sem induzir silencio', () => {
+  assert.match(DIFF_SYSTEM_PROMPT, /defeitos INTRODUZIDOS/);
   assert.match(DIFF_SYSTEM_PROMPT, /ACHADO: <sintoma> QUANDO .*ENTÃO/);
-  assert.ok(!/estilo, nomes, formatação/.test(DIFF_SYSTEM_PROMPT.split('Não comentes')[0]), 'proibe estilo');
+  assert.match(DIFF_SYSTEM_PROMPT, /SEM ACHADO/, 'o silencio honesto continua a existir');
+  // as duas classes que o canario apanhou a falhar tem de estar nomeadas
+  assert.match(DIFF_SYSTEM_PROMPT, /condições booleanas/, 'tem de mandar olhar para condicoes');
+  assert.match(DIFF_SYSTEM_PROMPT, /índices e limites/, 'tem de mandar olhar para limites');
+  // nitpick continua proibido
+  assert.match(DIFF_SYSTEM_PROMPT, /NÃO comentes estilo/);
+  // e o silencio NAO pode ser vendido como a resposta preferida
+  assert.match(DIFF_SYSTEM_PROMPT, /Ficar calado perante um bug é pior/);
 });
