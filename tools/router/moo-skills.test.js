@@ -1,5 +1,5 @@
 'use strict';
-// Wave 32 (Phase NEW1) — validate the 8 /moo-* slash skills: each exists with
+// Wave 32 (Phase NEW1) — validate the /moo-* slash skills: each exists with
 // well-formed frontmatter and a name matching its directory (so CC autocompletes
 // /moo-<name>).
 const test = require('node:test');
@@ -12,7 +12,9 @@ const EXPECTED = ['moo-workflow', 'moo-effort', 'moo-herd', 'moo-dashboard', 'mo
   // Wave 53 Phase E — CC-parity skills (additive; do NOT shadow CC's native /agents //memory //init).
   'moo-agents', 'moo-memory', 'moo-init',
   // First Magic FASE 2 — the free deterministic critic.
-  'moo-verify'];
+  'moo-verify',
+  // F5 — o cockpit por device: levanta motor/endpoint/loop e abre o painel ao vivo.
+  'moo-pilot'];
 
 function frontmatter(text) {
   const m = text.match(/^---\n([\s\S]*?)\n---/);
@@ -25,7 +27,7 @@ function frontmatter(text) {
   return out;
 }
 
-test('all 12 /moo-* skills exist with valid frontmatter and matching name', () => {
+test('all 13 /moo-* skills exist with valid frontmatter and matching name', () => {
   for (const slug of EXPECTED) {
     const p = path.join(SKILLS_DIR, slug, 'SKILL.md');
     assert.ok(fs.existsSync(p), `${slug}/SKILL.md missing`);
@@ -36,7 +38,7 @@ test('all 12 /moo-* skills exist with valid frontmatter and matching name', () =
   }
 });
 
-test('exactly the 12 expected moo-* skills are present (no stragglers)', () => {
+test('exactly the 13 expected moo-* skills are present (no stragglers)', () => {
   const dirs = fs.readdirSync(SKILLS_DIR).filter((d) => d.startsWith('moo-'));
   assert.deepStrictEqual(dirs.sort(), [...EXPECTED].sort());
 });
