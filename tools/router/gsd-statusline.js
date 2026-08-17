@@ -101,6 +101,10 @@ const TIER_COLOR = {
   T1: '\x1b[38;2;78;201;176m',   // teal  #4ec9b0  — haiku (cheaper paid, healthy)
   T2: '\x1b[38;2;220;220;170m',  // gold  #dcdcaa  — sonnet (caution, pricier)
   T3: '\x1b[38;2;227;70;70m',    // red   #E34646  — opus (danger, top price)
+  // kimi-k3 (Moonshot) — violeta. Cor PROPRIA de proposito: o kimi nao pertence
+  // a escada T0-T3 (o classificador nem o conhece) e nao e subscricao. Dar-lhe
+  // a cor de um tier faria a barra mentir sobre o que se gastou.
+  KIMI: '[38;2;167;139;250m',
 };
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
@@ -447,6 +451,10 @@ function bucketFor(model) {
   if (m.includes('qwen') || m.includes('ollama') || m.includes('local')) return 'local';
   if (m.includes('gpt') || m.includes('codex') || m.includes('openai'))  return 'gpt';
   if (m.includes('gemini') || m.includes('google')) return 'gemini';
+  // kimi-k3 (Moonshot): nuvem paga ao token, de fornecedor proprio. Sem este
+  // bucket os jobs kimi caiam em `null` e desapareciam da barra — o dono via so
+  // os locais e as subscricoes Claude/Codex, e concluia que o kimi nao corria.
+  if (m.includes('kimi') || m.includes('moonshot'))  return 'kimi';
   if (m.includes('grok'))                          return 'grok';
   if (m.includes('mistral') || m.includes('codestral') || m.includes('mixtral')) return 'mistral';
   return null;
@@ -868,6 +876,7 @@ function renderDistributionBar(metrics, sessionId, width = 30) {
   const tiers = [
     { key: 'local',  color: TIER_COLOR.T0 },
     { key: 'haiku',  color: TIER_COLOR.T1 },
+    { key: 'kimi',   color: TIER_COLOR.KIMI },
     { key: 'sonnet', color: TIER_COLOR.T2 },
     { key: 'opus',   color: TIER_COLOR.T3 },
   ];

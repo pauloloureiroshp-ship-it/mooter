@@ -1,0 +1,792 @@
+{
+  "frente": "f-mu0",
+  "parte": "A (envelope de identidade) + B (broker de decisao)",
+  "estado": "PARTE A + PARTE B entregues · 5 rondas de G4 na B · a aguardar gesto do dono",
+  "gerado_em_utc": "2026-08-15T12:40:00Z",
+  "owner_tz": "America/Sao_Paulo (UTC-3) — 2026-08-15 09:40 na hora do dono",
+  "precedencia": {
+    "condicao_a_ronda4_duelo_ship": false,
+    "porque": "G4 #8 (job-msubcj99-e59f, codex, 425s) devolveu NO-SHIP sobre a ronda 6; _handoff/g4-duelo-ab-r6/resultado.md fecha com 'GO CONTINUA BLOQUEADO' e especifica a ronda 7",
+    "condicao_b_dono_escreveu_f_mu0_primeiro": true,
+    "quando": "2026-08-15, na sessão, literal 'f-mu0 primeiro'"
+  },
+  "ack_medido": {
+    "branch_origem": "onda-q/m1-fechar-o-laboratorio @ fb524d69 (bate com o sha da emissão)",
+    "main_local": "06bdc2c2693466505cc79d24a9e247c92f04890d",
+    "main_vs_origin": "7 commits À FRENTE de origin/main (f4a60a8b); 0 atrás — coerente com zero-push",
+    "porcelain_no_ack": 431,
+    "worktrees": 60,
+    "codex_version": "codex-cli 0.144.1",
+    "tres_docs_presentes": true,
+    "ledger_baseline": {
+      "bytes": 1220668,
+      "sha256": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2"
+    }
+  },
+  "housekeeping_pedido_pelo_dono": {
+    "lock_stale_apagado": ".git/index.lock.stale-cowork-1815 (0 B, não era o index.lock activo — esse não existia)",
+    "outros_locks_stale_deixados": 7,
+    "wip_commit": {
+      "sha": "1b8a2ead16ce6918a0c0c2c359260f5ea58c9b8e",
+      "branch": "onda-q/m1-fechar-o-laboratorio",
+      "ficheiros": 11,
+      "linhas": "+1183 / -230",
+      "adds": "selectivos — 420 untracked deixados intocados; nunca git add -A"
+    }
+  },
+  "worktree": {
+    "path": ".claude/worktrees/f-mu0",
+    "branch": "f-mu0/identidade-broker",
+    "base": "main @ 06bdc2c2",
+    "commit_parte_a": "98bd2066e1b5c847f3b2ddbe683749a5995a0d21",
+    "commit_sync_do_gate": "44055357 — deliberadamente FORA do commit A, para a prova de fronteira ficar limpa",
+    "porcelain_final": 0,
+    "push": "zero, em toda a frente"
+  },
+  "prova_de_fronteira": {
+    "porque_esta_dividida": "a prova original era da PARTE A e falava de 06bdc2c2..HEAD. O HEAD andou para a frente e passou a incluir a Parte B, logo a afirmacao \"sem broker\" tornou-se falsa sem ninguem lhe tocar. Os intervalos passam a ser FIXOS.",
+    "parte_A": {
+      "alvo": "06bdc2c2..086a5dac",
+      "broker_ou_decisao": "nenhum",
+      "veredicto": "PASS — a Parte A e mergeavel sozinha"
+    },
+    "parte_B": {
+      "alvo": "086a5dac..HEAD",
+      "nota": "aqui o broker ENTRA, de proposito: foi o gate A->B que o autorizou"
+    },
+    "contagens": "n/d por desenho — `git diff --name-only <intervalo>` da o numero na hora. Pinar contagens neste ficheiro foi o que o fez mentir cinco vezes."
+  },
+  "integridade_ledger_por_prefixo": {
+    "regra": "kimi #5 — o baseline do ACK tem de ser prefixo byte-a-byte do ledger final",
+    "bytes_baseline": 1220668,
+    "bytes_actual": 2036742,
+    "sha_prefixo_medido": "25d2d54597254321a669087663426b7b8ddf026ae14db45c69efdaa5a1cab4a2",
+    "veredicto": "PASS — só cresceu, prefixo intacto, zero reescrita",
+    "nota": "re-medido em cada ronda; a ultima medicao e a que vale"
+  },
+  "provas": {
+    "A-VERMELHO.txt": {
+      "comando": "cd packages/mooter-bridge && node --test (definição de suite completa da v3.4)",
+      "bytes": 93013,
+      "sha256": "dcf7a78b42b3b8b417ca6cb75fe86424d637a9df86da22fccda320ffe4946934",
+      "totais": {
+        "tests": 960,
+        "pass": 957,
+        "fail": 2,
+        "skipped": 1
+      },
+      "falhas": [
+        "actor.test.js — INTENCIONAL: o módulo actor.js ainda não existia",
+        "ondaA.test.js A3/A3b — PRÉ-EXISTENTE, ver vermelho_pre_existente"
+      ]
+    },
+    "A-VERDE.txt": {
+      "comando": "cd packages/mooter-bridge && node --test",
+      "bytes": 95021,
+      "sha256": "454bc6e67fcf379d38899540783972890c02f424c3b10583e23e9a92a8e2939e",
+      "totais": {
+        "tests": 989,
+        "pass": 987,
+        "fail": 1,
+        "skipped": 1
+      },
+      "delta_vs_vermelho": "960→989 testes; fail 2 → 1; a unica falha que resta e a pre-existente",
+      "falhas": [
+        "ondaA.test.js A3/A3b — pré-existente, ver vermelho_pre_existente"
+      ],
+      "historico_das_capturas": [
+        "ronda 1 (98bd2066): 978/976, sha 53cedd68…",
+        "ronda 2 (a14bcd0b): 985/983",
+        "ronda 3 (453ef6cb): 990/988, sha c0e6b874…",
+        "ronda 4 (fd73b3d3): 993/991, sha 43393140…",
+        "ronda 5 (esta): 998/996, sha 94669689…",
+        "ronda 6 / opcao B (esta): 989/987, sha 454bc6e67fcf379d38899540783972890c02f424c"
+      ],
+      "correccao": "o G4 #3 apanhou este ficheiro e o SYNC.md a AFIRMAR 978/976 e sha 53cedd68 quando o A-VERDE.txt já ia em 990/988. Documentos meus a mentir sobre os meus próprios números — exactamente o que esta frente existe para impedir. Corrigido, e o histórico fica à vista em vez de ser reescrito."
+    },
+    "flake_registado_em_vez_de_escondido": {
+      "ficheiro": "packages/mooter-bridge/moo.test.js",
+      "o_que_aconteceu": "a PRIMEIRA captura do A-VERDE deu fail 2: moo.test.js falhou com ENOENT em C:\\...\\Temp\\moo-ctx-sxNZl3\\out.log",
+      "causa": "corrida de tmpdir sob carga paralela do node --test — o directório temporário do teste desapareceu enquanto algo ainda abria out.log",
+      "prova_de_que_e_flake": "passa isolado 2/2 vezes; não toca em actor, ledger nem em nenhuma projecção alterada nesta frente",
+      "o_que_fiz": "re-corri a captura em vez de a aceitar; a corrida gravada é a segunda. Fica registado porque um flake apagado volta como mistério."
+    },
+    "B-VERMELHO.txt": {
+      "bytes": 96203,
+      "sha256": "dadf29b39ab803fcf7de0b099ab30532317640c6f2f53e2cef0b0c40e8bce968",
+      "totais": {
+        "tests": 990,
+        "pass": 987,
+        "fail": 2,
+        "skipped": 1
+      },
+      "falhas": [
+        "broker.test.js — INTENCIONAL: o modulo nao existia",
+        "ondaA — herdado"
+      ]
+    },
+    "B-VERDE.txt": {
+      "bytes": 99549,
+      "sha256": "e381c2ea81fd32b91d8eba0bb9f0f72547862156ebc2b9d14064ec3d781d434c",
+      "totais": {
+        "tests": 1047,
+        "pass": 1045,
+        "fail": 1,
+        "skipped": 1
+      },
+      "falhas": [
+        "ondaA A3/A3b — herdado da base, excepcao aceite pelo dono"
+      ],
+      "nota": "este ficheiro e a fonte. Os numeros nao se repetem em prosa noutro sitio."
+    }
+  },
+  "vermelho_pre_existente": {
+    "ficheiro": "packages/mooter-bridge/ondaA.test.js",
+    "testes": [
+      "A3 · despachou leitura sem contexto nenhum",
+      "A3b · não leu o ficheiro pelo modelo local"
+    ],
+    "nao_e_meu_porque": [
+      "falha sozinho, sem o actor.test.js na corrida, na worktree f-mu0 (base 06bdc2c2)",
+      "falha igualmente no checkout principal (1b8a2ead)",
+      "falha com o Ollama EM BAIXO e com o Ollama DE PÉ — não é ambiente"
+    ],
+    "fora_de_escopo_porque": "corrigi-lo é outra frente; a f-mu0 não toca em testes que não são seus",
+    "consequencia_honesta": "a Parte A NÃO pode declarar 'suite completa verde' — declara 'verde no delta, com 1 vermelho pré-existente herdado e nomeado'",
+    "resolucao": {
+      "quando": "2026-08-15, na sessao",
+      "gesto": "o ondaA vira frente propria",
+      "o_que_muda": "o vermelho deixa de ser uma excepcao ORFA dentro da f-mu0 e passa a ter dono, lugar e evidencia. Registado no _handoff/MASTERPROMPTS_INDEX.md como frente `onda-a3`.",
+      "o_que_NAO_muda": "a suite continua vermelha ate essa frente a arranjar, e o gate final-reviewer-honest continua a nao aceitar suite vermelha. Isto nao desbloqueia o ship da f-mu0 — arruma a divida. Dizer o contrario era vender uma decisao administrativa como uma correccao tecnica.",
+      "evidencia_para_quem_pegar": {
+        "ficheiro": "packages/mooter-bridge/ondaA.test.js",
+        "testes": [
+          "A3 · despachou leitura sem contexto nenhum — esperado \"sem_contexto_para_o_local\", obtido undefined",
+          "A3b · nao leu o ficheiro pelo modelo local — esperado [\"alvo.js\"], obtido null"
+        ],
+        "ambos_exercitam": "o caminho `moo` (Ollama local)",
+        "medido_3x": "falha sozinho na base 06bdc2c2 · falha no checkout principal · falha com o Ollama EM BAIXO e DE PE (logo nao e ambiente)",
+        "confirmado_por": "o G4 #6 da Parte A e todas as rondas de G4 da Parte B, de forma independente, sempre como alheio a identidade"
+      }
+    }
+  },
+  "routing": {
+    "regra": "wave sem routing declarado não fecha",
+    "waves": [
+      {
+        "wave": "w0 · ACK + housekeeping",
+        "motor": "maestro (CC/Opus)",
+        "jobs": 0,
+        "porque_maestro": "medição de estado de campo e escritas git — a frota chega sem Bash",
+        "tokens": "n/d (sessão)",
+        "custo_usd": "n/d",
+        "local_pct": 0
+      },
+      {
+        "wave": "f-mu0-w1-mapa",
+        "motor": "codex (read-only)",
+        "jobs": 1,
+        "job_id": "job-msuc5vi2-5102",
+        "model_used": "n/d — o CLI do codex não reporta modelo; meta.json model:null",
+        "tier_pedido": "T3",
+        "divergencia_model_vs_tier": "não verificável (n/d) — declarado, não fingido",
+        "duracao_s": 606,
+        "tokens_in": 10041477,
+        "tokens_out": 26479,
+        "custo_usd": "n/d — o CLI não reporta cost_usd",
+        "local_pct": 0,
+        "cross_check_moo": {
+          "modelo": "qwen3:30b",
+          "custo_usd": 0,
+          "verificado": 19,
+          "divergencias": 1,
+          "divergencia": "path .mooter/ledger.js citado não existe — afirmação descartada"
+        },
+        "valor_entregue": "mapa com file:line que apanhou o 2º escritor do ledger (fleet.js:692) e o additionalProperties:false das tools MCP"
+      },
+      {
+        "wave": "w2 · A1 envelope",
+        "motor": "maestro (CC/Opus)",
+        "jobs": 0,
+        "porque_maestro": "é o ponto único de escrita da verdade do sistema; e as suites correm sempre no maestro",
+        "custo_usd": "n/d (sessão)",
+        "local_pct": 0
+      },
+      {
+        "wave": "f-mu0-w3-projeccoes",
+        "motor": "moo (prep, T0) → codex (escrita)",
+        "jobs": 2,
+        "job_prep": {
+          "job_id": "job-msucq1do-1eed",
+          "model_used": "qwen3:30b",
+          "tier_motor": "T0",
+          "custo_usd": 0,
+          "duracao_s": 19,
+          "tokens_in": 8713,
+          "tokens_out": 1931,
+          "divergencia_model_vs_tier": "nenhuma — T0 local, como pedido"
+        },
+        "job_escrita": {
+          "job_id": "job-msucqfwc-b8d0",
+          "model_used": "n/d — o motor não declarou modelo atribuível",
+          "tier_pedido": "T3",
+          "divergencia_model_vs_tier": "não verificável (n/d). A regra manda cancelar e re-despachar com model explícito quando DIVERGE; aqui não diverge nem confirma — é n/d, e fica escrito como n/d.",
+          "estado": "done, exit_code 0",
+          "duracao_s": 426,
+          "custo_usd": "n/d — o CLI do codex não reporta cost_usd",
+          "cross_check": "NÃO CORREU — o modelo local excedeu o timeout da verificação (2063 MB de VRAM livre no momento; o Ollama tinha modelos carregados). verificado: 0, sem veredicto.",
+          "quem_verificou_entao": "o maestro: leitura do diff completo dos 6 ficheiros de produção (19 inserções, todas aditivas, todas a usar o actor.js canónico) + suite completa. Nenhum 'testei' foi aceite do job — ele não tem Bash.",
+          "entregue": "6 ficheiros de produção + 6 de teste; 1 teste A2 por consumidor, cada um a provar ator presente E degradação para legacy"
+        },
+        "local_pct": "50 (1 de 2 jobs da wave em GPU local, $0)"
+      }
+    ],
+    "trabalho_zero_pct": {
+      "no_ack": 20.41,
+      "fonte": "mooter_fleet scorecard, medido 2026-08-15T12:11:28Z",
+      "faixa_alvo": [
+        50,
+        100
+      ],
+      "estado": "FORA — excepção aberta desde 2026-08-14T19:27:52Z",
+      "nota_honesta": "o masterprompt dizia 25%; o valor medido no arranque desta frente era 20,41%. Uso o medido.",
+      "o_que_esta_frente_fez": "o Ollama estava EM BAIXO no arranque (HTTP 000, zero processos) — nenhum trabalho local era possível. Arrancá-lo devolveu o moo à frota e a wave w3 já correu 1 de 2 jobs em GPU local a $0."
+    }
+  },
+  "achados_que_mudaram_o_trabalho": [
+    {
+      "achado": "fleet.js:692 faz appendFileSync DIRECTO ao ~/.mooter/ledger.jsonl (session_bind_rejected), contornando o ledgerAppend",
+      "fonte": "codex job-msuc5vi2-5102, confirmado por medição própria (grep de appendFileSync sobre todo o repo: só 2 escritores de produção do ledger do bridge)",
+      "consequencia": "sem correcção, 'actor em TODOS os eventos' seria falso; entrou no âmbito da wave w3"
+    },
+    {
+      "achado": "mooter_dispatch e mooter_work têm additionalProperties:false",
+      "consequencia": "o parâmetro actor tinha de ser DECLARADO no schema, senão era rejeitado na porta antes de o código o ver"
+    },
+    {
+      "achado": "plan.js NÃO é consumidor de ledgerRead — recebe um Map<job_id, último evento> montado pelo fleet.js",
+      "consequencia": "o A2 do masterprompt nomeia plan.js; a lista real de consumidores é outra e está coberta pela medição, não pelo texto"
+    },
+    {
+      "achado": "bundle.test.js B1 apanhou o require novo fora do manifesto do .mcpb",
+      "consequencia": "actor.js entrou em pack-mcpb.mjs; sem isso o conector instalado morria no primeiro require com o repo todo verde"
+    }
+  ],
+  "nao_fazer_respeitado": {
+    "push": "zero",
+    "classify_js_frozen": "não tocado",
+    "testes_duelo_piloto1": "não tocados",
+    "ledger_reescrito": "não — prefixo provado",
+    "schema_migrado": "não — só campos novos",
+    "actor_retroactivo_em_legacy": "não — leitura degrada, ficheiro não muda"
+  },
+  "nota_de_activacao": {
+    "regra": "kimi #14",
+    "texto": "o bridge que corre no Desktop continua com o codigo ANTIGO ate o Paulo reinstalar/reiniciar. Esta frente nao reiniciou nada. Mergeado NAO e activo."
+  },
+  "efeito_colateral_declarado": {
+    "o_que": "arranquei o serviço Ollama (estava em baixo: HTTP 000, zero processos)",
+    "porque": "sem ele nenhum trabalho local era possível, e o masterprompt manda puxar o trabalho_zero_pct para cima usando o moo",
+    "reversivel": true,
+    "efeito_medido": "a wave w3 correu a preparação em GPU local a $0 (qwen3:30b, T0, 19s); e provou-se que o vermelho do ondaA NÃO era o Ollama — falha na mesma com ele de pé"
+  },
+  "g4_critico_nao_autor": {
+    "job_id": "job-msud7kv6-48fe",
+    "motor": "codex read-only (crítico ≠ autor: não escreveu nada do que audita)",
+    "alvo": "commit 98bd2066",
+    "instrucao": "derrubar as promessas 1-6 da Parte A com evidência ficheiro:linha; gate que só aprova não correu",
+    "duracao_s": 422,
+    "custo_usd": "n/d — o CLI do codex não reporta",
+    "cross_check": "não produziu ficheiro (sem veredicto do moo)",
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 1,
+      "MEDIO": 4,
+      "BAIXO": 1
+    },
+    "gate_do_masterprompt": "ship só sem ALTO aberto → a Parte A NÃO tem ship",
+    "achados": [
+      {
+        "nivel": "ALTO",
+        "titulo": "identidade falsa por omissão",
+        "argumento": "o default system/system é uma ATRIBUIÇÃO AFIRMATIVA, não uma ausência. Clientes existentes não enviam o campo novo, logo pedidos que vieram de uma pessoa ficam gravados como 'system'. A ausência não vira uma pessoa — vira uma afirmação igualmente fabricada.",
+        "evidencia": [
+          "actor.js:55",
+          "seamless.js:1917",
+          "seamless.js:3074",
+          "seamless.js:3757",
+          "fleet.js:113"
+        ],
+        "avaliacao_do_autor": "PROCEDE, e é o achado que interessa. Mas colide com o masterprompt: a v3.4 prescreve verbatim o default {type:'system', id:'system'} (kimi #6, 'nunca omissão silenciosa'). Implementei o que estava escrito. Resolver isto é decisão do dono, não minha — ver decisao_pendente_do_dono.",
+        "mitigacao_ja_presente": "o discriminador existe no ficheiro: actor_porque = 'n/d — ator não declarado por quem disparou; nunca inferido' vs 'declarado por quem disparou'. O que falta é ele SOBREVIVER às projecções, que hoje só levam o actor."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "request_id não tem porta de entrada em produção",
+        "evidencia": [
+          "seamless.js:191",
+          "seamless.js:240",
+          "actor.test.js:121",
+          "actor.test.js:139"
+        ],
+        "avaliacao_do_autor": "PROCEDE. O mecanismo propaga, mas nada em produção o define — nem o schema nem o evento de dispatch. Os testes fabricam-no. Isso é testar o mecanismo interno, não o comportamento prometido. Culpa minha: o masterprompt manda o request_id viajar, e eu fiz a viagem sem construir a partida."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "o ator de um job não é imutável",
+        "evidencia": [
+          "seamless.js:236",
+          "seamless.js:273",
+          "seamless.js:295"
+        ],
+        "avaliacao_do_autor": "PROCEDE. Um evento posterior com actor explícito substitui o memorizado e as projecções adoptam-no: reatribuição silenciosa dentro do mesmo job_id. Não pensei nisto."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "a trilha atribui a cadeia inteira ao ator do job final",
+        "evidencia": [
+          "trilha.js:263",
+          "trilha.js:278"
+        ],
+        "avaliacao_do_autor": "PLAUSÍVEL — não re-verifiquei linha a linha. Se procede, um handoff_from entre atores diferentes perde a proveniência dos antepassados, que é precisamente o que a frente existe para dar."
+      },
+      {
+        "nivel": "MEDIO",
+        "titulo": "ator histórico malformado pode derrubar um caminho quente",
+        "evidencia": [
+          "seamless.js:184",
+          "seamless.js:274",
+          "seamless.js:2205"
+        ],
+        "avaliacao_do_autor": "PROCEDE e CONFIRMADO por medição própria: em seamless.js:2205 o ledgerAppend do timeout do job corre dentro de um setTimeout SEM try/catch. Antes da Parte A aquele caminho não podia rebentar por identidade; agora pode, se dimensoesPersistidas herdar um actor cru malformado. É regressão introduzida por mim, não teoria."
+      },
+      {
+        "nivel": "BAIXO",
+        "titulo": "visibilidade inválida escapa em evento não-resultado",
+        "evidencia": [
+          "seamless.js:278",
+          "seamless.js:301",
+          "actor.test.js:171"
+        ],
+        "avaliacao_do_autor": "PROCEDE e CONFIRMADO: a validação vive dentro do ramo eEventoDeResultado. Um valor bogus num evento 'started' chega intacto ao JSONL. O meu teste cobre a ausência automática, não o valor inválido fornecido."
+      }
+    ],
+    "o_que_o_critico_TENTOU_e_NAO_conseguiu_derrubar": [
+      "não encontrou nenhum escritor do ledger que omita completamente o actor — o portão central e o append directo do fleet.js:692 carimbam ambos",
+      "não encontrou nenhum leitor existente partido pelas chaves novas",
+      "confirmou que a Parte A NÃO recria locks, leases, handoff-journal nem ledger-prov — o meio-caminho continua separado e intacto"
+    ]
+  },
+  "decisao_pendente_do_dono": {
+    "conflito": "o ALTO do G4 contra o texto verbatim do masterprompt v3.4",
+    "o_masterprompt_diz": "default explícito {type:'system', id:'system'} quando o chamador não o passar — nunca omissão silenciosa (kimi #6)",
+    "o_critico_diz": "esse default é uma atribuição afirmativa fabricada, porque hoje NENHUM cliente envia o campo",
+    "porque_nao_decido_sozinho": "mudar o default é alterar a spec que o dono aprovou, no campo que é a razão de ser da frente",
+    "opcoes": [
+      "A) manter o default e fazer o actor_porque viajar até às projecções — em spec, aditivo, o consumidor distingue sempre declarado de defaultado",
+      "B) mudar o id do default para algo que não se leia como afirmação (ex.: 'nao_declarado') — fora do texto da v3.4, exige o dono",
+      "C) aceitar o ALTO como dívida declarada e seguir — contraria 'ship só sem ALTO aberto'"
+    ],
+    "recomendacao_do_autor": "A, mais os 3 fixes que são inequivocamente meus (throw seguro no timer, validar visibilidade fora do ramo de resultado, imutabilidade do ator no job), depois G4 #2. A opção C não a recomendo: o ALTO é real."
+  },
+  "rondas_do_gauntlet": {
+    "porque_ha_quatro": "o gate é 'ship só sem ALTO aberto'. Cada ronda do crítico encontrou ALTOs reais e todos eram meus. Fica escrito porque uma frente que só mostra a última ronda esconde como lá chegou.",
+    "G4_1": {
+      "job": "job-msud7kv6-48fe",
+      "alvo": "98bd2066",
+      "veredicto": "NO-SHIP",
+      "achados": "1 ALTO (default system/system é atribuição afirmativa) + 4 MÉDIO + 1 BAIXO",
+      "decisao_do_dono": "opção A — manter o default da spec e fazer o actor_porque viajar até às projecções"
+    },
+    "G4_2": {
+      "job": "job-msug0itk-9a3e",
+      "alvo": "792f32c6..a14bcd0b",
+      "veredicto": "NO-SHIP",
+      "achados": "2 ALTO (o discriminador mentia na porta mooter_work; a imutabilidade do dono não sobrevivia a um reinício) + 3 MÉDIO"
+    },
+    "G4_3": {
+      "job": "job-msugu8hj-1b9c",
+      "alvo": "a14bcd0b..453ef6cb",
+      "veredicto": "NO-SHIP",
+      "achados": "4 ALTO + 1 MÉDIO + 2 BAIXO",
+      "ALTO_confirmados": [
+        "aprender/board continuavam a dar o job ao último ator (o fleet já respeitava a regra, o aprender não)",
+        "releitura e fleet aplicavam regras de propriedade INCOMPATÍVEIS (ordem física vs relógio)",
+        "`Date.parse(x) || 0` punha um ts inválido antes de qualquer ISO válido — um timestamp estragado roubava o job",
+        "a cadeia de prova estava desactualizada: AUDIT e SYNC afirmavam 978/976 quando o A-VERDE já ia em 990/988"
+      ],
+      "MEDIO_refutado_com_evidencia": {
+        "alegacao": "cargo/local mudaram de comportamento",
+        "porque_nao_procede": "o crítico comparou com o estado INTERMÉDIO (rondas 1-2), não com a base. `git show 06bdc2c2:packages/mooter-bridge/seamless.js` mostra a guarda original `cargo || local` — eventos só-com-actor eram SALTADOS. Foram as rondas 1-2 que desviaram ao acrescentar actor/request_id à guarda; a ronda 3 restaurou o comportamento da base. Verificado por medição, não por memória.",
+        "equivalencia_do_null": "quando não há cargo/local devolve-se `local: undefined` de propósito, para o chamador cair no seu próprio fallback (`agent === 'moo'`) — exactamente o que fazia quando isto devolvia null"
+      },
+      "BAIXO_que_virou_medicao": "o scan síncrono do ledger deixou de ser n/d: o crítico mediu 1,58 MB / 2446 linhas, p50 6,131 ms e p95 6,850 ms em 100 corridas. Dívida linear declarada, não bloqueante."
+    },
+    "G4_4": {
+      "job": "job-msuhorwx-7470",
+      "alvo": "453ef6cb..fd73b3d3",
+      "veredicto": "NO-SHIP",
+      "achados": "3 ALTO, 0 MEDIO — convergencia real (4A+1M+2B -> 3A+0M)",
+      "ALTO_confirmados": [
+        "dimensoesPersistidas calculava o relogio do dono e nao o devolvia: pos-reinicio, o proximo ator declarado roubava o job",
+        "known.actor_ts || null apagava um relogio legitimo de 0 (epoch) e transformava o dono em sem-relogio",
+        "fleet/aprender admitiam actor apenas PRESENTE (temActor) e a releitura exigia LEGIVEL (temActorValido): o legacy semeado ganhava a um ator real, e as projeccoes divergiam"
+      ],
+      "o_que_confirmou_bom": [
+        "A14/A14b/A15 falham com return true E com return false — nao sao tautologicos",
+        "actorTs continua lateral; nenhuma forma publica de fleet/aprender mudou",
+        "a refutacao do cargo/local esta correcta face a base 06bdc2c2",
+        "prefixo de 1.220.668 bytes do ledger intacto; nenhum evento historico reescrito",
+        "classify.js mantem o sha frozen"
+      ]
+    },
+    "G4_5": {
+      "job": "job-msui70k8-916d",
+      "alvo": "fd73b3d3..58849d19",
+      "veredicto": "NO-SHIP",
+      "achados": "2 ALTO + 2 MEDIO",
+      "ALTO": [
+        "empates continuavam dependentes da ordem: substituiDono(a,b) e substituiDono(b,a) ambos false com relogios iguais ou ausentes; o A14b testava uma direccao so e eu chamei-lhe deterministico",
+        "ACTOR_LEGACY servia ao mesmo tempo de marcador de ausencia e de valor de ator valido, por isso como candidato conseguia roubar o job"
+      ],
+      "MEDIO": [
+        "A17 passava com a correccao revertida (testava o comparador, nao o sitio real)",
+        "A18c dizia tres projeccoes e exercitava duas"
+      ],
+      "retro_prova_do_critico": "A16 falha, A17 passa, A18 falha, A18b falha, A18c passa"
+    },
+    "G4_6": {
+      "job": "job-msujsfk4-f489",
+      "alvo": "58849d19..ddb74081",
+      "veredicto": "NO-SHIP",
+      "frase_chave": "nao encontrei regressao funcional na remocao",
+      "o_unico_ALTO": "suite vermelha — mas a falha e o ondaA HERDADO da base; o gate final-reviewer-honest da NO-SHIP com qualquer vermelho, seja de quem for",
+      "MEDIO_corrigidos_nesta_ronda": [
+        "o docstring do dimensoesPersistidas ainda dizia primeiro-declarado e imutabilidade quando o codigo ja fazia ultimo-a-falar — um comentario que mente e exactamente o que esta frente combate",
+        "SYNC e AUDIT outra vez desactualizados: a entrada antiga fica marcada SUPERSEDIDA e os numeros deixam de ser repetidos em prosa"
+      ],
+      "BAIXO_corrigidos_nesta_ronda": [
+        "recibo.js calculava legacy sem o usar, e o import de ACTOR_LEGACY ficou inutil",
+        "o A20 sobredeclarava: fleet+aprender sao duas projeccoes do mesmo snapshot, a terceira comparacao e a HERANCA na escrita. Renomeado para dizer o que prova."
+      ],
+      "validacoes": [
+        "tabela adversarial: fleet, aprender e heranca concordam em ilegivel-a-meio, sem-ator-a-meio, ordem-invertida e so-defaults",
+        "A22 declarado DEFENSAVEL pelo critico: legacy responde sobre o passado, system/system sobre o evento novo",
+        "A19 e A20 FALHAM se a ronda 6 for revertida — nao sao tautologicos",
+        "visibilidade fail-closed e default explicito do actor intactos",
+        "zero referencias executaveis aos simbolos removidos"
+      ]
+    }
+  },
+  "licao_de_desenho_da_ronda_4": {
+    "sintoma": "três rondas seguidas a corrigir a MESMA invariante em sítios diferentes",
+    "causa": "a regra 'o job pertence a quem o pediu' estava escrita em QUATRO sítios — o mapa em memória, a releitura do ledger, o fold do fleet e o fold do aprender — cada um com a sua versão",
+    "correccao": "a regra passou a ter uma casa: actor.js · substituiDono(). Quatro cópias de uma invariante não são uma invariante, são quatro oportunidades de mentir sobre quem pediu o quê.",
+    "prova": "o teste A15 alimenta a MESMA lista de eventos (deliberadamente fora de ordem) às três projecções e exige que devolvam o mesmo dono"
+  },
+  "pendente": [
+    "GATE A-B: so abre com o Paulo a escrever, literal, \"avanco B <sha>\" com o SHA FINAL desta branch (ja NAO e o 98bd2066). Silencio, \"ok\" ou mensagem ambigua NAO sao aprovacao.",
+    "Parte B — NAO AUTORIZADA. Rollback: git reset --hard <sha-final> na worktree; nenhuma decisao pendente foi tocada, nada fica orfao.",
+    "fora de ambito por decisao do dono: request_id sem porta de entrada em producao; a trilha atribui a cadeia ao ator do job final",
+    "divida declarada para a Parte B: se a imutabilidade do dono for precisa, tem de ser ordem TOTAL e viver no broker",
+    "frente propria: ondaA A3/A3b vermelho na base"
+  ],
+  "decisao_do_dono_ronda_6": {
+    "pergunta": "cinco rondas, sempre a mesma classe de ALTO: arbitragem de propriedade",
+    "escolha": "B — voltar a spec",
+    "o_que_mudou": "removida a arbitragem de propriedade. O actor propaga como o cargo: ultimo-a-falar. E o que o A1 literalmente pede.",
+    "porque": "a spec diz que o actor propaga junto com cargo/local, e o cargo e ultimo-a-falar. A imutabilidade nao veio da spec — veio de um MEDIO do G4 #1 que eu aceitei e implementei. Arbitrar autoridade e o tema declarado da Parte B, onde ha lock, CAS e decisao duravel para a sustentar.",
+    "divida_declarada_para_a_parte_B": "se a imutabilidade do dono for precisa, tem de ser uma ordem TOTAL (relogio + chave estavel) e viver no broker",
+    "forma_do_delta": "96 insercoes / 344 remocoes — a correccao foi tirar codigo, nao acrescentar"
+  },
+  "bloqueio_final": {
+    "decisao_do_dono": "excepcao declarada, 2026-08-15",
+    "o_que_e": "a suite tem 1 vermelho: ondaA A3/A3b",
+    "porque_nao_e_da_parte_A": [
+      "falha na base 06bdc2c2, sem nenhum ficheiro meu na corrida",
+      "falha igualmente no checkout principal (1b8a2ead)",
+      "falha com o Ollama EM BAIXO e com o Ollama DE PE — nao e ambiente",
+      "o G4 #6 confirmou de forma independente que o ficheiro e identico a base e alheio a identidade"
+    ],
+    "porque_bloqueava": "o gate final-reviewer-honest da NO-SHIP com qualquer suite vermelha, seja de quem for",
+    "consequencia_honesta": "a Parte A NAO declara suite verde. Declara verde no delta, com um vermelho herdado, nomeado, medido e agora aceite por decisao do dono.",
+    "proximo_dono": "o ondaA A3/A3b fica como frente propria; nao foi tocado aqui porque nao e desta frente"
+  },
+  "fronteira_final": {
+    "alvo": "06bdc2c2..HEAD (a Parte A inteira, nao so o primeiro commit)",
+    "ficheiros": 20,
+    "broker_ou_decisao": "nenhum",
+    "veredicto": "PASS — a Parte A e mergeavel sem a Parte B"
+  },
+  "invariantes_no_fecho": {
+    "classify_js_frozen": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f — intacto",
+    "ledger_prefixo": "25d2d545…cab4a2 sobre os primeiros 1.220.668 bytes — intacto",
+    "ledger_bytes_actual": 1813991,
+    "push": "zero em toda a frente",
+    "worktree": "limpa",
+    "pacotes_frozen": "nenhum tocado"
+  },
+  "gate_A_B": {
+    "aberto_em": "2026-08-15",
+    "gesto_do_dono": "avanco B 086a5dac",
+    "sha_conferido": "086a5daccf983565af45e4166f5b8f30f5313823 — bate exactamente com o HEAD entregue"
+  },
+  "parte_B": {
+    "modulo": "packages/mooter-bridge/broker.js (novo) + broker.test.js (57 testes)",
+    "B1_decisao_duravel": "listPending filtravel por worktree e por actor, e cada pendente devolve QUEM pediu. Fonte de terminal = terminal.js; o estado real e nao_verificado com exit_code agent-awaiting-approval (achado 6, nomes do codigo). decide() com CAS, expiracao, recusa e idempotencia.",
+    "escopo_do_CAS": "expected_state_hash = provHash({seq, event_hash}) sobre o ULTIMO evento DESTE job. Nem fila nem diario — um evento noutro job nao invalida esta decisao (teste B2b).",
+    "expiracao": "default 72h; expirada => EXPIRED terminal e DESCARTA. Nunca re-enfileira: re-pedir e gesto humano novo.",
+    "idempotencia": "a mesma (idem_key, request_id) devolve o estado, o decision_id, o job_novo e a autorizacao gravados. NAO devolve o resultado completo do job — isso nunca foi implementado.",
+    "B2_aprovar": "aprovar = re-despachar com handoff_from e o actor do DECISOR. O actor NAO e autenticado (ver authz_advisory) — chamar-lhe autenticado era exagero e foi corrigido aqui.",
+    "B3_capacidades": "DERIVADAS do pedido (escrita/allowedTools). Um campo `capacidades` no payload e IGNORADO — teste B7 forja deploy+secrets e nao ganha nada. Sem roles.json => single_user, regressao zero (B7c).",
+    "B4_single_writer": "lock O_EXCL (flag wx) com TTL, seguindo o PADRAO do worktree-conductor/src/locks.ts. Lock orfao e REPORTADO, nunca roubado (B8c). Concorrencia provada com barreira forcada, nao corrida a sorte (B8b, kimi #9).",
+    "porque_o_padrao_e_nao_o_modulo": "locks.ts e TypeScript ESM num pacote privado sem entrypoint compilado; o bridge e CommonJS. Importa-lo exigia construir-lhe um build — mais invasivo do que reutilizar a disciplina. Declarado no cabecalho do broker.js.",
+    "promocao_nao_recriacao": "o hash canonico vem do tools/router/ledger-prov.js (canonicalize/provHash). O teste B9 falha se aparecer uma segunda implementacao no pacote.",
+    "bundle": "broker.js e ledger-prov.js entraram no pack-mcpb.mjs. O broker resolve o prov em runtime (repo->bundle, padrao do classify.js), por isso o detector de requires do bundle.test.js NAO o apanha — o teste B10 e a rede.",
+    "ambito_declarado": "o CONTRATO-BROKER da critica descreve envelope com tenant_id/correlation_id/causation_id e maquina de estados completa. Isso e F-MU1+. Aqui esta o nucleo que o masterprompt estreitou (kimi #7/#11/#13).",
+    "authz_advisory": "decisao do dono: o B3 fica, mas declarado ADVISORY. Todo o evento gravado leva authz.advisory:true e actor_autenticado:false, e o retorno tambem. Um RBAC sem authn que se apresentasse como controlo de seguranca seria teatro — e teatro e pior do que nada, porque alguem confia nele.",
+    "hashes_na_prova": "expected_state_hash e actual_state_hash ficam em todas as decisoes que passam pelo envelope comum. n/d para os retornos que saem ANTES de esse envelope existir (INVALIDO precoce, LOCKED) — dizer \"todas\" era exagero."
+  },
+  "divida_MU0c": {
+    "single_writer_interprocessos": {
+      "estado_de_hoje": "o broker toma o lock O_EXCL; o seamless.ledgerAppend NAO. Logo o ledger continua a ter DOIS escritores de producao e so um deles se coordena.",
+      "evidencia_no_codigo": [
+        "seamless.js:14 — comentario de cabecalho: \"Ledger v1 (single-writer = THIS server process; append-only JSONL)\"",
+        "seamless.js:159 — \"// ledger (append-only JSONL; this process is the single writer)\"",
+        "plan.js:53-58 — a cicatriz: \"two concurrent writers (two connector processes...) clobbered each other's temp file\""
+      ],
+      "correccao_a_citacao_do_masterprompt": "a v3.4 cita seamless.js:142 e plan.js:53. O :142 e a constante MOOTER_HOME, nao o single-writer — a evidencia real e :14 e :159. Corrigido aqui em vez de repetido.",
+      "evidencia_medida_noutra_frente": "W1 (2026-08-15): 3 PIDs MCP a escrever o mesmo ledger sem lock, todos append-only. O claim do deck passou de \"single writer\" para \"append-only\".",
+      "o_que_falta": "ou o seamless passa a tomar o mesmo lock, ou nasce o IPC/daemon. Nenhum dos dois foi construido nesta frente, por instrucao explicita do masterprompt."
+    },
+    "ancora_externa": "OpenTimestamps (padrao aberto, gratuito, sem ToS de vendor) para o passo anchor.published — candidato oficial, dividia MU0-c",
+    "imutabilidade_do_dono": "removida da Parte A por decisao do dono apos 6 rondas de gauntlet. Se for precisa, tem de ser ordem TOTAL (relogio + chave estavel) e viver no broker, nao na propagacao",
+    "request_id": "propaga mas nao tem porta de entrada em producao — fora de ambito por decisao do dono",
+    "trilha": "atribui a cadeia inteira ao ator do job final — fora de ambito por decisao do dono",
+    "ondaA": "A3/A3b vermelho na base 06bdc2c2 — frente propria, excepcao declarada e aceite"
+  },
+  "g4_parte_B": {
+    "job": "job-msulp5sl-96d1",
+    "alvo": "086a5dac..ff90796d",
+    "duracao_s": 564,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 8,
+      "MEDIO": 3,
+      "BAIXO": 1
+    },
+    "nota": "o pior veredicto da frente, e justo. Seis dos oito eram erros basicos meus, e quase todos tinham a mesma raiz: os TESTES fabricavam o mundo em vez de o lerem.",
+    "ALTO": [
+      {
+        "n": 1,
+        "titulo": "autorizacao sem autenticacao",
+        "avaliacao": "PROCEDE e e o mais fundo de toda a frente. Construi RBAC sobre o campo \"actor\", que a Parte A criou para PROVENIENCIA e que ninguem autentica: e declarado pelo chamador e validado so na forma, e e esse id que escolhe o papel. Decisao do dono: manter o B3 como o masterprompt pede, mas declara-lo ADVISORY em todo o lado — protege contra ENGANO, nao contra ADVERSARIO. A fronteira real e F-MU1 (o estudo aponta o Obot como edge de authn). O que nao era aceitavel era a coisa parecer o que nao e."
+      },
+      {
+        "n": 2,
+        "titulo": "sucesso sincrono sobre dispatcher assincrono",
+        "avaliacao": "PROCEDE. toolDispatch e async e eu nao esperava: gravava APPROVED com job_novo:null antes de saber o resultado. O meu B6 mascarava-o com um stub SINCRONO. decide() passou a async e os stubs a async por defeito (B15)."
+      },
+      {
+        "n": 3,
+        "titulo": "CAS contornavel",
+        "avaliacao": "PROCEDE. Omitir expected_state_hash desligava o CAS — um interruptor. Agora e obrigatorio (B17)."
+      },
+      {
+        "n": 4,
+        "titulo": "expiracao de 72h nao implementada",
+        "avaliacao": "PROCEDE. A constante existia e nunca era aplicada; so valia o prazo que o decisor mandasse. Agora conta do PEDIDO e manda o mais apertado dos dois (B11, B11b). O B3b era tautologico e foi substituido."
+      },
+      {
+        "n": 5,
+        "titulo": "capacidades derivadas de campo inexistente",
+        "avaliacao": "PROCEDE, medido por mim: grep ao evento dispatched deu 0 para allowedTools. Em producao nunca se derivava bash, net nem git. Corrigido na RAIZ — o seamless passa a gravar o campo — e amarrado por um teste de CONTRATO produtor-consumidor (B16)."
+      },
+      {
+        "n": 6,
+        "titulo": "os eventos novos quebram leitores existentes",
+        "avaliacao": "PROCEDE, e violava a invariante que a Parte A inteira respeitou. Os eventos do broker deixaram de levar job_id: ligam-se por request_id e o foldJobs nunca os ve (B14)."
+      },
+      {
+        "n": 7,
+        "titulo": "idempotencia cruza jobs",
+        "avaliacao": "PROCEDE. A chave passou a ser (idem_key, request_id) — antes, reutiliza-la noutro job devolvia a decisao do primeiro sem CAS nem autorizacao (B12)."
+      },
+      {
+        "n": 8,
+        "titulo": "falha de configuracao concede autoridade",
+        "avaliacao": "PROCEDE. roles.json AUSENTE e uma escolha (single-user); ILEGIVEL e uma avaria, e uma avaria na autorizacao fecha (B13)."
+      }
+    ],
+    "MEDIO_corrigidos": [
+      "listPending mantinha jobs concluidos e escondia STALE — agora so uma decisao FINAL fecha, e o pendente e quem tem o evento de espera como ULTIMO (B1c, B20)",
+      "sem evento dispatched derivava read e podia aprovar — agora recusa (B18)",
+      "lock vazio apos falha a meio ficava eterno — limpa-se, e a data do ficheiro serve de relogio de recurso (B8c)"
+    ],
+    "o_que_resistiu": [
+      "o seq distingue eventos identicos",
+      "eventos de outro job nao alteram o CAS",
+      "o finally cobre os returns",
+      "locks.ts mesmo nao era importavel no runtime CommonJS",
+      "ledger-prov e promovido e os dois ficheiros constam do pack"
+    ]
+  },
+  "g4_parte_B_2": {
+    "job": "job-msuot8a3-5b06",
+    "alvo": "ff90796d..565092a7",
+    "duracao_s": 681,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 8,
+      "MEDIO": 3
+    },
+    "nota": "achados NOVOS, nao repeticao: os 8 da ronda anterior ficaram fechados e ele confirmou-o.",
+    "ALTO_e_o_que_foi_feito": [
+      {
+        "n": 1,
+        "titulo": "o CAS nao e atomico entre processos",
+        "feito": "DECLARADO, por decisao do dono. Fechar a janela e por o seamless.ledgerAppend a tomar o mesmo lock — o single-writer interprocessos, adiado para MU0-c. O limite fica no cabecalho do modulo, no campo `cas` de TODO o retorno e no evento gravado. Um CAS que se dissesse atomico era a mesma mentira que um RBAC que se dissesse autenticado."
+      },
+      {
+        "n": 2,
+        "titulo": "faltava maquina de estados final",
+        "feito": "uma decisao FINAL fecha o pedido para sempre; uma idem_key nova ja nao a reabre. E so se decide um job que esteja MESMO a espera agora (B23, B24)."
+      },
+      {
+        "n": 3,
+        "titulo": "listPending perdia pendentes legitimos",
+        "feito": "passou a olhar para o ultimo evento de ESTADO, por allowlist. O `collected`, o `step` e o `cross_check` sao observacoes — trata-los como estado fazia um mooter_collect normal apagar uma espera por decidir (B30)."
+      },
+      {
+        "n": 4,
+        "titulo": "as 72h continuavam fail-open",
+        "feito": "manda a PRIMEIRA espera com relogio valido; um ts no futuro nao estica (limita-se a agora); sem relogio utilizavel FECHA em vez de viver para sempre; e a fila ja nao rebenta com RangeError (B25, B25b)."
+      },
+      {
+        "n": 5,
+        "titulo": "a aprovacao real nao conseguia re-despachar",
+        "feito": "o masterprompt completo le-se do DISCO (jobs/<id>/masterprompt.md). O `goal` nao passa o guard. Sem o ficheiro, NAO se aprova — despachar outra coisa e pior do que nao despachar (B26, B26b). Os stubs escondiam isto."
+      },
+      {
+        "n": 6,
+        "titulo": "capacidades do pedido, nao da capacidade efectiva",
+        "feito": "a `permissoes_efectivas` manda sobre o `allowedTools`, porque o proprio seamless documenta que o segundo PRE-APROVA e nao LIMITA. E um job legado sem informacao assume TODAS as capacidades — antes degradava para `read`, o que o tornava mais facil de aprovar (B21, B22)."
+      },
+      {
+        "n": 7,
+        "titulo": "dispatch e decisao nao eram duraveis como unidade",
+        "feito": "a intencao (`approval.dispatching`) entra ANTES do efeito externo. Um retry que a encontre devolve INDETERMINADO em vez de despachar outra vez (B27)."
+      },
+      {
+        "n": 8,
+        "titulo": "a declaracao ADVISORY nao cobria todos os retornos",
+        "feito": "todo o retorno leva `authz`, `cas` e um `motivo` estavel. Um consumidor passa a distinguir recusa humana, capacidade em falta, roles avariado e falha de despacho (B28)."
+      }
+    ],
+    "MEDIO_e_o_que_foi_feito": [
+      "roles.json com capacidades que nao sao lista de strings: \"readwrite\".includes(\"read\") era true e o papel ganhava o que ninguem lhe deu — agora fecha (B29).",
+      "rede de testes parcial — 10 testes novos, e o B7b passou a usar um job proprio em vez de reutilizar um ja decidido.",
+      "o audit tinha estados contraditorios — corrigido acima, com a nota de porque aconteceu."
+    ],
+    "o_que_resistiu": [
+      "o await nao grava APPROVED quando o dispatcher lanca ou recusa; o finally liberta o lock",
+      "a limpeza do lock vazio nao apaga o lock de outro processo",
+      "os leitores nomeados aguentam eventos sem job_id",
+      "a Parte A esta inalterada desde 086a5dac, e o ondaA.test.js tambem",
+      "classify.js com o sha frozen; prefixo de 1.220.668 bytes do ledger intacto",
+      "NENHUM dos testes novos passaria com a correccao exacta revertida"
+    ]
+  },
+  "g4_parte_B_3": {
+    "job": "job-msurrrmy-1093",
+    "alvo": "565092a7..839586d1",
+    "duracao_s": 904,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 8,
+      "MEDIO": 5,
+      "BAIXO": 1
+    },
+    "o_achado_sobre_MIM": "ALTO 1 — a minha correccao da travessia estava INCOMPLETA e eu tinha-a declarado feita neste ficheiro. O charset aceitava o ponto, logo . e .. passavam e o path.join saia da pasta na mesma. O meu teste so cobria valores com barra. E a TERCEIRA vez nesta frente que este AUDIT afirma algo que nenhum teste sustenta.",
+    "regra_nova_para_mim": "o AUDIT so afirma o que um teste prova. Onde nao houver teste, escreve-se n/d.",
+    "ALTO_corrigidos": [
+      "travessia: . e .. passavam — regex que recusa nomes so-de-pontos MAIS segunda barreira que confirma que o caminho resolvido fica dentro da raiz (B34)",
+      "permissoes_efectivas com valor n/d (o que o produtor escreve para cc/codex/gemini) recuava para allowedTools — fail-open. Agora desconhecido assume TODAS (B35)",
+      "a aprovacao nao estava amarrada ao mp_hash: o masterprompt podia mudar entre o pedido e o clique. Agora compara-se (B36)",
+      "qualquer ator recusava antes da avaliacao de papeis — recusar tambem e acto de autoridade (B37)",
+      "falha de POLITICA era REJECTED final, logo a tentativa de um viewer impedia o owner de aprovar para sempre. Passou a NEGADO, nao final (B7b)",
+      "a intencao pendurada nao dominava a recusa, e uma excepcao do dispatcher virava recusa final: incerteza tratada como certeza. Agora INDETERMINADO (B33)",
+      "a recusa sao dois appends e uma falha no meio deixava-a invisivel; o approval_rejected passa a fechar por si (B39)",
+      "o replay idempotente perdia o job_novo (B38)"
+    ],
+    "MEDIO_corrigidos": [
+      "[] nas efectivas virava TODAS quando o produtor esta a dizer VAZIO (B35)",
+      "STALE dizia terminal:true sem ser final",
+      "o clamp do relogio futuro faltava na fila (B40)",
+      "motivos ambiguos: replay_exacto separa-se de ja_decidido, e lock_indisponivel de lock_tomado",
+      "cobertura mutation-killing sobre-afirmada — B25b, B31, B22, B26 e B27 eram fracos e foram substituidos ou reforcados"
+    ],
+    "BAIXO_corrigido": "os hashes esperado/observado passam a ficar em TODAS as decisoes finais, nao so no STALE"
+  },
+  "g4_parte_B_4": {
+    "job": "job-msusl185-681c",
+    "alvo": "839586d1..2627c7db",
+    "duracao_s": 680,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 4,
+      "MEDIO": 5
+    },
+    "convergencia": "8 -> 4 ALTO",
+    "o_achado_sobre_MIM_outra_vez": "ALTO 4 — o meu teste da travessia (B34) PASSARIA com a correccao revertida: nao criava masterprompts nos caminhos de fuga, logo . e .. devolviam null por ENOENT de qualquer maneira. QUARTA vez que uma afirmacao deste audit nao tinha prova. O B41 planta o ficheiro exactamente onde o .. aterraria.",
+    "ALTO_corrigidos": [
+      "uma recusa PARCIALMENTE gravada ainda podia ser aprovada: o approval_rejected fechava a fila mas o decide() so olhava para approval.decided (B44)",
+      "mp_hash ausente continuava fail-open — o caminho legado era por onde alguem entraria. Sem hash nao se despacha (B42)",
+      "poluicao de prototipo: um actor com id toString/constructor/__proto__ recebia propriedade herdada truthy e conseguia recusar. Object.create(null) + hasOwn + validacao dos valores (B43)",
+      "o teste da travessia era tautologico — substituido pelo B41, que planta o alvo do outro lado"
+    ],
+    "MEDIO_corrigidos": [
+      "o replay forcava terminal:true em STALE e NEGADO (B45)",
+      "o veredicto era validado tarde, depois de caminhos que ja gravavam (B46)",
+      "afirmacoes deste audit sem prova — purgadas nesta entrada"
+    ],
+    "MEDIO_declarados_sem_correccao": [
+      "NEGADO nao fecha o pedido, logo idem_keys novas podem acrescentar eventos sem limite. E um flood possivel do ledger. Nao ha rate-limit nesta frente; fica declarado.",
+      "INDETERMINADO e permanente: nao ha reconciliacao implementada. Um pedido preso fica preso ate intervencao manual. E fail-safe por desenho, mas e uma limitacao real.",
+      "a barreira da travessia e LEXICAL: nao cobre junctions nem symlinks."
+    ]
+  },
+  "g4_parte_B_5": {
+    "job": "job-msut6zo5-30e6",
+    "alvo": "2627c7db..e86e816f",
+    "duracao_s": 609,
+    "veredicto": "NO-SHIP",
+    "contagem": {
+      "ALTO": 3,
+      "MEDIO": 2
+    },
+    "convergencia": "8 -> 4 -> 3",
+    "ALTO_1_corrigido": "a projeccao virou fonte canonica: o `approval_rejected` era gravado antes do `approval.decided` e eu aceitava-o SOZINHO como decisao final — fechava o pedido sem hashes, sem seq e sem veredicto. Agora a recusa e UM append completo, com os mesmos campos de qualquer outra decisao, e um fragmento sem `estado` nao decide nada (o pedido fica pendente, que e o lado seguro). B47, B39, B44.",
+    "ALTO_2_corrigido": "SYNC e AUDIT materialmente falsos pela QUINTA vez. A causa nao foi distraccao: foi eu continuar a escrever numeros DERIVADOS em prosa depois de duas vezes prometer que parava. Agora os numeros vivem so no B-VERDE.txt, e as contagens de ficheiros sao n/d por desenho — quem quiser sabe corre o git.",
+    "ALTO_3_e_a_excepcao_ja_aceite": "o artefacto continua vermelho por causa do ondaA herdado, e o gate final-reviewer-honest nao deixa SHIP com suite vermelha. Nao e achado novo: e a excepcao que o dono aceitou explicitamente, com a evidencia toda registada.",
+    "MEDIO_honesto_sobre_os_testes": "o critico mostrou que nenhum de B41-B46 passa com a correccao COMPLETA revertida, mas que B41 e B43 sobrevivem a reversoes PARCIAIS porque as defesas redundantes se mascaram uma a outra. Fica escrito assim, em vez de \"cobertura mutation-killing\", que era o exagero que ele ja me tinha apanhado.",
+    "MEDIO_limites_que_precisam_de_aceitacao_do_dono": "ACEITES em 2026-08-15 — ver limites_aceites_pelo_dono",
+    "o_que_o_critico_CONFIRMOU_bom": [
+      "sem_mp_hash e fail-closed correcto e nao trava trabalho real: no ledger MEDIDO, 135/135 eventos dispatched tem hash, e os 3 pendentes tambem",
+      "um papel literalmente chamado __proto__ funciona; ambos os mapas tem prototipo null",
+      "Parte A funcional intacta",
+      "prefixo de 1.220.668 bytes e sha do classify.js confirmados"
+    ]
+  },
+  "limites_aceites_pelo_dono": {
+    "quando": "2026-08-15, na sessao",
+    "gesto": "aceito os tres limites",
+    "o_que_fica_aceite": [
+      "NEGADO e STALE nao fecham o pedido, logo idem_keys novas fazem o ledger crescer sem limite. Nao ha rate-limit nesta frente.",
+      "INDETERMINADO nao tem reconciliacao: um pedido preso fica preso ate intervencao manual.",
+      "a barreira de caminho e LEXICAL — nao cobre junctions nem symlinks."
+    ],
+    "o_que_isto_NAO_e": "nao e um ship. Sao tres limites conhecidos que deixam de bloquear a entrega por decisao do dono, e que ficam escritos para nao voltarem a aparecer como surpresa numa ronda futura.",
+    "candidatos_a_frente_propria": "rate-limit do broker · reconciliacao do INDETERMINADO · barreira de caminho nao-lexical (realpath contra junctions/symlinks)"
+  }
+}

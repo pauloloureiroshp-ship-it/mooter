@@ -1,0 +1,170 @@
+{
+  "artefacto": "AUDIT",
+  "bloco": "masterprompt da sessao B (COLAR EM: Claude Code, sessao fresca ~/frugal) — passos 0..6",
+  "irmao": "AUDIT-A.json (mesma pasta) — sessao paralela, PARTE A do COLAR_NO_CC_v4, fechou NOT_CLOSED em A2. Este ficheiro NAO o substitui nem o corrige: complementa-o executando o A3/G4 que ele declarou em falta.",
+  "gerado_em_utc": "2026-08-12T08:00:00Z",
+  "gerado_em_hora_do_dono": "2026-08-12 05:00 (America/Sao_Paulo, UTC-3)",
+  "nota_de_instrumento_tempo": "TZ=America/Sao_Paulo e no-op no Git Bash desta maquina (devolve UTC). Conversao feita a mao, UTC-3, e corroborada por duas fontes independentes: o campo equivalente do AUDIT-A.json (07:52Z -> 04:52) e o timestamp local impresso pelo gitleaks (5:00AM) durante a re-execucao do step2.",
+  "repo": "~/frugal",
+  "branch": "main",
+  "head_no_fecho": "b9d05b3693343cfce8d474ab88709195cc8c2008",
+  "head_a_entrada": "f67a960e",
+  "commits_de_terceiros_durante_a_sessao": "2 (6c928ca1, b9d05b36) — sessao PARALELA a commitar no mesmo main. Nao foram meus. A minha edicao do SYNC.md (marca '✅ Lido em sessão #53') foi apanhada e commitada por b9d05b36; a sessao irma declarou explicitamente que a leu e nao a reescreveu.",
+
+  "veredicto_global": "NOT_CLOSED — step4 BLOCKED por veredicto G4 = no-ship (a condicao do masterprompt era 'ship' ou 'ship-com-fixes aplicados'). BLOCKED != COMPLETE. Steps 0,1,2,3,5,6 CLOSED.",
+  "metodo": "Cada campo foi RE-EXECUTADO do zero no fecho. Nenhum valor copiado do corpo da sessao. Onde nao houve fonte medida, o campo diz n/d — nunca palpite.",
+
+  "step0": {
+    "estado": "CLOSED",
+    "git_pull_origin_main_saida_literal": "Already up to date.",
+    "git_pull_contexto": "0 commits atras de origin/main; 2 commits locais nao pushados a entrada (f67a960e, dda8513e). Ao fecho: ahead 4.",
+    "mooter_update": "executado (skill frugal:mooter-update, idempotente). backtest: 91 accepted / 11 followup_immediate, router-tuning.json escrito (complexity_threshold 0.25, 0 promote, 0 demote). hub-pull --force: 'mooter hub-pull: already up to date'. Sync runtime: 194 ficheiros tools/router/*.js (exclui *.test.js) + version.json + 6 agents + 22 skills. sync-hooks mirror: 7 ficheiros 'identical'.",
+    "sync_hooks_check_saida_literal": "  OK self-check: wired Stop hook has the accumulator -> C:/Users/Paulo Loureiro/.claude/hooks/gsd-turn-end.js",
+    "sync_hooks_check_veredicto": "PASS",
+    "versao_repo_reportada": "1.48.1 (tools/router/version.json, released 2026-08-06)",
+    "versao_runtime_reportada": "1.48.1 (~/.claude/tools/router/version.json) — sem drift",
+    "classify_js_sha_repo": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+    "classify_js_sha_runtime": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+    "classify_js_veredicto": "FROZEN INTACTO nos dois (medido antes e depois do backtest)",
+    "classificador_self_test": "TEST=pass tier=T3 para 'refactor architecture for multi-tenant'",
+    "changelog_topo_literal": "## [1.34.0] — 2026-06-10 — Local CC Mirror + Anthropic Pride (Wave 53)",
+    "changelog_gap_LISTADO_NAO_CORRIGIDO": {
+      "version_json": "1.48.1",
+      "changelog_topo": "1.34.0",
+      "commits_desde_o_commit_do_changelog": 767,
+      "commit_do_changelog": "7393abbd (2026-06-10)",
+      "tags_sem_entrada": ["v1.38.4.1-matrix-tests-hotfix", "v1.38.5-cli-audit-fix", "v1.38.7-matrix-coverage-honest", "v1.39.0-coherence-audit", "v1.40.0-reasoning-axis", "v1.41.0-cache-aware-hw", "v1.42.0-graph-aware", "v1.43.0-cheap-guardrails", "v1.43.0-token-economy-arc", "v1.43.0-confidence-cascade", "v1.44.0-compaction-advisor", "v1.44.0-first-magic", "v1.44.0-graphify", "v1.45.1", "v1.45.2", "v1.45.3", "v1.45.4", "v1.47.0", "v1.48.0"],
+      "waves_sem_entrada": ["55", "56", "58", "58.2", "58.3", "58.4", "58.5", "58.7", "58.8", "59", "60", "60.5", "61", "62", "63", "64", "65", "66"],
+      "nota": "1.48.1 nao tem tag — version.json esta a frente das tags."
+    },
+    "statusline": {
+      "MOOTER_MODE_User": "1 (ja estava; nao alterado)",
+      "mooter_preferences_json": "ESTAVA AUSENTE -> CRIADO por mim com {\"statusline_line3\": true}, conforme ~/.claude/PREFERENCES.md",
+      "verificacao_visual": "n/d — sessao nao-interactiva, nao consigo observar o statusline renderizado. O que esta medido e a presenca das duas pre-condicoes, nao o numero de linhas."
+    }
+  },
+
+  "step1": {
+    "estado": "CLOSED",
+    "grep_marca_presente_S_N": "S",
+    "comando": "grep -c '✅ Lido em sessão #53' SYNC.md",
+    "ocorrencias": 3,
+    "detalhe_ocorrencias": "linha 3709 = a marca que escrevi na seccao 2026-08-12; linha 3783 = a sessao irma a citar a minha marca ('nao a reescrevi — nao invento numeracao'); a terceira esta no meu proprio bloco FECHO B.",
+    "numeracao_da_sessao": "#53 escolhido como o seguinte de #52 (2026-05-31), a ultima registada em SYNC.md [medido]. A serie esta stale — a caveat foi escrita no proprio SYNC.md, nao escondida.",
+    "seccoes_lidas": ["📥 COWORK → CLAUDE CODE — 2026-08-12 (linha 3708)", "Addendum 08-12 GPU Refinery (linha 3730)"],
+    "nao_feito_de_proposito": "Addendum 2 (candidata C3 no MEO_GAUNTLET + retro-provas G5/G15/C1 + D8) — sinalizado ao Paulo como fora dos 6 passos, NAO executado. Verificacao posterior: a sessao irma ja o tinha feito no commit 6c928ca1 (C3 e C4 na FILA, tecto 18 intacto). Nao houve duplicacao nem colisao."
+  },
+
+  "step2": {
+    "estado": "CLOSED — condicao de PARAGEM nao disparou",
+    "infra_md_tracked_S_N": "S",
+    "infra_md_tracked_comando": "git ls-files --error-unmatch INFRA.md -> devolve INFRA.md",
+    "infra_md_no_gitignore_S_N": "N (nao esta ignorado)",
+    "infra_md_segredo_S_N": "N",
+    "infra_md_instrumentos_usados": [
+      "grep de padroes (sk-, ghp_, github_pat_, JWT eyJ, AKIA, xox*, BEGIN PRIVATE KEY, service_role, client_secret) sobre o ficheiro E sobre git log -p --follow do ficheiro -> 0 hits",
+      "leitura integral das 544 linhas",
+      "gitleaks 8.30.1 (re-executado no fecho): 'scanned ~21268 bytes (21.27 KB) in 17.3ms' / 'no leaks found'"
+    ],
+    "repo_visibilidade": "PUBLIC (gh repo view pauloloureiroshp-ship-it/mooter --json visibility -> PUBLIC)",
+    "accao": "NAO parei, NAO pushei. Condicao de paragem do masterprompt era 'tracked E com segredo'; INFRA.md e tracked mas guarda PONTEIROS, nao valores (ex.: NEXT_PUBLIC_SUPABASE_ANON_KEY = '[Supabase → Settings → API]'; secrets do worker so por nome, valor no password manager).",
+    "achado_a_reportar_ainda_assim": {
+      "1_identificadores_expostos": "Cloudflare Account ID b1093c8a… (L296), worker tag, 2 UUIDs de D1; Vercel Team ID + 4 project IDs; 4 Supabase project refs + org slug; Notion HQ page ID + user ID; email pessoal x6; callback OAuth; endpoints POST do hub. Reconhecimento, nao credencial — mas num repo publico.",
+      "2_o_ficheiro_mente_sobre_a_propria_exposicao": "INFRA.md L144/L145/L375 dizem 'Privado'. gh diz PUBLIC. Aponta para github.com/.../frugal quando o remote real e .../mooter. Um agente que leia INFRA.md decide em cima de uma premissa falsa.",
+      "3_rotacao_declarada_nao_verificada": "L288: rotacao do client secret do GitHub OAuth a 2026-08-03 e declarada pelo dono, nao verificada por este repo. Verificacao independente = data em github.com/settings/developers. Gesto do Paulo."
+    },
+    "achado_de_terceiros_confrontado_por_mim": {
+      "origem": "AUDIT-A.json (sessao paralela), gitleaks sobre a HISTORIA inteira (2044 commits) — superficie que o meu scan, limitado a INFRA.md por escopo do masterprompt, NAO cobria.",
+      "achado": "1 segredo real: JWT Supabase role=anon, ref eymtobwinevywmmlmxqa, em SYNC.md (commit 8af879f9, 2026-04-09) e docs/MASTER_PROMPTS/SHIP_SESSION_25_COWORK_MASTER.md (commit 0175cb31).",
+      "minha_reverificacao": "git show 8af879f9:SYNC.md | grep -c 'eyJhbGciOi' -> 2. git show HEAD:SYNC.md -> 0. arvore de trabalho -> 0. CONFIRMADO: real, removido da arvore, vivo na historia de um repo publico.",
+      "leitura_que_subscrevo": "role=anon e publica por desenho (viaja no bundle do browser como NEXT_PUBLIC_SUPABASE_ANON_KEY). Nao e service_role. Nao vejo emergencia de rotacao. O que ela expoe depende INTEIRAMENTE de RLS. INFRA.md L252-254 DECLARA RLS activa nas 3 tabelas — declaracao, nao verificacao. Decisao D-A2/D-B3 e do Paulo."
+    }
+  },
+
+  "step3": {
+    "estado": "CLOSED",
+    "resultado_md_path": "_handoff/g4-tokeneconomy/resultado.md",
+    "resultado_md_sha256": "d1782b3fb422c7b27a3b272f0729aff04a45ff9906218732332acbd64d400e0e",
+    "resultado_md_bytes": 18305,
+    "veredicto": "no-ship (global e nos 4 artefactos individualmente)",
+    "veredicto_linha_literal": "`no-ship` — M1–M5 não constituem um benchmark reproduzível e duas “poupanças medidas” são contrafactuais apresentadas como factos.",
+    "motor_critico": "Codex CLI 0.144.1 / gpt-5.6-sol / reasoning xhigh / --sandbox read-only / workdir ~/frugal",
+    "sessao_codex": "019ff4e4-aeab-7b40-9056-06cf7afb83fd",
+    "comando_reproduzivel": "codex exec --sandbox read-only --skip-git-repo-check - < g4-prompt.txt",
+    "duracao_wall": "2026-08-12T07:34:15Z -> 07:51:29Z (~17 min) [medido, timestamps do trace stderr]",
+    "critico_diferente_do_autor_S_N": "S — autor Cowork/Opus, critico gpt-5.6-sol. G4 satisfeito de facto.",
+    "achados_HIGH": 7,
+    "achados_MED": 4,
+    "confronto_do_veredicto": {
+      "porque": "A palavra do executor nunca basta — inclusive a do critico que eu escolhi. Re-executei 5 afirmacoes empiricas.",
+      "C1_ledger_sem_cache_read_input_tokens": "CONFIRMADO exacto (grep -c -> 0; wc -l -> 710)",
+      "C2_logs_nao_existe": "REFUTADO literalmente — logs/ EXISTE (3x lora_20260607_*.log, untracked). Substantivamente irrelevante: zero campos usage la dentro, logo o furo de M1 mantem-se.",
+      "C3_ledger_turn_io_define_usage": "CONFIRMADO exacto (tools/router/ledger-turn-io.js:118)",
+      "C4_kimi_adapter_sem_max_tokens_nem_prompt_cache_key": "CONFIRMADO exacto (0 e 0 hits em 276 linhas)",
+      "C5_distribuicao_do_ledger": "CONFIRMADO exacto: {\"codex\":12,\"moo\":5,\"cc\":1}, 6 com cost_usd, 710 linhas. Zero Kimi, zero Anthropic API.",
+      "aritmetica_refeita_a_mao": "1400x$15/M=$0.021 (o SPEC diz $0.023 — nasce de arredondar 1.4k->1.5k) | 100kx(2-1.25)x$3/M=$0.225 | $0.81-$0.225=$0.585 | $2/$15 por M=133,333 tok /20 chamadas=6,667 | 15/2.5=6. Todas reproduzem.",
+      "placar": "4 de 5 exactas, 1 erro literal sem consequencia para a conclusao.",
+      "o_que_EU_nao_verifiquei": "n/d — os precos e regras de provider que o codex diz ter lido nas paginas oficiais (multiplicadores de cache Anthropic, racio 6x do GPT-5.6, precos Kimi K3, Batch -50% empilhavel). Sem web fetch nesta sessao. Fica como AFIRMACAO DO CRITICO, nao como facto confirmado por dois motores."
+    },
+    "detector_substring_do_mooter_work": "n/d — NAO exercido. Fui directo a codex exec (o caminho provado em 2026-08-03), que nao passa pelo mooter_work. Nao registo reproducao de um bug que nao corri."
+  },
+
+  "step4": {
+    "estado": "BLOCKED — NAO EXECUTADO. BLOCKED != COMPLETE.",
+    "condicao_do_masterprompt": "'SO SE G4 = ship (ou ship-com-fixes aplicados)'",
+    "condicao_observada": "G4 = no-ship. Fixes NAO aplicados (aplicar fixes e reescrever spec/masterprompt = construcao, gesto do autor/Cowork, fora do escopo desta sessao de medicao).",
+    "report_md_path": "reports/bench-cache-2026-08/REPORT.md",
+    "report_md_sha256": "n/d — o ficheiro NAO EXISTE e nao deve ser fabricado",
+    "conteudo_da_pasta_no_fecho": ["AUDIT-A.json", "AUDIT.json"],
+    "celulas_medido_por_tabela_M1_M5": "n/d — nenhuma tabela M1-M5 foi produzida porque nenhuma medicao foi corrida",
+    "grep_numeros_sem_marcador": "n/a — sem tabela para varrer. A regra 'tem de dar zero, senao step4=FAILED' nao e aplicavel a um passo que nao produziu output. step4 e BLOCKED, nao FAILED, nao COMPLETE.",
+    "M1_a_M5_corridos": "nenhum",
+    "gasto_no_M2": "$0.00 — nenhuma chamada foi feita"
+  },
+
+  "step5": {
+    "estado": "CLOSED",
+    "sync_md_bytes_no_fecho": 441403,
+    "sync_md_delta_desta_sessao_bytes": 5807,
+    "sync_md_delta_decomposto": "edit1 (marca '✅ Lido'): +108 bytes (12 -> 120, medido em UTF-8) | bloco FECHO B (R7): +5699 bytes (435704 -> 441403)",
+    "sync_md_nota": "O edit1 ja foi commitado por TERCEIROS (commit b9d05b36, sessao paralela) antes do fecho. Apenas o bloco FECHO B esta por commitar do meu lado.",
+    "bloco_novo_no_sync": "## 🔒 FECHO B — 2026-08-12 (sessão paralela) · A3/G4 EXECUTADO — veredicto no-ship",
+    "vault_inbox_path": "_handoff/vault-inbox/2026-08-12-g4-token-economy-no-ship.md",
+    "vault_inbox_sha256": "403e650cdbd4e80197315f0f949ff936d5e170093094ce4961bfdb0863cdbb28",
+    "vault_inbox_dir_criado_por_mim_S_N": "S — nao existia",
+    "canonizacao": "NAO feita. Nada escrito no vault nem no Notion. O draft e rascunho; canonizar e gesto do Paulo."
+  },
+
+  "step6": {
+    "estado": "CLOSED",
+    "o_que_e": "este ficheiro",
+    "re_execucao_do_zero_S_N": "S — passo separado apos 'terminar'; todos os campos re-corridos, nenhum copiado do corpo da sessao",
+    "instrumento_adicional_no_fecho": "gitleaks 8.30.1 sobre INFRA.md (no corpo da sessao eu so tinha usado grep). O instrumento forte confirmou o grep: no leaks found."
+  },
+
+  "spend": {
+    "valor": "n/d",
+    "porque": "Nao existe fonte medida de custo por sessao nesta maquina que eu possa citar. O turn-io desta sessao (~/.claude/tools/router/handoff/d2fac6e2-c3ce-46bb-97c1-0a6efbea3940.jsonl) tem 1 linha com campos ts,assistant_snippet,tools,git,n_turn — sem campo usage e sem campo cost_usd [medido, re-executado no fecho]. /cost e comando interactivo e esta sessao e nao-interactiva.",
+    "custo_de_terceiros_conhecido": "codex exec: n/d — o Codex CLI nao reportou tokens/custo no stdout nem no trace capturado.",
+    "ironia_registada": "A sessao cujo objecto era medir economia de tokens nao consegue medir quanto ela propria custou. Isto e a confirmacao AO VIVO do achado M1 do G4 (a instrumentacao de usage nao existe onde o masterprompt assumia que existia), e e o argumento mais forte a favor da unica parte da wave que continua a fazer sentido: instrumentacao read-only.",
+    "convergencia": "O AUDIT-A.json da sessao paralela chegou independentemente ao mesmo n/d, por outro caminho."
+  },
+
+  "do_not_respeitados": {
+    "nao_tocar_motor_packages_tools_router": "S — zero edicoes em packages/* e tools/router/*. Os 9 ficheiros modificados que encontrei a entrada (incl. packages/mooter-bridge/* e tools/cockpit/*) sao de terceiros e nao lhes toquei.",
+    "nao_pushar": "S — zero push. Branch main ficou ahead de origin/main.",
+    "git_add_seletivo": "S — staging explicito por path, nunca -A",
+    "sem_md_novos_na_raiz": "S — ficheiros novos em _handoff/g4-tokeneconomy/, _handoff/vault-inbox/ e reports/bench-cache-2026-08/",
+    "numero_sem_fonte_igual_n_d": "S — spend, sha do REPORT.md, celulas [medido], precos de provider, statusline renderizado e detector-substring estao todos n/d com motivo declarado",
+    "gpu_audit_nao_e_desta_sessao": "S — nao despachado. Continua STAGED, e agora bloqueado por dependencia: o REPORT do BENCH-CACHE que o desbloqueava nao existe."
+  },
+
+  "pendentes_para_o_paulo": [
+    "D-B1: a familia token-economy reescreve-se (Cowork aplica os 7 HIGH), encolhe-se (so M1+M3, que nao dependem de workload API), ou arquiva-se?",
+    "D-B2: antes de reescrever — queres CRIAR workload API-metered para optimizar, ou o valor real esta em manter tudo em codex/local, onde o custo ja e ~$0? O ledger diz 0 jobs Kimi e 0 Anthropic API.",
+    "D-B3 (= D-A2 da sessao irma, subscrevo a leitura): a chave anon na historia nao exige rotacao — mas isso depende inteiramente de RLS estar ligada em eymtobwinevywmmlmxqa. INFRA.md declara; ninguem verificou.",
+    "D-B4: INFRA.md diz 'Privado' em 3 sitios e aponta para .../frugal; o repo e PUBLIC e o remote e .../mooter. Corrigir o ficheiro (barato) ou repensar se ele deve continuar tracked num repo publico?",
+    "D-B5: verificar em github.com/settings/developers a data real de rotacao do client secret do GitHub OAuth (declarada 2026-08-03, nunca verificada).",
+    "Herdadas do AUDIT-A: D-A2b (RLS), D-A2c (.claude//dashboard//scripts/ no .gitignore), D-A1b (retro-provas G5/G15/C1), D8 (C3/C4 nas 18), A0b (17 processos claude de 2026-08-10 por matar), A0c (CHANGELOG stale)."
+  ]
+}

@@ -205,3 +205,19 @@ test('21.D2 recordSpawn: outer Agent tool without agent_id is now skipped (count
   assert.equal(recordSpawn(outerAgentPayload, session_id), null, 'outer Agent without agent_type → skipped');
   tracker.reset({ session_id });
 });
+
+// ── kimi visivel no post-tool badge (2026-08-16) ────────────────────────────
+// Este e o badge que o dono ve a CADA tool call. Era aqui que ele reparou que
+// so apareciam modelos locais e as subscricoes Claude/Codex.
+test('buildPostToolBadge: kimi mostra-se pelo nome, com o glifo de nuvem', () => {
+  const out = buildPostToolBadge({ model: 'kimi-k3', subagent: 'kimi', tier: 'T2' });
+  assert.match(out, /kimi T2/, 'nome curto + tier, como os outros motores');
+  assert.match(out, /☁/, 'kimi e nuvem paga ao token — nao e local nem subscricao');
+  assert.doesNotMatch(out, /unknown/, 'nao pode cair no fallback');
+});
+
+test('shortModel: kimi-k3 colapsa para kimi', () => {
+  assert.equal(shortModel('kimi-k3'), 'kimi');
+  assert.equal(shortModel('moonshot/kimi-k3'), 'kimi');
+});
+

@@ -45,6 +45,7 @@ const FILES = [
   ['server.js', 'server/server.js'],
   ['seamless.js', 'server/seamless.js'],
   ['kimi-adapter.js', 'server/kimi-adapter.js'],
+  ['kimi-valvula.js', 'server/kimi-valvula.js'],
   ['install-id.js', 'server/install-id.js'],
   ['fleet.js', 'server/fleet.js'],
   ['fleet-ui.html', 'server/fleet-ui.html'],
@@ -72,6 +73,18 @@ const FILES = [
   ['sync.js', 'server/sync.js'],
   ['fatia-local.js', 'server/fatia-local.js'],
   ['terminal.js', 'server/terminal.js'],
+  // f-mu0: identidade no envelope do ledger. Entra pela mesma porta e pela mesma
+  // razão que o oraculo.js acima — o B1 apanhou-a no minuto em que o seamless.js
+  // passou a requerê-la. Sem esta linha, quem instalasse o .mcpb tinha um
+  // conector que morre no primeiro require, com o repo todo verde.
+  ['actor.js', 'server/actor.js'],
+  // f-mu0 PARTE B — o broker e a primitiva de hash que ele PROMOVE em vez de
+  // recriar. O ledger-prov vem de tools/router/ pela mesma porta que o
+  // classify.js: o broker resolve-o em runtime (repo primeiro, bundle depois),
+  // por isso o detector de requires do bundle.test.js NAO o apanha sozinho —
+  // esta linha e o teste B10 sao a rede.
+  ['broker.js', 'server/broker.js'],
+  ['../../tools/router/ledger-prov.js', 'server/ledger-prov.js'],
   ['retry.js', 'server/retry.js'],
   ['board.js', 'server/board.js'],
   ['recibo.js', 'server/recibo.js'],
