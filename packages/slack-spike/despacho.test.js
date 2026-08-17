@@ -203,3 +203,24 @@ test('worktree · sem configuracao nao se inventa uma (o motor mantem o seu defa
   await despachar(PEDIDO);
   assert.ok(!('worktree' in vistos[0]));
 });
+
+// ── matar os 20s (decisao de maestro: matar, nunca decorar) ────────────────
+// A preparacao local expirou em TODOS os despachos T2/T3 medidos: 20 segundos em
+// que o sistema nao trabalha, esta a desistir. Verificado em seamless.js que
+// `wantsPrepare = pre_digest && agent !== 'moo'` — logo o skip so afecta T2/T3,
+// e o caminho local (T0) nunca teve prep para perder.
+test('prep · o despacho do Slack manda pre_digest:false (mata os 20s)', async () => {
+  const vistos = [];
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(), preDigest: false,
+    toolWork: async (a) => { vistos.push(a); return { job_id: 'j' }; } });
+  await despachar(PEDIDO);
+  assert.equal(vistos[0].pre_digest, false, 'sem isto voltam os 20 segundos de espera');
+});
+
+test('prep · por omissao NAO se mexe no comportamento do motor', async () => {
+  const vistos = [];
+  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+    toolWork: async (a) => { vistos.push(a); return { job_id: 'j' }; } });
+  await despachar(PEDIDO);
+  assert.ok(!('pre_digest' in vistos[0]), 'o default do motor manda quando ninguem decide');
+});
