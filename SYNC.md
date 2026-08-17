@@ -611,3 +611,77 @@ kimi-egress FECHADA — slack-spike destravado
 - Decisor: Cowork/Fable 5 como maestro, sob delegação do dono (veto dele disponível). Fundamento: o ALTO de CÓDIGO aberto da kimi-egress (plano em disco não declarado no recibo, na recusa por agent kimi) vive EXCLUSIVAMENTE no caminho kimi/Moonshot. CONDIÇÃO DURA do GO: o spike exclui o kimi por construção — allowlist de motores do despacho SEM kimi, com teste que prova a recusa de agent:"kimi" — ANTES do 1º dispatch vivo. Com o vendor guardado fora da rota, o ALTO não é alcançável pelo caminho vivo. Quando a kimi-egress mergear de verdade, o kimi volta por decisão explícita, nunca por default.
 - A demo declara isto ao estranho como feature: "Moonshot desligado até o veto de egress entrar em main" — custódia por enforcement, não por promessa.
 - Restante fila do CC slack-spike inalterada: tokens (.env, caminho vem do Paulo) → exclusão kimi testada → MODO VIVO → ensaio do infeliz real → final-reviewer antes de push. Condição de sócio nº1 mantém-se: demo AGENDADA com estranho antes do merge.
+
+## [2026-08-17] CC — slack-spike: Baldes 1, 2 e 3 (modo autónomo até à linha de merge)
+
+**Estado:** MODO VIVO a funcionar ponta-a-ponta. **NADA PUSHED.** Os 4 gates de merge são
+do dono e continuam fechados.
+
+### Balde 1 · VER A MAGIA — ✅ passou, e de graça
+`job-msxmsv76-30f8` · `done exit=0` · `gemma4:e4b` · **tier T0** · **US$ 0,00** · **19,8s** ·
+`fecho_publicado` no log · thread fechou com `🏁`. **Duas divergências do previsto, ambas a
+favor:** custou zero (previsto ~US$ 0,11) e **não teve os 20s** de `prep_timeout` (o T0 local
+não passa pela preparação). **Não reiniciei o daemon** como o passo 1 mandava: já corria em
+`29ace5ee`, que inclui o fix; reiniciar perdia o `SLACK_IGNORAR_JOBS` do `e13c`. C5 aplicado.
+
+### Balde 2 · NÃO PERDER O DIA — ✅ `349f0037` (em `~/frugal`, `onda-q/m1-fechar-o-laboratorio`)
+`SYNC.md` +31 linhas, add selectivo, sem push. Obstáculo declarado: havia um `.git/index.lock`
+de 3h, 0 bytes, zero processos git — **detrito meu** (um comando com backticks mal escapados
+às 17:54Z correu `git worktree remove\'` naquele repo). Removido, e dito.
+
+### Balde 3
+- **3a auditoria ao codex** — despachada read-only (`escrita=false`, `allowedTools=read`,
+  `--sandbox read-only` confirmado no ledger). `job-msxqfbak-3911`, wave `slack-spike-auditoria`.
+  Veredicto: **por chegar** (a correr há >13 min). **Anexo-o inteiro e sem filtrar quando chegar.**
+- **3b correcções** — as decisões de maestro, implementadas sem esperar pelo codex:
+  - **botão PARAR** (`cancelar.js` → `toolCancel`) com allowlist própria e gate por clique.
+    **Desvio declarado ao «mesmo CAS do Aprovar»:** o parar CARREGA o hash mas **não recusa**
+    por divergência — um clique atrasado sobre um agente descontrolado tem de o parar na
+    mesma; recusar seria o botão de emergência a falhar quando o estado muda depressa, que é
+    quando ele serve. A outra metade do requisito (job terminado = no-op, não erro) vem do
+    `toolCancel`, idempotente. Sem `confirm` e sem `danger`: um stop com atrito chega tarde.
+  - **matar os 20s** — `pre_digest:false` no despacho. Verificado no código, não assumido:
+    `wantsPrepare = pre_digest && agent !== 'moo'`, logo quando o tier resolve T0 a prep já
+    não nascia — o skip só afecta T2/T3, que é onde os 20s vivem.
+  - **heartbeat honesto** — `4 passos · 1m12s`, números reais, e **só quando existem**. Sem
+    passos e sem tempo diz apenas «Recebido». Sem % e sem ETA (H2: barra RECUSADA).
+  - **kimi excluído por construção** — já estava, com 3 mutações a prová-lo.
+- **3d ensaio do infeliz contra o Slack real** — **daemon offline ✅** (3 religares, o
+  pendente sobreviveu). **recusa e STALE: BLOQUEADOS** — exigem um clique humano no Slack e
+  não os posso dar. Provados contra o broker real em dry-run.
+- **3f final-reviewer** — a correr.
+
+### 🚨 ACHADO GRAVE, por acidente: um pendente NOSSO desaparece do Slack
+Às **21:14:50** (7s depois do dispatch do codex) uma reconciliação do motor
+(`appendTerminalReconciliation` ← `sweepOrphans`) **re-carimbou** o estado do `e13c`, um job
+de 4 horas antes, com um evento novo **sem `actor`**:
+```
+17:36:52  nao_verificado · actor=slack:U0BGS8N8JFL   <- original
+21:14:50  nao_verificado · actor=—                    <- re-carimbo
+```
+`estadoCorrente` passa a devolver o carimbo novo, o actor degrada para `legacy`, e
+`listPending({actor})` deixa de o ver. **O pedido continua à espera no motor e some do
+Slack, sem erro e sem log.** Duas leituras, ambas verdadeiras: (a) **do núcleo** — a
+reconciliação perde a atribuição de custódia, que é o que o `f-mu0` existe para garantir
+(`seamless.js` é frozen, não lhe toquei: vai para a auditoria); (b) **minha** — ler «quem
+pediu» do último carimbo era frágil. **Corrigido:** a pertença deriva do ledger inteiro (um
+job é nosso se ALGUM evento seu declarou o nosso actor), imune a re-carimbos e a religares.
+
+### BLOQUEADOS (não dependem de mim)
+- **`reactions:write` ausente** → a reacção ⏳→✅/❌ do H5 não é construível. Scopes actuais
+  medidos: `app_mentions:read`, `chat:write`. **Precisa do dono.**
+- **Suprimir o push** (H5) — o `text` controla o *conteúdo* do push, não *se* há push. Não
+  há via de API para o suprimir. `n/d`.
+- **3c rotação dos tokens** — o dono regenera; eu não crio credenciais.
+- **3d recusa e STALE ao vivo** — precisam de um clique humano.
+- **Gate nº1: demo AGENDADA com ≥1 estranho** — não agendada. Bloqueia o merge.
+
+### Custo medido (fonte colada em cada job, `n/d` onde não há)
+**US$ 4,4675** · 18 jobs nascidos no Slack · 12 com custo · **1 grátis (local)**. A auditoria
+do codex ainda não fechou: custo `n/d`. O custo em tokens desta sessão de CC: **`n/d`** —
+não há fonte fiável na máquina e não se inventa.
+
+### Testes e invariantes
+**185/185** · mutação: **9/9 vermelhas** nas guardas do 3b (+12 anteriores) ·
+`classify.js` `427d8c0b…` **intacto** · nada tocado em `packages/mooter-bridge/` ·
+adds selectivos · **0 uncommitted**.
