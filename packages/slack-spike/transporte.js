@@ -34,11 +34,12 @@
  */
 
 const gateOmissao = require('./gate.js');
+const cartao = require('./cartao.js');
 
 const API = 'https://slack.com/api/';
 
 /** Accoes que o cartao oferece -> action_id do bloco. */
-const ACCOES = Object.freeze({ aprovar: 'mooter_aprovar', recusar: 'mooter_recusar' });
+const { ACCOES, valorDoBotao, lerValorDoBotao } = cartao;   // o contrato vive no cartao.js
 
 // ── nucleo puro (testavel sem rede) ─────────────────────────────────────────
 
@@ -125,38 +126,18 @@ function classificarEnvelope(envelope, botUserId) {
     porque: 'envelope de tipo ' + (e.type || 'n/d') };
 }
 
-function valorDoBotao(jobId, accao, hash) {
-  return JSON.stringify({ j: String(jobId), a: accao, h: String(hash == null ? '' : hash) });
-}
-
-function lerValorDoBotao(valor) {
-  let o;
-  try { o = JSON.parse(String(valor == null ? '' : valor)); } catch { return { ok: false, porque: 'nao e JSON' }; }
-  if (!o || typeof o !== 'object') return { ok: false, porque: 'nao e objecto' };
-  const accao = o.a === 'aprovar' ? 'aprovar' : (o.a === 'recusar' ? 'recusar' : null);
-  if (!accao) return { ok: false, porque: 'accao desconhecida' };
-  if (!o.j) return { ok: false, porque: 'sem job_id' };
-  if (!o.h) return { ok: false, porque: 'sem hash — sem CAS nao se decide' };
-  return { ok: true, job_id: String(o.j), accao, hash: String(o.h) };
-}
 
 /**
  * Blocos do Slack a partir do payload que JA atravessou o `publicar.js`.
  * Nao acrescenta campos: o texto e o que a porta deixou sair, e os botoes so
  * levam identificadores e o hash — nunca conteudo.
  */
+/** Compatibilidade: o desenho vive no cartao.js. Isto e so o caminho antigo. */
 function blocosDoCartao(texto, payload) {
   const p = payload || {};
   const blocos = [{ type: 'section', text: { type: 'mrkdwn', text: String(texto) } }];
-  const accoes = [].concat(p.accoes || []);
-  if (accoes.length && p.job_id && p.hash_esperado) {
-    blocos.push({ type: 'actions', block_id: 'mooter_decisao', elements: accoes
-      .filter((a) => ACCOES[a])
-      .map((a) => ({ type: 'button', action_id: ACCOES[a],
-        text: { type: 'plain_text', text: a === 'aprovar' ? 'Aprovar' : 'Recusar' },
-        style: a === 'aprovar' ? 'primary' : 'danger',
-        value: valorDoBotao(p.job_id, a, p.hash_esperado) })) });
-  }
+  const accoes = cartao.blocosDeAccoes(p);
+  if (accoes) blocos.push(accoes);
   return blocos;
 }
 
@@ -223,6 +204,7 @@ function criarTransporte(opcoes) {
   const threads = new Map();      // job_id -> thread_ts
   const vistos = new Set();       // dedupe de re-entregas
   let threadCorrente = null;
+  const cartoes = new Map();     // job_id -> ts do CARTAO publicado, para o chat.update
   let tentativasLigacao = 0;    // persiste entre religacoes — ver religar()
   const enviados = [];            // o que saiu (ou sairia, em dry-run)
 
@@ -247,20 +229,50 @@ function criarTransporte(opcoes) {
     return dryRun ? null : trancado();
   }
 
-  /** A porta do `publicar.js`: recebe o texto JA filtrado e o payload JA validado. */
-  async function enviar(texto, payload) {
+  /**
+   * A porta do `publicar.js`: recebe o texto e os BLOCOS ja filtrados, e o payload
+   * ja validado. Nao formata nada — formatar aqui seria formatar depois do
+   * varrimento de nomes sensiveis, e portanto por strings novas a sair sem verificacao.
+   *
+   * ⚠️ Uma DECISAO nao publica mensagem nova: ACTUALIZA o cartao. Deixar o cartao
+   * antigo com botoes vivos ao lado da decisao e convidar um clique que so pode
+   * responder «ja decidido» — e num telemovel e um toque a mais numa accao paga.
+   */
+  async function enviar(texto, payload, blocos) {
     const p = payload || {};
     const t = trancadoParaEnviar();
     if (t) { registar({ tipo: 'envio_trancado', porque: t }); return { enviado: false, porque: t }; }
 
     const thread = (p.job_id && threads.get(p.job_id)) || threadCorrente || null;
-    const corpo = { channel: canal, text: String(texto), blocks: blocosDoCartao(texto, p) };
+    const blocks = blocos || blocosDoCartao(texto, p);
+
+    // decisao sobre um cartao que ainda esta no ecra -> substitui-o no lugar
+    const alvo = p.tipo === 'decisao' && p.job_id ? cartoes.get(p.job_id) : null;
+    if (alvo) {
+      const corpo = { channel: canal, ts: alvo, text: String(texto), blocks };
+      enviados.push({ metodo: 'chat.update', corpo });
+      // ⚠️ o `delete` vem ANTES de qualquer return: estava depois do return do
+      // dry-run, e portanto o ensaio actualizava o mesmo cartao duas vezes onde o
+      // vivo o faria uma. Um dry-run que se comporta diferente do vivo nao e um
+      // ensaio, e uma segunda implementacao a mentir sobre a primeira.
+      cartoes.delete(p.job_id);          // decidido: deixa de existir como cartao
+      if (dryRun) return { enviado: true, dry_run: true, actualizado: alvo };
+      await chamarSlack('chat.update', corpo, { token: o.botToken, fetchImpl: o.fetchImpl });
+      return { enviado: true, dry_run: false, actualizado: alvo, thread_ts: thread };
+    }
+
+    const corpo = { channel: canal, text: String(texto), blocks };
     if (thread) corpo.thread_ts = thread;
 
     enviados.push({ metodo: 'chat.postMessage', corpo });
-    if (dryRun) return { enviado: true, dry_run: true, thread_ts: thread };
+    if (dryRun) {
+      if (p.tipo === 'pendente' && p.job_id) cartoes.set(p.job_id, 'ts-seco-' + p.job_id);
+      return { enviado: true, dry_run: true, thread_ts: thread };
+    }
     const j = await chamarSlack('chat.postMessage', corpo, { token: o.botToken, fetchImpl: o.fetchImpl });
     if (p.job_id && j.ts && !threads.has(p.job_id)) threads.set(p.job_id, j.ts);
+    // guarda-se o ts DO CARTAO para o poder actualizar quando houver decisao
+    if (p.tipo === 'pendente' && p.job_id && j.ts) cartoes.set(p.job_id, j.ts);
     return { enviado: true, dry_run: false, ts: j.ts || null, thread_ts: thread };
   }
 
@@ -400,7 +412,7 @@ function criarTransporte(opcoes) {
     return { correu: true, socket: s, url_obtido: true };
   }
 
-  return { enviar, enviarEfemero, correr, tratarEnvelope, lembrarThread, enviados, threads, vistos };
+  return { enviar, enviarEfemero, correr, tratarEnvelope, lembrarThread, enviados, threads, vistos, cartoes };
 }
 
 module.exports = {

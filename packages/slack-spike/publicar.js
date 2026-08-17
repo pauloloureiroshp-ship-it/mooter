@@ -37,6 +37,41 @@
  */
 
 const denylist = require('./denylist.js');
+const cartao = require('./cartao.js');
+
+/**
+ * ⚠️ O VARREDOR DA ARVORE.
+ *
+ * Antes saia UMA string e varria-se essa string. Agora saem blocos do Block Kit —
+ * dezenas de strings dentro de objectos e arrays. Varrer so o `text` de topo
+ * deixaria todo o resto a sair sem verificacao, e isso e uma regressao de
+ * privacidade disfarcada de melhoria de UI.
+ *
+ * Percorre TUDO (chaves incluidas nao, valores sim), limpa cada string, e devolve
+ * a arvore nova. Nao muda a forma: o que entra objecto sai objecto.
+ */
+function varrerArvore(x, removidos) {
+  if (typeof x === 'string') {
+    const r = denylist.limpar(x);
+    for (const n of r.removidos) removidos.add(n);
+    return r.texto;
+  }
+  if (Array.isArray(x)) return x.map((v) => varrerArvore(v, removidos));
+  if (x && typeof x === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(x)) out[k] = varrerArvore(v, removidos);
+    return out;
+  }
+  return x;
+}
+
+/** Junta todas as strings de uma arvore, para a verificacao final. */
+function stringsDe(x, acc) {
+  if (typeof x === 'string') acc.push(x);
+  else if (Array.isArray(x)) for (const v of x) stringsDe(v, acc);
+  else if (x && typeof x === 'object') for (const v of Object.values(x)) stringsDe(v, acc);
+  return acc;
+}
 
 /**
  * O que pode sair. Note-se o que NAO esta ca: goal, prompt, masterprompt,
@@ -118,18 +153,39 @@ function criarPublicador(opcoes) {
           + ' — so saem campos derivados, nunca conteudo' };
     }
 
-    // barreira 3 — nomes de segredos (kimi #5)
-    const bruto = renderizar(p);
-    const limpo = denylist.limpar(bruto);
-    if (denylist.nomesSensiveis(limpo.texto).length) {
-      return { publicado: false, porque: 'sobrou um nome sensivel apos limpeza — nao se publica' };
+    // barreira 3 — nomes de segredos (kimi #5), agora sobre a ARVORE INTEIRA
+    //
+    // ⚠️ A ORDEM É A CORRECÇÃO, não um detalhe. Varre-se o PAYLOAD primeiro e
+    // formata-se depois. Ao contrário — formatar e depois varrer — a propria
+    // formatacao reabre o vazamento: o cartao envolve valores em italico
+    // (`_texto_`), e `segredo.env_` deixa de casar com o `\b` do denylist, porque
+    // `_` conta como caracter de palavra. Um teste apanhou-o com o nome a sair
+    // inteiro dentro de um bloco. Limpar os DADOS e imune a decoracao; limpar a
+    // decoracao depende de adivinhar toda a decoracao futura.
+    const removidos = new Set();
+    const limpo = varrerArvore(p, removidos);
+    const construido = cartao.construir(limpo);
+    // e varre-se OUTRA VEZ a arvore construida — cinto por cima dos suspensorios,
+    // para o caso de o desenho um dia compor uma string a partir de duas metades
+    const blocos = varrerArvore(construido.blocos, removidos);
+    const texto = varrerArvore(construido.texto, removidos);
+    // `renderizar` continua a servir de espelho textual do payload: se um nome
+    // sensivel estivesse num campo que o Block Kit nao mostra, ainda assim conta
+    const espelho = varrerArvore(renderizar(p), removidos);
+
+    for (const s of stringsDe([blocos, texto, espelho], [])) {
+      if (denylist.nomesSensiveis(s).length) {
+        return { publicado: false,
+          porque: 'sobrou um nome sensivel apos limpeza — nao se publica' };
+      }
     }
 
-    const registo = { texto: limpo.texto, removidos: limpo.removidos, ts: new Date().toISOString() };
+    const lista = [...removidos];
+    const registo = { texto, blocos, removidos: lista, ts: new Date().toISOString() };
     historico.push(registo);
-    if (dryRun) return { publicado: true, dry_run: true, texto: limpo.texto, removidos: limpo.removidos };
-    enviar(limpo.texto, p);
-    return { publicado: true, dry_run: false, texto: limpo.texto, removidos: limpo.removidos };
+    if (dryRun) return { publicado: true, dry_run: true, texto, blocos, removidos: lista };
+    enviar(texto, p, blocos);
+    return { publicado: true, dry_run: false, texto, blocos, removidos: lista };
   }
 
   return { publicar, historico, CAMPOS_PERMITIDOS };

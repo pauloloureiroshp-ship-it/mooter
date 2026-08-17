@@ -54,7 +54,10 @@ function bancadaComSegredo() {
 
 function montar() {
   const enviados = [];
-  const publicador = criarPublicador({ enviar: (t) => { enviados.push(t); } });
+  // captura TUDO o que sai: o texto da notificacao E as strings dos blocos
+  const publicador = criarPublicador({
+    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(b)); },
+  });
   const ad = criarAdaptador({
     allowlist: criarAllowlist(['U_PAULO']),
     publicador,

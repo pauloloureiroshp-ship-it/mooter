@@ -50,7 +50,12 @@ function bancada({ jobId = 'job-ensaio-1', actor = null } = {}) {
 
 function montar({ despachar } = {}) {
   const enviados = [];
-  const publicador = criarPublicador({ enviar: (t) => { enviados.push(t); return { ok: true }; } });
+  // captura TUDO o que sai: o texto da notificacao E as strings dos blocos.
+  // Antes so se capturava o 1o argumento; com o Block Kit, isso deixaria dezenas
+  // de strings fora do que os testes de vazamento inspeccionam.
+  const publicador = criarPublicador({
+    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(b)); return { ok: true }; },
+  });
   const ad = criarAdaptador({
     allowlist: criarAllowlist(['U_PAULO']),
     publicador,
@@ -135,8 +140,13 @@ test('infeliz 2 · clique atrasado da STALE e MOSTRA os dois hashes', async () =
   });
   assert.equal(r.estado, 'STALE');
   const texto = enviados.join('\n');
-  assert.ok(texto.includes(hashVelho.slice(0, 12)), 'faltou o hash esperado');
-  assert.ok(texto.includes(hashNovo.slice(0, 12)), 'faltou o hash actual');
+  // o cartao mostra CHARS_HASH chars de cada hash — 64 nao cabem num telemovel e
+  // ninguem os le. O que a demo precisa e de os ver DIFERENTES, nao completos.
+  const n = require('./cartao.js').CHARS_HASH;
+  assert.ok(texto.includes(hashVelho.slice(0, n)), 'faltou o hash esperado');
+  assert.ok(texto.includes(hashNovo.slice(0, n)), 'faltou o hash actual');
+  assert.notEqual(hashVelho.slice(0, n), hashNovo.slice(0, n),
+    'com este prefixo os dois hashes ficam iguais no ecra — o CAS deixa de se ver');
   // e o pendente CONTINUA na fila — um clique obsoleto nao decide nada
   assert.equal(broker.listPending().length, 1);
 });
@@ -203,7 +213,10 @@ test('cartao · leva custo/modelo/autor e NUNCA goal, worktree ou masterprompt',
   const { ad, enviados } = montar();
   await ad.publicarPendentes({ thread: 'T1' });
   const texto = enviados.join('\n');
-  assert.match(texto, /0\.62/);
+  // dinheiro sai formatado ($0,62), nao cru (0.62): o ledger da 0.1372512 e
+  // ninguem le dinheiro assim. O que importa e que o VALOR continua a sair.
+  assert.match(texto, /\$0,62/);
+  assert.ok(!/0\.6200000|0\.62[0-9]/.test(texto), 'o valor cru nao devia sair');
   assert.match(texto, /claude-opus-5/);
   assert.ok(!texto.includes('uma coisa pequena'), 'o goal vazou para o cartao');
   assert.ok(!texto.includes('C:\\repo'), 'o worktree vazou para o cartao');
