@@ -58,3 +58,11 @@ Recibo 7 blocos (objetivo · mediu · propôs · não-verificou · custo · dura
 
 ---
 **Prioridade: F2 (unir skill↔runner). Sessão fresca, mooter no talo com a frota inteira em workflow (Fable orquestra), até o gauntlet passar 2× limpo. O runner entregue é $0 local — se gastar 1 token de subscription, PÁRA e reporta.**
+
+## ⚠️ ATUALIZAÇÃO 2026-08-17 — CI VERMELHO, RESOLVER ANTES DE MERJAR
+Antes de qualquer merge dos 3 PRs, o CI está **vermelho** (medido via `gh pr checks`, sessão 2026-08-17):
+- **#269** (f7-skills): `a suite não pode piorar` **fail** · `ratchet` **fail** (2×)
+- **#270** (f5-higiene): `ratchet` **fail** (higiene / claude-review / threat-model **pass**)
+- **#268** (f3-stop): não medido — **n/d**, verificar
+
+**Resolver os guards `ratchet` e `a suite não pode piorar` (algo regrediu) ANTES de merjar.** Merjar no vermelho dispara `publish-npm` / `publish-mcpb` / `publish-cockpit` / `deploy-hub` com código regredido. **Só merjar com verde.** Fluxo: CC entra pela `feat/f1-runner-canonico` → fecha ratchet/suite + F2 → PRs verdes → `MERGE-3-PRS.command` merja limpo → deploy dispara sozinho.
