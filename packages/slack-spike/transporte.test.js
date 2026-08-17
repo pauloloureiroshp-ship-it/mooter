@@ -347,3 +347,35 @@ test('correr · com reconectar:false nao religa (para quem quer um socket so)', 
   r.socket.cbs.aoFechar();
   assert.equal(agendados.length, 0);
 });
+
+// ── a corrida que o critico externo reproduziu ─────────────────────────────
+// `threadCorrente` era um `let` no escopo do transporte, posto antes do handler e
+// limpo no `finally`. Com DUAS mencoes concorrentes os handlers intercalam-se nos
+// `await` e a segunda sobrepoe a primeira: o job da 1a ia parar ao thread da 2a.
+test('corrida · duas mencoes concorrentes NAO trocam de thread', async () => {
+  const tr = t.criarTransporte({ canal: 'C', botUserId: BOT, syncPath: SYNC_DESTRAVADO(),
+    dryRun: true });
+
+  const mencaoEm = (ts, ev) => ({ type: 'events_api', envelope_id: 'e-' + ev,
+    payload: { event_id: 'Ev' + ev, event: { type: 'app_mention', user: PAULO,
+      text: '<@' + BOT + '> faz x', channel: 'C', ts } } });
+
+  // a 1a mencao demora; a 2a passa-lhe a frente e resolve primeiro
+  let libertar;
+  const presa = new Promise((res) => { libertar = res; });
+  const maos = {
+    aoMencionar: async (d) => {
+      if (d.thread_ts === 'T1') { await presa; return { job_id: 'J1' }; }
+      return { job_id: 'J2' };
+    },
+  };
+
+  const a = tr.tratarEnvelope(mencaoEm('T1', 1), maos);
+  const b = tr.tratarEnvelope(mencaoEm('T2', 2), maos);
+  await b;             // a segunda acaba primeiro
+  libertar();
+  await a;
+
+  assert.equal(tr.threads.get('J1'), 'T1', 'o job da 1a mencao foi parar ao thread da 2a');
+  assert.equal(tr.threads.get('J2'), 'T2');
+});

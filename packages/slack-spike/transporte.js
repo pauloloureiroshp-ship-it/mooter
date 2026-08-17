@@ -33,7 +33,22 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
+const { AsyncLocalStorage } = require('node:async_hooks');
+
 const gateOmissao = require('./gate.js');
+
+/**
+ * ⚠️ O THREAD DA OPERACAO CORRENTE, sem estado mutavel partilhado.
+ *
+ * Antes era um `let threadCorrente` no escopo do transporte, posto antes de chamar
+ * o handler e limpo no `finally`. Com DUAS mencoes concorrentes, os handlers
+ * intercalam-se nos `await` e a segunda sobrepoe a primeira: o critico externo
+ * reproduziu-o e o job da 1a mencao foi parar ao thread da 2a. Numa demo de um
+ * utilizador raramente acontece; num canal com duas pessoas, acontece sempre.
+ *
+ * `AsyncLocalStorage` da um contexto POR CADEIA ASSINCRONA — e do Node, zero deps.
+ */
+const contexto = new AsyncLocalStorage();
 const cartao = require('./cartao.js');
 
 const API = 'https://slack.com/api/';
@@ -207,7 +222,7 @@ function criarTransporte(opcoes) {
 
   const threads = new Map();      // job_id -> thread_ts
   const vistos = new Set();       // dedupe de re-entregas
-  let threadCorrente = null;
+  const threadDaOperacao = () => (contexto.getStore() || {}).thread || null;
   const cartoes = new Map();     // job_id -> ts do CARTAO publicado, para o chat.update
   let tentativasLigacao = 0;    // persiste entre religacoes — ver religar()
   const enviados = [];            // o que saiu (ou sairia, em dry-run)
@@ -247,7 +262,7 @@ function criarTransporte(opcoes) {
     const t = trancadoParaEnviar();
     if (t) { registar({ tipo: 'envio_trancado', porque: t }); return { enviado: false, porque: t }; }
 
-    const thread = (p.job_id && threads.get(p.job_id)) || threadCorrente || null;
+    const thread = (p.job_id && threads.get(p.job_id)) || threadDaOperacao() || null;
     const blocks = blocos || blocosDoCartao(texto, p);
 
     /**
@@ -299,7 +314,8 @@ function criarTransporte(opcoes) {
     const t = trancadoParaEnviar();
     if (t) return { enviado: false, porque: t };
     const corpo = { channel: canal, user: userId, text: String(texto) };
-    if (threadCorrente) corpo.thread_ts = threadCorrente;
+    const th = threadDaOperacao();
+    if (th) corpo.thread_ts = th;
     enviados.push({ metodo: 'chat.postEphemeral', corpo });
     if (dryRun) return { enviado: true, dry_run: true };
     await chamarSlack('chat.postEphemeral', corpo, { token: o.botToken, fetchImpl: o.fetchImpl });
@@ -325,11 +341,11 @@ function criarTransporte(opcoes) {
     }
     if (chave) vistos.add(chave);
 
-    threadCorrente = (c.dados && c.dados.thread_ts) || null;
-    try {
+    const thread = (c.dados && c.dados.thread_ts) || null;
+    return contexto.run({ thread }, async () => {
       if (c.tipo === 'mencao') {
         const r = h.aoMencionar ? await h.aoMencionar(c.dados) : null;
-        if (r && r.job_id) lembrarThread(r.job_id, threadCorrente);
+        if (r && r.job_id) lembrarThread(r.job_id, thread);
         return { tipo: 'mencao', resultado: r };
       }
       const r = h.aoInteragir ? await h.aoInteragir(c.dados) : null;
@@ -339,9 +355,7 @@ function criarTransporte(opcoes) {
         await enviarEfemero(c.dados.user_id, 'já decidido — nada a fazer');
       }
       return { tipo: 'interaccao', resultado: r };
-    } finally {
-      threadCorrente = null;
-    }
+    });
   }
 
   /**
