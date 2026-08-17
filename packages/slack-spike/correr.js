@@ -243,6 +243,20 @@ async function principal(argv) {
     // Slack. So sai o que nasceu aqui.
     const meuActor = 'slack:' + process.env[VARS.allowUserId];
     const vistos = new Set();
+    /**
+     * Jobs a NAO mostrar, por decisao de quem opera (`SLACK_IGNORAR_JOBS`, separados
+     * por virgula). Nasceu de um caso concreto: um pendente de um goal patologico —
+     * que pedia aprovacao a si proprio em ciclo, a US$ 0,63 a volta — ficou na fila,
+     * e o `vistos` vive em memoria, logo cada religar do daemon voltava a por o botao
+     * mais caro de clicar por engano a frente do dono. Silenciar nao e decidir: o
+     * pendente CONTINUA na fila e continua decidivel; so deixa de se anunciar.
+     */
+    const ignorados = new Set(String(process.env.SLACK_IGNORAR_JOBS || '')
+      .split(',').map((s) => s.trim()).filter(Boolean));
+    if (ignorados.size) {
+      console.error('[registo] ' + JSON.stringify({ tipo: 'jobs_silenciados',
+        jobs: [...ignorados], nota: 'continuam na fila; so nao se anunciam' }));
+    }
     const fechados = new Set();   // job -> fecho ja anunciado no thread
 
     /**
@@ -303,7 +317,7 @@ async function principal(argv) {
         for (const p of m.broker.listPending({ actor: meuActor })) herdarThread(p.job_id, ledger);
         const pubs = await m.adaptador.publicarPendentes({
           filtro: { actor: meuActor },
-          jaVisto: (p) => vistos.has(p.job_id + ':' + p.state_hash),
+          jaVisto: (p) => ignorados.has(p.job_id) || vistos.has(p.job_id + ':' + p.state_hash),
         });
         // ⚠️ O RESULTADO DA PUBLICACAO TEM DE SE VER. O cartao deste pendente
         // passava o `publicar()` e o poller corria — e ficamos sem saber se saiu,
@@ -315,7 +329,7 @@ async function principal(argv) {
         // para sempre num «volto quando precisar de uma decisao» que nunca volta
         for (const f of await m.adaptador.publicarFechos({
           jobs: [...m.transporte.threads.keys()],
-          jaVisto: (job) => fechados.has(job),
+          jaVisto: (job) => ignorados.has(job) || fechados.has(job),
         })) {
           if (f.publicado) {
             fechados.add(f.job_id);

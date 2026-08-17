@@ -405,3 +405,17 @@ test('decisao · o cartao publicado leva custo, modelo e impressao — nao n/d',
   assert.ok(t.includes(pend.state_hash), 'faltou a impressao completa do pedido');
   assert.ok(!/sem fonte no ledger/.test(t), 'disse «sem fonte» com a fonte presente');
 });
+
+// ── silenciar um job sem o decidir ─────────────────────────────────────────
+// Um pendente de um goal patologico ficava na fila e reaparecia a CADA religar,
+// porque o `vistos` vive em memoria. Silenciar nao e decidir: o pendente continua
+// na fila e continua decidivel — so deixa de se anunciar.
+test('silenciar · um job ignorado nao se anuncia, mas CONTINUA na fila', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  const ignorados = new Set([jobId]);
+  const r = await ad.publicarPendentes({ jaVisto: (p) => ignorados.has(p.job_id) });
+  assert.equal(enviados.length, 0, 'o cartao nao devia ter saido');
+  assert.equal(r[0].publicado, false);
+  assert.equal(broker.listPending().length, 1, 'silenciar NAO pode tirar da fila');
+});
