@@ -19,9 +19,11 @@
   "devDependencies": {
     "wrangler": "^4.83.0"
   },
-  "_overrides_rationale": "Wave 58.3 — esbuild ^0.28.1 clears the 0.17.0-0.28.0 advisory (GHSA-gv7w-rqvm-qjhr, GHSA-g7r4-m6w7-qqqr); ws ^8.21.0 clears 8.0.0-8.20.0 (GHSA-58qx-3vcg-4xpx). Both reach the tree only via wrangler/miniflare dev tooling, not the deployed worker. Verified wrangler deploy --dry-run still bundles.",
+  "_overrides_rationale": "Wave 58.3 — esbuild ^0.28.1 clears the 0.17.0-0.28.0 advisory (GHSA-gv7w-rqvm-qjhr, GHSA-g7r4-m6w7-qqqr); ws ^8.21.0 clears 8.0.0-8.20.0 (GHSA-58qx-3vcg-4xpx). Both reach the tree only via wrangler/miniflare dev tooling, not the deployed worker. Verified wrangler deploy --dry-run still bundles. Wave MOO-AUTOPILOT — undici ^7.29.0 clears 7.0.0-7.28.0 e sharp ^0.35.2 clears <0.35.0; ambos entram so por miniflare (dev), nunca no worker publicado. Preferido a subir o wrangler, porque o wrangler 4.123.0 estavel fixa miniflare 5.x-alpha e nao ha razao para trazer um pre-release para dentro so para calar um aviso de ferramenta local.",
   "overrides": {
     "esbuild": "^0.28.1",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "undici": "^7.29.0",
+    "sharp": "^0.35.2"
   }
 }
