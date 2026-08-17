@@ -36,6 +36,8 @@ import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
+import { createDispatchGate } from "../../packages/fleet-commander/src/stop-gate.mjs";
+
 // ───────────────────────── Governor (based on sdk-runner.mjs, held STRICTER) ─────────────────────────
 // The mechanical guardrail: main is read-only at the CREDENTIAL level. DESTRUCTIVE_BASH
 // is the cloud runner's bank verbatim; bashIsDestructive + shellTouchesClassify then add
@@ -111,8 +113,13 @@ const MODEL_PREFS = ["qwen3", "qwen2.5-coder", "qwen2.5", "llama3", "gemma"];
 async function fetchWithTimeout(url, opts, ms) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
+  // An EXTERNAL signal (the STOP watcher) must be able to kill a call already in
+  // flight — that is the difference between a kill-switch and a polite request.
+  const ext = opts && opts.signal;
+  const onExt = () => ctrl.abort();
+  if (ext) { if (ext.aborted) ctrl.abort(); else ext.addEventListener("abort", onExt, { once: true }); }
   try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
-  finally { clearTimeout(timer); }
+  finally { clearTimeout(timer); if (ext) ext.removeEventListener("abort", onExt); }
 }
 
 async function listModels(base = OLLAMA) {
@@ -140,17 +147,20 @@ export function pickModel(models) {
  */
 function realOllama(base = OLLAMA) {
   return {
-    async generate({ model, prompt, options }) {
+    async generate({ model, prompt, options, signal }) {
       try {
         const res = await fetchWithTimeout(`${base}/api/generate`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ model, prompt, stream: false, think: false, format: "json", options: { num_predict: 400, temperature: 0, ...options } }),
+          signal,
         }, 120_000);
         if (!res.ok) return { ok: false, reason: `ollama-http-${res.status}` };
         const j = await res.json();
         return { ok: true, text: String(j.response || ""), promptTokens: j.prompt_eval_count ?? null, evalTokens: j.eval_count ?? null };
       } catch (e) {
+        // An abort is not a failure of Ollama — it is us pulling the plug on purpose.
+        if (signal && signal.aborted) return { ok: false, reason: "aborted-by-stop" };
         return { ok: false, reason: "ollama-unavailable" };
       }
     },
@@ -221,8 +231,12 @@ export function parseAction(text) {
 
 /**
  * Run one local loop to completion. All I/O is injected for testability.
- * @returns {ok, reason, result?, turns, events, pendingDecision?}
- *   reason ∈ done | gated-irreversible | max-turns | timeout | ollama-unavailable | ollama-http-*
+ * @returns {ok, reason, result?, turns, events, receipt, pendingDecision?}
+ *   reason ∈ done | halted | gated-irreversible | max-turns | timeout | ollama-unavailable | ollama-http-*
+ *
+ * `gate` (stop-gate.mjs) runs before EVERY turn, and it defaults to the REAL one:
+ * an invariant you have to remember to switch on is not an invariant. Tests inject
+ * an open gate to stay hermetic; production gets the kill-switch for free.
  */
 export async function runLoop(opts) {
   const {
@@ -237,6 +251,10 @@ export async function runLoop(opts) {
     tools = defaultTools({ cwd }),
     now = () => Date.now(),
     agent = "local-loop-runner",
+    pilar = null,
+    device = null,
+    gate = createDispatchGate({ owner: { sessionId: sid, loopId: agent }, pilar, device }),
+    watchIntervalMs = 250,   // how often the kill-switch is polled DURING a model call
   } = opts || {};
 
   const started = now();
@@ -244,13 +262,53 @@ export async function runLoop(opts) {
   const notes = [];
   const events = [];
   const emit = (ev) => { events.push(ev); try { journal && journal.appendEvent && journal.appendEvent({ sid, agent, model, ...ev }); } catch { /* best-effort */ } };
+  // The per-job receipt travels with EVERY exit path — a job with no receipt is a
+  // job that cannot be audited, which is the same as a job that did not happen.
+  const fin = (o) => { try { return { ...o, receipt: gate && gate.receipt ? gate.receipt() : null }; } catch { return { ...o, receipt: null }; } };
 
+  try {
   for (let turn = 1; turn <= maxTurns; turn++) {
-    if (now() - started > timeoutMs) return { ok: true, reason: "timeout", turns: history, events };
+    if (now() - started > timeoutMs) return fin({ ok: true, reason: "timeout", turns: history, events });
+
+    // ── The pre-dispatch gate: STOP · VRAM · one-pilar-per-GPU ──────────────
+    // Re-read every turn, never cached: the loop a kill-switch must stop is, by
+    // definition, already running. A halt is an ordinary outcome (ok:true), not a
+    // crash — the human pulled a lever that was built for them to pull.
+    const pass = gate && typeof gate.check === "function" ? gate.check() : { allow: true };
+    if (!pass.allow) {
+      emit({ kind: "decision", gate: "halted", output: { halted_by: pass.gate, reason: pass.denyReason, answered_by: "pending-human" } });
+      return fin({ ok: true, reason: "halted", haltedBy: pass.gate, haltReason: pass.denyReason, turns: history, events });
+    }
 
     const prompt = buildPrompt(task, history, notes);
-    const resp = await ollama.generate({ model, prompt });
-    if (!resp || !resp.ok) return { ok: false, reason: resp?.reason || "ollama-unavailable", turns: history, events };
+
+    // ── The in-flight watcher ───────────────────────────────────────────────
+    // Gating only BETWEEN turns makes the human wait for whatever the model is
+    // already chewing on. Measured (stop-drill, 2026-08-15): 232ms with qwen2.5:3b
+    // but 6327ms with gpt-oss:20b — i.e. the 5s target was met only by the model
+    // nobody runs a pilar on. So we poll the kill-switch DURING the call and abort
+    // it. `peek()` is side-effect-free, which is why it can run every 250ms.
+    const abort = new AbortController();
+    let abortedBy = null;
+    const watcher = gate && typeof gate.peek === "function" && watchIntervalMs > 0
+      ? setInterval(() => {
+          try {
+            const s = gate.peek();
+            if (s && s.stopped) { abortedBy = s.reason; abort.abort(); }
+          } catch { /* a watcher that throws must never take the loop down */ }
+        }, watchIntervalMs)
+      : null;
+    if (watcher && typeof watcher.unref === "function") watcher.unref();
+
+    let resp;
+    try { resp = await ollama.generate({ model, prompt, signal: abort.signal }); }
+    finally { if (watcher) clearInterval(watcher); }
+
+    if (abortedBy) {
+      emit({ kind: "decision", gate: "halted", output: { halted_by: "stop-in-flight", reason: abortedBy, answered_by: "pending-human" } });
+      return fin({ ok: true, reason: "halted", haltedBy: "stop-in-flight", haltReason: abortedBy, turns: history, events });
+    }
+    if (!resp || !resp.ok) return fin({ ok: false, reason: resp?.reason || "ollama-unavailable", turns: history, events });
 
     const action = parseAction(resp.text);
     if (!action || !action.tool) {
@@ -266,14 +324,17 @@ export async function runLoop(opts) {
     if (action.tool === "finish" || action.done) {
       const summary = (action.args && action.args.summary) != null ? String(action.args.summary) : "";
       emit({ kind: "outcome", output: { summary, turns: history.length }, gate: "reversible" });
-      return { ok: true, reason: "done", result: summary, turns: history, events };
+      return fin({ ok: true, reason: "done", result: summary, turns: history, events });
     }
 
     // Gate BEFORE acting. Irreversible/off-allowlist → emit kind:decision, HALT.
-    const gate = gateAction(action);
-    if (gate.behavior === "deny") {
-      emit({ kind: "decision", gate: "irreversible", output: { action, reason: gate.reason, answered_by: "pending-human" } });
-      return { ok: true, reason: "gated-irreversible", pendingDecision: { action, reason: gate.reason }, turns: history, events };
+    // NOTE: named `actionGate`, not `gate` — `gate` is the injected pre-dispatch gate
+    // above, and shadowing it here would put it in the temporal dead zone for the
+    // whole turn (a ReferenceError on the very first check).
+    const actionGate = gateAction(action);
+    if (actionGate.behavior === "deny") {
+      emit({ kind: "decision", gate: "irreversible", output: { action, reason: actionGate.reason, answered_by: "pending-human" } });
+      return fin({ ok: true, reason: "gated-irreversible", pendingDecision: { action, reason: actionGate.reason }, turns: history, events });
     }
 
     // Act: exactly one allowed tool.
@@ -287,7 +348,12 @@ export async function runLoop(opts) {
     history.push({ action, observation });
   }
 
-  return { ok: true, reason: "max-turns", turns: history, events };
+  return fin({ ok: true, reason: "max-turns", turns: history, events });
+  } finally {
+    // The GPU lease is released on EVERY exit — done, halted, gated, crashed. A loop
+    // that dies holding the card turns into the orphan lease the next pilar reports.
+    try { gate && gate.release && gate.release(); } catch { /* best-effort */ }
+  }
 }
 
 // ───────────────────────── CLI (real wiring) ─────────────────────────
