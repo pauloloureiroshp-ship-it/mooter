@@ -269,3 +269,81 @@ test('criarTransporte · sem canal ou sem syncPath nao se monta (nao ha default 
   assert.throws(() => t.criarTransporte({ syncPath: SYNC_DESTRAVADO() }), /canal/);
   assert.throws(() => t.criarTransporte({ canal: 'C' }), /syncPath/);
 });
+
+// ── reconexao ───────────────────────────────────────────────────────────────
+// O `disconnect` do Slack (refresh_requested) chega de horas em horas. Estava a
+// ser classificado e ignorado: o daemon ficava com cara de "a ouvir" e nao ouvia.
+function socketFalso() {
+  const s = { enviados: [], cbs: {} };
+  for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+  s.enviar = (o) => s.enviados.push(o);
+  s.fechar = () => {};
+  return s;
+}
+
+test('correr · o `disconnect` do Slack dispara religacao (nao se fica a olhar)', async () => {
+  const sockets = [];
+  const agendados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: () => { const s = socketFalso(); sockets.push(s); return s; },
+    agendar: (fn, ms) => { agendados.push({ fn, ms }); return { unref() {} }; } });
+
+  await tr.correr({});
+  assert.equal(sockets.length, 1);
+  await sockets[0].cbs.aoMensagem(JSON.stringify({ type: 'disconnect', reason: 'refresh_requested' }));
+  assert.equal(agendados.length, 1, 'devia ter agendado uma religacao');
+
+  await agendados[0].fn();   // agora devolve a promise da religacao
+  assert.equal(sockets.length, 2, 'abriu socket novo');
+});
+
+test('correr · o socket a fechar tambem religa, com backoff crescente', async () => {
+  const sockets = []; const agendados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: () => { const s = socketFalso(); sockets.push(s); return s; },
+    agendar: (fn, ms) => { agendados.push({ fn, ms }); return { unref() {} }; } });
+
+  await tr.correr({});
+  sockets[0].cbs.aoFechar();
+  await agendados[0].fn();
+  sockets[1].cbs.aoFechar();
+  assert.equal(agendados.length, 2);
+  assert.ok(agendados[1].ms > agendados[0].ms, 'a 2a espera tem de ser maior: ' + agendados.map(a => a.ms));
+});
+
+test('correr · uma queda gera UMA religacao, nao duas (close + erro no mesmo socket)', async () => {
+  const agendados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: () => socketFalso(), agendar: (fn, ms) => { agendados.push({ fn, ms }); return { unref() {} }; } });
+  const r = await tr.correr({});
+  r.socket.cbs.aoErro(new Error('rede'));
+  r.socket.cbs.aoFechar();
+  assert.equal(agendados.length, 1, 'erro seguido de close nao pode duplicar a religacao');
+});
+
+test('correr · aoAbrir com sucesso reseta o backoff', async () => {
+  const sockets = []; const agendados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: () => { const s = socketFalso(); sockets.push(s); return s; },
+    agendar: (fn, ms) => { agendados.push({ fn, ms }); return { unref() {} }; } });
+  await tr.correr({});
+  sockets[0].cbs.aoFechar();
+  await agendados[0].fn();
+  sockets[1].cbs.aoAbrir();          // ligou bem
+  sockets[1].cbs.aoFechar();         // e caiu outra vez
+  assert.equal(agendados[1].ms, agendados[0].ms, 'depois de uma ligacao boa, a espera volta ao inicio');
+});
+
+test('correr · com reconectar:false nao religa (para quem quer um socket so)', async () => {
+  const agendados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true, reconectar: false,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: () => socketFalso(), agendar: (fn, ms) => { agendados.push({ fn, ms }); return { unref() {} }; } });
+  const r = await tr.correr({});
+  r.socket.cbs.aoFechar();
+  assert.equal(agendados.length, 0);
+});

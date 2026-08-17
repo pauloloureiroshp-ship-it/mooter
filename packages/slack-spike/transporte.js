@@ -223,6 +223,7 @@ function criarTransporte(opcoes) {
   const threads = new Map();      // job_id -> thread_ts
   const vistos = new Set();       // dedupe de re-entregas
   let threadCorrente = null;
+  let tentativasLigacao = 0;    // persiste entre religacoes — ver religar()
   const enviados = [];            // o que saiu (ou sairia, em dry-run)
 
   /**
@@ -317,11 +318,45 @@ function criarTransporte(opcoes) {
     }
   }
 
-  /** O loop. `abrirSocket` e injectavel: nos testes nao ha rede. */
+  /**
+   * O loop. `abrirSocket` e injectavel: nos testes nao ha rede.
+   *
+   * ⚠️ RECONEXAO. O Slack manda `disconnect` (reason: refresh_requested) de horas
+   * em horas e fecha o socket — e a propria doc diz que qualquer cliente tem de
+   * lidar com isso. Ate aqui o `disconnect` era CLASSIFICADO e ignorado: o daemon
+   * ficava com cara de "a ouvir" e nao ouvia mais nada, exactamente como aconteceu
+   * hoje por outra razao. Uma demo que morre sozinha ao fim da tarde nao e uma
+   * demo, e uma armadilha para o dia em que houver um estranho a ver.
+   */
   async function correr(maos) {
     const t = trancado();
     if (t) return { correu: false, porque: 'MODO VIVO trancado: ' + t };
     const abrir = o.abrirSocket || abrirSocketPorOmissao;
+    const agendar = o.agendar || ((fn, ms) => { const h = setTimeout(fn, ms); h.unref?.(); return h; });
+    const reconectar = o.reconectar !== false;
+    let vivo = true;   // por-socket: evita que close E erro contem como duas quedas
+
+    /**
+     * Uma reconexao por queda, com backoff e teto.
+     *
+     * O contador vive FORA desta funcao (em `criarTransporte`) de proposito: cada
+     * religacao entra por um `correr()` novo, e um contador local reiniciava a zero
+     * a cada tentativa — o "backoff" ficava preso em 1s para sempre e um Slack em
+     * baixo levava um pedido por segundo, indefinidamente. Era um backoff a fingir.
+     *
+     * O callback agendado DEVOLVE a promise (sem chaves): sem isso quem agenda nao
+     * consegue esperar pela religacao, e foi assim que os testes mentiram primeiro.
+     */
+    function religar(porque) {
+      if (!reconectar || !vivo) return;
+      vivo = false;                                  // este socket ja nao conta
+      tentativasLigacao += 1;
+      const espera = Math.min(30000, 1000 * Math.pow(2, tentativasLigacao - 1));
+      registar({ tipo: 'a_religar', porque, tentativa: tentativasLigacao, espera_ms: espera });
+      agendar(() => correr(maos).catch((e) => registar({ tipo: 'religar_falhou',
+        porque: (e && e.message) || 'erro' })), espera);
+    }
+
     const url = await pedirUrlDoSocket({ appToken: o.appToken, fetchImpl: o.fetchImpl });
     const s = abrir(url);
 
@@ -331,12 +366,17 @@ function criarTransporte(opcoes) {
     // Custou uma tentativa real do dono: escreveu no canal e nao houve UMA linha
     // de log a dizer o que faltava. Um daemon que nao sabe dizer se esta ligado
     // nao esta a ser observado, esta a ser assumido.
-    for (const [nome, ligar] of [['socket_aberto', s.aoAbrir], ['socket_fechado', s.aoFechar]]) {
-      if (typeof ligar === 'function') ligar(() => registar({ tipo: nome }));
+    if (typeof s.aoAbrir === 'function') {
+      s.aoAbrir(() => { tentativasLigacao = 0; registar({ tipo: 'socket_aberto' }); });
+    }
+    if (typeof s.aoFechar === 'function') {
+      s.aoFechar(() => { registar({ tipo: 'socket_fechado' }); religar('socket fechado'); });
     }
     if (typeof s.aoErro === 'function') {
-      s.aoErro((e) => registar({ tipo: 'socket_erro',
-        porque: (e && (e.message || e.type)) || 'erro sem mensagem' }));
+      s.aoErro((e) => {
+        registar({ tipo: 'socket_erro', porque: (e && (e.message || e.type)) || 'erro sem mensagem' });
+        religar('socket em erro');
+      });
     }
 
     s.aoMensagem(async (bruto) => {
@@ -351,6 +391,8 @@ function criarTransporte(opcoes) {
       if (c.precisa_ack && c.envelope_id) {
         try { s.enviar({ envelope_id: c.envelope_id }); } catch (e) { registar({ tipo: 'ack_falhou', porque: (e && e.message) || 'erro' }); }
       }
+      // o Slack avisa ANTES de fechar: religa-se aqui, nao a espera do close
+      if (c.tipo === 'disconnect') religar('disconnect do Slack: ' + (c.razao || 'n/d'));
       try { await tratarEnvelope(env, maos); } catch (e) {
         registar({ tipo: 'handler_falhou', porque: (e && e.message) || 'erro' });
       }
