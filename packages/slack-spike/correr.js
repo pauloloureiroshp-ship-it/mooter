@@ -270,9 +270,36 @@ async function principal(argv) {
       }
     };
 
+    /**
+     * ⚠️ A CORRENTE TEM DE SE SEGUIR PARA TODOS, nao so para os pendentes.
+     *
+     * O `herdarThread` corria apenas sobre `listPending()`. Mas o job que ACABA e o
+     * encadeado (o pai e a preparacao local, que expira), e um job que acaba bem
+     * nunca aparece na lista de pendentes — logo nunca herdava thread, logo nunca
+     * entrava no `publicarFechos`, logo o thread NAO fechava. Foi assim que o
+     * primeiro pedido normal do dono («lê o README e resume») correu, custou
+     * US$ 0,1154, terminou com exit 0... e o thread ficou calado no «Recebido».
+     *
+     * O fix do fecho estava certo e chegava a lista errada. Agora a corrente
+     * segue-se a partir do ledger: qualquer job cujo `prep_from` esteja no mapa
+     * herda o thread do pai, tenha pendente ou nao.
+     */
+    const seguirCorrente = (ledger) => {
+      for (const e of ledger) {
+        if (e.event !== 'dispatched' || !e.prep_from) continue;
+        if (m.transporte.threads.has(e.job_id)) continue;
+        const ts = m.transporte.threads.get(e.prep_from);
+        if (!ts) continue;
+        m.transporte.lembrarThread(e.job_id, ts);
+        console.error('[registo] ' + JSON.stringify({ tipo: 'thread_herdado',
+          job: e.job_id, de: e.prep_from }));
+      }
+    };
+
     const tique = async () => {
       try {
         const ledger = lerLedgerPorOmissao();
+        seguirCorrente(ledger);
         for (const p of m.broker.listPending({ actor: meuActor })) herdarThread(p.job_id, ledger);
         const pubs = await m.adaptador.publicarPendentes({
           filtro: { actor: meuActor },
