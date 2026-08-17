@@ -56,6 +56,38 @@ function faltamVariaveis() {
   return Object.values(VARS).filter((v) => !String(process.env[v] || '').trim());
 }
 
+/**
+ * A ligação entre a porta de saída e o transporte. **Uma função com nome, e não
+ * três linhas dentro do `montar()`, por uma razão medida:** quando isto era inline
+ * chamava `enviar(texto, p)` sem o 3.º argumento — o `publicar.js` construía o
+ * cartão inteiro e esta função atirava-o ao chão. O transporte caía no caminho de
+ * compatibilidade e o que chegava ao Slack era **uma linha com dois botões**.
+ *
+ * Nada falhou. 168 testes verdes, e o cartão pobre. Descobriu-se no telemóvel do
+ * dono, porque a parte não testada era precisamente a que não tinha nome: os
+ * testes exercitavam as PEÇAS, e a LIGAÇÃO só existia dentro de uma função grande
+ * que nenhum teste podia chamar sem tokens e sem gate.
+ *
+ * Agora tem nome, é exportada, e há um teste que a chama a ela — não a uma cópia
+ * do seu padrão. (A primeira tentativa de teste replicou a ligação em vez de a
+ * usar, e por isso também não apanhava o bug. Duas vezes o mesmo erro, uma camada
+ * acima.)
+ *
+ * O `.catch` não é decoração: `publicar()` é sincrono e chama isto sem esperar,
+ * logo um erro do Slack era uma unhandled rejection — o processo a morrer por uma
+ * mensagem falhada, a meio de uma demo.
+ */
+function ligarPublicadorAoTransporte(transporte, registar) {
+  const log = registar || ((r) => console.error('[registo] ' + JSON.stringify(r)));
+  return criarPublicador({
+    enviar: (texto, p, blocos) => {
+      transporte.enviar(texto, p, blocos).catch((e) => {
+        log({ tipo: 'envio_falhou', slack_error: (e && e.slack_error) || 'n/d' });
+      });
+    },
+  });
+}
+
 async function montar(opcoes) {
   const o = opcoes || {};
   const seco = !!o.seco;
@@ -126,14 +158,7 @@ async function montar(opcoes) {
   // O `.catch` nao e decoracao: `publicar()` e sincrono e chama isto sem esperar,
   // logo um erro do Slack no MODO VIVO era uma unhandled rejection — o processo
   // a morrer por uma mensagem falhada, a meio de uma demo.
-  const publicador = criarPublicador({
-    enviar: (texto, p) => {
-      transporte.enviar(texto, p).catch((e) => {
-        console.error('[registo] ' + JSON.stringify({ tipo: 'envio_falhou',
-          slack_error: (e && e.slack_error) || 'n/d' }));
-      });
-    },
-  });
+  const publicador = ligarPublicadorAoTransporte(transporte);
 
   // ⚠️ Em SECO o motor NAO entra. Nem atras do gate: se um dia a linha estiver no
   // SYNC.md, um `--seco` com o `toolWork` real despachava a serio enquanto as
@@ -309,4 +334,5 @@ if (require.main === module) {
   });
 }
 
-module.exports = { VARS, ENV_PATH, SYNC_PATH, RAIZ_REPO, carregarEnv, faltamVariaveis, montar, principal };
+module.exports = { VARS, ENV_PATH, SYNC_PATH, RAIZ_REPO, carregarEnv, faltamVariaveis,
+  ligarPublicadorAoTransporte, montar, principal };

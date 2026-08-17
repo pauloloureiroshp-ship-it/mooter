@@ -360,3 +360,45 @@ test('motor · o codigo do ledger vira algo que um estranho entende', () => {
   // um motor desconhecido nao se inventa: sai como esta
   assert.equal(c.motorLegivel({ valor: 'vendor-novo' }), 'vendor-novo');
 });
+
+// ── A LIGACAO, nao as pecas ────────────────────────────────────────────────
+// O bug que os outros 168 testes nao viam: `publicar()` construia o cartao e a raiz
+// de composicao chamava `enviar(texto, p)` sem o 3o argumento. Os blocos morriam ali
+// e o Slack recebia UMA LINHA. Nada falhava — so ficava pobre. Este teste liga o
+// publicador ao transporte exactamente como o `correr.js` o faz.
+test('composicao · o que chega ao Slack e o CARTAO, nao a linha de fallback', async () => {
+  const tr = criarTransporte({ canal: 'C', syncPath: comSyncDestravado(), dryRun: true });
+  // A LIGACAO REAL, importada do correr.js — nao uma copia do padrao dela.
+  // (A 1a versao deste teste replicava a ligacao, e por isso tambem nao apanhava
+  //  o bug: repor o bug em correr.js deixava o teste verde.)
+  const pub = require('./correr.js').ligarPublicadorAoTransporte(tr, () => {});
+  pub.publicar(pendente());
+  await new Promise((r) => setImmediate(r));
+
+  const corpo = tr.enviados[0].corpo;
+  const tipos = corpo.blocks.map((b) => b.type);
+  assert.ok(tipos.includes('header'), 'chegou sem header: ' + tipos.join(','));
+  assert.ok(tipos.includes('actions'), 'chegou sem botoes');
+  assert.ok(tipos.includes('context'), 'chegou sem rodape');
+  assert.ok(corpo.blocks.length >= 5,
+    'so ' + corpo.blocks.length + ' bloco(s) — isto e o caminho de fallback, nao o cartao');
+  const todo = tudo(corpo.blocks);
+  assert.match(todo, /US\$ 0,14/, 'o custo nao chegou');
+  assert.match(todo, /Impressão do pedido/, 'a impressao nao chegou');
+  assert.match(todo, /retoma o trabalho pago/, 'a consequencia nao chegou');
+});
+
+test('composicao · a decisao tambem chega como cartao, e substitui no lugar', async () => {
+  const tr = criarTransporte({ canal: 'C', syncPath: comSyncDestravado(), dryRun: true });
+  const pub = require('./correr.js').ligarPublicadorAoTransporte(tr, () => {});
+  pub.publicar(pendente());
+  await new Promise((r) => setImmediate(r));
+  pub.publicar({ tipo: 'decisao', job_id: 'job-msxato7q-cd23', estado: 'APPROVED',
+    autor: { valor: 'slack:U0BGS8N8JFL' }, auditoria: 'request=job-msxato7q-cd23' });
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(tr.enviados[1].metodo, 'chat.update');
+  const tipos = tr.enviados[1].corpo.blocks.map((b) => b.type);
+  assert.ok(tipos.includes('header'), 'a decisao chegou sem cartao: ' + tipos.join(','));
+  assert.ok(!tipos.includes('actions'), 'um pedido decidido nao oferece botoes');
+});
