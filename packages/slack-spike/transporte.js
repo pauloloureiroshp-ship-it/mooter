@@ -324,11 +324,30 @@ function criarTransporte(opcoes) {
     const abrir = o.abrirSocket || abrirSocketPorOmissao;
     const url = await pedirUrlDoSocket({ appToken: o.appToken, fetchImpl: o.fetchImpl });
     const s = abrir(url);
+
+    // ⚠️ Sem isto o socket falhava em SILENCIO. `apps.connections.open` devolver um
+    // URL nao prova que a ligacao se fez — e se o WebSocket nunca abrisse, ou
+    // fechasse a seguir, o daemon ficava com cara de "a ouvir" sem ouvir nada.
+    // Custou uma tentativa real do dono: escreveu no canal e nao houve UMA linha
+    // de log a dizer o que faltava. Um daemon que nao sabe dizer se esta ligado
+    // nao esta a ser observado, esta a ser assumido.
+    for (const [nome, ligar] of [['socket_aberto', s.aoAbrir], ['socket_fechado', s.aoFechar]]) {
+      if (typeof ligar === 'function') ligar(() => registar({ tipo: nome }));
+    }
+    if (typeof s.aoErro === 'function') {
+      s.aoErro((e) => registar({ tipo: 'socket_erro',
+        porque: (e && (e.message || e.type)) || 'erro sem mensagem' }));
+    }
+
     s.aoMensagem(async (bruto) => {
       let env;
       try { env = JSON.parse(bruto); } catch { registar({ tipo: 'envelope_ilegivel' }); return; }
       // ── ACK PRIMEIRO (ver cabecalho) ──
       const c = classificarEnvelope(env, o.botUserId);
+      // TODO envelope que chega fica registado, tipo incluido: e a unica forma de
+      // distinguir "o Slack nao me manda nada" de "manda e eu descarto"
+      registar({ tipo: 'envelope', slack_type: env && env.type, classificado: c.tipo,
+        porque: c.porque || undefined });
       if (c.precisa_ack && c.envelope_id) {
         try { s.enviar({ envelope_id: c.envelope_id }); } catch (e) { registar({ tipo: 'ack_falhou', porque: (e && e.message) || 'erro' }); }
       }
