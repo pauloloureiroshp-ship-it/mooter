@@ -117,13 +117,34 @@ async function loadedModels(fetchImpl = fetch) {
   }
 }
 
-function sendJson(res, code, obj, { cors = true } = {}) {
+/**
+ * CORS sem wildcard. `*` deixava qualquer site que o dono visitasse LER o
+ * fleet.json (nome do device, branch, contagens, GPU%) — divulgação de
+ * informação, mesmo com os verbos de controlo guardados por `originAllowed`.
+ * Agora só se ecoa a origem quando ela é loopback; um pedido sem Origin
+ * (curl, CLI local) não precisa de header nenhum.
+ */
+export function corsHeaders(origin) {
+  if (!origin) return {};
+  if (origin === 'null') return {};
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1') {
+      return { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
+    }
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+function sendJson(res, code, obj, { cors = true, origin = null } = {}) {
   const body = JSON.stringify(obj);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
-    ...(cors ? { 'Access-Control-Allow-Origin': '*' } : {}),
+    ...(cors ? corsHeaders(origin) : {}),
   });
   res.end(body);
 }
@@ -148,7 +169,7 @@ export function createServer({
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders(req.headers.origin),
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       });
