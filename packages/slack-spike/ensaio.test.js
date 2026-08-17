@@ -324,3 +324,66 @@ test('poller · e MOSTRA o pendente que nasceu no Slack', async () => {
   assert.equal(r.length, 1);
   assert.equal(enviados.length, 1);
 });
+
+// ── o FIM tem de se dizer ──────────────────────────────────────────────────
+// Um job que acaba sem pedir decisao nao produzia mensagem: o thread ficava no
+// «volto quando precisar de uma decisao» para sempre, com o trabalho a correr,
+// a gastar e a terminar bem. Foi isto que nos cegou ao vivo.
+function bancadaConcluida({ jobId = 'job-fim-1', exit = 0, evento = 'done' } = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-fim-'));
+  const agora = new Date().toISOString();
+  const eventos = [
+    { ts: agora, job_id: jobId, event: 'dispatched', agent: 'cc', wave: 'slack-spike',
+      goal: 'uma coisa pequena', actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } },
+    { ts: agora, job_id: jobId, event: evento, agent: 'cc', wave: 'slack-spike', exit_code: exit,
+      cost_usd: 0.0959, cost_usd_fonte: 'reportado pelo CLI', model_used: 'claude-haiku-4-5-20251001',
+      actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } },
+  ];
+  fs.writeFileSync(path.join(home, 'ledger.jsonl'), eventos.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  process.env.MOOTER_HOME = home;
+  return { home, jobId };
+}
+
+test('fecho · um job que acaba SEM pendente diz o FIM no thread, com custo', async () => {
+  const { jobId } = bancadaConcluida();
+  const { ad, enviados } = montar();
+  const r = await ad.publicarFechos({ jobs: [jobId] });
+  assert.equal(r.length, 1);
+  assert.equal(r[0].estado, 'concluido');
+  const t = enviados.join('\n');
+  assert.match(t, /Trabalho concluído/);
+  assert.match(t, /US\$ 0,10/, 'o fim tem de dizer quanto custou');
+  assert.match(t, new RegExp(jobId));
+});
+
+test('fecho · um job FALHADO diz que falhou e que nada foi aplicado', async () => {
+  const { jobId } = bancadaConcluida({ jobId: 'job-fim-2', evento: 'failed', exit: 1 });
+  const { ad, enviados } = montar();
+  assert.equal((await ad.publicarFechos({ jobs: [jobId] }))[0].estado, 'falhou');
+  assert.match(enviados.join('\n'), /Trabalho falhou[\s\S]*Nada foi aplicado/);
+});
+
+test('fecho · um job A ESPERA DE DECISAO nao leva fecho (esse tem cartao)', async () => {
+  const { jobId } = bancada();
+  const { ad, enviados } = montar();
+  assert.deepEqual(await ad.publicarFechos({ jobs: [jobId] }), []);
+  assert.equal(enviados.length, 0);
+});
+
+test('fecho · um prep_timeout NAO se reporta (o motor encadeia um job novo a seguir)', async () => {
+  const { jobId } = bancadaConcluida({ jobId: 'job-prep', evento: 'prep_timeout', exit: 'prep-timeout' });
+  const { ad, enviados } = montar();
+  assert.deepEqual(await ad.publicarFechos({ jobs: [jobId] }), [],
+    'anunciar «falhou» num prep encadeado era mentir sobre trabalho que continua');
+  assert.equal(enviados.length, 0);
+});
+
+test('fecho · nao se repete a cada tique do poller', async () => {
+  const { jobId } = bancadaConcluida({ jobId: 'job-fim-3' });
+  const { ad, enviados } = montar();
+  const fechados = new Set();
+  const marcar = (r) => { for (const f of r) if (f.publicado) fechados.add(f.job_id); };
+  marcar(await ad.publicarFechos({ jobs: [jobId], jaVisto: (j) => fechados.has(j) }));
+  marcar(await ad.publicarFechos({ jobs: [jobId], jaVisto: (j) => fechados.has(j) }));
+  assert.equal(enviados.length, 1, 'dois tiques, um fecho');
+});

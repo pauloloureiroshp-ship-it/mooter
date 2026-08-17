@@ -275,6 +275,33 @@ function blocosDeDecisao(p) {
   ]) };
 }
 
+/**
+ * O FECHO de um job que acabou SEM pedir decisao.
+ *
+ * ⚠️ Este cartao existe porque a sua falta enganou-nos ao vivo. O thread dizia
+ * «Recebido. Vou trabalhar e volto aqui quando precisar de uma decisao» e calava-se
+ * PARA SEMPRE — enquanto o job real corria, gastava US$ 0,096 e terminava bem. Uma
+ * unica mensagem no inicio, sem nunca fechar, e verdade que engana: quem le conclui
+ * que nada aconteceu. «Status no thread» so conta se o thread contar o fim.
+ */
+const FECHOS = Object.freeze({
+  concluido: { emoji: '🏁', verbo: 'Trabalho concluído', nota: 'Não foi preciso decidir nada.' },
+  falhou: { emoji: '⚠️', verbo: 'Trabalho falhou', nota: 'Nada foi aplicado.' },
+});
+
+function blocosDeFecho(p) {
+  const f = FECHOS[p.estado] || { emoji: '•', verbo: String(p.estado || 'terminou'), nota: null };
+  const d = dinheiro(p.custo);
+  return { blocos: [
+    secao(f.emoji + ' *' + f.verbo + '*' + (f.nota ? '\n' + f.nota : '')),
+    blocoDoDinheiro(p),
+  ], rodape: contexto([
+    'pedido `' + String(p.job_id || 'n/d') + '`',
+    'modelo `' + modeloCurto(p.modelo) + '`',
+    d.tem ? null : 'sem custo declarado por este motor',
+  ]) };
+}
+
 function blocosDeEstado(p) {
   const linha = p.job_id
     ? '⚙️ Recebido. Vou trabalhar e volto aqui quando precisar de uma decisão.  ·  `'
@@ -294,13 +321,18 @@ function notificacao(p) {
     const r = ROSTO[p.estado] || { verbo: String(p.estado || 'decisão') };
     return r.verbo + ' · ' + nome;
   }
+  if (p.tipo === 'fecho') {
+    const f = FECHOS[p.estado] || { verbo: 'Terminou' };
+    return f.verbo + ' · ' + nome + ' · ' + dinheiro(p.custo).texto;
+  }
   return p.job_id ? 'Recebido · ' + nome : 'Não aceitei o pedido';
 }
 
 function construir(payload) {
   const p = payload || {};
   const por = p.tipo === 'pendente' ? blocosDePendente
-    : (p.tipo === 'decisao' ? blocosDeDecisao : blocosDeEstado);
+    : (p.tipo === 'decisao' ? blocosDeDecisao
+      : (p.tipo === 'fecho' ? blocosDeFecho : blocosDeEstado));
   const { blocos, rodape } = por(p);
   const fora = blocos.slice();
   if (rodape && rodape.elements.length) fora.push(rodape);
@@ -312,4 +344,5 @@ module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
   fonteLegivel, dinheiro, impressaoCompleta, hashCurto, mencaoDeActor, valorDe,
   modeloCurto, motorLegivel, apelido,
   valorDoBotao, lerValorDoBotao, blocosDeAccoes,
-  blocosDePendente, blocosDeDecisao, blocosDeEstado, notificacao, construir };
+  blocosDePendente, blocosDeDecisao, blocosDeEstado, blocosDeFecho, FECHOS,
+  notificacao, construir };

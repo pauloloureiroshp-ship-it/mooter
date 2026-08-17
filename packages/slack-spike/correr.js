@@ -218,6 +218,7 @@ async function principal(argv) {
     // Slack. So sai o que nasceu aqui.
     const meuActor = 'slack:' + process.env[VARS.allowUserId];
     const vistos = new Set();
+    const fechados = new Set();   // job -> fecho ja anunciado no thread
 
     /**
      * ⚠️ A CORRENTE prep -> job real, ou o cartao cai fora do thread.
@@ -258,6 +259,19 @@ async function principal(argv) {
         // silenciosa, e silencio le-se como "nao aconteceu nada", que e o pior
         // dos diagnosticos: indistinguivel de nao ter corrido. Quarta vez hoje
         // que o problema nao era o codigo, era o que ele nao dizia.
+        // e o FIM dos que acabaram sem pedir decisao — senao o thread cala-se
+        // para sempre num «volto quando precisar de uma decisao» que nunca volta
+        for (const f of await m.adaptador.publicarFechos({
+          jobs: [...m.transporte.threads.keys()],
+          jaVisto: (job) => fechados.has(job),
+        })) {
+          if (f.publicado) {
+            fechados.add(f.job_id);
+            console.error('[registo] ' + JSON.stringify({ tipo: 'fecho_publicado',
+              job: f.job_id, estado: f.estado }));
+          }
+        }
+
         for (const p of pubs) {
           if (p.publicado) {
             vistos.add(p.job_id + ':' + p.state_hash);

@@ -196,7 +196,40 @@ function criarAdaptador(opcoes) {
     return { estado: r.estado, motivo: r.motivo, porque: r.porque || null, efemero: false };
   }
 
-  return { receberMencao, receberInteraccao, publicarPendentes, cartaoDe, registo };
+  /**
+   * ⚠️ O FIM TEM DE SE DIZER. Um job que acaba SEM pedir decisao nao produzia
+   * mensagem nenhuma: o thread ficava no «Recebido, volto quando precisar de uma
+   * decisao» para sempre, enquanto o trabalho corria, gastava e terminava bem.
+   * Foi exactamente isso que nos cegou ao vivo — «status no thread» so conta se o
+   * thread contar o FIM.
+   *
+   * So se reportam jobs ANUNCIADOS (os que este adapter despachou), e so estados
+   * REALMENTE terminais. Um `prep_timeout` nao se reporta: o motor encadeia um job
+   * novo a seguir, e anunciar «falhou» ali seria mentir sobre trabalho que continua.
+   *
+   * @param {{jobs:string[], jaVisto?:Function}} opcoes
+   */
+  async function publicarFechos(opcoes) {
+    const oo = opcoes || {};
+    const jaVisto = typeof oo.jaVisto === 'function' ? oo.jaVisto : () => false;
+    const ledger = lerEventos();
+    const out = [];
+    for (const job of [].concat(oo.jobs || [])) {
+      if (jaVisto(job)) continue;
+      const ev = broker.estadoCorrente(job, ledger);
+      if (!ev) continue;
+      if (ev.exit_code === 'agent-awaiting-approval') continue;   // esse tem cartao
+      const estado = ev.event === 'done' ? 'concluido' : (ev.event === 'failed' ? 'falhou' : null);
+      if (!estado) continue;                                     // ainda a correr, ou encadeado
+      const d = derivarDoPendente(ev);
+      const r = publicador.publicar({ tipo: 'fecho', job_id: job, estado,
+        custo: d.custo, modelo: d.modelo });
+      out.push({ job_id: job, estado, publicado: r.publicado, porque: r.porque || null });
+    }
+    return out;
+  }
+
+  return { receberMencao, receberInteraccao, publicarPendentes, publicarFechos, cartaoDe, registo };
 }
 
 module.exports = { criarAdaptador, lerLedgerPorOmissao, JA_DECIDIDO };
