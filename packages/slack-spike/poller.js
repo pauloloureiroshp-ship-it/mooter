@@ -90,6 +90,17 @@ function criarPoller(dep) {
       jaVisto: (p) => ignorados.has(p.job_id) || vistos.has(p.job_id + ':' + p.state_hash),
     });
     for (const p of pubs) {
+      // ⚠️ `publicado` diz que atravessou as barreiras; `envio` diz se o Slack
+      // aceitou. Marcar como visto so com o primeiro fazia um cartao recusado por
+      // rate_limit desaparecer para sempre — nunca chegava e nunca era retentado.
+      const entregue = p.publicado
+        ? await Promise.resolve(p.envio).then((e) => !e || e.enviado !== false).catch(() => false)
+        : false;
+      if (!entregue && p.publicado) {
+        registar({ tipo: 'cartao_nao_entregue', job: p.job_id,
+          nota: 'atravessou as barreiras mas o Slack nao o aceitou — vai ser retentado' });
+        continue;
+      }
       if (p.publicado) {
         vistos.add(p.job_id + ':' + p.state_hash);
         registar({ tipo: 'cartao_publicado', job: p.job_id,

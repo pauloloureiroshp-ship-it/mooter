@@ -82,11 +82,14 @@ function faltamVariaveis() {
 function ligarPublicadorAoTransporte(transporte, registar) {
   const log = registar || ((r) => console.error('[registo] ' + JSON.stringify(r)));
   return criarPublicador({
-    enviar: (texto, p, blocos) => {
-      transporte.enviar(texto, p, blocos).catch((e) => {
-        log({ tipo: 'envio_falhou', slack_error: (e && e.slack_error) || 'n/d' });
-      });
-    },
+    // devolve a promessa: quem publica precisa de saber se o Slack ACEITOU.
+    // Continua a apanhar o erro (um throw aqui era unhandled rejection e matava o
+    // processo a meio de uma demo), mas resolve para {enviado:false} em vez de
+    // deixar quem chamou a acreditar que foi.
+    enviar: (texto, p, blocos) => transporte.enviar(texto, p, blocos).catch((e) => {
+      log({ tipo: 'envio_falhou', slack_error: (e && e.slack_error) || 'n/d' });
+      return { enviado: false, porque: (e && e.slack_error) || 'erro do Slack' };
+    }),
   });
 }
 

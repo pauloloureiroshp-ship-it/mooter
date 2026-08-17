@@ -19,6 +19,9 @@ const os = require('os');
 const path = require('path');
 
 const { derivarDoPendente } = require('./leitura.js');
+// a regra do CAS vive numa constante NOMEADA, e e ela que governa — nao um literal
+// inline. Uma constante congelada e exportada que nada le mente sobre onde a regra vive.
+const { ACCOES_COM_CAS_ESTRITO } = require('./cartao.js');
 
 /** Leitor de ledger por omissao: SO LE. Nunca escreve — quem escreve e o broker. */
 function lerLedgerPorOmissao() {
@@ -166,8 +169,12 @@ function criarAdaptador(opcoes) {
         continue;
       }
       const r = publicador.publicar(cartaoDe(pend, ledger));
+      // ⚠️ o `envio` TEM de viajar. Construir aqui um objecto novo e esquecer um
+      // campo foi, pela terceira vez hoje, a forma de um valor morrer numa
+      // fronteira de camada — e este diz se o Slack ACEITOU. Sem ele, um cartao
+      // recusado por rate_limit era marcado como visto e nunca mais tentado.
       out.push({ job_id: pend.job_id, state_hash: pend.state_hash, publicado: r.publicado,
-        porque: r.porque || null });
+        envio: r.envio, porque: r.porque || null });
     }
     return out;
   }
@@ -188,7 +195,7 @@ function criarAdaptador(opcoes) {
     // ── o botao PARAR ──────────────────────────────────────────────────────
     // Caminho proprio: nao passa pelo broker (nao e uma decisao sobre um pedido,
     // e um stop sobre um job) e NAO recusa por CAS — ver `cancelar.js`.
-    if (ev.accao === 'parar') {
+    if (!ACCOES_COM_CAS_ESTRITO.includes(ev.accao)) {
       if (typeof o.cancelar !== 'function') {
         registo.push({ tipo: 'parar_sem_porta', job: ev.request_id, ts: agora() });
         return { estado: 'SEM_STOP', porque: 'nao ha porta de cancelamento ligada', efemero: true };
@@ -308,7 +315,8 @@ function criarAdaptador(opcoes) {
       const d = derivarDoPendente(ev);
       const r = publicador.publicar({ tipo: 'fecho', job_id: job, estado,
         custo: d.custo, modelo: d.modelo });
-      out.push({ job_id: job, estado, publicado: r.publicado, porque: r.porque || null });
+      out.push({ job_id: job, estado, publicado: r.publicado, envio: r.envio,
+        porque: r.porque || null });
     }
     return out;
   }

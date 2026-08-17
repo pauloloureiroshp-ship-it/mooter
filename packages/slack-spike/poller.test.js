@@ -181,3 +181,50 @@ test('tique · um pendente re-carimbado SEM actor continua a ser nosso', async (
   await poller.tique();
   assert.equal(enviados.length, 1, 'o cartao sumiu do Slack com o pedido ainda a espera');
 });
+
+// ── publicado != entregue (ALTO do codex) ─────────────────────────────────
+// `publicar()` e sincrono e o envio e fire-and-forget: {publicado:true} so diz que
+// o payload atravessou as barreiras. Se o Slack recusar (rate_limited), o cartao
+// nunca chega — e marcava-se como visto na mesma, logo nunca era retentado.
+test('tique · um cartao que o Slack RECUSOU nao se marca como visto (e retenta)', async () => {
+  const eventos = [{ job_id: 'j1', event: 'nao_verificado',
+    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: 'abc' }];
+  const tentativas = [];
+  const publicador = criarPublicador({
+    enviar: (t, p, b) => { tentativas.push(p.job_id); return Promise.resolve({ enviado: false, porque: 'rate_limited' }); } });
+  const brokerFalso = {
+    listPending: () => [{ job_id: 'j1', state_hash: 'abc', actor: { id: NOSSO } }],
+    estadoCorrente: () => eventos[0],
+  };
+  const adaptador = criarAdaptador({ allowlist: criarAllowlist(['U_PAULO']), publicador,
+    broker: brokerFalso, despachar: async () => ({ job_id: 'x' }), lerEventos: () => eventos });
+  const registos = [];
+  const poller = criarPoller({ adaptador, transporte: { threads: new Map() },
+    broker: brokerFalso, meuActor: NOSSO, lerLedger: () => eventos,
+    registar: (r) => registos.push(r) });
+
+  await poller.tique();
+  await poller.tique();
+  assert.equal(tentativas.length, 2, 'um cartao recusado pelo Slack tem de ser retentado');
+  assert.ok(registos.some((r) => r.tipo === 'cartao_nao_entregue'),
+    'e o silencio tem de ficar registado');
+});
+
+test('tique · um cartao ACEITE marca-se como visto e nao se repete', async () => {
+  const eventos = [{ job_id: 'j1', event: 'nao_verificado',
+    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: 'abc' }];
+  const tentativas = [];
+  const publicador = criarPublicador({
+    enviar: (t, p) => { tentativas.push(p.job_id); return Promise.resolve({ enviado: true }); } });
+  const brokerFalso = {
+    listPending: () => [{ job_id: 'j1', state_hash: 'abc', actor: { id: NOSSO } }],
+    estadoCorrente: () => eventos[0],
+  };
+  const adaptador = criarAdaptador({ allowlist: criarAllowlist(['U_PAULO']), publicador,
+    broker: brokerFalso, despachar: async () => ({ job_id: 'x' }), lerEventos: () => eventos });
+  const poller = criarPoller({ adaptador, transporte: { threads: new Map() },
+    broker: brokerFalso, meuActor: NOSSO, lerLedger: () => eventos });
+  await poller.tique();
+  await poller.tique();
+  assert.equal(tentativas.length, 1);
+});

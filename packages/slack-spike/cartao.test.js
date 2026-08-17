@@ -428,3 +428,29 @@ test('composicao · a decisao tambem chega como cartao, e substitui no lugar', a
   assert.ok(tipos.includes('header'), 'a decisao chegou sem cartao: ' + tipos.join(','));
   assert.ok(!tipos.includes('actions'), 'um pedido decidido nao oferece botoes');
 });
+
+// ── as duas guardas que o final-reviewer mostrou nao terem teste ──────────
+test('PARAR · sem impressao NAO se desenha o botao (inerte e o pior modo de falha)', () => {
+  // sem hash, `lerValorDoBotao` rejeita o clique — o botao ficava VISIVEL e MORTO.
+  // Num botao de emergencia, parecer que funciona e pior que nao estar la.
+  const b = c.construir({ tipo: 'estado', job_id: 'job-a-1234' }).blocos;
+  assert.equal(b.find((x) => x.type === 'actions'), undefined);
+  const comHash = c.construir({ tipo: 'estado', job_id: 'job-a-1234',
+    hash_esperado: 'h'.repeat(64) }).blocos;
+  assert.ok(comHash.find((x) => x.type === 'actions'));
+});
+
+test('barreira 3 · a recusa FINAL dispara quando um nome sobrevive a limpeza', () => {
+  // o cinto-por-cima-dos-suspensorios: se um nome sensivel sobreviver ao `limpar`,
+  // a porta RECUSA em vez de publicar. So se prova com um denylist que nao limpa.
+  const denylist = require('./denylist.js');
+  const limparReal = denylist.limpar;
+  denylist.limpar = (t) => ({ texto: String(t), removidos: [] });   // nao limpa nada
+  try {
+    const r = criarPublicador({ dryRun: true })
+      .publicar({ tipo: 'decisao', job_id: 'j', estado: 'REJECTED',
+        auditoria: 'falhou a ler segredo.env' });
+    assert.equal(r.publicado, false, 'um nome sensivel sobreviveu e a porta deixou passar');
+    assert.match(r.porque, /nome sensivel apos limpeza/);
+  } finally { denylist.limpar = limparReal; }
+});

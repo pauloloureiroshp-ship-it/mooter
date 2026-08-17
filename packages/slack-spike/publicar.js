@@ -206,8 +206,14 @@ function criarPublicador(opcoes) {
     const registo = { texto, blocos, removidos: lista, ts: new Date().toISOString() };
     historico.push(registo);
     if (dryRun) return { publicado: true, dry_run: true, texto, blocos, removidos: lista };
-    enviar(texto, p, blocos);
-    return { publicado: true, dry_run: false, texto, blocos, removidos: lista };
+    // ⚠️ PUBLICADO NAO E "ENTREGUE". O `enviar` e fire-and-forget (esta funcao e
+    // sincrona), logo isto so pode dizer que o payload ATRAVESSOU as barreiras.
+    // Devolve-se a promessa em `envio` para quem precisa da verdade: o poller so
+    // marca um cartao como visto DEPOIS de o Slack o aceitar. Sem isto, um
+    // `rate_limited` fazia o cartao nunca chegar e nunca mais ser tentado.
+    const envio = enviar(texto, p, blocos);
+    return { publicado: true, dry_run: false, texto, blocos, removidos: lista,
+      envio: envio && typeof envio.then === 'function' ? envio : Promise.resolve(envio) };
   }
 
   return { publicar, historico, CAMPOS_PERMITIDOS };
