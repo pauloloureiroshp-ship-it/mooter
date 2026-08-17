@@ -14,6 +14,14 @@
 ## 🩸 A VERDADE QUE MOTIVA (não maquilhar)
 Medido a 2026-08-17: **829 achados · 0 triados · 0 executados.** O 4090 **fora da frota** (0 beacons). A poupança do routing **não medida**. **Utilização de GPU (99%) ≠ valor.** O loop *acha* e para. As melhorias vieram do humano, não do loop. **Este MP existe para fechar exatamente essa lacuna.**
 
+## 🥊 CORREÇÕES DO GAUNTLET (2026-08-17 · obrigatórias · pesquisa pública)
+O design passou pelo gauntlet e **falhou num ponto** — corrigido aqui, tem precedência sobre as fases:
+1. **Confiança NÃO vem de votos de modelos.** Concordância entre LLMs correlaciona fraquíssimo com correção (ρ 0.20–0.59; modelos erram juntos por viés partilhado). → Na **F-A**, a confiança vem de **ground-truth**: o achado **reproduz-se** (escrever repro) · o fix **passa o teste** · o `ratchet` mexe. Votação = só **prioridade fraca**, nunca o gate. Ancorar num **analisador estático real** (não o moo sozinho).
+2. **Padrão dois-modelos validado (F-C/F-E):** implementer e reviewer de **linhagens DIFERENTES** (ex: qwen-coder + exaone/outra família — mesma família tira a razão do setup); **reviewer read-only** (senão começa a corrigir e dissolve autor/revisor); **cap de 2 rondas** (senão ping-pong infinito); ambos **residentes**.
+3. **F-0 · RECON DE PRIOR ART (antes de construir o F-C):** avaliar **OpenHands / aider / SWE-agent** e **local-llm-code-review** como base — não reinventar o executor achado→fix→PR do zero. Roubar padrões testados.
+> Confirmado por todos: **o gate humano é obrigatório** — um 30B local é um *primeiro filtro antes de um humano ler o `git diff`*, nunca substituto. Reforça "PR/merge/deploy = só o Paulo".
+> Fontes: arxiv 2607.08065 (concordância≠correção) · cmaven dual-model Ollama · Datadog LLM-filtra-SAST · OpenHands/SWE-agent.
+
 ## 🎯 GOAL
 Transformar o Moo Pilot de *mostrador* em *ferramenta que entrega fixes*: **achado → triagem → ação → PR → deploy**, com **um botão por descoberta** e **dropdown de LLM por ação** (local $0 → subscription por custo). Cada fix é ROI medível. Gates irreversíveis sempre do Paulo.
 
@@ -57,7 +65,7 @@ Abrir PR · merge · push `main` · deploy · tag · modelo residente · secrets
 - Loop-until-dry na triagem: repete rondas de votação até 2 rondas sem achado novo confirmado.
 
 ## 🔜 NEXT
-`F-A (triagem) → F-B (card+dropdown) → F-C (executor+worktree)` — este trio já entrega o primeiro fix real. Depois `F-D → F-E → F-F`.
+`F-0 (recon prior art) → F-A (triagem por ground-truth) → F-B (card+dropdown) → F-C (executor dois-modelos+worktree)` — este quarteto já entrega o primeiro fix real. Depois `F-D → F-E → F-F`.
 
 ## ↩ BACK
 Recibo 7 blocos (objetivo · mediu · propôs · não-verificou · custo · duração · próximo) + `mooter_setup({sessao:'registar', decisoes:[...]})`. ≤3 ações, ≤1 pergunta.
