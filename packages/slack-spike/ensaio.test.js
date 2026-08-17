@@ -17,7 +17,8 @@ const crypto = require('crypto');
 const broker = require('../mooter-bridge/broker.js');
 const { criarAllowlist } = require('./allowlist.js');
 const { criarPublicador } = require('./publicar.js');
-const { criarAdaptador } = require('./adapter.js');
+const { criarAdaptador, lerLedgerPorOmissao } = require('./adapter.js');
+const transporte = require('./transporte.js');
 
 const MP_TEXTO = '# masterprompt de ensaio\n\nfaz uma coisa pequena.\n';
 const MP_HASH = crypto.createHash('sha256').update(MP_TEXTO, 'utf8').digest('hex');
@@ -207,4 +208,55 @@ test('cartao · leva custo/modelo/autor e NUNCA goal, worktree ou masterprompt',
   assert.ok(!texto.includes('uma coisa pequena'), 'o goal vazou para o cartao');
   assert.ok(!texto.includes('C:\\repo'), 'o worktree vazou para o cartao');
   assert.ok(!texto.includes(MP_HASH), 'o mp_hash vazou para o cartao');
+});
+
+// ── o round-trip do cartao (o buraco que faltava) ─────────────────────────
+// Ate aqui provava-se o cartao E provava-se o clique, mas nunca com o cartao a
+// ALIMENTAR o clique. No meio faltava o `hash_esperado`: o `cartaoDe` nao o
+// punha, e sem ele o botao nascia sem CAS — ou seja, sem botao nenhum.
+test('round-trip · o cartao do pendente REAL gera botoes, e o botao decide o MESMO pedido', async () => {
+  const { jobId } = bancada();
+  const { ad } = montar();
+
+  const pend = broker.listPending()[0];
+  const cartao = ad.cartaoDe(pend, lerLedgerPorOmissao());
+  assert.equal(cartao.hash_esperado, pend.state_hash,
+    'o hash tem de viajar NO cartao: e o cartao que o botao carrega de volta');
+
+  const blocos = transporte.blocosDoCartao('texto do cartao', cartao);
+  const accoes = blocos.find((b) => b.type === 'actions');
+  assert.ok(accoes, 'sem botoes nao ha demo');
+  const botaoAprovar = accoes.elements.find((e) => e.action_id === transporte.ACCOES.aprovar);
+
+  // o clique regressa pelo caminho do Slack, com o hash QUE ESTAVA no cartao
+  const c = transporte.classificarEnvelope({
+    type: 'interactive', envelope_id: 'e1',
+    payload: { type: 'block_actions', user: { id: 'U_PAULO' }, message: { ts: '1700.1' },
+      actions: [{ action_id: botaoAprovar.action_id, action_ts: '1700.9', value: botaoAprovar.value }] },
+  }, 'U0BOT');
+  assert.equal(c.dados.request_id, jobId);
+  assert.equal(c.dados.expected_state_hash, pend.state_hash);
+
+  const r = await ad.receberInteraccao(c.dados);
+  assert.equal(r.estado, 'APPROVED');
+});
+
+test('round-trip · o botao do cartao ANTIGO leva um clique atrasado a STALE, nao a decisao', async () => {
+  bancada();
+  const { ad } = montar();
+  const pend = broker.listPending()[0];
+  const cartao = ad.cartaoDe(pend, lerLedgerPorOmissao());
+  const botao = transporte.blocosDoCartao('t', cartao)
+    .find((b) => b.type === 'actions').elements[0];
+
+  // o mundo mexeu-se depois de o cartao sair: o hash do cartao envelheceu
+  const c = transporte.classificarEnvelope({
+    type: 'interactive', envelope_id: 'e2',
+    payload: { type: 'block_actions', user: { id: 'U_PAULO' }, message: { ts: '1.1' },
+      actions: [{ action_id: botao.action_id, action_ts: '2.0',
+        value: transporte.valorDoBotao(cartao.job_id, 'aprovar', 'hash-de-um-cartao-velho') }] },
+  }, 'U0BOT');
+
+  const r = await ad.receberInteraccao(c.dados);
+  assert.equal(r.estado, 'STALE', 'o hash do cartao e que manda — ler um hash fresco matava isto');
 });

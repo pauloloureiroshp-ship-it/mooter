@@ -83,6 +83,12 @@ function criarAdaptador(opcoes) {
     const d = derivarDoPendente(evento);
     return { tipo: 'pendente', job_id: pendente.job_id, wave: pendente.wave || null,
       autor: d.autor, motor: d.motor, modelo: d.modelo, custo: d.custo, diff_stat: d.diff_stat,
+      // O hash VAI no cartao porque e o cartao que o botao carrega de volta. Sem
+      // ele o clique chegaria sem `expected_state_hash` e havia duas saidas, as
+      // duas mas: recusar toda a decisao, ou ler o hash fresco no clique — e ler
+      // fresco fazia o clique atrasado passar por valido, matando o STALE que o
+      // masterprompt manda gravar (kimi #4). Ja estava em CAMPOS_PERMITIDOS.
+      hash_esperado: pendente.state_hash || null,
       accoes: ['aprovar', 'recusar'],
       texto: 'aprova ou recusa este pedido' };
   }

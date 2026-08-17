@@ -60,6 +60,49 @@ test('gate · uma linha PARECIDA nao destrava (a frase e um contrato, nao uma pi
   assert.equal(r.vivo, false);
 });
 
+// ── o formato com que a frase VAI nascer num SYNC.md ──────────────────────
+// A frase escreve-se a mao, num ficheiro markdown, por quem fecha a outra
+// frente. Exigi-la byte-a-byte fazia o gate ficar trancado no dia do destrave —
+// e a pessoa sob pressao ia "arranjar" o gate em vez do texto.
+test('gate · destrava com a frase como bullet — e assim que uma linha nasce num SYNC.md', () => {
+  assert.equal(gate.modoVivo({ syncPath: comSync('## Estado\n\n- ' + gate.LINHA_DESTRAVE + '\n') }).vivo, true);
+});
+
+test('gate · destrava com travessao escrito a hifen (o erro de escrita mais provavel)', () => {
+  assert.equal(gate.modoVivo({
+    syncPath: comSync('- kimi-egress FECHADA - slack-spike destravado\n'),
+  }).vivo, true);
+});
+
+test('gate · destrava em negrito, em citacao e com espacos a mais', () => {
+  for (const linha of [
+    '**kimi-egress FECHADA — slack-spike destravado**',
+    '> kimi-egress FECHADA — slack-spike destravado',
+    '*   kimi-egress   FECHADA  —  slack-spike destravado   ',
+    '- `kimi-egress FECHADA — slack-spike destravado`',
+  ]) {
+    assert.equal(gate.modoVivo({ syncPath: comSync(linha + '\n') }).vivo, true, 'devia destravar: ' + linha);
+  }
+});
+
+test('gate · NAO destrava com a frase dentro de prosa (a tolerancia so anda para o lado seguro)', () => {
+  for (const linha of [
+    'quando a kimi-egress FECHADA — slack-spike destravado, entao arrancamos',
+    'objectivo desta semana: kimi-egress FECHADA — slack-spike destravado',
+    '- [ ] kimi-egress FECHADA — slack-spike destravado (ainda nao)',
+    '- kimi-egress FECHADA — slack-spike destravado?',
+  ]) {
+    assert.equal(gate.modoVivo({ syncPath: comSync(linha + '\n') }).vivo, false,
+      'NAO devia destravar: ' + linha);
+  }
+});
+
+test('gate · o SYNC.md real deste repo NAO destrava (a frente kimi-egress esta aberta)', () => {
+  const real = path.join(__dirname, '..', '..', 'SYNC.md');
+  const r = gate.modoVivo({ syncPath: real });
+  assert.equal(r.vivo, false, 'se isto falhar, a linha entrou no SYNC.md e o MODO VIVO esta destravado');
+});
+
 // ── allowlist de UM id, usada nos DOIS caminhos (kimi #1 — ALTO) ──────────
 test('allowlist · permite o id de dentro e recusa o de fora', () => {
   const a = criarAllowlist(['U_PAULO']);

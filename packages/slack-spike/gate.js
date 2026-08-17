@@ -14,11 +14,43 @@
  * Fail-closed em todos os ramos: ficheiro que nao existe, que nao se le, ou que
  * nao tem a frase EXACTA => trancado. Uma frase parecida nao conta: isto e um
  * contrato entre duas frentes, nao uma pista para adivinhar.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * PORQUE A COMPARACAO E POR LINHA INTEIRA, MAS TOLERA O FORMATO
+ *
+ * Exigir a linha byte-a-byte tinha um footgun com data marcada: num SYNC.md a
+ * frase nasce quase sempre como bullet (`- kimi-egress FECHADA — ...`), e o
+ * travessao `—` escreve-se com frequencia como `-`. No dia do destrave o gate
+ * continuaria trancado, e a pessoa sob pressao ia "arranjar" ESTE ficheiro em
+ * vez do texto — isto e, desligar a guarda para passar.
+ *
+ * Por isso normaliza-se o ACIDENTE (marcador de lista/citacao, negrito, crases,
+ * tipo de travessao, NBSP, espacos repetidos, capitalizacao) e mantem-se o
+ * ESSENCIAL: a frase tem de ser a linha INTEIRA. Uma frase dentro de prosa
+ * («quando a kimi-egress FECHADA — slack-spike destravado, entao...») continua a
+ * NAO destravar, porque a linha nao e so a frase. A tolerancia so anda na
+ * direccao segura: nunca transforma prosa em autorizacao.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 const fs = require('fs');
 
 const LINHA_DESTRAVE = 'kimi-egress FECHADA — slack-spike destravado';
+
+/** Tira o acidente de formatacao e deixa a frase. Nao tira contexto: prosa continua prosa. */
+function normalizarLinha(linha) {
+  return String(linha == null ? '' : linha)
+    .replace(/ /g, ' ')            // NBSP colado por copy-paste
+    .replace(/^[\s>*+\-]+/, '')         // marcadores de lista e de citacao
+    .replace(/[\s*`]+$/, '')            // fecho de negrito/crase
+    .replace(/^[`]+/, '')               // abertura de crase
+    .replace(/[—–‒]/g, '-') // em-dash, en-dash, figure-dash -> '-'
+    .replace(/\s+/g, ' ')               // espacos repetidos
+    .trim()
+    .toLowerCase();
+}
+
+const DESTRAVE_NORMALIZADO = normalizarLinha(LINHA_DESTRAVE);
 
 function modoVivo(opcoes) {
   const o = opcoes || {};
@@ -34,8 +66,8 @@ function modoVivo(opcoes) {
       porque: 'SYNC.md nao foi lido (' + (e && e.code ? e.code : 'erro') + ') — sem prova de que a '
         + 'kimi-egress fechou, o MODO VIVO fica trancado' };
   }
-  const linhas = texto.split(/\r?\n/).map((l) => l.trim());
-  if (linhas.includes(LINHA_DESTRAVE)) {
+  const linhas = texto.split(/\r?\n/).map(normalizarLinha);
+  if (linhas.includes(DESTRAVE_NORMALIZADO)) {
     return { vivo: true, linha: LINHA_DESTRAVE, porque: 'a linha de destrave esta no SYNC.md' };
   }
   return { vivo: false, linha: LINHA_DESTRAVE,
@@ -43,4 +75,4 @@ function modoVivo(opcoes) {
       + 'ainda manda, e o MODO VIVO fica trancado' };
 }
 
-module.exports = { LINHA_DESTRAVE, modoVivo };
+module.exports = { LINHA_DESTRAVE, DESTRAVE_NORMALIZADO, modoVivo, normalizarLinha };
