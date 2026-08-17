@@ -1,9 +1,10 @@
 #!/bin/bash
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GH="$HOME/.local/bin/gh"; [ -x "$GH" ] || GH="$(command -v gh)"
-LOG="$HOME/frugal/_handoff/fix-f5.log"; : > "$LOG"
+LOG="$REPO/_handoff/fix-f5.log"; : > "$LOG"
 echo "O gh vai pedir UM código novo (para ganhar permissão de workflow). Autoriza no browser." | tee -a "$LOG"
 "$GH" auth refresh -h github.com -s workflow 2>&1 | tee -a "$LOG"
-cd "$HOME/frugal" || exit 1
+cd "$REPO" || exit 1
 echo "→ push f5..." | tee -a "$LOG"
 git push https://github.com/pauloloureiroshp-ship-it/mooter.git chore/f5-higiene-ci 2>&1 | tee -a "$LOG"
 echo "→ PR f5..." | tee -a "$LOG"

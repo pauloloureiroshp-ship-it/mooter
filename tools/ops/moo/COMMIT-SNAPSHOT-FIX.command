@@ -1,6 +1,7 @@
 #!/bin/bash
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GH="$HOME/.local/bin/gh"; [ -x "$GH" ] || GH="$(command -v gh)"
-cd "$HOME/frugal" || exit 1
+cd "$REPO" || exit 1
 BR="$(git branch --show-current)"
 echo "═══ branch: $BR ═══"
 if [ "$BR" != "feat/f1-runner-canonico" ]; then echo "⚠️ não estou na f1 — abortado"; sleep 20; exit 1; fi

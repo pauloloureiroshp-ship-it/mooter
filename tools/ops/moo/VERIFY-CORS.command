@@ -1,5 +1,6 @@
 #!/bin/bash
-cd "$HOME/frugal" || exit 1
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$REPO" || exit 1
 echo "═══ reiniciar o F10 com o fix ═══"
 pkill -f "tools/cockpit/runner/f10-server.mjs" 2>/dev/null && echo "→ F10 antigo terminado"
 sleep 2

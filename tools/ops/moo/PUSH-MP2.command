@@ -1,6 +1,7 @@
 #!/bin/bash
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GH="$HOME/.local/bin/gh"; [ -x "$GH" ] || GH="$(command -v gh)"
-cd "$HOME/frugal" || exit 1
+cd "$REPO" || exit 1
 echo "═══ estado ═══"; git branch --show-current
 if ! "$GH" auth status -h github.com >/dev/null 2>&1; then
   echo "❌ gh não autenticado. Roda GO-GITHUB.command primeiro."; sleep 25; exit 1

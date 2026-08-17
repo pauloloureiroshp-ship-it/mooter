@@ -1,6 +1,7 @@
 #!/bin/bash
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GH="$HOME/.local/bin/gh"; [ -x "$GH" ] || GH="$(command -v gh)"
-cd "$HOME/frugal" || exit 1
+cd "$REPO" || exit 1
 BR="$(git branch --show-current)"
 if ! "$GH" auth status -h github.com >/dev/null 2>&1; then echo "❌ gh"; sleep 20; exit 1; fi
 git add _handoff/MP_HIPER_MOO_PILOT_CICLO_DE_VALOR_2026-08-17.md

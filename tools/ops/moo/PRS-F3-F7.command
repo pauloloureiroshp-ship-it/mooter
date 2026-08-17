@@ -1,7 +1,8 @@
 #!/bin/bash
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GH="$HOME/.local/bin/gh"; [ -x "$GH" ] || GH="$(command -v gh)"
-LOG="$HOME/frugal/_handoff/prs.log"; : > "$LOG"
-cd "$HOME/frugal" || exit 1
+LOG="$REPO/_handoff/prs.log"; : > "$LOG"
+cd "$REPO" || exit 1
 echo "→ PR f3..." | tee -a "$LOG"
 "$GH" pr create -R pauloloureiroshp-ship-it/mooter --base main --head feat/f3-stop-killswitch --title "feat(F3): STOP vira kill-switch medido, não decorativo" --body "Kill-switch único do motor (o mesmo STOP do ▶/⏸ do Moo Pilot). Auditado ✅ (4e9c41e8)." 2>&1 | tee -a "$LOG" | tail -1
 echo "→ PR f7..." | tee -a "$LOG"

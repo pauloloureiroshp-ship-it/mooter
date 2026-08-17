@@ -1,6 +1,7 @@
 #!/bin/bash
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GH="$HOME/.local/bin/gh"; [ -x "$GH" ] || GH="$(command -v gh)"
-cd "$HOME/frugal" || exit 1; BR="$(git branch --show-current)"
+cd "$REPO" || exit 1; BR="$(git branch --show-current)"
 echo "═══ testes antes de empurrar ═══"
 OUT=$(node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/skill-moo-pilot.test.mjs 2>&1)
 echo "$OUT" | grep -E "^# (pass|fail)"

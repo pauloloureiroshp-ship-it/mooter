@@ -1,2 +1,3 @@
 #!/bin/bash
-exec bash "$HOME/frugal/_handoff/go-github-2026-08-16.sh"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+exec bash "$REPO/_handoff/go-github-2026-08-16.sh"
