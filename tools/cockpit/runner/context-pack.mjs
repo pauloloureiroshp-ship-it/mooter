@@ -135,6 +135,73 @@ const SYSTEM_PROMPT = [
   '- Sem preâmbulo, sem explicação extra, sem markdown.',
 ].join('\n');
 
+/**
+ * Modo ANCORADO. O moo deixa de caçar achados (o que media 85% de nitpick) e passa
+ * a julgar um achado que uma MÁQUINA já encontrou. Um LLM é bom a julgar contexto
+ * e mau a ser detetor primário — por isso o detetor é o eslint e o juiz é o moo.
+ */
+export const ANCHORED_SYSTEM_PROMPT = [
+  'És um revisor do Mooter a correr localmente. Uma ferramenta de análise estática',
+  'apontou uma linha. O teu trabalho é JULGAR esse apontamento — não procurar outro.',
+  '',
+  'Responde EXACTAMENTE num destes dois formatos, sem mais nada:',
+  '',
+  'ACHADO: <sintoma> QUANDO <condição que o dispara> ENTÃO <impacto concreto>',
+  'PROVA: <caminho do ficheiro>:<número da linha>',
+  '',
+  'ou, se o apontamento não for um defeito real neste contexto:',
+  '',
+  'FALSO POSITIVO: <porque é seguro aqui, numa frase>',
+  'PROVA: <caminho do ficheiro>:<número da linha>',
+  '',
+  'Regras:',
+  '- Cita a MESMA linha que a ferramenta apontou.',
+  '- FALSO POSITIVO é uma resposta CERTA e valiosa — muitos avisos são intencionais',
+  '  (um `null` honesto, um catch que é mesmo para engolir, um regex sobre input fixo).',
+  '- Nunca inventes ficheiros nem números. Sem preâmbulo, sem markdown.',
+].join('\n');
+
+/** Regras que valem mais: defeito provável primeiro, estilo/ruído por último. */
+const RULE_PRIORITY = {
+  'require-atomic-updates': 0,
+  'no-dupe-keys': 1,
+  'no-unreachable': 1,
+  'no-self-compare': 1,
+  'no-fallthrough': 2,
+  'no-empty': 3,
+  'security/detect-child-process': 3,
+  'security/detect-unsafe-regex': 5,
+};
+
+/**
+ * Lê os achados da âncora estática. Devolve [] em qualquer falha — uma âncora
+ * ausente nunca deve parar uma ronda, só faz o runner voltar ao modo de caça.
+ */
+export function readAnchor(anchorPath, { readImpl = fs.readFileSync } = {}) {
+  if (!anchorPath) return [];
+  let raw;
+  try {
+    raw = readImpl(anchorPath, 'utf8');
+  } catch {
+    return [];
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((x) => x && typeof x.file === 'string' && Number.isInteger(x.line) && x.line > 0)
+    .sort((a, b) => {
+      const pa = RULE_PRIORITY[a.rule] ?? 4;
+      const pb = RULE_PRIORITY[b.rule] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return String(a.file).localeCompare(String(b.file));
+    });
+}
+
 /** Reads a file and returns its lines, or null when it does not exist. */
 function readLines(repoRoot, relPath) {
   const abs = path.join(repoRoot, relPath);
@@ -189,9 +256,54 @@ export function renderSlice(lines, startLine, maxLines = MAX_SLICE_LINES) {
  *            question, system, prompt, allowedFiles: string[]}}
  *        | {ok: false, reason: string, pillar: string}
  */
-export function buildContextPack({ repoRoot, pillar, cursor = 0, maxLines = MAX_SLICE_LINES }) {
+export function buildContextPack({
+  repoRoot,
+  pillar,
+  cursor = 0,
+  maxLines = MAX_SLICE_LINES,
+  anchorPath = null,
+}) {
   const spec = PILLARS[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
+
+  // ---- modo ANCORADO: julgar um achado que a máquina já encontrou ----
+  const anchors = readAnchor(anchorPath);
+  if (anchors.length > 0) {
+    const hit = anchors[Math.abs(cursor) % anchors.length];
+    const hitLines = readLines(repoRoot, hit.file);
+    if (hitLines && hitLines.length > 0 && hit.line <= hitLines.length) {
+      // Janela centrada na linha apontada: o juiz precisa do que está em volta.
+      const half = Math.floor(maxLines / 2);
+      const slice = renderSlice(hitLines, Math.max(1, hit.line - half), maxLines);
+      const prompt = [
+        `Pilar: ${pillar} — ${spec.label}`,
+        `Ficheiro: ${hit.file} (linhas ${slice.startLine}-${slice.endLine} de ${hitLines.length})`,
+        '',
+        `A ferramenta apontou a LINHA ${hit.line}, regra "${hit.rule}":`,
+        `  ${String(hit.msg || '').slice(0, 200)}`,
+        '',
+        slice.text,
+        '',
+        `Julga o apontamento na linha ${hit.line}. É defeito real ou falso positivo?`,
+      ].join('\n');
+      return {
+        ok: true,
+        anchored: true,
+        anchorRule: hit.rule,
+        anchorLine: hit.line,
+        pillar,
+        label: spec.label,
+        file: hit.file,
+        startLine: slice.startLine,
+        endLine: slice.endLine,
+        lineCount: hitLines.length,
+        question: `julgar ${hit.rule} em ${hit.file}:${hit.line}`,
+        system: ANCHORED_SYSTEM_PROMPT,
+        prompt,
+        allowedFiles: [hit.file],
+      };
+    }
+  }
 
   const candidates = resolveCandidates(repoRoot, pillar);
   if (candidates.length === 0) {
@@ -221,6 +333,7 @@ export function buildContextPack({ repoRoot, pillar, cursor = 0, maxLines = MAX_
 
   return {
     ok: true,
+    anchored: false,
     pillar,
     label: spec.label,
     file,

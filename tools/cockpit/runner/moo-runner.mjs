@@ -34,6 +34,8 @@ const STATE = path.join(MOO_DIR, 'runner-state.json');
 const LOCK = path.join(MOO_DIR, 'runner.lock');
 const CURSOR = path.join(MOO_DIR, 'runner-cursor.json');
 const FOCUS = path.join(MOO_DIR, 'runner-focus.json');
+// Achados da análise estática (eslint). Ausente = o runner volta ao modo de caça.
+const ANCORA = path.join(MOO_DIR, 'ancora-achados.json');
 
 const SLEEP_MIN_S = 15;
 const SLEEP_MAX_S = 30;
@@ -207,6 +209,7 @@ async function main() {
         model: DEFAULT_MODEL,
         endpoint: DEFAULT_OLLAMA,
         stopFile: STOP_FILE,
+        anchorPath: ANCORA,
       }));
     } catch (err) {
       // A crash must still leave a trace: a silent gap in the ledger is the one

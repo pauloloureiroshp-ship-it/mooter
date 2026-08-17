@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -366,4 +366,51 @@ test('runRound faz recibo honesto quando o motor local esta em baixo', async () 
 test('nextPillar roda sem sair do conjunto', () => {
   assert.equal(nextPillar(0, ['P1', 'P2']), 'P1');
   assert.equal(nextPillar(3, ['P1', 'P2']), 'P2');
+});
+
+// ---------------------------------------------------------------- âncora estática
+
+test('readAnchor devolve [] sem ficheiro, sem json valido, ou sem array', () => {
+  assert.deepEqual(readAnchor(null), []);
+  assert.deepEqual(readAnchor('/caminho/que/nao/existe.json'), []);
+  assert.deepEqual(readAnchor('x.json', { readImpl: () => 'nao é json' }), []);
+  assert.deepEqual(readAnchor('x.json', { readImpl: () => '{"nao":"array"}' }), []);
+});
+
+test('readAnchor descarta entradas invalidas e poe as regras que valem primeiro', () => {
+  const raw = JSON.stringify([
+    { file: 'a.js', line: 10, rule: 'security/detect-unsafe-regex', msg: 'regex' },
+    { file: 'b.js', line: 0, rule: 'no-empty', msg: 'linha invalida' },
+    { file: 'c.js', rule: 'no-empty', msg: 'sem linha' },
+    { file: 'd.js', line: 5, rule: 'require-atomic-updates', msg: 'corrida' },
+    { file: 'e.js', line: 7, rule: 'no-empty', msg: 'catch vazio' },
+  ]);
+  const got = readAnchor('x.json', { readImpl: () => raw });
+  assert.equal(got.length, 3, 'entradas sem linha valida sao descartadas');
+  assert.equal(got[0].rule, 'require-atomic-updates', 'corrida vem primeiro');
+  assert.equal(got[got.length - 1].rule, 'security/detect-unsafe-regex', 'regex fica para o fim');
+});
+
+test('com ancora, o pack entra em modo ANCORADO e manda julgar a linha apontada', () => {
+  const root = fixtureRepo();
+  const alvo = { file: 'tools/router/classify.js', line: 3, rule: 'no-empty', msg: 'Empty block statement.' };
+  const anchorFile = path.join(root, 'ancora.json');
+  fs.writeFileSync(anchorFile, JSON.stringify([alvo]));
+  const pack = buildContextPack({ repoRoot: root, pillar: 'P1', anchorPath: anchorFile });
+  assert.equal(pack.ok, true);
+  assert.equal(pack.anchored, true, 'devia estar em modo ancorado');
+  assert.equal(pack.file, alvo.file, 'o pack segue o ficheiro da ancora, nao a rotacao do pilar');
+  assert.equal(pack.anchorLine, 3);
+  assert.equal(pack.anchorRule, 'no-empty');
+  assert.equal(pack.system, ANCHORED_SYSTEM_PROMPT, 'usa o prompt de juiz, nao o de cacador');
+  assert.match(pack.prompt, /A ferramenta apontou a LINHA 3/);
+  assert.match(pack.prompt, /Empty block statement/);
+  assert.match(pack.system, /FALSO POSITIVO/, 'o juiz tem de poder recusar o apontamento');
+});
+
+test('sem ancora legivel, o pack volta ao modo de caca e diz que nao esta ancorado', () => {
+  const pack = buildContextPack({ repoRoot: fixtureRepo(), pillar: 'P1', anchorPath: '/nao/existe.json' });
+  assert.equal(pack.ok, true);
+  assert.equal(pack.anchored, false, 'ancora ausente nunca deve parar a ronda');
+  assert.ok(pack.prompt.length > 0);
 });
