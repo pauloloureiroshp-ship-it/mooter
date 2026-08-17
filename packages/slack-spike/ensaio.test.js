@@ -419,3 +419,108 @@ test('silenciar · um job ignorado nao se anuncia, mas CONTINUA na fila', async 
   assert.equal(r[0].publicado, false);
   assert.equal(broker.listPending().length, 1, 'silenciar NAO pode tirar da fila');
 });
+
+// ── o botao PARAR (decisao de maestro H3: cancelar > progresso) ────────────
+const { criarCancelador } = require('./cancelar.js');
+const cartao = require('./cartao.js');
+
+function comSyncVivo() {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-stop-'));
+  const p = path.join(d, 'SYNC.md');
+  fs.writeFileSync(p, '# SYNC\n\n' + require('./gate.js').LINHA_DESTRAVE + '\n');
+  return p;
+}
+
+test('parar · o CAS NAO bloqueia um stop (um clique atrasado tem de parar na mesma)', async () => {
+  const vistos = [];
+  const { cancelar } = criarCancelador({ syncPath: comSyncVivo(),
+    toolCancel: async (a) => { vistos.push(a); return { job_id: a.job_id, state: 'cancelled' }; } });
+  // hash deliberadamente velho: com CAS estrito isto seria recusado
+  const r = await cancelar({ job_id: 'job-1', actor: null, hash_visto: '0000dead' });
+  assert.equal(r.parado, true, 'o botao de emergencia falhou exactamente quando o estado muda');
+  assert.equal(vistos.length, 1);
+});
+
+test('parar · um job JA TERMINADO e no-op, nao erro (idempotente)', async () => {
+  const { cancelar } = criarCancelador({ syncPath: comSyncVivo(),
+    toolCancel: async () => ({ job_id: 'j', state: 'done',
+      note: 'já estava terminado — nada a fazer (idempotente)' }) });
+  const r = await cancelar({ job_id: 'j' });
+  assert.equal(r.parado, true);
+  assert.equal(r.estado, 'JA_TERMINADO');
+});
+
+test('parar · com o SYNC trancado o stop NAO chega ao motor', async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-stop2-'));
+  fs.writeFileSync(path.join(d, 'SYNC.md'), '# SYNC\n\nnada aqui\n');
+  let chamou = false;
+  const { cancelar } = criarCancelador({ syncPath: path.join(d, 'SYNC.md'),
+    toolCancel: async () => { chamou = true; return {}; } });
+  const r = await cancelar({ job_id: 'j' });
+  assert.equal(r.parado, false);
+  assert.equal(chamou, false);
+});
+
+test('parar · allowlist do stop: nada fora de job_id/actor/hash_visto atravessa', async () => {
+  let chamou = false;
+  const { cancelar } = criarCancelador({ syncPath: comSyncVivo(),
+    toolCancel: async () => { chamou = true; return {}; } });
+  const r = await cancelar({ job_id: 'j', worktree: 'C:\Users\Paulo\paulo-vault' });
+  assert.equal(r.parado, false);
+  assert.match(r.porque_local, /fora da allowlist do stop/);
+  assert.equal(chamou, false);
+});
+
+test('parar · o adapter chama a porta do stop e publica o desfecho COM o custo', async () => {
+  const { jobId } = bancada();
+  const enviados = [];
+  const publicador = criarPublicador({
+    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(b)); } });
+  const ad = criarAdaptador({ allowlist: criarAllowlist(['U_PAULO']), publicador, broker,
+    despachar: async () => ({ job_id: 'x' }),
+    cancelar: async () => ({ parado: true, estado: 'PARADO' }) });
+  const r = await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'parar',
+    request_id: jobId, expected_state_hash: 'seja-o-que-for' });
+  assert.equal(r.estado, 'PARADO');
+  const t = enviados.join('\n');
+  assert.match(t, /🛑/);
+  assert.match(t, /US\$ 0,62/, 'o custo ATE ao stop e a informacao mais util deste cartao');
+  assert.match(t, /accao=parar/, 'a auditoria tem de registar o stop');
+});
+
+test('parar · um clique de terceiro no PARAR tambem morre na allowlist', async () => {
+  let chamou = false;
+  const { ad } = montar();
+  const ad2 = criarAdaptador({ allowlist: criarAllowlist(['U_PAULO']),
+    publicador: criarPublicador({ dryRun: true }), broker,
+    despachar: async () => ({ job_id: 'x' }),
+    cancelar: async () => { chamou = true; return { parado: true, estado: 'PARADO' }; } });
+  const r = await ad2.receberInteraccao({ user_id: 'U_ESTRANHO', accao: 'parar',
+    request_id: 'j', expected_state_hash: 'h' });
+  assert.equal(r.estado, 'IGNORADO');
+  assert.equal(chamou, false, 'o stop de um estranho nem chega a porta');
+  void ad;
+});
+
+test('cartao de estado · o heartbeat SO mostra numeros quando ha numeros reais', () => {
+  const semNada = cartao.construir({ tipo: 'estado', job_id: 'job-a-1234',
+    hash_esperado: 'h'.repeat(64) });
+  assert.match(JSON.stringify(semNada.blocos), /Recebido/);
+  assert.ok(!/passos/.test(JSON.stringify(semNada.blocos)), 'inventou progresso do nada');
+
+  const comNumeros = cartao.construir({ tipo: 'estado', job_id: 'job-a-1234',
+    hash_esperado: 'h'.repeat(64), passos: 4, segundos: 72 });
+  const t = JSON.stringify(comNumeros.blocos);
+  assert.match(t, /4 passos/);
+  assert.match(t, /1m12s/);
+  assert.ok(!/%/.test(t), 'uma percentagem seria inventada — nao ha denominador');
+});
+
+test('cartao de estado · tem botao PARAR, e sem confirmacao (stop com atrito nao e stop)', () => {
+  const b = cartao.construir({ tipo: 'estado', job_id: 'job-a-1234', hash_esperado: 'h'.repeat(64) }).blocos;
+  const acc = b.find((x) => x.type === 'actions');
+  assert.ok(acc, 'nao ha botao de parar');
+  assert.equal(acc.elements[0].action_id, cartao.ACCOES.parar);
+  assert.ok(!acc.elements[0].confirm, 'um stop de emergencia com confirmacao chega tarde');
+  assert.ok(!acc.elements[0].style, 'o vermelho aqui leria-se como "acao perigosa"');
+});

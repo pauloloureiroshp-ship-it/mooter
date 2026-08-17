@@ -153,6 +153,42 @@ function criarAdaptador(opcoes) {
       return { estado: 'IGNORADO', porque: p.porque, efemero: true };
     }
 
+    // ── o botao PARAR ──────────────────────────────────────────────────────
+    // Caminho proprio: nao passa pelo broker (nao e uma decisao sobre um pedido,
+    // e um stop sobre um job) e NAO recusa por CAS — ver `cancelar.js`.
+    if (ev.accao === 'parar') {
+      if (typeof o.cancelar !== 'function') {
+        registo.push({ tipo: 'parar_sem_porta', job: ev.request_id, ts: agora() });
+        return { estado: 'SEM_STOP', porque: 'nao ha porta de cancelamento ligada', efemero: true };
+      }
+      const c = await o.cancelar({ job_id: ev.request_id, actor: actorDe(ev.user_id),
+        hash_visto: ev.expected_state_hash || null });
+      if (!c.parado) {
+        registo.push({ tipo: 'stop_recusado', job: ev.request_id, ts: agora(),
+          porque_local: c.porque_local || 'sem razao declarada' });
+        if (typeof o.registar === 'function') {
+          o.registar({ tipo: 'stop_recusado', job: ev.request_id,
+            porque_local: c.porque_local || 'sem razao declarada' });
+        }
+        return { estado: c.estado, porque: c.porque_local || null, efemero: true };
+      }
+      // o custo ATE AO STOP e a informacao mais util deste cartao («parei-o aos
+      // US$ 0,40»). Deriva-se do ledger, como no cartao da decisao — a variante
+      // nova nao pode repetir o bug de mostrar n/d com o numero gravado.
+      const dc = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
+      publicador.publicar({ tipo: 'decisao', job_id: ev.request_id,
+        estado: c.estado === 'JA_TERMINADO' ? 'JA_TERMINADO' : 'PARADO',
+        custo: dc.custo, modelo: dc.modelo,
+        autor: { valor: actorDe(ev.user_id).id },
+        auditoria: ['request=' + ev.request_id, 'accao=parar', 'estado=' + c.estado,
+          'actor=' + actorDe(ev.user_id).id,
+          'hash_visto=' + String(ev.expected_state_hash || 'n/d').slice(0, 12) + '…'].join(' · '),
+        texto: c.estado === 'JA_TERMINADO'
+          ? 'o trabalho já tinha acabado — nada foi interrompido'
+          : 'o trabalho foi interrompido a teu pedido' });
+      return { estado: c.estado, efemero: false };
+    }
+
     const veredicto = ev.accao === 'aprovar' ? 'aprovar' : 'recusar';
     const r = await broker.decide({
       actor: actorDe(ev.user_id),

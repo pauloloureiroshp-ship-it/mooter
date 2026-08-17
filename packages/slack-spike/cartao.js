@@ -135,7 +135,22 @@ function apelido(jobId) {
 
 // ── botoes ──────────────────────────────────────────────────────────────────
 
-const ACCOES = Object.freeze({ aprovar: 'mooter_aprovar', recusar: 'mooter_recusar' });
+const ACCOES = Object.freeze({ aprovar: 'mooter_aprovar', recusar: 'mooter_recusar',
+  parar: 'mooter_parar' });
+
+/**
+ * ⚠️ O CAS NAO PODE BLOQUEAR UM STOP.
+ *
+ * O `aprovar`/`recusar` levam CAS estrito: um clique atrasado NAO decide, porque
+ * autorizar o que nao se viu e o erro que o STALE existe para apanhar.
+ *
+ * O `parar` leva o hash na mesma — mesma forma, mesma auditabilidade — mas NAO se
+ * recusa por divergencia. Um clique atrasado sobre um agente descontrolado tem de o
+ * parar a mesma; recusar «porque o estado mudou» seria o botao de emergencia a
+ * falhar exactamente quando o estado esta a mudar depressa. O `toolCancel` ja e
+ * idempotente sobre jobs terminados (no-op, nao erro), que e a outra metade.
+ */
+const ACCOES_COM_CAS_ESTRITO = Object.freeze(['aprovar', 'recusar']);
 
 /** Identificadores e a IMPRESSAO do cartao — nunca conteudo. */
 function valorDoBotao(jobId, accao, hash) {
@@ -146,7 +161,7 @@ function lerValorDoBotao(valor) {
   let o;
   try { o = JSON.parse(String(valor == null ? '' : valor)); } catch { return { ok: false, porque: 'nao e JSON' }; }
   if (!o || typeof o !== 'object') return { ok: false, porque: 'nao e objecto' };
-  const accao = o.a === 'aprovar' ? 'aprovar' : (o.a === 'recusar' ? 'recusar' : null);
+  const accao = ACCOES[o.a] ? o.a : null;
   if (!accao) return { ok: false, porque: 'accao desconhecida' };
   if (!o.j) return { ok: false, porque: 'sem job_id' };
   if (!o.h) return { ok: false, porque: 'sem hash — sem CAS nao se decide' };
@@ -183,6 +198,23 @@ function blocosDeAccoes(p) {
 }
 
 // ── blocos ──────────────────────────────────────────────────────────────────
+
+/**
+ * O botao PARAR, no cartao de estado enquanto o job corre.
+ *
+ * SEM `confirm`: um stop de emergencia com atrito nao e um stop. O custo de parar
+ * por engano e baixo (repete-se o pedido); o custo de NAO conseguir parar e ver um
+ * agente a fazer asneira na propria maquina, de longe, sem nada que se faca.
+ * Sem `style:'danger'` tambem: o vermelho aqui leria-se como "acao perigosa", e a
+ * accao perigosa e a outra — deixar correr.
+ */
+function blocoDeParar(p) {
+  if (!p.job_id || !p.hash_esperado) return null;
+  return { type: 'actions', block_id: 'moo_p', elements: [{
+    type: 'button', action_id: ACCOES.parar,
+    text: { type: 'plain_text', emoji: false, text: 'Parar' },
+    value: valorDoBotao(p.job_id, 'parar', p.hash_esperado) }] };
+}
 
 const secao = (texto, extra) => Object.assign(
   { type: 'section', text: { type: 'mrkdwn', text: texto } }, extra || {});
@@ -236,6 +268,8 @@ const ROSTO = Object.freeze({
   REJECTED: { emoji: '❌', verbo: 'Recusado', extra: null },
   STALE: { emoji: '⏳', verbo: 'Decisão não aplicada', extra: null },
   EXPIRED: { emoji: '⌛', verbo: 'Expirado', extra: null },
+  PARADO: { emoji: '🛑', verbo: 'Parado', extra: 'O trabalho foi interrompido. Nada ficou a meio sem se saber.' },
+  JA_TERMINADO: { emoji: '🏁', verbo: 'Já tinha acabado', extra: 'O stop chegou depois do fim — nada foi interrompido.' },
 });
 
 function blocosDeDecisao(p) {
@@ -306,11 +340,28 @@ function blocosDeFecho(p) {
 }
 
 function blocosDeEstado(p) {
-  const linha = p.job_id
-    ? '⚙️ Recebido. Vou trabalhar e volto aqui quando precisar de uma decisão.  ·  `'
-      + p.job_id + '`'
-    : '⚠️ Não consegui aceitar este pedido. Nada foi iniciado.';
-  return { blocos: [secao(linha)], rodape: null };
+  if (!p.job_id) {
+    return { blocos: [secao('⚠️ Não consegui aceitar este pedido. Nada foi iniciado.')],
+      rodape: null };
+  }
+  const passos = Number(p.passos || 0);
+  const seg = Number(p.segundos || 0);
+  // o heartbeat SO acrescenta numeros quando ja ha numeros REAIS para acrescentar.
+  // Sem passos e sem tempo, e o primeiro estado: nao se inventa progresso nenhum.
+  const linha = (passos || seg)
+    ? '⚙️ *A trabalhar* · ' + passos + ' ' + (passos === 1 ? 'passo' : 'passos')
+      + ' · ' + duracao(seg)
+    : '⚙️ Recebido. Vou trabalhar e volto aqui quando precisar de uma decisão.';
+  const blocos = [secao(linha)];
+  const parar = blocoDeParar(p);
+  if (parar) blocos.push(parar);
+  return { blocos, rodape: contexto(['pedido `' + p.job_id + '`']) };
+}
+
+/** `1m12s` — nunca uma percentagem, nunca um ETA: nao ha denominador honesto. */
+function duracao(seg) {
+  const s = Math.max(0, Math.round(Number(seg) || 0));
+  return s < 60 ? s + 's' : Math.floor(s / 60) + 'm' + String(s % 60).padStart(2, '0') + 's';
 }
 
 /** O texto do push: o unico que o telemovel mostra antes de abrir. */
@@ -348,4 +399,5 @@ module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
   modeloCurto, motorLegivel, apelido,
   valorDoBotao, lerValorDoBotao, blocosDeAccoes,
   blocosDePendente, blocosDeDecisao, blocosDeEstado, blocosDeFecho, FECHOS,
+  blocoDeParar, duracao, ACCOES_COM_CAS_ESTRITO,
   notificacao, construir };

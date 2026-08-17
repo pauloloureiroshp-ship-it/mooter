@@ -42,7 +42,8 @@ const API = 'https://slack.com/api/';
 const { ACCOES, valorDoBotao, lerValorDoBotao } = cartao;   // o contrato vive no cartao.js
 
 /** So estes fecham um pedido. O STALE nao fecha nada — ver `enviar()`. */
-const ESTADOS_FINAIS = Object.freeze(['APPROVED', 'REJECTED', 'EXPIRED', 'NEGADO']);
+const ESTADOS_FINAIS = Object.freeze(['APPROVED', 'REJECTED', 'EXPIRED', 'NEGADO',
+  'PARADO', 'JA_TERMINADO']);
 
 // ── nucleo puro (testavel sem rede) ─────────────────────────────────────────
 

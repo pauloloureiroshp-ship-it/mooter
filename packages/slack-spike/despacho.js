@@ -104,6 +104,8 @@ function criarDespachador(opcoes) {
    * pasta onde um agente escreve nao e coisa que deva poder vir de uma mencao.
    */
   const worktree = o.worktree || null;
+  /** `false` mata a preparacao local (os 20s). Ver a nota em `correr.js`. */
+  const preDigest = o.preDigest !== false;
   if (typeof toolWork !== 'function') {
     throw new Error('criarDespachador precisa de `toolWork` — a porta do motor nao se adivinha');
   }
@@ -144,6 +146,7 @@ function criarDespachador(opcoes) {
     // 4 · o motor. O `worktree` entra AQUI, de configuracao — nunca do pedido.
     const args = { goal: p.goal, agent: m.motor, wave: p.wave, actor: p.actor };
     if (worktree) args.worktree = worktree;
+    if (!preDigest) args.pre_digest = false;
     let r;
     try {
       r = await toolWork(args);

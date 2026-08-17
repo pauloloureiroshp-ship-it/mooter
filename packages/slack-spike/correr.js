@@ -27,6 +27,7 @@ const { criarAllowlist } = require('./allowlist.js');
 const { criarPublicador } = require('./publicar.js');
 const { criarAdaptador, lerLedgerPorOmissao } = require('./adapter.js');
 const { criarDespachador } = require('./despacho.js');
+const { criarCancelador } = require('./cancelar.js');
 const { criarTransporte } = require('./transporte.js');
 const { descobrirTudo, escreverEnv } = require('./descobrir.js');
 
@@ -178,8 +179,17 @@ async function montar(opcoes) {
       // Sem isto, o toolWork herdava `(ctx && ctx.folder) || REPO` e o 1o despacho
       // real morreu em «worktree fora da raiz permitida».
       worktree: process.env.SLACK_WORKTREE
-        || path.join(RAIZ_REPO, '..', 'slack-demo') });
-  const adaptador = criarAdaptador({ allowlist, publicador, broker, despachar,
+        || path.join(RAIZ_REPO, '..', 'slack-demo'),
+      // ⚠️ MATAR OS 20s, NAO DECORAR (decisao de maestro). A preparacao local
+      // expirou em TODOS os despachos T2/T3 medidos hoje: 20 segundos em que o
+      // sistema nao trabalha, esta a desistir. Nao afecta o caminho local — em
+      // seamless.js `wantsPrepare = pre_digest && agent !== 'moo'`, logo quando o
+      // tier resolve T0 a prep ja nao nascia. Verificado no codigo, nao assumido.
+      preDigest: false });
+  const { cancelar } = seco
+    ? { cancelar: async (p) => ({ parado: true, estado: 'PARADO', nota: 'seco' }) }
+    : criarCancelador({ toolCancel: seamless.toolCancel, syncPath });
+  const adaptador = criarAdaptador({ allowlist, publicador, broker, despachar, cancelar,
     registar: (r) => console.error('[registo]', JSON.stringify(r)) });
 
   return { montado: true, seco, adaptador, transporte, publicador, broker, allowlist, syncPath,
