@@ -1,5 +1,20 @@
 # Wave 41-46 — Friends Activation Mega · Report
 
+> **Nota de arquivo (2026-08-15).** Este relatório vivia na RAIZ do repositório e foi
+> movido para cá sem uma vírgula alterada no corpo. O motivo não é que mentisse — é o
+> contrário, e a distinção interessa: ele cita `classify.js` sha `7b01eb8623a0b8fc…` como
+> INTACT, o que era **verdade quando foi escrito**. O relatório é de `af6d054a`
+> (2026-06-09 18:58 −03) e o `classify.js` só mudou às **21:05 do mesmo dia**, em
+> `341b0a92` (wave49-p2), quando o sha congelado passou a
+> `427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f` — o valor que CI e
+> canon aplicam hoje. Verificado por `git rev-list` sobre todas as versões do ficheiro:
+> `7b01eb86…` foi de facto um sha real do `classify.js`, válido até 2026-06-01.
+>
+> O problema era de LOCALIZAÇÃO, não de honestidade: um relatório de wave parado na raiz
+> é lido como estado corrente, e quem o cruzasse com o canon de hoje concluiria que o
+> invariante congelado tinha sido violado. Relatórios de wave pertencem a
+> `docs/archive/sessions/` (AGENTS.md § Information architecture).
+
 **Branch:** `feat/wave41_46-friends-activation` → **PR #143** (base `main`, NOT merged)
 **Expected tag (Paulo, post-merge):** `v1.24.0-friends-activation`
 **Date:** 2026-06-09 · Doctrine V4 honest > forced

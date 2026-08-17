@@ -102,3 +102,67 @@ test('reports non-empty deletion buckets', (t) => {
   assert.deepEqual(del.files, ['_handoff/_to_delete'], 'the non-empty bucket is named');
   assert.equal(report.ok, true, 'deletion buckets are warn-first');
 });
+
+// ── Stashes: the quietest way to lose work in this repo ────────────────────
+test('stashes are REPORTED as drift, never touched', () => {
+  const f = fixture();
+  const gitLines = (_repo, args) => (args[0] === 'stash'
+    ? ['stash@{0}: WIP on main: abc123 meio caminho', 'stash@{1}: WIP on wave58: def456 experiencia']
+    : []);
+  const report = doctor.inspectRepo(f.root, { expectedClassifierSha: f.expectedClassifierSha, gitLines });
+
+  assert.ok(codes(report).has('STASHES_PRESENT'));
+  assert.equal(report.summary.stashes, 2);
+  const item = report.findings.find((i) => i.code === 'STASHES_PRESENT');
+  assert.equal(item.severity, 'warn', 'drift, not a hard failure — what to do with a stash is the human_s call');
+  assert.equal(item.files.length, 2);
+});
+
+test('no stashes → no finding; git unavailable → n/d, never a fabricated zero', () => {
+  const f = fixture();
+  const clean = doctor.inspectRepo(f.root, { expectedClassifierSha: f.expectedClassifierSha, gitLines: () => [] });
+  assert.equal(clean.summary.stashes, 0);
+  assert.equal(codes(clean).has('STASHES_PRESENT'), false);
+
+  const blind = doctor.inspectRepo(f.root, { expectedClassifierSha: f.expectedClassifierSha, gitLines: () => null });
+  assert.equal(blind.summary.stashes, null, 'unmeasured must be null, not 0');
+  assert.match(doctor.renderHuman(blind), /stashes n\/d/);
+});
+
+// ── Ratchet: the gate that survives a 204-packet backlog ───────────────────
+const rpt = (summary) => ({ summary: { findings: { error: 0, warn: 0 }, ...summary } });
+const base = (limites) => ({ limites });
+
+test('ratchet: equal passes; lower passes and is reported as an improvement', () => {
+  const b = base({ sync_lines: 3682, active_packets: 204 });
+  const same = doctor.ratchet(rpt({ sync_lines: 3682, active_packets: 204 }), b);
+  assert.equal(same.ok, true);
+  assert.equal(same.improvements.length, 0);
+
+  const better = doctor.ratchet(rpt({ sync_lines: 200, active_packets: 12 }), b);
+  assert.equal(better.ok, true);
+  assert.equal(better.improvements.length, 2);
+  assert.match(doctor.renderRatchet(better), /melhorou sync_lines/);
+});
+
+test('ratchet: ONE metric getting worse fails the gate, and says by how much', () => {
+  const r = doctor.ratchet(rpt({ sync_lines: 3683, active_packets: 204 }), base({ sync_lines: 3682, active_packets: 204 }));
+  assert.equal(r.ok, false);
+  assert.equal(r.regressions.length, 1);
+  assert.deepEqual(r.regressions[0], { key: 'sync_lines', actual: 3683, max: 3682, delta: 1 });
+  assert.match(doctor.renderRatchet(r), /piorou 1/);
+});
+
+test('ratchet: an UNMEASURED metric is n/d — it neither passes nor fails silently', () => {
+  const r = doctor.ratchet(rpt({ sync_lines: 100, stashes: null }), base({ sync_lines: 3682, stashes: 0 }));
+  assert.equal(r.unmeasured.length, 1);
+  assert.equal(r.unmeasured[0].key, 'stashes');
+  assert.match(doctor.renderRatchet(r), /n\/d stashes/);
+  assert.equal(r.ok, true, 'n/d is not a regression — but it is printed, never hidden');
+});
+
+test('ratchet: a metric absent from the baseline is simply not ratcheted yet', () => {
+  const r = doctor.ratchet(rpt({ sync_lines: 99999 }), base({ active_packets: 204 }));
+  assert.equal(r.ok, true);
+  assert.equal(r.regressions.length, 0);
+});

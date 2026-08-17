@@ -9,6 +9,8 @@
     "test:handoff-preflight": "node --test tools/handoff-preflight.test.js",
     "handoff:hygiene": "node tools/docs-hygiene.js",
     "handoff:hygiene:strict": "node tools/docs-hygiene.js --strict",
+    "handoff:hygiene:ratchet": "node tools/docs-hygiene.js --ratchet",
+    "handoff:hygiene:baseline": "node tools/docs-hygiene.js --update-baseline",
     "test:docs-hygiene": "node --test tools/docs-hygiene.test.js"
   },
   "devDependencies": {

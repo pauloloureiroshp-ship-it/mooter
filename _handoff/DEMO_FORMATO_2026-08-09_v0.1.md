@@ -163,6 +163,6 @@ declaradas por quem chama:
 com cada condição em falta **e** que, quando abre, o banner cai junto com o mock. Um teste que
 só provasse a recusa passaria à toa se o portão nunca abrisse.
 
-**Artefacto desta sessão:** `_handoff/demo-formato-2026-08-09.html`
+**Artefacto desta sessão:** `_handoff/_archive/2026-08/demo-formato-2026-08-09.html`
 (sha256 `6bacb54806df2832993f30242f49f525d48e032ae45870dba4e7466db76ab91f`) — 14 lances reais,
 ROM-sonda homebrew construída no repo, **zero assets Nintendo**. Seguro para galeria.
