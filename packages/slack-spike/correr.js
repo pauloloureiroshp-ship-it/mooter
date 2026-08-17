@@ -30,6 +30,7 @@ const { criarDespachador } = require('./despacho.js');
 const { criarCancelador } = require('./cancelar.js');
 const { criarTransporte } = require('./transporte.js');
 const { descobrirTudo, escreverEnv } = require('./descobrir.js');
+const { criarPoller } = require('./poller.js');
 
 const RAIZ_REPO = path.resolve(__dirname, '..', '..');
 const ENV_PATH = path.join(__dirname, '.env');
@@ -243,138 +244,30 @@ async function principal(argv) {
 
   const r = await m.transporte.correr(maos);
   if (r.correu) {
-    // ⚠️ O SOCKET NAO TRAZ PENDENTES. Ele traz mencoes e cliques; o pendente
-    // nasce no ledger, minutos depois, quando o agente para a pedir aprovacao.
-    // Sem este poller o cartao nunca aparecia e a demo morria no passo 3 — havia
-    // `publicarPendentes()` desde o inicio e ninguem o chamava.
-    //
-    // O filtro por actor nao e afinacao: e o que impede o primeiro tique de
-    // despejar no canal os pendentes historicos do ledger, que ninguem pediu no
-    // Slack. So sai o que nasceu aqui.
-    const meuActor = 'slack:' + process.env[VARS.allowUserId];
-    const vistos = new Set();
-    /**
-     * Jobs a NAO mostrar, por decisao de quem opera (`SLACK_IGNORAR_JOBS`, separados
-     * por virgula). Nasceu de um caso concreto: um pendente de um goal patologico —
-     * que pedia aprovacao a si proprio em ciclo, a US$ 0,63 a volta — ficou na fila,
-     * e o `vistos` vive em memoria, logo cada religar do daemon voltava a por o botao
-     * mais caro de clicar por engano a frente do dono. Silenciar nao e decidir: o
-     * pendente CONTINUA na fila e continua decidivel; so deixa de se anunciar.
-     */
-    const ignorados = new Set(String(process.env.SLACK_IGNORAR_JOBS || '')
-      .split(',').map((s) => s.trim()).filter(Boolean));
-    if (ignorados.size) {
+    // ⚠️ O SOCKET NAO TRAZ PENDENTES. Ele traz mencoes e cliques; o pendente nasce
+    // no ledger, minutos depois. O poller vive em `poller.js` — extraido de aqui
+    // depois de um critico externo mostrar que, inline, era indemonstravel: mutar
+    // qualquer uma das suas quatro pecas deixava a suite VERDE.
+    const poller = criarPoller({
+      adaptador: m.adaptador, transporte: m.transporte, broker: m.broker,
+      meuActor: 'slack:' + process.env[VARS.allowUserId],
+      ignorados: new Set(String(process.env.SLACK_IGNORAR_JOBS || '')
+        .split(',').map((x) => x.trim()).filter(Boolean)),
+      lerLedger: lerLedgerPorOmissao,
+      registar: (x) => console.error('[registo] ' + JSON.stringify(x)),
+    });
+    if (poller.ignorados.size) {
       console.error('[registo] ' + JSON.stringify({ tipo: 'jobs_silenciados',
-        jobs: [...ignorados], nota: 'continuam na fila; so nao se anunciam' }));
+        jobs: [...poller.ignorados], nota: 'continuam na fila; so nao se anunciam' }));
     }
-    const fechados = new Set();   // job -> fecho ja anunciado no thread
-
-    /**
-     * ⚠️ A CORRENTE prep -> job real, ou o cartao cai fora do thread.
-     *
-     * Quando ha preparacao local, o `toolWork` dispara DOIS jobs e devolve o id do
-     * PRIMEIRO (a prep, `agent:moo`). Foi esse que o thread anunciou. Se a prep
-     * expira, o motor encadeia o job real com um id NOVO — e o cartao desse job
-     * nao tinha thread conhecido, logo aterrava no canal em vez de debaixo da
-     * mencao. A promessa «sigo neste thread» passava a falsa por um detalhe de
-     * implementacao do motor.
-     *
-     * O elo esta no ledger: o `dispatched` do job real traz `prep_from`. Herda-se
-     * o thread do pai antes de publicar.
-     */
-    const herdarThread = (jobId, ledger) => {
-      if (m.transporte.threads.has(jobId)) return;
-      const disp = ledger.find((e) => e.job_id === jobId && e.event === 'dispatched');
-      const pai = disp && disp.prep_from;
-      const ts = pai && m.transporte.threads.get(pai);
-      if (ts) {
-        m.transporte.lembrarThread(jobId, ts);
-        console.error('[registo] ' + JSON.stringify({ tipo: 'thread_herdado',
-          job: jobId, de: pai }));
-      }
-    };
-
-    /**
-     * ⚠️ A CORRENTE TEM DE SE SEGUIR PARA TODOS, nao so para os pendentes.
-     *
-     * O `herdarThread` corria apenas sobre `listPending()`. Mas o job que ACABA e o
-     * encadeado (o pai e a preparacao local, que expira), e um job que acaba bem
-     * nunca aparece na lista de pendentes — logo nunca herdava thread, logo nunca
-     * entrava no `publicarFechos`, logo o thread NAO fechava. Foi assim que o
-     * primeiro pedido normal do dono («lê o README e resume») correu, custou
-     * US$ 0,1154, terminou com exit 0... e o thread ficou calado no «Recebido».
-     *
-     * O fix do fecho estava certo e chegava a lista errada. Agora a corrente
-     * segue-se a partir do ledger: qualquer job cujo `prep_from` esteja no mapa
-     * herda o thread do pai, tenha pendente ou nao.
-     */
-    const seguirCorrente = (ledger) => {
-      for (const e of ledger) {
-        if (e.event !== 'dispatched' || !e.prep_from) continue;
-        if (m.transporte.threads.has(e.job_id)) continue;
-        const ts = m.transporte.threads.get(e.prep_from);
-        if (!ts) continue;
-        m.transporte.lembrarThread(e.job_id, ts);
-        console.error('[registo] ' + JSON.stringify({ tipo: 'thread_herdado',
-          job: e.job_id, de: e.prep_from }));
-      }
-    };
-
-    const tique = async () => {
-      try {
-        const ledger = lerLedgerPorOmissao();
-        seguirCorrente(ledger);
-        for (const p of m.broker.listPending()) herdarThread(p.job_id, ledger);
-        // pertenca derivada do LEDGER, nao do estado corrente: a reconciliacao do
-        // motor re-carimba jobs antigos SEM actor e um filtro por actor perde-os
-        const nossos = m.adaptador.jobsNossos(ledger, meuActor);
-        const pubs = await m.adaptador.publicarPendentes({
-          pertence: (job) => nossos.has(job),
-          jaVisto: (p) => ignorados.has(p.job_id) || vistos.has(p.job_id + ':' + p.state_hash),
-        });
-        // ⚠️ O RESULTADO DA PUBLICACAO TEM DE SE VER. O cartao deste pendente
-        // passava o `publicar()` e o poller corria — e ficamos sem saber se saiu,
-        // porque nada registava o desfecho. Uma recusa da porta de saida era
-        // silenciosa, e silencio le-se como "nao aconteceu nada", que e o pior
-        // dos diagnosticos: indistinguivel de nao ter corrido. Quarta vez hoje
-        // que o problema nao era o codigo, era o que ele nao dizia.
-        // e o FIM dos que acabaram sem pedir decisao — senao o thread cala-se
-        // para sempre num «volto quando precisar de uma decisao» que nunca volta
-        for (const f of await m.adaptador.publicarFechos({
-          jobs: [...m.transporte.threads.keys()],
-          jaVisto: (job) => ignorados.has(job) || fechados.has(job),
-        })) {
-          if (f.publicado) {
-            fechados.add(f.job_id);
-            console.error('[registo] ' + JSON.stringify({ tipo: 'fecho_publicado',
-              job: f.job_id, estado: f.estado }));
-          }
-        }
-
-        for (const p of pubs) {
-          if (p.publicado) {
-            vistos.add(p.job_id + ':' + p.state_hash);
-            console.error('[registo] ' + JSON.stringify({ tipo: 'cartao_publicado',
-              job: p.job_id, hash: String(p.state_hash || '').slice(0, 12) }));
-          } else if (p.porque && !/ja publicado/i.test(p.porque)) {
-            console.error('[registo] ' + JSON.stringify({ tipo: 'cartao_RECUSADO',
-              job: p.job_id, porque: p.porque }));
-          }
-        }
-      } catch (e) {
-        console.error('[registo] ' + JSON.stringify({ tipo: 'poller_falhou',
-          porque: (e && e.message) || 'erro' }));
-      }
-    };
-    m.poller = setInterval(tique, Number(process.env.SLACK_POLL_MS || 5000));
+    m.poller = setInterval(() => {
+      poller.tique().catch((e) => console.error('[registo] ' + JSON.stringify({
+        tipo: 'poller_falhou', porque: (e && e.message) || 'erro' })));
+    }, Number(process.env.SLACK_POLL_MS || 5000));
     m.poller.unref?.();
-    await tique();
+    await poller.tique();
   }
-  if (!r.correu) {
-    console.error('✋ o socket nao abriu: ' + r.porque);
-    process.exitCode = 1;
-    return m;
-  }
+
   const est = morte.estadoDeMorte();
   console.error('🐮 slack-spike a ouvir' + (m.seco ? ' (SECO — nada sai)' : '')
     + ' · morre em ' + est.morre_em + ' (' + est.dias_restantes + ' dias)');

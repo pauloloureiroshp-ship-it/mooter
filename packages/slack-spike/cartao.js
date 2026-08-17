@@ -17,11 +17,15 @@
  * isso: este modulo e PURO, a porta chama-o, varre a arvore inteira, e o
  * transporte so entrega o que a porta aprovou.
  *
- * VOCABULARIO FECHADO. Nada do ledger e impresso cru. `cost_usd_fonte`,
- * `agent` e `model_used` passam por mapas de traducao; um valor que os mapas nao
- * conhecam nao e mostrado — e, no caso do custo, o NUMERO tambem nao sai. Isto
- * fecha na origem o unico vector que a allowlist de campos nao cobria: as folhas
- * (`fonte`, `porque`) sao texto livre que vem do ledger.
+ * VOCABULARIO FECHADO — e agora e verdade nos tres campos.
+ *   `cost_usd_fonte` -> mapa fechado; procedencia desconhecida => o NUMERO nao sai
+ *   `agent`          -> mapa fechado; fora do mapa => n/d (era: valor cru)
+ *   `model_used`     -> GRAMATICA fechada; o que nao tem forma de id => n/d
+ *
+ * Isto nasceu refutado: um critico externo (codex, read-only) meteu um canario em
+ * `modelo.valor` e ele SAIU para o Slack. O comentario que aqui estava afirmava as
+ * tres guardas e so uma existia. Um comentario a afirmar uma guarda inexistente e
+ * pior que a guarda em falta — e a razao pela qual ninguem a vai acrescentar.
  * ─────────────────────────────────────────────────────────────────────────
  */
 
@@ -115,15 +119,36 @@ function valorDe(campo, omissao) {
   return campo.valor == null ? (omissao || 'n/d') : String(campo.valor);
 }
 
-/** O `-20251001` no fim do id do modelo nao acrescenta nada a um estranho. */
+/**
+ * ⚠️ GRAMATICA FECHADA, nao lista fechada.
+ *
+ * O critico externo (codex, read-only) poe um canario aqui e ele SAI:
+ *   modelo: { valor: 'CANARY-CONTENT-o-utilizador-pediu-para-ler-contas' }
+ * porque esta funcao so tirava a data do fim e devolvia o resto. O docstring do
+ * ficheiro afirmava vocabulario fechado para `model_used`; era falso.
+ *
+ * Uma LISTA fechada de modelos envelhece a cada release do vendor. A FORMA de um
+ * id de modelo nao: minusculas, digitos, ponto, dois-pontos, hifen, e curto. O que
+ * nao couber na forma nao e um modelo — e n/d.
+ */
+const FORMA_DE_MODELO = /^[a-z0-9][a-z0-9._:-]{0,48}$/;
+
 function modeloCurto(campo) {
   const v = valorDe(campo);
-  return v === 'n/d' ? v : v.replace(/-\d{8}$/, '');
+  if (v === 'n/d') return v;
+  const semData = v.replace(/-\d{8}$/, '');
+  return FORMA_DE_MODELO.test(semData) ? semData : 'n/d';
 }
 
+/**
+ * Fora do mapa e `n/d`, NAO o valor cru. O fallthrough para cru era a outra
+ * metade do canario: qualquer string no campo `agent` do ledger saia inteira.
+ * Os motores sao um conjunto pequeno e conhecido; um motor que o mapa nao conheca
+ * e um motor que ninguem devia estar a ver aqui.
+ */
 function motorLegivel(campo) {
   const v = valorDe(campo).toLowerCase();
-  return MOTORES_LEGIVEIS[v] || (v === 'n/d' ? 'n/d' : v);
+  return MOTORES_LEGIVEIS[v] || 'n/d';
 }
 
 /** Sufixo curto do job: e o que distingue dois cartoes ao relance. */

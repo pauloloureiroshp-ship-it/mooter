@@ -566,3 +566,49 @@ test('pertenca · um job de OUTRA origem continua fora (a pertenca nao alargou)'
   assert.deepEqual(await ad.publicarPendentes({ pertence: (j) => nossos.has(j) }), []);
   assert.equal(enviados.length, 0);
 });
+
+// ── o que o critico externo apanhou e eu nao (achado 2026-08-17) ───────────
+// O broker liga o filho ao pai por DOIS campos: `prep_from` quando a preparacao
+// EXPIRA, `handoff_from` quando ela tem SUCESSO. Eu so conhecia o primeiro — logo
+// o caminho FELIZ perdia a thread e o trabalho pago acabava sem aparecer no Slack.
+function bancadaPrepComFilho() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-hand-'));
+  const t = new Date().toISOString();
+  const nosso = { type: 'human', id: 'slack:U_PAULO', origem: 'slack' };
+  fs.writeFileSync(path.join(home, 'ledger.jsonl'), [
+    { ts: t, job_id: 'job-prep', event: 'dispatched', agent: 'moo', preparation: true, actor: nosso },
+    { ts: t, job_id: 'job-prep', event: 'done', agent: 'moo', exit_code: 0, cost_usd: 0,
+      preparation: true, cost_usd_fonte: 'inferência local sem custo de API' },
+    { ts: t, job_id: 'job-filho', event: 'dispatched', agent: 'cc', handoff_from: 'job-prep' },
+    { ts: t, job_id: 'job-filho', event: 'done', agent: 'cc', exit_code: 0, cost_usd: 0.1218961,
+      cost_usd_fonte: 'reportado pelo CLI', model_used: 'claude-haiku-4-5-20251001' },
+  ].map((e) => JSON.stringify(e)).join('\n') + '\n');
+  process.env.MOOTER_HOME = home;
+  return { home };
+}
+
+test('handoff_from · o filho de uma preparacao BEM SUCEDIDA e nosso', () => {
+  bancadaPrepComFilho();
+  const { ad } = montar();
+  const nossos = ad.jobsNossos(lerLedgerPorOmissao(), 'slack:U_PAULO');
+  assert.ok(nossos.has('job-filho'),
+    'o caminho feliz perdia o filho: so se seguia prep_from, e a prep boa liga por handoff_from');
+});
+
+test('preparacao · o `done` de uma PREP nunca se anuncia como trabalho concluido', async () => {
+  bancadaPrepComFilho();
+  const { ad, enviados } = montar();
+  const r = await ad.publicarFechos({ jobs: ['job-prep'] });
+  assert.deepEqual(r, [], 'anunciar o done da prep foi o que fez o dono ver «US$ 0,00 de graca»');
+  assert.equal(enviados.length, 0);
+});
+
+test('preparacao · o fecho e do FILHO, e leva o custo REAL', async () => {
+  bancadaPrepComFilho();
+  const { ad, enviados } = montar();
+  const r = await ad.publicarFechos({ jobs: ['job-prep', 'job-filho'] });
+  assert.equal(r.length, 1);
+  assert.equal(r[0].job_id, 'job-filho');
+  assert.match(enviados.join('\n'), /US\$ 0,12/,
+    'o custo que o dono ve tem de ser o do trabalho, nao o zero da preparacao');
+});

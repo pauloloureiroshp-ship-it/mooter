@@ -144,7 +144,8 @@ function criarAdaptador(opcoes) {
     }
     // e os encadeados: o job que ACABA e filho da preparacao
     for (const e of ledger) {
-      if (e.job_id && e.prep_from && meus.has(e.prep_from)) meus.add(e.job_id);
+      const pai = e.prep_from || e.handoff_from;
+      if (e.job_id && pai && meus.has(pai)) meus.add(e.job_id);
     }
     return meus;
   }
@@ -296,6 +297,12 @@ function criarAdaptador(opcoes) {
       const ev = broker.estadoCorrente(job, ledger);
       if (!ev) continue;
       if (ev.exit_code === 'agent-awaiting-approval') continue;   // esse tem cartao
+      // ⚠️ UMA PREPARACAO NAO E O TRABALHO. O job com `preparation:true` termina
+      // com `done exit=0 custo=0` e entrega o trabalho a um FILHO pago. Anunciar
+      // esse `done` como «Trabalho concluido · US$ 0,00» foi exactamente o que
+      // aconteceu ao vivo: o dono viu «de graca» e o trabalho real custou US$ 0,12
+      // num filho que nunca apareceu no Slack. O fecho e do FILHO, nunca do pai.
+      if (ev.preparation === true) continue;
       const estado = ev.event === 'done' ? 'concluido' : (ev.event === 'failed' ? 'falhou' : null);
       if (!estado) continue;                                     // ainda a correr, ou encadeado
       const d = derivarDoPendente(ev);

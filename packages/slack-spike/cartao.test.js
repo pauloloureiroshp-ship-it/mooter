@@ -357,8 +357,34 @@ test('fonte · sem procedencia reconhecida, o CARTAO mostra n/d e nao um numero'
 test('motor · o codigo do ledger vira algo que um estranho entende', () => {
   assert.equal(c.motorLegivel({ valor: 'cc' }), 'agente Claude Code');
   assert.equal(c.motorLegivel({ valor: 'moo' }), 'modelo local (a tua GPU)');
-  // um motor desconhecido nao se inventa: sai como esta
-  assert.equal(c.motorLegivel({ valor: 'vendor-novo' }), 'vendor-novo');
+  // ⚠️ este teste AFIRMAVA o bug. Dizia «um motor desconhecido nao se inventa: sai
+  // como esta» — e «sair como esta» era exactamente o vazamento: qualquer string no
+  // campo `agent` do ledger ia inteira para o Slack. Fora do mapa e n/d.
+  assert.equal(c.motorLegivel({ valor: 'vendor-novo' }), 'n/d');
+  assert.equal(c.motorLegivel({ valor: 'PROSA ARBITRARIA DO LEDGER' }), 'n/d');
+});
+
+// ── o canario do critico externo (codex, 2026-08-17) ──────────────────────
+// A claim central do spike — «conteudo do utilizador nunca sai» — foi REFUTADA
+// com um canario curto numa folha permitida. As 4 barreiras validavam campos de
+// topo, nomes de segredos e comprimento; nenhuma olhava para o VALOR de `modelo`.
+test('canario · prosa no campo `modelo` NAO atravessa (era o vector do codex)', () => {
+  const canario = 'CANARY-CONTENT-o-utilizador-pediu-para-ler-o-ficheiro-de-contas';
+  const r = criarPublicador({ dryRun: true }).publicar(pendente({ modelo: { valor: canario } }));
+  assert.equal(r.publicado, true, 'o cartao continua a sair — o que nao sai e a prosa');
+  assert.ok(!JSON.stringify(r).includes('CANARY'), 'a claim de nao-egress volta a estar refutada');
+});
+
+test('canario · prosa no campo `motor` tambem nao', () => {
+  const r = criarPublicador({ dryRun: true })
+    .publicar(pendente({ motor: { valor: 'CANARY-MOTOR-prosa do ledger' } }));
+  assert.ok(!/canary/i.test(JSON.stringify(r)));
+});
+
+test('gramatica · um id de modelo REAL continua a passar (a guarda nao estorva)', () => {
+  for (const m of ['claude-haiku-4-5-20251001', 'gemma4:e4b', 'claude-opus-5', 'qwen2.5-coder:7b']) {
+    assert.notEqual(c.modeloCurto({ valor: m }), 'n/d', 'bloqueou um modelo legitimo: ' + m);
+  }
 });
 
 // ── A LIGACAO, nao as pecas ────────────────────────────────────────────────
