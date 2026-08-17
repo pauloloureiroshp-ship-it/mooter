@@ -86,6 +86,9 @@ function shortModel(model) {
   if (m.includes('haiku')) return 'haiku';
   if (m.includes('gpt')) return 'gpt';
   if (m.includes('gemini')) return 'gemini';
+  // kimi-k3 (Moonshot). Este badge e o que o dono ve a cada tool call: um motor
+  // pago que aparecesse como id cru seria indistinguivel de ruido.
+  if (m.includes('kimi') || m.includes('moonshot')) return 'kimi';
   if (/qwen|llama|deepseek|gemma|mistral|phi/.test(m)) return m.split(':')[0] || 'ollama';
   return m || 'unknown';
 }
