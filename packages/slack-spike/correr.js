@@ -252,7 +252,22 @@ async function principal(argv) {
           filtro: { actor: meuActor },
           jaVisto: (p) => vistos.has(p.job_id + ':' + p.state_hash),
         });
-        for (const p of pubs) if (p.publicado) vistos.add(p.job_id + ':' + p.state_hash);
+        // ⚠️ O RESULTADO DA PUBLICACAO TEM DE SE VER. O cartao deste pendente
+        // passava o `publicar()` e o poller corria — e ficamos sem saber se saiu,
+        // porque nada registava o desfecho. Uma recusa da porta de saida era
+        // silenciosa, e silencio le-se como "nao aconteceu nada", que e o pior
+        // dos diagnosticos: indistinguivel de nao ter corrido. Quarta vez hoje
+        // que o problema nao era o codigo, era o que ele nao dizia.
+        for (const p of pubs) {
+          if (p.publicado) {
+            vistos.add(p.job_id + ':' + p.state_hash);
+            console.error('[registo] ' + JSON.stringify({ tipo: 'cartao_publicado',
+              job: p.job_id, hash: String(p.state_hash || '').slice(0, 12) }));
+          } else if (p.porque && !/ja publicado/i.test(p.porque)) {
+            console.error('[registo] ' + JSON.stringify({ tipo: 'cartao_RECUSADO',
+              job: p.job_id, porque: p.porque }));
+          }
+        }
       } catch (e) {
         console.error('[registo] ' + JSON.stringify({ tipo: 'poller_falhou',
           porque: (e && e.message) || 'erro' }));
