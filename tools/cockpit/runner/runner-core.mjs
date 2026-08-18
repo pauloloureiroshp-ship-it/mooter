@@ -186,6 +186,7 @@ export async function runRound({
         dur_s: 0,
         tokens_out: 0,
         verdict: VERDICT.NO_FINDING,
+        parado_pelo_dono: true,
         resultado_resumo: 'STOP presente — nao despachou',
         evidencia: 'kill-switch: fail-closed antes de construir a ronda',
       },
@@ -203,6 +204,11 @@ export async function runRound({
         dur_s: 0,
         tokens_out: 0,
         verdict: VERDICT.UNCITED,
+        // Uma ronda sem contexto nao produziu trabalho. Sem bandeira nenhuma
+        // ela caia no ramo NEUTRO do disjuntor: 200 dessas escreviam 200
+        // linhas com backoff ZERO — a inundacao do B8 por uma terceira porta.
+        falha_ronda: true,
+        ...(pack.esgotado ? { esgotado: true } : {}),
         resultado_resumo: `sem contexto: ${pack.reason}`,
         evidencia: 'n/d',
       },
@@ -219,6 +225,7 @@ export async function runRound({
         dur_s: 0,
         tokens_out: 0,
         verdict: VERDICT.NO_FINDING,
+        parado_pelo_dono: true,
         resultado_resumo: 'STOP chegou antes do despacho — race fechado',
         evidencia: `kill-switch: fail-closed com pacote pronto (${pack.file})`,
       },
@@ -290,6 +297,7 @@ export async function runRound({
         ficheiro: pack.file,
         verdict: VERDICT.NO_FINDING,
         ...(violacaoZero ? { violacao_zero: true } : {}),
+        ...(abortedByStop ? { parado_pelo_dono: true } : {}),
         // Um STOP nosso nao e o motor em baixo — so o segundo abre o disjuntor.
         ...(abortedByStop || violacaoZero ? {} : { falha_motor: true }),
         resultado_resumo: abortedByStop
@@ -361,6 +369,11 @@ export async function runRound({
       // O `git diff` rebentou mas a escada degradou: o recibo diz que degradou
       // E porque. Capturar o erro e nao o publicar e um catch mudo com mais passos.
       ...(pack.diffErro ? { diff_erro: pack.diffErro } : {}),
+      // O tecto de `maxFiles * 8` hunks. Era produzido pelo pack e lido por
+      // NINGUEM — 'sem tectos silenciosos' e uma regra, nao uma intencao. Com
+      // este campo, um recibo diz que houve trabalho que nem chegou a ser
+      // considerado.
+      ...(pack.hunksTruncados ? { hunks_truncados: pack.hunksTruncados } : {}),
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,

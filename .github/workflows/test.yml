@@ -7,8 +7,11 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
-      # Sem esta linha, os 174 testes do cockpit nunca corriam em CI: um push
-      # que partisse o runner passava verde. Medido a 2026-08-18.
+      # Sem esta linha, a suite do cockpit nunca corria em CI: um push que
+      # partisse o runner passava verde. Medido a 2026-08-18. (Nao se escreve
+      # aqui o NUMERO de testes: a primeira versao dizia 174, a suite cresceu
+      # para 225 no mesmo dia, e um comentario com um numero errado e pior do
+      # que um comentario sem numero nenhum.)
       - 'tools/cockpit/**'
       - '.github/workflows/test.yml'
   pull_request:
@@ -17,8 +20,7 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
-      # Sem esta linha, os 174 testes do cockpit nunca corriam em CI: um push
-      # que partisse o runner passava verde. Medido a 2026-08-18.
+      # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/cockpit/**'
       - '.github/workflows/test.yml'
   workflow_dispatch:

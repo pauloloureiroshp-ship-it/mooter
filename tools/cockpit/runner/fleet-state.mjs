@@ -36,7 +36,13 @@ export function readLedger(ledgerPath, { readImpl = fs.readFileSync, maxLines = 
   } catch {
     return { receipts: [], corrompidas: 0, existe: false };
   }
-  const lines = raw.split('\n').filter((l) => l.trim()).slice(-maxLines);
+  const todas = raw.split('\n').filter((l) => l.trim());
+  const lines = todas.slice(-maxLines);
+  // O ledger e lido por uma JANELA (`maxLines`), mas o painel rotulava a
+  // contagem como "recibos ao todo": com 5905 linhas no disco mostrava 5000 e
+  // parava ali para sempre. Um numero com o rotulo errado e pior do que um
+  // numero em falta.
+  const truncado = todas.length > lines.length ? todas.length : null;
   const receipts = [];
   let corrompidas = 0;
   for (const line of lines) {
@@ -46,7 +52,7 @@ export function readLedger(ledgerPath, { readImpl = fs.readFileSync, maxLines = 
       corrompidas += 1;
     }
   }
-  return { receipts, corrompidas, existe: true };
+  return { receipts, corrompidas, existe: true, ledgerLinhas: todas.length, truncado };
 }
 
 /** The calendar day in the owner's timezone, e.g. `2026-08-16`. */
@@ -197,7 +203,7 @@ export function buildFleetState({
     state = {};
   }
 
-  const { receipts, corrompidas, existe } = readLedger(ledgerPath, { readImpl });
+  const { receipts, corrompidas, existe, ledgerLinhas, truncado } = readLedger(ledgerPath, { readImpl });
   const last = receipts.length ? receipts[receipts.length - 1] : null;
   const today = ownerDay(now);
   // `Date.parse` on junk yields NaN, and `Intl.DateTimeFormat` throws on it —
@@ -226,6 +232,8 @@ export function buildFleetState({
     usd: 0,
     // O ciclo de valor: quantos achados nasceram, e quantos ainda esperam por
     // uma decisao. Sem isto o painel media volume, nao trabalho.
+    // Quantas linhas o ledger tem MESMO, e de quantas se contou.
+    ledger: { linhas: ledgerLinhas ?? null, janela: receipts.length, truncado: Boolean(truncado) },
     triagem: {
       ...contasTriagem,
       ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),

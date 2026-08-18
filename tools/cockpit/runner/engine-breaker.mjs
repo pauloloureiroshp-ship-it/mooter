@@ -78,11 +78,17 @@ export function createEngineBreaker({
       // motor respondeu — a unica coisa que fecha o disjuntor. Uma ronda que
       // rebentou, ou que o dono abortou, nao prova nada: nao fecha, nao mente.
       const saudavel = Boolean(receipt && receipt.motor_ok === true);
-      const falhouRonda = Boolean(receipt && (receipt.falha_motor || receipt.falha_ronda));
-      // Nem prova de sucesso nem falha declarada (um STOP em voo): passa ao
-      // lado do disjuntor sem o fechar. Fechar aqui foi o que produziu um
-      // `engine:up` com `apagao_s: 330` enquanto o motor continuava morto.
-      if (!saudavel && !falhouRonda) {
+      // FAIL-CLOSED, pela mesma razao que `isStopped` so aceita ENOENT como
+      // prova de ausencia: a UNICA coisa neutra e uma paragem que o DONO pediu.
+      // Tudo o resto que nao prova sucesso e falha. A versao anterior tratava
+      // como neutro qualquer recibo sem bandeira, e media-se: 200 rondas dessas
+      // davam 200 linhas com backoff ZERO, enquanto 200 com bandeira davam 3.
+      const paradoPeloDono = Boolean(receipt && receipt.parado_pelo_dono);
+      const falhouRonda = !saudavel && !paradoPeloDono;
+      // Uma paragem pedida pelo dono passa ao lado do disjuntor sem o fechar.
+      // Fechar aqui foi o que produziu um `engine:up` com `apagao_s: 330`
+      // enquanto o motor continuava morto.
+      if (paradoPeloDono) {
         return { recibos: [receipt], backoffS: aberto ? backoffSeconds(falhas, { baseS, capS }) : 0, aberto };
       }
 

@@ -792,8 +792,18 @@ test('POCO: um excerto ja julgado nao volta a fila — mas um excerto ALTERADO v
   revistos.add(p1.chave);
 
   const p2 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
-  assert.equal(p2.ok, false, 'o unico hunk ja foi julgado');
-  assert.equal(p2.esgotado, true, 'e o pack DIZ que esgotou, em vez de servir o mesmo outra vez');
+  // A primeira versao deste teste exigia `ok:false` aqui. Estava a prender o
+  // comportamento ERRADO: com uma base unica, um diff esgotado devolvia
+  // `ok:false` e a ronda nao produzia nada — 240 de 360 rondas mortas, cada
+  // uma a escrever um recibo sem bandeira que o disjuntor nao ve. A alegacao
+  // verdadeira nunca foi 'devolve esgotado': e 'nao serve o mesmo outra vez'.
+  assert.notEqual(p2.mode, 'diff', 'o hunk ja julgado nao volta pelo degrau do diff');
+  assert.ok(p2.ok, 'e a ronda CAI para o degrau seguinte em vez de morrer');
+  // A escada, essa, continua a poder dizer que esgotou — e como ela sabe
+  // quando abrir a base seguinte.
+  const p2e = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos, pararSeEsgotado: true });
+  assert.equal(p2e.ok, false);
+  assert.equal(p2e.esgotado, true);
 
   // Muda o conteudo: e trabalho novo, e volta a fila.
   const linhas = fs.readFileSync(path.join(root, alvo), 'utf8').split('\n');
@@ -851,4 +861,70 @@ test('POCO: o tecto de hunks e dito em voz alta, nao silenciado', () => {
   const got = readChangedLines('/r', { runImpl: () => muitos, onCap: (n) => { capado = n; } });
   assert.equal(got.length, 320, 'o tecto e maxFiles * 8');
   assert.equal(capado, 320, 'e quem chama fica a saber que ficou trabalho de fora');
+});
+
+// ---------------------------- o que a auditoria da v1.49.0 encontrou
+
+test('AUDITORIA: o ramo ANCORADO tambem tem desvio por pilar', () => {
+  // O ramo do diff estava corrigido e este nao — e e este que corre a maior
+  // parte do tempo. Medido na configuracao de PRODUCAO: 240 colisoes em 60
+  // cursores (67%), com 9 recibos seguidos na mesma janela de gsd-statusline.js
+  // pelos seis pilares. Um teste que nao injecte a ancora e estruturalmente
+  // incapaz de ver isto: foi por isso que 224 testes passaram.
+  const root = fixtureRepo();
+  const anchorPath = path.join(root, 'ancora.json');
+  fs.writeFileSync(anchorPath, JSON.stringify(
+    Array.from({ length: 12 }, (_, k) => ({ file: 'tools/router/classify.js', line: (k % 4) + 1, rule: `r${k}`, msg: 'x' })),
+  ));
+  for (let cursor = 0; cursor < 8; cursor += 1) {
+    const alvos = PILLAR_IDS.map((p) => {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, anchorPath });
+      return pk.ok && pk.mode === 'ancorado' ? `${pk.file}:${pk.anchorLine}:${pk.anchorRule}` : `outro:${p}`;
+    });
+    const ancorados = alvos.filter((a) => !a.startsWith('outro:'));
+    assert.equal(new Set(ancorados).size, ancorados.length,
+      `cursor ${cursor}: seis pilares no mesmo apontamento — ${JSON.stringify(ancorados)}`);
+  }
+});
+
+test('AUDITORIA: um diff esgotado CAI para o degrau seguinte, nao mata a ronda', () => {
+  // Com `MOO_DIFF_BASE=HEAD~12` (base unica), 240 de 360 rondas devolviam
+  // `ok:false` — dois tercos da GPU a nao fazer nada, e cada uma dessas rondas
+  // escrevia um recibo sem bandeira que o disjuntor nao via.
+  const root = repoDiff();
+  const revistos = new Set();
+  const alvo = 'packages/mooter-bridge/board.js';
+  const p1 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diffFalso([alvo]), revistos });
+  revistos.add(p1.chave);
+  const p2 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diffFalso([alvo]), revistos });
+  assert.equal(p2.ok, true, 'a ronda continua por outro degrau');
+  assert.notEqual(p2.mode, 'diff');
+});
+
+test('AUDITORIA: a caca anda no eixo dos FICHEIROS, nao so das janelas', () => {
+  // A versao anterior fixava um ficheiro e, esgotadas as janelas dele,
+  // devolvia `ok:false` com os IRMAOS por rever: 12 de 24 cursores perdidos.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-caca-'));
+  fs.mkdirSync(path.join(root, 'tools', 'router'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'tools/router/classify.js'), 'const a = 1;\n');
+  fs.writeFileSync(path.join(root, 'tools/router/inject_context.js'),
+    Array.from({ length: 500 }, (_, n) => `linha ${n + 1};`).join('\n'));
+
+  const revistos = new Set();
+  const ficheiros = new Set();
+  // O pilar tem 9 janelas ao todo: 1 no ficheiro curto + 8 no longo (500
+  // linhas / 70). Nove rondas tem de as servir todas, sem repetir uma.
+  for (let cursor = 0; cursor < 9; cursor += 1) {
+    const pk = buildContextPack({ repoRoot: root, pillar: 'P1', cursor, revistos });
+    assert.ok(pk.ok, `cursor ${cursor}: ${pk.reason} — os irmaos ainda tinham janelas por rever`);
+    assert.ok(!revistos.has(pk.chave), `cursor ${cursor}: serviu de novo ${pk.chave}`);
+    revistos.add(pk.chave);
+    ficheiros.add(pk.file);
+  }
+  assert.ok(ficheiros.size > 1, 'o ficheiro curto esgota e a caca tem de passar ao irmao');
+  assert.equal(revistos.size, 9, 'nove janelas, nove alvos distintos');
+  // E so DEPOIS de tudo revisto e que se declara esgotado — nunca antes.
+  const fim = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 9, revistos });
+  assert.equal(fim.ok, false);
+  assert.equal(fim.esgotado, true);
 });
