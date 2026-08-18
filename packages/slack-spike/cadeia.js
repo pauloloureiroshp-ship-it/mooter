@@ -40,15 +40,27 @@ function paiDe(e) {
  */
 function cadeiaDe(ledger, jobId) {
   const es = Array.isArray(ledger) ? ledger : [];
+
+  // ⚠️ SO CONTA QUEM EXISTE. Um `handoff_from` a apontar para um job que nunca foi
+  // despachado (ledger truncado, evento perdido) fazia esse fantasma entrar na
+  // lista e inflacionava o «N pedidos encadeados» com um pedido que nao existe.
+  const existe = new Set();
+  for (const e of es) if (e.job_id) existe.add(e.job_id);
+
+  // ⚠️ `pai` e `filhos` derivam da MESMA fonte, e nao de dois loops. Antes o `pai`
+  // guardava o ultimo elo e o `filhos` guardava TODOS os historicos: um job
+  // re-despachado com outro pai aparecia em duas cadeias com totais diferentes —
+  // a mesma conversa dava US$ 3 ou US$ 12 conforme o cartao por onde se entrasse.
   const pai = new Map();
-  const filhos = new Map();
   for (const e of es) {
     if (e.event !== 'dispatched' || !e.job_id) continue;
     const p = paiDe(e);
-    if (!p) continue;
-    pai.set(e.job_id, p);
+    if (p && existe.has(p)) pai.set(e.job_id, p);     // o ultimo dispatch manda
+  }
+  const filhos = new Map();
+  for (const [f, p] of pai) {
     if (!filhos.has(p)) filhos.set(p, []);
-    filhos.get(p).push(e.job_id);
+    filhos.get(p).push(f);
   }
 
   let raiz = jobId;
@@ -56,6 +68,7 @@ function cadeiaDe(ledger, jobId) {
   while (pai.has(raiz) && !visto.has(pai.get(raiz))) { raiz = pai.get(raiz); visto.add(raiz); }
 
   const jobs = [];
+  const doConjunto = new Set();
   const porVer = [raiz];
   const jaVi = new Set();
   while (porVer.length) {
@@ -63,27 +76,33 @@ function cadeiaDe(ledger, jobId) {
     if (jaVi.has(j)) continue;
     jaVi.add(j);
     jobs.push(j);
+    doConjunto.add(j);   // (todo o `j` aqui ou e o jobId ou existe: ver o filtro em `pai`)
     for (const f of filhos.get(j) || []) porVer.push(f);
   }
 
   // o ULTIMO evento com custo de cada job — a reconciliacao do motor re-carimba
-  // ⚠️ UM CUSTO SEM PROCEDENCIA NAO ENTRA NA SOMA. Antes entrava: o valor somava e
-  // a fonte, ausente, nao ficava registada — e la em cima o `fontes.every(...)` do
-  // cartao passava A VAZIO, publicando um total com procedencia "reconhecida" que
-  // era, em parte, de origem desconhecida. Ficava latente porque o ledger de hoje
-  // traz fonte em 12/12; um evento sem ela bastava para publicar US$ 100 como
-  // total verificado. `n/d` conta como ausente — a mesma regra do `leitura.js`.
-  const custo = new Map();
-  const fontes = new Map();
-  const semFonte = [];
+  // ⚠️ O ULTIMO CARIMBO MANDA, com ou sem fonte. Antes o loop escrevia direito no
+  // mapa: um re-carimbo SEM fonte deixava la o valor ANTIGO e a fonte antiga, e a
+  // cadeia publicava US$ 10 com a procedencia de US$ 1 (achado do codex). Agora
+  // guarda-se o ultimo evento de custo de cada job — valor E fonte juntos — e so
+  // depois se decide. Um custo sem procedencia nao entra na soma e torna o total
+  // um piso: `n/d` conta como ausente, a mesma regra do `leitura.js`.
+  const ultimo = new Map();
   for (const e of es) {
-    if (!e.job_id || !jobs.includes(e.job_id) || e.cost_usd == null) continue;
+    if (!e.job_id || !doConjunto.has(e.job_id) || e.cost_usd == null) continue;
     const v = Number(e.cost_usd);
     if (!Number.isFinite(v) || v < 0) continue;
     const f = e.cost_usd_fonte == null ? '' : String(e.cost_usd_fonte).trim();
-    if (!f || f.toLowerCase() === 'n/d') { semFonte.push(e.job_id); continue; }
-    custo.set(e.job_id, v);
-    fontes.set(e.job_id, f);
+    ultimo.set(e.job_id, { v, f: !f || f.toLowerCase() === 'n/d' ? null : f });
+  }
+
+  const custo = new Map();
+  const fontes = new Map();
+  const semFonte = [];
+  for (const [job, u] of ultimo) {
+    if (!u.f) { semFonte.push(job); continue; }
+    custo.set(job, u.v);
+    fontes.set(job, u.f);
   }
 
   let total = 0;

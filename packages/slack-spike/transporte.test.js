@@ -418,22 +418,145 @@ test('religar · cada socket tem geracao no log (para se saber qual esta vivo)',
   assert.equal(aberto.geracao, 1, 'sem geracao, duas linhas iguais no log podem ser sockets diferentes');
 });
 
-test('o daemon NAO morre entre o socket cair e a religacao', async () => {
+async function filhoSobrevive(modo, esperaMs) {
   // ⚠️ Este teste vive num processo filho de proposito. A propriedade e «o processo
   // continua vivo», e essa nao se ve de dentro. Ao vivo, o daemon publicou dois
   // cartoes e fez `exit 0` um segundo depois: o timer da religacao e `unref()`'d, o
   // poller tambem, e fechado o socket nada segurava o event loop. O ultimo registo
   // dizia «a_religar tentativa 1» — parecia estar a tentar. Estava morto.
   const filho = require('node:child_process').spawn(process.execPath,
-    [require('node:path').join(__dirname, 'vive.fixture.js')], { stdio: ['ignore', 'pipe', 'inherit'] });
+    [require('node:path').join(__dirname, 'vive.fixture.js'), modo], { stdio: ['ignore', 'pipe', 'inherit'] });
   try {
     await new Promise((ok, falha) => {
       filho.stdout.on('data', (b) => { if (String(b).includes('caiu')) ok(); });
       filho.on('exit', (c) => falha(new Error('morreu ANTES de o socket cair (codigo ' + c + ')')));
       setTimeout(() => falha(new Error('o filho nunca chegou a cair')), 10000).unref();
     });
-    await new Promise((r) => setTimeout(r, 700));   // a religacao so vem ao 1000ms
-    assert.equal(filho.exitCode, null,
-      'o processo morreu na janela de religacao — sem ancora nada segura o event loop');
+    await new Promise((r) => setTimeout(r, esperaMs));
+    return filho.exitCode;
   } finally { filho.kill(); }
+}
+
+test('o daemon NAO morre entre o socket cair e a religacao', async () => {
+  assert.equal(await filhoSobrevive('normal', 700), null,   // a religacao so vem ao 1000ms
+    'o processo morreu na janela de religacao — sem ancora nada segura o event loop');
+});
+
+test('o daemon NAO morre quando a propria RELIGACAO falha (ALTO do codex)', async () => {
+  // o pai espera 2500ms: passa a tentativa dos 1000ms (que estoira) e entra na
+  // segunda janela. A versao anterior deste teste parava aos 700ms e nunca via isto.
+  assert.equal(await filhoSobrevive('falha', 2500), null,
+    'a religacao falhou e o processo morreu — a 1a falha de rede matava o daemon');
+});
+
+test('religar · uma tentativa FALHADA agenda outra (senao a 1a falha mata o daemon)', async () => {
+  // ⚠️ Achado ALTO do codex. O `catch` da religacao so registava `religar_falhou`
+  // e nao agendava nada: com o poller `unref()` e a ancora ja largada, o primeiro
+  // `apps.connections.open` que falhasse — Slack em baixo, DNS, 429 — esvaziava a
+  // fila e o processo saia com exit 0. Era o MESMO bug da ancora, um nivel abaixo:
+  // tapei a queda do socket e deixei aberta a queda da religacao.
+  const regs = [];
+  const agendados = [];
+  let chamadas = 0;
+  const socketFalso = () => {
+    const s = { cbs: {} };
+    for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+    s.enviar = () => {}; s.fechar = () => {};
+    return s;
+  };
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: async () => {
+      chamadas += 1;
+      if (chamadas === 1) return { ok: true, json: async () => ({ ok: true, url: 'wss://x' }) };
+      throw new Error('apps.connections.open em baixo');
+    },
+    abrirSocket: socketFalso,
+    agendar: (fn) => { agendados.push(fn); return { unref() {} }; },
+    registar: (r) => regs.push(r) });
+
+  const r = await tr.correr({});
+  await r.socket.cbs.aoMensagem(JSON.stringify({ type: 'disconnect', reason: 'warning' }));
+  assert.equal(agendados.length, 1, 'a queda devia ter agendado uma tentativa');
+
+  await agendados[0]();                                   // e esta FALHA
+  assert.ok(regs.some((x) => x.tipo === 'religar_falhou'), 'nem sequer registou a falha');
+  assert.equal(agendados.length, 2,
+    'a tentativa falhou e NAO agendou outra — o daemon fica morto a espera de nada');
+
+  const t2 = regs.filter((x) => x.tipo === 'a_religar');
+  assert.equal(t2[1].tentativa, 2, 'o backoff nao avancou entre tentativas falhadas');
+  assert.ok(t2[1].espera_ms > t2[0].espera_ms, 'a segunda tentativa nao esperou mais');
+});
+
+test('religar · a ancora AGUENTA entre tentativas falhadas (nao se larga a entrada)', async () => {
+  // ⚠️ Este teste existe porque um mutante passou verde. Largar a ancora a entrada
+  // do `correr()` deixa o processo sem nada a segura-lo se a tentativa falhar a
+  // seguir — mas com um `fetchImpl` falso o loop nunca esvazia, e o teste de
+  // processo nao via diferenca. A ancora so se larga quando o socket ABRE.
+  const agendados = [];
+  let chamadas = 0;
+  const socketFalso = () => {
+    const s = { cbs: {} };
+    for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+    s.enviar = () => {}; s.fechar = () => {};
+    return s;
+  };
+  // sem `agendar` injectado nao havia ancora nenhuma; injecta-se o RELOGIO mas
+  // deixa-se o caminho real do temporizador ligado atraves de `ancoraSempre`
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: async () => {
+      chamadas += 1;
+      if (chamadas === 1) return { ok: true, json: async () => ({ ok: true, url: 'wss://x' }) };
+      throw new Error('em baixo');
+    },
+    abrirSocket: socketFalso,
+    agendar: (fn) => { agendados.push(fn); return { unref() {} }; },
+    ancoraSempre: true });
+  t.mock?.reset?.();
+
+  const r = await tr.correr({});
+  r.socket.cbs.aoAbrir();
+  assert.equal(tr.ancorado(), false, 'com o socket aberto a ancora nao devia estar posta');
+
+  await r.socket.cbs.aoMensagem(JSON.stringify({ type: 'disconnect', reason: 'w' }));
+  assert.equal(tr.ancorado(), true, 'caiu o socket e nada segura o processo');
+
+  try {
+    await agendados[0]();                     // a tentativa falha
+    assert.equal(tr.ancorado(), true,
+      'a tentativa falhou e a ancora foi largada — o processo fica sem nada a segura-lo');
+  } finally {
+    tr.largarAncora();   // sem isto o intervalo ref'd pendura o proprio node --test
+  }
+});
+
+test('religar · gate a fechar entre tentativas ABORTA em voz alta e larga a ancora', async () => {
+  // sem isto o daemon ficava vivo por causa da ancora, sem religar nunca, e sem
+  // uma linha a dizer porque. Existir sem servir para nada, em silencio.
+  const regs = [];
+  const agendados = [];
+  const sync = SYNC_DESTRAVADO();
+  const socketFalso = () => {
+    const s = { cbs: {} };
+    for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+    s.enviar = () => {}; s.fechar = () => {};
+    return s;
+  };
+  const tr = t.criarTransporte({ canal: 'C', syncPath: sync, dryRun: true,
+    fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true, url: 'wss://x' }) }),
+    abrirSocket: socketFalso,
+    agendar: (fn) => { agendados.push(fn); return { unref() {} }; },
+    ancoraSempre: true, registar: (r) => regs.push(r) });
+
+  const r = await tr.correr({});
+  try {
+    await r.socket.cbs.aoMensagem(JSON.stringify({ type: 'disconnect', reason: 'w' }));
+    assert.equal(tr.ancorado(), true);
+    require('fs').writeFileSync(sync, '# SYNC\n\nkimi-egress ainda aberta.\n');   // o gate fecha
+    await agendados[0]();
+    assert.ok(regs.some((x) => x.tipo === 'religacao_abortada'),
+      'abortou a religacao sem dizer porque');
+    assert.equal(tr.ancorado(), false,
+      'ficou a segurar o processo para uma religacao que nunca vai acontecer');
+  } finally { tr.largarAncora(); }
 });

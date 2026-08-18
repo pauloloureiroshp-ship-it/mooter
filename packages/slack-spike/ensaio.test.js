@@ -687,3 +687,31 @@ test('cadeia · TODO o cartao que leva custo leva tambem a cadeia (pendente · d
     assert.equal(Number(p.cadeia.total.toFixed(2)), 1, 'cartao `' + p.tipo + '` somou mal');
   }
 });
+
+test('silenciado · o clique NAO chega ao broker (nao basta nao chamar `despachar`)', async () => {
+  // ⚠️ Achado MEDIO do codex: o teste anterior vigiava `despachar`, que serve as
+  // MENCOES — uma aprovacao gasta atraves de `broker.decide`. Uma mutacao que
+  // chamasse o broker antes de devolver SILENCIADO ficava verde. Agora vigia-se o
+  // broker, que e por onde o dinheiro sai de facto.
+  const decisoes = [];
+  const parados = [];
+  const ad = criarAdaptador({
+    allowlist: { permite: () => ({ ok: true }) },
+    publicador: { publicar: () => ({ publicado: true, envio: null }) },
+    broker: { decide: (x) => { decisoes.push(x); return { estado: 'APPROVED' }; },
+      estadoCorrente: () => ({ event: 'done', job_id: 'job-mau' }), listPending: () => [] },
+    despachar: async () => ({ job_id: 'novo' }),
+    cancelar: async (x) => { parados.push(x); return { parado: true, estado: 'PARADO' }; },
+    silenciados: new Set(['job-mau']),
+    lerEventos: () => [],
+  });
+
+  const r = await ad.receberInteraccao({ user_id: 'U', request_id: 'job-mau', accao: 'aprovar' });
+  assert.equal(r.estado, 'SILENCIADO');
+  assert.equal(decisoes.length, 0, 'o clique num job silenciado chegou ao broker');
+
+  // e o mesmo job, nao um qualquer: parar tem de continuar a passar
+  await ad.receberInteraccao({ user_id: 'U', request_id: 'job-mau', accao: 'parar' });
+  assert.equal(parados.length, 1);
+  assert.equal(parados[0].job_id, 'job-mau');
+});

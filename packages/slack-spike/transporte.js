@@ -227,6 +227,46 @@ function criarTransporte(opcoes) {
   let tentativasLigacao = 0;
   let geracaoActual = 0;      // numera cada socket: o log deixa de ser ambiguo
   let ancora = null;          // segura o event loop enquanto nao ha socket (ver `religar`)    // persiste entre religacoes — ver religar()
+
+  // ── religacao: uma tentativa por queda, e TAMBEM por tentativa falhada ──────
+  // ⚠️ Vive aqui, e nao dentro do `correr()`, por uma razao apanhada pelo codex:
+  // quando a propria tentativa falha (`apps.connections.open` em baixo, DNS,
+  // 429), o `catch` estava dentro do `correr()` que morreu — so registava
+  // `religar_falhou` e NAO agendava nada. Com o poller `unref()`, o processo
+  // esvaziava a fila e saia com exit 0. Era o mesmo bug que a ancora foi criada
+  // para tapar, um nivel mais abaixo: tapei a queda do socket e deixei aberta a
+  // queda da RELIGACAO. O primeiro `fetch` que falhasse matava o daemon.
+  const timerReal = !opcoes.agendar || opcoes.ancoraSempre === true;   // quem injecta `agendar` controla o tempo
+  const agendar = opcoes.agendar || ((fn, ms) => { const h = setTimeout(fn, ms); h.unref?.(); return h; });
+  const reconectar = opcoes.reconectar !== false;
+
+  /**
+   * A ancora e um INTERVALO ref'd, nao um timeout: enquanto quisermos estar ligados
+   * e nao houver socket, o processo tem de ficar vivo — por mais tentativas que
+   * falhem. Um timeout de `espera + 2s` expirava se o `fetch` demorasse mais que
+   * isso a falhar, e a morte silenciosa voltava.
+   * Quem a larga e o `aoAbrir`: e o WebSocket que passa a segurar o loop.
+   */
+  function ancorar() {
+    if (!timerReal || ancora) return;
+    ancora = setInterval(() => {}, 60000);      // REF'd de proposito
+  }
+  function largarAncora() {
+    if (ancora) { clearInterval(ancora); ancora = null; }
+  }
+
+  function agendarTentativa(maos, porque, geracao) {
+    if (!reconectar) return;
+    tentativasLigacao += 1;
+    const espera = Math.min(30000, 1000 * Math.pow(2, tentativasLigacao - 1));
+    registar({ tipo: 'a_religar', geracao, porque, tentativa: tentativasLigacao, espera_ms: espera });
+    ancorar();
+    agendar(() => correr(maos).catch((e) => {
+      const msg = (e && e.message) || 'erro';
+      registar({ tipo: 'religar_falhou', geracao, porque: msg });
+      agendarTentativa(maos, 'a tentativa anterior falhou: ' + msg, geracao);   // OUTRA VEZ
+    }), espera);
+  }
   const enviados = [];            // o que saiu (ou sairia, em dry-run)
 
   /**
@@ -371,13 +411,23 @@ function criarTransporte(opcoes) {
    * demo, e uma armadilha para o dia em que houver um estranho a ver.
    */
   async function correr(maos) {
-    clearTimeout(ancora);   // religou: a ancora ja nao e precisa, o socket volta a segurar
+    // ⚠️ A ANCORA NAO SE LARGA AQUI. Largava — e o codex mostrou o buraco: se a
+    // tentativa falhasse a seguir (`apps.connections.open` em baixo), ficavamos
+    // sem ancora E sem socket, e o processo saia com exit 0. Quem a larga e o
+    // `aoAbrir`, porque e ai que o WebSocket passa a segurar o event loop.
     const t = trancado();
-    if (t) return { correu: false, porque: 'MODO VIVO trancado: ' + t };
+    if (t) {
+      // ⚠️ SAIR EM SILENCIO NAO. Se o gate fechar ENTRE tentativas, o `correr()`
+      // devolvia `{correu:false}` e mais nada: nao agendava, nao registava, e a
+      // ancora ficava posta a segurar um processo que ja nao ia religar nunca.
+      // O daemon passava a existir sem servir para nada, e sem o dizer. Agora
+      // aborta a religacao em voz alta e larga a ancora — se tem de morrer,
+      // morre com a razao escrita no log.
+      registar({ tipo: 'religacao_abortada', porque: t });
+      largarAncora();
+      return { correu: false, porque: 'MODO VIVO trancado: ' + t };
+    }
     const abrir = o.abrirSocket || abrirSocketPorOmissao;
-    const timerReal = !o.agendar;   // quem injecta `agendar` controla o tempo e nao precisa de ancora
-    const agendar = o.agendar || ((fn, ms) => { const h = setTimeout(fn, ms); h.unref?.(); return h; });
-    const reconectar = o.reconectar !== false;
     let vivo = true;   // por-socket: evita que close E erro contem como duas quedas
 
     /**
@@ -400,21 +450,7 @@ function criarTransporte(opcoes) {
       // linhas que pareciam o daemon a ficar surdo e eram o socket anterior a
       // morrer. Um log ambiguo sobre liveness e pior que nenhum.
       try { if (s && typeof s.fechar === 'function') s.fechar(); } catch { /* ja morto */ }
-      tentativasLigacao += 1;
-      const espera = Math.min(30000, 1000 * Math.pow(2, tentativasLigacao - 1));
-      registar({ tipo: 'a_religar', geracao, porque, tentativa: tentativasLigacao, espera_ms: espera });
-      // ⚠️ ANCORA. O timer da religacao e `unref()`'d e o poller tambem: fechado o
-      // socket, NADA segurava o event loop e o Node saia limpo — exit 0, sem uma
-      // linha de erro — no meio da janela de religacao. Um daemon que morre em
-      // silencio e pior que um que estoira: o log ultimo diz "a_religar tentativa 1"
-      // e parece que esta a tentar. Visto ao vivo: o processo morreu 1s depois de
-      // publicar dois cartoes, e so se percebeu pelo exit code.
-      if (timerReal) {
-        clearTimeout(ancora);
-        ancora = setTimeout(() => {}, espera + 2000);   // REF'd de proposito — segura o loop
-      }
-      agendar(() => correr(maos).catch((e) => registar({ tipo: 'religar_falhou',
-        porque: (e && e.message) || 'erro' })), espera);
+      agendarTentativa(maos, porque, geracao);
     }
 
     const url = await pedirUrlDoSocket({ appToken: o.appToken, fetchImpl: o.fetchImpl });
@@ -429,7 +465,7 @@ function criarTransporte(opcoes) {
     // de log a dizer o que faltava. Um daemon que nao sabe dizer se esta ligado
     // nao esta a ser observado, esta a ser assumido.
     if (typeof s.aoAbrir === 'function') {
-      s.aoAbrir(() => { tentativasLigacao = 0; registar({ tipo: 'socket_aberto', geracao }); });
+      s.aoAbrir(() => { tentativasLigacao = 0; largarAncora(); registar({ tipo: 'socket_aberto', geracao }); });
     }
     if (typeof s.aoFechar === 'function') {
       s.aoFechar(() => { registar({ tipo: 'socket_fechado', geracao }); religar('socket fechado'); });
@@ -462,7 +498,19 @@ function criarTransporte(opcoes) {
     return { correu: true, socket: s, url_obtido: true };
   }
 
-  return { enviar, enviarEfemero, correr, tratarEnvelope, lembrarThread, enviados, threads, vistos, cartoes };
+  // ⚠️ `ancorado` e diagnostico, nao decoracao. Sem ele, "o processo continua a ser
+  // segurado entre tentativas" e uma propriedade que ninguem consegue observar: um
+  // `fetchImpl` falso rejeita por microtask e o event loop nunca chega a esvaziar,
+  // por isso um teste em memoria NAO distingue a ancora presente da ausente — o
+  // mutante que a largava a entrada do `correr()` passou verde. Uma propriedade que
+  // so se pode assumir nao esta testada; expo-la e o que a torna testavel.
+  return { enviar, enviarEfemero, correr, tratarEnvelope, lembrarThread, enviados, threads,
+    vistos, cartoes,
+    ancorado: () => !!ancora,
+    // largar a ancora e PRECISO ter nome: e um intervalo ref'd, e quem o criar sem
+    // forma de o soltar pendura o processo para sempre — foi o que aconteceu ao
+    // proprio `node --test` na primeira versao deste teste (2 min de timeout).
+    largarAncora };
 }
 
 module.exports = {

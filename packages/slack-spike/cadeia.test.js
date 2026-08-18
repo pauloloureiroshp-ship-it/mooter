@@ -79,3 +79,40 @@ test('cadeia · fonte «n/d» conta como ausente (a mesma regra do leitura.js)',
     { event: 'done', job_id: 'b', cost_usd: 99, cost_usd_fonte: 'n/d' }];
   assert.equal(cadeiaDe(l, 'a').total, 1, '«n/d» passou por procedencia válida');
 });
+
+test('cadeia · re-carimbo SEM fonte nao herda a procedencia antiga (ALTO->MEDIO codex)', () => {
+  // o codex reproduziu: pai US$1 com fonte + filho US$2 com fonte, depois o filho
+  // re-carimbado para US$9 SEM fonte => publicava US$10 com a fonte antiga
+  const l = [desp('a'), fim('a', 1),
+    desp('b', { handoff_from: 'a' }), fim('b', 2),
+    { event: 'done', job_id: 'b', cost_usd: 9 }];
+  const c = cadeiaDe(l, 'a');
+  assert.equal(c.total, 1, 'ficou com o valor velho do filho e a fonte velha');
+  assert.equal(c.todosMedidos, false);
+});
+
+test('cadeia · pai FANTASMA nao conta como pedido (ledger truncado)', () => {
+  const l = [desp('b', { handoff_from: 'nunca-existiu' }), fim('b', 2)];
+  const c = cadeiaDe(l, 'b');
+  assert.equal(c.pedidos, 1, 'contou um pedido que nao existe no ledger');
+  assert.deepEqual(c.jobs, ['b']);
+});
+
+test('cadeia · re-despacho com outro pai da a MESMA cadeia por qualquer porta', () => {
+  // antes: `pai` guardava o ultimo elo, `filhos` guardava todos os historicos — a
+  // mesma conversa dava totais diferentes conforme o cartao por onde se entrasse
+  const l = [desp('A'), fim('A', 1), desp('B'), fim('B', 10),
+    desp('x', { handoff_from: 'A' }),
+    desp('x', { handoff_from: 'B' }), fim('x', 2)];   // x re-despachado sob B
+  // entrar por A e a porta que denuncia: com `filhos` a guardar elos historicos,
+  // A ainda "tinha" x como filho, e a cadeia de A somava um custo que ja nao e dela
+  const deA = cadeiaDe(l, 'A');
+  assert.deepEqual(deA.jobs, ['A'], 'A ficou com um filho que ja foi re-despachado sob B');
+  assert.equal(deA.total, 1, 'a cadeia de A somou o custo de um job que pertence a B');
+
+  const deB = cadeiaDe(l, 'B');
+  const deX = cadeiaDe(l, 'x');
+  assert.deepEqual(deX.jobs.slice().sort(), deB.jobs.slice().sort(),
+    'a mesma conversa via duas cadeias diferentes conforme a porta de entrada');
+  assert.equal(deX.total, 12);
+});
