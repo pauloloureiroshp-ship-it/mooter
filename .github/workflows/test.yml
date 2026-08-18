@@ -7,6 +7,9 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
+      # Sem esta linha, os 174 testes do cockpit nunca corriam em CI: um push
+      # que partisse o runner passava verde. Medido a 2026-08-18.
+      - 'tools/cockpit/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
@@ -14,6 +17,9 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
+      # Sem esta linha, os 174 testes do cockpit nunca corriam em CI: um push
+      # que partisse o runner passava verde. Medido a 2026-08-18.
+      - 'tools/cockpit/**'
       - '.github/workflows/test.yml'
   workflow_dispatch:
 
@@ -71,6 +77,14 @@ jobs:
       - name: Lint router (eslint)
         working-directory: tools/router
         run: npm run lint
+
+      # O ciclo e o endpoint do cockpit, incluindo o smoke E2E: levanta o F10
+      # numa porta efemera, recusa um POST /stop de origem externa (403) e
+      # produz um recibo fim-a-fim com um Ollama falso. Nao precisa de GPU nem
+      # de rede — se precisasse, nao correria aqui e voltavamos ao ponto de
+      # partida: comportamento sem trava.
+      - name: Cockpit runner + smoke E2E
+        run: npm run test:cockpit-runner
 
       - name: Syntax check classify.js
         run: node -c tools/router/classify.js

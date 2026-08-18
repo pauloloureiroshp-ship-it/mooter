@@ -17,12 +17,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
 import { PILLAR_IDS } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
 import { buildAlignment } from './alignment.mjs';
+import { createEngineBreaker } from './engine-breaker.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
@@ -53,6 +55,8 @@ const SECOND_MODEL = process.env.MOO_SECOND_MODEL || 'gpt-oss:20b';
 const SLEEP_MIN_S = 15;
 const SLEEP_MAX_S = 30;
 const IDLE_SLEEP_S = 5;
+
+export const PATHS = { MOO_DIR, STOP_FILE, LEDGER, STATE, LOCK, CURSOR, FOCUS, ANCORA, REPO_ROOT };
 
 const log = (msg) => process.stdout.write(`[moo-runner] ${msg}\n`);
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -133,7 +137,7 @@ function appendReceipt(receipt) {
  * Failures are logged once and never block a round.
  */
 let beaconWarned = false;
-async function publishBeacon() {
+async function publishBeacon({ engineAlive = true } = {}) {
   try {
     const [gpu, alignment] = await Promise.all([
       sampleGpu(),
@@ -146,7 +150,9 @@ async function publishBeacon() {
       stopFile: STOP_FILE,
       gpu,
       alignment,
-      engineAlive: true,
+      // Era `true` fixo: o beacon jurava motor vivo durante as 11 horas em que
+      // ele esteve morto. Um sinal que nao pode dizer "nao" nao e sinal.
+      engineAlive,
     });
     const where = beaconDir();
     const res = writeBeacon(state, where);
@@ -162,37 +168,57 @@ async function publishBeacon() {
   }
 }
 
-async function main() {
-  const args = new Set(process.argv.slice(2));
+/**
+ * O ciclo. Tudo o que toca no mundo entra por parametro com o default real, para
+ * que um teste possa levantar o loop inteiro sem GPU, sem rede e sem relogio.
+ * `maxRounds` existe so para os testes; em producao e Infinity.
+ */
+export async function main({
+  argv = process.argv.slice(2),
+  runRoundImpl = runRound,
+  sleepImpl = sleep,
+  publishBeaconImpl = publishBeacon,
+  appendReceiptImpl = appendReceipt,
+  nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  maxRounds = Infinity,
+  logImpl = log,
+} = {}) {
+  const args = new Set(argv);
   assertHome();
 
   // The owner's explicit gesture is the ONLY thing that lifts a STOP.
   if (args.has('--play')) {
     fs.rmSync(STOP_FILE, { force: true });
-    log('--play explicito: STOP levantado pelo dono.');
+    logImpl('--play explicito: STOP levantado pelo dono.');
   }
 
   claimLock();
   process.on('exit', releaseLock);
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => {
-      log(`${sig} — a sair limpo.`);
+      logImpl(`${sig} — a sair limpo.`);
       releaseLock();
       process.exit(0);
     });
   }
 
-  log(`arranque ${new Date().toISOString()} — motor ${DEFAULT_OLLAMA} — $0 duro.`);
-  log(`repo ${REPO_ROOT} · pilares ${PILLAR_IDS.join(',')} · modelo ${DEFAULT_MODEL}`);
+  logImpl(`arranque ${new Date().toISOString()} — motor ${DEFAULT_OLLAMA} — $0 duro.`);
+  logImpl(`repo ${REPO_ROOT} · pilares ${PILLAR_IDS.join(',')} · modelo ${DEFAULT_MODEL}`);
   if (fs.existsSync(STOP_FILE)) log('STOP presente a arrancar — fica parado ate /play.');
 
   let i = readCursor();
   const once = args.has('--once');
+  // O disjuntor guarda o estado do motor entre rondas. Ver engine-breaker.mjs:
+  // 1767 recibos de um apagao de 11 horas foi o que custou nao o ter.
+  const breaker = createEngineBreaker();
+  let rondas = 0;
 
   for (;;) {
+    if (rondas >= maxRounds) return { rondas, breaker: breaker.estado };
     if (fs.existsSync(STOP_FILE)) {
-      await sleep(IDLE_SLEEP_S);
-      if (once) return;
+      await sleepImpl(IDLE_SLEEP_S);
+      rondas += 1;
+      if (once) return { rondas, breaker: breaker.estado };
       continue;
     }
 
@@ -215,7 +241,7 @@ async function main() {
 
     let receipt;
     try {
-      ({ receipt } = await runRound({
+      ({ receipt } = await runRoundImpl({
         repoRoot: REPO_ROOT,
         pillar,
         cursor,
@@ -230,7 +256,7 @@ async function main() {
       // A crash must still leave a trace: a silent gap in the ledger is the one
       // thing that would make the cockpit lie about what happened.
       receipt = {
-        ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        ts: nowIso(),
         pilar: pillar,
         modelo: DEFAULT_MODEL,
         usd: 0,
@@ -242,22 +268,52 @@ async function main() {
       };
     }
 
-    appendReceipt(receipt);
-    i += 1;
-    writeCursor(i);
-    await publishBeacon();
-    log(
-      `${pillar} ${receipt.verdict} · ${receipt.dur_s}s · ${receipt.tokens_out} tok · $0 · ` +
-        `${String(receipt.evidencia).slice(0, 90)}`,
-    );
+    const motorFalhou = Boolean(receipt.falha_motor);
+    const { recibos, backoffS, aberto } = breaker.observe(receipt, nowIso());
+    for (const r of recibos) appendReceiptImpl(r);
 
-    if (once) return;
-    await sleep(SLEEP_MIN_S + Math.floor(Math.random() * (SLEEP_MAX_S - SLEEP_MIN_S + 1)));
+    // Uma ronda que nem chegou ao motor nao gastou o alvo: avancar o cursor
+    // aqui saltava um hunk que ninguem reviu. Falha de motor nao consome
+    // trabalho.
+    if (!motorFalhou) {
+      i += 1;
+      writeCursor(i);
+    }
+    await publishBeaconImpl({ engineAlive: !motorFalhou });
+
+    if (motorFalhou) {
+      // O stdout nao e o ledger: aqui podemos falar. O que nao se pode e
+      // escrever 1767 linhas de apagao no registo do trabalho feito.
+      logImpl(
+        `motor em baixo (${breaker.estado.falhas} seguidas desde ${breaker.estado.inicio}) · ` +
+          `${aberto ? 'disjuntor ABERTO, ledger em silencio' : 'ainda a registar'} · espera ${backoffS}s`,
+      );
+    } else {
+      logImpl(
+        `${pillar} ${receipt.verdict} · ${receipt.dur_s}s · ${receipt.tokens_out} tok · $0 · ` +
+          `${String(receipt.evidencia).slice(0, 90)}`,
+      );
+    }
+
+    rondas += 1;
+    if (once) return { rondas, breaker: breaker.estado };
+    await sleepImpl(backoffS || SLEEP_MIN_S + Math.floor(Math.random() * (SLEEP_MAX_S - SLEEP_MIN_S + 1)));
   }
 }
 
-main().catch((err) => {
-  log(`fatal: ${err && err.stack}`);
-  releaseLock();
-  process.exit(1);
-});
+/**
+ * O guard que faltava. Sem ele, `import './moo-runner.mjs'` arrancava o loop
+ * perpetuo dentro do processo de teste — por isso nenhum teste o importava, e
+ * por isso o ciclo era a UNICA parte do runner sem cobertura nenhuma. Um TDZ
+ * no modo diff passou 161 testes e rebentou todas as rondas em producao.
+ */
+export const invocadoComoPrograma = Boolean(process.argv[1])
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invocadoComoPrograma) {
+  main().catch((err) => {
+    log(`fatal: ${err && err.stack}`);
+    releaseLock();
+    process.exit(1);
+  });
+}
