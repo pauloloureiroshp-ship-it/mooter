@@ -12,6 +12,7 @@ import {
   verifyEvidence,
   tallyVerdicts,
   isNoFinding,
+  concluir,
 } from './evidence-verifier.mjs';
 import {
   assertLocalEngine,
@@ -567,4 +568,32 @@ test('em modo DIFF com negacao, o aviso dirigido entra no prompt', () => {
   if (pack.negacaoDensa) {
     assert.match(pack.prompt, /usam negação/, 'terreno de negacao exige o aviso dirigido');
   }
+});
+
+// ------------------------------------------------ os dois eixos do veredicto
+
+test('concluir le o que o modelo concluiu, nao se a linha existe', () => {
+  // Medido a 2026-08-18: 614 de 1888 recibos com verdict `citacao-ok` eram o
+  // modelo a escrever FALSO POSITIVO. Um terco do numero verde do painel era o
+  // motor a dizer que NAO ha problema. Sao dois eixos e tem de ser dois campos.
+  assert.equal(concluir('ACHADO: x QUANDO y ENTAO z PROVA: a.js:1'), 'achado');
+  assert.equal(concluir('FALSO POSITIVO: o bloco vazio e intencional'), 'falso-positivo');
+  assert.equal(concluir('SEM ACHADO'), 'sem-achado');
+  assert.equal(concluir(''), 'vazio');
+  assert.equal(concluir(null), 'vazio');
+  assert.equal(concluir('qualquer outra coisa'), 'indeterminado');
+});
+
+test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confundem', () => {
+  const root = fixtureRepo();
+  // Citacao VALIDA (linha existe) mas o modelo diz que NAO e problema:
+  // verdict tem de ser citacao-ok E conclusao tem de ser falso-positivo.
+  const r = verifyEvidence({
+    repoRoot: root,
+    text: 'FALSO POSITIVO: este regex le padroes fixos PROVA: tools/router/classify.js:3',
+    allowedFiles: ['tools/router/classify.js'],
+  });
+  assert.equal(r.conclusao, 'falso-positivo', 'a conclusao vem do texto do modelo');
+  assert.notEqual(r.verdict, undefined, 'o verdict continua a existir');
+  assert.ok(r.verdict !== r.conclusao, 'os dois eixos nao podem colapsar num so');
 });

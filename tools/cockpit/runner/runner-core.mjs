@@ -321,6 +321,10 @@ export async function runRound({
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,
+      // Dois eixos: `verdict` diz se a linha citada existe; `conclusao` diz o que
+      // o modelo concluiu. Juntar os dois num numero so fez 32,5% do verde do
+      // painel ser, na verdade, o motor a dizer que nao ha problema.
+      conclusao: check.conclusao,
       citacoes: check.citations.map((c) => ({
         ref: `${c.file}:${c.line}`,
         ok: c.ok,

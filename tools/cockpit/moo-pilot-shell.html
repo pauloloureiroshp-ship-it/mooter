@@ -155,6 +155,14 @@
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
   }
+
+    /* O que o modelo DISSE, por baixo da linha que citou. A cor vem do prefixo
+       que o proprio modelo escreve — nao de uma heuristica nossa. */
+    code.ev { display:block; opacity:.72; font-size:11px; }
+    .diz { margin-top:3px; font-size:12px; line-height:1.35; }
+    .diz.ok   { color:#F2A5A5; }
+    .diz.fp   { color:#8A8076; font-style:italic; }
+    .diz.mudo { color:#8A8076; opacity:.6; }
 </style>
 
 <div class="wrap">
@@ -645,7 +653,22 @@
       const v = VERDICTS[r.verdict]; const tdv = el('td');
       tdv.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto'));
       tr.appendChild(tdv);
-      const tde = el('td'); tde.appendChild(el('code',null,r.evidencia || r.resumo || '—')); tr.appendChild(tde);
+      // O `||` escondia o raciocinio: `evidencia` e nao-nula em 5419 de 5419
+      // recibos, por isso `resumo` — o texto do modelo, "ACHADO: ... QUANDO ...
+      // ENTAO ..." — renderizava em ZERO linhas. O dono pagava GPU por 1274
+      // achados que nunca conseguia ler. Sao duas colunas, nao uma alternativa.
+      const tde = el('td');
+      tde.appendChild(el('code','ev',r.evidencia || '—'));
+      if (r.resumo) {
+        const dizer = el('div','diz', r.resumo);
+        // Prefixo colorido: o proprio modelo ja se classifica na primeira palavra.
+        const up = String(r.resumo).toUpperCase();
+        if (up.startsWith('FALSO POSITIVO')) dizer.className = 'diz fp';
+        else if (up.startsWith('ACHADO')) dizer.className = 'diz ok';
+        else if (up.includes('SEM ACHADO')) dizer.className = 'diz mudo';
+        tde.appendChild(dizer);
+      }
+      tr.appendChild(tde);
       tr.appendChild(el('td',null, r.dur_s != null ? `${r.dur_s}s` : '—'));
       body.appendChild(tr);
     }
