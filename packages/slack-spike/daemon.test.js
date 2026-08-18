@@ -179,3 +179,22 @@ test('arranque · a LIGACAO do poller ao daemon corre sem socket nenhum', async 
     await lig.poller.tique();          // e o tique corre mesmo
   } finally { clearInterval(lig.relogio); }
 });
+
+test('arranque · a ligacao do poller LE O LEDGER a serio quando nao lhe injectam um', async () => {
+  // ⚠️ Achado BAIXO do codex, e e a oitava vez que o padrao aparece: o teste
+  // anterior injectava SEMPRE `m.lerLedger`, portanto apagar o fallback de
+  // producao (`|| lerLedgerPorOmissao`) deixava-o VERDE. Producao nunca injecta.
+  const correr = require('./correr.js');
+  const m = {
+    adaptador: { publicarFechos: async () => [], publicarPendentes: async () => [],
+      jobsNossos: () => new Set() },
+    transporte: { threads: new Map() },
+    broker: { listPending: () => [] },
+    silenciados: new Set(),
+    // repare-se: SEM `lerLedger` — como o `montar()` o devolve de facto
+  };
+  const lig = correr.ligarPollerAoDaemon(m, () => {});
+  try {
+    await lig.poller.tique();      // rebenta se o fallback nao existir
+  } finally { clearInterval(lig.relogio); }
+});

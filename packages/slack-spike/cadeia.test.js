@@ -116,3 +116,20 @@ test('cadeia · re-despacho com outro pai da a MESMA cadeia por qualquer porta',
     'a mesma conversa via duas cadeias diferentes conforme a porta de entrada');
   assert.equal(deX.total, 12);
 });
+
+test('cadeia · a ordem e CRONOLOGICA, nao a posicao no ficheiro', () => {
+  // ⚠️ Achado MEDIO do codex. O «ultimo» custo era o ultimo do array — correcto
+  // apenas se a ordem fisica do ledger fosse uma invariante, que ninguem garantiu.
+  const F = { cost_usd_fonte: 'reportado pelo CLI' };
+  const l = [
+    { ts: '2026-08-18T10:00:00Z', event: 'dispatched', job_id: 'a' },
+    Object.assign({ ts: '2026-08-18T12:00:00Z', event: 'done', job_id: 'a', cost_usd: 10 }, F),
+    Object.assign({ ts: '2026-08-18T11:00:00Z', event: 'done', job_id: 'a', cost_usd: 1 }, F),
+  ];
+  assert.equal(cadeiaDe(l, 'a').total, 10, 'ficou com o carimbo mais VELHO por estar mais abaixo');
+});
+
+test('cadeia · sem `ts` cai para a ordem fisica (estavel, comportamento antigo)', () => {
+  const l = [desp('a'), fim('a', 1), fim('a', 3)];
+  assert.equal(cadeiaDe(l, 'a').total, 3, 'sem ts a ordem fisica devia continuar a mandar');
+});

@@ -39,7 +39,19 @@ function paiDe(e) {
  * @returns {{jobs:string[], pedidos:number, total:number, todosMedidos:boolean, fontes:string[]}}
  */
 function cadeiaDe(ledger, jobId) {
-  const es = Array.isArray(ledger) ? ledger : [];
+  // ⚠️ ORDEM CRONOLOGICA, nao ordem do array. O «ultimo» pai e o «ultimo» custo
+  // eram escolhidos pela POSICAO no ficheiro, o que so estaria certo se a ordem
+  // fisica do ledger fosse uma invariante garantida — e nunca ninguem a garantiu.
+  // O codex provou: um carimbo cronologicamente mais recente de US$ 10 colocado
+  // ANTES de um antigo de US$ 1 devolvia US$ 1. Uma suposicao por declarar e uma
+  // suposicao por partir. Empates e eventos sem `ts` caem para a ordem fisica,
+  // que e o comportamento antigo — a ordenacao e estavel de proposito.
+  const bruto = Array.isArray(ledger) ? ledger : [];
+  const es = bruto
+    .map((e, i) => ({ e, i, t: Date.parse((e && e.ts) || '') }))
+    .sort((a, b) => (Number.isFinite(a.t) && Number.isFinite(b.t) && a.t !== b.t
+      ? a.t - b.t : a.i - b.i))
+    .map((x) => x.e);
 
   // ⚠️ SO CONTA QUEM EXISTE. Um `handoff_from` a apontar para um job que nunca foi
   // despachado (ledger truncado, evento perdido) fazia esse fantasma entrar na

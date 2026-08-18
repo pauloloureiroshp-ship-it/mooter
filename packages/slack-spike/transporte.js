@@ -488,6 +488,20 @@ function criarTransporte(opcoes) {
     geracaoActual += 1;
     const geracao = geracaoActual;
     const s = abrir(url);
+    // ⚠️ PRAZO PARA ABRIR. Sem isto, um socket que nunca abre, nunca fecha e nunca
+    // da erro — handshake pendurado, proxy a engolir — deixava o daemon VIVO (a
+    // ancora segura-o) e SURDO para sempre. Nenhum dos tres callbacks disparava,
+    // portanto nada religava. E a mesma familia de todos os defeitos deste spike:
+    // o processo existe, o log nao diz nada, e ninguem repara ate um estranho
+    // escrever no canal e nao acontecer nada.
+    const msParaAbrir = Number(o.msParaAbrir || 15000);
+    let abriu = false;
+    const prazo = setTimeout(() => {
+      if (abriu || !vivo) return;
+      registar({ tipo: 'socket_nao_abriu', geracao, espera_ms: msParaAbrir });
+      religar('o socket nao abriu em ' + msParaAbrir + 'ms');
+    }, msParaAbrir);
+    prazo.unref?.();                       // a ancora e que segura o loop, nao este
 
     // ⚠️ Sem isto o socket falhava em SILENCIO. `apps.connections.open` devolver um
     // URL nao prova que a ligacao se fez — e se o WebSocket nunca abrisse, ou
@@ -496,7 +510,8 @@ function criarTransporte(opcoes) {
     // de log a dizer o que faltava. Um daemon que nao sabe dizer se esta ligado
     // nao esta a ser observado, esta a ser assumido.
     if (typeof s.aoAbrir === 'function') {
-      s.aoAbrir(() => { tentativasLigacao = 0; largarAncora(); registar({ tipo: 'socket_aberto', geracao }); });
+      s.aoAbrir(() => { abriu = true; clearTimeout(prazo); tentativasLigacao = 0; largarAncora();
+        registar({ tipo: 'socket_aberto', geracao }); });
     }
     if (typeof s.aoFechar === 'function') {
       s.aoFechar(() => { registar({ tipo: 'socket_fechado', geracao }); religar('socket fechado'); });

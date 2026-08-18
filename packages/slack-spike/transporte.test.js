@@ -612,3 +612,25 @@ test('religar · DESISTE numa recusa definitiva (senao martela o Slack para semp
     assert.equal(tr.ancorado(), false, 'ficou a segurar o processo para sempre');
   } finally { tr.largarAncora(); }
 });
+
+test('socket · que NUNCA abre nem falha e apanhado por prazo (senao fica vivo e surdo)', async () => {
+  // ⚠️ Achado MEDIO do codex. Se nenhum dos tres callbacks disparar — handshake
+  // pendurado, proxy a engolir — a ancora segurava o processo VIVO e nada religava.
+  // O daemon existia, o log nao dizia nada, e so se via quando alguem escrevesse no
+  // canal e nao acontecesse nada.
+  const regs = [];
+  const agendados = [];
+  const mudo = () => ({ aoAbrir() {}, aoMensagem() {}, aoFechar() {}, aoErro() {},
+    enviar() {}, fechar() {} });
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true, url: 'wss://x' }) }),
+    abrirSocket: mudo,
+    agendar: (fn) => { agendados.push(fn); return { unref() {} }; },
+    msParaAbrir: 20, registar: (r) => regs.push(r) });
+
+  await tr.correr({});
+  await new Promise((r) => setTimeout(r, 80));
+  assert.ok(regs.some((x) => x.tipo === 'socket_nao_abriu'),
+    'o socket nunca abriu e ninguem deu por isso');
+  assert.equal(agendados.length, 1, 'nao religou depois de o prazo expirar');
+});
