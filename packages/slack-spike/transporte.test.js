@@ -379,3 +379,41 @@ test('corrida · duas mencoes concorrentes NAO trocam de thread', async () => {
   assert.equal(tr.threads.get('J1'), 'T1', 'o job da 1a mencao foi parar ao thread da 2a');
   assert.equal(tr.threads.get('J2'), 'T2');
 });
+
+test('religar · FECHA o socket velho (senao acumulam-se e o log fica ambiguo)', async () => {
+  const abertos = [];
+  const socketFalso2 = () => {
+    const s = { fechado: false, cbs: {} };
+    for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+    s.enviar = () => {}; s.fechar = () => { s.fechado = true; };
+    abertos.push(s); return s;
+  };
+  const agendados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: socketFalso2, agendar: (fn) => { agendados.push(fn); return { unref() {} }; } });
+  await tr.correr({});
+  await abertos[0].cbs.aoMensagem(JSON.stringify({ type: 'disconnect', reason: 'warning' }));
+  assert.equal(abertos[0].fechado, true, 'o socket velho ficou aberto a escrever no mesmo log');
+  await agendados[0]();
+  assert.equal(abertos.length, 2);
+  assert.equal(abertos[1].fechado, false);
+});
+
+test('religar · cada socket tem geracao no log (para se saber qual esta vivo)', async () => {
+  const regs = [];
+  const socketFalso3 = () => {
+    const s = { cbs: {} };
+    for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+    s.enviar = () => {}; s.fechar = () => {};
+    return s;
+  };
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({ 'apps.connections.open': { ok: true, url: 'wss://x' } }),
+    abrirSocket: socketFalso3, agendar: () => ({ unref() {} }),
+    registar: (r) => regs.push(r) });
+  const r = await tr.correr({});
+  r.socket.cbs.aoAbrir();
+  const aberto = regs.find((x) => x.tipo === 'socket_aberto');
+  assert.equal(aberto.geracao, 1, 'sem geracao, duas linhas iguais no log podem ser sockets diferentes');
+});

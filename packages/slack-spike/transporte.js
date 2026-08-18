@@ -224,7 +224,8 @@ function criarTransporte(opcoes) {
   const vistos = new Set();       // dedupe de re-entregas
   const threadDaOperacao = () => (contexto.getStore() || {}).thread || null;
   const cartoes = new Map();     // job_id -> ts do CARTAO publicado, para o chat.update
-  let tentativasLigacao = 0;    // persiste entre religacoes — ver religar()
+  let tentativasLigacao = 0;
+  let geracaoActual = 0;      // numera cada socket: o log deixa de ser ambiguo    // persiste entre religacoes — ver religar()
   const enviados = [];            // o que saiu (ou sairia, em dry-run)
 
   /**
@@ -390,14 +391,22 @@ function criarTransporte(opcoes) {
     function religar(porque) {
       if (!reconectar || !vivo) return;
       vivo = false;                                  // este socket ja nao conta
+      // ⚠️ FECHAR O VELHO. Sem isto os sockets acumulam-se: o antigo continua a
+      // receber `disconnect`/`error`/`close` e a escrever no mesmo log, e deixa
+      // de se poder dizer QUAL socket esta vivo. Visto ao vivo — uma queda gerou
+      // linhas que pareciam o daemon a ficar surdo e eram o socket anterior a
+      // morrer. Um log ambiguo sobre liveness e pior que nenhum.
+      try { if (s && typeof s.fechar === 'function') s.fechar(); } catch { /* ja morto */ }
       tentativasLigacao += 1;
       const espera = Math.min(30000, 1000 * Math.pow(2, tentativasLigacao - 1));
-      registar({ tipo: 'a_religar', porque, tentativa: tentativasLigacao, espera_ms: espera });
+      registar({ tipo: 'a_religar', geracao, porque, tentativa: tentativasLigacao, espera_ms: espera });
       agendar(() => correr(maos).catch((e) => registar({ tipo: 'religar_falhou',
         porque: (e && e.message) || 'erro' })), espera);
     }
 
     const url = await pedirUrlDoSocket({ appToken: o.appToken, fetchImpl: o.fetchImpl });
+    geracaoActual += 1;
+    const geracao = geracaoActual;
     const s = abrir(url);
 
     // ⚠️ Sem isto o socket falhava em SILENCIO. `apps.connections.open` devolver um
@@ -407,14 +416,14 @@ function criarTransporte(opcoes) {
     // de log a dizer o que faltava. Um daemon que nao sabe dizer se esta ligado
     // nao esta a ser observado, esta a ser assumido.
     if (typeof s.aoAbrir === 'function') {
-      s.aoAbrir(() => { tentativasLigacao = 0; registar({ tipo: 'socket_aberto' }); });
+      s.aoAbrir(() => { tentativasLigacao = 0; registar({ tipo: 'socket_aberto', geracao }); });
     }
     if (typeof s.aoFechar === 'function') {
-      s.aoFechar(() => { registar({ tipo: 'socket_fechado' }); religar('socket fechado'); });
+      s.aoFechar(() => { registar({ tipo: 'socket_fechado', geracao }); religar('socket fechado'); });
     }
     if (typeof s.aoErro === 'function') {
       s.aoErro((e) => {
-        registar({ tipo: 'socket_erro', porque: (e && (e.message || e.type)) || 'erro sem mensagem' });
+        registar({ tipo: 'socket_erro', geracao, porque: (e && (e.message || e.type)) || 'erro sem mensagem' });
         religar('socket em erro');
       });
     }
