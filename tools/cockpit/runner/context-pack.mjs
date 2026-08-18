@@ -209,6 +209,22 @@ export function negacaoDensa(texto) {
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 
 /**
+ * O que conta como trabalho novo para rever.
+ *
+ * Medido a 2026-08-18: sem exclusoes, 10 dos 20 ficheiros do diff de 12 commits
+ * eram `_handoff/**` — copias arquivadas de codigo que ja nao corre — e outros
+ * tantos eram `*.test.*`. A GPU moia arquivo e chamava-lhe revisao. As
+ * exclusoes sao pathspec do git (`:(exclude)`), avaliadas pelo proprio git, para
+ * que o custo do diff caia na origem em vez de se filtrar depois.
+ */
+export const DIFF_PATHSPEC = [
+  '*.js', '*.mjs', '*.cjs', '*.ts', '*.tsx', '*.jsx',
+  ':(exclude)_handoff/**',
+  ':(exclude)docs/archive/**',
+  ':(exclude)*.test.*',
+];
+
+/**
  * Lê as linhas que mudaram entre `baseRef` e HEAD. Devolve [] em qualquer falha
  * — um repo sem git, um ref inexistente ou um diff vazio nunca podem parar uma
  * ronda; o runner cai para o degrau seguinte da escada.
@@ -230,10 +246,7 @@ export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null,
     }));
   let out;
   try {
-    out = run([
-      'diff', '--unified=0', '--no-color', `${baseRef}...HEAD`,
-      '--', '*.js', '*.mjs', '*.cjs', '*.ts', '*.tsx', '*.jsx',
-    ]);
+    out = run(['diff', '--unified=0', '--no-color', `${baseRef}...HEAD`, '--', ...DIFF_PATHSPEC]);
   } catch (err) {
     // Nunca parar a ronda por causa disto — mas tambem nunca fingir que o diff
     // estava vazio quando na verdade rebentou.
@@ -397,9 +410,24 @@ export function buildContextPack({
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
   if (diffBase) {
     let diffErro = null;
-    const hunks = readChangedLines(repoRoot, { baseRef: diffBase, runImpl: diffRunImpl, onError: (e) => { diffErro = e; } });
+    const todos = readChangedLines(repoRoot, { baseRef: diffBase, runImpl: diffRunImpl, onError: (e) => { diffErro = e; } });
+    // Os hunks que caem nos ficheiros DESTE pilar. Sem interseccao, o pilar nao
+    // tem nada de seu no diff: revemos o resto na mesma — trabalho novo vale
+    // mais do que arrumacao — mas dizemo-lo, e `escopo: 'geral'` e um rotulo
+    // que nao mente. O rotulo do pilar deixa de ser colado a um ficheiro que
+    // nada tem a ver com ele.
+    const meus = todos.filter((h) => spec.files.includes(h.file));
+    const escopo = meus.length > 0 ? 'pilar' : 'geral';
+    const hunks = meus.length > 0 ? meus : todos;
     if (hunks.length > 0) {
-      const h = hunks[Math.abs(cursor) % hunks.length];
+      // Fora do ambito do pilar, o cursor sozinho dava a TODOS os pilares o
+      // MESMO hunk na mesma ronda: medido a 2026-08-18, os packs de P1 e P5
+      // diferiam em 1 linha de 25 — so o cabecalho — e a pergunta era
+      // identica. Seis pilares a moer o mesmo ficheiro sao um pilar, com seis
+      // vezes o custo. O ordinal do pilar desfaz a correlacao sem perder o
+      // determinismo: mesma ronda, mesmo repo, mesmo resultado.
+      const desvio = escopo === 'geral' ? PILLAR_IDS.indexOf(pillar) : 0;
+      const h = hunks[Math.abs(cursor + desvio) % hunks.length];
       const lines = readLines(repoRoot, h.file);
       if (lines && lines.length > 0 && h.start <= lines.length) {
         const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
@@ -417,8 +445,11 @@ export function buildContextPack({
           })
           .join('\n');
         const densa = negacaoDensa(mudadas);
+        const rotulo = escopo === 'pilar'
+          ? `${spec.label} (pilar ${pillar})`
+          : `Diff geral — fora dos ficheiros do pilar ${pillar}`;
         const prompt = [
-          `Pilar: ${pillar} — ${spec.label}`,
+          `Revisao: ${rotulo}`,
           `Ficheiro: ${h.file} (linhas ${slice.startLine}-${slice.endLine} de ${lines.length})`,
           '',
           `MUDARAM as linhas ${h.start}-${fim} (contra ${diffBase}). O resto é contexto.`,
@@ -438,6 +469,7 @@ export function buildContextPack({
         return {
           ok: true,
           mode: 'diff',
+          escopo,
           negacaoDensa: densa,
           diffErro,
           anchored: false,
@@ -445,7 +477,7 @@ export function buildContextPack({
           changedStart: h.start,
           changedCount: h.count,
           pillar,
-          label: spec.label,
+          label: rotulo,
           file: h.file,
           startLine: slice.startLine,
           endLine: slice.endLine,

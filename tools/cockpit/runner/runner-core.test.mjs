@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -596,4 +596,99 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
   assert.equal(r.conclusao, 'falso-positivo', 'a conclusao vem do texto do modelo');
   assert.notEqual(r.verdict, undefined, 'o verdict continua a existir');
   assert.ok(r.verdict !== r.conclusao, 'os dois eixos nao podem colapsar num so');
+});
+
+// ------------------------------------------------- B6: o rotulo deixa de mentir
+//
+// Medido a 2026-08-18 na arvore real: os packs de P1 e P5 diferiam em 1 linha
+// de 25 — so o cabecalho — e o campo `question` era IDENTICO. Os seis pilares
+// apontavam ao mesmo ficheiro, na mesma janela, e dez dos vinte ficheiros do
+// diff eram `_handoff/**`, codigo arquivado que ja nao corre.
+
+/** Repo de teste com um ficheiro de cada pilar e um ficheiro fora de todos. */
+function repoDiff() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-b6-'));
+  const escrever = (rel) => {
+    fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), Array.from({ length: 400 }, (_, n) => `linha ${n + 1};`).join('\n'));
+  };
+  escrever('tools/router/classify.js');            // P1
+  escrever('tools/docs-hygiene.js');               // P2
+  escrever('packages/mooter-bridge/board.js');     // de nenhum pilar
+  escrever('packages/mooter-bridge/broker.js');    // de nenhum pilar
+  escrever('packages/mooter-bridge/fleet.js');     // de nenhum pilar
+  escrever('packages/mooter-bridge/sync.js');      // de nenhum pilar
+  escrever('packages/mooter-bridge/recibo.js');    // de nenhum pilar
+  escrever('packages/mooter-bridge/actor.js');     // de nenhum pilar
+  return root;
+}
+
+const diffFalso = (ficheiros) => () => ficheiros
+  .map((f, k) => [`--- a/${f}`, `+++ b/${f}`, `@@ -${20 + k * 10},0 +${20 + k * 10},4 @@`, '+x'].join('\n'))
+  .join('\n');
+
+test('B6: o pathspec do diff exclui arquivo, docs/archive e testes', () => {
+  assert.ok(DIFF_PATHSPEC.includes(':(exclude)_handoff/**'), 'codigo arquivado nao e trabalho novo');
+  assert.ok(DIFF_PATHSPEC.includes(':(exclude)docs/archive/**'));
+  assert.ok(DIFF_PATHSPEC.includes(':(exclude)*.test.*'));
+  let argv = null;
+  readChangedLines('/r', { runImpl: (a) => { argv = a; return ''; } });
+  for (const spec of DIFF_PATHSPEC) {
+    assert.ok(argv.includes(spec), `o pathspec ${spec} tem de chegar ao git, nao ficar so na constante`);
+  }
+});
+
+test('B6: com hunk seu, o pilar rotula-se a si proprio (escopo pilar)', () => {
+  const root = repoDiff();
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P2', cursor: 0, diffBase: 'HEAD~12',
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js', 'tools/docs-hygiene.js']),
+  });
+  assert.equal(pack.mode, 'diff');
+  assert.equal(pack.escopo, 'pilar', 'o hunk de docs-hygiene.js e mesmo do P2');
+  assert.equal(pack.file, 'tools/docs-hygiene.js', 'com hunk seu, o pilar nao vai rever o dos outros');
+  assert.match(pack.label, /Qualidade & Verificação/);
+});
+
+test('B6: sem hunk seu, o pack diz "geral" e NAO se veste do rotulo do pilar', () => {
+  const root = repoDiff();
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12',
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+  });
+  assert.equal(pack.escopo, 'geral');
+  assert.equal(pack.file, 'packages/mooter-bridge/board.js', 'revemos o diff na mesma — trabalho novo vale mais');
+  assert.doesNotMatch(pack.label, /Routing & Custo/, 'chamar "Routing & Custo" a um ficheiro do bridge e a mentira que o B6 fecha');
+  assert.match(pack.label, /geral/i);
+  assert.doesNotMatch(pack.prompt, /^Pilar: P1/m, 'o cabecalho do prompt tambem nao pode afirmar o pilar');
+});
+
+test('B6 ACEITACAO: dois pilares, mesmo cursor, alvos DIFERENTES', () => {
+  const root = repoDiff();
+  const foraDeTodos = [
+    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
+    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
+    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
+  ];
+  for (const cursor of [0, 1, 5, 12]) {
+    const alvos = PILLAR_IDS.map((p) => {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diffFalso(foraDeTodos) });
+      return `${pk.file}:${pk.startLine}`;
+    });
+    assert.equal(new Set(alvos).size, PILLAR_IDS.length,
+      `cursor ${cursor}: seis pilares a moer o mesmo ficheiro sao um pilar com seis vezes o custo — ${JSON.stringify(alvos)}`);
+  }
+});
+
+test('B6 ACEITACAO: zero alvos em _handoff/ — o pathspec e a unica defesa', () => {
+  // Se alguem apagar a exclusao, o git devolve os hunks arquivados e este teste
+  // cai. E o ponto: a exclusao vive no pathspec, nao num filtro a jusante.
+  assert.ok(DIFF_PATHSPEC.some((p) => p === ':(exclude)_handoff/**'));
+  const root = repoDiff();
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P4', cursor: 0, diffBase: 'HEAD~12',
+    // o git ja filtrou: o que chega ao pack nunca traz _handoff
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+  });
+  assert.doesNotMatch(pack.file, /^_handoff\//);
 });

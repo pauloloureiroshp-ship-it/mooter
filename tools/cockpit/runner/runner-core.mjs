@@ -254,6 +254,10 @@ export async function runRound({
           tokens_out: 0,
           ficheiro: pack.file,
           verdict: VERDICT.UNCITED,
+          // Bandeira legivel por maquina: o loop desliga-se sozinho quando o
+          // motor esta em baixo, e nao se desliga por uma ronda que so nao
+          // achou nada. Distinguir isto por substring do resumo era fragil.
+          falha_motor: true,
           resultado_resumo: `motor local respondeu HTTP ${res && res.status}`,
           evidencia: 'n/d',
         },
@@ -268,6 +272,8 @@ export async function runRound({
         tokens_out: 0,
         ficheiro: pack.file,
         verdict: VERDICT.NO_FINDING,
+        // Um STOP nosso nao e o motor em baixo — so o segundo abre o disjuntor.
+        ...(abortedByStop ? {} : { falha_motor: true }),
         resultado_resumo: abortedByStop
           ? 'STOP durante a geracao — ronda abortada, trabalho descartado'
           : `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
@@ -318,6 +324,10 @@ export async function runRound({
       tokens_out: Number.isFinite(tokens) ? tokens : 0,
       pilar_label: pack.label,
       modo: pack.mode || (pack.anchored ? 'ancorado' : 'caca'),
+      // 'pilar' = o ficheiro revisto e mesmo do pilar; 'geral' = o pilar nao
+      // tinha nada no diff e revimos o resto. Sem este campo o painel dava o
+      // rotulo do pilar a trabalho que nao era dele.
+      ...(pack.escopo ? { escopo: pack.escopo } : {}),
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,
