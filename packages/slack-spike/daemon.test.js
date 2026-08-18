@@ -124,3 +124,58 @@ test('silencio · SLACK_IGNORAR_JOBS no .env FUNCIONA (era lido antes de o .env 
   assert.equal(r.estado, 'SILENCIADO',
     'a variavel estava no .env e o guarda nao a viu — [Aprovar] ficou quente');
 });
+
+test('arranque · `principal()` corre mesmo (a funcao que nenhum teste chamava)', async () => {
+  // ⚠️ SETIMA instancia do mesmo padrao, e a mais cara em vergonha: 242 testes
+  // verdes e o daemon a rebentar na primeira linha com `SILENCIADOS is not
+  // defined`. Movi a leitura do silencio para dentro do `montar()` — que e o que
+  // os testes chamam — e o `principal()`, que e o que o daemon a serio corre,
+  // continuou a referi-la. Nenhum teste tocava no `principal()`.
+  //
+  // Isto nao verifica comportamento nenhum: verifica que a porta de entrada ABRE.
+  // E o teste mais burro do ficheiro e teria poupado um arranque falhado.
+  const correr = require('./correr.js');
+  const erros = [];
+  const log = console.error;
+  console.error = () => {};
+  try {
+    const r = await correr.principal(['--seco']);
+    assert.ok(r && typeof r === 'object', '`principal` nao devolveu nada');
+    if (r.montado) {
+      assert.ok(r.silenciados instanceof Set,
+        '`montar` nao devolve `silenciados` — o `principal` volta a ter a sua propria copia');
+    }
+  } catch (e) {
+    erros.push(e);
+  } finally {
+    console.error = log;
+    process.exitCode = 0;
+  }
+  assert.deepEqual(erros.map((e) => e.message), [], 'o arranque rebentou');
+});
+
+test('arranque · a LIGACAO do poller ao daemon corre sem socket nenhum', async () => {
+  // ⚠️ Este e o teste que faltava. `principal(--seco)` retorna ANTES do poller, por
+  // isso nao tocava na linha que rebentou (`SILENCIADOS is not defined`) — e essa
+  // linha so era alcancavel com tokens, socket e gate abertos. Dar NOME a ligacao
+  // (`ligarPollerAoDaemon`) e o que a torna alcancavel a um teste. Terceira vez que
+  // este ficheiro aprende a mesma coisa.
+  const correr = require('./correr.js');
+  const regs = [];
+  const m = {
+    adaptador: { publicarFechos: async () => [], publicarPendentes: async () => [],
+      jobsNossos: () => new Set() },
+    transporte: { threads: new Map() },
+    broker: { listPending: () => [] },
+    silenciados: new Set(['job-mau']),
+    lerLedger: () => [],
+  };
+  const lig = correr.ligarPollerAoDaemon(m, (x) => regs.push(x));
+  try {
+    assert.equal(lig.poller.ignorados.has('job-mau'), true,
+      'a ligacao nao passou a lista de silenciados ao poller');
+    assert.ok(regs.some((x) => x.tipo === 'jobs_silenciados'),
+      'arrancou com jobs silenciados e nao o disse');
+    await lig.poller.tique();          // e o tique corre mesmo
+  } finally { clearInterval(lig.relogio); }
+});

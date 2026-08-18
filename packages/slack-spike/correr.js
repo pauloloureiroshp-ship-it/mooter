@@ -209,8 +209,43 @@ async function montar(opcoes) {
     silenciados: SILENCIADOS,   // a MESMA lista que o poller usa para nao anunciar
     registar: (r) => console.error('[registo]', JSON.stringify(r)) });
 
+  // ⚠️ `silenciados` SAI daqui de propriedade. Estava so no escopo do `montar` e o
+  // `principal` — a funcao que o daemon a serio corre — referia-a a mesma: 242
+  // testes VERDES e o binario a rebentar com `SILENCIADOS is not defined` a
+  // primeira linha. Setima vez que o codigo esta certo e o teste exercita outra
+  // coisa: o meu teste chamava `montar()`, e o buraco estava no `principal()`.
   return { montado: true, seco, adaptador, transporte, publicador, broker, allowlist, syncPath,
+    silenciados: SILENCIADOS,
     despachos, derivacao };
+}
+
+/**
+ * Liga o poller ao daemon montado. TEM NOME por uma razao repetida: enquanto esta
+ * ligacao viveu inline dentro do `principal()`, nenhum teste lhe podia chamar — e o
+ * `principal()` so e alcancavel com tokens, socket e gate abertos. Foi assim que um
+ * `SILENCIADOS is not defined` passou 243 testes verdes e rebentou na primeira linha
+ * do daemon a serio. E a terceira ligacao deste ficheiro a aprender a mesma coisa
+ * (ver `ligarPublicadorAoTransporte` e o `poller.js`): uma ligacao sem nome e uma
+ * ligacao sem teste.
+ */
+function ligarPollerAoDaemon(m, registar) {
+  const reg = registar || ((x) => console.error('[registo] ' + JSON.stringify(x)));
+  const poller = criarPoller({
+    adaptador: m.adaptador, transporte: m.transporte, broker: m.broker,
+    meuActor: 'slack:' + process.env[VARS.allowUserId],
+    ignorados: m.silenciados,
+    lerLedger: m.lerLedger || lerLedgerPorOmissao,
+    registar: reg,
+  });
+  if (poller.ignorados.size) {
+    reg({ tipo: 'jobs_silenciados', jobs: [...poller.ignorados],
+      nota: 'continuam na fila; so nao se anunciam' });
+  }
+  const relogio = setInterval(() => {
+    poller.tique().catch((e) => reg({ tipo: 'poller_falhou', porque: (e && e.message) || 'erro' }));
+  }, Number(process.env.SLACK_POLL_MS || 5000));
+  relogio.unref?.();
+  return { poller, relogio };
 }
 
 async function principal(argv) {
@@ -261,26 +296,11 @@ async function principal(argv) {
   const r = await m.transporte.correr(maos);
   if (r.correu) {
     // ⚠️ O SOCKET NAO TRAZ PENDENTES. Ele traz mencoes e cliques; o pendente nasce
-    // no ledger, minutos depois. O poller vive em `poller.js` — extraido de aqui
-    // depois de um critico externo mostrar que, inline, era indemonstravel: mutar
-    // qualquer uma das suas quatro pecas deixava a suite VERDE.
-    const poller = criarPoller({
-      adaptador: m.adaptador, transporte: m.transporte, broker: m.broker,
-      meuActor: 'slack:' + process.env[VARS.allowUserId],
-      ignorados: SILENCIADOS,
-      lerLedger: lerLedgerPorOmissao,
-      registar: (x) => console.error('[registo] ' + JSON.stringify(x)),
-    });
-    if (poller.ignorados.size) {
-      console.error('[registo] ' + JSON.stringify({ tipo: 'jobs_silenciados',
-        jobs: [...poller.ignorados], nota: 'continuam na fila; so nao se anunciam' }));
-    }
-    m.poller = setInterval(() => {
-      poller.tique().catch((e) => console.error('[registo] ' + JSON.stringify({
-        tipo: 'poller_falhou', porque: (e && e.message) || 'erro' })));
-    }, Number(process.env.SLACK_POLL_MS || 5000));
-    m.poller.unref?.();
-    await poller.tique();
+    // no ledger, minutos depois. O poller vive em `poller.js`; a LIGACAO vive em
+    // `ligarPollerAoDaemon`, com nome, para poder ser testada sem socket nenhum.
+    const lig = ligarPollerAoDaemon(m);
+    m.poller = lig.relogio;
+    await lig.poller.tique();
   }
 
   const est = morte.estadoDeMorte();
@@ -297,4 +317,5 @@ if (require.main === module) {
 }
 
 module.exports = { VARS, ENV_PATH, SYNC_PATH, RAIZ_REPO, carregarEnv, faltamVariaveis,
+  ligarPollerAoDaemon,
   ligarPublicadorAoTransporte, montar, principal };
