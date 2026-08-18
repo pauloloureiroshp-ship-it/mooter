@@ -825,3 +825,30 @@ test('POCO: a escada abre a base seguinte em vez de remoer, e degrada no fim', (
   assert.ok(servidos.includes('HEAD~25'), `a escada tem de abrir a base seguinte: ${JSON.stringify(servidos)}`);
   assert.ok(servidos.at(-1).startsWith('caiu:'), 'esgotadas todas as bases, degrada em vez de remoer');
 });
+
+test('POCO: os modos caca e ancorado tambem deixam de remoer', () => {
+  const root = fixtureRepo();
+  const revistos = new Set();
+  const vistas = [];
+  for (let cursor = 0; cursor < 12; cursor += 1) {
+    const pk = buildContextPack({ repoRoot: root, pillar: 'P1', cursor, revistos });
+    if (!pk.ok) { vistas.push('esgotado'); break; }
+    assert.ok(pk.chave, `o modo ${pk.mode} tem de dar identidade ao que serve`);
+    assert.ok(!revistos.has(pk.chave), `${pk.mode} serviu de novo ${pk.chave}`);
+    revistos.add(pk.chave);
+    vistas.push(`${pk.file}:${pk.startLine}`);
+  }
+  assert.equal(vistas.at(-1), 'esgotado', 'esgotado o ficheiro, diz que esgotou em vez de repetir');
+  assert.equal(new Set(vistas.slice(0, -1)).size, vistas.length - 1, 'zero repeticoes');
+});
+
+test('POCO: o tecto de hunks e dito em voz alta, nao silenciado', () => {
+  // Sem isto, HEAD~100 e HEAD~200 devolviam os dois exactamente 320 hunks e
+  // ninguem sabia porque. Um tecto silencioso le-se como "cobri tudo".
+  const muitos = Array.from({ length: 500 }, (_, k) =>
+    [`--- a/f${k}.js`, `+++ b/f${k}.js`, `@@ -1,0 +${k + 1},2 @@`, '+x'].join('\n')).join('\n');
+  let capado = null;
+  const got = readChangedLines('/r', { runImpl: () => muitos, onCap: (n) => { capado = n; } });
+  assert.equal(got.length, 320, 'o tecto e maxFiles * 8');
+  assert.equal(capado, 320, 'e quem chama fica a saber que ficou trabalho de fora');
+});

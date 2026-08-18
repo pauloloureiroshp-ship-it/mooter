@@ -334,7 +334,7 @@ export const DIFF_PATHSPEC = [
  * — um repo sem git, um ref inexistente ou um diff vazio nunca podem parar uma
  * ronda; o runner cai para o degrau seguinte da escada.
  */
-export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null, maxFiles = 40, onError = null } = {}) {
+export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null, maxFiles = 40, onError = null, onCap = null } = {}) {
   // maxBuffer explicito: um diff de 12 commits neste repo da 52k linhas e o
   // default de 1 MB do execFileSync rebenta com ENOBUFS. O catch mudo que estava
   // aqui engolia isso e devolvia [] — o modo diff nunca disparava e ninguem
@@ -374,7 +374,13 @@ export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null,
     const count = m[2] === undefined ? 1 : Number(m[2]);
     if (!Number.isInteger(start) || start < 1 || count < 1) continue;
     hunks.push({ file, start, count });
-    if (hunks.length >= maxFiles * 8) break;
+    // Tecto real, dito em voz alta. Sem o `onCap`, `HEAD~100` e `HEAD~200`
+    // devolviam os dois exactamente 320 hunks e ninguem sabia porque: um tecto
+    // silencioso le-se como "cobri tudo" quando nao cobriu.
+    if (hunks.length >= maxFiles * 8) {
+      if (onCap) onCap(hunks.length);
+      break;
+    }
   }
   return hunks;
 }
@@ -545,7 +551,12 @@ export function buildContextPack({
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
   let diffErro = null;
   if (diffBase && temCodigo) {
-    const todos = readChangedLines(repoRoot, { baseRef: diffBase, runImpl: diffRunImpl, onError: (e) => { diffErro = e; } });
+    let truncado = null;
+    const todos = readChangedLines(repoRoot, {
+      baseRef: diffBase, runImpl: diffRunImpl,
+      onError: (e) => { diffErro = e; },
+      onCap: (n) => { truncado = n; },
+    });
     // Os hunks que caem nos ficheiros DESTE pilar. Sem interseccao, o pilar nao
     // tem nada de seu no diff: revemos o resto na mesma — trabalho novo vale
     // mais do que arrumacao — mas dizemo-lo, e `escopo: 'geral'` e um rotulo
@@ -648,6 +659,7 @@ export function buildContextPack({
           mode: 'diff',
           escopo,
           chave,
+          ...(truncado ? { hunksTruncados: truncado } : {}),
           negacaoDensa: densa,
           diffErro,
           anchored: false,
@@ -683,6 +695,11 @@ export function buildContextPack({
       // Janela centrada na linha apontada: o juiz precisa do que está em volta.
       const half = Math.floor(maxLines / 2);
       const slice = renderSlice(hitLines, Math.max(1, hit.line - half), maxLines);
+      const chaveA = hunkKey(hit.file, hit.line, hit.line, `${hit.rule}|${hitLines[hit.line - 1] || ''}`);
+      // Julgar duas vezes o mesmo apontamento, com a mesma regra sobre a mesma
+      // linha, da a mesma resposta. So o degrau do diff estava coberto; este
+      // remoia na mesma.
+      if (!(revistos && revistos.has(chaveA))) {
       const prompt = [
         `Pilar: ${pillar} — ${spec.label}`,
         `Ficheiro: ${hit.file} (linhas ${slice.startLine}-${slice.endLine} de ${hitLines.length})`,
@@ -698,6 +715,7 @@ export function buildContextPack({
         ok: true,
         diffErro,
         mode: 'ancorado',
+        chave: chaveA,
         anchored: true,
         anchorRule: hit.rule,
         anchorLine: hit.line,
@@ -712,6 +730,7 @@ export function buildContextPack({
         prompt,
         allowedFiles: [hit.file],
       };
+      }
     }
   }
 
@@ -729,8 +748,20 @@ export function buildContextPack({
   // Second axis of the cursor walks down long files across rounds, so a 900-line
   // file is not forever represented by its first 120 lines.
   const windows = Math.max(1, Math.ceil(lines.length / maxLines));
-  const windowIdx = Math.floor(Math.abs(cursor) / candidates.length) % windows;
-  const slice = renderSlice(lines, windowIdx * maxLines + 1, maxLines);
+  const base = Math.floor(Math.abs(cursor) / candidates.length) % windows;
+  // Varre as janelas do ficheiro ate achar uma por rever. Sem isto, o modo de
+  // caca voltava sempre a mesma janela assim que o cursor dava a volta.
+  let slice = null;
+  let chaveC = null;
+  for (let k = 0; k < windows; k += 1) {
+    const cand = renderSlice(lines, (((base + k) % windows) * maxLines) + 1, maxLines);
+    const kc = hunkKey(file, cand.startLine, cand.endLine, cand.text);
+    if (revistos && revistos.has(kc)) continue;
+    slice = cand;
+    chaveC = kc;
+    break;
+  }
+  if (!slice) return { ok: false, esgotado: true, reason: `todas as janelas de ${file} ja foram revistas`, pillar, diffErro };
 
   const prompt = [
     `Pilar: ${pillar} — ${spec.label}`,
@@ -744,6 +775,7 @@ export function buildContextPack({
   return {
     ok: true,
     diffErro,
+    chave: chaveC,
     mode: 'caca',
     anchored: false,
     pillar,
