@@ -26,6 +26,10 @@ const morte = require('./morte.js');
 const { criarAllowlist } = require('./allowlist.js');
 const { criarPublicador } = require('./publicar.js');
 const { criarAdaptador, lerLedgerPorOmissao } = require('./adapter.js');
+const { silenciadosDoAmbiente } = require('./poller.js');
+
+/** Uma so leitura do silencio, partilhada pelos dois caminhos (publicar e clicar). */
+const SILENCIADOS = silenciadosDoAmbiente(process.env);
 const { criarDespachador } = require('./despacho.js');
 const { criarCancelador } = require('./cancelar.js');
 const { criarTransporte } = require('./transporte.js');
@@ -194,6 +198,7 @@ async function montar(opcoes) {
     ? { cancelar: async (p) => ({ parado: true, estado: 'PARADO', nota: 'seco' }) }
     : criarCancelador({ toolCancel: seamless.toolCancel, syncPath });
   const adaptador = criarAdaptador({ allowlist, publicador, broker, despachar, cancelar,
+    silenciados: SILENCIADOS,   // a MESMA lista que o poller usa para nao anunciar
     registar: (r) => console.error('[registo]', JSON.stringify(r)) });
 
   return { montado: true, seco, adaptador, transporte, publicador, broker, allowlist, syncPath,
@@ -254,8 +259,7 @@ async function principal(argv) {
     const poller = criarPoller({
       adaptador: m.adaptador, transporte: m.transporte, broker: m.broker,
       meuActor: 'slack:' + process.env[VARS.allowUserId],
-      ignorados: new Set(String(process.env.SLACK_IGNORAR_JOBS || '')
-        .split(',').map((x) => x.trim()).filter(Boolean)),
+      ignorados: SILENCIADOS,
       lerLedger: lerLedgerPorOmissao,
       registar: (x) => console.error('[registo] ' + JSON.stringify(x)),
     });

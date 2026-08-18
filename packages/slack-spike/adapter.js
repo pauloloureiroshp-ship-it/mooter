@@ -39,6 +39,8 @@ const JA_DECIDIDO = ['ja_decidido', 'replay_exacto'];
 function criarAdaptador(opcoes) {
   const o = opcoes || {};
   const allowlist = o.allowlist;
+  // mesma fonte que o poller usa para nao anunciar (ver `silenciadosDoAmbiente`)
+  const silenciados = o.silenciados instanceof Set ? o.silenciados : new Set();
   const publicador = o.publicador;
   const broker = o.broker;
   const despachar = o.despachar;
@@ -190,6 +192,22 @@ function criarAdaptador(opcoes) {
       registo.push({ tipo: 'clique_de_fora', user_id: ev.user_id, request_id: ev.request_id,
         accao: ev.accao, ts: agora(), porque: p.porque });
       return { estado: 'IGNORADO', porque: p.porque, efemero: true };
+    }
+
+    // ⚠️ SILENCIADO NAO PODE GASTAR MAIS — mas TEM de poder ser travado.
+    // O silencio vivia so no poller (publicacao). O caminho do clique nunca o via,
+    // e um cartao ja publicado ficava no canal com o [Aprovar] quente: um clique
+    // re-despachava. Visto no #mooter-demo — o cartao do ciclo mau, opus, com
+    // US$ 0,66 ja gastos, a um clique de gastar outra vez.
+    // So o `aprovar` e bloqueado: `recusar` e `parar` sao as accoes que MANDAM
+    // PARAR, e bloquea-las prendia o dono dentro do proprio cartao.
+    if (ev.accao === 'aprovar' && silenciados.has(ev.request_id)) {
+      registo.push({ tipo: 'aprovar_de_job_silenciado', job: ev.request_id, ts: agora() });
+      if (typeof o.registar === 'function') {
+        o.registar({ tipo: 'aprovar_de_job_silenciado', job: ev.request_id });
+      }
+      return { estado: 'SILENCIADO', efemero: true,
+        porque: 'este pedido foi silenciado — Aprovar nao gasta mais nada. Recusar e Parar continuam a funcionar.' };
     }
 
     // ── o botao PARAR ──────────────────────────────────────────────────────

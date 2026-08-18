@@ -115,4 +115,16 @@ function criarPoller(dep) {
   return { tique, vistos, fechados, ignorados };
 }
 
-module.exports = { seguirCorrente, criarPoller };
+/**
+ * Le a lista de jobs silenciados do ambiente. Exportada e partilhada de proposito:
+ * o silencio tem de valer para os DOIS caminhos (publicar e clicar). Enquanto so
+ * existiu no poller, um cartao silenciado continuava com os botoes QUENTES no canal
+ * — o `ignorados` nunca chegava ao `receberInteraccao`. O cartao do ciclo mau ficou
+ * dias no #mooter-demo com um [Aprovar] que re-despachava opus a um clique.
+ */
+function silenciadosDoAmbiente(env) {
+  return new Set(String((env || {}).SLACK_IGNORAR_JOBS || '')
+    .split(',').map((x) => x.trim()).filter(Boolean));
+}
+
+module.exports = { seguirCorrente, criarPoller, silenciadosDoAmbiente };

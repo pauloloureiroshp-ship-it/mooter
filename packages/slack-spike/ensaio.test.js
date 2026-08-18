@@ -48,7 +48,7 @@ function bancada({ jobId = 'job-ensaio-1', actor = null } = {}) {
   return { home, jobId };
 }
 
-function montar({ despachar } = {}) {
+function montar({ despachar, silenciados, cancelar } = {}) {
   const enviados = [];
   // captura TUDO o que sai: o texto da notificacao E as strings dos blocos.
   // Antes so se capturava o 1o argumento; com o Block Kit, isso deixaria dezenas
@@ -61,6 +61,8 @@ function montar({ despachar } = {}) {
     publicador,
     broker,
     despachar: despachar || (async () => ({ job_id: 'job-novo-dry-run' })),
+    silenciados,
+    cancelar,
   });
   return { ad, enviados };
 }
@@ -611,4 +613,36 @@ test('preparacao · o fecho e do FILHO, e leva o custo REAL', async () => {
   assert.equal(r[0].job_id, 'job-filho');
   assert.match(enviados.join('\n'), /US\$ 0,12/,
     'o custo que o dono ve tem de ser o do trabalho, nao o zero da preparacao');
+});
+
+// ── o cartao silenciado que ficou com o botao quente ──────────────────────
+test('silenciado · Aprovar nao gasta, mas Parar continua a travar', async () => {
+  // ⚠️ O silencio vivia SO no poller (publicacao). O caminho do clique nunca o via,
+  // e um cartao ja publicado ficava no canal com o [Aprovar] quente. Visto no
+  // #mooter-demo: o cartao do ciclo mau — opus, US$ 0,66 ja gastos — a um clique
+  // de gastar outra vez, dias depois de ter sido «silenciado».
+  bancada();
+  const despachados = [];
+  const parados = [];
+  const { ad } = montar({
+    despachar: async (a) => { despachados.push(a); return { job_id: 'job-caro' }; },
+    silenciados: new Set(['job-mau']),
+    cancelar: async (x) => { parados.push(x); return { parado: true, estado: 'PARADO' }; },
+  });
+
+  const r = await ad.receberInteraccao({ user_id: 'U_PAULO', request_id: 'job-mau', accao: 'aprovar' });
+  assert.equal(r.estado, 'SILENCIADO');
+  assert.equal(despachados.length, 0, 'o clique num job silenciado gastou dinheiro');
+  assert.match(r.porque, /Recusar e Parar continuam/);
+
+  // e o dono NAO fica preso dentro do cartao: travar tem de continuar a passar
+  await ad.receberInteraccao({ user_id: 'U_PAULO', request_id: 'job-mau', accao: 'parar' });
+  assert.equal(parados.length, 1, 'silenciar um job trancou o proprio botao que o trava');
+});
+
+test('silenciado · um job NAO silenciado continua a poder ser aprovado', async () => {
+  bancada();
+  const { ad } = montar({ silenciados: new Set(['job-outro']) });
+  const r = await ad.receberInteraccao({ user_id: 'U_PAULO', request_id: 'job-bom', accao: 'aprovar' });
+  assert.notEqual(r.estado, 'SILENCIADO', 'o guarda apanhou um job que nao estava silenciado');
 });
