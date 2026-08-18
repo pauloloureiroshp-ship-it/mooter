@@ -58,6 +58,17 @@ jobs:
               "tools/router/version.json",
               "landing/app/version.json",
               "packages/mooter-bridge/version.json",
+              // O manifest e o que da o NOME e a versao ao .mcpb que vai para os
+              // utilizadores (`pack-mcpb.mjs` le `manifest.version`). Ficou fora
+              // ate 2026-08-18: uma release da v1.49.1 teria publicado um bundle
+              // chamado `mooter-v1490.mcpb`, rotulado 1.49.0 — um quarto numero
+              // fora de passo, no unico ficheiro que o utilizador chega a ver.
+              "packages/mooter-bridge/manifest.json",
+              // O quinto. `versao-coerente.test.js` JA exigia que este batesse com o
+              // manifest — e foi esse teste que apanhou o bump manual de 2026-08-18.
+              // Um par guardado por um teste mas nao pela automacao e um par que
+              // so se mantem enquanto alguem se lembrar.
+              "plugin/mooter/.claude-plugin/plugin.json",
             ];
             for (const p of targets) {
               const j = JSON.parse(fs.readFileSync(p, "utf8"));
@@ -76,13 +87,13 @@ jobs:
       - name: Commit back if changed
         if: steps.ver.outputs.skip != '1'
         run: |
-          if git diff --quiet -- tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json; then
+          if git diff --quiet -- tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json plugin/mooter/.claude-plugin/plugin.json; then
             echo "No version.json change to commit."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json
+          git add tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json plugin/mooter/.claude-plugin/plugin.json
           git commit -m "chore(release): sync version.json → ${{ steps.ver.outputs.version }} [skip ci]"
           # main may have advanced between the tag push and this job — rebase before
           # pushing so a racing commit doesn't cause a non-fast-forward failure.

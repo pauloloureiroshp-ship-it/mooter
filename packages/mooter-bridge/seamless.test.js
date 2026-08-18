@@ -26,6 +26,8 @@ fs.mkdirSync(path.join(FAKEREPO, 'tools', 'router'), { recursive: true });
 fs.writeFileSync(path.join(FAKEREPO, 'tools', 'router', 'classify.js'),
   "module.exports={classify:(t)=>String(t).includes('quota-t0')"
   + "?{tier:'T0',confidence:0.9,reasoning:'stub T0',recommended_model:'qwen2.5:3b'}"
+  + ":String(t).includes('ceiling-t3')"
+  + "?{tier:'T3',confidence:0.9,reasoning:'stub T3',recommended_model:'opus'}"
   + ":{tier:'T2',confidence:0.9,reasoning:'stub',recommended_model:'sonnet'}};");
 process.env.MOOTER_REPO = FAKEREPO;
 process.env.OLLAMA_HOST = '127.0.0.1:1';
@@ -715,6 +717,38 @@ test('dispatch: guard-first, ledger dispatched→started→done, cost do CC json
   assert.ok(c2.idempotent.includes('já tinha'));
   const collected = seam.ledgerRead().filter((e) => e.job_id === d.job_id && e.event === 'collected');
   assert.strictEqual(collected.length, 1, 'collected não pode duplicar');
+});
+
+test('tecto hereditário: classificador pede T3, filho de pai T1 nasce T1 e declara o corte', async () => {
+  let child = null;
+  seam.setJobSpawner(() => {
+    child = fakeChild();
+    setImmediate(() => child.emit('spawn'));
+    return child;
+  });
+
+  const result = await seam.toolDispatch({
+    agent: 'cc', worktree: WT, wave: 'tecto-tier-heranca',
+    masterprompt: '⇄ ROUTING\nDE: teste\nPARA: cc\n\nceiling-t3',
+    __tier_ceiling: 'T1',
+  });
+  assert.ok(result.job_id, JSON.stringify(result));
+  const dispatched = seam.ledgerRead().find((event) => (
+    event.job_id === result.job_id && event.event === 'dispatched'
+  ));
+  assert.equal(result.tier, 'T1');
+  assert.equal(result.model, 'haiku');
+  assert.equal(result.model_recommended, 'opus',
+    'a recomendação original do router continua auditável mesmo quando o modelo efectivo desce');
+  assert.equal(dispatched.model, 'haiku');
+  assert.equal(dispatched.model_recommended, 'opus');
+  assert.equal(dispatched.tier, 'T1', 'tier continua a ser o tier efectivo');
+  assert.equal(dispatched.tier_classificado, 'T3', 'ledger preserva o tier pedido pelo classificador');
+  assert.equal(dispatched.tier_tecto_herdado, 'T1', 'ledger declara o tecto herdado do pai');
+  assert.equal(dispatched.tier_tecto_aplicado, true, 'ledger declara que o tecto foi aplicado');
+
+  child.emit('close', 1);
+  await new Promise((resolve) => setTimeout(resolve, 20));
 });
 
 test('P0-B — evento terminal propaga Ollama e calibragem sem re-medir', async () => {

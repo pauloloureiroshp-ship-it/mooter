@@ -57,7 +57,14 @@ button{display:block;width:200px;height:50px}img{width:120px;height:90px}</style
     check('M9 · o PNG veio mesmo', typeof r.data_url === 'string' && r.data_url.startsWith('data:image/png;base64,') && r.bytes > 1000);
     check('M10 · com zonas, porque fica null (nada a explicar)', r.porque === null, r.porque);
 
-    const vazio = await retratoComMapa('http://127.0.0.1:' + porta + '/?x', { espera_ms: 300 });
+    // O MESMO orcamento das duas vezes. A versao anterior media a primeira com
+    // 700 ms e a segunda com 300, e chamava "nao-determinismo" a diferenca — ou
+    // seja, media TEMPO. Nesta maquina o render leva ~1,7 s: com 300 ms a
+    // segunda chamada chegava a tempo por sorte, e num runner carregado nao
+    // chegava. Resultado medido a 2026-08-18: falha intermitente no CI que,
+    // com a baseline do wave-gate deste pacote em 0, se tornou um bloqueio de
+    // merge duro. Um teste que mede o relogio nao mede o extractor.
+    const vazio = await retratoComMapa('http://127.0.0.1:' + porta + '/?x', { espera_ms: 700 });
     check('M11 · a mesma rota duas vezes da o mesmo numero de zonas (deterministico)', vazio.ok && vazio.zonas.length === r.zonas.length, vazio.zonas && vazio.zonas.length);
   } finally { s.close(); }
   console.log('\n' + (mau ? mau + ' FALHA(S)' : 'tudo verde') + '\n');

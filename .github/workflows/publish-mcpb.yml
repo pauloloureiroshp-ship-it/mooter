@@ -45,6 +45,34 @@ jobs:
         with:
           ref: ${{ steps.tag.outputs.tag }}
 
+      # GUARDA DA ORDEM — 2026-08-18.
+      #
+      # O `version-sync.yml` escreve as versoes DEPOIS da tag, por isso a arvore
+      # de uma tag nunca contem a sua propria versao. E este workflow constroi a
+      # partir da tag (`ref: ${{ steps.tag.outputs.tag }}`). Resultado: o .mcpb
+      # que chega aos utilizadores sai SEMPRE uma versao atrasada — nao nesta
+      # release, em todas. Medido na v1.49.1: a tag levava manifest 1.49.0.
+      #
+      # A correccao e a ordem: a versao lidera a tag (bump num PR, merge, tag no
+      # commit do merge; o version-sync passa a ser rede de seguranca, e diz
+      # "already X — no change"). Este passo e o guarda no ponto exacto do dano:
+      # se alguem voltar a etiquetar antes de bumpar, a release PARA aqui em vez
+      # de publicar um binario com o nome errado.
+      - name: A versao do manifest tem de ser a da tag
+        if: steps.tag.outputs.skip != '1'
+        working-directory: packages/mooter-bridge
+        run: |
+          ESPERADA="${TAG#v}"
+          ACTUAL="$(node -p "require('./manifest.json').version")"
+          if [ "$ESPERADA" != "$ACTUAL" ]; then
+            echo "::error::a tag $TAG traz manifest.json $ACTUAL — o .mcpb sairia rotulado $ACTUAL."
+            echo "  A versao tem de LIDERAR a tag: bump num PR, merge, e so depois etiquetar esse commit."
+            exit 1
+          fi
+          echo "manifest $ACTUAL == tag $TAG"
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+
       - uses: actions/setup-node@v4
         if: steps.tag.outputs.skip != '1'
         with:

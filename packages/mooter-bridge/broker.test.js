@@ -76,6 +76,8 @@ function jobPendente(jobId, opts) {
     wave: o.wave || 'w-b', agent: 'cc', worktree: o.worktree || WT,
     actor: o.actor || ANA, actor_porque: identidade.PORQUE_DECLARADO,
     escrita: o.escrita === true, allowedTools: o.allowedTools || 'Read',
+    tier: o.tier || 'T1',
+    tier_pedido: o.tier_pedido || undefined,
   };
   if (o.semHash !== true) {
     dispatched.mp_hash = require('crypto').createHash('sha256').update(mp, 'utf8').digest('hex');
@@ -273,13 +275,15 @@ test('B5 — recusar grava approval_rejected, é terminal e não despacha', asyn
 
 test('B6 — aprovar re-despacha com handoff_from e com o ator do DECISOR', async () => {
   limpar();
-  jobPendente('job-a1', { actor: ANA });
+  jobPendente('job-a1', { actor: ANA, tier: 'T1', tier_pedido: 'T3' });
   const despachos = []; stubDispatcher(despachos);
   const r = await broker.decide({ decision_id: 'd-a1', request_id: 'job-a1', actor: PAULO,
     veredicto: 'aprovar', idem_key: 'k-a1', expected_state_hash: hashDe('job-a1') });
   assert.equal(r.estado, 'APPROVED');
   assert.equal(despachos[0].handoff_from, 'job-a1');
   assert.deepStrictEqual(despachos[0].actor, PAULO, 'quem carrega o job novo é quem DECIDIU');
+  assert.equal(despachos[0].__tier_ceiling, 'T1',
+    'o filho de uma aprovação tem de receber o tier do pai como tecto hereditário');
   assert.equal(r.job_novo, 'job-novo');
 });
 
