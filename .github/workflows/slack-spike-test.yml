@@ -1,0 +1,41 @@
+name: slack-spike tests
+# O spike do Slack corre 226 testes e NENHUM workflow os corria. Um PR mostrava CI
+# verde sem nunca ter executado uma linha deste codigo — verde que nao significa
+# nada e pior que vermelho, porque convence.
+#
+# Zero dependencias: `node --test` nativo, sem npm install. O spike e deliberadamente
+# sem deps, e este workflow existe tambem para o manter assim: se alguem lhe meter
+# uma dependencia, isto parte e ve-se.
+on:
+  push:
+    paths: ['packages/slack-spike/**', '.github/workflows/slack-spike-test.yml']
+  pull_request:
+    paths: ['packages/slack-spike/**', '.github/workflows/slack-spike-test.yml']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Suite (node:test, sem instalar nada)
+        working-directory: packages/slack-spike
+        run: node --test
+      - name: O spike nao pode ganhar dependencias
+        working-directory: packages/slack-spike
+        run: |
+          if [ -f package.json ] && grep -qE '"(dependencies|devDependencies)"' package.json; then
+            echo "::error::o slack-spike declarou dependencias — era zero-dep por desenho"
+            exit 1
+          fi
+          echo "zero-dep confirmado"
+      - name: Nenhum segredo com forma de token no que foi commitado
+        run: |
+          # tokens a serio tem 40+ chars depois do prefixo; as fixtures (xoxb-x,
+          # xapp-123, xoxb-SEGREDO) sao curtas de proposito e passam
+          if git grep -nE 'xox[bp]-[A-Za-z0-9-]{40,}|xapp-[A-Za-z0-9-]{40,}' -- packages/slack-spike; then
+            echo "::error::token com forma real dentro do slack-spike"
+            exit 1
+          fi
+          echo "sem tokens reais"
