@@ -1285,6 +1285,31 @@ function cliModelFor(agent, tier, recommended) {
 }
 
 const QUOTA_MODEL_ORDER = ['haiku', 'sonnet', 'opus'];
+const TIER_ORDER = ['T0', 'T1', 'T2', 'T3', 'T5'];
+
+/**
+ * Um handoff de aprovação aumenta o texto, não a autoridade de custo. O tier
+ * efectivo do pai é por isso um tecto duro para o filho. Se o classificador
+ * estiver indisponível, o tecto passa a ser o tier efectivo em vez de deixar o
+ * CLI escolher um default potencialmente mais caro.
+ */
+function applyInheritedTierCeiling(classifiedTier, inheritedCeiling) {
+  const requested = classifiedTier == null ? null : String(classifiedTier).toUpperCase();
+  const ceiling = inheritedCeiling == null ? null : String(inheritedCeiling).toUpperCase();
+  const ceilingIndex = TIER_ORDER.indexOf(ceiling);
+  if (ceilingIndex < 0) {
+    return { tier: requested, tier_classificado: requested,
+      tier_tecto_herdado: null, tier_tecto_aplicado: false };
+  }
+  const requestedIndex = TIER_ORDER.indexOf(requested);
+  const applied = requestedIndex < 0 || requestedIndex > ceilingIndex;
+  return {
+    tier: applied ? ceiling : requested,
+    tier_classificado: requested,
+    tier_tecto_herdado: ceiling,
+    tier_tecto_aplicado: applied,
+  };
+}
 
 /**
  * Aplica o tecto sem nunca promover um modelo conhecido. No ponto final do
@@ -2060,11 +2085,23 @@ async function toolDispatch(args) {
   // Before this, `recommended_model` was computed and thrown away.
   const classified = classifyOrNull(masterprompt);
   const classifyMeasurement = estadoDoRouter();
-  const tier = classified ? (classified.tier || null) : null;
-  const model_recommended = classified ? cliModelFor(agent, tier, classified.recommended_model) : null;
+  const classifiedTier = classified ? (classified.tier || null) : null;
+  const inheritedTier = applyInheritedTierCeiling(
+    classifiedTier,
+    args && args.__tier_ceiling,
+  );
+  const tier = inheritedTier.tier;
+  // `model_recommended` conserva o pedido do router para auditoria. O modelo
+  // efectivo nasce do tier já limitado, sem apagar a recomendação original.
+  const model_recommended = classified
+    ? cliModelFor(agent, classifiedTier, classified.recommended_model)
+    : null;
+  const model_effective_recommended = tier
+    ? cliModelFor(agent, tier, classified && classified.recommended_model)
+    : null;
   let model = agent === 'kimi'
     ? kimi.MODEL
-    : (args && args.model ? String(args.model) : model_recommended);
+    : (args && args.model ? String(args.model) : model_effective_recommended);
   const quotaCalibration = args && args.__quota_calibragem && typeof args.__quota_calibragem === 'object'
     ? args.__quota_calibragem : null;
   // BUG v1.18: o tecto corria em toolWork antes desta resolução. Quando o T0
@@ -2077,7 +2114,8 @@ async function toolDispatch(args) {
   }
   const dispatchRoutedBy = finalCeiling.applied
     ? 'quota'
-    : (args && args.routed_by ? String(args.routed_by) : (args && args.model ? 'user' : (model ? 'classify' : 'cli-default')));
+    : (inheritedTier.tier_tecto_aplicado ? 'tier-inheritance'
+      : (args && args.routed_by ? String(args.routed_by) : (args && args.model ? 'user' : (model ? 'classify' : 'cli-default'))));
 
   ensureDirs();
   const job_id = 'job-' + Date.now().toString(36) + '-' + crypto.randomBytes(2).toString('hex');
@@ -2119,7 +2157,11 @@ async function toolDispatch(args) {
     permissoes_diferenca: permissions.diferenca,
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     agent, worktree: wtNorm, mp_hash, cmd: commandText,
-    created_at: nowIso(), depth: 1, model, model_recommended, tier, step: stepId, allowedTools,
+    created_at: nowIso(), depth: 1, model, model_recommended, tier,
+    tier_classificado: inheritedTier.tier_classificado,
+    tier_tecto_herdado: inheritedTier.tier_tecto_herdado,
+    tier_tecto_aplicado: inheritedTier.tier_tecto_aplicado,
+    step: stepId, allowedTools,
     worktree_criada: createdWorktree,
     goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
     prompt_chars: masterprompt.length,
@@ -2143,7 +2185,11 @@ async function toolDispatch(args) {
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     agent, worktree: wtNorm, worktree_criada: createdWorktree,
     local_decisao: localDecision,
-    mp_hash, model, model_recommended, tier, step: stepId,
+    mp_hash, model, model_recommended, tier,
+    tier_classificado: inheritedTier.tier_classificado,
+    tier_tecto_herdado: inheritedTier.tier_tecto_herdado,
+    tier_tecto_aplicado: inheritedTier.tier_tecto_aplicado,
+    step: stepId,
     goal: jobGoal, category: jobCategory, category_fonte: jobCategoryFonte,
     prompt_chars: masterprompt.length,
     // f-mu0 PARTE B — o broker DERIVA as capacidades do pedido a partir daqui.
@@ -2612,6 +2658,9 @@ async function toolDispatch(args) {
     agent, agent_label: agentLabel(agent), worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
     model_recommended, tier,
+    tier_classificado: inheritedTier.tier_classificado,
+    tier_tecto_herdado: inheritedTier.tier_tecto_herdado,
+    tier_tecto_aplicado: inheritedTier.tier_tecto_aplicado,
     mapa_injectado: projectMap.injetado,
     mapa_porque: projectMap.porque,
     verificacao_cruzada: args && args.__cross_check === true && agent !== 'moo'
@@ -2623,8 +2672,9 @@ async function toolDispatch(args) {
     // próprio produto. O campo que existe para dar rasto apontava para o lado errado.
     routed_by: dispatchRoutedBy,
     routed: dispatchRoutedBy === 'quota' ? 'limitado pelo tecto de quota antes do spawn'
-      : (args && args.routed_by === 'work+classify' ? 'escolhido pelo mooter_work via classify.js (FROZEN)'
-        : (args && args.model ? 'forçado pelo chamador' : (model ? 'pelo classify.js (FROZEN)' : 'default do CLI'))),
+      : (dispatchRoutedBy === 'tier-inheritance' ? 'limitado pelo tier efectivo do pai antes do spawn'
+        : (args && args.routed_by === 'work+classify' ? 'escolhido pelo mooter_work via classify.js (FROZEN)'
+        : (args && args.model ? 'forçado pelo chamador' : (model ? 'pelo classify.js (FROZEN)' : 'default do CLI')))),
     note: dispatchNote || 'dispatch aceito; acompanhar com mooter_status (traz tokens e a acção em curso), resultado via mooter_collect',
   };
 }

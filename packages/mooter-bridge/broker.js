@@ -659,6 +659,9 @@ async function decide(args) {
         agent: pedido.agent || 'cc', worktree: pedido.worktree, wave: pedido.wave,
         masterprompt: mp, handoff_from: a.request_id, actor: quem.actor,
         allowedTools: pedido.allowedTools || undefined,
+        // O filho não pode ficar mais caro só porque o handoff aumentou o prompt.
+        // `tier_pedido` cobre eventos legados; nos actuais, `tier` é o efectivo.
+        __tier_ceiling: pedido.tier || pedido.tier_pedido || undefined,
       });
     } catch (e) {
       // NAO se grava REJECTED: uma excepcao nao diz se o efeito aconteceu. Fechar
