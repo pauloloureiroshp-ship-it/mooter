@@ -194,7 +194,7 @@ falhou.
 cd packages/slack-spike && node --test
 ```
 
-**244/244 a passar.** Inclui o **ensaio do infeliz** (kimi #4) contra o broker **real**
+**278/278 a passar.** Inclui o **ensaio do infeliz** (kimi #4) contra o broker **real**
 em dry-run (`MOOTER_HOME` numa pasta temporária, dispatcher duplo):
 
 1. **recusa** → `REJECTED` gravado e dito no thread;

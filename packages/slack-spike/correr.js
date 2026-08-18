@@ -316,7 +316,6 @@ async function principal(argv) {
   console.error('🐮 slack-spike a ouvir' + (m.seco ? ' (SECO — nada sai)' : '')
     + ' · morre em ' + est.morre_em + ' (' + est.dias_restantes + ' dias)');
   return m;
-  return m;
 }
 
 if (require.main === module) {

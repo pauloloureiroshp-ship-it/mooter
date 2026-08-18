@@ -466,7 +466,9 @@ publicado≠entregue (retenta) · `ACCOES_COM_CAS_ESTRITO` passa a governar · c
 resolvida com `AsyncLocalStorage`. **208/208.**
 
 ### Continua por fazer (do dono, ou bloqueado)
-Rotação dos tokens (**crítico operacional**, o codex confirma) · demo agendada (gate nº1) ·
+Rotação dos tokens ✅ **FEITA 2026-08-18** — bot e app, os dois regenerados e conferidos por
+fingerprint (o app estava em 13384004…, passou a 4116af94…). Deixa de haver credencial viva
+exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 `reactions:write` para a reacção ⏳ · recusa e STALE ao vivo (precisam de clique) ·
 `git merge origin/main` + suite na árvore fundida antes do push (o branch está 28 atrás) ·
 `slack-spike` não corre em CI nenhum.

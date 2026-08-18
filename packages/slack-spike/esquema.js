@@ -226,10 +226,33 @@ function normalizarAuditoria(valor, degradados) {
   return partes.join(' · ');
 }
 
-/** Reconstrói o payload: nada do original atravessa por omissão. */
+/**
+ * Reconstrói o payload: nada do original atravessa por omissão.
+ * A promessa só é verdadeira por causa do instantâneo lá dentro — ver o comentário.
+ */
 function validar(payload) {
-  const p = payload || {};
+  const bruto = payload || {};
   const degradados = new Set();
+  if (!objectoPlano(bruto)) return recusa('payload tem de ser objecto', degradados);
+
+  // ⚠️ INSTANTANEO ANTES DE VALIDAR — a barreira lia cada campo DUAS vezes: uma
+  // para validar, outra para copiar. Com um getter, a 1a leitura devolve algo
+  // valido e a 2a devolve o que quiser, e o que sai nunca foi validado. Provado
+  // com `estado` e `job_id`: o canario atravessou. Nao era alcancavel hoje (todo
+  // o payload nasce de `JSON.parse`, que nunca produz accessors) — mas o comentario
+  // aqui em baixo prometia «nada do original atravessa», e o codigo nao cumpria.
+  // Uma afirmacao que o codigo nao sustenta e a mesma classe de defeito que este
+  // pacote passou dois dias a corrigir, so que na fronteira de seguranca.
+  //
+  // O instantaneo resolve a CLASSE, nao as sete instancias: avalia cada getter
+  // exactamente uma vez, e tudo o que se le a seguir vem de um objecto inerte.
+  // Fail-closed por construcao — ciclos e `toJSON` que estoirem caem na recusa.
+  let p;
+  try {
+    p = JSON.parse(JSON.stringify(bruto));
+  } catch {
+    return recusa('payload nao e serializavel — nao se publica o que nao se consegue fixar', degradados);
+  }
   if (!objectoPlano(p)) return recusa('payload tem de ser objecto', degradados);
   const out = {};
 

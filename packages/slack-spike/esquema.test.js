@@ -202,3 +202,34 @@ test('esquema · cada valor adversarial da auditoria degrada sem atravessar', ()
     assert.ok(r.degradados.includes('auditoria.' + campo), campo + ' degradou em silencio');
   }
 });
+
+test('esquema · um getter nao pode validar uma coisa e publicar outra (TOCTOU)', () => {
+  // ⚠️ Achado do final-reviewer, reproduzido antes de corrigido: `validar` lia cada
+  // campo DUAS vezes — uma para validar, outra para copiar. Com um getter, a 1a
+  // leitura devolve algo valido e a 2a devolve o que quiser. Provado com `estado` e
+  // `job_id`: o canario atravessou. Nao era alcancavel (todo o payload nasce de
+  // JSON.parse), mas o comentario prometia «nada do original atravessa» e o codigo
+  // nao cumpria. Uma promessa que o codigo nao sustenta, na fronteira de seguranca.
+  const duasCaras = (bom, mau) => { let n = 0; return () => (n++ === 0 ? bom : mau); };
+  const H = 'a'.repeat(64);
+
+  const comEstado = { tipo: 'decisao', job_id: 'job-x-1', hash_esperado: H };
+  Object.defineProperty(comEstado, 'estado',
+    { get: duasCaras('APPROVED', 'CANARIO'), enumerable: true });
+  assert.doesNotMatch(JSON.stringify(esquema.validar(comEstado)), /CANARIO/,
+    'o getter em `estado` publicou o que a validacao nunca viu');
+
+  const comJob = { tipo: 'pendente', hash_esperado: H };
+  Object.defineProperty(comJob, 'job_id',
+    { get: duasCaras('job-bom-1', 'CANARIO'), enumerable: true });
+  assert.doesNotMatch(JSON.stringify(esquema.validar(comJob)), /CANARIO/,
+    'o getter em `job_id` publicou o que a validacao nunca viu');
+});
+
+test('esquema · payload que nao se consegue fixar e RECUSADO (nao publicado a medias)', () => {
+  const ciclo = { tipo: 'decisao', job_id: 'job-c-1', estado: 'APPROVED' };
+  ciclo.eu = ciclo;
+  const r = esquema.validar(ciclo);
+  assert.equal(r.ok, false, 'um payload circular atravessou');
+  assert.match(r.porque, /nao e serializavel/);
+});
