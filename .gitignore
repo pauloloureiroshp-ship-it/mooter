@@ -235,3 +235,8 @@ tools/ancora/package-lock.json
 # e manter fora do topo (conta para o ratchet de higiene).
 _handoff/*.log
 _handoff/logs/
+
+# Scripts .command soltos na raiz: sao atalhos locais do dono, nunca artefactos
+# do repo. Sem esta linha ficam 34 ficheiros untracked na raiz — a armadilha
+# exacta do `git add -A`, com um ABRIR-PR-AUTO.command la no meio.
+/*.command

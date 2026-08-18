@@ -1,20 +1,11 @@
 {
-  "_comment": "Baseline de falhas CRÓNICAS por pacote. A regra é: nunca subir. Descer é bom e deve ser commitado com o baseline actualizado. Subir exige justificação explícita no commit — não pode acontecer por distração. Ver tools/wave-gate.mjs.",
-  "medido_em": "2026-08-01T07:15:00.000Z",
-  "medido_como": "node --test em cada pacote, medido a 2026-08-01 após os commits b67a5ae e o trabalho do router",
+  "_comment": "Baseline de falhas CRÓNICAS por pacote. A regra é: nunca subir. Descer é bom e deve ser commitado. Subir exige justificação explícita no commit. Gerado por tools/wave-gate.mjs --update.",
+  "medido_em": "2026-08-18T10:45:17.355Z",
   "pacotes": {
     "packages/mooter-bridge": {
-      "fail": 1,
-      "pass": 632,
-      "falhados": [
-        "not ok 1 - onda A"
-      ],
-      "porque_ainda_vermelho": "ondaA A3/A3b assumem que o agente continua 'moo'. O teste corre com OLLAMA_HOST=127.0.0.1:1 (sem modelo local alcançável) e o toolWork degrada honestamente moo→cc. Com agent='cc', ENGINES_SEM_FICHEIROS.has('cc') é false, por isso nem A3 devolve 'sem_contexto_para_o_local' nem A3b injecta contexto. A degradação é comportamento CORRECTO do produto; a premissa do teste é que está partida. Fix real: dar ao teste um Ollama falso alcançável, para que a promessa 'o conector lê o ficheiro PELO modelo local a $0' volte a ser exercitada de facto. Não mudar o teste para aceitar cc — isso apagaria a única prova dessa promessa.",
-      "historico": [
-        "2026-07-31 noite: 4 falhas (bundle.test.js + 2x estranho.test.js + ondaA)",
-        "2026-08-01: 3 falhas — commit b67a5ae pôs fatia-local.js no pack-mcpb",
-        "2026-08-01: 1 falha — estadoDoRouter() + campo router em mooter_work"
-      ]
+      "fail": 0,
+      "pass": 1087,
+      "falhados": []
     }
   }
 }
