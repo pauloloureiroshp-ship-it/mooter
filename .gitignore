@@ -226,3 +226,7 @@ scripts/outside-secret.txt
 _handoff/verificador-0/corpus/
 _handoff/verificador-0/_ensaio-dod/
 _handoff/verificador-0/juizos/
+
+# âncora estática (eslint local, não versionar deps)
+tools/ancora/node_modules/
+tools/ancora/package-lock.json

@@ -1,0 +1,289 @@
+[
+  {
+    "pilar": "P1",
+    "file": "packages/router/src/decide-agent.ts",
+    "line": 205,
+    "claim": "A função `blendedCost` pode causar um custo inesperado se `per1kIn` ou `per1kOut` for `null`.",
+    "cont": "function blendedCost(per1kIn: number | null, per1kOut: number | null): number | null {"
+  },
+  {
+    "pilar": "P1",
+    "file": "packages/router/src/task-categories.ts",
+    "line": 87,
+    "claim": "A função `parseTaskCategory` pode retornar `null`, o que pode causar problemas se não for tratado adequadamente.",
+    "cont": "export function parseTaskCategory(s: string): TaskCategory | null {"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/cockpit/build-snapshot.js",
+    "line": 29,
+    "claim": "A função `stripSnapshotBlocks` pode engolir erros silenciosamente se o bloco de snapshot não for encontrado.",
+    "cont": "while (clean.includes(SNAPSHOT_BEGIN)) {"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/cockpit/build-snapshot.js",
+    "line": 212,
+    "claim": "A linha 212 engole o erro ao capturar a exceção e atribui `{ erro: literalError(error) }` ao `snapshot[view]`, o que pode ocultar problemas.",
+    "cont": "snapshot[view] = { erro: literalError(error) };"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/cockpit/build-snapshot.js",
+    "line": 77,
+    "claim": "A função `folderCount` não verifica se `view` é nulo antes de acessar `view.pastas`, o que pode causar um erro silencioso.",
+    "cont": "return view && Array.isArray(view.pastas) ? view.pastas.length : 0;"
+  },
+  {
+    "pilar": "P6",
+    "file": "tools/cockpit/runner/evidence-verifier.mjs",
+    "line": 75,
+    "claim": "A função `checkCitation` retorna um objeto com o campo `snippet` como `null` em vários casos de erro, que pode confundir o utilizador.",
+    "cont": "if (!abs) return { file, line, ok: false, reason: 'fora-do-repo', snippet: null };"
+  },
+  {
+    "pilar": "P6",
+    "file": "tools/cockpit/runner/evidence-verifier.mjs",
+    "line": 86,
+    "claim": "A função `checkCitation` retorna um objeto com o campo `snippet` como `null`, que pode ser confuso para o utilizador se não houver uma explicação clar",
+    "cont": "return { file, line, ok: false, reason: 'ficheiro-inexistente', snippet: null };"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/f10-server.mjs",
+    "line": 39,
+    "claim": "A função `originAllowed` aceita origens nulas (`null`) sem validação adicional.",
+    "cont": "resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/f10-server.mjs",
+    "line": 126,
+    "claim": "A função `sendJson` permite CORS wildcard ('Access-Control-Allow-Origin': '*'), o que pode expor a API a origens não autorizadas.",
+    "cont": "...(cors ? { 'Access-Control-Allow-Origin': '*' } : {}),"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/f10-server.mjs",
+    "line": 198,
+    "claim": "A linha 198 permite a leitura de ficheiros potencialmente sensíveis sem validação adequada.",
+    "cont": "for (const candidate of panelCandidates(repoRoot)) {"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/f10-server.mjs",
+    "line": 153,
+    "claim": "A linha 153 permite a origem universal ('*') para CORS, o que pode expor o servidor a riscos de segurança.",
+    "cont": "'Access-Control-Allow-Headers': 'Content-Type',"
+  },
+  {
+    "pilar": "P5",
+    "file": "tools/cockpit/runner/gpu-sampler.mjs",
+    "line": 75,
+    "claim": "A linha 75 define a propriedade `util_pct` como `null`, o que indica que esta métrica pode ser nula.",
+    "cont": "if (parts.length < 3) continue;"
+  },
+  {
+    "pilar": "P5",
+    "file": "tools/cockpit/runner/gpu-sampler.mjs",
+    "line": 46,
+    "claim": "A função `parseIoreg` retorna `null` para várias métricas se não forem encontradas no texto de entrada.",
+    "cont": "if (!text) {"
+  },
+  {
+    "pilar": "P5",
+    "file": "tools/cockpit/runner/gpu-sampler.mjs",
+    "line": 47,
+    "claim": "A função `parseIoreg` retorna `null` para várias métricas se não forem encontradas no texto de entrada.",
+    "cont": "return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d' };"
+  },
+  {
+    "pilar": "P5",
+    "file": "tools/cockpit/runner/gpu-sampler.mjs",
+    "line": 71,
+    "claim": "A linha 71 retorna um objeto com `util_pct`, `vram_inuse_gb` e `vram_alloc_gb` como `null` quando `text` é vazio.",
+    "cont": "if (!text) return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d' };"
+  },
+  {
+    "pilar": "P5",
+    "file": "tools/cockpit/runner/gpu-sampler.mjs",
+    "line": 29,
+    "claim": "A função `grab` retorna `null` se não encontrar nenhum dos valores esperados nas chaves.",
+    "cont": "return null;"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/moo-runner.mjs",
+    "line": 61,
+    "claim": "A função `claimLock` permite que um novo runner inicie mesmo se houver um lock ativo com um PID morto.",
+    "cont": "try {"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/moo-runner.mjs",
+    "line": 58,
+    "claim": "A função `claimLock` permite que um novo runner inicie mesmo se houver um PID antigo no ficheiro de lock.",
+    "cont": "try {"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/moo-runner.mjs",
+    "line": 62,
+    "claim": "A função `claimLock` permite que um novo runner inicie mesmo se houver um PID antigo no lock sem verificar se o processo associado a esse PID está rea",
+    "cont": "process.kill(pid, 0);"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/moo-runner.mjs",
+    "line": 64,
+    "claim": "A função `claimLock` permite que o processo continue em execução mesmo se já existir um lock ativo.",
+    "cont": "process.exit(0);"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/moo-runner.mjs",
+    "line": 69,
+    "claim": "A função `claimLock` permite que um novo runner inicie mesmo se houver um lock órfão com um PID inválido.",
+    "cont": "} catch {"
+  },
+  {
+    "pilar": "P4",
+    "file": "tools/cockpit/runner/moo-runner.mjs",
+    "line": 67,
+    "claim": "A função `claimLock` permite que um novo runner inicie mesmo se houver um lock orfão (PID morto).",
+    "cont": "}"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 91,
+    "claim": "A função `readText` pode retornar `null`, mas isso não é verificado antes de usá-lo.",
+    "cont": "const classifierSha = sha256(classifier);"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 157,
+    "claim": "A linha 157 engole erros ao usar `try...catch` sem fazer nada no bloco `catch`.",
+    "cont": "try { return fs.readdirSync(path.join(repo, rel)).length > 0; } catch { return false; }"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 219,
+    "claim": "A linha 219 engole o erro lançado na linha 218 sem qualquer log adicional.",
+    "cont": "catch (error) { process.stderr.write(`${error.message}\\n`); return 2; }"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 22,
+    "claim": "A linha 22 engole erros ao ler ficheiros.",
+    "cont": "try { return fs.readFileSync(file, 'utf8'); } catch { return null; }"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 125,
+    "claim": "A função `readText` pode retornar `null`, o que não é verificado na linha 125.",
+    "cont": "if (text == null) continue;"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 42,
+    "claim": "A função `sha256` engole erros ao ler o ficheiro.",
+    "cont": "try { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 46,
+    "claim": "A função `gitLines` engole erros e retorna `null` sem emitir nenhuma mensagem de erro.",
+    "cont": "function gitLines(root, args) {"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/docs-hygiene.js",
+    "line": 101,
+    "claim": "A função `readText` pode retornar `null`, o que não é verificado na linha 101.",
+    "cont": "if (syncText == null) {"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 103,
+    "claim": "A função `sh` engole erros e retorna `null` sem evidências.",
+    "cont": "return null; // caller turns null into n/d — never into a guess"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 147,
+    "claim": "A função `parseMessageContracts` engole erros ao ler o ficheiro protocolo.",
+    "cont": "if (text === undefined) text = fs.readFileSync(PROTOCOL, 'utf8');"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 463,
+    "claim": "A linha `463` pode engolir um erro ao verificar se o valor é `undefined`, `null` ou uma string vazia.",
+    "cont": "return value === undefined || value === null || value === '' ? 'n/d' : String(value);"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 491,
+    "claim": "A linha 491 usa `continue` dentro de um loop, o que pode fazer com que algumas iterações sejam ignoradas silenciosamente.",
+    "cont": "continue;"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 639,
+    "claim": "A linha 639 engole o erro se o ficheiro golden não for encontrado.",
+    "cont": "try { golden = fs.readFileSync(goldenFile, 'utf8'); }"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 351,
+    "claim": "A linha 351 pode lançar um erro que não é capturado ou tratado, possivelmente engolindo o erro silenciosamente.",
+    "cont": "if (id !== FIXTURE_ID) throw new Error(`fixture não suportada: esperado event_id ${FIXTURE_ID}, recebido ${id}"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 461,
+    "claim": "A linha 461 engole erros ao substituir placeholders no template.",
+    "cont": "const rendered = template.replace(/<([A-Z][A-Z0-9_]*)>/g, (_match, key) => {"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 640,
+    "claim": "A linha 640 engole o erro ao ler o ficheiro áureo.",
+    "cont": "catch { errors.push(`golden ausente: ${goldenFile}`); continue; }"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 348,
+    "claim": "A função `projectBrief` pode lançar um erro não capturado se `normalizeMessageType(inputType)` retornar `null`.",
+    "cont": "if (!type) throw new Error(`tipo desconhecido: ${inputType}`);"
+  },
+  {
+    "pilar": "P2",
+    "file": "tools/handoff-preflight.js",
+    "line": 598,
+    "claim": "A linha 598 tenta ler um ficheiro de forma síncrona e engole qualquer erro que possa ocorrer.",
+    "cont": "try { template = fs.readFileSync(file, 'utf8'); } catch { errors.push(`template ausente: ${file}`); continue; "
+  },
+  {
+    "pilar": "P1",
+    "file": "tools/router/inject_context.js",
+    "line": 479,
+    "claim": "A função `getClassifyCached` pode retornar null se o cache estiver vazio ou se a entrada tiver expirado, potencialmente causando um routing errado.",
+    "cont": "return { decision: entry.decision, cache };"
+  }
+]
