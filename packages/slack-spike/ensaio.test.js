@@ -646,3 +646,44 @@ test('silenciado · um job NAO silenciado continua a poder ser aprovado', async 
   const r = await ad.receberInteraccao({ user_id: 'U_PAULO', request_id: 'job-bom', accao: 'aprovar' });
   assert.notEqual(r.estado, 'SILENCIADO', 'o guarda apanhou um job que nao estava silenciado');
 });
+
+// ── a cadeia tem de chegar a TODOS os cartoes que levam custo ─────────────
+test('cadeia · TODO o cartao que leva custo leva tambem a cadeia (pendente · decisao · parado · fecho)', async () => {
+  // ⚠️ Este e o teste que impede a sexta instancia de voltar. Ligar um campo novo
+  // em UM sitio e testa-lo ali deixa os outros tres a mostrar o numero do pedido
+  // enquanto um mostra o da conversa — dois numeros na mesma thread e nenhuma
+  // regra para saber qual e qual e pior que nao ter cadeia nenhuma.
+  const vistos = [];
+  const LEDGER = [
+    { event: 'dispatched', job_id: 'j1' },
+    { event: 'done', job_id: 'j1', cost_usd: 0.1, cost_usd_fonte: 'reportado pelo CLI' },
+    { event: 'dispatched', job_id: 'j2', handoff_from: 'j1' },
+    { event: 'done', job_id: 'j2', cost_usd: 0.9, cost_usd_fonte: 'reportado pelo CLI', exit_code: 0 },
+  ];
+  const estado = (job) => LEDGER.filter((e) => e.job_id === job).pop();
+  const ad = criarAdaptador({
+    allowlist: { permite: () => ({ ok: true }) },
+    publicador: { publicar: (p) => { vistos.push(p); return { publicado: true, envio: null }; } },
+    broker: { decide: () => ({ estado: 'APPROVED' }), estadoCorrente: (j) => estado(j),
+      listPending: () => [] },
+    despachar: async () => ({ job_id: 'j3' }),
+    cancelar: async () => ({ parado: true, estado: 'PARADO' }),
+    lerEventos: () => LEDGER,
+  });
+
+  // 1 · pendente (o cartao com botoes) — devolvido, nao publicado
+  const cartao = ad.cartaoDe({ job_id: 'j2', wave: 'w' }, LEDGER);
+  vistos.push(cartao);
+  // 2 · decisao · 3 · parado · 4 · fecho
+  await ad.receberInteraccao({ user_id: 'U', request_id: 'j2', accao: 'aprovar' });
+  await ad.receberInteraccao({ user_id: 'U', request_id: 'j2', accao: 'parar' });
+  await ad.publicarFechos({ jobs: ['j2'], jaVisto: () => false });
+
+  const comCusto = vistos.filter((p) => p && 'custo' in p);
+  assert.ok(comCusto.length >= 4, 'esperava os quatro cartoes, vi ' + comCusto.length);
+  for (const p of comCusto) {
+    assert.ok(p.cadeia, 'o cartao `' + p.tipo + '` leva custo mas NAO leva cadeia');
+    assert.equal(p.cadeia.pedidos, 2, 'cartao `' + p.tipo + '` viu uma cadeia errada');
+    assert.equal(Number(p.cadeia.total.toFixed(2)), 1, 'cartao `' + p.tipo + '` somou mal');
+  }
+});

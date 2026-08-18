@@ -454,3 +454,39 @@ test('barreira 3 · a recusa FINAL dispara quando um nome sobrevive a limpeza', 
     assert.match(r.porque, /nome sensivel apos limpeza/);
   } finally { denylist.limpar = limparReal; }
 });
+
+// ── a CADEIA: o total da conversa, nao o do pedido ────────────────────────
+const CAD = (extra) => Object.assign({ pedidos: 3, total: 2.8833, todosMedidos: true,
+  fontes: ['reportado pelo CLI'] }, extra || {});
+
+test('cadeia · o cartao mostra o total da CONVERSA a par do total do pedido', () => {
+  // os numeros sao os medidos no #mooter-demo a 2026-08-18: o cartao dizia
+  // US$ 1,24 e a thread ja tinha queimado US$ 2,88 em tres pedidos encadeados
+  const t = tudo(c.blocosDePendente(pendente({ custo: { valor: 1.2432, fonte: 'reportado pelo CLI' },
+    cadeia: CAD() })));
+  assert.match(t, /neste pedido:\* US\$ 1,24/);
+  assert.match(t, /Nesta conversa, 3 pedidos encadeados:\* US\$ 2,88/);
+  assert.doesNotMatch(t, /pelo menos/, 'a cadeia estava toda medida e disse que era um piso');
+});
+
+test('cadeia · UM pedido nao gera linha de cadeia (seria ruido a repetir o de cima)', () => {
+  const t = tudo(c.blocosDePendente(pendente({ cadeia: CAD({ pedidos: 1, total: 0.1372512 }) })));
+  assert.doesNotMatch(t, /Nesta conversa/);
+});
+
+test('cadeia · job por medir torna o total um PISO e o cartao diz «pelo menos»', () => {
+  const t = tudo(c.blocosDePendente(pendente({ cadeia: CAD({ todosMedidos: false }) })));
+  assert.match(t, /Nesta conversa, 3 pedidos encadeados:\* pelo menos US\$ 2,88/);
+});
+
+test('cadeia · fonte nao reconhecida NAO publica o total (a mesma regra do pedido)', () => {
+  const t = tudo(c.blocosDePendente(pendente({ cadeia: CAD({ fontes: ['adivinhado por alguem'] }) })));
+  assert.doesNotMatch(t, /Nesta conversa/, 'publicou um total sem procedencia reconhecida');
+  assert.doesNotMatch(t, /2,88/);
+});
+
+test('cadeia · sem cadeia nenhuma o cartao fica exactamente como estava', () => {
+  const t = tudo(c.blocosDePendente(pendente()));
+  assert.match(t, /neste pedido:\* US\$ 0,14/);
+  assert.doesNotMatch(t, /Nesta conversa/);
+});

@@ -83,6 +83,7 @@ const CAMPOS_PERMITIDOS = Object.freeze([
   'wave',          // etiqueta declarada por quem despachou
   'estado',        // APPROVED | REJECTED | STALE | ...
   'autor', 'motor', 'modelo', 'custo', 'diff_stat',   // campos derivados (leitura.js)
+  'cadeia',        // total da CONVERSA (cadeia.js) — so numeros e ids, nunca conteudo
   'hash_esperado', 'hash_actual',                      // a prova do CAS a trabalhar
   'auditoria',     // a entrada do ledger que prova custodia (kimi #8)
   'accoes',        // ['aprovar','recusar']

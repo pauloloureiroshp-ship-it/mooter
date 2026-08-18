@@ -19,6 +19,7 @@ const os = require('os');
 const path = require('path');
 
 const { derivarDoPendente } = require('./leitura.js');
+const { cadeiaDe } = require('./cadeia.js');
 // a regra do CAS vive numa constante NOMEADA, e e ela que governa — nao um literal
 // inline. Uma constante congelada e exportada que nada le mente sobre onde a regra vive.
 const { ACCOES_COM_CAS_ESTRITO } = require('./cartao.js');
@@ -45,6 +46,14 @@ function criarAdaptador(opcoes) {
   const broker = o.broker;
   const despachar = o.despachar;
   const lerEventos = o.lerEventos || lerLedgerPorOmissao;
+
+  /**
+   * A cadeia vai em TODOS os cartoes que levam custo — pendente, decisao, parado e
+   * fecho. Um cartao que mostra o total da conversa e outro, na mesma thread, que
+   * so mostra o do pedido, e pior que nenhum: o dono fica com dois numeros e
+   * nenhuma regra para saber qual e qual.
+   */
+  const cadeiaDoJob = (job, ledger) => cadeiaDe(ledger || lerEventos(), job);
   for (const [nome, v] of [['allowlist', allowlist], ['publicador', publicador],
     ['broker', broker], ['despachar', despachar]]) {
     if (!v) throw new Error('criarAdaptador precisa de `' + nome + '` — nada aqui e opcional');
@@ -104,6 +113,7 @@ function criarAdaptador(opcoes) {
     const d = derivarDoPendente(evento);
     return { tipo: 'pendente', job_id: pendente.job_id, wave: pendente.wave || null,
       autor: d.autor, motor: d.motor, modelo: d.modelo, custo: d.custo, diff_stat: d.diff_stat,
+      cadeia: cadeiaDoJob(pendente.job_id, ledger),
       // O hash VAI no cartao porque e o cartao que o botao carrega de volta. Sem
       // ele o clique chegaria sem `expected_state_hash` e havia duas saidas, as
       // duas mas: recusar toda a decisao, ou ler o hash fresco no clique — e ler
@@ -235,7 +245,7 @@ function criarAdaptador(opcoes) {
       const dc = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
       publicador.publicar({ tipo: 'decisao', job_id: ev.request_id,
         estado: c.estado === 'JA_TERMINADO' ? 'JA_TERMINADO' : 'PARADO',
-        custo: dc.custo, modelo: dc.modelo,
+        custo: dc.custo, modelo: dc.modelo, cadeia: cadeiaDoJob(ev.request_id),
         autor: { valor: actorDe(ev.user_id).id },
         auditoria: ['request=' + ev.request_id, 'accao=parar', 'estado=' + c.estado,
           'actor=' + actorDe(ev.user_id).id,
@@ -290,6 +300,7 @@ function criarAdaptador(opcoes) {
     const dec = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
     publicador.publicar({ tipo: 'decisao', job_id: ev.request_id, estado: r.estado,
       autor: dec.autor, motor: dec.motor, modelo: dec.modelo, custo: dec.custo,
+      cadeia: cadeiaDoJob(ev.request_id),
       hash_esperado: ev.expected_state_hash || null,
       auditoria: linhaAuditoria,
       texto: r.estado === 'APPROVED' ? 'aprovado — re-despachado'
@@ -332,7 +343,7 @@ function criarAdaptador(opcoes) {
       if (!estado) continue;                                     // ainda a correr, ou encadeado
       const d = derivarDoPendente(ev);
       const r = publicador.publicar({ tipo: 'fecho', job_id: job, estado,
-        custo: d.custo, modelo: d.modelo });
+        custo: d.custo, modelo: d.modelo, cadeia: cadeiaDoJob(job, ledger) });
       out.push({ job_id: job, estado, publicado: r.publicado, envio: r.envio,
         porque: r.porque || null });
     }

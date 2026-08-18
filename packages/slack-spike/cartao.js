@@ -39,6 +39,7 @@ const CHARS_HASH = 12;
  * ⚠️ `US$` E NAO `$`. O dono le isto em Sao Paulo, onde `$` sozinho se le
  * REAIS — cinco vezes o valor. O ledger grava USD; a moeda tem de vir dita.
  */
+const NL = String.fromCharCode(10);   // quebra de linha nomeada — nunca mais depende de escapes
 const MOEDA = 'US$ ';
 
 /** O que o motor E, em vez do que se chama no ledger. */
@@ -84,11 +85,36 @@ function dinheiro(custo) {
   const v = Number(c.valor);
   if (!Number.isFinite(v)) return { texto: 'n/d', sufixo: 'valor ilegível no ledger', tem: false };
   if (v < 0) return { texto: 'n/d', sufixo: 'valor negativo no ledger', tem: false };
-  if (v === 0) return { texto: MOEDA + '0,00', sufixo: fonte, tem: true };
-  if (v < 0.01) return { texto: 'menos de ' + MOEDA + '0,01', sufixo: fonte, tem: true };
+  return { texto: montante(v), sufixo: fonte, tem: true };
+}
+
+/** O montante em si. Extraido para a CADEIA ler exactamente como o pedido le. */
+function montante(v) {
+  if (v === 0) return MOEDA + '0,00';
+  if (v < 0.01) return 'menos de ' + MOEDA + '0,01';
   const [inteiro, dec] = v.toFixed(2).split('.');
-  const comMilhar = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return { texto: MOEDA + comMilhar + ',' + dec, sufixo: fonte, tem: true };
+  return MOEDA + inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + dec;
+}
+
+/**
+ * A linha da CADEIA. So aparece com 2+ pedidos — num pedido solitario seria ruido
+ * a repetir o numero de cima.
+ *
+ * A regra da procedencia e a MESMA do pedido: uma fonte nao reconhecida nao publica
+ * numero. E se um dos jobs da cadeia ainda nao reportou custo, o valor e um PISO e
+ * diz-se «pelo menos» — publicar um piso como total seria a mesma mentira em ponto
+ * mais pequeno.
+ */
+function linhaDaCadeia(cadeia) {
+  const k = cadeia || {};
+  if (!(k.pedidos > 1)) return null;
+  const v = Number(k.total);
+  if (!Number.isFinite(v) || v < 0) return null;
+  const fontes = [].concat(k.fontes || []);
+  if (!fontes.length || !fontes.every((f) => fonteLegivel(f))) return null;
+  return { linha: '*Nesta conversa, ' + k.pedidos + ' pedidos encadeados:* '
+      + (k.todosMedidos ? '' : 'pelo menos ') + montante(v),
+    sufixo: 'valores informados pelo próprio motor · não verificados por nós' };
 }
 
 /** A impressao completa: e ESTA a string que o CAS compara. */
@@ -253,7 +279,11 @@ const campos = (pares) => ({ type: 'section', fields: pares.slice(0, MAX_FIELDS)
 /** O dinheiro em section de largura INTEIRA: nunca em `fields`, nunca em `context`. */
 function blocoDoDinheiro(p) {
   const d = dinheiro(p.custo);
-  return secao('*Já gasto até agora neste pedido:* ' + d.texto + '\n' + d.sufixo);
+  const k = linhaDaCadeia(p.cadeia);
+  const linha1 = '*Já gasto até agora neste pedido:* ' + d.texto;
+  // com cadeia o sufixo e UM so e vem no plural — dois sufixos seguidos leem-se mal
+  if (!k) return secao(linha1 + NL + d.sufixo);
+  return secao(linha1 + NL + k.linha + NL + k.sufixo);
 }
 
 /** A prova, completa, em code span. E esta a string que o CAS compara. */
@@ -418,7 +448,7 @@ function construir(payload) {
   return { blocos: fora, texto: notificacao(p) };
 }
 
-module.exports = { LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
+module.exports = { linhaDaCadeia, montante, LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
   MOTORES_LEGIVEIS, FONTES_LEGIVEIS,
   fonteLegivel, dinheiro, impressaoCompleta, hashCurto, mencaoDeActor, valorDe,
   modeloCurto, motorLegivel, apelido,
