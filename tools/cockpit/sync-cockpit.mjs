@@ -111,7 +111,15 @@ export function alvoDoLaunchAgent(home = os.homedir(), readImpl = fs.readFileSyn
  * Self-check. Devolve `ok:false` quando o espelho esta incompleto OU quando ele
  * esta perfeito e ninguem o corre — as duas maneiras de este ficheiro falhar.
  */
-export function selfCheck({ origem = ORIGEM_RUNNER, dest = destinoPadrao(), shell = ORIGEM_SHELL, home = os.homedir() } = {}) {
+export function selfCheck({
+  origem = ORIGEM_RUNNER,
+  dest = destinoPadrao(),
+  shell = ORIGEM_SHELL,
+  home = os.homedir(),
+  // A raiz do checkout de onde este script corre. Correr O CHECKOUT nesta
+  // maquina nao e um erro — e a configuracao CERTA para quem tem o repo.
+  checkout = path.resolve(AQUI, '..', '..'),
+} = {}) {
   const plano = planear(origem, dest, shell);
   const emFalta = plano.filter((p) => p.estado !== 'igual');
   const avisos = [];
@@ -119,14 +127,43 @@ export function selfCheck({ origem = ORIGEM_RUNNER, dest = destinoPadrao(), shel
 
   const la = alvoDoLaunchAgent(home);
   const destAbs = path.resolve(dest);
-  if (la.ausente) {
-    avisos.push(`sem LaunchAgent em ${la.plist} — o espelho existe mas nada o corre`);
-  } else if (la.caminho && !path.resolve(la.caminho).startsWith(destAbs)) {
-    avisos.push(
-      `o LaunchAgent corre ${la.caminho}, nao o espelho — sincronizar aqui nao muda o que a maquina executa`,
-    );
+  const checkoutAbs = path.resolve(checkout);
+  let corre = 'desconhecido';
+
+  if (la.ausente || !la.caminho) {
+    corre = 'nada';
+    avisos.push(`sem LaunchAgent utilizavel em ${la.plist} — o espelho existe e nada o corre`);
+  } else {
+    const alvo = path.resolve(la.caminho);
+    if (alvo.startsWith(destAbs)) {
+      corre = 'espelho';
+    } else if (alvo.startsWith(checkoutAbs)) {
+      // A primeira versao gritava aqui. Estava errada, e a razao importa: num
+      // device que TEM o checkout, correr o checkout e melhor do que correr o
+      // espelho — o checkout esta sempre em dia depois de um `git pull`, e o
+      // espelho so muda quando alguem corre este script. Apontar o launchd ao
+      // espelho nesta maquina trocava frescura garantida por frescura manual,
+      // que e exactamente a doenca que o `sync-hooks.js` existe para tratar.
+      //
+      // Um guarda que esta VERMELHO na configuracao correcta ensina o dono a
+      // ignora-lo — e isso e a mesma doenca de um guarda calado.
+      corre = 'checkout';
+    } else {
+      corre = 'outro';
+      avisos.push(
+        `o LaunchAgent corre ${la.caminho}, que nao e nem o espelho nem este checkout — sincronizar aqui nao muda o que a maquina executa`,
+      );
+    }
   }
-  return { ok: emFalta.length === 0 && avisos.length === 0, total: plano.length, emFalta: emFalta.map((p) => p.rel), avisos };
+  return {
+    ok: emFalta.length === 0 && avisos.length === 0,
+    total: plano.length,
+    emFalta: emFalta.map((p) => p.rel),
+    // O espelho serve OUTRAS maquinas; esta pode correr o checkout. Dizer QUAL
+    // e o ponto: 'ok' sem dizer o que corre era o que faltava.
+    corre,
+    avisos,
+  };
 }
 
 export function main(argv = process.argv.slice(2), escrever = process.stdout.write.bind(process.stdout)) {
@@ -142,7 +179,13 @@ export function main(argv = process.argv.slice(2), escrever = process.stdout.wri
   }
 
   const r = selfCheck({ dest });
-  escrever(`espelho: ${r.total - r.emFalta.length}/${r.total} em dia\n`);
+  const onde = {
+    espelho: 'e e o espelho que esta maquina corre',
+    checkout: 'e esta maquina corre o CHECKOUT — o que esta certo para quem tem o repo; o espelho e para as outras',
+    nada: 'e nada o corre',
+    outro: 'e a maquina corre outra coisa qualquer',
+  }[r.corre] || '';
+  escrever(`espelho: ${r.total - r.emFalta.length}/${r.total} em dia — ${onde}\n`);
   for (const rel of r.emFalta) escrever(`  EM FALTA ${rel}\n`);
   // Nunca engolir em silencio: um espelho que ninguem corre e o modo de falha
   // caro deste ficheiro, e tem de doer no stdout.
