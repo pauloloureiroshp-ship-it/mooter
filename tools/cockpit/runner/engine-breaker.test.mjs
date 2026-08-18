@@ -182,3 +182,39 @@ test('ACEITACAO: um recibo SEM bandeira nenhuma e travado, nao ignorado', () => 
   assert.equal(ledger.length, ENGINE_DOWN_AFTER, 'quem nao prova sucesso, falha — fail-closed como o isStopped');
   assert.equal(b.observe({ ts: iso(9999) }, iso(9999)).backoffS, BACKOFF_CAP_S);
 });
+test('ACEITACAO: o evento diz de QUE morreu a ronda — nao chama motor a tudo', () => {
+  // Medido no ledger vivo a 2026-08-18, com o motor a responder HTTP 200 e dois
+  // pilares com o poco seco: saiu `engine:down — motor local em baixo`. Travar
+  // era certo; o rotulo era uma mentira, e da mesma familia das que este runner
+  // existe para caçar. Um disjuntor que trava bem e mente no nome so troca uma
+  // inundacao por uma acusacao falsa.
+  const casos = [
+    [{ falha_motor: true }, 'engine:down', 'engine:up'],
+    [{ esgotado: true, falha_ronda: true }, 'pilar:esgotado', 'pilar:retomado'],
+    [{ falha_ronda: true }, 'ronda:falha', 'ronda:ok'],
+  ];
+  for (const [receipt, baixo, cima] of casos) {
+    const b = createEngineBreaker();
+    let evento = null;
+    for (let n = 0; n < 10; n += 1) {
+      for (const r of b.observe({ ...receipt, ts: iso(n * 30) }, iso(n * 30)).recibos) if (r.evento) evento = r;
+    }
+    assert.equal(evento.evento, baixo, JSON.stringify(receipt));
+    assert.ok(!/motor local em baixo/.test(evento.resultado_resumo) || baixo === 'engine:down',
+      'so o motor pode ser acusado de estar em baixo');
+    const volta = b.observe(boa(600), iso(600)).recibos[0];
+    assert.equal(volta.evento, cima);
+    assert.equal(volta.classe, receipt.falha_motor ? 'motor' : (receipt.esgotado ? 'esgotado' : 'ronda'));
+  }
+});
+
+test('a classe reinicia entre sequencias — um poco seco nao contamina o apagao seguinte', () => {
+  const b = createEngineBreaker();
+  for (let n = 0; n < 5; n += 1) b.observe({ esgotado: true, falha_ronda: true, ts: iso(n) }, iso(n));
+  b.observe(boa(100), iso(100));
+  let evento = null;
+  for (let n = 0; n < 5; n += 1) {
+    for (const r of b.observe(falha(200 + n), iso(200 + n)).recibos) if (r.evento) evento = r;
+  }
+  assert.equal(evento.evento, 'engine:down', 'a sequencia nova e do motor, e diz isso');
+});
