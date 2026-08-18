@@ -230,3 +230,8 @@ _handoff/verificador-0/juizos/
 # âncora estática (eslint local, não versionar deps)
 tools/ancora/node_modules/
 tools/ancora/package-lock.json
+
+# O conector escreve um boot log no _handoff a cada arranque. Nao versionar,
+# e manter fora do topo (conta para o ratchet de higiene).
+_handoff/*.log
+_handoff/logs/
