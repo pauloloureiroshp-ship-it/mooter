@@ -43,12 +43,34 @@ export function backoffSeconds(falhas, { baseS = BACKOFF_BASE_S, capS = BACKOFF_
  * apagao), mas nao toca em ficheiros: quem chama e que decide o que fazer com
  * os recibos devolvidos.
  */
+/**
+ * De que morreu a ronda. So o motor abre um `engine:down`; um poco seco e um
+ * `pilar:esgotado`, e uma ronda que rebentou e um `ronda:falha`.
+ */
+export function classeDaFalha(receipt) {
+  if (receipt && receipt.falha_motor) return 'motor';
+  if (receipt && receipt.esgotado) return 'esgotado';
+  return 'ronda';
+}
+
+const EVENTOS = {
+  motor: { baixo: 'engine:down', cima: 'engine:up', diz: 'motor local em baixo' },
+  esgotado: { baixo: 'pilar:esgotado', cima: 'pilar:retomado', diz: 'nada por rever — o poco secou' },
+  ronda: { baixo: 'ronda:falha', cima: 'ronda:ok', diz: 'a ronda rebentou' },
+};
+
 export function createEngineBreaker({
   downAfter = ENGINE_DOWN_AFTER,
   baseS = BACKOFF_BASE_S,
   capS = BACKOFF_CAP_S,
 } = {}) {
   let falhas = 0;
+  // A CLASSE da falha que domina esta sequencia. O disjuntor trava bem, mas o
+  // nome do evento tem de dizer a verdade: medido a 2026-08-18 no ledger vivo,
+  // com o motor a responder HTTP 200 e dois pilares com o poco seco, saiu
+  // `engine:down — motor local em baixo`. Travar era certo; o rotulo era uma
+  // mentira, e da mesma familia das que este runner existe para caçar.
+  let classe = 'motor';
   let inicio = null;
   let aberto = false;
   // As rondas que o ledger NAO registou. Nao e o mesmo que `falhas`: as
@@ -108,18 +130,20 @@ export function createEngineBreaker({
           const apagao = bruto === null || bruto < 0 ? null : bruto;
           recibos.push({
             ts: nowIso,
-            evento: 'engine:up',
+            evento: EVENTOS[classe].cima,
             usd: 0,
             inicio,
             fim: nowIso,
             apagao_s: apagao,
             rondas_engolidas: engolidas,
+            classe,
             resultado_resumo: apagao === null
-              ? `motor local de volta apos ${falhas} rondas falhadas, ${engolidas} nao gravadas (duracao n/d: relogios nao batem)`
-              : `motor local de volta apos ${apagao}s em baixo (${falhas} rondas falhadas, ${engolidas} nao gravadas)`,
+              ? `${EVENTOS[classe].cima} apos ${falhas} rondas falhadas, ${engolidas} nao gravadas (duracao n/d: relogios nao batem)`
+              : `${EVENTOS[classe].cima} apos ${apagao}s (${falhas} rondas falhadas, ${engolidas} nao gravadas)`,
           });
         }
         falhas = 0;
+        classe = 'motor';
         inicio = null;
         aberto = false;
         engolidas = 0;
@@ -131,7 +155,10 @@ export function createEngineBreaker({
       // UM relogio so. O `ts` do recibo vem do clock do `runRound`, que e outro
       // relogio: misturar os dois deu um `inicio` de um e um `fim` do outro, e
       // uma duracao sem sentido. O disjuntor mede-se a si proprio.
-      if (falhas === 1) inicio = nowIso;
+      if (falhas === 1) {
+        inicio = nowIso;
+        classe = classeDaFalha(receipt);
+      }
       const backoffS = backoffSeconds(falhas, { baseS, capS });
 
       // Abaixo do limiar, uma falha e sinal: um blip merece o seu recibo.
@@ -143,11 +170,12 @@ export function createEngineBreaker({
         return {
           recibos: [{
             ts: nowIso,
-            evento: 'engine:down',
+            evento: EVENTOS[classe].baixo,
             usd: 0,
+            classe,
             inicio,
             falhas_seguidas: falhas,
-            resultado_resumo: `motor local em baixo desde ${inicio} — ${falhas} falhas seguidas, disjuntor aberto`,
+            resultado_resumo: `${EVENTOS[classe].diz} desde ${inicio} — ${falhas} falhas seguidas, disjuntor aberto`,
             evidencia: String((receipt && receipt.resultado_resumo) || 'n/d').slice(0, 160),
           }],
           backoffS,
@@ -162,7 +190,7 @@ export function createEngineBreaker({
 
     /** Estado legivel, para o log e para os testes. */
     get estado() {
-      return { falhas, inicio, aberto, engolidas };
+      return { falhas, classe, inicio, aberto, engolidas };
     },
   };
 }
