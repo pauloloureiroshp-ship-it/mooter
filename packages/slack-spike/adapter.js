@@ -373,14 +373,28 @@ function criarAdaptador(opcoes) {
   }
 
   /**
-   * Publica apenas medicao real do ledger: contagem de steps, idade desde o
-   * primeiro dispatched e a impressao corrente calculada pelo broker.
+   * ⚠️ O FILTRO DE DONO É OBRIGATÓRIO, e o silêncio é verificado AQUI.
+   *
+   * Achado MÉDIO do codex: esta função itera TODOS os jobs `dispatched` do ledger.
+   * A garantia de dono e de silêncio vivia só no chamador (`poller.js`), e provou-se
+   * explorável: chamada sem `jaBateu`, publicou o batimento de um job de OUTRO actor
+   * e de um job silenciado. Hoje há um só chamador e ele passa o filtro certo — mas
+   * um guarda que depende de quem chama é a mesma família de defeito que este pacote
+   * passou dois dias a fechar, e aqui o preço é publicar o trabalho de outra pessoa
+   * no canal.
+   *
+   * Agora: sem `jaBateu` ESTOIRA (como o `poller.js` estoira sem esta função), e o
+   * silêncio é verificado dentro, com a lista que o adapter já tem.
    */
   async function publicarBatimentos(opcoes) {
     const oo = opcoes || {};
+    if (typeof oo.jaBateu !== 'function') {
+      throw new Error('publicarBatimentos precisa de `jaBateu` — um batimento sem '
+        + 'filtro de dono publica o trabalho de outra pessoa no canal');
+    }
     const agoraMs = Number(oo.agora);
     const limiarMs = Number(oo.limiarMs);
-    const jaBateu = typeof oo.jaBateu === 'function' ? oo.jaBateu : () => false;
+    const jaBateu = oo.jaBateu;
     if (!Number.isFinite(agoraMs) || !Number.isFinite(limiarMs) || limiarMs < 0) return [];
 
     const ledger = lerEventos();
@@ -388,6 +402,7 @@ function criarAdaptador(opcoes) {
       .map((e) => e.job_id))];
     const out = [];
     for (const job of jobs) {
+      if (silenciados.has(job)) continue;   // defesa em profundidade: nao depende do chamador
       if (jaBateu(job)) continue;
       const corrente = broker.estadoCorrente(job, ledger);
       if (!corrente || !['dispatched', 'started'].includes(corrente.event)) continue;

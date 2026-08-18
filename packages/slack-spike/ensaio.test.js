@@ -938,3 +938,38 @@ test('T6 · frase inventada e recusada pelo catalogo fechado', () => {
   assert.match(r.porque, /catalogo/);
   assert.equal(capturas.length, 0);
 });
+
+test('batimento · SEM filtro de dono estoira, e o silencio nao depende do chamador', async () => {
+  // ⚠️ Achado MEDIO do codex, reproduzido antes de corrigido: `publicarBatimentos`
+  // iterava TODOS os jobs `dispatched` do ledger e a garantia vivia so no
+  // `poller.js`. Chamada sem `jaBateu`, publicou o batimento de um job de OUTRO
+  // actor e de um job SILENCIADO. Um guarda que depende de quem chama e a mesma
+  // familia de defeito deste pacote — e aqui o preco e publicar o trabalho de
+  // outra pessoa no canal.
+  const publicados = [];
+  const LEDGER = [
+    { ts: '2026-08-18T00:00:00Z', event: 'dispatched', job_id: 'job-de-outro' },
+    { ts: '2026-08-18T00:00:00Z', event: 'dispatched', job_id: 'job-silenciado' },
+  ];
+  const ad = criarAdaptador({
+    allowlist: { permite: () => ({ ok: true }) },
+    publicador: { publicar: (p) => { publicados.push(p.job_id); return { publicado: true, envio: null }; } },
+    broker: { estadoCorrente: (j) => LEDGER.find((e) => e.job_id === j),
+      estadoDoJob: () => ({ state_hash: 'a'.repeat(64) }), listPending: () => [] },
+    despachar: async () => ({}),
+    silenciados: new Set(['job-silenciado']),
+    lerEventos: () => LEDGER,
+  });
+  const agora = Date.parse('2026-08-18T01:00:00Z');
+
+  await assert.rejects(() => ad.publicarBatimentos({ agora, limiarMs: 1000 }),
+    /precisa de `jaBateu`/, 'publicou batimentos sem filtro de dono nenhum');
+  assert.equal(publicados.length, 0);
+
+  // COM filtro, mas um que deixa passar tudo: o silencio tem de aguentar sozinho
+  await ad.publicarBatimentos({ agora, limiarMs: 1000, jaBateu: () => false });
+  assert.ok(!publicados.includes('job-silenciado'),
+    'o job silenciado bateu porque o chamador nao o filtrou — o silencio tem de valer aqui dentro');
+  assert.ok(publicados.includes('job-de-outro'),
+    'o filtro de dono e do chamador; sem ele o job passa — e por isso `jaBateu` e obrigatorio');
+});
