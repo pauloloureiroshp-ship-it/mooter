@@ -809,3 +809,53 @@ T1 → T3 — 12,7× o custo. O fix é no motor (`broker.decide`), fora do alcan
 spike. Sintoma tapado (o total agora vê-se); causa por tapar.
 
 Estado: **226/226** · 32 commits · 0 uncommitted · nada pushed.
+
+### 2026-08-18 (3) · os dois gates correram e ambos acharam coisas minhas
+
+**`final-reviewer`: SHIP-WITH-NITS, sem bloqueantes.** `classify.js` sha intacto,
+raio de acção contido, zero segredos na árvore, e o achado antigo do codex sobre o
+`Error.message` do `fetch` confirmado **FECHADO** (`transporte.js:179` constrói o erro
+do nome do método e do `j.error`, nunca do pedido; o URL do socket — a única string
+com segredo — nunca é registada). Os quatro nits, todos corrigidos (`aec707e9`):
+
+1. **O sufixo da cadeia estava codificado à mão**, no mesmo commit cuja mensagem
+   dizia «mesma regra de procedência». Uma cadeia de jobs locais publicava US$ 0,00
+   rotulado «informado pelo próprio motor · não verificado por nós» — a lançar dúvida
+   sobre o único número que é certo (99 eventos do ledger têm essa fonte). Uma cadeia
+   estimada perdia a palavra **ESTIMATIVA**. E o meu bloco deitava fora o sufixo do
+   pedido. Agora deriva das fontes reais; numa cadeia mista manda a afirmação mais
+   fraca; procedências diferentes ⇒ cada número leva a sua.
+2. **Custo sem procedência era somado** e não ficava em `fontes` — o `every()` do
+   cartão passava a vazio. Um evento sem fonte bastava para publicar US$ 100 como
+   total verificado.
+3. **O guarda de tokens do CI não olhava para os documentos** (limitado a
+   `packages/slack-spike` *e* com filtro de `paths:`): um token colado num
+   `_handoff/*.md` escapava duas vezes — e são esses os ficheiros que os agentes
+   escrevem com os tokens vivos em contexto. Filtro removido, árvore toda, job
+   próprio para segredos, mais prefixos, signing secret, guarda de `.env`.
+4. **`SLACK_IGNORAR_JOBS` era lido antes de o `.env` existir.** Punha-se no `.env` —
+   o sítio natural — e não acontecia nada: `[Aprovar]` ficava quente.
+
+**codex: NO-GO, 1 ALTO + 2 MÉDIOS + 1 BAIXO.** Todos corrigidos (`4e4c8692`).
+
+- **ALTO — a religação morria à primeira falha de rede.** O `catch` só registava
+  `religar_falhou` e não agendava nada. Era o **mesmo bug que a âncora tapou, um
+  nível abaixo**: tapei a queda do socket e deixei aberta a queda da religação. E o
+  meu teste de processo observava 700ms, antes da tentativa dos 1000ms — não podia
+  vê-lo. Agora `agendarTentativa` re-agenda ao falhar, a âncora é um intervalo ref'd
+  largado só quando o socket abre, e o gate a fechar entre tentativas aborta em voz
+  alta em vez de segurar um processo que já não ia religar.
+- **MÉDIO — o teste dos silenciados não provava «não gastou»**: vigiava `despachar`
+  (menções) quando uma aprovação gasta por `broker.decide`.
+- **MÉDIO — re-carimbo sem fonte herdava a procedência antiga** (US$ 10 com a fonte
+  de US$ 1).
+- **BAIXO — pai fantasma contava como pedido**, e `pai`/`filhos` vinham de dois loops:
+  a mesma conversa dava totais diferentes conforme a porta de entrada.
+
+**Declarado, não escondido:** o codex não conseguiu correr a suite (`spawn EPERM`) —
+a validação dele é leitura, não execução. E um mutante que larga a âncora à entrada
+do `correr()` fica **verde**, correctamente: o `catch` volta a ancorar no mesmo tick e
+a única janela é um `await` que um fetch real segura. Não fabriquei teste para isso.
+
+Estado: **242/242** · 38 commits · 0 atrás de main · 0 uncommitted · `classify.js`
+sha intacto · nada pushed · daemon vivo.
