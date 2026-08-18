@@ -973,3 +973,43 @@ test('batimento · SEM filtro de dono estoira, e o silencio nao depende do chama
   assert.ok(publicados.includes('job-de-outro'),
     'o filtro de dono e do chamador; sem ele o job passa — e por isso `jaBateu` e obrigatorio');
 });
+
+test('infeliz 2b · depois do STALE, o cartao FRESCO ainda pode ser aprovado', async () => {
+  // ⚠️ BLOCK do claude-review no PR #274, e cai exactamente na cena que a demo
+  // existe para mostrar. O `transporte.js` constroi `idem_key = job:accao` — SEM
+  // hash. Um clique STALE grava uma decisao com essa chave; o clique no cartao
+  // FRESCO traz a MESMA chave, o broker acha-a em `replay_exacto` e devolve o
+  // estado antigo. O pedido nunca mais pode ser aprovado pelo Slack.
+  //
+  // O teste do STALE que ja ca estava passa `idem_key: 'k-stale'` A MAO, por isso
+  // nunca podia ver isto — a chave que a producao deriva nunca era exercitada.
+  // Oitava vez que o teste constroi o que a producao calcula.
+  const { home, jobId } = bancada();
+  const { ad } = montar();
+  // ⚠️ a chave DERIVA do transporte, nao e escrita a mao: foi por a escrever a mao
+  // que o teste do STALE ca de cima nunca pode ver este defeito. Nona vez.
+  const tr = require('./transporte.js');
+  const chaveDe = (hash) => tr.classificarEnvelope({ type: 'interactive', envelope_id: 'e',
+    payload: { type: 'block_actions', user: { id: 'U_PAULO' }, message: { ts: 'T1' },
+      actions: [{ action_id: 'mooter_aprovar', value: tr.valorDoBotao(jobId, 'aprovar', hash) }] } },
+    'U_BOT').dados.idem_key;
+
+  const hashVelho = broker.listPending()[0].state_hash;
+  fs.appendFileSync(path.join(home, 'ledger.jsonl'),
+    JSON.stringify({ ts: new Date().toISOString(), job_id: jobId, event: 'step', step_index: 1 }) + '\n');
+  const hashNovo = broker.listPending()[0].state_hash;
+  assert.notEqual(hashVelho, hashNovo);
+
+  // 1 · o clique atrasado -> STALE, e o pendente continua na fila
+  const stale = await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'aprovar',
+    request_id: jobId, idem_key: chaveDe(hashVelho), expected_state_hash: hashVelho, thread: 'T1' });
+  assert.equal(stale.estado, 'STALE');
+  assert.equal(broker.listPending().length, 1, 'o STALE nao devia decidir nada');
+
+  // 2 · o dono clica no cartao FRESCO, com o hash actual
+  const fresco = await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'aprovar',
+    request_id: jobId, idem_key: chaveDe(hashNovo), expected_state_hash: hashNovo, thread: 'T1' });
+  assert.notEqual(fresco.estado, 'STALE',
+    'o cartao fresco morreu como replay do STALE — o pedido ficou inaprovavel pelo Slack');
+  assert.equal(fresco.estado, 'APPROVED');
+});

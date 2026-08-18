@@ -135,7 +135,14 @@ function classificarEnvelope(envelope, botUserId) {
       dados: {
         user_id: (p.user && p.user.id) || null,
         request_id: v.job_id,               // no broker, request_id === job_id
-        idem_key: v.job_id + ':' + v.accao, // clique repetido = replay, nao 2a decisao
+        // ⚠️ O HASH ENTRA NA CHAVE. Sem ele (`job:accao`) um clique STALE envenenava
+        // o pedido para sempre: o broker guarda a decisao por `idem_key`, e o clique
+        // no cartao FRESCO trazia a mesma chave, batia em `replay_exacto` e recebia
+        // de volta o STALE antigo. O pedido ficava inaprovavel pelo Slack — e isto
+        // acontece precisamente na cena que a demo existe para mostrar.
+        // Com o hash: o mesmo cartao clicado duas vezes continua a ser replay (mesma
+        // chave), e um cartao NOVO e uma decisao nova, porque o estado mudou.
+        idem_key: v.job_id + ':' + v.accao + ':' + String(v.hash || 'sem-hash').slice(0, 16),
         expected_state_hash: v.hash,        // o hash DO CARTAO — o CAS depende disto
         accao: v.accao,
         thread_ts: (p.message && p.message.thread_ts) || (p.message && p.message.ts) || null,
