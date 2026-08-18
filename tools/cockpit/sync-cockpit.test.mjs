@@ -59,6 +59,28 @@ test('--dry-run nao escreve uma unica linha', () => {
   assert.equal(fs.existsSync(path.join(dest, 'runner')), false);
 });
 
+test('correr o CHECKOUT nao e um erro — e a configuracao certa de quem tem o repo', () => {
+  // A primeira versao deste guarda gritava aqui, e estava errada. Num device
+  // que TEM o checkout, o checkout esta sempre em dia depois de um `git pull`
+  // e o espelho so muda quando alguem corre o sync: apontar o launchd ao
+  // espelho trocava frescura garantida por frescura manual — a doenca que o
+  // `sync-hooks.js` existe para tratar. E um guarda VERMELHO na configuracao
+  // certa ensina o dono a ignora-lo, que e a mesma doenca de um guarda calado.
+  const src = origemFalsa();
+  const dest = tmp('d0');
+  const checkout = tmp('checkout');
+  espelhar(planear(src, dest, path.join(src, 'x.html')));
+  const home = tmp('home0');
+  fs.mkdirSync(path.join(home, 'Library', 'LaunchAgents'), { recursive: true });
+  fs.writeFileSync(
+    path.join(home, 'Library', 'LaunchAgents', 'ai.mooter.runner.plist'),
+    `<plist><array><string>${path.join(checkout, 'tools/cockpit/runner/moo-runner.mjs')}</string></array></plist>`,
+  );
+  const r = selfCheck({ origem: src, dest, shell: path.join(src, 'x.html'), home, checkout });
+  assert.equal(r.corre, 'checkout');
+  assert.equal(r.ok, true, JSON.stringify(r.avisos));
+});
+
 test('ACEITACAO: um espelho perfeito que ninguem corre NAO passa no self-check', () => {
   // Foi assim que o acumulador morreu 63 sessoes em silencio: o espelho dos
   // hooks estava impecavel e o settings.json apontava para outro sitio.
@@ -72,10 +94,11 @@ test('ACEITACAO: um espelho perfeito que ninguem corre NAO passa no self-check',
     '<plist><array><string>/usr/bin/node</string><string>/Users/x/checkout/tools/cockpit/runner/moo-runner.mjs</string></array></plist>',
   );
 
-  const r = selfCheck({ origem: src, dest, shell: path.join(src, 'x.html'), home });
+  const r = selfCheck({ origem: src, dest, shell: path.join(src, 'x.html'), home, checkout: tmp('outro-checkout') });
   assert.deepEqual(r.emFalta, [], 'o espelho esta completo');
   assert.equal(r.ok, false, 'e mesmo assim NAO passa — porque a maquina corre outra copia');
-  assert.match(r.avisos.join(' '), /nao o espelho/);
+  assert.equal(r.corre, 'outro', 'nem espelho nem checkout — a maquina corre outra coisa');
+  assert.match(r.avisos.join(' '), /nem o espelho nem este checkout/);
 });
 
 test('self-check passa quando o espelho esta completo E e o que a maquina corre', () => {
