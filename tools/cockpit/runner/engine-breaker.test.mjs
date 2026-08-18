@@ -97,7 +97,11 @@ test('duas falhas separadas por sucesso NAO abrem o disjuntor', () => {
 test('um STOP do dono nao e um motor em baixo', () => {
   const b = createEngineBreaker();
   // runner-core so poe falha_motor quando NAO fomos nos a abortar por STOP.
-  const abortadoPorStop = { ts: iso(0), verdict: 'sem-achado', resultado_resumo: 'STOP durante a geracao — ronda abortada' };
+  // `parado_pelo_dono` e agora a UNICA bandeira neutra. A versao anterior
+  // tratava como neutro qualquer recibo sem bandeira — e media-se que uma
+  // ronda sem contexto (pack.ok === false) escrevia 200 linhas com backoff
+  // zero. O disjuntor passou a ser fail-closed: quem nao prova sucesso, falha.
+  const abortadoPorStop = { parado_pelo_dono: true, ts: iso(0), verdict: 'sem-achado', resultado_resumo: 'STOP durante a geracao — ronda abortada' };
   const ledger = [];
   for (let n = 0; n < 20; n += 1) ledger.push(...b.observe(abortadoPorStop, iso(n)).recibos);
   assert.equal(ledger.length, 20, 'parar por vontade do dono e trabalho registado, nao avaria');
@@ -141,7 +145,7 @@ test('uma ronda que REBENTA nao fecha o disjuntor nem inventa um engine:up', () 
 test('um STOP em voo nao fecha um disjuntor aberto', () => {
   const b = createEngineBreaker();
   for (let n = 0; n < 5; n += 1) b.observe(falha(n * 30), iso(n * 30));
-  const abortado = { ts: iso(600), verdict: 'sem-achado', resultado_resumo: 'STOP durante a geracao' };
+  const abortado = { parado_pelo_dono: true, ts: iso(600), verdict: 'sem-achado', resultado_resumo: 'STOP durante a geracao' };
   const r = b.observe(abortado, iso(600));
   assert.ok(!r.recibos.some((x) => x.evento === 'engine:up'), 'nao provou que o motor voltou');
   assert.equal(b.estado.aberto, true);
@@ -163,4 +167,18 @@ test('rondas_engolidas conta o que NAO foi gravado, nao o total de falhas', () =
   // 5 falhas: 2 gravadas + 1 engine:down + 2 engolidas de facto.
   assert.equal(b.estado.falhas, 0, 'reset apos o regresso');
   assert.equal(up.rondas_engolidas, 2, 'inflacionar o numero no proprio recibo que o publica seria o pecado do ficheiro ao lado');
+});
+
+test('ACEITACAO: um recibo SEM bandeira nenhuma e travado, nao ignorado', () => {
+  // Medido a 2026-08-18: 200 rondas com `falha_motor` davam 3 linhas, e 200
+  // rondas SEM bandeira davam 200 linhas com backoff ZERO. O B8 fazia o que
+  // prometia e a porta ao lado estava aberta — uma ronda sem contexto
+  // (`pack.ok === false`) inundava o ledger exactamente como o apagao.
+  const b = createEngineBreaker();
+  const ledger = [];
+  for (let n = 0; n < 200; n += 1) {
+    ledger.push(...b.observe({ ts: iso(n * 30), verdict: 'sem-citacao', resultado_resumo: 'sem contexto' }, iso(n * 30)).recibos);
+  }
+  assert.equal(ledger.length, ENGINE_DOWN_AFTER, 'quem nao prova sucesso, falha — fail-closed como o isStopped');
+  assert.equal(b.observe({ ts: iso(9999) }, iso(9999)).backoffS, BACKOFF_CAP_S);
 });

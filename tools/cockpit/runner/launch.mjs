@@ -25,9 +25,25 @@ import os from 'node:os';
 import path from 'node:path';
 import { HOST, PORT } from './f10-server.mjs';
 import { deviceName } from './fleet-beacon.mjs';
+import { resolveRepoRoot } from './project.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-const REPO = path.resolve(HERE, '..', '..', '..');
+const RAIZ_DO_SCRIPT = path.resolve(HERE, "..", "..", "..");
+/**
+ * O motor generalizou (B1) e o ponto de entrada que o dono usa — `npm run
+ * pilot` — nao tinha herdado nada: `--repo` e `MOO_REPO_ROOT` eram
+ * silenciosamente ignorados aqui, e o lancador abria sempre o repo do
+ * script. Um runner que sabe conduzir qualquer repo, atras de um botao que
+ * so sabe abrir um, e um runner que ninguem consegue apontar.
+ */
+const REPO = (() => {
+  try {
+    return resolveRepoRoot({ argv: process.argv.slice(2), scriptRoot: RAIZ_DO_SCRIPT }).root;
+  } catch (err) {
+    process.stdout.write("repo invalido: " + err.message + "\n");
+    process.exit(1);
+  }
+})();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const LOCK = path.join(MOO_DIR, 'runner.lock');
 const STOP = path.join(MOO_DIR, 'STOP');
