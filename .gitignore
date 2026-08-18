@@ -184,7 +184,14 @@ RUN-*.bat
 .ai/
 .codex/
 .gemini/
-.mooter/
+.mooter/*
+# ... MENOS a declaracao de pilares. E o unico ficheiro do `.mooter/` que e do
+# PROJECTO e nao da maquina: sem esta excepcao, o coracao do B3 nunca podia ser
+# versionado, e cada dev teria de o reescrever a mao. O resto (ledger, cursor,
+# lock, revistos) continua fora, e bem: e estado local.
+# (`.mooter/*` e nao `.mooter/`: o git NAO reinclui um ficheiro dentro de um
+# directorio excluido — a primeira tentativa com `.mooter/` continuou a ignorar.)
+!.mooter/pilares.json
 # .planning/ tem conteudo versionado (waves, benchmarks, validacao) - nao ignorar
 
 # ── Artefactos de sessão ───────────────────────────────────────────────────

@@ -175,6 +175,17 @@ export function createServer({
       }
     })();
   const paths = projectPaths({ repoRoot: raiz, mooDir, canonicalRoot: SCRIPT_ROOT });
+  // Sem isto, num projecto que o loop ainda nao tocou, `POST /play` respondia
+  // 200 (o `rmSync` com `force` nao precisa da pasta) e `POST /stop` rebentava
+  // com ENOENT — o kill-switch a falhar ABERTO, na polaridade pior possivel:
+  // arrancar funciona, parar nao. E o `launch.mjs` levanta o servidor ANTES do
+  // runner, que e exactamente quando essa janela esta aberta.
+  try {
+    fs.mkdirSync(paths.base, { recursive: true });
+  } catch {
+    // Se nem isto der, os verbos de controlo vao falhar alto e dizer porque —
+    // que e melhor do que um botao de parar que responde 200 e nao para nada.
+  }
   const pilares = loadPillars(raiz);
   const stopFile = paths.STOP_FILE;
   const ledgerPath = paths.LEDGER;

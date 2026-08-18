@@ -514,6 +514,13 @@ export function buildContextPack({
   anchorPath = null,
   diffBase = null,
   diffRunImpl = null,
+  // So a recursao da escada liga isto. Com uma base UNICA, um diff esgotado
+  // tem de CAIR para o degrau seguinte (ancorado/caca) em vez de devolver
+  // `ok:false`: medido a 2026-08-18 com `MOO_DIFF_BASE=HEAD~12`, 240 de 360
+  // rondas nao produziam pack nenhum — dois tercos da GPU a nao fazer nada, e
+  // cada uma dessas rondas escrevia um recibo sem bandeira, que o disjuntor
+  // nao ve.
+  pararSeEsgotado = false,
   // O que ja foi julgado. Um Set de chaves de `hunkKey`; vazio = tudo por rever.
   revistos = null,
   // Os pilares do PROJECTO, quando ele os declara. O default embutido continua
@@ -530,7 +537,7 @@ export function buildContextPack({
   if (Array.isArray(diffBase)) {
     const resto = { repoRoot, pillar, cursor, maxLines, anchorPath, diffRunImpl, pillars, revistos };
     for (const base of diffBase) {
-      const r = buildContextPack({ ...resto, diffBase: base });
+      const r = buildContextPack({ ...resto, diffBase: base, pararSeEsgotado: true });
       if (r.ok) return { ...r, escadaBase: base };
       // Esgotada e o unico motivo para alargar; qualquer outra falha e falha.
       if (!r.esgotado) break;
@@ -615,7 +622,12 @@ export function buildContextPack({
       }
       // Poco seco nesta base: cai para o degrau seguinte da escada em vez de
       // remoer. Quem chama e que decide abrir uma base mais larga.
-      if (!h) return { ok: false, esgotado: true, reason: `nada por rever em ${diffBase}`, pillar, diffErro };
+      // Esgotado: a escada quer saber para abrir a base seguinte; uma base
+      // unica nao tem para onde ir e cai para os degraus de baixo.
+      if (!h && pararSeEsgotado) {
+        return { ok: false, esgotado: true, reason: `nada por rever em ${diffBase}`, pillar, diffErro };
+      }
+      if (h) {
       const lines = readLines(repoRoot, h.file);
       if (lines && lines.length > 0 && h.start <= lines.length) {
         const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
@@ -677,6 +689,7 @@ export function buildContextPack({
           prompt,
           allowedFiles: [h.file],
         };
+        }
       }
     }
   }
@@ -689,17 +702,35 @@ export function buildContextPack({
   // passos.
   const anchors = readAnchor(anchorPath);
   if (anchors.length > 0) {
-    const hit = anchors[Math.abs(cursor) % anchors.length];
-    const hitLines = readLines(repoRoot, hit.file);
-    if (hitLines && hitLines.length > 0 && hit.line <= hitLines.length) {
+    // O MESMO desvio que o ramo do diff ja tinha. Sem ele, os seis pilares
+    // faziam `anchors[cursor % anchors.length]` e apontavam todos ao mesmo
+    // apontamento: medido a 2026-08-18 na configuracao de PRODUCAO, 240
+    // colisoes em 60 cursores (67%), com 9 recibos seguidos na mesma janela de
+    // `gsd-statusline.js` pelos seis pilares. O ramo do diff estava corrigido e
+    // este nao — e e este que corre a maior parte do tempo.
+    const idsA = Object.keys(pillars);
+    const passoA = cursor * idsA.length + Math.max(0, idsA.indexOf(pillar));
+    // Varre a partir do lugar deterministico ate achar um apontamento por
+    // julgar, tal como o ramo do diff faz com os hunks.
+    let hit = null;
+    let chaveA = null;
+    for (let k = 0; k < anchors.length; k += 1) {
+      const cand = anchors[Math.abs(passoA + k) % anchors.length];
+      const ls = readLines(repoRoot, cand.file);
+      if (!ls || ls.length === 0 || cand.line > ls.length) continue;
+      const kc = hunkKey(cand.file, cand.line, cand.line, `${cand.rule}|${ls[cand.line - 1] || ''}`);
+      if (revistos && revistos.has(kc)) continue;
+      hit = cand;
+      chaveA = kc;
+      break;
+    }
+    if (hit) {
+      const hitLines = readLines(repoRoot, hit.file);
+      if (hitLines && hitLines.length > 0 && hit.line <= hitLines.length) {
       // Janela centrada na linha apontada: o juiz precisa do que está em volta.
       const half = Math.floor(maxLines / 2);
       const slice = renderSlice(hitLines, Math.max(1, hit.line - half), maxLines);
-      const chaveA = hunkKey(hit.file, hit.line, hit.line, `${hit.rule}|${hitLines[hit.line - 1] || ''}`);
-      // Julgar duas vezes o mesmo apontamento, com a mesma regra sobre a mesma
-      // linha, da a mesma resposta. So o degrau do diff estava coberto; este
-      // remoia na mesma.
-      if (!(revistos && revistos.has(chaveA))) {
+      {
       const prompt = [
         `Pilar: ${pillar} — ${spec.label}`,
         `Ficheiro: ${hit.file} (linhas ${slice.startLine}-${slice.endLine} de ${hitLines.length})`,
@@ -731,6 +762,7 @@ export function buildContextPack({
         allowedFiles: [hit.file],
       };
       }
+      }
     }
   }
 
@@ -739,30 +771,36 @@ export function buildContextPack({
     return { ok: false, reason: 'nenhum ficheiro-âncora existe no repo', pillar };
   }
 
-  const file = candidates[Math.abs(cursor) % candidates.length];
-  const lines = readLines(repoRoot, file);
-  if (!lines || lines.length === 0) {
-    return { ok: false, reason: `ficheiro vazio: ${file}`, pillar };
+  // Percorre (ficheiro, janela) e nao so as janelas de UM ficheiro. A versao
+  // anterior fixava `candidates[cursor % candidates.length]` e, esgotadas as
+  // janelas desse, devolvia `ok:false` com os IRMAOS por rever: medido, 12 de
+  // 24 cursores desperdicados quando um pilar tinha um ficheiro curto e outro
+  // longo.
+  const ids = Object.keys(pillars);
+  const passoF = cursor * Math.max(1, ids.length) + Math.max(0, ids.indexOf(pillar));
+  let file = null;
+  let lines = null;
+  let slice = null;
+  let chaveC = null;
+  for (let fi = 0; fi < candidates.length && !slice; fi += 1) {
+    const cand = candidates[Math.abs(cursor + fi) % candidates.length];
+    const ls = readLines(repoRoot, cand);
+    if (!ls || ls.length === 0) continue;
+    const janelas = Math.max(1, Math.ceil(ls.length / maxLines));
+    for (let k = 0; k < janelas; k += 1) {
+      const sl = renderSlice(ls, (((Math.abs(passoF) + k) % janelas) * maxLines) + 1, maxLines);
+      const kc = hunkKey(cand, sl.startLine, sl.endLine, sl.text);
+      if (revistos && revistos.has(kc)) continue;
+      file = cand; lines = ls; slice = sl; chaveC = kc;
+      break;
+    }
+  }
+  if (!slice) {
+    return { ok: false, esgotado: true, reason: 'todas as janelas de todos os ficheiros do pilar ja foram revistas', pillar, diffErro };
   }
 
   // Second axis of the cursor walks down long files across rounds, so a 900-line
   // file is not forever represented by its first 120 lines.
-  const windows = Math.max(1, Math.ceil(lines.length / maxLines));
-  const base = Math.floor(Math.abs(cursor) / candidates.length) % windows;
-  // Varre as janelas do ficheiro ate achar uma por rever. Sem isto, o modo de
-  // caca voltava sempre a mesma janela assim que o cursor dava a volta.
-  let slice = null;
-  let chaveC = null;
-  for (let k = 0; k < windows; k += 1) {
-    const cand = renderSlice(lines, (((base + k) % windows) * maxLines) + 1, maxLines);
-    const kc = hunkKey(file, cand.startLine, cand.endLine, cand.text);
-    if (revistos && revistos.has(kc)) continue;
-    slice = cand;
-    chaveC = kc;
-    break;
-  }
-  if (!slice) return { ok: false, esgotado: true, reason: `todas as janelas de ${file} ja foram revistas`, pillar, diffErro };
-
   const prompt = [
     `Pilar: ${pillar} — ${spec.label}`,
     `Ficheiro: ${file} (linhas ${slice.startLine}-${slice.endLine} de ${lines.length})`,

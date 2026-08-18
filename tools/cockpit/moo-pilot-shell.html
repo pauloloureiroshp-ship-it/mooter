@@ -587,7 +587,7 @@
     for (const [cls,key,label] of [
       ['ok','citacao_ok','citação-ok'], ['bad','refutado','refutado'],
       ['warn','sem_citacao','sem citação'], ['dead','sem_achado','sem achado'],
-      ['dead','sem_veredicto','sem veredicto'], ['dead','total','recibos ao todo'],
+      ['dead','sem_veredicto','sem veredicto'], ['dead','total','recibos na janela lida'],
     ]) {
       const box = el('div',`box ${cls}`); const b = el('b'); b.appendChild(nd(r[key]));
       box.append(b, el('small',null,label)); wrap.appendChild(box);

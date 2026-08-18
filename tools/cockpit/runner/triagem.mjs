@@ -15,6 +15,7 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -95,6 +96,9 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 
       resumo: recibo.resultado_resumo ?? null,
     } : {}),
   };
+  // A pasta do projecto pode nao existir: a triagem e a PRIMEIRA escrita do
+  // painel num projecto que o loop ainda nao tocou.
+  fs.mkdirSync(path.dirname(caminho), { recursive: true });
   fs.appendFileSync(caminho, `${JSON.stringify(entrada)}\n`);
   return entrada;
 }

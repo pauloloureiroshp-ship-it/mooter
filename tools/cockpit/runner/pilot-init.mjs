@@ -177,6 +177,9 @@ export function escreverProposta(repoRoot, proposta) {
   const corpo = {
     _leia_me: [
       'PROPOSTA. O runner NAO le este ficheiro.',
+      'ATENCAO: adoptar SUBSTITUI os pilares embutidos, nao os funde. Os que nao',
+      'estiverem aqui deixam de existir para este projecto — e deliberado (um',
+      'projecto tem de poder REMOVER um pilar), mas nao pode ser uma surpresa.',
       `Para o adoptar, revê as listas e renomeia para ${path.basename(PILLARS_FILE)}:`,
       `  mv ${PROPOSTA_FILE} ${PILLARS_FILE}`,
       'Os caminhos sao relativos a raiz do repo e tem de existir. Sem globs, de proposito:',
@@ -220,6 +223,7 @@ export function main(argv = process.argv.slice(2), escrever = process.stdout.wri
   }
   const destino = escreverProposta(root, proposta);
   escrever(`\nproposta em ${path.relative(root, destino)} — o runner NAO a le.\n`);
+  escrever(`adoptar SUBSTITUI os ${ids.length === 0 ? 6 : 6} pilares embutidos pelos ${ids.length} acima.\n`);
   escrever(`revê e, se concordares:  mv ${PROPOSTA_FILE} ${PILLARS_FILE}\n`);
   return { root, proposta, destino };
 }
