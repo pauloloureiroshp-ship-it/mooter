@@ -11,8 +11,20 @@
  */
 
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+
+/**
+ * A escada de bases do diff. O poco de UMA base e FINITO: medido a 2026-08-18,
+ * `HEAD~12` dava 20 hunks e o runner consome 2950 rondas por dia (29s cada) —
+ * o poco secava em menos de 10 minutos e a GPU passava a remoer os mesmos 20
+ * excertos ~147 vezes por dia. Foi assim que 113 rondas deram 0 achados uteis:
+ * nao por o motor ser mau, mas por lhe darmos o mesmo trabalho outra vez.
+ *
+ * Quando a base actual nao tem nada por rever, abre-se a seguinte.
+ */
+export const DIFF_LADDER = ['HEAD~12', 'HEAD~25', 'HEAD~50', 'HEAD~100'];
 
 export const MAX_SLICE_LINES = 70;
 export const MAX_SLICE_BYTES = 16 * 1024;
@@ -90,6 +102,82 @@ export const PILLARS = {
 };
 
 export const PILLAR_IDS = Object.keys(PILLARS);
+
+/** Onde um projecto declara os seus proprios pilares. */
+export const PILLARS_FILE = '.mooter/pilares.json';
+
+/**
+ * Valida uma declaracao de pilares vinda de um projecto.
+ *
+ * As listas continuam a ser EXPLICITAS — sem globs, sem walk. Essa
+ * reprodutibilidade e deliberada e esta comentada acima: um pilar tem de dar a
+ * mesma ronda hoje e daqui a um mes. O que muda com o B3 e QUEM declara a
+ * lista: deixa de ser este ficheiro e passa a ser o projecto.
+ *
+ * @returns {{ok: boolean, pillars: object|null, erros: string[]}}
+ */
+export function validarPilares(bruto) {
+  const erros = [];
+  if (!bruto || typeof bruto !== 'object' || Array.isArray(bruto)) {
+    return { ok: false, pillars: null, erros: ['a raiz tem de ser um objecto { P1: {...}, ... }'] };
+  }
+  const ids = Object.keys(bruto);
+  if (ids.length === 0) erros.push('nenhum pilar declarado');
+  const limpos = {};
+  for (const id of ids) {
+    const p = bruto[id];
+    const onde = `pilar ${id}`;
+    if (!p || typeof p !== 'object') { erros.push(`${onde}: nao e um objecto`); continue; }
+    if (typeof p.label !== 'string' || !p.label.trim()) erros.push(`${onde}: falta \`label\``);
+    if (typeof p.ask !== 'string' || !p.ask.trim()) erros.push(`${onde}: falta \`ask\` (a pergunta da ronda)`);
+    if (!Array.isArray(p.files) || p.files.length === 0) {
+      erros.push(`${onde}: \`files\` tem de ser uma lista nao vazia de caminhos relativos`);
+      continue;
+    }
+    const maus = p.files.filter((f) => typeof f !== 'string' || !f.trim() || f.startsWith('/') || f.split('/').includes('..'));
+    // Um caminho que sai do repo nao e um pilar mal configurado: e leitura de
+    // ficheiros fora do projecto a partir de um ficheiro do projecto.
+    if (maus.length) erros.push(`${onde}: caminhos fora do repo ou invalidos: ${JSON.stringify(maus.slice(0, 3))}`);
+    if (typeof p.label === 'string' && typeof p.ask === 'string' && !maus.length) {
+      limpos[id] = { label: p.label.trim(), files: p.files.map(String), ask: p.ask.trim() };
+    }
+  }
+  if (erros.length) return { ok: false, pillars: null, erros };
+  return { ok: true, pillars: limpos, erros: [] };
+}
+
+/**
+ * Carrega os pilares do projecto, com os embutidos como DEFAULT.
+ *
+ * Nunca lanca e nunca para uma ronda — mas tambem nunca cala: um
+ * `pilares.json` presente e invalido devolve os defaults COM um `erro` que
+ * quem chama tem de registar. Um catch que devolve vazio em silencio foi
+ * exactamente como o modo diff ficou morto um dia inteiro sem ninguem saber.
+ *
+ * @returns {{pillars: object, ids: string[], fonte: 'projeto'|'default', ficheiro: string, erro: string|null}}
+ */
+export function loadPillars(repoRoot, { readImpl = fs.readFileSync } = {}) {
+  const ficheiro = path.join(String(repoRoot || ''), PILLARS_FILE);
+  const embutidos = { pillars: PILLARS, ids: PILLAR_IDS, fonte: 'default', ficheiro, erro: null };
+  let raw;
+  try {
+    raw = readImpl(ficheiro, 'utf8');
+  } catch (err) {
+    // Ausente e o caso normal: o projecto nao declarou nada, usam-se os nossos.
+    return err && err.code === 'ENOENT'
+      ? embutidos
+      : { ...embutidos, erro: `${PILLARS_FILE} ilegivel: ${String((err && err.message) || err).slice(0, 120)}` };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return { ...embutidos, erro: `${PILLARS_FILE} nao e JSON valido: ${String((err && err.message) || err).slice(0, 120)}` };
+  }
+  const v = validarPilares(parsed && parsed.pilares ? parsed.pilares : parsed);
+  if (!v.ok) return { ...embutidos, erro: `${PILLARS_FILE} recusado: ${v.erros.slice(0, 4).join('; ')}` };
+  return { pillars: v.pillars, ids: Object.keys(v.pillars), fonte: 'projeto', ficheiro, erro: null };
+}
 
 /**
  * The output contract is deliberately narrow. A first live pass with a softer
@@ -206,20 +294,68 @@ export function negacaoDensa(texto) {
   return false;
 }
 
+/**
+ * A identidade de um excerto revisto. Inclui o CONTEUDO, nao so a posicao: se
+ * as linhas mudarem, e trabalho novo e volta a fila; se nao mudarem, ja foi
+ * julgado e nao ha nada a ganhar em julga-lo outra vez.
+ */
+export function hunkKey(file, startLine, endLine, texto) {
+  const sha = crypto.createHash('sha256').update(String(texto || '')).digest('hex').slice(0, 12);
+  return `${file}:${startLine}-${endLine}:${sha}`;
+}
+
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
+
+/**
+ * O que conta como trabalho novo para rever.
+ *
+ * Medido a 2026-08-18 (`git diff --name-only HEAD~12...HEAD` sobre extensoes de
+ * codigo): 53 ficheiros, dos quais 10 em `_handoff/**` — copias arquivadas de
+ * codigo que ja nao corre — e 24 `*.test.*`. A GPU moia arquivo e chamava-lhe
+ * revisao.
+ *
+ * A primeira versao deste comentario dizia "10 dos 20", porque o denominador foi
+ * lido de uma listagem truncada a 20 linhas: 19% publicado como 50%. Fica escrito
+ * porque foi apanhado por uma auditoria adversarial e porque este e, de todos os
+ * ficheiros do repo, aquele cuja razao de existir e caçar metricas que mentem.
+ * As
+ * exclusoes sao pathspec do git (`:(exclude)`), avaliadas pelo proprio git, para
+ * que o custo do diff caia na origem em vez de se filtrar depois.
+ */
+export const DIFF_PATHSPEC = [
+  '*.js', '*.mjs', '*.cjs', '*.ts', '*.tsx', '*.jsx',
+  ':(exclude)_handoff/**',
+  ':(exclude)docs/archive/**',
+  ':(exclude)*.test.*',
+];
 
 /**
  * Lê as linhas que mudaram entre `baseRef` e HEAD. Devolve [] em qualquer falha
  * — um repo sem git, um ref inexistente ou um diff vazio nunca podem parar uma
  * ronda; o runner cai para o degrau seguinte da escada.
  */
-export function readChangedLines(repoRoot, { baseRef = 'HEAD~1', runImpl = null, maxFiles = 40 } = {}) {
+export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null, maxFiles = 40, onError = null, onCap = null } = {}) {
+  // maxBuffer explicito: um diff de 12 commits neste repo da 52k linhas e o
+  // default de 1 MB do execFileSync rebenta com ENOBUFS. O catch mudo que estava
+  // aqui engolia isso e devolvia [] — o modo diff nunca disparava e ninguem
+  // sabia porque. E exactamente a classe de defeito que este runner procura,
+  // encontrada no proprio runner. Agora o buffer chega, o diff e limitado a
+  // ficheiros de codigo pelo pathspec, e a falha e REPORTADA em vez de calada.
   const run = runImpl || ((args) =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }));
+    execFileSync('git', args, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 10000,
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }));
   let out;
   try {
-    out = run(['diff', '--unified=0', '--no-color', `${baseRef}...HEAD`]);
-  } catch {
+    out = run(['diff', '--unified=0', '--no-color', `${baseRef}...HEAD`, '--', ...DIFF_PATHSPEC]);
+  } catch (err) {
+    // Nunca parar a ronda por causa disto — mas tambem nunca fingir que o diff
+    // estava vazio quando na verdade rebentou.
+    if (onError) onError(String((err && err.message) || err).slice(0, 160));
     return [];
   }
   const hunks = [];
@@ -232,14 +368,19 @@ export function readChangedLines(repoRoot, { baseRef = 'HEAD~1', runImpl = null,
       continue;
     }
     if (!file || !line.startsWith('@@')) continue;
-    // @@ -a,b +c,d @@ — só interessa o lado novo.
     const m = /\+(\d+)(?:,(\d+))?/.exec(line);
     if (!m) continue;
     const start = Number(m[1]);
     const count = m[2] === undefined ? 1 : Number(m[2]);
     if (!Number.isInteger(start) || start < 1 || count < 1) continue;
     hunks.push({ file, start, count });
-    if (hunks.length >= maxFiles * 8) break;
+    // Tecto real, dito em voz alta. Sem o `onCap`, `HEAD~100` e `HEAD~200`
+    // devolviam os dois exactamente 320 hunks e ninguem sabia porque: um tecto
+    // silencioso le-se como "cobri tudo" quando nao cobriu.
+    if (hunks.length >= maxFiles * 8) {
+      if (onCap) onCap(hunks.length);
+      break;
+    }
   }
   return hunks;
 }
@@ -335,8 +476,8 @@ function readLines(repoRoot, relPath) {
  * that actually exist, so a deleted file shifts the rotation instead of
  * producing an empty round.
  */
-export function resolveCandidates(repoRoot, pillarId) {
-  const pillar = PILLARS[pillarId];
+export function resolveCandidates(repoRoot, pillarId, pillars = PILLARS) {
+  const pillar = pillars[pillarId];
   if (!pillar) return [];
   return pillar.files.filter((rel) => readLines(repoRoot, rel) !== null);
 }
@@ -372,22 +513,131 @@ export function buildContextPack({
   maxLines = MAX_SLICE_LINES,
   anchorPath = null,
   diffBase = null,
+  diffRunImpl = null,
+  // O que ja foi julgado. Um Set de chaves de `hunkKey`; vazio = tudo por rever.
+  revistos = null,
+  // Os pilares do PROJECTO, quando ele os declara. O default embutido continua
+  // a ser o de sempre, para que um repo sem `.mooter/pilares.json` corra igual.
+  pillars = PILLARS,
 }) {
-  const spec = PILLARS[pillar];
+  const spec = pillars[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
 
+  // Escada de bases: quando a base actual nao tem nada por rever, abre-se a
+  // seguinte em vez de remoer. Uma base so e um poco finito — 20 hunks contra
+  // 2950 rondas por dia. Esgotadas todas, cai para os degraus de baixo
+  // (ancorado, caca), que e a degradacao que ja existia.
+  if (Array.isArray(diffBase)) {
+    const resto = { repoRoot, pillar, cursor, maxLines, anchorPath, diffRunImpl, pillars, revistos };
+    for (const base of diffBase) {
+      const r = buildContextPack({ ...resto, diffBase: base });
+      if (r.ok) return { ...r, escadaBase: base };
+      // Esgotada e o unico motivo para alargar; qualquer outra falha e falha.
+      if (!r.esgotado) break;
+    }
+    return buildContextPack({ ...resto, diffBase: null });
+  }
+
+  // O degrau do diff so ve codigo (ver DIFF_PATHSPEC). Um pilar cujos ficheiros
+  // sao TODOS documentos — o P3, cujo trabalho SAO os documentos — nunca podia
+  // ter interseccao com o diff, e ficava preso em `escopo: 'geral'` para
+  // sempre, a rever codigo de outros em vez do canon que lhe compete. Para
+  // esse, o diff nao e um degrau: e um desvio.
+  const temCodigo = spec.files.some((f) => {
+    const d = String(f).lastIndexOf('.');
+    return d >= 0 && CODE_EXT.has(String(f).slice(d));
+  });
+
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
-  if (diffBase) {
-    const hunks = readChangedLines(repoRoot, { baseRef: diffBase });
+  let diffErro = null;
+  if (diffBase && temCodigo) {
+    let truncado = null;
+    const todos = readChangedLines(repoRoot, {
+      baseRef: diffBase, runImpl: diffRunImpl,
+      onError: (e) => { diffErro = e; },
+      onCap: (n) => { truncado = n; },
+    });
+    // Os hunks que caem nos ficheiros DESTE pilar. Sem interseccao, o pilar nao
+    // tem nada de seu no diff: revemos o resto na mesma — trabalho novo vale
+    // mais do que arrumacao — mas dizemo-lo, e `escopo: 'geral'` e um rotulo
+    // que nao mente. O rotulo do pilar deixa de ser colado a um ficheiro que
+    // nada tem a ver com ele.
+    const meus = todos.filter((h) => spec.files.includes(h.file));
+    // O que NENHUM pilar reclama. Deixar o `geral` percorrer `todos` punha-o a
+    // cair no mesmo hunk que um pilar dono ja estava a rever — 8 colisoes em
+    // 201 cursores, a primeira no cursor 2, porque o passo aritmetico nao ajuda
+    // quando as duas caminhadas sao sobre conjuntos diferentes. Os orfaos sao
+    // tambem a definicao honesta de "diff geral": a parte do trabalho novo que
+    // nao tem dono.
+    const donos = new Set(Object.values(pillars).flatMap((p) => p.files));
+    const orfaos = todos.filter((h) => !donos.has(h.file));
+    const escopo = meus.length > 0 ? 'pilar' : 'geral';
+    const hunks = meus.length > 0 ? meus : (orfaos.length > 0 ? orfaos : todos);
     if (hunks.length > 0) {
-      const h = hunks[Math.abs(cursor) % hunks.length];
+      // Fora do ambito do pilar, o cursor sozinho dava a TODOS os pilares o
+      // MESMO hunk na mesma ronda: medido a 2026-08-18, os packs de P1 e P5
+      // diferiam em 1 linha de 25 — so o cabecalho — e a pergunta era
+      // identica. Seis pilares a moer o mesmo ficheiro sao um pilar, com seis
+      // vezes o custo. O ordinal do pilar desfaz a correlacao sem perder o
+      // determinismo: mesma ronda, mesmo repo, mesmo resultado.
+      // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
+      // impede que um id desconhecido desloque a rotacao para tras.
+      const ids = Object.keys(pillars);
+      // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
+      // impede que um id desconhecido desloque a rotacao para tras.
+      // O desvio vale para os DOIS escopos. So o aplicar a `geral` deixava
+      // dois pilares que partilham um ficheiro (P2 e P6 partilham
+      // build-snapshot.js) a cair no mesmo hunk, com `desvio = 0` ambos, em
+      // 100% das rondas — e um `geral` a colidir com um `pilar`. Medido:
+      // 10 colisoes em 201 cursores, a primeira no cursor 10.
+      const desvio = Math.max(0, ids.indexOf(pillar));
+      // O passo tem de ser o NUMERO DE PILARES, nao 1. Com `cursor + desvio`, o
+      // pilar k da rotacao r caia no mesmo hunk que o pilar k-1 da rotacao r+1
+      // — medido no ledger vivo a 2026-08-18: P2 e P1, rondas seguidas, a mesma
+      // janela 277-295. Multiplicar pelo numero de pilares torna cada par
+      // (rotacao, pilar) um lugar unico na caminhada.
+      const passo = cursor * ids.length + desvio;
+      // Varre a partir do lugar deterministico ate encontrar um excerto que
+      // ainda nao foi julgado. Sem isto, o cursor voltava sempre ao mesmo
+      // hunk assim que o poco dava a volta.
+      let h = null;
+      let chave = null;
+      for (let k = 0; k < hunks.length; k += 1) {
+        const cand = hunks[Math.abs(passo + k) % hunks.length];
+        const ls = readLines(repoRoot, cand.file);
+        if (!ls || ls.length === 0 || cand.start > ls.length) continue;
+        const fimC = Math.min(ls.length, cand.start + cand.count - 1);
+        const kc = hunkKey(cand.file, cand.start, fimC, ls.slice(cand.start - 1, fimC).join('\n'));
+        if (revistos && revistos.has(kc)) continue;
+        h = cand;
+        chave = kc;
+        break;
+      }
+      // Poco seco nesta base: cai para o degrau seguinte da escada em vez de
+      // remoer. Quem chama e que decide abrir uma base mais larga.
+      if (!h) return { ok: false, esgotado: true, reason: `nada por rever em ${diffBase}`, pillar, diffErro };
       const lines = readLines(repoRoot, h.file);
       if (lines && lines.length > 0 && h.start <= lines.length) {
         const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
         const slice = renderSlice(lines, Math.max(1, h.start - pad), Math.min(maxLines, h.count + pad * 2));
         const fim = h.start + h.count - 1;
+        // `mudadas` e `densa` TÊM de vir antes do prompt: o prompt usa `densa`.
+        // Tê-los depois deu "Cannot access 'densa' before initialization" e
+        // rebentou todas as rondas — apanhado só porque o runner regista a
+        // excepção no recibo em vez de morrer calado.
+        const mudadas = slice.text
+          .split('\n')
+          .filter((ln) => {
+            const n = Number(String(ln).slice(0, 6).trim());
+            return Number.isInteger(n) && n >= h.start && n <= fim;
+          })
+          .join('\n');
+        const densa = negacaoDensa(mudadas);
+        const rotulo = escopo === 'pilar'
+          ? `${spec.label} (pilar ${pillar})`
+          : `Diff geral — fora dos ficheiros do pilar ${pillar}`;
         const prompt = [
-          `Pilar: ${pillar} — ${spec.label}`,
+          `Revisao: ${rotulo}`,
           `Ficheiro: ${h.file} (linhas ${slice.startLine}-${slice.endLine} de ${lines.length})`,
           '',
           `MUDARAM as linhas ${h.start}-${fim} (contra ${diffBase}). O resto é contexto.`,
@@ -404,24 +654,20 @@ export function buildContextPack({
               ]
             : []),
         ].join('\n');
-        const mudadas = slice.text
-          .split('\n')
-          .filter((ln) => {
-            const n = Number(String(ln).slice(0, 6).trim());
-            return Number.isInteger(n) && n >= h.start && n <= fim;
-          })
-          .join('\n');
-        const densa = negacaoDensa(mudadas);
         return {
           ok: true,
           mode: 'diff',
+          escopo,
+          chave,
+          ...(truncado ? { hunksTruncados: truncado } : {}),
           negacaoDensa: densa,
+          diffErro,
           anchored: false,
           diffBase,
           changedStart: h.start,
           changedCount: h.count,
           pillar,
-          label: spec.label,
+          label: rotulo,
           file: h.file,
           startLine: slice.startLine,
           endLine: slice.endLine,
@@ -436,6 +682,11 @@ export function buildContextPack({
   }
 
   // ---- modo ANCORADO: julgar um achado que a máquina já encontrou ----
+  // Se o `git diff` rebentou, a ronda continua pelo degrau seguinte — mas o
+  // erro TEM de viajar ate ao recibo. Foi um catch mudo aqui que deixou o modo
+  // diff morto um dia inteiro sem ninguem saber (ENOBUFS num diff de 52k
+  // linhas). Capturar o erro e nao o mostrar e o mesmo catch mudo com mais
+  // passos.
   const anchors = readAnchor(anchorPath);
   if (anchors.length > 0) {
     const hit = anchors[Math.abs(cursor) % anchors.length];
@@ -444,6 +695,11 @@ export function buildContextPack({
       // Janela centrada na linha apontada: o juiz precisa do que está em volta.
       const half = Math.floor(maxLines / 2);
       const slice = renderSlice(hitLines, Math.max(1, hit.line - half), maxLines);
+      const chaveA = hunkKey(hit.file, hit.line, hit.line, `${hit.rule}|${hitLines[hit.line - 1] || ''}`);
+      // Julgar duas vezes o mesmo apontamento, com a mesma regra sobre a mesma
+      // linha, da a mesma resposta. So o degrau do diff estava coberto; este
+      // remoia na mesma.
+      if (!(revistos && revistos.has(chaveA))) {
       const prompt = [
         `Pilar: ${pillar} — ${spec.label}`,
         `Ficheiro: ${hit.file} (linhas ${slice.startLine}-${slice.endLine} de ${hitLines.length})`,
@@ -457,7 +713,9 @@ export function buildContextPack({
       ].join('\n');
       return {
         ok: true,
+        diffErro,
         mode: 'ancorado',
+        chave: chaveA,
         anchored: true,
         anchorRule: hit.rule,
         anchorLine: hit.line,
@@ -472,10 +730,11 @@ export function buildContextPack({
         prompt,
         allowedFiles: [hit.file],
       };
+      }
     }
   }
 
-  const candidates = resolveCandidates(repoRoot, pillar);
+  const candidates = resolveCandidates(repoRoot, pillar, pillars);
   if (candidates.length === 0) {
     return { ok: false, reason: 'nenhum ficheiro-âncora existe no repo', pillar };
   }
@@ -489,8 +748,20 @@ export function buildContextPack({
   // Second axis of the cursor walks down long files across rounds, so a 900-line
   // file is not forever represented by its first 120 lines.
   const windows = Math.max(1, Math.ceil(lines.length / maxLines));
-  const windowIdx = Math.floor(Math.abs(cursor) / candidates.length) % windows;
-  const slice = renderSlice(lines, windowIdx * maxLines + 1, maxLines);
+  const base = Math.floor(Math.abs(cursor) / candidates.length) % windows;
+  // Varre as janelas do ficheiro ate achar uma por rever. Sem isto, o modo de
+  // caca voltava sempre a mesma janela assim que o cursor dava a volta.
+  let slice = null;
+  let chaveC = null;
+  for (let k = 0; k < windows; k += 1) {
+    const cand = renderSlice(lines, (((base + k) % windows) * maxLines) + 1, maxLines);
+    const kc = hunkKey(file, cand.startLine, cand.endLine, cand.text);
+    if (revistos && revistos.has(kc)) continue;
+    slice = cand;
+    chaveC = kc;
+    break;
+  }
+  if (!slice) return { ok: false, esgotado: true, reason: `todas as janelas de ${file} ja foram revistas`, pillar, diffErro };
 
   const prompt = [
     `Pilar: ${pillar} — ${spec.label}`,
@@ -503,6 +774,8 @@ export function buildContextPack({
 
   return {
     ok: true,
+    diffErro,
+    chave: chaveC,
     mode: 'caca',
     anchored: false,
     pillar,

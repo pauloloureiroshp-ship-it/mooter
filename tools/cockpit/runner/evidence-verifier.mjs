@@ -119,6 +119,25 @@ export function checkCitation(repoRoot, { file, line }) {
  * @returns {{verdict: string, citations: Array, checked: number, failed: number,
  *            offSlice: number, evidence: string}}
  */
+/**
+ * A CONCLUSAO do modelo, lida do prefixo que ele proprio escreve.
+ *
+ * O `verdict` responde a uma pergunta so: "a linha citada existe no disco?".
+ * Nunca respondeu a "o modelo achou alguma coisa?". Resultado medido a
+ * 2026-08-18: dos 1888 recibos com verdict `citacao-ok`, 614 (32,5%) eram o
+ * modelo a escrever FALSO POSITIVO — ou seja, um TERCO do numero verde do
+ * painel era o motor a dizer que NAO ha problema. Sao dois eixos diferentes e
+ * tem de viver em dois campos diferentes.
+ */
+export function concluir(text) {
+  const t = String(text || '').trim().toUpperCase();
+  if (!t) return 'vazio';
+  if (t.startsWith('FALSO POSITIVO')) return 'falso-positivo';
+  if (/\bSEM\s+ACHADO\b/.test(t)) return 'sem-achado';
+  if (/\bACHADO\s*:/.test(t)) return 'achado';
+  return 'indeterminado';
+}
+
 export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win = null }) {
   const citations = extractCitations(text);
 
@@ -130,11 +149,13 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
   if (citations.length === 0) {
     return isNoFinding(text)
       ? {
-          verdict: VERDICT.NO_FINDING, citations: [], checked: 0, failed: 0,
+          conclusao: concluir(text),
+      verdict: VERDICT.NO_FINDING, citations: [], checked: 0, failed: 0,
           offWindow: 0, evidence: 'sem-achado: a ronda declarou nada a reportar',
         }
       : {
-          verdict: VERDICT.UNCITED, citations: [], checked: 0, failed: 0,
+          conclusao: concluir(text),
+      verdict: VERDICT.UNCITED, citations: [], checked: 0, failed: 0,
           offWindow: 0, evidence: 'sem-citacao: resposta sem ficheiro:linha, nao verificavel',
         };
   }
@@ -156,6 +177,7 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
   if (failed.length > 0) {
     const first = failed[0];
     return {
+      conclusao: concluir(text),
       verdict: VERDICT.REFUTED,
       citations: checked, checked: checked.length, failed: failed.length, offWindow,
       evidence: `refutado: ${first.file}:${first.line} ${first.reason}`,
@@ -168,6 +190,7 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
   const blank = !head.snippet;
   const suffix = offWindow > 0 ? ` · ${offWindow} citacao(oes) fora da janela mostrada` : '';
   return {
+    conclusao: concluir(text),
     verdict: blank && offWindow === checked.length ? VERDICT.UNCITED : VERDICT.CITED,
     citations: checked, checked: checked.length, failed: 0, offWindow,
     // "linha existe", never "achado confirmado" — the claim stays untriaged.

@@ -155,6 +155,21 @@
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
   }
+
+    /* O que o modelo DISSE, por baixo da linha que citou. A cor vem do prefixo
+       que o proprio modelo escreve — nao de uma heuristica nossa. */
+    code.ev { display:block; opacity:.72; font-size:11px; }
+    .diz { margin-top:3px; font-size:12px; line-height:1.35; }
+    .diz.ok   { color:#F2A5A5; }
+    .diz.fp   { color:#8A8076; font-style:italic; }
+    .diz.mudo { color:#8A8076; opacity:.6; }
+.filtros{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin:.4rem 0 .6rem}
+.filtros label{display:flex;gap:.3rem;align-items:center;font-size:.85em}
+.tri{border:1px solid currentColor;border-radius:6px;padding:.5rem .6rem;margin:.4rem 0}
+.tri .cab{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap}
+.tri .btns{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-top:.4rem}
+.tri button{cursor:pointer}
+.tri .custo{font-size:.8em;opacity:.75}
 </style>
 
 <div class="wrap">
@@ -224,8 +239,21 @@
     </div>
   </div>
 
+  <div class="card vouched" id="triagem-card" hidden>
+    <h2 id="triagem-titulo">Por triar</h2>
+    <p class="nd">Cada achado sai daqui por uma decisão tua. É isto que fecha o ciclo —
+      e o primeiro número de ROI que significa alguma coisa.</p>
+    <div id="triagem-fila"></div>
+  </div>
+
   <div class="card vouched">
     <h2>Trabalhos — os últimos recibos, ao vivo</h2>
+    <div class="filtros">
+      <label>conclusão <select id="f-conclusao"><option value="">todas</option></select></label>
+      <label>pilar <select id="f-pilar"><option value="">todos</option></select></label>
+      <label>ficheiro <input id="f-ficheiro" type="text" placeholder="parte do caminho" size="18"></label>
+      <span class="nd" id="f-conta"></span>
+    </div>
     <div class="scroll"><table>
       <thead><tr><th>Hora</th><th>Pilar</th><th>Veredicto</th><th>Evidência</th><th>Dur</th></tr></thead>
       <tbody id="feed"></tbody>
@@ -340,7 +368,11 @@
       : `O endpoint local (127.0.0.1:4290) não respondeu${why ? ` — ${why}` : ''}. `
         + 'Enquanto isso, nada nesta página vale como estado actual. Para o levantar:';
     setChip($('conn'), 'dead', source === 'snapshot' ? 'instantâneo' : 'desconectado');
-    renderToggleOffline();
+    for (const par of [["f-conclusao", "conclusao"], ["f-pilar", "pilar"], ["f-ficheiro", "ficheiro"]]) {
+    const campo = $(par[0]);
+    if (campo) campo.addEventListener("input", () => { FILTROS[par[1]] = campo.value; renderFeed(ULTIMO_FEED); });
+  }
+  renderToggleOffline();
     if (state) render({ keepOffline:true });
   }
 
@@ -462,6 +494,7 @@
     if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados])) renderEngine(state);
     if (changed('align', state.projeto))   renderAlign(state.projeto);
     if (changed('feed', state.feed))       renderFeed(state.feed);
+    if (changed('triagem', [state.por_triar, state.triagem])) renderTriagem(state);
 
     $('foot').textContent =
       `conector ${state.conector || 'n/d'} · fuso do dono ${state.owner_tz || 'n/d'} · `
@@ -632,7 +665,97 @@
       : el('span','nd', vault.motivo || 'n/d'));
   }
 
+  // Os motores e o custo REAL de cada um, servidos uma vez pelo endpoint. Um
+  // custo inventado num botao seria a mentira mais cara que este painel podia
+  // contar — e exactamente a tese do Mooter que ele afirma.
+  let MOTORES = null;
+  fetch(BASE + "/motores.json").then((r) => r.json()).then((b) => { MOTORES = b.motores; }).catch(() => {});
+
+  const FILTROS = { conclusao: "", pilar: "", ficheiro: "" };
+  let ULTIMO_FEED = [];
+
+  function opcoesUnicas(sel, valores, rotuloVazio) {
+    if (!sel) return;
+    const actual = sel.value;
+    const novos = [...new Set(valores.filter(Boolean))].sort();
+    if (sel.dataset.vals === novos.join("|")) return;
+    sel.dataset.vals = novos.join("|");
+    sel.replaceChildren();
+    const zero = el("option", null, rotuloVazio); zero.value = "";
+    sel.appendChild(zero);
+    for (const v of novos) { const o = el("option", null, v); o.value = v; sel.appendChild(o); }
+    sel.value = actual;
+  }
+
+  async function triar(chave, decisao, recibo, btnBox) {
+    if (source !== "live") return;
+    // Nao se desliga o controlo: substitui-se pelo estado a que ele deu origem.
+    // Um botao morto deixa o dono sem saber se o pedido saiu.
+    btnBox.replaceChildren(el("span", "nd", "a registar…"));
+    try {
+      const res = await fetch(BASE + "/triagem", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chave: chave, decisao: decisao, recibo: recibo }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      btnBox.replaceChildren(el("span", "nd", decisao + " — registado"));
+    } catch (err) {
+      // Nunca engolir: um botao que falha em silencio ensina a nao confiar.
+      btnBox.replaceChildren(el("span", "chip dead", "falhou: " + (err && err.message) + " — nada foi registado"));
+    }
+  }
+
+  function renderTriagem(state) {
+    const fila = state.por_triar || [];
+    const card = $("triagem-card");
+    if (!card) return;
+    card.hidden = fila.length === 0;
+    const t = state.triagem || {};
+    const detalhe = t.achados
+      ? " de " + t.achados + " achados (" + (t.aceite ?? "n/d") + " aceites · "
+        + (t.descartado ?? "n/d") + " descartados · " + (t.issue ?? "n/d") + " issues)"
+      : "";
+    $("triagem-titulo").textContent = "Por triar — " + fila.length + detalhe;
+    const box = $("triagem-fila");
+    box.replaceChildren();
+    for (const a of fila) {
+      const d = el("div", "tri");
+      const cab = el("div", "cab");
+      cab.append(el("span", "chip ok", a.pilar || "—"), el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
+      d.appendChild(cab);
+      if (a.resumo) d.appendChild(el("div", "diz ok", a.resumo));
+      if (a.evidencia) d.appendChild(el("code", "ev", a.evidencia));
+      const btns = el("div", "btns");
+      for (const par of [["aceite", "aceitar"], ["descartado", "descartar"], ["issue", "abrir issue"]]) {
+        const b = el("button", null, par[1]);
+        b.onclick = () => triar(a.chave, par[0], a, btns);
+        btns.appendChild(b);
+      }
+      if (MOTORES) {
+        const sel = el("select");
+        for (const m of MOTORES) {
+          const preco = m.usd === null ? "n/d" : "$" + m.usd.toFixed(4);
+          const o = el("option", null, m.etiqueta + " " + preco);
+          o.value = m.id; sel.appendChild(o);
+        }
+        btns.append(el("span", "custo", "aprofundar com"), sel);
+      }
+      d.appendChild(btns);
+      box.appendChild(d);
+    }
+  }
   function renderFeed(feed) {
+    ULTIMO_FEED = feed || [];
+    opcoesUnicas($("f-conclusao"), ULTIMO_FEED.map((r) => r.verdict), "todas");
+    opcoesUnicas($("f-pilar"), ULTIMO_FEED.map((r) => r.pilar), "todos");
+    // Ate aqui o feed eram 14 linhas fixas e nada mais: para procurar um
+    // ficheiro, o dono tinha de abrir o ledger a mao.
+    feed = ULTIMO_FEED.filter((r) =>
+      (!FILTROS.conclusao || r.verdict === FILTROS.conclusao)
+      && (!FILTROS.pilar || r.pilar === FILTROS.pilar)
+      && (!FILTROS.ficheiro || String(r.ficheiro || "").includes(FILTROS.ficheiro)));
+    const conta = $("f-conta");
+    if (conta) conta.textContent = feed.length + " de " + ULTIMO_FEED.length;
     const body = $('feed'); body.replaceChildren();
     if (!feed || !feed.length) {
       const tr = el('tr'), td = el('td'); td.colSpan = 5;
@@ -641,11 +764,36 @@
     }
     for (const r of feed) {
       const tr = el('tr');
-      tr.append(el('td',null,hhmm(r.ts)), el('td',null,r.pilar || '—'));
+      // 'geral' = o pilar nao tinha nada no diff e reviu-se o resto. Sem esta
+      // marca, o feed dava o nome do pilar a trabalho que nao era dele — e o
+      // campo existia no ledger a ser lido por ninguem.
+      const tdp = el('td');
+      tdp.appendChild(document.createTextNode(r.evento ? '—' : (r.pilar || '—')));
+      if (r.escopo === 'geral') tdp.appendChild(el('span','nd',' · diff geral'));
+      tr.append(el('td',null,hhmm(r.ts)), tdp);
       const v = VERDICTS[r.verdict]; const tdv = el('td');
-      tdv.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto'));
+      // Um evento do disjuntor nao tem veredicto porque nao e uma ronda; dizer
+      // 'sem veredicto' fazia um apagao parecer uma ronda falhada.
+      tdv.appendChild(r.evento
+        ? el('span','chip dead', r.evento)
+        : (v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto')));
       tr.appendChild(tdv);
-      const tde = el('td'); tde.appendChild(el('code',null,r.evidencia || r.resumo || '—')); tr.appendChild(tde);
+      // O `||` escondia o raciocinio: `evidencia` e nao-nula em 5419 de 5419
+      // recibos, por isso `resumo` — o texto do modelo, "ACHADO: ... QUANDO ...
+      // ENTAO ..." — renderizava em ZERO linhas. O dono pagava GPU por 1274
+      // achados que nunca conseguia ler. Sao duas colunas, nao uma alternativa.
+      const tde = el('td');
+      tde.appendChild(el('code','ev',r.evidencia || '—'));
+      if (r.resumo) {
+        const dizer = el('div','diz', r.resumo);
+        // Prefixo colorido: o proprio modelo ja se classifica na primeira palavra.
+        const up = String(r.resumo).toUpperCase();
+        if (up.startsWith('FALSO POSITIVO')) dizer.className = 'diz fp';
+        else if (up.startsWith('ACHADO')) dizer.className = 'diz ok';
+        else if (up.includes('SEM ACHADO')) dizer.className = 'diz mudo';
+        tde.appendChild(dizer);
+      }
+      tr.appendChild(tde);
       tr.appendChild(el('td',null, r.dur_s != null ? `${r.dur_s}s` : '—'));
       body.appendChild(tr);
     }

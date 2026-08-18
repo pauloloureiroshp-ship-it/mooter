@@ -97,6 +97,14 @@ export function buildFeed(receipts, limit = FEED_LENGTH) {
     .map((r) => ({
       ts: r.ts ?? null,
       pilar: r.pilar ?? null,
+      // 'geral' = o pilar nao tinha nada no diff e revimos o resto. Sem este
+      // campo no payload, o B6 corrigia o pack e o painel continuava a vestir
+      // o cartao "P1 · Routing & Custo" com trabalho que nao e do P1: o campo
+      // era escrito no ledger e lido por ninguem.
+      escopo: r.escopo ?? null,
+      // Eventos do disjuntor (engine:down / engine:up) nao tem pilar nem
+      // veredicto; sem isto apareciam no feed como uma linha muda.
+      evento: r.evento ?? null,
       verdict: r.verdict ?? null,
       ficheiro: r.ficheiro ?? null,
       dur_s: r.dur_s ?? null,
@@ -110,7 +118,12 @@ export function buildFeed(receipts, limit = FEED_LENGTH) {
 export function emptyStreak(receipts) {
   let n = 0;
   for (let i = (receipts || []).length - 1; i >= 0; i -= 1) {
-    const v = receipts[i] && receipts[i].verdict;
+    const r = receipts[i];
+    // Um evento do disjuntor nao e uma ronda: nao conta para a sequencia, mas
+    // tambem NAO a quebra. Quebrava — e um `engine:down` no fim do ledger
+    // punha o unico alarme de "a rodar sem produzir" a zero, calando-o.
+    if (r && r.evento) continue;
+    const v = r && r.verdict;
     if (v === VERDICT.NO_FINDING || v === VERDICT.UNCITED) n += 1;
     else break;
   }
@@ -137,6 +150,7 @@ export function perPillar(receipts) {
     else slot.sem_veredicto += 1;
     slot.ultimo = {
       ts: r.ts ?? null,
+      escopo: r.escopo ?? null,
       verdict: r.verdict ?? null,
       ficheiro: r.ficheiro ?? null,
       evidencia: r.evidencia ?? null,
@@ -151,6 +165,8 @@ export function perPillar(receipts) {
  *
  * @returns the object served at `/fleet.json`
  */
+import { lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
+
 export function buildFleetState({
   // Sem default cravado: quem chama diz quem é, e a identidade vem toda de
   // `fleet-beacon.deviceName()`. Um nome inventado aqui foi o que fez o cockpit
@@ -159,6 +175,9 @@ export function buildFleetState({
   ledgerPath,
   statePath,
   stopFile,
+  // O registo de decisoes deste projecto. Ausente = ninguem triou nada ainda,
+  // que e diferente de "nao ha achados".
+  triagemPath = null,
   connector = '1.48.0',
   gpu = null,
   loadedModels = [],
@@ -188,6 +207,12 @@ export function buildFleetState({
     return Number.isFinite(t) && ownerDay(t) === today;
   });
 
+  const { decisoes, partidas: triagemPartidas } = triagemPath
+    ? lerTriagem(triagemPath)
+    : { decisoes: new Map(), partidas: 0 };
+  const contasTriagem = contarTriagem(receipts, decisoes);
+  const fila = porTriar(receipts, decisoes);
+
   const tally = tallyVerdicts(receipts);
   const tallyToday = tallyVerdicts(todays);
   const fresh = freshness(last && last.ts, now);
@@ -199,6 +224,16 @@ export function buildFleetState({
     // $0 is structural: `runner-core.assertLocalEngine` refuses any non-loopback
     // engine, so this field cannot drift away from the truth.
     usd: 0,
+    // O ciclo de valor: quantos achados nasceram, e quantos ainda esperam por
+    // uma decisao. Sem isto o painel media volume, nao trabalho.
+    triagem: {
+      ...contasTriagem,
+      ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),
+    },
+    // A fila. E tambem o alerta: um achado por triar nao pode exigir que o dono
+    // va procurar — ate hoje havia zero alertas no painel.
+    por_triar: fila,
+    alerta_achados: fila.length > 0,
     engine: engineAlive ? 'ollama-local' : 'down',
     conector: connector,
     owner_tz: OWNER_TZ,

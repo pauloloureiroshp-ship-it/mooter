@@ -79,6 +79,11 @@ export function writeBeacon(state, { dir, writeImpl = fs.writeFileSync, mkdirImp
       running: Boolean(state && state.running),
       pilar_atual: (state && state.pilar_atual) ?? null,
       modelo: (state && state.modelo_atual) ?? null,
+      // `buildFleetState` ja calculava `engine`, mas o beacon montava um
+      // objecto de chaves fixas onde ele nao constava: a correccao de
+      // "deixar de jurar motor vivo" morria antes de chegar ao disco, e a
+      // frota via um device em apagao como se estivesse a trabalhar.
+      engine: (state && state.engine) ?? null,
       gpu_pct: state && state.gpu ? state.gpu.util_pct : null,
       gpu_fonte: state && state.gpu ? state.gpu.fonte : 'n/d',
       vram_gb: state && state.gpu ? state.gpu.vram_inuse_gb : null,
