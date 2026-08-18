@@ -1,0 +1,1631 @@
+TAP version 13
+# Subtest: cadeia · soma as tres geracoes do moinho real (US$ 2,88, nao US$ 1,24)
+ok 1 - cadeia · soma as tres geracoes do moinho real (US$ 2,88, nao US$ 1,24)
+  ---
+  duration_ms: 0.969129
+  type: 'test'
+  ...
+# Subtest: cadeia · a partir do MEIO conta tambem o que veio depois
+ok 2 - cadeia · a partir do MEIO conta tambem o que veio depois
+  ---
+  duration_ms: 0.168389
+  type: 'test'
+  ...
+# Subtest: cadeia · conhece os DOIS elos (prep_from e handoff_from)
+ok 3 - cadeia · conhece os DOIS elos (prep_from e handoff_from)
+  ---
+  duration_ms: 0.826459
+  type: 'test'
+  ...
+# Subtest: cadeia · um job sem custo torna o total um PISO, nao um total
+ok 4 - cadeia · um job sem custo torna o total um PISO, nao um total
+  ---
+  duration_ms: 0.111992
+  type: 'test'
+  ...
+# Subtest: cadeia · job solitario nao inventa cadeia
+ok 5 - cadeia · job solitario nao inventa cadeia
+  ---
+  duration_ms: 0.167016
+  type: 'test'
+  ...
+# Subtest: cadeia · um ciclo no ledger nao pendura o daemon
+ok 6 - cadeia · um ciclo no ledger nao pendura o daemon
+  ---
+  duration_ms: 0.14198
+  type: 'test'
+  ...
+# Subtest: cadeia · usa o ULTIMO custo do job (a reconciliacao re-carimba)
+ok 7 - cadeia · usa o ULTIMO custo do job (a reconciliacao re-carimba)
+  ---
+  duration_ms: 0.080683
+  type: 'test'
+  ...
+# Subtest: cadeia · custo SEM procedencia nao entra na soma (o every() passava a vazio)
+ok 8 - cadeia · custo SEM procedencia nao entra na soma (o every() passava a vazio)
+  ---
+  duration_ms: 0.426148
+  type: 'test'
+  ...
+# Subtest: cadeia · fonte «n/d» conta como ausente (a mesma regra do leitura.js)
+ok 9 - cadeia · fonte «n/d» conta como ausente (a mesma regra do leitura.js)
+  ---
+  duration_ms: 0.250696
+  type: 'test'
+  ...
+# Subtest: cadeia · re-carimbo SEM fonte nao herda a procedencia antiga (ALTO->MEDIO codex)
+ok 10 - cadeia · re-carimbo SEM fonte nao herda a procedencia antiga (ALTO->MEDIO codex)
+  ---
+  duration_ms: 0.256216
+  type: 'test'
+  ...
+# Subtest: cadeia · pai FANTASMA nao conta como pedido (ledger truncado)
+ok 11 - cadeia · pai FANTASMA nao conta como pedido (ledger truncado)
+  ---
+  duration_ms: 0.130277
+  type: 'test'
+  ...
+# Subtest: cadeia · re-despacho com outro pai da a MESMA cadeia por qualquer porta
+ok 12 - cadeia · re-despacho com outro pai da a MESMA cadeia por qualquer porta
+  ---
+  duration_ms: 0.140877
+  type: 'test'
+  ...
+# Subtest: cadeia · a ordem e CRONOLOGICA, nao a posicao no ficheiro
+ok 13 - cadeia · a ordem e CRONOLOGICA, nao a posicao no ficheiro
+  ---
+  duration_ms: 0.104649
+  type: 'test'
+  ...
+# Subtest: cadeia · sem `ts` cai para a ordem fisica (estavel, comportamento antigo)
+ok 14 - cadeia · sem `ts` cai para a ordem fisica (estavel, comportamento antigo)
+  ---
+  duration_ms: 0.06876
+  type: 'test'
+  ...
+# Subtest: dinheiro · 0.1372512 do ledger sai como $0,14 — ninguem le dinheiro com 7 decimais
+ok 15 - dinheiro · 0.1372512 do ledger sai como $0,14 — ninguem le dinheiro com 7 decimais
+  ---
+  duration_ms: 1.590788
+  type: 'test'
+  ...
+# Subtest: dinheiro · menos de um centimo NAO arredonda para $0,00 (leria-se como gratis)
+ok 16 - dinheiro · menos de um centimo NAO arredonda para $0,00 (leria-se como gratis)
+  ---
+  duration_ms: 0.134986
+  type: 'test'
+  ...
+# Subtest: dinheiro · sem valor NUNCA sai um numero, sai n/d com a razao
+ok 17 - dinheiro · sem valor NUNCA sai um numero, sai n/d com a razao
+  ---
+  duration_ms: 0.169071
+  type: 'test'
+  ...
+# Subtest: dinheiro · uma estimativa vem ROTULADA como estimativa
+ok 18 - dinheiro · uma estimativa vem ROTULADA como estimativa
+  ---
+  duration_ms: 0.132341
+  type: 'test'
+  ...
+# Subtest: mencaoDeActor · o id opaco vira mencao que o Slack renderiza como o nome
+ok 19 - mencaoDeActor · o id opaco vira mencao que o Slack renderiza como o nome
+  ---
+  duration_ms: 0.210329
+  type: 'test'
+  ...
+# Subtest: mencaoDeActor · um actor que nao vem do Slack degrada para n/d (nunca eco cru)
+ok 20 - mencaoDeActor · um actor que nao vem do Slack degrada para n/d (nunca eco cru)
+  ---
+  duration_ms: 0.085923
+  type: 'test'
+  ...
+# Subtest: modeloCurto · tira a data do fim do id do modelo
+ok 21 - modeloCurto · tira a data do fim do id do modelo
+  ---
+  duration_ms: 0.168791
+  type: 'test'
+  ...
+# Subtest: hashCurto · 8 chars e um reticencias — 64 nao cabem num telemovel
+ok 22 - hashCurto · 8 chars e um reticencias — 64 nao cabem num telemovel
+  ---
+  duration_ms: 0.103907
+  type: 'test'
+  ...
+# Subtest: cartao · o CUSTO e o QUEM PEDIU estao em fields no topo, nao depois do corte
+ok 23 - cartao · o CUSTO e o QUEM PEDIU estao em fields no topo, nao depois do corte
+  ---
+  duration_ms: 0.741417
+  type: 'test'
+  ...
+# Subtest: cartao · nenhum bloco de texto passa o limite que faz aparecer «Mostrar mais»
+ok 24 - cartao · nenhum bloco de texto passa o limite que faz aparecer «Mostrar mais»
+  ---
+  duration_ms: 0.337149
+  type: 'test'
+  ...
+# Subtest: cartao · a justificacao interna do diff-stat NAO vai para o cartao
+ok 25 - cartao · a justificacao interna do diff-stat NAO vai para o cartao
+  ---
+  duration_ms: 0.172487
+  type: 'test'
+  ...
+# Subtest: cartao · tem cabecalho e rodape de contexto, e o hash vive no rodape
+ok 26 - cartao · tem cabecalho e rodape de contexto, e o hash vive no rodape
+  ---
+  duration_ms: 0.149945
+  type: 'test'
+  ...
+# Subtest: cartao · o texto de topo e a NOTIFICACAO: curta, com custo, sem hash e sem conteudo
+ok 27 - cartao · o texto de topo e a NOTIFICACAO: curta, com custo, sem hash e sem conteudo
+  ---
+  duration_ms: 0.135668
+  type: 'test'
+  ...
+# Subtest: botoes · APROVAR pede confirmacao (num telemovel um toque errado gasta dinheiro)
+ok 28 - botoes · APROVAR pede confirmacao (num telemovel um toque errado gasta dinheiro)
+  ---
+  duration_ms: 0.122382
+  type: 'test'
+  ...
+# Subtest: botoes · levam job_id, accao e hash — e mais nada
+ok 29 - botoes · levam job_id, accao e hash — e mais nada
+  ---
+  duration_ms: 0.551736
+  type: 'test'
+  ...
+# Subtest: botoes · sem hash_esperado nao ha botoes (um botao sem CAS decide as cegas)
+ok 30 - botoes · sem hash_esperado nao ha botoes (um botao sem CAS decide as cegas)
+  ---
+  duration_ms: 0.08969
+  type: 'test'
+  ...
+# Subtest: decisao · REJECTED tem rosto proprio, diz quem decidiu, e NAO tem botoes
+ok 31 - decisao · REJECTED tem rosto proprio, diz quem decidiu, e NAO tem botoes
+  ---
+  duration_ms: 0.177948
+  type: 'test'
+  ...
+# Subtest: decisao · STALE mostra os DOIS hashes e diz que o pedido CONTINUA a espera
+ok 32 - decisao · STALE mostra os DOIS hashes e diz que o pedido CONTINUA a espera
+  ---
+  duration_ms: 0.122653
+  type: 'test'
+  ...
+# Subtest: publicar · a auditoria objecto e validada e composta pela porta
+ok 33 - publicar · a auditoria objecto e validada e composta pela porta
+  ---
+  duration_ms: 1.459258
+  type: 'test'
+  ...
+# Subtest: publicar · estado DESCONHECIDO recusa fail-closed
+ok 34 - publicar · estado DESCONHECIDO recusa fail-closed
+  ---
+  duration_ms: 0.139415
+  type: 'test'
+  ...
+# Subtest: publicar · devolve blocos E texto, e o texto continua a ser o fallback curto
+ok 35 - publicar · devolve blocos E texto, e o texto continua a ser o fallback curto
+  ---
+  duration_ms: 1.203504
+  type: 'test'
+  ...
+# Subtest: publicar · a allowlist de campos continua a mandar (a UI nova nao a alargou)
+ok 36 - publicar · a allowlist de campos continua a mandar (a UI nova nao a alargou)
+  ---
+  duration_ms: 0.086605
+  type: 'test'
+  ...
+# Subtest: chat.update · a decisao ACTUALIZA o cartao em vez de publicar outra mensagem
+ok 37 - chat.update · a decisao ACTUALIZA o cartao em vez de publicar outra mensagem
+  ---
+  duration_ms: 0.525096
+  type: 'test'
+  ...
+# Subtest: chat.update · sem cartao publicado, a decisao publica mensagem normal (nao se inventa ts)
+ok 38 - chat.update · sem cartao publicado, a decisao publica mensagem normal (nao se inventa ts)
+  ---
+  duration_ms: 0.17904
+  type: 'test'
+  ...
+# Subtest: chat.update · decidido uma vez, o cartao deixa de ser actualizavel (nao se reescreve historia)
+ok 39 - chat.update · decidido uma vez, o cartao deixa de ser actualizavel (nao se reescreve historia)
+  ---
+  duration_ms: 0.198206
+  type: 'test'
+  ...
+# Subtest: transporte · usa os blocos que a PORTA aprovou, nao uns que ele proprio invente
+ok 40 - transporte · usa os blocos que a PORTA aprovou, nao uns que ele proprio invente
+  ---
+  duration_ms: 0.183117
+  type: 'test'
+  ...
+# Subtest: STALE · NAO actualiza o cartao no lugar (senao o pendente fica indecidivel)
+ok 41 - STALE · NAO actualiza o cartao no lugar (senao o pendente fica indecidivel)
+  ---
+  duration_ms: 0.192805
+  type: 'test'
+  ...
+# Subtest: STALE · e depois de um STALE uma decisao FINAL ainda actualiza o cartao
+ok 42 - STALE · e depois de um STALE uma decisao FINAL ainda actualiza o cartao
+  ---
+  duration_ms: 0.167418
+  type: 'test'
+  ...
+# Subtest: ESTADOS_FINAIS · o STALE nao esta la, e os que fecham estao
+ok 43 - ESTADOS_FINAIS · o STALE nao esta la, e os que fecham estao
+  ---
+  duration_ms: 0.070294
+  type: 'test'
+  ...
+# Subtest: barreira 4 · uma string longa criada no cartao RECUSA (nao se trunca)
+ok 44 - barreira 4 · uma string longa criada no cartao RECUSA (nao se trunca)
+  ---
+  duration_ms: 0.468559
+  type: 'test'
+  ...
+# Subtest: barreira 4 · um cartao normal passa folgadamente (a barreira nao estorva)
+ok 45 - barreira 4 · um cartao normal passa folgadamente (a barreira nao estorva)
+  ---
+  duration_ms: 0.332602
+  type: 'test'
+  ...
+# Subtest: copy · a CONSEQUENCIA de cada botao esta no cartao, antes do toque
+ok 46 - copy · a CONSEQUENCIA de cada botao esta no cartao, antes do toque
+  ---
+  duration_ms: 0.099859
+  type: 'test'
+  ...
+# Subtest: copy · a palavra «estado» NAO rotula o hash (tinha 3 sentidos no mesmo ecra)
+ok 47 - copy · a palavra «estado» NAO rotula o hash (tinha 3 sentidos no mesmo ecra)
+  ---
+  duration_ms: 0.102475
+  type: 'test'
+  ...
+# Subtest: copy · o STALE tambem chama impressao aos dois hashes
+ok 48 - copy · o STALE tambem chama impressao aos dois hashes
+  ---
+  duration_ms: 0.11092
+  type: 'test'
+  ...
+# Subtest: fonte · procedencia NAO reconhecida => o numero NAO sai
+ok 49 - fonte · procedencia NAO reconhecida => o numero NAO sai
+  ---
+  duration_ms: 0.106983
+  type: 'test'
+  ...
+# Subtest: fonte · o vocabulario e um mapa, e o valor CRU do ledger nunca se imprime
+ok 50 - fonte · o vocabulario e um mapa, e o valor CRU do ledger nunca se imprime
+  ---
+  duration_ms: 0.109217
+  type: 'test'
+  ...
+# Subtest: fonte · sem procedencia reconhecida, o CARTAO mostra n/d e nao um numero
+ok 51 - fonte · sem procedencia reconhecida, o CARTAO mostra n/d e nao um numero
+  ---
+  duration_ms: 0.088348
+  type: 'test'
+  ...
+# Subtest: motor · o codigo do ledger vira algo que um estranho entende
+ok 52 - motor · o codigo do ledger vira algo que um estranho entende
+  ---
+  duration_ms: 0.077677
+  type: 'test'
+  ...
+# Subtest: canario · prosa no campo `modelo` NAO atravessa (era o vector do codex)
+ok 53 - canario · prosa no campo `modelo` NAO atravessa (era o vector do codex)
+  ---
+  duration_ms: 0.382265
+  type: 'test'
+  ...
+# Subtest: canario · prosa no campo `motor` tambem nao
+ok 54 - canario · prosa no campo `motor` tambem nao
+  ---
+  duration_ms: 0.453109
+  type: 'test'
+  ...
+# Subtest: gramatica · um id de modelo REAL continua a passar (a guarda nao estorva)
+ok 55 - gramatica · um id de modelo REAL continua a passar (a guarda nao estorva)
+  ---
+  duration_ms: 0.163861
+  type: 'test'
+  ...
+# Subtest: composicao · o que chega ao Slack e o CARTAO, nao a linha de fallback
+ok 56 - composicao · o que chega ao Slack e o CARTAO, nao a linha de fallback
+  ---
+  duration_ms: 26.036865
+  type: 'test'
+  ...
+# Subtest: composicao · a decisao tambem chega como cartao, e substitui no lugar
+ok 57 - composicao · a decisao tambem chega como cartao, e substitui no lugar
+  ---
+  duration_ms: 1.032469
+  type: 'test'
+  ...
+# Subtest: PARAR · sem impressao NAO se desenha o botao (inerte e o pior modo de falha)
+ok 58 - PARAR · sem impressao NAO se desenha o botao (inerte e o pior modo de falha)
+  ---
+  duration_ms: 0.16347
+  type: 'test'
+  ...
+# Subtest: barreira 3 · a recusa FINAL dispara quando um nome sobrevive a limpeza
+ok 59 - barreira 3 · a recusa FINAL dispara quando um nome sobrevive a limpeza
+  ---
+  duration_ms: 0.16847
+  type: 'test'
+  ...
+# Subtest: cadeia · o cartao mostra o total da CONVERSA a par do total do pedido
+ok 60 - cadeia · o cartao mostra o total da CONVERSA a par do total do pedido
+  ---
+  duration_ms: 0.178138
+  type: 'test'
+  ...
+# Subtest: cadeia · UM pedido nao gera linha de cadeia (seria ruido a repetir o de cima)
+ok 61 - cadeia · UM pedido nao gera linha de cadeia (seria ruido a repetir o de cima)
+  ---
+  duration_ms: 0.090872
+  type: 'test'
+  ...
+# Subtest: cadeia · job por medir torna o total um PISO e o cartao diz «pelo menos»
+ok 62 - cadeia · job por medir torna o total um PISO e o cartao diz «pelo menos»
+  ---
+  duration_ms: 0.159703
+  type: 'test'
+  ...
+# Subtest: cadeia · fonte nao reconhecida NAO publica o total (a mesma regra do pedido)
+ok 63 - cadeia · fonte nao reconhecida NAO publica o total (a mesma regra do pedido)
+  ---
+  duration_ms: 0.101132
+  type: 'test'
+  ...
+# Subtest: cadeia · sem cadeia nenhuma o cartao fica exactamente como estava
+ok 64 - cadeia · sem cadeia nenhuma o cartao fica exactamente como estava
+  ---
+  duration_ms: 0.076025
+  type: 'test'
+  ...
+# Subtest: cadeia · uma cadeia LOCAL nao pode ser rotulada «informados pelo motor»
+ok 65 - cadeia · uma cadeia LOCAL nao pode ser rotulada «informados pelo motor»
+  ---
+  duration_ms: 0.086754
+  type: 'test'
+  ...
+# Subtest: cadeia · uma cadeia ESTIMADA nao pode perder a palavra ESTIMATIVA
+ok 66 - cadeia · uma cadeia ESTIMADA nao pode perder a palavra ESTIMATIVA
+  ---
+  duration_ms: 0.087837
+  type: 'test'
+  ...
+# Subtest: cadeia · MISTA com uma estimativa dentro anuncia-o (a afirmacao mais fraca manda)
+ok 67 - cadeia · MISTA com uma estimativa dentro anuncia-o (a afirmacao mais fraca manda)
+  ---
+  duration_ms: 0.078228
+  type: 'test'
+  ...
+# Subtest: cadeia · procedencias DIFERENTES => cada numero leva a sua
+ok 68 - cadeia · procedencias DIFERENTES => cada numero leva a sua
+  ---
+  duration_ms: 0.08414
+  type: 'test'
+  ...
+# Subtest: cadeia · procedencias IGUAIS => um sufixo so, no plural
+ok 69 - cadeia · procedencias IGUAIS => um sufixo so, no plural
+  ---
+  duration_ms: 0.088178
+  type: 'test'
+  ...
+# Subtest: cadeia · pedido em n/d NAO perde a razao do n/d por causa da cadeia
+ok 70 - cadeia · pedido em n/d NAO perde a razao do n/d por causa da cadeia
+  ---
+  duration_ms: 0.127922
+  type: 'test'
+  ...
+# [registo] {"tipo":"aprovar_de_job_silenciado","job":"job-do-ciclo-mau"}
+# Subtest: daemon · SEM a linha no SYNC.md o daemon RECUSA arrancar
+ok 71 - daemon · SEM a linha no SYNC.md o daemon RECUSA arrancar
+  ---
+  duration_ms: 1.378175
+  type: 'test'
+  ...
+# Subtest: daemon · COM a linha, .env ignorado e token, arranca
+ok 72 - daemon · COM a linha, .env ignorado e token, arranca
+  ---
+  duration_ms: 0.305309
+  type: 'test'
+  ...
+# Subtest: daemon · passado o prazo nao arranca, mesmo com tudo o resto em ordem
+ok 73 - daemon · passado o prazo nao arranca, mesmo com tudo o resto em ordem
+  ---
+  duration_ms: 0.989688
+  type: 'test'
+  ...
+# Subtest: daemon · kimi \#7 · o token NAO chega a ser lido se o .env nao estiver ignorado
+ok 74 - daemon · kimi \#7 · o token NAO chega a ser lido se o .env nao estiver ignorado
+  ---
+  duration_ms: 0.292164
+  type: 'test'
+  ...
+# Subtest: daemon · git check-ignore CONFIRMA quando o .gitignore cobre o .env
+ok 75 - daemon · git check-ignore CONFIRMA quando o .gitignore cobre o .env
+  ---
+  duration_ms: 6.009568
+  type: 'test'
+  ...
+# Subtest: daemon · git check-ignore RECUSA quando o .env nao esta coberto
+ok 76 - daemon · git check-ignore RECUSA quando o .env nao esta coberto
+  ---
+  duration_ms: 4.951996
+  type: 'test'
+  ...
+# Subtest: daemon · .env inexistente e recusa (nao se assume que aparece depois)
+ok 77 - daemon · .env inexistente e recusa (nao se assume que aparece depois)
+  ---
+  duration_ms: 3.466325
+  type: 'test'
+  ...
+# Subtest: kimi \#7 · o .gitignore deste repo ja cobre um .env dentro do spike
+ok 78 - kimi \#7 · o .gitignore deste repo ja cobre um .env dentro do spike
+  ---
+  duration_ms: 2.662103
+  type: 'test'
+  ...
+# Subtest: silencio · SLACK_IGNORAR_JOBS no .env FUNCIONA (era lido antes de o .env existir)
+ok 79 - silencio · SLACK_IGNORAR_JOBS no .env FUNCIONA (era lido antes de o .env existir)
+  ---
+  duration_ms: 16.810562
+  type: 'test'
+  ...
+# Subtest: arranque · `principal()` corre mesmo (a funcao que nenhum teste chamava)
+ok 80 - arranque · `principal()` corre mesmo (a funcao que nenhum teste chamava)
+  ---
+  duration_ms: 3.286706
+  type: 'test'
+  ...
+# Subtest: arranque · a LIGACAO do poller ao daemon corre sem socket nenhum
+ok 81 - arranque · a LIGACAO do poller ao daemon corre sem socket nenhum
+  ---
+  duration_ms: 0.606821
+  type: 'test'
+  ...
+# Subtest: arranque · a ligacao do poller LE O LEDGER a serio quando nao lhe injectam um
+ok 82 - arranque · a ligacao do poller LE O LEDGER a serio quando nao lhe injectam um
+  ---
+  duration_ms: 0.260113
+  type: 'test'
+  ...
+# Subtest: descobrirTudo · deriva as 3 variaveis do proprio bot
+ok 83 - descobrirTudo · deriva as 3 variaveis do proprio bot
+  ---
+  duration_ms: 1.376713
+  type: 'test'
+  ...
+# Subtest: descobrirTudo · o bot e o slackbot e os apagados NAO contam como humano
+ok 84 - descobrirTudo · o bot e o slackbot e os apagados NAO contam como humano
+  ---
+  duration_ms: 0.198437
+  type: 'test'
+  ...
+# Subtest: descobrirCanal · segue o cursor do Slack em vez de ficar na 1a pagina
+ok 85 - descobrirCanal · segue o cursor do Slack em vez de ficar na 1a pagina
+  ---
+  duration_ms: 0.158962
+  type: 'test'
+  ...
+# Subtest: descobrirCanal · aceita o nome com \# e sem \#
+ok 86 - descobrirCanal · aceita o nome com \# e sem \#
+  ---
+  duration_ms: 0.228163
+  type: 'test'
+  ...
+# Subtest: descobrirCanal · canal inexistente NAO devolve o parecido mais proximo
+ok 87 - descobrirCanal · canal inexistente NAO devolve o parecido mais proximo
+  ---
+  duration_ms: 0.263701
+  type: 'test'
+  ...
+# Subtest: descobrirCanal · avisa quando o bot ve o canal mas NAO e membro
+ok 88 - descobrirCanal · avisa quando o bot ve o canal mas NAO e membro
+  ---
+  duration_ms: 0.19517
+  type: 'test'
+  ...
+# Subtest: descobrirHumano · DOIS humanos e recusa, com os ids, nao uma escolha as cegas
+ok 89 - descobrirHumano · DOIS humanos e recusa, com os ids, nao uma escolha as cegas
+  ---
+  duration_ms: 0.176895
+  type: 'test'
+  ...
+# Subtest: descobrirHumano · ZERO humanos e recusa
+ok 90 - descobrirHumano · ZERO humanos e recusa
+  ---
+  duration_ms: 0.73214
+  type: 'test'
+  ...
+# Subtest: descobrirTudo · para no PRIMEIRO passo que falha e diz qual foi
+ok 91 - descobrirTudo · para no PRIMEIRO passo que falha e diz qual foi
+  ---
+  duration_ms: 0.272116
+  type: 'test'
+  ...
+# Subtest: descobrirTudo · missing_scope diz QUAL o scope e o que fazer
+ok 92 - descobrirTudo · missing_scope diz QUAL o scope e o que fazer
+  ---
+  duration_ms: 0.281995
+  type: 'test'
+  ...
+# Subtest: escreverEnv · acrescenta as derivadas e NAO toca nas linhas dos tokens
+ok 93 - escreverEnv · acrescenta as derivadas e NAO toca nas linhas dos tokens
+  ---
+  duration_ms: 0.794818
+  type: 'test'
+  ...
+# Subtest: escreverEnv · actualiza uma chave que ja existe em vez de a duplicar
+ok 94 - escreverEnv · actualiza uma chave que ja existe em vez de a duplicar
+  ---
+  duration_ms: 0.404267
+  type: 'test'
+  ...
+# Subtest: escreverEnv · idempotente: correr duas vezes nao muda nada a segunda
+ok 95 - escreverEnv · idempotente: correr duas vezes nao muda nada a segunda
+  ---
+  duration_ms: 0.32694
+  type: 'test'
+  ...
+# Subtest: escreverEnv · reconhece `export CHAVE=` e nao cria uma segunda linha
+ok 96 - escreverEnv · reconhece `export CHAVE=` e nao cria uma segunda linha
+  ---
+  duration_ms: 0.320788
+  type: 'test'
+  ...
+# Subtest: escreverEnv · sem .env recusa (os tokens vem primeiro)
+ok 97 - escreverEnv · sem .env recusa (os tokens vem primeiro)
+  ---
+  duration_ms: 0.360775
+  type: 'test'
+  ...
+# Subtest: escreverEnv · valor vazio nao escreve uma chave vazia
+ok 98 - escreverEnv · valor vazio nao escreve uma chave vazia
+  ---
+  duration_ms: 0.234946
+  type: 'test'
+  ...
+# Subtest: descobrirTudo · honra o nome de canal que lhe passam (o parametro liga a algo)
+ok 99 - descobrirTudo · honra o nome de canal que lhe passam (o parametro liga a algo)
+  ---
+  duration_ms: 0.159783
+  type: 'test'
+  ...
+# Subtest: despachar · com o SYNC.md trancado NAO chama o motor (o gate e por despacho, nao por processo)
+ok 100 - despachar · com o SYNC.md trancado NAO chama o motor (o gate e por despacho, nao por processo)
+  ---
+  duration_ms: 1.365811
+  type: 'test'
+  ...
+# Subtest: despachar · destravado, chama o motor UMA vez e devolve o job_id
+ok 101 - despachar · destravado, chama o motor UMA vez e devolve o job_id
+  ---
+  duration_ms: 0.443692
+  type: 'test'
+  ...
+# Subtest: despachar · o gate reabre: um SYNC.md que perde a linha volta a trancar
+ok 102 - despachar · o gate reabre: um SYNC.md que perde a linha volta a trancar
+  ---
+  duration_ms: 0.414497
+  type: 'test'
+  ...
+# Subtest: despachar · thread_context nao chega ao motor: morre na allowlist de saida
+ok 103 - despachar · thread_context nao chega ao motor: morre na allowlist de saida
+  ---
+  duration_ms: 0.222893
+  type: 'test'
+  ...
+# Subtest: despachar · a allowlist de saida e a simetrica da de publicacao
+ok 104 - despachar · a allowlist de saida e a simetrica da de publicacao
+  ---
+  duration_ms: 0.52153
+  type: 'test'
+  ...
+# Subtest: despachar · o erro do motor sai em porque_local, e o publicar RECUSA publica-lo
+ok 105 - despachar · o erro do motor sai em porque_local, e o publicar RECUSA publica-lo
+  ---
+  duration_ms: 0.419546
+  type: 'test'
+  ...
+# Subtest: despachar · toolWork que rebenta nao rebenta o handler
+ok 106 - despachar · toolWork que rebenta nao rebenta o handler
+  ---
+  duration_ms: 0.247289
+  type: 'test'
+  ...
+# Subtest: despachar · toolWork sem job_id nao inventa um
+ok 107 - despachar · toolWork sem job_id nao inventa um
+  ---
+  duration_ms: 0.250224
+  type: 'test'
+  ...
+# Subtest: despachar · goal vazio nao chega ao motor
+ok 108 - despachar · goal vazio nao chega ao motor
+  ---
+  duration_ms: 0.977415
+  type: 'test'
+  ...
+# Subtest: criarDespachador · sem toolWork ou sem syncPath nao se monta
+ok 109 - criarDespachador · sem toolWork ou sem syncPath nao se monta
+  ---
+  duration_ms: 0.633082
+  type: 'test'
+  ...
+# Subtest: GO · agent:"kimi" e RECUSADO na porta e o motor NUNCA e chamado
+ok 110 - GO · agent:"kimi" e RECUSADO na porta e o motor NUNCA e chamado
+  ---
+  duration_ms: 0.308786
+  type: 'test'
+  ...
+# Subtest: GO · a exclusao nao se contorna com maiusculas nem espacos
+ok 111 - GO · a exclusao nao se contorna com maiusculas nem espacos
+  ---
+  duration_ms: 0.298096
+  type: 'test'
+  ...
+# Subtest: GO · e uma ALLOWLIST: um vendor novo e recusado sem alguem o ter de proibir
+ok 112 - GO · e uma ALLOWLIST: um vendor novo e recusado sem alguem o ter de proibir
+  ---
+  duration_ms: 0.228263
+  type: 'test'
+  ...
+# Subtest: GO · motor ausente e recusado (um default e por onde um vendor entra amanha)
+ok 113 - GO · motor ausente e recusado (um default e por onde um vendor entra amanha)
+  ---
+  duration_ms: 0.351326
+  type: 'test'
+  ...
+# Subtest: GO · o motor que a demo usa (cc) passa, e chega normalizado ao nucleo
+ok 114 - GO · o motor que a demo usa (cc) passa, e chega normalizado ao nucleo
+  ---
+  duration_ms: 0.203085
+  type: 'test'
+  ...
+# Subtest: GO · "kimi" NAO esta na allowlist — o invariante e codigo, nao um comentario
+ok 115 - GO · "kimi" NAO esta na allowlist — o invariante e codigo, nao um comentario
+  ---
+  duration_ms: 0.063821
+  type: 'test'
+  ...
+# Subtest: worktree · vai por configuracao para o motor
+ok 116 - worktree · vai por configuracao para o motor
+  ---
+  duration_ms: 0.462638
+  type: 'test'
+  ...
+# Subtest: worktree · NAO se aceita do pedido: quem menciona nao escolhe onde se escreve
+ok 117 - worktree · NAO se aceita do pedido: quem menciona nao escolhe onde se escreve
+  ---
+  duration_ms: 0.503676
+  type: 'test'
+  ...
+# Subtest: worktree · sem configuracao nao se inventa uma (o motor mantem o seu default)
+ok 118 - worktree · sem configuracao nao se inventa uma (o motor mantem o seu default)
+  ---
+  duration_ms: 0.256657
+  type: 'test'
+  ...
+# Subtest: prep · o despacho do Slack manda pre_digest:false (mata os 20s)
+ok 119 - prep · o despacho do Slack manda pre_digest:false (mata os 20s)
+  ---
+  duration_ms: 0.198076
+  type: 'test'
+  ...
+# Subtest: prep · por omissao NAO se mexe no comportamento do motor
+ok 120 - prep · por omissao NAO se mexe no comportamento do motor
+  ---
+  duration_ms: 0.244374
+  type: 'test'
+  ...
+# Subtest: feliz · mencao do id da allowlist e aceite e despachada com actor do Slack
+ok 121 - feliz · mencao do id da allowlist e aceite e despachada com actor do Slack
+  ---
+  duration_ms: 3.635569
+  type: 'test'
+  ...
+# Subtest: feliz · o thread-context NUNCA entra no prompt
+ok 122 - feliz · o thread-context NUNCA entra no prompt
+  ---
+  duration_ms: 1.523881
+  type: 'test'
+  ...
+# Subtest: feliz · aprovar publica a ENTRADA DE AUDITORIA do ledger no thread (kimi \#8)
+ok 123 - feliz · aprovar publica a ENTRADA DE AUDITORIA do ledger no thread (kimi \#8)
+  ---
+  duration_ms: 3.997886
+  type: 'test'
+  ...
+# Subtest: infeliz 1 · recusar grava REJECTED e diz-se no thread
+ok 124 - infeliz 1 · recusar grava REJECTED e diz-se no thread
+  ---
+  duration_ms: 1.60181
+  type: 'test'
+  ...
+# Subtest: infeliz 2 · clique atrasado da STALE e MOSTRA os dois hashes
+ok 125 - infeliz 2 · clique atrasado da STALE e MOSTRA os dois hashes
+  ---
+  duration_ms: 1.373406
+  type: 'test'
+  ...
+# Subtest: infeliz 3 · daemon morre e ao religar o pendente reaparece
+ok 126 - infeliz 3 · daemon morre e ao religar o pendente reaparece
+  ---
+  duration_ms: 1.839821
+  type: 'test'
+  ...
+# Subtest: kimi \#1 · clique de TERCEIRO e ignorado, registado, e NAO chega ao broker
+ok 127 - kimi \#1 · clique de TERCEIRO e ignorado, registado, e NAO chega ao broker
+  ---
+  duration_ms: 0.572677
+  type: 'test'
+  ...
+# Subtest: kimi \#1 · mencao de TERCEIRO nao despacha nada
+ok 128 - kimi \#1 · mencao de TERCEIRO nao despacha nada
+  ---
+  duration_ms: 0.489469
+  type: 'test'
+  ...
+# Subtest: pendente ja decidido responde "ja decidido" de forma efemera
+ok 129 - pendente ja decidido responde "ja decidido" de forma efemera
+  ---
+  duration_ms: 1.453127
+  type: 'test'
+  ...
+# Subtest: cartao · leva custo/modelo/autor e NUNCA goal, worktree ou masterprompt
+ok 130 - cartao · leva custo/modelo/autor e NUNCA goal, worktree ou masterprompt
+  ---
+  duration_ms: 1.542251
+  type: 'test'
+  ...
+# Subtest: round-trip · o cartao do pendente REAL gera botoes, e o botao decide o MESMO pedido
+ok 131 - round-trip · o cartao do pendente REAL gera botoes, e o botao decide o MESMO pedido
+  ---
+  duration_ms: 1.233962
+  type: 'test'
+  ...
+# Subtest: round-trip · o botao do cartao ANTIGO leva um clique atrasado a STALE, nao a decisao
+ok 132 - round-trip · o botao do cartao ANTIGO leva um clique atrasado a STALE, nao a decisao
+  ---
+  duration_ms: 0.800198
+  type: 'test'
+  ...
+# Subtest: poller · o mesmo cartao NAO se republica a cada tique
+ok 133 - poller · o mesmo cartao NAO se republica a cada tique
+  ---
+  duration_ms: 0.919365
+  type: 'test'
+  ...
+# Subtest: poller · se o ESTADO mudar, sai cartao novo (o botao antigo ja daria STALE)
+ok 134 - poller · se o ESTADO mudar, sai cartao novo (o botao antigo ja daria STALE)
+  ---
+  duration_ms: 1.16469
+  type: 'test'
+  ...
+# Subtest: poller · o filtro por actor impede o canal de receber pendentes que NAO nasceram no Slack
+ok 135 - poller · o filtro por actor impede o canal de receber pendentes que NAO nasceram no Slack
+  ---
+  duration_ms: 0.434504
+  type: 'test'
+  ...
+# Subtest: poller · e MOSTRA o pendente que nasceu no Slack
+ok 136 - poller · e MOSTRA o pendente que nasceu no Slack
+  ---
+  duration_ms: 0.78521
+  type: 'test'
+  ...
+# Subtest: fecho · um job que acaba SEM pendente diz o FIM no thread, com custo
+ok 137 - fecho · um job que acaba SEM pendente diz o FIM no thread, com custo
+  ---
+  duration_ms: 0.681853
+  type: 'test'
+  ...
+# Subtest: fecho · um job FALHADO diz que falhou e que nada foi aplicado
+ok 138 - fecho · um job FALHADO diz que falhou e que nada foi aplicado
+  ---
+  duration_ms: 0.506061
+  type: 'test'
+  ...
+# Subtest: fecho · um job A ESPERA DE DECISAO nao leva fecho (esse tem cartao)
+ok 139 - fecho · um job A ESPERA DE DECISAO nao leva fecho (esse tem cartao)
+  ---
+  duration_ms: 0.404978
+  type: 'test'
+  ...
+# Subtest: fecho · um prep_timeout NAO se reporta (o motor encadeia um job novo a seguir)
+ok 140 - fecho · um prep_timeout NAO se reporta (o motor encadeia um job novo a seguir)
+  ---
+  duration_ms: 0.306953
+  type: 'test'
+  ...
+# Subtest: fecho · nao se repete a cada tique do poller
+ok 141 - fecho · nao se repete a cada tique do poller
+  ---
+  duration_ms: 0.878971
+  type: 'test'
+  ...
+# Subtest: decisao · o cartao publicado leva custo, modelo e impressao — nao n/d
+ok 142 - decisao · o cartao publicado leva custo, modelo e impressao — nao n/d
+  ---
+  duration_ms: 0.978667
+  type: 'test'
+  ...
+# Subtest: silenciar · um job ignorado nao se anuncia, mas CONTINUA na fila
+ok 143 - silenciar · um job ignorado nao se anuncia, mas CONTINUA na fila
+  ---
+  duration_ms: 0.564061
+  type: 'test'
+  ...
+# Subtest: parar · o CAS NAO bloqueia um stop (um clique atrasado tem de parar na mesma)
+ok 144 - parar · o CAS NAO bloqueia um stop (um clique atrasado tem de parar na mesma)
+  ---
+  duration_ms: 0.540446
+  type: 'test'
+  ...
+# Subtest: parar · um job JA TERMINADO e no-op, nao erro (idempotente)
+ok 145 - parar · um job JA TERMINADO e no-op, nao erro (idempotente)
+  ---
+  duration_ms: 0.305991
+  type: 'test'
+  ...
+# Subtest: parar · com o SYNC trancado o stop NAO chega ao motor
+ok 146 - parar · com o SYNC trancado o stop NAO chega ao motor
+  ---
+  duration_ms: 0.239034
+  type: 'test'
+  ...
+# Subtest: parar · allowlist do stop: nada fora de job_id/actor/hash_visto atravessa
+ok 147 - parar · allowlist do stop: nada fora de job_id/actor/hash_visto atravessa
+  ---
+  duration_ms: 0.224196
+  type: 'test'
+  ...
+# Subtest: parar · o adapter chama a porta do stop e publica o desfecho COM o custo
+ok 148 - parar · o adapter chama a porta do stop e publica o desfecho COM o custo
+  ---
+  duration_ms: 0.802823
+  type: 'test'
+  ...
+# Subtest: parar · um clique de terceiro no PARAR tambem morre na allowlist
+ok 149 - parar · um clique de terceiro no PARAR tambem morre na allowlist
+  ---
+  duration_ms: 0.140136
+  type: 'test'
+  ...
+# Subtest: cartao (unidade) · o heartbeat SO mostra numeros quando ha numeros reais
+ok 150 - cartao (unidade) · o heartbeat SO mostra numeros quando ha numeros reais
+  ---
+  duration_ms: 0.196773
+  type: 'test'
+  ...
+# Subtest: cartao (unidade) · tem botao PARAR, e sem confirmacao (stop com atrito nao e stop)
+ok 151 - cartao (unidade) · tem botao PARAR, e sem confirmacao (stop com atrito nao e stop)
+  ---
+  duration_ms: 0.15795
+  type: 'test'
+  ...
+# Subtest: pertenca · um job re-carimbado SEM actor continua a ser nosso
+ok 152 - pertenca · um job re-carimbado SEM actor continua a ser nosso
+  ---
+  duration_ms: 0.416581
+  type: 'test'
+  ...
+# Subtest: pertenca · o cartao continua a sair depois do re-carimbo
+ok 153 - pertenca · o cartao continua a sair depois do re-carimbo
+  ---
+  duration_ms: 0.808705
+  type: 'test'
+  ...
+# Subtest: pertenca · um job de OUTRA origem continua fora (a pertenca nao alargou)
+ok 154 - pertenca · um job de OUTRA origem continua fora (a pertenca nao alargou)
+  ---
+  duration_ms: 0.449934
+  type: 'test'
+  ...
+# Subtest: handoff_from · o filho de uma preparacao BEM SUCEDIDA e nosso
+ok 155 - handoff_from · o filho de uma preparacao BEM SUCEDIDA e nosso
+  ---
+  duration_ms: 0.440586
+  type: 'test'
+  ...
+# Subtest: preparacao · o `done` de uma PREP nunca se anuncia como trabalho concluido
+ok 156 - preparacao · o `done` de uma PREP nunca se anuncia como trabalho concluido
+  ---
+  duration_ms: 0.259131
+  type: 'test'
+  ...
+# Subtest: preparacao · o fecho e do FILHO, e leva o custo REAL
+ok 157 - preparacao · o fecho e do FILHO, e leva o custo REAL
+  ---
+  duration_ms: 0.411331
+  type: 'test'
+  ...
+# Subtest: silenciado · Aprovar nao gasta, mas Parar continua a travar
+ok 158 - silenciado · Aprovar nao gasta, mas Parar continua a travar
+  ---
+  duration_ms: 0.676013
+  type: 'test'
+  ...
+# Subtest: silenciado · um job NAO silenciado continua a poder ser aprovado
+ok 159 - silenciado · um job NAO silenciado continua a poder ser aprovado
+  ---
+  duration_ms: 0.376063
+  type: 'test'
+  ...
+# Subtest: cadeia · TODO o cartao que leva custo leva tambem a cadeia (pendente · decisao · parado · fecho)
+ok 160 - cadeia · TODO o cartao que leva custo leva tambem a cadeia (pendente · decisao · parado · fecho)
+  ---
+  duration_ms: 0.327562
+  type: 'test'
+  ...
+# Subtest: silenciado · o clique NAO chega ao broker (nao basta nao chamar `despachar`)
+ok 161 - silenciado · o clique NAO chega ao broker (nao basta nao chamar `despachar`)
+  ---
+  duration_ms: 0.183899
+  type: 'test'
+  ...
+# Subtest: T1 · canarios do ledger nao atravessam o adapter e o cartao continua a sair
+ok 162 - T1 · canarios do ledger nao atravessam o adapter e o cartao continua a sair
+  ---
+  duration_ms: 1.36515
+  type: 'test'
+  ...
+# Subtest: T2 · chamador hostil e travado e a variante decorativa degrada sem canarios
+ok 163 - T2 · chamador hostil e travado e a variante decorativa degrada sem canarios
+  ---
+  duration_ms: 0.427802
+  type: 'test'
+  ...
+# Subtest: T3 · o heartbeat real leva Parar com a impressao corrente do broker
+ok 164 - T3 · o heartbeat real leva Parar com a impressao corrente do broker
+  ---
+  duration_ms: 2.595164
+  type: 'test'
+  ...
+# Subtest: T4 · heartbeat so depois do limiar, sem percentagem, com dedupe por entrega
+ok 165 - T4 · heartbeat so depois do limiar, sem percentagem, com dedupe por entrega
+  ---
+  duration_ms: 3.440388
+  type: 'test'
+  ...
+# Subtest: T5 · fecho recusado pelo Slack e retentado antes de entrar em fechados
+ok 166 - T5 · fecho recusado pelo Slack e retentado antes de entrar em fechados
+  ---
+  duration_ms: 1.031046
+  type: 'test'
+  ...
+# Subtest: T6 · frase inventada e recusada pelo catalogo fechado
+ok 167 - T6 · frase inventada e recusada pelo catalogo fechado
+  ---
+  duration_ms: 0.149814
+  type: 'test'
+  ...
+# Subtest: esquema · tipo, estado e accoes usam vocabularios fechados
+ok 168 - esquema · tipo, estado e accoes usam vocabularios fechados
+  ---
+  duration_ms: 0.993796
+  type: 'test'
+  ...
+# Subtest: esquema · job_id acrescenta tecto mas todo o aceite continua compativel com o broker
+ok 169 - esquema · job_id acrescenta tecto mas todo o aceite continua compativel com o broker
+  ---
+  duration_ms: 0.191564
+  type: 'test'
+  ...
+# Subtest: esquema · hashes recusam canais disfarçados de prova
+ok 170 - esquema · hashes recusam canais disfarçados de prova
+  ---
+  duration_ms: 0.168269
+  type: 'test'
+  ...
+# Subtest: esquema · passos e segundos aceitam apenas inteiros dentro dos tectos
+ok 171 - esquema · passos e segundos aceitam apenas inteiros dentro dos tectos
+  ---
+  duration_ms: 0.14746
+  type: 'test'
+  ...
+# Subtest: esquema · mostruario invalido degrada para null sem eco
+ok 172 - esquema · mostruario invalido degrada para null sem eco
+  ---
+  duration_ms: 1.39105
+  type: 'test'
+  ...
+# Subtest: esquema · custo canonicaliza fonte e fonte desconhecida corta numero e fonte
+ok 173 - esquema · custo canonicaliza fonte e fonte desconhecida corta numero e fonte
+  ---
+  duration_ms: 0.287425
+  type: 'test'
+  ...
+# Subtest: esquema · cadeia publica apenas quatro campos e degrada inteira se forem ilegíveis
+ok 174 - esquema · cadeia publica apenas quatro campos e degrada inteira se forem ilegíveis
+  ---
+  duration_ms: 0.202414
+  type: 'test'
+  ...
+# Subtest: esquema · allowlist profunda recusa subchaves desconhecidas em todo o objecto
+ok 175 - esquema · allowlist profunda recusa subchaves desconhecidas em todo o objecto
+  ---
+  duration_ms: 0.229846
+  type: 'test'
+  ...
+# Subtest: esquema · auditoria deriva texto e o stop nunca recusa por hash visto
+ok 176 - esquema · auditoria deriva texto e o stop nunca recusa por hash visto
+  ---
+  duration_ms: 0.396923
+  type: 'test'
+  ...
+# Subtest: esquema · texto so atravessa pelo catalogo fechado
+ok 177 - esquema · texto so atravessa pelo catalogo fechado
+  ---
+  duration_ms: 0.269101
+  type: 'test'
+  ...
+# Subtest: esquema · reconstrucao nao partilha referencias e fica congelada
+ok 178 - esquema · reconstrucao nao partilha referencias e fica congelada
+  ---
+  duration_ms: 0.150415
+  type: 'test'
+  ...
+# Subtest: morte · SPIKE_MORRE_EM e uma data real, nao um comentario
+ok 179 - morte · SPIKE_MORRE_EM e uma data real, nao um comentario
+  ---
+  duration_ms: 1.372274
+  type: 'test'
+  ...
+# Subtest: morte · antes do prazo esta vivo; depois esta morto e diz porque
+ok 180 - morte · antes do prazo esta vivo; depois esta morto e diz porque
+  ---
+  duration_ms: 0.296152
+  type: 'test'
+  ...
+# Subtest: gate · SEM a linha no SYNC.md o modo vivo esta TRANCADO
+ok 181 - gate · SEM a linha no SYNC.md o modo vivo esta TRANCADO
+  ---
+  duration_ms: 0.495841
+  type: 'test'
+  ...
+# Subtest: gate · COM a linha exacta o modo vivo destrava
+ok 182 - gate · COM a linha exacta o modo vivo destrava
+  ---
+  duration_ms: 0.292405
+  type: 'test'
+  ...
+# Subtest: gate · fail-closed: SYNC.md inexistente NAO destrava
+ok 183 - gate · fail-closed: SYNC.md inexistente NAO destrava
+  ---
+  duration_ms: 0.217382
+  type: 'test'
+  ...
+# Subtest: gate · uma linha PARECIDA nao destrava (a frase e um contrato, nao uma pista)
+ok 184 - gate · uma linha PARECIDA nao destrava (a frase e um contrato, nao uma pista)
+  ---
+  duration_ms: 0.225118
+  type: 'test'
+  ...
+# Subtest: gate · destrava com a frase como bullet — e assim que uma linha nasce num SYNC.md
+ok 185 - gate · destrava com a frase como bullet — e assim que uma linha nasce num SYNC.md
+  ---
+  duration_ms: 0.3583
+  type: 'test'
+  ...
+# Subtest: gate · destrava com travessao escrito a hifen (o erro de escrita mais provavel)
+ok 186 - gate · destrava com travessao escrito a hifen (o erro de escrita mais provavel)
+  ---
+  duration_ms: 0.18457
+  type: 'test'
+  ...
+# Subtest: gate · destrava em negrito, em citacao e com espacos a mais
+ok 187 - gate · destrava em negrito, em citacao e com espacos a mais
+  ---
+  duration_ms: 0.807703
+  type: 'test'
+  ...
+# Subtest: gate · NAO destrava com a frase dentro de prosa (a tolerancia so anda para o lado seguro)
+ok 188 - gate · NAO destrava com a frase dentro de prosa (a tolerancia so anda para o lado seguro)
+  ---
+  duration_ms: 1.002261
+  type: 'test'
+  ...
+# Subtest: gate · o SYNC.md deste repo destrava, e a linha vem ACOMPANHADA da decisao
+ok 189 - gate · o SYNC.md deste repo destrava, e a linha vem ACOMPANHADA da decisao
+  ---
+  duration_ms: 2.852092
+  type: 'test'
+  ...
+# Subtest: allowlist · permite o id de dentro e recusa o de fora
+ok 190 - allowlist · permite o id de dentro e recusa o de fora
+  ---
+  duration_ms: 0.24769
+  type: 'test'
+  ...
+# Subtest: allowlist · UM id e um INVARIANTE de codigo, nao um comentario
+ok 191 - allowlist · UM id e um INVARIANTE de codigo, nao um comentario
+  ---
+  duration_ms: 0.320798
+  type: 'test'
+  ...
+# Subtest: allowlist · fail-closed perante lixo
+ok 192 - allowlist · fail-closed perante lixo
+  ---
+  duration_ms: 0.140476
+  type: 'test'
+  ...
+# Subtest: denylist · apanha segredo.env e outros nomes sensiveis
+ok 193 - denylist · apanha segredo.env e outros nomes sensiveis
+  ---
+  duration_ms: 0.628583
+  type: 'test'
+  ...
+# Subtest: denylist · limpar() remove o NOME e diz o que removeu
+ok 194 - denylist · limpar() remove o NOME e diz o que removeu
+  ---
+  duration_ms: 0.128293
+  type: 'test'
+  ...
+# Subtest: denylist · nao inventa segredos em texto normal
+ok 195 - denylist · nao inventa segredos em texto normal
+  ---
+  duration_ms: 0.056747
+  type: 'test'
+  ...
+# Subtest: denylist · apanha o nome quando vem colado a um underscore
+ok 196 - denylist · apanha o nome quando vem colado a um underscore
+  ---
+  duration_ms: 0.118244
+  type: 'test'
+  ...
+# Subtest: denylist · continua a NAO apanhar uma palavra que so comeca igual
+ok 197 - denylist · continua a NAO apanhar uma palavra que so comeca igual
+  ---
+  duration_ms: 0.340997
+  type: 'test'
+  ...
+# Subtest: leitura · custo com fonte medida sai com valor E rotulo de fonte
+ok 198 - leitura · custo com fonte medida sai com valor E rotulo de fonte
+  ---
+  duration_ms: 0.749613
+  type: 'test'
+  ...
+# Subtest: leitura · custo com fonte n/d NAO mostra numero (nunca fabricar)
+ok 199 - leitura · custo com fonte n/d NAO mostra numero (nunca fabricar)
+  ---
+  duration_ms: 0.140947
+  type: 'test'
+  ...
+# Subtest: leitura · custo calculado por tabela sai ROTULADO como estimativa
+ok 200 - leitura · custo calculado por tabela sai ROTULADO como estimativa
+  ---
+  duration_ms: 0.187045
+  type: 'test'
+  ...
+# Subtest: leitura · modelo ausente e n/d — NUNCA se infere do tier
+ok 201 - leitura · modelo ausente e n/d — NUNCA se infere do tier
+  ---
+  duration_ms: 0.121791
+  type: 'test'
+  ...
+# Subtest: leitura · autor NAO-humano e n/d, e o motor aparece a parte (nao disfarcado de autor)
+ok 202 - leitura · autor NAO-humano e n/d, e o motor aparece a parte (nao disfarcado de autor)
+  ---
+  duration_ms: 0.171605
+  type: 'test'
+  ...
+# Subtest: leitura · autor humano declarado pelo Slack aparece como AUTOR
+ok 203 - leitura · autor humano declarado pelo Slack aparece como AUTOR
+  ---
+  duration_ms: 0.073349
+  type: 'test'
+  ...
+# Subtest: leitura · diff-stat esta CORTADO com a razao do Dia 0 (0/12 nao-nulo)
+ok 204 - leitura · diff-stat esta CORTADO com a razao do Dia 0 (0/12 nao-nulo)
+  ---
+  duration_ms: 0.139204
+  type: 'test'
+  ...
+# Subtest: publicar · recusa payload marcado local_only
+ok 205 - publicar · recusa payload marcado local_only
+  ---
+  duration_ms: 0.204728
+  type: 'test'
+  ...
+# Subtest: publicar · FAIL-CLOSED: campo fora da allowlist bloqueia (a ausencia de rotulo nao e permissao)
+ok 206 - publicar · FAIL-CLOSED: campo fora da allowlist bloqueia (a ausencia de rotulo nao e permissao)
+  ---
+  duration_ms: 0.247329
+  type: 'test'
+  ...
+# Subtest: publicar · a allowlist de campos nao inclui conteudo do utilizador
+ok 207 - publicar · a allowlist de campos nao inclui conteudo do utilizador
+  ---
+  duration_ms: 0.307123
+  type: 'test'
+  ...
+# Subtest: publicar · texto livre com nome de segredo e recusado pelo catalogo antes da denylist
+ok 208 - publicar · texto livre com nome de segredo e recusado pelo catalogo antes da denylist
+  ---
+  duration_ms: 0.276895
+  type: 'test'
+  ...
+# Subtest: denylist (unidade) · limpa a folha real e o varredor real limpa a arvore
+ok 209 - denylist (unidade) · limpa a folha real e o varredor real limpa a arvore
+  ---
+  duration_ms: 1.051626
+  type: 'test'
+  ...
+# Subtest: publicar · dry-run nao envia nada mas devolve o texto
+ok 210 - publicar · dry-run nao envia nada mas devolve o texto
+  ---
+  duration_ms: 1.419574
+  type: 'test'
+  ...
+# Subtest: seguirCorrente · o filho de uma prep que EXPIROU herda o thread (prep_from)
+ok 211 - seguirCorrente · o filho de uma prep que EXPIROU herda o thread (prep_from)
+  ---
+  duration_ms: 0.96449
+  type: 'test'
+  ...
+# Subtest: seguirCorrente · o filho de uma prep BEM SUCEDIDA tambem (handoff_from)
+ok 212 - seguirCorrente · o filho de uma prep BEM SUCEDIDA tambem (handoff_from)
+  ---
+  duration_ms: 0.123805
+  type: 'test'
+  ...
+# Subtest: seguirCorrente · nao rouba o thread de um job que ja tem o seu
+ok 213 - seguirCorrente · nao rouba o thread de um job que ja tem o seu
+  ---
+  duration_ms: 0.079311
+  type: 'test'
+  ...
+# Subtest: seguirCorrente · um filho de pai desconhecido fica de fora
+ok 214 - seguirCorrente · um filho de pai desconhecido fica de fora
+  ---
+  duration_ms: 0.075142
+  type: 'test'
+  ...
+# Subtest: tique · publica o cartao de um pendente NOSSO
+ok 215 - tique · publica o cartao de um pendente NOSSO
+  ---
+  duration_ms: 4.683056
+  type: 'test'
+  ...
+# Subtest: tique · NAO publica um pendente que nao e nosso
+ok 216 - tique · NAO publica um pendente que nao e nosso
+  ---
+  duration_ms: 0.164612
+  type: 'test'
+  ...
+# Subtest: tique · o mesmo cartao nao se republica (dois tiques, um cartao)
+ok 217 - tique · o mesmo cartao nao se republica (dois tiques, um cartao)
+  ---
+  duration_ms: 0.650614
+  type: 'test'
+  ...
+# Subtest: tique · um job SILENCIADO nao se anuncia mas continua na fila
+ok 218 - tique · um job SILENCIADO nao se anuncia mas continua na fila
+  ---
+  duration_ms: 0.243031
+  type: 'test'
+  ...
+# Subtest: tique · o `done` de uma PREPARACAO nunca se anuncia como trabalho concluido
+ok 219 - tique · o `done` de uma PREPARACAO nunca se anuncia como trabalho concluido
+  ---
+  duration_ms: 0.472066
+  type: 'test'
+  ...
+# Subtest: tique · o fecho e do FILHO, com o custo REAL, e o filho herda o thread
+ok 220 - tique · o fecho e do FILHO, com o custo REAL, e o filho herda o thread
+  ---
+  duration_ms: 0.802193
+  type: 'test'
+  ...
+# Subtest: tique · o fecho nao se repete a cada tique
+ok 221 - tique · o fecho nao se repete a cada tique
+  ---
+  duration_ms: 0.518614
+  type: 'test'
+  ...
+# Subtest: tique · um pendente re-carimbado SEM actor continua a ser nosso
+ok 222 - tique · um pendente re-carimbado SEM actor continua a ser nosso
+  ---
+  duration_ms: 0.573408
+  type: 'test'
+  ...
+# Subtest: tique · um cartao que o Slack RECUSOU nao se marca como visto (e retenta)
+ok 223 - tique · um cartao que o Slack RECUSOU nao se marca como visto (e retenta)
+  ---
+  duration_ms: 1.403633
+  type: 'test'
+  ...
+# Subtest: tique · um cartao ACEITE marca-se como visto e nao se repete
+ok 224 - tique · um cartao ACEITE marca-se como visto e nao se repete
+  ---
+  duration_ms: 0.448131
+  type: 'test'
+  ...
+# Subtest: kimi \#5 · o NOME do segredo nao aparece no cartao do pendente
+ok 225 - kimi \#5 · o NOME do segredo nao aparece no cartao do pendente
+  ---
+  duration_ms: 7.088525
+  type: 'test'
+  ...
+# Subtest: kimi \#5 · o NOME nao aparece na mensagem de estado da mencao
+ok 226 - kimi \#5 · o NOME nao aparece na mensagem de estado da mencao
+  ---
+  duration_ms: 1.148139
+  type: 'test'
+  ...
+# Subtest: kimi \#5 · o NOME nao aparece na confirmacao nem na auditoria da decisao
+ok 227 - kimi \#5 · o NOME nao aparece na confirmacao nem na auditoria da decisao
+  ---
+  duration_ms: 2.823868
+  type: 'test'
+  ...
+# Subtest: kimi \#5 · texto livre e recusado pelo catalogo antes de poder transportar o nome
+ok 228 - kimi \#5 · texto livre e recusado pelo catalogo antes de poder transportar o nome
+  ---
+  duration_ms: 0.403024
+  type: 'test'
+  ...
+# Subtest: kimi \#5 · denylist e varredor reais limpam o nome numa arvore aninhada
+ok 229 - kimi \#5 · denylist e varredor reais limpam o nome numa arvore aninhada
+  ---
+  duration_ms: 0.577866
+  type: 'test'
+  ...
+# Subtest: kimi \#5 · o cartao NAO transporta files_touched, mesmo quando o ledger o traz
+ok 230 - kimi \#5 · o cartao NAO transporta files_touched, mesmo quando o ledger o traz
+  ---
+  duration_ms: 1.282809
+  type: 'test'
+  ...
+# Subtest: extrairGoal · tira a mencao ao bot, e o id do bot NAO fica no goal
+ok 231 - extrairGoal · tira a mencao ao bot, e o id do bot NAO fica no goal
+  ---
+  duration_ms: 1.01709
+  type: 'test'
+  ...
+# Subtest: extrairGoal · desescapa as entidades que o Slack mete no texto
+ok 232 - extrairGoal · desescapa as entidades que o Slack mete no texto
+  ---
+  duration_ms: 0.150636
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · app_mention vira mencao com SO user_id e texto
+ok 233 - classificarEnvelope · app_mention vira mencao com SO user_id e texto
+  ---
+  duration_ms: 0.208716
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · o thread_context NUNCA atravessa, mesmo quando o Slack o manda
+ok 234 - classificarEnvelope · o thread_context NUNCA atravessa, mesmo quando o Slack o manda
+  ---
+  duration_ms: 0.51156
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · evento que nao e app_mention e ignorado MAS pede ack
+ok 235 - classificarEnvelope · evento que nao e app_mention e ignorado MAS pede ack
+  ---
+  duration_ms: 0.283979
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · mencao vinda de um bot nao se atende
+ok 236 - classificarEnvelope · mencao vinda de um bot nao se atende
+  ---
+  duration_ms: 0.072658
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · hello e disconnect nao pedem ack
+ok 237 - classificarEnvelope · hello e disconnect nao pedem ack
+  ---
+  duration_ms: 0.112143
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · o clique traz o hash DO CARTAO, nao um hash fresco
+ok 238 - classificarEnvelope · o clique traz o hash DO CARTAO, nao um hash fresco
+  ---
+  duration_ms: 0.180112
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · a idem_key e estavel por (job, accao) — 2 cliques iguais sao replay
+ok 239 - classificarEnvelope · a idem_key e estavel por (job, accao) — 2 cliques iguais sao replay
+  ---
+  duration_ms: 0.253081
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · botao sem hash e ignorado (sem CAS nao se decide)
+ok 240 - classificarEnvelope · botao sem hash e ignorado (sem CAS nao se decide)
+  ---
+  duration_ms: 0.349253
+  type: 'test'
+  ...
+# Subtest: classificarEnvelope · botao com lixo no valor e ignorado, nao rebenta
+ok 241 - classificarEnvelope · botao com lixo no valor e ignorado, nao rebenta
+  ---
+  duration_ms: 0.287371
+  type: 'test'
+  ...
+# Subtest: blocosDoCartao · o botao leva job_id, accao e hash — e mais nada
+ok 242 - blocosDoCartao · o botao leva job_id, accao e hash — e mais nada
+  ---
+  duration_ms: 0.396683
+  type: 'test'
+  ...
+# Subtest: blocosDoCartao · sem hash_esperado NAO ha botoes (um botao sem CAS decide as cegas)
+ok 243 - blocosDoCartao · sem hash_esperado NAO ha botoes (um botao sem CAS decide as cegas)
+  ---
+  duration_ms: 0.070775
+  type: 'test'
+  ...
+# Subtest: correr · o ACK sai ANTES de o handler acabar (senao o Slack re-entrega e paga-se 2x)
+ok 244 - correr · o ACK sai ANTES de o handler acabar (senao o Slack re-entrega e paga-se 2x)
+  ---
+  duration_ms: 13.187384
+  type: 'test'
+  ...
+# Subtest: tratarEnvelope · a re-entrega do mesmo event_id NAO chama o handler outra vez
+ok 245 - tratarEnvelope · a re-entrega do mesmo event_id NAO chama o handler outra vez
+  ---
+  duration_ms: 0.847638
+  type: 'test'
+  ...
+# Subtest: enviar · envio REAL com o SYNC.md trancado nao sai e nao toca na rede
+ok 246 - enviar · envio REAL com o SYNC.md trancado nao sai e nao toca na rede
+  ---
+  duration_ms: 0.662968
+  type: 'test'
+  ...
+# Subtest: enviar · em dry-run corre COM o SYNC trancado — e isso E o MODO CONSTRUCAO
+ok 247 - enviar · em dry-run corre COM o SYNC trancado — e isso E o MODO CONSTRUCAO
+  ---
+  duration_ms: 0.209818
+  type: 'test'
+  ...
+# Subtest: correr · trancado NAO pede sequer o URL do socket ao Slack
+ok 248 - correr · trancado NAO pede sequer o URL do socket ao Slack
+  ---
+  duration_ms: 0.223474
+  type: 'test'
+  ...
+# Subtest: tratarEnvelope · clique de terceiro NAO gera efemero (responder confirmava que o pedido existe)
+ok 249 - tratarEnvelope · clique de terceiro NAO gera efemero (responder confirmava que o pedido existe)
+  ---
+  duration_ms: 0.24244
+  type: 'test'
+  ...
+# Subtest: tratarEnvelope · pendente ja decidido gera efemero com frase FIXA (nunca o porque do broker)
+ok 250 - tratarEnvelope · pendente ja decidido gera efemero com frase FIXA (nunca o porque do broker)
+  ---
+  duration_ms: 0.260424
+  type: 'test'
+  ...
+# Subtest: enviar · a resposta de um job vai para o thread da mencao que o criou
+ok 251 - enviar · a resposta de um job vai para o thread da mencao que o criou
+  ---
+  duration_ms: 0.318043
+  type: 'test'
+  ...
+# Subtest: chamarSlack · o erro do Slack nao devolve o corpo enviado (levava o texto consigo)
+ok 252 - chamarSlack · o erro do Slack nao devolve o corpo enviado (levava o texto consigo)
+  ---
+  duration_ms: 0.33752
+  type: 'test'
+  ...
+# Subtest: pedirUrlDoSocket · usa o token de APP, nao o do bot
+ok 253 - pedirUrlDoSocket · usa o token de APP, nao o do bot
+  ---
+  duration_ms: 0.117583
+  type: 'test'
+  ...
+# Subtest: criarTransporte · sem canal ou sem syncPath nao se monta (nao ha default seguro)
+ok 254 - criarTransporte · sem canal ou sem syncPath nao se monta (nao ha default seguro)
+  ---
+  duration_ms: 0.348451
+  type: 'test'
+  ...
+# Subtest: correr · o `disconnect` do Slack dispara religacao (nao se fica a olhar)
+ok 255 - correr · o `disconnect` do Slack dispara religacao (nao se fica a olhar)
+  ---
+  duration_ms: 0.60097
+  type: 'test'
+  ...
+# Subtest: correr · o socket a fechar tambem religa, com backoff crescente
+ok 256 - correr · o socket a fechar tambem religa, com backoff crescente
+  ---
+  duration_ms: 0.482946
+  type: 'test'
+  ...
+# Subtest: correr · uma queda gera UMA religacao, nao duas (close + erro no mesmo socket)
+ok 257 - correr · uma queda gera UMA religacao, nao duas (close + erro no mesmo socket)
+  ---
+  duration_ms: 0.349353
+  type: 'test'
+  ...
+# Subtest: correr · aoAbrir com sucesso reseta o backoff
+ok 258 - correr · aoAbrir com sucesso reseta o backoff
+  ---
+  duration_ms: 0.509376
+  type: 'test'
+  ...
+# Subtest: correr · com reconectar:false nao religa (para quem quer um socket so)
+ok 259 - correr · com reconectar:false nao religa (para quem quer um socket so)
+  ---
+  duration_ms: 0.375532
+  type: 'test'
+  ...
+# Subtest: corrida · duas mencoes concorrentes NAO trocam de thread
+ok 260 - corrida · duas mencoes concorrentes NAO trocam de thread
+  ---
+  duration_ms: 0.364522
+  type: 'test'
+  ...
+# Subtest: religar · FECHA o socket velho (senao acumulam-se e o log fica ambiguo)
+ok 261 - religar · FECHA o socket velho (senao acumulam-se e o log fica ambiguo)
+  ---
+  duration_ms: 0.517953
+  type: 'test'
+  ...
+# Subtest: religar · cada socket tem geracao no log (para se saber qual esta vivo)
+ok 262 - religar · cada socket tem geracao no log (para se saber qual esta vivo)
+  ---
+  duration_ms: 0.408465
+  type: 'test'
+  ...
+# Subtest: o daemon NAO morre entre o socket cair e a religacao
+ok 263 - o daemon NAO morre entre o socket cair e a religacao
+  ---
+  duration_ms: 725.897347
+  type: 'test'
+  ...
+# Subtest: o daemon NAO morre quando a propria RELIGACAO falha (ALTO do codex)
+ok 264 - o daemon NAO morre quando a propria RELIGACAO falha (ALTO do codex)
+  ---
+  duration_ms: 2525.33496
+  type: 'test'
+  ...
+# Subtest: religar · uma tentativa FALHADA agenda outra (senao a 1a falha mata o daemon)
+ok 265 - religar · uma tentativa FALHADA agenda outra (senao a 1a falha mata o daemon)
+  ---
+  duration_ms: 2.825051
+  type: 'test'
+  ...
+# Subtest: religar · a ancora AGUENTA entre tentativas falhadas (nao se larga a entrada)
+ok 266 - religar · a ancora AGUENTA entre tentativas falhadas (nao se larga a entrada)
+  ---
+  duration_ms: 0.787875
+  type: 'test'
+  ...
+# Subtest: religar · gate a fechar entre tentativas ABORTA em voz alta e larga a ancora
+ok 267 - religar · gate a fechar entre tentativas ABORTA em voz alta e larga a ancora
+  ---
+  duration_ms: 0.568158
+  type: 'test'
+  ...
+# Subtest: morte · o prazo conta em CADA religacao, nao so no arranque
+ok 268 - morte · o prazo conta em CADA religacao, nao so no arranque
+  ---
+  duration_ms: 0.238312
+  type: 'test'
+  ...
+# Subtest: religar · DESISTE numa recusa definitiva (senao martela o Slack para sempre)
+ok 269 - religar · DESISTE numa recusa definitiva (senao martela o Slack para sempre)
+  ---
+  duration_ms: 0.526469
+  type: 'test'
+  ...
+# Subtest: socket · que NUNCA abre nem falha e apanhado por prazo (senao fica vivo e surdo)
+ok 270 - socket · que NUNCA abre nem falha e apanhado por prazo (senao fica vivo e surdo)
+  ---
+  duration_ms: 81.201098
+  type: 'test'
+  ...
+1..270
+# tests 270
+# suites 0
+# pass 270
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4045.010343
