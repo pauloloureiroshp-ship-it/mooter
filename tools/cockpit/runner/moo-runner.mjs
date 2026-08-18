@@ -28,7 +28,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
-import { loadPillars } from './context-pack.mjs';
+import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
@@ -49,7 +49,13 @@ const SCRIPT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname)
 // de falso positivo. Medido a 2026-08-18: 30/30 rondas em modo ancorado, 29
 // falsos positivos. A base tem de ser uma JANELA MOVEL de commits recentes, que
 // nunca seca enquanto houver historia.
-const DIFF_BASE = process.env.MOO_DIFF_BASE || 'HEAD~12';
+// Uma base so e um poco finito. MOO_DIFF_BASE continua a fixar UMA base
+// (util para depurar); sem ela, a escada abre a seguinte quando a actual nao
+// tem nada por rever.
+const DIFF_BASE = process.env.MOO_DIFF_BASE || DIFF_LADDER;
+
+/** Quantas chaves de revistos guardar. Um ficheiro que cresce para sempre acaba por ser o problema. */
+const MAX_REVISTOS = 5000;
 // Segundo parecer: outro modelo LOCAL, de LINHAGEM DIFERENTE do primario. Dois
 // modelos da mesma familia partilham os mesmos erros — o par so vale se
 // divergirem. Vazio ou ausente desliga a escalada; continua tudo a $0.
@@ -156,6 +162,25 @@ function writeCursor(cursorPath, i) {
   }
 }
 
+/** Le as chaves ja julgadas. Ilegivel = conjunto vazio: remoer e mau, parar e pior. */
+function readRevistos(p) {
+  try {
+    const v = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return new Set(Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeRevistos(p, set) {
+  try {
+    const arr = [...set];
+    fs.writeFileSync(p, JSON.stringify(arr.slice(Math.max(0, arr.length - MAX_REVISTOS))));
+  } catch {
+    /* memoria de trabalho, nunca um bloqueador */
+  }
+}
+
 function appendReceipt(ledgerPath, receipt) {
   fs.appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
 }
@@ -251,6 +276,8 @@ export async function main({
   // O disjuntor guarda o estado do motor entre rondas. Ver engine-breaker.mjs:
   // 1767 recibos de um apagao de 11 horas foi o que custou nao o ter.
   const breaker = createEngineBreaker();
+  const revistos = readRevistos(paths.REVISTOS);
+  logImpl(`ja julgados ${revistos.size} excertos — nao voltam a fila enquanto nao mudarem`);
   let rondas = 0;
 
   for (;;) {
@@ -293,6 +320,7 @@ export async function main({
         stopFile: paths.STOP_FILE,
         anchorPath: paths.ANCORA,
         diffBase: DIFF_BASE,
+        revistos,
         secondModel: SECOND_MODEL,
       }));
     } catch (err) {
@@ -314,6 +342,13 @@ export async function main({
         resultado_resumo: `ronda rebentou: ${String(err && err.message).slice(0, 160)}`,
         evidencia: 'n/d',
       };
+    }
+
+    // So conta como julgado quando o motor REALMENTE respondeu: marcar um
+    // excerto como visto por causa de um apagao perdia-o para sempre.
+    if (receipt.motor_ok === true && receipt.chave) {
+      revistos.add(receipt.chave);
+      writeRevistos(paths.REVISTOS, revistos);
     }
 
     const motorFalhou = Boolean(receipt.falha_motor);

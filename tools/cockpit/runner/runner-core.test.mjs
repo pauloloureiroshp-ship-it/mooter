@@ -772,3 +772,56 @@ test('B6: um pilar so de documentos nao entra no degrau do diff', () => {
   assert.notEqual(pack.mode, 'diff', 'um pilar sem um unico ficheiro de codigo nao tem lugar no diff');
   assert.equal(pack.file, 'CLAUDE.md', 'vai rever o canon, que e o trabalho dele');
 });
+
+// ------------------------------------------------- o poco que secava em 10 min
+
+test('POCO: um excerto ja julgado nao volta a fila — mas um excerto ALTERADO volta', () => {
+  // Medido a 2026-08-18: `HEAD~12` dava 20 hunks e o runner corre 2950 rondas
+  // por dia (29s cada). O poco secava em menos de 10 minutos e a GPU remoia os
+  // mesmos 20 excertos ~147 vezes por dia. Foi assim que 113 rondas deram 0
+  // achados uteis — nao por o motor ser mau, mas por lhe darmos o mesmo
+  // trabalho outra vez.
+  const root = repoDiff();
+  const alvo = 'packages/mooter-bridge/board.js';
+  const diff = diffFalso([alvo]);
+  const revistos = new Set();
+
+  const p1 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
+  assert.equal(p1.mode, 'diff');
+  assert.ok(p1.chave, 'todo o excerto servido tem identidade');
+  revistos.add(p1.chave);
+
+  const p2 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
+  assert.equal(p2.ok, false, 'o unico hunk ja foi julgado');
+  assert.equal(p2.esgotado, true, 'e o pack DIZ que esgotou, em vez de servir o mesmo outra vez');
+
+  // Muda o conteudo: e trabalho novo, e volta a fila.
+  const linhas = fs.readFileSync(path.join(root, alvo), 'utf8').split('\n');
+  linhas[19] = 'if (a !== b) { throw new Error("mudou"); }';
+  fs.writeFileSync(path.join(root, alvo), linhas.join('\n'));
+  const p3 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
+  assert.equal(p3.ok, true, 'linhas alteradas sao trabalho novo');
+  assert.notEqual(p3.chave, p1.chave, 'a chave inclui o CONTEUDO, nao so a posicao');
+});
+
+test('POCO: a escada abre a base seguinte em vez de remoer, e degrada no fim', () => {
+  const root = repoDiff();
+  const porBase = {
+    'HEAD~12': diffFalso(['packages/mooter-bridge/board.js']),
+    'HEAD~25': diffFalso(['packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js']),
+  };
+  const revistos = new Set();
+  const escada = ['HEAD~12', 'HEAD~25'];
+  const servidos = [];
+  for (let c = 0; c < 6; c += 1) {
+    const pk = buildContextPack({
+      repoRoot: root, pillar: 'P1', cursor: c, diffBase: escada, revistos,
+      diffRunImpl: (args) => (porBase[args.find((a) => String(a).startsWith('HEAD'))?.split('...')[0]] || (() => ''))(),
+    });
+    if (pk.mode !== 'diff') { servidos.push(`caiu:${pk.mode}`); break; }
+    revistos.add(pk.chave);
+    servidos.push(pk.escadaBase);
+  }
+  assert.ok(servidos.includes('HEAD~25'), `a escada tem de abrir a base seguinte: ${JSON.stringify(servidos)}`);
+  assert.ok(servidos.at(-1).startsWith('caiu:'), 'esgotadas todas as bases, degrada em vez de remoer');
+});

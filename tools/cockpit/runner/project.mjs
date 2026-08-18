@@ -145,6 +145,9 @@ export function projectPaths({ repoRoot, mooDir, canonicalRoot = null }) {
     CURSOR: path.join(base, 'runner-cursor.json'),
     FOCUS: path.join(base, 'runner-focus.json'),
     ANCORA: path.join(base, 'ancora-achados.json'),
+    // O que ja foi julgado, por conteudo. Sem isto o motor remoia os mesmos 20
+    // excertos ~147 vezes por dia e chamava-lhe trabalho.
+    REVISTOS: path.join(base, 'revistos.json'),
     LOCK: path.join(base, 'runner.lock'),
     // O STOP e por projecto, tal como o lock: parar o projecto A nao pode parar
     // o projecto B. Um kill-switch global e uma decisao maior, e essa e do dono.

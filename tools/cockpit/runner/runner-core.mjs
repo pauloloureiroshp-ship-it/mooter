@@ -156,6 +156,8 @@ export async function runRound({
   // Os pilares em uso — os do projecto quando ele os declara (ver
   // `context-pack.loadPillars`), os embutidos quando nao.
   pillars = PILLARS,
+  // Chaves de `hunkKey` ja julgadas. Um Set; ausente = tudo por rever.
+  revistos = null,
   // O commit em que o repo esta. `null` quando nao ha git: nunca inventado.
   repoSha = null,
 }) {
@@ -192,7 +194,7 @@ export async function runRound({
 
   // A âncora estática (eslint) é o detetor; o moo é o juiz. Se o ficheiro não
   // existir, readAnchor devolve [] e a ronda volta ao modo de caça — nunca falha.
-  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase, pillars });
+  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase, pillars, revistos });
   if (!pack.ok) {
     return {
       dispatched: false,
@@ -351,6 +353,11 @@ export async function runRound({
       // tinha nada no diff e revimos o resto. Sem este campo o painel dava o
       // rotulo do pilar a trabalho que nao era dele.
       ...(pack.escopo ? { escopo: pack.escopo } : {}),
+      // A identidade do excerto revisto (ficheiro:linhas:sha do conteudo). E o
+      // que impede a ronda seguinte de o julgar outra vez, e o que faz um
+      // excerto ALTERADO voltar a fila.
+      ...(pack.chave ? { chave: pack.chave } : {}),
+      ...(pack.escadaBase ? { diff_base: pack.escadaBase } : {}),
       // O `git diff` rebentou mas a escada degradou: o recibo diz que degradou
       // E porque. Capturar o erro e nao o publicar e um catch mudo com mais passos.
       ...(pack.diffErro ? { diff_erro: pack.diffErro } : {}),

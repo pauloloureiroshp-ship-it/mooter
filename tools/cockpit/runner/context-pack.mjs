@@ -11,8 +11,20 @@
  */
 
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+
+/**
+ * A escada de bases do diff. O poco de UMA base e FINITO: medido a 2026-08-18,
+ * `HEAD~12` dava 20 hunks e o runner consome 2950 rondas por dia (29s cada) —
+ * o poco secava em menos de 10 minutos e a GPU passava a remoer os mesmos 20
+ * excertos ~147 vezes por dia. Foi assim que 113 rondas deram 0 achados uteis:
+ * nao por o motor ser mau, mas por lhe darmos o mesmo trabalho outra vez.
+ *
+ * Quando a base actual nao tem nada por rever, abre-se a seguinte.
+ */
+export const DIFF_LADDER = ['HEAD~12', 'HEAD~25', 'HEAD~50', 'HEAD~100'];
 
 export const MAX_SLICE_LINES = 70;
 export const MAX_SLICE_BYTES = 16 * 1024;
@@ -282,6 +294,16 @@ export function negacaoDensa(texto) {
   return false;
 }
 
+/**
+ * A identidade de um excerto revisto. Inclui o CONTEUDO, nao so a posicao: se
+ * as linhas mudarem, e trabalho novo e volta a fila; se nao mudarem, ja foi
+ * julgado e nao ha nada a ganhar em julga-lo outra vez.
+ */
+export function hunkKey(file, startLine, endLine, texto) {
+  const sha = crypto.createHash('sha256').update(String(texto || '')).digest('hex').slice(0, 12);
+  return `${file}:${startLine}-${endLine}:${sha}`;
+}
+
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 
 /**
@@ -486,12 +508,29 @@ export function buildContextPack({
   anchorPath = null,
   diffBase = null,
   diffRunImpl = null,
+  // O que ja foi julgado. Um Set de chaves de `hunkKey`; vazio = tudo por rever.
+  revistos = null,
   // Os pilares do PROJECTO, quando ele os declara. O default embutido continua
   // a ser o de sempre, para que um repo sem `.mooter/pilares.json` corra igual.
   pillars = PILLARS,
 }) {
   const spec = pillars[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
+
+  // Escada de bases: quando a base actual nao tem nada por rever, abre-se a
+  // seguinte em vez de remoer. Uma base so e um poco finito — 20 hunks contra
+  // 2950 rondas por dia. Esgotadas todas, cai para os degraus de baixo
+  // (ancorado, caca), que e a degradacao que ja existia.
+  if (Array.isArray(diffBase)) {
+    const resto = { repoRoot, pillar, cursor, maxLines, anchorPath, diffRunImpl, pillars, revistos };
+    for (const base of diffBase) {
+      const r = buildContextPack({ ...resto, diffBase: base });
+      if (r.ok) return { ...r, escadaBase: base };
+      // Esgotada e o unico motivo para alargar; qualquer outra falha e falha.
+      if (!r.esgotado) break;
+    }
+    return buildContextPack({ ...resto, diffBase: null });
+  }
 
   // O degrau do diff so ve codigo (ver DIFF_PATHSPEC). Um pilar cujos ficheiros
   // sao TODOS documentos — o P3, cujo trabalho SAO os documentos — nunca podia
@@ -547,7 +586,25 @@ export function buildContextPack({
       // janela 277-295. Multiplicar pelo numero de pilares torna cada par
       // (rotacao, pilar) um lugar unico na caminhada.
       const passo = cursor * ids.length + desvio;
-      const h = hunks[Math.abs(passo) % hunks.length];
+      // Varre a partir do lugar deterministico ate encontrar um excerto que
+      // ainda nao foi julgado. Sem isto, o cursor voltava sempre ao mesmo
+      // hunk assim que o poco dava a volta.
+      let h = null;
+      let chave = null;
+      for (let k = 0; k < hunks.length; k += 1) {
+        const cand = hunks[Math.abs(passo + k) % hunks.length];
+        const ls = readLines(repoRoot, cand.file);
+        if (!ls || ls.length === 0 || cand.start > ls.length) continue;
+        const fimC = Math.min(ls.length, cand.start + cand.count - 1);
+        const kc = hunkKey(cand.file, cand.start, fimC, ls.slice(cand.start - 1, fimC).join('\n'));
+        if (revistos && revistos.has(kc)) continue;
+        h = cand;
+        chave = kc;
+        break;
+      }
+      // Poco seco nesta base: cai para o degrau seguinte da escada em vez de
+      // remoer. Quem chama e que decide abrir uma base mais larga.
+      if (!h) return { ok: false, esgotado: true, reason: `nada por rever em ${diffBase}`, pillar, diffErro };
       const lines = readLines(repoRoot, h.file);
       if (lines && lines.length > 0 && h.start <= lines.length) {
         const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
@@ -590,6 +647,7 @@ export function buildContextPack({
           ok: true,
           mode: 'diff',
           escopo,
+          chave,
           negacaoDensa: densa,
           diffErro,
           anchored: false,
