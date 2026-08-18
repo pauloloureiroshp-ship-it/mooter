@@ -778,3 +778,34 @@ pura — e a aprovação exigiu `capacidades ["read","write","bash","net","git"]
 
 Estado: **211/211** · 29 commits · 0 uncommitted · `classify.js` sha intacto · nada
 pushed · daemon vivo com o fix (`geracao 1`).
+
+### 2026-08-18 (2) · o botão quente e o total da conversa
+
+Duas coisas vistas no print do dono, ambas corrigidas.
+
+**1 · O cartão silenciado ficava com o `[Aprovar]` QUENTE** (`0c78272b`).
+`ignorados` só era consultado no caminho da **publicação** (`poller.js:79,90`); o
+caminho do **clique** (`receberInteraccao`) nunca o via. Silenciar impedia o cartão
+de ser reanunciado, não de ser accionado — que é a parte que custa. O cartão do
+ciclo mau (opus, US$ 0,66 já gastos) esteve dias no `#mooter-demo` a um clique de
+gastar outra vez. Agora uma só leitura do ambiente (`silenciadosDoAmbiente`)
+alimenta os dois caminhos. **Só o `aprovar` é bloqueado** — `recusar` e `parar` são
+as acções que mandam parar, e bloqueá-las prendia o dono dentro do próprio cartão.
+
+**2 · O cartão mostrava US$ 1,24 numa thread que já gastara US$ 2,88** (`5efa5f44`).
+Nenhum cartão mentia: «neste pedido» é literalmente verdadeiro em todos. A mentira
+estava no **conjunto**. Novo `cadeia.js` (puro, aritmética só) sobe à raiz pelos
+dois elos e desce a apanhar os descendentes; `cartao.js` rende a linha por baixo,
+com a mesma regra de procedência e «pelo menos» quando um job da cadeia ainda não
+reportou custo. Ligada nos **quatro** cartões que levam custo. Escolha do dono:
+opção «cadeia + pedido».
+
+Verificado contra o ledger real: `cadeiaDe(3eb9)` → 3 pedidos · US$ 2,8833 ·
+`todosMedidos=true`.
+
+**Ainda por decidir (fica para a auditoria do codex / Cowork):** aprovar não herda o
+tier do pai. O re-despacho re-classifica um prompt inflado (457 → 2595 chars) e sobe
+T1 → T3 — 12,7× o custo. O fix é no motor (`broker.decide`), fora do alcance do
+spike. Sintoma tapado (o total agora vê-se); causa por tapar.
+
+Estado: **226/226** · 32 commits · 0 uncommitted · nada pushed.
