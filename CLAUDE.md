@@ -83,6 +83,13 @@ that touches `tools/router/`:
    `Test-Path ~/.claude/tools/router/<new-file>.js`
 4. Confirm the wired accumulator is intact:
    `node ~/.claude/tools/router/sync-hooks.js --check` (must print `OK self-check`).
+5. Espelhar o cockpit e confirmar que e ELE que a maquina corre:
+   `npm run sync:cockpit` (deve imprimir `OK self-check`). Ate 2026-08-18 o
+   cockpit nao tinha canal de distribuicao nenhum: nada fora de
+   `tools/cockpit/` o importava, o `/mooter-update` nao o sincronizava, e o
+   LaunchAgent apontava direto para dentro do checkout. Um `AVISO` aqui quer
+   dizer que o espelho esta em dia e a maquina corre outra copia — que e
+   exactamente como o acumulador morreu 63 sessoes em silencio.
 5. Kill stale CC sessions: `Get-Process claude | Stop-Process -Force`.
 6. Open a **fresh** CC terminal and confirm the statusline.
 
