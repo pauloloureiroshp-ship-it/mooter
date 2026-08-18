@@ -72,7 +72,23 @@ let LOGFILE = null;
        * intercaladas e nada as distinguia. Com o pid no nome, `RX`/`TX` do mesmo
        * ficheiro são do mesmo processo por construção, e não por esperança.
        */
-      const f = _pathx.join(d, 'mooter-mcp-boot.' + process.pid + '.log');
+      /**
+       * ⚠️ 2026-08-18 — O SUBDIRECTORIO `logs/`.
+       *
+       * O pid no nome resolveu a atribuicao e criou outro problema: cada boot
+       * deixava um ficheiro NOVO na raiz do `_handoff/`, e `tools/docs-hygiene.js`
+       * conta os ficheiros do topo dessa pasta com `listFiles()` — do DISCO, nao
+       * do git, por isso o `.gitignore` nao ajuda. Medido nesse dia: 15 boots numa
+       * sessao, a metrica `top_level_handoff_files` a subir de 312 para 327, e o
+       * `handoff:hygiene:ratchet` VERMELHO — um gate de merge partido por telemetria.
+       *
+       * Os irmaos ja viviam em `_handoff/logs/`. Agora este vai ter com eles.
+       * Um log que parte um guarda deixa de ser telemetria e passa a ser avaria.
+       */
+      const dirLog = _pathx.join(d, 'logs');
+      let alvo = d;
+      try { _fsx.mkdirSync(dirLog, { recursive: true }); alvo = dirLog; } catch { /* fica na raiz, como antes */ }
+      const f = _pathx.join(alvo, 'mooter-mcp-boot.' + process.pid + '.log');
       _fsx.appendFileSync(f, '');
       LOGFILE = f;
       return;
