@@ -22,7 +22,7 @@ const PENDENTE_RICO = {
   job_id: 'job-msvxptxq-b9fb',
   wave: 'contrato-test',
   agent: 'cc',
-  worktree: 'C:\\Users\\Paulo Loureiro\\frugal\\.claude\\worktrees\\onda-a3',
+  worktree: 'C:\\demo\\worktrees\\onda-a3',
   event: 'nao_verificado',
   exit_code: 'agent-awaiting-approval',
   cost_usd: 0.627405,

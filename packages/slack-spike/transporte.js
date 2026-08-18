@@ -36,6 +36,7 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 
 const gateOmissao = require('./gate.js');
+const morteOmissao = require('./morte.js');
 
 /**
  * ⚠️ O THREAD DA OPERACAO CORRENTE, sem estado mutavel partilhado.
@@ -255,6 +256,21 @@ function criarTransporte(opcoes) {
     if (ancora) { clearInterval(ancora); ancora = null; }
   }
 
+  /**
+   * ⚠️ HA FALHAS QUE NAO PASSAM COM O TEMPO. Um token revogado devolve `invalid_auth`
+   * a primeira e a milesima tentativa. Sem isto, o dia em que o dono rodar os tokens
+   * — que e precisamente o passo seguinte deste spike — o daemon ficava a martelar
+   * o Slack de 30 em 30 segundos, para sempre, com a ancora a segurar o processo.
+   * Insistir contra uma recusa definitiva nao e resiliencia, e ruido.
+   */
+  const FATAIS = Object.freeze(['invalid_auth', 'not_authed', 'account_inactive',
+    'token_revoked', 'token_expired', 'app_missing_action_url']);
+
+  function fatal(e) {
+    const s = String((e && (e.slack_error || e.message)) || '');
+    return FATAIS.find((f) => s.includes(f)) || null;
+  }
+
   function agendarTentativa(maos, porque, geracao) {
     if (!reconectar) return;
     tentativasLigacao += 1;
@@ -263,6 +279,13 @@ function criarTransporte(opcoes) {
     ancorar();
     agendar(() => correr(maos).catch((e) => {
       const msg = (e && e.message) || 'erro';
+      const f = fatal(e);
+      if (f) {
+        registar({ tipo: 'religacao_desistiu', geracao, porque: msg, slack_error: f,
+          nota: 'recusa definitiva do Slack — insistir nao muda nada; o daemon para aqui' });
+        largarAncora();          // deixa o processo morrer, em vez de martelar para sempre
+        return;
+      }
       registar({ tipo: 'religar_falhou', geracao, porque: msg });
       agendarTentativa(maos, 'a tentativa anterior falhou: ' + msg, geracao);   // OUTRA VEZ
     }), espera);
@@ -282,7 +305,15 @@ function criarTransporte(opcoes) {
    * Ou seja: nada toca a rede antes da linha no SYNC.md; tudo o que e local
    * corre hoje. Se alguem desligar o `dryRun`, o gate volta a mandar.
    */
+  /**
+   * ⚠️ A DATA DE MORTE tambem conta, e nao so no arranque. Era avaliada uma vez em
+   * `correr.js` e nunca mais: um daemon deixado a correr sobrevivia ao proprio prazo
+   * — e, com a ancora, «nunca morre» passou a ser literal. Um throwaway que nao
+   * morre e so software.
+   */
   function trancado() {
+    const m = (o.morte || morteOmissao).estadoDeMorte();
+    if (m.morto) return 'o prazo do spike terminou: ' + m.porque;
     const g = gate.modoVivo({ syncPath: o.syncPath });
     return g.vivo ? null : g.porque;
   }

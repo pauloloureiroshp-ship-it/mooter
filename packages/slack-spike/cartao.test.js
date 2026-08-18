@@ -535,3 +535,16 @@ test('cadeia · procedencias IGUAIS => um sufixo so, no plural', () => {
   assert.equal((t.match(/não verificad/g) || []).length, 1, 'repetiu o mesmo sufixo duas vezes');
   assert.match(t, /valores informados pelo próprio motor · não verificados por nós/);
 });
+
+test('cadeia · pedido em n/d NAO perde a razao do n/d por causa da cadeia', () => {
+  // ⚠️ Meia-sobra do nit nº1, apanhada na segunda passagem do final-reviewer.
+  // 6 dos 12 pendentes medidos tem `cost_usd` nulo mas fonte real. Com a cadeia da
+  // mesma classe, o cartao colapsava os sufixos e saia «n/d» sem dizer PORQUE, com
+  // um rotulo de procedencia colado por baixo de um numero que nao existe.
+  const t = tudo(c.blocosDePendente(pendente({
+    custo: { valor: null, fonte: 'reportado pelo CLI', porque: 'o motor nao reportou custo' },
+    cadeia: CAD() })));
+  assert.match(t, /neste pedido:\* n\/d/);
+  assert.match(t, /o motor nao reportou custo/, 'o n/d ficou sem razao');
+  assert.match(t, /Nesta conversa, 3 pedidos encadeados:\* US\$ 2,88/);
+});

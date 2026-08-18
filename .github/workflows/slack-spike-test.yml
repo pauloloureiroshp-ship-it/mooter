@@ -1,5 +1,5 @@
 name: slack-spike tests
-# O spike do Slack corre 233 testes e NENHUM workflow os corria. Um PR mostrava CI
+# O spike do Slack corre 244 testes e NENHUM workflow os corria. Um PR mostrava CI
 # verde sem nunca ter executado uma linha deste codigo — verde que nao significa
 # nada e pior que vermelho, porque convence.
 #
@@ -67,8 +67,11 @@ jobs:
           echo "sem signing secret"
       - name: Nenhum .env entrou na arvore
         run: |
-          # os *.env.example sao templates legitimos e ficam de fora
-          if git ls-files | grep -E '(^|/)[.]env([.][A-Za-z0-9_-]+)?$' | grep -vE '[.](example|template|sample)$'; then
+          # apanha `.env`, `prod.env`, `config/production.env` e `.envrc`; deixa
+          # passar os *.env.example / .template / .sample, que sao templates.
+          # (o guarda anterior so via nomes COMECADOS por `.env` — `prod.env` e
+          # `.envrc` escapavam-lhe, e o `.envrc` nem o .gitignore o tapa)
+          if git ls-files | grep -E '(^|/)([^/]*[.]env([.][A-Za-z0-9_-]+)?|[.]envrc)$' | grep -vE '[.](example|template|sample)$'; then
             echo "::error::um .env foi commitado"
             exit 1
           fi

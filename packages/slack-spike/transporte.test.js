@@ -560,3 +560,55 @@ test('religar · gate a fechar entre tentativas ABORTA em voz alta e larga a anc
       'ficou a segurar o processo para uma religacao que nunca vai acontecer');
   } finally { tr.largarAncora(); }
 });
+
+test('morte · o prazo conta em CADA religacao, nao so no arranque', async () => {
+  // ⚠️ `estadoDeMorte()` era avaliado uma vez no arranque e nunca mais: um daemon
+  // deixado a correr sobrevivia ao proprio prazo — e com a ancora, «nunca morre»
+  // passou a ser literal. Um throwaway que nao morre e so software.
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true, url: 'wss://x' }) }),
+    abrirSocket: () => ({ aoAbrir() {}, aoMensagem() {}, aoFechar() {}, aoErro() {},
+      enviar() {}, fechar() {} }),
+    agendar: () => ({ unref() {} }),
+    morte: { estadoDeMorte: () => ({ morto: true, porque: 'o prazo acabou ontem' }) } });
+  const r = await tr.correr({});
+  assert.equal(r.correu, false, 'religou depois de o prazo do spike ter terminado');
+  assert.match(r.porque, /prazo do spike terminou/);
+});
+
+test('religar · DESISTE numa recusa definitiva (senao martela o Slack para sempre)', async () => {
+  // ⚠️ Um token revogado devolve `invalid_auth` a primeira e a milesima tentativa.
+  // Sem isto, o dia em que o dono rodar os tokens — o passo seguinte deste spike —
+  // o daemon ficava a bater no Slack de 30 em 30s, indefinidamente, com a ancora a
+  // segurar o processo. Insistir contra uma recusa definitiva nao e resiliencia.
+  const regs = [];
+  const agendados = [];
+  let chamadas = 0;
+  const socketFalso = () => {
+    const s = { cbs: {} };
+    for (const k of ['aoAbrir', 'aoMensagem', 'aoFechar', 'aoErro']) s[k] = (f) => { s.cbs[k] = f; };
+    s.enviar = () => {}; s.fechar = () => {};
+    return s;
+  };
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: async () => {
+      chamadas += 1;
+      if (chamadas === 1) return { ok: true, json: async () => ({ ok: true, url: 'wss://x' }) };
+      const e = new Error('slack apps.connections.open falhou: invalid_auth');
+      e.slack_error = 'invalid_auth';
+      throw e;
+    },
+    abrirSocket: socketFalso,
+    agendar: (fn) => { agendados.push(fn); return { unref() {} }; },
+    ancoraSempre: true, registar: (r) => regs.push(r) });
+
+  const r = await tr.correr({});
+  try {
+    await r.socket.cbs.aoMensagem(JSON.stringify({ type: 'disconnect', reason: 'w' }));
+    await agendados[0]();                       // a tentativa bate em invalid_auth
+    assert.ok(regs.some((x) => x.tipo === 'religacao_desistiu' && x.slack_error === 'invalid_auth'),
+      'nao registou a desistencia — o dono nao fica a saber porque parou');
+    assert.equal(agendados.length, 1, 'agendou outra tentativa contra uma recusa definitiva');
+    assert.equal(tr.ancorado(), false, 'ficou a segurar o processo para sempre');
+  } finally { tr.largarAncora(); }
+});

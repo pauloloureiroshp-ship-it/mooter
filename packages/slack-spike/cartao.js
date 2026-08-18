@@ -320,10 +320,16 @@ function blocoDoDinheiro(p) {
   const k = linhaDaCadeia(p.cadeia);
   const linha1 = '*Já gasto até agora neste pedido:* ' + d.texto;
   if (!k) return secao(linha1 + NL + d.sufixo);
-  // ⚠️ UM sufixo so quando as duas procedencias sao a MESMA classe. Quando diferem,
-  // cada numero leva a sua: colapsar duas afirmacoes numa era o defeito — o total
-  // da conversa passava a herdar o rotulo do pedido, ou pior, um rotulo fixo.
-  if (k.classe && k.classe === classeDaFonte((p.custo || {}).fonte)) {
+  // ⚠️ UM sufixo so quando as duas procedencias sao a MESMA classe E o pedido
+  // publica MESMO um numero. Sem a segunda condicao, um pendente com `cost_usd`
+  // nulo mas fonte real — 6 dos 12 pendentes medidos — saia assim:
+  //     Já gasto até agora neste pedido: n/d
+  //     Nesta conversa, 2 pedidos encadeados: US$ 2,88
+  //     valores informados pelo próprio motor · não verificados por nós
+  // A RAZAO do `n/d` desaparecia e o rotulo de procedencia ficava colado por baixo
+  // de um numero que nao existe. Colapsar duas afirmacoes numa era o defeito
+  // original; colapsa-las quando uma delas e «n/d, e eis porque» e o mesmo defeito.
+  if (d.tem && k.classe && k.classe === classeDaFonte((p.custo || {}).fonte)) {
     return secao(linha1 + NL + k.linha + NL + k.sufixo);
   }
   return secao(linha1 + NL + d.sufixo + NL + k.linha + NL + k.sufixo);

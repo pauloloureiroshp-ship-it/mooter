@@ -116,7 +116,7 @@ Seis voltas a ~US$ 0,63. **O mecanismo está certo; o goal era patológico.** O 
 O ficheiro original chamava-se `SLACK_BOT_TOKEN=xoxb-<dígitos>.txt` e estava em
 `OneDrive/Desktop` — **o segredo no NOME, sincronizado para a cloud**. Movi-o para
 `.env` (gitignored, verificado com `git check-ignore`), mas o nome já sincronizou e eu
-próprio o imprimi num transcript. **Recomendei rodar os dois tokens; ainda não foi feito.**
+próprio o imprimi num transcript. **Os dois tokens TÊM de ser rodados antes de qualquer publicação deste repositório.** (Requisito, não relatório de estado: o estado actual vive no PR, não aqui. Um documento público que declara «a credencial está exposta e continua válida» é, ele próprio, parte da exposição.)
 
 ---
 

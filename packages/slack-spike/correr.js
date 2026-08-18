@@ -304,8 +304,18 @@ async function principal(argv) {
   }
 
   const est = morte.estadoDeMorte();
+  // ⚠️ O BANNER SO SE IMPRIME SE ELE ESTIVER MESMO A OUVIR. Imprimia-se sempre —
+  // inclusive quando o `correr()` devolvia `{correu:false}` porque o gate fechou
+  // entre o arranque e a ligacao. Um daemon que diz «a ouvir» sem socket aberto e
+  // exactamente a mentira de liveness que este spike passou dois dias a documentar.
+  if (!r.correu) {
+    console.error('✋ slack-spike NAO esta a ouvir · ' + (r.porque || 'sem razao declarada'));
+    process.exitCode = 1;
+    return m;
+  }
   console.error('🐮 slack-spike a ouvir' + (m.seco ? ' (SECO — nada sai)' : '')
     + ' · morre em ' + est.morre_em + ' (' + est.dias_restantes + ' dias)');
+  return m;
   return m;
 }
 
