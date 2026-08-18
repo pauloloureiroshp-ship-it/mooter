@@ -15,7 +15,8 @@ import os from 'node:os';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
-import { PILLAR_IDS, PILLARS } from './context-pack.mjs';
+import { loadPillars } from './context-pack.mjs';
+import { resolveRepoRoot, projectPaths } from './project.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 
 const MAX_BODY_BYTES = 4096;
@@ -50,7 +51,9 @@ export const PORT = 4290;
 const OLLAMA = 'http://127.0.0.1:11434';
 
 const HOME = os.homedir();
-const MOO_DIR = path.join(HOME, '.mooter');
+const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
+/** A raiz do repo de onde ESTE script corre — o repo canonico deste device. */
+const SCRIPT_ROOT = path.resolve(new URL('../../..', import.meta.url).pathname);
 
 /** The cockpit shell, canonical copy first, prototype second, honest 503 last. */
 export function panelCandidates(repoRoot) {
@@ -150,15 +153,32 @@ function sendJson(res, code, obj, { cors = true, origin = null } = {}) {
 }
 
 export function createServer({
-  repoRoot = path.resolve(new URL('../../..', import.meta.url).pathname),
+  // O endpoint tem de olhar para o MESMO projecto que o loop conduz, senao o
+  // painel mostra o ledger de um repo enquanto a GPU trabalha noutro. A
+  // resolucao e a mesma de `moo-runner`, pela mesma ordem, no mesmo modulo.
+  repoRoot = null,
   mooDir = MOO_DIR,
   device = deviceName(),
   fetchImpl = fetch,
+  argv = process.argv.slice(2),
+  env = process.env,
 } = {}) {
-  const stopFile = path.join(mooDir, 'STOP');
-  const ledgerPath = path.join(mooDir, 'runner-ledger.jsonl');
-  const statePath = path.join(mooDir, 'runner-state.json');
-  const focusFile = path.join(mooDir, 'runner-focus.json');
+  const raiz = repoRoot
+    || (() => {
+      try {
+        return resolveRepoRoot({ argv, env, scriptRoot: SCRIPT_ROOT }).root;
+      } catch {
+        // Uma env apontada a um repo que nao existe nao pode impedir o painel de
+        // abrir: sem painel, o dono nem consegue ver que se enganou.
+        return SCRIPT_ROOT;
+      }
+    })();
+  const paths = projectPaths({ repoRoot: raiz, mooDir, canonicalRoot: SCRIPT_ROOT });
+  const pilares = loadPillars(raiz);
+  const stopFile = paths.STOP_FILE;
+  const ledgerPath = paths.LEDGER;
+  const statePath = paths.STATE;
+  const focusFile = paths.FOCUS;
 
   return http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
@@ -181,7 +201,7 @@ export function createServer({
         sampleGpu(),
         engineAlive(fetchImpl),
         loadedModels(fetchImpl),
-        buildAlignment({ repoRoot }).catch(() => null),
+        buildAlignment({ repoRoot: raiz }).catch(() => null),
       ]);
       const where = beaconDir();
       const fleet = readBeacons({ ...where, selfDevice: device });
@@ -206,24 +226,29 @@ export function createServer({
     // pillar names and questions never change while the process is up.
     if (req.method === 'GET' && route === '/pilares.json') {
       return sendJson(res, 200, {
-        pilares: PILLAR_IDS.map((id) => ({
+        repo: raiz,
+        fonte: pilares.fonte,
+        // Um pilares.json recusado nao pode desaparecer: o painel tem de poder
+        // dizer ao dono que o ficheiro dele foi ignorado, e porque.
+        erro: pilares.erro,
+        pilares: pilares.ids.map((id) => ({
           id,
-          label: PILLARS[id].label,
-          pergunta: PILLARS[id].ask,
-          ancoras: PILLARS[id].files,
+          label: pilares.pillars[id].label,
+          pergunta: pilares.pillars[id].ask,
+          ancoras: pilares.pillars[id].files,
         })),
       });
     }
 
     if (req.method === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
-      for (const candidate of panelCandidates(repoRoot)) {
+      for (const candidate of panelCandidates(raiz)) {
         try {
           const html = fs.readFileSync(candidate);
           res.writeHead(200, {
             'Content-Type': 'text/html; charset=utf-8',
             'Content-Length': html.length,
             'Cache-Control': 'no-store',
-            'X-Moo-Panel-Source': path.relative(repoRoot, candidate) || candidate,
+            'X-Moo-Panel-Source': path.relative(raiz, candidate) || candidate,
           });
           return res.end(html);
         } catch {
@@ -232,7 +257,7 @@ export function createServer({
       }
       return sendJson(res, 503, {
         erro: 'painel nao encontrado',
-        procurado: panelCandidates(repoRoot),
+        procurado: panelCandidates(raiz),
       });
     }
 
@@ -246,8 +271,8 @@ export function createServer({
       if (route === '/focus') {
         const body = await readBody(req);
         const pilar = body && body.pilar;
-        if (pilar !== null && !PILLAR_IDS.includes(pilar)) {
-          return sendJson(res, 400, { erro: 'pilar desconhecido', aceites: PILLAR_IDS });
+        if (pilar !== null && !pilares.ids.includes(pilar)) {
+          return sendJson(res, 400, { erro: 'pilar desconhecido', aceites: pilares.ids });
         }
         try {
           if (pilar === null) fs.rmSync(focusFile, { force: true });
@@ -281,8 +306,8 @@ const invokedDirectly =
   process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 
 if (invokedDirectly) {
-  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
-  createServer({ repoRoot }).listen(PORT, HOST, () => {
-    process.stdout.write(`F10 vivo em http://${HOST}:${PORT} (repo ${repoRoot})\n`);
+  const { root, fonte } = resolveRepoRoot({ argv: process.argv.slice(2), scriptRoot: SCRIPT_ROOT });
+  createServer({ repoRoot: root }).listen(PORT, HOST, () => {
+    process.stdout.write(`F10 vivo em http://${HOST}:${PORT} (repo ${root}, via ${fonte})\n`);
   });
 }

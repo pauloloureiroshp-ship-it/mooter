@@ -91,6 +91,82 @@ export const PILLARS = {
 
 export const PILLAR_IDS = Object.keys(PILLARS);
 
+/** Onde um projecto declara os seus proprios pilares. */
+export const PILLARS_FILE = '.mooter/pilares.json';
+
+/**
+ * Valida uma declaracao de pilares vinda de um projecto.
+ *
+ * As listas continuam a ser EXPLICITAS — sem globs, sem walk. Essa
+ * reprodutibilidade e deliberada e esta comentada acima: um pilar tem de dar a
+ * mesma ronda hoje e daqui a um mes. O que muda com o B3 e QUEM declara a
+ * lista: deixa de ser este ficheiro e passa a ser o projecto.
+ *
+ * @returns {{ok: boolean, pillars: object|null, erros: string[]}}
+ */
+export function validarPilares(bruto) {
+  const erros = [];
+  if (!bruto || typeof bruto !== 'object' || Array.isArray(bruto)) {
+    return { ok: false, pillars: null, erros: ['a raiz tem de ser um objecto { P1: {...}, ... }'] };
+  }
+  const ids = Object.keys(bruto);
+  if (ids.length === 0) erros.push('nenhum pilar declarado');
+  const limpos = {};
+  for (const id of ids) {
+    const p = bruto[id];
+    const onde = `pilar ${id}`;
+    if (!p || typeof p !== 'object') { erros.push(`${onde}: nao e um objecto`); continue; }
+    if (typeof p.label !== 'string' || !p.label.trim()) erros.push(`${onde}: falta \`label\``);
+    if (typeof p.ask !== 'string' || !p.ask.trim()) erros.push(`${onde}: falta \`ask\` (a pergunta da ronda)`);
+    if (!Array.isArray(p.files) || p.files.length === 0) {
+      erros.push(`${onde}: \`files\` tem de ser uma lista nao vazia de caminhos relativos`);
+      continue;
+    }
+    const maus = p.files.filter((f) => typeof f !== 'string' || !f.trim() || f.startsWith('/') || f.split('/').includes('..'));
+    // Um caminho que sai do repo nao e um pilar mal configurado: e leitura de
+    // ficheiros fora do projecto a partir de um ficheiro do projecto.
+    if (maus.length) erros.push(`${onde}: caminhos fora do repo ou invalidos: ${JSON.stringify(maus.slice(0, 3))}`);
+    if (typeof p.label === 'string' && typeof p.ask === 'string' && !maus.length) {
+      limpos[id] = { label: p.label.trim(), files: p.files.map(String), ask: p.ask.trim() };
+    }
+  }
+  if (erros.length) return { ok: false, pillars: null, erros };
+  return { ok: true, pillars: limpos, erros: [] };
+}
+
+/**
+ * Carrega os pilares do projecto, com os embutidos como DEFAULT.
+ *
+ * Nunca lanca e nunca para uma ronda — mas tambem nunca cala: um
+ * `pilares.json` presente e invalido devolve os defaults COM um `erro` que
+ * quem chama tem de registar. Um catch que devolve vazio em silencio foi
+ * exactamente como o modo diff ficou morto um dia inteiro sem ninguem saber.
+ *
+ * @returns {{pillars: object, ids: string[], fonte: 'projeto'|'default', ficheiro: string, erro: string|null}}
+ */
+export function loadPillars(repoRoot, { readImpl = fs.readFileSync } = {}) {
+  const ficheiro = path.join(String(repoRoot || ''), PILLARS_FILE);
+  const embutidos = { pillars: PILLARS, ids: PILLAR_IDS, fonte: 'default', ficheiro, erro: null };
+  let raw;
+  try {
+    raw = readImpl(ficheiro, 'utf8');
+  } catch (err) {
+    // Ausente e o caso normal: o projecto nao declarou nada, usam-se os nossos.
+    return err && err.code === 'ENOENT'
+      ? embutidos
+      : { ...embutidos, erro: `${PILLARS_FILE} ilegivel: ${String((err && err.message) || err).slice(0, 120)}` };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return { ...embutidos, erro: `${PILLARS_FILE} nao e JSON valido: ${String((err && err.message) || err).slice(0, 120)}` };
+  }
+  const v = validarPilares(parsed && parsed.pilares ? parsed.pilares : parsed);
+  if (!v.ok) return { ...embutidos, erro: `${PILLARS_FILE} recusado: ${v.erros.slice(0, 4).join('; ')}` };
+  return { pillars: v.pillars, ids: Object.keys(v.pillars), fonte: 'projeto', ficheiro, erro: null };
+}
+
 /**
  * The output contract is deliberately narrow. A first live pass with a softer
  * prompt made qwen2.5-coder:14b answer `SEM ACHADO` on every round: given a wall
@@ -365,8 +441,8 @@ function readLines(repoRoot, relPath) {
  * that actually exist, so a deleted file shifts the rotation instead of
  * producing an empty round.
  */
-export function resolveCandidates(repoRoot, pillarId) {
-  const pillar = PILLARS[pillarId];
+export function resolveCandidates(repoRoot, pillarId, pillars = PILLARS) {
+  const pillar = pillars[pillarId];
   if (!pillar) return [];
   return pillar.files.filter((rel) => readLines(repoRoot, rel) !== null);
 }
@@ -403,8 +479,11 @@ export function buildContextPack({
   anchorPath = null,
   diffBase = null,
   diffRunImpl = null,
+  // Os pilares do PROJECTO, quando ele os declara. O default embutido continua
+  // a ser o de sempre, para que um repo sem `.mooter/pilares.json` corra igual.
+  pillars = PILLARS,
 }) {
-  const spec = PILLARS[pillar];
+  const spec = pillars[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
 
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
@@ -426,7 +505,9 @@ export function buildContextPack({
       // identica. Seis pilares a moer o mesmo ficheiro sao um pilar, com seis
       // vezes o custo. O ordinal do pilar desfaz a correlacao sem perder o
       // determinismo: mesma ronda, mesmo repo, mesmo resultado.
-      const desvio = escopo === 'geral' ? PILLAR_IDS.indexOf(pillar) : 0;
+      // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
+      // impede que um id desconhecido desloque a rotacao para tras.
+      const desvio = escopo === 'geral' ? Math.max(0, Object.keys(pillars).indexOf(pillar)) : 0;
       const h = hunks[Math.abs(cursor + desvio) % hunks.length];
       const lines = readLines(repoRoot, h.file);
       if (lines && lines.length > 0 && h.start <= lines.length) {
@@ -531,7 +612,7 @@ export function buildContextPack({
     }
   }
 
-  const candidates = resolveCandidates(repoRoot, pillar);
+  const candidates = resolveCandidates(repoRoot, pillar, pillars);
   if (candidates.length === 0) {
     return { ok: false, reason: 'nenhum ficheiro-âncora existe no repo', pillar };
   }

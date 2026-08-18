@@ -35,7 +35,10 @@ test('q01 · o painel abre por device, servido pelo endpoint local', () => {
 test('q02 · o play por pilar mexe mesmo no loop, não é decoração', () => {
   assert.match(read(`${RUNNER}/f10-server.mjs`), /'\/focus'/, 'tem de haver endpoint /focus');
   const runner = read(`${RUNNER}/moo-runner.mjs`);
-  assert.match(runner, /readFocus\(\)/, 'o loop tem de LER o foco');
+  // O foco passou a ser lido do caminho DO PROJECTO (B2), por isso a chamada
+  // leva argumentos. A alegacao nao mudou — o loop tem de ler o foco a cada
+  // volta — so o sitio de onde o le e que passou a depender do repo.
+  assert.match(runner, /readFocus\(paths\.FOCUS, ids\)/, 'o loop tem de LER o foco do projecto certo');
   assert.match(runner, /focus \|\| nextPillar/, 'o foco tem de vencer o rodízio');
   assert.match(read(SHELL), /control\('\/focus'/, 'o botão tem de chamar o endpoint');
 });
@@ -100,7 +103,14 @@ test('q06 · o painel é profissional: temas, responsivo, sem dependências exte
 test('q07 · o ▶ deixa mesmo a máquina a trabalhar sozinha e a prova está no ledger', () => {
   const runner = read(`${RUNNER}/moo-runner.mjs`);
   assert.match(runner, /for \(;;\)/, 'tem de ser um loop perpétuo');
-  assert.match(runner, /appendReceipt\(receipt\)/, 'cada volta deixa recibo');
+  // A alegacao original era "cada volta deixa recibo". Foi essa que produziu
+  // 1767 recibos consecutivos de um apagao de 11 horas: com o motor em baixo,
+  // "cada volta" gravava uma linha de nada e o painel ficava verde-vivo. O B8
+  // mudou-a de proposito, e a alegacao nova e mais forte, nao mais fraca: o que
+  // vai para o ledger e decidido pelo DISJUNTOR, e um crash continua a deixar
+  // rasto. O silencio durante um apagao esta coberto por smoke.test.mjs.
+  assert.match(runner, /breaker\.observe\(receipt, nowIso\(\)\)/, 'o disjuntor e que decide o que entra no ledger');
+  assert.match(runner, /for \(const r of recibos\) appendReceiptImpl\(paths\.LEDGER, r\)/, 'e o que ele decide vai para o ledger DO PROJECTO');
   assert.match(runner, /ronda rebentou/, 'até um crash deixa rasto — um buraco no ledger seria a mentira');
 });
 

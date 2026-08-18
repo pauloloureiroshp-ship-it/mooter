@@ -17,9 +17,10 @@
     "runner:once": "node tools/cockpit/runner/moo-runner.mjs --once",
     "skills:doctor": "node tools/cockpit/runner/skills-doctor.mjs",
     "skills:doctor:strict": "node tools/cockpit/runner/skills-doctor.mjs --strict",
-    "test:cockpit-runner": "node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/engine-breaker.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/alignment.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/queixas.test.mjs tools/cockpit/runner/fleet-beacon.test.mjs tools/cockpit/runner/skill-moo-pilot.test.mjs tools/cockpit/runner/skills-doctor.test.mjs tools/cockpit/runner/smoke.test.mjs",
+    "test:cockpit-runner": "node --test tools/cockpit/runner/runner-core.test.mjs tools/cockpit/runner/engine-breaker.test.mjs tools/cockpit/runner/fleet-state.test.mjs tools/cockpit/runner/alignment.test.mjs tools/cockpit/runner/cockpit-ux.test.mjs tools/cockpit/runner/queixas.test.mjs tools/cockpit/runner/fleet-beacon.test.mjs tools/cockpit/runner/skill-moo-pilot.test.mjs tools/cockpit/runner/skills-doctor.test.mjs tools/cockpit/runner/smoke.test.mjs tools/cockpit/runner/project.test.mjs",
     "test:docs-hygiene": "node --test tools/docs-hygiene.test.js",
-    "test:handoff-preflight": "node --test tools/handoff-preflight.test.js"
+    "test:handoff-preflight": "node --test tools/handoff-preflight.test.js",
+    "pilot:init": "node tools/cockpit/runner/pilot-init.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.186"

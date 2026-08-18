@@ -15,7 +15,7 @@
  */
 
 import fs from 'node:fs';
-import { buildContextPack, PILLAR_IDS } from './context-pack.mjs';
+import { buildContextPack, PILLARS, PILLAR_IDS } from './context-pack.mjs';
 import { verifyEvidence, VERDICT } from './evidence-verifier.mjs';
 import { deviceName } from './fleet-beacon.mjs';
 
@@ -153,6 +153,11 @@ export async function runRound({
   anchorPath = null,
   diffBase = null,
   secondModel = null,
+  // Os pilares em uso — os do projecto quando ele os declara (ver
+  // `context-pack.loadPillars`), os embutidos quando nao.
+  pillars = PILLARS,
+  // O commit em que o repo esta. `null` quando nao ha git: nunca inventado.
+  repoSha = null,
 }) {
   const base = assertLocalEngine(endpoint);
   const started = clock();
@@ -160,6 +165,11 @@ export async function runRound({
   const receiptBase = () => ({
     ts: nowIso(clock),
     device: deviceName(),
+    // QUE repo, e em que commit. Os 5478 recibos que ja existem nao dizem
+    // nenhuma das duas coisas: sao interpretaveis apenas por quem se lembra de
+    // que maquina e de que dia sao. Duas linhas resolvem isso para sempre.
+    repo: repoRoot,
+    repo_sha: repoSha,
     pilar: pillar,
     modelo: model,
     usd: 0,
@@ -182,7 +192,7 @@ export async function runRound({
 
   // A âncora estática (eslint) é o detetor; o moo é o juiz. Se o ficheiro não
   // existir, readAnchor devolve [] e a ronda volta ao modo de caça — nunca falha.
-  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase });
+  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase, pillars });
   if (!pack.ok) {
     return {
       dispatched: false,

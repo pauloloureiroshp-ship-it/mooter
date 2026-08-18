@@ -85,7 +85,11 @@ test('o catálogo de pilares vem do servidor — página e runner não podem div
   assert.match(SCRIPT, /\/pilares\.json/);
   const server = fs.readFileSync(path.join(REPO, 'tools/cockpit/runner/f10-server.mjs'), 'utf8');
   assert.match(server, /route === '\/pilares\.json'/);
-  assert.match(server, /pergunta: PILLARS\[id\]\.ask/, 'a pergunta real do pilar tem de viajar');
+  // O catalogo passou a vir do conjunto EM USO (embutido ou do projecto, ver
+  // context-pack.loadPillars), nao da constante embutida. A alegacao e a mesma
+  // e fica mais forte: a pergunta que viaja e a do pilar que o loop vai correr.
+  assert.match(server, /pergunta: pilares\.pillars\[id\]\.ask/, 'a pergunta real do pilar tem de viajar');
+  assert.match(server, /fonte: pilares\.fonte/, 'e o painel tem de saber se os pilares sao do projecto ou os embutidos');
 });
 
 test('a sparkline declara que é da sessão do painel, não histórico do device', () => {

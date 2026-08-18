@@ -12,6 +12,15 @@
  * LaunchAgent: the owner presses stop, reboots, and the machine quietly starts
  * working again. STOP now survives a restart, and only an explicit `--play`
  * (the owner's gesture, not the scheduler's) clears it.
+ *
+ * QUE repo, e ONDE vive o estado desse repo, vivem em `project.mjs`. Ate 2026-08-18
+ * o REPO_ROOT era derivado da localizacao deste ficheiro e o estado era global:
+ * um ledger, um cursor, um lock, sem campo de repo. Dois projectos nao podiam
+ * coexistir, e o runner so sabia conduzir o repo de onde ele proprio corria.
+ *
+ *   node tools/cockpit/runner/moo-runner.mjs
+ *   node tools/cockpit/runner/moo-runner.mjs --repo ~/outro-projecto
+ *   MOOTER_REPO=~/outro-projecto node tools/cockpit/runner/moo-runner.mjs --once
  */
 
 import fs from 'node:fs';
@@ -19,25 +28,19 @@ import path from 'node:path';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
-import { PILLAR_IDS } from './context-pack.mjs';
+import { loadPillars } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { createEngineBreaker } from './engine-breaker.mjs';
+import { resolveRepoRoot, projectPaths, repoSha } from './project.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
-const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+/** A raiz do repo de onde ESTE script corre — o ultimo degrau da resolucao. */
+const SCRIPT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
 
-const STOP_FILE = path.join(MOO_DIR, 'STOP');
-const LEDGER = path.join(MOO_DIR, 'runner-ledger.jsonl');
-const STATE = path.join(MOO_DIR, 'runner-state.json');
-const LOCK = path.join(MOO_DIR, 'runner.lock');
-const CURSOR = path.join(MOO_DIR, 'runner-cursor.json');
-const FOCUS = path.join(MOO_DIR, 'runner-focus.json');
-// Achados da análise estática (eslint). Ausente = o runner volta ao modo de caça.
-const ANCORA = path.join(MOO_DIR, 'ancora-achados.json');
 // Base do diff: o que mudou desde este ref e trabalho novo para rever. Um repo
 // parado devolve zero hunks e o runner cai para a ancora — a escada degrada
 // sozinha, nunca falha. MOO_DIFF_BASE permite apontar para outro ref.
@@ -56,78 +59,105 @@ const SLEEP_MIN_S = 15;
 const SLEEP_MAX_S = 30;
 const IDLE_SLEEP_S = 5;
 
-export const PATHS = { MOO_DIR, STOP_FILE, LEDGER, STATE, LOCK, CURSOR, FOCUS, ANCORA, REPO_ROOT };
-
 const log = (msg) => process.stdout.write(`[moo-runner] ${msg}\n`);
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
-/** Fail-closed: an unusable home directory means we never dispatch. */
-function assertHome() {
+/**
+ * Que repo conduzir, onde guardar o seu estado, e com que pilares.
+ *
+ * Tudo o que decide o alvo passa por aqui, para que um teste possa perguntar
+ * "com estes argumentos e este ambiente, que projecto sai?" sem levantar nada.
+ */
+export function resolverAlvo({ argv = [], env = process.env, cwd = process.cwd(), mooDir = MOO_DIR } = {}) {
+  const { root, fonte, chave } = resolveRepoRoot({ argv, env, cwd, scriptRoot: SCRIPT_ROOT });
+  const paths = projectPaths({ repoRoot: root, mooDir, canonicalRoot: SCRIPT_ROOT });
+  const pilares = loadPillars(root);
+  return { repoRoot: root, fonte, chave, paths, pilares };
+}
+
+/**
+ * O alvo por omissao: sem argumentos, so ambiente e cwd. Exportado para os
+ * testes e para o `launch.mjs` saberem onde o loop escreve.
+ */
+export const PATHS = (() => {
   try {
-    fs.mkdirSync(MOO_DIR, { recursive: true });
-    fs.accessSync(MOO_DIR, fs.constants.W_OK);
+    const { paths, repoRoot } = resolverAlvo({ argv: [] });
+    return { ...paths, MOO_DIR, REPO_ROOT: repoRoot };
   } catch {
-    log(`${MOO_DIR} inacessivel — fail-closed, nao arranca.`);
+    // Uma env apontada a um repo que nao existe nao pode impedir o modulo de
+    // carregar — rebenta no `main()`, onde ha quem leia a mensagem.
+    const paths = projectPaths({ repoRoot: SCRIPT_ROOT, mooDir: MOO_DIR, canonicalRoot: SCRIPT_ROOT });
+    return { ...paths, MOO_DIR, REPO_ROOT: SCRIPT_ROOT };
+  }
+})();
+
+/** Fail-closed: an unusable home directory means we never dispatch. */
+function assertHome(base, logImpl = log) {
+  try {
+    fs.mkdirSync(base, { recursive: true });
+    fs.accessSync(base, fs.constants.W_OK);
+  } catch {
+    logImpl(`${base} inacessivel — fail-closed, nao arranca.`);
     process.exit(1);
   }
 }
 
 /** Refuses to start beside a live runner; a stale lock (dead PID) is reclaimed. */
-function claimLock() {
+function claimLock(lockPath, logImpl = log) {
   try {
-    const pid = Number(fs.readFileSync(LOCK, 'utf8').trim());
+    const pid = Number(fs.readFileSync(lockPath, 'utf8').trim());
     if (Number.isInteger(pid) && pid > 0) {
       try {
         process.kill(pid, 0);
-        log(`ja ha um runner vivo (PID ${pid}). Saio.`);
+        logImpl(`ja ha um runner vivo (PID ${pid}). Saio.`);
         process.exit(0);
       } catch {
-        log(`lock orfao do PID ${pid} — reclamado.`);
+        logImpl(`lock orfao do PID ${pid} — reclamado.`);
       }
     }
   } catch {
     /* no lock yet */
   }
-  fs.writeFileSync(LOCK, String(process.pid));
+  fs.writeFileSync(lockPath, String(process.pid));
 }
 
-function releaseLock() {
+function releaseLock(lockPath) {
   try {
-    if (Number(fs.readFileSync(LOCK, 'utf8').trim()) === process.pid) fs.rmSync(LOCK, { force: true });
+    if (Number(fs.readFileSync(lockPath, 'utf8').trim()) === process.pid) fs.rmSync(lockPath, { force: true });
   } catch {
     /* nothing to release */
   }
 }
 
 /** An unreadable or unknown focus is no focus — never a crash, never a guess. */
-function readFocus() {
+function readFocus(focusPath, ids) {
   try {
-    const { pilar } = JSON.parse(fs.readFileSync(FOCUS, 'utf8'));
-    return PILLAR_IDS.includes(pilar) ? pilar : null;
+    const { pilar } = JSON.parse(fs.readFileSync(focusPath, 'utf8'));
+    return ids.includes(pilar) ? pilar : null;
   } catch {
     return null;
   }
 }
 
-function readCursor() {
+function readCursor(cursorPath) {
   try {
-    const c = JSON.parse(fs.readFileSync(CURSOR, 'utf8'));
+    const c = JSON.parse(fs.readFileSync(cursorPath, 'utf8'));
     return Number.isInteger(c.i) ? c.i : 0;
   } catch {
     return 0;
   }
 }
 
-function writeCursor(i) {
+function writeCursor(cursorPath, i) {
   try {
-    fs.writeFileSync(CURSOR, JSON.stringify({ i }));
+    fs.writeFileSync(cursorPath, JSON.stringify({ i }));
   } catch {
     /* the cursor is an optimisation, never a blocker */
   }
 }
 
-function appendReceipt(receipt) {
-  fs.appendFileSync(LEDGER, `${JSON.stringify(receipt)}\n`);
+function appendReceipt(ledgerPath, receipt) {
+  fs.appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
 }
 
 /**
@@ -137,17 +167,17 @@ function appendReceipt(receipt) {
  * Failures are logged once and never block a round.
  */
 let beaconWarned = false;
-async function publishBeacon({ engineAlive = true } = {}) {
+async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = log } = {}) {
   try {
     const [gpu, alignment] = await Promise.all([
       sampleGpu(),
-      buildAlignment({ repoRoot: REPO_ROOT }).catch(() => null),
+      buildAlignment({ repoRoot }).catch(() => null),
     ]);
     const state = buildFleetState({
       device: deviceName(),
-      ledgerPath: LEDGER,
-      statePath: STATE,
-      stopFile: STOP_FILE,
+      ledgerPath: paths.LEDGER,
+      statePath: paths.STATE,
+      stopFile: paths.STOP_FILE,
       gpu,
       alignment,
       // Era `true` fixo: o beacon jurava motor vivo durante as 11 horas em que
@@ -158,12 +188,12 @@ async function publishBeacon({ engineAlive = true } = {}) {
     const res = writeBeacon(state, where);
     if (!res.ok && !beaconWarned) {
       beaconWarned = true;
-      log(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);
+      logImpl(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);
     }
   } catch (err) {
     if (!beaconWarned) {
       beaconWarned = true;
-      log(`beacon falhou: ${String(err && err.message).slice(0, 100)}`);
+      logImpl(`beacon falhou: ${String(err && err.message).slice(0, 100)}`);
     }
   }
 }
@@ -175,6 +205,8 @@ async function publishBeacon({ engineAlive = true } = {}) {
  */
 export async function main({
   argv = process.argv.slice(2),
+  env = process.env,
+  cwd = process.cwd(),
   runRoundImpl = runRound,
   sleepImpl = sleep,
   publishBeaconImpl = publishBeacon,
@@ -184,29 +216,37 @@ export async function main({
   logImpl = log,
 } = {}) {
   const args = new Set(argv);
-  assertHome();
+  const { repoRoot, fonte, chave, paths, pilares } = resolverAlvo({ argv, env, cwd });
+  assertHome(paths.base, logImpl);
 
   // The owner's explicit gesture is the ONLY thing that lifts a STOP.
   if (args.has('--play')) {
-    fs.rmSync(STOP_FILE, { force: true });
+    fs.rmSync(paths.STOP_FILE, { force: true });
     logImpl('--play explicito: STOP levantado pelo dono.');
   }
 
-  claimLock();
-  process.on('exit', releaseLock);
+  claimLock(paths.LOCK, logImpl);
+  const soltar = () => releaseLock(paths.LOCK);
+  process.on('exit', soltar);
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => {
       logImpl(`${sig} — a sair limpo.`);
-      releaseLock();
+      soltar();
       process.exit(0);
     });
   }
 
+  const ids = pilares.ids;
   logImpl(`arranque ${new Date().toISOString()} — motor ${DEFAULT_OLLAMA} — $0 duro.`);
-  logImpl(`repo ${REPO_ROOT} · pilares ${PILLAR_IDS.join(',')} · modelo ${DEFAULT_MODEL}`);
-  if (fs.existsSync(STOP_FILE)) log('STOP presente a arrancar — fica parado ate /play.');
+  // A linha que ja imprimia `repo ${REPO_ROOT}` dizia sempre o mesmo repo,
+  // fosse qual fosse. Agora diz o repo E de onde veio a decisao.
+  logImpl(`repo ${repoRoot} (via ${fonte}${chave ? `:${chave}` : ''}) · estado em ${paths.base}${paths.canonico ? ' (canonico)' : ''}`);
+  logImpl(`pilares ${ids.join(',')} (${pilares.fonte}) · modelo ${DEFAULT_MODEL}`);
+  // Nunca engolir em silencio: um pilares.json presente e recusado tem de doer.
+  if (pilares.erro) logImpl(`AVISO ${pilares.erro} — a correr com os pilares embutidos.`);
+  if (fs.existsSync(paths.STOP_FILE)) logImpl('STOP presente a arrancar — fica parado ate /play.');
 
-  let i = readCursor();
+  let i = readCursor(paths.CURSOR);
   const once = args.has('--once');
   // O disjuntor guarda o estado do motor entre rondas. Ver engine-breaker.mjs:
   // 1767 recibos de um apagao de 11 horas foi o que custou nao o ter.
@@ -214,24 +254,25 @@ export async function main({
   let rondas = 0;
 
   for (;;) {
-    if (rondas >= maxRounds) return { rondas, breaker: breaker.estado };
-    if (fs.existsSync(STOP_FILE)) {
+    if (rondas >= maxRounds) return { rondas, breaker: breaker.estado, repoRoot, paths };
+    if (fs.existsSync(paths.STOP_FILE)) {
       await sleepImpl(IDLE_SLEEP_S);
       rondas += 1;
-      if (once) return { rondas, breaker: breaker.estado };
+      if (once) return { rondas, breaker: breaker.estado, repoRoot, paths };
       continue;
     }
 
     // A focus set from the cockpit pins the rotation to one pillar; clearing it
     // resumes the round robin. Read every round so the button takes effect on
     // the next one instead of at the next restart.
-    const focus = readFocus();
-    const pillar = focus || nextPillar(i, PILLAR_IDS);
-    const cursor = Math.floor(i / PILLAR_IDS.length);
+    const focus = readFocus(paths.FOCUS, ids);
+    const pillar = focus || nextPillar(i, ids);
+    const cursor = Math.floor(i / ids.length);
     fs.writeFileSync(
-      STATE,
+      paths.STATE,
       JSON.stringify({
         device: deviceName(),
+        repo: repoRoot,
         pilar_atual: pillar,
         foco: focus,
         modelo: DEFAULT_MODEL,
@@ -242,13 +283,15 @@ export async function main({
     let receipt;
     try {
       ({ receipt } = await runRoundImpl({
-        repoRoot: REPO_ROOT,
+        repoRoot,
+        repoSha: repoSha(repoRoot),
         pillar,
+        pillars: pilares.pillars,
         cursor,
         model: DEFAULT_MODEL,
         endpoint: DEFAULT_OLLAMA,
-        stopFile: STOP_FILE,
-        anchorPath: ANCORA,
+        stopFile: paths.STOP_FILE,
+        anchorPath: paths.ANCORA,
         diffBase: DIFF_BASE,
         secondModel: SECOND_MODEL,
       }));
@@ -258,6 +301,7 @@ export async function main({
       receipt = {
         ts: nowIso(),
         pilar: pillar,
+        repo: repoRoot,
         modelo: DEFAULT_MODEL,
         usd: 0,
         dur_s: 0,
@@ -270,16 +314,16 @@ export async function main({
 
     const motorFalhou = Boolean(receipt.falha_motor);
     const { recibos, backoffS, aberto } = breaker.observe(receipt, nowIso());
-    for (const r of recibos) appendReceiptImpl(r);
+    for (const r of recibos) appendReceiptImpl(paths.LEDGER, r);
 
     // Uma ronda que nem chegou ao motor nao gastou o alvo: avancar o cursor
     // aqui saltava um hunk que ninguem reviu. Falha de motor nao consome
     // trabalho.
     if (!motorFalhou) {
       i += 1;
-      writeCursor(i);
+      writeCursor(paths.CURSOR, i);
     }
-    await publishBeaconImpl({ engineAlive: !motorFalhou });
+    await publishBeaconImpl({ repoRoot, paths, engineAlive: !motorFalhou, logImpl });
 
     if (motorFalhou) {
       // O stdout nao e o ledger: aqui podemos falar. O que nao se pode e
@@ -296,7 +340,7 @@ export async function main({
     }
 
     rondas += 1;
-    if (once) return { rondas, breaker: breaker.estado };
+    if (once) return { rondas, breaker: breaker.estado, repoRoot, paths };
     await sleepImpl(backoffS || SLEEP_MIN_S + Math.floor(Math.random() * (SLEEP_MAX_S - SLEEP_MIN_S + 1)));
   }
 }
@@ -313,7 +357,7 @@ export const invocadoComoPrograma = Boolean(process.argv[1])
 if (invocadoComoPrograma) {
   main().catch((err) => {
     log(`fatal: ${err && err.stack}`);
-    releaseLock();
+    releaseLock(PATHS.LOCK);
     process.exit(1);
   });
 }
