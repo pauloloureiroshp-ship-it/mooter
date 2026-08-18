@@ -225,7 +225,8 @@ function criarTransporte(opcoes) {
   const threadDaOperacao = () => (contexto.getStore() || {}).thread || null;
   const cartoes = new Map();     // job_id -> ts do CARTAO publicado, para o chat.update
   let tentativasLigacao = 0;
-  let geracaoActual = 0;      // numera cada socket: o log deixa de ser ambiguo    // persiste entre religacoes — ver religar()
+  let geracaoActual = 0;      // numera cada socket: o log deixa de ser ambiguo
+  let ancora = null;          // segura o event loop enquanto nao ha socket (ver `religar`)    // persiste entre religacoes — ver religar()
   const enviados = [];            // o que saiu (ou sairia, em dry-run)
 
   /**
@@ -370,9 +371,11 @@ function criarTransporte(opcoes) {
    * demo, e uma armadilha para o dia em que houver um estranho a ver.
    */
   async function correr(maos) {
+    clearTimeout(ancora);   // religou: a ancora ja nao e precisa, o socket volta a segurar
     const t = trancado();
     if (t) return { correu: false, porque: 'MODO VIVO trancado: ' + t };
     const abrir = o.abrirSocket || abrirSocketPorOmissao;
+    const timerReal = !o.agendar;   // quem injecta `agendar` controla o tempo e nao precisa de ancora
     const agendar = o.agendar || ((fn, ms) => { const h = setTimeout(fn, ms); h.unref?.(); return h; });
     const reconectar = o.reconectar !== false;
     let vivo = true;   // por-socket: evita que close E erro contem como duas quedas
@@ -400,6 +403,16 @@ function criarTransporte(opcoes) {
       tentativasLigacao += 1;
       const espera = Math.min(30000, 1000 * Math.pow(2, tentativasLigacao - 1));
       registar({ tipo: 'a_religar', geracao, porque, tentativa: tentativasLigacao, espera_ms: espera });
+      // ⚠️ ANCORA. O timer da religacao e `unref()`'d e o poller tambem: fechado o
+      // socket, NADA segurava o event loop e o Node saia limpo — exit 0, sem uma
+      // linha de erro — no meio da janela de religacao. Um daemon que morre em
+      // silencio e pior que um que estoira: o log ultimo diz "a_religar tentativa 1"
+      // e parece que esta a tentar. Visto ao vivo: o processo morreu 1s depois de
+      // publicar dois cartoes, e so se percebeu pelo exit code.
+      if (timerReal) {
+        clearTimeout(ancora);
+        ancora = setTimeout(() => {}, espera + 2000);   // REF'd de proposito — segura o loop
+      }
       agendar(() => correr(maos).catch((e) => registar({ tipo: 'religar_falhou',
         porque: (e && e.message) || 'erro' })), espera);
     }

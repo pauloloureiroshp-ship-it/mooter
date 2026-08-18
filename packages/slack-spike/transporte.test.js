@@ -417,3 +417,23 @@ test('religar · cada socket tem geracao no log (para se saber qual esta vivo)',
   const aberto = regs.find((x) => x.tipo === 'socket_aberto');
   assert.equal(aberto.geracao, 1, 'sem geracao, duas linhas iguais no log podem ser sockets diferentes');
 });
+
+test('o daemon NAO morre entre o socket cair e a religacao', async () => {
+  // ⚠️ Este teste vive num processo filho de proposito. A propriedade e «o processo
+  // continua vivo», e essa nao se ve de dentro. Ao vivo, o daemon publicou dois
+  // cartoes e fez `exit 0` um segundo depois: o timer da religacao e `unref()`'d, o
+  // poller tambem, e fechado o socket nada segurava o event loop. O ultimo registo
+  // dizia «a_religar tentativa 1» — parecia estar a tentar. Estava morto.
+  const filho = require('node:child_process').spawn(process.execPath,
+    [require('node:path').join(__dirname, 'vive.fixture.js')], { stdio: ['ignore', 'pipe', 'inherit'] });
+  try {
+    await new Promise((ok, falha) => {
+      filho.stdout.on('data', (b) => { if (String(b).includes('caiu')) ok(); });
+      filho.on('exit', (c) => falha(new Error('morreu ANTES de o socket cair (codigo ' + c + ')')));
+      setTimeout(() => falha(new Error('o filho nunca chegou a cair')), 10000).unref();
+    });
+    await new Promise((r) => setTimeout(r, 700));   // a religacao so vem ao 1000ms
+    assert.equal(filho.exitCode, null,
+      'o processo morreu na janela de religacao — sem ancora nada segura o event loop');
+  } finally { filho.kill(); }
+});
