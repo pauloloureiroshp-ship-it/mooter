@@ -656,7 +656,7 @@ de 3h, 0 bytes, zero processos git — **detrito meu** (um comando com backticks
 (`appendTerminalReconciliation` ← `sweepOrphans`) **re-carimbou** o estado do `e13c`, um job
 de 4 horas antes, com um evento novo **sem `actor`**:
 ```
-17:36:52  nao_verificado · actor=slack:U0BGS8N8JFL   <- original
+17:36:52  nao_verificado · actor=slack:U0BG…JFL   <- original
 21:14:50  nao_verificado · actor=—                    <- re-carimbo
 ```
 `estadoCorrente` passa a devolver o carimbo novo, o actor degrada para `legacy`, e

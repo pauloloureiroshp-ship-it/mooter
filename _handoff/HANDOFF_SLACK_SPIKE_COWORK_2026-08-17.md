@@ -76,7 +76,7 @@ reiniciei: confrontei, cherry-picked para main actual, e continuei. O branch ant
 
 ### O que foi PROVADO ao vivo (não afirmado)
 
-1. **Menção → despacho real** · `actor: slack:U0BGS8N8JFL` gravado no ledger
+1. **Menção → despacho real** · `actor: slack:U0BG…JFL` gravado no ledger
 2. **Cartão de aprovação** com custo, modelo, autor, impressão e botões
 3. **Recusa** → `approval_rejected · REJECTED · autorizacao=single_user`
 4. **Aprovação** → `approval_granted` + `job_novo` + re-despacho · **6 vezes**

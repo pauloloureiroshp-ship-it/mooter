@@ -60,7 +60,7 @@ retoma. Tudo no workspace do Paulo, um canal, um utilizador, com data de morte.
 | A1 | 171 testes, 0 falhas | `cd packages/slack-spike && node --test` |
 | A2 | `classify.js` intacto, sha `427d8c0b…4bc48f` | `sha256sum tools/router/classify.js` |
 | A3 | Nada tocado fora de `packages/slack-spike/` (excepto `SYNC.md`) | `git diff --stat origin/main..HEAD` |
-| A4 | A frente gastou **US$ 4,2302** em 9 jobs hoje | soma `cost_usd` no `~/.mooter/ledger.jsonl` dos jobs com `actor.id = slack:U0BGS8N8JFL` e dos encadeados por `prep_from` |
+| A4 | A frente gastou **US$ 4,2302** em 9 jobs hoje | soma `cost_usd` no `~/.mooter/ledger.jsonl` dos jobs com `actor.id = slack:U0BG…JFL` e dos encadeados por `prep_from` |
 | A5 | 6 desses jobs foram um **ciclo** causado pelo goal da demo | segue a cadeia `approval_granted → job_novo` no ledger |
 | A6 | O pedido normal (README) custou US$ 0,1154 e **não** pediu aprovação | procura `job-msxituae-76f9` no ledger |
 | A7 | O `.env` está gitignored e nunca foi commitado | `git log --all --name-only \| grep -i "\.env"` e `git check-ignore -v packages/slack-spike/.env` |

@@ -168,7 +168,7 @@ function hashCurto(h) {
 }
 
 /**
- * `slack:U0BGS8N8JFL` -> `<@U0BGS8N8JFL>`, que o CLIENTE renderiza como o nome da
+ * `slack:U0FALSO0001` -> `<@U0FALSO0001>`, que o CLIENTE renderiza como o nome da
  * pessoa. Resolve o id opaco sem pedir o scope `users:read` a uma app throwaway.
  */
 function mencaoDeActor(actorId) {

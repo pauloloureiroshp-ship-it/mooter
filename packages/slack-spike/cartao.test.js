@@ -22,7 +22,7 @@ const HASH = 'ae0ab4486f8d8a0482f434b46b665795b14603d390f0fca8132fd9ae75805ef6';
 
 const pendente = (extra) => Object.assign({
   tipo: 'pendente', job_id: 'job-msxato7q-cd23', wave: 'slack-spike',
-  autor: { valor: 'slack:U0BGS8N8JFL', rotulo: 'autor' },
+  autor: { valor: 'slack:U0FALSO0001', rotulo: 'autor' },
   motor: { valor: 'cc' },
   modelo: { valor: 'claude-haiku-4-5-20251001' },
   custo: { valor: 0.1372512, fonte: 'reportado pelo CLI', estimativa: false },
@@ -66,7 +66,7 @@ test('dinheiro · uma estimativa vem ROTULADA como estimativa', () => {
 
 // ── identidade ──────────────────────────────────────────────────────────────
 test('mencaoDeActor · o id opaco vira mencao que o Slack renderiza como o nome', () => {
-  assert.equal(c.mencaoDeActor('slack:U0BGS8N8JFL'), '<@U0BGS8N8JFL>');
+  assert.equal(c.mencaoDeActor('slack:U0FALSO0001'), '<@U0FALSO0001>');
 });
 
 test('mencaoDeActor · um actor que nao vem do Slack fica texto simples (nao se inventa gente)', () => {
@@ -95,7 +95,7 @@ test('cartao · o CUSTO e o QUEM PEDIU estao em fields no topo, nao depois do co
   assert.ok(blocos.indexOf(dinheiro) < blocos.findIndex((b) => b.type === 'actions'));
   const campos = blocos.find((b) => b.fields);
   assert.ok(!/US\$/.test(tudo(campos.fields)), 'o custo nao pode viver em fields');
-  assert.match(tudo(campos.fields), /<@U0BGS8N8JFL>/);
+  assert.match(tudo(campos.fields), /<@U0FALSO0001>/);
 });
 
 test('cartao · nenhum bloco de texto passa o limite que faz aparecer «Mostrar mais»', () => {
@@ -165,12 +165,12 @@ test('botoes · sem hash_esperado nao ha botoes (um botao sem CAS decide as cega
 // ── a decisao ───────────────────────────────────────────────────────────────
 test('decisao · REJECTED tem rosto proprio, diz quem decidiu, e NAO tem botoes', () => {
   const { blocos } = c.construir({ tipo: 'decisao', job_id: 'job-1', estado: 'REJECTED',
-    autor: { valor: 'slack:U0BGS8N8JFL' }, texto: 'recusado por quem decide',
+    autor: { valor: 'slack:U0FALSO0001' }, texto: 'recusado por quem decide',
     auditoria: 'request=job-1 · veredicto=recusar' });
   const t = tudo(blocos);
   assert.match(t, /❌/);
   assert.match(t, /Recusado/);
-  assert.match(t, /<@U0BGS8N8JFL>/);
+  assert.match(t, /<@U0FALSO0001>/);
   assert.match(t, /🧾 registado no ledger: request=job-1/, 'a auditoria e a prova');
   assert.equal(bloco(blocos, 'actions'), undefined, 'um pedido decidido nao oferece botoes');
 });
@@ -420,7 +420,7 @@ test('composicao · a decisao tambem chega como cartao, e substitui no lugar', a
   pub.publicar(pendente());
   await new Promise((r) => setImmediate(r));
   pub.publicar({ tipo: 'decisao', job_id: 'job-msxato7q-cd23', estado: 'APPROVED',
-    autor: { valor: 'slack:U0BGS8N8JFL' }, auditoria: 'request=job-msxato7q-cd23' });
+    autor: { valor: 'slack:U0FALSO0001' }, auditoria: 'request=job-msxato7q-cd23' });
   await new Promise((r) => setImmediate(r));
 
   assert.equal(tr.enviados[1].metodo, 'chat.update');

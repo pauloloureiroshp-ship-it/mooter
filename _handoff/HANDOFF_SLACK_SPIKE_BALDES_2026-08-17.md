@@ -49,7 +49,7 @@ do que o balde manda. C5 aplicado: o campo mandou.
 O critério de sucesso já estava cumprido, com o dono a ver o `🏁` no ecrã:
 
 ```
-19:33:17  dispatched · agent=moo · actor={human, slack:U0BGS8N8JFL, origem:slack}
+19:33:17  dispatched · agent=moo · actor={human, slack:U0BG…JFL, origem:slack}
 19:33:37  done · exit=0 · modelo=gemma4:e4b · custo=0 · tier=T0
 DURAÇÃO: 19,8s · prep_timeout: NÃO
 [registo] {"tipo":"fecho_publicado","job":"job-msxmsv76-30f8","estado":"concluido"}
