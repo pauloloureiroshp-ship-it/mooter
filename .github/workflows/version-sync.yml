@@ -48,7 +48,17 @@ jobs:
             const fs = require("fs");
             const v = process.env.VERSION;
             const today = new Date().toISOString().slice(0, 10);
-            const targets = ["tools/router/version.json", "landing/app/version.json"];
+            // packages/mooter-bridge/version.json entrou a 2026-08-18: a tag
+            // v1.49.0 foi escolhida PRECISAMENTE por alinhar os tres numeros, e
+            // a v1.49.1 desalinhou-os logo a seguir (landing e router foram a
+            // 1.49.1, o bridge ficou em 1.49.0) porque ele nao estava nesta
+            // lista. Um ficheiro que so bate por acaso e uma mentira a espera
+            // da proxima tag.
+            const targets = [
+              "tools/router/version.json",
+              "landing/app/version.json",
+              "packages/mooter-bridge/version.json",
+            ];
             for (const p of targets) {
               const j = JSON.parse(fs.readFileSync(p, "utf8"));
               if (j.version === v) { console.log(p + " already " + v + " — no change"); continue; }
@@ -66,13 +76,13 @@ jobs:
       - name: Commit back if changed
         if: steps.ver.outputs.skip != '1'
         run: |
-          if git diff --quiet -- tools/router/version.json landing/app/version.json; then
+          if git diff --quiet -- tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json; then
             echo "No version.json change to commit."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tools/router/version.json landing/app/version.json
+          git add tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json
           git commit -m "chore(release): sync version.json → ${{ steps.ver.outputs.version }} [skip ci]"
           # main may have advanced between the tag push and this job — rebase before
           # pushing so a racing commit doesn't cause a non-fast-forward failure.
