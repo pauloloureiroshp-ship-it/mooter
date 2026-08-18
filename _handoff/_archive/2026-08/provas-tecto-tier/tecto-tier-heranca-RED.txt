@@ -1,0 +1,157 @@
+✔ B1 — listPending usa o estado terminal REAL e devolve quem pediu (18.0414ms)
+✔ B1b — listPending filtra por worktree e por actor (9.5844ms)
+✔ B1c — um job que SEGUIU sai da fila mesmo sem decisão (6.2378ms)
+✔ B20 — só uma decisão FINAL fecha o pendente; um STALE não o esconde (13.3913ms)
+✔ B2 — estado mudado entre o pedido e o clique dá STALE, e não re-despacha (8.7064ms)
+✔ B2b — o escopo do CAS é o ÚLTIMO evento DESTE job (8.6255ms)
+✔ B17 — sem expected_state_hash não há decisão: o CAS não tem interruptor (5.1846ms)
+✔ B11 — as 72h são APLICADAS, não só declaradas (6.7039ms)
+✔ B11b — um expires_at generoso NÃO estica as 72h (7.3589ms)
+✔ B3 — EXPIRED é terminal, descarta e não despacha (7.651ms)
+✔ B4 — a mesma idem_key no mesmo pedido devolve o resultado existente (9.9643ms)
+✔ B12 — a mesma idem_key noutro PEDIDO não herda a decisão do primeiro (13.9832ms)
+✔ B4b — sem cap de 50: a durabilidade não tem janela (286.1072ms)
+✔ B5 — recusar grava approval_rejected, é terminal e não despacha (56.6728ms)
+✖ B6 — aprovar re-despacha com handoff_from e com o ator do DECISOR (8.8276ms)
+✔ B15 — o despacho é ESPERADO; um dispatcher que falha não vira APPROVED (17.6566ms)
+✔ B19 — a autorização declara-se ADVISORY, no retorno e no ledger (7.618ms)
+✔ B7 — a capacidade é DERIVADA do pedido; a declarada no payload é ignorada (2.0844ms)
+✔ B7b — papel sem a capacidade que o pedido EXIGE é recusado (16.6574ms)
+✔ B7c — SEM roles.json o comportamento é single-user, exactamente como hoje (8.9534ms)
+✔ B13 — roles.json ILEGÍVEL fecha; não é o mesmo que roles.json ausente (16.471ms)
+✔ B18 — sem o pedido original não se autoriza às cegas (5.6708ms)
+✔ B16 — os campos que o broker LÊ são os que o seamless ESCREVE (0.7196ms)
+✔ B14 — os eventos do broker não entram no stream do job (nenhum leitor parte) (26.4061ms)
+✔ B8 — o append corre sob lock O_EXCL, e o lock é libertado (7.9617ms)
+✔ B8b — barreira forçada: com o lock tomado, o segundo decisor NÃO escreve (10.3155ms)
+✔ B8c — lock órfão é REPORTADO, nunca roubado; e um lock vazio não é eterno (8.9007ms)
+✔ B9 — o hash canónico vem do ledger-prov, não de uma cópia (6.6279ms)
+✔ B10 — o broker e o ledger-prov entram no .mcpb (1.0432ms)
+✔ B21 — job legado sem ferramentas conhecidas assume o PIOR, nao o melhor (0.101ms)
+✔ B22 — a capacidade EFECTIVA manda sobre a pedida (0.0723ms)
+✔ B23 — uma decisao FINAL nao se reabre com uma idem_key nova (10.4081ms)
+✔ B24 — nao se decide um job que ja nao esta a espera (7.0808ms)
+✔ B25 — sem relogio utilizavel FECHA, e a fila nao rebenta (7.069ms)
+✔ B25b — um ts no FUTURO nao estica o prazo (5.6967ms)
+✔ B26 — re-despacha o masterprompt DO DISCO, nao o goal (8.6608ms)
+✔ B26b — sem o masterprompt em disco NAO se aprova (6.1027ms)
+✔ B27 — um despacho iniciado e nao confirmado PARA o retry (6.6612ms)
+✔ B28 — TODO o retorno leva authz, cas e motivo (8.9016ms)
+✔ B29 — capacidades que nao sao lista de strings fecham o roles.json (7.87ms)
+✔ B30 — a fila nao esconde um pendente por causa de um `collected` (5.8725ms)
+✔ B31 — o request_id e um identificador, nao um caminho (5.0609ms)
+✔ B32 — a intencao pendurada nao trava um pedido que JA teve desfecho final (12.5186ms)
+✔ B33 — um despacho RECUSADO fecha; um despacho INCERTO prende (18.8473ms)
+✔ B34 — "." e ".." tambem sao travessia, e a segunda barreira apanha-os (4.061ms)
+✔ B35 — "n/d" nas permissoes efectivas FECHA, e [] quer dizer vazio (0.1019ms)
+✔ B36 — o masterprompt esta amarrado ao mp_hash aprovado (14.5418ms)
+✔ B37 — recusar tambem e um acto de autoridade (8.868ms)
+✔ B38 — o replay devolve o job_novo, nao so o estado (10.0433ms)
+✔ B39 — uma recusa COMPLETA fecha; um fragmento incompleto NAO fecha nem tranca (9.0332ms)
+✔ B40 — a fila e o decide tratam um relogio futuro da MESMA maneira (4.3561ms)
+✔ B41 — a travessia prova-se com o alvo A EXISTIR do outro lado (2.6954ms)
+✔ B42 — um pedido SEM mp_hash nao se aprova (6.2981ms)
+✔ B43 — um id herdado de Object nao da papel a ninguem (19.7895ms)
+✔ B44 — uma recusa completa bloqueia uma aprovacao posterior (7.8023ms)
+✔ B45 — o replay nao promove um estado nao-final a terminal (9.289ms)
+✔ B46 — um veredicto invalido nao deixa rasto nenhum (5.8187ms)
+✔ B47 — a recusa e UM evento completo, nao dois a meio (8.6849ms)
+[mooter-seamless] ETA eta-sem-meta-1787044289115: não consegui ler a metadata do job: ENOENT: no such file or directory, open 'C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\mooter-home\jobs\eta-sem-meta-1787044289115\meta.json'
+[mooter-seamless] ETA memory-kimi-1787044289121: não consegui ler a metadata do job: ENOENT: no such file or directory, open 'C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\mooter-home\jobs\memory-kimi-1787044289121\meta.json'
+[mooter-seamless] ETA memory-kimi-1787044289121: não consegui ler a metadata do job: ENOENT: no such file or directory, open 'C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\mooter-home\jobs\memory-kimi-1787044289121\meta.json'
+✔ guard: recusa agent desconhecido, mp sem ⇄, worktree inexistente, vault (108.1644ms)
+✔ guard: aceita worktree git válida e livre (35.4904ms)
+✔ recusa do observeTerminal deixa um evento próprio no ledger (5.8404ms)
+✔ ledgerAppend persiste uma só memória por job terminal com custo calculado (5.5993ms)
+✔ route: usa o classifier (stub) e mapeia tier→agent (2.2186ms)
+✔ honestidade: pedido de execução fixado no moo é recusado antes do dispatch (1165.672ms)
+✔ honestidade: pedido de execução sem agent fixado é reencaminhado para cc (158.168ms)
+✔ honestidade: detector cobre verbos, crases e comandos canónicos (0.563ms)
+✔ contrato: prepare legado só controla pre_digest; read_files é independente (0.122ms)
+✔ contrato: dispatch directo recusa leitura impossível antes de criar job (161.3029ms)
+✔ contrato: prepare:false mantém leitura injectada para Kimi; read_files:false recusa (353.9119ms)
+✔ guarda de recusa ignora incerteza lateral e apanha recusa explícita (1.0595ms)
+[mooter-seamless] job job-msyg13zl-ff90 saiu 0 sem entregar texto — marcado failed
+✔ honestidade: goal sem execução continua a ser despachado ao moo (280.3478ms)
+[mooter-seamless] job job-msyg148m-a754 saiu 0 sem entregar texto — marcado failed
+✔ mooter_work persiste categoria explícita e a fonte declarada (296.2134ms)
+[mooter-seamless] job job-msyg14jb-80b8 saiu 0 sem entregar texto — marcado failed
+✔ honestidade: git de leitura satisfeito pelo A4 continua no moo (387.4551ms)
+[mooter-seamless] o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em 127.0.0.1:1 — passei para o Claude Code
+✔ quota: tecto sonnet limita o modelo final que cairia no default do CLI (188.8268ms)
+[mooter-seamless] job job-msyg14u0-e449 saiu 0 sem entregar texto — marcado failed
+✔ quota: agent moo continua isento do tecto activo (185.3894ms)
+[mooter-seamless] o router escolheu a GPU local (T0) mas não há modelo local capaz de gerar em 127.0.0.1:1 — passei para o Claude Code
+[mooter-seamless] worktree criada: C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\frugal-wt-created-explicit
+✔ quota: sem calibragem o fallback conserva o default do CLI (156.7792ms)
+✔ quota: o tecto nunca promove um modelo conhecido (0.2971ms)
+✔ permissões com Bash pedido nunca regressam como lista efectiva só de leitura (0.2116ms)
+✔ permissões indetermináveis dizem n/d com o porquê (0.0614ms)
+✔ create_worktree:true cria antes do dispatch e leva o caminho para resultado e ledger (571.9298ms)
+[mooter-seamless] ETA ocupante-deictico: não consegui ler a metadata do job: ENOENT: no such file or directory, open 'C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\mooter-home\jobs\ocupante-deictico\meta.json'
+[mooter-seamless] worktree ocupada; mudei para C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\frugal-wt-relocacao-alt
+✔ mooter_work nomeia a worktree usada no resumo quando não relocaliza (178.6661ms)
+✔ goal dêictico recusa worktree ocupada, não relocaliza e regista a recusa (69.1715ms)
+[mooter-seamless] ETA ocupante-relocacao: não consegui ler a metadata do job: ENOENT: no such file or directory, open 'C:\Users\PAULOL~1\AppData\Local\Temp\seamless-test-aBiw2V\mooter-home\jobs\ocupante-relocacao\meta.json'
+✔ goal sem dêictico continua a relocalizar e nomeia origem e destino no resumo (322.2086ms)
+[mooter-seamless] job job-msyg15vu-5337 entregou resultado sem telemetria — tokens n/d, mas o job correu
+✔ dispatch: guard-first, ledger dispatched→started→done, cost do CC json, collect idempotente (115.8691ms)
+✖ tecto hereditário: classificador pede T3, filho de pai T1 nasce T1 e declara o corte (37.588ms)
+✔ P0-B — evento terminal propaga Ollama e calibragem sem re-medir (231.3182ms)
+[mooter-seamless] job job-msyg168a-4853 saiu 0, mas recusou por falta de contexto — marcado failed
+✔ recusa por falta de contexto sai failed, com motivo no resumo, apesar de exit 0 (162.7495ms)
+[mooter-seamless] job job-msyg16d5-3eaa saiu 0 sem entregar texto — marcado failed
+✔ posse: worktree com job ativo é recusada até o job terminar (242.4361ms)
+[mooter-seamless] job job-msyg16l1-de84 saiu 0 sem entregar texto — marcado failed
+✔ collect: resultado grande vem truncado com path do ficheiro completo (221.4368ms)
+✔ collect antes do fim: devolve estado, não resultado (105.7658ms)
+[mooter-seamless] job job-msyg16pt-260d saiu 0 sem entregar texto — marcado failed
+✔ prep que excede o timeout despacha o chain directo e regista prep_timeout (270.7035ms)
+✔ prep que falha despacha o chain directo e regista prep_failed_fallback (266.3709ms)
+✔ server-seamless: regista as 4 tools no registry do server.js base (54.7581ms)
+✔ F0/2 — toolRoute cai para a cópia empacotada quando o repo não tem classify.js (56.2121ms)
+✔ F0/2 — sem repo NEM cópia empacotada, o erro nomeia os dois sítios onde procurou (51.8386ms)
+✔ E2E-1: verbo de execução em prosa não barra um job de leitura (0.1298ms)
+✔ E2E-2: job que termina a pedir aprovação não é done — é nao_verificado (0.08ms)
+✔ E2E-3: guard recusado ensina o caminho em vez de morrer numa linha (0.1365ms)
+ℹ tests 98
+ℹ suites 0
+ℹ pass 96
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6680.8268
+
+✖ failing tests:
+
+test at broker.test.js:275:1
+✖ B6 — aprovar re-despacha com handoff_from e com o ator do DECISOR (8.8276ms)
+  AssertionError [ERR_ASSERTION]: o filho de uma aprovação tem de receber o tier do pai como tecto hereditário
+  
+  undefined !== 'T1'
+  
+      at TestContext.<anonymous> (C:\Users\Paulo Loureiro\frugal\.claude\worktrees\kind-lewin-5e4dcd\packages\mooter-bridge\broker.test.js:284:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'T1',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at seamless.test.js:722:1
+✖ tecto hereditário: classificador pede T3, filho de pai T1 nasce T1 e declara o corte (37.588ms)
+  AssertionError [ERR_ASSERTION]: 'T3' == 'T1'
+      at TestContext.<anonymous> (C:\Users\Paulo Loureiro\frugal\.claude\worktrees\kind-lewin-5e4dcd\packages\mooter-bridge\seamless.test.js:739:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'T3',
+    expected: 'T1',
+    operator: '==',
+    diff: 'simple'
+  }
