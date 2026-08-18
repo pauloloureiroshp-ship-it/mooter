@@ -145,6 +145,9 @@ explícito gravado no ledger — não esta allowlist. Fica dito.
 | `correr.js` | a raiz de composição: quem liga a quem. `--seco` = ensaio offline |
 | `descobrir.js` | deriva canal + id do bot + id do humano do **próprio** Slack |
 | `cartao.js` | a **apresentação**: puro, dados → Block Kit. Vocabulário fechado |
+| `poller.js` | o pendente nasce no **ledger**, não no socket. Extraído por ser indemonstrável inline |
+| `cadeia.js` | quanto custou a **conversa**, não o pedido. Só aritmética — não formata nada |
+| `cancelar.js` | o botão **Parar**. Leva o hash mas **não recusa** por divergência: um STOP não se bloqueia |
 
 **Nada aqui altera o núcleo.** `broker.js`, `actor.js` e `seamless.js` são importados
 como qualquer consumidor; a porta de despacho é **injectada** (duplo em construção,
@@ -191,10 +194,8 @@ falhou.
 cd packages/slack-spike && node --test
 ```
 
-**163/163 a passar** (47 do MODO CONSTRUÇÃO inicial + 41 do transporte/despacho/gate/
-round-trip + 6 da condição do GO + 17 da derivação). Inclui o **ensaio do infeliz**
-(kimi #4) contra o broker **real** em dry-run (`MOOTER_HOME` numa pasta temporária,
-dispatcher duplo):
+**244/244 a passar.** Inclui o **ensaio do infeliz** (kimi #4) contra o broker **real**
+em dry-run (`MOOTER_HOME` numa pasta temporária, dispatcher duplo):
 
 1. **recusa** → `REJECTED` gravado e dito no thread;
 2. **clique atrasado** → `STALE` com **os dois hashes à vista** (o CAS a trabalhar) e o
@@ -283,3 +284,62 @@ construção: os tokens/scopes reais, o formato exacto de um `app_mention` a che
 de um workspace verdadeiro, o comportamento do socket a reconectar de horas em
 horas, e o render dos blocos no telemóvel. Nada disto se pode afirmar antes de
 correr — e por isso não se afirma.
+
+## Silenciar um pedido — `SLACK_IGNORAR_JOBS`
+
+Um cartão já publicado **continua com os botões vivos**. Se um pedido entrou num ciclo
+mau — aprovar re-despacha, o filho volta a pedir aprovação, e a conta sobe — silenciá-lo
+é a forma de o parar sem lhe tocar:
+
+```bash
+SLACK_IGNORAR_JOBS=job-abc-1234,job-def-5678 node correr.js
+```
+
+Ou no `.env`, ao lado das outras `SLACK_*`:
+
+```
+SLACK_IGNORAR_JOBS=job-abc-1234,job-def-5678
+```
+
+**Os dois sítios funcionam.** Nem sempre foi assim: a lista era lida no topo do módulo,
+*antes* de o `.env` existir em `process.env` — punha-se lá e não acontecia nada, com o
+`[Aprovar]` a continuar quente. Um guarda que se desliga em silêncio quando o pomos no
+sítio óbvio dá a sensação de protecção sem a dar.
+
+O silêncio vale nos **dois** caminhos — o que publica e o que recebe cliques:
+
+| Acção | Num job silenciado |
+|---|---|
+| **Anunciar-se** | não. O cartão não volta a aparecer |
+| **Aprovar** | **bloqueado** — devolve `SILENCIADO`, efémero, e não chega ao broker |
+| **Recusar** · **Parar** | continuam a funcionar |
+
+Aprovar é a única acção bloqueada de propósito: `Recusar` e `Parar` são as que **mandam
+parar**, e bloqueá-las prendia o dono dentro do próprio cartão que quer travar. O job
+continua na fila do motor — silenciar não é cancelar.
+
+## Custo: o do pedido e o da conversa
+
+Cada aprovação gera um pedido **novo**. Um cartão que só saiba de si diz a verdade e
+mente na mesma: `US$ 1,24` num thread que já queimou `US$ 2,88`. Por isso o cartão leva
+duas linhas quando há cadeia:
+
+```
+Já gasto até agora neste pedido: US$ 1,24
+Nesta conversa, 3 pedidos encadeados: US$ 2,88
+valores informados pelo próprio motor · não verificados por nós
+```
+
+Regras, todas testadas:
+
+- **um só pedido** ⇒ não há linha de cadeia (seria ruído a repetir o número de cima);
+- **procedência desconhecida** ⇒ o número **não sai** — a mesma regra do pedido;
+- **um job da cadeia sem custo ainda** ⇒ diz **«pelo menos»**, porque é um piso e não um total;
+- **cadeia mista** ⇒ manda a afirmação mais fraca: se há uma estimativa lá dentro, o
+  total diz `inclui ESTIMATIVA`;
+- **procedências diferentes** entre o pedido e a cadeia ⇒ **cada número leva a sua**.
+
+⚠️ **O que isto NÃO resolve:** aprovar não herda o tier do pai. O re-despacho
+re-classifica um prompt inflado e sobe de T1 para T3 — medido: **12,7×** o custo do job
+original. O fix é no `broker.decide`, no motor, fora do alcance deste spike. O sintoma
+vê-se; a causa fica.
