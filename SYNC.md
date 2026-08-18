@@ -735,3 +735,46 @@ Rotação dos tokens (**crítico operacional**, o codex confirma) · demo agenda
 `reactions:write` para a reacção ⏳ · recusa e STALE ao vivo (precisam de clique) ·
 `git merge origin/main` + suite na árvore fundida antes do push (o branch está 28 atrás) ·
 `slack-spike` não corre em CI nenhum.
+
+### 2026-08-18 · dois bugs de vida do daemon + o moinho MEDIDO (T1→T3 ao aprovar)
+
+**Dois bugs apanhados ao vivo, minutos depois de o caminho feliz funcionar:**
+
+1. `religar` nunca fechava o socket velho → dois sockets abertos a escrever no mesmo
+   log → impossível dizer qual estava vivo. Fix: fecha o que substitui + `geracao`
+   em cada linha (`socket_aberto/fechado/erro/a_religar`). `5e06e01a`
+2. **O daemon fazia `exit 0` no meio da religação.** O timer da religação é
+   `unref()`'d e o poller também (`correr.js:270`); enquanto havia socket era o
+   WebSocket que segurava o event loop, fechado o socket nada o segurava. Último
+   registo: `a_religar tentativa 1` — parece a tentar, está morto. Fix: âncora REF'd
+   na janela sem socket. Teste em **processo filho** (`vive.fixture.js`) — a
+   propriedade «o processo continua vivo» não é observável de dentro; mutação
+   `ancora = null` → 1 fail. `b2235aa3`
+
+**O moinho, agora com número medido (ledger `~/.mooter/ledger.jsonl`):**
+
+| job | modelo | tier | prompt_chars | custo | desfecho |
+|---|---|---|---|---|---|
+| `job-msy34jki-70d9` | claude-haiku-4-5 | T0→T1 | 457 | **US$ 0,0977** | `agent-awaiting-approval` |
+| `job-msy35et1-3eb9` (`handoff_from` do 1º) | **claude-opus-5** | **T3** | 2595 | **US$ 1,2432** | `agent-awaiting-approval` |
+
+**US$ 1,34 por um clique, e o segundo job voltou a pedir aprovação.**
+
+Duas causas, e uma é minha:
+
+- **Minha:** o goal que sugeri ao dono era auto-referencial — «termina a dizer
+  *Aguardo a tua aprovação*». Aprovar re-despacha o MESMO goal, que volta a mandar
+  pedir aprovação. Um moinho garantido por construção do prompt, não do motor.
+- **Do motor (estrutural, ACHADO NOVO):** aprovar não herda o tier do pai — o
+  re-despacho **re-classifica um prompt inflado** (457 → 2595 chars, porque leva o
+  contexto todo) e sobe de T1 para **T3**. **12,7× o custo do job original.**
+  O spike não controla isto: o caminho da aprovação é `broker.decide` → motor, não
+  passa pelo `despacho.js` (cuja allowlist é `goal/agent/wave/actor`). Fix é no
+  motor — o re-despacho devia herdar o tier do pai como TECTO. **Fica para a
+  auditoria do codex / Cowork decidir; não toquei no motor.**
+
+Nota: ambos os jobs eram `escrita=false`, `allowedTools=Read,Glob,Grep` — leitura
+pura — e a aprovação exigiu `capacidades ["read","write","bash","net","git"]`.
+
+Estado: **211/211** · 29 commits · 0 uncommitted · `classify.js` sha intacto · nada
+pushed · daemon vivo com o fix (`geracao 1`).
