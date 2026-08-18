@@ -17,6 +17,7 @@ import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
+import { registarTriagem, DECISOES, menuDeMotores } from './triagem.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 
 const MAX_BODY_BYTES = 4096;
@@ -179,6 +180,7 @@ export function createServer({
   const ledgerPath = paths.LEDGER;
   const statePath = paths.STATE;
   const focusFile = paths.FOCUS;
+  const triagemFile = path.join(paths.base, "triagem.jsonl");
 
   return http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
@@ -213,6 +215,7 @@ export function createServer({
           ledgerPath,
           statePath,
           stopFile,
+          triagemPath: triagemFile,
           gpu,
           engineAlive: alive,
           loadedModels: models,
@@ -224,6 +227,12 @@ export function createServer({
 
     // Static catalogue, fetched once at boot instead of riding every poll: the
     // pillar names and questions never change while the process is up.
+    // Os motores e o custo REAL de mandar um achado a cada um. A tabela vem de
+    // tools/router/pricing.js; um modelo fora dela sai `n/d`, nunca estimado.
+    if (req.method === 'GET' && route === '/motores.json') {
+      return sendJson(res, 200, { motores: menuDeMotores() });
+    }
+
     if (req.method === 'GET' && route === '/pilares.json') {
       return sendJson(res, 200, {
         repo: raiz,
@@ -261,9 +270,28 @@ export function createServer({
       });
     }
 
-    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus')) {
+    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus' || route === '/triagem')) {
       if (!originAllowed(req.headers.origin)) {
         return sendJson(res, 403, { erro: 'origem nao local recusada' }, { cors: false });
+      }
+
+      // Triagem: a unica escrita do painel que produz VALOR em vez de estado.
+      // Guardada pela mesma origem que o kill-switch — decidir sobre os achados
+      // do dono e uma accao dele, nao de um site que ele visitou.
+      if (route === '/triagem') {
+        const body = await readBody(req);
+        if (!body || !body.chave || !DECISOES.includes(body.decisao)) {
+          return sendJson(res, 400, { erro: 'triagem precisa de { chave, decisao }', aceites: DECISOES });
+        }
+        try {
+          const e = registarTriagem(triagemFile, {
+            chave: body.chave, decisao: body.decisao,
+            recibo: body.recibo || null, nota: body.nota || null,
+          });
+          return sendJson(res, 200, { ok: true, registado: e });
+        } catch (err) {
+          return sendJson(res, 500, { ok: false, erro: String(err.message).slice(0, 200) });
+        }
       }
 
       // Per-pillar focus. The cockpit must never show a control that does

@@ -165,6 +165,8 @@ export function perPillar(receipts) {
  *
  * @returns the object served at `/fleet.json`
  */
+import { lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
+
 export function buildFleetState({
   // Sem default cravado: quem chama diz quem é, e a identidade vem toda de
   // `fleet-beacon.deviceName()`. Um nome inventado aqui foi o que fez o cockpit
@@ -173,6 +175,9 @@ export function buildFleetState({
   ledgerPath,
   statePath,
   stopFile,
+  // O registo de decisoes deste projecto. Ausente = ninguem triou nada ainda,
+  // que e diferente de "nao ha achados".
+  triagemPath = null,
   connector = '1.48.0',
   gpu = null,
   loadedModels = [],
@@ -202,6 +207,12 @@ export function buildFleetState({
     return Number.isFinite(t) && ownerDay(t) === today;
   });
 
+  const { decisoes, partidas: triagemPartidas } = triagemPath
+    ? lerTriagem(triagemPath)
+    : { decisoes: new Map(), partidas: 0 };
+  const contasTriagem = contarTriagem(receipts, decisoes);
+  const fila = porTriar(receipts, decisoes);
+
   const tally = tallyVerdicts(receipts);
   const tallyToday = tallyVerdicts(todays);
   const fresh = freshness(last && last.ts, now);
@@ -213,6 +224,16 @@ export function buildFleetState({
     // $0 is structural: `runner-core.assertLocalEngine` refuses any non-loopback
     // engine, so this field cannot drift away from the truth.
     usd: 0,
+    // O ciclo de valor: quantos achados nasceram, e quantos ainda esperam por
+    // uma decisao. Sem isto o painel media volume, nao trabalho.
+    triagem: {
+      ...contasTriagem,
+      ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),
+    },
+    // A fila. E tambem o alerta: um achado por triar nao pode exigir que o dono
+    // va procurar — ate hoje havia zero alertas no painel.
+    por_triar: fila,
+    alerta_achados: fila.length > 0,
     engine: engineAlive ? 'ollama-local' : 'down',
     conector: connector,
     owner_tz: OWNER_TZ,
