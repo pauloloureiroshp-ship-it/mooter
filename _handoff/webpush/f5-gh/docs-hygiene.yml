@@ -1,0 +1,67 @@
+name: docs-hygiene
+
+# PORQUÊ ISTO EXISTE
+# `tools/docs-hygiene.js` já media a deriva da arquitectura de informação — sha
+# do classificador congelado, SYNC.md fora do orçamento, pacotes untracked,
+# `_handoff/` intransitável, stashes. Só que vivia em `npm run handoff:hygiene`,
+# ou seja: corria quando alguém se lembrava. A 2026-08-15 o clone do Mac tinha
+# SYNC.md com 3682 linhas (17× a regra dos ~200), 204 pacotes no topo do
+# `_handoff/` e um relatório de wave na RAIZ a citar um sha do classificador de
+# antes de 2026-06-09. Nenhuma dessas coisas foi vista por CI nenhum, porque não
+# havia CI nenhum a olhar. Um gate que depende de memória não é um gate.
+#
+# PORQUE É RATCHET E NÃO --strict
+# `--strict` promove todo o aviso a falha. Contra o backlog medido acima, entrava
+# vermelho no primeiro dia e era desligado na primeira sexta-feira — o destino
+# exacto que o `wave-gate.mjs` foi escrito para evitar. A régua que aguenta o
+# contacto com a realidade é a mesma dele: **não pode PIORAR**. Os números descem
+# à vontade; para subirem, é preciso um humano actualizar
+# `tools/docs-hygiene-baseline.json` num commit, à vista de todos.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docs-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: a higiene não pode piorar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # `fetch-depth: 0` é deliberado. Um clone raso mente sobre o repositório:
+      # a 2026-08-15 este mesmo repo, clonado com `--depth` e refspec de um só
+      # ramo, fez parecer que a branch `feat/fleet-local-runner` não existia
+      # (existia, e já estava em main). Um doutor de higiene a correr sobre um
+      # clone raso diagnosticaria o clone, não o repositório.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Falha ANTES do gate se o próprio doutor estiver partido — um gate verde
+      # por o medidor estar avariado é pior do que não ter gate.
+      - name: O doutor está são (suite própria)
+        run: node --test tools/docs-hygiene.test.js
+
+      # O relatório humano completo fica sempre no log, mesmo quando o gate passa:
+      # é onde se vê o backlog a descer (ou não) de PR para PR.
+      - name: Relatório de higiene (informativo)
+        run: node tools/docs-hygiene.js
+
+      # O gate. 0 = nada piorou · 2 = piorou, ou um invariante duro caiu
+      # (o sha do classify.js congelado falha SEMPRE, ratchet ou não).
+      - name: docs-hygiene — a higiene não pode piorar
+        run: node tools/docs-hygiene.js --ratchet
