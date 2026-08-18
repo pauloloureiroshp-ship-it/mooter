@@ -307,6 +307,10 @@ export async function main({
         dur_s: 0,
         tokens_out: 0,
         verdict: 'sem-citacao',
+        // Sem esta bandeira, uma ronda que REBENTA escapava ao disjuntor: 12
+        // crashes seguidos escreviam 12 recibos sem backoff nenhum — a mesma
+        // inundacao que o B8 existe para travar, por outra porta.
+        falha_ronda: true,
         resultado_resumo: `ronda rebentou: ${String(err && err.message).slice(0, 160)}`,
         evidencia: 'n/d',
       };
@@ -316,13 +320,16 @@ export async function main({
     const { recibos, backoffS, aberto } = breaker.observe(receipt, nowIso());
     for (const r of recibos) appendReceiptImpl(paths.LEDGER, r);
 
-    // Uma ronda que nem chegou ao motor nao gastou o alvo: avancar o cursor
-    // aqui saltava um hunk que ninguem reviu. Falha de motor nao consome
-    // trabalho.
-    if (!motorFalhou) {
-      i += 1;
-      writeCursor(paths.CURSOR, i);
-    }
+    // O cursor anda SEMPRE. A versao anterior so o avancava quando o motor
+    // respondia — "uma ronda que nao chegou ao motor nao gastou o alvo" — e
+    // isso encravava o runner para sempre: como `pillar` e `cursor` derivam
+    // ambos de `i`, congelar `i` congela tambem o pilar. Medido: 30 rondas
+    // com HTTP 404 (motor VIVO, modelo em falta) deram 1 alvo, 3 recibos e
+    // cursor nunca escrito. Um device novo, sem o modelo puxado, ficava mudo.
+    // Os alvos reciclam por modulo, por isso andar durante um apagao nao perde
+    // trabalho nenhum.
+    i += 1;
+    writeCursor(paths.CURSOR, i);
     await publishBeaconImpl({ repoRoot, paths, engineAlive: !motorFalhou, logImpl });
 
     if (motorFalhou) {

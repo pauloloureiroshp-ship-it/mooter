@@ -97,6 +97,14 @@ export function buildFeed(receipts, limit = FEED_LENGTH) {
     .map((r) => ({
       ts: r.ts ?? null,
       pilar: r.pilar ?? null,
+      // 'geral' = o pilar nao tinha nada no diff e revimos o resto. Sem este
+      // campo no payload, o B6 corrigia o pack e o painel continuava a vestir
+      // o cartao "P1 · Routing & Custo" com trabalho que nao e do P1: o campo
+      // era escrito no ledger e lido por ninguem.
+      escopo: r.escopo ?? null,
+      // Eventos do disjuntor (engine:down / engine:up) nao tem pilar nem
+      // veredicto; sem isto apareciam no feed como uma linha muda.
+      evento: r.evento ?? null,
       verdict: r.verdict ?? null,
       ficheiro: r.ficheiro ?? null,
       dur_s: r.dur_s ?? null,
@@ -110,7 +118,12 @@ export function buildFeed(receipts, limit = FEED_LENGTH) {
 export function emptyStreak(receipts) {
   let n = 0;
   for (let i = (receipts || []).length - 1; i >= 0; i -= 1) {
-    const v = receipts[i] && receipts[i].verdict;
+    const r = receipts[i];
+    // Um evento do disjuntor nao e uma ronda: nao conta para a sequencia, mas
+    // tambem NAO a quebra. Quebrava — e um `engine:down` no fim do ledger
+    // punha o unico alarme de "a rodar sem produzir" a zero, calando-o.
+    if (r && r.evento) continue;
+    const v = r && r.verdict;
     if (v === VERDICT.NO_FINDING || v === VERDICT.UNCITED) n += 1;
     else break;
   }
@@ -137,6 +150,7 @@ export function perPillar(receipts) {
     else slot.sem_veredicto += 1;
     slot.ultimo = {
       ts: r.ts ?? null,
+      escopo: r.escopo ?? null,
       verdict: r.verdict ?? null,
       ficheiro: r.ficheiro ?? null,
       evidencia: r.evidencia ?? null,

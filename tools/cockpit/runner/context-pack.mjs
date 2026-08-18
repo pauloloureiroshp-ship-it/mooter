@@ -287,9 +287,16 @@ const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 /**
  * O que conta como trabalho novo para rever.
  *
- * Medido a 2026-08-18: sem exclusoes, 10 dos 20 ficheiros do diff de 12 commits
- * eram `_handoff/**` — copias arquivadas de codigo que ja nao corre — e outros
- * tantos eram `*.test.*`. A GPU moia arquivo e chamava-lhe revisao. As
+ * Medido a 2026-08-18 (`git diff --name-only HEAD~12...HEAD` sobre extensoes de
+ * codigo): 53 ficheiros, dos quais 10 em `_handoff/**` — copias arquivadas de
+ * codigo que ja nao corre — e 24 `*.test.*`. A GPU moia arquivo e chamava-lhe
+ * revisao.
+ *
+ * A primeira versao deste comentario dizia "10 dos 20", porque o denominador foi
+ * lido de uma listagem truncada a 20 linhas: 19% publicado como 50%. Fica escrito
+ * porque foi apanhado por uma auditoria adversarial e porque este e, de todos os
+ * ficheiros do repo, aquele cuja razao de existir e caçar metricas que mentem.
+ * As
  * exclusoes sao pathspec do git (`:(exclude)`), avaliadas pelo proprio git, para
  * que o custo do diff caia na origem em vez de se filtrar depois.
  */
@@ -486,9 +493,19 @@ export function buildContextPack({
   const spec = pillars[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
 
+  // O degrau do diff so ve codigo (ver DIFF_PATHSPEC). Um pilar cujos ficheiros
+  // sao TODOS documentos — o P3, cujo trabalho SAO os documentos — nunca podia
+  // ter interseccao com o diff, e ficava preso em `escopo: 'geral'` para
+  // sempre, a rever codigo de outros em vez do canon que lhe compete. Para
+  // esse, o diff nao e um degrau: e um desvio.
+  const temCodigo = spec.files.some((f) => {
+    const d = String(f).lastIndexOf('.');
+    return d >= 0 && CODE_EXT.has(String(f).slice(d));
+  });
+
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
-  if (diffBase) {
-    let diffErro = null;
+  let diffErro = null;
+  if (diffBase && temCodigo) {
     const todos = readChangedLines(repoRoot, { baseRef: diffBase, runImpl: diffRunImpl, onError: (e) => { diffErro = e; } });
     // Os hunks que caem nos ficheiros DESTE pilar. Sem interseccao, o pilar nao
     // tem nada de seu no diff: revemos o resto na mesma — trabalho novo vale
@@ -496,8 +513,16 @@ export function buildContextPack({
     // que nao mente. O rotulo do pilar deixa de ser colado a um ficheiro que
     // nada tem a ver com ele.
     const meus = todos.filter((h) => spec.files.includes(h.file));
+    // O que NENHUM pilar reclama. Deixar o `geral` percorrer `todos` punha-o a
+    // cair no mesmo hunk que um pilar dono ja estava a rever — 8 colisoes em
+    // 201 cursores, a primeira no cursor 2, porque o passo aritmetico nao ajuda
+    // quando as duas caminhadas sao sobre conjuntos diferentes. Os orfaos sao
+    // tambem a definicao honesta de "diff geral": a parte do trabalho novo que
+    // nao tem dono.
+    const donos = new Set(Object.values(pillars).flatMap((p) => p.files));
+    const orfaos = todos.filter((h) => !donos.has(h.file));
     const escopo = meus.length > 0 ? 'pilar' : 'geral';
-    const hunks = meus.length > 0 ? meus : todos;
+    const hunks = meus.length > 0 ? meus : (orfaos.length > 0 ? orfaos : todos);
     if (hunks.length > 0) {
       // Fora do ambito do pilar, o cursor sozinho dava a TODOS os pilares o
       // MESMO hunk na mesma ronda: medido a 2026-08-18, os packs de P1 e P5
@@ -507,8 +532,22 @@ export function buildContextPack({
       // determinismo: mesma ronda, mesmo repo, mesmo resultado.
       // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
       // impede que um id desconhecido desloque a rotacao para tras.
-      const desvio = escopo === 'geral' ? Math.max(0, Object.keys(pillars).indexOf(pillar)) : 0;
-      const h = hunks[Math.abs(cursor + desvio) % hunks.length];
+      const ids = Object.keys(pillars);
+      // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
+      // impede que um id desconhecido desloque a rotacao para tras.
+      // O desvio vale para os DOIS escopos. So o aplicar a `geral` deixava
+      // dois pilares que partilham um ficheiro (P2 e P6 partilham
+      // build-snapshot.js) a cair no mesmo hunk, com `desvio = 0` ambos, em
+      // 100% das rondas — e um `geral` a colidir com um `pilar`. Medido:
+      // 10 colisoes em 201 cursores, a primeira no cursor 10.
+      const desvio = Math.max(0, ids.indexOf(pillar));
+      // O passo tem de ser o NUMERO DE PILARES, nao 1. Com `cursor + desvio`, o
+      // pilar k da rotacao r caia no mesmo hunk que o pilar k-1 da rotacao r+1
+      // — medido no ledger vivo a 2026-08-18: P2 e P1, rondas seguidas, a mesma
+      // janela 277-295. Multiplicar pelo numero de pilares torna cada par
+      // (rotacao, pilar) um lugar unico na caminhada.
+      const passo = cursor * ids.length + desvio;
+      const h = hunks[Math.abs(passo) % hunks.length];
       const lines = readLines(repoRoot, h.file);
       if (lines && lines.length > 0 && h.start <= lines.length) {
         const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
@@ -573,6 +612,11 @@ export function buildContextPack({
   }
 
   // ---- modo ANCORADO: julgar um achado que a máquina já encontrou ----
+  // Se o `git diff` rebentou, a ronda continua pelo degrau seguinte — mas o
+  // erro TEM de viajar ate ao recibo. Foi um catch mudo aqui que deixou o modo
+  // diff morto um dia inteiro sem ninguem saber (ENOBUFS num diff de 52k
+  // linhas). Capturar o erro e nao o mostrar e o mesmo catch mudo com mais
+  // passos.
   const anchors = readAnchor(anchorPath);
   if (anchors.length > 0) {
     const hit = anchors[Math.abs(cursor) % anchors.length];
@@ -594,6 +638,7 @@ export function buildContextPack({
       ].join('\n');
       return {
         ok: true,
+        diffErro,
         mode: 'ancorado',
         anchored: true,
         anchorRule: hit.rule,
@@ -640,6 +685,7 @@ export function buildContextPack({
 
   return {
     ok: true,
+    diffErro,
     mode: 'caca',
     anchored: false,
     pillar,

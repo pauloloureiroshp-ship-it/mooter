@@ -649,9 +649,19 @@
     }
     for (const r of feed) {
       const tr = el('tr');
-      tr.append(el('td',null,hhmm(r.ts)), el('td',null,r.pilar || '—'));
+      // 'geral' = o pilar nao tinha nada no diff e reviu-se o resto. Sem esta
+      // marca, o feed dava o nome do pilar a trabalho que nao era dele — e o
+      // campo existia no ledger a ser lido por ninguem.
+      const tdp = el('td');
+      tdp.appendChild(document.createTextNode(r.evento ? '—' : (r.pilar || '—')));
+      if (r.escopo === 'geral') tdp.appendChild(el('span','nd',' · diff geral'));
+      tr.append(el('td',null,hhmm(r.ts)), tdp);
       const v = VERDICTS[r.verdict]; const tdv = el('td');
-      tdv.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto'));
+      // Um evento do disjuntor nao tem veredicto porque nao e uma ronda; dizer
+      // 'sem veredicto' fazia um apagao parecer uma ronda falhada.
+      tdv.appendChild(r.evento
+        ? el('span','chip dead', r.evento)
+        : (v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto')));
       tr.appendChild(tdv);
       // O `||` escondia o raciocinio: `evidencia` e nao-nula em 5419 de 5419
       // recibos, por isso `resumo` — o texto do modelo, "ACHADO: ... QUANDO ...

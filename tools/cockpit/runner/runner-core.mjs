@@ -274,6 +274,11 @@ export async function runRound({
       };
     }
   } catch (err) {
+    // Uma violacao do $0 DURO (um redirect para fora do loopback) caia aqui e
+    // saia rotulada "motor local indisponivel" — e, a partir da 3a ronda, o
+    // disjuntor calava-a. A promessa central do runner nao pode ser registada
+    // como uma avaria banal, e muito menos silenciada.
+    const violacaoZero = /motor tem de ser|motor invalido/.test(String((err && err.message) || ''));
     return {
       dispatched: true,
       receipt: {
@@ -282,11 +287,14 @@ export async function runRound({
         tokens_out: 0,
         ficheiro: pack.file,
         verdict: VERDICT.NO_FINDING,
+        ...(violacaoZero ? { violacao_zero: true } : {}),
         // Um STOP nosso nao e o motor em baixo — so o segundo abre o disjuntor.
-        ...(abortedByStop ? {} : { falha_motor: true }),
+        ...(abortedByStop || violacaoZero ? {} : { falha_motor: true }),
         resultado_resumo: abortedByStop
           ? 'STOP durante a geracao — ronda abortada, trabalho descartado'
-          : `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
+          : violacaoZero
+            ? `VIOLACAO $0: ${String(err && err.message).slice(0, 120)}`
+            : `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
         evidencia: abortedByStop ? 'kill-switch: abortou a ronda em voo' : 'n/d',
       },
     };
@@ -330,6 +338,11 @@ export async function runRound({
     dispatched: true,
     receipt: {
       ...receiptBase(),
+      // Prova POSITIVA de que o motor respondeu. O disjuntor so fecha com isto:
+      // a ausencia de prova de sucesso e uma falha, nao um sucesso. Fechar por
+      // "nao vi falha" fazia uma ronda REBENTADA emitir um `engine:up` com uma
+      // duracao de apagao inventada, com o motor ainda morto.
+      motor_ok: true,
       dur_s: Math.round((clock() - started) / 1000),
       tokens_out: Number.isFinite(tokens) ? tokens : 0,
       pilar_label: pack.label,
@@ -338,6 +351,9 @@ export async function runRound({
       // tinha nada no diff e revimos o resto. Sem este campo o painel dava o
       // rotulo do pilar a trabalho que nao era dele.
       ...(pack.escopo ? { escopo: pack.escopo } : {}),
+      // O `git diff` rebentou mas a escada degradou: o recibo diz que degradou
+      // E porque. Capturar o erro e nao o publicar e um catch mudo com mais passos.
+      ...(pack.diffErro ? { diff_erro: pack.diffErro } : {}),
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,

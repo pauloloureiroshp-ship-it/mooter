@@ -663,6 +663,34 @@ test('B6: sem hunk seu, o pack diz "geral" e NAO se veste do rotulo do pilar', (
   assert.doesNotMatch(pack.prompt, /^Pilar: P1/m, 'o cabecalho do prompt tambem nao pode afirmar o pilar');
 });
 
+test('B6 ACEITACAO: pilares e rotacoes SEGUIDAS nao colidem entre si', () => {
+  // A primeira versao deste teste so comparava pilares DENTRO do mesmo cursor,
+  // e passou com `cursor + desvio` — que faz o pilar k da rotacao r cair no
+  // mesmo hunk que o pilar k-1 da rotacao r+1. Foi o ledger vivo que apanhou
+  // (P2 e P1, rondas seguidas, janela 277-295), nao a suite. Um teste que
+  // aceita qualquer degrau nao testa nenhum: agora varre rotacoes seguidas.
+  const root = repoDiff();
+  const foraDeTodos = [
+    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
+    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
+    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
+  ];
+  const vistos = [];
+  for (let cursor = 0; cursor < 4; cursor += 1) {
+    for (const p of PILLAR_IDS) {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diffFalso(foraDeTodos) });
+      vistos.push(`${pk.file}:${pk.startLine}`);
+    }
+  }
+  // 24 rondas sobre 6 hunks: cada hunk sai 4 vezes, mas NUNCA duas vezes na
+  // mesma volta nem em voltas encavalitadas.
+  for (let i = 0; i + PILLAR_IDS.length <= vistos.length; i += 1) {
+    const janela = vistos.slice(i, i + PILLAR_IDS.length);
+    assert.equal(new Set(janela).size, PILLAR_IDS.length,
+      `rondas ${i}..${i + 5} repetem alvo: ${JSON.stringify(janela)}`);
+  }
+});
+
 test('B6 ACEITACAO: dois pilares, mesmo cursor, alvos DIFERENTES', () => {
   const root = repoDiff();
   const foraDeTodos = [
@@ -691,4 +719,56 @@ test('B6 ACEITACAO: zero alvos em _handoff/ — o pathspec e a unica defesa', ()
     diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
   });
   assert.doesNotMatch(pack.file, /^_handoff\//);
+});
+
+test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hunk', () => {
+  // Uma auditoria adversarial mediu 10 colisoes em 201 cursores, a primeira no
+  // cursor 10, com um pilar em escopo `geral` a cair no mesmo hunk que um pilar
+  // DONO ja estava a rever. O passo aritmetico nao ajudava: as duas caminhadas
+  // sao sobre conjuntos diferentes, e o `geral` percorria `todos` — que contem
+  // os hunks dos donos. Agora `geral` percorre os ORFAOS.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-b6t-'));
+  const escrever = (rel) => {
+    fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), Array.from({ length: 600 }, (_, n) => `linha ${n + 1};`).join('\n'));
+  };
+  const donos = [
+    'tools/router/classify.js',                  // P1
+    'tools/docs-hygiene.js',                     // P2
+    'tools/cockpit/build-snapshot.js',           // P2 e P6 — o par que colidia a 100%
+    'tools/cockpit/runner/moo-runner.mjs',       // P4
+    'tools/cockpit/runner/runner-core.mjs',      // P5
+    'tools/cockpit/runner/evidence-verifier.mjs',// P6
+  ];
+  const orfaos = ['a/um.js', 'a/dois.js', 'a/tres.js', 'a/quatro.js', 'a/cinco.js'];
+  for (const f of [...donos, ...orfaos]) escrever(f);
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc\n');
+
+  const diff = () => [...donos, ...orfaos]
+    .map((f, k) => [`--- a/${f}`, `+++ b/${f}`, `@@ -${30 + k * 20},0 +${30 + k * 20},4 @@`, '+x'].join('\n'))
+    .join('\n');
+
+  let colisoes = 0;
+  for (let cursor = 0; cursor < 40; cursor += 1) {
+    const alvos = PILLAR_IDS.map((p) => {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diff });
+      return `${pk.file}:${pk.startLine}`;
+    });
+    if (new Set(alvos).size !== PILLAR_IDS.length) colisoes += 1;
+  }
+  assert.equal(colisoes, 0, 'seis pilares a moer o mesmo hunk sao um pilar com seis vezes o custo');
+});
+
+test('B6: um pilar so de documentos nao entra no degrau do diff', () => {
+  // O P3, cujo trabalho SAO os documentos, ficava preso em `escopo: geral` para
+  // sempre — a rever codigo de outros — porque DIFF_PATHSPEC so ve codigo e ele
+  // nunca podia ter interseccao. Para ele o diff nao e um degrau, e um desvio.
+  const root = repoDiff();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc123\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P3', cursor: 0, diffBase: 'HEAD~12',
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+  });
+  assert.notEqual(pack.mode, 'diff', 'um pilar sem um unico ficheiro de codigo nao tem lugar no diff');
+  assert.equal(pack.file, 'CLAUDE.md', 'vai rever o canon, que e o trabalho dele');
 });

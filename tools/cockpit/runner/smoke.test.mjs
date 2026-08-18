@@ -197,7 +197,10 @@ test('smoke E2E: quando o motor volta, o ledger diz quanto tempo esteve em baixo
   const up = linhas.find((r) => r.evento === 'engine:up');
   assert.ok(up, 'o regresso do motor tem de ficar registado');
   assert.ok(up.apagao_s > 0, `duracao do apagao medida, nao estimada: ${JSON.stringify(up)}`);
-  assert.equal(up.rondas_engolidas, 8, 'diz quantas rondas nao foram gravadas');
+  // 8 rondas falhadas: 2 gravadas + 1 `engine:down` + 5 que o ledger NAO
+  // registou. Dizer 8 era inflacionar o numero no proprio recibo que o publica.
+  assert.equal(up.rondas_engolidas, 5, 'conta o que nao foi gravado, nao o total de falhas');
+  assert.equal(up.apagao_s > 0, true, 'e a duracao continua medida');
   assert.ok(linhas.filter((r) => !r.evento).length >= 1, 'e as rondas boas voltam a entrar normalmente');
 });
 

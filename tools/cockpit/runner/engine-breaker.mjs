@@ -51,6 +51,10 @@ export function createEngineBreaker({
   let falhas = 0;
   let inicio = null;
   let aberto = false;
+  // As rondas que o ledger NAO registou. Nao e o mesmo que `falhas`: as
+  // primeiras falhas de uma sequencia sao gravadas na mesma, e dizer que foram
+  // engolidas era inflacionar o numero no proprio recibo que o publica.
+  let engolidas = 0;
 
   return {
     /**
@@ -63,9 +67,26 @@ export function createEngineBreaker({
      *   ponto: durante um apagao aberto nao se grava nada.
      */
     observe(receipt, nowIso) {
-      const falhou = Boolean(receipt && receipt.falha_motor);
+      // Uma violacao do $0 DURO NUNCA e silenciada, aconteca o que acontecer ao
+      // disjuntor. E a promessa central do runner: se ela cair, o dono tem de
+      // ver a linha, nao um silencio educado.
+      if (receipt && receipt.violacao_zero) {
+        return { recibos: [receipt], backoffS: backoffSeconds(falhas, { baseS, capS }), aberto };
+      }
 
-      if (!falhou) {
+      // Tri-estado, de proposito. `motor_ok === true` e prova POSITIVA de que o
+      // motor respondeu — a unica coisa que fecha o disjuntor. Uma ronda que
+      // rebentou, ou que o dono abortou, nao prova nada: nao fecha, nao mente.
+      const saudavel = Boolean(receipt && receipt.motor_ok === true);
+      const falhouRonda = Boolean(receipt && (receipt.falha_motor || receipt.falha_ronda));
+      // Nem prova de sucesso nem falha declarada (um STOP em voo): passa ao
+      // lado do disjuntor sem o fechar. Fechar aqui foi o que produziu um
+      // `engine:up` com `apagao_s: 330` enquanto o motor continuava morto.
+      if (!saudavel && !falhouRonda) {
+        return { recibos: [receipt], backoffS: aberto ? backoffSeconds(falhas, { baseS, capS }) : 0, aberto };
+      }
+
+      if (saudavel) {
         const recibos = [];
         if (aberto) {
           const desde = Date.parse(inicio);
@@ -86,15 +107,16 @@ export function createEngineBreaker({
             inicio,
             fim: nowIso,
             apagao_s: apagao,
-            rondas_engolidas: falhas,
+            rondas_engolidas: engolidas,
             resultado_resumo: apagao === null
-              ? `motor local de volta apos ${falhas} rondas falhadas (duracao n/d: relogios nao batem)`
-              : `motor local de volta apos ${apagao}s em baixo (${falhas} rondas falhadas)`,
+              ? `motor local de volta apos ${falhas} rondas falhadas, ${engolidas} nao gravadas (duracao n/d: relogios nao batem)`
+              : `motor local de volta apos ${apagao}s em baixo (${falhas} rondas falhadas, ${engolidas} nao gravadas)`,
           });
         }
         falhas = 0;
         inicio = null;
         aberto = false;
+        engolidas = 0;
         recibos.push(receipt);
         return { recibos, backoffS: 0, aberto: false };
       }
@@ -128,12 +150,13 @@ export function createEngineBreaker({
       }
 
       // Disjuntor ja aberto: o ledger cala-se ate o motor voltar.
+      engolidas += 1;
       return { recibos: [], backoffS, aberto: true };
     },
 
     /** Estado legivel, para o log e para os testes. */
     get estado() {
-      return { falhas, inicio, aberto };
+      return { falhas, inicio, aberto, engolidas };
     },
   };
 }
