@@ -1,0 +1,81 @@
+name: slack-spike tests
+# NENHUM workflow corria a suite do spike do Slack. Um PR mostrava CI
+# verde sem nunca ter executado uma linha deste codigo — verde que nao significa
+# nada e pior que vermelho, porque convence.
+#
+# SEM `paths:` DE PROPOSITO. Duas razoes, ambas aprendidas por revisao:
+#   1. o varrimento de segredos tem de correr mesmo quando so mudam documentos —
+#      sao os `_handoff/*.md` que os agentes escrevem COM os tokens vivos em
+#      contexto, e era exactamente onde o guarda nao olhava;
+#   2. um workflow filtrado por `paths:` que seja marcado como *required* fica
+#      eternamente "expected — waiting for status" em qualquer PR que nao toque
+#      nesses caminhos. A suite corre em segundos; o filtro nao poupava nada.
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # sem contagem escrita aqui de proposito: um numero num comentario fica
+      # velho na semana seguinte, e este e o ficheiro cuja razao de existir e
+      # impedir verde que nao significa nada. A contagem vive no output.
+      - name: Suite (node:test, sem instalar nada)
+        working-directory: packages/slack-spike
+        run: node --test
+
+      - name: O spike nao pode ganhar dependencias
+        run: |
+          P=packages/slack-spike/package.json
+          if [ ! -f "$P" ]; then
+            echo "::error::$P desapareceu — o guarda de zero-dep passava a aprovar tudo"
+            exit 1
+          fi
+          if grep -qE '"(optional|peer|dev)?[Dd]ependencies"' "$P"; then
+            echo "::error::o slack-spike declarou dependencias — era zero-dep por desenho"
+            exit 1
+          fi
+          if git ls-files packages/slack-spike | grep -q node_modules; then
+            echo "::error::node_modules commitado dentro do spike"
+            exit 1
+          fi
+          echo "zero-dep confirmado"
+
+  segredos:
+    # A ARVORE TODA, nao so o spike. Um token colado num `_handoff/*.md` ou no
+    # SYNC.md escapava DUAS vezes ao guarda anterior: o workflow nao corria (filtro
+    # de paths) e, se corresse, o grep estava limitado a packages/slack-spike.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tokens do Slack com forma REAL, em qualquer ficheiro
+        run: |
+          # as fixtures sao curtas de proposito (xoxb-x, xapp-123, xoxb-SEGREDO) e
+          # passam; um token a serio tem 40+ chars depois do prefixo
+          if git grep -nIE 'xox[abcdeps]-[A-Za-z0-9-]{40,}|xapp-[A-Za-z0-9-]{40,}'; then
+            echo "::error::token do Slack com forma real commitado"
+            exit 1
+          fi
+          echo "sem tokens com forma real"
+      - name: Signing secret com valor a serio
+        run: |
+          # 32 hex sozinhos sao indistinguiveis de um id do Notion (o repo tem
+          # varios) — por isso exige-se o NOME da variavel ao lado do valor
+          if git grep -nIE 'SLACK_SIGNING_SECRET["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[0-9a-f]{32}'; then
+            echo "::error::SLACK_SIGNING_SECRET com valor commitado"
+            exit 1
+          fi
+          echo "sem signing secret"
+      - name: Nenhum .env entrou na arvore
+        run: |
+          # apanha `.env`, `prod.env`, `config/production.env` e `.envrc`; deixa
+          # passar os *.env.example / .template / .sample, que sao templates.
+          # (o guarda anterior so via nomes COMECADOS por `.env` — `prod.env` e
+          # `.envrc` escapavam-lhe, e o `.envrc` nem o .gitignore o tapa)
+          if git ls-files | grep -E '(^|/)([^/]*[.]env([.][A-Za-z0-9_-]+)?|[.]envrc)$' | grep -vE '[.](example|template|sample)$'; then
+            echo "::error::um .env foi commitado"
+            exit 1
+          fi
+          echo "sem .env na arvore"

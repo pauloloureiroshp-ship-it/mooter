@@ -13,6 +13,14 @@ on:
       # para 225 no mesmo dia, e um comentario com um numero errado e pior do
       # que um comentario sem numero nenhum.)
       - 'tools/cockpit/**'
+      # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
+      # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
+      # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
+      # PR fica BLOCKED para sempre — nao por falhar, mas por nunca correr. Foi o que
+      # aconteceu ao PR #274 (medido 2026-08-18). E a mesma armadilha que o
+      # `slack-spike-test.yml` evita nao tendo `paths:` nenhum, e esta escrita la no
+      # cabecalho dele. Adicionar caminhos nunca torna o CI mais fraco: corre mais.
+      - 'packages/slack-spike/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
@@ -22,6 +30,14 @@ on:
       - 'packages/mooter-bridge/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/cockpit/**'
+      # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
+      # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
+      # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
+      # PR fica BLOCKED para sempre — nao por falhar, mas por nunca correr. Foi o que
+      # aconteceu ao PR #274 (medido 2026-08-18). E a mesma armadilha que o
+      # `slack-spike-test.yml` evita nao tendo `paths:` nenhum, e esta escrita la no
+      # cabecalho dele. Adicionar caminhos nunca torna o CI mais fraco: corre mais.
+      - 'packages/slack-spike/**'
       - '.github/workflows/test.yml'
   workflow_dispatch:
 

@@ -1,0 +1,11 @@
+=== ACK-2 · prova do ALTO 1 (RED, medida por mim) ===
+publicado: true
+canarios que atravessaram: [
+  'CANARY_PRIVATE_WAVE',
+  'CANARY_PRIVATE_AUTHOR',
+  'CANARY_PRIVATE_HASH',
+  'CANARY_PRIVATE',
+  'CANARY_PRIVATE_HASH',
+  'CANARY_PRIVA',
+  'CANARY_PRIVATE'
+]

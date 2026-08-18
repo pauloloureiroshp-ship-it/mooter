@@ -1,0 +1,589 @@
+'use strict';
+/**
+ * ⚠️ THROWAWAY — spike Slack. O unico ficheiro que fala com o Slack.
+ *
+ * Socket Mode a mao, zero dependencias (nem `@slack/bolt` nem `ws`): o Node
+ * traz `fetch` e `WebSocket` globais, e a app tem UM canal e UM utilizador.
+ * Uma dependencia nova para isto seria mais superficie do que codigo.
+ *
+ * Contrato do Socket Mode usado aqui (docs.slack.dev, verificado 2026-08-17):
+ *   POST https://slack.com/api/apps.connections.open   Bearer <xapp-…>
+ *     -> { ok:true, url:"wss://…" }
+ *   envelopes recebidos: hello · events_api · interactive · disconnect
+ *   ack = devolver { envelope_id } pelo mesmo socket
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * AS DUAS GUARDAS QUE CUSTAM DINHEIRO SE FALTAREM
+ *
+ * 1. **ACK ANTES DE TRATAR.** O Slack re-entrega o que nao foi confirmado. Se o
+ *    ack viesse depois do handler, um despacho lento gerava uma re-entrega — e
+ *    uma re-entrega de `app_mention` e um SEGUNDO job, pago. Confirma-se
+ *    primeiro, trata-se depois. O preco e conhecido e aceite: se o processo
+ *    morrer entre o ack e o tratamento, aquele evento perde-se. Perder um
+ *    pedido e recuperavel (a pessoa repete); pagar dois nao.
+ *
+ * 2. **DEDUPE POR event_id.** O ack nao cobre tudo: o Slack pode entregar o
+ *    mesmo evento duas vezes por razoes dele. `event_id` e estavel entre
+ *    re-entregas, e um Set em memoria basta para um spike de UM utilizador.
+ *
+ * O CAS fica intacto: o botao carrega o `hash_esperado` que ESTAVA no cartao,
+ * nao o actual. Ler o hash fresco no clique era exactamente o que o STALE existe
+ * para apanhar — o clique atrasado passaria a valido e a demo perdia a cena que
+ * o masterprompt manda gravar (kimi #4).
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+
+const { AsyncLocalStorage } = require('node:async_hooks');
+
+const gateOmissao = require('./gate.js');
+const morteOmissao = require('./morte.js');
+
+/**
+ * ⚠️ O THREAD DA OPERACAO CORRENTE, sem estado mutavel partilhado.
+ *
+ * Antes era um `let threadCorrente` no escopo do transporte, posto antes de chamar
+ * o handler e limpo no `finally`. Com DUAS mencoes concorrentes, os handlers
+ * intercalam-se nos `await` e a segunda sobrepoe a primeira: o critico externo
+ * reproduziu-o e o job da 1a mencao foi parar ao thread da 2a. Numa demo de um
+ * utilizador raramente acontece; num canal com duas pessoas, acontece sempre.
+ *
+ * `AsyncLocalStorage` da um contexto POR CADEIA ASSINCRONA — e do Node, zero deps.
+ */
+const contexto = new AsyncLocalStorage();
+const cartao = require('./cartao.js');
+
+const API = 'https://slack.com/api/';
+
+/** Accoes que o cartao oferece -> action_id do bloco. */
+const { ACCOES, valorDoBotao, lerValorDoBotao } = cartao;   // o contrato vive no cartao.js
+
+/**
+ * So estes FECHAM um pedido — e fechar significa substituir o cartao, tirando-lhe os
+ * botoes.
+ *
+ * ⚠️ FORA daqui, de proposito, os dois estados que o broker devolve com
+ * `terminal:false`: o **STALE** e o **NEGADO**. O broker di-lo por palavras
+ * (`broker.js:72`): «um clique obsoleto nao decide nada. E NEGADO tambem nao».
+ *
+ * Se qualquer deles entrar nesta lista, o cartao perde os botoes por `chat.update`
+ * enquanto o pedido CONTINUA em `listPending` com o hash INALTERADO — e como o
+ * `jaVisto` do poller e `(job:hash)`, ele nunca republica. O pedido fica sem a unica
+ * superficie de decisao que tem no Slack. E a mesma trancadura que o hash no
+ * `idem_key` fechou, alcancada por outra porta.
+ *
+ * O NEGADO esteve aqui dentro ate 2026-08-18, sem teste nenhum a exercita-lo, e e
+ * alcancavel a serio: `roles.json` ilegivel, ou um clicker sem papel/capacidade.
+ */
+const ESTADOS_FINAIS = Object.freeze(['APPROVED', 'REJECTED', 'EXPIRED',
+  'PARADO', 'JA_TERMINADO']);
+
+// ── nucleo puro (testavel sem rede) ─────────────────────────────────────────
+
+/**
+ * O texto que o Slack entrega vem com a mencao ao bot e com entidades HTML.
+ * Tirar a mencao e obrigatorio: `<@U0BOT> arruma os testes` como goal punha o
+ * id do bot dentro do prompt.
+ */
+function extrairGoal(texto, botUserId) {
+  let t = String(texto == null ? '' : texto);
+  if (botUserId) t = t.split('<@' + botUserId + '>').join(' ');
+  t = t.replace(/^\s*<@[A-Z0-9]+>\s*/i, ' ');        // qualquer mencao a abrir
+  t = t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  return t.replace(/\s+/g, ' ').trim();
+}
+
+/** Chave estavel entre re-entregas. `null` quando o envelope nao e deduplicavel. */
+function chaveDeEvento(envelope) {
+  const e = envelope || {};
+  const p = e.payload || {};
+  if (p.event_id) return 'ev:' + p.event_id;
+  if (e.type === 'interactive') {
+    // um clique nao traz event_id; a combinacao abaixo e unica por clique
+    const u = (p.user && p.user.id) || '?';
+    const a = (p.actions && p.actions[0]) || {};
+    return 'int:' + u + ':' + (a.action_ts || a.action_id || '?') + ':' + (a.value || '');
+  }
+  return null;
+}
+
+/**
+ * Traduz um envelope do Socket Mode para o que o `adapter.js` entende.
+ * Note-se o que NAO viaja: `thread_context`, o texto das mensagens anteriores,
+ * blocos, ficheiros. So `user_id` e `texto` — e o `texto` e o goal, que a pessoa
+ * escreveu de proposito para o bot.
+ */
+function classificarEnvelope(envelope, botUserId) {
+  const e = envelope || {};
+  const envelope_id = e.envelope_id || null;
+  if (e.type === 'hello') return { tipo: 'hello', envelope_id: null, precisa_ack: false };
+  if (e.type === 'disconnect') {
+    return { tipo: 'disconnect', envelope_id: null, precisa_ack: false, razao: e.reason || 'n/d' };
+  }
+
+  if (e.type === 'events_api') {
+    const ev = (e.payload && e.payload.event) || {};
+    if (ev.type !== 'app_mention') {
+      return { tipo: 'ignorado', envelope_id, precisa_ack: true,
+        porque: 'evento ' + (ev.type || 'sem tipo') + ' — o spike so ouve app_mention' };
+    }
+    if (ev.bot_id || ev.subtype) {
+      return { tipo: 'ignorado', envelope_id, precisa_ack: true,
+        porque: 'mencao de bot ou com subtype — nao se responde a maquinas' };
+    }
+    return { tipo: 'mencao', envelope_id, precisa_ack: true,
+      dados: { user_id: ev.user || null, texto: extrairGoal(ev.text, botUserId),
+        canal: ev.channel || null, thread_ts: ev.thread_ts || ev.ts || null } };
+  }
+
+  if (e.type === 'interactive') {
+    const p = e.payload || {};
+    if (p.type !== 'block_actions') {
+      return { tipo: 'ignorado', envelope_id, precisa_ack: true,
+        porque: 'interaccao ' + (p.type || 'sem tipo') + ' — o spike so tem botoes' };
+    }
+    const a = (p.actions && p.actions[0]) || {};
+    const v = lerValorDoBotao(a.value);
+    if (!v.ok) {
+      return { tipo: 'ignorado', envelope_id, precisa_ack: true,
+        porque: 'botao sem valor legivel: ' + v.porque };
+    }
+    return { tipo: 'interaccao', envelope_id, precisa_ack: true,
+      dados: {
+        user_id: (p.user && p.user.id) || null,
+        request_id: v.job_id,               // no broker, request_id === job_id
+        // ⚠️ O HASH ENTRA NA CHAVE. Sem ele (`job:accao`) um clique STALE envenenava
+        // o pedido para sempre: o broker guarda a decisao por `idem_key`, e o clique
+        // no cartao FRESCO trazia a mesma chave, batia em `replay_exacto` e recebia
+        // de volta o STALE antigo. O pedido ficava inaprovavel pelo Slack — e isto
+        // acontece precisamente na cena que a demo existe para mostrar.
+        // Com o hash: o mesmo cartao clicado duas vezes continua a ser replay (mesma
+        // chave), e um cartao NOVO e uma decisao nova, porque o estado mudou.
+        idem_key: v.job_id + ':' + v.accao + ':' + String(v.hash || 'sem-hash').slice(0, 16),
+        expected_state_hash: v.hash,        // o hash DO CARTAO — o CAS depende disto
+        accao: v.accao,
+        thread_ts: (p.message && p.message.thread_ts) || (p.message && p.message.ts) || null,
+      } };
+  }
+
+  return { tipo: 'ignorado', envelope_id, precisa_ack: !!envelope_id,
+    porque: 'envelope de tipo ' + (e.type || 'n/d') };
+}
+
+
+/**
+ * Blocos do Slack a partir do payload que JA atravessou o `publicar.js`.
+ * Nao acrescenta campos: o texto e o que a porta deixou sair, e os botoes so
+ * levam identificadores e o hash — nunca conteudo.
+ */
+/** Compatibilidade: o desenho vive no cartao.js. Isto e so o caminho antigo. */
+function blocosDoCartao(texto, payload) {
+  const p = payload || {};
+  const blocos = [{ type: 'section', text: { type: 'mrkdwn', text: String(texto) } }];
+  const accoes = cartao.blocosDeAccoes(p);
+  if (accoes) blocos.push(accoes);
+  return blocos;
+}
+
+// ── IO (injectavel) ─────────────────────────────────────────────────────────
+
+async function chamarSlack(metodo, corpo, opcoes) {
+  const o = opcoes || {};
+  const fetchImpl = o.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== 'function') throw new Error('sem fetch disponivel para falar com o Slack');
+  const res = await fetchImpl(API + metodo, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8',
+      Authorization: 'Bearer ' + o.token },
+    body: JSON.stringify(corpo || {}),
+  });
+  let j;
+  try { j = await res.json(); } catch { j = { ok: false, error: 'resposta ilegivel' }; }
+  if (!j || j.ok !== true) {
+    // ⚠️ nunca se devolve o corpo enviado no erro: levava o texto consigo
+    const err = new Error('slack ' + metodo + ' falhou: ' + ((j && j.error) || 'erro sem nome'));
+    err.slack_error = (j && j.error) || 'n/d';
+    throw err;
+  }
+  return j;
+}
+
+/** O URL do socket vive minutos e pede o token de APP (`xapp-`), nao o do bot. */
+async function pedirUrlDoSocket(opcoes) {
+  const o = opcoes || {};
+  const j = await chamarSlack('apps.connections.open', {}, { token: o.appToken, fetchImpl: o.fetchImpl });
+  if (!j.url) throw new Error('apps.connections.open respondeu ok mas sem url');
+  return j.url;
+}
+
+/** WebSocket por omissao: o global do Node. Injectavel para os testes correrem sem rede. */
+function abrirSocketPorOmissao(url) {
+  const WS = globalThis.WebSocket;
+  if (typeof WS !== 'function') throw new Error('sem WebSocket global — Node >= 22 ou injecta abrirSocket');
+  const ws = new WS(url);
+  return {
+    aoAbrir: (cb) => ws.addEventListener('open', () => cb()),
+    aoMensagem: (cb) => ws.addEventListener('message', (m) => cb(String(m.data))),
+    aoFechar: (cb) => ws.addEventListener('close', () => cb()),
+    aoErro: (cb) => ws.addEventListener('error', (e) => cb(e)),
+    enviar: (obj) => ws.send(JSON.stringify(obj)),
+    fechar: () => ws.close(),
+  };
+}
+
+/**
+ * @param {{botToken?:string, appToken?:string, canal:string, botUserId?:string,
+ *          syncPath:string, gate?:object, fetchImpl?:Function, abrirSocket?:Function,
+ *          dryRun?:boolean, registar?:Function}} opcoes
+ */
+function criarTransporte(opcoes) {
+  const o = opcoes || {};
+  const gate = o.gate || gateOmissao;
+  const canal = o.canal;
+  const dryRun = !!o.dryRun;
+  const registar = o.registar || (() => {});
+  if (!canal) throw new Error('criarTransporte precisa de `canal` — um spike de UM canal diz qual');
+  if (!o.syncPath) throw new Error('criarTransporte precisa de `syncPath` — o gate le-o');
+
+  const threads = new Map();      // job_id -> thread_ts
+  const vistos = new Set();       // dedupe de re-entregas
+  const threadDaOperacao = () => (contexto.getStore() || {}).thread || null;
+  const cartoes = new Map();     // job_id -> ts do CARTAO publicado, para o chat.update
+  let tentativasLigacao = 0;
+  let geracaoActual = 0;      // numera cada socket: o log deixa de ser ambiguo
+  let ancora = null;          // segura o event loop enquanto nao ha socket (ver `religar`)    // persiste entre religacoes — ver religar()
+
+  // ── religacao: uma tentativa por queda, e TAMBEM por tentativa falhada ──────
+  // ⚠️ Vive aqui, e nao dentro do `correr()`, por uma razao apanhada pelo codex:
+  // quando a propria tentativa falha (`apps.connections.open` em baixo, DNS,
+  // 429), o `catch` estava dentro do `correr()` que morreu — so registava
+  // `religar_falhou` e NAO agendava nada. Com o poller `unref()`, o processo
+  // esvaziava a fila e saia com exit 0. Era o mesmo bug que a ancora foi criada
+  // para tapar, um nivel mais abaixo: tapei a queda do socket e deixei aberta a
+  // queda da RELIGACAO. O primeiro `fetch` que falhasse matava o daemon.
+  const timerReal = !opcoes.agendar || opcoes.ancoraSempre === true;   // quem injecta `agendar` controla o tempo
+  const agendar = opcoes.agendar || ((fn, ms) => { const h = setTimeout(fn, ms); h.unref?.(); return h; });
+  const reconectar = opcoes.reconectar !== false;
+
+  /**
+   * A ancora e um INTERVALO ref'd, nao um timeout: enquanto quisermos estar ligados
+   * e nao houver socket, o processo tem de ficar vivo — por mais tentativas que
+   * falhem. Um timeout de `espera + 2s` expirava se o `fetch` demorasse mais que
+   * isso a falhar, e a morte silenciosa voltava.
+   * Quem a larga e o `aoAbrir`: e o WebSocket que passa a segurar o loop.
+   */
+  function ancorar() {
+    if (!timerReal || ancora) return;
+    ancora = setInterval(() => {}, 60000);      // REF'd de proposito
+  }
+  function largarAncora() {
+    if (ancora) { clearInterval(ancora); ancora = null; }
+  }
+
+  /**
+   * ⚠️ HA FALHAS QUE NAO PASSAM COM O TEMPO. Um token revogado devolve `invalid_auth`
+   * a primeira e a milesima tentativa. Sem isto, o dia em que o dono rodar os tokens
+   * — que e precisamente o passo seguinte deste spike — o daemon ficava a martelar
+   * o Slack de 30 em 30 segundos, para sempre, com a ancora a segurar o processo.
+   * Insistir contra uma recusa definitiva nao e resiliencia, e ruido.
+   */
+  const FATAIS = Object.freeze(['invalid_auth', 'not_authed', 'account_inactive',
+    'token_revoked', 'token_expired', 'app_missing_action_url']);
+
+  function fatal(e) {
+    const s = String((e && (e.slack_error || e.message)) || '');
+    return FATAIS.find((f) => s.includes(f)) || null;
+  }
+
+  function agendarTentativa(maos, porque, geracao) {
+    if (!reconectar) return;
+    tentativasLigacao += 1;
+    const espera = Math.min(30000, 1000 * Math.pow(2, tentativasLigacao - 1));
+    registar({ tipo: 'a_religar', geracao, porque, tentativa: tentativasLigacao, espera_ms: espera });
+    ancorar();
+    agendar(() => correr(maos).catch((e) => {
+      const msg = (e && e.message) || 'erro';
+      const f = fatal(e);
+      if (f) {
+        registar({ tipo: 'religacao_desistiu', geracao, porque: msg, slack_error: f,
+          nota: 'recusa definitiva do Slack — insistir nao muda nada; o daemon para aqui' });
+        largarAncora();          // deixa o processo morrer, em vez de martelar para sempre
+        return;
+      }
+      registar({ tipo: 'religar_falhou', geracao, porque: msg });
+      agendarTentativa(maos, 'a tentativa anterior falhou: ' + msg, geracao);   // OUTRA VEZ
+    }), espera);
+  }
+  const enviados = [];            // o que saiu (ou sairia, em dry-run)
+
+  /**
+   * O gate governa a REDE. Onde a linha passa, exactamente:
+   *
+   *   `correr()`  -> SEMPRE trancado. Abrir o socket e falar com o Slack, e o
+   *                  masterprompt guarda isso para o MODO VIVO.
+   *   `enviar()`  -> trancado so quando ha envio a serio. Em `dryRun` nada sai
+   *                  da maquina: e literalmente o MODO CONSTRUCAO que o
+   *                  masterprompt autoriza («testes em dry-run, nenhum dispatch
+   *                  real»), e tranca-lo tornava o modo de construcao inutil.
+   *
+   * Ou seja: nada toca a rede antes da linha no SYNC.md; tudo o que e local
+   * corre hoje. Se alguem desligar o `dryRun`, o gate volta a mandar.
+   */
+  /**
+   * ⚠️ A DATA DE MORTE tambem conta, e nao so no arranque. Era avaliada uma vez em
+   * `correr.js` e nunca mais: um daemon deixado a correr sobrevivia ao proprio prazo
+   * — e, com a ancora, «nunca morre» passou a ser literal. Um throwaway que nao
+   * morre e so software.
+   */
+  function trancado() {
+    const m = (o.morte || morteOmissao).estadoDeMorte();
+    if (m.morto) return 'o prazo do spike terminou: ' + m.porque;
+    const g = gate.modoVivo({ syncPath: o.syncPath });
+    return g.vivo ? null : g.porque;
+  }
+  function trancadoParaEnviar() {
+    return dryRun ? null : trancado();
+  }
+
+  /**
+   * A porta do `publicar.js`: recebe o texto e os BLOCOS ja filtrados, e o payload
+   * ja validado. Nao formata nada — formatar aqui seria formatar depois do
+   * varrimento de nomes sensiveis, e portanto por strings novas a sair sem verificacao.
+   *
+   * ⚠️ Uma DECISAO nao publica mensagem nova: ACTUALIZA o cartao. Deixar o cartao
+   * antigo com botoes vivos ao lado da decisao e convidar um clique que so pode
+   * responder «ja decidido» — e num telemovel e um toque a mais numa accao paga.
+   */
+  async function enviar(texto, payload, blocos) {
+    const p = payload || {};
+    const t = trancadoParaEnviar();
+    if (t) { registar({ tipo: 'envio_trancado', porque: t }); return { enviado: false, porque: t }; }
+
+    const thread = (p.job_id && threads.get(p.job_id)) || threadDaOperacao() || null;
+    const blocks = blocos || blocosDoCartao(texto, p);
+
+    /**
+     * Decisao FINAL sobre um cartao que ainda esta no ecra -> substitui-o no lugar.
+     *
+     * ⚠️ SO as finais. O STALE nao e uma decisao: e um clique que nao passou, e o
+     * pedido CONTINUA a espera de alguem. Substituir o cartao por um aviso sem
+     * botoes deixava o pendente indecidivel — o utilizador perdia a unica forma de
+     * decidir sobre um pedido que ainda estava vivo. Com o STALE de fora, o cartao
+     * fica intacto e, se o estado mudou (que e a razao do STALE), o poller publica
+     * um cartao novo com o hash novo em <=5s, e a decisao volta a ser possivel.
+     */
+    const alvo = p.tipo === 'decisao' && p.job_id && ESTADOS_FINAIS.includes(p.estado)
+      ? cartoes.get(p.job_id) : null;
+    if (alvo) {
+      const corpo = { channel: canal, ts: alvo, text: String(texto), blocks };
+      enviados.push({ metodo: 'chat.update', corpo });
+      // ⚠️ o `delete` vem ANTES de qualquer return: estava depois do return do
+      // dry-run, e portanto o ensaio actualizava o mesmo cartao duas vezes onde o
+      // vivo o faria uma. Um dry-run que se comporta diferente do vivo nao e um
+      // ensaio, e uma segunda implementacao a mentir sobre a primeira.
+      cartoes.delete(p.job_id);          // decidido: deixa de existir como cartao
+      if (dryRun) return { enviado: true, dry_run: true, actualizado: alvo };
+      await chamarSlack('chat.update', corpo, { token: o.botToken, fetchImpl: o.fetchImpl });
+      return { enviado: true, dry_run: false, actualizado: alvo, thread_ts: thread };
+    }
+
+    const corpo = { channel: canal, text: String(texto), blocks };
+    if (thread) corpo.thread_ts = thread;
+
+    enviados.push({ metodo: 'chat.postMessage', corpo });
+    if (dryRun) {
+      if (p.tipo === 'pendente' && p.job_id) cartoes.set(p.job_id, 'ts-seco-' + p.job_id);
+      return { enviado: true, dry_run: true, thread_ts: thread };
+    }
+    const j = await chamarSlack('chat.postMessage', corpo, { token: o.botToken, fetchImpl: o.fetchImpl });
+    if (p.job_id && j.ts && !threads.has(p.job_id)) threads.set(p.job_id, j.ts);
+    // guarda-se o ts DO CARTAO para o poder actualizar quando houver decisao
+    if (p.tipo === 'pendente' && p.job_id && j.ts) cartoes.set(p.job_id, j.ts);
+    return { enviado: true, dry_run: false, ts: j.ts || null, thread_ts: thread };
+  }
+
+  /**
+   * Efemero: SO frases fixas escritas aqui. Nunca o `porque` do broker nem o
+   * `porque_local` do despacho — esses citam estado interno, e um efemero e uma
+   * mensagem enviada, com as mesmas regras de tudo o que sai.
+   */
+  async function enviarEfemero(userId, texto) {
+    const t = trancadoParaEnviar();
+    if (t) return { enviado: false, porque: t };
+    const corpo = { channel: canal, user: userId, text: String(texto) };
+    const th = threadDaOperacao();
+    if (th) corpo.thread_ts = th;
+    enviados.push({ metodo: 'chat.postEphemeral', corpo });
+    if (dryRun) return { enviado: true, dry_run: true };
+    await chamarSlack('chat.postEphemeral', corpo, { token: o.botToken, fetchImpl: o.fetchImpl });
+    return { enviado: true, dry_run: false };
+  }
+
+  function lembrarThread(jobId, ts) { if (jobId && ts) threads.set(jobId, ts); }
+
+  /**
+   * Trata UM envelope. Devolve o que fez, para os testes e para o registo.
+   * O ack e responsabilidade de quem chama (`correr`), e vem ANTES desta funcao.
+   */
+  async function tratarEnvelope(envelope, maos) {
+    const h = maos || {};
+    const c = classificarEnvelope(envelope, o.botUserId);
+    if (c.tipo === 'hello' || c.tipo === 'disconnect') return { tipo: c.tipo, razao: c.razao };
+    if (c.tipo === 'ignorado') { registar({ tipo: 'envelope_ignorado', porque: c.porque }); return { tipo: 'ignorado', porque: c.porque }; }
+
+    const chave = chaveDeEvento(envelope);
+    if (chave && vistos.has(chave)) {
+      registar({ tipo: 'reentrega_ignorada', chave });
+      return { tipo: 'duplicado', porque: 're-entrega do mesmo evento — nao se paga duas vezes' };
+    }
+    if (chave) vistos.add(chave);
+
+    const thread = (c.dados && c.dados.thread_ts) || null;
+    return contexto.run({ thread }, async () => {
+      if (c.tipo === 'mencao') {
+        const r = h.aoMencionar ? await h.aoMencionar(c.dados) : null;
+        if (r && r.job_id) lembrarThread(r.job_id, thread);
+        return { tipo: 'mencao', resultado: r };
+      }
+      const r = h.aoInteragir ? await h.aoInteragir(c.dados) : null;
+      // efemero SO para quem esta na allowlist: responder a um estranho
+      // confirmava-lhe que o pedido existe (a regra do adapter, aqui cumprida)
+      if (r && r.efemero && r.estado !== 'IGNORADO') {
+        await enviarEfemero(c.dados.user_id, 'já decidido — nada a fazer');
+      }
+      return { tipo: 'interaccao', resultado: r };
+    });
+  }
+
+  /**
+   * O loop. `abrirSocket` e injectavel: nos testes nao ha rede.
+   *
+   * ⚠️ RECONEXAO. O Slack manda `disconnect` (reason: refresh_requested) de horas
+   * em horas e fecha o socket — e a propria doc diz que qualquer cliente tem de
+   * lidar com isso. Ate aqui o `disconnect` era CLASSIFICADO e ignorado: o daemon
+   * ficava com cara de "a ouvir" e nao ouvia mais nada, exactamente como aconteceu
+   * hoje por outra razao. Uma demo que morre sozinha ao fim da tarde nao e uma
+   * demo, e uma armadilha para o dia em que houver um estranho a ver.
+   */
+  async function correr(maos) {
+    // ⚠️ A ANCORA NAO SE LARGA AQUI. Largava — e o codex mostrou o buraco: se a
+    // tentativa falhasse a seguir (`apps.connections.open` em baixo), ficavamos
+    // sem ancora E sem socket, e o processo saia com exit 0. Quem a larga e o
+    // `aoAbrir`, porque e ai que o WebSocket passa a segurar o event loop.
+    const t = trancado();
+    if (t) {
+      // ⚠️ SAIR EM SILENCIO NAO. Se o gate fechar ENTRE tentativas, o `correr()`
+      // devolvia `{correu:false}` e mais nada: nao agendava, nao registava, e a
+      // ancora ficava posta a segurar um processo que ja nao ia religar nunca.
+      // O daemon passava a existir sem servir para nada, e sem o dizer. Agora
+      // aborta a religacao em voz alta e larga a ancora — se tem de morrer,
+      // morre com a razao escrita no log.
+      registar({ tipo: 'religacao_abortada', porque: t });
+      largarAncora();
+      return { correu: false, porque: 'MODO VIVO trancado: ' + t };
+    }
+    const abrir = o.abrirSocket || abrirSocketPorOmissao;
+    let vivo = true;   // por-socket: evita que close E erro contem como duas quedas
+
+    /**
+     * Uma reconexao por queda, com backoff e teto.
+     *
+     * O contador vive FORA desta funcao (em `criarTransporte`) de proposito: cada
+     * religacao entra por um `correr()` novo, e um contador local reiniciava a zero
+     * a cada tentativa — o "backoff" ficava preso em 1s para sempre e um Slack em
+     * baixo levava um pedido por segundo, indefinidamente. Era um backoff a fingir.
+     *
+     * O callback agendado DEVOLVE a promise (sem chaves): sem isso quem agenda nao
+     * consegue esperar pela religacao, e foi assim que os testes mentiram primeiro.
+     */
+    function religar(porque) {
+      if (!reconectar || !vivo) return;
+      vivo = false;                                  // este socket ja nao conta
+      // ⚠️ FECHAR O VELHO. Sem isto os sockets acumulam-se: o antigo continua a
+      // receber `disconnect`/`error`/`close` e a escrever no mesmo log, e deixa
+      // de se poder dizer QUAL socket esta vivo. Visto ao vivo — uma queda gerou
+      // linhas que pareciam o daemon a ficar surdo e eram o socket anterior a
+      // morrer. Um log ambiguo sobre liveness e pior que nenhum.
+      try { if (s && typeof s.fechar === 'function') s.fechar(); } catch { /* ja morto */ }
+      agendarTentativa(maos, porque, geracao);
+    }
+
+    const url = await pedirUrlDoSocket({ appToken: o.appToken, fetchImpl: o.fetchImpl });
+    geracaoActual += 1;
+    const geracao = geracaoActual;
+    const s = abrir(url);
+    // ⚠️ PRAZO PARA ABRIR. Sem isto, um socket que nunca abre, nunca fecha e nunca
+    // da erro — handshake pendurado, proxy a engolir — deixava o daemon VIVO (a
+    // ancora segura-o) e SURDO para sempre. Nenhum dos tres callbacks disparava,
+    // portanto nada religava. E a mesma familia de todos os defeitos deste spike:
+    // o processo existe, o log nao diz nada, e ninguem repara ate um estranho
+    // escrever no canal e nao acontecer nada.
+    const msParaAbrir = Number(o.msParaAbrir || 15000);
+    let abriu = false;
+    const prazo = setTimeout(() => {
+      if (abriu || !vivo) return;
+      registar({ tipo: 'socket_nao_abriu', geracao, espera_ms: msParaAbrir });
+      religar('o socket nao abriu em ' + msParaAbrir + 'ms');
+    }, msParaAbrir);
+    prazo.unref?.();                       // a ancora e que segura o loop, nao este
+
+    // ⚠️ Sem isto o socket falhava em SILENCIO. `apps.connections.open` devolver um
+    // URL nao prova que a ligacao se fez — e se o WebSocket nunca abrisse, ou
+    // fechasse a seguir, o daemon ficava com cara de "a ouvir" sem ouvir nada.
+    // Custou uma tentativa real do dono: escreveu no canal e nao houve UMA linha
+    // de log a dizer o que faltava. Um daemon que nao sabe dizer se esta ligado
+    // nao esta a ser observado, esta a ser assumido.
+    if (typeof s.aoAbrir === 'function') {
+      s.aoAbrir(() => { abriu = true; clearTimeout(prazo); tentativasLigacao = 0; largarAncora();
+        registar({ tipo: 'socket_aberto', geracao }); });
+    }
+    if (typeof s.aoFechar === 'function') {
+      s.aoFechar(() => { registar({ tipo: 'socket_fechado', geracao }); religar('socket fechado'); });
+    }
+    if (typeof s.aoErro === 'function') {
+      s.aoErro((e) => {
+        registar({ tipo: 'socket_erro', geracao, porque: (e && (e.message || e.type)) || 'erro sem mensagem' });
+        religar('socket em erro');
+      });
+    }
+
+    s.aoMensagem(async (bruto) => {
+      let env;
+      try { env = JSON.parse(bruto); } catch { registar({ tipo: 'envelope_ilegivel' }); return; }
+      // ── ACK PRIMEIRO (ver cabecalho) ──
+      const c = classificarEnvelope(env, o.botUserId);
+      // TODO envelope que chega fica registado, tipo incluido: e a unica forma de
+      // distinguir "o Slack nao me manda nada" de "manda e eu descarto"
+      registar({ tipo: 'envelope', slack_type: env && env.type, classificado: c.tipo,
+        porque: c.porque || undefined });
+      if (c.precisa_ack && c.envelope_id) {
+        try { s.enviar({ envelope_id: c.envelope_id }); } catch (e) { registar({ tipo: 'ack_falhou', porque: (e && e.message) || 'erro' }); }
+      }
+      // o Slack avisa ANTES de fechar: religa-se aqui, nao a espera do close
+      if (c.tipo === 'disconnect') religar('disconnect do Slack: ' + (c.razao || 'n/d'));
+      try { await tratarEnvelope(env, maos); } catch (e) {
+        registar({ tipo: 'handler_falhou', porque: (e && e.message) || 'erro' });
+      }
+    });
+    return { correu: true, socket: s, url_obtido: true };
+  }
+
+  // ⚠️ `ancorado` e diagnostico, nao decoracao. Sem ele, "o processo continua a ser
+  // segurado entre tentativas" e uma propriedade que ninguem consegue observar: um
+  // `fetchImpl` falso rejeita por microtask e o event loop nunca chega a esvaziar,
+  // por isso um teste em memoria NAO distingue a ancora presente da ausente — o
+  // mutante que a largava a entrada do `correr()` passou verde. Uma propriedade que
+  // so se pode assumir nao esta testada; expo-la e o que a torna testavel.
+  return { enviar, enviarEfemero, correr, tratarEnvelope, lembrarThread, enviados, threads,
+    vistos, cartoes,
+    ancorado: () => !!ancora,
+    // largar a ancora e PRECISO ter nome: e um intervalo ref'd, e quem o criar sem
+    // forma de o soltar pendura o processo para sempre — foi o que aconteceu ao
+    // proprio `node --test` na primeira versao deste teste (2 min de timeout).
+    largarAncora };
+}
+
+module.exports = {
+  ACCOES, API, ESTADOS_FINAIS,
+  extrairGoal, chaveDeEvento, classificarEnvelope, valorDoBotao, lerValorDoBotao, blocosDoCartao,
+  chamarSlack, pedirUrlDoSocket, abrirSocketPorOmissao, criarTransporte,
+};

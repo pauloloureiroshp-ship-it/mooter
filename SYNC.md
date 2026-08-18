@@ -339,268 +339,260 @@ a3d0d59  fix(ci): 66/66 → 72/72 green
 *Cowork Mac working surface: `~/Documents/Claude/Projects/Mooter.ai (macOS)/` com logs, dumps, mapa operacional HTML, e este SYNC.md.*
 
 ---
-## 📥 COWORK → CLAUDE CODE — 2026-07-31 (Seamless multi-device install)
-### Instruções e decisões tomadas no Cowork para a próxima sessão
-> Esta secção é escrita pelo Cowork. O Claude Code deve lê-la no início de cada sessão, antes de qualquer trabalho.
-> Após lida e aplicada: escrever "✅ Lido em sessão #N — [data]" e limpar as instruções.
 
-**Última actualização Cowork:** 2026-07-31
-**Estado:** 🟡 Por ler
+kimi-egress FECHADA — slack-spike destravado
 
-### Diagnóstico (medido hoje, não presumido)
-- `publish-mcpb.yml` está em `origin/main` (2b23941, 2026-07-28) mas tem **0 runs de sempre** — todas as 21 releases do GitHub são de 2026-06-14, anteriores ao workflow. **Nenhuma release tem asset `.mcpb`** (verificado na API: 0 ocorrências).
-- Consequência: nos Macs, `mooter_setup({atualizar:"ver"})` consulta o GitHub (ok:true) e encontra **0** — devolve "estás na versão mais recente" mesmo sem nada instalado ou desactualizado. Falso negativo.
-- `update.js`: `aplicar`/`aplicarAsync` só instalam de **ficheiro local** (`o.ficheiro || procurar().nova.ficheiro`); os achados remotos vêm com `ficheiro:null, download_url` e são ignorados pelo aplicar. `ver` vê o GitHub, `aplicar` não chega lá.
-- `main` local está **ahead 2** de origin — push pendente.
-- ⚠️ Namespace de versões contaminado: tags de Junho `v1.33.0-wave-mega-self-evolving` … `v1.39.0-coherence-audit` (linha antiga) colidem numericamente com a linha actual (1.33.0 instalada hoje). `releasesGitHub()` extrai a versão do tag_name — se alguém anexar um `.mcpb` a uma release de Junho, o comparador escolhe-a como "mais nova".
+## [2026-08-17] COWORK — decisão do RISK do slack-spike: GO CONDICIONADO (a linha acima é o destrave mecânico)
+- Decisor: Cowork/Fable 5 como maestro, sob delegação do dono (veto dele disponível). Fundamento: o ALTO de CÓDIGO aberto da kimi-egress (plano em disco não declarado no recibo, na recusa por agent kimi) vive EXCLUSIVAMENTE no caminho kimi/Moonshot. CONDIÇÃO DURA do GO: o spike exclui o kimi por construção — allowlist de motores do despacho SEM kimi, com teste que prova a recusa de agent:"kimi" — ANTES do 1º dispatch vivo. Com o vendor guardado fora da rota, o ALTO não é alcançável pelo caminho vivo. Quando a kimi-egress mergear de verdade, o kimi volta por decisão explícita, nunca por default.
+- A demo declara isto ao estranho como feature: "Moonshot desligado até o veto de egress entrar em main" — custódia por enforcement, não por promessa.
+- Restante fila do CC slack-spike inalterada: tokens (.env, caminho vem do Paulo) → exclusão kimi testada → MODO VIVO → ensaio do infeliz real → final-reviewer antes de push. Condição de sócio nº1 mantém-se: demo AGENDADA com estranho antes do merge.
 
-### Wave proposta — "Release channel" (ordem de execução)
-1. **Push de main** + publicar release `v1.33.0` com o bundle local anexado (Paulo já tem o bloco de comandos; sha256 do bundle local validado: `79d77b07…33a8e8a5`). O CI reconstrói e faz `--clobber` — primeira run de sempre do workflow; verificar que o pack gate (entrega.test.js) passa em ubuntu.
-2. **Asset de nome fixo**: acrescentar ao `publish-mcpb.yml` um segundo upload `mooter.mcpb` → URL evergreen `releases/latest/download/mooter.mcpb` para o site e para o guia Mac.
-3. **`aplicar` com download**: em `update.js`, quando `nova.origem==='github'`, baixar `download_url` para pasta temporária, `verificar()` o zip, e só então instalar — mesmo pipeline de backup/rollback. Testes herméticos com `fetchImpl` injectado (padrão já existe em `releasesGitHub`).
-4. **Higiene de versões**: apagar as releases de Junho sem assets (tags podem ficar) OU saltar a linha actual para v1.40.0 na próxima release — decidir e registar no SYNC. Nunca anexar `.mcpb` a releases da linha antiga.
-5. Guia de instalação macOS criado pelo Cowork: `_handoff/INSTALAR_MAC.md` — rever e manter.
+## [2026-08-17] CC — slack-spike: Baldes 1, 2 e 3 (modo autónomo até à linha de merge)
 
-### Critério de aceitação
-Nos 3 devices (PC, Mac mini, MacBook Pro), `/mooter-atualizar` devolve a **mesma** `versao_instalada`, e um device desactualizado chega à versão nova sem tocar no repo — só release pública + restart do Claude Desktop.
+**Estado:** MODO VIVO a funcionar ponta-a-ponta. **NADA PUSHED.** Os 4 gates de merge são
+do dono e continuam fechados.
 
-### Wave proposta 2 — "Onboarding first-run" (Cowork, 2026-07-31, mesma sessão)
-Base: auditoria real via conector (job `job-ms9ihvcx-f9c1`, cc/haiku, $0.20, file:line) + docs MCPB oficiais.
-1. First-run flag (ausência prévia de `~/.mooter/install-id.json`) → welcome com 3 próximos passos e estado dos opcionais.
-2. Validar `user_config` no boot (paths existem? key com formato válido?) → aviso no diagnóstico, nunca silêncio (manifest.json:40-66).
-3. `which git`/`which gh` no diagnóstico de 6 linhas com mensagem de conserto por OS (gap #1 da auditoria).
-4. Razões distintas no probe Ollama (timeout vs daemon down vs parse) + dica de instalação (moo.js:32-59).
-5. install-id: fallback + aviso quando ~/.mooter não é gravável (install-id.js:45-59).
-6. manifest: `compatibility` (darwin/win32) + conferir `sensitive:true` na moonshot_api_key.
-Prompt de instalação para o Mac mini: `_handoff/SUPERMASTER_MAC_MINI.md` (colável no Cowork de lá).
-⚠️ Dependência dura: release pública com `.mcpb` (Wave "Release channel" acima) — a 2026-07-31 ainda 0 releases com asset.
+### Balde 1 · VER A MAGIA — ✅ passou, e de graça
+`job-msxmsv76-30f8` · `done exit=0` · `gemma4:e4b` · **tier T0** · **US$ 0,00** · **19,8s** ·
+`fecho_publicado` no log · thread fechou com `🏁`. **Duas divergências do previsto, ambas a
+favor:** custou zero (previsto ~US$ 0,11) e **não teve os 20s** de `prep_timeout` (o T0 local
+não passa pela preparação). **Não reiniciei o daemon** como o passo 1 mandava: já corria em
+`29ace5ee`, que inclui o fix; reiniciar perdia o `SLACK_IGNORAR_JOBS` do `e13c`. C5 aplicado.
 
-### 📌 Decisões registadas — 2026-07-31 (handoff Mac mini → Cowork PC)
-**C1 (esquema de versões): tag = `v1.33.0`.** Tem de bater com `manifest.version` do bundle (o CI faz checkout da tag e o validator sinc package.json ↔ tag; tag ≠ manifest geraria "há versão nova" eterno). Próxima release da linha salta para **v1.40.0** para limpar o namespace de Junho. Nunca anexar `.mcpb` a releases de Junho.
-**C2 (updater cego a versão inferior): REFUTADO com código.** `releasesGitHub()` (update.js:227-239) só lista assets `\.mcpb$` — as releases de Junho têm zero, logo são invisíveis ao updater. Publicar v1.33.0 não é mascarado. C2 só se materializa se alguém anexar bundle a tag antiga (proibido acima).
-**Fase 1 (segurança do bundle v1.33.0): ✅ PUBLICÁVEL.** 44 ficheiros varridos: zero valores de segredos (sk-/ghp_/github_pat_/AIza/key=), zero config/vault/install-id embutidos; 4 hits "Paulo Loureiro" = 3 comentários + autor no manifest (cosmético). `moonshot_api_key` TEM `sensitive:true` ✅. `compatibility:null` ❌ (backlog, não bloqueia). ⚠️ `telemetry` object anunciado no SYNC v1.29 NÃO está no manifest v1.33 — reconciliar.
-**Divergência de tools (relato do Mac, confrontado):** as skills estão CERTAS — tools6.js expõe `mooter_work/check/setup/fleet/journal/cancel`. O stale é o registo "bridge v0.2" de 07-24 E as strings de resposta: seamless.js:2060/2280/2498-2499 mandam usar `mooter_status`/`mooter_collect`, que não existem. Fix rápido: strings → `mooter_check`. Acrescentar à wave Onboarding.
-**Vault multi-device (plano):** (1) Paulo rota os 4 segredos pendentes desde 07-24; (2) vault: `.gitignore += cron/.env.save` + `git rm --cached`; (3) como NUNCA houve push, limpar o histórico antes do primeiro push (filter-repo no `cron/.env.save`, ou init de histórico novo) — `git rm --cached` sozinho deixa os blobs antigos no histórico; (4) repo GitHub **privado** + clone na **raiz do home** (`~/paulo-vault`) nos 2 Macs — nunca em `~/Documents/`, que é onde nasceu o clone stale da G15 (corrigido 2026-08-02: a precedência canónica é `$MOOTER_VAULT` → `$VAULT_PATH` → raiz do home, `AGENTS.md` § Agent boot & freshness); (5) `vault_path` do conector aponta lá. Sync contínuo: git (Obsidian Git ou pull/push manual).
+### Balde 2 · NÃO PERDER O DIA — ✅ `349f0037` (em `~/frugal`, `onda-q/m1-fechar-o-laboratorio`)
+`SYNC.md` +31 linhas, add selectivo, sem push. Obstáculo declarado: havia um `.git/index.lock`
+de 3h, 0 bytes, zero processos git — **detrito meu** (um comando com backticks mal escapados
+às 17:54Z correu `git worktree remove\'` naquele repo). Removido, e dito.
 
-### 🚢 RELEASE v1.33.0 PUBLICADA — 2026-07-31 22:48Z (Cowork → mooter_work → cc nativo)
-- Executado pelo conector (job `job-ms9j8yx2-8dd3`, cc/haiku, 61s, $0.164): push main (838dbe1..ca1fc13) · tag `v1.33.0` → 36e53f8 · `gh release create` com o bundle local.
-- Asset: `mooter-v1330.mcpb` · 851.091 bytes · sha256 `79d77b07…33a8e8a5` (idêntico ao instalado no PC).
-- **Fase 4 verificada de fora:** `mooter_setup({atualizar:"ver"})` no PC → `github.achados: 1` (primeira detecção remota de sempre) · versao_instalada 1.33.0 = mais recente ✅. C2 (mascaramento por tags de Junho) refutado em produção.
-- ⚠️ CI `publish-mcpb.yml` dispara na publicação e faz `--clobber` do asset — se o digest mudar, é o rebuild do CI a partir da tag; confirmar 1ª run do workflow.
-- Mac mini destravado: FASE 0 do SUPERMASTER agora passa; download em `releases/download/v1.33.0/mooter-v1330.mcpb`.
+### Balde 3
+- **3a auditoria ao codex** — despachada read-only (`escrita=false`, `allowedTools=read`,
+  `--sandbox read-only` confirmado no ledger). `job-msxqfbak-3911`, wave `slack-spike-auditoria`.
+  Veredicto: **por chegar** (a correr há >13 min). **Anexo-o inteiro e sem filtrar quando chegar.**
+- **3b correcções** — as decisões de maestro, implementadas sem esperar pelo codex:
+  - **botão PARAR** (`cancelar.js` → `toolCancel`) com allowlist própria e gate por clique.
+    **Desvio declarado ao «mesmo CAS do Aprovar»:** o parar CARREGA o hash mas **não recusa**
+    por divergência — um clique atrasado sobre um agente descontrolado tem de o parar na
+    mesma; recusar seria o botão de emergência a falhar quando o estado muda depressa, que é
+    quando ele serve. A outra metade do requisito (job terminado = no-op, não erro) vem do
+    `toolCancel`, idempotente. Sem `confirm` e sem `danger`: um stop com atrito chega tarde.
+  - **matar os 20s** — `pre_digest:false` no despacho. Verificado no código, não assumido:
+    `wantsPrepare = pre_digest && agent !== 'moo'`, logo quando o tier resolve T0 a prep já
+    não nascia — o skip só afecta T2/T3, que é onde os 20s vivem.
+  - **heartbeat honesto** — `4 passos · 1m12s`, números reais, e **só quando existem**. Sem
+    passos e sem tempo diz apenas «Recebido». Sem % e sem ETA (H2: barra RECUSADA).
+  - **kimi excluído por construção** — já estava, com 3 mutações a prová-lo.
+- **3d ensaio do infeliz contra o Slack real** — **daemon offline ✅** (3 religares, o
+  pendente sobreviveu). **recusa e STALE: BLOQUEADOS** — exigem um clique humano no Slack e
+  não os posso dar. Provados contra o broker real em dry-run.
+- **3f final-reviewer** — a correr.
 
----
+### 🚨 ACHADO GRAVE, por acidente: um pendente NOSSO desaparece do Slack
+Às **21:14:50** (7s depois do dispatch do codex) uma reconciliação do motor
+(`appendTerminalReconciliation` ← `sweepOrphans`) **re-carimbou** o estado do `e13c`, um job
+de 4 horas antes, com um evento novo **sem `actor`**:
+```
+17:36:52  nao_verificado · actor=slack:U0BG…JFL   <- original
+21:14:50  nao_verificado · actor=—                    <- re-carimbo
+```
+`estadoCorrente` passa a devolver o carimbo novo, o actor degrada para `legacy`, e
+`listPending({actor})` deixa de o ver. **O pedido continua à espera no motor e some do
+Slack, sem erro e sem log.** Duas leituras, ambas verdadeiras: (a) **do núcleo** — a
+reconciliação perde a atribuição de custódia, que é o que o `f-mu0` existe para garantir
+(`seamless.js` é frozen, não lhe toquei: vai para a auditoria); (b) **minha** — ler «quem
+pediu» do último carimbo era frágil. **Corrigido:** a pertença deriva do ledger inteiro (um
+job é nosso se ALGUM evento seu declarou o nosso actor), imune a re-carimbos e a religares.
 
-## 🔒 REGRA DURA — o artifact `mooter-cockpit` NÃO se republica de sessão cloud — 2026-08-05
+### BLOQUEADOS (não dependem de mim)
+- **`reactions:write` ausente** → a reacção ⏳→✅/❌ do H5 não é construível. Scopes actuais
+  medidos: `app_mentions:read`, `chat:write`. **Precisa do dono.**
+- **Suprimir o push** (H5) — o `text` controla o *conteúdo* do push, não *se* há push. Não
+  há via de API para o suprimir. `n/d`.
+- **3c rotação dos tokens** — o dono regenera; eu não crio credenciais.
+- **3d recusa e STALE ao vivo** — precisam de um clique humano.
+- **Gate nº1: demo AGENDADA com ≥1 estranho** — não agendada. Bloqueia o merge.
 
-**A partir daqui, nenhuma sessão Cowork cloud republica o artifact `mooter-cockpit`.** Só uma sessão que corra NA máquina (Cowork "on your computer" ou Claude Code local) o pode fazer.
+### Custo medido (fonte colada em cada job, `n/d` onde não há)
+**US$ 4,4675** · 18 jobs nascidos no Slack · 12 com custo · **1 grátis (local)**. A auditoria
+do codex ainda não fechou: custo `n/d`. O custo em tokens desta sessão de CC: **`n/d`** —
+não há fonte fiável na máquina e não se inventa.
 
-### Porquê — duas causas medidas hoje
+### Testes e invariantes
+**185/185** · mutação: **9/9 vermelhas** nas guardas do 3b (+12 anteriores) ·
+`classify.js` `427d8c0b…` **intacto** · nada tocado em `packages/mooter-bridge/` ·
+adds selectivos · **0 uncommitted**.
 
-1. **O schema remoto não tem `mcp_tools`.** `mcp__remote-devices__update_artifact` aceita exactamente 4 propriedades: `id`, `file_uuid`, `update_summary`, `description`. Não existe campo para declarar tools do conector. Verificado às 11:15Z depois de `RefreshMcpTools` (servidor `refreshed`, 59 tools, 0 adicionadas / 0 removidas). O `create_artifact` é pior: *"Remote-created artifacts start with no connector grants."* Nenhuma outra tool da sessão aceita `mcp_tools` — a tool local `Artifact` não está exposta ao cloud (`select:Artifact` → "No matching deferred tools found").
-2. **Publicar de fora corta a ponte.** Descrição da própria tool: *"A remote update clears the artifact's connector grants."* Foi o que aconteceu às **11:09:16Z de hoje** — o `mooter-cockpit` foi actualizado por uma sessão cloud e ficou sem grants. É a **3ª ocorrência** do mesmo padrão (1ª e 2ª a 2026-08-04).
+### ⚠️ CORRECÇÃO AO REGISTO ACIMA — três números que reportei ao dono estavam ERRADOS
 
-**Consequência prática:** de uma sessão cloud o chip do painel **nunca** pode dizer `bridge` — no máximo `snapshot`. O gesto de publicar é o mesmo gesto que corta a fonte.
+O crítico externo (codex, read-only) refutou-os. Corrijo aqui em vez de os deixar:
 
-**Detalhe que fecha a porta de vez (namespace):** o `cockpit.html` chama as tools pelos nomes do host local — `mcp__Mooter__mooter_fleet`, `mcp__Mooter__mooter_setup`, `mcp__Mooter__mooter_work`, `mcp__Mooter__mooter_cancel`. Da cloud as mesmas tools só existem como `mcp__remote-devices__Mooter__*`. Mesmo que existisse um campo `mcp_tools`, uma sessão cloud declararia o namespace errado.
-
-### Segundo bloqueio, independente do primeiro
-
-O snapshot não pode ser gerado da cloud. Pelo mount, `HOME` resolve para o sandbox da sessão (`/sessions/rcw-.../`) e a pasta `.mooter` é procurada lá; só `C:\Users\Paulo Loureiro\frugal` está montado — `C:\Users\Paulo Loureiro\.mooter` não está. O `build-snapshot` recusou-se a escrever, e **fez bem**: *"vistas vazias: jobs, board, setup · snapshot NÃO escrito — uma fotografia vazia lê-se como facto"*.
-
-### Estado do artifact a 2026-08-05 11:09:16Z
-
-Publicado a partir de `dist/cockpit-snapshot.html` — **correcto**: 5 ocorrências de `__MOOTER_SNAPSHOT__`, payload de 32.473 chars, `gerado_em` 11:07:25.413Z, `medido_em` 11:04:24.497Z, 534.472 bytes. A regra "publicar o snapshot, nunca o HTML cru" foi respeitada. O que falta é o **grant**, e o grant é gesto de UI do desktop.
-
-### Como se faz correctamente (sessão local)
-
-1. Gerar `dist/cockpit-snapshot.html` na máquina, com `.mooter` alcançável.
-2. Publicar no `mooter-cockpit` **de uma sessão local**, declarando `mcp__Mooter__mooter_fleet`, `mcp__Mooter__mooter_setup`, `mcp__Mooter__mooter_check`.
-3. Aceite: abrir o painel e o chip dizer `bridge · read HH:MM`. Se disser `snapshot`, o grant não passou.
-
-### ❌ Não fazer
-
-`update_artifact` / `create_artifact` sobre `mooter-cockpit` a partir de **qualquer** sessão cloud, por mais fresco que esteja o snapshot. Fresco sem ponte continua a ser `snapshot`, e a republicação apaga o grant que uma sessão local tenha acabado de pôr.
-
-### Conector saudável (para não confundir sintomas)
-
-`mooter_check` às 11:16:13.883Z → `ok:true`, `live:0`, "frota parada · em codex-mooter-plugin, frugal-work, frugal, frugal-site". O que está cortado é o **grant do artifact**, não o conector.
-
----
-
-## 📥 COWORK → CLAUDE CODE — 2026-08-07 (Estudo Mooter Desktop App)
-**Estado:** 🟡 Por ler
-
-### Contexto
-Empresa interessada acha que o Mooter precisa de interface própria (desktop Win+Mac). Estágio: SÓ INTERESSE — sem pedido, sem dinheiro. Estudo completo + mock navegável entregues hoje pelo Cowork.
-
-### Artefactos
-- `_handoff/ESTUDO_MOOTER_DESKTOP_APP_2026-08-07.md` — stack dos 5+ apps de referência (web hoje), recomendação Electron-primeiro (bridge é Node; Tauri registado como opção futura), cruzamento 5 experiências × telas, onboarding first-run, arquitectura conta/SSO (doutrina 08-04 mantida: sem login no free, Polar license key, GitHub/Google só conveniência, SSO Anthropic nunca), gauntlet 18 aplicado, sequência com gates.
-- `_handoff/mooter-desktop-mock-2026-08-07.html` — mock single-file navegável (onboarding→Resume→Plan→Watch→Review→Settings), identidade mooter.ai, inglês, dados marcados MOCK. Também publicado como artifact `mooter-desktop-mock` (novo — NÃO é o `mooter-cockpit`; sem grants necessários).
-
-### Decisão pendente do Paulo
-`avançar` / `avançar-depois-de-X` / `não-avançar` sobre a sequência §10 do estudo. GATE DURO: nenhuma wave de construção do app antes de pedido pago da empresa (2ª conversa termina em pedido — protocolo Corporate 08-06). Falsificador: 2 semanas sem pedido → backlog atrás do F0.
-
-### ❌ Não fazer (próxima sessão CC)
-- Não arrancar shell Electron/Tauri sem o gate acima.
-- Não tocar em `mooter-cockpit` (regra dura 08-05 mantém-se).
-- G4 do estudo pendente: despachar revisão adversarial ao codex ANTES de qualquer wave de construção.
-
----
-
-## 💡 IDEIA REGISTADA — 3 pools de fornecimento (subscription · local fleet · rental) — 2026-08-07
-**Estado:** ❄️ backlog — sem wave, gate Corporate mantém-se
-
-Tese do Paulo: router orquestra 3 pools — subscription LLMs · GPUs locais (frota multi-agente) · capacidade alugada (burst). Crítica Cowork aceite: (a) forma mais barata de "rental" é serverless open-model API com chave do próprio usuário (trust moat "never proxying prompts" intacto); GPU crua por hora só ganha em batch sustentado (frota overnight saturando a GPU local). (b) Não cria T4 — expande o fulfillment DENTRO de T0–T2; classify.js congelado não é tocado (padrão adição-only wave 58). Detalhe na conversa Cowork 08-07.
-
-### ❌ Não fazer
-- Nenhuma spec/wave disto antes do gate Corporate (pedido pago) e da decisão `avançar/não-avançar` do desktop app.
-
-### Addendum 2026-08-07 (mesma sessão Cowork) — Mock v2 + FEATURE MAP
-- `_handoff/FEATURE_MAP_MOOTER_DESKTOP_2026-08-07.md` — contrato entrada⇄saída: 22 capacidades (A1-A22, cada uma com estado real no motor: ✅ shipped / 🟡 parcial / 🔜 planned) × 14 insumos do utilizador (B1-B14, cada um com a degradação honesta sem ele) + Readiness Score (insumos ligados/14, núcleo pesa dobro) + 7 regras de honestidade viradas mecanismo de UI.
-- `_handoff/mooter-desktop-mock-v2-2026-08-07.html` — substitui o v1 no artifact `mooter-desktop-mock`. Telas novas: Savings (denominador comutável tokens/jobs, custo por resposta certa n/d até alimentar o juiz), Doctor/Setup Radar (os 14 insumos com fix de 1 clique), Approvals inbox (approve-with-receipt, badge planned), Packs c/ hardware-fit, night queue, ledger timeline c/ integridade, ⌘K.
-- Regra do mock: tudo que NÃO está no motor leva badge `planned` — nunca vender ao cliente o que não existe (G18).
-- Gate do §10 do estudo INALTERADO: construção só com pedido pago.
-
-### Addendum 2 — 2026-08-07 (mesma sessão) — Mock v3: Chat + Team + integrações
-- `_handoff/mooter-desktop-mock-v3-2026-08-07.html` (artifact `mooter-desktop-mock` → v3). Novo:
-  - **Chat estilo Cursor, superado**: composer com Auto default + override por mensagem (dropdown com preços; escolher Opus à mão avisa "o router teria escolhido T2 · 14x mais caro"), context pills, trace colapsável e recibo POR MENSAGEM · **Second Opinion**: 1 clique re-roteia a mesma pergunta para outro motor, lado a lado, com veredicto do juiz — é o crítico≠autor virado botão de UI.
-  - **Team**: humanos E agentes no MESMO roster (mesmos cards, mesmos recibos) · regras de aprovação por tier (T3 = Paulo ou Ana, receipt required) · feed de actividade intercalado · pitch: "agents as accountable coworkers".
-  - **Integrações = peles do broker local** (doutrina slack-sweet-spot 08-06 respeitada): Slack (mock de mensagem com botões Approve/Deny + recibo), Teams (digest diário), Discord (needs-input pings), Meet (transcript → draft dispatches no Plan). TUDO `planned` · adapter Slack continua pilot-gated.
-- Multi-user inteiro marcado `planned · needs paid pilot` — nada disto entra em wave antes do gate do §10.
-
----
-
-## 🎼 MAESTRO POKE-MOO v1.1 — F0 fechada, e a máquina de estados mudou de forma — 2026-08-08
-**Estado:** F0 `COMPLETE` `[medido]` · F1a em curso · F1b `BLOCKED_ROM` · F2 pré-staged
-
-O G4 do próprio maestro (`job-mskch6ok-9cac`, codex read-only) deu **NO-SHIP** ao v1.0:
-**13 achados, 11 ALTO**. As fases fechavam por prosa, os quatro gestos do dono eram forjáveis
-pelo próprio agente, a F4 mandava o escritor criar a sua própria chave, e uma F2 morta a meio
-ficava indistinguível de uma F2 fechada.
-
-- Prova: `_handoff/maestro-g4/resultado.md` · manifesto `_handoff/maestro-state/F0.complete.json`
-- v1.0 revisto: sha `159413c7…` → v1.1: sha `ff4ae3ef…` · commit `168f598d`
-- **Ressalva que fica:** a verificação cruzada local do G4 **não correu** ⇒ o gate teve **um**
-  motor, não dois. Rótulo honesto: revisão INTERNA, não auditoria independente.
-
-**O que mudou por mecanismo:** fase fechada = `maestro-state/<FASE>.complete.json` com bindings
-de sha (nunca declaração) · estados `NOT_STARTED → RUNNING(attempt_id) → COMPLETE|BLOCKED|FAILED`
-· `BLOCKED` nunca conta como `COMPLETE` · F1 partida em F1a/F1b · adapters saem da F1 e nascem
-na **F4b** (só MOCK, depois do §0) · gesto vazio é INVÁLIDO e agentes ficam **proibidos** de
-escrever em `pokemoo-gestos/` · o §0 exige literalmente E1–E6 do brief · F5 gera **HUD-only**
-e frames persistentes passam a exigir fase jurídica separada · bloco CONFIG congelado pelo
-dono, `n/d` ⇒ PARAR.
-
-### Insumo OBRIGATÓRIO da F4 (§0) e da F5 — série "MOO RUN"
-`_handoff/ADDENDUM_MOO_RUN_SERIE_2026-08-08.md` · sha `bfead0f8d2636f6cc3b5879917bb9490cc6430bed35ec2b26728c380db26fb73`
-
-Registado aqui como **insumo, não como sugestão**: o §0 tem de pré-registar os **dois formatos**
-(corrida-ao-marco **e** mesmo-orçamento, ambos publicados sempre — anti-cherry-pick), e a F5
-tem de carimbar cada frame com `game_step_idx` + `record_hash` + QR para o jsonl ancorado.
-Baselines do PokeAgent Challenge: avaliar **na F5**, com licença verificada, nunca antes.
-Não altera a fila F1→F5 nem a REGRA 0. Nada disto foi executado nesta sessão.
-
-### poke-lab — remoto criado, ZERO push
-`https://github.com/pauloloureiroshp-ship-it/poke-lab` · **privado** · **vazio** (`isEmpty:true`).
-Auditoria antes de criar: 19 ficheiros rastreados, **zero** `.gb/.gbc/.mp4/.gif/.state`; o
-próprio git confirma que ignoraria `roms/ videos/ states/ runs/` e que o código não é ignorado
-por acidente. Suite **18 → 27 passed** (D0: captura de vídeo com gate que se recusa a entregar
-vídeo preto ou estático, com controlo a prová-lo).
-
-### ❌ Não fazer
-- Não declarar fase fechada sem o `<FASE>.complete.json` no disco.
-- Não criar nem alterar nada em `_handoff/pokemoo-gestos/` — é do dono.
-- Não tocar nos adapters C1/C2 antes da F4b (o brief trava-os até ao §0).
-- Não correr a F2 sem fonte de quota **identificada**: a medição local é limite inferior contra
-  uma referência default que não é um limite publicado, e por isso não serve de gate.
-
-
-## 📥 COWORK → CLAUDE CODE — 2026-08-15 (GPU-por-pilar: estratégia + 7 skills)
-**Estado:** ✅ Lido e executado em sessão CC de 2026-08-15 (Mac mini) — ver ⇄ MOO HANDOFF abaixo.
-> Estratégia canônica no vault: `40-strategy/mooter-gpu-pilares-2026-08-15.md` + decisão em
-> `20-decisions/2026-08-15-gpu-por-pilar-…`. **Ambas commitadas e empurradas para `main` do vault**
-> (`f4afb90`) — o Windows já as vê.
-
-⚠️ **Três premissas deste bloco estavam erradas, e a causa era uma só: o clone do Mac.** Estava
-`--depth` (raso) + refspec de um só ramo e 135 commits atrás. Corrigido nesta sessão.
-
-## ⇄ MOO HANDOFF — CC → Cowork · 2026-08-15 (Mac mini)
-
-**STATE:** 3 ramos commitados localmente, **0 empurrados** (ver BLOQUEIO). Vault empurrado. `main`
-actualizado v1.33.0 → `f4a60a8b`. classify.js `427d8c0b…48f` intacto em todas as worktrees.
-
-### S0 — sync devices (medido, não presumido)
-
-| | Mac mini | Windows |
-|---|---|---|
-| Repo | `~/frugal` ✅ (era raso+135 atrás → agora completo, em `f4a60a8b`) | n/d (não tocado nesta sessão) |
-| Vault | `~/paulo-vault` ✅ (checkout vivo em `codex/agent-sync-fleet-v3`, intocado) | n/d |
-| Remote repo | `https://…/mooter.git` — **sem credencial de escrita neste Mac** | n/d |
-| Remote vault | `git@…/paulo-vault.git` ✅ push feito (`b78b17c..f4afb90`) | n/d |
-
-### RECON — o que foi REFUTADO (o achado principal da sessão)
-
-| Alegação do bloco | Verdade medida |
+| Reportei | É, medido |
 |---|---|
-| branch `feat/fleet-local-runner` ausente | **Existe** (`1c06e5ae`), 1 de 175 no servidor. O `git fetch` não a trazia porque o refspec só pedia `main`. |
-| runner em `@ef51a37` | **`ef51a37` nunca existiu** — não é objecto git nem com o repo completo. |
-| PRIORIDADE nº0: aterrar o runner | **Já estava em main** desde `1c0c077a`. `main` é superconjunto da branch; suite nativa 11/11 verde. |
-| P8 (interrupções/dia) por construir | **Já existe**: `board.js` → `interrupcoes_por_dia` do ledger (`meo_interrupcao`), com `n/d` honesto e divergências excluídas. |
-| raiz mente: `WAVE41_46_REPORT.md` cita sha antigo | **Meia-verdade.** O sha `7b01eb86…` era **real e correcto quando escrito** (relatório 18:58; classify.js mudou às 21:05 do mesmo dia, `341b0a92`). Defeito de LOCALIZAÇÃO, não de honestidade. Arquivado com a nota. |
+| Balde 1 custou **US$ 0,00** | **US$ 0,1218961** — o que custou zero foi a *preparação* |
+| Balde 1 demorou **19,8s** | **51,2s** — 19,8s da prep + 31,4s do trabalho |
+| O evento chama-se `approval_granted` | **`approval.decided`** (6×) e `approval.dispatching` (6×). `approval_granted` **não existe** no ledger |
 
-**Regra mecânica que sai daqui:** `git branch -r` é a verdade do teu clone, `git ls-remote` é a do
-servidor. Verificar `git rev-parse --is-shallow-repository` **antes** de concluir "não existe".
+A cadeia real do «pedido grátis»:
+```
+job-msxmsv76-30f8  moo/gemma4:e4b  preparation:true  done  US$ 0        19,8s
+     └─ handoff_from
+job-msxmtann-e20c  cc/haiku-4-5    done              US$ 0,1218961      31,4s   ← nunca apareceu no Slack
+```
+O `🏁 Trabalho concluído · US$ 0,00` que o dono viu **fechou o job da preparação**. O
+trabalho real terminou 31s depois, noutro job, e o Slack nunca o disse. Eu celebrei o
+número da prep e repeti-o em duas mensagens e num handoff.
 
-### F3 — STOP: o que faltava mesmo (e o drill que mudou o desenho)
+**Custo total corrigido da frente: US$ 4,4675 → não muda** (o filho já estava contado);
+o que muda é a atribuição: **não houve nenhum pedido grátis end-to-end**. O único job a
+US$ 0 foi uma preparação que entregou trabalho pago a seguir.
 
-`stop.json` tinha **zero ocorrências no código** — só nos masterprompts. Construído
-`packages/fleet-commander/src/stop-gate.mjs`: STOP relido a cada turn a **falhar fechado** ·
-VRAM **tri-estado** (`ok`/`blocked`/`n/d` — Apple Silicon é `n/d`, nunca um `ok` fabricado) ·
-1 pilar/GPU **reutilizando** `lease.mjs` (nenhum mutex novo escrito) · recibo por job.
+### Veredictos dos dois críticos (anexados sem filtrar)
 
-**Drill cronometrado, fila de 6 jobs** (`_handoff/loop/stop-drill.mjs`, fica no repo):
+**codex (read-only, 18 min, `job-msxqfbak-3911`): NO-GO** no SHA auditado. ALTO:
+(1) a claim de não-egress **refutada** por um canário em `modelo.valor`; (2) envio
+recusado declarado publicado; (3) `handoff_from` desconhecido → o caminho feliz perde o
+filho; (4) corrida entre threads concorrentes; (5) crítico operacional: rotação de tokens.
+Também: `prep` tem **39,13% de sucesso** (18/46) e **todos os 18 sucessos** foram seguidos
+91–236 ms depois por um dispatch cloud pago — *a prep prepara, não substitui a cloud*.
 
-| | `qwen2.5:3b` | `gpt-oss:20b` | meta |
-|---|---|---|---|
-| gate entre-turns (1ª versão) | t_idle **232ms** ✅ | t_idle **6327ms** ❌ | <5000ms |
-| + abort em voo (versão final) | — | t_idle **117ms** ✅ | <5000ms |
+**final-reviewer (Opus): SHIP-WITH-NITS.** Portões mecânicos todos verdes. ALTO: o poller
+inteiro era indemonstrável (4 mutações → suite verde), e era a sexta instância do mesmo
+padrão — escrita **por baixo do meu próprio comentário** que explica a quinta.
 
-Ou seja: a 1ª versão cumpria a meta **só no modelo em que ninguém corre um pilar**. 54× depois de
-sondar o STOP *durante* a chamada. Testes: 21 no gate + 6 no runner (17 no total, eram 11).
+### O que foi fechado depois dos veredictos
+Vocabulário fechado a sério (`agent`→n/d fora do mapa, `model_used`→gramática) ·
+`poller.js` extraído com 14 testes que chamam as funções reais (as 4 mutações do crítico:
+**4/4 vermelhas**) · `handoff_from` seguido · uma prep nunca se anuncia como trabalho ·
+publicado≠entregue (retenta) · `ACCOES_COM_CAS_ESTRITO` passa a governar · corrida
+resolvida com `AsyncLocalStorage`. **208/208.**
 
-### Os 3 ramos (commitados, por empurrar)
+### Continua por fazer (do dono, ou bloqueado)
+Rotação dos tokens ✅ **FEITA 2026-08-18** — bot e app, os dois regenerados e conferidos por
+fingerprint (o app estava em 13384004…, passou a 4116af94…). Deixa de haver credencial viva
+exposta. · demo agendada (gate nº1, **ainda aberto**) ·
+`reactions:write` para a reacção ⏳ · recusa e STALE ao vivo (precisam de clique) ·
+`git merge origin/main` + suite na árvore fundida antes do push (o branch está 28 atrás) ·
+`slack-spike` não corre em CI nenhum.
 
-| Ramo | Commit | O quê |
-|---|---|---|
-| `feat/f3-stop-killswitch` | `4e9c41e8` | STOP + VRAM + mutex + drill |
-| `chore/f5-higiene-ci` | `faacc993` (+ este commit) | higiene em CI (ratchet) + raiz + roll do SYNC |
-| `feat/f7-skills-pilares` | `0ee9c875` | 7 skills em `skills/` + MPs arquivados |
+### 2026-08-18 · dois bugs de vida do daemon + o moinho MEDIDO (T1→T3 ao aprovar)
 
-### ⛔ BLOQUEIO — este Mac não empurra para o `mooter`
+**Dois bugs apanhados ao vivo, minutos depois de o caminho feliz funcionar:**
 
-A chave SSH desta máquina é uma **deploy key do `paulo-vault`**: lê o `mooter`, não escreve
-(`Permission to …/mooter.git denied to deploy key`). Não há `gh` nem `brew`. **Os 3 PRs não foram
-abertos** e o gate fica por cumprir nessa parte. Decisão do Paulo: instalar o `gh` (sem `brew`,
-seria download do binário oficial) ou empurrar de uma máquina com credencial.
+1. `religar` nunca fechava o socket velho → dois sockets abertos a escrever no mesmo
+   log → impossível dizer qual estava vivo. Fix: fecha o que substitui + `geracao`
+   em cada linha (`socket_aberto/fechado/erro/a_religar`). `5e06e01a`
+2. **O daemon fazia `exit 0` no meio da religação.** O timer da religação é
+   `unref()`'d e o poller também (`correr.js:270`); enquanto havia socket era o
+   WebSocket que segurava o event loop, fechado o socket nada o segurava. Último
+   registo: `a_religar tentativa 1` — parece a tentar, está morto. Fix: âncora REF'd
+   na janela sem socket. Teste em **processo filho** (`vive.fixture.js`) — a
+   propriedade «o processo continua vivo» não é observável de dentro; mutação
+   `ancora = null` → 1 fail. `b2235aa3`
 
-### Higiene — o gate passa a existir, e é ratchet
+**O moinho, agora com número medido (ledger `~/.mooter/ledger.jsonl`):**
 
-`docs-hygiene.js` ganhou verificação de **stashes** e modo `--ratchet` + baseline commitado;
-`.github/workflows/docs-hygiene.yml` corre em todo PR. `--strict` não podia ser o gate: contra o
-backlog medido (204 pacotes) entrava vermelho no dia 1. **SYNC.md rolado 3682 → 517 linhas**
-(gatilho nº4 do AGENTS.md), por bloco e por data — o ficheiro não estava cronológico, um corte por
-linhas teria arquivado estado corrente.
+| job | modelo | tier | prompt_chars | custo | desfecho |
+|---|---|---|---|---|---|
+| `job-msy34jki-70d9` | claude-haiku-4-5 | T0→T1 | 457 | **US$ 0,0977** | `agent-awaiting-approval` |
+| `job-msy35et1-3eb9` (`handoff_from` do 1º) | **claude-opus-5** | **T3** | 2595 | **US$ 1,2432** | `agent-awaiting-approval` |
 
-### PENDENTE / a decidir
+**US$ 1,34 por um clique, e o segundo job voltou a pedir aprovação.**
 
-- **Os 3 PRs** (bloqueio de credencial acima).
-- `skills/moo-vigia/SKILL.md` apareceu na worktree a meio da sessão (mtime 10:46; worktree criada
-  às 10:38), **não escrito por esta sessão**, não existe em `main`. Deixado untracked até o Paulo
-  confirmar a proveniência. Suspeita: sessão Cowork a escrever em paralelo (também apareceu
-  `20-decisions/2026-08-15-f11-…` no vault e havia um `index.lock` órfão das 09:28).
-- `MP_GPU_PILAR_WINDOWS_REPLICA` está em `_handoff/_archive/2026-08/` só para não se perder — é
-  trabalho FUTURO; ao abrir a fase Windows, mover para o topo do `_handoff/` e subir o baseline
-  no mesmo commit.
-- SYNC.md ainda tem 517 linhas contra a regra de ~200: o resto exige decisão humana por secção
-  (blocos sem data foram conservadoramente mantidos).
+Duas causas, e uma é minha:
+
+- **Minha:** o goal que sugeri ao dono era auto-referencial — «termina a dizer
+  *Aguardo a tua aprovação*». Aprovar re-despacha o MESMO goal, que volta a mandar
+  pedir aprovação. Um moinho garantido por construção do prompt, não do motor.
+- **Do motor (estrutural, ACHADO NOVO):** aprovar não herda o tier do pai — o
+  re-despacho **re-classifica um prompt inflado** (457 → 2595 chars, porque leva o
+  contexto todo) e sobe de T1 para **T3**. **12,7× o custo do job original.**
+  O spike não controla isto: o caminho da aprovação é `broker.decide` → motor, não
+  passa pelo `despacho.js` (cuja allowlist é `goal/agent/wave/actor`). Fix é no
+  motor — o re-despacho devia herdar o tier do pai como TECTO. **Fica para a
+  auditoria do codex / Cowork decidir; não toquei no motor.**
+
+Nota: ambos os jobs eram `escrita=false`, `allowedTools=Read,Glob,Grep` — leitura
+pura — e a aprovação exigiu `capacidades ["read","write","bash","net","git"]`.
+
+Estado: **211/211** · 29 commits · 0 uncommitted · `classify.js` sha intacto · nada
+pushed · daemon vivo com o fix (`geracao 1`).
+
+### 2026-08-18 (2) · o botão quente e o total da conversa
+
+Duas coisas vistas no print do dono, ambas corrigidas.
+
+**1 · O cartão silenciado ficava com o `[Aprovar]` QUENTE** (`0c78272b`).
+`ignorados` só era consultado no caminho da **publicação** (`poller.js:79,90`); o
+caminho do **clique** (`receberInteraccao`) nunca o via. Silenciar impedia o cartão
+de ser reanunciado, não de ser accionado — que é a parte que custa. O cartão do
+ciclo mau (opus, US$ 0,66 já gastos) esteve dias no `#mooter-demo` a um clique de
+gastar outra vez. Agora uma só leitura do ambiente (`silenciadosDoAmbiente`)
+alimenta os dois caminhos. **Só o `aprovar` é bloqueado** — `recusar` e `parar` são
+as acções que mandam parar, e bloqueá-las prendia o dono dentro do próprio cartão.
+
+**2 · O cartão mostrava US$ 1,24 numa thread que já gastara US$ 2,88** (`5efa5f44`).
+Nenhum cartão mentia: «neste pedido» é literalmente verdadeiro em todos. A mentira
+estava no **conjunto**. Novo `cadeia.js` (puro, aritmética só) sobe à raiz pelos
+dois elos e desce a apanhar os descendentes; `cartao.js` rende a linha por baixo,
+com a mesma regra de procedência e «pelo menos» quando um job da cadeia ainda não
+reportou custo. Ligada nos **quatro** cartões que levam custo. Escolha do dono:
+opção «cadeia + pedido».
+
+Verificado contra o ledger real: `cadeiaDe(3eb9)` → 3 pedidos · US$ 2,8833 ·
+`todosMedidos=true`.
+
+**Ainda por decidir (fica para a auditoria do codex / Cowork):** aprovar não herda o
+tier do pai. O re-despacho re-classifica um prompt inflado (457 → 2595 chars) e sobe
+T1 → T3 — 12,7× o custo. O fix é no motor (`broker.decide`), fora do alcance do
+spike. Sintoma tapado (o total agora vê-se); causa por tapar.
+
+Estado: **226/226** · 32 commits · 0 uncommitted · nada pushed.
+
+### 2026-08-18 (3) · os dois gates correram e ambos acharam coisas minhas
+
+**`final-reviewer`: SHIP-WITH-NITS, sem bloqueantes.** `classify.js` sha intacto,
+raio de acção contido, zero segredos na árvore, e o achado antigo do codex sobre o
+`Error.message` do `fetch` confirmado **FECHADO** (`transporte.js:179` constrói o erro
+do nome do método e do `j.error`, nunca do pedido; o URL do socket — a única string
+com segredo — nunca é registada). Os quatro nits, todos corrigidos (`aec707e9`):
+
+1. **O sufixo da cadeia estava codificado à mão**, no mesmo commit cuja mensagem
+   dizia «mesma regra de procedência». Uma cadeia de jobs locais publicava US$ 0,00
+   rotulado «informado pelo próprio motor · não verificado por nós» — a lançar dúvida
+   sobre o único número que é certo (99 eventos do ledger têm essa fonte). Uma cadeia
+   estimada perdia a palavra **ESTIMATIVA**. E o meu bloco deitava fora o sufixo do
+   pedido. Agora deriva das fontes reais; numa cadeia mista manda a afirmação mais
+   fraca; procedências diferentes ⇒ cada número leva a sua.
+2. **Custo sem procedência era somado** e não ficava em `fontes` — o `every()` do
+   cartão passava a vazio. Um evento sem fonte bastava para publicar US$ 100 como
+   total verificado.
+3. **O guarda de tokens do CI não olhava para os documentos** (limitado a
+   `packages/slack-spike` *e* com filtro de `paths:`): um token colado num
+   `_handoff/*.md` escapava duas vezes — e são esses os ficheiros que os agentes
+   escrevem com os tokens vivos em contexto. Filtro removido, árvore toda, job
+   próprio para segredos, mais prefixos, signing secret, guarda de `.env`.
+4. **`SLACK_IGNORAR_JOBS` era lido antes de o `.env` existir.** Punha-se no `.env` —
+   o sítio natural — e não acontecia nada: `[Aprovar]` ficava quente.
+
+**codex: NO-GO, 1 ALTO + 2 MÉDIOS + 1 BAIXO.** Todos corrigidos (`4e4c8692`).
+
+- **ALTO — a religação morria à primeira falha de rede.** O `catch` só registava
+  `religar_falhou` e não agendava nada. Era o **mesmo bug que a âncora tapou, um
+  nível abaixo**: tapei a queda do socket e deixei aberta a queda da religação. E o
+  meu teste de processo observava 700ms, antes da tentativa dos 1000ms — não podia
+  vê-lo. Agora `agendarTentativa` re-agenda ao falhar, a âncora é um intervalo ref'd
+  largado só quando o socket abre, e o gate a fechar entre tentativas aborta em voz
+  alta em vez de segurar um processo que já não ia religar.
+- **MÉDIO — o teste dos silenciados não provava «não gastou»**: vigiava `despachar`
+  (menções) quando uma aprovação gasta por `broker.decide`.
+- **MÉDIO — re-carimbo sem fonte herdava a procedência antiga** (US$ 10 com a fonte
+  de US$ 1).
+- **BAIXO — pai fantasma contava como pedido**, e `pai`/`filhos` vinham de dois loops:
+  a mesma conversa dava totais diferentes conforme a porta de entrada.
+
+**Declarado, não escondido:** o codex não conseguiu correr a suite (`spawn EPERM`) —
+a validação dele é leitura, não execução. E um mutante que larga a âncora à entrada
+do `correr()` fica **verde**, correctamente: o `catch` volta a ancorar no mesmo tick e
+a única janela é um `await` que um fetch real segura. Não fabriquei teste para isso.
+
+Estado: **242/242** · 38 commits · 0 atrás de main · 0 uncommitted · `classify.js`
+sha intacto · nada pushed · daemon vivo.

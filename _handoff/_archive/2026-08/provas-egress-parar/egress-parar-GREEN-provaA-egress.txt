@@ -1,0 +1,8 @@
+=== PROVA A · ALTO 1 (GREEN) ===
+--- A.1 · o payload hostil do auditor (hash sem forma) ---
+publicado: false | porque: hash_esperado fora da forma verificavel
+
+--- A.2 · hash com forma real + canarios nos campos livres ---
+publicado: true
+canarios que atravessaram: null
+degradados: ["wave","autor"]

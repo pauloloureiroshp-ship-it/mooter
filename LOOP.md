@@ -20,6 +20,31 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-18-sete-vezes-o-codigo-certo-e-o-teste-a-exercitar-outra-coisa
+
+**Contexto:** spike do Slack (`packages/slack-spike`), 41 commits em dois dias, 244 testes, disciplina de mutação aplicada desde o início.
+
+**Resultado observado:** **sete** defeitos em que o código estava certo e o teste exercitava outra coisa. Não foram sete descuidos diferentes — foram a mesma forma sete vezes. Os exemplares mais claros:
+
+- a ligação entre publicador e transporte vivia inline; o teste que escrevi para ela **replicou a ligação** em vez de a chamar, e ficou verde sob mutação;
+- o poller vivia dentro de `principal()`, alcançável só com socket, tokens e gate abertos: um crítico externo mutou as suas quatro peças e a suite ficou verde nas quatro;
+- `seguirCorrente` conhecia um elo (`prep_from`) dos dois que existem, e o teste construía **à mão** a lista que a produção deriva — provava a parte que nunca esteve partida;
+- a última, e a mais cara em vergonha: `SILENCIADOS` movido para dentro de `montar()` (o que os testes chamam) enquanto `principal()` (o que o daemon corre) continuava a referi-lo. **243 testes verdes e o binário a rebentar na primeira linha.** O primeiro teste que escrevi para tapar isso — chamar `principal(--seco)` — **também ficou verde com o bug lá dentro**, porque o modo seco retorna antes de lá chegar.
+
+**Quem encontrou o quê:** dois pelo Paulo a **usar** o produto, dois por mutação, dois por críticos externos (codex/final-reviewer), um por o daemon simplesmente não arrancar. **Zero** por leitura de código.
+
+**Porque é que isto importa mais do que parece:** a suite verde não era falsa por descuido — era falsa por **forma**. Um teste só pode chamar o que tem nome. Enquanto a composição vive inline dentro de uma função grande que exige rede, credenciais e estado, ela é literalmente inalcançável, e o teste que se escreve para ela acaba por ser uma **cópia** dela — que passa sempre, porque testa a cópia.
+
+**O sinal de alarme, agora nomeado:** escrever um teste que **reconstrói** o arranjo em vez de o invocar. Se o teste tem de repetir a ligação para a poder verificar, a ligação não tem nome — e o teste vai ficar verde com o bug lá dentro.
+
+**Fonte:** `packages/slack-spike/poller.js` (cabeçalho documenta a 6ª), `correr.js:ligarPollerAoDaemon` e `ligarPublicadorAoTransporte`, SYNC 2026-08-18 (1)(2)(3). Contagem medida nesta wave, não estimada.
+
+**Quem observou:** CC, ao fim da terceira repetição do mesmo padrão no mesmo ficheiro.
+
+**Status:** REGISTADO. Correcção aplicada foi **estrutural, não remendo**: cada ligação da raiz de composição ganhou nome e export. Candidato a regra geral — ver HIPÓTESE.
+
+---
+
 ### 2026-08-07-gap-de-jogabilidade-humana-o-dod-mede-mecanismo-nao-jogo
 
 **Contexto:** fecho do piloto de convicção nº1. O `dod_harness.mjs` (Playwright, determinístico) aprovou 8-9 de 12 itens em cada um dos 9 artefactos da T1. O Paulo abriu os nove para responder ao item 8 (condição de vitória), o único que o harness não verifica.
@@ -495,6 +520,18 @@ no repo para se repetir por device).
 ---
 
 ## HIPÓTESE
+
+### Sobre 2026-08-18-sete-vezes-o-codigo-certo-e-o-teste-a-exercitar-outra-coisa
+
+**Hipótese:** numa raiz de composição, **cada ligação sem nome é uma ligação sem teste**. Não é uma tendência — é uma consequência: o que não tem nome não pode ser invocado, e o teste que se escreve para o verificar torna-se uma réplica que passa sempre.
+
+**Corolário testável:** se um teste **reconstrói** o arranjo em vez de o chamar, mutar a produção deixa-o verde. Isto é verificável mecanicamente e barato.
+
+**Experimento:** em toda a raiz de composição (`correr.js` e equivalentes), extrair cada ligação para função **nomeada e exportada**, e exigir que cada uma tenha um teste que a **invoque** (não que a replique). Medir com mutação: apagar a linha da ligação tem de dar vermelho. Neste spike a extracção foi feita três vezes (`ligarPublicadorAoTransporte`, `poller.js`, `ligarPollerAoDaemon`) e nas três a mutação passou a ser apanhada.
+
+**O que ainda não sabemos:** se a regra se aguenta fora de raízes de composição, e qual o custo em legibilidade de nomear ligações triviais. Não extrapolar antes de a aplicar noutro pacote.
+
+---
 
 ### Sobre 2026-07-16-phase-a-gate-untracked-enganou-3-agentes
 
