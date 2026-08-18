@@ -11,6 +11,7 @@
  */
 
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 export const MAX_SLICE_LINES = 70;
@@ -134,6 +135,114 @@ const SYSTEM_PROMPT = [
   '- Nunca inventes ficheiros nem números.',
   '- Sem preâmbulo, sem explicação extra, sem markdown.',
 ].join('\n');
+
+/**
+ * Modo DIFF — o degrau mais alto da escada.
+ *
+ * Uma analise estatica sobre um repo parado da um conjunto FINITO de achados:
+ * depois de julgados, o poco seca e a GPU passa a moer ruido. Codigo que MUDA
+ * gera trabalho novo para sempre. Por isso o runner olha primeiro para o diff.
+ */
+export const DIFF_SYSTEM_PROMPT = [
+  'És um revisor de código do Mooter a correr localmente. Recebes linhas que',
+  'MUDARAM agora, com o número real de cada linha à esquerda.',
+  '',
+  'A tua tarefa: encontrar defeitos INTRODUZIDOS por estas linhas.',
+  '',
+  'EXAMINA COM ATENÇÃO ESPECIAL, linha a linha:',
+  '- condições booleanas: o && / || / ! está correcto? inverter uma condição de',
+  '  permissão ou de guarda é o defeito mais caro que existe;',
+  '- índices e limites: <= vs <, length vs length-1, o primeiro e o último passo',
+  '  do ciclo — percorre-os mentalmente com um caso concreto;',
+  '- caminhos de erro: algo rebenta ou é engolido onde é alcançável?',
+  '- recursos: fica alguma coisa aberta, presa ou por libertar?',
+  '- o contrato com quem chama: o retorno mudou de forma, tipo ou significado?',
+  '',
+  'Se encontrares um defeito, responde EXACTAMENTE assim, sem mais nada:',
+  '',
+  'ACHADO: <sintoma> QUANDO <condição que o dispara> ENTÃO <impacto concreto>',
+  'PROVA: <caminho do ficheiro>:<número da linha>',
+  '',
+  'Se percorreste a lista acima e a mudança está correcta, responde apenas:',
+  '',
+  'SEM ACHADO',
+  '',
+  'Regras:',
+  '- NÃO comentes estilo, nomes, formatação, nem "podia estar mais documentado".',
+  '  Isso não é defeito e não conta.',
+  '- Mas um defeito REAL nunca pode passar em silêncio: se a lógica está errada,',
+  '  diz. Ficar calado perante um bug é pior do que um falso alarme.',
+  '- Cita só linhas que vês. Nunca inventes ficheiros nem números.',
+].join('\n');
+
+/**
+ * Deteccao de logica de NEGACAO — o ponto cego medido do tier local.
+ *
+ * O canario de 2026-08-17 mostrou-o e a producao confirmou-o no mesmo dia: o
+ * qwen2.5-coder:14b le `!==` como `===`. Falhou uma condicao de permissao
+ * invertida no canario e, horas depois, acusou de fail-open um `isStopped` que
+ * e fail-closed — as duas vezes por ler a negacao ao contrario.
+ *
+ * Nao se conserta isto com prompt: e o tecto do modelo. O que se pode fazer e
+ * SABER quando estamos nesse terreno, e nao vender a resposta como certa.
+ */
+const NEGACAO_RE = /!==|!=|!\s*\(|![A-Za-z_$]|\bnunca\b|\bnever\b/g;
+
+/** Quantos operadores de negacao aparecem no texto dado. */
+export function contarNegacoes(texto) {
+  const m = String(texto || '').match(NEGACAO_RE);
+  return m ? m.length : 0;
+}
+
+/**
+ * Um excerto e "denso em negacao" a partir de dois operadores, ou de um so
+ * quando esse um decide um caminho (if/return/ternario) — que e onde inverter
+ * o sentido custa caro.
+ */
+export function negacaoDensa(texto) {
+  const n = contarNegacoes(texto);
+  if (n >= 2) return true;
+  if (n === 1) return /\b(if|return|while|\?)\b/.test(String(texto || ''));
+  return false;
+}
+
+const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
+
+/**
+ * Lê as linhas que mudaram entre `baseRef` e HEAD. Devolve [] em qualquer falha
+ * — um repo sem git, um ref inexistente ou um diff vazio nunca podem parar uma
+ * ronda; o runner cai para o degrau seguinte da escada.
+ */
+export function readChangedLines(repoRoot, { baseRef = 'HEAD~1', runImpl = null, maxFiles = 40 } = {}) {
+  const run = runImpl || ((args) =>
+    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }));
+  let out;
+  try {
+    out = run(['diff', '--unified=0', '--no-color', `${baseRef}...HEAD`]);
+  } catch {
+    return [];
+  }
+  const hunks = [];
+  let file = null;
+  for (const line of String(out || '').split('\n')) {
+    if (line.startsWith('+++ b/')) {
+      const rel = line.slice(6).trim();
+      const dot = rel.lastIndexOf('.');
+      file = dot >= 0 && CODE_EXT.has(rel.slice(dot)) ? rel : null;
+      continue;
+    }
+    if (!file || !line.startsWith('@@')) continue;
+    // @@ -a,b +c,d @@ — só interessa o lado novo.
+    const m = /\+(\d+)(?:,(\d+))?/.exec(line);
+    if (!m) continue;
+    const start = Number(m[1]);
+    const count = m[2] === undefined ? 1 : Number(m[2]);
+    if (!Number.isInteger(start) || start < 1 || count < 1) continue;
+    hunks.push({ file, start, count });
+    if (hunks.length >= maxFiles * 8) break;
+  }
+  return hunks;
+}
 
 /**
  * Modo ANCORADO. O moo deixa de caçar achados (o que media 85% de nitpick) e passa
@@ -262,9 +371,69 @@ export function buildContextPack({
   cursor = 0,
   maxLines = MAX_SLICE_LINES,
   anchorPath = null,
+  diffBase = null,
 }) {
   const spec = PILLARS[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
+
+  // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
+  if (diffBase) {
+    const hunks = readChangedLines(repoRoot, { baseRef: diffBase });
+    if (hunks.length > 0) {
+      const h = hunks[Math.abs(cursor) % hunks.length];
+      const lines = readLines(repoRoot, h.file);
+      if (lines && lines.length > 0 && h.start <= lines.length) {
+        const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
+        const slice = renderSlice(lines, Math.max(1, h.start - pad), Math.min(maxLines, h.count + pad * 2));
+        const fim = h.start + h.count - 1;
+        const prompt = [
+          `Pilar: ${pillar} — ${spec.label}`,
+          `Ficheiro: ${h.file} (linhas ${slice.startLine}-${slice.endLine} de ${lines.length})`,
+          '',
+          `MUDARAM as linhas ${h.start}-${fim} (contra ${diffBase}). O resto é contexto.`,
+          '',
+          slice.text,
+          '',
+          `Esta mudança (linhas ${h.start}-${fim}) introduz algum defeito?`,
+          ...(densa
+            ? [
+                '',
+                'ATENÇÃO: estas linhas usam negação (!, !==, !=). Lê cada condição',
+                'DUAS vezes e diz em palavras o que ela significa antes de decidir.',
+                '`a !== b` é "a é DIFERENTE de b". `!x` é "x é falso".',
+              ]
+            : []),
+        ].join('\n');
+        const mudadas = slice.text
+          .split('\n')
+          .filter((ln) => {
+            const n = Number(String(ln).slice(0, 6).trim());
+            return Number.isInteger(n) && n >= h.start && n <= fim;
+          })
+          .join('\n');
+        const densa = negacaoDensa(mudadas);
+        return {
+          ok: true,
+          mode: 'diff',
+          negacaoDensa: densa,
+          anchored: false,
+          diffBase,
+          changedStart: h.start,
+          changedCount: h.count,
+          pillar,
+          label: spec.label,
+          file: h.file,
+          startLine: slice.startLine,
+          endLine: slice.endLine,
+          lineCount: lines.length,
+          question: `rever mudança em ${h.file}:${h.start}-${fim}`,
+          system: DIFF_SYSTEM_PROMPT,
+          prompt,
+          allowedFiles: [h.file],
+        };
+      }
+    }
+  }
 
   // ---- modo ANCORADO: julgar um achado que a máquina já encontrou ----
   const anchors = readAnchor(anchorPath);
@@ -288,6 +457,7 @@ export function buildContextPack({
       ].join('\n');
       return {
         ok: true,
+        mode: 'ancorado',
         anchored: true,
         anchorRule: hit.rule,
         anchorLine: hit.line,
@@ -333,6 +503,7 @@ export function buildContextPack({
 
   return {
     ok: true,
+    mode: 'caca',
     anchored: false,
     pillar,
     label: spec.label,

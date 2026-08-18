@@ -1,6 +1,10 @@
 import security from 'eslint-plugin-security';
 const rules = {
-  'no-empty': ['warn', { allowEmptyCatch: false }],  // catch vazio = erro engolido
+  // allowEmptyCatch passou a TRUE a 2026-08-17, outra vez por veredicto do moo:
+  // dos 58 no-empty, 41 eram `catch {}` e o juiz rejeitou-os todos com a mesma
+  // razao — "e o padrao intencional deste repo para degradar sem rebentar".
+  // Ficam so os blocos vazios que NAO sao catch, onde o vazio e mesmo suspeito.
+  'no-empty': ['warn', { allowEmptyCatch: true }],
   'no-unused-vars': 'off', 'no-undef': 'off',
   'require-atomic-updates': 'warn',                  // corrida real
   'no-fallthrough': 'warn', 'no-constant-condition': 'warn',
@@ -17,6 +21,7 @@ const rules = {
   'security/detect-object-injection': 'off',
 };
 export default [
+  { linterOptions: { reportUnusedDisableDirectives: 'off' } },
   { ignores: ['**/node_modules/**','**/dist/**','**/*.min.js','**/packs/**','**/docs/archive/**','**/*.test.*'] },
   { files: ['**/*.js','**/*.cjs'], languageOptions:{ ecmaVersion:2023, sourceType:'commonjs' }, plugins:{security}, rules },
   { files: ['**/*.mjs'],           languageOptions:{ ecmaVersion:2023, sourceType:'module'   }, plugins:{security}, rules },

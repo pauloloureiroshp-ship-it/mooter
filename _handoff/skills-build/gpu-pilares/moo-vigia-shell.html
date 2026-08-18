@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<!--
+  VALIDATOR RESULTS (node validate_palette.js, dataviz skill 2.1.233) — corrido em 2026-08-15:
+
+  LIGHT (surface #fcfcfb, categorical, 8 slots):
+    [PASS] Lightness band         all 8 inside L 0.43-0.77
+    [PASS] Chroma floor           all 8 >= 0.1
+    [PASS] CVD separation         worst adjacent #eda100<->#1baf7a dE 9.1 (protan) . tritan 5.8
+    [PASS] Normal-vision floor    worst adjacent #e87ba4<->#eda100 dE 19.6 (normal)
+    [WARN] Contrast vs surface    below 3:1 — relief required: #1baf7a 2.74, #eda100 2.11, #e87ba4 2.62
+    -> ALL CHECKS PASS
+    Relief aplicado neste ficheiro: todos os recibos da timeline levam label direto visível
+    (agente + modelo + $ + tokens em tokens de texto) e a legenda nomeia cada série — o valor
+    nunca depende só da cor.
+
+  DARK (surface #1a1a19, categorical, 8 slots):
+    [PASS] Lightness band         all 8 inside L 0.48-0.67
+    [PASS] Chroma floor           all 8 >= 0.1
+    [PASS] CVD separation         worst adjacent #c98500<->#199e70 dE 8.4 (protan) . tritan 8.7
+    [PASS] Normal-vision floor    worst adjacent #d55181<->#c98500 dE 19.3 (normal)
+    [PASS] Contrast vs surface    all 8 >= 3:1
+    -> ALL CHECKS PASS
+
+  Conferido contra anti-patterns.md: sem dual-axis; cor segue a entidade (agente), nunca o rank;
+  <=5 séries categóricas com legenda; sem pie/donut; barras <=24px com ponta arredondada no
+  lado dos dados; gridlines/hairlines sólidas; labels seletivos fora da barra (nunca clipped);
+  texto nunca na cor da série; status tokens só para estado (P8, SYNC), categórico só para
+  identidade; sem confetti; tooltips melhoram mas nunca são o único acesso ao valor;
+  hero/stat values em figuras proporcionais; tabular-nums só em colunas.
+-->
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>🐮 Moo Vigia</title>
+<style>
+/* ============ tokens — dark default, light via prefers-color-scheme ============ */
+:root{
+  color-scheme: dark;
+  --surface-1:#1a1a19; --page:#0d0d0d;
+  --text-1:#ffffff; --text-2:#c3c2b7; --text-muted:#898781;
+  --grid:#2c2c2a; --baseline:#383835; --ring:rgba(255,255,255,0.10);
+  --s-moo:#3987e5;    /* slot 1 blue */
+  --s-cc:#d95926;     /* slot 2 orange */
+  --s-codex:#199e70;  /* slot 3 aqua */
+  --s-kimi:#c98500;   /* slot 4 yellow */
+  --s-gemini:#d55181; /* slot 5 magenta */
+  --st-good:#0ca30c; --st-warn:#fab219; --st-serious:#ec835a; --st-crit:#d03b3b;
+  --delta-good:#0ca30c;
+  --seq-250:#86b6ef; --seq-600:#184f95;
+  --meter-track:#184f95;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    color-scheme: light;
+    --surface-1:#fcfcfb; --page:#f9f9f7;
+    --text-1:#0b0b0b; --text-2:#52514e; --text-muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --ring:rgba(11,11,11,0.10);
+    --s-moo:#2a78d6; --s-cc:#eb6834; --s-codex:#1baf7a; --s-kimi:#eda100; --s-gemini:#e87ba4;
+    --delta-good:#006300;
+    --seq-250:#86b6ef; --seq-600:#86b6ef;
+    --meter-track:#cde2fb;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page);color:var(--text-1);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;}
+body{min-width:340px;max-width:800px;margin:0 auto;padding:12px 14px 8px;}
+
+/* ============ header ============ */
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 2px 10px;}
+header h1{font-size:16px;font-weight:600;letter-spacing:.01em;white-space:nowrap;}
+.hdr-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11.5px;color:var(--text-2);}
+.hdr-meta .sep{color:var(--text-muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;
+  padding:3px 10px;font-size:11.5px;font-weight:600;border:1px solid var(--ring);
+  background:var(--surface-1);cursor:pointer;transition:opacity .25s;}
+.pill .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.pill.live{color:var(--text-1)}
+.pill.live .dot{background:var(--st-good);animation:pulse 1.6s ease-in-out infinite;}
+.pill.snap .dot{background:var(--st-warn)}
+.pill.snap{color:var(--text-1)}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+#endpoint-row{display:none;width:100%;gap:6px;margin-top:2px;}
+#endpoint-row.open{display:flex}
+#endpoint-row input{flex:1;background:var(--surface-1);border:1px solid var(--ring);
+  border-radius:6px;color:var(--text-1);padding:4px 8px;font:12px ui-monospace,monospace;}
+#endpoint-row button{background:var(--surface-1);border:1px solid var(--ring);border-radius:6px;
+  color:var(--text-2);padding:4px 10px;font-size:12px;cursor:pointer;}
+
+/* ============ aprovações ============ */
+.apr-card{border:1px solid var(--grid);border-radius:10px;padding:10px 12px;margin:10px 0;}
+.apr-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.apr-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.btn-ok,.btn-no{font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid var(--grid);background:transparent;color:var(--text-1);cursor:pointer}
+.btn-ok:not([disabled]):hover{border-color:var(--st-good)}
+.btn-no:not([disabled]):hover{border-color:var(--st-serious,#c0392b)}
+.btn-ok[disabled],.btn-no[disabled]{opacity:.45;cursor:not-allowed}
+.chip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid var(--grid);color:var(--text-2)}
+/* ============ tabs ============ */
+nav{display:flex;gap:2px;border-bottom:1px solid var(--grid);overflow-x:auto;scrollbar-width:none;}
+nav::-webkit-scrollbar{display:none}
+nav a{flex:none;padding:7px 11px;font-size:12.5px;font-weight:600;color:var(--text-2);
+  text-decoration:none;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;
+  display:inline-flex;align-items:center;gap:5px;}
+nav a:hover{color:var(--text-1)}
+nav a.on{color:var(--text-1);border-bottom-color:var(--s-moo)}
+nav .mini-badge{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:var(--text-muted);
+  border:1px solid var(--ring);border-radius:4px;padding:0 4px;line-height:1.5;}
+
+/* ============ layout ============ */
+main{padding:12px 0 4px}
+.tabpane{display:none;animation:fadein .25s ease}
+.tabpane.on{display:block}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.card{background:var(--surface-1);border:1px solid var(--ring);border-radius:10px;
+  padding:12px 14px;margin-bottom:10px;}
+.card h2{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-bottom:9px;}
+.nd{color:var(--text-muted);font-style:normal}
+.why{font-size:11.5px;color:var(--text-2)}
+
+/* stat tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;}
+.tile{background:var(--surface-1);border:1px solid var(--ring);border-radius:8px;padding:9px 11px;}
+.tile .lbl{font-size:11px;color:var(--text-2);margin-bottom:2px;}
+.tile .val{font-size:22px;font-weight:600;line-height:1.15;}
+.tile .val small{font-size:12px;font-weight:500;color:var(--text-2)}
+.tile .sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.tile .delta-good{color:var(--delta-good);font-size:12px;font-weight:600}
+
+/* AGORA */
+.agora{display:flex;align-items:center;gap:10px;}
+.agora .beacon{width:12px;height:12px;border-radius:50%;flex:none;background:var(--text-muted);}
+.agora.live .beacon{background:var(--st-good);animation:pulse 1.4s ease-in-out infinite;}
+.agora .big{font-size:17px;font-weight:600}
+.agora .det{font-size:12px;color:var(--text-2)}
+
+/* meters */
+.meter{height:10px;border-radius:5px;background:var(--meter-track);overflow:hidden;
+  position:relative;margin:6px 0 4px;}
+.meter .fill{height:100%;border-radius:5px 0 0 5px;background:var(--s-moo);
+  transition:width .8s cubic-bezier(.2,.8,.2,1);}
+.meter .fill.serious{background:var(--st-serious)}
+.meter .fill.crit{background:var(--st-crit)}
+.meter .fill.warn{background:var(--st-warn)}
+.meter .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text-1);opacity:.85;}
+.meter-cap{border-radius:5px}
+.status-line{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);}
+.status-line .ic{font-size:13px}
+
+/* timeline de recibos */
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:11.5px;color:var(--text-2);}
+.legend .key{display:inline-flex;align-items:center;gap:5px;}
+.swatch{width:10px;height:10px;border-radius:3px;flex:none;}
+.tl-row{display:grid;grid-template-columns:76px 1fr;gap:8px;align-items:center;
+  padding:4px 0;border-bottom:1px solid var(--grid);}
+.tl-row:last-child{border-bottom:none}
+.tl-meta{font-size:11px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tl-track{position:relative;}
+.tl-barwrap{display:flex;align-items:center;gap:8px;min-height:20px;}
+.tl-bar{height:14px;border-radius:0 4px 4px 0;min-width:4px;flex:none;
+  transition:width .8s cubic-bezier(.2,.8,.2,1);position:relative;}
+.tl-bar.failed{background:transparent!important;border:none;
+  background-image:repeating-linear-gradient(45deg,var(--st-crit) 0 3px,transparent 3px 7px)!important;
+  outline:1px solid var(--st-crit);outline-offset:-1px;}
+.tl-lab{font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tl-lab b{color:var(--text-1);font-weight:600}
+.badge{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.03em;
+  border-radius:4px;padding:0 5px;line-height:1.6;vertical-align:1px;}
+.badge.fail{color:var(--st-crit);border:1px solid var(--st-crit)}
+.badge.cron{color:var(--text-muted);border:1px solid var(--ring)}
+.axis-note{font-size:10.5px;color:var(--text-muted);margin-top:6px;border-top:1px solid var(--grid);padding-top:5px;}
+
+/* listas */
+.err-item{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--grid);font-size:12.5px;align-items:baseline;}
+.err-item:last-child{border-bottom:none}
+.sev{flex:none;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  border-radius:4px;padding:1px 6px;border:1px solid;}
+.sev.aberto{color:var(--st-serious);border-color:var(--st-serious)}
+.sev.conhecido{color:var(--st-warn);border-color:var(--st-warn)}
+.sev.resolvido{color:var(--st-good);border-color:var(--st-good)}
+.err-item .tt{font-weight:600}
+.err-item .dd{color:var(--text-2)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.chip{font-size:11.5px;border:1px solid var(--ring);border-radius:999px;padding:2px 10px;
+  color:var(--text-2);font-family:ui-monospace,monospace;}
+
+/* gauntlet */
+.gq{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--grid);font-size:12.5px;align-items:baseline;}
+.gq:last-child{border-bottom:none}
+.gq .st-ic{flex:none;width:18px;text-align:center;}
+.gq .q{color:var(--text-2)}
+.gq .a{color:var(--text-1);font-weight:600}
+
+/* proporção SYNC */
+.prop-lab{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-top:2px;}
+
+footer{border-top:1px solid var(--grid);margin-top:6px;padding:9px 2px 6px;
+  font-size:10.5px;color:var(--text-muted);line-height:1.5;}
+
+@media (max-width:430px){
+  .tl-row{grid-template-columns:1fr}
+  .tl-meta{padding-bottom:1px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐮 Moo Vigia</h1>
+  <button id="btn-play" class="pill snap" style="cursor:not-allowed;border:1px solid var(--border,rgba(128,128,128,.3));background:transparent;font:inherit" disabled
+    title="▶ liga o runner local (POST /play) — desabilitado: runner não aterrado (F2 do MP hiper). Chega com F10; nenhum token de subscription é gasto.">▶ play</button>
+  <span class="pill snap" id="src-pill" title="Clique para editar o endpoint vivo" role="status">
+    <span class="dot"></span><span id="src-pill-txt">a iniciar…</span>
+  </span>
+  <div class="hdr-meta">
+    <span id="hdr-device">—</span><span class="sep">·</span>
+    <span id="hdr-conector">conector —</span>
+  </div>
+  <div id="endpoint-row">
+    <input id="endpoint-input" type="text" spellcheck="false" aria-label="Endpoint do modo vivo">
+    <button id="endpoint-apply">Aplicar</button>
+  </div>
+</header>
+
+<nav id="tabs" aria-label="Pilares">
+  <a href="#geral" data-tab="geral">Geral</a>
+  <a href="#p1" data-tab="p1">P1 Routing</a>
+  <a href="#p3" data-tab="p3">P3 Coerência</a>
+  <a href="#p6" data-tab="p6">P6 Produto</a>
+  <a href="#p4" data-tab="p4">P4 <span class="mini-badge">CRON</span></a>
+  <a href="#aprovar" data-tab="aprovar">✋ Aprovações <span class="mini-badge" id="apr-count"></span></a>
+</nav>
+
+<main>
+  <section class="tabpane" id="pane-geral"></section>
+  <section class="tabpane" id="pane-p1"></section>
+  <section class="tabpane" id="pane-p3"></section>
+  <section class="tabpane" id="pane-p6"></section>
+  <section class="tabpane" id="pane-p4"></section>
+  <section class="tabpane" id="pane-aprovar"></section>
+</main>
+
+<footer id="ftr"></footer>
+
+<script>
+"use strict";
+/* ================= SNAPSHOT embutido — dados REAIS de 2026-08-15 ================= */
+const SNAPSHOT = {
+  "device": "mac-mini-de-paulo-local",
+  "snapshot_em": "2026-08-15T13:30:00Z",
+  "fonte": "ledger.jsonl + mooter_fleet + bateria L0 (medidos 15/08)",
+  "conector": {"versao": "1.48.0", "mais_recente": true, "instalado_em": "2026-08-10"},
+  "gpu": {"sonda": "n/d", "porque": "sonda do conector é nvidia-smi-only; Apple Silicon sem telemetria até a sonda mactop/ioreg aterrar", "ollama": "127.0.0.1:11434 ativo", "modelos": ["gpt-oss:20b", "qwen2.5-coder:14b", "qwen2.5", "gemma4"]},
+  "pilares_device": ["P1", "P3", "P6"],
+  "pilar_cron": "P4",
+  "mutex_gpu": {"jobs_live": 0, "estado": "livre"},
+  "job_vivo": null,
+  "ultimo_job": {"id": "job-msucs1mk-de07", "wave": "gpu-talo-piloto", "agente": "moo", "modelo": "gpt-oss:20b", "duracao_s": 34, "custo_usd": 0, "tokens_out": 996, "estado": "done", "cargo": "MOO"},
+  "recibos_recentes": [
+    {"ts": "2026-08-15", "wave": "gpu-talo-piloto", "agente": "moo", "modelo": "gpt-oss:20b", "dur_s": 34, "usd": 0, "tok_out": 996, "estado": "done"},
+    {"ts": "2026-08-01", "wave": "meta-auditoria", "agente": "moo", "modelo": "gpt-oss:20b", "dur_s": 41, "usd": 0, "tok_out": 812, "estado": "done"},
+    {"ts": "2026-08-01", "wave": "auditoria-local", "agente": "moo", "modelo": "qwen2.5-coder:14b", "dur_s": 58, "usd": 0, "tok_out": 640, "estado": "done"},
+    {"ts": "2026-08-01", "wave": "smoke-cc", "agente": "cc", "modelo": "<synthetic>", "dur_s": 40, "usd": 0.44, "tok_out": 380, "estado": "done"},
+    {"ts": "2026-08-01", "wave": "probe-codex", "agente": "codex", "modelo": "n/d", "dur_s": 1380, "usd": null, "tok_out": null, "estado": "done"},
+    {"ts": "2026-08-01", "wave": "smoke-probe", "agente": "moo", "modelo": "n/d", "dur_s": null, "usd": null, "tok_out": null, "estado": "failed:orphaned-by-restart"},
+    {"ts": "2026-08-01", "wave": "smoke-nopath", "agente": "moo", "modelo": "n/d", "dur_s": null, "usd": null, "tok_out": null, "estado": "failed:orphaned-by-restart"}
+  ],
+  "ledger_janela": {"dispatches": 16, "por_agente": {"moo": 10, "cc": 2, "codex": 4}, "done": 9, "failed": 6, "falhas_motivo": {"orphaned-by-restart": 4, "outros": 2}, "prep_timeout": 1, "cross_check": 4, "meo_interrupcao": 1},
+  "erros_rota": [
+    {"tipo": "permissoes_diferem", "detalhe": "pedidas Read,Glob,Grep → efetivas [] (moo via /api/chat não recebe tools)", "gravidade": "conhecido"},
+    {"tipo": "orphaned-by-restart", "detalhe": "4 jobs órfãos no dia do setup (restart do conector)", "gravidade": "resolvido"},
+    {"tipo": "sonda_gpu", "detalhe": "painel cego em Apple Silicon", "gravidade": "aberto"}
+  ],
+  "p4_bateria": {"sync_linhas": 3448, "regra": 200, "handoff_md_topo": 189, "untracked": 0, "stashes": 0, "sha_classify": "427d8c0b ✅", "worktrees": 1},
+  "p8": {"decisoes_pedidas_hoje": 3, "cap": 3, "itens": ["reinstalar skill coerência v1.1", "colar MP hiper no CC", "merge dos PRs (quando abrirem)"]},
+  "gauntlet_estado": {
+    "P1": [{"q": "poupança-líquida: número ou n/d?", "estado": "n/d — P1 só mede"}, {"q": "local_decisao gravado em % dos dispatches?", "estado": "0% — proposta aberta"}],
+    "P3": [{"q": "SYNC.md vs regra 200?", "estado": "3.448 — 17,2×"}, {"q": "sha citado em docs bate com disco?", "estado": "WAVE41_46 na raiz mente (7b01eb86)"}],
+    "P6": [{"q": "usuário nº2 instala?", "estado": "3/10 — GATE F0 aberto"}, {"q": "% zeros no recibo?", "estado": "~67% — dieta pendente"}]
+  },
+  "propostas": [
+    {"id":"prop-001","pilar":"F0","titulo":"Aterrar o local-loop-runner em main","texto":"Runner host-side e o gate de TODO o modo 24/7 (play, filas, vigia vivo). Branch prometida pela spec esta ausente neste clone.","evidencia":"git branch -a: so main · EVOLUTION_FLEET §2","reversivel":true,"custo":"PR + review","fsm":"drafted","destino":"CC via MP_HIPER"},
+    {"id":"prop-002","pilar":"P5","titulo":"Sonda de GPU para Apple Silicon","texto":"Painel cego neste Mac (sonda nvidia-smi-only). mactop/ioreg da telemetria real de VRAM/uso.","evidencia":"mooter_fleet.gpu: 'nvidia-smi nao encontrado'","reversivel":true,"custo":"~1 modulo no bridge","fsm":"drafted","destino":"CC (PR)"},
+    {"id":"prop-003","pilar":"P1","titulo":"Gravar local_decisao {local, porque, confianca} no dispatched","texto":"1 linha de codigo; transforma a decisao local-first de opiniao em estatistica. Destrava MOO e MIO.","evidencia":"PERGUNTAS_MEO P2: 0% dos eventos tem o campo","reversivel":true,"custo":"1 linha + teste","fsm":"drafted","destino":"CC (PR)"},
+    {"id":"prop-004","pilar":"P3","titulo":"Tesoura no SYNC.md (J-0b) + CI ratchet","texto":"3.448 linhas vs regra 200 (17,2x). Historico rola para archive; CI falha se crescer.","evidencia":"wc -l SYNC.md: 3.448 · AGENTS.md:212","reversivel":true,"custo":"~3h + teste CI","fsm":"drafted","destino":"CC (F5 do MP_HIPER)"}
+  ],
+  "endpoint_vivo": {"candidatos": ["http://127.0.0.1:4290/fleet.json"], "estado": "inexistente até o CC aterrar F10", "fallback": "snapshot embutido"}
+};
+
+/* ================= estado / fonte de dados (máquina de estados) ================= */
+/* Persistência do endpoint em variável JS (F10 pendente — sem storage externo). */
+let ENDPOINT = (SNAPSHOT.endpoint_vivo && SNAPSHOT.endpoint_vivo.candidatos[0]) || "http://127.0.0.1:4290/fleet.json";
+let MODE = "snapshot";           // "snapshot" | "live"
+let DATA = SNAPSHOT;
+const POLL_MS = 5000;
+
+const AGENT_COLOR = { moo:"var(--s-moo)", cc:"var(--s-cc)", codex:"var(--s-codex)", kimi:"var(--s-kimi)", gemini:"var(--s-gemini)" };
+const AGENTS_FIXED = ["moo","cc","codex","kimi","gemini"]; // ordem categórica fixa — cor segue a entidade
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nd  = (why) => `<span class="nd">n/d</span>${why?` <span class="why">— ${esc(why)}</span>`:""}`;
+const fmtDur = s => s==null ? null : (s>=60 ? Math.round(s/60)+"m"+(s%60? (s%60)+"s":"") : s+"s");
+const fmtDate = iso => { try{ const d=new Date(iso); return d.toLocaleDateString("pt-PT",{day:"2-digit",month:"2-digit"});}catch(e){return iso;} };
+
+/* ================= pill ================= */
+let RUNNER_ON = false;
+async function togglePlay(){
+  const b = document.getElementById("btn-play");
+  try {
+    const r = await fetch(ENDPOINT.replace(/\/fleet\.json$/,"") + (RUNNER_ON ? "/stop" : "/play"), {method:"POST"});
+    if(!r.ok) throw new Error(r.status);
+    RUNNER_ON = !RUNNER_ON;
+    b.textContent = RUNNER_ON ? "⏸ stop" : "▶ play";
+    b.title = RUNNER_ON ? "runner drenando filas dos pilares na GPU local ($0) — ⏸ para tudo (STOP no motor)" : "▶ liga o runner local (POST /play)";
+  } catch(e){ b.title = "play falhou: endpoint sem /play (F10 pendente) — " + e; }
+}
+function syncPlayBtn(){
+  const b = document.getElementById("btn-play");
+  if(MODE === "live"){ b.disabled = false; b.style.cursor = "pointer"; b.onclick = togglePlay;
+    if(b.title.includes("desabilitado")) b.title = "▶ liga o runner local (POST /play) — jobs bounded por pilar na GPU, $0 de tokens";
+  } else { b.disabled = true; b.style.cursor = "not-allowed"; b.onclick = null; }
+}
+function renderPill(){
+  syncPlayBtn();
+  const pill = document.getElementById("src-pill");
+  const txt  = document.getElementById("src-pill-txt");
+  if(MODE==="live"){
+    pill.className = "pill live";
+    txt.textContent = "VIVO · $0";
+    pill.title = "Dados vivos de "+ENDPOINT+" (poll 5 s). Clique para editar o endpoint.";
+  }else{
+    pill.className = "pill snap";
+    txt.textContent = "SNAPSHOT · "+fmtDate(DATA.snapshot_em)+" · endpoint offline (F10 pendente)";
+    pill.title = "Fetch a "+ENDPOINT+" falhou — a mostrar o snapshot embutido de "+DATA.snapshot_em+". Clique para editar o endpoint.";
+  }
+}
+
+/* ================= render: GERAL ================= */
+function renderGeral(d){
+  const el = document.getElementById("pane-geral");
+  let h = "";
+
+  /* ① AGORA */
+  const live = d.job_vivo;
+  h += `<div class="card"><h2>Agora</h2>`;
+  if(live){
+    h += `<div class="agora live"><span class="beacon"></span><div>
+      <div class="big">${esc(live.agente||"?")} · ${esc(live.modelo||"n/d")}</div>
+      <div class="det">wave ${esc(live.wave||"n/d")} · a correr</div></div></div>`;
+  }else{
+    const m = d.mutex_gpu||{};
+    h += `<div class="agora"><span class="beacon"></span><div>
+      <div class="big">GPU livre · mutex ${esc(m.estado||"n/d")}</div>
+      <div class="det">jobs vivos: ${m.jobs_live!=null?m.jobs_live:"n/d"}${d.ultimo_job?` · último: ${esc(d.ultimo_job.wave)} (${esc(d.ultimo_job.agente)}, ${fmtDur(d.ultimo_job.duracao_s)||"n/d"}, $${d.ultimo_job.custo_usd})`:""}</div>
+      </div></div>`;
+  }
+  h += `</div>`;
+
+  /* ② P8 tile */
+  const p8 = d.p8;
+  h += `<div class="card"><h2>P8 · Custo de atenção do MEO</h2>`;
+  if(p8 && p8.decisoes_pedidas_hoje!=null){
+    const full = p8.decisoes_pedidas_hoje >= p8.cap;
+    const pct = Math.min(100, Math.round(100*p8.decisoes_pedidas_hoje/p8.cap));
+    h += `<div class="tile" style="border:none;padding:0">
+      <div class="lbl">decisões pedidas hoje</div>
+      <div class="val">${p8.decisoes_pedidas_hoje}<small> / ${p8.cap}</small></div></div>
+      <div class="meter"><div class="fill ${full?"serious":""} ${pct>=100?"meter-cap":""}" data-w="${pct}%" style="width:0"></div></div>
+      <div class="status-line">${full
+        ? `<span class="ic" aria-hidden="true">⚠️</span><span><b>cap atingido</b> — não pedir mais decisões hoje</span>`
+        : `<span class="ic" aria-hidden="true">✅</span><span>dentro do cap</span>`}</div>`;
+    if(p8.itens && p8.itens.length){
+      h += `<div class="why" style="margin-top:6px">${p8.itens.map((x,i)=>`${i+1}. ${esc(x)}`).join(" · ")}</div>`;
+    }
+  }else{ h += nd("campo p8 ausente na fonte"); }
+  h += `</div>`;
+
+  /* ③ timeline de recibos */
+  const rec = d.recibos_recentes||[];
+  h += `<div class="card"><h2>Recibos recentes — o que a GPU produziu</h2>`;
+  if(rec.length){
+    const agentsPresent = AGENTS_FIXED.filter(a => rec.some(r=>r.agente===a));
+    if(agentsPresent.length>=2){
+      h += `<div class="legend">${agentsPresent.map(a=>`<span class="key"><span class="swatch" style="background:${AGENT_COLOR[a]}"></span>${a}</span>`).join("")}</div>`;
+    }
+    const maxDur = Math.max(...rec.map(r=>r.dur_s||0), 1);
+    h += rec.map(r=>{
+      const failed = String(r.estado||"").startsWith("failed");
+      const wpct = r.dur_s!=null ? Math.max(2, Math.round(100*r.dur_s/maxDur)) : 6;
+      const col = AGENT_COLOR[r.agente] || "var(--text-muted)";
+      const usd = r.usd==null ? "custo n/d" : "$"+r.usd;
+      const tok = r.tok_out==null ? "tokens n/d" : r.tok_out.toLocaleString("pt-PT")+" tok";
+      const dur = r.dur_s==null ? "duração n/d (órfão)" : fmtDur(r.dur_s);
+      const tip = `${r.agente} · ${r.modelo} · ${dur} · ${usd} · ${tok} · ${r.estado}`;
+      return `<div class="tl-row">
+        <div class="tl-meta" title="${esc(r.wave)}">${fmtDate(r.ts)} ${esc(r.wave)}</div>
+        <div class="tl-track"><div class="tl-barwrap" title="${esc(tip)}">
+          <div class="tl-bar ${failed?"failed":""}" data-w="${wpct}%" style="width:0;background:${col}"></div>
+          <div class="tl-lab"><b>${esc(r.modelo)}</b> · ${esc(usd)} · ${esc(tok)} · ${esc(dur)}${failed?` <span class="badge fail">FALHOU: ${esc(String(r.estado).split(":")[1]||"?")}</span>`:""}</div>
+        </div></div></div>`;
+    }).join("");
+    h += `<div class="axis-note">comprimento = duração, escala linear (máx ${fmtDur(maxDur)}) · cor = agente (fixa por entidade) · falha = tracejado 45° + badge</div>`;
+  }else{ h += nd("sem recibos na fonte"); }
+  h += `</div>`;
+
+  /* ④ erros de rota */
+  h += `<div class="card"><h2>Erros de rota</h2>`;
+  const errs = d.erros_rota||[];
+  h += errs.length ? errs.map(e=>`<div class="err-item">
+      <span class="sev ${esc(e.gravidade)}">${esc(e.gravidade)}</span>
+      <span><span class="tt">${esc(e.tipo)}</span> — <span class="dd">${esc(e.detalhe)}</span></span></div>`).join("")
+    : `<div class="status-line"><span class="ic">✅</span>sem erros de rota na janela</div>`;
+  h += `</div>`;
+
+  /* ⑤ GPU */
+  const g = d.gpu||{};
+  h += `<div class="card"><h2>GPU deste device</h2>
+    <div style="font-size:12.5px">sonda: ${g.sonda==="n/d" ? nd(g.porque) : esc(g.sonda||"n/d")}</div>
+    <div style="font-size:12.5px;margin-top:4px">Ollama: ${g.ollama?esc(g.ollama):nd("não reportado")}</div>`;
+  if(g.modelos && g.modelos.length){
+    h += `<div class="chips">${g.modelos.map(m=>`<span class="chip">${esc(m)}</span>`).join("")}</div>`;
+  }
+  h += `<div class="why" style="margin-top:8px">"% GPU" não se mede aqui em lado nenhum — o que conta são recibos, jobs e folga de VRAM quando medida.</div></div>`;
+
+  el.innerHTML = h;
+}
+
+/* ================= render: por pilar ================= */
+function gauntletHTML(list){
+  if(!list || !list.length) return nd("gauntlet sem estado na fonte");
+  return list.map(g=>{
+    const s = g.estado||"";
+    const bad = /mente|17,2|GATE|0%|pendente/i.test(s);
+    const isNd = /^n\/d/i.test(s);
+    const ic = isNd ? "◌" : (bad ? "⚠️" : "✅");
+    return `<div class="gq"><span class="st-ic" aria-hidden="true">${ic}</span>
+      <span><span class="q">${esc(g.q)}</span><br><span class="a">${esc(s)}</span></span></div>`;
+  }).join("");
+}
+function ultimaRondaHTML(d){
+  /* honestidade: o ledger ainda não etiqueta recibos por pilar */
+  const last = (d.recibos_recentes||[])[0];
+  return `<div class="card"><h2>Última ronda deste pilar</h2>
+    ${nd("recibos do ledger não trazem campo 'pilar' — filtragem por wave indisponível")}
+    <div class="why" style="margin-top:5px">wave mais recente no device: ${last?`<b>${esc(last.wave)}</b> (${fmtDate(last.ts)}, ${esc(last.agente)}, $${last.usd==null?"n/d":last.usd})`:"n/d"}</div></div>`;
+}
+
+function renderP1(d){
+  const L = d.ledger_janela||{}, pa = L.por_agente||{};
+  let h = `<div class="card"><h2>P1 · Routing &amp; Custo — KPIs da janela</h2><div class="tiles">
+    <div class="tile"><div class="lbl">dispatches</div><div class="val">${L.dispatches!=null?L.dispatches:"n/d"}</div>
+      <div class="sub">${AGENTS_FIXED.filter(a=>pa[a]!=null).map(a=>`${a} ${pa[a]}`).join(" · ")||"por agente: n/d"}</div></div>
+    <div class="tile"><div class="lbl">done / failed</div><div class="val">${L.done!=null?L.done:"n/d"}<small> / ${L.failed!=null?L.failed:"n/d"}</small></div>
+      <div class="sub">${L.falhas_motivo?Object.entries(L.falhas_motivo).map(([k,v])=>`${esc(k)}: ${v}`).join(" · "):"motivos: n/d"}</div></div>
+    <div class="tile"><div class="lbl">cross-check</div><div class="val">${L.cross_check!=null?L.cross_check:"n/d"}</div><div class="sub">prep_timeout ${L.prep_timeout!=null?L.prep_timeout:"n/d"} · interrupção MEO ${L.meo_interrupcao!=null?L.meo_interrupcao:"n/d"}</div></div>
+    <div class="tile"><div class="lbl">poupança-líquida</div><div class="val"><span class="nd">n/d</span></div><div class="sub">P1 só mede — número exige baseline de custo cloud por job</div></div>
+  </div></div>`;
+  h += `<div class="card"><h2>Gauntlet P1</h2>${gauntletHTML((d.gauntlet_estado||{}).P1)}</div>`;
+  h += ultimaRondaHTML(d);
+  document.getElementById("pane-p1").innerHTML = h;
+}
+
+function renderP3(d){
+  const g3 = (d.gauntlet_estado||{}).P3, b = d.p4_bateria||{};
+  const sync = b.sync_linhas, regra = b.regra;
+  let h = `<div class="card"><h2>P3 · Coerência Doc↔Produto — KPIs</h2><div class="tiles">
+    <div class="tile"><div class="lbl">SYNC.md (linhas)</div><div class="val">${sync!=null?sync.toLocaleString("pt-PT"):"n/d"}</div>
+      <div class="sub">regra: ≤ ${regra!=null?regra:"n/d"}</div></div>
+    <div class="tile"><div class="lbl">excesso vs regra</div><div class="val">${(sync&&regra)?( (sync/regra).toLocaleString("pt-PT",{maximumFractionDigits:1})+"×"):"n/d"}</div>
+      <div class="sub">cada linha a mais é doc que pode mentir</div></div>
+  </div>`;
+  if(sync&&regra){
+    const tickPct = Math.max(1, Math.round(100*regra/sync));
+    h += `<div class="meter" title="regra (${regra}) marcada como risca; a barra é o SYNC real (${sync})">
+      <div class="fill crit meter-cap" data-w="100%" style="width:0"></div>
+      <div class="tick" style="left:${tickPct}%"></div></div>
+      <div class="prop-lab"><span>▎regra ${regra} (${tickPct}% do real)</span><span>real ${sync.toLocaleString("pt-PT")}</span></div>
+      <div class="status-line" style="margin-top:4px"><span class="ic" aria-hidden="true">⚠️</span><span><b>17,2× acima da regra</b> — poda pendente</span></div>`;
+  }
+  h += `</div>`;
+  h += `<div class="card"><h2>Gauntlet P3</h2>${gauntletHTML(g3)}</div>`;
+  h += ultimaRondaHTML(d);
+  document.getElementById("pane-p3").innerHTML = h;
+}
+
+function renderP6(d){
+  const g6 = (d.gauntlet_estado||{}).P6;
+  let h = `<div class="card"><h2>P6 · Produto &amp; Experiência — KPIs</h2><div class="tiles">
+    <div class="tile"><div class="lbl">usuário nº2 instala?</div><div class="val">3<small> / 10</small></div><div class="sub">GATE F0 aberto — install ainda exige mão do MEO</div></div>
+    <div class="tile"><div class="lbl">zeros no recibo</div><div class="val">~67<small>%</small></div><div class="sub">dieta de payloads pendente</div></div>
+  </div>
+  <div class="meter" style="margin-top:10px"><div class="fill warn" data-w="30%" style="width:0"></div></div>
+  <div class="status-line"><span class="ic" aria-hidden="true">⚠️</span><span>prontidão 3/10 medida no gauntlet de 15/08</span></div></div>`;
+  h += `<div class="card"><h2>Gauntlet P6</h2>${gauntletHTML(g6)}</div>`;
+  h += ultimaRondaHTML(d);
+  document.getElementById("pane-p6").innerHTML = h;
+}
+
+function renderP4(d){
+  const b = d.p4_bateria||{};
+  const ok = v => `<span class="delta-good">✅ ${v}</span>`;
+  let h = `<div class="card"><h2>P4 · Higiene do repo <span class="badge cron" style="vertical-align:2px">CRON</span></h2>
+  <div class="why" style="margin-bottom:8px">Bateria L0 zero-LLM — corre por cron; sessão humana só quando um alerta dispara.</div>
+  <div class="tiles">
+    <div class="tile"><div class="lbl">untracked</div><div class="val">${b.untracked!=null?b.untracked:"n/d"}</div><div class="sub">${b.untracked===0?"limpo":""}</div></div>
+    <div class="tile"><div class="lbl">stashes</div><div class="val">${b.stashes!=null?b.stashes:"n/d"}</div><div class="sub">${b.stashes===0?"limpo":""}</div></div>
+    <div class="tile"><div class="lbl">worktrees</div><div class="val">${b.worktrees!=null?b.worktrees:"n/d"}</div><div class="sub">1 = só o principal</div></div>
+    <div class="tile"><div class="lbl">sha classify</div><div class="val" style="font-size:15px;font-family:ui-monospace,monospace">${b.sha_classify?esc(b.sha_classify):"n/d"}</div><div class="sub">bate com o disco</div></div>
+    <div class="tile"><div class="lbl">HANDOFF.md topo</div><div class="val">${b.handoff_md_topo!=null?b.handoff_md_topo:"n/d"}<small> ln</small></div><div class="sub">dentro do teto</div></div>
+    <div class="tile"><div class="lbl">SYNC.md</div><div class="val">${b.sync_linhas!=null?b.sync_linhas.toLocaleString("pt-PT"):"n/d"}<small> ln</small></div><div class="sub">⚠️ 17,2× a regra — ver P3</div></div>
+  </div></div>`;
+  h += `<div class="card"><h2>Estado</h2>
+    <div class="status-line"><span class="ic" aria-hidden="true">✅</span><span>bateria L0 verde exceto SYNC.md (tratado em P3)</span></div>
+    <div class="why" style="margin-top:5px">Gauntlet P4 dedicado: ${"n/d — este device só corre P4 por cron; gauntlet completo corre no device dono do pilar"}</div></div>`;
+  h += ultimaRondaHTML(d);
+  document.getElementById("pane-p4").innerHTML = h;
+}
+
+/* ================= header + footer ================= */
+function renderChrome(d){
+  document.getElementById("hdr-device").textContent = d.device || "device n/d";
+  const c = d.conector||{};
+  document.getElementById("hdr-conector").textContent =
+    "conector " + (c.versao ? "v"+c.versao + (c.mais_recente ? " (atual)" : " (desatualizado)") : "n/d");
+  document.getElementById("ftr").innerHTML =
+    `Dados do ledger local · o LLM não renderiza frames · atualização viva = $0<br>` +
+    `medido_em: ${esc(d.snapshot_em||"n/d")} · fonte: ${esc(d.fonte||"n/d")}`;
+}
+
+/* ================= animações: barras crescem, contadores sobem ================= */
+function animateBars(){
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.querySelectorAll("[data-w]").forEach(el=>{ el.style.width = el.getAttribute("data-w"); });
+  }));
+}
+
+/* ================= render mestre ================= */
+function aprovarProposta(id, acao){
+  const base = ENDPOINT.replace(/\/fleet\.json$/,"");
+  fetch(base + "/" + acao, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({id})})
+    .then(r => { if(!r.ok) throw new Error(r.status); renderAll(); })
+    .catch(e => { const el = document.getElementById("apr-msg-"+id); if(el) el.textContent = "endpoint sem /"+acao+" (F11 pendente) — decisao continua tua, no digest"; });
+}
+function renderAprovar(d){
+  const pane = document.getElementById("pane-aprovar");
+  const props = d.propostas || [];
+  document.getElementById("apr-count").textContent = props.length ? String(props.length) : "";
+  const live = (MODE === "live");
+  pane.innerHTML = '<div class="card"><div class="card-t">✋ Fila de aprovação do MEO <span class="muted">· ' + props.length + ' proposta(s) · FSM drafted→approved · aprovar aplica em branch do pilar, NUNCA merge</span></div>' +
+    (props.length === 0 ? '<p class="muted">Fila vazia. As propostas nascem dos moos locais (charter + gauntlet) quando o runner estiver vivo (F2/F11).</p>' : '') +
+    props.map(p => (
+      '<div class="apr-card" id="apr-'+p.id+'">' +
+      '<div class="apr-head"><span class="chip">'+p.pilar+'</span> <strong>'+p.titulo+'</strong> <span class="mini-badge">'+p.fsm+'</span></div>' +
+      '<p>'+p.texto+'</p>' +
+      '<p class="muted">📎 evidência: '+p.evidencia+' · reversível: '+(p.reversivel?"sim":"NÃO — só gate humano")+' · custo: '+p.custo+' · destino: '+p.destino+'</p>' +
+      '<div class="apr-actions">' +
+      '<button class="btn-ok" '+(live?'':'disabled title="modo SNAPSHOT — o clique vivo chega com F11; hoje a decisão vai no digest/CC"')+' onclick="aprovarProposta(\''+p.id+'\',\'aprovar\')">✅ aprovar</button>' +
+      '<button class="btn-no" '+(live?'':'disabled title="modo SNAPSHOT — F11 pendente"')+' onclick="aprovarProposta(\''+p.id+'\',\'rejeitar\')">❌ rejeitar (motivo vira dataset)</button>' +
+      '<span class="muted" id="apr-msg-'+p.id+'"></span></div></div>'
+    )).join('') +
+    '<p class="muted" style="margin-top:10px">Regra: aprovar = evento approved no ledger + runner aplica no worktree do pilar + recibo no vault. Irreversível (merge/push/delete) NUNCA passa por aqui.</p></div>';
+}
+function renderAll(){
+  renderAprovar(DATA);
+  renderChrome(DATA);
+  renderGeral(DATA); renderP1(DATA); renderP3(DATA); renderP6(DATA); renderP4(DATA);
+  renderPill();
+  animateBars();
+}
+
+/* ================= tabs / deep-link ================= */
+function showTab(name){
+  const valid = ["geral","p1","p3","p6","p4","aprovar"];
+  if(!valid.includes(name)) name = "geral";
+  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on", a.dataset.tab===name));
+  valid.forEach(v=>document.getElementById("pane-"+v).classList.toggle("on", v===name));
+  animateBars();
+}
+window.addEventListener("hashchange", ()=>showTab(location.hash.replace("#","")));
+
+/* ================= modo vivo: poll 5 s ================= */
+let pollTimer = null;
+async function poll(){
+  try{
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), 3500);
+    const r = await fetch(ENDPOINT, {signal: ctl.signal, cache:"no-store"});
+    clearTimeout(t);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    if(!j || typeof j !== "object" || !j.device) throw new Error("payload sem schema esperado");
+    const changed = JSON.stringify(j)!==JSON.stringify(DATA) || MODE!=="live";
+    DATA = j; MODE = "live";
+    if(changed) renderAll();
+    else renderPill();
+  }catch(e){
+    const was = MODE;
+    MODE = "snapshot";
+    if(was!=="snapshot"){ DATA = SNAPSHOT; renderAll(); }
+    else renderPill();
+  }
+  pollTimer = setTimeout(poll, POLL_MS);
+}
+
+/* ================= endpoint editável ================= */
+document.getElementById("src-pill").addEventListener("click", ()=>{
+  const row = document.getElementById("endpoint-row");
+  row.classList.toggle("open");
+  document.getElementById("endpoint-input").value = ENDPOINT;
+});
+document.getElementById("endpoint-apply").addEventListener("click", ()=>{
+  const v = document.getElementById("endpoint-input").value.trim();
+  if(v){ ENDPOINT = v; }               /* persistência em variável JS */
+  document.getElementById("endpoint-row").classList.remove("open");
+  clearTimeout(pollTimer); poll();
+});
+document.getElementById("endpoint-input").addEventListener("keydown", e=>{
+  if(e.key==="Enter") document.getElementById("endpoint-apply").click();
+});
+
+/* ================= boot ================= */
+renderAll();
+showTab(location.hash.replace("#",""));
+poll();
+</script>
+</body>
+</html>

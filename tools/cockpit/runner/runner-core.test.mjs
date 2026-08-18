@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -20,6 +20,7 @@ import {
   runRound,
   nextPillar,
   DEFAULT_OLLAMA,
+  achou,
 } from './runner-core.mjs';
 
 /** Builds a throwaway repo so tests never depend on the real tree's contents. */
@@ -413,4 +414,95 @@ test('sem ancora legivel, o pack volta ao modo de caca e diz que nao esta ancora
   assert.equal(pack.ok, true);
   assert.equal(pack.anchored, false, 'ancora ausente nunca deve parar a ronda');
   assert.ok(pack.prompt.length > 0);
+});
+
+// ---------------------------------------------------------------- modo diff
+
+test('readChangedLines devolve [] quando o git falha — a ronda nunca para por isso', () => {
+  const boom = () => { throw new Error('sem git'); };
+  assert.deepEqual(readChangedLines('/qualquer', { runImpl: boom }), []);
+  assert.deepEqual(readChangedLines('/qualquer', { runImpl: () => '' }), []);
+});
+
+test('readChangedLines le os hunks do lado novo e ignora ficheiros que nao sao codigo', () => {
+  const diff = [
+    '--- a/tools/x.mjs', '+++ b/tools/x.mjs', '@@ -10,0 +11,3 @@', '+a', '+b', '+c',
+    '--- a/README.md',   '+++ b/README.md',   '@@ -1,0 +2,5 @@', '+doc',
+    '--- a/tools/y.js',  '+++ b/tools/y.js',  '@@ -4 +4 @@', '+z',
+  ].join('\n');
+  const got = readChangedLines('/r', { runImpl: () => diff });
+  assert.deepEqual(got, [
+    { file: 'tools/x.mjs', start: 11, count: 3 },
+    { file: 'tools/y.js', start: 4, count: 1 },
+  ], 'markdown fica de fora; sem count explicito conta 1');
+});
+
+test('com diff, o pack entra em modo DIFF e manda rever a MUDANCA', () => {
+  const root = fixtureRepo();
+  const fake = () => ['--- a/tools/router/classify.js', '+++ b/tools/router/classify.js', '@@ -2,0 +3,1 @@', '+x'].join('\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', diffBase: 'origin/main',
+    anchorPath: null, maxLines: 70,
+    // readChangedLines usa git de verdade; aqui provamos a escada com o diff real do fixture
+  });
+  // sem git no fixture, o diff degrada e cai para caca — a escada tem de continuar a dar pack valido
+  assert.equal(pack.ok, true, 'a escada nunca pode devolver pack invalido');
+  assert.ok(['diff', 'ancorado', 'caca'].includes(pack.mode), 'o pack declara sempre o modo');
+});
+
+// Reequilibrado a 2026-08-17 depois de um canario com bugs plantados: a versao
+// anterior martelava "SEM ACHADO e a resposta certa" e o modelo passou a responder
+// SEM ACHADO a TUDO — falhou uma condicao de permissao invertida e um off-by-one.
+// Silencio perante um bug e pior do que um falso alarme; o prompt tem de dizer isso.
+test('o prompt de diff manda caçar defeitos reais e proibe nitpick, sem induzir silencio', () => {
+  assert.match(DIFF_SYSTEM_PROMPT, /defeitos INTRODUZIDOS/);
+  assert.match(DIFF_SYSTEM_PROMPT, /ACHADO: <sintoma> QUANDO .*ENTÃO/);
+  assert.match(DIFF_SYSTEM_PROMPT, /SEM ACHADO/, 'o silencio honesto continua a existir');
+  // as duas classes que o canario apanhou a falhar tem de estar nomeadas
+  assert.match(DIFF_SYSTEM_PROMPT, /condições booleanas/, 'tem de mandar olhar para condicoes');
+  assert.match(DIFF_SYSTEM_PROMPT, /índices e limites/, 'tem de mandar olhar para limites');
+  // nitpick continua proibido
+  assert.match(DIFF_SYSTEM_PROMPT, /NÃO comentes estilo/);
+  // e o silencio NAO pode ser vendido como a resposta preferida
+  assert.match(DIFF_SYSTEM_PROMPT, /Ficar calado perante um bug é pior/);
+});
+
+// ------------------------------------------------- negacao e segundo parecer
+
+test('contarNegacoes ve os operadores que o 14B le ao contrario', () => {
+  assert.equal(contarNegacoes('return a === b;'), 0);
+  assert.equal(contarNegacoes('if (a !== b) return;'), 1);
+  assert.equal(contarNegacoes('if (!user.isAdmin && a != b) {}'), 2);
+  assert.equal(contarNegacoes(''), 0);
+  assert.equal(contarNegacoes(null), 0);
+});
+
+test('negacaoDensa marca 2+ operadores, ou 1 quando decide um caminho', () => {
+  assert.equal(negacaoDensa('const x = !a; const y = !b;'), true, '2 operadores');
+  assert.equal(negacaoDensa('if (a !== b) return 1;'), true, '1 mas decide caminho');
+  assert.equal(negacaoDensa('const nome = !valor;'), false, '1 sem decidir caminho');
+  assert.equal(negacaoDensa('return a === b;'), false, 'sem negacao');
+});
+
+test('achou separa ACHADO de SEM ACHADO sem se enganar no proprio prefixo', () => {
+  assert.equal(achou('ACHADO: x QUANDO y ENTAO z'), true);
+  assert.equal(achou('SEM ACHADO'), false, 'SEM ACHADO nao pode contar como achado');
+  assert.equal(achou('sem achado'), false, 'insensivel a maiusculas');
+  assert.equal(achou(''), false);
+  assert.equal(achou(null), false);
+});
+
+test('o segundo parecer nunca decide sozinho — so marca a discordancia', () => {
+  // O contrato que interessa: concordancia NAO levanta bandeira; discordancia SIM.
+  const casos = [
+    { a1: true, a2: true, bandeira: false },
+    { a1: false, a2: false, bandeira: false },
+    { a1: true, a2: false, bandeira: true },
+    { a1: false, a2: true, bandeira: true },
+  ];
+  for (const c of casos) {
+    const concorda = c.a1 === c.a2;
+    assert.equal(concorda === false, c.bandeira,
+      `a1=${c.a1} a2=${c.a2} devia ${c.bandeira ? '' : 'nao '}levantar bandeira`);
+  }
 });

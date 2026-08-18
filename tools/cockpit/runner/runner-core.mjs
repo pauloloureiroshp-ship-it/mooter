@@ -96,6 +96,48 @@ function nowIso(clock) {
  *
  * @returns {{receipt: object, dispatched: boolean}}
  */
+/**
+ * SEGUNDO PARECER — a escalada que continua a custar $0.
+ *
+ * Medimos que o modelo primario le negacoes ao contrario. A resposta obvia seria
+ * escalar para a cloud, mas o runner e $0 DURO: escalar para fora mataria a
+ * promessa. Entao escala-se DE LADO — para outro modelo LOCAL de linhagem
+ * DIFERENTE. A literatura e clara: dois modelos da mesma familia partilham os
+ * mesmos erros, e o par so vale quando as linhagens divergem.
+ *
+ * Isto nao decide nada sozinho. Quando os dois discordam, o recibo diz que
+ * discordam — e um humano (ou um tier pago, com o gate do Paulo) e que julga.
+ */
+export async function segundoParecer({ pack, model, base, fetchImpl, timeoutMs }) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(`${base}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPayload({ model, pack })),
+      signal: controller.signal,
+      redirect: 'error',
+    });
+    if (res && res.url) assertLocalEngine(new URL(res.url).origin);
+    if (!res || !res.ok) return { modelo: model, ok: false, porque: 'http' };
+    const body = await res.json();
+    const texto = String((body && (body.response || body.thinking)) || '').trim();
+    return { modelo: model, ok: true, texto: texto.replace(/\s+/g, ' ').slice(0, 240) };
+  } catch (err) {
+    return { modelo: model, ok: false, porque: String((err && err.message) || err).slice(0, 80) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Um veredicto e "achou" quando afirma ACHADO sem ser o SEM ACHADO. */
+export function achou(texto) {
+  const t = String(texto || '').toUpperCase();
+  if (/\bSEM\s+ACHADO\b/.test(t)) return false;
+  return /\bACHADO\s*:/.test(t);
+}
+
 export async function runRound({
   repoRoot,
   pillar,
@@ -109,6 +151,8 @@ export async function runRound({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   stopPollMs = 1000,
   anchorPath = null,
+  diffBase = null,
+  secondModel = null,
 }) {
   const base = assertLocalEngine(endpoint);
   const started = clock();
@@ -138,7 +182,7 @@ export async function runRound({
 
   // A âncora estática (eslint) é o detetor; o moo é o juiz. Se o ficheiro não
   // existir, readAnchor devolve [] e a ronda volta ao modo de caça — nunca falha.
-  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath });
+  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase });
   if (!pack.ok) {
     return {
       dispatched: false,
@@ -246,6 +290,26 @@ export async function runRound({
     window: { file: pack.file, startLine: pack.startLine, endLine: pack.endLine },
   });
 
+  // Terreno de negacao + um veredicto positivo = pedir um segundo par de olhos
+  // LOCAL, de outra linhagem. Custa $0 e nao decide nada: se discordarem, o
+  // recibo diz que discordam, e a decisao sobe para quem paga o tier de cima.
+  let parecer = null;
+  if (secondModel && pack.negacaoDensa) {
+    const p2 = await segundoParecer({ pack, model: secondModel, base, fetchImpl, timeoutMs });
+    if (p2.ok) {
+      const a1 = achou(text);
+      const a2 = achou(p2.texto);
+      parecer = {
+        modelo: p2.modelo,
+        achou: a2,
+        concorda: a1 === a2,
+        resposta: p2.texto,
+      };
+    } else {
+      parecer = { modelo: p2.modelo, indisponivel: p2.porque };
+    }
+  }
+
   return {
     dispatched: true,
     receipt: {
@@ -253,6 +317,7 @@ export async function runRound({
       dur_s: Math.round((clock() - started) / 1000),
       tokens_out: Number.isFinite(tokens) ? tokens : 0,
       pilar_label: pack.label,
+      modo: pack.mode || (pack.anchored ? 'ancorado' : 'caca'),
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,
@@ -267,6 +332,13 @@ export async function runRound({
       fora_da_janela: check.offWindow,
       resultado_resumo: (text.replace(/\s+/g, ' ').slice(0, 280) || 'resposta_vazia'),
       evidencia: check.evidence,
+      // Ponto cego conhecido do tier local: quando ha negacao, dizemo-lo.
+      ...(pack.negacaoDensa ? { negacao_densa: true } : {}),
+      ...(parecer ? { segundo_parecer: parecer } : {}),
+      // A unica bandeira que faz um humano olhar: dois modelos locais de
+      // linhagens diferentes a discordar sobre logica que sabemos ser o ponto
+      // fraco de ambos os tamanhos pequenos.
+      ...(parecer && parecer.concorda === false ? { precisa_tier_superior: true } : {}),
     },
   };
 }
