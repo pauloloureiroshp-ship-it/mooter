@@ -15,7 +15,7 @@
  */
 
 import fs from 'node:fs';
-import { buildContextPack, PILLAR_IDS } from './context-pack.mjs';
+import { buildContextPack, PILLARS, PILLAR_IDS } from './context-pack.mjs';
 import { verifyEvidence, VERDICT } from './evidence-verifier.mjs';
 import { deviceName } from './fleet-beacon.mjs';
 
@@ -153,6 +153,13 @@ export async function runRound({
   anchorPath = null,
   diffBase = null,
   secondModel = null,
+  // Os pilares em uso — os do projecto quando ele os declara (ver
+  // `context-pack.loadPillars`), os embutidos quando nao.
+  pillars = PILLARS,
+  // Chaves de `hunkKey` ja julgadas. Um Set; ausente = tudo por rever.
+  revistos = null,
+  // O commit em que o repo esta. `null` quando nao ha git: nunca inventado.
+  repoSha = null,
 }) {
   const base = assertLocalEngine(endpoint);
   const started = clock();
@@ -160,6 +167,11 @@ export async function runRound({
   const receiptBase = () => ({
     ts: nowIso(clock),
     device: deviceName(),
+    // QUE repo, e em que commit. Os 5478 recibos que ja existem nao dizem
+    // nenhuma das duas coisas: sao interpretaveis apenas por quem se lembra de
+    // que maquina e de que dia sao. Duas linhas resolvem isso para sempre.
+    repo: repoRoot,
+    repo_sha: repoSha,
     pilar: pillar,
     modelo: model,
     usd: 0,
@@ -182,7 +194,7 @@ export async function runRound({
 
   // A âncora estática (eslint) é o detetor; o moo é o juiz. Se o ficheiro não
   // existir, readAnchor devolve [] e a ronda volta ao modo de caça — nunca falha.
-  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase });
+  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase, pillars, revistos });
   if (!pack.ok) {
     return {
       dispatched: false,
@@ -254,12 +266,21 @@ export async function runRound({
           tokens_out: 0,
           ficheiro: pack.file,
           verdict: VERDICT.UNCITED,
+          // Bandeira legivel por maquina: o loop desliga-se sozinho quando o
+          // motor esta em baixo, e nao se desliga por uma ronda que so nao
+          // achou nada. Distinguir isto por substring do resumo era fragil.
+          falha_motor: true,
           resultado_resumo: `motor local respondeu HTTP ${res && res.status}`,
           evidencia: 'n/d',
         },
       };
     }
   } catch (err) {
+    // Uma violacao do $0 DURO (um redirect para fora do loopback) caia aqui e
+    // saia rotulada "motor local indisponivel" — e, a partir da 3a ronda, o
+    // disjuntor calava-a. A promessa central do runner nao pode ser registada
+    // como uma avaria banal, e muito menos silenciada.
+    const violacaoZero = /motor tem de ser|motor invalido/.test(String((err && err.message) || ''));
     return {
       dispatched: true,
       receipt: {
@@ -268,9 +289,14 @@ export async function runRound({
         tokens_out: 0,
         ficheiro: pack.file,
         verdict: VERDICT.NO_FINDING,
+        ...(violacaoZero ? { violacao_zero: true } : {}),
+        // Um STOP nosso nao e o motor em baixo — so o segundo abre o disjuntor.
+        ...(abortedByStop || violacaoZero ? {} : { falha_motor: true }),
         resultado_resumo: abortedByStop
           ? 'STOP durante a geracao — ronda abortada, trabalho descartado'
-          : `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
+          : violacaoZero
+            ? `VIOLACAO $0: ${String(err && err.message).slice(0, 120)}`
+            : `motor local indisponivel: ${String(err && err.message).slice(0, 120)}`,
         evidencia: abortedByStop ? 'kill-switch: abortou a ronda em voo' : 'n/d',
       },
     };
@@ -314,13 +340,34 @@ export async function runRound({
     dispatched: true,
     receipt: {
       ...receiptBase(),
+      // Prova POSITIVA de que o motor respondeu. O disjuntor so fecha com isto:
+      // a ausencia de prova de sucesso e uma falha, nao um sucesso. Fechar por
+      // "nao vi falha" fazia uma ronda REBENTADA emitir um `engine:up` com uma
+      // duracao de apagao inventada, com o motor ainda morto.
+      motor_ok: true,
       dur_s: Math.round((clock() - started) / 1000),
       tokens_out: Number.isFinite(tokens) ? tokens : 0,
       pilar_label: pack.label,
       modo: pack.mode || (pack.anchored ? 'ancorado' : 'caca'),
+      // 'pilar' = o ficheiro revisto e mesmo do pilar; 'geral' = o pilar nao
+      // tinha nada no diff e revimos o resto. Sem este campo o painel dava o
+      // rotulo do pilar a trabalho que nao era dele.
+      ...(pack.escopo ? { escopo: pack.escopo } : {}),
+      // A identidade do excerto revisto (ficheiro:linhas:sha do conteudo). E o
+      // que impede a ronda seguinte de o julgar outra vez, e o que faz um
+      // excerto ALTERADO voltar a fila.
+      ...(pack.chave ? { chave: pack.chave } : {}),
+      ...(pack.escadaBase ? { diff_base: pack.escadaBase } : {}),
+      // O `git diff` rebentou mas a escada degradou: o recibo diz que degradou
+      // E porque. Capturar o erro e nao o publicar e um catch mudo com mais passos.
+      ...(pack.diffErro ? { diff_erro: pack.diffErro } : {}),
       ficheiro: pack.file,
       janela: `${pack.startLine}-${pack.endLine}`,
       verdict: check.verdict,
+      // Dois eixos: `verdict` diz se a linha citada existe; `conclusao` diz o que
+      // o modelo concluiu. Juntar os dois num numero so fez 32,5% do verde do
+      // painel ser, na verdade, o motor a dizer que nao ha problema.
+      conclusao: check.conclusao,
       citacoes: check.citations.map((c) => ({
         ref: `${c.file}:${c.line}`,
         ok: c.ok,

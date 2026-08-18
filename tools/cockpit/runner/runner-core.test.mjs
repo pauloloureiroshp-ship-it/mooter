@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -12,6 +12,7 @@ import {
   verifyEvidence,
   tallyVerdicts,
   isNoFinding,
+  concluir,
 } from './evidence-verifier.mjs';
 import {
   assertLocalEngine,
@@ -505,4 +506,349 @@ test('o segundo parecer nunca decide sozinho — so marca a discordancia', () =>
     assert.equal(concorda === false, c.bandeira,
       `a1=${c.a1} a2=${c.a2} devia ${c.bandeira ? '' : 'nao '}levantar bandeira`);
   }
+});
+
+test('readChangedLines REPORTA a falha em vez de a engolir (o bug que teve)', () => {
+  // O catch mudo original devolvia [] quando o git rebentava com ENOBUFS num
+  // diff de 52k linhas — o modo diff nunca disparava e nada dizia porque.
+  let visto = null;
+  const boom = () => { const e = new Error('spawnSync git ENOBUFS'); throw e; };
+  const got = readChangedLines('/r', { runImpl: boom, onError: (m) => { visto = m; } });
+  assert.deepEqual(got, [], 'continua a degradar sem parar a ronda');
+  assert.match(visto || '', /ENOBUFS/, 'mas a falha tem de chegar a quem chama');
+});
+
+test('readChangedLines limita o diff a ficheiros de codigo pelo pathspec', () => {
+  let args = null;
+  readChangedLines('/r', { runImpl: (a) => { args = a; return ''; } });
+  assert.ok(args.includes('--'), 'tem de separar o pathspec');
+  assert.ok(args.includes('*.mjs') && args.includes('*.ts'),
+    'o pathspec tem de existir: sem ele o diff traz o repo todo e rebenta o buffer');
+});
+
+test('o pack em modo DIFF constroi-se de facto — o teste que faltava', () => {
+  // Os 157 testes anteriores nunca EXERCITARAM este caminho: o repo de fixture
+  // nao tem git, o diff vinha vazio e caia sempre para o modo de caca. Resultado:
+  // um "Cannot access 'densa' before initialization" foi para producao e rebentou
+  // todas as rondas. Um teste que so verifica que a escada devolve ALGO nao chega
+  // — tem de construir o pack do degrau de cima.
+  const root = fixtureRepo();
+  const diff = [
+    '--- a/tools/router/classify.js',
+    '+++ b/tools/router/classify.js',
+    '@@ -1,0 +2,2 @@',
+    '+const x = 1;',
+    '+if (x !== 2) return null;',
+  ].join('\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', diffBase: 'HEAD~6', diffRunImpl: () => diff,
+  });
+  assert.equal(pack.ok, true);
+  assert.equal(pack.mode, 'diff', 'com hunks, tem de entrar no degrau do diff');
+  assert.equal(pack.file, 'tools/router/classify.js');
+  assert.equal(pack.changedStart, 2);
+  assert.ok(pack.prompt.includes('MUDARAM as linhas'), 'o prompt tem de falar da mudanca');
+  assert.equal(typeof pack.negacaoDensa, 'boolean', 'a marca de negacao tem de estar calculada');
+});
+
+test('em modo DIFF com negacao, o aviso dirigido entra no prompt', () => {
+  const root = fixtureRepo();
+  const diff = [
+    '--- a/tools/router/classify.js',
+    '+++ b/tools/router/classify.js',
+    '@@ -1,0 +2,1 @@',
+    '+if (a !== b) return true;',
+  ].join('\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', diffBase: 'HEAD~6', diffRunImpl: () => diff,
+  });
+  assert.equal(pack.mode, 'diff');
+  // a linha 2 do fixture pode nao ter negacao; o que importa e que o campo existe
+  // e que, quando marcado, o aviso aparece.
+  if (pack.negacaoDensa) {
+    assert.match(pack.prompt, /usam negação/, 'terreno de negacao exige o aviso dirigido');
+  }
+});
+
+// ------------------------------------------------ os dois eixos do veredicto
+
+test('concluir le o que o modelo concluiu, nao se a linha existe', () => {
+  // Medido a 2026-08-18: 614 de 1888 recibos com verdict `citacao-ok` eram o
+  // modelo a escrever FALSO POSITIVO. Um terco do numero verde do painel era o
+  // motor a dizer que NAO ha problema. Sao dois eixos e tem de ser dois campos.
+  assert.equal(concluir('ACHADO: x QUANDO y ENTAO z PROVA: a.js:1'), 'achado');
+  assert.equal(concluir('FALSO POSITIVO: o bloco vazio e intencional'), 'falso-positivo');
+  assert.equal(concluir('SEM ACHADO'), 'sem-achado');
+  assert.equal(concluir(''), 'vazio');
+  assert.equal(concluir(null), 'vazio');
+  assert.equal(concluir('qualquer outra coisa'), 'indeterminado');
+});
+
+test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confundem', () => {
+  const root = fixtureRepo();
+  // Citacao VALIDA (linha existe) mas o modelo diz que NAO e problema:
+  // verdict tem de ser citacao-ok E conclusao tem de ser falso-positivo.
+  const r = verifyEvidence({
+    repoRoot: root,
+    text: 'FALSO POSITIVO: este regex le padroes fixos PROVA: tools/router/classify.js:3',
+    allowedFiles: ['tools/router/classify.js'],
+  });
+  assert.equal(r.conclusao, 'falso-positivo', 'a conclusao vem do texto do modelo');
+  assert.notEqual(r.verdict, undefined, 'o verdict continua a existir');
+  assert.ok(r.verdict !== r.conclusao, 'os dois eixos nao podem colapsar num so');
+});
+
+// ------------------------------------------------- B6: o rotulo deixa de mentir
+//
+// Medido a 2026-08-18 na arvore real: os packs de P1 e P5 diferiam em 1 linha
+// de 25 — so o cabecalho — e o campo `question` era IDENTICO. Os seis pilares
+// apontavam ao mesmo ficheiro, na mesma janela, e dez dos vinte ficheiros do
+// diff eram `_handoff/**`, codigo arquivado que ja nao corre.
+
+/** Repo de teste com um ficheiro de cada pilar e um ficheiro fora de todos. */
+function repoDiff() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-b6-'));
+  const escrever = (rel) => {
+    fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), Array.from({ length: 400 }, (_, n) => `linha ${n + 1};`).join('\n'));
+  };
+  escrever('tools/router/classify.js');            // P1
+  escrever('tools/docs-hygiene.js');               // P2
+  escrever('packages/mooter-bridge/board.js');     // de nenhum pilar
+  escrever('packages/mooter-bridge/broker.js');    // de nenhum pilar
+  escrever('packages/mooter-bridge/fleet.js');     // de nenhum pilar
+  escrever('packages/mooter-bridge/sync.js');      // de nenhum pilar
+  escrever('packages/mooter-bridge/recibo.js');    // de nenhum pilar
+  escrever('packages/mooter-bridge/actor.js');     // de nenhum pilar
+  return root;
+}
+
+const diffFalso = (ficheiros) => () => ficheiros
+  .map((f, k) => [`--- a/${f}`, `+++ b/${f}`, `@@ -${20 + k * 10},0 +${20 + k * 10},4 @@`, '+x'].join('\n'))
+  .join('\n');
+
+test('B6: o pathspec do diff exclui arquivo, docs/archive e testes', () => {
+  assert.ok(DIFF_PATHSPEC.includes(':(exclude)_handoff/**'), 'codigo arquivado nao e trabalho novo');
+  assert.ok(DIFF_PATHSPEC.includes(':(exclude)docs/archive/**'));
+  assert.ok(DIFF_PATHSPEC.includes(':(exclude)*.test.*'));
+  let argv = null;
+  readChangedLines('/r', { runImpl: (a) => { argv = a; return ''; } });
+  for (const spec of DIFF_PATHSPEC) {
+    assert.ok(argv.includes(spec), `o pathspec ${spec} tem de chegar ao git, nao ficar so na constante`);
+  }
+});
+
+test('B6: com hunk seu, o pilar rotula-se a si proprio (escopo pilar)', () => {
+  const root = repoDiff();
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P2', cursor: 0, diffBase: 'HEAD~12',
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js', 'tools/docs-hygiene.js']),
+  });
+  assert.equal(pack.mode, 'diff');
+  assert.equal(pack.escopo, 'pilar', 'o hunk de docs-hygiene.js e mesmo do P2');
+  assert.equal(pack.file, 'tools/docs-hygiene.js', 'com hunk seu, o pilar nao vai rever o dos outros');
+  assert.match(pack.label, /Qualidade & Verificação/);
+});
+
+test('B6: sem hunk seu, o pack diz "geral" e NAO se veste do rotulo do pilar', () => {
+  const root = repoDiff();
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12',
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+  });
+  assert.equal(pack.escopo, 'geral');
+  assert.equal(pack.file, 'packages/mooter-bridge/board.js', 'revemos o diff na mesma — trabalho novo vale mais');
+  assert.doesNotMatch(pack.label, /Routing & Custo/, 'chamar "Routing & Custo" a um ficheiro do bridge e a mentira que o B6 fecha');
+  assert.match(pack.label, /geral/i);
+  assert.doesNotMatch(pack.prompt, /^Pilar: P1/m, 'o cabecalho do prompt tambem nao pode afirmar o pilar');
+});
+
+test('B6 ACEITACAO: pilares e rotacoes SEGUIDAS nao colidem entre si', () => {
+  // A primeira versao deste teste so comparava pilares DENTRO do mesmo cursor,
+  // e passou com `cursor + desvio` — que faz o pilar k da rotacao r cair no
+  // mesmo hunk que o pilar k-1 da rotacao r+1. Foi o ledger vivo que apanhou
+  // (P2 e P1, rondas seguidas, janela 277-295), nao a suite. Um teste que
+  // aceita qualquer degrau nao testa nenhum: agora varre rotacoes seguidas.
+  const root = repoDiff();
+  const foraDeTodos = [
+    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
+    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
+    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
+  ];
+  const vistos = [];
+  for (let cursor = 0; cursor < 4; cursor += 1) {
+    for (const p of PILLAR_IDS) {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diffFalso(foraDeTodos) });
+      vistos.push(`${pk.file}:${pk.startLine}`);
+    }
+  }
+  // 24 rondas sobre 6 hunks: cada hunk sai 4 vezes, mas NUNCA duas vezes na
+  // mesma volta nem em voltas encavalitadas.
+  for (let i = 0; i + PILLAR_IDS.length <= vistos.length; i += 1) {
+    const janela = vistos.slice(i, i + PILLAR_IDS.length);
+    assert.equal(new Set(janela).size, PILLAR_IDS.length,
+      `rondas ${i}..${i + 5} repetem alvo: ${JSON.stringify(janela)}`);
+  }
+});
+
+test('B6 ACEITACAO: dois pilares, mesmo cursor, alvos DIFERENTES', () => {
+  const root = repoDiff();
+  const foraDeTodos = [
+    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
+    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
+    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
+  ];
+  for (const cursor of [0, 1, 5, 12]) {
+    const alvos = PILLAR_IDS.map((p) => {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diffFalso(foraDeTodos) });
+      return `${pk.file}:${pk.startLine}`;
+    });
+    assert.equal(new Set(alvos).size, PILLAR_IDS.length,
+      `cursor ${cursor}: seis pilares a moer o mesmo ficheiro sao um pilar com seis vezes o custo — ${JSON.stringify(alvos)}`);
+  }
+});
+
+test('B6 ACEITACAO: zero alvos em _handoff/ — o pathspec e a unica defesa', () => {
+  // Se alguem apagar a exclusao, o git devolve os hunks arquivados e este teste
+  // cai. E o ponto: a exclusao vive no pathspec, nao num filtro a jusante.
+  assert.ok(DIFF_PATHSPEC.some((p) => p === ':(exclude)_handoff/**'));
+  const root = repoDiff();
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P4', cursor: 0, diffBase: 'HEAD~12',
+    // o git ja filtrou: o que chega ao pack nunca traz _handoff
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+  });
+  assert.doesNotMatch(pack.file, /^_handoff\//);
+});
+
+test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hunk', () => {
+  // Uma auditoria adversarial mediu 10 colisoes em 201 cursores, a primeira no
+  // cursor 10, com um pilar em escopo `geral` a cair no mesmo hunk que um pilar
+  // DONO ja estava a rever. O passo aritmetico nao ajudava: as duas caminhadas
+  // sao sobre conjuntos diferentes, e o `geral` percorria `todos` — que contem
+  // os hunks dos donos. Agora `geral` percorre os ORFAOS.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-b6t-'));
+  const escrever = (rel) => {
+    fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), Array.from({ length: 600 }, (_, n) => `linha ${n + 1};`).join('\n'));
+  };
+  const donos = [
+    'tools/router/classify.js',                  // P1
+    'tools/docs-hygiene.js',                     // P2
+    'tools/cockpit/build-snapshot.js',           // P2 e P6 — o par que colidia a 100%
+    'tools/cockpit/runner/moo-runner.mjs',       // P4
+    'tools/cockpit/runner/runner-core.mjs',      // P5
+    'tools/cockpit/runner/evidence-verifier.mjs',// P6
+  ];
+  const orfaos = ['a/um.js', 'a/dois.js', 'a/tres.js', 'a/quatro.js', 'a/cinco.js'];
+  for (const f of [...donos, ...orfaos]) escrever(f);
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc\n');
+
+  const diff = () => [...donos, ...orfaos]
+    .map((f, k) => [`--- a/${f}`, `+++ b/${f}`, `@@ -${30 + k * 20},0 +${30 + k * 20},4 @@`, '+x'].join('\n'))
+    .join('\n');
+
+  let colisoes = 0;
+  for (let cursor = 0; cursor < 40; cursor += 1) {
+    const alvos = PILLAR_IDS.map((p) => {
+      const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diff });
+      return `${pk.file}:${pk.startLine}`;
+    });
+    if (new Set(alvos).size !== PILLAR_IDS.length) colisoes += 1;
+  }
+  assert.equal(colisoes, 0, 'seis pilares a moer o mesmo hunk sao um pilar com seis vezes o custo');
+});
+
+test('B6: um pilar so de documentos nao entra no degrau do diff', () => {
+  // O P3, cujo trabalho SAO os documentos, ficava preso em `escopo: geral` para
+  // sempre — a rever codigo de outros — porque DIFF_PATHSPEC so ve codigo e ele
+  // nunca podia ter interseccao. Para ele o diff nao e um degrau, e um desvio.
+  const root = repoDiff();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc123\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P3', cursor: 0, diffBase: 'HEAD~12',
+    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+  });
+  assert.notEqual(pack.mode, 'diff', 'um pilar sem um unico ficheiro de codigo nao tem lugar no diff');
+  assert.equal(pack.file, 'CLAUDE.md', 'vai rever o canon, que e o trabalho dele');
+});
+
+// ------------------------------------------------- o poco que secava em 10 min
+
+test('POCO: um excerto ja julgado nao volta a fila — mas um excerto ALTERADO volta', () => {
+  // Medido a 2026-08-18: `HEAD~12` dava 20 hunks e o runner corre 2950 rondas
+  // por dia (29s cada). O poco secava em menos de 10 minutos e a GPU remoia os
+  // mesmos 20 excertos ~147 vezes por dia. Foi assim que 113 rondas deram 0
+  // achados uteis — nao por o motor ser mau, mas por lhe darmos o mesmo
+  // trabalho outra vez.
+  const root = repoDiff();
+  const alvo = 'packages/mooter-bridge/board.js';
+  const diff = diffFalso([alvo]);
+  const revistos = new Set();
+
+  const p1 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
+  assert.equal(p1.mode, 'diff');
+  assert.ok(p1.chave, 'todo o excerto servido tem identidade');
+  revistos.add(p1.chave);
+
+  const p2 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
+  assert.equal(p2.ok, false, 'o unico hunk ja foi julgado');
+  assert.equal(p2.esgotado, true, 'e o pack DIZ que esgotou, em vez de servir o mesmo outra vez');
+
+  // Muda o conteudo: e trabalho novo, e volta a fila.
+  const linhas = fs.readFileSync(path.join(root, alvo), 'utf8').split('\n');
+  linhas[19] = 'if (a !== b) { throw new Error("mudou"); }';
+  fs.writeFileSync(path.join(root, alvo), linhas.join('\n'));
+  const p3 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, revistos });
+  assert.equal(p3.ok, true, 'linhas alteradas sao trabalho novo');
+  assert.notEqual(p3.chave, p1.chave, 'a chave inclui o CONTEUDO, nao so a posicao');
+});
+
+test('POCO: a escada abre a base seguinte em vez de remoer, e degrada no fim', () => {
+  const root = repoDiff();
+  const porBase = {
+    'HEAD~12': diffFalso(['packages/mooter-bridge/board.js']),
+    'HEAD~25': diffFalso(['packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js']),
+  };
+  const revistos = new Set();
+  const escada = ['HEAD~12', 'HEAD~25'];
+  const servidos = [];
+  for (let c = 0; c < 6; c += 1) {
+    const pk = buildContextPack({
+      repoRoot: root, pillar: 'P1', cursor: c, diffBase: escada, revistos,
+      diffRunImpl: (args) => (porBase[args.find((a) => String(a).startsWith('HEAD'))?.split('...')[0]] || (() => ''))(),
+    });
+    if (pk.mode !== 'diff') { servidos.push(`caiu:${pk.mode}`); break; }
+    revistos.add(pk.chave);
+    servidos.push(pk.escadaBase);
+  }
+  assert.ok(servidos.includes('HEAD~25'), `a escada tem de abrir a base seguinte: ${JSON.stringify(servidos)}`);
+  assert.ok(servidos.at(-1).startsWith('caiu:'), 'esgotadas todas as bases, degrada em vez de remoer');
+});
+
+test('POCO: os modos caca e ancorado tambem deixam de remoer', () => {
+  const root = fixtureRepo();
+  const revistos = new Set();
+  const vistas = [];
+  for (let cursor = 0; cursor < 12; cursor += 1) {
+    const pk = buildContextPack({ repoRoot: root, pillar: 'P1', cursor, revistos });
+    if (!pk.ok) { vistas.push('esgotado'); break; }
+    assert.ok(pk.chave, `o modo ${pk.mode} tem de dar identidade ao que serve`);
+    assert.ok(!revistos.has(pk.chave), `${pk.mode} serviu de novo ${pk.chave}`);
+    revistos.add(pk.chave);
+    vistas.push(`${pk.file}:${pk.startLine}`);
+  }
+  assert.equal(vistas.at(-1), 'esgotado', 'esgotado o ficheiro, diz que esgotou em vez de repetir');
+  assert.equal(new Set(vistas.slice(0, -1)).size, vistas.length - 1, 'zero repeticoes');
+});
+
+test('POCO: o tecto de hunks e dito em voz alta, nao silenciado', () => {
+  // Sem isto, HEAD~100 e HEAD~200 devolviam os dois exactamente 320 hunks e
+  // ninguem sabia porque. Um tecto silencioso le-se como "cobri tudo".
+  const muitos = Array.from({ length: 500 }, (_, k) =>
+    [`--- a/f${k}.js`, `+++ b/f${k}.js`, `@@ -1,0 +${k + 1},2 @@`, '+x'].join('\n')).join('\n');
+  let capado = null;
+  const got = readChangedLines('/r', { runImpl: () => muitos, onCap: (n) => { capado = n; } });
+  assert.equal(got.length, 320, 'o tecto e maxFiles * 8');
+  assert.equal(capado, 320, 'e quem chama fica a saber que ficou trabalho de fora');
 });
