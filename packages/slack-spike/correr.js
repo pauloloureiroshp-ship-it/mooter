@@ -28,8 +28,6 @@ const { criarPublicador } = require('./publicar.js');
 const { criarAdaptador, lerLedgerPorOmissao } = require('./adapter.js');
 const { silenciadosDoAmbiente } = require('./poller.js');
 
-/** Uma so leitura do silencio, partilhada pelos dois caminhos (publicar e clicar). */
-const SILENCIADOS = silenciadosDoAmbiente(process.env);
 const { criarDespachador } = require('./despacho.js');
 const { criarCancelador } = require('./cancelar.js');
 const { criarTransporte } = require('./transporte.js');
@@ -104,6 +102,16 @@ async function montar(opcoes) {
   const syncPath = o.syncPath || SYNC_PATH;
 
   carregarEnv(envPath);
+
+  // ⚠️ DEPOIS do `carregarEnv`, nao antes. Isto vivia no topo do modulo, lido no
+  // instante em que o ficheiro carregava — ou seja, ANTES de o `.env` existir em
+  // `process.env`. Consequencia: pos-se `SLACK_IGNORAR_JOBS` no `.env`, que e o
+  // sitio natural (todas as outras SLACK_* vivem la), e nao acontecia NADA. O
+  // cartao continuava a anunciar-se e, pior, com o `[Aprovar]` quente — que e
+  // exactamente o incidente para o qual este guarda foi escrito.
+  // Um guarda que se desliga em silencio quando o pomos no sitio obvio e pior que
+  // nao ter guarda: da a sensacao de proteccao sem a dar.
+  const SILENCIADOS = silenciadosDoAmbiente(process.env);
 
   // 1 · o daemon manda. Em dry-run salta-se a parte do token (nao ha envio real),
   //     mas o prazo e o gate NAO se saltam: sao a razao pela qual isto e um spike.

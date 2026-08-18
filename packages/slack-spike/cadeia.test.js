@@ -58,3 +58,24 @@ test('cadeia · usa o ULTIMO custo do job (a reconciliacao re-carimba)', () => {
   const l = [desp('a'), fim('a', 1), fim('a', 3)];
   assert.equal(cadeiaDe(l, 'a').total, 3, 'ficou com o carimbo velho');
 });
+
+test('cadeia · custo SEM procedencia nao entra na soma (o every() passava a vazio)', () => {
+  // ⚠️ Achado do final-reviewer. O valor somava e a fonte, ausente, nao ficava
+  // registada — e o `fontes.every(fonteLegivel)` do cartao passava A VAZIO,
+  // publicando um total "de procedencia reconhecida" que era, em parte, de origem
+  // desconhecida. Latente (o ledger real traz fonte em 12/12), mas um so evento
+  // sem ela bastava para publicar US$ 100 como total verificado.
+  const l = [desp('a'), fim('a', 1),
+    desp('b', { handoff_from: 'a' }), { event: 'done', job_id: 'b', cost_usd: 99 }];
+  const c = cadeiaDe(l, 'a');
+  assert.equal(c.total, 1, 'somou 99 de origem desconhecida');
+  assert.equal(c.todosMedidos, false);
+  assert.deepEqual(c.semFonte, ['b']);
+});
+
+test('cadeia · fonte «n/d» conta como ausente (a mesma regra do leitura.js)', () => {
+  const l = [desp('a'), fim('a', 1),
+    desp('b', { handoff_from: 'a' }),
+    { event: 'done', job_id: 'b', cost_usd: 99, cost_usd_fonte: 'n/d' }];
+  assert.equal(cadeiaDe(l, 'a').total, 1, '«n/d» passou por procedencia válida');
+});

@@ -67,14 +67,23 @@ function cadeiaDe(ledger, jobId) {
   }
 
   // o ULTIMO evento com custo de cada job — a reconciliacao do motor re-carimba
+  // ⚠️ UM CUSTO SEM PROCEDENCIA NAO ENTRA NA SOMA. Antes entrava: o valor somava e
+  // a fonte, ausente, nao ficava registada — e la em cima o `fontes.every(...)` do
+  // cartao passava A VAZIO, publicando um total com procedencia "reconhecida" que
+  // era, em parte, de origem desconhecida. Ficava latente porque o ledger de hoje
+  // traz fonte em 12/12; um evento sem ela bastava para publicar US$ 100 como
+  // total verificado. `n/d` conta como ausente — a mesma regra do `leitura.js`.
   const custo = new Map();
   const fontes = new Map();
+  const semFonte = [];
   for (const e of es) {
     if (!e.job_id || !jobs.includes(e.job_id) || e.cost_usd == null) continue;
     const v = Number(e.cost_usd);
     if (!Number.isFinite(v) || v < 0) continue;
+    const f = e.cost_usd_fonte == null ? '' : String(e.cost_usd_fonte).trim();
+    if (!f || f.toLowerCase() === 'n/d') { semFonte.push(e.job_id); continue; }
     custo.set(e.job_id, v);
-    if (e.cost_usd_fonte) fontes.set(e.job_id, String(e.cost_usd_fonte));
+    fontes.set(e.job_id, f);
   }
 
   let total = 0;
@@ -87,8 +96,9 @@ function cadeiaDe(ledger, jobId) {
     // ⚠️ um job da cadeia sem custo gravado (ainda a correr, ou interrompido antes
     // de reportar) torna o total um PISO, nao um total. Publicar um piso como total
     // seria a mesma mentira em ponto mais pequeno.
-    todosMedidos: custo.size === jobs.length,
+    todosMedidos: custo.size === jobs.length && semFonte.length === 0,
     fontes: [...new Set(fontes.values())],
+    semFonte,          // jobs com custo mas sem procedencia — nao somados, e tornam o total um piso
   };
 }
 

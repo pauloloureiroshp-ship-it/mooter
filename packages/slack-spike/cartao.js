@@ -56,15 +56,53 @@ const MOTORES_LEGIVEIS = Object.freeze({
  * reconhecida e um numero sem procedencia.
  */
 const FONTES_LEGIVEIS = Object.freeze([
-  [/reportado pelo cli/i, 'valor informado pelo próprio motor · não verificado por nós'],
-  [/infer[eê]ncia local|sem custo de api/i, 'execução local, sem custo de API'],
-  [/calculad|tabela|estimativ/i, 'ESTIMATIVA calculada a partir de tokens · não medida'],
+  ['motor', /reportado pelo cli/i,
+    'valor informado pelo próprio motor · não verificado por nós',
+    'valores informados pelo próprio motor · não verificados por nós'],
+  ['local', /infer[eê]ncia local|sem custo de api/i,
+    'execução local, sem custo de API',
+    'execução local, sem custo de API'],
+  ['estimativa', /calculad|tabela|estimativ/i,
+    'ESTIMATIVA calculada a partir de tokens · não medida',
+    'ESTIMATIVA calculada a partir de tokens · não medida'],
 ]);
 
-function fonteLegivel(fonte) {
+function classeDaFonte(fonte) {
   const s = String(fonte == null ? '' : fonte);
-  for (const [re, texto] of FONTES_LEGIVEIS) if (re.test(s)) return texto;
+  for (const f of FONTES_LEGIVEIS) if (f[1].test(s)) return f[0];
   return null;                       // desconhecida => o numero nao sai
+}
+
+function fonteLegivel(fonte) {
+  const c = classeDaFonte(fonte);
+  const linha = c && FONTES_LEGIVEIS.find((f) => f[0] === c);
+  return linha ? linha[2] : null;
+}
+
+/**
+ * O sufixo de um CONJUNTO de fontes.
+ *
+ * ⚠️ Isto existe porque eu tinha codificado o sufixo da cadeia A MAO, no mesmo
+ * commit cuja mensagem dizia «mesma regra de procedencia». O resultado: uma cadeia
+ * de jobs LOCAIS publicava US$ 0,00 rotulado «informado pelo proprio motor · nao
+ * verificado por nos» — a lancar duvida sobre o unico numero que e certo — e uma
+ * cadeia ESTIMADA perdia a palavra ESTIMATIVA pelo caminho. O vocabulario fechado
+ * so vale se NADA lhe escapar; uma string escrita a mao ao lado dele e uma fuga.
+ *
+ * Numa cadeia MISTA manda a afirmacao mais fraca: se ha uma estimativa no meio, o
+ * total e no melhor dos casos uma estimativa, e tem de o dizer.
+ */
+function sufixoDeFontes(fontes) {
+  const classes = [...new Set([].concat(fontes || []).map(classeDaFonte))];
+  if (!classes.length || classes.some((c) => !c)) return null;
+  if (classes.length === 1) {
+    return { texto: FONTES_LEGIVEIS.find((f) => f[0] === classes[0])[3], classe: classes[0] };
+  }
+  if (classes.includes('estimativa')) {
+    return { texto: 'inclui ESTIMATIVA calculada a partir de tokens · não medida', classe: null };
+  }
+  return { texto: 'valores informados pelo próprio motor e execução local · não verificados por nós',
+    classe: null };
 }
 
 /**
@@ -110,11 +148,11 @@ function linhaDaCadeia(cadeia) {
   if (!(k.pedidos > 1)) return null;
   const v = Number(k.total);
   if (!Number.isFinite(v) || v < 0) return null;
-  const fontes = [].concat(k.fontes || []);
-  if (!fontes.length || !fontes.every((f) => fonteLegivel(f))) return null;
+  const s = sufixoDeFontes(k.fontes);
+  if (!s) return null;               // fonte desconhecida ou ausente => nao publica
   return { linha: '*Nesta conversa, ' + k.pedidos + ' pedidos encadeados:* '
       + (k.todosMedidos ? '' : 'pelo menos ') + montante(v),
-    sufixo: 'valores informados pelo próprio motor · não verificados por nós' };
+    sufixo: s.texto, classe: s.classe };
 }
 
 /** A impressao completa: e ESTA a string que o CAS compara. */
@@ -281,9 +319,14 @@ function blocoDoDinheiro(p) {
   const d = dinheiro(p.custo);
   const k = linhaDaCadeia(p.cadeia);
   const linha1 = '*Já gasto até agora neste pedido:* ' + d.texto;
-  // com cadeia o sufixo e UM so e vem no plural — dois sufixos seguidos leem-se mal
   if (!k) return secao(linha1 + NL + d.sufixo);
-  return secao(linha1 + NL + k.linha + NL + k.sufixo);
+  // ⚠️ UM sufixo so quando as duas procedencias sao a MESMA classe. Quando diferem,
+  // cada numero leva a sua: colapsar duas afirmacoes numa era o defeito — o total
+  // da conversa passava a herdar o rotulo do pedido, ou pior, um rotulo fixo.
+  if (k.classe && k.classe === classeDaFonte((p.custo || {}).fonte)) {
+    return secao(linha1 + NL + k.linha + NL + k.sufixo);
+  }
+  return secao(linha1 + NL + d.sufixo + NL + k.linha + NL + k.sufixo);
 }
 
 /** A prova, completa, em code span. E esta a string que o CAS compara. */

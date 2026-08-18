@@ -490,3 +490,48 @@ test('cadeia · sem cadeia nenhuma o cartao fica exactamente como estava', () =>
   assert.match(t, /neste pedido:\* US\$ 0,14/);
   assert.doesNotMatch(t, /Nesta conversa/);
 });
+
+// ── a procedencia da CADEIA tem de vir das fontes, nao de uma string a mao ──
+test('cadeia · uma cadeia LOCAL nao pode ser rotulada «informados pelo motor»', () => {
+  // ⚠️ Achado do final-reviewer. O sufixo da cadeia estava codificado a mao, no
+  // mesmo commit cuja mensagem dizia «mesma regra de procedencia». Uma cadeia de
+  // jobs locais publicava US$ 0,00 rotulado como valor nao verificado do motor —
+  // a lancar duvida sobre o unico numero que e CERTO. 99 eventos do ledger real
+  // tem esta fonte; era o valor dominante.
+  const t = tudo(c.blocosDePendente(pendente({
+    custo: { valor: 0, fonte: 'inferência local sem custo de API' },
+    cadeia: CAD({ total: 0, fontes: ['inferência local sem custo de API'] }) })));
+  assert.match(t, /execução local, sem custo de API/);
+  assert.doesNotMatch(t, /informados pelo próprio motor/,
+    'rotulou execução local como valor não verificado do motor');
+});
+
+test('cadeia · uma cadeia ESTIMADA nao pode perder a palavra ESTIMATIVA', () => {
+  const t = tudo(c.blocosDePendente(pendente({
+    custo: { valor: 1.2, fonte: 'calculado a partir de tokens e tabela de precos' },
+    cadeia: CAD({ fontes: ['calculado a partir de tokens e tabela de precos'] }) })));
+  assert.match(t, /ESTIMATIVA calculada a partir de tokens/);
+});
+
+test('cadeia · MISTA com uma estimativa dentro anuncia-o (a afirmacao mais fraca manda)', () => {
+  const t = tudo(c.blocosDePendente(pendente({
+    cadeia: CAD({ fontes: ['reportado pelo CLI', 'calculado a partir de tokens'] }) })));
+  assert.match(t, /inclui ESTIMATIVA calculada a partir de tokens/,
+    'somou uma estimativa a um valor medido e apresentou o total como medido');
+});
+
+test('cadeia · procedencias DIFERENTES => cada numero leva a sua', () => {
+  // colapsar as duas numa era o defeito: o total herdava o rotulo errado
+  const t = tudo(c.blocosDePendente(pendente({
+    custo: { valor: 1.2, fonte: 'reportado pelo CLI' },
+    cadeia: CAD({ fontes: ['inferência local sem custo de API'] }) })));
+  assert.match(t, /valor informado pelo próprio motor · não verificado por nós/);
+  assert.match(t, /execução local, sem custo de API/);
+});
+
+test('cadeia · procedencias IGUAIS => um sufixo so, no plural', () => {
+  const t = tudo(c.blocosDePendente(pendente({
+    custo: { valor: 1.2, fonte: 'reportado pelo CLI' }, cadeia: CAD() })));
+  assert.equal((t.match(/não verificad/g) || []).length, 1, 'repetiu o mesmo sufixo duas vezes');
+  assert.match(t, /valores informados pelo próprio motor · não verificados por nós/);
+});

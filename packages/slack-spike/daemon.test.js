@@ -95,3 +95,32 @@ test('kimi #7 · o .gitignore deste repo ja cobre um .env dentro do spike', () =
     if (criado) fs.unlinkSync(alvo);
   }
 });
+
+test('silencio · SLACK_IGNORAR_JOBS no .env FUNCIONA (era lido antes de o .env existir)', async () => {
+  // ⚠️ Achado do final-reviewer. A lista era lida no topo do modulo — ou seja, no
+  // instante em que o ficheiro carregava, ANTES do `carregarEnv`. Punha-se a
+  // variavel no `.env`, que e o sitio natural (todas as outras SLACK_* vivem la),
+  // e nao acontecia NADA: o cartao continuava a anunciar-se e com o [Aprovar]
+  // quente. Um guarda que se desliga em silencio quando o pomos no sitio obvio da
+  // sensacao de proteccao sem a dar — e este guarda existe por causa de um clique
+  // que custou US$ 1,24.
+  const correr = require('./correr.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-env-'));
+  const envPath = path.join(dir, '.env');
+  fs.writeFileSync(envPath, [
+    'SLACK_BOT_TOKEN=xoxb-de-ensaio',
+    'SLACK_APP_TOKEN=xapp-123',
+    'SLACK_CANAL=C1',
+    'SLACK_BOT_USER_ID=U_BOT',
+    'SLACK_ALLOW_USER_ID=U_PAULO',
+    'SLACK_IGNORAR_JOBS=job-do-ciclo-mau',
+  ].join('\n'), 'utf8');
+  delete process.env.SLACK_IGNORAR_JOBS;      // so o .env o traz
+
+  const m = await correr.montar({ seco: true, envPath, syncPath: sync(true) });
+  assert.equal(m.montado, true, m.porque || 'nao montou');
+  const r = await m.adaptador.receberInteraccao({
+    user_id: 'U_PAULO', request_id: 'job-do-ciclo-mau', accao: 'aprovar' });
+  assert.equal(r.estado, 'SILENCIADO',
+    'a variavel estava no .env e o guarda nao a viu — [Aprovar] ficou quente');
+});
