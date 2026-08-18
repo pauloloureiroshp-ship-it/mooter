@@ -155,18 +155,49 @@ export function projectPaths({ repoRoot, mooDir, canonicalRoot = null }) {
   };
 }
 
-/** O commit em que este repo esta agora. `null` quando nao ha git — nunca inventado. */
+/**
+ * O commit em que este repo esta agora. `null` quando nao ha git — nunca inventado.
+ *
+ * Le do DISCO, sem subprocesso. A primeira versao corria `git rev-parse HEAD` a
+ * cada ronda; com o loop a 29s isso e um processo git de 29 em 29 segundos a
+ * disputar o repo, e ja fez o `wave-gate` cair num teste que verifica que
+ * `git status` nao deixa `.git/index.lock` para tras. Um recibo mais honesto
+ * nao pode custar contencao no repo que ele esta a rever.
+ */
 export function repoSha(repoRoot, runImpl = null) {
-  const run = runImpl || ((args, opts) => execFileSync('git', args, opts));
+  const curto = (x) => (/^[0-9a-f]{40}$/.test(String(x || "").trim()) ? String(x).trim().slice(0, 12) : null);
+  // Um subprocesso injectado continua a ser respeitado — e o que os testes usam.
+  if (runImpl) {
+    try {
+      return curto(runImpl(["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }));
+    } catch {
+      return null;
+    }
+  }
   try {
-    const out = run(['rev-parse', 'HEAD'], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      timeout: 5000,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    const sha = String(out || '').trim();
-    return /^[0-9a-f]{40}$/.test(sha) ? sha.slice(0, 12) : null;
+    let dir = path.join(repoRoot, ".git");
+    if (!fs.statSync(dir).isDirectory()) {
+      // Worktree: `.git` e um ficheiro com `gitdir: <caminho>`.
+      const m = /^gitdir:\s*(.+)\s*$/m.exec(fs.readFileSync(dir, "utf8"));
+      if (!m) return null;
+      dir = path.resolve(repoRoot, m[1].trim());
+    }
+    const head = fs.readFileSync(path.join(dir, "HEAD"), "utf8").trim();
+    if (curto(head)) return curto(head); // detached
+    const ref = /^ref:\s*(.+)$/.exec(head);
+    if (!ref) return null;
+    const nome = ref[1].trim();
+    try {
+      const solta = curto(fs.readFileSync(path.join(dir, nome), "utf8"));
+      if (solta) return solta;
+    } catch {
+      /* ref nao solta: esta nas packed-refs */
+    }
+    for (const linha of fs.readFileSync(path.join(dir, "packed-refs"), "utf8").split("\n")) {
+      const [sha, alvo] = linha.trim().split(" ");
+      if (alvo === nome) return curto(sha);
+    }
+    return null;
   } catch {
     return null;
   }
