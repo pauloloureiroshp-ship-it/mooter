@@ -175,6 +175,37 @@ export const DIFF_SYSTEM_PROMPT = [
   '- Cita só linhas que vês. Nunca inventes ficheiros nem números.',
 ].join('\n');
 
+/**
+ * Deteccao de logica de NEGACAO — o ponto cego medido do tier local.
+ *
+ * O canario de 2026-08-17 mostrou-o e a producao confirmou-o no mesmo dia: o
+ * qwen2.5-coder:14b le `!==` como `===`. Falhou uma condicao de permissao
+ * invertida no canario e, horas depois, acusou de fail-open um `isStopped` que
+ * e fail-closed — as duas vezes por ler a negacao ao contrario.
+ *
+ * Nao se conserta isto com prompt: e o tecto do modelo. O que se pode fazer e
+ * SABER quando estamos nesse terreno, e nao vender a resposta como certa.
+ */
+const NEGACAO_RE = /!==|!=|!\s*\(|![A-Za-z_$]|\bnunca\b|\bnever\b/g;
+
+/** Quantos operadores de negacao aparecem no texto dado. */
+export function contarNegacoes(texto) {
+  const m = String(texto || '').match(NEGACAO_RE);
+  return m ? m.length : 0;
+}
+
+/**
+ * Um excerto e "denso em negacao" a partir de dois operadores, ou de um so
+ * quando esse um decide um caminho (if/return/ternario) — que e onde inverter
+ * o sentido custa caro.
+ */
+export function negacaoDensa(texto) {
+  const n = contarNegacoes(texto);
+  if (n >= 2) return true;
+  if (n === 1) return /\b(if|return|while|\?)\b/.test(String(texto || ''));
+  return false;
+}
+
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 
 /**
@@ -364,10 +395,27 @@ export function buildContextPack({
           slice.text,
           '',
           `Esta mudança (linhas ${h.start}-${fim}) introduz algum defeito?`,
+          ...(densa
+            ? [
+                '',
+                'ATENÇÃO: estas linhas usam negação (!, !==, !=). Lê cada condição',
+                'DUAS vezes e diz em palavras o que ela significa antes de decidir.',
+                '`a !== b` é "a é DIFERENTE de b". `!x` é "x é falso".',
+              ]
+            : []),
         ].join('\n');
+        const mudadas = slice.text
+          .split('\n')
+          .filter((ln) => {
+            const n = Number(String(ln).slice(0, 6).trim());
+            return Number.isInteger(n) && n >= h.start && n <= fim;
+          })
+          .join('\n');
+        const densa = negacaoDensa(mudadas);
         return {
           ok: true,
           mode: 'diff',
+          negacaoDensa: densa,
           anchored: false,
           diffBase,
           changedStart: h.start,

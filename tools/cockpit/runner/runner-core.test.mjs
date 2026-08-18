@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_SYSTEM_PROMPT } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -20,6 +20,7 @@ import {
   runRound,
   nextPillar,
   DEFAULT_OLLAMA,
+  achou,
 } from './runner-core.mjs';
 
 /** Builds a throwaway repo so tests never depend on the real tree's contents. */
@@ -464,4 +465,44 @@ test('o prompt de diff manda caçar defeitos reais e proibe nitpick, sem induzir
   assert.match(DIFF_SYSTEM_PROMPT, /NÃO comentes estilo/);
   // e o silencio NAO pode ser vendido como a resposta preferida
   assert.match(DIFF_SYSTEM_PROMPT, /Ficar calado perante um bug é pior/);
+});
+
+// ------------------------------------------------- negacao e segundo parecer
+
+test('contarNegacoes ve os operadores que o 14B le ao contrario', () => {
+  assert.equal(contarNegacoes('return a === b;'), 0);
+  assert.equal(contarNegacoes('if (a !== b) return;'), 1);
+  assert.equal(contarNegacoes('if (!user.isAdmin && a != b) {}'), 2);
+  assert.equal(contarNegacoes(''), 0);
+  assert.equal(contarNegacoes(null), 0);
+});
+
+test('negacaoDensa marca 2+ operadores, ou 1 quando decide um caminho', () => {
+  assert.equal(negacaoDensa('const x = !a; const y = !b;'), true, '2 operadores');
+  assert.equal(negacaoDensa('if (a !== b) return 1;'), true, '1 mas decide caminho');
+  assert.equal(negacaoDensa('const nome = !valor;'), false, '1 sem decidir caminho');
+  assert.equal(negacaoDensa('return a === b;'), false, 'sem negacao');
+});
+
+test('achou separa ACHADO de SEM ACHADO sem se enganar no proprio prefixo', () => {
+  assert.equal(achou('ACHADO: x QUANDO y ENTAO z'), true);
+  assert.equal(achou('SEM ACHADO'), false, 'SEM ACHADO nao pode contar como achado');
+  assert.equal(achou('sem achado'), false, 'insensivel a maiusculas');
+  assert.equal(achou(''), false);
+  assert.equal(achou(null), false);
+});
+
+test('o segundo parecer nunca decide sozinho — so marca a discordancia', () => {
+  // O contrato que interessa: concordancia NAO levanta bandeira; discordancia SIM.
+  const casos = [
+    { a1: true, a2: true, bandeira: false },
+    { a1: false, a2: false, bandeira: false },
+    { a1: true, a2: false, bandeira: true },
+    { a1: false, a2: true, bandeira: true },
+  ];
+  for (const c of casos) {
+    const concorda = c.a1 === c.a2;
+    assert.equal(concorda === false, c.bandeira,
+      `a1=${c.a1} a2=${c.a2} devia ${c.bandeira ? '' : 'nao '}levantar bandeira`);
+  }
 });

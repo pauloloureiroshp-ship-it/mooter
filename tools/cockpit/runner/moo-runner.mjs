@@ -40,6 +40,10 @@ const ANCORA = path.join(MOO_DIR, 'ancora-achados.json');
 // parado devolve zero hunks e o runner cai para a ancora — a escada degrada
 // sozinha, nunca falha. MOO_DIFF_BASE permite apontar para outro ref.
 const DIFF_BASE = process.env.MOO_DIFF_BASE || 'origin/main';
+// Segundo parecer: outro modelo LOCAL, de LINHAGEM DIFERENTE do primario. Dois
+// modelos da mesma familia partilham os mesmos erros — o par so vale se
+// divergirem. Vazio ou ausente desliga a escalada; continua tudo a $0.
+const SECOND_MODEL = process.env.MOO_SECOND_MODEL || 'gpt-oss:20b';
 
 const SLEEP_MIN_S = 15;
 const SLEEP_MAX_S = 30;
@@ -215,6 +219,7 @@ async function main() {
         stopFile: STOP_FILE,
         anchorPath: ANCORA,
         diffBase: DIFF_BASE,
+        secondModel: SECOND_MODEL,
       }));
     } catch (err) {
       // A crash must still leave a trace: a silent gap in the ledger is the one
