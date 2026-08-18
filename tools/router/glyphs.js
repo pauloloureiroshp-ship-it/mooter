@@ -109,7 +109,7 @@ const ASCII_GLYPHS = {
   '👤': 'user', '🔥': 'burn', '🧪': 'bench', '📜': 'audit', '🐝': 'spawn',
   '🔒': 'lock', '🪟': 'win', '🤖': 'agent', '🧠': 'mem', '💎': 'model',
   '🐺': 'herd', '🧭': 'nav', '🪜': 'ladder', '🖼': 'img', '📚': 'packs',
-  '⏱': 'time', '⇄': 'sync', '🐄': 'T0',
+  '⏱': 'time', '⇄': 'sync',
 };
 
 // Strip any emoji we didn't explicitly map, so ascii mode never leaves a
