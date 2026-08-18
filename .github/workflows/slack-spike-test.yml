@@ -1,5 +1,5 @@
 name: slack-spike tests
-# O spike do Slack corre 244 testes e NENHUM workflow os corria. Um PR mostrava CI
+# NENHUM workflow corria a suite do spike do Slack. Um PR mostrava CI
 # verde sem nunca ter executado uma linha deste codigo — verde que nao significa
 # nada e pior que vermelho, porque convence.
 #
@@ -19,6 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # sem contagem escrita aqui de proposito: um numero num comentario fica
+      # velho na semana seguinte, e este e o ficheiro cuja razao de existir e
+      # impedir verde que nao significa nada. A contagem vive no output.
       - name: Suite (node:test, sem instalar nada)
         working-directory: packages/slack-spike
         run: node --test
