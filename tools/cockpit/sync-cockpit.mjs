@@ -6,7 +6,7 @@
  *   nada fora de `tools/cockpit/` importa o cockpit (`grep -rl tools/cockpit
  *   packages/ hub/ landing/` -> vazio), o `/mooter-update` so sincroniza
  *   `tools/router/*.js`, skills, agents e hooks, e o LaunchAgent aponta direto
- *   para dentro do checkout: `~/frugal/tools/cockpit/runner/moo-runner.mjs`.
+ *   para dentro do checkout: `<checkout>/tools/cockpit/runner/moo-runner.mjs`.
  *   Ou seja: o runner nao tinha canal de distribuicao NENHUM. Melhora-lo
  *   melhorava uma maquina — a que tem o repo clonado.
  *

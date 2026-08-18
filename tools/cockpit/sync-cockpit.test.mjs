@@ -69,7 +69,7 @@ test('ACEITACAO: um espelho perfeito que ninguem corre NAO passa no self-check',
   fs.mkdirSync(path.join(home, 'Library', 'LaunchAgents'), { recursive: true });
   fs.writeFileSync(
     path.join(home, 'Library', 'LaunchAgents', 'ai.mooter.runner.plist'),
-    '<plist><array><string>/usr/bin/node</string><string>/Users/x/frugal/tools/cockpit/runner/moo-runner.mjs</string></array></plist>',
+    '<plist><array><string>/usr/bin/node</string><string>/Users/x/checkout/tools/cockpit/runner/moo-runner.mjs</string></array></plist>',
   );
 
   const r = selfCheck({ origem: src, dest, shell: path.join(src, 'x.html'), home });
