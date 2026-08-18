@@ -69,8 +69,8 @@ test('mencaoDeActor · o id opaco vira mencao que o Slack renderiza como o nome'
   assert.equal(c.mencaoDeActor('slack:U0FALSO0001'), '<@U0FALSO0001>');
 });
 
-test('mencaoDeActor · um actor que nao vem do Slack fica texto simples (nao se inventa gente)', () => {
-  assert.equal(c.mencaoDeActor('system'), 'system');
+test('mencaoDeActor · um actor que nao vem do Slack degrada para n/d (nunca eco cru)', () => {
+  assert.equal(c.mencaoDeActor('system'), 'n/d');
   assert.equal(c.mencaoDeActor(null), 'n/d');
 });
 
@@ -185,26 +185,23 @@ test('decisao · STALE mostra os DOIS hashes e diz que o pedido CONTINUA a esper
   assert.match(t, /continua/i, 'o utilizador tem de saber que nao perdeu o pedido');
 });
 
-// ── a porta de saida varre a ARVORE, nao so o texto ─────────────────────────
-test('publicar · um nome de segredo dentro de um BLOCO e limpo (nao so no texto de topo)', () => {
+// ── a porta de saida reconstrói a ARVORE, nao so o texto ───────────────────
+test('publicar · a auditoria objecto e validada e composta pela porta', () => {
   const pub = criarPublicador({ dryRun: true });
-  // a `auditoria` E renderizada (no rodape da decisao) e e construida pelo adapter
-  // a partir de campos do ledger — e por isso o vector real, nao um teste de laboratorio
   const r = pub.publicar({ tipo: 'decisao', job_id: 'j', estado: 'REJECTED',
-    auditoria: 'request=j · veredicto=recusar · falhou a ler segredo.env' });
+    auditoria: { request: 'j', veredicto: 'recusar', estado: 'REJECTED' } });
   assert.equal(r.publicado, true);
   const t = tudo(r.blocos) + r.texto;
   assert.ok(t.includes('request=j'), 'a auditoria tem de sair — e a prova');
-  assert.ok(!t.includes('segredo.env'), 'o nome do segredo saiu dentro de um bloco');
-  assert.deepEqual(r.removidos, ['segredo.env']);
+  assert.ok(t.includes('veredicto=recusar'));
 });
 
-test('publicar · um estado DESCONHECIDO nao fica sem explicacao (o texto do adapter sai)', () => {
+test('publicar · estado DESCONHECIDO recusa fail-closed', () => {
   const pub = criarPublicador({ dryRun: true });
   const r = pub.publicar({ tipo: 'decisao', job_id: 'j', estado: 'LOCKED',
     texto: 'sem decisao: lock tomado por outro processo' });
-  assert.equal(r.publicado, true);
-  assert.match(tudo(r.blocos), /lock tomado por outro processo/);
+  assert.equal(r.publicado, false);
+  assert.match(r.porque, /estado|vocabulario/);
 });
 
 test('publicar · devolve blocos E texto, e o texto continua a ser o fallback curto', () => {
@@ -288,17 +285,17 @@ test('ESTADOS_FINAIS · o STALE nao esta la, e os que fecham estao', () => {
   assert.ok(ESTADOS_FINAIS.includes('APPROVED') && ESTADOS_FINAIS.includes('REJECTED'));
 });
 
-// ── barreira 4: prosa a entrar por uma folha nao validada ──────────────────
-// A allowlist de campos e de profundidade 1: valida NOMES no topo, e as folhas
-// (`fonte`, `porque`) sao texto livre do ledger. Uma frase inteira atravessava
-// tudo o resto — nao e nome de segredo nem campo proibido, e apenas comprida.
-test('barreira 4 · uma folha com prosa longa RECUSA o cartao (nao se trunca)', () => {
+// ── barreira 4: defesa final contra prosa criada pela apresentacao ─────────
+test('barreira 4 · uma string longa criada no cartao RECUSA (nao se trunca)', () => {
   const pub = criarPublicador({ dryRun: true });
-  const r = pub.publicar(pendente({
-    custo: { valor: null, porque: 'x'.repeat(400) },   // `porque` e renderizado no rodape
-  }));
-  assert.equal(r.publicado, false);
-  assert.match(r.porque, /prosa a entrar/);
+  const construirReal = c.construir;
+  c.construir = () => ({ blocos: [{ type: 'section',
+    text: { type: 'mrkdwn', text: 'x'.repeat(400) } }], texto: 'curto' });
+  try {
+    const r = pub.publicar(pendente());
+    assert.equal(r.publicado, false);
+    assert.match(r.porque, /prosa a entrar/);
+  } finally { c.construir = construirReal; }
 });
 
 test('barreira 4 · um cartao normal passa folgadamente (a barreira nao estorva)', () => {
@@ -420,7 +417,8 @@ test('composicao · a decisao tambem chega como cartao, e substitui no lugar', a
   pub.publicar(pendente());
   await new Promise((r) => setImmediate(r));
   pub.publicar({ tipo: 'decisao', job_id: 'job-msxato7q-cd23', estado: 'APPROVED',
-    autor: { valor: 'slack:U0FALSO0001' }, auditoria: 'request=job-msxato7q-cd23' });
+    autor: { valor: 'slack:U0FALSO0001' },
+    auditoria: { request: 'job-msxato7q-cd23', veredicto: 'aprovar', estado: 'APPROVED' } });
   await new Promise((r) => setImmediate(r));
 
   assert.equal(tr.enviados[1].metodo, 'chat.update');
@@ -445,14 +443,19 @@ test('barreira 3 · a recusa FINAL dispara quando um nome sobrevive a limpeza', 
   // a porta RECUSA em vez de publicar. So se prova com um denylist que nao limpa.
   const denylist = require('./denylist.js');
   const limparReal = denylist.limpar;
+  const construirReal = c.construir;
   denylist.limpar = (t) => ({ texto: String(t), removidos: [] });   // nao limpa nada
+  c.construir = () => ({ blocos: [{ type: 'section',
+    text: { type: 'mrkdwn', text: 'falhou a ler segredo.env' } }], texto: 'segredo.env' });
   try {
     const r = criarPublicador({ dryRun: true })
-      .publicar({ tipo: 'decisao', job_id: 'j', estado: 'REJECTED',
-        auditoria: 'falhou a ler segredo.env' });
+      .publicar({ tipo: 'decisao', job_id: 'j', estado: 'REJECTED' });
     assert.equal(r.publicado, false, 'um nome sensivel sobreviveu e a porta deixou passar');
     assert.match(r.porque, /nome sensivel apos limpeza/);
-  } finally { denylist.limpar = limparReal; }
+  } finally {
+    denylist.limpar = limparReal;
+    c.construir = construirReal;
+  }
 });
 
 // ── a CADEIA: o total da conversa, nao o do pedido ────────────────────────

@@ -17,8 +17,9 @@ const crypto = require('crypto');
 
 const broker = require('../mooter-bridge/broker.js');
 const { criarAllowlist } = require('./allowlist.js');
-const { criarPublicador } = require('./publicar.js');
+const { criarPublicador, varrerArvore } = require('./publicar.js');
 const { criarAdaptador } = require('./adapter.js');
+const denylist = require('./denylist.js');
 
 const NOME = 'segredo.env';
 const MP_TEXTO = '# ensaio\n\nle o ' + NOME + '\n';
@@ -56,7 +57,7 @@ function montar() {
   const enviados = [];
   // captura TUDO o que sai: o texto da notificacao E as strings dos blocos
   const publicador = criarPublicador({
-    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(b)); },
+    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(p) + '\n' + JSON.stringify(b)); },
   });
   const ad = criarAdaptador({
     allowlist: criarAllowlist(['U_PAULO']),
@@ -82,7 +83,10 @@ test('kimi #5 · o NOME do segredo nao aparece no cartao do pendente', async () 
 test('kimi #5 · o NOME nao aparece na mensagem de estado da mencao', async () => {
   bancadaComSegredo();
   const { ad, enviados } = montar();
-  await ad.receberMencao({ user_id: 'U_PAULO', texto: 'le o ' + NOME + ' e resume', thread: 'T1' });
+  const r = await ad.receberMencao({ user_id: 'U_PAULO', texto: 'le o ' + NOME + ' e resume',
+    thread: 'T1' });
+  assert.equal(r.aceite, true);
+  assert.ok(enviados.length > 0, 'a prova passou no vacuo: nenhuma mensagem foi publicada');
   assert.ok(!enviados.join('\n').includes(NOME));
 });
 
@@ -93,15 +97,24 @@ test('kimi #5 · o NOME nao aparece na confirmacao nem na auditoria da decisao',
   const r = await ad.receberInteraccao({ user_id: 'U_PAULO', accao: 'aprovar', request_id: jobId,
     idem_key: 'k-segredo', expected_state_hash: pend.state_hash, thread: 'T1' });
   assert.equal(r.estado, 'APPROVED');
+  assert.ok(enviados.length > 0, 'a prova passou no vacuo: nenhuma decisao foi publicada');
   assert.ok(!enviados.join('\n').includes(NOME));
 });
 
-test('kimi #5 · nem por acidente: uma frase que traga o nome sai limpa e marcada', () => {
+test('kimi #5 · texto livre e recusado pelo catalogo antes de poder transportar o nome', () => {
   const { publicador, enviados } = montar();
   const r = publicador.publicar({ tipo: 'estado', texto: 'falhou a ler ' + NOME });
-  assert.equal(r.publicado, true);
-  assert.deepEqual(r.removidos, [NOME]);
-  assert.ok(!enviados.join('\n').includes(NOME));
+  assert.equal(r.publicado, false);
+  assert.match(r.porque, /catalogo/);
+  assert.equal(enviados.length, 0);
+});
+
+test('kimi #5 · denylist e varredor reais limpam o nome numa arvore aninhada', () => {
+  assert.equal(denylist.limpar('falhou a ler ' + NOME).texto.includes(NOME), false);
+  const removidos = new Set();
+  const limpo = varrerArvore({ a: [{ b: 'falhou a ler ' + NOME }] }, removidos);
+  assert.equal(JSON.stringify(limpo).includes(NOME), false);
+  assert.deepEqual([...removidos], [NOME]);
 });
 
 test('kimi #5 · o cartao NAO transporta files_touched, mesmo quando o ledger o traz', async () => {

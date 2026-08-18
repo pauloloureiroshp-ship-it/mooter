@@ -162,8 +162,10 @@ test('arranque · a LIGACAO do poller ao daemon corre sem socket nenhum', async 
   // este ficheiro aprende a mesma coisa.
   const correr = require('./correr.js');
   const regs = [];
+  let batimentos = 0;
   const m = {
     adaptador: { publicarFechos: async () => [], publicarPendentes: async () => [],
+      publicarBatimentos: async () => { batimentos += 1; return []; },
       jobsNossos: () => new Set() },
     transporte: { threads: new Map() },
     broker: { listPending: () => [] },
@@ -177,6 +179,7 @@ test('arranque · a LIGACAO do poller ao daemon corre sem socket nenhum', async 
     assert.ok(regs.some((x) => x.tipo === 'jobs_silenciados'),
       'arrancou com jobs silenciados e nao o disse');
     await lig.poller.tique();          // e o tique corre mesmo
+    assert.equal(batimentos, 1, 'a ligacao do daemon perdeu o heartbeat');
   } finally { clearInterval(lig.relogio); }
 });
 
@@ -187,6 +190,7 @@ test('arranque · a ligacao do poller LE O LEDGER a serio quando nao lhe injecta
   const correr = require('./correr.js');
   const m = {
     adaptador: { publicarFechos: async () => [], publicarPendentes: async () => [],
+      publicarBatimentos: async () => [],
       jobsNossos: () => new Set() },
     transporte: { threads: new Map() },
     broker: { listPending: () => [] },

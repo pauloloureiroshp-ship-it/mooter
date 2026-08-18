@@ -22,7 +22,7 @@
  *   `agent`          -> mapa fechado; fora do mapa => n/d (era: valor cru)
  *   `model_used`     -> GRAMATICA fechada; o que nao tem forma de id => n/d
  *
- * Isto nasceu refutado: um critico externo (codex, read-only) meteu um canario em
+ * Isto nasceu refutado: um critico externo (codex, read-only) meteu texto hostil em
  * `modelo.valor` e ele SAIU para o Slack. O comentario que aqui estava afirmava as
  * tres guardas e so uma existia. Um comentario a afirmar uma guarda inexistente e
  * pior que a guarda em falta — e a razao pela qual ninguem a vai acrescentar.
@@ -174,7 +174,7 @@ function hashCurto(h) {
 function mencaoDeActor(actorId) {
   const s = String(actorId == null ? '' : actorId);
   const m = /^slack:(U[A-Z0-9]+)$/i.exec(s.trim());
-  return m ? '<@' + m[1] + '>' : (s || 'n/d');
+  return m ? '<@' + m[1] + '>' : 'n/d';
 }
 
 function valorDe(campo, omissao) {
@@ -186,8 +186,7 @@ function valorDe(campo, omissao) {
 /**
  * ⚠️ GRAMATICA FECHADA, nao lista fechada.
  *
- * O critico externo (codex, read-only) poe um canario aqui e ele SAI:
- *   modelo: { valor: 'CANARY-CONTENT-o-utilizador-pediu-para-ler-contas' }
+ * O critico externo (codex, read-only) poe texto privado aqui e ele SAI.
  * porque esta funcao so tirava a data do fim e devolvia o resto. O docstring do
  * ficheiro afirmava vocabulario fechado para `model_used`; era falso.
  *
@@ -206,7 +205,7 @@ function modeloCurto(campo) {
 
 /**
  * Fora do mapa e `n/d`, NAO o valor cru. O fallthrough para cru era a outra
- * metade do canario: qualquer string no campo `agent` do ledger saia inteira.
+ * metade do furo: qualquer string no campo `agent` do ledger saia inteira.
  * Os motores sao um conjunto pequeno e conhecido; um motor que o mapa nao conheca
  * e um motor que ninguem devia estar a ver aqui.
  */
@@ -453,7 +452,8 @@ function blocosDeEstado(p) {
   // o heartbeat SO acrescenta numeros quando ja ha numeros REAIS para acrescentar.
   // Sem passos e sem tempo, e o primeiro estado: nao se inventa progresso nenhum.
   const linha = (passos || seg)
-    ? '⚙️ *A trabalhar* · ' + passos + ' ' + (passos === 1 ? 'passo' : 'passos')
+    ? '⚙️ *A trabalhar*'
+      + (passos ? ' · ' + passos + ' ' + (passos === 1 ? 'passo' : 'passos') : '')
       + ' · ' + duracao(seg)
     : '⚙️ Recebido. Vou trabalhar e volto aqui quando precisar de uma decisão.';
   const blocos = [secao(linha)];
@@ -499,8 +499,8 @@ function construir(payload) {
 
 module.exports = { linhaDaCadeia, montante, LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
   MOTORES_LEGIVEIS, FONTES_LEGIVEIS,
-  fonteLegivel, dinheiro, impressaoCompleta, hashCurto, mencaoDeActor, valorDe,
-  modeloCurto, motorLegivel, apelido,
+  classeDaFonte, fonteLegivel, dinheiro, impressaoCompleta, hashCurto, mencaoDeActor, valorDe,
+  FORMA_DE_MODELO, modeloCurto, motorLegivel, apelido,
   valorDoBotao, lerValorDoBotao, blocosDeAccoes,
   blocosDePendente, blocosDeDecisao, blocosDeEstado, blocosDeFecho, FECHOS,
   blocoDeParar, duracao, ACCOES_COM_CAS_ESTRITO,

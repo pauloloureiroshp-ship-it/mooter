@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const { seguirCorrente, criarPoller } = require('./poller.js');
 
 const NOSSO = 'slack:U_PAULO';
+const HASH = 'a'.repeat(64);
 
 /** Um adaptador falso com a MESMA forma do real — mas as funcoes sao as reais. */
 const { criarAdaptador } = require('./adapter.js');
@@ -23,7 +24,10 @@ const { criarAllowlist } = require('./allowlist.js');
 function bancada(eventos) {
   const enviados = [];
   const publicador = criarPublicador({
-    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(b)); } });
+    enviar: (t, p, b) => {
+      enviados.push(t + '\n' + JSON.stringify(b));
+      return { enviado: true };
+    } });
   // ⚠️ o duplo tem de imitar o broker REAL: UMA entrada por job, a partir do
   // ULTIMO evento de estado (`estadoCorrente`) — nao uma por evento. Um duplo que
   // devolve uma linha por evento nao e o broker, e uma coisa parecida com ele, e
@@ -35,7 +39,7 @@ function bancada(eventos) {
         if (e.exit_code === 'agent-awaiting-approval') porJob.set(e.job_id, e);
       }
       return [...porJob.values()]
-        .map((e) => ({ job_id: e.job_id, state_hash: e.state_hash || 'h-' + e.job_id,
+        .map((e) => ({ job_id: e.job_id, state_hash: e.state_hash || HASH,
           wave: 'slack-spike', actor: e.actor || { id: 'legacy' } }))
         .filter((p) => !f || !f.actor || p.actor.id === f.actor);
     },
@@ -85,7 +89,7 @@ test('tique · publica o cartao de um pendente NOSSO', async () => {
   const { poller, enviados } = bancada([
     { job_id: 'j1', event: 'nao_verificado', exit_code: 'agent-awaiting-approval',
       actor: nosso, cost_usd: 0.5, cost_usd_fonte: 'reportado pelo CLI',
-      model_used: 'claude-opus-5', state_hash: 'abc' },
+      model_used: 'claude-opus-5', state_hash: HASH },
   ]);
   await poller.tique();
   assert.equal(enviados.length, 1);
@@ -95,7 +99,7 @@ test('tique · publica o cartao de um pendente NOSSO', async () => {
 test('tique · NAO publica um pendente que nao e nosso', async () => {
   const { poller, enviados } = bancada([
     { job_id: 'j1', event: 'nao_verificado', exit_code: 'agent-awaiting-approval',
-      actor: { type: 'system', id: 'system' }, state_hash: 'abc' },
+      actor: { type: 'system', id: 'system' }, state_hash: HASH },
   ]);
   await poller.tique();
   assert.equal(enviados.length, 0, 'o canal encheu-se de pendentes que ninguem pediu no Slack');
@@ -104,7 +108,7 @@ test('tique · NAO publica um pendente que nao e nosso', async () => {
 test('tique · o mesmo cartao nao se republica (dois tiques, um cartao)', async () => {
   const { poller, enviados } = bancada([
     { job_id: 'j1', event: 'nao_verificado', exit_code: 'agent-awaiting-approval',
-      actor: nosso, state_hash: 'abc' },
+      actor: nosso, state_hash: HASH },
   ]);
   await poller.tique();
   await poller.tique();
@@ -113,10 +117,10 @@ test('tique · o mesmo cartao nao se republica (dois tiques, um cartao)', async 
 
 test('tique · um job SILENCIADO nao se anuncia mas continua na fila', async () => {
   const eventos = [{ job_id: 'j1', event: 'nao_verificado',
-    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: 'abc' }];
+    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: HASH }];
   const b = bancada(eventos);
   const p = criarPoller({ adaptador: b.adaptador, transporte: { threads: b.threads },
-    broker: { listPending: () => [{ job_id: 'j1', state_hash: 'abc', actor: { id: NOSSO } }],
+    broker: { listPending: () => [{ job_id: 'j1', state_hash: HASH, actor: { id: NOSSO } }],
       estadoCorrente: () => eventos[0] },
     meuActor: NOSSO, lerLedger: () => eventos, ignorados: new Set(['j1']) });
   await p.tique();
@@ -172,10 +176,10 @@ test('tique · um pendente re-carimbado SEM actor continua a ser nosso', async (
   const eventos = [
     { job_id: 'j1', event: 'dispatched', actor: nosso },
     { job_id: 'j1', event: 'nao_verificado', exit_code: 'agent-awaiting-approval',
-      actor: nosso, state_hash: 'abc' },
+      actor: nosso, state_hash: HASH },
     // a reconciliacao do motor: mesmo estado, evento novo, SEM actor
     { job_id: 'j1', event: 'nao_verificado', exit_code: 'agent-awaiting-approval',
-      state_hash: 'abc' },
+      state_hash: HASH },
   ];
   const { poller, enviados } = bancada(eventos);
   await poller.tique();
@@ -188,12 +192,12 @@ test('tique · um pendente re-carimbado SEM actor continua a ser nosso', async (
 // nunca chega — e marcava-se como visto na mesma, logo nunca era retentado.
 test('tique · um cartao que o Slack RECUSOU nao se marca como visto (e retenta)', async () => {
   const eventos = [{ job_id: 'j1', event: 'nao_verificado',
-    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: 'abc' }];
+    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: HASH }];
   const tentativas = [];
   const publicador = criarPublicador({
     enviar: (t, p, b) => { tentativas.push(p.job_id); return Promise.resolve({ enviado: false, porque: 'rate_limited' }); } });
   const brokerFalso = {
-    listPending: () => [{ job_id: 'j1', state_hash: 'abc', actor: { id: NOSSO } }],
+    listPending: () => [{ job_id: 'j1', state_hash: HASH, actor: { id: NOSSO } }],
     estadoCorrente: () => eventos[0],
   };
   const adaptador = criarAdaptador({ allowlist: criarAllowlist(['U_PAULO']), publicador,
@@ -212,12 +216,12 @@ test('tique · um cartao que o Slack RECUSOU nao se marca como visto (e retenta)
 
 test('tique · um cartao ACEITE marca-se como visto e nao se repete', async () => {
   const eventos = [{ job_id: 'j1', event: 'nao_verificado',
-    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: 'abc' }];
+    exit_code: 'agent-awaiting-approval', actor: nosso, state_hash: HASH }];
   const tentativas = [];
   const publicador = criarPublicador({
     enviar: (t, p) => { tentativas.push(p.job_id); return Promise.resolve({ enviado: true }); } });
   const brokerFalso = {
-    listPending: () => [{ job_id: 'j1', state_hash: 'abc', actor: { id: NOSSO } }],
+    listPending: () => [{ job_id: 'j1', state_hash: HASH, actor: { id: NOSSO } }],
     estadoCorrente: () => eventos[0],
   };
   const adaptador = criarAdaptador({ allowlist: criarAllowlist(['U_PAULO']), publicador,
@@ -227,4 +231,25 @@ test('tique · um cartao ACEITE marca-se como visto e nao se repete', async () =
   await poller.tique();
   await poller.tique();
   assert.equal(tentativas.length, 1);
+});
+
+test('tique · duas chamadas concorrentes partilham a mesma execucao', async () => {
+  let libertar;
+  let chamadas = 0;
+  const espera = new Promise((resolve) => { libertar = resolve; });
+  const adaptador = {
+    jobsNossos: () => new Set(),
+    publicarFechos: async () => [],
+    publicarBatimentos: async () => [],
+    publicarPendentes: async () => { chamadas += 1; await espera; return []; },
+  };
+  const poller = criarPoller({ adaptador, transporte: { threads: new Map() },
+    broker: {}, meuActor: NOSSO, lerLedger: () => [] });
+  const a = poller.tique();
+  const b = poller.tique();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(chamadas, 1, 'setInterval sobreposto entrou duas vezes no mesmo snapshot');
+  libertar();
+  await Promise.all([a, b]);
+  assert.equal(chamadas, 1);
 });

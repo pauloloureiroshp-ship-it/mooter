@@ -52,26 +52,42 @@ function seguirCorrente(ledger, threads, registar) {
 }
 
 /**
- * @param {{adaptador, transporte, broker, meuActor, ignorados?, lerLedger, registar?}} dep
- * @returns {{tique:Function, vistos:Set, fechados:Set}}
+ * @param {{adaptador, transporte, broker, meuActor, ignorados?, lerLedger, registar?, agora?}} dep
+ * @returns {{tique:Function, vistos:Set, fechados:Set, batidos:Map}}
  */
 function criarPoller(dep) {
   const d = dep || {};
   for (const nome of ['adaptador', 'transporte', 'broker', 'meuActor', 'lerLedger']) {
     if (!d[nome]) throw new Error('criarPoller precisa de `' + nome + '`');
   }
+  if (typeof d.adaptador.publicarBatimentos !== 'function') {
+    throw new Error('criarPoller precisa de `adaptador.publicarBatimentos` — heartbeat sem ligacao e no-op');
+  }
   const registar = d.registar || (() => {});
   const ignorados = d.ignorados instanceof Set ? d.ignorados : new Set();
   const vistos = new Set();      // (job, hash) do cartao ja publicado
   const fechados = new Set();    // jobs cujo fim ja foi anunciado
+  const batidos = new Map();     // job -> instante do ultimo heartbeat ENTREGUE
+  const agora = typeof d.agora === 'function' ? d.agora : () => Date.now();
 
-  async function tique() {
+  const entregue = (envio) => Promise.resolve(envio)
+    .then((e) => !!e && e.enviado === true).catch(() => false);
+  let emCurso = null;
+
+  async function executarTique() {
     const ledger = d.lerLedger();
     seguirCorrente(ledger, d.transporte.threads, registar);
 
     // pertenca derivada do LEDGER, nao do estado corrente: a reconciliacao do
     // motor re-carimba jobs antigos SEM actor e um filtro por actor perde-os
     const nossos = d.adaptador.jobsNossos(ledger, d.meuActor);
+    const agoraMs = agora();
+    const configurado = Number(process.env.SLACK_HEARTBEAT_MS || 60000);
+    const limiarMs = Number.isInteger(configurado) && configurado > 0 ? configurado : 60000;
+    if (limiarMs !== configurado) {
+      registar({ tipo: 'heartbeat_config_invalida', valor: String(process.env.SLACK_HEARTBEAT_MS),
+        aplicado: limiarMs });
+    }
 
     // o FIM dos que acabaram sem pedir decisao
     for (const f of await d.adaptador.publicarFechos({
@@ -79,9 +95,32 @@ function criarPoller(dep) {
       jaVisto: (job) => ignorados.has(job) || fechados.has(job),
     })) {
       if (f.publicado) {
+        if (!await entregue(f.envio)) {
+          registar({ tipo: 'fecho_nao_entregue', job: f.job_id });
+          continue;
+        }
         fechados.add(f.job_id);
         registar({ tipo: 'fecho_publicado', job: f.job_id, estado: f.estado });
       }
+    }
+
+    // heartbeat no caminho REAL. O callback tambem filtra pertenca e silencio:
+    // assim a assinatura do adapter continua pequena e a fonte de verdade de
+    // «nosso» fica neste poller, onde ja era calculada para os pendentes.
+    const batimentos = await d.adaptador.publicarBatimentos({
+      agora: agoraMs,
+      limiarMs,
+      jaBateu: (job) => ignorados.has(job) || !nossos.has(job)
+        || (batidos.has(job) && agoraMs - batidos.get(job) < limiarMs),
+    });
+    for (const b of batimentos) {
+      if (!b.publicado) continue;
+      if (!await entregue(b.envio)) {
+        registar({ tipo: 'batimento_nao_entregue', job: b.job_id });
+        continue;
+      }
+      batidos.set(b.job_id, agoraMs);
+      registar({ tipo: 'batimento_publicado', job: b.job_id });
     }
 
     // e os cartoes dos que estao a espera de decisao
@@ -93,10 +132,10 @@ function criarPoller(dep) {
       // ⚠️ `publicado` diz que atravessou as barreiras; `envio` diz se o Slack
       // aceitou. Marcar como visto so com o primeiro fazia um cartao recusado por
       // rate_limit desaparecer para sempre — nunca chegava e nunca era retentado.
-      const entregue = p.publicado
-        ? await Promise.resolve(p.envio).then((e) => !e || e.enviado !== false).catch(() => false)
+      const chegou = p.publicado
+        ? await entregue(p.envio)
         : false;
-      if (!entregue && p.publicado) {
+      if (!chegou && p.publicado) {
         registar({ tipo: 'cartao_nao_entregue', job: p.job_id,
           nota: 'atravessou as barreiras mas o Slack nao o aceitou — vai ser retentado' });
         continue;
@@ -109,10 +148,18 @@ function criarPoller(dep) {
         registar({ tipo: 'cartao_RECUSADO', job: p.job_id, porque: p.porque });
       }
     }
-    return { pendentes: pubs.length, nossos: nossos.size };
+    return { pendentes: pubs.length, batimentos: batimentos.length, nossos: nossos.size };
   }
 
-  return { tique, vistos, fechados, ignorados };
+  // setInterval nao espera pelo tique anterior. Uma promessa partilhada torna
+  // impossível dois tiques observarem o mesmo job como «ainda nao entregue».
+  function tique() {
+    if (emCurso) return emCurso;
+    emCurso = executarTique().finally(() => { emCurso = null; });
+    return emCurso;
+  }
+
+  return { tique, vistos, fechados, batidos, ignorados };
 }
 
 /**

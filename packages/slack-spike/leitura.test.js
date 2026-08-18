@@ -14,7 +14,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { derivarDoPendente } = require('./leitura.js');
-const { criarPublicador, CAMPOS_PERMITIDOS } = require('./publicar.js');
+const { criarPublicador, CAMPOS_PERMITIDOS, varrerArvore } = require('./publicar.js');
+const { FRASES, CUSTO_PORQUE } = require('./esquema.js');
+const denylist = require('./denylist.js');
 
 // forma REAL: pendente rico (cc/opus, custo reportado pelo CLI)
 const PENDENTE_RICO = {
@@ -68,7 +70,7 @@ test('leitura · custo com fonte medida sai com valor E rotulo de fonte', () => 
 test('leitura · custo com fonte n/d NAO mostra numero (nunca fabricar)', () => {
   const d = derivarDoPendente(PENDENTE_POBRE);
   assert.equal(d.custo.valor, null);
-  assert.match(d.custo.porque, /n\/d/i);
+  assert.equal(d.custo.porque, CUSTO_PORQUE.SEM_VALOR);
 });
 
 test('leitura · custo calculado por tabela sai ROTULADO como estimativa', () => {
@@ -136,18 +138,26 @@ test('publicar · a allowlist de campos nao inclui conteudo do utilizador', () =
   }
 });
 
-test('publicar · nome de segredo nunca atravessa a porta', () => {
+test('publicar · texto livre com nome de segredo e recusado pelo catalogo antes da denylist', () => {
   const { pub, enviados } = publicadorDeEnsaio();
   const r = pub.publicar({ tipo: 'estado', texto: 'falhou a ler segredo.env' });
-  assert.equal(r.publicado, true);
-  assert.ok(!r.texto.includes('segredo.env'));
-  assert.ok(!enviados.join('\n').includes('segredo.env'));
+  assert.equal(r.publicado, false);
+  assert.match(r.porque, /catalogo/);
+  assert.equal(enviados.length, 0);
+});
+
+test('denylist (unidade) · limpa a folha real e o varredor real limpa a arvore', () => {
+  assert.equal(denylist.limpar('falhou a ler segredo.env').texto.includes('segredo.env'), false);
+  const removidos = new Set();
+  const limpo = varrerArvore({ dentro: ['falhou a ler segredo.env'] }, removidos);
+  assert.equal(JSON.stringify(limpo).includes('segredo.env'), false);
+  assert.deepEqual([...removidos], ['segredo.env']);
 });
 
 test('publicar · dry-run nao envia nada mas devolve o texto', () => {
   const enviados = [];
   const pub = criarPublicador({ enviar: (t) => enviados.push(t), dryRun: true });
-  const r = pub.publicar({ tipo: 'estado', texto: 'ola' });
+  const r = pub.publicar({ tipo: 'estado', texto: FRASES.DESPACHADO });
   assert.equal(r.publicado, true);
   assert.equal(r.dry_run, true);
   assert.equal(enviados.length, 0);

@@ -22,10 +22,13 @@
  * texto do utilizador. O gate certo bloquearia 100% do que esta etiquetado e
  * deixaria passar 100% do que nao esta: exactamente ao contrario.
  *
- * Por isso este modulo implementa DUAS barreiras, nesta ordem:
+ * Por isso este modulo implementa barreiras EM CAMADAS, nesta ordem:
  *   1. recusa explicita de `visibilidade: local_only` (o que o MP pede);
  *   2. ALLOWLIST DE CAMPOS — so sai o que esta em CAMPOS_PERMITIDOS.
  *      A ausencia de rotulo nao e permissao.
+ *   2b. ESQUEMA DE VALORES — reconstrói profundamente e canonicaliza folhas;
+ *   3. denylist sobre a arvore inteira;
+ *   4. recusa (nunca truncagem) de prosa longa no cartao final.
  *
  * E a razao por que o cartao nao herda o `local_only` do evento: o cartao NAO
  * e o evento. E um artefacto novo, composto so por valores derivados
@@ -38,6 +41,7 @@
 
 const denylist = require('./denylist.js');
 const cartao = require('./cartao.js');
+const esquema = require('./esquema.js');
 
 /**
  * ⚠️ O VARREDOR DA ARVORE.
@@ -78,7 +82,7 @@ function stringsDe(x, acc) {
  * mp_hash, worktree, thread_context, files, diff. Conteudo nunca sai.
  */
 const CAMPOS_PERMITIDOS = Object.freeze([
-  'tipo',          // 'pendente' | 'estado' | 'decisao'
+  'tipo',          // 'pendente' | 'estado' | 'decisao' | 'fecho'
   'job_id',        // identificador, nao conteudo
   'wave',          // etiqueta declarada por quem despachou
   'estado',        // APPROVED | REJECTED | STALE | ...
@@ -88,6 +92,7 @@ const CAMPOS_PERMITIDOS = Object.freeze([
   'auditoria',     // a entrada do ledger que prova custodia (kimi #8)
   'accoes',        // ['aprovar','recusar']
   'texto',         // frase curta escrita POR ESTE adapter, nunca vinda do repo
+  'passos', 'segundos', // heartbeat: contagens derivadas apenas do ledger
 ]);
 
 /** Campo de CONTROLO: e lido pelo gate e nunca publicado. */
@@ -154,6 +159,18 @@ function criarPublicador(opcoes) {
           + ' — so saem campos derivados, nunca conteudo' };
     }
 
+    // barreira 2b — allowlist PROFUNDA de valores. Reconstrói-se campo a campo:
+    // nada do payload original atravessa por omissao, nem quando o nome e permitido.
+    const validado = esquema.validar(p);
+    if (!validado.ok) {
+      // Forma vazia deliberada: as provas da fronteira podem inspeccionar a
+      // arvore recusada sem uma exceccao, mas nao recebem nenhum bloco publicavel.
+      return { publicado: false, porque: validado.porque, degradados: validado.degradados,
+        blocos: [] };
+    }
+    const pNormalizado = validado.payload;
+    const degradados = validado.degradados;
+
     // barreira 3 — nomes de segredos (kimi #5), agora sobre a ARVORE INTEIRA
     //
     // ⚠️ A ORDEM É A CORRECÇÃO, não um detalhe. Varre-se o PAYLOAD primeiro e
@@ -164,7 +181,7 @@ function criarPublicador(opcoes) {
     // inteiro dentro de um bloco. Limpar os DADOS e imune a decoracao; limpar a
     // decoracao depende de adivinhar toda a decoracao futura.
     const removidos = new Set();
-    const limpo = varrerArvore(p, removidos);
+    const limpo = varrerArvore(pNormalizado, removidos);
     const construido = cartao.construir(limpo);
     // e varre-se OUTRA VEZ a arvore construida — cinto por cima dos suspensorios,
     // para o caso de o desenho um dia compor uma string a partir de duas metades
@@ -172,7 +189,7 @@ function criarPublicador(opcoes) {
     const texto = varrerArvore(construido.texto, removidos);
     // `renderizar` continua a servir de espelho textual do payload: se um nome
     // sensivel estivesse num campo que o Block Kit nao mostra, ainda assim conta
-    const espelho = varrerArvore(renderizar(p), removidos);
+    const espelho = varrerArvore(renderizar(limpo), removidos);
 
     for (const s of stringsDe([blocos, texto, espelho], [])) {
       if (denylist.nomesSensiveis(s).length) {
@@ -182,12 +199,9 @@ function criarPublicador(opcoes) {
     }
 
     /**
-     * ⚠️ BARREIRA 4 — PROSA. A allowlist de campos e de PROFUNDIDADE 1: valida os
-     * NOMES dos campos no topo, mas os valores sao objectos `{valor, fonte,
-     * porque, rotulo}` cujas folhas sao texto livre que vem do ledger e nunca foi
-     * validado. Um `fonte` ou um `porque` que um dia traga uma frase inteira
-     * (ou pior, um pedaco de goal) atravessava tudo o que esta acima, porque nao e
-     * um nome de segredo nem um campo proibido — e apenas comprido.
+     * ⚠️ BARREIRA 4 — PROSA. A barreira 2b ja valida e canonicaliza as folhas;
+     * esta barreira continua como defesa independente para qualquer string longa
+     * que uma futura composicao do cartao possa criar.
      *
      * Nao se trunca: truncar publicaria metade do vazamento. Recusa-se, porque uma
      * string longa NUM CARTAO e sempre sinal de que algo entrou por onde nao devia.
@@ -204,20 +218,23 @@ function criarPublicador(opcoes) {
     }
 
     const lista = [...removidos];
-    const registo = { texto, blocos, removidos: lista, ts: new Date().toISOString() };
+    const registo = { texto, blocos, removidos: lista, degradados,
+      ts: new Date().toISOString() };
     historico.push(registo);
-    if (dryRun) return { publicado: true, dry_run: true, texto, blocos, removidos: lista };
+    if (dryRun) {
+      return { publicado: true, dry_run: true, texto, blocos, removidos: lista, degradados };
+    }
     // ⚠️ PUBLICADO NAO E "ENTREGUE". O `enviar` e fire-and-forget (esta funcao e
     // sincrona), logo isto so pode dizer que o payload ATRAVESSOU as barreiras.
     // Devolve-se a promessa em `envio` para quem precisa da verdade: o poller so
     // marca um cartao como visto DEPOIS de o Slack o aceitar. Sem isto, um
     // `rate_limited` fazia o cartao nunca chegar e nunca mais ser tentado.
-    const envio = enviar(texto, p, blocos);
-    return { publicado: true, dry_run: false, texto, blocos, removidos: lista,
+    const envio = enviar(texto, limpo, blocos);
+    return { publicado: true, dry_run: false, texto, blocos, removidos: lista, degradados,
       envio: envio && typeof envio.then === 'function' ? envio : Promise.resolve(envio) };
   }
 
   return { publicar, historico, CAMPOS_PERMITIDOS };
 }
 
-module.exports = { CAMPOS_PERMITIDOS, CAMPO_VISIBILIDADE, criarPublicador, renderizar };
+module.exports = { CAMPOS_PERMITIDOS, CAMPO_VISIBILIDADE, criarPublicador, renderizar, varrerArvore };

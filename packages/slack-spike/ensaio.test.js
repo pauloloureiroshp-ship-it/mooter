@@ -18,6 +18,7 @@ const broker = require('../mooter-bridge/broker.js');
 const { criarAllowlist } = require('./allowlist.js');
 const { criarPublicador } = require('./publicar.js');
 const { criarAdaptador, lerLedgerPorOmissao } = require('./adapter.js');
+const { criarPoller } = require('./poller.js');
 const transporte = require('./transporte.js');
 
 const MP_TEXTO = '# masterprompt de ensaio\n\nfaz uma coisa pequena.\n';
@@ -48,13 +49,18 @@ function bancada({ jobId = 'job-ensaio-1', actor = null } = {}) {
   return { home, jobId };
 }
 
-function montar({ despachar, silenciados, cancelar } = {}) {
+function montar({ despachar, silenciados, cancelar, enviar, registar } = {}) {
   const enviados = [];
+  const capturas = [];
   // captura TUDO o que sai: o texto da notificacao E as strings dos blocos.
   // Antes so se capturava o 1o argumento; com o Block Kit, isso deixaria dezenas
   // de strings fora do que os testes de vazamento inspeccionam.
   const publicador = criarPublicador({
-    enviar: (t, p, b) => { enviados.push(t + '\n' + JSON.stringify(b)); return { ok: true }; },
+    enviar: (t, p, b) => {
+      capturas.push({ texto: t, payload: p, blocos: b });
+      enviados.push(t + '\n' + JSON.stringify(p) + '\n' + JSON.stringify(b));
+      return typeof enviar === 'function' ? enviar(t, p, b) : { enviado: true };
+    },
   });
   const ad = criarAdaptador({
     allowlist: criarAllowlist(['U_PAULO']),
@@ -63,12 +69,16 @@ function montar({ despachar, silenciados, cancelar } = {}) {
     despachar: despachar || (async () => ({ job_id: 'job-novo-dry-run' })),
     silenciados,
     cancelar,
+    registar,
   });
-  return { ad, enviados };
+  return { ad, enviados, capturas, publicador };
 }
 
 test.beforeEach(() => { broker.setDispatcher(async () => ({ job_id: 'job-redespacho-dry-run' })); });
-test.afterEach(() => { delete process.env.MOOTER_HOME; });
+test.afterEach(() => {
+  delete process.env.MOOTER_HOME;
+  delete process.env.SLACK_HEARTBEAT_MS;
+});
 
 // ── o caminho feliz ───────────────────────────────────────────────────────
 test('feliz · mencao do id da allowlist e aceite e despachada com actor do Slack', async () => {
@@ -504,7 +514,7 @@ test('parar · um clique de terceiro no PARAR tambem morre na allowlist', async 
   void ad;
 });
 
-test('cartao de estado · o heartbeat SO mostra numeros quando ha numeros reais', () => {
+test('cartao (unidade) · o heartbeat SO mostra numeros quando ha numeros reais', () => {
   const semNada = cartao.construir({ tipo: 'estado', job_id: 'job-a-1234',
     hash_esperado: 'h'.repeat(64) });
   assert.match(JSON.stringify(semNada.blocos), /Recebido/);
@@ -516,9 +526,15 @@ test('cartao de estado · o heartbeat SO mostra numeros quando ha numeros reais'
   assert.match(t, /4 passos/);
   assert.match(t, /1m12s/);
   assert.ok(!/%/.test(t), 'uma percentagem seria inventada — nao ha denominador');
+
+  const soTempo = cartao.construir({ tipo: 'estado', job_id: 'job-a-1234',
+    hash_esperado: 'h'.repeat(64), passos: 0, segundos: 72 });
+  const tt = JSON.stringify(soTempo.blocos);
+  assert.match(tt, /1m12s/);
+  assert.ok(!/0 passos/.test(tt), 'zero passos e ausencia de medicao, nao progresso');
 });
 
-test('cartao de estado · tem botao PARAR, e sem confirmacao (stop com atrito nao e stop)', () => {
+test('cartao (unidade) · tem botao PARAR, e sem confirmacao (stop com atrito nao e stop)', () => {
   const b = cartao.construir({ tipo: 'estado', job_id: 'job-a-1234', hash_esperado: 'h'.repeat(64) }).blocos;
   const acc = b.find((x) => x.type === 'actions');
   assert.ok(acc, 'nao ha botao de parar');
@@ -714,4 +730,211 @@ test('silenciado · o clique NAO chega ao broker (nao basta nao chamar `despacha
   await ad.receberInteraccao({ user_id: 'U', request_id: 'job-mau', accao: 'parar' });
   assert.equal(parados.length, 1);
   assert.equal(parados[0].job_id, 'job-mau');
+});
+
+// **Um teste exercita o código real quando o único valor que ele fabrica é a ENTRADA do sistema (o ledger, a menção, o clique, o relógio) e a assert é sobre o que SAIU pela mesma função exportada que o binário usa; se o teste fabrica um payload intermédio e o entrega directamente à camada seguinte, está a exercitar uma cópia do padrão — e prova apenas a parte que nunca esteve partida.**
+
+function bancadaDeEventos(eventos) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'spike-wave-egress-'));
+  fs.writeFileSync(path.join(home, 'ledger.jsonl'),
+    eventos.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8');
+  process.env.MOOTER_HOME = home;
+  return { home };
+}
+
+function pollerDeEnsaio(ad, jobId, agora, registos, ignorados) {
+  return criarPoller({
+    adaptador: ad,
+    transporte: { threads: new Map([[jobId, 'T1']]) },
+    broker,
+    meuActor: 'slack:U_PAULO',
+    lerLedger: lerLedgerPorOmissao,
+    agora,
+    registar: (r) => registos.push(r),
+    ignorados,
+  });
+}
+
+test('T1 · canarios do ledger nao atravessam o adapter e o cartao continua a sair', async () => {
+  const ts = '2026-08-18T12:00:00.000Z';
+  const canarios = {
+    wave: 'CANARY_PRIVATE_WAVE',
+    model_used: 'CANARY_PRIVATE_MODEL',
+    cost_usd_fonte: 'CANARY_PRIVATE_SOURCE',
+    agent: 'CANARY_PRIVATE_AGENT',
+  };
+  bancadaDeEventos([
+    { ts, job_id: 'job-egress-a', event: 'dispatched',
+      actor: { type: 'human', id: 'CANARY_PRIVATE_AUTHOR', origem: 'slack' } },
+    { ts, job_id: 'job-egress-a', event: 'nao_verificado',
+      exit_code: 'agent-awaiting-approval', cost_usd: 0.2, ...canarios,
+      actor: { type: 'human', id: 'CANARY_PRIVATE_AUTHOR', origem: 'slack' } },
+    { ts, job_id: 'job-egress-b', event: 'dispatched',
+      actor: { type: 'system', id: 'CANARY_PRIVATE_ACTOR', origem: null } },
+    { ts, job_id: 'job-egress-b', event: 'nao_verificado',
+      exit_code: 'agent-awaiting-approval', cost_usd: 0.3, ...canarios,
+      actor: { type: 'system', id: 'CANARY_PRIVATE_ACTOR', origem: null },
+      actor_porque: 'CANARY_PRIVATE_ACTOR_PORQUE' },
+  ]);
+  const { ad, capturas } = montar();
+  const r = await ad.publicarPendentes();
+  assert.equal(r.length, 2);
+  assert.ok(r.every((x) => x.publicado), 'degradar mostruario nao pode apagar a custodia');
+  assert.equal(capturas.length, 2);
+  for (const captura of capturas) {
+    assert.ok(captura.payload && typeof captura.payload === 'object',
+      'a porta de envio foi chamada sem o payload normalizado');
+    assert.equal(captura.payload.wave, null);
+    assert.equal(captura.payload.autor.valor, null);
+    assert.equal(captura.payload.motor.valor, null);
+    assert.equal(captura.payload.modelo.valor, null);
+    assert.equal(captura.payload.custo.valor, null);
+    assert.equal(captura.payload.custo.fonte, null);
+  }
+  assert.ok(!JSON.stringify(capturas).includes('CANARY'), 'um canario chegou a porta de envio');
+  assert.match(JSON.stringify(capturas), /n\/d/);
+  const degradados = new Set(r.flatMap((x) => x.degradados));
+  for (const campo of ['wave', 'autor', 'motor', 'modelo', 'custo']) {
+    assert.ok(degradados.has(campo), 'a degradacao de ' + campo + ' ficou silenciosa');
+  }
+});
+
+test('T2 · chamador hostil e travado e a variante decorativa degrada sem canarios', () => {
+  const capturas = [];
+  const pub = criarPublicador({ enviar: (t, p, b) => {
+    capturas.push({ t, p, b }); return { enviado: true };
+  } });
+  const hostil = { tipo: 'pendente', job_id: 'job-CANARY_PRIVATE',
+    wave: 'CANARY_PRIVATE_WAVE', autor: { valor: 'CANARY_PRIVATE_AUTHOR' },
+    motor: { valor: 'cc' }, modelo: { valor: 'claude-haiku-4-5' },
+    custo: { valor: 0, fonte: 'inferência local sem custo de API' },
+    hash_esperado: 'CANARY_PRIVATE_HASH', accoes: ['aprovar'] };
+  assert.equal(pub.publicar(hostil).publicado, false);
+  assert.equal(capturas.length, 0);
+
+  const degradavel = { ...hostil, job_id: 'job-hostil-1', hash_esperado: 'a'.repeat(64) };
+  const r = pub.publicar(degradavel);
+  assert.equal(r.publicado, true);
+  assert.equal(capturas.length, 1);
+  assert.equal(JSON.stringify(capturas).match(/CANARY/g), null);
+});
+
+test('T3 · o heartbeat real leva Parar com a impressao corrente do broker', async () => {
+  const jobId = 'job-heartbeat-parar';
+  const inicio = Date.parse('2026-08-18T12:00:00.000Z');
+  const ledger = [
+    { ts: new Date(inicio).toISOString(), job_id: jobId, event: 'dispatched', agent: 'cc',
+      actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } },
+    { ts: new Date(inicio + 1000).toISOString(), job_id: jobId, event: 'started', agent: 'cc' },
+    { ts: new Date(inicio + 2000).toISOString(), job_id: jobId, event: 'step', step_index: 1 },
+  ];
+  bancadaDeEventos(ledger);
+  process.env.SLACK_HEARTBEAT_MS = '60000';
+  const { ad, capturas } = montar();
+  const registos = [];
+  const poller = pollerDeEnsaio(ad, jobId, () => inicio + 70000, registos);
+  await poller.tique();
+
+  assert.equal(capturas.length, 1);
+  const accoes = capturas[0].blocos.find((b) => b.type === 'actions');
+  const parar = accoes && accoes.elements.find((e) => e.action_id === 'mooter_parar');
+  assert.ok(parar, 'o caminho real nao produziu o botao Parar');
+  const lido = cartao.lerValorDoBotao(parar.value);
+  assert.equal(lido.ok, true);
+  assert.equal(lido.job_id, jobId);
+  assert.equal(lido.accao, 'parar');
+  assert.equal(lido.hash, broker.estadoDoJob(jobId, ledger).state_hash);
+});
+
+test('T3 · o primeiro estado pos-despacho leva Parar com a impressao escrita pelo dispatcher', async () => {
+  const jobId = 'job-estado-inicial';
+  const { home } = bancadaDeEventos([]);
+  const { ad, capturas } = montar({ despachar: async ({ actor }) => {
+    fs.appendFileSync(path.join(home, 'ledger.jsonl'), JSON.stringify({
+      ts: '2026-08-18T12:30:00.000Z', job_id: jobId, event: 'dispatched', actor,
+    }) + '\n', 'utf8');
+    return { job_id: jobId };
+  } });
+
+  const r = await ad.receberMencao({ user_id: 'U_PAULO', texto: 'continua', thread: 'T1' });
+  assert.equal(r.aceite, true);
+  assert.equal(capturas.length, 1);
+  const accoes = capturas[0].blocos.find((b) => b.type === 'actions');
+  const parar = accoes && accoes.elements.find((e) => e.action_id === 'mooter_parar');
+  assert.ok(parar, 'o estado inicial nao produziu o botao Parar');
+  const lido = cartao.lerValorDoBotao(parar.value);
+  assert.equal(lido.ok, true);
+  assert.equal(lido.job_id, jobId);
+  assert.equal(lido.accao, 'parar');
+  assert.equal(lido.hash, broker.estadoDoJob(jobId, lerLedgerPorOmissao()).state_hash);
+});
+
+test('T4 · heartbeat so depois do limiar, sem percentagem, com dedupe por entrega', async () => {
+  const jobId = 'job-heartbeat-limiar';
+  const inicio = Date.parse('2026-08-18T13:00:00.000Z');
+  bancadaDeEventos([
+    { ts: new Date(inicio).toISOString(), job_id: jobId, event: 'dispatched', agent: 'cc',
+      actor: { type: 'human', id: 'slack:U_PAULO', origem: 'slack' } },
+    { ts: new Date(inicio + 1000).toISOString(), job_id: jobId, event: 'started' },
+    { ts: new Date(inicio + 2000).toISOString(), job_id: jobId, event: 'step', step_index: 1 },
+    { ts: new Date(inicio + 3000).toISOString(), job_id: jobId, event: 'step', step_index: 2 },
+  ]);
+  process.env.SLACK_HEARTBEAT_MS = '60000';
+  let agoraMs = inicio + 59000;
+  const a = montar();
+  const poller = pollerDeEnsaio(a.ad, jobId, () => agoraMs, []);
+  await poller.tique();
+  assert.equal(a.capturas.length, 0, 'bateu antes de demorar');
+
+  agoraMs = inicio + 70000;
+  await poller.tique();
+  assert.equal(a.capturas.length, 1);
+  const tudo = JSON.stringify(a.capturas[0]);
+  assert.match(tudo, /2 passos/);
+  assert.match(tudo, /1m10s/);
+  assert.ok(!/%/.test(tudo), 'inventou percentagem sem denominador');
+  assert.ok(!/ETA|restante|estimad/i.test(tudo), 'inventou previsao sem denominador');
+  await poller.tique();
+  assert.equal(a.capturas.length, 1, 'repetiu dentro do limiar');
+
+  let tentativas = 0;
+  const b = montar({ enviar: () => ({ enviado: ++tentativas > 1 }) });
+  const retry = pollerDeEnsaio(b.ad, jobId, () => agoraMs, []);
+  await retry.tique();
+  assert.equal(retry.batidos.has(jobId), false, 'marcou um batimento recusado pelo Slack');
+  await retry.tique();
+  assert.equal(retry.batidos.has(jobId), true);
+  await retry.tique();
+  assert.equal(b.capturas.length, 2, 'nao deduplicou depois da entrega');
+
+  const c = montar();
+  const ignorado = pollerDeEnsaio(c.ad, jobId, () => agoraMs, [], new Set([jobId]));
+  await ignorado.tique();
+  assert.equal(c.capturas.length, 0, 'um job ignorado recebeu heartbeat');
+});
+
+test('T5 · fecho recusado pelo Slack e retentado antes de entrar em fechados', async () => {
+  const { jobId } = bancadaConcluida({ jobId: 'job-fecho-retry' });
+  let tentativas = 0;
+  const registos = [];
+  const { ad, capturas } = montar({ enviar: () => ({ enviado: ++tentativas > 1 }) });
+  const poller = pollerDeEnsaio(ad, jobId, () => Date.now(), registos);
+  await poller.tique();
+  assert.equal(poller.fechados.has(jobId), false);
+  assert.ok(registos.some((r) => r.tipo === 'fecho_nao_entregue' && r.job === jobId));
+  await poller.tique();
+  assert.equal(poller.fechados.has(jobId), true);
+  await poller.tique();
+  assert.equal(capturas.length, 2, 'um fecho entregue voltou a ser publicado');
+});
+
+test('T6 · frase inventada e recusada pelo catalogo fechado', () => {
+  const capturas = [];
+  const pub = criarPublicador({ enviar: (...a) => {
+    capturas.push(a); return { enviado: true };
+  } });
+  const r = pub.publicar({ tipo: 'estado', job_id: 'job-x', texto: 'frase inventada' });
+  assert.equal(r.publicado, false);
+  assert.match(r.porque, /catalogo/);
+  assert.equal(capturas.length, 0);
 });

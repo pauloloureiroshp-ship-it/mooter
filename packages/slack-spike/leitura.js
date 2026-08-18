@@ -26,6 +26,7 @@
  */
 
 const identidade = require('../mooter-bridge/actor.js');
+const { CUSTO_PORQUE } = require('./esquema.js');
 
 /** Fontes que sao CALCULO, nao medicao — obrigam ao rotulo "estimativa". */
 const FONTE_E_ESTIMATIVA = /calculad[oa]|tabela|estimativ/i;
@@ -64,8 +65,7 @@ function derivarDoPendente(evento) {
   let custo;
   if (e.cost_usd == null || semFonte) {
     custo = { valor: null, rotulo: 'custo', fonte: semFonte ? null : fonte, estimativa: false,
-      porque: 'n/d — ' + (e.cost_usd == null ? 'o pendente nao traz cost_usd'
-        : 'a fonte do custo e n/d') + '; um numero sem proveniencia nao se publica' };
+      porque: e.cost_usd == null ? CUSTO_PORQUE.SEM_VALOR : CUSTO_PORQUE.SEM_FONTE };
   } else {
     const estimativa = FONTE_E_ESTIMATIVA.test(fonte);
     custo = { valor: e.cost_usd, rotulo: estimativa ? 'custo (ESTIMATIVA)' : 'custo',

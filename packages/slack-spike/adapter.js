@@ -20,6 +20,7 @@ const path = require('path');
 
 const { derivarDoPendente } = require('./leitura.js');
 const { cadeiaDe } = require('./cadeia.js');
+const { FRASES } = require('./esquema.js');
 // a regra do CAS vive numa constante NOMEADA, e e ela que governa — nao um literal
 // inline. Uma constante congelada e exportada que nada le mente sobre onde a regra vive.
 const { ACCOES_COM_CAS_ESTRITO } = require('./cartao.js');
@@ -53,7 +54,13 @@ function criarAdaptador(opcoes) {
    * so mostra o do pedido, e pior que nenhum: o dono fica com dois numeros e
    * nenhuma regra para saber qual e qual.
    */
-  const cadeiaDoJob = (job, ledger) => cadeiaDe(ledger || lerEventos(), job);
+  const cadeiaDoJob = (job, ledger) => {
+    const c = cadeiaDe(ledger || lerEventos(), job);
+    // A aritmetica tambem devolve jobs/semFonte para diagnostico local. A porta
+    // publica recebe apenas o subesquema de quatro campos que o cartao consome.
+    return { pedidos: c.pedidos, total: c.total, fontes: c.fontes,
+      todosMedidos: c.todosMedidos };
+  };
   for (const [nome, v] of [['allowlist', allowlist], ['publicador', publicador],
     ['broker', broker], ['despachar', despachar]]) {
     if (!v) throw new Error('criarAdaptador precisa de `' + nome + '` — nada aqui e opcional');
@@ -62,6 +69,22 @@ function criarAdaptador(opcoes) {
   /** Tudo o que foi ignorado fica REGISTADO. Ignorar em silencio nao e ignorar. */
   const registo = [];
   const agora = () => new Date().toISOString();
+  function publicar(payload) {
+    const r = publicador.publicar(payload);
+    if (!r.publicado && r.porque) {
+      const recusado = { tipo: 'publicacao_RECUSADA', job: payload.job_id || null,
+        porque: r.porque, ts: agora() };
+      registo.push(recusado);
+      if (typeof o.registar === 'function') o.registar(recusado);
+    }
+    if (r.degradados && r.degradados.length) {
+      const d = { tipo: 'payload_degradado', job: payload.job_id || null,
+        degradados: [...r.degradados], ts: agora() };
+      registo.push(d);
+      if (typeof o.registar === 'function') o.registar(d);
+    }
+    return r;
+  }
 
   function actorDe(userId) {
     return { type: 'human', id: 'slack:' + userId, origem: 'slack' };
@@ -100,8 +123,14 @@ function criarAdaptador(opcoes) {
       }
     }
 
-    publicador.publicar({ tipo: 'estado', job_id: jobId,
-      texto: jobId ? 'despachado — sigo neste thread' : 'nao despachou' });
+    const estado = jobId ? broker.estadoDoJob(jobId, lerEventos()) : null;
+    const inicial = { tipo: 'estado',
+      texto: jobId ? FRASES.DESPACHADO : FRASES.NAO_DESPACHOU };
+    if (jobId) {
+      inicial.job_id = jobId;
+      inicial.hash_esperado = (estado && estado.state_hash) || null;
+    }
+    publicar(inicial);
     return { aceite: true, job_id: jobId };
   }
 
@@ -121,7 +150,7 @@ function criarAdaptador(opcoes) {
       // masterprompt manda gravar (kimi #4). Ja estava em CAMPOS_PERMITIDOS.
       hash_esperado: pendente.state_hash || null,
       accoes: ['aprovar', 'recusar'],
-      texto: 'aprova ou recusa este pedido' };
+      texto: FRASES.PENDENTE };
   }
 
   /**
@@ -180,13 +209,13 @@ function criarAdaptador(opcoes) {
           porque: 'cartao ja publicado para este estado' });
         continue;
       }
-      const r = publicador.publicar(cartaoDe(pend, ledger));
+      const r = publicar(cartaoDe(pend, ledger));
       // ⚠️ o `envio` TEM de viajar. Construir aqui um objecto novo e esquecer um
       // campo foi, pela terceira vez hoje, a forma de um valor morrer numa
       // fronteira de camada — e este diz se o Slack ACEITOU. Sem ele, um cartao
       // recusado por rate_limit era marcado como visto e nunca mais tentado.
       out.push({ job_id: pend.job_id, state_hash: pend.state_hash, publicado: r.publicado,
-        envio: r.envio, porque: r.porque || null });
+        envio: r.envio, porque: r.porque || null, degradados: r.degradados || [] });
     }
     return out;
   }
@@ -243,16 +272,14 @@ function criarAdaptador(opcoes) {
       // US$ 0,40»). Deriva-se do ledger, como no cartao da decisao — a variante
       // nova nao pode repetir o bug de mostrar n/d com o numero gravado.
       const dc = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
-      publicador.publicar({ tipo: 'decisao', job_id: ev.request_id,
+      publicar({ tipo: 'decisao', job_id: ev.request_id,
         estado: c.estado === 'JA_TERMINADO' ? 'JA_TERMINADO' : 'PARADO',
         custo: dc.custo, modelo: dc.modelo, cadeia: cadeiaDoJob(ev.request_id),
         autor: { valor: actorDe(ev.user_id).id },
-        auditoria: ['request=' + ev.request_id, 'accao=parar', 'estado=' + c.estado,
-          'actor=' + actorDe(ev.user_id).id,
-          'hash_visto=' + String(ev.expected_state_hash || 'n/d').slice(0, 12) + '…'].join(' · '),
+        auditoria: { request: ev.request_id, accao: 'parar', estado: c.estado,
+          actor: actorDe(ev.user_id).id, hash: ev.expected_state_hash || null },
         texto: c.estado === 'JA_TERMINADO'
-          ? 'o trabalho já tinha acabado — nada foi interrompido'
-          : 'o trabalho foi interrompido a teu pedido' });
+          ? FRASES.JA_TERMINADO : FRASES.PARADO });
       return { estado: c.estado, efemero: false };
     }
 
@@ -273,23 +300,13 @@ function criarAdaptador(opcoes) {
 
     // clique atrasado -> o CAS a trabalhar, com os DOIS hashes a vista
     if (r.estado === 'STALE') {
-      publicador.publicar({ tipo: 'decisao', job_id: ev.request_id, estado: 'STALE',
+      publicar({ tipo: 'decisao', job_id: ev.request_id, estado: 'STALE',
         hash_esperado: r.expected_state_hash, hash_actual: r.actual_state_hash,
-        texto: 'o estado mudou entre o cartao e o clique — o pedido CONTINUA a espera' });
+        texto: FRASES.STALE });
       return { estado: 'STALE', porque: r.porque || 'estado mudou', efemero: false };
     }
 
     // decisao final -> confirmacao + auditoria (kimi #8)
-    const linhaAuditoria = [
-      'request=' + ev.request_id,
-      'veredicto=' + veredicto,
-      'estado=' + r.estado,
-      'actor=' + actorDe(ev.user_id).id,
-      'hash_decidido=' + String(ev.expected_state_hash || 'n/d').slice(0, 12) + '…',
-      'autorizacao=' + (r.autorizacao || 'n/d'),
-      r.job_novo ? 'job_novo=' + r.job_novo : 'job_novo=n/d',
-    ].join(' · ');
-
     // ⚠️ O CARTAO DA DECISAO TEM DE LEVAR OS NUMEROS. Sem isto publicava-se
     // `{estado, auditoria}` e mais nada — e o cartao mostrava «Já gasto: n/d — sem
     // fonte no ledger» e «Impressão: n/d» num pedido onde o custo ESTAVA no ledger
@@ -298,14 +315,19 @@ function criarAdaptador(opcoes) {
     // argumento que a demo existe para fazer. Deriva-se do mesmo sitio que o
     // cartao do pendente: o estado corrente do job no ledger.
     const dec = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
-    publicador.publicar({ tipo: 'decisao', job_id: ev.request_id, estado: r.estado,
+    const frasesPorMotivo = Object.freeze({
+      aprovado: FRASES.APROVADO,
+      recusa_humana: FRASES.RECUSADO,
+      despacho_recusado: FRASES.RECUSADO,
+    });
+    publicar({ tipo: 'decisao', job_id: ev.request_id, estado: r.estado,
       autor: dec.autor, motor: dec.motor, modelo: dec.modelo, custo: dec.custo,
       cadeia: cadeiaDoJob(ev.request_id),
       hash_esperado: ev.expected_state_hash || null,
-      auditoria: linhaAuditoria,
-      texto: r.estado === 'APPROVED' ? 'aprovado — re-despachado'
-        : (r.estado === 'REJECTED' ? 'recusado por quem decide'
-          : 'sem decisao: ' + (r.motivo || 'motivo n/d')) });
+      auditoria: { request: ev.request_id, veredicto, estado: r.estado,
+        actor: actorDe(ev.user_id).id, hash: ev.expected_state_hash || null,
+        autorizacao: r.autorizacao || null, job_novo: r.job_novo || null },
+      texto: frasesPorMotivo[r.motivo] || FRASES.SEM_DECISAO });
 
     return { estado: r.estado, motivo: r.motivo, porque: r.porque || null, efemero: false };
   }
@@ -342,15 +364,49 @@ function criarAdaptador(opcoes) {
       const estado = ev.event === 'done' ? 'concluido' : (ev.event === 'failed' ? 'falhou' : null);
       if (!estado) continue;                                     // ainda a correr, ou encadeado
       const d = derivarDoPendente(ev);
-      const r = publicador.publicar({ tipo: 'fecho', job_id: job, estado,
+      const r = publicar({ tipo: 'fecho', job_id: job, estado,
         custo: d.custo, modelo: d.modelo, cadeia: cadeiaDoJob(job, ledger) });
       out.push({ job_id: job, estado, publicado: r.publicado, envio: r.envio,
+        porque: r.porque || null, degradados: r.degradados || [] });
+    }
+    return out;
+  }
+
+  /**
+   * Publica apenas medicao real do ledger: contagem de steps, idade desde o
+   * primeiro dispatched e a impressao corrente calculada pelo broker.
+   */
+  async function publicarBatimentos(opcoes) {
+    const oo = opcoes || {};
+    const agoraMs = Number(oo.agora);
+    const limiarMs = Number(oo.limiarMs);
+    const jaBateu = typeof oo.jaBateu === 'function' ? oo.jaBateu : () => false;
+    if (!Number.isFinite(agoraMs) || !Number.isFinite(limiarMs) || limiarMs < 0) return [];
+
+    const ledger = lerEventos();
+    const jobs = [...new Set(ledger.filter((e) => e && e.event === 'dispatched' && e.job_id)
+      .map((e) => e.job_id))];
+    const out = [];
+    for (const job of jobs) {
+      if (jaBateu(job)) continue;
+      const corrente = broker.estadoCorrente(job, ledger);
+      if (!corrente || !['dispatched', 'started'].includes(corrente.event)) continue;
+      const primeiro = ledger.find((e) => e && e.job_id === job && e.event === 'dispatched');
+      const nascido = Date.parse((primeiro && primeiro.ts) || '');
+      if (!Number.isFinite(nascido)) continue;
+      if (agoraMs - nascido < limiarMs) continue;
+      const estado = broker.estadoDoJob(job, ledger);
+      if (!estado || !estado.state_hash) continue;
+      const passos = ledger.filter((e) => e && e.job_id === job && e.event === 'step').length;
+      const r = publicar({ tipo: 'estado', job_id: job, passos,
+        segundos: Math.floor((agoraMs - nascido) / 1000), hash_esperado: estado.state_hash });
+      out.push({ job_id: job, publicado: r.publicado, envio: r.envio,
         porque: r.porque || null });
     }
     return out;
   }
 
-  return { receberMencao, receberInteraccao, publicarPendentes, publicarFechos, cartaoDe,
+  return { receberMencao, receberInteraccao, publicarPendentes, publicarFechos, publicarBatimentos, cartaoDe,
     jobsNossos, registo };
 }
 
