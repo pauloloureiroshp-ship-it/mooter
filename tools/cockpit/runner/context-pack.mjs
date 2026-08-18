@@ -213,13 +213,31 @@ const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
  * — um repo sem git, um ref inexistente ou um diff vazio nunca podem parar uma
  * ronda; o runner cai para o degrau seguinte da escada.
  */
-export function readChangedLines(repoRoot, { baseRef = 'HEAD~1', runImpl = null, maxFiles = 40 } = {}) {
+export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null, maxFiles = 40, onError = null } = {}) {
+  // maxBuffer explicito: um diff de 12 commits neste repo da 52k linhas e o
+  // default de 1 MB do execFileSync rebenta com ENOBUFS. O catch mudo que estava
+  // aqui engolia isso e devolvia [] — o modo diff nunca disparava e ninguem
+  // sabia porque. E exactamente a classe de defeito que este runner procura,
+  // encontrada no proprio runner. Agora o buffer chega, o diff e limitado a
+  // ficheiros de codigo pelo pathspec, e a falha e REPORTADA em vez de calada.
   const run = runImpl || ((args) =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }));
+    execFileSync('git', args, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 10000,
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }));
   let out;
   try {
-    out = run(['diff', '--unified=0', '--no-color', `${baseRef}...HEAD`]);
-  } catch {
+    out = run([
+      'diff', '--unified=0', '--no-color', `${baseRef}...HEAD`,
+      '--', '*.js', '*.mjs', '*.cjs', '*.ts', '*.tsx', '*.jsx',
+    ]);
+  } catch (err) {
+    // Nunca parar a ronda por causa disto — mas tambem nunca fingir que o diff
+    // estava vazio quando na verdade rebentou.
+    if (onError) onError(String((err && err.message) || err).slice(0, 160));
     return [];
   }
   const hunks = [];
@@ -232,7 +250,6 @@ export function readChangedLines(repoRoot, { baseRef = 'HEAD~1', runImpl = null,
       continue;
     }
     if (!file || !line.startsWith('@@')) continue;
-    // @@ -a,b +c,d @@ — só interessa o lado novo.
     const m = /\+(\d+)(?:,(\d+))?/.exec(line);
     if (!m) continue;
     const start = Number(m[1]);
@@ -378,7 +395,8 @@ export function buildContextPack({
 
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
   if (diffBase) {
-    const hunks = readChangedLines(repoRoot, { baseRef: diffBase });
+    let diffErro = null;
+    const hunks = readChangedLines(repoRoot, { baseRef: diffBase, onError: (e) => { diffErro = e; } });
     if (hunks.length > 0) {
       const h = hunks[Math.abs(cursor) % hunks.length];
       const lines = readLines(repoRoot, h.file);
@@ -416,6 +434,7 @@ export function buildContextPack({
           ok: true,
           mode: 'diff',
           negacaoDensa: densa,
+          diffErro,
           anchored: false,
           diffBase,
           changedStart: h.start,

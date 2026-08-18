@@ -506,3 +506,21 @@ test('o segundo parecer nunca decide sozinho — so marca a discordancia', () =>
       `a1=${c.a1} a2=${c.a2} devia ${c.bandeira ? '' : 'nao '}levantar bandeira`);
   }
 });
+
+test('readChangedLines REPORTA a falha em vez de a engolir (o bug que teve)', () => {
+  // O catch mudo original devolvia [] quando o git rebentava com ENOBUFS num
+  // diff de 52k linhas — o modo diff nunca disparava e nada dizia porque.
+  let visto = null;
+  const boom = () => { const e = new Error('spawnSync git ENOBUFS'); throw e; };
+  const got = readChangedLines('/r', { runImpl: boom, onError: (m) => { visto = m; } });
+  assert.deepEqual(got, [], 'continua a degradar sem parar a ronda');
+  assert.match(visto || '', /ENOBUFS/, 'mas a falha tem de chegar a quem chama');
+});
+
+test('readChangedLines limita o diff a ficheiros de codigo pelo pathspec', () => {
+  let args = null;
+  readChangedLines('/r', { runImpl: (a) => { args = a; return ''; } });
+  assert.ok(args.includes('--'), 'tem de separar o pathspec');
+  assert.ok(args.includes('*.mjs') && args.includes('*.ts'),
+    'o pathspec tem de existir: sem ele o diff traz o repo todo e rebenta o buffer');
+});

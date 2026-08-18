@@ -39,7 +39,12 @@ const ANCORA = path.join(MOO_DIR, 'ancora-achados.json');
 // Base do diff: o que mudou desde este ref e trabalho novo para rever. Um repo
 // parado devolve zero hunks e o runner cai para a ancora — a escada degrada
 // sozinha, nunca falha. MOO_DIFF_BASE permite apontar para outro ref.
-const DIFF_BASE = process.env.MOO_DIFF_BASE || 'origin/main';
+// origin/main como base era um bug: assim que o trabalho merja, o diff fica
+// VAZIO e o runner cai para a ancora — que ja esta esgotada — e volta aos 97%
+// de falso positivo. Medido a 2026-08-18: 30/30 rondas em modo ancorado, 29
+// falsos positivos. A base tem de ser uma JANELA MOVEL de commits recentes, que
+// nunca seca enquanto houver historia.
+const DIFF_BASE = process.env.MOO_DIFF_BASE || 'HEAD~12';
 // Segundo parecer: outro modelo LOCAL, de LINHAGEM DIFERENTE do primario. Dois
 // modelos da mesma familia partilham os mesmos erros — o par so vale se
 // divergirem. Vazio ou ausente desliga a escalada; continua tudo a $0.
