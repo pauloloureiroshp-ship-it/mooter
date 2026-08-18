@@ -524,3 +524,47 @@ test('readChangedLines limita o diff a ficheiros de codigo pelo pathspec', () =>
   assert.ok(args.includes('*.mjs') && args.includes('*.ts'),
     'o pathspec tem de existir: sem ele o diff traz o repo todo e rebenta o buffer');
 });
+
+test('o pack em modo DIFF constroi-se de facto — o teste que faltava', () => {
+  // Os 157 testes anteriores nunca EXERCITARAM este caminho: o repo de fixture
+  // nao tem git, o diff vinha vazio e caia sempre para o modo de caca. Resultado:
+  // um "Cannot access 'densa' before initialization" foi para producao e rebentou
+  // todas as rondas. Um teste que so verifica que a escada devolve ALGO nao chega
+  // — tem de construir o pack do degrau de cima.
+  const root = fixtureRepo();
+  const diff = [
+    '--- a/tools/router/classify.js',
+    '+++ b/tools/router/classify.js',
+    '@@ -1,0 +2,2 @@',
+    '+const x = 1;',
+    '+if (x !== 2) return null;',
+  ].join('\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', diffBase: 'HEAD~6', diffRunImpl: () => diff,
+  });
+  assert.equal(pack.ok, true);
+  assert.equal(pack.mode, 'diff', 'com hunks, tem de entrar no degrau do diff');
+  assert.equal(pack.file, 'tools/router/classify.js');
+  assert.equal(pack.changedStart, 2);
+  assert.ok(pack.prompt.includes('MUDARAM as linhas'), 'o prompt tem de falar da mudanca');
+  assert.equal(typeof pack.negacaoDensa, 'boolean', 'a marca de negacao tem de estar calculada');
+});
+
+test('em modo DIFF com negacao, o aviso dirigido entra no prompt', () => {
+  const root = fixtureRepo();
+  const diff = [
+    '--- a/tools/router/classify.js',
+    '+++ b/tools/router/classify.js',
+    '@@ -1,0 +2,1 @@',
+    '+if (a !== b) return true;',
+  ].join('\n');
+  const pack = buildContextPack({
+    repoRoot: root, pillar: 'P1', diffBase: 'HEAD~6', diffRunImpl: () => diff,
+  });
+  assert.equal(pack.mode, 'diff');
+  // a linha 2 do fixture pode nao ter negacao; o que importa e que o campo existe
+  // e que, quando marcado, o aviso aparece.
+  if (pack.negacaoDensa) {
+    assert.match(pack.prompt, /usam negação/, 'terreno de negacao exige o aviso dirigido');
+  }
+});

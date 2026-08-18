@@ -389,6 +389,7 @@ export function buildContextPack({
   maxLines = MAX_SLICE_LINES,
   anchorPath = null,
   diffBase = null,
+  diffRunImpl = null,
 }) {
   const spec = PILLARS[pillar];
   if (!spec) return { ok: false, reason: `pilar desconhecido: ${pillar}`, pillar };
@@ -396,7 +397,7 @@ export function buildContextPack({
   // ---- degrau 1: DIFF — rever o que mudou (trabalho infinito enquanto houver commits)
   if (diffBase) {
     let diffErro = null;
-    const hunks = readChangedLines(repoRoot, { baseRef: diffBase, onError: (e) => { diffErro = e; } });
+    const hunks = readChangedLines(repoRoot, { baseRef: diffBase, runImpl: diffRunImpl, onError: (e) => { diffErro = e; } });
     if (hunks.length > 0) {
       const h = hunks[Math.abs(cursor) % hunks.length];
       const lines = readLines(repoRoot, h.file);
@@ -404,6 +405,18 @@ export function buildContextPack({
         const pad = 8; // contexto à volta da mudança, para o juiz perceber o que a rodeia
         const slice = renderSlice(lines, Math.max(1, h.start - pad), Math.min(maxLines, h.count + pad * 2));
         const fim = h.start + h.count - 1;
+        // `mudadas` e `densa` TÊM de vir antes do prompt: o prompt usa `densa`.
+        // Tê-los depois deu "Cannot access 'densa' before initialization" e
+        // rebentou todas as rondas — apanhado só porque o runner regista a
+        // excepção no recibo em vez de morrer calado.
+        const mudadas = slice.text
+          .split('\n')
+          .filter((ln) => {
+            const n = Number(String(ln).slice(0, 6).trim());
+            return Number.isInteger(n) && n >= h.start && n <= fim;
+          })
+          .join('\n');
+        const densa = negacaoDensa(mudadas);
         const prompt = [
           `Pilar: ${pillar} — ${spec.label}`,
           `Ficheiro: ${h.file} (linhas ${slice.startLine}-${slice.endLine} de ${lines.length})`,
@@ -422,14 +435,6 @@ export function buildContextPack({
               ]
             : []),
         ].join('\n');
-        const mudadas = slice.text
-          .split('\n')
-          .filter((ln) => {
-            const n = Number(String(ln).slice(0, 6).trim());
-            return Number.isInteger(n) && n >= h.start && n <= fim;
-          })
-          .join('\n');
-        const densa = negacaoDensa(mudadas);
         return {
           ok: true,
           mode: 'diff',
