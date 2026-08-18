@@ -57,8 +57,24 @@ const API = 'https://slack.com/api/';
 /** Accoes que o cartao oferece -> action_id do bloco. */
 const { ACCOES, valorDoBotao, lerValorDoBotao } = cartao;   // o contrato vive no cartao.js
 
-/** So estes fecham um pedido. O STALE nao fecha nada — ver `enviar()`. */
-const ESTADOS_FINAIS = Object.freeze(['APPROVED', 'REJECTED', 'EXPIRED', 'NEGADO',
+/**
+ * So estes FECHAM um pedido — e fechar significa substituir o cartao, tirando-lhe os
+ * botoes.
+ *
+ * ⚠️ FORA daqui, de proposito, os dois estados que o broker devolve com
+ * `terminal:false`: o **STALE** e o **NEGADO**. O broker di-lo por palavras
+ * (`broker.js:72`): «um clique obsoleto nao decide nada. E NEGADO tambem nao».
+ *
+ * Se qualquer deles entrar nesta lista, o cartao perde os botoes por `chat.update`
+ * enquanto o pedido CONTINUA em `listPending` com o hash INALTERADO — e como o
+ * `jaVisto` do poller e `(job:hash)`, ele nunca republica. O pedido fica sem a unica
+ * superficie de decisao que tem no Slack. E a mesma trancadura que o hash no
+ * `idem_key` fechou, alcancada por outra porta.
+ *
+ * O NEGADO esteve aqui dentro ate 2026-08-18, sem teste nenhum a exercita-lo, e e
+ * alcancavel a serio: `roles.json` ilegivel, ou um clicker sem papel/capacidade.
+ */
+const ESTADOS_FINAIS = Object.freeze(['APPROVED', 'REJECTED', 'EXPIRED',
   'PARADO', 'JA_TERMINADO']);
 
 // ── nucleo puro (testavel sem rede) ─────────────────────────────────────────

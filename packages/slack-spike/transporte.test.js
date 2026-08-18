@@ -634,3 +634,33 @@ test('socket · que NUNCA abre nem falha e apanhado por prazo (senao fica vivo e
     'o socket nunca abriu e ninguem deu por isso');
   assert.equal(agendados.length, 1, 'nao religou depois de o prazo expirar');
 });
+
+test('NEGADO nao fecha o cartao — como o STALE, o pedido continua a espera', async () => {
+  // ⚠️ BLOCK do claude-review. `ESTADOS_FINAIS` incluia `NEGADO`, mas o broker
+  // devolve-o com `terminal:false` (broker.js:566,579,618) e o proprio comentario
+  // dele diz «STALE nao: um clique obsoleto nao decide nada. E NEGADO tambem nao».
+  // Consequencia: o cartao perdia os botoes por `chat.update`, o pendente ficava na
+  // fila com o hash INALTERADO, e o poller nunca republicava (jaVisto continua
+  // true). O pedido perdia a unica superficie de decisao no Slack — a mesma
+  // trancadura que o fix do idem_key acabou de fechar, por outra porta.
+  // Alcancavel com um `roles.json` ilegivel, ou um clicker sem papel/capacidade.
+  // Eu tinha excluido o STALE desta lista com 7 linhas a explicar este perigo, e
+  // deixei la o NEGADO. A excepcao assimetrica nao tinha teste nenhum.
+  const enviados = [];
+  const tr = t.criarTransporte({ canal: 'C', syncPath: SYNC_DESTRAVADO(), dryRun: true,
+    fetchImpl: fetchFalso({}), botUserId: 'B' });
+
+  // 1 · um cartao de pendente cria a entrada em `cartoes`
+  await tr.enviar('pendente', { tipo: 'pendente', job_id: 'job-n1' }, [{ type: 'divider' }]);
+  // 2 · uma decisao NEGADO nao pode substituir esse cartao
+  const r = await tr.enviar('negado', { tipo: 'decisao', job_id: 'job-n1', estado: 'NEGADO' },
+    [{ type: 'divider' }]);
+  assert.ok(!r.actualizado,
+    'o NEGADO substituiu o cartao e o pedido ficou sem forma de ser decidido no Slack');
+
+  // e um estado MESMO final continua a substituir
+  await tr.enviar('pendente2', { tipo: 'pendente', job_id: 'job-n2' }, [{ type: 'divider' }]);
+  const f = await tr.enviar('aprovado', { tipo: 'decisao', job_id: 'job-n2', estado: 'APPROVED' },
+    [{ type: 'divider' }]);
+  assert.ok(f.actualizado, 'um APPROVED devia substituir o cartao — isso e o comportamento certo');
+});
