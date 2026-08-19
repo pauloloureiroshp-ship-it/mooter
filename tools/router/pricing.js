@@ -136,16 +136,23 @@ const FALLBACK_PRICE = { input: 3.0, output: 15.0 };
 // Tier → canonical model used when we only have the tier (from classify.js).
 // Matches TIER_TO_MODEL in savings-tracker.js but resolved to the pricing key.
 /** @type {Record<Tier, string>} */
-// Actualizado 2026-08-19 com a familia Claude 5. Este mapa e usado quando so
-// se conhece o TIER e nao o modelo -- se ficar para tras, toda a estimativa de
-// poupanca por tier fica a preco de uma geracao anterior, em silencio.
-// T5/Fable nao entra aqui de proposito: e opt-in por `@fable` e nunca
-// alcancavel por escolha de tier.
+// ⚠️ DESACTUALIZADO, e a correccao NAO cabe aqui sozinha.
+//
+// Este mapa aponta a `claude-sonnet-4-6` e `claude-opus-4-6` enquanto a conta
+// corre a familia 5 — toda a estimativa por TIER sai a preco de uma geracao
+// anterior. Mas nao e o unico mapa tier->modelo do repo: `budget-engine.js:60`
+// e `_model-resolver.js:21` tem os seus, e o relatorio de fim de sessao ESCREVE
+// "sonnet-4-6" a partir de outro sitio. Mudar so este poe o relatorio a dizer
+// um modelo e a cobrar outro — foi o que o CI apanhou.
+//
+// Fica como esta ate os tres mapas serem tratados juntos, com o teste do
+// relatorio a acompanhar. Um numero errado que se conhece vale mais do que
+// dois numeros a discordar em silencio.
 const TIER_TO_PRICING_KEY = {
   T0: 'qwen2.5:3b',
   T1: 'claude-haiku-4-5',
-  T2: 'claude-sonnet-5',
-  T3: 'claude-opus-5',
+  T2: 'claude-sonnet-4-6',
+  T3: 'claude-opus-4-6',
 };
 
 // Average output tokens per turn by tier. Calibrated against real
