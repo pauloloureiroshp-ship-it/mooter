@@ -17,7 +17,7 @@ import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
-import { registarTriagem, DECISOES, menuDeMotores } from './triagem.mjs';
+import { registarTriagem, DECISOES, AUTORES, menuDeMotores } from './triagem.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 
 const MAX_BODY_BYTES = 4096;
@@ -294,9 +294,16 @@ export function createServer({
         if (!body || !body.chave || !DECISOES.includes(body.decisao)) {
           return sendJson(res, 400, { erro: 'triagem precisa de { chave, decisao }', aceites: DECISOES });
         }
+        // Sem `por`, o autor e o dono — que e quem carrega no botao do painel.
+        // Um agente TEM de se identificar; uma decisao anonima poluiria o unico
+        // numero que este ficheiro existe para tornar verdadeiro.
+        const por = body.por || 'dono';
+        if (!AUTORES.includes(por)) {
+          return sendJson(res, 400, { erro: 'autor desconhecido', aceites: AUTORES });
+        }
         try {
           const e = registarTriagem(triagemFile, {
-            chave: body.chave, decisao: body.decisao,
+            chave: body.chave, decisao: body.decisao, por,
             recibo: body.recibo || null, nota: body.nota || null,
           });
           return sendJson(res, 200, { ok: true, registado: e });

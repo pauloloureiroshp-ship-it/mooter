@@ -24,6 +24,15 @@ const require = createRequire(import.meta.url);
 export const DECISOES = Object.freeze(['aceite', 'descartado', 'issue']);
 
 /**
+ * QUEM decidiu. Fechado de proposito, e a razao e o proprio numero de ROI: uma
+ * decisao tomada por um agente e util, mas nao vale o mesmo que a do dono, e
+ * juntar as duas numa contagem so tornaria a metrica exactamente aquilo que
+ * este projecto se recusa a produzir. O painel escreve 'dono'; um agente tem
+ * de se identificar.
+ */
+export const AUTORES = Object.freeze(['dono', 'claude', 'agente']);
+
+/**
  * A identidade de um achado para efeitos de triagem.
  *
  * Prefere a `chave` do recibo (ficheiro:linhas:sha do conteudo): assim, decidir
@@ -80,6 +89,7 @@ export function lerTriagem(caminho, { readImpl = fs.readFileSync } = {}) {
 export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 'dono', nota = null, ts }) {
   if (!chave) throw new Error('triagem sem chave: nao se decide sobre o que nao se consegue identificar');
   if (!DECISOES.includes(decisao)) throw new Error(`decisao desconhecida: ${decisao} (aceites: ${DECISOES.join(', ')})`);
+  if (!AUTORES.includes(por)) throw new Error(`autor desconhecido: ${por} (aceites: ${AUTORES.join(', ')})`);
   const entrada = {
     ts: ts || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     chave: String(chave),
@@ -127,7 +137,7 @@ export function porTriar(receipts, decisoes, limite = 50) {
 
 /** Quantos foram aceites, descartados, viraram issue — e quantos esperam. */
 export function contarTriagem(receipts, decisoes) {
-  const contas = { aceite: 0, descartado: 0, issue: 0, por_triar: 0, achados: 0 };
+  const contas = { aceite: 0, descartado: 0, issue: 0, por_triar: 0, achados: 0, por_autor: {} };
   const vistos = new Set();
   for (const r of receipts || []) {
     if (!ehAchado(r)) continue;
@@ -136,8 +146,13 @@ export function contarTriagem(receipts, decisoes) {
     vistos.add(chave);
     contas.achados += 1;
     const d = decisoes && decisoes.get(chave);
-    if (d) contas[d.decisao] += 1;
-    else contas.por_triar += 1;
+    if (d) {
+      contas[d.decisao] += 1;
+      // Separado de proposito: 20 aceites do dono e 20 aceites de um agente nao
+      // sao o mesmo dado, e uma contagem que os funde nao serve para decidir.
+      const a = d.por || 'dono';
+      contas.por_autor[a] = (contas.por_autor[a] || 0) + 1;
+    } else contas.por_triar += 1;
   }
   return contas;
 }
