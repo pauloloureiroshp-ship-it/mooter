@@ -632,6 +632,24 @@ export const ANCHORED_SYSTEM_PROMPT = [
 ].join('\n');
 
 /** Regras que valem mais: defeito provável primeiro, estilo/ruído por último. */
+/**
+ * Regras do eslint que NAO sao defeito neste projecto.
+ *
+ * Medido a 2026-08-19 no `ancora-achados.json` real: 76 apontamentos, dos quais
+ * **58 sao `no-empty`** (76%) e 14 sao `PARSE`. Amostrados tres dos `no-empty`,
+ * todos eram `catch (e) {}` em caminhos de telemetria — deliberados, porque um
+ * hook nunca pode partir o turno do dono.
+ *
+ * A prioridade sozinha nao resolvia isto: ordenar poe os poucos bons a frente,
+ * e esgotados esses o resto e `no-empty` para sempre. Foi assim que 13 dos 45
+ * achados por triar nasceram "bloco vazio" — a GPU a olhar para uma decisao
+ * intencional e a ser-lhe perguntado se e um defeito.
+ *
+ * `PARSE` nao e sequer uma regra: e o eslint a nao conseguir ler o ficheiro.
+ * Vale a pena saber, mas nao e coisa que um modelo julgue a partir de um excerto.
+ */
+export const REGRAS_IGNORADAS = new Set(['no-empty', 'PARSE']);
+
 const RULE_PRIORITY = {
   'require-atomic-updates': 0,
   'no-dupe-keys': 1,
@@ -664,6 +682,7 @@ export function readAnchor(anchorPath, { readImpl = fs.readFileSync } = {}) {
   if (!Array.isArray(parsed)) return [];
   return parsed
     .filter((x) => x && typeof x.file === 'string' && Number.isInteger(x.line) && x.line > 0)
+    .filter((x) => !REGRAS_IGNORADAS.has(x.rule))
     .sort((a, b) => {
       const pa = RULE_PRIORITY[a.rule] ?? 4;
       const pb = RULE_PRIORITY[b.rule] ?? 4;
