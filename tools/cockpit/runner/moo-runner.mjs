@@ -245,9 +245,14 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = lo
     // ninguem publicar, o ficheiro fica no disco desta maquina para sempre e
     // os dois cockpits mostram um device cada. DESLIGADO por omissao — o vault
     // e pessoal, e publicar nele pede-se, nao se assume.
-    if (res.ok && publicacaoLigada() && estaNaHora(ultimaPublicacao)) {
+    // `beaconDir()` devolve um OBJECTO (`{dir, transporte, partilhado}`) — a
+    // primeira versao disto tratou-o como string e a publicacao morria com
+    // `where.replace is not a function` a cada ronda. So publica se o
+    // transporte for partilhado: uma pasta local nao e frota nenhuma.
+    if (res.ok && where.partilhado && publicacaoLigada() && estaNaHora(ultimaPublicacao)) {
       ultimaPublicacao = Date.now();
-      const pub = publicarBeacon(process.env.VAULT_PATH || where.replace(/\/50-fleet$/, ''), `50-fleet/${deviceName()}.json`);
+      const raizVault = path.dirname(where.dir);
+      const pub = publicarBeacon(raizVault, `50-fleet/${deviceName()}.json`);
       if (!pub.ok && !publicacaoAvisada) {
         publicacaoAvisada = true;
         logImpl(`beacon nao publicado (${pub.porque}) — escrito no disco, mas a frota nao o ve.`);
