@@ -83,7 +83,10 @@ test('todo o comando `node tools/...` citado aponta para um módulo real', () =>
 
 test('o endereço e a porta que a skill promete são os que o servidor usa', () => {
   const server = fs.readFileSync(path.join(REPO, 'tools/cockpit/runner/f10-server.mjs'), 'utf8');
-  const porta = /export const PORT = (\d+)/.exec(server)[1];
+  // A porta deixou de ser um literal (`MOO_PORT` permite um segundo F10 na mesma
+  // maquina). O contrato nao mudou: a skill tem de anunciar o endereco que o
+  // servidor abre POR OMISSAO — e o default e o que 99% das pessoas ve.
+  const porta = /export const PORT = Number\(process\.env\.MOO_PORT\) \|\| (\d+)/.exec(server)[1];
   const host = /export const HOST = '([\d.]+)'/.exec(server)[1];
   assert.match(SKILL, new RegExp(`${host.replace(/\./g, '\\.')}:${porta}`),
                'a skill anuncia um endereço diferente do que o servidor abre');

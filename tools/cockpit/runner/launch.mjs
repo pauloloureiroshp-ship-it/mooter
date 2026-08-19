@@ -25,7 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { HOST, PORT } from './f10-server.mjs';
 import { deviceName } from './fleet-beacon.mjs';
-import { resolveRepoRoot } from './project.mjs';
+import { resolveRepoRoot, projectPaths } from './project.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const RAIZ_DO_SCRIPT = path.resolve(HERE, "..", "..", "..");
@@ -45,8 +45,17 @@ const REPO = (() => {
   }
 })();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
-const LOCK = path.join(MOO_DIR, 'runner.lock');
-const STOP = path.join(MOO_DIR, 'STOP');
+/**
+ * O LOCK e o STOP sao POR PROJECTO desde o B2, mas este ficheiro montava-os a
+ * partir do `MOO_DIR` cru — ignorando o `--repo` que ele proprio acabara de
+ * resolver duas linhas acima. Consequencia: com `--repo` a apontar a outro
+ * projecto, o lancador reportava o lock e o STOP do projecto ERRADO, e o botao
+ * de parar do painel escrevia num sitio que este nao lia. Kill-switch a falhar
+ * aberto, pela terceira vez nesta base de codigo e sempre pela mesma razao.
+ */
+const PATHS = projectPaths({ repoRoot: REPO, mooDir: MOO_DIR, canonicalRoot: RAIZ_DO_SCRIPT });
+const LOCK = PATHS.LOCK;
+const STOP = PATHS.STOP_FILE;
 const URL_PANEL = `http://${HOST}:${PORT}/panel`;
 const OLLAMA_PORT = 11434;
 

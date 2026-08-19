@@ -91,6 +91,18 @@ export function writeBeacon(state, { dir, writeImpl = fs.writeFileSync, mkdirImp
         ? { total: state.recibos.total, citacao_ok: state.recibos.citacao_ok,
             refutado: state.recibos.refutado, vazias_seguidas: state.recibos.vazias_seguidas }
         : null,
+      // `recibos.total` e a contagem da JANELA lida, nao o tamanho do ledger.
+      // Sem isto, a frota mostrava 5000 para um device com 6569 recibos, e
+      // chamava-lhe total. O calculo ja existia em fleet-state; faltava viajar.
+      ledger: state && state.ledger ? state.ledger : null,
+      // Quantos achados esperam decisao neste device. E o que permite ver o
+      // gargalo da frota — sem isto, todos os devices parecem igualmente uteis.
+      triagem: state && state.triagem
+        ? { achados: state.triagem.achados, por_triar: state.triagem.por_triar }
+        : null,
+      // Um device que CEDEU a maquina nao esta avariado. Sem este campo, uma
+      // reserva activa era indistinguivel de um loop morto.
+      reserva: state && state.reserva ? state.reserva : null,
       branch: state && state.projeto ? state.projeto.repo_branch : null,
       usd: 0,
     };
@@ -147,9 +159,33 @@ export function readBeacons({
       continue; // a corrupt beacon is one missing device, never a broken payload
     }
     if (!b || typeof b !== 'object' || !b.device) continue;
+    // `{...b}` copiava TODAS as chaves de TODOS os ficheiros `.json` desta
+    // pasta para o `/fleet.json` servido por HTTP. A escrita (writeBeacon)
+    // monta um objecto de chaves NOMEADAS de proposito — uma allowlist — e a
+    // leitura deitava essa disciplina fora. Qualquer ficheiro que alguem
+    // largasse em `50-fleet/` era publicado inteiro.
+    //
+    // O nome do FICHEIRO e a identidade, nao o campo `device` la dentro: um
+    // beacon podia dizer que era outra maquina e roubar-lhe o lugar de `self`.
+    const doFicheiro = safeDeviceName(name.replace(/\.json$/, ''));
     frota.push({
-      ...b,
-      self: safeDeviceName(b.device) === safeDeviceName(selfDevice),
+      device: safeDeviceName(b.device),
+      ts: typeof b.ts === 'string' ? b.ts : null,
+      plataforma: typeof b.plataforma === 'string' ? b.plataforma : null,
+      running: Boolean(b.running),
+      pilar_atual: typeof b.pilar_atual === 'string' ? b.pilar_atual : null,
+      modelo: typeof b.modelo === 'string' ? b.modelo : null,
+      engine: typeof b.engine === 'string' ? b.engine : null,
+      gpu_pct: typeof b.gpu_pct === 'number' ? b.gpu_pct : null,
+      gpu_fonte: typeof b.gpu_fonte === 'string' ? b.gpu_fonte : null,
+      vram_gb: typeof b.vram_gb === 'number' ? b.vram_gb : null,
+      recibos: b.recibos && typeof b.recibos === 'object' ? b.recibos : null,
+      ledger: b.ledger && typeof b.ledger === 'object' ? b.ledger : null,
+      triagem: b.triagem && typeof b.triagem === 'object' ? b.triagem : null,
+      reserva: b.reserva && typeof b.reserva === 'object' ? b.reserva : null,
+      branch: typeof b.branch === 'string' ? b.branch : null,
+      usd: typeof b.usd === 'number' ? b.usd : 0,
+      self: doFicheiro === safeDeviceName(selfDevice),
       frescura: beaconFreshness(b.ts, now),
     });
   }

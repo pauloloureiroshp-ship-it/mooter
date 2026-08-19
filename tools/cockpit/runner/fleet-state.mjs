@@ -172,6 +172,7 @@ export function perPillar(receipts) {
  * @returns the object served at `/fleet.json`
  */
 import { lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
+import { verReserva } from './reserva.mjs';
 
 export function buildFleetState({
   // Sem default cravado: quem chama diz quem é, e a identidade vem toda de
@@ -184,6 +185,8 @@ export function buildFleetState({
   // O registo de decisoes deste projecto. Ausente = ninguem triou nada ainda,
   // que e diferente de "nao ha achados".
   triagemPath = null,
+  // A pasta de estado deste projecto, para se saber se a maquina foi cedida.
+  baseDir = null,
   connector = '1.48.0',
   gpu = null,
   loadedModels = [],
@@ -232,6 +235,15 @@ export function buildFleetState({
     usd: 0,
     // O ciclo de valor: quantos achados nasceram, e quantos ainda esperam por
     // uma decisao. Sem isto o painel media volume, nao trabalho.
+    // Um device que CEDEU a maquina nao esta avariado, e ate aqui era
+    // indistinguivel de um loop morto: o painel via "sem recibos ha 20 min" e
+    // dizia stale. So se publica `activa` e `faltaS` — o `quem` e o `porque`
+    // sao texto livre a caminho de um vault com remote, e nao precisam de sair.
+    reserva: (() => {
+      if (!baseDir) return null;
+      const r = verReserva(baseDir);
+      return { activa: r.activa, falta_s: r.activa ? r.faltaS : 0 };
+    })(),
     // Quantas linhas o ledger tem MESMO, e de quantas se contou.
     ledger: { linhas: ledgerLinhas ?? null, janela: receipts.length, truncado: Boolean(truncado) },
     triagem: {

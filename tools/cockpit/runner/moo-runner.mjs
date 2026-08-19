@@ -136,14 +136,31 @@ function releaseLock(lockPath) {
   }
 }
 
-/** An unreadable or unknown focus is no focus — never a crash, never a guess. */
-function readFocus(focusPath, ids) {
+/**
+ * An unreadable or unknown focus is no focus — never a crash, never a guess.
+ *
+ * Mas RECUSAR em silencio e outra coisa. O painel valida o pilar contra o
+ * catalogo que ELE carregou e devolve 200; se o loop tiver outro conjunto —
+ * porque o `.mooter/pilares.json` mudou, ou porque o painel esta a servir um
+ * snapshot velho — o foco e deitado fora sem uma palavra, e o dono fica a olhar
+ * para um botao aceso que nao faz nada. Agora diz-se, uma vez por valor novo.
+ */
+let focoRecusado = null;
+function readFocus(focusPath, ids, logImpl = log) {
+  let pilar;
   try {
-    const { pilar } = JSON.parse(fs.readFileSync(focusPath, 'utf8'));
-    return ids.includes(pilar) ? pilar : null;
+    ({ pilar } = JSON.parse(fs.readFileSync(focusPath, 'utf8')));
   } catch {
+    focoRecusado = null;
     return null;
   }
+  if (pilar == null) { focoRecusado = null; return null; }
+  if (ids.includes(pilar)) { focoRecusado = null; return pilar; }
+  if (focoRecusado !== pilar) {
+    focoRecusado = pilar;
+    logImpl(`foco "${pilar}" RECUSADO — nao esta nos pilares deste loop (${ids.join(',')}). O botao do painel nao teve efeito.`);
+  }
+  return null;
 }
 
 function readCursor(cursorPath) {
@@ -204,6 +221,11 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = lo
       ledgerPath: paths.LEDGER,
       statePath: paths.STATE,
       stopFile: paths.STOP_FILE,
+      // Sem isto o bloco de triagem vinha VAZIO no beacon, e a frota nao
+      // conseguia mostrar onde esta o gargalo: um device com 70 achados por
+      // decidir parecia igual a um com zero.
+      triagemPath: path.join(paths.base, 'triagem.jsonl'),
+      baseDir: paths.base,
       gpu,
       alignment,
       // Era `true` fixo: o beacon jurava motor vivo durante as 11 horas em que
@@ -322,7 +344,7 @@ export async function main({
     // A focus set from the cockpit pins the rotation to one pillar; clearing it
     // resumes the round robin. Read every round so the button takes effect on
     // the next one instead of at the next restart.
-    const focus = readFocus(paths.FOCUS, ids);
+    const focus = readFocus(paths.FOCUS, ids, logImpl);
     const pillar = focus || nextPillar(i, ids);
     const cursor = Math.floor(i / ids.length);
     fs.writeFileSync(
