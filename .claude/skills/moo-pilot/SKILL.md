@@ -1,6 +1,6 @@
 ---
 name: moo-pilot
-description: Moo Pilot — o cockpit por device do Mooter. Levanta o motor local, o endpoint e o loop desta máquina, e abre o painel ao vivo em 127.0.0.1:4290/panel com GPU medida, os 6 pilares, os recibos por veredicto e a frota. Tudo da GPU e do ledger local, $0. Usar quando o Paulo disser "/moo-pilot", "abre o pilot", "cockpit do device", "o que a GPU está a fazer?", ou ao configurar um device novo.
+description: Moo Pilot — o cockpit por device do Mooter. Levanta o motor local, o endpoint e o loop desta máquina, e abre o painel ao vivo em 127.0.0.1:4290/panel com GPU medida, os 10 pilares, os recibos por veredicto e a frota. Tudo da GPU e do ledger local, $0. Usar quando o Paulo disser "/moo-pilot", "abre o pilot", "cockpit do device", "o que a GPU está a fazer?", ou ao configurar um device novo.
 ---
 
 # /moo-pilot — cada device é um funcionário com cockpit próprio
