@@ -48,7 +48,11 @@ export function readBody(req, limit = MAX_BODY_BYTES) {
 }
 
 export const HOST = '127.0.0.1';
-export const PORT = 4290;
+/**
+ * A porta. Cravada a 4290 desde sempre; com `MOO_PORT` uma segunda conta de SO
+ * na mesma maquina — ou um segundo projecto — deixa de matar o primeiro.
+ */
+export const PORT = Number(process.env.MOO_PORT) || 4290;
 const OLLAMA = 'http://127.0.0.1:11434';
 
 const HOME = os.homedir();
@@ -227,6 +231,7 @@ export function createServer({
           statePath,
           stopFile,
           triagemPath: triagemFile,
+          baseDir: paths.base,
           gpu,
           engineAlive: alive,
           loadedModels: models,
@@ -353,7 +358,19 @@ const invokedDirectly =
 
 if (invokedDirectly) {
   const { root, fonte } = resolveRepoRoot({ argv: process.argv.slice(2), scriptRoot: SCRIPT_ROOT });
-  createServer({ repoRoot: root }).listen(PORT, HOST, () => {
+  const srv = createServer({ repoRoot: root });
+  // Sem isto, um EADDRINUSE derrubava o processo com um stack trace e sem dizer
+  // o que fazer — e a causa mais provavel e trivial: um F10 ja vivo.
+  srv.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE') {
+      process.stdout.write(`F10: a porta ${PORT} ja esta ocupada — provavelmente ha outro F10 vivo.\n`);
+      process.stdout.write(`     usa MOO_PORT=<outra> para levantar um segundo, ou fecha o que esta a correr.\n`);
+      process.exit(1);
+    }
+    process.stdout.write(`F10 nao arrancou: ${err && err.message}\n`);
+    process.exit(1);
+  });
+  srv.listen(PORT, HOST, () => {
     process.stdout.write(`F10 vivo em http://${HOST}:${PORT} (repo ${root}, via ${fonte})\n`);
   });
 }

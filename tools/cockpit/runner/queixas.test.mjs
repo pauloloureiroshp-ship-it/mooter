@@ -38,7 +38,7 @@ test('q02 · o play por pilar mexe mesmo no loop, não é decoração', () => {
   // O foco passou a ser lido do caminho DO PROJECTO (B2), por isso a chamada
   // leva argumentos. A alegacao nao mudou — o loop tem de ler o foco a cada
   // volta — so o sitio de onde o le e que passou a depender do repo.
-  assert.match(runner, /readFocus\(paths\.FOCUS, ids\)/, 'o loop tem de LER o foco do projecto certo');
+  assert.match(runner, /readFocus\(paths\.FOCUS, ids, logImpl\)/, 'o loop tem de LER o foco do projecto certo');
   assert.match(runner, /focus \|\| nextPillar/, 'o foco tem de vencer o rodízio');
   assert.match(read(SHELL), /control\('\/focus'/, 'o botão tem de chamar o endpoint');
 });

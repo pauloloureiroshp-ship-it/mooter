@@ -216,3 +216,32 @@ test('a identidade do device vem de UM sitio so', async () => {
     assert.ok(!/'mac-mini'/.test(code), `${f} nao pode ter o nome do device cravado`);
   }
 });
+
+test('FASE 0: o beacon LE com a mesma allowlist com que ESCREVE', () => {
+  // `frota.push({...b})` copiava TODAS as chaves de TODOS os ficheiros `.json`
+  // da pasta para o `/fleet.json` servido por HTTP. A escrita monta um objecto
+  // de chaves NOMEADAS de proposito; a leitura deitava essa disciplina fora.
+  // Basta alguem largar um ficheiro naquela pasta para ele ser publicado.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-beacon-'));
+  fs.writeFileSync(path.join(dir, 'intruso.json'), JSON.stringify({
+    device: 'intruso',
+    segredo: 'ISTO-NAO-PODE-SAIR',
+    token: 'sk-nao-publicar',
+    caminho_absoluto: '/Users/alguem/privado',
+  }));
+  const { frota } = readBeacons({ dir, selfDevice: 'outro' });
+  assert.equal(frota.length, 1);
+  const publicado = Object.keys(frota[0]);
+  for (const proibida of ['segredo', 'token', 'caminho_absoluto']) {
+    assert.ok(!publicado.includes(proibida), `${proibida} foi publicado no payload`);
+  }
+  assert.ok(publicado.includes('device') && publicado.includes('frescura'));
+});
+
+test('FASE 0: a identidade e o NOME DO FICHEIRO, nao o campo la dentro', () => {
+  // Um beacon podia declarar-se outra maquina e roubar-lhe o lugar de `self`.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-beacon2-'));
+  fs.writeFileSync(path.join(dir, 'impostor.json'), JSON.stringify({ device: 'mac-do-paulo', ts: new Date().toISOString() }));
+  const { frota } = readBeacons({ dir, selfDevice: 'mac-do-paulo' });
+  assert.equal(frota[0].self, false, 'o ficheiro chama-se impostor.json — nao e este device');
+});
