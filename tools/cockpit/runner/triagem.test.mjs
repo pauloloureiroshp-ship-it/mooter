@@ -10,11 +10,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 
 import {
   DECISOES, AUTORES, chaveDoRecibo, ehAchado, lerTriagem, registarTriagem,
   porTriar, contarTriagem, custoEstimado, menuDeMotores,
 } from './triagem.mjs';
+
+const require = createRequire(import.meta.url);
 
 const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-tri-')), 'triagem.jsonl');
 const achado = (n, chave) => ({
@@ -85,10 +88,10 @@ test('ACEITACAO: o custo vem da tabela REAL, e o desconhecido diz n/d', () => {
   // podia contar — e exactamente a tese do Mooter que ele afirma.
   const menu = menuDeMotores();
   assert.equal(menu.find((m) => m.id === 'moo').usd, 0, 'a GPU do dono custa zero, e isso e estrutural');
-  const opus = menu.find((m) => m.id === 'claude-opus-4-6');
+  const opus = menu.find((m) => m.id === 'claude-opus-5');
   assert.equal(opus.fonte, 'tools/router/pricing.js', 'nunca uma constante escrita aqui');
   assert.ok(opus.usd > 0);
-  const sonnet = menu.find((m) => m.id === 'claude-sonnet-4-6');
+  const sonnet = menu.find((m) => m.id === 'claude-sonnet-5');
   assert.ok(opus.usd > sonnet.usd, 'a escada de precos tem de estar pela ordem certa');
 
   const fora = custoEstimado('modelo-que-nao-existe');
@@ -112,6 +115,22 @@ test('ACEITACAO: a decisao e ASSINADA, e as contagens separam quem decidiu', () 
   assert.deepEqual(c.por_autor, { dono: 1, claude: 1 });
   assert.equal(c.aceite, 2);
   assert.equal(c.por_triar, 1);
+});
+
+test('ACEITACAO: o menu segue a escada actual, e Fable nunca aparece por tier', () => {
+  // T5/Fable e opt-in exclusivamente via `@fable` — um menu que oferece
+  // Fable por escolha de tier estaria a violar a doutrina do projecto, nao
+  // so a mostrar um preco a mais.
+  const menu = menuDeMotores();
+  assert.deepEqual(menu.map((m) => m.id), ['moo', 'claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5'],
+    'a escada tem de ser a actual: T0 local, T1 Haiku, T2 Sonnet 5, T3 Opus 5');
+  assert.ok(!menu.some((m) => m.id.includes('fable')), 'claude-fable-5 nao pode aparecer no menu de escalacao');
+
+  const { PRICES } = require('../../router/pricing.js');
+  for (const m of menu) {
+    if (m.id === 'moo') continue; // local, fora da tabela de precos por desenho
+    assert.ok(PRICES[m.id], `o menu mostra $ para ${m.id} mas a tabela nao o tem entrada — seria preco emprestado`);
+  }
 });
 
 test('um autor desconhecido e recusado — decisao anonima nao entra', () => {

@@ -311,6 +311,10 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   const OWN_STALE_MS = 12000;       // the page's own clock, independent of the server
   const SPARK_MAX = 80;
   const CONFIRM_TRIES = 5;          // how long we wait for a control to take effect
+  // Measured on a real panel: 46 triage cards, 138 buttons, page 11251px tall,
+  // no count, no way to narrow it. The work feed has capped at FEED_LENGTH (14)
+  // for a while; triage never had a cap at all.
+  const TRIAGE_CAP = 12;
 
   const VERDICTS = {
     'citacao-ok':  { cls:'ok',   label:'cited' },
@@ -540,10 +544,20 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   function renderGpu(gpu) {
     const pct = typeof gpu.util_pct === 'number' ? gpu.util_pct : null;
-    const LEN = 248;
     const arc = $('arc');
-    arc.style.strokeDashoffset = pct === null ? LEN : LEN - LEN * Math.min(100, Math.max(0, pct)) / 100;
-    arc.style.stroke = pct === null ? 'var(--line)' : pct > 80 ? 'var(--ok)' : 'var(--accent)';
+    // The markup's stroke-dasharray="248" was an approximation; the arc's REAL
+    // length only exists in the DOM (measured 248.22, not 248). At 0% that
+    // 0.22px of leftover stroke rendered as a full ~14px dot with
+    // stroke-linecap:round -- a dial reading 0% while painting activity.
+    const LEN = arc.getTotalLength();
+    arc.style.strokeDasharray = String(LEN);
+    // Even with an exact LEN, an offset of exactly LEN leaves a dash of
+    // length 0 -- and a zero-length dash with a round linecap still paints a
+    // full round dot (SVG spec). So 0% gets the SAME treatment as "no
+    // sample" (pct === null), not just a precise offset.
+    const semAmostra = pct === null || pct === 0;
+    arc.style.strokeDashoffset = semAmostra ? LEN : LEN - LEN * Math.min(100, Math.max(0, pct)) / 100;
+    arc.style.stroke = semAmostra ? 'var(--line)' : pct > 80 ? 'var(--ok)' : 'var(--accent)';
     $('gpu-val').textContent = pct === null ? 'n/a' : `${pct}%`;
     $('gpu-val').className = pct === null ? 'val nd' : 'val';
     $('gpu-sub').textContent = pct === null
@@ -818,7 +832,10 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   const FILTERS = { verdict: '', pillar: '', file: '' };
   let LAST_FEED = [];
 
-  function opcoesUnicas(sel, valores, rotuloVazio) {
+  // `rotular` traduz o TEXTO visivel de uma opcao; nunca o `value`. A logica
+  // do filtro compara `r.verdict === FILTERS.verdict` contra o token cru, por
+  // isso o `value` tem de continuar a ser o token em todas as chamadas.
+  function opcoesUnicas(sel, valores, rotuloVazio, rotular) {
     if (!sel) return;
     const actual = sel.value;
     const novos = [...new Set(valores.filter(Boolean))].sort();
@@ -827,7 +844,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     sel.replaceChildren();
     const zero = el("option", null, rotuloVazio); zero.value = "";
     sel.appendChild(zero);
-    for (const v of novos) { const o = el("option", null, v); o.value = v; sel.appendChild(o); }
+    for (const v of novos) {
+      const o = el("option", null, rotular ? rotular(v) : v);
+      o.value = v;
+      sel.appendChild(o);
+    }
     sel.value = actual;
   }
 
@@ -849,6 +870,10 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     }
   }
 
+  // Persiste entre renders: um clique em "show all" nao pode ser esquecido no
+  // proximo poll (a cada 3s), ou o botao pareceria nao ter feito nada.
+  let triagemExpandida = false;
+
   function renderTriagem(state) {
     const fila = state.por_triar || [];
     const card = $("triagem-card");
@@ -860,9 +885,22 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         + (t.descartado ?? "n/a") + " dismissed · " + (t.issue ?? "n/a") + " issues)"
       : "";
     $("triagem-titulo").textContent = "Needs triage — " + fila.length + detalhe;
+    const mostrar = triagemExpandida ? fila : fila.slice(0, TRIAGE_CAP);
     const box = $("triagem-fila");
     box.replaceChildren();
-    for (const a of fila) {
+    // Nunca truncar em silencio: se algo fica de fora, o numero que o diz tem
+    // de estar visivel -- nao so o total la em cima no titulo.
+    if (fila.length) {
+      const nota = el("p", "note", "showing " + mostrar.length + " of " + fila.length + " pending");
+      if (fila.length > TRIAGE_CAP) {
+        nota.append(document.createTextNode(" — "));
+        const btn = el("button", null, triagemExpandida ? "show fewer" : "show all " + fila.length);
+        btn.onclick = () => { triagemExpandida = !triagemExpandida; renderTriagem(state); };
+        nota.appendChild(btn);
+      }
+      box.appendChild(nota);
+    }
+    for (const a of mostrar) {
       const d = el("div", "tri");
       const cab = el("div", "cab");
       cab.append(el("span", "chip ok", a.pilar || "—"), el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
@@ -890,7 +928,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   }
   function renderFeed(feed) {
     LAST_FEED = feed || [];
-    opcoesUnicas($('f-verdict'), LAST_FEED.map((r) => r.verdict), 'all');
+    // O filtro falava tokens crus (sem-achado, sem-citacao) enquanto o cartao
+    // de tallies, dois blocos acima, ja chamava aos mesmos dados clean e
+    // uncited. Reusa-se o VERDICTS que ja existe -- nao se constroi uma
+    // segunda tabela. Um token sem entrada mostra-se cru, nunca em branco.
+    opcoesUnicas($('f-verdict'), LAST_FEED.map((r) => r.verdict), 'all',
+      (tok) => (VERDICTS[tok] ? VERDICTS[tok].label : tok));
     opcoesUnicas($('f-pillar'), LAST_FEED.map((r) => r.pilar), 'all');
     // Ate aqui o feed eram 14 linhas fixas e nada mais: para procurar um
     // ficheiro, o dono tinha de abrir o ledger a mao.
