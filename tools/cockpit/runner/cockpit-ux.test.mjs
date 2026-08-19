@@ -345,3 +345,35 @@ test('a triagem continua a usar as classes existentes — nenhuma linguagem de d
   assert.match(SCRIPT, /el\("p", "note", "showing " \+ mostrar\.length/, 'reusa .note, nao inventa uma classe');
   assert.doesNotMatch(CODE, /class="triagem-/, 'nenhuma classe CSS nova para este bloco');
 });
+
+// ── controlos decorativos (2026-08-19) ──────────────────────────────────────
+
+/**
+ * Auditoria do caminho de um achado: o `<select>` "escalate to" era populado de
+ * `/motores.json`, com precos reais, colado a tres botoes que funcionam — e
+ * sem um unico `onchange`. O `sel.value` nunca era lido nem enviado. Escolher
+ * Opus a $0.0375 nao escalava coisa nenhuma.
+ *
+ * Um controlo decorativo AO LADO de controlos reais e pior do que nao ter
+ * controlo: ensina o dono a duvidar dos que funcionam.
+ */
+test('nenhum <select> criado no painel fica sem ouvinte', () => {
+  // Cada `el("select")` tem de ter, no maximo 12 linhas a seguir, um handler
+  // (`onchange`, `oninput` ou `addEventListener`). Os filtros do feed sao
+  // ligados no arranque por id, e por isso contam como ligados.
+  const criados = [...CODE.matchAll(/el\(["']select["']\)/g)];
+  for (const m of criados) {
+    const janela = CODE.slice(m.index, m.index + 900);
+    assert.match(janela, /onchange|oninput|addEventListener/,
+      'um <select> sem ouvinte e um controlo que mente sobre o que faz');
+  }
+});
+
+test('o botao nao promete um efeito que o codigo nao tem', () => {
+  // Os tres botoes chamam a MESMA funcao e escrevem a MESMA linha. Nao ha
+  // chamada a API do GitHub em lado nenhum do cockpit — "open issue" prometia
+  // um efeito inexistente. O TOKEN `issue` fica: esta gravado em recibos.
+  assert.doesNotMatch(CODE, /"open issue"/, 'o cockpit nao abre issues; o rotulo nao pode dize-lo');
+  assert.match(CODE, /flag for issue/, 'o rotulo tem de descrever o que acontece mesmo');
+  assert.match(CODE, /\["issue", "flag for issue"\]/, 'e o token gravado no ledger nao muda');
+});

@@ -139,6 +139,15 @@ export function projectSlug(repoRoot) {
  * mostrava um numero que nao correspondia a nenhum dos dois. Uma versao
  * copiada para um segundo ficheiro so tem um futuro possivel, e e este.
  *
+ * ⚠️ E ESTA E A VERSAO DO CHECKOUT, NAO A QUE ESTA A CORRER.
+ *
+ * A auditoria do mesmo dia apanhou a segunda metade do problema: ler o manifest
+ * do repo da a versao do CODIGO EM DISCO, e a extensao carregada no Claude
+ * Desktop pode ser outra — medido, 1.33.0 contra 1.49.3, dezasseis versoes de
+ * diferenca. Nenhuma ferramenta MCP do bridge declara a versao que esta a
+ * correr, portanto nao ha aqui como saber. O painel escreve "in this checkout"
+ * porque e a unica coisa que este numero prova.
+ *
  * @returns {string|null} `null` quando nao se consegue ler — nunca um palpite.
  */
 export function versaoDoConector(repoRoot, { readImpl = fs.readFileSync } = {}) {
