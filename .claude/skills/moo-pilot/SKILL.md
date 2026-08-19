@@ -61,6 +61,7 @@ pelo hostname e abre o painel. `npm run pilot:status` reporta sem arrancar nada.
 | `refutado` | o modelo citou algo que não existe. |
 | `sem citação` | resposta sem `ficheiro:linha` — não verificável. |
 | `sem achado` | a ronda declarou nada a reportar. É honesto uma vez; em série é alarme — o painel conta as vazias seguidas, porque GPU ocupada sem produzir não é trabalho. |
+| `nada por rever` | a ronda **nunca chegou ao modelo**: o pilar já tinha revisto tudo o que tem. Não é uma falha do modelo — é o poço seco, e a resposta é alargar o âmbito do pilar, não apertar a pergunta. Até 2026-08-19 isto contava como `sem citação` e fazia-o parecer quatro vezes maior do que é (209 de 275, medidos). |
 | `sem veredicto` | recibos anteriores ao verificador. Contam como volume, nunca como trabalho. |
 | `fora da janela` | citou uma linha real que nunca lhe foi mostrada. |
 

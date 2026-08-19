@@ -11,6 +11,7 @@ import {
   checkCitation,
   verifyEvidence,
   tallyVerdicts,
+  naoCorreu,
   isNoFinding,
   concluir,
 } from './evidence-verifier.mjs';
@@ -1126,4 +1127,66 @@ test('NO FINDING le-se ANTES de FINDING: — senao uma ronda vazia vira um achad
 test('o falso positivo tambem e bilingue', () => {
   assert.equal(concluir('FALSO POSITIVO: e seguro aqui'), 'falso-positivo');
   assert.equal(concluir('FALSE POSITIVE: safe here'), 'falso-positivo');
+});
+
+// ── a ronda que nunca correu (2026-08-19) ────────────────────────────────────
+
+/**
+ * O painel mostrava `uncited: 275` debaixo de um cartao que diz "what the GPU
+ * shipped". Medido no ledger do dono: 209 desses 275 (76%) eram rondas com
+ * dur_s 0, tokens_out 0 e o modelo nunca chamado — o pilar ja tinha revisto
+ * tudo o que tem. O numero verdadeiro de "o modelo respondeu sem citar" era
+ * 66, e ninguem podia sabe-lo.
+ *
+ * Sao dois problemas com respostas OPOSTAS: o poco seco pede mais ambito, o
+ * modelo a divagar pede uma pergunta mais apertada. Com um nome so, nenhuma
+ * das duas se podia decidir.
+ */
+test('uma ronda que nunca chegou ao modelo nao conta como resposta sem citacao', () => {
+  const recibos = [
+    { verdict: 'citacao-ok' },
+    { verdict: 'sem-citacao' },
+    // Como os 209 estao gravados HOJE: dizem `sem-citacao` E `esgotado`.
+    { verdict: 'sem-citacao', esgotado: true, dur_s: 0, tokens_out: 0 },
+    { verdict: 'sem-citacao', esgotado: true, dur_s: 0, tokens_out: 0 },
+    // Como passam a ser gravados a partir de agora.
+    { verdict: 'nada-por-rever', esgotado: true },
+    { verdict: 'sem-achado' },
+  ];
+  const t = tallyVerdicts(recibos);
+  assert.equal(t['sem-citacao'], 1, 'so a ronda em que o modelo REALMENTE respondeu sem citar');
+  assert.equal(t['nada-por-rever'], 3, 'as tres em que nao houve nada para rever');
+  assert.equal(t['citacao-ok'], 1);
+  assert.equal(t['sem-achado'], 1);
+  assert.equal(t.total, 6);
+  const soma = t['citacao-ok'] + t.refutado + t['sem-citacao'] + t['sem-achado'] + t['nada-por-rever'] + t.erro;
+  assert.equal(soma, t.total, 'nenhum recibo pode cair fora dos baldes');
+});
+
+test('a releitura e RETROACTIVA: o ledger nao se reescreve para isto ficar certo', () => {
+  // A correccao vale para os 5000 recibos ja escritos porque eles ja trazem
+  // `esgotado: true`. Reescrever o ledger para corrigir uma leitura seria
+  // apagar o que aconteceu para que a versao de hoje parecesse sempre certa.
+  assert.equal(naoCorreu({ verdict: 'sem-citacao', esgotado: true }), true);
+  assert.equal(naoCorreu({ verdict: 'sem-citacao' }), false, 'sem a bandeira, e mesmo uma resposta sem citacao');
+  assert.equal(naoCorreu({ verdict: 'nada-por-rever' }), true);
+  assert.equal(naoCorreu({ verdict: 'citacao-ok', esgotado: false }), false);
+  assert.equal(naoCorreu(null), false);
+});
+
+test('o pack esgotado carimba o veredicto novo, e so ele', () => {
+  const root = fixtureRepo();
+  const revistos = new Set();
+  // Primeira ronda: ha material, e o pack sai bom.
+  const pk = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, revistos });
+  assert.equal(pk.ok, true);
+  // Marca-se TUDO como revisto e o poco seca.
+  for (let c = 0; c < 60; c += 1) {
+    const p = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: c, revistos });
+    if (p.ok && p.chave) revistos.add(p.chave); else break;
+  }
+  const seco = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 99, revistos });
+  assert.equal(seco.ok, false);
+  assert.equal(seco.esgotado, true);
+  assert.match(seco.reason, /ficheiros do pilar/, 'o numero de ficheiros viaja com a queixa');
 });

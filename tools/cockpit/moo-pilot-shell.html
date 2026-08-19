@@ -638,6 +638,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     for (const [cls,key,label] of [
       ['ok','citacao_ok','cited'], ['bad','refutado','refuted'],
       ['warn','sem_citacao','uncited'], ['dead','sem_achado','clean'],
+      ['dead','nada_por_rever','nothing to review'],
       ['dead','sem_veredicto','unverified'], ['dead','total','receipts in the window read'],
     ]) {
       const box = el('div',`box ${cls}`); const b = el('b'); b.appendChild(nd(r[key]));
@@ -891,7 +892,15 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     // Nunca truncar em silencio: se algo fica de fora, o numero que o diz tem
     // de estar visivel -- nao so o total la em cima no titulo.
     if (fila.length) {
-      const nota = el("p", "note", "showing " + mostrar.length + " of " + fila.length + " pending");
+      // O total verdadeiro vem do servidor (`triagem.por_triar`), que conta o
+      // ledger inteiro. `fila` ja vem cortada em `porTriar` -- usar o seu
+      // comprimento como total dava um "of N" que era o corte a medir-se a si
+      // proprio.
+      const totalReal = typeof t.por_triar === "number" ? Math.max(t.por_triar, fila.length) : fila.length;
+      const nota = el("p", "note", "showing " + mostrar.length + " of " + totalReal + " pending");
+      if (totalReal > fila.length) {
+        nota.append(el("span", "nd", " — the endpoint sent the " + fila.length + " most recent"));
+      }
       if (fila.length > TRIAGE_CAP) {
         nota.append(document.createTextNode(" — "));
         const btn = el("button", null, triagemExpandida ? "show fewer" : "show all " + fila.length);

@@ -28,6 +28,10 @@ export const VERDICT = {
   REFUTED: 'refutado',
   UNCITED: 'sem-citacao',
   NO_FINDING: 'sem-achado',
+  // Uma ronda que nao chegou ao modelo por nao haver nada para rever. Nao e
+  // um veredicto sobre uma resposta: e a ausencia de resposta, e ate hoje
+  // vestia-se de `sem-citacao`.
+  NOT_RUN: 'nada-por-rever',
 };
 
 const CITATION_RE =
@@ -216,6 +220,26 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
 }
 
 /** Rolls a ledger of receipts into the honest counters the cockpit shows. */
+/**
+ * Uma ronda que NUNCA chegou ao modelo.
+ *
+ * O `runner-core` carimbava `sem-citacao` numa ronda sem contexto — 0 s de
+ * GPU, 0 tokens, modelo nunca chamado. O painel mostrava-a debaixo de um
+ * cartao que diz "what the GPU shipped", como se o modelo tivesse falhado em
+ * citar. Medido a 2026-08-19 no ledger do dono: 209 dos 275 `sem-citacao`
+ * (76%) eram isto. O numero verdadeiro de "o modelo respondeu sem citar" era
+ * 66, e ninguem podia sabe-lo.
+ *
+ * A leitura e RETROACTIVA de proposito: os 209 recibos antigos ja trazem
+ * `esgotado: true`, portanto a correccao vale para o historico todo sem
+ * reescrever uma linha do ledger.
+ */
+export function naoCorreu(r) {
+  if (!r) return false;
+  if (r.esgotado === true || r.esgotado === 'true') return true;
+  return r.verdict === VERDICT.NOT_RUN;
+}
+
 export function tallyVerdicts(receipts) {
   const tally = {
     total: 0,
@@ -223,10 +247,14 @@ export function tallyVerdicts(receipts) {
     [VERDICT.REFUTED]: 0,
     [VERDICT.UNCITED]: 0,
     [VERDICT.NO_FINDING]: 0,
+    [VERDICT.NOT_RUN]: 0,
     erro: 0,
   };
   for (const r of receipts || []) {
     tally.total += 1;
+    // Primeiro pergunta-se se a ronda chegou a correr. Um recibo antigo diz
+    // `sem-citacao` E `esgotado: true` ao mesmo tempo; ganha o esgotado.
+    if (naoCorreu(r)) { tally[VERDICT.NOT_RUN] += 1; continue; }
     const v = r && r.verdict;
     if (v && Object.prototype.hasOwnProperty.call(tally, v)) tally[v] += 1;
     else tally.erro += 1;

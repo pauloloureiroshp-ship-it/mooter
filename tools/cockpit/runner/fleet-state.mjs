@@ -16,7 +16,7 @@
  */
 
 import fs from 'node:fs';
-import { VERDICT, tallyVerdicts } from './evidence-verifier.mjs';
+import { VERDICT, tallyVerdicts, naoCorreu } from './evidence-verifier.mjs';
 
 export const OWNER_TZ = 'America/Sao_Paulo';
 // The longest healthy gap between receipts is one round plus its sleep (~45s).
@@ -148,10 +148,14 @@ export function perPillar(receipts) {
       refutado: 0,
       sem_citacao: 0,
       sem_achado: 0,
+      nada_por_rever: 0,
       sem_veredicto: 0,
     });
     slot.total += 1;
-    const key = { 'citacao-ok': 'citacao_ok', refutado: 'refutado', 'sem-citacao': 'sem_citacao', 'sem-achado': 'sem_achado' }[r.verdict];
+    // Igual ao tally global: primeiro pergunta-se se a ronda chegou a correr.
+    const key = naoCorreu(r)
+      ? 'nada_por_rever'
+      : { 'citacao-ok': 'citacao_ok', refutado: 'refutado', 'sem-citacao': 'sem_citacao', 'sem-achado': 'sem_achado' }[r.verdict];
     if (key) slot[key] += 1;
     else slot.sem_veredicto += 1;
     slot.ultimo = {
@@ -279,6 +283,9 @@ export function buildFleetState({
       refutado: tally[VERDICT.REFUTED],
       sem_citacao: tally[VERDICT.UNCITED],
       sem_achado: tally[VERDICT.NO_FINDING],
+      // As rondas em que o poco estava seco. Ate hoje viviam dentro de
+      // `sem_citacao` e faziam-no parecer quatro vezes maior do que e.
+      nada_por_rever: tally[VERDICT.NOT_RUN],
       sem_veredicto: tally.erro,
       linhas_corrompidas: corrompidas,
       ledger_existe: existe,

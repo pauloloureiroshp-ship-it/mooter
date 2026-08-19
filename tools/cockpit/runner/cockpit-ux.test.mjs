@@ -328,8 +328,14 @@ test('a fila de triagem tem um TETO nomeado, tal como o feed tem FEED_LENGTH', (
 });
 
 test('nunca trunca em silêncio: se algo fica de fora, o número que o diz é visível', () => {
-  assert.match(SCRIPT, /"showing " \+ mostrar\.length \+ " of " \+ fila\.length \+ " pending"/,
+  assert.match(SCRIPT, /"showing " \+ mostrar\.length \+ " of " \+ totalReal \+ " pending"/,
     'tem de haver uma linha honesta com quantos se mostram e quantos existem ao todo');
+  // E o total NAO pode vir da lista ja cortada: `porTriar` corta em 50 no
+  // servidor, portanto `fila.length` era o corte a medir-se a si proprio.
+  assert.match(SCRIPT, /totalReal = typeof t\.por_triar === "number"/,
+    'o total tem de vir do servidor, que conta o ledger inteiro');
+  assert.match(SCRIPT, /the endpoint sent the/,
+    'se o servidor tambem cortou, isso tem de estar escrito no ecra');
   assert.match(SCRIPT, /fila\.length > TRIAGE_CAP/, 'o controlo para revelar o resto so aparece quando ha algo escondido');
   assert.match(SCRIPT, /triagemExpandida = !triagemExpandida; renderTriagem\(state\);/,
     'tem de existir um controlo que revela o resto da fila');

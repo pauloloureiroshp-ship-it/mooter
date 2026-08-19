@@ -114,7 +114,16 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 
 }
 
 /** Os achados que ainda esperam por uma decisao, do mais recente para tras. */
-export function porTriar(receipts, decisoes, limite = 50) {
+export const LIMITE_TRIAGEM = 50;
+
+/**
+ * A fila de triagem, cortada nos mais recentes.
+ *
+ * O corte e real e NAO se ve daqui: quem le esta lista nao sabe se ficaram 0
+ * ou 400 de fora. Quem publica tem de emparelha-la com `contarTriagem().
+ * por_triar`, que conta o ledger inteiro -- e e o que o `/fleet.json` faz.
+ */
+export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
   const out = [];
   for (let i = (receipts || []).length - 1; i >= 0 && out.length < limite; i -= 1) {
     const r = receipts[i];

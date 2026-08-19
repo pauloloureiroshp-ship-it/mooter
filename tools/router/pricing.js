@@ -136,11 +136,16 @@ const FALLBACK_PRICE = { input: 3.0, output: 15.0 };
 // Tier → canonical model used when we only have the tier (from classify.js).
 // Matches TIER_TO_MODEL in savings-tracker.js but resolved to the pricing key.
 /** @type {Record<Tier, string>} */
+// Actualizado 2026-08-19 com a familia Claude 5. Este mapa e usado quando so
+// se conhece o TIER e nao o modelo -- se ficar para tras, toda a estimativa de
+// poupanca por tier fica a preco de uma geracao anterior, em silencio.
+// T5/Fable nao entra aqui de proposito: e opt-in por `@fable` e nunca
+// alcancavel por escolha de tier.
 const TIER_TO_PRICING_KEY = {
   T0: 'qwen2.5:3b',
   T1: 'claude-haiku-4-5',
-  T2: 'claude-sonnet-4-6',
-  T3: 'claude-opus-4-6',
+  T2: 'claude-sonnet-5',
+  T3: 'claude-opus-5',
 };
 
 // Average output tokens per turn by tier. Calibrated against real
