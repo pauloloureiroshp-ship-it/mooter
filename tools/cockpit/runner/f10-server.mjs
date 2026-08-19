@@ -69,6 +69,19 @@ const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
 /** A raiz do repo de onde ESTE script corre — o repo canonico deste device. */
 const SCRIPT_ROOT = path.resolve(new URL('../../..', import.meta.url).pathname);
 
+/**
+ * O aviso que acompanha um painel que NAO e o canonico.
+ *
+ * Nao e decoracao: sem ele, `moo-pilot-preview.html` — um prototipo em
+ * portugues, de antes da traducao — servia-se com 200 e sem nada a distingui-lo
+ * do painel a serio. Um ecra que parece actual e nao e vale menos do que um
+ * erro, porque o erro nao se deixa acreditar.
+ */
+export const AVISO_PROTOTIPO = '<div style="background:#8a5600;color:#fff;font:600 14px/1.4 system-ui;'
+  + 'padding:12px 16px;text-align:center">This is the fallback prototype panel, not the current one. '
+  + 'The canonical shell at <code>tools/cockpit/moo-pilot-shell.html</code> could not be read — '
+  + 'nothing below is guaranteed to match this device.</div>';
+
 /** The cockpit shell, canonical copy first, prototype second, honest 503 last. */
 export function panelCandidates(repoRoot) {
   return [
@@ -297,11 +310,20 @@ export function createServer({
     }
 
     if (req.method === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
-      for (const candidate of panelCandidates(raiz)) {
+      const candidatos = panelCandidates(raiz);
+      for (let i = 0; i < candidatos.length; i += 1) {
+        const candidate = candidatos[i];
         try {
-          const html = fs.readFileSync(candidate);
+          let texto = fs.readFileSync(candidate, 'utf8');
+          // ⚠️ O fallback servia-se em SILENCIO, com 200 e nada a distingui-lo.
+          // Se o painel canonico falhasse a leitura, o dono ficava a olhar para
+          // um prototipo antigo a acreditar que era o estado actual — o pior
+          // tipo de mentira que este projecto pode contar, porque parece certa.
+          if (i > 0) texto = AVISO_PROTOTIPO + texto;
+          const html = Buffer.from(texto, 'utf8');
           res.writeHead(200, {
             'Content-Type': 'text/html; charset=utf-8',
+            'X-Moo-Panel': i === 0 ? 'canonico' : 'prototipo',
             'Content-Length': html.length,
             'Cache-Control': 'no-store',
             'X-Moo-Panel-Source': path.relative(raiz, candidate) || candidate,

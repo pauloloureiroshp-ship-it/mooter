@@ -24,7 +24,7 @@ import path from 'node:path';
 const HOME_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-smoke-home-'));
 process.env.MOOTER_HOME = HOME_TMP;
 
-const { createServer, originAllowed } = await import('./f10-server.mjs');
+const { createServer, originAllowed, AVISO_PROTOTIPO } = await import('./f10-server.mjs');
 const runner = await import('./moo-runner.mjs');
 const { runRound } = await import('./runner-core.mjs');
 
@@ -260,4 +260,27 @@ test('smoke: o gasto do loop e o preco de tabela sao dois numeros separados', as
     // distintos, em respostas distintas, com significados distintos.
     assert.ok(!('usd' in custo), '/custo.json nao pode reutilizar o nome `usd` do gasto do loop');
   } finally { await fechar(); }
+});
+
+test('smoke: o painel de recurso NUNCA se serve em silencio', async () => {
+  // `panelCandidates` tem dois: o canonico e um prototipo. Ate 2026-08-19 o
+  // segundo servia-se com 200 e sem nada a distingui-lo — se o canonico
+  // falhasse a leitura, o dono ficava a olhar para um ecra antigo a acreditar
+  // que era o estado actual. Um ecra que PARECE certo vale menos do que um
+  // erro, porque o erro nao se deixa acreditar.
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/panel`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-moo-panel'), 'canonico',
+      'o repo de teste tem o painel canonico: qualquer outra coisa aqui e uma regressao');
+    const html = await res.text();
+    assert.doesNotMatch(html, /fallback prototype panel/, 'o canonico nao leva aviso nenhum');
+  } finally { await fechar(); }
+});
+
+test('o aviso do prototipo diz o que se esta a ver e porque', () => {
+  assert.match(AVISO_PROTOTIPO, /not the current one/);
+  assert.match(AVISO_PROTOTIPO, /moo-pilot-shell\.html/, 'tem de nomear o ficheiro que falhou');
+  assert.match(AVISO_PROTOTIPO, /nothing below is guaranteed/i);
 });
