@@ -56,10 +56,7 @@ export const PILLARS = {
   P1: {
     label: 'Routing & Cost — repeated work',
     files: [
-      'tools/router/mooter-review.js',
-      'tools/router/budget-engine.js',
-      'tools/router/usage-estimator.js',
-      'tools/router/model-manager.js',
+      'tools/router/*.js',
     ],
     ask: [
       'STEP 1 — copy, one per line, every line in this excerpt that READS a file or',
@@ -73,9 +70,8 @@ export const PILLARS = {
   P2: {
     label: 'Quality & Verification — does the seed value reach the output?',
     files: [
-      'tools/router/savings-tracker.js',
-      'tools/cockpit/build-snapshot.js',
-      'tools/handoff-preflight.js',
+      'tools/**/*.js',
+      'packages/*/src/*.ts',
     ],
     ask: [
       'STEP 1 — copy the lines in this excerpt that give a variable the initial value',
@@ -91,9 +87,8 @@ export const PILLARS = {
   P3: {
     label: 'Docs vs Product — comment against code',
     files: [
-      'tools/cockpit/runner/context-pack.mjs',
-      'tools/router/inject_context.js',
-      'tools/cockpit/runner/evidence-verifier.mjs',
+      'tools/cockpit/runner/*.mjs',
+      'tools/router/*.js',
     ],
     ask: [
       'STEP 1 — copy ONE comment from this excerpt that states a concrete number, name',
@@ -108,11 +103,10 @@ export const PILLARS = {
   P4: {
     label: 'Hygiene — published text left broken',
     files: [
-      'README.md',
-      'CONTRIBUTING.md',
-      'NOTICE.md',
-      'docs/strategy/STRATEGY.md',
-      'packages/mooter-bench/README.md',
+      '*.md',
+      'docs/**/*.md',
+      'packages/*/README.md',
+      'landing/**/*.md',
     ],
     ask: [
       'STEP 1 — copy the LAST line of this excerpt exactly as it is, with the number you',
@@ -126,9 +120,9 @@ export const PILLARS = {
   P5: {
     label: 'Local engine & GPU — same shape, different names',
     files: [
-      'tools/cockpit/runner/gpu-sampler.mjs',
-      'tools/cockpit/runner/engine-breaker.mjs',
-      'tools/router/agent-sync-ledger.js',
+      'tools/cockpit/runner/*.mjs',
+      'tools/router/gpu-*.js',
+      'packages/mooter-bridge/*.js',
     ],
     ask: [
       'STEP 1 — copy the first `return` in this excerpt, with its fields, and the number',
@@ -143,11 +137,9 @@ export const PILLARS = {
   P6: {
     label: 'Product & Experience — hardcoded number on screen',
     files: [
-      'landing/app/(app)/dashboard/page.tsx',
-      'landing/app/onboarding/page.tsx',
-      'landing/app/(app)/settings/page.tsx',
-      'landing/app/(marketing)/under-the-hood/page.tsx',
-      'packages/vscode-extension/src/lp-sidebar-view.js',
+      'landing/app/**/*.tsx',
+      'landing/components/**/*.tsx',
+      'packages/vscode-extension/src/*.js',
     ],
     ask: [
       'Copy the lines in this excerpt that give a number HARDCODED in the source to',
@@ -165,11 +157,8 @@ export const PILLARS = {
   P7: {
     label: 'Moo Pilot itself',
     files: [
-      'tools/cockpit/moo-pilot-shell.html',
-      'tools/cockpit/runner/fleet-state.mjs',
-      'tools/cockpit/runner/triagem.mjs',
-      'tools/cockpit/runner/reserva.mjs',
-      'tools/cockpit/runner/launch.mjs',
+      'tools/cockpit/**/*.mjs',
+      'tools/cockpit/*.html',
     ],
     ask:
       'Is there a number, label or state in this excerpt that the panel SHOWS and that '
@@ -185,11 +174,9 @@ export const PILLARS = {
   P8: {
     label: 'Loose ends between features',
     files: [
-      'tools/cockpit/runner/fleet-beacon.mjs',
-      'tools/cockpit/runner/runner-core.mjs',
-      'tools/cockpit/runner/project.mjs',
-      'tools/cockpit/runner/f10-server.mjs',
-      'packages/mooter-bridge/seamless.js',
+      'tools/cockpit/runner/*.mjs',
+      'packages/mooter-bridge/*.js',
+      'packages/router/src/*.ts',
     ],
     ask:
       'Is there a field in this excerpt that is WRITTEN into an object (a receipt, a '
@@ -452,6 +439,29 @@ export function hunkKey(file, startLine, endLine, texto) {
   return `${file}:${startLine}-${endLine}:${sha}`;
 }
 
+/**
+ * A chave que diz "isto ja foi julgado" — E O PILAR FAZ PARTE DELA.
+ *
+ * Ate aqui a chave era so o conteudo (`ficheiro:linhas:sha`). Uma janela vista
+ * pelo P3 ficava marcada como vista para os OITO pilares, embora cada um faca
+ * uma pergunta diferente sobre ela. "Este comentario contradiz o codigo?" e
+ * "este campo e escrito e nunca lido?" nao sao o mesmo trabalho, e responder a
+ * uma nunca respondeu a outra.
+ *
+ * Medido a 2026-08-19 na maquina do dono: 46% das rondas de uma hora morriam
+ * com "todas as janelas ja foram revistas" sem chamar o modelo uma unica vez,
+ * e P2, P3 e P6 estavam a 100% de esgotamento. A GPU corria 5 minutos por
+ * hora. Esta linha multiplica o material disponivel pelo numero de pilares
+ * sem acrescentar um unico ficheiro.
+ *
+ * ⚠️ As chaves antigas (sem pilar) deixam de bater. Isso e uma REPOSICAO
+ * deliberada, nao um acidente: os pilares mudaram de pergunta, e as 604
+ * janelas ja vistas nunca foram vistas com as perguntas de agora.
+ */
+export function chaveDeRevisao(pillar, file, startLine, endLine, texto) {
+  return `${pillar}|${hunkKey(file, startLine, endLine, texto)}`;
+}
+
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 
 /**
@@ -633,10 +643,142 @@ function readLines(repoRoot, relPath) {
  * that actually exist, so a deleted file shifts the rotation instead of
  * producing an empty round.
  */
-export function resolveCandidates(repoRoot, pillarId, pillars = PILLARS) {
+/**
+ * Quantos ficheiros um pilar pode ter, no maximo.
+ *
+ * Existe para limitar a caminhada no disco, nao para esconder trabalho: quando
+ * o corte morde, o numero REAL viaja no `reason` do esgotamento. Um tecto que
+ * ninguem ve e um numero falso a espera de acontecer.
+ */
+export const MAX_CANDIDATOS = 300;
+
+/** Pastas que nunca sao codigo deste projecto a correr. */
+const PASTAS_IGNORADAS = new Set([
+  'node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.turbo',
+  '.venv', '__pycache__', '_handoff', 'out', '.cache',
+]);
+
+/** Caminhos que sao arquivo: codigo que ja nao corre, mas ainda esta no disco. */
+const CAMINHOS_IGNORADOS = ['docs/archive/', '.claude/worktrees/'];
+
+/**
+ * `tools/**\/*.js` -> RegExp. `**` atravessa pastas; `*` fica dentro de uma.
+ * As sentinelas sao texto visivel de proposito: um caractere de controlo aqui
+ * seria invisivel em qualquer diff que alguem leia.
+ */
+export function padraoParaRegex(padrao) {
+  const escapado = String(padrao).replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const corpo = escapado
+    .replace(/\*\*\//g, '@@PASTAS@@')
+    .replace(/\*\*/g, '@@TUDO@@')
+    .replace(/\*/g, '[^/]*')
+    .replace(/@@PASTAS@@/g, '(?:[^/]+/)*')
+    .replace(/@@TUDO@@/g, '.*');
+  return new RegExp('^' + corpo + '$');
+}
+
+/** Cache curta: a caminhada e barata, mas nao precisa de correr a cada ronda. */
+const CACHE_PADRAO = new Map();
+const CACHE_PADRAO_MS = 60_000;
+
+/**
+ * Expande um padrao para os ficheiros que existem MESMO no repo, por ordem
+ * determinista. Um caminho literal (sem `*`) devolve-se a si proprio se
+ * existir — uma lista de ficheiros antiga continua a funcionar tal e qual, e
+ * e por isso que o `.mooter/pilares.json` de quem ja o tem nao parte.
+ */
+export function expandirPadrao(repoRoot, padrao, agora = Date.now()) {
+  if (!String(padrao).includes('*')) {
+    return readLines(repoRoot, padrao) !== null ? [padrao] : [];
+  }
+  const chave = repoRoot + '|' + padrao;
+  const guardado = CACHE_PADRAO.get(chave);
+  if (guardado && agora - guardado.em < CACHE_PADRAO_MS) return guardado.files;
+
+  const re = padraoParaRegex(padrao);
+  // Arranca na maior pasta literal do padrao: `landing/app/**` nao tem de
+  // varrer o repo inteiro para descobrir que so lhe interessa `landing/`.
+  const partes = String(padrao).split('/');
+  const literais = [];
+  for (const seg of partes.slice(0, -1)) {
+    if (seg.includes('*')) break;
+    literais.push(seg);
+  }
+  const encontrados = [];
+  const pilha = [literais.join('/')];
+  while (pilha.length > 0 && encontrados.length < MAX_CANDIDATOS * 4) {
+    const rel = pilha.pop();
+    let entradas;
+    try {
+      entradas = fs.readdirSync(path.join(repoRoot, rel || '.'), { withFileTypes: true });
+    } catch { continue; }
+    for (const e of entradas) {
+      if (e.name.startsWith('.') && e.name !== '.github') continue;
+      const filho = rel ? rel + '/' + e.name : e.name;
+      if (CAMINHOS_IGNORADOS.some((x) => (filho + '/').startsWith(x))) continue;
+      if (e.isDirectory()) {
+        if (PASTAS_IGNORADAS.has(e.name)) continue;
+        pilha.push(filho);
+      } else if (e.isFile() && re.test(filho)) {
+        // Pela mesma razao que o DIFF_PATHSPEC os exclui: um teste que falha
+        // ja grita sozinho, e a GPU a moe-los era GPU a rever o alarme em vez
+        // do incendio.
+        if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(filho)) continue;
+        encontrados.push(filho);
+      }
+    }
+  }
+  encontrados.sort();
+  CACHE_PADRAO.set(chave, { em: agora, files: encontrados });
+  return encontrados;
+}
+
+/**
+ * Os ficheiros de um pilar, com a contagem REAL antes do corte.
+ * @returns {{files: string[], total: number, truncado: boolean}}
+ */
+export function candidatosDoPilar(repoRoot, pillarId, pillars = PILLARS) {
   const pillar = pillars[pillarId];
-  if (!pillar) return [];
-  return pillar.files.filter((rel) => readLines(repoRoot, rel) !== null);
+  if (!pillar) return { files: [], total: 0, truncado: false };
+  const vistos = new Set();
+  for (const entrada of pillar.files) {
+    for (const f of expandirPadrao(repoRoot, entrada)) vistos.add(f);
+  }
+  const todos = [...vistos].sort();
+  return {
+    files: todos.slice(0, MAX_CANDIDATOS),
+    total: todos.length,
+    truncado: todos.length > MAX_CANDIDATOS,
+  };
+}
+
+export function resolveCandidates(repoRoot, pillarId, pillars = PILLARS) {
+  return candidatosDoPilar(repoRoot, pillarId, pillars).files;
+}
+
+/**
+ * Quem e o dono de um ficheiro, quando mais do que um pilar o reclama.
+ *
+ * Com padroes, a sobreposicao passa a ser a regra: `tools/router/*.js` cabe ao
+ * P1 e ao P3, que lhe fazem perguntas diferentes. Na CACA isso e riqueza — a
+ * memoria de revisao e por pilar, e o mesmo excerto sob outra pergunta e
+ * trabalho novo. No DIFF e desperdicio: o diff e um poco pequeno e partilhado,
+ * e oito pilares a moer o mesmo hunk sao um pilar a custar oito vezes.
+ *
+ * O dono e o pilar de AMBITO MAIS ESTREITO que o reclama — o que tem menos
+ * ficheiros no total. Um pilar que diz `tools/cockpit/*.html` sabe mais sobre
+ * aquele ficheiro do que um que diz `tools/**` + '/' + '*.js'. Empate desfaz-se pela
+ * ordem dos ids, para ser deterministico.
+ */
+export function donoDoFicheiro(repoRoot, file, pillars = PILLARS) {
+  let dono = null;
+  let ambito = Infinity;
+  for (const id of Object.keys(pillars)) {
+    const c = candidatosDoPilar(repoRoot, id, pillars);
+    if (!c.files.includes(file)) continue;
+    if (c.files.length < ambito) { ambito = c.files.length; dono = id; }
+  }
+  return dono;
 }
 
 /** Renders a slice with real 1-based line numbers so citations are checkable. */
@@ -728,15 +870,17 @@ export function buildContextPack({
     // mais do que arrumacao — mas dizemo-lo, e `escopo: 'geral'` e um rotulo
     // que nao mente. O rotulo do pilar deixa de ser colado a um ficheiro que
     // nada tem a ver com ele.
-    const meus = todos.filter((h) => spec.files.includes(h.file));
+    // Com padroes, a pertenca deixa de ser `includes` numa lista literal: um
+    // pilar que diz `tools/router/*.js` e dono de 193 ficheiros que nunca
+    // escreveu a mao. Expande-se (com cache) e pergunta-se ao conjunto real.
+    const meus = todos.filter((h) => donoDoFicheiro(repoRoot, h.file, pillars) === pillar);
     // O que NENHUM pilar reclama. Deixar o `geral` percorrer `todos` punha-o a
     // cair no mesmo hunk que um pilar dono ja estava a rever — 8 colisoes em
     // 201 cursores, a primeira no cursor 2, porque o passo aritmetico nao ajuda
     // quando as duas caminhadas sao sobre conjuntos diferentes. Os orfaos sao
     // tambem a definicao honesta de "diff geral": a parte do trabalho novo que
     // nao tem dono.
-    const donos = new Set(Object.values(pillars).flatMap((p) => p.files));
-    const orfaos = todos.filter((h) => !donos.has(h.file));
+    const orfaos = todos.filter((h) => donoDoFicheiro(repoRoot, h.file, pillars) === null);
     const escopo = meus.length > 0 ? 'pilar' : 'geral';
     const hunks = meus.length > 0 ? meus : (orfaos.length > 0 ? orfaos : todos);
     if (hunks.length > 0) {
@@ -773,7 +917,7 @@ export function buildContextPack({
         const ls = readLines(repoRoot, cand.file);
         if (!ls || ls.length === 0 || cand.start > ls.length) continue;
         const fimC = Math.min(ls.length, cand.start + cand.count - 1);
-        const kc = hunkKey(cand.file, cand.start, fimC, ls.slice(cand.start - 1, fimC).join('\n'));
+        const kc = chaveDeRevisao(pillar, cand.file, cand.start, fimC, ls.slice(cand.start - 1, fimC).join('\n'));
         if (revistos && revistos.has(kc)) continue;
         h = cand;
         chave = kc;
@@ -877,7 +1021,7 @@ export function buildContextPack({
       const cand = anchors[Math.abs(passoA + k) % anchors.length];
       const ls = readLines(repoRoot, cand.file);
       if (!ls || ls.length === 0 || cand.line > ls.length) continue;
-      const kc = hunkKey(cand.file, cand.line, cand.line, `${cand.rule}|${ls[cand.line - 1] || ''}`);
+      const kc = chaveDeRevisao(pillar, cand.file, cand.line, cand.line, `${cand.rule}|${ls[cand.line - 1] || ''}`);
       if (revistos && revistos.has(kc)) continue;
       hit = cand;
       chaveA = kc;
@@ -948,14 +1092,24 @@ export function buildContextPack({
     const janelas = Math.max(1, Math.ceil(ls.length / maxLines));
     for (let k = 0; k < janelas; k += 1) {
       const sl = renderSlice(ls, (((Math.abs(passoF) + k) % janelas) * maxLines) + 1, maxLines);
-      const kc = hunkKey(cand, sl.startLine, sl.endLine, sl.text);
+      const kc = chaveDeRevisao(pillar, cand, sl.startLine, sl.endLine, sl.text);
       if (revistos && revistos.has(kc)) continue;
       file = cand; lines = ls; slice = sl; chaveC = kc;
       break;
     }
   }
   if (!slice) {
-    return { ok: false, esgotado: true, reason: 'todas as janelas de todos os ficheiros do pilar ja foram revistas', pillar, diffErro };
+    const conta = candidatosDoPilar(repoRoot, pillar, pillars);
+    return {
+      ok: false,
+      esgotado: true,
+      // O numero viaja com a queixa: "esgotado" com 3 ficheiros e um problema
+      // de ambito; com 300 e um problema de ritmo. Pedem respostas diferentes.
+      reason: `todas as janelas dos ${conta.files.length} ficheiros do pilar ja foram revistas`
+        + (conta.truncado ? ` (de ${conta.total}; a lista foi cortada em ${MAX_CANDIDATOS})` : ''),
+      pillar,
+      diffErro,
+    };
   }
 
   // Second axis of the cursor walks down long files across rounds, so a 900-line
