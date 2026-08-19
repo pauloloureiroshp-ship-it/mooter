@@ -1190,3 +1190,51 @@ test('o pack esgotado carimba o veredicto novo, e so ele', () => {
   assert.equal(seco.esgotado, true);
   assert.match(seco.reason, /ficheiros do pilar/, 'o numero de ficheiros viaja com a queixa');
 });
+
+// ── ancoras fora do ambito (2026-08-19) ─────────────────────────────────────
+
+/**
+ * O ramo ancorado percorria TODOS os apontamentos do eslint sem olhar a quem
+ * pertencem. Um pilar de documentos recebia `tools/router/*.js` e respondia a
+ * pergunta DELE sobre material que nao e dele.
+ *
+ * Medido nas 5 primeiras horas do P10: 17 citacoes, todas sobre blocos catch
+ * vazios em .js — quando a pergunta do P10 e "isto manda uma PESSOA fazer a
+ * mao o que um script podia fazer?", feita a documentos. A pergunta certa
+ * sobre o ficheiro errado nao e meia resposta: e ruido com aspecto de achado,
+ * que passa a triagem a parecer trabalho.
+ */
+test('um apontamento fora do ambito do pilar nao lhe e servido', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-amb-'));
+  const escrever = (rel, n = 200) => {
+    fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), Array.from({ length: n }, (_, i) => `linha ${i + 1};`).join('\n'));
+  };
+  escrever('tools/router/mooter-review.js');   // do P1
+  escrever('README.md');                       // do P4
+  const ancora = path.join(root, 'ancora.json');
+  // O apontamento e num ficheiro que NAO pertence ao P4.
+  fs.writeFileSync(ancora, JSON.stringify([
+    { file: 'tools/router/mooter-review.js', line: 20, rule: 'no-empty' },
+  ]));
+
+  const pack = buildContextPack({ repoRoot: root, pillar: 'P4', cursor: 0, anchorPath: ancora });
+  assert.ok(pack.ok, 'o pilar tem de continuar a ter trabalho — cai para a caca');
+  assert.notEqual(pack.file, 'tools/router/mooter-review.js',
+    'o P4 pergunta sobre texto publicado: um .js do P1 nunca pode ser a resposta');
+  assert.match(pack.file, /\.md$/, 'cai para as suas proprias ancoras');
+});
+
+test('um apontamento DENTRO do ambito continua a ser servido', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-amb2-'));
+  fs.mkdirSync(path.join(root, 'tools', 'router'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'tools', 'router', 'mooter-review.js'),
+    Array.from({ length: 200 }, (_, i) => `linha ${i + 1};`).join('\n'));
+  const ancora = path.join(root, 'ancora.json');
+  fs.writeFileSync(ancora, JSON.stringify([
+    { file: 'tools/router/mooter-review.js', line: 20, rule: 'no-empty' },
+  ]));
+  const pack = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, anchorPath: ancora });
+  assert.ok(pack.ok);
+  assert.equal(pack.file, 'tools/router/mooter-review.js', 'o ficheiro E do P1: continua a ser o alvo certo');
+});
