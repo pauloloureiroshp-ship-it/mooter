@@ -275,7 +275,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   <div class="card vouched">
     <h2>Work — the latest receipts, live</h2>
     <div class="filtros">
-      <label>verdict <select id="f-verdict"><option value="">todas</option></select></label>
+      <label>verdict <select id="f-verdict"><option value="">all</option></select></label>
       <label>pillar <select id="f-pillar"><option value="">all</option></select></label>
       <label>file <input id="f-file" type="text" placeholder="part of the path" size="18"></label>
       <span class="nd" id="f-conta"></span>
@@ -390,15 +390,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     $('offline').hidden = false;
     $('offline-why').textContent = source === 'snapshot'
       ? 'You are looking at a saved snapshot, not live state — nothing here is clickable. '
-        + 'Para conduzir o device, abre o cockpit ao vivo em http://127.0.0.1:4290/panel:'
+        + 'To drive this device, open the live cockpit at http://127.0.0.1:4290/panel:'
       : `The local endpoint (127.0.0.1:4290) did not answer${why ? ` — ${why}` : ''}. `
         + 'Until then, nothing on this page counts as current state. To bring it up:';
     setChip($('conn'), 'dead', source === 'snapshot' ? 'snapshot' : 'disconnected');
-    for (const par of [["f-conclusao", "conclusao"], ["f-pilar", "pilar"], ["f-ficheiro", "ficheiro"]]) {
-    const campo = $(par[0]);
-    if (campo) campo.addEventListener("input", () => { FILTROS[par[1]] = campo.value; renderFeed(ULTIMO_FEED); });
-  }
-  renderToggleOffline();
+    renderToggleOffline();
     if (state) render({ keepOffline:true });
   }
 
@@ -427,8 +423,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     b.className = running ? 'run' : 'idle';
     b.textContent = running ? '⏸ Pause the loop' : '▶ Ship';
     b.title = running
-      ? 'This device's GPU is shipping. Click to pause.'
-      : 'Click to put this device's GPU to work non-stop, at $0.';
+      ? "This device's GPU is shipping. Click to pause."
+      : "Click to put this device's GPU to work non-stop, at $0.";
   }
 
   function renderToggleOffline() {
@@ -700,8 +696,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   let MOTORES = null;
   fetch(BASE + "/motores.json").then((r) => r.json()).then((b) => { MOTORES = b.motores; }).catch(() => {});
 
-  const FILTROS = { conclusao: "", pilar: "", ficheiro: "" };
-  let ULTIMO_FEED = [];
+  const FILTERS = { verdict: '', pillar: '', file: '' };
+  let LAST_FEED = [];
 
   function opcoesUnicas(sel, valores, rotuloVazio) {
     if (!sel) return;
@@ -774,17 +770,17 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     }
   }
   function renderFeed(feed) {
-    ULTIMO_FEED = feed || [];
-    opcoesUnicas($("f-conclusao"), ULTIMO_FEED.map((r) => r.verdict), "todas");
-    opcoesUnicas($("f-pilar"), ULTIMO_FEED.map((r) => r.pilar), "todos");
+    LAST_FEED = feed || [];
+    opcoesUnicas($('f-verdict'), LAST_FEED.map((r) => r.verdict), 'all');
+    opcoesUnicas($('f-pillar'), LAST_FEED.map((r) => r.pilar), 'all');
     // Ate aqui o feed eram 14 linhas fixas e nada mais: para procurar um
     // ficheiro, o dono tinha de abrir o ledger a mao.
-    feed = ULTIMO_FEED.filter((r) =>
-      (!FILTROS.conclusao || r.verdict === FILTROS.conclusao)
-      && (!FILTROS.pilar || r.pilar === FILTROS.pilar)
-      && (!FILTROS.ficheiro || String(r.ficheiro || "").includes(FILTROS.ficheiro)));
+    feed = LAST_FEED.filter((r) =>
+      (!FILTERS.verdict || r.verdict === FILTERS.verdict)
+      && (!FILTERS.pillar || r.pilar === FILTERS.pillar)
+      && (!FILTERS.file || String(r.ficheiro || '').includes(FILTERS.file)));
     const conta = $("f-conta");
-    if (conta) conta.textContent = feed.length + " de " + ULTIMO_FEED.length;
+    if (conta) conta.textContent = feed.length + ' of ' + LAST_FEED.length;
     const body = $('feed'); body.replaceChildren();
     if (!feed || !feed.length) {
       const tr = el('tr'), td = el('td'); td.colSpan = 5;
@@ -834,6 +830,14 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { fails = 0; poll(); } });
 
   if (window.__MOOTER_SNAPSHOT__) { state = window.__MOOTER_SNAPSHOT__; source = 'snapshot'; }
+  // The feed filters are wired ONCE, here at boot. They used to be wired
+  // inside offline(), which meant they only ever bound when the endpoint was
+  // down -- and re-bound on every failed poll.
+  for (const [id, chave] of [['f-verdict', 'verdict'], ['f-pillar', 'pillar'], ['f-file', 'file']]) {
+    const campo = $(id);
+    if (campo) campo.addEventListener('input', () => { FILTERS[chave] = campo.value; renderFeed(LAST_FEED); });
+  }
+
   renderToggleOffline();
   loadCatalogue();
   poll();
