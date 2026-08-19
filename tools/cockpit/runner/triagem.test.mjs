@@ -93,7 +93,7 @@ test('ACEITACAO: o custo vem da tabela REAL, e o desconhecido diz n/d', () => {
 
   const fora = custoEstimado('modelo-que-nao-existe');
   assert.equal(fora.usd, null);
-  assert.equal(fora.fonte, 'n/d');
+  assert.equal(fora.fonte, 'n/a');
 });
 
 test('ACEITACAO: a decisao e ASSINADA, e as contagens separam quem decidiu', () => {

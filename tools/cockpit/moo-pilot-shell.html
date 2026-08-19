@@ -171,43 +171,47 @@
 .tri button{cursor:pointer}
 .tri .custo{font-size:.8em;opacity:.75}
 h1{display:flex;align-items:center;gap:.55rem}
-.vaca{width:1.5em;height:1.5em;flex:0 0 auto;fill:currentColor;color:var(--ink)}
-.vaca .olho{fill:var(--bg)}
-.vaca .focinho{fill:var(--bg);opacity:.42}
+/* A marca tem cores proprias (as da landing) — nao herda currentColor: um logo
+   que muda de cor com o tema deixa de ser o logo. */
+.cow{width:1.6em;height:1.6em;flex:0 0 auto}
 /* A vaca pisca so quando ha trabalho a acontecer — um sinal que se apanha pelo
    canto do olho, sem ocupar espaco nem exigir leitura. Parada, ela nao pisca. */
-body.a-trabalhar .vaca .olho{animation:piscar 7s ease-in-out infinite}
-body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
-@keyframes piscar{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
-.vaca .olho{transform-box:fill-box;transform-origin:center}
-@keyframes respirar{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+body.shipping .cow .eye{animation:blink 7s ease-in-out infinite}
+body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
+.cow .eye{transform-box:fill-box;transform-origin:center}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
 @media (prefers-reduced-motion:reduce){
-  body.a-trabalhar .vaca,body.a-trabalhar .vaca .olho{animation:none}
+  body.shipping .cow,body.shipping .cow .eye{animation:none}
 }
 </style>
 
 <div class="wrap">
   <header>
     <h1>
-      <svg class="vaca" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M6.9 7.0C6.2 5.1 5.3 3.4 6 2.4c.7-.7 1.7.7 1.9 3.1z"/>
-        <path d="M17.1 7.0C17.8 5.1 18.7 3.4 18 2.4c-.7-.7-1.7.7-1.9 3.1z"/>
-        <rect x="2.2" y="8.6" width="3.1" height="4.3" rx="1.55"/>
-        <rect x="18.7" y="8.6" width="3.1" height="4.3" rx="1.55"/>
-        <rect x="4.1" y="5.8" width="15.8" height="14.4" rx="3.4"/>
-        <circle class="olho" cx="8.6" cy="11" r="1.2"/>
-        <circle class="olho" cx="15.4" cy="11" r="1.2"/>
-        <rect class="focinho" x="6.2" y="14.2" width="11.6" height="5.8" rx="2.9"/>
+      <svg class="cow" viewBox="0 0 36 36" role="img" aria-label="Mooter">
+        <path fill="#B8C0C8" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/>
+        <path fill="#B8C0C8" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/>
+        <path fill="#B8C0C8" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"/>
+        <path fill="#B8C0C8" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"/>
+        <path fill="#CCD3DA" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/>
+        <path fill="#EDAEB0" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/>
+        <ellipse fill="#C16A6F" cx="9.5" cy="26" rx="1.5" ry="3"/>
+        <ellipse fill="#C16A6F" cx="26.5" cy="26" rx="1.5" ry="3"/>
+        <path class="eye" fill="#2C2F33" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>
+        <path class="eye" fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>
+        <circle class="glint" fill="#FFFFFF" cx="12.4" cy="11.6" r="0.7"/>
+        <circle class="glint" fill="#FFFFFF" cx="22.4" cy="11.6" r="0.7"/>
       </svg>
       <b>Moo</b> Pilot <span id="device">—</span></h1>
-    <span class="chip ok" id="cost"><span class="dot"></span>$0 · só GPU local</span>
-    <span class="chip dead" id="conn" role="status" aria-live="polite"><span class="dot"></span>a ligar…</span>
+    <span class="chip ok" id="cost"><span class="dot"></span>$0 · local GPU only</span>
+    <span class="chip dead" id="conn" role="status" aria-live="polite"><span class="dot"></span>connecting…</span>
     <span class="grow"></span>
-    <button id="toggle" class="idle">▶ Trabalhar</button>
+    <button id="toggle" class="idle">▶ Ship</button>
   </header>
 
   <div class="banner bad" id="offline" hidden>
-    <b>Este painel não está ligado ao motor deste device.</b>
+    <b>This panel is not wired to this device's engine.</b>
     <span id="offline-why"></span>
     <pre id="offline-cmd">npm run pilot   <span style="opacity:.6"># na raiz do repo</span></pre>
   </div>
@@ -215,72 +219,69 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
 
   <div class="row">
     <div class="card gpu vouched">
-      <h2>GPU deste device</h2>
+      <h2>This device's GPU</h2>
       <svg class="dial" viewBox="0 0 190 112" aria-hidden="true">
         <path class="arc-bg" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14" stroke-linecap="round"/>
         <path class="arc-fg" id="arc" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14"
               stroke-linecap="round" stroke-dasharray="248" stroke-dashoffset="248"/>
       </svg>
-      <div class="val" id="gpu-val">n/d</div>
-      <div class="sub" id="gpu-sub">sem amostra</div>
+      <div class="val" id="gpu-val">n/a</div>
+      <div class="sub" id="gpu-sub">no sample yet</div>
       <svg class="spark" id="spark" viewBox="0 0 240 44" preserveAspectRatio="none" aria-hidden="true">
         <path class="fill" id="spark-fill" d=""/><path id="spark-line" d=""/>
       </svg>
-      <div class="sub" id="spark-sub">histórico desta sessão do painel</div>
+      <div class="sub" id="spark-sub">history for this panel session</div>
     </div>
 
     <div class="card vouched">
-      <h2>O que a GPU produziu — por veredicto, nunca só por volume</h2>
+      <h2>What the GPU shipped — by verdict, never by volume</h2>
       <div class="tally" id="tally"></div>
       <p class="note">
-        <b>citação-ok</b> = a linha citada existe e foi lida do disco. <b>Não</b> quer dizer que o
-        achado está certo — isso é triagem, e é outro passo. <b>refutado</b> = o modelo citou algo
-        que não existe. <b>sem veredicto</b> = recibos antigos, de antes deste verificador.
+        <b>cited</b> = the cited line exists and was read from disk. It does <b>not</b> mean the finding is right — that is triage, and a separate step. <b>refuted</b> = the model cited something that does not exist. <b>unverified</b> = old receipts, from before this verifier.
       </p>
     </div>
   </div>
 
   <div class="card">
-    <h2>A frota — todos os devices, cada um com a sua idade</h2>
+    <h2>The fleet — every device, each with its age</h2>
     <div class="fleet" id="fleet"></div>
     <p class="note" id="fleet-note"></p>
   </div>
 
   <div class="card vouched">
-    <h2>Os 6 pilares — o que cada um procura neste repo</h2>
+    <h2>The pillars — what each one hunts in this repo</h2>
     <div class="pillars" id="pillars"></div>
-    <p class="note">Cada ronda dá ao modelo local um excerto real do repo com números de linha e
-      pede-lhe UM achado citado. <b>Focar</b> prende o loop a um pilar; <b>Rodar tudo</b> volta ao rodízio.</p>
+    <p class="note">Each round hands the local model a real slice of the repo with line numbers and asks for ONE cited finding. <b>Focar</b> pins the loop to one pillar; <b>Rotate all</b> returns to the rotation.</p>
   </div>
 
   <div class="row">
     <div class="card vouched">
-      <h2>Motor local</h2>
+      <h2>Local engine</h2>
       <dl class="kv" id="engine"></dl>
     </div>
     <div class="card vouched">
-      <h2>Situação do projeto</h2>
+      <h2>Project state</h2>
       <dl class="kv" id="align"></dl>
     </div>
   </div>
 
   <div class="card vouched" id="triagem-card" hidden>
-    <h2 id="triagem-titulo">Por triar</h2>
-    <p class="nd">Cada achado sai daqui por uma decisão tua. É isto que fecha o ciclo —
-      e o primeiro número de ROI que significa alguma coisa.</p>
+    <h2 id="triagem-titulo">Needs triage</h2>
+    <p class="nd">Every finding leaves here by a decision of yours. This is what closes the loop —
+      and the first ROI number that means anything.</p>
     <div id="triagem-fila"></div>
   </div>
 
   <div class="card vouched">
-    <h2>Trabalhos — os últimos recibos, ao vivo</h2>
+    <h2>Work — the latest receipts, live</h2>
     <div class="filtros">
-      <label>conclusão <select id="f-conclusao"><option value="">todas</option></select></label>
-      <label>pilar <select id="f-pilar"><option value="">todos</option></select></label>
-      <label>ficheiro <input id="f-ficheiro" type="text" placeholder="parte do caminho" size="18"></label>
+      <label>verdict <select id="f-verdict"><option value="">todas</option></select></label>
+      <label>pillar <select id="f-pillar"><option value="">all</option></select></label>
+      <label>file <input id="f-file" type="text" placeholder="part of the path" size="18"></label>
       <span class="nd" id="f-conta"></span>
     </div>
     <div class="scroll"><table>
-      <thead><tr><th>Hora</th><th>Pilar</th><th>Veredicto</th><th>Evidência</th><th>Dur</th></tr></thead>
+      <thead><tr><th>Time</th><th>Pillar</th><th>Verdict</th><th>Evidence</th><th>Dur</th></tr></thead>
       <tbody id="feed"></tbody>
     </table></div>
   </div>
@@ -300,10 +301,10 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
   const CONFIRM_TRIES = 5;          // how long we wait for a control to take effect
 
   const VERDICTS = {
-    'citacao-ok':  { cls:'ok',   label:'citação-ok' },
-    'refutado':    { cls:'bad',  label:'refutado' },
-    'sem-citacao': { cls:'warn', label:'sem citação' },
-    'sem-achado':  { cls:'dead', label:'sem achado' },
+    'citacao-ok':  { cls:'ok',   label:'cited' },
+    'refuted':    { cls:'bad',  label:'refuted' },
+    'sem-citacao': { cls:'warn', label:'uncited' },
+    'sem-achado':  { cls:'dead', label:'clean' },
   };
   // Fallback only — the live catalogue comes from GET /pilares.json so the
   // page and the runner can never disagree about what a pillar is.
@@ -319,12 +320,12 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
 
   /** The one place absence becomes visible. Never returns a number. */
   const nd = (v, fmt) => (v === null || v === undefined || v === ''
-    ? el('span', 'nd', 'n/d')
+    ? el('span', 'nd', 'n/a')
     : document.createTextNode(fmt ? fmt(v) : String(v)));
 
   const hhmm = (iso) => { const t = Date.parse(iso); return Number.isFinite(t)
     ? new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'; };
-  const ago = (s) => s == null ? 'n/d' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.round(s/3600)} h`;
+  const ago = (s) => s == null ? 'n/a' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.round(s/3600)} h`;
 
   let state = null, source = null, fails = 0, busy = false, lastFetchAt = 0;
   let expecting = null;             // {running:bool, tries:int} — a control awaiting confirmation
@@ -356,7 +357,7 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = await res.json();
-      if (!usable(body)) throw new Error('resposta 200 sem payload utilizável');
+      if (!usable(body)) throw new Error('200 response with no usable payload');
       state = body; lastFetchAt = Date.now();
       source = 'live'; fails = 0;
       if (typeof state?.gpu?.util_pct === 'number') {
@@ -388,11 +389,11 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     document.body.dataset.trust = 'dead';
     $('offline').hidden = false;
     $('offline-why').textContent = source === 'snapshot'
-      ? 'Estás a ver um instantâneo gravado, não o estado ao vivo — por isso nada aqui é clicável. '
+      ? 'You are looking at a saved snapshot, not live state — nothing here is clickable. '
         + 'Para conduzir o device, abre o cockpit ao vivo em http://127.0.0.1:4290/panel:'
-      : `O endpoint local (127.0.0.1:4290) não respondeu${why ? ` — ${why}` : ''}. `
-        + 'Enquanto isso, nada nesta página vale como estado actual. Para o levantar:';
-    setChip($('conn'), 'dead', source === 'snapshot' ? 'instantâneo' : 'desconectado');
+      : `The local endpoint (127.0.0.1:4290) did not answer${why ? ` — ${why}` : ''}. `
+        + 'Until then, nothing on this page counts as current state. To bring it up:';
+    setChip($('conn'), 'dead', source === 'snapshot' ? 'snapshot' : 'disconnected');
     for (const par of [["f-conclusao", "conclusao"], ["f-pilar", "pilar"], ["f-ficheiro", "ficheiro"]]) {
     const campo = $(par[0]);
     if (campo) campo.addEventListener("input", () => { FILTROS[par[1]] = campo.value; renderFeed(ULTIMO_FEED); });
@@ -424,10 +425,10 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     }
     const running = !!state?.running;
     b.className = running ? 'run' : 'idle';
-    b.textContent = running ? '⏸ Parar de trabalhar' : '▶ Trabalhar';
+    b.textContent = running ? '⏸ Pause the loop' : '▶ Ship';
     b.title = running
-      ? 'A GPU deste device está a trabalhar. Carrega para parar.'
-      : 'Carrega para pôr a GPU deste device a trabalhar sem parar, a $0.';
+      ? 'This device's GPU is shipping. Click to pause.'
+      : 'Click to put this device's GPU to work non-stop, at $0.';
   }
 
   function renderToggleOffline() {
@@ -451,8 +452,8 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     }
     $('applying').hidden = false;
     $('applying').textContent =
-      'O pedido foi aceite pelo endpoint mas o loop ainda não mudou de estado. '
-      + 'Provável causa: o processo do loop não está a correr (só o endpoint está).';
+      'The endpoint accepted the request but the loop has not changed state yet. '
+      + 'Likely cause: the loop process is not running (only the endpoint is).';
     expecting = null;
   }
 
@@ -468,7 +469,7 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
       if (expectRunning !== undefined) expecting = { running:expectRunning, tries:CONFIRM_TRIES };
     } catch (err) {
       $('applying').hidden = false;
-      $('applying').textContent = `O pedido falhou: ${err?.message}. Nada foi alterado.`;
+      $('applying').textContent = `O pedido failed: ${err?.message}. Nada foi alterado.`;
     } finally {
       busy = false;
       await poll();
@@ -497,20 +498,20 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     document.body.dataset.trust = !live ? 'dead'
       : selfStale ? 'stale'
       : (fresh.estado === 'vivo' ? 'ok' : fresh.estado || 'dead');
-    $('device').textContent = `· ${state.device || 'n/d'}`;
+    $('device').textContent = `· ${state.device || 'n/a'}`;
 
     if (live) {
-      if (selfStale) setChip($('conn'),'warn',`ecrã parado há ${Math.round(mine/1000)}s — a revalidar`);
-      else if (!state.running) setChip($('conn'),'warn','parado — carrega em Trabalhar');
+      if (selfStale) setChip($('conn'),'warn',`screen frozen for ${Math.round(mine/1000)}s — revalidating`);
+      else if (!state.running) setChip($('conn'),'warn','paused — hit Ship');
       else if (state.recibos && state.recibos.alarme_ocioso)
-        setChip($('conn'),'warn',`a rodar sem produzir · ${state.recibos.vazias_seguidas} rondas vazias seguidas`);
-      else if (fresh.estado === 'vivo') setChip($('conn'),'ok',`a trabalhar · último recibo há ${ago(fresh.idade_s)}`,true);
+        setChip($('conn'),'warn',`spinning, not shipping · ${state.recibos.vazias_seguidas} empty rounds in a row`);
+      else if (fresh.estado === 'vivo') setChip($('conn'),'ok',`shipping · last receipt ${ago(fresh.idade_s)} ago`,true);
       else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'bad',
                    `${fresh.estado} — ${fresh.motivo || 'sem recibo recente'}`);
       renderToggle();
     }
     setChip($('cost'), state.usd === 0 ? 'ok' : 'bad',
-            state.usd === 0 ? '$0 · só GPU local' : `custo ${state.usd}`);
+            state.usd === 0 ? '$0 · local GPU only' : `custo ${state.usd}`);
 
     if (changed('gpu', [state.gpu, spark.length, spark[spark.length-1]])) renderGpu(state.gpu || {});
     if (changed('tally', state.recibos))   renderTally(state.recibos || {});
@@ -518,15 +519,15 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     if (changed('pillars', [state.pilares, state.pilar_atual, state.foco, CATALOGO, live, busy])) renderPillars(state, live);
     if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados])) renderEngine(state);
     if (changed('align', state.projeto))   renderAlign(state.projeto);
-    // A vaca so ganha vida quando o loop esta MESMO a trabalhar. Uma animacao
-    // que corre com a maquina parada e uma mentira bonita.
-    document.body.classList.toggle('a-trabalhar', Boolean(state.running) && live);
+    // The cow only comes alive when the loop is ACTUALLY shipping. An animation
+    // that runs while the machine is idle is a pretty lie.
+    document.body.classList.toggle('shipping', Boolean(state.running) && live);
     if (changed('feed', state.feed))       renderFeed(state.feed);
     if (changed('triagem', [state.por_triar, state.triagem])) renderTriagem(state);
 
     $('foot').textContent =
-      `conector ${state.conector || 'n/d'} · fuso do dono ${state.owner_tz || 'n/d'} · `
-      + `fonte ${live ? 'ao vivo' : 'instantâneo gravado'} · ecrã actualizado ${new Date().toLocaleTimeString()}`;
+      `connector ${state.conector || 'n/a'} · owner timezone ${state.owner_tz || 'n/a'} · `
+      + `source ${live ? 'live' : 'saved snapshot'} · screen updated ${new Date().toLocaleTimeString()}`;
   }
 
   function renderGpu(gpu) {
@@ -535,11 +536,11 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     const arc = $('arc');
     arc.style.strokeDashoffset = pct === null ? LEN : LEN - LEN * Math.min(100, Math.max(0, pct)) / 100;
     arc.style.stroke = pct === null ? 'var(--line)' : pct > 80 ? 'var(--ok)' : 'var(--accent)';
-    $('gpu-val').textContent = pct === null ? 'n/d' : `${pct}%`;
+    $('gpu-val').textContent = pct === null ? 'n/a' : `${pct}%`;
     $('gpu-val').className = pct === null ? 'val nd' : 'val';
     $('gpu-sub').textContent = pct === null
       ? (gpu.motivo || 'sem amostra')
-      : `${gpu.fonte || 'n/d'}${gpu.vram_inuse_gb != null ? ` · ${gpu.vram_inuse_gb} GB VRAM em uso` : ''}`;
+      : `${gpu.fonte || 'n/a'}${gpu.vram_inuse_gb != null ? ` · ${gpu.vram_inuse_gb} GB VRAM in use` : ''}`;
 
     // Sparkline over the samples this page has actually seen. It is explicitly
     // labelled as the panel's own session so nobody reads it as device history.
@@ -555,12 +556,12 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     $('spark-line').setAttribute('d', `M${pts.join('L')}`);
     $('spark-fill').setAttribute('d', `M0,${H}L${pts.join('L')}L${W},${H}Z`);
     const avg = Math.round(spark.reduce((a,b)=>a+b,0) / spark.length);
-    $('spark-sub').textContent = `${spark.length} amostras nesta sessão do painel · média ${avg}%`;
+    $('spark-sub').textContent = `${spark.length} samples this panel session · avg ${avg}%`;
   }
 
   /**
-   * A frota. Um device que nunca escreveu beacon não aparece como "parado" —
-   * aparece como não visto, que é uma afirmação diferente e mais honesta.
+   * The fleet. A device that never wrote a beacon does NOT show up as "paused" —
+   * it shows up as never seen, which is a different and more honest claim.
    * Nenhuma linha de outro device usa o mesmo verde do device local: a frescura
    * deles vale o que o sync do vault valer, e isso vai escrito por baixo.
    */
@@ -569,7 +570,7 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     const f = s.frota;
     if (!f) {
       wrap.appendChild(el('div','dev',''))
-        .appendChild(el('span','nd','não foi possível ler a frota'));
+        .appendChild(el('span','nd','could not read the fleet'));
       $('fleet-note').textContent = '';
       return;
     }
@@ -592,14 +593,14 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
       box.appendChild(hd);
 
       const meta = el('div','meta');
-      const gpu = typeof d.gpu_pct === 'number' ? `${d.gpu_pct}%` : 'n/d';
+      const gpu = typeof d.gpu_pct === 'number' ? `${d.gpu_pct}%` : 'n/a';
       meta.append(document.createTextNode('GPU '));
-      meta.appendChild(typeof d.gpu_pct === 'number' ? el('b',null,gpu) : el('span','nd','n/d'));
-      meta.append(document.createTextNode(` · ${d.gpu_fonte || 'n/d'} · ${d.plataforma || 'n/d'}`));
+      meta.appendChild(typeof d.gpu_pct === 'number' ? el('b',null,gpu) : el('span','nd','n/a'));
+      meta.append(document.createTextNode(` · ${d.gpu_fonte || 'n/a'} · ${d.plataforma || 'n/a'}`));
       meta.appendChild(el('br'));
       const r = d.recibos;
       if (r) {
-        meta.append(document.createTextNode('citação-ok '));
+        meta.append(document.createTextNode('cited '));
         meta.appendChild(el('b',null,String(r.citacao_ok ?? '?')));
         meta.append(document.createTextNode(` de ${r.total ?? '?'} · refutado ${r.refutado ?? '?'}`));
       } else meta.appendChild(el('span','nd','sem contagem de recibos'));
@@ -613,9 +614,9 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
   function renderTally(r) {
     const wrap = $('tally'); wrap.replaceChildren();
     for (const [cls,key,label] of [
-      ['ok','citacao_ok','citação-ok'], ['bad','refutado','refutado'],
-      ['warn','sem_citacao','sem citação'], ['dead','sem_achado','sem achado'],
-      ['dead','sem_veredicto','sem veredicto'], ['dead','total','recibos na janela lida'],
+      ['ok','citacao_ok','cited'], ['bad','refuted','refuted'],
+      ['warn','sem_citacao','uncited'], ['dead','sem_achado','clean'],
+      ['dead','sem_veredicto','unverified'], ['dead','total','receipts in the window read'],
     ]) {
       const box = el('div',`box ${cls}`); const b = el('b'); b.appendChild(nd(r[key]));
       box.append(b, el('small',null,label)); wrap.appendChild(box);
@@ -639,16 +640,16 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
 
       const found = el('div','found');
       if (last) {
-        // `?? '?'` e não `|| 0`: um contador em falta é desconhecido, não zero.
+        // `?? '?'` and not `|| 0`: a missing counter is unknown, not zero.
         found.append(document.createTextNode(
-          `${hhmm(last.ts)} · ${d.total ?? '?'} ronda(s) · ${d.citacao_ok ?? '?'} com citação`));
+          `${hhmm(last.ts)} · ${d.total ?? '?'} round(s) · ${d.citacao_ok ?? '?'} cited`));
         found.appendChild(el('br'));
         found.appendChild(el('code',null,last.evidencia || last.ficheiro || '—'));
       } else found.appendChild(el('span','nd','ainda sem rondas neste device'));
       card.appendChild(found);
 
       const focused = s.foco === spec.id;
-      const btn = el('button', null, focused ? '◉ Focado — carrega para largar' : 'Focar só este pilar');
+      const btn = el('button', null, focused ? '◉ Focused — click to release' : 'Focus this pillar');
       if (!live || busy) btn.setAttribute('aria-disabled','true');
       btn.onclick = () => live && !busy && control('/focus', { pilar: focused ? null : spec.id });
       card.appendChild(btn);
@@ -665,7 +666,7 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     putRow(dl,'motor', nd(s.engine === 'down' ? null : s.engine));
     putRow(dl,'modelo', nd(s.modelo_atual));
     putRow(dl,'pilar activo', nd(s.pilar_atual));
-    putRow(dl,'modo', s.foco ? document.createTextNode(`focado em ${s.foco}`) : el('span','nd','rodízio pelos 6'));
+    putRow(dl,'mode', s.foco ? document.createTextNode(`focused on ${s.foco}`) : el('span','nd','rotating through all pillars'));
     const m = s.modelos_carregados || [];
     putRow(dl,'residentes', m.length
       ? document.createTextNode(m.map(x => `${x.name} (${x.vram_gb} GB)`).join(', '))
@@ -674,23 +675,23 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
 
   function renderAlign(p) {
     const dl = $('align'); dl.replaceChildren();
-    if (!p) { putRow(dl,'estado', el('span','nd','não foi possível medir')); return; }
+    if (!p) { putRow(dl,'state', el('span','nd','could not measure')); return; }
     putRow(dl,'branch', nd(p.repo_branch));
     putRow(dl,'por commitar', p.repo_clean === null
-      ? el('span','nd','n/d')
+      ? el('span','nd','n/a')
       : el('span',`chip ${p.repo_clean ? 'ok' : 'warn'}`,
            p.repo_clean ? `nada (${p.repo_untracked ?? 0} untracked)` : `${p.repo_sujo_rastreado} ficheiro(s)`));
     putRow(dl,'vs upstream', (p.ahead === null && p.behind === null)
-      ? el('span','nd', p.comparacao || 'n/d')
+      ? el('span','nd', p.comparacao || 'n/a')
       : document.createTextNode(`↑${p.ahead} ↓${p.behind} · ${p.comparacao}`));
     const sha = p.classify_sha || {};
     putRow(dl,'classify.js', sha.ok === null
-      ? el('span','nd', sha.motivo || 'n/d')
+      ? el('span','nd', sha.motivo || 'n/a')
       : el('span',`chip ${sha.ok ? 'ok' : 'bad'}`, sha.ok ? 'sha bate o canon' : sha.motivo));
     const vault = p.vault || {};
     putRow(dl,'vault', vault.ts
       ? document.createTextNode(`${hhmm(vault.ts)} · ${vault.ficheiro} (via ${vault.fonte})`)
-      : el('span','nd', vault.motivo || 'n/d'));
+      : el('span','nd', vault.motivo || 'n/a'));
   }
 
   // Os motores e o custo REAL de cada um, servidos uma vez pelo endpoint. Um
@@ -719,17 +720,17 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     if (source !== "live") return;
     // Nao se desliga o controlo: substitui-se pelo estado a que ele deu origem.
     // Um botao morto deixa o dono sem saber se o pedido saiu.
-    btnBox.replaceChildren(el("span", "nd", "a registar…"));
+    btnBox.replaceChildren(el("span", "nd", "recording…"));
     try {
       const res = await fetch(BASE + "/triagem", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chave: chave, decisao: decisao, recibo: recibo }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      btnBox.replaceChildren(el("span", "nd", decisao + " — registado"));
+      btnBox.replaceChildren(el("span", "nd", decisao + " — recorded"));
     } catch (err) {
       // Nunca engolir: um botao que falha em silencio ensina a nao confiar.
-      btnBox.replaceChildren(el("span", "chip dead", "falhou: " + (err && err.message) + " — nada foi registado"));
+      btnBox.replaceChildren(el("span", "chip dead", "failed: " + (err && err.message) + " — nothing was recorded"));
     }
   }
 
@@ -740,10 +741,10 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     card.hidden = fila.length === 0;
     const t = state.triagem || {};
     const detalhe = t.achados
-      ? " de " + t.achados + " achados (" + (t.aceite ?? "n/d") + " aceites · "
-        + (t.descartado ?? "n/d") + " descartados · " + (t.issue ?? "n/d") + " issues)"
+      ? " of " + t.achados + " findings (" + (t.aceite ?? "n/a") + " accepted · "
+        + (t.descartado ?? "n/a") + " dismissed · " + (t.issue ?? "n/a") + " issues)"
       : "";
-    $("triagem-titulo").textContent = "Por triar — " + fila.length + detalhe;
+    $("triagem-titulo").textContent = "Needs triage — " + fila.length + detalhe;
     const box = $("triagem-fila");
     box.replaceChildren();
     for (const a of fila) {
@@ -754,7 +755,7 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
       if (a.resumo) d.appendChild(el("div", "diz ok", a.resumo));
       if (a.evidencia) d.appendChild(el("code", "ev", a.evidencia));
       const btns = el("div", "btns");
-      for (const par of [["aceite", "aceitar"], ["descartado", "descartar"], ["issue", "abrir issue"]]) {
+      for (const par of [["aceite", "accept"], ["descartado", "dismiss"], ["issue", "open issue"]]) {
         const b = el("button", null, par[1]);
         b.onclick = () => triar(a.chave, par[0], a, btns);
         btns.appendChild(b);
@@ -762,11 +763,11 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
       if (MOTORES) {
         const sel = el("select");
         for (const m of MOTORES) {
-          const preco = m.usd === null ? "n/d" : "$" + m.usd.toFixed(4);
+          const preco = m.usd === null ? "n/a" : "$" + m.usd.toFixed(4);
           const o = el("option", null, m.etiqueta + " " + preco);
           o.value = m.id; sel.appendChild(o);
         }
-        btns.append(el("span", "custo", "aprofundar com"), sel);
+        btns.append(el("span", "custo", "escalate to"), sel);
       }
       d.appendChild(btns);
       box.appendChild(d);
@@ -787,7 +788,7 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
     const body = $('feed'); body.replaceChildren();
     if (!feed || !feed.length) {
       const tr = el('tr'), td = el('td'); td.colSpan = 5;
-      td.appendChild(el('span','nd','nenhum recibo ainda — carrega em Trabalhar'));
+      td.appendChild(el('span','nd','no receipts yet — hit Ship'));
       tr.appendChild(td); body.appendChild(tr); return;
     }
     for (const r of feed) {
@@ -797,14 +798,14 @@ body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
       // campo existia no ledger a ser lido por ninguem.
       const tdp = el('td');
       tdp.appendChild(document.createTextNode(r.evento ? '—' : (r.pilar || '—')));
-      if (r.escopo === 'geral') tdp.appendChild(el('span','nd',' · diff geral'));
+      if (r.escopo === 'geral') tdp.appendChild(el('span','nd',' · general diff'));
       tr.append(el('td',null,hhmm(r.ts)), tdp);
       const v = VERDICTS[r.verdict]; const tdv = el('td');
       // Um evento do disjuntor nao tem veredicto porque nao e uma ronda; dizer
-      // 'sem veredicto' fazia um apagao parecer uma ronda falhada.
+      // 'unverified' fazia um apagao parecer uma ronda falhada.
       tdv.appendChild(r.evento
         ? el('span','chip dead', r.evento)
-        : (v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem veredicto')));
+        : (v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','unverified')));
       tr.appendChild(tdv);
       // O `||` escondia o raciocinio: `evidencia` e nao-nula em 5419 de 5419
       // recibos, por isso `resumo` — o texto do modelo, "ACHADO: ... QUANDO ...

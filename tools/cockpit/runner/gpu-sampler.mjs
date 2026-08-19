@@ -44,7 +44,7 @@ function run(cmd, args, timeoutMs) {
 /** Parses ioreg output. Exported so the parser is testable without a GPU. */
 export function parseIoreg(text) {
   if (!text) {
-    return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d' };
+    return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a' };
   }
   return {
     util_pct: grab(text, UTIL_KEYS),
@@ -68,7 +68,7 @@ export function parseIoreg(text) {
  * so a 2-GPU box is never silently reported as if it had one.
  */
 export function parseNvidiaSmi(text) {
-  if (!text) return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d' };
+  if (!text) return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a' };
   const cards = [];
   for (const line of String(text).trim().split('\n')) {
     const parts = line.split(',').map((s) => s.trim());
@@ -78,8 +78,8 @@ export function parseNvidiaSmi(text) {
     cards.push({ util, usedGb: used / 1024, totalGb: total / 1024 });
   }
   if (cards.length === 0) {
-    return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
-             motivo: 'nvidia-smi sem linhas legiveis' };
+    return { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a',
+             motivo: 'nvidia-smi returned no readable lines' };
   }
   const hottest = cards.reduce((a, b) => (b.util > a.util ? b : a));
   return {
@@ -100,21 +100,21 @@ export async function sampleGpu({ runImpl = run, platform = os.platform() } = {}
   if (platform === 'darwin') {
     const out = await runImpl('ioreg', ['-r', '-d', '1', '-c', 'IOAccelerator'], IOREG_TIMEOUT_MS);
     return out === null
-      ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
-          motivo: 'ioreg falhou ou expirou' }
+      ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a',
+          motivo: 'ioreg failed or timed out' }
       : parseIoreg(out);
   }
 
   if (platform === 'win32' || platform === 'linux') {
     const out = await runImpl('nvidia-smi', NVIDIA_ARGS, IOREG_TIMEOUT_MS);
     return out === null
-      ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
-          motivo: 'nvidia-smi ausente ou sem resposta (GPU nao-NVIDIA?)' }
+      ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a',
+          motivo: 'nvidia-smi missing or unresponsive (non-NVIDIA GPU?)' }
       : parseNvidiaSmi(out);
   }
 
   return {
-    util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/d',
-    motivo: `sem amostrador para ${platform}`,
+    util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a',
+    motivo: `no sampler for ${platform}`,
   };
 }

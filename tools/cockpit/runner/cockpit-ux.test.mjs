@@ -35,7 +35,7 @@ test('o controlo primário NUNCA se desliga por o sistema estar a funcionar', ()
 });
 
 test('o toggle diz a ACÇÃO que faz, não o estado em que o sistema está', () => {
-  assert.match(SCRIPT, /running \? '⏸ Parar de trabalhar' : '▶ Trabalhar'/);
+  assert.match(SCRIPT, /running \? '⏸ Pause the loop' : '▶ Ship'/);
   assert.match(SCRIPT, /control\(running \? '\/stop' : '\/play'/, 'um botão só, dois destinos');
 });
 
@@ -48,13 +48,13 @@ test('endpoint inalcançável dá instruções, nunca um botão morto', () => {
 test('um comando só é dado como aplicado quando o loop confirma', () => {
   assert.match(SCRIPT, /expecting = \{ running:expectRunning/);
   assert.match(SCRIPT, /function confirmPending/);
-  assert.match(SCRIPT, /ainda não mudou de estado/, 'tem de haver saída honesta quando não pega');
+  assert.match(SCRIPT, /has not changed state yet/, 'tem de haver saída honesta quando não pega');
 });
 
 // ── o snapshot não se finge cockpit ──────────────────────────────────────────
 
 test('em instantâneo a página explica onde está o cockpit a sério', () => {
-  assert.match(SCRIPT, /instantâneo gravado, não o estado ao vivo/);
+  assert.match(SCRIPT, /saved snapshot, not live state/);
   assert.match(SCRIPT, /127\.0\.0\.1:4290\/panel/, 'tem de dar o endereço vivo');
 });
 
@@ -68,8 +68,13 @@ test('não existe caminho onde a ausência de valor vire um número', () => {
   assert.match(SCRIPT, /if \(fails >= 2\) offline/, 'duas falhas seguidas = desconectado declarado');
 });
 
-test('a legenda desarma a leitura errada de "citação-ok"', () => {
-  assert.match(SHELL, /Não<\/b> quer dizer que o\s+achado está certo/);
+test('a legenda desarma a leitura errada de "cited"', () => {
+  // A armadilha e a mesma nas duas linguas: "citacao-ok" parecia dizer que o
+  // achado estava certo, e "cited" soa a validado. So diz que a LINHA existe.
+  // Medido: 1475 citacoes, 72 julgadas, 1 util. A legenda e o que impede o dono
+  // de ler 1475 como 1475 problemas.
+  assert.match(SHELL, /does <b>not<\/b> mean the finding is right/);
+  assert.match(SHELL, /that is triage, and a separate step/);
 });
 
 // ── UX/performance ───────────────────────────────────────────────────────────
@@ -93,7 +98,7 @@ test('o catálogo de pilares vem do servidor — página e runner não podem div
 });
 
 test('a sparkline declara que é da sessão do painel, não histórico do device', () => {
-  assert.match(SCRIPT, /amostras nesta sessão do painel/);
+  assert.match(SCRIPT, /samples this panel session/);
 });
 
 test('o painel abre sem rede externa e respeita reduced-motion', () => {
