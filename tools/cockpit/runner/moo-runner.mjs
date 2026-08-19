@@ -200,8 +200,73 @@ function writeRevistos(p, set) {
   }
 }
 
+/**
+ * Onde o ledger deixa de crescer.
+ *
+ * Medido a 2026-08-19: `runner-ledger.jsonl` com 4,27 MB e ZERO rotacao —
+ * `appendFileSync` puro desde sempre. E o `readLedger` le o ficheiro INTEIRO
+ * com `readFileSync` para depois usar so as ultimas 5000 linhas: a 3 em 3
+ * segundos, vinte vezes por minuto. O comentario do proprio `readLedger` ja
+ * dizia "so a 50 MB ledger cannot turn the payload into a page freeze" — mas
+ * so o PAYLOAD estava limitado; a LEITURA nunca esteve.
+ */
+export const MAX_LEDGER_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Quantas linhas passam para o ficheiro novo quando se roda.
+ *
+ * Tem de ser a MESMA janela que o `readLedger` usa (`maxLines = 5000`). Rodar
+ * sem levar a cauda daria um penhasco visivel: no segundo a seguir a rotacao o
+ * painel mostraria "3 recibos" e o dono acharia que o loop tinha sido apagado.
+ */
+export const CAUDA_AO_RODAR = 5000;
+
+/**
+ * Roda o ledger, sem perder uma linha e sem duplicar nenhuma.
+ *
+ * O historico anterior vai para `<nome>.1.jsonl` (substituindo o anterior — o
+ * tecto e portanto 2x `MAX_LEDGER_BYTES`, e isso esta dito aqui em vez de ser
+ * uma surpresa). A cauda fica no ficheiro novo, e nao nos dois: um recibo e
+ * uma prova, e uma prova duplicada convida a ser contada duas vezes.
+ */
+export function rodarLedger(ledgerPath, {
+  readImpl = fs.readFileSync,
+  writeImpl = fs.writeFileSync,
+  statImpl = fs.statSync,
+  maxBytes = MAX_LEDGER_BYTES,
+  cauda = CAUDA_AO_RODAR,
+} = {}) {
+  let tamanho;
+  try {
+    tamanho = statImpl(ledgerPath).size;
+  } catch {
+    return { rodou: false, porque: 'ledger ainda nao existe' };
+  }
+  if (tamanho <= maxBytes) return { rodou: false, porque: 'abaixo do tecto' };
+
+  let linhas;
+  try {
+    linhas = String(readImpl(ledgerPath, 'utf8')).split('\n').filter((l) => l.trim());
+  } catch (e) {
+    return { rodou: false, porque: 'nao consegui ler para rodar: ' + String(e.message).slice(0, 80) };
+  }
+  const corte = Math.max(0, linhas.length - cauda);
+  const antigas = linhas.slice(0, corte);
+  const recentes = linhas.slice(corte);
+  const arquivo = ledgerPath.replace(/\.jsonl$/, '') + '.1.jsonl';
+  try {
+    writeImpl(arquivo, antigas.length ? antigas.join('\n') + '\n' : '');
+    writeImpl(ledgerPath, recentes.length ? recentes.join('\n') + '\n' : '');
+  } catch (e) {
+    // Rodar e higiene, nao trabalho: uma falha aqui nunca pode parar o loop.
+    return { rodou: false, porque: String(e.message).slice(0, 120) };
+  }
+  return { rodou: true, arquivadas: antigas.length, mantidas: recentes.length, arquivo };
+}
+
 function appendReceipt(ledgerPath, receipt) {
   fs.appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
+  rodarLedger(ledgerPath);
 }
 
 /**
