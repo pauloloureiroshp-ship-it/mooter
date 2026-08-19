@@ -13,6 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 
 import { buildFeed, FEED_LENGTH } from './fleet-state.mjs';
 import { deviceName, portOpen, loopAlive } from './launch.mjs';
@@ -145,4 +146,55 @@ test('o lançador mostra os controlos mas NUNCA levanta o STOP sozinho', () => {
   const launch = fs.readFileSync(path.join(REPO, 'tools/cockpit/runner/launch.mjs'), 'utf8');
   assert.ok(!/rmSync\(STOP|unlink.*STOP/.test(launch), 'lançar não pode revogar o kill-switch');
   assert.match(launch, /gesto é teu/i, 'e tem de dizer que o ▶ é do dono');
+});
+
+// ── o painel morto (2026-08-19) ──────────────────────────────────────────────
+
+/**
+ * O bug: ao traduzir a interface para inglês, "This device's GPU" entrou dentro
+ * de uma string de plicas. A plica fechou a string a meio e o parser morreu ali.
+ * Não foi um botão que partiu: foi o IIFE inteiro (550 linhas) que deixou de
+ * compilar — dial, frota, pilares, triagem, play/stop, tudo. E a suite passou
+ * na mesma, porque cada teste procurava um padrão no TEXTO do ficheiro e o
+ * texto continuava lá. Um ficheiro que não compila satisfaz qualquer regex.
+ *
+ * A lição não é "escapar plicas". É que **nenhum teste de UI vale nada enquanto
+ * ninguém provar que o programa compila**. Este é o primeiro teste que corre.
+ */
+test('o script do painel COMPILA — sem isto, nenhum outro teste desta suite significa nada', () => {
+  assert.doesNotThrow(
+    () => new vm.Script(SCRIPT, { filename: 'moo-pilot-shell.html <script>' }),
+    'o <script> do painel não compila: a interface inteira está morta, por muito que o texto pareça certo',
+  );
+});
+
+/**
+ * Segundo bug da mesma tradução: os ids no markup passaram a inglês
+ * (`f-verdict`) e o JS continuou a pedir os antigos (`f-conclusao`). O
+ * `$()` devolve null, o código defende-se com `if (campo)` — e o filtro
+ * simplesmente nunca funciona, em silêncio, para sempre.
+ */
+test('todo o id que o JS pede tem de existir no markup', () => {
+  const markup = SHELL.slice(0, SHELL.indexOf('<script>'));
+  const ids = new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  const pedidos = new Set([...CODE.matchAll(/\$\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]));
+  const orfaos = [...pedidos].filter((id) => !ids.has(id));
+  assert.deepEqual(orfaos, [], 'o JS pede ids que o markup não tem — controlos mudos: ' + orfaos.join(', '));
+});
+
+/**
+ * Terceiro: os ouvintes dos filtros tinham sido colados dentro de `offline()`.
+ * Só se ligavam quando o endpoint estava EM BAIXO — e voltavam a ligar-se em
+ * cada sondagem falhada, empilhando ouvintes. Com o painel a funcionar, os
+ * filtros nunca chegavam a existir.
+ */
+test('os ouvintes dos filtros ligam-se no arranque, nunca dentro de offline()', () => {
+  const offline = /function offline\([\s\S]*?\n  \}/.exec(CODE);
+  assert.ok(offline, 'não encontrei a função offline()');
+  assert.doesNotMatch(
+    offline[0],
+    /addEventListener/,
+    'offline() volta a registar ouvintes: só ligam quando o endpoint cai, e duplicam a cada falha',
+  );
+  assert.match(CODE, /f-verdict[\s\S]{0,200}addEventListener/, 'os filtros do feed não estão ligados a lado nenhum');
 });
