@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { rodarLedger, CAUDA_AO_RODAR } from './moo-runner.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -1277,4 +1278,60 @@ test('a lista de regras ignoradas e explicita — nunca um filtro escondido', ()
   assert.ok(REGRAS_IGNORADAS.has('no-empty'));
   assert.ok(REGRAS_IGNORADAS.size >= 1 && REGRAS_IGNORADAS.size <= 6,
     'uma lista que cresce sem limite deixa de ser uma decisao e passa a ser um esconderijo');
+});
+
+// ── o ledger deixa de crescer para sempre (2026-08-19) ──────────────────────
+
+/**
+ * Medido: `runner-ledger.jsonl` com 4,27 MB e ZERO rotacao — `appendFileSync`
+ * puro desde sempre. E o `readLedger` le o ficheiro INTEIRO para usar so as
+ * ultimas 5000 linhas, a cada 3 segundos. O payload estava limitado; a leitura
+ * nunca esteve.
+ */
+test('abaixo do tecto, nao se roda nada', () => {
+  const r = rodarLedger('/x.jsonl', {
+    statImpl: () => ({ size: 10 }), maxBytes: 1000,
+    readImpl: () => { throw new Error('nao devia ler'); },
+    writeImpl: () => { throw new Error('nao devia escrever'); },
+  });
+  assert.equal(r.rodou, false);
+  assert.match(r.porque, /abaixo do tecto/);
+});
+
+test('ao rodar, NENHUMA linha se perde e NENHUMA se duplica', () => {
+  const linhas = Array.from({ length: 120 }, (_, i) => JSON.stringify({ n: i }));
+  const escrito = {};
+  const r = rodarLedger('/tmp/l.jsonl', {
+    statImpl: () => ({ size: 999 }), maxBytes: 10, cauda: 20,
+    readImpl: () => linhas.join('\n') + '\n',
+    writeImpl: (p, txt) => { escrito[p] = txt; },
+  });
+  assert.equal(r.rodou, true);
+  const arquivo = escrito['/tmp/l.1.jsonl'].split('\n').filter(Boolean);
+  const actual = escrito['/tmp/l.jsonl'].split('\n').filter(Boolean);
+  assert.equal(arquivo.length, 100, 'o resto vai para o arquivo');
+  assert.equal(actual.length, 20, 'a cauda fica no ficheiro vivo');
+  assert.deepEqual([...arquivo, ...actual], linhas, 'juntos dao exactamente o original: nada perdido, nada a dobrar');
+});
+
+test('a cauda que fica e a MESMA janela que o painel le', () => {
+  // Rodar sem levar a cauda daria um penhasco: no segundo a seguir a rotacao o
+  // painel mostraria 3 recibos e o dono acharia que o loop tinha sido apagado.
+  assert.equal(CAUDA_AO_RODAR, 5000, 'tem de bater com o maxLines do readLedger');
+});
+
+test('uma falha a escrever NAO para o loop — rodar e higiene, nao trabalho', () => {
+  const r = rodarLedger('/tmp/l.jsonl', {
+    statImpl: () => ({ size: 999 }), maxBytes: 10,
+    readImpl: () => 'a\nb\n',
+    writeImpl: () => { throw new Error('disco cheio'); },
+  });
+  assert.equal(r.rodou, false);
+  assert.match(r.porque, /disco cheio/);
+});
+
+test('sem ledger no disco, nao rebenta', () => {
+  const r = rodarLedger('/nao/existe.jsonl', { statImpl: () => { throw new Error('ENOENT'); } });
+  assert.equal(r.rodou, false);
+  assert.match(r.porque, /ainda nao existe/);
 });
