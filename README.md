@@ -433,4 +433,4 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 
 ## License
 
-MIT — see [LICENSE](LICENSE). See [NOTICE.md](NOTICE.m
+MIT — see [LICENSE](LICENSE). See [NOTICE.md](NOTICE.md) para as marcas e os avisos de terceiros.
