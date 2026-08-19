@@ -1,0 +1,47 @@
+# test-skip.yml — o par obrigatório do `test.yml`.
+#
+# A causa que este ficheiro existe para matar, medida a 2026-08-18:
+#
+#   `test.yml` tem um filtro `paths:` (tools/router/**, packages/cli/**, …).
+#   A `main` passou a exigir `unit + integration tests` e `packages/cli unit
+#   tests` como required status checks. Um PR que só toca em `README.md` não
+#   dispara o `test.yml` — logo esses dois contextos NUNCA reportam — logo o PR
+#   fica `BLOCKED` para sempre. Não é lentidão: é impossibilidade.
+#
+#   O primeiro PR a bater nisto foi o #283, um fix de uma linha no README.
+#
+# O padrão documentado do GitHub para conciliar `paths:` com required checks é
+# este: um workflow gémeo com `paths-ignore` complementar e jobs com o MESMO
+# `name:`, que reportam sucesso imediato. Para o GitHub, o contexto existe e
+# passou; para nós, não se correu uma suite sobre código que ninguém tocou.
+#
+# ⚠️ Os `paths-ignore` daqui TÊM de espelhar exactamente os `paths` do
+# `test.yml`. Se os dois divergirem, ou um PR fica bloqueado outra vez, ou
+# passa sem correr os testes que devia — e a segunda é pior.
+name: test
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'tools/router/**'
+      - 'packages/cli/**'
+      - 'packages/mooter-bridge/**'
+      - 'tools/cockpit/**'
+      - 'packages/slack-spike/**'
+      - '.github/workflows/test.yml'
+
+jobs:
+  unit:
+    name: unit + integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nada a testar neste PR
+        run: echo "Este PR não toca em nenhum path vigiado pelo test.yml — nada a correr."
+
+  cli-test:
+    name: packages/cli unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nada a testar neste PR
+        run: echo "Este PR não toca em packages/cli — nada a correr."
