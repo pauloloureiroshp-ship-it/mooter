@@ -1068,10 +1068,25 @@ export function buildContextPack({
     const passoA = cursor * idsA.length + Math.max(0, idsA.indexOf(pillar)) + faseDoDevice(device);
     // Varre a partir do lugar deterministico ate achar um apontamento por
     // julgar, tal como o ramo do diff faz com os hunks.
+    // ⚠️ O ambito do pilar TEM de valer aqui tambem.
+    //
+    // Ate 2026-08-19 este ramo percorria TODOS os apontamentos do eslint sem
+    // olhar a quem pertencem. Um pilar de documentos (P4, P10) recebia
+    // `tools/router/*.js` e respondia a pergunta DELE sobre material que nao e
+    // dele. Medido nas 5 primeiras horas do P10: 17 citacoes, todas sobre
+    // blocos catch vazios em .js — quando a pergunta do P10 e "isto manda uma
+    // PESSOA fazer a mao o que um script podia fazer?", feita a documentos.
+    //
+    // A pergunta certa sobre o ficheiro errado nao e meia resposta: e ruido
+    // com aspecto de achado, que e pior, porque passa a triagem a parecer
+    // trabalho. Sem apontamentos no seu ambito, o pilar cai para a caca — que
+    // sempre respeitou o ambito.
+    const meus = new Set(candidatosDoPilar(repoRoot, pillar, pillars).files);
+    const anchorsDoPilar = anchors.filter((a) => meus.has(a.file));
     let hit = null;
     let chaveA = null;
-    for (let k = 0; k < anchors.length; k += 1) {
-      const cand = anchors[Math.abs(passoA + k) % anchors.length];
+    for (let k = 0; k < anchorsDoPilar.length; k += 1) {
+      const cand = anchorsDoPilar[Math.abs(passoA + k) % anchorsDoPilar.length];
       const ls = readLines(repoRoot, cand.file);
       if (!ls || ls.length === 0 || cand.line > ls.length) continue;
       const kc = chaveDeRevisao(pillar, cand.file, cand.line, cand.line, `${cand.rule}|${ls[cand.line - 1] || ''}`);
