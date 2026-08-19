@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { resolveRepoRoot, repoFlag, projectPaths, projectSlug, repoSha, ENV_KEYS } from './project.mjs';
+import { resolveRepoRoot, repoFlag, projectPaths, projectSlug, repoSha, ENV_KEYS , versaoDoConector} from './project.mjs';
 import { loadPillars, validarPilares, PILLARS, PILLARS_FILE } from './context-pack.mjs';
 import { proporPilares, entradasDeclaradas, canonDoProjecto, escreverProposta, PROPOSTA_FILE } from './pilot-init.mjs';
 
@@ -191,4 +191,26 @@ test('B3: a proposta que sai deste repo passa na propria validacao', () => {
   const v = validarPilares(p.pilares);
   assert.equal(v.ok, true, `a proposta tem de passar no loader: ${v.erros.join('; ')}`);
   assert.ok(Object.keys(p.pilares).length >= 3, 'neste repo ha material para pelo menos tres pilares');
+});
+
+// ── a versao do conector (2026-08-19) ────────────────────────────────────────
+
+/**
+ * Estava cravada a mao em `fleet-state.mjs` como '1.48.0'. Medido nesse dia: o
+ * repo ia em 1.49.3 e a maquina do dono tinha 1.33.0 instalada no Claude
+ * Desktop. O painel afirmava um numero que nao correspondia a NENHUM dos dois —
+ * exactamente a pergunta que o pilar P7 faz sobre os numeros do proprio painel.
+ */
+test('a versao do conector le-se do manifest, nao se copia', () => {
+  const falso = () => JSON.stringify({ version: '9.9.9' });
+  assert.equal(versaoDoConector('/qualquer', { readImpl: falso }), '9.9.9');
+});
+
+test('sem manifest legivel, a versao e n/d — nunca um palpite', () => {
+  const rebenta = () => { throw new Error('ENOENT'); };
+  assert.equal(versaoDoConector('/qualquer', { readImpl: rebenta }), null);
+  assert.equal(versaoDoConector('/qualquer', { readImpl: () => 'isto nao e json' }), null);
+  assert.equal(versaoDoConector('/qualquer', { readImpl: () => JSON.stringify({}) }), null);
+  assert.equal(versaoDoConector('/qualquer', { readImpl: () => JSON.stringify({ version: '  ' }) }), null,
+    'uma versao em branco e ausencia, nao um valor');
 });

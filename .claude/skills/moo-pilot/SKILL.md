@@ -65,6 +65,37 @@ pelo hostname e abre o painel. `npm run pilot:status` reporta sem arrancar nada.
 | `sem veredicto` | recibos anteriores ao verificador. Contam como volume, nunca como trabalho. |
 | `fora da janela` | citou uma linha real que nunca lhe foi mostrada. |
 
+## Descartar exige uma razão
+
+O botão `dismiss` já não descarta num clique: abre cinco razões fechadas, e o motor
+**recusa** um descarte sem uma delas (`400` no endpoint, com a lista).
+
+| Razão | O que ela diz sobre o produto |
+|---|---|
+| `nao-e-um-problema` | o defeito está na **pergunta** do pilar |
+| `fora-do-que-estou-a-fazer` | o defeito está na **relevância**, não na qualidade |
+| `ja-sabido` | o achado é certo e velho — falta memória, não precisão |
+| `citacao-certa-conclusao-errada` | a linha existe, o raciocínio em cima dela não |
+| `trivial` | certo e verdadeiro, mas não paga o clique |
+
+**Aceitar e abrir issue não exigem razão.** A assimetria é deliberada: o valor está em
+saber porque se deita fora. Foram 74 decisões com 72 descartes anónimos — a taxa mais
+importante do produto era também a que não ensinava nada.
+
+Os descartes anteriores a esta regra contam à parte, em `sem_motivo`, e o painel diz que
+existem. Não se reescrevem e não se disfarçam de dado que nunca foram.
+
+## O que mais está no painel
+
+- **`machine lease`** — se a máquina foi cedida a outro trabalho. Um device que se afastou
+  de propósito era indistinguível de um loop morto: os dois liam "sem recibos há 20 minutos".
+- **Custo por modelo** (`GET /custo.json`) — o que os turnos do Claude Code desta máquina
+  custariam **ao preço de tabela da API**. Não é dinheiro gasto: quem trabalha por
+  subscrição não paga por token. Está lá para ser lido contra o `$0` do loop, e nunca
+  somado a ele. Um modelo sem entrada em `tools/router/pricing.js` sai com a célula vazia.
+- **P9 e P10** não procuram defeitos: procuram repetição que devia ter um nome só, e
+  trabalho manual que um script podia fazer. Exigem a mesma prova — linha citada ou nada.
+
 ## Regras
 
 - **$0 duro.** O runner só fala com `127.0.0.1:11434`. `assertLocalEngine` recusa tudo o resto,

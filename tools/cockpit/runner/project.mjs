@@ -131,6 +131,26 @@ export function projectSlug(repoRoot) {
  * qualquer OUTRO repo ganha a sua propria pasta, e e isso que permite dois
  * projectos coexistirem.
  */
+/**
+ * A versao do conector, LIDA da fonte canonica.
+ *
+ * Ate 2026-08-19 estava cravada a mao em `fleet-state.mjs` como '1.48.0'. O
+ * repo estava em 1.49.3 e a maquina do dono tinha 1.33.0 instalada: o painel
+ * mostrava um numero que nao correspondia a nenhum dos dois. Uma versao
+ * copiada para um segundo ficheiro so tem um futuro possivel, e e este.
+ *
+ * @returns {string|null} `null` quando nao se consegue ler — nunca um palpite.
+ */
+export function versaoDoConector(repoRoot, { readImpl = fs.readFileSync } = {}) {
+  try {
+    const bruto = readImpl(path.join(repoRoot, 'packages', 'mooter-bridge', 'manifest.json'), 'utf8');
+    const v = JSON.parse(bruto).version;
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function projectPaths({ repoRoot, mooDir, canonicalRoot = null }) {
   const abs = path.resolve(repoRoot);
   const canonico = canonicalRoot ? path.resolve(canonicalRoot) === abs : false;

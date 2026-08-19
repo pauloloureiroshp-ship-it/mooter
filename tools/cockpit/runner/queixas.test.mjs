@@ -116,10 +116,17 @@ test('q07 · o ▶ deixa mesmo a máquina a trabalhar sozinha e a prova está no
   assert.match(runner, /ronda rebentou/, 'até um crash deixa rasto — um buraco no ledger seria a mentira');
 });
 
-// ── 8 · amarrado ao conector 1.48.0 ──────────────────────────────────────────
+// ── 8 · a versao do conector nao se copia ────────────────────────────────────
 test('q08 · a versão do conector é declarada no payload', () => {
+  // A versão estava CRAVADA aqui como '1.48.0' enquanto o repo ia em 1.49.3 e a
+  // máquina do dono tinha 1.33.0 instalada — o painel afirmava um número que
+  // não correspondia a nenhum dos dois. Uma versão copiada para um segundo
+  // ficheiro só tem um futuro possível, e era este.
   const state = read(`${RUNNER}/fleet-state.mjs`);
-  assert.match(state, /connector = '1\.48\.0'/, 'a versão tem de estar no payload');
+  assert.doesNotMatch(state, /connector = '\d+\.\d+\.\d+'/,
+    'a versão não pode voltar a ser cravada à mão: lê-se do manifest');
+  assert.match(read(`${RUNNER}/f10-server.mjs`), /connector: versaoDoConector\(/,
+    'quem constrói o estado tem de a ler da fonte canónica');
   assert.match(read(SHELL), /state\.conector/, 'e visível no painel');
 });
 

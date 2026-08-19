@@ -191,7 +191,9 @@ export function buildFleetState({
   triagemPath = null,
   // A pasta de estado deste projecto, para se saber se a maquina foi cedida.
   baseDir = null,
-  connector = '1.48.0',
+  // Injectada por quem constroi o estado (o f10-server le-a do manifest).
+  // `null` publica-se como `n/a`: um numero errado e pior do que a ausencia.
+  connector = null,
   gpu = null,
   loadedModels = [],
   engineAlive = false,

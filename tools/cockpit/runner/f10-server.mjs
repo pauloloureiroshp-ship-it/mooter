@@ -16,7 +16,7 @@ import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
-import { resolveRepoRoot, projectPaths } from './project.mjs';
+import { resolveRepoRoot, projectPaths, versaoDoConector } from './project.mjs';
 import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores } from './triagem.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { spendByModel } from './spend-by-model.mjs';
@@ -249,6 +249,9 @@ export function createServer({
         200,
         buildFleetState({
           device,
+          // Lida do manifest a cada pedido: o painel nunca pode afirmar uma
+          // versao que o repo ja nao tem.
+          connector: versaoDoConector(raiz),
           ledgerPath,
           statePath,
           stopFile,
