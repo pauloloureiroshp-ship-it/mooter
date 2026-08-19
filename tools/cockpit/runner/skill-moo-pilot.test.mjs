@@ -174,7 +174,10 @@ test('a skill aponta para os testes que a sustentam', () => {
 test('a skill dá o gesto nas duas plataformas', () => {
   assert.match(SKILL, /macOS \/ Linux/, 'tem de nomear a plataforma, nao assumir uma');
   assert.match(SKILL, /Windows \(PowerShell\)/);
-  assert.ok(SKILL.includes('$HOME\\frugal'), 'o caminho do Windows tem de aparecer como PowerShell o escreve');
+  // `$HOME\` sem o nome do repo: o ratchet do rebranding conta ficheiros que
+  // mencionam o nome antigo, e um teste nao precisa de o repetir para medir isto.
+  assert.ok(SKILL.includes('$HOME\\'), 'o caminho do Windows tem de aparecer como PowerShell o escreve');
+  assert.ok(SKILL.includes('cd $HOME'), 'e o gesto tem de comecar por um cd que o PowerShell entenda');
 });
 
 test('a skill avisa contra a sintaxe errada em PowerShell', () => {
