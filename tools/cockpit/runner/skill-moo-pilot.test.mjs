@@ -167,7 +167,7 @@ test('a skill aponta para os testes que a sustentam', () => {
 /**
  * O codigo sempre foi portatil — `launch.mjs` abre o browser com `open` no
  * macOS e `cmd /c start` no Windows, e `autostart.mjs` escolhe entre LaunchAgent
- * e `schtasks`. A SKILL nao era: mandava `cd ~/frugal` e `export VAR=x`, que em
+ * e `schtasks`. A SKILL nao era: mandava um `cd ~/<repo>` e `export VAR=x`, que em
  * PowerShell nao querem dizer nada. Um agente a conduzir a maquina Windows do
  * dono seguiria instrucoes que falham na primeira linha.
  */
