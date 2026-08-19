@@ -141,7 +141,7 @@ test('com varias GPUs a mais quente manda, e o numero de placas viaja', () => {
 test('nvidia-smi ilegivel da n/d com motivo, nunca 0%', () => {
   const g = parseNvidiaSmi('lixo sem virgulas');
   assert.equal(g.util_pct, null);
-  assert.match(g.motivo, /sem linhas legiveis/);
+  assert.match(g.motivo, /no readable lines/);
 });
 
 test('no Windows a amostragem passa por nvidia-smi', async () => {
@@ -154,7 +154,7 @@ test('no Windows a amostragem passa por nvidia-smi', async () => {
 test('sem nvidia-smi o 4090 aparece n/d com a razao, nao parado a 0%', async () => {
   const g = await sampleGpu({ platform: 'win32', runImpl: async () => null });
   assert.equal(g.util_pct, null);
-  assert.match(g.motivo, /nvidia-smi ausente/);
+  assert.match(g.motivo, /nvidia-smi missing/);
 });
 
 // ── auto-start ───────────────────────────────────────────────────────────────

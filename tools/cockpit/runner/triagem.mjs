@@ -173,11 +173,11 @@ export function custoEstimado(modelo, { tokensIn = 4000, tokensOut = 700 } = {})
   try {
     ({ PRICES: precos } = require('../../router/pricing.js'));
   } catch {
-    return { modelo, usd: null, fonte: 'n/d', motivo: 'tabela de precos ilegivel' };
+    return { modelo, usd: null, fonte: 'n/a', motivo: 'tabela de precos ilegivel' };
   }
   const p = precos && precos[modelo];
   if (!p || typeof p.input !== 'number' || typeof p.output !== 'number') {
-    return { modelo, usd: null, fonte: 'n/d', motivo: 'modelo fora da tabela' };
+    return { modelo, usd: null, fonte: 'n/a', motivo: 'modelo fora da tabela' };
   }
   const usd = (tokensIn / 1e6) * p.input + (tokensOut / 1e6) * p.output;
   return { modelo, usd: Math.round(usd * 1e6) / 1e6, fonte: 'tools/router/pricing.js', tokensIn, tokensOut };

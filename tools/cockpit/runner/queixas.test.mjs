@@ -87,7 +87,9 @@ test('q05 · o GPU% vem do play real e não de um número decorativo', () => {
   assert.match(read(`${RUNNER}/gpu-sampler.mjs`), /IOAccelerator/, 'medido via ioreg');
   const shell = read(SHELL);
   assert.match(shell, /gpu\.util_pct/, 'o gauge tem de consumir a medição');
-  assert.match(shell, /'n\/d'/, 'sem amostra tem de dar n/d');
+  // O painel passou a ingles: 'n/d' -> 'n/a'. A exigencia e a mesma e e a que
+  // importa: sem amostra o gauge diz que NAO MEDIU, nunca 0%.
+  assert.match(shell, /'n\/a'/, 'sem amostra tem de dar n/a, nunca 0%');
 });
 
 // ── 6 · look & feel profissional ─────────────────────────────────────────────
@@ -142,9 +144,12 @@ test('q10 · o alinhamento é medido: repo, sha do canon e vault', () => {
 // ── 11 · % GPU (honesto, e não substituto de recibos) ────────────────────────
 test('q11 · GPU% é utilização, e o painel não a confunde com valor entregue', () => {
   const shell = read(SHELL);
-  assert.match(shell, /por veredicto, nunca só por volume/i, 'o valor entregue mede-se em recibos');
-  assert.match(shell, /<b>Não<\/b> quer dizer que o\s+achado está certo/,
-               'a legenda tem de desarmar a leitura errada de "citação-ok"');
+  // O painel passou a ingles (produto global). O contrato nao mudou de
+  // exigencia, mudou de lingua: GPU% e utilizacao, e o valor entregue mede-se
+  // em recibos por veredicto — nunca em percentagem de GPU nem em volume.
+  assert.match(shell, /by verdict, never by volume/i, 'o valor entregue mede-se em recibos');
+  assert.match(shell, /does <b>not<\/b> mean the finding is right/,
+               'a legenda tem de desarmar a leitura errada de "cited"');
 });
 
 // ── 12 · features bem distribuídos ───────────────────────────────────────────

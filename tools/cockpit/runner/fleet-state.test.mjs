@@ -168,20 +168,20 @@ test('parseIoreg extrai utilizacao e VRAM reais', () => {
 test('parseIoreg devolve n/d em vez de zero quando nao ha amostra', () => {
   const g = parseIoreg('');
   assert.equal(g.util_pct, null);
-  assert.equal(g.fonte, 'n/d');
+  assert.equal(g.fonte, 'n/a');
 });
 
 test('numa plataforma sem amostrador conhecido diz porque nao mediu', async () => {
   // win32/linux passaram a ter caminho (nvidia-smi) — ver fleet-beacon.test.mjs.
   const g = await sampleGpu({ platform: 'aix', runImpl: async () => assert.fail('nao corre') });
   assert.equal(g.util_pct, null);
-  assert.match(g.motivo, /sem amostrador para aix/);
+  assert.match(g.motivo, /no sampler for aix/);
 });
 
 test('sampleGpu com ioreg em falha nao inventa numero', async () => {
   const g = await sampleGpu({ platform: 'darwin', runImpl: async () => null });
   assert.equal(g.util_pct, null);
-  assert.match(g.motivo, /ioreg falhou/);
+  assert.match(g.motivo, /ioreg failed/);
 });
 
 // ---------------------------------------------------------------- endpoint
