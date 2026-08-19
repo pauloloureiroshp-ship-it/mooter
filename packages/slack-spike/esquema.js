@@ -46,6 +46,11 @@ const FONTES_CANONICAS = Object.freeze({
   estimativa: 'calculado a partir de tokens e tabela de precos',
 });
 
+/** Vocabularios FECHADOS da linha de execucao. Nao ha T4; "nuvem" nunca por omissao. */
+const TIERS_ESQUEMA = Object.freeze(['T0', 'T1', 'T2', 'T3', 'T5']);
+const ONDE_ESQUEMA = Object.freeze(['local', 'nuvem']);
+const FORMA_DE_VERSAO_ESQ = /^[0-9]{1,3}(.[0-9]{1,4}){1,3}(-[A-Za-z0-9.]{1,20})?$/;
+
 const SUBCHAVES = Object.freeze({
   autor: Object.freeze(['valor', 'rotulo', 'fonte', 'porque']),
   motor: Object.freeze(['valor', 'rotulo', 'fonte', 'porque']),
@@ -53,6 +58,9 @@ const SUBCHAVES = Object.freeze({
   custo: Object.freeze(['valor', 'rotulo', 'fonte', 'estimativa', 'porque']),
   diff_stat: Object.freeze(['valor', 'rotulo', 'fonte', 'porque']),
   cadeia: Object.freeze(['pedidos', 'total', 'fontes', 'todosMedidos']),
+  tier: Object.freeze(['valor', 'rotulo', 'fonte', 'porque']),
+  onde: Object.freeze(['valor', 'rotulo', 'fonte', 'porque']),
+  versao: Object.freeze(['valor', 'rotulo', 'fonte', 'porque']),
   auditoria: Object.freeze([
     'request', 'veredicto', 'accao', 'estado', 'actor', 'hash', 'autorizacao', 'job_novo',
   ]),
@@ -319,6 +327,31 @@ function validar(payload) {
       return recusa('texto fora do catalogo fechado', degradados);
     }
     out.texto = p.texto;
+  }
+  // ⚠️ A LINHA DE EXECUCAO, validada AO VALOR. Nao passa pelo `normalizarCampo`
+  // porque esse tem ramos por nome e degradaria tudo o que nao conhece — os tres
+  // campos aqui sao vocabularios fechados simples e validam-se directamente.
+  //
+  // `tier` e `onde` sao listas fechadas; `versao` tem forma verificavel. Fora da
+  // forma degrada para null com o nome em `degradados` — nunca se publica um
+  // patamar inventado, e nunca se afirma "nuvem" por omissao. A diferenca entre
+  // correr na GPU do dono e numa subscricao paga e a coisa mais importante deste
+  // cartao: afirma-la sem o evento a declarar seria fabricar exactamente isso.
+  const FECHADOS = [['tier', TIERS_ESQUEMA], ['onde', ONDE_ESQUEMA]];
+  for (const [nome, vocab] of FECHADOS) {
+    if (!proprio(p, nome)) continue;
+    const sub = subchaveDesconhecida(nome, p[nome]);
+    if (sub) return recusa(nome + ' traz subchave desconhecida: ' + sub, degradados);
+    const v = objectoPlano(p[nome]) ? p[nome].valor : undefined;
+    if (typeof v === 'string' && vocab.includes(v)) out[nome] = { valor: v };
+    else { degradados.add(nome); out[nome] = { valor: null }; }
+  }
+  if (proprio(p, 'versao')) {
+    const sub = subchaveDesconhecida('versao', p.versao);
+    if (sub) return recusa('versao traz subchave desconhecida: ' + sub, degradados);
+    const v = objectoPlano(p.versao) ? p.versao.valor : undefined;
+    if (typeof v === 'string' && FORMA_DE_VERSAO_ESQ.test(v)) out.versao = { valor: v };
+    else { degradados.add('versao'); out.versao = { valor: null }; }
   }
   for (const nome of ['passos', 'segundos']) {
     if (!proprio(p, nome)) continue;

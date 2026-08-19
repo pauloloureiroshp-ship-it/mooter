@@ -39,6 +39,7 @@ const CHARS_HASH = 12;
  * ⚠️ `US$` E NAO `$`. O dono le isto em Sao Paulo, onde `$` sozinho se le
  * REAIS — cinco vezes o valor. O ledger grava USD; a moeda tem de vir dita.
  */
+const TIERS_LEGIVEIS = Object.freeze(['T0', 'T1', 'T2', 'T3', 'T5']);
 const NL = String.fromCharCode(10);   // quebra de linha nomeada — nunca mais depende de escapes
 const MOEDA = 'US$ ';
 
@@ -341,10 +342,37 @@ function blocoDaImpressao(h) {
       text: '*Impressão do pedido* (muda se o pedido mudar)\n`' + impressaoCompleta(h) + '`' } });
 }
 
+/**
+ * A linha de EXECUCAO: versao · tier · modelo · onde correu.
+ *
+ * ⚠️ Existe porque o dono nao conseguia responder a tres perguntas olhando para o
+ * cartao: que versao do Mooter esta a correr, em que patamar de custo, e se aquilo
+ * saiu da maquina dele ou foi para uma subscricao paga. Os tres dados ja estavam no
+ * ledger; so nao chegavam ca.
+ *
+ * Mesma regra do resto do cartao: vocabulario FECHADO e um valor sem procedencia nao
+ * se publica. `local`/`nuvem` sao os dois unicos valores possiveis — a ausencia e
+ * `n/d`, nunca "nuvem por omissao". A diferenca entre correr na GPU do dono e numa
+ * subscricao e exactamente o que este produto existe para tornar visivel; afirma-la
+ * sem o evento a declarar seria fabricar a coisa mais importante do cartao.
+ */
+const FORMA_DE_VERSAO = /^[0-9]{1,3}(\.[0-9]{1,4}){1,3}(-[A-Za-z0-9.]{1,20})?$/;
+const ONDE_LEGIVEL = Object.freeze({ local: 'no teu computador', nuvem: 'na nuvem' });
+
+function linhaDeExecucao(p) {
+  const v = valorDe(p.versao);
+  const versao = v !== 'n/d' && FORMA_DE_VERSAO.test(v) ? 'v' + v : 'v n/d';
+  const t = valorDe(p.tier);
+  const tier = TIERS_LEGIVEIS.includes(t) ? t : 'n/d';
+  const o = valorDe(p.onde);
+  const onde = ONDE_LEGIVEL[o] || 'n/d';
+  return '🐮 Mooter ' + versao + ' · ' + tier + ' · ' + modeloCurto(p.modelo) + ' · ' + onde;
+}
+
 function rodapeComum(p) {
   return contexto([
+    linhaDeExecucao(p),
     'pedido `' + String(p.job_id || 'n/d') + '`',
-    'modelo `' + modeloCurto(p.modelo) + '`',
     'ficheiros alterados: não declarados — este motor nunca os reporta',
   ]);
 }
@@ -497,7 +525,7 @@ function construir(payload) {
   return { blocos: fora, texto: notificacao(p) };
 }
 
-module.exports = { linhaDaCadeia, montante, LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
+module.exports = { linhaDeExecucao, TIERS_LEGIVEIS, linhaDaCadeia, montante, LIMITE_SECTION, MAX_FIELDS, CHARS_HASH, MOEDA, ROSTO, ACCOES,
   MOTORES_LEGIVEIS, FONTES_LEGIVEIS,
   classeDaFonte, fonteLegivel, dinheiro, impressaoCompleta, hashCurto, mencaoDeActor, valorDe,
   FORMA_DE_MODELO, modeloCurto, motorLegivel, apelido,
