@@ -40,7 +40,11 @@ export const PILLARS = {
     files: [
       'tools/router/classify.js',
       'tools/router/inject_context.js',
-      'tools/router/statusline.js',
+      // Era 'tools/router/statusline.js', que nunca existiu neste caminho — o
+      // pilar apontava ao vazio e ninguem soube, porque `resolveCandidates`
+      // filtra os que nao existem em silencio. Apanhado a 2026-08-19 por um
+      // teste novo que exige que os ficheiros de um pilar existam mesmo.
+      'tools/router/gsd-statusline.js',
       'packages/router/src/decide-agent.ts',
       'packages/router/src/task-categories.ts',
     ],
@@ -98,6 +102,57 @@ export const PILLARS = {
     ask:
       'Qual destas linhas pode mostrar ao utilizador um campo a zero, vazio ou ' +
       'enganador sem ele perceber porquê? Escolhe uma e diz porquê.',
+  },
+  /**
+   * P7 — o cockpit vigia-se a si proprio.
+   *
+   * Todos os outros pilares apontam ao produto; nenhum apontava ao instrumento
+   * que os mostra. Medido nesta sessao: o painel chamou "recibos ao todo" a uma
+   * janela de 5000 quando o ledger tinha 5905, e serviu durante horas codigo de
+   * um processo que ninguem reiniciava. Um instrumento que mente e pior do que
+   * um instrumento em falta, porque parece que se esta a medir.
+   */
+  P7: {
+    label: 'O proprio Moo Pilot',
+    files: [
+      'tools/cockpit/moo-pilot-shell.html',
+      'tools/cockpit/runner/fleet-state.mjs',
+      'tools/cockpit/runner/triagem.mjs',
+      'tools/cockpit/runner/reserva.mjs',
+      'tools/cockpit/runner/launch.mjs',
+    ],
+    ask:
+      'Ha neste excerto um numero, rotulo ou estado que o painel MOSTRA e que pode ' +
+      'nao querer dizer o que o rotulo diz — uma contagem limitada apresentada como ' +
+      'total, um estado derivado de um campo que pode faltar, um verde que nao prova ' +
+      'nada? Se houver, cita a linha. Se nao houver, responde SEM ACHADO.',
+  },
+  /**
+   * P8 — as pontas soltas entre features.
+   *
+   * A pergunta e estreita de proposito, porque e a UNICA forma de um modelo que
+   * ve 70 linhas dizer alguma coisa util sobre coerencia: um campo escrito e
+   * nunca lido, ou lido e nunca escrito, e visivel dentro de um excerto.
+   *
+   * E e a classe de defeito que mais custou nesta sessao, tres vezes: `escopo`
+   * escrito no ledger e lido por ninguem, `hunksTruncados` com um produtor e
+   * zero consumidores, `diffErro` capturado e nunca publicado. Nos tres casos o
+   * codigo estava certo e a feature nao chegava ao dono.
+   */
+  P8: {
+    label: 'Pontas soltas entre features',
+    files: [
+      'tools/cockpit/runner/fleet-beacon.mjs',
+      'tools/cockpit/runner/context-pack.mjs',
+      'tools/cockpit/runner/engine-breaker.mjs',
+      'tools/cockpit/runner/project.mjs',
+      'packages/mooter-bridge/seamless.js',
+    ],
+    ask:
+      'Ha neste excerto um campo que e ESCRITO num objecto (recibo, estado, payload) ' +
+      'e que nao aparece em mais lado nenhum do excerto a ser lido, ou um campo LIDO ' +
+      'que nunca foi escrito aqui? Cita a linha onde ele e escrito ou lido. Se todos ' +
+      'os campos que ves sao usados dos dois lados, responde SEM ACHADO.',
   },
 };
 
