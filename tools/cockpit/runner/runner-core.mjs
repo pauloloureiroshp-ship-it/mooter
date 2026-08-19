@@ -195,7 +195,7 @@ export async function runRound({
 
   // A âncora estática (eslint) é o detetor; o moo é o juiz. Se o ficheiro não
   // existir, readAnchor devolve [] e a ronda volta ao modo de caça — nunca falha.
-  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase, pillars, revistos });
+  const pack = buildContextPack({ repoRoot, pillar, cursor, anchorPath, diffBase, pillars, revistos, device: deviceName() });
   if (!pack.ok) {
     return {
       dispatched: false,

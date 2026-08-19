@@ -329,6 +329,26 @@ export function negacaoDensa(texto) {
  * as linhas mudarem, e trabalho novo e volta a fila; se nao mudarem, ja foi
  * julgado e nao ha nada a ganhar em julga-lo outra vez.
  */
+/**
+ * Fase de um device na caminhada partilhada.
+ *
+ * Dois devices a conduzir o MESMO repo percorriam a mesma sequencia pela mesma
+ * ordem e moiam os mesmos alvos — o dobro da GPU pelo mesmo trabalho. Cada um
+ * entra na caminhada num ponto diferente, deterministico no NOME do device: a
+ * frota cobre mais em vez de repetir, e uma maquina sozinha continua a dar
+ * exactamente a mesma ronda que dava.
+ *
+ * Nao substitui coordenacao a serio (um device nao sabe o que o outro ja
+ * julgou); e a versao barata que nao precisa de nenhuma.
+ */
+export function faseDoDevice(device) {
+  const nome = String(device || '');
+  if (!nome) return 0;
+  let h = 0;
+  for (let i = 0; i < nome.length; i += 1) h = ((h * 31) + nome.charCodeAt(i)) >>> 0;
+  return h % 7919; // primo: nao alinha com o numero de pilares nem de hunks
+}
+
 export function hunkKey(file, startLine, endLine, texto) {
   const sha = crypto.createHash('sha256').update(String(texto || '')).digest('hex').slice(0, 12);
   return `${file}:${startLine}-${endLine}:${sha}`;
@@ -553,6 +573,8 @@ export function buildContextPack({
   anchorPath = null,
   diffBase = null,
   diffRunImpl = null,
+  // O device que esta a conduzir. Entra na fase da caminhada; ver faseDoDevice.
+  device = null,
   // So a recursao da escada liga isto. Com uma base UNICA, um diff esgotado
   // tem de CAIR para o degrau seguinte (ancorado/caca) em vez de devolver
   // `ok:false`: medido a 2026-08-18 com `MOO_DIFF_BASE=HEAD~12`, 240 de 360
@@ -574,7 +596,7 @@ export function buildContextPack({
   // 2950 rondas por dia. Esgotadas todas, cai para os degraus de baixo
   // (ancorado, caca), que e a degradacao que ja existia.
   if (Array.isArray(diffBase)) {
-    const resto = { repoRoot, pillar, cursor, maxLines, anchorPath, diffRunImpl, pillars, revistos };
+    const resto = { repoRoot, pillar, cursor, maxLines, anchorPath, diffRunImpl, pillars, revistos, device };
     for (const base of diffBase) {
       const r = buildContextPack({ ...resto, diffBase: base, pararSeEsgotado: true });
       if (r.ok) return { ...r, escadaBase: base };
@@ -642,7 +664,7 @@ export function buildContextPack({
       // — medido no ledger vivo a 2026-08-18: P2 e P1, rondas seguidas, a mesma
       // janela 277-295. Multiplicar pelo numero de pilares torna cada par
       // (rotacao, pilar) um lugar unico na caminhada.
-      const passo = cursor * ids.length + desvio;
+      const passo = cursor * ids.length + desvio + faseDoDevice(device);
       // Varre a partir do lugar deterministico ate encontrar um excerto que
       // ainda nao foi julgado. Sem isto, o cursor voltava sempre ao mesmo
       // hunk assim que o poco dava a volta.
@@ -748,7 +770,7 @@ export function buildContextPack({
     // `gsd-statusline.js` pelos seis pilares. O ramo do diff estava corrigido e
     // este nao — e e este que corre a maior parte do tempo.
     const idsA = Object.keys(pillars);
-    const passoA = cursor * idsA.length + Math.max(0, idsA.indexOf(pillar));
+    const passoA = cursor * idsA.length + Math.max(0, idsA.indexOf(pillar)) + faseDoDevice(device);
     // Varre a partir do lugar deterministico ate achar um apontamento por
     // julgar, tal como o ramo do diff faz com os hunks.
     let hit = null;
@@ -816,7 +838,7 @@ export function buildContextPack({
   // 24 cursores desperdicados quando um pilar tinha um ficheiro curto e outro
   // longo.
   const ids = Object.keys(pillars);
-  const passoF = cursor * Math.max(1, ids.length) + Math.max(0, ids.indexOf(pillar));
+  const passoF = cursor * Math.max(1, ids.length) + Math.max(0, ids.indexOf(pillar)) + faseDoDevice(device);
   let file = null;
   let lines = null;
   let slice = null;
