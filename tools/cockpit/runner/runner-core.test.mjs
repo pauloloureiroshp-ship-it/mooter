@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -451,10 +451,13 @@ test('readAnchor devolve [] sem ficheiro, sem json valido, ou sem array', () => 
 test('readAnchor descarta entradas invalidas e poe as regras que valem primeiro', () => {
   const raw = JSON.stringify([
     { file: 'a.js', line: 10, rule: 'security/detect-unsafe-regex', msg: 'regex' },
-    { file: 'b.js', line: 0, rule: 'no-empty', msg: 'linha invalida' },
-    { file: 'c.js', rule: 'no-empty', msg: 'sem linha' },
+    { file: 'b.js', line: 0, rule: 'no-dupe-keys', msg: 'linha invalida' },
+    { file: 'c.js', rule: 'no-dupe-keys', msg: 'sem linha' },
     { file: 'd.js', line: 5, rule: 'require-atomic-updates', msg: 'corrida' },
-    { file: 'e.js', line: 7, rule: 'no-empty', msg: 'catch vazio' },
+    // `no-empty` ja nao chega aqui — e intencional neste projecto e esta em
+    // REGRAS_IGNORADAS. A fixture usa uma regra que sobrevive ao filtro, para
+    // continuar a medir o que este teste diz medir: ordem e descarte.
+    { file: 'e.js', line: 7, rule: 'no-fallthrough', msg: 'fallthrough' },
   ]);
   const got = readAnchor('x.json', { readImpl: () => raw });
   assert.equal(got.length, 3, 'entradas sem linha valida sao descartadas');
@@ -464,7 +467,7 @@ test('readAnchor descarta entradas invalidas e poe as regras que valem primeiro'
 
 test('com ancora, o pack entra em modo ANCORADO e manda julgar a linha apontada', () => {
   const root = fixtureRepo();
-  const alvo = { file: 'tools/router/mooter-review.js', line: 3, rule: 'no-empty', msg: 'Empty block statement.' };
+  const alvo = { file: 'tools/router/mooter-review.js', line: 3, rule: 'no-dupe-keys', msg: 'Duplicate key.' };
   const anchorFile = path.join(root, 'ancora.json');
   fs.writeFileSync(anchorFile, JSON.stringify([alvo]));
   const pack = buildContextPack({ repoRoot: root, pillar: 'P1', anchorPath: anchorFile });
@@ -472,10 +475,10 @@ test('com ancora, o pack entra em modo ANCORADO e manda julgar a linha apontada'
   assert.equal(pack.anchored, true, 'devia estar em modo ancorado');
   assert.equal(pack.file, alvo.file, 'o pack segue o ficheiro da ancora, nao a rotacao do pilar');
   assert.equal(pack.anchorLine, 3);
-  assert.equal(pack.anchorRule, 'no-empty');
+  assert.equal(pack.anchorRule, 'no-dupe-keys');
   assert.equal(pack.system, ANCHORED_SYSTEM_PROMPT, 'usa o prompt de juiz, nao o de cacador');
   assert.match(pack.prompt, /A ferramenta apontou a LINHA 3/);
-  assert.match(pack.prompt, /Empty block statement/);
+  assert.match(pack.prompt, /Duplicate key/);
   assert.match(pack.system, /FALSO POSITIVO/, 'o juiz tem de poder recusar o apontamento');
 });
 
@@ -1215,7 +1218,7 @@ test('um apontamento fora do ambito do pilar nao lhe e servido', () => {
   const ancora = path.join(root, 'ancora.json');
   // O apontamento e num ficheiro que NAO pertence ao P4.
   fs.writeFileSync(ancora, JSON.stringify([
-    { file: 'tools/router/mooter-review.js', line: 20, rule: 'no-empty' },
+    { file: 'tools/router/mooter-review.js', line: 20, rule: 'no-dupe-keys' },
   ]));
 
   const pack = buildContextPack({ repoRoot: root, pillar: 'P4', cursor: 0, anchorPath: ancora });
@@ -1232,9 +1235,46 @@ test('um apontamento DENTRO do ambito continua a ser servido', () => {
     Array.from({ length: 200 }, (_, i) => `linha ${i + 1};`).join('\n'));
   const ancora = path.join(root, 'ancora.json');
   fs.writeFileSync(ancora, JSON.stringify([
-    { file: 'tools/router/mooter-review.js', line: 20, rule: 'no-empty' },
+    { file: 'tools/router/mooter-review.js', line: 20, rule: 'no-dupe-keys' },
   ]));
   const pack = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, anchorPath: ancora });
   assert.ok(pack.ok);
   assert.equal(pack.file, 'tools/router/mooter-review.js', 'o ficheiro E do P1: continua a ser o alvo certo');
+});
+
+// ── a ancora so pode trazer o que E defeito (2026-08-19) ────────────────────
+
+/**
+ * Medido no `ancora-achados.json` real: 76 apontamentos, **58 deles `no-empty`**
+ * (76%) e 14 `PARSE`. Amostrados tres dos `no-empty`, todos eram `catch (e) {}`
+ * em caminhos de telemetria — deliberados, porque um hook nunca pode partir o
+ * turno do dono.
+ *
+ * A prioridade sozinha nao resolvia: ordenar poe os poucos bons a frente, e
+ * esgotados esses o resto e `no-empty` para sempre. Foi assim que 13 dos 45
+ * achados por triar nasceram "bloco vazio" — a GPU a olhar para uma decisao
+ * intencional e a ser-lhe perguntado se e um defeito.
+ */
+test('uma regra intencional neste projecto nao chega a ser servida', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-anc-'));
+  const f = path.join(dir, 'a.json');
+  fs.writeFileSync(f, JSON.stringify([
+    { file: 'a.js', line: 1, rule: 'no-empty' },
+    { file: 'b.js', line: 2, rule: 'PARSE' },
+    { file: 'c.js', line: 3, rule: 'require-atomic-updates' },
+    { file: 'd.js', line: 4, rule: 'no-dupe-keys' },
+  ]));
+  const lidos = readAnchor(f);
+  assert.deepEqual(lidos.map((x) => x.rule), ['require-atomic-updates', 'no-dupe-keys'],
+    'so o que e mesmo um defeito, e pela prioridade que ja existia');
+  for (const r of REGRAS_IGNORADAS) {
+    assert.ok(!lidos.some((x) => x.rule === r), `${r} nao pode voltar a fila`);
+  }
+});
+
+test('a lista de regras ignoradas e explicita — nunca um filtro escondido', () => {
+  assert.ok(REGRAS_IGNORADAS instanceof Set);
+  assert.ok(REGRAS_IGNORADAS.has('no-empty'));
+  assert.ok(REGRAS_IGNORADAS.size >= 1 && REGRAS_IGNORADAS.size <= 6,
+    'uma lista que cresce sem limite deixa de ser uma decisao e passa a ser um esconderijo');
 });
