@@ -28,6 +28,10 @@ export const VERDICT = {
   REFUTED: 'refutado',
   UNCITED: 'sem-citacao',
   NO_FINDING: 'sem-achado',
+  // Uma ronda que nao chegou ao modelo por nao haver nada para rever. Nao e
+  // um veredicto sobre uma resposta: e a ausencia de resposta, e ate hoje
+  // vestia-se de `sem-citacao`.
+  NOT_RUN: 'nada-por-rever',
 };
 
 const CITATION_RE =
@@ -36,8 +40,20 @@ const CITATION_RE =
 const MAX_CITATIONS = 12;
 
 /** A model that finds nothing must be able to say so without being punished. */
+/**
+ * O carimbo de ronda vazia, nas DUAS linguas.
+ *
+ * O contrato partilhado pede `SEM ACHADO`; duas perguntas de pilar (P7, P8)
+ * pedem `NO FINDING`. O modelo recebe as duas instrucoes na mesma volta e
+ * responde numa das duas — e quem le tem de aceitar ambas. Enquanto so se
+ * reconhecia a portuguesa, uma ronda honestamente vazia em ingles caia em
+ * `sem-citacao`: o painel contava-a como resposta por verificar, e o modelo
+ * era castigado por ter feito exactamente o que lhe pediram.
+ */
+export const SEM_ACHADO_RE = /\b(SEM\s+ACHADO|NO\s+FINDING)\b/i;
+
 export function isNoFinding(text) {
-  return /\bSEM\s+ACHADO\b/i.test(String(text || ''));
+  return SEM_ACHADO_RE.test(String(text || ''));
 }
 
 /** Extracts unique `file:line` pairs, capped so a runaway answer cannot stall a round. */
@@ -132,9 +148,11 @@ export function checkCitation(repoRoot, { file, line }) {
 export function concluir(text) {
   const t = String(text || '').trim().toUpperCase();
   if (!t) return 'vazio';
-  if (t.startsWith('FALSO POSITIVO')) return 'falso-positivo';
-  if (/\bSEM\s+ACHADO\b/.test(t)) return 'sem-achado';
-  if (/\bACHADO\s*:/.test(t)) return 'achado';
+  if (t.startsWith('FALSO POSITIVO') || t.startsWith('FALSE POSITIVE')) return 'falso-positivo';
+  // A ordem importa: `NO FINDING` tem de ser lido ANTES de `FINDING:`, senao
+  // uma ronda vazia em ingles seria lida como um achado.
+  if (SEM_ACHADO_RE.test(t)) return 'sem-achado';
+  if (/\b(ACHADO|FINDING)\s*:/.test(t)) return 'achado';
   return 'indeterminado';
 }
 
@@ -151,12 +169,12 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
       ? {
           conclusao: concluir(text),
       verdict: VERDICT.NO_FINDING, citations: [], checked: 0, failed: 0,
-          offWindow: 0, evidence: 'sem-achado: a ronda declarou nada a reportar',
+          offWindow: 0, evidence: 'no finding: the round reported nothing',
         }
       : {
           conclusao: concluir(text),
       verdict: VERDICT.UNCITED, citations: [], checked: 0, failed: 0,
-          offWindow: 0, evidence: 'sem-citacao: resposta sem ficheiro:linha, nao verificavel',
+          offWindow: 0, evidence: 'uncited: answer has no file:line, not verifiable',
         };
   }
 
@@ -180,7 +198,7 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
       conclusao: concluir(text),
       verdict: VERDICT.REFUTED,
       citations: checked, checked: checked.length, failed: failed.length, offWindow,
-      evidence: `refutado: ${first.file}:${first.line} ${first.reason}`,
+      evidence: `refuted: ${first.file}:${first.line} ${first.reason}`,
     };
   }
 
@@ -188,7 +206,7 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
   // the owner reads is the strongest one available rather than merely the first.
   const head = checked.find((c) => !c.off_window) || checked[0];
   const blank = !head.snippet;
-  const suffix = offWindow > 0 ? ` · ${offWindow} citacao(oes) fora da janela mostrada` : '';
+  const suffix = offWindow > 0 ? ` · ${offWindow} citation(s) outside the shown window` : '';
   return {
     conclusao: concluir(text),
     verdict: blank && offWindow === checked.length ? VERDICT.UNCITED : VERDICT.CITED,
@@ -196,12 +214,32 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
     // "linha existe", never "achado confirmado" — the claim stays untriaged.
     // A blank cited line is said out loud instead of rendering as green nothing.
     evidence: blank
-      ? `citacao-ok (achado NAO triado): ${head.file}:${head.line} => LINHA EM BRANCO${suffix}`
-      : `citacao-ok (achado NAO triado): ${head.file}:${head.line} => ${head.snippet}${suffix}`,
+      ? `cited (finding NOT triaged): ${head.file}:${head.line} => BLANK LINE${suffix}`
+      : `cited (finding NOT triaged): ${head.file}:${head.line} => ${head.snippet}${suffix}`,
   };
 }
 
 /** Rolls a ledger of receipts into the honest counters the cockpit shows. */
+/**
+ * Uma ronda que NUNCA chegou ao modelo.
+ *
+ * O `runner-core` carimbava `sem-citacao` numa ronda sem contexto — 0 s de
+ * GPU, 0 tokens, modelo nunca chamado. O painel mostrava-a debaixo de um
+ * cartao que diz "what the GPU shipped", como se o modelo tivesse falhado em
+ * citar. Medido a 2026-08-19 no ledger do dono: 209 dos 275 `sem-citacao`
+ * (76%) eram isto. O numero verdadeiro de "o modelo respondeu sem citar" era
+ * 66, e ninguem podia sabe-lo.
+ *
+ * A leitura e RETROACTIVA de proposito: os 209 recibos antigos ja trazem
+ * `esgotado: true`, portanto a correccao vale para o historico todo sem
+ * reescrever uma linha do ledger.
+ */
+export function naoCorreu(r) {
+  if (!r) return false;
+  if (r.esgotado === true || r.esgotado === 'true') return true;
+  return r.verdict === VERDICT.NOT_RUN;
+}
+
 export function tallyVerdicts(receipts) {
   const tally = {
     total: 0,
@@ -209,10 +247,14 @@ export function tallyVerdicts(receipts) {
     [VERDICT.REFUTED]: 0,
     [VERDICT.UNCITED]: 0,
     [VERDICT.NO_FINDING]: 0,
+    [VERDICT.NOT_RUN]: 0,
     erro: 0,
   };
   for (const r of receipts || []) {
     tally.total += 1;
+    // Primeiro pergunta-se se a ronda chegou a correr. Um recibo antigo diz
+    // `sem-citacao` E `esgotado: true` ao mesmo tempo; ganha o esgotado.
+    if (naoCorreu(r)) { tally[VERDICT.NOT_RUN] += 1; continue; }
     const v = r && r.verdict;
     if (v && Object.prototype.hasOwnProperty.call(tally, v)) tally[v] += 1;
     else tally.erro += 1;

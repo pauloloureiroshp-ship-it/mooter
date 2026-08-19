@@ -114,7 +114,16 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 
 }
 
 /** Os achados que ainda esperam por uma decisao, do mais recente para tras. */
-export function porTriar(receipts, decisoes, limite = 50) {
+export const LIMITE_TRIAGEM = 50;
+
+/**
+ * A fila de triagem, cortada nos mais recentes.
+ *
+ * O corte e real e NAO se ve daqui: quem le esta lista nao sabe se ficaram 0
+ * ou 400 de fora. Quem publica tem de emparelha-la com `contarTriagem().
+ * por_triar`, que conta o ledger inteiro -- e e o que o `/fleet.json` faz.
+ */
+export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
   const out = [];
   for (let i = (receipts || []).length - 1; i >= 0 && out.length < limite; i -= 1) {
     const r = receipts[i];
@@ -183,12 +192,19 @@ export function custoEstimado(modelo, { tokensIn = 4000, tokensOut = 700 } = {})
   return { modelo, usd: Math.round(usd * 1e6) / 1e6, fonte: 'tools/router/pricing.js', tokensIn, tokensOut };
 }
 
-/** O menu de motores para o selector, cada um com o seu custo REAL por achado. */
+/**
+ * O menu de motores para o selector, cada um com o seu custo REAL por achado.
+ *
+ * `claude-fable-5` (T5) fica DE FORA de proposito. Pela escada de tiers do
+ * projecto, T5/Fable e opt-in exclusivamente via `@fable` e NUNCA e alcancavel
+ * por escolha de tier — um menu de escalação que o oferecesse estaria a
+ * violar essa doutrina, nao so a mostrar um preco.
+ */
 export function menuDeMotores(opts = {}) {
   return [
     { id: 'moo', etiqueta: 'moo (local)', tier: 'T0', ...custoEstimado('moo', opts) },
     { id: 'claude-haiku-4-5', etiqueta: 'Haiku', tier: 'T1', ...custoEstimado('claude-haiku-4-5', opts) },
-    { id: 'claude-sonnet-4-6', etiqueta: 'Sonnet', tier: 'T2', ...custoEstimado('claude-sonnet-4-6', opts) },
-    { id: 'claude-opus-4-6', etiqueta: 'Opus', tier: 'T3', ...custoEstimado('claude-opus-4-6', opts) },
+    { id: 'claude-sonnet-5', etiqueta: 'Sonnet', tier: 'T2', ...custoEstimado('claude-sonnet-5', opts) },
+    { id: 'claude-opus-5', etiqueta: 'Opus', tier: 'T3', ...custoEstimado('claude-opus-5', opts) },
   ];
 }

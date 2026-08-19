@@ -16,7 +16,7 @@
  */
 
 import fs from 'node:fs';
-import { VERDICT, tallyVerdicts } from './evidence-verifier.mjs';
+import { VERDICT, tallyVerdicts, naoCorreu } from './evidence-verifier.mjs';
 
 export const OWNER_TZ = 'America/Sao_Paulo';
 // The longest healthy gap between receipts is one round plus its sleep (~45s).
@@ -71,22 +71,22 @@ export function ownerDay(ms, tz = OWNER_TZ) {
  * age is not a fresh one.
  */
 export function freshness(lastTs, nowMs) {
-  if (!lastTs) return { estado: 'morto', idade_s: null, motivo: 'sem recibo' };
+  if (!lastTs) return { estado: 'morto', idade_s: null, motivo: 'no receipt' };
   const t = Date.parse(lastTs);
-  if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'timestamp ilegivel' };
+  if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'unreadable timestamp' };
   const raw = Math.round((nowMs - t) / 1000);
   // A receipt dated in the future used to clamp to age 0 and read as `vivo`
   // forever — a clock skew, or one bad line, would pin the cockpit green.
   // A timestamp we cannot place in the past is not freshness, it is a fault.
   if (raw < -CLOCK_SKEW_TOLERANCE_S) {
-    return { estado: 'morto', idade_s: null, motivo: `recibo datado no futuro (${-raw}s)` };
+    return { estado: 'morto', idade_s: null, motivo: `receipt dated in the future (${-raw}s)` };
   }
   const age = Math.max(0, raw);
   if (age <= STALE_AFTER_S) return { estado: 'vivo', idade_s: age, motivo: null };
   if (age <= DEAD_AFTER_S) {
-    return { estado: 'stale', idade_s: age, motivo: `sem recibo ha ${age}s` };
+    return { estado: 'stale', idade_s: age, motivo: `no receipt for ${age}s` };
   }
-  return { estado: 'morto', idade_s: age, motivo: `sem recibo ha ${age}s` };
+  return { estado: 'morto', idade_s: age, motivo: `no receipt for ${age}s` };
 }
 
 export const FEED_LENGTH = 14;
@@ -148,10 +148,14 @@ export function perPillar(receipts) {
       refutado: 0,
       sem_citacao: 0,
       sem_achado: 0,
+      nada_por_rever: 0,
       sem_veredicto: 0,
     });
     slot.total += 1;
-    const key = { 'citacao-ok': 'citacao_ok', refutado: 'refutado', 'sem-citacao': 'sem_citacao', 'sem-achado': 'sem_achado' }[r.verdict];
+    // Igual ao tally global: primeiro pergunta-se se a ronda chegou a correr.
+    const key = naoCorreu(r)
+      ? 'nada_por_rever'
+      : { 'citacao-ok': 'citacao_ok', refutado: 'refutado', 'sem-citacao': 'sem_citacao', 'sem-achado': 'sem_achado' }[r.verdict];
     if (key) slot[key] += 1;
     else slot.sem_veredicto += 1;
     slot.ultimo = {
@@ -279,6 +283,9 @@ export function buildFleetState({
       refutado: tally[VERDICT.REFUTED],
       sem_citacao: tally[VERDICT.UNCITED],
       sem_achado: tally[VERDICT.NO_FINDING],
+      // As rondas em que o poco estava seco. Ate hoje viviam dentro de
+      // `sem_citacao` e faziam-no parecer quatro vezes maior do que e.
+      nada_por_rever: tally[VERDICT.NOT_RUN],
       sem_veredicto: tally.erro,
       linhas_corrompidas: corrompidas,
       ledger_existe: existe,

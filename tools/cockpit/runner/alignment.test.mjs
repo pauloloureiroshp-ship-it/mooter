@@ -66,7 +66,7 @@ test('checkClassifySha denuncia divergencia entre doc e codigo', () => {
   const root = repoWith('const x = 2;\n', CANON_LINE);
   const r = checkClassifySha(root);
   assert.equal(r.ok, false);
-  assert.match(r.motivo, /diverge do canon/);
+  assert.match(r.motivo, /diverges from canon/);
   assert.notEqual(r.declarado, r.medido);
 });
 
@@ -77,7 +77,7 @@ test('invariante desconhecida e null, nunca satisfeita', () => {
   const semCodigo = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-align-vazio-'));
   const r = checkClassifySha(semCodigo);
   assert.equal(r.ok, null);
-  assert.match(r.motivo, /ilegivel/);
+  assert.match(r.motivo, /unreadable/);
 });
 
 // ---------------------------------------------------------------- vault
@@ -98,7 +98,7 @@ test('vaultLastWrite encontra a escrita mais recente', () => {
 
 test('vault nao montado diz porque, nao finge vazio-igual-limpo', () => {
   const r = vaultLastWrite('/caminho/que/nao/existe');
-  assert.match(r.motivo, /nao montado/);
+  assert.match(r.motivo, /not mounted/);
   assert.equal(r.ts, null);
 });
 
@@ -148,7 +148,7 @@ test('sem git nenhum, tudo fica null e nada fica verde', async () => {
   assert.equal(a.ahead, null);
   assert.equal(a.behind, null);
   assert.equal(a.upstream, null);
-  assert.match(a.comparacao, /sem upstream/);
+  assert.match(a.comparacao, /no upstream/);
 });
 
 test('sem upstream a comparacao e declarada, nao inventada', async () => {
@@ -162,7 +162,7 @@ test('sem upstream a comparacao e declarada, nao inventada', async () => {
   };
   const a = await buildAlignment({ repoRoot: root, gitImpl: gitFake, vaultPath: null });
   assert.equal(a.ahead, null);
-  assert.match(a.comparacao, /sem upstream configurado/);
+  assert.match(a.comparacao, /no upstream configured/);
 });
 
 test('o alinhamento entra no /fleet.json e sobrevive a nao ser calculavel', () => {

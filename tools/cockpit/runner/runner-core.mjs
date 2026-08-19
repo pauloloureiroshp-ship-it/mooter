@@ -203,7 +203,11 @@ export async function runRound({
         ...receiptBase(),
         dur_s: 0,
         tokens_out: 0,
-        verdict: VERDICT.UNCITED,
+        // Uma ronda que nunca chegou ao modelo nao e "o modelo respondeu sem
+        // citar". Sao coisas diferentes e pedem respostas diferentes: uma diz
+        // que o poco secou (alarga-se o ambito), a outra que o modelo divagou
+        // (aperta-se a pergunta). Ate aqui tinham o mesmo nome.
+        verdict: pack.esgotado ? VERDICT.NOT_RUN : VERDICT.UNCITED,
         // Uma ronda sem contexto nao produziu trabalho. Sem bandeira nenhuma
         // ela caia no ramo NEUTRO do disjuntor: 200 dessas escreviam 200
         // linhas com backoff ZERO — a inundacao do B8 por uma terceira porta.

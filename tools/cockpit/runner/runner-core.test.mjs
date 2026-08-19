@@ -4,13 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
   checkCitation,
   verifyEvidence,
   tallyVerdicts,
+  naoCorreu,
   isNoFinding,
   concluir,
 } from './evidence-verifier.mjs';
@@ -134,15 +135,49 @@ test('buildContextPack degrada para n/d quando nenhuma ancora existe', () => {
   assert.match(pack.reason, /nenhum ficheiro-ancora|nenhum ficheiro-âncora/);
 });
 
-test('resolveCandidates ignora ficheiros que nao existem', () => {
+test('resolveCandidates so devolve ficheiros que existem MESMO no disco', () => {
   const root = fixtureRepo();
+  // A fixture tem exactamente um .js e dois .md. Um padrao nunca inventa um
+  // ficheiro: devolve o que esta la, e nada mais.
   assert.deepEqual(resolveCandidates(root, 'P1'), ['tools/router/mooter-review.js']);
-  // O P3 perdeu os .md no redesenho de 2026-08-19 (987 rondas, 0 aceites: eram
-  // 100% prosa, e prosa e citacao proibida). Nesta fixture ele fica SEM
-  // candidatos — que e exactamente o que este teste existe para provar: um
-  // ficheiro que nao existe e ignorado em silencio, e a lista vem vazia.
-  assert.deepEqual(resolveCandidates(root, 'P3'), []);
-  assert.deepEqual(resolveCandidates(root, 'P4'), ['README.md'], 'o P4 le o README, que a fixture cria');
+  assert.deepEqual(resolveCandidates(root, 'P4'), ['CLAUDE.md', 'README.md'], 'o P4 le o texto publicado que a fixture cria');
+  for (const id of PILLAR_IDS) {
+    for (const f of resolveCandidates(root, id)) {
+      assert.ok(fs.existsSync(path.join(root, f)), `${id} devolveu ${f}, que nao existe`);
+    }
+  }
+});
+
+test('um padrao percebe `*` dentro da pasta e `**` a atravessa-las', () => {
+  assert.equal(padraoParaRegex('tools/router/*.js').test('tools/router/a.js'), true);
+  assert.equal(padraoParaRegex('tools/router/*.js').test('tools/router/sub/a.js'), false, '`*` nao pode saltar uma pasta');
+  assert.equal(padraoParaRegex('landing/**/*.tsx').test('landing/app/(x)/y/page.tsx'), true);
+  assert.equal(padraoParaRegex('landing/**/*.tsx').test('outro/app/page.tsx'), false);
+  // Um caminho literal continua a ser um caminho literal — e por isso um
+  // `.mooter/pilares.json` escrito antes dos padroes nao parte.
+  const root = fixtureRepo();
+  assert.deepEqual(expandirPadrao(root, 'README.md'), ['README.md']);
+  assert.deepEqual(expandirPadrao(root, 'nao-existe.md'), []);
+});
+
+test('o varrimento nao conta testes como material a rever', () => {
+  const root = fixtureRepo();
+  fs.writeFileSync(path.join(root, 'tools', 'router', 'mooter-review.test.js'), 'test("x", () => {});\n');
+  const achados = expandirPadrao(root, 'tools/router/*.js', Date.now() + 999_999);
+  assert.deepEqual(achados, ['tools/router/mooter-review.js'],
+    'um teste que falha ja grita sozinho: mo-lo era rever o alarme em vez do incendio');
+});
+
+test('o corte da lista de candidatos NUNCA e silencioso', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-cap-'));
+  fs.mkdirSync(path.join(root, 'muitos'), { recursive: true });
+  const n = MAX_CANDIDATOS + 17;
+  for (let i = 0; i < n; i += 1) fs.writeFileSync(path.join(root, 'muitos', `f${String(i).padStart(4, '0')}.js`), 'const x = 1;\n');
+  const pilares = { PX: { label: 'x', ask: 'x', files: ['muitos/*.js'] } };
+  const c = candidatosDoPilar(root, 'PX', pilares);
+  assert.equal(c.files.length, MAX_CANDIDATOS, 'o tecto tem de morder');
+  assert.equal(c.total, n, 'e o numero REAL tem de continuar visivel');
+  assert.equal(c.truncado, true);
 });
 
 // CONTRATO DA PERGUNTA — INVERTIDO A 2026-08-19, com medicao a suportar.
@@ -259,7 +294,7 @@ test('o veredicto positivo nunca se chama "verificado" nem promete achado confir
     text: 'tools/router/mooter-review.js:1',
     allowedFiles: ['tools/router/mooter-review.js'],
   });
-  assert.match(v.evidence, /achado NAO triado/);
+  assert.match(v.evidence, /finding NOT triaged/);
 });
 
 test('verifyEvidence: refutado quando a citacao e inventada', () => {
@@ -293,7 +328,7 @@ test('verifyEvidence marca fora-da-janela sem refutar um ficheiro real', () => {
   });
   assert.equal(v.verdict, VERDICT.CITED);
   assert.equal(v.offWindow, 1);
-  assert.match(v.evidence, /fora da janela mostrada/, 'o sinal tem de chegar ao recibo');
+  assert.match(v.evidence, /outside the shown window/, 'o sinal tem de chegar ao recibo');
 });
 
 test('citar uma linha REAL que o modelo nunca viu conta como fora da janela', () => {
@@ -318,7 +353,7 @@ test('linha citada em branco e dita em voz alta, nao pintada de verde vazio', ()
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-branco-'));
   fs.writeFileSync(path.join(root, 'vazio.md'), 'topo\n\nfundo\n');
   const v = verifyEvidence({ repoRoot: root, text: 'o problema esta em vazio.md:2' });
-  assert.match(v.evidence, /LINHA EM BRANCO/);
+  assert.match(v.evidence, /BLANK LINE/);
 });
 
 test('tallyVerdicts conta por veredicto e nao por volume', () => {
@@ -640,7 +675,14 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
 // diff eram `_handoff/**`, codigo arquivado que ja nao corre.
 
 /** Ficheiros que nao pertencem a pilar nenhum — dois por pilar, para sobrar. */
-const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `packages/mooter-bridge/orfao${k}.js`);
+// `orfaos/` e nao `packages/mooter-bridge/`: com ancoras por padrao, o P5 e o
+// P8 passaram a reclamar `packages/mooter-bridge/*.js` — os "orfaos" deixaram
+// de o ser e o teste media outra coisa. Um orfao tem de estar onde nenhum
+// padrao chega, senao nao e um orfao.
+const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `orfaos/orfao${k}.js`);
+
+/** Um documento por pilar: dois pilares de documentos precisam de dois alvos. */
+const DOCUMENTOS = Array.from({ length: PILLAR_IDS.length }, (_, k) => `docs/doc${k}.md`);
 
 /** Repo de teste com um ficheiro de cada pilar e orfaos que chegam para todos. */
 function repoDiff() {
@@ -655,6 +697,10 @@ function repoDiff() {
   // conjunto, e nao cravado a 6: acrescentar um pilar nao pode partir um teste
   // que fala de colisoes.
   for (const nome of ORFAOS) escrever(nome);
+  // Pela mesma razao que ha orfaos que chegam para todos: com DOIS pilares so
+  // de documentos, um unico README poe os dois a moer o mesmo ficheiro e o
+  // teste acusa um defeito que e da fixture.
+  for (const nome of DOCUMENTOS) escrever(nome);
   fs.writeFileSync(path.join(root, 'README.md'), '# fixture\nMIT — see [LICENSE](LICENSE).\n');
   return root;
 }
@@ -769,7 +815,11 @@ test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hu
     'tools/cockpit/runner/evidence-verifier.mjs',// P6
   ];
   const orfaos = Array.from({ length: PILLAR_IDS.length }, (_, k) => `a/orfao${k}.js`);
-  for (const f of [...donos, ...orfaos]) escrever(f);
+  // Um documento por pilar, pela mesma razao dos orfaos: os pilares so de
+  // documentos nao entram no diff, e com um unico .md no repo caiem todos
+  // nele — uma colisao que e da fixture e nao do desenho.
+  const docs = Array.from({ length: PILLAR_IDS.length }, (_, k) => `docs/canon${k}.md`);
+  for (const f of [...donos, ...orfaos, ...docs]) escrever(f);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc\n');
 
   const diff = () => [...donos, ...orfaos]
@@ -798,7 +848,7 @@ test('B6: um pilar so de documentos (P4) nao entra no degrau do diff', () => {
     diffRunImpl: diffFalso([ORFAOS[0]]),
   });
   assert.notEqual(pack.mode, 'diff', 'um pilar sem um unico ficheiro de codigo nao tem lugar no diff');
-  assert.equal(pack.file, 'README.md', 'vai rever o texto publicado, que e o trabalho dele');
+  assert.match(pack.file, /\.md$/, 'vai rever o texto publicado, que e o trabalho dele');
 });
 
 // ------------------------------------------------- o poco que secava em 10 min
@@ -995,34 +1045,148 @@ test('FROTA: dois devices no mesmo repo deixam de moer os mesmos alvos', () => {
   assert.equal(faseDoDevice('x'), faseDoDevice('x'));
 });
 
-test('dois pilares nao devem reclamar o mesmo ficheiro sem que isso seja deliberado', () => {
-  // Um ficheiro com dois donos colide quando tem poucos hunks: o desvio por
-  // pilar nao salva, porque qualquer coisa % 1 e 0. Foi assim que o P8 nasceu a
-  // colidir com o P5 (`runner-core.mjs`) e o P7 com o P4 (`f10-server.mjs`).
-  //
-  // A sobreposicao P2+P6 em `build-snapshot.js` e ANTIGA e conhecida — fica
-  // listada aqui como excepcao declarada, para nao crescer em silencio.
-  const EXCEPCOES = new Set(['tools/cockpit/build-snapshot.js']);
-  const dono = {};
-  for (const id of PILLAR_IDS) for (const f of PILLARS[id].files) (dono[f] ??= []).push(id);
-  const sobrepostos = Object.entries(dono)
-    .filter(([f, ids]) => ids.length > 1 && !EXCEPCOES.has(f))
-    .map(([f, ids]) => `${ids.join('+')} -> ${f}`);
-  assert.deepEqual(sobrepostos, [], 'pilares a disputar o mesmo ficheiro moem o mesmo alvo');
+test('a sobreposicao entre pilares so e segura por causa da chave de revisao', () => {
+  // A REGRA ANTIGA proibia dois pilares de reclamar o mesmo ficheiro, e tinha
+  // razao para o mundo em que nasceu: a chave de "ja revisto" era so o
+  // conteudo, portanto o segundo pilar encontrava tudo julgado e moia o mesmo
+  // alvo. `chaveDeRevisao` passou a incluir o pilar e a premissa caiu — a
+  // sobreposicao passou a ser o que ENCHE o poco (medido: 46% das rondas
+  // morriam esgotadas). O que tem de continuar verdade e a precondicao.
+  const t = 'const x = 1;';
+  assert.notEqual(
+    chaveDeRevisao('P1', 'a.js', 1, 10, t),
+    chaveDeRevisao('P2', 'a.js', 1, 10, t),
+    'sem o pilar na chave, a sobreposicao volta a ser desperdicio',
+  );
+  assert.ok(chaveDeRevisao('P1', 'a.js', 1, 10, t).includes(hunkKey('a.js', 1, 10, t)),
+    'a identidade do conteudo continua la dentro: um excerto ALTERADO tem de voltar a fila');
+
+  // E no DIFF — poco pequeno e partilhado — a exclusividade mantem-se: cada
+  // ficheiro tem um dono so, o pilar de ambito mais estreito que o reclama.
+  const root = repoDiff();
+  for (const f of ['tools/router/mooter-review.js', 'tools/handoff-preflight.js', 'README.md']) {
+    const reclamantes = PILLAR_IDS.filter((id) => resolveCandidates(root, id).includes(f));
+    if (reclamantes.length === 0) continue;
+    const dono = donoDoFicheiro(root, f);
+    assert.ok(reclamantes.includes(dono), `${f} tem ${reclamantes.length} reclamantes e o dono tem de ser um deles`);
+    assert.equal(typeof dono, 'string', `${f} ficou sem dono apesar de ser reclamado`);
+  }
+  assert.equal(donoDoFicheiro(root, 'ficheiro/que/nao/existe.js'), null, 'o que ninguem reclama e orfao, e diz-se');
 });
 
-test('os ficheiros de um pilar tem de EXISTIR — apontar ao vazio nao da erro nenhum', () => {
-  // `resolveCandidates` filtra em silencio os ficheiros que nao existem. E a
+test('nenhum padrao de pilar pode apontar ao vazio', () => {
+  // `expandirPadrao` devolve [] em silencio para o que nao existe. E a
   // degradacao certa em producao, e e tambem a razao pela qual o P1 apontou
   // anos a `tools/router/statusline.js`, que nunca existiu nesse caminho, sem
-  // ninguem dar por isso. Um pilar com um ficheiro morto tem menos alvos e
-  // ninguem o sabe; aqui, sabe-se.
+  // ninguem dar por isso. Com padroes o risco muda de forma mas nao desaparece:
+  // um `tools/rooter/*.js` mal escrito casa com zero e ninguem estranha.
   const raiz = path.resolve(new URL('../../..', import.meta.url).pathname);
   const mortos = [];
   for (const id of PILLAR_IDS) {
-    for (const f of PILLARS[id].files) {
-      if (!fs.existsSync(path.join(raiz, f))) mortos.push(`${id} -> ${f}`);
+    for (const padrao of PILLARS[id].files) {
+      if (expandirPadrao(raiz, padrao).length === 0) mortos.push(`${id} -> ${padrao}`);
     }
   }
-  assert.deepEqual(mortos, [], 'um pilar a apontar ao vazio revê menos e nao se queixa');
+  assert.deepEqual(mortos, [], 'um pilar a apontar ao vazio reve menos e nao se queixa');
+});
+
+test('cada pilar tem material que chegue para nao secar em horas', () => {
+  // 2026-08-19: P2, P3 e P6 estavam a 100% de esgotamento e a GPU corria 5
+  // minutos por hora. A causa nao era o modelo, era a aritmetica — as ancoras
+  // eram listas de 3 a 5 ficheiros. Este numero e o chao, nao a meta.
+  const raiz = path.resolve(new URL('../../..', import.meta.url).pathname);
+  const magros = PILLAR_IDS
+    .map((id) => [id, resolveCandidates(raiz, id).length])
+    .filter(([, n]) => n < 10);
+  assert.deepEqual(magros, [], 'um pilar com menos de 10 ficheiros seca antes do fim do dia');
+});
+
+// ── o carimbo de ronda vazia, nas duas linguas (2026-08-19) ──────────────────
+
+/**
+ * O contrato dos pilares ficou bilingue a meio: o bloco de formato partilhado
+ * pede `SEM ACHADO`, e duas perguntas de pilar (P7, P8) pedem `NO FINDING`. O
+ * modelo recebe as duas instrucoes na MESMA volta. Enquanto o verificador so
+ * reconhecia a portuguesa, uma ronda honestamente vazia em ingles caia em
+ * `sem-citacao` — o painel contava-a como resposta por verificar e o modelo
+ * era castigado por ter feito exactamente o que lhe pediram.
+ */
+test('uma ronda vazia conta como vazia nas duas linguas', () => {
+  for (const t of ['SEM ACHADO', 'NO FINDING', 'no finding', 'Answer: NO FINDING.']) {
+    assert.equal(isNoFinding(t), true, t + ' devia ser lido como ronda vazia');
+    assert.equal(concluir(t), 'sem-achado', t + ' devia concluir sem-achado');
+  }
+});
+
+test('NO FINDING le-se ANTES de FINDING: — senao uma ronda vazia vira um achado', () => {
+  assert.equal(concluir('NO FINDING: nothing in this excerpt'), 'sem-achado');
+  assert.equal(concluir('FINDING: x WHEN y THEN z'), 'achado');
+  assert.equal(concluir('ACHADO: x QUANDO y ENTAO z'), 'achado');
+});
+
+test('o falso positivo tambem e bilingue', () => {
+  assert.equal(concluir('FALSO POSITIVO: e seguro aqui'), 'falso-positivo');
+  assert.equal(concluir('FALSE POSITIVE: safe here'), 'falso-positivo');
+});
+
+// ── a ronda que nunca correu (2026-08-19) ────────────────────────────────────
+
+/**
+ * O painel mostrava `uncited: 275` debaixo de um cartao que diz "what the GPU
+ * shipped". Medido no ledger do dono: 209 desses 275 (76%) eram rondas com
+ * dur_s 0, tokens_out 0 e o modelo nunca chamado — o pilar ja tinha revisto
+ * tudo o que tem. O numero verdadeiro de "o modelo respondeu sem citar" era
+ * 66, e ninguem podia sabe-lo.
+ *
+ * Sao dois problemas com respostas OPOSTAS: o poco seco pede mais ambito, o
+ * modelo a divagar pede uma pergunta mais apertada. Com um nome so, nenhuma
+ * das duas se podia decidir.
+ */
+test('uma ronda que nunca chegou ao modelo nao conta como resposta sem citacao', () => {
+  const recibos = [
+    { verdict: 'citacao-ok' },
+    { verdict: 'sem-citacao' },
+    // Como os 209 estao gravados HOJE: dizem `sem-citacao` E `esgotado`.
+    { verdict: 'sem-citacao', esgotado: true, dur_s: 0, tokens_out: 0 },
+    { verdict: 'sem-citacao', esgotado: true, dur_s: 0, tokens_out: 0 },
+    // Como passam a ser gravados a partir de agora.
+    { verdict: 'nada-por-rever', esgotado: true },
+    { verdict: 'sem-achado' },
+  ];
+  const t = tallyVerdicts(recibos);
+  assert.equal(t['sem-citacao'], 1, 'so a ronda em que o modelo REALMENTE respondeu sem citar');
+  assert.equal(t['nada-por-rever'], 3, 'as tres em que nao houve nada para rever');
+  assert.equal(t['citacao-ok'], 1);
+  assert.equal(t['sem-achado'], 1);
+  assert.equal(t.total, 6);
+  const soma = t['citacao-ok'] + t.refutado + t['sem-citacao'] + t['sem-achado'] + t['nada-por-rever'] + t.erro;
+  assert.equal(soma, t.total, 'nenhum recibo pode cair fora dos baldes');
+});
+
+test('a releitura e RETROACTIVA: o ledger nao se reescreve para isto ficar certo', () => {
+  // A correccao vale para os 5000 recibos ja escritos porque eles ja trazem
+  // `esgotado: true`. Reescrever o ledger para corrigir uma leitura seria
+  // apagar o que aconteceu para que a versao de hoje parecesse sempre certa.
+  assert.equal(naoCorreu({ verdict: 'sem-citacao', esgotado: true }), true);
+  assert.equal(naoCorreu({ verdict: 'sem-citacao' }), false, 'sem a bandeira, e mesmo uma resposta sem citacao');
+  assert.equal(naoCorreu({ verdict: 'nada-por-rever' }), true);
+  assert.equal(naoCorreu({ verdict: 'citacao-ok', esgotado: false }), false);
+  assert.equal(naoCorreu(null), false);
+});
+
+test('o pack esgotado carimba o veredicto novo, e so ele', () => {
+  const root = fixtureRepo();
+  const revistos = new Set();
+  // Primeira ronda: ha material, e o pack sai bom.
+  const pk = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, revistos });
+  assert.equal(pk.ok, true);
+  // Marca-se TUDO como revisto e o poco seca.
+  for (let c = 0; c < 60; c += 1) {
+    const p = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: c, revistos });
+    if (p.ok && p.chave) revistos.add(p.chave); else break;
+  }
+  const seco = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 99, revistos });
+  assert.equal(seco.ok, false);
+  assert.equal(seco.esgotado, true);
+  assert.match(seco.reason, /ficheiros do pilar/, 'o numero de ficheiros viaja com a queixa');
 });

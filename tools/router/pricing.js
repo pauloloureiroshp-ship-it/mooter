@@ -47,6 +47,22 @@ const PRICES = {
   'claude-opus-4-6[fast]':           { input: 30.0,  output: 150.0, strengths: ['long-context'],                            tier: 'T3' }, // fast mode: 6× standard
   'claude-opus-4-6[1m]':             { input:  5.0,  output: 25.0,  strengths: ['long-context'],                            tier: 'T3' }, // alias: 1M included in standard
   'claude-sonnet-4-6':               { input:  3.0,  output: 15.0,  strengths: ['code','reasoning','debug'],                tier: 'T2' },
+
+  // ── Claude 5 family — verified 2026-08-19 from ─────────────────────
+  //    https://platform.claude.com/docs/en/about-claude/pricing
+  // Until today this family was missing from the table ENTIRELY. On this
+  // machine `claude-opus-5` is 98.7% of real Claude Code turns (2583 of
+  // 2618) and every one of them fell through to FALLBACK_PRICE, i.e. it
+  // was priced as Sonnet ($3/$15) instead of $5/$25 — so every cost and
+  // savings number the product printed was ~40% low, silently.
+  // 1M context is included at standard pricing (no surcharge tier).
+  'claude-opus-5':                   { input:  5.0,  output: 25.0,  strengths: ['architecture','refactor','long-context'], tier: 'T3' },
+  'claude-opus-5[fast]':             { input: 10.0,  output: 50.0,  strengths: ['long-context'],                            tier: 'T3' }, // fast mode: 2x standard
+  'claude-sonnet-5':                 { input:  2.0,  output: 10.0,  strengths: ['code','reasoning','debug'],                tier: 'T2' },
+  // Fable 5 carries NO `tier`: T5 is opt-in only via `@fable` and must never
+  // be reachable by tier-based selection. A price without a tier is exactly
+  // "priceable, not routable".
+  'claude-fable-5':                  { input: 10.0,  output: 50.0,  strengths: ['architecture','long-context'] },
   'claude-haiku-4-5':                { input:  1.0,  output:  5.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
   'claude-haiku-4-5-20251001':       { input:  1.0,  output:  5.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
   // Legacy mappings that may appear in older logs
@@ -120,6 +136,18 @@ const FALLBACK_PRICE = { input: 3.0, output: 15.0 };
 // Tier → canonical model used when we only have the tier (from classify.js).
 // Matches TIER_TO_MODEL in savings-tracker.js but resolved to the pricing key.
 /** @type {Record<Tier, string>} */
+// ⚠️ DESACTUALIZADO, e a correccao NAO cabe aqui sozinha.
+//
+// Este mapa aponta a `claude-sonnet-4-6` e `claude-opus-4-6` enquanto a conta
+// corre a familia 5 — toda a estimativa por TIER sai a preco de uma geracao
+// anterior. Mas nao e o unico mapa tier->modelo do repo: `budget-engine.js:60`
+// e `_model-resolver.js:21` tem os seus, e o relatorio de fim de sessao ESCREVE
+// "sonnet-4-6" a partir de outro sitio. Mudar so este poe o relatorio a dizer
+// um modelo e a cobrar outro — foi o que o CI apanhou.
+//
+// Fica como esta ate os tres mapas serem tratados juntos, com o teste do
+// relatorio a acompanhar. Um numero errado que se conhece vale mais do que
+// dois numeros a discordar em silencio.
 const TIER_TO_PRICING_KEY = {
   T0: 'qwen2.5:3b',
   T1: 'claude-haiku-4-5',

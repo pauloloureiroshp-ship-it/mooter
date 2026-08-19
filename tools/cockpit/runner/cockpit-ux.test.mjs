@@ -198,3 +198,150 @@ test('os ouvintes dos filtros ligam-se no arranque, nunca dentro de offline()', 
   );
   assert.match(CODE, /f-verdict[\s\S]{0,200}addEventListener/, 'os filtros do feed não estão ligados a lado nenhum');
 });
+
+// ── o custo por modelo (Fase 1) ──────────────────────────────────────────────
+
+/**
+ * A regra que este cartao existe para nao quebrar: ha DOIS numeros, e nunca
+ * se somam. O `usd: 0` do /fleet.json e o que o LOOP gastou — zero por
+ * construcao, porque `assertLocalEngine` recusa qualquer motor que nao seja
+ * loopback. O total do /custo.json e o que os MESMOS tokens custariam a API.
+ * A diferenca entre eles E a tese do produto; a soma seria uma factura falsa.
+ */
+test('o custo de tabela nunca se apresenta como dinheiro gasto', () => {
+  assert.match(CODE, /custo\.json/, 'o painel nao vai buscar o custo por modelo');
+  assert.match(CODE, /NOT money you spent/, 'faltou dizer que isto nao e dinheiro gasto — a quem paga subscricao seria mentira');
+  assert.doesNotMatch(CODE, /state\.usd\s*\+/, 'esta a somar o gasto do loop ao preco de tabela: sao numeros diferentes');
+});
+
+test('um modelo sem preco na tabela nao recebe um numero emprestado', () => {
+  assert.match(CODE, /no price, no number/,
+    'a celula de um modelo sem preco tem de ficar vazia: um preco emprestado le-se exactamente como um real');
+});
+
+/**
+ * A reserva ja viajava no /fleet.json desde que existe (fleet-state.mjs:242) e
+ * o painel nunca a desenhou. De fora, um device que CEDEU a maquina de proposito
+ * era indistinguivel de um loop morto: "sem recibos ha 20 minutos", e o dono a
+ * adivinhar qual dos dois.
+ */
+test('a reserva da maquina e desenhada, e o memo de render() ve-a', () => {
+  assert.match(CODE, /machine lease/, 'a reserva continua invisivel no painel');
+  assert.match(CODE, /changed\('engine',[^)]*state\.reserva/,
+    'a reserva nao entra na assinatura do memo: mudaria de estado e o ecra ficava parado');
+});
+
+/**
+ * Trava de classe: o painel e o servidor sao dois ficheiros que ninguem obriga
+ * a concordar. Um `fetch` para uma rota que o servidor nao serve devolve 404,
+ * o `.catch()` engole, e o cartao fica vazio para sempre sem um unico erro.
+ */
+test('toda a rota que o painel busca existe no servidor', () => {
+  const servidor = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'f10-server.mjs'), 'utf8');
+  const rotas = new Set([
+    ...[...CODE.matchAll(/\$\{BASE\}(\/[a-z0-9._/-]+)/gi)].map((m) => m[1]),
+    ...[...CODE.matchAll(/BASE\s*\+\s*['"](\/[a-z0-9._/-]+)['"]/gi)].map((m) => m[1]),
+  ]);
+  assert.ok(rotas.size >= 3, 'nao encontrei as rotas do painel — o teste deixou de medir o que dizia medir');
+  const ausentes = [...rotas].filter((r) => !servidor.includes("'" + r + "'"));
+  assert.deepEqual(ausentes, [], 'o painel busca rotas que o servidor nao serve: ' + ausentes.join(', '));
+});
+
+// ── o dial do GPU não pinta um ponto a 0% ────────────────────────────────────
+
+/**
+ * Bug real: `const LEN = 248` no JS discordava do comprimento REAL do arco
+ * (`arc.getTotalLength()` mede 248.22). A 0% sobravam 0.22px de stroke, e com
+ * `stroke-linecap:round` + `stroke-width:14` essa sobra pintava-se como um
+ * ponto azul cheio de ~14px — um dial a dizer 0% enquanto mostra actividade.
+ */
+test('o comprimento do arco vem do DOM, nunca de uma constante escrita à mão', () => {
+  assert.doesNotMatch(CODE, /const LEN = 248\b/, 'a constante hardcoded tinha 0.22px de erro face ao arco real');
+  assert.match(SCRIPT, /const LEN = arc\.getTotalLength\(\)/, 'o comprimento tem de ser lido do proprio elemento');
+  assert.match(SCRIPT, /arc\.style\.strokeDasharray = String\(LEN\)/, 'o dasharray tem de ser derivado do LEN real, nao do markup');
+});
+
+test('0% leva o MESMO tratamento que "sem amostra" — nunca pinta azul', () => {
+  // Mesmo com o LEN exacto, um offset == LEN deixa um traco de comprimento 0,
+  // e um traco de comprimento 0 com linecap:round ainda pinta um ponto
+  // redondo cheio (regra do SVG) — por isso 0% tem de cair no MESMO ramo que
+  // pct === null, e não só ganhar um offset mais preciso.
+  assert.match(SCRIPT, /const semAmostra = pct === null \|\| pct === 0;/,
+    '0% tem de ser tratado como ausencia de amostra, nao como um valor pintavel');
+  assert.match(SCRIPT, /arc\.style\.strokeDashoffset = semAmostra \? LEN/);
+  assert.match(SCRIPT, /arc\.style\.stroke = semAmostra \? 'var\(--line\)'/,
+    'a 0% a cor tem de cair para var(--line), a mesma usada quando nao ha amostra');
+});
+
+test('geometria: o comprimento hardcoded 248 tinha mesmo erro face ao arco real', () => {
+  // Prova headless, sem DOM: o path "M16 98 A79 79 0 0 1 174 98" tem corda
+  // 174-16=158, exactamente 2×raio(79) — os extremos sao diametralmente
+  // opostos, logo o arco (large-arc-flag=0) e um semicirculo exacto:
+  // comprimento = π×raio. É o mesmo valor que o dono mediu no browser via
+  // getTotalLength() (248.22, por aproximacao a beziers do renderer real).
+  const raio = 79;
+  const comprimentoReal = Math.PI * raio;
+  assert.ok(Math.abs(comprimentoReal - 248.22) < 0.05, `π×79 = ${comprimentoReal}, longe do 248.22 medido`);
+  const erro = comprimentoReal - 248;
+  assert.ok(erro > 0.15 && erro < 0.3, `o LEN hardcoded (248) errava por ${erro.toFixed(3)}px — a origem exacta do ponto`);
+});
+
+// ── o filtro de veredicto fala a mesma língua que o cartão de tallies ───────
+
+/**
+ * O dropdown falava tokens crus (sem-achado, sem-citacao) enquanto o cartão
+ * de tallies, dois blocos acima, já chama aos mesmos dados clean e uncited.
+ * Mesmo dado, dois nomes, um ecrã.
+ */
+test('o filtro de veredicto mostra o rótulo do VERDICTS, sem construir uma segunda tabela', () => {
+  assert.match(SCRIPT, /opcoesUnicas\(\$\('f-verdict'\), LAST_FEED\.map\(\(r\) => r\.verdict\), 'all',/,
+    'o filtro de veredicto tem de pedir um rotulador');
+  assert.match(SCRIPT, /VERDICTS\[tok\] \? VERDICTS\[tok\]\.label : tok/,
+    'tem de reusar o VERDICTS ja existente — nao inventar uma segunda tabela token→rotulo');
+});
+
+test('o value da opção nunca muda — só o texto visível', () => {
+  assert.match(SCRIPT, /function opcoesUnicas\(sel, valores, rotuloVazio, rotular\)/);
+  assert.match(SCRIPT, /const o = el\("option", null, rotular \? rotular\(v\) : v\);\s*\n\s*o\.value = v;/,
+    'o value do <option> tem de continuar a ser o token cru, nao o rotulo traduzido');
+  // A logica do filtro compara o token, nunca o rotulo — isto nao pode mudar.
+  assert.match(CODE, /r\.verdict === FILTERS\.verdict/);
+});
+
+test('um token sem entrada no VERDICTS mostra-se cru, nunca em branco', () => {
+  const VERDICTS = { 'citacao-ok': { cls: 'ok', label: 'cited' } };
+  const rotular = (tok) => (VERDICTS[tok] ? VERDICTS[tok].label : tok);
+  assert.equal(rotular('citacao-ok'), 'cited');
+  assert.equal(rotular('token-desconhecido'), 'token-desconhecido');
+});
+
+// ── a fila de triagem tem um limite honesto ─────────────────────────────────
+
+/**
+ * Medido num painel real: 46 cartões de triagem, 138 botões, página com
+ * 11251px de altura — sem contagem, sem forma de a estreitar. O feed já
+ * estava limitado a FEED_LENGTH (14); a triagem não tinha limite nenhum.
+ */
+test('a fila de triagem tem um TETO nomeado, tal como o feed tem FEED_LENGTH', () => {
+  assert.match(SCRIPT, /const TRIAGE_CAP = \d+;/, 'o limite tem de ser uma constante nomeada, nao um numero magico disperso');
+  assert.match(SCRIPT, /const mostrar = triagemExpandida \? fila : fila\.slice\(0, TRIAGE_CAP\)/);
+});
+
+test('nunca trunca em silêncio: se algo fica de fora, o número que o diz é visível', () => {
+  assert.match(SCRIPT, /"showing " \+ mostrar\.length \+ " of " \+ totalReal \+ " pending"/,
+    'tem de haver uma linha honesta com quantos se mostram e quantos existem ao todo');
+  // E o total NAO pode vir da lista ja cortada: `porTriar` corta em 50 no
+  // servidor, portanto `fila.length` era o corte a medir-se a si proprio.
+  assert.match(SCRIPT, /totalReal = typeof t\.por_triar === "number"/,
+    'o total tem de vir do servidor, que conta o ledger inteiro');
+  assert.match(SCRIPT, /the endpoint sent the/,
+    'se o servidor tambem cortou, isso tem de estar escrito no ecra');
+  assert.match(SCRIPT, /fila\.length > TRIAGE_CAP/, 'o controlo para revelar o resto so aparece quando ha algo escondido');
+  assert.match(SCRIPT, /triagemExpandida = !triagemExpandida; renderTriagem\(state\);/,
+    'tem de existir um controlo que revela o resto da fila');
+});
+
+test('a triagem continua a usar as classes existentes — nenhuma linguagem de design nova', () => {
+  assert.match(SCRIPT, /el\("p", "note", "showing " \+ mostrar\.length/, 'reusa .note, nao inventa uma classe');
+  assert.doesNotMatch(CODE, /class="triagem-/, 'nenhuma classe CSS nova para este bloco');
+});
