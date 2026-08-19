@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  DECISOES, chaveDoRecibo, ehAchado, lerTriagem, registarTriagem,
+  DECISOES, AUTORES, chaveDoRecibo, ehAchado, lerTriagem, registarTriagem,
   porTriar, contarTriagem, custoEstimado, menuDeMotores,
 } from './triagem.mjs';
 
@@ -77,7 +77,7 @@ test('a fila mostra so o que espera decisao, do mais recente para tras', () => {
   assert.deepEqual(fila.map((x) => x.chave), ['k2'], 'k1 ja foi decidido, k3 nao e achado');
 
   const c = contarTriagem(rec, decisoes);
-  assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2 });
+  assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2, por_autor: { dono: 1 } });
 });
 
 test('ACEITACAO: o custo vem da tabela REAL, e o desconhecido diz n/d', () => {
@@ -94,4 +94,28 @@ test('ACEITACAO: o custo vem da tabela REAL, e o desconhecido diz n/d', () => {
   const fora = custoEstimado('modelo-que-nao-existe');
   assert.equal(fora.usd, null);
   assert.equal(fora.fonte, 'n/d');
+});
+
+test('ACEITACAO: a decisao e ASSINADA, e as contagens separam quem decidiu', () => {
+  // 20 aceites do dono e 20 aceites de um agente nao sao o mesmo dado. Uma
+  // contagem que os funde nao serve para decidir — e decidir e a razao de o
+  // numero existir.
+  const f = tmp();
+  registarTriagem(f, { chave: 'k1', decisao: 'aceite', por: 'dono' });
+  registarTriagem(f, { chave: 'k2', decisao: 'aceite', por: 'claude' });
+  const { decisoes } = lerTriagem(f);
+  assert.equal(decisoes.get('k1').por, 'dono');
+  assert.equal(decisoes.get('k2').por, 'claude');
+
+  const rec = [achado(1, 'k1'), achado(2, 'k2'), achado(3, 'k3')];
+  const c = contarTriagem(rec, decisoes);
+  assert.deepEqual(c.por_autor, { dono: 1, claude: 1 });
+  assert.equal(c.aceite, 2);
+  assert.equal(c.por_triar, 1);
+});
+
+test('um autor desconhecido e recusado — decisao anonima nao entra', () => {
+  const f = tmp();
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'aceite', por: 'alguem' }), /autor desconhecido/);
+  assert.deepEqual(AUTORES, ['dono', 'claude', 'agente']);
 });
