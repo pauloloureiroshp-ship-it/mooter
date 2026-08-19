@@ -12,12 +12,24 @@ description: Moo Pilot — o cockpit por device do Mooter. Levanta o motor local
 
 ## O gesto
 
+**macOS / Linux**
 ```bash
 cd ~/frugal && npm run pilot
 ```
 
+**Windows (PowerShell)**
+```powershell
+cd $HOME\frugal ; npm run pilot
+```
+
 Levanta o que estiver em baixo (endpoint F10, loop dos pilares), identifica o device
 pelo hostname e abre o painel. `npm run pilot:status` reporta sem arrancar nada.
+
+O código é o mesmo nos dois sistemas — `launch.mjs` já abre o browser com `open` no
+macOS e `cmd /c start` no Windows, e o `autostart.mjs` instala um LaunchAgent ou uma
+tarefa do `schtasks` conforme a máquina. **O que muda é só a sintaxe da linha de
+comandos.** Se estiveres a conduzir uma máquina Windows, NUNCA mandes `export VAR=x`
+nem caminhos com `~/` — em PowerShell é `$env:VAR = "x"` e `$HOME\frugal`.
 
 **O lançamento NUNCA levanta o STOP.** Lançar é "mostra-me os controlos"; trabalhar é o
 ▶ do dono. Se o STOP estiver activo, o cockpit abre com a máquina parada e o botão pronto.
@@ -49,9 +61,15 @@ pelo hostname e abre o painel. `npm run pilot:status` reporta sem arrancar nada.
    citação conferida, GPU medida, alinhamento do repo, quem está na frota e com que idade.
 5. **Device novo:** confirma `nvidia-smi` (Windows/Linux) ou `ioreg` (macOS) e o vault montado —
    sem vault partilhado a frota é um device só, e o painel diz isso.
-6. **Arranque automático**, se o Paulo pedir: `node tools/cockpit/runner/autostart.mjs --install`.
+6. **Frota a sério:** escrever o beacon no vault **não basta**. Se a pasta partilhada for um
+   repo git e ninguém publicar, o ficheiro fica no disco daquela máquina e os dois cockpits
+   mostram um device cada. O publicador existe e **nasce desligado** — liga-se com
+   `MOO_PUBLICAR_BEACON=1` (bash) ou `$env:MOO_PUBLICAR_BEACON = "1"` (PowerShell), em
+   **cada** máquina. Publica de 10 em 10 minutos, nunca a cada ronda, e recusa-se a
+   publicar se houver trabalho de outra pessoa em staging no vault.
+7. **Arranque automático**, se o Paulo pedir: `node tools/cockpit/runner/autostart.mjs --install`.
    Corre o runner directamente, nunca o shim, e nunca com `--play`.
-7. **Registo:** `mooter_setup({sessao:'registar', ...})` no fecho.
+8. **Registo:** `mooter_setup({sessao:'registar', ...})` no fecho.
 
 ## Vocabulário — não o suavizes
 

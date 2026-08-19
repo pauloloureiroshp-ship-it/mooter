@@ -161,3 +161,34 @@ test('a skill aponta para os testes que a sustentam', () => {
   assert.ok(pkg.scripts['test:cockpit-runner'].includes('skill-moo-pilot.test.mjs'),
             'este próprio ficheiro tem de correr na suite, senão a guarda não existe');
 });
+
+// ── a skill tem de servir as duas plataformas (2026-08-19) ──────────────────
+
+/**
+ * O codigo sempre foi portatil — `launch.mjs` abre o browser com `open` no
+ * macOS e `cmd /c start` no Windows, e `autostart.mjs` escolhe entre LaunchAgent
+ * e `schtasks`. A SKILL nao era: mandava um `cd ~/<repo>` e `export VAR=x`, que em
+ * PowerShell nao querem dizer nada. Um agente a conduzir a maquina Windows do
+ * dono seguiria instrucoes que falham na primeira linha.
+ */
+test('a skill dá o gesto nas duas plataformas', () => {
+  assert.match(SKILL, /macOS \/ Linux/, 'tem de nomear a plataforma, nao assumir uma');
+  assert.match(SKILL, /Windows \(PowerShell\)/);
+  // `$HOME\` sem o nome do repo: o ratchet do rebranding conta ficheiros que
+  // mencionam o nome antigo, e um teste nao precisa de o repetir para medir isto.
+  assert.ok(SKILL.includes('$HOME\\'), 'o caminho do Windows tem de aparecer como PowerShell o escreve');
+  assert.ok(SKILL.includes('cd $HOME'), 'e o gesto tem de comecar por um cd que o PowerShell entenda');
+});
+
+test('a skill avisa contra a sintaxe errada em PowerShell', () => {
+  assert.match(SKILL, /\$env:VAR/, 'variáveis de ambiente em Windows não se põem com export');
+  assert.match(SKILL, /NUNCA mandes `export/i);
+});
+
+test('a skill diz que escrever o beacon nao chega', () => {
+  // Medido a 2026-08-19: `50-fleet/` nunca tinha sido commitado. O beacon
+  // existia no disco de uma máquina e nunca saía de lá — dois cockpits
+  // mostrariam um device cada e fingiriam conhecer-se.
+  assert.match(SKILL, /MOO_PUBLICAR_BEACON/, 'sem isto, a frota é um device só');
+  assert.match(SKILL, /nasce desligado/i, 'publicar no vault de alguém pede-se, não se assume');
+});
