@@ -928,3 +928,19 @@ test('AUDITORIA: a caca anda no eixo dos FICHEIROS, nao so das janelas', () => {
   assert.equal(fim.ok, false);
   assert.equal(fim.esgotado, true);
 });
+
+test('TRIAGEM: os tres pontos cegos MEDIDOS estao nos tres prompts', () => {
+  // Julgando os 72 achados deste motor um a um (2026-08-18), 39 morreram por
+  // uma destas tres razoes — mais do que por qualquer outra. E o unico sinal
+  // de melhoria desta sessao que veio de DADOS e nao de intuicao, e por isso
+  // fica preso aqui: quem o apagar de um prompt parte a suite.
+  const root = fixtureRepo();
+  const caca = buildContextPack({ repoRoot: root, pillar: 'P1' }).system;
+  for (const [nome, prompt] of [['caca', caca], ['diff', DIFF_SYSTEM_PROMPT], ['ancorado', ANCHORED_SYSTEM_PROMPT]]) {
+    assert.match(prompt, /JÁ ESTÁ GUARDADO/, `${nome}: falta o aviso do gate que ja trava (20 dos 72)`);
+    assert.match(prompt, /DELIBERADO E ESTÁ ESCRITO|ESTÁ EXPLICADO/, `${nome}: falta o aviso do comentario que explica (12 dos 72)`);
+    assert.match(prompt, /DO PASSADO/, `${nome}: falta o aviso do registo historico (7 dos 72)`);
+    // A contagem e o que separa uma regra de uma opiniao.
+    assert.match(prompt, /39 dos 72|20 dos 72/, `${nome}: a regra tem de trazer o numero que a justifica`);
+  }
+});
