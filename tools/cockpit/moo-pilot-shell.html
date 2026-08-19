@@ -539,7 +539,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     if (changed('triagem', [state.por_triar, state.triagem])) renderTriagem(state);
 
     $('foot').textContent =
-      `connector ${state.conector || 'n/a'} · owner timezone ${state.owner_tz || 'n/a'} · `
+      `connector ${state.conector || 'n/a'} in this checkout · owner timezone ${state.owner_tz || 'n/a'} · `
       + `source ${live ? 'live' : 'saved snapshot'} · screen updated ${new Date().toLocaleTimeString()}`;
   }
 
@@ -958,7 +958,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       if (a.resumo) d.appendChild(el("div", "diz ok", a.resumo));
       if (a.evidencia) d.appendChild(el("code", "ev", a.evidencia));
       const btns = el("div", "btns");
-      for (const par of [["aceite", "accept"], ["descartado", "dismiss"], ["issue", "open issue"]]) {
+      // "flag for issue" e nao "open issue": os tres botoes chamam a MESMA
+      // funcao e escrevem a MESMA linha no `triagem.jsonl`. Nao ha chamada a
+      // API do GitHub em lado nenhum do cockpit. O rotulo prometia um efeito
+      // que o codigo nunca teve — e o token `issue` fica intacto, porque esta
+      // gravado em recibos que nao se reescrevem.
+      for (const par of [["aceite", "accept"], ["descartado", "dismiss"], ["issue", "flag for issue"]]) {
         const b = el("button", null, par[1]);
         // Descartar passa a pedir a razao. Foram 72 descartes anonimos: custam o
         // mesmo a clicar e nao ensinam nada, e sao o unico dado que distingue
@@ -968,15 +973,16 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
           : () => triar(a.chave, par[0], a, btns);
         btns.appendChild(b);
       }
-      if (MOTORES) {
-        const sel = el("select");
-        for (const m of MOTORES) {
-          const preco = m.usd === null ? "n/a" : "$" + m.usd.toFixed(4);
-          const o = el("option", null, m.etiqueta + " " + preco);
-          o.value = m.id; sel.appendChild(o);
-        }
-        btns.append(el("span", "custo", "escalate to"), sel);
-      }
+      // ⚠️ AQUI ESTAVA UM SELECT "escalate to" QUE NAO FAZIA NADA.
+      //
+      // Populado de `/motores.json`, com precos reais, ao lado de tres botoes
+      // que funcionam — e sem um unico `onchange`. O `sel.value` nunca era lido
+      // nem enviado. Escolher Opus a $0.0375 nao escalava coisa nenhuma.
+      //
+      // Um controlo decorativo AO LADO de controlos reais e pior do que nao ter
+      // controlo nenhum: ensina o dono a duvidar dos que funcionam. Sai daqui e
+      // so volta quando existir escalada a serio — com o custo a sair da conta
+      // de alguem, o que e uma decisao do dono e nao uma caixa de selecao.
       d.appendChild(btns);
       box.appendChild(d);
     }
