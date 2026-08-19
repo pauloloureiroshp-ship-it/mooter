@@ -1058,3 +1058,49 @@ test('calibration: ECE rises when bin accuracy diverges from midpoint', () => {
   const r = runCalibration(events);
   assert.ok(r.ece >= 0.85 && r.ece <= 0.95, `expected ECE near 0.9 for fully miscalibrated; got ${r.ece}`);
 });
+
+// ── linha `null` no log (2026-08-19) ────────────────────────────────────────
+
+/**
+ * `JSON.parse('null')` NAO lanca: devolve null. O `catch` do loadDecisions so
+ * apanhava JSON ilegivel, nunca JSON legivel que nao e um evento — e o null
+ * entrava na lista. Trinta linhas abaixo, `resolveFeedback` faz `e.event` e o
+ * backtest inteiro morria com um TypeError.
+ *
+ * Medido no log real desta maquina: 3 linhas em 337. Uma so bastava para o
+ * passo do backtest do `/mooter-update` falhar em qualquer maquina.
+ */
+test('uma linha `null` no log nao derruba o backtest', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-bt-'));
+  const log = path.join(dir, 'decisions.log');
+  fs.writeFileSync(log, [
+    JSON.stringify({ event: 'classified', tier: 'T2', session_id: 's1' }),
+    'null',
+    '{ isto nao e json',
+    '"uma string solta"',
+    '42',
+    JSON.stringify({ event: 'turn_end', session_id: 's1' }),
+  ].join('\n') + '\n');
+
+  const anterior = process.env.MOOTER_DECISIONS_LOG;
+  process.env.MOOTER_DECISIONS_LOG = log;
+  try {
+    // Recarregado para apanhar o LOG_PATH novo (e resolvido no topo do modulo).
+    delete require.cache[require.resolve('./backtest.js')];
+    const bt = require('./backtest.js');
+    assert.equal(typeof bt.loadDecisions, 'function',
+      'sem o export, este teste passava sem exercitar nada — a forma mais discreta de mentir');
+    const carregadas = bt.loadDecisions();
+    assert.equal(carregadas.length, 2, 'so os dois eventos reais entram');
+    for (const e of carregadas) {
+      assert.equal(typeof e, 'object');
+      assert.notEqual(e, null, 'um null na lista e o TypeError a acontecer trinta linhas depois');
+    }
+    // E a prova de que o crash original nao volta: o consumidor le `.event`.
+    assert.doesNotThrow(() => carregadas.filter((e) => e.event === 'turn_end'));
+  } finally {
+    if (anterior === undefined) delete process.env.MOOTER_DECISIONS_LOG;
+    else process.env.MOOTER_DECISIONS_LOG = anterior;
+    delete require.cache[require.resolve('./backtest.js')];
+  }
+});

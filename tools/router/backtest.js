@@ -103,7 +103,16 @@ function loadDecisions() {
   const lines = fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter(Boolean);
   const out = [];
   for (const line of lines) {
-    try { out.push(JSON.parse(line)); } catch { /* skip malformed */ }
+    // `JSON.parse('null')` NAO lanca: devolve null, e o null entrava na lista.
+    // Trinta linhas abaixo, `resolveFeedback` faz `e.event` e o backtest inteiro
+    // morria com um TypeError. Medido a 2026-08-19 no log real: 3 linhas em 337.
+    // O `catch` so apanhava JSON ilegivel — nunca JSON legivel que nao e um
+    // evento. A linha 1010 deste mesmo ficheiro ja se defendia com `e &&`;
+    // esta nao. Uma unica linha `null` bastava para o `/mooter-update` falhar
+    // o passo do backtest em qualquer maquina.
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e && typeof e === 'object') out.push(e);
   }
   return out;
 }
@@ -1269,6 +1278,9 @@ function main() {
 // event-builder.js which circular-requires backtest.js at its top level.
 module.exports = {
   analyze,
+  // Exportado para que o teste da linha `null` teste MESMO: sem isto ele
+  // passava sem exercitar nada, que e a forma mais discreta de um teste mentir.
+  loadDecisions,
   buildTuning,
   signature,
   // v0.9 exports
