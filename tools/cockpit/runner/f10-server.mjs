@@ -19,6 +19,7 @@ import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
 import { registarTriagem, DECISOES, AUTORES, menuDeMotores } from './triagem.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
+import { spendByModel } from './spend-by-model.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -48,6 +49,14 @@ export function readBody(req, limit = MAX_BODY_BYTES) {
 }
 
 export const HOST = '127.0.0.1';
+
+/**
+ * O custo por modelo tem de varrer os ficheiros de sessao. O quota.js so rele
+ * o que mudou (chave: tamanho+mtime), mas uma sondagem de 3 em 3 segundos a
+ * bater no disco seria o painel a atrapalhar o trabalho que diz vigiar.
+ */
+const CUSTO_TTL_MS = 30_000;
+let custoCache = { em: 0, dados: null };
 /**
  * A porta. Cravada a 4290 desde sempre; com `MOO_PORT` uma segunda conta de SO
  * na mesma maquina — ou um segundo projecto — deixa de matar o primeiro.
@@ -247,6 +256,28 @@ export function createServer({
     // tools/router/pricing.js; um modelo fora dela sai `n/d`, nunca estimado.
     if (req.method === 'GET' && route === '/motores.json') {
       return sendJson(res, 200, { motores: menuDeMotores() });
+    }
+
+    // O que os turnos do Claude Code desta maquina custariam ao preco de tabela
+    // da API, modelo a modelo.
+    //
+    // ⚠️ Isto NAO se soma ao `usd: 0` do /fleet.json e nunca se pode misturar
+    // com ele. Aquele e o que o LOOP gastou — zero por construcao, porque o
+    // `assertLocalEngine` recusa qualquer motor que nao seja loopback. Este e o
+    // que os MESMOS tokens custariam se tivessem ido pela API. Sao dois numeros
+    // verdadeiros e diferentes, e e a diferenca entre eles que e a tese do
+    // produto. Um painel que os somasse estaria a inventar uma factura.
+    if (req.method === 'GET' && route === '/custo.json') {
+      const agora = Date.now();
+      if (!custoCache.dados || agora - custoCache.em > CUSTO_TTL_MS) {
+        try {
+          custoCache = { em: agora, dados: { curta: spendByModel({ horas: 5 }), longa: spendByModel({ horas: 168 }) } };
+        } catch (e) {
+          // Um medidor que rebenta nao pode derrubar o painel: diz que nao sabe.
+          return sendJson(res, 200, { curta: null, longa: null, disponivel: false, porque: String((e && e.message) || e) });
+        }
+      }
+      return sendJson(res, 200, custoCache.dados);
     }
 
     if (req.method === 'GET' && route === '/pilares.json') {

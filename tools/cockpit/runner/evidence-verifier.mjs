@@ -36,8 +36,20 @@ const CITATION_RE =
 const MAX_CITATIONS = 12;
 
 /** A model that finds nothing must be able to say so without being punished. */
+/**
+ * O carimbo de ronda vazia, nas DUAS linguas.
+ *
+ * O contrato partilhado pede `SEM ACHADO`; duas perguntas de pilar (P7, P8)
+ * pedem `NO FINDING`. O modelo recebe as duas instrucoes na mesma volta e
+ * responde numa das duas — e quem le tem de aceitar ambas. Enquanto so se
+ * reconhecia a portuguesa, uma ronda honestamente vazia em ingles caia em
+ * `sem-citacao`: o painel contava-a como resposta por verificar, e o modelo
+ * era castigado por ter feito exactamente o que lhe pediram.
+ */
+export const SEM_ACHADO_RE = /\b(SEM\s+ACHADO|NO\s+FINDING)\b/i;
+
 export function isNoFinding(text) {
-  return /\bSEM\s+ACHADO\b/i.test(String(text || ''));
+  return SEM_ACHADO_RE.test(String(text || ''));
 }
 
 /** Extracts unique `file:line` pairs, capped so a runaway answer cannot stall a round. */
@@ -132,9 +144,11 @@ export function checkCitation(repoRoot, { file, line }) {
 export function concluir(text) {
   const t = String(text || '').trim().toUpperCase();
   if (!t) return 'vazio';
-  if (t.startsWith('FALSO POSITIVO')) return 'falso-positivo';
-  if (/\bSEM\s+ACHADO\b/.test(t)) return 'sem-achado';
-  if (/\bACHADO\s*:/.test(t)) return 'achado';
+  if (t.startsWith('FALSO POSITIVO') || t.startsWith('FALSE POSITIVE')) return 'falso-positivo';
+  // A ordem importa: `NO FINDING` tem de ser lido ANTES de `FINDING:`, senao
+  // uma ronda vazia em ingles seria lida como um achado.
+  if (SEM_ACHADO_RE.test(t)) return 'sem-achado';
+  if (/\b(ACHADO|FINDING)\s*:/.test(t)) return 'achado';
   return 'indeterminado';
 }
 

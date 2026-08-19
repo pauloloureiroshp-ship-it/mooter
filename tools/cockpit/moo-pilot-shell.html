@@ -265,6 +265,18 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     </div>
   </div>
 
+  <div class="card vouched">
+    <h2>What these tokens would cost at API list price</h2>
+    <div class="tally" id="custo-tally"></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>model</th><th>turns</th><th>input</th><th>output</th><th>$ / MTok</th><th>list cost</th></tr></thead>
+        <tbody id="custo-linhas"></tbody>
+      </table>
+    </div>
+    <p class="note" id="custo-nota"></p>
+  </div>
+
   <div class="card vouched" id="triagem-card" hidden>
     <h2 id="triagem-titulo">Needs triage</h2>
     <p class="nd">Every finding leaves here by a decision of yours. This is what closes the loop —
@@ -507,13 +519,13 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       renderToggle();
     }
     setChip($('cost'), state.usd === 0 ? 'ok' : 'bad',
-            state.usd === 0 ? '$0 · local GPU only' : `custo ${state.usd}`);
+            state.usd === 0 ? '$0 · local GPU only' : `the loop spent ${state.usd}`);
 
     if (changed('gpu', [state.gpu, spark.length, spark[spark.length-1]])) renderGpu(state.gpu || {});
     if (changed('tally', state.recibos))   renderTally(state.recibos || {});
     if (changed('fleet', [state.frota, state.device])) renderFleet(state);
     if (changed('pillars', [state.pilares, state.pilar_atual, state.foco, CATALOGO, live, busy])) renderPillars(state, live);
-    if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados])) renderEngine(state);
+    if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados, state.reserva])) renderEngine(state);
     if (changed('align', state.projeto))   renderAlign(state.projeto);
     // The cow only comes alive when the loop is ACTUALLY shipping. An animation
     // that runs while the machine is idle is a pretty lie.
@@ -664,9 +676,22 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     putRow(dl,'pilar activo', nd(s.pilar_atual));
     putRow(dl,'mode', s.foco ? document.createTextNode(`focused on ${s.foco}`) : el('span','nd','rotating through all pillars'));
     const m = s.modelos_carregados || [];
-    putRow(dl,'residentes', m.length
+    putRow(dl,'residents', m.length
       ? document.createTextNode(m.map(x => `${x.name} (${x.vram_gb} GB)`).join(', '))
-      : el('span','nd','nenhum modelo residente'));
+      : el('span','nd','no model resident'));
+    // Uma maquina CEDIDA nao esta avariada. Este campo ja viajava no
+    // /fleet.json desde que a reserva existe, e o painel nunca o desenhou: de
+    // fora, um loop que saiu da frente de proposito era indistinguivel de um
+    // loop morto — "sem recibos ha 20 minutos", e o dono a adivinhar qual dos
+    // dois. E a diferenca entre um bug e um device a ser bem-educado.
+    const lease = s.reserva;
+    putRow(dl,'machine lease', !lease
+      ? el('span','nd','n/a')
+      : lease.activa
+        ? el('span','chip warn', typeof lease.falta_s === 'number'
+            ? `held — the loop stands down for ${Math.max(1, Math.ceil(lease.falta_s / 60))} more min`
+            : 'held — the loop is standing down')
+        : el('span','chip ok','free — the loop has the machine'));
   }
 
   function renderAlign(p) {
@@ -695,6 +720,100 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   // contar — e exactamente a tese do Mooter que ele afirma.
   let MOTORES = null;
   fetch(BASE + "/motores.json").then((r) => r.json()).then((b) => { MOTORES = b.motores; }).catch(() => {});
+
+  // ── what these tokens would cost ──────────────────────────────────────────
+  //
+  // Duas regras, e nenhuma e cosmetica:
+  //
+  //  1. Isto NAO e dinheiro gasto. Quem trabalha por subscricao nao paga por
+  //     token. E o preco de tabela da API para os mesmos tokens — a regua
+  //     contra o $0 da GPU local, nao uma factura. O rodape di-lo sempre.
+  //  2. Um modelo sem preco na tabela sai com a celula VAZIA e conta para o
+  //     aviso de "parcial". O endpoint nunca estima: foi assim que o
+  //     `claude-opus-5` passou meses a ser cobrado ao preco do Sonnet.
+  let CUSTO = null;
+
+  function fmtUsd(v) {
+    if (typeof v !== 'number') return null;
+    return '$' + (v >= 1 ? v.toFixed(2) : v.toFixed(4));
+  }
+
+  function fmtTok(v) {
+    if (typeof v !== 'number') return null;
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+    return String(v);
+  }
+
+  function caixa(valor, rotulo, classe) {
+    const box = el('div', 'box' + (classe ? ' ' + classe : ''));
+    const b = el('b');
+    b.appendChild(valor === null ? el('span', 'nd', 'n/a') : document.createTextNode(valor));
+    box.append(b, el('small', null, rotulo));
+    return box;
+  }
+
+  function renderCusto(c) {
+    const tally = $('custo-tally'); const linhas = $('custo-linhas'); const nota = $('custo-nota');
+    if (!tally || !linhas || !nota) return;
+    tally.replaceChildren(); linhas.replaceChildren();
+
+    const longa = c && c.longa;
+    if (!longa || longa.disponivel === false) {
+      nota.textContent = (longa && longa.porque) || (c && c.porque)
+        || 'No local Claude Code sessions to read on this machine — so there is nothing to price.';
+      return;
+    }
+    const curta = c.curta || {};
+
+    tally.append(
+      caixa(fmtUsd(curta.total_usd), 'last 5 hours', 'ok'),
+      caixa(fmtUsd(longa.total_usd), 'last 7 days', 'ok'),
+      caixa(String(longa.modelos.reduce((n, m) => n + m.turnos, 0)), 'turns priced', 'dead'),
+      caixa('$0', 'what the loop spent', 'ok'),
+    );
+
+    for (const m of longa.modelos) {
+      const tr = el('tr');
+      tr.append(
+        el('td', null, m.modelo),
+        el('td', null, String(m.turnos)),
+        el('td', null, fmtTok(m.entradas) || '—'),
+        el('td', null, m.saidas === null ? '' : (fmtTok(m.saidas) || '—')),
+        el('td', null, m.preco ? '$' + m.preco.input + ' / $' + m.preco.output : ''),
+        el('td', null, fmtUsd(m.usd) || ''),
+      );
+      if (!m.preco) {
+        // A celula fica VAZIA, nunca com um numero emprestado de outro modelo.
+        tr.children[4].appendChild(el('span', 'nd', 'not in the price table'));
+        tr.children[5].appendChild(el('span', 'nd', 'no price, no number'));
+      } else if (m.saidas === null) {
+        tr.children[3].appendChild(el('span', 'nd', 'n/a'));
+      }
+      linhas.appendChild(tr);
+    }
+
+    const partes = [];
+    partes.push('This is the API list price for the same tokens. On a subscription plan it is NOT money you spent — '
+      + 'it is the yardstick the local GPU is measured against, and the loop itself spent $0.');
+    if (longa.sem_preco && longa.sem_preco.length) {
+      partes.push('Partial: ' + longa.sem_preco.join(', ') + ' has no entry in the price table, so it carries no number. '
+        + 'A borrowed price reads exactly like a real one.');
+    }
+    if (longa.aviso_saidas) partes.push(longa.aviso_saidas);
+    if (longa.ressalva) partes.push(longa.ressalva);
+    if (longa.ignorados && longa.ignorados.length) {
+      partes.push('Set aside: ' + longa.ignorados.map((i) => i.modelo + ' (' + i.turnos + ' turns)').join(', ') + '.');
+    }
+    nota.textContent = partes.join(' ');
+  }
+
+  function loadCusto() {
+    fetch(BASE + '/custo.json', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((b) => { CUSTO = b; renderCusto(CUSTO); })
+      .catch(() => { CUSTO = null; renderCusto(null); });
+  }
 
   const FILTERS = { verdict: '', pillar: '', file: '' };
   let LAST_FEED = [];
@@ -815,7 +934,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         const up = String(r.resumo).toUpperCase();
         if (up.startsWith('FALSO POSITIVO')) dizer.className = 'diz fp';
         else if (up.startsWith('ACHADO')) dizer.className = 'diz ok';
-        else if (up.includes('SEM ACHADO')) dizer.className = 'diz mudo';
+        else if (up.includes('SEM ACHADO') || up.includes('NO FINDING')) dizer.className = 'diz mudo';
         tde.appendChild(dizer);
       }
       tr.appendChild(tde);
@@ -840,6 +959,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   renderToggleOffline();
   loadCatalogue();
+  loadCusto();
+  setInterval(() => { if (!document.hidden) loadCusto(); }, 60_000);
   poll();
   setInterval(() => { if (!document.hidden) poll(); }, POLL_MS);
 })();

@@ -221,3 +221,43 @@ test('smoke: STOP presente trava o ciclo sem gravar trabalho nenhum', async () =
   assert.equal(fs.existsSync(runner.PATHS.LEDGER), false, 'parado e parado: nem uma linha');
   fs.rmSync(runner.PATHS.STOP_FILE, { force: true });
 });
+
+test('smoke: GET /custo.json devolve o custo por modelo, e NUNCA um preco inventado', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/custo.json`);
+    assert.equal(res.status, 200);
+    const b = await res.json();
+    for (const janela of ['curta', 'longa']) {
+      const j = b[janela];
+      assert.ok(j, `falta a janela ${janela}`);
+      if (j.disponivel === false) continue;  // maquina sem sessoes: resposta honesta, nao um zero
+      assert.ok(Array.isArray(j.modelos), `${janela}.modelos tem de ser uma lista`);
+      assert.match(j.natureza, /NOT money spent/, `${janela} perdeu a nota de que isto nao e dinheiro gasto`);
+      assert.ok(j.ressalva, `${janela} perdeu a ressalva de limite inferior do quota.js`);
+      for (const m of j.modelos) {
+        if (m.preco === null) {
+          assert.equal(m.usd, null, `${m.modelo} nao tem preco na tabela e mesmo assim saiu com um custo`);
+          assert.equal(j.parcial, true, 'um total a que falta um modelo tem de se declarar parcial');
+        } else {
+          assert.equal(typeof m.usd, 'number');
+        }
+      }
+      if (j.modelos.length && j.modelos.every((m) => m.preco === null)) {
+        assert.equal(j.total_usd, null, 'nenhum modelo tinha preco e o total saiu 0 — 0 le-se como "de graca"');
+      }
+    }
+  } finally { await fechar(); }
+});
+
+test('smoke: o gasto do loop e o preco de tabela sao dois numeros separados', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const frota = await (await fetch(`${base}/fleet.json`)).json();
+    assert.equal(frota.usd, 0, 'o loop e local: qualquer valor diferente de 0 aqui e uma fuga para fora da maquina');
+    const custo = await (await fetch(`${base}/custo.json`)).json();
+    // Nao se comparam valores (dependem da maquina); compara-se que sao campos
+    // distintos, em respostas distintas, com significados distintos.
+    assert.ok(!('usd' in custo), '/custo.json nao pode reutilizar o nome `usd` do gasto do loop');
+  } finally { await fechar(); }
+});

@@ -1019,3 +1019,31 @@ test('os ficheiros de um pilar tem de EXISTIR — apontar ao vazio nao da erro n
   }
   assert.deepEqual(mortos, [], 'um pilar a apontar ao vazio revê menos e nao se queixa');
 });
+
+// ── o carimbo de ronda vazia, nas duas linguas (2026-08-19) ──────────────────
+
+/**
+ * O contrato dos pilares ficou bilingue a meio: o bloco de formato partilhado
+ * pede `SEM ACHADO`, e duas perguntas de pilar (P7, P8) pedem `NO FINDING`. O
+ * modelo recebe as duas instrucoes na MESMA volta. Enquanto o verificador so
+ * reconhecia a portuguesa, uma ronda honestamente vazia em ingles caia em
+ * `sem-citacao` — o painel contava-a como resposta por verificar e o modelo
+ * era castigado por ter feito exactamente o que lhe pediram.
+ */
+test('uma ronda vazia conta como vazia nas duas linguas', () => {
+  for (const t of ['SEM ACHADO', 'NO FINDING', 'no finding', 'Answer: NO FINDING.']) {
+    assert.equal(isNoFinding(t), true, t + ' devia ser lido como ronda vazia');
+    assert.equal(concluir(t), 'sem-achado', t + ' devia concluir sem-achado');
+  }
+});
+
+test('NO FINDING le-se ANTES de FINDING: — senao uma ronda vazia vira um achado', () => {
+  assert.equal(concluir('NO FINDING: nothing in this excerpt'), 'sem-achado');
+  assert.equal(concluir('FINDING: x WHEN y THEN z'), 'achado');
+  assert.equal(concluir('ACHADO: x QUANDO y ENTAO z'), 'achado');
+});
+
+test('o falso positivo tambem e bilingue', () => {
+  assert.equal(concluir('FALSO POSITIVO: e seguro aqui'), 'falso-positivo');
+  assert.equal(concluir('FALSE POSITIVE: safe here'), 'falso-positivo');
+});

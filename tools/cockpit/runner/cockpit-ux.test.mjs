@@ -198,3 +198,51 @@ test('os ouvintes dos filtros ligam-se no arranque, nunca dentro de offline()', 
   );
   assert.match(CODE, /f-verdict[\s\S]{0,200}addEventListener/, 'os filtros do feed não estão ligados a lado nenhum');
 });
+
+// ── o custo por modelo (Fase 1) ──────────────────────────────────────────────
+
+/**
+ * A regra que este cartao existe para nao quebrar: ha DOIS numeros, e nunca
+ * se somam. O `usd: 0` do /fleet.json e o que o LOOP gastou — zero por
+ * construcao, porque `assertLocalEngine` recusa qualquer motor que nao seja
+ * loopback. O total do /custo.json e o que os MESMOS tokens custariam a API.
+ * A diferenca entre eles E a tese do produto; a soma seria uma factura falsa.
+ */
+test('o custo de tabela nunca se apresenta como dinheiro gasto', () => {
+  assert.match(CODE, /custo\.json/, 'o painel nao vai buscar o custo por modelo');
+  assert.match(CODE, /NOT money you spent/, 'faltou dizer que isto nao e dinheiro gasto — a quem paga subscricao seria mentira');
+  assert.doesNotMatch(CODE, /state\.usd\s*\+/, 'esta a somar o gasto do loop ao preco de tabela: sao numeros diferentes');
+});
+
+test('um modelo sem preco na tabela nao recebe um numero emprestado', () => {
+  assert.match(CODE, /no price, no number/,
+    'a celula de um modelo sem preco tem de ficar vazia: um preco emprestado le-se exactamente como um real');
+});
+
+/**
+ * A reserva ja viajava no /fleet.json desde que existe (fleet-state.mjs:242) e
+ * o painel nunca a desenhou. De fora, um device que CEDEU a maquina de proposito
+ * era indistinguivel de um loop morto: "sem recibos ha 20 minutos", e o dono a
+ * adivinhar qual dos dois.
+ */
+test('a reserva da maquina e desenhada, e o memo de render() ve-a', () => {
+  assert.match(CODE, /machine lease/, 'a reserva continua invisivel no painel');
+  assert.match(CODE, /changed\('engine',[^)]*state\.reserva/,
+    'a reserva nao entra na assinatura do memo: mudaria de estado e o ecra ficava parado');
+});
+
+/**
+ * Trava de classe: o painel e o servidor sao dois ficheiros que ninguem obriga
+ * a concordar. Um `fetch` para uma rota que o servidor nao serve devolve 404,
+ * o `.catch()` engole, e o cartao fica vazio para sempre sem um unico erro.
+ */
+test('toda a rota que o painel busca existe no servidor', () => {
+  const servidor = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'f10-server.mjs'), 'utf8');
+  const rotas = new Set([
+    ...[...CODE.matchAll(/\$\{BASE\}(\/[a-z0-9._/-]+)/gi)].map((m) => m[1]),
+    ...[...CODE.matchAll(/BASE\s*\+\s*['"](\/[a-z0-9._/-]+)['"]/gi)].map((m) => m[1]),
+  ]);
+  assert.ok(rotas.size >= 3, 'nao encontrei as rotas do painel — o teste deixou de medir o que dizia medir');
+  const ausentes = [...rotas].filter((r) => !servidor.includes("'" + r + "'"));
+  assert.deepEqual(ausentes, [], 'o painel busca rotas que o servidor nao serve: ' + ausentes.join(', '));
+});
