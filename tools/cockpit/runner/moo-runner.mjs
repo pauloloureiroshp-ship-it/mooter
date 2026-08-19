@@ -35,6 +35,7 @@ import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { createEngineBreaker } from './engine-breaker.mjs';
 import { resolveRepoRoot, projectPaths, repoSha } from './project.mjs';
+import { verReserva, esperaS } from './reserva.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
@@ -280,8 +281,37 @@ export async function main({
   logImpl(`ja julgados ${revistos.size} excertos — nao voltam a fila enquanto nao mudarem`);
   let rondas = 0;
 
+  // Uma reserva activa nao e um STOP: e alguem a precisar da maquina por um
+  // bocado. Nao se grava recibo, nao se conta ronda, nao se acusa ninguem — e
+  // quando o prazo passa, o loop volta sozinho. Ver reserva.mjs para o porque
+  // de o STOP nao servir aqui.
+  let reservaAvisada = null;
+
   for (;;) {
     if (rondas >= maxRounds) return { rondas, breaker: breaker.estado, repoRoot, paths };
+
+    const res = verReserva(paths.base);
+    if (res.activa) {
+      // Diz-se UMA vez por reserva. Um log por ronda durante duas horas e a
+      // mesma inundacao que o disjuntor existe para travar, noutro sitio.
+      if (reservaAvisada !== res.reserva.desde) {
+        reservaAvisada = res.reserva.desde;
+        logImpl(`cedo a maquina — ${res.motivo} · ate ${res.reserva.ate}`);
+      }
+      await sleepImpl(esperaS(res.faltaS));
+      // Conta como volta do ciclo, tal como o ramo do STOP ao lado. Sem isto o
+      // `maxRounds` nunca chegava e o loop ficava preso — em producao passava
+      // despercebido (o sleep e real), mas um teste com sleep instantaneo gira
+      // para sempre. Um ramo que nao conta e um ramo que nao se consegue testar.
+      rondas += 1;
+      if (once) return { rondas, breaker: breaker.estado, repoRoot, paths };
+      continue;
+    }
+    if (reservaAvisada) {
+      logImpl(`reserva terminada (${res.motivo}) — volto ao trabalho.`);
+      reservaAvisada = null;
+    }
+
     if (fs.existsSync(paths.STOP_FILE)) {
       await sleepImpl(IDLE_SLEEP_S);
       rondas += 1;

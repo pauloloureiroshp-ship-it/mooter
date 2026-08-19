@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa } from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -943,4 +943,30 @@ test('TRIAGEM: os tres pontos cegos MEDIDOS estao nos tres prompts', () => {
     // A contagem e o que separa uma regra de uma opiniao.
     assert.match(prompt, /39 dos 72|20 dos 72/, `${nome}: a regra tem de trazer o numero que a justifica`);
   }
+});
+
+test('FROTA: dois devices no mesmo repo deixam de moer os mesmos alvos', () => {
+  // Ate aqui dois devices percorriam a mesma sequencia pela mesma ordem: o
+  // dobro da GPU pelo mesmo trabalho. Cada um entra numa fase diferente,
+  // deterministica no NOME — a frota cobre mais em vez de repetir.
+  const root = repoDiff();
+  const diff = diffFalso([
+    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
+    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
+    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
+  ]);
+  const alvos = (device) => PILLAR_IDS.map((p) => {
+    const k = buildContextPack({ repoRoot: root, pillar: p, cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, device });
+    return `${k.file}:${k.startLine}`;
+  });
+  const a = alvos('mac-mini-de-paulo');
+  const b = alvos('macbook-do-paulo');
+  const iguais = a.filter((x, i) => x === b[i]).length;
+  assert.ok(iguais < a.length, `dois devices nao podem repetir a ronda toda: ${iguais}/${a.length} iguais`);
+
+  // E o determinismo mantem-se: a MESMA maquina da sempre a mesma ronda.
+  assert.deepEqual(alvos('mac-mini-de-paulo'), a, 'mesmo device, mesma ronda — a reprodutibilidade nao se perde');
+  // Uma maquina sem nome comporta-se como antes.
+  assert.equal(faseDoDevice(''), 0);
+  assert.equal(faseDoDevice('x'), faseDoDevice('x'));
 });
