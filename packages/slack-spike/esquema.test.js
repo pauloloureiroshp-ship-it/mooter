@@ -233,3 +233,24 @@ test('esquema · payload que nao se consegue fixar e RECUSADO (nao publicado a m
   assert.equal(r.ok, false, 'um payload circular atravessou');
   assert.match(r.porque, /nao e serializavel/);
 });
+
+test('esquema · tier, onde e versao sao vocabularios fechados ao VALOR', () => {
+  const H = 'a'.repeat(64);
+  const base = (x) => Object.assign({ tipo: 'pendente', job_id: 'job-1', hash_esperado: H }, x);
+
+  const bom = esquema.validar(base({ tier: { valor: 'T2' }, onde: { valor: 'nuvem' },
+    versao: { valor: '1.49.3' } }));
+  assert.equal(bom.payload.tier.valor, 'T2');
+  assert.equal(bom.payload.onde.valor, 'nuvem');
+  assert.equal(bom.payload.versao.valor, '1.49.3');
+
+  for (const [campo, mau] of [['tier', 'T4'], ['onde', 'CANARIO'], ['versao', 'CANARIO livre']]) {
+    const r = esquema.validar(base({ [campo]: { valor: mau } }));
+    assert.equal(r.payload[campo].valor, null, campo + ' publicou um valor fora do vocabulario');
+    assert.doesNotMatch(JSON.stringify(r), /CANARIO/, campo + ' vazou o canario');
+    assert.ok(r.degradados.includes(campo), campo + ' degradou em silencio — sem o dizer');
+  }
+
+  const sub = esquema.validar(base({ tier: { valor: 'T2', extra: 'CANARIO' } }));
+  assert.equal(sub.ok, false, 'subchave desconhecida atravessou');
+});

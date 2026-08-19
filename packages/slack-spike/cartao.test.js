@@ -551,3 +551,35 @@ test('cadeia · pedido em n/d NAO perde a razao do n/d por causa da cadeia', () 
   assert.match(t, /o motor nao reportou custo/, 'o n/d ficou sem razao');
   assert.match(t, /Nesta conversa, 3 pedidos encadeados:\* US\$ 2,88/);
 });
+
+// ── a linha de execucao: versao · tier · modelo · onde ────────────────────
+test('execucao · o cartao diz a versao, o tier e SE correu local ou na nuvem', () => {
+  // ⚠️ Existe porque o dono nao conseguia responder a tres perguntas olhando para o
+  // cartao: que versao esta a correr, em que patamar de custo, e se aquilo saiu da
+  // maquina dele. Os tres dados ja estavam no ledger; so nao chegavam ca.
+  const t = tudo(c.blocosDePendente(pendente({
+    versao: { valor: '1.49.3' }, tier: { valor: 'T0' },
+    modelo: { valor: 'gemma4:e4b' }, onde: { valor: 'local' } })));
+  assert.match(t, /Mooter v1\.49\.3/);
+  assert.match(t, /T0/);
+  assert.match(t, /no teu computador/);
+});
+
+test('execucao · "nuvem" NUNCA por omissao — a ausencia e n/d', () => {
+  // e a afirmacao mais importante do cartao: dizer que correu na nuvem quando
+  // ninguem o declarou seria fabricar exactamente o que este produto vende.
+  const t = tudo(c.blocosDePendente(pendente({ versao: { valor: '1.49.3' } })));
+  assert.doesNotMatch(t, /na nuvem/, 'afirmou nuvem sem o evento a declarar');
+  assert.match(t, /· n\/d/);
+});
+
+test('execucao · tier fora do vocabulario e n/d (nao ha T4)', () => {
+  const t = tudo(c.blocosDePendente(pendente({ tier: { valor: 'T4' }, onde: { valor: 'local' } })));
+  assert.doesNotMatch(t, /T4/, 'publicou um patamar que nao existe');
+});
+
+test('execucao · versao com forma invalida nao se publica', () => {
+  const t = tudo(c.blocosDePendente(pendente({ versao: { valor: 'a versao secreta do paulo' } })));
+  assert.doesNotMatch(t, /secreta/);
+  assert.match(t, /Mooter v n\/d/);
+});

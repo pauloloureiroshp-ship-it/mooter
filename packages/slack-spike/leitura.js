@@ -28,6 +28,9 @@
 const identidade = require('../mooter-bridge/actor.js');
 const { CUSTO_PORQUE } = require('./esquema.js');
 
+/** Vocabulario FECHADO de tiers. Nao ha T4; um patamar inventado e pior que n/d. */
+const TIERS = Object.freeze(['T0', 'T1', 'T2', 'T3', 'T5']);
+
 /** Fontes que sao CALCULO, nao medicao — obrigam ao rotulo "estimativa". */
 const FONTE_E_ESTIMATIVA = /calculad[oa]|tabela|estimativ/i;
 const FONTE_AUSENTE = /^n\/d$/i;
@@ -79,7 +82,28 @@ function derivarDoPendente(evento) {
       + 'preenchido (0/12 nao-nulo). Mostrar 0 seria mentir; derivar do nucleo seria '
       + 'mexer no nucleo, que este spike tem proibido' };
 
-  return { autor, motor, modelo, custo, diff_stat };
+
+  // ── execucao: tier · onde correu ────────────────────────────────────────
+  // ⚠️ Os dois saem do MESMO evento e nao se inferem um do outro. O `tier` vem
+  // como `tier` no dispatched e como `tier_motor` no terminal (o efectivo, ja
+  // depois de qualquer tecto herdado). Um tier fora do vocabulario nao se
+  // publica — nao ha "T4", e inventar um patamar seria pior que dizer n/d.
+  const tierBruto = e.tier != null ? e.tier : e.tier_motor;
+  const tier = TIERS.includes(String(tierBruto))
+    ? { valor: String(tierBruto), fonte: e.tier != null ? 'tier do despacho' : 'tier efectivo do motor', porque: null }
+    : { valor: null, fonte: null, porque: 'n/d — o evento nao traz um tier do vocabulario conhecido' };
+
+  // `local` e booleano no ledger. Qualquer outra coisa — ausente, string, null —
+  // e n/d: dizer "nuvem" por omissao seria afirmar o que ninguem declarou, e a
+  // diferenca entre correr na GPU do dono e numa subscricao paga e exactamente
+  // o que este cartao existe para tornar visivel.
+  const onde = e.local === true
+    ? { valor: 'local', fonte: 'declarado no evento', porque: null }
+    : (e.local === false
+      ? { valor: 'nuvem', fonte: 'declarado no evento', porque: null }
+      : { valor: null, fonte: null, porque: 'n/d — o evento nao declara se correu local' });
+
+  return { autor, motor, modelo, custo, diff_stat, tier, onde };
 }
 
-module.exports = { derivarDoPendente, FONTE_E_ESTIMATIVA };
+module.exports = { derivarDoPendente, FONTE_E_ESTIMATIVA, TIERS };

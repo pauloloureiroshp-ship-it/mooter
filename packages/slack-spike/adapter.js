@@ -61,6 +61,22 @@ function criarAdaptador(opcoes) {
     return { pedidos: c.pedidos, total: c.total, fontes: c.fontes,
       todosMedidos: c.todosMedidos };
   };
+
+  /**
+   * A versao do Mooter, lida UMA vez. Se o ficheiro nao existir ou nao trouxer uma
+   * versao com forma verificavel, fica `null` e o cartao diz `n/d` — nunca se
+   * inventa um numero de versao, que seria a mentira mais facil de acreditar.
+   */
+  const VERSAO = (() => {
+    try {
+      const v = JSON.parse(fs.readFileSync(
+        path.join(__dirname, '..', '..', 'tools', 'router', 'version.json'), 'utf8')).version;
+      return { valor: typeof v === 'string' ? v : null, fonte: 'version.json' };
+    } catch { return { valor: null, porque: 'n/d — version.json ilegivel' }; }
+  })();
+
+  /** Os tres campos da linha de execucao, sempre juntos e sempre dos mesmos sitios. */
+  const execucao = (d) => ({ versao: VERSAO, tier: d.tier, onde: d.onde });
   for (const [nome, v] of [['allowlist', allowlist], ['publicador', publicador],
     ['broker', broker], ['despachar', despachar]]) {
     if (!v) throw new Error('criarAdaptador precisa de `' + nome + '` — nada aqui e opcional');
@@ -143,6 +159,7 @@ function criarAdaptador(opcoes) {
     return { tipo: 'pendente', job_id: pendente.job_id, wave: pendente.wave || null,
       autor: d.autor, motor: d.motor, modelo: d.modelo, custo: d.custo, diff_stat: d.diff_stat,
       cadeia: cadeiaDoJob(pendente.job_id, ledger),
+      ...execucao(d),
       // O hash VAI no cartao porque e o cartao que o botao carrega de volta. Sem
       // ele o clique chegaria sem `expected_state_hash` e havia duas saidas, as
       // duas mas: recusar toda a decisao, ou ler o hash fresco no clique — e ler
@@ -274,7 +291,7 @@ function criarAdaptador(opcoes) {
       const dc = derivarDoPendente(broker.estadoCorrente(ev.request_id, lerEventos()));
       publicar({ tipo: 'decisao', job_id: ev.request_id,
         estado: c.estado === 'JA_TERMINADO' ? 'JA_TERMINADO' : 'PARADO',
-        custo: dc.custo, modelo: dc.modelo, cadeia: cadeiaDoJob(ev.request_id),
+        custo: dc.custo, modelo: dc.modelo, cadeia: cadeiaDoJob(ev.request_id), ...execucao(dc),
         autor: { valor: actorDe(ev.user_id).id },
         auditoria: { request: ev.request_id, accao: 'parar', estado: c.estado,
           actor: actorDe(ev.user_id).id, hash: ev.expected_state_hash || null },
@@ -322,7 +339,7 @@ function criarAdaptador(opcoes) {
     });
     publicar({ tipo: 'decisao', job_id: ev.request_id, estado: r.estado,
       autor: dec.autor, motor: dec.motor, modelo: dec.modelo, custo: dec.custo,
-      cadeia: cadeiaDoJob(ev.request_id),
+      cadeia: cadeiaDoJob(ev.request_id), ...execucao(dec),
       hash_esperado: ev.expected_state_hash || null,
       auditoria: { request: ev.request_id, veredicto, estado: r.estado,
         actor: actorDe(ev.user_id).id, hash: ev.expected_state_hash || null,
@@ -365,7 +382,7 @@ function criarAdaptador(opcoes) {
       if (!estado) continue;                                     // ainda a correr, ou encadeado
       const d = derivarDoPendente(ev);
       const r = publicar({ tipo: 'fecho', job_id: job, estado,
-        custo: d.custo, modelo: d.modelo, cadeia: cadeiaDoJob(job, ledger) });
+        custo: d.custo, modelo: d.modelo, cadeia: cadeiaDoJob(job, ledger), ...execucao(d) });
       out.push({ job_id: job, estado, publicado: r.publicado, envio: r.envio,
         porque: r.porque || null, degradados: r.degradados || [] });
     }
