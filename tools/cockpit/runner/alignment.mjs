@@ -68,19 +68,19 @@ export function checkClassifySha(repoRoot, { readImpl = fs.readFileSync } = {}) 
   try {
     actual = sha256(readImpl(path.join(repoRoot, 'tools', 'router', 'classify.js')));
   } catch {
-    return { ok: null, motivo: 'classify.js ilegivel', declarado: null, medido: null };
+    return { ok: null, motivo: 'classify.js unreadable', declarado: null, medido: null };
   }
   try {
     declared = parseCanonSha(String(readImpl(path.join(repoRoot, 'CLAUDE.md'), 'utf8')));
   } catch {
-    return { ok: null, motivo: 'CLAUDE.md ilegivel', declarado: null, medido: actual };
+    return { ok: null, motivo: 'CLAUDE.md unreadable', declarado: null, medido: actual };
   }
   if (!declared) {
-    return { ok: null, motivo: 'canon nao declara sha', declarado: null, medido: actual };
+    return { ok: null, motivo: 'canon does not declare a sha', declarado: null, medido: actual };
   }
   return {
     ok: declared === actual,
-    motivo: declared === actual ? null : 'sha do codigo diverge do canon',
+    motivo: declared === actual ? null : 'code sha diverges from canon',
     declarado: declared,
     medido: actual,
   };
@@ -93,12 +93,12 @@ export function checkClassifySha(repoRoot, { readImpl = fs.readFileSync } = {}) 
 export function vaultLastWrite(vaultPath, { readdirImpl = fs.readdirSync, statImpl = fs.statSync } = {}) {
   const fonte = vaultPath ? 'VAULT_PATH' : 'convencao';
   const target = vaultPath || defaultVaultPath();
-  if (!target) return { ts: null, ficheiro: null, fonte: 'n/d', motivo: 'sem caminho de vault' };
+  if (!target) return { ts: null, ficheiro: null, fonte: 'n/d', motivo: 'no vault path' };
   let top;
   try {
     top = readdirImpl(target, { withFileTypes: true });
   } catch {
-    return { ts: null, ficheiro: null, fonte, caminho: target, motivo: 'vault nao montado' };
+    return { ts: null, ficheiro: null, fonte, caminho: target, motivo: 'vault not mounted' };
   }
   let bestMs = 0;
   let bestFile = null;
@@ -123,7 +123,7 @@ export function vaultLastWrite(vaultPath, { readdirImpl = fs.readdirSync, statIm
     }
   }
   if (!bestFile) {
-    return { ts: null, ficheiro: null, fonte, caminho: target, motivo: 'vault sem ficheiros legiveis' };
+    return { ts: null, ficheiro: null, fonte, caminho: target, motivo: 'vault has no readable files' };
   }
   return {
     ts: new Date(bestMs).toISOString(),
@@ -185,7 +185,7 @@ export async function buildAlignment({
     ahead: counts.ahead,
     behind: counts.behind,
     // No fetch happens here, so the comparison is only as fresh as the last one.
-    comparacao: upstream ? 'contra ref local, sem fetch' : 'sem upstream configurado',
+    comparacao: upstream ? 'against local ref, no fetch' : 'no upstream configured',
     classify_sha: checkClassifySha(repoRoot, { readImpl }),
     vault: vaultLastWrite(vaultPath),
   };

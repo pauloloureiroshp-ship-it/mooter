@@ -165,12 +165,12 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
       ? {
           conclusao: concluir(text),
       verdict: VERDICT.NO_FINDING, citations: [], checked: 0, failed: 0,
-          offWindow: 0, evidence: 'sem-achado: a ronda declarou nada a reportar',
+          offWindow: 0, evidence: 'no finding: the round reported nothing',
         }
       : {
           conclusao: concluir(text),
       verdict: VERDICT.UNCITED, citations: [], checked: 0, failed: 0,
-          offWindow: 0, evidence: 'sem-citacao: resposta sem ficheiro:linha, nao verificavel',
+          offWindow: 0, evidence: 'uncited: answer has no file:line, not verifiable',
         };
   }
 
@@ -194,7 +194,7 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
       conclusao: concluir(text),
       verdict: VERDICT.REFUTED,
       citations: checked, checked: checked.length, failed: failed.length, offWindow,
-      evidence: `refutado: ${first.file}:${first.line} ${first.reason}`,
+      evidence: `refuted: ${first.file}:${first.line} ${first.reason}`,
     };
   }
 
@@ -202,7 +202,7 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
   // the owner reads is the strongest one available rather than merely the first.
   const head = checked.find((c) => !c.off_window) || checked[0];
   const blank = !head.snippet;
-  const suffix = offWindow > 0 ? ` · ${offWindow} citacao(oes) fora da janela mostrada` : '';
+  const suffix = offWindow > 0 ? ` · ${offWindow} citation(s) outside the shown window` : '';
   return {
     conclusao: concluir(text),
     verdict: blank && offWindow === checked.length ? VERDICT.UNCITED : VERDICT.CITED,
@@ -210,8 +210,8 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
     // "linha existe", never "achado confirmado" — the claim stays untriaged.
     // A blank cited line is said out loud instead of rendering as green nothing.
     evidence: blank
-      ? `citacao-ok (achado NAO triado): ${head.file}:${head.line} => LINHA EM BRANCO${suffix}`
-      : `citacao-ok (achado NAO triado): ${head.file}:${head.line} => ${head.snippet}${suffix}`,
+      ? `cited (finding NOT triaged): ${head.file}:${head.line} => BLANK LINE${suffix}`
+      : `cited (finding NOT triaged): ${head.file}:${head.line} => ${head.snippet}${suffix}`,
   };
 }
 
