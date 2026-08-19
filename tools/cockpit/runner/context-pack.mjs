@@ -35,85 +35,135 @@ export const MAX_SLICE_BYTES = 16 * 1024;
  * `n/d` instead of silently shifting the cursor onto something unrelated.
  */
 export const PILLARS = {
+  /**
+   * REDESENHADOS a 2026-08-19, com 33 rondas contra o motor real.
+   *
+   * O que mudou nao foi o SYSTEM_PROMPT — foi o VERBO. As perguntas antigas
+   * pediam possibilidade ("qual destas linhas PODE falhar") e obrigavam a
+   * escolher ("Escolhe uma"). Um 14B a quem se manda escolher escolhe SEMPRE,
+   * mesmo perante codigo impecavel: 72 achados julgados um a um deram 1 util.
+   *
+   * Estas pedem COPIA e COMPARACAO. Cada uma tem uma saida neutra que e uma
+   * CONCLUSAO do passo de comparacao, nao uma licenca para nao trabalhar
+   * ("CADA CHAMADA UMA VEZ", "CONFEREM", "COMPLETA"). Medido: levantar a
+   * proibicao de citar comentarios PIORA (2/2 falsos positivos com ela
+   * levantada, 3/3 correcto com ela ligada) — a proibicao nunca foi o bloqueio.
+   *
+   * E mudam os ALVOS, nao so as perguntas. O P3 perde os cinco .md (987 rondas,
+   * 0 aceites: eram 100% prosa, e prosa e citacao proibida). O P6 ganha a
+   * superficie que o utilizador OPERA, com 0 rondas de sempre.
+   */
   P1: {
-    label: 'Routing & Custo',
+    label: 'Routing & Cost — repeated work',
     files: [
-      'tools/router/classify.js',
-      'tools/router/inject_context.js',
-      // Era 'tools/router/statusline.js', que nunca existiu neste caminho — o
-      // pilar apontava ao vazio e ninguem soube, porque `resolveCandidates`
-      // filtra os que nao existem em silencio. Apanhado a 2026-08-19 por um
-      // teste novo que exige que os ficheiros de um pilar existam mesmo.
-      'tools/router/gsd-statusline.js',
-      'packages/router/src/decide-agent.ts',
-      'packages/router/src/task-categories.ts',
+      'tools/router/mooter-review.js',
+      'tools/router/budget-engine.js',
+      'tools/router/usage-estimator.js',
+      'tools/router/model-manager.js',
     ],
-    ask:
-      'Qual destas linhas é a mais provável de causar um routing errado, um tier ' +
-      'a mais, ou um custo inesperado? Escolhe uma e diz porquê.',
+    ask: [
+      'STEP 1 — copy, one per line, every line in this excerpt that READS a file or',
+      'CALLS a function. Format: `LINE <n>: <the call>`.',
+      'STEP 2 — look only at the list you just wrote. Does any call appear TWICE with',
+      'the same arguments? Write `REPEATED: <line A> and <line B>` for each pair, or',
+      '`EVERY CALL ONCE`.',
+      'Always end with a line `PROOF: <file>:<one of the line numbers you copied>`.',
+    ].join('\n'),
   },
   P2: {
-    label: 'Qualidade & Verificação',
+    label: 'Quality & Verification — does the seed value reach the output?',
     files: [
+      'tools/router/savings-tracker.js',
       'tools/cockpit/build-snapshot.js',
-      'tools/docs-hygiene.js',
       'tools/handoff-preflight.js',
     ],
-    ask:
-      'Qual destas linhas pode falhar em silêncio, engolir um erro, ou devolver ' +
-      'verde sem prova? Escolhe uma e diz porquê.',
+    ask: [
+      'STEP 1 — copy the lines in this excerpt that give a variable the initial value',
+      '`0`, `\'\'` or `[]`. Format: `LINE <n>: <name> = <value>`.',
+      'STEP 2 — for each name on that list, copy the line IN THIS SAME EXCERPT where it',
+      'is returned, added to, or written into an output field. Format: `EXITS AT LINE <n>`;',
+      'write `does not exit` when you find none.',
+      'STEP 3 — write `SEED VISIBLE: <init line> -> <exit line>` for each name that has',
+      'both, or `NO SEED EXITS`.',
+      'Always end with a line `PROOF: <file>:<one of the line numbers you copied>`.',
+    ].join('\n'),
   },
   P3: {
-    label: 'Coerência Doc↔Produto',
-    files: ['CLAUDE.md', 'AGENTS.md', 'SYNC.md', 'INFRA.md', 'docs/strategy/STRATEGY.md'],
-    ask:
-      'Qual destas linhas afirma um valor mecânico (sha, comando, caminho, ' +
-      'limite, número) que pode já não bater com o código? Escolhe uma e diz porquê.',
+    label: 'Docs vs Product — comment against code',
+    files: [
+      'tools/cockpit/runner/context-pack.mjs',
+      'tools/router/inject_context.js',
+      'tools/cockpit/runner/evidence-verifier.mjs',
+    ],
+    ask: [
+      'STEP 1 — copy ONE comment from this excerpt that states a concrete number, name',
+      'or path. Comment lines start with // or with *. Format: `COMMENT LINE <n>: <text>`.',
+      'STEP 2 — copy the CODE line (no // and no *) that this comment describes.',
+      'Format: `CODE LINE <n>: <line>`.',
+      'STEP 3 — is the value stated in the comment the same one the code uses? Write',
+      '`THEY MATCH` or `THEY DIVERGE: comment says <x>, code does <y>`.',
+      'Always end with `PROOF: <file>:<the CODE line number>`.',
+    ].join('\n'),
   },
   P4: {
-    label: 'Segurança & Higiene',
+    label: 'Hygiene — published text left broken',
     files: [
-      'tools/cockpit/runner/moo-runner.mjs',
-      'tools/cockpit/runner/f10-server.mjs',
-      '.github/workflows/docs-hygiene.yml',
-    ],
-    ask:
-      'Qual destas linhas deixa o processo continuar quando devia parar, ou expõe ' +
-      'algo que devia ficar fechado? Escolhe uma e diz porquê.',
-  },
-  P5: {
-    label: 'Motor Local & GPU',
-    files: [
-      'tools/cockpit/runner/gpu-sampler.mjs',
-      'tools/cockpit/runner/runner-core.mjs',
+      'README.md',
+      'CONTRIBUTING.md',
+      'NOTICE.md',
+      'docs/strategy/STRATEGY.md',
       'packages/mooter-bench/README.md',
     ],
-    ask:
-      'Qual destas linhas produz uma métrica que é apresentada como medida mas ' +
-      'pode vir nula, estimada ou stale? Escolhe uma e diz porquê.',
+    ask: [
+      'STEP 1 — copy the LAST line of this excerpt exactly as it is, with the number you',
+      'see on the left.',
+      'STEP 2 — read only that line you copied. Does it end on a whole word, with every',
+      'parenthesis, link and code fence closed?',
+      'STEP 3 — write `COMPLETE` or `BROKEN: <what is missing>`, then the line',
+      '`PROOF: <file>:<that last line number>`.',
+    ].join('\n'),
+  },
+  P5: {
+    label: 'Local engine & GPU — same shape, different names',
+    files: [
+      'tools/cockpit/runner/gpu-sampler.mjs',
+      'tools/cockpit/runner/engine-breaker.mjs',
+      'tools/router/agent-sync-ledger.js',
+    ],
+    ask: [
+      'STEP 1 — copy the first `return` in this excerpt, with its fields, and the number',
+      'of the line where it starts.',
+      'STEP 2 — go through the rest of the excerpt and copy every `return` that gives back',
+      'the SAME fields, changing only the text or the names. Give the line of each one.',
+      'STEP 3 — write `SAME SHAPE: lines <a>, <b>, <c>` when step 2 found anything, or',
+      '`SHAPE IS UNIQUE` when the first return does not repeat.',
+      'Always end with a line `PROOF: <file>:<one of the line numbers you copied>`.',
+    ].join('\n'),
   },
   P6: {
-    label: 'Produto & Experiência',
+    label: 'Product & Experience — hardcoded number on screen',
     files: [
-      'tools/cockpit/runner/evidence-verifier.mjs',
-      'tools/cockpit/build-snapshot.js',
-      'README.md',
+      'landing/app/(app)/dashboard/page.tsx',
+      'landing/app/onboarding/page.tsx',
+      'landing/app/(app)/settings/page.tsx',
+      'landing/app/(marketing)/under-the-hood/page.tsx',
+      'packages/vscode-extension/src/lp-sidebar-view.js',
     ],
-    ask:
-      'Qual destas linhas pode mostrar ao utilizador um campo a zero, vazio ou ' +
-      'enganador sem ele perceber porquê? Escolhe uma e diz porquê.',
+    ask: [
+      'Copy the lines in this excerpt that give a number HARDCODED in the source to',
+      'something the user sees — a saving, a percentage, a price, a count. Use the line',
+      'number you see on the LEFT. For each one, look on the same line or the line next',
+      'to it for where that number came from: a read, a parameter, an imported constant.',
+      'The one with no visible origin is the FINDING.',
+    ].join('\n'),
   },
   /**
-   * P7 — o cockpit vigia-se a si proprio.
-   *
-   * Todos os outros pilares apontam ao produto; nenhum apontava ao instrumento
-   * que os mostra. Medido nesta sessao: o painel chamou "recibos ao todo" a uma
-   * janela de 5000 quando o ledger tinha 5905, e serviu durante horas codigo de
-   * um processo que ninguem reiniciava. Um instrumento que mente e pior do que
-   * um instrumento em falta, porque parece que se esta a medir.
+   * P7 — o cockpit vigia-se a si proprio. Todos os outros apontam ao produto;
+   * nenhum apontava ao instrumento. Medido: o painel chamou "recibos ao todo" a
+   * uma janela de 5000 com o ledger em 6579.
    */
   P7: {
-    label: 'O proprio Moo Pilot',
+    label: 'Moo Pilot itself',
     files: [
       'tools/cockpit/moo-pilot-shell.html',
       'tools/cockpit/runner/fleet-state.mjs',
@@ -122,37 +172,30 @@ export const PILLARS = {
       'tools/cockpit/runner/launch.mjs',
     ],
     ask:
-      'Ha neste excerto um numero, rotulo ou estado que o painel MOSTRA e que pode ' +
-      'nao querer dizer o que o rotulo diz — uma contagem limitada apresentada como ' +
-      'total, um estado derivado de um campo que pode faltar, um verde que nao prova ' +
-      'nada? Se houver, cita a linha. Se nao houver, responde SEM ACHADO.',
+      'Is there a number, label or state in this excerpt that the panel SHOWS and that '
+      + 'may not mean what the label says — a capped count presented as a total, a state '
+      + 'derived from a field that can be missing, a green that proves nothing? If there '
+      + 'is, cite the line. If there is not, answer NO FINDING.',
   },
   /**
-   * P8 — as pontas soltas entre features.
-   *
-   * A pergunta e estreita de proposito, porque e a UNICA forma de um modelo que
-   * ve 70 linhas dizer alguma coisa util sobre coerencia: um campo escrito e
-   * nunca lido, ou lido e nunca escrito, e visivel dentro de um excerto.
-   *
-   * E e a classe de defeito que mais custou nesta sessao, tres vezes: `escopo`
-   * escrito no ledger e lido por ninguem, `hunksTruncados` com um produtor e
-   * zero consumidores, `diffErro` capturado e nunca publicado. Nos tres casos o
-   * codigo estava certo e a feature nao chegava ao dono.
+   * P8 — pontas soltas. Um campo escrito e nunca lido, ou lido e nunca escrito,
+   * VE-SE dentro de um excerto. Custou tres vezes numa so sessao: escopo,
+   * hunksTruncados e diffErro, todos produzidos e nunca consumidos.
    */
   P8: {
-    label: 'Pontas soltas entre features',
+    label: 'Loose ends between features',
     files: [
       'tools/cockpit/runner/fleet-beacon.mjs',
-      'tools/cockpit/runner/context-pack.mjs',
-      'tools/cockpit/runner/engine-breaker.mjs',
+      'tools/cockpit/runner/runner-core.mjs',
       'tools/cockpit/runner/project.mjs',
+      'tools/cockpit/runner/f10-server.mjs',
       'packages/mooter-bridge/seamless.js',
     ],
     ask:
-      'Ha neste excerto um campo que e ESCRITO num objecto (recibo, estado, payload) ' +
-      'e que nao aparece em mais lado nenhum do excerto a ser lido, ou um campo LIDO ' +
-      'que nunca foi escrito aqui? Cita a linha onde ele e escrito ou lido. Se todos ' +
-      'os campos que ves sao usados dos dois lados, responde SEM ACHADO.',
+      'Is there a field in this excerpt that is WRITTEN into an object (a receipt, a '
+      + 'state, a payload) and never appears anywhere else in the excerpt being read, or '
+      + 'a field READ that was never written here? Cite the line where it is written or '
+      + 'read. If every field you can see is used on both sides, answer NO FINDING.',
   },
 };
 

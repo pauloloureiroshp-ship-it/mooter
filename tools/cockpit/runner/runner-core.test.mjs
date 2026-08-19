@@ -29,10 +29,11 @@ function fixtureRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-runner-'));
   fs.mkdirSync(path.join(root, 'tools', 'router'), { recursive: true });
   fs.writeFileSync(
-    path.join(root, 'tools', 'router', 'classify.js'),
+    path.join(root, 'tools', 'router', 'mooter-review.js'),
     ['const TIER = 3;', 'function classify() {', '  return TIER;', '}', ''].join('\n'),
   );
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc123\n');
+  fs.writeFileSync(path.join(root, 'README.md'), '# projecto\nMIT — see [LICENSE](LICENSE).\n');
   return root;
 }
 
@@ -120,10 +121,10 @@ test('buildContextPack injecta bytes reais do repo e declara a janela', () => {
   const root = fixtureRepo();
   const pack = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0 });
   assert.equal(pack.ok, true);
-  assert.equal(pack.file, 'tools/router/classify.js');
+  assert.equal(pack.file, 'tools/router/mooter-review.js');
   assert.match(pack.prompt, /const TIER = 3;/);
   assert.match(pack.prompt, /linhas 1-/);
-  assert.deepEqual(pack.allowedFiles, ['tools/router/classify.js']);
+  assert.deepEqual(pack.allowedFiles, ['tools/router/mooter-review.js']);
 });
 
 test('buildContextPack degrada para n/d quando nenhuma ancora existe', () => {
@@ -135,8 +136,13 @@ test('buildContextPack degrada para n/d quando nenhuma ancora existe', () => {
 
 test('resolveCandidates ignora ficheiros que nao existem', () => {
   const root = fixtureRepo();
-  assert.deepEqual(resolveCandidates(root, 'P1'), ['tools/router/classify.js']);
-  assert.deepEqual(resolveCandidates(root, 'P3'), ['CLAUDE.md']);
+  assert.deepEqual(resolveCandidates(root, 'P1'), ['tools/router/mooter-review.js']);
+  // O P3 perdeu os .md no redesenho de 2026-08-19 (987 rondas, 0 aceites: eram
+  // 100% prosa, e prosa e citacao proibida). Nesta fixture ele fica SEM
+  // candidatos — que e exactamente o que este teste existe para provar: um
+  // ficheiro que nao existe e ignorado em silencio, e a lista vem vazia.
+  assert.deepEqual(resolveCandidates(root, 'P3'), []);
+  assert.deepEqual(resolveCandidates(root, 'P4'), ['README.md'], 'o P4 le o README, que a fixture cria');
 });
 
 // CONTRATO DA PERGUNTA — INVERTIDO A 2026-08-19, com medicao a suportar.
@@ -159,7 +165,7 @@ test('a pergunta de cada pilar tem de poder ser respondida com "nao ha"', () => 
     assert.ok(spec.files.length > 0, `${id} sem ficheiros`);
     assert.ok(spec.label && spec.label.trim(), `${id} sem label`);
     // Ancorada no excerto: "destas linhas" ou "neste excerto".
-    assert.match(spec.ask, /destas linhas|neste excerto/i, `${id} nao ancora a pergunta no excerto`);
+    assert.match(spec.ask, /destas linhas|neste excerto|this excerpt|the lines in/i, `${id} nao ancora a pergunta no excerto`);
   }
 });
 
@@ -170,8 +176,8 @@ test('nenhum pilar NOVO pode voltar a obrigar o modelo a escolher', () => {
   for (const id of ['P7', 'P8']) {
     const spec = PILLARS[id];
     if (!spec) continue;
-    assert.doesNotMatch(spec.ask, /escolhe uma/i, `${id} obriga a escolher — foi isso que deu 1,4% de uteis`);
-    assert.match(spec.ask, /SEM ACHADO|se nao houver|se todos/i, `${id} tem de dar saida ao "nao ha"`);
+    assert.doesNotMatch(spec.ask, /escolhe uma|choose one/i, `${id} obriga a escolher — foi isso que deu 1,4% de uteis`);
+    assert.match(spec.ask, /SEM ACHADO|NO FINDING|se nao houver|if there is not|if every field/i, `${id} tem de dar saida ao "nao ha"`);
   }
 });
 
@@ -205,23 +211,23 @@ test('o contrato de saida exige ACHADO + PROVA e um defeito REAL, nao um nitpick
 // ---------------------------------------------------------------- verifier
 
 test('extractCitations apanha ficheiro:linha e deduplica', () => {
-  const cites = extractCitations('ver tools/router/classify.js:3 e tools/router/classify.js:3 e CLAUDE.md:2');
+  const cites = extractCitations('ver tools/router/mooter-review.js:3 e tools/router/mooter-review.js:3 e CLAUDE.md:2');
   assert.deepEqual(cites, [
-    { file: 'tools/router/classify.js', line: 3 },
+    { file: 'tools/router/mooter-review.js', line: 3 },
     { file: 'CLAUDE.md', line: 2 },
   ]);
 });
 
 test('checkCitation confirma a linha real e devolve o excerto', () => {
   const root = fixtureRepo();
-  const ok = checkCitation(root, { file: 'tools/router/classify.js', line: 3 });
+  const ok = checkCitation(root, { file: 'tools/router/mooter-review.js', line: 3 });
   assert.equal(ok.ok, true);
   assert.equal(ok.snippet, 'return TIER;');
 });
 
 test('checkCitation refuta linha para la do fim do ficheiro', () => {
   const root = fixtureRepo();
-  const bad = checkCitation(root, { file: 'tools/router/classify.js', line: 9999 });
+  const bad = checkCitation(root, { file: 'tools/router/mooter-review.js', line: 9999 });
   assert.equal(bad.ok, false);
   assert.match(bad.reason, /linha-fora-do-ficheiro/);
 });
@@ -237,8 +243,8 @@ test('verifyEvidence: citacao-ok quando a citacao resolve', () => {
   const root = fixtureRepo();
   const v = verifyEvidence({
     repoRoot: root,
-    text: 'O tier esta cravado. tools/router/classify.js:3',
-    allowedFiles: ['tools/router/classify.js'],
+    text: 'O tier esta cravado. tools/router/mooter-review.js:3',
+    allowedFiles: ['tools/router/mooter-review.js'],
   });
   assert.equal(v.verdict, VERDICT.CITED);
   assert.match(v.evidencia ?? v.evidence, /return TIER;/);
@@ -250,8 +256,8 @@ test('o veredicto positivo nunca se chama "verificado" nem promete achado confir
   assert.ok(!Object.values(VERDICT).includes('verificado'));
   const v = verifyEvidence({
     repoRoot: fixtureRepo(),
-    text: 'tools/router/classify.js:1',
-    allowedFiles: ['tools/router/classify.js'],
+    text: 'tools/router/mooter-review.js:1',
+    allowedFiles: ['tools/router/mooter-review.js'],
   });
   assert.match(v.evidence, /achado NAO triado/);
 });
@@ -283,7 +289,7 @@ test('verifyEvidence marca fora-da-janela sem refutar um ficheiro real', () => {
   const v = verifyEvidence({
     repoRoot: root,
     text: 'ver CLAUDE.md:2',
-    allowedFiles: ['tools/router/classify.js'],
+    allowedFiles: ['tools/router/mooter-review.js'],
   });
   assert.equal(v.verdict, VERDICT.CITED);
   assert.equal(v.offWindow, 1);
@@ -294,9 +300,9 @@ test('citar uma linha REAL que o modelo nunca viu conta como fora da janela', ()
   const root = fixtureRepo();
   const v = verifyEvidence({
     repoRoot: root,
-    text: 'o bug esta em tools/router/classify.js:4',
-    allowedFiles: ['tools/router/classify.js'],
-    window: { file: 'tools/router/classify.js', startLine: 1, endLine: 2 },
+    text: 'o bug esta em tools/router/mooter-review.js:4',
+    allowedFiles: ['tools/router/mooter-review.js'],
+    window: { file: 'tools/router/mooter-review.js', startLine: 1, endLine: 2 },
   });
   assert.equal(v.offWindow, 1, 'linha 4 fora da janela 1-2 e um palpite com sorte');
 });
@@ -350,7 +356,7 @@ test('runRound devolve citacao-ok quando o modelo cita uma linha real', async ()
       return {
         ok: true,
         json: async () => ({
-          response: 'O tier esta cravado a 3. tools/router/classify.js:1',
+          response: 'O tier esta cravado a 3. tools/router/mooter-review.js:1',
           eval_count: 21,
         }),
       };
@@ -359,7 +365,7 @@ test('runRound devolve citacao-ok quando o modelo cita uma linha real', async ()
   assert.equal(out.receipt.verdict, VERDICT.CITED);
   assert.equal(out.receipt.usd, 0);
   assert.equal(out.receipt.tokens_out, 21);
-  assert.equal(out.receipt.ficheiro, 'tools/router/classify.js');
+  assert.equal(out.receipt.ficheiro, 'tools/router/mooter-review.js');
 });
 
 test('runRound refuta a alucinacao em vez de a contar como trabalho', async () => {
@@ -423,7 +429,7 @@ test('readAnchor descarta entradas invalidas e poe as regras que valem primeiro'
 
 test('com ancora, o pack entra em modo ANCORADO e manda julgar a linha apontada', () => {
   const root = fixtureRepo();
-  const alvo = { file: 'tools/router/classify.js', line: 3, rule: 'no-empty', msg: 'Empty block statement.' };
+  const alvo = { file: 'tools/router/mooter-review.js', line: 3, rule: 'no-empty', msg: 'Empty block statement.' };
   const anchorFile = path.join(root, 'ancora.json');
   fs.writeFileSync(anchorFile, JSON.stringify([alvo]));
   const pack = buildContextPack({ repoRoot: root, pillar: 'P1', anchorPath: anchorFile });
@@ -468,7 +474,7 @@ test('readChangedLines le os hunks do lado novo e ignora ficheiros que nao sao c
 
 test('com diff, o pack entra em modo DIFF e manda rever a MUDANCA', () => {
   const root = fixtureRepo();
-  const fake = () => ['--- a/tools/router/classify.js', '+++ b/tools/router/classify.js', '@@ -2,0 +3,1 @@', '+x'].join('\n');
+  const fake = () => ['--- a/tools/router/mooter-review.js', '+++ b/tools/router/mooter-review.js', '@@ -2,0 +3,1 @@', '+x'].join('\n');
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P1', diffBase: 'origin/main',
     anchorPath: null, maxLines: 70,
@@ -562,8 +568,8 @@ test('o pack em modo DIFF constroi-se de facto — o teste que faltava', () => {
   // — tem de construir o pack do degrau de cima.
   const root = fixtureRepo();
   const diff = [
-    '--- a/tools/router/classify.js',
-    '+++ b/tools/router/classify.js',
+    '--- a/tools/router/mooter-review.js',
+    '+++ b/tools/router/mooter-review.js',
     '@@ -1,0 +2,2 @@',
     '+const x = 1;',
     '+if (x !== 2) return null;',
@@ -573,7 +579,7 @@ test('o pack em modo DIFF constroi-se de facto — o teste que faltava', () => {
   });
   assert.equal(pack.ok, true);
   assert.equal(pack.mode, 'diff', 'com hunks, tem de entrar no degrau do diff');
-  assert.equal(pack.file, 'tools/router/classify.js');
+  assert.equal(pack.file, 'tools/router/mooter-review.js');
   assert.equal(pack.changedStart, 2);
   assert.ok(pack.prompt.includes('MUDARAM as linhas'), 'o prompt tem de falar da mudanca');
   assert.equal(typeof pack.negacaoDensa, 'boolean', 'a marca de negacao tem de estar calculada');
@@ -582,8 +588,8 @@ test('o pack em modo DIFF constroi-se de facto — o teste que faltava', () => {
 test('em modo DIFF com negacao, o aviso dirigido entra no prompt', () => {
   const root = fixtureRepo();
   const diff = [
-    '--- a/tools/router/classify.js',
-    '+++ b/tools/router/classify.js',
+    '--- a/tools/router/mooter-review.js',
+    '+++ b/tools/router/mooter-review.js',
     '@@ -1,0 +2,1 @@',
     '+if (a !== b) return true;',
   ].join('\n');
@@ -618,8 +624,8 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
   // verdict tem de ser citacao-ok E conclusao tem de ser falso-positivo.
   const r = verifyEvidence({
     repoRoot: root,
-    text: 'FALSO POSITIVO: este regex le padroes fixos PROVA: tools/router/classify.js:3',
-    allowedFiles: ['tools/router/classify.js'],
+    text: 'FALSO POSITIVO: este regex le padroes fixos PROVA: tools/router/mooter-review.js:3',
+    allowedFiles: ['tools/router/mooter-review.js'],
   });
   assert.equal(r.conclusao, 'falso-positivo', 'a conclusao vem do texto do modelo');
   assert.notEqual(r.verdict, undefined, 'o verdict continua a existir');
@@ -643,12 +649,13 @@ function repoDiff() {
     fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
     fs.writeFileSync(path.join(root, rel), Array.from({ length: 400 }, (_, n) => `linha ${n + 1};`).join('\n'));
   };
-  escrever('tools/router/classify.js');            // P1
-  escrever('tools/docs-hygiene.js');               // P2
+  escrever('tools/router/mooter-review.js');            // P1
+  escrever('tools/handoff-preflight.js');          // P2
   // Orfaos suficientes para TODOS os pilares terem alvo distinto. Derivado do
   // conjunto, e nao cravado a 6: acrescentar um pilar nao pode partir um teste
   // que fala de colisoes.
   for (const nome of ORFAOS) escrever(nome);
+  fs.writeFileSync(path.join(root, 'README.md'), '# fixture\nMIT — see [LICENSE](LICENSE).\n');
   return root;
 }
 
@@ -671,12 +678,12 @@ test('B6: com hunk seu, o pilar rotula-se a si proprio (escopo pilar)', () => {
   const root = repoDiff();
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P2', cursor: 0, diffBase: 'HEAD~12',
-    diffRunImpl: diffFalso([ORFAOS[0], 'tools/docs-hygiene.js']),
+    diffRunImpl: diffFalso([ORFAOS[0], 'tools/handoff-preflight.js']),
   });
   assert.equal(pack.mode, 'diff');
-  assert.equal(pack.escopo, 'pilar', 'o hunk de docs-hygiene.js e mesmo do P2');
-  assert.equal(pack.file, 'tools/docs-hygiene.js', 'com hunk seu, o pilar nao vai rever o dos outros');
-  assert.match(pack.label, /Qualidade & Verificação/);
+  assert.equal(pack.escopo, 'pilar', 'o hunk de handoff-preflight.js e mesmo do P2');
+  assert.equal(pack.file, 'tools/handoff-preflight.js', 'com hunk seu, o pilar nao vai rever o dos outros');
+  assert.match(pack.label, /Quality & Verification/);
 });
 
 test('B6: sem hunk seu, o pack diz "geral" e NAO se veste do rotulo do pilar', () => {
@@ -687,7 +694,7 @@ test('B6: sem hunk seu, o pack diz "geral" e NAO se veste do rotulo do pilar', (
   });
   assert.equal(pack.escopo, 'geral');
   assert.equal(pack.file, ORFAOS[0], 'revemos o diff na mesma — trabalho novo vale mais');
-  assert.doesNotMatch(pack.label, /Routing & Custo/, 'chamar "Routing & Custo" a um ficheiro do bridge e a mentira que o B6 fecha');
+  assert.doesNotMatch(pack.label, /Routing & Cost/, 'chamar "Routing & Cost" a um ficheiro do bridge e a mentira que o B6 fecha');
   assert.match(pack.label, /geral/i);
   assert.doesNotMatch(pack.prompt, /^Pilar: P1/m, 'o cabecalho do prompt tambem nao pode afirmar o pilar');
 });
@@ -735,7 +742,7 @@ test('B6 ACEITACAO: zero alvos em _handoff/ — o pathspec e a unica defesa', ()
   assert.ok(DIFF_PATHSPEC.some((p) => p === ':(exclude)_handoff/**'));
   const root = repoDiff();
   const pack = buildContextPack({
-    repoRoot: root, pillar: 'P4', cursor: 0, diffBase: 'HEAD~12',
+    repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12',
     // o git ja filtrou: o que chega ao pack nunca traz _handoff
     diffRunImpl: diffFalso([ORFAOS[0]]),
   });
@@ -754,7 +761,7 @@ test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hu
     fs.writeFileSync(path.join(root, rel), Array.from({ length: 600 }, (_, n) => `linha ${n + 1};`).join('\n'));
   };
   const donos = [
-    'tools/router/classify.js',                  // P1
+    'tools/router/mooter-review.js',                  // P1
     'tools/docs-hygiene.js',                     // P2
     'tools/cockpit/build-snapshot.js',           // P2 e P6 — o par que colidia a 100%
     'tools/cockpit/runner/moo-runner.mjs',       // P4
@@ -780,18 +787,18 @@ test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hu
   assert.equal(colisoes, 0, 'seis pilares a moer o mesmo hunk sao um pilar com seis vezes o custo');
 });
 
-test('B6: um pilar so de documentos nao entra no degrau do diff', () => {
+test('B6: um pilar so de documentos (P4) nao entra no degrau do diff', () => {
   // O P3, cujo trabalho SAO os documentos, ficava preso em `escopo: geral` para
   // sempre — a rever codigo de outros — porque DIFF_PATHSPEC so ve codigo e ele
   // nunca podia ter interseccao. Para ele o diff nao e um degrau, e um desvio.
   const root = repoDiff();
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc123\n');
   const pack = buildContextPack({
-    repoRoot: root, pillar: 'P3', cursor: 0, diffBase: 'HEAD~12',
+    repoRoot: root, pillar: 'P4', cursor: 0, diffBase: 'HEAD~12',
     diffRunImpl: diffFalso([ORFAOS[0]]),
   });
   assert.notEqual(pack.mode, 'diff', 'um pilar sem um unico ficheiro de codigo nao tem lugar no diff');
-  assert.equal(pack.file, 'CLAUDE.md', 'vai rever o canon, que e o trabalho dele');
+  assert.equal(pack.file, 'README.md', 'vai rever o texto publicado, que e o trabalho dele');
 });
 
 // ------------------------------------------------- o poco que secava em 10 min
@@ -895,7 +902,7 @@ test('AUDITORIA: o ramo ANCORADO tambem tem desvio por pilar', () => {
   const root = fixtureRepo();
   const anchorPath = path.join(root, 'ancora.json');
   fs.writeFileSync(anchorPath, JSON.stringify(
-    Array.from({ length: 12 }, (_, k) => ({ file: 'tools/router/classify.js', line: (k % 4) + 1, rule: `r${k}`, msg: 'x' })),
+    Array.from({ length: 12 }, (_, k) => ({ file: 'tools/router/mooter-review.js', line: (k % 4) + 1, rule: `r${k}`, msg: 'x' })),
   ));
   for (let cursor = 0; cursor < 8; cursor += 1) {
     const alvos = PILLAR_IDS.map((p) => {
@@ -927,8 +934,8 @@ test('AUDITORIA: a caca anda no eixo dos FICHEIROS, nao so das janelas', () => {
   // devolvia `ok:false` com os IRMAOS por rever: 12 de 24 cursores perdidos.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-caca-'));
   fs.mkdirSync(path.join(root, 'tools', 'router'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'tools/router/classify.js'), 'const a = 1;\n');
-  fs.writeFileSync(path.join(root, 'tools/router/inject_context.js'),
+  fs.writeFileSync(path.join(root, 'tools/router/mooter-review.js'), 'const a = 1;\n');
+  fs.writeFileSync(path.join(root, 'tools/router/budget-engine.js'),
     Array.from({ length: 500 }, (_, n) => `linha ${n + 1};`).join('\n'));
 
   const revistos = new Set();
