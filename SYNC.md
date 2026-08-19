@@ -596,3 +596,11 @@ a única janela é um `await` que um fetch real segura. Não fabriquei teste par
 
 Estado: **242/242** · 38 commits · 0 atrás de main · 0 uncommitted · `classify.js`
 sha intacto · nada pushed · daemon vivo.
+
+### 2026-08-18 · slack-spike ENTREGUE — #274 e #278 em main
+- **#278** tecto de tier PROVADO EM PRODUÇÃO: `job-mszg2l3u-ef79` classificado T3,
+  tecto T2, `tier_tecto_aplicado=true` → **US$ 0,5001** vs US$ 1,2432/1,5424 dos
+  re-despachos opus de 08-17. **#274** spike: 281 testes, 3 BLOCKs do `claude-review`
+  fechados (idem_key envenenado pelo STALE · NEGADO a fechar pedido vivo · `paths:`).
+- Ao vivo por clique: **STALE com os dois hashes** e **aprovação depois do STALE**.
+- Falta: ensaio da **recusa** · logo da app · **demo com estranho** (gate aberto).

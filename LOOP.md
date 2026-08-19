@@ -20,6 +20,29 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-18-quatro-estados-neutros-lidos-como-fracasso
+
+**Contexto:** aterrar dois PRs contra um `main` em movimento. Escrevi quatro vigias em `bash` para esperar pelo CI e mergear.
+
+**Resultado observado:** as quatro falharam, e todas pela mesma razão — cada uma leu um estado **transitório ou neutro** como fracasso terminal:
+
+| estado | li como | era |
+|---|---|---|
+| `BLOCKED` | recusado | os obrigatórios ainda a correr |
+| `BEHIND` | terminal | recuperável com um merge |
+| `UNKNOWN` | falhou | o GitHub a calcular (é assíncrono) |
+| `cancel` | vermelho | run substituído por um push mais recente |
+
+**Porque importa mais do que parece:** o código do spike levou 281 testes, disciplina de mutação e quatro revisores externos. As vigias que escrevi para o vigiar **não tinham teste nenhum** — e cada defeito só apareceu quando a realidade produziu o estado que eu não previra. A assimetria é o achado: aplicámos rigor ao artefacto e zero ao instrumento que o mede.
+
+**O sinal de alarme, nomeado:** escrever um `case`/`if` sobre estados de um sistema externo sem enumerar o vocabulário **completo** dele. Se o ramo `else` significa «falhou», qualquer estado novo ou desconhecido passa a ser uma falha inventada.
+
+**Fonte:** tarefas em fundo desta sessão; cada falha reproduzida no output do próprio watcher. Contagem medida, não estimada.
+
+**Status:** REGISTADO. Ver HIPÓTESE.
+
+---
+
 ### 2026-08-18-sete-vezes-o-codigo-certo-e-o-teste-a-exercitar-outra-coisa
 
 **Contexto:** spike do Slack (`packages/slack-spike`), 41 commits em dois dias, 244 testes, disciplina de mutação aplicada desde o início.
@@ -520,6 +543,18 @@ no repo para se repetir por device).
 ---
 
 ## HIPÓTESE
+
+### Sobre 2026-08-18-quatro-estados-neutros-lidos-como-fracasso
+
+**Hipótese:** «não sei ainda» e «correu mal» são estados diferentes, e o código que os confunde produz **falsos negativos silenciosos** — pára trabalho são e chama-lhe erro. É o irmão do defeito que o `LOOP` já regista: lá, silêncio a passar por sucesso; aqui, incerteza a passar por fracasso.
+
+**Corolário testável:** qualquer poller sobre um sistema externo deve declarar três conjuntos disjuntos — **terminal-bom**, **terminal-mau**, **ainda-não-sei** — e o `else` cai no terceiro, nunca no segundo. Verificável por inspecção e barato.
+
+**Experimento:** na próxima vigia, enumerar o vocabulário de estados a partir da documentação da API **antes** de escrever o `case`, e testar o ramo desconhecido com um estado inventado. Se o watcher o tratar como falha, está errado por construção.
+
+**O que ainda não sabemos:** se vale a pena um helper partilhado para isto ou se o custo é só a disciplina de enumerar. Quatro instâncias numa sessão sugerem que a disciplina sozinha não chega.
+
+---
 
 ### Sobre 2026-08-18-sete-vezes-o-codigo-certo-e-o-teste-a-exercitar-outra-coisa
 
