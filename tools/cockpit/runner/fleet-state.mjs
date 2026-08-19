@@ -71,22 +71,22 @@ export function ownerDay(ms, tz = OWNER_TZ) {
  * age is not a fresh one.
  */
 export function freshness(lastTs, nowMs) {
-  if (!lastTs) return { estado: 'morto', idade_s: null, motivo: 'sem recibo' };
+  if (!lastTs) return { estado: 'morto', idade_s: null, motivo: 'no receipt' };
   const t = Date.parse(lastTs);
-  if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'timestamp ilegivel' };
+  if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'unreadable timestamp' };
   const raw = Math.round((nowMs - t) / 1000);
   // A receipt dated in the future used to clamp to age 0 and read as `vivo`
   // forever — a clock skew, or one bad line, would pin the cockpit green.
   // A timestamp we cannot place in the past is not freshness, it is a fault.
   if (raw < -CLOCK_SKEW_TOLERANCE_S) {
-    return { estado: 'morto', idade_s: null, motivo: `recibo datado no futuro (${-raw}s)` };
+    return { estado: 'morto', idade_s: null, motivo: `receipt dated in the future (${-raw}s)` };
   }
   const age = Math.max(0, raw);
   if (age <= STALE_AFTER_S) return { estado: 'vivo', idade_s: age, motivo: null };
   if (age <= DEAD_AFTER_S) {
-    return { estado: 'stale', idade_s: age, motivo: `sem recibo ha ${age}s` };
+    return { estado: 'stale', idade_s: age, motivo: `no receipt for ${age}s` };
   }
-  return { estado: 'morto', idade_s: age, motivo: `sem recibo ha ${age}s` };
+  return { estado: 'morto', idade_s: age, motivo: `no receipt for ${age}s` };
 }
 
 export const FEED_LENGTH = 14;

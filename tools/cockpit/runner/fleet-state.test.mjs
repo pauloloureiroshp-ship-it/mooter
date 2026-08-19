@@ -222,7 +222,7 @@ test('recibo datado no futuro nao pode prender o cockpit em verde', () => {
   const futuro = new Date(T0 + 3600_000).toISOString();
   const f = freshness(futuro, T0);
   assert.equal(f.estado, 'morto');
-  assert.match(f.motivo, /futuro/);
+  assert.match(f.motivo, /future/);
 });
 
 test('a tolerancia de relogio nao transforma desvio pequeno em falha', () => {

@@ -253,7 +253,7 @@ test('o veredicto positivo nunca se chama "verificado" nem promete achado confir
     text: 'tools/router/classify.js:1',
     allowedFiles: ['tools/router/classify.js'],
   });
-  assert.match(v.evidence, /achado NAO triado/);
+  assert.match(v.evidence, /finding NOT triaged/);
 });
 
 test('verifyEvidence: refutado quando a citacao e inventada', () => {
@@ -287,7 +287,7 @@ test('verifyEvidence marca fora-da-janela sem refutar um ficheiro real', () => {
   });
   assert.equal(v.verdict, VERDICT.CITED);
   assert.equal(v.offWindow, 1);
-  assert.match(v.evidence, /fora da janela mostrada/, 'o sinal tem de chegar ao recibo');
+  assert.match(v.evidence, /outside the shown window/, 'o sinal tem de chegar ao recibo');
 });
 
 test('citar uma linha REAL que o modelo nunca viu conta como fora da janela', () => {
@@ -312,7 +312,7 @@ test('linha citada em branco e dita em voz alta, nao pintada de verde vazio', ()
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-branco-'));
   fs.writeFileSync(path.join(root, 'vazio.md'), 'topo\n\nfundo\n');
   const v = verifyEvidence({ repoRoot: root, text: 'o problema esta em vazio.md:2' });
-  assert.match(v.evidence, /LINHA EM BRANCO/);
+  assert.match(v.evidence, /BLANK LINE/);
 });
 
 test('tallyVerdicts conta por veredicto e nao por volume', () => {

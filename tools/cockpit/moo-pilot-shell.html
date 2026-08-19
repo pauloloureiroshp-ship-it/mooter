@@ -213,7 +213,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   <div class="banner bad" id="offline" hidden>
     <b>This panel is not wired to this device's engine.</b>
     <span id="offline-why"></span>
-    <pre id="offline-cmd">npm run pilot   <span style="opacity:.6"># na raiz do repo</span></pre>
+    <pre id="offline-cmd">npm run pilot   <span style="opacity:.6"># from the repo root</span></pre>
   </div>
   <div class="banner" id="applying" hidden role="status" aria-live="polite"></div>
 
@@ -314,16 +314,16 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   const VERDICTS = {
     'citacao-ok':  { cls:'ok',   label:'cited' },
-    'refuted':    { cls:'bad',  label:'refuted' },
+    'refutado':    { cls:'bad',  label:'refuted' },
     'sem-citacao': { cls:'warn', label:'uncited' },
     'sem-achado':  { cls:'dead', label:'clean' },
   };
   // Fallback only — the live catalogue comes from GET /pilares.json so the
   // page and the runner can never disagree about what a pillar is.
   let CATALOGO = [
-    { id:'P1', label:'Routing & Custo' },      { id:'P2', label:'Qualidade & Verificação' },
-    { id:'P3', label:'Coerência Doc↔Produto' },{ id:'P4', label:'Segurança & Higiene' },
-    { id:'P5', label:'Motor Local & GPU' },    { id:'P6', label:'Produto & Experiência' },
+    { id:'P1', label:'Routing & Cost' },       { id:'P2', label:'Quality & Verification' },
+    { id:'P3', label:'Docs↔Product Coherence' },{ id:'P4', label:'Security & Hygiene' },
+    { id:'P5', label:'Local Engine & GPU' },   { id:'P6', label:'Product & Experience' },
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -428,7 +428,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     b.removeAttribute('aria-disabled');
     if (busy) {
       b.setAttribute('aria-disabled','true');
-      b.textContent = '… a aplicar';
+      b.textContent = '… applying';
       return;
     }
     const running = !!state?.running;
@@ -454,8 +454,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     if (expecting.tries > 0) {
       $('applying').hidden = false;
       $('applying').textContent = expecting.running
-        ? 'Pedido enviado — à espera que o loop confirme que arrancou…'
-        : 'Pedido enviado — à espera que o loop confirme que parou…';
+        ? 'Request sent — waiting for the loop to confirm it started…'
+        : 'Request sent — waiting for the loop to confirm it stopped…';
       return;
     }
     $('applying').hidden = false;
@@ -477,7 +477,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       if (expectRunning !== undefined) expecting = { running:expectRunning, tries:CONFIRM_TRIES };
     } catch (err) {
       $('applying').hidden = false;
-      $('applying').textContent = `O pedido failed: ${err?.message}. Nada foi alterado.`;
+      $('applying').textContent = `The request failed: ${err?.message}. Nothing changed.`;
     } finally {
       busy = false;
       await poll();
@@ -515,7 +515,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         setChip($('conn'),'warn',`spinning, not shipping · ${state.recibos.vazias_seguidas} empty rounds in a row`);
       else if (fresh.estado === 'vivo') setChip($('conn'),'ok',`shipping · last receipt ${ago(fresh.idade_s)} ago`,true);
       else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'bad',
-                   `${fresh.estado} — ${fresh.motivo || 'sem recibo recente'}`);
+                   `${fresh.estado} — ${fresh.motivo || 'no recent receipt'}`);
       renderToggle();
     }
     setChip($('cost'), state.usd === 0 ? 'ok' : 'bad',
@@ -547,7 +547,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     $('gpu-val').textContent = pct === null ? 'n/a' : `${pct}%`;
     $('gpu-val').className = pct === null ? 'val nd' : 'val';
     $('gpu-sub').textContent = pct === null
-      ? (gpu.motivo || 'sem amostra')
+      ? (gpu.motivo || 'no sample')
       : `${gpu.fonte || 'n/a'}${gpu.vram_inuse_gb != null ? ` · ${gpu.vram_inuse_gb} GB VRAM in use` : ''}`;
 
     // Sparkline over the samples this page has actually seen. It is explicitly
@@ -555,7 +555,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     const W = 240, H = 44;
     if (spark.length < 2) {
       $('spark-line').setAttribute('d',''); $('spark-fill').setAttribute('d','');
-      $('spark-sub').textContent = 'a recolher amostras…';
+      $('spark-sub').textContent = 'collecting samples…';
       return;
     }
     const step = W / (spark.length - 1);
@@ -585,18 +585,18 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     const devices = f.frota || [];
     if (!devices.length) {
       const box = el('div','dev');
-      box.appendChild(el('span','nd','nenhum beacon encontrado — nem sequer o deste device'));
+      box.appendChild(el("span", "nd", "no beacon found — not even this device's"));
       wrap.appendChild(box);
     }
     for (const d of devices) {
       const fr = d.frescura || {};
       const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' ? ' morto' : ''}`);
       const hd = el('div','hd');
-      hd.appendChild(el('span','nm', d.device + (d.self ? ' · este' : '')));
+      hd.appendChild(el('span','nm', d.device + (d.self ? ' · this one' : '')));
       const cls = fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : fr.estado === 'stale' ? 'warn' : 'dead';
       hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
-        fr.estado === 'vivo' ? (d.running ? `há ${ago(fr.idade_s)}` : 'parado')
+        fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
                              : (fr.motivo || fr.estado)));
       box.appendChild(hd);
 
@@ -610,8 +610,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       if (r) {
         meta.append(document.createTextNode('cited '));
         meta.appendChild(el('b',null,String(r.citacao_ok ?? '?')));
-        meta.append(document.createTextNode(` de ${r.total ?? '?'} · refutado ${r.refutado ?? '?'}`));
-      } else meta.appendChild(el('span','nd','sem contagem de recibos'));
+        meta.append(document.createTextNode(` of ${r.total ?? '?'} · refuted ${r.refutado ?? '?'}`));
+      } else meta.appendChild(el('span','nd','no receipt count'));
       if (d.branch) { meta.appendChild(el('br')); meta.append(document.createTextNode(`branch ${d.branch}`)); }
       box.appendChild(meta);
       wrap.appendChild(box);
@@ -622,7 +622,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   function renderTally(r) {
     const wrap = $('tally'); wrap.replaceChildren();
     for (const [cls,key,label] of [
-      ['ok','citacao_ok','cited'], ['bad','refuted','refuted'],
+      ['ok','citacao_ok','cited'], ['bad','refutado','refuted'],
       ['warn','sem_citacao','uncited'], ['dead','sem_achado','clean'],
       ['dead','sem_veredicto','unverified'], ['dead','total','receipts in the window read'],
     ]) {
@@ -641,7 +641,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       const hd = el('div','hd');
       hd.append(el('span','id',spec.id), el('span','nm',spec.label));
       const v = last && VERDICTS[last.verdict];
-      hd.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','sem rondas'));
+      hd.appendChild(v ? el('span',`chip ${v.cls}`,v.label) : el('span','chip dead','no rounds'));
       card.appendChild(hd);
 
       if (spec.pergunta) card.appendChild(el('div','ask',spec.pergunta));
@@ -653,7 +653,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
           `${hhmm(last.ts)} · ${d.total ?? '?'} round(s) · ${d.citacao_ok ?? '?'} cited`));
         found.appendChild(el('br'));
         found.appendChild(el('code',null,last.evidencia || last.ficheiro || '—'));
-      } else found.appendChild(el('span','nd','ainda sem rondas neste device'));
+      } else found.appendChild(el('span','nd','no rounds yet on this device'));
       card.appendChild(found);
 
       const focused = s.foco === spec.id;
@@ -671,9 +671,9 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   function renderEngine(s) {
     const dl = $('engine'); dl.replaceChildren();
-    putRow(dl,'motor', nd(s.engine === 'down' ? null : s.engine));
-    putRow(dl,'modelo', nd(s.modelo_atual));
-    putRow(dl,'pilar activo', nd(s.pilar_atual));
+    putRow(dl,'engine', nd(s.engine === 'down' ? null : s.engine));
+    putRow(dl,'model', nd(s.modelo_atual));
+    putRow(dl,'active pillar', nd(s.pilar_atual));
     putRow(dl,'mode', s.foco ? document.createTextNode(`focused on ${s.foco}`) : el('span','nd','rotating through all pillars'));
     const m = s.modelos_carregados || [];
     putRow(dl,'residents', m.length
@@ -698,17 +698,17 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     const dl = $('align'); dl.replaceChildren();
     if (!p) { putRow(dl,'state', el('span','nd','could not measure')); return; }
     putRow(dl,'branch', nd(p.repo_branch));
-    putRow(dl,'por commitar', p.repo_clean === null
+    putRow(dl,'uncommitted', p.repo_clean === null
       ? el('span','nd','n/a')
       : el('span',`chip ${p.repo_clean ? 'ok' : 'warn'}`,
-           p.repo_clean ? `nada (${p.repo_untracked ?? 0} untracked)` : `${p.repo_sujo_rastreado} ficheiro(s)`));
+           p.repo_clean ? `nothing (${p.repo_untracked ?? 0} untracked)` : `${p.repo_sujo_rastreado} file(s)`));
     putRow(dl,'vs upstream', (p.ahead === null && p.behind === null)
       ? el('span','nd', p.comparacao || 'n/a')
       : document.createTextNode(`↑${p.ahead} ↓${p.behind} · ${p.comparacao}`));
     const sha = p.classify_sha || {};
     putRow(dl,'classify.js', sha.ok === null
       ? el('span','nd', sha.motivo || 'n/a')
-      : el('span',`chip ${sha.ok ? 'ok' : 'bad'}`, sha.ok ? 'sha bate o canon' : sha.motivo));
+      : el('span',`chip ${sha.ok ? 'ok' : 'bad'}`, sha.ok ? 'sha matches canon' : sha.motivo));
     const vault = p.vault || {};
     putRow(dl,'vault', vault.ts
       ? document.createTextNode(`${hhmm(vault.ts)} · ${vault.ficheiro} (via ${vault.fonte})`)
