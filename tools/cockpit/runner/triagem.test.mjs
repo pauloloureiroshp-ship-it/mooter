@@ -13,7 +13,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 import {
-  DECISOES, AUTORES, chaveDoRecibo, ehAchado, lerTriagem, registarTriagem,
+  DECISOES, AUTORES, MOTIVOS, chaveDoRecibo, ehAchado, lerTriagem, registarTriagem,
   porTriar, contarTriagem, custoEstimado, menuDeMotores,
 } from './triagem.mjs';
 
@@ -42,14 +42,20 @@ test('so conta como achado o que foi AFIRMADO e cuja citacao resolveu', () => {
 
 test('ACEITACAO: os tres botoes escrevem, e a ultima decisao e a que vale', () => {
   const f = tmp();
-  for (const d of DECISOES) registarTriagem(f, { chave: `k-${d}`, decisao: d, recibo: achado(1, `k-${d}`) });
+  // O descarte leva motivo; os outros dois nao precisam — assimetria deliberada.
+  for (const d of DECISOES) {
+    registarTriagem(f, {
+      chave: `k-${d}`, decisao: d, recibo: achado(1, `k-${d}`),
+      ...(d === 'descartado' ? { motivo: 'trivial' } : {}),
+    });
+  }
   let { decisoes, partidas } = lerTriagem(f);
   assert.equal(decisoes.size, 3);
   assert.equal(partidas, 0);
   assert.equal(decisoes.get('k-aceite').ficheiro, 'a.mjs', 'a decisao guarda o que se estava a ver');
 
   // Mudar de ideias e legitimo; apagar o rasto nao.
-  registarTriagem(f, { chave: 'k-aceite', decisao: 'descartado' });
+  registarTriagem(f, { chave: 'k-aceite', decisao: 'descartado', motivo: 'ja-sabido' });
   ({ decisoes } = lerTriagem(f));
   assert.equal(decisoes.get('k-aceite').decisao, 'descartado');
   assert.equal(fs.readFileSync(f, 'utf8').trim().split('\n').length, 4, 'append-only: nada e reescrito');
@@ -80,7 +86,7 @@ test('a fila mostra so o que espera decisao, do mais recente para tras', () => {
   assert.deepEqual(fila.map((x) => x.chave), ['k2'], 'k1 ja foi decidido, k3 nao e achado');
 
   const c = contarTriagem(rec, decisoes);
-  assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2, por_autor: { dono: 1 } });
+  assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2, por_autor: { dono: 1 }, por_motivo: {}, sem_motivo: 0 });
 });
 
 test('ACEITACAO: o custo vem da tabela REAL, e o desconhecido diz n/d', () => {
@@ -137,4 +143,51 @@ test('um autor desconhecido e recusado — decisao anonima nao entra', () => {
   const f = tmp();
   assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'aceite', por: 'alguem' }), /autor desconhecido/);
   assert.deepEqual(AUTORES, ['dono', 'claude', 'agente']);
+});
+
+
+// ── Fase A · a razao do descarte (2026-08-19) ────────────────────────────────
+
+/**
+ * Medido: 74 decisoes de triagem, 72 DESCARTES. Uma taxa de 97% que nao ensina
+ * nada, porque a `nota` era texto livre e estava quase sempre vazia. A lista
+ * fechada de motivos e o unico dado que distingue os dois futuros possiveis:
+ * se dominar `nao-e-um-problema`, o defeito esta na PERGUNTA; se dominar
+ * `fora-do-que-estou-a-fazer`, esta na RELEVANCIA. Sao trabalhos opostos.
+ */
+test('descartar SEM motivo deixa de ser possivel', () => {
+  const f = tmp();
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'descartado' }),
+    /exige um motivo/, 'um descarte anonimo custa o mesmo a escrever e nao ensina nada');
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'descartado', motivo: 'porque-sim' }),
+    /motivo desconhecido/, 'a lista e fechada: texto livre foi exactamente o que falhou');
+});
+
+test('aceitar e abrir issue NAO exigem motivo', () => {
+  const f = tmp();
+  // A assimetria e deliberada: o valor esta em saber porque se DEITA FORA.
+  assert.equal(registarTriagem(f, { chave: 'a', decisao: 'aceite' }).decisao, 'aceite');
+  assert.equal(registarTriagem(f, { chave: 'b', decisao: 'issue' }).decisao, 'issue');
+});
+
+test('o motivo fica gravado e volta a ser lido', () => {
+  const f = tmp();
+  for (const m of MOTIVOS) registarTriagem(f, { chave: 'k-' + m, decisao: 'descartado', motivo: m });
+  const lidas = lerTriagem(f).decisoes;
+  for (const m of MOTIVOS) assert.equal(lidas.get('k-' + m).motivo, m);
+});
+
+test('os descartes antigos contam como sem_motivo — nao se disfarcam de dado', () => {
+  const f = tmp();
+  // Escrito a mao como os 72 antigos estao no disco: sem campo `motivo`.
+  fs.appendFileSync(f, JSON.stringify({ ts: '2026-08-01T00:00:00Z', chave: 'velho', decisao: 'descartado', por: 'dono' }) + '\n');
+  registarTriagem(f, { chave: 'novo', decisao: 'descartado', motivo: 'trivial' });
+  const { decisoes } = lerTriagem(f);
+  const recibos = [
+    { pilar: 'P1', ficheiro: 'a.js', janela: '1-10', verdict: 'citacao-ok', resultado_resumo: 'ACHADO: x', chave: 'velho' },
+    { pilar: 'P1', ficheiro: 'b.js', janela: '1-10', verdict: 'citacao-ok', resultado_resumo: 'ACHADO: y', chave: 'novo' },
+  ];
+  const c = contarTriagem(recibos, decisoes);
+  assert.equal(c.sem_motivo + Object.values(c.por_motivo).reduce((n, x) => n + x, 0), c.descartado,
+    'todo o descarte tem de cair num dos dois lados: com motivo, ou declaradamente sem');
 });

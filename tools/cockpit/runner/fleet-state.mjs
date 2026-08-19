@@ -175,7 +175,7 @@ export function perPillar(receipts) {
  *
  * @returns the object served at `/fleet.json`
  */
-import { lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
+import { lerTriagem, porTriar, contarTriagem, MOTIVOS } from './triagem.mjs';
 import { verReserva } from './reserva.mjs';
 
 export function buildFleetState({
@@ -252,6 +252,8 @@ export function buildFleetState({
     ledger: { linhas: ledgerLinhas ?? null, janela: receipts.length, truncado: Boolean(truncado) },
     triagem: {
       ...contasTriagem,
+      // O painel nao pode inventar a lista: ela e fechada no motor.
+      motivos: MOTIVOS,
       ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),
     },
     // A fila. E tambem o alerta: um achado por triar nao pode exigir que o dono

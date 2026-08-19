@@ -24,6 +24,28 @@ const require = createRequire(import.meta.url);
 export const DECISOES = Object.freeze(['aceite', 'descartado', 'issue']);
 
 /**
+ * PORQUE e que foi descartado. Fechado, e obrigatorio no descarte.
+ *
+ * Medido a 2026-08-19: 74 decisoes de triagem, 72 DESCARTES. Uma taxa de
+ * descarte de 97% que nao diz nada, porque a `nota` era texto livre e estava
+ * quase sempre vazia. E o unico dado que distingue os dois futuros possiveis
+ * deste produto:
+ *
+ *   `nao-e-um-problema` a dominar        -> o defeito esta na PERGUNTA
+ *   `fora-do-que-estou-a-fazer` a dominar -> o defeito esta na RELEVANCIA
+ *
+ * Sao diagnosticos opostos e pedem trabalho oposto. Sem esta lista, escolher
+ * entre eles seria adivinhar — e este projecto nao adivinha numeros.
+ */
+export const MOTIVOS = Object.freeze([
+  'nao-e-um-problema',
+  'ja-sabido',
+  'fora-do-que-estou-a-fazer',
+  'citacao-certa-conclusao-errada',
+  'trivial',
+]);
+
+/**
  * QUEM decidiu. Fechado de proposito, e a razao e o proprio numero de ROI: uma
  * decisao tomada por um agente e util, mas nao vale o mesmo que a do dono, e
  * juntar as duas numa contagem so tornaria a metrica exactamente aquilo que
@@ -86,15 +108,24 @@ export function lerTriagem(caminho, { readImpl = fs.readFileSync } = {}) {
 }
 
 /** Regista uma decisao. Devolve a entrada escrita, para o endpoint a poder ecoar. */
-export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 'dono', nota = null, ts }) {
+export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 'dono', nota = null, motivo = null, ts }) {
   if (!chave) throw new Error('triagem sem chave: nao se decide sobre o que nao se consegue identificar');
   if (!DECISOES.includes(decisao)) throw new Error(`decisao desconhecida: ${decisao} (aceites: ${DECISOES.join(', ')})`);
   if (!AUTORES.includes(por)) throw new Error(`autor desconhecido: ${por} (aceites: ${AUTORES.join(', ')})`);
+  // O descarte SEM motivo deixa de ser aceite. Um `descartado` anonimo custa o
+  // mesmo a escrever e nao ensina nada — foi assim que se acumularam 72.
+  if (decisao === 'descartado' && !motivo) {
+    throw new Error(`descartar exige um motivo (aceites: ${MOTIVOS.join(', ')})`);
+  }
+  if (motivo && !MOTIVOS.includes(motivo)) {
+    throw new Error(`motivo desconhecido: ${motivo} (aceites: ${MOTIVOS.join(', ')})`);
+  }
   const entrada = {
     ts: ts || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     chave: String(chave),
     decisao,
     por,
+    ...(motivo ? { motivo } : {}),
     ...(nota ? { nota: String(nota).slice(0, 500) } : {}),
     // Uma copia magra do que se estava a ver ao decidir. Sem isto, um
     // `triagem.jsonl` de daqui a um mes e uma lista de shas sem significado.
@@ -146,7 +177,7 @@ export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
 
 /** Quantos foram aceites, descartados, viraram issue — e quantos esperam. */
 export function contarTriagem(receipts, decisoes) {
-  const contas = { aceite: 0, descartado: 0, issue: 0, por_triar: 0, achados: 0, por_autor: {} };
+  const contas = { aceite: 0, descartado: 0, issue: 0, por_triar: 0, achados: 0, por_autor: {}, por_motivo: {}, sem_motivo: 0 };
   const vistos = new Set();
   for (const r of receipts || []) {
     if (!ehAchado(r)) continue;
@@ -161,6 +192,13 @@ export function contarTriagem(receipts, decisoes) {
       // sao o mesmo dado, e uma contagem que os funde nao serve para decidir.
       const a = d.por || 'dono';
       contas.por_autor[a] = (contas.por_autor[a] || 0) + 1;
+      // A distribuicao dos motivos E o dado da Fase A. `sem_motivo` conta os
+      // descartes antigos, escritos antes de o motivo existir: sao 72 e nao se
+      // reescrevem, mas tambem nao se disfarcam de dado que nunca foram.
+      if (d.decisao === 'descartado') {
+        if (d.motivo) contas.por_motivo[d.motivo] = (contas.por_motivo[d.motivo] || 0) + 1;
+        else contas.sem_motivo += 1;
+      }
     } else contas.por_triar += 1;
   }
   return contas;
