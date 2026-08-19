@@ -170,11 +170,36 @@
 .tri .btns{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-top:.4rem}
 .tri button{cursor:pointer}
 .tri .custo{font-size:.8em;opacity:.75}
+h1{display:flex;align-items:center;gap:.55rem}
+.vaca{width:1.5em;height:1.5em;flex:0 0 auto;fill:currentColor;color:var(--ink)}
+.vaca .olho{fill:var(--bg)}
+.vaca .focinho{fill:var(--bg);opacity:.42}
+/* A vaca pisca so quando ha trabalho a acontecer — um sinal que se apanha pelo
+   canto do olho, sem ocupar espaco nem exigir leitura. Parada, ela nao pisca. */
+body.a-trabalhar .vaca .olho{animation:piscar 7s ease-in-out infinite}
+body.a-trabalhar .vaca{animation:respirar 4.5s ease-in-out infinite}
+@keyframes piscar{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.vaca .olho{transform-box:fill-box;transform-origin:center}
+@keyframes respirar{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+@media (prefers-reduced-motion:reduce){
+  body.a-trabalhar .vaca,body.a-trabalhar .vaca .olho{animation:none}
+}
 </style>
 
 <div class="wrap">
   <header>
-    <h1><b>Moo</b> Pilot <span id="device">—</span></h1>
+    <h1>
+      <svg class="vaca" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6.9 7.0C6.2 5.1 5.3 3.4 6 2.4c.7-.7 1.7.7 1.9 3.1z"/>
+        <path d="M17.1 7.0C17.8 5.1 18.7 3.4 18 2.4c-.7-.7-1.7.7-1.9 3.1z"/>
+        <rect x="2.2" y="8.6" width="3.1" height="4.3" rx="1.55"/>
+        <rect x="18.7" y="8.6" width="3.1" height="4.3" rx="1.55"/>
+        <rect x="4.1" y="5.8" width="15.8" height="14.4" rx="3.4"/>
+        <circle class="olho" cx="8.6" cy="11" r="1.2"/>
+        <circle class="olho" cx="15.4" cy="11" r="1.2"/>
+        <rect class="focinho" x="6.2" y="14.2" width="11.6" height="5.8" rx="2.9"/>
+      </svg>
+      <b>Moo</b> Pilot <span id="device">—</span></h1>
     <span class="chip ok" id="cost"><span class="dot"></span>$0 · só GPU local</span>
     <span class="chip dead" id="conn" role="status" aria-live="polite"><span class="dot"></span>a ligar…</span>
     <span class="grow"></span>
@@ -493,6 +518,9 @@
     if (changed('pillars', [state.pilares, state.pilar_atual, state.foco, CATALOGO, live, busy])) renderPillars(state, live);
     if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados])) renderEngine(state);
     if (changed('align', state.projeto))   renderAlign(state.projeto);
+    // A vaca so ganha vida quando o loop esta MESMO a trabalhar. Uma animacao
+    // que corre com a maquina parada e uma mentira bonita.
+    document.body.classList.toggle('a-trabalhar', Boolean(state.running) && live);
     if (changed('feed', state.feed))       renderFeed(state.feed);
     if (changed('triagem', [state.por_triar, state.triagem])) renderTriagem(state);
 

@@ -139,11 +139,39 @@ test('resolveCandidates ignora ficheiros que nao existem', () => {
   assert.deepEqual(resolveCandidates(root, 'P3'), ['CLAUDE.md']);
 });
 
-test('todos os pilares apontam para linhas do excerto, nao para o vazio', () => {
+// CONTRATO DA PERGUNTA — INVERTIDO A 2026-08-19, com medicao a suportar.
+//
+// O contrato anterior EXIGIA que toda a pergunta contivesse "Escolhe uma". Era
+// esse teste que trancava o defeito: um modelo de 14B a quem se manda escolher
+// escolhe SEMPRE, mesmo perante codigo impecavel. Nao e o modelo a mentir, e a
+// pergunta a exigir uma resposta que nao existe.
+//
+// Medido: dos 1475 achados com citacao, julgaram-se 72 um a um (linha lida do
+// disco, aceites atacados por um cetico). Sobreviveu UM — 1,4%. E num A/B nos
+// MESMOS 67 excertos, so a mexer no prompt, a taxa de ACHADO caiu de 82% para
+// 28% sem se perder o unico achado real.
+//
+// O contrato novo exige o oposto: a pergunta tem de poder ser respondida com
+// "nao ha" sem o modelo sentir que falhou. Continua ancorada no excerto — o que
+// se perde e a obrigacao de produzir.
+test('a pergunta de cada pilar tem de poder ser respondida com "nao ha"', () => {
   for (const [id, spec] of Object.entries(PILLARS)) {
     assert.ok(spec.files.length > 0, `${id} sem ficheiros`);
-    assert.match(spec.ask, /Qual destas linhas/, `${id} nao ancora a pergunta no excerto`);
-    assert.match(spec.ask, /Escolhe uma/, `${id} nao forca uma escolha unica`);
+    assert.ok(spec.label && spec.label.trim(), `${id} sem label`);
+    // Ancorada no excerto: "destas linhas" ou "neste excerto".
+    assert.match(spec.ask, /destas linhas|neste excerto/i, `${id} nao ancora a pergunta no excerto`);
+  }
+});
+
+test('nenhum pilar NOVO pode voltar a obrigar o modelo a escolher', () => {
+  // Os pilares antigos (P1..P6) ainda dizem "Escolhe uma" — mudar as perguntas
+  // deles exige medir outra vez, e medir-se-a. O que nao pode acontecer e um
+  // pilar NOVO nascer ja com o defeito: e por isso que a trava e aqui.
+  for (const id of ['P7', 'P8']) {
+    const spec = PILLARS[id];
+    if (!spec) continue;
+    assert.doesNotMatch(spec.ask, /escolhe uma/i, `${id} obriga a escolher — foi isso que deu 1,4% de uteis`);
+    assert.match(spec.ask, /SEM ACHADO|se nao houver|se todos/i, `${id} tem de dar saida ao "nao ha"`);
   }
 });
 
@@ -605,7 +633,10 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
 // apontavam ao mesmo ficheiro, na mesma janela, e dez dos vinte ficheiros do
 // diff eram `_handoff/**`, codigo arquivado que ja nao corre.
 
-/** Repo de teste com um ficheiro de cada pilar e um ficheiro fora de todos. */
+/** Ficheiros que nao pertencem a pilar nenhum — dois por pilar, para sobrar. */
+const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `packages/mooter-bridge/orfao${k}.js`);
+
+/** Repo de teste com um ficheiro de cada pilar e orfaos que chegam para todos. */
 function repoDiff() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-b6-'));
   const escrever = (rel) => {
@@ -614,12 +645,10 @@ function repoDiff() {
   };
   escrever('tools/router/classify.js');            // P1
   escrever('tools/docs-hygiene.js');               // P2
-  escrever('packages/mooter-bridge/board.js');     // de nenhum pilar
-  escrever('packages/mooter-bridge/broker.js');    // de nenhum pilar
-  escrever('packages/mooter-bridge/fleet.js');     // de nenhum pilar
-  escrever('packages/mooter-bridge/sync.js');      // de nenhum pilar
-  escrever('packages/mooter-bridge/recibo.js');    // de nenhum pilar
-  escrever('packages/mooter-bridge/actor.js');     // de nenhum pilar
+  // Orfaos suficientes para TODOS os pilares terem alvo distinto. Derivado do
+  // conjunto, e nao cravado a 6: acrescentar um pilar nao pode partir um teste
+  // que fala de colisoes.
+  for (const nome of ORFAOS) escrever(nome);
   return root;
 }
 
@@ -642,7 +671,7 @@ test('B6: com hunk seu, o pilar rotula-se a si proprio (escopo pilar)', () => {
   const root = repoDiff();
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P2', cursor: 0, diffBase: 'HEAD~12',
-    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js', 'tools/docs-hygiene.js']),
+    diffRunImpl: diffFalso([ORFAOS[0], 'tools/docs-hygiene.js']),
   });
   assert.equal(pack.mode, 'diff');
   assert.equal(pack.escopo, 'pilar', 'o hunk de docs-hygiene.js e mesmo do P2');
@@ -654,10 +683,10 @@ test('B6: sem hunk seu, o pack diz "geral" e NAO se veste do rotulo do pilar', (
   const root = repoDiff();
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12',
-    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+    diffRunImpl: diffFalso([ORFAOS[0]]),
   });
   assert.equal(pack.escopo, 'geral');
-  assert.equal(pack.file, 'packages/mooter-bridge/board.js', 'revemos o diff na mesma — trabalho novo vale mais');
+  assert.equal(pack.file, ORFAOS[0], 'revemos o diff na mesma — trabalho novo vale mais');
   assert.doesNotMatch(pack.label, /Routing & Custo/, 'chamar "Routing & Custo" a um ficheiro do bridge e a mentira que o B6 fecha');
   assert.match(pack.label, /geral/i);
   assert.doesNotMatch(pack.prompt, /^Pilar: P1/m, 'o cabecalho do prompt tambem nao pode afirmar o pilar');
@@ -670,11 +699,7 @@ test('B6 ACEITACAO: pilares e rotacoes SEGUIDAS nao colidem entre si', () => {
   // (P2 e P1, rondas seguidas, janela 277-295), nao a suite. Um teste que
   // aceita qualquer degrau nao testa nenhum: agora varre rotacoes seguidas.
   const root = repoDiff();
-  const foraDeTodos = [
-    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
-    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
-    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
-  ];
+  const foraDeTodos = ORFAOS;
   const vistos = [];
   for (let cursor = 0; cursor < 4; cursor += 1) {
     for (const p of PILLAR_IDS) {
@@ -693,11 +718,7 @@ test('B6 ACEITACAO: pilares e rotacoes SEGUIDAS nao colidem entre si', () => {
 
 test('B6 ACEITACAO: dois pilares, mesmo cursor, alvos DIFERENTES', () => {
   const root = repoDiff();
-  const foraDeTodos = [
-    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
-    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
-    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
-  ];
+  const foraDeTodos = ORFAOS;
   for (const cursor of [0, 1, 5, 12]) {
     const alvos = PILLAR_IDS.map((p) => {
       const pk = buildContextPack({ repoRoot: root, pillar: p, cursor, diffBase: 'HEAD~12', diffRunImpl: diffFalso(foraDeTodos) });
@@ -716,7 +737,7 @@ test('B6 ACEITACAO: zero alvos em _handoff/ — o pathspec e a unica defesa', ()
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P4', cursor: 0, diffBase: 'HEAD~12',
     // o git ja filtrou: o que chega ao pack nunca traz _handoff
-    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+    diffRunImpl: diffFalso([ORFAOS[0]]),
   });
   assert.doesNotMatch(pack.file, /^_handoff\//);
 });
@@ -740,7 +761,7 @@ test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hu
     'tools/cockpit/runner/runner-core.mjs',      // P5
     'tools/cockpit/runner/evidence-verifier.mjs',// P6
   ];
-  const orfaos = ['a/um.js', 'a/dois.js', 'a/tres.js', 'a/quatro.js', 'a/cinco.js'];
+  const orfaos = Array.from({ length: PILLAR_IDS.length }, (_, k) => `a/orfao${k}.js`);
   for (const f of [...donos, ...orfaos]) escrever(f);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc\n');
 
@@ -767,7 +788,7 @@ test('B6: um pilar so de documentos nao entra no degrau do diff', () => {
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc123\n');
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P3', cursor: 0, diffBase: 'HEAD~12',
-    diffRunImpl: diffFalso(['packages/mooter-bridge/board.js']),
+    diffRunImpl: diffFalso([ORFAOS[0]]),
   });
   assert.notEqual(pack.mode, 'diff', 'um pilar sem um unico ficheiro de codigo nao tem lugar no diff');
   assert.equal(pack.file, 'CLAUDE.md', 'vai rever o canon, que e o trabalho dele');
@@ -782,7 +803,7 @@ test('POCO: um excerto ja julgado nao volta a fila — mas um excerto ALTERADO v
   // achados uteis — nao por o motor ser mau, mas por lhe darmos o mesmo
   // trabalho outra vez.
   const root = repoDiff();
-  const alvo = 'packages/mooter-bridge/board.js';
+  const alvo = ORFAOS[0];
   const diff = diffFalso([alvo]);
   const revistos = new Set();
 
@@ -817,8 +838,8 @@ test('POCO: um excerto ja julgado nao volta a fila — mas um excerto ALTERADO v
 test('POCO: a escada abre a base seguinte em vez de remoer, e degrada no fim', () => {
   const root = repoDiff();
   const porBase = {
-    'HEAD~12': diffFalso(['packages/mooter-bridge/board.js']),
-    'HEAD~25': diffFalso(['packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js']),
+    'HEAD~12': diffFalso([ORFAOS[0]]),
+    'HEAD~25': diffFalso([ORFAOS[0], ORFAOS[1]]),
   };
   const revistos = new Set();
   const escada = ['HEAD~12', 'HEAD~25'];
@@ -893,7 +914,7 @@ test('AUDITORIA: um diff esgotado CAI para o degrau seguinte, nao mata a ronda',
   // escrevia um recibo sem bandeira que o disjuntor nao via.
   const root = repoDiff();
   const revistos = new Set();
-  const alvo = 'packages/mooter-bridge/board.js';
+  const alvo = ORFAOS[0];
   const p1 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diffFalso([alvo]), revistos });
   revistos.add(p1.chave);
   const p2 = buildContextPack({ repoRoot: root, pillar: 'P1', cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diffFalso([alvo]), revistos });
@@ -950,11 +971,7 @@ test('FROTA: dois devices no mesmo repo deixam de moer os mesmos alvos', () => {
   // dobro da GPU pelo mesmo trabalho. Cada um entra numa fase diferente,
   // deterministica no NOME — a frota cobre mais em vez de repetir.
   const root = repoDiff();
-  const diff = diffFalso([
-    'packages/mooter-bridge/board.js', 'packages/mooter-bridge/broker.js',
-    'packages/mooter-bridge/fleet.js', 'packages/mooter-bridge/sync.js',
-    'packages/mooter-bridge/recibo.js', 'packages/mooter-bridge/actor.js',
-  ]);
+  const diff = diffFalso(ORFAOS);
   const alvos = (device) => PILLAR_IDS.map((p) => {
     const k = buildContextPack({ repoRoot: root, pillar: p, cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, device });
     return `${k.file}:${k.startLine}`;
@@ -969,4 +986,36 @@ test('FROTA: dois devices no mesmo repo deixam de moer os mesmos alvos', () => {
   // Uma maquina sem nome comporta-se como antes.
   assert.equal(faseDoDevice(''), 0);
   assert.equal(faseDoDevice('x'), faseDoDevice('x'));
+});
+
+test('dois pilares nao devem reclamar o mesmo ficheiro sem que isso seja deliberado', () => {
+  // Um ficheiro com dois donos colide quando tem poucos hunks: o desvio por
+  // pilar nao salva, porque qualquer coisa % 1 e 0. Foi assim que o P8 nasceu a
+  // colidir com o P5 (`runner-core.mjs`) e o P7 com o P4 (`f10-server.mjs`).
+  //
+  // A sobreposicao P2+P6 em `build-snapshot.js` e ANTIGA e conhecida — fica
+  // listada aqui como excepcao declarada, para nao crescer em silencio.
+  const EXCEPCOES = new Set(['tools/cockpit/build-snapshot.js']);
+  const dono = {};
+  for (const id of PILLAR_IDS) for (const f of PILLARS[id].files) (dono[f] ??= []).push(id);
+  const sobrepostos = Object.entries(dono)
+    .filter(([f, ids]) => ids.length > 1 && !EXCEPCOES.has(f))
+    .map(([f, ids]) => `${ids.join('+')} -> ${f}`);
+  assert.deepEqual(sobrepostos, [], 'pilares a disputar o mesmo ficheiro moem o mesmo alvo');
+});
+
+test('os ficheiros de um pilar tem de EXISTIR — apontar ao vazio nao da erro nenhum', () => {
+  // `resolveCandidates` filtra em silencio os ficheiros que nao existem. E a
+  // degradacao certa em producao, e e tambem a razao pela qual o P1 apontou
+  // anos a `tools/router/statusline.js`, que nunca existiu nesse caminho, sem
+  // ninguem dar por isso. Um pilar com um ficheiro morto tem menos alvos e
+  // ninguem o sabe; aqui, sabe-se.
+  const raiz = path.resolve(new URL('../../..', import.meta.url).pathname);
+  const mortos = [];
+  for (const id of PILLAR_IDS) {
+    for (const f of PILLARS[id].files) {
+      if (!fs.existsSync(path.join(raiz, f))) mortos.push(`${id} -> ${f}`);
+    }
+  }
+  assert.deepEqual(mortos, [], 'um pilar a apontar ao vazio revê menos e nao se queixa');
 });
