@@ -674,7 +674,14 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
 // diff eram `_handoff/**`, codigo arquivado que ja nao corre.
 
 /** Ficheiros que nao pertencem a pilar nenhum — dois por pilar, para sobrar. */
-const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `packages/mooter-bridge/orfao${k}.js`);
+// `orfaos/` e nao `packages/mooter-bridge/`: com ancoras por padrao, o P5 e o
+// P8 passaram a reclamar `packages/mooter-bridge/*.js` — os "orfaos" deixaram
+// de o ser e o teste media outra coisa. Um orfao tem de estar onde nenhum
+// padrao chega, senao nao e um orfao.
+const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `orfaos/orfao${k}.js`);
+
+/** Um documento por pilar: dois pilares de documentos precisam de dois alvos. */
+const DOCUMENTOS = Array.from({ length: PILLAR_IDS.length }, (_, k) => `docs/doc${k}.md`);
 
 /** Repo de teste com um ficheiro de cada pilar e orfaos que chegam para todos. */
 function repoDiff() {
@@ -689,6 +696,10 @@ function repoDiff() {
   // conjunto, e nao cravado a 6: acrescentar um pilar nao pode partir um teste
   // que fala de colisoes.
   for (const nome of ORFAOS) escrever(nome);
+  // Pela mesma razao que ha orfaos que chegam para todos: com DOIS pilares so
+  // de documentos, um unico README poe os dois a moer o mesmo ficheiro e o
+  // teste acusa um defeito que e da fixture.
+  for (const nome of DOCUMENTOS) escrever(nome);
   fs.writeFileSync(path.join(root, 'README.md'), '# fixture\nMIT — see [LICENSE](LICENSE).\n');
   return root;
 }
@@ -803,7 +814,11 @@ test('B6 ACEITACAO (tribunal): pilares-donos e diff-geral nunca caem no mesmo hu
     'tools/cockpit/runner/evidence-verifier.mjs',// P6
   ];
   const orfaos = Array.from({ length: PILLAR_IDS.length }, (_, k) => `a/orfao${k}.js`);
-  for (const f of [...donos, ...orfaos]) escrever(f);
+  // Um documento por pilar, pela mesma razao dos orfaos: os pilares so de
+  // documentos nao entram no diff, e com um unico .md no repo caiem todos
+  // nele — uma colisao que e da fixture e nao do desenho.
+  const docs = Array.from({ length: PILLAR_IDS.length }, (_, k) => `docs/canon${k}.md`);
+  for (const f of [...donos, ...orfaos, ...docs]) escrever(f);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# canon\nsha: abc\n');
 
   const diff = () => [...donos, ...orfaos]

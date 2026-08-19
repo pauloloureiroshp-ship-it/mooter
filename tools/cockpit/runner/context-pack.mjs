@@ -184,6 +184,52 @@ export const PILLARS = {
       + 'a field READ that was never written here? Cite the line where it is written or '
       + 'read. If every field you can see is used on both sides, answer NO FINDING.',
   },
+  /**
+   * P9 — a primeira pergunta deste ficheiro que NAO procura um defeito.
+   *
+   * Os oito pilares acima perguntam todos o que esta errado. Nenhum pergunta o
+   * que podia ser melhor, e por isso a GPU nunca trouxe uma oportunidade: nao
+   * lhe pediram uma. Repeticao e a oportunidade mais barata de ver e a mais
+   * cara de deixar ficar — duas verificacoes iguais divergem no dia em que uma
+   * delas e corrigida.
+   *
+   * Continua a exigir a MESMA prova: duas linhas citadas, ou nada. Uma
+   * oportunidade sem citacao e uma opiniao.
+   */
+  P9: {
+    label: 'Repetition worth a name',
+    files: [
+      'tools/router/*.js',
+      'tools/cockpit/runner/*.mjs',
+      'packages/router/src/*.ts',
+    ],
+    ask:
+      'Are there two or more places in this excerpt doing the SAME work under different '
+      + 'names — the same check written twice, the same transformation, the same object '
+      + 'shape built in two spots? Cite BOTH lines and say what the single name would be. '
+      + 'If everything you can see happens exactly once, answer NO FINDING.',
+  },
+  /**
+   * P10 — o trabalho que a maquina podia fazer e esta a pedir a uma pessoa.
+   *
+   * E a tese do produto virada para dentro: um passo manual escrito num README
+   * e um passo que alguem vai esquecer. Se esta escrito, pode ser corrido.
+   */
+  P10: {
+    label: 'Handwork a script could do',
+    files: [
+      '*.md',
+      'docs/**/*.md',
+      '.github/workflows/*.yml',
+      'packages/*/README.md',
+    ],
+    ask:
+      'Does this excerpt tell a HUMAN to do something by hand — run a command, copy a '
+      + 'value between two places, remember a step, check a file before another — that a '
+      + 'script or a CI job could do by itself? Cite the line that gives the instruction '
+      + 'and name what would run it. If nothing here asks a person to do machine work, '
+      + 'answer NO FINDING.',
+  },
 };
 
 export const PILLAR_IDS = Object.keys(PILLARS);
@@ -194,10 +240,17 @@ export const PILLARS_FILE = '.mooter/pilares.json';
 /**
  * Valida uma declaracao de pilares vinda de um projecto.
  *
- * As listas continuam a ser EXPLICITAS — sem globs, sem walk. Essa
- * reprodutibilidade e deliberada e esta comentada acima: um pilar tem de dar a
- * mesma ronda hoje e daqui a um mes. O que muda com o B3 e QUEM declara a
- * lista: deixa de ser este ficheiro e passa a ser o projecto.
+ * As entradas podem ser caminhos ou PADROES (`tools/router/*.js`). Ate
+ * 2026-08-19 este comentario dizia "sem globs, sem walk", e invocava
+ * reprodutibilidade: um pilar tinha de dar a mesma ronda hoje e daqui a um mes.
+ * O argumento caiu por medicao — com listas de 3 a 5 ficheiros, 46% das rondas
+ * morriam sem material e a GPU corria 5 minutos por hora. O determinismo que
+ * importa mantem-se: a expansao e ordenada e em cache, e duas leituras no mesmo
+ * instante dao a mesma lista. O que NAO se pode exigir e que a lista seja a
+ * mesma daqui a um mes — se o repo cresceu, o trabalho tambem cresceu.
+ *
+ * O que muda com o B3 e QUEM declara a lista: deixa de ser este ficheiro e
+ * passa a ser o projecto.
  *
  * @returns {{ok: boolean, pillars: object|null, erros: string[]}}
  */
@@ -1086,7 +1139,12 @@ export function buildContextPack({
   let slice = null;
   let chaveC = null;
   for (let fi = 0; fi < candidates.length && !slice; fi += 1) {
-    const cand = candidates[Math.abs(cursor + fi) % candidates.length];
+    // `passoF` e nao `cursor`: o passo ja traz o indice do pilar e a fase do
+    // device, e a escolha do FICHEIRO precisa deles tanto como a da janela.
+    // Ate aqui so a janela os usava — dois pilares com listas sobrepostas, no
+    // mesmo cursor, escolhiam sempre o mesmo ficheiro e o desvio por pilar
+    // morria no `% janelas` de um ficheiro de uma janela so.
+    const cand = candidates[Math.abs(passoF + fi) % candidates.length];
     const ls = readLines(repoRoot, cand);
     if (!ls || ls.length === 0) continue;
     const janelas = Math.max(1, Math.ceil(ls.length / maxLines));
