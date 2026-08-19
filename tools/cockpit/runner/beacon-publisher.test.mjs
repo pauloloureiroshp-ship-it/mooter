@@ -8,6 +8,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import { publicarBeacon, estaNaHora, ligado, MINUTOS_OMISSAO } from './beacon-publisher.mjs';
 
@@ -113,4 +114,29 @@ test('publica por relogio: uma ronda dura segundos, isto nao', () => {
   assert.equal(estaNaHora(null, { agora }), true, 'a primeira vez publica sempre');
   assert.equal(estaNaHora(agora - 60_000, { agora }), false, 'um minuto depois, nao');
   assert.equal(estaNaHora(agora - MINUTOS_OMISSAO * 60_000, { agora }), true);
+});
+
+// ── a ligacao ao loop (2026-08-19) ──────────────────────────────────────────
+
+/**
+ * A primeira versao da ligacao no `moo-runner` tratou o retorno de
+ * `beaconDir()` como uma string e fez `where.replace(...)`. `beaconDir`
+ * devolve um OBJECTO — `{dir, transporte, partilhado}` — e a publicacao morria
+ * com `where.replace is not a function` a CADA ronda, num `catch` que so
+ * avisava uma vez. Ligar a variavel nao teria feito nada, e o silencio teria
+ * parecido "ainda nao passaram os 10 minutos".
+ */
+test('o loop usa o .dir do beaconDir, nunca o objecto como string', () => {
+  const fonte = fs.readFileSync(new URL('./moo-runner.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(fonte, /where\.replace\(/, 'beaconDir devolve um objecto, nao uma string');
+  assert.match(fonte, /path\.dirname\(where\.dir\)/, 'a raiz do vault deriva-se do .dir');
+});
+
+test('nao se publica quando o transporte nao e partilhado', () => {
+  // Sem vault montado, `beaconDir()` cai para `~/.mooter/fleet` com
+  // `partilhado: false`. Publicar ali seria fazer commits numa pasta que mais
+  // ninguem le — trabalho a fingir que e frota.
+  const fonte = fs.readFileSync(new URL('./moo-runner.mjs', import.meta.url), 'utf8');
+  assert.match(fonte, /where\.partilhado && publicacaoLigada\(\)/,
+    'o transporte local nunca pode disparar uma publicacao');
 });
