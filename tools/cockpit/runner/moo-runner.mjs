@@ -32,6 +32,7 @@ import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
+import { publicarBeacon, estaNaHora, ligado as publicacaoLigada } from './beacon-publisher.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { createEngineBreaker } from './engine-breaker.mjs';
 import { resolveRepoRoot, projectPaths, repoSha } from './project.mjs';
@@ -210,6 +211,8 @@ function appendReceipt(ledgerPath, receipt) {
  * Failures are logged once and never block a round.
  */
 let beaconWarned = false;
+let ultimaPublicacao = 0;
+let publicacaoAvisada = false;
 async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = log } = {}) {
   try {
     const [gpu, alignment] = await Promise.all([
@@ -237,6 +240,18 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = lo
     if (!res.ok && !beaconWarned) {
       beaconWarned = true;
       logImpl(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);
+    }
+    // Escrever o beacon nao basta: se a pasta partilhada for um repo git e
+    // ninguem publicar, o ficheiro fica no disco desta maquina para sempre e
+    // os dois cockpits mostram um device cada. DESLIGADO por omissao — o vault
+    // e pessoal, e publicar nele pede-se, nao se assume.
+    if (res.ok && publicacaoLigada() && estaNaHora(ultimaPublicacao)) {
+      ultimaPublicacao = Date.now();
+      const pub = publicarBeacon(process.env.VAULT_PATH || where.replace(/\/50-fleet$/, ''), `50-fleet/${deviceName()}.json`);
+      if (!pub.ok && !publicacaoAvisada) {
+        publicacaoAvisada = true;
+        logImpl(`beacon nao publicado (${pub.porque}) — escrito no disco, mas a frota nao o ve.`);
+      }
     }
   } catch (err) {
     if (!beaconWarned) {
