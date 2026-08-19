@@ -279,6 +279,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   <div class="card vouched" id="triagem-card" hidden>
     <h2 id="triagem-titulo">Needs triage</h2>
+    <div class="btns" id="triagem-motivos"></div>
     <p class="nd">Every finding leaves here by a decision of yours. This is what closes the loop —
       and the first ROI number that means anything.</p>
     <div id="triagem-fila"></div>
@@ -853,7 +854,30 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     sel.value = actual;
   }
 
-  async function triar(chave, decisao, recibo, btnBox) {
+  // Os rotulos sao daqui; os TOKENS vem do motor (`state.triagem.motivos`) e
+  // sao o que se grava. Um token sem rotulo mostra-se cru, nunca em branco.
+  const ROTULO_MOTIVO = {
+    "nao-e-um-problema": "not a problem",
+    "ja-sabido": "already known",
+    "fora-do-que-estou-a-fazer": "not what I am working on",
+    "citacao-certa-conclusao-errada": "right line, wrong conclusion",
+    "trivial": "too small to act on",
+  };
+
+  function pedirMotivo(recibo, btnBox) {
+    const lista = (state && state.triagem && state.triagem.motivos) || Object.keys(ROTULO_MOTIVO);
+    btnBox.replaceChildren(el("span", "custo", "dismiss because"));
+    for (const m of lista) {
+      const b = el("button", null, ROTULO_MOTIVO[m] || m);
+      b.onclick = () => triar(recibo.chave, "descartado", recibo, btnBox, m);
+      btnBox.appendChild(b);
+    }
+    const x = el("button", null, "cancel");
+    x.onclick = () => renderTriagem(state);
+    btnBox.appendChild(x);
+  }
+
+  async function triar(chave, decisao, recibo, btnBox, motivo) {
     if (source !== "live") return;
     // Nao se desliga o controlo: substitui-se pelo estado a que ele deu origem.
     // Um botao morto deixa o dono sem saber se o pedido saiu.
@@ -861,7 +885,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     try {
       const res = await fetch(BASE + "/triagem", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chave: chave, decisao: decisao, recibo: recibo }),
+        body: JSON.stringify({ chave: chave, decisao: decisao, recibo: recibo, motivo: motivo || null }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       btnBox.replaceChildren(el("span", "nd", decisao + " — recorded"));
@@ -885,6 +909,23 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       ? " of " + t.achados + " findings (" + (t.aceite ?? "n/a") + " accepted · "
         + (t.descartado ?? "n/a") + " dismissed · " + (t.issue ?? "n/a") + " issues)"
       : "";
+    // Porque e que foram descartados. Sem isto, 97% de descarte e um numero que
+    // nao ensina nada — e era exactamente o que estava a acontecer.
+    const razoes = $("triagem-motivos");
+    if (razoes) {
+      razoes.replaceChildren();
+      const pm = (t && t.por_motivo) || {};
+      const pares = Object.entries(pm).sort((x, y) => y[1] - x[1]);
+      if (pares.length) {
+        razoes.appendChild(el("span", "custo", "dismissed because"));
+        for (const [m, n] of pares) {
+          razoes.appendChild(el("span", "chip dead", (ROTULO_MOTIVO[m] || m) + " · " + n));
+        }
+      }
+      if (t && t.sem_motivo) {
+        razoes.appendChild(el("span", "nd", t.sem_motivo + " dismissed before reasons existed — not counted above"));
+      }
+    }
     $("triagem-titulo").textContent = "Needs triage — " + fila.length + detalhe;
     const mostrar = triagemExpandida ? fila : fila.slice(0, TRIAGE_CAP);
     const box = $("triagem-fila");
@@ -919,7 +960,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       const btns = el("div", "btns");
       for (const par of [["aceite", "accept"], ["descartado", "dismiss"], ["issue", "open issue"]]) {
         const b = el("button", null, par[1]);
-        b.onclick = () => triar(a.chave, par[0], a, btns);
+        // Descartar passa a pedir a razao. Foram 72 descartes anonimos: custam o
+        // mesmo a clicar e nao ensinam nada, e sao o unico dado que distingue
+        // "a pergunta esta errada" de "isto nao e o que ando a fazer".
+        b.onclick = par[0] === "descartado"
+          ? () => pedirMotivo(a, btns)
+          : () => triar(a.chave, par[0], a, btns);
         btns.appendChild(b);
       }
       if (MOTORES) {

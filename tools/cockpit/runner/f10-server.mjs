@@ -17,7 +17,7 @@ import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
-import { registarTriagem, DECISOES, AUTORES, menuDeMotores } from './triagem.mjs';
+import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores } from './triagem.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 
@@ -337,10 +337,16 @@ export function createServer({
         if (!AUTORES.includes(por)) {
           return sendJson(res, 400, { erro: 'autor desconhecido', aceites: AUTORES });
         }
+        // Um descarte sem motivo devolve 400 com a lista, em vez de 500: o
+        // painel precisa de saber O QUE mandar, nao so que falhou.
+        if (body.decisao === 'descartado' && !MOTIVOS.includes(body.motivo)) {
+          return sendJson(res, 400, { erro: 'descartar exige um motivo', aceites: MOTIVOS });
+        }
         try {
           const e = registarTriagem(triagemFile, {
             chave: body.chave, decisao: body.decisao, por,
             recibo: body.recibo || null, nota: body.nota || null,
+            motivo: body.motivo || null,
           });
           return sendJson(res, 200, { ok: true, registado: e });
         } catch (err) {
