@@ -184,6 +184,77 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){
   body.shipping .cow,body.shipping .cow .eye{animation:none}
 }
+
+  /* ===== Rendimento por pilar — barras horizontais, uma serie sobre um trilho.
+     Forma escolhida por magnitude-por-categoria; rotulo directo em cada linha
+     porque sao 10 e cabem. A cor nao carrega informacao sozinha: o icone de
+     estado viaja ao lado. ===== */
+  .yield { display:flex; flex-direction:column; gap:7px; margin-top:4px }
+  .y-row { display:grid; grid-template-columns:44px 1fr auto; align-items:center; gap:10px }
+  .y-id { font:600 12px/1 var(--mono); color:var(--ink-2); letter-spacing:.02em }
+  .y-track { position:relative; height:16px; background:var(--panel-2); border-radius:4px; overflow:hidden }
+  .y-bar { position:absolute; inset:0 auto 0 0; width:0; border-radius:4px;
+           background:var(--ok); transition:width .7s cubic-bezier(.22,1,.36,1) }
+  .y-bar.zero { background:var(--dead); opacity:.35 }
+  .y-lab { font:12px/1.3 var(--sans); color:var(--ink-2); white-space:nowrap }
+  .y-lab b { color:var(--ink); font-variant-numeric:tabular-nums }
+  .y-ic { font-size:11px }
+  .y-head { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin:2px 0 10px }
+  .y-head .big { font:700 26px/1 var(--sans); color:var(--ink); font-variant-numeric:tabular-nums }
+  .y-head .sub { font:12.5px/1.4 var(--sans); color:var(--ink-2) }
+
+  /* ===== O que cada device esta a cacar ===== */
+  .dev .hunt { margin-top:6px; padding-top:6px; border-top:1px dashed var(--line);
+               font:12px/1.45 var(--sans); color:var(--ink-2) }
+  .dev .hunt b { color:var(--ink) }
+  .dev .backlog { display:inline-flex; align-items:center; gap:4px; margin-top:4px;
+                  padding:1px 7px; border-radius:999px; background:var(--warn-bg); color:var(--warn);
+                  font:600 11px/1.6 var(--sans) }
+
+  /* ===== Animacoes ligadas a funcao, nunca decorativas ===== */
+  @keyframes moo-pulse { 0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent) }
+                          50%  { box-shadow:0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent) } }
+  .pillar.active { animation:moo-pulse 2.4s ease-in-out infinite }
+  @keyframes moo-in { from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
+  tbody#feed tr.fresh { animation:moo-in .45s ease-out both; background:color-mix(in srgb, var(--ok) 9%, transparent) }
+  @keyframes moo-breathe { 0%,100%{opacity:1} 50%{opacity:.45} }
+  .chip.live .dot { animation:moo-breathe 1.8s ease-in-out infinite }
+  @media (prefers-reduced-motion: reduce) {
+    .pillar.active, tbody#feed tr.fresh, .chip.live .dot { animation:none }
+    .y-bar { transition:none }
+  }
+
+  /* ===== Primeiro arranque: um device sem recibos nao e um device avariado ===== */
+  .onboard { display:flex; flex-direction:column; gap:10px }
+  .onboard ol { margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px }
+  .onboard li { font:13px/1.5 var(--sans); color:var(--ink-2) }
+  .onboard li b { color:var(--ink) }
+  .onboard code { font:12px/1.5 var(--mono); background:var(--panel-2); padding:1px 5px; border-radius:5px }
+
+
+  .y-funnel { display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-top:8px }
+  .y-step { flex:1 1 110px; min-width:104px; padding:8px 10px; border-radius:10px;
+            background:var(--panel-2); border:1px solid var(--line);
+            display:flex; flex-direction:column; gap:1px }
+  .y-step b { font:700 20px/1.15 var(--sans); color:var(--ink); font-variant-numeric:tabular-nums }
+  .y-step small { font:600 11px/1.3 var(--sans); color:var(--ink-2); text-transform:uppercase; letter-spacing:.05em }
+  .y-step .nd { font:11px/1.35 var(--sans) }
+
+  /* Severidade: cor NUNCA sozinha — o rotulo textual viaja sempre ao lado, e o
+     porque fica no title e numa linha propria. */
+  .sev { display:inline-flex; align-items:center; gap:4px; padding:1px 8px; border-radius:999px;
+         font:700 10.5px/1.7 var(--sans); text-transform:uppercase; letter-spacing:.05em; border:1px solid transparent }
+  .sev b { font-weight:800; font-variant-numeric:tabular-nums }
+  .sev.high { background:var(--bad-bg); color:var(--bad); border-color:color-mix(in srgb, var(--bad) 35%, transparent) }
+  .sev.med  { background:var(--warn-bg); color:var(--warn); border-color:color-mix(in srgb, var(--warn) 30%, transparent) }
+  .sev.low  { background:var(--dead-bg); color:var(--dead) }
+  .sev-resumo { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:2px 0 10px }
+  .sev-resumo .nd { font:12px/1.4 var(--sans) }
+  .sev-porque { font:11.5px/1.4 var(--sans); flex-basis:100%; margin-top:2px }
+  .tri.sev-high { border-color:color-mix(in srgb, var(--bad) 45%, var(--line)) }
+  .tri.sev-low  { opacity:.72 }
+  .tri.sev-low:hover { opacity:1 }
+
   /* ===== Autopilot: a barra de modo. Inspirada num watchdog, nao num brinquedo:
      o estado a esquerda, os portoes ao centro, o orcamento a direita. Um nivel
      bloqueado NUNCA e um botao cinzento e mudo — traz o numero que o abre. ===== */
@@ -279,7 +350,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   </div>
 
   <div class="row">
-    <div class="card gpu vouched">
+  <div class="card gpu vouched">
       <h2>This device's GPU</h2>
       <svg class="dial" viewBox="0 0 190 112" aria-hidden="true">
         <path class="arc-bg" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14" stroke-linecap="round"/>
@@ -301,6 +372,19 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         <b>cited</b> = the cited line exists and was read from disk. It does <b>not</b> mean the finding is right — that is triage, and a separate step. <b>refuted</b> = the model cited something that does not exist. <b>unverified</b> = old receipts, from before this verifier.
       </p>
     </div>
+  </div>
+
+  <div class="card vouched onboard" id="onboard-card" hidden>
+    <h2 id="onboard-titulo">This device has not shipped a round yet</h2>
+    <p class="note" id="onboard-porque"></p>
+    <ol id="onboard-passos"></ol>
+  </div>
+
+  <div class="card vouched" id="yield-card">
+    <h2>Yield — cited is not the same as found</h2>
+    <div class="y-head" id="yield-head"></div>
+    <div class="yield" id="yield"></div>
+    <p class="note" id="yield-note"></p>
   </div>
 
   <div class="card">
@@ -589,9 +673,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
     if (changed('gpu', [state.gpu, spark.length, spark[spark.length-1]])) renderGpu(state.gpu || {});
     if (changed('tally', state.recibos))   renderTally(state.recibos || {});
-    // O cartao novo corre dentro de uma rede: um erro nele nao pode levar o
-    // painel inteiro. Falha visivel no proprio cartao, resto vivo.
+    // Os dois cartoes novos correm dentro de uma rede: um erro num deles nao
+    // pode levar o painel inteiro. Falha visivel no proprio cartao, resto vivo.
     if (changed('autopilot', [state.autopilot, state.running, live])) seguro('ap-portoes', () => renderAutopilot(state, live));
+    if (changed('yield', state.pilares))    seguro('yield', () => renderYield(state));
+    if (changed('onboard', [state.recibos, state.engine, state.running])) seguro('onboard-passos', () => renderOnboard(state));
     if (changed('fleet', [state.frota, state.device])) renderFleet(state);
     if (changed('pillars', [state.pilares, state.pilar_atual, state.foco, CATALOGO, live, busy])) renderPillars(state, live);
     if (changed('engine', [state.engine, state.modelo_atual, state.pilar_atual, state.foco, state.modelos_carregados, state.reserva])) renderEngine(state);
@@ -693,9 +779,182 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       } else meta.appendChild(el('span','nd','no receipt count'));
       if (d.branch) { meta.appendChild(el('br')); meta.append(document.createTextNode(`branch ${d.branch}`)); }
       box.appendChild(meta);
+
+      // O QUE este device esta a fazer, nao so ha quanto tempo respirou. Ate
+      // aqui o cartao da frota respondia "esta vivo?" e nunca "esta a fazer o
+      // que?" — e e essa a pergunta de quem tem duas maquinas a mexer no mesmo
+      // repo. Campo ausente e n/d com o motivo, nunca um espaco em branco.
+      const hunt = el('div','hunt');
+      const pilarId = d.pilar_atual || null;
+      const spec = pilarId && Array.isArray(CATALOGO)
+        ? CATALOGO.find((c) => c.id === pilarId) : null;
+      if (pilarId) {
+        hunt.append(document.createTextNode(d.running ? 'hunting ' : 'parked on '));
+        hunt.appendChild(el('b', null, pilarId));
+        if (spec && spec.label) hunt.append(document.createTextNode(' \u2014 ' + spec.label));
+      } else {
+        hunt.appendChild(el('span','nd','no pillar reported in this beacon'));
+      }
+      if (d.modelo) { hunt.appendChild(el('br')); hunt.append(document.createTextNode('engine ' + (d.engine || 'n/a') + ' \u00b7 ' + d.modelo)); }
+      const tri = d.triagem || {};
+      if (Number(tri.por_triar) > 0) {
+        hunt.appendChild(el('br'));
+        hunt.appendChild(el('span','backlog', '\u270b ' + tri.por_triar + ' waiting for your decision'));
+      }
+      if (d.reserva && d.reserva.activa) {
+        hunt.appendChild(el('br'));
+        hunt.append(document.createTextNode('machine lent out \u00b7 ' + ago(d.reserva.falta_s) + ' left'));
+      }
+      box.appendChild(hunt);
       wrap.appendChild(box);
     }
     $('fleet-note').textContent = f.aviso || '';
+  }
+
+  /**
+   * Rendimento por pilar: de quantas rondas saiu uma citacao.
+   *
+   * O cartao dos veredictos diz QUANTO saiu; este diz DE ONDE. Sem ele, 87% de
+   * "sem achado" parece um problema do modelo — e a medicao de 2026-08-19 diz
+   * outra coisa: 7 dos 10 pilares tem rendimento ZERO em ~30 rondas cada, e 2
+   * pilares produzem quase todas as citacoes. Nao e a GPU que nao morde: sao
+   * sete perguntas que nunca acertam, e cada uma custa uma volta da rotacao.
+   *
+   * Forma: magnitude por categoria -> barras horizontais ordenadas. Uma serie
+   * sobre um trilho neutro, rotulo directo em cada linha, e um icone de estado
+   * ao lado para que a leitura nunca dependa so da cor.
+   */
+  /**
+   * Primeiro arranque. Um device sem recibos nao esta avariado — esta por
+   * comecar, e sao coisas diferentes. Ate aqui o painel mostrava seis caixas a
+   * zero e um feed vazio, que e exactamente o aspecto de um sistema partido.
+   * Cada passo diz o que falta E como se mede que ficou feito.
+   */
+  function renderOnboard(s) {
+    const card = $('onboard-card'); if (!card) return;
+    const r = s.recibos || {};
+    const semRecibos = !(Number(r.total) > 0);
+    card.hidden = !semRecibos;
+    if (!semRecibos) return;
+
+    const motor = s.engine && s.engine !== 'down';
+    const parado = s.running === false;
+    const semLedger = r.ledger_existe === false;
+
+    $('onboard-porque').textContent = semLedger
+      ? 'No receipt ledger on disk yet. Everything below is $0 and local — no token of any subscription is spent.'
+      : 'The ledger exists but has no round in it. Everything below is $0 and local.';
+
+    const ol = $('onboard-passos'); ol.replaceChildren();
+    const passo = (feito, titulo, comoSeMede) => {
+      const li = el('li');
+      li.appendChild(el('b', null, (feito ? '\u2705 ' : '\u25cb ') + titulo));
+      li.appendChild(el('br'));
+      li.appendChild(el('span','nd', comoSeMede));
+      ol.appendChild(li);
+    };
+    passo(motor, 'Local engine up',
+      motor ? ('measured: engine = ' + s.engine) : 'run `ollama serve`, then reload — this card reads it from /fleet.json, it does not assume it');
+    passo(!parado, 'Kill-switch lifted',
+      parado ? 'the STOP file is present. Hit Ship above, or delete ~/.mooter/STOP from the file manager'
+             : 'measured: no STOP file, the loop may take the machine');
+    passo(false, 'First round shipped',
+      'the moment one lands, this card disappears on its own and the yield chart takes its place');
+  }
+
+  /** Corre um render isolado: se rebentar, o cartao diz-o e o painel sobrevive. */
+  function seguro(alvoId, fn) {
+    try { fn(); }
+    catch (err) {
+      const n = $(alvoId);
+      if (n) { n.replaceChildren(); n.appendChild(el('span','nd','this card failed to render: ' + String(err && err.message).slice(0,120))); }
+    }
+  }
+
+  function renderYield(s) {
+    const wrap = $('yield'); wrap.replaceChildren();
+    const head = $('yield-head'); head.replaceChildren();
+    const per = s.pilares || {};
+    const ids = (Array.isArray(CATALOGO) && CATALOGO.length) ? CATALOGO.map((c) => c.id) : Object.keys(per);
+    const linhas = ids.map((id) => {
+      const d = per[id] || {};
+      // Nada de `|| 0`: um contador ausente e DESCONHECIDO, e um pilar sem
+      // dados nao e um pilar com rendimento zero. Sem numero, a linha nao entra.
+      const total = Number(d.total);
+      const cited = Number(d.citacao_ok);
+      const medido = Number.isFinite(total) && Number.isFinite(cited) && total > 0;
+      return { id, total, cited, pct: medido ? cited / total : null };
+    }).filter((r) => Number.isFinite(r.pct));
+
+    if (!linhas.length) {
+      wrap.appendChild(el('span','nd','no rounds yet on this device — nothing to rank'));
+      $('yield-note').textContent = '';
+      return;
+    }
+    linhas.sort((a,b) => (b.pct ?? -1) - (a.pct ?? -1) || b.total - a.total);
+
+    const rondas = linhas.reduce((n,r) => n + r.total, 0);
+    const citacoes = linhas.reduce((n,r) => n + r.cited, 0);
+    const secos = linhas.filter((r) => r.cited === 0);
+    const produtivos = linhas.filter((r) => r.cited > 0);
+    const doTopo = produtivos.slice(0,2).reduce((n,r) => n + r.cited, 0);
+
+    // O FUNIL, e nao a percentagem de citacoes. `citacao-ok` diz apenas que a
+    // linha citada existe no disco — o proprio cartao dos veredictos ao lado ja
+    // o escreve. Um pilar pode citar uma linha para dizer COMPLETE, ou seja
+    // "nao ha defeito aqui", e isso conta como citacao. Medido a 2026-08-19:
+    // das 41 citacoes deste device, 2 declararam ACHADO. Publicar 13% como
+    // "rendimento" era o mesmo defeito que o pilar P7 existe para cacar.
+    const tri = s.triagem || {};
+    const achados = Number(tri.achados);
+    // Soma so o que existe. Se nenhum dos tres contadores veio, o resultado e
+    // `null` — "ainda nao triaste nada" e "nao sei quanto triaste" sao coisas
+    // diferentes, e o funil ja sabe desenhar a segunda.
+    const partesTri = [tri.aceite, tri.descartado, tri.issue].map(Number).filter(Number.isFinite);
+    const decididos = partesTri.length ? partesTri.reduce((n, x) => n + x, 0) : null;
+    head.appendChild(el('div','big', Number.isFinite(achados) ? String(achados) : 'n/d'));
+    head.appendChild(el('span','sub',
+      'finding(s) declared, out of ' + citacoes + ' cited line(s), out of ' + rondas + ' round(s)'
+      + (Number.isFinite(achados) && decididos !== null ? ' \u00b7 ' + decididos + ' triaged so far' : '')));
+    const funil = el('div','y-funnel');
+    for (const [n, rot, nota] of [
+      [rondas, 'rounds', 'the GPU ran'],
+      [citacoes, 'cited', 'the line exists on disk'],
+      [Number.isFinite(achados) ? achados : null, 'findings', 'the model said ACHADO'],
+      [decididos, 'triaged', 'you decided'],
+    ]) {
+      const step = el('div','y-step');
+      const b = el('b'); b.appendChild(nd(n)); step.appendChild(b);
+      step.appendChild(el('small', null, rot));
+      step.appendChild(el('span','nd', nota));
+      funil.appendChild(step);
+    }
+    head.appendChild(funil);
+
+    const max = Math.max.apply(null, linhas.map((r) => r.pct).concat([0.01]));
+    for (const r of linhas) {
+      const row = el('div','y-row');
+      row.appendChild(el('span','y-id', r.id));
+      const track = el('div','y-track');
+      track.title = r.id + ': ' + r.cited + ' cited / ' + r.total + ' rounds';
+      const bar = el('div', 'y-bar' + (r.cited === 0 ? ' zero' : ''));
+      bar.dataset.w = Math.max(r.cited ? 3 : 1.5, Math.round(100 * r.pct / max)) + '%';
+      track.appendChild(bar);
+      row.appendChild(track);
+      const lab = el('span','y-lab');
+      lab.appendChild(el('span','y-ic', r.cited === 0 ? '\u26a0\ufe0f' : '\u2705'));
+      lab.append(document.createTextNode(' '));
+      lab.appendChild(el('b', null, r.cited + '/' + r.total));
+      lab.append(document.createTextNode(' \u00b7 ' + (r.pct == null ? 'n/d' : Math.round(100*r.pct) + '%')));
+      row.appendChild(lab);
+      wrap.appendChild(row);
+    }
+    $('yield-note').textContent =
+      'The bars are CITED rate per pillar, relative to the best one \u2014 not findings. A pillar can cite a line to say COMPLETE, meaning it found nothing wrong, and that still counts as cited. '
+      + 'The number that matters is the funnel above. A pillar at 0% is not proof the question is wrong: it can also mean the slice it receives is too small to contain the answer. That is the next measurement, not a conclusion.';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      wrap.querySelectorAll('[data-w]').forEach((n) => { n.style.width = n.dataset.w; });
+    }));
   }
 
   function renderTally(r) {
@@ -941,6 +1200,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   }
 
   const FILTERS = { verdict: '', pillar: '', file: '' };
+  let ULTIMO_TS_FEED = null;
   let LAST_FEED = [];
 
   // `rotular` traduz o TEXTO visivel de uma opcao; nunca o `value`. A logica
@@ -1008,15 +1268,75 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   // proximo poll (a cada 3s), ou o botao pareceria nao ter feito nada.
   let triagemExpandida = false;
 
-  /** Corre um render isolado: se rebentar, o cartao diz-o e o painel sobrevive. */
-  function seguro(alvoId, fn) {
-    try { fn(); }
-    catch (err) {
-      const n = $(alvoId);
-      if (n) { n.replaceChildren(); n.appendChild(el('span','nd','this card failed to render: ' + String(err && err.message).slice(0,120))); }
-    }
-  }
+  /**
+   * Severidade de um achado — deterministica, zero-LLM, e com o porque a viajar
+   * ao lado do rotulo.
+   *
+   * A regra nao foi inventada: foi lida dos dados. A 2026-08-20, dos 29 achados
+   * na fila deste device, os DOIS que valiam alguma coisa eram numeros sem
+   * procedencia em codigo que fala com o cliente — `landing/app/api/og/route.tsx`
+   * (um "90.2% less" cravado como default no cartao Open Graph) e
+   * `landing/app/_components/WhyLocalCards.tsx`. Os outros 27 eram defaults e
+   * constantes internas. Uma fila de 29 items visualmente iguais e uma fila que
+   * ninguem abre: com 47 achados na frota e ZERO triados, o gargalo deixou de
+   * ser produzir e passou a ser decidir.
+   *
+   * Nenhum modelo opina aqui. Se a regra estiver errada, ve-se e corrige-se.
+   */
+  const SEV_PUBLICO = /^(landing\/|docs\/|site\/|README|packages\/[^/]+\/(public|assets)\/)/i;
+  const SEV_INTERNO = /^(tools\/|scripts\/|_handoff\/)|\.test\.|(^|\/)test/i;
+  // Estilo e layout NAO sao afirmacoes. `borderRadius: 14` tem um numero e nao
+  // promete nada a ninguem. Esta lista corre PRIMEIRO, e e a diferenca entre
+  // 16 "high" inuteis e os 2 que valem.
+  const SEV_ESTILO = /\b(border[A-Za-z]*|font[A-Za-z]*|width|maxWidth|minWidth|height|maxHeight|minHeight|padding[A-Za-z]*|margin[A-Za-z]*|lineHeight|letterSpacing|top|left|right|bottom|inset|zIndex|opacity|gap|flex[A-Za-z]*|grid[A-Za-z]*|size|count|rows|cols|columns|strokeWidth|viewBox|duration|delay|radius|offset|scale|blur|spread)\s*[:=]/;
+  // Uma AFIRMACAO tem unidade ou comparacao: uma percentagem, GB, um preco, um
+  // "3x mais barato". Um inteiro nu nao e uma afirmacao.
+  const SEV_CLAIM = /\d+([.,]\d+)?\s*(%|GB|MB|TB|KB|ms\b|s\b|x\b|×)|[$€£]\s?\d|\b\d+([.,]\d+)?\s*(vezes|times|faster|slower|less|more|cheaper|savings?)\b/i;
+  const SEV_CONST = /export\s+const\s+[A-Z0-9_]{3,}\s*=/;
+  /** O numero vive dentro de texto que alguem le, e nao num valor de codigo. */
+  const SEV_EM_TEXTO = /['"`][^'"`]*\d[^'"`]*[A-Za-z]{3,}[^'"`]*['"`]/;
 
+  function severidade(a) {
+    // O servidor manda a severidade calculada (uma fonte so, em autopilot.mjs).
+    // Isto aqui e o degrau de tras: um painel aberto contra um endpoint antigo,
+    // ou um snapshot congelado, continua a ordenar a fila em vez de a achatar.
+    if (a && a.sev && a.sev.k) return { n: a.sev.n, k: a.sev.k, porque: a.sev.porque };
+    const f = String(a.ficheiro || '');
+    const diz = String(a.resultado_resumo || a.resumo || '');
+    const prova = String(a.evidencia || '');
+    const publico = SEV_PUBLICO.test(f);
+    const claim = SEV_CLAIM.test(diz) || SEV_CLAIM.test(prova) || SEV_EM_TEXTO.test(prova);
+
+    if (SEV_CONST.test(prova)) {
+      return { n: 1, k: 'low', porque: 'a named exported constant is already the fix, not the defect' };
+    }
+    // Estilo antes de tudo: `width: 100%` casa com "percentagem" e nao promete nada.
+    if (SEV_ESTILO.test(prova) && !SEV_EM_TEXTO.test(prova)) {
+      return { n: 1, k: 'low', porque: 'a style or layout value — it states nothing to anyone' };
+    }
+    if (publico && claim) {
+      return { n: 3, k: 'high', porque: 'a claim with a number and no provenance, in code the customer reads' };
+    }
+    if (publico) return { n: 2, k: 'med', porque: 'customer-facing file, but the number makes no claim' };
+    if (SEV_INTERNO.test(f)) return { n: 1, k: 'low', porque: 'internal tooling — it never reaches a user' };
+    if (claim) return { n: 2, k: 'med', porque: 'a claim with a number, in shipped code' };
+    return { n: 1, k: 'low', porque: 'no claim, and not customer-facing' };
+  }
+  const SEV_ROTULO = { high: 'high', med: 'medium', low: 'low' };
+
+  /**
+   * O cartao do Autopilot.
+   *
+   * Regra dura: um nivel bloqueado NUNCA e um botao cinzento e mudo. Traz o
+   * numero que o abre, o numero que ha, e a frase que explica a distancia. Um
+   * controlo que so diz "nao" ensina o dono a ignora-lo; um que diz "faltam 20
+   * decisoes tuas" transforma o bloqueio numa instrucao.
+   *
+   * O que o painel NAO faz: decidir se um nivel pode abrir. Isso vem medido do
+   * servidor em `autopilot.portoes`. Se a taxa de citacao inventada subir, o
+   * nivel cai sozinho e este cartao passa a mostrar o porque — sem ninguem
+   * carregar em nada.
+   */
   function renderAutopilot(s, live) {
     const ap = s.autopilot;
     const card = $('ap-card'); if (!card) return;
@@ -1111,12 +1431,33 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       }
     }
     $("triagem-titulo").textContent = "Needs triage — " + fila.length + detalhe;
-    const mostrar = triagemExpandida ? fila : fila.slice(0, TRIAGE_CAP);
+    // Ordenada por severidade, nao por hora. O corte de TRIAGE_CAP passa a
+    // mostrar os que importam em vez dos mais recentes — era isso que fazia a
+    // fila parecer 29 coisas iguais.
+    const comSev = fila.map((a) => ({ a, s: severidade(a) }))
+      .sort((x, y) => y.s.n - x.s.n || String(y.a.ts || '').localeCompare(String(x.a.ts || '')));
+    const conta = { high: 0, med: 0, low: 0 };
+    for (const it of comSev) conta[it.s.k] += 1;
+    const mostrar = (triagemExpandida ? comSev : comSev.slice(0, TRIAGE_CAP)).map((it) => it.a);
+    const sevDe = new Map(comSev.map((it) => [it.a, it.s]));
     const box = $("triagem-fila");
     box.replaceChildren();
     // Nunca truncar em silencio: se algo fica de fora, o numero que o diz tem
     // de estar visivel -- nao so o total la em cima no titulo.
     if (fila.length) {
+      const resumoSev = el('div','sev-resumo');
+      for (const k of ['high','med','low']) {
+        if (!conta[k]) continue;
+        const s = el('span', 'sev ' + k);
+        s.append(el('b', null, String(conta[k])), document.createTextNode(' ' + SEV_ROTULO[k]));
+        resumoSev.appendChild(s);
+      }
+      if (comSev.length) {
+        resumoSev.appendChild(el('span','nd', comSev[0].s.k === 'high'
+          ? 'start at the top — ' + comSev[0].s.porque
+          : 'nothing high right now; the top one is ' + comSev[0].s.porque));
+      }
+      box.appendChild(resumoSev);
       // O total verdadeiro vem do servidor (`triagem.por_triar`), que conta o
       // ledger inteiro. `fila` ja vem cortada em `porTriar` -- usar o seu
       // comprimento como total dava um "of N" que era o corte a medir-se a si
@@ -1137,7 +1478,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     for (const a of mostrar) {
       const d = el("div", "tri");
       const cab = el("div", "cab");
-      cab.append(el("span", "chip ok", a.pilar || "—"), el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
+      const sv = sevDe.get(a) || severidade(a);
+      d.classList.add('sev-' + sv.k);
+      const chipSev = el("span", "sev " + sv.k, SEV_ROTULO[sv.k]);
+      chipSev.title = sv.porque;
+      cab.append(chipSev, el("span", "chip ok", a.pilar || "—"), el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
+      cab.appendChild(el("span", "nd sev-porque", sv.porque));
       d.appendChild(cab);
       if (a.resumo) d.appendChild(el("div", "diz ok", a.resumo));
       if (a.evidencia) d.appendChild(el("code", "ev", a.evidencia));
@@ -1189,13 +1535,21 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     const conta = $("f-conta");
     if (conta) conta.textContent = feed.length + ' of ' + LAST_FEED.length;
     const body = $('feed'); body.replaceChildren();
+    // Uma linha nova tem de se ver a chegar. Sem isto, o feed "ao vivo" muda
+    // por baixo dos olhos do dono sem que nada o diga.
+    const topoTs = (feed[0] && feed[0].ts) || null;
+    const chegou = topoTs && ULTIMO_TS_FEED && topoTs !== ULTIMO_TS_FEED;
+    ULTIMO_TS_FEED = topoTs;
     if (!feed || !feed.length) {
       const tr = el('tr'), td = el('td'); td.colSpan = 5;
       td.appendChild(el('span','nd','no receipts yet — hit Ship'));
       tr.appendChild(td); body.appendChild(tr); return;
     }
+    let primeira = true;
     for (const r of feed) {
       const tr = el('tr');
+      if (primeira && chegou) tr.className = 'fresh';
+      primeira = false;
       // 'geral' = o pilar nao tinha nada no diff e reviu-se o resto. Sem esta
       // marca, o feed dava o nome do pilar a trabalho que nao era dele — e o
       // campo existia no ledger a ser lido por ninguem.
