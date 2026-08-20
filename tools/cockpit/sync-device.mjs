@@ -43,7 +43,7 @@ function passo(nome, estado, detalhe, resolver = null) {
 }
 
 function git(args, cwd = REPO) {
-  return String(execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).trim();
+  return String(execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })).trim();
 }
 
 function copiar(de, para) {
@@ -129,7 +129,7 @@ async function main() {
   if (!fs.existsSync(build)) passo('índice do vault', 'n/d', 'sem vault montado nesta máquina');
   else if (SO_RELATA) passo('índice do vault', 'aviso', 'não reconstruído (--check)', `node "${build}"`);
   else {
-    try { execFileSync(process.execPath, [build], { stdio: 'ignore' }); passo('índice do vault', 'mudou', 'reconstruído'); }
+    try { execFileSync(process.execPath, [build], { stdio: 'ignore', windowsHide: true }); passo('índice do vault', 'mudou', 'reconstruído'); }
     catch (e) { passo('índice do vault', 'mau', 'falhou', String(e.message).slice(0, 70)); }
   }
 
@@ -158,7 +158,7 @@ async function main() {
     if (!baixado && !SO_RELATA) {
       try {
         execFileSync('gh', ['release', 'download', `v${noRepo}`, '--pattern', '*.mcpb', '--dir', path.dirname(destino), '--clobber'],
-          { cwd: REPO, stdio: 'ignore' });
+          { cwd: REPO, stdio: 'ignore', windowsHide: true });
         baixado = fs.existsSync(destino);
       } catch { /* sem gh, ou sem release */ }
     }

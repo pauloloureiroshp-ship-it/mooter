@@ -19,6 +19,7 @@
  */
 
 import { spawn, execFile } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -29,7 +30,7 @@ import { deviceName, beaconDir } from './fleet-beacon.mjs';
 import { autoVerificar } from './self-check.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_DO_SCRIPT = path.resolve(HERE, "..", "..", "..");
 /**
  * O motor generalizou (B1) e o ponto de entrada que o dono usa — `npm run
@@ -99,6 +100,9 @@ function startDetached(script, logName) {
   const log = fs.openSync(path.join(MOO_DIR, logName), 'a');
   const child = spawn(process.execPath, [path.join(HERE, script)], {
     detached: true,
+    // Windows: um detached sem isto ganha consola propria e todos os filhos
+    // (git, nvidia-smi) abrem janela nova por cima do que o dono esta a fazer.
+    windowsHide: true,
     stdio: ['ignore', log, log],
     cwd: REPO,
     env: { ...process.env, MOOTER_DEVICE: deviceName() },
@@ -112,7 +116,7 @@ function openBrowser(url) {
     process.platform === 'darwin' ? ['open', [url]]
     : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
     : ['xdg-open', [url]];
-  execFile(cmd, args, () => {});
+  execFile(cmd, args, { windowsHide: true }, () => {});
 }
 
 async function main() {
@@ -176,7 +180,7 @@ async function main() {
   if (!args.has('--no-sync') && !statusOnly) {
     try {
       const saida = execFileSync(process.execPath, [path.join(REPO, 'tools', 'cockpit', 'sync-device.mjs')],
-        { cwd: REPO, encoding: 'utf8' });
+        { cwd: REPO, encoding: 'utf8', windowsHide: true });
       const linhas = saida.split('\n').filter((l) => /^\s*[↻✗]/.test(l));
       if (linhas.length) { say('  a alinhar este device:'); for (const l of linhas) say(`  ${l.trim()}`); say(''); }
     } catch (e) {
@@ -225,5 +229,5 @@ async function main() {
 }
 
 const invokedDirectly =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) main();

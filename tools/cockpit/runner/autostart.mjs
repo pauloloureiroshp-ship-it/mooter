@@ -17,11 +17,12 @@
  */
 
 import { execFile } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..');
 const MOO_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 
@@ -33,7 +34,7 @@ const say = (s) => process.stdout.write(`${s}\n`);
 
 function run(cmd, args) {
   return new Promise((resolve) => {
-    execFile(cmd, args, { timeout: 15_000 }, (err, stdout, stderr) =>
+    execFile(cmd, args, { timeout: 15_000, windowsHide: true }, (err, stdout, stderr) =>
       resolve({ ok: !err, out: String(stdout || ''), err: String(stderr || (err && err.message) || '') }));
   });
 }
@@ -173,5 +174,5 @@ async function main() {
 }
 
 const invokedDirectly =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) main();

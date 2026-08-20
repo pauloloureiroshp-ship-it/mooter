@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export const REPO_URL = 'https://github.com/pauloloureiroshp-ship-it/mooter.git';
 export const VAULT_URL = 'git@github.com:pauloloureiroshp-ship-it/paulo-vault.git';
@@ -49,14 +50,14 @@ export const PASTA_OMISSAO = 'mooter';
  */
 export function caminhoDoRepo(home = os.homedir(), env = process.env, aqui = null) {
   if (env.MOOTER_REPO) return env.MOOTER_REPO;
-  const meu = aqui || path.dirname(new URL(import.meta.url).pathname);
+  const meu = aqui || path.dirname(fileURLToPath(import.meta.url));
   const raiz = path.resolve(meu, '..', '..');
   try { if (fs.existsSync(path.join(raiz, '.git'))) return raiz; } catch { /* segue */ }
   return path.join(home, PASTA_OMISSAO);
 }
 
 function correr(bin, args, cwd) {
-  return String(execFileSync(bin, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).trim();
+  return String(execFileSync(bin, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })).trim();
 }
 
 /**
@@ -126,7 +127,7 @@ async function main() {
     // Delegado de propósito: o alinhamento tem UM dono, e é o `sync-device`.
     // Duas cópias da mesma lógica divergem no dia em que uma delas é corrigida.
     const saida = execFileSync(process.execPath, [path.join(destino, 'tools', 'cockpit', 'sync-device.mjs')],
-      { cwd: destino, encoding: 'utf8' });
+      { cwd: destino, encoding: 'utf8', windowsHide: true });
     console.log(saida.split('\n').slice(2).join('\n'));
   } catch (e) {
     console.log(`  (o alinhamento não correu: ${String(e.message).slice(0, 90)})\n`);
@@ -152,12 +153,12 @@ async function main() {
   console.log('  a levantar o cockpit deste device...\n');
   try {
     execFileSync(process.execPath, [path.join(destino, 'tools', 'cockpit', 'runner', 'launch.mjs'), '--no-sync'],
-      { cwd: destino, stdio: 'inherit' });
+      { cwd: destino, stdio: 'inherit', windowsHide: true });
   } catch (e) {
     console.log(`\n  O cockpit nao subiu: ${String(e && e.message).slice(0, 90)}`);
     console.log(`  Tenta a mao:  cd "${destino}" && npm run pilot\n`);
   }
 }
 
-const chamadoDirectamente = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+const chamadoDirectamente = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (chamadoDirectamente) main();

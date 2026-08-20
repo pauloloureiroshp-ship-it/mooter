@@ -583,6 +583,8 @@ export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null,
       timeout: 10000,
       maxBuffer: 64 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'ignore'],
+      // Windows: sem isto cada `git` abre uma consola nova e rouba o foco.
+      windowsHide: true,
     }));
   let out;
   try {

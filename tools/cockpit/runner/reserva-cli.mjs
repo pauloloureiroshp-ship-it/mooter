@@ -12,11 +12,12 @@
  * porque leva o pid.
  */
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import os from 'node:os';
 import { reservar, libertar, verReserva, MAX_MINUTOS } from './reserva.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
 
-const RAIZ = path.resolve(new URL('../../..', import.meta.url).pathname);
+const RAIZ = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const MOO = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 
 function opt(argv, nome) {
@@ -57,5 +58,5 @@ export function main(argv = process.argv.slice(2), escrever = process.stdout.wri
 }
 
 export const invocadoComoPrograma = Boolean(process.argv[1])
-  && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invocadoComoPrograma) main();

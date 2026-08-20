@@ -13,13 +13,14 @@
  */
 
 import fs from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { buildFleetState } from './fleet-state.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..');
 const SHELL = path.join(REPO, 'tools', 'cockpit', 'moo-pilot-shell.html');
 const MOO_DIR = process.env.MOOTER_HOME || path.join(process.env.HOME || '', '.mooter');
@@ -89,5 +90,5 @@ async function main() {
 }
 
 const invokedDirectly =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) main();

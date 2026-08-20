@@ -27,7 +27,7 @@ import { execFileSync } from 'node:child_process';
 export const ENV_KEYS = Object.freeze(['MOO_REPO_ROOT', 'MOOTER_REPO_ROOT', 'MOOTER_REPO']);
 
 function gitToplevel(cwd, runImpl) {
-  const run = runImpl || ((args, opts) => execFileSync('git', args, opts));
+  const run = runImpl || ((args, opts) => execFileSync('git', args, { windowsHide: true, ...opts }));
   try {
     const out = run(['rev-parse', '--show-toplevel'], {
       cwd,
