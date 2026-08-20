@@ -2,7 +2,23 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { runLocalModels } from "../src/commands/local-models.ts";
+
+// Este ficheiro NAO isolava o home. O `switch-default` escreve
+// `local-models.json`, e sem isto escrevia-o no `~/.mooter` REAL de quem
+// corresse a suite — foi uma das duas entradas que sobravam na baseline de
+// poluicao do `tools/guarda-home.baseline.json`.
+//
+// `MOOTER_HOME` e nao so `HOME`: no Windows o `os.homedir()` le o
+// `USERPROFILE` e IGNORA o `HOME`, portanto exportar `HOME` nao e isolamento
+// nenhum. Definido a nivel de ficheiro porque o comando resolve o caminho por
+// funcao (nao por constante de topo), logo apanha isto em qualquer ordem.
+const HOME_TMP = mkdtempSync(join(tmpdir(), "mooter-lm-"));
+process.env.MOOTER_HOME = join(HOME_TMP, ".mooter");
 
 test("local-models help: usage lists the four subcommands, no routing claim", async () => {
   const res = await runLocalModels([]);
