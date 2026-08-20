@@ -10,6 +10,7 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { mooterHomeDefault } from "../packs.ts";
 import { spawnSync } from "node:child_process";
 import { detectPrereqs, install, chooseBackend, type ProbeFns, VENV_PATH } from "../../../vllm-backend/src/index.ts";
 
@@ -36,13 +37,13 @@ const REAL_PROBE: ProbeFns = {
 };
 
 function prefsPath(): string {
-  return join(homedir(), ".mooter", "preferences.json");
+  return join(mooterHomeDefault(), "preferences.json");
 }
 function readPrefs(): Record<string, unknown> {
   try { return JSON.parse(readFileSync(prefsPath(), "utf8")); } catch { return {}; }
 }
 function writePrefs(p: Record<string, unknown>): void {
-  mkdirSync(join(homedir(), ".mooter"), { recursive: true });
+  mkdirSync(mooterHomeDefault(), { recursive: true });
   writeFileSync(prefsPath(), JSON.stringify(p, null, 2) + "\n");
 }
 function setVllmEnabled(on: boolean): void {

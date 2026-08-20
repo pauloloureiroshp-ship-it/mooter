@@ -18,6 +18,12 @@ import {
   MODE_NAMES,
   type EffortConfig,
 } from "../../../effort/src/index.ts";
+// `packages/effort` resolve por `homedir()` e nao honra o `MOOTER_HOME` — e
+// congelado (waves 28-34.5), portanto nao se lhe toca. Mas a API dele ACEITA
+// `home`, e quem o resolve e o integrador: o CLI. Zero linhas em codigo
+// congelado, e `mooter effort set` deixa de escrever na casa verdadeira de quem
+// corre a suite.
+import { mooterHomeParent } from "../packs.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -47,7 +53,7 @@ export function runEffort(args: string[]): CmdResult {
   const json = args.includes("--json");
 
   if (!sub || sub === "show") {
-    const cfg = getEffort();
+    const cfg = getEffort(mooterHomeParent());
     return json ? { exitCode: 0, output: JSON.stringify(cfg, null, 2) } : { exitCode: 0, output: renderConfig(cfg) };
   }
 
@@ -55,12 +61,12 @@ export function runEffort(args: string[]): CmdResult {
     if (!value || !isEffortMode(value)) {
       return { exitCode: 1, output: `usage: mooter effort set <${MODE_NAMES.join("|")}>` };
     }
-    const cfg = setEffort(value);
+    const cfg = setEffort(value, { home: mooterHomeParent() });
     return json ? { exitCode: 0, output: JSON.stringify(cfg, null, 2) } : { exitCode: 0, output: renderConfig(cfg) };
   }
 
   if (sub === "reset") {
-    const cfg = resetEffort();
+    const cfg = resetEffort({ home: mooterHomeParent() });
     return { exitCode: 0, output: json ? JSON.stringify(cfg, null, 2) : renderConfig(cfg) };
   }
 

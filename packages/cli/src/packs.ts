@@ -8,10 +8,36 @@
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 
+/**
+ * O directorio `.mooter` deste utilizador — A fonte, e nao mais uma copia.
+ *
+ * `MOOTER_HOME` ganha ao `homedir()`, e nao e preferencia de estilo: no Windows
+ * o `os.homedir()` le o `USERPROFILE` e IGNORA o `HOME`, portanto um teste que
+ * se isole exportando `HOME` continua a apontar a casa verdadeira. Foi assim
+ * que `npm test` apagou o `~/.mooter` vivo do dono duas vezes — 2026-08-05 (232
+ * eventos de ledger) e 2026-08-20 (o ledger do loop e a memoria de revisao).
+ * `MOOTER_HOME` e o contrato que o resto do repo ja honra (`tools/cockpit`,
+ * `packages/data-rights`); faltava aqui.
+ *
+ * Medido a 2026-08-20: 19 ficheiros de `commands/` tinham a sua propria copia
+ * de `join(homedir(), ".mooter")` e nenhuma delas olhava para o `MOOTER_HOME`.
+ * Resultado visivel: 13 testes vermelhos no Windows, sempre os mesmos, e uma
+ * suite que escrevia na maquina de quem a corria. `mooter-home.test.ts` e o
+ * guarda que impede a copia numero 20.
+ */
 export function mooterHomeDefault(): string {
-  return join(homedir(), ".mooter");
+  return process.env.MOOTER_HOME || join(homedir(), ".mooter");
+}
+
+/**
+ * O PAI do `.mooter` — para as APIs que recebem a casa e juntam o `.mooter`
+ * elas proprias (`packages/effort`, `packages/transparency`). Derivado da mesma
+ * fonte, para nao haver duas respostas a mesma pergunta.
+ */
+export function mooterHomeParent(): string {
+  return dirname(mooterHomeDefault());
 }
 
 /** Installed pack ids from installed.json (sorted). Missing file → []. */

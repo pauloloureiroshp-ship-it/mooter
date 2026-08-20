@@ -9,6 +9,7 @@
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { mooterHomeDefault } from "../packs.ts";
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 
 export interface CmdResult {
@@ -16,7 +17,15 @@ export interface CmdResult {
   output: string;
 }
 
-const CONFIG = join(homedir(), ".mooter", "local-models.json");
+/**
+ * FUNCAO, e nao constante de topo — de proposito. Uma `const` aqui resolve-se
+ * ao CARREGAR o modulo, portanto qualquer `MOOTER_HOME` definido depois do
+ * import era ignorado e o comando escrevia na casa verdadeira de quem o corria.
+ * E e assim que os testes se isolam: importam primeiro, redireccionam depois.
+ */
+function configPath(): string {
+  return join(mooterHomeDefault(), "local-models.json");
+}
 
 // Community / vendor-reported benchmarks. NOT independently measured by Mooter —
 // numbers are cited from public model cards / leaderboards (June 2026) and should
@@ -44,7 +53,7 @@ function ollamaList(): { ok: boolean; models: string[]; raw: string } {
 
 function readPref(): { default?: string } {
   try {
-    if (existsSync(CONFIG)) return JSON.parse(readFileSync(CONFIG, "utf8"));
+    if (existsSync(configPath())) return JSON.parse(readFileSync(configPath(), "utf8"));
   } catch { /* ignore malformed */ }
   return {};
 }
@@ -95,17 +104,17 @@ function switchDefault(model?: string): CmdResult {
     return { exitCode: 1, output: `"${model}" is not installed. Pull it first: mooter local-models install ${model}` };
   }
   try {
-    mkdirSync(join(homedir(), ".mooter"), { recursive: true });
-    writeFileSync(CONFIG, JSON.stringify({ default: model }, null, 2));
+    mkdirSync(mooterHomeDefault(), { recursive: true });
+    writeFileSync(configPath(), JSON.stringify({ default: model }, null, 2));
   } catch (e) {
-    return { exitCode: 1, output: `could not write ${CONFIG}: ${(e as Error).message}` };
+    return { exitCode: 1, output: `could not write ${configPath()}: ${(e as Error).message}` };
   }
   // Honest: classify.js reads ROUTER_OLLAMA_GENERAL from the environment. We persist
   // the preference and tell the user exactly how to make it take effect — we do not
   // silently rewrite the router.
   return {
     exitCode: 0,
-    output: `✓ default set to ${model} (saved to ${CONFIG}).
+    output: `✓ default set to ${model} (saved to ${configPath()}).
 
 To make the router use it, export it for your shell (classify.js reads this):
   export ROUTER_OLLAMA_GENERAL=${model}

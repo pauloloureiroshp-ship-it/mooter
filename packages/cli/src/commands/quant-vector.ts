@@ -9,6 +9,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { mooterHomeDefault } from "../packs.ts";
 
 export interface CmdResult {
   exitCode: number;
@@ -31,7 +32,7 @@ const EMBED_DIMS: Record<string, number> = {
 };
 
 function cacheDir(): string {
-  return join(homedir(), ".mooter", "cache");
+  return join(mooterHomeDefault(), "cache");
 }
 
 function writeSnapshot(name: string, obj: unknown): void {

@@ -74,16 +74,22 @@ test('um ficheiro que a suite NAO devia tocar, alterado, falha', () => {
 
 test('poluicao nova fora da baseline falha; a que esta nomeada passa', () => {
   const antes = fotoDe({});
-  const nomeada = comparar(antes, fotoDe({ 'effort.json': '{}' }), BASELINE);
+  const nomeada = comparar(antes, fotoDe({ 'local-models.json': '{}' }), BASELINE);
   assert.equal(nomeada.limpo, true, 'a divida medida esta nomeada e nao volta a partir o CI');
 
   const anonima = comparar(antes, fotoDe({ 'coisa-nova.json': '{}' }), BASELINE);
   assert.deepEqual(anonima.novos, ['coisa-nova.json']);
 });
 
-test('uma entrada de directorio na baseline cobre o que esta la dentro', () => {
-  const d = comparar(fotoDe({}), fotoDe({ 'cache/quant-snapshot.json': 'x' }), BASELINE);
-  assert.equal(d.limpo, true);
+test('o que SAIU da baseline volta a falhar — o ratchet aperta mesmo', () => {
+  // `cache/` e `effort.json` estavam tolerados de manha e sairam a tarde, quando
+  // o `packages/cli` passou a resolver o home por uma fonte unica. Se voltarem,
+  // isto acusa — que e o unico sentido de encolher uma baseline.
+  const cache = comparar(fotoDe({}), fotoDe({ 'cache/quant-snapshot.json': 'x' }), BASELINE);
+  assert.deepEqual(cache.novos, ['cache/', 'cache/quant-snapshot.json']);
+  const effort = comparar(fotoDe({}), fotoDe({ 'effort.json': '{}' }), BASELINE);
+  assert.deepEqual(effort.novos, ['effort.json'],
+    'a suite deixou de mudar o modo de esforco da maquina; se voltar a mudar, falha aqui');
 });
 
 test('criar uma pasta vazia tambem conta como novidade', () => {
@@ -104,10 +110,10 @@ test('o home segue o MESMO contrato que o codigo sob teste honra', () => {
  */
 test('a baseline da poluicao SO PODE ENCOLHER', () => {
   assert.ok(
-    BASELINE.novos_tolerados.length <= 6,
-    `a baseline tem ${BASELINE.novos_tolerados.length} entradas e o tecto e 6 — `
+    BASELINE.novos_tolerados.length <= 2,
+    `a baseline tem ${BASELINE.novos_tolerados.length} entradas e o tecto e 2 (eram 6 de manha) — `
     + 'a suite passou a sujar mais do que sujava, e isso decide-se na revisao',
   );
-  assert.ok(BASELINE._comment && BASELINE._porque_ainda_esta_aqui,
+  assert.ok(BASELINE._comment && BASELINE._porque_estas_duas_ficam,
     'cada entrada tolerada tem de vir com o porque escrito ao lado');
 });

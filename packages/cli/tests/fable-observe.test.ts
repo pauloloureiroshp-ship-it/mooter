@@ -311,7 +311,7 @@ test("PostToolUse hook writes a minimal auto-observation for an Agent/Task spawn
       prompt: "SECRET PROMPT TEXT do not persist",
     },
   };
-  execFileSync("node", [HOOK_JS], { input: JSON.stringify(payload), env: { ...process.env, HOME: home } });
+  execFileSync("node", [HOOK_JS], { input: JSON.stringify(payload), env: { ...process.env, HOME: home, MOOTER_HOME: join(home, ".mooter") } });
 
   const files = obsFiles(home);
   assert.strictEqual(files.length, 1);
@@ -334,16 +334,16 @@ test("PostToolUse hook degrades silently: disabled config, non-spawn tool, garba
   const home = freshHome(); // no config at all → disabled
   const spawnPayload = { tool_name: "Task", tool_input: { subagent_type: "cheap-triage", prompt: "x" } };
 
-  execFileSync("node", [HOOK_JS], { input: JSON.stringify(spawnPayload), env: { ...process.env, HOME: home } });
+  execFileSync("node", [HOOK_JS], { input: JSON.stringify(spawnPayload), env: { ...process.env, HOME: home, MOOTER_HOME: join(home, ".mooter") } });
   assert.strictEqual(obsFiles(home).length, 0, "disabled → no observation written");
 
   await runFableObserve(["enable"], { home });
   // a plain Bash call is not an orchestration decision
-  execFileSync("node", [HOOK_JS], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" } }), env: { ...process.env, HOME: home } });
+  execFileSync("node", [HOOK_JS], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" } }), env: { ...process.env, HOME: home, MOOTER_HOME: join(home, ".mooter") } });
   assert.strictEqual(obsFiles(home).length, 0, "non-spawn tool → no observation");
 
   // garbage stdin must still exit 0 (execFileSync throws on non-zero)
-  execFileSync("node", [HOOK_JS], { input: "{{{ not json", env: { ...process.env, HOME: home } });
-  execFileSync("node", [HOOK_JS], { input: "", env: { ...process.env, HOME: home } });
+  execFileSync("node", [HOOK_JS], { input: "{{{ not json", env: { ...process.env, HOME: home, MOOTER_HOME: join(home, ".mooter") } });
+  execFileSync("node", [HOOK_JS], { input: "", env: { ...process.env, HOME: home, MOOTER_HOME: join(home, ".mooter") } });
   assert.strictEqual(obsFiles(home).length, 0);
 });

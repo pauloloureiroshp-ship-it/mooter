@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { FACETS, FACET_NAMES, selectFacets, type FacetIO } from "../src/audit/facets.ts";
 import { runFanOut, type WorkerFn, type WorkerResult } from "../src/audit/orchestrator.ts";
@@ -23,8 +23,12 @@ function mockIO(files: Record<string, string>): FacetIO & { reads: string[] } {
     reads,
     read: (p: string) => {
       reads.push(p);
-      // match by suffix so tests don't depend on the absolute root
-      const hit = Object.keys(files).find((k) => p.endsWith(k));
+      // match by suffix so tests don't depend on the absolute root.
+      // Normaliza o separador: no Windows o `join()` produz `\` e o sufixo
+      // POSIX das chaves nunca casava — o facet lia zero ficheiros e o teste
+      // acusava `sources: 0`, como se o codigo estivesse errado.
+      const posix = p.split(sep).join("/");
+      const hit = Object.keys(files).find((k) => posix.endsWith(k));
       return hit ? files[hit] : null;
     },
     list: (d: string) => (d.endsWith("packages") ? ["cli", "workflow"] : []),
@@ -116,7 +120,8 @@ test("report writer: renderMarkdown is pure + writeReport emits audit/fan_out_<t
   assert.match(md, /# Mooter Audit — fan-out/);
   assert.match(md, /## install/);
   assert.match(md, /local-only run/, "synthesis note when no cloud call");
-  assert.match(reportPath("/repo", NOW), /audit\/fan_out_.*\.md$/);
+  // Mesmo motivo: `reportPath` usa `join()`, e no Windows isso da `audit\fan_out_…`.
+  assert.match(reportPath("/repo", NOW).split(sep).join("/"), /audit\/fan_out_.*\.md$/);
 
   // the one filesystem-touching assertion — into a temp dir, never the repo.
   const dir = mkdtempSync(join(tmpdir(), "mooter-audit-"));

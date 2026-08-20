@@ -47,10 +47,14 @@ function sha16(text) {
 (function main() {
   try {
     // Gate 1 — opt-in config.
-    const home = os.homedir();
+    // `MOOTER_HOME` ganha ao `homedir()`, como em todo o resto do repo. Sem
+    // isto o hook escreve observacoes na casa VERDADEIRA de quem o corre mesmo
+    // quando o chamador redireccionou o home — e no Windows o `os.homedir()` le
+    // o `USERPROFILE` e ignora o `HOME`, portanto nem exportar `HOME` bastava.
+    const mooterDir = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
     let cfg = null;
     try {
-      cfg = JSON.parse(fs.readFileSync(path.join(home, '.mooter', 'fable-observe.json'), 'utf8'));
+      cfg = JSON.parse(fs.readFileSync(path.join(mooterDir, 'fable-observe.json'), 'utf8'));
     } catch (e) { /* missing/corrupt → disabled */ }
     if (!cfg || cfg.enabled !== true) process.exit(0);
 
@@ -94,7 +98,7 @@ function sha16(text) {
       pastor_training_value: 'medium',
     };
 
-    const dir = path.join(home, '.mooter', 'fable-observations');
+    const dir = path.join(mooterDir, 'fable-observations');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
       path.join(dir, `${obs.ts_ms}_${obs.task_hash}.json`),

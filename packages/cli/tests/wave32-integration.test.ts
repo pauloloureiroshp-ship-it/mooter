@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { runEffort } from "../src/commands/effort.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runData } from "../src/commands/data.ts";
+import { mooterHomeParent } from "../src/packs.ts";
 import { getEffort } from "../../effort/src/index.ts";
 import { buildDashboard, displayWidth } from "../src/commands/dashboard.ts";
 import { ULTRAMOO_SUBSYSTEMS } from "../../effort/src/index.ts";
@@ -29,7 +30,11 @@ test("E2E: /moo-effort ultramoo flips all 8 sub-systems and status reflects it",
   await withHome(async () => {
     const r = runEffort(["set", "ultramoo"]);
     assert.strictEqual(r.exitCode, 0);
-    const cfg = getEffort();
+    // Pelo MESMO resolvedor que o CLI usa. Ler com `getEffort()` nu ia buscar
+    // o `homedir()` — a casa VERDADEIRA de quem corre a suite — enquanto o
+    // comando ja tinha escrito na casa isolada. Duas verdades, e o teste ficava
+    // a medir a errada.
+    const cfg = getEffort(mooterHomeParent());
     // every named sub-system is engaged
     assert.strictEqual(ULTRAMOO_SUBSYSTEMS.length, 8);
     assert.ok(cfg.llmlingua && cfg.caveman && cfg.lorauter && cfg.multiLora);
