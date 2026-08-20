@@ -11,6 +11,7 @@ import { runStatus } from "../src/commands/status.ts";
 function withHome<T>(fn: () => T): T {
   const prev = process.env.HOME;
   process.env.HOME = mkdtempSync(join(tmpdir(), "mooter-es-"));
+  process.env.MOOTER_HOME = join(process.env.HOME, ".mooter");
   try {
     return fn();
   } finally {
