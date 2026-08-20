@@ -12,6 +12,7 @@ function withHome<T>(fn: () => Promise<T>): Promise<T> {
   const prev = process.env.HOME;
   const home = mkdtempSync(join(tmpdir(), "mooter-wfw-"));
   process.env.HOME = home;
+  process.env.MOOTER_HOME = join(home, ".mooter");
   return fn().finally(() => {
     if (prev === undefined) delete process.env.HOME; else process.env.HOME = prev;
   });
