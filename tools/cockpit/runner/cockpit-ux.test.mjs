@@ -386,3 +386,24 @@ test('o botao nao promete um efeito que o codigo nao tem', () => {
   assert.match(CODE, /flag for issue/, 'o rotulo tem de descrever o que acontece mesmo');
   assert.match(CODE, /\["issue", "flag for issue"\]/, 'e o token gravado no ledger nao muda');
 });
+
+// ── a severidade tem UMA fonte ───────────────────────────────────────────────
+
+/**
+ * O servidor passou a mandar `sev` ja calculada. Se o painel continuasse a
+ * calcular a dele, seriam duas COPIAS da mesma regra — duas verdades sobre o
+ * mesmo achado, a um refactor de distancia de discordarem em silencio. E esse
+ * e literalmente o defeito que o pilar P9 existe para cacar.
+ */
+test('o painel PREFERE a severidade do servidor, e declara o recurso', () => {
+  assert.match(SCRIPT, /a.sev || severidade(a)/,
+    'a copia local so pode servir de recurso, nunca de fonte');
+});
+
+test('um achado mal citado fica marcado no cartao — e NAO desaparece da fila', () => {
+  assert.match(SCRIPT, /a.suporte === false/, 'o aviso tem de depender do veredicto do servidor');
+  assert.match(SCRIPT, /citation does not contain the number claimed/);
+  assert.match(SCRIPT, /w.title = a.suporte_porque/, 'o porque tem de estar ao alcance do rato');
+  assert.doesNotMatch(SCRIPT, /suporte === false[sS]{0,200}continue/,
+    'nada de saltar o achado: mal citado pode ser verdadeiro com a linha errada');
+});
