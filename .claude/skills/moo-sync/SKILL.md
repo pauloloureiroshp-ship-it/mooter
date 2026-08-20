@@ -8,6 +8,26 @@ description: Alinha ESTE device com o Mooter — puxa o repo, espelha o runtime 
 > Script canónico: `tools/cockpit/sync-device.mjs`. Esta skill não faz nada que
 > o script não faça — só sabe conduzi-lo e ler o que ele diz.
 
+## Numa máquina NOVA — o arranque, antes de haver skill nenhuma
+
+A skill que estás a ler vive em `~/.claude/skills/`, e quem a põe lá é este
+repo. **Numa máquina onde o repo ainda não existe, esta skill também não
+existe** — não há slash command para lançar. Alguma coisa tem de chegar
+primeiro, e o vault já chega a todas as máquinas:
+
+```bash
+node ~/paulo-vault/.claude/moo-bootstrap.mjs
+```
+
+**Windows (PowerShell)**
+```powershell
+node $HOME\paulo-vault\.claude\moo-bootstrap.mjs
+```
+
+Clona o repo se faltar, corre o alinhamento, e diz quais as variáveis de
+ambiente em falta com o comando certo para aquele sistema. A partir daí a skill
+existe e o resto desta página aplica-se.
+
 ## O gesto
 
 **macOS / Linux**
