@@ -2,7 +2,7 @@
 // together. Isolated HOME so nothing touches the real ~/.mooter.
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -18,6 +18,8 @@ function withHome<T>(fn: () => Promise<T> | T): Promise<T> {
   const dir = mkdtempSync(join(tmpdir(), "mooter-int-"));
   mkdirSync(join(dir, ".mooter"), { recursive: true });
   process.env.HOME = dir;
+  process.env.MOOTER_HOME = join(dir, ".mooter");
+  process.env.MOOTER_CLAUDE_DIR = join(dir, ".claude");
   return Promise.resolve(fn()).finally(() => {
     if (prev === undefined) delete process.env.HOME; else process.env.HOME = prev;
   });
@@ -62,7 +64,19 @@ test("integration: dashboard renders within an 80×24 terminal (no row overrun)"
 
 test("E2E: GDPR export → delete-all → export is clean throughout", async () => {
   await withHome(async () => {
-    runEffort(["set", "high"]); // create some state
+    // O estado escreve-se DIRECTAMENTE no MOOTER_HOME isolado, e nao via
+    // `runEffort`. Nao e preciosismo: `packages/effort` resolve o caminho por
+    // `homedir()` e NAO honra o `MOOTER_HOME`, portanto no Windows aquele
+    // `set high` escrevia no `~/.mooter` REAL do dono — e este teste so passava
+    // porque a seguir apagava esse mesmo home verdadeiro. Verde pela razao
+    // errada, e a razao errada custou o ledger vivo a 2026-08-20.
+    //
+    // O que este teste afirma — export -> delete-all -> export continua limpo —
+    // prova-se na mesma. O que ele DEIXA de cobrir e a perna
+    // "o `runEffort` cria estado que o export apanha": isso precisa de
+    // `packages/effort` passar a honrar o `MOOTER_HOME`, e esse pacote esta
+    // congelado. Fica dito aqui em vez de fingido pelo teste.
+    writeFileSync(join(process.env.MOOTER_HOME!, "effort.json"), JSON.stringify({ mode: "high" }));
     const before = await runData(["export"]);
     assert.strictEqual(before.exitCode, 0);
     assert.match(before.output, /"effort.json"/);
