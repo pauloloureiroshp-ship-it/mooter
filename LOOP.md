@@ -20,6 +20,54 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-20-o-guarda-que-anulou-aquilo-que-vinha-proteger
+
+**Contexto:** reconciliação F0 do `mp-moo-pilot-total`. Nove PRs (#319-#327), e a meio deles um rebase do vault a resolver conflitos num índice gerado.
+
+**Resultado observado:** escrevi um resolvedor automático de conflitos com uma regra por caminho de ficheiro — para `.claude/3rd-brain/index.json`, *regenerar com o `build-index.js` e `git add`*. Correu bem em três commits. No quarto, o commit que estava a ser replayed era exactamente aquele cujo **único propósito era apagar esse ficheiro** — e a minha regra ressuscitou-o. O `git ls-files` continuava a listá-lo depois de um commit chamado *"tirar o índice do git"*.
+
+**O sinal de alarme, nomeado:** **um resolvedor automático que decide pelo CAMINHO do ficheiro e não pela INTENÇÃO do commit.** A mesma forma aparece em três sítios distintos desta sessão:
+
+| onde | a regra | o que ela não via |
+|---|---|---|
+| rebase do vault | "index.json → regenerar + add" | o commit que o queria apagar |
+| `guarda-home.mjs` v1 | "árvore igual antes/depois → OK" | o comando que nem chegou a arrancar |
+| guarda da landing (#324) | "menciona `canonical-metrics` → perdoa" | a menção estar num **comentário** |
+
+Nos três casos o guarda ficou **verde** e o defeito passou. Nos três, só se soube por eu tentar parti-lo de propósito depois de escrito.
+
+**Porque importa:** a sessão produziu quatro guardas novos (#325 estático, #326 dinâmico + job Windows, #327 ratchet da higiene, e o `mooter-home.test.ts`). Três deles nasceram com o defeito que vinham caçar. O rigor foi aplicado ao artefacto e não ao instrumento — que é literalmente o achado de `2026-08-18-quatro-estados-neutros-lidos-como-fracasso`, outra vez, noutra forma.
+
+**Fonte:** `git ls-files` do vault depois do rebase; output do `guarda-home` a imprimir OK com `npm` rebentado; suite da landing verde com o literal `'89%'` reposto à mão. Todos reproduzidos, nenhum deduzido.
+
+**Status:** REGISTADO. Ver HIPÓTESE.
+
+---
+
+### 2026-08-20-uma-regra-em-dezanove-copias-nao-e-uma-regra
+
+**Contexto:** as 13 falhas do `packages/cli` no Windows, sempre as mesmas, que mantinham o CLI fora do job de CI recém-criado.
+
+**Resultado observado:** as 13 tinham **uma** causa. `join(homedir(), ".mooter")` existia em **19 ficheiros** de `src/commands/`, e nenhuma das cópias olhava para o `MOOTER_HOME`. No Windows o `os.homedir()` lê o `USERPROFILE` e ignora o `HOME` — portanto cada cópia apontava à casa **verdadeira** de quem corria a suite.
+
+Consequências medidas, não estimadas:
+
+- 13 testes vermelhos → **0**, depois de migrar 6 ficheiros para uma fonte única
+- poluição de `npm test` no `~/.mooter` real: **7 artefactos → 2**
+- entre os que desapareceram, o `effort.json` com `mode: "high"` — ou seja, **correr a suite mudava o modo de esforço da máquina de quem a corria**
+- e é a mesma causa que apagou o `~/.mooter` vivo do dono duas vezes (2026-08-05, 232 eventos; 2026-08-20, o ledger do loop)
+
+**O sinal de alarme, nomeado:** uma decisão que se repete literalmente em N sítios não é uma convenção — é **N oportunidades de divergir**, e o dia em que uma delas tiver de mudar só uma vai mudar. O `packages/cli` até já tinha um `mooterHomeDefault()` exportado; ninguém o usava, e ele próprio ignorava o `MOOTER_HOME`.
+
+**Corolário prático:** meia migração é pior do que nenhuma. Ao migrar o `effort`, o `status` ficou a ler pela casa antiga enquanto o comando já escrevia na nova — e um teste que estava verde ficou vermelho. Duas verdades onde antes havia uma só, errada mas consistente.
+
+**Fonte:** `grep -rln 'homedir(), ".mooter"' packages/cli/src` = 19; suite antes 660/646/13, depois 663/662/0; guarda de poluição com home virgem, antes 7 entradas, depois 2.
+
+**Status:** REGISTADO. Ver HIPÓTESE.
+
+---
+
+
 ### 2026-08-18-quatro-estados-neutros-lidos-como-fracasso
 
 **Contexto:** aterrar dois PRs contra um `main` em movimento. Escrevi quatro vigias em `bash` para esperar pelo CI e mergear.

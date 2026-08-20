@@ -1,0 +1,34 @@
+# .gitattributes — os ficheiros cujos BYTES sao a garantia.
+#
+# PORQUE EXISTE, e porque so agora. Este repo nunca teve `.gitattributes`, e
+# nunca correu CI em Windows — as duas coisas juntas escondiam isto:
+#
+#     tools/router/classify.js
+#       sha congelado : 427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f
+#       com LF        : 427d8c0b…  <-- bate
+#       com CRLF      : 6593b7cd…  <-- hash completamente diferente
+#
+# O runner Windows do GitHub faz checkout com `core.autocrlf=true`. Ou seja: a
+# invariante numero UM deste repo — «`classify.js` e FROZEN, o sha e imposto
+# pelo CI» — NAO era verificavel em Windows. O checkout mudava os bytes antes de
+# alguem os poder verificar, e cinco testes que existem para proteger o
+# classificador congelado falhavam por medir outra coisa. Medido a 2026-08-20,
+# na primeira vez que a suite do CLI correu num runner Windows.
+#
+# `-text` diz ao git: NUNCA converter finais de linha neste ficheiro, em
+# plataforma nenhuma. Os bytes que estao no objecto sao os bytes que aparecem no
+# disco — que e a unica forma de um sha256 significar alguma coisa.
+#
+# ⚠️ AMBITO DELIBERADAMENTE ESTREITO. Isto NAO e um `* text=auto eol=lf`. Essa
+# regra arruma a classe inteira (qualquer teste que analise texto versionado com
+# padroes ancorados em fim de linha e cara-ou-coroa por plataforma enquanto nao
+# existir) mas renormaliza o repo inteiro e mexe nas copias de trabalho de toda
+# a gente — e uma decisao do dono, nao um efeito colateral de um PR de CI. Aqui
+# so entram ficheiros onde os BYTES sao a promessa.
+
+# ── o classificador congelado (CLAUDE.md, invariante 1; CI-enforced) ──────────
+tools/router/classify.js        -text
+tools/router/classify.js.sha256 -text
+
+# ── comparado byte a byte com uma string embutida em slash-commands.ts ────────
+packages/cli/skills-templates/mooter/SKILL.md -text

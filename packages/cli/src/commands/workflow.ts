@@ -19,6 +19,7 @@ import type { CmdResult } from "./trail.ts";
 import type { AgentRequest } from "../../../workflow/src/agent.ts";
 // Wave 32 (Phase E) — pure TUI render + external control plane (no native deps).
 import { buildWorkflowWatch, readControl, setRunControl, setAgentControl } from "../../../transparency/src/index.ts";
+import { mooterHomeDefault, mooterHomeParent } from "../packs.ts";
 
 const KNOWN_SUBCOMMANDS = ["create", "list", "watch", "run", "stop", "resume"] as const;
 
@@ -165,7 +166,7 @@ async function resolveScript(name: string): Promise<string | null> {
   const bare = name.endsWith(".js") ? name : `${name}.js`;
   const candidates = [
     path.resolve(process.cwd(), ".claude/skills/workflows/examples", bare),
-    path.join(os.homedir(), ".mooter", "workflows", bare),
+    path.join(mooterHomeDefault(), "workflows", bare),
     path.resolve(process.cwd(), name), // explicit path
   ];
   for (const c of candidates) {
@@ -285,7 +286,7 @@ function buildWatchView(store: any, runId: string) {
     actualCostUsd: run.actual_cost_usd,
     agents: checkpoints.map((c) => ({ label: c.name })),
     checkpoints,
-    control: readControl(runId),
+    control: readControl(runId, mooterHomeParent()),
   };
 }
 
@@ -295,11 +296,11 @@ async function dispatchWatch(rest: string[]): Promise<CmdResult> {
   if (!runId) return err("mooter workflow watch: a run_id is required");
 
   // ── Control-plane flags (no engine needed; scriptable + testable) ──────────
-  if (flags.pause) { setRunControl(runId, "paused"); return { exitCode: 0, output: `⏸ pause intent written for ${runId} (enforced when the run polls the control file)` }; }
-  if (flags.resume) { setRunControl(runId, "running"); return { exitCode: 0, output: `▶ resume intent written for ${runId}` }; }
-  if (flags.kill) { setRunControl(runId, "kill"); return { exitCode: 0, output: `✗ kill intent written for ${runId}` }; }
+  if (flags.pause) { setRunControl(runId, "paused", { home: mooterHomeParent() }); return { exitCode: 0, output: `⏸ pause intent written for ${runId} (enforced when the run polls the control file)` }; }
+  if (flags.resume) { setRunControl(runId, "running", { home: mooterHomeParent() }); return { exitCode: 0, output: `▶ resume intent written for ${runId}` }; }
+  if (flags.kill) { setRunControl(runId, "kill", { home: mooterHomeParent() }); return { exitCode: 0, output: `✗ kill intent written for ${runId}` }; }
   if (typeof flags["kill-agent"] === "string") {
-    setAgentControl(runId, flags["kill-agent"], "kill");
+    setAgentControl(runId, flags["kill-agent"], "kill", { home: mooterHomeParent() });
     return { exitCode: 0, output: `✗ kill intent written for agent '${flags["kill-agent"]}' in ${runId}` };
   }
 
@@ -340,8 +341,8 @@ async function dispatchWatch(rest: string[]): Promise<CmdResult> {
         process.stdin.on("data", (d: Buffer) => {
           const k = d.toString();
           if (k === "q" || k === "\x03") return finish();
-          if (k === "p") setRunControl(runId, "paused");
-          else if (k === "r") setRunControl(runId, "running");
+          if (k === "p") setRunControl(runId, "paused", { home: mooterHomeParent() });
+          else if (k === "r") setRunControl(runId, "running", { home: mooterHomeParent() });
           else if (k === "k") setRunControl(runId, "kill");
           render();
         });
@@ -398,7 +399,7 @@ async function dispatchCreate(rest: string[]): Promise<CmdResult> {
   const path = await import("node:path");
   const os = await import("node:os");
   const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "workflow";
-  const dir = path.join(os.homedir(), ".mooter", "workflows");
+  const dir = path.join(mooterHomeDefault(), "workflows");
   fs.mkdirSync(dir, { recursive: true });
   const scriptPath = path.join(dir, `${slug}.js`);
   fs.writeFileSync(scriptPath, plan.script, "utf8");

@@ -82,11 +82,31 @@ test("runInit: writes 3 schemas with 0600, telemetry default OFF", async () => {
   });
   assert.equal(res.exitCode, 0);
 
+  // ⚠️ `chmod 0600` NAO existe no Windows. Medido a 2026-08-20 nesta maquina:
+  // pedido `0o600` -> obtido `0o666`. O Node so mexe no bit de leitura-apenas;
+  // permissoes POSIX sao ignoradas.
+  //
+  // A asercao do modo fica onde significa alguma coisa. No Windows verifica-se
+  // o que E verificavel: que o ficheiro existe, e que o codigo AINDA chama o
+  // `chmodSync(.., 0o600)` — para a proteccao nao se perder por distraccao no
+  // dia em que alguem so testar nesta plataforma.
+  //
+  // O que isto NAO cobre: ACLs do Windows. Aqui estes ficheiros nao ficam
+  // user-only por este caminho. E uma lacuna real, escrita onde se ve em vez de
+  // escondida atras de um teste verde.
+  const PERMS_POSIX = process.platform !== "win32";
   for (const f of ["profile.json", "credentials.json", "consent.json"]) {
     const path = join(home, f);
     assert.ok(existsSync(path), `${f} not written`);
-    const mode = statSync(path).mode & 0o777;
-    assert.equal(mode, 0o600, `${f} perms ${mode.toString(8)} != 600`);
+    if (PERMS_POSIX) {
+      const mode = statSync(path).mode & 0o777;
+      assert.equal(mode, 0o600, `${f} perms ${mode.toString(8)} != 600`);
+    }
+  }
+  if (!PERMS_POSIX) {
+    const fonte = readFileSync(new URL("../src/commands/init.ts", import.meta.url), "utf8");
+    assert.match(fonte, /chmodSync\([^)]*0o600\)/,
+      "no Windows o modo nao se ve, mas o codigo tem de continuar a pedi-lo");
   }
 
   const consent = JSON.parse(readFileSync(join(home, "consent.json"), "utf8"));

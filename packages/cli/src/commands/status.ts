@@ -5,6 +5,7 @@
 // registry). No invented numbers; `--didactic` adds plain-language explanation.
 
 import { getEffort } from "../../../effort/src/index.ts";
+import { mooterHomeParent } from "../packs.ts";
 import { summarizePastor, listTaskAdapters } from "../../../synthesis/src/index.ts";
 
 export interface CmdResult {
@@ -16,7 +17,7 @@ export function runStatus(args: string[]): CmdResult {
   const didactic = args.includes("--didactic");
   const json = args.includes("--json");
 
-  const effort = getEffort();
+  const effort = getEffort(mooterHomeParent());
   const pastor = summarizePastor();
   const adapters = listTaskAdapters().length;
 

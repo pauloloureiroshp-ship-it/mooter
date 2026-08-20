@@ -316,11 +316,14 @@ jobs:
   # que voltasse a introduzir o defeito passava verde outra vez, e a promessa
   # "verde no Windows" evaporava sem ninguem dar por ela.
   #
-  # Corre `test:cockpit-runner` porque e a suite que cobre o runner e o painel —
-  # o que o dono tem a mexer todos os dias. NAO corre `packages/cli`: essa tem
-  # 13 falhas de ambiente pre-existentes no Windows (medidas, sempre as mesmas),
-  # e um job vermelho a nascenca e um job que se aprende a ignorar. Quando essas
-  # 13 forem fechadas, entra aqui tambem.
+  # Corre `test:cockpit-runner` E o `packages/cli`.
+  #
+  # O CLI NAO estava aqui quando este job nasceu: tinha 13 falhas de ambiente no
+  # Windows (medidas, sempre as mesmas), e um job vermelho a nascenca e um job
+  # que se aprende a ignorar. Ficou escrito que entraria quando fossem fechadas.
+  # Foram — todas, e a causa era UMA: 19 copias de `join(homedir(), ".mooter")`
+  # em `src/commands/`, nenhuma a honrar o `MOOTER_HOME`. Hoje o CLI da 663
+  # testes / 662 verdes / 0 vermelhos nesta plataforma.
   cockpit-windows:
     name: cockpit tests (windows)
     runs-on: windows-latest
@@ -339,3 +342,17 @@ jobs:
 
       - name: Guarda do ~/.mooter (testes do proprio guarda)
         run: npm run test:guarda-home
+
+      # As deps do CLI: o `tsx`, e o `packages/router` que ele importa em .ts cru.
+      - name: Install router deps (windows)
+        working-directory: packages/router
+        run: npm ci --no-audit --no-fund
+      - name: Install cli deps (windows)
+        working-directory: packages/cli
+        run: npm ci --no-audit --no-fund
+
+      # ⚠️ DENTRO do guarda, nao a solta. Esta e a suite que apagou o `~/.mooter`
+      # vivo do dono duas vezes (2026-08-05 e 2026-08-20); o guarda que a vigia
+      # tem de correr exactamente onde ela corre, e nao ao lado.
+      - name: packages/cli no Windows, dentro do guarda do ~/.mooter
+        run: npm run test:cli-guardado
