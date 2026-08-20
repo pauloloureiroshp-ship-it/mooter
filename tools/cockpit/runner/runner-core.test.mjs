@@ -15,6 +15,7 @@ import {
   naoCorreu,
   isNoFinding,
   concluir,
+  conclusaoDeCitacao,
 } from './evidence-verifier.mjs';
 import {
   assertLocalEngine,
@@ -1334,4 +1335,45 @@ test('sem ledger no disco, nao rebenta', () => {
   const r = rodarLedger('/nao/existe.jsonl', { statImpl: () => { throw new Error('ENOENT'); } });
   assert.equal(r.rodou, false);
   assert.match(r.porque, /ainda nao existe/);
+});
+
+// ── 19% do trabalho da GPU ia para o lixo no parser (2026-08-19) ────────────
+
+/**
+ * Medido em 115 rondas de uma hora, ja com as ancoras limpas: 22 (19%) sairam
+ * `indeterminado`. O modelo tinha citado uma linha REAL e o parser deitava a
+ * resposta fora, porque o prefixo nao era `ACHADO:`.
+ *
+ * O que ele escrevia: "COMPLETE PROOF: docs/...md:20" (10x),
+ * "LINE 73: optedIn(prefs()) ... REPEATED: LINE 83" (4x), "BROKEN: ..." (2x).
+ *
+ * O `LINE 73 ... REPEATED: LINE 83` e EXACTAMENTE o que o P9 pede. A causa:
+ * as perguntas dos pilares passaram a ingles e o bloco de formato partilhado
+ * continua a exigir `ACHADO:` — duas instrucoes na mesma volta. So 2 de 115
+ * chegavam a fila de triagem; a diferenca era formatacao, nao trabalho.
+ */
+test('quem citou uma linha real reportou alguma coisa, escreva como escrever', () => {
+  for (const t of [
+    'COMPLETE PROOF: docs/x.md:20',
+    'LINE 73: optedIn(prefs()) LINE 83: statusLine() REPEATED: LINE 73 and LINE 83',
+    'BROKEN: === END === PROOF: docs/y.md:94',
+  ]) {
+    assert.equal(concluir(t), 'indeterminado', 'o prefixo continua a nao ser reconhecido');
+    assert.equal(conclusaoDeCitacao(t), 'achado', 'mas a substancia e um achado: citou e nao disse que nao havia nada');
+  }
+});
+
+test('a regra nova NAO engole os tres carimbos que existem', () => {
+  // Uma ronda vazia continua vazia, e um falso positivo continua falso
+  // positivo. Se isto cair, o painel passa a contar silencio como trabalho.
+  for (const [t, esperado] of [
+    ['SEM ACHADO', 'sem-achado'],
+    ['NO FINDING', 'sem-achado'],
+    ['FALSO POSITIVO: e seguro aqui', 'falso-positivo'],
+    ['FALSE POSITIVE: safe here', 'falso-positivo'],
+    ['ACHADO: x QUANDO y ENTAO z', 'achado'],
+    ['', 'vazio'],
+  ]) {
+    assert.equal(conclusaoDeCitacao(t), esperado, t || '(vazio)');
+  }
 });

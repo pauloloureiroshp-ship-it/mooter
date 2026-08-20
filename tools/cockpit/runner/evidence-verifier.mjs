@@ -145,6 +145,33 @@ export function checkCitation(repoRoot, { file, line }) {
  * painel era o motor a dizer que NAO ha problema. Sao dois eixos diferentes e
  * tem de viver em dois campos diferentes.
  */
+/**
+ * A conclusao de uma resposta QUE CITOU, quando o prefixo nao bate com nenhum
+ * dos formatos conhecidos.
+ *
+ * Medido a 2026-08-19, 115 rondas de uma hora: 22 (19%) sairam
+ * `indeterminado` — o modelo tinha citado uma linha REAL e o parser deitava a
+ * resposta fora. O que ele escrevia:
+ *
+ *     10x  "COMPLETE PROOF: docs/...md:20"
+ *      4x  "LINE 73: optedIn(prefs()) ... REPEATED: LINE 83"
+ *      2x  "BROKEN: ..."
+ *
+ * O `LINE 73 ... REPEATED: LINE 83` e EXACTAMENTE o que o P9 pede — repeticao,
+ * com as duas linhas citadas. O modelo fez o trabalho e o parser chamou-lhe
+ * indeterminado, porque as perguntas dos pilares passaram a ingles e o bloco de
+ * formato partilhado continua a exigir `ACHADO:`. Duas instrucoes, uma volta.
+ *
+ * A regra passa a ser a substancia e nao o prefixo: se citou uma linha que
+ * existe, nao disse que nao havia nada, e nao se declarou falso positivo,
+ * entao reportou alguma coisa. So 2 de 115 chegavam a fila; a diferenca era
+ * formatacao.
+ */
+export function conclusaoDeCitacao(text) {
+  const c = concluir(text);
+  return c === 'indeterminado' ? 'achado' : c;
+}
+
 export function concluir(text) {
   const t = String(text || '').trim().toUpperCase();
   if (!t) return 'vazio';
@@ -208,7 +235,8 @@ export function verifyEvidence({ repoRoot, text, allowedFiles = [], window: win 
   const blank = !head.snippet;
   const suffix = offWindow > 0 ? ` · ${offWindow} citation(s) outside the shown window` : '';
   return {
-    conclusao: concluir(text),
+    // Citou uma linha que existe: a conclusao vem da substancia, nao do prefixo.
+    conclusao: conclusaoDeCitacao(text),
     verdict: blank && offWindow === checked.length ? VERDICT.UNCITED : VERDICT.CITED,
     citations: checked, checked: checked.length, failed: 0, offWindow,
     // "linha existe", never "achado confirmado" — the claim stays untriaged.
