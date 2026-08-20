@@ -30,9 +30,29 @@ import { execFileSync } from 'node:child_process';
 export const REPO_URL = 'https://github.com/pauloloureiroshp-ship-it/mooter.git';
 export const VAULT_URL = 'git@github.com:pauloloureiroshp-ship-it/paulo-vault.git';
 
-/** Onde o repo vive em cada sistema. Um só sítio, para não haver dois. */
-export function caminhoDoRepo(home = os.homedir()) {
-  return path.join(home, 'frugal');
+/**
+ * A pasta de um clone NOVO. `mooter`, que e o nome do projecto.
+ *
+ * As maquinas antigas nao sao afectadas: quando este ficheiro corre de dentro
+ * de um repo, o caminho deriva-se de onde ele esta e a pasta pode chamar-se o
+ * que se quiser. Isto so decide onde POR um clone que ainda nao existe.
+ */
+export const PASTA_OMISSAO = 'mooter';
+
+/**
+ * Onde o repo vive.
+ *
+ * Deriva-se de ONDE ESTE FICHEIRO ESTA quando ele ja corre de dentro do repo —
+ * nao ha nome nenhum para cravar, e um repo clonado com outro nome continua a
+ * funcionar. So o caso do clone precisa de um destino, e esse respeita
+ * `MOOTER_REPO` antes de assumir o que quer que seja.
+ */
+export function caminhoDoRepo(home = os.homedir(), env = process.env, aqui = null) {
+  if (env.MOOTER_REPO) return env.MOOTER_REPO;
+  const meu = aqui || path.dirname(new URL(import.meta.url).pathname);
+  const raiz = path.resolve(meu, '..', '..');
+  try { if (fs.existsSync(path.join(raiz, '.git'))) return raiz; } catch { /* segue */ }
+  return path.join(home, PASTA_OMISSAO);
 }
 
 function correr(bin, args, cwd) {
