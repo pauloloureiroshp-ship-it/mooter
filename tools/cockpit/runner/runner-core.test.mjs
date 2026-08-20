@@ -16,6 +16,7 @@ import {
   isNoFinding,
   concluir,
   conclusaoDeCitacao,
+  SEM_ACHADO_RE,
 } from './evidence-verifier.mjs';
 import {
   assertLocalEngine,
@@ -1353,8 +1354,12 @@ test('sem ledger no disco, nao rebenta', () => {
  * chegavam a fila de triagem; a diferenca era formatacao, nao trabalho.
  */
 test('quem citou uma linha real reportou alguma coisa, escreva como escrever', () => {
+  // `COMPLETE PROOF:` SAIU desta lista de proposito. Quando escrevi este teste
+  // achei que era um achado que o parser deitava fora — nao e: `COMPLETE` e a
+  // saida honesta do P4, tal como `NO FINDING` e a dos outros. Contar isso como
+  // achado enchia a fila de rondas vazias. O verificador passa a conhecer as
+  // saidas de todos os pilares, e este caso vive agora no teste de baixo.
   for (const t of [
-    'COMPLETE PROOF: docs/x.md:20',
     'LINE 73: optedIn(prefs()) LINE 83: statusLine() REPEATED: LINE 73 and LINE 83',
     'BROKEN: === END === PROOF: docs/y.md:94',
   ]) {
@@ -1373,7 +1378,54 @@ test('a regra nova NAO engole os tres carimbos que existem', () => {
     ['FALSE POSITIVE: safe here', 'falso-positivo'],
     ['ACHADO: x QUANDO y ENTAO z', 'achado'],
     ['', 'vazio'],
+    // As saidas proprias de cada pilar contam como ronda vazia, nao como achado.
+    ['COMPLETE PROOF: docs/x.md:20', 'sem-achado'],
+    ['EVERY CALL ONCE', 'sem-achado'],
+    ['NO SEED EXITS', 'sem-achado'],
+    ['THEY MATCH', 'sem-achado'],
   ]) {
     assert.equal(conclusaoDeCitacao(t), esperado, t || '(vazio)');
+  }
+});
+
+// ── as perguntas passam todas a COPIAR e COMPARAR (2026-08-19) ──────────────
+
+/**
+ * A/B com defeito plantado, mesmo excerto, mesmo modelo, mesma GPU:
+ *
+ *   JULGAR    "ha um defeito aqui?"                    -> NO FINDING em 1s. Falhou.
+ *   COMPARAR  "copia os dois numeros e compara-os"     -> apanhou-o, com as duas linhas.
+ *
+ * O modelo local nao sabe JULGAR se codigo esta certo — 8236 rondas, 0 bugs
+ * reais. Sabe COMPARAR duas coisas que existem, e foi dai que vieram os dois
+ * unicos achados que sobreviveram a triagem (STRATEGY.md e README.md).
+ *
+ * O #291 ja tinha posto P1-P6 nesta forma. P7-P10 tinham ficado a julgar.
+ */
+test('nenhum pilar pergunta se ha um defeito — todos mandam copiar primeiro', () => {
+  for (const id of PILLAR_IDS) {
+    const ask = PILLARS[id].ask;
+    // A regra e COPIAR PRIMEIRO, nao escrever "STEP 1": o P6 manda copiar sem o
+    // prefixo e cumpre-a na mesma. O que nao pode e comecar por pedir juizo.
+    assert.match(ask, /^(STEP 1 — )?[Cc]opy[ ,]/, `${id} nao comeca por mandar COPIAR`);
+    // Cada pilar tem a SUA saida honesta — `EVERY CALL ONCE`, `NO SEED EXITS`,
+    // `THEY MATCH`, `COMPLETE`, `NO FINDING`. Sao melhores do que uma generica,
+    // porque sao afirmacoes verificaveis. Mas o verificador TEM de as conhecer:
+    // uma saida que ele nao reconhece vira `indeterminado` e, desde o #310,
+    // entra na fila como achado. Uma ronda vazia a fingir-se de trabalho.
+    // Usa-se o SEM_ACHADO_RE cru e nao o isNoFinding: o enunciado tem palavras
+    // como "but" e "however", e a regra da contradicao — que existe para as
+    // RESPOSTAS — disparava aqui sem razao nenhuma.
+    assert.ok(SEM_ACHADO_RE.test(ask),
+      `${id} oferece uma saida honesta que o verificador nao sabe ler — uma ronda vazia entraria na fila como achado`);
+  }
+});
+
+test('nenhuma pergunta convida a julgar em vez de comparar', () => {
+  // "Is there a defect" foi exactamente a formulacao que o A/B provou nao
+  // funcionar: o modelo responde NO FINDING num segundo, sem olhar.
+  for (const id of PILLAR_IDS) {
+    assert.doesNotMatch(PILLARS[id].ask, /Is there a (defect|bug|problem)/i,
+      `${id} pergunta por julgamento — medido: falha o defeito plantado`);
   }
 });

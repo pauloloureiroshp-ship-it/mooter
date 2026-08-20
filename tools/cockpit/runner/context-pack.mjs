@@ -146,7 +146,8 @@ export const PILLARS = {
       'something the user sees — a saving, a percentage, a price, a count. Use the line',
       'number you see on the LEFT. For each one, look on the same line or the line next',
       'to it for where that number came from: a read, a parameter, an imported constant.',
-      'The one with no visible origin is the FINDING.',
+      'The one with no visible origin is the FINDING. If every number you copied has a '
+      + 'visible origin in this excerpt, answer `EVERY NUMBER HAS AN ORIGIN`.',
     ].join('\n'),
   },
   /**
@@ -161,10 +162,14 @@ export const PILLARS = {
       'tools/cockpit/*.html',
     ],
     ask:
-      'Is there a number, label or state in this excerpt that the panel SHOWS and that '
-      + 'may not mean what the label says — a capped count presented as a total, a state '
-      + 'derived from a field that can be missing, a green that proves nothing? If there '
-      + 'is, cite the line. If there is not, answer NO FINDING.',
+      'STEP 1 — copy, one per line, every line in this excerpt that puts a NUMBER or a '
+      + 'LABEL into something a person will read: a payload field, a rendered string, a '
+      + 'counter. Format: `LINE <n>: <name> = <what it holds>`.\n'
+      + 'STEP 2 — for each line you copied, find in this same excerpt where that value is '
+      + 'produced, and copy that line too.\n'
+      + 'STEP 3 — compare the two, word by word. If the name says total, all or every, and '
+      + 'the production has a slice, a limit, a cap or a filter, cite BOTH lines. If every '
+      + 'name matches what its own line produces, answer NO FINDING.',
   },
   /**
    * P8 — pontas soltas. Um campo escrito e nunca lido, ou lido e nunca escrito,
@@ -179,10 +184,12 @@ export const PILLARS = {
       'packages/router/src/*.ts',
     ],
     ask:
-      'Is there a field in this excerpt that is WRITTEN into an object (a receipt, a '
-      + 'state, a payload) and never appears anywhere else in the excerpt being read, or '
-      + 'a field READ that was never written here? Cite the line where it is written or '
-      + 'read. If every field you can see is used on both sides, answer NO FINDING.',
+      'STEP 1 — copy, one per line, every field this excerpt WRITES into an object. '
+      + 'Format: `WRITTEN LINE <n>: <field>`.\n'
+      + 'STEP 2 — for each field name you copied, search the rest of the excerpt for that '
+      + 'exact name and copy every other line where it appears. Format: `READ LINE <n>`.\n'
+      + 'STEP 3 — a field with a WRITTEN line and no READ line is written and never used. '
+      + 'Cite its line. If every field you copied appears on both sides, answer NO FINDING.',
   },
   /**
    * P9 — a primeira pergunta deste ficheiro que NAO procura um defeito.
@@ -204,10 +211,12 @@ export const PILLARS = {
       'packages/router/src/*.ts',
     ],
     ask:
-      'Are there two or more places in this excerpt doing the SAME work under different '
-      + 'names — the same check written twice, the same transformation, the same object '
-      + 'shape built in two spots? Cite BOTH lines and say what the single name would be. '
-      + 'If everything you can see happens exactly once, answer NO FINDING.',
+      'STEP 1 — copy, one per line, every check, guard or transformation in this excerpt. '
+      + 'Format: `LINE <n>: <the expression>`.\n'
+      + 'STEP 2 — compare the lines you copied to each other, character by character.\n'
+      + 'STEP 3 — if two of them do the same work (identical, or differing only in a '
+      + 'variable name), cite BOTH line numbers and give the one name they should share. '
+      + 'If every line you copied is unique work, answer NO FINDING.',
   },
   /**
    * P10 — o trabalho que a maquina podia fazer e esta a pedir a uma pessoa.
@@ -224,10 +233,13 @@ export const PILLARS = {
       'packages/*/README.md',
     ],
     ask:
-      'Does this excerpt tell a HUMAN to do something by hand — run a command, copy a '
-      + 'value between two places, remember a step, check a file before another — that a '
-      + 'script or a CI job could do by itself? Cite the line that gives the instruction '
-      + 'and name what would run it. If nothing here asks a person to do machine work, '
+      'STEP 1 — copy, one per line, every sentence in this excerpt that tells a PERSON to '
+      + 'do something: run, copy, paste, check, remember, update, confirm. Format: '
+      + '`LINE <n>: <the instruction>`.\n'
+      + 'STEP 2 — for each one you copied, search this same excerpt for a command, script '
+      + 'or CI step that already does it, and copy that line if it exists.\n'
+      + 'STEP 3 — an instruction with no line doing it is handwork a script could do. Cite '
+      + 'its line and name what would run it. If this excerpt asks nothing of a person, '
       + 'answer NO FINDING.',
   },
 };

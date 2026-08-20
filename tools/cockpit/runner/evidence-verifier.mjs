@@ -50,10 +50,34 @@ const MAX_CITATIONS = 12;
  * `sem-citacao`: o painel contava-a como resposta por verificar, e o modelo
  * era castigado por ter feito exactamente o que lhe pediram.
  */
-export const SEM_ACHADO_RE = /\b(SEM\s+ACHADO|NO\s+FINDING)\b/i;
+export const SEM_ACHADO_RE = /\b(SEM\s+ACHADO|NO\s+FINDING|EVERY\s+CALL\s+ONCE|NO\s+SEED\s+EXITS|THEY\s+MATCH|SHAPE\s+IS\s+UNIQUE|EVERY\s+NUMBER\s+HAS\s+AN\s+ORIGIN|COMPLETE)\b/i;
+
+/** Palavras com que uma resposta se desdiz depois de ter dito que nao ha nada. */
+export const CONTRADIZ_RE = /\b(however|but|although|porem|por[eé]m|contudo|no entanto|todavia|entretanto|mas)\b/i;
 
 export function isNoFinding(text) {
-  return SEM_ACHADO_RE.test(String(text || ''));
+  const t = String(text || '');
+  if (!SEM_ACHADO_RE.test(t)) return false;
+  // ⚠️ O carimbo tem de ser a resposta INTEIRA, nao o principio dela.
+  //
+  // Medido a 2026-08-19 num A/B com defeito plantado: perguntando ao modelo
+  // para COMPARAR dois numeros, ele respondeu
+  //
+  //     "NO FINDING. The comment on line 20 states 75 ... However, the code on
+  //      line 21 uses 300. The numbers do not match digit by digit."
+  //
+  // — apanhou o defeito, e comecou por dizer que nao havia nenhum. Com o teste
+  // a procurar o carimbo em qualquer sitio do texto, um achado CERTO era
+  // classificado como ronda vazia e deitado fora.
+  //
+  // Tirado o carimbo e a pontuacao, o que sobra decide: uma ronda mesmo vazia
+  // nao tem mais nada para dizer.
+  // O sinal NAO e o comprimento — um "SEM ACHADO: todas as linhas conferem" e
+  // uma ronda vazia legitima que se explica. O sinal e a CONTRADICAO: quem diz
+  // "nao ha nada" e depois escreve "no entanto" acabou de encontrar alguma
+  // coisa, e o carimbo com que comecou nao vale mais do que o que se seguiu.
+  const resto = t.replace(SEM_ACHADO_RE, ' ');
+  return !CONTRADIZ_RE.test(resto);
 }
 
 /** Extracts unique `file:line` pairs, capped so a runaway answer cannot stall a round. */
