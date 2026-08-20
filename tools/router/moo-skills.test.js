@@ -14,7 +14,10 @@ const EXPECTED = ['moo-workflow', 'moo-effort', 'moo-herd', 'moo-dashboard', 'mo
   // First Magic FASE 2 — the free deterministic critic.
   'moo-verify',
   // F5 — o cockpit por device: levanta motor/endpoint/loop e abre o painel ao vivo.
-  'moo-pilot'];
+  'moo-pilot',
+  // 2026-08-19 — poe um device qualquer em dia antes de ele contar como frota:
+  // codigo, espelhos de runtime, indice do vault, versao do conector.
+  'moo-sync'];
 
 function frontmatter(text) {
   const m = text.match(/^---\n([\s\S]*?)\n---/);
@@ -27,7 +30,7 @@ function frontmatter(text) {
   return out;
 }
 
-test('all 13 /moo-* skills exist with valid frontmatter and matching name', () => {
+test('all 14 /moo-* skills exist with valid frontmatter and matching name', () => {
   for (const slug of EXPECTED) {
     const p = path.join(SKILLS_DIR, slug, 'SKILL.md');
     assert.ok(fs.existsSync(p), `${slug}/SKILL.md missing`);
@@ -38,7 +41,7 @@ test('all 13 /moo-* skills exist with valid frontmatter and matching name', () =
   }
 });
 
-test('exactly the 13 expected moo-* skills are present (no stragglers)', () => {
+test('exactly the 14 expected moo-* skills are present (no stragglers)', () => {
   const dirs = fs.readdirSync(SKILLS_DIR).filter((d) => d.startsWith('moo-'));
   assert.deepStrictEqual(dirs.sort(), [...EXPECTED].sort());
 });
