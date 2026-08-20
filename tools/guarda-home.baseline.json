@@ -1,0 +1,27 @@
+{
+  "_comment": "A poluicao que `npm test` (packages/cli) AINDA faz no ~/.mooter de quem o corre. Medido a 2026-08-20 num home virgem, com USERPROFILE e HOME redireccionados. Isto nao e uma absolvicao: e divida, escrita onde se ve. A lista SO PODE ENCOLHER — `guarda-home.test.mjs` falha se crescer.",
+  "_porque_ainda_esta_aqui": "A causa nao esta nos testes: esta na resolucao de caminhos de pacotes CONGELADOS (waves 28-34.5) que usam `os.homedir()` e nao honram o `MOOTER_HOME` — `packages/effort/src/effort-manager.ts` e o exemplo canonico. Arranja-los exige um brief que os liste um a um. Ate la, o guarda impede que a lista cresca.",
+  "_o_mais_grave_da_lista": "effort.json — `npm test` MUDA o modo de esforco da maquina de quem o corre (mediu-se `mode: high` depois de uma corrida). E o proximo a sair daqui.",
+
+  "novos_tolerados": [
+    "cache/",
+    "effort.json",
+    "fable-5-escalations.jsonl",
+    "local-models.json",
+    "preferences.json",
+    "workflow-control/"
+  ],
+
+  "_mutaveis_porque": "Se a suite correr numa maquina com o loop vivo, estes mudam sozinhos durante a corrida — o ledger cresce de ~35 em ~35 segundos. ALTERAR e tolerado para eles; APAGAR nunca e, para nenhum ficheiro, e nao ha entrada nesta lista que perdoe um apagado.",
+  "mutaveis_pelo_loop": [
+    "runner-ledger.jsonl",
+    "runner-ledger.1.jsonl",
+    "runner-state.json",
+    "runner-cursor.json",
+    "revistos.json",
+    "triagem.jsonl",
+    "session-affinity/",
+    "sessoes/",
+    "reasoning-effort.json"
+  ]
+}
