@@ -32,3 +32,40 @@ tools/router/classify.js.sha256 -text
 
 # ── comparado byte a byte com uma string embutida em slash-commands.ts ────────
 packages/cli/skills-templates/mooter/SKILL.md -text
+
+# ── A CLASSE INTEIRA, e nao so os tres de cima ────────────────────────────────
+#
+# `text=auto eol=lf`: o git decide o que e texto, normaliza para LF no objecto,
+# e materializa LF em TODAS as plataformas. Qualquer teste que analise texto
+# versionado com padroes ancorados em fim de linha deixa de ser cara-ou-coroa
+# consoante a maquina.
+#
+# ⚠️ Isto ficou de fora do primeiro commit deste ficheiro porque eu ESTIMEI que
+# renormalizaria o repo inteiro e mexeria nas copias de trabalho de toda a gente,
+# e devolvi a decisao ao dono com esse argumento. Depois medi:
+#
+#     git add --renormalize .  ->  UM ficheiro
+#     packages/vscode-extension/instalar  (59 bytes, uma linha de texto)
+#
+# A estimativa estava errada por duas ordens de grandeza. O repo ja e LF em toda
+# a parte; so nunca tinha ficado ESCRITO, e por isso cada checkout em Windows
+# podia decidir outra coisa. Custou, no mesmo dia: o parser da SKILL.md (#326) e
+# a verificacao do sha do classificador congelado (#328) — a invariante numero 1.
+#
+# As tres linhas `-text` acima ficam de proposito. `-text` e mais forte do que
+# normalizar: diz "nunca converter, em circunstancia nenhuma". Para ficheiros
+# cujo sha256 E a promessa, a redundancia e barata e a ambiguidade nao.
+* text=auto eol=lf
+
+# Binarios, para o `text=auto` nao ter de adivinhar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.mcpb binary
+*.gguf binary
+*.woff binary
+*.woff2 binary

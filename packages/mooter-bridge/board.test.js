@@ -288,7 +288,7 @@ test('uma excepção sem dono faz falhar', () => {
   }), /sem dono válido: metrica_orfa/);
 });
 
-test('scorecardAsync usa quota.estadoAsync e o pior gap com 5000 eventos fica abaixo de 120 ms', async () => {
+test('scorecardAsync usa quota.estadoAsync e devolve o controlo ao event loop com 5000 eventos', async () => {
   const ledger = [];
   const inicio = Date.parse('2026-07-26T12:00:00.000Z');
   for (let i = 0; i < 2500; i++) {
@@ -301,20 +301,70 @@ test('scorecardAsync usa quota.estadoAsync e o pior gap com 5000 eventos fica ab
     estado() { throw new Error('scorecardAsync chamou quota.estado síncrona'); },
     async estadoAsync() { asyncChamado++; return { pressao: { valor: 0.2, porque: 'teste' } }; },
   };
-  let ultimo = performance.now();
-  let pior = 0;
-  const timer = setInterval(() => {
-    const agora = performance.now();
-    pior = Math.max(pior, agora - ultimo);
-    ultimo = agora;
-  }, 1);
+  // ⚠️ A alegação é «o scorecard NÃO bloqueia o event loop». A primeira versão
+  // afirmava isso com um TECTO DE RELÓGIO (`pior gap < 120 ms`) — e um tecto de
+  // relógio num runner partilhado mede a carga da máquina, não o código.
+  //
+  // Falhou em CI a 2026-08-20 num PR que não toca UM ficheiro deste pacote
+  // (#328), e fez o gate `a suite não pode piorar` acusar `0 → 1`. Na bancada do
+  // dono: 29/29 verde, três vezes seguidas. Um guarda que dá vermelho sem haver
+  // regressão ensina-se a ignorar — e um guarda ignorado não guarda nada.
+  //
+  // A inversão é o arranjo. Um tecto de latência falha em máquinas LENTAS; um
+  // PISO DE CEDÊNCIAS só falha em código que BLOQUEIA:
+  //
+  //   · bloqueia  -> o loop tem ~1 turno durante a chamada, em qualquer máquina
+  //   · cede      -> tem muitos, e uma máquina lenta dá MAIS, nunca menos
+  //
+  // Por isso o piso é seguro onde o tecto não era: o modo de falha aponta ao
+  // defeito em vez de apontar ao vizinho de rack.
+  let turnos = 0;
+  let aContar = true;
+  const contar = () => { if (aContar) { turnos += 1; setImmediate(contar); } };
+  setImmediate(contar);
+
+  // O relógio fica, mas como INFORMAÇÃO no output — nunca como asserção.
+  const t0 = performance.now();
   await board.scorecardAsync({
     ledger, agora: AGORA, persist: false, quotaModule, gpuState: null,
   });
-  pior = Math.max(pior, performance.now() - ultimo);
-  clearInterval(timer);
+  const decorrido = performance.now() - t0;
+  aContar = false;
+
+  // A alegação que este teste EXISTE para proteger, e que é determinística:
+  // o scorecard tem de passar pelo caminho ASSÍNCRONO da quota. O `estado()`
+  // síncrono acima atira se for chamado, portanto isto é uma prova, não uma
+  // medição.
   assert.strictEqual(asyncChamado, 1);
-  assert.ok(pior < 120, 'pior gap medido: ' + pior.toFixed(1) + ' ms');
+
+  // E que devolve o controlo ao loop mais do que o `await` final — medido: 4
+  // turnos nesta bancada, 3× seguidas. O piso fica em 2 porque o que se quer
+  // apanhar é o zero: código que faz as 5000 iterações de uma assentada.
+  // Um piso falha em código que BLOQUEIA; uma máquina lenta dá MAIS turnos,
+  // nunca menos — que é exactamente o contrário de um tecto de relógio.
+  assert.ok(
+    turnos >= 2,
+    `o event loop só teve ${turnos} turno(s) durante o scorecard de 5000 eventos `
+    + `(${decorrido.toFixed(1)} ms) — isso é trabalho síncrono a bloquear`,
+  );
+
+  // ⚠️ O ORÇAMENTO DE LATÊNCIA SAIU DAQUI, e isso é uma perda declarada.
+  //
+  // A asserção original era `pior gap < 120 ms`. Nesta bancada o total são
+  // ~27 ms — quatro vezes de margem — e mesmo assim falhou num runner do
+  // GitHub a 2026-08-20, num PR que não toca UM ficheiro deste pacote (#328).
+  // Fez o gate `a suite não pode piorar` acusar `0 → 1` sem haver regressão
+  // nenhuma. Um guarda que dá vermelho por carga de máquina ensina-se a
+  // ignorar, e um guarda ignorado não guarda nada.
+  //
+  // O tecto que fica é CATASTRÓFICO, não orçamental: 2 s só dispara se alguém
+  // tornar isto ordens de grandeza mais lento. O orçamento apertado de 120 ms
+  // pertence a um teste de performance com bancada dedicada — não a uma suite
+  // de correcção que bloqueia merges de terceiros.
+  assert.ok(
+    decorrido < 2000,
+    `scorecard de 5000 eventos demorou ${decorrido.toFixed(0)} ms — isto já não é carga de runner`,
+  );
 });
 
 test('escrever o histórico duas vezes no mesmo dia não duplica', () => {
