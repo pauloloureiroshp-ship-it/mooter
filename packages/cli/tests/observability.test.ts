@@ -15,6 +15,7 @@ function withHome<T>(fn: (home: string) => T): T {
   const prev = process.env.HOME;
   const home = mkdtempSync(join(tmpdir(), "mooter-obs-"));
   process.env.HOME = home;
+  process.env.MOOTER_HOME = join(home, ".mooter");
   try {
     return fn(home);
   } finally {
