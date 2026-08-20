@@ -27,7 +27,7 @@ function git(repoRoot, args, timeoutMs = GIT_TIMEOUT_MS) {
     execFile(
       'git',
       ['-C', repoRoot, ...args],
-      { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 },
+      { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
       (err, stdout) => resolve(err ? null : String(stdout).trim()),
     );
   });

@@ -11,11 +11,12 @@
  */
 
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 // ATENÇÃO ao caminho: `/mooter-update` sincroniza `<repo>/.claude/skills/` para
 // `~/.claude/skills/`. Uma skill em `<repo>/skills/` fica canónica no repo e
 // NUNCA é instalada — canónica e morta. É aqui que ela tem de viver para ser

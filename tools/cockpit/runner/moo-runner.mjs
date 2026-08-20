@@ -26,7 +26,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
 import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
@@ -41,7 +41,7 @@ import { verReserva, esperaS } from './reserva.mjs';
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
 /** A raiz do repo de onde ESTE script corre — o ultimo degrau da resolucao. */
-const SCRIPT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+const SCRIPT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 // Base do diff: o que mudou desde este ref e trabalho novo para rever. Um repo
 // parado devolve zero hunks e o runner cai para a ancora — a escada degrada

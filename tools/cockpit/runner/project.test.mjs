@@ -7,6 +7,7 @@
  */
 
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -156,7 +157,7 @@ test('B3: o init PROPOE — escreve a proposta, nunca o ficheiro que o runner le
   const p = proporPilares(repo, { churnImpl: () => [] });
   const destino = escreverProposta(repo, p);
 
-  assert.equal(path.relative(repo, destino), PROPOSTA_FILE);
+  assert.equal(path.relative(repo, destino).split(path.sep).join('/'), PROPOSTA_FILE);
   assert.equal(fs.existsSync(path.join(repo, PILLARS_FILE)), false,
     'escrever o ficheiro a valer seria o motor a escolher o que se revê a si proprio');
   const corpo = JSON.parse(fs.readFileSync(destino, 'utf8'));
@@ -186,7 +187,7 @@ test('B3: o init nao propoe rever a propria suite de testes', () => {
 test('B3: a proposta que sai deste repo passa na propria validacao', () => {
   // O que o init propoe tem de ser aceite pelo loader. Se as duas metades
   // divergirem, o dono aprova um ficheiro que o runner depois recusa.
-  const repoReal = path.resolve(new URL('../../..', import.meta.url).pathname);
+  const repoReal = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
   const p = proporPilares(repoReal);
   const v = validarPilares(p.pilares);
   assert.equal(v.ok, true, `a proposta tem de passar no loader: ${v.erros.join('; ')}`);

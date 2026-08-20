@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -21,9 +22,9 @@ function fakeRepo({ sync = [], orfaos = [] } = {}) {
 test('as tres moradas sao declaradas, e a orfa e rotulada como tal', () => {
   const homes = skillHomes({ home: '/h', repo: '/r' });
   const orfa = homes.find((x) => x.id === 'repo-orfao');
-  assert.match(orfa.dir, /\/r\/skills$/);
+  assert.match(orfa.dir.split(path.sep).join('/'), /\/r\/skills$/);
   assert.match(orfa.nota, /NÃO sincronizado/);
-  assert.match(homes.find((x) => x.id === 'repo-sync').dir, /\.claude\/skills$/);
+  assert.match(homes.find((x) => x.id === 'repo-sync').dir.split(path.sep).join('/'), /\.claude\/skills$/);
 });
 
 test('so conta como skill uma pasta com SKILL.md', () => {
@@ -59,7 +60,7 @@ test('repo limpo e sem conta legivel da ok', () => {
 });
 
 test('o doctor nunca apaga nem escreve nada', () => {
-  const src = fs.readFileSync(new URL('skills-doctor.mjs', import.meta.url).pathname, 'utf8');
+  const src = fs.readFileSync(fileURLToPath(new URL('skills-doctor.mjs', import.meta.url)), 'utf8');
   const code = src.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
   for (const perigo of ['rmSync', 'unlinkSync', 'writeFileSync', 'renameSync', 'rmdirSync']) {
     assert.ok(!code.includes(perigo), `o doctor nao pode ${perigo} — skills da conta sao do dono`);

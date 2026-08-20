@@ -9,15 +9,20 @@
  */
 
 import http from 'node:http';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { buildFleetState } from './fleet-state.mjs';
+import { buildFleetState, readLedger } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths, versaoDoConector } from './project.mjs';
-import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores } from './triagem.mjs';
+import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar } from './triagem.mjs';
+import {
+  NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
+  ORCAMENTOS, orcamento, curar,
+} from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
@@ -68,7 +73,7 @@ const OLLAMA = 'http://127.0.0.1:11434';
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
 /** A raiz do repo de onde ESTE script corre — o repo canonico deste device. */
-const SCRIPT_ROOT = path.resolve(new URL('../../..', import.meta.url).pathname);
+const SCRIPT_ROOT = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
 /**
  * O aviso que acompanha um painel que NAO e o canonico.
@@ -217,10 +222,66 @@ export function createServer({
   const stopFile = paths.STOP_FILE;
   const ledgerPath = paths.LEDGER;
   const statePath = paths.STATE;
+  // O autopilot vive ao lado do STOP e do FOCUS: um ficheiro pequeno que
+  // sobrevive a um reboot e que se apaga a mao se for preciso.
+  const autopilotFile = path.join(paths.base, 'autopilot.json');
+  const lerAutopilot = () => lerEstado(autopilotFile, fs.readFileSync);
   const focusFile = paths.FOCUS;
+  /** O foco pedido pelo painel, lido do FICHEIRO — nunca do estado do loop. */
+  const lerFocoPedido = (ficheiro) => {
+    try { const { pilar } = JSON.parse(fs.readFileSync(ficheiro, 'utf8')); return pilar ?? null; }
+    catch { return null; }
+  };
   const triagemFile = path.join(paths.base, "triagem.jsonl");
 
-  return http.createServer(async (req, res) => {
+  /**
+   * O tique do nivel 1 — a unica coisa neste ficheiro que decide sem o dono.
+   *
+   * Fecha achados `low` com um motivo TIPADO e assinado por `agente`, para que a
+   * fila que sobra seja so o que precisa dele. Nao toca no repo e nao apaga
+   * nada: o `triagem.jsonl` e append-only e uma decisao errada reverte-se com
+   * outra linha. Corre com tecto porque um autopilot que despeja 200 decisoes de
+   * uma vez e indistinguivel de um acidente, e escreve no log o que fez —
+   * trabalho sem dono visivel e trabalho que ninguem consegue auditar.
+   *
+   * Fail-closed em cada tique: se a taxa de citacao inventada subir acima do
+   * tecto desde o tique anterior, o autopilot suspende-se AQUI, sozinho, e diz
+   * porque. Nao ha estado de confianca acumulado.
+   */
+  function tiqueCurar(logImpl = (s) => process.stdout.write(s)) {
+    let feitos = 0;
+    try {
+      const pedido = lerAutopilot();
+      if (pedido.nivel < 1) return 0;
+      const { receipts } = readLedger(ledgerPath);
+      const { decisoes } = lerTriagem(triagemFile);
+      const fila = porTriar(receipts, decisoes);
+      const ps = portoes({
+        recibos: {
+          total: receipts.length,
+          refutado: receipts.filter((r) => r && r.verdict === 'refutado').length,
+        },
+        triagem: {},
+      });
+      if (efectivo(pedido.nivel, ps) < 1) {
+        logImpl(`autopilot L1 SUSPENSO: ${ps[0].porque_fechado}
+`);
+        return 0;
+      }
+      for (const acto of curar(fila)) {
+        registarTriagem(triagemFile, acto);
+        feitos += 1;
+      }
+      if (feitos) logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado
+`);
+    } catch (err) {
+      logImpl(`autopilot L1 falhou (a fila fica intacta): ${String(err && err.message).slice(0, 160)}
+`);
+    }
+    return feitos;
+  }
+
+  const servidor = http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
 
     if (!hostAllowed(req.headers.host)) {
@@ -245,26 +306,43 @@ export function createServer({
       ]);
       const where = beaconDir();
       const fleet = readBeacons({ ...where, selfDevice: device });
-      return sendJson(
-        res,
-        200,
-        buildFleetState({
-          device,
-          // Lida do manifest a cada pedido: o painel nunca pode afirmar uma
-          // versao que o repo ja nao tem.
-          connector: versaoDoConector(raiz),
-          ledgerPath,
-          statePath,
-          stopFile,
-          triagemPath: triagemFile,
-          baseDir: paths.base,
-          gpu,
-          engineAlive: alive,
-          loadedModels: models,
-          alignment,
-          fleet,
-        }),
-      );
+      const estado = buildFleetState({
+        device,
+        // Lida do manifest a cada pedido: o painel nunca pode afirmar uma
+        // versao que o repo ja nao tem.
+        connector: versaoDoConector(raiz),
+        ledgerPath,
+        statePath,
+        stopFile,
+        triagemPath: triagemFile,
+        baseDir: paths.base,
+        gpu,
+        engineAlive: alive,
+        loadedModels: models,
+        alignment,
+        fleet,
+      });
+      // `foco` e o pilar com que o loop CORREU a ultima ronda; so muda quando a
+      // ronda seguinte acabar (ate ~35 s). O ficheiro de foco muda no instante
+      // do clique. Publicar apenas `foco` fazia o botao parecer morto durante
+      // uma ronda inteira — medido a 2026-08-19: 6 cliques, 1 confirmado.
+      // Dois campos, duas verdades, nenhuma mentira.
+      estado.foco_pedido = lerFocoPedido(focusFile);
+      // O autopilot viaja com os PORTOES ja medidos: o painel nunca calcula se
+      // um nivel pode abrir, so mostra o numero que o abre e o numero que ha.
+      const pedido = lerAutopilot();
+      const ps = portoes({ recibos: estado.recibos, triagem: estado.triagem });
+      estado.autopilot = {
+        pedido: pedido.nivel,
+        efectivo: efectivo(pedido.nivel, ps),
+        tecto: tectoPermitido(ps),
+        orcamento: pedido.orcamento,
+        orcamento_diz: orcamento(pedido.orcamento).diz,
+        orcamentos: Object.entries(ORCAMENTOS).map(([id, o]) => ({ id, rotulo: o.rotulo, diz: o.diz })),
+        niveis: NIVEIS,
+        portoes: ps,
+      };
+      return sendJson(res, 200, estado);
     }
 
     // Static catalogue, fetched once at boot instead of riding every poll: the
@@ -358,7 +436,7 @@ export function createServer({
       });
     }
 
-    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus' || route === '/triagem')) {
+    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus' || route === '/triagem' || route === '/autopilot')) {
       if (!originAllowed(req.headers.origin)) {
         return sendJson(res, 403, { erro: 'origem nao local recusada' }, { cors: false });
       }
@@ -395,6 +473,31 @@ export function createServer({
         }
       }
 
+      // O nivel de autonomia e o orcamento de GPU. Guardado como PEDIDO; o que
+      // vale e o `efectivo`, cortado pelos portoes a cada leitura — pedir 3 com
+      // o portao 1 fechado nao da 3, da o que os numeros permitem.
+      if (route === '/autopilot') {
+        const body = await readBody(req);
+        const bruto = {
+          nivel: body && body.nivel !== undefined ? body.nivel : lerAutopilot().nivel,
+          orcamento: body && body.orcamento !== undefined ? body.orcamento : lerAutopilot().orcamento,
+        };
+        if (body && body.nivel !== undefined && !Number.isInteger(Number(body.nivel))) {
+          return sendJson(res, 400, { erro: 'nivel tem de ser 0..3' });
+        }
+        if (body && body.orcamento !== undefined && !Object.prototype.hasOwnProperty.call(ORCAMENTOS, String(body.orcamento))) {
+          return sendJson(res, 400, { erro: 'orcamento desconhecido', aceites: Object.keys(ORCAMENTOS) });
+        }
+        const guardar = normalizar(bruto);
+        try {
+          fs.mkdirSync(path.dirname(autopilotFile), { recursive: true });
+          fs.writeFileSync(autopilotFile, JSON.stringify(guardar));
+        } catch (err) {
+          return sendJson(res, 500, { ok: false, erro: String(err.message).slice(0, 200) });
+        }
+        return sendJson(res, 200, { ok: true, ...guardar });
+      }
+
       // Per-pillar focus. The cockpit must never show a control that does
       // nothing, so the button writes a preference the loop actually reads.
       if (route === '/focus') {
@@ -429,10 +532,18 @@ export function createServer({
 
     return sendJson(res, 404, { erro: 'not found', rota: route });
   });
+
+  // 45 s: mais lento do que uma ronda, para nunca competir com o loop pela mesma
+  // leitura do ledger. `unref` para que o tique nunca segure o processo vivo.
+  const tique = setInterval(() => tiqueCurar(), 45_000);
+  if (typeof tique.unref === 'function') tique.unref();
+  servidor.on('close', () => clearInterval(tique));
+  servidor.tiqueCurar = tiqueCurar;
+  return servidor;
 }
 
 const invokedDirectly =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
   const { root, fonte } = resolveRepoRoot({ argv: process.argv.slice(2), scriptRoot: SCRIPT_ROOT });

@@ -14,6 +14,7 @@ function withHome<T>(fn: () => T): T {
   const home = mkdtempSync(join(tmpdir(), "mooter-sl-"));
   mkdirSync(join(home, ".mooter"), { recursive: true });
   process.env.HOME = home;
+  process.env.MOOTER_HOME = join(home, ".mooter");
   // os.homedir() (used by statusline.ts) reads USERPROFILE on Windows, HOME on
   // POSIX — set both so these tests never touch Paulo's real ~/.mooter on Windows.
   process.env.USERPROFILE = home;

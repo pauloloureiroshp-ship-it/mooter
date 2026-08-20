@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { rodarLedger, CAUDA_AO_RODAR } from './moo-runner.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -1086,7 +1087,7 @@ test('nenhum padrao de pilar pode apontar ao vazio', () => {
   // anos a `tools/router/statusline.js`, que nunca existiu nesse caminho, sem
   // ninguem dar por isso. Com padroes o risco muda de forma mas nao desaparece:
   // um `tools/rooter/*.js` mal escrito casa com zero e ninguem estranha.
-  const raiz = path.resolve(new URL('../../..', import.meta.url).pathname);
+  const raiz = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
   const mortos = [];
   for (const id of PILLAR_IDS) {
     for (const padrao of PILLARS[id].files) {
@@ -1100,7 +1101,7 @@ test('cada pilar tem material que chegue para nao secar em horas', () => {
   // 2026-08-19: P2, P3 e P6 estavam a 100% de esgotamento e a GPU corria 5
   // minutos por hora. A causa nao era o modelo, era a aritmetica — as ancoras
   // eram listas de 3 a 5 ficheiros. Este numero e o chao, nao a meta.
-  const raiz = path.resolve(new URL('../../..', import.meta.url).pathname);
+  const raiz = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
   const magros = PILLAR_IDS
     .map((id) => [id, resolveCandidates(raiz, id).length])
     .filter(([, n]) => n < 10);

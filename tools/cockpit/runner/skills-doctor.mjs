@@ -22,11 +22,12 @@
  */
 
 import fs from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 
 const HOME = os.homedir();
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 /** As moradas conhecidas, por ordem de autoridade decrescente. */
 export function skillHomes({ home = HOME, repo = REPO } = {}) {
@@ -155,5 +156,5 @@ function main() {
 }
 
 const invokedDirectly =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) main();

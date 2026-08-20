@@ -19,6 +19,7 @@
  */
 
 import fs from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { resolveRepoRoot } from './project.mjs';
@@ -46,7 +47,7 @@ const existe = (repoRoot, rel) => {
  */
 export function ficheirosComMaisChurn(repoRoot, { limite = 200, runImpl = null } = {}) {
   const run = runImpl || ((args) => execFileSync('git', args, {
-    cwd: repoRoot, encoding: 'utf8', timeout: 10_000, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+    cwd: repoRoot, encoding: 'utf8', timeout: 10_000, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true,
   }));
   let out;
   try {
@@ -195,7 +196,7 @@ export function escreverProposta(repoRoot, proposta) {
 export function main(argv = process.argv.slice(2), escrever = process.stdout.write.bind(process.stdout)) {
   const { root, fonte } = resolveRepoRoot({
     argv,
-    scriptRoot: path.resolve(new URL('../../..', import.meta.url).pathname),
+    scriptRoot: path.resolve(fileURLToPath(new URL('../../..', import.meta.url))),
   });
   const proposta = proporPilares(root);
   const ids = Object.keys(proposta.pilares);
@@ -229,6 +230,6 @@ export function main(argv = process.argv.slice(2), escrever = process.stdout.wri
 }
 
 export const invocadoComoPrograma = Boolean(process.argv[1])
-  && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invocadoComoPrograma) main();

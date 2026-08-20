@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,7 +9,7 @@ import {
   safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness,
   BEACON_FRESH_S,
 } from './fleet-beacon.mjs';
-import { parseNvidiaSmi, sampleGpu } from './gpu-sampler.mjs';
+import { parseNvidiaSmi, sampleGpu, normalizaSonda } from './gpu-sampler.mjs';
 import { buildPlist, windowsCommand, preflight, LABEL } from './autostart.mjs';
 
 const T0 = Date.parse('2026-08-16T18:00:00Z');
@@ -33,7 +34,7 @@ test('com vault montado os beacons sao partilhados; sem vault, nao', () => {
 
   const sem = beaconDir({ vaultPath: null, home: '/h', existsImpl: () => false });
   assert.equal(sem.partilhado, false);
-  assert.match(sem.dir, /\.mooter\/fleet$/);
+  assert.match(sem.dir.split(path.sep).join('/'), /\.mooter\/fleet$/);
 });
 
 test('sem partilha o painel diz que a frota nao e frota', () => {
@@ -154,7 +155,42 @@ test('no Windows a amostragem passa por nvidia-smi', async () => {
 test('sem nvidia-smi o 4090 aparece n/d com a razao, nao parado a 0%', async () => {
   const g = await sampleGpu({ platform: 'win32', runImpl: async () => null });
   assert.equal(g.util_pct, null);
-  assert.match(g.motivo, /nvidia-smi missing/);
+  // A forma legada (`null` seco) nao carrega motivo nenhum. O sampler diz
+  // exactamente isso — nao inventa uma causa para preencher o campo.
+  assert.match(g.motivo, /motivo nao reportado/);
+});
+
+/**
+ * O defeito que este teste tranca: o `resolve(err ? null : ...)` antigo
+ * colapsava "o binario nao existe", "a maquina esta sob carga" e "respondeu
+ * lixo" no mesmo `null`, e o painel traduzia os tres para
+ * `non-NVIDIA GPU?`. Uma RTX 4090 numa maquina ocupada era publicada a frota
+ * como maquina sem GPU — o sintoma acusava a plataforma em vez do sistema.
+ */
+test('a sonda que falha diz PORQUE falhou — carga nunca vira "sem GPU"', async () => {
+  const semPath = await sampleGpu({
+    platform: 'win32',
+    runImpl: async () => ({ out: null, motivo: 'nvidia-smi nao esta no PATH deste processo' }),
+  });
+  assert.equal(semPath.util_pct, null);
+  assert.match(semPath.motivo, /nao esta no PATH/);
+
+  const lenta = await sampleGpu({
+    platform: 'win32',
+    runImpl: async () => ({ out: null, motivo: 'nvidia-smi nao respondeu em 4000ms — a maquina pode estar sob carga; isto NAO prova ausencia de GPU' }),
+  });
+  assert.match(lenta.motivo, /sob carga/);
+  assert.match(lenta.motivo, /NAO prova ausencia de GPU/);
+  assert.doesNotMatch(lenta.motivo, /non-NVIDIA/);
+});
+
+test('normalizaSonda aceita as tres formas sem perder o motivo', () => {
+  assert.deepEqual(normalizaSonda(null), { out: null, motivo: null });
+  assert.deepEqual(normalizaSonda('50, 100, 200'), { out: '50, 100, 200', motivo: null });
+  assert.deepEqual(normalizaSonda({ out: null, motivo: 'x' }), { out: null, motivo: 'x' });
+  // O sucesso continua a devolver stdout: quem injecta `runImpl` nos testes
+  // antigos nao teve de mudar uma linha.
+  assert.deepEqual(normalizaSonda({ out: '1, 2, 3' }), { out: '1, 2, 3', motivo: null });
 });
 
 // ── auto-start ───────────────────────────────────────────────────────────────
@@ -178,9 +214,9 @@ test('o plist reinicia um crash mas respeita uma saida limpa', () => {
 });
 
 test('o shim protege-se do agendador', () => {
-  const shim = fs.readFileSync(new URL('../../../moo-runner.command', import.meta.url).pathname, 'utf8');
+  const shim = fs.readFileSync(fileURLToPath(new URL('../../../moo-runner.command', import.meta.url)), 'utf8');
   assert.match(shim, /MOOTER_AUTOSTART/, 'o shim tem de saber quando NAO deve fazer --play');
-  const cmd = fs.readFileSync(new URL('../../../moo-runner.cmd', import.meta.url).pathname, 'utf8');
+  const cmd = fs.readFileSync(fileURLToPath(new URL('../../../moo-runner.cmd', import.meta.url)), 'utf8');
   assert.match(cmd, /MOOTER_AUTOSTART/);
 });
 
@@ -211,7 +247,7 @@ test('a identidade do device vem de UM sitio so', async () => {
   if (antes === undefined) delete process.env.MOOTER_DEVICE; else process.env.MOOTER_DEVICE = antes;
 
   for (const f of ['f10-server.mjs', 'moo-runner.mjs', 'runner-core.mjs', 'fleet-state.mjs']) {
-    const src = fs.readFileSync(new URL(f, import.meta.url).pathname, 'utf8');
+    const src = fs.readFileSync(fileURLToPath(new URL(f, import.meta.url)), 'utf8');
     const code = src.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
     assert.ok(!/'mac-mini'/.test(code), `${f} nao pode ter o nome do device cravado`);
   }

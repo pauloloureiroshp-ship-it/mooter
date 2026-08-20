@@ -33,12 +33,43 @@ function bytesToGb(value) {
   return value === null ? null : Math.round((value / 1e9) * 100) / 100;
 }
 
+/**
+ * Corre a sonda e devolve SEMPRE o motivo quando falha.
+ *
+ * O `resolve(err ? null : ...)` que estava aqui colapsava tres coisas muito
+ * diferentes no mesmo `null`: o binario nao existe, o binario existe e demorou
+ * demais, e o binario respondeu lixo. Com isso, uma RTX 4090 numa maquina
+ * sobrecarregada era publicada como `non-NVIDIA GPU?` — o sintoma acusava a
+ * plataforma em vez do proprio sistema. Custou uma sessao inteira a 2026-08-19.
+ *
+ * Compatibilidade: continua a devolver a string do stdout em caso de sucesso,
+ * embrulhada em `{out, motivo}`. Quem injecta `runImpl` nos testes pode
+ * devolver string ou null a vontade — `normalizaSonda` aceita as tres formas.
+ */
 function run(cmd, args, timeoutMs) {
   return new Promise((resolve) => {
-    execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
-      resolve(err ? null : String(stdout));
+    execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (err, stdout) => {
+      if (!err) return resolve({ out: String(stdout), motivo: null });
+      if (err.code === 'ENOENT') {
+        return resolve({ out: null, motivo: `${cmd} nao esta no PATH deste processo` });
+      }
+      if (err.killed || err.code === 'ETIMEDOUT' || err.signal === 'SIGTERM') {
+        return resolve({
+          out: null,
+          motivo: `${cmd} nao respondeu em ${timeoutMs}ms — a maquina pode estar sob carga; isto NAO prova ausencia de GPU`,
+        });
+      }
+      return resolve({ out: null, motivo: `${cmd} falhou: ${String(err.message).slice(0, 120)}` });
     });
   });
+}
+
+/** Aceita `{out,motivo}`, uma string de stdout, ou null. */
+export function normalizaSonda(r) {
+  if (r && typeof r === 'object' && !Array.isArray(r)) {
+    return { out: r.out ?? null, motivo: r.motivo ?? null };
+  }
+  return { out: r ?? null, motivo: null };
 }
 
 /** Parses ioreg output. Exported so the parser is testable without a GPU. */
@@ -98,18 +129,22 @@ const NVIDIA_ARGS = [
 
 export async function sampleGpu({ runImpl = run, platform = os.platform() } = {}) {
   if (platform === 'darwin') {
-    const out = await runImpl('ioreg', ['-r', '-d', '1', '-c', 'IOAccelerator'], IOREG_TIMEOUT_MS);
+    const { out, motivo } = normalizaSonda(
+      await runImpl('ioreg', ['-r', '-d', '1', '-c', 'IOAccelerator'], IOREG_TIMEOUT_MS),
+    );
     return out === null
       ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a',
-          motivo: 'ioreg failed or timed out' }
+          motivo: motivo || 'ioreg failed or timed out' }
       : parseIoreg(out);
   }
 
   if (platform === 'win32' || platform === 'linux') {
-    const out = await runImpl('nvidia-smi', NVIDIA_ARGS, IOREG_TIMEOUT_MS);
+    const { out, motivo } = normalizaSonda(
+      await runImpl('nvidia-smi', NVIDIA_ARGS, IOREG_TIMEOUT_MS),
+    );
     return out === null
       ? { util_pct: null, vram_inuse_gb: null, vram_alloc_gb: null, fonte: 'n/a',
-          motivo: 'nvidia-smi missing or unresponsive (non-NVIDIA GPU?)' }
+          motivo: motivo || 'nvidia-smi nao respondeu (motivo nao reportado)' }
       : parseNvidiaSmi(out);
   }
 

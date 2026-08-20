@@ -222,7 +222,7 @@ export function verPreferencias(mooDir, { existsImpl = fs.existsSync } = {}) {
 export function verCodigo(repoRoot, { runImpl = null } = {}) {
   const correr = runImpl || ((args) => {
     const { execFileSync } = require('node:child_process');
-    return String(execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })).trim();
+    return String(execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })).trim();
   });
   let atras = null;
   // `@{u}` primeiro (o upstream deste ramo), e `origin/main` como recurso: um
