@@ -217,6 +217,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   </div>
   <div class="banner" id="applying" hidden role="status" aria-live="polite"></div>
 
+  <div class="card vouched" id="saude-card" hidden>
+    <h2>What needs your hand</h2>
+    <div id="saude-lista"></div>
+    <p class="note">Every one of these was found by reading files, not by a model — a <code>stat</code> and a comparison. They run on every request, for free.</p>
+  </div>
+
   <div class="row">
     <div class="card gpu vouched">
       <h2>This device's GPU</h2>
@@ -824,6 +830,43 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     nota.textContent = partes.join(' ');
   }
 
+  // ── what needs your hand ─────────────────────────────────────────────────
+  //
+  // O dono disse, e tinha razao: "nao vi nada de melhorias ou alertas". Nove
+  // defeitos reais num dia, e o painel calado. Nao era falta de defeitos: era
+  // falta de quem olhasse. Cada linha aqui traz o gesto que a resolve — um
+  // alerta que nao diz COMO se resolve e uma queixa.
+  const ROTULO_ESTADO = { mau: "bad", aviso: "warn", ok: "ok", "n/d": "dead" };
+
+  function renderSaude(s) {
+    const card = $("saude-card"); const lista = $("saude-lista");
+    if (!card || !lista) return;
+    lista.replaceChildren();
+    const itens = (s && s.itens) || [];
+    // So se mostra o que PRECISA de mao. Um cartao cheio de verdes ensina a
+    // ignora-lo, e no dia do vermelho ninguem olha.
+    const precisam = itens.filter((i) => i.estado === "mau" || i.estado === "aviso");
+    card.hidden = precisam.length === 0;
+    if (!precisam.length) return;
+    for (const i of precisam) {
+      const linha = el("div", "tri");
+      const cab = el("div", "cab");
+      cab.append(el("span", "chip " + (ROTULO_ESTADO[i.estado] || "dead"), i.estado === "mau" ? "needs fixing" : "worth a look"),
+                 el("b", null, i.o_que + (i.valor ? " — " + i.valor : "")));
+      linha.appendChild(cab);
+      linha.appendChild(el("div", "diz ok", i.porque));
+      if (i.resolver) linha.appendChild(el("code", "ev", i.resolver));
+      lista.appendChild(linha);
+    }
+  }
+
+  function loadSaude() {
+    fetch(BASE + "/saude.json", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(renderSaude)
+      .catch(() => {});
+  }
+
   function loadCusto() {
     fetch(BASE + '/custo.json', { cache: 'no-store' })
       .then((r) => r.json())
@@ -1064,7 +1107,9 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   renderToggleOffline();
   loadCatalogue();
   loadCusto();
+  loadSaude();
   setInterval(() => { if (!document.hidden) loadCusto(); }, 60_000);
+  setInterval(() => { if (!document.hidden) loadSaude(); }, 60_000);
   poll();
   setInterval(() => { if (!document.hidden) poll(); }, POLL_MS);
 })();

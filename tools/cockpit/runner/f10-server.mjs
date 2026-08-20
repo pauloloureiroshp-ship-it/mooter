@@ -20,6 +20,7 @@ import { resolveRepoRoot, projectPaths, versaoDoConector } from './project.mjs';
 import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores } from './triagem.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { spendByModel } from './spend-by-model.mjs';
+import { autoVerificar } from './self-check.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -283,6 +284,21 @@ export function createServer({
     // que os MESMOS tokens custariam se tivessem ido pela API. Sao dois numeros
     // verdadeiros e diferentes, e e a diferenca entre eles que e a tese do
     // produto. Um painel que os somasse estaria a inventar uma factura.
+    // A auto-verificacao: o cockpit a olhar para si proprio, sem modelo nenhum.
+    //
+    // Os nove defeitos de 2026-08-19 foram todos encontrados a ler ficheiros a
+    // mao, e nenhum precisava de um modelo — um `stat` e uma comparacao
+    // chegavam. Isto corre-os a cada pedido, de graca. "Nao ha alertas" nunca
+    // quis dizer "esta tudo bem": queria dizer que ninguem estava a olhar.
+    if (req.method === 'GET' && route === '/saude.json') {
+      return sendJson(res, 200, autoVerificar({
+        paths,
+        mooDir: paths.base,
+        vaultDir: beaconDir().partilhado ? path.dirname(beaconDir().dir) : null,
+        beaconFile: path.join(beaconDir().dir, `${device}.json`),
+      }));
+    }
+
     if (req.method === 'GET' && route === '/custo.json') {
       const agora = Date.now();
       if (!custoCache.dados || agora - custoCache.em > CUSTO_TTL_MS) {
