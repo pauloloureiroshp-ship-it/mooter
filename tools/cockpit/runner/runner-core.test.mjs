@@ -1429,3 +1429,61 @@ test('nenhuma pergunta convida a julgar em vez de comparar', () => {
       `${id} pergunta por julgamento — medido: falha o defeito plantado`);
   }
 });
+
+// ── a pergunta faz parte da chave (2026-08-20) ──────────────────────────────
+
+/**
+ * Bug vivo, apanhado ao confrontar o desenho com prior art. A chave de revisao
+ * era `pilar|ficheiro:linhas:sha` — sem a PERGUNTA. Mudar o enunciado de um
+ * pilar deixava as janelas ja vistas marcadas como feitas, sob uma pergunta que
+ * ja nao existia.
+ *
+ * Medido: o #312 reescreveu P7, P8, P9 e P10, e 1129 das 2826 janelas de
+ * `revistos.json` ficaram fechadas para sempre a uma pergunta que nunca lhes
+ * foi feita.
+ *
+ * E o mesmo principio da action cache do Bazel: a chave e o digest de TUDO o
+ * que determina a resposta — comando E entradas. Aqui: o excerto E a pergunta.
+ * Um conjunto enderecado por conteudo so e correcto se o conteudo incluir o
+ * que produziu a resposta.
+ */
+test('mudar a pergunta reabre as janelas desse pilar — e so desse', () => {
+  const t = 'const x = 1;';
+  const a = chaveDeRevisao('P9', 'a.js', 1, 10, t, 'pergunta A');
+  const b = chaveDeRevisao('P9', 'a.js', 1, 10, t, 'pergunta B');
+  assert.notEqual(a, b, 'com a pergunta nova, a janela tem de voltar a fila');
+
+  // O mesmo excerto sob a MESMA pergunta continua fechado — senao nao ha
+  // memoria nenhuma e a GPU remoi para sempre.
+  assert.equal(a, chaveDeRevisao('P9', 'a.js', 1, 10, t, 'pergunta A'));
+
+  // E outro pilar com a mesma pergunta continua a ser trabalho diferente.
+  assert.notEqual(a, chaveDeRevisao('P8', 'a.js', 1, 10, t, 'pergunta A'));
+});
+
+test('a identidade do conteudo continua dentro da chave', () => {
+  // Um excerto ALTERADO tem de voltar a fila, mesmo com a mesma pergunta.
+  const q = 'copia e compara';
+  const antes = chaveDeRevisao('P1', 'a.js', 1, 10, 'const x = 1;', q);
+  const depois = chaveDeRevisao('P1', 'a.js', 1, 10, 'const x = 2;', q);
+  assert.notEqual(antes, depois);
+  assert.ok(antes.includes(hunkKey('a.js', 1, 10, 'const x = 1;')));
+});
+
+test('sem pergunta, a chave diz que nao a tem — nunca finge que tem', () => {
+  const k = chaveDeRevisao('P1', 'a.js', 1, 10, 'x', null);
+  assert.match(k, /^P1\.sem-q\|/, 'uma chave sem pergunta tem de ser distinguivel de uma com');
+});
+
+test('todos os sitios que consultam `revistos` passam a pergunta', () => {
+  // Um so sitio esquecido bastava para esse ramo continuar a envenenar chaves.
+  const fonte = fs.readFileSync(new URL('./context-pack.mjs', import.meta.url), 'utf8');
+  // Por LINHA e nao por regex de parenteses: uma das chamadas tem um
+  // `.join('\n')` la dentro, e `[^)]*` parava no parentese errado.
+  const chamadas = fonte.split('\n')
+    .filter((l) => l.includes('chaveDeRevisao(') && !l.includes('export function'));
+  assert.ok(chamadas.length >= 3, 'nao encontrei as chamadas — o teste deixou de medir o que diz medir');
+  for (const c of chamadas) {
+    assert.ok(c.includes('spec.ask'), `chamada sem a pergunta: ${c.trim().slice(0, 70)}`);
+  }
+});
