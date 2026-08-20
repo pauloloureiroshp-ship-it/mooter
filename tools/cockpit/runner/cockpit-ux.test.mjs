@@ -10,6 +10,7 @@
  */
 
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +19,7 @@ import vm from 'node:vm';
 import { buildFeed, FEED_LENGTH } from './fleet-state.mjs';
 import { deviceName, portOpen, loopAlive } from './launch.mjs';
 
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const SHELL = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'moo-pilot-shell.html'), 'utf8');
 const SCRIPT = /<script>([\s\S]*)<\/script>/.exec(SHELL)[1];
 /** Código sem comentários: uma regra citada num comentário não é uma violação. */

@@ -13,6 +13,7 @@
  */
 
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -28,7 +29,7 @@ const { createServer, originAllowed, AVISO_PROTOTIPO } = await import('./f10-ser
 const runner = await import('./moo-runner.mjs');
 const { runRound } = await import('./runner-core.mjs');
 
-const REPO = path.resolve(new URL('../../..', import.meta.url).pathname);
+const REPO = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
 /** Levanta o F10 numa porta efemera e devolve a base + um fecho. */
 async function servidorEfemero({ fetchImpl } = {}) {

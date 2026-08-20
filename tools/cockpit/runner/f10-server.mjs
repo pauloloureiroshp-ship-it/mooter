@@ -9,6 +9,7 @@
  */
 
 import http from 'node:http';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -68,7 +69,7 @@ const OLLAMA = 'http://127.0.0.1:11434';
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
 /** A raiz do repo de onde ESTE script corre — o repo canonico deste device. */
-const SCRIPT_ROOT = path.resolve(new URL('../../..', import.meta.url).pathname);
+const SCRIPT_ROOT = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
 /**
  * O aviso que acompanha um painel que NAO e o canonico.
@@ -432,7 +433,7 @@ export function createServer({
 }
 
 const invokedDirectly =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
   const { root, fonte } = resolveRepoRoot({ argv: process.argv.slice(2), scriptRoot: SCRIPT_ROOT });

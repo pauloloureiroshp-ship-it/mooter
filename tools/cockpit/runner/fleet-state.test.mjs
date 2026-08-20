@@ -1,4 +1,5 @@
 import test from 'node:test';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 
 import {
@@ -212,8 +213,8 @@ test('hostAllowed fecha DNS rebinding: o Host denuncia o nome do atacante', () =
 
 test('o painel prefere a copia canonica do repo a prototipo untracked', () => {
   const [first, second] = panelCandidates('/repo');
-  assert.match(first, /tools\/cockpit\/moo-pilot-shell\.html$/);
-  assert.match(second, /moo-pilot-preview\.html$/);
+  assert.match(first.split(path.sep).join('/'), /tools\/cockpit\/moo-pilot-shell\.html$/);
+  assert.match(second.split(path.sep).join('/'), /moo-pilot-preview\.html$/);
 });
 
 // ── correcções que vieram do gauntlet adversarial (F9) ───────────────────────

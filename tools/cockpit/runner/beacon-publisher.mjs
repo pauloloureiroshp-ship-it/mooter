@@ -29,7 +29,7 @@ export function ligado(env = process.env) {
 }
 
 function git(dir, args, runImpl) {
-  return String(runImpl('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) || '').trim();
+  return String(runImpl('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }) || '').trim();
 }
 
 /**

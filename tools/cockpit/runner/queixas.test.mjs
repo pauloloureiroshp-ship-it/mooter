@@ -11,11 +11,12 @@
  */
 
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 const exists = (rel) => fs.existsSync(path.join(REPO, rel));
 

@@ -10,8 +10,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const SCRIPT = path.join(REPO, 'tools', 'cockpit', 'sync-device.mjs');
 const SKILL = fs.readFileSync(path.join(REPO, '.claude', 'skills', 'moo-sync', 'SKILL.md'), 'utf8');
 const FONTE = fs.readFileSync(SCRIPT, 'utf8');

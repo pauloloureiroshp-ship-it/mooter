@@ -29,8 +29,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const AQUI = path.dirname(new URL(import.meta.url).pathname);
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
 export const ORIGEM_RUNNER = path.join(AQUI, 'runner');
 export const ORIGEM_SHELL = path.join(AQUI, 'moo-pilot-shell.html');
 
@@ -195,7 +196,7 @@ export function main(argv = process.argv.slice(2), escrever = process.stdout.wri
 }
 
 export const invocadoComoPrograma = Boolean(process.argv[1])
-  && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invocadoComoPrograma) {
   const r = main();
