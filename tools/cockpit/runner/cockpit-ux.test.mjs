@@ -325,7 +325,15 @@ test('um token sem entrada no VERDICTS mostra-se cru, nunca em branco', () => {
  */
 test('a fila de triagem tem um TETO nomeado, tal como o feed tem FEED_LENGTH', () => {
   assert.match(SCRIPT, /const TRIAGE_CAP = \d+;/, 'o limite tem de ser uma constante nomeada, nao um numero magico disperso');
-  assert.match(SCRIPT, /const mostrar = triagemExpandida \? fila : fila\.slice\(0, TRIAGE_CAP\)/);
+  // A alegacao aqui e o TETO, nao a forma exacta da linha. A fila passou a ser
+  // ORDENADA POR SEVERIDADE antes de cortar — sem isso o corte mostrava os 12
+  // mais recentes em vez dos 12 que importam, e era isso que fazia a fila
+  // parecer 29 coisas iguais. Pinar o texto antigo era o teste a proteger a
+  // implementacao em vez da promessa.
+  assert.match(SCRIPT, /const mostrar = \(triagemExpandida \? \w+ : \w+\.slice\(0, TRIAGE_CAP\)\)/,
+    'sem expandir, a fila tem de ser cortada em TRIAGE_CAP');
+  assert.match(SCRIPT, /\.sort\(\(x, y\) => y\.s\.n - x\.s\.n/,
+    'e o corte tem de cair sobre a fila ja ordenada por severidade');
 });
 
 test('nunca trunca em silêncio: se algo fica de fora, o número que o diz é visível', () => {
