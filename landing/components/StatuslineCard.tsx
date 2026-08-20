@@ -1,4 +1,5 @@
 import { MooterMarkTiny } from './MooterMark';
+import { M } from '@/app/lib/canonical-metrics';
 
 // StatuslineCard — the 3-line narrative statusline (IMPLEMENTATION_SPEC §6.1 / §11.2).
 // Matches STATUSLINE_FORMAT_LINES. Reusable in hero + dashboard preview.
@@ -20,9 +21,16 @@ export interface StatuslineData {
   alltime: string;
 }
 
+// Valores de AMOSTRA para a pre-visualizacao do componente — excepto os que
+// tem fonte canonica, que derivam dela. Ate 2026-08-20 o `savedPct` era o
+// literal '89%' enquanto o resto da landing publicava os 47% de
+// `canonical-metrics.ts`: a mesma poupanca com dois numeros, no mesmo site.
+// Achado pelo pilar P6 do Moo Pilot (landing/components/StatuslineCard.tsx:24).
+// Os restantes campos nao tem fonte canonica nenhuma e ficam como amostra
+// declarada — inventar consistencia entre numeros inventados seria pior.
 const DEFAULTS: StatuslineData = {
-  savedToday: '$0.31',
-  savedPct: '89%',
+  savedToday: '$0.31', // amostra
+  savedPct: M.savedPct, // canonico
   tier: 'T2',
   model: 'sonnet',
   conf: '0.84',

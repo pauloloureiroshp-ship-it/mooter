@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { M } from '../lib/canonical-metrics';
 
@@ -32,6 +32,54 @@ describe('Wave 11 PR-A landing', () => {
     // honest ("comparable quality on routine tasks") so it can't regress.
     expect(read('app/api/og/route.tsx')).not.toContain('Same results');
     expect(read('app/manifest.ts')).not.toContain('Same results');
+  });
+
+  // Wave 60 estendeu a guarda da FRASE ao cartao social e ao manifesto. O NUMERO
+  // ficou de fora, e foi por ai que a landing passou meses a publicar tres
+  // percentagens de poupanca diferentes: 47% em canonical-metrics.ts, 89% em
+  // components/StatuslineCard.tsx e 90.2% cravado como default em
+  // app/api/og/route.tsx. Os dois sitios que derivaram sao exactamente os dois
+  // que este ficheiro nunca olhou — um por estar fora de `app/`, o outro por so
+  // ser verificado para a frase banida.
+  //
+  // Esta guarda deixa de nomear ficheiros: varre a arvore. Uma regra que so
+  // vale onde o teste ja mordeu nao e uma regra, e uma cicatriz.
+  it('nenhum ficheiro da landing publica uma percentagem de poupanca cravada', () => {
+    const SAVING_LITERAL = /(saved|savings|poupanc)[A-Za-z]*\s*[:=]\s*['"`]\s*\d+(?:[.,]\d+)?\s*%/i;
+    const raiz = join(__dirname, '..', '..');
+    const ignorar = new Set(['node_modules', '.next', 'dist', 'coverage', '.git']);
+    const ficheiros: string[] = [];
+    const andar = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (ignorar.has(e.name)) continue;
+        const p = join(dir, e.name);
+        if (e.isDirectory()) andar(p);
+        else if (/\.(tsx?|jsx?)$/.test(e.name) && !/\.test\./.test(e.name)) ficheiros.push(p);
+      }
+    };
+    andar(join(raiz, 'app'));
+    andar(join(raiz, 'components'));
+
+    // Linha a linha, e as de comentario nao contam. Duas razoes, ambas medidas:
+    //
+    //  · SEM EXCEPCAO NENHUMA. A primeira versao desta guarda perdoava qualquer
+    //    ficheiro que MENCIONASSE `canonical-metrics`, com a ideia de que quem
+    //    deriva pode ter uma amostra ao lado. Verificado a mao: bastava um
+    //    COMENTARIO com essas palavras para desarmar a guarda por completo — o
+    //    literal '89%' voltava ao StatuslineCard e a suite passava a verde.
+    //    Uma guarda que se desliga com um comentario nao e uma guarda.
+    //    E a excepcao nem era precisa: `canonical-metrics.ts` DERIVA `savedPct`
+    //    como numero calculado, nao tem literal nenhum para perdoar.
+    //  · E OS COMENTARIOS NAO SAO PUBLICACAO. Sem os saltar, este proprio
+    //    ficheiro — que precisa de escrever o defeito para o explicar — seria o
+    //    primeiro infractor.
+    const infractores = ficheiros.filter((p) => readFileSync(p, 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l))
+      .some((l) => SAVING_LITERAL.test(l)))
+      .map((p) => p.slice(raiz.length + 1));
+
+    expect(infractores).toEqual([]);
   });
 
   it('D2-4 homepage surfaces an auth-error banner', () => {
