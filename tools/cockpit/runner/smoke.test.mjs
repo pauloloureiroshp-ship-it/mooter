@@ -59,6 +59,42 @@ test('smoke: GET /fleet.json responde 200 com o estado real deste device', async
   }
 });
 
+/**
+ * O botao de foco parecia morto durante uma ronda inteira.
+ *
+ * `foco` e o pilar com que o loop CORREU a ultima volta — so muda quando a
+ * ronda seguinte acabar, ate ~35 s depois do clique. O painel so tinha esse
+ * campo, portanto durante essa volta o botao ficava exactamente como antes de
+ * ser carregado: medido a 2026-08-19, seis cliques e um unico confirmado. O
+ * dono nao estava a ver um bug do loop, estava a ver um painel calado.
+ *
+ * `foco_pedido` e o ficheiro, e o ficheiro muda no instante do clique. Dois
+ * campos, duas verdades, nenhuma mentira — e nenhum deles substitui o outro.
+ */
+test('smoke: /fleet.json publica foco_pedido — a ordem aceite, antes de pegar', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const { pilares } = await (await fetch(`${base}/pilares.json`)).json();
+    const alvo = pilares[0].id;
+
+    const antes = await (await fetch(`${base}/fleet.json`)).json();
+    assert.ok('foco_pedido' in antes, 'o payload tem de trazer sempre o campo, mesmo vazio');
+
+    const pedido = await fetch(`${base}/focus`, { method: 'POST', body: JSON.stringify({ pilar: alvo }) });
+    assert.equal(pedido.status, 200);
+
+    const depois = await (await fetch(`${base}/fleet.json`)).json();
+    assert.equal(depois.foco_pedido, alvo, 'o clique tem de aparecer no MESMO poll, sem esperar pela ronda');
+
+    const largar = await fetch(`${base}/focus`, { method: 'POST', body: JSON.stringify({ pilar: null }) });
+    assert.equal(largar.status, 200);
+    const limpo = await (await fetch(`${base}/fleet.json`)).json();
+    assert.equal(limpo.foco_pedido, null, 'largar o foco tem de se ver tambem no MESMO poll');
+  } finally {
+    await fechar();
+  }
+});
+
 test('smoke ACEITACAO: POST /stop de uma origem externa leva 403', async () => {
   const { base, fechar } = await servidorEfemero();
   try {
