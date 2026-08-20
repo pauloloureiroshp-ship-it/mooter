@@ -1,3 +1,15 @@
+> **Morada:** este ficheiro viveu em `_handoff/MASTERPROMPTS_INDEX.md` enquanto
+> nao era versionado. Mudou para `docs/` a 2026-08-20 por duas razoes, e a
+> segunda e a que manda:
+>
+> 1. O `AGENTS.md` diz que `_handoff/` e para masterprompts EFEMEROS, arquivados
+>    para `_handoff/_archive/YYYY-MM/` quando a onda fecha. Um indice nunca
+>    fecha — nao e um pacote, e o registo dos pacotes.
+> 2. O ratchet da higiene recusou-o la, e tinha razao: contava como o 205.º
+>    pacote activo na raiz do `_handoff/` (baseline 204). Subir o baseline seria
+>    gastar orcamento de higiene para manter um ficheiro na gaveta errada — o
+>    mesmo relatorio ja assinala 105 scripts e logs a mais nessa raiz.
+
 # 📇 MASTERPROMPTS_INDEX — estado vivo de cada masterprompt e as suas sessões
 **Regra (doutrina 2026-08-15, v2 com códigos):** todo masterprompt novo entra aqui NA CRIAÇÃO com:
 **código da frente** (kebab, vira nome da sessão CC via `/rename`) · estado · sessão de ORIGEM ·
