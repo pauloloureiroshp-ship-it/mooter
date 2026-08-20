@@ -128,3 +128,34 @@ test('as variaveis vem com o gesto CERTO para cada sistema', async () => {
   // Com tudo definido, nao se pede nada.
   assert.deepEqual(variaveisEmFalta({ VAULT_PATH: '/v', MOO_PUBLICAR_BEACON: '1' }, 'darwin'), []);
 });
+
+// ── um comando so (2026-08-19) ─────────────────────────────────────────────
+
+/**
+ * Do lado de quem usa nao existem tres conceitos — arrancar, alinhar, lancar.
+ * Existe uma vontade: "poe esta maquina a trabalhar". Cada comando extra e mais
+ * uma forma de falhar, e o unico que sobrevive a memoria de quem nao mexe nisto
+ * todos os dias e o que ja se sabe de cor.
+ */
+const FONTE_LAUNCH = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'launch.mjs'), 'utf8');
+
+test('lancar ALINHA antes de levantar — nao reporta e deixa o dono a copiar', () => {
+  assert.match(FONTE_LAUNCH, /sync-device\.mjs/, 'o lancamento tem de correr o alinhamento');
+  assert.match(FONTE_LAUNCH, /--no-sync/, 'e tem de haver forma de o saltar a depurar');
+});
+
+test('o alinhamento nunca impede o arranque', () => {
+  // Alinhar e conveniencia; o cockpit e o trabalho. Um lancamento que morre
+  // porque o `git pull` falhou deixa a maquina sem nada.
+  const bloco = /if \(!args\.has\('--no-sync'\)[\s\S]*?\n  \}/.exec(FONTE_LAUNCH);
+  assert.ok(bloco, 'nao encontrei o bloco do alinhamento');
+  assert.match(bloco[0], /try \{/, 'tem de estar dentro de um try');
+  assert.doesNotMatch(bloco[0], /process\.exit/, 'alinhar nao pode bloquear o arranque');
+});
+
+test('o arranque vai ate ao fim — nao diz "a seguir corre X"', () => {
+  // O passo que se esquece e sempre o ultimo.
+  assert.match(FONTE_BOOT, /launch\.mjs/, 'o arranque tem de levantar o cockpit');
+  assert.match(FONTE_BOOT, /--so-alinhar/, 'com forma de parar antes, para quem a quer');
+  assert.match(FONTE_BOOT, /'--no-sync'/, 'e sem alinhar duas vezes seguidas');
+});

@@ -142,10 +142,21 @@ async function main() {
     console.log('');
   }
 
-  console.log('  A seguir:');
-  console.log(`      cd "${destino}"`);
-  console.log('      npm run pilot            # levanta o cockpit deste device');
-  console.log('  E numa sessão NOVA do Cowork: /moo-sync e /moo-pilot\n');
+  // E levanta. Dizer "a seguir corre X" e pedir a alguem que se lembre de mais
+  // um passo — e o passo que se esquece e sempre o ultimo. `--so-alinhar` para
+  // quem quer mesmo parar aqui.
+  if (process.argv.includes('--so-alinhar')) {
+    console.log(`  Alinhado. Para levantar o cockpit:  cd "${destino}" && npm run pilot\n`);
+    return;
+  }
+  console.log('  a levantar o cockpit deste device...\n');
+  try {
+    execFileSync(process.execPath, [path.join(destino, 'tools', 'cockpit', 'runner', 'launch.mjs'), '--no-sync'],
+      { cwd: destino, stdio: 'inherit' });
+  } catch (e) {
+    console.log(`\n  O cockpit nao subiu: ${String(e && e.message).slice(0, 90)}`);
+    console.log(`  Tenta a mao:  cd "${destino}" && npm run pilot\n`);
+  }
 }
 
 const chamadoDirectamente = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);

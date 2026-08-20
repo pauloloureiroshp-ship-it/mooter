@@ -10,6 +10,18 @@ description: Moo Pilot — o cockpit por device do Mooter. Levanta o motor local
 > Shell: `tools/cockpit/moo-pilot-shell.html`. Nada disto vive numa skill — a skill
 > só sabe conduzir o que já está no repo.
 
+## Uma máquina que nunca correu isto
+
+```bash
+node ~/paulo-vault/.claude/moo-bootstrap.mjs
+```
+```powershell
+node $HOME\paulo-vault\.claude\moo-bootstrap.mjs
+```
+
+Clona o repo, alinha tudo e **levanta o cockpit**. Um comando, do zero ao painel
+aberto. É o único que precisa de ser dito a alguém que nunca mexeu nisto.
+
 ## O gesto
 
 **macOS / Linux**
@@ -22,8 +34,12 @@ cd ~/frugal && npm run pilot
 cd $HOME\frugal ; npm run pilot
 ```
 
-Levanta o que estiver em baixo (endpoint F10, loop dos pilares), identifica o device
-pelo hostname e abre o painel. `npm run pilot:status` reporta sem arrancar nada.
+**Alinha primeiro, depois levanta.** Puxa o código, espelha o runtime e as
+skills, reconstrói o índice do vault — e só então levanta o endpoint e o loop e
+abre o painel. `--no-sync` salta o alinhamento para quem está a depurar.
+
+Não mandes o Paulo correr `/moo-sync` antes disto: o alinhamento já vai
+incluído, e um comando a mais é mais uma forma de falhar. `npm run pilot:status` reporta sem arrancar nada.
 
 O código é o mesmo nos dois sistemas — `launch.mjs` já abre o browser com `open` no
 macOS e `cmd /c start` no Windows, e o `autostart.mjs` instala um LaunchAgent ou uma
