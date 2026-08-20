@@ -2,7 +2,7 @@
  * sync-device.test.mjs — a skill `moo-sync` nao pode prometer o que o script
  * nao faz. Uma skill desactualizada nao e documentacao atrasada: e uma
  * instrucao errada a um executor, e foi exactamente isso que aconteceu com o
- * Windows (mandava `cd ~/frugal` e `export`, que em PowerShell nao existem).
+ * Windows (mandava `cd ~/<repo>` e `export`, que em PowerShell nao existem).
  */
 
 import test from 'node:test';
@@ -43,7 +43,7 @@ test('nunca sai com erro — informa, nao bloqueia', () => {
 });
 
 test('nada de shell — tem de correr igual nos tres sistemas', () => {
-  // A skill do Moo Pilot mandava `cd ~/frugal` e `export` para uma maquina
+  // A skill do Moo Pilot mandava `cd ~/<repo>` e `export` para uma maquina
   // Windows. A regra aqui e nao haver um unico comando de shell.
   assert.doesNotMatch(FONTE, /\bexecSync\(/, 'execSync abre uma shell — depende do sistema');
   assert.doesNotMatch(FONTE, /shell:\s*true/);
