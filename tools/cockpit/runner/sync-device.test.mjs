@@ -74,3 +74,57 @@ test('todo o comando que a skill promete existe no package.json', () => {
     assert.ok(pkg.scripts[m[1]], `a skill promete "npm run ${m[1]}" e o package.json nao o tem`);
   }
 });
+
+// ── o arranque de um comando (2026-08-19) ──────────────────────────────────
+
+/**
+ * Galinha-e-ovo: a skill `/moo-sync` vive em `~/.claude/skills/` e quem a la
+ * poe e o `device:sync` do repo. Numa maquina onde o repo ainda nao existe, a
+ * skill tambem nao existe — logo nao ha slash command nenhum para lancar.
+ * Alguma coisa tem de chegar primeiro, e o vault ja chega a todas as maquinas.
+ */
+const BOOT = path.join(REPO, 'tools', 'cockpit', 'bootstrap.mjs');
+const FONTE_BOOT = fs.readFileSync(BOOT, 'utf8');
+
+test('o arranque delega no sync-device — nao duplica a logica', () => {
+  // Duas copias da mesma logica divergem no dia em que so uma e corrigida.
+  assert.match(FONTE_BOOT, /sync-device\.mjs/, 'o alinhamento tem UM dono');
+  assert.doesNotMatch(FONTE_BOOT, /espelho do router|indice do vault.*reconstruido/i,
+    'o arranque nao pode reimplementar passos do sync-device');
+});
+
+test('clona quando falta, actualiza quando existe, e nunca desiste em silencio', async () => {
+  const { garantirRepo } = await import('../bootstrap.mjs');
+  const chamadas = [];
+  const run = (bin, args) => { chamadas.push(args[0]); return args[0] === 'rev-list' ? '3' : ''; };
+
+  const clonado = garantirRepo('/r', { existsImpl: () => false, runImpl: run });
+  assert.equal(clonado.estado, 'clonado');
+  assert.ok(chamadas.includes('clone'));
+
+  chamadas.length = 0;
+  const puxado = garantirRepo('/r', { existsImpl: () => true, runImpl: run });
+  assert.equal(puxado.estado, 'actualizado');
+  assert.ok(chamadas.includes('pull'));
+
+  const falhou = garantirRepo('/r', { existsImpl: () => true, runImpl: () => { throw new Error('sem rede'); } });
+  assert.equal(falhou.estado, 'falhou');
+  assert.match(falhou.porque, /sem rede/, 'uma falha tem de dizer o que foi');
+});
+
+test('as variaveis vem com o gesto CERTO para cada sistema', async () => {
+  const { variaveisEmFalta } = await import('../bootstrap.mjs');
+  // Mandar `export` para uma maquina Windows foi exactamente o erro da skill do
+  // Moo Pilot: instrucoes que falham na primeira linha.
+  const win = variaveisEmFalta({}, 'win32');
+  assert.equal(win.length, 2);
+  for (const v of win) {
+    assert.match(v.gesto, /SetEnvironmentVariable/, 'em Windows nao se usa export');
+    assert.match(v.gesto, /reabre o PowerShell/, 'sem reabrir, a variavel nao entra — e o sintoma e silencio');
+  }
+  const mac = variaveisEmFalta({}, 'darwin');
+  for (const v of mac) assert.match(v.gesto, /export /);
+
+  // Com tudo definido, nao se pede nada.
+  assert.deepEqual(variaveisEmFalta({ VAULT_PATH: '/v', MOO_PUBLICAR_BEACON: '1' }, 'darwin'), []);
+});
