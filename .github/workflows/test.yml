@@ -21,6 +21,10 @@ on:
       # `slack-spike-test.yml` evita nao tendo `paths:` nenhum, e esta escrita la no
       # cabecalho dele. Adicionar caminhos nunca torna o CI mais fraco: corre mais.
       - 'packages/slack-spike/**'
+      # O guarda dinamico do ~/.mooter e a baseline da poluicao. Sem esta linha,
+      # um PR que so lhes mexesse nunca corria o job que os usa — e a lista de
+      # divida podia crescer sem ninguem ver.
+      - 'tools/guarda-home*'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
@@ -38,6 +42,8 @@ on:
       # `slack-spike-test.yml` evita nao tendo `paths:` nenhum, e esta escrita la no
       # cabecalho dele. Adicionar caminhos nunca torna o CI mais fraco: corre mais.
       - 'packages/slack-spike/**'
+      # Idem para os PRs — ver a nota no bloco do push.
+      - 'tools/guarda-home*'
       - '.github/workflows/test.yml'
   workflow_dispatch:
 
@@ -103,6 +109,11 @@ jobs:
       # partida: comportamento sem trava.
       - name: Cockpit runner + smoke E2E
         run: npm run test:cockpit-runner
+
+      # O guarda do ~/.mooter tem de ser mordido antes de se confiar nele: um
+      # guarda que nunca falhou e indistinguivel de um guarda que nao funciona.
+      - name: Guarda do ~/.mooter (testes do proprio guarda)
+        run: npm run test:guarda-home
 
       - name: Syntax check classify.js
         run: node -c tools/router/classify.js
@@ -275,6 +286,56 @@ jobs:
         run: npm ci --no-audit --no-fund
       # The previously-skipped "security audit … sandbox present" test now self-guards
       # (skips when bwrap is absent — see security.test.ts), so no skip-pattern is needed.
-      - name: Run cli tests
-        working-directory: packages/cli
-        run: npm test
+      # ⚠️ A suite do cli NAO corre a solta. Ja apagou o `~/.mooter` vivo de
+      # quem a correu duas vezes — 2026-08-05 (232 eventos de ledger) e
+      # 2026-08-20 (o ledger do loop e o `revistos.json`). O PR #325 fechou a
+      # causa que se ve no codigo dos testes; este passo fecha a que nao se ve,
+      # porque `os.homedir()` no Windows le o `USERPROFILE` e nenhuma regex
+      # sobre o codigo consegue prever isso.
+      #
+      # Hasheia a arvore antes e depois: APAGAR falha sempre, ALTERAR falha,
+      # e qualquer novidade fora de `tools/guarda-home.baseline.json` falha.
+      # A baseline e a poluicao que a suite ainda faz, com nome — e so encolhe.
+      - name: Run cli tests (com guarda do ~/.mooter)
+        run: npm run test:cli-guardado
+
+  # ── Windows: o portao que se afirmava e nunca se media ──────────────────────
+  #
+  # Ate 2026-08-20 este repo tinha 22 jobs de CI e TODOS em `ubuntu-latest`.
+  # Nenhuma maquina verificava nunca o Windows — e o Windows e a plataforma onde
+  # o dono corre o loop.
+  #
+  # O que isso escondeu, medido nesse dia em `main` @#318:
+  #
+  #     suite do cockpit no Windows:  298 testes, 269 verdes, 28 VERMELHOS
+  #
+  # E nao eram 28 asercoes: eram ficheiros de teste INTEIROS a abortar ao
+  # carregar, porque `new URL(import.meta.url).pathname` devolve `/C:/Users/...`
+  # e o ficheiro nao abre. Testes que nunca corriam contavam como ausencia de
+  # falhas. O #319 poe a suite a 362/361/0 — mas sem este job, o primeiro merge
+  # que voltasse a introduzir o defeito passava verde outra vez, e a promessa
+  # "verde no Windows" evaporava sem ninguem dar por ela.
+  #
+  # Corre `test:cockpit-runner` porque e a suite que cobre o runner e o painel —
+  # o que o dono tem a mexer todos os dias. NAO corre `packages/cli`: essa tem
+  # 13 falhas de ambiente pre-existentes no Windows (medidas, sempre as mesmas),
+  # e um job vermelho a nascenca e um job que se aprende a ignorar. Quando essas
+  # 13 forem fechadas, entra aqui tambem.
+  cockpit-windows:
+    name: cockpit tests (windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Sem `npm ci`: a suite do cockpit e zero-dependencias por desenho
+      # (`node --test` sobre ficheiros do repo). Se um dia precisar de instalar
+      # alguma coisa, isso e uma mudanca de desenho e deve doer aqui primeiro.
+      - name: Cockpit runner + smoke E2E (Windows)
+        run: npm run test:cockpit-runner
+
+      - name: Guarda do ~/.mooter (testes do proprio guarda)
+        run: npm run test:guarda-home

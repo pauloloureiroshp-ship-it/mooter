@@ -23,7 +23,18 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 // invocável, e este teste é a guarda contra alguém a mover de volta.
 const SKILL_DIR = path.join(REPO, '.claude', 'skills', 'moo-pilot');
 const SKILL_PATH = path.join(SKILL_DIR, 'SKILL.md');
-const SKILL = fs.readFileSync(SKILL_PATH, 'utf8');
+// `\r\n` -> `\n` a LER, uma vez, e nao regex a regex.
+//
+// Este ficheiro analisa a skill com padroes ancorados em fim de linha
+// (`/^---\n/`, `/^name: moo-pilot$/m`, `/^description: (.+)$/m`). Nenhum deles
+// sobrevive a um `\r`: em JS o `.` nao o come e o `$` multilinha nao casa antes
+// dele. Como o repo nao tem `.gitattributes`, o final de linha depende do
+// `core.autocrlf` de cada maquina — o checkout do runner Windows traz CRLF e o
+// desta bancada traz LF. Resultado: o teste passava aqui e falhava la, e
+// ninguem sabia porque CI nenhum corria Windows.
+//
+// Apanhado pelo job `cockpit tests (windows)` na PRIMEIRA vez que correu.
+const SKILL = fs.readFileSync(SKILL_PATH, 'utf8').replace(/\r\n/g, '\n');
 const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const exists = (rel) => fs.existsSync(path.join(REPO, rel));
 
