@@ -293,6 +293,10 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
               animation:ap-scan 2.6s linear infinite }
   @media (prefers-reduced-motion: reduce){ .ap-bar i { animation:none; width:100% ; opacity:.35 } }
 
+  .sev-aviso { flex-basis:100%; margin-top:3px; padding:2px 8px; border-radius:6px;
+               background:var(--warn-bg); color:var(--warn);
+               font:600 11px/1.5 var(--sans); display:inline-block }
+
 </style>
 
 <div class="wrap">
@@ -1434,7 +1438,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     // Ordenada por severidade, nao por hora. O corte de TRIAGE_CAP passa a
     // mostrar os que importam em vez dos mais recentes — era isso que fazia a
     // fila parecer 29 coisas iguais.
-    const comSev = fila.map((a) => ({ a, s: severidade(a) }))
+    // O servidor manda a severidade JA CALCULADA. A funcao local fica como
+    // recurso — um painel aberto de um snapshot, ou servido por um F10 antigo,
+    // continua a ordenar em vez de deitar a fila toda no mesmo saco. Duas
+    // COPIAS da regra seriam duas verdades; uma fonte com recurso declarado nao.
+    const comSev = fila.map((a) => ({ a, s: a.sev || severidade(a) }))
       .sort((x, y) => y.s.n - x.s.n || String(y.a.ts || '').localeCompare(String(x.a.ts || '')));
     const conta = { high: 0, med: 0, low: 0 };
     for (const it of comSev) conta[it.s.k] += 1;
@@ -1484,6 +1492,13 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       chipSev.title = sv.porque;
       cab.append(chipSev, el("span", "chip ok", a.pilar || "—"), el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
       cab.appendChild(el("span", "nd sev-porque", sv.porque));
+      // Um achado mal citado NAO desaparece — fica, marcado. Pode ser verdade
+      // com a linha errada, e deitar fora essa hipotese seria perder o defeito.
+      if (a.suporte === false) {
+        const w = el("span", "sev-aviso", "⚠ citation does not contain the number claimed");
+        w.title = a.suporte_porque || '';
+        cab.appendChild(w);
+      }
       d.appendChild(cab);
       if (a.resumo) d.appendChild(el("div", "diz ok", a.resumo));
       if (a.evidencia) d.appendChild(el("code", "ev", a.evidencia));
