@@ -523,8 +523,20 @@ export function hunkKey(file, startLine, endLine, texto) {
  * deliberada, nao um acidente: os pilares mudaram de pergunta, e as 604
  * janelas ja vistas nunca foram vistas com as perguntas de agora.
  */
-export function chaveDeRevisao(pillar, file, startLine, endLine, texto) {
-  return `${pillar}|${hunkKey(file, startLine, endLine, texto)}`;
+export function chaveDeRevisao(pillar, file, startLine, endLine, texto, ask = null) {
+  // ⚠️ A PERGUNTA FAZ PARTE DA CHAVE.
+  //
+  // Sem ela, mudar o enunciado de um pilar deixa as janelas ja vistas marcadas
+  // como feitas — sob uma pergunta que ja nao existe. Aconteceu a 2026-08-19: o
+  // #312 reescreveu P7, P8, P9 e P10, e 1129 janelas ficaram fechadas para
+  // sempre a uma pergunta que nunca lhes foi feita.
+  //
+  // E o mesmo principio que o Bazel usa na action cache: a chave e o digest de
+  // TUDO o que determina a resposta — comando E entradas. Aqui, o excerto E a
+  // pergunta. Um `revistos` endereçado por conteudo so e correcto se o conteudo
+  // incluir aquilo que produziu a resposta.
+  const v = ask ? crypto.createHash('sha256').update(String(ask)).digest('hex').slice(0, 6) : 'sem-q';
+  return `${pillar}.${v}|${hunkKey(file, startLine, endLine, texto)}`;
 }
 
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
@@ -1001,7 +1013,7 @@ export function buildContextPack({
         const ls = readLines(repoRoot, cand.file);
         if (!ls || ls.length === 0 || cand.start > ls.length) continue;
         const fimC = Math.min(ls.length, cand.start + cand.count - 1);
-        const kc = chaveDeRevisao(pillar, cand.file, cand.start, fimC, ls.slice(cand.start - 1, fimC).join('\n'));
+        const kc = chaveDeRevisao(pillar, cand.file, cand.start, fimC, ls.slice(cand.start - 1, fimC).join('\n'), spec.ask);
         if (revistos && revistos.has(kc)) continue;
         h = cand;
         chave = kc;
@@ -1120,7 +1132,7 @@ export function buildContextPack({
       const cand = anchorsDoPilar[Math.abs(passoA + k) % anchorsDoPilar.length];
       const ls = readLines(repoRoot, cand.file);
       if (!ls || ls.length === 0 || cand.line > ls.length) continue;
-      const kc = chaveDeRevisao(pillar, cand.file, cand.line, cand.line, `${cand.rule}|${ls[cand.line - 1] || ''}`);
+      const kc = chaveDeRevisao(pillar, cand.file, cand.line, cand.line, `${cand.rule}|${ls[cand.line - 1] || ''}`, spec.ask);
       if (revistos && revistos.has(kc)) continue;
       hit = cand;
       chaveA = kc;
@@ -1196,7 +1208,7 @@ export function buildContextPack({
     const janelas = Math.max(1, Math.ceil(ls.length / maxLines));
     for (let k = 0; k < janelas; k += 1) {
       const sl = renderSlice(ls, (((Math.abs(passoF) + k) % janelas) * maxLines) + 1, maxLines);
-      const kc = chaveDeRevisao(pillar, cand, sl.startLine, sl.endLine, sl.text);
+      const kc = chaveDeRevisao(pillar, cand, sl.startLine, sl.endLine, sl.text, spec.ask);
       if (revistos && revistos.has(kc)) continue;
       file = cand; lines = ls; slice = sl; chaveC = kc;
       break;
