@@ -219,6 +219,11 @@ export function createServer({
   const ledgerPath = paths.LEDGER;
   const statePath = paths.STATE;
   const focusFile = paths.FOCUS;
+  /** O foco pedido pelo painel, lido do FICHEIRO — nunca do estado do loop. */
+  const lerFocoPedido = (ficheiro) => {
+    try { const { pilar } = JSON.parse(fs.readFileSync(ficheiro, 'utf8')); return pilar ?? null; }
+    catch { return null; }
+  };
   const triagemFile = path.join(paths.base, "triagem.jsonl");
 
   return http.createServer(async (req, res) => {
@@ -246,26 +251,29 @@ export function createServer({
       ]);
       const where = beaconDir();
       const fleet = readBeacons({ ...where, selfDevice: device });
-      return sendJson(
-        res,
-        200,
-        buildFleetState({
-          device,
-          // Lida do manifest a cada pedido: o painel nunca pode afirmar uma
-          // versao que o repo ja nao tem.
-          connector: versaoDoConector(raiz),
-          ledgerPath,
-          statePath,
-          stopFile,
-          triagemPath: triagemFile,
-          baseDir: paths.base,
-          gpu,
-          engineAlive: alive,
-          loadedModels: models,
-          alignment,
-          fleet,
-        }),
-      );
+      const estado = buildFleetState({
+        device,
+        // Lida do manifest a cada pedido: o painel nunca pode afirmar uma
+        // versao que o repo ja nao tem.
+        connector: versaoDoConector(raiz),
+        ledgerPath,
+        statePath,
+        stopFile,
+        triagemPath: triagemFile,
+        baseDir: paths.base,
+        gpu,
+        engineAlive: alive,
+        loadedModels: models,
+        alignment,
+        fleet,
+      });
+      // `foco` e o pilar com que o loop CORREU a ultima ronda; so muda quando a
+      // ronda seguinte acabar (ate ~35 s). O ficheiro de foco muda no instante
+      // do clique. Publicar apenas `foco` fazia o botao parecer morto durante
+      // uma ronda inteira — medido a 2026-08-19: 6 cliques, 1 confirmado.
+      // Dois campos, duas verdades, nenhuma mentira.
+      estado.foco_pedido = lerFocoPedido(focusFile);
+      return sendJson(res, 200, estado);
     }
 
     // Static catalogue, fetched once at boot instead of riding every poll: the

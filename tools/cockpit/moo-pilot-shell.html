@@ -678,8 +678,16 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       } else found.appendChild(el('span','nd','no rounds yet on this device'));
       card.appendChild(found);
 
-      const focused = s.foco === spec.id;
-      const btn = el('button', null, focused ? '◉ Focused — click to release' : 'Focus this pillar');
+      // `foco_pedido` e o clique; `foco` e o que a ronda usou. Enquanto forem
+      // diferentes o botao diz que a ordem foi aceite e quando ela pega — em
+      // vez de parecer que o clique se perdeu.
+      const pedido = s.foco_pedido !== undefined ? s.foco_pedido : s.foco;
+      const focused = pedido === spec.id;
+      const aplicado = s.foco === spec.id;
+      const btn = el('button', null,
+        focused
+          ? (aplicado ? '◉ Focused — click to release' : '◌ Focus accepted — applies next round')
+          : 'Focus this pillar');
       if (!live || busy) btn.setAttribute('aria-disabled','true');
       btn.onclick = () => live && !busy && control('/focus', { pilar: focused ? null : spec.id });
       card.appendChild(btn);
