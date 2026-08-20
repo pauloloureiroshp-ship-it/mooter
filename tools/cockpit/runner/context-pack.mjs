@@ -141,13 +141,29 @@ export const PILLARS = {
       'landing/components/**/*.tsx',
       'packages/vscode-extension/src/*.js',
     ],
+    // MEDIDO a 2026-08-20: este pilar produziu 16 dos 17 `refutado` de 1.645
+    // rondas — citacoes para linhas que nao existem no ficheiro. Era o UNICO
+    // enunciado que mandava o modelo NAVEGAR entre linhas ("look on the same
+    // line OR THE LINE NEXT TO IT") e o unico sem ancora final de prova. A um
+    // 14B a quem se pede aritmetica de numeros de linha, o numero inventa-se.
+    //
+    // Os dois achados deste pilar que valeram alguma coisa
+    // (landing/app/api/og/route.tsx:7 e WhyLocalCards.tsx:12) estavam ambos NA
+    // PROPRIA linha — tirar a navegacao nao perde nada do que ja funcionou.
+    //
+    // A saida passa a `NO FINDING`, que o `evidence-verifier` ja sabe ler. O
+    // `EVERY NUMBER HAS AN ORIGIN` que o #312 pos aqui nao era lido por nada
+    // no repo: era um sentinela que so o proprio enunciado conhecia.
     ask: [
-      'Copy the lines in this excerpt that give a number HARDCODED in the source to',
-      'something the user sees — a saving, a percentage, a price, a count. Use the line',
-      'number you see on the LEFT. For each one, look on the same line or the line next',
-      'to it for where that number came from: a read, a parameter, an imported constant.',
-      'The one with no visible origin is the FINDING. If every number you copied has a '
-      + 'visible origin in this excerpt, answer `EVERY NUMBER HAS AN ORIGIN`.',
+      'STEP 1 — copy, one per line, every line in this excerpt that puts a NUMBER into',
+      'something the user sees: a saving, a percentage, a price, a count, a duration.',
+      'Copy the line EXACTLY as it is, with the line number you see on the LEFT.',
+      'STEP 2 — read only the lines you just copied. For each one, does the number come',
+      'from a read, a parameter or an imported constant that is VISIBLE ON THAT SAME',
+      'LINE? Write `HAS ORIGIN` or `NO ORIGIN` next to it.',
+      'STEP 3 — the first `NO ORIGIN` is the FINDING. If every line has an origin, or',
+      'there are no such lines, answer NO FINDING.',
+      'Always end with a line `PROOF: <file>:<one of the line numbers you copied>`.',
     ].join('\n'),
   },
   /**

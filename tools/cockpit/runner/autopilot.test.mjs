@@ -383,3 +383,90 @@ test('fechar o servidor larga o tique — nada fica a correr depois do close', a
   await fechar();
   assert.equal(srv.listening, false);
 });
+
+/* ═══════ 8 · o payload leva a severidade e o suporte — o painel nao os calcula ═══════ */
+
+/**
+ * Ponta a ponta, com o caso real: o HandoffStory afirma `$0` e cita uma linha
+ * que nao tem `$0` nenhum. Antes, isto chegava a fila do dono marcado HIGH,
+ * porque `citacao-ok` so responde a "a linha existe no disco".
+ */
+test('/fleet.json marca o achado mal citado — med, com o porque, sem o descartar', async () => {
+  const recibo = {
+    ts: '2026-08-20T09:00:00Z',
+    pilar: 'P6',
+    conclusao: 'achado',
+    verdict: 'citacao-ok',
+    ficheiro: 'landing/components/HandoffStory.tsx',
+    janela: '20-40',
+    resultado_resumo: 'hardcoded $0 in customer-facing copy',
+    evidencia: "landing/components/HandoffStory.tsx:28 => title: 'The time back',",
+  };
+  const ledger = path.join(HOME_TMP, 'runner-ledger.jsonl');
+  fs.writeFileSync(ledger, JSON.stringify(recibo) + '\n');
+
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const body = await (await fetch(`${base}/fleet.json`)).json();
+    const alvo = (body.por_triar || []).find((a) => a.ficheiro === recibo.ficheiro);
+    assert.ok(alvo, 'o achado tem de chegar a fila de triagem');
+
+    assert.ok(alvo.sev, 'a severidade tem de viajar JA CALCULADA — o painel nao a recalcula');
+    assert.equal(alvo.sev.k, 'med', 'sem suporte na citacao nao pode ser high: nao esta provado onde esta o defeito');
+    assert.ok(alvo.sev.porque, 'e tem de trazer o porque, senao nao se corrige a regra');
+
+    assert.equal(alvo.suporte, false);
+    assert.match(alvo.suporte_porque, /does NOT contain the number/);
+  } finally {
+    fs.rmSync(ledger, { force: true });
+    await fechar();
+  }
+});
+
+test('um achado bem citado continua high — o aviso nao pode marcar toda a gente', async () => {
+  const ledger = path.join(HOME_TMP, 'runner-ledger.jsonl');
+  fs.writeFileSync(ledger, JSON.stringify({
+    ts: '2026-08-20T09:05:00Z', pilar: 'P6', conclusao: 'achado', verdict: 'citacao-ok',
+    ficheiro: 'landing/app/page.tsx', janela: '1-20',
+    resultado_resumo: 'hardcoded 47% saving on screen',
+    evidencia: 'landing/app/page.tsx:12 => <b>47% cheaper</b>',
+  }) + '\n');
+
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const body = await (await fetch(`${base}/fleet.json`)).json();
+    const alvo = (body.por_triar || []).find((a) => a.ficheiro === 'landing/app/page.tsx');
+    assert.equal(alvo.sev.k, 'high');
+    assert.equal(alvo.suporte, true);
+  } finally {
+    fs.rmSync(ledger, { force: true });
+    await fechar();
+  }
+});
+
+/* ══════════════ 9 · o enunciado do P6 — o que produziu 16 dos 17 refutado ══════════════ */
+
+/**
+ * A causa foi medida, nao suposta: em 1.645 rondas houve 17 `refutado`
+ * (citacoes para linhas que nao existem) e DEZASSEIS vieram do P6. Era o unico
+ * enunciado que mandava o modelo navegar entre linhas — "look on the same line
+ * OR THE LINE NEXT TO IT" — e o unico sem ancora final de prova. A um 14B a
+ * quem se pede aritmetica de numeros de linha, o numero inventa-se.
+ */
+test('o P6 nao volta a mandar o modelo navegar entre linhas', async () => {
+  const { PILLARS } = await import('./context-pack.mjs');
+  const ask = PILLARS.P6.ask;
+  assert.doesNotMatch(ask, /line next\s+to it/i, 'foi isto que produziu 16 dos 17 refutado');
+  assert.match(ask, /VISIBLE ON THAT SAME\s+LINE/, 'a origem tem de estar na PROPRIA linha copiada');
+  assert.match(ask, /PROOF: <file>:/, 'a ancora de prova que o P1..P5 ja tinham e o P6 nao');
+  assert.match(ask, /NO FINDING/, '"nao ha" tem de ser uma resposta certa, e legivel pelo verificador');
+});
+
+test('o sentinela do P6 e um que o repo sabe mesmo ler', async () => {
+  const { PILLARS } = await import('./context-pack.mjs');
+  const verifier = fs.readFileSync(fileURLToPath(new URL('./evidence-verifier.mjs', import.meta.url)), 'utf8');
+  assert.match(verifier, /NO FINDING/, 'o verificador tem de conhecer a saida que o pilar pede');
+  // O `EVERY NUMBER HAS AN ORIGIN` do #312 nao era lido por nada: um sentinela
+  // que so o proprio enunciado conhece nao e uma saida, e um beco.
+  assert.doesNotMatch(PILLARS.P6.ask, /EVERY NUMBER HAS AN ORIGIN/);
+});
