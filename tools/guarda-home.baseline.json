@@ -1,15 +1,9 @@
 {
   "_comment": "A poluicao que `npm test` (packages/cli) AINDA faz no ~/.mooter de quem o corre. Medido num home virgem, com USERPROFILE e HOME redireccionados. Isto nao e uma absolvicao: e divida, escrita onde se ve. A lista SO PODE ENCOLHER — `guarda-home.test.mjs` falha se crescer.",
-
-  "_historico": "2026-08-20 manha: SEIS entradas (cache/, effort.json, fable-5-escalations.jsonl, local-models.json, preferences.json, workflow-control/). A mais grave era o `effort.json` com `mode: high` — correr a suite MUDAVA o modo de esforco da maquina de quem a corria. 2026-08-20 tarde: DUAS. A diferenca foi migrar `packages/cli` para uma fonte unica de resolucao do home (`mooterHomeDefault()`, que honra o `MOOTER_HOME`) — 19 copias da regra espalhadas por `src/commands/`, cada uma a apontar para a casa verdadeira no Windows.",
-
-  "_porque_estas_duas_ficam": "fable-5-escalations.jsonl vem de `packages/router/src/fable-5-routing.ts` — pacote CONGELADO (waves 28-34.5), fora do alcance sem um brief que o liste. local-models.json e escrito por um teste que nao isola o home; o COMANDO ja o resolve pela fonte unica, so falta o teste declarar-se. As duas sao divida nomeada, nao acidente.",
-
+  "_historico": "2026-08-20 manha: SEIS entradas (cache/, effort.json, fable-5-escalations.jsonl, local-models.json, preferences.json, workflow-control/). A mais grave era o `effort.json` com `mode: high` — correr a suite MUDAVA o modo de esforco da maquina de quem a corria. Tarde: DUAS, depois de migrar o `packages/cli` para uma fonte unica de resolucao do home (19 copias da regra espalhadas por `src/commands/`). Fim do dia: UMA — o `local-models.test.ts` passou a isolar o home, que era a ultima que estava ao alcance.",
   "novos_tolerados": [
-    "fable-5-escalations.jsonl",
-    "local-models.json"
+    "fable-5-escalations.jsonl"
   ],
-
   "_mutaveis_porque": "Se a suite correr numa maquina com o loop vivo, estes mudam sozinhos durante a corrida — o ledger cresce de ~35 em ~35 segundos. ALTERAR e tolerado para eles; APAGAR nunca e, para nenhum ficheiro, e nao ha entrada nesta lista que perdoe um apagado.",
   "mutaveis_pelo_loop": [
     "runner-ledger.jsonl",
@@ -21,5 +15,6 @@
     "session-affinity/",
     "sessoes/",
     "reasoning-effort.json"
-  ]
+  ],
+  "_porque_esta_uma_fica": "fable-5-escalations.jsonl vem de `packages/router/src/fable-5-routing.ts` — pacote CONGELADO (waves 28-34.5). Corrigi-lo exige um brief que o liste, e por isso fica NOMEADO em vez de corrigido as escondidas. E a unica que resta de seis."
 }
