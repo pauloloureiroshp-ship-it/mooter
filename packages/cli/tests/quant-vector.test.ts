@@ -21,6 +21,7 @@ function fakeFetch(ok = true): typeof fetch {
 function withHome<T>(fn: () => Promise<T>): Promise<T> {
   const prev = process.env.HOME;
   process.env.HOME = mkdtempSync(join(tmpdir(), "mooter-qv-"));
+  process.env.MOOTER_HOME = join(process.env.HOME, ".mooter");
   return fn().finally(() => { if (prev === undefined) delete process.env.HOME; else process.env.HOME = prev; });
 }
 
