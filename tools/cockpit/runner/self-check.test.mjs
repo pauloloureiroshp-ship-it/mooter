@@ -11,10 +11,12 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import {
   verLedger, verIndiceDoVault, verBeacon, verProjectoActivo, verPreferencias,
   autoVerificar, LEDGER_TECTO_MB, BEACON_VELHO_MIN,
+  verCodigo, verConector,
 } from './self-check.mjs';
 
 const MB = 1024 * 1024;
@@ -108,4 +110,63 @@ test('o pior estado manda — um mau nao se esconde atras de quatro oks', () => 
   const r = autoVerificar({ paths: { LEDGER: '/x' }, mooDir: '/m', vaultDir: null, beaconFile: null });
   const temMau = r.itens.some((i) => i.estado === 'mau');
   if (temMau) assert.equal(r.pior, 'mau', 'o agregado tem de doer tanto como o pior item');
+});
+
+// ── o preflight de um device novo (2026-08-19) ──────────────────────────────
+
+/**
+ * Um device novo falha sempre pelas mesmas quatro coisas — codigo antigo,
+ * conector de outra versao, vault por montar, beacon que nao publica — e
+ * NENHUMA grita. Todas dao um sintoma que parece outra coisa, e passa-se uma
+ * hora a debugar o sintoma errado.
+ */
+test('codigo atrasado e MAU, e diz quantos commits', () => {
+  const emDia = verCodigo('/r', { runImpl: () => '0' });
+  assert.equal(emDia.estado, 'ok');
+  const atras = verCodigo('/r', { runImpl: () => '7' });
+  assert.equal(atras.estado, 'mau');
+  assert.match(atras.valor, /7 commits/);
+  assert.match(atras.resolver, /git pull/);
+});
+
+test('sem upstream, cai para origin/main antes de desistir', () => {
+  // `n/d` era a resposta honesta e tambem a inutil: quem trabalha num ramo sem
+  // upstream ficava sem saber se estava a correr codigo velho.
+  let vez = 0;
+  const r = verCodigo('/r', { runImpl: () => { if (vez++ === 0) throw new Error('no upstream'); return '3'; } });
+  assert.equal(r.estado, 'mau');
+  assert.match(r.valor, /3 commits/);
+});
+
+test('o conector instalado tem de ser o do repo', () => {
+  const ler = (mapa) => (p) => {
+    for (const [k, v] of Object.entries(mapa)) if (String(p).includes(k)) return JSON.stringify(v);
+    throw new Error('ENOENT');
+  };
+  const reg = (v) => ({ extensions: { 'local.mcpb.x.mooter': { version: v, id: 'mooter' } } });
+
+  const igual = verConector('/r', { readImpl: ler({ manifest: { version: '1.49.3' }, 'extensions-installations': reg('1.49.3') }) });
+  assert.equal(igual.estado, 'ok');
+
+  // Medido nesta maquina: 1.33.0 instalado contra 1.49.3 no repo.
+  const dif = verConector('/r', { readImpl: ler({ manifest: { version: '1.49.3' }, 'extensions-installations': reg('1.33.0') }) });
+  assert.equal(dif.estado, 'mau');
+  assert.match(dif.valor, /1\.33\.0 instalado ≠ 1\.49\.3/);
+  assert.match(dif.resolver, /v1\.49\.3/, 'o gesto tem de nomear a versao a instalar');
+});
+
+test('sem registo do Claude Desktop, e n/d — nunca ok', () => {
+  const r = verConector('/r', { readImpl: (p) => (String(p).includes('manifest') ? JSON.stringify({ version: '1.0.0' }) : (() => { throw new Error('ENOENT'); })()) });
+  assert.equal(r.estado, 'n/d', 'nao encontrar o registo nao prova que esta alinhado');
+});
+
+test('o lancamento corre o preflight e nunca bloqueia por causa dele', () => {
+  const fonte = fs.readFileSync(new URL('./launch.mjs', import.meta.url), 'utf8');
+  assert.match(fonte, /autoVerificar\(/, 'o lancamento tem de verificar o alinhamento');
+  assert.match(fonte, /ALINHAMENTO/, 'e tem de o mostrar ao dono');
+  // Informa, nao bloqueia: um preflight que impede o arranque e pior do que
+  // nenhum, porque a primeira coisa que se faz e desliga-lo.
+  const bloco = /const saude = autoVerificar\(\{[\s\S]*?\n  \} catch/.exec(fonte);
+  assert.ok(bloco, 'o preflight tem de estar dentro de um try');
+  assert.doesNotMatch(bloco[0], /process\.exit/, 'o preflight informa, nao bloqueia');
 });

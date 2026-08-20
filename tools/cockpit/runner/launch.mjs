@@ -24,7 +24,8 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { HOST, PORT } from './f10-server.mjs';
-import { deviceName } from './fleet-beacon.mjs';
+import { deviceName, beaconDir } from './fleet-beacon.mjs';
+import { autoVerificar } from './self-check.mjs';
 import { resolveRepoRoot, projectPaths } from './project.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -158,6 +159,39 @@ async function main() {
   if (stopped) {
     // Deliberate: the launcher shows the controls, the owner presses ▶.
     say('     -> o cockpit abre com o botão "▶ Trabalhar" pronto. O gesto é teu.');
+  }
+
+  // 4. ALINHAMENTO — a parte que faz um device novo arrancar a primeira vez.
+  //
+  // Um device novo falha sempre pelas mesmas quatro coisas: codigo antigo,
+  // conector de outra versao, vault por montar, beacon que nao publica. Nenhuma
+  // grita; todas dao um sintoma que parece outra coisa. Aqui gritam, e cada uma
+  // traz o comando que a resolve.
+  try {
+    const onde = beaconDir();
+    const saude = autoVerificar({
+      repoRoot: REPO,
+      paths: { LEDGER: path.join(MOO_DIR, 'runner-ledger.jsonl') },
+      mooDir: MOO_DIR,
+      // `beaconDir()` resolve o vault quando ele existe e cai numa pasta local
+      // quando nao. Apontar a mao para a local dizia "beacon nao existe" com o
+      // beacon vivo no vault, a dois centimetros.
+      vaultDir: onde.partilhado ? path.dirname(onde.dir) : null,
+      beaconFile: path.join(onde.dir, `${device}.json`),
+    });
+    const precisam = saude.itens.filter((i) => i.estado === 'mau' || i.estado === 'aviso');
+    if (precisam.length) {
+      say('\n  ALINHAMENTO — o que este device precisa antes de contar como frota:');
+      for (const i of precisam) {
+        say(`     ${i.estado === 'mau' ? '✗' : '!'} ${i.o_que}: ${i.valor ?? i.porque}`);
+        if (i.resolver) say(`        -> ${i.resolver}`);
+      }
+    } else {
+      say('\n  alinhamento                     tudo em dia');
+    }
+  } catch (e) {
+    // O preflight nunca pode impedir o lancamento: informa, nao bloqueia.
+    say(`\n  (alinhamento nao verificado: ${String(e && e.message).slice(0, 70)})`);
   }
 
   say(`\n  cockpit: ${URL_PANEL}`);

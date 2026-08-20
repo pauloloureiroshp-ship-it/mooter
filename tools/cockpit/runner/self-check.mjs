@@ -28,6 +28,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 /** Acima disto o ledger devia já ter rodado — ver `rodarLedger`. */
 export const LEDGER_TECTO_MB = 16;
@@ -209,11 +212,81 @@ export function verPreferencias(mooDir, { existsImpl = fs.existsSync } = {}) {
 }
 
 /**
+ * O código que está a correr é o mesmo que o repo tem?
+ *
+ * Num device novo isto é a primeira coisa que falha e a última em que se pensa:
+ * clona-se, esquece-se o `git pull`, e passa-se uma hora a debugar um sintoma
+ * que já foi corrigido há três commits. A pergunta não é "há actualizações" —
+ * é "estou a correr o que julgo estar a correr".
+ */
+export function verCodigo(repoRoot, { runImpl = null } = {}) {
+  const correr = runImpl || ((args) => {
+    const { execFileSync } = require('node:child_process');
+    return String(execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })).trim();
+  });
+  let atras = null;
+  // `@{u}` primeiro (o upstream deste ramo), e `origin/main` como recurso: um
+  // device a trabalhar num ramo sem upstream ficava sempre `n/d`, que e a
+  // resposta honesta e tambem a inutil.
+  for (const alvo of ['HEAD..@{u}', 'HEAD..origin/main']) {
+    try { const n = Number(correr(['rev-list', '--count', alvo])); if (Number.isFinite(n)) { atras = n; break; } } catch { /* tenta o seguinte */ }
+  }
+  if (atras === null) {
+    return { id: 'codigo', estado: ND, o_que: 'código deste device', porque: 'não consegui comparar com o remoto (sem upstream, sem origin/main, ou sem rede)', resolver: null };
+  }
+  if (!Number.isFinite(atras)) {
+    return { id: 'codigo', estado: ND, o_que: 'código deste device', porque: 'a comparação com o remoto não deu um número', resolver: null };
+  }
+  if (atras === 0) {
+    return { id: 'codigo', estado: OK, o_que: 'código deste device', valor: 'em dia', porque: 'é o mesmo que o remoto', resolver: null };
+  }
+  return {
+    id: 'codigo', estado: MAU, o_que: 'código deste device', valor: `${atras} commits atrás`,
+    porque: 'estás a correr código antigo — um sintoma já corrigido continua a aparecer aqui',
+    resolver: 'git pull origin main   (e relança: npm run pilot)',
+  };
+}
+
+/**
+ * O conector instalado é o que este repo traz?
+ *
+ * Medido a 2026-08-19 nesta máquina: 1.33.0 instalado contra 1.49.3 no repo.
+ * Dezasseis versões. Nenhuma ferramenta MCP declara a versão que corre, por
+ * isso isto compara o manifest do repo com o registo do Claude Desktop — a
+ * única fonte que existe.
+ */
+export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.homedir() } = {}) {
+  const ler = (p) => { try { return JSON.parse(String(readImpl(p, 'utf8'))); } catch { return null; } };
+  const manifest = ler(path.join(repoRoot, 'packages', 'mooter-bridge', 'manifest.json'));
+  const noRepo = manifest && typeof manifest.version === 'string' ? manifest.version : null;
+  if (!noRepo) {
+    return { id: 'conector', estado: ND, o_que: 'conector', porque: 'o manifest do repo não declara versão', resolver: null };
+  }
+  const reg = ler(path.join(home, 'Library', 'Application Support', 'Claude', 'extensions-installations.json'))
+    || ler(path.join(home, 'AppData', 'Roaming', 'Claude', 'extensions-installations.json'));
+  const ext = reg && reg.extensions ? Object.values(reg.extensions).find((e) => e && e.version && JSON.stringify(e).includes('mooter')) : null;
+  const instalado = ext && typeof ext.version === 'string' ? ext.version : null;
+  if (!instalado) {
+    return { id: 'conector', estado: ND, o_que: 'conector', valor: `${noRepo} no repo`, porque: 'não encontrei o registo de extensões do Claude Desktop nesta máquina', resolver: null };
+  }
+  if (instalado === noRepo) {
+    return { id: 'conector', estado: OK, o_que: 'conector', valor: instalado, porque: 'o instalado é o que este repo traz', resolver: null };
+  }
+  return {
+    id: 'conector', estado: MAU, o_que: 'conector', valor: `${instalado} instalado ≠ ${noRepo} no repo`,
+    porque: 'as ferramentas MCP correm código de outra versão — o que vês no painel e o que a skill faz podem discordar',
+    resolver: `instala o .mcpb da release v${noRepo} no Claude Desktop`,
+  };
+}
+
+/**
  * Corre todas as verificações. Nunca lança: uma verificação que rebenta vira
  * `n/d` com o motivo, porque o alarme não pode ser a coisa que parte.
  */
-export function autoVerificar({ paths, mooDir, vaultDir, beaconFile, agora, env } = {}) {
+export function autoVerificar({ paths, mooDir, vaultDir, beaconFile, repoRoot, agora, env } = {}) {
   const testes = [
+    () => verCodigo(repoRoot || process.cwd()),
+    () => verConector(repoRoot || process.cwd()),
     () => verLedger(paths || {}),
     () => verIndiceDoVault(vaultDir),
     () => verBeacon(beaconFile, { agora, env }),
