@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { HOST, PORT } from './f10-server.mjs';
 import { deviceName, beaconDir } from './fleet-beacon.mjs';
 import { autoVerificar } from './self-check.mjs';
@@ -161,7 +162,30 @@ async function main() {
     say('     -> o cockpit abre com o botão "▶ Trabalhar" pronto. O gesto é teu.');
   }
 
-  // 4. ALINHAMENTO — a parte que faz um device novo arrancar a primeira vez.
+  // 4. ALINHAMENTO — e aqui ARRANJA-SE, nao se reporta.
+  //
+  // Ate aqui isto listava o que estava desalinhado e deixava o dono a copiar
+  // comandos. Do lado de quem usa nao existem tres conceitos (arrancar,
+  // alinhar, lancar): existe uma vontade — "poe esta maquina a trabalhar". Cada
+  // comando extra e uma forma de falhar, e o unico que sobrevive a memoria de
+  // quem nao mexe nisto todos os dias e o que ja se sabe de cor.
+  //
+  // `npm run pilot` passa a puxar o codigo, espelhar o runtime e reconstruir o
+  // indice do vault ANTES de levantar seja o que for. `--no-sync` salta isto
+  // para quem esta a depurar e quer a maquina exactamente como a deixou.
+  if (!args.has('--no-sync') && !statusOnly) {
+    try {
+      const saida = execFileSync(process.execPath, [path.join(REPO, 'tools', 'cockpit', 'sync-device.mjs')],
+        { cwd: REPO, encoding: 'utf8' });
+      const linhas = saida.split('\n').filter((l) => /^\s*[↻✗]/.test(l));
+      if (linhas.length) { say('  a alinhar este device:'); for (const l of linhas) say(`  ${l.trim()}`); say(''); }
+    } catch (e) {
+      // Alinhar e conveniencia; o cockpit e o trabalho. Nunca impede o arranque.
+      say(`  (alinhamento nao correu: ${String(e && e.message).slice(0, 60)})\n`);
+    }
+  }
+
+  // 5. O QUE SOBRA — o que nenhum script pode fazer sozinho.
   //
   // Um device novo falha sempre pelas mesmas quatro coisas: codigo antigo,
   // conector de outra versao, vault por montar, beacon que nao publica. Nenhuma
@@ -181,7 +205,7 @@ async function main() {
     });
     const precisam = saude.itens.filter((i) => i.estado === 'mau' || i.estado === 'aviso');
     if (precisam.length) {
-      say('\n  ALINHAMENTO — o que este device precisa antes de contar como frota:');
+      say('\n  FALTA O TEU GESTO — nada disto um script pode fazer sozinho:');
       for (const i of precisam) {
         say(`     ${i.estado === 'mau' ? '✗' : '!'} ${i.o_que}: ${i.valor ?? i.porque}`);
         if (i.resolver) say(`        -> ${i.resolver}`);
