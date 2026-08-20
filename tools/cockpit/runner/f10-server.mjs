@@ -21,7 +21,7 @@ import { resolveRepoRoot, projectPaths, versaoDoConector } from './project.mjs';
 import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar } from './triagem.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
-  ORCAMENTOS, orcamento, curar,
+  ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { spendByModel } from './spend-by-model.mjs';
@@ -328,6 +328,22 @@ export function createServer({
       // uma ronda inteira — medido a 2026-08-19: 6 cliques, 1 confirmado.
       // Dois campos, duas verdades, nenhuma mentira.
       estado.foco_pedido = lerFocoPedido(focusFile);
+      // A severidade viaja JA CALCULADA. Ate aqui o painel tinha a sua propria
+      // copia da regra e o autopilot tinha a dele: duas verdades sobre o mesmo
+      // achado, a um refactor de distancia de discordarem em silencio — que e
+      // exactamente o defeito que o pilar P9 existe para cacar. Uma fonte.
+      //
+      // E ao lado dela o SUPORTE DA CITACAO, que responde a outra pergunta:
+      // `citacao-ok` diz que a linha existe no disco; isto diz se a linha
+      // contem o numero que o achado afirma. Sao coisas diferentes, e a
+      // diferenca chegava a fila do dono marcada HIGH.
+      if (Array.isArray(estado.por_triar)) {
+        estado.por_triar = estado.por_triar.map((a) => {
+          const s = severidade(a);
+          const sup = suporteDaCitacao(a);
+          return { ...a, sev: { k: s.k, n: s.n, porque: s.porque }, suporte: sup.ok, suporte_porque: sup.porque };
+        });
+      }
       // O autopilot viaja com os PORTOES ja medidos: o painel nunca calcula se
       // um nivel pode abrir, so mostra o numero que o abre e o numero que ha.
       const pedido = lerAutopilot();
