@@ -1488,3 +1488,51 @@ test('todos os sitios que consultam `revistos` passam a pergunta', () => {
     assert.ok(c.includes('spec.ask'), `chamada sem a pergunta: ${c.trim().slice(0, 70)}`);
   }
 });
+
+// ── P4 · o pilar que media a JANELA em vez do TEXTO (2026-08-21) ─────────────
+//
+// O enunciado antigo mandava julgar "a ULTIMA linha deste excerto". Mas o
+// excerto e uma fatia de 70 linhas cortada num sitio arbitrario: a ultima linha
+// de uma fatia cai quase sempre a meio de uma fence, de uma tabela ou de um
+// paragrafo. O modelo respondia BROKEN e tinha razao sobre a FATIA, sem dizer
+// nada sobre o DOCUMENTO.
+//
+// Medido nos 619 achados com PROOF e janela legiveis do ledger deste device:
+// P4 tinha 58/62 (93,5%) com o PROOF a <=2 linhas do fim da janela — 53 deles
+// EXACTAMENTE na ultima linha. Os outros pilares: P1 3,8% · P2 1,8% · P3 0,0%
+// · P5 1,8%. O defeito era so do P4, e era do enunciado, nao do modelo.
+
+test('P4 nao pode voltar a julgar a fronteira da janela como defeito', () => {
+  const ask = PILLARS.P4.ask;
+
+  // Tem de OLHAR para o cabecalho que diz onde a fatia acaba e onde o
+  // ficheiro acaba. Sem isto nao ha como distinguir corte de defeito.
+  assert.match(ask, /linhas A-B de N|\(linhas .*de .*\)/,
+    'o P4 tem de ler o cabecalho `Ficheiro: <f> (linhas A-B de N)`');
+  assert.match(ask, /\bB\b[\s\S]*\bN\b/,
+    'tem de comparar o fim da janela (B) com o fim do ficheiro (N)');
+
+  // E tem de ter uma saida EXPLICITA para o caso do corte.
+  assert.match(ask, /EXCERTO CORTADO/,
+    'sem um nome para "a fatia acabou antes do ficheiro", o corte volta a virar achado');
+  assert.match(ask, /FIM DO FICHEIRO/,
+    'e tem de nomear a unica condicao em que BROKEN e legitimo');
+
+  // O `BROKEN` tem de estar TRANCADO atras da condicao de fim de ficheiro.
+  const iCortado = ask.indexOf('EXCERTO CORTADO');
+  const iBroken = ask.indexOf('BROKEN');
+  assert.ok(iCortado !== -1 && iBroken !== -1 && iCortado < iBroken,
+    'a saida do corte tem de vir ANTES de o modelo poder escrever BROKEN');
+});
+
+test('P4 continua a cumprir a doutrina dos pilares (copiar primeiro)', () => {
+  // A correccao do P4 nao pode comprar-se a custa das invariantes que ja
+  // existiam: a primeira versao desta correccao comecava por "read the header"
+  // e partiu os dois testes acima — copiar primeiro, nunca julgar primeiro.
+  assert.match(PILLARS.P4.ask, /^(STEP 1 — )?[Cc]opy[ ,]/,
+    'o P4 tem de comecar por mandar COPIAR');
+  assert.match(PILLARS.P4.ask, /this excerpt/i,
+    'e a pergunta tem de continuar ancorada no excerto');
+  assert.ok(SEM_ACHADO_RE.test(PILLARS.P4.ask),
+    'e tem de manter uma saida honesta que o verificador reconheca');
+});

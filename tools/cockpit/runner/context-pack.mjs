@@ -108,13 +108,60 @@ export const PILLARS = {
       'packages/*/README.md',
       'landing/**/*.md',
     ],
+    /**
+     * ⚠️ REESCRITO 2026-08-21 — o enunciado anterior media a JANELA, nao o texto.
+     *
+     * Dizia, literalmente: "copia a ULTIMA linha deste excerto ... esta fechada?".
+     * Mas o excerto e uma fatia de 70 linhas cortada num sitio arbitrario, e a
+     * ultima linha de uma fatia cai quase sempre a meio de uma fence, de uma
+     * tabela ou de um paragrafo. O modelo respondia `BROKEN` e tinha razao sobre
+     * a FATIA, sem dizer nada sobre o DOCUMENTO.
+     *
+     * Medido nos 619 achados com PROOF e janela legiveis do ledger deste device:
+     *
+     *     pilar   achados   PROOF a <=2 linhas do fim da janela
+     *     P1        210      8   3,8%
+     *     P2        112      2   1,8%
+     *     P3         17      0   0,0%
+     *     P4         62     58  93,5%     <-- este
+     *     P5        218      4   1,8%
+     *
+     * 53 dos 62 apontavam para EXACTAMENTE a ultima linha. Tres abertos a mao
+     * confirmaram-no: `PERFECT_HANDOFF_SPEC.md:70` ("falta fechar o fence" — a
+     * fence fecha depois da janela), `COCKPIT_UX_AUDIT.md:70` ("falta fechar o
+     * parentesis" — e uma linha de tabela completa), `PASTOR.md:70` ("falta
+     * fechar o paragrafo" — frase completa, `---` na linha 72).
+     *
+     * Os outros pilares nao tinham o defeito porque perguntam sobre CONTEUDO em
+     * qualquer sitio do excerto; so o P4 julgava a fronteira.
+     *
+     * A correccao nao precisou de mexer no harness: o cabecalho do pack ja diz
+     * `Ficheiro: <f> (linhas A-B de N)`. A informacao estava la; o enunciado e
+     * que nunca a mandava usar.
+     *
+     * CONSEQUENCIA ASSUMIDA: o P4 passa a so disparar na ULTIMA janela de cada
+     * ficheiro. E o que ele ja fazia de facto (so olhava para a ultima linha),
+     * agora sem a mentira da fronteira. Higiene a MEIO do documento (links
+     * partidos, tabelas tortas) NAO fica coberta por este pilar — nunca esteve,
+     * e fingir o contrario era o que produzia os 93,5%. Se ela for precisa, e um
+     * enunciado NOVO, nao um remendo neste.
+     *
+     * A chave de revisao inclui o hash do `ask` (ver `chaveDeRevisao`), portanto
+     * mudar este texto reabre as janelas do P4 para nova passagem — e o A/B
+     * mede-se sozinho no `ab-report`.
+     */
     ask: [
-      'STEP 1 — copy the LAST line of this excerpt exactly as it is, with the number you',
-      'see on the left.',
-      'STEP 2 — read only that line you copied. Does it end on a whole word, with every',
-      'parenthesis, link and code fence closed?',
-      'STEP 3 — write `COMPLETE` or `BROKEN: <what is missing>`, then the line',
-      '`PROOF: <file>:<that last line number>`.',
+      'STEP 1 — copy the header line above this excerpt, the one shaped',
+      '`Ficheiro: <file> (linhas A-B de N)`, exactly as you see it.',
+      'STEP 2 — from the line you copied, compare B with N. Write `FIM DO FICHEIRO`',
+      'when B is equal to N, or `EXCERTO CORTADO` when B is smaller than N.',
+      'STEP 3 — if you wrote `EXCERTO CORTADO`, answer exactly `COMPLETE` and stop.',
+      'A line cut by the excerpt says nothing about the document: an unclosed',
+      'parenthesis, link or code fence there closes on a line you were not given.',
+      'STEP 4 — only if you wrote `FIM DO FICHEIRO`: copy the LAST line of this excerpt',
+      'with the number you see on the left, read only that line, and write `COMPLETE`',
+      'or `BROKEN: <what is missing>`.',
+      'Always end with the line `PROOF: <file>:<that last line number>`.',
     ].join('\n'),
   },
   P5: {
