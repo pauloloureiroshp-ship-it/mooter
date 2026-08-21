@@ -23,7 +23,7 @@ import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
 } from './autopilot.mjs';
-import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
+import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
 
@@ -385,12 +385,24 @@ export function createServer({
     // chegavam. Isto corre-os a cada pedido, de graca. "Nao ha alertas" nunca
     // quis dizer "esta tudo bem": queria dizer que ninguem estava a olhar.
     if (req.method === 'GET' && route === '/saude.json') {
-      return sendJson(res, 200, autoVerificar({
+      const saude = autoVerificar({
         paths,
         mooDir: paths.base,
         vaultDir: beaconDir().partilhado ? path.dirname(beaconDir().dir) : null,
         beaconFile: path.join(beaconDir().dir, `${device}.json`),
-      }));
+      });
+      // `autoVerificar` so olha para ESTA maquina. Um dono com dois
+      // computadores tinha de abrir os dois paineis para descobrir que um
+      // estava desactualizado — e por isso o Mac ficou dezasseis versoes atras.
+      // `naTuaMao` le a frota inteira e devolve o que pede a mao do dono, com
+      // o nome do device na instrucao.
+      const w = beaconDir();
+      const f = readBeacons({ ...w, selfDevice: device });
+      saude.frota = naTuaMao(f.frota, { rejeitados: f.rejeitados });
+      // A autenticidade do canal e um facto do painel, nao um detalhe: sem ela
+      // "a frota diz X" vale exactamente o que valer quem escreve na pasta.
+      saude.autenticacao = f.autenticacao;
+      return sendJson(res, 200, saude);
     }
 
     if (req.method === 'GET' && route === '/custo.json') {

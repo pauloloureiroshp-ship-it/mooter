@@ -6,11 +6,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness,
+  safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness, naTuaMao,
   BEACON_FRESH_S,
 } from './fleet-beacon.mjs';
 import { parseNvidiaSmi, sampleGpu, normalizaSonda } from './gpu-sampler.mjs';
 import { buildPlist, windowsCommand, preflight, LABEL } from './autostart.mjs';
+
+import { createRequire } from 'node:module';
+const requireT = createRequire(import.meta.url);
+const assinaturaMod = requireT('../../router/assinatura.js');
 
 const T0 = Date.parse('2026-08-16T18:00:00Z');
 const iso = (deltaS) => new Date(T0 - deltaS * 1000).toISOString();
@@ -280,4 +284,186 @@ test('FASE 0: a identidade e o NOME DO FICHEIRO, nao o campo la dentro', () => {
   fs.writeFileSync(path.join(dir, 'impostor.json'), JSON.stringify({ device: 'mac-do-paulo', ts: new Date().toISOString() }));
   const { frota } = readBeacons({ dir, selfDevice: 'mac-do-paulo' });
   assert.equal(frota[0].self, false, 'o ficheiro chama-se impostor.json — nao e este device');
+});
+
+// ── ONDA 1a · o canal deixa de acreditar em tudo ─────────────────────────────
+//
+// Ate aqui qualquer processo com escrita em `50-fleet/` inventava um device ou
+// reescrevia o custo de outra maquina, e o painel publicava. Estes testes sao o
+// GATE da Onda 1a; o modulo em si tem cobertura propria em
+// `tools/router/assinatura.test.js`.
+
+const CHAVE_T = Buffer.alloc(assinaturaMod.KEY_BYTES, 3);
+const chaveFalsa = () => ({ chave: CHAVE_T, caminho: '/t/.owner.key', fonte: 'vault', partilhado: true, criada: false, erro: null });
+const semChave = () => ({ chave: null, caminho: '/t/.owner.key', fonte: 'local', partilhado: false, criada: false, erro: 'sem vault' });
+
+test('ONDA 1a · o beacon escrito vem assinado, e diz que a chave e partilhada', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig-'));
+  const r = writeBeacon({ device: 'pc-paulo', running: true }, { dir, chaveImpl: chaveFalsa });
+  assert.equal(r.ok, true);
+  assert.equal(r.assinado, true);
+  assert.equal(r.chave_partilhada, true);
+
+  const escrito = JSON.parse(fs.readFileSync(path.join(dir, 'pc-paulo.json'), 'utf8'));
+  assert.equal(escrito.sig.alg, assinaturaMod.ALG_TAG);
+  assert.match(escrito.sig.mac, /^[0-9a-f]{64}$/);
+  assert.ok(escrito.sig.nonce, 'sem nonce nao ha anti-replay possivel');
+});
+
+test('ONDA 1a · GATE: um beacon ADULTERADO e rejeitado, COM RECIBO', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig2-'));
+  writeBeacon({ device: 'pc-paulo', running: true }, { dir, chaveImpl: chaveFalsa });
+
+  // O ataque concreto: reescrever o ficheiro no vault mantendo a assinatura.
+  const p = path.join(dir, 'pc-paulo.json');
+  const forjado = JSON.parse(fs.readFileSync(p, 'utf8'));
+  forjado.usd = 999.99;
+  forjado.running = false;
+  fs.writeFileSync(p, JSON.stringify(forjado));
+
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+
+  assert.equal(r.frota.length, 0, 'um beacon forjado NAO pode aparecer no painel');
+  assert.equal(r.rejeitados.length, 1, 'e nao pode desaparecer em silencio: tem de deixar recibo');
+  const recibo = r.rejeitados[0];
+  assert.equal(recibo.device, 'pc-paulo');
+  assert.equal(recibo.codigo, 'adulterado');
+  assert.equal(recibo.motivo, 'assinatura nao bate com o conteudo');
+  assert.equal(recibo.ficheiro, 'pc-paulo.json');
+});
+
+test('ONDA 1a · escrever e ler de volta sem mexer PASSA', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig3-'));
+  writeBeacon({ device: 'pc-paulo', running: true, gpu: { util_pct: 61, fonte: 'nvidia-smi', vram_inuse_gb: 12 } },
+    { dir, chaveImpl: chaveFalsa });
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+  assert.equal(r.rejeitados.length, 0);
+  assert.equal(r.frota.length, 1);
+  assert.equal(r.frota[0].autenticidade.ok, true, 'o caminho feliz tem de continuar a funcionar');
+  assert.equal(r.autenticacao.prova_frota, true);
+});
+
+test('ONDA 1a · um beacon NAO assinado entra, mas marcado — nao e uma forja', () => {
+  // No dia do upgrade os beacons ja no vault sao todos sem assinatura. Recusa-los
+  // apagaria a frota do painel. O que se recusa e quem AFIRMA assinatura e falha.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig4-'));
+  fs.writeFileSync(path.join(dir, 'mac-antigo.json'),
+    JSON.stringify({ device: 'mac-antigo', ts: new Date().toISOString() }));
+  const r = readBeacons({ dir, selfDevice: 'pc', chaveImpl: chaveFalsa });
+  assert.equal(r.frota.length, 1);
+  assert.equal(r.rejeitados.length, 0);
+  assert.equal(r.frota[0].autenticidade.ok, false);
+  assert.equal(r.frota[0].autenticidade.codigo, 'nao-assinado');
+});
+
+test('ONDA 1a · sem chave, o painel NAO diz que a frota esta autenticada', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig5-'));
+  const w = writeBeacon({ device: 'pc-paulo' }, { dir, chaveImpl: semChave });
+  assert.equal(w.assinado, false, 'nunca se escreve um beacon a fingir que esta assinado');
+  assert.match(w.porque_nao_assinado, /sem vault/);
+
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: semChave });
+  assert.equal(r.autenticacao.chave, 'n/d');
+  assert.equal(r.autenticacao.prova_frota, false);
+  assert.match(r.autenticacao.porque, /sem vault|sem chave/);
+});
+
+test('ONDA 1a · chave LOCAL nao pode ser vendida como prova de frota', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig6-'));
+  const soLocal = () => ({ chave: CHAVE_T, caminho: '/h/.mooter/owner.key', fonte: 'local', partilhado: false, criada: false, erro: null });
+  writeBeacon({ device: 'pc-paulo' }, { dir, chaveImpl: soLocal });
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: soLocal });
+  assert.equal(r.frota[0].autenticidade.ok, true, 'assina e verifica na mesma');
+  assert.equal(r.autenticacao.prova_frota, false, 'mas NAO prova origem, so integridade do ficheiro');
+  assert.match(r.autenticacao.porque, /nao a origem/);
+});
+
+test('ONDA 1a · a assinatura de um device NAO valida o ficheiro de outro', () => {
+  // Copiar o beacon assinado do PC para `mac.json` nao pode ressuscitar o Mac.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sig7-'));
+  writeBeacon({ device: 'pc-paulo', running: true }, { dir, chaveImpl: chaveFalsa });
+  const original = fs.readFileSync(path.join(dir, 'pc-paulo.json'), 'utf8');
+  const copia = JSON.parse(original);
+  copia.device = 'mac-do-paulo';                 // renomear o campo parte o MAC
+  fs.writeFileSync(path.join(dir, 'mac-do-paulo.json'), JSON.stringify(copia));
+
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+  assert.equal(r.frota.length, 1, 'so o PC real sobrevive');
+  assert.equal(r.frota[0].device, 'pc-paulo');
+  assert.equal(r.rejeitados.length, 1);
+  assert.equal(r.rejeitados[0].codigo, 'adulterado');
+});
+
+// ── ONDA 1c · paridade: o alerta do Mac tem de ver-se do PC ──────────────────
+//
+// GATE: o Mac acusa 1.33.0 com instrucao de 1 clique, VISTO DO PC.
+
+test('ONDA 1c · a versao do conector viaja no beacon (facto, nao juizo)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-conn-'));
+  writeBeacon({ device: 'mac-do-paulo', conector: { instalado: '1.33.0', repo: '1.49.3' } },
+    { dir, chaveImpl: chaveFalsa });
+  const escrito = JSON.parse(fs.readFileSync(path.join(dir, 'mac-do-paulo.json'), 'utf8'));
+  assert.deepEqual(escrito.conector, { instalado: '1.33.0', repo: '1.49.3' });
+  // e sobrevive a leitura, que tem allowlist:
+  const { frota } = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+  assert.deepEqual(frota[0].conector, { instalado: '1.33.0', repo: '1.49.3' });
+});
+
+test('ONDA 1c · GATE: do PC ve-se o Mac em 1.33.0, com instrucao de 1 clique', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-conn2-'));
+  // O PC, em dia.
+  writeBeacon({ device: 'pc-paulo', conector: { instalado: '1.49.3', repo: '1.49.3' } },
+    { dir, chaveImpl: chaveFalsa });
+  // O Mac, dezasseis versoes atras — o caso real medido a 2026-08-19.
+  writeBeacon({ device: 'mac-do-paulo', conector: { instalado: '1.33.0', repo: '1.49.3' } },
+    { dir, chaveImpl: chaveFalsa });
+
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+  const itens = naTuaMao(r.frota, { rejeitados: r.rejeitados });
+
+  assert.equal(itens.length, 1, 'o PC em dia nao ocupa a lista; so o Mac');
+  const it = itens[0];
+  assert.equal(it.device, 'mac-do-paulo');
+  assert.equal(it.estado, 'mau');
+  assert.match(it.titulo, /1\.33\.0 instalado ≠ 1\.49\.3 no repo/);
+  assert.ok(it.accao && it.accao.includes('mac-do-paulo'),
+    'a instrucao tem de dizer EM QUE MAQUINA — e isso que a torna accionavel com dois computadores');
+  assert.match(it.comando, /mooter-1\.49\.3\.mcpb/);
+  assert.equal(it.passos.length, 3, 'um clique tem de caber em passos contaveis');
+});
+
+test('ONDA 1c · um device sem versao declarada NAO conta como em dia', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-conn3-'));
+  writeBeacon({ device: 'antigo' }, { dir, chaveImpl: chaveFalsa });   // sem conector
+  const r = readBeacons({ dir, selfDevice: 'pc', chaveImpl: chaveFalsa });
+  const itens = naTuaMao(r.frota, { rejeitados: r.rejeitados });
+  assert.equal(itens.length, 1);
+  assert.equal(itens[0].estado, 'n/d', 'silencio nao pode virar "esta bem"');
+  assert.equal(itens[0].accao, null, 'e n/d nao inventa um comando');
+});
+
+test('ONDA 1c · um beacon RECUSADO tambem chega a mao do dono', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-conn4-'));
+  writeBeacon({ device: 'pc-paulo', conector: { instalado: '1.49.3', repo: '1.49.3' } },
+    { dir, chaveImpl: chaveFalsa });
+  const p = path.join(dir, 'pc-paulo.json');
+  const forj = JSON.parse(fs.readFileSync(p, 'utf8'));
+  forj.usd = 42;
+  fs.writeFileSync(p, JSON.stringify(forj));
+
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+  const itens = naTuaMao(r.frota, { rejeitados: r.rejeitados });
+  const recusado = itens.find((i) => i.id === 'beacon-recusado');
+  assert.ok(recusado, 'um beacon forjado nao pode sair da lista de rejeitados e desaparecer');
+  assert.equal(recusado.estado, 'mau');
+  assert.match(recusado.titulo, /adulterado/);
+});
+
+test('ONDA 1c · frota toda em dia devolve lista VAZIA (nao ruido)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-conn5-'));
+  for (const d of ['pc-paulo', 'mac-do-paulo']) {
+    writeBeacon({ device: d, conector: { instalado: '1.49.3', repo: '1.49.3' } }, { dir, chaveImpl: chaveFalsa });
+  }
+  const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
+  assert.deepEqual(naTuaMao(r.frota, { rejeitados: r.rejeitados }), []);
 });
