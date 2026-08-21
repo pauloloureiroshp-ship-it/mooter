@@ -31,6 +31,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { refutarDeterminista, VEREDICTO } from './refutador.mjs';
+import { PILLARS } from './context-pack.mjs';
 
 /**
  * A assinatura de CLASSE de um achado: a FORMA do que ele afirma, sem os dados.
@@ -101,9 +102,21 @@ export function relatorio(recibos, { repoRoot, semP4 = true } = {}) {
     desvio: soma - achados.length,
     porClasse,
     porPilar,
-    // Um pilar que corre e nunca devolve nada e um facto que merece nome.
+    /**
+     * Um pilar que corre e nunca devolve nada e um facto que merece nome.
+     *
+     * SEPARADO por `activo` de proposito: os quatro desligados a 2026-08-21
+     * continuam no ledger com centenas de rondas mudas, e mante-los no mesmo
+     * alarme enterrava o unico que ainda importa. Um alarme que grita sobre o
+     * que ja foi tratado ensina o dono a ignora-lo.
+     */
     mudos: Object.entries(porPilar)
-      .filter(([, s]) => s.rondas >= 50 && s.achados === 0)
+      .filter(([p, s]) => s.rondas >= 50 && s.achados === 0
+        && !(PILLARS[p] && PILLARS[p].activo === false))
+      .map(([p, s]) => ({ pilar: p, rondas: s.rondas, semAchado: s.semAchado })),
+    mudosDesligados: Object.entries(porPilar)
+      .filter(([p, s]) => s.rondas >= 50 && s.achados === 0
+        && PILLARS[p] && PILLARS[p].activo === false)
       .map(([p, s]) => ({ pilar: p, rondas: s.rondas, semAchado: s.semAchado })),
   };
 }
@@ -130,8 +143,14 @@ function principal() {
   }
 
   if (r.mudos.length) {
-    console.log('\n⚠️  PILARES MUDOS — correram e nunca devolveram um achado:');
+    console.log('\n⚠️  PILARES MUDOS E AINDA ACTIVOS — a gastar GPU para nada:');
     for (const m of r.mudos) console.log(`   ${m.pilar}: ${m.rondas} rondas, ${m.semAchado} sem-achado, 0 achados`);
+  }
+  if (r.mudosDesligados.length) {
+    // Historico, nao alarme: estes ja foram tratados. O numero fica visivel para
+    // nao desaparecer do registo, mas fora da linha que pede accao.
+    const t = r.mudosDesligados.map((m) => `${m.pilar}(${m.rondas} rondas)`).join(' · ');
+    console.log(`\nmudos JA DESLIGADOS, so para o historico: ${t}`);
   }
 
   console.log(`\nreconciliacao: soma das classes ${r.soma} · achados ${r.achados} · desvio ${r.desvio}`);

@@ -290,6 +290,20 @@ export const PILLARS = {
       'packages/router/src/*.ts',
     ],
     /**
+     * ⛔ DESLIGADO 2026-08-21 — o unico dos tres com a causa PROVADA.
+     *
+     * Nao e "nao acha nada": e que nao ha nada desta forma para achar. Quatro
+     * implementacoes medidas (3 passos · 1 extraccao · pergunta directa ·
+     * determinista) e nenhuma serve — a determinista discrimina na perfeicao
+     * num fixture e depois marca 41,4% das janelas do repo real, porque
+     * "campo escrito e nunca lido aqui" descreve argumentos e valores de
+     * retorno. Detalhe completo no bloco abaixo.
+     *
+     * Reversivel numa linha, mas reactivar sem mudar a PERGUNTA e repetir 455
+     * rondas de GPU para zero.
+     */
+    activo: false,
+    /**
      * ⚠️ NAO REESCREVER ESTE ENUNCIADO. A PERGUNTA E QUE ESTA MAL-POSTA.
      *
      * Este pilar respondeu `sem-achado` em 455/455 rondas. O metodo #312
@@ -345,6 +359,29 @@ export const PILLARS = {
    */
   P9: {
     label: 'Repetition worth a name',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — por NAO DETECTAR, nao por pergunta mal-posta.
+     *
+     * 455 rondas, 455 `sem-achado`, 0 achados. Semeado o defeito exacto que ele
+     * diz procurar (`rotulos.mjs`: guardas identicas nas linhas 12 e 24, so muda
+     * `nome`/`rotulo`), com um controlo de seis transformacoes todas distintas:
+     *
+     *     semeado   -> "NO FINDING"  4 tokens
+     *     controlo  -> "NO FINDING"  4 tokens
+     *
+     * Byte a byte igual. Zero discriminacao.
+     *
+     * ⚠️ A DIFERENCA PARA O P8, que importa se alguem quiser reactiva-lo: no P8
+     * ficou PROVADO que a pergunta esta mal-posta — quatro implementacoes, e ate
+     * a determinista inunda. Aqui **nao se testou isso**. Sabe-se que este
+     * enunciado nao detecta; NAO se sabe se outro detectaria. "Duas expressoes
+     * que fazem o mesmo trabalho" e, ao contrario do campo morto, uma pergunta
+     * que se responde dentro do excerto.
+     *
+     * Quem reactivar: mudar a PERGUNTA primeiro, e re-medir com o mesmo par
+     * (`prova-de-pilar.mjs --pilar P9`). Reactivar como esta e repetir as 455.
+     */
+    activo: false,
     files: [
       'tools/router/*.js',
       'tools/cockpit/runner/*.mjs',
@@ -366,6 +403,31 @@ export const PILLARS = {
    */
   P10: {
     label: 'Handwork a script could do',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — por NAO DETECTAR, como o P9.
+     *
+     * 455 rondas, 455 `sem-achado`, 0 achados. Semeado um runbook com a linha 41
+     * — "Confirma no painel da Vercel..." — sem nenhum comando no documento que
+     * o faca, contra um controlo com OITO instrucoes, todas com o comando ao
+     * lado (um runbook sem instrucao nenhuma tambem daria NO FINDING, mas pela
+     * razao errada):
+     *
+     *     semeado   -> "NO FINDING"  4 tokens
+     *     controlo  -> "NO FINDING"  4 tokens
+     *
+     * Como no P9: sabe-se que este enunciado nao detecta, NAO se sabe se outro
+     * detectaria. Perguntado directamente, o mesmo modelo acerta a primeira
+     * (113 tokens, cita a linha 41 e transcreve a instrucao).
+     *
+     * ⚠️ CONSEQUENCIA DE COBERTURA, declarada porque nao e obvia: com o P4 ja
+     * desligado, este era o ULTIMO pilar a olhar para `*.md`, `docs/**`,
+     * `packages/<pkg>/README.md` e `.github/workflows/`. **A partir daqui o
+     * loop nao le documentacao nem CI.** Nao se perde deteccao medida — o P4 deu
+     * 0/78 achados verdadeiros e este deu 0/455 — mas perde-se a COBERTURA, e
+     * quem voltar a querer olhar para docs precisa de um pilar novo, nao de
+     * reactivar este.
+     */
+    activo: false,
     files: [
       '*.md',
       'docs/**/*.md',

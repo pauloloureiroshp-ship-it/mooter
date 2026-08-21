@@ -1599,3 +1599,43 @@ test('um pilar desligado NAO pode ser dono de ficheiros', () => {
     }
   }
 });
+
+// ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
+
+test('P4, P8, P9 e P10 estao desligados, e continuam no catalogo', () => {
+  // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
+  // entrada tornaria ilegivel o historico que explica porque foram desligados.
+  for (const id of ['P4', 'P8', 'P9', 'P10']) {
+    assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
+    assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
+    assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
+  }
+  assert.deepEqual(PILLAR_IDS, ['P1', 'P2', 'P3', 'P5', 'P6', 'P7']);
+});
+
+test('desligar os quatro NAO orfanou ficheiro nenhum do poco do diff', () => {
+  // A regra que o desligar do P4 quase partiu: um pilar desligado nao pode
+  // continuar DONO de ficheiros, senao eles deixam de ser revistos por ninguem
+  // e em silencio.
+  const root = repoDiff();
+  for (const f of ['tools/router/mooter-review.js', 'tools/handoff-preflight.js', 'README.md']) {
+    const dono = donoDoFicheiro(root, f);
+    if (dono === null) continue;
+    assert.ok(PILLAR_IDS.includes(dono), `${f} pertence a ${dono}, que nao corre`);
+  }
+});
+
+test('a COBERTURA perdida esta declarada, nao escondida', () => {
+  // Com o P4 e o P10 desligados, nenhum pilar activo olha para markdown nem
+  // para os workflows do CI. Nao se perde deteccao MEDIDA (o P4 deu 0/78
+  // achados verdadeiros e o P10 deu 0/455), mas perde-se cobertura — e quem
+  // voltar a querer docs precisa de um pilar NOVO, nao de reactivar estes.
+  const globsActivos = PILLAR_IDS.flatMap((id) => PILLARS[id].files);
+  for (const orfao of ['*.md', 'docs/**/*.md', '.github/workflows/*.yml']) {
+    assert.ok(!globsActivos.includes(orfao),
+      `${orfao} voltou a ter dono — se foi de proposito, actualiza este teste e o comentario do P10`);
+  }
+  // O que NAO se perdeu: o glob do P9 era um subconjunto do do P2.
+  assert.ok(globsActivos.includes('packages/*/src/*.ts'),
+    'a cobertura de packages/*/src/*.ts tem de sobreviver ao desligar do P9');
+});

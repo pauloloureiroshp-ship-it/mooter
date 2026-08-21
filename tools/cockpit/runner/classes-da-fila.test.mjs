@@ -60,19 +60,34 @@ test('o P4 sai por omissao, e volta com --com-p4', () => {
   assert.equal(relatorio(recibos, { semP4: false }).achados, 2);
 });
 
-test('PILARES MUDOS · um pilar que corre e nunca acha tem de aparecer', () => {
-  // P8, P9 e P10 correram 455 rondas cada e devolveram `sem-achado` em 100%.
-  // Sem este alarme, 1365 rondas de GPU a produzir nada sao indistinguiveis de
-  // 1365 rondas a produzir "esta tudo bem".
+test('PILARES MUDOS · um pilar ACTIVO que corre e nunca acha tem de aparecer', () => {
+  // Sem este alarme, centenas de rondas de GPU a produzir nada sao
+  // indistinguiveis de centenas de rondas a produzir "esta tudo bem".
+  // P6 e o exemplo real: activo, 477 rondas, 0 achados.
   const recibos = [];
-  for (let i = 0; i < 60; i += 1) recibos.push({ pilar: 'P8', conclusao: 'sem-achado', verdict: 'sem-achado' });
+  for (let i = 0; i < 60; i += 1) recibos.push({ pilar: 'P6', conclusao: 'sem-achado', verdict: 'sem-achado' });
   recibos.push(rec({ resultado_resumo: 'SAME SHAPE: lines 1, 2' }));
   const r = relatorio(recibos);
-  const mudo = r.mudos.find((m) => m.pilar === 'P8');
-  assert.ok(mudo, 'um pilar mudo tem de ser nomeado');
+  const mudo = r.mudos.find((m) => m.pilar === 'P6');
+  assert.ok(mudo, 'um pilar mudo e activo tem de ser nomeado');
   assert.equal(mudo.rondas, 60);
   assert.equal(mudo.semAchado, 60);
   assert.ok(!r.mudos.some((m) => m.pilar === 'P5'), 'um pilar que acha nao e mudo');
+});
+
+test('PILARES MUDOS · um pilar JA DESLIGADO sai do alarme, mas nao do registo', () => {
+  // O P8, P9 e P10 ficam no ledger com centenas de rondas mudas para sempre.
+  // Mante-los no mesmo alarme enterrava o P6, que e o unico que ainda pede
+  // accao — e um alarme que grita sobre o que ja foi tratado ensina a ignora-lo.
+  const recibos = [];
+  for (let i = 0; i < 60; i += 1) recibos.push({ pilar: 'P8', conclusao: 'sem-achado', verdict: 'sem-achado' });
+  for (let i = 0; i < 60; i += 1) recibos.push({ pilar: 'P6', conclusao: 'sem-achado', verdict: 'sem-achado' });
+  const r = relatorio(recibos);
+  assert.ok(!r.mudos.some((m) => m.pilar === 'P8'), 'um desligado nao pede accao');
+  assert.ok(r.mudos.some((m) => m.pilar === 'P6'), 'um activo pede');
+  const hist = r.mudosDesligados.find((m) => m.pilar === 'P8');
+  assert.ok(hist, 'mas o numero do desligado nao pode desaparecer do registo');
+  assert.equal(hist.rondas, 60);
 });
 
 test('PILARES MUDOS · poucas rondas nao bastam para acusar um pilar', () => {
