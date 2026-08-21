@@ -150,17 +150,17 @@ export const PILLARS = {
      * mudar este texto reabre as janelas do P4 para nova passagem — e o A/B
      * mede-se sozinho no `ab-report`.
      */
+    // O harness so entrega a ULTIMA janela do ficheiro a este pilar. Sem isto, a
+    // pergunta e sobre a fatia e nao sobre o documento — ver o comentario em
+    // `indices`, no seletor de janelas.
+    janela: 'ultima',
     ask: [
-      'STEP 1 — copy the header line above this excerpt, the one shaped',
-      '`Ficheiro: <file> (linhas A-B de N)`, exactly as you see it.',
-      'STEP 2 — from the line you copied, compare B with N. Write `FIM DO FICHEIRO`',
-      'when B is equal to N, or `EXCERTO CORTADO` when B is smaller than N.',
-      'STEP 3 — if you wrote `EXCERTO CORTADO`, answer exactly `COMPLETE` and stop.',
-      'A line cut by the excerpt says nothing about the document: an unclosed',
-      'parenthesis, link or code fence there closes on a line you were not given.',
-      'STEP 4 — only if you wrote `FIM DO FICHEIRO`: copy the LAST line of this excerpt',
-      'with the number you see on the left, read only that line, and write `COMPLETE`',
-      'or `BROKEN: <what is missing>`.',
+      'STEP 1 — copy the LAST NON-EMPTY line of this excerpt exactly as it is, with',
+      'the number you see on the left. This excerpt always ends where the file ends.',
+      'STEP 2 — read only that line you copied, and nothing else. Ignore anything',
+      'that was opened earlier in the file: you are judging this line alone.',
+      'STEP 3 — write `COMPLETE` when that line ends on a whole word, or',
+      '`BROKEN: <what is missing>` when it is cut mid-word or mid-token.',
       'Always end with the line `PROOF: <file>:<that last line number>`.',
     ].join('\n'),
   },
@@ -796,7 +796,20 @@ function readLines(repoRoot, relPath) {
   } catch {
     return null;
   }
-  return raw.split('\n');
+  const linhas = raw.split('\n');
+  // ⚠️ `split('\n')` num ficheiro terminado em newline — que sao quase todos —
+  // devolve um ultimo elemento `''` que NAO e uma linha do ficheiro. O
+  // `renderSlice` renderizava-o como `  147| ` num ficheiro de 146 linhas, e o
+  // modelo, mandado julgar A ULTIMA LINHA do excerto, via uma linha vazia e
+  // respondia BROKEN.
+  //
+  // Medido no ledger deste device a 2026-08-21: **12 dos 62 achados do P4
+  // (19,4%) citavam uma linha que nao existe no ficheiro** — `ARCHITECTURE_V5.md:147`
+  // num ficheiro de 146, `SENTRY-DSN-RUNBOOK.md:172` num de 171,
+  // `MOOTER_ROADMAP.md:78` num de 77. A citacao parecia fabricada pelo modelo e
+  // nao era: o harness deu-lhe mesmo aquela linha.
+  if (linhas.length && linhas[linhas.length - 1] === '') linhas.pop();
+  return linhas;
 }
 
 /**
@@ -1271,8 +1284,31 @@ export function buildContextPack({
     const ls = readLines(repoRoot, cand);
     if (!ls || ls.length === 0) continue;
     const janelas = Math.max(1, Math.ceil(ls.length / maxLines));
-    for (let k = 0; k < janelas; k += 1) {
-      const sl = renderSlice(ls, (((Math.abs(passoF) + k) % janelas) * maxLines) + 1, maxLines);
+    /**
+     * QUAIS janelas este pilar pode ver.
+     *
+     * Por omissao, todas, em rotacao. Mas um pilar cuja pergunta so faz sentido
+     * no FIM do ficheiro (`janela: 'ultima'`, o P4) nao pode receber uma fatia
+     * do meio: a ultima linha de uma fatia arbitraria cai a meio de uma fence,
+     * de uma tabela ou de um paragrafo, e o modelo responde BROKEN com razao
+     * sobre a FATIA e sem dizer nada sobre o DOCUMENTO.
+     *
+     * A primeira tentativa de corrigir isto (2026-08-21) foi pedir ao modelo que
+     * comparasse o fim da janela com o fim do ficheiro, ambos ja escritos no
+     * cabecalho do pack. MEDIU-SE, e quase nao mexeu: a taxa de achado em
+     * janelas cortadas passou de 18,0% para ~13,6%. O qwen2.5-coder:14b escrevia
+     * `FIM DO FICHEIRO` por reflexo em janelas que claramente nao o eram
+     * (`THREAT_MODEL.md 1-70` com uma janela `71-109` a seguir).
+     *
+     * A licao fica: **uma condicao que o harness consegue garantir nunca se pede
+     * a um modelo.** Aqui garante-se — e o enunciado do P4 deixa de precisar de
+     * aritmetica nenhuma.
+     */
+    const indices = spec.janela === 'ultima'
+      ? [janelas - 1]
+      : Array.from({ length: janelas }, (_, k) => (Math.abs(passoF) + k) % janelas);
+    for (const idx of indices) {
+      const sl = renderSlice(ls, (idx * maxLines) + 1, maxLines);
       const kc = chaveDeRevisao(pillar, cand, sl.startLine, sl.endLine, sl.text, spec.ask);
       if (revistos && revistos.has(kc)) continue;
       file = cand; lines = ls; slice = sl; chaveC = kc;

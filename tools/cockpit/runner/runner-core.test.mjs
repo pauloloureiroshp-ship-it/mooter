@@ -1502,27 +1502,62 @@ test('todos os sitios que consultam `revistos` passam a pergunta', () => {
 // EXACTAMENTE na ultima linha. Os outros pilares: P1 3,8% · P2 1,8% · P3 0,0%
 // · P5 1,8%. O defeito era so do P4, e era do enunciado, nao do modelo.
 
-test('P4 nao pode voltar a julgar a fronteira da janela como defeito', () => {
-  const ask = PILLARS.P4.ask;
+test('P4 so recebe a ULTIMA janela do ficheiro — garantido pelo harness', () => {
+  // A 1a tentativa de correccao PEDIU ao modelo que comparasse o fim da janela
+  // com o fim do ficheiro (ambos ja escritos no cabecalho do pack). Mediu-se, em
+  // 34 rondas contra 380 de baseline: a taxa de achado em janelas cortadas
+  // passou de 18,0% para ~13,6% — quase nada. O qwen2.5-coder:14b escrevia
+  // `FIM DO FICHEIRO` por reflexo em janelas que claramente nao o eram
+  // (`THREAT_MODEL.md 1-70`, com uma janela `71-109` a seguir).
+  //
+  // A licao: uma condicao que o harness consegue GARANTIR nunca se pede a um
+  // modelo.
+  assert.equal(PILLARS.P4.janela, 'ultima',
+    'o P4 tem de declarar que so olha para o fim do ficheiro');
 
-  // Tem de OLHAR para o cabecalho que diz onde a fatia acaba e onde o
-  // ficheiro acaba. Sem isto nao ha como distinguir corte de defeito.
-  assert.match(ask, /linhas A-B de N|\(linhas .*de .*\)/,
-    'o P4 tem de ler o cabecalho `Ficheiro: <f> (linhas A-B de N)`');
-  assert.match(ask, /\bB\b[\s\S]*\bN\b/,
-    'tem de comparar o fim da janela (B) com o fim do ficheiro (N)');
+  // E a declaracao tem de ter EFEITO — senao e um comentario entre aspas.
+  const repo = fixtureRepo();
+  const rel = 'docs/longo.md';
+  const total = 175;                       // 3 janelas de 70
+  fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, rel),
+    `${Array.from({ length: total }, (_, i) => `linha ${i + 1}`).join('\n')}\n`,
+  );
 
-  // E tem de ter uma saida EXPLICITA para o caso do corte.
-  assert.match(ask, /EXCERTO CORTADO/,
-    'sem um nome para "a fatia acabou antes do ficheiro", o corte volta a virar achado');
-  assert.match(ask, /FIM DO FICHEIRO/,
-    'e tem de nomear a unica condicao em que BROKEN e legitimo');
+  let vistas = 0;
+  for (let cursor = 0; cursor < 8; cursor += 1) {
+    const pack = buildContextPack({ repoRoot: repo, pillar: 'P4', cursor });
+    if (!pack.ok || pack.file !== rel) continue;
+    vistas += 1;
+    assert.equal(pack.endLine, total,
+      `cursor ${cursor}: o P4 recebeu ${pack.startLine}-${pack.endLine} de ${total} `
+      + 'linhas — e uma fatia do meio, e a pergunta dele nao vale numa fatia do meio');
+  }
+  assert.ok(vistas > 0, 'o ficheiro de teste tem de ser candidato do P4 ao menos uma vez');
+});
 
-  // O `BROKEN` tem de estar TRANCADO atras da condicao de fim de ficheiro.
-  const iCortado = ask.indexOf('EXCERTO CORTADO');
-  const iBroken = ask.indexOf('BROKEN');
-  assert.ok(iCortado !== -1 && iBroken !== -1 && iCortado < iBroken,
-    'a saida do corte tem de vir ANTES de o modelo poder escrever BROKEN');
+test('a ultima linha do excerto e uma linha REAL, nunca o vazio do split', () => {
+  // `raw.split('\n')` num ficheiro terminado em newline devolve um ultimo
+  // elemento vazio que NAO e uma linha do ficheiro. O `renderSlice` mostrava-o
+  // como `  147| ` num ficheiro de 146 linhas, e o P4 — mandado julgar A ULTIMA
+  // LINHA — via vazio e respondia BROKEN.
+  //
+  // Medido: 12 dos 62 achados do P4 (19,4%) citavam uma linha que nao existe no
+  // ficheiro (`ARCHITECTURE_V5.md:147` num de 146, `SENTRY-DSN-RUNBOOK.md:172`
+  // num de 171, `MOOTER_ROADMAP.md:78` num de 77). A citacao parecia fabricada
+  // pelo modelo e NAO era: o harness deu-lhe mesmo aquela linha.
+  const repo = fixtureRepo();
+  const rel = 'docs/curto.md';
+  fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(repo, rel), 'um\ndois\ntres\n');   // 3 linhas + newline final
+
+  const pack = buildContextPack({ repoRoot: repo, pillar: 'P4', cursor: 0 });
+  if (pack.ok && pack.file === rel) {
+    assert.equal(pack.endLine, 3, 'o ficheiro tem 3 linhas, nao 4');
+    assert.doesNotMatch(pack.prompt, /^\s*4\|\s*$/m,
+      'uma 4a linha vazia nao pode chegar ao modelo');
+  }
 });
 
 test('P4 continua a cumprir a doutrina dos pilares (copiar primeiro)', () => {
