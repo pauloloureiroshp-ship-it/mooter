@@ -37,6 +37,7 @@ test('as LINHAS marcadas apontam mesmo para o defeito, em TODO par', () => {
   const esperado = {
     P9: [/if \(!nome \|\|/, /if \(!rotulo \|\|/],
     P10: [/Confirma no painel da Vercel/],
+    P6: [/89% do trabalho fora da nuvem/],
   };
   for (const [id, padroes] of Object.entries(esperado)) {
     const linhas = PARES[id].semeado.texto.split('\n');
@@ -53,8 +54,14 @@ test('NENHUM ficheiro de NENHUM par se denuncia como fixture', () => {
   for (const [id, par] of Object.entries(PARES)) {
     for (const papel of ['semeado', 'controlo']) {
       const t = par[papel].texto;
-      for (const palavra of ['semead', 'defeito', 'ensaio', 'fixture', 'controlo', 'P8', 'P9', 'P10']) {
+      for (const palavra of ['semead', 'defeito', 'ensaio', 'fixture', 'controlo']) {
         assert.ok(!new RegExp(palavra, 'i').test(t), `'${palavra}' aparece no ${papel} do ${id}`);
+      }
+      // Os IDs de pilar precisam de limite de palavra: `p95Ms` — um nome de
+      // metrica perfeitamente normal — continha "P9" e fazia este teste
+      // acusar um controlo que estava limpo.
+      for (const pid of ['P6', 'P8', 'P9', 'P10']) {
+        assert.doesNotMatch(t, new RegExp(`\\b${pid}\\b`), `'${pid}' aparece no ${papel} do ${id}`);
       }
     }
   }
@@ -85,7 +92,9 @@ test('escreverPar poe cada par onde AQUELE pilar procura', () => {
   // O P8/P9 procuram em `tools/cockpit/runner/*.mjs`; o P10 procura em
   // `docs/**/*.md`. Escrever o par do P10 num `.mjs` seria um ensaio que o
   // pilar nunca chegaria a ver — e daria "calado" por motivo nenhum.
-  const esperado = { P8: /\.mjs$/, P9: /\.mjs$/, P10: /docs\/.*\.md$/ };
+  const esperado = {
+    P8: /\.mjs$/, P9: /\.mjs$/, P10: /docs\/.*\.md$/, P6: /landing\/components\/.*\.tsx$/,
+  };
   for (const [id, padrao] of Object.entries(esperado)) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prova-'));
     const out = escreverPar(id, dir);
@@ -136,4 +145,17 @@ test('VEREDICTO · achar OUTRA coisa no semeado nao conta como encontrar', () =>
 test('VEREDICTO · acusar tambem o controlo = dispara por reflexo', () => {
   const v = veredicto({ pilar: 'P8', respostaSemeado: 'tempo_estimado_s', respostaControlo: 'WRITTEN LINE 30: total' });
   assert.equal(v.estado, 'dispara-por-reflexo');
+});
+
+test('o par do P6 tem numeros nos DOIS — a diferenca e a origem, nao a ausencia', () => {
+  // Um controlo sem numero nenhum tambem daria NO FINDING, mas pela razao
+  // errada: o pilar procura numeros SEM origem, nao a ausencia de numeros.
+  const { semeado, controlo } = PARES.P6;
+  assert.match(controlo.texto, /\{formatPct\(localPct\)\}/, 'o controlo tem de MOSTRAR numeros');
+  assert.match(controlo.texto, /TARGET_LOCAL_PCT/, 'e ao menos um vindo de constante importada');
+  assert.match(semeado.texto, /\{formatUsd\(savedUsd\)\}/,
+    'o semeado tambem tem numeros COM origem — senao o defeito era o unico numero e nao um agulha no palheiro');
+  // E o defeito e exactamente um.
+  assert.equal((semeado.texto.match(/89%/g) || []).length, 1);
+  assert.ok(!controlo.texto.includes('89%'));
 });

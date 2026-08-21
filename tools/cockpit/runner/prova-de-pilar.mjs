@@ -18,29 +18,36 @@
  *     acha       acha        dispara por reflexo — nao discrimina
  *     calado     acha        incoerente — investigar o fixture
  *
- * RESULTADO MEDIDO — os TRES pilares mudos (2026-08-21, qwen2.5-coder:14b):
+ * RESULTADO MEDIDO — os QUATRO pilares mudos (2026-08-21, qwen2.5-coder:14b):
  *
- *     pilar   ficheiro semeado          controlo         pergunta DIRECTA
- *     P8      "NO FINDING"   4 tok      "NO FINDING" 4    13 tok, correcto
- *     P9      "NO FINDING"   4 tok      "NO FINDING" 4   169 tok, correcto
- *     P10     "NO FINDING"   4 tok      "NO FINDING" 4   113 tok, correcto
+ *     pilar   semeado          controlo         directa GUIADA   directa NEUTRA
+ *     P8      "NO FINDING" 4   "NO FINDING" 4    13 tok certo      4 tok errado
+ *     P9      "NO FINDING" 4   "NO FINDING" 4   169 tok certo      n/d
+ *     P10     "NO FINDING" 4   "NO FINDING" 4   113 tok certo      n/d
+ *     P6      "NO FINDING" 4   "NO FINDING" 4    99 tok certo      4 tok errado
  *
- * Resposta byte a byte identica no semeado e no controlo, nos tres: **zero
- * discriminacao**. E em nenhum e culpa do harness (o mesmo prompt enviado a mao
- * devolve o mesmo) nem do modelo (perguntado DIRECTAMENTE acerta nos tres, a
- * primeira, e cita as linhas certas).
+ * Resposta byte a byte identica no semeado e no controlo, nos quatro: **zero
+ * discriminacao**. Nao e do harness (o mesmo prompt a mao devolve o mesmo) nem
+ * do modelo (perguntado com a GUIADA acerta nos quatro, a primeira, e cita as
+ * linhas certas).
  *
- * **O que os impede e o proprio enunciado.** Com o procedimento de N passos o
- * modelo emite a saida de emergencia em 4 tokens sem fazer trabalho nenhum. No
- * P8, retirando o contrato de saida do sistema, ele chega aos 163 tokens e FAZ
- * os passos — mas o STEP 2 e falso: copia as linhas do STEP 1 como se fossem
- * leituras, em vez de procurar.
+ * A VARIAVEL, isolada com o P8 e confirmada com o P6: **e a NEUTRA que falha.**
+ * A guiada AFIRMA que o defeito existe; a neutra oferece "pode nao haver nada" —
+ * e nos dois pilares onde se testaram as duas, a neutra da 4 tokens e a saida.
+ * Nao e o numero de passos: uma pergunta directa de UM passo falha na mesma
+ * assim que a saida esta disponivel. Uma hipotese anterior — "procedimento de N
+ * passos com saida no fim convida ao curto-circuito" — foi REFUTADA por isso.
  *
- * A hipotese que sai daqui, ja com 3 casos e por refutar: **um procedimento de
- * N passos com uma saida de emergencia no fim convida ao curto-circuito.** Os
- * pilares que produzem (P1 76,9%, P5 63,4%) pedem so EXTRACCAO — que nao tem
- * saida barata. Os tres mudos pedem EXTRACCAO + BUSCA + JUIZO, e a saida esta
- * a espera no fim.
+ * O que isto NAO resolve, e por isso nao ha correccao a propor: um pilar tem de
+ * poder responder "nao ha nada aqui", senao volta o estado que produziu 82% de
+ * ruido. A saida e obrigatoria e e ela que o modelo toma.
+ *
+ * ⚠️ O P6 parecia diferente e nao era. O ledger dele mostra 89 `citacao-ok` +
+ * 37 `refutado` — parecia variar. Nao varia: 480 das 483 rondas dizem
+ * literalmente NO FINDING e ha ZERO achados. O enunciado dele exige `PROOF:`
+ * SEMPRE, mesmo sem achado, portanto 130 rondas emitem uma citacao que nao cita
+ * nada — e e o verificador a classificar essa citacao inutil que produz o split
+ * que fazia o pilar parecer vivo.
  *
  * Uso:
  *   node tools/cockpit/runner/prova-de-pilar.mjs --escrever <dir> [--pilar P9]
@@ -196,6 +203,24 @@ export function resumirRonda(amostras, { janelaS = JANELA_S, agora = 0 } = {}) {
       // o ensaio nao distinguiria nada.
       caminho: 'docs/runbook-bateria.md',
       texto: '# Runbook — correr a bateria local\n\nTudo o que este runbook pede a uma pessoa tem, logo a seguir, o comando que o faz.\n\n## 1. Preparar\n\nInstala as dependências:\n\n```sh\nnpm ci --no-audit --no-fund\n```\n\nConfirma que o Ollama está a responder:\n\n```sh\ncurl -sf http://127.0.0.1:11434/api/tags > /dev/null && echo vivo\n```\n\n## 2. Correr\n\nCorre a suite do runner:\n\n```sh\nnpm run test:cockpit-runner\n```\n\nVerifica que o classificador não mudou:\n\n```sh\nsha256sum tools/router/classify.js\n```\n\n## 3. Medir\n\nActualiza o relatório de classes da fila:\n\n```sh\nnode tools/cockpit/runner/classes-da-fila.mjs\n```\n\nConfirma que a reconciliação fechou a zero:\n\n```sh\nnode tools/cockpit/runner/classes-da-fila.mjs | grep "desvio 0"\n```\n\n## 4. Arrumar\n\nLimpa o estado temporario:\n\n```sh\nrm -rf "$TMPDIR/moo-tmp"\n```\n',
+    },
+  },
+
+  P6: {
+    procura: 'numero mostrado ao utilizador sem origem visivel na mesma linha',
+    semeado: {
+      caminho: 'landing/components/SavingsCard.tsx',
+      defeito: 'a linha 36 mostra uma percentagem cravada, sem origem na mesma linha',
+      // O P6 manda acabar com `PROOF: <ficheiro>:<linha>` — a linha e obrigatoria.
+      linhas: [36],
+      texto: 'import { Card } from \'./Card\';\nimport { formatUsd } from \'../lib/format\';\n\ntype Props = {\n  savedUsd: number;\n  runs: number;\n  medianMs: number;\n};\n\n/** O cartao de poupanca do painel. */\nexport function SavingsCard({ savedUsd, runs, medianMs }: Props) {\n  const perRun = runs > 0 ? savedUsd / runs : 0;\n\n  return (\n    <Card title="Poupanca">\n      <dl className="grid grid-cols-2 gap-3">\n        <div>\n          <dt>Poupado</dt>\n          <dd>{formatUsd(savedUsd)}</dd>\n        </div>\n        <div>\n          <dt>Rondas</dt>\n          <dd>{runs}</dd>\n        </div>\n        <div>\n          <dt>Por ronda</dt>\n          <dd>{formatUsd(perRun)}</dd>\n        </div>\n        <div>\n          <dt>Mediana</dt>\n          <dd>{medianMs} ms</dd>\n        </div>\n      </dl>\n\n      <p className="mt-4 text-sm text-muted">\n        Ate hoje, o roteador manteve 89% do trabalho fora da nuvem.\n      </p>\n    </Card>\n  );\n}\n',
+    },
+    controlo: {
+      // Todos os numeros mostrados tem a origem NA MESMA LINHA — props, uma
+      // funcao de formatacao, ou uma constante importada. Um componente sem
+      // numero nenhum tambem daria NO FINDING, mas pela razao errada.
+      caminho: 'landing/components/CostCard.tsx',
+      texto: 'import { Card } from \'./Card\';\nimport { formatUsd, formatPct } from \'../lib/format\';\nimport { TARGET_LOCAL_PCT } from \'../lib/limits\';\n\ntype Props = {\n  spentUsd: number;\n  jobs: number;\n  p95Ms: number;\n  localPct: number;\n};\n\n/** O cartao de custo do painel. */\nexport function CostCard({ spentUsd, jobs, p95Ms, localPct }: Props) {\n  const perJob = jobs > 0 ? spentUsd / jobs : 0;\n\n  return (\n    <Card title="Custo">\n      <dl className="grid grid-cols-2 gap-3">\n        <div>\n          <dt>Gasto</dt>\n          <dd>{formatUsd(spentUsd)}</dd>\n        </div>\n        <div>\n          <dt>Jobs</dt>\n          <dd>{jobs}</dd>\n        </div>\n        <div>\n          <dt>Por job</dt>\n          <dd>{formatUsd(perJob)}</dd>\n        </div>\n        <div>\n          <dt>p95</dt>\n          <dd>{p95Ms} ms</dd>\n        </div>\n      </dl>\n\n      <p className="mt-4 text-sm text-muted">\n        Local: {formatPct(localPct)} — alvo {formatPct(TARGET_LOCAL_PCT)}.\n      </p>\n    </Card>\n  );\n}\n',
     },
   },
 };
