@@ -18,13 +18,22 @@
  *     acha       acha        dispara por reflexo — nao discrimina
  *     calado     acha        incoerente — investigar o fixture
  *
- * RESULTADO MEDIDO — os QUATRO pilares mudos (2026-08-21, qwen2.5-coder:14b):
+ * RESULTADO MEDIDO — os CINCO pilares testados (2026-08-21, qwen2.5-coder:14b):
  *
  *     pilar   semeado          controlo         directa GUIADA   directa NEUTRA
  *     P8      "NO FINDING" 4   "NO FINDING" 4    13 tok certo      4 tok errado
  *     P9      "NO FINDING" 4   "NO FINDING" 4   169 tok certo      n/d
  *     P10     "NO FINDING" 4   "NO FINDING" 4   113 tok certo      n/d
  *     P6      "NO FINDING" 4   "NO FINDING" 4    99 tok certo      4 tok errado
+ *     P7      "NO FINDING" 4   "NO FINDING" 4   ERRADO            4 tok errado
+ *
+ * O P7 e o unico onde ate a GUIADA falha: identifica correctamente o `slice` da
+ * linha 13, mas atribui-o ao campo errado (`ultimo_ts` L27 em vez de `total`
+ * L24). E o unico dos cinco que produziu alguma coisa em producao — 3 achados em
+ * 493 rondas — e os tres sao FALSOS **e** fora do que ele pergunta: falam de
+ * condicoes booleanas invertidas quando o enunciado pergunta por nomes que
+ * prometem mais do que entregam. Um deles cita `context-pack.mjs:1153` a dizer
+ * que falta uma guarda — e a guarda esta escrita nessa mesma linha.
  *
  * Resposta byte a byte identica no semeado e no controlo, nos quatro: **zero
  * discriminacao**. Nao e do harness (o mesmo prompt a mao devolve o mesmo) nem
@@ -221,6 +230,25 @@ export function resumirRonda(amostras, { janelaS = JANELA_S, agora = 0 } = {}) {
       // numero nenhum tambem daria NO FINDING, mas pela razao errada.
       caminho: 'landing/components/CostCard.tsx',
       texto: 'import { Card } from \'./Card\';\nimport { formatUsd, formatPct } from \'../lib/format\';\nimport { TARGET_LOCAL_PCT } from \'../lib/limits\';\n\ntype Props = {\n  spentUsd: number;\n  jobs: number;\n  p95Ms: number;\n  localPct: number;\n};\n\n/** O cartao de custo do painel. */\nexport function CostCard({ spentUsd, jobs, p95Ms, localPct }: Props) {\n  const perJob = jobs > 0 ? spentUsd / jobs : 0;\n\n  return (\n    <Card title="Custo">\n      <dl className="grid grid-cols-2 gap-3">\n        <div>\n          <dt>Gasto</dt>\n          <dd>{formatUsd(spentUsd)}</dd>\n        </div>\n        <div>\n          <dt>Jobs</dt>\n          <dd>{jobs}</dd>\n        </div>\n        <div>\n          <dt>Por job</dt>\n          <dd>{formatUsd(perJob)}</dd>\n        </div>\n        <div>\n          <dt>p95</dt>\n          <dd>{p95Ms} ms</dd>\n        </div>\n      </dl>\n\n      <p className="mt-4 text-sm text-muted">\n        Local: {formatPct(localPct)} — alvo {formatPct(TARGET_LOCAL_PCT)}.\n      </p>\n    </Card>\n  );\n}\n',
+    },
+  },
+
+  P7: {
+    procura: 'nome que diz total/all/every produzido a partir de uma fonte cortada',
+    semeado: {
+      caminho: 'tools/cockpit/runner/resumo-fila.mjs',
+      defeito: 'a linha 24 chama-lhe total, mas a producao na linha 13 tem um slice',
+      // O P7 manda 'cite BOTH lines': o nome E a producao. Uma so e meia resposta.
+      linhas: [24, 13],
+      texto: "/**\n * resumo-fila.mjs — o cartao da fila de triagem no painel.\n */\n\nimport fs from 'node:fs';\n\n/** Nunca mais do que isto por leitura — o painel nao aguenta mais. */\nexport const MAX_LINHAS = 500;\n\nfunction lerRecibos(caminho) {\n  const bruto = fs.readFileSync(caminho, 'utf8');\n  const todas = bruto.split('\\n').filter(Boolean);\n  return todas.slice(-MAX_LINHAS).map((l) => JSON.parse(l));\n}\n\n/** Monta o que o painel mostra sobre a fila. */\nexport function resumoDaFila(caminho) {\n  const recibos = lerRecibos(caminho);\n\n  const achados = recibos.filter((r) => r.conclusao === 'achado');\n  const porTriar = achados.filter((r) => !r.decidido);\n\n  return {\n    total: recibos.length,\n    achados: achados.length,\n    por_triar: porTriar.length,\n    ultimo_ts: recibos.length ? recibos[recibos.length - 1].ts : null,\n  };\n}\n\n/** A linha de texto que aparece por baixo do cartao. */\nexport function legenda(resumo) {\n  if (!resumo.total) return 'sem recibos neste device';\n  return `${resumo.por_triar} por triar de ${resumo.achados} achados`;\n}\n",
+    },
+    controlo: {
+      // Mesma forma, mesmo slice, mesmo MAX_LINHAS — mas os nomes DIZEM o que
+      // produzem: `total_no_ficheiro` vem da lista inteira, `lidos_nesta_janela`
+      // vem da cortada. Um ficheiro sem slice nenhum tambem daria NO FINDING,
+      // mas pela razao errada.
+      caminho: 'tools/cockpit/runner/resumo-motor.mjs',
+      texto: "/**\n * resumo-motor.mjs — o cartao do motor local no painel.\n */\n\nimport fs from 'node:fs';\n\n/** Nunca mais do que isto por leitura — o painel nao aguenta mais. */\nexport const MAX_LINHAS = 500;\n\nfunction lerEventos(caminho) {\n  const bruto = fs.readFileSync(caminho, 'utf8');\n  const todos = bruto.split('\\n').filter(Boolean);\n  return { todos, recentes: todos.slice(-MAX_LINHAS).map((l) => JSON.parse(l)) };\n}\n\n/** Monta o que o painel mostra sobre o motor. */\nexport function resumoDoMotor(caminho) {\n  const { todos, recentes } = lerEventos(caminho);\n\n  const falhas = recentes.filter((e) => e.estado === 'falhou');\n  const lentos = recentes.filter((e) => e.dur_s > 30);\n\n  return {\n    total_no_ficheiro: todos.length,\n    lidos_nesta_janela: recentes.length,\n    falhas_na_janela: falhas.length,\n    lentos_na_janela: lentos.length,\n    ultimo_ts: recentes.length ? recentes[recentes.length - 1].ts : null,\n  };\n}\n\n/** A linha de texto que aparece por baixo do cartao. */\nexport function legenda(resumo) {\n  if (!resumo.lidos_nesta_janela) return 'sem eventos neste device';\n  return `${resumo.falhas_na_janela} falhas em ${resumo.lidos_nesta_janela} lidos`;\n}\n",
     },
   },
 };

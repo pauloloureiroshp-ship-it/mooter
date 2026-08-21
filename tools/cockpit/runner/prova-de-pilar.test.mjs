@@ -38,6 +38,7 @@ test('as LINHAS marcadas apontam mesmo para o defeito, em TODO par', () => {
     P9: [/if \(!nome \|\|/, /if \(!rotulo \|\|/],
     P10: [/Confirma no painel da Vercel/],
     P6: [/89% do trabalho fora da nuvem/],
+    P7: [/total: recibos\.length/, /todas\.slice\(-MAX_LINHAS\)/],
   };
   for (const [id, padroes] of Object.entries(esperado)) {
     const linhas = PARES[id].semeado.texto.split('\n');
@@ -60,7 +61,7 @@ test('NENHUM ficheiro de NENHUM par se denuncia como fixture', () => {
       // Os IDs de pilar precisam de limite de palavra: `p95Ms` — um nome de
       // metrica perfeitamente normal — continha "P9" e fazia este teste
       // acusar um controlo que estava limpo.
-      for (const pid of ['P6', 'P8', 'P9', 'P10']) {
+      for (const pid of ['P6', 'P7', 'P8', 'P9', 'P10']) {
         assert.doesNotMatch(t, new RegExp(`\\b${pid}\\b`), `'${pid}' aparece no ${papel} do ${id}`);
       }
     }
@@ -94,6 +95,7 @@ test('escreverPar poe cada par onde AQUELE pilar procura', () => {
   // pilar nunca chegaria a ver — e daria "calado" por motivo nenhum.
   const esperado = {
     P8: /\.mjs$/, P9: /\.mjs$/, P10: /docs\/.*\.md$/, P6: /landing\/components\/.*\.tsx$/,
+    P7: /tools\/cockpit\/runner\/.*\.mjs$/,
   };
   for (const [id, padrao] of Object.entries(esperado)) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prova-'));
@@ -158,4 +160,18 @@ test('o par do P6 tem numeros nos DOIS — a diferenca e a origem, nao a ausenci
   // E o defeito e exactamente um.
   assert.equal((semeado.texto.match(/89%/g) || []).length, 1);
   assert.ok(!controlo.texto.includes('89%'));
+});
+
+test('o par do P7 tem slice nos DOIS — a diferenca e o NOME, nao o corte', () => {
+  // O pilar procura um nome que promete mais do que entrega. Se o controlo nao
+  // tivesse `slice`, um pilar que funcionasse acertava por acidente — bastava
+  // procurar a palavra `slice` em vez de comparar nome com producao.
+  const { semeado, controlo } = PARES.P7;
+  assert.match(semeado.texto, /slice\(-MAX_LINHAS\)/);
+  assert.match(controlo.texto, /slice\(-MAX_LINHAS\)/, 'o controlo TEM de ter o mesmo corte');
+  // No semeado o nome mente; no controlo os nomes dizem o que sao.
+  assert.match(semeado.texto, /total: recibos\.length/);
+  assert.match(controlo.texto, /total_no_ficheiro: todos\.length/, 'aqui o total vem da lista INTEIRA');
+  assert.match(controlo.texto, /lidos_nesta_janela: recentes\.length/, 'e o cortado diz que e da janela');
+  assert.ok(!/\btotal: /.test(controlo.texto), 'o controlo nao pode ter um `total:` nu');
 });
