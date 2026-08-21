@@ -1602,15 +1602,28 @@ test('um pilar desligado NAO pode ser dono de ficheiros', () => {
 
 // ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
 
-test('P4, P8, P9 e P10 estao desligados, e continuam no catalogo', () => {
+test('os CINCO desligados saem da rotacao e continuam no catalogo', () => {
   // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
   // entrada tornaria ilegivel o historico que explica porque foram desligados.
-  for (const id of ['P4', 'P8', 'P9', 'P10']) {
+  // Todos foram desligados por MEDICAO, nao por gosto — cada um tem o numero
+  // no comentario da sua entrada em `PILLARS`.
+  for (const id of ['P4', 'P6', 'P8', 'P9', 'P10']) {
     assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
     assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
     assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
   }
-  assert.deepEqual(PILLAR_IDS, ['P1', 'P2', 'P3', 'P5', 'P6', 'P7']);
+  assert.deepEqual(PILLAR_IDS, ['P1', 'P2', 'P3', 'P5', 'P7']);
+});
+
+test('todo pilar que AINDA corre ja provou que produz', () => {
+  // A regra que sai do dia: um pilar activo tem de ter achados medidos. Os
+  // cinco desligados tinham 0 em ~480 rondas cada. Se um pilar novo entrar na
+  // rotacao sem essa prova, este teste nao o apanha — mas o alarme de mudos do
+  // `classes-da-fila.mjs` apanha, ao fim de 50 rondas.
+  assert.ok(PILLAR_IDS.length >= 3, 'a rotacao nao pode encolher ate deixar de haver loop');
+  for (const id of PILLAR_IDS) {
+    assert.notEqual(PILLARS[id].activo, false, `${id} esta na rotacao E marcado como desligado`);
+  }
 });
 
 test('desligar os quatro NAO orfanou ficheiro nenhum do poco do diff', () => {
@@ -1631,10 +1644,19 @@ test('a COBERTURA perdida esta declarada, nao escondida', () => {
   // achados verdadeiros e o P10 deu 0/455), mas perde-se cobertura — e quem
   // voltar a querer docs precisa de um pilar NOVO, nao de reactivar estes.
   const globsActivos = PILLAR_IDS.flatMap((id) => PILLARS[id].files);
-  for (const orfao of ['*.md', 'docs/**/*.md', '.github/workflows/*.yml']) {
+  const semDono = [
+    '*.md', 'docs/**/*.md', '.github/workflows/*.yml',          // P4 e P10
+    'landing/app/**/*.tsx', 'landing/components/**/*.tsx',       // P6
+    'packages/vscode-extension/src/*.js',                        // P6
+  ];
+  for (const orfao of semDono) {
     assert.ok(!globsActivos.includes(orfao),
-      `${orfao} voltou a ter dono — se foi de proposito, actualiza este teste e o comentario do P10`);
+      `${orfao} voltou a ter dono — se foi de proposito, actualiza este teste e o comentario do pilar`);
   }
+  // O loop passou a ver SO backend. Escrito por extenso porque e uma perda de
+  // ambito que nao se ve em lado nenhum senao aqui.
+  assert.ok(globsActivos.every((g) => /^(tools|packages)\//.test(g)),
+    'a rotacao so cobre tools/ e packages/ — se isso mudar, este teste tem de mudar com ela');
   // O que NAO se perdeu: o glob do P9 era um subconjunto do do P2.
   assert.ok(globsActivos.includes('packages/*/src/*.ts'),
     'a cobertura de packages/*/src/*.ts tem de sobreviver ao desligar do P9');

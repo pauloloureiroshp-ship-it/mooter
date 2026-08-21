@@ -226,6 +226,35 @@ export const PILLARS = {
   },
   P6: {
     label: 'Product & Experience — hardcoded number on screen',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — o quarto e ultimo dos mudos.
+     *
+     *     483 rondas · 480 (99,4%) dizem literalmente NO FINDING · 0 achados
+     *
+     * Semeado o defeito exacto que ele procura — `SavingsCard.tsx`, linha 36,
+     * "89%" cravado numa frase de UI — com um controlo onde TODOS os numeros tem
+     * origem na mesma linha (props, `formatPct()`, constante importada):
+     *
+     *     semeado   -> "NO FINDING"  4 tokens
+     *     controlo  -> "NO FINDING"  4 tokens
+     *
+     * Nao e do modelo: perguntado com a guiada acerta em 99 tokens, cita a linha
+     * 36 e explica; e no controlo diz correctamente que nao ha nenhum.
+     *
+     * ⚠️ ELE NAO VARIAVA, ao contrario do que o ledger sugeria. As 89
+     * `citacao-ok` e as 37 `refutado` sao TODAS `NO FINDING`: este enunciado
+     * exige `PROOF:` mesmo sem achado, portanto 130 rondas emitem uma citacao
+     * que nao cita nada, e e o verificador a classificar essa citacao inutil que
+     * produz o split. Variava a citacao, nao o achado. **Quem reescrever este
+     * pilar tem de tirar o PROOF obrigatorio do caminho do `NO FINDING`.**
+     *
+     * ⚠️ COBERTURA: era o unico pilar a olhar para `landing/` e para a extensao
+     * do VS Code. A partir daqui o loop **nao ve a frente nenhuma** — so
+     * `tools/` e `packages/` de backend. Nao se perde deteccao medida (0/483),
+     * mas perde-se cobertura, e quem quiser a frente de volta precisa de um
+     * pilar NOVO.
+     */
+    activo: false,
     files: [
       'landing/app/**/*.tsx',
       'landing/components/**/*.tsx',
