@@ -33,6 +33,54 @@ function git(dir, args, runImpl) {
 }
 
 /**
+ * Um `index.lock` é considerado órfão a partir daqui.
+ *
+ * Um ciclo deste publicador dura menos de um segundo. Cinco minutos é ordens de
+ * grandeza acima de qualquer operação legítima — e continua a ser conservador
+ * para um `git pull` lento numa ligação má.
+ */
+export const LOCK_ORFAO_MIN = 5;
+
+/**
+ * O vault está em condições de receber um commit?
+ *
+ * Recusa em três casos, e nunca força nenhum:
+ *
+ *  · um merge/rebase por fechar (`MERGE_HEAD`, `REBASE_HEAD`) — commitar por
+ *    cima disso enterraria um conflito que alguém tem de resolver a olho
+ *  · um `index.lock` FRESCO — há outro git a trabalhar, e esperar é grátis
+ *  · um `index.lock` velho ANTES de o remover — só se remove o que se provou
+ *    órfão pela idade, nunca por suposição
+ */
+export function estadoDoVault(vaultDir, { existsImpl = fs.existsSync, statImpl = fs.statSync, rmImpl = fs.rmSync, agora = Date.now() } = {}) {
+  const g = (n) => path.join(vaultDir, '.git', n);
+  for (const marca of ['MERGE_HEAD', 'REBASE_HEAD', 'CHERRY_PICK_HEAD']) {
+    if (existsImpl(g(marca))) {
+      return { ok: false, porque: `o vault tem um ${marca} por fechar — não commito por cima de um conflito de outra pessoa` };
+    }
+  }
+  const lock = g('index.lock');
+  if (!existsImpl(lock)) return { ok: true, porque: 'vault livre' };
+  let idadeMin;
+  try {
+    idadeMin = (agora - statImpl(lock).mtimeMs) / 60000;
+  } catch {
+    return { ok: false, porque: 'há um index.lock no vault e não consegui datá-lo — não arrisco' };
+  }
+  if (idadeMin < LOCK_ORFAO_MIN) {
+    return { ok: false, porque: `outro git está a trabalhar no vault (lock com ${Math.round(idadeMin)} min) — espero pelo próximo ciclo` };
+  }
+  // Órfão provado pela idade: este publicador é o suspeito mais provável, e um
+  // lock esquecido bloqueia o dono. Remove-se e diz-se que se removeu.
+  try {
+    rmImpl(lock, { force: true });
+    return { ok: true, porque: `removi um index.lock órfão de ${Math.round(idadeMin)} min` };
+  } catch (e) {
+    return { ok: false, porque: 'index.lock órfão que não consegui remover: ' + String(e.message).slice(0, 70) };
+  }
+}
+
+/**
  * Publica UM ficheiro de beacon. Recusa-se em vez de forçar, sempre.
  *
  * @returns {{ok: boolean, porque: string, publicado?: string}}
@@ -40,6 +88,7 @@ function git(dir, args, runImpl) {
 export function publicarBeacon(vaultDir, ficheiroRel, o = {}) {
   const runImpl = o.runImpl || execFileSync;
   const existsImpl = o.existsImpl || fs.existsSync;
+  const statImpl = o.statImpl || fs.statSync;
 
   if (!vaultDir || !existsImpl(vaultDir)) {
     return { ok: false, porque: 'sem vault montado nesta máquina' };
@@ -55,6 +104,19 @@ export function publicarBeacon(vaultDir, ficheiroRel, o = {}) {
     return { ok: false, porque: 'git indisponível: ' + String(e.message).slice(0, 80) };
   }
   if (!remoto) return { ok: false, porque: 'o vault não tem remoto — o beacon não chega a lado nenhum' };
+
+  // ⚠️ O VAULT ESTÁ SEQUER EM CONDIÇÕES DE RECEBER UM COMMIT?
+  //
+  // Incidente de 2026-08-21: este publicador foi morto a meio de um ciclo git e
+  // deixou um `.git/index.lock` de 0 bytes no vault PESSOAL do dono. Enquanto
+  // ali esteve, TODAS as operações git naquele repositório ficaram bloqueadas —
+  // incluindo as dele. Um beacon de conveniência trancou o trabalho de alguém.
+  //
+  // Duas coisas passam a ser verificadas antes de tocar em seja o que for, e
+  // ambas RECUSAM em vez de forçar. Um publicador que "arruma" o repositório de
+  // outra pessoa é mais perigoso do que um que não publica.
+  const estado = estadoDoVault(vaultDir, { existsImpl, statImpl, agora: o.agora });
+  if (!estado.ok) return { ok: false, porque: estado.porque };
 
   // A trava que importa: NUNCA se leva trabalho de outra pessoa à boleia.
   // Se houver algo em staging que não seja este beacon, este módulo pára.
