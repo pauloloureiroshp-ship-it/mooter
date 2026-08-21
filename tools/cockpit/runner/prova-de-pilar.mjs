@@ -18,24 +18,32 @@
  *     acha       acha        dispara por reflexo — nao discrimina
  *     calado     acha        incoerente — investigar o fixture
  *
- * RESULTADO MEDIDO PARA O P8 (2026-08-21, qwen2.5-coder:14b):
+ * RESULTADO MEDIDO — os TRES pilares mudos (2026-08-21, qwen2.5-coder:14b):
  *
- *     ficheiro semeado (alocador.mjs, janela 1-57)  -> "NO FINDING"   4 tokens
- *     controlo         (medidor.mjs,  janela 1-58)  -> "NO FINDING"   4 tokens
+ *     pilar   ficheiro semeado          controlo         pergunta DIRECTA
+ *     P8      "NO FINDING"   4 tok      "NO FINDING" 4    13 tok, correcto
+ *     P9      "NO FINDING"   4 tok      "NO FINDING" 4   169 tok, correcto
+ *     P10     "NO FINDING"   4 tok      "NO FINDING" 4   113 tok, correcto
  *
- * Resposta byte a byte identica: **zero discriminacao**. E nao e do harness — o
- * mesmo prompt enviado a mao ao mesmo modelo devolve o mesmo. Nem e do modelo:
- * perguntado DIRECTAMENTE ("um dos campos nunca volta a aparecer, qual e?") ele
- * responde `tempo_estimado_s (linha 32)` em 13 tokens, correcto a primeira.
+ * Resposta byte a byte identica no semeado e no controlo, nos tres: **zero
+ * discriminacao**. E em nenhum e culpa do harness (o mesmo prompt enviado a mao
+ * devolve o mesmo) nem do modelo (perguntado DIRECTAMENTE acerta nos tres, a
+ * primeira, e cita as linhas certas).
  *
- * **O que impede o P8 e o enunciado do P8.** Com os 3 passos ele emite a saida
- * de emergencia em 4 tokens sem fazer trabalho nenhum; sem o contrato de saida
- * do sistema chega aos 163 tokens e FAZ os passos, mas o STEP 2 e falso — copia
- * as linhas do STEP 1 como se fossem leituras, em vez de procurar.
+ * **O que os impede e o proprio enunciado.** Com o procedimento de N passos o
+ * modelo emite a saida de emergencia em 4 tokens sem fazer trabalho nenhum. No
+ * P8, retirando o contrato de saida do sistema, ele chega aos 163 tokens e FAZ
+ * os passos — mas o STEP 2 e falso: copia as linhas do STEP 1 como se fossem
+ * leituras, em vez de procurar.
+ *
+ * A hipotese que sai daqui, ja com 3 casos e por refutar: **um procedimento de
+ * N passos com uma saida de emergencia no fim convida ao curto-circuito.** Os
+ * pilares que produzem (P1 76,9%, P5 63,4%) pedem so EXTRACCAO — que nao tem
+ * saida barata. Os tres mudos pedem EXTRACCAO + BUSCA + JUIZO, e a saida esta
+ * a espera no fim.
  *
  * Uso:
- *   node tools/cockpit/runner/prova-de-pilar.mjs --escrever <dir>
- *     escreve o par semeado/controlo do P8 num repo de ensaio
+ *   node tools/cockpit/runner/prova-de-pilar.mjs --escrever <dir> [--pilar P9]
  */
 
 import fs from 'node:fs';
@@ -54,9 +62,9 @@ export const PARES = {
     procura: 'campo escrito num objecto e nunca lido no mesmo excerto',
     semeado: {
       caminho: 'tools/cockpit/runner/alocador.mjs',
-      // `tempo_estimado_s` e escrito e nunca volta a aparecer. Todos os outros
-      // campos do `plano` sao lidos mais abaixo.
-      campo: 'tempo_estimado_s',
+      defeito: '`tempo_estimado_s` escrito na linha 32 e nunca mais referido',
+      // TODAS as marcas tem de aparecer na resposta para contar como encontrado.
+      marcas: ['tempo_estimado_s'],
       texto: `/**
  * alocador.mjs — decide quanto da GPU cabe a cada job.
  *
@@ -157,6 +165,39 @@ export function resumirRonda(amostras, { janelaS = JANELA_S, agora = 0 } = {}) {
 `,
     },
   },
+
+  P9: {
+    procura: 'duas guardas/transformacoes que fazem o mesmo trabalho',
+    semeado: {
+      caminho: 'tools/cockpit/runner/rotulos.mjs',
+      defeito: 'as guardas das linhas 12 e 24 sao o mesmo trabalho, so muda o nome da variavel',
+      // O P9 manda "cite BOTH line numbers": as duas sao obrigatorias.
+      linhas: [12, 24],
+      texto: "/**\n * rotulos.mjs — nomes legiveis para o painel.\n *\n * Converte identificadores internos em texto que uma pessoa le, e garante que\n * nada vazio chega ao ecra.\n */\n\nconst MAX_ROTULO = 48;\n\n/** O nome do device, pronto para o painel. */\nexport function nomeDoDevice(nome) {\n  if (!nome || String(nome).trim() === '') return 'device-sem-nome';\n  return String(nome).trim().slice(0, MAX_ROTULO);\n}\n\n/** Quantos segundos passaram, arredondados para cima. */\nexport function idadeEmSegundos(desdeMs, agoraMs) {\n  const bruto = (agoraMs - desdeMs) / 1000;\n  return Math.max(0, Math.ceil(bruto));\n}\n\n/** O rotulo do pilar, pronto para o painel. */\nexport function rotuloDoPilar(rotulo) {\n  if (!rotulo || String(rotulo).trim() === '') return 'pilar-sem-nome';\n  return String(rotulo).trim().slice(0, MAX_ROTULO);\n}\n\n/** A percentagem, limitada entre 0 e 100. */\nexport function percentagem(valor) {\n  if (!Number.isFinite(valor)) return null;\n  return Math.min(100, Math.max(0, Math.round(valor)));\n}\n\n/** Junta os pedacos numa linha so, sem separadores a dobrar. */\nexport function linhaDoPainel(pedacos) {\n  return pedacos.filter(Boolean).join(' · ');\n}\n",
+    },
+    controlo: {
+      caminho: 'tools/cockpit/runner/limites.mjs',
+      texto: "/**\n * limites.mjs — os tectos e pisos que o painel aplica antes de mostrar.\n *\n * Cada funcao aqui faz uma verificacao diferente; nenhuma repete o trabalho de\n * outra.\n */\n\nconst MAX_LINHA = 96;\n\n/** O texto cabe na linha do painel? */\nexport function cabeNaLinha(texto) {\n  if (String(texto).length > MAX_LINHA) return `${String(texto).slice(0, MAX_LINHA - 1)}…`;\n  return String(texto);\n}\n\n/** Quantos segundos passaram, arredondados para cima. */\nexport function idadeEmSegundos(desdeMs, agoraMs) {\n  const bruto = (agoraMs - desdeMs) / 1000;\n  return Math.max(0, Math.ceil(bruto));\n}\n\n/** A percentagem, limitada entre 0 e 100. */\nexport function percentagem(valor) {\n  if (!Number.isFinite(valor)) return null;\n  return Math.min(100, Math.max(0, Math.round(valor)));\n}\n\n/** Os gigabytes, com uma casa decimal. */\nexport function gigabytes(bytes) {\n  if (bytes < 0) return null;\n  return Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10;\n}\n\n/** O custo em dolares, sempre com duas casas. */\nexport function dolares(centimos) {\n  if (!Number.isInteger(centimos)) return null;\n  return (centimos / 100).toFixed(2);\n}\n\n/** Junta os pedacos numa linha so, sem separadores a dobrar. */\nexport function linhaDoPainel(pedacos) {\n  return pedacos.filter(Boolean).join(' · ');\n}\n",
+    },
+  },
+
+  P10: {
+    procura: 'instrucao a uma pessoa que nenhum comando do excerto executa',
+    semeado: {
+      caminho: 'docs/runbook-conector.md',
+      defeito: 'a linha 41 manda confirmar o deploy na Vercel a mao, e nenhum comando o faz',
+      // O P10 manda "Cite its line" — a linha e a barra que ele proprio poe.
+      linhas: [41],
+      texto: '# Runbook — publicar uma versão do conector\n\nSequência completa, do checkout limpo até à extensão instalada.\n\n## 1. Preparar\n\nActualiza as dependências antes de tudo:\n\n```sh\nnpm ci --no-audit --no-fund\n```\n\nCorre a suite inteira e confirma que fica verde:\n\n```sh\nnpm test\n```\n\n## 2. Versionar\n\nSobe o número de versão no manifest:\n\n```sh\nnpm version patch --no-git-tag-version\n```\n\nVerifica que o `manifest.json` e o `package.json` ficaram com o mesmo número:\n\n```sh\nnode tools/version-sync.mjs --check\n```\n\n## 3. Empacotar\n\nGera o `.mcpb`:\n\n```sh\nnpm run pack:mcpb\n```\n\nConfirma no painel da Vercel que o deploy do site de download ficou verde antes de anunciar a versão.\n\n## 4. Publicar\n\nPublica no registo:\n\n```sh\nnpm publish --access public\n```\n\nMarca a tag no git:\n\n```sh\ngit tag -s "v$(node -p "require(\'./package.json\').version")" -m "release"\n```\n',
+    },
+    controlo: {
+      // ⚠️ O controlo TEM instrucoes — todas com o comando ao lado. Um runbook
+      // sem instrucao nenhuma tambem daria NO FINDING, mas pela razao errada, e
+      // o ensaio nao distinguiria nada.
+      caminho: 'docs/runbook-bateria.md',
+      texto: '# Runbook — correr a bateria local\n\nTudo o que este runbook pede a uma pessoa tem, logo a seguir, o comando que o faz.\n\n## 1. Preparar\n\nInstala as dependências:\n\n```sh\nnpm ci --no-audit --no-fund\n```\n\nConfirma que o Ollama está a responder:\n\n```sh\ncurl -sf http://127.0.0.1:11434/api/tags > /dev/null && echo vivo\n```\n\n## 2. Correr\n\nCorre a suite do runner:\n\n```sh\nnpm run test:cockpit-runner\n```\n\nVerifica que o classificador não mudou:\n\n```sh\nsha256sum tools/router/classify.js\n```\n\n## 3. Medir\n\nActualiza o relatório de classes da fila:\n\n```sh\nnode tools/cockpit/runner/classes-da-fila.mjs\n```\n\nConfirma que a reconciliação fechou a zero:\n\n```sh\nnode tools/cockpit/runner/classes-da-fila.mjs | grep "desvio 0"\n```\n\n## 4. Arrumar\n\nLimpa o estado temporario:\n\n```sh\nrm -rf "$TMPDIR/moo-tmp"\n```\n',
+    },
+  },
 };
 
 /** Escreve o par de prova de um pilar num repo de ensaio. Devolve os caminhos. */
@@ -183,17 +224,30 @@ export function escreverPar(pilar, destino, { writeImpl = fs.writeFileSync, mkdi
  */
 export function veredicto({ pilar, respostaSemeado, respostaControlo }) {
   const par = PARES[pilar];
-  const campo = par && par.semeado.campo;
-  const achou = Boolean(campo) && new RegExp(campo).test(String(respostaSemeado || ''));
+  if (!par) throw new Error(`sem par de prova para ${pilar}`);
+  const s = par.semeado;
+  const texto = String(respostaSemeado || '');
+
+  // Duas formas de marcar o que conta como "encontrou":
+  //   `marcas` — cadeias que a resposta tem de conter (ex.: o nome do campo)
+  //   `linhas` — numeros de linha que a resposta tem de citar
+  // TODAS tem de bater. O P9 manda citar as DUAS linhas; aceitar uma so seria
+  // aceitar meia resposta.
+  const marcas = s.marcas || [];
+  const linhas = s.linhas || [];
+  const achou = (marcas.length + linhas.length) > 0
+    && marcas.every((m) => new RegExp(m).test(texto))
+    && linhas.every((n) => new RegExp(`(^|[^0-9])${n}([^0-9]|$)`).test(texto));
+
   const acusouControlo = !/\b(NO FINDING|SEM ACHADO)\b/i.test(String(respostaControlo || ''));
 
   if (achou && !acusouControlo) {
-    return { estado: 'funciona', porque: `encontrou ${campo} no semeado e ficou calado no controlo` };
+    return { estado: "funciona", porque: `encontrou ${s.defeito || "o defeito"} no semeado e ficou calado no controlo` };
   }
   if (!achou && !acusouControlo) {
     return {
       estado: 'partido',
-      porque: `nao encontrou ${campo} no ficheiro semeado, e deu a MESMA resposta no controlo — nao discrimina`,
+      porque: `nao encontrou ${s.defeito || 'o defeito'} no ficheiro semeado, e deu a MESMA resposta no controlo — nao discrimina`,
     };
   }
   if (achou && acusouControlo) {
@@ -213,7 +267,7 @@ function principal() {
   const pilar = pi === -1 ? 'P8' : process.argv[pi + 1];
   const out = escreverPar(pilar, destino);
   console.log(`par de prova do ${pilar} escrito:`);
-  console.log(`  semeado  : ${out.semeado}   (defeito: ${PARES[pilar].semeado.campo})`);
+  console.log(`  semeado  : ${out.semeado}   (defeito: ${PARES[pilar].semeado.defeito})`);
   console.log(`  controlo : ${out.controlo}`);
   console.log(`\ncorre o pilar contra ${destino} com MOOTER_REPO e foco em ${pilar}.`);
 }

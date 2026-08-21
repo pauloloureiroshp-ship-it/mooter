@@ -16,19 +16,46 @@ import { PARES, escreverPar, veredicto } from './prova-de-pilar.mjs';
 
 test('o par do P8 tem UM defeito semeado, e ele nao se repete', () => {
   const { semeado, controlo } = PARES.P8;
-  const n = (semeado.texto.match(new RegExp(semeado.campo, 'g')) || []).length;
-  assert.equal(n, 1, `${semeado.campo} tem de aparecer exactamente 1x — 2x seria lido e nao seria defeito`);
-  assert.ok(!controlo.texto.includes(semeado.campo), 'o controlo nao pode ter o campo semeado');
+  const campo = semeado.marcas[0];
+  const n = (semeado.texto.match(new RegExp(campo, 'g')) || []).length;
+  assert.equal(n, 1, `${campo} tem de aparecer exactamente 1x — 2x seria lido e nao seria defeito`);
+  assert.ok(!controlo.texto.includes(campo), 'o controlo nao pode ter o campo semeado');
 });
 
-test('NENHUM dos ficheiros se denuncia como fixture', () => {
+test('TODO par declara o que procura e como se reconhece a resposta', () => {
+  for (const [id, par] of Object.entries(PARES)) {
+    assert.ok(par.procura, `${id} nao diz o que procura`);
+    assert.ok(par.semeado.defeito, `${id} nao descreve o defeito semeado`);
+    const n = (par.semeado.marcas || []).length + (par.semeado.linhas || []).length;
+    assert.ok(n > 0, `${id} nao tem marca nenhuma — nada distinguiria acertar de falhar`);
+  }
+});
+
+test('as LINHAS marcadas apontam mesmo para o defeito, em TODO par', () => {
+  // Se o fixture crescer uma linha e a marca ficar para tras, o ensaio passa a
+  // medir a linha errada e ninguem da por isso.
+  const esperado = {
+    P9: [/if \(!nome \|\|/, /if \(!rotulo \|\|/],
+    P10: [/Confirma no painel da Vercel/],
+  };
+  for (const [id, padroes] of Object.entries(esperado)) {
+    const linhas = PARES[id].semeado.texto.split('\n');
+    PARES[id].semeado.linhas.forEach((n, i) => {
+      assert.match(linhas[n - 1], padroes[i], `${id}: a linha ${n} nao e o defeito que a marca promete`);
+    });
+  }
+});
+
+test('NENHUM ficheiro de NENHUM par se denuncia como fixture', () => {
   // Um comentario a dizer "aqui esta o defeito" ensina a resposta ao modelo e
   // invalida a prova a favor de quem a corre. O primeiro par teve de ser
-  // reescrito por causa disto.
-  for (const papel of ['semeado', 'controlo']) {
-    const t = PARES.P8[papel].texto;
-    for (const palavra of ['semead', 'defeito', 'ENSAIO', 'fixture', 'CONTROLO', 'P8']) {
-      assert.ok(!new RegExp(palavra, 'i').test(t), `'${palavra}' aparece no ${papel} — denuncia o ensaio`);
+  // reescrito por causa disto, e a palavra "ensaio" teve de sair de um controlo.
+  for (const [id, par] of Object.entries(PARES)) {
+    for (const papel of ['semeado', 'controlo']) {
+      const t = par[papel].texto;
+      for (const palavra of ['semead', 'defeito', 'ensaio', 'fixture', 'controlo', 'P8', 'P9', 'P10']) {
+        assert.ok(!new RegExp(palavra, 'i').test(t), `'${palavra}' aparece no ${papel} do ${id}`);
+      }
     }
   }
 });
@@ -46,9 +73,25 @@ test('no CONTROLO todos os campos escritos sao lidos', () => {
 test('o par cabe numa janela de 70 linhas', () => {
   // O pilar ve UM excerto. Um defeito fora da janela nao e um teste ao pilar,
   // e um teste a sorte da rotacao.
-  for (const papel of ['semeado', 'controlo']) {
-    const n = PARES.P8[papel].texto.split('\n').length;
-    assert.ok(n <= 70, `${papel} tem ${n} linhas — nao cabe numa janela`);
+  for (const [id, par] of Object.entries(PARES)) {
+    for (const papel of ['semeado', 'controlo']) {
+      const n = par[papel].texto.split('\n').length;
+      assert.ok(n <= 70, `${id}/${papel} tem ${n} linhas — nao cabe numa janela`);
+    }
+  }
+});
+
+test('escreverPar poe cada par onde AQUELE pilar procura', () => {
+  // O P8/P9 procuram em `tools/cockpit/runner/*.mjs`; o P10 procura em
+  // `docs/**/*.md`. Escrever o par do P10 num `.mjs` seria um ensaio que o
+  // pilar nunca chegaria a ver — e daria "calado" por motivo nenhum.
+  const esperado = { P8: /\.mjs$/, P9: /\.mjs$/, P10: /docs\/.*\.md$/ };
+  for (const [id, padrao] of Object.entries(esperado)) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prova-'));
+    const out = escreverPar(id, dir);
+    for (const papel of ['semeado', 'controlo']) {
+      assert.match(out[papel].split(path.sep).join('/'), padrao, `${id}/${papel} fora do alcance do pilar`);
+    }
   }
 });
 
