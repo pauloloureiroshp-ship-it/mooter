@@ -289,6 +289,40 @@ export const PILLARS = {
       'packages/mooter-bridge/*.js',
       'packages/router/src/*.ts',
     ],
+    /**
+     * ⚠️ NAO REESCREVER ESTE ENUNCIADO. A PERGUNTA E QUE ESTA MAL-POSTA.
+     *
+     * Este pilar respondeu `sem-achado` em 455/455 rondas. O metodo #312
+     * (`prova-de-pilar.mjs`) semeou-lhe o defeito exacto que ele diz procurar —
+     * `tempo_estimado_s`, escrito e nunca mais referido — com um controlo limpo
+     * ao lado. Resposta byte a byte igual nos dois: `NO FINDING`, 4 tokens.
+     *
+     * Tentou-se corrigir por enunciado a 2026-08-21, e MEDIU-SE cada tentativa:
+     *
+     *     forma                                     semeado    repo real
+     *     3 passos (esta)                           nao acha    0% em 455 rondas
+     *     1 extraccao ("copia os campos mortos")    nao acha    —
+     *     pergunta directa NEUTRA                   nao acha    —
+     *     pergunta directa GUIADA (afirma que ha)   acha 13tok  nao serve: pressupoe
+     *     saida com prova obrigatoria               acha 147tok 3 falsos no controlo
+     *     DETERMINISTA, janela de 70 linhas         acha        41,4% das janelas
+     *     DETERMINISTA, ficheiro inteiro            acha        66,7% · 284 campos
+     *
+     * A reescrita para uma so extraccao foi revertida por medir exactamente o
+     * mesmo: zero. E a versao determinista — sem modelo nenhum — discrimina na
+     * perfeicao no fixture e depois inunda o repo real.
+     *
+     * O PORQUE, que e o que interessa: em JavaScript real, "um campo escrito
+     * num objecto e nunca lido aqui" descreve sobretudo ARGUMENTOS
+     * (`{ cwd, encoding, timeout, stdio }` que o `execSync` consome) e VALORES
+     * DE RETORNO (`{ ok, host }` que o chamador consome). Isso e codigo normal,
+     * nao um defeito. O fixture so funcionou porque se construiu de proposito um
+     * objecto que nao era nem argumento nem retorno.
+     *
+     * Nao ha enunciado que salve isto, porque o alvo nao existe como classe. O
+     * que existe — campo morto a serio — precisa de saber quem CONSOME o objecto,
+     * e isso e analise de chamadas, nao leitura de um excerto.
+     */
     ask:
       'STEP 1 — copy, one per line, every field this excerpt WRITES into an object. '
       + 'Format: `WRITTEN LINE <n>: <field>`.\n'
