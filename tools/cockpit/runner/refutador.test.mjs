@@ -14,7 +14,7 @@ import path from 'node:path';
 import {
   VEREDICTO, CAMADA, LANES_PAGAS,
   provaDoAchado, acabaLimpa, refutarDeterminista, refutarAdversarial,
-  guarda, podeDespachar, limparCache,
+  guarda, podeDespachar, limparCache, temCampos,
 } from './refutador.mjs';
 
 function repo(ficheiros) {
@@ -261,4 +261,39 @@ test('DOUTRINA · a recusa atravessa o portao inteiro', async () => {
   );
   assert.equal(reg.veredicto, VEREDICTO.INDECISO);
   assert.equal(podeDespachar(reg, 'subscription').ok, false, 'e um indeciso nao paga lane paga');
+});
+
+// ── classe "mesmos campos" (2c, 2026-08-21) ─────────────────────────────────
+
+test('temCampos distingue uma chaveta solta de uma linha com conteudo', () => {
+  for (const vazio of ['{', '}', '};', 'return {', 'return [];', '  )', '', null]) {
+    assert.equal(temCampos(vazio), false, `${JSON.stringify(vazio)} nao tem campos`);
+  }
+  for (const cheio of ["name: 'mooter_cancel',", 'return { ok: true }', 'const x = 1;']) {
+    assert.equal(temCampos(cheio), true, `${JSON.stringify(cheio)} tem campos`);
+  }
+});
+
+test('CAMADA 1 · "mesmos campos" citando so chavetas e refutado', () => {
+  // Medido: 26 dos 287 achados desta classe (9,1%) citam SO linhas sem campos —
+  // `return {` contra `}`. A afirmacao pode ate ser verdadeira; o que nao pode
+  // e ser provada por aquela citacao.
+  const r = repo({ 'src/a.js': 'const a=1;\nreturn {\nmeio\n}\nfim\n' });
+  const v = refutarDeterminista(
+    achado({ pilar: 'P5', ficheiro: 'src/a.js', resultado_resumo: 'SAME SHAPE: lines 2, 4 PROOF: src/a.js:2' }),
+    { repoRoot: r },
+  );
+  assert.equal(v.veredicto, VEREDICTO.REFUTADO);
+  assert.match(v.porque, /nenhuma linha citada tem campos/);
+});
+
+test('CAMADA 1 · "mesmos campos" com conteudo real NAO e refutado', () => {
+  // Os 90,9% que citam linhas com conteudo precisam de juizo, e esta camada
+  // nao o tem. Nao se refuta o que nao se consegue decidir.
+  const r = repo({ 'src/b.js': "x\nreturn { ok: true, n: 1 };\ny\nreturn { ok: false, n: 2 };\n" });
+  const v = refutarDeterminista(
+    achado({ pilar: 'P5', ficheiro: 'src/b.js', resultado_resumo: 'SAME SHAPE: lines 2, 4 PROOF: src/b.js:2' }),
+    { repoRoot: r },
+  );
+  assert.equal(v.veredicto, VEREDICTO.INDECISO);
 });
