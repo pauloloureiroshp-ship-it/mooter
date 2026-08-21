@@ -1571,3 +1571,31 @@ test('P4 continua a cumprir a doutrina dos pilares (copiar primeiro)', () => {
   assert.ok(SEM_ACHADO_RE.test(PILLARS.P4.ask),
     'e tem de manter uma saida honesta que o verificador reconheca');
 });
+
+// ── desligar um pilar (2026-08-21) ───────────────────────────────────────────
+
+test('um pilar desligado sai da ROTACAO mas fica no catalogo', () => {
+  // Fica no catalogo porque 62 recibos do ledger apontam para o P4: apagar a
+  // entrada tornaria ilegivel o historico que explica porque foi desligado.
+  assert.equal(PILLARS.P4.activo, false, 'o P4 esta desligado por medicao (0/78 achados verdadeiros)');
+  assert.ok(!PILLAR_IDS.includes('P4'), 'e nao pode voltar a rotacao');
+  assert.ok(Object.keys(PILLARS).includes('P4'), 'mas o historico tem de continuar a resolver o label');
+});
+
+test('um pilar desligado NAO pode ser dono de ficheiros', () => {
+  // O defeito que este teste tranca custou-me uma suite vermelha e valia mais do
+  // que isso: o P4 reclamava `*.md` e era o reclamante de ambito mais estreito,
+  // portanto continuava a GANHAR a posse dos `.md` do poco do diff — para um
+  // pilar que ja nao corre. Os `.md` deixariam de ser revistos por ninguem, em
+  // silencio, porque a posse existe exactamente para os outros nao lhes pegarem.
+  // Desligar um pilar tem de libertar o que ele possuia, nao congela-lo.
+  const root = repoDiff();
+  for (const f of ['README.md']) {
+    const dono = donoDoFicheiro(root, f);
+    assert.notEqual(dono, 'P4', `${f} nao pode pertencer a um pilar desligado`);
+    if (dono !== null) {
+      assert.ok(PILLAR_IDS.includes(dono),
+        `${f} tem de pertencer a um pilar que CORRE, e nao a ${dono}`);
+    }
+  }
+});

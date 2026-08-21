@@ -102,6 +102,49 @@ export const PILLARS = {
   },
   P4: {
     label: 'Hygiene — published text left broken',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — nao por gosto, por medicao.
+     *
+     * Fica no catalogo (nao se apaga) porque 62 recibos do ledger apontam para
+     * ele: apagar o pilar tornaria ilegivel o historico que explica porque e que
+     * ele foi desligado. Sai apenas da ROTACAO, via `PILLAR_IDS`.
+     *
+     * **O que se mediu.** Tres configuracoes do mesmo pilar, ledgers isolados:
+     *
+     *     A · enunciado original     382 rondas   62 achados (16,2%)
+     *     B · so o prompt             80 rondas    3 achados
+     *     C · harness garante         80 rondas   13 achados
+     *
+     * Depois, um verificador DETERMINISTICO (sem modelo) sobre a afirmacao que o
+     * P4 faz — "esta linha esta cortada a meio" —, que so marca falso quando a
+     * linha citada acaba num limite de token obvio (ponto, `)`, `|`, palavra
+     * inteira) e diz "nao decido" no resto:
+     *
+     *                achados   afirmacao falsa   SOBREVIVEM
+     *          A        62        47 (75,8%)         0
+     *          B         3         3 ( 100%)         0
+     *          C        13        13 ( 100%)         0
+     *
+     * **0 em 78.** E o remate: das 443 `.md` em `docs/`, **0** acabam a meio de
+     * uma palavra. O defeito que este pilar procura nao ocorre neste repo.
+     *
+     * Duas correccoes reais sairam da investigacao e FICAM (valem por si, para
+     * todos os pilares): a linha fantasma do `split('\n')` — que fazia 19,4% dos
+     * achados citarem uma linha inexistente — e o `janela: 'ultima'`. Nenhuma
+     * delas salva o P4: a C ate o faz disparar MAIS por ronda (16,3% contra
+     * 13,4%), porque agora todas as janelas sao aquelas onde ele dispara.
+     *
+     * **Custo do que se desliga:** 382 rondas de GPU para 62 achados, todos
+     * falsos, sobre um defeito com zero ocorrencias.
+     *
+     * **Reversivel numa linha:** apagar este `activo: false`. Reactivar sem
+     * mudar a PERGUNTA e, no entanto, repetir a medicao acima.
+     *
+     * **O que NAO se fez de proposito:** reformular. Higiene a MEIO do documento
+     * (links partidos, tabelas tortas) e uma pergunta DIFERENTE — enunciado novo,
+     * com a sua propria medicao — e nao um remendo neste.
+     */
+    activo: false,
     files: [
       '*.md',
       'docs/**/*.md',
@@ -307,7 +350,22 @@ export const PILLARS = {
   },
 };
 
-export const PILLAR_IDS = Object.keys(PILLARS);
+/**
+ * Os pilares que ENTRAM NA ROTACAO.
+ *
+ * Um pilar com `activo: false` continua no catalogo — o `PILLARS` inteiro — mas
+ * o loop nao lhe pega. A distincao existe porque os recibos ja escritos guardam
+ * o `pilar`, e apagar a entrada tornaria ilegivel o historico que explica porque
+ * e que ele foi desligado. Um pilar desligado tem de conseguir explicar-se.
+ *
+ * Consequencia deliberada: `readFocus` valida contra estes ids, portanto pedir
+ * foco num pilar desligado e RECUSADO em voz alta em vez de silenciosamente
+ * ignorado — que e o comportamento certo para um botao que nao pode funcionar.
+ */
+export const PILLAR_IDS = Object.keys(PILLARS).filter((id) => PILLARS[id].activo !== false);
+
+/** Todos, incluindo os desligados — para o painel e para ler historico. */
+export const PILLAR_IDS_TODOS = Object.keys(PILLARS);
 
 /** Onde um projecto declara os seus proprios pilares. */
 export const PILLARS_FILE = '.mooter/pilares.json';
@@ -948,6 +1006,16 @@ export function donoDoFicheiro(repoRoot, file, pillars = PILLARS) {
   let dono = null;
   let ambito = Infinity;
   for (const id of Object.keys(pillars)) {
+    // ⚠️ Um pilar DESLIGADO nao pode ser dono de nada.
+    //
+    // Apanhado pelo teste da sobreposicao ao desligar o P4 (2026-08-21): ele
+    // reclamava `*.md` e era o reclamante de ambito mais estreito, portanto
+    // continuava a ganhar a posse de todos os `.md` do poco do diff — para um
+    // pilar que ja nao corre. O efeito seria pior do que o problema que o
+    // desligar resolve: os `.md` deixavam de ser revistos POR NINGUEM, e em
+    // silencio, porque a posse existe precisamente para os outros pilares nao
+    // lhes pegarem.
+    if (pillars[id] && pillars[id].activo === false) continue;
     const c = candidatosDoPilar(repoRoot, id, pillars);
     if (!c.files.includes(file)) continue;
     if (c.files.length < ambito) { ambito = c.files.length; dono = id; }
