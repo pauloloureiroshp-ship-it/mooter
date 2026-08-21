@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { publicarBeacon, estaNaHora, ligado, MINUTOS_OMISSAO } from './beacon-publisher.mjs';
+import { publicarBeacon, estaNaHora, ligado, MINUTOS_OMISSAO , estadoDoVault, LOCK_ORFAO_MIN} from './beacon-publisher.mjs';
 
 const FICH = '50-fleet/mac.json';
 
@@ -30,7 +30,14 @@ function gitFalso(respostas = {}) {
   return { run, chamadas };
 }
 
-const existeSempre = () => true;
+/**
+ * O vault existe e esta LIMPO: sem merge por fechar, sem lock.
+ *
+ * A primeira versao disto era `() => true`, e com o guarda novo isso passou a
+ * querer dizer "ha um MERGE_HEAD" — os testes falhavam por o fixture mentir
+ * sobre o disco, nao por o codigo estar mal.
+ */
+const existeSempre = (p) => !/MERGE_HEAD|REBASE_HEAD|CHERRY_PICK_HEAD|index\.lock/.test(String(p));
 
 // ── nasce desligado ─────────────────────────────────────────────────────────
 
@@ -139,4 +146,73 @@ test('nao se publica quando o transporte nao e partilhado', () => {
   const fonte = fs.readFileSync(new URL('./moo-runner.mjs', import.meta.url), 'utf8');
   assert.match(fonte, /where\.partilhado && publicacaoLigada\(\)/,
     'o transporte local nunca pode disparar uma publicacao');
+});
+
+// ── o lock orfao no vault do dono (2026-08-21) ─────────────────────────────
+
+/**
+ * Incidente real. Este publicador foi morto a meio de um ciclo git e deixou um
+ * `.git/index.lock` de 0 bytes no vault PESSOAL do dono. Enquanto ali esteve,
+ * TODAS as operacoes git naquele repositorio ficaram bloqueadas — incluindo as
+ * dele. Um beacon de conveniencia trancou o trabalho de alguem.
+ */
+const AGORA = 1_000_000_000_000;
+const so = (nome) => (p) => String(p).includes(nome);
+
+test('um merge por fechar PARA o publicador — nao se commita por cima', () => {
+  // Commitar por cima de um MERGE_HEAD enterraria um conflito que alguem tem
+  // de resolver a olho.
+  for (const marca of ['MERGE_HEAD', 'REBASE_HEAD', 'CHERRY_PICK_HEAD']) {
+    const r = estadoDoVault('/v', { existsImpl: so(marca), agora: AGORA });
+    assert.equal(r.ok, false, marca);
+    assert.match(r.porque, new RegExp(marca));
+  }
+});
+
+test('um lock FRESCO faz esperar, nunca remover', () => {
+  let removeu = false;
+  const r = estadoDoVault('/v', {
+    existsImpl: so('index.lock'),
+    statImpl: () => ({ mtimeMs: AGORA - 60_000 }),
+    rmImpl: () => { removeu = true; },
+    agora: AGORA,
+  });
+  assert.equal(r.ok, false);
+  assert.equal(removeu, false, 'ha outro git a trabalhar — esperar e gratis, remover e destrutivo');
+  assert.match(r.porque, /espero pelo próximo ciclo/);
+});
+
+test('um lock ORFAO e removido, e diz-se que se removeu', () => {
+  let removido = null;
+  const r = estadoDoVault('/v', {
+    existsImpl: so('index.lock'),
+    statImpl: () => ({ mtimeMs: AGORA - (LOCK_ORFAO_MIN + 5) * 60_000 }),
+    rmImpl: (p) => { removido = p; },
+    agora: AGORA,
+  });
+  assert.equal(r.ok, true);
+  assert.match(String(removido), /index\.lock$/, 'so o lock, nunca mais nada');
+  assert.match(r.porque, /órfão/);
+});
+
+test('um lock que nao se consegue datar NAO se remove', () => {
+  // So se remove o que se PROVOU orfao pela idade. Nunca por suposicao.
+  let removeu = false;
+  const r = estadoDoVault('/v', {
+    existsImpl: so('index.lock'),
+    statImpl: () => { throw new Error('EACCES'); },
+    rmImpl: () => { removeu = true; },
+    agora: AGORA,
+  });
+  assert.equal(r.ok, false);
+  assert.equal(removeu, false, 'sem prova de idade, nao se toca');
+});
+
+test('o publicador verifica o vault ANTES de lhe tocar', () => {
+  // Se o guarda corresse depois do `git add`, ja teria sujado o repositorio.
+  const fonte = fs.readFileSync(new URL('./beacon-publisher.mjs', import.meta.url), 'utf8');
+  const iEstado = fonte.indexOf('estadoDoVault(vaultDir,');
+  const iAdd = fonte.indexOf("['add', '--'");
+  assert.ok(iEstado > 0 && iAdd > 0);
+  assert.ok(iEstado < iAdd, 'a verificacao tem de vir antes de qualquer escrita');
 });
