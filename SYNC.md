@@ -604,3 +604,65 @@ sha intacto · nada pushed · daemon vivo.
   fechados (idem_key envenenado pelo STALE · NEGADO a fechar pedido vivo · `paths:`).
 - Ao vivo por clique: **STALE com os dois hashes** e **aprovação depois do STALE**.
 - Falta: ensaio da **recusa** · logo da app · **demo com estranho** (gate aberto).
+
+### 2026-08-22 · o loop deixa de fabricar (7 de 9 pilares desligados) + o piso de Node — #332 em main
+
+**PR #332 MERGED** (`68620170`) · 41 ficheiros, +4603/−56 · CI **23/23 verde** ·
+24 commits squashed.
+
+**Pilares — método do defeito semeado.** Semear em cada pilar o defeito exacto que
+ele diz procurar, mais um controlo limpo; quem responde igual aos dois não
+discrimina. **7 dos 9 originais falharam**, cada um com causa medida:
+
+- **P4**: 0 de 78 achados verdadeiros — 93,5% eram a fronteira da janela, não o texto.
+- **P8, P9, P10**: mudos. **1428 rondas de GPU a produzir zero.**
+- **P6, P7**: respondem igual ao controlo; os 3 achados do P7 eram falsos *e* fora
+  do enunciado.
+- **P1, P5**: os dois maiores produtores — **os 694 achados na fila vêm daqui**.
+- **P2, P3**: passaram. Rotação fecha neles + **P11** novo (mooter-bridge),
+  desenhado a partir do que se provou funcionar e semeado ANTES de entrar.
+
+Loop de **10 → 3 pilares activos**. Duas hipóteses minhas foram REFUTADAS pela
+própria medição: que a causa fosse o nº de passos do enunciado (a variável é a
+*saída*), e que reescrever o P8 como pergunta directa o salvasse (medi e reverti).
+
+`landing/` e os workflows do CI levam **verificação determinística, não pilar**:
+densidade importa para um pilar (silêncio é ambíguo) mas não para um verificador
+(silêncio é prova).
+
+**Piso de Node — o `install.sh` prometia 18+ e entregava um bundle `--target=node20`.**
+Quem instalasse em 18/19 passava a verificação e falhava depois em runtime. Não eram
+três sítios: **onze**, em quatro linguagens. Já tinha sido "resolvido" uma vez
+(`SYNC_ARCHIVE_2026.md`: `G5 → 18+ alinhado`).
+
+Escolhido **22**, medido: telemetria do hub (D1 `device_heartbeats`, histórico todo)
+mostra **zero instalações humanas abaixo de 22** — os 19 "devices em Node 20" eram
+**18 runners do GitHub Actions** (Linux/`20.20.2`, `device_id` novo por corrida) e um
+`alive` win32. 18 e 20 estão ambos em EOL (2025-04-30 e 2026-04-30).
+Canónico = `engines.node` do `packages/cli/package.json`; o `build.mjs` **deriva** o
+`--target` (essa cópia deixou de existir) e falha fechado sem `engines`; as restantes
+são verificadas por `tools/cockpit/runner/piso-de-node.mjs`, ligado ao CI.
+`packages/router/package.json` **allowlistado** no `CLAUDE.md` — o `install.sh:196`
+compila aquele bundle na máquina do utilizador, era o único sítio onde o número
+errado chegava a produção.
+
+Três buracos fechados a caminho: `Two install.sh stay in sync` vigiava **um** dos dois
+pares (o `.ps1` tinha drift real) · o `paths:` não cobria os ficheiros verificados
+(verde por não ter corrido — armadilha do #274) · um **NUL literal** no `refutador.mjs`
+fazia o git tratar 14KB de código como binário, sem diff para rever.
+
+**`cert-guard.js` (harness, fora do repo): 18/23 → 23/23.** Dois **buracos de
+segurança** fechados — `git branch --delete --force` e a forma invertida **passavam**
+enquanto o `-d` seguro era bloqueado (flag `/i` destruía a única diferença entre `-d`
+e `-D`). E três falsos positivos: `[^\n]*` atravessava os `&&`, portanto um `--force`
+de outro comando disparava a regra do `push`. Backup `.bak-20260822-111005`.
+
+**Não feito, de propósito:** triagem dos **694 achados** na fila (apagar histórico é
+do dono) · tecto de tier sob quota CRÍTICA (**87,2%** da fila roteia para cloud) —
+SÓ-PAULO · sem cobertura ainda: `*.md`, `docs/**`, `packages/vscode-extension/`,
+`tools/cockpit/*.html`.
+
+**Dívida aberta:** `sync-cockpit.mjs:101` procura um LaunchAgent de **macOS** e por isso
+falha sempre em Windows, afirmando "nada o corre" com dois processos vivos (40464,
+31392) — tarefa registada. E este `SYNC.md` tem **606 linhas** contra as ~200 que o
+`AGENTS.md` manda: história por rolar para `docs/foundation/SYNC_ARCHIVE_2026.md`.
