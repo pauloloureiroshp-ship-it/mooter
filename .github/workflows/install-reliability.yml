@@ -31,10 +31,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      # O nome era "Setup Node 20". Sem numero no nome ele nao pode voltar a
+      # mentir sobre a linha abaixo — e passa a haver so uma fonte da verdade,
+      # que e o `node-version`. Verificado por `ci-coerencia.mjs`.
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22 como o resto do CI, e o Node 20 esta em EOL desde 2026-04-30.
+          #
+          # ATENCAO ao que este gate NAO prova, e nunca provou: o `install.sh:132`
+          # diz ao utilizador "mooter needs Node 18+", mas o `build.mjs:24` compila
+          # o bundle com `--target=node20`. Quem instalar em Node 18 ou 19 PASSA a
+          # verificacao do instalador e recebe um bundle compilado para 20+. O gate
+          # corria em 20: nem o piso declarado (18) nem o runtime da suite (22) —
+          # um terceiro numero que nenhum ficheiro declara. Alinha-lo com a suite
+          # nao perde cobertura do piso porque o piso nunca esteve coberto.
+          # Fechar essa contradicao (subir o piso do install.sh, ou baixar o target
+          # do esbuild) muda o que se recusa a utilizadores reais — decisao do dono,
+          # nao deste commit.
+          node-version: '22'
 
       - name: Build v1.0 CLI bundle (esbuild, zero-runtime-deps)
         run: |

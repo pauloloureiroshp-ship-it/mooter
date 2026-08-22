@@ -54,7 +54,11 @@ jobs:
         if: steps.check_key.outputs.has_key == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22 como todo o resto do CI. Aqui nao ha artefacto nem teste em jogo —
+          # o passo so instala o `@anthropic-ai/claude-code` global — mas o Node 20
+          # chegou a EOL em 2026-04-30 e deixou de receber patches de seguranca,
+          # e este job corre com o ANTHROPIC_API_KEY no ambiente.
+          node-version: '22'
 
       - name: Install Claude Code CLI
         if: steps.check_key.outputs.has_key == 'true'

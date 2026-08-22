@@ -9,7 +9,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { nodeDe, runtimeDePublicacao, scriptsEmFalta, lerWorkflows } from './ci-coerencia.mjs';
+import {
+  nodeDe, runtimeDePublicacao, scriptsEmFalta, lerWorkflows, nomeQueMente,
+} from './ci-coerencia.mjs';
 
 const wf = (ficheiro, src) => ({ ficheiro, src });
 
@@ -114,4 +116,48 @@ test('um workflow ilegivel entra com src vazio em vez de matar a varredura', () 
   });
   assert.equal(out.length, 2);
   assert.equal(nodeDe(out.find((x) => x.ficheiro === 'mau.yml').src), null);
+});
+
+test('apanha o nome de passo que mente sobre a versao que instala', () => {
+  // O caso real: `install-reliability.yml` tinha `- name: Setup Node 20`.
+  const m = nomeQueMente([wf('w.yml', [
+    '      - name: Setup Node 20',
+    '        uses: actions/setup-node@v4',
+    '        with:',
+    "          node-version: '22'",
+  ].join('\n'))]);
+  assert.equal(m.length, 1);
+  assert.equal(m[0].diz, '20');
+  assert.equal(m[0].usa, '22');
+});
+
+test('cala-se quando o nome e generico ou quando bate certo', () => {
+  const generico = nomeQueMente([wf('a.yml', "      - name: Setup Node\n          node-version: '22'")]);
+  assert.deepEqual(generico, [], 'nome sem numero nao pode mentir');
+  const bate = nomeQueMente([wf('b.yml', "      - name: Setup Node 22\n          node-version: '22'")]);
+  assert.deepEqual(bate, [], 'numero igual nao e mentira');
+});
+
+test('nao inventa mentira num passo que nem sequer instala Node', () => {
+  // `Build v1.0 CLI bundle` tem um numero no nome e nenhum node-version. Acusar
+  // isto seria o mesmo falso-positivo que ja se mediu na classe "token no name".
+  const m = nomeQueMente([wf('w.yml', [
+    '      - name: Setup Node',
+    "          node-version: '22'",
+    '      - name: Build v1.0 CLI bundle (esbuild)',
+    '        run: npm run build',
+  ].join('\n'))]);
+  assert.deepEqual(m, [], 'sem node-version no passo nao ha par para comparar');
+});
+
+test('o numero de um passo nao contamina o passo seguinte', () => {
+  // Sem cortar por `- name:`, o `node-version` do 2o passo seria lido como o do
+  // 1o e inventava-se uma mentira que nao existe.
+  const m = nomeQueMente([wf('w.yml', [
+    '      - name: Setup Node 20',
+    "          node-version: '20'",
+    '      - name: Outra coisa',
+    "          node-version: '22'",
+  ].join('\n'))]);
+  assert.deepEqual(m, [], 'cada passo compara-se consigo mesmo');
 });

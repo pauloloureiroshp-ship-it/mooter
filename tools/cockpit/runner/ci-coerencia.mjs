@@ -82,6 +82,37 @@ export function runtimeDePublicacao(workflows) {
 }
 
 /**
+ * Um nome de passo que carrega um numero de Node diz a verdade sobre a linha que
+ * o decide?
+ *
+ * Classe de N=1 quando foi medida — o `install-reliability.yml` tinha um passo
+ * chamado "Setup Node 20". Rara demais para gastar rondas de GPU, e e por isso
+ * que nao virou pilar; mas para uma comparacao literal entre dois numeros na
+ * mesma janela de texto, o silencio E prova, e o custo e zero. Fica como catraca:
+ * o nome so pode voltar a mentir se alguem reintroduzir o numero no nome.
+ */
+export function nomeQueMente(workflows) {
+  const mentiras = [];
+  for (const w of workflows) {
+    // Um "passo" comeca em `- name:` e vai ate ao proximo. Chega para o par
+    // nome/node-version, que vivem sempre no mesmo passo.
+    for (const passo of String(w.src).split(/^\s*- name:/m).slice(1)) {
+      const noNome = passo.split('\n')[0].match(/\bnode\s*[-_ ]?([0-9]+)/i);
+      if (!noNome) continue;
+      const usado = nodeDe(passo);
+      if (!usado || usado === noNome[1]) continue;
+      mentiras.push({
+        ficheiro: w.ficheiro,
+        nome: passo.split('\n')[0].trim(),
+        diz: noNome[1],
+        usa: usado,
+      });
+    }
+  }
+  return mentiras;
+}
+
+/**
  * O caminho esta ausente por ser um ARTEFACTO que o proprio CI constroi?
  *
  * A pergunta nao e retorica. O `packages/cli/mooter.js` e gerado por esbuild no
@@ -146,6 +177,13 @@ function principal() {
     console.log('     (nao e por si um defeito — mas tem de ser escolha, nao acidente)');
   } else {
     console.log(`publicacao e teste no mesmo runtime (Node ${nodeTeste ?? 'n/d'})`);
+  }
+
+  const mentiras = nomeQueMente(workflows);
+  if (mentiras.length) {
+    console.log('\n⚠️  o nome do passo nao diz o que o passo faz:');
+    for (const m of mentiras) console.log(`     ${m.ficheiro}: "${m.nome}" -> instala Node ${m.usa}`);
+    process.exitCode = 1;
   }
 
   if (construidos.length) {
