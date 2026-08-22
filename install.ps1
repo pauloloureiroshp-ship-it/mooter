@@ -111,8 +111,11 @@ try {
     $nodeVer = (& node --version 2>$null).TrimStart('v')
     $NodeExe = (Get-Command node).Source
     $nodeMajor = [int]($nodeVer.Split('.')[0])
-    if ($nodeMajor -lt 18) {
-        Fail "Node.js $nodeVer found - mooter needs Node 18+."
+    # 22 e nao 18 — mesmo piso do install.sh e do engines.node do packages/cli.
+    # Copia por necessidade (corre antes de o repo existir), verificada por
+    # tools/cockpit/runner/piso-de-node.mjs.
+    if ($nodeMajor -lt 22) {
+        Fail "Node.js $nodeVer found - mooter needs Node 22+."
         Info "Upgrade: winget upgrade OpenJS.NodeJS.LTS"
         exit 3
     }

@@ -47,7 +47,7 @@ node ~/.claude/tools/router/classify.js "test prompt"
 node ~/.claude/tools/router/backtest.test.js
 ```
 
-You should see `11/11 pass` in <1 second. If you don't, check `decisions.log` exists and is readable, and that Node 20+ is installed.
+You should see `11/11 pass` in <1 second. If you don't, check `decisions.log` exists and is readable, and that Node 22+ is installed.
 
 ### Running the auto-learning loop locally
 
@@ -82,7 +82,7 @@ console.log(buildTuning(analyze(fake)));
 
 ### JavaScript
 
-- **Node 20+**, CommonJS, `'use strict';`
+- **Node 22+**, CommonJS, `'use strict';`
 - **Zero npm dependencies** in `tools/router/*.js` unless absolutely necessary. The entire stack is stdlib today and that is a feature.
 - **Pure functions** where possible. `analyze()`, `buildTuning()`, `signature()` are all pure. Keep them that way.
 - **No `any` equivalent.** Use JSDoc for types if it helps readers.

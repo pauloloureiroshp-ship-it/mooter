@@ -13,6 +13,20 @@ on:
       - 'packages/cli/**'
       - 'packages/router/src/classify_domain.ts'
       - '.github/workflows/install-reliability.yml'
+      # Os sitios que declaram o piso de Node. Sem eles aqui, uma alteracao ao
+      # install.ps1 ou a um runbook nunca dispararia o job que os verifica — o
+      # mesmo buraco que o test.yml ja documenta no seu cabecalho ("adicionar
+      # caminhos nunca torna o CI mais fraco: corre mais"). A lista e mantida
+      # honesta por `piso-de-node.test.mjs`, que falha se SITIOS crescer e este
+      # `paths:` nao acompanhar.
+      - 'install.ps1'
+      - 'landing/public/install.ps1'
+      - 'package.json'
+      - 'CONTRIBUTING.md'
+      - 'tests/README.md'
+      - 'docs/strategy/MOOTER_OPERATIONS.md'
+      - 'docs/strategy/PASTOR_OPERATIONS.md'
+      - 'tools/cockpit/runner/piso-de-node.mjs'
   pull_request:
     paths:
       - 'install.sh'
@@ -20,6 +34,20 @@ on:
       - 'packages/cli/**'
       - 'packages/router/src/classify_domain.ts'
       - '.github/workflows/install-reliability.yml'
+      # Os sitios que declaram o piso de Node. Sem eles aqui, uma alteracao ao
+      # install.ps1 ou a um runbook nunca dispararia o job que os verifica — o
+      # mesmo buraco que o test.yml ja documenta no seu cabecalho ("adicionar
+      # caminhos nunca torna o CI mais fraco: corre mais"). A lista e mantida
+      # honesta por `piso-de-node.test.mjs`, que falha se SITIOS crescer e este
+      # `paths:` nao acompanhar.
+      - 'install.ps1'
+      - 'landing/public/install.ps1'
+      - 'package.json'
+      - 'CONTRIBUTING.md'
+      - 'tests/README.md'
+      - 'docs/strategy/MOOTER_OPERATIONS.md'
+      - 'docs/strategy/PASTOR_OPERATIONS.md'
+      - 'tools/cockpit/runner/piso-de-node.mjs'
   workflow_dispatch:
 
 jobs:
@@ -71,10 +99,12 @@ jobs:
           echo "$out" | grep -q "Could not reach the mooter hub" \
             || { echo "::error::v1 bundle did not dispatch feedback"; exit 1; }
 
-      - name: Two install.sh stay in sync
-        run: |
-          diff install.sh landing/public/install.sh \
-            || { echo "::error::install.sh and landing/public/install.sh diverged"; exit 1; }
+      # Substitui o `diff install.sh landing/public/install.sh` que aqui estava.
+      # Ele vigiava UM dos dois pares: o par .ps1 nunca foi verificado e tinha
+      # drift real (2 linhas) quando isto foi escrito, a 2026-08-22. O verificador
+      # cobre os dois pares E o piso de Node em todos os sitios que o repetem.
+      - name: Installers stay in sync + one Node floor everywhere
+        run: node tools/cockpit/runner/piso-de-node.mjs .
 
       - name: Fresh install + hybrid dispatch smoke
         run: |
