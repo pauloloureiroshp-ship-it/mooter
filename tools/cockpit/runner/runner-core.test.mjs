@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, idsActivos, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -1602,17 +1602,17 @@ test('um pilar desligado NAO pode ser dono de ficheiros', () => {
 
 // ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
 
-test('os CINCO desligados saem da rotacao e continuam no catalogo', () => {
+test('os SEIS desligados saem da rotacao e continuam no catalogo', () => {
   // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
   // entrada tornaria ilegivel o historico que explica porque foram desligados.
   // Todos foram desligados por MEDICAO, nao por gosto — cada um tem o numero
   // no comentario da sua entrada em `PILLARS`.
-  for (const id of ['P4', 'P6', 'P8', 'P9', 'P10']) {
+  for (const id of ['P4', 'P6', 'P7', 'P8', 'P9', 'P10']) {
     assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
     assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
     assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
   }
-  assert.deepEqual(PILLAR_IDS, ['P1', 'P2', 'P3', 'P5', 'P7']);
+  assert.deepEqual(PILLAR_IDS, ['P1', 'P2', 'P3', 'P5']);
 });
 
 test('todo pilar que AINDA corre ja provou que produz', () => {
@@ -1648,6 +1648,7 @@ test('a COBERTURA perdida esta declarada, nao escondida', () => {
     '*.md', 'docs/**/*.md', '.github/workflows/*.yml',          // P4 e P10
     'landing/app/**/*.tsx', 'landing/components/**/*.tsx',       // P6
     'packages/vscode-extension/src/*.js',                        // P6
+    'tools/cockpit/*.html',                                      // P7
   ];
   for (const orfao of semDono) {
     assert.ok(!globsActivos.includes(orfao),
@@ -1660,4 +1661,24 @@ test('a COBERTURA perdida esta declarada, nao escondida', () => {
   // O que NAO se perdeu: o glob do P9 era um subconjunto do do P2.
   assert.ok(globsActivos.includes('packages/*/src/*.ts'),
     'a cobertura de packages/*/src/*.ts tem de sobreviver ao desligar do P9');
+});
+
+test('a caminhada usa a ROTACAO, nunca o catalogo inteiro', () => {
+  // Defeito latente desde o primeiro desligar, apanhado ao desligar o P7:
+  // `Object.keys(pillars)` inclui os desligados. O passo deterministico
+  // (`cursor * ids.length + indexOf`) so e uma bijeccao se `ids` for a rotacao.
+  // Com 10 no catalogo e 4 a correr, o cursor andava 10 quando devia andar 4 e
+  // o `indexOf` dava 4 ao P5 quando a rotacao lhe da 3 — resultado medido: com
+  // 8 alvos, 4 rondas seguidas moiam 3, e um saia duas vezes na mesma volta.
+  //
+  // Com os 10 activos isto acertava por coincidencia. Foi a suite que apanhou,
+  // nao o ledger: em producao ha alvos que chegam para esconder a colisao.
+  assert.deepEqual(idsActivos(PILLARS), PILLAR_IDS,
+    'idsActivos tem de dar exactamente a rotacao');
+  assert.ok(idsActivos(PILLARS).length < Object.keys(PILLARS).length,
+    'hoje ha desligados — se isto falhar, o teste perdeu o alvo');
+
+  // E num catalogo sintetico, para nao depender de quem esta desligado hoje.
+  const cat = { A: { activo: false }, B: {}, C: { activo: false }, D: {} };
+  assert.deepEqual(idsActivos(cat), ['B', 'D']);
 });

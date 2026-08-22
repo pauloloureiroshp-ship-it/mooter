@@ -292,6 +292,43 @@ export const PILLARS = {
    */
   P7: {
     label: 'Moo Pilot itself',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — o unico que PRODUZIA, e o pior dos cinco.
+     *
+     * 493 rondas · 3 achados (0,6%) · **3 de 3 falsos, e 3 de 3 fora do que ele
+     * pergunta**. O enunciado pede "nome que diz total/all/every com producao
+     * cortada"; os tres falam de condicoes booleanas invertidas. E os tres sao
+     * desmentidos pelo codigo que citam:
+     *
+     *     fleet-state.mjs:89    "age>DEAD vira 'morto' em vez de 'stale'"
+     *                           -> o codigo faz `age <= DEAD -> 'stale'`. Correcto.
+     *     gpu-sampler.mjs:147   "devolve motivo hardcoded em vez do fornecido"
+     *                           -> o codigo e `motivo: motivo || '<fallback>'`.
+     *     context-pack.mjs:1153 "cand.line > ls.length SERA processada"
+     *                           -> a linha citada E o `continue` que impede isso.
+     *
+     * O terceiro cita a guarda a queixar-se de que a guarda nao existe.
+     *
+     * Semeado com o defeito que ele DIZ procurar (`resumo-fila.mjs`: L24
+     * `total: recibos.length` contra L13 `todas.slice(-MAX_LINHAS)` — o mesmo
+     * defeito real que este repo ja teve, documentado no `fleet-state.mjs`),
+     * contra um controlo com o MESMO slice mas nomes honestos:
+     *
+     *     semeado  -> "NO FINDING"  4 tokens
+     *     controlo -> "NO FINDING"  4 tokens
+     *
+     * E e o UNICO dos cinco onde ate a pergunta guiada falha: acha o slice da
+     * L13 e atribui-o ao campo errado (`ultimo_ts` L27 em vez de `total` L24).
+     *
+     * **Um pilar com 0,6% de rendimento e 100% de falsos e pior do que um mudo:
+     * gasta a mesma GPU E enche a fila.** O silencio ao menos nao mente.
+     *
+     * ⚠️ COBERTURA: era o unico a ver `tools/cockpit/*.html`
+     * (`moo-pilot-shell.html`) e os 4 `.mjs` de `tools/cockpit/` fora de
+     * `runner/` — incluindo `sync-cockpit.mjs`. O `runner/` continua coberto
+     * pelo P3 e P5.
+     */
+    activo: false,
     files: [
       'tools/cockpit/**/*.mjs',
       'tools/cockpit/*.html',
@@ -488,6 +525,18 @@ export const PILLARS = {
  * ignorado — que e o comportamento certo para um botao que nao pode funcionar.
  */
 export const PILLAR_IDS = Object.keys(PILLARS).filter((id) => PILLARS[id].activo !== false);
+
+/**
+ * Os ids que CORREM, de um catalogo qualquer (o embutido ou o do projecto).
+ *
+ * Existe porque a caminhada deterministica — `cursor * ids.length + indexOf` —
+ * so e uma bijeccao se `ids` for a ROTACAO. Alimenta-la com o catalogo inteiro
+ * faz o passo andar de 10 quando ha 4 a correr, e dois pilares seguidos caem no
+ * mesmo alvo.
+ */
+export function idsActivos(pillars) {
+  return Object.keys(pillars).filter((id) => !(pillars[id] && pillars[id].activo === false));
+}
 
 /** Todos, incluindo os desligados — para o painel e para ler historico. */
 export const PILLAR_IDS_TODOS = Object.keys(PILLARS);
@@ -1259,7 +1308,18 @@ export function buildContextPack({
       // determinismo: mesma ronda, mesmo repo, mesmo resultado.
       // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
       // impede que um id desconhecido desloque a rotacao para tras.
-      const ids = Object.keys(pillars);
+      // ⚠️ SO os pilares que CORREM. `Object.keys(pillars)` inclui os
+      // desligados, e isso partia a caminhada em silencio: o passo assume que
+      // cada (rotacao, pilar) e um lugar unico, e com 10 no catalogo mas 4 na
+      // rotacao o `cursor * ids.length` andava 10 quando devia andar 4, e o
+      // `indexOf` dava 4 ao P5 quando a rotacao lhe da 3.
+      //
+      // Medido a 2026-08-21, ao desligar o P7 (a suite apanhou, o ledger nao):
+      // com 8 hunks disponiveis, 4 rondas seguidas moiam 3 alvos — orfao2 saia
+      // duas vezes na mesma volta. Era latente desde o primeiro desligar: com os
+      // 10 activos, catalogo e rotacao eram a mesma lista e isto acertava por
+      // coincidencia.
+      const ids = idsActivos(pillars);
       // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
       // impede que um id desconhecido desloque a rotacao para tras.
       // O desvio vale para os DOIS escopos. So o aplicar a `geral` deixava
@@ -1461,7 +1521,8 @@ export function buildContextPack({
   // janelas desse, devolvia `ok:false` com os IRMAOS por rever: medido, 12 de
   // 24 cursores desperdicados quando um pilar tinha um ficheiro curto e outro
   // longo.
-  const ids = Object.keys(pillars);
+  // So os que CORREM — ver o comentario longo no selector do diff.
+  const ids = idsActivos(pillars);
   const passoF = cursor * Math.max(1, ids.length) + Math.max(0, ids.indexOf(pillar)) + faseDoDevice(device);
   let file = null;
   let lines = null;
