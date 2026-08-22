@@ -65,6 +65,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { SEM_ACHADO_RE } from './evidence-verifier.mjs';
+
 /**
  * Os pares de prova, por pilar.
  *
@@ -251,6 +253,79 @@ export function resumirRonda(amostras, { janelaS = JANELA_S, agora = 0 } = {}) {
       texto: "/**\n * resumo-motor.mjs — o cartao do motor local no painel.\n */\n\nimport fs from 'node:fs';\n\n/** Nunca mais do que isto por leitura — o painel nao aguenta mais. */\nexport const MAX_LINHAS = 500;\n\nfunction lerEventos(caminho) {\n  const bruto = fs.readFileSync(caminho, 'utf8');\n  const todos = bruto.split('\\n').filter(Boolean);\n  return { todos, recentes: todos.slice(-MAX_LINHAS).map((l) => JSON.parse(l)) };\n}\n\n/** Monta o que o painel mostra sobre o motor. */\nexport function resumoDoMotor(caminho) {\n  const { todos, recentes } = lerEventos(caminho);\n\n  const falhas = recentes.filter((e) => e.estado === 'falhou');\n  const lentos = recentes.filter((e) => e.dur_s > 30);\n\n  return {\n    total_no_ficheiro: todos.length,\n    lidos_nesta_janela: recentes.length,\n    falhas_na_janela: falhas.length,\n    lentos_na_janela: lentos.length,\n    ultimo_ts: recentes.length ? recentes[recentes.length - 1].ts : null,\n  };\n}\n\n/** A linha de texto que aparece por baixo do cartao. */\nexport function legenda(resumo) {\n  if (!resumo.lidos_nesta_janela) return 'sem eventos neste device';\n  return `${resumo.falhas_na_janela} falhas em ${resumo.lidos_nesta_janela} lidos`;\n}\n",
     },
   },
+
+  P1: {
+    procura: 'a mesma chamada, com os mesmos argumentos, em duas linhas',
+    semeado: {
+      caminho: 'tools/router/cache-precos.js',
+      defeito: 'lerJson(TABELA) nas linhas 21 e 28 — chamada identica, argumentos identicos',
+      linhas: [21, 28],
+      texto: "'use strict';\n/**\n * cache-precos.js — resolve o preco de um modelo a partir da tabela do repo.\n */\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst TABELA = path.join(__dirname, 'pricing.json');\n\nfunction lerJson(caminho) {\n  try {\n    return JSON.parse(fs.readFileSync(caminho, 'utf8'));\n  } catch {\n    return null;\n  }\n}\n\n/** O preco de entrada, por milhao de tokens. */\nfunction precoEntrada(modelo) {\n  const tabela = lerJson(TABELA);\n  if (!tabela || !tabela[modelo]) return null;\n  return tabela[modelo].in;\n}\n\n/** O preco de saida, por milhao de tokens. */\nfunction precoSaida(modelo) {\n  const tabela = lerJson(TABELA);\n  if (!tabela || !tabela[modelo]) return null;\n  return tabela[modelo].out;\n}\n\n/** O custo de um job, em dolares. */\nfunction custoDoJob(modelo, tokensIn, tokensOut) {\n  const entrada = precoEntrada(modelo);\n  const saida = precoSaida(modelo);\n  if (entrada === null || saida === null) return null;\n  return ((tokensIn * entrada) + (tokensOut * saida)) / 1e6;\n}\n\nmodule.exports = { lerJson, precoEntrada, precoSaida, custoDoJob };\n",
+    },
+    controlo: {
+      // A MESMA funcao chamada duas vezes, com argumentos DIFERENTES
+      // (`lerJson(TECTOS)` e `lerJson(QUOTAS)`). Se o controlo nao tivesse
+      // repeticao nenhuma, bastava contar nomes de funcao para acertar — e o
+      // pilar tem de comparar ARGUMENTOS.
+      caminho: 'tools/router/cache-limites.js',
+      texto: "'use strict';\n/**\n * cache-limites.js — resolve os tectos de uso a partir dos ficheiros do repo.\n */\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst TECTOS = path.join(__dirname, 'limits.json');\nconst QUOTAS = path.join(__dirname, 'quotas.json');\n\nfunction lerJson(caminho) {\n  try {\n    return JSON.parse(fs.readFileSync(caminho, 'utf8'));\n  } catch {\n    return null;\n  }\n}\n\n/** O tecto de tokens por job. */\nfunction tectoDeTokens(perfil) {\n  const tectos = lerJson(TECTOS);\n  if (!tectos || !tectos[perfil]) return null;\n  return tectos[perfil].tokens;\n}\n\n/** A quota diaria, em dolares. */\nfunction quotaDiaria(perfil) {\n  const quotas = lerJson(QUOTAS);\n  if (!quotas || !quotas[perfil]) return null;\n  return quotas[perfil].usd_dia;\n}\n\n/** Quantos jobs ainda cabem hoje. */\nfunction jobsRestantes(perfil, gastoUsd, custoMedioUsd) {\n  const quota = quotaDiaria(perfil);\n  if (quota === null || custoMedioUsd <= 0) return null;\n  return Math.max(0, Math.floor((quota - gastoUsd) / custoMedioUsd));\n}\n\nmodule.exports = { lerJson, tectoDeTokens, quotaDiaria, jobsRestantes };\n",
+    },
+  },
+
+  P2: {
+    procura: 'valor-semente (0, vazio) que chega a saida sem ser substituido',
+    semeado: {
+      caminho: 'tools/router/contagem-tokens.js',
+      defeito: '`custo = 0` na linha 28 sai como `custo_usd` na linha 34',
+      // So a linha do INIT e exigida. A linha de saida e legitimamente ambigua
+      // — o `return {` (31) ou o campo (34) — e exigir uma delas seria reprovar
+      // uma resposta certa. O `SEED VISIBLE` cobre o veredicto.
+      linhas: [28],
+      marcas: ['SEED VISIBLE'],
+      texto: "'use strict';\n/**\n * contagem-tokens.js — soma o que cada ronda gastou.\n */\n\n/** Soma os tokens de saida de um conjunto de recibos. */\nfunction somarSaida(recibos) {\n  let saida = 0;\n  for (const r of recibos || []) {\n    if (typeof r.tokens_out === 'number') saida += r.tokens_out;\n  }\n  return saida;\n}\n\n/** Quantas rondas nao chegaram a chamar o motor. */\nfunction contarVazias(recibos) {\n  let vazias = 0;\n  for (const r of recibos || []) {\n    if (!r.motor_ok) vazias += 1;\n  }\n  return vazias;\n}\n\n/** O resumo que o painel mostra. */\nfunction resumo(recibos) {\n  const saida = somarSaida(recibos);\n  const vazias = contarVazias(recibos);\n  let custo = 0;\n  if (saida > 0) custo = (saida / 1e6) * 0.6;\n\n  return {\n    tokens_saida: saida,\n    rondas_vazias: vazias,\n    custo_usd: custo,\n    rondas: (recibos || []).length,\n  };\n}\n\nmodule.exports = { somarSaida, contarVazias, resumo };\n",
+    },
+    controlo: {
+      // Tem acumuladores a zero na mesma — mas nenhum SAI: servem para decidir,
+      // e o que sai e a decisao. Um ficheiro sem `= 0` tambem daria a resposta
+      // certa, mas pela razao errada.
+      caminho: 'tools/router/guarda-ritmo.js',
+      texto: "'use strict';\n/**\n * guarda-ritmo.js — decide se a ronda seguinte pode arrancar.\n *\n * Os acumuladores daqui servem para DECIDIR; nenhum deles sai no resultado, que\n * e sempre uma decisao e a razao dela.\n */\n\nconst MAX_SEGUIDAS = 3;\nconst MAX_VAZIAS = 8;\n\n/** Ja houve falhas seguidas que cheguem para travar? */\nfunction travaPorFalhas(recibos) {\n  let seguidas = 0;\n  for (const r of (recibos || []).slice().reverse()) {\n    if (r.verdict === 'falhou') seguidas += 1;\n    else break;\n  }\n  if (seguidas >= MAX_SEGUIDAS) {\n    return { travar: true, porque: 'falhas seguidas a mais' };\n  }\n  return { travar: false, porque: null };\n}\n\n/** Ja houve rondas vazias que cheguem para travar? */\nfunction travaPorVazias(recibos) {\n  let vazias = 0;\n  for (const r of recibos || []) {\n    if (!r.motor_ok) vazias += 1;\n  }\n  if (vazias >= MAX_VAZIAS) {\n    return { travar: true, porque: 'o motor nao responde ha demasiadas rondas' };\n  }\n  return { travar: false, porque: null };\n}\n\n/** A decisao final: arrancar ou nao, e porque. */\nfunction podeArrancar(recibos) {\n  for (const guarda of [travaPorFalhas, travaPorVazias]) {\n    const r = guarda(recibos);\n    if (r.travar) return { arrancar: false, porque: r.porque };\n  }\n  return { arrancar: true, porque: null };\n}\n\nmodule.exports = { travaPorFalhas, travaPorVazias, podeArrancar };\n",
+    },
+  },
+
+  P3: {
+    procura: 'comentario que afirma um numero diferente do que o codigo usa',
+    semeado: {
+      caminho: 'tools/cockpit/runner/batimento.mjs',
+      defeito: 'o comentario da linha 7 diz 30 segundos; a linha 8 usa 90',
+      linhas: [7, 8],
+      marcas: ['DIVERGE'],
+      texto: "/**\n * batimento.mjs — o pulso que cada device escreve enquanto trabalha.\n */\n\nimport fs from 'node:fs';\n\n/** Damos 30 segundos de folga antes de chamar orfao a um lock. */\nexport const ORFAO_APOS_S = 90;\n\n/** Escreve o pulso, sem nunca rebentar o loop por causa dele. */\nexport function escreverPulso(caminho, estado) {\n  try {\n    fs.writeFileSync(caminho, JSON.stringify({ ...estado, ts: Date.now() }));\n    return true;\n  } catch {\n    return false;\n  }\n}\n\n/** O batimento esta velho? */\nexport function estaOrfao(pulsoMs, agoraMs) {\n  const idadeS = (agoraMs - pulsoMs) / 1000;\n  return idadeS > ORFAO_APOS_S;\n}\n\n/** Liberta o lock se o dono ja nao der sinal. */\nexport function reaproveitar(caminho, agoraMs) {\n  let pulso;\n  try {\n    pulso = JSON.parse(fs.readFileSync(caminho, 'utf8'));\n  } catch {\n    return { libertado: false, porque: 'sem pulso legivel' };\n  }\n  if (!estaOrfao(pulso.ts, agoraMs)) {\n    return { libertado: false, porque: 'o dono ainda da sinal' };\n  }\n  try {\n    fs.rmSync(caminho);\n    return { libertado: true, porque: null };\n  } catch (err) {\n    return { libertado: false, porque: String(err && err.message) };\n  }\n}\n",
+    },
+    controlo: {
+      // Mesma forma, mesmo tipo de comentario com numero — mas o numero BATE
+      // (45 e 45). Um ficheiro sem comentarios numericos tambem daria THEY
+      // MATCH, e nao provava que o pilar sabe comparar.
+      caminho: 'tools/cockpit/runner/reserva.mjs',
+      texto: "/**\n * reserva.mjs — quando o device cede a maquina ao dono.\n */\n\nimport fs from 'node:fs';\n\n/** Damos 45 segundos de folga antes de retomar depois de uma reserva. */\nexport const RETOMA_APOS_S = 45;\n\n/** Escreve o pedido de reserva, sem nunca rebentar o loop por causa dele. */\nexport function pedirReserva(caminho, quem) {\n  try {\n    fs.writeFileSync(caminho, JSON.stringify({ quem, ts: Date.now() }));\n    return true;\n  } catch {\n    return false;\n  }\n}\n\n/** Ja passou tempo que chegue para retomar? */\nexport function podeRetomar(reservaMs, agoraMs) {\n  const idadeS = (agoraMs - reservaMs) / 1000;\n  return idadeS > RETOMA_APOS_S;\n}\n\n/** Levanta a reserva se o tempo passou. */\nexport function levantar(caminho, agoraMs) {\n  let reserva;\n  try {\n    reserva = JSON.parse(fs.readFileSync(caminho, 'utf8'));\n  } catch {\n    return { levantada: false, porque: 'sem reserva legivel' };\n  }\n  if (!podeRetomar(reserva.ts, agoraMs)) {\n    return { levantada: false, porque: 'a reserva ainda esta de pe' };\n  }\n  try {\n    fs.rmSync(caminho);\n    return { levantada: true, porque: null };\n  } catch (err) {\n    return { levantada: false, porque: String(err && err.message) };\n  }\n}\n",
+    },
+  },
+
+  P5: {
+    procura: 'dois returns com os mesmos campos, so a mudar textos e nomes',
+    semeado: {
+      caminho: 'tools/cockpit/runner/portas.mjs',
+      defeito: 'sete returns com a forma {ok, motivo, valor}; o primeiro na linha 11',
+      linhas: [11, 14],
+      texto: "/**\n * portas.mjs — as verificacoes que o runner faz antes de aceitar um job.\n */\n\nexport const MAX_TOKENS = 8000;\nexport const MAX_FICHEIROS = 12;\n\n/** O job cabe no tecto de tokens? */\nexport function cabeEmTokens(job) {\n  if (!job || typeof job.tokens !== 'number') {\n    return { ok: false, motivo: 'job sem contagem de tokens', valor: null };\n  }\n  if (job.tokens > MAX_TOKENS) {\n    return { ok: false, motivo: `${job.tokens} tokens acima do tecto`, valor: job.tokens };\n  }\n  return { ok: true, motivo: null, valor: job.tokens };\n}\n\n/** O job toca em poucos ficheiros que cheguem? */\nexport function cabeEmFicheiros(job) {\n  if (!job || !Array.isArray(job.ficheiros)) {\n    return { ok: false, motivo: 'job sem lista de ficheiros', valor: null };\n  }\n  if (job.ficheiros.length > MAX_FICHEIROS) {\n    return { ok: false, motivo: `${job.ficheiros.length} ficheiros a mais`, valor: job.ficheiros.length };\n  }\n  return { ok: true, motivo: null, valor: job.ficheiros.length };\n}\n\n/** Corre as portas todas e devolve a primeira que fecha. */\nexport function passaNasPortas(job) {\n  for (const porta of [cabeEmTokens, cabeEmFicheiros]) {\n    const r = porta(job);\n    if (!r.ok) return r;\n  }\n  return { ok: true, motivo: null, valor: null };\n}\n",
+    },
+    controlo: {
+      // Sete returns tambem — mas de formas genuinamente diferentes: objectos
+      // de campos distintos, strings, numeros e null.
+      caminho: 'tools/cockpit/runner/relatos.mjs',
+      texto: '/**\n * relatos.mjs — o que o runner devolve a quem lhe pergunta pelo estado.\n */\n\nexport const JANELA_S = 300;\n\n/** Quanto tempo falta ate a proxima ronda. */\nexport function proximaRonda(ultimaMs, agoraMs) {\n  const passou = Math.max(0, Math.round((agoraMs - ultimaMs) / 1000));\n  return { faltam_s: Math.max(0, JANELA_S - passou), passou_s: passou };\n}\n\n/** O estado da GPU, para o cartao do painel. */\nexport function estadoDaGpu(amostra) {\n  if (!amostra) return null;\n  return {\n    util_pct: amostra.util_pct,\n    fonte: amostra.fonte,\n    vram_gb: amostra.vram_inuse_gb,\n    saturada: amostra.util_pct >= 95,\n  };\n}\n\n/** Quem esta a segurar o lock, se alguem. */\nexport function donoDoLock(lock) {\n  if (!lock) return null;\n  return `${lock.pid}@${lock.host}`;\n}\n\n/** A linha de resumo que vai para o log. */\nexport function linhaDeLog(pilar, veredicto, duracaoS) {\n  return `${pilar} ${veredicto} · ${duracaoS}s`;\n}\n\n/** Quantas rondas cabem na janela, dado o ritmo observado. */\nexport function rondasNaJanela(duracaoMediaS) {\n  if (!(duracaoMediaS > 0)) return 0;\n  return Math.floor(JANELA_S / duracaoMediaS);\n}\n',
+    },
+  },
 };
 
 /** Escreve o par de prova de um pilar num repo de ensaio. Devolve os caminhos. */
@@ -292,19 +367,49 @@ export function veredicto({ pilar, respostaSemeado, respostaControlo }) {
     && marcas.every((m) => new RegExp(m).test(texto))
     && linhas.every((n) => new RegExp(`(^|[^0-9])${n}([^0-9]|$)`).test(texto));
 
-  const acusouControlo = !/\b(NO FINDING|SEM ACHADO)\b/i.test(String(respostaControlo || ''));
+  // ⚠️ Cada pilar tem a SUA saida honesta — `THEY MATCH` (P3), `NO SEED EXITS`
+  // (P2), `EVERY CALL ONCE` (P1), `SHAPE IS UNIQUE` (P5)... A primeira versao
+  // disto so conhecia `NO FINDING`, e por isso deu `dispara-por-reflexo` ao P3 e
+  // ao P2 — que tinham respondido CERTO no controlo. **Um metodo que nao conhece
+  // o vocabulario dos pilares reprova exactamente os que funcionam.**
+  //
+  // O `SEM_ACHADO_RE` do `evidence-verifier` ja enumera todas as saidas:
+  // reutiliza-se, nao se reescreve. Foi o proprio ensaio a apanhar isto, ao
+  // reprovar os dois unicos pilares sãos de nove.
+  const acusouControlo = !SEM_ACHADO_RE.test(String(respostaControlo || ''));
+
+  // Nao basta saber se ACHOU o defeito: e preciso saber se ficou CALADO ou se
+  // achou OUTRA coisa. Sao dois estados diferentes, e a primeira versao disto
+  // colapsava-os num `incoerente` que mandava rever um fixture que estava bom.
+  const caladoNoSemeado = SEM_ACHADO_RE.test(String(respostaSemeado || ''));
+  const alvo = s.defeito || 'o defeito';
 
   if (achou && !acusouControlo) {
-    return { estado: "funciona", porque: `encontrou ${s.defeito || "o defeito"} no semeado e ficou calado no controlo` };
-  }
-  if (!achou && !acusouControlo) {
-    return {
-      estado: 'partido',
-      porque: `nao encontrou ${s.defeito || 'o defeito'} no ficheiro semeado, e deu a MESMA resposta no controlo — nao discrimina`,
-    };
+    return { estado: 'funciona', porque: `encontrou ${alvo} no semeado e ficou calado no controlo` };
   }
   if (achou && acusouControlo) {
-    return { estado: 'dispara-por-reflexo', porque: 'acusou tambem o controlo limpo' };
+    return { estado: 'dispara-por-reflexo', porque: 'encontrou o defeito, mas acusou tambem o controlo limpo' };
+  }
+  if (!achou && caladoNoSemeado && !acusouControlo) {
+    return {
+      estado: 'partido',
+      porque: `nao encontrou ${alvo} no ficheiro semeado, e deu a MESMA resposta no controlo — nao discrimina`,
+    };
+  }
+  if (!achou && !caladoNoSemeado && acusouControlo) {
+    // O pior estado dos seis, e o menos obvio: PRODUZ nos dois ficheiros, e em
+    // nenhum acerta. Passa por vivo em qualquer contagem de rondas, enche a fila,
+    // e o defeito que devia apanhar continua la.
+    return {
+      estado: 'falso-em-ambos',
+      porque: `produziu achado no semeado E no controlo, e no semeado NAO e ${alvo}`,
+    };
+  }
+  if (!achou && !caladoNoSemeado && !acusouControlo) {
+    return {
+      estado: 'erra-o-alvo',
+      porque: `calou-se no controlo (bem) mas o que achou no semeado nao e ${alvo}`,
+    };
   }
   return { estado: 'incoerente', porque: 'calado no semeado e a acusar o controlo — rever o fixture' };
 }

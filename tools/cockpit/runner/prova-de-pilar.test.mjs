@@ -141,7 +141,10 @@ test('VEREDICTO · achar OUTRA coisa no semeado nao conta como encontrar', () =>
     respostaSemeado: 'WRITTEN LINE 12: VRAM_TOTAL_GB — parece suspeito',
     respostaControlo: 'NO FINDING',
   });
-  assert.equal(v.estado, 'partido', 'achar outra coisa nao e achar o defeito');
+  assert.notEqual(v.estado, 'funciona', 'achar outra coisa nao e achar o defeito');
+  // `erra-o-alvo` e nao `partido`: ele NAO se calou no semeado, produziu — so
+  // que a coisa errada. Sao dois defeitos diferentes e pedem trabalho diferente.
+  assert.equal(v.estado, 'erra-o-alvo');
 });
 
 test('VEREDICTO · acusar tambem o controlo = dispara por reflexo', () => {
@@ -174,4 +177,58 @@ test('o par do P7 tem slice nos DOIS — a diferenca e o NOME, nao o corte', () 
   assert.match(controlo.texto, /total_no_ficheiro: todos\.length/, 'aqui o total vem da lista INTEIRA');
   assert.match(controlo.texto, /lidos_nesta_janela: recentes\.length/, 'e o cortado diz que e da janela');
   assert.ok(!/\btotal: /.test(controlo.texto), 'o controlo nao pode ter um `total:` nu');
+});
+
+// ── o vocabulario das saidas, e os seis estados (2026-08-21) ────────────────
+
+test('VEREDICTO · reconhece a saida HONESTA de cada pilar, nao so NO FINDING', () => {
+  // A primeira versao so conhecia `NO FINDING` e por isso reprovou o P3 e o P2 —
+  // os dois UNICOS pilares saos de nove — porque eles respondem `THEY MATCH` e
+  // `NO SEED EXITS`. Um metodo que nao conhece o vocabulario reprova quem
+  // funciona. O `SEM_ACHADO_RE` do evidence-verifier ja enumera todas.
+  const v3 = veredicto({
+    pilar: 'P3',
+    respostaSemeado: 'COMMENT LINE 7 CODE LINE 8 THEY DIVERGE: comment says 30, code does 90',
+    respostaControlo: 'COMMENT LINE 7 CODE LINE 8 THEY MATCH',
+  });
+  assert.equal(v3.estado, 'funciona', '`THEY MATCH` no controlo e a resposta CERTA do P3');
+
+  const v2 = veredicto({
+    pilar: 'P2',
+    respostaSemeado: 'LINE 28: custo = 0 EXITS AT LINE 31 SEED VISIBLE: LINE 28 -> LINE 31',
+    respostaControlo: 'NO SEED EXITS.',
+  });
+  assert.equal(v2.estado, 'funciona', '`NO SEED EXITS` no controlo e a resposta CERTA do P2');
+});
+
+test('VEREDICTO · produzir nos DOIS sem acertar em nenhum tem nome proprio', () => {
+  // O pior estado, e o menos obvio: passa por vivo em qualquer contagem de
+  // rondas, enche a fila, e o defeito que devia apanhar continua la. Foi o que
+  // o P1 e o P5 fizeram — e a versao anterior chamava-lhe "incoerente, rever o
+  // fixture", mandando depurar um fixture que estava bom.
+  const v = veredicto({
+    pilar: 'P1',
+    respostaSemeado: 'REPEATED: LINE 13 and LINE 28',      // nao e o repeat semeado (21/28)
+    respostaControlo: 'REPEATED: LINE 14 and LINE 29',     // e acusa o controlo limpo
+  });
+  assert.equal(v.estado, 'falso-em-ambos');
+  assert.match(v.porque, /semeado E no controlo/);
+});
+
+test('VEREDICTO · acertar no semeado e acusar o controlo continua a ser reflexo', () => {
+  const v = veredicto({
+    pilar: 'P3',
+    respostaSemeado: 'COMMENT LINE 7 CODE LINE 8 THEY DIVERGE',
+    respostaControlo: 'COMMENT LINE 3 CODE LINE 9 THEY DIVERGE: inventado',
+  });
+  assert.equal(v.estado, 'dispara-por-reflexo');
+});
+
+test('VEREDICTO · calar-se no controlo mas errar o alvo no semeado nao e "funciona"', () => {
+  const v = veredicto({
+    pilar: 'P1',
+    respostaSemeado: 'REPEATED: LINE 13 and LINE 28',
+    respostaControlo: 'EVERY CALL ONCE',
+  });
+  assert.equal(v.estado, 'erra-o-alvo');
 });
