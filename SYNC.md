@@ -683,3 +683,56 @@ roteia para cloud) — SÓ-PAULO · sem cobertura ainda: `*.md`, `docs/**`,
 falha sempre em Windows, afirmando "nada o corre" com dois processos vivos (40464,
 31392) — tarefa registada. E este `SYNC.md` tem **606 linhas** contra as ~200 que o
 `AGENTS.md` manda: história por rolar para `docs/foundation/SYNC_ARCHIVE_2026.md`.
+
+### 2026-08-22 (2) · a fila triada de 1403 para 132, e os 2 defeitos que sobreviveram ao funil
+
+Continuação da entrada acima, mesma sessão. Quatro commits em main: `416eb349`,
+`7ba1af03`, `9759327f`, `2f5df03a`.
+
+**O funil, com o número em cada corte:**
+
+| corte | −n | critério |
+|---|---|---|
+| pilares que reprovaram o ensaio | −1114 | P1 566 · P5 442 · P4 103 · P7 3 |
+| fora do **próprio** enunciado | −116 | P2 101 (linha sem `0`/`''`/`[]`) · P3 15 (linha não é comentário) |
+| desmentidos pela fonte | −43 | P2 39 (`[]`/`''` auto-descritivo) · P3 4 (valor presente no código) |
+| **restam** | **132** | P2 81 · P3 50 · P11 1 — cumprem o enunciado, precisam de juízo humano |
+
+Depois: 30 candidatos mecânicos (fallback para zero) → **6 que valiam leitura** →
+**2 defeitos reais**. Sinal ponta-a-ponta do P2: **~2,4%** dos achados abertos.
+
+**A correcção conceptual do dia** — passar o ensaio do defeito semeado prova
+**SENSIBILIDADE, não PRECISÃO**. O P3 detecta o defeito quando ele lá está *e*
+produz lixo em campo. Tratei as duas propriedades como uma só durante toda a
+manhã. Está escrito no `refutado-pela-fonte.mjs`.
+
+**Três regras que testei e DEITEI FORA** (teriam somado ~63 descartes sem
+fundamento, e o registo delas vale mais que os descartes):
+
+1. *"a variável é reatribuída antes da saída, logo a semente não chega"* — o
+   `usd += …` do `burn-rate-status.js` está **dentro de um ciclo**: com lista
+   vazia a semente chega mesmo, e o código está correcto.
+2. *"o comentário está longe do código, logo o par é arbitrário"* — mediana real
+   17 linhas, p75 30. É sinal, não é prova: um JSDoc descreve legitimamente
+   código 20 linhas abaixo. Escolher limiar = inventar critério.
+3. Ler o **resumo do modelo** em vez do **ficheiro**: dava 29 falhas no P3; ir à
+   fonte deu 15. As outras 14 eram comentários citados sem marcador.
+
+**Ferramentas novas** (todas dry-run por omissão, append-only, `por=claude`,
+idempotentes, e recusam sobrepor-se a decisão já tomada):
+`voidar-fila.mjs` · `fora-do-enunciado.mjs` · `refutado-pela-fonte.mjs`.
+Motivo novo `instrumento-nao-discrimina` numa lista fechada de propósito — a
+razão está no `triagem.mjs`: os cinco existentes julgam O ACHADO, este julga O
+INSTRUMENTO, e misturá-los destruía o sinal da Fase A.
+
+**Os 2 defeitos corrigidos** (`2f5df03a`): `montecarlo.js` modelava um bloqueador
+sem `p50_ms` como **instantâneo** (agora expõe `incompletas`; o número não muda de
+propósito) · `audit_benchmark.js` publicava uma fase sem tokens como custo 0 e
+poupança 0, no ficheiro cujo output **é** o benchmark (agora `fases_sem_tokens`).
+Mais uma mensagem que mentia (`safety_boost` dizia `(0.00)` sem ter medido → `n/d`).
+**Três dos seis não eram defeito** e não levaram alteração.
+
+**Achado de processo:** o `/mooter-update` corre o `backtest.js`, que reescreve o
+`router-tuning.json` — e isso parte o teste `tuned_demote still works when no
+quality_intent present`. A suite do `tools/router` passa de 5 para 6 falhas por
+ter havido um update, não por ter havido código novo. Medido nos dois sentidos.
