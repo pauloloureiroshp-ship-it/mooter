@@ -17,7 +17,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22 e nao 20: o `test.yml` corre a suite em 22, e ate 2026-08-22 este
+          # workflow publicava a partir de 20 — o que se testava nao era o que
+          # se enviava. Nem havia consistencia entre publicadores: o
+          # `publish-mcpb` ja corria em 22 e so este e o `publish-cockpit` em 20,
+          # o que aponta para acidente e nao escolha. Nenhum `package.json` do
+          # repo declara `engines`, portanto o 20 nao era um piso de suporte
+          # documentado. Ver `tools/cockpit/runner/ci-coerencia.mjs`, que compara
+          # o runtime de publicacao com o de teste e falha se voltarem a separar-se.
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
       - name: Publish
         run: npm publish --access public

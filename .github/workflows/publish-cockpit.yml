@@ -21,7 +21,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22 e nao 20 — e aqui a mudanca nao e so higiene, porque o passo `Test`
+          # abaixo corre `node --test` NESTE runtime. Ate 2026-08-22 os 1394
+          # testes da extensao corriam num Node que a suite principal (`test.yml`,
+          # Node 22) nunca exercitava, e a extensao era publicada logo a seguir.
+          # Verificado antes de mudar: os mesmos testes passam 1393/1394 · 0 fail
+          # em Node 24 local, portanto o 22 nao os quebra.
+          node-version: '22'
       - name: Install extension dependencies
         run: npm ci --no-audit --no-fund
       - name: Test

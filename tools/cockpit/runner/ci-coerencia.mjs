@@ -36,6 +36,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 /** Workflows que PUBLICAM alguma coisa para fora. */
 const PUBLICA = /^publish-|^deploy-/;
@@ -80,17 +81,44 @@ export function runtimeDePublicacao(workflows) {
   return { nodeTeste, divergentes };
 }
 
-/** Os scripts que o CI manda correr existem mesmo no repo? */
-export function scriptsEmFalta(workflows, raiz, { existsImpl = fs.existsSync } = {}) {
-  const faltam = [];
+/**
+ * O caminho esta ausente por ser um ARTEFACTO que o proprio CI constroi?
+ *
+ * A pergunta nao e retorica. O `packages/cli/mooter.js` e gerado por esbuild no
+ * passo anterior do `install-reliability.yml` e por doutrina nunca e commitado —
+ * acusa-lo de "em falta" punha este verificador a vermelho para sempre num caso
+ * legitimo, que e a maneira mais rapida de ensinar toda a gente a ignora-lo.
+ * O teste mecanico e o `.gitignore`: um caminho que o repo ignora de proposito e
+ * um artefacto; um caminho que ninguem ignora e que nao existe e um defeito.
+ * Sem git disponivel, assume-se defeito — falhar a acusar e pior que acusar a mais.
+ */
+export function ehArtefacto(alvo, raiz, { checkIgnoreImpl } = {}) {
+  try {
+    if (checkIgnoreImpl) return Boolean(checkIgnoreImpl(alvo));
+    execFileSync('git', ['check-ignore', '-q', '--', alvo], { cwd: raiz, stdio: 'ignore' });
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Os scripts que o CI manda correr existem mesmo no repo?
+ *
+ * Devolve `{ faltam, construidos }`: o primeiro e o defeito, o segundo e ruido
+ * legitimo que se mostra mas nao faz falhar.
+ */
+export function scriptsEmFalta(workflows, raiz, { existsImpl = fs.existsSync, checkIgnoreImpl } = {}) {
+  const faltam = []; const construidos = [];
   for (const w of workflows) {
     for (const m of String(w.src).matchAll(
       /(?:node|bash|sh)\s+((?:tools|packages|scripts|landing|hub)\/[A-Za-z0-9_./-]+\.(?:m?js|sh|ts))/g,
     )) {
-      if (!existsImpl(path.join(raiz, m[1]))) faltam.push({ ficheiro: w.ficheiro, alvo: m[1] });
+      if (existsImpl(path.join(raiz, m[1]))) continue;
+      const onde = { ficheiro: w.ficheiro, alvo: m[1] };
+      if (ehArtefacto(m[1], raiz, { checkIgnoreImpl })) construidos.push(onde);
+      else faltam.push(onde);
     }
   }
-  return faltam;
+  return { faltam, construidos };
 }
 
 function principal() {
@@ -109,7 +137,7 @@ function principal() {
   }
 
   const { nodeTeste, divergentes } = runtimeDePublicacao(workflows);
-  const faltam = scriptsEmFalta(workflows, raiz);
+  const { faltam, construidos } = scriptsEmFalta(workflows, raiz);
 
   console.log('');
   if (divergentes.length) {
@@ -120,12 +148,16 @@ function principal() {
     console.log(`publicacao e teste no mesmo runtime (Node ${nodeTeste ?? 'n/d'})`);
   }
 
+  if (construidos.length) {
+    console.log(`\nartefactos que o proprio CI constroi (nao e defeito): ${construidos.length}`);
+    for (const c of construidos) console.log(`     ${c.ficheiro} -> ${c.alvo}`);
+  }
   if (faltam.length) {
-    console.log('\n⚠️  o CI manda correr scripts que nao existem:');
+    console.log('\n⚠️  o CI manda correr scripts que nao existem nem sao construidos:');
     for (const f of faltam) console.log(`     ${f.ficheiro} -> ${f.alvo}`);
     process.exitCode = 1;
   } else {
-    console.log('todos os scripts citados pelo CI existem');
+    console.log('todos os scripts citados pelo CI existem ou sao construidos');
   }
 }
 

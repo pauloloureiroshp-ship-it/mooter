@@ -60,22 +60,47 @@ test('um workflow que nao instala Node nao conta como divergente', () => {
 
 test('apanha o script que o CI manda correr e nao existe', () => {
   const existe = (p) => p.includes('existe.mjs');
-  const faltam = scriptsEmFalta(
+  const { faltam } = scriptsEmFalta(
     [wf('test.yml', 'run: node tools/existe.mjs\nrun: node tools/fantasma.mjs')],
     '/r',
-    { existsImpl: existe },
+    { existsImpl: existe, checkIgnoreImpl: () => false },
   );
   assert.equal(faltam.length, 1);
   assert.equal(faltam[0].alvo, 'tools/fantasma.mjs');
 });
 
 test('nao confunde `node --test` nem `npm run x` com um caminho de script', () => {
-  const faltam = scriptsEmFalta(
+  const { faltam } = scriptsEmFalta(
     [wf('test.yml', 'run: node --test\nrun: npm run build\nrun: node -c tools/router/classify.js')],
     '/r',
     { existsImpl: () => true },
   );
   assert.deepEqual(faltam, [], 'so caminhos com extensao contam, e este existe');
+});
+
+test('o artefacto que o proprio CI constroi nao conta como script em falta', () => {
+  // O caso real: `install-reliability.yml` corre `packages/cli/mooter.js`, que o
+  // passo anterior constroi com esbuild e que o repo ignora de proposito. Acusar
+  // isto punha o verificador vermelho para sempre num caso legitimo.
+  const { faltam, construidos } = scriptsEmFalta(
+    [wf('install-reliability.yml', 'run: node packages/cli/mooter.js --version')],
+    '/r',
+    { existsImpl: () => false, checkIgnoreImpl: (a) => a === 'packages/cli/mooter.js' },
+  );
+  assert.deepEqual(faltam, [], 'gitignorado = artefacto de build, nao defeito');
+  assert.equal(construidos.length, 1);
+  assert.equal(construidos[0].alvo, 'packages/cli/mooter.js');
+});
+
+test('sem git a responder, o ausente continua a ser acusado', () => {
+  // Falhar a acusar e pior que acusar a mais: se nao se consegue provar que e
+  // artefacto, trata-se como defeito.
+  const { faltam } = scriptsEmFalta(
+    [wf('test.yml', 'run: node tools/fantasma.mjs')],
+    '/r',
+    { existsImpl: () => false, checkIgnoreImpl: () => { throw new Error('git ausente'); } },
+  );
+  assert.equal(faltam.length, 1, 'na duvida, acusa');
 });
 
 test('pasta de workflows ausente devolve lista vazia, sem rebentar', () => {
