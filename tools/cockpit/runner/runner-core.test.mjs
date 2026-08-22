@@ -686,7 +686,21 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
 // P8 passaram a reclamar `packages/mooter-bridge/*.js` — os "orfaos" deixaram
 // de o ser e o teste media outra coisa. Um orfao tem de estar onde nenhum
 // padrao chega, senao nao e um orfao.
-const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `orfaos/orfao${k}.js`);
+/**
+ * Orfaos que chegam para todos os pilares — com um PISO.
+ *
+ * Cresce com o conjunto (acrescentar um pilar nao pode partir um teste que fala
+ * de colisoes), mas nunca desce abaixo de 12. O piso nasceu a 2026-08-22, ao
+ * desligar o P1 e o P5: com 2 pilares o poco caia para 4, e a `FROTA` passou a
+ * falhar porque `faseDoDevice('mac-mini-de-paulo') % 4` e
+ * `faseDoDevice('macbook-do-paulo') % 4` valem os DOIS 1 — as fases sao 7621 e
+ * 89, que diferem em mod 12 (1 e 5) e em mod 20 (1 e 9).
+ *
+ * Ou seja: a funcionalidade estava boa e era o poco que tinha encolhido abaixo
+ * do tamanho onde o teste consegue medir alguma coisa. O piso repoe a medicao;
+ * NAO relaxa a asercao, que continua a exigir rondas diferentes entre devices.
+ */
+const ORFAOS = Array.from({ length: Math.max(12, PILLAR_IDS.length * 2) }, (_, k) => `orfaos/orfao${k}.js`);
 
 /** Um documento por pilar: dois pilares de documentos precisam de dois alvos. */
 const DOCUMENTOS = Array.from({ length: PILLAR_IDS.length }, (_, k) => `docs/doc${k}.md`);
@@ -1602,25 +1616,32 @@ test('um pilar desligado NAO pode ser dono de ficheiros', () => {
 
 // ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
 
-test('os SEIS desligados saem da rotacao e continuam no catalogo', () => {
+test('os OITO desligados saem da rotacao e continuam no catalogo', () => {
   // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
   // entrada tornaria ilegivel o historico que explica porque foram desligados.
   // Todos foram desligados por MEDICAO, nao por gosto — cada um tem o numero
   // no comentario da sua entrada em `PILLARS`.
-  for (const id of ['P4', 'P6', 'P7', 'P8', 'P9', 'P10']) {
+  for (const id of ['P1', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']) {
     assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
     assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
     assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
   }
-  assert.deepEqual(PILLAR_IDS, ['P1', 'P2', 'P3', 'P5']);
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3']);
 });
 
-test('todo pilar que AINDA corre ja provou que produz', () => {
-  // A regra que sai do dia: um pilar activo tem de ter achados medidos. Os
-  // cinco desligados tinham 0 em ~480 rondas cada. Se um pilar novo entrar na
-  // rotacao sem essa prova, este teste nao o apanha — mas o alarme de mudos do
-  // `classes-da-fila.mjs` apanha, ao fim de 50 rondas.
-  assert.ok(PILLAR_IDS.length >= 3, 'a rotacao nao pode encolher ate deixar de haver loop');
+test('a rotacao contem SO os pilares que passaram o defeito semeado', () => {
+  // A regra que sai do dia, e que substitui a que eu tinha escrito. A primeira
+  // versao exigia `PILLAR_IDS.length >= 3` — um numero que eu inventei, e que
+  // teria bloqueado o desligar do P1 e do P5 por motivo nenhum. O que importa
+  // nao e QUANTOS correm: e se cada um provou que discrimina.
+  //
+  // Dos NOVE semeados (`prova-de-pilar.mjs`), so estes dois deram `funciona`:
+  //   P3  THEY DIVERGE no semeado, THEY MATCH no controlo
+  //   P2  SEED VISIBLE no semeado, NO SEED EXITS no controlo
+  // Os outros sete: `partido` (P6..P10) ou `falso-em-ambos` (P1, P5).
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3'],
+    'so entra na rotacao quem passou o ensaio — acrescentar um pilar exige semea-lo primeiro');
+  assert.ok(PILLAR_IDS.length >= 1, 'sem pilares nao ha loop nenhum');
   for (const id of PILLAR_IDS) {
     assert.notEqual(PILLARS[id].activo, false, `${id} esta na rotacao E marcado como desligado`);
   }
@@ -1649,6 +1670,7 @@ test('a COBERTURA perdida esta declarada, nao escondida', () => {
     'landing/app/**/*.tsx', 'landing/components/**/*.tsx',       // P6
     'packages/vscode-extension/src/*.js',                        // P6
     'tools/cockpit/*.html',                                      // P7
+    'packages/mooter-bridge/*.js',                               // P5
   ];
   for (const orfao of semDono) {
     assert.ok(!globsActivos.includes(orfao),

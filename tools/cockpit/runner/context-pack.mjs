@@ -55,6 +55,28 @@ export const PILLARS = {
    */
   P1: {
     label: 'Routing & Cost — repeated work',
+    /**
+     * ⛔ DESLIGADO 2026-08-22 — `falso-em-ambos`, o pior estado da matriz.
+     *
+     * Era o pilar de MAIOR rendimento (377 achados em 485 rondas, 77%). Semeado
+     * com o defeito que ele diz procurar — `lerJson(TABELA)` chamado nas linhas
+     * 21 e 28, mesma funcao e mesmos argumentos — contra um controlo com a MESMA
+     * funcao chamada duas vezes mas com argumentos DIFERENTES:
+     *
+     *     semeado : "REPEATED: LINE 13 and LINE 28"
+     *     controlo: "REPEATED: LINE 14 and LINE 29"
+     *
+     * Produziu nos dois. E os dois sao falsos, verificado a mao: `fs.readFileSync`
+     * aparece UMA vez em cada ficheiro (linha 13 / 14). A linha 28 e
+     * `const tabela = lerJson(TABELA);` — nao ha readFileSync nenhum ali. Alem
+     * de fabricar a segunda ocorrencia, FALHOU o repeat que estava semeado.
+     *
+     * `falso-em-ambos` e o pior dos seis estados e o menos obvio: passa por vivo
+     * em qualquer contagem de rondas, enche a fila, e o defeito que devia apanhar
+     * continua la. **Nenhuma metrica de volume o distingue de um pilar sao** — foi
+     * preciso semear para o ver.
+     */
+    activo: false,
     files: [
       'tools/router/*.js',
     ],
@@ -209,6 +231,32 @@ export const PILLARS = {
   },
   P5: {
     label: 'Local engine & GPU — same shape, different names',
+    /**
+     * ⛔ DESLIGADO 2026-08-22 — `falso-em-ambos`, como o P1.
+     *
+     * 486 rondas, 317 achados (65%). Semeado com sete returns da forma
+     * {ok, motivo, valor} contra um controlo com sete returns de formas
+     * genuinamente distintas (objectos de campos diferentes, strings, numeros,
+     * null):
+     *
+     *     semeado : "SAME SHAPE: lines 11, 23, 34"
+     *     controlo: "SAME SHAPE: lines 10, 16, 26, 31, 37"
+     *
+     * No semeado, a linha 23 e `}` e a 34 e `if (!r.ok) return r;` — nenhuma e um
+     * return da forma que ele afirma. No controlo, onde nao ha forma repetida
+     * nenhuma, acusou cinco linhas.
+     *
+     * A camada 1 do refutador ja tinha refutado 9,1% da classe dele (26 de 287
+     * achados citavam so chavetas, sem campo nenhum). O ensaio explica porque:
+     * ele nao compara campos, compara a existencia de `return`.
+     *
+     * ⚠️ COBERTURA: era o unico a ver `packages/mooter-bridge/*.js` — 50
+     * ficheiros, 38.704 linhas. Os 285 achados que a fila tem desse pacote vieram
+     * TODOS deste pilar, portanto o que se perde e cobertura que produzia
+     * fabricacao. O `tools/router/gpu-*.js` continua coberto pelo
+     * `tools/**\/*.js` do P2.
+     */
+    activo: false,
     files: [
       'tools/cockpit/runner/*.mjs',
       'tools/router/gpu-*.js',
