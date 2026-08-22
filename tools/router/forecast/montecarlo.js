@@ -130,7 +130,21 @@ function simulate(spec) {
 function makeBlockerModel(causes, envOf) {
   const table = causes || {};
   const env = typeof envOf === 'function' ? envOf : () => ({});
+  // Uma causa com probabilidade mas SEM duracao entra na simulacao como um
+  // bloqueador instantaneo — o `p50_ms || 0` abaixo faz `lo = hi = 0` e o
+  // sorteio devolve 0ms. Numa simulacao cujo proposito e prever TEMPO, isso e um
+  // zero por medir disfarcado de zero medido, e some sem deixar rasto.
+  //
+  // Nao se muda o numero aqui de proposito: alterar o comportamento mudava
+  // silenciosamente todas as previsoes ja calibradas. O que muda e a
+  // VISIBILIDADE — quem monta a tabela passa a poder ver que ela esta
+  // incompleta, e decidir. `incompletas` fica vazio quando esta tudo bem.
+  const incompletas = Object.keys(table).filter((nome) => {
+    const c = table[nome] || {};
+    return Number(c.p) > 0 && !Number.isFinite(Number(c.p50_ms));
+  });
   return {
+    incompletas,
     extra(rng, node) {
       const e = env(node) || {};
       let work = 0, wall = 0;

@@ -85,7 +85,13 @@ function applySafetyBoost(classification, promptText) {
       ...TIER_TARGET.T2,
       tier: 'T2',
       safety_boost_applied: true,
-      safety_boost_reason: `architectural_keyword + low_confidence (${conf.toFixed(2)})`,
+      // `n/d` e nao `0.00` quando a confianca nao veio. O 0 acima e deliberado e
+      // esta certo — faz `conf < 0.9` ser verdade e o boost aplicar-se, que e o
+      // comportamento seguro perante o desconhecido. O que estava errado era a
+      // MENSAGEM: dizia "low_confidence (0.00)" e um leitor conclui que se mediu
+      // zero, quando na verdade nao se mediu nada. Ler um 0 por medir como 0
+      // medido e exactamente o que este repo nao faz.
+      safety_boost_reason: `architectural_keyword + low_confidence (${Number.isFinite(c.confidence) ? conf.toFixed(2) : 'n/d'})`,
       safety_boost_from: tier,
     };
   }

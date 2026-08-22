@@ -720,6 +720,10 @@ function writeStats(validation) {
     optimizer_effectiveness: optimizerSummary,
     tier_accuracy: stats.tier_accuracy,
     last_validation: validation,
+    // 0 REAL, nao 0 por medir: este testador corre inteiramente em Ollama
+    // local (`ollama run`, ver runModel/checkOllama). Sem esta nota o zero
+    // parece um custo que ninguem calculou — foi por isso que um pilar o
+    // apanhou a 2026-08-22.
     cost_usd: 0,
     total_tokens_cumulative: Object.values(modelSummary).reduce(
       (sum, d) => sum + (d.runs || 0) * (d.avg_tokens || 0), 0
@@ -1104,6 +1108,10 @@ function writeBacklog(snapshot) {
     optimizer_win_rate: stats.optimizer_ab_tests > 0 ? (stats.optimizer_wins / stats.optimizer_ab_tests * 100).toFixed(1) + '%' : 'n/a',
     models_benchmarked: Object.keys(stats.model_runs).length,
     uptime: snapshot.uptime_human,
+    // 0 REAL, nao 0 por medir: este testador corre inteiramente em Ollama
+    // local (`ollama run`, ver runModel/checkOllama). Sem esta nota o zero
+    // parece um custo que ninguem calculou — foi por isso que um pilar o
+    // apanhou a 2026-08-22.
     cost_usd: 0,
     last_updated: new Date().toISOString(),
   };

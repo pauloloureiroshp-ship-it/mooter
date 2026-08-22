@@ -68,12 +68,29 @@ function costBreakdown() {
       cost_actual: round(actual), cost_opus_baseline: round(baseline), saved: round(baseline - actual) };
   };
 
+  // Uma fase SEM tokens registados entrava aqui como `0` e saia como uma linha
+  // com custo 0 e poupanca 0 — indistinguivel de uma fase medida que nao gastou
+  // nada. Num ficheiro cujo output E o benchmark publicado, isso e a fabricacao
+  // de metrica que este repo proibe. As fases 3 e 4 ja estavam protegidas por um
+  // `if (phaseTok...)`; estas duas nao estavam.
+  //
+  // O numero nao muda (continua a somar 0). O que muda e que a ausencia passa a
+  // ficar escrita no resultado, em `fases_sem_tokens`, para nenhum total ser lido
+  // como medido quando nao foi.
+  const semTokens = [];
+  const medido = (fase, obj, campoIn, campoOut) => {
+    const tin = Number(obj && obj[campoIn]);
+    const tout = Number(obj && obj[campoOut]);
+    if (!Number.isFinite(tin) || !Number.isFinite(tout)) semTokens.push(fase);
+    return [Number.isFinite(tin) ? tin : 0, Number.isFinite(tout) ? tout : 0];
+  };
+
   // Phase 1 — local T0 corpus (Ollama, $0). Baseline = if those same tokens ran on Opus.
   rows.push(mk('1 Corpus', 'T0', corpus.generated_with || 'qwen2.5-coder:7b',
-    corpus.total_tokens_in || 0, corpus.total_tokens_out || 0));
+    ...medido('1 Corpus', corpus, 'total_tokens_in', 'total_tokens_out')));
   // Phase 2 — T1 Haiku validation.
   rows.push(mk('2 Validate', 'T1', 'claude-haiku-4-5',
-    valStats.total_tokens_in || 0, valStats.total_tokens_out || 0));
+    ...medido('2 Validate', valStats, 'total_tokens_in', 'total_tokens_out')));
   // Phase 3 — T2 Sonnet insights (single pass; tokens recorded by orchestrator).
   if (phaseTok.insights) rows.push(mk('3 Insights', 'T2', 'claude-sonnet-4-6',
     phaseTok.insights.tokens_in || 0, phaseTok.insights.tokens_out || 0));
@@ -90,7 +107,9 @@ function costBreakdown() {
   totals.saved = round(totals.cost_opus_baseline - totals.cost_actual);
   totals.saved_pct = totals.cost_opus_baseline ? Math.round((totals.saved / totals.cost_opus_baseline) * 1000) / 10 : 0;
 
-  const out = { rows, totals };
+  // Vazio quando tudo foi medido. Com conteudo, os totais acima incluem fases
+  // que contribuiram 0 por AUSENCIA de dados e nao por nao terem gasto nada.
+  const out = { rows, totals, fases_sem_tokens: semTokens };
   ensureDir(); fs.writeFileSync(COST_PATH, JSON.stringify(out, null, 2));
   return out;
 }
