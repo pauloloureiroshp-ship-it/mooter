@@ -34,17 +34,16 @@
  * toda a gente a ignora-lo — e ja se pagou esse preco esta semana com o
  * `packages/cli/mooter.js` no ci-coerencia.
  *
- * EXCLUSAO CONHECIDA (para o "todos os sitios" nao ser uma mentira por omissao):
+ * SEM EXCLUSOES. Houve uma, durante umas horas a 2026-08-22: o
+ * `packages/router/package.json` compilava o `pack-hint` com `--target=node18` e
+ * ficou de fora por ser codigo congelado. O dono allowlistou-o no mesmo dia
+ * (ver `CLAUDE.md`), e ele entrou. Ainda bem: aquele bundle nao e config morta —
+ * o `install.sh:196` compila-o NA MAQUINA DO UTILIZADOR e instala-o como hook do
+ * Claude Code. Era o unico sitio onde o numero errado ainda chegava a producao.
  *
- *     packages/router/package.json  ->  build:packhint  --target=node18
- *
- * E um DECIMO sitio, e afirma 18. Nao entra em SITIOS porque `packages/router` e
- * codigo congelado e a allowlist da wave 58 so cobre ADICOES a `src/` — este
- * ficheiro nao esta la. Adiciona-lo poria o verificador vermelho de forma
- * permanente por uma coisa que ele nao pode corrigir, e um verificador
- * cronicamente vermelho e um verificador que se aprende a ignorar. Fica aqui
- * escrito em vez de ficar por dizer; sai da exclusao no dia em que uma wave o
- * allowlistar.
+ * Se algum dia voltar a haver um sitio intocavel, escreve-se aqui em vez de se
+ * deixar o "todos os sitios" a mentir por omissao — mas nao se poe em SITIOS,
+ * porque um verificador cronicamente vermelho e um verificador que se ignora.
  *
  * Uso: node tools/cockpit/runner/piso-de-node.mjs [raiz-do-repo]
  */
@@ -77,6 +76,14 @@ export const SITIOS = [
     ficheiro: 'package.json',
     porque: 'piso de desenvolvimento do workspace',
     padroes: [/"node":\s*">=\s*(\d+)/g],
+  },
+  {
+    // O alvo do `build:packhint` chega a producao: o `install.sh` compila este
+    // bundle na maquina do utilizador e instala-o como hook do Claude Code.
+    // Codigo congelado, allowlistado a 2026-08-22 so para estas duas linhas.
+    ficheiro: 'packages/router/package.json',
+    porque: 'o alvo do pack-hint que corre na maquina do utilizador',
+    padroes: [/--target=node(\d+)/g, /"node":\s*">=\s*(\d+)/g],
   },
   {
     ficheiro: 'install.sh',

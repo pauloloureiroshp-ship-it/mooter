@@ -125,7 +125,7 @@ canon for the eight questions; the vault is not duplicated here.
 
 1. **`tools/router/classify.js` is FROZEN.** Never modify it. CI enforces its sha256:
    `427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f`
-2. **Frozen engine packages** (waves 28-34.5) stay untouched unless the active wave brief explicitly allowlists specific files.
+2. **Frozen engine packages** (waves 28-34.5) stay untouched unless the active wave brief explicitly allowlists specific files. The standing allowlist lives in `CLAUDE.md` § Hard invariants — read it before touching anything under `packages/`, and add an entry there (what, why, who authorised) in the same PR that uses it. There is no CI check for this: the freeze is documentary, so an unrecorded edit is indistinguishable from a violation.
 3. **Tier ladder**: T0-T3 are auto-routed; **T5 (Fable) is opt-in only via `@fable`** and is never auto-routed. There is no T4. High-risk prompts (deploy/secrets/migrations) floor to T3.
 4. No new root `.md` files without an explicit request.
 
