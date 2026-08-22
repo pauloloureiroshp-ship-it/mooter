@@ -43,6 +43,22 @@ export const MOTIVOS = Object.freeze([
   'fora-do-que-estou-a-fazer',
   'citacao-certa-conclusao-errada',
   'trivial',
+  // Acrescentado a 2026-08-22, e a lista era fechada de proposito — por isso a
+  // razao tem de ficar escrita.
+  //
+  // Os cinco de cima sao juizos sobre O ACHADO: alguem olhou e decidiu. Este nao
+  // e: e um juizo sobre O INSTRUMENTO. O ensaio do defeito semeado provou que
+  // P1, P4, P5 e P7 respondem o mesmo com defeito e sem defeito — nao
+  // discriminam. Os 1114 achados que produziram nao sao falsos (nao os li um a
+  // um, e dize-lo seria inventar ao contrario): sao SEM VALOR PROBATORIO, porque
+  // a maquina que os emitiu emitiria o mesmo perante codigo limpo.
+  //
+  // Precisa de ser motivo proprio e nao um dos cinco. Carimbar 1114 achados com
+  // `nao-e-um-problema` ou `fora-do-que-estou-a-fazer` afogaria as 74 decisoes
+  // reais do dono e destruiria exactamente o sinal que esta lista existe para
+  // produzir — a escolha entre "o defeito esta na PERGUNTA" e "esta na
+  // RELEVANCIA". Um numero que se estraga a si proprio nao e um numero.
+  'instrumento-nao-discrimina',
 ]);
 
 /**

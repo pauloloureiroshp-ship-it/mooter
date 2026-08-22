@@ -618,7 +618,7 @@ discrimina. **7 dos 9 originais falharam**, cada um com causa medida:
 - **P8, P9, P10**: mudos. **1428 rondas de GPU a produzir zero.**
 - **P6, P7**: respondem igual ao controlo; os 3 achados do P7 eram falsos *e* fora
   do enunciado.
-- **P1, P5**: os dois maiores produtores — **os 694 achados na fila vêm daqui**.
+- **P1, P5**: os dois maiores produtores — **os achados na fila vêm daqui**.
 - **P2, P3**: passaram. Rotação fecha neles + **P11** novo (mooter-bridge),
   desenhado a partir do que se provou funcionar e semeado ANTES de entrar.
 
@@ -657,10 +657,27 @@ enquanto o `-d` seguro era bloqueado (flag `/i` destruía a única diferença en
 e `-D`). E três falsos positivos: `[^\n]*` atravessava os `&&`, portanto um `--force`
 de outro comando disparava a regra do `push`. Backup `.bak-20260822-111005`.
 
-**Não feito, de propósito:** triagem dos **694 achados** na fila (apagar histórico é
-do dono) · tecto de tier sob quota CRÍTICA (**87,2%** da fila roteia para cloud) —
-SÓ-PAULO · sem cobertura ainda: `*.md`, `docs/**`, `packages/vscode-extension/`,
-`tools/cockpit/*.html`.
+**Fila triada.** Correcção de número: eram **1403** achados, não os 694 que este
+documento afirmou primeiro — contados agora pelo `ehAchado` do próprio painel, não
+à mão. **1114 anulados** (P1 566 · P5 442 · P4 103 · P7 3), **289 ficam por triar**
+(P2 220 · P3 69) — essa é a fila real do dono.
+
+O motivo é `instrumento-nao-discrimina`, **novo** e acrescentado a uma lista que era
+fechada de propósito. A razão está escrita no `triagem.mjs`: os cinco motivos
+existentes são juízos sobre O ACHADO (alguém olhou), este é um juízo sobre O
+INSTRUMENTO. Carimbar 1114 achados com `nao-e-um-problema` afogaria as 74 decisões
+reais do dono e destruiria o único sinal que a lista existe para produzir — a
+escolha entre "o defeito está na PERGUNTA" e "está na RELEVÂNCIA".
+
+Não se afirma que sejam falsos: **não foram lidos**. São sem valor probatório, porque
+a máquina que os emitiu emitiria o mesmo perante código limpo. Append-only via
+`registarTriagem`, `por=claude` (separável das decisões do dono), zero linhas tocadas
+no `runner-ledger.jsonl`. Ferramenta: `voidar-fila.mjs`, dry-run por omissão,
+idempotente, e recusa sobrepor-se a uma decisão já tomada.
+
+**Não feito, de propósito:** tecto de tier sob quota CRÍTICA (**87,2%** da fila
+roteia para cloud) — SÓ-PAULO · sem cobertura ainda: `*.md`, `docs/**`,
+`packages/vscode-extension/`, `tools/cockpit/*.html`.
 
 **Dívida aberta:** `sync-cockpit.mjs:101` procura um LaunchAgent de **macOS** e por isso
 falha sempre em Windows, afirmando "nada o corre" com dois processos vivos (40464,
