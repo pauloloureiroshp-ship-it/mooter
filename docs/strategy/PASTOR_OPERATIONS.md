@@ -59,8 +59,8 @@ claude --version
 Agora dentro de **WSL Ubuntu** (`wsl` no PowerShell para entrar):
 
 ```bash
-# 4. Node 20+
-node --version          # Expected: v20.x ou superior
+# 4. Node 22+
+node --version          # Expected: v22.x ou superior
 
 # 5. Ollama com qwen3:30b
 ollama list             # Expected: lista que inclui qwen3:30b ou qwen3:30b-a3b-instruct
@@ -181,7 +181,7 @@ pwd                 # Expected: /workspaces/mooter
 ls /home/node/frugal/docs/strategy/    # Expected: PASTOR.md visível
 ollama --version    # Pode falhar — Ollama está no host, não no container. OK.
 curl http://localhost:11434/api/tags   # Expected: lista de modelos Ollama (network=host expõe o host)
-node --version      # Expected: v20.x
+node --version      # Expected: v22.x
 gh auth status      # Expected: logged in (herda credenciais host)
 ```
 

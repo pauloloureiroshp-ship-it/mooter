@@ -1,0 +1,339 @@
+/**
+ * refutador.mjs — o portao adversarial antes de qualquer lane paga.
+ *
+ * PORQUE EXISTE, com o numero que o motivou.
+ *
+ * O `evidence-verifier.mjs` ja estava no caminho dos achados, mas verifica a
+ * CITACAO — a linha existe? esta dentro da janela? —, nunca a AFIRMACAO. Os 62
+ * achados do pilar P4 passaram TODOS com `citacao-ok`, e um verificador
+ * deterministico mostrou que **0 de 78** eram verdade (medido 2026-08-21, tres
+ * configuracoes). Citar bem uma linha e dizer uma falsidade sobre ela e um par
+ * perfeitamente possivel, e era invisivel.
+ *
+ * Isto passou a custar dinheiro a serio: com o P4 desligado, `rota()` manda
+ * **0%** da fila para local — 749 dos 786 achados vao para lanes pagas
+ * (588 subscription + 161 codex). O portao local ($0) e a unica coisa entre a
+ * fila e a factura.
+ *
+ * DUAS CAMADAS, a mais barata primeiro:
+ *
+ *   1. DETERMINISTICA — sem modelo, sem rede. Refuta so o que e mecanicamente
+ *      decidivel. Foi esta que apanhou os 78. Custo: zero.
+ *   2. ADVERSARIAL LOCAL — `packages/validation/src/adversarial` (5 lentes,
+ *      confirm/refute/uncertain, Ollama). REUTILIZADA por ponte, nunca copiada:
+ *      o inventario de 2026-08-20 ja dizia "evidence-verifier chamar
+ *      validation/adversarial". So corre no que a camada 1 nao decidiu.
+ *
+ * A REGRA DURA: um achado sem veredicto REGISTADO nao pode ser despachado para
+ * uma lane paga. `podeDespachar` e a unica porta, e ela recusa por omissao.
+ *
+ * ⚠️ O QUE ESTE PORTAO **NAO** E — medido, nao suposto.
+ *
+ * A camada 2 NAO e um filtro de qualidade. Com 3 lentes e votacao, sobre um
+ * controlo de 4 afirmacoes VERDADEIRAS e 2 FALSAS (2026-08-21):
+ *
+ *     juiz                          verdadeiras aceites   falsas rejeitadas
+ *     qwen2.5-coder:14b (== autor)        1/4                  2/2
+ *     gemma4:e4b        (≠ autor)         2/4                  2/2
+ *
+ * Rejeita 100% do que e falso — e metade a tres quartos do que e verdade. As
+ * tres lentes concordam em -1.00 nos dois casos, porque N amostras do mesmo
+ * modelo nao sao N opinioes independentes; o proprio `voter.ts` documenta que o
+ * empate vai para `refute` DE PROPOSITO.
+ *
+ * A consequencia, dita por extenso: este portao segura achados na lane gratis em
+ * vez de pagar por eles. Sob quota CRITICO essa e a direccao certa de errar — um
+ * achado retido NAO se perde, fica na fila local a custo zero. Mas nao se pode
+ * vender isto como verificacao de qualidade, porque nao e.
+ *
+ * Conservador de proposito: a camada 1 refuta apenas com prova, e diz `indeciso`
+ * em vez de inventar um veredicto.
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+/** Fechado de proposito — ver `podeDespachar`. */
+export const VEREDICTO = Object.freeze({
+  REFUTADO: 'refutado',
+  SOBREVIVE: 'sobrevive',
+  INDECISO: 'indeciso',
+});
+
+export const CAMADA = Object.freeze({
+  DETERMINISTA: 'determinista',
+  ADVERSARIAL: 'adversarial-local',
+  NENHUMA: 'nenhuma',
+});
+
+/** As lanes que custam dinheiro. Local e haiku nao passam por aqui a forca. */
+export const LANES_PAGAS = Object.freeze(['subscription', 'codex']);
+
+const cache = new Map();
+/** Linhas REAIS do ficheiro — sem o vazio final do `split`, o mesmo erro do pack. */
+function linhasDe(repoRoot, rel, readImpl = fs.readFileSync) {
+  const k = `${repoRoot}\u0000${rel}`;
+  if (cache.has(k)) return cache.get(k);
+  let out = null;
+  try {
+    const a = String(readImpl(path.join(repoRoot, rel), 'utf8')).split('\n');
+    if (a.length && a[a.length - 1] === '') a.pop();
+    out = a;
+  } catch { out = null; }
+  cache.set(k, out);
+  return out;
+}
+
+/** Esquece o que leu — os testes mudam ficheiros debaixo dos pes. */
+export function limparCache() { cache.clear(); }
+
+/** A citacao que o achado usou como prova: `PROOF: <ficheiro>:<linha>`. */
+export function provaDoAchado(texto) {
+  const m = String(texto || '').match(/PROOF:\s*([^\s:]+(?::[^\s:]+)*?):(\d+)/i);
+  return m ? { ficheiro: m[1], linha: Number(m[2]) } : null;
+}
+
+/**
+ * A afirmacao diz que alguma coisa esta CORTADA / incompleta / por fechar?
+ *
+ * So estas sao mecanicamente refutaveis pela camada 1 — as outras familias de
+ * afirmacao ("estes dois returns tem a mesma forma") precisam de juizo e vao
+ * para a camada 2.
+ */
+const AFIRMA_CORTE = /\b(BROKEN|incomplet[oa]|cortad[oa]|falta fechar|n[aã]o (?:esta|está) fechad[oa]|unclosed|not closed|missing clos)/i;
+
+/**
+ * A linha acaba num limite de token perfeitamente normal?
+ *
+ * Se sim, uma afirmacao de "esta cortada a meio" e FALSA. Conservador: no que
+ * nao souber, devolve `null` e ninguem e refutado por isso.
+ */
+export function acabaLimpa(linha) {
+  if (linha == null) return null;
+  const s = String(linha).replace(/\s+$/, '');
+  if (s === '') return null;                                   // vazia: nao julgo
+  if (/[.,:;!?)\]}>`"'|*_-]$/.test(s)) return `acaba em '${s.slice(-1)}'`;
+  if (/[\p{L}\p{N}]$/u.test(s)) return 'acaba numa palavra inteira';
+  return null;
+}
+
+/**
+ * A linha tem CAMPOS que sustentem uma afirmacao sobre "os mesmos campos"?
+ *
+ * Uma chaveta solta, um `return {` ou um `};` nao tem nenhum: seja qual for a
+ * verdade sobre as duas linhas, ESTA citacao nao a prova.
+ */
+export function temCampos(linha) {
+  if (linha == null) return false;
+  const s = String(linha).trim();
+  if (s === '') return false;
+  const nu = s.replace(/^return\s*/, '').replace(/[{}()[\];,]/g, '').trim();
+  if (nu === '') return false;
+  return /[A-Za-z_$][A-Za-z0-9_$]{1,}/.test(nu);
+}
+
+/**
+ * CAMADA 1 — refutacao deterministica. Sem modelo, sem rede, sem custo.
+ *
+ * @returns {{veredicto: string, camada: string, porque: string, prova: object|null}}
+ */
+export function refutarDeterminista(achado, { repoRoot, readImpl = fs.readFileSync } = {}) {
+  const texto = String((achado && achado.resultado_resumo) || '');
+  const p = provaDoAchado(texto);
+  const base = { camada: CAMADA.DETERMINISTA, prova: p };
+
+  if (!p) {
+    return { ...base, veredicto: VEREDICTO.INDECISO, porque: 'o achado nao traz uma linha PROOF legivel' };
+  }
+  const ficheiro = (achado && achado.ficheiro) || p.ficheiro;
+  const linhas = linhasDe(repoRoot, ficheiro, readImpl);
+  if (!linhas) {
+    return { ...base, veredicto: VEREDICTO.INDECISO, porque: `nao consegui ler ${ficheiro}` };
+  }
+
+  // (1) A linha citada NAO EXISTE. Isto refuta qualquer afirmacao, seja ela
+  //     qual for: nao se diz nada verdadeiro sobre uma linha que nao ha.
+  //     Medido: 12 dos 62 achados do P4 (19,4%) caíam aqui — e a culpa nem era
+  //     do modelo, era do `split('\n')` do pack a inventar uma linha vazia.
+  if (p.linha > linhas.length || p.linha < 1) {
+    return {
+      ...base,
+      veredicto: VEREDICTO.REFUTADO,
+      porque: `${ficheiro}:${p.linha} nao existe — o ficheiro tem ${linhas.length} linhas`,
+    };
+  }
+
+  const linha = linhas[p.linha - 1];
+
+  // (2) A afirmacao diz "cortado / por fechar" e a linha acaba num limite de
+  //     token normal. A afirmacao e falsa, e da-se a razao concreta.
+  if (AFIRMA_CORTE.test(texto)) {
+    const limpa = acabaLimpa(linha);
+    if (limpa) {
+      return {
+        ...base,
+        veredicto: VEREDICTO.REFUTADO,
+        porque: `afirma corte mas ${ficheiro}:${p.linha} ${limpa}`,
+      };
+    }
+  }
+
+  // (3) Citacao FABRICADA: o achado cita texto entre crases/aspas que nao
+  //     aparece na linha que ele proprio apontou. Vale para todos os pilares —
+  //     e a unica forma de apanhar uma prova bem-formada e falsa.
+  const citado = texto.match(/`([^`\n]{8,120})`/);
+  if (citado) {
+    const agulha = citado[1].trim();
+    const vizinhanca = linhas.slice(Math.max(0, p.linha - 3), p.linha + 2).join('\n');
+    if (agulha && !vizinhanca.includes(agulha)) {
+      return {
+        ...base,
+        veredicto: VEREDICTO.REFUTADO,
+        porque: `cita \`${agulha.slice(0, 48)}\` que nao aparece em ${ficheiro}:${p.linha}±2`,
+      };
+    }
+  }
+
+  // (4) "Estas linhas devolvem os MESMOS CAMPOS" — mas nenhuma das linhas
+  //     citadas tem campos. Uma chaveta solta, um `return {` ou um `}` nao
+  //     sustenta a afirmacao, seja ela verdadeira ou nao: a citacao nao prova.
+  //
+  //     Medido sobre os 287 achados desta classe (a maior da fila, 2026-08-21):
+  //     26 (9,1%) citam SO linhas sem campos — `return {` contra `}`,
+  //     `return [];` contra `return [];`. Os outros 90,9% citam linhas com
+  //     conteudo e precisam de juizo, que esta camada nao tem. Nao se refuta o
+  //     que nao se consegue decidir.
+  const shape = texto.match(/SAME SHAPE:\s*lines?\s*([0-9,\s]+)/i);
+  if (shape) {
+    const nums = shape[1].split(',').map((x) => Number(x.trim())).filter(Number.isFinite);
+    if (nums.length >= 2) {
+      const conteudo = nums.map((n) => (n >= 1 && n <= linhas.length ? linhas[n - 1] : null));
+      if (!conteudo.some((c) => temCampos(c))) {
+        const mostra = conteudo.map((c) => JSON.stringify(String(c ?? '').trim().slice(0, 18))).join(' ');
+        return {
+          ...base,
+          veredicto: VEREDICTO.REFUTADO,
+          porque: `afirma "mesmos campos" mas nenhuma linha citada tem campos: ${mostra}`,
+        };
+      }
+    }
+  }
+
+  return {
+    ...base,
+    veredicto: VEREDICTO.INDECISO,
+    porque: 'nada mecanicamente decidivel — passa para a camada adversarial',
+  };
+}
+
+/**
+ * CAMADA 2 — adversarial local, por REUTILIZACAO.
+ *
+ * Recebe o revisor por injeccao (`reviewImpl`) para que este ficheiro nao tenha
+ * de resolver a ponte TS->JS sozinho, e para que os testes nao precisem de GPU.
+ * O chamador liga-o a `packages/validation/src/adversarial` — que ja tem as 5
+ * lentes, o parser de veredicto e o caller de Ollama. Nada disso se copia aqui.
+ *
+ * Sem revisor ligado, devolve `indeciso` E DIZ PORQUE. Nunca `sobrevive` por
+ * omissao: um achado que ninguem julgou nao e um achado aprovado.
+ */
+export async function refutarAdversarial(achado, { reviewImpl = null, lente = 'correctness', modeloJuiz = null } = {}) {
+  const base = { camada: CAMADA.ADVERSARIAL, prova: provaDoAchado(achado && achado.resultado_resumo) };
+  if (typeof reviewImpl !== 'function') {
+    return { ...base, veredicto: VEREDICTO.INDECISO, porque: 'sem revisor adversarial ligado (Ollama/tsx ausentes)' };
+  }
+  // ⚠️ CRITICO ≠ AUTOR, e agora e mecanico.
+  //
+  // A doutrina do projecto ja dizia "verificacao adversarial (critico ≠ autor)".
+  // Estava escrita e nao estava a ser cumprida: o loop corre `qwen2.5-coder:14b`
+  // e o juiz vinha com o MESMO modelo por defeito. Medido a 2026-08-21, com 3
+  // lentes e votacao, sobre 4 afirmacoes verdadeiras e 2 falsas:
+  //
+  //     verdadeiras aceites : 1/4     falsas rejeitadas : 2/2
+  //
+  // Rejeitava 5 de 6, com as tres lentes a concordarem em -1.00 tanto no
+  // verdadeiro como no falso. Nao ha discriminacao nenhuma: N amostras do mesmo
+  // modelo enviesado nao sao N opinioes independentes, e o `voter.ts` do proprio
+  // pacote avisa que o empate vai para `refute` de proposito.
+  //
+  // Um juiz assim nao pode MATAR um achado. Recusa-se a julgar, e o achado fica
+  // indeciso — que e o mesmo que dizer "isto nao foi verificado", que e a
+  // verdade.
+  const autor = achado && achado.modelo;
+  if (modeloJuiz && autor && String(modeloJuiz) === String(autor)) {
+    return {
+      ...base,
+      veredicto: VEREDICTO.INDECISO,
+      porque: `critico == autor (${autor}) — recuso julgar: medido 1/4 em afirmacoes verdadeiras`,
+    };
+  }
+  try {
+    const r = await reviewImpl({
+      id: achado.chave || `${achado.ficheiro}:${achado.janela}`,
+      claim: String(achado.resultado_resumo || '').slice(0, 800),
+      evidence: `${achado.ficheiro}:${achado.janela}`,
+    }, lente);
+    const v = r && r.verdict;
+    if (v === 'refute') {
+      return { ...base, veredicto: VEREDICTO.REFUTADO, porque: `lente ${lente}: ${String(r.rationale || '').slice(0, 160)}` };
+    }
+    if (v === 'confirm') {
+      return { ...base, veredicto: VEREDICTO.SOBREVIVE, porque: `lente ${lente}: nao consegui refutar` };
+    }
+    return { ...base, veredicto: VEREDICTO.INDECISO, porque: `lente ${lente}: incerto` };
+  } catch (err) {
+    // Um refutador que rebenta NAO pode virar aprovacao.
+    return { ...base, veredicto: VEREDICTO.INDECISO, porque: `revisor falhou: ${String(err && err.message).slice(0, 120)}` };
+  }
+}
+
+/**
+ * O PORTAO. Todo o achado que vai para uma lane paga passa por aqui.
+ *
+ * Devolve o REGISTO — que e o recibo. Um achado sem registo nao passa.
+ */
+export async function guarda(achado, { repoRoot, readImpl, reviewImpl = null, modeloJuiz = null, agora = null } = {}) {
+  const d = refutarDeterminista(achado, { repoRoot, readImpl });
+  let final = d;
+  if (d.veredicto === VEREDICTO.INDECISO) {
+    const a = await refutarAdversarial(achado, { reviewImpl, modeloJuiz });
+    // A camada 2 so MANDA se decidiu; se ela tambem nao decidiu, fica o
+    // indeciso da 1 com o motivo dela — nao se troca um "nao sei" por outro.
+    if (a.veredicto !== VEREDICTO.INDECISO) final = a;
+    else final = { ...a, porque: `${d.porque}; ${a.porque}` };
+  }
+  return {
+    chave: (achado && achado.chave) || null,
+    ficheiro: (achado && achado.ficheiro) || null,
+    janela: (achado && achado.janela) || null,
+    pilar: (achado && achado.pilar) || null,
+    veredicto: final.veredicto,
+    camada: final.camada,
+    porque: final.porque,
+    ts: agora || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  };
+}
+
+/**
+ * A unica porta para uma lane paga.
+ *
+ * Recusa por OMISSAO: sem registo, sem veredicto, ou com veredicto de refutacao,
+ * nao passa. `indeciso` tambem nao passa para lane paga — pagar por um achado
+ * que ninguem conseguiu julgar e exactamente o que este portao existe para
+ * impedir; ele fica na fila local, que custa zero.
+ */
+export function podeDespachar(registo, fonte) {
+  if (!LANES_PAGAS.includes(fonte)) {
+    return { ok: true, porque: `lane '${fonte}' nao e paga — nao exige veredicto` };
+  }
+  if (!registo || !registo.veredicto) {
+    return { ok: false, porque: 'sem veredicto adversario registado — a lane paga esta fechada por omissao' };
+  }
+  if (registo.veredicto === VEREDICTO.REFUTADO) {
+    return { ok: false, porque: `refutado (${registo.camada}): ${registo.porque}` };
+  }
+  if (registo.veredicto === VEREDICTO.INDECISO) {
+    return { ok: false, porque: `indeciso (${registo.camada}): ${registo.porque} — fica no local, que custa zero` };
+  }
+  return { ok: true, porque: `sobreviveu a ${registo.camada}` };
+}

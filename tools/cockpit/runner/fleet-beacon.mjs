@@ -21,6 +21,16 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+/**
+ * A assinatura do canal. Ate 2026-08-21 este ficheiro escrevia e lia beacons em
+ * claro: qualquer processo com escrita em `50-fleet/` inventava um device ou
+ * reescrevia o custo de outra maquina, e o painel acreditava. Ver
+ * `tools/router/assinatura.js` para o porque completo.
+ */
+const assinatura = require('../../router/assinatura.js');
 
 /** Beyond this a beacon says nothing useful about right now. */
 export const BEACON_FRESH_S = 120;
@@ -68,7 +78,10 @@ export function beaconDir({ vaultPath = process.env.VAULT_PATH, home = os.homedi
 }
 
 /** Writes this device's beacon. Never throws — a beacon is telemetry, not work. */
-export function writeBeacon(state, { dir, writeImpl = fs.writeFileSync, mkdirImpl = fs.mkdirSync } = {}) {
+export function writeBeacon(state, {
+  dir, writeImpl = fs.writeFileSync, mkdirImpl = fs.mkdirSync,
+  chaveImpl = assinatura.chaveDoDono, assinarImpl = assinatura.assinado,
+} = {}) {
   const device = safeDeviceName(state && state.device);
   try {
     mkdirImpl(dir, { recursive: true });
@@ -104,13 +117,121 @@ export function writeBeacon(state, { dir, writeImpl = fs.writeFileSync, mkdirImp
       // reserva activa era indistinguivel de um loop morto.
       reserva: state && state.reserva ? state.reserva : null,
       branch: state && state.projeto ? state.projeto.repo_branch : null,
+      /**
+       * A versao do conector DESTE device: a instalada no Claude Desktop e a
+       * que o checkout traz. Dois FACTOS, sem juizo — quem julga e `naTuaMao`.
+       *
+       * PORQUE viaja (medido 2026-08-21): `verConector()` (self-check.mjs:258)
+       * ja lia a versao instalada, mas so corria LOCALMENTE, no `/saude.json`
+       * do proprio device. O painel do PC nao tinha como saber que o Mac corria
+       * 1.33.0 contra 1.49.3 no repo — dezasseis versoes de diferenca, e o unico
+       * sitio onde isso aparecia era num painel que so o Mac abre. Um alerta que
+       * so se ve na maquina avariada nao e um alerta: e um diario.
+       */
+      conector: state && state.conector
+        ? { instalado: state.conector.instalado ?? null, repo: state.conector.repo ?? null }
+        : null,
       usd: 0,
     };
-    writeImpl(path.join(dir, `${device}.json`), JSON.stringify(beacon, null, 2));
-    return { ok: true, device };
+    // Assina, se houver chave. Um beacon SEM chave continua a ser escrito e
+    // di-lo (`assinado:false`) — deixar de publicar por nao haver vault seria
+    // apagar o proprio device do painel para o proteger de um ataque que ainda
+    // nao ha. O que NAO se faz e escrever um beacon a fingir que esta assinado.
+    const k = chaveImpl();
+    let payload = beacon;
+    let assinado = false;
+    let porque = k && k.erro ? k.erro : 'sem chave do dono neste device';
+    if (k && k.chave) {
+      try {
+        payload = assinarImpl(beacon, { chave: k.chave });
+        assinado = true;
+        porque = null;
+      } catch (err) {
+        porque = String(err && err.message).slice(0, 120);
+      }
+    }
+    writeImpl(path.join(dir, `${device}.json`), JSON.stringify(payload, null, 2));
+    return {
+      ok: true,
+      device,
+      assinado,
+      // `partilhado:false` quer dizer chave por-device: assina, mas nao prova
+      // frota nenhuma — so prova que ninguem mexeu no ficheiro desta maquina.
+      chave_partilhada: Boolean(k && k.partilhado && k.chave),
+      porque_nao_assinado: assinado ? null : porque,
+    };
   } catch (err) {
     return { ok: false, erro: String(err && err.message).slice(0, 120) };
   }
+}
+
+/**
+ * O que espera pela MAO DO DONO, device a device.
+ *
+ * O painel ja mostrava alertas — mas so os DESTA maquina (`/saude.json` corre
+ * `autoVerificar` local). Um dono com dois computadores tem de abrir os dois
+ * paineis para descobrir que um deles esta desactualizado, e e por isso que o
+ * Mac ficou em 1.33.0 enquanto o repo ia em 1.49.3: ninguem estava sentado a
+ * frente dele quando o alerta apareceu.
+ *
+ * Devolve UMA entrada por device que precisa de accao, cada uma com o comando
+ * exacto. Nao inventa: se o beacon nao trouxer as versoes, o device sai com
+ * `estado:'n/d'` e o motivo, nunca com "esta bem".
+ *
+ * @param {Array} frota  o que `readBeacons` devolveu
+ * @param {{rejeitados?: Array}} extra  beacons recusados, que tambem pedem a mao
+ */
+export function naTuaMao(frota, { rejeitados = [] } = {}) {
+  const itens = [];
+
+  for (const d of frota || []) {
+    const c = d && d.conector;
+    if (!c || !c.instalado || !c.repo) {
+      // Um device que nao declara versao NAO e um device em dia.
+      itens.push({
+        id: 'conector', device: d.device, estado: 'n/d',
+        titulo: `conector: versao desconhecida em ${d.device}`,
+        porque: !c
+          ? 'este beacon e de uma versao anterior a que publica a versao do conector'
+          : 'o beacon nao traz a versao instalada ou a do repo',
+        accao: null, comando: null,
+      });
+      continue;
+    }
+    if (c.instalado === c.repo) continue;   // em dia: nao ocupa a lista
+    itens.push({
+      id: 'conector', device: d.device, estado: 'mau',
+      titulo: `conector desatualizado em ${d.device}: ${c.instalado} instalado ≠ ${c.repo} no repo`,
+      porque: 'as ferramentas MCP correm codigo de outra versao — o que ves no painel e o que a skill faz podem discordar',
+      // O CTA de um clique. `verConector` ja escrevia uma frase parecida, mas
+      // so para a maquina local; aqui ela ganha o NOME do device, que e o que
+      // torna a instrucao accionavel quando ha mais do que um computador.
+      accao: `instalar o .mcpb da v${c.repo} no Claude Desktop de ${d.device}`,
+      comando: `open packages/mooter-bridge/dist/mooter-${c.repo}.mcpb`,
+      passos: [
+        `no ${d.device}: git pull na raiz do repo`,
+        `abrir packages/mooter-bridge/dist/mooter-${c.repo}.mcpb (duplo clique)`,
+        'reabrir o Claude Desktop — 10 s',
+      ],
+    });
+  }
+
+  // Um beacon recusado tambem e trabalho para o dono: ou alguem lhe mexeu no
+  // vault, ou uma maquina esta a assinar com outra chave. Calar isto seria
+  // exactamente o silencio que a Onda 1a foi feita para acabar.
+  for (const r of rejeitados || []) {
+    itens.push({
+      id: 'beacon-recusado', device: r.device, estado: 'mau',
+      titulo: `beacon recusado de ${r.device}: ${r.codigo}`,
+      porque: r.motivo,
+      accao: r.codigo === 'adulterado'
+        ? 'confirmar quem escreve em 50-fleet/ e se as duas maquinas partilham a mesma chave do dono'
+        : 'ver o recibo em rejeitados[] antes de confiar neste device',
+      comando: null,
+    });
+  }
+
+  return itens;
 }
 
 /**
@@ -137,20 +258,30 @@ export function beaconFreshness(ts, nowMs) {
 export function readBeacons({
   dir, transporte = 'local', partilhado = false, selfDevice = null, now = Date.now(),
   readdirImpl = fs.readdirSync, readImpl = fs.readFileSync,
+  chaveImpl = assinatura.chaveDoDono, verificarImpl = assinatura.verificar,
 } = {}) {
   let names = [];
   try {
     names = readdirImpl(dir).filter((n) => n.endsWith('.json')).slice(0, MAX_BEACONS);
   } catch {
     return {
-      frota: [], transporte, partilhado,
+      frota: [], rejeitados: [], transporte, partilhado,
       aviso: partilhado
         ? 'pasta de beacons ilegivel — a frota nao pode ser mostrada'
         : 'sem vault montado — so este device escreve aqui, a frota nao e partilhada',
     };
   }
 
+  const k = chaveImpl();
+  const chave = k && k.chave ? k.chave : null;
+
   const frota = [];
+  /**
+   * Os beacons que foram RECUSADOS, e porque. Esta lista e o recibo: um beacon
+   * descartado em silencio e indistinguivel de um device que nunca existiu, e
+   * era exactamente assim que uma forja passava despercebida.
+   */
+  const rejeitados = [];
   for (const name of names) {
     let b;
     try {
@@ -159,6 +290,35 @@ export function readBeacons({
       continue; // a corrupt beacon is one missing device, never a broken payload
     }
     if (!b || typeof b !== 'object' || !b.device) continue;
+
+    /**
+     * A verificacao, e a unica linha de julgamento deste modulo:
+     *
+     *   assinado e valido  -> entra, com `autenticidade.ok = true`
+     *   assinado e FALHA   -> **NAO ENTRA**, e deixa recibo em `rejeitados`
+     *   nao assinado       -> entra, marcado `n/d`
+     *
+     * A terceira linha e deliberada e nao e um buraco: um beacon que nunca foi
+     * assinado nao e uma forja, e um beacon velho — de uma versao anterior a
+     * esta, ou de um device sem chave. Recusa-los todos apagaria a frota do
+     * painel no dia do upgrade. O que se recusa e quem AFIRMA uma assinatura e
+     * nao a consegue provar: isso nao e atraso, e mentira.
+     */
+    const temSig = Boolean(b.sig);
+    const v = temSig
+      ? verificarImpl(b, { chave, agora: now })
+      : { ok: false, codigo: 'nao-assinado', motivo: 'beacon sem assinatura (device por actualizar)' };
+
+    if (temSig && !v.ok) {
+      rejeitados.push({
+        ficheiro: name,
+        device: safeDeviceName(b.device),
+        codigo: v.codigo,
+        motivo: v.motivo,
+        ts: typeof b.ts === 'string' ? b.ts : null,
+      });
+      continue;
+    }
     // `{...b}` copiava TODAS as chaves de TODOS os ficheiros `.json` desta
     // pasta para o `/fleet.json` servido por HTTP. A escrita (writeBeacon)
     // monta um objecto de chaves NOMEADAS de proposito — uma allowlist — e a
@@ -184,17 +344,38 @@ export function readBeacons({
       triagem: b.triagem && typeof b.triagem === 'object' ? b.triagem : null,
       reserva: b.reserva && typeof b.reserva === 'object' ? b.reserva : null,
       branch: typeof b.branch === 'string' ? b.branch : null,
+      conector: b.conector && typeof b.conector === 'object'
+        ? {
+          instalado: typeof b.conector.instalado === 'string' ? b.conector.instalado : null,
+          repo: typeof b.conector.repo === 'string' ? b.conector.repo : null,
+        }
+        : null,
       usd: typeof b.usd === 'number' ? b.usd : 0,
       self: doFicheiro === safeDeviceName(selfDevice),
       frescura: beaconFreshness(b.ts, now),
+      // Nunca `true` por omissao: um beacon so e autentico se a assinatura
+      // bateu contra a chave do dono, e o painel tem de os poder distinguir.
+      autenticidade: { ok: v.ok === true, codigo: v.codigo, motivo: v.motivo || null },
     });
   }
   frota.sort((a, b) => (a.self === b.self ? String(a.device).localeCompare(b.device) : a.self ? -1 : 1));
 
+  const semChave = !chave;
   return {
     frota,
+    rejeitados,
     transporte,
     partilhado,
+    // Uma chave por-device verifica que ninguem mexeu no ficheiro; NAO prova
+    // que o beacon veio do dono. Dizer "frota autenticada" com uma chave local
+    // seria a especie de afirmacao que este projecto se recusa a fazer.
+    autenticacao: {
+      chave: semChave ? 'n/d' : (k.partilhado ? 'vault (partilhada)' : 'local (por-device)'),
+      prova_frota: Boolean(chave && k.partilhado),
+      porque: semChave
+        ? (k && k.erro ? k.erro : 'sem chave do dono: nenhuma assinatura pode ser verificada')
+        : (k.partilhado ? null : 'chave local: verifica integridade do ficheiro, nao a origem'),
+    },
     // Stated, not implied: without a shared directory the "fleet" is one machine.
     aviso: partilhado
       ? 'a frescura de outros devices vale o que o sync do vault valer'

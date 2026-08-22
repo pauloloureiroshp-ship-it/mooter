@@ -111,8 +111,11 @@ try {
     $nodeVer = (& node --version 2>$null).TrimStart('v')
     $NodeExe = (Get-Command node).Source
     $nodeMajor = [int]($nodeVer.Split('.')[0])
-    if ($nodeMajor -lt 18) {
-        Fail "Node.js $nodeVer found - mooter needs Node 18+."
+    # 22 e nao 18 — mesmo piso do install.sh e do engines.node do packages/cli.
+    # Copia por necessidade (corre antes de o repo existir), verificada por
+    # tools/cockpit/runner/piso-de-node.mjs.
+    if ($nodeMajor -lt 22) {
+        Fail "Node.js $nodeVer found - mooter needs Node 22+."
         Info "Upgrade: winget upgrade OpenJS.NodeJS.LTS"
         exit 3
     }
@@ -153,6 +156,8 @@ DoRun "Copy router .js" {
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
+# Keep in lockstep with WIRED_HOOKS (tools/router/sync-hooks.js) and install.sh.
+# live-preview-tap.js (Live Preview MP0) is the file-bus tap - additive/read-only/fail-soft.
 $hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js','live-preview-tap.js')
 foreach ($h in $hookNames) {
     $src = Join-Path $SrcDir "tools\router\$h"

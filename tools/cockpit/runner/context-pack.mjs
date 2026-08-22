@@ -55,6 +55,28 @@ export const PILLARS = {
    */
   P1: {
     label: 'Routing & Cost — repeated work',
+    /**
+     * ⛔ DESLIGADO 2026-08-22 — `falso-em-ambos`, o pior estado da matriz.
+     *
+     * Era o pilar de MAIOR rendimento (377 achados em 485 rondas, 77%). Semeado
+     * com o defeito que ele diz procurar — `lerJson(TABELA)` chamado nas linhas
+     * 21 e 28, mesma funcao e mesmos argumentos — contra um controlo com a MESMA
+     * funcao chamada duas vezes mas com argumentos DIFERENTES:
+     *
+     *     semeado : "REPEATED: LINE 13 and LINE 28"
+     *     controlo: "REPEATED: LINE 14 and LINE 29"
+     *
+     * Produziu nos dois. E os dois sao falsos, verificado a mao: `fs.readFileSync`
+     * aparece UMA vez em cada ficheiro (linha 13 / 14). A linha 28 e
+     * `const tabela = lerJson(TABELA);` — nao ha readFileSync nenhum ali. Alem
+     * de fabricar a segunda ocorrencia, FALHOU o repeat que estava semeado.
+     *
+     * `falso-em-ambos` e o pior dos seis estados e o menos obvio: passa por vivo
+     * em qualquer contagem de rondas, enche a fila, e o defeito que devia apanhar
+     * continua la. **Nenhuma metrica de volume o distingue de um pilar sao** — foi
+     * preciso semear para o ver.
+     */
+    activo: false,
     files: [
       'tools/router/*.js',
     ],
@@ -102,23 +124,139 @@ export const PILLARS = {
   },
   P4: {
     label: 'Hygiene — published text left broken',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — nao por gosto, por medicao.
+     *
+     * Fica no catalogo (nao se apaga) porque 62 recibos do ledger apontam para
+     * ele: apagar o pilar tornaria ilegivel o historico que explica porque e que
+     * ele foi desligado. Sai apenas da ROTACAO, via `PILLAR_IDS`.
+     *
+     * **O que se mediu.** Tres configuracoes do mesmo pilar, ledgers isolados:
+     *
+     *     A · enunciado original     382 rondas   62 achados (16,2%)
+     *     B · so o prompt             80 rondas    3 achados
+     *     C · harness garante         80 rondas   13 achados
+     *
+     * Depois, um verificador DETERMINISTICO (sem modelo) sobre a afirmacao que o
+     * P4 faz — "esta linha esta cortada a meio" —, que so marca falso quando a
+     * linha citada acaba num limite de token obvio (ponto, `)`, `|`, palavra
+     * inteira) e diz "nao decido" no resto:
+     *
+     *                achados   afirmacao falsa   SOBREVIVEM
+     *          A        62        47 (75,8%)         0
+     *          B         3         3 ( 100%)         0
+     *          C        13        13 ( 100%)         0
+     *
+     * **0 em 78.** E o remate: das 443 `.md` em `docs/`, **0** acabam a meio de
+     * uma palavra. O defeito que este pilar procura nao ocorre neste repo.
+     *
+     * Duas correccoes reais sairam da investigacao e FICAM (valem por si, para
+     * todos os pilares): a linha fantasma do `split('\n')` — que fazia 19,4% dos
+     * achados citarem uma linha inexistente — e o `janela: 'ultima'`. Nenhuma
+     * delas salva o P4: a C ate o faz disparar MAIS por ronda (16,3% contra
+     * 13,4%), porque agora todas as janelas sao aquelas onde ele dispara.
+     *
+     * **Custo do que se desliga:** 382 rondas de GPU para 62 achados, todos
+     * falsos, sobre um defeito com zero ocorrencias.
+     *
+     * **Reversivel numa linha:** apagar este `activo: false`. Reactivar sem
+     * mudar a PERGUNTA e, no entanto, repetir a medicao acima.
+     *
+     * **O que NAO se fez de proposito:** reformular. Higiene a MEIO do documento
+     * (links partidos, tabelas tortas) e uma pergunta DIFERENTE — enunciado novo,
+     * com a sua propria medicao — e nao um remendo neste.
+     */
+    activo: false,
     files: [
       '*.md',
       'docs/**/*.md',
       'packages/*/README.md',
       'landing/**/*.md',
     ],
+    /**
+     * ⚠️ REESCRITO 2026-08-21 — o enunciado anterior media a JANELA, nao o texto.
+     *
+     * Dizia, literalmente: "copia a ULTIMA linha deste excerto ... esta fechada?".
+     * Mas o excerto e uma fatia de 70 linhas cortada num sitio arbitrario, e a
+     * ultima linha de uma fatia cai quase sempre a meio de uma fence, de uma
+     * tabela ou de um paragrafo. O modelo respondia `BROKEN` e tinha razao sobre
+     * a FATIA, sem dizer nada sobre o DOCUMENTO.
+     *
+     * Medido nos 619 achados com PROOF e janela legiveis do ledger deste device:
+     *
+     *     pilar   achados   PROOF a <=2 linhas do fim da janela
+     *     P1        210      8   3,8%
+     *     P2        112      2   1,8%
+     *     P3         17      0   0,0%
+     *     P4         62     58  93,5%     <-- este
+     *     P5        218      4   1,8%
+     *
+     * 53 dos 62 apontavam para EXACTAMENTE a ultima linha. Tres abertos a mao
+     * confirmaram-no: `PERFECT_HANDOFF_SPEC.md:70` ("falta fechar o fence" — a
+     * fence fecha depois da janela), `COCKPIT_UX_AUDIT.md:70` ("falta fechar o
+     * parentesis" — e uma linha de tabela completa), `PASTOR.md:70` ("falta
+     * fechar o paragrafo" — frase completa, `---` na linha 72).
+     *
+     * Os outros pilares nao tinham o defeito porque perguntam sobre CONTEUDO em
+     * qualquer sitio do excerto; so o P4 julgava a fronteira.
+     *
+     * A correccao nao precisou de mexer no harness: o cabecalho do pack ja diz
+     * `Ficheiro: <f> (linhas A-B de N)`. A informacao estava la; o enunciado e
+     * que nunca a mandava usar.
+     *
+     * CONSEQUENCIA ASSUMIDA: o P4 passa a so disparar na ULTIMA janela de cada
+     * ficheiro. E o que ele ja fazia de facto (so olhava para a ultima linha),
+     * agora sem a mentira da fronteira. Higiene a MEIO do documento (links
+     * partidos, tabelas tortas) NAO fica coberta por este pilar — nunca esteve,
+     * e fingir o contrario era o que produzia os 93,5%. Se ela for precisa, e um
+     * enunciado NOVO, nao um remendo neste.
+     *
+     * A chave de revisao inclui o hash do `ask` (ver `chaveDeRevisao`), portanto
+     * mudar este texto reabre as janelas do P4 para nova passagem — e o A/B
+     * mede-se sozinho no `ab-report`.
+     */
+    // O harness so entrega a ULTIMA janela do ficheiro a este pilar. Sem isto, a
+    // pergunta e sobre a fatia e nao sobre o documento — ver o comentario em
+    // `indices`, no seletor de janelas.
+    janela: 'ultima',
     ask: [
-      'STEP 1 — copy the LAST line of this excerpt exactly as it is, with the number you',
-      'see on the left.',
-      'STEP 2 — read only that line you copied. Does it end on a whole word, with every',
-      'parenthesis, link and code fence closed?',
-      'STEP 3 — write `COMPLETE` or `BROKEN: <what is missing>`, then the line',
-      '`PROOF: <file>:<that last line number>`.',
+      'STEP 1 — copy the LAST NON-EMPTY line of this excerpt exactly as it is, with',
+      'the number you see on the left. This excerpt always ends where the file ends.',
+      'STEP 2 — read only that line you copied, and nothing else. Ignore anything',
+      'that was opened earlier in the file: you are judging this line alone.',
+      'STEP 3 — write `COMPLETE` when that line ends on a whole word, or',
+      '`BROKEN: <what is missing>` when it is cut mid-word or mid-token.',
+      'Always end with the line `PROOF: <file>:<that last line number>`.',
     ].join('\n'),
   },
   P5: {
     label: 'Local engine & GPU — same shape, different names',
+    /**
+     * ⛔ DESLIGADO 2026-08-22 — `falso-em-ambos`, como o P1.
+     *
+     * 486 rondas, 317 achados (65%). Semeado com sete returns da forma
+     * {ok, motivo, valor} contra um controlo com sete returns de formas
+     * genuinamente distintas (objectos de campos diferentes, strings, numeros,
+     * null):
+     *
+     *     semeado : "SAME SHAPE: lines 11, 23, 34"
+     *     controlo: "SAME SHAPE: lines 10, 16, 26, 31, 37"
+     *
+     * No semeado, a linha 23 e `}` e a 34 e `if (!r.ok) return r;` — nenhuma e um
+     * return da forma que ele afirma. No controlo, onde nao ha forma repetida
+     * nenhuma, acusou cinco linhas.
+     *
+     * A camada 1 do refutador ja tinha refutado 9,1% da classe dele (26 de 287
+     * achados citavam so chavetas, sem campo nenhum). O ensaio explica porque:
+     * ele nao compara campos, compara a existencia de `return`.
+     *
+     * ⚠️ COBERTURA: era o unico a ver `packages/mooter-bridge/*.js` — 50
+     * ficheiros, 38.704 linhas. Os 285 achados que a fila tem desse pacote vieram
+     * TODOS deste pilar, portanto o que se perde e cobertura que produzia
+     * fabricacao. O `tools/router/gpu-*.js` continua coberto pelo
+     * `tools/**\/*.js` do P2.
+     */
+    activo: false,
     files: [
       'tools/cockpit/runner/*.mjs',
       'tools/router/gpu-*.js',
@@ -136,6 +274,35 @@ export const PILLARS = {
   },
   P6: {
     label: 'Product & Experience — hardcoded number on screen',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — o quarto e ultimo dos mudos.
+     *
+     *     483 rondas · 480 (99,4%) dizem literalmente NO FINDING · 0 achados
+     *
+     * Semeado o defeito exacto que ele procura — `SavingsCard.tsx`, linha 36,
+     * "89%" cravado numa frase de UI — com um controlo onde TODOS os numeros tem
+     * origem na mesma linha (props, `formatPct()`, constante importada):
+     *
+     *     semeado   -> "NO FINDING"  4 tokens
+     *     controlo  -> "NO FINDING"  4 tokens
+     *
+     * Nao e do modelo: perguntado com a guiada acerta em 99 tokens, cita a linha
+     * 36 e explica; e no controlo diz correctamente que nao ha nenhum.
+     *
+     * ⚠️ ELE NAO VARIAVA, ao contrario do que o ledger sugeria. As 89
+     * `citacao-ok` e as 37 `refutado` sao TODAS `NO FINDING`: este enunciado
+     * exige `PROOF:` mesmo sem achado, portanto 130 rondas emitem uma citacao
+     * que nao cita nada, e e o verificador a classificar essa citacao inutil que
+     * produz o split. Variava a citacao, nao o achado. **Quem reescrever este
+     * pilar tem de tirar o PROOF obrigatorio do caminho do `NO FINDING`.**
+     *
+     * ⚠️ COBERTURA: era o unico pilar a olhar para `landing/` e para a extensao
+     * do VS Code. A partir daqui o loop **nao ve a frente nenhuma** — so
+     * `tools/` e `packages/` de backend. Nao se perde deteccao medida (0/483),
+     * mas perde-se cobertura, e quem quiser a frente de volta precisa de um
+     * pilar NOVO.
+     */
+    activo: false,
     files: [
       'landing/app/**/*.tsx',
       'landing/components/**/*.tsx',
@@ -173,6 +340,43 @@ export const PILLARS = {
    */
   P7: {
     label: 'Moo Pilot itself',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — o unico que PRODUZIA, e o pior dos cinco.
+     *
+     * 493 rondas · 3 achados (0,6%) · **3 de 3 falsos, e 3 de 3 fora do que ele
+     * pergunta**. O enunciado pede "nome que diz total/all/every com producao
+     * cortada"; os tres falam de condicoes booleanas invertidas. E os tres sao
+     * desmentidos pelo codigo que citam:
+     *
+     *     fleet-state.mjs:89    "age>DEAD vira 'morto' em vez de 'stale'"
+     *                           -> o codigo faz `age <= DEAD -> 'stale'`. Correcto.
+     *     gpu-sampler.mjs:147   "devolve motivo hardcoded em vez do fornecido"
+     *                           -> o codigo e `motivo: motivo || '<fallback>'`.
+     *     context-pack.mjs:1153 "cand.line > ls.length SERA processada"
+     *                           -> a linha citada E o `continue` que impede isso.
+     *
+     * O terceiro cita a guarda a queixar-se de que a guarda nao existe.
+     *
+     * Semeado com o defeito que ele DIZ procurar (`resumo-fila.mjs`: L24
+     * `total: recibos.length` contra L13 `todas.slice(-MAX_LINHAS)` — o mesmo
+     * defeito real que este repo ja teve, documentado no `fleet-state.mjs`),
+     * contra um controlo com o MESMO slice mas nomes honestos:
+     *
+     *     semeado  -> "NO FINDING"  4 tokens
+     *     controlo -> "NO FINDING"  4 tokens
+     *
+     * E e o UNICO dos cinco onde ate a pergunta guiada falha: acha o slice da
+     * L13 e atribui-o ao campo errado (`ultimo_ts` L27 em vez de `total` L24).
+     *
+     * **Um pilar com 0,6% de rendimento e 100% de falsos e pior do que um mudo:
+     * gasta a mesma GPU E enche a fila.** O silencio ao menos nao mente.
+     *
+     * ⚠️ COBERTURA: era o unico a ver `tools/cockpit/*.html`
+     * (`moo-pilot-shell.html`) e os 4 `.mjs` de `tools/cockpit/` fora de
+     * `runner/` — incluindo `sync-cockpit.mjs`. O `runner/` continua coberto
+     * pelo P3 e P5.
+     */
+    activo: false,
     files: [
       'tools/cockpit/**/*.mjs',
       'tools/cockpit/*.html',
@@ -199,6 +403,54 @@ export const PILLARS = {
       'packages/mooter-bridge/*.js',
       'packages/router/src/*.ts',
     ],
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — o unico dos tres com a causa PROVADA.
+     *
+     * Nao e "nao acha nada": e que nao ha nada desta forma para achar. Quatro
+     * implementacoes medidas (3 passos · 1 extraccao · pergunta directa ·
+     * determinista) e nenhuma serve — a determinista discrimina na perfeicao
+     * num fixture e depois marca 41,4% das janelas do repo real, porque
+     * "campo escrito e nunca lido aqui" descreve argumentos e valores de
+     * retorno. Detalhe completo no bloco abaixo.
+     *
+     * Reversivel numa linha, mas reactivar sem mudar a PERGUNTA e repetir 455
+     * rondas de GPU para zero.
+     */
+    activo: false,
+    /**
+     * ⚠️ NAO REESCREVER ESTE ENUNCIADO. A PERGUNTA E QUE ESTA MAL-POSTA.
+     *
+     * Este pilar respondeu `sem-achado` em 455/455 rondas. O metodo #312
+     * (`prova-de-pilar.mjs`) semeou-lhe o defeito exacto que ele diz procurar —
+     * `tempo_estimado_s`, escrito e nunca mais referido — com um controlo limpo
+     * ao lado. Resposta byte a byte igual nos dois: `NO FINDING`, 4 tokens.
+     *
+     * Tentou-se corrigir por enunciado a 2026-08-21, e MEDIU-SE cada tentativa:
+     *
+     *     forma                                     semeado    repo real
+     *     3 passos (esta)                           nao acha    0% em 455 rondas
+     *     1 extraccao ("copia os campos mortos")    nao acha    —
+     *     pergunta directa NEUTRA                   nao acha    —
+     *     pergunta directa GUIADA (afirma que ha)   acha 13tok  nao serve: pressupoe
+     *     saida com prova obrigatoria               acha 147tok 3 falsos no controlo
+     *     DETERMINISTA, janela de 70 linhas         acha        41,4% das janelas
+     *     DETERMINISTA, ficheiro inteiro            acha        66,7% · 284 campos
+     *
+     * A reescrita para uma so extraccao foi revertida por medir exactamente o
+     * mesmo: zero. E a versao determinista — sem modelo nenhum — discrimina na
+     * perfeicao no fixture e depois inunda o repo real.
+     *
+     * O PORQUE, que e o que interessa: em JavaScript real, "um campo escrito
+     * num objecto e nunca lido aqui" descreve sobretudo ARGUMENTOS
+     * (`{ cwd, encoding, timeout, stdio }` que o `execSync` consome) e VALORES
+     * DE RETORNO (`{ ok, host }` que o chamador consome). Isso e codigo normal,
+     * nao um defeito. O fixture so funcionou porque se construiu de proposito um
+     * objecto que nao era nem argumento nem retorno.
+     *
+     * Nao ha enunciado que salve isto, porque o alvo nao existe como classe. O
+     * que existe — campo morto a serio — precisa de saber quem CONSOME o objecto,
+     * e isso e analise de chamadas, nao leitura de um excerto.
+     */
     ask:
       'STEP 1 — copy, one per line, every field this excerpt WRITES into an object. '
       + 'Format: `WRITTEN LINE <n>: <field>`.\n'
@@ -221,6 +473,29 @@ export const PILLARS = {
    */
   P9: {
     label: 'Repetition worth a name',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — por NAO DETECTAR, nao por pergunta mal-posta.
+     *
+     * 455 rondas, 455 `sem-achado`, 0 achados. Semeado o defeito exacto que ele
+     * diz procurar (`rotulos.mjs`: guardas identicas nas linhas 12 e 24, so muda
+     * `nome`/`rotulo`), com um controlo de seis transformacoes todas distintas:
+     *
+     *     semeado   -> "NO FINDING"  4 tokens
+     *     controlo  -> "NO FINDING"  4 tokens
+     *
+     * Byte a byte igual. Zero discriminacao.
+     *
+     * ⚠️ A DIFERENCA PARA O P8, que importa se alguem quiser reactiva-lo: no P8
+     * ficou PROVADO que a pergunta esta mal-posta — quatro implementacoes, e ate
+     * a determinista inunda. Aqui **nao se testou isso**. Sabe-se que este
+     * enunciado nao detecta; NAO se sabe se outro detectaria. "Duas expressoes
+     * que fazem o mesmo trabalho" e, ao contrario do campo morto, uma pergunta
+     * que se responde dentro do excerto.
+     *
+     * Quem reactivar: mudar a PERGUNTA primeiro, e re-medir com o mesmo par
+     * (`prova-de-pilar.mjs --pilar P9`). Reactivar como esta e repetir as 455.
+     */
+    activo: false,
     files: [
       'tools/router/*.js',
       'tools/cockpit/runner/*.mjs',
@@ -240,8 +515,78 @@ export const PILLARS = {
    * E a tese do produto virada para dentro: um passo manual escrito num README
    * e um passo que alguem vai esquecer. Se esta escrito, pode ser corrido.
    */
+  /**
+   * P11 — nascido a 2026-08-22, para devolver cobertura ao `packages/mooter-bridge`
+   * (50 ficheiros, 38.704 linhas) que ficou sem pilar quando o P5 foi desligado.
+   *
+   * DESENHADO A PARTIR DO QUE FUNCIONA, nao do que parecia boa ideia. Dos nove
+   * pilares semeados, so dois passaram — o P2 e o P3 —, e ambos tem a MESMA
+   * forma: copiar dois artefactos CONCRETOS que estao ambos na pagina, e comparar
+   * dois valores LITERAIS. Os sete que falharam pediam ou uma negativa
+   * ("nunca mais aparece"), ou juizo semantico ("fazem o mesmo trabalho"), ou uma
+   * varredura exaustiva. Este e uma copia da forma do P3.
+   *
+   * A CLASSE E REAL neste pacote, verificada antes de escrever o enunciado:
+   *   aprender.js:18   const REPEAT_WINDOW_MS = 10 * 60 * 1000;
+   *   aprender.js:399  'goal repetido na mesma worktree em menos de 10 minutos'
+   *   aprender.js:457  if (best.success_rate < 0.6) {
+   *   aprender.js:461  ' terminaram em done; a taxa medida fica abaixo de 60%'
+   * Os dois pares CONCORDAM hoje. O pilar sera honestamente calado ate alguem
+   * mudar uma constante sem mudar a frase — e o ensaio semeado prova que ele
+   * deteta quando isso acontecer.
+   *
+   * ⚠️ Uma ideia anterior foi REJEITADA por medicao: "campo null sem `porque` ao
+   * lado". A convencao existe (1403 `porque` no pacote) mas nao e universal —
+   * 52,9% dos 393 campos null nao tem `porque`, e muitos sao registos de dados
+   * onde nao faria sentido. Teria sido um P4: 200 achados de uma regra que o
+   * codigo nao segue.
+   *
+   * Porque este pacote e o que fala com o DONO: um numero errado numa frase daqui
+   * nao e um nitpick de estilo, e o painel a mentir.
+   */
+  P11: {
+    label: 'Bridge — o numero que o dono le contra o que o codigo usa',
+    files: [
+      'packages/mooter-bridge/*.js',
+    ],
+    ask:
+      'STEP 1 — copy ONE line from this excerpt that puts a NUMBER inside a message a '
+      + 'person will read: text between quotes with a digit in it. '
+      + 'Format: `MESSAGE LINE <n>: <text>`.\n'
+      + 'STEP 2 — copy the line in this same excerpt where that number is decided: a '
+      + 'constant, a comparison or an assignment. Format: `CODE LINE <n>: <line>`.\n'
+      + 'STEP 3 — is the number in the message the same one the code uses? Write '
+      + '`THEY MATCH` or `THEY DIVERGE: message says <x>, code uses <y>`.\n'
+      + 'Always end with `PROOF: <file>:<the CODE line number>`.',
+  },
+
   P10: {
     label: 'Handwork a script could do',
+    /**
+     * ⛔ DESLIGADO 2026-08-21 — por NAO DETECTAR, como o P9.
+     *
+     * 455 rondas, 455 `sem-achado`, 0 achados. Semeado um runbook com a linha 41
+     * — "Confirma no painel da Vercel..." — sem nenhum comando no documento que
+     * o faca, contra um controlo com OITO instrucoes, todas com o comando ao
+     * lado (um runbook sem instrucao nenhuma tambem daria NO FINDING, mas pela
+     * razao errada):
+     *
+     *     semeado   -> "NO FINDING"  4 tokens
+     *     controlo  -> "NO FINDING"  4 tokens
+     *
+     * Como no P9: sabe-se que este enunciado nao detecta, NAO se sabe se outro
+     * detectaria. Perguntado directamente, o mesmo modelo acerta a primeira
+     * (113 tokens, cita a linha 41 e transcreve a instrucao).
+     *
+     * ⚠️ CONSEQUENCIA DE COBERTURA, declarada porque nao e obvia: com o P4 ja
+     * desligado, este era o ULTIMO pilar a olhar para `*.md`, `docs/**`,
+     * `packages/<pkg>/README.md` e `.github/workflows/`. **A partir daqui o
+     * loop nao le documentacao nem CI.** Nao se perde deteccao medida — o P4 deu
+     * 0/78 achados verdadeiros e este deu 0/455 — mas perde-se a COBERTURA, e
+     * quem voltar a querer olhar para docs precisa de um pilar novo, nao de
+     * reactivar este.
+     */
+    activo: false,
     files: [
       '*.md',
       'docs/**/*.md',
@@ -260,7 +605,34 @@ export const PILLARS = {
   },
 };
 
-export const PILLAR_IDS = Object.keys(PILLARS);
+/**
+ * Os pilares que ENTRAM NA ROTACAO.
+ *
+ * Um pilar com `activo: false` continua no catalogo — o `PILLARS` inteiro — mas
+ * o loop nao lhe pega. A distincao existe porque os recibos ja escritos guardam
+ * o `pilar`, e apagar a entrada tornaria ilegivel o historico que explica porque
+ * e que ele foi desligado. Um pilar desligado tem de conseguir explicar-se.
+ *
+ * Consequencia deliberada: `readFocus` valida contra estes ids, portanto pedir
+ * foco num pilar desligado e RECUSADO em voz alta em vez de silenciosamente
+ * ignorado — que e o comportamento certo para um botao que nao pode funcionar.
+ */
+export const PILLAR_IDS = Object.keys(PILLARS).filter((id) => PILLARS[id].activo !== false);
+
+/**
+ * Os ids que CORREM, de um catalogo qualquer (o embutido ou o do projecto).
+ *
+ * Existe porque a caminhada deterministica — `cursor * ids.length + indexOf` —
+ * so e uma bijeccao se `ids` for a ROTACAO. Alimenta-la com o catalogo inteiro
+ * faz o passo andar de 10 quando ha 4 a correr, e dois pilares seguidos caem no
+ * mesmo alvo.
+ */
+export function idsActivos(pillars) {
+  return Object.keys(pillars).filter((id) => !(pillars[id] && pillars[id].activo === false));
+}
+
+/** Todos, incluindo os desligados — para o painel e para ler historico. */
+export const PILLAR_IDS_TODOS = Object.keys(PILLARS);
 
 /** Onde um projecto declara os seus proprios pilares. */
 export const PILLARS_FILE = '.mooter/pilares.json';
@@ -749,7 +1121,20 @@ function readLines(repoRoot, relPath) {
   } catch {
     return null;
   }
-  return raw.split('\n');
+  const linhas = raw.split('\n');
+  // ⚠️ `split('\n')` num ficheiro terminado em newline — que sao quase todos —
+  // devolve um ultimo elemento `''` que NAO e uma linha do ficheiro. O
+  // `renderSlice` renderizava-o como `  147| ` num ficheiro de 146 linhas, e o
+  // modelo, mandado julgar A ULTIMA LINHA do excerto, via uma linha vazia e
+  // respondia BROKEN.
+  //
+  // Medido no ledger deste device a 2026-08-21: **12 dos 62 achados do P4
+  // (19,4%) citavam uma linha que nao existe no ficheiro** — `ARCHITECTURE_V5.md:147`
+  // num ficheiro de 146, `SENTRY-DSN-RUNBOOK.md:172` num de 171,
+  // `MOOTER_ROADMAP.md:78` num de 77. A citacao parecia fabricada pelo modelo e
+  // nao era: o harness deu-lhe mesmo aquela linha.
+  if (linhas.length && linhas[linhas.length - 1] === '') linhas.pop();
+  return linhas;
 }
 
 /**
@@ -888,6 +1273,16 @@ export function donoDoFicheiro(repoRoot, file, pillars = PILLARS) {
   let dono = null;
   let ambito = Infinity;
   for (const id of Object.keys(pillars)) {
+    // ⚠️ Um pilar DESLIGADO nao pode ser dono de nada.
+    //
+    // Apanhado pelo teste da sobreposicao ao desligar o P4 (2026-08-21): ele
+    // reclamava `*.md` e era o reclamante de ambito mais estreito, portanto
+    // continuava a ganhar a posse de todos os `.md` do poco do diff — para um
+    // pilar que ja nao corre. O efeito seria pior do que o problema que o
+    // desligar resolve: os `.md` deixavam de ser revistos POR NINGUEM, e em
+    // silencio, porque a posse existe precisamente para os outros pilares nao
+    // lhes pegarem.
+    if (pillars[id] && pillars[id].activo === false) continue;
     const c = candidatosDoPilar(repoRoot, id, pillars);
     if (!c.files.includes(file)) continue;
     if (c.files.length < ambito) { ambito = c.files.length; dono = id; }
@@ -1006,7 +1401,18 @@ export function buildContextPack({
       // determinismo: mesma ronda, mesmo repo, mesmo resultado.
       // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
       // impede que um id desconhecido desloque a rotacao para tras.
-      const ids = Object.keys(pillars);
+      // ⚠️ SO os pilares que CORREM. `Object.keys(pillars)` inclui os
+      // desligados, e isso partia a caminhada em silencio: o passo assume que
+      // cada (rotacao, pilar) e um lugar unico, e com 10 no catalogo mas 4 na
+      // rotacao o `cursor * ids.length` andava 10 quando devia andar 4, e o
+      // `indexOf` dava 4 ao P5 quando a rotacao lhe da 3.
+      //
+      // Medido a 2026-08-21, ao desligar o P7 (a suite apanhou, o ledger nao):
+      // com 8 hunks disponiveis, 4 rondas seguidas moiam 3 alvos — orfao2 saia
+      // duas vezes na mesma volta. Era latente desde o primeiro desligar: com os
+      // 10 activos, catalogo e rotacao eram a mesma lista e isto acertava por
+      // coincidencia.
+      const ids = idsActivos(pillars);
       // `indexOf` devolve -1 para um pilar fora do conjunto; `Math.max(0, ...)`
       // impede que um id desconhecido desloque a rotacao para tras.
       // O desvio vale para os DOIS escopos. So o aplicar a `geral` deixava
@@ -1208,7 +1614,8 @@ export function buildContextPack({
   // janelas desse, devolvia `ok:false` com os IRMAOS por rever: medido, 12 de
   // 24 cursores desperdicados quando um pilar tinha um ficheiro curto e outro
   // longo.
-  const ids = Object.keys(pillars);
+  // So os que CORREM — ver o comentario longo no selector do diff.
+  const ids = idsActivos(pillars);
   const passoF = cursor * Math.max(1, ids.length) + Math.max(0, ids.indexOf(pillar)) + faseDoDevice(device);
   let file = null;
   let lines = null;
@@ -1224,8 +1631,31 @@ export function buildContextPack({
     const ls = readLines(repoRoot, cand);
     if (!ls || ls.length === 0) continue;
     const janelas = Math.max(1, Math.ceil(ls.length / maxLines));
-    for (let k = 0; k < janelas; k += 1) {
-      const sl = renderSlice(ls, (((Math.abs(passoF) + k) % janelas) * maxLines) + 1, maxLines);
+    /**
+     * QUAIS janelas este pilar pode ver.
+     *
+     * Por omissao, todas, em rotacao. Mas um pilar cuja pergunta so faz sentido
+     * no FIM do ficheiro (`janela: 'ultima'`, o P4) nao pode receber uma fatia
+     * do meio: a ultima linha de uma fatia arbitraria cai a meio de uma fence,
+     * de uma tabela ou de um paragrafo, e o modelo responde BROKEN com razao
+     * sobre a FATIA e sem dizer nada sobre o DOCUMENTO.
+     *
+     * A primeira tentativa de corrigir isto (2026-08-21) foi pedir ao modelo que
+     * comparasse o fim da janela com o fim do ficheiro, ambos ja escritos no
+     * cabecalho do pack. MEDIU-SE, e quase nao mexeu: a taxa de achado em
+     * janelas cortadas passou de 18,0% para ~13,6%. O qwen2.5-coder:14b escrevia
+     * `FIM DO FICHEIRO` por reflexo em janelas que claramente nao o eram
+     * (`THREAT_MODEL.md 1-70` com uma janela `71-109` a seguir).
+     *
+     * A licao fica: **uma condicao que o harness consegue garantir nunca se pede
+     * a um modelo.** Aqui garante-se — e o enunciado do P4 deixa de precisar de
+     * aritmetica nenhuma.
+     */
+    const indices = spec.janela === 'ultima'
+      ? [janelas - 1]
+      : Array.from({ length: janelas }, (_, k) => (Math.abs(passoF) + k) % janelas);
+    for (const idx of indices) {
+      const sl = renderSlice(ls, (idx * maxLines) + 1, maxLines);
       const kc = chaveDeRevisao(pillar, cand, sl.startLine, sl.endLine, sl.text, spec.ask);
       if (revistos && revistos.has(kc)) continue;
       file = cand; lines = ls; slice = sl; chaveC = kc;

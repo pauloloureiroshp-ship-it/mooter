@@ -28,6 +28,11 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   Wave 58 allowlisted **additions** to `packages/router/src/` (new files only — no existing
   engine file is modified): `specialization-matrix.ts`, `decide-agent.ts`, `task-categories.ts`,
   `adaptive-learner.ts`, `tes-calculator.ts`, `benchmark-fetcher.ts`, `fable-5-routing.ts`.
+  **2026-08-22 · piso de Node** allowlists `packages/router/package.json` (autorizado pelo dono,
+  a pedido explícito). Só o `--target` do `build:packhint` (node18 → node22) e um `engines.node`
+  novo — zero linhas de lógica do motor. Não é cosmético: o `install.sh:196` compila esse bundle
+  **na máquina do utilizador** e instala-o como hook do Claude Code, portanto o alvo era um
+  runtime que o instalador já recusa. Verificado por `tools/cockpit/runner/piso-de-node.mjs`.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

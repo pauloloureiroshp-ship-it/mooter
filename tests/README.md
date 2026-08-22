@@ -20,7 +20,7 @@ docker run --rm -v "${REPO_DIR}:/repo:ro" node:20-bookworm-slim bash -c '
 ### What it validates
 
 1. **Prereq gate** — without `claude` on PATH, installer exits 3 with a friendly message pointing to the Claude Code install.
-2. **Happy path** — with Claude Code + Node 18+, installer populates:
+2. **Happy path** — with Claude Code + Node 22+, installer populates:
    - `~/.local/bin/mooter` (shim)
    - `~/.mooter/{cli,env,version.json}` (CLI + env file)
    - `~/.claude/tools/router/` (runtime, ~91 JS scripts)

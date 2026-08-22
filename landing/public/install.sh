@@ -128,9 +128,14 @@ fi
 NODE_BIN="$(command -v node)"
 NODE_VER="$(node --version | sed 's/v//')"
 NODE_MAJOR="${NODE_VER%%.*}"
-if [ "$NODE_MAJOR" -lt 18 ]; then
-  fail "Node.js $NODE_VER found — mooter needs Node 18+."
-  info "Upgrade: brew upgrade node  (or) nvm install 20"
+# 22 e nao 18. O piso canonico e `engines.node` do packages/cli/package.json;
+# aqui ele e COPIADO por necessidade (este script corre antes de o repo existir
+# na maquina) e a copia e verificada por tools/cockpit/runner/piso-de-node.mjs.
+# Ate 2026-08-22 isto dizia 18+ enquanto o bundle entregue era compilado para
+# node20: quem instalasse em 18 ou 19 passava aqui e falhava depois, sem mensagem.
+if [ "$NODE_MAJOR" -lt 22 ]; then
+  fail "Node.js $NODE_VER found — mooter needs Node 22+."
+  info "Upgrade: brew upgrade node  (or) nvm install 22"
   exit 3
 fi
 ok "Node.js v$NODE_VER"

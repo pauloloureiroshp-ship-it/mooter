@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, idsActivos, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -686,7 +686,21 @@ test('verifyEvidence devolve conclusao ALEM do verdict, e os dois nao se confund
 // P8 passaram a reclamar `packages/mooter-bridge/*.js` — os "orfaos" deixaram
 // de o ser e o teste media outra coisa. Um orfao tem de estar onde nenhum
 // padrao chega, senao nao e um orfao.
-const ORFAOS = Array.from({ length: PILLAR_IDS.length * 2 }, (_, k) => `orfaos/orfao${k}.js`);
+/**
+ * Orfaos que chegam para todos os pilares — com um PISO.
+ *
+ * Cresce com o conjunto (acrescentar um pilar nao pode partir um teste que fala
+ * de colisoes), mas nunca desce abaixo de 12. O piso nasceu a 2026-08-22, ao
+ * desligar o P1 e o P5: com 2 pilares o poco caia para 4, e a `FROTA` passou a
+ * falhar porque `faseDoDevice('mac-mini-de-paulo') % 4` e
+ * `faseDoDevice('macbook-do-paulo') % 4` valem os DOIS 1 — as fases sao 7621 e
+ * 89, que diferem em mod 12 (1 e 5) e em mod 20 (1 e 9).
+ *
+ * Ou seja: a funcionalidade estava boa e era o poco que tinha encolhido abaixo
+ * do tamanho onde o teste consegue medir alguma coisa. O piso repoe a medicao;
+ * NAO relaxa a asercao, que continua a exigir rondas diferentes entre devices.
+ */
+const ORFAOS = Array.from({ length: Math.max(12, PILLAR_IDS.length * 2) }, (_, k) => `orfaos/orfao${k}.js`);
 
 /** Um documento por pilar: dois pilares de documentos precisam de dois alvos. */
 const DOCUMENTOS = Array.from({ length: PILLAR_IDS.length }, (_, k) => `docs/doc${k}.md`);
@@ -1487,4 +1501,213 @@ test('todos os sitios que consultam `revistos` passam a pergunta', () => {
   for (const c of chamadas) {
     assert.ok(c.includes('spec.ask'), `chamada sem a pergunta: ${c.trim().slice(0, 70)}`);
   }
+});
+
+// ── P4 · o pilar que media a JANELA em vez do TEXTO (2026-08-21) ─────────────
+//
+// O enunciado antigo mandava julgar "a ULTIMA linha deste excerto". Mas o
+// excerto e uma fatia de 70 linhas cortada num sitio arbitrario: a ultima linha
+// de uma fatia cai quase sempre a meio de uma fence, de uma tabela ou de um
+// paragrafo. O modelo respondia BROKEN e tinha razao sobre a FATIA, sem dizer
+// nada sobre o DOCUMENTO.
+//
+// Medido nos 619 achados com PROOF e janela legiveis do ledger deste device:
+// P4 tinha 58/62 (93,5%) com o PROOF a <=2 linhas do fim da janela — 53 deles
+// EXACTAMENTE na ultima linha. Os outros pilares: P1 3,8% · P2 1,8% · P3 0,0%
+// · P5 1,8%. O defeito era so do P4, e era do enunciado, nao do modelo.
+
+test('P4 so recebe a ULTIMA janela do ficheiro — garantido pelo harness', () => {
+  // A 1a tentativa de correccao PEDIU ao modelo que comparasse o fim da janela
+  // com o fim do ficheiro (ambos ja escritos no cabecalho do pack). Mediu-se, em
+  // 34 rondas contra 380 de baseline: a taxa de achado em janelas cortadas
+  // passou de 18,0% para ~13,6% — quase nada. O qwen2.5-coder:14b escrevia
+  // `FIM DO FICHEIRO` por reflexo em janelas que claramente nao o eram
+  // (`THREAT_MODEL.md 1-70`, com uma janela `71-109` a seguir).
+  //
+  // A licao: uma condicao que o harness consegue GARANTIR nunca se pede a um
+  // modelo.
+  assert.equal(PILLARS.P4.janela, 'ultima',
+    'o P4 tem de declarar que so olha para o fim do ficheiro');
+
+  // E a declaracao tem de ter EFEITO — senao e um comentario entre aspas.
+  //
+  // ⚠️ Um repo com UM SO candidato, de proposito. A primeira versao usava o
+  // `fixtureRepo()` (que traz `CLAUDE.md` e `README.md`) e varria cursores a
+  // espera de calhar no ficheiro certo. Isso amarrava o teste a caminhada — e a
+  // caminhada mudou quando o P11 entrou na rotacao: para um pilar DESLIGADO o
+  // `indexOf` da -1 -> 0, portanto `passo = cursor * ids.length` e, com 3
+  // candidatos e 3 pilares activos, fixa-se sempre no mesmo. O teste partiu por
+  // uma razao que nada tinha a ver com o que ele mede.
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-p4-'));
+  const rel = 'docs/longo.md';
+  const total = 175;                       // 3 janelas de 70
+  fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, rel),
+    `${Array.from({ length: total }, (_, i) => `linha ${i + 1}`).join('\n')}\n`,
+  );
+
+  const pack = buildContextPack({ repoRoot: repo, pillar: 'P4', cursor: 0 });
+  assert.ok(pack.ok, `o pack tinha de sair: ${pack.reason || ''}`);
+  assert.equal(pack.file, rel, 'com um so candidato, e esse que tem de sair');
+  assert.equal(pack.endLine, total,
+    `o P4 recebeu ${pack.startLine}-${pack.endLine} de ${total} linhas — e uma fatia `
+    + 'do meio, e a pergunta dele nao vale numa fatia do meio');
+});
+
+test('a ultima linha do excerto e uma linha REAL, nunca o vazio do split', () => {
+  // `raw.split('\n')` num ficheiro terminado em newline devolve um ultimo
+  // elemento vazio que NAO e uma linha do ficheiro. O `renderSlice` mostrava-o
+  // como `  147| ` num ficheiro de 146 linhas, e o P4 — mandado julgar A ULTIMA
+  // LINHA — via vazio e respondia BROKEN.
+  //
+  // Medido: 12 dos 62 achados do P4 (19,4%) citavam uma linha que nao existe no
+  // ficheiro (`ARCHITECTURE_V5.md:147` num de 146, `SENTRY-DSN-RUNBOOK.md:172`
+  // num de 171, `MOOTER_ROADMAP.md:78` num de 77). A citacao parecia fabricada
+  // pelo modelo e NAO era: o harness deu-lhe mesmo aquela linha.
+  const repo = fixtureRepo();
+  const rel = 'docs/curto.md';
+  fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(repo, rel), 'um\ndois\ntres\n');   // 3 linhas + newline final
+
+  const pack = buildContextPack({ repoRoot: repo, pillar: 'P4', cursor: 0 });
+  if (pack.ok && pack.file === rel) {
+    assert.equal(pack.endLine, 3, 'o ficheiro tem 3 linhas, nao 4');
+    assert.doesNotMatch(pack.prompt, /^\s*4\|\s*$/m,
+      'uma 4a linha vazia nao pode chegar ao modelo');
+  }
+});
+
+test('P4 continua a cumprir a doutrina dos pilares (copiar primeiro)', () => {
+  // A correccao do P4 nao pode comprar-se a custa das invariantes que ja
+  // existiam: a primeira versao desta correccao comecava por "read the header"
+  // e partiu os dois testes acima — copiar primeiro, nunca julgar primeiro.
+  assert.match(PILLARS.P4.ask, /^(STEP 1 — )?[Cc]opy[ ,]/,
+    'o P4 tem de comecar por mandar COPIAR');
+  assert.match(PILLARS.P4.ask, /this excerpt/i,
+    'e a pergunta tem de continuar ancorada no excerto');
+  assert.ok(SEM_ACHADO_RE.test(PILLARS.P4.ask),
+    'e tem de manter uma saida honesta que o verificador reconheca');
+});
+
+// ── desligar um pilar (2026-08-21) ───────────────────────────────────────────
+
+test('um pilar desligado sai da ROTACAO mas fica no catalogo', () => {
+  // Fica no catalogo porque 62 recibos do ledger apontam para o P4: apagar a
+  // entrada tornaria ilegivel o historico que explica porque foi desligado.
+  assert.equal(PILLARS.P4.activo, false, 'o P4 esta desligado por medicao (0/78 achados verdadeiros)');
+  assert.ok(!PILLAR_IDS.includes('P4'), 'e nao pode voltar a rotacao');
+  assert.ok(Object.keys(PILLARS).includes('P4'), 'mas o historico tem de continuar a resolver o label');
+});
+
+test('um pilar desligado NAO pode ser dono de ficheiros', () => {
+  // O defeito que este teste tranca custou-me uma suite vermelha e valia mais do
+  // que isso: o P4 reclamava `*.md` e era o reclamante de ambito mais estreito,
+  // portanto continuava a GANHAR a posse dos `.md` do poco do diff — para um
+  // pilar que ja nao corre. Os `.md` deixariam de ser revistos por ninguem, em
+  // silencio, porque a posse existe exactamente para os outros nao lhes pegarem.
+  // Desligar um pilar tem de libertar o que ele possuia, nao congela-lo.
+  const root = repoDiff();
+  for (const f of ['README.md']) {
+    const dono = donoDoFicheiro(root, f);
+    assert.notEqual(dono, 'P4', `${f} nao pode pertencer a um pilar desligado`);
+    if (dono !== null) {
+      assert.ok(PILLAR_IDS.includes(dono),
+        `${f} tem de pertencer a um pilar que CORRE, e nao a ${dono}`);
+    }
+  }
+});
+
+// ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
+
+test('os OITO desligados saem da rotacao e continuam no catalogo', () => {
+  // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
+  // entrada tornaria ilegivel o historico que explica porque foram desligados.
+  // Todos foram desligados por MEDICAO, nao por gosto — cada um tem o numero
+  // no comentario da sua entrada em `PILLARS`.
+  for (const id of ['P1', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']) {
+    assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
+    assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
+    assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
+  }
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3', 'P11']);
+});
+
+test('a rotacao contem SO os pilares que passaram o defeito semeado', () => {
+  // A regra que sai do dia, e que substitui a que eu tinha escrito. A primeira
+  // versao exigia `PILLAR_IDS.length >= 3` — um numero que eu inventei, e que
+  // teria bloqueado o desligar do P1 e do P5 por motivo nenhum. O que importa
+  // nao e QUANTOS correm: e se cada um provou que discrimina.
+  //
+  // Dos NOVE semeados (`prova-de-pilar.mjs`), so estes dois deram `funciona`:
+  //   P3   THEY DIVERGE no semeado, THEY MATCH no controlo
+  //   P2   SEED VISIBLE no semeado, NO SEED EXITS no controlo
+  //   P11  THEY DIVERGE: message says 100, code uses 200 / THEY MATCH
+  // Os outros sete: `partido` (P6..P10) ou `falso-em-ambos` (P1, P5).
+  //
+  // O P11 nasceu DEPOIS desta regra e teve de a cumprir: entrou activo, este
+  // teste bloqueou-o, semeou-se, passou, e so entao se actualizou a lista.
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3', 'P11'],
+    'so entra na rotacao quem passou o ensaio — acrescentar um pilar exige semea-lo primeiro');
+  assert.ok(PILLAR_IDS.length >= 1, 'sem pilares nao ha loop nenhum');
+  for (const id of PILLAR_IDS) {
+    assert.notEqual(PILLARS[id].activo, false, `${id} esta na rotacao E marcado como desligado`);
+  }
+});
+
+test('desligar os quatro NAO orfanou ficheiro nenhum do poco do diff', () => {
+  // A regra que o desligar do P4 quase partiu: um pilar desligado nao pode
+  // continuar DONO de ficheiros, senao eles deixam de ser revistos por ninguem
+  // e em silencio.
+  const root = repoDiff();
+  for (const f of ['tools/router/mooter-review.js', 'tools/handoff-preflight.js', 'README.md']) {
+    const dono = donoDoFicheiro(root, f);
+    if (dono === null) continue;
+    assert.ok(PILLAR_IDS.includes(dono), `${f} pertence a ${dono}, que nao corre`);
+  }
+});
+
+test('a COBERTURA perdida esta declarada, nao escondida', () => {
+  // Com o P4 e o P10 desligados, nenhum pilar activo olha para markdown nem
+  // para os workflows do CI. Nao se perde deteccao MEDIDA (o P4 deu 0/78
+  // achados verdadeiros e o P10 deu 0/455), mas perde-se cobertura — e quem
+  // voltar a querer docs precisa de um pilar NOVO, nao de reactivar estes.
+  const globsActivos = PILLAR_IDS.flatMap((id) => PILLARS[id].files);
+  const semDono = [
+    '*.md', 'docs/**/*.md', '.github/workflows/*.yml',          // P4 e P10
+    'landing/app/**/*.tsx', 'landing/components/**/*.tsx',       // P6
+    'packages/vscode-extension/src/*.js',                        // P6
+    'tools/cockpit/*.html',                                      // P7
+  ];
+  for (const orfao of semDono) {
+    assert.ok(!globsActivos.includes(orfao),
+      `${orfao} voltou a ter dono — se foi de proposito, actualiza este teste e o comentario do pilar`);
+  }
+  // O loop passou a ver SO backend. Escrito por extenso porque e uma perda de
+  // ambito que nao se ve em lado nenhum senao aqui.
+  assert.ok(globsActivos.every((g) => /^(tools|packages)\//.test(g)),
+    'a rotacao so cobre tools/ e packages/ — se isso mudar, este teste tem de mudar com ela');
+  // O que NAO se perdeu: o glob do P9 era um subconjunto do do P2.
+  assert.ok(globsActivos.includes('packages/*/src/*.ts'),
+    'a cobertura de packages/*/src/*.ts tem de sobreviver ao desligar do P9');
+});
+
+test('a caminhada usa a ROTACAO, nunca o catalogo inteiro', () => {
+  // Defeito latente desde o primeiro desligar, apanhado ao desligar o P7:
+  // `Object.keys(pillars)` inclui os desligados. O passo deterministico
+  // (`cursor * ids.length + indexOf`) so e uma bijeccao se `ids` for a rotacao.
+  // Com 10 no catalogo e 4 a correr, o cursor andava 10 quando devia andar 4 e
+  // o `indexOf` dava 4 ao P5 quando a rotacao lhe da 3 — resultado medido: com
+  // 8 alvos, 4 rondas seguidas moiam 3, e um saia duas vezes na mesma volta.
+  //
+  // Com os 10 activos isto acertava por coincidencia. Foi a suite que apanhou,
+  // nao o ledger: em producao ha alvos que chegam para esconder a colisao.
+  assert.deepEqual(idsActivos(PILLARS), PILLAR_IDS,
+    'idsActivos tem de dar exactamente a rotacao');
+  assert.ok(idsActivos(PILLARS).length < Object.keys(PILLARS).length,
+    'hoje ha desligados — se isto falhar, o teste perdeu o alvo');
+
+  // E num catalogo sintetico, para nao depender de quem esta desligado hoje.
+  const cat = { A: { activo: false }, B: {}, C: { activo: false }, D: {} };
+  assert.deepEqual(idsActivos(cat), ['B', 'D']);
 });

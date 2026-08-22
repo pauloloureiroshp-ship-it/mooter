@@ -13,6 +13,21 @@ on:
       - 'packages/cli/**'
       - 'packages/router/src/classify_domain.ts'
       - '.github/workflows/install-reliability.yml'
+      # Os sitios que declaram o piso de Node. Sem eles aqui, uma alteracao ao
+      # install.ps1 ou a um runbook nunca dispararia o job que os verifica — o
+      # mesmo buraco que o test.yml ja documenta no seu cabecalho ("adicionar
+      # caminhos nunca torna o CI mais fraco: corre mais"). A lista e mantida
+      # honesta por `piso-de-node.test.mjs`, que falha se SITIOS crescer e este
+      # `paths:` nao acompanhar.
+      - 'install.ps1'
+      - 'landing/public/install.ps1'
+      - 'package.json'
+      - 'packages/router/package.json'
+      - 'CONTRIBUTING.md'
+      - 'tests/README.md'
+      - 'docs/strategy/MOOTER_OPERATIONS.md'
+      - 'docs/strategy/PASTOR_OPERATIONS.md'
+      - 'tools/cockpit/runner/piso-de-node.mjs'
   pull_request:
     paths:
       - 'install.sh'
@@ -20,6 +35,21 @@ on:
       - 'packages/cli/**'
       - 'packages/router/src/classify_domain.ts'
       - '.github/workflows/install-reliability.yml'
+      # Os sitios que declaram o piso de Node. Sem eles aqui, uma alteracao ao
+      # install.ps1 ou a um runbook nunca dispararia o job que os verifica — o
+      # mesmo buraco que o test.yml ja documenta no seu cabecalho ("adicionar
+      # caminhos nunca torna o CI mais fraco: corre mais"). A lista e mantida
+      # honesta por `piso-de-node.test.mjs`, que falha se SITIOS crescer e este
+      # `paths:` nao acompanhar.
+      - 'install.ps1'
+      - 'landing/public/install.ps1'
+      - 'package.json'
+      - 'packages/router/package.json'
+      - 'CONTRIBUTING.md'
+      - 'tests/README.md'
+      - 'docs/strategy/MOOTER_OPERATIONS.md'
+      - 'docs/strategy/PASTOR_OPERATIONS.md'
+      - 'tools/cockpit/runner/piso-de-node.mjs'
   workflow_dispatch:
 
 jobs:
@@ -31,10 +61,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      # O nome era "Setup Node 20". Sem numero no nome ele nao pode voltar a
+      # mentir sobre a linha abaixo — e passa a haver so uma fonte da verdade,
+      # que e o `node-version`. Verificado por `ci-coerencia.mjs`.
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22 como o resto do CI, e o Node 20 esta em EOL desde 2026-04-30.
+          #
+          # ATENCAO ao que este gate NAO prova, e nunca provou: o `install.sh:132`
+          # diz ao utilizador "mooter needs Node 18+", mas o `build.mjs:24` compila
+          # o bundle com `--target=node20`. Quem instalar em Node 18 ou 19 PASSA a
+          # verificacao do instalador e recebe um bundle compilado para 20+. O gate
+          # corria em 20: nem o piso declarado (18) nem o runtime da suite (22) —
+          # um terceiro numero que nenhum ficheiro declara. Alinha-lo com a suite
+          # nao perde cobertura do piso porque o piso nunca esteve coberto.
+          # Fechar essa contradicao (subir o piso do install.sh, ou baixar o target
+          # do esbuild) muda o que se recusa a utilizadores reais — decisao do dono,
+          # nao deste commit.
+          node-version: '22'
 
       - name: Build v1.0 CLI bundle (esbuild, zero-runtime-deps)
         run: |
@@ -56,10 +101,12 @@ jobs:
           echo "$out" | grep -q "Could not reach the mooter hub" \
             || { echo "::error::v1 bundle did not dispatch feedback"; exit 1; }
 
-      - name: Two install.sh stay in sync
-        run: |
-          diff install.sh landing/public/install.sh \
-            || { echo "::error::install.sh and landing/public/install.sh diverged"; exit 1; }
+      # Substitui o `diff install.sh landing/public/install.sh` que aqui estava.
+      # Ele vigiava UM dos dois pares: o par .ps1 nunca foi verificado e tinha
+      # drift real (2 linhas) quando isto foi escrito, a 2026-08-22. O verificador
+      # cobre os dois pares E o piso de Node em todos os sitios que o repetem.
+      - name: Installers stay in sync + one Node floor everywhere
+        run: node tools/cockpit/runner/piso-de-node.mjs .
 
       - name: Fresh install + hybrid dispatch smoke
         run: |

@@ -36,6 +36,7 @@ import { publicarBeacon, estaNaHora, ligado as publicacaoLigada } from './beacon
 import { buildAlignment } from './alignment.mjs';
 import { createEngineBreaker } from './engine-breaker.mjs';
 import { resolveRepoRoot, projectPaths, repoSha } from './project.mjs';
+import { verConector } from './self-check.mjs';
 import { verReserva, esperaS } from './reserva.mjs';
 
 const HOME = os.homedir();
@@ -301,7 +302,27 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = lo
       engineAlive,
     });
     const where = beaconDir();
-    const res = writeBeacon(state, where);
+    /**
+     * A versao do conector viaja com o beacon.
+     *
+     * `verConector` ja media isto — mas so no `/saude.json` DESTA maquina, e um
+     * alerta que so se ve na maquina avariada nao e um alerta. Foi assim que o
+     * Mac ficou em 1.33.0 contra 1.49.3 no repo sem ninguem dar por ela: quem
+     * estava sentado ao PC nunca teve como saber.
+     *
+     * Aqui viajam FACTOS (instalado, repo). O juizo — e o CTA — nasce em
+     * `naTuaMao`, do lado de quem le. Nunca as duas coisas no mesmo sitio.
+     */
+    let conector = null;
+    try {
+      const c = verConector(repoRoot);
+      // `valor` e prosa ('X instalado ≠ Y no repo'); as versoes tiram-se dele
+      // sem adivinhar: se o formato nao bater, fica `null` e o painel diz n/d.
+      const m = typeof c.valor === 'string' ? c.valor.match(/^(\S+)\s+instalado\s+≠\s+(\S+)\s+no repo$/) : null;
+      if (m) conector = { instalado: m[1], repo: m[2] };
+      else if (c.estado === 'ok' && typeof c.valor === 'string') conector = { instalado: c.valor, repo: c.valor };
+    } catch { /* um beacon nunca para por causa de telemetria sobre si proprio */ }
+    const res = writeBeacon({ ...state, conector }, where);
     if (!res.ok && !beaconWarned) {
       beaconWarned = true;
       logImpl(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);
