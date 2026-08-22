@@ -515,6 +515,51 @@ export const PILLARS = {
    * E a tese do produto virada para dentro: um passo manual escrito num README
    * e um passo que alguem vai esquecer. Se esta escrito, pode ser corrido.
    */
+  /**
+   * P11 — nascido a 2026-08-22, para devolver cobertura ao `packages/mooter-bridge`
+   * (50 ficheiros, 38.704 linhas) que ficou sem pilar quando o P5 foi desligado.
+   *
+   * DESENHADO A PARTIR DO QUE FUNCIONA, nao do que parecia boa ideia. Dos nove
+   * pilares semeados, so dois passaram — o P2 e o P3 —, e ambos tem a MESMA
+   * forma: copiar dois artefactos CONCRETOS que estao ambos na pagina, e comparar
+   * dois valores LITERAIS. Os sete que falharam pediam ou uma negativa
+   * ("nunca mais aparece"), ou juizo semantico ("fazem o mesmo trabalho"), ou uma
+   * varredura exaustiva. Este e uma copia da forma do P3.
+   *
+   * A CLASSE E REAL neste pacote, verificada antes de escrever o enunciado:
+   *   aprender.js:18   const REPEAT_WINDOW_MS = 10 * 60 * 1000;
+   *   aprender.js:399  'goal repetido na mesma worktree em menos de 10 minutos'
+   *   aprender.js:457  if (best.success_rate < 0.6) {
+   *   aprender.js:461  ' terminaram em done; a taxa medida fica abaixo de 60%'
+   * Os dois pares CONCORDAM hoje. O pilar sera honestamente calado ate alguem
+   * mudar uma constante sem mudar a frase — e o ensaio semeado prova que ele
+   * deteta quando isso acontecer.
+   *
+   * ⚠️ Uma ideia anterior foi REJEITADA por medicao: "campo null sem `porque` ao
+   * lado". A convencao existe (1403 `porque` no pacote) mas nao e universal —
+   * 52,9% dos 393 campos null nao tem `porque`, e muitos sao registos de dados
+   * onde nao faria sentido. Teria sido um P4: 200 achados de uma regra que o
+   * codigo nao segue.
+   *
+   * Porque este pacote e o que fala com o DONO: um numero errado numa frase daqui
+   * nao e um nitpick de estilo, e o painel a mentir.
+   */
+  P11: {
+    label: 'Bridge — o numero que o dono le contra o que o codigo usa',
+    files: [
+      'packages/mooter-bridge/*.js',
+    ],
+    ask:
+      'STEP 1 — copy ONE line from this excerpt that puts a NUMBER inside a message a '
+      + 'person will read: text between quotes with a digit in it. '
+      + 'Format: `MESSAGE LINE <n>: <text>`.\n'
+      + 'STEP 2 — copy the line in this same excerpt where that number is decided: a '
+      + 'constant, a comparison or an assignment. Format: `CODE LINE <n>: <line>`.\n'
+      + 'STEP 3 — is the number in the message the same one the code uses? Write '
+      + '`THEY MATCH` or `THEY DIVERGE: message says <x>, code uses <y>`.\n'
+      + 'Always end with `PROOF: <file>:<the CODE line number>`.',
+  },
+
   P10: {
     label: 'Handwork a script could do',
     /**

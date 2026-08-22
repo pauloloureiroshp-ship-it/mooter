@@ -13,6 +13,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { PARES, escreverPar, veredicto } from './prova-de-pilar.mjs';
+import { PILLARS } from './context-pack.mjs';
+import { SEM_ACHADO_RE } from './evidence-verifier.mjs';
 
 test('o par do P8 tem UM defeito semeado, e ele nao se repete', () => {
   const { semeado, controlo } = PARES.P8;
@@ -38,6 +40,7 @@ test('as LINHAS marcadas apontam mesmo para o defeito, em TODO par', () => {
     P9: [/if \(!nome \|\|/, /if \(!rotulo \|\|/],
     P10: [/Confirma no painel da Vercel/],
     P6: [/89% do trabalho fora da nuvem/],
+    P11: [/acima de 100/, /FILA_GRANDE = 200/],
     P7: [/total: recibos\.length/, /todas\.slice\(-MAX_LINHAS\)/],
   };
   for (const [id, padroes] of Object.entries(esperado)) {
@@ -61,7 +64,7 @@ test('NENHUM ficheiro de NENHUM par se denuncia como fixture', () => {
       // Os IDs de pilar precisam de limite de palavra: `p95Ms` — um nome de
       // metrica perfeitamente normal — continha "P9" e fazia este teste
       // acusar um controlo que estava limpo.
-      for (const pid of ['P6', 'P7', 'P8', 'P9', 'P10']) {
+      for (const pid of ['P6', 'P7', 'P8', 'P9', 'P10', 'P11']) {
         assert.doesNotMatch(t, new RegExp(`\\b${pid}\\b`), `'${pid}' aparece no ${papel} do ${id}`);
       }
     }
@@ -96,6 +99,7 @@ test('escreverPar poe cada par onde AQUELE pilar procura', () => {
   const esperado = {
     P8: /\.mjs$/, P9: /\.mjs$/, P10: /docs\/.*\.md$/, P6: /landing\/components\/.*\.tsx$/,
     P7: /tools\/cockpit\/runner\/.*\.mjs$/,
+    P11: /packages\/mooter-bridge\/.*\.js$/,
   };
   for (const [id, padrao] of Object.entries(esperado)) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prova-'));
@@ -231,4 +235,32 @@ test('VEREDICTO · calar-se no controlo mas errar o alvo no semeado nao e "funci
     respostaControlo: 'EVERY CALL ONCE',
   });
   assert.equal(v.estado, 'erra-o-alvo');
+});
+
+test('o par do P11 tem um ENGODO que bate, para o acerto nao ser de borla', () => {
+  // O semeado tem DOIS pares mensagem-constante: um que diverge (linha 23 diz
+  // 100, linha 6 vale 200) e um que BATE (linha 26 diz 48, linha 7 vale 48).
+  // Sem o engodo, o pilar acertava marcando qualquer mensagem com numero.
+  const { semeado, controlo } = PARES.P11;
+  assert.match(semeado.texto, /acima de 100/);
+  assert.match(semeado.texto, /FILA_GRANDE = 200/);
+  assert.match(semeado.texto, /mais de 48 horas/, 'o engodo tem de estar la');
+  assert.match(semeado.texto, /ESPERA_LONGA_H = 48/, 'e tem de BATER com a mensagem');
+  // No controlo, os dois pares batem.
+  assert.match(controlo.texto, /acima de 8/);
+  assert.match(controlo.texto, /VAZIAS_SEGUIDAS = 8/);
+  assert.match(controlo.texto, /dos 35 segundos/);
+  assert.match(controlo.texto, /LENTA_S = 35/);
+});
+
+test('P11 herda a FORMA do P3, que e a unica que se provou funcionar', () => {
+  // Dos nove pilares semeados so o P2 e o P3 passaram, e ambos pedem dois
+  // artefactos CONCRETOS visiveis na pagina e comparam valores LITERAIS. O P11
+  // foi desenhado por copia dessa forma, nao por intuicao — e passou a primeira.
+  const ask = PILLARS.P11.ask;
+  assert.match(ask, /^STEP 1 — copy/, 'copiar primeiro, como todos');
+  assert.match(ask, /this excerpt/i, 'ancorado no excerto');
+  assert.match(ask, /THEY MATCH/, 'a saida honesta tem de ser uma que o verificador conhece');
+  assert.match(ask, /THEY DIVERGE/, 'e o achado tem de ter forma fixa');
+  assert.ok(SEM_ACHADO_RE.test(ask), 'o `SEM_ACHADO_RE` tem de reconhecer a saida');
 });

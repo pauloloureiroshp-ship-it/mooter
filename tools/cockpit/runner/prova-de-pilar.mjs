@@ -326,6 +326,27 @@ export function resumirRonda(amostras, { janelaS = JANELA_S, agora = 0 } = {}) {
       texto: '/**\n * relatos.mjs — o que o runner devolve a quem lhe pergunta pelo estado.\n */\n\nexport const JANELA_S = 300;\n\n/** Quanto tempo falta ate a proxima ronda. */\nexport function proximaRonda(ultimaMs, agoraMs) {\n  const passou = Math.max(0, Math.round((agoraMs - ultimaMs) / 1000));\n  return { faltam_s: Math.max(0, JANELA_S - passou), passou_s: passou };\n}\n\n/** O estado da GPU, para o cartao do painel. */\nexport function estadoDaGpu(amostra) {\n  if (!amostra) return null;\n  return {\n    util_pct: amostra.util_pct,\n    fonte: amostra.fonte,\n    vram_gb: amostra.vram_inuse_gb,\n    saturada: amostra.util_pct >= 95,\n  };\n}\n\n/** Quem esta a segurar o lock, se alguem. */\nexport function donoDoLock(lock) {\n  if (!lock) return null;\n  return `${lock.pid}@${lock.host}`;\n}\n\n/** A linha de resumo que vai para o log. */\nexport function linhaDeLog(pilar, veredicto, duracaoS) {\n  return `${pilar} ${veredicto} · ${duracaoS}s`;\n}\n\n/** Quantas rondas cabem na janela, dado o ritmo observado. */\nexport function rondasNaJanela(duracaoMediaS) {\n  if (!(duracaoMediaS > 0)) return 0;\n  return Math.floor(JANELA_S / duracaoMediaS);\n}\n',
     },
   },
+
+  P11: {
+    procura: 'numero numa mensagem ao dono diferente do que o codigo usa',
+    semeado: {
+      caminho: 'packages/mooter-bridge/aviso-fila.js',
+      defeito: 'a mensagem da linha 23 diz 100; a constante da linha 6 vale 200',
+      // O ficheiro tem TAMBEM um par que BATE (linha 26 '48 horas' contra a
+      // linha 7 `ESPERA_LONGA_H = 48`). Sem esse engodo, o pilar acertava
+      // marcando qualquer mensagem com numero.
+      linhas: [23, 6],
+      marcas: ['DIVERGE'],
+      texto: "'use strict';\n/**\n * aviso-fila.js — o que o painel diz ao dono sobre a fila de triagem.\n */\n\nconst FILA_GRANDE = 200;\nconst ESPERA_LONGA_H = 48;\n\n/** A fila ja pede atencao? */\nfunction filaPedeAtencao(porTriar) {\n  return porTriar >= FILA_GRANDE;\n}\n\n/** O achado ja esta a espera ha tempo de mais? */\nfunction esperaDemais(desdeMs, agoraMs) {\n  const horas = (agoraMs - desdeMs) / 3600000;\n  return horas >= ESPERA_LONGA_H;\n}\n\n/** A frase que aparece por baixo do cartao da fila. */\nfunction avisoDaFila(porTriar, maisAntigoMs, agoraMs) {\n  if (filaPedeAtencao(porTriar)) {\n    return `${porTriar} achados por triar — acima de 100, o painel deixa de ser util`;\n  }\n  if (esperaDemais(maisAntigoMs, agoraMs)) {\n    return 'ha achados a espera ha mais de 48 horas';\n  }\n  return null;\n}\n\n/** O que o cartao mostra, com a razao sempre ao lado. */\nfunction cartaoDaFila(porTriar, maisAntigoMs, agoraMs) {\n  const aviso = avisoDaFila(porTriar, maisAntigoMs, agoraMs);\n  return {\n    por_triar: porTriar,\n    aviso,\n    porque: aviso ? 'limiar do painel atingido' : null,\n  };\n}\n\nmodule.exports = { filaPedeAtencao, esperaDemais, avisoDaFila, cartaoDaFila };\n",
+    },
+    controlo: {
+      // Mesma forma, dois pares mensagem-constante, e os DOIS batem (8 e 8,
+      // 35 e 35). Um ficheiro sem mensagens numericas tambem daria THEY MATCH,
+      // mas nao provava que o pilar sabe comparar.
+      caminho: 'packages/mooter-bridge/aviso-motor.js',
+      texto: "'use strict';\n/**\n * aviso-motor.js — o que o painel diz ao dono sobre o motor local.\n */\n\nconst VAZIAS_SEGUIDAS = 8;\nconst LENTA_S = 35;\n\n/** O motor ja passou rondas vazias que cheguem? */\nfunction motorParadoDemais(vaziasSeguidas) {\n  return vaziasSeguidas >= VAZIAS_SEGUIDAS;\n}\n\n/** A ronda demorou mais do que devia? */\nfunction rondaLenta(duracaoS) {\n  return duracaoS >= LENTA_S;\n}\n\n/** A frase que aparece por baixo do cartao do motor. */\nfunction avisoDoMotor(vaziasSeguidas, duracaoS) {\n  if (motorParadoDemais(vaziasSeguidas)) {\n    return `${vaziasSeguidas} rondas seguidas sem achado — acima de 8, o motor pode estar mudo`;\n  }\n  if (rondaLenta(duracaoS)) {\n    return 'a ultima ronda passou dos 35 segundos';\n  }\n  return null;\n}\n\n/** O que o cartao mostra, com a razao sempre ao lado. */\nfunction cartaoDoMotor(vaziasSeguidas, duracaoS) {\n  const aviso = avisoDoMotor(vaziasSeguidas, duracaoS);\n  return {\n    vazias_seguidas: vaziasSeguidas,\n    aviso,\n    porque: aviso ? 'limiar do painel atingido' : null,\n  };\n}\n\nmodule.exports = { motorParadoDemais, rondaLenta, avisoDoMotor, cartaoDoMotor };\n",
+    },
+  },
 };
 
 /** Escreve o par de prova de um pilar num repo de ensaio. Devolve os caminhos. */

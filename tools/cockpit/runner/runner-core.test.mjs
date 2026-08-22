@@ -1530,7 +1530,15 @@ test('P4 so recebe a ULTIMA janela do ficheiro — garantido pelo harness', () =
     'o P4 tem de declarar que so olha para o fim do ficheiro');
 
   // E a declaracao tem de ter EFEITO — senao e um comentario entre aspas.
-  const repo = fixtureRepo();
+  //
+  // ⚠️ Um repo com UM SO candidato, de proposito. A primeira versao usava o
+  // `fixtureRepo()` (que traz `CLAUDE.md` e `README.md`) e varria cursores a
+  // espera de calhar no ficheiro certo. Isso amarrava o teste a caminhada — e a
+  // caminhada mudou quando o P11 entrou na rotacao: para um pilar DESLIGADO o
+  // `indexOf` da -1 -> 0, portanto `passo = cursor * ids.length` e, com 3
+  // candidatos e 3 pilares activos, fixa-se sempre no mesmo. O teste partiu por
+  // uma razao que nada tinha a ver com o que ele mede.
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-p4-'));
   const rel = 'docs/longo.md';
   const total = 175;                       // 3 janelas de 70
   fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
@@ -1539,16 +1547,12 @@ test('P4 so recebe a ULTIMA janela do ficheiro — garantido pelo harness', () =
     `${Array.from({ length: total }, (_, i) => `linha ${i + 1}`).join('\n')}\n`,
   );
 
-  let vistas = 0;
-  for (let cursor = 0; cursor < 8; cursor += 1) {
-    const pack = buildContextPack({ repoRoot: repo, pillar: 'P4', cursor });
-    if (!pack.ok || pack.file !== rel) continue;
-    vistas += 1;
-    assert.equal(pack.endLine, total,
-      `cursor ${cursor}: o P4 recebeu ${pack.startLine}-${pack.endLine} de ${total} `
-      + 'linhas — e uma fatia do meio, e a pergunta dele nao vale numa fatia do meio');
-  }
-  assert.ok(vistas > 0, 'o ficheiro de teste tem de ser candidato do P4 ao menos uma vez');
+  const pack = buildContextPack({ repoRoot: repo, pillar: 'P4', cursor: 0 });
+  assert.ok(pack.ok, `o pack tinha de sair: ${pack.reason || ''}`);
+  assert.equal(pack.file, rel, 'com um so candidato, e esse que tem de sair');
+  assert.equal(pack.endLine, total,
+    `o P4 recebeu ${pack.startLine}-${pack.endLine} de ${total} linhas — e uma fatia `
+    + 'do meio, e a pergunta dele nao vale numa fatia do meio');
 });
 
 test('a ultima linha do excerto e uma linha REAL, nunca o vazio do split', () => {
@@ -1626,7 +1630,7 @@ test('os OITO desligados saem da rotacao e continuam no catalogo', () => {
     assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
     assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
   }
-  assert.deepEqual(PILLAR_IDS, ['P2', 'P3']);
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3', 'P11']);
 });
 
 test('a rotacao contem SO os pilares que passaram o defeito semeado', () => {
@@ -1636,10 +1640,14 @@ test('a rotacao contem SO os pilares que passaram o defeito semeado', () => {
   // nao e QUANTOS correm: e se cada um provou que discrimina.
   //
   // Dos NOVE semeados (`prova-de-pilar.mjs`), so estes dois deram `funciona`:
-  //   P3  THEY DIVERGE no semeado, THEY MATCH no controlo
-  //   P2  SEED VISIBLE no semeado, NO SEED EXITS no controlo
+  //   P3   THEY DIVERGE no semeado, THEY MATCH no controlo
+  //   P2   SEED VISIBLE no semeado, NO SEED EXITS no controlo
+  //   P11  THEY DIVERGE: message says 100, code uses 200 / THEY MATCH
   // Os outros sete: `partido` (P6..P10) ou `falso-em-ambos` (P1, P5).
-  assert.deepEqual(PILLAR_IDS, ['P2', 'P3'],
+  //
+  // O P11 nasceu DEPOIS desta regra e teve de a cumprir: entrou activo, este
+  // teste bloqueou-o, semeou-se, passou, e so entao se actualizou a lista.
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3', 'P11'],
     'so entra na rotacao quem passou o ensaio — acrescentar um pilar exige semea-lo primeiro');
   assert.ok(PILLAR_IDS.length >= 1, 'sem pilares nao ha loop nenhum');
   for (const id of PILLAR_IDS) {
@@ -1670,7 +1678,6 @@ test('a COBERTURA perdida esta declarada, nao escondida', () => {
     'landing/app/**/*.tsx', 'landing/components/**/*.tsx',       // P6
     'packages/vscode-extension/src/*.js',                        // P6
     'tools/cockpit/*.html',                                      // P7
-    'packages/mooter-bridge/*.js',                               // P5
   ];
   for (const orfao of semDono) {
     assert.ok(!globsActivos.includes(orfao),
