@@ -25,24 +25,80 @@ function subagentTypeToModel(subagentType) {
   return null;
 }
 
+// Interpretadores: quando um destes e o executavel, quem interessa e o ARGUMENTO
+// seguinte (o script), nao o interpretador.
+const INTERPRETES = new Set(['bash', 'sh', 'zsh', 'node', 'python', 'python3', 'pwsh', 'powershell']);
+// Prefixos que envolvem o comando real sem serem o comando.
+const PREFIXOS = new Set(['sudo', 'env', 'exec', 'nohup', 'time', 'command', 'nice']);
+
+/** Os segmentos de um comando composto: `a && b | c ; d` -> ['a','b','c','d']. */
+function segmentos(cmd) {
+  return String(cmd)
+    .split(/\s*(?:&&|\|\||[;|\n])\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** O nome do executavel de um segmento, sem caminho nem extensao. */
+function executavel(segmento) {
+  const toks = String(segmento).split(/\s+/).filter(Boolean);
+  for (let i = 0; i < toks.length; i += 1) {
+    let t = toks[i].replace(/^["']|["']$/g, '');
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) continue; // VAR=valor a prefixar
+    let base = t.split(/[\\/]/).pop().replace(/\.(exe|cmd|bat|ps1|sh)$/i, '');
+    if (PREFIXOS.has(base)) continue;
+    if (INTERPRETES.has(base) && toks[i + 1]) {
+      // `bash .../ollama_call.sh --text x` -> o que conta e o script.
+      const arg = toks[i + 1].replace(/^["']|["']$/g, '');
+      if (arg.startsWith('-')) return base;
+      base = arg.split(/[\\/]/).pop().replace(/\.(mjs|cjs|js|py|ps1|sh)$/i, '');
+    }
+    return base;
+  }
+  return null;
+}
+
+/**
+ * O comando INVOCA este programa? (nao: "menciona-o algures no texto")
+ *
+ * O ANTIGO testava `/\bcodex\b/` contra o comando INTEIRO. Medido a 2026-08-23 no
+ * `execution.log`: 279 linhas com `model=gpt-5-codex`, das quais **12 eram
+ * invocacoes reais**. 267 fabricadas — 96%. Entre elas:
+ *
+ *   which codex 2>/dev/null
+ *   where codex 2>&1
+ *   cd "..." && git add tools/router/
+ *
+ * Nao e um erro cosmetico de contagem. O `exec-logger.js:174` nao ANOTA o modelo,
+ * SUBSTITUI-O — e o `bucketFor()` manda essas linhas para baldes baratos. Ou
+ * seja: **procurar pelo nome de um motor inflacionava a poupanca declarada**. Foi
+ * assim que esta propria sessao de auditoria fabricou ~10 execucoes de Codex, so
+ * por eu ter pesquisado a palavra.
+ */
+function ehInvocacao(cmd, nome) {
+  for (const seg of segmentos(cmd)) {
+    if (executavel(seg) === nome) return true;
+  }
+  return false;
+}
+
 function detectExternalModel(command) {
   if (!command) return null;
   const cmd = String(command);
-  if (cmd.includes('ollama_call.sh')) return 'qwen3:30b';
-  const ollamaRun = cmd.match(/\bollama\s+run\s+(\S+)/);
-  if (ollamaRun) return ollamaRun[1];
-  if (/\bcodex\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5-codex';
+  // `--model=x` so vale se ESTE comando for a invocacao; senao um `echo --model=y`
+  // dentro de um comando qualquer roubava o nome ao motor verdadeiro.
+  const flagModelo = () => {
+    const m = cmd.match(/--model[= ]([^\s"']+)/);
+    return m ? m[1] : null;
+  };
+  if (ehInvocacao(cmd, 'ollama_call')) return 'qwen3:30b';
+  if (ehInvocacao(cmd, 'ollama')) {
+    const ollamaRun = cmd.match(/\bollama\s+run\s+(\S+)/);
+    return ollamaRun ? ollamaRun[1] : 'qwen3:30b';
   }
-  if (/\bgemini(-cli)?\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gemini-2.5-flash';
-  }
-  if (/\baider\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5';
-  }
+  if (ehInvocacao(cmd, 'codex')) return flagModelo() || 'gpt-5-codex';
+  if (ehInvocacao(cmd, 'gemini') || ehInvocacao(cmd, 'gemini-cli')) return flagModelo() || 'gemini-2.5-flash';
+  if (ehInvocacao(cmd, 'aider')) return flagModelo() || 'gpt-5';
   return null;
 }
 
@@ -60,6 +116,8 @@ function getRole(model) {
 
 module.exports = {
   subagentTypeToModel,
+  ehInvocacao,
+  executavel,
   detectExternalModel,
   getRole,
 };
