@@ -27,7 +27,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
+// `nextPillar` saiu daqui: o comandante substituiu o round-robin e o import
+// ficou morto. Continua exportado pelo `runner-core.mjs` — e o fallback de quem
+// nao tem ledger — mas este ficheiro ja nao o chama.
+import { runRound, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
 import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
 import { decidir as decidirComandante, DEFAULT_CAPS } from './comandante.mjs';
@@ -280,14 +283,31 @@ function decidirRonda({ paths, ids, logImpl = log }) {
   try {
     const registos = fs.readFileSync(paths.LEDGER, 'utf8').split(/\r?\n/).filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-    const { decisoes } = lerTriagem(path.join(path.dirname(paths.LEDGER), 'triagem.jsonl'));
+    const base = path.dirname(paths.LEDGER);
+    const { decisoes } = lerTriagem(path.join(base, 'triagem.jsonl'));
+    // As preferencias vivem ao lado do ledger, como tudo o resto. Liam-se de
+    // `os.homedir()/.mooter` cravado, ignorando o `MOOTER_HOME` que a linha
+    // acima ja honra — o contrato do `tools/guarda-home.mjs:59` — e por isso um
+    // smoke com home isolada ia buscar o ficheiro REAL do dono, e os tectos que
+    // ele testava nao eram os que ele tinha escrito.
     const prefs = (() => {
-      try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8')); }
+      try { return JSON.parse(fs.readFileSync(path.join(base, 'preferences.json'), 'utf8')); }
       catch { return {}; }
     })();
+    // `Number(x) || omissao` engole um `0` explicito: quem escreve `fila_humana: 0`
+    // esta a dizer "nao geres nada ate eu triar", e recebia 6 de volta. Um zero
+    // que o dono escreveu e uma decisao, nao um campo por preencher.
+    // `v == null` a primeira porque `Number(null)` e 0: sem isso, um campo
+    // AUSENTE passava a valer "zero, nao geres nada" — trocar um default por uma
+    // paragem total e pior do que o bug que se veio corrigir.
+    const tecto = (v, omissao) => {
+      if (v == null || v === '') return omissao;
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? n : omissao;
+    };
     const caps = {
-      perLoopOpen: Number(prefs.fila_por_pilar) || DEFAULT_CAPS.perLoopOpen,
-      globalHumanQueue: Number(prefs.fila_humana) || DEFAULT_CAPS.globalHumanQueue,
+      perLoopOpen: tecto(prefs.fila_por_pilar, DEFAULT_CAPS.perLoopOpen),
+      globalHumanQueue: tecto(prefs.fila_humana, DEFAULT_CAPS.globalHumanQueue),
     };
     return decidirComandante({ registos, decisoes: decisoes ?? new Map(), ids, caps });
   } catch (e) {
@@ -299,6 +319,46 @@ function decidirRonda({ paths, ids, logImpl = log }) {
 function appendReceipt(ledgerPath, receipt) {
   fs.appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
   rodarLedger(ledgerPath);
+}
+
+/**
+ * Escreve o `state.json` que o painel le.
+ *
+ * Era inline, num sitio so. Quando a pausa passou a precisar de escrever o mesmo
+ * ficheiro, duas copias da mesma forma era garantir que um dia divergiam — e o
+ * campo que divergisse seria invisivel ate alguem reparar que o painel mentia.
+ *
+ * `pausa` e `null` numa ronda normal, e e ISSO que limpa a pausa anterior: quem
+ * volta a trabalhar apaga o motivo por escrever por cima, sem precisar de um
+ * passo de limpeza que se pode esquecer.
+ */
+function escreverEstado({ paths, repoRoot, pillar, focus, pausa = null, writeImpl = fs.writeFileSync }) {
+  writeImpl(
+    paths.STATE,
+    JSON.stringify({
+      device: deviceName(),
+      repo: repoRoot,
+      pilar_atual: pillar,
+      foco: focus,
+      modelo: DEFAULT_MODEL,
+      pausa,
+      ts: Math.floor(Date.now() / 1000),
+    }),
+  );
+}
+
+/**
+ * Quanto esperar na n-esima ronda seguida de pausa: 5s a dobrar ate 60s.
+ *
+ * A pausa dura enquanto a fila estiver cheia — horas, tipicamente, porque quem a
+ * esvazia e o dono. Reler o ledger inteiro de 5 em 5s para receber a mesma
+ * resposta gasta CPU e enche o log com a mesma linha. O tecto de 60s existe para
+ * o botao do painel continuar a fazer efeito dentro de um minuto: um recuo sem
+ * tecto transforma "ja triei, podes ir" em dez minutos de silencio.
+ */
+export function esperaDaPausa(ciclos, { base = IDLE_SLEEP_S, tecto = 60 } = {}) {
+  const n = Number.isFinite(ciclos) && ciclos > 0 ? Math.floor(ciclos) : 0;
+  return Math.min(tecto, base * 2 ** Math.min(n, 10));
 }
 
 /**
@@ -445,6 +505,15 @@ export async function main({
   // quando o prazo passa, o loop volta sozinho. Ver reserva.mjs para o porque
   // de o STOP nao servir aqui.
   let reservaAvisada = null;
+  // A pausa diz-se UMA vez por motivo, tal como a reserva. Um log por ronda
+  // durante as horas que a fila demora a esvaziar e a mesma inundacao.
+  let pausaAvisada = null;
+  let pausaDesde = null;
+  let pausaCiclos = 0;
+  // `null` = ninguem perguntou ainda ao motor nesta execucao. Nao e `false`:
+  // "nao sei" e "esta morto" sao respostas diferentes, e o beacon ja levou um
+  // fix por confundi-las ao contrario.
+  let ultimoMotorVivo = null;
 
   for (;;) {
     if (rondas >= maxRounds) return { rondas, breaker: breaker.estado, repoRoot, paths };
@@ -490,7 +559,8 @@ export async function main({
     // atencao do dono. Um foco explicito do painel continua a ganhar-lhe: quem
     // carrega no botao quer aquele pilar, e nao um conselho.
     //
-    // Medido no dia em que se ligou: 215 achados abertos contra um tecto de 6,
+    // Medido no dia em que se ligou: 215 achados abertos contra o tecto em vigor
+    // de 50 (o `DEFAULT_CAPS` de 6 so vale sem `preferences.json`),
     // e 0 aceites em 247 decididos. Ele pausa a primeira ronda, e isso E o
     // produto a funcionar — gerar para uma fila que ninguem revê nao e trabalho,
     // e divida. O tecto vive no `preferences.json` para ser uma DECISAO do dono
@@ -499,26 +569,55 @@ export async function main({
     if (!pillar) {
       const d = decidirRonda({ paths, ids, logImpl });
       if (d.pausa) {
-        logImpl(`comandante: PAUSA — ${d.razao}`);
-        await sleepImpl(IDLE_SLEEP_S);
+        // ── A pausa TEM de se ver, senao e indistinguivel de uma avaria ──────
+        //
+        // Este ramo nao produz recibo, e a vivacidade do painel deriva do `ts`
+        // do ultimo RECIBO (fleet-state.mjs:freshness): `stale` aos 75s, `morto`
+        // aos 300s. Sem o que esta aqui em baixo, um runner VIVO e a OBEDECER ao
+        // escalonador era pintado a vermelho para sempre — e como com a fila
+        // cheia a pausa e o caminho por omissao, "para sempre" era literal.
+        //
+        // A reserva ja tinha pago esta licao e resolveu-a com um campo proprio
+        // ("um device que cedeu a maquina nao esta avariado"). A pausa era o
+        // unico dos tres ramos sem valvula. Passa a ter a mesma.
+        //
+        // NAO se escreve um recibo falso. Uma pausa nao e trabalho feito, e
+        // ~17k linhas/dia de "nao fiz nada" afogavam o registo do que se fez.
+        // Publica-se o ESTADO e o beacon, que sao onde o painel pergunta.
+        if (pausaAvisada !== d.razao) {
+          pausaAvisada = d.razao;
+          pausaDesde = nowIso();
+          pausaCiclos = 0;
+          logImpl(`comandante: PAUSA — ${d.razao}`);
+        }
+        escreverEstado({
+          paths, repoRoot, pillar: null, focus,
+          pausa: { razao: d.razao, fila: d.fila ?? null, desde: pausaDesde },
+        });
+        // `ultimoMotorVivo` e null enquanto ninguem tiver perguntado ao motor.
+        // Jurar `true` aqui repetia exactamente o bug que o publishBeacon
+        // documenta ("o beacon jurava motor vivo durante as 11 horas em que ele
+        // esteve morto"), e jurar `false` era o falso alarme simetrico.
+        await publishBeaconImpl({ repoRoot, paths, engineAlive: ultimoMotorVivo, logImpl });
+        // Recuo progressivo: a pausa persiste ate o dono triar, e reparsear o
+        // ledger inteiro de 5 em 5 segundos para reler a mesma resposta e
+        // trabalho a fingir que se trabalha. Tecto de 60s para o botao do painel
+        // continuar a fazer efeito dentro de um minuto.
+        await sleepImpl(esperaDaPausa(pausaCiclos++));
         rondas += 1;
         if (once) return { rondas, breaker: breaker.estado, repoRoot, paths };
         continue;
       }
       pillar = d.pilar;
     }
+    if (pausaAvisada) {
+      logImpl(`comandante: retomo o trabalho — a fila desceu.`);
+      pausaAvisada = null;
+      pausaDesde = null;
+      pausaCiclos = 0;
+    }
     const cursor = Math.floor(i / ids.length);
-    fs.writeFileSync(
-      paths.STATE,
-      JSON.stringify({
-        device: deviceName(),
-        repo: repoRoot,
-        pilar_atual: pillar,
-        foco: focus,
-        modelo: DEFAULT_MODEL,
-        ts: Math.floor(Date.now() / 1000),
-      }),
-    );
+    escreverEstado({ paths, repoRoot, pillar, focus });
 
     let receipt;
     try {
@@ -565,17 +664,24 @@ export async function main({
     }
 
     const motorFalhou = Boolean(receipt.falha_motor);
+    // A partir daqui ja se PERGUNTOU ao motor, por isso a pausa seguinte pode
+    // repetir a ultima resposta em vez de inventar uma.
+    ultimoMotorVivo = !motorFalhou;
     const { recibos, backoffS, aberto } = breaker.observe(receipt, nowIso());
     for (const r of recibos) appendReceiptImpl(paths.LEDGER, r);
 
     // O cursor anda SEMPRE. A versao anterior so o avancava quando o motor
     // respondia — "uma ronda que nao chegou ao motor nao gastou o alvo" — e
-    // isso encravava o runner para sempre: como `pillar` e `cursor` derivam
-    // ambos de `i`, congelar `i` congela tambem o pilar. Medido: 30 rondas
-    // com HTTP 404 (motor VIVO, modelo em falta) deram 1 alvo, 3 recibos e
-    // cursor nunca escrito. Um device novo, sem o modelo puxado, ficava mudo.
-    // Os alvos reciclam por modulo, por isso andar durante um apagao nao perde
-    // trabalho nenhum.
+    // isso encravava o runner para sempre. Medido: 30 rondas com HTTP 404
+    // (motor VIVO, modelo em falta) deram 1 alvo, 3 recibos e cursor nunca
+    // escrito. Um device novo, sem o modelo puxado, ficava mudo. Os alvos
+    // reciclam por modulo, por isso andar durante um apagao nao perde trabalho.
+    //
+    // A premissa original — "`pillar` e `cursor` derivam ambos de `i`" — deixou
+    // de ser verdade quando o comandante passou a escolher o pilar: so o cursor
+    // deriva de `i`. A REGRA continua certa (congelar `i` congela o alvo), mas
+    // um comentario que explica uma regra com uma premissa falsa e a proxima
+    // pessoa a procurar codigo que ja nao existe.
     i += 1;
     writeCursor(paths.CURSOR, i);
     await publishBeaconImpl({ repoRoot, paths, engineAlive: !motorFalhou, logImpl });
