@@ -138,26 +138,61 @@ test('sem upstream, cai para origin/main antes de desistir', () => {
   assert.match(r.valor, /3 commits/);
 });
 
-test('o conector instalado tem de ser o do repo', () => {
-  const ler = (mapa) => (p) => {
-    for (const [k, v] of Object.entries(mapa)) if (String(p).includes(k)) return JSON.stringify(v);
-    throw new Error('ENOENT');
-  };
-  const reg = (v) => ({ extensions: { 'local.mcpb.x.mooter': { version: v, id: 'mooter' } } });
+/**
+ * Um `readFileSync` falso que distingue os DOIS manifests em jogo — o do repo e
+ * o da extensão instalada. O falso antigo devolvia o mesmo para qualquer caminho
+ * com "manifest", e por isso deixou de servir quando o verificador passou a ler
+ * o artefacto instalado além do registo.
+ */
+const disco = ({ repo = null, extensao = null, registo = null } = {}) => (p) => {
+  const s = String(p).replace(/\\/g, '/');
+  if (s.includes('mooter-bridge/manifest.json') && repo) return JSON.stringify(repo);
+  if (s.includes('Claude Extensions/') && s.endsWith('manifest.json') && extensao) return JSON.stringify(extensao);
+  if (s.includes('extensions-installations') && registo) return JSON.stringify(registo);
+  throw new Error('ENOENT');
+};
+const registoCom = (v) => ({ extensions: { 'local.mcpb.x.mooter': { version: v, id: 'mooter' } } });
 
-  const igual = verConector('/r', { readImpl: ler({ manifest: { version: '1.49.3' }, 'extensions-installations': reg('1.49.3') }) });
+test('o conector instalado tem de ser o do repo', () => {
+  const igual = verConector('/r', {
+    readImpl: disco({ repo: { version: '1.49.3' }, extensao: { version: '1.49.3' } }),
+  });
   assert.equal(igual.estado, 'ok');
 
-  // Medido nesta maquina: 1.33.0 instalado contra 1.49.3 no repo.
-  const dif = verConector('/r', { readImpl: ler({ manifest: { version: '1.49.3' }, 'extensions-installations': reg('1.33.0') }) });
+  const dif = verConector('/r', {
+    readImpl: disco({ repo: { version: '1.49.3' }, extensao: { version: '1.33.0' } }),
+  });
   assert.equal(dif.estado, 'mau');
   assert.match(dif.valor, /1\.33\.0 instalado ≠ 1\.49\.3/);
   assert.match(dif.resolver, /v1\.49\.3/, 'o gesto tem de nomear a versao a instalar');
 });
 
-test('sem registo do Claude Desktop, e n/d — nunca ok', () => {
-  const r = verConector('/r', { readImpl: (p) => (String(p).includes('manifest') ? JSON.stringify({ version: '1.0.0' }) : (() => { throw new Error('ENOENT'); })()) });
-  assert.equal(r.estado, 'n/d', 'nao encontrar o registo nao prova que esta alinhado');
+test('o MANIFEST instalado ganha ao registo — o registo fica stale', () => {
+  // O caso real, medido a 2026-08-23: o `extensions-installations.json` tinha
+  // mtime de 31/07 e dizia 1.29.1; o manifest da extensao, de 21/08, dizia
+  // 1.49.3. O verificador exigia ha um mes um gesto que ja tinha sido feito.
+  const r = verConector('/r', {
+    readImpl: disco({
+      repo: { version: '1.49.3' },
+      extensao: { version: '1.49.3' },
+      registo: registoCom('1.29.1'),
+    }),
+  });
+  assert.equal(r.estado, 'ok', 'o artefacto e a prova; o registo e o que alguem disse que fez');
+  assert.equal(r.valor, '1.49.3');
+});
+
+test('sem o manifest da extensao, o registo serve de plano B', () => {
+  const r = verConector('/r', {
+    readImpl: disco({ repo: { version: '1.49.3' }, registo: registoCom('1.33.0') }),
+  });
+  assert.equal(r.estado, 'mau', 'sem artefacto, o registo ainda vale mais que o silencio');
+  assert.match(r.valor, /1\.33\.0 instalado/);
+});
+
+test('sem NENHUMA prova, e n/d — nunca ok', () => {
+  const r = verConector('/r', { readImpl: disco({ repo: { version: '1.0.0' } }) });
+  assert.equal(r.estado, 'n/d', 'nao encontrar prova nenhuma nao prova que esta alinhado');
 });
 
 test('o lancamento corre o preflight e nunca bloqueia por causa dele', () => {
