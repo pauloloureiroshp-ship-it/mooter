@@ -158,7 +158,11 @@ DoRun "Copy router .js" {
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
 # Keep in lockstep with WIRED_HOOKS (tools/router/sync-hooks.js) and install.sh.
 # live-preview-tap.js (Live Preview MP0) is the file-bus tap - additive/read-only/fail-soft.
-$hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js','live-preview-tap.js')
+# NOTA: manter em lockstep com WIRED_HOOKS (tools/router/sync-hooks.js) e com o
+# loop `for h in ...` do install.sh. Os dois `_model-resolver*` entraram a
+# 2026-08-23: o exec-logger e o PostToolUse fazem `require('./_model-resolver')`,
+# que resolve para ~/.claude/hooks/, e nenhum dos tres canais os copiava para la.
+$hookNames = @('gsd-statusline.js','gsd-turn-end.js','mooter-turn-header.js','frugal-turn-header.js','exec-logger.js','PostToolUse.js','live-preview-tap.js','_model-resolver.js','_model-resolver-core.js')
 foreach ($h in $hookNames) {
     $src = Join-Path $SrcDir "tools\router\$h"
     if (Test-Path $src) {
