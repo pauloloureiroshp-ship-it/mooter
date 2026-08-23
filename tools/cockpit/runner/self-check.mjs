@@ -132,13 +132,53 @@ function listarMdMaisNovos(vaultDir, desdeMs, { readdirImpl = fs.readdirSync, st
 }
 
 /**
+ * O beacon chegou ao git do vault, ou está só no disco?
+ *
+ * Devolve `'publicado'`, `'por-commitar'`, `'por-empurrar'`, ou `null` quando
+ * não se consegue provar nada — e `null` NUNCA vira `ok`, pela mesma razão que
+ * o `verCodigo` diz `n/d` quando não consegue falar com o remoto.
+ */
+export function provaDePublicacao(beaconFile, gitImpl = null) {
+  const dir = path.dirname(String(beaconFile || ''));
+  const correr = gitImpl || ((args) => {
+    const { execFileSync } = require('node:child_process');
+    return String(execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })).trim();
+  });
+  try {
+    if (correr(['status', '--porcelain', '--', beaconFile])) return 'por-commitar';
+  } catch { return null; }
+  for (const alvo of ['@{u}..HEAD', 'origin/main..HEAD']) {
+    try {
+      const n = Number(correr(['rev-list', '--count', alvo]));
+      if (Number.isFinite(n)) return n > 0 ? 'por-empurrar' : 'publicado';
+    } catch { /* tenta o proximo */ }
+  }
+  return null;
+}
+
+/**
  * O beacon está mesmo a sair da máquina?
  *
  * Escrever o beacon não é publicá-lo. A 2026-08-19 `50-fleet/` nunca tinha sido
  * commitado: o ficheiro existia no disco de uma máquina e a frota era um device
  * só, sem nada no ecrã a dizê-lo.
+ *
+ * ESTA FUNÇÃO DIZIA ISSO E NÃO O VERIFICAVA — corrigido a 2026-08-23. Concluía
+ * `ok · "escrito e a publicar"` a partir de duas provas que não provam
+ * publicação nenhuma: uma variável de ambiente (declaração de intenção) e o
+ * `mtime` do ficheiro local (prova de escrita). Nenhuma toca no git do vault.
+ *
+ * O custo foi medido no mesmo dia: o vault esteve ~20h com um rebase encravado,
+ * o runner escrevia no log "escrito no disco, mas a frota nao o ve", e este
+ * verificador dizia `ok` o tempo inteiro. A prova forte já existia no repo — o
+ * `beacon-publisher.mjs` verifica que há git e que há remoto antes de dizer
+ * "publicado" —, e esta função ignorava-a.
+ *
+ * O contra-exemplo estava dez linhas acima: o `verCodigo` diz `n/d` quando não
+ * consegue comparar com o remoto, e só afirma "é o mesmo que o remoto" depois de
+ * uma comparação real. Passa a ser esse o padrão aqui também.
  */
-export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now(), env = process.env } = {}) {
+export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now(), env = process.env, gitImpl = null } = {}) {
   const ligado = env.MOO_PUBLICAR_BEACON === '1';
   const quando = mtime(beaconFile, statImpl);
   if (quando === null) {
@@ -159,7 +199,29 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
       resolver: 'vê o log do runner: a publicação falha em silêncio se o vault tiver trabalho em staging',
     };
   }
-  return { id: 'beacon', estado: OK, o_que: 'beacon deste device', valor: `há ${min} min`, porque: 'escrito e a publicar', resolver: null };
+  const prova = provaDePublicacao(beaconFile, gitImpl);
+  if (prova === 'por-commitar') {
+    return {
+      id: 'beacon', estado: AVISO, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
+      porque: 'o estado mais recente ainda não está commitado no vault — a frota vê a versão anterior',
+      resolver: 'vê o log do runner: a publicação recusa-se a commitar por cima de um conflito ou de trabalho em staging',
+    };
+  }
+  if (prova === 'por-empurrar') {
+    return {
+      id: 'beacon', estado: AVISO, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
+      porque: 'commitado no vault mas o vault não foi empurrado — nenhuma outra máquina o vê ainda',
+      resolver: `git -C "${path.dirname(beaconFile)}" push`,
+    };
+  }
+  if (prova === null) {
+    return {
+      id: 'beacon', estado: ND, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
+      porque: 'não consegui provar que saiu daqui (o vault não é git, não tem remoto, ou o git não respondeu)',
+      resolver: null,
+    };
+  }
+  return { id: 'beacon', estado: OK, o_que: 'beacon deste device', valor: `há ${min} min`, porque: 'escrito, commitado e empurrado', resolver: null };
 }
 
 /**
