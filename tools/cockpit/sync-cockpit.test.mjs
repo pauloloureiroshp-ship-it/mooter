@@ -115,16 +115,16 @@ test('o destino fica ao lado do espelho do router que ja existe', () => {
 // ---------------------------------------------------------------------------
 
 test('um caminho com espacos no nome do utilizador sobrevive as aspas', () => {
-  // `C:\Users\Paulo Loureiro\...` e o caso real desta maquina: partir por
+  // `C:\Users\dono\...` e o caso real desta maquina: partir por
   // espacos sem respeitar aspas partia o caminho ao meio e perdia o processo.
   const linha = '"C:\\Program Files\\nodejs\\node.exe" '
-    + '"C:\\Users\\Paulo Loureiro\\frugal\\tools\\cockpit\\runner\\moo-runner.mjs"';
+    + '"C:\\Users\\dono\\mooter\\tools\\cockpit\\runner\\moo-runner.mjs"';
   assert.deepEqual(partirLinhaDeComando(linha), [
     'C:\\Program Files\\nodejs\\node.exe',
-    'C:\\Users\\Paulo Loureiro\\frugal\\tools\\cockpit\\runner\\moo-runner.mjs',
+    'C:\\Users\\dono\\mooter\\tools\\cockpit\\runner\\moo-runner.mjs',
   ]);
   assert.deepEqual(caminhosDeRunner(linha),
-    ['C:\\Users\\Paulo Loureiro\\frugal\\tools\\cockpit\\runner\\moo-runner.mjs']);
+    ['C:\\Users\\dono\\mooter\\tools\\cockpit\\runner\\moo-runner.mjs']);
 });
 
 test('so os modulos do cockpit contam como prova', () => {
@@ -224,10 +224,10 @@ test('em macOS continua a ler o plist', () => {
   fs.writeFileSync(
     path.join(home, 'Library', 'LaunchAgents', 'ai.mooter.runner.plist'),
     '<plist><array><string>/usr/bin/node</string>'
-    + '<string>/Users/x/frugal/tools/cockpit/runner/moo-runner.mjs</string></array></plist>',
+    + '<string>/Users/x/mooter/tools/cockpit/runner/moo-runner.mjs</string></array></plist>',
   );
   const la = alvoDoLancador({ plataforma: 'darwin', home });
-  assert.deepEqual(la.caminhos, ['/Users/x/frugal/tools/cockpit/runner/moo-runner.mjs']);
+  assert.deepEqual(la.caminhos, ['/Users/x/mooter/tools/cockpit/runner/moo-runner.mjs']);
   assert.equal(alvoDoLancador({ plataforma: 'darwin', home: tmp('vazio') }).ausente, true);
 });
 
