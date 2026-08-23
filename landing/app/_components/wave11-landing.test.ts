@@ -16,13 +16,22 @@ describe('Wave 11 PR-A landing', () => {
     const src = read('app/page.tsx');
     expect(src).not.toContain('Same results');
     expect(src).not.toContain('up to 90% less cost');
-    // Wave 2.1 — the number now derives from the single canonical source (lib/canonical-metrics.ts)
-    // instead of a hardcoded literal. Assert the wiring + that the canonical value is still the honest 47%.
-    expect(M.savedPct).toBe('47%');
-    expect(M.routedCalls).toBe('658');
+    // 2026-08-23 — este teste exigia `M.savedPct === '47%'` sob o comentario
+    // "the canonical value is still the honest 47%". Nao era honesto: os 47%
+    // derivavam de tres literais que nenhum script regenerava, e uma auditoria
+    // encontrou CINCO numeros de poupanca a contradizerem-se no mesmo projecto.
+    //
+    // Fixar o valor era o defeito. O que se testa agora e a REGRA que sobreviveu:
+    // esta pagina nao publica poupanca, porque nao ha custo medido de que a
+    // derivar (zero ficheiros de telemetria registam tokens).
     expect(src).toContain('canonical-metrics');
-    expect(src).toContain('saved vs all-Opus');
-    expect(src).toContain('not a community average');
+    expect(src).not.toMatch(/saved vs all-Opus/);
+    expect(src).not.toMatch(/\d+% saved/);
+    // O que a pagina DEVE dizer: o que foi medido, com o seu denominador.
+    expect(src).toContain('classified prompts');
+    expect(M.recomendadoBarato).toMatch(/^\d+\/\d+$/);
+    // E a ressalva viaja com o numero, sempre.
+    expect(M.ressalva).toMatch(/no tokens|não há valor|nao ha valor/i);
     expect(src).toContain('href="/methodology"');
   });
 

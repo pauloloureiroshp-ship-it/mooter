@@ -11,7 +11,13 @@ export async function GET(request: Request) {
   // Achado pelo pilar P6 do proprio Moo Pilot (landing/app/api/og/route.tsx:7),
   // na ronda das 06:42 de 2026-08-20. Passa um `?savings=` medido e o cartao
   // mostra-o; sem ele, o cartao diz o que e verdade sem numero nenhum.
-  const savings = searchParams.get('savings');
+  //
+  // 2026-08-23: o parametro passou de `savings` para `routed`. O `savings`
+  // continua a ser aceite e IGNORADO de proposito — links partilhados no ano
+  // passado ainda o trazem, e honra-lo publicaria de novo um numero que este
+  // projecto ja concluiu nao conseguir sustentar. Aceitar-e-ignorar e mais
+  // seguro que remover: um `undefined` a interpolar dava "undefined less".
+  const routed = searchParams.get('routed');
 
   return new ImageResponse(
     (
@@ -30,8 +36,8 @@ export async function GET(request: Request) {
           mooter
         </div>
         <div style={{ color: '#ededed', fontSize: '32px', marginTop: '20px' }}>
-          {savings
-            ? `${savings} less. Comparable quality on routine tasks.`
+          {routed
+            ? `${routed} of prompts routed to a local or cheap tier.`
             : 'Every prompt to the cheapest model that can do it.'}
         </div>
         <div style={{ color: '#666', fontSize: '20px', marginTop: '16px' }}>

@@ -139,6 +139,13 @@ async function handleStats(request, env) {
       prompt_count: Number(savingsAndUsers?.total_prompts_all || totals?.total_prompts || 0),
       user_count: Number(savingsAndUsers?.user_count || 1),
       total_savings_usd: Math.round((Number(savingsAndUsers?.total_savings_usd) || 0) * 100) / 100,
+      // Este numero e a SOMA do que os clientes auto-reportam em `savings_usd`
+      // (routes/delta.js:84). Nenhum cliente mede tokens — verificado a
+      // 2026-08-23: zero de 4.534 linhas de telemetria tem contagem — por isso
+      // cada parcela e modelada a partir do comprimento do prompt, e a soma
+      // herda isso. O campo viaja para que ninguem o volte a ler como dinheiro
+      // medido; o `avg_savings_pct` ja devolve `null` pela mesma razao.
+      savings_basis: 'client-modelled from prompt length; no token telemetry exists',
       prompt_count_7d: Number(savingsAndUsers?.total_prompts_all || totals?.total_prompts || 0),
       user_count_7d: Number(savingsAndUsers?.user_count || 1),
       total_savings_usd_7d: Math.round((Number(savingsAndUsers?.total_savings_usd) || 0) * 100) / 100,
