@@ -668,6 +668,14 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       else if (state.recibos && state.recibos.alarme_ocioso)
         setChip($('conn'),'warn',`spinning, not shipping · ${state.recibos.vazias_seguidas} empty rounds in a row`);
       else if (fresh.estado === 'vivo') setChip($('conn'),'ok',`shipping · last receipt ${ago(fresh.idade_s)} ago`,true);
+      // A pausa vem ANTES do vermelho. Este ramo nao escreve recibos, por isso
+      // `frescura` diz `stale` e depois `morto` — e um loop que cumpre o tecto
+      // da fila nao esta avariado. Sem esta linha, obedecer ao escalonador era
+      // indistinguivel de ter rebentado. O motivo viaja: "paused" sozinho ja
+      // era o que o botao Ship diz, e nao explicava nada.
+      else if (state.pausa && state.pausa.activa)
+        setChip($('conn'),'warn',
+                `holding · ${state.pausa.razao || 'scheduler paused generation'}`);
       else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'bad',
                    `${fresh.estado} — ${fresh.motivo || 'no recent receipt'}`);
       renderToggle();
@@ -759,14 +767,22 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     }
     for (const d of devices) {
       const fr = d.frescura || {};
-      const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' ? ' morto' : ''}`);
+      // Um device EM PAUSA nao e um device morto. A frescura dele vai dizer
+      // `morto` porque a pausa nao escreve recibos; o campo `pausa` e o unico
+      // sitio onde a diferenca existe. Sem isto, uma frota inteira a cumprir o
+      // tecto da fila aparecia toda a cinzento, e o dono nao tinha como saber
+      // se tinha 3 maquinas obedientes ou 3 maquinas avariadas.
+      const emPausa = Boolean(d.pausa && d.pausa.activa);
+      const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' && !emPausa ? ' morto' : ''}`);
       const hd = el('div','hd');
       hd.appendChild(el('span','nm', d.device + (d.self ? ' · this one' : '')));
       const cls = fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
+                : emPausa ? 'warn'
                 : fr.estado === 'stale' ? 'warn' : 'dead';
       hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
         fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
-                             : (fr.motivo || fr.estado)));
+          : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
+            : (fr.motivo || fr.estado)));
       box.appendChild(hd);
 
       const meta = el('div','meta');
@@ -841,7 +857,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     card.hidden = !semRecibos;
     if (!semRecibos) return;
 
-    const motor = s.engine && s.engine !== 'down';
+    // 'n/d' e um terceiro estado: ninguem perguntou ao motor nesta ronda (o loop
+    // pausou sem chegar a chamar). Sem esta condicao, "nao sei" contava como
+    // "esta a trabalhar" — porque e truthy e nao e 'down' — e o cartao dizia
+    // `measured: engine = n/d`, que e uma medicao a afirmar que nao mediu.
+    const motor = s.engine && s.engine !== 'down' && s.engine !== 'n/d';
     const parado = s.running === false;
     const semLedger = r.ledger_existe === false;
 
@@ -1022,7 +1042,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   function renderEngine(s) {
     const dl = $('engine'); dl.replaceChildren();
-    putRow(dl,'engine', nd(s.engine === 'down' ? null : s.engine));
+    putRow(dl,'engine', nd(s.engine === 'down' || s.engine === 'n/d' ? null : s.engine));
     putRow(dl,'model', nd(s.modelo_atual));
     putRow(dl,'active pillar', nd(s.pilar_atual));
     putRow(dl,'mode', s.foco ? document.createTextNode(`focused on ${s.foco}`) : el('span','nd','rotating through all pillars'));

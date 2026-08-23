@@ -97,6 +97,10 @@ export function writeBeacon(state, {
       // "deixar de jurar motor vivo" morria antes de chegar ao disco, e a
       // frota via um device em apagao como se estivesse a trabalhar.
       engine: (state && state.engine) ?? null,
+      // Pelo mesmo motivo do `engine` tres linhas acima: sem viajar no beacon, a
+      // distincao entre "em pausa" e "morto" existia so na maquina que pausou, e
+      // a frota via um device obediente como um device rebentado.
+      pausa: (state && state.pausa) ?? null,
       gpu_pct: state && state.gpu ? state.gpu.util_pct : null,
       gpu_fonte: state && state.gpu ? state.gpu.fonte : 'n/d',
       vram_gb: state && state.gpu ? state.gpu.vram_inuse_gb : null,
@@ -343,6 +347,7 @@ export function readBeacons({
       ledger: b.ledger && typeof b.ledger === 'object' ? b.ledger : null,
       triagem: b.triagem && typeof b.triagem === 'object' ? b.triagem : null,
       reserva: b.reserva && typeof b.reserva === 'object' ? b.reserva : null,
+      pausa: b.pausa && typeof b.pausa === 'object' ? b.pausa : null,
       branch: typeof b.branch === 'string' ? b.branch : null,
       conector: b.conector && typeof b.conector === 'object'
         ? {

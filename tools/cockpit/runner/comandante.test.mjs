@@ -51,7 +51,9 @@ test('um pilar sem rondas nenhumas entra na lista, a zeros', () => {
 });
 
 test('PAUSA quando a fila humana enche — o caso que motiva tudo isto', () => {
-  // Medido a 2026-08-23 ao ligar: 215 abertos contra um tecto de 6.
+  // Medido a 2026-08-23 ao ligar: 215 abertos. Na maquina do dono o tecto em
+  // vigor era 50 (`preferences.json`); este teste usa o DEFAULT_CAPS de 6 porque
+  // e sintetico. Pausava nos dois valores — 215 > 50 > 6.
   const regs = Array.from({ length: 10 }, (_, i) => achado('PA', 'k' + i));
   const d = decidir({ registos: regs, decisoes: new Map(), ids: ['PA'] });
   assert.equal(d.pausa, true);
@@ -79,12 +81,53 @@ test('com fila curta, escolhe e diz porque', () => {
 });
 
 test('o tecto POR LOOP tira da rotacao quem ja tem 3 abertos', () => {
+  // PA tem de ser o MAIS PARADO, senao o teste passa por staleness e fica verde
+  // mesmo com o tecto por-loop apagado. A versao anterior tinha esse defeito:
+  // PB ganhava de qualquer maneira, e o teste nao discriminava nada.
+  const agora = Date.parse('2026-08-23T12:00:00Z');
   const regs = [
-    ...Array.from({ length: 3 }, (_, i) => achado('PA', 'a' + i)),
-    ronda('PB', '2026-08-20T12:00:00Z'),
+    ...Array.from({ length: 3 }, (_, i) => achado('PA', 'a' + i, '2026-08-01T00:00:00Z')),
+    ronda('PB', '2026-08-23T11:59:00Z'),
   ];
-  const d = decidir({ registos: regs, decisoes: new Map(), ids: ['PA', 'PB'], caps: { perLoopOpen: 3, globalHumanQueue: 99 } });
-  assert.equal(d.pilar, 'PB', 'PA esta cheio; PB e o unico elegivel');
+  const d = decidir({ registos: regs, decisoes: new Map(), ids: ['PA', 'PB'], agora, caps: { perLoopOpen: 3, globalHumanQueue: 99 } });
+  assert.equal(d.pilar, 'PB', 'PA esta parado ha 3 semanas e ganharia por staleness — perde SO por estar cheio');
+});
+
+test('`issue` conta como vitoria, nao como derrota', () => {
+  // O ab-report.mjs:118 e o autopilot.mjs:186 ja contavam assim. O comandante
+  // contradizia os dois: afundava um pilar por o dono ter aberto uma issue em
+  // vez de aceitar o patch — ou seja, por ele ter ACERTADO.
+  const regs = [achado('PA', 'k1'), achado('PA', 'k2')];
+  const dec = new Map([['k1', { decisao: 'issue' }], ['k2', { decisao: 'descartado' }]]);
+  const [a] = estatisticasDosLoops(regs, dec, ['PA']);
+  assert.equal(a.measuredWins, 1);
+  assert.equal(a.measuredTotal, 2);
+});
+
+test('o que o `agente` decidiu sai do denominador INTEIRO', () => {
+  // Um agente a julgar o resultado do proprio pilar nao e prova: e acreditar em
+  // quem se devia auditar. Mesma regra do autopilot.mjs:185.
+  const regs = [achado('PA', 'k1'), achado('PA', 'k2'), achado('PA', 'k3')];
+  const dec = new Map([
+    ['k1', { decisao: 'aceite', por: 'agente' }],
+    ['k2', { decisao: 'descartado', por: 'agente' }],
+    ['k3', { decisao: 'aceite', por: 'dono' }],
+  ]);
+  const [a] = estatisticasDosLoops(regs, dec, ['PA']);
+  assert.equal(a.measuredTotal, 1, 'so a decisao do dono conta');
+  assert.equal(a.measuredWins, 1);
+  assert.equal(a.openProposals, 0, 'decididas por alguem continuam a nao estar abertas');
+});
+
+test('as decisoes do `claude` FICAM no denominador', () => {
+  // Sao refutacoes mecanicas derivadas da regra do proprio pilar — a melhor
+  // prova que ha de que ele produziu ruido. Excluir isto apagava a razao pela
+  // qual nove pilares foram desligados.
+  const regs = [achado('PA', 'k1')];
+  const dec = new Map([['k1', { decisao: 'descartado', por: 'claude' }]]);
+  const [a] = estatisticasDosLoops(regs, dec, ['PA']);
+  assert.equal(a.measuredTotal, 1);
+  assert.equal(a.measuredWins, 0);
 });
 
 test('todos cheios -> pausa com razao propria, nao um pick ao acaso', () => {

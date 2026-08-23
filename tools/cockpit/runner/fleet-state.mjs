@@ -250,6 +250,19 @@ export function buildFleetState({
       const r = verReserva(baseDir);
       return { activa: r.activa, falta_s: r.activa ? r.faltaS : 0 };
     })(),
+    // A pausa do escalonador, pela MESMA razao que a reserva existe: um loop que
+    // cumpre o tecto da fila nao esta avariado, e sem este campo era exactamente
+    // igual a um morto — este ramo nao escreve recibos, e a frescura le-se do
+    // recibo. O `porque` viaja: uma pausa muda que nao se distingue de uma
+    // avaria muda foi o defeito que este campo veio fechar.
+    pausa: state.pausa
+      ? {
+        activa: true,
+        razao: state.pausa.razao ?? null,
+        fila: state.pausa.fila ?? null,
+        desde: state.pausa.desde ?? null,
+      }
+      : { activa: false, razao: null, fila: null, desde: null },
     // Quantas linhas o ledger tem MESMO, e de quantas se contou.
     ledger: { linhas: ledgerLinhas ?? null, janela: receipts.length, truncado: Boolean(truncado) },
     triagem: {
@@ -262,7 +275,14 @@ export function buildFleetState({
     // va procurar — ate hoje havia zero alertas no painel.
     por_triar: fila,
     alerta_achados: fila.length > 0,
-    engine: engineAlive ? 'ollama-local' : 'down',
+    // Tres estados, nao dois. `null` = ninguem perguntou ao motor nesta ronda
+    // (acontece quando o loop pausa sem chegar a chamar). Dizer 'ollama-local'
+    // seria o bug das 11 horas outra vez; dizer 'down' seria o falso alarme
+    // simetrico. Um sinal que so sabe dizer sim e nao mente numa das direccoes.
+    // O default do parametro continua `false`: quem omite o campo continua a
+    // dizer 'down' como sempre disse. So um `null` EXPLICITO significa "nao
+    // perguntei" — e um default nao se aplica a um null.
+    engine: engineAlive === null ? 'n/d' : (engineAlive ? 'ollama-local' : 'down'),
     conector: connector,
     owner_tz: OWNER_TZ,
 
