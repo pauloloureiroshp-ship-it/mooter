@@ -1239,6 +1239,10 @@ if (decision.confidence < 0.6) {
  */
 const OPTION_A_BUDGET_MS = 8000;
 
+/** Onde vivem as amostras de latencia e o catalogo de modelos locais. */
+const LATENCIA_PATH = path.join(ROUTER_DIR, 'latencia-local.jsonl');
+const CATALOGO_PATH = path.join(ROUTER_DIR, 'catalogo-local.json');
+
 let suggestedAnswer = null;
 const userPinnedOverride = decision.user_override && decision.user_override.honored === true;
 const isOllamaT0 = decision.recommended_backend === 'ollama' && decision.tier === 'T0';
@@ -1252,22 +1256,60 @@ if (
   try {
     const callScript = path.join(__dirname, 'ollama_call_node.js');
     const ollamaEnv = Object.assign({}, process.env);
-    if (decision.recommended_model) {
-      ollamaEnv.OLLAMA_OPTION_A_MODEL = decision.recommended_model;
+    // O modelo sai de LATENCIA MEDIDA, nao de VRAM. O router escolhe o maior
+    // que cabe na placa; medido nesta maquina, o maior devolve resposta vazia em
+    // 9,2s. Sao criterios diferentes, e ninguem tinha medido o segundo.
+    // Falha ABERTA: qualquer erro aqui devolve o recomendado de sempre.
+    let modeloEscolhido = decision.recommended_model || null;
+    let razaoModelo = 'recomendado pelo router';
+    try {
+      const lat = require('./latencia-local.js');
+      const cat = require('./catalogo-local.js');
+      const escolha = lat.escolher({
+        recomendado: decision.recommended_model || null,
+        resumo: lat.resumir(lat.lerAmostras(LATENCIA_PATH)),
+        catalogo: cat.lerCatalogo(CATALOGO_PATH),
+        orcamentoMs: OPTION_A_BUDGET_MS,
+      });
+      if (escolha.modelo) { modeloEscolhido = escolha.modelo; razaoModelo = escolha.razao; }
+    } catch { /* sem medicao, fica o recomendado */ }
+    if (modeloEscolhido) {
+      ollamaEnv.OLLAMA_OPTION_A_MODEL = modeloEscolhido;
     }
     // O orcamento vive AQUI, num sitio so, e o filho tira a sua margem dele.
     // Ate 2026-08-23 havia dois numeros: 8000 aqui e 3500 cravado no filho, com
     // um comentario la a dizer que este era 4000. Toda a chamada morria aos
     // 3636 ms, e o registo dizia so `status=1, stderr vazio`.
     ollamaEnv.MOOTER_OPTION_A_BUDGET_MS = String(OPTION_A_BUDGET_MS);
+    const t0 = Date.now();
     const ollamaRes = spawnSync(process.execPath, [callScript, prompt], {
       encoding: 'utf8',
       timeout: OPTION_A_BUDGET_MS,
       env: ollamaEnv,
     });
-    if (ollamaRes.status === 0 && ollamaRes.stdout && ollamaRes.stdout.trim().length > 5) {
+    const decorrido = Date.now() - t0;
+    const acertou = ollamaRes.status === 0 && ollamaRes.stdout && ollamaRes.stdout.trim().length > 5;
+    // A amostra e o unico sitio de onde a proxima escolha vem. Sem ela, o
+    // `latencia-local.js` nunca sai do palpite do router.
+    try {
+      require('./latencia-local.js').registar(LATENCIA_PATH, {
+        ts: new Date().toISOString(), modelo: modeloEscolhido, ms: decorrido, ok: Boolean(acertou),
+        motivo: acertou ? null : ((/motivo=(S+)/.exec(ollamaRes.stderr || '') || [])[1] || 'sem_motivo'),
+      });
+    } catch { /* telemetria nunca parte o hook */ }
+    // A cache do catalogo refresca-se SO quando a escolha falha: e o momento em
+    // que precisamos de alternativas, e o orcamento ja foi gasto, portanto o
+    // subprocesso nao rouba latencia a ninguem. Enquanto tudo corre bem,
+    // ninguem pergunta nada ao Ollama.
+    if (!acertou) {
+      try {
+        const cat = require('./catalogo-local.js');
+        if (cat.caducou(CATALOGO_PATH) || !cat.lerCatalogo(CATALOGO_PATH).length) cat.refrescar(CATALOGO_PATH);
+      } catch { /* sem catalogo, fica o recomendado */ }
+    }
+    if (acertou) {
       suggestedAnswer = ollamaRes.stdout.trim();
-      logDecision({ ts: new Date().toISOString(), event: 'option_a_hit', prompt_len: prompt.length, modelo: decision.recommended_model || null });
+      logDecision({ ts: new Date().toISOString(), event: 'option_a_hit', prompt_len: prompt.length, modelo: modeloEscolhido, razao_modelo: razaoModelo, ms: decorrido });
     } else {
       // O MOTIVO, e nao so o status. Um `option_a_miss` mudo nao distingue
       // "modelo em falta" de "timeout" de "resposta vazia" — e as tres pedem
@@ -1278,7 +1320,9 @@ if (
         ts: new Date().toISOString(),
         event: 'option_a_miss',
         motivo: m ? m[1] : (ollamaRes.error && ollamaRes.error.code === 'ETIMEDOUT' ? 'morto_pelo_pai' : 'sem_motivo'),
-        modelo: decision.recommended_model || null,
+        modelo: modeloEscolhido,
+        razao_modelo: razaoModelo,
+        ms: decorrido,
         status: ollamaRes.status,
         stderr: (ollamaRes.stderr || '').slice(0, 120),
       });
