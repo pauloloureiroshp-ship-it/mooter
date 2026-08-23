@@ -211,11 +211,13 @@ test('o lancamento corre o preflight e nunca bloqueia por causa dele', () => {
   assert.doesNotMatch(bloco[0], /process\.exit/, 'o preflight informa, nao bloqueia');
 });
 
-// ── verBeacon: escrever nao e publicar (2026-08-23) ────────────────────────
-// Esta funcao dizia `ok · "escrito e a publicar"` a partir de uma variavel de
-// ambiente e do mtime local. Durante ~20h de rebase encravado no vault dizia ok
-// enquanto o runner escrevia "a frota nao o ve". Os quatro estados abaixo sao os
-// que a distinguem de novo.
+// ── verBeacon: escrever nao e publicar, mas cadencia tambem nao e falha ────
+// Duas correccoes no mesmo dia. A 1a: `ok · "escrito e a publicar"` saia de uma
+// variavel de ambiente + mtime, sem tocar no git. A 2a (esta): a 1a tratava
+// qualquer ficheiro sujo como aviso, e o publicador commita de 10 em 15 min
+// enquanto o runner reescreve o ficheiro a cada ronda — o aviso dispararia quase
+// sempre. Trocar um `ok` falso por um alarme falso nao corrige nada.
+// A pergunta certa e a IDADE DO ULTIMO COMMIT.
 
 const gitFalso = (respostas) => (args) => {
   const cmd = args.join(' ');
@@ -224,51 +226,61 @@ const gitFalso = (respostas) => (args) => {
   }
   throw new Error('ENOENT');
 };
-const statFresco = () => ({ mtimeMs: Date.now() });
+const AGORA = 1_760_000_000_000;
+const haMin = (n) => String(Math.floor((AGORA - n * 60000) / 1000));
+const fresco = () => ({ mtimeMs: AGORA });
 const ligado = { MOO_PUBLICAR_BEACON: '1' };
 
-test('verBeacon: com o ficheiro por commitar, a frota ve a versao anterior — aviso, nao ok', () => {
+test('verBeacon: ficheiro sujo entre publicacoes e CADENCIA — continua ok', () => {
+  // O caso normal e permanente: commit ha 2 min, ficheiro reescrito desde entao.
   const r = verBeacon('/v/50-fleet/x.json', {
-    statImpl: statFresco, env: ligado,
-    gitImpl: gitFalso({ 'status --porcelain': ' M 50-fleet/x.json' }),
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: gitFalso({ 'log -1': haMin(2), 'rev-list': '0' }),
   });
-  assert.equal(r.estado, 'aviso');
-  assert.match(r.porque, /nao esta commitado|não está commitado/);
+  assert.equal(r.estado, 'ok', 'um aviso aqui dispararia quase sempre e seria ignorado');
+  assert.match(r.valor, /publicado há 2 min/);
 });
 
-test('verBeacon: commitado mas por empurrar tambem nao e ok', () => {
+test('verBeacon: sem commitar ha mais tempo que o limiar, o publicador parou', () => {
   const r = verBeacon('/v/50-fleet/x.json', {
-    statImpl: statFresco, env: ligado,
-    gitImpl: gitFalso({ 'status --porcelain': '', 'rev-list': '3' }),
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: gitFalso({ 'log -1': haMin(BEACON_VELHO_MIN + 10), 'rev-list': '0' }),
   });
-  assert.equal(r.estado, 'aviso');
-  assert.match(r.porque, /nao foi empurrado|não foi empurrado/);
+  assert.equal(r.estado, 'mau');
+  assert.match(r.porque, /a frota vê um estado velho/);
 });
 
-test('verBeacon: so e ok quando esta escrito, commitado E empurrado', () => {
+test('verBeacon: nunca commitado e o pior caso — a frota e um device so', () => {
   const r = verBeacon('/v/50-fleet/x.json', {
-    statImpl: statFresco, env: ligado,
-    gitImpl: gitFalso({ 'status --porcelain': '', 'rev-list': '0' }),
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: gitFalso({ 'log -1': '' }),
   });
-  assert.equal(r.estado, 'ok');
-  assert.match(r.porque, /empurrado/);
+  assert.equal(r.estado, 'mau');
+  assert.match(r.porque, /nunca foi commitado/);
+});
+
+test('verBeacon: commitado mas por empurrar e aviso, independente da cadencia', () => {
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: gitFalso({ 'log -1': haMin(1), 'rev-list': '3' }),
+  });
+  assert.equal(r.estado, 'aviso');
+  assert.match(r.porque, /não foi empurrado/);
 });
 
 test('verBeacon: sem git que responda e n/d — NUNCA ok', () => {
-  // A regra que faltava: nao conseguir provar nao e o mesmo que estar bem. E a
-  // mesma que o `verCodigo` ja aplicava dez linhas acima.
   const r = verBeacon('/v/50-fleet/x.json', {
-    statImpl: statFresco, env: ligado,
+    statImpl: fresco, agora: AGORA, env: ligado,
     gitImpl: () => { throw new Error('nao e um repositorio git'); },
   });
   assert.equal(r.estado, 'n/d');
   assert.equal(r.resolver, null);
 });
 
-test('verBeacon: com a publicacao DESLIGADA continua a avisar, sem consultar o git', () => {
+test('verBeacon: com a publicacao DESLIGADA avisa sem consultar o git', () => {
   let tocou = false;
   const r = verBeacon('/v/50-fleet/x.json', {
-    statImpl: statFresco, env: {},
+    statImpl: fresco, agora: AGORA, env: {},
     gitImpl: () => { tocou = true; return ''; },
   });
   assert.equal(r.estado, 'aviso');
