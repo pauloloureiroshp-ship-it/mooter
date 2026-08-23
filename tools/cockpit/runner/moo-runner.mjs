@@ -30,6 +30,8 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
 import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
+import { decidir as decidirComandante, DEFAULT_CAPS } from './comandante.mjs';
+import { lerTriagem } from './triagem.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
 import { publicarBeacon, estaNaHora, ligado as publicacaoLigada } from './beacon-publisher.mjs';
@@ -265,6 +267,35 @@ export function rodarLedger(ledgerPath, {
   return { rodou: true, arquivadas: antigas.length, mantidas: recentes.length, arquivo };
 }
 
+/**
+ * A decisao do comandante para esta ronda, com os tectos do dono.
+ *
+ * Falha ABERTA de proposito: se o ledger ou a triagem nao se conseguirem ler, o
+ * loop corre em vez de parar. Um escalonador que tranca o produto quando o seu
+ * proprio input falta seria pior do que nao existir — e a licao dos verificadores
+ * desta semana, aplicada ao contrario: aqui o silencio custa uma ronda a mais,
+ * nao uma frota parada.
+ */
+function decidirRonda({ paths, ids, logImpl = log }) {
+  try {
+    const registos = fs.readFileSync(paths.LEDGER, 'utf8').split(/\r?\n/).filter(Boolean)
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const { decisoes } = lerTriagem(path.join(path.dirname(paths.LEDGER), 'triagem.jsonl'));
+    const prefs = (() => {
+      try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mooter', 'preferences.json'), 'utf8')); }
+      catch { return {}; }
+    })();
+    const caps = {
+      perLoopOpen: Number(prefs.fila_por_pilar) || DEFAULT_CAPS.perLoopOpen,
+      globalHumanQueue: Number(prefs.fila_humana) || DEFAULT_CAPS.globalHumanQueue,
+    };
+    return decidirComandante({ registos, decisoes: decisoes ?? new Map(), ids, caps });
+  } catch (e) {
+    logImpl(`comandante: nao consegui decidir (${(e && e.message) || e}) — corro na mesma`);
+    return { pausa: false, pilar: ids[0], razao: 'comandante indisponivel — fail-open' };
+  }
+}
+
 function appendReceipt(ledgerPath, receipt) {
   fs.appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
   rodarLedger(ledgerPath);
@@ -451,7 +482,31 @@ export async function main({
     // resumes the round robin. Read every round so the button takes effect on
     // the next one instead of at the next restart.
     const focus = readFocus(paths.FOCUS, ids, logImpl);
-    const pillar = focus || nextPillar(i, ids);
+
+    // ── Fleet Commander (2026-08-23) ────────────────────────────────────────
+    // O `packages/fleet-commander/src/scheduler.mjs` existia desde a wave da
+    // frota e NINGUEM o importava. Passa a decidir aqui, em vez do round-robin
+    // cego, e pode dizer PAUSA — porque o recurso escasso nao e a GPU, e a
+    // atencao do dono. Um foco explicito do painel continua a ganhar-lhe: quem
+    // carrega no botao quer aquele pilar, e nao um conselho.
+    //
+    // Medido no dia em que se ligou: 215 achados abertos contra um tecto de 6,
+    // e 0 aceites em 247 decididos. Ele pausa a primeira ronda, e isso E o
+    // produto a funcionar — gerar para uma fila que ninguem revê nao e trabalho,
+    // e divida. O tecto vive no `preferences.json` para ser uma DECISAO do dono
+    // e nao um numero cravado por mim.
+    let pillar = focus;
+    if (!pillar) {
+      const d = decidirRonda({ paths, ids, logImpl });
+      if (d.pausa) {
+        logImpl(`comandante: PAUSA — ${d.razao}`);
+        await sleepImpl(IDLE_SLEEP_S);
+        rondas += 1;
+        if (once) return { rondas, breaker: breaker.estado, repoRoot, paths };
+        continue;
+      }
+      pillar = d.pilar;
+    }
     const cursor = Math.floor(i / ids.length);
     fs.writeFileSync(
       paths.STATE,
