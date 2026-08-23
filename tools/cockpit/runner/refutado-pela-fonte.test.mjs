@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { coleccaoVazia, valorPresente, refutado, planear } from './refutado-pela-fonte.mjs';
+import { coleccaoVazia, valorPresente, autoRefutado, refutado, planear } from './refutado-pela-fonte.mjs';
 
 test('coleccaoVazia: [] e "" sao auto-descritivos', () => {
   for (const l of ['const out = [];', "let s = '';", 'let t = "";', 'const missing = [];']) {
@@ -71,4 +71,28 @@ test('planear separa e respeita decisoes ja tomadas', () => {
   ], { decisoes: new Map([['k3', { decisao: 'aceite' }]]), showImpl });
   assert.deepEqual(r.fora.map((x) => x.chave), ['k1']);
   assert.deepEqual(r.ficam.map((x) => x.chave), ['k2']);
+});
+
+// ── auto-refutacao: a alegacao contradiz-se (2026-08-23) ──────────────────
+
+test('autoRefutado: dizer que 0 diverge de 0 e a propria refutacao', () => {
+  assert.equal(autoRefutado('THEY DIVERGE: message says 0, code uses 0 PROOF: x.js:1'), true);
+  assert.equal(autoRefutado('THEY DIVERGE: comment says v0.2, code does v0.2'), true);
+  assert.equal(autoRefutado('THEY DIVERGE: says `4`, code uses `4`'), true);
+});
+
+test('autoRefutado: valores diferentes NAO sao auto-refutados', () => {
+  assert.equal(autoRefutado('THEY DIVERGE: comment says 45, code does 75'), false,
+    'divergencia real fica para leitura, nao se descarta');
+});
+
+test('autoRefutado devolve null quando nao ha par para comparar', () => {
+  assert.equal(autoRefutado('THEY MATCH'), null);
+  assert.equal(autoRefutado(''), null);
+  assert.equal(autoRefutado('SEED VISIBLE: LINE 1 -> LINE 2'), null);
+});
+
+test('refutado: a auto-refutacao dispensa o ficheiro', () => {
+  // Nao e preciso ler codigo nenhum — a afirmacao ja se desmente.
+  assert.equal(refutado('P11', 'THEY DIVERGE: message says 7, code uses 7', null), true);
 });

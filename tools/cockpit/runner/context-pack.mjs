@@ -545,6 +545,40 @@ export const PILLARS = {
    * nao e um nitpick de estilo, e o painel a mentir.
    */
   P11: {
+    /**
+     * DESLIGADO a 2026-08-23, um dia depois de eu proprio o ter criado.
+     *
+     * Medido sobre os 87 achados que produziu no primeiro dia:
+     *
+     *   76 (87%)  falham o criterio do PROPRIO enunciado — a linha citada nao
+     *             poe numero dentro de mensagem nenhuma. Citava
+     *             `text: 'vivacidade n/d — '`, `erro: 'nao consegui ler '`, e
+     *             ate `raiz: v.root,` que nem mensagem e.
+     *    9 (12%)  auto-refutados: alegam divergencia entre valores IGUAIS —
+     *             `says 0, uses 0` · `says 4, uses 4` · `says v0.2, uses v0.2`.
+     *    9        cumpriram o criterio; li-os um a um: 2 ilegiveis, 6 falsos
+     *             (emparelham linhas sem relacao, ou acusam divergencia onde ha
+     *             acordo), 1 talvez valha um olhar.
+     *
+     * UM em 87. E o mesmo perfil do P1 e do P5, que desliguei na vespera.
+     *
+     * O que isto ensina, e que custou admitir: este pilar PASSOU o ensaio do
+     * defeito semeado, e foi introduzido nesta casa com a frase "desenhado a
+     * partir do que se provou funcionar e semeado ANTES de entrar". Passar o
+     * ensaio prova SENSIBILIDADE — que se detecta o defeito plantado. Nao prova
+     * PRECISAO — o que se produz em campo. Escrevi essa licao a proposito do P3
+     * e nao a apliquei ao meu proprio trabalho no mesmo dia.
+     *
+     * O pior caso do P11 nao e o ruido: e um pilar que se chama "o numero que o
+     * dono le contra o que o codigo usa" a fabricar divergencias de numeros.
+     * Um verificador de honestidade desonesto gasta mais confianca do que
+     * verificador nenhum.
+     *
+     * **Reversivel numa linha:** apagar este `activo: false`. Mas reactivar sem
+     * mudar o enunciado repete o resultado — o problema esta na pergunta, que
+     * deixa o modelo emparelhar duas linhas quaisquer do mesmo excerto.
+     */
+    activo: false,
     label: 'Bridge — o numero que o dono le contra o que o codigo usa',
     files: [
       'packages/mooter-bridge/*.js',

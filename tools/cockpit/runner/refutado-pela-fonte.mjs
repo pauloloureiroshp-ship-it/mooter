@@ -59,6 +59,23 @@ export function valorPresente(resumo, linhaCodigo) {
   return String(linhaCodigo || '').includes(x);
 }
 
+/**
+ * O achado desmente-se a si proprio: alega divergencia entre dois valores IGUAIS.
+ *
+ * Medido a 2026-08-23 no P11: 9 dos 78 diziam coisas como
+ * `message says 0, code uses 0` · `says 4, uses 4` · `says v0.2, uses v0.2`.
+ * Nao e preciso ler codigo nenhum para saber que estao errados — a propria
+ * afirmacao contem a refutacao. Vale para P3 (`code does`) e P11 (`code uses`).
+ */
+export function autoRefutado(resumo) {
+  const m = String(resumo || '').match(/says\s+(.+?),\s*code\s+(?:uses|does)\s+(.+?)(?:\s+PROOF|$)/i);
+  if (!m) return null;
+  const limpar = (x) => String(x).trim().replace(/^[`'"<]+|[`'">]+$/g, '').trim();
+  const a = limpar(m[1]); const b = limpar(m[2]);
+  if (!a || !b) return null;
+  return a === b;
+}
+
 const numero = (resumo, re) => {
   const m = String(resumo || '').match(re);
   return m ? Number(m[1]) : null;
@@ -66,6 +83,8 @@ const numero = (resumo, re) => {
 
 /** Refutado? `true` = a fonte desmente. `null` = nao se consegue decidir. */
 export function refutado(pilar, resumo, linhas) {
+  // Antes de tudo, e sem precisar do ficheiro: a alegacao contradiz-se?
+  if (autoRefutado(resumo) === true) return true;
   if (!Array.isArray(linhas)) return null;
   if (pilar === 'P2') {
     const n = numero(resumo, /LINE (\d+)/);
