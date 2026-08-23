@@ -4,8 +4,7 @@ import { M } from '@/app/lib/canonical-metrics';
 // StatuslineCard — the 3-line narrative statusline (IMPLEMENTATION_SPEC §6.1 / §11.2).
 // Matches STATUSLINE_FORMAT_LINES. Reusable in hero + dashboard preview.
 export interface StatuslineData {
-  savedToday: string;
-  savedPct: string;
+  routedCheap: string;
   tier: string;
   model: string;
   conf: string;
@@ -28,9 +27,19 @@ export interface StatuslineData {
 // Achado pelo pilar P6 do Moo Pilot (landing/components/StatuslineCard.tsx:24).
 // Os restantes campos nao tem fonte canonica nenhuma e ficam como amostra
 // declarada — inventar consistencia entre numeros inventados seria pior.
+// 2026-08-23: a maqueta deixou de mostrar poupanca de todo.
+//
+// Nao foi para passar a guarda de literais aqui ao lado — foi porque a guarda
+// tem razao. O `savedPct` derivava de `M.savedPct`, e esse campo deixou de
+// existir: uma auditoria encontrou CINCO numeros de poupanca a contradizerem-se
+// neste projecto, e nenhum sobreviveu, porque zero ficheiros de telemetria
+// registam tokens. Sem tokens nao ha custo medido; sem custo nao ha poupanca.
+//
+// Uma maqueta do statusline que mostra um numero que o statusline vai deixar de
+// mostrar nao e uma pre-visualizacao — e uma promessa. O que fica no lugar e o
+// que ESTA medido: quantos prompts classificados foram para tier barato.
 const DEFAULTS: StatuslineData = {
-  savedToday: '$0.31', // amostra
-  savedPct: M.savedPct, // canonico
+  routedCheap: M.recomendadoBarato, // canonico, e o unico numero medido do cartao
   tier: 'T2',
   model: 'sonnet',
   conf: '0.84',
@@ -66,7 +75,7 @@ export default function StatuslineCard({ data }: { data?: Partial<StatuslineData
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <MooterMarkTiny size={14} />
         <span>
-          saved <span style={{ color: 'var(--color-green)' }}>{d.savedToday}</span> today ({d.savedPct} vs all-Opus)
+          routed cheap <span style={{ color: 'var(--color-green)' }}>{d.routedCheap}</span>
           {'  ·  '}
           <span style={{ color: 'var(--color-tier-2-term)' }}>{d.tier} {d.model}</span> · conf {d.conf}{'  ·  '}
           pack: <span style={{ color: 'var(--color-accent-2)' }}>{d.pack}</span>

@@ -60,17 +60,21 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'mooter — The router for Claude Code',
-    description: `${M.savedPct} saved vs all-Opus across ${M.routedCalls} routed calls — real data from the author’s own machine, not a community average. Open source · MIT.`,
+    // Já dizia "47% saved vs all-Opus". Não havia custo medido de que derivar
+    // uma poupança — ver canonical-metrics.ts. A meta description e o cartão OG
+    // são o que aparece quando alguém partilha o link: é o pior sítio possível
+    // para um número que não se sustenta, porque viaja sozinho e sem ressalva.
+    description: `Routes ${M.recomendadoBarato} classified prompts to a local or cheap tier. Zero proxy. Just a hook. Open source · MIT.`,
     type: 'website',
     url: 'https://mooter.ai',
     siteName: 'mooter',
-    images: [{ url: `/api/og?savings=${encodeURIComponent(M.savedPct)}`, width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
+    images: [{ url: `/api/og?routed=${encodeURIComponent(M.recomendadoBaratoPct)}`, width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'mooter — The router for Claude Code',
-    description: `${M.savedPct} saved vs all-Opus across ${M.routedCalls} routed calls. Real data. Zero proxy. Just a hook. MIT.`,
-    images: [`/api/og?savings=${encodeURIComponent(M.savedPct)}`],
+    description: `Routes ${M.recomendadoBarato} classified prompts to a local or cheap tier. Zero proxy. Just a hook. MIT.`,
+    images: [`/api/og?routed=${encodeURIComponent(M.recomendadoBaratoPct)}`],
   },
 };
 

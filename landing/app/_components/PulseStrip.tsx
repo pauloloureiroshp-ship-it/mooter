@@ -6,12 +6,15 @@
 
 import { M } from '../lib/canonical-metrics';
 
+// 2026-08-23: as linhas de "$ poupado" saíram. Derivavam de três literais que
+// nenhum script regenerava, e nenhum ficheiro de telemetria deste projecto
+// regista tokens — sem tokens não há custo medido, sem custo não há poupança.
+// Ver canonical-metrics.ts. O que fica é o par recomendado/executado, e a
+// distância entre os dois é deliberadamente visível.
 const STATS: { label: string; value: string; sub: string }[] = [
-  { label: 'calls routed', value: M.routedCalls, sub: 'across 7 moos' },
-  // "saved" = naive all-Opus − real mooter spend, DERIVED in canonical-metrics.ts so the amount PAID
-  // ($25.95) can never appear under a "saved" label. Single source → no drift across surfaces.
-  { label: 'saved vs Opus', value: M.savedUsd, sub: `vs ${M.baselineUsd} all-Opus` },
-  { label: 'avg savings', value: M.savedPct, sub: 'vs all-Opus' },
+  { label: 'routed to cheap', value: M.recomendadoBaratoPct, sub: `${M.recomendadoBarato} classified prompts` },
+  { label: 'ran locally', value: M.execucoesLocal, sub: `of ${M.execucoes} executions` },
+  { label: 'cost measured', value: 'none', sub: 'no tokens logged — no $ claimed' },
   { label: 'packs installed', value: '3', sub: 'data · diagram · voice' },
 ];
 

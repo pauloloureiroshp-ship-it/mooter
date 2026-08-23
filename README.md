@@ -6,12 +6,12 @@
 
 Mooter sets up, watches, and pilots your project with total visibility: foundation-gap alerts, best practices applied automatically, and the magic visible (Live Preview). The moat is trust: an auditable receipt and adversarial verification (critic ≠ author) on work a non-dev can check. The engine is table stakes; the cockpit is where the proof shows. Five experiences: **Resume · Plan · Route (invisible) · Watch · Review.**
 
-**Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware · 65–82% cost vs all-Opus (measured — [SYSTEM_DESIGN §0](docs/foundation/SYSTEM_DESIGN.md#0-executive-summary-read-this-if-you-read-nothing-else) · [validation runs](docs/strategy/MOOTER_PERF_VALIDATION.md)).**
+**Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware.**
 
 [![Version](https://img.shields.io/badge/version-v1.44.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Wave 1: shipped](https://img.shields.io/badge/Wave%201-shipped%202026--06--03-brightgreen.svg)](docs/wave1-validation.md)
-[![Savings](https://img.shields.io/badge/savings-65--82%25%20vs%20all--Opus-brightgreen.svg)](docs/foundation/SYSTEM_DESIGN.md#0-executive-summary-read-this-if-you-read-nothing-else)
+[![Routing](https://img.shields.io/badge/routed%20to%20cheap-101%2F123%20prompts-blue.svg)](#honest-numbers)
 [![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
 [![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
 [![CI](https://github.com/pauloloureiroshp-ship-it/mooter/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
@@ -167,7 +167,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | Hook p50 (v0.7) | 113ms (was ~3s pre-v0.7) |
 | Classifier latency | <50ms (regex, zero LLM) |
 | Low-confidence rate | 2.0% |
-| **Advisory savings vs naive Opus** | **~78-90%** (see methodology below) |
+| **Savings vs naive Opus** | **not measured** — see [Honest numbers](#honest-numbers) |
 | Guaranteed savings (Option-A hits) | measured per-session |
 | Cost model | token-estimated, [see `docs/COST_MODEL.md`](docs/COST_MODEL.md) |
 | Unit tests (loop + cost model) | **59/59** passing (`node:test`) |
@@ -175,11 +175,37 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 
 ---
 
+## Honest numbers
+
+This README used to carry five different savings figures — `65–82%`, `~78-90%`, `90%`, `90.2%` and a badge — and two of them were **opposite readings of the same pair**: a *cost* of 65–82% of baseline means a *saving* of 18–35%, not 65–82%.
+
+On 2026-08-23 an audit traced every savings number this project publishes. **None survived.**
+
+| number | where it lived | why it died |
+|---|---|---|
+| 0% | statusline | denominator was Bash calls, not prompts (26 calls per prompt) |
+| 49.9% | backtest | no `event` filter; the same prompt counted up to 3× |
+| 62.7% | `decisions_v2` | that is the share of T0 *lines*, not a cost |
+| 83.2% | `stats.js` | well-formed — but it measures the **recommendation**, and 101 prompts routed to local produced **1** local execution |
+| 89.9% | project memory | April corpus, hand-written, no code produces it |
+
+The root cause is structural and worth stating plainly: **no telemetry file in this project records tokens.** Zero of 4,534 lines. Without tokens there is no measured cost, and without a measured cost there is no measured saving — in any unit.
+
+### What is measured
+
+> In **123 classified prompts** (2026-08-20 → 2026-08-23), the classifier routed **101 (82.1%)** to a local or cheap tier. In the same sessions, of **3,225 recorded executions**, **3,193 ran on Opus and 1 ran locally**.
+
+That gap — recommendation vs execution — is the honest state of the project, and closing it is the current work. Publishing a savings percentage on top of it would describe a product that does not exist yet.
+
+`guaranteed_saved` (Option-A hits, where a local answer demonstrably replaced a paid one) **is** measured per session. It is the only dollar figure here with a denominator.
+
+---
+
 ## Who is this for?
 
 | Persona | Why mooter helps |
 |---|---|
-| **Solo founders** burning Claude Code credits on trivial work | 90% savings on a $200/mo budget = $180 back |
+| **Solo founders** burning Claude Code credits on trivial work | Trivial work stops reaching Opus — the saving is real but we do not yet measure it (no token telemetry) |
 | **Small teams** sharing a company Anthropic account | Consistent routing across developers, visible spend per tier |
 | **Open-source maintainers** using Claude Code in CI | Cap runaway agents at T2 automatically via the budget guardrail |
 | **Researchers & tinkerers** who want a transparent, regex-based router | Every decision is explainable in <10 lines of code |
@@ -326,7 +352,7 @@ See **[ROADMAP.md](ROADMAP.md)** for the full version timeline, completed work, 
 |---|---|---|
 | v0.1.0 | ✅ Released | classify.js v1, 6 subagents, routing docs |
 | v0.2.0 | ✅ Released | Mediator doctrine, stats.js, benchmark.sh |
-| v0.3.0 | ✅ Released | replay.js, 1,370-prompt validation, 90.2% savings |
+| v0.3.0 | ✅ Released | replay.js, 1,370-prompt validation (the 90.2% quoted at the time is retracted — see Honest numbers) |
 | v0.4.0 | ✅ Released | Statusline OAuth, budget guardrail, multi-provider |
 | v0.5.0 | ✅ Released | Auto-learning loop: backtest, TUNED wire-up, 11 tests, pct_by_model |
 | v0.6.0 | ✅ Released | Honest numbers: token cost model, BRL/EUR/GBP, guaranteed vs advisory savings |

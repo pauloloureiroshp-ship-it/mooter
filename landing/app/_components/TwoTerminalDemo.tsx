@@ -348,8 +348,8 @@ export default function TwoTerminalDemo() {
             <span style={{ color: 'var(--color-green)' }}>{fmt(allMoo)}</span> routed
           </div>
           <div style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--color-muted)', maxWidth: 380, lineHeight: 1.5 }}>
-            *Illustrative trace. The headline <MonoNum color="var(--color-text)">{pctSaved}%</MonoNum> is measured across the author&apos;s
-            real <MonoNum color="var(--color-text)">{M.routedCalls}</MonoNum> routed calls — not this six-prompt demo, and not a community average.
+            *Illustrative trace — this six-prompt demo measures nothing. What IS measured:{' '}
+            <MonoNum color="var(--color-text)">{M.recomendadoBarato}</MonoNum> classified prompts routed to a local or cheap tier. No cost is claimed: no tokens are logged.
           </div>
         </div>
       </div>

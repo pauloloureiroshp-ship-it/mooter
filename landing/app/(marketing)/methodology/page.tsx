@@ -240,6 +240,20 @@ export default function MethodologyPage() {
                 <div className="num" style={{ fontSize: 13, color: 'var(--color-green)', fontWeight: 600 }}>{r.saved_pct.toFixed(0)}%</div>
               </div>
             </div>
+            {/*
+              A ressalva vive AQUI, colada ao numero, e nao no fundo da pagina.
+              Esta calculadora chegou a mostrar 92,6% enquanto o heroi da mesma
+              landing publicava 47% — dois numeros para a mesma coisa, no mesmo
+              site. A tabela de distribuicao por GPU que a alimenta nao vem de
+              medicao nenhuma: e um cenario. Quem le o numero tem de ler isto.
+            */}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--color-border)', fontSize: 11.5, color: 'var(--color-muted)', lineHeight: 1.55 }}>
+              <strong style={{ color: 'var(--color-text)' }}>Hypothetical scenario, not a measurement.</strong>{' '}
+              The tier distribution above is an assumed profile per GPU class, and the per-prompt costs are token
+              estimates. This project records no tokens, so it has no measured cost and publishes no savings
+              percentage — see the <a href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</a>.
+              What <em>is</em> measured: 101 of 123 classified prompts were routed to a local or cheap tier.
+            </div>
           </Card>
 
           {/* tier distribution */}
