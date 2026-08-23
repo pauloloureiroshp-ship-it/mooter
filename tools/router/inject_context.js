@@ -1224,6 +1224,21 @@ if (decision.confidence < 0.6) {
 // Ollama T0 model (including hw-recommended qwen3:30b on high-VRAM GPUs).
 // Timeout raised 4s → 8s to accommodate larger models. Confidence lowered
 // 0.8 → 0.75 and prompt limit raised 500 → 800 to cover more real T0 prompts.
+/**
+ * O orcamento TOTAL do pre-calculo, e a UNICA fonte dele.
+ *
+ * O `ollama_call_node.js` deriva o seu prazo HTTP deste valor por variavel de
+ * ambiente, em vez de manter um numero proprio. Ate 2026-08-23 eram dois: 8000
+ * aqui, 3500 la, e um comentario la a afirmar que este era 4000. Os tres
+ * discordavam, e o resultado media-se: `option_a_miss` em 12 de 13 chamadas,
+ * sempre aos ~3636 ms.
+ *
+ * 8s e o que o `qwen2.5-coder:14b` precisa (medido: 6778 ms) com folga. O
+ * `qwen3:30b` precisa de 9,2s E devolve resposta vazia — subir isto nao o
+ * salva, e escolher o modelo por latencia medida fica por fazer.
+ */
+const OPTION_A_BUDGET_MS = 8000;
+
 let suggestedAnswer = null;
 const userPinnedOverride = decision.user_override && decision.user_override.honored === true;
 const isOllamaT0 = decision.recommended_backend === 'ollama' && decision.tier === 'T0';
@@ -1240,19 +1255,36 @@ if (
     if (decision.recommended_model) {
       ollamaEnv.OLLAMA_OPTION_A_MODEL = decision.recommended_model;
     }
+    // O orcamento vive AQUI, num sitio so, e o filho tira a sua margem dele.
+    // Ate 2026-08-23 havia dois numeros: 8000 aqui e 3500 cravado no filho, com
+    // um comentario la a dizer que este era 4000. Toda a chamada morria aos
+    // 3636 ms, e o registo dizia so `status=1, stderr vazio`.
+    ollamaEnv.MOOTER_OPTION_A_BUDGET_MS = String(OPTION_A_BUDGET_MS);
     const ollamaRes = spawnSync(process.execPath, [callScript, prompt], {
       encoding: 'utf8',
-      timeout: 8000,
+      timeout: OPTION_A_BUDGET_MS,
       env: ollamaEnv,
     });
     if (ollamaRes.status === 0 && ollamaRes.stdout && ollamaRes.stdout.trim().length > 5) {
       suggestedAnswer = ollamaRes.stdout.trim();
-      logDecision({ ts: new Date().toISOString(), event: 'option_a_hit', prompt_len: prompt.length });
+      logDecision({ ts: new Date().toISOString(), event: 'option_a_hit', prompt_len: prompt.length, modelo: decision.recommended_model || null });
     } else {
-      logDecision({ ts: new Date().toISOString(), event: 'option_a_miss', status: ollamaRes.status, stderr: (ollamaRes.stderr || '').slice(0, 120) });
+      // O MOTIVO, e nao so o status. Um `option_a_miss` mudo nao distingue
+      // "modelo em falta" de "timeout" de "resposta vazia" — e as tres pedem
+      // correccoes diferentes. Foi por isso que 3 dias de falhas passaram por
+      // ruido de fundo.
+      const m = /motivo=(\S+)/.exec(ollamaRes.stderr || '');
+      logDecision({
+        ts: new Date().toISOString(),
+        event: 'option_a_miss',
+        motivo: m ? m[1] : (ollamaRes.error && ollamaRes.error.code === 'ETIMEDOUT' ? 'morto_pelo_pai' : 'sem_motivo'),
+        modelo: decision.recommended_model || null,
+        status: ollamaRes.status,
+        stderr: (ollamaRes.stderr || '').slice(0, 120),
+      });
     }
-  } catch {
-    logDecision({ ts: new Date().toISOString(), event: 'option_a_error' });
+  } catch (e) {
+    logDecision({ ts: new Date().toISOString(), event: 'option_a_error', motivo: (e && e.message) ? String(e.message).slice(0, 80) : 'desconhecido' });
   }
 }
 
