@@ -152,6 +152,12 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 `git merge origin/main` + suite na árvore fundida antes do push (o branch está 28 atrás) ·
 `slack-spike` não corre em CI nenhum.
 
+<!-- slack-spike — o GO CONDICIONADO que autoriza a linha de destrave -->
+### [2026-08-17] COWORK — decisão do RISK do slack-spike: GO CONDICIONADO (a linha acima é o destrave mecânico)
+- Decisor: Cowork/Fable 5 como maestro, sob delegação do dono (veto dele disponível). Fundamento: o ALTO de CÓDIGO aberto da kimi-egress (plano em disco não declarado no recibo, na recusa por agent kimi) vive EXCLUSIVAMENTE no caminho kimi/Moonshot. CONDIÇÃO DURA do GO: o spike exclui o kimi por construção — allowlist de motores do despacho SEM kimi, com teste que prova a recusa de agent:"kimi" — ANTES do 1º dispatch vivo. Com o vendor guardado fora da rota, o ALTO não é alcançável pelo caminho vivo. Quando a kimi-egress mergear de verdade, o kimi volta por decisão explícita, nunca por default.
+- A demo declara isto ao estranho como feature: "Moonshot desligado até o veto de egress entrar em main" — custódia por enforcement, não por promessa.
+- Restante fila do CC slack-spike inalterada: tokens (.env, caminho vem do Paulo) → exclusão kimi testada → MODO VIVO → ensaio do infeliz real → final-reviewer antes de push. Condição de sócio nº1 mantém-se: demo AGENDADA com estranho antes do merge.
+
 ---
 
 ## 🏁 Sprints
