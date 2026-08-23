@@ -28,7 +28,10 @@ test('MENCIONAR um motor nao e INVOCA-LO', () => {
   const fabricados = [
     'which codex 2>/dev/null',
     'where codex 2>&1; echo "---EXIT: $?"',
-    'cd "C:/Users/Paulo Loureiro/frugal" && git add tools/router/',
+    // Copiado do log real; o caminho pessoal foi trocado por um generico —
+    // o ratchet do repo publico conta ficheiros com caminhos de casa, e apanhou
+    // este. Segunda vez que me apanha a mesma coisa.
+    'cd "/repo" && git add tools/router/',
     'grep -rn "codex" execution.log',
     'echo "nao uses gemini nem codex"',
     'ls ~/.claude/agents | grep codex',
