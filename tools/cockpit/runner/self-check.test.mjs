@@ -72,8 +72,13 @@ test('escrever o beacon NAO e publica-lo, e o painel di-lo', () => {
   assert.match(desligado.porque, /NÃO publicado/);
   assert.match(desligado.resolver, /MOO_PUBLICAR_BEACON/);
 
+  // Esta asserção dizia `ok` — e era ELA que fixava o defeito. O título do teste
+  // já dizia a verdade ("escrever NÃO é publicá-lo") e a asserção dizia o
+  // contrário: dava por publicado o que só estava escrito, a partir de uma
+  // variável de ambiente e de um mtime. Sem git que o prove, a resposta honesta
+  // é `n/d` — a mesma regra que o `verCodigo` aplica ao remoto.
   const ligado = verBeacon('/b', { statImpl: () => ({ mtimeMs: agora }), agora, env: { MOO_PUBLICAR_BEACON: '1' } });
-  assert.equal(ligado.estado, 'ok');
+  assert.equal(ligado.estado, 'n/d', 'ligado + escrito nao prova que saiu daqui');
 
   const velho = verBeacon('/b', {
     statImpl: () => ({ mtimeMs: agora - (BEACON_VELHO_MIN + 5) * 60000 }),
@@ -204,4 +209,68 @@ test('o lancamento corre o preflight e nunca bloqueia por causa dele', () => {
   const bloco = /const saude = autoVerificar\(\{[\s\S]*?\n  \} catch/.exec(fonte);
   assert.ok(bloco, 'o preflight tem de estar dentro de um try');
   assert.doesNotMatch(bloco[0], /process\.exit/, 'o preflight informa, nao bloqueia');
+});
+
+// ── verBeacon: escrever nao e publicar (2026-08-23) ────────────────────────
+// Esta funcao dizia `ok · "escrito e a publicar"` a partir de uma variavel de
+// ambiente e do mtime local. Durante ~20h de rebase encravado no vault dizia ok
+// enquanto o runner escrevia "a frota nao o ve". Os quatro estados abaixo sao os
+// que a distinguem de novo.
+
+const gitFalso = (respostas) => (args) => {
+  const cmd = args.join(' ');
+  for (const [k, v] of Object.entries(respostas)) {
+    if (cmd.includes(k)) { if (v instanceof Error) throw v; return v; }
+  }
+  throw new Error('ENOENT');
+};
+const statFresco = () => ({ mtimeMs: Date.now() });
+const ligado = { MOO_PUBLICAR_BEACON: '1' };
+
+test('verBeacon: com o ficheiro por commitar, a frota ve a versao anterior — aviso, nao ok', () => {
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: statFresco, env: ligado,
+    gitImpl: gitFalso({ 'status --porcelain': ' M 50-fleet/x.json' }),
+  });
+  assert.equal(r.estado, 'aviso');
+  assert.match(r.porque, /nao esta commitado|não está commitado/);
+});
+
+test('verBeacon: commitado mas por empurrar tambem nao e ok', () => {
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: statFresco, env: ligado,
+    gitImpl: gitFalso({ 'status --porcelain': '', 'rev-list': '3' }),
+  });
+  assert.equal(r.estado, 'aviso');
+  assert.match(r.porque, /nao foi empurrado|não foi empurrado/);
+});
+
+test('verBeacon: so e ok quando esta escrito, commitado E empurrado', () => {
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: statFresco, env: ligado,
+    gitImpl: gitFalso({ 'status --porcelain': '', 'rev-list': '0' }),
+  });
+  assert.equal(r.estado, 'ok');
+  assert.match(r.porque, /empurrado/);
+});
+
+test('verBeacon: sem git que responda e n/d — NUNCA ok', () => {
+  // A regra que faltava: nao conseguir provar nao e o mesmo que estar bem. E a
+  // mesma que o `verCodigo` ja aplicava dez linhas acima.
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: statFresco, env: ligado,
+    gitImpl: () => { throw new Error('nao e um repositorio git'); },
+  });
+  assert.equal(r.estado, 'n/d');
+  assert.equal(r.resolver, null);
+});
+
+test('verBeacon: com a publicacao DESLIGADA continua a avisar, sem consultar o git', () => {
+  let tocou = false;
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: statFresco, env: {},
+    gitImpl: () => { tocou = true; return ''; },
+  });
+  assert.equal(r.estado, 'aviso');
+  assert.equal(tocou, false, 'sem publicacao ligada nao ha nada que o git possa provar');
 });
