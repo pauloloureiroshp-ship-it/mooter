@@ -370,11 +370,14 @@ export function esperaDaPausa(ciclos, { base = IDLE_SLEEP_S, tecto = 60 } = {}) 
 let beaconWarned = false;
 let ultimaPublicacao = 0;
 let publicacaoAvisada = false;
-async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = log } = {}) {
+async function publishBeacon({ repoRoot, paths, engineAlive = true, shaCarregado = null, logImpl = log } = {}) {
   try {
     const [gpu, alignment] = await Promise.all([
       sampleGpu(),
-      buildAlignment({ repoRoot }).catch(() => null),
+      // O sha de arranque viaja ate aqui para o painel poder dizer "este
+      // processo esta a correr codigo velho" — o defeito que ja aconteceu tres
+      // vezes em tres dias sem ninguem dar por ele.
+      buildAlignment({ repoRoot, shaCarregado, shaEmDisco: repoSha(repoRoot) }).catch(() => null),
     ]);
     const state = buildFleetState({
       device: deviceName(),
@@ -462,6 +465,11 @@ export async function main({
 } = {}) {
   const args = new Set(argv);
   const { repoRoot, fonte, chave, paths, pilares } = resolverAlvo({ argv, env, cwd });
+  // O sha que este processo CARREGOU. Um `import` e estatico: a partir daqui o
+  // codigo em memoria e este, aconteca o que acontecer ao disco. Guardar isto no
+  // arranque e a unica forma de, mais tarde, se conseguir dizer que derivou.
+  const shaCarregado = repoSha(repoRoot);
+  let derivaAvisada = false;
   assertHome(paths.base, logImpl);
 
   // The owner's explicit gesture is the ONLY thing that lifts a STOP.
@@ -598,7 +606,7 @@ export async function main({
         // Jurar `true` aqui repetia exactamente o bug que o publishBeacon
         // documenta ("o beacon jurava motor vivo durante as 11 horas em que ele
         // esteve morto"), e jurar `false` era o falso alarme simetrico.
-        await publishBeaconImpl({ repoRoot, paths, engineAlive: ultimoMotorVivo, logImpl });
+        await publishBeaconImpl({ repoRoot, paths, engineAlive: ultimoMotorVivo, shaCarregado, logImpl });
         // Recuo progressivo: a pausa persiste ate o dono triar, e reparsear o
         // ledger inteiro de 5 em 5 segundos para reler a mesma resposta e
         // trabalho a fingir que se trabalha. Tecto de 60s para o botao do painel
@@ -615,6 +623,24 @@ export async function main({
       pausaAvisada = null;
       pausaDesde = null;
       pausaCiclos = 0;
+    }
+
+    // Deriva de codigo: este processo carregou um sha e o disco ja tem outro.
+    // Diz-se UMA vez, e nao se faz mais nada — reiniciar sozinho um loop que
+    // escreve no ledger e uma decisao do dono, nao minha. O campo tambem viaja
+    // no beacon, para a frota ver o mesmo.
+    // `rondas % 60`: a ~30s por ronda, olha para o disco de meia em meia hora.
+    // Verificar todas as rondas seriam ~3400 `rev-parse` por dia para dizer
+    // quase sempre a mesma coisa — o custo que este ficheiro ja evitou uma vez
+    // ao pendurar a comparacao no beacon em vez de a por no ciclo quente.
+    if (!derivaAvisada && shaCarregado && rondas % 60 === 0) {
+      const agora = repoSha(repoRoot);
+      if (agora && agora !== shaCarregado) {
+        derivaAvisada = true;
+        logImpl(`ATENCAO: este processo corre o codigo de ${shaCarregado} e o disco ja tem ${agora}. `
+          + 'Um import e estatico — so um reinicio carrega o codigo novo. '
+          + '(Aconteceu tres vezes em tres dias sem ninguem dar por isso.)');
+      }
     }
     const cursor = Math.floor(i / ids.length);
     escreverEstado({ paths, repoRoot, pillar, focus });
@@ -684,7 +710,7 @@ export async function main({
     // pessoa a procurar codigo que ja nao existe.
     i += 1;
     writeCursor(paths.CURSOR, i);
-    await publishBeaconImpl({ repoRoot, paths, engineAlive: !motorFalhou, logImpl });
+    await publishBeaconImpl({ repoRoot, paths, engineAlive: !motorFalhou, shaCarregado, logImpl });
 
     if (motorFalhou) {
       // O stdout nao e o ledger: aqui podemos falar. O que nao se pode e
