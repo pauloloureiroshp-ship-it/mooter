@@ -11,9 +11,15 @@
  *   antes  `const pillar = focus || nextPillar(i, ids)`  — round-robin cego
  *   agora  o comandante pode dizer PAUSA, e o loop obedece
  *
- * Medido a 2026-08-23, no momento de ligar: 211 achados abertos (P2 134 · P3 77)
- * contra um tecto de fila humana de 6. Ou seja, o escalonador manda **parar de
- * gerar** na primeira ronda. Isso NAO e um defeito da ligacao — e a tese do
+ * Medido a 2026-08-23T16:23Z, com o ledger em 9858 linhas: 215 achados abertos
+ * (P2 137 · P3 78) contra um tecto de fila humana de 6. A data e o tamanho do
+ * ledger vao juntos de proposito — este numero MEXE a cada ronda, e um numero
+ * que mexe sem dizer contra o que foi medido nao se consegue reproduzir. (Este
+ * comentario ja disse 211/134/77: era a leitura de quando o ficheiro foi
+ * escrito, e ficou para tras quando o loop continuou a produzir.)
+ *
+ * Ou seja, o escalonador manda **parar de gerar** na primeira ronda. Isso NAO e
+ * um defeito da ligacao — e a tese do
  * proprio scheduler a funcionar: "a full review queue PAUSES generation
  * (17 loops × 3 = 51 would be the 'dump 50' the thesis condemns)".
  *
