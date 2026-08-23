@@ -101,6 +101,10 @@ export function writeBeacon(state, {
       // distincao entre "em pausa" e "morto" existia so na maquina que pausou, e
       // a frota via um device obediente como um device rebentado.
       pausa: (state && state.pausa) ?? null,
+      // A deriva de codigo tem de viajar pela mesma razao que a pausa: um device
+      // a correr codigo de ha tres dias e invisivel de fora, e foi assim que
+      // isto aconteceu tres vezes seguidas sem ninguem dar por ela.
+      codigo: (state && state.projeto && state.projeto.codigo) ?? null,
       gpu_pct: state && state.gpu ? state.gpu.util_pct : null,
       gpu_fonte: state && state.gpu ? state.gpu.fonte : 'n/d',
       vram_gb: state && state.gpu ? state.gpu.vram_inuse_gb : null,
@@ -348,6 +352,7 @@ export function readBeacons({
       triagem: b.triagem && typeof b.triagem === 'object' ? b.triagem : null,
       reserva: b.reserva && typeof b.reserva === 'object' ? b.reserva : null,
       pausa: b.pausa && typeof b.pausa === 'object' ? b.pausa : null,
+      codigo: b.codigo && typeof b.codigo === 'object' ? b.codigo : null,
       branch: typeof b.branch === 'string' ? b.branch : null,
       conector: b.conector && typeof b.conector === 'object'
         ? {

@@ -1084,6 +1084,18 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     putRow(dl,'vault', vault.ts
       ? document.createTextNode(`${hhmm(vault.ts)} · ${vault.ficheiro} (via ${vault.fonte})`)
       : el('span','nd', vault.motivo || 'n/a'));
+    // O processo esta a correr o codigo que esta em disco? Tres vezes em tres
+    // dias o main recebeu uma correccao e o loop continuou com o codigo velho.
+    // Um `import` e estatico e nao ha supervisor que o recarregue, por isso a
+    // unica defesa e esta linha. `null` = nao deu para comparar, e isso NAO e o
+    // mesmo que "esta bem".
+    const cod = p.codigo || {};
+    putRow(dl,'running code', cod.desactualizado === null || cod.desactualizado === undefined
+      ? el('span','nd','could not compare')
+      : el('span',`chip ${cod.desactualizado ? 'bad' : 'ok'}`,
+           cod.desactualizado
+             ? `STALE — loaded ${cod.sha_carregado}, disk has ${cod.sha_disco} · restart to pick it up`
+             : `matches disk (${cod.sha_carregado})`));
   }
 
   // Os motores e o custo REAL de cada um, servidos uma vez pelo endpoint. Um

@@ -155,9 +155,37 @@ function safeList(dir, readdirImpl) {
  *
  * @returns {Promise<object>} every key measured or null-with-reason
  */
+/**
+ * O processo esta a correr o codigo que esta em disco?
+ *
+ * TRES VEZES EM TRES DIAS: o `main` recebe uma correccao, o processo em memoria
+ * continua com o codigo velho, e ninguem nota. O `SYNC.md:468` ja documentava a
+ * segunda ocorrencia — documentar nao corrigiu, porque o defeito nao era
+ * esquecimento: era nao haver NADA que o tornasse visivel. O runner nao tem
+ * supervisor que o recarregue (o watchdog agendado vigia uma app pm2, nao este
+ * processo), e um `import` e estatico.
+ *
+ * Nao se resolve com um reinicio automatico — reiniciar sozinho um loop que
+ * escreve no ledger e uma decisao que nao me pertence. Resolve-se dizendo-o, no
+ * mesmo sitio onde a pausa e a reserva se dizem.
+ *
+ * `null` em `desactualizado` quer dizer "nao consegui comparar" — nunca `false`.
+ * Uma comparacao que falhou nao e uma comparacao que passou.
+ */
+export function verDeriva(shaCarregado, shaEmDisco) {
+  const a = shaCarregado ? String(shaCarregado) : null;
+  const b = shaEmDisco ? String(shaEmDisco) : null;
+  if (!a || !b) return { sha_carregado: a, sha_disco: b, desactualizado: null };
+  return { sha_carregado: a, sha_disco: b, desactualizado: a !== b };
+}
+
 export async function buildAlignment({
   repoRoot,
   vaultPath = process.env.VAULT_PATH || null,
+  // O sha que o processo tinha quando arrancou. Ausente = quem chama nao o
+  // sabe, e entao a deriva fica `null` em vez de fingir que esta tudo bem.
+  shaCarregado = null,
+  shaEmDisco = null,
   gitImpl = git,
   readImpl = fs.readFileSync,
 } = {}) {
@@ -188,5 +216,9 @@ export async function buildAlignment({
     comparacao: upstream ? 'against local ref, no fetch' : 'no upstream configured',
     classify_sha: checkClassifySha(repoRoot, { readImpl }),
     vault: vaultLastWrite(vaultPath),
+    // Viaja aqui porque este objecto ja vai no beacon e ja paga o custo do git:
+    // um campo novo no ciclo quente seriam ~3400 `rev-parse` por dia para dizer
+    // quase sempre a mesma coisa.
+    codigo: verDeriva(shaCarregado, shaEmDisco),
   };
 }
