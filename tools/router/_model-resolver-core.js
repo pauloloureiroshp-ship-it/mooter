@@ -72,6 +72,12 @@ function segmentar(cmd) {
   for (let i = 0; i < s.length; i += 1) {
     const c = s[i];
     if (aspa) {
+      // Aspa ESCAPADA dentro de aspas. Sem isto, o `\` era copiado literalmente
+      // e a aspa seguinte FECHAVA a string — logo
+      // `echo "diz \"ok\"; codex exec x"` produzia mesmo um segundo segmento e
+      // devolvia gpt-5-codex. Uma fabricacao residual da mesma classe que este
+      // ficheiro existe para eliminar, e o teste so cobria a forma sem escape.
+      if (c === '\\' && (s[i + 1] === aspa || s[i + 1] === '\\')) { cur += s[i + 1]; temCur = true; i += 1; continue; }
       if (c === aspa) aspa = null;
       else { cur += c; temCur = true; }
       continue;
@@ -79,6 +85,12 @@ function segmentar(cmd) {
     if (c === '"' || c === "'") { aspa = c; temCur = true; continue; }
     if (c === '\\' && s[i + 1] === '"') { cur += '"'; temCur = true; i += 1; continue; }
     if ((c === '&' && s[i + 1] === '&') || (c === '|' && s[i + 1] === '|')) { fecharSeg(); i += 1; continue; }
+    // Um `&` SOZINHO tambem separa: e o operador de background. Sem ele,
+    // `codex exec "a" & gemini --model gemini-3-pro "b"` ficava um so segmento e
+    // o codex roubava a flag do gemini — o mesmo defeito que o `;` ja tinha
+    // corrigido e que ninguem tinha testado nesta forma. A guarda do `>` evita
+    // partir redireccionamentos (`2>&1`, `&>`), onde o `&` nao separa nada.
+    if (c === '&' && s[i - 1] !== '>' && s[i + 1] !== '>') { fecharSeg(); continue; }
     if (c === '|' || c === ';' || c === '\n') { fecharSeg(); continue; }
     if (c === ' ' || c === '\t' || c === '\r') { fecharToken(); continue; }
     cur += c; temCur = true;
@@ -171,7 +183,15 @@ function modeloDaFlag(toks) {
   if (!Array.isArray(toks)) return null;
   for (let i = 0; i < toks.length; i += 1) {
     const t = String(toks[i]);
-    if (t === '--model' || t === '-m') {
+    // SO `--model`. O `-m` esteve aqui como alias e era um erro caro: no aider,
+    // `-m` e `--message`. `aider -m "corrige o bug" file.py` devolvia
+    // "corrige o bug" COMO MODELO; o `gsd-statusline` le `model=(\S+)`, fica com
+    // "corrige", o `bucketFor` devolve null e a linha SAI da distribuicao e do
+    // total. Ou seja, chamadas PAGAS de aider evaporavam-se e a quota local
+    // subia — o mesmo vies a favor da poupanca que este ficheiro veio remover,
+    // reintroduzido por ele. Pior: como o `-m` aparecia primeiro na ordem dos
+    // tokens, ate `aider -m "msg" --model gpt-5` devolvia "msg".
+    if (t === '--model') {
       const v = toks[i + 1];
       return v && !String(v).startsWith('-') ? String(v) : null;
     }

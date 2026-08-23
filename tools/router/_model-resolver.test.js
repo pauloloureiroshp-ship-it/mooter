@@ -74,6 +74,41 @@ test('um motor nao rouba a flag --model de outro na mesma linha', () => {
   // Lida do comando inteiro, a flag do gemini era colada a chamada do codex.
   assert.equal(detectExternalModel('codex exec "a" ; gemini --model gemini-3-pro "b"'), 'gpt-5-codex');
   assert.equal(detectExternalModel('codex exec "x" && echo --model=falso'), 'gpt-5-codex');
+  // O `&` SOZINHO (background) tambem separa. Eu tinha corrigido a forma com
+  // `;` e deixado esta — mesmo defeito, forma diferente, e sem teste.
+  assert.equal(detectExternalModel('codex exec "a" & gemini --model gemini-3-pro "b"'), 'gpt-5-codex');
+  assert.equal(detectExternalModel('git add . & codex exec x'), 'gpt-5-codex');
+});
+
+test('`-m` NAO e alias de `--model` — no aider e `--message`', () => {
+  // O erro mais caro desta serie, e o segundo do mesmo tipo no mesmo PR:
+  // `aider -m "corrige o bug" file.py` devolvia "corrige o bug" COMO MODELO. O
+  // statusline le `model=(\S+)`, fica com "corrige", o `bucketFor` devolve null
+  // e a linha SAI da distribuicao — chamadas PAGAS evaporavam-se e a quota
+  // local subia. O mesmo vies a favor da poupanca que este ficheiro veio
+  // remover, reintroduzido por ele.
+  assert.equal(detectExternalModel('aider -m "corrige o bug" file.py'), 'gpt-5');
+  // E o `-m` vinha ANTES na ordem dos tokens, por isso roubava ate quando o
+  // `--model` verdadeiro estava presente.
+  assert.equal(detectExternalModel('aider -m "msg" --model gpt-5.1 x'), 'gpt-5.1');
+  assert.equal(detectExternalModel('codex -m "mensagem" exec x'), 'gpt-5-codex');
+});
+
+test('uma aspa ESCAPADA dentro de aspas nao fecha a string', () => {
+  // `echo "diz \"ok\"; codex exec x"` produzia mesmo um segundo segmento: o `\`
+  // era copiado literalmente e a aspa seguinte fechava a string. Residuo da
+  // mesma classe de fabricacao, e o teste do separador so cobria a forma simples.
+  assert.equal(detectExternalModel('echo "diz \\"ok\\"; codex exec x"'), null);
+  assert.deepEqual(segmentar('echo "diz \\"ok\\"; codex exec x"'), [['echo', 'diz "ok"; codex exec x']]);
+});
+
+test('redireccionamentos com `&` nao viram separadores', () => {
+  // `2>&1` e `&>` trazem um `&` que nao separa nada. Parti-los nao muda o
+  // veredicto destes casos, mas parti-los por acidente e como se chega ao
+  // proximo segmento fantasma.
+  assert.equal(detectExternalModel('where codex 2>&1'), null);
+  assert.equal(detectExternalModel('codex exec x 2>&1'), 'gpt-5-codex');
+  assert.equal(detectExternalModel('ls &> /dev/null'), null);
 });
 
 // ═══════════════════════ ERROS QUE PERDEM (sub-registam invocacoes reais) ════
