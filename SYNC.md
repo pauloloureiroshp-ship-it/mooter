@@ -431,3 +431,42 @@ comando encadeado bloqueado pelo `cert-guard` levou-me a recuar o `main` um
 commit sem dar por isso — reposto de imediato a partir do `origin`, nada perdido.
 
 gate: self-check 20/20 · runner do cockpit 600 testes, 0 fail · CI 14/14 no #336
+
+### 2026-08-23 (2) · desliguei o pilar que criei ontem — #339 em main
+
+O P11 nasceu a 22/08, escrito nesta sessão, e entrou na rotação a cumprir a regra
+que eu próprio tinha acabado de escrever. Em **um dia** produziu 87 achados:
+
+| | |
+|---|---|
+| **76 (87%)** | falham o critério do **próprio enunciado** — a linha citada não põe número em mensagem nenhuma (`text: 'vivacidade n/d — '`, `raiz: v.root,`) |
+| **9 (12%)** | **auto-refutados** — alegam divergência entre valores iguais: `says 0, uses 0` · `says 4, uses 4` · `says v0.2, uses v0.2` |
+| **9** | cumpriram; li-os um a um: 2 ilegíveis, 6 falsos (um compara **duas linhas do mesmo template de prompt** entre si), **1** talvez valha um olhar |
+
+**Um em 87** — o perfil do P1 e do P5. Loop de **10 → 2 pilares** (P2, P3).
+
+**A regra que isto derruba é minha, e tinha um dia.** Terceira versão:
+
+| | |
+|---|---|
+| v1 | `PILLAR_IDS.length >= 3` — um número que **inventei** |
+| v2 | *"só entra quem passou o ensaio"* — melhor, e ainda errada |
+| **v3** | passar o ensaio é **necessário, não suficiente** |
+
+> o ensaio semeado mede **sensibilidade** — vê-se o defeito quando ele lá está
+> o campo mede **precisão** — o que se produz quando ele não está
+
+Escrevi essa distinção a 22/08 a propósito do P3 e **não a apliquei ao meu próprio
+trabalho no mesmo dia**. E o pior do P11 não é o ruído: é um pilar chamado *"o
+número que o dono lê contra o que o código usa"* a **fabricar divergências de
+números**.
+
+**Fila: 385 → 211** (P2 134 · P3 77). Duas regras mecânicas novas, ambas derivadas
+de critérios que já existiam: `temNumeroEmMensagem` (do enunciado do P11) e
+`autoRefutado` (dispensa ler o ficheiro — a alegação contém a refutação).
+
+**Repetiu-se o padrão do reinício:** o `main` desligou o P11 e o processo vivo
+continuou a corrê-lo em memória — `import` estático, arranque de 22/08 12:34.
+Segunda vez em dois dias. Reiniciado: `pilares P2,P3 (default)`.
+
+gate: fora-do-enunciado 13/13 · refutado-pela-fonte 12/12 · runner 608 testes, 0 fail
