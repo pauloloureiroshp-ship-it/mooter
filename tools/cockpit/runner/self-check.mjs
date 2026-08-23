@@ -247,13 +247,50 @@ export function verCodigo(repoRoot, { runImpl = null } = {}) {
   };
 }
 
+/** As raízes do Claude Desktop, por sistema. A primeira que existir ganha. */
+const RAIZES_CLAUDE = [
+  ['Library', 'Application Support', 'Claude'],   // macOS
+  ['AppData', 'Roaming', 'Claude'],               // Windows
+];
+
+/** O id da extensão do conector, como o Claude Desktop a instala em disco. */
+export const ID_EXTENSAO = 'local.mcpb.paulo-loureiro.mooter';
+
+/**
+ * A versão do conector REALMENTE instalada, lida do artefacto e não do registo.
+ *
+ * PORQUE NÃO O REGISTO (medido a 2026-08-23, e custou um mês de alarme falso):
+ * o `extensions-installations.json` desta máquina tinha mtime de **31/07** e
+ * dizia `1.29.1`, enquanto o manifest da extensão instalada — mtime **21/08** —
+ * dizia `1.49.3`. O Claude Desktop não o reescreve de forma fiável ao actualizar
+ * uma extensão. O verificador pedia há semanas um gesto que já tinha sido feito.
+ *
+ * É a mesma lição do `sync-cockpit.mjs`, corrigido no mesmo dia: quando existe o
+ * ARTEFACTO, ele é a prova; um ficheiro de registo é o que alguém disse que fez.
+ * O registo fica como plano B, para o caso de a pasta não existir.
+ */
+export function versaoInstalada({ readImpl = fs.readFileSync, home = os.homedir() } = {}) {
+  const ler = (p) => { try { return JSON.parse(String(readImpl(p, 'utf8'))); } catch { return null; } };
+  for (const raiz of RAIZES_CLAUDE) {
+    const m = ler(path.join(home, ...raiz, 'Claude Extensions', ID_EXTENSAO, 'manifest.json'));
+    if (m && typeof m.version === 'string') return { versao: m.version, fonte: 'manifest' };
+  }
+  for (const raiz of RAIZES_CLAUDE) {
+    const reg = ler(path.join(home, ...raiz, 'extensions-installations.json'));
+    const ext = reg && reg.extensions
+      ? Object.values(reg.extensions).find((e) => e && e.version && JSON.stringify(e).includes('mooter'))
+      : null;
+    if (ext && typeof ext.version === 'string') return { versao: ext.version, fonte: 'registo' };
+  }
+  return { versao: null, fonte: null };
+}
+
 /**
  * O conector instalado é o que este repo traz?
  *
  * Medido a 2026-08-19 nesta máquina: 1.33.0 instalado contra 1.49.3 no repo.
- * Dezasseis versões. Nenhuma ferramenta MCP declara a versão que corre, por
- * isso isto compara o manifest do repo com o registo do Claude Desktop — a
- * única fonte que existe.
+ * Nenhuma ferramenta MCP declara a versão que corre, por isso compara-se o
+ * manifest do repo com o do conector instalado em disco (ver `versaoInstalada`).
  */
 export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.homedir() } = {}) {
   const ler = (p) => { try { return JSON.parse(String(readImpl(p, 'utf8'))); } catch { return null; } };
@@ -262,10 +299,7 @@ export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.ho
   if (!noRepo) {
     return { id: 'conector', estado: ND, o_que: 'conector', porque: 'o manifest do repo não declara versão', resolver: null };
   }
-  const reg = ler(path.join(home, 'Library', 'Application Support', 'Claude', 'extensions-installations.json'))
-    || ler(path.join(home, 'AppData', 'Roaming', 'Claude', 'extensions-installations.json'));
-  const ext = reg && reg.extensions ? Object.values(reg.extensions).find((e) => e && e.version && JSON.stringify(e).includes('mooter')) : null;
-  const instalado = ext && typeof ext.version === 'string' ? ext.version : null;
+  const { versao: instalado } = versaoInstalada({ readImpl, home });
   if (!instalado) {
     return { id: 'conector', estado: ND, o_que: 'conector', valor: `${noRepo} no repo`, porque: 'não encontrei o registo de extensões do Claude Desktop nesta máquina', resolver: null };
   }
