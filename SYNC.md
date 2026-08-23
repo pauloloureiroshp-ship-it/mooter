@@ -312,10 +312,20 @@ idempotente, e recusa sobrepor-se a uma decisão já tomada.
 roteia para cloud) — SÓ-PAULO · sem cobertura ainda: `*.md`, `docs/**`,
 `packages/vscode-extension/`, `tools/cockpit/*.html`.
 
-**Dívida aberta:** `sync-cockpit.mjs:101` procura um LaunchAgent de **macOS** e por isso
-falha sempre em Windows, afirmando "nada o corre" com dois processos vivos (40464,
-31392) — tarefa registada. E este `SYNC.md` tem **606 linhas** contra as ~200 que o
-`AGENTS.md` manda: história por rolar para `docs/foundation/SYNC_ARCHIVE_2026.md`.
+**Dívida fechada (2026-08-22):** o `sync-cockpit.mjs` procurava um LaunchAgent de
+**macOS** e por isso falhava sempre em Windows, afirmando "nada o corre" com dois
+processos vivos. Agora responde à pergunta que interessa — **o que corre vem do
+espelho ou de outra cópia?** — pelos **processos vivos** (`ps` / CIM, independente de
+plataforma), com o lançador (plist · `schtasks MooterRunner`) como prova nº2 para
+quando o cockpit está legitimamente parado, e **`n/d` quando não há prova nenhuma**,
+em vez de afirmar. Verde medido nesta máquina: `corre: checkout (por processo vivo)`.
+30 testes sintéticos, 4 mutações confirmadas a falhar.
+
+**Dívida também fechada (2026-08-23):** a história de 2026-07-29→08-18 foi rolada
+para `docs/foundation/SYNC_ARCHIVE_2026.md` em `fa9a3778` — 739 → 366 linhas, com os
+pendentes vivos promovidos para a secção `PENDENTE` em vez de enterrados. (Esta linha
+foi actualizada no rebase: o commit original ainda a declarava aberta, e declará-la
+aberta depois de paga seria a mesma desonestidade que este ficheiro combate.)
 
 ### 2026-08-22 (2) · a fila triada de 1403 para 132, e os 2 defeitos que sobreviveram ao funil
 
