@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { mapaComentarios, temSemente, linhaCitada, cumpre, planear } from './fora-do-enunciado.mjs';
+import { mapaComentarios, temSemente, temNumeroEmMensagem, linhaCitada, cumpre, planear } from './fora-do-enunciado.mjs';
 
 test('mapaComentarios: // e * simples', () => {
   const m = mapaComentarios(['const a = 1;', '// nota', ' * jsdoc', 'b();']);
@@ -82,4 +82,34 @@ test('planear separa os tres baldes e nao mexe em quem ja tem decisao', () => {
   assert.deepEqual(r.dentro.map((x) => x.chave), ['k1']);
   assert.deepEqual(r.fora.map((x) => x.chave), ['k2']);
   assert.deepEqual(r.indecidivel.map((x) => x.chave), ['k3']);
+});
+
+// ── P11: a mensagem tem de ter um NUMERO (2026-08-23) ─────────────────────
+// 76 dos 87 achados do P11 falhavam o proprio enunciado. O pilar foi desenhado
+// na mesma sessao por quem escreve isto — a licao sensibilidade-vs-precisao
+// aplicada ao autor.
+
+test('temNumeroEmMensagem: string com digito passa, sem digito nao', () => {
+  assert.equal(temNumeroEmMensagem("say('sondei 5 portas')"), true);
+  assert.equal(temNumeroEmMensagem('erro: "falhou apos 3 tentativas"'), true);
+  assert.equal(temNumeroEmMensagem('nota = `esperei ${n} de 10`'), true);
+
+  assert.equal(temNumeroEmMensagem("text: 'vivacidade n/d — '"), false, 'string sem digito');
+  assert.equal(temNumeroEmMensagem("erro: 'nao consegui ler ' + alvo"), false);
+  assert.equal(temNumeroEmMensagem('raiz: v.root,'), false, 'nem sequer e mensagem');
+  assert.equal(temNumeroEmMensagem('const n = 42;'), false, 'digito FORA de string nao conta');
+});
+
+test('temNumeroEmMensagem: o digito tem de estar DENTRO das aspas', () => {
+  // `porto` tem digito mas fora da string — o enunciado pede o numero na
+  // mensagem que a pessoa le, nao na variavel que a compoe.
+  assert.equal(temNumeroEmMensagem("msg: 'porta ' + 4290"), false);
+  assert.equal(temNumeroEmMensagem("msg: 'porta 4290'"), true);
+});
+
+test('cumpre: P11 usa MESSAGE LINE, nao LINE', () => {
+  const linhas = ["const x = 1;", "say('faltam 3 dias')"];
+  assert.equal(cumpre('P11', 'MESSAGE LINE 2: ...', linhas), true);
+  assert.equal(cumpre('P11', 'MESSAGE LINE 1: ...', linhas), false);
+  assert.equal(cumpre('P11', 'sem numero de linha', linhas), null);
 });

@@ -1620,35 +1620,43 @@ test('um pilar desligado NAO pode ser dono de ficheiros', () => {
 
 // ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
 
-test('os OITO desligados saem da rotacao e continuam no catalogo', () => {
+test('os NOVE desligados saem da rotacao e continuam no catalogo', () => {
   // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
   // entrada tornaria ilegivel o historico que explica porque foram desligados.
   // Todos foram desligados por MEDICAO, nao por gosto — cada um tem o numero
   // no comentario da sua entrada em `PILLARS`.
-  for (const id of ['P1', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']) {
+  // O P11 juntou-se a lista a 2026-08-23, um dia depois de ter sido criado:
+  // 76 dos 87 achados falhavam o proprio enunciado, 9 auto-refutavam-se.
+  for (const id of ['P1', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11']) {
     assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
     assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
     assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
   }
-  assert.deepEqual(PILLAR_IDS, ['P2', 'P3', 'P11']);
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3']);
 });
 
-test('a rotacao contem SO os pilares que passaram o defeito semeado', () => {
-  // A regra que sai do dia, e que substitui a que eu tinha escrito. A primeira
-  // versao exigia `PILLAR_IDS.length >= 3` — um numero que eu inventei, e que
-  // teria bloqueado o desligar do P1 e do P5 por motivo nenhum. O que importa
-  // nao e QUANTOS correm: e se cada um provou que discrimina.
+test('passar o defeito semeado e NECESSARIO mas nao chega — a rotacao prova-se em campo', () => {
+  // Esta regra ja foi reescrita DUAS vezes, e as duas por medicao.
   //
-  // Dos NOVE semeados (`prova-de-pilar.mjs`), so estes dois deram `funciona`:
-  //   P3   THEY DIVERGE no semeado, THEY MATCH no controlo
-  //   P2   SEED VISIBLE no semeado, NO SEED EXITS no controlo
-  //   P11  THEY DIVERGE: message says 100, code uses 200 / THEY MATCH
-  // Os outros sete: `partido` (P6..P10) ou `falso-em-ambos` (P1, P5).
+  // v1: `PILLAR_IDS.length >= 3` — um numero que eu inventei, e que teria
+  //     bloqueado o desligar do P1 e do P5 por motivo nenhum.
+  // v2: "so entra quem passou o defeito semeado". Melhor, e ainda errada.
+  // v3 (2026-08-23, esta): passar o ensaio e NECESSARIO, nao suficiente.
   //
-  // O P11 nasceu DEPOIS desta regra e teve de a cumprir: entrou activo, este
-  // teste bloqueou-o, semeou-se, passou, e so entao se actualizou a lista.
-  assert.deepEqual(PILLAR_IDS, ['P2', 'P3', 'P11'],
-    'so entra na rotacao quem passou o ensaio — acrescentar um pilar exige semea-lo primeiro');
+  // O que a derrubou foi o P11 — criado nesta casa a 22/08, semeado ANTES de
+  // entrar, passou (`THEY DIVERGE: message says 100, code uses 200` no semeado,
+  // `THEY MATCH` no controlo), entrou na rotacao a cumprir esta mesma regra, e
+  // em UM dia produziu 87 achados dos quais 76 falhavam o seu proprio enunciado
+  // e 9 se auto-refutavam. Um em 87 talvez valesse leitura.
+  //
+  //   o ensaio semeado mede SENSIBILIDADE — ve-se o defeito quando ele la esta
+  //   o campo mede PRECISAO           — o que se produz quando ele nao esta
+  //
+  // Sao propriedades diferentes e um pilar pode ter a primeira sem a segunda.
+  // Por isso a lista abaixo nao e "quem passou o ensaio": e quem passou o ensaio
+  // E sobreviveu ao confronto com o que produziu.
+  assert.deepEqual(PILLAR_IDS, ['P2', 'P3'],
+    'entrar exige o ensaio; FICAR exige que o que se produz aguente ser lido');
   assert.ok(PILLAR_IDS.length >= 1, 'sem pilares nao ha loop nenhum');
   for (const id of PILLAR_IDS) {
     assert.notEqual(PILLARS[id].activo, false, `${id} esta na rotacao E marcado como desligado`);

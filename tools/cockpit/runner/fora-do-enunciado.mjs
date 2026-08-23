@@ -20,6 +20,20 @@
  *        bloco `/* *\/` desde o topo, senao uma continuacao sem `*` era acusada
  *        de ser codigo.
  *
+ *   P11 — "copy ONE line that puts a NUMBER inside a message a person will read:
+ *        text between quotes with a digit in it". A linha citada tem de ter uma
+ *        string COM digito.
+ *
+ *        Medido a 2026-08-23: 76 dos 87 achados do P11 falham isto — 87%. E o
+ *        pilar foi desenhado nesta mesma sessao, por quem escreve isto, e
+ *        descrito como "desenhado a partir do que se provou funcionar". Citava
+ *        `text: 'vivacidade n/d — '` (string sem digito), `erro: 'nao consegui
+ *        ler ' + alvo` (idem) e ate `raiz: v.root,` — que nem mensagem e.
+ *
+ *        Passou o ensaio do defeito semeado. E a licao da sensibilidade-vs-
+ *        precisao aplicada ao proprio autor: detectar o defeito plantado nao diz
+ *        nada sobre o que se produz em campo.
+ *
  * Um pilar sem regra aqui e simplesmente ignorado — nao se inventa criterio.
  *
  * Uso:
@@ -54,9 +68,24 @@ export function temSemente(linha) {
   return /(^|[^\w])(0|''|""|\[\]|``)([^\w]|$)/.test(String(linha));
 }
 
+/**
+ * A linha poe um NUMERO dentro de uma mensagem que uma pessoa vai ler?
+ *
+ * O enunciado do P11 e explicito: "copy ONE line that puts a NUMBER inside a
+ * message a person will read: text between quotes with a digit in it". Uma linha
+ * citada sem string, ou com string sem digito, nao cumpre o proprio criterio —
+ * e medido a 2026-08-23 havia muitas: `text: 'vivacidade n/d — ' + ...`,
+ * `erro: 'nao consegui ler ' + alvo`, e ate `raiz: v.root,` que nem mensagem e.
+ */
+export function temNumeroEmMensagem(linha) {
+  return /(['"`])[^'"`\n]*\d[^'"`\n]*\1/.test(String(linha));
+}
+
 /** Qual a linha que o resumo cita, por pilar. `null` quando nao se consegue ler. */
 export function linhaCitada(pilar, resumo) {
-  const re = pilar === 'P3' ? /COMMENT LINE (\d+)/ : /LINE (\d+)/;
+  const re = pilar === 'P3' ? /COMMENT LINE (\d+)/
+    : pilar === 'P11' ? /MESSAGE LINE (\d+)/
+      : /LINE (\d+)/;
   const m = String(resumo || '').match(re);
   return m ? Number(m[1]) : null;
 }
@@ -73,6 +102,7 @@ export function cumpre(pilar, resumo, linhas) {
   if (!n || !Array.isArray(linhas) || linhas.length < n) return null;
   if (pilar === 'P3') return Boolean(mapaComentarios(linhas)[n - 1]);
   if (pilar === 'P2') return temSemente(linhas[n - 1]);
+  if (pilar === 'P11') return temNumeroEmMensagem(linhas[n - 1]);
   return null;
 }
 
