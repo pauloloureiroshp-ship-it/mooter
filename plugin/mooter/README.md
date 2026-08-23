@@ -2,7 +2,7 @@
 
 Routes every prompt to the cheapest capable model — local Ollama for trivial work (free, private), Haiku/Sonnet mid-tier, Opus only when the wall is concrete. **Hook, not proxy:** mooter never intercepts your API traffic; it injects a routing hint through Claude Code's own UserPromptSubmit hook.
 
-**Real numbers:** 47% saved vs all-Opus across 658 routed calls on the author's machine — [methodology published](https://mooter.ai/methodology), including where mooter *loses* (it is a Claude Code specialist, not a general-purpose router).
+**Real numbers:** the classifier routed **101 of 123 classified prompts (82.1%)** to a local or cheap tier between 2026-08-20 and 2026-08-23. In those same sessions, of 3,225 recorded executions, 3,193 ran on Opus and 1 ran locally — that gap is the current work, and it is stated rather than hidden. **No savings percentage is published:** no telemetry file records tokens, so there is no measured cost from which to derive one. [Methodology](https://mooter.ai/methodology), including where mooter *loses* (it is a Claude Code specialist, not a general-purpose router).
 
 ## What this plugin does
 

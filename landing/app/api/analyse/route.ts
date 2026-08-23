@@ -12,7 +12,16 @@ import { upsert, selectOne } from '@/app/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const SAVINGS_PCT = 89; // real replay on 1,437 prompts — never invented
+// 2026-08-23: era `const SAVINGS_PCT = 89`, com o comentario "real replay on
+// 1,437 prompts — never invented". O corpus era de 16 de Abril, escrito a mao,
+// e NENHUM codigo deste repositorio produz o campo de que ele saiu. Uma
+// auditoria encontrou cinco numeros de poupanca a contradizerem-se; nenhum
+// sobreviveu. Sem tokens registados nao ha custo medido, e sem custo medido
+// nao ha poupanca — em nenhuma unidade.
+//
+// Devolve-se `null`, como o `api/community/pulse/route.ts:22` ja fazia. Um
+// `null` obriga quem consome a decidir o que mostrar; um numero errado nao.
+const SAVINGS_PCT: number | null = null;
 const BACKTEST_PROMPTS = 1437;
 const COMMUNITY_USERS = 312; // federated learning participants
 
@@ -23,11 +32,11 @@ export type AnalyseResult = {
   language: string;
   llm_detected: boolean;
   llm_signals: string[];        // e.g. ['openai', 'anthropic sdk']
-  savings_pct: number;
-  monthly_savings_usd: number;  // estimate at $50/mo baseline
+  savings_pct: number | null;
+  monthly_savings_usd: number | null;  // null: sem tokens registados nao ha custo medido
   tier_breakdown: TierBreakdown;
   suggestions: Suggestion[];
-  backtest_confidence: number;  // 0-100
+  backtest_confidence: number | null;  // null: o corpus de Abril nao e reproduzivel
   cached: boolean;
   error?: string;
 };
@@ -268,10 +277,10 @@ export async function POST(req: NextRequest) {
         llm_detected,
         llm_signals,
         savings_pct: SAVINGS_PCT,
-        monthly_savings_usd: Math.round((SAVINGS_PCT / 100) * 50),
+        monthly_savings_usd: null,
         tier_breakdown: buildTierBreakdown(framework, llm_detected),
         suggestions: buildSuggestions(cached.platform || 'Unknown', framework, llm_signals),
-        backtest_confidence: 94,
+        backtest_confidence: null,
         backtest_prompts: BACKTEST_PROMPTS,
         community_users: COMMUNITY_USERS,
         cached: true,
@@ -310,10 +319,10 @@ export async function POST(req: NextRequest) {
     url, platform, framework, language,
     llm_detected, llm_signals,
     savings_pct: SAVINGS_PCT,
-    monthly_savings_usd: Math.round((SAVINGS_PCT / 100) * 50),
+    monthly_savings_usd: null,
     tier_breakdown: buildTierBreakdown(framework, llm_detected),
     suggestions: buildSuggestions(platform, framework, llm_signals),
-    backtest_confidence: 94,
+    backtest_confidence: null,
     backtest_prompts: BACKTEST_PROMPTS,
     community_users: COMMUNITY_USERS,
     cached: false,
