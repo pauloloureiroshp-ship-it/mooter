@@ -41,6 +41,16 @@ const WIRED_HOOKS = [
   // the tap can never go stale the way the accumulator hook once did. ADDITIVE,
   // read-only, fail-soft — a missing copy just means no events, never a broken turn.
   'live-preview-tap.js',
+  // Os dois ficheiros que decidem QUE MOTOR fica escrito no execution.log. Nao
+  // estavam em nenhum dos tres canais de distribuicao: o `exec-logger.js` e o
+  // `PostToolUse.js` fazem `require('./_model-resolver')`, que em CommonJS
+  // resolve para ~/.claude/hooks/ — e o install.sh so os copiava para
+  // ~/.claude/tools/router/, onde ninguem os requer. Resultado medido: uma copia
+  // ANTIGA vivia em ~/.claude/hooks/ desde uma colocacao nao gerida, e nenhum
+  // `/mooter-update` lhe tocava. E a mesma falha do acumulador ('63 sessoes, 0
+  // journals'), agora a fabricar 96% das linhas de motor.
+  '_model-resolver.js',
+  '_model-resolver-core.js',
 ];
 
 // The Stop hook that carries the Live Context Accumulator. If the WIRED copy of

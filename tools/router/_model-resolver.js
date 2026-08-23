@@ -25,80 +25,52 @@ function subagentTypeToModel(subagentType) {
   return null;
 }
 
-// Interpretadores: quando um destes e o executavel, quem interessa e o ARGUMENTO
-// seguinte (o script), nao o interpretador.
-const INTERPRETES = new Set(['bash', 'sh', 'zsh', 'node', 'python', 'python3', 'pwsh', 'powershell']);
-// Prefixos que envolvem o comando real sem serem o comando.
-const PREFIXOS = new Set(['sudo', 'env', 'exec', 'nohup', 'time', 'command', 'nice']);
-
-/** Os segmentos de um comando composto: `a && b | c ; d` -> ['a','b','c','d']. */
-function segmentos(cmd) {
-  return String(cmd)
-    .split(/\s*(?:&&|\|\||[;|\n])\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-/** O nome do executavel de um segmento, sem caminho nem extensao. */
-function executavel(segmento) {
-  const toks = String(segmento).split(/\s+/).filter(Boolean);
-  for (let i = 0; i < toks.length; i += 1) {
-    let t = toks[i].replace(/^["']|["']$/g, '');
-    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) continue; // VAR=valor a prefixar
-    let base = t.split(/[\\/]/).pop().replace(/\.(exe|cmd|bat|ps1|sh)$/i, '');
-    if (PREFIXOS.has(base)) continue;
-    if (INTERPRETES.has(base) && toks[i + 1]) {
-      // `bash .../ollama_call.sh --text x` -> o que conta e o script.
-      const arg = toks[i + 1].replace(/^["']|["']$/g, '');
-      if (arg.startsWith('-')) return base;
-      base = arg.split(/[\\/]/).pop().replace(/\.(mjs|cjs|js|py|ps1|sh)$/i, '');
-    }
-    return base;
-  }
-  return null;
-}
+const { ehInvocacao, segmentoQueInvoca, modeloDaFlag, segmentar, nomeBase } = require('./_model-resolver-core.js');
 
 /**
- * O comando INVOCA este programa? (nao: "menciona-o algures no texto")
+ * Que motor EXTERNO este comando invoca — ou `null` se nenhum, ou se nao se
+ * consegue saber qual.
  *
- * O ANTIGO testava `/\bcodex\b/` contra o comando INTEIRO. Medido a 2026-08-23 no
- * `execution.log`: 279 linhas com `model=gpt-5-codex`, das quais **12 eram
- * invocacoes reais**. 267 fabricadas — 96%. Entre elas:
- *
- *   which codex 2>/dev/null
- *   where codex 2>&1
- *   cd "..." && git add tools/router/
- *
- * Nao e um erro cosmetico de contagem. O `exec-logger.js:174` nao ANOTA o modelo,
- * SUBSTITUI-O — e o `bucketFor()` manda essas linhas para baldes baratos. Ou
- * seja: **procurar pelo nome de um motor inflacionava a poupanca declarada**. Foi
- * assim que esta propria sessao de auditoria fabricou ~10 execucoes de Codex, so
- * por eu ter pesquisado a palavra.
+ * A REGRA que governa cada ramo: **em duvida, `null`.** Nunca o motor mais
+ * barato. Um heuristico que erra sempre para o mesmo lado nao e ruido, e vies —
+ * e neste sistema o vies barato inflaciona a poupanca declarada, que e
+ * exactamente o defeito que este ficheiro veio corrigir.
  */
-function ehInvocacao(cmd, nome) {
-  for (const seg of segmentos(cmd)) {
-    if (executavel(seg) === nome) return true;
-  }
-  return false;
-}
-
 function detectExternalModel(command) {
   if (!command) return null;
   const cmd = String(command);
-  // `--model=x` so vale se ESTE comando for a invocacao; senao um `echo --model=y`
-  // dentro de um comando qualquer roubava o nome ao motor verdadeiro.
-  const flagModelo = () => {
-    const m = cmd.match(/--model[= ]([^\s"']+)/);
-    return m ? m[1] : null;
-  };
+
+  // O script do harness. Nome proprio, sem ambiguidade.
   if (ehInvocacao(cmd, 'ollama_call')) return 'qwen3:30b';
-  if (ehInvocacao(cmd, 'ollama')) {
-    const ollamaRun = cmd.match(/\bollama\s+run\s+(\S+)/);
-    return ollamaRun ? ollamaRun[1] : 'qwen3:30b';
+
+  // OLLAMA — so `ollama run <modelo>` e uma execucao.
+  //
+  // A primeira versao desta correccao aceitava QUALQUER subcomando e devolvia
+  // 'qwen3:30b' cravado: `ollama list`, `ollama ps` e `ollama pull` viravam
+  // execucoes locais, e o `bucketFor` conta local como trabalho GRATIS. O
+  // `onboarding.js:145`, o `mooter-doctor.js:264` e o `hardware-matcher.js:106`
+  // imprimem `ollama pull ...` para o dono colar no terminal — nao era um caso
+  // de fronteira, era o caminho normal. Sem `run`, devolve-se `null`.
+  const ollama = segmentoQueInvoca(cmd, 'ollama');
+  if (ollama) {
+    const i = ollama.indexOf('run');
+    const modelo = i >= 0 ? ollama[i + 1] : null;
+    return modelo && !String(modelo).startsWith('-') ? String(modelo) : null;
   }
-  if (ehInvocacao(cmd, 'codex')) return flagModelo() || 'gpt-5-codex';
-  if (ehInvocacao(cmd, 'gemini') || ehInvocacao(cmd, 'gemini-cli')) return flagModelo() || 'gemini-2.5-flash';
-  if (ehInvocacao(cmd, 'aider')) return flagModelo() || 'gpt-5';
+
+  // Nos restantes, a flag `--model` e lida SO nos tokens do segmento que
+  // invoca. Lida do comando inteiro, um motor roubava a flag de outro:
+  // `codex exec "a" ; gemini --model gemini-3-pro "b"` registava a chamada do
+  // Codex como gemini-3-pro.
+  const codex = segmentoQueInvoca(cmd, 'codex');
+  if (codex) return modeloDaFlag(codex) || 'gpt-5-codex';
+
+  const gemini = segmentoQueInvoca(cmd, 'gemini') || segmentoQueInvoca(cmd, 'gemini-cli');
+  if (gemini) return modeloDaFlag(gemini) || 'gemini-2.5-flash';
+
+  const aider = segmentoQueInvoca(cmd, 'aider');
+  if (aider) return modeloDaFlag(aider) || 'gpt-5';
+
   return null;
 }
 
@@ -116,8 +88,12 @@ function getRole(model) {
 
 module.exports = {
   subagentTypeToModel,
-  ehInvocacao,
-  executavel,
   detectExternalModel,
   getRole,
+  // Reexportados para os testes. O parser vive no .
+  ehInvocacao,
+  segmentoQueInvoca,
+  modeloDaFlag,
+  segmentar,
+  nomeBase,
 };
