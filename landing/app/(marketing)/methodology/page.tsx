@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useReducer, useRef, useState } from 'react';
+import Link from 'next/link';
 import Eyebrow from '@/components/Eyebrow';
 import Card from '@/components/Card';
 import ProgressBar from '@/components/ProgressBar';
@@ -251,7 +252,7 @@ export default function MethodologyPage() {
               <strong style={{ color: 'var(--color-text)' }}>Hypothetical scenario, not a measurement.</strong>{' '}
               The tier distribution above is an assumed profile per GPU class, and the per-prompt costs are token
               estimates. This project records no tokens, so it has no measured cost and publishes no savings
-              percentage — see the <a href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</a>.
+              percentage — see the <Link href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</Link>.
               What <em>is</em> measured: 101 of 123 classified prompts were routed to a local or cheap tier.
             </div>
           </Card>
