@@ -25,24 +25,52 @@ function subagentTypeToModel(subagentType) {
   return null;
 }
 
+const { ehInvocacao, segmentoQueInvoca, modeloDaFlag, segmentar, nomeBase } = require('./_model-resolver-core.js');
+
+/**
+ * Que motor EXTERNO este comando invoca — ou `null` se nenhum, ou se nao se
+ * consegue saber qual.
+ *
+ * A REGRA que governa cada ramo: **em duvida, `null`.** Nunca o motor mais
+ * barato. Um heuristico que erra sempre para o mesmo lado nao e ruido, e vies —
+ * e neste sistema o vies barato inflaciona a poupanca declarada, que e
+ * exactamente o defeito que este ficheiro veio corrigir.
+ */
 function detectExternalModel(command) {
   if (!command) return null;
   const cmd = String(command);
-  if (cmd.includes('ollama_call.sh')) return 'qwen3:30b';
-  const ollamaRun = cmd.match(/\bollama\s+run\s+(\S+)/);
-  if (ollamaRun) return ollamaRun[1];
-  if (/\bcodex\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5-codex';
+
+  // O script do harness. Nome proprio, sem ambiguidade.
+  if (ehInvocacao(cmd, 'ollama_call')) return 'qwen3:30b';
+
+  // OLLAMA — so `ollama run <modelo>` e uma execucao.
+  //
+  // A primeira versao desta correccao aceitava QUALQUER subcomando e devolvia
+  // 'qwen3:30b' cravado: `ollama list`, `ollama ps` e `ollama pull` viravam
+  // execucoes locais, e o `bucketFor` conta local como trabalho GRATIS. O
+  // `onboarding.js:145`, o `mooter-doctor.js:264` e o `hardware-matcher.js:106`
+  // imprimem `ollama pull ...` para o dono colar no terminal — nao era um caso
+  // de fronteira, era o caminho normal. Sem `run`, devolve-se `null`.
+  const ollama = segmentoQueInvoca(cmd, 'ollama');
+  if (ollama) {
+    const i = ollama.indexOf('run');
+    const modelo = i >= 0 ? ollama[i + 1] : null;
+    return modelo && !String(modelo).startsWith('-') ? String(modelo) : null;
   }
-  if (/\bgemini(-cli)?\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gemini-2.5-flash';
-  }
-  if (/\baider\b/.test(cmd)) {
-    const m = cmd.match(/--model[= ](\S+)/);
-    return m ? m[1] : 'gpt-5';
-  }
+
+  // Nos restantes, a flag `--model` e lida SO nos tokens do segmento que
+  // invoca. Lida do comando inteiro, um motor roubava a flag de outro:
+  // `codex exec "a" ; gemini --model gemini-3-pro "b"` registava a chamada do
+  // Codex como gemini-3-pro.
+  const codex = segmentoQueInvoca(cmd, 'codex');
+  if (codex) return modeloDaFlag(codex) || 'gpt-5-codex';
+
+  const gemini = segmentoQueInvoca(cmd, 'gemini') || segmentoQueInvoca(cmd, 'gemini-cli');
+  if (gemini) return modeloDaFlag(gemini) || 'gemini-2.5-flash';
+
+  const aider = segmentoQueInvoca(cmd, 'aider');
+  if (aider) return modeloDaFlag(aider) || 'gpt-5';
+
   return null;
 }
 
@@ -62,4 +90,10 @@ module.exports = {
   subagentTypeToModel,
   detectExternalModel,
   getRole,
+  // Reexportados para os testes. O parser vive no .
+  ehInvocacao,
+  segmentoQueInvoca,
+  modeloDaFlag,
+  segmentar,
+  nomeBase,
 };
