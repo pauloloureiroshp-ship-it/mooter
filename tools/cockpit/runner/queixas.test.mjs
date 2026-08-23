@@ -40,7 +40,15 @@ test('q02 · o play por pilar mexe mesmo no loop, não é decoração', () => {
   // leva argumentos. A alegacao nao mudou — o loop tem de ler o foco a cada
   // volta — so o sitio de onde o le e que passou a depender do repo.
   assert.match(runner, /readFocus\(paths\.FOCUS, ids, logImpl\)/, 'o loop tem de LER o foco do projecto certo');
-  assert.match(runner, /focus \|\| nextPillar/, 'o foco tem de vencer o rodízio');
+  // A alegação é "o foco vence quem escolhe por ele", e não uma grafia. Até
+  // 2026-08-23 quem escolhia era o `nextPillar` e isto exigia `focus ||
+  // nextPillar`; agora quem escolhe é o Fleet Commander, e o foco continua a
+  // ganhar-lhe — só que num `if`, porque o comandante também pode dizer PAUSA e
+  // um `||` não sabe exprimir isso. Fixar a grafia teria feito esta ligação
+  // parecer uma regressão quando a regra ficou igual.
+  assert.match(runner, /let pillar = focus;/, 'o foco entra primeiro');
+  assert.match(runner, /if \(!pillar\) \{[\s\S]{0,400}?decidirRonda\(/,
+    'quem escolhe só corre quando NÃO há foco — o botão do dono ganha ao escalonador');
   assert.match(read(SHELL), /control\('\/focus'/, 'o botão tem de chamar o endpoint');
 });
 
