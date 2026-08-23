@@ -379,3 +379,55 @@ Mais uma mensagem que mentia (`safety_boost` dizia `(0.00)` sem ter medido → `
 `router-tuning.json` — e isso parte o teste `tuned_demote still works when no
 quality_intent present`. A suite do `tools/router` passa de 5 para 6 falhas por
 ter havido um update, não por ter havido código novo. Medido nos dois sentidos.
+
+### 2026-08-23 · quatro verificadores, uma raiz — #333 #334 #335 #336 em main
+
+Todos por PR, todos pelos 5 checks obrigatórios, zero bypass. `main` em `1d5f3f2c`.
+
+**A raiz, formulada depois do quarto caso:**
+
+> O problema não é a força da prova — é a **mensagem afirmar mais do que a prova
+> sustenta**.
+
+| PR | Verificador | Afirmava | Media |
+|---|---|---|---|
+| **#333** | `sync-cockpit --check` | "nada o corre" | um `.plist` de **macOS**, num Windows — impossível de passar |
+| **#335** | `verConector` | "1.29.1 instalado" | o **registo** do Claude Desktop, parado desde 31/07 |
+| **#336** | `verBeacon` | "escrito e **a publicar**" | uma **variável de ambiente** + `mtime` local |
+| **#334** | — | (o `main` vermelho) | *meu*: arquivei a decisão e deixei o destrave |
+
+**Custo medido de cada um:**
+
+- **#333** — gritava `SELF-CHECK FALHOU · nada o corre` com dois processos vivos
+  (`moo-runner`, `f10-server`). Estrutural em Windows: nunca podia passar.
+- **#335** — o conector **está em 1.49.3 desde 21/08**. O painel exigia há um mês
+  um gesto humano já feito. *Não houve nada para actualizar.*
+- **#336** — durante as ~20h do rebase encravado do vault, o runner escrevia no
+  log `escrito no disco, mas a frota nao o ve` e o verificador dizia `ok`.
+- **#334** — o portão do slack-spike ficou **aberto sem a autorização ao lado**
+  durante um dia. Visto por acidente, no CI de um PR alheio.
+
+**O que mais incomoda: em três dos quatro, a prova forte já existia no repo** —
+às vezes no mesmo ficheiro. O `verCodigo` diz `n/d` quando não consegue falar com
+o remoto, **dez linhas acima** do `verBeacon` que afirmava publicação sem a medir.
+O `beacon-publisher` valida git e remoto antes de dizer "publicado". O manifest
+instalado estava ao lado do registo stale. Não faltava capacidade — faltava pôr o
+verificador a olhar para onde já se sabia olhar.
+
+**Dois testes fixavam os defeitos**, e nos dois o *título* dizia a verdade e a
+*asserção* dizia o contrário. O mais claro: `self-check.test.mjs:76`, num teste
+chamado *"escrever o beacon NÃO é publicá-lo"*, afirmava `ok` a partir de `env` +
+`mtime`. Corrigi as asserções, nunca o código.
+
+**Sobreviveu à varredura:** `auto_publish_enabled` (`agent-sync-ledger`) decide
+por variável de ambiente — mas chama-se *enabled* e verifica exactamente isso.
+Prova fraca, mensagem honesta. `mooter-doctor` (9 leituras de artefacto, 0 env) e
+`skills-doctor` limpos. As `MOOTER_STATUSLINE_*` são flags, não provas.
+
+**Erros meus nesta sessão, declarados:** a varredura pré-push do #333 disse "0
+caminhos pessoais" e havia 4 — procurei `C:\Users\Paulo` com uma barra e o
+ficheiro tem duas, escapadas em JS; **quem apanhou foi o `ratchet` do CI**. E um
+comando encadeado bloqueado pelo `cert-guard` levou-me a recuar o `main` um
+commit sem dar por isso — reposto de imediato a partir do `origin`, nada perdido.
+
+gate: self-check 20/20 · runner do cockpit 600 testes, 0 fail · CI 14/14 no #336
