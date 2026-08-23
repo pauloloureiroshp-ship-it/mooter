@@ -1237,7 +1237,67 @@ if (decision.confidence < 0.6) {
  * `qwen3:30b` precisa de 9,2s E devolve resposta vazia — subir isto nao o
  * salva, e escolher o modelo por latencia medida fica por fazer.
  */
-const OPTION_A_BUDGET_MS = 8000;
+/**
+ * O orcamento do pre-calculo, DERIVADO do que o harness concede a este hook.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A TERCEIRA VEZ QUE ESTE FICHEIRO APRENDE A MESMA COISA
+ *
+ * Primeiro eram dois relogios: 8000 aqui e 3500 cravado no filho. Corrigiu-se
+ * fazendo o filho derivar deste. Mas eu escolhi o 8000 do ar — e o
+ * `settings.json` concede ao hook `"timeout": 3` SEGUNDOS.
+ *
+ * Consequencia medida: o selector certificava modelos ate 6800 ms de p75, e o
+ * harness matava-os aos 3000. A janela [3000, 6800] era um modelo dado como
+ * PROVADO que morria em 100% dos prompts reais. Pior: quando o harness mata o
+ * hook, o `registar()` nunca corre — logo esse modelo nunca acumulava falhas e
+ * ficava certificado para sempre.
+ *
+ * Nao ha aqui numero escolhido por mim. O orcamento e:
+ *
+ *   o que o harness concede  −  o que ja gastamos  −  margem para escrever
+ *
+ * Se o dono subir o `timeout` no `settings.json`, o orcamento sobe sozinho e o
+ * selector passa a poder certificar modelos maiores. Se o baixar, o contrario.
+ *
+ * LIMITE: le so o `settings.json` do utilizador. Um `settings.local.json` ou um
+ * settings de projecto que sobreponham o timeout nao sao vistos, e nesse caso
+ * cai-se no valor conservador. Preferi isso a inventar uma cascata de
+ * precedencia que podia estar errada.
+ */
+/** Quando este processo arrancou — o relogio de que o orcamento desconta. */
+const T_ARRANQUE = Date.now();
+/** Margem para o hook escrever a saida e sair depois do pre-calculo. */
+const MARGEM_SAIDA_MS = 600;
+/** Sem `timeout` legivel, um valor que cabe no default do Claude Code. */
+const ORCAMENTO_CONSERVADOR_MS = 2000;
+/** Abaixo disto nao vale a pena tentar: nenhum modelo responde, e gasta-se na mesma. */
+const ORCAMENTO_MINIMO_MS = 700;
+
+/** O `timeout` (ms) que o settings.json concede a ESTE hook, ou `null`. */
+function timeoutConcedidoMs() {
+  try {
+    const base = process.env.CLAUDE_DIR || path.join(os.homedir(), '.claude');
+    const s = JSON.parse(fs.readFileSync(path.join(base, 'settings.json'), 'utf8'));
+    for (const [evento, defs] of Object.entries(s.hooks || {})) {
+      if (!/UserPromptSubmit/.test(evento)) continue;
+      for (const g of (Array.isArray(defs) ? defs : [defs])) {
+        for (const h of (g.hooks || [])) {
+          if (!/inject_context/.test(String(h.command || ''))) continue;
+          const t = Number(h.timeout);
+          if (Number.isFinite(t) && t > 0) return Math.floor(t * 1000);
+        }
+      }
+    }
+  } catch { /* sem settings legivel, cai no conservador */ }
+  return null;
+}
+
+/** O que sobra para o pre-calculo, agora. Nunca negativo. */
+function orcamentoOptionA(agora = Date.now()) {
+  const concedido = timeoutConcedidoMs() || ORCAMENTO_CONSERVADOR_MS;
+  return Math.max(0, concedido - (agora - T_ARRANQUE) - MARGEM_SAIDA_MS);
+}
 
 /** Onde vivem as amostras de latencia e o catalogo de modelos locais. */
 const LATENCIA_PATH = path.join(ROUTER_DIR, 'latencia-local.jsonl');
@@ -1256,6 +1316,17 @@ if (
   try {
     const callScript = path.join(__dirname, 'ollama_call_node.js');
     const ollamaEnv = Object.assign({}, process.env);
+    // Quanto sobra, AGORA, do que o harness concedeu. Calculado aqui e nao no
+    // topo porque o que ja se gastou (classify, arbiter, safety) conta — e um
+    // orcamento medido no arranque estaria sempre errado por essa margem.
+    const orcamentoMs = orcamentoOptionA();
+    if (orcamentoMs < ORCAMENTO_MINIMO_MS) {
+      // Nao vale a pena tentar o que nao consegue acabar: gastaria o tempo do
+      // dono para produzir um `miss` que nem sequer se chega a registar, porque
+      // o harness mata o processo antes.
+      logDecision({ ts: new Date().toISOString(), event: 'option_a_sem_tempo', restava_ms: orcamentoMs });
+      throw new Error('sem_tempo');
+    }
     // O modelo sai de LATENCIA MEDIDA, nao de VRAM. O router escolhe o maior
     // que cabe na placa; medido nesta maquina, o maior devolve resposta vazia em
     // 9,2s. Sao criterios diferentes, e ninguem tinha medido o segundo.
@@ -1269,32 +1340,43 @@ if (
         recomendado: decision.recommended_model || null,
         resumo: lat.resumir(lat.lerAmostras(LATENCIA_PATH)),
         catalogo: cat.lerCatalogo(CATALOGO_PATH),
-        orcamentoMs: OPTION_A_BUDGET_MS,
+        orcamentoMs,
       });
       if (escolha.modelo) { modeloEscolhido = escolha.modelo; razaoModelo = escolha.razao; }
     } catch { /* sem medicao, fica o recomendado */ }
     if (modeloEscolhido) {
       ollamaEnv.OLLAMA_OPTION_A_MODEL = modeloEscolhido;
     }
-    // O orcamento vive AQUI, num sitio so, e o filho tira a sua margem dele.
-    // Ate 2026-08-23 havia dois numeros: 8000 aqui e 3500 cravado no filho, com
-    // um comentario la a dizer que este era 4000. Toda a chamada morria aos
-    // 3636 ms, e o registo dizia so `status=1, stderr vazio`.
-    ollamaEnv.MOOTER_OPTION_A_BUDGET_MS = String(OPTION_A_BUDGET_MS);
+    // O orcamento viaja para o filho, que tira dele a sua margem. Nao ha dois
+    // numeros para manter em acordo — ha um, derivado do harness.
+    ollamaEnv.MOOTER_OPTION_A_BUDGET_MS = String(orcamentoMs);
     const t0 = Date.now();
     const ollamaRes = spawnSync(process.execPath, [callScript, prompt], {
       encoding: 'utf8',
-      timeout: OPTION_A_BUDGET_MS,
+      timeout: orcamentoMs,
       env: ollamaEnv,
     });
     const decorrido = Date.now() - t0;
     const acertou = ollamaRes.status === 0 && ollamaRes.stdout && ollamaRes.stdout.trim().length > 5;
+    // UM parser do motivo, para os dois sitios que precisam dele.
+    //
+    // Havia dois, e divergiram no mesmo dia em que nasceram: um escrevia
+    // `/motivo=(S+)/` (sem a barra invertida) e o outro `/motivo=(\S+)/`. O
+    // primeiro nunca casava, por isso TODA a amostra falhada gravava
+    // `sem_motivo` — no ficheiro que este mesmo PR chama "o unico sitio de onde
+    // a proxima escolha vem". O silencio que a correccao veio acabar,
+    // reproduzido um nivel acima.
+    const motivoDaFalha = () => {
+      const m = /motivo=(\S+)/.exec(ollamaRes.stderr || '');
+      if (m) return m[1];
+      return (ollamaRes.error && ollamaRes.error.code === 'ETIMEDOUT') ? 'morto_pelo_pai' : 'sem_motivo';
+    };
     // A amostra e o unico sitio de onde a proxima escolha vem. Sem ela, o
     // `latencia-local.js` nunca sai do palpite do router.
     try {
       require('./latencia-local.js').registar(LATENCIA_PATH, {
         ts: new Date().toISOString(), modelo: modeloEscolhido, ms: decorrido, ok: Boolean(acertou),
-        motivo: acertou ? null : ((/motivo=(S+)/.exec(ollamaRes.stderr || '') || [])[1] || 'sem_motivo'),
+        motivo: acertou ? null : motivoDaFalha(),
       });
     } catch { /* telemetria nunca parte o hook */ }
     // A cache do catalogo refresca-se SO quando a escolha falha: e o momento em
@@ -1315,11 +1397,10 @@ if (
       // "modelo em falta" de "timeout" de "resposta vazia" — e as tres pedem
       // correccoes diferentes. Foi por isso que 3 dias de falhas passaram por
       // ruido de fundo.
-      const m = /motivo=(\S+)/.exec(ollamaRes.stderr || '');
       logDecision({
         ts: new Date().toISOString(),
         event: 'option_a_miss',
-        motivo: m ? m[1] : (ollamaRes.error && ollamaRes.error.code === 'ETIMEDOUT' ? 'morto_pelo_pai' : 'sem_motivo'),
+        motivo: motivoDaFalha(),
         modelo: modeloEscolhido,
         razao_modelo: razaoModelo,
         ms: decorrido,
