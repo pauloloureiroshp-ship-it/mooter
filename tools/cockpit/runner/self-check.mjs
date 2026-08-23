@@ -134,26 +134,52 @@ function listarMdMaisNovos(vaultDir, desdeMs, { readdirImpl = fs.readdirSync, st
 /**
  * O beacon chegou ao git do vault, ou está só no disco?
  *
- * Devolve `'publicado'`, `'por-commitar'`, `'por-empurrar'`, ou `null` quando
- * não se consegue provar nada — e `null` NUNCA vira `ok`, pela mesma razão que
- * o `verCodigo` diz `n/d` quando não consegue falar com o remoto.
+ * A PERGUNTA CERTA É A IDADE DO ÚLTIMO COMMIT, não se há diferença por commitar.
+ * A primeira versão disto — escrita horas antes, no mesmo dia — tratava qualquer
+ * ficheiro sujo como aviso. Medido logo a seguir: o publicador commita de 10 em
+ * 15 minutos e o runner reescreve o ficheiro a cada ronda, portanto durante a
+ * maior parte de qualquer janela EXISTE diferença por commitar. Isso é cadência,
+ * não falha, e o aviso dispararia quase sempre.
+ *
+ * Trocar um `ok` falso por um alarme falso não é corrigir nada: um verificador
+ * que grita de rotina é tão inútil como um que mente, e foi por isso que o
+ * `sync-cockpit` e o `cert-guard` tiveram de ser corrigidos esta semana.
+ *
+ * O que importa: se o último commit é recente, o publicador está a trabalhar; se
+ * está velho, parou. `por-empurrar` continua a ser aviso a sério — commits que
+ * não saíram da máquina não são vistos por ninguém, independentemente da cadência.
+ *
+ * Devolve `{ estado, minDesdeCommit }` com estado em `'publicado'`,
+ * `'por-empurrar'`, `'parado'`, `'nunca'`, ou `null` quando não se consegue
+ * provar nada — e `null` NUNCA vira `ok`.
  */
-export function provaDePublicacao(beaconFile, gitImpl = null) {
+export function provaDePublicacao(beaconFile, { gitImpl = null, agora = Date.now() } = {}) {
   const dir = path.dirname(String(beaconFile || ''));
   const correr = gitImpl || ((args) => {
     const { execFileSync } = require('node:child_process');
     return String(execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })).trim();
   });
+
+  let ultimo;
   try {
-    if (correr(['status', '--porcelain', '--', beaconFile])) return 'por-commitar';
-  } catch { return null; }
+    ultimo = correr(['log', '-1', '--format=%ct', '--', beaconFile]);
+  } catch { return { estado: null, minDesdeCommit: null }; }
+  if (!ultimo) return { estado: 'nunca', minDesdeCommit: null };
+
+  const seg = Number(ultimo);
+  if (!Number.isFinite(seg)) return { estado: null, minDesdeCommit: null };
+  const minDesdeCommit = Math.round((agora - seg * 1000) / 60000);
+  if (minDesdeCommit > BEACON_VELHO_MIN) return { estado: 'parado', minDesdeCommit };
+
   for (const alvo of ['@{u}..HEAD', 'origin/main..HEAD']) {
     try {
       const n = Number(correr(['rev-list', '--count', alvo]));
-      if (Number.isFinite(n)) return n > 0 ? 'por-empurrar' : 'publicado';
+      if (Number.isFinite(n)) {
+        return { estado: n > 0 ? 'por-empurrar' : 'publicado', minDesdeCommit };
+      }
     } catch { /* tenta o proximo */ }
   }
-  return null;
+  return { estado: null, minDesdeCommit };
 }
 
 /**
@@ -199,17 +225,24 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
       resolver: 'vê o log do runner: a publicação falha em silêncio se o vault tiver trabalho em staging',
     };
   }
-  const prova = provaDePublicacao(beaconFile, gitImpl);
-  if (prova === 'por-commitar') {
+  const { estado: prova, minDesdeCommit } = provaDePublicacao(beaconFile, { gitImpl, agora });
+  if (prova === 'nunca') {
     return {
-      id: 'beacon', estado: AVISO, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
-      porque: 'o estado mais recente ainda não está commitado no vault — a frota vê a versão anterior',
+      id: 'beacon', estado: MAU, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
+      porque: 'nunca foi commitado no vault — existe só no disco desta máquina, e a frota é um device só',
+      resolver: 'vê o log do runner: a publicação está a falhar em silêncio',
+    };
+  }
+  if (prova === 'parado') {
+    return {
+      id: 'beacon', estado: MAU, o_que: 'beacon deste device', valor: `último commit há ${minDesdeCommit} min`,
+      porque: `escrito mas não commitado há mais de ${BEACON_VELHO_MIN} min — a frota vê um estado velho`,
       resolver: 'vê o log do runner: a publicação recusa-se a commitar por cima de um conflito ou de trabalho em staging',
     };
   }
   if (prova === 'por-empurrar') {
     return {
-      id: 'beacon', estado: AVISO, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
+      id: 'beacon', estado: AVISO, o_que: 'beacon deste device', valor: `commitado há ${minDesdeCommit} min`,
       porque: 'commitado no vault mas o vault não foi empurrado — nenhuma outra máquina o vê ainda',
       resolver: `git -C "${path.dirname(beaconFile)}" push`,
     };
@@ -221,7 +254,9 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
       resolver: null,
     };
   }
-  return { id: 'beacon', estado: OK, o_que: 'beacon deste device', valor: `há ${min} min`, porque: 'escrito, commitado e empurrado', resolver: null };
+  // Uma diferença por commitar entre publicações é CADÊNCIA, não falha: o
+  // publicador corre de 10 em 15 min e o runner reescreve o ficheiro a cada ronda.
+  return { id: 'beacon', estado: OK, o_que: 'beacon deste device', valor: `publicado há ${minDesdeCommit} min`, porque: 'escrito, commitado e empurrado', resolver: null };
 }
 
 /**
