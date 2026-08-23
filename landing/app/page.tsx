@@ -15,13 +15,20 @@ import { M } from './lib/canonical-metrics';
 
 const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
 
-// Inline above-the-fold pulse strip — author's real machine numbers (not a community average).
+// Inline above-the-fold pulse strip.
+//
+// Já mostrou "saved vs Opus $22.95" e "avg savings 47%". Ambos vinham de três
+// literais que nenhum script regenerava — ver canonical-metrics.ts para a
+// auditoria inteira. Nenhum ficheiro de telemetria deste projecto regista
+// tokens, portanto nunca houve um custo medido de que derivar uma poupança.
+//
+// O que fica é mais fraco e é verdade: o que o router RECOMENDA (medido) ao lado
+// do que de facto CORREU (medido). A distância entre os dois é o trabalho por
+// fazer, e escondê-la seria a mesma coisa que publicar os 47%.
 const heroStats: [string, string, string][] = [
-  ['calls routed', M.routedCalls, 'across the author’s moos'],
-  // "saved" = naive all-Opus − real mooter spend, DERIVED in canonical-metrics.ts (so the amount PAID,
-  // $25.95, is never shown under a "saved" label). Single source → the hero, PulseStrip, cockpit + SEO agree.
-  ['saved vs Opus', M.savedUsd, `vs ${M.baselineUsd} all-Opus`],
-  ['avg savings', M.savedPct, 'vs all-Opus'],
+  ['routed to cheap', M.recomendadoBaratoPct, `${M.recomendadoBarato} classified prompts`],
+  ['ran locally', M.execucoesLocal, `of ${M.execucoes} executions`],
+  ['cost measured', 'none', 'no tokens are logged — so no $ is claimed'],
   ['packs installed', '3', 'data · diagram · voice'],
 ];
 
@@ -56,8 +63,8 @@ export default function Page() {
               <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 18, maxWidth: 540 }}>
                 Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
                 But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
-                environment and routes every prompt to the optimal model. Comparable quality on routine tasks, a fraction of the spend —{' '}
-                <strong style={{ color: 'var(--color-text)' }}>{M.savedPct} saved vs all-Opus across the author&apos;s own {M.routedCalls} routed calls</strong>. Real data, not a community average.{' '}
+                environment and routes every prompt to the optimal model —{' '}
+                <strong style={{ color: 'var(--color-text)' }}>{M.recomendadoBarato} classified prompts went to a local or cheap tier</strong>. {M.ressalva}{' '}
                 <a href="/methodology" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   See the benchmark *
                 </a>

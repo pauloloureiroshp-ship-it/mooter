@@ -25,12 +25,35 @@ export interface SavingsResult {
   saved_monthly: number;
   saved_pct: number;
   tier_distribution: { T0: number; T1: number; T2: number; T3: number };
+  /**
+   * SEMPRE `true`. Existe para que nenhuma superfície consiga renderizar estes
+   * números sem ter tido a oportunidade de dizer o que eles são.
+   *
+   * `TIER_DISTRIBUTION_BY_GPU` e `OPUS_AVG_COST` não vêm de medição nenhuma — são
+   * um cenário. A distribuição medida na máquina do autor (2026-08-23, 123
+   * prompts classificados) foi 82,1% para tier barato; a tabela `24gb_plus` aqui
+   * diz 62% em T0. Não são o mesmo número nem medem a mesma coisa, e a landing
+   * chegou a publicar 47% no herói e 92,6% nesta página.
+   */
+  hypothetical: true;
 }
 
 export function calculateSavings(opts: SavingsInput): SavingsResult {
   const monthlyPrompts = opts.promptsPerDay * 30;
   const baseline = monthlyPrompts * OPUS_AVG_COST;
-  const dist = TIER_DISTRIBUTION_BY_GPU[opts.hardware];
+  const base = TIER_DISTRIBUTION_BY_GPU[opts.hardware];
+
+  // `pctCritical` era declarado no input e NUNCA lido: o utilizador arrastava o
+  // slider de "% critical (T3)" na /methodology e o número não mexia um dígito.
+  // Um controlo que não controla nada é pior que não existir — ensina que os
+  // outros também não fazem nada.
+  const t3 = Math.min(1, Math.max(0, (Number(opts.pctCritical) || 0) / 100));
+  const restoOriginal = base[0] + base[1] + base[2];
+  const escala = restoOriginal > 0 ? (1 - t3) / restoOriginal : 0;
+  const dist: [number, number, number, number] = [
+    base[0] * escala, base[1] * escala, base[2] * escala, t3,
+  ];
+
   const tiers = ['T0', 'T1', 'T2', 'T3'] as const;
   const withMooter = dist.reduce((sum, share, idx) => {
     return sum + monthlyPrompts * share * TIER_COSTS[tiers[idx]];
@@ -41,5 +64,6 @@ export function calculateSavings(opts: SavingsInput): SavingsResult {
     saved_monthly: baseline - withMooter,
     saved_pct: baseline === 0 ? 0 : (1 - withMooter / baseline) * 100,
     tier_distribution: { T0: dist[0], T1: dist[1], T2: dist[2], T3: dist[3] },
+    hypothetical: true,
   };
 }

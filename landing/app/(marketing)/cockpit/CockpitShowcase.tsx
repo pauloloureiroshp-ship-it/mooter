@@ -414,12 +414,12 @@ function CockpitTab({
                       color: offline ? V.text : GREEN,
                     }}
                   >
-                    {M.paidUsd}
+                    {M.recomendadoBaratoPct}
                   </span>
-                  <span style={{ fontFamily: MONO, fontSize: 12, color: GREEN }}>{M.savedPct} below</span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: GREEN }}>routed cheap</span>
                 </div>
                 <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim, marginTop: 3 }}>
-                  real <span style={{ color: V.text }}>{M.paidUsd}</span> vs naive <span style={{ color: V.dim }}>{M.baselineUsd}</span>
+                  <span style={{ color: V.text }}>{M.recomendadoBarato}</span> classified prompts · no $ measured
                 </div>
               </div>
               <Sparkline values={[2, 3, 2.4, 4, 3.2, 5, 4.6, 6.1]} color={offline ? V.dim : GREEN} />
@@ -1287,7 +1287,7 @@ function CockpitPlugin({ width, scenario }: { width: Width; scenario: Scenario }
 const NOTES: [string, string][] = [
   [
     'honesty',
-    `Hero leads with the real ${M.paidUsd} (green = genuine positive). In first-run, $0.00 is muted with a CTA — never green for a zero. Estimates carry “token-estimated · advisory”.`,
+    `Hero leads with the measured routing split ${M.recomendadoBarato} (green = measured, not modelled). In first-run, $0.00 is muted with a CTA — never green for a zero. Estimates carry “token-estimated · advisory”.`,
   ],
   [
     '≤5 tabs',
