@@ -168,24 +168,74 @@ Medido sobre o ledger inteiro:
 | destes, produzidos por pilar **ainda activo** | **0** |
 
 Os 8 vieram de **P5 (4)** e **P11 (4)** — ambos **desligados**. Os pilares
-activos são apenas **P2 e P3** (`context-pack.mjs:654`), e produziram 461
-achados com esta distribuição:
+activos são apenas **P2 e P3** (`context-pack.mjs:654`), e produziram
+**466 achados únicos / 494 ocorrências**, com esta distribuição por chave única:
 
 ```
-P2  ACTIVO     {"low/trivial": 353, "low/nao-e-um-problema": 2}
-P3  ACTIVO     {"low/trivial": 108, "low/nao-e-um-problema": 3}
+P2  ACTIVO     {"low/trivial": 353, "low/nao-e-um-problema": 2}   = 355
+P3  ACTIVO     {"low/trivial": 108, "low/nao-e-um-problema": 3}   = 111
+                                                          total    466
 ```
 
 **100% `low` com motivo tipado** — isto é, `curar()` drena-os na íntegra.
-A fila viva inteira confirma-o: 219 achados por triar (P2 141 · P3 78), dos quais
-217 `low/trivial` + 2 `low/nao-e-um-problema`, **0 no nicho**.
+A fila viva confirma-o, e vale a pena separar as duas métricas porque elas **não
+são iguais** (ver §4c):
+
+```
+porTriar(receipts, decisoes, sem limite)  →  232 ENTRADAS
+chaves únicas nessas entradas             →  219
+contarTriagem().por_triar                 →  219
+severidade sobre as 232 entradas          →  {low/trivial: 230, low/nao-e-um-problema: 2}
+curar(fila, {cap: Infinity})              →  232 actos / 219 chaves · NÃO fechados: 0
+nicho nessas entradas                     →  0
+```
+
+Por chave única: 219 (P2 141 · P3 78), 217 `low/trivial` + 2
+`low/nao-e-um-problema`. Sob qualquer das duas contagens, o nicho é **0** e
+`curar()` é **elegível para 100% da fila**.
+
+**Precisão sobre "drena":** com o `cap = 25` de produção, `curar()` fecha 25 por
+chamada, não 232. Os 232 caem em **~10 tiques de 45s ≈ 7,5 minutos** de relógio.
+"Drena a fila toda" é verdade no tempo, não numa chamada — e só se o L1 estiver
+ligado, que não está (FACTO 2). *Segunda correcção vinda do adversário.*
 
 Chegadas do nicho por dia: `20/08: 0 · 21/08: 3 · 22/08: 4 · 23/08: 1` — e as duas
-fontes estão off desde então. **Taxa futura: 0/dia.**
+fontes estão desligadas desde então.
 
 O limiar do MP é 20 descartes do dono *por assinatura*. O nicho inteiro tem 8
-itens de sempre, repartidos por dois pilares mortos. **Nenhuma assinatura pode
-chegar a 20.**
+itens de sempre, repartidos por dois pilares desligados — **nenhuma assinatura
+está sequer perto de 20, e nenhuma pode crescer enquanto as fontes estiverem
+off**.
+
+> **Honestidade sobre o tempo verbal** (correcção do adversário): isto mede o
+> **snapshot**, não o futuro. "Nunca terá matéria-prima" é uma **projecção**, e
+> a projecção é `n/d`. O que está medido é: hoje, 0 na fila; de sempre, 8; das
+> fontes vivas, 0. Se P2/P3 mudarem de enunciado, ou se um pilar novo entrar, o
+> nicho pode nascer — e então o desenho do MP volta a ser candidato.
+
+### (c) Dois defeitos laterais que a medição apanhou
+
+Nenhum destes é o gate, mas os dois tocam o mesmo aparelho e ficam registados
+para não se perderem:
+
+**`porTriar` não deduplica chaves.** `triagem.mjs:173-190` percorre os recibos e
+faz `out.push()` sem o `vistos` Set que `contarTriagem` tem em `:197`. Resultado
+medido: **232 entradas para 219 chaves únicas — 13 duplicadas**. Consequências:
+o painel pode mostrar o mesmo achado duas vezes ao dono, e `curar()` emitiria 13
+linhas redundantes no ledger (inofensivas — append-only, última-vence — mas
+ruído). *Apanhado pelo adversário (codex), não por mim: a minha primeira leitura
+citou 219 como se fosse o output de `porTriar`, quando era a minha própria
+contagem deduplicada. Duas métricas diferentes com o mesmo nome.*
+
+**A assinatura em falta faz default para o dono.** `registarTriagem`
+(`triagem.mjs:127`) tem `por = 'dono'` como valor por omissão, e `contarTriagem`
+(`:209`) faz `const a = d.por || 'dono'`. Ou seja: **quem escrever uma decisão
+sem `por` fica contado como o dono.** Hoje é latente — os cinco chamadores
+(`f10-server.mjs:308,539`, `voidar-fila.mjs:100`, `fora-do-enunciado.mjs:167`,
+`refutado-pela-fonte.mjs:150`) passam `por` explicitamente. Mas torna frágil
+qualquer correcção do §6.1 escrita como *lista negra* ("subtrai `agente` e
+`claude`"): o correcto é **lista branca** — contar no L2 só o que traz `por`
+explicitamente igual a `'dono'`, e exigir `por` sem default.
 
 ---
 
@@ -208,15 +258,41 @@ chegar a 20.**
 Nenhum destes é executado nesta fase — a FASE 0 pára aqui, por regra.
 
 1. **`portoes()` conta `claude` no denominador** (`autopilot.mjs:185`). É um
-   defeito real, presente, de uma linha: o denominador deve subtrair toda decisão
-   não-humana, não só `agente`. Hoje o painel diz ao dono *"you keep 0% of what it
+   defeito real, presente: hoje o painel diz ao dono *"you keep 0% of what it
    finds"* sobre 1448 decisões que **não foram dele**. Corrigir isto muda um número
    que o dono vê. **Ordem de grandeza maior do que o gate.**
+   Três precisões, todas vindas dos adversários:
+   - **Lista branca, não lista negra** (§4c): contar só `por === 'dono'`
+     explícito, e tirar o default `por = 'dono'` de `registarTriagem`. Escrito
+     como *"subtrai também `claude`"*, o buraco fica aberto ao próximo autor que
+     se esqueça do campo.
+   - **Um filtro lexical não é proveniência.** `por` é uma string escolhida por
+     quem escreve a linha; nada impede um agente de assinar `dono`. A defesa real
+     é o **canal de escrita** — só a UI do dono escreve linhas de dono — com a
+     assinatura rebaixada a metadado de exibição.
+   - **Corrigido, o denominador fica a zero**, e o painel tem de dizer
+     **"sem dados"** — nunca 0.0% e nunca 100%. `portoes()` já devolve
+     `precisao: null` quando `triados === 0` (`autopilot.mjs:187`); o que falta
+     garantir é que a superfície que o dono lê não converta esse `null` num número.
 2. **Ligar o L1** (`autopilot.json: nivel 0 → 1`) drena os 219 da fila com o
-   código que já existe, a 25/tique. Decisão do dono, não minha.
+   código que já existe, a 25/tique (~10 tiques). Decisão do dono, não minha.
+   **Com uma condição que o segundo adversário levantou e eu não tinha:
+   cegueira por drenagem.** Com a fila vazia, ninguém vê nada — se um pilar
+   activo regredir e passar a produzir lixo `low`-com-motivo, o L1 drena-o em
+   silêncio e o painel corrigido fica sem denominador para o revelar. Ligar o L1
+   deve vir com amostra aleatória de auditoria ao dreno e alarme de anomalia de
+   volume, ou troca-se um número falso por uma cegueira.
 3. **Só depois** — com o dono a triar uma fila que é só sinal — é que nasce o
    ground-truth `por:'dono'` de que a calibração do gate precisa. O gate é
    **fase 3 desta ordem, não fase 1**.
+4. **As 1448 não são material de calibração**, e a razão não é circularidade.
+   O ensaio do defeito semeado é ground-truth legítimo (reprovou dois pilares
+   próprios — um processo que se auto-valida não se reprova a si mesmo). O defeito
+   é de **granularidade**: o ensaio reprovou *pilares*, o script anulou *achados*.
+   Um pilar reprovado pode ter tido verdadeiros positivos no histórico; inferir o
+   achado a partir do pilar é falácia ecológica. Se algum dia servirem de prior,
+   precisam de proveniência própria (`varredura-ensaio`), fora do denominador do
+   L2 e fora do gate.
 
 ---
 
@@ -230,4 +306,81 @@ Nenhum destes é executado nesta fase — a FASE 0 pára aqui, por regra.
 - `tools/router/classify.js` não tocado.
 - Validação 3-vias: (1) concordância — n/a nesta fase, não há dry-run a comparar;
   (2) fila-só-sinal — n/a, o gate não foi construído; (3) **adversário em motor
-  diferente** — ver secção 8.
+  diferente** — feito, duas lentes (`codex`, `kimi-k3`), ver §8. O adversário
+  refutou uma das quatro afirmações e corrigiu duas imprecisões; ambas estão
+  incorporadas, e as correcções estão atribuídas onde aparecem.
+
+---
+
+## 8. Validação adversarial (motor diferente)
+
+**Adversário: `codex`**, sessão fresca, sandbox só-leitura, instruído a *refutar*,
+não a concordar. Mediu com os seus próprios scripts. Resultado: **refutou uma das
+quatro afirmações e corrigiu-a em dois pontos.** Ambas as correcções estão
+incorporadas acima.
+
+| # | Afirmação | Veredicto do adversário |
+|---|---|---|
+| A1 | 1448 linhas, zero `por:'dono'` | **CONFIRMADO** — reproduziu `{"linhas":1448,"por":{"claude":1448},"decisao":{"descartado":1448}}` |
+| A2 | `portoes()` subtrai só `agente` ⇒ triados=1448, precisão 0.0% | **CONFIRMADO** — `autopilot.mjs:185`, gate fechado |
+| A3 | fila = 219, `curar()` drena 100% | **REFUTADO** — `porTriar` sem limite devolve **232** entradas (219 únicas + 13 repetidas); e `curar()` por omissão fecha **25**, não 232 (`cap=25`). A parte qualitativa aguenta: 232/232 são `low` com motivo, nicho vivo 0 |
+| A4 | nicho = 8 de sempre, todos de pilares mortos | **CONFIRMADO no snapshot**; o *"nunca terá"* fica **`n/d`** — confirma o estado actual, não prova o futuro |
+
+O que o adversário procurou e **não** encontrou: outro `triagem.jsonl` nas raízes
+locais, `_to_delete`, worktrees, `.claude`, `.codex` ou vault; qualquer
+`por:"dono"` em `~/.mooter` ou no vault; entrada sem `por` que activasse o
+fallback `d.por || 'dono'` (zero). Confirmou que os quatro módulos medidos
+mantiveram hashes idênticos durante a auditoria, e não escreveu ficheiros.
+
+**Nota de proveniência:** a worktree onde o adversário corria avançou de
+`071cf58d` para `4ea93834` a meio da auditoria — fui eu a commitar a §1-§7 na
+mesma pasta em que o job tinha sido realojado. Ele detectou-o sozinho, recusou-se
+a congelar os números antigos e re-verificou hashes e JSONL antes de concluir.
+Erro de coordenação meu; o resultado sobreviveu porque só mudaram ficheiros
+`_handoff/*.md`.
+
+### O `n/d` que fica em aberto
+
+`LOCAL_AGENT_SYNC=fail` e `device_identity: missing` — **outros devices são
+`n/d`**. O registo da frota (`00-core/agent-sync-registry.json`) lista um
+`mac-mini-codex` activo. Não posso refutar daqui que os "320 dismiss do dono"
+existam no ledger DELE.
+
+Mas isso não salva o desenho: `classesSuprimiveis()` lê o `triagem.jsonl`
+**local**, e o MP não propõe nenhuma junção entre devices. Mesmo que os 320
+existam no Mac, não alimentam este gate. Para a calibração os usar, faltaria uma
+peça que o MP não tem — e essa peça mexe em ledgers de duas máquinas, o que é
+uma decisão do dono, não uma linha de código.
+
+### Segunda lente: `kimi-k3` (Moonshot) — ataque lógico às recomendações
+
+Motor diferente do meu e do codex, sem ferramentas, alimentado só com os números.
+Instruído a partir as recomendações do §6, não a concordar. **Veredicto: a
+conclusão aguenta-se nos quatro pontos** — mas endureceu três coisas que eu não
+tinha, e todas foram incorporadas no §6:
+
+- **A vacuidade não é risco zero, é risco epistémico.** Um `FP=0` verde por não
+  haver nada para testar pode ser citado mais tarde como *"validado"*, e o arnês
+  entra ao vivo nunca tendo sido exercido. O estado honesto é
+  **"inconclusivo — n=0"**, fail-closed na certificação, com shadow mode antes de
+  qualquer enforcement.
+- **A minha correcção do §6.1, escrita como filtro lexical, codificava o buraco
+  em vez de o fechar** — daí a proveniência por canal de escrita e o
+  "sem dados" explícito no denominador zero.
+- **Cegueira por drenagem** (§6.2) e **falácia ecológica** nas 1448 (§6.4).
+
+Também refutou um ataque que eu poderia ter comprado: as 1448 **não** são
+circulares. Um ensaio de defeito semeado é ground-truth por construção, e este
+reprovou dois pilares da própria casa — um processo que se auto-valida não se
+reprova a si mesmo. O problema delas é categoria e granularidade, não circularidade.
+
+E fechou o ponto 4 com a aritmética que fecha o caso: mesmo que o dono triasse os
+219 à mão, são todos `low`-com-motivo — **a classe do nicho continuaria com 0
+descartes**. Manter o L1 desligado não alimenta o gate; só estaciona 219 itens
+que o mecanismo existente fecha sozinho. Fila vazia é o estado de **sucesso**
+da recomendação 2, não a sua refutação.
+
+### Lente que não correu
+
+- `gemini`: falhou no dispatch (exit 1 em 5s). Verificado que não escreveu nada
+  na worktree onde foi realojado.
