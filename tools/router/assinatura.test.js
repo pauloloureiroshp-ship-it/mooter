@@ -129,7 +129,10 @@ test('chave errada nao verifica', () => {
   const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
   const v = A.verificar(b, { chave: OUTRA, agora: AGORA });
   assert.equal(v.ok, false);
-  assert.equal(v.codigo, 'adulterado');
+  // Ate 2026-08-24 o codigo aqui era `adulterado`: chave errada e conteudo
+  // mexido eram indistinguiveis. Com o `kid` no envelope passam a separar-se —
+  // o veredicto e o mesmo (recusa), a causa deixa de mentir.
+  assert.equal(v.codigo, 'chave-diferente');
 });
 
 test('beacon sem assinatura nenhuma e recusado, nao ignorado', () => {
@@ -277,4 +280,66 @@ test('chave corrompida NAO e substituida em silencio', () => {
 test('o aviso de permissoes nao promete o que o Windows nao cumpre', () => {
   assert.match(A.avisoDePermissoes('win32'), /n\/d|nao instala ACL/);
   assert.equal(A.avisoDePermissoes('darwin'), null);
+});
+
+// ── kid: separar "chave errada" de "conteudo mexido" ─────────────────────────
+//
+// Medido 2026-08-24: cada device da frota tinha gerado a sua propria
+// `.owner.key` (o `*.key` do .gitignore do vault nunca a deixou viajar), e o
+// painel do Mac recusava o beacon do PC com `adulterado` — "assinatura nao bate
+// com o conteudo" — sobre um ficheiro que ninguem tinha tocado. O recibo mandava
+// cacar um atacante que nao existia.
+
+test('kid identifica a chave sem a revelar, e e estavel', () => {
+  const k = A.kidDaChave(CHAVE);
+  assert.match(k, /^[0-9a-f]{16}$/);
+  assert.equal(k, A.kidDaChave(CHAVE), 'a mesma chave da sempre o mesmo kid');
+  assert.notEqual(k, A.kidDaChave(OUTRA), 'chaves diferentes, kids diferentes');
+  assert.ok(!CHAVE.toString('hex').includes(k), 'o kid nao pode ser um pedaco da chave');
+});
+
+test('o envelope leva o kid de quem assinou', () => {
+  const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  assert.equal(b.sig.kid, A.kidDaChave(CHAVE));
+  assert.equal(b.sig.alg, A.ALG_TAG);
+});
+
+test('GATE: chave DIFERENTE nao e adulteracao, e diz isso', () => {
+  const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  const v = A.verificar(b, { chave: OUTRA, agora: AGORA });
+  assert.equal(v.ok, false, 'continua a NAO passar — isto nunca foi negociavel');
+  assert.equal(v.codigo, 'chave-diferente');
+  assert.match(v.motivo, /outra chave do dono/);
+  assert.match(v.motivo, /nao adulteracao/);
+});
+
+test('GATE: conteudo MEXIDO com a chave certa continua a ser adulteracao', () => {
+  const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  b.usd = 999.99;
+  const v = A.verificar(b, { chave: CHAVE, agora: AGORA });
+  assert.equal(v.ok, false);
+  assert.equal(v.codigo, 'adulterado', 'o kid bate: isto e mesmo adulteracao');
+});
+
+test('um beacon SEM kid (versao anterior) continua a verificar', () => {
+  // No dia do upgrade os beacons ja no vault nao trazem kid. Recusa-los por
+  // isso apagaria a frota do painel — o mesmo erro que o `nao-assinado` evita.
+  const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  delete b.sig.kid;
+  assert.equal(A.verificar(b, { chave: CHAVE, agora: AGORA }).ok, true);
+  // E sem kid a chave errada volta a cair no MAC, que e onde tem de cair —
+  // mas o recibo declara que nao consegue escolher entre as duas causas, em vez
+  // de acusar forja com a confianca que nao tem.
+  const v = A.verificar(b, { chave: OUTRA, agora: AGORA });
+  assert.equal(v.codigo, 'adulterado', 'o veredicto nunca esteve em duvida');
+  assert.equal(v.kid_ausente, true);
+  assert.match(v.motivo, /pode ser chave diferente OU adulteracao/);
+});
+
+test('mexer no kid nao faz passar nada — o MAC continua a mandar', () => {
+  const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  // O atacante poe o kid da vitima para fingir que e a chave dela.
+  b.sig.kid = A.kidDaChave(OUTRA);
+  assert.equal(A.verificar(b, { chave: OUTRA, agora: AGORA }).codigo, 'adulterado',
+    'kid forjado so muda a mensagem de erro, nunca o veredicto');
 });

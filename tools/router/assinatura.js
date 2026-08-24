@@ -32,6 +32,33 @@ const ALG_TAG = 'HMAC-SHA256-v1';
 const KEY_BYTES = 32;
 
 /**
+ * Tamanho do `kid` em caracteres hex (8 bytes de SHA-256).
+ *
+ * Identifica a chave sem a revelar: 64 bits chegam de sobra para distinguir as
+ * chaves de um dono, e inverter SHA-256 truncado para recuperar 32 bytes de
+ * entropia nao e um ataque que exista.
+ */
+const KID_HEX = 16;
+
+/**
+ * A impressao digital de uma chave.
+ *
+ * PORQUE EXISTE (medido 2026-08-24): o HMAC e simetrico, por isso uma chave
+ * ERRADA e um conteudo MEXIDO produzem exactamente o mesmo sintoma — um MAC que
+ * nao bate. O `verificar` devolvia `adulterado` para os dois, e no dia em que a
+ * frota descobriu que cada device tinha gerado a sua propria chave, o recibo
+ * dizia "assinatura nao bate com o conteudo" sobre um beacon que ninguem tinha
+ * tocado. Mandava cacar um atacante que nao existia.
+ *
+ * Com o `kid` no envelope as duas causas separam-se: kid diferente e um device
+ * por enrolar, kid igual com MAC errado e adulteracao a serio.
+ */
+function kidDaChave(chave) {
+  if (!chave || !Buffer.isBuffer(chave) || chave.length !== KEY_BYTES) return null;
+  return crypto.createHash(ALG).update(chave).digest('hex').slice(0, KID_HEX);
+}
+
+/**
  * Janela de aceitacao de uma assinatura, em segundos.
  *
  * NAO e a mesma coisa que `BEACON_STALE_S` (1800) do `fleet-beacon.mjs`: aquilo
@@ -185,7 +212,14 @@ function assinar(payload, o = {}) {
   }
   const corpo = canonico(Object.assign({}, payload, { _ts: ts, _nonce: nonce }));
   const mac = crypto.createHmac(ALG, chave).update(corpo, 'utf8').digest('hex');
-  return { alg: ALG_TAG, ts, nonce, mac };
+  // O `kid` fica FORA do MAC de proposito, e por duas razoes. A primeira e que
+  // `canonico` exclui `sig` inteiro: cobri-lo obrigaria a mudar o corpo assinado
+  // e invalidaria todos os beacons ja assinados sem ganhar nada. A segunda e que
+  // nao precisa de cobertura — mexer no `kid` nao faz um beacon passar: kid
+  // trocado da `chave-diferente`, kid apagado cai no MAC, e o MAC continua a
+  // recusar. O pior que um atacante consegue e piorar a sua propria mensagem de
+  // erro.
+  return { alg: ALG_TAG, kid: kidDaChave(chave), ts, nonce, mac };
 }
 
 /** Assina em-sitio: devolve copia do payload com `sig` pousado. */
@@ -236,10 +270,47 @@ function verificar(payload, o = {}) {
     return { ok: false, motivo: 'assinatura expirada (' + idadeS + 's > ' + janelaS + 's)', codigo: 'expirada', idade_s: idadeS };
   }
 
+  /**
+   * A chave que assinou e a nossa?
+   *
+   * Beacons de versoes anteriores a 2026-08-24 nao trazem `kid`. Esses caem
+   * direitos no MAC, como sempre cairam — recusar por falta de `kid` apagaria a
+   * frota do painel no dia do upgrade, que e o mesmo erro que o `nao-assinado`
+   * ja evita mais acima.
+   */
+  const nosso = kidDaChave(chave);
+  if (sig.kid && nosso && sig.kid !== nosso) {
+    return {
+      ok: false,
+      motivo: 'assinado com outra chave do dono (kid ' + String(sig.kid).slice(0, KID_HEX) + ', esperado ' + nosso + ') — device por enrolar, nao adulteracao',
+      codigo: 'chave-diferente',
+      idade_s: idadeS,
+    };
+  }
+
   const corpo = canonico(Object.assign({}, payload, { _ts: sig.ts, _nonce: sig.nonce }));
   const esperado = crypto.createHmac(ALG, chave).update(corpo, 'utf8').digest();
   const dado = Buffer.from(sig.mac, 'hex');
   if (esperado.length !== dado.length || !crypto.timingSafeEqual(esperado, dado)) {
+    /**
+     * Sem `kid` no envelope nao ha como saber QUAL das duas causas foi.
+     *
+     * O beacon vem de uma versao anterior a 2026-08-24, que nao carimbava kid.
+     * Um MAC que nao bate pode ser adulteracao OU uma chave diferente, e o
+     * recibo nao pode escolher uma e afirma-la: foi exactamente assim que o
+     * `desktop-j26409q` apareceu acusado de forja durante a transicao. Recusa-se
+     * na mesma — o veredicto nunca esteve em duvida —, mas a causa diz o que
+     * sabe e o que nao sabe.
+     */
+    if (!sig.kid) {
+      return {
+        ok: false,
+        motivo: 'assinatura nao bate — e sem kid no envelope (device numa versao anterior) a causa pode ser chave diferente OU adulteracao',
+        codigo: 'adulterado',
+        kid_ausente: true,
+        idade_s: idadeS,
+      };
+    }
     return { ok: false, motivo: 'assinatura nao bate com o conteudo', codigo: 'adulterado', idade_s: idadeS };
   }
 
@@ -260,6 +331,8 @@ function verificar(payload, o = {}) {
 module.exports = {
   ALG_TAG,
   KEY_BYTES,
+  KID_HEX,
+  kidDaChave,
   JANELA_S,
   SKEW_S,
   caminhoDaChave,
