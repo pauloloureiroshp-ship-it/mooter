@@ -619,6 +619,7 @@ test('ONDA 1e · dois devices com a MESMA chave provam a frota', () => {
   assert.equal(r.autenticacao.devices_verificados, 2);
   assert.equal(r.autenticacao.prova_frota, true);
   assert.equal(r.autenticacao.porque, null);
+  assert.equal(r.autenticacao.resolver, null, 'sem nada por resolver, nao se pede gesto nenhum');
   assert.deepEqual(r.autenticacao.devices_por_enrolar, []);
 });
 
@@ -633,6 +634,8 @@ test('ONDA 1e · GATE: chaves DIFERENTES nao provam frota, e dizem porque', () =
   assert.equal(r.autenticacao.devices_verificados, 1);
   assert.deepEqual(r.autenticacao.devices_por_enrolar, ['pc-paulo']);
   assert.match(r.autenticacao.porque, /nao esta partilhada entre as maquinas/);
+  // Um diagnostico correcto e inaccionavel nao serve de nada: tem de dizer como.
+  assert.match(r.autenticacao.resolver, /frota:chave/);
 
   // E o recibo deixa de acusar forja onde ha um device por enrolar.
   assert.equal(r.rejeitados.length, 1);
