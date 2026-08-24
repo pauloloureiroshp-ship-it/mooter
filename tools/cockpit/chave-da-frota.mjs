@@ -41,6 +41,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
+import { deviceName } from './runner/fleet-beacon.mjs';
+
 const require = createRequire(import.meta.url);
 const assinatura = require('../router/assinatura.js');
 
@@ -175,6 +177,80 @@ export function importar(origem, {
   return { ok: true, caminho: st.caminho, kid: kidNovo, mudou: true, substituiu: st.existe ? st.kid : null };
 }
 
+// ── Fase 2 · inscricao Ed25519 ───────────────────────────────────────────────
+
+/**
+ * A identidade PUBLICA deste device.
+ *
+ * Cria o par na primeira chamada — ao contrario do `estado()`, aqui isso e o
+ * ponto, nao um efeito lateral: nao ha inscricao sem chave. A privada fica em
+ * `~/.mooter/`, com 0600, e nunca sai daqui.
+ */
+export function identidade(o = {}) {
+  const meu = assinatura.chaveDoDevice(o);
+  if (meu.erro) throw new Recusa(`a chave deste device esta ilegivel (${meu.caminho}): ${meu.erro}`);
+  const reg = assinatura.lerRegisto(o);
+  const nome = o.device || deviceName();
+  const inscrita = reg.devices[nome] || null;
+  return {
+    device: nome,
+    pub: meu.pub,
+    kid: meu.kid,
+    caminho: meu.caminho,
+    criada: meu.criada,
+    registo: reg.caminho,
+    inscrito: Boolean(inscrita && inscrita.pub === meu.pub),
+    // Inscrito com OUTRA chave e um caso proprio: nao e "por inscrever", e uma
+    // inscricao velha que este device ja nao consegue honrar.
+    conflito: Boolean(inscrita && inscrita.pub !== meu.pub) ? inscrita.kid || 'desconhecido' : null,
+  };
+}
+
+/**
+ * Acrescenta (ou substitui) a publica de um device no registo.
+ *
+ * NAO commita. De proposito: o registo e a lista de quem a frota acredita, e a
+ * revisao dessa lista e o `git diff` do dono. Um comando que inscrevesse E
+ * commitasse tornaria a inscricao invisivel — e qualquer processo com escrita no
+ * vault podia inscrever-se a si proprio, que e exactamente o ataque de que o
+ * Ed25519 nos tirou.
+ */
+export function inscrever(device, pub, {
+  forcar = false, readImpl = fs.readFileSync, existsImpl = fs.existsSync,
+  writeImpl = fs.writeFileSync, mkdirImpl = fs.mkdirSync, agora = () => new Date().toISOString(), ...o
+} = {}) {
+  if (!device) throw new Recusa('inscrever precisa do nome do device');
+  if (typeof pub !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(pub)) {
+    throw new Recusa('a chave publica tem de ser base64 (o que o `--inscrever` do outro device imprime)');
+  }
+  try {
+    require('node:crypto').createPublicKey({ key: Buffer.from(pub, 'base64'), format: 'der', type: 'spki' });
+  } catch (err) {
+    throw new Recusa(`isso nao e uma chave publica Ed25519 valida: ${String(err && err.message).slice(0, 80)}`);
+  }
+
+  const reg = assinatura.lerRegisto({ readImpl, existsImpl, ...o });
+  if (!reg.caminho) throw new Recusa('sem vault montado: nao ha registo de frota onde inscrever');
+  if (reg.erro) throw new Recusa(`o registo esta ilegivel (${reg.caminho}): ${reg.erro} — nao escrevo por cima do que nao consigo ler`);
+
+  const kid = assinatura.kidDaPublica(pub);
+  const ja = reg.devices[device];
+  if (ja && ja.pub === pub) return { ok: true, device, kid, mudou: false, caminho: reg.caminho, substituiu: null };
+  if (ja && !forcar) {
+    throw new Recusa(
+      `'${device}' ja esta inscrito com OUTRA chave (kid ${ja.kid || 'desconhecido'}, a inscrever ${kid}). `
+      + 'Substituir revoga a anterior: os beacons que ela assinou deixam de verificar. Se e isso, repete com --forcar.',
+    );
+  }
+
+  const devices = Object.assign({}, reg.devices, {
+    [device]: { alg: assinatura.ALG_ED, kid, pub, inscrito_em: agora() },
+  });
+  mkdirImpl(path.dirname(reg.caminho), { recursive: true });
+  writeImpl(reg.caminho, JSON.stringify({ versao: 1, devices }, null, 2) + '\n');
+  return { ok: true, device, kid, mudou: true, caminho: reg.caminho, substituiu: ja ? (ja.kid || 'desconhecido') : null };
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 function valorDe(argv, flag) {
@@ -219,7 +295,59 @@ export function main(argv = process.argv.slice(2), say = (s) => process.stdout.w
       return 0;
     }
 
+    if (argv.includes('--inscrever')) {
+      const id = identidade();
+      const outro = valorDe(argv, '--inscrever-device');
+      say('');
+      say(`  device      ${id.device}`);
+      say(`  kid         ${id.kid}`);
+      say(`  privada     ${id.caminho}${id.criada ? '  (criada agora)' : ''}`);
+      say('');
+      if (id.inscrito) {
+        say('  ja esta inscrito no registo desta maquina — nada a fazer aqui.');
+      } else {
+        if (id.conflito) say(`  ⚠ o registo tem OUTRA chave para este device (kid ${id.conflito}) — vai precisar de --forcar`);
+        say('  publica (base64 — NAO e segredo, podes mandar isto por onde quiseres):');
+        say('');
+        say(`  ${id.pub}`);
+        say('');
+        say('  Na maquina que tem o vault:');
+        say(`  npm run frota:chave -- --inscrever-device ${id.device} <publica>`);
+      }
+      say('');
+      if (outro) say('  (--inscrever-device ignorado: usa-o sozinho, sem --inscrever)');
+      return 0;
+    }
+    if (argv.includes('--inscrever-device')) {
+      const nome = valorDe(argv, '--inscrever-device');
+      const i = argv.indexOf('--inscrever-device');
+      const pub = argv[i + 2];
+      if (!pub || pub.startsWith('--')) throw new Recusa('--inscrever-device precisa de <device> <publica-base64>');
+      const r = inscrever(nome, pub, { forcar });
+      say('');
+      if (!r.mudou) {
+        say(`  '${r.device}' ja estava inscrito com esta chave (kid ${r.kid}) — nada mudou.`);
+        say('');
+        return 0;
+      }
+      say(`  '${r.device}' inscrito  ·  kid ${r.kid}`);
+      if (r.substituiu) say(`  substituiu          kid ${r.substituiu} — o que ela assinou deixa de verificar`);
+      say(`  registo             ${r.caminho}`);
+      say('');
+      say('  FALTA O TEU GESTO: o registo NAO foi commitado, de proposito.');
+      say('  A lista de quem a frota acredita revê-se num `git diff`, nao num log.');
+      say('');
+      say(`  git -C "${path.dirname(path.dirname(r.caminho))}" diff -- 50-fleet/trusted-devices.json`);
+      say(`  git -C "${path.dirname(path.dirname(r.caminho))}" add -- 50-fleet/trusted-devices.json && git commit`);
+      say('');
+      say('  Nota: enquanto estiver em staging, o publicador de beacons pausa —');
+      say('  ele recusa-se a publicar por cima de trabalho alheio. Commita e segue.');
+      say('');
+      return 0;
+    }
+
     const st = estado();
+    const reg = assinatura.lerRegisto();
     say('');
     say('  chave do dono · frota');
     say('');
@@ -238,6 +366,22 @@ export function main(argv = process.argv.slice(2), say = (s) => process.stdout.w
       say('  --exportar <destino>   escreve a chave para a levares a mao');
       say('  --importar <origem>    instala aqui a chave do dono');
     }
+    say('');
+    say('  registo de devices (Ed25519 — nenhum segredo viaja)');
+    say('');
+    say(`  caminho     ${reg.caminho || 'n/d (sem vault montado)'}`);
+    if (reg.erro) {
+      say(`  estado      ILEGIVEL — ${reg.erro}`);
+    } else if (!reg.existe) {
+      say('  estado      ainda nao existe — `--inscrever` mostra a publica deste device');
+    } else {
+      const nomes = Object.keys(reg.devices);
+      say(`  inscritos   ${nomes.length}${nomes.length ? ': ' + nomes.join(', ') : ''}`);
+      for (const n of nomes) say(`     ${n.padEnd(24)} kid ${reg.devices[n].kid || 'n/d'}`);
+    }
+    say('');
+    say('  --inscrever                      a identidade publica DESTE device');
+    say('  --inscrever-device <nome> <pub>  autoriza outro device no registo');
     say('');
     return 0;
   } catch (err) {
