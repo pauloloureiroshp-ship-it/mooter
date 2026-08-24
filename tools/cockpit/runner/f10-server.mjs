@@ -38,6 +38,7 @@ import {
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
+import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
 
@@ -188,6 +189,27 @@ export function corsHeaders(origin) {
   return {};
 }
 
+/**
+ * A frota, com os outros devices lidos do REMOTO do vault quando da.
+ *
+ * Sem isto, a frescura de outro device esperava pelo `pull --rebase` DESTE
+ * lado, que corre de 10 em 10 min — somado ao ciclo de publicacao do outro,
+ * dava ate 20 min de idade para um device perfeitamente sao. Medido a
+ * 2026-08-21: o Mac publicava certinho e o painel do PC dizia "sem sinal ha
+ * 716s". O `fetch` corta a metade que e nossa.
+ *
+ * So quando o vault e um repo git; no modo local `beaconsDoRemoto` e um no-op
+ * honesto e a frota vale o que o disco valer, exactamente como antes.
+ */
+function lerFrota(where, device) {
+  const remoto = where.partilhado ? beaconsDoRemoto(path.dirname(where.dir)) : null;
+  const fleet = readBeacons({ ...where, selfDevice: device, remotos: remoto ? remoto.remotos : null });
+  // O estado do canal viaja com a frota: um painel que mostra devices frescos
+  // sem dizer que o fetch falhou esta a afirmar uma frescura que nao mediu.
+  if (remoto) fleet.remoto = { ref: remoto.ref, fetch: remoto.fetch, porque: remoto.porque };
+  return fleet;
+}
+
 function sendJson(res, code, obj, { cors = true, origin = null } = {}) {
   const body = JSON.stringify(obj);
   res.writeHead(code, {
@@ -329,7 +351,7 @@ export function createServer({
         }).catch(() => null),
       ]);
       const where = beaconDir();
-      const fleet = readBeacons({ ...where, selfDevice: device });
+      const fleet = lerFrota(where, device);
       const estado = buildFleetState({
         device,
         // Lida do manifest a cada pedido: o painel nunca pode afirmar uma
@@ -421,7 +443,7 @@ export function createServer({
       // `naTuaMao` le a frota inteira e devolve o que pede a mao do dono, com
       // o nome do device na instrucao.
       const w = beaconDir();
-      const f = readBeacons({ ...w, selfDevice: device });
+      const f = lerFrota(w, device);
       saude.frota = naTuaMao(f.frota, { rejeitados: f.rejeitados });
       // A autenticidade do canal e um facto do painel, nao um detalhe: sem ela
       // "a frota diz X" vale exactamente o que valer quem escreve na pasta.

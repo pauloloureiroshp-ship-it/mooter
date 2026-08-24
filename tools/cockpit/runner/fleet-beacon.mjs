@@ -267,10 +267,27 @@ export function readBeacons({
   dir, transporte = 'local', partilhado = false, selfDevice = null, now = Date.now(),
   readdirImpl = fs.readdirSync, readImpl = fs.readFileSync,
   chaveImpl = assinatura.chaveDoDono, verificarImpl = assinatura.verificar,
+  /**
+   * Beacons lidos do REMOTO do vault (`origin/<branch>:50-fleet/*.json`), por
+   * nome de ficheiro — ver `fleet-remoto.mjs`. Sao uma camada POR CIMA do
+   * disco: se o remoto tiver um beacon mais novo do que o ficheiro local, vale
+   * o remoto. Assim a frescura de outro device deixa de esperar pelo `pull`
+   * deste lado — so pelo `fetch`, que nao toca na arvore nem no indice.
+   *
+   * Nao ha atalho de confianca: o que vem do remoto passa pela MESMA
+   * verificacao de assinatura que o que vem do disco, mais abaixo.
+   */
+  remotos = null,
 } = {}) {
   let names = [];
   try {
-    names = readdirImpl(dir).filter((n) => n.endsWith('.json')).slice(0, MAX_BEACONS);
+    names = readdirImpl(dir).filter((n) => n.endsWith('.json'));
+    // Um device que ainda nao chegou a este disco (nunca houve `pull`) existe
+    // na mesma: entra pelo nome que o remoto conhece.
+    if (remotos) {
+      for (const n of Object.keys(remotos)) if (n.endsWith('.json') && !names.includes(n)) names.push(n);
+    }
+    names = names.slice(0, MAX_BEACONS);
   } catch {
     return {
       frota: [], rejeitados: [], transporte, partilhado,
@@ -291,11 +308,27 @@ export function readBeacons({
    */
   const rejeitados = [];
   for (const name of names) {
-    let b;
+    let b = null;
     try {
       b = JSON.parse(String(readImpl(path.join(dir, name), 'utf8')));
     } catch {
-      continue; // a corrupt beacon is one missing device, never a broken payload
+      b = null; // a corrupt beacon is one missing device, never a broken payload
+    }
+    if (!b || typeof b !== 'object' || !b.device) b = null;
+
+    /**
+     * O proprio device NUNCA se le do remoto: o que ele acabou de escrever no
+     * disco e a verdade mais fresca que existe sobre ele, e o remoto so pode
+     * estar atrasado. Dos OUTROS, ganha o `ts` mais novo — e em empate ganha o
+     * disco, porque foi o que este device ja aceitou.
+     */
+    const eSelf = safeDeviceName(name.replace(/\.json$/, '')) === safeDeviceName(selfDevice);
+    const r = !eSelf && remotos ? remotos[name] : null;
+    let via = 'disco';
+    if (r && typeof r === 'object' && r.device) {
+      const tsLocal = b && typeof b.ts === 'string' ? Date.parse(b.ts) : NaN;
+      const tsRemoto = typeof r.ts === 'string' ? Date.parse(r.ts) : NaN;
+      if (!b || (Number.isFinite(tsRemoto) && !(tsLocal >= tsRemoto))) { b = r; via = 'remoto'; }
     }
     if (!b || typeof b !== 'object' || !b.device) continue;
 
@@ -362,6 +395,10 @@ export function readBeacons({
         : null,
       usd: typeof b.usd === 'number' ? b.usd : 0,
       self: doFicheiro === safeDeviceName(selfDevice),
+      // De onde veio ESTE beacon. Sem isto, um device fresco pelo remoto e um
+      // device fresco pelo disco sao indistinguiveis no painel — e quando a
+      // frescura discorda entre dois cockpits, e a primeira coisa a perguntar.
+      via,
       frescura: beaconFreshness(b.ts, now),
       // Nunca `true` por omissao: um beacon so e autentico se a assinatura
       // bateu contra a chave do dono, e o painel tem de os poder distinguir.
@@ -388,7 +425,9 @@ export function readBeacons({
     },
     // Stated, not implied: without a shared directory the "fleet" is one machine.
     aviso: partilhado
-      ? 'a frescura de outros devices vale o que o sync do vault valer'
+      ? (remotos
+        ? 'a frescura de outros devices vale o que o fetch do vault valer'
+        : 'a frescura de outros devices vale o que o sync do vault valer')
       : 'sem vault montado — so este device escreve aqui, a frota nao e partilhada',
   };
 }

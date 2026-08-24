@@ -467,3 +467,129 @@ test('ONDA 1c · frota toda em dia devolve lista VAZIA (nao ruido)', () => {
   const r = readBeacons({ dir, selfDevice: 'pc-paulo', chaveImpl: chaveFalsa });
   assert.deepEqual(naTuaMao(r.frota, { rejeitados: r.rejeitados }), []);
 });
+
+// ── ONDA 1d · beacons do REMOTO: a camada por cima do disco ──────────────────
+//
+// O `fleet-remoto.mjs` traz os beacons de `origin/<branch>:50-fleet/*.json`.
+// O que ele traz NAO tem estatuto especial nenhum: entra por `remotos` e passa
+// exactamente pelas mesmas regras — assinatura, allowlist de campos, e o nome
+// do FICHEIRO como identidade. Estes testes sao o contrato dessa fronteira.
+//
+// Assina-se aqui a mao em vez de usar `writeBeacon` porque o `writeBeacon`
+// carimba `ts: new Date()` e ignora o que se lhe passe — e todo este merge se
+// decide precisamente pelo `ts`.
+
+/** Um beacon assinado com o `ts` que o teste quiser. */
+const assinadoCom = (device, ts, extra = {}) =>
+  assinaturaMod.assinado({ device, running: true, ts, ...extra }, { chave: CHAVE_T, ts });
+
+/** O mesmo, mas pousado no disco como o publicador o teria deixado. */
+const noDisco = (dir, device, ts, extra = {}) => {
+  const b = assinadoCom(device, ts, extra);
+  fs.writeFileSync(path.join(dir, `${device}.json`), JSON.stringify(b));
+  return b;
+};
+
+const pasta = (nome) => fs.mkdtempSync(path.join(os.tmpdir(), `moo-${nome}-`));
+
+test('ONDA 1d · o remoto MAIS NOVO ganha ao disco, e diz que veio do remoto', () => {
+  const dir = pasta('rem1');
+  noDisco(dir, 'mac-mini', iso(10));
+  noDisco(dir, 'pc-paulo', iso(900));                 // velho, no disco
+  const novo = assinadoCom('pc-paulo', iso(30));      // fresco, so no remoto
+
+  const r = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'pc-paulo.json': novo },
+  });
+  const pc = r.frota.find((d) => d.device === 'pc-paulo');
+  assert.equal(r.rejeitados.length, 0);
+  assert.equal(pc.ts, novo.ts, 'o painel tem de mostrar o beacon mais novo');
+  assert.equal(pc.via, 'remoto');
+  assert.equal(pc.frescura.estado, 'vivo', 'era isto que dizia "sem sinal ha 716s"');
+});
+
+test('ONDA 1d · o disco MAIS NOVO ganha ao remoto — e em empate ganha o disco', () => {
+  const dir = pasta('rem2');
+  const local = noDisco(dir, 'pc-paulo', iso(30));
+  const velho = assinadoCom('pc-paulo', iso(900));
+
+  const r = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'pc-paulo.json': velho },
+  });
+  assert.equal(r.frota.find((d) => d.device === 'pc-paulo').via, 'disco');
+
+  // Empate de `ts`: o disco ja foi aceite por este device, nao se troca.
+  const empate = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'pc-paulo.json': assinadoCom('pc-paulo', local.ts) },
+  });
+  assert.equal(empate.frota.find((d) => d.device === 'pc-paulo').via, 'disco');
+});
+
+test('ONDA 1d · o PROPRIO device nunca se le do remoto, por mais novo que ele diga ser', () => {
+  const dir = pasta('rem3');
+  const meu = noDisco(dir, 'mac-mini', iso(300));
+  const doRemoto = assinadoCom('mac-mini', iso(1));
+
+  const r = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'mac-mini.json': doRemoto },
+  });
+  const self = r.frota.find((d) => d.self);
+  assert.equal(self.via, 'disco', 'o que este device escreveu e a verdade mais fresca sobre ele');
+  assert.equal(self.ts, meu.ts);
+});
+
+test('ONDA 1d · um device que ainda NAO chegou a este disco aparece na mesma', () => {
+  const dir = pasta('rem4');
+  noDisco(dir, 'mac-mini', iso(10));
+  const estreante = assinadoCom('rtx-4090', iso(20));
+
+  const r = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'rtx-4090.json': estreante },
+  });
+  assert.equal(r.frota.length, 2, 'nunca houve pull, mas o device existe');
+  assert.equal(r.frota.find((d) => d.device === 'rtx-4090').via, 'remoto');
+});
+
+test('ONDA 1d · GATE: um beacon FORJADO no remoto e rejeitado, com o mesmo recibo', () => {
+  const dir = pasta('rem5');
+  noDisco(dir, 'mac-mini', iso(10));
+  const forjado = assinadoCom('pc-paulo', iso(5));
+  forjado.usd = 999.99; // assinatura mantida, conteudo mexido depois de assinar
+
+  const r = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'pc-paulo.json': forjado },
+  });
+  assert.equal(r.frota.find((d) => d.device === 'pc-paulo'), undefined,
+    'vir do remoto NAO e um atalho de confianca');
+  assert.equal(r.rejeitados.length, 1, 'e nao pode desaparecer em silencio');
+  assert.equal(r.rejeitados[0].codigo, 'adulterado');
+  assert.equal(r.rejeitados[0].device, 'pc-paulo');
+});
+
+test('ONDA 1d · o nome do FICHEIRO continua a mandar: o remoto nao rouba o lugar de self', () => {
+  const dir = pasta('rem6');
+  noDisco(dir, 'mac-mini', iso(10));
+  // Um beacon que AFIRMA ser o mac-mini, entregue no ficheiro do pc-paulo.
+  const impostor = assinadoCom('mac-mini', iso(1));
+
+  const r = readBeacons({
+    dir, partilhado: true, selfDevice: 'mac-mini', now: T0,
+    chaveImpl: chaveFalsa, remotos: { 'pc-paulo.json': impostor },
+  });
+  assert.equal(r.frota.filter((d) => d.self).length, 1, 'so pode haver um self');
+  assert.equal(r.frota.find((d) => d.self).ts, iso(10), 'e e o do ficheiro do proprio');
+});
+
+test('ONDA 1d · com o remoto ligado o aviso deixa de falar em sync, e fala em fetch', () => {
+  const dir = pasta('rem7');
+  assert.match(readBeacons({ dir, partilhado: true, now: T0 }).aviso,
+    /vale o que o sync do vault valer/);
+  assert.match(readBeacons({ dir, partilhado: true, now: T0, remotos: {} }).aviso,
+    /vale o que o fetch do vault valer/);
+});
