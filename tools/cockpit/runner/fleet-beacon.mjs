@@ -408,6 +408,41 @@ export function readBeacons({
   frota.sort((a, b) => (a.self === b.self ? String(a.device).localeCompare(b.device) : a.self ? -1 : 1));
 
   const semChave = !chave;
+  /**
+   * A frota esta PROVADA?
+   *
+   * Ate 2026-08-24 isto era `Boolean(chave && k.partilhado)`, e o `partilhado`
+   * so queria dizer "o ficheiro da chave esta debaixo do vault". Nao queria
+   * dizer partilhada: a `.owner.key` cai no `*.key` do `.gitignore` do vault,
+   * portanto NUNCA viajou entre maquinas — cada device gerou a sua. O painel
+   * afirmava `prova_frota: true` com duas chaves diferentes e um dos devices a
+   * ser recusado, que e exactamente a especie de afirmacao que este modulo
+   * existe para nao fazer.
+   *
+   * A prova agora e medida, nao presumida: e precisa de DOIS devices distintos
+   * verificados — um device sozinho a verificar-se a si proprio nao prova frota
+   * nenhuma, prova um solitario.
+   */
+  const verificados = new Set(frota.filter((d) => d.autenticidade && d.autenticidade.ok).map((d) => d.device));
+  const porEnrolar = rejeitados.filter((r) => r.codigo === 'chave-diferente').map((r) => r.device);
+  // Duas condicoes, ambas necessarias. `k.partilhado` (a chave vive no canal que
+  // atravessa as maquinas) e necessario mas NAO suficiente — era o erro antigo,
+  // acreditar so nele. `verificados.size >= 2` e a parte medida.
+  const provaFrota = Boolean(k.partilhado) && verificados.size >= 2;
+
+  const porqueSemProva = () => {
+    if (semChave) return k && k.erro ? k.erro : 'sem chave do dono: nenhuma assinatura pode ser verificada';
+    if (porEnrolar.length) {
+      return `${porEnrolar.length} device(s) assinam com outra chave (${porEnrolar.join(', ')}): a chave do dono nao esta partilhada entre as maquinas`;
+    }
+    // Antes de falar de contagem, falar de ALCANCE: uma chave que so existe
+    // nesta maquina verifica a integridade do ficheiro, nao a origem dele. E a
+    // causa mais informativa das duas, por isso vem primeiro.
+    if (!k.partilhado) return 'chave local: verifica integridade do ficheiro, nao a origem';
+    if (verificados.size <= 1) return 'so um device verifica: uma maquina sozinha nao prova frota';
+    return null;
+  };
+
   return {
     frota,
     rejeitados,
@@ -417,11 +452,15 @@ export function readBeacons({
     // que o beacon veio do dono. Dizer "frota autenticada" com uma chave local
     // seria a especie de afirmacao que este projecto se recusa a fazer.
     autenticacao: {
-      chave: semChave ? 'n/d' : (k.partilhado ? 'vault (partilhada)' : 'local (por-device)'),
-      prova_frota: Boolean(chave && k.partilhado),
-      porque: semChave
-        ? (k && k.erro ? k.erro : 'sem chave do dono: nenhuma assinatura pode ser verificada')
-        : (k.partilhado ? null : 'chave local: verifica integridade do ficheiro, nao a origem'),
+      // Onde a chave VIVE, que e um facto. Se ela e partilhada ou nao, quem
+      // responde e `prova_frota` — e responde com o que mediu.
+      chave: semChave ? 'n/d' : (k.partilhado ? 'no vault' : 'local (por-device)'),
+      // O kid DESTA maquina, para se poder comparar a olho com o dos beacons.
+      kid: chave ? assinatura.kidDaChave(chave) : null,
+      devices_verificados: verificados.size,
+      devices_por_enrolar: porEnrolar,
+      prova_frota: provaFrota,
+      porque: provaFrota ? null : porqueSemProva(),
     },
     // Stated, not implied: without a shared directory the "fleet" is one machine.
     aviso: partilhado

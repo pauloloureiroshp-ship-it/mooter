@@ -340,7 +340,12 @@ test('ONDA 1a · escrever e ler de volta sem mexer PASSA', () => {
   assert.equal(r.rejeitados.length, 0);
   assert.equal(r.frota.length, 1);
   assert.equal(r.frota[0].autenticidade.ok, true, 'o caminho feliz tem de continuar a funcionar');
-  assert.equal(r.autenticacao.prova_frota, true);
+  // Ate 2026-08-24 este teste exigia `prova_frota: true` com UM device — fixava
+  // a propria mentira que o campo contava. Um device que se verifica a si
+  // proprio nao prova frota; prova um solitario.
+  assert.equal(r.autenticacao.prova_frota, false, 'um device sozinho nao e uma frota');
+  assert.equal(r.autenticacao.devices_verificados, 1);
+  assert.match(r.autenticacao.porque, /uma maquina sozinha nao prova frota/);
 });
 
 test('ONDA 1a · um beacon NAO assinado entra, mas marcado — nao e uma forja', () => {
@@ -592,4 +597,65 @@ test('ONDA 1d · com o remoto ligado o aviso deixa de falar em sync, e fala em f
     /vale o que o sync do vault valer/);
   assert.match(readBeacons({ dir, partilhado: true, now: T0, remotos: {} }).aviso,
     /vale o que o fetch do vault valer/);
+});
+
+// ── ONDA 1e · `prova_frota` medida, nao presumida ────────────────────────────
+//
+// Ate 2026-08-24 era `Boolean(chave && k.partilhado)`, e `partilhado` so queria
+// dizer "o ficheiro da chave esta debaixo do vault". A `.owner.key` cai no
+// `*.key` do .gitignore do vault, portanto nunca viajou: cada device gerou a
+// sua. O painel dizia `prova_frota: true` com duas chaves diferentes e um dos
+// devices recusado como forja.
+
+const CHAVE_B = Buffer.alloc(32, 0xb1);
+const outraChave = () => ({ chave: CHAVE_B, caminho: '/t/.owner.key', fonte: 'vault', partilhado: true, criada: false, erro: null });
+
+test('ONDA 1e · dois devices com a MESMA chave provam a frota', () => {
+  const dir = pasta('prova1');
+  writeBeacon({ device: 'mac-mini', running: true }, { dir, chaveImpl: chaveFalsa });
+  writeBeacon({ device: 'pc-paulo', running: true }, { dir, chaveImpl: chaveFalsa });
+
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa });
+  assert.equal(r.autenticacao.devices_verificados, 2);
+  assert.equal(r.autenticacao.prova_frota, true);
+  assert.equal(r.autenticacao.porque, null);
+  assert.deepEqual(r.autenticacao.devices_por_enrolar, []);
+});
+
+test('ONDA 1e · GATE: chaves DIFERENTES nao provam frota, e dizem porque', () => {
+  const dir = pasta('prova2');
+  writeBeacon({ device: 'mac-mini', running: true }, { dir, chaveImpl: chaveFalsa });
+  writeBeacon({ device: 'pc-paulo', running: true }, { dir, chaveImpl: outraChave }); // outra maquina, outra chave
+
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa });
+
+  assert.equal(r.autenticacao.prova_frota, false, 'era isto que dizia true');
+  assert.equal(r.autenticacao.devices_verificados, 1);
+  assert.deepEqual(r.autenticacao.devices_por_enrolar, ['pc-paulo']);
+  assert.match(r.autenticacao.porque, /nao esta partilhada entre as maquinas/);
+
+  // E o recibo deixa de acusar forja onde ha um device por enrolar.
+  assert.equal(r.rejeitados.length, 1);
+  assert.equal(r.rejeitados[0].codigo, 'chave-diferente');
+  assert.equal(r.rejeitados[0].device, 'pc-paulo');
+});
+
+test('ONDA 1e · o kid desta maquina viaja no bloco, para se comparar a olho', () => {
+  const dir = pasta('prova3');
+  writeBeacon({ device: 'mac-mini', running: true }, { dir, chaveImpl: chaveFalsa });
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa });
+  assert.match(r.autenticacao.kid, /^[0-9a-f]{16}$/);
+  assert.equal(r.autenticacao.chave, 'no vault', 'onde vive e um facto; se e partilhada quem responde e prova_frota');
+});
+
+test('ONDA 1e · chave LOCAL: a causa dita e o alcance, nao a contagem', () => {
+  const dir = pasta('prova4');
+  const soLocal = () => ({ chave: CHAVE_T, caminho: '/h/.mooter/owner.key', fonte: 'local', partilhado: false, criada: false, erro: null });
+  writeBeacon({ device: 'mac-mini', running: true }, { dir, chaveImpl: soLocal });
+  writeBeacon({ device: 'pc-paulo', running: true }, { dir, chaveImpl: soLocal });
+
+  const r = readBeacons({ dir, partilhado: false, selfDevice: 'mac-mini', chaveImpl: soLocal });
+  assert.equal(r.autenticacao.devices_verificados, 2, 'os dois verificam...');
+  assert.equal(r.autenticacao.prova_frota, false, '...e mesmo assim nao provam origem');
+  assert.match(r.autenticacao.porque, /nao a origem/);
 });
