@@ -343,3 +343,110 @@ test('mexer no kid nao faz passar nada — o MAC continua a mandar', () => {
   assert.equal(A.verificar(b, { chave: OUTRA, agora: AGORA }).codigo, 'adulterado',
     'kid forjado so muda a mensagem de erro, nunca o veredicto');
 });
+
+// ── Ed25519: a frota sem segredo a viajar ────────────────────────────────────
+//
+// O HMAC e simetrico: quem verifica pode forjar, o segredo tem de estar em N
+// maquinas, e uma comprometida e a frota comprometida. Com Ed25519 a privada
+// nunca sai do device e o vault carrega so as PUBLICAS, num registo que o dono
+// commita — inscrever e um `git diff`, revogar e apagar uma linha.
+
+const par = () => {
+  const { privateKey } = crypto.generateKeyPairSync('ed25519');
+  const pub = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'der' }).toString('base64');
+  return { privada: privateKey, pub, kid: A.kidDaPublica(pub) };
+};
+const registoCom = (mapa) => ({
+  devices: Object.fromEntries(Object.entries(mapa).map(([n, p]) => [n, { alg: A.ALG_ED, kid: p.kid, pub: p.pub }])),
+});
+
+test('o envelope Ed25519 tem a mesma forma do HMAC — e uma assinatura de 64B', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  assert.equal(b.sig.alg, A.ALG_ED);
+  assert.equal(b.sig.kid, p.kid);
+  assert.match(b.sig.mac, /^[0-9a-f]{128}$/, 'Ed25519 assina 64B; o HMAC-SHA256 dava 32B');
+  assert.ok(b.sig.nonce && b.sig.ts);
+});
+
+test('inscrito no registo: verifica', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  const v = A.verificar(b, { registo: registoCom({ 'pc-paulo': p }), device: 'pc-paulo', agora: AGORA });
+  assert.equal(v.ok, true);
+  assert.equal(v.alg, A.ALG_ED);
+});
+
+test('GATE: um device por inscrever NAO entra — e nao e acusado de nada', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  const v = A.verificar(b, { registo: registoCom({ 'outro-device': par() }), device: 'pc-paulo', agora: AGORA });
+  assert.equal(v.ok, false);
+  assert.equal(v.codigo, 'nao-inscrito');
+  assert.match(v.motivo, /ainda nao o autorizou/);
+});
+
+test('GATE: sem identidade de device nao ha onde procurar a publica', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  assert.equal(A.verificar(b, { registo: registoCom({ 'pc-paulo': p }), agora: AGORA }).codigo, 'sem-device');
+});
+
+test('GATE: o IMPOSTOR nao rouba o lugar de outro device', () => {
+  // O ataque concreto: pegar no beacon assinado do Mac e pousa-lo em
+  // `pc-paulo.json`. A identidade e o nome do FICHEIRO, e a publica que o
+  // registo devolve para `pc-paulo` nao e a do Mac.
+  const mac = par();
+  const pc = par();
+  const doMac = A.assinadoEd({ ...beacon(), device: 'mac-mini' }, { privada: mac.privada, pub: mac.pub, ts: TS });
+  const v = A.verificar(doMac, { registo: registoCom({ 'mac-mini': mac, 'pc-paulo': pc }), device: 'pc-paulo', agora: AGORA });
+  assert.equal(v.ok, false);
+  assert.equal(v.codigo, 'chave-diferente');
+  assert.match(v.motivo, /outra chave que nao a inscrita/);
+});
+
+test('GATE: conteudo mexido e adulteracao — e aqui nao ha segunda causa possivel', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  b.usd = 999.99;
+  const v = A.verificar(b, { registo: registoCom({ 'pc-paulo': p }), device: 'pc-paulo', agora: AGORA });
+  assert.equal(v.codigo, 'adulterado');
+});
+
+test('um mac de HMAC nao passa por assinatura Ed25519, nem ao contrario', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  b.sig.mac = crypto.randomBytes(32).toString('hex'); // comprimento de HMAC
+  assert.equal(A.verificar(b, { registo: registoCom({ 'pc-paulo': p }), device: 'pc-paulo', agora: AGORA }).codigo, 'mac-malformado');
+
+  const h = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  h.sig.mac = crypto.randomBytes(64).toString('hex'); // comprimento de Ed25519
+  assert.equal(A.verificar(h, { chave: CHAVE, agora: AGORA }).codigo, 'mac-malformado');
+});
+
+test('o registo respeita a janela e o replay tal como o HMAC', () => {
+  const p = par();
+  const registo = registoCom({ 'pc-paulo': p });
+  const velho = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: '2020-01-01T00:00:00.000Z' });
+  assert.equal(A.verificar(velho, { registo, device: 'pc-paulo', agora: AGORA }).codigo, 'expirada');
+
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  const vistos = new Set();
+  assert.equal(A.verificar(b, { registo, device: 'pc-paulo', agora: AGORA, vistos }).ok, true);
+  assert.equal(A.verificar(b, { registo, device: 'pc-paulo', agora: AGORA, vistos }).codigo, 'replay');
+});
+
+test('REGRESSAO: um beacon HMAC continua a verificar com o registo pousado ao lado', () => {
+  // Durante a migracao as duas coisas coexistem. Um device por actualizar nao
+  // pode desaparecer do painel so porque o registo passou a existir.
+  const b = A.assinado(beacon(), { chave: CHAVE, ts: TS });
+  const v = A.verificar(b, { chave: CHAVE, registo: registoCom({ 'pc-paulo': par() }), device: 'pc-paulo', agora: AGORA });
+  assert.equal(v.ok, true);
+});
+
+test('uma publica ilegivel no registo diz-se ilegivel, nao se ignora', () => {
+  const p = par();
+  const b = A.assinadoEd(beacon(), { privada: p.privada, pub: p.pub, ts: TS });
+  const mau = { devices: { 'pc-paulo': { alg: A.ALG_ED, kid: p.kid, pub: 'nao-e-uma-chave' } } };
+  assert.equal(A.verificar(b, { registo: mau, device: 'pc-paulo', agora: AGORA }).codigo, 'registo-ilegivel');
+});

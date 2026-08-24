@@ -199,3 +199,161 @@ test('exportar de uma maquina e importar noutra da o MESMO kid', () => {
   const beacon = A.assinado({ device: 'mac-mini', running: true }, { chave: chaveMac });
   assert.equal(A.verificar(beacon, { chave: chavePc }).ok, true, 'era isto que nunca funcionou');
 });
+
+// ── Fase 2 · inscricao Ed25519 ───────────────────────────────────────────────
+//
+// O gate: **inscrever nunca commita, e nunca substitui uma inscricao em
+// silencio.** A lista de quem a frota acredita revê-se num `git diff` do dono —
+// um comando que inscrevesse E commitasse tornaria a inscricao invisivel, e
+// qualquer processo com escrita no vault podia inscrever-se a si proprio. Era
+// exactamente o ataque de que o Ed25519 nos tirou.
+
+import { identidade, inscrever } from '../chave-da-frota.mjs';
+
+const parDeTeste = () => {
+  const { privateKey } = crypto.generateKeyPairSync('ed25519');
+  const pub = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'der' }).toString('base64');
+  return { pub, kid: A.kidDaPublica(pub) };
+};
+
+/** Um device com `~/.mooter/` proprio e um vault proprio. */
+function device(nome) {
+  const casa = pasta(`casa-${nome}`);
+  const vault = pasta(`vault-${nome}`);
+  fs.mkdirSync(path.join(vault, '50-fleet'), { recursive: true });
+  return { casa, vault, opts: { home: casa, mooDir: path.join(casa, '.mooter'), vaultPath: vault, device: nome } };
+}
+
+test('chaveDoDevice cria o par uma vez, guarda-o a 0600, e le-o de volta igual', () => {
+  const d = device('m1');
+  const a = A.chaveDoDevice(d.opts);
+  assert.equal(a.criada, true);
+  assert.match(a.kid, /^[0-9a-f]{16}$/);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(a.caminho).mode & 0o777, 0o600);
+
+  const b = A.chaveDoDevice(d.opts);
+  assert.equal(b.criada, false, 'a segunda chamada nao pode gerar outro par');
+  assert.equal(b.kid, a.kid, 'senao a inscricao ja feita no registo deixava de bater');
+});
+
+test('a privada vive em ~/.mooter/, NUNCA no vault', () => {
+  const d = device('m2');
+  const k = A.chaveDoDevice(d.opts);
+  assert.ok(k.caminho.includes('.mooter'), k.caminho);
+  assert.ok(!k.caminho.startsWith(d.vault), 'a privada no canal que atravessa maquinas era repetir a Fase 1');
+});
+
+test('um registo ausente NAO e erro — e uma frota que ainda nao migrou', () => {
+  const d = device('m3');
+  const r = A.lerRegisto(d.opts);
+  assert.equal(r.existe, false);
+  assert.equal(r.erro, null);
+  assert.deepEqual(r.devices, {});
+});
+
+test('um registo ILEGIVEL diz-se ilegivel — nao se inventa confianca', () => {
+  const d = device('m4');
+  fs.writeFileSync(path.join(d.vault, '50-fleet', 'trusted-devices.json'), '{ isto nao e json');
+  const r = A.lerRegisto(d.opts);
+  assert.equal(r.existe, true);
+  assert.ok(r.erro);
+});
+
+test('identidade diz se este device ja esta inscrito, e com que chave', () => {
+  const d = device('m5');
+  const id = identidade(d.opts);
+  assert.equal(id.device, 'm5');
+  assert.equal(id.inscrito, false);
+  assert.equal(id.conflito, null);
+
+  inscrever('m5', id.pub, d.opts);
+  assert.equal(identidade(d.opts).inscrito, true);
+});
+
+test('identidade acusa CONFLITO quando o registo tem outra chave para este device', () => {
+  const d = device('m6');
+  identidade(d.opts);
+  inscrever('m6', parDeTeste().pub, d.opts);
+  const id = identidade(d.opts);
+  assert.equal(id.inscrito, false);
+  assert.ok(id.conflito, 'nao e "por inscrever": e uma inscricao que este device ja nao honra');
+});
+
+test('GATE: inscrever escreve o ficheiro e NAO commita', () => {
+  const d = device('m7');
+  const p = parDeTeste();
+  const r = inscrever('pc-paulo', p.pub, d.opts);
+  assert.equal(r.mudou, true);
+  assert.equal(r.kid, p.kid);
+
+  const escrito = JSON.parse(fs.readFileSync(r.caminho, 'utf8'));
+  assert.equal(escrito.versao, 1);
+  assert.equal(escrito.devices['pc-paulo'].pub, p.pub);
+  assert.equal(escrito.devices['pc-paulo'].alg, A.ALG_ED);
+  assert.ok(escrito.devices['pc-paulo'].inscrito_em, 'quando foi autorizado faz parte do recibo');
+  // Nao ha git nenhum nesta pasta: se o comando tentasse commitar, rebentava.
+  assert.equal(fs.existsSync(path.join(d.vault, '.git')), false);
+});
+
+test('GATE: inscrever NAO substitui outra chave sem --forcar', () => {
+  const d = device('m8');
+  const antiga = parDeTeste();
+  inscrever('pc-paulo', antiga.pub, d.opts);
+
+  assert.throws(() => inscrever('pc-paulo', parDeTeste().pub, d.opts), /--forcar/);
+  const r = A.lerRegisto(d.opts);
+  assert.equal(r.devices['pc-paulo'].pub, antiga.pub, 'a inscricao antiga tem de sobreviver');
+});
+
+test('inscrever com --forcar revoga a anterior, e diz qual', () => {
+  const d = device('m9');
+  const antiga = parDeTeste();
+  const nova = parDeTeste();
+  inscrever('pc-paulo', antiga.pub, d.opts);
+
+  const r = inscrever('pc-paulo', nova.pub, { ...d.opts, forcar: true });
+  assert.equal(r.substituiu, antiga.kid);
+  assert.equal(A.lerRegisto(d.opts).devices['pc-paulo'].pub, nova.pub);
+});
+
+test('inscrever a MESMA chave e no-op', () => {
+  const d = device('m10');
+  const p = parDeTeste();
+  inscrever('pc-paulo', p.pub, d.opts);
+  assert.equal(inscrever('pc-paulo', p.pub, d.opts).mudou, false);
+});
+
+test('inscrever recusa o que nao e uma chave publica Ed25519', () => {
+  const d = device('m11');
+  for (const lixo of ['nao-base64!!', Buffer.from('curto').toString('base64'), '']) {
+    assert.throws(() => inscrever('pc-paulo', lixo, d.opts), /base64|publica/);
+  }
+  assert.equal(A.lerRegisto(d.opts).existe, false, 'nada foi escrito');
+});
+
+test('inscrever nao escreve por cima de um registo que nao consegue ler', () => {
+  const d = device('m12');
+  fs.writeFileSync(path.join(d.vault, '50-fleet', 'trusted-devices.json'), '{ partido');
+  assert.throws(() => inscrever('pc-paulo', parDeTeste().pub, d.opts), /ilegivel/);
+  assert.equal(fs.readFileSync(path.join(d.vault, '50-fleet', 'trusted-devices.json'), 'utf8'), '{ partido');
+});
+
+test('o ciclo Fase 2: o PC mostra a publica, o Mac inscreve-a, e o beacon do PC verifica', () => {
+  const mac = device('mac-mini');
+  const pc = device('pc-paulo');
+
+  // No PC: a identidade publica. Nenhum segredo sai daqui.
+  const idPc = identidade(pc.opts);
+
+  // No Mac, que tem o vault: inscreve-se a publica do PC.
+  inscrever('pc-paulo', idPc.pub, mac.opts);
+
+  // O PC assina com a PRIVADA dele, que nunca viajou.
+  const chavePc = A.chaveDoDevice(pc.opts);
+  const b = A.assinadoEd({ device: 'pc-paulo', running: true }, { privada: chavePc.privada, pub: chavePc.pub });
+
+  // E o Mac verifica-o pelo registo.
+  const v = A.verificar(b, { registo: A.lerRegisto(mac.opts), device: 'pc-paulo' });
+  assert.equal(v.ok, true, 'era isto que exigia levar um segredo a mao');
+  assert.equal(v.alg, A.ALG_ED);
+});

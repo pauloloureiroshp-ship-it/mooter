@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 import {
   safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness, naTuaMao,
@@ -661,4 +662,114 @@ test('ONDA 1e · chave LOCAL: a causa dita e o alcance, nao a contagem', () => {
   assert.equal(r.autenticacao.devices_verificados, 2, 'os dois verificam...');
   assert.equal(r.autenticacao.prova_frota, false, '...e mesmo assim nao provam origem');
   assert.match(r.autenticacao.porque, /nao a origem/);
+});
+
+// ── ONDA 2 · o registo de publicas manda ─────────────────────────────────────
+
+const parEd = () => {
+  const { privateKey } = crypto.generateKeyPairSync('ed25519');
+  const pub = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'der' }).toString('base64');
+  return { privada: privateKey, pub, kid: assinaturaMod.kidDaPublica(pub) };
+};
+const regDe = (mapa) => () => ({
+  devices: Object.fromEntries(Object.entries(mapa).map(([n, p]) => [n, { alg: assinaturaMod.ALG_ED, kid: p.kid, pub: p.pub }])),
+  caminho: '/t/trusted-devices.json', partilhado: true, existe: true, erro: null,
+});
+const semRegisto = () => ({ devices: {}, caminho: '/t/trusted-devices.json', partilhado: true, existe: false, erro: null });
+
+test('ONDA 2 · writeBeacon so muda para Ed25519 DEPOIS de inscrito', () => {
+  // A ordem e a unica que nao parte nada: assinar com uma publica que ninguem
+  // tem so troca "verificado" por "nao-inscrito" em todos os paineis.
+  const dir = pasta('ed-ordem');
+  const p = parEd();
+  const meu = () => ({ ...p, caminho: '/t/device.key', criada: false, erro: null });
+
+  const antes = writeBeacon({ device: 'mac-mini' }, { dir, chaveImpl: chaveFalsa, deviceKeyImpl: meu, registoImpl: semRegisto });
+  assert.equal(antes.inscrito, false);
+  assert.equal(antes.alg, assinaturaMod.ALG_TAG, 'por inscrever: continua em HMAC, exactamente como estava');
+
+  const depois = writeBeacon({ device: 'mac-mini' }, { dir, chaveImpl: chaveFalsa, deviceKeyImpl: meu, registoImpl: regDe({ 'mac-mini': p }) });
+  assert.equal(depois.inscrito, true);
+  assert.equal(depois.alg, assinaturaMod.ALG_ED);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'mac-mini.json'), 'utf8')).sig.alg, assinaturaMod.ALG_ED);
+});
+
+test('ONDA 2 · dois devices inscritos provam a frota, ancorados no registo', () => {
+  const dir = pasta('ed-prova');
+  const mac = parEd();
+  const pc = parEd();
+  const registo = regDe({ 'mac-mini': mac, 'pc-paulo': pc });
+  writeBeacon({ device: 'mac-mini' }, { dir, deviceKeyImpl: () => ({ ...mac, erro: null }), registoImpl: registo });
+  writeBeacon({ device: 'pc-paulo' }, { dir, deviceKeyImpl: () => ({ ...pc, erro: null }), registoImpl: registo });
+
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa, registoImpl: registo });
+  assert.equal(r.rejeitados.length, 0);
+  assert.equal(r.autenticacao.prova_frota, true);
+  assert.equal(r.autenticacao.registo.devices, 2);
+  for (const d of r.frota) assert.equal(d.autenticidade.ancora, 'registo');
+});
+
+test('ONDA 2 · GATE: um device POR INSCREVER nao entra, e o painel diz como se inscreve', () => {
+  const dir = pasta('ed-falta');
+  const mac = parEd();
+  const pc = parEd();
+  const soMac = regDe({ 'mac-mini': mac });
+  writeBeacon({ device: 'mac-mini' }, { dir, deviceKeyImpl: () => ({ ...mac, erro: null }), registoImpl: soMac });
+  // O PC assina com a sua privada, mas ninguem o autorizou ainda.
+  fs.writeFileSync(path.join(dir, 'pc-paulo.json'),
+    JSON.stringify(assinaturaMod.assinadoEd({ device: 'pc-paulo', running: true }, { privada: pc.privada, pub: pc.pub })));
+
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa, registoImpl: soMac });
+  assert.equal(r.frota.find((d) => d.device === 'pc-paulo'), undefined);
+  assert.equal(r.rejeitados[0].codigo, 'nao-inscrito');
+  assert.deepEqual(r.autenticacao.devices_por_inscrever, ['pc-paulo']);
+  assert.equal(r.autenticacao.prova_frota, false);
+  assert.match(r.autenticacao.porque, /o dono ainda nao autorizou/);
+  assert.match(r.autenticacao.resolver, /--inscrever/);
+});
+
+test('ONDA 2 · GATE: uma chave LOCAL nunca conta para a prova, por mais devices que verifique', () => {
+  // Duas maquinas a verificar com uma chave que so existe numa delas provam
+  // integridade de ficheiro, nao origem. A contagem sozinha nao sabe isso.
+  const dir = pasta('ed-local');
+  const soLocal = () => ({ chave: CHAVE_T, caminho: '/h/.mooter/owner.key', fonte: 'local', partilhado: false, criada: false, erro: null });
+  writeBeacon({ device: 'mac-mini' }, { dir, chaveImpl: soLocal, registoImpl: semRegisto });
+  writeBeacon({ device: 'pc-paulo' }, { dir, chaveImpl: soLocal, registoImpl: semRegisto });
+
+  const r = readBeacons({ dir, partilhado: false, selfDevice: 'mac-mini', chaveImpl: soLocal, registoImpl: semRegisto });
+  assert.equal(r.autenticacao.devices_verificados, 2);
+  assert.equal(r.autenticacao.prova_frota, false);
+  for (const d of r.frota) assert.equal(d.autenticidade.ancora, 'chave-local');
+  assert.match(r.autenticacao.porque, /nao a origem/);
+});
+
+test('ONDA 2 · migracao: HMAC e Ed25519 coexistem na mesma pasta', () => {
+  // No dia da migracao um device ja assina Ed25519 e o outro ainda nao. Nenhum
+  // pode desaparecer do painel por causa disso.
+  const dir = pasta('ed-mistura');
+  const mac = parEd();
+  const registo = regDe({ 'mac-mini': mac });
+  writeBeacon({ device: 'mac-mini' }, { dir, deviceKeyImpl: () => ({ ...mac, erro: null }), registoImpl: registo });
+  writeBeacon({ device: 'pc-paulo' }, { dir, chaveImpl: chaveFalsa, registoImpl: semRegisto });
+
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa, registoImpl: registo });
+  assert.equal(r.rejeitados.length, 0, 'os dois entram');
+  assert.equal(r.frota.find((d) => d.device === 'mac-mini').autenticidade.ancora, 'registo');
+  assert.equal(r.frota.find((d) => d.device === 'pc-paulo').autenticidade.ancora, 'chave-partilhada');
+  assert.equal(r.autenticacao.prova_frota, true, 'ancoras diferentes, ambas provam origem');
+});
+
+test('ONDA 2 · GATE: o impostor Ed25519 nao rouba o lugar de self', () => {
+  const dir = pasta('ed-impostor');
+  const mac = parEd();
+  const pc = parEd();
+  const registo = regDe({ 'mac-mini': mac, 'pc-paulo': pc });
+  writeBeacon({ device: 'mac-mini' }, { dir, deviceKeyImpl: () => ({ ...mac, erro: null }), registoImpl: registo });
+  // O beacon do Mac, copiado para o ficheiro do PC.
+  fs.copyFileSync(path.join(dir, 'mac-mini.json'), path.join(dir, 'pc-paulo.json'));
+
+  const r = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', chaveImpl: chaveFalsa, registoImpl: registo });
+  assert.equal(r.frota.length, 1, 'o ficheiro do PC nao pode ressuscitar o PC com o beacon do Mac');
+  assert.equal(r.rejeitados[0].ficheiro, 'pc-paulo.json');
+  assert.equal(r.rejeitados[0].codigo, 'chave-diferente');
 });

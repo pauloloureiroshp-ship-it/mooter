@@ -81,6 +81,9 @@ export function beaconDir({ vaultPath = process.env.VAULT_PATH, home = os.homedi
 export function writeBeacon(state, {
   dir, writeImpl = fs.writeFileSync, mkdirImpl = fs.mkdirSync,
   chaveImpl = assinatura.chaveDoDono, assinarImpl = assinatura.assinado,
+  // Ed25519: o par deste device, o registo de publicas, e como assinar com ele.
+  deviceKeyImpl = assinatura.chaveDoDevice, registoImpl = assinatura.lerRegisto,
+  assinarEdImpl = assinatura.assinadoEd,
 } = {}) {
   const device = safeDeviceName(state && state.device);
   try {
@@ -145,17 +148,48 @@ export function writeBeacon(state, {
     // di-lo (`assinado:false`) — deixar de publicar por nao haver vault seria
     // apagar o proprio device do painel para o proteger de um ataque que ainda
     // nao ha. O que NAO se faz e escrever um beacon a fingir que esta assinado.
-    const k = chaveImpl();
     let payload = beacon;
     let assinado = false;
-    let porque = k && k.erro ? k.erro : 'sem chave do dono neste device';
-    if (k && k.chave) {
+    let alg = null;
+    let porque = null;
+
+    /**
+     * Ed25519 SO depois de inscrito, nunca antes.
+     *
+     * A ordem importa e e a unica que nao parte nada: enquanto a publica deste
+     * device nao estiver no registo, ninguem la fora a tem para verificar —
+     * passar a assinar com ela cedo demais so troca "verificado" por
+     * "nao-inscrito" em todos os paineis. Assim o dono inscreve primeiro (um
+     * commit no vault), o device ve-se la, e SO ENTAO muda de algoritmo. Ate la
+     * o HMAC continua exactamente como estava.
+     */
+    const meu = deviceKeyImpl();
+    const reg = registoImpl();
+    const inscrito = meu && meu.pub && reg && reg.devices && reg.devices[device]
+      && reg.devices[device].pub === meu.pub;
+
+    if (inscrito) {
       try {
-        payload = assinarImpl(beacon, { chave: k.chave });
+        payload = assinarEdImpl(beacon, { privada: meu.privada, pub: meu.pub });
         assinado = true;
-        porque = null;
+        alg = assinatura.ALG_ED;
       } catch (err) {
         porque = String(err && err.message).slice(0, 120);
+      }
+    }
+
+    const k = assinado ? null : chaveImpl();
+    if (!assinado) {
+      porque = porque || (k && k.erro ? k.erro : 'sem chave do dono neste device');
+      if (k && k.chave) {
+        try {
+          payload = assinarImpl(beacon, { chave: k.chave });
+          assinado = true;
+          alg = assinatura.ALG_TAG;
+          porque = null;
+        } catch (err) {
+          porque = String(err && err.message).slice(0, 120);
+        }
       }
     }
     writeImpl(path.join(dir, `${device}.json`), JSON.stringify(payload, null, 2));
@@ -163,9 +197,12 @@ export function writeBeacon(state, {
       ok: true,
       device,
       assinado,
+      alg,
+      inscrito: Boolean(inscrito),
       // `partilhado:false` quer dizer chave por-device: assina, mas nao prova
       // frota nenhuma — so prova que ninguem mexeu no ficheiro desta maquina.
-      chave_partilhada: Boolean(k && k.partilhado && k.chave),
+      // Com Ed25519 a pergunta deixa de fazer sentido: quem prova e o registo.
+      chave_partilhada: inscrito ? true : Boolean(k && k.partilhado && k.chave),
       porque_nao_assinado: assinado ? null : porque,
     };
   } catch (err) {
@@ -267,6 +304,8 @@ export function readBeacons({
   dir, transporte = 'local', partilhado = false, selfDevice = null, now = Date.now(),
   readdirImpl = fs.readdirSync, readImpl = fs.readFileSync,
   chaveImpl = assinatura.chaveDoDono, verificarImpl = assinatura.verificar,
+  // O registo de chaves PUBLICAS: quem julga um beacon Ed25519.
+  registoImpl = assinatura.lerRegisto,
   /**
    * Beacons lidos do REMOTO do vault (`origin/<branch>:50-fleet/*.json`), por
    * nome de ficheiro — ver `fleet-remoto.mjs`. Sao uma camada POR CIMA do
@@ -299,6 +338,7 @@ export function readBeacons({
 
   const k = chaveImpl();
   const chave = k && k.chave ? k.chave : null;
+  const registo = registoImpl();
 
   const frota = [];
   /**
@@ -346,8 +386,11 @@ export function readBeacons({
      * nao a consegue provar: isso nao e atraso, e mentira.
      */
     const temSig = Boolean(b.sig);
+    // `device` e o nome do FICHEIRO, nunca o campo `device` de dentro: e assim
+    // que o registo indexa as publicas, e e o que impede um beacon assinado por
+    // uma maquina de tomar o lugar de outra.
     const v = temSig
-      ? verificarImpl(b, { chave, agora: now })
+      ? verificarImpl(b, { chave, agora: now, registo, device: safeDeviceName(name.replace(/\.json$/, '')) })
       : { ok: false, codigo: 'nao-assinado', motivo: 'beacon sem assinatura (device por actualizar)' };
 
     if (temSig && !v.ok) {
@@ -402,7 +445,20 @@ export function readBeacons({
       frescura: beaconFreshness(b.ts, now),
       // Nunca `true` por omissao: um beacon so e autentico se a assinatura
       // bateu contra a chave do dono, e o painel tem de os poder distinguir.
-      autenticidade: { ok: v.ok === true, codigo: v.codigo, motivo: v.motivo || null },
+      autenticidade: {
+        ok: v.ok === true,
+        codigo: v.codigo,
+        motivo: v.motivo || null,
+        /**
+         * O que ANCORA esta verificacao — porque nem toda a verificacao prova o
+         * mesmo. `registo`: a publica veio de um ficheiro que o dono commitou.
+         * `chave-partilhada`: o segredo simetrico que atravessou as maquinas a
+         * mao. `chave-local`: a chave so existe aqui, portanto isto prova que
+         * o ficheiro nao foi mexido e NADA sobre a sua origem.
+         */
+        ancora: v.ok !== true ? null
+          : (v.alg === assinatura.ALG_ED ? 'registo' : (k.partilhado ? 'chave-partilhada' : 'chave-local')),
+      },
     });
   }
   frota.sort((a, b) => (a.self === b.self ? String(a.device).localeCompare(b.device) : a.self ? -1 : 1));
@@ -423,23 +479,36 @@ export function readBeacons({
    * verificados — um device sozinho a verificar-se a si proprio nao prova frota
    * nenhuma, prova um solitario.
    */
+  /**
+   * Verificados NAO chega: uma chave que so existe nesta maquina verifica o
+   * ficheiro e nao diz nada sobre a origem dele. Contam para prova de frota os
+   * devices cuja verificacao esta ancorada em algo que atravessa maquinas — o
+   * registo de publicas, ou a chave partilhada da Fase 1.
+   */
   const verificados = new Set(frota.filter((d) => d.autenticidade && d.autenticidade.ok).map((d) => d.device));
+  const provados = new Set(frota
+    .filter((d) => d.autenticidade && d.autenticidade.ok && d.autenticidade.ancora !== 'chave-local')
+    .map((d) => d.device));
   const porEnrolar = rejeitados.filter((r) => r.codigo === 'chave-diferente').map((r) => r.device);
-  // Duas condicoes, ambas necessarias. `k.partilhado` (a chave vive no canal que
-  // atravessa as maquinas) e necessario mas NAO suficiente — era o erro antigo,
-  // acreditar so nele. `verificados.size >= 2` e a parte medida.
-  const provaFrota = Boolean(k.partilhado) && verificados.size >= 2;
+  const porInscrever = rejeitados.filter((r) => r.codigo === 'nao-inscrito').map((r) => r.device);
+  // Dois devices, ambos ancorados fora desta maquina. Ate 2026-08-24 isto era
+  // `Boolean(chave && k.partilhado)` — presumia a partilha em vez de a medir.
+  const provaFrota = provados.size >= 2;
 
   const porqueSemProva = () => {
     if (semChave) return k && k.erro ? k.erro : 'sem chave do dono: nenhuma assinatura pode ser verificada';
+    if (porInscrever.length) {
+      return `${porInscrever.length} device(s) por inscrever no registo (${porInscrever.join(', ')}): o dono ainda nao autorizou a chave publica deles`;
+    }
     if (porEnrolar.length) {
       return `${porEnrolar.length} device(s) assinam com outra chave (${porEnrolar.join(', ')}): a chave do dono nao esta partilhada entre as maquinas`;
     }
     // Antes de falar de contagem, falar de ALCANCE: uma chave que so existe
     // nesta maquina verifica a integridade do ficheiro, nao a origem dele. E a
     // causa mais informativa das duas, por isso vem primeiro.
-    if (!k.partilhado) return 'chave local: verifica integridade do ficheiro, nao a origem';
-    if (verificados.size <= 1) return 'so um device verifica: uma maquina sozinha nao prova frota';
+    if (verificados.size > provados.size) return 'chave local: verifica integridade do ficheiro, nao a origem';
+    if (!k.partilhado && !registo.existe) return 'chave local: verifica integridade do ficheiro, nao a origem';
+    if (provados.size <= 1) return 'so um device verifica: uma maquina sozinha nao prova frota';
     return null;
   };
 
@@ -459,14 +528,22 @@ export function readBeacons({
       kid: chave ? assinatura.kidDaChave(chave) : null,
       devices_verificados: verificados.size,
       devices_por_enrolar: porEnrolar,
+      devices_por_inscrever: porInscrever,
+      // O registo de publicas existe? E o unico caminho que nao obriga a mover
+      // um segredo entre maquinas.
+      registo: registo.caminho
+        ? { caminho: registo.caminho, existe: registo.existe, devices: Object.keys(registo.devices).length, erro: registo.erro }
+        : null,
       prova_frota: provaFrota,
       porque: provaFrota ? null : porqueSemProva(),
       // Dizer que a chave nao esta partilhada sem dizer COMO se partilha deixa
       // o dono a olhar para um diagnostico correcto e inaccionavel. O comando
       // existe desde a Fase 1; o que faltava era o painel apontar para ele.
-      resolver: porEnrolar.length
-        ? 'leva a chave do dono a mao para esse device: `npm run frota:chave -- --exportar <destino fora de qualquer repo>` aqui, `--importar <ficheiro>` la'
-        : null,
+      resolver: porInscrever.length
+        ? 'inscreve esses devices: la, `npm run frota:chave -- --inscrever` mostra a publica; aqui, acrescenta-a ao registo e commita-a no vault'
+        : (porEnrolar.length
+          ? 'leva a chave do dono a mao para esse device: `npm run frota:chave -- --exportar <destino fora de qualquer repo>` aqui, `--importar <ficheiro>` la'
+          : null),
     },
     // Stated, not implied: without a shared directory the "fleet" is one machine.
     aviso: partilhado
