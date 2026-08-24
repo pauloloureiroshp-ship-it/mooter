@@ -17,7 +17,21 @@ import { buildFleetState, readLedger } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
-import { resolveRepoRoot, projectPaths, versaoDoConector } from './project.mjs';
+import { resolveRepoRoot, projectPaths, versaoDoConector, repoSha } from './project.mjs';
+
+/**
+ * O sha que o RUNNER carregou, lido do estado que ele escreve.
+ *
+ * `null` quando nao ha estado, ou quando o estado e de uma versao anterior a
+ * este campo — e `null` faz o `verDeriva` responder "nao sei", que e a verdade.
+ * Nunca `false`, que seria afirmar que estao iguais sem ter comparado.
+ */
+function shaDoRunner(statePath) {
+  try {
+    const s = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    return typeof s.sha_carregado === 'string' && s.sha_carregado ? s.sha_carregado : null;
+  } catch { return null; }
+}
 import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar } from './triagem.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
@@ -302,7 +316,17 @@ export function createServer({
         sampleGpu(),
         engineAlive(fetchImpl),
         loadedModels(fetchImpl),
-        buildAlignment({ repoRoot: raiz }).catch(() => null),
+        // Os shas vem do ESTADO que o runner escreveu, nao de um recalculo
+        // aqui. Este servidor e outro processo: perguntar duas vezes ao disco
+        // so prova que o disco e igual a si proprio. Ate 2026-08-23 era isso
+        // que acontecia — `buildAlignment({ repoRoot })` sem shas — e a linha
+        // "running code" do painel dizia SEMPRE "could not compare". O aviso de
+        // deriva era codigo morto em producao.
+        buildAlignment({
+          repoRoot: raiz,
+          shaCarregado: shaDoRunner(statePath),
+          shaEmDisco: repoSha(raiz),
+        }).catch(() => null),
       ]);
       const where = beaconDir();
       const fleet = readBeacons({ ...where, selfDevice: device });

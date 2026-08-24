@@ -332,7 +332,7 @@ function appendReceipt(ledgerPath, receipt) {
  * volta a trabalhar apaga o motivo por escrever por cima, sem precisar de um
  * passo de limpeza que se pode esquecer.
  */
-function escreverEstado({ paths, repoRoot, pillar, focus, pausa = null, writeImpl = fs.writeFileSync }) {
+function escreverEstado({ paths, repoRoot, pillar, focus, pausa = null, shaCarregado = null, writeImpl = fs.writeFileSync }) {
   writeImpl(
     paths.STATE,
     JSON.stringify({
@@ -342,6 +342,14 @@ function escreverEstado({ paths, repoRoot, pillar, focus, pausa = null, writeImp
       foco: focus,
       modelo: DEFAULT_MODEL,
       pausa,
+      // O sha que ESTE processo carregou. Sem ele aqui, o painel nao consegue
+      // dizer se o runner corre codigo velho: o `f10-server` e outro processo,
+      // e recalcular o sha do disco de ambos os lados so prova que o disco e
+      // igual a si proprio. Medido a 2026-08-23: o servidor chamava o
+      // `buildAlignment` sem shas nenhuns, por isso a linha "running code" do
+      // painel dizia SEMPRE "could not compare" e o aviso do #343 era codigo
+      // morto em producao.
+      sha_carregado: shaCarregado,
       ts: Math.floor(Date.now() / 1000),
     }),
   );
@@ -599,7 +607,7 @@ export async function main({
           logImpl(`comandante: PAUSA — ${d.razao}`);
         }
         escreverEstado({
-          paths, repoRoot, pillar: null, focus,
+          paths, repoRoot, pillar: null, focus, shaCarregado,
           pausa: { razao: d.razao, fila: d.fila ?? null, desde: pausaDesde },
         });
         // `ultimoMotorVivo` e null enquanto ninguem tiver perguntado ao motor.
@@ -643,7 +651,7 @@ export async function main({
       }
     }
     const cursor = Math.floor(i / ids.length);
-    escreverEstado({ paths, repoRoot, pillar, focus });
+    escreverEstado({ paths, repoRoot, pillar, focus, shaCarregado });
 
     let receipt;
     try {

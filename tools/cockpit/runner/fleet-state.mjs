@@ -27,6 +27,16 @@ export const DEAD_AFTER_S = 300;
 export const CLOCK_SKEW_TOLERANCE_S = 5;
 /** Enough consecutive empty rounds to mean the loop is spinning, not working. */
 export const IDLE_STREAK_ALARM = 8;
+/**
+ * A partir de que idade uma pausa deixa de ser pausa e passa a ser suspeita.
+ *
+ * O recuo do ramo da pausa vai ate 60s por ciclo, e cada ciclo reescreve o
+ * estado. 180s sao tres ciclos no tecto: tolera uma maquina lenta sem inventar
+ * paciencia. Alinhado em espirito com o `DEAD_AFTER_S` acima, mas mais curto de
+ * proposito — uma pausa e um estado que o runner ESTA activamente a manter, ao
+ * contrario de um recibo que so aparece quando ha trabalho.
+ */
+export const PAUSA_OBSOLETA_S = 180;
 
 /** Reads a jsonl ledger into objects, skipping unparseable lines honestly. */
 export function readLedger(ledgerPath, { readImpl = fs.readFileSync, maxLines = 5000 } = {}) {
@@ -255,14 +265,34 @@ export function buildFleetState({
     // igual a um morto — este ramo nao escreve recibos, e a frescura le-se do
     // recibo. O `porque` viaja: uma pausa muda que nao se distingue de uma
     // avaria muda foi o defeito que este campo veio fechar.
-    pausa: state.pausa
-      ? {
-        activa: true,
+    //
+    // A PAUSA EXPIRA. Sem isto, o campo trocou o defeito de lado em vez de o
+    // fechar: antes um runner VIVO era pintado de morto; depois um runner MORTO
+    // ha tres dias, cujo ultimo estado dizia pausa, era pintado `holding` a
+    // laranja e perdia a classe `morto` no cartao. E como a premissa do proprio
+    // #342 e que "a pausa e o caminho por omissao", e ai que a maioria das
+    // mortes acontece.
+    //
+    // O runner reescreve o estado a CADA ciclo de pausa (recuo ate 60s), por
+    // isso um estado velho significa que ele morreu durante a pausa. A pausa
+    // obsoleta nao desaparece — passa a `activa: false` com `obsoleta: true` e a
+    // sua idade, para o painel poder dizer "estava em pausa ha 3 dias" em vez de
+    // fingir que nunca esteve.
+    pausa: (() => {
+      const base = { activa: false, razao: null, fila: null, desde: null, idade_s: null, obsoleta: false };
+      if (!state.pausa) return base;
+      const ts = Number(state.ts);
+      const idade = Number.isFinite(ts) ? Math.max(0, Math.round(now / 1000 - ts)) : null;
+      const obsoleta = idade === null || idade > PAUSA_OBSOLETA_S;
+      return {
+        activa: !obsoleta,
         razao: state.pausa.razao ?? null,
         fila: state.pausa.fila ?? null,
         desde: state.pausa.desde ?? null,
-      }
-      : { activa: false, razao: null, fila: null, desde: null },
+        idade_s: idade,
+        obsoleta,
+      };
+    })(),
     // Quantas linhas o ledger tem MESMO, e de quantas se contou.
     ledger: { linhas: ledgerLinhas ?? null, janela: receipts.length, truncado: Boolean(truncado) },
     triagem: {
