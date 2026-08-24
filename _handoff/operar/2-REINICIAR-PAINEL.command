@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Reinicia SO o painel (f10-server em :4290) para carregar codigo novo.
 # O loop dos pilares (moo-runner) NAO e tocado. Uso: duplo-clique no Finder.
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 export MOO_PUBLICAR_BEACON=1
 export VAULT_PATH="$HOME/paulo-vault"
 {

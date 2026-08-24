@@ -1,5 +1,5 @@
 #!/bin/zsh
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 export MOO_PUBLICAR_BEACON=1
 export VAULT_PATH="$HOME/paulo-vault"
 {
