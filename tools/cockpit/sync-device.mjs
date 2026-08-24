@@ -29,6 +29,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { verConector, versaoInstalada } from './runner/self-check.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLAUDE = path.join(os.homedir(), '.claude');
@@ -137,21 +138,17 @@ async function main() {
   // O último passo, e o único que este script não fecha.
   let noRepo = null;
   try { noRepo = JSON.parse(fs.readFileSync(path.join(REPO, 'packages', 'mooter-bridge', 'manifest.json'), 'utf8')).version; } catch { /* n/d */ }
-  const registos = [
-    path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'extensions-installations.json'),
-    path.join(os.homedir(), 'AppData', 'Roaming', 'Claude', 'extensions-installations.json'),
-  ];
-  let instalado = null;
-  for (const r of registos) {
-    try {
-      const d = JSON.parse(fs.readFileSync(r, 'utf8'));
-      const e = Object.values(d.extensions || {}).find((x) => x && x.version && JSON.stringify(x).includes('mooter'));
-      if (e) { instalado = e.version; break; }
-    } catch { /* tenta o seguinte */ }
-  }
+  // UMA fonte para "que conector está instalado": o self-check. Este ficheiro
+  // tinha a sua própria cópia que só lia o REGISTO do instalador — e o conector
+  // actualiza-se in-place (`update.js` escreve em `__dirname`, nunca passa pelo
+  // instalador), por isso o registo fica para trás. Medido 2026-08-21 no Mac:
+  // registo 1.33.0, manifest na pasta 1.49.3; o launcher acusava "1.33.0 ≠
+  // 1.49.3" enquanto o self-check já dizia ok. Duas verdades para o mesmo facto.
+  const vc = verConector(REPO);
+  const { versao: instalado, fonte } = versaoInstalada();
   if (!noRepo) passo('conector', 'n/d', 'o repo não declara versão');
-  else if (!instalado) passo('conector', 'n/d', `${noRepo} no repo · registo do Desktop não encontrado`);
-  else if (instalado === noRepo) passo('conector', 'ok', instalado);
+  else if (!instalado) passo('conector', 'n/d', `${noRepo} no repo · conector do Desktop não encontrado`);
+  else if (vc.estado === 'ok') passo('conector', 'ok', `${instalado}${fonte === 'registo' ? ' (lido do registo do instalador — a pasta da extensão não se leu)' : ''}`);
   else {
     const destino = path.join(os.homedir(), 'Downloads', `mooter-v${noRepo.replace(/\./g, '')}.mcpb`);
     let baixado = fs.existsSync(destino);
