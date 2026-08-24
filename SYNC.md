@@ -194,15 +194,38 @@ um beacon que ninguém tocara. O `kid` separa as duas causas; o `ancora`
 **O que destapou a chave:** ligar `frota.rejeitados` no `4-VERIFICAR-FROTA`. Um
 beacon descartado em silêncio era indistinguível de um device que nunca existiu.
 
-<!-- frota Ed25519 — o gesto do dono -->
-### ⏳ Migrar a frota para Ed25519 (aberto desde 2026-08-24)
-O código está no tronco e **inerte**: sem registo, o beacon continua HMAC com
-`ancora: chave-partilhada` (medido pós-merge). A migração é um gesto, não um
-efeito do merge. Ordem: o PC puxa a `main` → `npm run frota:chave -- --inscrever`
-nos dois → `--inscrever-device <nome> <pub>` na máquina do vault → **rever o
-`git diff` do `50-fleet/trusted-devices.json` e commitar** → reiniciar os dois
-cockpits. A inscrição não é commitada pelo comando de propósito: a lista de quem
-a frota acredita revê-se num `git diff`.
+<!-- frota Ed25519 — metade feita, metade bloqueada em CODIGO, nao em gesto -->
+### ⏳ Migrar a frota para Ed25519 — **1 de 2 devices** (2026-08-24)
+
+**Feito · `mac-mini-de-paulo`.** Inscrito no `50-fleet/trusted-devices.json`
+(vault `f981831`, empurrado) e a assinar `Ed25519-v1`, kid `bb8ed09958167518`.
+No painel: `ancora: registo`. A privada vive em `~/.mooter/device-ed25519.key`
+e nunca saiu da máquina — o vault só carrega a pública, que por isso se
+versiona (a `.owner.key` continua no `*.key` do `.gitignore`, e é essa a
+diferença que esta fase compra).
+
+**Bloqueado · `desktop-j26409q`.** Não é um gesto que falte: é **código que
+aquela máquina não tem**. Mede-se no beacon dela — `sha_carregado 15280a66`,
+anterior ao #354, `sig.alg HMAC-SHA256-v1` e **sem `kid`**. Não há
+`frota:chave` para correr lá antes de um `git pull`.
+
+Ordem para fechar, **no PC**: `git pull` → reiniciar o cockpit →
+`npm run frota:chave -- --inscrever`, que imprime a pública (não é segredo,
+viaja por onde se quiser) → na máquina do vault
+`--inscrever-device desktop-j26409q <pub>` → **rever o `git diff` do
+`trusted-devices.json` e commitar** → reiniciar. A inscrição não é commitada
+pelo comando de propósito: a lista de quem a frota acredita revê-se num
+`git diff`, e um comando que commitasse deixaria qualquer processo com escrita
+no vault inscrever-se a si próprio.
+
+**`prova_frota` continua `false`, e está certo:** *"só um device verifica: uma
+máquina sozinha não prova frota"*. Antes de hoje o painel dizia `true` nesta
+mesma situação. O `true` honesto só chega com o segundo device inscrito.
+
+Efeito colateral aceite: o painel do PC, em código antigo, passa a ver o beacon
+do Mac como `alg-desconhecido` em vez de `adulterado`. Já o rejeitava — as
+chaves HMAC das duas máquinas nunca foram a mesma. Muda a mensagem, não o
+resultado.
 
 <!-- suite do router — observação, não conclusão -->
 ### 🔍 A suite `tools/router` não conta sempre o mesmo (visto 2026-08-24)
