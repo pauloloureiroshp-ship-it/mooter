@@ -676,6 +676,13 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       else if (state.pausa && state.pausa.activa)
         setChip($('conn'),'warn',
                 `holding · ${state.pausa.razao || 'scheduler paused generation'}`);
+      // Uma pausa OBSOLETA nao pinta de laranja — mas tambem nao se cala. Um
+      // runner que morreu EM PAUSA e um runner que morreu A TRABALHAR pedem
+      // coisas diferentes ao dono: o primeiro pode estar so a espera de triagem
+      // que nunca veio. Sem esta linha, os dois liam-se igual.
+      else if (state.pausa && state.pausa.obsoleta)
+        setChip($('conn'),'bad',
+                `dead — was holding (${state.pausa.razao || 'paused'}), state ${ago(state.pausa.idade_s)} old`);
       else setChip($('conn'), fresh.estado === 'stale' ? 'warn' : 'bad',
                    `${fresh.estado} — ${fresh.motivo || 'no recent receipt'}`);
       renderToggle();
@@ -779,10 +786,16 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       const cls = fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : emPausa ? 'warn'
                 : fr.estado === 'stale' ? 'warn' : 'dead';
+      // Uma pausa OBSOLETA volta a contar como morte — mas diz que morreu em
+      // pausa. A primeira versao deste campo nao expirava, e um device morto ha
+      // tres dias cujo ultimo estado dizia pausa aparecia laranja e sem a classe
+      // `morto`: o defeito tinha trocado de lado, nao fechado.
+      const pausaVelha = Boolean(d.pausa && d.pausa.obsoleta);
       hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
         fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
           : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
-            : (fr.motivo || fr.estado)));
+            : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
+              : (fr.motivo || fr.estado)));
       box.appendChild(hd);
 
       const meta = el('div','meta');
