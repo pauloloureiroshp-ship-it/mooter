@@ -160,6 +160,62 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 
 ---
 
+## 📌 [2026-08-24] MAC — destrave do vault, e a identidade da frota em três fases
+
+Começou num `git status` trancado e acabou num esquema de identidade. A cadeia
+foi toda por descoberta: nenhum passo abaixo do segundo estava no pedido.
+
+**O destrave.** O vault estava `behind 262` com um `DU .claude/3rd-brain/index.json`.
+Não era um merge a meio — `.git/MERGE_HEAD` não existia. Era o **autostash do
+`pull --rebase --autostash` a falhar o pop**. E não havia commits presos:
+`HEAD...origin/main` dava `0 262`, os beacons já lá estavam. Resolvido pelo
+precedente do `e7f99d6` (ficheiro derivado, `.gitignore:71`) com `git reset` do
+caminho — sem tocar no disco, sem `--force`, sem escolher entre históricos.
+
+**Sete PRs, todos com CI verde e ramos limpos:**
+
+| PR | Commit | O que trazia |
+|---|---|---|
+| #351 | `56a57eb1` | o alinhador lia a versão do conector do **registo do instalador**, que fica para trás a cada auto-actualização — passa a usar `versaoInstalada()` |
+| #352 | `32007142` | beacons dos outros devices lidos do **remoto** do vault (`fetch`, nunca `pull`): a frescura deixa de esperar 20 min |
+| #353 | `25d9ba93` | os 4 `.command` de operação versionados, em `_handoff/operar/`, com os campos mortos curados |
+| #354 | `f7ffe16d` | `kid` no envelope da assinatura · `prova_frota` **medida** |
+| #355 | `6869f8b6` | o `cd` do #353 ficou por commitar — os scripts estiveram partidos na main |
+| #356 | `64ceb6ad` | Fase 1: mover a chave do dono à mão, fora do git |
+| #357 | `f560b3cd` | Fase 2: **Ed25519 com registo de públicas** — nenhum segredo viaja |
+
+**Duas afirmações falsas mortas.** `prova_frota: true` significava só "o ficheiro
+da chave está debaixo do vault" — mas a `.owner.key` cai no `*.key` do
+`.gitignore` do vault e **nunca viajou**: cada device gerou a sua. E o HMAC dava
+`adulterado` tanto para chave errada como para conteúdo mexido, acusando de forja
+um beacon que ninguém tocara. O `kid` separa as duas causas; o `ancora`
+(`registo` · `chave-partilhada` · `chave-local`) diz o que cada verificação prova.
+
+**O que destapou a chave:** ligar `frota.rejeitados` no `4-VERIFICAR-FROTA`. Um
+beacon descartado em silêncio era indistinguível de um device que nunca existiu.
+
+<!-- frota Ed25519 — o gesto do dono -->
+### ⏳ Migrar a frota para Ed25519 (aberto desde 2026-08-24)
+O código está no tronco e **inerte**: sem registo, o beacon continua HMAC com
+`ancora: chave-partilhada` (medido pós-merge). A migração é um gesto, não um
+efeito do merge. Ordem: o PC puxa a `main` → `npm run frota:chave -- --inscrever`
+nos dois → `--inscrever-device <nome> <pub>` na máquina do vault → **rever o
+`git diff` do `50-fleet/trusted-devices.json` e commitar** → reiniciar os dois
+cockpits. A inscrição não é commitada pelo comando de propósito: a lista de quem
+a frota acredita revê-se num `git diff`.
+
+<!-- suite do router — observação, não conclusão -->
+### 🔍 A suite `tools/router` não conta sempre o mesmo (visto 2026-08-24)
+944, 962, 969 e 983 testes em corridas diferentes, incluindo em `main` intocada.
+`fail` foi sempre 0. Não investigado — mas uma suite que não conta sempre o mesmo
+pode estar a saltar testes em silêncio.
+
+**O gargalo continua onde estava:** 1054 achados por triar, loop em pausa por
+`human queue full (524/6)`. Nada dos sete PRs lhe tocou — foi tudo encanamento,
+ainda que encanamento que estava a mentir.
+
+---
+
 ## 🏁 Sprints
 
 | Sprint | Nome | Estado |
