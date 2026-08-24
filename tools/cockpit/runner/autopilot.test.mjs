@@ -28,7 +28,7 @@ const {
   normalizar, lerEstado, curar,
   NIVEIS, ORCAMENTOS, ORCAMENTO_OMISSAO, orcamento, ESTADO_OMISSAO,
   TETO_REFUTADO_PCT, MIN_TRIADOS, MIN_PRECISAO_PCT, MIN_PATCHES_LIMPOS,
-  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN, reservarParaODono,
 } = await import('./autopilot.mjs');
 const { createServer } = await import('./f10-server.mjs');
 const { AUTORES } = await import('./triagem.mjs');
@@ -698,20 +698,75 @@ test('AUDITORIA: umEm=1 reserva tudo — o dreno pode ser desligado sem o apagar
 
 test('AUDITORIA: curar reserva uma parte da fila para o dono', () => {
   const fila = Array.from({ length: 400 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}`, evidencia: 'landing/x.tsx:1 => gap: 4' }));
-  const comAmostra = curar(fila, { cap: Number.MAX_SAFE_INTEGER });
+  // `jaDoDono` acima do alvo => a reserva e SO a amostra por hash, sem complemento.
+  const comAmostra = curar(fila, { cap: Number.MAX_SAFE_INTEGER, jaDoDono: MIN_TRIADOS });
   const semAmostra = curar(fila, { cap: Number.MAX_SAFE_INTEGER, auditoria: false });
   assert.equal(semAmostra.length, 400, 'sem amostra, o dreno leva tudo');
   assert.ok(comAmostra.length < semAmostra.length, 'com amostra, alguma coisa fica para o dono');
   const reservados = semAmostra.length - comAmostra.length;
   assert.ok(reservados > 0, `nada foi reservado — a rede nao existe (${reservados})`);
-  // E o que ficou reservado e exactamente o que a funcao diz que reserva.
   const previstos = fila.filter((a) => naAmostraDeAuditoria(a.chave)).length;
   assert.equal(reservados, previstos, 'o que curar reserva tem de bater com o predicado, senao sao duas verdades');
 });
 
+/* ── o estado absorvente que o adversario da FASE 2 encontrou (DEFEITO HIGH) ── */
+
+/**
+ * A versao anterior reservava 1-em-20 e mais nada. O runtime le uma JANELA de
+ * 5000 linhas do ledger, nao o ficheiro todo: onde eu media 219 na fila e 12
+ * reservados, o tique via 138 e reservava 5. A fila estabilizava vazia com 5
+ * decisoes do dono, e o portao 2 exige 20 — nunca abria. A tese da FASE 2
+ * ("a amostra e a torneira do L2") era falsa como estava escrita.
+ */
+test('SEM FOME: com a fila pequena, a reserva garante o que o portao 2 exige', () => {
+  const fila = Array.from({ length: 138 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}`, evidencia: 'landing/x.tsx:1 => gap: 4' }));
+  const soAmostra = fila.filter((a) => naAmostraDeAuditoria(a.chave)).length;
+  assert.ok(soAmostra < MIN_TRIADOS, `o cenario so vale se a amostra sozinha nao chegar (${soAmostra})`);
+
+  const reservadas = reservarParaODono(fila, { jaDoDono: 0 });
+  assert.equal(reservadas.size, MIN_TRIADOS, 'reserva exactamente o que falta para o portao poder abrir');
+  const actos = curar(fila, { cap: Number.MAX_SAFE_INTEGER, jaDoDono: 0 });
+  assert.equal(actos.length, 138 - MIN_TRIADOS, 'o dreno leva o resto');
+});
+
+test('SEM FOME: a amostra por hash entra SEMPRE — o complemento e so o que falta', () => {
+  const fila = Array.from({ length: 138 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const porHash = fila.filter((a) => naAmostraDeAuditoria(a.chave)).map((a) => a.chave);
+  const reservadas = reservarParaODono(fila, { jaDoDono: 0 });
+  for (const k of porHash) assert.ok(reservadas.has(k), `a amostra representativa nao pode ser trocada pelo complemento: ${k}`);
+});
+
+test('SEM FOME: com o alvo ja cumprido, volta a ser so 1-em-20 — vigilancia continua', () => {
+  const fila = Array.from({ length: 400 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const reservadas = reservarParaODono(fila, { jaDoDono: MIN_TRIADOS });
+  const porHash = fila.filter((a) => naAmostraDeAuditoria(a.chave)).length;
+  assert.equal(reservadas.size, porHash, 'nada de complemento quando o portao ja tem material');
+  assert.ok(reservadas.size > 0, 'mas a vigilancia nao para — 1-em-20 para sempre');
+});
+
+test('SEM FOME: com o dono a meio, reserva o maior entre a amostra e o que falta', () => {
+  const fila = Array.from({ length: 138 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const porHash = fila.filter((a) => naAmostraDeAuditoria(a.chave)).length;
+  // A amostra por hash NUNCA encolhe — ela e a parte representativa, e e o que
+  // vigia o dreno. O complemento so aparece quando ela sozinha nao chega.
+  assert.equal(reservarParaODono(fila, { jaDoDono: 15 }).size, Math.max(porHash, MIN_TRIADOS - 15));
+  assert.equal(reservarParaODono(fila, { jaDoDono: 0 }).size, Math.max(porHash, MIN_TRIADOS));
+  assert.equal(reservarParaODono(fila, { jaDoDono: 100 }).size, porHash, 'acima do alvo, so a amostra');
+});
+
+test('SEM FOME: uma fila mais curta do que o alvo reserva-se inteira, sem rebentar', () => {
+  const fila = Array.from({ length: 3 }, (_, i) => achado({ chave: `k${i}` }));
+  const reservadas = reservarParaODono(fila, { jaDoDono: 0 });
+  assert.equal(reservadas.size, 3, 'nao se inventam achados que nao existem');
+  assert.equal(curar(fila, { cap: Number.MAX_SAFE_INTEGER, jaDoDono: 0 }).length, 0);
+});
+
 /* ───────────── anomalia de dreno: quando o dreno muda de tamanho ───────────── */
 
-const dia = (d, n) => Array.from({ length: n }, (_, i) => ({ ts: `${d}T0${i % 10}:00:00Z`, chave: `k${d}${i}` }));
+// 12:00Z = 09:00 na hora do dono (UTC-3): a mesma data nos dois fusos. Horas
+// baixas (00-02Z) cairiam no dia ANTERIOR dele — que e precisamente o defeito
+// que o agrupamento por `ownerDay` veio corrigir.
+const dia = (d, n) => Array.from({ length: n }, (_, i) => ({ ts: `${d}T12:${String(i % 60).padStart(2, '0')}:00Z`, chave: `k${d}${i}` }));
 
 test('ANOMALIA: sem historico nao ha linha de base — e nao se inventa uma', () => {
   assert.equal(anomaliaDeDreno([]).base, null);
@@ -762,4 +817,66 @@ test('ANOMALIA: actos sem data sao ignorados, nao contados como hoje', () => {
   const r = anomaliaDeDreno([...dia('2026-08-20', 20), ...dia('2026-08-21', 20), { chave: 'sem-ts' }, { ts: 'lixo' }]);
   assert.equal(r.ultimo, '2026-08-21');
   assert.equal(Object.keys(r.por_dia).length, 2, 'uma data ilegivel nao inventa um dia');
+});
+
+/* ── as tres cegueiras do detector (adversario da FASE 2) ── */
+
+/**
+ * `ts.slice(0,10)` agrupava em UTC. O dono e `America/Sao_Paulo` (UTC-3) e o
+ * canon do projecto diz que a apresentacao e SEMPRE convertida — 30 actos da
+ * mesma noite dele apareciam como 15+15 em dois dias, e o alarme calava-se.
+ */
+test('CEGUEIRA 1 — fuso: um dia do dono nao se parte ao meio', () => {
+  const actos = [];
+  for (let i = 0; i < 15; i += 1) actos.push({ ts: `2026-08-20T22:${String(i).padStart(2, '0')}:00Z`, chave: `a${i}` }); // 19h local, dia 20
+  for (let i = 0; i < 15; i += 1) actos.push({ ts: `2026-08-21T01:${String(i).padStart(2, '0')}:00Z`, chave: `b${i}` }); // 22h local, dia 20
+  const r = anomaliaDeDreno(actos);
+  assert.deepEqual(Object.keys(r.por_dia), ['2026-08-20'], 'os 30 actos sao do MESMO dia do dono');
+  assert.equal(r.por_dia['2026-08-20'], 30);
+});
+
+/**
+ * O detector so olhava para cima. `100,100,100 -> 3` — a queda mais brutal
+ * possivel — passava como "abaixo do minimo", ou seja, como sossego. Um pilar
+ * que morre e tao grave como um pilar que rebenta, e a fila fica igualmente
+ * vazia nos dois casos.
+ */
+test('CEGUEIRA 2 — queda: um pilar que MORRE dispara o alarme', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-18', 100), ...dia('2026-08-19', 100), ...dia('2026-08-20', 100), ...dia('2026-08-21', 3)]);
+  assert.equal(r.anomalia, true, '100 -> 3 nao pode ser sossego');
+  assert.equal(r.direccao, 'caiu');
+  assert.match(r.porque, /CAIU/);
+  assert.match(r.porque, /pode ter morrido/);
+});
+
+test('CEGUEIRA 2b: subir continua a disparar, e diz que subiu', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-20', 20), ...dia('2026-08-21', 20), ...dia('2026-08-22', 200)]);
+  assert.equal(r.anomalia, true);
+  assert.equal(r.direccao, 'subiu');
+  assert.match(r.porque, /pode ter regredido/);
+});
+
+/**
+ * Medido pelo adversario: P2 1->101 e P3 99->99 da um agregado 100->200, que
+ * nao chega a 3x e nao dispara. P2 sozinho e 101x. O agregado nao chega.
+ */
+test('CEGUEIRA 3 — diluicao: um pilar a rebentar nao se esconde atras de outro', () => {
+  const comPilar = (d, p, n) => Array.from({ length: n }, (_, i) => ({ ts: `${d}T12:00:00Z`, pilar: p, chave: `${p}-${d}-${i}` }));
+  const actos = [
+    ...comPilar('2026-08-19', 'P2', 1), ...comPilar('2026-08-19', 'P3', 99),
+    ...comPilar('2026-08-20', 'P2', 1), ...comPilar('2026-08-20', 'P3', 99),
+    ...comPilar('2026-08-21', 'P2', 101), ...comPilar('2026-08-21', 'P3', 99),
+  ];
+  const r = anomaliaDeDreno(actos);
+  assert.equal(r.hoje, 200);
+  assert.ok(r.hoje < r.base * ANOMALIA_FACTOR, 'o agregado sozinho NAO dispararia');
+  assert.equal(r.anomalia, true, 'mas o pilar sozinho dispara, e isso basta');
+  assert.ok(r.suspeitos.some((s) => s.pilar === 'P2' && s.direccao === 'subiu'), JSON.stringify(r.suspeitos));
+  assert.match(r.porque, /Por pilar: P2/);
+});
+
+test('sem pilar nos actos, o detector agregado continua a funcionar', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-20', 20), ...dia('2026-08-21', 200)]);
+  assert.equal(r.anomalia, true);
+  assert.deepEqual(r.suspeitos, [], 'sem pilar nao se inventam suspeitos');
 });

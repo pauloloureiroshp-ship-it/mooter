@@ -36,7 +36,7 @@ import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem,
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
-  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, reservarParaODono,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
@@ -292,7 +292,13 @@ export function createServer({
       if (pedido.nivel < 1) return 0;
       const { receipts } = readLedger(ledgerPath);
       const { decisoes } = lerTriagem(triagemFile);
-      const fila = porTriar(receipts, decisoes);
+      // A fila SEM o corte de 50. O corte existe para o painel nao despejar
+      // 400 linhas num ecra; aqui ele so escondia trabalho — e escondia a
+      // reserva, que passava a contar sobre uma janela dentro de outra janela.
+      const fila = porTriar(receipts, decisoes, Number.MAX_SAFE_INTEGER);
+      // Quantas decisoes CORRENTES sao mesmo do dono. E o que diz a reserva
+      // quanto material ela ainda tem de guardar para o portao 2 poder abrir.
+      const jaDoDono = [...decisoes.values()].filter((d) => d && d.por === 'dono').length;
       const ps = portoes({
         recibos: {
           total: receipts.length,
@@ -305,25 +311,35 @@ export function createServer({
 `);
         return 0;
       }
-      const actos = curar(fila);
+      // Quem fica de fora do dreno. A reserva olha para o ALVO: enquanto o dono
+      // nao tiver as decisoes que o portao 2 exige, guarda-se o que falta; a
+      // partir dai volta a ser so 1-em-20. Sem isto havia estado absorvente — a
+      // fila estabilizava vazia com 5 decisoes dele e o portao pedia 20.
+      const reservadas = reservarParaODono(fila, { jaDoDono });
+      const actos = curar(fila, { jaDoDono });
       for (const acto of actos) {
         // `via` diz por onde a decisao entrou. Uma linha `agente` sem
         // `via:'autopilot-l1'` nao veio deste tique.
         registarTriagem(triagemFile, { ...acto, via: 'autopilot-l1' });
         feitos += 1;
       }
-      // Quantos ficaram DE FORA do dreno para o dono os ver. Sem esta linha, o
-      // nivel 1 esvaziava a fila e ninguem sabia que uma amostra tinha sido
-      // reservada — uma rede que ninguem ve nao e uma rede.
-      const reservados = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
+      const porAmostra = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
+      const extra = reservadas.size - porAmostra;
       if (feitos) {
-        logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado${reservados ? ` · ${reservados} reservado(s) para a tua auditoria (1 em ${AUDITORIA_1_EM})` : ''}
+        const nota = reservadas.size
+          ? ` · ${reservadas.size} reservado(s) para a tua auditoria (${porAmostra} por amostra 1-em-${AUDITORIA_1_EM}${extra > 0 ? ` + ${extra} para o portao 2 poder abrir` : ''})`
+          : '';
+        logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado${nota}
 `);
       }
-      // O alarme corre sobre o que o dreno JA fechou, lido do proprio ledger de
-      // triagem — nao sobre o que acabou de acontecer neste tique. Um pilar que
-      // regride nao se ve num tique; ve-se na forma do dia.
-      const fechadosPeloAgente = [...decisoes.values()].filter((d) => d && d.por === 'agente');
+      // O alarme corre sobre o dreno INCLUINDO o que este tique acabou de
+      // escrever. Ler so o `decisoes` de antes das escritas era um off-by-one:
+      // um pico que comecasse neste tique so aparecia no seguinte, e o alarme
+      // que existe para ser atempado chegava sempre tarde.
+      const fechadosPeloAgente = [
+        ...[...decisoes.values()].filter((d) => d && d.por === 'agente'),
+        ...actos.map((a) => ({ ...a, ts: a.ts || new Date().toISOString(), pilar: a.recibo && a.recibo.pilar })),
+      ];
       const an = anomaliaDeDreno(fechadosPeloAgente);
       if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
 `);

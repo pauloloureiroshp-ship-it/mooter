@@ -23,6 +23,8 @@
  * Nada aqui chama a rede, nenhum modelo, e nenhuma funcao escreve no repo.
  */
 
+import { ownerDay } from './fleet-state.mjs';
+
 /* ─────────────────────────── 1. severidade ─────────────────────────── */
 
 /** Codigo que um cliente le. Um numero errado aqui e uma promessa quebrada. */
@@ -359,6 +361,44 @@ export const AUDITORIA_1_EM = 20;
  * isto, o nivel 1 ligado fecharia a fila e o L2 nunca reuniria as 20 decisoes
  * de que precisa — a auditoria nao e so uma rede, e o caminho.
  */
+/**
+ * Quem fica reservado para o dono, contando o que ele JA tem.
+ *
+ * O ADVERSARIO DA FASE 2 MATOU a versao anterior, e o defeito era de desenho,
+ * nao de implementacao. O runtime le uma JANELA de 5000 linhas do ledger
+ * (`fleet-state.readLedger`), nao o ficheiro todo: onde eu media 219 na fila e
+ * 12 reservados, o tique via 138 e reservava 5. Com 5 ha um estado ABSORVENTE —
+ * a fila estabiliza vazia, o dono decide 5, e o portao 2 exige 20. Nunca abria.
+ * A tese da FASE 2 ("a amostra e a torneira do L2") era falsa como estava.
+ *
+ * A correccao e fazer a reserva OLHAR PARA O ALVO. Enquanto faltarem decisoes
+ * do dono para o portao 2, reserva-se o que falta — a amostra por hash primeiro
+ * (que e a parte representativa) e, se nao chegar, os primeiros da fila a
+ * seguir. Quando ele ja tiver as 20, a reserva volta a ser so 1-em-20, para
+ * sempre, como vigilancia continua.
+ *
+ * `jaDoDono` e o numero de decisoes correntes assinadas por ele. Ausente => 0,
+ * que e a leitura conservadora: reserva mais, nunca menos.
+ *
+ * @returns {Set<string>} as chaves que o nivel 1 NAO pode fechar.
+ */
+export function reservarParaODono(fila, { jaDoDono = 0, alvo = MIN_TRIADOS, umEm = AUDITORIA_1_EM } = {}) {
+  const reservadas = new Set();
+  const itens = (fila || []).filter((a) => a && a.chave);
+  for (const a of itens) if (naAmostraDeAuditoria(a.chave, { umEm })) reservadas.add(a.chave);
+
+  const faltam = Math.max(0, (Number.isSafeInteger(alvo) ? alvo : MIN_TRIADOS) - Math.max(0, Number(jaDoDono) || 0));
+  if (reservadas.size >= faltam) return reservadas;
+  // Complemento deliberadamente NAO aleatorio e NAO representativo: e material
+  // para o portao, e a fila ja vem do mais recente para tras. Diz-se o que e —
+  // ver `reservadosPorAmostra` vs `reservadosPorAlvo` em quem reporta.
+  for (const a of itens) {
+    if (reservadas.size >= faltam) break;
+    reservadas.add(a.chave);
+  }
+  return reservadas;
+}
+
 export function naAmostraDeAuditoria(chave, { umEm = AUDITORIA_1_EM } = {}) {
   const n = Math.max(1, Number(umEm) || 1);
   if (n === 1) return true;
@@ -385,10 +425,11 @@ export function naAmostraDeAuditoria(chave, { umEm = AUDITORIA_1_EM } = {}) {
  * quiser medir o dreno completo. Nao e uma opcao do painel: um dreno sem
  * amostra e exactamente o modo cego que a amostra existe para evitar.
  */
-export function curar(fila, { cap = 25, auditoria = true, umEm = AUDITORIA_1_EM } = {}) {
+export function curar(fila, { cap = 25, auditoria = true, umEm = AUDITORIA_1_EM, jaDoDono = 0, alvo = MIN_TRIADOS } = {}) {
   const escolhidos = [];
+  const reservadas = auditoria ? reservarParaODono(fila, { jaDoDono, alvo, umEm }) : new Set();
   for (const a of fila || []) {
-    if (auditoria && naAmostraDeAuditoria(a && a.chave, { umEm })) continue;
+    if (reservadas.has(a && a.chave)) continue;
     if (escolhidos.length >= cap) break;
     const s = severidade(a);
     if (s.k !== 'low' || !s.motivo) continue;
@@ -428,41 +469,75 @@ export const ANOMALIA_MIN = 10;
  * @returns {{por_dia:Record<string,number>, ultimo:string|null, hoje:number,
  *            base:number|null, anomalia:boolean, porque:string}}
  */
-export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN } = {}) {
+export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN, porPilar = true } = {}) {
   const porDia = {};
+  const porDiaPilar = {};
   for (const f of fechados || []) {
-    const d = String((f && f.ts) || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    // O DIA E O DO DONO, nao o de Greenwich. `ts.slice(0,10)` agrupava em UTC:
+    // 30 actos da mesma noite dele apareciam como 15+15 em dois dias, e o
+    // alarme calava-se. `owner_tz = America/Sao_Paulo` e canon do projecto, e
+    // `ownerDay` e a fonte unica — nao se reescreve o fuso aqui.
+    const t = Date.parse(String((f && f.ts) || ''));
+    if (!Number.isFinite(t)) continue;
+    const d = ownerDay(t);
     porDia[d] = (porDia[d] || 0) + 1;
+    if (porPilar) {
+      const p = (f && f.pilar) || (f && f.recibo && f.recibo.pilar) || null;
+      if (p) ((porDiaPilar[p] ||= {})[d] = (porDiaPilar[p][d] || 0) + 1);
+    }
   }
   const dias = Object.keys(porDia).sort();
   if (!dias.length) {
-    return { por_dia: porDia, ultimo: null, hoje: 0, base: null, anomalia: false, porque: 'sem dreno datado — nada a comparar' };
+    return { por_dia: porDia, ultimo: null, hoje: 0, base: null, anomalia: false, direccao: null, porque: 'sem dreno datado — nada a comparar' };
   }
   const ultimo = dias[dias.length - 1];
   const hoje = porDia[ultimo];
   const anteriores = dias.slice(0, -1).map((d) => porDia[d]).sort((a, b) => a - b);
   if (!anteriores.length) {
-    return { por_dia: porDia, ultimo, hoje, base: null, anomalia: false, porque: 'primeiro dia de dreno — ainda nao ha linha de base' };
+    return { por_dia: porDia, ultimo, hoje, base: null, anomalia: false, direccao: null, porque: 'primeiro dia de dreno — ainda nao ha linha de base' };
   }
-  const meio = Math.floor(anteriores.length / 2);
-  const base = anteriores.length % 2
-    ? anteriores[meio]
-    : (anteriores[meio - 1] + anteriores[meio]) / 2;
-  // Um volume pequeno nao merece alarme: 1 -> 4 e tres vezes mais e nao quer
-  // dizer nada. O minimo existe para o alarme nao ensinar o dono a ignora-lo.
-  if (hoje < minimo) {
-    return { por_dia: porDia, ultimo, hoje, base, anomalia: false, porque: `${hoje} fechados em ${ultimo}: abaixo do minimo de ${minimo} para chamar anomalia` };
+  const base = mediana(anteriores);
+
+  // PARA CIMA: um pilar regrediu e o dreno esta a absorver o lixo.
+  // PARA BAIXO: um pilar MORREU. A versao anterior so olhava para cima, e por
+  // isso `100,100,100 -> 3` passava como "abaixo do minimo" — a queda mais
+  // brutal possivel classificada como sossego. Um detector que so ve uma
+  // direccao nao esta a vigiar, esta a confirmar.
+  const subiu = base > 0 && hoje >= minimo && hoje >= base * factor;
+  const caiu = base >= minimo && hoje * factor <= base;
+
+  // POR PILAR: um pilar a explodir pode ficar escondido no agregado se outro
+  // encolher ao mesmo tempo (medido: P2 1->101 e P3 99->99 da 100->200, que nao
+  // dispara; P2 isolado da 101x). O agregado nao chega.
+  const suspeitos = [];
+  for (const [p, mapa] of Object.entries(porDiaPilar)) {
+    const hojeP = mapa[ultimo] || 0;
+    const antes = dias.slice(0, -1).map((d) => mapa[d] || 0);
+    if (!antes.length) continue;
+    const baseP = mediana([...antes].sort((a, b) => a - b));
+    if (baseP > 0 && hojeP >= minimo && hojeP >= baseP * factor) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'subiu' });
+    else if (baseP >= minimo && hojeP * factor <= baseP) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'caiu' });
   }
-  const anomalia = base > 0 && hoje >= base * factor;
-  return {
-    por_dia: porDia,
-    ultimo,
-    hoje,
-    base,
-    anomalia,
-    porque: anomalia
-      ? `${hoje} fechados em ${ultimo}, contra uma mediana de ${base} — ${(hoje / base).toFixed(1)}x. Um pilar pode ter regredido e o dreno esta a absorve-lo.`
-      : `${hoje} fechados em ${ultimo}, mediana ${base} — dentro do normal`,
-  };
+
+  const anomalia = subiu || caiu || suspeitos.length > 0;
+  const direccao = subiu ? 'subiu' : caiu ? 'caiu' : (suspeitos[0] && suspeitos[0].direccao) || null;
+  const porquePilar = suspeitos.length
+    ? ` Por pilar: ${suspeitos.map((s) => `${s.pilar} ${s.base}→${s.hoje} (${s.direccao})`).join(' · ')}.`
+    : '';
+
+  let porque;
+  if (subiu) porque = `${hoje} fechados em ${ultimo} (hora do dono), contra uma mediana de ${base} — ${(hoje / base).toFixed(1)}x. Um pilar pode ter regredido e o dreno esta a absorve-lo.${porquePilar}`;
+  else if (caiu) porque = `${hoje} fechados em ${ultimo} (hora do dono), contra uma mediana de ${base} — o dreno CAIU. Um pilar pode ter morrido, e um pilar mudo nao e um pilar saudavel.${porquePilar}`;
+  else if (suspeitos.length) porque = `o agregado (${hoje} contra mediana ${base}) nao dispara, mas um pilar sozinho dispara.${porquePilar}`;
+  else if (hoje < minimo) porque = `${hoje} fechados em ${ultimo} (hora do dono): abaixo do minimo de ${minimo} para chamar anomalia ao agregado`;
+  else porque = `${hoje} fechados em ${ultimo} (hora do dono), mediana ${base} — dentro do normal`;
+
+  return { por_dia: porDia, por_dia_pilar: porDiaPilar, ultimo, hoje, base, anomalia, direccao, suspeitos, porque };
+}
+
+/** A mediana de uma lista JA ORDENADA. Par => media dos dois do meio. */
+function mediana(ordenada) {
+  if (!ordenada.length) return null;
+  const meio = Math.floor(ordenada.length / 2);
+  return ordenada.length % 2 ? ordenada[meio] : (ordenada[meio - 1] + ordenada[meio]) / 2;
 }
