@@ -760,7 +760,25 @@ function calcSavings(mOpt, sessionId) {
           try { pricing = require(path.join(os.homedir(), '.claude', 'tools', 'router', 'pricing.js')); }
           catch { pricing = null; }
         }
-        if (pricing) {
+        // ── CAMINHO DESLIGADO a 2026-08-23 ────────────────────────────────
+        //
+        // Este ramo lia o `execution.log` e contava CHAMADAS BASH como se
+        // fossem prompts. Medido: 3.225 execucoes para 123 prompts = 26 por
+        // prompt. E cobrava cada uma como um turno de 400 caracteres fixos
+        // (`CHAR_UNIT`), numero que nao vem de medicao nenhuma.
+        //
+        // Somava-se um terceiro defeito: devolvia `signal: 'real_exec'`, e o
+        // comentario original chamava-lhe "a legitimate guaranteed number".
+        // Nao era — era modelado a partir de uma contagem na unidade errada.
+        //
+        // Nao e corrigivel: a fonte nao tem a unidade certa. O FALLBACK 2 le o
+        // `decisions.log`, filtra `event === 'classified'` e usa o comprimento
+        // REAL de cada prompt — passa a ser o unico caminho.
+        //
+        // O que se perde: a visibilidade do `guaranteed_saved` (os Option-A
+        // hits, o unico dolar medido do sistema). Fica por religar a partir de
+        // uma fonte com a unidade certa, e esta escrito aqui para nao se perder.
+        if (false && pricing) {
           const CHAR_UNIT = 400;
           const costAt = (tier) => pricing.estimateTurnCost(tier, CHAR_UNIT);
           const opusUnit = pricing.naiveOpusCost(CHAR_UNIT);
@@ -2084,8 +2102,20 @@ function renderMultiLine({
       `${DIM}${advStr} adv${RESET}` +
       ` ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`;
   } else {
+    // "saved $X (Y% vs all-Opus)" dizia mais do que se mede.
+    //
+    // Este numero vem do `decisions.log`, que regista o TIER RECOMENDADO. Mede
+    // o plano de routing, nao o que correu. Medido a 2026-08-23: o classificador
+    // recomendou tier local/barato em 101 de 123 prompts, e das 3.225 execucoes
+    // dessas mesmas sessoes, 3.193 correram em Opus e UMA correu localmente. E
+    // nenhum ficheiro de telemetria deste projecto regista tokens, por isso o
+    // valor em dolares e modelado a partir do comprimento do prompt.
+    //
+    // O #346 retirou cinco numeros de poupanca de todas as superficies publicas
+    // e nao tocou nesta — que e a que o dono ve mais vezes por dia. A etiqueta
+    // passa a dizer o que o numero e: um PLANO.
     savedHero = savedStr
-      ? `${BRAND}${BOLD}🐮${RESET} ${DIM}saved${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} vs all-Opus)${RESET}`
+      ? `${BRAND}${BOLD}🐮${RESET} ${DIM}plan${RESET} ${GREEN}${BOLD}${savedStr}${RESET} ${DIM}(${BOLD}${pct}%${arrow}${RESET}${DIM} routed cheap · not executed)${RESET}`
       : (savings?.promptCount
           ? `${BRAND}${BOLD}🐮${RESET} ${DIM}all-Opus session${RESET}`
           : `${BRAND}${BOLD}🐮${RESET} ${DIM}no data yet${RESET}`);

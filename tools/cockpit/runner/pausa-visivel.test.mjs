@@ -144,8 +144,11 @@ test('buildFleetState publica `pausa` para quem le o fleet.json', () => {
   const statePath = path.join(dir, 'state.json');
   const ledger = path.join(dir, 'ledger.jsonl');
   fs.writeFileSync(ledger, '');
+  // O `ts` e obrigatorio: e o que diz se a pausa ainda esta viva. O runner
+  // escreve-o sempre; um estado sem ele e malformado.
   fs.writeFileSync(statePath, JSON.stringify({
-    device: 'd', pausa: { razao: 'human queue full (215/50)', fila: 215, desde: '2026-08-23T16:00:00Z' },
+    device: 'd', ts: Math.floor(Date.now() / 1000),
+    pausa: { razao: 'human queue full (215/50)', fila: 215, desde: '2026-08-23T16:00:00Z' },
   }));
   const s = buildFleetState({
     device: 'd', ledgerPath: ledger, statePath, stopFile: path.join(dir, 'STOP'),
@@ -153,6 +156,42 @@ test('buildFleetState publica `pausa` para quem le o fleet.json', () => {
   assert.equal(s.pausa.activa, true);
   assert.match(s.pausa.razao, /queue full/);
   assert.equal(s.pausa.fila, 215);
+  assert.equal(s.pausa.obsoleta, false);
+});
+
+test('uma pausa VELHA deixa de ser pausa — o runner morreu nela', () => {
+  // O campo `pausa` sem expirar trocou o defeito de lado em vez de o fechar:
+  // antes um runner VIVO era pintado de morto; depois um runner MORTO ha tres
+  // dias, cujo ultimo estado dizia pausa, aparecia `holding` a laranja.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-pausa-velha-'));
+  const ledger = path.join(dir, 'ledger.jsonl');
+  fs.writeFileSync(ledger, '');
+  const statePath = path.join(dir, 'state.json');
+  fs.writeFileSync(statePath, JSON.stringify({
+    device: 'd', ts: Math.floor(Date.now() / 1000) - 3 * 24 * 3600,
+    pausa: { razao: 'human queue full (215/50)', fila: 215, desde: '2026-08-20T16:00:00Z' },
+  }));
+  const s = buildFleetState({ device: 'd', ledgerPath: ledger, statePath, stopFile: path.join(dir, 'STOP') });
+  assert.equal(s.pausa.activa, false, 'tres dias nao e uma pausa');
+  assert.equal(s.pausa.obsoleta, true);
+  // NAO desaparece: o painel tem de poder dizer "morreu EM PAUSA", que pede
+  // coisa diferente ao dono do que "morreu a trabalhar".
+  assert.match(s.pausa.razao, /queue full/);
+  assert.ok(s.pausa.idade_s > 3600);
+});
+
+test('idade desconhecida conta como obsoleta — nunca como pausa viva', () => {
+  // Um estado sem `ts` nao permite dizer se a pausa ainda vale. Assumir que
+  // sim seria pintar de laranja uma maquina que pode estar morta ha uma semana.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-pausa-semts-'));
+  const ledger = path.join(dir, 'ledger.jsonl');
+  fs.writeFileSync(ledger, '');
+  const statePath = path.join(dir, 'state.json');
+  fs.writeFileSync(statePath, JSON.stringify({ device: 'd', pausa: { razao: 'x' } }));
+  const s = buildFleetState({ device: 'd', ledgerPath: ledger, statePath, stopFile: path.join(dir, 'STOP') });
+  assert.equal(s.pausa.activa, false);
+  assert.equal(s.pausa.obsoleta, true);
+  assert.equal(s.pausa.idade_s, null);
 });
 
 test('sem pausa, o campo vem `activa: false` — nunca em falta', () => {
