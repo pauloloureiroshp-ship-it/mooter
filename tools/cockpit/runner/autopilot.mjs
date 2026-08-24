@@ -174,16 +174,33 @@ export function portoes({ recibos = {}, triagem = {}, patches = {} } = {}) {
   const refutado = Number(recibos.refutado) || 0;
   const refPct = total ? (refutado / total) * 100 : null;
 
-  const aceite = Number(triagem.aceite) || 0;
-  const descartado = Number(triagem.descartado) || 0;
-  const issue = Number(triagem.issue) || 0;
+  // LISTA BRANCA, nao lista negra. O portao 2 le `do_dono` — o balde que so
+  // aceita `por === 'dono'` EXPLICITO (`contarTriagem`) — e nunca os totais.
+  //
+  // A versao anterior subtraia `por_autor.agente` dos totais, o que e uma lista
+  // negra: fechava a porta a UMA assinatura e deixava todas as outras entrar.
+  // Medido a 2026-08-24: 1448 decisoes `por:'claude'` (escritas por tres
+  // scripts) contavam como triagem do dono, e o painel dizia-lhe que ele
+  // mantinha 0% do que o loop encontra. Zero dessas decisoes eram dele.
+  //
+  // `do_dono` ausente => zero => portao FECHADO. Um portao que nao consegue ser
+  // medido nunca abre por omissao, e o caminho de quem passa `triagem: {}`
+  // (o tique do nivel 1) continua a medir-se a si proprio como fechado.
+  const doDono = triagem.do_dono || null;
+  const aceite = Number(doDono && doDono.aceite) || 0;
+  const descartado = Number(doDono && doDono.descartado) || 0;
+  const issue = Number(doDono && doDono.issue) || 0;
   // So contam as decisoes do DONO. O nivel 1 assina as suas como `agente`, e
   // conta-las aqui seria o autopilot a validar-se a si proprio: ao fim de 20
   // descartes automaticos o portao mediria 0% de precisao e ficava fechado para
   // sempre — pela razao errada. Medido a 2026-08-20, quando 26 descartes do
   // agente puseram o L2 a dizer "you keep 0% of what it finds".
-  const doAgente = Number((triagem.por_autor || {}).agente) || 0;
-  const triados = Math.max(0, aceite + descartado + issue - doAgente);
+  // Quantas decisoes NAO-humanas existem, so para as poder NOMEAR ao dono. Nao
+  // entram em nenhuma conta — o denominador ja e a lista branca acima.
+  const naoHumanas = Object.entries(triagem.por_autor || {})
+    .filter(([autor]) => autor !== 'dono')
+    .reduce((soma, [, n]) => soma + (Number(n) || 0), 0);
+  const triados = aceite + descartado + issue;
   const precisao = triados ? ((aceite + issue) / triados) * 100 : null;
 
   const limpos = Number(patches.aceites_sem_rollback) || 0;
@@ -207,13 +224,20 @@ export function portoes({ recibos = {}, triagem = {}, patches = {} } = {}) {
       medido: triados,
       unidade: ' triaged',
       alvo: MIN_TRIADOS,
+      // Denominador zero diz NO DATA YET — nunca 0%. Um portao que mostra
+      // "you keep 0%" quando o dono nunca decidiu nada esta a acusa-lo de um
+      // juizo que ele nao fez, e foi exactamente isso que 1448 decisoes de
+      // script fizeram ao painel dele.
+      medido_ha_dados: triados > 0,
       base: precisao == null
-        ? `nothing triaged by you yet${doAgente ? ` — the ${doAgente} the autopilot closed do not count here` : ''}`
+        ? `no data yet — you have not decided on any finding${naoHumanas ? ` (the ${naoHumanas} closed by agents do not count here)` : ''}`
         : `${Math.round(precisao)}% kept (${aceite + issue} of ${triados} decided by you)`,
       aberto: triados >= MIN_TRIADOS && precisao != null && precisao >= MIN_PRECISAO_PCT,
-      porque_fechado: triados < MIN_TRIADOS
-        ? `only ${triados} of ${MIN_TRIADOS} findings have a decision from YOU — the loop cannot learn what you keep`
-        : `you keep ${Math.round(precisao || 0)}% of what it finds; ${MIN_PRECISAO_PCT}% is the bar`,
+      porque_fechado: triados === 0
+        ? `no data yet — none of the findings carry a decision from YOU${naoHumanas ? `; the ${naoHumanas} signed by agents are not yours and never count` : ''}`
+        : triados < MIN_TRIADOS
+          ? `only ${triados} of ${MIN_TRIADOS} findings have a decision from YOU — the loop cannot learn what you keep`
+          : `you keep ${Math.round(precisao || 0)}% of what it finds; ${MIN_PRECISAO_PCT}% is the bar`,
     },
     {
       nivel: 3,

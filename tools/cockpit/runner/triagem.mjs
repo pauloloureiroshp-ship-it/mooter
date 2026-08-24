@@ -124,9 +124,18 @@ export function lerTriagem(caminho, { readImpl = fs.readFileSync } = {}) {
 }
 
 /** Regista uma decisao. Devolve a entrada escrita, para o endpoint a poder ecoar. */
-export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 'dono', nota = null, motivo = null, ts }) {
+export function registarTriagem(caminho, { chave, decisao, recibo = null, por, nota = null, motivo = null, via = null, ts }) {
   if (!chave) throw new Error('triagem sem chave: nao se decide sobre o que nao se consegue identificar');
   if (!DECISOES.includes(decisao)) throw new Error(`decisao desconhecida: ${decisao} (aceites: ${DECISOES.join(', ')})`);
+  // `por` NAO tem valor por omissao, e a ausencia do default e a correccao.
+  // Ate 2026-08-24 a assinatura em falta virava `dono` em silencio, aqui e em
+  // `contarTriagem`. Um campo que se auto-preenche com a autoridade mais alta
+  // do sistema nao e proveniencia — e uma porta. Nenhum dos cinco chamadores
+  // dependia do default, por isso torna-lo obrigatorio nao custa nada hoje e
+  // fecha a porta ao proximo autor que se esqueca do campo.
+  if (por === undefined || por === null || por === '') {
+    throw new Error(`triagem sem autor: quem decide tem de se identificar (aceites: ${AUTORES.join(', ')})`);
+  }
   if (!AUTORES.includes(por)) throw new Error(`autor desconhecido: ${por} (aceites: ${AUTORES.join(', ')})`);
   // O descarte SEM motivo deixa de ser aceite. Um `descartado` anonimo custa o
   // mesmo a escrever e nao ensina nada — foi assim que se acumularam 72.
@@ -141,6 +150,14 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por = 
     chave: String(chave),
     decisao,
     por,
+    // POR QUE CANAL entrou esta decisao. `por` diz quem ASSINA; `via` diz por
+    // onde PASSOU — e sao perguntas diferentes, porque `por` e uma string
+    // escolhida por quem escreve a linha. Nada aqui impede um script de assinar
+    // `dono`; o que `via` da e a possibilidade de o AUDITAR depois, em vez de
+    // acreditar na assinatura. A defesa completa exige credencial no canal do
+    // painel, e essa nao esta feita — isto e o registo que a torna possivel,
+    // nao a fechadura.
+    ...(via ? { via: String(via).slice(0, 60) } : {}),
     ...(motivo ? { motivo } : {}),
     ...(nota ? { nota: String(nota).slice(0, 500) } : {}),
     // Uma copia magra do que se estava a ver ao decidir. Sem isto, um
@@ -193,7 +210,16 @@ export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
 
 /** Quantos foram aceites, descartados, viraram issue — e quantos esperam. */
 export function contarTriagem(receipts, decisoes) {
-  const contas = { aceite: 0, descartado: 0, issue: 0, por_triar: 0, achados: 0, por_autor: {}, por_motivo: {}, sem_motivo: 0 };
+  // `do_dono` e a LISTA BRANCA: so entra aqui o que traz `por === 'dono'`
+  // EXPLICITO. E o unico balde que o portao 2 pode usar, e a razao e o buraco
+  // que ele fecha: uma lista negra ("tudo menos `agente`") deixa passar toda a
+  // assinatura nova — foi assim que 1448 decisoes `claude` puseram o L2 a dizer
+  // ao dono "you keep 0% of what it finds" sobre trabalho que nao era dele.
+  const contas = {
+    aceite: 0, descartado: 0, issue: 0, por_triar: 0, achados: 0,
+    por_autor: {}, por_motivo: {}, sem_motivo: 0,
+    do_dono: { aceite: 0, descartado: 0, issue: 0 },
+  };
   const vistos = new Set();
   for (const r of receipts || []) {
     if (!ehAchado(r)) continue;
@@ -206,8 +232,14 @@ export function contarTriagem(receipts, decisoes) {
       contas[d.decisao] += 1;
       // Separado de proposito: 20 aceites do dono e 20 aceites de um agente nao
       // sao o mesmo dado, e uma contagem que os funde nao serve para decidir.
-      const a = d.por || 'dono';
+      //
+      // A assinatura em falta cai em `n-d`, NAO em `dono`. Antes fazia
+      // `d.por || 'dono'`: uma linha sem autor era promovida a decisao humana
+      // na contagem que abre o nivel 2. Nao havia nenhuma no ledger real, mas
+      // "ninguem pisou o buraco" nao e o mesmo que "nao ha buraco".
+      const a = d.por || 'n-d';
       contas.por_autor[a] = (contas.por_autor[a] || 0) + 1;
+      if (d.por === 'dono') contas.do_dono[d.decisao] += 1;
       // A distribuicao dos motivos E o dado da Fase A. `sem_motivo` conta os
       // descartes antigos, escritos antes de o motivo existir: sao 72 e nao se
       // reescrevem, mas tambem nao se disfarcam de dado que nunca foram.

@@ -526,6 +526,12 @@ export function createServer({
         // Sem `por`, o autor e o dono — que e quem carrega no botao do painel.
         // Um agente TEM de se identificar; uma decisao anonima poluiria o unico
         // numero que este ficheiro existe para tornar verdadeiro.
+        //
+        // Este default vive AQUI e so aqui: `registarTriagem` deixou de ter um,
+        // porque uma biblioteca que assume `dono` assina em nome do dono a
+        // partir de qualquer script. Este endpoint e o CANAL do painel (so
+        // loopback, ver `hostAllowed`), e por isso e o unico sitio onde
+        // "nao disse quem foi" pode legitimamente querer dizer "foi o dono".
         const por = body.por || 'dono';
         if (!AUTORES.includes(por)) {
           return sendJson(res, 400, { erro: 'autor desconhecido', aceites: AUTORES });
@@ -540,6 +546,9 @@ export function createServer({
             chave: body.chave, decisao: body.decisao, por,
             recibo: body.recibo || null, nota: body.nota || null,
             motivo: body.motivo || null,
+            // O canal fica na linha. Uma decisao `dono` que NAO traga
+            // `via: 'painel'` nao veio do painel — e isso e auditavel.
+            via: 'painel',
           });
           return sendJson(res, 200, { ok: true, registado: e });
         } catch (err) {

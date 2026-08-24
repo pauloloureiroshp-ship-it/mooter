@@ -191,23 +191,79 @@ test('citacao inventada acima do tecto fecha o portao 1 e diz o numero', () => {
  */
 test('as decisoes do PROPRIO autopilot nao contam para o portao que o promove', () => {
   const p2 = portoes({
-    triagem: { aceite: 0, descartado: 26, issue: 0, por_autor: { agente: 26 } },
+    triagem: {
+      aceite: 0, descartado: 26, issue: 0,
+      por_autor: { agente: 26 },
+      do_dono: { aceite: 0, descartado: 0, issue: 0 },
+    },
   })[1];
   assert.equal(p2.medido, 0, 'triados pelo dono: zero');
   assert.equal(p2.aberto, false);
   assert.match(p2.base, /do not count here/);
 });
 
+/**
+ * A regressao de 2026-08-24, em forma de teste.
+ *
+ * O portao lia os TOTAIS e subtraia `por_autor.agente` — uma lista negra. As
+ * 1448 decisoes que existiam no device real estavam assinadas `claude`, que a
+ * lista negra nao apanhava: o painel dizia ao dono que ele mantinha 0% do que o
+ * loop encontra, sobre 1448 decisoes que nao eram dele e zero que fossem.
+ *
+ * A lista branca inverte o default: o que nao esta provado como do dono nao
+ * conta. Um autor novo (`claude`, ou qualquer outro que venha a existir) fica
+ * de fora por construcao, sem ninguem se lembrar de o acrescentar a lista.
+ */
+test('LISTA BRANCA: um autor nao-humano NOVO nao entra no denominador do L2', () => {
+  const p2 = portoes({
+    triagem: {
+      aceite: 0, descartado: 1448, issue: 0,
+      por_autor: { claude: 1448 },
+      do_dono: { aceite: 0, descartado: 0, issue: 0 },
+    },
+  })[1];
+  assert.equal(p2.medido, 0, 'nenhuma das 1448 e do dono');
+  assert.equal(p2.aberto, false);
+  assert.equal(p2.medido_ha_dados, false);
+  assert.match(p2.base, /no data yet/, 'denominador zero diz NO DATA, nunca 0%');
+  assert.doesNotMatch(p2.base, /\b0%/, 'nunca fabricar uma percentagem sem denominador');
+  assert.match(p2.porque_fechado, /no data yet/);
+  assert.match(p2.porque_fechado, /1448 signed by agents/, 'nomeia-as, para o dono saber que existem');
+  assert.doesNotMatch(p2.porque_fechado, /you keep/, 'nao acusar o dono de um juizo que ele nao fez');
+});
+
+test('do_dono ausente => portao 2 FECHADO, nunca aberto por omissao', () => {
+  const p2 = portoes({ triagem: { aceite: 99, descartado: 0, issue: 0 } })[1];
+  assert.equal(p2.medido, 0, 'sem a lista branca nao ha denominador');
+  assert.equal(p2.aberto, false);
+  assert.equal(p2.medido_ha_dados, false);
+});
+
 test('portao 2 abre com decisoes do dono a chegar a barra', () => {
-  const p2 = portoes({ triagem: { aceite: 14, descartado: 6, issue: 0 } })[1];
+  const p2 = portoes({ triagem: { do_dono: { aceite: 14, descartado: 6, issue: 0 } } })[1];
   assert.equal(p2.medido, MIN_TRIADOS);
+  assert.equal(p2.medido_ha_dados, true);
   assert.equal(p2.aberto, true, `14 de 20 = 70%, e a barra e ${MIN_PRECISAO_PCT}%`);
 });
 
 test('portao 2 fecha quando o dono deita fora o que o loop encontra', () => {
-  const p2 = portoes({ triagem: { aceite: 12, descartado: 8, issue: 0 } })[1];
+  const p2 = portoes({ triagem: { do_dono: { aceite: 12, descartado: 8, issue: 0 } } })[1];
   assert.equal(p2.aberto, false);
   assert.match(p2.porque_fechado, /you keep 60%/);
+});
+
+/** Decisoes do dono MISTURADAS com as de agentes: so as dele contam. */
+test('LISTA BRANCA: o dono e os agentes no mesmo ledger — so o dono conta', () => {
+  const p2 = portoes({
+    triagem: {
+      aceite: 15, descartado: 1451, issue: 2,
+      por_autor: { dono: 20, claude: 1448 },
+      do_dono: { aceite: 15, descartado: 3, issue: 2 },
+    },
+  })[1];
+  assert.equal(p2.medido, 20, 'os 1448 do `claude` nao inflacionam nem diluem');
+  assert.equal(p2.aberto, true, '17 mantidos de 20 = 85%');
+  assert.match(p2.base, /85% kept \(17 of 20 decided by you\)/);
 });
 
 test('portao 3 conta patches limpos, e comeca fechado', () => {
