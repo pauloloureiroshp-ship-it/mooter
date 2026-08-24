@@ -461,6 +461,12 @@ export function readBeacons({
       devices_por_enrolar: porEnrolar,
       prova_frota: provaFrota,
       porque: provaFrota ? null : porqueSemProva(),
+      // Dizer que a chave nao esta partilhada sem dizer COMO se partilha deixa
+      // o dono a olhar para um diagnostico correcto e inaccionavel. O comando
+      // existe desde a Fase 1; o que faltava era o painel apontar para ele.
+      resolver: porEnrolar.length
+        ? 'leva a chave do dono a mao para esse device: `npm run frota:chave -- --exportar <destino fora de qualquer repo>` aqui, `--importar <ficheiro>` la'
+        : null,
     },
     // Stated, not implied: without a shared directory the "fleet" is one machine.
     aviso: partilhado
