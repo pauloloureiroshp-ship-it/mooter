@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Reinicia painel (:4290) E loop dos pilares para carregarem codigo novo.
 # O runner sai limpo com SIGTERM (liberta o lock); o launch.mjs relanca os dois.
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 export MOO_PUBLICAR_BEACON=1
 export VAULT_PATH="$HOME/paulo-vault"
 {

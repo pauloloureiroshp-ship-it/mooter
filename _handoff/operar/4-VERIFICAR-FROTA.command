@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Health-check da frota neste device. SO LEITURA: nao reinicia nada, nao faz git write.
 # Uso: duplo-clique no Finder. Saida: _handoff/verificar-frota.log
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 REPO="$PWD"
 VAULT="${VAULT_PATH:-$HOME/paulo-vault}"
 LOG="_handoff/verificar-frota.log"
