@@ -186,20 +186,33 @@ export function portoes({ recibos = {}, triagem = {}, patches = {} } = {}) {
   // `do_dono` ausente => zero => portao FECHADO. Um portao que nao consegue ser
   // medido nunca abre por omissao, e o caminho de quem passa `triagem: {}`
   // (o tique do nivel 1) continua a medir-se a si proprio como fechado.
+  //
+  // A contagem tem de ser um INTEIRO NAO-NEGATIVO, e a validacao nao e
+  // cerimonia: com `Number(x) || 0`, uma string "20", um float 14.5 ou um -100
+  // passavam, e o portao chegava a abrir a dizer "500% kept (100 of 20)". Hoje
+  // quem enche este campo e o `contarTriagem`, que so produz inteiros — mas um
+  // portao documentado como fail-closed nao pode depender de o chamador ser
+  // bem-comportado. O que nao e uma contagem vale zero, e zero fecha.
+  const contagem = (x) => (Number.isSafeInteger(x) && x >= 0 ? x : 0);
   const doDono = triagem.do_dono || null;
-  const aceite = Number(doDono && doDono.aceite) || 0;
-  const descartado = Number(doDono && doDono.descartado) || 0;
-  const issue = Number(doDono && doDono.issue) || 0;
+  const aceite = contagem(doDono && doDono.aceite);
+  const descartado = contagem(doDono && doDono.descartado);
+  const issue = contagem(doDono && doDono.issue);
   // So contam as decisoes do DONO. O nivel 1 assina as suas como `agente`, e
   // conta-las aqui seria o autopilot a validar-se a si proprio: ao fim de 20
   // descartes automaticos o portao mediria 0% de precisao e ficava fechado para
   // sempre — pela razao errada. Medido a 2026-08-20, quando 26 descartes do
   // agente puseram o L2 a dizer "you keep 0% of what it finds".
-  // Quantas decisoes NAO-humanas existem, so para as poder NOMEAR ao dono. Nao
-  // entram em nenhuma conta — o denominador ja e a lista branca acima.
-  const naoHumanas = Object.entries(triagem.por_autor || {})
+  // Quantas decisoes NAO SAO do dono, so para as poder NOMEAR. Nao entram em
+  // nenhuma conta — o denominador ja e a lista branca acima.
+  //
+  // Chamar-lhes "agentes" seria mentir por arredondamento: neste balde cabem
+  // tambem as linhas sem assinatura (`n-d`) e autores que nao reconhecemos. A
+  // unica coisa que se sabe delas, e portanto a unica que se diz, e que NAO sao
+  // do dono.
+  const naoDoDono = Object.entries(triagem.por_autor || {})
     .filter(([autor]) => autor !== 'dono')
-    .reduce((soma, [, n]) => soma + (Number(n) || 0), 0);
+    .reduce((soma, [, n]) => soma + contagem(n), 0);
   const triados = aceite + descartado + issue;
   const precisao = triados ? ((aceite + issue) / triados) * 100 : null;
 
@@ -229,12 +242,16 @@ export function portoes({ recibos = {}, triagem = {}, patches = {} } = {}) {
       // juizo que ele nao fez, e foi exactamente isso que 1448 decisoes de
       // script fizeram ao painel dele.
       medido_ha_dados: triados > 0,
+      // "no CURRENT decisions signed by you" e nao "you have not decided": a
+      // ultima decisao por chave e a que vale, portanto o dono pode ter
+      // decidido e um agente ter sobreposto depois. Dizer-lhe que ele nunca
+      // decidiu nada seria falso — e ele sabe que e falso, o que e pior.
       base: precisao == null
-        ? `no data yet — you have not decided on any finding${naoHumanas ? ` (the ${naoHumanas} closed by agents do not count here)` : ''}`
+        ? `no data yet — no current decisions signed by you${naoDoDono ? ` (the ${naoDoDono} not signed by you do not count here)` : ''}`
         : `${Math.round(precisao)}% kept (${aceite + issue} of ${triados} decided by you)`,
       aberto: triados >= MIN_TRIADOS && precisao != null && precisao >= MIN_PRECISAO_PCT,
       porque_fechado: triados === 0
-        ? `no data yet — none of the findings carry a decision from YOU${naoHumanas ? `; the ${naoHumanas} signed by agents are not yours and never count` : ''}`
+        ? `no data yet — no finding carries a current decision signed by YOU${naoDoDono ? `; the ${naoDoDono} not signed by you never count` : ''}`
         : triados < MIN_TRIADOS
           ? `only ${triados} of ${MIN_TRIADOS} findings have a decision from YOU — the loop cannot learn what you keep`
           : `you keep ${Math.round(precisao || 0)}% of what it finds; ${MIN_PRECISAO_PCT}% is the bar`,

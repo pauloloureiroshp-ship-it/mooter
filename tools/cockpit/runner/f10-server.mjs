@@ -523,15 +523,27 @@ export function createServer({
         if (!body || !body.chave || !DECISOES.includes(body.decisao)) {
           return sendJson(res, 400, { erro: 'triagem precisa de { chave, decisao }', aceites: DECISOES });
         }
-        // Sem `por`, o autor e o dono — que e quem carrega no botao do painel.
-        // Um agente TEM de se identificar; uma decisao anonima poluiria o unico
-        // numero que este ficheiro existe para tornar verdadeiro.
+        // QUEM assina, e o unico sitio no sistema onde "nao disse" pode querer
+        // dizer "foi o dono". `registarTriagem` deixou de ter default nenhum,
+        // porque uma biblioteca que assume `dono` assina em nome dele a partir
+        // de qualquer script.
         //
-        // Este default vive AQUI e so aqui: `registarTriagem` deixou de ter um,
-        // porque uma biblioteca que assume `dono` assina em nome do dono a
-        // partir de qualquer script. Este endpoint e o CANAL do painel (so
-        // loopback, ver `hostAllowed`), e por isso e o unico sitio onde
-        // "nao disse quem foi" pode legitimamente querer dizer "foi o dono".
+        // E aqui o default e CONDICIONADO A PROVA que existe. Um browser
+        // mandado pelo painel envia sempre `Origin` num POST; um `curl` na
+        // mesma maquina nao envia nenhum. Ate 2026-08-24 este endpoint dava
+        // `por:'dono'` aos dois — bastava um processo local qualquer fazer POST
+        // sem corpo completo para escrever uma decisao em nome do dono, na
+        // contagem que abre o nivel 2. Sem `Origin`, o cliente tem de se
+        // identificar; e o unico sinal disponivel sem introduzir credenciais, e
+        // e melhor do que fingir que o campo prova alguma coisa.
+        const origem = req.headers.origin;
+        if (!body.por && !origem) {
+          return sendJson(res, 400, {
+            erro: 'sem Origin, quem escreve tem de se identificar em `por`',
+            porque: 'so o painel pode assinar como dono por omissao, e um pedido sem Origin nao veio do painel',
+            aceites: AUTORES,
+          });
+        }
         const por = body.por || 'dono';
         if (!AUTORES.includes(por)) {
           return sendJson(res, 400, { erro: 'autor desconhecido', aceites: AUTORES });
@@ -546,9 +558,11 @@ export function createServer({
             chave: body.chave, decisao: body.decisao, por,
             recibo: body.recibo || null, nota: body.nota || null,
             motivo: body.motivo || null,
-            // O canal fica na linha. Uma decisao `dono` que NAO traga
-            // `via: 'painel'` nao veio do painel — e isso e auditavel.
-            via: 'painel',
+            // O canal fica na linha, e e o que se OBSERVOU, nao um carimbo
+            // fixo: `painel` quando o pedido trouxe `Origin` (browser), e
+            // `cliente-local` quando nao trouxe. Carimbar `painel` nos dois
+            // casos era escrever no ledger uma coisa que nao se sabia.
+            via: origem ? 'painel' : 'cliente-local',
           });
           return sendJson(res, 200, { ok: true, registado: e });
         } catch (err) {

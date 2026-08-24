@@ -151,12 +151,18 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por, n
     decisao,
     por,
     // POR QUE CANAL entrou esta decisao. `por` diz quem ASSINA; `via` diz por
-    // onde PASSOU — e sao perguntas diferentes, porque `por` e uma string
-    // escolhida por quem escreve a linha. Nada aqui impede um script de assinar
-    // `dono`; o que `via` da e a possibilidade de o AUDITAR depois, em vez de
-    // acreditar na assinatura. A defesa completa exige credencial no canal do
-    // painel, e essa nao esta feita — isto e o registo que a torna possivel,
-    // nao a fechadura.
+    // onde PASSOU.
+    //
+    // O QUE `via` NAO E: prova. Quem escreve escolhe os dois campos, e um
+    // script que passe `por:'dono', via:'painel'` nao e apanhado por nada aqui.
+    // Chamar-lhe "proveniencia auditavel" seria prometer uma fechadura que nao
+    // existe — a fechadura exige uma credencial no canal do painel, e essa nao
+    // esta feita.
+    //
+    // O QUE `via` E: um campo que o servidor preenche com o que OBSERVOU (ha
+    // `Origin` no pedido, ou nao). Serve para distinguir escritas que se
+    // declaram, e para que uma auditoria futura tenha onde pegar. Detecta `via`
+    // ausente ou inconsistente; nao prova `via` presente.
     ...(via ? { via: String(via).slice(0, 60) } : {}),
     ...(motivo ? { motivo } : {}),
     ...(nota ? { nota: String(nota).slice(0, 500) } : {}),
