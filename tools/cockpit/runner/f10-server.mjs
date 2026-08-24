@@ -36,6 +36,7 @@ import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem,
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
@@ -304,11 +305,27 @@ export function createServer({
 `);
         return 0;
       }
-      for (const acto of curar(fila)) {
-        registarTriagem(triagemFile, acto);
+      const actos = curar(fila);
+      for (const acto of actos) {
+        // `via` diz por onde a decisao entrou. Uma linha `agente` sem
+        // `via:'autopilot-l1'` nao veio deste tique.
+        registarTriagem(triagemFile, { ...acto, via: 'autopilot-l1' });
         feitos += 1;
       }
-      if (feitos) logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado
+      // Quantos ficaram DE FORA do dreno para o dono os ver. Sem esta linha, o
+      // nivel 1 esvaziava a fila e ninguem sabia que uma amostra tinha sido
+      // reservada — uma rede que ninguem ve nao e uma rede.
+      const reservados = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
+      if (feitos) {
+        logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado${reservados ? ` · ${reservados} reservado(s) para a tua auditoria (1 em ${AUDITORIA_1_EM})` : ''}
+`);
+      }
+      // O alarme corre sobre o que o dreno JA fechou, lido do proprio ledger de
+      // triagem — nao sobre o que acabou de acontecer neste tique. Um pilar que
+      // regride nao se ve num tique; ve-se na forma do dia.
+      const fechadosPeloAgente = [...decisoes.values()].filter((d) => d && d.por === 'agente');
+      const an = anomaliaDeDreno(fechadosPeloAgente);
+      if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
 `);
     } catch (err) {
       logImpl(`autopilot L1 falhou (a fila fica intacta): ${String(err && err.message).slice(0, 160)}

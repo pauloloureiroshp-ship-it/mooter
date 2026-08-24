@@ -28,6 +28,7 @@ const {
   normalizar, lerEstado, curar,
   NIVEIS, ORCAMENTOS, ORCAMENTO_OMISSAO, orcamento, ESTADO_OMISSAO,
   TETO_REFUTADO_PCT, MIN_TRIADOS, MIN_PRECISAO_PCT, MIN_PATCHES_LIMPOS,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN,
 } = await import('./autopilot.mjs');
 const { createServer } = await import('./f10-server.mjs');
 const { AUTORES } = await import('./triagem.mjs');
@@ -326,7 +327,10 @@ test('curar so toca em low COM motivo tipado — high e med ficam para o dono', 
     achado({ chave: 'b', resultado_resumo: 'claims 47%', evidencia: 'landing/x.tsx:2 => <b>47%</b>' }),
     achado({ chave: 'c', ficheiro: 'tools/x.js', evidencia: 'tools/x.js:3 => n = 5' }),
   ];
-  const actos = curar(fila);
+  // `auditoria: false` porque este teste e sobre a REGRA DE SEVERIDADE. Com a
+  // amostra ligada, 'a' ou 'c' podiam cair nela e o teste passaria a medir duas
+  // coisas ao mesmo tempo — a amostra tem os seus testes, mais abaixo.
+  const actos = curar(fila, { auditoria: false });
   assert.deepEqual(actos.map((x) => x.chave), ['a', 'c']);
   assert.ok(actos.every((x) => x.decisao === 'descartado' && x.por === 'agente'),
     'cada decisao tem de vir assinada — trabalho sem dono visivel e trabalho que ninguem audita');
@@ -649,4 +653,113 @@ test('CANAL: com Origin de loopback, o painel continua a assinar como dono sem d
     assert.equal(registado.por, 'dono');
     assert.equal(registado.via, 'painel');
   } finally { await fechar(); }
+});
+
+/* ───────────── auditoria ao dreno: a rede que impede a cegueira ───────────── */
+
+/**
+ * Ligar o nivel 1 resolve um problema e cria outro. Ele drena a fila — e uma
+ * fila vazia nao e a mesma coisa que um loop saudavel: se um pilar activo
+ * regredir e passar a despejar lixo `low`-com-motivo, o dreno absorve-o em
+ * silencio e o painel fica sem denominador para o revelar.
+ */
+test('AUDITORIA: a amostra e ESTAVEL — a mesma chave da sempre o mesmo veredicto', () => {
+  for (const k of ['P2.abc|a.js:1-9:deadbeef', 'P3.zzz|b.mjs:10-20:cafe', '', 'x']) {
+    const primeiro = naAmostraDeAuditoria(k);
+    for (let i = 0; i < 50; i += 1) {
+      assert.equal(naAmostraDeAuditoria(k), primeiro,
+        'uma fila que muda sozinha entre dois olhares e uma fila em que ninguem confia');
+    }
+  }
+});
+
+test('AUDITORIA: a taxa fica perto de 1 em N, sem fabricar precisao', () => {
+  const chaves = Array.from({ length: 4000 }, (_, i) => `P2.${i}|f${i}.js:1-9:sha${i}`);
+  const n = chaves.filter((k) => naAmostraDeAuditoria(k)).length;
+  const esperado = 4000 / AUDITORIA_1_EM;
+  // Banda larga de proposito: um hash nao e um gerador uniforme e prometer
+  // "exactamente 5%" seria inventar uma precisao que isto nao tem.
+  assert.ok(n > esperado * 0.5 && n < esperado * 1.6,
+    `esperado ~${esperado}, medido ${n} — fora de qualquer banda razoavel`);
+  assert.ok(n > 0, 'uma amostra vazia nao e amostra');
+});
+
+test('AUDITORIA: chave vazia nunca entra na amostra', () => {
+  assert.equal(naAmostraDeAuditoria(''), false);
+  assert.equal(naAmostraDeAuditoria(null), false);
+  assert.equal(naAmostraDeAuditoria(undefined), false);
+});
+
+test('AUDITORIA: umEm=1 reserva tudo — o dreno pode ser desligado sem o apagar', () => {
+  assert.equal(naAmostraDeAuditoria('qualquer', { umEm: 1 }), true);
+  const fila = Array.from({ length: 30 }, (_, i) => achado({ chave: `k${i}`, evidencia: 'landing/x.tsx:1 => gap: 4' }));
+  assert.equal(curar(fila, { umEm: 1 }).length, 0, 'com 1-em-1 nada e fechado pelo agente');
+});
+
+test('AUDITORIA: curar reserva uma parte da fila para o dono', () => {
+  const fila = Array.from({ length: 400 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}`, evidencia: 'landing/x.tsx:1 => gap: 4' }));
+  const comAmostra = curar(fila, { cap: Number.MAX_SAFE_INTEGER });
+  const semAmostra = curar(fila, { cap: Number.MAX_SAFE_INTEGER, auditoria: false });
+  assert.equal(semAmostra.length, 400, 'sem amostra, o dreno leva tudo');
+  assert.ok(comAmostra.length < semAmostra.length, 'com amostra, alguma coisa fica para o dono');
+  const reservados = semAmostra.length - comAmostra.length;
+  assert.ok(reservados > 0, `nada foi reservado — a rede nao existe (${reservados})`);
+  // E o que ficou reservado e exactamente o que a funcao diz que reserva.
+  const previstos = fila.filter((a) => naAmostraDeAuditoria(a.chave)).length;
+  assert.equal(reservados, previstos, 'o que curar reserva tem de bater com o predicado, senao sao duas verdades');
+});
+
+/* ───────────── anomalia de dreno: quando o dreno muda de tamanho ───────────── */
+
+const dia = (d, n) => Array.from({ length: n }, (_, i) => ({ ts: `${d}T0${i % 10}:00:00Z`, chave: `k${d}${i}` }));
+
+test('ANOMALIA: sem historico nao ha linha de base — e nao se inventa uma', () => {
+  assert.equal(anomaliaDeDreno([]).base, null);
+  assert.equal(anomaliaDeDreno([]).anomalia, false);
+  assert.match(anomaliaDeDreno([]).porque, /nada a comparar/);
+  const so1 = anomaliaDeDreno(dia('2026-08-20', 50));
+  assert.equal(so1.base, null, 'um unico dia nao e uma linha de base');
+  assert.equal(so1.anomalia, false);
+  assert.match(so1.porque, /ainda nao ha linha de base/);
+});
+
+test('ANOMALIA: um dia dentro do normal nao dispara', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-20', 20), ...dia('2026-08-21', 22), ...dia('2026-08-22', 25)]);
+  assert.equal(r.base, 21, 'mediana de [20, 22] com numero par de dias = a media dos dois do meio');
+  assert.equal(r.hoje, 25);
+  assert.equal(r.anomalia, false);
+  assert.match(r.porque, /dentro do normal/);
+});
+
+test('ANOMALIA: um pilar a regredir dispara — 3x a mediana', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-20', 20), ...dia('2026-08-21', 20), ...dia('2026-08-22', 200)]);
+  assert.equal(r.base, 20);
+  assert.equal(r.hoje, 200);
+  assert.equal(r.anomalia, true, `200 contra mediana 20 sao 10x, e a fasquia e ${ANOMALIA_FACTOR}x`);
+  assert.match(r.porque, /pode ter regredido/);
+});
+
+/**
+ * Mediana e nao media, e a razao e esta: com media, o proprio dia mau levanta a
+ * fasquia que devia dispara-lo, e um segundo dia igual ja passa despercebido.
+ */
+test('ANOMALIA: um dia mau nao levanta a fasquia para o dia seguinte', () => {
+  const historia = [...dia('2026-08-18', 10), ...dia('2026-08-19', 10), ...dia('2026-08-20', 10), ...dia('2026-08-21', 300)];
+  assert.equal(anomaliaDeDreno(historia).anomalia, true);
+  const outraVez = [...historia, ...dia('2026-08-22', 300)];
+  const r = outraVez.length && anomaliaDeDreno(outraVez);
+  assert.equal(r.base, 10, 'a mediana ignora o outlier; uma media daria 82,5 e calava o alarme');
+  assert.equal(r.anomalia, true, 'o segundo dia mau continua a ser um dia mau');
+});
+
+test('ANOMALIA: volume pequeno nao merece alarme — nao ensinar o dono a ignora-lo', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-20', 1), ...dia('2026-08-21', 1), ...dia('2026-08-22', 9)]);
+  assert.equal(r.anomalia, false, `9 e 9x a mediana, mas esta abaixo do minimo de ${ANOMALIA_MIN}`);
+  assert.match(r.porque, /abaixo do minimo/);
+});
+
+test('ANOMALIA: actos sem data sao ignorados, nao contados como hoje', () => {
+  const r = anomaliaDeDreno([...dia('2026-08-20', 20), ...dia('2026-08-21', 20), { chave: 'sem-ts' }, { ts: 'lixo' }]);
+  assert.equal(r.ultimo, '2026-08-21');
+  assert.equal(Object.keys(r.por_dia).length, 2, 'uma data ilegivel nao inventa um dia');
 });

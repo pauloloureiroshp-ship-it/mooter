@@ -192,14 +192,23 @@ export const LIMITE_TRIAGEM = 50;
  * O corte e real e NAO se ve daqui: quem le esta lista nao sabe se ficaram 0
  * ou 400 de fora. Quem publica tem de emparelha-la com `contarTriagem().
  * por_triar`, que conta o ledger inteiro -- e e o que o `/fleet.json` faz.
+ *
+ * DEDUPLICA por chave, e ate 2026-08-24 nao deduplicava. `contarTriagem` sempre
+ * teve o seu `vistos`; esta funcao nao, e as duas respondiam numeros diferentes
+ * a mesma pergunta: 232 entradas contra 219 chaves no ledger real. O mesmo
+ * achado aparecia duas vezes na fila do dono, e o `curar()` escrevia duas
+ * decisoes para a mesma chave. Nenhuma das duas era falsa — a segunda era
+ * apenas ruido, e ruido numa fila que existe para ser curta e um defeito.
  */
 export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
   const out = [];
+  const vistos = new Set();
   for (let i = (receipts || []).length - 1; i >= 0 && out.length < limite; i -= 1) {
     const r = receipts[i];
     if (!ehAchado(r)) continue;
     const chave = chaveDoRecibo(r);
-    if (!chave || (decisoes && decisoes.has(chave))) continue;
+    if (!chave || vistos.has(chave) || (decisoes && decisoes.has(chave))) continue;
+    vistos.add(chave);
     out.push({
       chave,
       ts: r.ts ?? null,

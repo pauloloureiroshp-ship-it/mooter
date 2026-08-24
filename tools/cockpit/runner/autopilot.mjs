@@ -331,15 +331,64 @@ export function efectivo(pedido, ps) {
 /* ─────────────────────────── 5. nivel 1: curar ─────────────────────────── */
 
 /**
+ * De quantos em quantos achados um fica de fora do dreno, para o dono o ver.
+ *
+ * 1 em 20 = 5%. Nao e um numero optimizado: e o menor que ainda produz amostra
+ * util a este volume (219 na fila => ~11 vistos pelo dono) sem devolver a fila
+ * ao estado que o nivel 1 existe para acabar.
+ */
+export const AUDITORIA_1_EM = 20;
+
+/**
+ * Uma amostra e reservada ao dono, e NAO e aleatoria.
+ *
+ * PORQUE EXISTE. Um nivel 1 que drena tudo deixa a fila vazia — e uma fila
+ * vazia nao e a mesma coisa que um loop saudavel. Se um pilar activo regredir e
+ * passar a produzir lixo `low`-com-motivo, o dreno fecha-o em silencio, o
+ * painel fica sem denominador para o revelar, e ninguem ve nada. Trocar um
+ * numero falso ("mantens 0%") por uma cegueira nao e progresso.
+ *
+ * PORQUE NAO E ALEATORIA. `Math.random` daria uma amostra diferente a cada
+ * tique: o mesmo achado entrava e saia da fila do dono conforme a moeda, e uma
+ * fila que muda sozinha entre dois olhares e uma fila em que ninguem confia.
+ * O hash da chave e ESTAVEL — um achado que caiu na amostra fica na amostra
+ * para sempre, e a decisao sobre ele e reproduzivel por quem quiser verificar.
+ *
+ * E A TORNEIRA DO L2. Os achados reservados sao exactamente os que o dono vai
+ * decidir; e as decisoes dele sao o unico material que abre o portao 2. Sem
+ * isto, o nivel 1 ligado fecharia a fila e o L2 nunca reuniria as 20 decisoes
+ * de que precisa — a auditoria nao e so uma rede, e o caminho.
+ */
+export function naAmostraDeAuditoria(chave, { umEm = AUDITORIA_1_EM } = {}) {
+  const n = Math.max(1, Number(umEm) || 1);
+  if (n === 1) return true;
+  const s = String(chave ?? '');
+  if (!s) return false;
+  // FNV-1a de 32 bits: deterministico, sem dependencias, e chega bem para
+  // espalhar chaves que partilham prefixo (as nossas comecam todas por `P<n>.`).
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h % n === 0;
+}
+
+/**
  * Escolhe os achados que o nivel 1 pode fechar sozinho.
  *
  * So `low`, so com motivo tipado, e nunca mais do que `cap` de uma vez — um
  * autopilot que despeja 200 decisoes num ficheiro de uma vez e indistinguivel
  * de um acidente. Devolve o que HA para fazer; nao escreve nada.
+ *
+ * `auditoria: false` desliga a amostra — existe para os testes e para quem
+ * quiser medir o dreno completo. Nao e uma opcao do painel: um dreno sem
+ * amostra e exactamente o modo cego que a amostra existe para evitar.
  */
-export function curar(fila, { cap = 25 } = {}) {
+export function curar(fila, { cap = 25, auditoria = true, umEm = AUDITORIA_1_EM } = {}) {
   const escolhidos = [];
   for (const a of fila || []) {
+    if (auditoria && naAmostraDeAuditoria(a && a.chave, { umEm })) continue;
     if (escolhidos.length >= cap) break;
     const s = severidade(a);
     if (s.k !== 'low' || !s.motivo) continue;
@@ -353,4 +402,67 @@ export function curar(fila, { cap = 25 } = {}) {
     });
   }
   return escolhidos;
+}
+
+/* ────────────────── 6. o dreno tem de ser visivel ────────────────── */
+
+/** Quantas vezes acima do normal e que um dia conta como anomalia. */
+export const ANOMALIA_FACTOR = 3;
+/** Abaixo disto nao ha volume que chegue para chamar anomalia a nada. */
+export const ANOMALIA_MIN = 10;
+
+/**
+ * O dreno, contado — e um alarme quando ele muda de tamanho sem ninguem pedir.
+ *
+ * O nivel 1 fecha achados sozinho. Isso e bom enquanto o que ele fecha for
+ * ruido conhecido, e passa a ser mau no dia em que um pilar regride e comeca a
+ * despejar lixo `low`-com-motivo: o dreno absorve-o em silencio e o dono nunca
+ * sabe que o loop se estragou. Um numero que ninguem ve nao protege ninguem.
+ *
+ * A regra e deliberadamente grosseira: compara o ULTIMO dia com a mediana dos
+ * anteriores. Mediana e nao media porque um unico dia mau nao pode levantar a
+ * propria fasquia que devia disparar. `null` quando nao ha historico — dias a
+ * mais de silencio nao inventam uma linha de base.
+ *
+ * @param {Array<{ts?:string|null, chave?:string}>} fechados actos do dreno, com data
+ * @returns {{por_dia:Record<string,number>, ultimo:string|null, hoje:number,
+ *            base:number|null, anomalia:boolean, porque:string}}
+ */
+export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN } = {}) {
+  const porDia = {};
+  for (const f of fechados || []) {
+    const d = String((f && f.ts) || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    porDia[d] = (porDia[d] || 0) + 1;
+  }
+  const dias = Object.keys(porDia).sort();
+  if (!dias.length) {
+    return { por_dia: porDia, ultimo: null, hoje: 0, base: null, anomalia: false, porque: 'sem dreno datado — nada a comparar' };
+  }
+  const ultimo = dias[dias.length - 1];
+  const hoje = porDia[ultimo];
+  const anteriores = dias.slice(0, -1).map((d) => porDia[d]).sort((a, b) => a - b);
+  if (!anteriores.length) {
+    return { por_dia: porDia, ultimo, hoje, base: null, anomalia: false, porque: 'primeiro dia de dreno — ainda nao ha linha de base' };
+  }
+  const meio = Math.floor(anteriores.length / 2);
+  const base = anteriores.length % 2
+    ? anteriores[meio]
+    : (anteriores[meio - 1] + anteriores[meio]) / 2;
+  // Um volume pequeno nao merece alarme: 1 -> 4 e tres vezes mais e nao quer
+  // dizer nada. O minimo existe para o alarme nao ensinar o dono a ignora-lo.
+  if (hoje < minimo) {
+    return { por_dia: porDia, ultimo, hoje, base, anomalia: false, porque: `${hoje} fechados em ${ultimo}: abaixo do minimo de ${minimo} para chamar anomalia` };
+  }
+  const anomalia = base > 0 && hoje >= base * factor;
+  return {
+    por_dia: porDia,
+    ultimo,
+    hoje,
+    base,
+    anomalia,
+    porque: anomalia
+      ? `${hoje} fechados em ${ultimo}, contra uma mediana de ${base} — ${(hoje / base).toFixed(1)}x. Um pilar pode ter regredido e o dreno esta a absorve-lo.`
+      : `${hoje} fechados em ${ultimo}, mediana ${base} — dentro do normal`,
+  };
 }
