@@ -23,6 +23,8 @@
  * Nada aqui chama a rede, nenhum modelo, e nenhuma funcao escreve no repo.
  */
 
+import { ownerDay, OWNER_TZ as OWNER_TZ_LOCAL } from './fleet-state.mjs';
+
 /* ─────────────────────────── 1. severidade ─────────────────────────── */
 
 /** Codigo que um cliente le. Um numero errado aqui e uma promessa quebrada. */
@@ -331,15 +333,167 @@ export function efectivo(pedido, ps) {
 /* ─────────────────────────── 5. nivel 1: curar ─────────────────────────── */
 
 /**
+ * De quantos em quantos achados um fica de fora do dreno, para o dono o ver.
+ *
+ * 1 em 20 = 5%. Nao e um numero optimizado: e o menor que ainda produz amostra
+ * util a este volume (219 na fila => ~11 vistos pelo dono) sem devolver a fila
+ * ao estado que o nivel 1 existe para acabar.
+ */
+export const AUDITORIA_1_EM = 20;
+
+/**
+ * Uma amostra e reservada ao dono, e NAO e aleatoria.
+ *
+ * PORQUE EXISTE. Um nivel 1 que drena tudo deixa a fila vazia — e uma fila
+ * vazia nao e a mesma coisa que um loop saudavel. Se um pilar activo regredir e
+ * passar a produzir lixo `low`-com-motivo, o dreno fecha-o em silencio, o
+ * painel fica sem denominador para o revelar, e ninguem ve nada. Trocar um
+ * numero falso ("mantens 0%") por uma cegueira nao e progresso.
+ *
+ * PORQUE NAO E ALEATORIA. `Math.random` daria uma amostra diferente a cada
+ * tique: o mesmo achado entrava e saia da fila do dono conforme a moeda, e uma
+ * fila que muda sozinha entre dois olhares e uma fila em que ninguem confia.
+ * O hash da chave e ESTAVEL — um achado que caiu na amostra fica na amostra
+ * para sempre, e a decisao sobre ele e reproduzivel por quem quiser verificar.
+ *
+ * E A TORNEIRA DO L2. Os achados reservados sao exactamente os que o dono vai
+ * decidir; e as decisoes dele sao o unico material que abre o portao 2. Sem
+ * isto, o nivel 1 ligado fecharia a fila e o L2 nunca reuniria as 20 decisoes
+ * de que precisa — a auditoria nao e so uma rede, e o caminho.
+ */
+/**
+ * Quem fica reservado para o dono, contando o que ele JA tem.
+ *
+ * O ADVERSARIO DA FASE 2 MATOU a versao anterior, e o defeito era de desenho,
+ * nao de implementacao. O runtime le uma JANELA de 5000 linhas do ledger
+ * (`fleet-state.readLedger`), nao o ficheiro todo: onde eu media 219 na fila e
+ * 12 reservados, o tique via 138 e reservava 5. Com 5 ha um estado ABSORVENTE —
+ * a fila estabiliza vazia, o dono decide 5, e o portao 2 exige 20. Nunca abria.
+ * A tese da FASE 2 ("a amostra e a torneira do L2") era falsa como estava.
+ *
+ * A correccao e fazer a reserva OLHAR PARA O ALVO. Enquanto faltarem decisoes
+ * do dono para o portao 2, reserva-se o que falta — a amostra por hash primeiro
+ * (que e a parte representativa) e, se nao chegar, os primeiros da fila a
+ * seguir. Quando ele ja tiver as 20, a reserva volta a ser so 1-em-20, para
+ * sempre, como vigilancia continua.
+ *
+ * `jaDoDono` e o numero de decisoes correntes assinadas por ele. Ausente => 0,
+ * que e a leitura conservadora: reserva mais, nunca menos.
+ *
+ * @returns {Set<string>} as chaves que o nivel 1 NAO pode fechar.
+ */
+export function reservarParaODono(fila, { jaDoDono = 0, alvo = MIN_TRIADOS, umEm = AUDITORIA_1_EM } = {}) {
+  const reservadas = new Set();
+  const itens = (fila || []).filter((a) => a && a.chave);
+  for (const a of itens) if (naAmostraDeAuditoria(a.chave, { umEm })) reservadas.add(a.chave);
+
+  const faltam = Math.max(0, (Number.isSafeInteger(alvo) ? alvo : MIN_TRIADOS) - Math.max(0, Number(jaDoDono) || 0));
+  if (reservadas.size >= faltam) return reservadas;
+
+  // O complemento e uma ESCADA ANINHADA de divisores, nao "os primeiros da fila".
+  //
+  // A versao anterior levava a cabeca da fila, e a fila muda a cada tique: o
+  // adversario inseriu UM achado novo no topo e mediu um cartao a sair da
+  // reserva — `entered=P2.new-0`, `exited=P2.fa64cb|packages/...`. Um achado
+  // reservado voltava ao dreno antes de o dono lhe tocar, que e exactamente a
+  // instabilidade que o hash existia para evitar: metade da funcao era estavel
+  // e a outra metade nao.
+  //
+  // A escada 20 → 10 → 5 → 2 → 1 e ANINHADA por construcao (`h%20===0` implica
+  // `h%10===0`, que implica `h%5===0`), portanto descer um degrau so ACRESCENTA
+  // chaves — nunca troca uma por outra. Duas propriedades ficam garantidas: a
+  // reserva nao depende da ORDEM da fila, e nao ha troca de cartoes dentro do
+  // mesmo degrau.
+  //
+  // O QUE ISTO NAO GARANTE, e nao vale a pena fingir que garante: se a fila
+  // crescer muito, um degrau mais grosso passa a chegar, e as chaves que so
+  // pertenciam ao degrau fino saem da reserva. Estabilidade absoluta exigiria
+  // PERSISTIR a reserva — uma segunda fonte de verdade ao lado do
+  // `triagem.jsonl`, que e precisamente o que este projecto recusa. Fica o
+  // degrau visivel em `degrauDaReserva()` para quem precise de o auditar.
+  // Toma-se por ORDEM DE HASH, ate `faltam`, e nao o degrau inteiro.
+  //
+  // A escada de degraus inteiros trocava a instabilidade pequena por uma
+  // grande: a 3.a ronda mediu `fila 93→94` a mudar o degrau e a expulsar 41
+  // cartoes de uma vez. Por ordem de hash, um achado novo com hash mais baixo
+  // empurra EXACTAMENTE UM para fora — o churn passa de um precipicio a um
+  // degrau de um.
+  //
+  // Nenhuma das duas e estabilidade absoluta, e nao ha aqui uma opcao que o
+  // seja: isso exigiria PERSISTIR a reserva, uma segunda fonte de verdade ao
+  // lado do `triagem.jsonl`. Entre um churn limitado a 1 por chegada e um de
+  // dezenas num limiar, escolhe-se o limitado.
+  const porHash = itens
+    .filter((a) => !reservadas.has(a.chave))
+    .map((a) => ({ chave: a.chave, h: hashDaChave(a.chave) }))
+    .sort((x, y) => (x.h - y.h) || (x.chave < y.chave ? -1 : 1));
+  for (const { chave } of porHash) {
+    if (reservadas.size >= faltam) break;
+    reservadas.add(chave);
+  }
+  return reservadas;
+}
+
+/** Divisores do complemento. Aninhados de proposito: 20 ⊂ 10 ⊂ 5 ⊂ 2 ⊂ 1. */
+export const ESCADA_RESERVA = Object.freeze([10, 5, 2, 1]);
+
+const umEmValido = (n) => Math.max(1, Number(n) || 1);
+
+/**
+ * Que degrau da escada esta a ser usado para uma dada fila e alvo.
+ *
+ * Existe para o degrau ser AUDITAVEL: e o unico numero que explica porque e que
+ * um achado esta reservado hoje e podia nao estar amanha.
+ */
+export function degrauDaReserva(fila, { jaDoDono = 0, alvo = MIN_TRIADOS, umEm = AUDITORIA_1_EM } = {}) {
+  const itens = (fila || []).filter((a) => a && a.chave);
+  const faltam = Math.max(0, (Number.isSafeInteger(alvo) ? alvo : MIN_TRIADOS) - Math.max(0, Number(jaDoDono) || 0));
+  const conta = (d) => itens.filter((a) => hashDaChave(a.chave) % d === 0).length;
+  if (conta(umEmValido(umEm)) >= faltam) return umEmValido(umEm);
+  for (const d of ESCADA_RESERVA) {
+    if (d >= umEmValido(umEm)) continue;
+    if (conta(d) >= faltam) return d;
+  }
+  return 1;
+}
+
+/** FNV-1a de 32 bits. Deterministico, sem dependencias, estavel entre tiques. */
+function hashDaChave(chave) {
+  const s = String(chave ?? '');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+export function naAmostraDeAuditoria(chave, { umEm = AUDITORIA_1_EM } = {}) {
+  const n = Math.max(1, Number(umEm) || 1);
+  if (n === 1) return true;
+  const s = String(chave ?? '');
+  if (!s) return false;
+  // Uma so implementacao do hash — `hashDaChave`. Duas copias do mesmo FNV
+  // seriam a segunda oportunidade de divergir, e este ficheiro ja teve a licao.
+  return hashDaChave(s) % n === 0;
+}
+
+/**
  * Escolhe os achados que o nivel 1 pode fechar sozinho.
  *
  * So `low`, so com motivo tipado, e nunca mais do que `cap` de uma vez — um
  * autopilot que despeja 200 decisoes num ficheiro de uma vez e indistinguivel
  * de um acidente. Devolve o que HA para fazer; nao escreve nada.
+ *
+ * `auditoria: false` desliga a amostra — existe para os testes e para quem
+ * quiser medir o dreno completo. Nao e uma opcao do painel: um dreno sem
+ * amostra e exactamente o modo cego que a amostra existe para evitar.
  */
-export function curar(fila, { cap = 25 } = {}) {
+export function curar(fila, { cap = 25, auditoria = true, umEm = AUDITORIA_1_EM, jaDoDono = 0, alvo = MIN_TRIADOS } = {}) {
   const escolhidos = [];
+  const reservadas = auditoria ? reservarParaODono(fila, { jaDoDono, alvo, umEm }) : new Set();
   for (const a of fila || []) {
+    if (reservadas.has(a && a.chave)) continue;
     if (escolhidos.length >= cap) break;
     const s = severidade(a);
     if (s.k !== 'low' || !s.motivo) continue;
@@ -353,4 +507,158 @@ export function curar(fila, { cap = 25 } = {}) {
     });
   }
   return escolhidos;
+}
+
+/* ────────────────── 6. o dreno tem de ser visivel ────────────────── */
+
+/** Quantas vezes acima do normal e que um dia conta como anomalia. */
+export const ANOMALIA_FACTOR = 3;
+/** Abaixo disto nao ha volume que chegue para chamar anomalia a nada. */
+export const ANOMALIA_MIN = 10;
+
+/**
+ * O dreno, contado — e um alarme quando ele muda de tamanho sem ninguem pedir.
+ *
+ * O nivel 1 fecha achados sozinho. Isso e bom enquanto o que ele fecha for
+ * ruido conhecido, e passa a ser mau no dia em que um pilar regride e comeca a
+ * despejar lixo `low`-com-motivo: o dreno absorve-o em silencio e o dono nunca
+ * sabe que o loop se estragou. Um numero que ninguem ve nao protege ninguem.
+ *
+ * A regra e deliberadamente grosseira: compara o ULTIMO dia com a mediana dos
+ * anteriores. Mediana e nao media porque um unico dia mau nao pode levantar a
+ * propria fasquia que devia disparar. `null` quando nao ha historico — dias a
+ * mais de silencio nao inventam uma linha de base.
+ *
+ * @param {Array<{ts?:string|null, chave?:string}>} fechados actos do dreno, com data
+ * @returns {{por_dia:Record<string,number>, ultimo:string|null, hoje:number,
+ *            base:number|null, anomalia:boolean, porque:string}}
+ */
+export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN, porPilar = true, agora = null } = {}) {
+  const porDia = {};
+  const porDiaPilar = {};
+  for (const f of fechados || []) {
+    // O DIA E O DO DONO, nao o de Greenwich. `ts.slice(0,10)` agrupava em UTC:
+    // 30 actos da mesma noite dele apareciam como 15+15 em dois dias, e o
+    // alarme calava-se. `owner_tz = America/Sao_Paulo` e canon do projecto, e
+    // `ownerDay` e a fonte unica — nao se reescreve o fuso aqui.
+    const t = Date.parse(String((f && f.ts) || ''));
+    if (!Number.isFinite(t)) continue;
+    const d = ownerDay(t);
+    porDia[d] = (porDia[d] || 0) + 1;
+    if (porPilar) {
+      const p = (f && f.pilar) || (f && f.recibo && f.recibo.pilar) || null;
+      if (p) ((porDiaPilar[p] ||= {})[d] = (porDiaPilar[p][d] || 0) + 1);
+    }
+  }
+  // O DIA DE HOJE EXISTE MESMO QUE NAO TENHA ACTOS.
+  //
+  // Sem isto, o detector so olhava para dias que tinham trabalho — e uma
+  // PARAGEM TOTAL era invisivel por construcao. Medido pelo adversario:
+  // `100,100,100` seguido de zero actos reportava `ultimo=2026-08-22,
+  // hoje=100, anomalia=false`. Um pilar que morre completamente nao aparecia,
+  // enquanto um que so abrandasse aparecia — a deteccao de queda que eu tinha
+  // acabado de acrescentar tinha um buraco com a forma exacta do pior caso.
+  //
+  // `agora` e injectavel para os testes; sem ele nao se materializa dia nenhum,
+  // porque inventar "hoje" a partir do relogio dentro de uma funcao pura
+  // tornava-a nao-determinista.
+  // `agora` invalido nao materializa nada e NAO rebenta. `ownerDay(NaN)` atira
+  // `RangeError` — um alarme que mata o tique porque o relogio veio estranho e
+  // pior do que um alarme que se cala.
+  // `typeof` e nao `Number()`: `Number([])` e 0, e um array vazio virava a
+  // meia-noite de 1970. Aceita-se um numero finito ou uma `Date` valida, e
+  // mais nada.
+  const agoraMs = typeof agora === 'number' ? agora
+    : (agora instanceof Date ? agora.getTime() : null);
+  const agoraValido = agoraMs != null && Number.isFinite(agoraMs);
+  let fraccaoDoDia = 1;
+  if (agoraValido) {
+    const hojeReal = ownerDay(agoraMs);
+    if (!(hojeReal in porDia)) porDia[hojeReal] = 0;
+    // Um acto com `ts` no FUTURO escondia a paragem de hoje: `ultimo` passava a
+    // ser o dia futuro e o dia real nem era olhado. Fora.
+    for (const d of Object.keys(porDia)) if (d > hojeReal) delete porDia[d];
+    // QUE FRACCAO DO DIA JA PASSOU. Comparar um dia a comecar com dias
+    // completos dava alarme de queda todas as manhas — a 3.a ronda mediu
+    // `12,12,12 + hoje 0 -> anomalia=true` as 00:23. A linha de base escala
+    // com o tempo decorrido, e as 09:00 espera-se ~37% de um dia normal.
+    // A hora tem de ser lida NO FUSO DO DONO. Calcular a partir da meia-noite
+    // UTC do dia dele dava > 1 (o dia dele comeca as 03:00Z), e a fraccao vinha
+    // sempre 1 — que e exactamente o falso alarme que isto vem corrigir.
+    fraccaoDoDia = Math.min(1, Math.max(0.02, horaDoDono(agoraMs) / 24));
+  }
+  const dias = Object.keys(porDia).sort();
+  if (!dias.length) {
+    return { por_dia: porDia, ultimo: null, hoje: 0, base: null, anomalia: false, direccao: null, porque: 'sem dreno datado — nada a comparar' };
+  }
+  const ultimo = dias[dias.length - 1];
+  const hoje = porDia[ultimo];
+  const anteriores = dias.slice(0, -1).map((d) => porDia[d]).sort((a, b) => a - b);
+  if (!anteriores.length) {
+    return { por_dia: porDia, ultimo, hoje, base: null, anomalia: false, direccao: null, porque: 'primeiro dia de dreno — ainda nao ha linha de base' };
+  }
+  const base = mediana(anteriores);
+
+  // PARA CIMA: um pilar regrediu e o dreno esta a absorver o lixo.
+  // PARA BAIXO: um pilar MORREU. A versao anterior so olhava para cima, e por
+  // isso `100,100,100 -> 3` passava como "abaixo do minimo" — a queda mais
+  // brutal possivel classificada como sossego. Um detector que so ve uma
+  // direccao nao esta a vigiar, esta a confirmar.
+  // A queda compara-se com o que era ESPERADO ATE AGORA, nao com um dia
+  // inteiro. `baseEsperada` e a mediana escalada pela fraccao do dia decorrida;
+  // ao fim do dia sao a mesma coisa, e as 00:23 nao sao.
+  const baseEsperada = base * fraccaoDoDia;
+  const subiu = base > 0 && hoje >= minimo && hoje >= base * factor;
+  const caiu = baseEsperada >= minimo && hoje * factor <= baseEsperada;
+
+  // POR PILAR: um pilar a explodir pode ficar escondido no agregado se outro
+  // encolher ao mesmo tempo (medido: P2 1->101 e P3 99->99 da 100->200, que nao
+  // dispara; P2 isolado da 101x). O agregado nao chega.
+  const suspeitos = [];
+  for (const [p, mapa] of Object.entries(porDiaPilar)) {
+    const hojeP = mapa[ultimo] || 0;
+    const antes = dias.slice(0, -1).map((d) => mapa[d] || 0);
+    if (!antes.length) continue;
+    const baseP = mediana([...antes].sort((a, b) => a - b));
+    if (baseP > 0 && hojeP >= minimo && hojeP >= baseP * factor) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'subiu' });
+    else if (baseP >= minimo && hojeP * factor <= baseP) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'caiu' });
+  }
+
+  const anomalia = subiu || caiu || suspeitos.length > 0;
+  const direccao = subiu ? 'subiu' : caiu ? 'caiu' : (suspeitos[0] && suspeitos[0].direccao) || null;
+  const porquePilar = suspeitos.length
+    ? ` Por pilar: ${suspeitos.map((s) => `${s.pilar} ${s.base}→${s.hoje} (${s.direccao})`).join(' · ')}.`
+    : '';
+
+  let porque;
+  if (subiu) porque = `${hoje} fechados em ${ultimo} (hora do dono), contra uma mediana de ${base} — ${(hoje / base).toFixed(1)}x. Um pilar pode ter regredido e o dreno esta a absorve-lo.${porquePilar}`;
+  else if (caiu) porque = `${hoje} fechados em ${ultimo} (hora do dono), contra uma mediana de ${base} — o dreno CAIU. Um pilar pode ter morrido, e um pilar mudo nao e um pilar saudavel.${porquePilar}`;
+  else if (suspeitos.length) porque = `o agregado (${hoje} contra mediana ${base}) nao dispara, mas um pilar sozinho dispara.${porquePilar}`;
+  else if (hoje < minimo) porque = `${hoje} fechados em ${ultimo} (hora do dono): abaixo do minimo de ${minimo} para chamar anomalia ao agregado`;
+  else porque = `${hoje} fechados em ${ultimo} (hora do dono), mediana ${base} — dentro do normal`;
+
+  return { por_dia: porDia, por_dia_pilar: porDiaPilar, ultimo, hoje, base, anomalia, direccao, suspeitos, porque };
+}
+
+/** A mediana de uma lista JA ORDENADA. Par => media dos dois do meio. */
+function mediana(ordenada) {
+  if (!ordenada.length) return null;
+  const meio = Math.floor(ordenada.length / 2);
+  return ordenada.length % 2 ? ordenada[meio] : (ordenada[meio - 1] + ordenada[meio]) / 2;
+}
+
+/**
+ * Que horas sao para o dono, em horas decimais (0..24).
+ *
+ * Le do `Intl` no fuso dele, tal como o `ownerDay`. Nao se subtrai um offset
+ * fixo: Sao Paulo aboliu o horario de verao em 2019, mas as datas anteriores
+ * ainda o tem, e um `-3` cravado seria um numero inventado para o passado.
+ */
+function horaDoDono(ms) {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: OWNER_TZ_LOCAL, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(ms));
+  const h = Number(p.find((x) => x.type === 'hour')?.value ?? 0);
+  const m = Number(p.find((x) => x.type === 'minute')?.value ?? 0);
+  return (h % 24) + m / 60;
 }
