@@ -87,15 +87,45 @@ export function detectarFicheiro(linhas) {
       const l = linhas[j];
       if (/^\s*\}/.test(l)) break;
       if (/^\s*(\/\/|\/\*|\*)/.test(l)) { explicado = true; continue; }
+      // ⚠️ UMA FALHA ANUNCIADA JA NAO E SILENCIOSA.
+      //
+      // Descoberto a 2026-08-25 pela pre-triagem: o `seamless.js:414` continuava
+      // marcado DEPOIS de ter sido corrigido no #387. A correccao anunciou a
+      // falha em codigo — `log('ledger nao lido: ' + erro)` antes do `return []`
+      // — mas este detector so perdoava um COMENTARIO. Resultado: a regra
+      // marcava o proprio remedio, e a precisao dela ia CAIR a medida que as
+      // correccoes entrassem. Um detector que acusa quem o obedeceu mede o
+      // trabalho ao contrario.
+      if (/\b(log|warn|error|write|stderr|console)\b/i.test(l)) { explicado = true; continue; }
       const m = NEUTRO.exec(l);
       if (m && !explicado) { achados.push({ linha: j + 1, valor: m[1] }); break; }
-      if (m) break;                    // explicado: nao conta
+      if (m) break;                    // explicado ou anunciado: nao conta
     }
   }
   return achados;
 }
 
 /** Onde os pontos de partida vivem, quando a classe nao declara os seus. */
+/**
+ * O que a ancora NUNCA pode apontar.
+ *
+ * O `classify.js` e FROZEN — o sha esta em CI. Um apontamento nele so pode dar
+ * duas coisas: uma ronda de GPU gasta a julgar codigo que ninguem pode tocar, ou
+ * pior, alguem a tocar-lhe. E ja aconteceu: um dos 11 achados do P2 que o dono
+ * descartou apontava exactamente para la.
+ *
+ * Nao chega excluir o glob: `tools/router/*.js` tem de continuar no ambito
+ * porque foi com ele que o censo mediu. O que se exclui e o FICHEIRO.
+ */
+export const NUNCA_APONTAR = [
+  /(^|[\\/])classify\.js$/,
+];
+
+export function congelado(ficheiro) {
+  const p = String(ficheiro || '').replace(/\\/g, '/');
+  return NUNCA_APONTAR.some((re) => re.test(p));
+}
+
 export const GLOBS_OMISSAO = [
   'tools/router/*.js',
   'tools/cockpit/runner/*.mjs',
@@ -362,7 +392,7 @@ export function gerar({
     let achados = [];
     try { achados = expandirImpl(repoRoot, g) || []; } catch { achados = []; }
     if (achados.length === 0) globsVazios.push(g);
-    for (const f of achados) if (!excluido(f)) vistos.add(f);
+    for (const f of achados) if (!excluido(f) && !congelado(f)) vistos.add(f);
   }
   const ficheiros = [...vistos].sort();
 

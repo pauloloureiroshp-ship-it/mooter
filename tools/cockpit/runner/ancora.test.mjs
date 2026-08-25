@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   gerar, escrever, lerManifesto, regrasActivas, limparLinha,
-  REGRAS, GLOBS_OMISSAO, MSG_MAX, podeEntrar, regrasRecusadas,
+  REGRAS, GLOBS_OMISSAO, MSG_MAX, podeEntrar, regrasRecusadas, congelado,
 } from './ancora.mjs';
 import { verAncora } from './self-check.mjs';
 import { readAnchor } from './context-pack.mjs';
@@ -341,4 +341,61 @@ test('PORTÃO · uma recusada é DECLARADA no manifesto, não some em silêncio'
   assert.equal(r.manifesto.regras_recusadas[0].id, 'apressada');
   assert.match(r.manifesto.regras_recusadas[0].porque, /medicao/);
   assert.equal(r.apontamentos.length, 0, 'a recusada não produziu um único apontamento');
+});
+
+// ── o detector não pode acusar quem o obedeceu (2026-08-25) ────────────────
+
+test('uma falha ANUNCIADA em código não é silenciosa — o remédio não vira doença', () => {
+  // Descoberto pela pré-triagem local: o `seamless.js` continuava marcado DEPOIS
+  // de ter sido corrigido no #387. A correcção anunciou a falha com `log(...)`
+  // antes do `return []`, mas o detector só perdoava um COMENTÁRIO.
+  //
+  // Consequência: a precisão da regra ia CAIR à medida que as correcções
+  // entrassem. Um detector que acusa quem o obedeceu mede o trabalho ao
+  // contrário — e a precisão medida deixa de significar o que diz.
+  const corrigido = [
+    'function ler() {',
+    '  try { return leitura(); } catch (erro) {',
+    "    log('ledger nao lido: ' + erro.message);",
+    '    return [];',
+    '  }',
+    '}',
+  ].join('\n');
+  const anunciado = gerar({
+    repoRoot: '/r', globs: ['a/*.js'],
+    expandirImpl: () => ['a/um.js'], readImpl: () => corrigido,
+  });
+  assert.equal(anunciado.apontamentos.length, 0, 'quem anuncia a falha já não a engole');
+
+  // E o silencioso continua a ser apanhado — a correcção não abriu um buraco.
+  const silencioso = gerar({
+    repoRoot: '/r', globs: ['a/*.js'],
+    expandirImpl: () => ['a/um.js'],
+    readImpl: () => 'function ler() {\n  try { return leitura(); } catch {\n    return [];\n  }\n}',
+  });
+  assert.equal(silencioso.apontamentos.length, 1);
+});
+
+test('a âncora NUNCA aponta para código congelado', () => {
+  // Marcar o `classify.js` foi exactamente o erro do P2: um dos 11 achados que o
+  // dono descartou apontava para lá. Um apontamento em código FROZEN só pode dar
+  // uma ronda de GPU gasta a julgar o intocável — ou alguém a tocar-lhe.
+  //
+  // Não chega excluir o glob: `tools/router/*.js` tem de continuar no âmbito
+  // porque foi com ele que o censo mediu. Exclui-se o FICHEIRO.
+  assert.equal(congelado('tools/router/classify.js'), true);
+  // Escrito com `String.raw` de propósito: a primeira versão deste teste foi
+  // gerada por um heredoc que comeu um nível de escape, e `'tools\router\...'`
+  // ficou com um retorno de carro no meio. O teste falhou, o código estava bom.
+  assert.equal(congelado(String.raw`tools\router\classify.js`), true, 'e no separador do Windows também');
+  assert.equal(congelado('tools/router/classify-domain.js'), false, 'sem apanhar vizinhos de nome parecido');
+  assert.equal(congelado('tools/router/badge.js'), false);
+
+  const r = gerar({
+    repoRoot: '/r', globs: ['tools/router/*.js'],
+    expandirImpl: () => ['tools/router/classify.js', 'tools/router/outro.js'],
+    readImpl: () => 'try {\n} catch {\n  return [];\n}',
+  });
+  assert.deepEqual(r.apontamentos.map((a) => a.file), ['tools/router/outro.js']);
+  assert.equal(r.manifesto.ficheiros_no_ambito, 1, 'o congelado nem entra no âmbito');
 });
