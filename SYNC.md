@@ -478,3 +478,46 @@ e o runner corria `aa3d4ca5`. **O `sha_carregado` dizia-o.** Só reiniciar carre
 código novo — `import` lê o ficheiro uma vez.
 
 gate: 761 pass / 0 fail · classify.js `427d8c0b` intacto · backup do autopilot em `~/.mooter/autopilot.json.antes-l1`
+
+### 2026-08-25 (3) · o loop voltou a produzir, esgotou-se, e a fila é 22 — 20 à espera do dono
+
+Depois de `#369` desfazer o impasse, medido no ledger real:
+
+```
+desde o reinício (05:51Z → 09:29Z)
+  531 rondas · 49 achados únicos  (9,2%)
+  por pilar : P3 443 · P2 87
+  verdicts  : citacao-ok 316 · sem-achado 211 · refutado 1
+```
+
+Depois **parou de escrever**, e a última linha diz porquê: `nada-por-rever`,
+`nada-por-rever`, `pilar:esgotado`. O runner continua **vivo** (estado fresco,
+sem pausa, `pilar: P3`) — percorreu tudo o que a base de diff dele mostra e
+chegou ao fim. **Esgotado não é partido**, e a distinção importa.
+
+**A fila do dono, agora:**
+
+```
+por triar              : 22   (20 low/trivial + 2 med/null)
+reservados para ele    : 20   (6 amostra 1-em-20 + 14 para o portão 2)
+o L1 ainda fecharia    : 0    — chegou ao fim do trabalho dele
+decisões do dono       : 0 de 20
+por pilar              : P2 14 · P3 8
+```
+
+**O padrão do que sobra é o dado que interessa.** Quase todos são a mesma forma:
+*"esta variável é inicializada a 0/[] em duas linhas"* e *"este comentário tem um
+número"*. Dois deles citam comentários escritos **hoje**, nesta sessão, no
+`triagem.mjs` e no `autopilot.mjs`.
+
+É exactamente a pergunta que o gate L0 nunca conseguiria responder: **os P2/P3
+encontram problemas, ou descrevem código?** Decidir estes 20 responde-a — e mede
+a precisão do dono pela primeira vez. Se ele mantiver poucos, a resposta é a
+mesma que os outros sete pilares já deram este mês.
+
+**Ponto cego novo, registado e não corrigido:** o `pilar:esgotado` é um evento no
+ledger que ninguém vigia. O `anomaliaDeDreno` construído hoje detecta quedas de
+*dreno*, não de *produção* — um pilar mudo por estar esgotado e um mudo por estar
+partido são hoje indistinguíveis para quem olha para o painel.
+
+gate: 761 pass / 0 fail · `main` @ `b50b4f68` · classify.js `427d8c0b` intacto
