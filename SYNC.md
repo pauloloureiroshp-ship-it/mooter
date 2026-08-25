@@ -317,61 +317,6 @@ ainda que encanamento que estava a mentir.
 
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-25 · gate L0: a ordem invertida em `main`, 4 rondas adversariais e 35 defeitos — #362 #363 #364 #365 #366
-
-**`main` @ `882c042f`.** O dono aprovou a ordem que a FASE 0 mediu (denominador →
-L1 com auditoria → só então o gate) e mandou executar. **O gate L0 do
-masterprompt continua por construir** — a FASE 0 explica porquê: sem decisões
-dele, não tem entrada.
-
-| Fase | O que entrou | Gate final |
-|---|---|---|
-| **F1** `#362` | denominador do L2 por **lista branca** (`do_dono`, só `por==='dono'` explícito); `no data yet` em vez de `0%`; `registarTriagem` perde o default `por='dono'`; campo `via` | triados **1448 → 0** |
-| **F2** `#363`+`#365` | amostra de auditoria (que é a torneira do L2) · alarme de dreno por mediana com direcção · `porTriar` deduplica · guard "nenhum agente sobrepõe o dono" · `registarVarias` | fila 138 · reservados **20** · L1 drena 85,5% · churn **1** |
-| **F3** `#364`+`#365` | `prontidao-l2.mjs` — proveniência derivada na leitura, `precisao: null` nunca 0, recusa-se a dar data | 1667 únicos · dono **0** · varredura 1123 · filtro-mecânico 325 |
-| **Remediação** `#366` | os 2 HIGH da 4.ª ronda que faziam o painel mentir | 760 pass / 0 fail |
-
-**Quatro rondas adversariais em motor diferente (`codex`, só-leitura), 35 defeitos.**
-34 confirmados por medição minha, **1 refutado** (a escada era aninhada nos
-divisores de 20 — a matemática dele estava certa em geral, errada neste caso).
-
-O padrão que a série revelou: **em cada ronda, os defeitos vieram das correcções
-da ronda anterior.** Três exemplos que valem mais do que a contagem:
-
-- **"aritmética, não previsão"** era mentira minha. Apanhado, mudei o *rótulo* e
-  deixei a *fórmula* — dizia 300 quando bastavam 15. Renomear não corrige nada.
-- **A escada** que eu criei para corrigir um churn de 1 produzia um churn de 41.
-  Troquei uma instabilidade pequena por um precipício e chamei-lhe correcção.
-- **Escrevi 18 testes sobre honestidade que o CI nunca correu.** Defendi-os três
-  rondas. Nenhuma verificação local o apanhava — só olhar para o `package.json`.
-
-**O acidente de merge, registado porque quase custou metade do trabalho.** Os
-#363/#364 estavam empilhados (`base` = branch anterior). Fiz merge do #362
-**primeiro** e os outros resolveram-se **para dentro da pilha**: o GitHub
-marcou-os `MERGED` e a `main` não tinha `prontidao-l2.mjs` nem metade das
-funções. Só apanhei porque **verifiquei o conteúdo em vez de acreditar no estado
-dos PRs**. O #365 corrigiu-o. *Lição: `MERGED` não é o mesmo que "está na main".*
-
-**Os 2 HIGH da remediação — a única categoria bloqueante deste projecto:**
-
-- `degrau_da_reserva` **era ficção**: a escada saíra na 3.ª ronda e o helper que
-  a explicava ficou. O painel publicava "1-em-5" enquanto 8 reservadas estavam
-  fora desse degrau e 39 do degrau fora da reserva.
-- **O spoof do dono não estava fechado e eu dei a entender que estava.**
-  `/triagem` faz `body.por || 'dono'`; fechei só o caso sem `Origin` **e** sem
-  `por`. Não se fecha sem credencial no canal — e uma credencial que o painel
-  serve lê-se com um `GET`. **Passa a contar-se:** `dono_via_painel` /
-  `dono_sem_painel`. Contar o que não se consegue impedir é mais honesto do que
-  fingir que se impediu.
-
-**Fica por fazer, declarado no #366:** os três scripts de varredura param na
-primeira colisão (`registarVarias` só ligado ao tique) · o tique desalinha o
-`pilar` quando há recusadas · a fracção do dia não chega à detecção por pilar ·
-actos futuros no mesmo dia passam · o ledger aceita `{}` como recibo. Nenhum faz
-o painel mentir; nenhum dispara nos dados de hoje.
-
-gate: 760 pass / 0 fail (`npm run test:cockpit-runner`) · classify.js `427d8c0b` intacto
-
 ### 2026-08-25 (2) · o L1 está LIGADO — e a ligação destapou um impasse de janela
 
 **`main` @ `aa3d4ca5` · L1 `nivel: 1` · 118 achados fechados em ~4 min.**
@@ -560,3 +505,52 @@ volte a ser uma decisão com um pilar novo atrás, e não um gesto.
 é estático) — até ser reiniciado continua a moer P2/P3.
 
 gate: 762 testes · 761 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (fecho) · #373 e #375 em `main`; a máquina corre o que foi decidido
+
+**`main` @ `9c54af2c`.** Fecho da cadeia que começou com a FASE 0 a refutar o
+masterprompt do gate L0.
+
+**[#373](https://github.com/pauloloureiroshp-ship-it/mooter/pull/373) merged** —
+14/14 checks verdes, incluindo `cockpit tests (windows)`. Verificado por
+**avaliação**, não pelo estado do PR: `PILLAR_IDS` em `main` é `[]`, catálogo com
+11, `P2.activo`/`P3.activo` a `false`. `MERGED` nunca provou que o conteúdo está
+lá — já custou um PR nesta mesma cadeia.
+
+**O runner reiniciado, e o `sha_carregado` a prová-lo:** `b24d8359b16e` →
+`356f4e3d2309` → `9c54af2c5df8`. Um `import` é estático, portanto o merge
+sozinho não muda o que a máquina corre. O estado que ele escreve de si próprio
+passou a `pausa: "no eligible loop (all capped / paused / suspended)", fila 0` —
+**o loop está parado e diz porquê**, que é a diferença entre uma decisão e uma
+avaria.
+
+**[#374](https://github.com/pauloloureiroshp-ship-it/mooter/issues/374) →
+[#375](https://github.com/pauloloureiroshp-ship-it/mooter/pull/375), e o
+diagnóstico que eu tinha dado estava errado.** Disse que o `self-check` não
+verificava o remoto; verifica. O que existia era uma **janela**: o publicador faz
+`commit` → `pull --rebase` → `push`, e o `launch.mjs` arranca o loop e verifica
+logo a seguir — apanha a janela quase de propósito. Medido no reflog do vault:
+commit `08:51:01`, aviso impresso, push `08:51:06`. O `git push` sugerido
+respondia `Everything up-to-date`.
+
+Corrigidas as duas causas: a pergunta passou a ser sobre **o beacon**
+(`log <range> -- <ficheiro>`) e não sobre o repo (`rev-list @{u}..HEAD` acusava
+o beacon por causa de um commit do dono no vault); e abaixo de uma passagem do
+publicador o item é `n/d` sem `resolver`, portanto sai de *"FALTA O TEU GESTO"*.
+
+**O detalhe que não estava na issue:** o discriminador tem de ser o commit **mais
+antigo** por publicar. Um publicador avariado reescreve o beacon a cada ronda e
+deixa sempre um commit de segundos atrás — com o mais recente ficaria mudo para
+sempre. Trocar um alarme falso por um **silêncio** falso é pior. Há um teste só
+para isso.
+
+**Prova em campo, não só em teste:** `launch.mjs --status` passou a imprimir
+`alinhamento tudo em dia`, sem um único item na secção do dono. Primeira vez no
+dia.
+
+**A decisão que fica em aberto** (e que não é para o fim de uma sessão longa):
+pilar novo desenhado contra o modo de falha dos onze — nenhum deles perguntava
+*"isto parte alguma coisa?"*, todos produziam observações verdadeiras e inúteis —,
+ou ir à dívida declarada no #366, ou desligar o loop de vez.
+
+gate: 766 testes · 765 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
