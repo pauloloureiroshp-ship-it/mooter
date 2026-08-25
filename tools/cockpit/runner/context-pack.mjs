@@ -91,6 +91,26 @@ export const PILLARS = {
   },
   P2: {
     label: 'Quality & Verification — does the seed value reach the output?',
+    /**
+     * ⛔ DESLIGADO 2026-08-25 — nao por gosto, por medicao. Decisao do dono.
+     *
+     * O NUMERO: dos 20 achados que o dono decidiu a mao, ONZE eram deste pilar
+     * e ele descartou os onze (`nao-e-um-problema`). Precisao medida: 0%.
+     *
+     * O QUE ELE PRODUZIA: sempre a mesma forma. "LINE 74: totalMb = 0",
+     * "LINE 45: scanned = 0", "LINE 33: added = 0" — a descricao de um `let`.
+     * Um deles apontava para o `tools/router/classify.js`, que e FROZEN e esta
+     * a fazer exactamente o que deve.
+     *
+     * O enunciado nao esta errado: "o valor semente chega a saida?" e uma boa
+     * pergunta. O que a medicao mostrou e que este pilar responde a uma versao
+     * mais fraca dela — enumera inicializacoes a zero e chama-lhes achado, sem
+     * nunca mostrar que o zero chega a lado nenhum.
+     *
+     * **Reversivel numa linha:** apagar este `activo: false`. Mas reactivar
+     * sem mudar o enunciado e repetir a medicao, nao contradize-la.
+     */
+    activo: false,
     files: [
       'tools/**/*.js',
       'packages/*/src/*.ts',
@@ -108,6 +128,33 @@ export const PILLARS = {
   },
   P3: {
     label: 'Docs vs Product — comment against code',
+    /**
+     * ⛔ DESLIGADO 2026-08-25 — nao por gosto, por medicao. Decisao do dono.
+     *
+     * O NUMERO: dos 20 achados que o dono decidiu a mao, OITO eram deste pilar
+     * e ele descartou os oito. Precisao medida: 0%.
+     *
+     * E HA UMA COISA PIOR DO QUE O ZERO. Tres dos oito citavam comentarios
+     * escritos NO PROPRIO DIA, nesta sessao, a documentar as correccoes que
+     * estavam a ser feitas — incluindo os que explicam porque e que um numero
+     * do painel era falso. E DOIS deles davam como "evidencia" a linha que
+     * FECHA um bloco de comentario — o par asterisco-barra, que nao e codigo
+     * nenhum. Isso nao e o comentario a divergir do codigo: e o instrumento a
+     * citar a linha errada e a chamar-lhe prova.
+     *
+     * (Escrever este comentario partiu o ficheiro a primeira tentativa, porque
+     * o par asterisco-barra literal fecha o bloco. O defeito que o P3 nao sabia
+     * ver e o mesmo que quase me apanhou a documenta-lo.)
+     *
+     * Um pilar que aponta para a documentacao acabada de escrever esta a medir
+     * a existencia de comentarios, nao a coerencia deles.
+     *
+     * **Reversivel numa linha:** apagar este `activo: false`. Mas o passo 2 do
+     * enunciado — "copia a linha de CODIGO que este comentario descreve" — tem
+     * de deixar de aceitar o fecho de um bloco de comentario como codigo antes
+     * de valer a pena.
+     */
+    activo: false,
     files: [
       'tools/cockpit/runner/*.mjs',
       'tools/router/*.js',
