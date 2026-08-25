@@ -596,36 +596,8 @@ Trabalho feito por **14** agentes em paralelo, um dono exclusivo por ficheiro.
 **Fica por fazer:** **seamless.js:405** tem o mesmo padrão no `ledgerRead` e é ele que engole o caso comum (ficheiro em falta, corrompido, permissão negada). Os `catch` corrigidos estão um andar acima e só disparam com injecção.
 
 gate: 806/805/0 cockpit · 1090/1089/0 bridge · 1158/1151/6 router (6 pré-existentes, diff vazio contra main) · classify.js `427d8c0b` intacto
+### 2026-08-25 (Mac · `mac/no-talo-m2b`, PR #390) · M2b — escopo declarado e fechado
 
-### 2026-08-25 (Mac · mac/no-talo-m2b) · escopo declarado e fechado — M2b
+Mutex respeitado: o PC está em `fix/ledger-read-raiz`; F1–F4 não foram abertos. O achado não foi o claim dos 47% — foi `claude-opus-4-6` marcado `pending` com a nota "No in-repo source", **falsa quando escrita** (`pricing.js:46` tem $5/$25 desde 2026-04-16). É o modelo T3 por omissão e estava fora do sort de custo do `decide-agent`. Preenchido do SSOT do repo; nada inventado. `claude-fable-5` ficou pending **de propósito** — precificá-lo sem resolver o `tier: T5` podia metê-lo num sort de custo, contra o invariante. Decisão do MEO. Portão novo `frescura-de-precos.test.mjs` no comando do CI: falha aos 30 dias, na divergência com o SSOT e em pending precificável. `_handoff/`: 180 pacotes arquivados (204→28), 30 citações reescritas, 0 penduradas. A ratificar pelo dono: fixture em `packages/router/tests/` fora do allowlist (não toquei no allowlist), baseline do ratchet, e 2 colisões de conteúdo divergente. Detalhe: `_handoff/cc-no-talo-progress.md` e PR #390.
 
-**Mutex respeitado.** O CC do PC está em `fix/ledger-read-raiz`; este executor trabalhou só em
-`mac/no-talo-m2b`, com PR, e não tocou em ficheiro nenhum do escopo do PC (F1/F2/F3/F4 do
-masterprompt não foram abertos).
-
-**Escopo:** F0 (confirmar factos) · M2b (superfícies que mentem) · gestos locais. Três commits.
-
-O achado com consequência não era o claim dos 47% — era o snapshot de preços. `claude-opus-4-6`
-estava marcado `pending` com a nota *"No in-repo source for Opus 4.6 pricing as of 2026-06-12"*, e
-essa nota **era falsa quando foi escrita**: `pricing.js:46` tem $5/$25 desde 2026-04-16, dois meses
-antes. É o modelo T3 por omissão do router e estava fora do sort por custo do `decide-agent`.
-Preenchido a partir do SSOT do próprio repo; nenhum preço inventado. `claude-fable-5` tem a mesma
-nota falsa e **ficou por preencher de propósito** — o SSOT dá-lhe preço e nenhum `tier`
-("priceable, not routable"), o snapshot dá-lhe `tier: T5`, e precificá-lo podia metê-lo num sort de
-custo contra o invariante de que T5 nunca é auto-roteado. **Decisão do MEO.**
-
-Portão novo: `frescura-de-precos.test.mjs`, ligado a `test:cockpit-runner`. Falha aos 30 dias, na
-divergência contra o SSOT vivo, e em `pending` que o SSOT sabe precificar.
-
-`_handoff/`: 180 pacotes de julho arquivados (204 → 28 pacotes activos), 30 citações reescritas, 0
-penduradas. Duas colisões de conteúdo divergente deixadas por resolver — é decisão do dono.
-
-**A ratificar:** uma edição de fixture em `packages/router/tests/cache-aware-cost.test.ts`, fora do
-allowlist da Wave 58. Não me auto-autorizei — o allowlist do `CLAUDE.md` não foi tocado.
-**Ratchet de higiene continua FAIL** pelas mesmas duas razões que já falhava em `main`
-(untracked packets, stash de 24/08). Não corri `--update-baseline`: subiria duas métricas.
-
-Detalhe completo em `_handoff/cc-no-talo-progress.md`.
-
-gate: 814/813/0 cockpit (+8 testes) · router 302/295/3 com diff **vazio** contra main · docs-hygiene
-12/12 · handoff-preflight 32/32 · classify.js `427d8c0b` intacto
+gate: 814/813/0 cockpit (+8) · router 302/295/3 com diff **vazio** contra main · docs-hygiene 12/12 · classify.js `427d8c0b` intacto
