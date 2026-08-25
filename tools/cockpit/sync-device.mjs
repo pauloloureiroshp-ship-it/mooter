@@ -134,6 +134,43 @@ async function main() {
     catch (e) { passo('índice do vault', 'mau', 'falhou', String(e.message).slice(0, 70)); }
   }
 
+  // ── 3b · o alias de leitura do vault ──────────────────────────────────────
+  //
+  // Medido a 2026-08-25: nos ultimos 7 dias o vault levou **1241 commits, dos
+  // quais 1204 sao beacons**. Um `git log` no vault e 97% telemetria — as
+  // decisoes, o canon e os learnings ficam enterrados debaixo dela.
+  //
+  // Nao ha nada a arranjar no publicador: ele publica por relogio precisamente
+  // para NAO dar milhares de commits, e ja e a versao economica. O que faltava
+  // era uma forma de LER sem a telemetria.
+  //
+  // ⚠️ A forma ingenua nao serve, e falha em SILENCIO:
+  //     git config alias.hlog "log --oneline -- :!50-fleet"
+  //     git hlog -8      ->  (vazio)
+  // O git anexa os argumentos ao FIM do alias, portanto o `-8` aterra depois do
+  // `--` e vira um PATHSPEC. Nao ha erro; ha zero linhas, que e pior. Por isso o
+  // alias e uma funcao de shell: assim os argumentos ficam antes do `--`.
+  if (!fs.existsSync(path.join(vault, '.git'))) {
+    passo('alias hlog do vault', 'n/d', 'sem vault montado nesta máquina');
+  } else {
+    const QUERIDO = '!f() { git log --oneline "$@" -- ":(exclude)50-fleet"; }; f';
+    let actual = null;
+    try { actual = git(['config', '--get', 'alias.hlog'], vault); } catch { actual = null; }
+    if (actual === QUERIDO) {
+      passo('alias hlog do vault', 'ok', 'git hlog = histórico sem telemetria');
+    } else if (SO_RELATA) {
+      passo('alias hlog do vault', 'aviso', actual ? 'configurado com outra forma' : 'em falta',
+        `git -C "${vault}" config alias.hlog '${QUERIDO}'`);
+    } else {
+      try {
+        git(['config', 'alias.hlog', QUERIDO], vault);
+        passo('alias hlog do vault', 'mudou', actual ? 'reescrito para a forma que aceita argumentos' : 'criado');
+      } catch (e) {
+        passo('alias hlog do vault', 'mau', 'não consegui escrever a config', String(e.message).slice(0, 70));
+      }
+    }
+  }
+
   // ── 4 · o conector ────────────────────────────────────────────────────────
   // O último passo, e o único que este script não fecha.
   let noRepo = null;

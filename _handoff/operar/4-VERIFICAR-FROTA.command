@@ -67,6 +67,36 @@ LOG="_handoff/verificar-frota.log"
     git --no-optional-locks log -3 --format='%h %ci %s' -- 50-fleet/
     echo "origin/main: $(git --no-optional-locks log -1 --format='%h %ci' origin/main)"
   }
+  echo "--- regra de eco: um handoff sem RELATORIO em 24h e um FALHO DECLARADO ---"
+  # Porque existe: um pacote entregue a um agente e um pacote que ninguem sabe
+  # se correu. Ate agora o silencio lia-se como "esta a correr"; le-se, com a
+  # mesma probabilidade, como "morreu na primeira linha e ninguem reparou".
+  # A regra e simples e mecanica: 24 h sem eco = falho, ate prova em contrario.
+  # Nao acusa ninguem — declara. Um falho declarado e trabalho; um falho em
+  # silencio e uma frota a fingir que trabalha.
+  cd "$REPO" && node -e '
+    const fs=require("fs"), path=require("path");
+    const dir="_handoff", H=24*3600*1000, agora=Date.now();
+    let pacotes=[];
+    try { pacotes=fs.readdirSync(dir).filter(n=>n.endsWith(".md")); } catch { console.log("  _handoff/ ilegivel"); process.exit(0); }
+    const falhos=[], vivos=[];
+    for (const n of pacotes) {
+      const p=path.join(dir,n);
+      let txt="", st=null;
+      try { txt=fs.readFileSync(p,"utf8"); st=fs.statSync(p); } catch { continue; }
+      // O eco pode estar no proprio pacote (a forma barata) ou num ficheiro
+      // irmao `*-RELATORIO.md` / `*-progress.md`. Qualquer das duas conta.
+      const temEco = /RELAT[OÓ]RIO|^\s*##?\s*RESULTADO|STATUS:\s*(feito|concluid)/im.test(txt)
+        || pacotes.some(o=>o!==n && o.startsWith(n.replace(/\.md$/,"")) && /RELATORIO|progress/i.test(o));
+      const idadeH=(agora-st.mtimeMs)/3600000;
+      if (temEco) vivos.push(n);
+      else if (idadeH>24) falhos.push([n, Math.round(idadeH)]);
+    }
+    console.log("  pacotes: "+pacotes.length+" · com eco: "+vivos.length+" · FALHOS DECLARADOS: "+falhos.length);
+    for (const [n,h] of falhos.sort((a,b)=>b[1]-a[1]).slice(0,10)) console.log("    falho ("+h+"h sem relatorio): "+n);
+    if (falhos.length>10) console.log("    ... e mais "+(falhos.length-10));
+  '
+
   cd "$REPO" && {
     echo "--- repo ---"
     [ -e .git/index.lock ] && echo "index.lock: PRESENTE" || echo "index.lock: ausente"
