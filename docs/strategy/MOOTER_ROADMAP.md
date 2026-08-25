@@ -1,6 +1,6 @@
 # 🐮🗺️ MOOTER — Roadmap de Waves (v3, breakdown por Squad)
 
-> **🎯 NOW = `_handoff/FOUNDATION_SUPER_MASTERPROMPT.md` → North Star F0–F5** (Notion 2026-07-13, por pilar: Resume · Plan · Route · Watch · Review). As waves W1–W16 abaixo **aguardam re-triagem (F5)** — não iniciar wave desta lista sem re-triagem.
+> **🎯 NOW = `_handoff/_archive/2026-07/FOUNDATION_SUPER_MASTERPROMPT.md` → North Star F0–F5** (Notion 2026-07-13, por pilar: Resume · Plan · Route · Watch · Review). As waves W1–W16 abaixo **aguardam re-triagem (F5)** — não iniciar wave desta lista sem re-triagem.
 
 > O plano vivo. Todo o backlog organizado em waves priorizadas, **alinhadas com a tese** e o confronto
 > SOTA 2026, com um **dono de squad** por wave (Team Topologies). Cada wave declara o **modo de execução**
@@ -46,7 +46,7 @@ princípio de execução (como trabalhar), não como tese (porquê existir). Pro
 |---|---|---|---|---|---|---|---|---|
 | W1 | Aterrar polish + verdes | 🛩️ Cockpit & UX | F1+F3+Site+MP0+forecast em prod | dynamic-workflow | frugal-land | M | — | ✅ done (06aec7a) |
 | W13 | 🛩️ Delivery Cockpit | 🛩️ Cockpit & UX | forecast (A) + Project Command (B) + adapters (C) | CC-once | frugal-cockpit-tab | L | W1 | 🟡 A✅ · B v1 salva · squad+WIP a fazer |
-| W15 | 🛰️ CTO Command Deck | 🛩️ Cockpit & UX | redesign plugin: inbox por exceção + 4 lentes + hardware strip + deep-link click→aba CC + link front↔back honesto | CC faseado (6 fases) | frugal-deck-* | L | W13 | 🔜 super masterprompt pronto (`_handoff/CTO_COMMAND_DECK_SPEC.md`) |
+| W15 | 🛰️ CTO Command Deck | 🛩️ Cockpit & UX | redesign plugin: inbox por exceção + 4 lentes + hardware strip + deep-link click→aba CC + link front↔back honesto | CC faseado (6 fases) | frugal-deck-* | L | W13 | 🔜 super masterprompt pronto (`_handoff/_archive/2026-06/CTO_COMMAND_DECK_SPEC.md`) |
 | W14 | 🔀 Comunicação | 🔀 Agent Comms | protocolo + P1+P2 + Níveis 2-4 | CC-once | frugal-comms | M | — | 🟡 protocolo✅ · P1+P2 |
 | W2 | 🧹 Housekeeping | 📊 Obs & Sustentação | arquivar legacy + consolidar docs + podar worktrees | Loop $0 | frugal-housekeep | M | — | 🔜 |
 | W3 | Distribuição + onboarding | 📦 Site & Distribution | republicar 0.16.45 + Install-Ready + onboarding educativo | CC-once | frugal-dist | S | W1 | 🔜 |
@@ -59,7 +59,7 @@ princípio de execução (como trabalhar), não como tese (porquê existir). Pro
 | W9 | 🧠 Gradient-free TTL | 🧠 Auto-Evolution | insight-distiller sobre o Ledger (ReasoningBank/JitRL, $0) | Loop $0 | frugal-ttl | M | W4 | 🔜 (subiu) |
 | W7 | Adapter Forge F1 | 🧠 Auto-Evolution | 1 adapter real (O-LoRA/OPLoRA, anti-forgetting) | Schedule | frugal-forge | L | W4 | 🔜 (base: adapter/) |
 | W6 | Budget Cockpit + obs | 📊 Obs & Sustentação | span-level + alerta + benchmarking contínuo | CC-once | frugal-budget | M | W5 | 🔜 (base: observability.ts) |
-| W16 | 🎬 Live Preview build-cinema | 🛩️ Cockpit & UX | App Stage (iframe dev server local, sem WebContainers) + Director's Cut + click-to-edit (`code-inspector-plugin`) + Build Receipt · dogfood no mooter.ai | CC faseado (MP0-MP4) | frugal-lp-* | L | W15 | 🔜 super masterprompt pronto (`_handoff/LIVE_PREVIEW_SUPER_MASTERPROMPT.md`) · BL-64 |
+| W16 | 🎬 Live Preview build-cinema | 🛩️ Cockpit & UX | App Stage (iframe dev server local, sem WebContainers) + Director's Cut + click-to-edit (`code-inspector-plugin`) + Build Receipt · dogfood no mooter.ai | CC faseado (MP0-MP4) | frugal-lp-* | L | W15 | 🔜 super masterprompt pronto (`_handoff/_archive/2026-07/LIVE_PREVIEW_SUPER_MASTERPROMPT.md`) · BL-64 |
 
 ## FASE FRONTIER — apostas SOTA (P2)
 | # | Wave | Squad | Objectivo | Modo | Worktree | Effort | Dep | Estado |

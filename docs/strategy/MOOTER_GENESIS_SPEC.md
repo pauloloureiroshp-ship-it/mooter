@@ -1,6 +1,6 @@
 # 🐮🌱 MOOTER GENESIS — spec viva do onboarding como produto
 
-> Cowork · 2026-07-17 · Tipo: SPEC VIVA (`docs/strategy/`) · Origem: `_handoff/PROJECT_GENESIS_MASTER_HANDOFF.md`
+> Cowork · 2026-07-17 · Tipo: SPEC VIVA (`docs/strategy/`) · Origem: `_handoff/_archive/2026-07/PROJECT_GENESIS_MASTER_HANDOFF.md`
 > (E0+E1+E1.5+E3 num só doc — decisão anti-fragmentação, ver §0). ⛔ STOP: revisão Paulo antes de
 > virar wave. Design-only — zero código nesta rodada. Web do dia 2026-07-17 confrontada (fontes no §8).
 
@@ -14,8 +14,8 @@ Regra: **1 assunto = 1 doc canônico**. Os outros viram fonte citada ou arquivam
 |---|---|---|
 | **Jornada de onboarding + mecânica por pilar + contrato de dados + UX da aba Genesis** | **ESTE doc** (`docs/strategy/MOOTER_GENESIS_SPEC.md`) | `PROJECT_GENESIS_MASTER_HANDOFF.md` → arquivar no PR que shipar; `MOOTER_ONBOARDING_WORLDCLASS_HANDOFF.md` → fonte dos R1–R12 (mapeados no §6), arquivar junto |
 | Requisitos R1–R12 + benchmark Roo + decisão do conector (superfície de tools) | `MOOTER_ONBOARDING_WORLDCLASS_HANDOFF.md` **até** este doc ser aprovado; aí o §3+§6 daqui assumem | — |
-| Skills que operam os botões (top-5 + specs + wave E4 delas) | `_handoff/MOOTER_SKILLS_MAP.md` | este doc só REFERENCIA |
-| Curadoria Project Zero (2-3 skills do `init`, classes de ativo A/B/C) | `_handoff/MOOTER_PROJECT_ZERO_BLUEPRINT.md` | este doc só REFERENCIA (§2 usa as classes) |
+| Skills que operam os botões (top-5 + specs + wave E4 delas) | `_handoff/_archive/2026-07/MOOTER_SKILLS_MAP.md` | este doc só REFERENCIA |
+| Curadoria Project Zero (2-3 skills do `init`, classes de ativo A/B/C) | `_handoff/_archive/2026-07/MOOTER_PROJECT_ZERO_BLUEPRINT.md` | este doc só REFERENCIA (§2 usa as classes) |
 | Prova/estado/checks (setup-state, Radar N1–N4, prova-ou-cinza) | `_handoff/SETUP_RADAR_MASTERPROMPT.md` + EMENDA | Genesis NÃO cria checks novos — projeta os do Radar |
 | Contrato de mensagens tipadas (P4 frontmatter, budgets, 4 tipos) | `docs/agent-context/AGENT_CONTEXT_PROTOCOL.md` (#255) | ⚠️ relação payload §2.4 ↔ P4 em decisão (STOP-1 — ver nota no §2.4) |
 | Auto-setup pipeline (DETECT→SCAFFOLD→MESH→PROVE) | `MOO_HARMONY_MESH_BLUEPRINT.md` §2 (Mesh fase C) | Genesis é a SUPERFÍCIE desse pipeline no plugin |

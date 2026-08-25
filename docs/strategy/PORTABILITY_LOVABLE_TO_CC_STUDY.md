@@ -2,8 +2,8 @@
 
 > **Data:** 2026-07-05 · **Fontes:** 6 páginas Notion da migração real do Marley Living (mar 2026) +
 > pesquisa web 2026-07 (docs Lovable/Bolt/v0/Cursor/Supabase/Vercel + comunidade) +
-> `_handoff/LIVE_PREVIEW_FEATURE_STUDY.md`.
-> **Séries irmãs:** `MOOVE_PRODUCT_DESIGN.md` · `_handoff/MOOVE_MVP_MASTERPROMPT.md`.
+> `_handoff/_archive/2026-07/LIVE_PREVIEW_FEATURE_STUDY.md`.
+> **Séries irmãs:** `MOOVE_PRODUCT_DESIGN.md` · `_handoff/_archive/2026-07/MOOVE_MVP_MASTERPROMPT.md`.
 
 ---
 
@@ -140,12 +140,12 @@ O Marley provou o **paralelo**: Lovable vivo como fallback, prod no Vercel, Supa
 
 ❄️ **Decisão Paulo 2026-07-05: BACKLOG** — nome **Moove**; fazer mais à frente com maestria, sem descarrilar o foco actual. Item **Parked · P1 · Impacto 9 · Esforço 6 · Frente GTM** no Mooter Backlog (Notion); espelhos integrais deste estudo + desenho + masterprompt + pesquisa bruta na página Moove do HQ Mooter; learnings duráveis no vault (`30-learnings/portabilidade-vibe-tools-pesquisa-2026-07-05.md`).
 
-**Gate de arranque (quando sair do ❄️):** refrescar a pesquisa web (domínio muda <30 dias) + auditar traction do `lovable-eject` → colar `_handoff/MOOVE_MVP_MASTERPROMPT.md` em sessão CC fresca (`wave/moove-mvp`) → gate MVP: E2E na fixture + dogfood re-migrando o Marley + 0 incidentes de secrets.
+**Gate de arranque (quando sair do ❄️):** refrescar a pesquisa web (domínio muda <30 dias) + auditar traction do `lovable-eject` → colar `_handoff/_archive/2026-07/MOOVE_MVP_MASTERPROMPT.md` em sessão CC fresca (`wave/moove-mvp`) → gate MVP: E2E na fixture + dogfood re-migrando o Marley + 0 incidentes de secrets.
 
 ---
 
 ## 10. Fontes
 
-**Internas:** Notion Marley (Plano Completo 3216f6e4 · Base de Conhecimento 3246f6e4-8113 · Prompt Migração 3226f6e4 · Master Prompt Auditoria 3236f6e4-81a6 · Master Prompt Sincronização 3236f6e4-815c · Estratégia Paralelo 3246f6e4-8109) · `_handoff/LIVE_PREVIEW_FEATURE_STUDY.md`.
+**Internas:** Notion Marley (Plano Completo 3216f6e4 · Base de Conhecimento 3246f6e4-8113 · Prompt Migração 3226f6e4 · Master Prompt Auditoria 3236f6e4-81a6 · Master Prompt Sincronização 3236f6e4-815c · Estratégia Paralelo 3246f6e4-8109) · `_handoff/_archive/2026-07/LIVE_PREVIEW_FEATURE_STUDY.md`.
 
 **Web (jul 2026, selecção):** docs.lovable.dev (github · supabase · external-deployment-hosting · deployment-hosting-ownership · custom-domain · credits-and-usage) · supabase.com/docs (local-development · db-pull · backup-restore · migrating-auth-users · functions/secrets · redirect-urls · identify-lovable-cloud-or-supabase-backend) · github.com/supabase/supabase/issues/45388 · support.bolt.new (projects-files · git · supabase · lovable-import) · v0.app/docs (github · pricing · download-version) · vercel.com/docs (cli/env · project-linking · domains) · github.com/ABS-Projects-2026/lovable-eject · techcrunch.com (Cursor pricing apology) · trustpilot.com/review/lovable.dev · diploi.com · shipper.now · vibe-rescue.dev · npmjs.com/package/lovable-tagger · repo real verificado: github.com/wickathou/soundboarded.

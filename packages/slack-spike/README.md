@@ -9,7 +9,7 @@ workspace (o do Paulo), canal `#mooter-demo`, **um** id na allowlist.
 - **Não copiar para o produto** sem frente própria com G4. Todos os ficheiros levam
   o aviso no topo.
 
-Origem: `_handoff/MASTERPROMPT_SLACK_SPIKE_2026-08-17.md` (v1.1, 4400 bytes,
+Origem: `_handoff/_archive/2026-08/MASTERPROMPT_SLACK_SPIKE_2026-08-17.md` (v1.1, 4400 bytes,
 sha256 `7a608ed2…`). G4 pré-entrega: kimi-k3 (job-msx255a9-cd52, $0,088) — 4 ALTO
 + 5 BAIXO incorporados.
 

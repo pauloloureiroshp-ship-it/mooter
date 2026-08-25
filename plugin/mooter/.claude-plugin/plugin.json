@@ -1,6 +1,6 @@
 {
   "name": "mooter",
-  "description": "The router for Claude Code — routes every prompt to the cheapest capable model (local Ollama, Haiku, Sonnet, Opus). Hook, not proxy: never intercepts your API traffic. 47% measured savings on the author's machine, methodology published. Local-first, risk-aware, MIT.",
+  "description": "The router for Claude Code — routes every prompt to the cheapest capable model (local Ollama, Haiku, Sonnet, Opus). Hook, not proxy: never intercepts your API traffic. Same results, a fraction of the spend, zero code changes. Methodology published. Local-first, risk-aware, MIT.",
   "version": "1.49.4",
   "author": {
     "name": "Paulo Loureiro",
