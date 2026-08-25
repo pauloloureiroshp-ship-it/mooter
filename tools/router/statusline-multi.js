@@ -1203,14 +1203,17 @@ function renderTwoLine(ctx, opts = {}) {
   // Wave 29 (29.J) — opt-in line 3 (synthesis chips). Default OFF → lines 1-2 are
   // byte-for-byte unchanged. Enable via preferences.json {"statusline_line3":true}
   // or MOOTER_STATUSLINE_LINE3=1. Defensive: any failure → no line 3.
-  const line3 = buildLine3(opts.forceLine3, ctx.sessionId);
+  // `opts.home` viaja com o resto das preferencias (linha 1392, readLayoutPref).
+  // Sem ele, buildLine3 lia o ~/.mooter do dono REAL e um teste com HOME
+  // injectado media a maquina de quem corre a suite, nao o caso que descreve.
+  const line3 = buildLine3(opts.forceLine3, ctx.sessionId, opts.home);
   return line3 ? `${line1}\n${line2}\n${line3}` : `${line1}\n${line2}`;
 }
 
 // Wave 29 (29.J) — assemble the opt-in line-3 synthesis chips (compression ·
 // setup · ecosystem). Each helper returns null when its layer is inactive, and
 // any throw is swallowed so the statusline can never be broken by line 3.
-function buildLine3(force, selfSessionId) {
+function buildLine3(force, selfSessionId, home) {
   // Wave 32 (Phase B) — explicit statusline modes can force line 3 on (full) or
   // off (compact). `force` undefined → unchanged opt-in behavior (byte-identical).
   if (force === false) return null;
@@ -1222,7 +1225,8 @@ function buildLine3(force, selfSessionId) {
     || process.env.MOOTER_STATUSLINE_CCAF === '1';
   if (!on) {
     try {
-      const prefs = JSON.parse(fs.readFileSync(path.join(require('os').homedir(), '.mooter', 'preferences.json'), 'utf8'));
+      const raiz = home || require('os').homedir();
+      const prefs = JSON.parse(fs.readFileSync(path.join(raiz, '.mooter', 'preferences.json'), 'utf8'));
       on = prefs.statusline_line3 === true;
     } catch { on = false; }
   }
@@ -1399,10 +1403,17 @@ function renderResolved(ctx, opts = {}) {
       if (out !== null && out !== undefined) return applyLayout(out, layout, width);
     }
   } catch { /* fall through to adaptive default */ }
+  // `opts` viaja para o renderTwoLine. O comentario acima promete desde a Wave 55
+  // que `render()` e HOME-isolavel; ate aqui a promessa parava no `resolveLayout`
+  // e no `readMode`, e o `renderTwoLine` caia no `os.homedir()` real. Um teste que
+  // injecta HOME media a maquina de quem corre a suite: com
+  // `~/.mooter/preferences.json` = {"statusline_line3":true} no disco do dono,
+  // o layout largo devolvia 3 linhas onde o teste descreve 2 — verde no CI, vermelho
+  // na maquina dele, e nenhum dos dois a falar do codigo.
   if (layout === 'narrow') return renderNarrow(ctx, width);
-  if (layout === 'wide') return renderTwoLine(ctx);
+  if (layout === 'wide') return renderTwoLine(ctx, opts);
   // medium — the pre-50-51 behavior preserved (2 lines only at the threshold).
-  return width >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx) : renderFromContext(ctx);
+  return width >= TWO_LINE_THRESHOLD ? renderTwoLine(ctx, opts) : renderFromContext(ctx);
 }
 
 async function buildContext() {
