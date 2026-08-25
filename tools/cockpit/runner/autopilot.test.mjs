@@ -1101,6 +1101,74 @@ test('ESCRITA PARCIAL: erros REAIS separam-se das colisoes esperadas', async () 
 });
 
 /**
+ * `registarVarias` compacta as recusadas. Emparelhar `escritas[i]` com
+ * `actos[i]` fazia a escrita seguinte herdar o pilar da chave recusada: o
+ * alarme dizia que P2 drenou uma decisao que era de P3. Para tornar a corrida
+ * deterministica, a decisao do dono entra logo depois da primeira escrita.
+ */
+test('F5/2: uma recusa a meio nao desloca o pilar das escritas seguintes', async () => {
+  const ledger = path.join(HOME_TMP, 'runner-ledger.jsonl');
+  const triagem = path.join(HOME_TMP, 'triagem.jsonl');
+  const autopilot = path.join(HOME_TMP, 'autopilot.json');
+  for (const f of [ledger, triagem, autopilot]) fs.rmSync(f, { force: true });
+
+  const agora = Date.now();
+  const historico = [];
+  for (let diasAtras = 3; diasAtras >= 1; diasAtras -= 1) {
+    const ts = new Date(agora - diasAtras * 86_400_000).toISOString();
+    for (let i = 0; i < 30; i += 1) historico.push({
+      ts, chave: `hist-${diasAtras}-${i}`, decisao: 'descartado', motivo: 'trivial',
+      por: 'agente', via: 'autopilot-l1', pilar: 'P2',
+    });
+  }
+  fs.writeFileSync(triagem, historico.map((x) => JSON.stringify(x)).join('\n') + '\n');
+
+  const recibos = Array.from({ length: 80 }, (_, i) => ({
+    ...achado({
+      chave: `novo-${i}`, pilar: 'P9', ficheiro: 'tools/x.js',
+      evidencia: 'tools/x.js:1 => gap: 4', resultado_resumo: 'ACHADO: gap repetido',
+      conclusao: 'achado', verdict: 'citacao-ok',
+    }),
+  }));
+  const { porTriar } = await import('./triagem.mjs');
+  const seleccionados = curar(porTriar(recibos, new Map(), Number.MAX_SAFE_INTEGER), { jaDoDono: 0 });
+  assert.ok(seleccionados.length >= 3, 'o fixture precisa de tres actos para criar a colisao ao meio');
+  for (const [i, pilar] of ['P1', 'P2', 'P3'].entries()) {
+    recibos.find((r) => r.chave === seleccionados[i].chave).pilar = pilar;
+  }
+  fs.writeFileSync(ledger, recibos.map((x) => JSON.stringify(x)).join('\n') + '\n');
+  fs.writeFileSync(autopilot, JSON.stringify({ nivel: 1, orcamento: ORCAMENTO_OMISSAO }));
+
+  const { srv, fechar } = await servidorEfemero();
+  const appendOriginal = fs.appendFileSync;
+  let injectou = false;
+  fs.appendFileSync = function appendComColisao(caminho, dados, ...resto) {
+    const resultado = appendOriginal.call(this, caminho, dados, ...resto);
+    let entrada = null;
+    try { entrada = JSON.parse(String(dados).trim()); } catch { /* nao e a linha do teste */ }
+    if (!injectou && path.resolve(String(caminho)) === path.resolve(triagem) && entrada && entrada.por === 'agente') {
+      injectou = true;
+      appendOriginal.call(this, caminho, `${JSON.stringify({
+        ts: new Date().toISOString(), chave: seleccionados[1].chave, decisao: 'aceite', por: 'dono',
+      })}\n`);
+    }
+    return resultado;
+  };
+
+  let dito = '';
+  try {
+    srv.tiqueCurar((s) => { dito += s; });
+  } finally {
+    fs.appendFileSync = appendOriginal;
+    await fechar();
+    for (const f of [ledger, triagem, autopilot]) fs.rmSync(f, { force: true });
+  }
+  assert.equal(injectou, true, 'o fixture tem de ter criado a colisao');
+  assert.match(dito, /P2 30→0 \(caiu\)/,
+    `P2 nao recebeu escrita hoje; se aparecer 30→1, herdou a escrita de P3: ${dito}`);
+});
+
+/**
  * `ownerDay(NaN)` atira `RangeError`. Um alarme que mata o tique porque o
  * relogio veio estranho e pior do que um alarme que se cala.
  */
@@ -1134,6 +1202,26 @@ test('DIA INCOMPLETO: de madrugada nao ha alarme de queda; ao fim do dia ha', ()
 });
 
 /**
+ * O agregado ja comparava uma manha com a fraccao de dia decorrida, mas cada
+ * pilar comparava a mesma manha com um dia inteiro. Assim "P2 esta normal as
+ * 09:00" era indistinguivel de "P2 caiu", apesar de os mesmos actos absolverem
+ * o agregado. A fraccao tem de chegar aos dois testes.
+ */
+test('F5/3: a fraccao do dia tambem escala a queda por pilar', () => {
+  const porPilar = (d, n) => Array.from({ length: n }, (_, i) => ({
+    ts: `${d}T10:${String(i % 60).padStart(2, '0')}:00Z`, chave: `${d}-${i}`, pilar: 'P2',
+  }));
+  const historia = [
+    ...porPilar('2026-08-21', 24), ...porPilar('2026-08-22', 24),
+    ...porPilar('2026-08-23', 24), ...porPilar('2026-08-24', 3),
+  ];
+  // 12:00Z = 09:00 do dono: 24/dia projecta 9 ate agora, abaixo do minimo 10.
+  const r = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-24T12:00:00Z') });
+  assert.equal(r.anomalia, false, 'o pilar e o agregado têm de comparar a mesma fraccao de dia');
+  assert.deepEqual(r.suspeitos, []);
+});
+
+/**
  * Um acto com `ts` no FUTURO fazia `ultimo` saltar para o dia futuro, e o dia
  * real nem chegava a ser olhado — a paragem de hoje ficava escondida.
  */
@@ -1146,4 +1234,23 @@ test('FUTURO: um acto com data futura nao esconde a paragem de hoje', () => {
   assert.equal(r.ultimo, '2026-08-24', 'o dia de amanha nao e hoje');
   assert.equal(r.hoje, 0);
   assert.equal(r.anomalia, true, 'a paragem continua visivel');
+});
+
+/**
+ * Remover apenas dias posteriores nao chega: `02:00Z` de amanha ainda e 23:00
+ * no dia do dono. Esses actos futuros ficavam no balde de hoje e "ja aconteceu"
+ * era indistinguivel de "ainda vai acontecer", escondendo uma paragem real.
+ */
+test('F5/4: instantes futuros dentro do dia do dono nao contam como feitos', () => {
+  const futurosNoMesmoDia = Array.from({ length: 12 }, (_, i) => ({
+    ts: `2026-08-25T02:${String(i).padStart(2, '0')}:00Z`, chave: `futuro-hoje-${i}`,
+  }));
+  const historia = [
+    ...dia('2026-08-21', 24), ...dia('2026-08-22', 24), ...dia('2026-08-23', 24),
+    ...futurosNoMesmoDia,
+  ];
+  // 15:00Z = 12:00 do dono em 24/08; 02:xxZ de 25/08 = 23:xx do MESMO dia.
+  const r = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-24T15:00:00Z') });
+  assert.equal(r.hoje, 0, 'um instante posterior a `agora` nunca e trabalho ja feito');
+  assert.equal(r.anomalia, true, 'sem os actos do futuro, a paragem de hoje fica visivel');
 });

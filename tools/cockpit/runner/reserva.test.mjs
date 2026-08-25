@@ -112,7 +112,12 @@ test('ACEITACAO E2E: com reserva o ciclo NAO despacha, e avisa uma vez so', asyn
     pillarsImpl: catalogoDeEnsaio,
     argv: [], maxRounds: 8, logImpl: (m) => logs.push(m),
     publishBeaconImpl: async () => {}, sleepImpl: async () => {},
-    runRoundImpl: async () => { despachou += 1; return { receipt: { motor_ok: true, verdict: 'sem-achado' } }; },
+    // O duplo representa uma ronda REAL: sem instante e pilar seria apenas JSON
+    // valido, indistinguivel do `{}` que o ledger passou agora a recusar.
+    runRoundImpl: async () => {
+      despachou += 1;
+      return { receipt: { ts: '2026-08-18T00:00:00Z', pilar: 'P2', motor_ok: true, verdict: 'sem-achado' } };
+    },
   });
   assert.equal(despachou, 0, 'uma reserva activa tem de calar o despacho');
   // Um aviso por volta durante duas horas e a mesma inundacao que o disjuntor
@@ -139,7 +144,10 @@ test('ACEITACAO E2E: passado o prazo, o ciclo volta ao trabalho sem ninguem inte
     pillarsImpl: catalogoDeEnsaio,
     argv: [], maxRounds: 3, logImpl: () => {},
     publishBeaconImpl: async () => {}, sleepImpl: async () => {},
-    runRoundImpl: async () => { despachou += 1; return { receipt: { motor_ok: true, verdict: 'sem-achado' } }; },
+    runRoundImpl: async () => {
+      despachou += 1;
+      return { receipt: { ts: '2026-08-18T00:00:00Z', pilar: 'P2', motor_ok: true, verdict: 'sem-achado' } };
+    },
   });
   assert.equal(despachou, 3, 'a maquina volta ao runner sozinha — e a diferenca para o STOP');
 });

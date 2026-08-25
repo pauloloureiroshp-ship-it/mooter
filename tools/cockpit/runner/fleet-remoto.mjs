@@ -36,7 +36,7 @@ function gitRun(cwd, args, runImpl) {
   const r = runImpl
     ? runImpl(cwd, args)
     : execFileSync('git', args, {
-        cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS,
+        cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS, windowsHide: true,
         stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 4 * 1024 * 1024,
       });
   return String(r == null ? '' : r).trim();

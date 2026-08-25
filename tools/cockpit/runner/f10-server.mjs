@@ -344,7 +344,11 @@ export function createServer({
       // excepcao, e uma excepcao a meio de um `for` deixava metade do trabalho
       // feito e o log a dizer que a fila ficara intacta.
       const r = registarVarias(triagemFile, actos.map((a) => ({ ...a, via: 'autopilot-l1' })));
-      const escritos = r.escritas.map((e, i) => ({ ...e, pilar: (actos[i] && actos[i].recibo && actos[i].recibo.pilar) || null }));
+      // A entrada persistida JA leva o pilar do seu recibo. Reassocia-la por
+      // indice fazia "a segunda escrita" ser indistinguivel de "o segundo
+      // acto": depois de uma recusa o lote compacta `escritas`, e o alarme
+      // atribuía a escrita seguinte ao pilar recusado.
+      const escritos = r.escritas;
       feitos = r.escritas.length;
       if (r.recusadas.length) logImpl(`autopilot L1: ${r.recusadas.length} nao escritas — o dono ja decidiu essas chaves
 `);
