@@ -30,7 +30,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ehAchado, chaveDoRecibo, lerTriagem, registarTriagem } from './triagem.mjs';
+import { ehAchado, chaveDoRecibo, lerTriagem, registarVarias } from './triagem.mjs';
 import { PILLAR_IDS } from './context-pack.mjs';
 
 export const MOTIVO = 'instrumento-nao-discrimina';
@@ -95,19 +95,24 @@ function principal() {
   }
 
   const ts = registos[registos.length - 1]?.ts || null;
-  let escritas = 0;
-  for (const a of anular) {
-    registarTriagem(triagemFile, {
+  // Uma colisao a meio fazia "apliquei a varredura" ser indistinguivel de
+  // "escrevi ate a primeira decisao do dono". O lote tenta todas as chaves e
+  // separa recusas esperadas de erros reais; sem essas contagens, a fila podia
+  // ficar parcialmente anulada com uma mensagem de sucesso inteira.
+  const r = registarVarias(triagemFile, anular.map((a) => ({
       chave: a.chave,
       decisao: 'descartado',
       motivo: MOTIVO,
       por: 'claude',
       nota: `pilar ${a.pilar} reprovou o ensaio do defeito semeado e foi desligado; o achado nao foi lido nem julgado`,
       ...(ts ? { ts } : {}),
-    });
-    escritas += 1;
+    })));
+  if (r.recusadas.length) console.log(`  ${r.recusadas.length} nao escritas — o dono ja decidiu essas chaves`);
+  if (r.erros.length) {
+    console.log(`  ${r.erros.length} falharam por outra razao: ${r.erros[0].porque.slice(0, 160)}`);
+    process.exitCode = 1;
   }
-  console.log(`\n${escritas} decisoes escritas em ${triagemFile} (append-only, por=claude)`);
+  console.log(`\n${r.escritas.length} decisoes escritas em ${triagemFile} (append-only, por=claude)`);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('voidar-fila.mjs')) principal();

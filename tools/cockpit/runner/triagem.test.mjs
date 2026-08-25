@@ -253,3 +253,19 @@ test('CANAL: `via` fica na linha, e distingue-se de quem assina', () => {
   assert.equal(decisoes.get('a').via, 'painel');
   assert.equal(decisoes.get('b').via, undefined);
 });
+
+/**
+ * As tres varreduras pareciam independentes porque cada acto era valido, mas
+ * uma colisao com uma decisao do dono tornava "varri tudo" indistinguivel de
+ * "parei na primeira chave protegida". O lote ja sabe saltar a colisao; este
+ * teste trava a ligacao dos tres chamadores a essa unica implementacao.
+ */
+test('F5/1: as tres varreduras usam registarVarias em vez de parar na primeira colisao', () => {
+  for (const nome of ['voidar-fila.mjs', 'fora-do-enunciado.mjs', 'refutado-pela-fonte.mjs']) {
+    const codigo = fs.readFileSync(new URL(`./${nome}`, import.meta.url), 'utf8');
+    assert.ok(/import\s*\{[^}]*\bregistarVarias\b[^}]*\}\s*from '\.\/triagem\.mjs'/s.test(codigo),
+      `${nome} ainda nao importa o escritor em lote`);
+    assert.ok(/\bregistarVarias\(triagemFile,/.test(codigo),
+      `${nome} ainda escreve uma decisao de cada vez`);
+  }
+});

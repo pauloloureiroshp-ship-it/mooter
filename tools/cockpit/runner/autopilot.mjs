@@ -518,6 +518,9 @@ export const ANOMALIA_MIN = 10;
  *            base:number|null, anomalia:boolean, porque:string}}
  */
 export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN, porPilar = true, agora = null } = {}) {
+  const agoraMs = typeof agora === 'number' ? agora
+    : (agora instanceof Date ? agora.getTime() : null);
+  const agoraValido = agoraMs != null && Number.isFinite(agoraMs);
   const porDia = {};
   const porDiaPilar = {};
   for (const f of fechados || []) {
@@ -527,6 +530,10 @@ export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = A
     // `ownerDay` e a fonte unica — nao se reescreve o fuso aqui.
     const t = Date.parse(String((f && f.ts) || ''));
     if (!Number.isFinite(t)) continue;
+    // Apagar apenas DIAS futuros deixava passar instantes posteriores dentro
+    // do dia do dono. "Aconteceu hoje" ficava indistinguivel de "vai acontecer
+    // hoje", e doze actos das 23:00 podiam esconder uma paragem ao meio-dia.
+    if (agoraValido && t > agoraMs) continue;
     const d = ownerDay(t);
     porDia[d] = (porDia[d] || 0) + 1;
     if (porPilar) {
@@ -552,9 +559,6 @@ export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = A
   // `typeof` e nao `Number()`: `Number([])` e 0, e um array vazio virava a
   // meia-noite de 1970. Aceita-se um numero finito ou uma `Date` valida, e
   // mais nada.
-  const agoraMs = typeof agora === 'number' ? agora
-    : (agora instanceof Date ? agora.getTime() : null);
-  const agoraValido = agoraMs != null && Number.isFinite(agoraMs);
   let fraccaoDoDia = 1;
   if (agoraValido) {
     const hojeReal = ownerDay(agoraMs);
@@ -604,8 +608,12 @@ export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = A
     const antes = dias.slice(0, -1).map((d) => mapa[d] || 0);
     if (!antes.length) continue;
     const baseP = mediana([...antes].sort((a, b) => a - b));
+    // O agregado ja escala a queda pelo pedaço de dia decorrido. Usar `baseP`
+    // inteiro aqui fazia "P2 normal as 09:00" ser indistinguivel de "P2
+    // morreu", apesar de os mesmos numeros absolverem o agregado.
+    const baseEsperadaP = baseP * fraccaoDoDia;
     if (baseP > 0 && hojeP >= minimo && hojeP >= baseP * factor) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'subiu' });
-    else if (baseP >= minimo && hojeP * factor <= baseP) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'caiu' });
+    else if (baseEsperadaP >= minimo && hojeP * factor <= baseEsperadaP) suspeitos.push({ pilar: p, hoje: hojeP, base: baseP, direccao: 'caiu' });
   }
 
   const anomalia = subiu || caiu || suspeitos.length > 0;

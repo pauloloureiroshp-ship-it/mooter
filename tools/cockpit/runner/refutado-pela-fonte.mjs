@@ -38,7 +38,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { ehAchado, chaveDoRecibo, lerTriagem, registarTriagem } from './triagem.mjs';
+import { ehAchado, chaveDoRecibo, lerTriagem, registarVarias } from './triagem.mjs';
 
 export const MOTIVO = 'nao-e-um-problema';
 
@@ -105,7 +105,7 @@ const leitor = (() => {
     const k = `${sha}:${ficheiro}`;
     if (!cache.has(k)) {
       try {
-        const b = showImpl ? showImpl(k) : execFileSync('git', ['show', k], { encoding: 'utf8', maxBuffer: 2e7 });
+        const b = showImpl ? showImpl(k) : execFileSync('git', ['show', k], { encoding: 'utf8', maxBuffer: 2e7, windowsHide: true });
         cache.set(k, String(b).split('\n'));
       } catch { cache.set(k, null); }
     }
@@ -146,17 +146,23 @@ function principal() {
 
   if (!aplicar) { console.log('\nENSAIO — nada escrito. Para aplicar: --aplicar'); return; }
   const ts = registos[registos.length - 1]?.ts || null;
-  for (const f of fora) {
-    registarTriagem(triagemFile, {
+  // Uma colisao a meio fazia "refutei a lista" ser indistinguivel de "refutei
+  // o prefixo antes da decisao do dono". O lote continua depois da recusa e as
+  // contagens dizem quanto foi realmente escrito — nao quanto foi planeado.
+  const r = registarVarias(triagemFile, fora.map((f) => ({
       chave: f.chave,
       decisao: 'descartado',
       motivo: MOTIVO,
       por: 'claude',
       nota: `${f.pilar}: a fonte desmente a afirmacao (verificado em ${f.ficheiro} no sha do achado)`,
       ...(ts ? { ts } : {}),
-    });
+    })));
+  if (r.recusadas.length) console.log(`  ${r.recusadas.length} nao escritas — o dono ja decidiu essas chaves`);
+  if (r.erros.length) {
+    console.log(`  ${r.erros.length} falharam por outra razao: ${r.erros[0].porque.slice(0, 160)}`);
+    process.exitCode = 1;
   }
-  console.log(`\n${fora.length} decisoes escritas em ${triagemFile} (append-only, por=claude)`);
+  console.log(`\n${r.escritas.length} decisoes escritas em ${triagemFile} (append-only, por=claude)`);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('refutado-pela-fonte.mjs')) principal();

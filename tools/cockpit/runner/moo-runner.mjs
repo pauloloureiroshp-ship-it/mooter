@@ -352,6 +352,19 @@ function decidirRonda({ paths, ids, logImpl = log }) {
 }
 
 function appendReceipt(ledgerPath, receipt) {
+  // `JSON.stringify({})` prova apenas que o valor e JSON, nao que e um recibo.
+  // Sem este contrato, "gravei uma ronda" era indistinguivel de "gravei uma
+  // linha sem instante, pilar ou veredicto"; ocupava o ledger, mas nenhum
+  // consumidor conseguia atribuir-lhe significado. Eventos têm forma propria.
+  const objecto = receipt && typeof receipt === 'object' && !Array.isArray(receipt);
+  const instante = objecto && typeof receipt.ts === 'string' && Number.isFinite(Date.parse(receipt.ts));
+  const evento = instante && typeof receipt.evento === 'string' && receipt.evento.trim() !== '';
+  const ronda = instante
+    && typeof receipt.pilar === 'string' && receipt.pilar.trim() !== ''
+    && typeof receipt.verdict === 'string' && receipt.verdict.trim() !== '';
+  if (!evento && !ronda) {
+    throw new TypeError('recibo invalido: exige {ts, evento} ou {ts, pilar, verdict}');
+  }
   fs.appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
   rodarLedger(ledgerPath);
 }
@@ -739,7 +752,19 @@ export async function main({
     // repetir a ultima resposta em vez de inventar uma.
     ultimoMotorVivo = !motorFalhou;
     const { recibos, backoffS, aberto } = breaker.observe(receipt, nowIso());
-    for (const r of recibos) appendReceiptImpl(paths.LEDGER, r);
+    // O `appendReceipt` passou a LANCAR num recibo sem forma (residuo 5 do #366),
+    // e isso esta certo: uma linha sem instante, pilar ou veredicto ocupa o
+    // ledger e nao significa nada. Mas a excepcao NAO pode derrubar o ciclo —
+    // e a mesma regra que este ficheiro ja aplica ao beacon: "um erro aqui nunca
+    // pode derrubar o loop". Um recibo mau perde-se ALTO, com o objecto colado
+    // ao aviso; o trabalho continua.
+    for (const r of recibos) {
+      try {
+        appendReceiptImpl(paths.LEDGER, r);
+      } catch (e) {
+        logImpl(`recibo recusado pelo ledger (${String(e && e.message).slice(0, 60)}): ${JSON.stringify(r).slice(0, 160)}`);
+      }
+    }
 
     // O cursor anda SEMPRE. A versao anterior so o avancava quando o motor
     // respondia — "uma ronda que nao chegou ao motor nao gastou o alvo" — e

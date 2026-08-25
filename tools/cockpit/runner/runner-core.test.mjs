@@ -1776,3 +1776,38 @@ test('a caminhada usa a ROTACAO, nunca o catalogo inteiro', () => {
   const cat = { A: { activo: false }, B: {}, C: { activo: false }, D: {} };
   assert.deepEqual(idsActivos(cat), ['B', 'D']);
 });
+
+test('um recibo recusado pelo ledger perde-se ALTO, mas não derruba o ciclo', async () => {
+  // O resíduo 5 do #366 fez o `appendReceipt` LANÇAR num recibo sem forma, e
+  // isso está certo: uma linha sem instante, pilar ou veredicto ocupa o ledger e
+  // não significa nada. Mas o chamador não apanhava — e uma excepção ali mata o
+  // ciclo inteiro, que é a regra que este ficheiro já aplica ao beacon: "um erro
+  // aqui nunca pode derrubar o loop".
+  //
+  // O recibo mau perde-se, e perde-se com o objecto colado ao aviso.
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const fs = await import('node:fs');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-recibo-'));
+  process.env.MOOTER_HOME = home;
+  const r = await import(`./moo-runner.mjs?recibo=${Date.now()}`);
+  fs.rmSync(r.PATHS.LOCK, { force: true });
+
+  const logs = [];
+  let rondas = 0;
+  await r.main({
+    argv: [], maxRounds: 3, logImpl: (m) => logs.push(m),
+    publishBeaconImpl: async () => {}, sleepImpl: async () => {},
+    pillarsImpl: () => {
+      const p = { PX: { activo: true, label: 'X', files: ['tools/*.js'], ask: 'n/a' } };
+      return { pillars: p, ids: ['PX'], fonte: 'ensaio', ficheiro: null, erro: null };
+    },
+    appendReceiptImpl: () => { throw new TypeError('recibo invalido: exige {ts, evento} ou {ts, pilar, verdict}'); },
+    runRoundImpl: async () => { rondas += 1; return { receipt: { motor_ok: true, verdict: 'sem-achado' } }; },
+  });
+
+  assert.equal(rondas, 3, 'o ciclo completou as três rondas apesar de nenhum recibo entrar');
+  const avisos = logs.filter((l) => l.includes('recibo recusado pelo ledger'));
+  assert.ok(avisos.length >= 1, `a recusa tem de aparecer no log: ${JSON.stringify(logs.slice(0, 4))}`);
+  assert.match(avisos[0], /recibo invalido/, 'com o erro real, não com uma mensagem genérica');
+});
