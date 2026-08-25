@@ -416,3 +416,47 @@ actos futuros no mesmo dia passam · o ledger aceita `{}` como recibo. Nenhum fa
 o painel mentir; nenhum dispara nos dados de hoje.
 
 gate: 760 pass / 0 fail (`npm run test:cockpit-runner`) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (2) · o L1 está LIGADO — e a ligação destapou um impasse de janela
+
+**`main` @ `aa3d4ca5` · L1 `nivel: 1` · 118 achados fechados em ~4 min.**
+
+O dono mandou ligar o L1. **Parei antes de ligar**, e ainda bem: o `f10-server`
+vivo corria o **código antigo** (`import` carrega uma vez em memória; tinha sido
+lançado antes dos merges). Ainda dizia, no ar:
+
+```
+portao 2 · 531 triaged · "0% kept" · "you keep 0% of what it finds"
+```
+
+Se o L1 tivesse sido ligado assim, corria o `curar()` antigo: drenava os 138 da
+janela **sem reservar** os 20 e recriava o estado absorvente que quatro rondas
+mataram. O espelho do cockpit também estava desactualizado (`SELF-CHECK FALHOU`,
+`triagem.mjs` e `prontidao-l2.mjs` em falta).
+
+Sequência: `sync:cockpit` (38/38, OK) → reiniciar `f10-server` → **verificar que
+o código novo está no ar** → ensaio → só então ligar. E o `moo-runner` também
+corria código velho: `sha_carregado 071cf58d`, de antes dos merges. Reiniciado
+(`aa3d4ca5`), lock órfão reclamado sozinho.
+
+**Resultado medido:** 118 fechados (`por:'agente'`, `via:'autopilot-l1'`,
+25/tique), **20 reservados** (5 amostra + 15 para o portão 2), guardrails 0
+não-`low` e 0 públicos. A mentira saiu do ar: `no data yet — the 649 not signed
+by you never count`.
+
+**O IMPASSE, que só aparece com o L1 ligado.** Duas contagens da mesma fila:
+
+| quem | janela | fila |
+|---|---|---|
+| L1 e painel | `readLedger` default (5000 linhas) | **20** |
+| runner (pausa) | ledger **inteiro** (9996) | **101** |
+
+O runner pausa acima de 50, portanto fica pausado **para sempre**: o L1 já fechou
+tudo o que a janela dele mostra e não consegue ver os 81 que estão fora dela.
+`219 − 118 = 101` — a aritmética fecha exactamente.
+
+Não é uma espera, é um deadlock. E é a MESMA classe de defeito que o adversário
+apanhou três vezes hoje: **duas contagens do mesmo número, com janelas
+diferentes**. Fica por corrigir, e não foi corrigido nesta sessão.
+
+gate: 760 pass / 0 fail · classify.js `427d8c0b` intacto · backup do autopilot em `~/.mooter/autopilot.json.antes-l1`
