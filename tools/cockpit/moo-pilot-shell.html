@@ -841,6 +841,56 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         hunt.append(document.createTextNode('machine lent out \u00b7 ' + ago(d.reserva.falta_s) + ' left'));
       }
       box.appendChild(hunt);
+
+      // PARIDADE \u2014 conector, plugin e sha do checkout deste device, comparados
+      // com os do device local. Igual ao local passa despercebido; DIFERENTE
+      // fica em destaque com os dois valores lado a lado; ausente e "n/d",
+      // nunca um espaco em branco.
+      //
+      // Medido 2026-08-21: dois devices, cockpits em commits diferentes e o
+      // vault em paths diferentes \u2014 e nenhum painel conseguia dizer isso do
+      // outro. Os factos ja viajavam no beacon (`conector`, `paridade`); o que
+      // faltava era o ecra onde a diferenca aparece.
+      const par = d.paridade || null;
+      const eu = devices.find((x) => x.self) || null;
+      const parEu = eu ? (eu.paridade || null) : null;
+      const linha = el('div','meta');
+      if (!par && !d.conector) {
+        linha.appendChild(el('span','nd','parity: this beacon predates the parity fields'));
+      } else {
+        const campos = [
+          ['connector', d.conector ? d.conector.instalado : null,
+            eu && eu.conector ? eu.conector.instalado : null, false],
+          ['plugin', par ? par.plugin : null, parEu ? parEu.plugin : null, false],
+          ['cockpit', par ? par.repo_sha : null, parEu ? parEu.repo_sha : null, true],
+        ];
+        campos.forEach(([nome, val, ref, curto], i) => {
+          if (i) linha.append(document.createTextNode(' \u00b7 '));
+          linha.append(document.createTextNode(nome + ' '));
+          if (!val) { linha.appendChild(el('span','nd','n/d')); return; }
+          const mostra = (x) => (curto ? String(x).slice(0, 7) : String(x));
+          // Sem referencia local nao ha comparacao a fazer \u2014 e isso nao e uma
+          // diferenca, e uma ausencia. Marcar a amarelo seria inventar um alarme.
+          const igual = d.self || !ref || ref === val;
+          linha.appendChild(el('b', igual ? null : 'backlog', mostra(val)));
+          if (!igual) linha.append(document.createTextNode(' \u2260 ' + mostra(ref)));
+        });
+        // O conector tem DUAS versoes que podem divergir dentro do mesmo device:
+        // o que esta instalado e o que o checkout dele traz. Isso e um problema
+        // desse device, nao da frota \u2014 por isso vai em linha propria.
+        if (d.conector && d.conector.instalado && d.conector.repo
+            && d.conector.instalado !== d.conector.repo) {
+          linha.appendChild(el('br'));
+          linha.appendChild(el('span','nd',
+            'connector ' + d.conector.instalado + ' installed, checkout ships ' + d.conector.repo));
+        }
+        if (par && par.vault_path) {
+          linha.appendChild(el('br'));
+          linha.appendChild(el('span','nd','vault ' + par.vault_path));
+        }
+      }
+      box.appendChild(linha);
+
       wrap.appendChild(box);
     }
     $('fleet-note').textContent = f.aviso || '';
