@@ -8,8 +8,10 @@ import crypto from 'node:crypto';
 
 import {
   safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness, naTuaMao,
-  BEACON_FRESH_S,
+  medirParidade,
+  BEACON_FRESH_S, BEACON_FRESH_REMOTO_S, BEACON_STALE_S,
 } from './fleet-beacon.mjs';
+import { MINUTOS_OMISSAO } from './beacon-publisher.mjs';
 import { parseNvidiaSmi, sampleGpu, normalizaSonda } from './gpu-sampler.mjs';
 import { buildPlist, windowsCommand, preflight, LABEL } from './autostart.mjs';
 
@@ -62,6 +64,86 @@ test('beacon recente e vivo, antigo escurece, futuro e morto', () => {
   assert.equal(beaconFreshness(new Date(T0 + 60_000).toISOString(), T0).estado, 'morto');
   assert.equal(beaconFreshness(null, T0).estado, 'morto');
   assert.ok(BEACON_FRESH_S > 0);
+});
+
+// Incidente de 2026-08-21: o Mac publicava de 10 em 10 min e o painel do PC
+// dizia "sem sinal ha 716s". Um device REMOTO e julgado pela cadencia do sync,
+// nao pelo relogio local — senao nunca fica verde, nem a funcionar bem.
+test('um device REMOTO com a idade normal do sync e vivo; o local com a mesma idade nao', () => {
+  assert.equal(BEACON_FRESH_REMOTO_S, 2 * MINUTOS_OMISSAO * 60,
+    'dois ciclos de publicacao — a constante segue a cadencia real, nao um numero bonito');
+  assert.ok(BEACON_FRESH_REMOTO_S > BEACON_FRESH_S && BEACON_FRESH_REMOTO_S < BEACON_STALE_S);
+  assert.equal(beaconFreshness(iso(716), T0, { remoto: true }).estado, 'vivo');
+  assert.equal(beaconFreshness(iso(716), T0).estado, 'stale', 'o device local nao tem desculpa');
+  assert.equal(beaconFreshness(iso(1500), T0, { remoto: true }).estado, 'stale');
+  assert.equal(beaconFreshness(iso(7200), T0, { remoto: true }).estado, 'morto');
+});
+
+test('readBeacons julga o self pelo limiar local e os outros pelo remoto', () => {
+  const dir = fixtureDir();
+  fs.writeFileSync(path.join(dir, 'mac-mini.json'),
+    JSON.stringify({ device: 'mac-mini', ts: iso(716), running: true }));
+  fs.writeFileSync(path.join(dir, 'rtx-4090.json'),
+    JSON.stringify({ device: 'rtx-4090', ts: iso(716), running: true }));
+  const { frota } = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', now: T0 });
+  const self = frota.find((d) => d.self);
+  const outro = frota.find((d) => !d.self);
+  assert.equal(self.frescura.estado, 'stale');
+  assert.equal(outro.frescura.estado, 'vivo');
+});
+
+// ── paridade ─────────────────────────────────────────────────────────────────
+// 2026-08-21: dois devices, cockpits em commits diferentes e o vault em paths
+// diferentes — e nenhum painel conseguia dizer isso do outro.
+
+test('medirParidade le do disco e diz null ao que nao consegue ler — nunca inventa', () => {
+  const ficheiros = {
+    '/r/plugin/mooter/.claude-plugin/plugin.json': JSON.stringify({ version: '1.49.3' }),
+  };
+  const readImpl = (p2) => {
+    const k = String(p2).split(path.sep).join('/');
+    if (k in ficheiros) return ficheiros[k];
+    throw new Error('ENOENT ' + k);
+  };
+  const par = medirParidade({ repoRoot: '/r', vaultDir: '/v', readImpl, shaImpl: () => 'abc123def456' });
+  assert.equal(par.plugin, '1.49.3');
+  assert.equal(par.repo_sha, 'abc123def456');
+  assert.equal(par.repo_path, '/r');
+  assert.equal(par.vault_path, '/v');
+
+  // Sem plugin no checkout e sem sha legivel: null nos dois, nunca um palpite.
+  const vazio = medirParidade({
+    repoRoot: '/r', readImpl: () => { throw new Error('ENOENT'); }, shaImpl: () => null,
+  });
+  assert.equal(vazio.plugin, null);
+  assert.equal(vazio.repo_sha, null);
+  assert.equal(vazio.vault_path, null);
+
+  assert.equal(medirParidade({ repoRoot: null }), null, 'sem repo nao ha paridade a medir');
+  assert.equal(medirParidade({ repoRoot: '/r', shaImpl: () => { throw new Error('boom'); }, readImpl: () => { throw new Error('x'); } }).repo_sha, null,
+    'um shaImpl que rebenta nao pode rebentar a ronda');
+});
+
+test('a paridade viaja no beacon e volta pela mesma allowlist', () => {
+  const dir = fixtureDir();
+  const paridade = {
+    plugin: '1.49.3', repo_sha: '70597e5e1234', repo_path: '/r', vault_path: '/v',
+    segredo: 'nao', usd: 999,
+  };
+  const w = writeBeacon({ device: 'mac-mini', running: true, paridade }, { dir });
+  assert.equal(w.ok, true);
+  const { frota } = readBeacons({ dir, selfDevice: 'mac-mini', now: Date.now() });
+  assert.equal(frota[0].paridade.plugin, '1.49.3');
+  assert.equal(frota[0].paridade.repo_sha, '70597e5e1234');
+  assert.equal(frota[0].paridade.vault_path, '/v');
+  assert.ok(!('segredo' in frota[0].paridade), 'a leitura so deixa passar as chaves nomeadas');
+  assert.ok(!('usd' in frota[0].paridade));
+
+  fs.writeFileSync(path.join(dir, 'antigo.json'),
+    JSON.stringify({ device: 'antigo', ts: new Date().toISOString() }));
+  const r2 = readBeacons({ dir, selfDevice: 'mac-mini', now: Date.now() });
+  assert.equal(r2.frota.find((d) => d.device === 'antigo').paridade, null,
+    'beacon anterior ao campo: null, e o painel diz-o — nunca um valor inventado');
 });
 
 // ── escrita e leitura ────────────────────────────────────────────────────────

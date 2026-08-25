@@ -36,7 +36,7 @@ import { buildFleetState, readLedger } from './fleet-state.mjs';
 import { decidir as decidirComandante, DEFAULT_CAPS } from './comandante.mjs';
 import { lerTriagem } from './triagem.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
-import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
+import { beaconDir, writeBeacon, deviceName, medirParidade } from './fleet-beacon.mjs';
 import { publicarBeacon, estaNaHora, ligado as publicacaoLigada } from './beacon-publisher.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { createEngineBreaker } from './engine-breaker.mjs';
@@ -476,7 +476,24 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, shaCarregado
       if (m) conector = { instalado: m[1], repo: m[2] };
       else if (c.estado === 'ok' && typeof c.valor === 'string') conector = { instalado: c.valor, repo: c.valor };
     } catch { /* um beacon nunca para por causa de telemetria sobre si proprio */ }
-    const res = writeBeacon({ ...state, conector }, where);
+    /**
+     * Paridade: plugin, sha do checkout e paths deste device viajam no beacon
+     * para que o painel de QUALQUER device acuse a diferenca (medido
+     * 2026-08-21: dois cockpits, cada um so via o seu umbigo). A versao do
+     * conector NAO vem daqui — ja viaja em `conector`, acima, e ter duas
+     * medicoes da mesma coisa e como o launcher e o self-check chegaram a
+     * dizer versoes diferentes na mesma manha.
+     *
+     * Falha -> `null`, nunca a ronda: isto e telemetria sobre si proprio.
+     */
+    let paridade = null;
+    try {
+      paridade = medirParidade({
+        repoRoot,
+        vaultDir: where.partilhado ? path.dirname(where.dir) : null,
+      });
+    } catch { paridade = null; }
+    const res = writeBeacon({ ...state, conector, paridade }, where);
     if (!res.ok && !beaconWarned) {
       beaconWarned = true;
       logImpl(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);
