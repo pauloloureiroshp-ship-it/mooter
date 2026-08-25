@@ -317,68 +317,6 @@ ainda que encanamento que estava a mentir.
 
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-25 (2) · o L1 está LIGADO — e a ligação destapou um impasse de janela
-
-**`main` @ `aa3d4ca5` · L1 `nivel: 1` · 118 achados fechados em ~4 min.**
-
-O dono mandou ligar o L1. **Parei antes de ligar**, e ainda bem: o `f10-server`
-vivo corria o **código antigo** (`import` carrega uma vez em memória; tinha sido
-lançado antes dos merges). Ainda dizia, no ar:
-
-```
-portao 2 · 531 triaged · "0% kept" · "you keep 0% of what it finds"
-```
-
-Se o L1 tivesse sido ligado assim, corria o `curar()` antigo: drenava os 138 da
-janela **sem reservar** os 20 e recriava o estado absorvente que quatro rondas
-mataram. O espelho do cockpit também estava desactualizado (`SELF-CHECK FALHOU`,
-`triagem.mjs` e `prontidao-l2.mjs` em falta).
-
-Sequência: `sync:cockpit` (38/38, OK) → reiniciar `f10-server` → **verificar que
-o código novo está no ar** → ensaio → só então ligar. E o `moo-runner` também
-corria código velho: `sha_carregado 071cf58d`, de antes dos merges. Reiniciado
-(`aa3d4ca5`), lock órfão reclamado sozinho.
-
-**Resultado medido:** 118 fechados (`por:'agente'`, `via:'autopilot-l1'`,
-25/tique), **20 reservados** (5 amostra + 15 para o portão 2), guardrails 0
-não-`low` e 0 públicos. A mentira saiu do ar: `no data yet — the 649 not signed
-by you never count`.
-
-**O IMPASSE, que só aparece com o L1 ligado.** Duas contagens da mesma fila:
-
-| quem | janela | fila |
-|---|---|---|
-| L1 e painel | `readLedger` default (5000 linhas) | **20** |
-| runner (pausa) | ledger **inteiro** (9996) | **101** |
-
-O runner pausa acima de 50, portanto fica pausado **para sempre**: o L1 já fechou
-tudo o que a janela dele mostra e não consegue ver os 81 que estão fora dela.
-`219 − 118 = 101` — a aritmética fecha exactamente.
-
-Não é uma espera, é um deadlock. E é a MESMA classe de defeito que o adversário
-apanhou três vezes hoje: **duas contagens do mesmo número, com janelas
-diferentes**.
-
-**CORRIGIDO em `#369`, `main` @ `b24d8359`.** A causa: `decidirRonda` lia o
-ledger com o seu próprio `readFileSync`, **sem janela nenhuma**, enquanto o
-`readLedger` — painel e tique do L1 — usa `maxLines = 5000`. Passa a ler pela
-mesma porta: **101 → 20**, as três contagens dão o mesmo, e o runner despausou
-(`pilar: P3`, `sha_carregado b24d8359b16e`).
-
-A janela nunca foi acidente: o `CAUDA_AO_RODAR`, **no mesmo ficheiro**, já dizia
-*"tem de ser a MESMA janela que o `readLedger` usa"*. A rotação estava alinhada
-com ela; esta leitura é que passava ao lado da porta.
-
-**Tratado como CLASSE, não instância.** Nas outras duas vezes de hoje corrigi a
-instância e a classe sobreviveu. O teste novo usa **6000** achados de propósito
-— com 5000 as duas leituras davam o mesmo número e não provava nada.
-
-E a lição operacional repetiu-se pela terceira vez: a correcção estava em `main`
-e o runner corria `aa3d4ca5`. **O `sha_carregado` dizia-o.** Só reiniciar carrega
-código novo — `import` lê o ficheiro uma vez.
-
-gate: 761 pass / 0 fail · classify.js `427d8c0b` intacto · backup do autopilot em `~/.mooter/autopilot.json.antes-l1`
-
 ### 2026-08-25 (3) · o loop voltou a produzir, esgotou-se, e a fila é 22 — 20 à espera do dono
 
 Depois de `#369` desfazer o impasse, medido no ledger real:
@@ -554,3 +492,58 @@ pilar novo desenhado contra o modo de falha dos onze — nenhum deles perguntava
 ou ir à dívida declarada no #366, ou desligar o loop de vez.
 
 gate: 766 testes · 765 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (fecho 2) · o instrumento antes do enunciado — #377 e #378
+
+**`main` @ `00e9feed`.** Depois de a rotação ficar vazia, a pergunta natural era
+*"escreve um pilar novo"*. O que saiu foi outra coisa, e é melhor.
+
+**#377 — o arnês aceitava `NO FINDING` como aprovação.** Corridos os dez pares
+contra o Ollama real, o P6 foi graduado `funciona` tendo respondido, literalmente,
+`NO FINDING` seguido de `PROOF: …:36`. O enunciado dele exige `PROOF:` sempre, o
+número da linha aparece na citação obrigatória, e o ramo `achou && !acusouControlo`
+respondia `funciona` sem perguntar se o semeado estava calado. **A variável
+`caladoNoSemeado` já existia — era consultada tarde de mais.** Foi assim que o
+P11 entrou: passou o ensaio, e em um dia deu 87 achados dos quais 76 falhavam o
+próprio enunciado.
+
+Verificação: dez pares antes e depois, mudou **um** veredicto (`P6 funciona →
+partido`). **Com o arnês corrigido, dos dez passa um — o P3, que está desligado
+por 0% de precisão em campo.** Nenhum pilar do catálogo passa o ensaio *e* vale
+em campo.
+
+**A hipótese do prompt de sistema, medida e REFUTADA.** Um adversário disse que
+a saída barata vive no `SYSTEM_PROMPT`, não no `ask`. Testei — e o meu primeiro
+ensaio estava errado: emparelhei o `ask` com o `DIFF_SYSTEM_PROMPT`, **uma
+combinação que não existe em produção** (no ramo `diff` o `question` é *"rever
+mudança em …"*; o `ask` só corre em `caça`). Refeito com a linha de base certa:
+**V0 8/30 · sem sistema 10/30 · mínimo 8/30 · mínimo+guardas 7/30** — ruído. Não
+mexi no prompt. Trocá-lo seria a engenharia por intuição que produziu os onze.
+
+**O que É a variável, medido em 7 760 rondas reais do ledger e verificado por mim:**
+enunciados com saída genérica (`NO FINDING`) → 2 680 rondas, **0,1%** de achados;
+com saída conclusiva (`THEY MATCH`, `SHAPE IS UNIQUE`) → 5 080 rondas, **35,4%**.
+O modelo toma a saída que o **enunciado** escreve, não a que o sistema oferece.
+
+**#378 — o portão de existência, o que faltava.** Os onze foram escritos pela
+ordem errada: enunciado primeiro, e só meses depois a pergunta de se a classe
+existe aqui. Três portões, por ordem: **a classe existe?** (censo determinista +
+triagem à mão, $0) · **o detector detecta?** (ensaio semeado) · **o que sai vale
+ser lido?** (campo). O P11 saltou o primeiro.
+
+Dois limiares, **≥10 reais E ≥30% de precisão**, `Object.freeze`, com um teste
+para cada: só a precisão deixaria passar o `|| 0` (2 em 39 → pilar mudo); só o
+volume deixaria passar o P11 (87 achados, 1 útil). Fechadas as três formas de ele
+mentir a favor da classe: contar testes, `real: null` virar `false`, e um glob
+vazio virar zero em silêncio.
+
+**Corrido contra o repo, com a classe do P2:** 236 ficheiros, 504 candidatos,
+amostra de 40 espalhada por 25 ficheiros — `const out = []`, `let failed = 0`.
+Zero reais. **`NÃO PASSA`.** Dez minutos sem GPU reproduzem o veredicto que
+custou ler 20 achados à mão depois de meses de rotação.
+
+**A decisão continua em aberto**, e agora com instrumento para a tomar: nenhuma
+das classes conhecidas passa o portão. Escrever um P12 hoje seria repetir a
+experiência com melhor advocacia.
+
+gate: 784 testes · 783 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
