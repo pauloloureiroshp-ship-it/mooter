@@ -317,49 +317,6 @@ ainda que encanamento que estava a mentir.
 
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-25 (3) · o loop voltou a produzir, esgotou-se, e a fila é 22 — 20 à espera do dono
-
-Depois de `#369` desfazer o impasse, medido no ledger real:
-
-```
-desde o reinício (05:51Z → 09:29Z)
-  531 rondas · 49 achados únicos  (9,2%)
-  por pilar : P3 443 · P2 87
-  verdicts  : citacao-ok 316 · sem-achado 211 · refutado 1
-```
-
-Depois **parou de escrever**, e a última linha diz porquê: `nada-por-rever`,
-`nada-por-rever`, `pilar:esgotado`. O runner continua **vivo** (estado fresco,
-sem pausa, `pilar: P3`) — percorreu tudo o que a base de diff dele mostra e
-chegou ao fim. **Esgotado não é partido**, e a distinção importa.
-
-**A fila do dono, agora:**
-
-```
-por triar              : 22   (20 low/trivial + 2 med/null)
-reservados para ele    : 20   (6 amostra 1-em-20 + 14 para o portão 2)
-o L1 ainda fecharia    : 0    — chegou ao fim do trabalho dele
-decisões do dono       : 0 de 20
-por pilar              : P2 14 · P3 8
-```
-
-**O padrão do que sobra é o dado que interessa.** Quase todos são a mesma forma:
-*"esta variável é inicializada a 0/[] em duas linhas"* e *"este comentário tem um
-número"*. Dois deles citam comentários escritos **hoje**, nesta sessão, no
-`triagem.mjs` e no `autopilot.mjs`.
-
-É exactamente a pergunta que o gate L0 nunca conseguiria responder: **os P2/P3
-encontram problemas, ou descrevem código?** Decidir estes 20 responde-a — e mede
-a precisão do dono pela primeira vez. Se ele mantiver poucos, a resposta é a
-mesma que os outros sete pilares já deram este mês.
-
-**Ponto cego novo, registado e não corrigido:** o `pilar:esgotado` é um evento no
-ledger que ninguém vigia. O `anomaliaDeDreno` construído hoje detecta quedas de
-*dreno*, não de *produção* — um pilar mudo por estar esgotado e um mudo por estar
-partido são hoje indistinguíveis para quem olha para o painel.
-
-gate: 761 pass / 0 fail · `main` @ `b50b4f68` · classify.js `427d8c0b` intacto
-
 ### 2026-08-25 (4) · o dono decidiu os 20: **0 mantidos**. O P2 e o P3 têm veredicto.
 
 **Decisão do dono, em lote:** os 20 reservados descartados com motivo
@@ -547,3 +504,54 @@ das classes conhecidas passa o portão. Escrever um P12 hoje seria repetir a
 experiência com melhor advocacia.
 
 gate: 784 testes · 783 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (fecho 3) · a âncora tinha leitor e não tinha escritor — #380 e #381
+
+**`main` @ `2f746d21`.** A síntese apontou o `mode: 'ancorado'` como a direcção a
+seguir em vez de um décimo segundo pilar, e disse não a ter medido. Medido:
+
+| modo | rondas | achados |
+|---|---:|---:|
+| `caca` | 7 760 | 1 801 (23,2%) |
+| `diff` | 1 812 | 12 (0,7%) |
+| **`ancorado`** | **0** | **0** |
+
+**Zero em 10 624 recibos.** Não por estar partido — por **nunca ter tido
+entrada**. O `~/.mooter/ancora-achados.json` não existia e **nada no repositório
+o escrevia**: há quem o leia, quem o teste com fixtures, e um comentário a citar
+uma medição real de 76 apontamentos feita à mão a 19/08. Produtor, nenhum.
+
+**O sinal, nomeado (#380):** *uma arquitectura completa excepto a entrada, cuja
+ausência degrada em silêncio.* Não há bug — o `readAnchor` devolve `[]` numa
+ausência **por desenho**, a escada cai para `caça`, os testes passam. **"Sem
+âncora" era indistinguível de "âncora vazia"**, e nada tinha onde dizer a
+diferença. É a mesma forma do guarda de 20/08: rigor no consumidor, nenhum no
+produtor.
+
+**#381 — o produtor.** Escreve sempre os dois lados da distinção: o array que o
+`readAnchor` consome (contrato inalterado) e um `ancora-manifesto.json` ao lado.
+*Um manifesto com `apontamentos: 0` é uma afirmação; um ficheiro que não existe
+não é afirmação nenhuma.*
+
+**Nasce com zero regras activas, e isso é medição.** Sete candidatas sondadas em
+288 ficheiros, nenhuma passa o portão do #378. A melhor — `catch-mudo`, 58
+candidatos — é a classe que o `REGRAS_IGNORADAS` já filtrava: o comentário do
+`context-pack` diz *"76 apontamentos, 58 deles `no-empty`"* (19/08) e a sondagem
+de 25/08 deu **exactamente 58**. Mesma classe, mesmo número, seis dias depois.
+
+O `PARSE` (`node --check`, 0 em 288) ficou **de fora de propósito**: um erro de
+parse é *certo*, e a âncora existe para dar ao modelo coisas por **julgar**.
+
+**O self-check passa a distinguir:** nunca gerada → aviso com o gesto; vazia por
+decisão → ok, com o porquê; contagem ilegível → `n/d`. Uma âncora vazia **não** é
+alerta — um aviso de rotina ensina a ignorar a secção.
+
+Verificado na máquina, não só em teste: `aviso · nunca gerada` → `ok · 0
+apontamentos, 0 regras activas`.
+
+**O arco do dia:** começou com um masterprompt que mandava **suprimir** achados
+por classe; acabou com três instrumentos que os **medem**, e três estados que
+passaram de invisíveis a declarados — a rotação vazia, a âncora vazia, e a
+diferença entre *não existe* e *está vazio*.
+
+gate: 799 testes · 798 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
