@@ -75,7 +75,19 @@ function pickLocalGenModel(models) {
   return (best && best.name) ? String(best.name) : null;
 }
 
-function _readTs(sid) { try { return JSON.parse(fs.readFileSync(journal.rollupTsPath(sid), 'utf8')) || {}; } catch { return {}; } }
+// Um estado de throttle ilegível (JSON truncado a meio de um write, permissões)
+// devolvia {} — exactamente o mesmo que "ainda não houve rollup nenhum". Só o
+// ENOENT é mesmo primeira execução e continua a devolver {}; qualquer outra
+// falha devolve null = "não consigo ler". O aviso sai aqui porque este processo
+// é spawned detached com stdio:'ignore' e o valor de retorno não chega a ninguém.
+function _readTs(sid) {
+  try { return JSON.parse(fs.readFileSync(journal.rollupTsPath(sid), 'utf8')) || {}; }
+  catch (e) {
+    if (e && e.code === 'ENOENT') return {};
+    try { process.stderr.write('[handoff-rollup] estado do throttle ilegível (' + ((e && e.message) || e) + ') — desconhecido, não primeira execução\n'); } catch { /* best-effort */ }
+    return null;
+  }
+}
 function _writeTs(sid, obj) { try { const tmp = journal.rollupTsPath(sid) + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(obj)); fs.renameSync(tmp, journal.rollupTsPath(sid)); } catch { /* best-effort */ } }
 function _writeSummary(sid, text) { try { const tmp = journal.summaryPath(sid) + '.tmp'; fs.writeFileSync(tmp, text); fs.renameSync(tmp, journal.summaryPath(sid)); return true; } catch { return false; } }
 
@@ -117,7 +129,7 @@ function cleanSummary(out) {
 // for tests (defaults hit the local Ollama).
 async function maybeRollup(sessionId, opts) {
   opts = opts || {};
-  const out = { ok: false, skipped: false, reason: null, model: null, summary: null };
+  const out = { ok: false, skipped: false, reason: null, model: null, summary: null, ts_state: null };
   try {
     if (!sessionId) { out.skipped = true; out.reason = 'no_session'; return out; }
     const now = Number.isFinite(opts.now) ? opts.now : Date.now();
@@ -127,9 +139,14 @@ async function maybeRollup(sessionId, opts) {
     const entries = journal.readJournal(sessionId);
     if (!entries.length) { out.skipped = true; out.reason = 'empty_journal'; return out; }
 
+    // st === null ⇒ não sabemos o estado do throttle; {} ⇒ não há estado ainda.
+    // Só o segundo é primeira execução. No primeiro corremos na mesma (é o
+    // trabalho do módulo, e o _writeTs no fim repõe o ficheiro), mas fica dito
+    // no resultado em vez de se disfarçar de sessão nova.
     const st = _readTs(sessionId);
-    const lastTs = Number(st.ts) || 0;
-    const lastTurns = Number(st.turns) || 0;
+    if (st === null) out.ts_state = 'unreadable';
+    const lastTs = Number(st && st.ts) || 0;
+    const lastTurns = Number(st && st.turns) || 0;
     const turnsDelta = entries.length - lastTurns;
     // Throttle: skip unless ≥minMs elapsed OR ≥minTurns new entries. First run
     // (lastTs falsy) always proceeds.

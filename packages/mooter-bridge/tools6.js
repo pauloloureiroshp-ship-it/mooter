@@ -648,7 +648,16 @@ function build(seam, fleet, base) {
             const r = s.retomar(a.id, {});
             return comResumo(r, r.ok ? ('🐮 estado da sessão em ~' + r.tokens_aprox + ' tokens (em vez de arrastar a conversa toda)') : '⚠ ' + r.porque);
           }
-          if (a.sessao === 'listar') return comResumo({ sessoes: s.listar() }, '🐮 sessões guardadas');
+          if (a.sessao === 'listar') {
+            const sessoes = s.listar();
+            // `null` = a pasta existe e não se deixou ler. Um "0 sessões
+            // guardadas" a quem tem estado no disco levava-o a recomeçar do
+            // zero por causa de um erro de leitura que ninguém lhe mostrou.
+            return sessoes === null
+              ? comResumo({ sessoes: null, porque: 'não consegui ler ' + s.DIR },
+                '⚠ não consegui ler as sessões guardadas — isto não quer dizer que não haja nenhuma')
+              : comResumo({ sessoes }, '🐮 sessões guardadas · ' + sessoes.length);
+          }
           if (a.sessao === 'esquecer') return comResumo(s.esquecer(a.id), '🐮 estado largado');
           const r = s.registar({
             id: a.id, projecto: a.project, objectivo: a.objectivo,

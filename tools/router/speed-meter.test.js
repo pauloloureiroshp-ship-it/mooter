@@ -71,10 +71,11 @@ test('benchmarkModel never throws and reports ok:false when nothing measured', a
   assert.strictEqual(r.model, 'qwen2.5:3b');
 });
 
-test('listLocalModels returns [] on a dead host (never throws)', async () => {
+test('listLocalModels returns null on a dead host (never throws, never fakes an empty list)', async () => {
+  // `[]` significaria "o Ollama respondeu e não tem modelos" — com o host morto
+  // isso seria uma medição inventada.
   const list = await sm.listLocalModels(DEAD_HOST);
-  assert.ok(Array.isArray(list));
-  assert.strictEqual(list.length, 0);
+  assert.strictEqual(list, null);
 });
 
 test('summariseWarm medians ok samples and ignores failures', () => {

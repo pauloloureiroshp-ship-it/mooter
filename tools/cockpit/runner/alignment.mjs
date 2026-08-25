@@ -103,10 +103,16 @@ export function vaultLastWrite(vaultPath, { readdirImpl = fs.readdirSync, statIm
   let bestMs = 0;
   let bestFile = null;
   let seen = 0;
+  let ilegiveis = 0;
   for (const entry of top) {
     if (entry.name.startsWith('.')) continue;
     const abs = path.join(target, entry.name);
     const children = entry.isDirectory() ? safeList(abs, readdirImpl) : [entry.name];
+    // `null` = a pasta existe e nao se deixou ler. Daqui vinha `[]`, o que a
+    // tornava indistinguivel de uma pasta vazia: a escrita mais recente do
+    // vault podia estar exactamente la dentro e o cockpit datava o vault com
+    // uma leitura mais velha, apresentada como se fosse a medida completa.
+    if (children === null) { ilegiveis += 1; continue; }
     const base = entry.isDirectory() ? abs : target;
     for (const child of children) {
       if (seen >= VAULT_SCAN_LIMIT) break;
@@ -123,7 +129,17 @@ export function vaultLastWrite(vaultPath, { readdirImpl = fs.readdirSync, statIm
     }
   }
   if (!bestFile) {
-    return { ts: null, ficheiro: null, fonte, caminho: target, motivo: 'vault has no readable files' };
+    return {
+      ts: null,
+      ficheiro: null,
+      fonte,
+      caminho: target,
+      // "nao ha ficheiros" e "nao consegui la chegar" nao sao a mesma frase.
+      motivo: ilegiveis
+        ? `vault partially unreadable (${ilegiveis} folder(s))`
+        : 'vault has no readable files',
+      pastas_ilegiveis: ilegiveis,
+    };
   }
   return {
     ts: new Date(bestMs).toISOString(),
@@ -132,7 +148,11 @@ export function vaultLastWrite(vaultPath, { readdirImpl = fs.readdirSync, statIm
     // same claim as one the machine actually declared via VAULT_PATH.
     fonte,
     caminho: target,
-    motivo: null,
+    // > 0 quer dizer que este `ts` e o mais recente do que SE CONSEGUIU LER, e
+    // nao necessariamente o mais recente do vault. Quem apresenta o valor tem
+    // de poder ver a ressalva; antes nao existia nada que a carregasse.
+    motivo: ilegiveis ? `partial scan: ${ilegiveis} folder(s) unreadable` : null,
+    pastas_ilegiveis: ilegiveis,
   };
 }
 
@@ -142,11 +162,13 @@ function defaultVaultPath() {
   return home ? path.join(home, 'paulo-vault') : null;
 }
 
+/** `null` = nao se deixou ler. Uma lista vazia seria uma pasta vazia — e isso
+ *  e uma afirmacao sobre o conteudo que aqui nao se chegou a medir. */
 function safeList(dir, readdirImpl) {
   try {
     return readdirImpl(dir);
   } catch {
-    return [];
+    return null;
   }
 }
 

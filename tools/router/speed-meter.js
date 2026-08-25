@@ -359,7 +359,15 @@ async function benchmarkModel(o = {}) {
   };
 }
 
-/** List installed local models (names) via /api/tags. [] on any failure. */
+/**
+ * List installed local models (names) via /api/tags.
+ * `[]` = o Ollama respondeu e não tem modelos; `null` = não conseguimos perguntar.
+ *
+ * Antes devolvia `[]` em qualquer falha, e o `main()` traduzia isso para
+ * "no local models found" com saída 0 — ou seja, um Ollama em baixo ou um
+ * /api/tags corrompido eram indistinguíveis de uma máquina sem modelos, e a
+ * ferramenta que existe para medir dizia que estava tudo bem sem ter medido nada.
+ */
 async function listLocalModels(host) {
   try {
     const res = await new Promise((resolve, reject) => {
@@ -378,7 +386,7 @@ async function listLocalModels(host) {
     const j = JSON.parse(data);
     return (j.models || []).map((m) => m.name).filter(Boolean);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -472,6 +480,12 @@ async function main() {
   let models = a.models;
   if (a.all || !models.length) {
     const installed = await listLocalModels(host);
+    // `null` = não conseguimos perguntar ao Ollama. Sair com 0 aqui seria dizer
+    // "não há modelos" sem sequer termos chegado à porta; falhamos à vista.
+    if (installed === null) {
+      console.error(`speed-meter: could not list local models from ${host} (Ollama unreachable or /api/tags unreadable) — nothing measured (n/d).`);
+      process.exit(1);
+    }
     // Prefer the tier-representative locals if present, else everything installed.
     const preferred = ['qwen2.5:3b', 'qwen3:30b', 'qwen2.5-coder:14b'];
     const pick = preferred.filter((m) => installed.includes(m));

@@ -26,7 +26,8 @@
  * rather than mislabel our own session as a sister.
  *
  * Budget: one readdir + at most SISTER_CAP small readFileSyncs (well within the
- * ≤10ms render budget). `hidden_chips: ["sessions"]` drops it. Any failure → ''.
+ * ≤10ms render budget). `hidden_chips: ["sessions"]` drops it. Any failure → '',
+ * excepto uma pasta de heartbeats que existe mas não se consegue ler → `⇄ n/d`.
  */
 'use strict';
 
@@ -102,13 +103,23 @@ function buildSessionsChip(heartbeats, { selfSessionId = null, now = Date.now() 
   return `⇄ ${sisters.length} ${noun} (${named.join(' · ')}${tail})`;
 }
 
-/** Read + parse the heartbeat files (best-effort, bounded). */
+/**
+ * Read + parse the heartbeat files (bounded). `[]` = medimos e não há irmãs;
+ * `null` = não conseguimos medir.
+ *
+ * Antes, qualquer falha do readdir devolvia `[]` e o chip ficava mudo — e neste
+ * chip o silêncio afirma "estou sozinho". Uma pasta ilegível (permissões, I/O,
+ * EMFILE) passava assim por solidão medida. `ENOENT` continua a ser `[]` de
+ * propósito: sem pasta de heartbeats nenhuma sessão se registou, o que é um zero
+ * real e não ignorância.
+ */
 function readHeartbeats(dir) {
   let names;
   try {
     names = fs.readdirSync(dir).filter((n) => n.endsWith('.json')).slice(0, SISTER_CAP);
-  } catch {
-    return [];
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return [];
+    return null;
   }
   const out = [];
   for (const n of names) {
@@ -130,7 +141,11 @@ function statusLine(selfSessionId) {
   try {
     const p = prefs();
     if (Array.isArray(p.hidden_chips) && p.hidden_chips.includes('sessions')) return '';
-    return buildSessionsChip(readHeartbeats(heartbeatsDir()), { selfSessionId: resolveSelf(selfSessionId), now: Date.now() });
+    const heartbeats = readHeartbeats(heartbeatsDir());
+    // Pasta ilegível: dizemos `n/d` em vez de nada, porque nada aqui lê-se como
+    // "não há irmãs" e isso seria um verde por ignorância.
+    if (heartbeats === null) return '⇄ n/d';
+    return buildSessionsChip(heartbeats, { selfSessionId: resolveSelf(selfSessionId), now: Date.now() });
   } catch {
     return '';
   }

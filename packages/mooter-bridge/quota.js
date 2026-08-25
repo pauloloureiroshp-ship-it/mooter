@@ -390,8 +390,15 @@ function contarDiasHistorico(boardDir) {
     const ficheiros = fs.readdirSync(boardDir);
     const dias = ficheiros.filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
     return dias.length;
-  } catch {
-    return 0;
+  } catch (e) {
+    // A pasta ainda não existir é mesmo zero dias — o board só a cria quando
+    // grava o primeiro. Já um erro de leitura (permissões, caminho ocupado por
+    // um ficheiro) era indistinguível disso: o painel escrevia "0/7 dias de
+    // histórico" sobre uma contagem que nunca chegou a acontecer.
+    // `null` = não sei.
+    if (e && e.code === 'ENOENT') return 0;
+    process.stderr.write('[quota] não consegui ler o histórico do board em ' + boardDir + ': ' + ((e && e.message) || e) + '\n');
+    return null;
   }
 }
 
@@ -402,7 +409,10 @@ function pressao(medida, referencia, opts) {
   const o = opts || {};
   const boardDir = o.boardDir || path.join(os.homedir(), '.mooter', 'board');
   const dias_historico = contarDiasHistorico(boardDir);
-  const calibrando = dias_historico < 7;
+  // `null` é "não consegui ler o histórico", não "zero dias". Nos dois casos
+  // ficamos em calibração — mas escrito à mão, sem o `null < 7` implícito que
+  // fazia o desconhecido passar por medido.
+  const calibrando = dias_historico === null || dias_historico < 7;
 
   const ref = Object.assign({ peso_semana: 4000, peso_5h: 400, origem: 'default — não é um limite publicado' },
     lerReferencia() || {}, referencia || {});

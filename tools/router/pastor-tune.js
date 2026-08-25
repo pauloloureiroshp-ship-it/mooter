@@ -31,15 +31,28 @@ const LOG_PATH = process.env.MOOTER_DECISIONS_LOG || path.join(ROUTER_DIR, 'deci
 const MIN_DECISIONS = Number(process.env.MOOTER_TUNE_MIN_DECISIONS || 100);
 const dryRun = process.argv.includes('--dry-run');
 
+// Devolve o nº de decisões, 0 quando o log ainda não existe (isso é mesmo zero),
+// e null quando o log existe mas não se conseguiu ler. Antes o catch devolvia 0:
+// um log ilegível (permissões, I/O) era indistinguível de "ainda ninguém foi
+// classificado" e o loop adormecia com a mesma frase tranquilizadora de sempre —
+// o Pastor deixava de aprender e ninguém percebia porquê.
 function decisionCount() {
   try {
     if (!fs.existsSync(LOG_PATH)) return 0;
     return fs.readFileSync(LOG_PATH, 'utf8').split('\n').filter((l) => l.trim()).length;
-  } catch { return 0; }
+  } catch (e) {
+    console.error(`pastor-tune: cannot read ${LOG_PATH} — ${e.message}`);
+    return null;
+  }
 }
 
 function run() {
   const n = decisionCount();
+  // Não sabemos quantas decisões há: recusar é honesto, "skipping" seria mentira.
+  if (n === null) {
+    console.error('pastor-tune: decisions.log unreadable — refusing to tune on an unmeasured log.');
+    return 1;
+  }
   if (n < MIN_DECISIONS) {
     console.log(`pastor-tune: ${n} decisions (< ${MIN_DECISIONS}) — not enough signal, skipping.`);
     return 0;

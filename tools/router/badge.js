@@ -70,9 +70,10 @@ function shortModel(model) {
  * Estimated savings for this decision vs the naive all-Opus baseline, using the
  * SAME prompt-length heuristic the savings-tracker uses (no new cost model). An
  * ESTIMATE (tokens aren't known at classify time); returns 0 for T3 (no saving
- * vs the T3 default) or when pricing is unavailable. Wave 2.8 Ponto #5.
+ * vs the T3 default) and `null` when the cost model itself is unavailable.
+ * Wave 2.8 Ponto #5.
  * @param {{ tier?: string, prompt_len?: unknown }} d
- * @returns {number} USD saved estimate (>= 0)
+ * @returns {number|null} USD saved estimate (>= 0), ou `null` = nao se sabe
  */
 function estimateBadgeSavings(d) {
   try {
@@ -83,7 +84,11 @@ function estimateBadgeSavings(d) {
     const saved = naiveOpusCost(len) - estimateTurnCost(d.tier, len);
     return saved > 0 ? saved : 0;
   } catch {
-    return 0;
+    // Devolver 0 aqui tornava "o pricing.js nao carregou" indistinguivel de "T3,
+    // logo nao ha poupanca a mostrar" — nos dois casos o chip desaparecia e o
+    // badge afirmava zero poupanca por ignorancia. `null` diz nao sei, e quem
+    // chama mostra `n/d` em vez de um zero inventado.
+    return null;
   }
 }
 
@@ -103,7 +108,11 @@ function buildBadge(decision) {
   const conf = Number(d.confidence);
   const confStr = Number.isFinite(conf) ? conf.toFixed(2) : '0.00';
   const saved = estimateBadgeSavings(d);
-  const savedChip = saved > 0 ? ` · saved $${saved.toFixed(3)}` : '';
+  // `null` = o custo nao pode ser calculado (pricing indisponivel). Nao e zero:
+  // o badge assume-o com `n/d` em vez de se calar como se nao houvesse poupanca.
+  const savedChip = saved === null
+    ? ' · saved n/d'
+    : (saved > 0 ? ` · saved $${saved.toFixed(3)}` : '');
   // Wave 5 D4 — low-confidence (< 0.5) uses a `?` glyph instead of the tier glyph,
   // so an always-on badge honestly signals "uncertain tier".
   const lowConf = Number.isFinite(conf) && conf < 0.5;

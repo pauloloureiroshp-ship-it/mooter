@@ -376,8 +376,13 @@ function getSubscriptions() {
       });
     }
     return out;
-  } catch {}
-  return [];
+  } catch {
+    // Ficheiro corrompido/ilegível devolvia o mesmo [] que "o utilizador não tem
+    // nenhum plano pago": a statusline desenhava zero linhas de subscrição nos
+    // dois casos e ninguém distinguia um do outro. null = "não sei"; os dois
+    // renderizadores abaixo mostram `subs n/d` em vez de calarem-se.
+    return null;
+  }
 }
 
 // Cycle awareness: where are we in the billing month? Helps user decide
@@ -1920,6 +1925,9 @@ function buildStatusline(data) {
     // Each subscription competes for visibility — first one wins the low prio.
     extras.push({ prio: 3 + idx * 0.1, str: pill });
   });
+  // subscriptions === null ⇒ getSubscriptions() não conseguiu ler o perfil. Sem
+  // este pill a linha ficava exactamente igual à de quem não tem plano nenhum.
+  if (subscriptions === null) extras.push({ prio: 3, str: `📦 ${DIM}subs n/d${RESET}` });
   // Local layer pill — compact 🦙 N% (only when there's T0 activity to show).
   if (tierCountsEarly && (tierCountsEarly.local || 0) > 0 && tierCountsEarly.total > 0) {
     const share = Math.round(((tierCountsEarly.local || 0) / tierCountsEarly.total) * 100);
@@ -2166,12 +2174,18 @@ function renderMultiLine({
       recBadge = `${color}${BOLD}→ ${icon} ${label}${RESET} ${DIM}${slash}${RESET}`;
     }
   }
-  const subRows = (subscriptions || []).map((sub, idx) => {
+  // subsKnown=false ⇒ getSubscriptions() devolveu null (perfil ilegível). Zero
+  // linhas de plano aqui era indistinguível de "não tem plano pago nenhum", que
+  // é a leitura oposta do painel; por isso desenhamos uma linha `subs n/d`.
+  const subsKnown = Array.isArray(subscriptions);
+  const SUBS_UNKNOWN = `📦 ${DIM}subs n/d${RESET}`;
+  const subRows = (subsKnown ? subscriptions : []).map((sub, idx) => {
     const hasUsage = usageData && usageData.usage && usageData.usage[sub.providerKey];
     const rec = hasUsage && idx === 0 ? recBadge : '';   // attach rec to first provider w/ usage
     const spark = sub.providerKey === 'anthropic' ? sparkline : '';
     return renderSubscriptionRow(sub, usageData, width, 'mid', rec, spark, sep, flat);
   });
+  if (!subsKnown) subRows.push(_row('mid', SUBS_UNKNOWN, ''));
 
   // --- Final row: Ollama local layer -----------------------------------
   // Only show when there's actually been local routing (avoids a "0%" row
@@ -2192,12 +2206,15 @@ function renderMultiLine({
   } else if (rows.length > 0) {
     // Re-render last row with 'bottom' corners.
     const lastIdx = rows.length - 1;
-    if (subRows.length > 0) {
+    if (subsKnown && subscriptions.length > 0) {
       const lastSub = subscriptions[subscriptions.length - 1];
       const hasUsage = usageData && usageData.usage && usageData.usage[lastSub.providerKey];
       const rec = hasUsage && subscriptions.length === 1 ? recBadge : '';
       const spark = lastSub.providerKey === 'anthropic' ? sparkline : '';
       rows[lastIdx] = renderSubscriptionRow(lastSub, usageData, width, 'bottom', rec, spark, sep, flat);
+    } else if (!subsKnown) {
+      // A linha n/d é a última do painel — re-desenhada com o canto de rodapé.
+      rows[lastIdx] = _row('bottom', SUBS_UNKNOWN, '');
     } else {
       // No subs at all — L2 becomes the bottom.
       rows[lastIdx] = _row('bottom', l2Left, healthCore || '');

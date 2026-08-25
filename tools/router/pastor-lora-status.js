@@ -19,7 +19,10 @@
  *     registered adapters). No invented number.
  *   - DEFAULT-ON above a learning threshold (DEFAULT_ON_THRESHOLD = 50): the
  *     chip stays SILENT until the Pastor has seen enough to be worth showing,
- *     and silent again if the log is missing/unreadable (N = 0). Honest degrade.
+ *     and silent again if the log is missing (N = 0 — nothing learned yet).
+ *     A log that EXISTS but cannot be read is a different fact: N = null and the
+ *     chip renders `n/d`. Staying silent there would sell a read failure as a
+ *     Pastor that simply has not learned anything.
  *
  * GATING — this chip is part of CHIP_MODULES (the legacy line-3 opt-in list),
  * NOT DEFAULT_ELIGIBLE, so it never surfaces in the always-on wired statusline.
@@ -29,7 +32,8 @@
  * hidden_chips:["pastor_lora"] hide it; MOOTER_STATUSLINE_PASTOR=1 force-shows
  * the real N even below the threshold (still silent when N=0).
  *
- * Budget: one readFileSync of decisions.log + a newline count. Any failure → ''.
+ * Budget: one readFileSync of decisions.log + a newline count. Missing log → '';
+ * unreadable log → `n/d`.
  */
 
 const fs = require('node:fs');
@@ -56,14 +60,24 @@ function prefs() {
   }
 }
 
-/** Count non-empty lines in decisions.log (mirrors pastor-tune.js decisionCount). */
+/**
+ * Count non-empty lines in decisions.log (mirrors pastor-tune.js decisionCount).
+ *
+ * O catch devolve `null`, não 0: 0 já quer dizer "o Pastor ainda não aprendeu
+ * nada", por isso um log que existe mas não se consegue ler ficava
+ * indistinguível de um Pastor virgem — e o chip desaparecia como se fosse
+ * silêncio honesto quando era uma falha de leitura. Log ausente continua a ser
+ * 0, que aí é mesmo verdade e não ignorância.
+ *
+ * @returns {number|null} contagem real; 0 se o log não existe; null se ilegível.
+ */
 function decisionCount(logPath) {
   try {
     const p = logPath || decisionsLogPath();
     if (!fs.existsSync(p)) return 0;
     return fs.readFileSync(p, 'utf8').split('\n').filter((l) => l.trim()).length;
   } catch {
-    return 0;
+    return null;
   }
 }
 
@@ -80,7 +94,8 @@ function hidden(p) {
 /**
  * Pure renderer — decision count injected, no I/O.
  *
- * @param {number}  n              real decision count.
+ * @param {number|null} n          real decision count, or null when the log
+ *                                  exists but could not be read.
  * @param {object}  [opts]
  * @param {number}  [opts.threshold] override the default-on threshold (default 50).
  * @param {boolean} [opts.force]    when true, show the real N even below threshold
@@ -88,6 +103,9 @@ function hidden(p) {
  * @returns {string} the chip, or '' when below threshold / no data.
  */
 function buildPastorLoraChip(n, opts = {}) {
+  // n === null é "não consegui medir", não "não há nada": calar o chip aqui
+  // seria vender uma falha de leitura como um Pastor que ainda não aprendeu.
+  if (n === null) return '🎓 Pastor v2 · n/d decisions · decisions.log unreadable';
   const count = Math.max(0, Number(n) || 0);
   if (count <= 0) return ''; // honest: nothing learned yet → silent
   const threshold = Number.isFinite(opts.threshold) ? opts.threshold : DEFAULT_ON_THRESHOLD;

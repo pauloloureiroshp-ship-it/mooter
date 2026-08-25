@@ -96,7 +96,20 @@ function readTurns(sessionId, maxN) {
     const turns = fs.readFileSync(_file(sessionId), 'utf8').split('\n').filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     return maxN ? turns.slice(-maxN) : turns;
-  } catch { return []; }
+  } catch (e) {
+    // Ficheiro ausente é mesmo "ainda não há turnos" — aí [] é verdade. Qualquer
+    // outro erro (permissões, I/O, ficheiro corrompido a meio) não é: devolvia []
+    // na mesma, buildContextBlock dava null, e o modelo local respondia sem
+    // contexto exactamente como se a conversa acabasse de começar — perda de
+    // memória indistinguível de conversa nova. Não forçamos null porque readTurns
+    // é público e os chamadores (hooks, router-execute) vivem fora deste ficheiro
+    // e contam com um array; por isso a falha passa a ser anunciada em stderr em
+    // vez de silenciosa.
+    if (!e || e.code !== 'ENOENT') {
+      console.warn(`[session-context] readTurns(${_safeId(sessionId)}) failed — ${e && e.message}; treating as no history.`);
+    }
+    return [];
+  }
 }
 
 /**

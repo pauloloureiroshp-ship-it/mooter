@@ -52,18 +52,28 @@ function countLiveSessions(heartbeats, now) {
   return n;
 }
 
-/** Read + parse heartbeat files (best-effort, capped). Returns []. */
+/**
+ * Read + parse heartbeat files (best-effort, capped).
+ * Returns an array of heartbeats, `[]` when the directory genuinely does not
+ * exist (ENOENT — o Conductor nunca correu, logo há mesmo zero sessões), e
+ * `null` quando não foi possível ler (permissões, ENOTDIR, EIO).
+ *
+ * Devolver `[]` em todos os casos tornava "não consegui ler a pasta"
+ * indistinguível de "não há terminais activos" — e quem chama traduzia isso em
+ * "≤1 activo", uma contagem que nunca chegámos a fazer.
+ */
 function readHeartbeats(dir) {
+  let files;
   try {
-    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).slice(0, 64);
-    const out = [];
-    for (const f of files) {
-      try { out.push(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))); } catch { /* skip */ }
-    }
-    return out;
-  } catch {
-    return [];
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).slice(0, 64);
+  } catch (err) {
+    return err && err.code === 'ENOENT' ? [] : null;
   }
+  const out = [];
+  for (const f of files) {
+    try { out.push(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))); } catch { /* skip */ }
+  }
+  return out;
 }
 
 function clean(s) {
@@ -138,8 +148,16 @@ function statusLine() {
   let suffix = '';
   if (!(Array.isArray(p.hidden_chips) && p.hidden_chips.includes('sessions-count'))) {
     try {
-      const n = countLiveSessions(readHeartbeats(path.join(mooterHome(), 'orchestration', 'heartbeats')), Date.now());
-      if (n >= 2) suffix = ` (${n} active)`;
+      const hbs = readHeartbeats(path.join(mooterHome(), 'orchestration', 'heartbeats'));
+      if (hbs === null) {
+        // Heartbeats ilegíveis: não sabemos quantos terminais estão vivos.
+        // Ficar sem sufixo afirmava "≤1 activo" por ignorância; o `?` diz a
+        // verdade — há uma contagem, mas não é esta linha que a conhece.
+        suffix = ' (? active)';
+      } else {
+        const n = countLiveSessions(hbs, Date.now());
+        if (n >= 2) suffix = ` (${n} active)`;
+      }
     } catch { /* best-effort: no suffix */ }
   }
   return `🪟 ${name}${suffix}`;
