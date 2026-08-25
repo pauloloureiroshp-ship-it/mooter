@@ -52,20 +52,65 @@ const CAMPOS_PARA_O_MOTOR = Object.freeze(['goal', 'agent', 'wave', 'actor']);
  * O kimi volta quando a kimi-egress mergear em main, por decisao explicita,
  * nunca por default. Isto e uma condicao do GO, nao uma sugestao: ha um teste
  * que prova a recusa, e a suite fica vermelha se alguem tirar esta barreira.
+ *
+ * ── 2026-08-25 · a exclusao dura vira ACEITACAO CONDICIONADA (decisao A6a) ──
+ *
+ * O dono decidiu por escrito que o kimi volta a rota. A frase acima ja dizia
+ * como: «por decisao explicita, nunca por default» — e uma decisao escrita e
+ * exactamente isso. O que mudou foi a FORMA da barreira, nao a existencia dela:
+ * o kimi sai de `MOTORES_EXCLUIDOS` (uma porta soldada) e entra em
+ * `MOTORES_PERMITIDOS` atras de uma condicao MECANICA (uma porta com chave).
+ *
+ * A condicao NAO e a linha de destrave do spike, e a razao esta medida:
+ *
+ *   - «kimi-egress FECHADA — slack-spike destravado» esta no SYNC.md desde
+ *     2026-08-17 e destrava o MODO VIVO do spike. Nao afirma que o ALTO foi
+ *     corrigido — o commit que a repos no sitio (`94a0d3e8`) escreve o
+ *     contrario: «a condicao dura (exclusao do kimi por construcao) ainda esta
+ *     em vigor».
+ *   - Procurado em `main` a 2026-08-25: o veto de egress no caminho
+ *     kimi/Moonshot NAO existe. O ALTO continua aberto.
+ *
+ * Reaproveitar essa linha teria chamado condicional a uma aceitacao
+ * incondicional — a condicao ja estava cumprida antes de ser escolhida como
+ * condicao. Por isso o kimi tem linha PROPRIA (`gate.LINHA_KIMI`), que hoje
+ * nao existe em ficheiro nenhum. Consequencia honesta: nesta data o kimi
+ * continua a ser recusado. O que mudou e o MOTIVO — deixou de ser «excluido
+ * por construcao, sem prazo» e passou a ser «uma linha no SYNC.md de
+ * distancia, escrita por quem fechar a frente».
  * ─────────────────────────────────────────────────────────────────────────
  */
-const MOTORES_PERMITIDOS = Object.freeze(['cc', 'codex', 'gemini', 'moo']);
+const MOTORES_PERMITIDOS = Object.freeze(['cc', 'codex', 'gemini', 'kimi', 'moo']);
 
-/** Motor -> porque esta fora. Estar aqui e uma decisao datada, nao um esquecimento. */
-const MOTORES_EXCLUIDOS = Object.freeze({
-  kimi: 'a kimi-egress fechou por CONGELAMENTO com um ALTO de CODIGO em aberto (o plano '
-    + 'que fica no disco sem o recibo o declarar). O spike existe para mostrar recibos a um '
-    + 'estranho, logo o vendor fica fora da rota viva ate o veto de egress entrar em main '
-    + '— decisao Cowork 2026-08-17, GO CONDICIONADO',
+/**
+ * Motor -> porque esta fora, INCONDICIONALMENTE. Estar aqui e uma decisao
+ * datada, nao um esquecimento. Vazio desde 2026-08-25: o kimi era o unico
+ * habitante e passou a condicionado (ver `MOTORES_CONDICIONADOS`). Fica de pe
+ * porque a mecanica de exclusao dura tem de continuar a existir para o proximo
+ * vendor que precise dela — e os testes dela continuam a correr.
+ */
+const MOTORES_EXCLUIDOS = Object.freeze({});
+
+/**
+ * Motor -> a condicao que o readmite. `verificar(gate, syncPath)` devolve
+ * `{ok, porque}`; `false` recusa com o `porque`. Fail-closed: uma condicao que
+ * rebenta e uma condicao nao cumprida, nunca uma porta aberta.
+ */
+const MOTORES_CONDICIONADOS = Object.freeze({
+  kimi: {
+    verificar: (gate, syncPath) => gate.kimiReadmitido({ syncPath }),
+    contexto: 'o ALTO da kimi-egress (a recusa por agent:"kimi" deixa um plano no disco que o '
+      + 'recibo nao declara) vive no caminho kimi/Moonshot e continua sem veto em main',
+  },
 });
 
-/** @returns {{ok:boolean, motor?:string, porque?:string}} */
-function validarMotor(agent) {
+/**
+ * @param {string} agent
+ * @param {{gate?:object, syncPath?:string}} [ctx] necessario so para motores
+ *        CONDICIONADOS; sem ele um condicionado e recusado (fail-closed).
+ * @returns {{ok:boolean, motor?:string, porque?:string, condicao?:string}}
+ */
+function validarMotor(agent, ctx) {
   const motor = String(agent == null ? '' : agent).trim().toLowerCase();
   if (!motor) {
     return { ok: false, porque: 'despacho sem motor declarado — o `agent` tem de vir explicito '
@@ -78,6 +123,25 @@ function validarMotor(agent) {
   if (!MOTORES_PERMITIDOS.includes(motor)) {
     return { ok: false, porque: 'motor "' + motor + '" fora da allowlist de motores do spike ('
       + MOTORES_PERMITIDOS.join(', ') + ') — um motor desconhecido nao entra por omissao' };
+  }
+  const cond = MOTORES_CONDICIONADOS[motor];
+  if (cond) {
+    const c = ctx || {};
+    let r;
+    // Uma condicao que rebenta e uma condicao NAO cumprida. O `catch` existe
+    // para isso e nao para esconder nada: o motivo vai no `porque`.
+    try {
+      r = c.gate && c.syncPath ? cond.verificar(c.gate, c.syncPath)
+        : { ok: false, porque: 'sem gate/syncPath nao ha como verificar a condicao' };
+    } catch (e) {
+      r = { ok: false, porque: 'a condicao rebentou (' + ((e && e.message) || 'erro') + ')' };
+    }
+    if (!r || r.ok !== true) {
+      return { ok: false, condicao: r && r.linha ? r.linha : null,
+        porque: 'motor "' + motor + '" CONDICIONADO e a condicao nao esta cumprida: '
+          + ((r && r.porque) || 'sem motivo') + '. Contexto: ' + cond.contexto };
+    }
+    return { ok: true, motor, condicao: r.linha || null };
   }
   return { ok: true, motor };
 }
@@ -138,7 +202,7 @@ function criarDespachador(opcoes) {
     // 3 · a allowlist de MOTORES — a condicao dura do GO CONDICIONADO.
     //     Antes de chamar o motor: um `agent:"kimi"` morre AQUI, na porta, e nao
     //     no ponto de estrangulamento do nucleo (que e onde esta o ALTO aberto).
-    const m = validarMotor(p.agent);
+    const m = validarMotor(p.agent, { gate, syncPath });
     if (!m.ok) {
       return { job_id: null, porque_local: m.porque };
     }
@@ -171,4 +235,4 @@ function criarDespachador(opcoes) {
 }
 
 module.exports = { criarDespachador, CAMPOS_PARA_O_MOTOR, MOTORES_PERMITIDOS,
-  MOTORES_EXCLUIDOS, validarMotor };
+  MOTORES_EXCLUIDOS, MOTORES_CONDICIONADOS, validarMotor };
