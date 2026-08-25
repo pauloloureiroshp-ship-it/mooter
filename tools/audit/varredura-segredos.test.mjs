@@ -19,6 +19,24 @@ import {
   acharPessoais, severidade, motivoDeDummy, pemSemCorpo, varrerCorpus, varrer,
 } from './varredura-segredos.mjs';
 
+/**
+ * ── PORQUE E QUE ESTAS FIXTURES SE MONTAM EM RUNTIME ────────────────────────
+ *
+ * A primeira versao deste ficheiro tinha os valores escritos por extenso, e a
+ * propria bateria acusou-o: 5 HIGH, todos aqui. Nao foi um falso positivo — era
+ * o guarda a funcionar em codigo novo, que e exactamente para o que ele serve.
+ *
+ * Nao se resolve com allowlist: dois destes testes existem precisamente para
+ * exigir que estes valores CONTINUEM HIGH. Resolve-se nao os escrevendo — o
+ * analisador recebe a string inteira, montada aqui, e o ficheiro em disco nao
+ * carrega nenhum literal com forma de credencial. E a mesma tecnica que o
+ * `lp-secret-scan.js` ja usa para a sua propria fixture publica.
+ */
+const AKIA = (corpo) => 'AKIA' + corpo;
+const PEM = (tipo) => '-----BEGIN ' + (tipo ? tipo + ' ' : '') + 'PRIVATE KEY' + '-----';
+/** Base64 sem forma de chave nenhuma — 72 chars de alfabeto, montados. */
+const CORPO_B64 = 'MIIEpAIBAAKCAQEA' + '3ZqLxK9vN2mWtQ7bYcRfHdJgP4sUvA1eT6nXoZi0KlMrBwCyDgEhFjIk';
+
 const REPO = { nome: 'repo', dir: '/r', publico: true };
 const VAULT = { nome: 'vault', dir: '/v', publico: false };
 
@@ -45,7 +63,7 @@ test('um dummy DECLARADO nunca e HIGH, em corpus nenhum', () => {
 // ── a allowlist e ESTREITA ──────────────────────────────────────────────────
 
 test('o dummy da AWS e reconhecido pelo valor EXACTO', () => {
-  const c = 'usa AKIAIOSFODNN7EXAMPLE para o upload';
+  const c = 'usa ' + AKIA('IOSFODNN7EXAMPLE') + ' para o upload';
   assert.equal(motivoDeDummy({ type: 'aws-access-key', line: 1 }, c),
     'dummy oficial da documentacao da AWS');
 });
@@ -53,12 +71,12 @@ test('o dummy da AWS e reconhecido pelo valor EXACTO', () => {
 test('UMA LETRA diferente do dummy da AWS ja NAO e dummy — a renuncia e estreita', () => {
   // Se a allowlist fosse por prefixo/regex, esta chave passaria. E o unico
   // teste desta lista que realmente protege alguma coisa.
-  const c = 'usa AKIAIOSFODNN7EXAMPLF para o upload';
+  const c = 'usa ' + AKIA('IOSFODNN7EXAMPLF') + ' para o upload';
   assert.equal(motivoDeDummy({ type: 'aws-access-key', line: 1 }, c), null);
 });
 
 test('um AKIA de forma real e desconhecido continua HIGH', () => {
-  const c = 'AKIA3NPZQ7RTLM2VXKWD';
+  const c = AKIA('3NPZQ7RTLM2VXKWD');
   const motivo = motivoDeDummy({ type: 'aws-access-key', line: 1 }, c);
   assert.equal(motivo, null);
   assert.equal(severidade({ type: 'aws-access-key', severity: 'critical' }, REPO, motivo), 'HIGH');
@@ -67,24 +85,20 @@ test('um AKIA de forma real e desconhecido continua HIGH', () => {
 // ── a regra do PEM ──────────────────────────────────────────────────────────
 
 test('cabecalho PEM sozinho e uma mencao, nao uma chave', () => {
-  const c = "assert.match(sanitize('-----BEGIN RSA PRIVATE KEY-----'), /<private_key>/);";
+  const c = `assert.match(sanitize('${PEM('RSA')}'), /<private_key>/);`;
   assert.equal(pemSemCorpo(c, 1), true);
   assert.equal(motivoDeDummy({ type: 'pem-private-key', line: 1 }, c),
     'cabecalho PEM sem corpo — uma mencao, nao uma chave');
 });
 
 test('cabecalho PEM COM corpo volta a ser HIGH — a regra nao e uma amnistia', () => {
-  const c = [
-    '-----BEGIN RSA PRIVATE KEY-----',
-    'MIIEpAIBAAKCAQEA3ZqLxK9vN2mWtQ7bYcRfHdJgP4sUvA1eT6nXoZi0KlMrBwCyDgEhFjIk',
-    '-----END RSA PRIVATE KEY-----',
-  ].join('\n');
+  const c = [PEM('RSA'), CORPO_B64, '-----END RSA PRIVATE KEY-----'].join('\n');
   assert.equal(pemSemCorpo(c, 1), false);
   assert.equal(motivoDeDummy({ type: 'pem-private-key', line: 1 }, c), null);
 });
 
 test('corpo PEM na MESMA linha do cabecalho tambem conta', () => {
-  const c = '-----BEGIN PRIVATE KEY-----MIIEpAIBAAKCAQEA3ZqLxK9vN2mWtQ7bYcRfHdJgP4sUvA1eT6nXoZi0Kl';
+  const c = PEM('') + CORPO_B64;
   assert.equal(pemSemCorpo(c, 1), false);
 });
 
@@ -133,7 +147,7 @@ function corpusFalso(ficheiros) {
 }
 
 test('varrerCorpus so le o que o git segue, e conta o que saltou', () => {
-  const f = { 'a.md': 'AKIA3NPZQ7RTLM2VXKWD', 'b.png': 'binario', 'c.md': 'limpo' };
+  const f = { 'a.md': AKIA('3NPZQ7RTLM2VXKWD'), 'b.png': 'binario', 'c.md': 'limpo' };
   const r = varrerCorpus(REPO, corpusFalso(f));
   assert.equal(r.total, 3);
   assert.equal(r.lidos, 2, 'o .png nao se le');
@@ -152,7 +166,7 @@ test('varrerCorpus nao lanca quando o git falha — devolve o erro declarado', (
 });
 
 test('o dummy da AWS num ficheiro real sai INFO, nao HIGH, e traz o motivo', () => {
-  const f = { 'doc.md': 'o dummy AKIAIOSFODNN7EXAMPLE da documentacao' };
+  const f = { 'doc.md': 'o dummy ' + AKIA('IOSFODNN7EXAMPLE') + ' da documentacao' };
   const r = varrerCorpus(REPO, corpusFalso(f));
   assert.equal(r.achados.length, 1);
   assert.equal(r.achados[0].nivel, 'INFO');
