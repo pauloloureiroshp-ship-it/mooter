@@ -158,4 +158,56 @@ afirmações minhas.** Verifiquei cada uma no código em vez de aceitar ou desca
 conflito** entre os dois ficheiros, e faltava revisão periódica. É exatamente o que o portão passa
 a impor — declara o `pricing.js` como autoridade e falha na divergência e aos 30 dias.
 
-Próximo: gestos locais (feitos), PR.
+---
+
+`2026-08-25 | gestos locais | feitos`
+
+| gesto | estado | verificação |
+|---|---|---|
+| `cowork-session.json` ↔ `sessoes/mooter.json` | **alinhado** | estava `mooter-pilar-coerencia` (bound 16/08, stale) vs `mooter-gpu-local-strategy` (actualizado hoje). Ambos em `mooter-gpu-local-strategy`; paridade confirmada por leitura dos dois ficheiros. Backup em `cowork-session.json.bak-2026-08-25`, e a razão do realinhamento ficou escrita no campo `note` — não mudei um valor em silêncio |
+| `~/.mooter/preferences.json` | **criado** | não existia. `{"statusline_line3": true}`. Nota: o caminho é `~/.mooter/`, não `~/.claude/` |
+| arquivar `_handoff/` | **feito** | ver marco do arquivo |
+
+Nada disto está no PR — são estado de máquina, fora do repo, por desenho.
+
+---
+
+`2026-08-25 | FECHO | PR #390 aberto, CI verde`
+
+**17/17 checks não-Vercel passam**, incluindo `cockpit tests (windows)`, `a suite não pode
+piorar` e `a higiene não pode piorar`. As 2 falhas Vercel são **rate-limit de deploy** ("retry in
+24 hours"), não código.
+
+**O CI apanhou-me uma vez, e valeu a pena.** O primeiro push falhou em `a higiene não pode piorar`:
+`sync_lines 631 > 606 (piorou 25)`. A culpa era minha — a declaração de escopo que o mutex pede
+tinha 33 linhas, e o `SYNC.md` é um **snapshot, não um log**. Comprimida para 3 linhas. Repare-se
+que **localmente eu não tinha visto isto**: local o ratchet falhava por `untracked` e `stashes`, que
+no checkout do CI não existem, e essas duas mascaravam a métrica que era mesmo minha.
+
+Fica em 603 linhas — passa, mas **por 3 de margem**. O `SYNC.md` continua a ~3x o orçamento
+canónico (~220) e o `WARN SYNC_TOO_LONG` continua de pé. Enrolar o histórico para
+`docs/foundation/SYNC_ARCHIVE_2026.md` é o gatilho documentado, mas mexe num ficheiro partilhado
+com o CC do PC a meio da missão dele — **não o fiz**.
+
+### O que precisa de decisão do dono (nada disto foi auto-autorizado)
+
+1. **Ratificar** a edição de fixture em `packages/router/tests/cache-aware-cost.test.ts` — fora do
+   allowlist da Wave 58. `const` + comentário, zero lógica de motor. **Não toquei no allowlist do
+   `CLAUDE.md`.**
+2. **`claude-fable-5`** — precificá-lo exige primeiro resolver o campo `tier: T5` do snapshot
+   contra o "priceable, not routable" do SSOT.
+3. **Baseline do ratchet** — três métricas melhoraram muito (−176 pacotes, −177 ficheiros); um
+   `--update-baseline` desce-as, mas **subiria** `stashes`. Não corri.
+4. **Duas colisões** por resolver: `LIVE_PREVIEW_AUDIT_FINDINGS.md` e `LP_COHERENCE_AUDIT_REPORT.md`
+   existem no topo **e** no arquivo, com conteúdo diferente.
+5. **`_handoff/archive/2026-08`** — órfão da convenção antiga, ao lado do canónico `_archive/`.
+6. **Stash `mac-checkup-v1494`** (24/08) — trabalho fora de qualquer commit. Não é meu, não lhe toquei.
+
+### O que ficou por fazer, e porquê
+
+**F1, F2, F3, F4 do masterprompt não foram abertos** — são do PC/dono por mandato do kickoff, e o
+mutex proíbe. O `SKILL.md` duplicada do moo-pilot foi **refutada** (não existe). O `mooter-cabine`
+existia com outro nome e era um defeito maior do que o enunciado.
+
+**O `kimi-k3` não correu**: não existe canal para ele nesta máquina. Está declarado no topo em vez
+de ser silenciosamente substituído.
