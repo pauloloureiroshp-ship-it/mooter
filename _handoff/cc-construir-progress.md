@@ -102,3 +102,26 @@ Melhorias reais que ficam por gravar: `sync_lines` 606→**219** · `active_pack
 stash é seguro em substância, mas é irreversível. Com `git stash drop stash@{0}` seguido de
 `node tools/docs-hygiene.js --ratchet --update-baseline`, os quatro números acima ficam gravados.
 Não o fiz.
+
+## FASE B — painel UX ✅ PR #401
+
+**3 eram defeitos, 3 eram rótulos a mandar procurar defeitos que não existem, 1 já estava meio feito.**
+
+Mudou a forma de testar: `painel-cartao.test.mjs` **corre o script real do painel** num `vm` com DOM
+mínimo e `Date.now` injectado. Prova: contra `main`, **8 de 10 falham**; com a correcção, **14/14**.
+
+| # | Veredicto |
+|---|---|
+| 1 repaint | **Real** — o rodapé carimbava a hora do *render* (3 em 3 s), não a idade dos *dados* |
+| 2 nome vertical | **Real** — `min-width` aterrou hoje às 16:33; faltavam `nowrap`+`ellipsis`+`title` |
+| 3 morto/holding | **Real** — `pausa.activa` é uma afirmação sobre o instante do beacon |
+| 4 schema win32 | **Falso** — schema idêntico; o PC está mesmo em pausa (`no eligible loop`) |
+| 5a StatuslineCard | **Real** — `Partial<>` deixa passar `undefined`; saía em branco, a verde |
+| 5b build-snapshot | **Real, mas não é race** — é validar-e-depois-substituir, acima de 2 MB |
+| 6 projecto/prefs | Já alinhados; faltava o **durável** — a precedência, que não existia em código |
+| 7 contadores | **Falso** — janela de 5000 contra ledger de **5492**; faltava o rótulo dizê-lo |
+
+Efeito colateral necessário: o `vitest` da landing não resolvia `@/`, o que tornava **qualquer**
+componente não-testável. Resolvido.
+
+Gate: cockpit 862 testes 0 fail · landing 219 testes 0 fail · `classify.js` intacto.
