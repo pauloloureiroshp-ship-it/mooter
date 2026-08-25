@@ -47,7 +47,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { expandirPadrao } from './context-pack.mjs';
-import { excluido } from './portao-de-existencia.mjs';
+import { excluido, LIMIARES } from './portao-de-existencia.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
@@ -165,6 +165,9 @@ export const REGRAS = {
    */
   'catch-neutro': {
     activo: true,
+    // O que DECIDE. Estruturado, portanto verificavel — ver `podeEntrar`.
+    // A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 84, lidos: 40, reais: 28 },
     porque: '84 candidatos, 28 reais em 40 lidos a mao, 70,0% de precisao — passa os dois limiares do portao',
     /**
      * O ENUNCIADO que o juiz le.
@@ -261,9 +264,70 @@ export const REGRAS = {
   },
 };
 
-/** As que correm. Vazio hoje, por medicao — ver a entrada de cada uma. */
-export function regrasActivas(regras = REGRAS) {
-  return Object.keys(regras).filter((id) => regras[id] && regras[id].activo === true);
+/**
+ * Uma regra pode entrar na rotacao?
+ *
+ * ⚠️ ISTO E O PORTAO A DEIXAR DE SER UM DOCUMENTO.
+ *
+ * Ate 2026-08-25 a unica coisa que impedia um pilar ou uma regra de entrar sem
+ * medicao era um comentario a pedi-la, e um teste que verificava se o campo
+ * `porque` tinha um digito. `porque: 'medido 1 vez'` passava. Foi assim que o
+ * P11 entrou: passou o ensaio, entrou, e em UM dia deu 87 achados dos quais 76
+ * falhavam o proprio enunciado.
+ *
+ * A pratica que isto segue esta escrita nas best-practices do Claude Code:
+ * *"Hooks are deterministic and guarantee the action happens"*, ao contrario das
+ * instrucoes em prosa, que sao *advisory*. Um portao que se pode esquecer nao e
+ * um portao.
+ *
+ * O `porque` continua a existir para quem le. O que DECIDE e o `medicao`, que e
+ * estruturado e portanto verificavel:
+ *
+ *     medicao: { candidatos: 84, lidos: 40, reais: 28 }
+ *
+ * `precisao` NAO se declara: deriva-se de `reais / lidos`. Um numero declarado a
+ * mao e um numero que se pode escrever errado — e este ficheiro ja apanhou hoje
+ * um `funciona` que era um `NO FINDING`.
+ */
+export function podeEntrar(regra, { limiares = LIMIARES } = {}) {
+  if (!regra || regra.activo !== true) return { pode: false, porque: 'nao esta marcada como activa' };
+  const m = regra.medicao;
+  if (!m || typeof m !== 'object') {
+    return { pode: false, porque: 'sem campo `medicao` — uma regra sem numeros nao entra, por mais convincente que seja o `porque`' };
+  }
+  const inteiro = (x) => Number.isSafeInteger(x) && x >= 0;
+  if (!inteiro(m.candidatos) || !inteiro(m.lidos) || !inteiro(m.reais)) {
+    return { pode: false, porque: 'a `medicao` tem campos que nao sao inteiros — nao se arredonda um portao' };
+  }
+  if (m.lidos === 0) return { pode: false, porque: 'zero candidatos lidos: nao houve triagem' };
+  if (m.reais > m.lidos) return { pode: false, porque: `${m.reais} reais em ${m.lidos} lidos — impossivel, a medicao esta errada` };
+  if (m.lidos > m.candidatos) return { pode: false, porque: `${m.lidos} lidos de ${m.candidatos} candidatos — a amostra nao pode ser maior que o universo` };
+
+  const precisao = m.reais / m.lidos;
+  const pct = (x) => `${(x * 100).toFixed(1)}%`;
+  const falhas = [];
+  if (m.reais < limiares.REAIS_MINIMO) falhas.push(`so ${m.reais} reais, precisa de ${limiares.REAIS_MINIMO}`);
+  if (precisao < limiares.PRECISAO_MINIMA) falhas.push(`precisao ${pct(precisao)}, abaixo de ${pct(limiares.PRECISAO_MINIMA)}`);
+  if (falhas.length) return { pode: false, porque: falhas.join(' e '), precisao };
+  return { pode: true, porque: `${m.reais} reais em ${m.lidos} lidos · ${pct(precisao)}`, precisao };
+}
+
+/**
+ * As que correm — e so entram as que o `podeEntrar` deixa.
+ *
+ * Uma regra com `activo: true` e medicao insuficiente NAO corre. Nao rebenta,
+ * nao avisa a meio de uma ronda: simplesmente nao entra, e o manifesto diz
+ * porque. E a diferenca entre um portao e um lembrete.
+ */
+export function regrasActivas(regras = REGRAS, opts = {}) {
+  return Object.keys(regras).filter((id) => podeEntrar(regras[id], opts).pode);
+}
+
+/** As que quiseram entrar e o portao recusou, com o motivo de cada uma. */
+export function regrasRecusadas(regras = REGRAS, opts = {}) {
+  return Object.keys(regras)
+    .filter((id) => regras[id] && regras[id].activo === true && !podeEntrar(regras[id], opts).pode)
+    .map((id) => ({ id, porque: podeEntrar(regras[id], opts).porque }));
 }
 
 /** Comentario de linha fora, para o detector nao acusar prosa. */
@@ -353,6 +417,7 @@ export function gerar({
     repo: repoRoot,
     regras_no_catalogo: Object.keys(regras).length,
     regras_activas: activas,
+    regras_recusadas: regrasRecusadas(regras, { limiares: LIMIARES }),
     ficheiros_varridos: activas.length > 0 ? ficheiros.length : 0,
     ficheiros_no_ambito: ficheiros.length,
     ilegiveis,
