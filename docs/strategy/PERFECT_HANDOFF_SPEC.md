@@ -122,7 +122,7 @@ escassa a re-ambientar. O handoff **É** esse valor. Por isso, além dos campos 
 ## Sequência de construção
 `Ledger Spine` (captura mecânica) → `Handoff Truth` (git exacto) → `Perfect Handoff Render`
 (projecta o ledger no formato acima: STATE + GATE-detail + WORK + DECISIONS + PENDING-completo;
-qwen demovido a guarnição). Ver `_handoff/PERFECT_HANDOFF_MASTERPROMPT.md`.
+qwen demovido a guarnição). Ver `_handoff/_archive/2026-06/PERFECT_HANDOFF_MASTERPROMPT.md`.
 
 ## Convenção do Ledger (FASE 4 — fecha o ciclo · IMPLEMENTADO em Perfect Handoff v2)
 O handoff perfeito é uma **projecção do Ledger**: `generateHandoff` lê os eventos da sessão

@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "mooter",
-      "description": "Routes every prompt to the cheapest capable model (local Ollama / Haiku / Sonnet / Opus). Hook, not proxy. 47% measured savings, methodology published. MIT.",
+      "description": "Routes every prompt to the cheapest capable model (local Ollama / Haiku / Sonnet / Opus). Hook, not proxy — same results, a fraction of the spend, zero code changes. Methodology published. MIT.",
       "author": { "name": "Paulo Loureiro" },
       "category": "productivity",
       "source": "./plugin/mooter",

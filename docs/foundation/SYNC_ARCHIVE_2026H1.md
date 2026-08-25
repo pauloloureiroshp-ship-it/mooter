@@ -3109,7 +3109,7 @@ ASK:    25 sessões · 2 verify+merge · 1 answer · 22 fyi · 0 review
   ✅ Lê e executa C:\Users\Paulo Loureiro\frugal\_handoff (878e3a48) · wave/honest-controls · branch incerto (tree partilhado) · claude-opus-4-8
   ✅ Lê e executa o MP-MIRROR-0 de C:\Users\Paulo Loureir (9aa9c633) · wave/honest-controls @84fa287 ⚠ diverge do tree · claude-opus-4-8 · ⚠ 0 commits · uncommitted (verifica)
   ✅ ⇄ COWORK→CC · MP5.2+5.3 Live Edit — estrutural + áre (1aa86053) · wave/honest-controls · branch incerto (tree partilhado) · claude-opus-4-8
-  ✅ Lê e segue _handoff/WAVE_LP1_MP3v2_MP4polish.md. Apl (8d471133) · wave/lp-mp3v2 @1469f5f ⚠ diverge do tree · claude-opus-4-8
+  ✅ Lê e segue _handoff/_archive/2026-07/WAVE_LP1_MP3v2_MP4polish.md. Apl (8d471133) · wave/lp-mp3v2 @1469f5f ⚠ diverge do tree · claude-opus-4-8
   ✅ Lê e segue C:\Users\Paulo Loureiro\frugal\_handoff\p (061aea86) · feat/overclock-moo-p1 @85e238a ⚠ diverge do tree · claude-opus-4-8  [UNPUSHED]
   ✅ ⇄ COWORK → CC · Bench local — o melhor moo para a 40 (48c8155c) · chore/local-model-bench @e9e1505 ⚠ diverge do tree · claude-opus-4-8
   ✅ ⇄ COWORK→CC · WAVE LP-3.2 · FIX — @babel/parser não  (466629e2) · main @2c1a492 ⚠ diverge do tree · claude-fable-5 · ⚠ 0 commits · uncommitted (verifica)
@@ -3131,10 +3131,10 @@ ASK:    25 sessões · 2 verify+merge · 1 answer · 22 fyi · 0 review
 <!-- /mooter-handoff:__fleet__ -->
 
 <!-- mooter-handoff:bfb01d25-a71b-4518-9897-42ca85c371c9 -->
-### ⇄ Handoff · Executa _handoff/SUPER_WAVE_LP48_LP5_LP6.md na ínteg · 2026-07-07 04:49
+### ⇄ Handoff · Executa _handoff/_archive/2026-07/SUPER_WAVE_LP48_LP5_LP6.md na ínteg · 2026-07-07 04:49
 
 ```
-⇄ MOO HANDOFF · frugal · Executa _handoff/SUPER_WAVE_LP48_LP5_LP6.md na í/bfb01d25 · 2026-07-07 04:49
+⇄ MOO HANDOFF · frugal · Executa _handoff/_archive/2026-07/SUPER_WAVE_LP48_LP5_LP6.md na í/bfb01d25 · 2026-07-07 04:49
 STATE:  ⚠ needs-save (uncommitted no worktree)
 TL;DR:  ⚠ needs-save (uncommitted no worktree) · wave/honest-controls @2c1a492 (journal) · 10 decisões
 ── PARA TI ──
@@ -3210,7 +3210,7 @@ NEXT:   nada a fazer — contexto para alinhar
 LAST:   Edit C:\Users\Paulo Loureiro\.claude\plans\executa-ha · Read C:\Users\Paulo Loureiro\.claude\plans\executa-ha · ExitPlanMode
 
 ~RECAP (qwen · best-effort):
-  Executou _handoff/SUPER_WAVE_LP48_LP5_LP6.md na íntegra. Editou e leu o arquivo C:\Users\Paulo Loureiro\.claude\plans\executa-ha. Saiu do modo Plan.
+  Executou _handoff/_archive/2026-07/SUPER_WAVE_LP48_LP5_LP6.md na íntegra. Editou e leu o arquivo C:\Users\Paulo Loureiro\.claude\plans\executa-ha. Saiu do modo Plan.
 
 model claude-haiku-4-5-20251001 · mode moo · saved $-0.65 (sessão)
 compressed locally (T0 · qwen2.5:3b · $0 · local best-effort) · ~0.1k tok saved vs screenshot (est.)
