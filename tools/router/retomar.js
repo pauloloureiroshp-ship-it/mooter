@@ -120,6 +120,14 @@ function emptyTranscriptFacts(reason, source) {
 
 function findWorktreeRoot(cwd, io = fs) {
   if (!cwd) return null;
+  // O `cwd` de um transcript pode vir de OUTRA maquina e de outro sistema. Um
+  // `C:\\repo-antigo` lido no macOS nao e absoluto aqui, e o `path.resolve`
+  // resolvia-o contra o `process.cwd()` DESTE processo — a subida encontrava o
+  // `.git` do repo local e o Retomar declarava «estavas em <repo local>» como
+  // facto medido. Nao e degradacao: e um facto fabricado, que e pior do que o
+  // `n/d` que este ficheiro existe para dar. Sem caminho absoluto para esta
+  // plataforma nao ha raiz que se possa medir.
+  if (!path.isAbsolute(cwd)) return null;
   let cursor = path.resolve(cwd);
   while (true) {
     try {
