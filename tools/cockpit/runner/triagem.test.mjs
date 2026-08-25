@@ -45,7 +45,7 @@ test('ACEITACAO: os tres botoes escrevem, e a ultima decisao e a que vale', () =
   // O descarte leva motivo; os outros dois nao precisam — assimetria deliberada.
   for (const d of DECISOES) {
     registarTriagem(f, {
-      chave: `k-${d}`, decisao: d, recibo: achado(1, `k-${d}`),
+      chave: `k-${d}`, decisao: d, recibo: achado(1, `k-${d}`), por: 'dono',
       ...(d === 'descartado' ? { motivo: 'trivial' } : {}),
     });
   }
@@ -55,7 +55,7 @@ test('ACEITACAO: os tres botoes escrevem, e a ultima decisao e a que vale', () =
   assert.equal(decisoes.get('k-aceite').ficheiro, 'a.mjs', 'a decisao guarda o que se estava a ver');
 
   // Mudar de ideias e legitimo; apagar o rasto nao.
-  registarTriagem(f, { chave: 'k-aceite', decisao: 'descartado', motivo: 'ja-sabido' });
+  registarTriagem(f, { chave: 'k-aceite', decisao: 'descartado', motivo: 'ja-sabido', por: 'dono' });
   ({ decisoes } = lerTriagem(f));
   assert.equal(decisoes.get('k-aceite').decisao, 'descartado');
   assert.equal(fs.readFileSync(f, 'utf8').trim().split('\n').length, 4, 'append-only: nada e reescrito');
@@ -80,13 +80,13 @@ test('linhas partidas sao CONTADAS, nao engolidas', () => {
 test('a fila mostra so o que espera decisao, do mais recente para tras', () => {
   const f = tmp();
   const rec = [achado(1, 'k1'), achado(2, 'k2'), { ...achado(3, 'k3'), conclusao: 'sem-achado' }];
-  registarTriagem(f, { chave: 'k1', decisao: 'aceite' });
+  registarTriagem(f, { chave: 'k1', decisao: 'aceite', por: 'dono' });
   const { decisoes } = lerTriagem(f);
   const fila = porTriar(rec, decisoes);
   assert.deepEqual(fila.map((x) => x.chave), ['k2'], 'k1 ja foi decidido, k3 nao e achado');
 
   const c = contarTriagem(rec, decisoes);
-  assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2, por_autor: { dono: 1 }, por_motivo: {}, sem_motivo: 0 });
+  assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2, por_autor: { dono: 1 }, por_motivo: {}, sem_motivo: 0, do_dono: { aceite: 1, descartado: 0, issue: 0 } });
 });
 
 test('ACEITACAO: o custo vem da tabela REAL, e o desconhecido diz n/d', () => {
@@ -157,22 +157,22 @@ test('um autor desconhecido e recusado — decisao anonima nao entra', () => {
  */
 test('descartar SEM motivo deixa de ser possivel', () => {
   const f = tmp();
-  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'descartado' }),
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'descartado', por: 'dono' }),
     /exige um motivo/, 'um descarte anonimo custa o mesmo a escrever e nao ensina nada');
-  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'descartado', motivo: 'porque-sim' }),
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'descartado', motivo: 'porque-sim', por: 'dono' }),
     /motivo desconhecido/, 'a lista e fechada: texto livre foi exactamente o que falhou');
 });
 
 test('aceitar e abrir issue NAO exigem motivo', () => {
   const f = tmp();
   // A assimetria e deliberada: o valor esta em saber porque se DEITA FORA.
-  assert.equal(registarTriagem(f, { chave: 'a', decisao: 'aceite' }).decisao, 'aceite');
-  assert.equal(registarTriagem(f, { chave: 'b', decisao: 'issue' }).decisao, 'issue');
+  assert.equal(registarTriagem(f, { chave: 'a', decisao: 'aceite', por: 'dono' }).decisao, 'aceite');
+  assert.equal(registarTriagem(f, { chave: 'b', decisao: 'issue', por: 'dono' }).decisao, 'issue');
 });
 
 test('o motivo fica gravado e volta a ser lido', () => {
   const f = tmp();
-  for (const m of MOTIVOS) registarTriagem(f, { chave: 'k-' + m, decisao: 'descartado', motivo: m });
+  for (const m of MOTIVOS) registarTriagem(f, { chave: 'k-' + m, decisao: 'descartado', motivo: m, por: 'dono' });
   const lidas = lerTriagem(f).decisoes;
   for (const m of MOTIVOS) assert.equal(lidas.get('k-' + m).motivo, m);
 });
@@ -181,7 +181,7 @@ test('os descartes antigos contam como sem_motivo — nao se disfarcam de dado',
   const f = tmp();
   // Escrito a mao como os 72 antigos estao no disco: sem campo `motivo`.
   fs.appendFileSync(f, JSON.stringify({ ts: '2026-08-01T00:00:00Z', chave: 'velho', decisao: 'descartado', por: 'dono' }) + '\n');
-  registarTriagem(f, { chave: 'novo', decisao: 'descartado', motivo: 'trivial' });
+  registarTriagem(f, { chave: 'novo', decisao: 'descartado', motivo: 'trivial', por: 'dono' });
   const { decisoes } = lerTriagem(f);
   const recibos = [
     { pilar: 'P1', ficheiro: 'a.js', janela: '1-10', verdict: 'citacao-ok', resultado_resumo: 'ACHADO: x', chave: 'velho' },
@@ -190,4 +190,66 @@ test('os descartes antigos contam como sem_motivo — nao se disfarcam de dado',
   const c = contarTriagem(recibos, decisoes);
   assert.equal(c.sem_motivo + Object.values(c.por_motivo).reduce((n, x) => n + x, 0), c.descartado,
     'todo o descarte tem de cair num dos dois lados: com motivo, ou declaradamente sem');
+});
+
+/* ───────── proveniencia: a assinatura em falta nao vira `dono` ───────── */
+
+/**
+ * O buraco que estava aberto ate 2026-08-24, em forma de teste.
+ *
+ * `registarTriagem` tinha `por = 'dono'` por omissao e `contarTriagem` fazia
+ * `d.por || 'dono'`. Uma decisao sem autor era promovida, em silencio, a decisao
+ * humana — na contagem que abre o nivel 2. Nenhum dos chamadores dependia disso,
+ * mas "ninguem pisou o buraco" nao e o mesmo que "nao ha buraco".
+ */
+test('PROVENIENCIA: escrever sem autor deixa de ser possivel', () => {
+  const f = tmp();
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'aceite' }),
+    /sem autor/, 'sem `por` nao se escreve');
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'aceite', por: '' }),
+    /sem autor/, 'string vazia tambem nao passa');
+  assert.throws(() => registarTriagem(f, { chave: 'k', decisao: 'aceite', por: null }),
+    /sem autor/, 'null tambem nao');
+  assert.equal(fs.existsSync(f), false, 'nada foi escrito no ledger');
+});
+
+test('PROVENIENCIA: uma linha antiga sem autor conta como n-d, NUNCA como dono', () => {
+  const f = tmp();
+  // Escrita a mao, como uma linha de um ledger antigo ou de um script mal feito.
+  fs.appendFileSync(f, JSON.stringify({ ts: '2026-08-01T00:00:00Z', chave: 'orfa', decisao: 'aceite' }) + '\n');
+  const { decisoes } = lerTriagem(f);
+  const recibos = [achado(1, 'orfa')];
+  const c = contarTriagem(recibos, decisoes);
+  assert.equal(c.por_autor['n-d'], 1, 'cai no balde honesto');
+  assert.equal(c.por_autor.dono, undefined, 'e NAO no do dono');
+  assert.equal(c.do_dono.aceite, 0, 'a lista branca nao a apanha');
+});
+
+test('LISTA BRANCA: do_dono conta so o que traz por:dono explicito', () => {
+  const f = tmp();
+  registarTriagem(f, { chave: 'a', decisao: 'aceite', por: 'dono' });
+  registarTriagem(f, { chave: 'b', decisao: 'descartado', motivo: 'trivial', por: 'claude' });
+  registarTriagem(f, { chave: 'c', decisao: 'descartado', motivo: 'trivial', por: 'agente' });
+  registarTriagem(f, { chave: 'd', decisao: 'issue', por: 'dono' });
+  const { decisoes } = lerTriagem(f);
+  const recibos = ['a', 'b', 'c', 'd'].map((k, i) => achado(i + 1, k));
+  const c = contarTriagem(recibos, decisoes);
+  assert.deepEqual(c.do_dono, { aceite: 1, descartado: 0, issue: 1 });
+  assert.equal(c.descartado, 2, 'os totais continuam a contar tudo — sao outra pergunta');
+  assert.deepEqual(c.por_autor, { dono: 2, claude: 1, agente: 1 });
+});
+
+test('CANAL: `via` fica na linha, e distingue-se de quem assina', () => {
+  const f = tmp();
+  registarTriagem(f, { chave: 'a', decisao: 'aceite', por: 'dono', via: 'painel' });
+  registarTriagem(f, { chave: 'b', decisao: 'aceite', por: 'dono' });
+  const linhas = fs.readFileSync(f, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(linhas[0].via, 'painel');
+  assert.equal(linhas[1].via, undefined, 'ausente quando nao declarado — nunca inventado');
+  // `por` diz quem assina, `via` diz por onde passou. Uma decisao `dono` sem
+  // `via: painel` nao veio do painel, e isso e o que torna a assinatura
+  // auditavel em vez de simplesmente acreditada.
+  const { decisoes } = lerTriagem(f);
+  assert.equal(decisoes.get('a').via, 'painel');
+  assert.equal(decisoes.get('b').via, undefined);
 });

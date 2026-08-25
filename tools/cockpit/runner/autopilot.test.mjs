@@ -30,6 +30,7 @@ const {
   TETO_REFUTADO_PCT, MIN_TRIADOS, MIN_PRECISAO_PCT, MIN_PATCHES_LIMPOS,
 } = await import('./autopilot.mjs');
 const { createServer } = await import('./f10-server.mjs');
+const { AUTORES } = await import('./triagem.mjs');
 
 const REPO = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
@@ -191,23 +192,79 @@ test('citacao inventada acima do tecto fecha o portao 1 e diz o numero', () => {
  */
 test('as decisoes do PROPRIO autopilot nao contam para o portao que o promove', () => {
   const p2 = portoes({
-    triagem: { aceite: 0, descartado: 26, issue: 0, por_autor: { agente: 26 } },
+    triagem: {
+      aceite: 0, descartado: 26, issue: 0,
+      por_autor: { agente: 26 },
+      do_dono: { aceite: 0, descartado: 0, issue: 0 },
+    },
   })[1];
   assert.equal(p2.medido, 0, 'triados pelo dono: zero');
   assert.equal(p2.aberto, false);
   assert.match(p2.base, /do not count here/);
 });
 
+/**
+ * A regressao de 2026-08-24, em forma de teste.
+ *
+ * O portao lia os TOTAIS e subtraia `por_autor.agente` — uma lista negra. As
+ * 1448 decisoes que existiam no device real estavam assinadas `claude`, que a
+ * lista negra nao apanhava: o painel dizia ao dono que ele mantinha 0% do que o
+ * loop encontra, sobre 1448 decisoes que nao eram dele e zero que fossem.
+ *
+ * A lista branca inverte o default: o que nao esta provado como do dono nao
+ * conta. Um autor novo (`claude`, ou qualquer outro que venha a existir) fica
+ * de fora por construcao, sem ninguem se lembrar de o acrescentar a lista.
+ */
+test('LISTA BRANCA: um autor nao-humano NOVO nao entra no denominador do L2', () => {
+  const p2 = portoes({
+    triagem: {
+      aceite: 0, descartado: 1448, issue: 0,
+      por_autor: { claude: 1448 },
+      do_dono: { aceite: 0, descartado: 0, issue: 0 },
+    },
+  })[1];
+  assert.equal(p2.medido, 0, 'nenhuma das 1448 e do dono');
+  assert.equal(p2.aberto, false);
+  assert.equal(p2.medido_ha_dados, false);
+  assert.match(p2.base, /no data yet/, 'denominador zero diz NO DATA, nunca 0%');
+  assert.doesNotMatch(p2.base, /\b0%/, 'nunca fabricar uma percentagem sem denominador');
+  assert.match(p2.porque_fechado, /no data yet/);
+  assert.match(p2.porque_fechado, /the 1448 not signed by you/, 'nomeia-as, para o dono saber que existem');
+  assert.doesNotMatch(p2.porque_fechado, /you keep/, 'nao acusar o dono de um juizo que ele nao fez');
+});
+
+test('do_dono ausente => portao 2 FECHADO, nunca aberto por omissao', () => {
+  const p2 = portoes({ triagem: { aceite: 99, descartado: 0, issue: 0 } })[1];
+  assert.equal(p2.medido, 0, 'sem a lista branca nao ha denominador');
+  assert.equal(p2.aberto, false);
+  assert.equal(p2.medido_ha_dados, false);
+});
+
 test('portao 2 abre com decisoes do dono a chegar a barra', () => {
-  const p2 = portoes({ triagem: { aceite: 14, descartado: 6, issue: 0 } })[1];
+  const p2 = portoes({ triagem: { do_dono: { aceite: 14, descartado: 6, issue: 0 } } })[1];
   assert.equal(p2.medido, MIN_TRIADOS);
+  assert.equal(p2.medido_ha_dados, true);
   assert.equal(p2.aberto, true, `14 de 20 = 70%, e a barra e ${MIN_PRECISAO_PCT}%`);
 });
 
 test('portao 2 fecha quando o dono deita fora o que o loop encontra', () => {
-  const p2 = portoes({ triagem: { aceite: 12, descartado: 8, issue: 0 } })[1];
+  const p2 = portoes({ triagem: { do_dono: { aceite: 12, descartado: 8, issue: 0 } } })[1];
   assert.equal(p2.aberto, false);
   assert.match(p2.porque_fechado, /you keep 60%/);
+});
+
+/** Decisoes do dono MISTURADAS com as de agentes: so as dele contam. */
+test('LISTA BRANCA: o dono e os agentes no mesmo ledger — so o dono conta', () => {
+  const p2 = portoes({
+    triagem: {
+      aceite: 15, descartado: 1451, issue: 2,
+      por_autor: { dono: 20, claude: 1448 },
+      do_dono: { aceite: 15, descartado: 3, issue: 2 },
+    },
+  })[1];
+  assert.equal(p2.medido, 20, 'os 1448 do `claude` nao inflacionam nem diluem');
+  assert.equal(p2.aberto, true, '17 mantidos de 20 = 85%');
+  assert.match(p2.base, /85% kept \(17 of 20 decided by you\)/);
 });
 
 test('portao 3 conta patches limpos, e comeca fechado', () => {
@@ -469,4 +526,127 @@ test('o sentinela do P6 e um que o repo sabe mesmo ler', async () => {
   // O `EVERY NUMBER HAS AN ORIGIN` do #312 nao era lido por nada: um sentinela
   // que so o proprio enunciado conhece nao e uma saida, e um beco.
   assert.doesNotMatch(PILLARS.P6.ask, /EVERY NUMBER HAS AN ORIGIN/);
+});
+
+/* ─────── o portao nao pode abrir com lixo (adversario da FASE 1) ─────── */
+
+/**
+ * `Number(x) || 0` aceitava strings, floats e negativos. O adversario abriu o
+ * portao 2 com `{aceite:100, descartado:-80}` e arrancou-lhe a frase
+ * "500% kept (100 of 20)". Um portao documentado como fail-closed nao pode
+ * depender de o chamador ser bem-comportado.
+ */
+test('LIXO: strings nao abrem o portao 2', () => {
+  const p2 = portoes({ triagem: { do_dono: { aceite: '14', descartado: '6', issue: '0' } } })[1];
+  assert.equal(p2.medido, 0);
+  assert.equal(p2.aberto, false);
+});
+
+test('LIXO: floats nao abrem o portao 2', () => {
+  const p2 = portoes({ triagem: { do_dono: { aceite: 14.5, descartado: 5.5, issue: 0 } } })[1];
+  assert.equal(p2.medido, 0);
+  assert.equal(p2.aberto, false);
+});
+
+test('LIXO: negativos nao fabricam uma percentagem impossivel', () => {
+  const p2 = portoes({ triagem: { do_dono: { aceite: 100, descartado: -80, issue: 0 } } })[1];
+  assert.equal(p2.medido, 100, 'o -80 vale zero; o 100 e um inteiro valido');
+  assert.doesNotMatch(p2.base, /500%/, 'nunca uma percentagem acima de 100');
+  const dentro = /(\d+)% kept/.exec(p2.base);
+  assert.ok(dentro && Number(dentro[1]) <= 100, `percentagem fora de [0,100]: ${p2.base}`);
+});
+
+test('LIXO: NaN, Infinity e objectos valem zero', () => {
+  for (const mau of [NaN, Infinity, -Infinity, {}, [], 'vinte', null, undefined]) {
+    const p2 = portoes({ triagem: { do_dono: { aceite: mau, descartado: mau, issue: mau } } })[1];
+    assert.equal(p2.medido, 0, `${String(mau)} nao pode virar contagem`);
+    assert.equal(p2.aberto, false);
+  }
+});
+
+/* ─────── a copia nao pode afirmar mais do que os dados provam ─────── */
+
+/**
+ * A ultima decisao por chave e a que vale. O dono pode ter decidido e um agente
+ * ter sobreposto depois — dizer-lhe "you have not decided on any finding" e
+ * falso, e ele sabe que e falso, o que e pior do que ser so impreciso.
+ */
+test('COPIA: sem decisoes VIGENTES do dono nao se diz que ele nunca decidiu', () => {
+  const p2 = portoes({
+    triagem: { do_dono: { aceite: 0, descartado: 0, issue: 0 }, por_autor: { agente: 1, dono: 0 } },
+  })[1];
+  assert.match(p2.base, /no current decisions signed by you/);
+  assert.doesNotMatch(p2.base, /have not decided/, 'ele pode ter decidido e sido sobreposto');
+});
+
+/**
+ * `n-d` e autores desconhecidos NAO sao agentes. Chamar-lhes agentes e mentir
+ * por arredondamento: a unica coisa que se sabe deles e que nao sao do dono.
+ */
+test('COPIA: linhas sem assinatura nao sao promovidas a "agentes"', () => {
+  const p2 = portoes({
+    triagem: {
+      do_dono: { aceite: 0, descartado: 0, issue: 0 },
+      por_autor: { 'n-d': 1, 'script-desconhecido': 1, claude: 1 },
+    },
+  })[1];
+  assert.match(p2.porque_fechado, /the 3 not signed by you/);
+  assert.doesNotMatch(p2.porque_fechado, /signed by agents/, 'so uma das tres e um agente conhecido');
+  assert.doesNotMatch(p2.base, /closed by agents/);
+});
+
+/* ─────── o canal: um curl local nao pode assinar como o dono ─────── */
+
+/**
+ * O adversario da FASE 1 fez isto e passou:
+ *
+ *   POST /triagem  {chave, decisao}   sem Origin, sem `por`
+ *   -> 200, e o ledger ficou com  {"por":"dono","via":"painel"}
+ *
+ * Qualquer processo local escrevia uma decisao em nome do dono, na contagem
+ * que abre o nivel 2. `Origin` nao e uma credencial, mas e o unico sinal que
+ * existe sem introduzir uma — e um browser mandado pelo painel envia-o sempre
+ * num POST, enquanto um `curl` nao envia nenhum.
+ */
+test('CANAL: sem Origin e sem `por`, a escrita e RECUSADA', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/triagem`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: 'curl-spoof', decisao: 'aceite' }),
+    });
+    assert.equal(res.status, 400, 'um cliente sem Origin tem de se identificar');
+    const body = await res.json();
+    assert.match(body.erro, /tem de se identificar/);
+    assert.deepEqual(body.aceites, AUTORES);
+  } finally { await fechar(); }
+});
+
+test('CANAL: sem Origin MAS com `por` explicito, escreve — e o `via` diz o que se viu', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/triagem`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: 'cli-honesto', decisao: 'aceite', por: 'agente' }),
+    });
+    assert.equal(res.status, 200);
+    const { registado } = await res.json();
+    assert.equal(registado.por, 'agente');
+    assert.equal(registado.via, 'cliente-local', 'nao se carimba `painel` no que nao veio do painel');
+  } finally { await fechar(); }
+});
+
+test('CANAL: com Origin de loopback, o painel continua a assinar como dono sem dizer `por`', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/triagem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://127.0.0.1:9999' },
+      body: JSON.stringify({ chave: 'do-painel', decisao: 'aceite' }),
+    });
+    assert.equal(res.status, 200, 'o botao do painel nao pode ter partido');
+    const { registado } = await res.json();
+    assert.equal(registado.por, 'dono');
+    assert.equal(registado.via, 'painel');
+  } finally { await fechar(); }
 });
