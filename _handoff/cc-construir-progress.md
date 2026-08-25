@@ -79,3 +79,26 @@ Coube em **220 linhas exactas**; `docs-hygiene` sem `SYNC_TOO_LONG`.
 - **A6d premissa falsa:** o `kimi-adapter.js` **não usa o CLI** — fala a API HTTP da Moonshot.
   Não há schema a divergir.
 - SYNC actualizado (219 linhas) + dois blocos ✅ enrolados para o arquivo.
+
+### GATE A
+| Verificação | Resultado |
+|---|---|
+| `tools/router` | 1166 testes, **1165 pass, 0 fail** |
+| `npm run test:cockpit-runner` | 896 testes, **894 pass, 0 fail**, 2 todo |
+| `packages/cli` | 663 testes, **662 pass, 0 fail** |
+| `classify.js` | `427d8c0b…4bc48f` intacto |
+| ratchet | **FAIL — só em `stashes: 1 > 0`** |
+
+**O Gate A tem uma premissa falsa e ela bloqueia o rebaseline.** O kickoff dizia *"baseline do
+ratchet re-corrido DEPOIS do A2 (agora pode: stashes volta a 0)"*. Não volta: a decisão A2 era
+**"NUNCA descartar"**, e a stash foi deliberadamente mantida. `--update-baseline` agora gravaria
+`stashes: 1` como novo mínimo — exactamente o que o próprio plano avisava.
+
+Melhorias reais que ficam por gravar: `sync_lines` 606→**219** · `active_packets` 204→**31** ·
+`top_level_handoff_files` 312→**152** · `untracked_active_packets` 5→**0** (resolvido nesta fase).
+
+**Desbloqueio (é do dono, não meu):** o conteúdo da stash está agora em **três** sítios —
+`stash@{0}`, a branch `mac/stash-paridade-2026-08-24` (no origin) e, refeito, o PR #397. Largar a
+stash é seguro em substância, mas é irreversível. Com `git stash drop stash@{0}` seguido de
+`node tools/docs-hygiene.js --ratchet --update-baseline`, os quatro números acima ficam gravados.
+Não o fiz.
