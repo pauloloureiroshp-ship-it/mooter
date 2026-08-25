@@ -15,6 +15,18 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { reservar, libertar, verReserva, esperaS, caminhoReserva, MAX_MINUTOS, MINUTOS_OMISSAO } from './reserva.mjs';
+import { PILLARS, idsActivos } from './context-pack.mjs';
+
+/**
+ * Catalogo de ensaio com o P2 religado. A rotacao real esta VAZIA desde
+ * 2026-08-25 (onze pilares, onze desligados por medicao, decisao do dono), e
+ * sem pilar activo o  nao tem alvo — o E2E do prazo mediria zero
+ * despachos e nao provaria nada sobre a reserva, que e o que ele testa.
+ */
+const catalogoDeEnsaio = () => {
+  const pillars = { ...PILLARS, P2: { ...PILLARS.P2, activo: true } };
+  return { pillars, ids: idsActivos(pillars), fonte: 'ensaio', ficheiro: null, erro: null };
+};
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'moo-res-'));
 
@@ -97,6 +109,7 @@ test('ACEITACAO E2E: com reserva o ciclo NAO despacha, e avisa uma vez so', asyn
   let despachou = 0;
   const logs = [];
   await r.main({
+    pillarsImpl: catalogoDeEnsaio,
     argv: [], maxRounds: 8, logImpl: (m) => logs.push(m),
     publishBeaconImpl: async () => {}, sleepImpl: async () => {},
     runRoundImpl: async () => { despachou += 1; return { receipt: { motor_ok: true, verdict: 'sem-achado' } }; },
@@ -123,6 +136,7 @@ test('ACEITACAO E2E: passado o prazo, o ciclo volta ao trabalho sem ninguem inte
   let despachou = 0;
   fs.rmSync(r.PATHS.LOCK, { force: true });
   await r.main({
+    pillarsImpl: catalogoDeEnsaio,
     argv: [], maxRounds: 3, logImpl: () => {},
     publishBeaconImpl: async () => {}, sleepImpl: async () => {},
     runRoundImpl: async () => { despachou += 1; return { receipt: { motor_ok: true, verdict: 'sem-achado' } }; },

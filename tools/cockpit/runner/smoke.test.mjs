@@ -28,16 +28,40 @@ process.env.MOOTER_HOME = HOME_TMP;
 const { createServer, originAllowed, AVISO_PROTOTIPO } = await import('./f10-server.mjs');
 const runner = await import('./moo-runner.mjs');
 const { runRound } = await import('./runner-core.mjs');
+const { PILLARS, idsActivos } = await import('./context-pack.mjs');
 
 const REPO = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
+/**
+ * O catalogo que estes testes usam, com o P2 RELIGADO.
+ *
+ * A 2026-08-25 o dono desligou o P2 e o P3 e a rotacao real ficou VAZIA — o
+ * estado honesto: onze pilares, onze reprovados por medicao. No mesmo instante
+ * quatro testes deste ficheiro passaram a falhar sem uma linha de motor ter
+ * mudado, porque levantavam o ciclo contra o catalogo REAL e sem pilar activo
+ * nao ha ronda para exercitar.
+ *
+ * Um harness que so funciona enquanto existir um pilar bom nao esta a testar o
+ * ciclo: esta a testar o catalogo. Por isso `main()` e `createServer()` passaram
+ * a aceitar `pillarsImpl`, e e por aqui que ele entra. A alternativa era pôr os
+ * E2E em `skip`, que e esconder perda de cobertura — precisamente o genero de
+ * coisa que esta suite existe para apanhar.
+ *
+ * Quem afirma QUEM corre e o `runner-core.test.mjs`, e la a rotacao esta vazia.
+ */
+const catalogoDeEnsaio = () => {
+  const pillars = { ...PILLARS, P2: { ...PILLARS.P2, activo: true } };
+  return { pillars, ids: idsActivos(pillars), fonte: 'ensaio', ficheiro: null, erro: null };
+};
+
 /** Levanta o F10 numa porta efemera e devolve a base + um fecho. */
-async function servidorEfemero({ fetchImpl } = {}) {
+async function servidorEfemero({ fetchImpl, pillarsImpl } = {}) {
   const srv = createServer({
     repoRoot: REPO,
     mooDir: HOME_TMP,
     device: 'smoke-device',
     fetchImpl: fetchImpl || (async () => ({ ok: false, json: async () => ({}) })),
+    ...(pillarsImpl ? { pillarsImpl } : {}),
   });
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   const { port } = srv.address();
@@ -72,7 +96,9 @@ test('smoke: GET /fleet.json responde 200 com o estado real deste device', async
  * campos, duas verdades, nenhuma mentira — e nenhum deles substitui o outro.
  */
 test('smoke: /fleet.json publica foco_pedido — a ordem aceite, antes de pegar', async () => {
-  const { base, fechar } = await servidorEfemero();
+  // Catalogo de ensaio: focar exige um pilar que CORRA (o `/focus` recusa 400
+  // um pilar fora da rotacao, e bem), e a rotacao real esta vazia desde 25/08.
+  const { base, fechar } = await servidorEfemero({ pillarsImpl: catalogoDeEnsaio });
   try {
     const { pilares } = await (await fetch(`${base}/pilares.json`)).json();
     const alvo = pilares[0].id;
@@ -155,6 +181,7 @@ test('smoke E2E: uma ronda com Ollama falso escreve um recibo real no ledger', a
   fs.rmSync(runner.PATHS.CURSOR, { force: true });
 
   await runner.main({
+    pillarsImpl: catalogoDeEnsaio,
     argv: ['--once'],
     logImpl: () => {},
     publishBeaconImpl: async () => {},
@@ -182,6 +209,7 @@ test('smoke E2E ACEITACAO: 20 rondas com o motor em baixo dao 3 linhas, nao 20',
 
   let t = Date.parse('2026-08-16T23:18:40Z');
   const out = await runner.main({
+    pillarsImpl: catalogoDeEnsaio,
     argv: [],
     maxRounds: 20,
     logImpl: () => {},
@@ -212,6 +240,7 @@ test('smoke E2E: quando o motor volta, o ledger diz quanto tempo esteve em baixo
   let t = Date.parse('2026-08-16T23:18:40Z');
   let rondas = 0;
   await runner.main({
+    pillarsImpl: catalogoDeEnsaio,
     argv: [],
     maxRounds: 12,
     logImpl: () => {},
@@ -247,6 +276,7 @@ test('smoke: STOP presente trava o ciclo sem gravar trabalho nenhum', async () =
   fs.writeFileSync(runner.PATHS.STOP_FILE, '1');
 
   await runner.main({
+    pillarsImpl: catalogoDeEnsaio,
     argv: [],
     maxRounds: 5,
     logImpl: () => {},

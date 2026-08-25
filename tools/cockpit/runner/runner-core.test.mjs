@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, idsActivos, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
+import { buildContextPack, renderSlice, resolveCandidates, PILLARS, PILLAR_IDS, PILLAR_IDS_TODOS, idsActivos, readAnchor, ANCHORED_SYSTEM_PROMPT, readChangedLines, faseDoDevice, DIFF_PATHSPEC, DIFF_SYSTEM_PROMPT, contarNegacoes, negacaoDensa, chaveDeRevisao, hunkKey, expandirPadrao, padraoParaRegex, candidatosDoPilar, donoDoFicheiro, MAX_CANDIDATOS , REGRAS_IGNORADAS} from './context-pack.mjs';
 import {
   VERDICT,
   extractCitations,
@@ -730,6 +730,25 @@ const diffFalso = (ficheiros) => () => ficheiros
   .map((f, k) => [`--- a/${f}`, `+++ b/${f}`, `@@ -${20 + k * 10},0 +${20 + k * 10},4 @@`, '+x'].join('\n'))
   .join('\n');
 
+/**
+ * O catalogo real com o P2 RELIGADO — so para os testes que exercitam o MOTOR.
+ *
+ * A 2026-08-25 o dono desligou o P2 e o P3, os ultimos dois, e a rotacao ficou
+ * VAZIA. Nesse momento tres testes desta suite passaram a falhar sem que uma
+ * linha de motor tivesse mudado: eles exercitavam a posse de ficheiros e a
+ * caminhada de dois devices ATRAVES do catalogo real, portanto so funcionavam
+ * enquanto existisse um pilar ligado.
+ *
+ * Isso e o teste a medir o catalogo e a fingir que mede o codigo. `pillars` ja
+ * era injectavel — o `buildContextPack` aceita-o desde que um projecto pode
+ * declarar `.mooter/pilares.json` — e passa a ser usado aqui pelo mesmo motivo.
+ *
+ * Nao releva a decisao do dono: os testes que afirmam QUEM corre continuam a
+ * ler `PILLAR_IDS`, e esse esta vazio (ver a seccao dos onze desligados).
+ */
+const CATALOGO_DE_ENSAIO = { ...PILLARS, P2: { ...PILLARS.P2, activo: true } };
+const IDS_DE_ENSAIO = idsActivos(CATALOGO_DE_ENSAIO);
+
 test('B6: o pathspec do diff exclui arquivo, docs/archive e testes', () => {
   assert.ok(DIFF_PATHSPEC.includes(':(exclude)_handoff/**'), 'codigo arquivado nao e trabalho novo');
   assert.ok(DIFF_PATHSPEC.includes(':(exclude)docs/archive/**'));
@@ -745,6 +764,9 @@ test('B6: com hunk seu, o pilar rotula-se a si proprio (escopo pilar)', () => {
   const root = repoDiff();
   const pack = buildContextPack({
     repoRoot: root, pillar: 'P2', cursor: 0, diffBase: 'HEAD~12',
+    // Catalogo de ensaio: a posse so existe entre pilares LIGADOS, e a rotacao
+    // real esta vazia desde 25/08. Ver `CATALOGO_DE_ENSAIO`.
+    pillars: CATALOGO_DE_ENSAIO,
     diffRunImpl: diffFalso([ORFAOS[0], 'tools/handoff-preflight.js']),
   });
   assert.equal(pack.mode, 'diff');
@@ -1050,8 +1072,10 @@ test('FROTA: dois devices no mesmo repo deixam de moer os mesmos alvos', () => {
   // deterministica no NOME — a frota cobre mais em vez de repetir.
   const root = repoDiff();
   const diff = diffFalso(ORFAOS);
-  const alvos = (device) => PILLAR_IDS.map((p) => {
-    const k = buildContextPack({ repoRoot: root, pillar: p, cursor: 0, diffBase: 'HEAD~12', diffRunImpl: diff, device });
+  // Catalogo de ensaio: com a rotacao real vazia (25/08) este teste mediria
+  // zero alvos contra zero e passaria a nao provar nada. Ver `CATALOGO_DE_ENSAIO`.
+  const alvos = (device) => IDS_DE_ENSAIO.map((p) => {
+    const k = buildContextPack({ repoRoot: root, pillar: p, cursor: 0, diffBase: 'HEAD~12', pillars: CATALOGO_DE_ENSAIO, diffRunImpl: diff, device });
     return `${k.file}:${k.startLine}`;
   });
   const a = alvos('mac-mini-de-paulo');
@@ -1620,19 +1644,23 @@ test('um pilar desligado NAO pode ser dono de ficheiros', () => {
 
 // ── os quatro desligados, e o que isso custou (2026-08-21) ──────────────────
 
-test('os NOVE desligados saem da rotacao e continuam no catalogo', () => {
+test('os ONZE desligados saem da rotacao e continuam no catalogo', () => {
   // Ficam no catalogo porque os recibos ja escritos apontam-lhes: apagar a
   // entrada tornaria ilegivel o historico que explica porque foram desligados.
   // Todos foram desligados por MEDICAO, nao por gosto — cada um tem o numero
   // no comentario da sua entrada em `PILLARS`.
   // O P11 juntou-se a lista a 2026-08-23, um dia depois de ter sido criado:
   // 76 dos 87 achados falhavam o proprio enunciado, 9 auto-refutavam-se.
-  for (const id of ['P1', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11']) {
+  // O P2 e o P3 juntaram-se a 2026-08-25, e com eles a rotacao ficou VAZIA:
+  // dos 20 achados que o dono decidiu a mao, 11 eram do P2 e 8 do P3, e ele
+  // descartou os 20. Precisao medida do que restava a correr: 0%.
+  for (const id of ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11']) {
     assert.equal(PILLARS[id].activo, false, `${id} tem de estar desligado`);
     assert.ok(!PILLAR_IDS.includes(id), `${id} nao pode voltar a rotacao`);
     assert.ok(Object.keys(PILLARS).includes(id), `${id} tem de continuar a resolver o historico`);
   }
-  assert.deepEqual(PILLAR_IDS, ['P2', 'P3']);
+  assert.deepEqual(PILLAR_IDS, []);
+  assert.equal(PILLAR_IDS_TODOS.length, 11, 'o catalogo nao encolhe quando a rotacao encolhe');
 });
 
 test('passar o defeito semeado e NECESSARIO mas nao chega — a rotacao prova-se em campo', () => {
@@ -1655,12 +1683,37 @@ test('passar o defeito semeado e NECESSARIO mas nao chega — a rotacao prova-se
   // Sao propriedades diferentes e um pilar pode ter a primeira sem a segunda.
   // Por isso a lista abaixo nao e "quem passou o ensaio": e quem passou o ensaio
   // E sobreviveu ao confronto com o que produziu.
-  assert.deepEqual(PILLAR_IDS, ['P2', 'P3'],
+  //
+  // v4 (2026-08-25): a lista ficou VAZIA, e a regra manteve-se — foi a
+  // populacao que nao a cumpriu. O P2 e o P3 passaram o ensaio semeado e
+  // correram meses; quando o dono finalmente leu 20 dos seus achados de fio a
+  // pavio, descartou os 20. Onze eram do P2 (todos "variavel inicializada a
+  // zero", um deles a apontar para o `classify.js` congelado), oito do P3
+  // (tres a citar comentarios escritos na mesma sessao, dois a dar o
+  // terminador de um bloco de comentario como prova). Precisao: 0%.
+  //
+  // A asercao anterior era `PILLAR_IDS.length >= 1, 'sem pilares nao ha loop
+  // nenhum'`. Estava certa como facto e errada como regra: e verdade que sem
+  // pilares nao ha loop, mas dai nao se segue que tenha de haver um. Manter
+  // essa asercao obrigaria a deixar ligado o menos mau — que e exactamente
+  // como se chega a um loop que produz para nao parar.
+  assert.deepEqual(PILLAR_IDS, [],
     'entrar exige o ensaio; FICAR exige que o que se produz aguente ser lido');
-  assert.ok(PILLAR_IDS.length >= 1, 'sem pilares nao ha loop nenhum');
   for (const id of PILLAR_IDS) {
     assert.notEqual(PILLARS[id].activo, false, `${id} esta na rotacao E marcado como desligado`);
   }
+});
+
+test('com a rotacao vazia o loop cala-se — e isso e o estado declarado', () => {
+  // O teste que substitui o `length >= 1`. Nao afirma que a rotacao vazia e
+  // boa: afirma que ela e VISIVEL, e que ninguem lhe pode chamar outra coisa.
+  //
+  // Enquanto isto for verdade, o moo-runner nao tem alvo nenhum para escolher
+  // e nao escreve recibos. Quem quiser o loop de volta precisa de um pilar
+  // NOVO — semeado, e depois confrontado com o que produz em campo —, nao de
+  // religar um dos onze que ja reprovaram.
+  assert.equal(PILLAR_IDS.length, 0, 'se isto deixar de ser zero, foi por decisao e este teste tem de mudar com ela');
+  assert.ok(PILLAR_IDS_TODOS.length > 0, 'o catalogo continua la para o historico resolver');
 });
 
 test('desligar os quatro NAO orfanou ficheiro nenhum do poco do diff', () => {
@@ -1676,28 +1729,32 @@ test('desligar os quatro NAO orfanou ficheiro nenhum do poco do diff', () => {
 });
 
 test('a COBERTURA perdida esta declarada, nao escondida', () => {
-  // Com o P4 e o P10 desligados, nenhum pilar activo olha para markdown nem
-  // para os workflows do CI. Nao se perde deteccao MEDIDA (o P4 deu 0/78
-  // achados verdadeiros e o P10 deu 0/455), mas perde-se cobertura — e quem
-  // voltar a querer docs precisa de um pilar NOVO, nao de reactivar estes.
+  // Este teste ja declarou tres perdas de ambito. Declara agora a quarta, que
+  // e total: com o P2 e o P3 desligados a 2026-08-25, NENHUM glob e vigiado.
+  //
+  //   P4 e P10 → markdown e os workflows do CI   (0/78 e 0/455 verdadeiros)
+  //   P6, P7   → landing, extensao, HTML do cockpit
+  //   P9       → subconjunto do P2, nao custou nada
+  //   P2, P3   → o resto: tools/ e packages/     (0/20 decididos pelo dono)
+  //
+  // A versao anterior exigia `globsActivos.includes('packages/*/src/*.ts')` —
+  // uma cobertura que tinha de sobreviver ao desligar do P9. Deixou de
+  // sobreviver, e nao por descuido: o P2, que era quem a garantia, foi
+  // desligado com um numero colado (11 achados do dono, 11 descartados).
+  //
+  // O que este teste protege agora e a HONESTIDADE do zero. Um conjunto vazio
+  // faz passar qualquer asercao da forma "nenhum glob activo e X" — sao todas
+  // vacuamente verdadeiras — por isso a asercao tem de ser sobre o proprio
+  // zero, e nao sobre o que ele nao contem.
   const globsActivos = PILLAR_IDS.flatMap((id) => PILLARS[id].files);
-  const semDono = [
-    '*.md', 'docs/**/*.md', '.github/workflows/*.yml',          // P4 e P10
-    'landing/app/**/*.tsx', 'landing/components/**/*.tsx',       // P6
-    'packages/vscode-extension/src/*.js',                        // P6
-    'tools/cockpit/*.html',                                      // P7
-  ];
-  for (const orfao of semDono) {
-    assert.ok(!globsActivos.includes(orfao),
-      `${orfao} voltou a ter dono — se foi de proposito, actualiza este teste e o comentario do pilar`);
+  assert.deepEqual(globsActivos, [], 'a rotacao esta vazia: nenhum ficheiro deste repo esta a ser vigiado pelo loop');
+
+  // E o catalogo continua a saber o que DEIXOU de ver, para que reactivar
+  // deixe de ser um gesto e volte a ser uma decisao com um pilar novo atras.
+  const globsTodos = PILLAR_IDS_TODOS.flatMap((id) => PILLARS[id].files);
+  for (const orfao of ['*.md', '.github/workflows/*.yml', 'packages/*/src/*.ts', 'tools/cockpit/*.html']) {
+    assert.ok(globsTodos.includes(orfao), `${orfao} tem de continuar declarado no catalogo, mesmo sem ninguem a olhar`);
   }
-  // O loop passou a ver SO backend. Escrito por extenso porque e uma perda de
-  // ambito que nao se ve em lado nenhum senao aqui.
-  assert.ok(globsActivos.every((g) => /^(tools|packages)\//.test(g)),
-    'a rotacao so cobre tools/ e packages/ — se isso mudar, este teste tem de mudar com ela');
-  // O que NAO se perdeu: o glob do P9 era um subconjunto do do P2.
-  assert.ok(globsActivos.includes('packages/*/src/*.ts'),
-    'a cobertura de packages/*/src/*.ts tem de sobreviver ao desligar do P9');
 });
 
 test('a caminhada usa a ROTACAO, nunca o catalogo inteiro', () => {
