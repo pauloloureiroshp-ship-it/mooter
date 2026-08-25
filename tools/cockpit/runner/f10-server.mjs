@@ -232,6 +232,10 @@ export function createServer({
   fetchImpl = fetch,
   argv = process.argv.slice(2),
   env = process.env,
+  // Injectavel pela mesma razao que no `moo-runner`: desde 2026-08-25 a rotacao
+  // real pode estar VAZIA (esta), e um teste do endpoint que precise de um pilar
+  // para exercitar o `/focus` estaria a testar o catalogo, nao o servidor.
+  pillarsImpl = loadPillars,
 } = {}) {
   const raiz = repoRoot
     || (() => {
@@ -255,7 +259,7 @@ export function createServer({
     // Se nem isto der, os verbos de controlo vao falhar alto e dizer porque —
     // que e melhor do que um botao de parar que responde 200 e nao para nada.
   }
-  const pilares = loadPillars(raiz);
+  const pilares = pillarsImpl(raiz);
   const stopFile = paths.STOP_FILE;
   const ledgerPath = paths.LEDGER;
   const statePath = paths.STATE;

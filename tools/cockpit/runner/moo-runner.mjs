@@ -82,10 +82,28 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
  * Tudo o que decide o alvo passa por aqui, para que um teste possa perguntar
  * "com estes argumentos e este ambiente, que projecto sai?" sem levantar nada.
  */
-export function resolverAlvo({ argv = [], env = process.env, cwd = process.cwd(), mooDir = MOO_DIR } = {}) {
+export function resolverAlvo({
+  argv = [], env = process.env, cwd = process.cwd(), mooDir = MOO_DIR,
+  // O CATALOGO E INJECTAVEL, e passou a ter de o ser a 2026-08-25.
+  //
+  // Nesse dia o dono desligou o P2 e o P3 — os ultimos dois — depois de decidir
+  // 20 achados a mao e nao manter nenhum. O catalogo ficou com ZERO pilares
+  // activos, que e o estado honesto: nove de nove reprovaram por medicao.
+  //
+  // So que os testes E2E chamavam `main()` contra o catalogo REAL, e sem um
+  // pilar activo nao ha ronda para exercitar. Dez testes passaram a falhar —
+  // e nenhum deles por o motor estar partido. Um harness que so funciona
+  // enquanto existir um pilar bom nao esta a testar o motor: esta a testar o
+  // catalogo, e a fingir que e a mesma coisa.
+  //
+  // A alternativa era marcar os E2E como `skip`. Seria esconder perda de
+  // cobertura, que e exactamente o genero de coisa que este ficheiro passou o
+  // dia a corrigir noutros sitios.
+  pillarsImpl = loadPillars,
+} = {}) {
   const { root, fonte, chave } = resolveRepoRoot({ argv, env, cwd, scriptRoot: SCRIPT_ROOT });
   const paths = projectPaths({ repoRoot: root, mooDir, canonicalRoot: SCRIPT_ROOT });
-  const pilares = loadPillars(root);
+  const pilares = pillarsImpl(root);
   return { repoRoot: root, fonte, chave, paths, pilares };
 }
 
@@ -487,9 +505,11 @@ export async function main({
   nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
   maxRounds = Infinity,
   logImpl = log,
+  // Ver : o catalogo e injectavel desde que ele pode estar vazio.
+  pillarsImpl = loadPillars,
 } = {}) {
   const args = new Set(argv);
-  const { repoRoot, fonte, chave, paths, pilares } = resolverAlvo({ argv, env, cwd });
+  const { repoRoot, fonte, chave, paths, pilares } = resolverAlvo({ argv, env, cwd, pillarsImpl });
   // O sha que este processo CARREGOU. Um `import` e estatico: a partir daqui o
   // codigo em memoria e este, aconteca o que acontecer ao disco. Guardar isto no
   // arranque e a unica forma de, mais tarde, se conseguir dizer que derivou.
