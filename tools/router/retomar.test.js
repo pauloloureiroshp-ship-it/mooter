@@ -39,17 +39,34 @@ function gitFacts(overrides = {}) {
 
 test('transcript produz arquivos, comandos falhos, testes vermelhos e localização sem modelo', () => {
   const dir = tempDir();
-  const report = retomar.analyzeTranscript(writeTranscript(dir));
+  // O `cwd` do transcript e `C:\repo-antigo`, que nao existe em disco nenhum.
+  //
+  // Mas "nao existe" NAO e uma propriedade portavel: em Windows aquilo e um
+  // caminho absoluto que falha; em Linux e uma string relativa, e o
+  // `path.resolve` cola-a ao cwd do processo — a partir dai o findWorktreeRoot
+  // sobe a arvore e encontra o `.git` DESTE repositorio. O mesmo teste dava
+  // `n/d` numa plataforma e um valor medido na outra.
+  //
+  // A primeira versao deste teste tinha exactamente esse defeito e passou em
+  // Windows antes de partir o CI em Linux. Injectar o `fs` tira a plataforma
+  // da equacao: a pergunta que se quer testar e "quando a raiz nao se resolve,
+  // o facto fica n/d?", e nao "como e que este SO trata dois-pontos".
+  // `existsSync` sempre falso, e nao so para o caminho falso: em Linux o
+  // `findWorktreeRoot` sobe a arvore ate a raiz, e recusar apenas
+  // `.../repo-antigo/.git` deixa-o continuar e encontrar o `.git` DESTE
+  // repositorio dois niveis acima. Neste caminho de codigo o `existsSync` so e
+  // consumido pelo `findWorktreeRoot` — o transcript e lido por `readFileSync`
+  // — portanto recusar sempre e seguro e testa a pergunta certa.
+  const semRaiz = { ...fs, existsSync: () => false };
+  const report = retomar.analyzeTranscript(writeTranscript(dir), { fs: semRaiz });
   assert.deepEqual(report.facts.session_files_touched.value, ['src/a.js']);
   assert.equal(report.facts.session_failed_commands.value.length, 1);
   assert.equal(report.facts.session_failed_commands.value[0].exit_code, 'nonzero');
   assert.equal(report.facts.session_red_tests.value, 2);
   assert.equal(report.facts.session_red_test_file.value, 'sample.test.js');
   assert.equal(report.facts.session_branch.value, 'feat/old');
-  // O `cwd` vem do transcript e e sempre mensuravel. A RAIZ do worktree so o e
-  // se o caminho ainda existir no disco — e `C:\repo-antigo` nao existe. Entao a
-  // raiz e `n/d` VISIVEL, nunca um palpite, e o `cwd` continua la para quem o
-  // queira. Sao dois factos diferentes e o codigo deixou de os confundir.
+  // Dois factos diferentes, que o codigo deixou de confundir: o `cwd` vem do
+  // transcript e e sempre mensuravel; a RAIZ so o e se existir em disco.
   assert.equal(report.facts.session_cwd.value, 'C:\\repo-antigo');
   assert.equal(report.facts.session_worktree.status, 'n/d');
 });
