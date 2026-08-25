@@ -52,11 +52,60 @@ import { excluido } from './portao-de-existencia.mjs';
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
 
+/**
+ * Quanto do `msg` chega ao juiz. O `context-pack` faz `.slice(0, 200)` antes de
+ * o imprimir debaixo de `A ferramenta apontou a LINHA N, regra "...":`. Um
+ * enunciado mais comprido chega cortado a meio de uma frase — e um enunciado
+ * truncado e pior do que nenhum, porque parece completo.
+ */
+export const MSG_MAX = 200;
+
+/** Um `catch` a abrir, com ou sem `(e)`. */
+const CATCH = /catch\s*(\([^)]*\))?\s*\{/;
+/** Contagens e coleccoes vazias. `null`/`undefined` NAO entram: sao a resposta certa. */
+const NEUTRO = /^\s*return\s*(\[\s*\]|\{\s*\}|0)\s*;?\s*$/;
+const NEUTRO_NA_MESMA = /catch\s*(\([^)]*\))?\s*\{\s*return\s*(\[\s*\]|\{\s*\}|0)\s*;?\s*\}/;
+
+/**
+ * O detector da regra `catch-neutro`. E de FICHEIRO e nao de linha, porque o
+ * `catch` e o `return` estao em linhas diferentes na maior parte dos casos.
+ *
+ * Olha no maximo cinco linhas para a frente: um `catch` com dez linhas ja nao e
+ * "engolir em silencio", e um comentario pelo meio conta como explicacao — o
+ * motor manda "esta explicado? le-o e acredita".
+ */
+export function detectarFicheiro(linhas) {
+  const achados = [];
+  for (let i = 0; i < linhas.length; i += 1) {
+    if (!CATCH.test(linhas[i])) continue;
+
+    const naMesma = NEUTRO_NA_MESMA.exec(linhas[i]);
+    if (naMesma) { achados.push({ linha: i + 1, valor: naMesma[2] }); continue; }
+
+    let explicado = false;
+    for (let j = i + 1; j < Math.min(i + 6, linhas.length); j += 1) {
+      const l = linhas[j];
+      if (/^\s*\}/.test(l)) break;
+      if (/^\s*(\/\/|\/\*|\*)/.test(l)) { explicado = true; continue; }
+      const m = NEUTRO.exec(l);
+      if (m && !explicado) { achados.push({ linha: j + 1, valor: m[1] }); break; }
+      if (m) break;                    // explicado: nao conta
+    }
+  }
+  return achados;
+}
+
 /** Onde os pontos de partida vivem, quando a classe nao declara os seus. */
 export const GLOBS_OMISSAO = [
   'tools/router/*.js',
   'tools/cockpit/runner/*.mjs',
   'packages/mooter-bridge/*.js',
+  // `tools/*.js` entrou porque foi medido: o censo do portao correu com ele, e
+  // um produtor de ambito mais estreito do que a medicao que o autoriza mente
+  // sobre o que foi provado. Sem ele ficavam de fora casos dos fortes — o
+  // `docs-hygiene.js` a devolver `[]` de uma pasta ilegivel faz o proprio
+  // ratchet ver uma melhoria que nao existe.
+  'tools/*.js',
 ];
 
 /**
@@ -72,6 +121,75 @@ export const GLOBS_OMISSAO = [
  * reais E >= 30% de precisao. Nenhuma das sete sondadas passou.
  */
 export const REGRAS = {
+  /**
+   * ✅ A PRIMEIRA REGRA ACTIVA, e a primeira classe a passar o portao.
+   *
+   * O NUMERO: 84 candidatos em 289 ficheiros; amostra de 40 lida a mao;
+   * 28 reais, 70,0% de precisao. Passa os dois limiares (>= 10 reais E >= 30%).
+   *
+   * A CLASSE: um `catch` que devolve uma CONTAGEM ou COLECCAO vazia — `[]`, `{}`
+   * ou `0` — onde "nao consegui ler" fica com a mesma cara que "nao ha nada".
+   *
+   * Nao e uma preferencia: e a regra escrita do proprio motor, e violada. O
+   * cabecalho do `self-check.mjs` diz "o que nao se consegue medir devolve
+   * `n/d`, NUNCA `ok`. Um verde por ignorancia e pior do que um vermelho."
+   *
+   * PORQUE ESTA E NAO OUTRA, em tres pontos:
+   *
+   *   1. e SEMPRE defeito quando e verdadeira — pela doutrina acima;
+   *   2. e DECIDIVEL NA JANELA: o `catch` e o `return` sao adjacentes, e era
+   *      essa a condicao que a sintese identificou como a razao estrutural
+   *      pela qual todas as outras classes falharam;
+   *   3. e a ferida recorrente deste motor. So a 2026-08-25: o `readAnchor` a
+   *      devolver `[]` numa ausencia deixou o modo ANCORADO a zero rondas em
+   *      10 624; o arnes graduava `NO FINDING` como deteccao; a prova de
+   *      publicacao contava commits do repo em vez do beacon.
+   *
+   * A v1 desta regra aceitava tambem `return false` e `return ''`, e REPROVOU:
+   * 8 reais em 40, 20%. A triagem mostrou porque — um `false` a fechar uma
+   * ACCAO (escrever, apagar, matar) significa mesmo "nao aconteceu", e quem
+   * chama distingue-o. Estreitou-se pelo criterio, nao pela fasquia: a fasquia
+   * esta congelada, e a amostra da v2 foi nova.
+   *
+   * OS QUE MAIS DOEM, dos 28:
+   *   badge.js:86        devolve `0` de POUPANCA, e esse numero vai ao ecra
+   *   docs-hygiene.js:31 `[]` de uma pasta ilegivel faz o ratchet ver melhoria
+   *   quota.js:394       uma contagem de dias que vira zero
+   *
+   * O QUE NAO CONTA, e o detector tem de o saber:
+   *   · `return null` / `undefined` — sao a resposta CERTA;
+   *   · `prefs()` a devolver `{}` — os defaults aplicam-se, e a ausencia e
+   *     legitimamente igual ao vazio (12 dos 40 falsos eram isto);
+   *   · um comentario dentro do `catch` — o motor manda "esta explicado? le-o
+   *     e acredita", e um porque escrito e a resposta a objeccao.
+   */
+  'catch-neutro': {
+    activo: true,
+    porque: '84 candidatos, 28 reais em 40 lidos a mao, 70,0% de precisao — passa os dois limiares do portao',
+    /**
+     * O ENUNCIADO que o juiz le.
+     *
+     * Vai para o campo `msg`, e o `context-pack` imprime-o debaixo de
+     * `A ferramenta apontou a LINHA N, regra "catch-neutro":`. Sem isto o juiz
+     * receberia uma linha em branco onde devia estar a razao.
+     *
+     * Diz o que VERIFICAR, nao afirma o defeito. O contrato do modo ancorado ja
+     * nao tem saida gratis (`ACHADO:` ou `FALSO POSITIVO:`, os dois a exigir
+     * `PROVA:`), portanto nao e preciso empurrar — e empurrar so inflacionaria
+     * os falsos positivos, que e o que este loop nao pode voltar a fazer.
+     *
+     * ⚠️ TEM DE CABER EM `MSG_MAX`. O `context-pack` faz
+     * `String(hit.msg || '').slice(0, 200)` antes de o imprimir. A primeira
+     * versao disto tinha 341 caracteres e chegava ao juiz cortada a meio de uma
+     * frase — "...Se sim, e d". Um enunciado truncado e pior do que nenhum:
+     * parece completo. Ha um teste que trava isto.
+     */
+    enunciado: (valor) => `devolve ${valor} quando falha — igual a um vazio de verdade. `
+      + 'VERIFICA: este valor e contado, mostrado ou comparado? Se sim e defeito, devia ser '
+      + '`null`. Se ha comentario a explica-lo, e falso positivo.',
+    detectarFicheiro,
+  },
+
   'catch-mudo': {
     activo: false,
     /**
@@ -194,14 +312,35 @@ export function gerar({
     for (const rel of ficheiros) {
       let linhas;
       try { linhas = String(readImpl(path.join(repoRoot, rel))).split('\n'); } catch { ilegiveis.push(rel); continue; }
+      // Regras de FICHEIRO primeiro: um `catch` e o seu `return` estao em
+      // linhas diferentes, e uma regra que so ve uma linha de cada vez nunca os
+      // liga. Cada apontamento leva o seu `msg` — o ENUNCIADO que o juiz le no
+      // modo ancorado. Sem ele o `context-pack` imprime uma linha em branco
+      // onde devia estar a razao, e o juiz julga sem saber o que julgar.
+      for (const id of activas) {
+        const r = regras[id];
+        if (typeof r.detectarFicheiro !== 'function') continue;
+        let marcas = [];
+        try { marcas = r.detectarFicheiro(linhas, rel) || []; } catch { marcas = []; }
+        for (const m of marcas) {
+          const n = Number(m && m.linha);
+          if (!Number.isInteger(n) || n < 1 || n > linhas.length) continue;
+          const msg = typeof r.enunciado === 'function' ? String(r.enunciado(m.valor)) : '';
+          apontamentos.push({ file: rel, line: n, rule: id, msg });
+          porRegra[id] += 1;
+        }
+      }
+
       for (let i = 0; i < linhas.length; i += 1) {
         const l = limparLinha(linhas[i]);
         if (!l.trim()) continue;
         for (const id of activas) {
+          if (typeof regras[id].detectar !== 'function') continue;
           let bate = false;
           try { bate = Boolean(regras[id].detectar(l, rel, i + 1)); } catch { bate = false; }
           if (bate) {
-            apontamentos.push({ file: rel, line: i + 1, rule: id });
+            const msg = typeof regras[id].enunciado === 'function' ? String(regras[id].enunciado(l.trim())) : '';
+            apontamentos.push({ file: rel, line: i + 1, rule: id, msg });
             porRegra[id] += 1;
           }
         }
