@@ -135,6 +135,60 @@ test('tabela de regras mantém a ordem declarada no MP', () => {
   ]);
 });
 
+/**
+ * As duas regras que nasceram da PRIMEIRA CORRIDA REAL desta camada.
+ *
+ * Nessa corrida ela recolheu 54 ficheiros tocados e 21 comandos falhados, e
+ * imprimiu «nenhuma regra disparou». Recolha rica, tabela magra: dois factos
+ * ja medidos que nenhuma regra usava. A fixture do teste de ordem acima nao os
+ * contem, portanto passava verde sem os exercitar — este teste fecha isso.
+ */
+test('comando falhado e mudanca de branch viram sugestao, na ordem certa', () => {
+  const facts = {
+    session_failed_commands: retomar.measured([
+      { command: 'npm run build', exit_code: 1 },
+      { command: 'node --test   tools/router/x.test.js', exit_code: 'nonzero' },
+    ], 'test'),
+    session_branch: retomar.measured('feat/anterior', 'test'),
+    git_branch: retomar.measured('wave/actual', 'test'),
+  };
+  const s = retomar.buildSuggestions(facts);
+  assert.deepEqual(s.map((x) => x.rule), ['failed_commands', 'different_branch']);
+
+  // O ULTIMO comando, nao o primeiro: quem retoma quer o ponto onde ficou.
+  assert.match(s[0].text, /2 comandos falharam/);
+  assert.match(s[0].text, /node --test tools\/router\/x\.test\.js/);
+  assert.doesNotMatch(s[0].text, /npm run build/);
+  // Espacos internos colapsados — um comando copiado do transcript traz-nos.
+  assert.doesNotMatch(s[0].text, /--test {2,}tools/);
+
+  assert.match(s[1].text, /feat\/anterior/);
+  assert.match(s[1].text, /wave\/actual/);
+});
+
+test('um comando muito longo e truncado, e diz que foi', () => {
+  const longo = `node ${'a/'.repeat(60)}fim.js`;
+  const s = retomar.buildSuggestions({
+    session_failed_commands: retomar.measured([{ command: longo, exit_code: 1 }], 'test'),
+  });
+  assert.equal(s.length, 1);
+  assert.ok(s[0].text.includes('…'), 'um corte silencioso faz parecer que o comando era curto');
+  assert.ok(s[0].text.length < 120, `sugestao com ${s[0].text.length} chars nao cabe numa linha`);
+});
+
+test('mesma branch nao gera sugestao — so a MUDANCA e informacao', () => {
+  const s = retomar.buildSuggestions({
+    session_branch: retomar.measured('main', 'test'),
+    git_branch: retomar.measured('main', 'test'),
+  });
+  assert.deepEqual(s, [], 'estar onde se estava nao e novidade');
+});
+
+test('lista vazia de falhados nao gera sugestao — zero falhas e uma boa noticia', () => {
+  const s = retomar.buildSuggestions({ session_failed_commands: retomar.measured([], 'test') });
+  assert.deepEqual(s, []);
+});
+
 test('git facts preservam n/d quando upstream não pode ser medido', () => {
   const fakeExec = (_command, args) => {
     const key = args.join(' ');

@@ -390,6 +390,27 @@ function buildSuggestions(facts) {
     suggestions.push({ rank: 20, rule: 'red_tests', text: `ver \`${file}\` — ${red} teste${red === 1 ? '' : 's'} vermelho${red === 1 ? '' : 's'}` });
   }
 
+  // O facto ja era recolhido e nenhuma regra o usava. A primeira corrida real
+  // desta camada recolheu 21 comandos falhados e imprimiu «nenhuma regra
+  // disparou» — recolha rica, tabela magra. Um comando que falhou e a pista
+  // mais directa de onde a sessao anterior parou.
+  //
+  // Mostra-se o ULTIMO e nao o primeiro: quem retoma quer o ponto onde ficou,
+  // nao onde comecou. E trunca-se em 60 — um comando inteiro pode ter linhas.
+  const falhados = factValue(facts.session_failed_commands, null);
+  if (Array.isArray(falhados) && falhados.length > 0) {
+    const ultimo = String(falhados[falhados.length - 1].command || ND).replace(/\s+/g, ' ').trim();
+    const corte = ultimo.length > 60 ? `${ultimo.slice(0, 60)}…` : ultimo;
+    // `falhou`/`falharam` nao e sufixo — mudam o radical. Concatenar 'ram' a
+    // `falhou` produzia «2 comandos falhouram», que o teste apanhou.
+    const um = falhados.length === 1;
+    suggestions.push({
+      rank: 25,
+      rule: 'failed_commands',
+      text: `${falhados.length} comando${um ? '' : 's'} ${um ? 'falhou' : 'falharam'} — o último: \`${corte}\``,
+    });
+  }
+
   const changed = factValue(facts.git_uncommitted_files, null);
   if (Array.isArray(changed) && changed.length > 0) {
     suggestions.push({ rank: 30, rule: 'uncommitted_files', text: `${changed.length} arquivo${changed.length === 1 ? '' : 's'} por commitar em \`${currentBranch}\`` });
@@ -408,11 +429,38 @@ function buildSuggestions(facts) {
   // sugestao verdadeira e util ("estavas em X"), e o `n/d` da raiz continua
   // visivel nos factos. Perder a sugestao inteira porque a raiz nao se resolve
   // seria trocar um facto bom por silencio.
+  // Mudar de BRANCH e mudar de assunto, mesmo sem mudar de worktree — e o caso
+  // comum de quem trabalha num so checkout. O facto ja era recolhido e nenhuma
+  // regra o usava.
+  //
+  // Vem ANTES do worktree porque e mais barato de agir: trocar de branch e um
+  // comando; trocar de worktree e mudar de janela.
+  const branchAnterior = factValue(facts.session_branch, null);
+  if (branchAnterior && currentBranch && branchAnterior !== currentBranch) {
+    suggestions.push({ rank: 45, rule: 'different_branch', text: `estavas em \`${branchAnterior}\` (agora \`${currentBranch}\`)` });
+  }
+
   const previousWorktree = factValue(facts.session_worktree, null) || factValue(facts.session_cwd, null);
   const currentWorktree = factValue(facts.git_worktree, null);
   if (previousWorktree && currentWorktree && !samePath(previousWorktree, currentWorktree)) {
     suggestions.push({ rank: 50, rule: 'different_worktree', text: `estavas em \`${previousWorktree}\`` });
   }
+
+  // ⛔ A regra que FALTA, e porque nao esta aqui:
+  //
+  //     «ha N worktrees com trabalho por commitar»
+  //
+  // E a de maior valor — uma varredura a mao a 2026-08-25 encontrou 14
+  // worktrees com trabalho pendente, incluindo 450 ficheiros por versionar no
+  // checkout principal, coisa que ninguem via em lado nenhum.
+  //
+  // Custa 8,2 SEGUNDOS. Medido: `git worktree list` leva 115ms para 80
+  // worktrees, e cada `git status` leva ~102ms. O orcamento desta camada e
+  // 1,7ms de mediana, e ela corre no arranque de cada sessao.
+  //
+  // Nao entra sem cache. E o cache e outro desenho — quem o escrever tem de
+  // decidir quem o escreve, quando expira, e o que mostrar enquanto esta frio.
+  // Fica nomeado aqui com o numero para nao voltar a ser proposto as cegas.
   return suggestions.sort((left, right) => left.rank - right.rank || left.text.localeCompare(right.text));
 }
 
