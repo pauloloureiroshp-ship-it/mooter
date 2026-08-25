@@ -150,3 +150,46 @@ codex do PC. Não foi escrito código — era essa a instrução.
 a porta à auto-aprovação. Corrigido: o gate numérico **não abre** sem um 2º motor autenticado.
 As outras duas não contam (uma leu o enunciado ao contrário e argumentou *a favor*; outra era
 genérica, sem ficheiro nem linha).
+
+## FASE D — M1 v0 ✅ PR #402
+ADR **assinado** (`DECISÃO: B · 2026-08-25 · Paulo`). `packages/m1-proxy/` — directório novo, não
+toca em pacote congelado; entrada de uma linha no `AGENTS.md` no mesmo commit.
+
+O v0 é sobretudo o que **recusa**: não ouve na rede (bind `127.0.0.1`, teste falha se `0.0.0.0`
+aparecer no código) · não se liga sozinho (`criarProxy()` **recusa-se a construir** sem a flag; e
+`'0'`/`'false'` não ligam, por serem truthy em JS) · **não tem degrau de nuvem** (tier que o local
+não serve → `501` com o motivo; fail-closed para tier desconhecido) · não reclassifica
+(`classify.js` é chamado com `require` tardio) · **não grava o prompt** (há um teste que tenta
+contrabandeá-lo e exige que não chegue ao disco). Duas contagens desde o dia 1, sem campo `total`.
+14/14 testes. Desenho em `~/paulo-vault/_handoff/design-m1-v0.md`, 🔴 por refutar.
+
+## FECHO
+
+- ✅ Journal: `~/paulo-vault/10-projects/2026-08-25-mac-construir-superar.md`
+- ✅ Delta por onda (positivos **e** negativos, só medidos): `40-strategy/2026-08-25-pitch-registro-metricas-medidas.md`
+- ✅ Vault commitado com adds selectivos (`e9a8208`); o publicador de beacons empurra-o no próximo ciclo (~10 min)
+- ✅ A0 re-verificado: PR #396 continua `UNSTABLE` — 19 verdes, 2 fails de rate-limit do Vercel. **Sem merge.**
+
+### ⛔ Loop NÃO relançado — e a razão é medida, não cautela
+
+O kickoff manda relançar "para o loop carregar o código novo". Medi antes de agir:
+
+| | |
+|---|---|
+| loop **vivo** | 10 pilares activos (P1–P10), a correr **P2**, `running: true` |
+| **checkout** | `PILLAR_IDS = []` — os 11 estão `activo:false` desde `edf00025` (hoje, 16:33) |
+
+**Relançar tem zero upside e uma consequência medida.** Zero upside porque *não há código novo
+para carregar*: os seis PRs estão abertos, nenhum mergido. Consequência: o loop recarrega o
+checkout, fica com **zero pilares**, e `nextPillar(n, [])` devolve `undefined` **em silêncio** —
+o device pára de produzir e nada no painel o diz. É o modo de falha "63 sessões, 0 journals".
+
+**As duas opções, com o que cada uma faz:**
+1. **Não relançar** (o que fiz): o Mac continua a produzir achados com **P2**, que o dono já
+   declarou mau (`edf00025`: "20 achados decididos pelo dono, 0 valiam"). Gasta GPU a $0 em
+   trabalho de valor conhecido = baixo, mas o painel continua honesto.
+2. **Relançar** (`_handoff/operar/1-LANCAR-MOO.command`): alinha a máquina com a decisão
+   deliberada de main — e o device fica **silenciosamente parado** até o WS1 religar um pilar.
+
+A opção 2 é defensável e pode até ser o que queres. Não a tomei sozinho porque cala o único
+device a produzir, sem alarme, e isso é o F1.2 do desenho do WS1 — que ainda está por refutar.
