@@ -457,6 +457,24 @@ tudo o que a janela dele mostra e não consegue ver os 81 que estão fora dela.
 
 Não é uma espera, é um deadlock. E é a MESMA classe de defeito que o adversário
 apanhou três vezes hoje: **duas contagens do mesmo número, com janelas
-diferentes**. Fica por corrigir, e não foi corrigido nesta sessão.
+diferentes**.
 
-gate: 760 pass / 0 fail · classify.js `427d8c0b` intacto · backup do autopilot em `~/.mooter/autopilot.json.antes-l1`
+**CORRIGIDO em `#369`, `main` @ `b24d8359`.** A causa: `decidirRonda` lia o
+ledger com o seu próprio `readFileSync`, **sem janela nenhuma**, enquanto o
+`readLedger` — painel e tique do L1 — usa `maxLines = 5000`. Passa a ler pela
+mesma porta: **101 → 20**, as três contagens dão o mesmo, e o runner despausou
+(`pilar: P3`, `sha_carregado b24d8359b16e`).
+
+A janela nunca foi acidente: o `CAUDA_AO_RODAR`, **no mesmo ficheiro**, já dizia
+*"tem de ser a MESMA janela que o `readLedger` usa"*. A rotação estava alinhada
+com ela; esta leitura é que passava ao lado da porta.
+
+**Tratado como CLASSE, não instância.** Nas outras duas vezes de hoje corrigi a
+instância e a classe sobreviveu. O teste novo usa **6000** achados de propósito
+— com 5000 as duas leituras davam o mesmo número e não provava nada.
+
+E a lição operacional repetiu-se pela terceira vez: a correcção estava em `main`
+e o runner corria `aa3d4ca5`. **O `sha_carregado` dizia-o.** Só reiniciar carrega
+código novo — `import` lê o ficheiro uma vez.
+
+gate: 761 pass / 0 fail · classify.js `427d8c0b` intacto · backup do autopilot em `~/.mooter/autopilot.json.antes-l1`
