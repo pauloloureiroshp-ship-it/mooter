@@ -18,9 +18,14 @@ import {
 import { computeCostMicros } from "../src/cost.ts";
 import type { DecideAgentResult } from "../src/decide-agent.ts";
 
-const OPUS = "claude-opus-4-7"; // priced in the snapshot (5/25); opus-4-6/4-8 are pending
+const OPUS = "claude-opus-4-7"; // priced in the snapshot (5/25)
 const HAIKU = "claude-haiku-4-5";
-const PENDING = "claude-opus-4-6"; // input_per_mtok: null (pricing pending)
+// A model that is GENUINELY pending — the assertion below is about refusing to
+// fabricate a price, so the fixture only has to be unpriced, not any specific id.
+// Was claude-opus-4-6 until 2026-08-25, when that model was filled from
+// tools/router/pricing.js (its "no in-repo source" note had been false since
+// 2026-04-16). opus-4-8 has no in-repo price source, so it carries the case now.
+const PENDING = "claude-opus-4-8"; // input_per_mtok: null (pricing pending)
 const LOCAL = "qwen3:30b";
 
 /** Re-derive the base input price (USD/token) the same way the module does, so
