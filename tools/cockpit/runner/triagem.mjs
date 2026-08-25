@@ -16,6 +16,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -69,6 +70,8 @@ export const MOTIVOS = Object.freeze([
  * de se identificar.
  */
 export const AUTORES = Object.freeze(['dono', 'claude', 'agente']);
+export const ORIGEM_MODELO = 'modelo-local';
+export const ORIGEM_DETECTOR = 'detector-deterministico';
 
 /**
  * A identidade de um achado para efeitos de triagem.
@@ -88,6 +91,57 @@ export function chaveDoRecibo(r) {
 /** Um achado e uma ronda em que o modelo AFIRMOU alguma coisa e a citacao resolveu. */
 export function ehAchado(r) {
   return Boolean(r) && !r.evento && r.conclusao === 'achado' && r.verdict === 'citacao-ok';
+}
+
+/**
+ * Projecta um apontamento deterministico para a fila de triagem, nunca para o
+ * ledger de rondas. A chave nao leva o instante da varredura: correr a mesma
+ * regex outra vez nao pode ressuscitar uma decisao ja tomada. Se o enunciado
+ * mudar, o hash muda e o apontamento volta a pedir julgamento.
+ */
+export function apontamentoDoDetector(a, geradoEm = null) {
+  if (!a || typeof a.file !== 'string' || !a.file.trim()
+    || !Number.isInteger(a.line) || a.line < 1
+    || typeof a.rule !== 'string' || !a.rule.trim()
+    || typeof a.msg !== 'string') return null;
+  const assinatura = createHash('sha256')
+    .update(JSON.stringify([a.file, a.line, a.rule, a.msg]))
+    .digest('hex')
+    .slice(0, 16);
+  return {
+    chave: `detector:ancora:${assinatura}`,
+    origem: ORIGEM_DETECTOR,
+    tipo: 'apontamento-regex',
+    regra: a.rule,
+    ts: geradoEm,
+    pilar: null,
+    escopo: `regex:${a.rule}`,
+    ficheiro: a.file,
+    janela: String(a.line),
+    evidencia: `${a.file}:${a.line} · regex ${a.rule}`,
+    resumo: a.msg,
+    sev: {
+      n: 2,
+      k: 'med',
+      porque: 'deterministic regex pointer — not a GPU/model finding; needs your judgment',
+    },
+  };
+}
+
+/** A fila do detector e separada da dos recibos, mas obedece as mesmas decisoes. */
+export function porTriarDetector(apontamentos, decisoes, { geradoEm = null, limite = LIMITE_TRIAGEM } = {}) {
+  const fila = [];
+  const vistos = new Set();
+  let total = 0;
+  for (const a of apontamentos || []) {
+    const item = apontamentoDoDetector(a, geradoEm);
+    if (!item || vistos.has(item.chave)) continue;
+    vistos.add(item.chave);
+    if (decisoes && decisoes.has(item.chave)) continue;
+    total += 1;
+    if (fila.length < limite) fila.push(item);
+  }
+  return { fila, total };
 }
 
 /**
@@ -212,7 +266,11 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por, n
       janela: recibo.janela ?? null,
       pilar: recibo.pilar ?? null,
       evidencia: recibo.evidencia ?? null,
-      resumo: recibo.resultado_resumo ?? null,
+      resumo: recibo.resultado_resumo ?? recibo.resumo ?? null,
+      origem: recibo.origem ?? null,
+      tipo: recibo.tipo ?? null,
+      regra: recibo.regra ?? null,
+      verdict: recibo.verdict ?? null,
     } : {}),
   };
   // A pasta do projecto pode nao existir: a triagem e a PRIMEIRA escrita do
@@ -250,6 +308,9 @@ export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
     vistos.add(chave);
     out.push({
       chave,
+      origem: ORIGEM_MODELO,
+      tipo: 'achado-modelo',
+      verdict: r.verdict,
       ts: r.ts ?? null,
       pilar: r.pilar ?? null,
       escopo: r.escopo ?? null,

@@ -449,6 +449,7 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, shaCarregado
       // decidir parecia igual a um com zero.
       triagemPath: path.join(paths.base, 'triagem.jsonl'),
       baseDir: paths.base,
+      repoRoot,
       gpu,
       alignment,
       // Era `true` fixo: o beacon jurava motor vivo durante as 11 horas em que
