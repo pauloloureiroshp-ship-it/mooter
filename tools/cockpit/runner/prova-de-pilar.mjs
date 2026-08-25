@@ -384,7 +384,34 @@ export function veredicto({ pilar, respostaSemeado, respostaControlo }) {
   // aceitar meia resposta.
   const marcas = s.marcas || [];
   const linhas = s.linhas || [];
+
+  // ⚠️ UMA RESPOSTA QUE DIZ "NAO HA NADA" NUNCA E UM ACHADO, apanhe ela as
+  // marcas que apanhar. Isto tem de ser avaliado ANTES de `achou`, e nao depois.
+  //
+  // Medido a 2026-08-25, contra o Ollama real, ao correr os dez pares: o P6 foi
+  // graduado `funciona` tendo respondido, literalmente,
+  //
+  //     NO FINDING
+  //
+  //     PROOF: landing/components/SavingsCard.tsx:36
+  //
+  // O enunciado do P6 exige `PROOF:` SEMPRE, mesmo sem achado — patologia ja
+  // descrita no cabecalho deste ficheiro, onde se conta que 130 rondas dele
+  // emitiam uma citacao que nao cita nada. A marca do par e `linhas: [36]`, o
+  // numero aparece na citacao obrigatoria, e o ramo `achou && !acusouControlo`
+  // devolvia `funciona` sem nunca perguntar se o semeado estava calado.
+  //
+  // A variavel ja existia; estava so a ser consultada tarde de mais.
+  //
+  // Isto NAO e academico: este e o instrumento que decide se um pilar entra na
+  // rotacao. Foi assim que o P11 entrou — passou o ensaio a 22/08 e em UM dia
+  // deu 87 achados, 76 dos quais falhavam o proprio enunciado. Um ensaio que
+  // aceita `NO FINDING` como aprovacao nao esta a medir sensibilidade: esta a
+  // medir se o numero da linha calha aparecer no texto.
+  const caladoNoSemeado = SEM_ACHADO_RE.test(String(respostaSemeado || ''));
+
   const achou = (marcas.length + linhas.length) > 0
+    && !caladoNoSemeado
     && marcas.every((m) => new RegExp(m).test(texto))
     && linhas.every((n) => new RegExp(`(^|[^0-9])${n}([^0-9]|$)`).test(texto));
 
@@ -399,10 +426,9 @@ export function veredicto({ pilar, respostaSemeado, respostaControlo }) {
   // reprovar os dois unicos pilares sãos de nove.
   const acusouControlo = !SEM_ACHADO_RE.test(String(respostaControlo || ''));
 
-  // Nao basta saber se ACHOU o defeito: e preciso saber se ficou CALADO ou se
-  // achou OUTRA coisa. Sao dois estados diferentes, e a primeira versao disto
+  // `caladoNoSemeado` (acima) tambem distingue, nos ramos de baixo, ficar CALADO
+  // de achar OUTRA coisa. Sao dois estados diferentes, e a primeira versao disto
   // colapsava-os num `incoerente` que mandava rever um fixture que estava bom.
-  const caladoNoSemeado = SEM_ACHADO_RE.test(String(respostaSemeado || ''));
   const alvo = s.defeito || 'o defeito';
 
   if (achou && !acusouControlo) {

@@ -264,3 +264,66 @@ test('P11 herda a FORMA do P3, que e a unica que se provou funcionar', () => {
   assert.match(ask, /THEY DIVERGE/, 'e o achado tem de ter forma fixa');
   assert.ok(SEM_ACHADO_RE.test(ask), 'o `SEM_ACHADO_RE` tem de reconhecer a saida');
 });
+
+// ── o ensaio a reprovar-se a si proprio (2026-08-25) ────────────────────────
+
+test('VEREDICTO · uma resposta que diz "nao ha nada" NUNCA e um achado', () => {
+  // MEDIDO contra o Ollama real, ao correr os dez pares no dia em que o dono
+  // desligou os ultimos dois pilares. O P6 foi graduado `funciona` tendo
+  // respondido, literalmente:
+  //
+  //     NO FINDING
+  //
+  //     PROOF: landing/components/SavingsCard.tsx:36
+  //
+  // O enunciado do P6 exige `PROOF:` sempre, mesmo sem achado. A marca do par e
+  // `linhas: [36]`, o numero aparece na citacao obrigatoria, e o ramo
+  // `achou && !acusouControlo` respondia `funciona` sem perguntar se o semeado
+  // estava calado. A variavel `caladoNoSemeado` ja existia — era so consultada
+  // tarde de mais.
+  //
+  // E o instrumento que decide se um pilar entra na rotacao. Foi assim que o
+  // P11 entrou: passou o ensaio, e em UM dia deu 87 achados dos quais 76
+  // falhavam o proprio enunciado.
+  const r = veredicto({
+    pilar: 'P6',
+    respostaSemeado: 'NO FINDING\n\nPROOF: landing/components/SavingsCard.tsx:36',
+    respostaControlo: 'NO FINDING\n\nPROOF: landing/components/CostCard.tsx:38',
+  });
+  assert.equal(r.estado, 'partido', 'calado nos dois e calado, apanhe a citacao o numero que apanhar');
+});
+
+test('VEREDICTO · a saida HONESTA de cada pilar tambem nao vira achado por citar', () => {
+  // A mesma armadilha, no vocabulario dos outros pilares: o `SEM_ACHADO_RE`
+  // conhece `THEY MATCH`, `NO SEED EXITS`, `EVERY CALL ONCE`, `SHAPE IS UNIQUE`.
+  // Nenhum deles pode ser aprovado por a citacao obrigatoria trazer a linha certa.
+  const s = PARES.P3.semeado;
+  const linha = (s.linhas || [])[0] ?? 8;
+  const r = veredicto({
+    pilar: 'P3',
+    respostaSemeado: `THEY MATCH\nPROOF: ${s.caminho}:${linha}`,
+    respostaControlo: 'THEY MATCH',
+  });
+  assert.notEqual(r.estado, 'funciona', 'dizer que batem e a saida, nao a deteccao');
+});
+
+test('VEREDICTO · a correccao NAO cala um achado a serio que por acaso cite', () => {
+  // O risco do lado oposto: apertar tanto que um achado verdadeiro deixe de
+  // contar. Um semeado com o defeito escrito por extenso continua a passar.
+  //
+  // A resposta cita as DUAS linhas do par (7 e 8) porque e isso que o par exige
+  // — aceitar so uma seria aceitar meia resposta, e a primeira versao deste
+  // teste falhou exactamente por isso. O teste estava errado, nao o codigo.
+  const s = PARES.P3.semeado;
+  const r = veredicto({
+    pilar: 'P3',
+    respostaSemeado: [
+      'COMMENT LINE 7: /** Damos 30 segundos de folga antes de chamar orfao a um lock. */',
+      'CODE LINE 8: export const ORFAO_APOS_S = 90;',
+      'THEY DIVERGE: comment says 30, code uses 90',
+      `PROOF: ${s.caminho}:8`,
+    ].join('\n'),
+    respostaControlo: 'THEY MATCH',
+  });
+  assert.equal(r.estado, 'funciona', 'a correccao nao pode custar um verdadeiro positivo');
+});
