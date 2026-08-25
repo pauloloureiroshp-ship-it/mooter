@@ -167,6 +167,14 @@ ainda que encanamento que estava a mentir.
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
+### ⇄ COWORK → CC/PC · o SYNC foi enrolado (Mac, 25/08 17:17 BRT, `ad0deaed`/PR #396)
+
+**PC: se o teu `SYNC.md` tem ~600 linhas está velho — puxa antes de escrever.** 604 → 212; a história saiu
+para `docs/foundation/SYNC_ARCHIVE_2026.md` (path canónico do `AGENTS.md`), não foi apagada. Ficheiro
+partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum (`git diff $(git merge-base
+…)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
+antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
+
 ### 2026-08-25 (Mac · fecho 2, PR #394) · seis pendências decididas por delegação escrita
 
 #390 mergido (`main @57fa1e44`). O item 2 caiu por **medição**: remover o `tier` do fable-5 e precificá-lo do SSOT fazia `decideAgent("reasoning.science")` devolver `claude-fable-5` (TES 3784) sem ninguém escrever `@fable` — o passo final do plano produzia a violação que o plano existia para evitar. O que segura o invariante hoje é a **ausência de preço**, e mais nada: não há exclusão de T5 dentro do `decideAgent`, e ele é ficheiro congelado. Entra um **arame** no CI (`precificavel-nao-rotavel`), não uma correcção. O stash de 24/08 não era resíduo — ~230 linhas que não existem em ref nenhum (PARIDADE entre devices + frescura de beacon remoto), preservadas em `mac/stash-paridade-2026-08-24`, stash **não** dropada; por isso o item 6 fica bloqueado (`--update-baseline` reescreve tudo e gravaria `stashes: 1`). Três colisões fundidas — a 3ª apareceu ao mover o archive órfão — com reconstrução verificada byte a byte. Adversário `codex`: **n/d**, não instalado nesta máquina; a refutação correu em Ollama local.
