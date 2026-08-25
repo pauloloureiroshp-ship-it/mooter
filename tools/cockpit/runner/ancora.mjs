@@ -47,7 +47,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { expandirPadrao } from './context-pack.mjs';
-import { excluido } from './portao-de-existencia.mjs';
+import { excluido, LIMIARES } from './portao-de-existencia.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
@@ -87,15 +87,45 @@ export function detectarFicheiro(linhas) {
       const l = linhas[j];
       if (/^\s*\}/.test(l)) break;
       if (/^\s*(\/\/|\/\*|\*)/.test(l)) { explicado = true; continue; }
+      // ⚠️ UMA FALHA ANUNCIADA JA NAO E SILENCIOSA.
+      //
+      // Descoberto a 2026-08-25 pela pre-triagem: o `seamless.js:414` continuava
+      // marcado DEPOIS de ter sido corrigido no #387. A correccao anunciou a
+      // falha em codigo — `log('ledger nao lido: ' + erro)` antes do `return []`
+      // — mas este detector so perdoava um COMENTARIO. Resultado: a regra
+      // marcava o proprio remedio, e a precisao dela ia CAIR a medida que as
+      // correccoes entrassem. Um detector que acusa quem o obedeceu mede o
+      // trabalho ao contrario.
+      if (/\b(log|warn|error|write|stderr|console)\b/i.test(l)) { explicado = true; continue; }
       const m = NEUTRO.exec(l);
       if (m && !explicado) { achados.push({ linha: j + 1, valor: m[1] }); break; }
-      if (m) break;                    // explicado: nao conta
+      if (m) break;                    // explicado ou anunciado: nao conta
     }
   }
   return achados;
 }
 
 /** Onde os pontos de partida vivem, quando a classe nao declara os seus. */
+/**
+ * O que a ancora NUNCA pode apontar.
+ *
+ * O `classify.js` e FROZEN — o sha esta em CI. Um apontamento nele so pode dar
+ * duas coisas: uma ronda de GPU gasta a julgar codigo que ninguem pode tocar, ou
+ * pior, alguem a tocar-lhe. E ja aconteceu: um dos 11 achados do P2 que o dono
+ * descartou apontava exactamente para la.
+ *
+ * Nao chega excluir o glob: `tools/router/*.js` tem de continuar no ambito
+ * porque foi com ele que o censo mediu. O que se exclui e o FICHEIRO.
+ */
+export const NUNCA_APONTAR = [
+  /(^|[\\/])classify\.js$/,
+];
+
+export function congelado(ficheiro) {
+  const p = String(ficheiro || '').replace(/\\/g, '/');
+  return NUNCA_APONTAR.some((re) => re.test(p));
+}
+
 export const GLOBS_OMISSAO = [
   'tools/router/*.js',
   'tools/cockpit/runner/*.mjs',
@@ -165,6 +195,9 @@ export const REGRAS = {
    */
   'catch-neutro': {
     activo: true,
+    // O que DECIDE. Estruturado, portanto verificavel — ver `podeEntrar`.
+    // A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 84, lidos: 40, reais: 28 },
     porque: '84 candidatos, 28 reais em 40 lidos a mao, 70,0% de precisao — passa os dois limiares do portao',
     /**
      * O ENUNCIADO que o juiz le.
@@ -261,9 +294,70 @@ export const REGRAS = {
   },
 };
 
-/** As que correm. Vazio hoje, por medicao — ver a entrada de cada uma. */
-export function regrasActivas(regras = REGRAS) {
-  return Object.keys(regras).filter((id) => regras[id] && regras[id].activo === true);
+/**
+ * Uma regra pode entrar na rotacao?
+ *
+ * ⚠️ ISTO E O PORTAO A DEIXAR DE SER UM DOCUMENTO.
+ *
+ * Ate 2026-08-25 a unica coisa que impedia um pilar ou uma regra de entrar sem
+ * medicao era um comentario a pedi-la, e um teste que verificava se o campo
+ * `porque` tinha um digito. `porque: 'medido 1 vez'` passava. Foi assim que o
+ * P11 entrou: passou o ensaio, entrou, e em UM dia deu 87 achados dos quais 76
+ * falhavam o proprio enunciado.
+ *
+ * A pratica que isto segue esta escrita nas best-practices do Claude Code:
+ * *"Hooks are deterministic and guarantee the action happens"*, ao contrario das
+ * instrucoes em prosa, que sao *advisory*. Um portao que se pode esquecer nao e
+ * um portao.
+ *
+ * O `porque` continua a existir para quem le. O que DECIDE e o `medicao`, que e
+ * estruturado e portanto verificavel:
+ *
+ *     medicao: { candidatos: 84, lidos: 40, reais: 28 }
+ *
+ * `precisao` NAO se declara: deriva-se de `reais / lidos`. Um numero declarado a
+ * mao e um numero que se pode escrever errado — e este ficheiro ja apanhou hoje
+ * um `funciona` que era um `NO FINDING`.
+ */
+export function podeEntrar(regra, { limiares = LIMIARES } = {}) {
+  if (!regra || regra.activo !== true) return { pode: false, porque: 'nao esta marcada como activa' };
+  const m = regra.medicao;
+  if (!m || typeof m !== 'object') {
+    return { pode: false, porque: 'sem campo `medicao` — uma regra sem numeros nao entra, por mais convincente que seja o `porque`' };
+  }
+  const inteiro = (x) => Number.isSafeInteger(x) && x >= 0;
+  if (!inteiro(m.candidatos) || !inteiro(m.lidos) || !inteiro(m.reais)) {
+    return { pode: false, porque: 'a `medicao` tem campos que nao sao inteiros — nao se arredonda um portao' };
+  }
+  if (m.lidos === 0) return { pode: false, porque: 'zero candidatos lidos: nao houve triagem' };
+  if (m.reais > m.lidos) return { pode: false, porque: `${m.reais} reais em ${m.lidos} lidos — impossivel, a medicao esta errada` };
+  if (m.lidos > m.candidatos) return { pode: false, porque: `${m.lidos} lidos de ${m.candidatos} candidatos — a amostra nao pode ser maior que o universo` };
+
+  const precisao = m.reais / m.lidos;
+  const pct = (x) => `${(x * 100).toFixed(1)}%`;
+  const falhas = [];
+  if (m.reais < limiares.REAIS_MINIMO) falhas.push(`so ${m.reais} reais, precisa de ${limiares.REAIS_MINIMO}`);
+  if (precisao < limiares.PRECISAO_MINIMA) falhas.push(`precisao ${pct(precisao)}, abaixo de ${pct(limiares.PRECISAO_MINIMA)}`);
+  if (falhas.length) return { pode: false, porque: falhas.join(' e '), precisao };
+  return { pode: true, porque: `${m.reais} reais em ${m.lidos} lidos · ${pct(precisao)}`, precisao };
+}
+
+/**
+ * As que correm — e so entram as que o `podeEntrar` deixa.
+ *
+ * Uma regra com `activo: true` e medicao insuficiente NAO corre. Nao rebenta,
+ * nao avisa a meio de uma ronda: simplesmente nao entra, e o manifesto diz
+ * porque. E a diferenca entre um portao e um lembrete.
+ */
+export function regrasActivas(regras = REGRAS, opts = {}) {
+  return Object.keys(regras).filter((id) => podeEntrar(regras[id], opts).pode);
+}
+
+/** As que quiseram entrar e o portao recusou, com o motivo de cada uma. */
+export function regrasRecusadas(regras = REGRAS, opts = {}) {
+  return Object.keys(regras)
+    .filter((id) => regras[id] && regras[id].activo === true && !podeEntrar(regras[id], opts).pode)
+    .map((id) => ({ id, porque: podeEntrar(regras[id], opts).porque }));
 }
 
 /** Comentario de linha fora, para o detector nao acusar prosa. */
@@ -298,7 +392,7 @@ export function gerar({
     let achados = [];
     try { achados = expandirImpl(repoRoot, g) || []; } catch { achados = []; }
     if (achados.length === 0) globsVazios.push(g);
-    for (const f of achados) if (!excluido(f)) vistos.add(f);
+    for (const f of achados) if (!excluido(f) && !congelado(f)) vistos.add(f);
   }
   const ficheiros = [...vistos].sort();
 
@@ -353,6 +447,7 @@ export function gerar({
     repo: repoRoot,
     regras_no_catalogo: Object.keys(regras).length,
     regras_activas: activas,
+    regras_recusadas: regrasRecusadas(regras, { limiares: LIMIARES }),
     ficheiros_varridos: activas.length > 0 ? ficheiros.length : 0,
     ficheiros_no_ambito: ficheiros.length,
     ilegiveis,

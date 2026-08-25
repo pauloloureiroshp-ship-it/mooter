@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   gerar, escrever, lerManifesto, regrasActivas, limparLinha,
-  REGRAS, GLOBS_OMISSAO, MSG_MAX,
+  REGRAS, GLOBS_OMISSAO, MSG_MAX, podeEntrar, regrasRecusadas, congelado,
 } from './ancora.mjs';
 import { verAncora } from './self-check.mjs';
 import { readAnchor } from './context-pack.mjs';
@@ -75,7 +75,7 @@ test('o manifesto distingue "vazia por decisão" de "vazia por acaso"', () => {
 
   const comRegra = gerar({
     repoRoot: '/r',
-    regras: { r1: { activo: true, porque: '12 reais em 30', detectar: (l) => l.includes('BUG') } },
+    regras: { r1: { activo: true, medicao: { candidatos: 90, lidos: 40, reais: 20 }, porque: '12 reais em 30', detectar: (l) => l.includes('BUG') } },
     globs: ['a/*.js'],
     expandirImpl: () => ['a/um.js'], readImpl: () => 'const x = 1;\n',
   });
@@ -90,7 +90,7 @@ test('os apontamentos saem no formato que o readAnchor consome — sem traduçã
   // não reconhece, que é exactamente a forma de falha que este ficheiro corrige.
   const { apontamentos } = gerar({
     repoRoot: '/r',
-    regras: { minha: { activo: true, porque: '11 reais em 30', detectar: (l) => l.includes('BUG') } },
+    regras: { minha: { activo: true, medicao: { candidatos: 90, lidos: 40, reais: 20 }, porque: '11 reais em 30', detectar: (l) => l.includes('BUG') } },
     globs: ['a/*.js'],
     expandirImpl: () => ['a/um.js'],
     readImpl: () => 'ok\nBUG aqui\nok\n',
@@ -128,7 +128,7 @@ test('o ficheiro de achados é um ARRAY — um objecto fá-lo-ia ler como vazio'
 test('um ficheiro ilegível é contado, não tratado como ficheiro sem apontamentos', () => {
   const r = gerar({
     repoRoot: '/r',
-    regras: { r1: { activo: true, porque: '10 reais', detectar: () => true } },
+    regras: { r1: { activo: true, medicao: { candidatos: 90, lidos: 40, reais: 20 }, porque: '10 reais', detectar: () => true } },
     globs: ['a/*.js'],
     expandirImpl: () => ['a/bom.js', 'a/mau.js'],
     readImpl: ler({ 'a/bom.js': 'x\n' }),
@@ -140,8 +140,8 @@ test('um detector que rebenta não derruba a geração', () => {
   const r = gerar({
     repoRoot: '/r',
     regras: {
-      boa: { activo: true, porque: '10 reais', detectar: (l) => l.includes('x') },
-      ma: { activo: true, porque: '10 reais', detectar: () => { throw new Error('regex má'); } },
+      boa: { activo: true, medicao: { candidatos: 90, lidos: 40, reais: 20 }, porque: '10 reais', detectar: (l) => l.includes('x') },
+      ma: { activo: true, medicao: { candidatos: 90, lidos: 40, reais: 20 }, porque: '10 reais', detectar: () => { throw new Error('regex má'); } },
     },
     globs: ['a/*.js'],
     expandirImpl: () => ['a/um.js'],
@@ -267,4 +267,135 @@ test('o âmbito do produtor é o que o portão MEDIU, não um mais estreito', ()
   // de fora casos dos fortes — o `docs-hygiene.js` a devolver `[]` de uma pasta
   // ilegível faz o próprio ratchet ver uma melhoria que não existe.
   assert.ok(GLOBS_OMISSAO.includes('tools/*.js'), 'o âmbito encolheu abaixo da medição');
+});
+
+// ── F1 · o portão deixa de ser um documento (2026-08-25) ───────────────────
+
+test('PORTÃO · uma regra sem `medicao` NÃO entra, por mais convincente que seja o `porque`', () => {
+  // Era assim que o P11 entrava: bastava `activo: true` e uma frase. O teste
+  // antigo só verificava se o `porque` tinha um dígito — `"medido 1 vez"`
+  // passava. A prática do Claude Code é explícita: instruções em prosa são
+  // *advisory*, mecanismos são determinísticos.
+  const impostor = { activo: true, porque: 'obviamente é um defeito, medido 1 vez, toda a gente sabe' };
+  const v = podeEntrar(impostor);
+  assert.equal(v.pode, false);
+  assert.match(v.porque, /sem campo `medicao`/);
+  assert.deepEqual(regrasActivas({ impostor }), [], 'e não corre — não é só um aviso');
+});
+
+test('PORTÃO · números que não chegam são recusados, com os dois motivos', () => {
+  // O caso real do `|| 0` em código de dinheiro: 2 reais em 39.
+  const v = podeEntrar({ activo: true, medicao: { candidatos: 39, lidos: 39, reais: 2 } });
+  assert.equal(v.pode, false);
+  assert.match(v.porque, /só 2 reais|so 2 reais/);
+  assert.match(v.porque, /5\.1%/);
+});
+
+test('PORTÃO · a precisão DERIVA-SE, não se declara', () => {
+  // Um número escrito à mão é um número que se pode escrever errado, e este
+  // ficheiro já apanhou hoje um `funciona` que era um `NO FINDING`. Declarar
+  // `precisao: 0.99` não muda nada: o que conta é reais/lidos.
+  const mentiroso = { activo: true, medicao: { candidatos: 100, lidos: 40, reais: 2, precisao: 0.99 } };
+  assert.equal(podeEntrar(mentiroso).pode, false, 'a precisão declarada não sobrepõe a calculada');
+});
+
+test('PORTÃO · medições impossíveis são recusadas antes dos limiares', () => {
+  const maisReaisQueLidos = podeEntrar({ activo: true, medicao: { candidatos: 90, lidos: 40, reais: 50 } });
+  assert.equal(maisReaisQueLidos.pode, false);
+  assert.match(maisReaisQueLidos.porque, /impossivel|impossível/);
+
+  const amostraMaiorQueUniverso = podeEntrar({ activo: true, medicao: { candidatos: 10, lidos: 40, reais: 12 } });
+  assert.equal(amostraMaiorQueUniverso.pode, false);
+  assert.match(amostraMaiorQueUniverso.porque, /amostra n[aã]o pode ser maior/);
+
+  const semTriagem = podeEntrar({ activo: true, medicao: { candidatos: 90, lidos: 0, reais: 0 } });
+  assert.equal(semTriagem.pode, false);
+  assert.match(semTriagem.porque, /triagem/);
+
+  const naoInteiro = podeEntrar({ activo: true, medicao: { candidatos: 84, lidos: 40, reais: 27.5 } });
+  assert.equal(naoInteiro.pode, false);
+  assert.match(naoInteiro.porque, /inteiros/);
+});
+
+test('PORTÃO · a regra real passa, e com os números que a autorizaram', () => {
+  const v = podeEntrar(REGRAS['catch-neutro']);
+  assert.equal(v.pode, true);
+  assert.equal(v.precisao, 28 / 40);
+  assert.deepEqual(REGRAS['catch-neutro'].medicao, { candidatos: 84, lidos: 40, reais: 28 });
+});
+
+test('PORTÃO · uma recusada é DECLARADA no manifesto, não some em silêncio', () => {
+  // Uma regra que alguém marcou como activa e o portão travou tem de aparecer.
+  // Um portão que recusa em silêncio ensina a próxima pessoa que "não estava
+  // ligada" — e ela liga-a outra vez.
+  const regras = {
+    boa: { activo: true, medicao: { candidatos: 90, lidos: 40, reais: 20 }, detectarFicheiro: () => [] },
+    apressada: { activo: true, porque: 'de certeza que é isto', detectarFicheiro: () => [{ linha: 1 }] },
+  };
+  const r = gerar({
+    repoRoot: '/r', regras, globs: ['a/*.js'],
+    expandirImpl: () => ['a/um.js'], readImpl: () => 'x\n',
+  });
+  assert.deepEqual(r.manifesto.regras_activas, ['boa']);
+  assert.equal(r.manifesto.regras_recusadas.length, 1);
+  assert.equal(r.manifesto.regras_recusadas[0].id, 'apressada');
+  assert.match(r.manifesto.regras_recusadas[0].porque, /medicao/);
+  assert.equal(r.apontamentos.length, 0, 'a recusada não produziu um único apontamento');
+});
+
+// ── o detector não pode acusar quem o obedeceu (2026-08-25) ────────────────
+
+test('uma falha ANUNCIADA em código não é silenciosa — o remédio não vira doença', () => {
+  // Descoberto pela pré-triagem local: o `seamless.js` continuava marcado DEPOIS
+  // de ter sido corrigido no #387. A correcção anunciou a falha com `log(...)`
+  // antes do `return []`, mas o detector só perdoava um COMENTÁRIO.
+  //
+  // Consequência: a precisão da regra ia CAIR à medida que as correcções
+  // entrassem. Um detector que acusa quem o obedeceu mede o trabalho ao
+  // contrário — e a precisão medida deixa de significar o que diz.
+  const corrigido = [
+    'function ler() {',
+    '  try { return leitura(); } catch (erro) {',
+    "    log('ledger nao lido: ' + erro.message);",
+    '    return [];',
+    '  }',
+    '}',
+  ].join('\n');
+  const anunciado = gerar({
+    repoRoot: '/r', globs: ['a/*.js'],
+    expandirImpl: () => ['a/um.js'], readImpl: () => corrigido,
+  });
+  assert.equal(anunciado.apontamentos.length, 0, 'quem anuncia a falha já não a engole');
+
+  // E o silencioso continua a ser apanhado — a correcção não abriu um buraco.
+  const silencioso = gerar({
+    repoRoot: '/r', globs: ['a/*.js'],
+    expandirImpl: () => ['a/um.js'],
+    readImpl: () => 'function ler() {\n  try { return leitura(); } catch {\n    return [];\n  }\n}',
+  });
+  assert.equal(silencioso.apontamentos.length, 1);
+});
+
+test('a âncora NUNCA aponta para código congelado', () => {
+  // Marcar o `classify.js` foi exactamente o erro do P2: um dos 11 achados que o
+  // dono descartou apontava para lá. Um apontamento em código FROZEN só pode dar
+  // uma ronda de GPU gasta a julgar o intocável — ou alguém a tocar-lhe.
+  //
+  // Não chega excluir o glob: `tools/router/*.js` tem de continuar no âmbito
+  // porque foi com ele que o censo mediu. Exclui-se o FICHEIRO.
+  assert.equal(congelado('tools/router/classify.js'), true);
+  // Escrito com `String.raw` de propósito: a primeira versão deste teste foi
+  // gerada por um heredoc que comeu um nível de escape, e `'tools\router\...'`
+  // ficou com um retorno de carro no meio. O teste falhou, o código estava bom.
+  assert.equal(congelado(String.raw`tools\router\classify.js`), true, 'e no separador do Windows também');
+  assert.equal(congelado('tools/router/classify-domain.js'), false, 'sem apanhar vizinhos de nome parecido');
+  assert.equal(congelado('tools/router/badge.js'), false);
+
+  const r = gerar({
+    repoRoot: '/r', globs: ['tools/router/*.js'],
+    expandirImpl: () => ['tools/router/classify.js', 'tools/router/outro.js'],
+    readImpl: () => 'try {\n} catch {\n  return [];\n}',
+  });
+  assert.deepEqual(r.apontamentos.map((a) => a.file), ['tools/router/outro.js']);
+  assert.equal(r.manifesto.ficheiros_no_ambito, 1, 'o congelado nem entra no âmbito');
 });
