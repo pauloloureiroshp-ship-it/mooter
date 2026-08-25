@@ -19,9 +19,17 @@
  *   1. IDADE — quanto tempo desde a ultima verificacao declarada.
  *   2. DIVERGENCIA — o snapshot poe um preco que o SSOT vivo contradiz.
  *   3. FALSO-PENDING — o snapshot diz "nao ha fonte para este modelo" enquanto o
- *      SSOT vivo tem o preco. Esta e a pior: `decide-agent` trata o modelo como
- *      impossivel de precificar e NUNCA o escolhe ("you cannot rank what you
- *      cannot price"), por isso o modelo desaparece da decisao em silencio.
+ *      SSOT vivo tem o preco. Esta e a pior, e vale dizer com precisao o que faz:
+ *      o modelo sai do sort por TES ("you cannot rank what you cannot price") e
+ *      passa a so ser alcancavel pelo fallback heuristico de tier, ja marcado
+ *      pending (decide-agent.ts:165). Nao e "nunca escolhido" — e escolhido, se
+ *      for, sem que o custo tenha entrado na decisao.
+ *      O segundo efeito e no custo: `computeCostMicros` devolve 0 para um modelo
+ *      sem preco (cost.ts:77). Esse 0 e uma sentinela DECLARADA, nao um numero
+ *      inventado — mas e byte a byte o mesmo 0 que a funcao devolve para um
+ *      modelo local verdadeiramente gratis (cost.ts:74). Quem le o resultado nao
+ *      consegue distinguir "de graca" de "sem preco", e e por isso que um
+ *      pending que nao devia existir custa caro.
  *
  * Funcoes puras: recebem os objectos ja lidos, nao tocam no disco, nunca atiram.
  */

@@ -103,4 +103,59 @@ zero linhas de lógica de motor, e é consequência mecânica de um item que o k
 **Não me auto-autorizei**: não toquei no allowlist do `CLAUDE.md` — fica aqui declarado para o
 dono ratificar ou mandar reverter.
 
-Próximo: arquivamento do `_handoff/` + refutação por codex/Ollama.
+---
+
+`2026-08-25 | arquivo | 180 pacotes de julho movidos` — commit `9585e347`.
+
+O topo do `_handoff/` tinha 208 `.md`; o ratchet media **204 pacotes ativos**. Passam a **28**.
+Critério medido, não adivinhado: data no nome; sem data, data do último commit. Zero ficheiros
+ficaram sem data determinável. Confirmei que a data não era artefacto de um `git mv` em massa —
+106 dos 132 sem data partilham o commit `fe58c45d`, e esse commit **cria-os** (236 ficheiros,
+21168 inserções, 43 remoções).
+
+**Convenção — divergi do kickoff, de propósito.** O kickoff dizia `_handoff/archive/`. Usei
+`_handoff/_archive/YYYY-MM/`, que é o que o `AGENTS.md` canoniza e onde já viviam 2026-06/07/08.
+Criar a segunda pasta seria fabricar exatamente a classe *"duas contagens, janelas diferentes"*
+que esta wave anda a matar. Fica reportado: `_handoff/archive/2026-08` existe, é órfão, não lhe
+toquei.
+
+**As citações.** Auditei a vizinhança antes de mover: 30 citações em 11 ficheiros reescritas
+(`INFRA.md`, `SYSTEM_DESIGN`, `STRATEGY`, `MOOTER_ROADMAP`, `GENESIS_SPEC`, …). Nova passagem: **0
+penduradas**. A primeira medição dizia 151 quebras — era **falso positivo**, quase todas dentro
+de `.claude/worktrees/mystifying-bohr-78f90b/`, uma cópia obsoleta que não é superfície do repo.
+As reais eram 15. De caminho apanhou-se uma quebra pré-existente em
+`packages/slack-spike/README.md`.
+
+**Duas colisões não resolvidas, de propósito.** `LIVE_PREVIEW_AUDIT_FINDINGS.md` e
+`LP_COHERENCE_AUDIT_REPORT.md` existem no topo **e** no arquivo, com conteúdo **diferente**. O
+mandato é "sem apagar nada" e qual das versões vale não é decisão de um script. Ficaram no topo.
+
+**Ratchet: continua FAIL** — pelas duas mesmas razões que já falhava em `main` antes deste commit:
+`untracked_active_packets` e o stash de 2026-08-24 (`mac-checkup-v1494`). O stash não é meu e não
+lhe toco. **Não corri `--update-baseline`**: ele desceria os três números que melhoraram (−176
+pacotes, −170 ficheiros, −8 linhas de SYNC) mas **subiria** `untracked` e `stashes`, e o baseline
+só sobe por decisão humana. Fica para o dono.
+
+---
+
+`2026-08-25 | refutação | codex + Ollama, e o que mudou por causa disso`
+
+**O kimi não existe nesta máquina** (ver divergência de força no topo). As duas lentes foram
+**codex (gpt-5.6-sol)** e **Ollama local (qwen2.5-coder:14b)** — motores diferentes, doutrina
+honrada, sem fingir que uma segunda passagem do mesmo motor conta como segunda lente.
+
+O codex não é decorativo: **duas das quatro objeções procederam e obrigaram-me a corrigir
+afirmações minhas.** Verifiquei cada uma no código em vez de aceitar ou descartar.
+
+| objeção | veredicto | o que fiz |
+|---|---|---|
+| **R1** — "e se houver um fallback heurístico que alcance o modelo à mesma?" | **PROCEDE** | Há. `decide-agent.ts:165` admite explicitamente *"chosen by heuristic with a pending price"*. A minha frase "nunca o consegue escolher" era forte demais. Correcto é: sai do **sort por TES** e só é alcançável pelo fallback de tier — isto é, se for escolhido, é **sem que o custo tenha entrado na decisão**. Corrigido na nota do snapshot e no módulo |
+| **R3** — "0 não é zero fabricado, é sentinela legítima" | **PROCEDE** | `cost.ts:77` devolve 0 de propósito ("degrade gracefully, never throw"). Retirei "zero fabricado". Mas o defeito real sobrevive noutra perna, e é melhor: `cost.ts:74` devolve **o mesmo 0** para um modelo local genuinamente grátis. Quem lê não distingue *"de graça"* de *"sem preço"* |
+| **R2** — "preencher introduz look-ahead bias no snapshot datado" | **NÃO PROCEDE, e valeu a pena verificar** | $5/$25 entrou no `pricing.js` a **2026-04-16**, que **precede** a data do próprio snapshot (2026-05-27). O valor era conhecível na altura; foi **omitido, não indisponível**. Registado no snapshot em `pricing_no_lookahead` |
+| **R4** — "os $5/$25 são a mesma modalidade (cache/batch)?" | **NÃO PROCEDE** | Ambos são standard por MTok, sem caching/batch/fast-mode, e o campo `source` do snapshot já declara que foi cross-checked contra o `pricing.js` |
+
+**Ollama (2ª lente)** acrescentou o que o codex não viu: não existia **política de resolução de
+conflito** entre os dois ficheiros, e faltava revisão periódica. É exatamente o que o portão passa
+a impor — declara o `pricing.js` como autoridade e falha na divergência e aos 30 dias.
+
+Próximo: gestos locais (feitos), PR.
