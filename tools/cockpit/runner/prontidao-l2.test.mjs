@@ -129,9 +129,10 @@ test('EXPECTATIVA: o numero de achados novos NAO e uma conta — a prova', () =>
 test('EXPECTATIVA: o campo chama-se expectativa e traz os pressupostos a vista', () => {
   const receipts = Array.from({ length: 40 }, (_, i) => achado(`P2.${i}|f${i}.js:1-9:s${i}`));
   const r = prontidao({ receipts, decisoes: new Map() });
-  assert.ok('achados_novos_em_expectativa' in r);
-  assert.ok(!('achados_novos_necessarios' in r), 'o nome antigo prometia uma certeza que nao existe');
-  assert.ok(Array.isArray(r.expectativa_pressupostos) && r.expectativa_pressupostos.length >= 3,
+  assert.ok('achados_novos_necessarios' in r);
+  assert.ok(!('achados_novos_em_expectativa' in r),
+    'o rotulo "expectativa" foi um remendo: o numero e uma conta desde que a reserva complementa');
+  assert.ok(Array.isArray(r.achados_novos_pressupostos) && r.achados_novos_pressupostos.length >= 3,
     'um numero de expectativa sem os pressupostos escritos e um numero disfarcado de conta');
   // E o relatorio continua sem campo de data ou prazo nenhum.
   for (const proibido of ['quando', 'eta', 'previsao', 'data', 'prazo']) {
@@ -146,7 +147,7 @@ test('EXPECTATIVA: com a reserva a chegar, nao se pedem achados novos', () => {
   const r = prontidao({ receipts, decisoes });
   assert.equal(r.faltam, 0);
   assert.equal(r.reserva_chega, true);
-  assert.equal(r.achados_novos_em_expectativa, 0);
+  assert.equal(r.achados_novos_necessarios, 0);
 });
 
 /**
@@ -160,7 +161,9 @@ test('EXPECTATIVA: so se pedem achados novos quando a fila e curta de mais', () 
   assert.equal(r.fila, 5);
   assert.equal(r.reservados, 5, 'reserva-se a fila inteira, e ainda assim nao chega');
   assert.equal(r.reserva_chega, false);
-  assert.equal(r.achados_novos_em_expectativa, (MIN_TRIADOS - 5) * AUDITORIA_1_EM);
+  // NAO (20-5)*20 = 300: a reserva complementa ate ao alvo, logo e a diferenca.
+  assert.equal(r.achados_novos_necessarios, MIN_TRIADOS - 5);
+  assert.notEqual(r.achados_novos_necessarios, (MIN_TRIADOS - 5) * AUDITORIA_1_EM, 'a formula antiga multiplicava por 20');
 });
 
 test('sem recibos nenhuns nada rebenta, e nada e inventado', () => {
@@ -217,4 +220,84 @@ test('BURACO 3: sem decisoes nenhumas, a proveniencia nao imprime 0.0%', () => {
   const p = proveniencia(new Map());
   const total = Object.values(p).reduce((a, b) => a + b, 0);
   assert.equal(total, 0, 'e este zero que o CLI tem de tratar como n/d, e nao como denominador 1');
+});
+
+/* ═══ 2.a ronda adversarial: renomear nao corrigiu a formula ═══ */
+
+/**
+ * A 1.a ronda apanhou-me a chamar "aritmetica" a uma expectativa. Eu mudei o
+ * ROTULO e deixei a FORMULA intacta — continuava a multiplicar por
+ * `AUDITORIA_1_EM` quando, desde a FASE 2, `reservarParaODono` COMPLEMENTA
+ * deterministicamente ate ao alvo. Media `5 achados -> 300` quando bastavam 15.
+ *
+ * Este teste calcula o numero por um caminho INDEPENDENTE da formula: simula os
+ * achados novos a chegar e conta quantos foram precisos ate a reserva chegar.
+ * Um teste que repete a formula nao prova nada — foi assim que o circular
+ * passou.
+ */
+test('FORMULA: o numero de achados novos bate com a simulacao, nao com a formula antiga', () => {
+  const receipts = Array.from({ length: 5 }, (_, i) => achado(`P2.${i}|f${i}.js:1-9:s${i}`));
+  const r = prontidao({ receipts, decisoes: new Map() });
+  assert.equal(r.fila, 5);
+  assert.equal(r.reservados, 5, 'reserva-se a fila inteira e ainda assim nao chega');
+  assert.equal(r.reserva_chega, false);
+
+  // Simulacao: acrescentar achados um a um ate a reserva cobrir o que falta.
+  let precisos = 0;
+  const crescente = [...receipts];
+  while (precisos < 500) {
+    const sim = prontidao({ receipts: crescente, decisoes: new Map() });
+    if (sim.reserva_chega) break;
+    crescente.push(achado(`P2.novo${precisos}|n${precisos}.js:1-9:x${precisos}`));
+    precisos += 1;
+  }
+  assert.equal(r.achados_novos_necessarios, precisos,
+    `o relatorio diz ${r.achados_novos_necessarios} e a simulacao precisou de ${precisos}`);
+  assert.ok(precisos < 100, `a formula antiga dizia ${(MIN_TRIADOS - 5) * AUDITORIA_1_EM}; a verdade e ${precisos}`);
+});
+
+test('FORMULA: com a reserva a chegar, nao se pedem achados novos', () => {
+  const receipts = Array.from({ length: 200 }, (_, i) => achado(`P2.${i}|f${i}.js:1-9:s${i}`));
+  const r = prontidao({ receipts, decisoes: new Map() });
+  assert.equal(r.reserva_chega, true);
+  assert.equal(r.achados_novos_necessarios, 0);
+});
+
+/* ═══ achados sem identidade, e corrupcao que nao vira zero ═══ */
+
+test('SEM IDENTIDADE: um achado sem chave nao se conta NEM desaparece', () => {
+  // `chaveDoRecibo` devolve null quando nao ha `chave` nem `ficheiro`.
+  const semChave = { ts: '2026-08-20T10:00:00Z', pilar: 'P2', verdict: 'citacao-ok', conclusao: 'achado', resultado_resumo: 'ACHADO: x' };
+  const r = prontidao({ receipts: [semChave, semChave], decisoes: new Map() });
+  assert.equal(r.fila, 0, 'sem identidade nao entra na fila — nao se pode decidir sobre o que nao se identifica');
+  // O CLI conta-os a parte; aqui garante-se que a funcao pura nao rebenta e nao
+  // os transforma em zero silencioso.
+  assert.equal(r.triados_pelo_dono, 0);
+  assert.equal(r.precisao, null);
+});
+
+test('OUTRO nao volta a ser caixote: cada balde tem regra e o resto e visivel', () => {
+  const d = new Map([
+    ['a', dec({ decisao: 'descartado', por: 'claude', motivo: 'instrumento-nao-discrimina' })],
+    ['b', dec({ decisao: 'descartado', por: 'claude', motivo: 'nao-e-um-problema' })],
+    ['c', dec({ decisao: 'descartado', por: 'agente', motivo: 'instrumento-nao-discrimina' })],
+    ['d', dec({ decisao: 'aceite', por: 'claude' })],
+    ['e', dec({ por: 'dono' })],
+  ]);
+  const p = proveniencia(d);
+  assert.equal(p.varredura_ensaio, 1);
+  assert.equal(p.filtro_mecanico, 1);
+  assert.equal(p.agente, 1, 'o `por` e o autor: um agente com aquele motivo continua a ser agente');
+  assert.equal(p.outro, 1, 'o aceite do claude fica VISIVEL como nao classificado');
+  assert.equal(p.dono, 1);
+  const soma = Object.values(p).reduce((x, y) => x + y, 0);
+  assert.equal(soma, d.size, 'nenhuma decisao pode desaparecer entre os baldes');
+});
+
+test('as duas parcelas do `reservados` sao publicadas, nao so o total', () => {
+  const receipts = Array.from({ length: 60 }, (_, i) => achado(`P2.${i}|f${i}.js:1-9:s${i}`));
+  const r = prontidao({ receipts, decisoes: new Map() });
+  assert.equal(r.reservados, r.reservados_por_amostra + r.reservados_extra,
+    'o total tem de ser a soma das parcelas que o relatorio mostra');
+  assert.ok(r.degrau_da_reserva >= 1, 'o degrau e publicado para ser auditavel');
 });

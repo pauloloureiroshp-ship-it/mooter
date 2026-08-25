@@ -36,16 +36,20 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { lerTriagem, contarTriagem, porTriar, ehAchado, chaveDoRecibo } from './triagem.mjs';
-import { portoes, reservarParaODono, anomaliaDeDreno, AUDITORIA_1_EM, MIN_TRIADOS, MIN_PRECISAO_PCT } from './autopilot.mjs';
+import { portoes, reservarParaODono, degrauDaReserva, naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, MIN_TRIADOS, MIN_PRECISAO_PCT } from './autopilot.mjs';
 
 /**
  * De onde veio cada decisao, derivado do que esta escrito.
  *
- * Tres baldes, e nenhum se chama "do dono" por omissao:
+ * SEIS baldes, e nenhum se chama "do dono" por omissao:
  *  · `dono`             — assinado `dono`. O unico que conta para o portao 2.
- *  · `varredura-ensaio` — assinado `claude` com `instrumento-nao-discrimina`:
+ *  · `varredura-ensaio` — `claude` + DESCARTE + `instrumento-nao-discrimina`:
  *                         os voids em massa de pilares reprovados no ensaio.
- *  · `agente`/`outro`   — o autopilot e tudo o resto.
+ *  · `filtro-mecanico`  — `claude` + DESCARTE + `nao-e-um-problema`: os
+ *                         verificadores deterministas.
+ *  · `agente`           — o autopilot.
+ *  · `outro`            — o que nao se sabe classificar, VISIVEL e nao escondido.
+ *  · `sem-assinatura`   — linhas sem `por`. Nunca promovidas a dono.
  */
 export function proveniencia(decisoes) {
   const b = { dono: 0, varredura_ensaio: 0, filtro_mecanico: 0, agente: 0, outro: 0, sem_assinatura: 0 };
@@ -102,6 +106,7 @@ export function prontidao({ receipts = [], decisoes = new Map() } = {}) {
   // a FASE 2, por isso este numero ja conta o complemento, nao so a amostra.
   const fila = porTriar(receipts, decisoes, Number.MAX_SAFE_INTEGER);
   const reservados = reservarParaODono(fila, { jaDoDono: triados }).size;
+  const reservadosPorAmostra = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
   const faltam = Math.max(0, MIN_TRIADOS - triados);
 
   return {
@@ -114,23 +119,31 @@ export function prontidao({ receipts = [], decisoes = new Map() } = {}) {
     faltam,
     fila: fila.length,
     reservados,
+    reservados_por_amostra: reservadosPorAmostra,
+    reservados_extra: Math.max(0, reservados - reservadosPorAmostra),
+    degrau_da_reserva: degrauDaReserva(fila, { jaDoDono: triados }),
     // Chega o que ESTA reservado, ou vai ser preciso material novo? Isto sim e
     // uma pergunta que se responde com o que se tem.
     reserva_chega: reservados >= faltam,
-    // Quantos achados novos seriam precisos, EM EXPECTATIVA.
+    // Quantos achados novos seriam precisos.
     //
-    // A versao anterior chamava a isto "aritmetica, nao previsao" e estava
-    // errada — o adversario da FASE 3 provou-o: a selecao e por HASH das chaves
-    // FUTURAS, e 160 chaves diferentes deram 7, 11 e 12 reservadas em vez das 8
-    // que a formula prometia. O numero depende de coisas que ainda nao
-    // existem, e um numero desses e uma expectativa, nao uma conta.
+    // DUAS CORRECCOES, ambas do adversario, e a segunda e minha vergonha.
     //
-    // Fica, porque uma ordem de grandeza e util. Mas fica com o nome certo, e
-    // com os pressupostos escritos ao lado em vez de escondidos na formula.
-    achados_novos_em_expectativa: reservados >= faltam ? 0 : (faltam - reservados) * AUDITORIA_1_EM,
-    expectativa_pressupostos: [
-      'a taxa 1-em-N e uniforme sobre as chaves futuras (e por hash, nao por contagem)',
-      'os achados novos sao elegiveis (low com motivo, nao ja decididos)',
+    // 1.a ronda: eu chamava a isto "aritmetica, nao previsao". Era falso — a
+    //    seleccao e por hash de chaves FUTURAS, e 160 chaves com prefixos
+    //    diferentes deram 7, 11 e 12 reservadas em vez das 8 da formula.
+    // 2.a ronda: eu mudei o ROTULO para "expectativa" e deixei a FORMULA
+    //    intacta. Continuava a multiplicar por `AUDITORIA_1_EM`, quando desde a
+    //    FASE 2 a `reservarParaODono` COMPLEMENTA deterministicamente ate ao
+    //    alvo — o factor 1-em-N deixou de governar este caso. Media
+    //    `5 achados -> 300` quando bastavam 15. Renomear nao corrige nada.
+    //
+    // Cada achado novo elegivel e reservavel pelo complemento, portanto o que
+    // falta e a diferenca, e mais nada.
+    achados_novos_necessarios: Math.max(0, faltam - reservados),
+    achados_novos_pressupostos: [
+      'os achados novos sao elegiveis (low com motivo tipado, ainda nao decididos)',
+      'a reserva continua a complementar ate ao alvo (reservarParaODono)',
       'a fila nao encolhe por outra via entretanto',
     ],
     portao: { aberto: p2.aberto, medido: p2.medido, base: p2.base, porque_fechado: p2.porque_fechado },
@@ -145,13 +158,25 @@ function principal() {
 
   let receipts = [];
   let partidasLedger = 0;
+  let linhasLedger = 0;
   try {
     for (const l of fs.readFileSync(ledger, 'utf8').split(/\r?\n/)) {
       if (!l.trim()) continue;
+      linhasLedger += 1;
       try { receipts.push(JSON.parse(l)); } catch { partidasLedger += 1; }
     }
   } catch {
     console.log(`sem ledger em ${ledger} — n/d`);
+    process.exitCode = 1;
+    return;
+  }
+  // CORRUPCAO NAO E ZERO. Um ledger com linhas e nenhuma legivel dava
+  // `exit=0 · 0 achados unicos` — um zero com autoridade, indistinguivel de um
+  // device que ainda nao correu. "Nao consegui ler" e uma resposta diferente
+  // de "nao ha nada", e este relatorio existe para nao as confundir.
+  if (linhasLedger > 0 && receipts.length === 0) {
+    console.log(`\nledger ILEGIVEL: ${linhasLedger} linha(s), 0 legiveis — n/d`);
+    console.log('Isto NAO e "zero achados": e nao ter conseguido ler nenhum.\n');
     process.exitCode = 1;
     return;
   }
@@ -161,16 +186,21 @@ function principal() {
   // eventos para 1667 chaves) e chamar "achados" aos eventos inflacionava o
   // numero mais visivel do relatorio em 28.
   const vistos = new Set();
+  let semIdentidade = 0;
   for (const rec of receipts) {
     if (!ehAchado(rec)) continue;
     const k = chaveDoRecibo(rec);
-    if (k) vistos.add(k);
+    // Um achado sem chave nao se pode contar NEM desaparecer. Antes era
+    // ignorado em silencio: dois achados sem identidade davam `0 achados
+    // unicos`, que se le como "nao ha nada" quando a verdade e "ha e nao os
+    // consigo identificar".
+    if (k) vistos.add(k); else semIdentidade += 1;
   }
   const achados = vistos.size;
 
   const pct = (x) => (x == null ? 'n/d' : `${x.toFixed(1)}%`);
 
-  console.log(`\nPRONTIDAO DO NIVEL 2 — ${achados} achados unicos no ledger${partidasLedger ? ` · ${partidasLedger} linha(s) partida(s)` : ''}`);
+  console.log(`\nPRONTIDAO DO NIVEL 2 — ${achados} achados unicos no ledger${partidasLedger ? ` · ${partidasLedger} linha(s) partida(s)` : ''}${semIdentidade ? ` · ${semIdentidade} SEM identidade (nao contados, nao ignorados)` : ''}`);
   console.log(`${'─'.repeat(64)}\n`);
 
   console.log('DE QUEM SAO AS DECISOES QUE EXISTEM');
@@ -192,6 +222,7 @@ function principal() {
     if (p.sem_assinatura) linha('SEM assinatura', p.sem_assinatura, '<- nao contam como do dono');
   }
   if (partidas) console.log(`  ${partidas} linha(s) de triagem ilegiveis — contadas, nao engolidas`);
+  if (partidas && !total) console.log('  ATENCAO: o registo tem linhas e NENHUMA legivel — isto e n/d, nao zero.');
 
   console.log('\nO QUE O PORTAO 2 EXIGE');
   console.log(`  decisoes do dono      ${String(r.triados_pelo_dono).padStart(6)} de ${r.alvo_triados}${r.faltam ? `   faltam ${r.faltam}` : '   ✓'}`);
@@ -205,18 +236,19 @@ function principal() {
 
   console.log('\nDE ONDE VAO SAIR AS DECISOES DELE');
   console.log(`  na fila agora         ${String(r.fila).padStart(6)}`);
-  console.log(`  reservados para ele   ${String(r.reservados).padStart(6)}   (amostra 1-em-${AUDITORIA_1_EM} + o que o portao 2 exige)`);
+  // O servidor ja separava as duas parcelas no log ("12 por amostra + 8 para o
+  // portao") e este relatorio nao. Duas superficies a dizer a mesma coisa de
+  // maneiras diferentes e como ter duas contagens: uma delas esta a mentir.
+  console.log(`  reservados para ele   ${String(r.reservados).padStart(6)}   (${r.reservados_por_amostra} por amostra 1-em-${AUDITORIA_1_EM}`
+    + `${r.reservados_extra > 0 ? ` + ${r.reservados_extra} para o portao 2 poder abrir, degrau 1-em-${r.degrau_da_reserva}` : ''})`);
   if (r.faltam === 0) {
     console.log('  ja ha volume que chegue — falta ele decidir');
   } else if (r.reserva_chega) {
     console.log(`  o que esta reservado CHEGA para os ${r.faltam} que faltam — nao e preciso material novo`);
   } else {
-    // NAO se chama a isto aritmetica. A selecao e por hash de chaves que ainda
-    // nao existem: 160 chaves diferentes deram 7, 11 e 12 reservadas em vez das
-    // 8 que a formula promete. E uma ordem de grandeza, e diz-se que e.
-    console.log(`  o que esta reservado nao chega: EM EXPECTATIVA, ~${r.achados_novos_em_expectativa} achados novos`);
-    console.log('  ATENCAO: isto e uma expectativa, nao uma conta. Pressupoe:');
-    for (const s of r.expectativa_pressupostos) console.log(`     · ${s}`);
+    console.log(`  o que esta reservado nao chega: faltam ${r.achados_novos_necessarios} achados novos`);
+    console.log('  (a reserva complementa ate ao alvo, por isso e a diferenca — pressupoe:)');
+    for (const s of r.achados_novos_pressupostos) console.log(`     · ${s}`);
   }
 
   if (r.dreno.anomalia) console.log(`\n⚠️  ANOMALIA DE DRENO: ${r.dreno.porque}`);
