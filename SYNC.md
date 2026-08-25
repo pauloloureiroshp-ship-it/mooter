@@ -110,36 +110,15 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 ---
 
 <!-- frota Ed25519 — FECHADO 2026-08-25: 2 de 2 -->
-### ✅ Frota em Ed25519 — **2 de 2 devices** (fechado 2026-08-25)
+### ✅ Fechados a 25/08 — detalhe em `docs/foundation/SYNC_ARCHIVE_2026.md`
 
-O item dizia "1 de 2, bloqueado no PC" desde 24/08. Medido hoje com
-`readBeacons`: **`prova_frota: true`**, `verificados: 2`, `por inscrever: []`,
-`rejeitados: 0`, os dois com `ancora: registo`. Os dois beacons assinam
-`Ed25519-v1` (`bb8ed099…` / `1ec7458f…`) e ambos estao em
-`50-fleet/trusted-devices.json`. O PC puxou o codigo e inscreveu-se entretanto;
-ninguem fechou o item. A privada de cada device nunca sai da maquina — o vault
-so carrega publicas, e e essa a diferenca face a `.owner.key`, que nunca viajou
-e nao sobrevive a perda da maquina (`docs/strategy/DR_VAULT.md`).
+- **Frota em Ed25519, 2 de 2 devices.** `prova_frota: true`, `verificados: 2`, `rejeitados: 0`, os dois
+  ancorados no registo. A privada nunca sai da máquina. Multi-user é desenho sem código
+  (`docs/strategy/IDENTIDADE_MULTI_USER.md`).
+- **A suite `tools/router` já conta sempre o mesmo.** Era o `--test-force-exit` a matar o reporter; sem
+  ele, 1160 ×3, `fail 0`. O `fail 0` original era artefacto — havia 3 falhas verdadeiras cortadas.
 
-Multi-user (chave por PESSOA acima da de device) e desenho, sem codigo:
-`docs/strategy/IDENTIDADE_MULTI_USER.md`.
-
-**Aberto, medido 2026-08-25 20:1x:** o beacon do `desktop-j26409q` tinha **66
-min** (tecto: 30) — `morto` pela politica de frescura. Ou o loop la parou, ou o
-publicador parou de empurrar.
-
-<!-- suite do router — RESOLVIDO 2026-08-25 -->
-### ✅ A suite `tools/router` ja conta sempre o mesmo (fechado 2026-08-25)
-
-Era o `--test-force-exit`, que matava o reporter antes de ele drenar os
-subtestes. Nao era flakiness nem descoberta (o script lista os ficheiros a mao).
-O `fail 0` da observacao original tambem era artefacto — havia **3 falhas
-verdadeiras** o tempo todo, cortadas junto com o resto. Sem o flag: 1160 / 1160 /
-1160, `fail 0`, em 3-4 s. Detalhe no arquivo e no commit.
-
-**O gargalo continua onde estava:** 1054 achados por triar, loop em pausa por
-`human queue full (524/6)`. Nada dos sete PRs lhe tocou — foi tudo encanamento,
-ainda que encanamento que estava a mentir.
+**Continua ABERTO (não é história):** beacon do `desktop-j26409q` com **66 min** (tecto 30) — `morto`: ou o loop parou lá, ou o publicador parou de empurrar. Gargalo do Mac: **1054 achados por triar**, loop em pausa por `human queue full (524/6)` — nenhum dos PRs lhe tocou.
 
 ---
 
@@ -175,9 +154,29 @@ partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum
 …)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
 antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
 
+### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
+
+**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
+MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
+Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
+`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
+readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
+que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
+
+**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
+(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
+`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
+`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
+auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
+instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
+
+**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
+(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
+`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+
 ### 2026-08-25 (Mac · fecho 2, PR #394) · seis pendências decididas por delegação escrita
 
-#390 mergido (`main @57fa1e44`). O item 2 caiu por **medição**: remover o `tier` do fable-5 e precificá-lo do SSOT fazia `decideAgent("reasoning.science")` devolver `claude-fable-5` (TES 3784) sem ninguém escrever `@fable` — o passo final do plano produzia a violação que o plano existia para evitar. O que segura o invariante hoje é a **ausência de preço**, e mais nada: não há exclusão de T5 dentro do `decideAgent`, e ele é ficheiro congelado. Entra um **arame** no CI (`precificavel-nao-rotavel`), não uma correcção. O stash de 24/08 não era resíduo — ~230 linhas que não existem em ref nenhum (PARIDADE entre devices + frescura de beacon remoto), preservadas em `mac/stash-paridade-2026-08-24`, stash **não** dropada; por isso o item 6 fica bloqueado (`--update-baseline` reescreve tudo e gravaria `stashes: 1`). Três colisões fundidas — a 3ª apareceu ao mover o archive órfão — com reconstrução verificada byte a byte. Adversário `codex`: **n/d**, não instalado nesta máquina; a refutação correu em Ollama local.
+#390 mergido (`main @57fa1e44`). O item 2 caiu por **medição**: remover o `tier` do fable-5 e precificá-lo do SSOT fazia `decideAgent("reasoning.science")` devolver `claude-fable-5` (TES 3784) sem ninguém escrever `@fable` — o passo final do plano produzia a violação que o plano existia para evitar. **Superseded a 25/08 (PR #398):** a exclusão de T5 passou a viver no `decideAgent` (allowlist autorizado), o Fable foi precificado e o arame virou teste permanente. O stash de 24/08 não era resíduo — ~230 linhas que não existem em ref nenhum (PARIDADE entre devices + frescura de beacon remoto), preservadas em `mac/stash-paridade-2026-08-24`, stash **não** dropada; por isso o item 6 fica bloqueado (`--update-baseline` reescreve tudo e gravaria `stashes: 1`). Três colisões fundidas — a 3ª apareceu ao mover o archive órfão — com reconstrução verificada byte a byte. Adversário `codex`: **n/d**, não instalado nesta máquina; a refutação correu em Ollama local.
 
 gate: 840 testes · 838 pass · 0 fail · 2 todo (pré-existentes) · higiene 26 pacotes / 141 topo · classify.js `427d8c0b` intacto
 

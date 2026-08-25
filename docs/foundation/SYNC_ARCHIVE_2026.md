@@ -8500,3 +8500,37 @@ Mutex respeitado: o PC está em `fix/ledger-read-raiz`; F1–F4 não foram abert
 
 gate: 814/813/0 cockpit (+8) · router 302/295/3 com diff **vazio** contra main · docs-hygiene 12/12 · classify.js `427d8c0b` intacto
 
+---
+
+## Enrolado de `SYNC.md` a 2026-08-25 (fase A da onda construir)
+
+### ✅ Frota em Ed25519 — **2 de 2 devices** (fechado 2026-08-25)
+
+O item dizia "1 de 2, bloqueado no PC" desde 24/08. Medido hoje com
+`readBeacons`: **`prova_frota: true`**, `verificados: 2`, `por inscrever: []`,
+`rejeitados: 0`, os dois com `ancora: registo`. Os dois beacons assinam
+`Ed25519-v1` (`bb8ed099…` / `1ec7458f…`) e ambos estao em
+`50-fleet/trusted-devices.json`. O PC puxou o codigo e inscreveu-se entretanto;
+ninguem fechou o item. A privada de cada device nunca sai da maquina — o vault
+so carrega publicas, e e essa a diferenca face a `.owner.key`, que nunca viajou
+e nao sobrevive a perda da maquina (`docs/strategy/DR_VAULT.md`).
+
+Multi-user (chave por PESSOA acima da de device) e desenho, sem codigo:
+`docs/strategy/IDENTIDADE_MULTI_USER.md`.
+
+**Aberto, medido 2026-08-25 20:1x:** o beacon do `desktop-j26409q` tinha **66
+min** (tecto: 30) — `morto` pela politica de frescura. Ou o loop la parou, ou o
+publicador parou de empurrar.
+
+<!-- suite do router — RESOLVIDO 2026-08-25 -->
+### ✅ A suite `tools/router` ja conta sempre o mesmo (fechado 2026-08-25)
+
+Era o `--test-force-exit`, que matava o reporter antes de ele drenar os
+subtestes. Nao era flakiness nem descoberta (o script lista os ficheiros a mao).
+O `fail 0` da observacao original tambem era artefacto — havia **3 falhas
+verdadeiras** o tempo todo, cortadas junto com o resto. Sem o flag: 1160 / 1160 /
+1160, `fail 0`, em 3-4 s. Detalhe no arquivo e no commit.
+
+**O gargalo continua onde estava:** 1054 achados por triar, loop em pausa por
+`human queue full (524/6)`. Nada dos sete PRs lhe tocou — foi tudo encanamento,
+ainda que encanamento que estava a mentir.
