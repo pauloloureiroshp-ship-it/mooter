@@ -125,3 +125,28 @@ Efeito colateral necessário: o `vitest` da landing não resolvia `@/`, o que to
 componente não-testável. Resolvido.
 
 Gate: cockpit 862 testes 0 fail · landing 219 testes 0 fail · `classify.js` intacto.
+
+## FASE C — WS1 keep-rate ✅ desenho publicado e refutado localmente
+`~/paulo-vault/_handoff/design-instrumento-v2.md` (273 linhas), **status 🔴 POR REFUTAR** pelo
+codex do PC. Não foi escrito código — era essa a instrução.
+
+**A medição inverteu a ordem de trabalhos do F1:**
+- `PILLAR_IDS = []` — **os 11 pilares estão `activo:false` em `main`**. O último gesto é de hoje
+  (`edf00025`, desligou P2 e P3). Não há instrumento a afinar: está desligado. E os 44 achados
+  que geram o keep-rate 4,5% vieram de pilares removidos **por serem maus** — não é um baseline.
+- `nextPillar(n, [])` devolve `undefined` **em silêncio**: instrumento desligado é indistinguível
+  de instrumento a correr sem achar nada.
+- **Defeito vivo que nenhum item do F1 nomeia:** o produtor tira a linha fantasma
+  (`context-pack.mjs:1222`, corrigido 21/08) e o verificador **não**
+  (`evidence-verifier.mjs:127`). Medido: `checkCitation('run-savings.js', 108)` num ficheiro de
+  **107** linhas devolve `ok:true` com snippet vazio — e o painel escreve *"the line exists on
+  disk"*. A correcção aterrou no lado que mostra, não no que julga. É a **5ª recidiva** da classe
+  "duas contagens, janelas diferentes".
+- F1 item 5 (frescura >30 dias) **já existe** (`frescura-de-precos.mjs:109`); o que faltava era o
+  preço do Fable — feito no PR #398.
+
+**Refutação local (Ollama qwen2.5-coder:14b, $0, 43 s — declarado: NÃO é o codex).**
+1 objecção válida em 3, e **alterou o desenho**: o §4 dizia "sem login, o dono é o 2º juiz" — abre
+a porta à auto-aprovação. Corrigido: o gate numérico **não abre** sem um 2º motor autenticado.
+As outras duas não contam (uma leu o enunciado ao contrário e argumentou *a favor*; outra era
+genérica, sem ficheiro nem linha).
