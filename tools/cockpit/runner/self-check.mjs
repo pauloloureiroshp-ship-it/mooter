@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
+import { MINUTOS_OMISSAO } from './beacon-publisher.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -37,6 +38,19 @@ export const LEDGER_TECTO_MB = 16;
 
 /** Um beacon publicado há mais do que isto quer dizer que a frota está cega. */
 export const BEACON_VELHO_MIN = 30;
+
+/**
+ * Quanto tempo um commit do beacon pode estar por empurrar sem que isso seja
+ * problema do dono. É a cadência do publicador (`MINUTOS_OMISSAO`): abaixo
+ * disto ele ainda não teve a sua passagem, ou está a meio dela — commita,
+ * `pull --rebase`, empurra. Acima disto teve, e não empurrou.
+ *
+ * Amarrado à constante do publicador de propósito. Um número escrito à mão aqui
+ * ficaria dessincronizado no dia em que a cadência mudasse, e o sintoma seria
+ * exactamente o que a issue #374 descreve: um aviso a pedir um gesto que já foi
+ * dado, ou pior, silêncio sobre um que ninguém deu.
+ */
+export const JANELA_DO_PUBLICADOR_MIN = MINUTOS_OMISSAO;
 
 const OK = 'ok';
 const AVISO = 'aviso';
@@ -149,9 +163,34 @@ function listarMdMaisNovos(vaultDir, desdeMs, { readdirImpl = fs.readdirSync, st
  * está velho, parou. `por-empurrar` continua a ser aviso a sério — commits que
  * não saíram da máquina não são vistos por ninguém, independentemente da cadência.
  *
- * Devolve `{ estado, minDesdeCommit }` com estado em `'publicado'`,
- * `'por-empurrar'`, `'parado'`, `'nunca'`, ou `null` quando não se consegue
- * provar nada — e `null` NUNCA vira `ok`.
+ * ⚠️ TERCEIRA CORRECÇÃO (2026-08-25, issue #374). O `por-empurrar` tinha a mesma
+ * forma de erro que a 1ª versão, num intervalo mais curto — e duas causas
+ * distintas, ambas corrigidas aqui:
+ *
+ * 1. **A pergunta era sobre o REPO, não sobre o beacon.** `rev-list --count
+ *    @{u}..HEAD` conta QUALQUER commit à frente do remoto. Um commit do dono
+ *    por empurrar no vault fazia isto declarar o beacon por publicar, com o
+ *    beacon já lá. Passa a contar só os commits que tocam no ficheiro.
+ *
+ * 2. **A janela do publicador.** O `beacon-publisher` faz `commit` →
+ *    `pull --rebase` → `push` seguidos. Entre o primeiro e o último corre um
+ *    pedido à rede, e nessa janela existe mesmo um commit por empurrar. O
+ *    `launch.mjs` é o disparador mais provável de todos: arranca o loop e
+ *    verifica logo a seguir, portanto apanha a janela quase de propósito.
+ *    Medido nesta máquina: commit `08:51:01`, aviso impresso, push `08:51:06`.
+ *    Cinco segundos, e o aviso mandava o dono correr um `push` que respondia
+ *    `Everything up-to-date`.
+ *
+ * O discriminador é a idade do **MAIS ANTIGO** commit por publicar, nunca a do
+ * mais recente. Com o mais recente, um publicador avariado ficaria invisível
+ * para sempre: ele reescreve o beacon a cada ronda, portanto haveria sempre um
+ * commit de segundos atrás e o aviso nunca dispararia. Com o mais antigo, uma
+ * única passagem falhada do publicador (`MINUTOS_OMISSAO`) põe o item de volta
+ * na mão do dono, que é onde ele tem de estar.
+ *
+ * Devolve `{ estado, minDesdeCommit, minPorPublicar }` com estado em
+ * `'publicado'`, `'a-publicar'`, `'por-empurrar'`, `'parado'`, `'nunca'`, ou
+ * `null` quando não se consegue provar nada — e `null` NUNCA vira `ok`.
  */
 export function provaDePublicacao(beaconFile, { gitImpl = null, agora = Date.now() } = {}) {
   const dir = path.dirname(String(beaconFile || ''));
@@ -171,15 +210,29 @@ export function provaDePublicacao(beaconFile, { gitImpl = null, agora = Date.now
   const minDesdeCommit = Math.round((agora - seg * 1000) / 60000);
   if (minDesdeCommit > BEACON_VELHO_MIN) return { estado: 'parado', minDesdeCommit };
 
+  // Os commits QUE TOCAM NO BEACON e ainda não chegaram ao remoto, do mais
+  // recente para o mais antigo. `--` isola o ficheiro: o que o dono tenha por
+  // empurrar no resto do vault é problema dele, não prova nada sobre o beacon.
+  let porPublicar = null;
   for (const alvo of ['@{u}..HEAD', 'origin/main..HEAD']) {
     try {
-      const n = Number(correr(['rev-list', '--count', alvo]));
-      if (Number.isFinite(n)) {
-        return { estado: n > 0 ? 'por-empurrar' : 'publicado', minDesdeCommit };
-      }
+      const saida = correr(['log', alvo, '--format=%ct', '--', beaconFile]);
+      porPublicar = saida ? saida.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+      break;
     } catch { /* tenta o proximo */ }
   }
-  return { estado: null, minDesdeCommit };
+  if (porPublicar === null) return { estado: null, minDesdeCommit, minPorPublicar: null };
+  if (porPublicar.length === 0) return { estado: 'publicado', minDesdeCommit, minPorPublicar: null };
+
+  // O MAIS ANTIGO, não o mais recente — ver a nota da terceira correcção.
+  const maisAntigo = Number(porPublicar[porPublicar.length - 1]);
+  if (!Number.isFinite(maisAntigo)) return { estado: 'por-empurrar', minDesdeCommit, minPorPublicar: null };
+  const minPorPublicar = Math.round((agora - maisAntigo * 1000) / 60000);
+  // Abaixo de uma passagem do publicador é a janela dele, não um gesto do dono.
+  if (minPorPublicar < JANELA_DO_PUBLICADOR_MIN) {
+    return { estado: 'a-publicar', minDesdeCommit, minPorPublicar };
+  }
+  return { estado: 'por-empurrar', minDesdeCommit, minPorPublicar };
 }
 
 /**
@@ -225,7 +278,7 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
       resolver: 'vê o log do runner: a publicação falha em silêncio se o vault tiver trabalho em staging',
     };
   }
-  const { estado: prova, minDesdeCommit } = provaDePublicacao(beaconFile, { gitImpl, agora });
+  const { estado: prova, minDesdeCommit, minPorPublicar } = provaDePublicacao(beaconFile, { gitImpl, agora });
   if (prova === 'nunca') {
     return {
       id: 'beacon', estado: MAU, o_que: 'beacon deste device', valor: `escrito há ${min} min`,
@@ -240,10 +293,24 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
       resolver: 'vê o log do runner: a publicação recusa-se a commitar por cima de um conflito ou de trabalho em staging',
     };
   }
+  if (prova === 'a-publicar') {
+    // NÃO é `ok` — não saiu daqui, e afirmar "publicado" seria a mentira que a
+    // 2ª correcção deste ficheiro veio matar. Também NÃO é `aviso`: o
+    // `launch.mjs` põe todo o `aviso` debaixo de "FALTA O TEU GESTO — nada
+    // disto um script pode fazer sozinho", e aqui um script faz, em segundos.
+    // `n/d` é o balde honesto: sabe-se o que está a acontecer, e sabe-se que
+    // ainda não acabou.
+    return {
+      id: 'beacon', estado: ND, o_que: 'beacon deste device', valor: `commitado há ${minPorPublicar} min`,
+      porque: 'commitado e ainda dentro da passagem do publicador — ele empurra a seguir, sem gesto nenhum',
+      resolver: null,
+    };
+  }
   if (prova === 'por-empurrar') {
     return {
-      id: 'beacon', estado: AVISO, o_que: 'beacon deste device', valor: `commitado há ${minDesdeCommit} min`,
-      porque: 'commitado no vault mas o vault não foi empurrado — nenhuma outra máquina o vê ainda',
+      id: 'beacon', estado: AVISO, o_que: 'beacon deste device',
+      valor: `por empurrar há ${minPorPublicar ?? minDesdeCommit} min`,
+      porque: `commitado há mais de ${JANELA_DO_PUBLICADOR_MIN} min e o publicador não o empurrou — nenhuma outra máquina o vê`,
       resolver: `git -C "${path.dirname(beaconFile)}" push`,
     };
   }
