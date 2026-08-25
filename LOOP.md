@@ -20,6 +20,78 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-25-a-forma-comparar-tambem-falha-e-o-sinal-esta-invertido
+
+**REFINES:** `2026-08-25-o-juiz-ancorado-medido-contra-verdade-conhecida-52-6-por-cento`
+
+**Contexto:** ao descobrir que o achado de 19/08 (`runner-core.test.mjs:1432`) dizia *"o modelo não sabe JULGAR, sabe COMPARAR"* e que o modo ancorado tinha ficado de fora dessa reescrita, formulei a hipótese óbvia: **reescrever o contrato ancorado de JULGAR para COMPARAR devia recuperar o modo.** Em vez de perguntar *"este apontamento é um defeito real?"*, perguntar *"copia a linha; copia qualquer linha que torne a falha visível; se não houver, escreve NENHUMA"* — extracção pura, com a decisão a passar para uma regra determinista.
+
+Mesmo modelo (`qwen2.5-coder:14b`), mesmos 57 excertos, mesma GPU, mesma verdade conhecida. Só muda a forma da pergunta.
+
+**Resultado observado — a hipótese foi REFUTADA, e por larga margem:**
+
+| forma | acordo | fora do contrato |
+|---|---|---|
+| JULGAR (o contrato em produção) | **52,6%** | 0/57 |
+| COMPARAR (a hipótese) | **25,9%** | 3/57 |
+
+```
+              eu: REAL   eu: falso
+diz ACHADO          14          20
+diz FALSO           20           0
+```
+
+**O sinal de alarme, nomeado:** **das 20 vezes que o modelo disse "encontrei a linha que explica", as 20 eram defeitos reais. Zero acertos.** Isto não é ruído — é anti-correlação. Um sinal invertido é pior do que sinal nenhum, porque parece informação.
+
+**A causa, e é uma lição sobre desenho de tarefa, não sobre o modelo:** a minha pergunta assumia que *a presença de um `log` perto do `catch` significa que aquele engolir está explicado*. É falso. Nos casos deliberados — telemetria que engole de propósito — não há log nenhum, e o modelo respondia NENHUMA → ACHADO. Nos casos de defeito real havia frequentemente *algum* log no excerto, sem relação com aquele `catch`, e o modelo dava-o como explicação. **Ele procurava a coisa certa no sítio errado, porque eu formulei a pergunta errada.**
+
+**Onde eu confundi duas formas diferentes:** o padrão de 19/08 que funciona é *"copia os dois números e compara-os"* — **ambas as coisas existem** e a comparação é mecânica. A minha era *"copia uma coisa que pode não existir"* — provar uma ausência a partir de uma janela. São tarefas de dificuldade completamente diferente e eu tratei-as como a mesma.
+
+**Um erro de instrumento, corrigido a meio, que vale a pena registar:** a primeira corrida deu 40,0% com **17 fora do contrato**. A verificação anti-alucinação rejeitava a linha copiada quando o modelo a envolvia em crases markdown — 14 respostas legítimas deitadas fora. Corrigida a normalização, os fora-do-contrato caíram para 3 e o acordo desceu para 25,9%. **A correcção piorou o número, que é o sinal de que era uma correcção honesta e não um ajuste.**
+
+**Consequência, e é agora mais forte do que era com uma medição só:** duas formas de pergunta, ambas medidas contra verdade conhecida, ambas falham — 52,6% e 25,9%. Não é "este prompt precisa de afinação". É o modelo local não conseguir fazer esta tarefa nesta janela de contexto.
+
+**Ressalva que impede a conclusão fácil:** isto justifica **tirar o juiz**, mas **não** justifica sozinho promover o detector. O codex mediu no worktree de hoje: restam **31 apontamentos, não 84 nem 57** — os 28 defeitos corrigidos hoje saíram do universo, e a precisão do detector é **`n/d`** até os 31 serem triados de novo. O número 70% descreve um repositório que nós próprios mudámos.
+
+---
+
+### 2026-08-25-o-juiz-ancorado-medido-contra-verdade-conhecida-52-6-por-cento
+
+**Contexto:** o modo `ancorado` do `moo-runner` — o único contrato sem saída grátis (`ACHADO:` ou `FALSO POSITIVO:`, ambos a exigir `PROVA:`) — nunca tinha sido medido contra verdade conhecida. Onze pilares morreram antes dele sem que ninguém soubesse se o modelo acertava, porque juntar verdade demorava meses: o dono lia 20 achados e decidia.
+
+Desta vez havia verdade. Triei à mão os **57 apontamentos** que o detector determinista produziu — **36 reais, 21 falsos** — e pus o juiz a julgar exactamente os mesmos 57, com o mesmo `ANCHORED_SYSTEM_PROMPT` de produção.
+
+**Resultado observado:**
+
+```
+julgados 57 · com verdade conhecida 57 · fora do contrato 0 · sem etiqueta 0
+
+              eu: REAL   eu: falso
+juiz ACHADO      19          10
+juiz FALSO       17          11
+
+precisão  65.5%    recall  52.8%    acordo  52.6%
+```
+
+**O sinal de alarme, nomeado:** **52,6% de acordo numa decisão binária é cara-ou-coroa.** E a precisão de 65,5% é uma armadilha, não um consolo — a lista que lhe entreguei já era **63% real** de origem, porque o detector determinista a tinha filtrado. Dizer `ACHADO` a tudo daria 63%. O modelo acrescenta **+2,5 pontos**. O trabalho foi todo do detector.
+
+Duas coisas que este número **não** diz, e que importa não confundir:
+
+- **O modelo não está avariado.** Respondeu aos 57 dentro do contrato — `fora do contrato 0`. A disciplina de saída que construímos hoje funciona. O que falha é o discernimento, não a obediência.
+- **Isto não decide sozinho se o loop fica.** Mede se o modo ancorado é *capaz*. A decisão de desligar é do dono, e agora tem um número em vez de uma intuição.
+
+**Contraste que dá a direcção:** no mesmo dia, o detector determinista (regex + censo + limiar, zero modelo) passou o portão de existência com **84 candidatos → 40 lidos → 28 reais = 70% de precisão**, e os **64 defeitos corrigidos hoje** vieram todos desse caminho. Nenhum veio da rotação de pilares.
+
+**Isto CORROBORA, não descobre — e o crédito é de quem chegou primeiro.** O `runner-core.test.mjs:1432-1441` já dizia, a 2026-08-19: *"o modelo local não sabe JULGAR se código está certo — 8236 rondas, 0 bugs reais. Sabe COMPARAR duas coisas que existem."* Nessa altura os dez pilares foram reescritos de *"há um defeito aqui?"* para *"copia e compara"*, com um teste a impedir a regressão (`nenhum pilar pergunta se há um defeito`).
+
+**O que eu não vi ao medir, e é o achado a sério:** o modo `ancorado` ficou de fora dessa reescrita. O seu contrato pergunta *"este apontamento é real?"* — **JULGAR**, a forma já provada estéril. Os 52,6% não são uma surpresa: são a previsão de 19/08 a cumprir-se num sítio onde ninguém reparou que ela se aplicava. A pergunta útil deixa de ser *"o juiz presta?"* (não presta) e passa a ser **"o modo ancorado pode ser reescrito de JULGAR para COMPARAR?"** — copiar a linha que o detector aponta, copiar a regra que ela alegadamente viola, e dizer se casam.
+
+**Consequência para o desenho:** o que se distribui por vários devices deve ser o detector, não o juiz. Distribuir o juiz multiplica cara-ou-coroa; distribuir o detector multiplica sinal, a $0 e sem GPU.
+
+**Método, para quem quiser repetir:** `scratchpad/juizo-vs-verdade.mjs` — corre o `buildContextPack` em modo ancorado sobre a âncora real, uma ronda por apontamento, e cruza com as etiquetas à mão. Custo: uma tarde, $0.
+
+---
+
 ### 2026-08-25-o-git-add-de-pasta-levou-quatro-linhas-que-ninguem-reviu
 
 **Contexto:** ao fechar a F5 (#391) corri `git add tools/cockpit/runner/` para preparar os onze ficheiros do codex. A pasta tinha, desde o início da sessão, **modificações locais pré-existentes** que eu andava a excluir de propósito a cada commit — `windowsHide: true` em quatro chamadas a `execFileSync`, escritas por outra pessoa ou noutra sessão.
