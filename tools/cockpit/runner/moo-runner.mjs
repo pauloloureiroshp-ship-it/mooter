@@ -32,7 +32,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 // nao tem ledger — mas este ficheiro ja nao o chama.
 import { runRound, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-core.mjs';
 import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
-import { buildFleetState } from './fleet-state.mjs';
+import { buildFleetState, readLedger } from './fleet-state.mjs';
 import { decidir as decidirComandante, DEFAULT_CAPS } from './comandante.mjs';
 import { lerTriagem } from './triagem.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
@@ -281,8 +281,25 @@ export function rodarLedger(ledgerPath, {
  */
 function decidirRonda({ paths, ids, logImpl = log }) {
   try {
-    const registos = fs.readFileSync(paths.LEDGER, 'utf8').split(/\r?\n/).filter(Boolean)
-      .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    // PELA MESMA PORTA QUE TODOS. Isto lia o ledger com o seu proprio
+    // `readFileSync` — sem janela nenhuma — enquanto o `readLedger` (painel e
+    // tique do nivel 1) usa `maxLines = 5000`. Duas leituras do mesmo ficheiro,
+    // com fronteiras diferentes, a responder a mesma pergunta.
+    //
+    // MEDIDO a 2026-08-25, com o L1 acabado de ligar:
+    //
+    //   o L1 e o painel viam       fila  20   (janela de 5000)
+    //   este contava               fila 101   (ficheiro inteiro, 9996 linhas)
+    //
+    // O runner pausa acima de 50, portanto pausava PARA SEMPRE: o L1 ja tinha
+    // fechado tudo o que a janela dele mostra e nao consegue ver os 81 que
+    // ficam de fora. `219 - 118 = 101`, a conta fecha exactamente. Nao era uma
+    // espera — era um impasse, e so apareceu quando o L1 foi ligado.
+    //
+    // A janela nao e acidente: o `CAUDA_AO_RODAR` desta mesma ficheiro ja diz
+    // "tem de ser a MESMA janela que o `readLedger` usa". A rotacao ja estava
+    // alinhada com ela; esta leitura e que nao estava.
+    const { receipts: registos } = readLedger(paths.LEDGER);
     const base = path.dirname(paths.LEDGER);
     const { decisoes } = lerTriagem(path.join(base, 'triagem.jsonl'));
     // As preferencias vivem ao lado do ledger, como tudo o resto. Liam-se de
