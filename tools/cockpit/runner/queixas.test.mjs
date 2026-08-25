@@ -121,7 +121,14 @@ test('q07 · o ▶ deixa mesmo a máquina a trabalhar sozinha e a prova está no
   // vai para o ledger e decidido pelo DISJUNTOR, e um crash continua a deixar
   // rasto. O silencio durante um apagao esta coberto por smoke.test.mjs.
   assert.match(runner, /breaker\.observe\(receipt, nowIso\(\)\)/, 'o disjuntor e que decide o que entra no ledger');
-  assert.match(runner, /for \(const r of recibos\) appendReceiptImpl\(paths\.LEDGER, r\)/, 'e o que ele decide vai para o ledger DO PROJECTO');
+  // A asercao lia a linha LITERAL `for (const r of recibos) appendReceiptImpl(...)`.
+  // O residuo 5 do #366 poe o `appendReceipt` a lancar num recibo sem forma, e o
+  // ciclo passou a apanhar essa excepcao — senao um recibo mau matava o loop.
+  // A forma da linha mudou; o que este teste garante nao mudou: o que o disjuntor
+  // decide e o que vai para o ledger DO PROJECTO.
+  assert.match(runner, /for \(const r of recibos\)/, 'o disjuntor decide, e e isso que se grava');
+  assert.match(runner, /appendReceiptImpl\(paths\.LEDGER, r\)/, 'e vai para o ledger DO PROJECTO, nao para um global');
+  assert.match(runner, /recibo recusado pelo ledger/, 'e um recibo sem forma perde-se ALTO, sem derrubar o ciclo');
   assert.match(runner, /ronda rebentou/, 'até um crash deixa rasto — um buraco no ledger seria a mentira');
 });
 

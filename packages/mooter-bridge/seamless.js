@@ -403,11 +403,30 @@ function ledgerAppend(ev) {
   return appended.line;
 }
 function ledgerRead() {
+  // ENOENT mede legitimamente um ledger ainda não criado; qualquer outra falha
+  // ou linha descartada é ignorância e tem de ficar visível sem partir o contrato de array.
+  let conteudo;
   try {
-    return fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return aprender.comDesfecho(JSON.parse(l)); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
+    conteudo = fs.readFileSync(LEDGER_PATH(), 'utf8');
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    log('ledger não lido: ' + ((erro && erro.message) || erro));
+    return [];
+  }
+  let descartadas = 0;
+  let primeiroErro = null;
+  const eventos = conteudo.split('\n').filter(Boolean).map((linha) => {
+    try { return aprender.comDesfecho(JSON.parse(linha)); } catch (erro) {
+      descartadas++;
+      if (!primeiroErro) primeiroErro = erro;
+      return null;
+    }
+  }).filter(Boolean);
+  if (descartadas) {
+    log('ledger parcialmente ilegível: ' + descartadas + ' linha(s) descartada(s): '
+      + ((primeiroErro && primeiroErro.message) || primeiroErro));
+  }
+  return eventos;
 }
 /** Tecto do oráculo por medição. Medido: a suite de packages/router leva ~20,5 s. */
 const ORACULO_TIMEOUT_MS = Number(process.env.MOOTER_ORACULO_TIMEOUT_MS) > 0

@@ -7916,3 +7916,44 @@ escrita.
 gate: 761 pass / 0 fail · `main` @ `0e4f4047` · classify.js `427d8c0b` intacto
 
 ---
+
+### 2026-08-25 · O loop cala-se: onze pilares, onze reprovados (PR #373)
+
+Consequência directa do veredicto de ontem. O dono decidiu 20 achados à mão e
+descartou os 20 — 11 do P2, 8 do P3. **Precisão medida: 0%.** Os dois foram
+desligados, e com eles a rotação ficou **vazia**: onze pilares no catálogo,
+onze desligados por medição.
+
+Os dois tinham passado o ensaio do defeito semeado, e correram meses. O ensaio
+mede **sensibilidade** (vê-se o defeito quando ele lá está); o campo mede
+**precisão** (o que se produz quando ele não está). São propriedades diferentes,
+e estes dois tinham a primeira sem a segunda.
+
+**Enquanto isto for verdade, o `moo-runner` não tem alvo e não escreve recibos.**
+O loop fica mudo por decisão, não por avaria. Há um teste novo cuja única função
+é exigir que esse zero seja *visível*.
+
+**Dez testes caíram no instante do desligar — nenhum por o motor estar partido.**
+Três eram snapshots (a decisão a mudar, os testes a acompanhá-la). Os outros
+sete levantavam o ciclo contra o catálogo REAL: um harness que só funciona
+enquanto existir um pilar bom não testa o motor, testa o catálogo. O
+`buildContextPack` já aceitava `pillars`; `main()` e `createServer()` passaram a
+aceitar `pillarsImpl` pelo mesmo motivo. A alternativa era `skip` nos E2E —
+esconder perda de cobertura.
+
+**Duas asserções mudaram de sentido, e não por conveniência.** `PILLAR_IDS.length
+>= 1 · "sem pilares não há loop nenhum"` caiu: estava certa como facto e errada
+como regra — manter um mínimo obrigaria a deixar ligado o menos mau, que é como
+se chega a um loop que produz para não parar. E `globsActivos.includes(...)`
+caiu porque quem a garantia era o P2; num conjunto vazio, qualquer asserção da
+forma *"nenhum glob activo é X"* é vacuamente verdadeira, por isso a asserção
+passou a ser sobre o próprio zero.
+
+**Cobertura perdida, declarada:** nenhum ficheiro deste repo está a ser vigiado
+pelo loop. O catálogo continua a declarar o que deixou de ver, para que religar
+volte a ser uma decisão com um pilar novo atrás, e não um gesto.
+
+**Por fazer:** o runner em curso tem o catálogo antigo *em memória* (um `import`
+é estático) — até ser reiniciado continua a moer P2/P3.
+
+gate: 762 testes · 761 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto

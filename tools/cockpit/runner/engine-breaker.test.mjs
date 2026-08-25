@@ -9,6 +9,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 import {
   createEngineBreaker,
@@ -217,4 +219,19 @@ test('a classe reinicia entre sequencias — um poco seco nao contamina o apagao
     for (const r of b.observe(falha(200 + n), iso(200 + n)).recibos) if (r.evento) evento = r;
   }
   assert.equal(evento.evento, 'engine:down', 'a sequencia nova e do motor, e diz isso');
+});
+
+/**
+ * Produzir `pilar:esgotado` no ledger nao e vigia-lo. Sem um consumidor que lhe
+ * atribua consequencia, "o poco secou e alguem vai reagir" e indistinguivel de
+ * "ha mais uma linha no feed". O teste pede deliberadamente um consumidor fora
+ * do produtor; qual deve ser a consequencia e uma decisao de desenho.
+ */
+test.todo('F5/6: pilar:esgotado tem pelo menos um vigia fora do produtor', () => {
+  const raiz = fileURLToPath(new URL('../../..', import.meta.url));
+  const encontrados = execFileSync('git', ['grep', '-l', 'pilar:esgotado', '--', 'tools/cockpit'], {
+    cwd: raiz, encoding: 'utf8',
+  }).trim().split(/\r?\n/).filter(Boolean);
+  const vigias = encontrados.filter((f) => !/engine-breaker(?:\.test)?\.mjs$/.test(f));
+  assert.ok(vigias.length > 0, `so existe o produtor; nenhum vigia: ${encontrados.join(', ')}`);
 });

@@ -126,7 +126,7 @@ export function nomeQueMente(workflows) {
 export function ehArtefacto(alvo, raiz, { checkIgnoreImpl } = {}) {
   try {
     if (checkIgnoreImpl) return Boolean(checkIgnoreImpl(alvo));
-    execFileSync('git', ['check-ignore', '-q', '--', alvo], { cwd: raiz, stdio: 'ignore' });
+    execFileSync('git', ['check-ignore', '-q', '--', alvo], { cwd: raiz, stdio: 'ignore', windowsHide: true });
     return true;
   } catch { return false; }
 }

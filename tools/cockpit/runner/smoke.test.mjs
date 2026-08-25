@@ -203,6 +203,43 @@ test('smoke E2E: uma ronda com Ollama falso escreve um recibo real no ledger', a
   assert.equal(fs.existsSync(runner.PATHS.CURSOR), true, 'a ronda avancou o cursor');
 });
 
+/**
+ * `JSON.stringify({})` e JSON valido, mas nao e um recibo. Sem validar a forma,
+ * "o runner gravou uma ronda" ficava indistinguivel de "gravou um objecto sem
+ * instante, pilar ou veredicto"; a linha ocupava o ledger e nenhum leitor a
+ * conseguia interpretar.
+ */
+test('F5/5: o ledger recusa um objecto vazio em vez de o chamar recibo', async () => {
+  limparLock();
+  fs.rmSync(runner.PATHS.LEDGER, { force: true });
+  fs.rmSync(runner.PATHS.CURSOR, { force: true });
+  // A primeira versao deste teste exigia que o `main()` REJEITASSE. O contrato
+  // do ledger esta certo — um `{}` nao e um recibo — mas matar o ciclo por causa
+  // dele nao: e a mesma regra que este ficheiro ja aplica ao beacon, "um erro
+  // aqui nunca pode derrubar o loop". As duas garantias que importam ficam, e
+  // sao mais fortes juntas: a linha invalida NAO chega ao disco, e a recusa
+  // aparece ALTO no log com o erro real.
+  const logs = [];
+  try {
+    await runner.main({
+      pillarsImpl: catalogoDeEnsaio,
+      argv: ['--once'],
+      logImpl: (m) => logs.push(m),
+      publishBeaconImpl: async () => {},
+      sleepImpl: async () => {},
+      runRoundImpl: async () => ({ receipt: {} }),
+    });
+    assert.equal(fs.existsSync(runner.PATHS.LEDGER), false, 'a linha invalida nao chega ao disco');
+    const recusa = logs.find((l) => l.includes('recibo recusado pelo ledger'));
+    assert.ok(recusa, `a recusa tem de aparecer no log: ${JSON.stringify(logs.slice(0, 4))}`);
+    assert.match(recusa, /recibo invalido/, 'com o erro real, nao com uma mensagem generica');
+  } finally {
+    limparLock();
+    fs.rmSync(runner.PATHS.LEDGER, { force: true });
+    fs.rmSync(runner.PATHS.CURSOR, { force: true });
+  }
+});
+
 test('smoke E2E ACEITACAO: 20 rondas com o motor em baixo dao 3 linhas, nao 20', async () => {
   limparLock();
   fs.rmSync(runner.PATHS.LEDGER, { force: true });
