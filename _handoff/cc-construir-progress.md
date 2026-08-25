@@ -1,0 +1,81 @@
+# Progresso — CC Construir & Superar (Mac) · 2026-08-25
+
+Kickoff: `_handoff/KICKOFF-CONSTRUIR-MAC.md` · Plano-mãe: `~/paulo-vault/40-strategy/2026-08-25-plano-construir-superar.md`
+
+MUTEX: `cc-sistema.log` e `cc-inscrever-jetson.log` ambos com `=== fim` → livre para arrancar.
+
+## FASE A
+
+### A0 — PR #396
+Estado ao arrancar: `mergeStateStatus=UNSTABLE`, 19 checks **pass**, 2 **fail**:
+- `Vercel – frugal` → "Deployment rate limited — retry in 24 hours."
+- `Vercel – landing` → idem.
+
+A mensagem do Vercel diz **24 horas**, não "recupera sozinho em minutos". Não é verde ⇒ **não faço merge agora**.
+Registado; re-verifico no fecho. Merge é acção irreversível — só com CI verde ou ordem explícita do dono.
+
+### A1 — PR #394
+**Já estava merged** às `2026-08-25T19:40:47Z` (branch `mac/fecho-pendencias`). Nada a fazer.
+
+### A2 — rebase do stash-paridade ✅ PR #397
+Não foi um `git rebase`: a branch de 24/08 estava a **128 commits** do main, com os mesmos
+ficheiros reescritos em **13 079 linhas**. Mediu-se campo a campo o que faltava.
+
+**Já em main (superseded, não reaplicado):** `fleet-remoto.mjs`/`beaconsDoRemoto` + wiring do
+`f10-server` + `remotos` no `readBeacons` · `verConector` pasta-vs-registo (aterrou como
+`versaoInstalada()`) · `sync-device.mjs` de fonte única.
+
+**Único, refeito:** `BEACON_FRESH_REMOTO_S` (o bug dos "716s" ainda está vivo em main) ·
+`medirParidade` + campo `paridade` no beacon + linha de paridade no painel.
+
+**Desvio deliberado:** `medirParidade` NÃO mede o conector — isso já viaja em `conector` com
+`verConector` como fonte única; duplicar repunha as duas verdades que essa correcção matou.
+
+Gate: `npm run test:cockpit-runner` → 846 testes, **844 pass, 0 fail**, 2 todo (pré-existentes).
+`classify.js` intacto. Branch de 24/08 e stash originais **não** tocadas. PR aberto, **sem merge**.
+
+### A3 — exclusão de T5 em código ✅ PR #398
+**Premissa do enunciado corrigida:** o SSOT (`tools/router/pricing.js:66`) **já** precificava o
+Fable a $10/$50. O que estava retido era o **snapshot** — e era ele que segurava o invariante.
+
+Medido contra o motor real: **sem** a exclusão, `reasoning.science` → `claude-fable-5` TES 3784
+(1 de 24 categorias); **com** a exclusão, 0 de 24. O Fable ganhava essa categoria sozinho por ter
+a única célula medida lá dentro (0.946 GPQA Diamond) — faltava-lhe só o preço.
+
+Feito: `OPT_IN_ONLY_MODELS` + `isOptInOnly()` no `decide-agent.ts`, filtro **antes** de
+`min_score` e orçamento, exclusão **dupla** (roster nomeado + tier T5), `force_model` intacto.
+Snapshot precificado. Entrada de allowlist no `CLAUDE.md` no mesmo PR.
+**Arame → teste permanente:** a pergunta muda de "os dados têm de estar incompletos" para
+"toda a condição de violação tem de estar coberta pela guarda"; lê o roster da fonte do motor
+e devolve `null` (não `[]`) se não a reconhecer. Provado que morde.
+
+Gate: router 302 pass / 3 fail (**as mesmas 3 da baseline em main**) · cockpit 844 testes 0 fail ·
+CLI 663 testes 0 fail · `classify.js` intacto. PR aberto, **sem merge**.
+
+### A4 — package-lock do mooter-bridge ✅ PR #399
+Os outros 5 pacotes com lockfile já o versionam e este não está no `.gitignore` — só nunca foi
+adicionado. 16 linhas, sem `dependencies`: **afirma** o "Zero deps" que o `install.sh` assume.
+
+### A5 — rollup do SYNC ✅ (já feito; faltava o anúncio) — no PR #396
+O rolo **já estava feito** na sessão anterior (`ad0deaed`): 604 → 212 linhas, história em
+`docs/foundation/SYNC_ARCHIVE_2026.md` (path canónico do `AGENTS.md`, não `_archive/`).
+O que faltava era o **anúncio ao PC** — `SYNC.md` é ficheiro partilhado e um PC com a cópia
+velha não distingue "o Mac enrolou" de "o Mac apagou 400 linhas". Acrescentado, e a dizer
+explicitamente que saiu **depois** do rolo, não antes como o plano pedia.
+Coube em **220 linhas exactas**; `docs-hygiene` sem `SYNC_TOO_LONG`.
+
+### A6 — LLMs no talo · três medições, duas refutam o plano
+- **A6a ✅ PR #400.** A condição `kimi-egress FECHADA` **foi verificada** e não quer dizer o que
+  parece: é o destrave do MODO VIVO do *spike*, não a correcção do ALTO (o commit `94a0d3e8`
+  escreve-o). O **veto de egress não está em main**. Reutilizar essa linha seria chamar
+  *condicional* a uma aceitação **incondicional**. Kimi readmitido em `MOTORES_PERMITIDOS` atrás
+  de `MOTORES_CONDICIONADOS` + linha própria (`gate.LINHA_KIMI`), que ainda não existe.
+  **Consequência dita:** hoje continua recusado, mas a uma linha de distância. 290/290 testes.
+- **A6b/c/d — a matriz do plano estava errada.** `codex ❌ n/d (não instalado)` era falso:
+  codex 0.149.1, gemini 0.57.0 e kimi-code 0.38.0 estão em `~/.local/node/bin`, fora do PATH da
+  shell do circuito. Os três protocolos respondem; os três morrem em **autenticação**
+  (401 · "set an Auth method" · "No model configured"). Falta **um gesto do dono**
+  (`11-LOGINS-LLMS.command`), não uma instalação. Número do gemini no MooterBench: **n/d**.
+- **A6d premissa falsa:** o `kimi-adapter.js` **não usa o CLI** — fala a API HTTP da Moonshot.
+  Não há schema a divergir.
+- SYNC actualizado (219 linhas) + dois blocos ✅ enrolados para o arquivo.
