@@ -549,3 +549,48 @@ continuou a corrê-lo em memória — `import` estático, arranque de 22/08 12:3
 Segunda vez em dois dias. Reiniciado: `pilares P2,P3 (default)`.
 
 gate: fora-do-enunciado 13/13 · refutado-pela-fonte 12/12 · runner 608 testes, 0 fail
+
+### 2026-08-24 · a FASE 0 parou o gate L0: os "320 dismiss do dono" não existem — PR #361
+
+**PR [#361](https://github.com/pauloloureiroshp-ship-it/mooter/pull/361) ABERTO**
+(`gate-l0/f0-scout`, 2 commits, doc-only) · baseline `triagem · autopilot ·
+classes-da-fila · voidar-fila` **75/75** · `classify.js` intacto (`427d8c0b…`).
+
+O masterprompt `MP_GATE_L0_DISMISS_BY_CLASS_2026-08-24.md` (workflow adversarial
+Fable 5, 7 agentes) manda confirmar seis factos antes de escrever código e **parar
+se algum falhar**. Dois falharam.
+
+| | |
+|---|---|
+| **ADENDA G11** | resolvida a favor de **REAPROVEITAR** — o motivo já está em `triagem.mjs:61` e os dois módulos existem tracked com testes. O "+1 linha em MOTIVOS" era **NO-OP**, como ela previa. Não há dois checkouts divergentes. |
+| **FACTO 4 ❌** | os *"320 dismiss por:'dono'"* **não existem**. 1448 linhas, **todas `por:'claude'`**, escritas por 3 scripts. `classesSuprimiveis()` exige ≥20 descartes do dono por assinatura ⇒ conjunto **vazio** ⇒ o `FP=0` da FASE 1 passaria **por vacuidade**. |
+| **FACTO 3 ❌** | `portoes()` subtrai `agente` e **só** `agente` (`autopilot.mjs:185`). As 1448 `claude` contam ⇒ **triados 1448 · precisão 0.0%**. O L2 já está envenenado — por quem o MP não supunha. |
+
+E o nicho declarado (`med && motivo:null && !público`) não tem massa: **0 na fila
+viva, 8 de sempre** (P5 4 · P11 4, ambos desligados), **0 vindos de pilar activo**.
+Os activos são só P2 e P3 → 466 achados únicos, **100% `low` com motivo**, que o
+`curar()` existente já fecha. `autopilot.json: nivel 0` — o L1 **nunca correu aqui**.
+
+**O adversário mordeu** (`codex` só-leitura + `kimi-k3`, ambos mandados refutar):
+
+- **refutou a minha A3** — `porTriar` sem limite devolve **232 entradas para 219
+  chaves** (`triagem.mjs:173` não tem o `vistos` Set que o `contarTriagem` tem em
+  `:197`), e `curar()` fecha **25** por chamada, não 232. Eu tinha citado a minha
+  contagem deduplicada como se fosse output de `porTriar`.
+- corrigiu-me o tempo verbal: *"nunca terá matéria-prima"* é **projecção ⇒ `n/d`**.
+- deixou um `n/d` aberto: `LOCAL_AGENT_SYNC=fail`, o mac-mini pode ter decisões do
+  dono. Não salva o desenho — `classesSuprimiveis` lê o ledger **local** e o MP não
+  propõe junção entre devices.
+
+**Latente, apanhado de caminho:** `registarTriagem` tem `por = 'dono'` por omissão
+(`:127`) e `contarTriagem` faz `d.por || 'dono'` (`:209`) — **assinatura em falta
+conta como o dono**. Os 5 chamadores passam `por`, mas isto condena qualquer
+correcção escrita como lista negra.
+
+**A ordem que a medição impõe** (nenhuma executada — a FASE 0 pára aqui): 1) corrigir
+o denominador do L2 por **lista branca** + proveniência por **canal de escrita** +
+"sem dados" quando o denominador é zero; 2) ligar o L1 **com auditoria ao dreno**
+(senão troca-se um número falso por cegueira); 3) só então nasce o ground-truth do
+dono. **O gate é a fase 3 desta ordem, não a fase 1.**
+
+gate: 75/75 · fases 1-3 **não avançam** — o gate numérico da 0 não está verde
