@@ -18,6 +18,7 @@ import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths, versaoDoConector, repoSha } from './project.mjs';
+import { anotarFrota } from './rotulos-da-frota.mjs';
 
 /**
  * O sha que o RUNNER carregou, lido do estado que ele escreve.
@@ -208,7 +209,14 @@ function lerFrota(where, device) {
   // O estado do canal viaja com a frota: um painel que mostra devices frescos
   // sem dizer que o fetch falhou esta a afirmar uma frescura que nao mediu.
   if (remoto) fleet.remoto = { ref: remoto.ref, fetch: remoto.fetch, porque: remoto.porque };
-  return fleet;
+  // O ROTULO calcula-se aqui, nao no painel. Ate 2026-08-25 a unica coisa que o
+  // painel afirmava ao dono — o chip de cada device — era a unica sem teste
+  // nenhum: a logica vivia inline no `moo-pilot-shell.html` e nenhum teste do
+  // repo le esse ficheiro. E foi la que nasceu o defeito medido a 24/08 ("1 min
+  // ago" com um ficheiro de dois dias): o campo `via` existia nos dados e o
+  // painel nunca o renderizou. Mesma regra dos shas, tres funcoes acima — o
+  // painel renderiza factos, nao os deriva.
+  return anotarFrota(fleet);
 }
 
 function sendJson(res, code, obj, { cors = true, origin = null } = {}) {

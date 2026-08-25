@@ -783,7 +783,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' && !emPausa ? ' morto' : ''}`);
       const hd = el('div','hd');
       hd.appendChild(el('span','nm', d.device + (d.self ? ' · this one' : '')));
-      const cls = fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
+      // O rotulo vem PRONTO do /fleet.json (rotulos-da-frota.mjs, testado).
+      // O calculo local fica como recurso para um endpoint de uma versao
+      // anterior — nunca como segunda verdade a divergir da primeira.
+      const rot = d.rotulo || null;
+      const cls = rot ? rot.classe
+                : fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : emPausa ? 'warn'
                 : fr.estado === 'stale' ? 'warn' : 'dead';
       // Uma pausa OBSOLETA volta a contar como morte — mas diz que morreu em
@@ -791,11 +796,19 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       // tres dias cujo ultimo estado dizia pausa aparecia laranja e sem a classe
       // `morto`: o defeito tinha trocado de lado, nao fechado.
       const pausaVelha = Boolean(d.pausa && d.pausa.obsoleta);
-      hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
-        fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
-          : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
-            : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
-              : (fr.motivo || fr.estado)));
+      const chip = el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
+        rot ? rot.texto
+          : fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
+            : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
+              : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
+                : (fr.motivo || fr.estado));
+      if (rot && rot.titulo) chip.title = rot.titulo;
+      hd.appendChild(chip);
+      // O CANAL, visivel sem passar o rato. Um device remoto pode estar
+      // legitimamente fresco enquanto o ficheiro no disco desta maquina tem
+      // dois dias — as duas coisas sao verdade, e sem esta etiqueta o painel
+      // parecia mentir sobre uma delas.
+      if (rot && rot.sufixo) hd.appendChild(el('span', 'nd', rot.sufixo));
       box.appendChild(hd);
 
       const meta = el('div','meta');
@@ -841,7 +854,9 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       box.appendChild(hunt);
       wrap.appendChild(box);
     }
-    $('fleet-note').textContent = f.aviso || '';
+    // `aviso_completo` acrescenta o estado do FETCH ao aviso base: um painel
+    // com devices frescos e um fetch falhado estaria a afirmar frescura que nao mediu.
+    $('fleet-note').textContent = f.aviso_completo || f.aviso || '';
   }
 
   /**
