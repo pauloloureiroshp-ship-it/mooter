@@ -521,3 +521,44 @@ ledger que ninguém vigia. O `anomaliaDeDreno` construído hoje detecta quedas d
 partido são hoje indistinguíveis para quem olha para o painel.
 
 gate: 761 pass / 0 fail · `main` @ `b50b4f68` · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (4) · o dono decidiu os 20: **0 mantidos**. O P2 e o P3 têm veredicto.
+
+**Decisão do dono, em lote:** os 20 reservados descartados com motivo
+`nao-e-um-problema`. Razão dele, registada em cada linha: *são a mesma forma
+repetida — variável inicializada a zero, comentário que "diverge" — e não
+afirmam nada sobre o código.*
+
+```
+decisoes do dono        20 de 20   ✓
+mantidas por ele       0.0% de 70%
+portao 2               fechado — "you keep 0% of what it finds"
+```
+
+**A mesma frase que de manhã era mentira, agora é verdade.** Às 05:00 o painel
+dizia *"you keep 0% of what it finds"* medindo 531 decisões de scripts que não
+eram dele. Agora diz o mesmo sobre 20 decisões que **são** dele. O portão está
+fechado pela razão certa, medida sobre o juízo do dono.
+
+**Veredicto sobre os dois pilares que restavam: 20 achados, 0 valiam.** É a
+mesma resposta que os outros sete deram este mês antes de serem desligados. O
+portão 1 continua aberto (as citações resolvem) — mas **resolver uma citação
+nunca foi o mesmo que encontrar um problema**, e é exactamente esta a distinção
+que o gate L0 nunca conseguiria produzir.
+
+O que os 20 eram: 11 do P2, todos *"esta variável é inicializada a 0/`[]`"* — um
+deles sobre o `classify.js`, que é FROZEN e está a fazer o que deve. 8 do P3,
+*"o comentário diverge do código"* — **três citando comentários escritos nesta
+própria sessão**, e dois citando como evidência a linha `*/`, o fecho do bloco.
+
+**Registado com honestidade:** `0 vieram do painel · 20 NÃO`. Foi o agente a
+escrever a decisão do dono, e o relatório di-lo em voz alta — é o sinal
+construído hoje para o spoof que não se consegue fechar. Backup em
+`~/.mooter/triagem.jsonl.antes-decisao-dono`.
+
+**E o alarme de dreno disparou pela primeira vez a sério:** `P2 81→9 (caiu)`. O
+agregado não dispararia; a detecção **por pilar** sim — a que o adversário
+obrigou a acrescentar na 3.ª ronda, a funcionar em dados reais no dia em que foi
+escrita.
+
+gate: 761 pass / 0 fail · `main` @ `0e4f4047` · classify.js `427d8c0b` intacto
