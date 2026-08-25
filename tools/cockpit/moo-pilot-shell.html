@@ -430,6 +430,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   <div class="card vouched" id="triagem-card" hidden>
     <h2 id="triagem-titulo">Needs triage</h2>
+    <p class="note" id="detector-status"></p>
     <div class="btns" id="triagem-motivos"></div>
     <p class="nd">Every finding leaves here by a decision of yours. This is what closes the loop —
       and the first ROI number that means anything.</p>
@@ -1403,6 +1404,9 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     // O servidor manda a severidade calculada (uma fonte so, em autopilot.mjs).
     // Isto aqui e o degrau de tras: um painel aberto contra um endpoint antigo,
     // ou um snapshot congelado, continua a ordenar a fila em vez de a achatar.
+    if (a && a.origem === 'detector-deterministico') return a.sev || {
+      n: 2, k: 'med', porque: 'deterministic regex pointer — not a GPU/model finding; needs your judgment'
+    };
     if (a && a.sev && a.sev.k) return { n: a.sev.n, k: a.sev.k, porque: a.sev.porque };
     const f = String(a.ficheiro || '');
     const diz = String(a.resultado_resumo || a.resumo || '');
@@ -1510,10 +1514,25 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     const fila = state.por_triar || [];
     const card = $("triagem-card");
     if (!card) return;
-    card.hidden = fila.length === 0;
     const t = state.triagem || {};
+    const detector = t.detector || null;
+    // Num endpoint antigo, sem estado do detector, conserva o comportamento.
+    // Num endpoint novo, `n/d` TEM de ficar visivel mesmo com a fila vazia.
+    card.hidden = fila.length === 0 && !detector;
+    const detectorStatus = $("detector-status");
+    if (detectorStatus) {
+      detectorStatus.replaceChildren();
+      if (!detector || detector.estado !== 'ok') {
+        detectorStatus.appendChild(el('span', 'chip warn', 'detector · regex · n/a'));
+        detectorStatus.append(document.createTextNode(' — ' + ((detector && detector.porque) || 'anchor status not published')));
+      } else {
+        detectorStatus.appendChild(el('span', 'chip warn', 'detector · regex'));
+        detectorStatus.append(document.createTextNode(' ' + detector.por_triar + ' pending of '
+          + detector.apontamentos + ' pointers · generated ' + (detector.gerado_em || 'n/a')));
+      }
+    }
     const detalhe = t.achados
-      ? " of " + t.achados + " findings (" + (t.aceite ?? "n/a") + " accepted · "
+      ? " · model: " + t.achados + " findings (" + (t.aceite ?? "n/a") + " accepted · "
         + (t.descartado ?? "n/a") + " dismissed · " + (t.issue ?? "n/a") + " issues)"
       : "";
     // Porque e que foram descartados. Sem isto, 97% de descarte e um numero que
@@ -1533,7 +1552,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         razoes.appendChild(el("span", "nd", t.sem_motivo + " dismissed before reasons existed — not counted above"));
       }
     }
-    $("triagem-titulo").textContent = "Needs triage — " + fila.length + detalhe;
+    const totalTitulo = typeof t.por_triar === 'number' ? t.por_triar : (fila.length ? fila.length + '+' : 'n/a');
+    $("triagem-titulo").textContent = "Needs triage — " + totalTitulo + detalhe;
     // Ordenada por severidade, nao por hora. O corte de TRIAGE_CAP passa a
     // mostrar os que importam em vez dos mais recentes — era isso que fazia a
     // fila parecer 29 coisas iguais.
@@ -1569,9 +1589,9 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       // ledger inteiro. `fila` ja vem cortada em `porTriar` -- usar o seu
       // comprimento como total dava um "of N" que era o corte a medir-se a si
       // proprio.
-      const totalReal = typeof t.por_triar === "number" ? Math.max(t.por_triar, fila.length) : fila.length;
-      const nota = el("p", "note", "showing " + mostrar.length + " of " + totalReal + " pending");
-      if (totalReal > fila.length) {
+      const totalReal = typeof t.por_triar === "number" ? Math.max(t.por_triar, fila.length) : null;
+      const nota = el("p", "note", "showing " + mostrar.length + " of " + (totalReal ?? 'n/a') + " pending");
+      if (totalReal !== null && totalReal > fila.length) {
         nota.append(el("span", "nd", " — the endpoint sent the " + fila.length + " most recent"));
       }
       if (fila.length > TRIAGE_CAP) {
@@ -1589,7 +1609,13 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       d.classList.add('sev-' + sv.k);
       const chipSev = el("span", "sev " + sv.k, SEV_ROTULO[sv.k]);
       chipSev.title = sv.porque;
-      cab.append(chipSev, el("span", "chip ok", a.pilar || "—"), el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
+      const doDetector = a.origem === 'detector-deterministico';
+      const chipOrigem = el("span", doDetector ? "chip warn" : "chip ok",
+        doDetector ? "detector · regex" : "GPU · model");
+      cab.append(chipSev, chipOrigem);
+      if (doDetector) cab.appendChild(el("span", "chip warn", a.regra || "regex"));
+      else cab.appendChild(el("span", "chip ok", a.pilar || "—"));
+      cab.append(el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
       cab.appendChild(el("span", "nd sev-porque", sv.porque));
       // Um achado mal citado NAO desaparece — fica, marcado. Pode ser verdade
       // com a linha errada, e deitar fora essa hipotese seria perder o defeito.
