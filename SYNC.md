@@ -317,51 +317,6 @@ ainda que encanamento que estava a mentir.
 
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-24 · a FASE 0 parou o gate L0: os "320 dismiss do dono" não existem — PR #361
-
-**PR [#361](https://github.com/pauloloureiroshp-ship-it/mooter/pull/361) ABERTO**
-(`gate-l0/f0-scout`, 2 commits, doc-only) · baseline `triagem · autopilot ·
-classes-da-fila · voidar-fila` **75/75** · `classify.js` intacto (`427d8c0b…`).
-
-O masterprompt `MP_GATE_L0_DISMISS_BY_CLASS_2026-08-24.md` (workflow adversarial
-Fable 5, 7 agentes) manda confirmar seis factos antes de escrever código e **parar
-se algum falhar**. Dois falharam.
-
-| | |
-|---|---|
-| **ADENDA G11** | resolvida a favor de **REAPROVEITAR** — o motivo já está em `triagem.mjs:61` e os dois módulos existem tracked com testes. O "+1 linha em MOTIVOS" era **NO-OP**, como ela previa. Não há dois checkouts divergentes. |
-| **FACTO 4 ❌** | os *"320 dismiss por:'dono'"* **não existem**. 1448 linhas, **todas `por:'claude'`**, escritas por 3 scripts. `classesSuprimiveis()` exige ≥20 descartes do dono por assinatura ⇒ conjunto **vazio** ⇒ o `FP=0` da FASE 1 passaria **por vacuidade**. |
-| **FACTO 3 ❌** | `portoes()` subtrai `agente` e **só** `agente` (`autopilot.mjs:185`). As 1448 `claude` contam ⇒ **triados 1448 · precisão 0.0%**. O L2 já está envenenado — por quem o MP não supunha. |
-
-E o nicho declarado (`med && motivo:null && !público`) não tem massa: **0 na fila
-viva, 8 de sempre** (P5 4 · P11 4, ambos desligados), **0 vindos de pilar activo**.
-Os activos são só P2 e P3 → 466 achados únicos, **100% `low` com motivo**, que o
-`curar()` existente já fecha. `autopilot.json: nivel 0` — o L1 **nunca correu aqui**.
-
-**O adversário mordeu** (`codex` só-leitura + `kimi-k3`, ambos mandados refutar):
-
-- **refutou a minha A3** — `porTriar` sem limite devolve **232 entradas para 219
-  chaves** (`triagem.mjs:173` não tem o `vistos` Set que o `contarTriagem` tem em
-  `:197`), e `curar()` fecha **25** por chamada, não 232. Eu tinha citado a minha
-  contagem deduplicada como se fosse output de `porTriar`.
-- corrigiu-me o tempo verbal: *"nunca terá matéria-prima"* é **projecção ⇒ `n/d`**.
-- deixou um `n/d` aberto: `LOCAL_AGENT_SYNC=fail`, o mac-mini pode ter decisões do
-  dono. Não salva o desenho — `classesSuprimiveis` lê o ledger **local** e o MP não
-  propõe junção entre devices.
-
-**Latente, apanhado de caminho:** `registarTriagem` tem `por = 'dono'` por omissão
-(`:127`) e `contarTriagem` faz `d.por || 'dono'` (`:209`) — **assinatura em falta
-conta como o dono**. Os 5 chamadores passam `por`, mas isto condena qualquer
-correcção escrita como lista negra.
-
-**A ordem que a medição impõe** (nenhuma executada — a FASE 0 pára aqui): 1) corrigir
-o denominador do L2 por **lista branca** + proveniência por **canal de escrita** +
-"sem dados" quando o denominador é zero; 2) ligar o L1 **com auditoria ao dreno**
-(senão troca-se um número falso por cegueira); 3) só então nasce o ground-truth do
-dono. **O gate é a fase 3 desta ordem, não a fase 1.**
-
-gate: 75/75 · fases 1-3 **não avançam** — o gate numérico da 0 não está verde
-
 ### 2026-08-25 · gate L0: a ordem invertida em `main`, 4 rondas adversariais e 35 defeitos — #362 #363 #364 #365 #366
 
 **`main` @ `882c042f`.** O dono aprovou a ordem que a FASE 0 mediu (denominador →
@@ -562,3 +517,46 @@ obrigou a acrescentar na 3.ª ronda, a funcionar em dados reais no dia em que fo
 escrita.
 
 gate: 761 pass / 0 fail · `main` @ `0e4f4047` · classify.js `427d8c0b` intacto
+
+---
+
+### 2026-08-25 · O loop cala-se: onze pilares, onze reprovados (PR #373)
+
+Consequência directa do veredicto de ontem. O dono decidiu 20 achados à mão e
+descartou os 20 — 11 do P2, 8 do P3. **Precisão medida: 0%.** Os dois foram
+desligados, e com eles a rotação ficou **vazia**: onze pilares no catálogo,
+onze desligados por medição.
+
+Os dois tinham passado o ensaio do defeito semeado, e correram meses. O ensaio
+mede **sensibilidade** (vê-se o defeito quando ele lá está); o campo mede
+**precisão** (o que se produz quando ele não está). São propriedades diferentes,
+e estes dois tinham a primeira sem a segunda.
+
+**Enquanto isto for verdade, o `moo-runner` não tem alvo e não escreve recibos.**
+O loop fica mudo por decisão, não por avaria. Há um teste novo cuja única função
+é exigir que esse zero seja *visível*.
+
+**Dez testes caíram no instante do desligar — nenhum por o motor estar partido.**
+Três eram snapshots (a decisão a mudar, os testes a acompanhá-la). Os outros
+sete levantavam o ciclo contra o catálogo REAL: um harness que só funciona
+enquanto existir um pilar bom não testa o motor, testa o catálogo. O
+`buildContextPack` já aceitava `pillars`; `main()` e `createServer()` passaram a
+aceitar `pillarsImpl` pelo mesmo motivo. A alternativa era `skip` nos E2E —
+esconder perda de cobertura.
+
+**Duas asserções mudaram de sentido, e não por conveniência.** `PILLAR_IDS.length
+>= 1 · "sem pilares não há loop nenhum"` caiu: estava certa como facto e errada
+como regra — manter um mínimo obrigaria a deixar ligado o menos mau, que é como
+se chega a um loop que produz para não parar. E `globsActivos.includes(...)`
+caiu porque quem a garantia era o P2; num conjunto vazio, qualquer asserção da
+forma *"nenhum glob activo é X"* é vacuamente verdadeira, por isso a asserção
+passou a ser sobre o próprio zero.
+
+**Cobertura perdida, declarada:** nenhum ficheiro deste repo está a ser vigiado
+pelo loop. O catálogo continua a declarar o que deixou de ver, para que religar
+volte a ser uma decisão com um pilar novo atrás, e não um gesto.
+
+**Por fazer:** o runner em curso tem o catálogo antigo *em memória* (um `import`
+é estático) — até ser reiniciado continua a moer P2/P3.
+
+gate: 762 testes · 761 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
