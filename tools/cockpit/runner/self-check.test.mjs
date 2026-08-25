@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import {
   verLedger, verIndiceDoVault, verBeacon, verProjectoActivo, verPreferencias,
   autoVerificar, LEDGER_TECTO_MB, BEACON_VELHO_MIN,
+  provaDePublicacao, JANELA_DO_PUBLICADOR_MIN,
   verCodigo, verConector,
 } from './self-check.mjs';
 
@@ -218,6 +219,15 @@ test('o lancamento corre o preflight e nunca bloqueia por causa dele', () => {
 // enquanto o runner reescreve o ficheiro a cada ronda — o aviso dispararia quase
 // sempre. Trocar um `ok` falso por um alarme falso nao corrige nada.
 // A pergunta certa e a IDADE DO ULTIMO COMMIT.
+//
+// A 3a (issue #374): o `por-empurrar` tinha a MESMA forma de erro que a 1a, num
+// intervalo mais curto. Duas causas, ambas trancadas aqui:
+//   · a pergunta era `rev-list --count @{u}..HEAD` — sobre o REPO, nao sobre o
+//     beacon: um commit do dono por empurrar dizia que o beacon nao saira;
+//   · o publicador faz commit -> pull --rebase -> push, e nessa janela existe
+//     mesmo um commit por empurrar. Medido: commit 08:51:01, push 08:51:06.
+// O discriminador e a idade do commit MAIS ANTIGO por publicar (ver mais baixo
+// o teste do publicador avariado, que e o que obriga a ser o mais antigo).
 
 const gitFalso = (respostas) => (args) => {
   const cmd = args.join(' ');
@@ -230,12 +240,14 @@ const AGORA = 1_760_000_000_000;
 const haMin = (n) => String(Math.floor((AGORA - n * 60000) / 1000));
 const fresco = () => ({ mtimeMs: AGORA });
 const ligado = { MOO_PUBLICAR_BEACON: '1' };
+/** `git log <range> --format=%ct -- <beacon>`: do mais recente para o mais antigo. */
+const porPublicar = (...minutos) => minutos.map(haMin).join('\n');
 
 test('verBeacon: ficheiro sujo entre publicacoes e CADENCIA — continua ok', () => {
   // O caso normal e permanente: commit ha 2 min, ficheiro reescrito desde entao.
   const r = verBeacon('/v/50-fleet/x.json', {
     statImpl: fresco, agora: AGORA, env: ligado,
-    gitImpl: gitFalso({ 'log -1': haMin(2), 'rev-list': '0' }),
+    gitImpl: gitFalso({ 'log -1': haMin(2), 'log @{u}..HEAD': '' }),
   });
   assert.equal(r.estado, 'ok', 'um aviso aqui dispararia quase sempre e seria ignorado');
   assert.match(r.valor, /publicado há 2 min/);
@@ -244,7 +256,7 @@ test('verBeacon: ficheiro sujo entre publicacoes e CADENCIA — continua ok', ()
 test('verBeacon: sem commitar ha mais tempo que o limiar, o publicador parou', () => {
   const r = verBeacon('/v/50-fleet/x.json', {
     statImpl: fresco, agora: AGORA, env: ligado,
-    gitImpl: gitFalso({ 'log -1': haMin(BEACON_VELHO_MIN + 10), 'rev-list': '0' }),
+    gitImpl: gitFalso({ 'log -1': haMin(BEACON_VELHO_MIN + 10), 'log @{u}..HEAD': '' }),
   });
   assert.equal(r.estado, 'mau');
   assert.match(r.porque, /a frota vê um estado velho/);
@@ -259,13 +271,79 @@ test('verBeacon: nunca commitado e o pior caso — a frota e um device so', () =
   assert.match(r.porque, /nunca foi commitado/);
 });
 
-test('verBeacon: commitado mas por empurrar e aviso, independente da cadencia', () => {
+test('verBeacon: por empurrar ha mais do que a cadencia do publicador e aviso', () => {
+  // Uma passagem inteira do publicador passou e o commit continua ca. Aqui o
+  // gesto E do dono, e este aviso NAO pode enfraquecer: foi ganho com ~20h de
+  // rebase encravado no vault em que este verificador dizia `ok`.
   const r = verBeacon('/v/50-fleet/x.json', {
     statImpl: fresco, agora: AGORA, env: ligado,
-    gitImpl: gitFalso({ 'log -1': haMin(1), 'rev-list': '3' }),
+    gitImpl: gitFalso({ 'log -1': haMin(1), 'log @{u}..HEAD': porPublicar(1, JANELA_DO_PUBLICADOR_MIN + 5) }),
   });
   assert.equal(r.estado, 'aviso');
-  assert.match(r.porque, /não foi empurrado/);
+  assert.match(r.porque, /não o empurrou/);
+  assert.match(r.resolver, /push/, 'um alerta sem o gesto exacto e uma queixa');
+});
+
+// ── issue #374: o falso alarme que mandava correr um push ja dado ───────────
+
+test('verBeacon: DENTRO da janela do publicador nao pede gesto nenhum ao dono', () => {
+  // O caso medido: commit 08:51:01, aviso impresso, push 08:51:06. O `launch.mjs`
+  // e o disparador mais provavel de todos — arranca o loop e verifica logo a
+  // seguir, portanto apanha a janela quase de proposito. O dono corria o
+  // `git push` sugerido e recebia `Everything up-to-date`.
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: gitFalso({ 'log -1': haMin(0), 'log @{u}..HEAD': porPublicar(0) }),
+  });
+  assert.equal(r.estado, 'n/d', 'nao e `ok` (nao saiu daqui) nem `aviso` (nenhum gesto do dono resolve)');
+  assert.equal(r.resolver, null, 'e o `launch.mjs` so poe em "FALTA O TEU GESTO" o que tem estado mau ou aviso');
+  assert.match(r.porque, /publicador/);
+});
+
+test('verBeacon: publicador AVARIADO nao se esconde atras do commit mais recente', () => {
+  // O teste que obriga o discriminador a ser o commit MAIS ANTIGO por publicar.
+  // Um publicador que commita e falha o push a cada passagem deixa sempre um
+  // commit de segundos atras; com o mais recente, ficaria mudo para sempre —
+  // trocariamos um alarme falso por um silencio falso, que e pior.
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: gitFalso({ 'log -1': haMin(0), 'log @{u}..HEAD': porPublicar(0, 10, 20, 25) }),
+  });
+  assert.equal(r.estado, 'aviso', 'o mais antigo tem 25 min: uma passagem inteira falhou');
+  assert.match(r.valor, /25 min/);
+});
+
+test('verBeacon: trabalho do DONO por empurrar no vault nao acusa o beacon', () => {
+  // A outra metade do #374. `rev-list --count @{u}..HEAD` contava QUALQUER
+  // commit a frente do remoto: um commit do dono no vault (uma nota, um
+  // ficheiro de canon) fazia isto declarar o beacon por publicar, com o beacon
+  // ja la. O `-- <ficheiro>` isola a pergunta.
+  let viuOFicheiro = false;
+  const r = verBeacon('/v/50-fleet/x.json', {
+    statImpl: fresco, agora: AGORA, env: ligado,
+    gitImpl: (args) => {
+      const cmd = args.join(' ');
+      if (cmd.includes('log -1')) return haMin(3);
+      if (cmd.includes('log @{u}..HEAD')) {
+        viuOFicheiro = args.includes('/v/50-fleet/x.json') && args.includes('--');
+        return '';               // nenhum commit DO BEACON por publicar
+      }
+      throw new Error('ENOENT');
+    },
+  });
+  assert.equal(viuOFicheiro, true, 'a pergunta tem de ser sobre o beacon, nao sobre o repo');
+  assert.equal(r.estado, 'ok');
+});
+
+test('provaDePublicacao: sem os dois ranges responder, e null — nunca `publicado`', () => {
+  // `null` NUNCA vira `ok`: e a regra do cabecalho deste ficheiro, e o caminho
+  // novo tem de a cumprir tambem.
+  const r = provaDePublicacao('/v/50-fleet/x.json', {
+    agora: AGORA,
+    gitImpl: gitFalso({ 'log -1': haMin(2) }),   // os ranges rebentam
+  });
+  assert.equal(r.estado, null);
+  assert.equal(r.minPorPublicar, null);
 });
 
 test('verBeacon: sem git que responda e n/d — NUNCA ok', () => {
