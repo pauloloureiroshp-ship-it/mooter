@@ -57,7 +57,19 @@ function ler(p, maxBytes) {
     return fs.readFileSync(p, 'utf8');
   } catch { return null; }
 }
-function listar(p) { try { return fs.readdirSync(p, { withFileTypes: true }); } catch { return []; } }
+function listar(p) {
+  try { return fs.readdirSync(p, { withFileTypes: true }); }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Cinco pilares usam esta colecção com filter/map/find/for-of; propagar
+    // `null` mudaria o contrato do radar inteiro. O `[]` fica, mas já não faz
+    // uma pasta ilegível parecer uma pasta legitimamente vazia.
+    try { process.stderr.write('[mooter-radar] pasta não listada ' + p + ': '
+      + ((erro && erro.message) || erro)
+      + ' — o pilar fica incompleto, não vazio\n'); } catch { /* stderr fechado */ }
+    return [];
+  }
+}
 
 /**
  * ⚠️ G4 (codex, 2026-08-02), achado nº7 (2ª parte): `existsSync('README.md')` encontra `ReadMe.md`

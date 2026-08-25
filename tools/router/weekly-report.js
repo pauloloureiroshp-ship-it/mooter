@@ -51,13 +51,23 @@ function readLogTail(p, maxBytes) {
   try {
     if (!fs.existsSync(p)) return [];
     const stat = fs.statSync(p);
+    if (!stat.isFile()) {
+      try { process.stderr.write(`weekly-report: ${p} n/d — não é um ficheiro\n`); } catch { /* stderr fechado */ }
+      return null;
+    }
     const start = Math.max(0, stat.size - maxBytes);
     const fd = fs.openSync(p, 'r');
     const buf = Buffer.alloc(stat.size - start);
     fs.readSync(fd, buf, 0, buf.length, start);
     fs.closeSync(fd);
     return buf.toString('utf8').split('\n').filter(Boolean);
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Um log ilegível não é uma semana sem actividade: null permite que cada
+    // secção mostre n/d sem confundir falha de leitura com zero eventos.
+    try { process.stderr.write(`weekly-report: ${p} n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 function parseJsonLine(l) {
@@ -94,7 +104,8 @@ function aggregate() {
 
   // decisions.log
   const lines = readLogTail(DECISIONS_LOG, 8 * 1024 * 1024);
-  for (const l of lines) {
+  const decisionsAvailable = lines !== null;
+  for (const l of lines || []) {
     const d = parseJsonLine(l);
     if (!d || d.event !== 'classified') continue;
     if (d.source === 'mooter-tester') continue;
@@ -122,19 +133,19 @@ function aggregate() {
 
   // flips
   const flipLines = readLogTail(FLIP_LOG, 256 * 1024);
-  const flips = flipLines
-    .map(parseJsonLine)
-    .filter(f => f && f.ts >= cutoff);
+  const flips = flipLines === null
+    ? null
+    : flipLines.map(parseJsonLine).filter(f => f && f.ts >= cutoff);
 
-  const savedUsd = Math.max(0, totalWouldHaveSpent - totalSpent);
-  const savedPct = totalWouldHaveSpent > 0
+  const savedUsd = decisionsAvailable ? Math.max(0, totalWouldHaveSpent - totalSpent) : null;
+  const savedPct = !decisionsAvailable ? null : totalWouldHaveSpent > 0
     ? Math.round((savedUsd / totalWouldHaveSpent) * 100)
     : 0;
 
   return {
-    totalCalls,
-    totalSpent,
-    totalWouldHaveSpent,
+    totalCalls: decisionsAvailable ? totalCalls : null,
+    totalSpent: decisionsAvailable ? totalSpent : null,
+    totalWouldHaveSpent: decisionsAvailable ? totalWouldHaveSpent : null,
     savedUsd,
     savedPct,
     tierCounts,
@@ -172,19 +183,29 @@ function render(agg) {
 
   // Headline
   lines.push(h(2, 'Headline'));
-  lines.push(`  ${b(agg.totalCalls.toString())} routed turns`);
-  lines.push(`  ${b('$' + agg.savedUsd.toFixed(2))} saved  ${dim('(' + agg.savedPct + '% vs all-Opus baseline)')}`);
-  lines.push(`  ${b('$' + agg.totalSpent.toFixed(2))} actual spend  ${dim('($' + agg.totalWouldHaveSpent.toFixed(2) + ' naive baseline)')}`);
+  if (agg.totalCalls === null) {
+    lines.push(`  ${b('n/d')} routed turns ${dim('(decisions log unreadable)')}`);
+    lines.push(`  ${b('n/d')} saved`);
+    lines.push(`  ${b('n/d')} actual spend`);
+  } else {
+    lines.push(`  ${b(agg.totalCalls.toString())} routed turns`);
+    lines.push(`  ${b('$' + agg.savedUsd.toFixed(2))} saved  ${dim('(' + agg.savedPct + '% vs all-Opus baseline)')}`);
+    lines.push(`  ${b('$' + agg.totalSpent.toFixed(2))} actual spend  ${dim('($' + agg.totalWouldHaveSpent.toFixed(2) + ' naive baseline)')}`);
+  }
 
   // Tier distribution
   lines.push(h(2, 'Tier distribution'));
-  const total = Math.max(1, agg.totalCalls);
-  for (const tier of ['T0', 'T1', 'T2', 'T3']) {
-    const n = agg.tierCounts[tier] || 0;
-    const pct = Math.round((n / total) * 100);
-    const barLen = Math.round((n / total) * 30);
-    const bar = c(TIER_COLOR[tier], '█'.repeat(barLen)) + dim('░'.repeat(30 - barLen));
-    lines.push(`  ${c(TIER_COLOR[tier], tier)} ${bar} ${b(pct + '%')} ${dim('(' + n + ')')}`);
+  if (agg.totalCalls === null) {
+    lines.push(`  ${dim('n/d — decisions log unreadable')}`);
+  } else {
+    const total = Math.max(1, agg.totalCalls);
+    for (const tier of ['T0', 'T1', 'T2', 'T3']) {
+      const n = agg.tierCounts[tier] || 0;
+      const pct = Math.round((n / total) * 100);
+      const barLen = Math.round((n / total) * 30);
+      const bar = c(TIER_COLOR[tier], '█'.repeat(barLen)) + dim('░'.repeat(30 - barLen));
+      lines.push(`  ${c(TIER_COLOR[tier], tier)} ${bar} ${b(pct + '%')} ${dim('(' + n + ')')}`);
+    }
   }
 
   // Providers
@@ -199,15 +220,21 @@ function render(agg) {
 
   // Daily sparkline
   lines.push(h(2, 'Daily burn rate'));
-  const spark = sparkline(agg.dayBuckets);
-  const peak = Math.max(...agg.dayBuckets);
-  lines.push(`  ${c(BRAND, spark)}  ${dim('peak $' + peak.toFixed(2) + '/day')}`);
-  const dailyBudget = agg.totalSpent / WINDOW_DAYS;
-  lines.push(`  daily avg: ${b('$' + dailyBudget.toFixed(2))}  ${dim('projected monthly: $' + (dailyBudget * 30).toFixed(2))}`);
+  if (agg.totalSpent === null) {
+    lines.push(`  ${dim('n/d — decisions log unreadable')}`);
+  } else {
+    const spark = sparkline(agg.dayBuckets);
+    const peak = Math.max(...agg.dayBuckets);
+    lines.push(`  ${c(BRAND, spark)}  ${dim('peak $' + peak.toFixed(2) + '/day')}`);
+    const dailyBudget = agg.totalSpent / WINDOW_DAYS;
+    lines.push(`  daily avg: ${b('$' + dailyBudget.toFixed(2))}  ${dim('projected monthly: $' + (dailyBudget * 30).toFixed(2))}`);
+  }
 
   // Autopilot flips
   lines.push(h(2, 'Autopilot flips'));
-  if (!agg.flips.length) {
+  if (agg.flips === null) {
+    lines.push(`  ${dim('n/d — flip log unreadable')}`);
+  } else if (!agg.flips.length) {
     lines.push(`  ${dim('(no flips in this window)')}`);
   } else {
     for (const f of agg.flips) {

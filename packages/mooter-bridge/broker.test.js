@@ -53,6 +53,21 @@ function decididos() {
   return eventos().filter((e) => broker.EVENTOS_DE_DECISAO.includes(e.event));
 }
 
+test('ledger ilegível anuncia a falha e não parece fila legitimamente vazia', () => {
+  limpar();
+  fs.mkdirSync(LEDGER);
+  const mensagens = [];
+  const original = process.stderr.write;
+  process.stderr.write = (texto) => { mensagens.push(String(texto)); return true; };
+  try {
+    assert.deepStrictEqual(broker.listPending(), []);
+  } finally {
+    process.stderr.write = original;
+    fs.rmSync(LEDGER, { recursive: true, force: true });
+  }
+  assert.match(mensagens.join(''), /mooter-broker.*ledger não lido.*falha de leitura/s);
+});
+
 /** Dispatcher ASSÍNCRONO por defeito — o real é async, e um stub síncrono mente. */
 function stubDispatcher(registo) {
   broker.setDispatcher(async (args) => { registo.push(args); return { job_id: 'job-novo' }; });

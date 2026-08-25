@@ -420,8 +420,12 @@ function readMetrics(opts = {}) {
   let raw;
   try {
     raw = fs.readFileSync(opts.logPath || metricsPath(), 'utf8');
-  } catch {
-    return [];
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Métricas ilegíveis não são "ainda não medido"; null impede o chamador de
+    // iterar e o aviso preserva a causa real.
+    try { process.stderr.write(`speed-meter: metrics n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
   }
   const out = [];
   for (const line of raw.split('\n')) {
@@ -442,6 +446,7 @@ function readMetrics(opts = {}) {
  */
 function lastLocalTps(opts = {}) {
   const recs = readMetrics(opts);
+  if (recs === null) return null;
   for (let i = recs.length - 1; i >= 0; i--) {
     const r = recs[i];
     if (opts.model && r.model !== opts.model) continue;

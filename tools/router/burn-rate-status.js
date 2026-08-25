@@ -46,13 +46,26 @@ function optedIn(p) {
 /**
  * Tail-read decisions.log and return the `classified` events inside the trailing
  * `windowMs` (real traffic only — tester events excluded). Best-effort: a
- * missing/unreadable log yields []. `now`/`logPath` are injectable for tests.
+ * A missing log yields []; an unreadable one yields null. `now`/`logPath` are
+ * injectable for tests.
  */
 function readRecentDecisions(now = Date.now(), windowMs = WINDOW_MS, logPath = decisionsLogPath()) {
   let fd;
-  try { fd = fs.openSync(logPath, 'r'); } catch { return []; }
+  try { fd = fs.openSync(logPath, 'r'); }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Log ilegível não é uma hora sem tráfego; null impede o chip verde de $0.
+    try { process.stderr.write(`burn-rate: decisions.log n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
   try {
     const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      // No Windows uma pasta pode abrir como fd; isso continua a ser leitura
+      // impossível, não uma hora legitimamente vazia.
+      try { process.stderr.write(`burn-rate: decisions.log n/d — não é um ficheiro\n`); } catch { /* stderr fechado */ }
+      return null;
+    }
     const len = Math.min(TAIL_BYTES, stat.size);
     const buf = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, stat.size - len);
@@ -77,6 +90,7 @@ function readRecentDecisions(now = Date.now(), windowMs = WINDOW_MS, logPath = d
 
 /** Sum the routed USD cost of the given decisions (pricing.js SSOT). */
 function burnRateUsd(decisions) {
+  if (decisions === null) return null;
   let usd = 0;
   for (const d of decisions || []) {
     usd += estimateTurnCost(d.tier, Number(d.prompt_len) || 0);
@@ -97,6 +111,7 @@ function colorFor(usd) {
  */
 function buildBurnChip(decisions) {
   const usd = burnRateUsd(decisions);
+  if (usd === null) return { chip: '🔥 n/d burn', usd: null, color: null, warn: false };
   return {
     chip: `🔥 $${usd.toFixed(2)}/h burn`,
     usd,

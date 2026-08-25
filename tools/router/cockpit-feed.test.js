@@ -62,6 +62,30 @@ test('risk chip reflects real risk_blocked count from decisions.log', () => {
   fs.unlinkSync(tmp);
 });
 
+test('fontes ilegíveis renderizam lanes e risco n/d, nunca zeros verdes', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-feed-ilegivel-'));
+  fs.writeFileSync(path.join(home, 'spawns'), 'não é pasta');
+  const antigo = process.env.MOOTER_HOME;
+  process.env.MOOTER_HOME = home;
+  try {
+    const f = buildFeed(base({
+      activeRun: { run_id: 'r', ts: iso(NOW) },
+      decisionsLog: home,
+      savings: null,
+    }));
+    assert.strictEqual(f.lanes, null);
+    assert.strictEqual(f.moos_live, null);
+    assert.deepStrictEqual(f.risk, { blocked: null, ok: null });
+    assert.match(render6Seg(f), /risk:—/);
+    assert.match(renderCockpit(f), /agent lanes n\/d/);
+    assert.doesNotMatch(renderCockpit(f), /risk: 🟢 clear/);
+  } finally {
+    if (antigo === undefined) delete process.env.MOOTER_HOME;
+    else process.env.MOOTER_HOME = antigo;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('Moo cap is deterministic via injected totalMemMB (regression: not host-RAM bound)', () => {
   const at = (mb) => buildFeed(base({ totalMemMB: mb, activeRun: { run_id: 'r', ts: iso(NOW) }, spawns: [], savings: null })).moos_cap;
   assert.strictEqual(at(8192), 2);   // 8GB M3

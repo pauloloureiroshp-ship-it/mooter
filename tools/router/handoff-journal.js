@@ -90,12 +90,19 @@ function _toolTarget(input) {
 // .git (no subprocess — keeps the sync turn-end append fast). dirty/ahead are
 // intentionally NOT computed here (the cockpit's gitStage already supplies them
 // to the deterministic handoff skeleton); this is supplementary provenance.
-// Returns {} on any failure. Never throws.
+// Returns {} on any failure. A repository absent is legitimate; a repository
+// present but unreadable keeps the neutral only after announcing the real error.
 function gitInfo(cwd) {
   try {
     if (!cwd || typeof cwd !== 'string') return {};
     let gitDir = path.join(cwd, '.git');
-    let st; try { st = fs.statSync(gitDir); } catch { return {}; }
+    let st;
+    try { st = fs.statSync(gitDir); }
+    catch (erro) {
+      if (erro && erro.code === 'ENOENT') return {};
+      try { process.stderr.write(`[mooter] handoff-journal: .git de ${cwd} n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+      return {};
+    }
     // Worktree/submodule: .git is a file "gitdir: <path>".
     if (st.isFile()) {
       try {
@@ -137,7 +144,12 @@ function gitInfo(cwd) {
       } catch { /* try next */ }
     }
     return { head: head || null, branch: branch || null };
-  } catch { return {}; }
+  } catch (erro) {
+    // A esta altura `.git` existia; perder HEAD/ref já não significa "não é um
+    // repo". O contrato {} fica para effectiveCwd e o Stop hook, com aviso.
+    try { process.stderr.write(`[mooter] handoff-journal: proveniência git de ${cwd} n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return {};
+  }
 }
 
 // ── PERFECT HANDOFF v2.5 — CAPTURE fix (mata a raiz do worktree-crossing) ──────
@@ -326,12 +338,17 @@ function appendTurn(sessionId, turn) {
   } catch { return false; }
 }
 
-// Read parsed entries (oldest→newest). [] on any error.
+// Read parsed entries (oldest→newest). A sessão nova é []; journal ilegível
+// mantém o contrato iterável, mas anuncia a falha para não parecer sessão vazia.
 function readJournal(sessionId) {
   try {
     return fs.readFileSync(journalPath(sessionId), 'utf8').split('\n').filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    try { process.stderr.write(`[mooter] handoff-journal: journal ${sessionId} n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return [];
+  }
 }
 
 // Last parsed entry, or null.

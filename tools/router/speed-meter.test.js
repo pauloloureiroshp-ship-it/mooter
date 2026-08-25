@@ -124,3 +124,13 @@ test('readMetrics returns [] for a missing file and skips junk lines', () => {
   assert.strictEqual(recs.length, 2);
   fs.rmSync(tmp, { force: true });
 });
+
+test('readMetrics distingue log ilegível de log ausente', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'speed-meter-unreadable-'));
+  try {
+    assert.strictEqual(sm.readMetrics({ logPath: dir }), null);
+    assert.strictEqual(sm.lastLocalTps({ logPath: dir }), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

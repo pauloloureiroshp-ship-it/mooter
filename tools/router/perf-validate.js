@@ -190,8 +190,9 @@ function qualityAnalysis(matrix) {
 // ── SPEED axis (measured local + estimated cloud) ───────────────────────────
 function speedTable(opts = {}) {
   const recs = speed.readMetrics({ logPath: opts.speedLog });
+  const localAvailable = recs !== null;
   const localByModel = {};
-  for (const r of recs) {
+  for (const r of recs || []) {
     if (!r || !r.model) continue;
     localByModel[r.model] = r; // newest wins (append-only order)
   }
@@ -207,7 +208,11 @@ function speedTable(opts = {}) {
     const e = speed.estimateCloud(m);
     return { model: m, tier: pricing.getPrice(m).tier || null, source: 'estimated', estimated: true, ttft_ms: e.ttft_ms, tps: e.tps, tpot_ms: e.tpot_ms, basis: e.basis };
   });
-  return { local, cloud, has_local_measurement: local.length > 0 };
+  return {
+    local: localAvailable ? local : null,
+    cloud,
+    has_local_measurement: localAvailable ? local.length > 0 : null,
+  };
 }
 
 // ── Pareto positioning ──────────────────────────────────────────────────────
@@ -264,7 +269,9 @@ function printSummary(res) {
   console.log('   per tier: ' + TIERS.map((t) => t + '=' + c.perTier[t].n).join(' · '));
 
   console.log('\n⚡ SPEED (local measured · cloud estimated)');
-  if (res.speed.has_local_measurement) {
+  if (res.speed.has_local_measurement === null) {
+    console.log('   n/d — local speed log unreadable');
+  } else if (res.speed.has_local_measurement) {
     for (const l of res.speed.local) {
       const w = l.warm || {};
       const cold = l.cold || {};

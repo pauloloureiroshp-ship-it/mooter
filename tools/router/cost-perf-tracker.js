@@ -133,7 +133,15 @@ function readRows(opts = {}) {
   const lastDays = Number.isFinite(opts.last_days) ? opts.last_days : 30;
   const cutoff = lastDays > 0 ? now - lastDays * 86400000 : -Infinity;
   let raw;
-  try { raw = fs.readFileSync(logPath(home), 'utf8'); } catch { return []; }
+  try { raw = fs.readFileSync(logPath(home), 'utf8'); }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // readRows é contrato público consumido pelo relatório, snapshot e CLI;
+    // manter a colecção evita quebrar esses chamadores, mas o zero deixa de ser
+    // silencioso e passa a declarar o erro real em stderr.
+    try { process.stderr.write(`cost-perf-tracker: journal n/d — ${(erro && erro.message) || erro}; [] significa falha de leitura, não zero turnos\n`); } catch { /* stderr fechado */ }
+    return [];
+  }
   const rows = [];
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;

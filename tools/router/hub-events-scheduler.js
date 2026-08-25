@@ -73,7 +73,13 @@ function countClassified() {
       } catch { /* skip malformed */ }
     }
     return n;
-  } catch { return 0; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return 0;
+    // Log ilegível não é zero classificações: null impede calcular um delta
+    // falso e, portanto, avançar o baseline ou anunciar um skip verde.
+    try { process.stderr.write(`hub-events-scheduler: classified count n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 function writeStateAtomic(state) {
@@ -126,6 +132,11 @@ function main() {
   }
 
   const total = countClassified();
+  if (total === null) {
+    process.stderr.write('hub-events-scheduler: n/d — decisions.log ilegível; nada enviado\n');
+    process.exitCode = 1;
+    return;
+  }
   const lastBaseline = state.last_pushed_classified || 0;
   const delta = Math.max(0, total - lastBaseline);
   if (!FORCE && delta < threshold) {

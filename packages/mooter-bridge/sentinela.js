@@ -158,8 +158,10 @@ function readRecords(root) {
   let names;
   try {
     names = fs.readdirSync(root).filter((name) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(name)).sort();
-  } catch {
-    return [];
+  } catch (erro) {
+    // ENOENT é histórico legitimamente vazio: a sentinela ainda nunca escreveu.
+    // Outra falha não pode produzir as mesmas zero horas fora.
+    return erro && erro.code === 'ENOENT' ? [] : null;
   }
   const records = [];
   for (const name of names) {
@@ -182,6 +184,17 @@ function resumoDaSentinela(dias, opts) {
   const endMs = Date.parse(nowIso(options));
   const startMs = endMs - totalDays * 24 * 3_600_000;
   const records = readRecords(paths(options).root);
+  if (records === null) {
+    return {
+      dias: totalDays,
+      desde: new Date(startMs).toISOString(),
+      ate: new Date(endMs).toISOString(),
+      metricas: null,
+      horas_fora_por_metrica: null,
+      transicoes: null,
+      porque: 'n/d — não consegui ler os registos da sentinela',
+    };
+  }
   const open = new Map();
   const metricSummaries = {};
   const transitions = [];

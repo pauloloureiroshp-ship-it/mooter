@@ -220,6 +220,13 @@ test('computeEvolution: nonexistent dir → []', () => {
   assert.deepEqual(result, []);
 });
 
+test('computeEvolution: path ilegível → null, nunca uma evolução vazia', () => {
+  const file = path.join(tmp, 'evo-not-a-dir');
+  fs.writeFileSync(file, 'x');
+  const result = computeEvolution({ category: 'coding.completion', dir: file, now: Date.now() });
+  assert.equal(result, null);
+});
+
 test('computeEvolution: missing category arg → []', () => {
   const dir = makeSnapDir('evo-nocat');
   assert.deepEqual(computeEvolution({ dir }), []);

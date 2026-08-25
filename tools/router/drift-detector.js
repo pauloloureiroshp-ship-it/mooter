@@ -154,7 +154,13 @@ function readClassifiedTail(bytes) {
     } finally {
       fs.closeSync(fd);
     }
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Log ilegível e log sem eventos davam ambos uma distribuição vazia, que o
+    // veredicto podia transformar em "sem drift". O chamador recebe n/d.
+    try { process.stderr.write(`drift-detector: decisions.log n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
   // Drop the first (likely partial) line so we never half-parse JSON.
   const lines = buf.split('\n').slice(1).filter(Boolean);
   const out = [];
@@ -197,6 +203,7 @@ function writeBaseline(distribution, sourceCount) {
 
 function refreshBaseline() {
   const events = readClassifiedTail(BASELINE_TAIL_BYTES);
+  if (events === null) return { ok: false, reason: 'decisions_log_unreadable' };
   const dist = tierDistribution(events);
   if (!dist) {
     return { ok: false, reason: 'no_classified_events_found' };
@@ -215,7 +222,9 @@ function checkDrift() {
   if (!baseline) {
     return { drift: false, reason: 'no_baseline' };
   }
-  const recentEvents = readClassifiedTail(RECENT_TAIL_BYTES).slice(-RECENT_WINDOW);
+  const lidos = readClassifiedTail(RECENT_TAIL_BYTES);
+  if (lidos === null) return { drift: null, reason: 'decisions_log_unreadable' };
+  const recentEvents = lidos.slice(-RECENT_WINDOW);
   const recent = tierDistribution(recentEvents);
   return detectDrift(recent, baseline);
 }
@@ -239,6 +248,11 @@ function main() {
     return;
   }
   const verdict = checkDrift();
+  if (verdict.reason === 'decisions_log_unreadable') {
+    process.stderr.write('drift-detector: n/d — decisions.log ilegível\n');
+    process.exitCode = 1;
+    return;
+  }
   if (args.includes('--check')) {
     process.stdout.write(JSON.stringify(verdict) + '\n');
     return;

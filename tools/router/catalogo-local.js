@@ -37,7 +37,13 @@ function lerCatalogo(caminho) {
   try {
     const d = JSON.parse(fs.readFileSync(caminho, 'utf8'));
     return Array.isArray(d.modelos) ? d.modelos.filter((m) => typeof m === 'string' && m) : [];
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Cache ilegível e catálogo vazio davam ambos `[]`, autorizando escolhas
+    // com uma lista que nunca chegou a ser medida.
+    try { process.stderr.write(`catalogo-local: cache n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 /** O catalogo esta velho de mais para servir? Sem ficheiro conta como velho. */

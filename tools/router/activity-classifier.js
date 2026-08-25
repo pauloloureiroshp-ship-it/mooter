@@ -62,7 +62,11 @@ function readDecisionsLog() {
       .filter(entry => entry && entry.event === 'classified')
       .slice(-10); // last 10
   } catch (err) {
-    return [];
+    if (err && err.code === 'ENOENT') return [];
+    // Falhar a leitura e não haver decisões davam ambos "0 decisions" e
+    // "No activity patterns". O chamador trata null como medição n/d.
+    try { process.stderr.write(`activity-classifier: decisions.log n/d — ${err && err.message ? err.message : err}\n`); } catch { /* stderr fechado */ }
+    return null;
   }
 }
 
@@ -109,6 +113,7 @@ function analyzeActivity(recent) {
 }
 
 function formatTerminal(analysis) {
+  if (analysis.decisions_analyzed === null) return 'Activity analysis: n/d — não consegui ler decisions.log.';
   const categoryStr = Object.entries(analysis.category_counts)
     .map(([cat, count]) => `${cat} ×${count}`)
     .join(', ');
@@ -145,7 +150,9 @@ function main() {
     recent = readDecisionsLog();
   }
 
-  const analysis = analyzeActivity(recent);
+  const analysis = recent === null
+    ? { decisions_analyzed: null, category_counts: {}, suggestions: [], error: 'decisions.log n/d — não consegui ler' }
+    : analyzeActivity(recent);
 
   if (isJson) {
     console.log(JSON.stringify(analysis, null, 2));

@@ -107,7 +107,13 @@ function countLines(filePath) {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     return content.split('\n').filter(l => l.trim()).length;
-  } catch { return 0; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return 0;
+    // Log ilegível e log vazio davam ambos zero decisões; null mantém a
+    // contagem desconhecida no relatório e no JSON.
+    try { process.stderr.write(`mooter-doctor: decisions count n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 function runCmd(cmd, timeoutMs = 5000) {
@@ -287,8 +293,10 @@ async function main() {
 
   const decisionsLog = path.join(ROUTER_DIR, 'decisions.log');
   const decisionCount = countLines(decisionsLog);
+  if (decisionCount === null) report.ok = false;
   row(decisionCount > 0 ? TICK : WARN, 'decisions.log',
-    decisionCount > 0 ? `${decisionCount} decisions recorded` : 'empty — no prompts classified yet');
+    decisionCount === null ? 'n/d — unreadable'
+      : (decisionCount > 0 ? `${decisionCount} decisions recorded` : 'empty — no prompts classified yet'));
   report.checks.decisions_count = decisionCount;
 
   // Tracker HTTP

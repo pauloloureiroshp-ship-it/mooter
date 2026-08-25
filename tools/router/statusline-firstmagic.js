@@ -29,7 +29,9 @@ function render6Seg(feed) {
   // local Moos: live count + the HW-aware cap (never invented)
   const moos = `🦙×${dash(feed.moos_live, (n) => n)}${Number.isFinite(feed.moos_cap) ? ` (cap ${feed.moos_cap})` : ''}`;
 
-  const risk = feed.risk && feed.risk.blocked > 0 ? `⚠️risk:${feed.risk.blocked}` : '🟢 risk:0';
+  const risk = !feed.risk || feed.risk.blocked == null
+    ? 'risk:—'
+    : (feed.risk.blocked > 0 ? `⚠️risk:${feed.risk.blocked}` : '🟢 risk:0');
 
   // honest dollar basis required: finite actual_usd + pct + positive counterfactual
   const s = feed.savings;

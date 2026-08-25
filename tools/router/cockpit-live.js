@@ -24,10 +24,13 @@ function renderCockpit(feed) {
 
   const maestro = feed.maestro ? (feed.maestro.model || feed.maestro.provider) : '—';
   L.push(`│ run ${dash(feed.run_id, (x) => x)} · maestro ${maestro} · ${dash(feed.run_secs, (s) => s + 's')}`);
-  L.push(`│ 🦙 local Moos live: ${feed.moos_live} (HW cap ${feed.moos_cap})  ·  risk: ${feed.risk.blocked > 0 ? '⚠️ ' + feed.risk.blocked + ' blocked' : '🟢 clear'}  ·  verify: ${feed.verify === 'pass' ? '🟢' : feed.verify === 'fail' ? '🔴' : '—'}`);
+  const risk = feed.risk.blocked === null ? '—' : (feed.risk.blocked > 0 ? '⚠️ ' + feed.risk.blocked + ' blocked' : '🟢 clear');
+  L.push(`│ 🦙 local Moos live: ${dash(feed.moos_live, (n) => n)} (HW cap ${feed.moos_cap})  ·  risk: ${risk}  ·  verify: ${feed.verify === 'pass' ? '🟢' : feed.verify === 'fail' ? '🔴' : '—'}`);
   L.push('│ ' + '─'.repeat(54));
 
-  if (!feed.lanes.length) {
+  if (feed.lanes === null) {
+    L.push('│   (agent lanes n/d — spawns directory unreadable)');
+  } else if (!feed.lanes.length) {
     L.push('│   (no agent lanes yet — spawns/<id>/state.json empty)');
   } else {
     for (const lane of feed.lanes) {

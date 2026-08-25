@@ -83,6 +83,17 @@ test('readRows filters rows outside the last_days window', () => {
   assert.equal(rows[0].task_category, 'new');
 });
 
+test('readRows mantém o array mas anuncia journal ilegível', () => {
+  const home = freshHome();
+  fs.mkdirSync(cpt.logPath(home), { recursive: true });
+  const mensagens = [];
+  const original = process.stderr.write;
+  process.stderr.write = (texto) => { mensagens.push(String(texto)); return true; };
+  try { assert.deepEqual(cpt.readRows({ home }), []); }
+  finally { process.stderr.write = original; }
+  assert.match(mensagens.join(''), /journal n\/d.*falha de leitura/s);
+});
+
 test('reportCostPerf: per-category breakdown + drift + Pareto', () => {
   const home = freshHome();
   // bug: expected cheaper than actual → positive cost drift

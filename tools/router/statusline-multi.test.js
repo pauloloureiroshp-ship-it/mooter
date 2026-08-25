@@ -70,6 +70,14 @@ test('pickState: setup state when no data and no quota state (Wave 2 Day 2)', ()
   assert.match(s.headline, /\/mooter init/);
 });
 
+test('pickState: decisions ilegíveis mostram n/d, nunca routing saudável', () => {
+  const ctx = { ...DEMO_CONTEXTS.green, decisionsUnavailable: true };
+  const state = pickState(ctx);
+  assert.equal(state.color, 'yellow');
+  assert.match(state.headline, /routing n\/d/);
+  assert.match(renderFromContext(ctx), /routing n\/d/);
+});
+
 test('pickState: tracker online but no decisions yet → not setup, proof "—" (NIT 3 Day 2)', () => {
   // dataMissing=false means the savings tracker has spun up; total=0 means no
   // decisions have landed yet. The setup branch must NOT fire (tracker online),

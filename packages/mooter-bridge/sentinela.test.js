@@ -110,3 +110,21 @@ test('resumo conta duas horas fora e as duas transições em três execuções',
   assert.deepStrictEqual(saved[1].metricas_fora, []);
   assert.strictEqual(saved[2].metricas_recuperadas[0].horas_fora, 2);
 });
+
+test('resumo distingue histórico inexistente de registos ilegíveis', (t) => {
+  const home = tempHome(t);
+  const vazio = sentinela.resumoDaSentinela(1, {
+    mooterHome: home, agora: '2026-07-27T12:00:00.000Z',
+  });
+  assert.deepStrictEqual(vazio.metricas, {}, 'ENOENT é histórico legitimamente vazio');
+
+  const bloqueado = path.join(home, 'nao-e-pasta');
+  fs.writeFileSync(bloqueado, 'x');
+  const incerto = sentinela.resumoDaSentinela(1, {
+    sentinelaDir: bloqueado, agora: '2026-07-27T12:00:00.000Z',
+  });
+  assert.strictEqual(incerto.metricas, null);
+  assert.strictEqual(incerto.horas_fora_por_metrica, null);
+  assert.strictEqual(incerto.transicoes, null);
+  assert.match(incerto.porque, /^n\/d — não consegui ler/);
+});

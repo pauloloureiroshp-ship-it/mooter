@@ -106,7 +106,18 @@ test('sem git a responder, o ausente continua a ser acusado', () => {
 });
 
 test('pasta de workflows ausente devolve lista vazia, sem rebentar', () => {
-  assert.deepEqual(lerWorkflows('/nao/existe', { readdirImpl: () => { throw new Error('ENOENT'); } }), []);
+  const erro = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+  assert.deepEqual(lerWorkflows('/nao/existe', { readdirImpl: () => { throw erro; } }), []);
+});
+
+test('pasta de workflows ilegível é n/d e anuncia o erro real', () => {
+  const mensagens = [];
+  const original = process.stderr.write;
+  process.stderr.write = (texto) => { mensagens.push(String(texto)); return true; };
+  try {
+    assert.equal(lerWorkflows('/w', { readdirImpl: () => { throw new Error('EACCES sintético'); } }), null);
+  } finally { process.stderr.write = original; }
+  assert.match(mensagens.join(''), /workflows n\/d.*EACCES sintético/s);
 });
 
 test('um workflow ilegivel entra com src vazio em vez de matar a varredura', () => {

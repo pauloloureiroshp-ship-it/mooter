@@ -74,7 +74,7 @@ function subpastas(dir) {
     return fs.readdirSync(dir, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !IGNORAR.has(e.name) && !e.name.startsWith('.'))
       .map((e) => e.name);
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /**
@@ -114,7 +114,17 @@ function portasDoProjecto(raiz, opts) {
       }
     }
     if (nivel < limite) {
-      for (const nome of subpastas(dir)) porVer.push({ dir: path.join(dir, nome), nivel: nivel + 1 });
+      const nomes = subpastas(dir);
+      if (nomes === null) {
+        // Uma pasta ilegível e uma pasta sem subpastas acabavam ambas como
+        // `procurado: 0`. A travessia ficou incompleta: não se contam portas
+        // parciais como se todo o projecto tivesse sido medido.
+        return {
+          portas: [], detalhe: [], procurado: null,
+          porque: 'n/d — não consegui listar ' + dir + '; a procura de portas ficou incompleta',
+        };
+      }
+      for (const nome of nomes) porVer.push({ dir: path.join(dir, nome), nivel: nivel + 1 });
     }
   }
 

@@ -73,8 +73,15 @@ function readLastFlipTs() {
     const lines = buf.split('\n').filter(Boolean);
     if (!lines.length) return 0;
     const last = JSON.parse(lines[lines.length - 1]);
-    return last.ts || 0;
-  } catch { return 0; }
+    const ts = Number(last.ts);
+    return Number.isFinite(ts) ? ts : null;
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return 0;
+    // Histórico ilegível não pode autorizar um flip como se nunca tivesse
+    // havido outro. null fecha o autopilot até a medição voltar.
+    try { process.stderr.write(`mooter-autopilot: flip history n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 function appendFlip(entry) {
@@ -94,6 +101,9 @@ function decide(opts) {
   const current = currentMode();
   const target = rec ? rec.mode : null;
   const lastFlipTs = readLastFlipTs();
+  if (lastFlipTs === null) {
+    return { ok: false, action: 'error', error: 'flip history n/d — não consegui ler o último flip', current, target };
+  }
   const sinceFlip = Date.now() - lastFlipTs;
 
   if (!target) {
