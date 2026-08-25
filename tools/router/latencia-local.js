@@ -70,7 +70,13 @@ function lerAmostras(caminho, janela = JANELA) {
     return linhas.slice(-janela)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } })
       .filter((a) => a && typeof a.modelo === 'string');
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Histórico ilegível e histórico vazio davam ambos modelos "por medir";
+    // null mantém a ignorância fora da escolha de latência.
+    try { process.stderr.write(`latencia-local: amostras n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 /** Acrescenta uma amostra. Best-effort — telemetria nunca pode partir o hook. */

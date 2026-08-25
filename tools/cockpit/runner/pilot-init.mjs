@@ -79,8 +79,10 @@ export function entradasDeclaradas(repoRoot) {
   let pkg;
   try {
     pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-  } catch {
-    return [];
+  } catch (erro) {
+    // Package ausente pode significar legitimamente "sem entradas". Presente
+    // mas ilegível é uma fonte n/d, não um P2 vazio medido.
+    return erro && erro.code === 'ENOENT' ? [] : null;
   }
   const brutos = new Set();
   if (typeof pkg.main === 'string') brutos.add(pkg.main);
@@ -139,7 +141,8 @@ export function automacao(repoRoot) {
  */
 export function proporPilares(repoRoot, { churnImpl = null } = {}) {
   const churn = (churnImpl || ficheirosComMaisChurn)(repoRoot);
-  const entradas = entradasDeclaradas(repoRoot).slice(0, MAX_POR_PILAR);
+  const entradasLidas = entradasDeclaradas(repoRoot);
+  const entradas = entradasLidas === null ? null : entradasLidas.slice(0, MAX_POR_PILAR);
   const canon = canonDoProjecto(repoRoot).slice(0, MAX_POR_PILAR);
   const ci = automacao(repoRoot);
   const quentes = churn === null ? null : churn.slice(0, MAX_POR_PILAR).map((c) => c.file);
@@ -149,6 +152,7 @@ export function proporPilares(repoRoot, { churnImpl = null } = {}) {
   // por um pilar vazio.
   const indeterminados = [];
   if (churn === null) indeterminados.push('P1');
+  if (entradas === null) indeterminados.push('P2');
   if (ci === null) indeterminados.push('P4');
 
   const candidatos = {
@@ -158,7 +162,7 @@ export function proporPilares(repoRoot, { churnImpl = null } = {}) {
       ask: 'Qual destas linhas pode rebentar, engolir um erro em silencio, ou inverter uma condicao? Escolhe uma e diz porque.',
       porque: `os ${quentes.length} ficheiros de codigo que mais mudaram nos ultimos 200 commits`,
     },
-    P2: entradas.length && {
+    P2: Boolean(entradas && entradas.length) && {
       label: 'Pontos de entrada',
       files: entradas,
       ask: 'Qual destas linhas trata mal um input, uma flag ou um caminho de erro que o utilizador consegue alcancar? Escolhe uma e diz porque.',

@@ -111,7 +111,9 @@
   /* Outro device nunca se pinta com a mesma confianca do que esta a nossa frente. */
   .dev:not(.self){opacity:.94}
   .dev.morto{opacity:.5;filter:grayscale(1)}
-  .dev .hd{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .dev .hd{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:5px}
+  .dev .hd .chip{flex:0 1 auto;white-space:normal}
+  .dev .nm{min-width:5em}
   .dev .nm{font:600 13.5px var(--sans);flex:1 1 auto;overflow-wrap:anywhere}
   .dev .meta{font-size:12px;color:var(--ink-2);line-height:1.5}
   .dev .meta b{font-family:var(--mono);font-weight:600;color:var(--ink)}
@@ -1074,10 +1076,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     putRow(dl,'model', nd(s.modelo_atual));
     putRow(dl,'active pillar', nd(s.pilar_atual));
     putRow(dl,'mode', s.foco ? document.createTextNode(`focused on ${s.foco}`) : el('span','nd','rotating through all pillars'));
-    const m = s.modelos_carregados || [];
-    putRow(dl,'residents', m.length
-      ? document.createTextNode(m.map(x => `${x.name} (${x.vram_gb} GB)`).join(', '))
-      : el('span','nd','no model resident'));
+    const m = s.modelos_carregados;
+    putRow(dl,'residents', m == null
+      ? el('span','nd','n/d — could not measure')
+      : m.length
+        ? document.createTextNode(m.map(x => `${x.name} (${x.vram_gb} GB)`).join(', '))
+        : el('span','nd','no model resident'));
     // Uma maquina CEDIDA nao esta avariada. Este campo ja viajava no
     // /fleet.json desde que a reserva existe, e o painel nunca o desenhou: de
     // fora, um loop que saiu da frente de proposito era indistinguivel de um

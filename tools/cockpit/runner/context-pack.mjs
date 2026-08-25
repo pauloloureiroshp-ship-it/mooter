@@ -1165,14 +1165,19 @@ export function readAnchor(anchorPath, { readImpl = fs.readFileSync } = {}) {
   let raw;
   try {
     raw = readImpl(anchorPath, 'utf8');
-  } catch {
-    return [];
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Âncora ilegível não é âncora vazia: o runner pode degradar para caça,
+    // mas tem de anunciar por que perdeu a medição ancorada.
+    try { process.stderr.write(`context-pack: âncora n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
   }
   let parsed;
   try {
     parsed = JSON.parse(raw);
-  } catch {
-    return [];
+  } catch (erro) {
+    try { process.stderr.write(`context-pack: âncora n/d — JSON ilegível: ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
   }
   if (!Array.isArray(parsed)) return [];
   return parsed
@@ -1605,7 +1610,7 @@ export function buildContextPack({
   // linhas). Capturar o erro e nao o mostrar e o mesmo catch mudo com mais
   // passos.
   const anchors = readAnchor(anchorPath);
-  if (anchors.length > 0) {
+  if (anchors && anchors.length > 0) {
     // O MESMO desvio que o ramo do diff ja tinha. Sem ele, os seis pilares
     // faziam `anchors[cursor % anchors.length]` e apontavam todos ao mesmo
     // apontamento: medido a 2026-08-18 na configuracao de PRODUCAO, 240

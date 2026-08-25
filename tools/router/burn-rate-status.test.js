@@ -42,6 +42,16 @@ test('empty log → $0.00/h, green, no warn', () => {
   assert.equal(b.warn, false);
 });
 
+test('unreadable log → n/d, never green zero', () => {
+  const decisions = burn.readRecentDecisions(NOW, burn.WINDOW_MS, tmp);
+  assert.equal(decisions, null);
+  const b = burn.buildBurnChip(decisions);
+  assert.equal(b.chip, '🔥 n/d burn');
+  assert.equal(b.usd, null);
+  assert.equal(b.color, null);
+  assert.equal(b.warn, false);
+});
+
 test('recent T0 (local) calls → $0.00/h burn', () => {
   const p = writeLog([classified('T0', 4000, 5), classified('T0', 9000, 30)]);
   const b = burn.buildBurnChip(burn.readRecentDecisions(NOW, burn.WINDOW_MS, p));

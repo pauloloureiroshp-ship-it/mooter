@@ -35,10 +35,11 @@ function readActiveRun(opts) {
 }
 
 function readSpawns(opts) {
-  if (opts && 'spawns' in opts) return opts.spawns || [];
+  if (opts && 'spawns' in opts) return opts.spawns;
   const root = path.join(MOOTER(), 'spawns');
   let ids = [];
-  try { ids = fs.readdirSync(root); } catch { return []; }
+  try { ids = fs.readdirSync(root); }
+  catch (erro) { return erro && erro.code === 'ENOENT' ? [] : null; }
   return ids.map((id) => readJSON(path.join(root, id, 'state.json'))).filter(Boolean);
 }
 
@@ -53,7 +54,8 @@ function countRiskBlocked(opts) {
   if (opts && 'riskBlocked' in opts) return opts.riskBlocked;
   const logPath = opts && opts.decisionsLog ? opts.decisionsLog : DECISIONS_LOG;
   let raw = '';
-  try { raw = fs.readFileSync(logPath, 'utf8'); } catch { return 0; }
+  try { raw = fs.readFileSync(logPath, 'utf8'); }
+  catch (erro) { return erro && erro.code === 'ENOENT' ? 0 : null; }
   let n = 0;
   for (const line of raw.split('\n')) { if (line.includes('"event":"risk_blocked"')) n++; }
   return n;
@@ -93,8 +95,10 @@ function buildFeed(opts = {}) {
   const fresh = !!(activeRun && activeRun.ts && now != null && (now - Date.parse(activeRun.ts)) < STALE_MS);
   const active = !!activeRun && (fresh || now == null);
 
-  const lanes = spawns.map(spawnToLane);
-  const moosLive = lanes.filter((l) => l.kind === 'local' && l.status === 'run').length;
+  // Pasta ilegível não é frota vazia: os dois campos viajam a null e os
+  // renderers mostram n/d sem chamar map/filter ao valor desconhecido.
+  const lanes = spawns === null ? null : spawns.map(spawnToLane);
+  const moosLive = lanes === null ? null : lanes.filter((l) => l.kind === 'local' && l.status === 'run').length;
 
   const blocked = countRiskBlocked(opts);
   const verify = readVerify(opts);
@@ -117,7 +121,7 @@ function buildFeed(opts = {}) {
     moos_live: moosLive,
     moos_cap: fleet.max_local_moos,
     lanes,
-    risk: { blocked, ok: blocked === 0 },
+    risk: { blocked, ok: blocked === null ? null : blocked === 0 },
     verify,
     savings,
   };

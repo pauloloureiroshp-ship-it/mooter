@@ -184,6 +184,14 @@ test('B3: o init nao propoe rever a propria suite de testes', () => {
   assert.deepEqual(entradasDeclaradas(repo), ['build.js']);
 });
 
+test('B3: package.json ilegível deixa P2 indeterminado, não rejeitado como vazio', () => {
+  const repo = tmp('init-ilegivel');
+  fs.writeFileSync(path.join(repo, 'package.json'), '{nao-json');
+  assert.equal(entradasDeclaradas(repo), null);
+  const proposta = proporPilares(repo, { churnImpl: () => [] });
+  assert.ok(!proposta.rejeitados.includes('P2'));
+});
+
 test('B3: a proposta que sai deste repo passa na propria validacao', () => {
   // O que o init propoe tem de ser aceite pelo loader. Se as duas metades
   // divergirem, o dono aprova um ficheiro que o runner depois recusa.

@@ -20,6 +20,22 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-25-o-git-add-de-pasta-levou-quatro-linhas-que-ninguem-reviu
+
+**Contexto:** ao fechar a F5 (#391) corri `git add tools/cockpit/runner/` para preparar os onze ficheiros do codex. A pasta tinha, desde o início da sessão, **modificações locais pré-existentes** que eu andava a excluir de propósito a cada commit — `windowsHide: true` em quatro chamadas a `execFileSync`, escritas por outra pessoa ou noutra sessão.
+
+**Resultado observado:** as quatro linhas entraram no #391. O PR dizia *"cinco resíduos do #366"* e trazia mais quatro linhas que ninguém reviu. Só se viu depois, ao comparar o worktree do codex contra `main` e ver quatro ficheiros a divergir sem razão aparente.
+
+**O sinal de alarme, nomeado:** **um `git add <pasta>` não é selectivo, por mais que a intenção seja.** O `AGENTS.md` diz `Selective commits: stage exactly the files you changed; never git add -A`. Eu não fiz `git add -A` — fiz uma coisa que a doutrina não nomeia e que tem o mesmo efeito num directório com trabalho alheio.
+
+Durante toda a sessão exclui essas cinco modificações à mão, commit após commit, e listei-as em voz alta como *"não são minhas"*. A disciplina aguentou nove PRs e caiu no décimo, no momento em que troquei uma lista de ficheiros por um caminho de pasta.
+
+**Porque importa, e o que NÃO é o problema:** o `windowsHide: true` é correcto — suprime o flash de consola no Windows e o mesmo padrão já existe noutros ficheiros do repo. Os testes desses dois módulos passam, 25/25. **O defeito não é o código, é a declaração.** Um PR que entrega mais do que o corpo diz gasta a confiança que faz um PR ser lido em vez de aprovado.
+
+Fica em `main` por ser correcto, e fica **declarado** aqui — que é o que este repositório faz com o que não estava previsto, em vez de o reverter em silêncio ou de fingir que foi de propósito.
+
+**Regra que fica:** stage por **ficheiro**, nunca por pasta, num repositório onde outras sessões deixam trabalho por commitar. Se a lista for longa, escreve-se a lista.
+
 ### 2026-08-25-o-modo-ancorado-nunca-correu-uma-vez
 
 **Contexto:** depois de a rotação de pilares ficar vazia (onze desligados por medição), a síntese de um workflow adversarial apontou uma direcção que dizia não ter medido: em vez de um décimo segundo pilar, investir no `mode: 'ancorado'` — onde um detector determinista aponta a linha e o modelo **só julga**, com um contrato sem saída grátis (`ACHADO:` ou `FALSO POSITIVO:`, ambos a exigir `PROVA:`).

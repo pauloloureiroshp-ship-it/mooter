@@ -103,9 +103,21 @@ function clampPercent(v) {
 function readDecisionsTail() {
   let fd;
   try { fd = fs.openSync(DECISIONS_LOG, 'r'); }
-  catch { return []; }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Um log ilegível não é um dia sem decisões: null impede o digest de
+    // transformar desconhecimento num routing aparentemente vazio.
+    try { process.stderr.write(`statusline: decisions n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
   try {
     const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      // Uma pasta abre como fd no Windows, mas não mede decisões; tratá-la como
+      // vazia voltaria a fabricar um routing saudável.
+      try { process.stderr.write('statusline: decisions n/d — não é um ficheiro\n'); } catch { /* stderr fechado */ }
+      return null;
+    }
     const len  = Math.min(TAIL_BYTES, stat.size);
     const buf  = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, stat.size - len);
@@ -366,6 +378,14 @@ function pickState(ctx) {
     savedPct, savedUsd, todayCost, dataMissing,
     ctxPercent, lastTurnCost, alltimeCost,
   } = ctx;
+
+  if (ctx.decisionsUnavailable) {
+    return {
+      color: 'yellow',
+      headline: 'routing n/d — decisions log unreadable',
+      proof: 'measurement unavailable',
+    };
+  }
 
   // ── Setup incomplete (no decisions, no quota — fresh install) ─────────
   // Wave 2 Day 2: was a generic "no data yet" empty state; now surfaces the
@@ -1459,7 +1479,8 @@ async function buildContext() {
 
   const quota = readQuota() || {};
   const lines = readDecisionsTail();
-  const { counts, total, last, recent } = digest(lines, { sessionFilter });
+  const decisionsUnavailable = lines === null;
+  const { counts, total, last, recent } = digest(lines || [], { sessionFilter });
 
   const anthRem    = computeAnthropicRem(quota);
   const codexRem   = computeCodexRem(quota);
@@ -1520,7 +1541,8 @@ async function buildContext() {
     herd,
     sessionId,
     sessionAge,
-    dataMissing: !lines.length && !quota.providers,
+    decisionsUnavailable,
+    dataMissing: !decisionsUnavailable && !lines.length && !quota.providers,
   };
 }
 

@@ -72,7 +72,12 @@ function registar(resposta, opts) {
 function lerTodas(ficheiro) {
   const f = ficheiro || FICHEIRO;
   let txt = null;
-  try { txt = fs.readFileSync(f, 'utf8'); } catch { return []; }
+  try { txt = fs.readFileSync(f, 'utf8'); }
+  catch (erro) {
+    // Um ficheiro que nunca existiu significa mesmo zero respostas. Qualquer
+    // outra falha é medição desconhecida, não uma colecção vazia.
+    return erro && erro.code === 'ENOENT' ? [] : null;
+  }
   const out = [];
   for (const l of txt.split(/\r?\n/)) {
     if (!l.trim()) continue;
@@ -88,6 +93,29 @@ function lerTodas(ficheiro) {
 function agregado(opts) {
   const o = opts || {};
   const todas = lerTodas(o.ficheiro);
+  if (todas === null) {
+    const desconhecida = {
+      valor: null,
+      porque: 'n/d — não consegui ler o registo de respostas',
+      denominador: null,
+    };
+    // Fazer `.filter()` sobre o neutro antigo fabricava todas estas contagens a
+    // zero. A receita real continua zero: não depende deste ficheiro de sinais.
+    return {
+      total_respostas: null,
+      do_autor: null,
+      de_amigos: null,
+      de_estranhos: null,
+      usaria_outra_vez: { ...desconhecida },
+      pagaria: { ...desconhecida },
+      pagaria_estranhos: { ...desconhecida },
+      disposicao_a_pagar_declarada: null,
+      receita_real_usd: 0,
+      receita_nota: 'receita REAL é 0 e não se confunde com disposição declarada — ninguém pagou nada até hoje',
+      perguntas: PERGUNTAS,
+      resumo: '🐮 sinal de valor: n/d — não consegui ler o registo de respostas.',
+    };
+  }
   const externas = todas.filter((r) => r.origem !== 'autor');
   const estranhos = todas.filter((r) => r.origem === 'estranho');
   const amigos = todas.filter((r) => r.origem === 'amigo');

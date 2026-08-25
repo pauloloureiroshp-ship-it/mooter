@@ -47,7 +47,14 @@ function tailLines(filePath, maxBytes = 131072) {
     fs.readSync(fd, buf, 0, buf.length, start);
     fs.closeSync(fd);
     return buf.toString('utf8').split('\n').filter(Boolean);
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // O Stop hook tem oito consumidores iteráveis deste helper; propagar null
+    // arriscava partir o fim do turno. Mantém-se `[]`, mas já não confunde em
+    // silêncio um log vazio com um log ilegível.
+    try { process.stderr.write(`gsd-turn-end: leitura n/d de ${filePath} — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return [];
+  }
 }
 
 function modelEmoji(model) {

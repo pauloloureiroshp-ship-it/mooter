@@ -192,8 +192,12 @@ function readCursor(cursorPath) {
   try {
     const c = JSON.parse(fs.readFileSync(cursorPath, 'utf8'));
     return Number.isInteger(c.i) ? c.i : 0;
-  } catch {
-    return 0;
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return 0;
+    // Cursor ilegível e primeiro arranque davam ambos zero. O loop ainda pode
+    // começar em segurança, mas a rotação reiniciada deixa de ser silenciosa.
+    try { process.stderr.write(`moo-runner: cursor n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
   }
 }
 
@@ -558,6 +562,7 @@ export async function main({
   if (fs.existsSync(paths.STOP_FILE)) logImpl('STOP presente a arrancar — fica parado ate /play.');
 
   let i = readCursor(paths.CURSOR);
+  if (i === null) i = 0;
   const once = args.has('--once');
   // O disjuntor guarda o estado do motor entre rondas. Ver engine-breaker.mjs:
   // 1767 recibos de um apagao de 11 horas foi o que custou nao o ter.
