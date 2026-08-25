@@ -212,7 +212,7 @@ The fleet is the fourth member of the quartet: local moos on the 4090, running b
 rounds per pillar at $0, governed by `_handoff/fleet/fleet.json` caps
 (GPU-heavy concurrency 1 · cloud 2 · pool 4 · $5/day budget · per-pillar day quotas)
 and a human gate on anything irreversible. Full charters + execution order:
-[`_handoff/FLEET_FASE3_LAUNCH_HANDOFF.md`](../../_handoff/FLEET_FASE3_LAUNCH_HANDOFF.md).
+[`_handoff/_archive/2026-07/FLEET_FASE3_LAUNCH_HANDOFF.md`](../../_handoff/_archive/2026-07/FLEET_FASE3_LAUNCH_HANDOFF.md).
 
 | Pillar | Squad | Charter (1 line) | Measured success criterion |
 |---|---|---|---|
@@ -242,14 +242,14 @@ Where the engine becomes something a vibe coder *sees*. Each bet has a spec in `
 
 | Bet | What it is | Status (2026-07-06) | Spec |
 |---|---|---|---|
-| **Live Preview** (W16) | Lovable-grade App Stage inside VS Code — iframe to the *real local dev server* (no WebContainers), Director's Cut event feed | ✅ MP2+MP4 in prod (`main 266e4f3`); hot-reload E2E pending | `_handoff/LIVE_PREVIEW_SUPER_MASTERPROMPT.md` |
-| **Live Edit MP5** | select-to-edit: element/area selection + inline prompt + model chip (router-native) + deterministic $0 edits | 🔥 running in cloud CC now | `_handoff/LIVE_EDIT_MP5_SPEC.md` |
-| **CTO Command Deck** (W15) | cockpit redesign: exception inbox + 4 diagnostic lenses (Floor/Flow/Economics/Memory) + 🧠 Cowork lens | 🔜 6-phase masterprompt ready | `_handoff/CTO_COMMAND_DECK_SPEC.md` |
-| **Mooter Mirror** | Cowork brain mirrored read-only in the cockpit (memory lives on disk — no connector needed) | 🔜 3 masterprompts ready | `_handoff/MOOTER_MIRROR_ARCHITECTURE.md` |
-| **Conductor** | orchestrate the CC session fleet — route masterprompts to the right worktree/session, $0 dispatch | 🔜 brief (Nível 1 Dispatch MVP) | `_handoff/MOOTER_CONDUCTOR_BRIEF.md` |
+| **Live Preview** (W16) | Lovable-grade App Stage inside VS Code — iframe to the *real local dev server* (no WebContainers), Director's Cut event feed | ✅ MP2+MP4 in prod (`main 266e4f3`); hot-reload E2E pending | `_handoff/_archive/2026-07/LIVE_PREVIEW_SUPER_MASTERPROMPT.md` |
+| **Live Edit MP5** | select-to-edit: element/area selection + inline prompt + model chip (router-native) + deterministic $0 edits | 🔥 running in cloud CC now | `_handoff/_archive/2026-07/LIVE_EDIT_MP5_SPEC.md` |
+| **CTO Command Deck** (W15) | cockpit redesign: exception inbox + 4 diagnostic lenses (Floor/Flow/Economics/Memory) + 🧠 Cowork lens | 🔜 6-phase masterprompt ready | `_handoff/_archive/2026-06/CTO_COMMAND_DECK_SPEC.md` |
+| **Mooter Mirror** | Cowork brain mirrored read-only in the cockpit (memory lives on disk — no connector needed) | 🔜 3 masterprompts ready | `_handoff/_archive/2026-07/MOOTER_MIRROR_ARCHITECTURE.md` |
+| **Conductor** | orchestrate the CC session fleet — route masterprompts to the right worktree/session, $0 dispatch | 🔜 brief (Nível 1 Dispatch MVP) | `_handoff/_archive/2026-07/MOOTER_CONDUCTOR_BRIEF.md` |
 | **Moove** | assisted migration Lovable → CC+Mooter ("iPhone→Samsung") as GTM funnel; never touch secrets, no perfection promises | 🔜 brief + market research done | Notion → Moove page |
 | **Overclock Moo** | GPU saturation button — concurrent local pool + thermal clamp | ✅ pool in main; Fase 2 (A/B benchmark + live card) pending | Notion backlog |
-| **Quota-Aware Routing** (MP-Q) | routing reacts to weekly subscription quota (weekly at 89% triggered it) | 🔜 recommended FIRST in exec order | `_handoff/QUOTA_AWARE_MP.md` |
+| **Quota-Aware Routing** (MP-Q) | routing reacts to weekly subscription quota (weekly at 89% triggered it) | 🔜 recommended FIRST in exec order | `_handoff/_archive/2026-07/QUOTA_AWARE_MP.md` |
 
 ---
 
@@ -318,7 +318,7 @@ Squad model (Team Topologies): 🧭 Routing & Inference · 🧠 Auto-Evolution �
 | Tri-axis benchmark verdict | vault `30-learnings/mooter-value-benchmark-2026-05-24` (frozen HEAD `ce08f72c`; publish pending) |
 | $0.0028 workflow demo | Wave 28 (2026-06-07, tag `v1.16.0-workflow-engine-mvp`) |
 | 65–82% envelope + TTFT table | `docs/strategy/FLOWCHART.md` §0/§2 |
-| Fleet foundation in main | `_handoff/FLEET_FASE3_LAUNCH_HANDOFF.md` git confrontation table |
+| Fleet foundation in main | `_handoff/_archive/2026-07/FLEET_FASE3_LAUNCH_HANDOFF.md` git confrontation table |
 
 ---
 

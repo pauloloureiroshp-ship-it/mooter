@@ -590,3 +590,9 @@ Protocolo multi-device: LOCAL_AGENT_SYNC passou de fail para pass. O windows-rtx
 Por decidir: o release. 75+ commits desde a v1.49.4. O loop continua parado por decisão.
 
 gate: 821 testes · 819 pass / 0 fail / 2 todo (q13 + o residuo 6) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (Mac · `mac/no-talo-m2b`, PR #390) · M2b — escopo declarado e fechado
+
+Mutex respeitado: o PC está em `fix/ledger-read-raiz`; F1–F4 não foram abertos. O achado não foi o claim dos 47% — foi `claude-opus-4-6` marcado `pending` com a nota "No in-repo source", **falsa quando escrita** (`pricing.js:46` tem $5/$25 desde 2026-04-16). É o modelo T3 por omissão e estava fora do sort de custo do `decide-agent`. Preenchido do SSOT do repo; nada inventado. `claude-fable-5` ficou pending **de propósito** — precificá-lo sem resolver o `tier: T5` podia metê-lo num sort de custo, contra o invariante. Decisão do MEO. Portão novo `frescura-de-precos.test.mjs` no comando do CI: falha aos 30 dias, na divergência com o SSOT e em pending precificável. `_handoff/`: 180 pacotes arquivados (204→28), 30 citações reescritas, 0 penduradas. A ratificar pelo dono: fixture em `packages/router/tests/` fora do allowlist (não toquei no allowlist), baseline do ratchet, e 2 colisões de conteúdo divergente. Detalhe: `_handoff/cc-no-talo-progress.md` e PR #390.
+
+gate: 814/813/0 cockpit (+8) · router 302/295/3 com diff **vazio** contra main · docs-hygiene 12/12 · classify.js `427d8c0b` intacto

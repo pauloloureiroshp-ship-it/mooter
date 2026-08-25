@@ -1,6 +1,9 @@
 {
   "snapshot_date": "2026-05-27",
   "snapshot_version": "pricing-snapshot-2026-05-27",
+  "last_verified_at": "2026-08-25",
+  "last_verified_against": "tools/router/pricing.js (PRICES), last reviewed 2026-08-03. Every priced model here was compared field-by-field against that SSOT on 2026-08-25; sonnet-4-6 and haiku-4-5 matched unchanged, opus-4-6 was filled from it (see its note). This is a re-verification date, NOT a re-pricing: no price was changed to a value that is not in the SSOT, and snapshot_version is unchanged so benchmark reproducibility holds.",
+  "freshness_gate": "tools/cockpit/runner/frescura-de-precos.test.mjs — fails when last_verified_at is older than 30 days, when a price here contradicts the live SSOT, or when a model is marked pending while the SSOT can price it. This file feeds a COST router (packages/router/src/decide-agent.ts:40), so staleness here is a silent wrong decision, not a cosmetic lag.",
   "source": "platform.claude.com/docs/en/about-claude/pricing (fetched 2026-05-27, cross-checked against tools/router/pricing.js)",
   "anthropic_pricing_url": "https://platform.claude.com/docs/en/about-claude/pricing",
   "notes": [
@@ -15,11 +18,11 @@
     "claude-sonnet-4-6": { "input_per_mtok": 3.00, "output_per_mtok": 15.00, "tier": "T2" },
     "claude-haiku-4-5": { "input_per_mtok": 1.00, "output_per_mtok": 5.00, "tier": "T1" },
     "claude-opus-4-6": {
-      "input_per_mtok": null,
-      "output_per_mtok": null,
+      "input_per_mtok": 5.00,
+      "output_per_mtok": 25.00,
       "tier": "T3",
-      "pricing_status": "pending",
-      "pricing_note": "No in-repo source for Opus 4.6 pricing as of 2026-06-12; supply via mooter price-update. Likely same tier as Opus 4.7 ($5/$25) but not confirmed."
+      "pricing_note": "Filled 2026-08-25 from tools/router/pricing.js:46, where $5/$25 has stood since 2026-04-16 (commit 22ad1eea, 'verified Apr 2026 pricing'). The previous note here claimed 'No in-repo source for Opus 4.6 pricing as of 2026-06-12' — that was already false when written: the source predated it by two months. Consequence of the false pending: claude-opus-4-6 is the router's DEFAULT T3 model (pricing.js:155) and was excluded from decide-agent.ts's TES sort ('you cannot rank what you cannot price'), reachable only through the tier heuristic and flagged pending there (decide-agent.ts:165). No price was invented; it was copied from the in-repo SSOT.",
+      "pricing_no_lookahead": "Checked because filling a dated snapshot from a later source would be look-ahead bias. It is not: $5/$25 entered pricing.js on 2026-04-16, which PRECEDES this snapshot's own date of 2026-05-27. The value was knowable at snapshot time; it was omitted, not unavailable. Same basis, too — this snapshot and pricing.js are both standard per-MTok input/output with no caching, batch or fast-mode multipliers, and this file's `source` field already declares it was cross-checked against pricing.js."
     },
     "claude-opus-4-8": {
       "input_per_mtok": null,
@@ -33,7 +36,8 @@
       "output_per_mtok": null,
       "tier": "T5",
       "pricing_status": "pending",
-      "pricing_note": "Fable (Mythos) is opt-in only via @fable; pricing not publicly listed as of 2026-06-12. Supply via mooter price-update."
+      "pricing_note": "The old note said 'pricing not publicly listed as of 2026-06-12'. That is no longer true: tools/router/pricing.js:65 carries $10/$50 (web-searched). The price is deliberately NOT copied here — see pricing_withheld_reason.",
+      "pricing_withheld_reason": "T5/Fable is opt-in only via @fable and must NEVER be auto-routed (CLAUDE.md tier ladder). tools/router/pricing.js:62-65 gives Fable a price and NO tier on purpose — 'priceable, not routable'. This snapshot, by contrast, does give it \"tier\": \"T5\", and decide-agent.ts reads that field (decide-agent.ts:91,100) and ranks T5 alongside T3. Pricing it here without first resolving that tier field could make Fable reachable by a cost-ranked sort. Reconciling the two is a product/architecture call for the owner (MEO), not a cleanup edit — left pending on purpose, with the reason declared so the freshness gate does not flag it as an accidental omission."
     },
     "gpt-5": {
       "input_per_mtok": null,

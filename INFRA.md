@@ -177,7 +177,7 @@ quando o que o produto promete muda. Tags de componente usam prefixo próprio
 `v<dígito>`. Histórico da dor: o sync nasceu porque `version.json` ficou em 1.6.0 com as tags em 1.21.x;
 a mesma classe de drift reapareceu em 2026-07-16 com a landing em 1.39.0 contra o router em 1.44.0 —
 por isso o workflow passou a escrever os dois ficheiros no mesmo run. Regra do 2.0: `v2.0.0` é tag
-**depois** do gate humano, nunca antes (ver `_handoff/MOOTER_20_RELEASE_GATE.md`).
+**depois** do gate humano, nunca antes (ver `_handoff/_archive/2026-07/MOOTER_20_RELEASE_GATE.md`).
 
 ---
 

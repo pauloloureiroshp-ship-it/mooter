@@ -143,7 +143,7 @@ lista completa no findings doc.
 ## 5. Comboio de execução — plano "produção perfeita" W0→W6 (2026-07-09/10)
 
 **Fonte executável:** `_handoff/LIVE_PREVIEW_FABLE5_MASTER_HANDOFF.md` §2.97 (waves) + §2.96 (spec F3).
-**Régua de aceitação:** checklist §5 A-E de `_handoff/LIVE_PREVIEW_COWORK_PERFECT_HANDOFF.md`.
+**Régua de aceitação:** checklist §5 A-E de `_handoff/_archive/2026-07/LIVE_PREVIEW_COWORK_PERFECT_HANDOFF.md`.
 
 | Wave | Conteúdo | Estado | Gate humano |
 |---|---|---|---|
