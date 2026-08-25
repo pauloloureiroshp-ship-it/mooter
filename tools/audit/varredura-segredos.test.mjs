@@ -105,7 +105,9 @@ test('corpo PEM na MESMA linha do cabecalho tambem conta', () => {
 // ── caminhos pessoais ───────────────────────────────────────────────────────
 
 test('caminho pessoal e apanhado e o utilizador vem redigido', () => {
-  const a = acharPessoais('docs/x.md', 'ver /Users/pauloloureiro_mac_mini/frugal');
+  // Caminho neutro de proposito: o ratchet do rebrand conta ficheiros de codigo
+  // vivo que mencionam a marca antiga, e uma fixture nao e razao para o subir.
+  const a = acharPessoais('docs/x.md', 'ver /Users/pauloloureiro_mac_mini/projecto');
   assert.equal(a.length, 1);
   assert.equal(a[0].type, 'caminho-pessoal-macos');
   assert.ok(!a[0].preview.includes('pauloloureiro_mac_mini'),
@@ -118,7 +120,7 @@ test('utilizadores genericos do CI nao sao caminhos pessoais', () => {
 });
 
 test('acharPessoais reporta a linha certa em ficheiros multilinha', () => {
-  const a = acharPessoais('x.md', 'linha um\nlinha dois\nver C:\\Users\\Paulo\\frugal');
+  const a = acharPessoais('x.md', 'linha um\nlinha dois\nver C:\\Users\\Paulo\\projecto');
   assert.equal(a.length, 1);
   assert.equal(a[0].line, 3);
 });
