@@ -481,15 +481,70 @@ export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.ho
  * Corre todas as verificações. Nunca lança: uma verificação que rebenta vira
  * `n/d` com o motivo, porque o alarme não pode ser a coisa que parte.
  */
+/**
+ * A âncora do modo ANCORADO: nunca gerada, ou gerada e vazia?
+ *
+ * Estas duas coisas eram indistinguíveis, e a diferença custou o modo inteiro.
+ * Medido a 2026-08-25: `ancorado` correu ZERO vezes em 10 624 recibos — não por
+ * estar partido, por nunca ter tido entrada. O `ancora-achados.json` não existia
+ * e nada no repositório o escrevia. O `readAnchor` devolve `[]` numa ausência (de
+ * propósito, para não parar uma ronda) e a escada caía em silêncio para `caça`.
+ *
+ * Nenhum ecrã dizia a diferença, porque não havia onde a dizer. Agora há: o
+ * `ancora.mjs` escreve um manifesto ao lado, e é ele que esta verificação lê.
+ *
+ * ⚠️ Uma âncora VAZIA não é um alerta. Hoje ela está vazia por medição — sete
+ * regras candidatas, nenhuma passou o portão de existência — e um aviso por um
+ * estado decidido seria ruído de rotina, que é o erro que este ficheiro já
+ * corrigiu duas vezes noutros sítios. O que É alerta é nunca ter corrido.
+ */
+export function verAncora(mooDir, { readImpl = fs.readFileSync } = {}) {
+  let m = null;
+  try {
+    const o = JSON.parse(readImpl(path.join(mooDir, 'ancora-manifesto.json'), 'utf8'));
+    m = o && typeof o === 'object' && !Array.isArray(o) ? o : null;
+  } catch { m = null; }
+
+  if (m === null) {
+    return {
+      id: 'ancora', estado: AVISO, o_que: 'âncora do modo ancorado',
+      valor: 'nunca gerada',
+      porque: 'sem manifesto não se distingue "âncora vazia" de "âncora que ninguém escreveu" — e foi essa confusão que deixou o modo ancorado a zero rondas em 10 624',
+      resolver: 'node tools/cockpit/runner/ancora.mjs',
+    };
+  }
+
+  const activas = Array.isArray(m.regras_activas) ? m.regras_activas.length : 0;
+  const apontamentos = Number.isSafeInteger(m.apontamentos) && m.apontamentos >= 0 ? m.apontamentos : null;
+  if (apontamentos === null) {
+    return {
+      id: 'ancora', estado: ND, o_que: 'âncora do modo ancorado',
+      porque: 'manifesto sem contagem legível — não invento o número que ele devia ter',
+      resolver: 'node tools/cockpit/runner/ancora.mjs',
+    };
+  }
+
+  return {
+    id: 'ancora', estado: OK, o_que: 'âncora do modo ancorado',
+    valor: `${apontamentos} apontamentos · ${activas} regra(s) activa(s)`,
+    porque: activas === 0
+      ? 'vazia POR DECISÃO: nenhuma regra candidata passou o portão de existência — e agora isso está escrito, em vez de ser silêncio'
+      : 'gerada pelo produtor, e o manifesto diz quando e com o quê',
+    resolver: null,
+  };
+}
+
 export function autoVerificar({ paths, mooDir, vaultDir, beaconFile, repoRoot, agora, env } = {}) {
+  const casa = mooDir || path.join(os.homedir(), '.mooter');
   const testes = [
     () => verCodigo(repoRoot || process.cwd()),
     () => verConector(repoRoot || process.cwd()),
     () => verLedger(paths || {}),
     () => verIndiceDoVault(vaultDir),
     () => verBeacon(beaconFile, { agora, env }),
-    () => verProjectoActivo(mooDir || path.join(os.homedir(), '.mooter')),
-    () => verPreferencias(mooDir || path.join(os.homedir(), '.mooter')),
+    () => verProjectoActivo(casa),
+    () => verPreferencias(casa),
+    () => verAncora(casa),
   ];
   const itens = [];
   for (const t of testes) {
