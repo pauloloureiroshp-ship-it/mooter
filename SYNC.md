@@ -5,10 +5,10 @@
 ## Cabeçalho
 
 - versão instalada: 1.49.4
-- HEAD: e96df724d7890007989e7964dfe998322a836f33
+- HEAD: ad0deaede95ebc0404a4b6d09dab5f79e4f13457
 - branch: mac/sistema-sync-2026-08-25
 - remoto: n/d (porque não foi possível determinar o upstream: fatal: no upstream configured for branch 'mac/sistema-sync-2026-08-25')
-- gerado_em: 2026-08-25T20:11:38.000Z (derivado do último facto observado; não do relógio da execução)
+- gerado_em: 2026-08-25T20:17:14.000Z (derivado do último facto observado; não do relógio da execução)
 
 ## Entregas
 
@@ -109,31 +109,24 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 
 ---
 
-<!-- frota Ed25519 — metade feita, metade bloqueada em CODIGO, nao em gesto -->
-### ⏳ Migrar a frota para Ed25519 — **1 de 2 devices** (2026-08-24)
+<!-- frota Ed25519 — FECHADO 2026-08-25: 2 de 2 -->
+### ✅ Frota em Ed25519 — **2 de 2 devices** (fechado 2026-08-25)
 
-**Feito · `mac-mini-de-paulo`.** Inscrito no `50-fleet/trusted-devices.json`
-(vault `f981831`), a assinar `Ed25519-v1`, kid `bb8ed09958167518`, `ancora:
-registo`. A privada vive em `~/.mooter/device-ed25519.key` e nunca sai da
-maquina; o vault so carrega a publica — e e essa a diferenca que esta fase
-compra face a `.owner.key`, que cai no `*.key` do `.gitignore` e nunca viajou.
+O item dizia "1 de 2, bloqueado no PC" desde 24/08. Medido hoje com
+`readBeacons`: **`prova_frota: true`**, `verificados: 2`, `por inscrever: []`,
+`rejeitados: 0`, os dois com `ancora: registo`. Os dois beacons assinam
+`Ed25519-v1` (`bb8ed099…` / `1ec7458f…`) e ambos estao em
+`50-fleet/trusted-devices.json`. O PC puxou o codigo e inscreveu-se entretanto;
+ninguem fechou o item. A privada de cada device nunca sai da maquina — o vault
+so carrega publicas, e e essa a diferenca face a `.owner.key`, que nunca viajou
+e nao sobrevive a perda da maquina (`docs/strategy/DR_VAULT.md`).
 
-**Bloqueado · `desktop-j26409q`.** Nao falta um gesto: falta **codigo naquela
-maquina**. Medido no beacon dela: `sha_carregado 15280a66` (anterior ao #354),
-`sig.alg HMAC-SHA256-v1`, **sem `kid`**. Nao ha `frota:chave` para correr la
-antes de um `git pull`.
+Multi-user (chave por PESSOA acima da de device) e desenho, sem codigo:
+`docs/strategy/IDENTIDADE_MULTI_USER.md`.
 
-Ordem para fechar, **no PC**: `git pull` → reiniciar o cockpit →
-`npm run frota:chave -- --inscrever` (imprime a publica; nao e segredo) → na
-maquina do vault `--inscrever-device desktop-j26409q <pub>` → **rever o
-`git diff` do `trusted-devices.json` e commitar** → reiniciar. O comando nao
-commita de proposito: a lista de quem a frota acredita revê-se num `git diff`,
-senao qualquer processo com escrita no vault inscrevia-se a si proprio.
-
-`prova_frota` continua `false`, e esta certo — *"so um device verifica"*. O
-`true` honesto so chega com o segundo inscrito. Efeito colateral aceite: o
-painel do PC, em codigo antigo, passa a ver o beacon do Mac como
-`alg-desconhecido` em vez de `adulterado` — ja o rejeitava, muda a mensagem.
+**Aberto, medido 2026-08-25 20:1x:** o beacon do `desktop-j26409q` tinha **66
+min** (tecto: 30) — `morto` pela politica de frescura. Ou o loop la parou, ou o
+publicador parou de empurrar.
 
 <!-- suite do router — RESOLVIDO 2026-08-25 -->
 ### ✅ A suite `tools/router` ja conta sempre o mesmo (fechado 2026-08-25)

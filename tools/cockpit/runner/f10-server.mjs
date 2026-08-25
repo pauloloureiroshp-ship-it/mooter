@@ -19,6 +19,7 @@ import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
 import { resolveRepoRoot, projectPaths, versaoDoConector, repoSha } from './project.mjs';
 import { anotarFrota } from './rotulos-da-frota.mjs';
+import { metricaMae, quotaPorMotor } from './metrica-mae.mjs';
 
 /**
  * O sha que o RUNNER carregou, lido do estado que ele escreve.
@@ -525,6 +526,29 @@ export function createServer({
       // A autenticidade do canal e um facto do painel, nao um detalhe: sem ela
       // "a frota diz X" vale exactamente o que valer quem escreve na pasta.
       saude.autenticacao = f.autenticacao;
+      /**
+       * A METRICA-MAE, do ledger de decisoes do router.
+       *
+       * E o par que a concorrencia publica (RouteLLM): que fraccao das chamadas
+       * subiu ao modelo forte, contra que fraccao da qualidade se manteve.
+       * Aqui so a PRIMEIRA metade tem dados — a segunda sai `n/d` com o motivo,
+       * porque o `decisions_v2.jsonl` nao regista qualidade por decisao e o
+       * unico sinal de qualidade do sistema pertence a outra populacao.
+       * Cruza-los daria um numero publicavel e inventado.
+       *
+       * Best-effort por desenho: se o ledger do router nao existir nesta
+       * maquina, o campo sai `n/d` e o resto do /saude.json continua igual —
+       * uma metrica nao pode derrubar a auto-verificacao.
+       */
+      try {
+        const dv = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions_v2.jsonl');
+        const linhas = fs.readFileSync(dv, 'utf8').split('\n');
+        saude.metrica_mae = metricaMae(linhas);
+        saude.quota_por_motor = quotaPorMotor(linhas).slice(0, 7);
+      } catch (e) {
+        saude.metrica_mae = { total: 0, porque: `sem decisions_v2.jsonl legivel: ${String(e && e.message).slice(0, 80)}` };
+        saude.quota_por_motor = [];
+      }
       return sendJson(res, 200, saude);
     }
 
