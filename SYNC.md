@@ -562,3 +562,37 @@ não liga o modo**, e essa decisão continua por tomar.
 — a primeira deste repositório.
 
 gate: 806 testes · 805 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (fecho 5) · os 28 defeitos corrigidos, e a causa comum que ficou — #385
+
+O PR #385 tocou **28 ficheiros** com **596 inserções** e **134 remoções**.
+
+Os **28** são exactamente os achados reais da amostra que passou o portão de existência: **84** candidatos, **40** lidos à mão, **70%** de precisão.
+
+**23** foram corrigidos com `null` e os chamadores actualizados a mostrar **n/d**. Os restantes **5** receberam uma falha **visível** (aviso em `stderr`, valor neutro mantido).
+
+Estes **5** não são desistência. Forçar `null` obrigava a guardas em **8–9** sítios e alterava contratos exportados. Uma degradação anunciada é preferível a uma silenciosa.
+
+**docs-hygiene.js:31** era o pior caso: um `_handoff/` ilegível devolvia `[]` e o ratchet lia a maior melhoria de sempre; um `--update-baseline` gravaria esse zero fabricado. Agora distingue `ENOENT` (medição real) de outros erros (ignorância -> **n/d**).
+
+**badge.js:86** devolvia `0` de poupança quando o pricing não carregava, indistinguível de "T3, não há poupança". Passou a `saved n/d`.
+
+**gsd-statusline.js:380** com perfil ilegível desenhava a mesma linha de quem não tem plano. Ganhou o chip `subs n/d`.
+
+Verificação:
+
+| suite | total | pass | fail |
+|---|---|---|---|
+| cockpit-runner | 806 | 805 | 0 |
+| mooter-bridge | 1090 | 1089 | 0 |
+| tools/router | 1158 | 1151 | 6 |
+
+As **6** falhas do router são pré-existentes. O mesmo comando em `main`, sem o patch, dá o conjunto de nomes idêntico (diff vazio). Zero regressões.
+
+A statusline corre a cada turno do dono: testada com payload real, 6 linhas, exit 0. Os **13** módulos tocados carregam. O único que rebenta (`update-metrics` em require nu) rebenta igual em `main`.
+
+Trabalho feito por **14** agentes em paralelo, um dono exclusivo por ficheiro.
+
+**Fica por fazer:** **seamless.js:405** tem o mesmo padrão no `ledgerRead` e é ele que engole o caso comum (ficheiro em falta, corrompido, permissão negada). Os `catch` corrigidos estão um andar acima e só disparam com injecção.
+
+gate: 806/805/0 cockpit · 1090/1089/0 bridge · 1158/1151/6 router (6 pré-existentes, diff vazio contra main) · classify.js `427d8c0b` intacto
