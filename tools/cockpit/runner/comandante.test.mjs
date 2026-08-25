@@ -156,3 +156,54 @@ test('os tectos por omissao sao os do scheduler, nao inventados aqui', () => {
   assert.equal(DEFAULT_CAPS.globalHumanQueue, 6);
   assert.equal(DEFAULT_CAPS.perLoopOpen, 3);
 });
+
+/**
+ * O IMPASSE DA JANELA — 2026-08-25, e a terceira vez que esta CLASSE aparece.
+ *
+ * `decidirRonda` lia o ledger com o seu proprio `readFileSync`, sem janela,
+ * enquanto o `readLedger` (painel e tique do nivel 1) usa `maxLines = 5000`.
+ * Duas leituras do mesmo ficheiro, com fronteiras diferentes, a responder a
+ * mesma pergunta. Medido no dia em que o L1 foi ligado:
+ *
+ *   L1 e painel viam   fila  20   (janela)
+ *   o runner contava   fila 101   (ficheiro inteiro)
+ *
+ * O runner pausa acima de 50 => pausava PARA SEMPRE, porque o L1 nao consegue
+ * fechar o que a janela dele nao mostra. Nao era espera; era impasse.
+ *
+ * As outras duas da mesma classe, no mesmo dia: `porTriar` vs `contarTriagem`
+ * (232 contra 219) e `jaDoDono` do ficheiro contra o do portao. Corrigir a
+ * instancia nunca fechou a classe — o que a fecha e TODOS lerem pela mesma
+ * porta, e e isso que este teste tranca.
+ */
+test('IMPASSE DA JANELA: o runner conta a fila na MESMA janela que o L1', async () => {
+  const { readLedger } = await import('./fleet-state.mjs');
+  const { porTriar } = await import('./triagem.mjs');
+
+  // 6000 achados: mais do que a janela de 5000, para as duas leituras diferirem
+  // se alguem voltar a ler o ficheiro inteiro.
+  const linhas = Array.from({ length: 6000 }, (_, i) => JSON.stringify({
+    ts: '2026-08-20T12:00:00Z', pilar: 'P2', chave: `k${i}`,
+    ficheiro: 'tools/x.js', janela: '1-9', verdict: 'citacao-ok', conclusao: 'achado',
+    evidencia: 'tools/x.js:1 => n = 5', resultado_resumo: 'ACHADO: x',
+  })).join('\n');
+  const readImpl = () => linhas;
+
+  const { receipts } = readLedger('/qualquer', { readImpl });
+  assert.equal(receipts.length, 5000, 'a janela e 5000 — se isto mudar, o teste tem de mudar com ela');
+
+  const decisoes = new Map();
+  const filaDoL1 = porTriar(receipts, decisoes, Number.MAX_SAFE_INTEGER).length;
+  const filaDoRunner = filaHumana(estatisticasDosLoops(receipts, decisoes, ['P2']));
+
+  assert.equal(filaDoRunner, filaDoL1,
+    `o runner conta ${filaDoRunner} e o L1 ${filaDoL1} — duas contagens do mesmo numero e o impasse de volta`);
+
+  // E a prova de que a janela importa: ler o ficheiro inteiro daria outro numero.
+  const inteiro = readLedger('/qualquer', { readImpl, maxLines: Number.MAX_SAFE_INTEGER }).receipts;
+  assert.equal(inteiro.length, 6000);
+  assert.notEqual(
+    filaHumana(estatisticasDosLoops(inteiro, decisoes, ['P2'])), filaDoL1,
+    'se ler o ficheiro inteiro desse o mesmo, este teste nao provava nada',
+  );
+});
