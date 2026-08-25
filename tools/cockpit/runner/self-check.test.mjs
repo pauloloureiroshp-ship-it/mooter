@@ -12,12 +12,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   verLedger, verIndiceDoVault, verBeacon, verProjectoActivo, verPreferencias,
   autoVerificar, LEDGER_TECTO_MB, BEACON_VELHO_MIN,
   provaDePublicacao, JANELA_DO_PUBLICADOR_MIN,
-  verCodigo, verConector,
+  verCodigo, verConector, projectoActivo,
 } from './self-check.mjs';
 
 const MB = 1024 * 1024;
@@ -363,4 +364,85 @@ test('verBeacon: com a publicacao DESLIGADA avisa sem consultar o git', () => {
   });
   assert.equal(r.estado, 'aviso');
   assert.equal(tocou, false, 'sem publicacao ligada nao ha nada que o git possa provar');
+});
+
+// ── item 6 · a precedência do projecto activo (2026-08-25) ─────────────────
+// Havia duas fontes e nenhum árbitro: o `resolver` mandava o dono decidir, e o
+// código continuava a não saber. Medido nesta máquina: `cowork-session.json`
+// ficou nove dias a afirmar um projecto que já não era o activo, e foi preciso
+// um humano realinhá-lo. A precedência é a FRESCURA, e está nos dados.
+
+test('precedência: ganha o ficheiro mais recentemente actualizado, e diz-se qual', () => {
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.endsWith(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT ' + k);
+  };
+  const r = projectoActivo('/m', { readImpl: ler({
+    'cowork-session.json': { project: 'velho', bound_at: '2026-08-16T14:47:23.334Z' },
+    'sessoes/mooter.json': { projecto: 'novo', actualizada_em: '2026-08-25T14:54:59.273Z' },
+  }) });
+  assert.equal(r.projecto, 'novo');
+  assert.equal(r.fonte, 'sessoes/mooter.json');
+  assert.match(r.porque, /frescura/);
+});
+
+test('precedência: e ganha nos DOIS sentidos — não é uma preferência disfarçada', () => {
+  // Se o `cowork-session.json` for o mais fresco, é ele que vale. Um árbitro
+  // que escolhe sempre o mesmo ficheiro não é um árbitro, é um favorito.
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.endsWith(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT');
+  };
+  const r = projectoActivo('/m', { readImpl: ler({
+    'cowork-session.json': { project: 'realinhado', realigned_at: '2026-08-26T09:00:00.000Z' },
+    'sessoes/mooter.json': { projecto: 'antigo', actualizada_em: '2026-08-25T14:54:59.273Z' },
+  }) });
+  assert.equal(r.projecto, 'realinhado');
+  assert.equal(r.fonte, 'cowork-session.json');
+});
+
+test('precedência: sem datas comparáveis, o desempate é DECLARADO e não silencioso', () => {
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.endsWith(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT');
+  };
+  const r = projectoActivo('/m', { readImpl: ler({
+    'cowork-session.json': { project: 'a' },
+    'sessoes/mooter.json': { projecto: 'b' },
+  }) });
+  assert.equal(r.projecto, 'b', 'vale o que o runner actualiza sozinho');
+  assert.match(r.porque, /desempate declarado/,
+    'um desempate que não se anuncia lê-se como uma medição');
+});
+
+test('a divergência continua a ser MAU — ter árbitro não a torna aceitável', () => {
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.endsWith(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT');
+  };
+  const v = verProjectoActivo('/m', { readImpl: ler({
+    'cowork-session.json': { project: 'velho', bound_at: '2026-08-16T00:00:00.000Z' },
+    'sessoes/mooter.json': { projecto: 'novo', actualizada_em: '2026-08-25T00:00:00.000Z' },
+  }) });
+  assert.equal(v.estado, 'mau', 'baixar isto a aviso calava um alarme por o ter resolvido a meio');
+  assert.match(v.porque, /vale «novo»/, 'mas já não é sorte: diz qual vale e porquê');
+  assert.match(v.resolver, /alinha o outro/);
+});
+
+test('as duas fontes a concordar continuam OK', () => {
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.endsWith(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT');
+  };
+  const v = verProjectoActivo('/m', { readImpl: ler({
+    'cowork-session.json': { project: 'mooter-gpu-local-strategy', bound_at: '2026-08-16T00:00:00.000Z' },
+    'sessoes/mooter.json': { projecto: 'mooter-gpu-local-strategy', actualizada_em: '2026-08-25T00:00:00.000Z' },
+  }) });
+  assert.equal(v.estado, 'ok');
+  assert.equal(v.valor, 'mooter-gpu-local-strategy');
 });

@@ -113,8 +113,21 @@
   .dev.morto{opacity:.5;filter:grayscale(1)}
   .dev .hd{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:5px}
   .dev .hd .chip{flex:0 1 auto;white-space:normal}
-  .dev .nm{min-width:5em}
-  .dev .nm{font:600 13.5px var(--sans);flex:1 1 auto;overflow-wrap:anywhere}
+  /* O nome de um device e a sua identidade, e por isso e a coisa do cartao que
+     nunca se pode ler mal. Medido 2026-08-25 com `desktop-j26409q`: o span saiu
+     8px de largura por 233px de altura — uma letra por linha, dentro de um
+     cartao de 233px. A causa e `overflow-wrap:anywhere`, que faz o tamanho
+     min-content do texto valer UM CARACTER; num item flex com `flex-shrink:1`
+     isso autoriza-o a encolher ate la.
+     Tres propriedades, e as tres sao precisas:
+       min-width  — o piso que o `overflow-wrap` acima destruiu (ja la estava
+                    desde 6e216696; sozinho so troca 1 letra por linha por 5);
+       ellipsis   — uma linha, cortada com reticencias, em vez de N linhas;
+       o `title`  — porque cortar sem dar como ler o resto e esconder, e o nome
+                    e justamente o que distingue duas maquinas no mesmo painel.
+     O `title` e posto no JS (`renderFleet`), que e onde o nome existe. */
+  .dev .nm{font:600 13.5px var(--sans);flex:1 1 auto;min-width:5em;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dev .meta{font-size:12px;color:var(--ink-2);line-height:1.5}
   .dev .meta b{font-family:var(--mono);font-weight:600;color:var(--ink)}
 
@@ -461,6 +474,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   const POLL_MS = 3000;
   const FETCH_TIMEOUT_MS = 6000;    // a hung endpoint must fail, not hang the page
   const OWN_STALE_MS = 12000;       // the page's own clock, independent of the server
+  /** A partir daqui o rodape DIZ a idade dos dados em vez de a esconder. */
+  const FOOT_STALE_MS = 60000;
   const SPARK_MAX = 80;
   const CONFIRM_TRIES = 5;          // how long we wait for a control to take effect
   // Measured on a real panel: 46 triage cards, 138 buttons, page 11251px tall,
@@ -709,9 +724,31 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     if (changed('feed', state.feed))       renderFeed(state.feed);
     if (changed('triagem', [state.por_triar, state.triagem])) renderTriagem(state);
 
+    /**
+     * O rodape dizia `screen updated <agora>` — o relogio do RENDER, nao a
+     * idade dos DADOS. E render() corre a cada 3 s: o carimbo avancava sempre,
+     * inclusive nas 5 h em que o corpo do painel mostrou o estado das 12:09
+     * rotulado `source live` (medido 2026-08-25). Um carimbo que nunca envelhece
+     * nao e um carimbo, e um enfeite — e era o unico sitio onde o dono podia ter
+     * dado pela avaria.
+     *
+     * Passa a dizer a idade do ULTIMO FETCH BEM SUCEDIDO. Abaixo de 60 s cala-se
+     * (seria ruido de rotina, o erro que este painel ja corrigiu noutros sitios);
+     * a partir dai diz a idade e a hora a que os dados chegaram. E `source` deixa
+     * de poder afirmar `live` sobre dados velhos: dados de ha uma hora nao sao
+     * ao vivo, por mais que a ligacao esteja de pe.
+     */
+    const idadeMs = lastFetchAt > 0 ? Date.now() - lastFetchAt : null;
+    const velho = idadeMs != null && idadeMs > FOOT_STALE_MS;
+    const fonte = !live ? 'saved snapshot' : velho ? 'live connection, STALE data' : 'live';
     $('foot').textContent =
       `connector ${state.conector || 'n/a'} in this checkout · owner timezone ${state.owner_tz || 'n/a'} · `
-      + `source ${live ? 'live' : 'saved snapshot'} · screen updated ${new Date().toLocaleTimeString()}`;
+      + `source ${fonte} · `
+      + (idadeMs == null
+          ? 'no successful fetch yet'
+          : velho
+            ? `data is ${ago(Math.round(idadeMs / 1000))} old — arrived at ${new Date(lastFetchAt).toLocaleTimeString()}`
+            : `data ${Math.round(idadeMs / 1000)}s old`);
   }
 
   function renderGpu(gpu) {
@@ -782,10 +819,36 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       // tecto da fila aparecia toda a cinzento, e o dono nao tinha como saber
       // se tinha 3 maquinas obedientes ou 3 maquinas avariadas.
       const emPausa = Boolean(d.pausa && d.pausa.activa);
-      const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' && !emPausa ? ' morto' : ''}`);
+      // A classe `morto` (cinzento) segue o BEACON, nao a pausa. Ate aqui um
+      // device em pausa cujo sinal morreu ficava a cores, como se estivesse bem.
+      const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' ? ' morto' : ''}`);
       const hd = el('div','hd');
-      hd.appendChild(el('span','nm', d.device + (d.self ? ' · this one' : '')));
-      const cls = fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
+      // O nome vai cortado com reticencias no CSS; o `title` e o que o torna
+      // legivel na mesma. Sem ele, dois devices com prefixo comum ficavam
+      // indistinguiveis — e distinguir devices e para o que este cartao serve.
+      const nome = d.device + (d.self ? ' \u00b7 this one' : '');
+      const spanNome = el('span','nm', nome);
+      spanNome.title = nome;
+      hd.appendChild(spanNome);
+      /**
+       * Um beacon MORTO manda no cartao, mesmo que o ultimo estado dissesse
+       * pausa. Medido 2026-08-25: o PC aparecia com a pill laranja
+       * `holding · <razao>` e SEM idade nenhuma, com o beacon a 3592 s.
+       *
+       * A distincao que faltava: `pausa.activa` e uma afirmacao SOBRE O
+       * INSTANTE EM QUE O BEACON FOI ESCRITO. Num beacon de ha uma hora, ela
+       * quer dizer "ha uma hora este device estava em pausa" — e nao "este
+       * device esta em pausa". O ramo da pausa existia para nao pintar de
+       * vermelho um device obediente, e isso continua certo enquanto o beacon
+       * for recente; deixa de o ser quando o proprio sinal morreu.
+       *
+       * Nao chega o `pausa.obsoleta`: esse mede a idade da PAUSA, nao a do
+       * BEACON. Um device que morreu com uma pausa acabada de declarar tem a
+       * pausa fresca e o sinal morto, e caia exactamente aqui.
+       */
+      const beaconMorto = fr.estado === 'morto';
+      const cls = beaconMorto ? 'dead'
+                : fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : emPausa ? 'warn'
                 : fr.estado === 'stale' ? 'warn' : 'dead';
       // Uma pausa OBSOLETA volta a contar como morte — mas diz que morreu em
@@ -793,11 +856,18 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       // tres dias cujo ultimo estado dizia pausa aparecia laranja e sem a classe
       // `morto`: o defeito tinha trocado de lado, nao fechado.
       const pausaVelha = Boolean(d.pausa && d.pausa.obsoleta);
-      hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`,
-        fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
+      // A IDADE primeiro, sempre que o sinal morreu. O que ele estava a fazer
+      // quando morreu vai a seguir, como contexto — nunca como manchete.
+      const textoChip = beaconMorto
+        ? (fr.idade_s == null
+            ? `no signal — ${fr.motivo || 'no timestamp'}`
+            : `no signal for ${ago(fr.idade_s)}`
+              + (emPausa ? ` · was holding (${d.pausa.razao || 'queue full'})` : ''))
+        : fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
           : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
             : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
-              : (fr.motivo || fr.estado)));
+              : (fr.motivo || fr.estado);
+      hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`, textoChip));
       box.appendChild(hd);
 
       const meta = el('div','meta');
@@ -827,6 +897,16 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         hunt.append(document.createTextNode(d.running ? 'hunting ' : 'parked on '));
         hunt.appendChild(el('b', null, pilarId));
         if (spec && spec.label) hunt.append(document.createTextNode(' \u2014 ' + spec.label));
+      } else if (emPausa) {
+        // Nao e uma lacuna do beacon: e um device que nao esta a cacar nada.
+        // Medido 2026-08-25 nos beacons reais do vault — o PC (`win32`) e o
+        // `paulo-desktop` (`linux`) trazem `pilar_atual:null` E
+        // `pausa.activa:true` com `razao:"no eligible loop"`. O schema deles e
+        // IDENTICO ao do mac; o que difere e o estado. Dizer "no pillar
+        // reported in this beacon" mandava procurar um defeito de telemetria
+        // que nao existe — e escondia o que se passa mesmo, que e a fila.
+        hunt.appendChild(el('span','nd',
+          'not hunting — ' + (d.pausa.razao || 'paused')));
       } else {
         hunt.appendChild(el('span','nd','no pillar reported in this beacon'));
       }
@@ -955,6 +1035,33 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     head.appendChild(el('span','sub',
       'finding(s) declared, out of ' + citacoes + ' cited line(s), out of ' + rondas + ' round(s)'
       + (Number.isFinite(achados) && decididos !== null ? ' \u00b7 ' + decididos + ' triaged so far' : '')));
+    /**
+     * ESTES NUMEROS SAO DE UMA JANELA, e ate aqui isso nao estava escrito em
+     * lado nenhum.
+     *
+     * O achado de 2026-08-25 dizia "apos triagem, achados reconciliou 828->827 e
+     * descartado +1 (esperado +2)" e mandava procurar um defeito de escrita no
+     * `triagem.json`. Medido: nao ha. O `contarTriagem` cruza as decisoes com os
+     * recibos da JANELA do ledger (5000 linhas) e so conta as que ainda
+     * correspondem a um achado dentro dela — esta neste repo, em comentario, no
+     * `f10-server.mjs`. Nesta maquina o `runner-ledger.jsonl` tem 5492 linhas:
+     * ha 492 recibos FORA da janela agora mesmo, e a decidir sobre um deles o
+     * total nao mexe.
+     *
+     * Ou seja o contador estava certo e o rotulo e que estava incompleto. Um
+     * numero que se move sem explicacao le-se como avaria — e custou uma
+     * investigacao a um defeito que nao existia. O campo `ledger` ja viajava com
+     * `{linhas, janela, truncado}`; so faltava dize-lo aqui.
+     */
+    const lg = s.ledger || {};
+    if (lg.truncado && Number.isFinite(Number(lg.linhas)) && Number.isFinite(Number(lg.janela))) {
+      const fora = Number(lg.linhas) - Number(lg.janela);
+      head.appendChild(el('br'));
+      head.appendChild(el('span','nd',
+        'counted over the last ' + lg.janela + ' ledger lines of ' + lg.linhas
+        + ' \u2014 ' + fora + ' older receipt(s) are outside this window, so deciding on one '
+        + 'of them does not move these totals'));
+    }
     const funil = el('div','y-funnel');
     for (const [n, rot, nota] of [
       [rondas, 'rounds', 'the GPU ran'],
