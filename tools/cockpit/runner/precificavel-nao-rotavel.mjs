@@ -50,27 +50,42 @@
  * medido; todos os outros sao heuristicos e portanto nao-ordenaveis. Basta-lhe
  * um preco para ganhar a categoria inteira sozinho.
  *
- * ── ONDE O INVARIANTE DEVIA VIVER, E PORQUE VIVE AQUI ────────────────────────
+ * ── O ARAME PAGOU-SE: 2026-08-25, o invariante mudou-se para o motor ─────────
  *
- * O sitio certo e uma exclusao explicita dentro do `decideAgent`. Nao ha
- * nenhuma: verificado por grep, o motor nao conhece "T5" a nao ser como mais um
- * valor da tabela heuristica. Mas `packages/router/src/decide-agent.ts` e um
- * ficheiro de motor congelado — o allowlist de Wave 58 no `CLAUDE.md` autoriza
- * ADICOES a `packages/router/src/`, "new files only — no existing engine file
- * is modified". Alterar o motor exige uma entrada nova de allowlist e a
- * autorizacao do dono, que nao existe hoje.
+ * Ate essa data este ficheiro dizia, por extenso, que o sitio certo era uma
+ * exclusao dentro do `decideAgent` e que ela nao existia — verificado por grep,
+ * o motor nao conhecia "T5" a nao ser como mais um valor da tabela heuristica.
+ * O que faltava nao era a ideia, era a autorizacao: `decide-agent.ts` e motor
+ * congelado, e o allowlist de Wave 58 so cobria ficheiros NOVOS.
  *
- * Entao isto e o que da para fazer sem mentir: um ARAME que dispara no CI no
- * instante em que a violacao se tornaria possivel. Nao impede o motor de
- * escolher o Fable — declara, mecanicamente, que a condicao para ele o escolher
- * passou a estar reunida. E divida assumida, nao correccao.
+ * O dono autorizou a entrada de allowlist a 2026-08-25 e a exclusao existe:
+ * `OPT_IN_ONLY_MODELS` / `isOptInOnly()` em `decide-agent.ts`, aplicada ANTES
+ * dos portoes de `min_score` e de orcamento. Medido depois de a por la, com o
+ * Fable ja precificado a $10/$50 no snapshot: 0 das 24 categorias o escolhem;
+ * com a exclusao desligada, `reasoning.science` devolve-o com TES 3784.
+ *
+ * Isso muda a PERGUNTA deste modulo, e por isso ele nao foi apagado:
+ *
+ *   ANTES  "nenhum modelo nao-rotavel pode reunir preco + score medido"
+ *          — uma proibicao sobre os DADOS, que so se podia cumprir mantendo o
+ *          snapshot incompleto. Cumpria-se por omissao.
+ *
+ *   AGORA  "todo o modelo que reune preco + score medido e esta declarado
+ *          nao-rotavel no SSOT tem de estar coberto pela guarda do motor"
+ *          — uma exigencia sobre o CODIGO. Os dados podem finalmente estar
+ *          completos.
+ *
+ * A prova COMPORTAMENTAL (o motor recusa mesmo) vive onde o motor corre:
+ * `packages/router/tests/decide-agent.test.ts`. Este ficheiro guarda o flanco
+ * que essa suite nao ve — um modelo NOVO que chegue a condicao de violacao sem
+ * ninguem se ter lembrado de o cobrir.
  *
  * ── A REGRA, EM UMA LINHA ────────────────────────────────────────────────────
  *
  * Um modelo e auto-escolhivel pelo `decideAgent` quando tem (i) uma celula
- * medida com score numerico e (ii) um preco no snapshot. Nada mais. Logo: um
- * modelo que o SSOT declarou nao-rotavel nunca pode ter as duas coisas ao mesmo
- * tempo.
+ * medida com score numerico, (ii) um preco no snapshot e (iii) NAO estar
+ * coberto pela guarda de opt-in-only. Um modelo que o SSOT declarou
+ * nao-rotavel nunca pode ter as tres coisas ao mesmo tempo.
  *
  * Funcoes puras: recebem os objectos ja lidos, nao tocam no disco, nunca atiram.
  */
@@ -162,5 +177,61 @@ export function auditarRota(snapshot, precosVivos, celulas) {
     sem_tier_no_ssot: semTierNoSsot(precosVivos),
     tiers_nao_declarados: tiersNaoDeclarados(snapshot, precosVivos),
     rotaveis_por_engano: rotaveisPorEngano(snapshot, precosVivos, celulas),
+  };
+}
+
+// ── a guarda do motor, lida do motor ────────────────────────────────────────
+
+/**
+ * O roster `OPT_IN_ONLY_MODELS` declarado em `decide-agent.ts`, lido da FONTE.
+ *
+ * Ler o codigo em vez de o importar e deliberado: o motor e TypeScript e este
+ * modulo corre em `node --test` sem tsx. A alternativa — copiar a lista para
+ * aqui — criava uma segunda verdade sobre quem e opt-in-only, que e exactamente
+ * a classe de defeito que este ficheiro existe para apanhar.
+ *
+ * Devolve `null` quando nao consegue ler ou nao encontra a declaracao. `null`
+ * NAO e "lista vazia": quem chama tem de tratar os dois casos de forma
+ * diferente, senao a guarda desaparecer parece a guarda nao cobrir ninguem.
+ */
+export function rosterOptInOnly(fonteDecideAgent) {
+  if (typeof fonteDecideAgent !== 'string') return null;
+  const m = /OPT_IN_ONLY_MODELS\s*:\s*readonly\s+string\[\]\s*=\s*\[([^\]]*)\]/.exec(fonteDecideAgent);
+  if (!m) return null;
+  const ids = [...m[1].matchAll(/["']([^"']+)["']/g)].map((x) => x[1]);
+  return ids;
+}
+
+/**
+ * Dos modelos que REUNEM as duas condicoes de rotabilidade, quais e que a
+ * guarda do motor NAO cobre.
+ *
+ * Cobre-se por qualquer uma das duas vias que o `isOptInOnly()` usa — o roster
+ * nomeado OU `tier: "T5"` no snapshot. Aceitar as duas aqui nao e frouxidao: e
+ * espelhar a guarda real. Um portao que exigisse so uma delas acusaria como
+ * violacao um estado que o motor recusa na mesma.
+ */
+export function semGuardaNoMotor(rotaveis, roster, snapshot) {
+  const nomeados = new Set(roster ?? []);
+  const out = [];
+  for (const r of rotaveis ?? []) {
+    const modelo = typeof r === 'string' ? r : r.modelo;
+    if (nomeados.has(modelo)) continue;
+    if (snapshot?.models?.[modelo]?.tier === 'T5') continue;
+    out.push(modelo);
+  }
+  return out;
+}
+
+/** Relatorio unico, para o teste e para quem quiser imprimir. */
+export function auditarGuarda(snapshot, precosVivos, celulas, fonteDecideAgent) {
+  const rotaveis = rotaveisPorEngano(snapshot, precosVivos, celulas);
+  const roster = rosterOptInOnly(fonteDecideAgent);
+  return {
+    rotaveis,
+    roster,
+    // `null` propaga-se: sem roster legivel nao se pode dizer que alguem esta
+    // coberto, e o teste tem de falhar por AI, nao por lista vazia.
+    sem_guarda: roster === null ? null : semGuardaNoMotor(rotaveis, roster, snapshot),
   };
 }

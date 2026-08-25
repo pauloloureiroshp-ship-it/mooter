@@ -3,7 +3,7 @@
   "snapshot_version": "pricing-snapshot-2026-05-27",
   "last_verified_at": "2026-08-25",
   "last_verified_against": "tools/router/pricing.js (PRICES), last reviewed 2026-08-03. Every priced model here was compared field-by-field against that SSOT on 2026-08-25; sonnet-4-6 and haiku-4-5 matched unchanged, opus-4-6 was filled from it (see its note). This is a re-verification date, NOT a re-pricing: no price was changed to a value that is not in the SSOT, and snapshot_version is unchanged so benchmark reproducibility holds.",
-  "routability_gate": "tools/cockpit/runner/precificavel-nao-rotavel.test.mjs — a model the SSOT prices WITHOUT a tier ('priceable, not routable') must never hold BOTH a price here AND a measured benchmark cell: those are exactly the two conditions decide-agent.ts needs to rank it by TES and choose it without @fable. It is a tripwire, not a fix — the invariant belongs inside decideAgent, which is a frozen engine file.",
+  "routability_gate": "packages/router/tests/decide-agent.test.ts (behavioural) + tools/cockpit/runner/precificavel-nao-rotavel.test.mjs (coverage). A model the SSOT prices WITHOUT a tier ('priceable, not routable') MAY now hold both a price here and a measured benchmark cell — those two conditions are what decide-agent.ts needs to rank it by TES — PROVIDED the engine's opt-in-only guard covers it (OPT_IN_ONLY_MODELS / isOptInOnly, decide-agent.ts). Until 2026-08-25 this was a tripwire and not a fix: the invariant was held by leaving the price out, i.e. by an omission, because decide-agent.ts was a frozen engine file with no allowlist entry. The owner authorised that entry on 2026-08-25 (CLAUDE.md, Wave 58 allowlist), the exclusion moved into the engine, and the gate changed question: from 'the data must stay incomplete' to 'every model that reaches the condition must be covered by the guard'.",
   "freshness_gate": "tools/cockpit/runner/frescura-de-precos.test.mjs — fails when last_verified_at is older than 30 days, when a price here contradicts the live SSOT, or when a model is marked pending while the SSOT can price it. This file feeds a COST router (packages/router/src/decide-agent.ts:40), so staleness here is a silent wrong decision, not a cosmetic lag.",
   "source": "platform.claude.com/docs/en/about-claude/pricing (fetched 2026-05-27, cross-checked against tools/router/pricing.js)",
   "anthropic_pricing_url": "https://platform.claude.com/docs/en/about-claude/pricing",
@@ -15,12 +15,24 @@
     "Wave 58 Phase Seed (2026-06-12): added pending entries for models without in-repo price sources. These have input_per_mtok/output_per_mtok = null and pricing_status = 'pending'. computeCostMicros returns 0 (not NaN) for all pending models — the null guard in cost.ts already handles missing price entries. Prices must be supplied via 'mooter price-update' before these models can be accurately costed."
   ],
   "models": {
-    "claude-opus-4-7": { "input_per_mtok": 5.00, "output_per_mtok": 25.00, "tier": "T3" },
-    "claude-sonnet-4-6": { "input_per_mtok": 3.00, "output_per_mtok": 15.00, "tier": "T2" },
-    "claude-haiku-4-5": { "input_per_mtok": 1.00, "output_per_mtok": 5.00, "tier": "T1" },
+    "claude-opus-4-7": {
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0,
+      "tier": "T3"
+    },
+    "claude-sonnet-4-6": {
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0,
+      "tier": "T2"
+    },
+    "claude-haiku-4-5": {
+      "input_per_mtok": 1.0,
+      "output_per_mtok": 5.0,
+      "tier": "T1"
+    },
     "claude-opus-4-6": {
-      "input_per_mtok": 5.00,
-      "output_per_mtok": 25.00,
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0,
       "tier": "T3",
       "pricing_note": "Filled 2026-08-25 from tools/router/pricing.js:46, where $5/$25 has stood since 2026-04-16 (commit 22ad1eea, 'verified Apr 2026 pricing'). The previous note here claimed 'No in-repo source for Opus 4.6 pricing as of 2026-06-12' — that was already false when written: the source predated it by two months. Consequence of the false pending: claude-opus-4-6 is the router's DEFAULT T3 model (pricing.js:155) and was excluded from decide-agent.ts's TES sort ('you cannot rank what you cannot price'), reachable only through the tier heuristic and flagged pending there (decide-agent.ts:165). No price was invented; it was copied from the in-repo SSOT.",
       "pricing_no_lookahead": "Checked because filling a dated snapshot from a later source would be look-ahead bias. It is not: $5/$25 entered pricing.js on 2026-04-16, which PRECEDES this snapshot's own date of 2026-05-27. The value was knowable at snapshot time; it was omitted, not unavailable. Same basis, too — this snapshot and pricing.js are both standard per-MTok input/output with no caching, batch or fast-mode multipliers, and this file's `source` field already declares it was cross-checked against pricing.js."
@@ -33,13 +45,12 @@
       "pricing_note": "No in-repo source for Opus 4.8 pricing as of 2026-06-12; supply via mooter price-update."
     },
     "claude-fable-5": {
-      "input_per_mtok": null,
-      "output_per_mtok": null,
+      "input_per_mtok": 10.0,
+      "output_per_mtok": 50.0,
       "tier": "T5",
-      "pricing_status": "pending",
-      "pricing_note": "The old note said 'pricing not publicly listed as of 2026-06-12'. That is no longer true: tools/router/pricing.js:65 carries $10/$50 (web-searched). The price is deliberately NOT copied here — see pricing_withheld_reason.",
-      "pricing_withheld_reason": "T5/Fable is opt-in only via @fable and must NEVER be auto-routed (CLAUDE.md tier ladder). tools/router/pricing.js:62-65 gives Fable a price and NO tier on purpose — 'priceable, not routable'. WHY THE PRICE STAYS OUT — MEASURED 2026-08-25 against the real engine, not argued: decideAgent({task_category:'reasoning.science'}) returns chosen_model=null today, and returns chosen_model='claude-fable-5' (TES 3784) the moment this entry carries a price, with nobody having typed @fable. The cause is NOT the tier field: Fable sits in MATRIX_MODELS and holds the ONLY measured cell in that category (0.946, GPQA Diamond, data/benchmark-seed-2026.json), so a price is the single missing ingredient for the TES sort to hand it the whole category on its own. decide-agent.ts has NO T5 exclusion (verified by grep) — the missing price is the only thing enforcing the invariant right now. Pricing this entry therefore requires the exclusion to first live in decideAgent's code, which is a frozen engine file: that needs a new Wave 58 allowlist entry in CLAUDE.md plus the owner's authorisation. Until then the omission IS the guard. Tripwire: tools/cockpit/runner/precificavel-nao-rotavel.test.mjs fails if this entry ever gains a price while the measured cell exists.",
-      "tier_diverges_from_ssot": "The SSOT (tools/router/pricing.js) deliberately gives claude-fable-5 NO tier; this snapshot keeps \"tier\": \"T5\". The divergence is DECLARED, not accidental, and deleting the field here was measured to be WORSE: decide-agent.ts:101 defaults a tier-less model to \"T2\", so removing \"T5\" does not remove the tier — it swaps a true label for a false one, and surfaces begin reporting 'tier-heuristic:T2' about Fable. The field does not gate cost ranking either (that is price-only, decide-agent.ts:104-119), so removing it buys no protection. Kept as the honest label; the real invariant is held by pricing_withheld_reason above and by tools/cockpit/runner/precificavel-nao-rotavel.test.mjs."
+      "pricing_note": "Price copied from the live SSOT, tools/router/pricing.js:66 ($10/$50, web-searched 2026-08-19 from https://platform.claude.com/docs/en/about-claude/pricing). It was deliberately WITHHELD here until 2026-08-25: with no price, 'you cannot rank what you cannot price' (decide-agent.ts) was the only thing keeping T5 out of automatic routing. That guard is now real code — see routing_note.",
+      "tier_diverges_from_ssot": "The SSOT (tools/router/pricing.js) deliberately gives claude-fable-5 NO tier; this snapshot keeps \"tier\": \"T5\". The divergence is DECLARED, not accidental, and deleting the field here was measured to be WORSE: decide-agent.ts defaults a tier-less model to \"T2\", so removing \"T5\" does not remove the tier — it swaps a true label for a false one, and surfaces begin reporting 'tier-heuristic:T2' about Fable. Since 2026-08-25 this field also DOES work: isOptInOnly() reads it as one of its two independent exclusion routes (the other being the named OPT_IN_ONLY_MODELS roster).",
+      "routing_note": "OPT-IN ONLY (T5). Enforced in code since 2026-08-25 by decide-agent.ts (OPT_IN_ONLY_MODELS / isOptInOnly()), which filters this model out BEFORE the min_score and budget gates, so it never reaches the TES sort whatever its score or price. Reaching it requires naming it (force_model / @fable). Before that day the invariant was held by this entry's MISSING PRICE, i.e. by an omission: measured against the real engine, giving this entry the SSOT price made decideAgent({task_category:'reasoning.science'}) return claude-fable-5 with TES 3784 and nobody having typed @fable. Proof it no longer can: packages/router/tests/decide-agent.test.ts and tools/cockpit/runner/precificavel-nao-rotavel.test.mjs, which now seed exactly this priced state and assert the engine still refuses."
     },
     "gpt-5": {
       "input_per_mtok": null,
@@ -85,7 +96,19 @@
     }
   },
   "ollama_local_cost_usd": 0.0,
-  "ollama_models": ["qwen3:30b", "qwen2.5:3b", "qwen2.5-coder:14b", "qwen2.5-coder:7b", "deepseek-r1:7b", "gemma3:12b", "gemma4:e4b", "qwen3.6"],
-  "local_models_free": ["qwen3-30b", "qwen3.6"],
+  "ollama_models": [
+    "qwen3:30b",
+    "qwen2.5:3b",
+    "qwen2.5-coder:14b",
+    "qwen2.5-coder:7b",
+    "deepseek-r1:7b",
+    "gemma3:12b",
+    "gemma4:e4b",
+    "qwen3.6"
+  ],
+  "local_models_free": [
+    "qwen3-30b",
+    "qwen3.6"
+  ],
   "pricing_js_sha256": "d772dc9f95e4218b06a346483b107a218836e6115c219f559455d8599c82ff52"
 }

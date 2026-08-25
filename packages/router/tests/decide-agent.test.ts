@@ -213,3 +213,100 @@ describe("tierForModel", () => {
     assert.equal(tierForModel("totally-unknown-model"), "T2");
   });
 });
+
+// ---------------------------------------------------------------------------
+// A ESCADA DE TIERS, EM CODIGO — T5 (Fable) e opt-in only
+// ---------------------------------------------------------------------------
+//
+// Isto substitui um arame por uma prova. Ate 2026-08-25 nada neste motor
+// conhecia a regra "T5 nunca e auto-encaminhado": o que a fazia cumprir era o
+// snapshot nao trazer preco para o Fable, e "you cannot rank what you cannot
+// price" tirava-o da ordenacao por TES. Um invariante defendido por um numero
+// em falta cai no dia em que alguem completa os dados de boa-fe.
+//
+// MEDIDO nesta suite, com o snapshot ja precificado a $10/$50 (o preco real que
+// o SSOT `tools/router/pricing.js` sempre teve):
+//
+//   - com a exclusao:  0 das 24 categorias escolhem o Fable.
+//   - sem a exclusao:  `reasoning.science` -> claude-fable-5, TES 3784.
+//
+// A segunda linha e o que torna estes testes carregantes: eles nao verificam um
+// estado impossivel, verificam o estado EXACTO em que a violacao acontecia.
+
+describe("tier ladder — T5/Fable e opt-in only, e agora em codigo", () => {
+  const OPT_IN = "claude-fable-5";
+
+  test("o Fable esta precificado E tem celula medida — a violacao esta ao alcance", async () => {
+    // Se este teste falhar, os outros deste bloco deixaram de provar seja o que
+    // for: passariam por o Fable nao ser escolhivel, nao por ser recusado.
+    const { computeTES } = await import("../src/tes-calculator.ts");
+    const { getCell } = await import("../src/specialization-matrix.ts");
+    const cell = getCell(OPT_IN, "reasoning.science");
+    assert.ok(cell && cell.measured === true && typeof cell.score === "number",
+      "o Fable tem de continuar a ter a celula medida de reasoning.science");
+    const tes = computeTES({ model: OPT_IN, category: "reasoning.science", benchmark_score: cell!.score as number });
+    assert.equal(tes.price_status, "priced",
+      "o snapshot tem de trazer preco: sem preco, a recusa abaixo era um acidente, nao uma guarda");
+    assert.ok(typeof tes.tes === "number" && tes.tes > 0,
+      "com preco e score o Fable e ordenavel por TES — e e exactamente por isso que precisa de ser excluido");
+  });
+
+  test("nenhuma das 24 categorias auto-escolhe o Fable", () => {
+    const escolhidas: string[] = [];
+    for (const cat of TODAS_AS_CATEGORIAS) {
+      const r = decideAgent({ task_category: cat });
+      if (r.chosen_model === OPT_IN) escolhidas.push(cat);
+    }
+    assert.deepEqual(escolhidas, [],
+      `o auto-router escolheu um modelo opt-in-only em: ${escolhidas.join(", ")}`);
+  });
+
+  test("reasoning.science — a categoria onde ele ganhava sozinho — recusa-o pelo motivo certo", () => {
+    const r = decideAgent({ task_category: "reasoning.science" });
+    assert.notEqual(r.chosen_model, OPT_IN);
+    const alt = r.alternatives.find((a) => a.model === OPT_IN);
+    assert.ok(alt, "o Fable tem de continuar a aparecer nas alternativas — recusar em silencio esconde a decisao");
+    assert.match(alt!.why_not, /opt-in only/i,
+      "o why_not tem de dizer a VERDADE (opt-in only), nao 'preco pendente' nem 'score baixo'");
+  });
+
+  test("a exclusao corre ANTES do min_score e do orcamento — baixar a barra nao o desbloqueia", () => {
+    // Um arame que so dispara na configuracao por omissao nao e um arame: quem
+    // chama pode baixar o `min_score` a zero e levantar o tecto de custo.
+    const r = decideAgent({ task_category: "reasoning.science", min_score: 0, max_cost_usd: 1000 });
+    assert.notEqual(r.chosen_model, OPT_IN);
+    const alt = r.alternatives.find((a) => a.model === OPT_IN);
+    assert.match(alt!.why_not, /opt-in only/i);
+  });
+
+  test("prefer_local tambem nao e uma porta lateral", () => {
+    const r = decideAgent({ task_category: "reasoning.science", min_score: 0, prefer_local: true });
+    assert.notEqual(r.chosen_model, OPT_IN);
+  });
+
+  test("force_model CONTINUA a funcionar — nomear e que e o opt-in", () => {
+    // `@fable` existe. O que nao pode existir e o Fable chegar sem ninguem o
+    // ter pedido; recusa-lo mesmo quando pedido seria partir a escada do outro
+    // lado.
+    const r = decideAgent({ task_category: "reasoning.science", force_model: OPT_IN });
+    assert.equal(r.chosen_model, OPT_IN);
+    assert.match(r.reason, /OPT-IN ONLY/,
+      "quando o opt-in e usado, o resultado tem de o dizer — senao um log nao distingue pedido de acidente");
+  });
+
+  test("a exclusao e DUPLA: o roster nomeado e o tier, cada um cobre a falha do outro", async () => {
+    const { isOptInOnly, OPT_IN_ONLY_MODELS, tierForModel: tfm } = await import("../src/decide-agent.ts");
+    assert.ok(OPT_IN_ONLY_MODELS.includes(OPT_IN), "o roster nomeado sobrevive ao snapshot perder o campo tier");
+    assert.equal(tfm(OPT_IN), "T5", "o tier cobre um T5 novo que ninguem se lembre de por no roster");
+    assert.equal(isOptInOnly(OPT_IN), true);
+    assert.equal(isOptInOnly("claude-opus-5"), false, "T3 e auto-encaminhavel: excluir a mais seria pior");
+    assert.equal(isOptInOnly("qwen3:30b"), false);
+    // Ids datados normalizam para a chave do snapshot antes de decidir.
+    assert.equal(isOptInOnly("claude-fable-5-20260101"), true);
+  });
+});
+
+/** As 24, lidas da taxonomia — nunca escritas a mao aqui. */
+const TODAS_AS_CATEGORIAS: readonly string[] = (
+  await import("../src/task-categories.ts")
+).TASK_CATEGORIES as unknown as readonly string[];
