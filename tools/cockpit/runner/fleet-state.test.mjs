@@ -156,6 +156,100 @@ test('estado ilegivel degrada para null, nao para um valor inventado', () => {
   assert.equal(s.frescura.estado, 'morto');
 });
 
+test('DETECTOR: 31 apontamentos entram pela porta propria, ligam o alerta e nao alteram o funil do modelo', () => {
+  const base = path.resolve('detector-home');
+  const repo = path.resolve('detector-repo');
+  const apontamentos = Array.from({ length: 31 }, (_, i) => ({
+    file: `tools/f${i}.mjs`, line: i + 1, rule: 'catch-neutro', msg: `verifica ${i}`,
+  }));
+  const files = {
+    '/ledger': jsonl({
+      ts: '2026-08-16T16:24:20Z', chave: 'modelo-1', pilar: 'P2',
+      ficheiro: 'tools/modelo.mjs', janela: '1-2', evidencia: 'tools/modelo.mjs:1 => x',
+      resultado_resumo: 'ACHADO: modelo', conclusao: 'achado', verdict: 'citacao-ok',
+    }),
+    '/state': '{}',
+    [path.join(base, 'ancora-achados.json')]: JSON.stringify(apontamentos),
+    [path.join(base, 'ancora-manifesto.json')]: JSON.stringify({
+      gerado_em: '2026-08-25T20:34:50Z', repo, apontamentos: 31, ficheiros_no_ambito: 289,
+    }),
+  };
+  const fs_ = fakeFs(files);
+  const s = buildFleetState({
+    ledgerPath: '/ledger', statePath: '/state', stopFile: '/STOP', triagemPath: '/triagem',
+    baseDir: base, repoRoot: repo, now: T0, readImpl: fs_.read, existsImpl: fs_.exists,
+  });
+  assert.equal(s.triagem.detector.estado, 'ok');
+  assert.equal(s.triagem.detector.apontamentos, 31);
+  assert.equal(s.triagem.detector.por_triar, 31);
+  assert.equal(s.triagem.por_triar_modelo, 1);
+  assert.equal(s.triagem.por_triar, 32);
+  assert.equal(s.triagem.achados, 1, 'o funil do modelo nao absorve regex');
+  assert.equal(s.por_triar.filter((x) => x.origem === 'detector-deterministico').length, 31);
+  assert.equal(s.por_triar.filter((x) => x.origem === 'modelo-local').length, 1);
+  assert.equal(s.alerta_achados, true);
+});
+
+test('DETECTOR: ausencia ou ancora ilegivel publica n/d, nunca zero', () => {
+  const base = path.resolve('detector-nd');
+  const repo = path.resolve('detector-repo');
+  const manifesto = JSON.stringify({
+    gerado_em: '2026-08-25T20:34:50Z', repo, apontamentos: 1, ficheiros_no_ambito: 289,
+  });
+  const construir = (extra) => {
+    const fs_ = fakeFs({ '/ledger': '', '/state': '{}', ...extra });
+    return buildFleetState({
+      ledgerPath: '/ledger', statePath: '/state', stopFile: '/STOP', baseDir: base, repoRoot: repo,
+      now: T0, readImpl: fs_.read, existsImpl: fs_.exists,
+    });
+  };
+  const ausente = construir({ [path.join(base, 'ancora-manifesto.json')]: manifesto });
+  assert.equal(ausente.triagem.detector.estado, 'n/d');
+  assert.match(ausente.triagem.detector.porque, /missing/);
+  assert.equal(ausente.triagem.por_triar, null);
+  assert.equal(ausente.alerta_achados, null);
+
+  const ilegivel = construir({
+    [path.join(base, 'ancora-achados.json')]: '{ lixo',
+    [path.join(base, 'ancora-manifesto.json')]: manifesto,
+  });
+  assert.equal(ilegivel.triagem.detector.estado, 'n/d');
+  assert.match(ilegivel.triagem.detector.porque, /unreadable/);
+  assert.equal(ilegivel.triagem.detector.apontamentos, null);
+  assert.equal(ilegivel.triagem.por_triar, null);
+});
+
+test('DETECTOR: zero so existe com ancora e manifesto validos do repo servido', () => {
+  const base = path.resolve('detector-zero');
+  const repo = path.resolve('detector-repo');
+  const files = {
+    '/ledger': '', '/state': '{}',
+    [path.join(base, 'ancora-achados.json')]: '[]',
+    [path.join(base, 'ancora-manifesto.json')]: JSON.stringify({
+      gerado_em: '2026-08-25T20:34:50Z', repo, apontamentos: 0, ficheiros_no_ambito: 289,
+    }),
+  };
+  const fs_ = fakeFs(files);
+  const s = buildFleetState({
+    ledgerPath: '/ledger', statePath: '/state', stopFile: '/STOP', baseDir: base, repoRoot: repo,
+    now: T0, readImpl: fs_.read, existsImpl: fs_.exists,
+  });
+  assert.equal(s.triagem.detector.estado, 'ok');
+  assert.equal(s.triagem.detector.apontamentos, 0);
+  assert.equal(s.triagem.por_triar, 0);
+  assert.equal(s.alerta_achados, false);
+
+  files[path.join(base, 'ancora-manifesto.json')] = JSON.stringify({
+    gerado_em: '2026-08-25T20:34:50Z', repo: path.resolve('outro-repo'), apontamentos: 0,
+  });
+  const cruzado = buildFleetState({
+    ledgerPath: '/ledger', statePath: '/state', stopFile: '/STOP', baseDir: base, repoRoot: repo,
+    now: T0, readImpl: fs_.read, existsImpl: fs_.exists,
+  });
+  assert.equal(cruzado.triagem.detector.estado, 'n/d');
+  assert.match(cruzado.triagem.detector.porque, /another repository/);
+});
+
 // ---------------------------------------------------------------- gpu
 
 test('parseIoreg extrai utilizacao e VRAM reais', () => {

@@ -14,7 +14,8 @@ import { createRequire } from 'node:module';
 
 import {
   DECISOES, AUTORES, MOTIVOS, chaveDoRecibo, ehAchado, lerTriagem, registarTriagem,
-  porTriar, contarTriagem, custoEstimado, menuDeMotores,
+  porTriar, porTriarDetector, apontamentoDoDetector, contarTriagem, custoEstimado, menuDeMotores,
+  ORIGEM_MODELO, ORIGEM_DETECTOR,
 } from './triagem.mjs';
 
 const require = createRequire(import.meta.url);
@@ -38,6 +39,34 @@ test('so conta como achado o que foi AFIRMADO e cuja citacao resolveu', () => {
   assert.equal(ehAchado({ ...achado(1, 'k'), conclusao: 'sem-achado' }), false);
   assert.equal(ehAchado({ ...achado(1, 'k'), verdict: 'refutado' }), false, 'alucinacao nao vai a triagem');
   assert.equal(ehAchado({ evento: 'engine:up' }), false);
+});
+
+test('DETECTOR: um apontamento regex nunca finge ser achado do modelo', () => {
+  const a = { file: 'tools/x.mjs', line: 12, rule: 'catch-neutro', msg: 'verifica o retorno' };
+  const item = apontamentoDoDetector(a, '2026-08-25T20:34:50Z');
+  assert.equal(ehAchado(item), false, 'nao tem conclusao nem citacao-ok');
+  assert.equal(item.origem, ORIGEM_DETECTOR);
+  assert.equal(item.tipo, 'apontamento-regex');
+  assert.equal(item.verdict, undefined, 'verdict e contrato do modelo, nao da regex');
+  assert.match(item.chave, /^detector:ancora:/);
+  assert.equal(apontamentoDoDetector(a).chave, item.chave, 'outra varredura nao ressuscita a decisao');
+  assert.notEqual(apontamentoDoDetector({ ...a, msg: 'enunciado novo' }).chave, item.chave,
+    'um enunciado diferente volta a pedir julgamento');
+});
+
+test('DETECTOR: a fila usa as decisoes existentes e preserva procedencia ao escrever', () => {
+  const a = { file: 'tools/x.mjs', line: 12, rule: 'catch-neutro', msg: 'verifica o retorno' };
+  const primeiro = apontamentoDoDetector(a, '2026-08-25T20:34:50Z');
+  assert.deepEqual(porTriarDetector([a], new Map()).fila.map((x) => x.chave), [primeiro.chave]);
+  assert.equal(porTriarDetector([a], new Map([[primeiro.chave, { decisao: 'aceite' }]])).total, 0);
+
+  const f = tmp();
+  const escrita = registarTriagem(f, { chave: primeiro.chave, decisao: 'aceite', por: 'dono', recibo: primeiro });
+  assert.equal(escrita.origem, ORIGEM_DETECTOR);
+  assert.equal(escrita.tipo, 'apontamento-regex');
+  assert.equal(escrita.regra, 'catch-neutro');
+  assert.equal(escrita.verdict, null);
+  assert.equal(escrita.resumo, a.msg);
 });
 
 test('ACEITACAO: os tres botoes escrevem, e a ultima decisao e a que vale', () => {
@@ -84,6 +113,8 @@ test('a fila mostra so o que espera decisao, do mais recente para tras', () => {
   const { decisoes } = lerTriagem(f);
   const fila = porTriar(rec, decisoes);
   assert.deepEqual(fila.map((x) => x.chave), ['k2'], 'k1 ja foi decidido, k3 nao e achado');
+  assert.equal(fila[0].origem, ORIGEM_MODELO, 'a outra porta tambem se identifica');
+  assert.equal(fila[0].verdict, 'citacao-ok');
 
   const c = contarTriagem(rec, decisoes);
   assert.deepEqual(c, { aceite: 1, descartado: 0, issue: 0, por_triar: 1, achados: 2, por_autor: { dono: 1 }, por_motivo: {}, sem_motivo: 0, do_dono: { aceite: 1, descartado: 0, issue: 0 } });

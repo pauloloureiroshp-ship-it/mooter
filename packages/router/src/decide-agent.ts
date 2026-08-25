@@ -119,6 +119,63 @@ const TIER_HEURISTIC_CAPABILITY: Record<ModelTier, number> = {
 };
 
 // ---------------------------------------------------------------------------
+// OPT-IN ONLY (T5 / Fable) — the tier ladder, enforced in code
+// ---------------------------------------------------------------------------
+//
+// The project's tier ladder (CLAUDE.md) says T0-T3 are auto-routed and T5
+// (Fable) is opt-in ONLY via `@fable` — never auto-routed. There is no T4.
+//
+// Until 2026-08-25 that rule did not exist anywhere in this engine. What
+// actually stopped decideAgent from auto-picking Fable was an ACCIDENT: the
+// pricing snapshot carried `input_per_mtok: null`, and "you cannot rank what
+// you cannot price" kept it out of the TES sort. Measured that day against the
+// real engine, not argued:
+//
+//   - `decideAgent({task_category:"reasoning.science"})` returned null.
+//   - Give the snapshot entry the $10/$50 the SSOT already carries, and the
+//     SAME call returned `chosen_model:"claude-fable-5"`, TES 3784, with
+//     nobody having typed `@fable` anywhere.
+//
+// Fable wins that category alone because it holds the ONLY measured cell in it
+// (0.946, GPQA Diamond, data/benchmark-seed-2026.json). So the invariant was
+// being held by a missing number in a data file — which meant the day someone
+// completed the pricing data, correctly and in good faith, the ladder broke in
+// silence. A doctrine defended by an omission is not defended.
+//
+// The exclusion is deliberately DOUBLE, because each half covers the other's
+// failure mode:
+//
+//   - the named roster below survives the snapshot losing its `tier` field
+//     (`tierForModel` defaults a tier-less model to "T2" — it would swap a true
+//     label for a false one and the tier check alone would stop firing);
+//   - the `tier === "T5"` check covers a NEW opt-in-only model landing in the
+//     snapshot that nobody remembered to add to the roster below.
+//
+// What this does NOT block: `force_model`. Naming the model explicitly IS the
+// opt-in — it is the code-level equivalent of typing `@fable`, and it
+// short-circuits before this filter ever runs.
+
+/**
+ * Models reachable ONLY when the caller names them (`force_model`), never by
+ * automatic selection. Keyed by the id as it appears in `MATRIX_MODELS`.
+ */
+export const OPT_IN_ONLY_MODELS: readonly string[] = ["claude-fable-5"];
+
+/**
+ * Is this model opt-in only (T5)? True by EITHER route — see the double
+ * exclusion rationale above. Pure; never throws.
+ */
+export function isOptInOnly(model: string): boolean {
+  const id = normalizeModel(model);
+  if (OPT_IN_ONLY_MODELS.includes(id)) return true;
+  return tierForModel(id) === "T5";
+}
+
+/** The `why_not` a caller sees when an opt-in-only model is filtered out. */
+export const OPT_IN_ONLY_WHY_NOT =
+  "opt-in only (T5): reachable by naming it (@fable / force_model), never auto-routed";
+
+// ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
@@ -311,6 +368,15 @@ export function decideAgent(args: DecideAgentArgs): DecideAgentResult {
   const filteredOut: AgentAlternative[] = [];
   const surviving: Candidate[] = [];
   for (const c of all) {
+    // FIRST, before any score or budget test: the tier ladder. An opt-in-only
+    // model must never reach the TES sort, whatever its score or its price.
+    // This runs first on purpose — filtered with the true reason, not with
+    // whichever gate happened to catch it. `force_model` already
+    // short-circuited above, so naming the model still works.
+    if (isOptInOnly(c.model)) {
+      filteredOut.push(toAlternative(c, OPT_IN_ONLY_WHY_NOT));
+      continue;
+    }
     if (c.effective_score < minScore) {
       filteredOut.push(
         toAlternative(
@@ -426,6 +492,9 @@ function decideForced(
     chosen_model: chosen.model,
     reason:
       `force_model="${forceModel}" honoured — TES sort bypassed. ` +
+      (isOptInOnly(forceModel)
+        ? "This model is OPT-IN ONLY (T5) and was reached by being named — the auto-router never picks it. "
+        : "") +
       (chosen.measured
         ? `Measured score ${chosen.measured_score} on ${category}.`
         : `No measured data for ${category}; standing is tier-heuristic only.`) +
