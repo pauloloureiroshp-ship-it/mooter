@@ -1,9 +1,55 @@
+<!--
+COLISAO DE CONTEUDO RESOLVIDA — 2026-08-25 (missao de fecho do Mac, item 4).
+
+Existiam DUAS copias deste ficheiro com o mesmo nome e conteudo divergente:
+uma no topo de `_handoff/`, outra aqui em `_handoff/_archive/2026-07/`.
+Nenhuma foi apagada. Esta e a fusao, e o topo ficou limpo.
+
+O corpo abaixo e a **versao topo**. As linhas em que as duas discordavam estao
+registadas VERBATIM no bloco a seguir, para os dois lados. A reconstrucao foi
+verificada mecanicamente: aplicar as substituicoes registadas ao corpo abaixo
+reproduz a versao archive byte a byte. Nada se perdeu.
+
+Nao se duplicaram os dois corpos inteiros de proposito: 385 das 390
+linhas eram identicas nas duas versoes, e 2 bloco(s) e que divergiam.
+Duplicar tudo para preservar 2 bloco(s) faria com que ninguem, daqui a seis
+meses, conseguisse ver o que efectivamente mudou.
+-->
+
+## === versao topo === (`_handoff/LP_COHERENCE_AUDIT_REPORT.md`, 2026-07-11)
+
+## === versao archive === (`_handoff/_archive/2026-07/LP_COHERENCE_AUDIT_REPORT.md`, 2026-07-11)
+
+### Linhas divergentes, verbatim
+
+**Linha(s) 3–6** — `replace`:
+
+```text
+versao topo    | **Data:** 2026-07-11  
+versao topo    | **Modo:** auditoria read-only; nenhum código, configuração, dependência, servidor, commit, push ou deploy alterado  
+versao topo    | **Artefacto auditado:** `C:\Users\Paulo Loureiro\frugal-final` · branch `wave/lp-producao-perfeita` · commit `d522ad8c4a639497f06bb29458c66ae8fe067874` · `packages/vscode-extension/package.json:5` = `0.16.66`  
+versao topo    | **Régua:** `_handoff/LP_CODEX_COHERENCE_MASTERPROMPT.md` + `_handoff/LP_CODEX_AUDIT_REPORT.md` + handoffs LP existentes  
+versao archive | **Data:** 2026-07-11
+versao archive | **Modo:** auditoria read-only; nenhum código, configuração, dependência, servidor, commit, push ou deploy alterado
+versao archive | **Artefacto auditado:** `C:\Users\Paulo Loureiro\frugal-final` · branch `wave/lp-producao-perfeita` · commit `d522ad8c4a639497f06bb29458c66ae8fe067874` · `packages/vscode-extension/package.json:5` = `0.16.66`
+versao archive | **Régua:** `_handoff/LP_CODEX_COHERENCE_MASTERPROMPT.md` + `_handoff/LP_CODEX_AUDIT_REPORT.md` + handoffs LP existentes
+```
+
+**Linha(s) 390–390** — `replace`:
+
+```text
+versao topo    | ⇄ CODEX→COWORK · LP-COERÊNCIA · relatório em `_handoff/LP_COHERENCE_AUDIT_REPORT.md` · **19 findings (1 P0 · 9 P1 · 9 P2)** · veredicto D-A: **H2 CONFIRMADA — prompt ancorado + rail direito, com lease de identidade e fallback dock obrigatórios**
+versao archive | ⇄ CODEX→COWORK · LP-COERÊNCIA · relatório arquivado em `_handoff/_archive/2026-07/LP_COHERENCE_AUDIT_REPORT.md` · **19 findings (1 P0 · 9 P1 · 9 P2)** · veredicto D-A: **H2 CONFIRMADA — prompt ancorado + rail direito, com lease de identidade e fallback dock obrigatórios**
+```
+
+---
+
 # LP Coherence Audit — Live Preview v0.16.66
 
-**Data:** 2026-07-11
-**Modo:** auditoria read-only; nenhum código, configuração, dependência, servidor, commit, push ou deploy alterado
-**Artefacto auditado:** `C:\Users\Paulo Loureiro\frugal-final` · branch `wave/lp-producao-perfeita` · commit `d522ad8c4a639497f06bb29458c66ae8fe067874` · `packages/vscode-extension/package.json:5` = `0.16.66`
-**Régua:** `_handoff/LP_CODEX_COHERENCE_MASTERPROMPT.md` + `_handoff/LP_CODEX_AUDIT_REPORT.md` + handoffs LP existentes
+**Data:** 2026-07-11  
+**Modo:** auditoria read-only; nenhum código, configuração, dependência, servidor, commit, push ou deploy alterado  
+**Artefacto auditado:** `C:\Users\Paulo Loureiro\frugal-final` · branch `wave/lp-producao-perfeita` · commit `d522ad8c4a639497f06bb29458c66ae8fe067874` · `packages/vscode-extension/package.json:5` = `0.16.66`  
+**Régua:** `_handoff/LP_CODEX_COHERENCE_MASTERPROMPT.md` + `_handoff/LP_CODEX_AUDIT_REPORT.md` + handoffs LP existentes  
 **Veredicto global:** **NO-GO para F3 enquanto COH-01 estiver aberto.** A geometria recomendada já está maioritariamente implementada, mas o vínculo `stage origin ↔ servedRoot ↔ selection` não é atómico. Depois de uma troca automática de porta, o preview pode mostrar outra aplicação e conservar autorização/seleção da árvore anterior.
 
 ## 0. Proveniência e confronto com o estado real
@@ -387,4 +433,4 @@ Nenhum servidor foi iniciado, nenhum deploy foi tentado e nenhum ficheiro de pro
 
 ---
 
-⇄ CODEX→COWORK · LP-COERÊNCIA · relatório arquivado em `_handoff/_archive/2026-07/LP_COHERENCE_AUDIT_REPORT.md` · **19 findings (1 P0 · 9 P1 · 9 P2)** · veredicto D-A: **H2 CONFIRMADA — prompt ancorado + rail direito, com lease de identidade e fallback dock obrigatórios**
+⇄ CODEX→COWORK · LP-COERÊNCIA · relatório em `_handoff/LP_COHERENCE_AUDIT_REPORT.md` · **19 findings (1 P0 · 9 P1 · 9 P2)** · veredicto D-A: **H2 CONFIRMADA — prompt ancorado + rail direito, com lease de identidade e fallback dock obrigatórios**

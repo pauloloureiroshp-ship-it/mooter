@@ -1,3 +1,22 @@
+<!--
+COLISAO DE CONTEUDO RESOLVIDA — 2026-08-25 (missao de fecho do Mac, item 5).
+
+Ao mover o `_handoff/archive/2026-08/` orfao para o canonico `_handoff/_archive/`,
+apareceu uma TERCEIRA colisao que a missao nao previa (previa duas, e as duas
+estao tratadas no item 4). Nenhuma copia foi apagada sem se medir primeiro.
+
+Medido: a copia canonica tinha 50 linhas, a orfa 57. A canonica e um
+PREFIXO EXACTO da orfa — nao ha uma unica linha em conflito, so 7 linhas
+que a orfa tinha a mais (o ADENDO 2, de 15/08 ~15h). Verificado por
+difflib: todas as diferencas sao do tipo `insert`, nenhuma `replace` nem `delete`.
+
+Por isso a fusao aqui e trivial e nao precisa de blocos de divergencia: fica a
+versao ORFA, que contem a canonica inteira mais o adendo. Nada se perdeu.
+
+## === versao topo === (`_handoff/archive/2026-08/`, orfa, 57 linhas — e esta)
+## === versao archive === (`_handoff/_archive/2026-08/`, canonica, 50 linhas — prefixo exacto da de cima)
+-->
+
 # ⇄ COWORK→CC · HIPER MASTERPROMPT v2 · MOOTER NO TALO — fundação + pilares + sync + registro · 2026-08-15
 # (supersede MP_GPU_PILAR_F0_RUNNER e a v1 deste ficheiro; MP_WINDOWS_REPLICA continua válido para a fase 4090)
 
@@ -48,3 +67,10 @@ Worktrees: `../mooter-wt-runner`, `../mooter-wt-skills`, `../mooter-wt-higiene`.
 # ADENDO: F10 · MOO VIGIA — ler e executar `_handoff/MP_ADDENDUM_F10_VIGIA_2026-08-15.md`
 # (endpoint loopback $0 /fleet.json + SSE + POST /t/<token>/play|/stop; shell do artifact em
 #  _handoff/skills-build/gpu-pilares/moo-vigia-shell.html — versionar em dashboard/ ou plugin/ via PR)
+
+# ADENDO 2 (15/08 ~15h): DRAFTS PRONTOS — `_handoff/moo-drafts-2026-08-15.zip`
+# Produzidos no Cowork (workflow Fable 5) e APROVADOS por refutação adversarial. Descompactar e aterrar via PR:
+# · sonda-apple-silicon/ → módulo Node zero-sudo p/ o ramo darwin da sonda de GPU (prop-002; try/catch provado, contrato n/d-com-porquê 100%)
+# · local-decisao/ → PATCH_SPEC + teste 9/9 do campo local_decisao no evento dispatched (prop-003; ponto de inserção: confirmar no código, spec não inventa linha)
+# · golden-set/ → 14 casos com citação literal das falhas reais (P2 D3; 12 FAIL/2 PASS — desequilíbrio declarado no README, agregado ainda não é métrica)
+# · doc-fix-prop005/ → 1 linha no STRATEGY.md (sha do classify; CONFIRMAR shasum antes de aplicar)
