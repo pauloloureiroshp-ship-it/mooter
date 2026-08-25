@@ -28,7 +28,7 @@ const {
   normalizar, lerEstado, curar,
   NIVEIS, ORCAMENTOS, ORCAMENTO_OMISSAO, orcamento, ESTADO_OMISSAO,
   TETO_REFUTADO_PCT, MIN_TRIADOS, MIN_PRECISAO_PCT, MIN_PATCHES_LIMPOS,
-  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN, reservarParaODono, degrauDaReserva,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN, reservarParaODono,
 } = await import('./autopilot.mjs');
 const { createServer } = await import('./f10-server.mjs');
 const { AUTORES } = await import('./triagem.mjs');

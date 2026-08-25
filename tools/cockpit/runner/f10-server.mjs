@@ -605,6 +605,19 @@ export function createServer({
             aceites: AUTORES,
           });
         }
+        //
+        // O QUE ISTO NAO FECHA, e o PR anterior deu a entender que fechava:
+        // qualquer processo local que DIGA `por:'dono'` passa por aqui. O 400
+        // acima so apanha quem nao diz nada e nao traz `Origin`. Fechar isto a
+        // serio exige uma credencial no canal — e uma credencial que o proprio
+        // painel serve pode ser lida por quem faca um GET a esse painel, ou
+        // seja seria uma fechadura de papel.
+        //
+        // O que se faz em vez disso: `via` regista o que se OBSERVOU, e o
+        // `prontidao-l2` conta quantas decisoes `dono` NAO trazem
+        // `via:'painel'`. Nao prova nada — torna visivel uma pergunta que so o
+        // dono sabe responder. Contar o que nao se consegue impedir e mais
+        // honesto do que fingir que se impediu.
         const por = body.por || 'dono';
         if (!AUTORES.includes(por)) {
           return sendJson(res, 400, { erro: 'autor desconhecido', aceites: AUTORES });

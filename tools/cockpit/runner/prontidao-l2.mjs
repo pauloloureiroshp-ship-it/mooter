@@ -36,7 +36,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { lerTriagem, contarTriagem, porTriar, ehAchado, chaveDoRecibo } from './triagem.mjs';
-import { portoes, reservarParaODono, degrauDaReserva, naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, MIN_TRIADOS, MIN_PRECISAO_PCT } from './autopilot.mjs';
+import { portoes, reservarParaODono, naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, MIN_TRIADOS, MIN_PRECISAO_PCT } from './autopilot.mjs';
 
 /**
  * De onde veio cada decisao, derivado do que esta escrito.
@@ -102,6 +102,26 @@ export function prontidao({ receipts = [], decisoes = new Map() } = {}) {
   const mantidos = doDono.aceite + doDono.issue;
   const precisao = triados ? (mantidos / triados) * 100 : null;
 
+  // QUANTAS DECISOES "DO DONO" NAO VIERAM DO PAINEL.
+  //
+  // O endpoint `/triagem` faz `body.por || 'dono'`: eu fechei o caso "sem
+  // Origin E sem `por`", mas qualquer processo local que DIGA `por:'dono'`
+  // continua a passar. Isso nao se fecha sem uma credencial no canal, e uma
+  // credencial que o proprio painel serve pode ser lida por quem faz um GET —
+  // seria uma fechadura de papel, e este projecto ja teve a sua conta de
+  // fechaduras de papel.
+  //
+  // O que se pode fazer HONESTAMENTE e contar. Uma decisao `dono` sem
+  // `via:'painel'` nao veio do painel; pode ter vindo do CLI dele, ou de outra
+  // coisa qualquer. O numero nao acusa ninguem — torna visivel uma pergunta que
+  // antes nao existia, e o dono e quem sabe se carregou naqueles botoes.
+  let donoViaPainel = 0;
+  let donoSemPainel = 0;
+  for (const d of (decisoes || new Map()).values()) {
+    if (!d || d.por !== 'dono') continue;
+    if (d.via === 'painel') donoViaPainel += 1; else donoSemPainel += 1;
+  }
+
   // Quantos achados estao reservados para ele AGORA — o material que existe
   // para ele decidir sem ter de ir procurar. A reserva olha para o alvo desde
   // a FASE 2, por isso este numero ja conta o complemento, nao so a amostra.
@@ -122,7 +142,8 @@ export function prontidao({ receipts = [], decisoes = new Map() } = {}) {
     reservados,
     reservados_por_amostra: reservadosPorAmostra,
     reservados_extra: Math.max(0, reservados - reservadosPorAmostra),
-    degrau_da_reserva: degrauDaReserva(fila, { jaDoDono: triados }),
+    dono_via_painel: donoViaPainel,
+    dono_sem_painel: donoSemPainel,
     // Chega o que ESTA reservado, ou vai ser preciso material novo? Isto sim e
     // uma pergunta que se responde com o que se tem.
     reserva_chega: reservados >= faltam,
@@ -258,6 +279,14 @@ function principal() {
   // ter sobreposto depois. Dizer-lhe que nunca decidiu nada seria falso, e ele
   // sabe que e falso — o que e pior do que ser impreciso.
   console.log(`  mantidas por ele      ${pct(r.precisao).padStart(6)} de ${r.alvo_precisao}%${r.precisao == null ? '   <- n/d, NAO 0%: nao ha decisoes correntes assinadas por ele' : ''}`);
+  // O que NAO se consegue provar, conta-se. Uma decisao `dono` sem
+  // `via:'painel'` nao veio do painel — pode ter vindo do CLI dele, ou de outra
+  // coisa. Quem sabe se carregou naqueles botoes e ele.
+  if (r.dono_sem_painel > 0) {
+    console.log(`     ${r.dono_via_painel} vieram do painel · ${r.dono_sem_painel} NAO (sem via:'painel')`);
+    console.log("     O endpoint aceita `por:'dono'` de qualquer processo local. Isto nao");
+    console.log('     acusa ninguem: torna visivel o que so tu sabes confirmar.');
+  }
   console.log(`  portao                ${r.portao.aberto ? 'ABERTO' : 'fechado'}`);
   if (!r.portao.aberto) console.log(`     porque: ${r.portao.porque_fechado}`);
 
@@ -267,7 +296,7 @@ function principal() {
   // portao") e este relatorio nao. Duas superficies a dizer a mesma coisa de
   // maneiras diferentes e como ter duas contagens: uma delas esta a mentir.
   console.log(`  reservados para ele   ${String(r.reservados).padStart(6)}   (${r.reservados_por_amostra} por amostra 1-em-${AUDITORIA_1_EM}`
-    + `${r.reservados_extra > 0 ? ` + ${r.reservados_extra} para o portao 2 poder abrir, degrau 1-em-${r.degrau_da_reserva}` : ''})`);
+    + `${r.reservados_extra > 0 ? ` + ${r.reservados_extra} para o portao 2 poder abrir` : ''})`);
   if (r.faltam === 0) {
     console.log('  ja ha volume que chegue — falta ele decidir');
   } else if (r.reserva_chega) {
