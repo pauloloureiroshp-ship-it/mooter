@@ -20,6 +20,30 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-25-o-modo-ancorado-nunca-correu-uma-vez
+
+**Contexto:** depois de a rotação de pilares ficar vazia (onze desligados por medição), a síntese de um workflow adversarial apontou uma direcção que dizia não ter medido: em vez de um décimo segundo pilar, investir no `mode: 'ancorado'` — onde um detector determinista aponta a linha e o modelo **só julga**, com um contrato sem saída grátis (`ACHADO:` ou `FALSO POSITIVO:`, ambos a exigir `PROVA:`).
+
+**Resultado observado:** fui medir, e o ledger diz o seguinte:
+
+| modo | rondas | achados | taxa |
+|---|---:|---:|---:|
+| `caca` | 7 760 | 1 801 | 23,2% |
+| `diff` | 1 812 | 12 | 0,7% |
+| **`ancorado`** | **0** | **0** | — |
+
+**Zero em 10 624 recibos.** A síntese afirmou que *"o runner já o usa no `mode:'ancorado'`"*. Não usa, e nunca usou.
+
+**A causa, e é de uma linha:** `~/.mooter/ancora-achados.json` **não existe**, e **nada no repositório o escreve**. Uma varredura por `ancora-achados|ANCORA` devolve: quem o *lê* (`moo-runner.mjs:704` → `context-pack.mjs:1607`), quem o *testa* com fixtures, e um comentário que diz *"Medido a 2026-08-19 no `ancora-achados.json` real: 76 apontamentos, 58 deles `no-empty`"*. Nenhum produtor. Alguém gerou o ficheiro à mão uma vez, mediu-o, escreveu o número no comentário — e o ficheiro nunca mais existiu. `readAnchor` devolve `[]` numa ausência (por desenho, para não parar uma ronda) e a escada cai silenciosamente para `caça`.
+
+**O sinal de alarme, nomeado:** **uma arquitectura completa excepto a entrada, cuja ausência degrada em silêncio.** Não há bug: cada peça faz o que promete. O `readAnchor` degrada graciosamente, a escada tem o degrau seguinte, os testes passam com fixtures. O que não existe é o produtor — e nada no sistema tem como o dizer, porque *"sem âncora"* é indistinguível de *"âncora vazia"*.
+
+É a mesma forma de `2026-08-20-o-guarda-que-anulou-aquilo-que-vinha-proteger`: o rigor aplicado ao artefacto e não ao instrumento. Aqui foi aplicado ao *consumidor* e não ao *produtor*.
+
+**Porque importa:** o modo ancorado é a única parte deste motor onde o contrato **não tem saída grátis** — e a medição de hoje (7 760 rondas) mostra que a saída grátis é a variável dominante: enunciados com saída genérica dão 0,1% de achados, com saída conclusiva dão 35,4%. Ou seja, a arquitectura que mais provavelmente funciona é precisamente a que nunca foi ligada. E não se sabe se funciona, porque nunca correu.
+
+**Nota sobre uma sondagem que NÃO conclui nada.** Testei uma classe candidata a regra de âncora (chave repetida no mesmo literal de objecto) pelo `portao-de-existencia`: 286 ficheiros, 10 candidatos, 10 falsos — todos o mesmo, as entradas do objecto `PILLARS` a parecerem o mesmo nível. Isso prova que **o meu detector está partido**, não que a classe está vazia; uma segunda versão a ignorar chavetas dentro de strings deu exactamente os mesmos 10. Fica como **indício**, nunca como medição — é a mesma ressalva que a síntese fez sobre o censo dela, e somar isto a uma lista de "classes a zero" seria dar-lhe um peso que não tem.
+
 ### 2026-08-20-o-guarda-que-anulou-aquilo-que-vinha-proteger
 
 **Contexto:** reconciliação F0 do `mp-moo-pilot-total`. Nove PRs (#319-#327), e a meio deles um rebase do vault a resolver conflitos num índice gerado.
