@@ -21,10 +21,59 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { versaoDoConector, repoSha } from './project.mjs';
+import { verConector } from './self-check.mjs';
+
+/**
+ * PARIDADE — o que cada device leva no beacon para que a frota se compare.
+ *
+ * Medido a 2026-08-21 em dois devices: conector 1.49.3 nos dois por
+ * `mooter_setup`, mas o registo do Claude Desktop do Mac ainda dizia 1.33.0;
+ * o PC com o cockpit em codigo de outra manha; o vault num path diferente em
+ * cada maquina. Nada disto era visivel de um device para o outro — cada
+ * cockpit so conhecia o seu umbigo. Isto poe os factos no beacon; o painel
+ * compara com o proprio e acusa a diferenca. Tudo lido do disco, nada
+ * adivinhado: o que nao se consegue ler vai `null`, nunca um valor bonito.
+ */
+export function medirParidade({ repoRoot, vaultDir = null, readImpl = fs.readFileSync, shaImpl = repoSha } = {}) {
+  if (!repoRoot) return null;
+  let plugin = null;
+  try {
+    const p = JSON.parse(String(readImpl(path.join(repoRoot, 'plugin', 'mooter', '.claude-plugin', 'plugin.json'), 'utf8')));
+    plugin = typeof p.version === 'string' ? p.version : null;
+  } catch { /* sem plugin no repo: null diz isso */ }
+  let conector_instalado = null;
+  try {
+    const c = verConector(repoRoot, { readImpl });
+    // 'ok' => valor e a versao; 'mau' => "X instalado ≠ Y no repo"; 'n/d' => registo ilegivel
+    if (c.estado === 'ok') conector_instalado = c.valor;
+    else if (c.estado === 'mau') conector_instalado = String(c.valor).split(' ')[0];
+  } catch { /* fica null */ }
+  let sha = null;
+  try { sha = shaImpl(repoRoot); } catch { /* fica null */ }
+  return {
+    conector_repo: versaoDoConector(repoRoot, { readImpl }),
+    conector_instalado,
+    plugin,
+    repo_sha: sha,
+    repo_path: repoRoot,
+    vault_path: vaultDir,
+  };
+}
 
 /** Beyond this a beacon says nothing useful about right now. */
 export const BEACON_FRESH_S = 120;
 export const BEACON_STALE_S = 1800;
+/**
+ * Um device REMOTO só chega aqui pelo sync do vault: o outro lado publica de
+ * 10 em 10 min (MINUTOS_OMISSAO do beacon-publisher) e este lado só o vê quando
+ * ele próprio puxa, também de 10 em 10 min. Dois ciclos é a idade NORMAL de um
+ * beacon remoto saudável, não um alarme. Medido a 2026-08-21: o Mac publicava
+ * certinho a cada 10 min e o painel do PC dizia "sem sinal ha 716s" — com o
+ * limiar de 120 s um device remoto NUNCA ficava verde, nem a funcionar bem.
+ * O device local continua a responder a BEACON_FRESH_S: esse não tem desculpa.
+ */
+export const BEACON_FRESH_REMOTO_S = 2 * 10 * 60;
 const MAX_BEACONS = 24;
 
 /**
@@ -104,6 +153,9 @@ export function writeBeacon(state, { dir, writeImpl = fs.writeFileSync, mkdirImp
       // reserva activa era indistinguivel de um loop morto.
       reserva: state && state.reserva ? state.reserva : null,
       branch: state && state.projeto ? state.projeto.repo_branch : null,
+      // O que este device leva para a frota se comparar (ver medirParidade).
+      // O chamador mede e poe em `state.paridade`; aqui so viaja.
+      paridade: state && state.paridade && typeof state.paridade === 'object' ? state.paridade : null,
       usd: 0,
     };
     writeImpl(path.join(dir, `${device}.json`), JSON.stringify(beacon, null, 2));
@@ -118,13 +170,14 @@ export function writeBeacon(state, { dir, writeImpl = fs.writeFileSync, mkdirImp
  * but computed against the beacon's own timestamp, so a device that stopped
  * syncing goes dark instead of freezing green.
  */
-export function beaconFreshness(ts, nowMs) {
+export function beaconFreshness(ts, nowMs, { remoto = false } = {}) {
   const t = ts ? Date.parse(ts) : NaN;
   if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'sem timestamp' };
   const raw = Math.round((nowMs - t) / 1000);
   if (raw < -5) return { estado: 'morto', idade_s: null, motivo: 'beacon datado no futuro' };
   const age = Math.max(0, raw);
-  if (age <= BEACON_FRESH_S) return { estado: 'vivo', idade_s: age, motivo: null };
+  const fresco = remoto ? BEACON_FRESH_REMOTO_S : BEACON_FRESH_S;
+  if (age <= fresco) return { estado: 'vivo', idade_s: age, motivo: null };
   if (age <= BEACON_STALE_S) return { estado: 'stale', idade_s: age, motivo: `sem sinal ha ${age}s` };
   return { estado: 'morto', idade_s: age, motivo: `sem sinal ha ${age}s` };
 }
@@ -137,10 +190,20 @@ export function beaconFreshness(ts, nowMs) {
 export function readBeacons({
   dir, transporte = 'local', partilhado = false, selfDevice = null, now = Date.now(),
   readdirImpl = fs.readdirSync, readImpl = fs.readFileSync,
+  // Beacons lidos do REMOTO do vault (`origin/<branch>:50-fleet/*.json`), por
+  // nome de ficheiro. Sao uma camada por cima do disco: se o remoto tiver um
+  // beacon mais novo do que o ficheiro local, vale o remoto. Assim a frescura
+  // de outro device deixa de esperar pelo `pull` deste lado — so pelo `fetch`,
+  // que nao toca na arvore de trabalho nem no indice de ninguem.
+  remotos = null,
 } = {}) {
   let names = [];
   try {
-    names = readdirImpl(dir).filter((n) => n.endsWith('.json')).slice(0, MAX_BEACONS);
+    names = readdirImpl(dir).filter((n) => n.endsWith('.json'));
+    if (remotos) {
+      for (const n of Object.keys(remotos)) if (n.endsWith('.json') && !names.includes(n)) names.push(n);
+    }
+    names = names.slice(0, MAX_BEACONS);
   } catch {
     return {
       frota: [], transporte, partilhado,
@@ -152,11 +215,22 @@ export function readBeacons({
 
   const frota = [];
   for (const name of names) {
-    let b;
+    let b = null;
     try {
       b = JSON.parse(String(readImpl(path.join(dir, name), 'utf8')));
     } catch {
-      continue; // a corrupt beacon is one missing device, never a broken payload
+      b = null; // a corrupt beacon is one missing device, never a broken payload
+    }
+    const doFicheiro = safeDeviceName(name.replace(/\.json$/, ''));
+    const eSelf = doFicheiro === safeDeviceName(selfDevice);
+    // O proprio device NUNCA se le do remoto: o que ele escreveu no disco e a
+    // verdade mais fresca que existe sobre ele. Os outros, se o remoto tiver
+    // um `ts` mais novo, e o remoto que conta.
+    const r = !eSelf && remotos ? remotos[name] : null;
+    if (r && typeof r === 'object' && r.device) {
+      const tsLocal = b && typeof b.ts === 'string' ? Date.parse(b.ts) : NaN;
+      const tsRemoto = typeof r.ts === 'string' ? Date.parse(r.ts) : NaN;
+      if (!b || (Number.isFinite(tsRemoto) && !(tsLocal >= tsRemoto))) b = r;
     }
     if (!b || typeof b !== 'object' || !b.device) continue;
     // `{...b}` copiava TODAS as chaves de TODOS os ficheiros `.json` desta
@@ -167,7 +241,6 @@ export function readBeacons({
     //
     // O nome do FICHEIRO e a identidade, nao o campo `device` la dentro: um
     // beacon podia dizer que era outra maquina e roubar-lhe o lugar de `self`.
-    const doFicheiro = safeDeviceName(name.replace(/\.json$/, ''));
     frota.push({
       device: safeDeviceName(b.device),
       ts: typeof b.ts === 'string' ? b.ts : null,
@@ -184,9 +257,22 @@ export function readBeacons({
       triagem: b.triagem && typeof b.triagem === 'object' ? b.triagem : null,
       reserva: b.reserva && typeof b.reserva === 'object' ? b.reserva : null,
       branch: typeof b.branch === 'string' ? b.branch : null,
+      paridade: b.paridade && typeof b.paridade === 'object' ? {
+        conector_repo: typeof b.paridade.conector_repo === 'string' ? b.paridade.conector_repo : null,
+        conector_instalado: typeof b.paridade.conector_instalado === 'string' ? b.paridade.conector_instalado : null,
+        plugin: typeof b.paridade.plugin === 'string' ? b.paridade.plugin : null,
+        repo_sha: typeof b.paridade.repo_sha === 'string' ? b.paridade.repo_sha : null,
+        repo_path: typeof b.paridade.repo_path === 'string' ? b.paridade.repo_path : null,
+        vault_path: typeof b.paridade.vault_path === 'string' ? b.paridade.vault_path : null,
+      } : null,
       usd: typeof b.usd === 'number' ? b.usd : 0,
-      self: doFicheiro === safeDeviceName(selfDevice),
-      frescura: beaconFreshness(b.ts, now),
+      self: eSelf,
+      // Um device remoto e julgado pela cadencia com que pode chegar aqui,
+      // nao pela do relogio local. Ver BEACON_FRESH_REMOTO_S.
+      frescura: beaconFreshness(b.ts, now, { remoto: !eSelf }),
+      // De onde veio o que se mostra: 'disco' (o ficheiro neste vault) ou
+      // 'origin' (o remoto tinha um beacon mais novo). Dito, nao escondido.
+      via: b === r ? 'origin' : 'disco',
     });
   }
   frota.sort((a, b) => (a.self === b.self ? String(a.device).localeCompare(b.device) : a.self ? -1 : 1));

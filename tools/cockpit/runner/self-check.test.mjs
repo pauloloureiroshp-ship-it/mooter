@@ -12,6 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   verLedger, verIndiceDoVault, verBeacon, verProjectoActivo, verPreferencias,
@@ -145,14 +146,36 @@ test('o conector instalado tem de ser o do repo', () => {
   };
   const reg = (v) => ({ extensions: { 'local.mcpb.x.mooter': { version: v, id: 'mooter' } } });
 
-  const igual = verConector('/r', { readImpl: ler({ manifest: { version: '1.49.3' }, 'extensions-installations': reg('1.49.3') }) });
+  const igual = verConector('/r', { readImpl: ler({ 'mooter-bridge': { version: '1.49.3' }, 'extensions-installations': reg('1.49.3') }) });
   assert.equal(igual.estado, 'ok');
 
   // Medido nesta maquina: 1.33.0 instalado contra 1.49.3 no repo.
-  const dif = verConector('/r', { readImpl: ler({ manifest: { version: '1.49.3' }, 'extensions-installations': reg('1.33.0') }) });
+  // (a chave e 'mooter-bridge', nao 'manifest': desde que a pasta da extensao
+  // tambem tem um manifest.json, 'manifest' apanhava os dois)
+  const dif = verConector('/r', { readImpl: ler({ 'mooter-bridge': { version: '1.49.3' }, 'extensions-installations': reg('1.33.0') }) });
   assert.equal(dif.estado, 'mau');
   assert.match(dif.valor, /1\.33\.0 instalado ≠ 1\.49\.3/);
   assert.match(dif.resolver, /v1\.49\.3/, 'o gesto tem de nomear a versao a instalar');
+});
+
+// G11, medido 2026-08-21 no Mac: o conector actualiza-se in-place (`update.js`
+// escreve na pasta da extensao), o registo do instalador fica para tras. O
+// manifest NA PASTA e o que o Claude Desktop carrega — vale mais do que o registo.
+test('o manifest na pasta da extensao vale mais do que o registo do instalador', () => {
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.includes(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT');
+  };
+  const reg = (v) => ({ extensions: { 'local.mcpb.x.mooter': { version: v } } });
+  // registo velho, pasta nova => OK, com nota cosmetica sobre o registo
+  const ok = verConector('/r', { readImpl: ler({ 'packages/mooter-bridge/manifest.json': { version: '1.49.3' }, 'extensions-installations': reg('1.33.0'), 'Claude Extensions/local.mcpb.x.mooter/manifest.json': { version: '1.49.3' } }) });
+  assert.equal(ok.estado, 'ok');
+  assert.match(ok.porque, /registo do instalador ainda diz 1\.33\.0/);
+  // pasta velha => MAU, mesmo que o registo diga que esta novo
+  const mau = verConector('/r', { readImpl: ler({ 'packages/mooter-bridge/manifest.json': { version: '1.49.3' }, 'extensions-installations': reg('1.49.3'), 'Claude Extensions/local.mcpb.x.mooter/manifest.json': { version: '1.40.0' } }) });
+  assert.equal(mau.estado, 'mau');
+  assert.match(mau.valor, /1\.40\.0 instalado/);
 });
 
 test('sem registo do Claude Desktop, e n/d — nunca ok', () => {

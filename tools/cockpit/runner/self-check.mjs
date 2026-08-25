@@ -262,20 +262,43 @@ export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.ho
   if (!noRepo) {
     return { id: 'conector', estado: ND, o_que: 'conector', porque: 'o manifest do repo não declara versão', resolver: null };
   }
-  const reg = ler(path.join(home, 'Library', 'Application Support', 'Claude', 'extensions-installations.json'))
-    || ler(path.join(home, 'AppData', 'Roaming', 'Claude', 'extensions-installations.json'));
-  const ext = reg && reg.extensions ? Object.values(reg.extensions).find((e) => e && e.version && JSON.stringify(e).includes('mooter')) : null;
-  const instalado = ext && typeof ext.version === 'string' ? ext.version : null;
+  const raizes = [
+    path.join(home, 'Library', 'Application Support', 'Claude'),
+    path.join(home, 'AppData', 'Roaming', 'Claude'),
+  ];
+  let reg = null, raiz = null;
+  for (const r of raizes) { reg = ler(path.join(r, 'extensions-installations.json')); if (reg) { raiz = r; break; } }
+  const entradas = reg && reg.extensions ? Object.entries(reg.extensions).filter(([k, e]) => e && (k + JSON.stringify(e)).includes('mooter')) : [];
+  const [extId, ext] = entradas.find(([, e]) => e && e.version) || entradas[0] || [null, null];
+  const noRegisto = ext && typeof ext.version === 'string' ? ext.version : null;
+  // O REGISTO diz o que o instalador de .mcpb gravou da última vez. O MANIFEST
+  // dentro da pasta da extensão diz o que o Claude Desktop CARREGA. Divergem
+  // sempre que o conector se actualiza a si próprio in-place (`update.js`
+  // escreve em `__dirname`, nunca passa pelo instalador). Medido 2026-08-21
+  // no Mac: registo 1.33.0, manifest na pasta 1.49.3, `mooter_setup` 1.49.3 —
+  // o alarme "1.33.0 ≠ 1.49.3" era do aparelho, não do conector (G11).
+  // Por isso a pasta vale mais do que o registo; o registo só conta quando a
+  // pasta não se consegue ler.
+  let naPasta = null;
+  if (raiz && extId) {
+    const m = ler(path.join(raiz, 'Claude Extensions', extId, 'manifest.json'));
+    naPasta = m && typeof m.version === 'string' ? m.version : null;
+  }
+  const instalado = naPasta || noRegisto;
+  const fonte = naPasta ? 'manifest na pasta da extensão' : 'registo do instalador';
   if (!instalado) {
     return { id: 'conector', estado: ND, o_que: 'conector', valor: `${noRepo} no repo`, porque: 'não encontrei o registo de extensões do Claude Desktop nesta máquina', resolver: null };
   }
   if (instalado === noRepo) {
-    return { id: 'conector', estado: OK, o_que: 'conector', valor: instalado, porque: 'o instalado é o que este repo traz', resolver: null };
+    const nota = noRegisto && noRegisto !== instalado
+      ? ` (registo do instalador ainda diz ${noRegisto} — cosmético; reinstalar o .mcpb alinha-o)`
+      : '';
+    return { id: 'conector', estado: OK, o_que: 'conector', valor: instalado, porque: `o instalado é o que este repo traz — lido do ${fonte}${nota}`, resolver: null, registo: noRegisto, pasta: naPasta };
   }
   return {
     id: 'conector', estado: MAU, o_que: 'conector', valor: `${instalado} instalado ≠ ${noRepo} no repo`,
-    porque: 'as ferramentas MCP correm código de outra versão — o que vês no painel e o que a skill faz podem discordar',
-    resolver: `instala o .mcpb da release v${noRepo} no Claude Desktop`,
+    porque: `as ferramentas MCP correm código de outra versão (lido do ${fonte}) — o que vês no painel e o que a skill faz podem discordar`,
+    resolver: `instala o .mcpb da release v${noRepo} no Claude Desktop`, registo: noRegisto, pasta: naPasta,
   };
 }
 

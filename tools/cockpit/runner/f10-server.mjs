@@ -24,6 +24,7 @@ import {
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
+import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
 
@@ -305,7 +306,13 @@ export function createServer({
         buildAlignment({ repoRoot: raiz }).catch(() => null),
       ]);
       const where = beaconDir();
-      const fleet = readBeacons({ ...where, selfDevice: device });
+      // Os outros devices chegam pelo remoto do vault (fetch, nunca pull):
+      // sem isto a frescura deles esperava pelo `pull` DESTE lado e um Mac a
+      // publicar certinho aparecia como "sem sinal ha 716s". So quando o vault
+      // e um repo git; no modo local nao ha remoto e isto e um no-op honesto.
+      const remoto = where.partilhado ? beaconsDoRemoto(path.dirname(where.dir)) : null;
+      const fleet = readBeacons({ ...where, selfDevice: device, remotos: remoto ? remoto.remotos : null });
+      if (remoto) fleet.remoto = { ref: remoto.ref, fetch: remoto.fetch, porque: remoto.porque };
       const estado = buildFleetState({
         device,
         // Lida do manifest a cada pedido: o painel nunca pode afirmar uma

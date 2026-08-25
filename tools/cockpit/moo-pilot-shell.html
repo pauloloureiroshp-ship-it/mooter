@@ -810,6 +810,41 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
         hunt.append(document.createTextNode('machine lent out \u00b7 ' + ago(d.reserva.falta_s) + ' left'));
       }
       box.appendChild(hunt);
+
+      // PARIDADE \u2014 versoes, sha e paths deste device, comparados com os do
+      // device local. Verde so quando IGUAL ao local; diferente fica a amarelo
+      // com os dois valores lado a lado; ausente e "n/d", nunca um espaco.
+      // Medido 2026-08-21: dois devices "em 1.49.3" com registos diferentes,
+      // cockpits em commits diferentes, vault em paths diferentes \u2014 e nenhum
+      // painel conseguia dizer isso do outro.
+      const par = d.paridade || null;
+      const parSelf = (devices.find((x) => x.self) || {}).paridade || null;
+      const linha = el('div', 'meta');
+      if (!par) {
+        linha.appendChild(el('span', 'nd', 'parity: this beacon predates the parity field'));
+      } else {
+        const campos = [
+          ['connector', par.conector_instalado || par.conector_repo, 'conector_instalado'],
+          ['plugin', par.plugin, 'plugin'],
+          ['cockpit', par.repo_sha ? par.repo_sha.slice(0, 7) : null, 'repo_sha'],
+        ];
+        campos.forEach(([nome, val, chave], i) => {
+          if (i) linha.append(document.createTextNode(' \u00b7 '));
+          linha.append(document.createTextNode(nome + ' '));
+          if (!val) { linha.appendChild(el('span', 'nd', 'n/d')); return; }
+          const ref = parSelf ? parSelf[chave] : null;
+          const igual = d.self || !ref || ref === par[chave];
+          const sp = el('b', igual ? null : 'backlog', chave === 'repo_sha' ? val : val);
+          linha.appendChild(sp);
+          if (!igual) linha.append(document.createTextNode(' \u2260 ' + (chave === 'repo_sha' ? ref.slice(0, 7) : ref)));
+        });
+        if (par.conector_repo && par.conector_instalado && par.conector_repo !== par.conector_instalado) {
+          linha.appendChild(el('br'));
+          linha.appendChild(el('span', 'nd', 'connector registry says ' + par.conector_instalado + ', repo ships ' + par.conector_repo));
+        }
+        if (par.vault_path) { linha.appendChild(el('br')); linha.appendChild(el('span', 'nd', 'vault ' + par.vault_path)); }
+      }
+      box.appendChild(linha);
       wrap.appendChild(box);
     }
     $('fleet-note').textContent = f.aviso || '';

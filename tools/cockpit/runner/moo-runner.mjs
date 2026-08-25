@@ -31,7 +31,7 @@ import { runRound, nextPillar, DEFAULT_MODEL, DEFAULT_OLLAMA } from './runner-co
 import { loadPillars, DIFF_LADDER } from './context-pack.mjs';
 import { buildFleetState } from './fleet-state.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
-import { beaconDir, writeBeacon, deviceName } from './fleet-beacon.mjs';
+import { beaconDir, writeBeacon, deviceName, medirParidade } from './fleet-beacon.mjs';
 import { publicarBeacon, estaNaHora, ligado as publicacaoLigada } from './beacon-publisher.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { createEngineBreaker } from './engine-breaker.mjs';
@@ -301,6 +301,12 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, logImpl = lo
       engineAlive,
     });
     const where = beaconDir();
+    // Paridade: versoes, sha e paths deste device viajam no beacon para que
+    // o painel de QUALQUER device acuse a diferenca (medido 2026-08-21: dois
+    // cockpits, cada um so via o seu umbigo). Falha -> null, nunca a ronda.
+    try {
+      state.paridade = medirParidade({ repoRoot, vaultDir: where.partilhado ? path.dirname(where.dir) : null });
+    } catch { state.paridade = null; }
     const res = writeBeacon(state, where);
     if (!res.ok && !beaconWarned) {
       beaconWarned = true;

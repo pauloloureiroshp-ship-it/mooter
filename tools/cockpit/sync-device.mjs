@@ -29,6 +29,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { verConector } from './runner/self-check.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLAUDE = path.join(os.homedir(), '.claude');
@@ -137,21 +138,16 @@ async function main() {
   // O último passo, e o único que este script não fecha.
   let noRepo = null;
   try { noRepo = JSON.parse(fs.readFileSync(path.join(REPO, 'packages', 'mooter-bridge', 'manifest.json'), 'utf8')).version; } catch { /* n/d */ }
-  const registos = [
-    path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'extensions-installations.json'),
-    path.join(os.homedir(), 'AppData', 'Roaming', 'Claude', 'extensions-installations.json'),
-  ];
-  let instalado = null;
-  for (const r of registos) {
-    try {
-      const d = JSON.parse(fs.readFileSync(r, 'utf8'));
-      const e = Object.values(d.extensions || {}).find((x) => x && x.version && JSON.stringify(x).includes('mooter'));
-      if (e) { instalado = e.version; break; }
-    } catch { /* tenta o seguinte */ }
-  }
+  // UMA fonte para "que conector esta instalado": verConector (self-check).
+  // Este ficheiro tinha a sua propria copia que so lia o REGISTO do instalador
+  // — e o conector actualiza-se in-place, por isso o registo fica para tras.
+  // Medido 2026-08-21: registo 1.33.0, manifest na pasta 1.49.3; o launcher
+  // acusava "1.33.0 ≠ 1.49.3" enquanto o self-check ja dizia ok. Duas verdades.
+  const vc = verConector(REPO);
+  const instalado = vc.estado === 'n/d' ? null : (vc.pasta || vc.registo || null);
   if (!noRepo) passo('conector', 'n/d', 'o repo não declara versão');
   else if (!instalado) passo('conector', 'n/d', `${noRepo} no repo · registo do Desktop não encontrado`);
-  else if (instalado === noRepo) passo('conector', 'ok', instalado);
+  else if (vc.estado === 'ok') passo('conector', 'ok', `${instalado}${vc.registo && vc.registo !== instalado ? ` (registo do instalador diz ${vc.registo} — cosmético)` : ''}`);
   else {
     const destino = path.join(os.homedir(), 'Downloads', `mooter-v${noRepo.replace(/\./g, '')}.mcpb`);
     let baixado = fs.existsSync(destino);

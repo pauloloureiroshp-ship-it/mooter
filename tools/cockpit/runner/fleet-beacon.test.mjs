@@ -7,8 +7,9 @@ import path from 'node:path';
 
 import {
   safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness,
-  BEACON_FRESH_S,
+  BEACON_FRESH_S, BEACON_FRESH_REMOTO_S, BEACON_STALE_S,
 } from './fleet-beacon.mjs';
+import { MINUTOS_OMISSAO } from './beacon-publisher.mjs';
 import { parseNvidiaSmi, sampleGpu, normalizaSonda } from './gpu-sampler.mjs';
 import { buildPlist, windowsCommand, preflight, LABEL } from './autostart.mjs';
 
@@ -57,6 +58,55 @@ test('beacon recente e vivo, antigo escurece, futuro e morto', () => {
   assert.equal(beaconFreshness(new Date(T0 + 60_000).toISOString(), T0).estado, 'morto');
   assert.equal(beaconFreshness(null, T0).estado, 'morto');
   assert.ok(BEACON_FRESH_S > 0);
+});
+
+// Incidente de 2026-08-21: Mac a publicar de 10 em 10 min, painel do PC a dizer
+// "sem sinal ha 716s". Um device remoto e julgado pela cadencia do sync, nao
+// pelo relogio local — senao nunca fica verde, nem a funcionar bem.
+test('um device REMOTO com a idade normal do sync e vivo; o local com a mesma idade nao', () => {
+  assert.equal(BEACON_FRESH_REMOTO_S, 2 * MINUTOS_OMISSAO * 60, 'dois ciclos de publicacao — a constante segue a cadencia real');
+  assert.ok(BEACON_FRESH_REMOTO_S > BEACON_FRESH_S && BEACON_FRESH_REMOTO_S < BEACON_STALE_S);
+  assert.equal(beaconFreshness(iso(716), T0, { remoto: true }).estado, 'vivo');
+  assert.equal(beaconFreshness(iso(716), T0).estado, 'stale', 'o device local nao tem desculpa');
+  assert.equal(beaconFreshness(iso(1500), T0, { remoto: true }).estado, 'stale');
+  assert.equal(beaconFreshness(iso(7200), T0, { remoto: true }).estado, 'morto');
+});
+
+test('readBeacons julga o self pelo limiar local e os outros pelo remoto', () => {
+  const dir = fixtureDir();
+  fs.writeFileSync(path.join(dir, 'mac-mini.json'), JSON.stringify({ device: 'mac-mini', ts: iso(716), running: true }));
+  fs.writeFileSync(path.join(dir, 'rtx-4090.json'), JSON.stringify({ device: 'rtx-4090', ts: iso(716), running: true }));
+  const { frota } = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', now: T0 });
+  const self = frota.find((d) => d.self), outro = frota.find((d) => !d.self);
+  assert.equal(self.frescura.estado, 'stale');
+  assert.equal(outro.frescura.estado, 'vivo');
+  assert.equal(outro.via, 'disco');
+});
+
+test('o remoto mais fresco ganha ao disco — mas nunca para o proprio device', () => {
+  const dir = fixtureDir();
+  fs.writeFileSync(path.join(dir, 'mac-mini.json'), JSON.stringify({ device: 'mac-mini', ts: iso(10), gpu_pct: 1 }));
+  fs.writeFileSync(path.join(dir, 'rtx-4090.json'), JSON.stringify({ device: 'rtx-4090', ts: iso(1500), gpu_pct: 11 }));
+  const remotos = {
+    'mac-mini.json': { device: 'mac-mini', ts: iso(0), gpu_pct: 99 },      // mais novo, mas e o self: ignora-se
+    'rtx-4090.json': { device: 'rtx-4090', ts: iso(300), gpu_pct: 77 },    // mais novo: vale
+    'jetson.json': { device: 'jetson', ts: iso(60), gpu_pct: 5 },           // so existe no remoto: aparece
+  };
+  const { frota } = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', now: T0, remotos });
+  const self = frota.find((d) => d.device === 'mac-mini');
+  const r4090 = frota.find((d) => d.device === 'rtx-4090');
+  const jetson = frota.find((d) => d.device === 'jetson');
+  assert.equal(self.gpu_pct, 1); assert.equal(self.via, 'disco');
+  assert.equal(r4090.gpu_pct, 77); assert.equal(r4090.via, 'origin'); assert.equal(r4090.frescura.estado, 'vivo');
+  assert.equal(jetson.gpu_pct, 5); assert.equal(jetson.via, 'origin');
+});
+
+test('o disco mais fresco que o remoto mantem-se', () => {
+  const dir = fixtureDir();
+  fs.writeFileSync(path.join(dir, 'rtx-4090.json'), JSON.stringify({ device: 'rtx-4090', ts: iso(5), gpu_pct: 11 }));
+  const remotos = { 'rtx-4090.json': { device: 'rtx-4090', ts: iso(300), gpu_pct: 77 } };
+  const { frota } = readBeacons({ dir, partilhado: true, selfDevice: 'mac-mini', now: T0, remotos });
+  assert.equal(frota[0].gpu_pct, 11); assert.equal(frota[0].via, 'disco');
 });
 
 // ── escrita e leitura ────────────────────────────────────────────────────────
@@ -280,4 +330,38 @@ test('FASE 0: a identidade e o NOME DO FICHEIRO, nao o campo la dentro', () => {
   fs.writeFileSync(path.join(dir, 'impostor.json'), JSON.stringify({ device: 'mac-do-paulo', ts: new Date().toISOString() }));
   const { frota } = readBeacons({ dir, selfDevice: 'mac-do-paulo' });
   assert.equal(frota[0].self, false, 'o ficheiro chama-se impostor.json — nao e este device');
+});
+
+// ── paridade ─────────────────────────────────────────────────────────────────
+// 2026-08-21: dois devices "em 1.49.3" com registos diferentes, cockpits em
+// commits diferentes, vault em paths diferentes — e nenhum painel via o outro.
+
+test('medirParidade le do disco e diz null ao que nao consegue ler — nunca inventa', async () => {
+  const { medirParidade } = await import('./fleet-beacon.mjs');
+  const ficheiros = {
+    '/r/packages/mooter-bridge/manifest.json': JSON.stringify({ version: '1.49.3' }),
+    '/r/plugin/mooter/.claude-plugin/plugin.json': JSON.stringify({ version: '1.49.3' }),
+  };
+  const readImpl = (p) => { const k = String(p).split(path.sep).join('/'); if (k in ficheiros) return ficheiros[k]; throw new Error('ENOENT ' + k); };
+  const par = medirParidade({ repoRoot: '/r', vaultDir: '/v', readImpl, shaImpl: () => 'abc123def456' });
+  assert.equal(par.conector_repo, '1.49.3');
+  assert.equal(par.plugin, '1.49.3');
+  assert.equal(par.repo_sha, 'abc123def456');
+  assert.equal(par.vault_path, '/v');
+  assert.equal(par.conector_instalado, null, 'sem registo do Claude Desktop legivel: null, nao 1.49.3');
+  assert.equal(medirParidade({ repoRoot: null }), null);
+});
+
+test('a paridade viaja no beacon e volta pela mesma allowlist', () => {
+  const dir = fixtureDir();
+  const paridade = { conector_repo: '1.49.3', conector_instalado: '1.33.0', plugin: '1.49.3', repo_sha: '70597e5e1234', repo_path: '/r', vault_path: '/v', segredo: 'nao' };
+  const w = writeBeacon({ device: 'mac-mini', running: true, paridade }, { dir });
+  assert.ok(w.ok);
+  const { frota } = readBeacons({ dir, selfDevice: 'mac-mini', now: Date.now() });
+  assert.equal(frota[0].paridade.conector_instalado, '1.33.0');
+  assert.equal(frota[0].paridade.repo_sha, '70597e5e1234');
+  assert.ok(!('segredo' in frota[0].paridade), 'a leitura so deixa passar as chaves nomeadas');
+  fs.writeFileSync(path.join(dir, 'antigo.json'), JSON.stringify({ device: 'antigo', ts: new Date().toISOString() }));
+  const r2 = readBeacons({ dir, selfDevice: 'mac-mini', now: Date.now() });
+  assert.equal(r2.frota.find((d) => d.device === 'antigo').paridade, null, 'beacon anterior ao campo: null, o painel diz-o');
 });
