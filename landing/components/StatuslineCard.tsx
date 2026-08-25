@@ -55,6 +55,14 @@ const DEFAULTS: StatuslineData = {
   alltime: '$4.21',
 };
 
+/**
+ * Um campo so conta como medido quando tem conteudo. `null`, `undefined` e a
+ * string vazia sao a mesma coisa do lado de quem le: nao ha numero.
+ */
+function temValor(v: unknown): boolean {
+  return typeof v === 'string' ? v.trim().length > 0 : v != null;
+}
+
 export default function StatuslineCard({ data }: { data?: Partial<StatuslineData> }) {
   const d = { ...DEFAULTS, ...data };
   const dim = 'var(--color-term-dim)';
@@ -75,7 +83,19 @@ export default function StatuslineCard({ data }: { data?: Partial<StatuslineData
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <MooterMarkTiny size={14} />
         <span>
-          routed cheap <span style={{ color: 'var(--color-green)' }}>{d.routedCheap}</span>
+          {/*
+            `routedCheap` e o UNICO numero medido deste cartao, e o tipo diz
+            `string` — mas `data` chega como `Partial<>`, e um `{routedCheap:
+            undefined}` explicito passa por cima do default no spread. Quando
+            isso acontecia, o cartao imprimia «routed cheap » e mais nada: uma
+            afirmacao com o numero em branco, em verde, que e a cor que este
+            projecto usa para dizer "medido". Uma metrica ausente tem de se ler
+            como ausente — `n/d`, e a cinzento, porque n/d nao e uma boa noticia.
+          */}
+          routed cheap{' '}
+          {temValor(d.routedCheap)
+            ? <span style={{ color: 'var(--color-green)' }}>{d.routedCheap}</span>
+            : <span style={{ color: dim }}>n/d</span>}
           {'  ·  '}
           <span style={{ color: 'var(--color-tier-2-term)' }}>{d.tier} {d.model}</span> · conf {d.conf}{'  ·  '}
           pack: <span style={{ color: 'var(--color-accent-2)' }}>{d.pack}</span>
