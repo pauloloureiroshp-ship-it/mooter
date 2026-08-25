@@ -54,6 +54,29 @@ test('transcript produz arquivos, comandos falhos, testes vermelhos e localizaç
   assert.equal(report.facts.session_worktree.status, 'n/d');
 });
 
+// O teste acima passava no Windows e falhava em Linux/macOS — e a diferenca NAO
+// era do teste: `C:\\repo-antigo` e absoluto no Windows (sobe ate `C:\\`, nao ha
+// `.git`, da n/d) e RELATIVO em POSIX, onde o `path.resolve` o colava ao
+// `process.cwd()` do runner e a subida encontrava o `.git` do proprio repo. O
+// Retomar dizia entao «estavas em <este repo>» com `status: measured`. Este
+// teste fixa a regra sem depender do sistema que o corre: um cwd que esta
+// plataforma nao sabe resolver da n/d, e nunca o worktree onde o teste corre.
+test('cwd de outra maquina nunca vira o worktree LOCAL disfarcado de facto medido', () => {
+  const dir = tempDir();
+  const file = path.join(dir, 'alheio.jsonl');
+  const alheio = path.sep === '\\' ? '/media/outro/repo' : 'C:\\repo-antigo';
+  const linhas = [
+    { cwd: alheio, gitBranch: 'x', sessionId: 's', type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Edit', input: { file_path: 'src/a.js' } }] } },
+    { cwd: alheio, gitBranch: 'x', sessionId: 's', type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok', is_error: false }] } },
+  ];
+  fs.writeFileSync(file, `${linhas.map(JSON.stringify).join('\n')}\n`);
+  const report = retomar.analyzeTranscript(file);
+  assert.equal(report.facts.session_cwd.value, alheio, 'o cwd continua a ser um facto — e o que se tem');
+  assert.equal(report.facts.session_worktree.status, 'n/d');
+  assert.equal(report.facts.session_worktree.value, null, 'n/d nao carrega valor nenhum');
+  assert.notEqual(report.facts.session_worktree.value, process.cwd());
+});
+
 test('última corrida sem resumo numérico é n/d visível, nunca zero', () => {
   const dir = tempDir();
   const file = path.join(dir, 'unknown.jsonl');

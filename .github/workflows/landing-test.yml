@@ -10,11 +10,18 @@ on:
     branches: [main]
     paths:
       - 'landing/**'
+      # A rota /api/admin/matrix le o seed e o snapshot de precos REAIS de
+      # `data/` (ver route.test.ts). Sem esta linha, um PR que so mexa em
+      # `data/` nao acorda esta suite: foi assim que o #398 precificou o
+      # claude-fable-5 e partiu o teste de cobertura de TES em `main` sem
+      # nenhum check vermelho no proprio PR.
+      - 'data/**'
       - '.github/workflows/landing-test.yml'
   pull_request:
     branches: [main, dev]
     paths:
       - 'landing/**'
+      - 'data/**'
       - '.github/workflows/landing-test.yml'
   workflow_dispatch:
 
