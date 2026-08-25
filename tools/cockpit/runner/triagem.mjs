@@ -145,6 +145,26 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por, n
   if (motivo && !MOTIVOS.includes(motivo)) {
     throw new Error(`motivo desconhecido: ${motivo} (aceites: ${MOTIVOS.join(', ')})`);
   }
+  // NENHUM AGENTE SOBREPOE UMA DECISAO DO DONO.
+  //
+  // A regra estava escrita em prosa no `voidar-fila.mjs` ("uma triagem do dono
+  // NAO se sobrepoe") e em lado nenhum no codigo. A 2.a ronda adversarial
+  // mostrou o que isso custava: basta um agente sobrepor UMA das 20 decisoes
+  // do dono e a contagem cai para 19 — a chave continua decidida, logo o
+  // `porTriar` exclui-a, a fila fica vazia, e o portao 2 fica em 19 de 20 PARA
+  // SEMPRE. Um estado absorvente construido por uma unica escrita.
+  //
+  // O dono pode mudar de ideias sobre o que e dele; um agente nao pode mudar
+  // de ideias por ele. A reversao existe — outra decisao DELE — e continua a
+  // ser um append, nunca um apagar.
+  if (por !== 'dono') {
+    const anterior = lerDecisaoAnterior(caminho, String(chave));
+    if (anterior && anterior.por === 'dono') {
+      throw new Error(
+        `${por} nao sobrepoe uma decisao do dono (chave ${chave} ja tem "${anterior.decisao}" assinado por ele)`,
+      );
+    }
+  }
   const entrada = {
     ts: ts || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     chave: String(chave),
@@ -308,4 +328,30 @@ export function menuDeMotores(opts = {}) {
     { id: 'claude-sonnet-5', etiqueta: 'Sonnet', tier: 'T2', ...custoEstimado('claude-sonnet-5', opts) },
     { id: 'claude-opus-5', etiqueta: 'Opus', tier: 'T3', ...custoEstimado('claude-opus-5', opts) },
   ];
+}
+
+/**
+ * A ultima decisao registada para uma chave, lida do disco.
+ *
+ * Existe para o guard "nenhum agente sobrepoe o dono" poder ser verificado no
+ * momento da escrita, sem obrigar cada chamador a passar o mapa inteiro. Le o
+ * ficheiro; num ledger de 1448 linhas isso e desprezavel ao lado da escrita que
+ * se segue, e a alternativa — confiar em estado em memoria — era outra fonte de
+ * verdade a divergir.
+ *
+ * Ficheiro ausente ou ilegivel devolve `null`: sem prova de decisao anterior,
+ * nao se bloqueia ninguem. Falha ABERTA de proposito — um guard que rebenta a
+ * escrita porque nao conseguiu ler seria pior do que o defeito que evita.
+ */
+export function lerDecisaoAnterior(caminho, chave, { readImpl = fs.readFileSync } = {}) {
+  let bruto;
+  try { bruto = String(readImpl(caminho, 'utf8')); } catch { return null; }
+  let ultima = null;
+  for (const linha of bruto.split(/\r?\n/)) {
+    if (!linha.trim()) continue;
+    let o;
+    try { o = JSON.parse(linha); } catch { continue; }
+    if (o && String(o.chave) === chave) ultima = o;
+  }
+  return ultima;
 }

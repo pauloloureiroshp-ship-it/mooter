@@ -331,10 +331,17 @@ export function createServer({
       // fila estabilizava vazia com 5 decisoes dele e o portao pedia 20.
       const reservadas = reservarParaODono(fila, { jaDoDono });
       const actos = curar(fila, { jaDoDono });
+      // O que foi MESMO escrito, com o `ts` que ficou no ficheiro. Gerar um
+      // `new Date()` novo para a analise punha o acto num dia diferente daquele
+      // em que ele foi persistido sempre que o tique atravessasse a meia-noite
+      // do dono — `persisted=2026-08-23` contra `sintetico=2026-08-24`. O
+      // alarme lia um dia que nao existia no ledger.
+      const escritos = [];
       for (const acto of actos) {
         // `via` diz por onde a decisao entrou. Uma linha `agente` sem
         // `via:'autopilot-l1'` nao veio deste tique.
-        registarTriagem(triagemFile, { ...acto, via: 'autopilot-l1' });
+        const e = registarTriagem(triagemFile, { ...acto, via: 'autopilot-l1' });
+        escritos.push({ ...e, pilar: (acto.recibo && acto.recibo.pilar) || null });
         feitos += 1;
       }
       const porAmostra = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
@@ -352,9 +359,12 @@ export function createServer({
       // que existe para ser atempado chegava sempre tarde.
       const fechadosPeloAgente = [
         ...[...decisoes.values()].filter((d) => d && d.por === 'agente'),
-        ...actos.map((a) => ({ ...a, ts: a.ts || new Date().toISOString(), pilar: a.recibo && a.recibo.pilar })),
+        ...escritos,
       ];
-      const an = anomaliaDeDreno(fechadosPeloAgente);
+      // `agora` materializa o dia de hoje mesmo sem actos nenhuns. Sem ele, uma
+      // PARAGEM TOTAL do dreno era invisivel: o detector so via dias que tinham
+      // trabalho, e o pior caso — o pilar que morre de vez — nunca disparava.
+      const an = anomaliaDeDreno(fechadosPeloAgente, { agora: Date.now() });
       if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
 `);
     } catch (err) {

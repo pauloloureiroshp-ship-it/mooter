@@ -389,14 +389,68 @@ export function reservarParaODono(fila, { jaDoDono = 0, alvo = MIN_TRIADOS, umEm
 
   const faltam = Math.max(0, (Number.isSafeInteger(alvo) ? alvo : MIN_TRIADOS) - Math.max(0, Number(jaDoDono) || 0));
   if (reservadas.size >= faltam) return reservadas;
-  // Complemento deliberadamente NAO aleatorio e NAO representativo: e material
-  // para o portao, e a fila ja vem do mais recente para tras. Diz-se o que e —
-  // ver `reservadosPorAmostra` vs `reservadosPorAlvo` em quem reporta.
-  for (const a of itens) {
-    if (reservadas.size >= faltam) break;
-    reservadas.add(a.chave);
+
+  // O complemento e uma ESCADA ANINHADA de divisores, nao "os primeiros da fila".
+  //
+  // A versao anterior levava a cabeca da fila, e a fila muda a cada tique: o
+  // adversario inseriu UM achado novo no topo e mediu um cartao a sair da
+  // reserva — `entered=P2.new-0`, `exited=P2.fa64cb|packages/...`. Um achado
+  // reservado voltava ao dreno antes de o dono lhe tocar, que e exactamente a
+  // instabilidade que o hash existia para evitar: metade da funcao era estavel
+  // e a outra metade nao.
+  //
+  // A escada 20 → 10 → 5 → 2 → 1 e ANINHADA por construcao (`h%20===0` implica
+  // `h%10===0`, que implica `h%5===0`), portanto descer um degrau so ACRESCENTA
+  // chaves — nunca troca uma por outra. Duas propriedades ficam garantidas: a
+  // reserva nao depende da ORDEM da fila, e nao ha troca de cartoes dentro do
+  // mesmo degrau.
+  //
+  // O QUE ISTO NAO GARANTE, e nao vale a pena fingir que garante: se a fila
+  // crescer muito, um degrau mais grosso passa a chegar, e as chaves que so
+  // pertenciam ao degrau fino saem da reserva. Estabilidade absoluta exigiria
+  // PERSISTIR a reserva — uma segunda fonte de verdade ao lado do
+  // `triagem.jsonl`, que e precisamente o que este projecto recusa. Fica o
+  // degrau visivel em `degrauDaReserva()` para quem precise de o auditar.
+  for (const d of ESCADA_RESERVA) {
+    if (d >= umEmValido(umEm)) continue;
+    for (const a of itens) if (hashDaChave(a.chave) % d === 0) reservadas.add(a.chave);
+    if (reservadas.size >= faltam) return reservadas;
   }
   return reservadas;
+}
+
+/** Divisores do complemento. Aninhados de proposito: 20 ⊂ 10 ⊂ 5 ⊂ 2 ⊂ 1. */
+export const ESCADA_RESERVA = Object.freeze([10, 5, 2, 1]);
+
+const umEmValido = (n) => Math.max(1, Number(n) || 1);
+
+/**
+ * Que degrau da escada esta a ser usado para uma dada fila e alvo.
+ *
+ * Existe para o degrau ser AUDITAVEL: e o unico numero que explica porque e que
+ * um achado esta reservado hoje e podia nao estar amanha.
+ */
+export function degrauDaReserva(fila, { jaDoDono = 0, alvo = MIN_TRIADOS, umEm = AUDITORIA_1_EM } = {}) {
+  const itens = (fila || []).filter((a) => a && a.chave);
+  const faltam = Math.max(0, (Number.isSafeInteger(alvo) ? alvo : MIN_TRIADOS) - Math.max(0, Number(jaDoDono) || 0));
+  const conta = (d) => itens.filter((a) => hashDaChave(a.chave) % d === 0).length;
+  if (conta(umEmValido(umEm)) >= faltam) return umEmValido(umEm);
+  for (const d of ESCADA_RESERVA) {
+    if (d >= umEmValido(umEm)) continue;
+    if (conta(d) >= faltam) return d;
+  }
+  return 1;
+}
+
+/** FNV-1a de 32 bits. Deterministico, sem dependencias, estavel entre tiques. */
+function hashDaChave(chave) {
+  const s = String(chave ?? '');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
 }
 
 export function naAmostraDeAuditoria(chave, { umEm = AUDITORIA_1_EM } = {}) {
@@ -404,14 +458,9 @@ export function naAmostraDeAuditoria(chave, { umEm = AUDITORIA_1_EM } = {}) {
   if (n === 1) return true;
   const s = String(chave ?? '');
   if (!s) return false;
-  // FNV-1a de 32 bits: deterministico, sem dependencias, e chega bem para
-  // espalhar chaves que partilham prefixo (as nossas comecam todas por `P<n>.`).
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i += 1) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h % n === 0;
+  // Uma so implementacao do hash — `hashDaChave`. Duas copias do mesmo FNV
+  // seriam a segunda oportunidade de divergir, e este ficheiro ja teve a licao.
+  return hashDaChave(s) % n === 0;
 }
 
 /**
@@ -469,7 +518,7 @@ export const ANOMALIA_MIN = 10;
  * @returns {{por_dia:Record<string,number>, ultimo:string|null, hoje:number,
  *            base:number|null, anomalia:boolean, porque:string}}
  */
-export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN, porPilar = true } = {}) {
+export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = ANOMALIA_MIN, porPilar = true, agora = null } = {}) {
   const porDia = {};
   const porDiaPilar = {};
   for (const f of fechados || []) {
@@ -485,6 +534,22 @@ export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = A
       const p = (f && f.pilar) || (f && f.recibo && f.recibo.pilar) || null;
       if (p) ((porDiaPilar[p] ||= {})[d] = (porDiaPilar[p][d] || 0) + 1);
     }
+  }
+  // O DIA DE HOJE EXISTE MESMO QUE NAO TENHA ACTOS.
+  //
+  // Sem isto, o detector so olhava para dias que tinham trabalho — e uma
+  // PARAGEM TOTAL era invisivel por construcao. Medido pelo adversario:
+  // `100,100,100` seguido de zero actos reportava `ultimo=2026-08-22,
+  // hoje=100, anomalia=false`. Um pilar que morre completamente nao aparecia,
+  // enquanto um que so abrandasse aparecia — a deteccao de queda que eu tinha
+  // acabado de acrescentar tinha um buraco com a forma exacta do pior caso.
+  //
+  // `agora` e injectavel para os testes; sem ele nao se materializa dia nenhum,
+  // porque inventar "hoje" a partir do relogio dentro de uma funcao pura
+  // tornava-a nao-determinista.
+  if (agora != null) {
+    const hojeReal = ownerDay(agora);
+    if (!(hojeReal in porDia)) porDia[hojeReal] = 0;
   }
   const dias = Object.keys(porDia).sort();
   if (!dias.length) {

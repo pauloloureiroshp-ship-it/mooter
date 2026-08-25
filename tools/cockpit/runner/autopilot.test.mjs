@@ -28,7 +28,7 @@ const {
   normalizar, lerEstado, curar,
   NIVEIS, ORCAMENTOS, ORCAMENTO_OMISSAO, orcamento, ESTADO_OMISSAO,
   TETO_REFUTADO_PCT, MIN_TRIADOS, MIN_PRECISAO_PCT, MIN_PATCHES_LIMPOS,
-  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN, reservarParaODono,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, ANOMALIA_FACTOR, ANOMALIA_MIN, reservarParaODono, degrauDaReserva,
 } = await import('./autopilot.mjs');
 const { createServer } = await import('./f10-server.mjs');
 const { AUTORES } = await import('./triagem.mjs');
@@ -724,9 +724,12 @@ test('SEM FOME: com a fila pequena, a reserva garante o que o portao 2 exige', (
   assert.ok(soAmostra < MIN_TRIADOS, `o cenario so vale se a amostra sozinha nao chegar (${soAmostra})`);
 
   const reservadas = reservarParaODono(fila, { jaDoDono: 0 });
-  assert.equal(reservadas.size, MIN_TRIADOS, 'reserva exactamente o que falta para o portao poder abrir');
+  // A escada e aninhada, por isso um degrau da >= o que falta, nao exactamente.
+  // Reservar a mais custa dreno; reservar a menos custa o portao fechado para
+  // sempre. A troca esta feita do lado que nao cria prisoes.
+  assert.ok(reservadas.size >= MIN_TRIADOS, `reserva pelo menos o que falta (${reservadas.size})`);
   const actos = curar(fila, { cap: Number.MAX_SAFE_INTEGER, jaDoDono: 0 });
-  assert.equal(actos.length, 138 - MIN_TRIADOS, 'o dreno leva o resto');
+  assert.equal(actos.length, 138 - reservadas.size, 'o dreno leva exactamente o resto');
 });
 
 test('SEM FOME: a amostra por hash entra SEMPRE — o complemento e so o que falta', () => {
@@ -749,8 +752,8 @@ test('SEM FOME: com o dono a meio, reserva o maior entre a amostra e o que falta
   const porHash = fila.filter((a) => naAmostraDeAuditoria(a.chave)).length;
   // A amostra por hash NUNCA encolhe — ela e a parte representativa, e e o que
   // vigia o dreno. O complemento so aparece quando ela sozinha nao chega.
-  assert.equal(reservarParaODono(fila, { jaDoDono: 15 }).size, Math.max(porHash, MIN_TRIADOS - 15));
-  assert.equal(reservarParaODono(fila, { jaDoDono: 0 }).size, Math.max(porHash, MIN_TRIADOS));
+  assert.ok(reservarParaODono(fila, { jaDoDono: 15 }).size >= Math.max(porHash, MIN_TRIADOS - 15));
+  assert.ok(reservarParaODono(fila, { jaDoDono: 0 }).size >= Math.max(porHash, MIN_TRIADOS));
   assert.equal(reservarParaODono(fila, { jaDoDono: 100 }).size, porHash, 'acima do alvo, so a amostra');
 });
 
@@ -921,6 +924,123 @@ test('SEM FOME PELA PORTA DO LADO: a reserva conta como o portao conta', async (
     'contando o ficheiro, a reserva volta a 1-em-20 e o portao nunca reune as 20');
 
   // Com a contagem CERTA (a do portao), a reserva continua a guardar:
-  assert.equal(reservarParaODono(naJanela, { jaDoDono: noPortao }).size, MIN_TRIADOS,
+  assert.ok(reservarParaODono(naJanela, { jaDoDono: noPortao }).size >= MIN_TRIADOS,
     'contando como o portao conta, a reserva guarda o que ele ainda exige');
+});
+
+/* ═══ 2.a ronda adversarial: os defeitos que a 1.a correccao criou ═══ */
+
+/**
+ * O SEGUNDO ESTADO ABSORVENTE. Basta um agente sobrepor UMA das 20 decisoes do
+ * dono: a chave continua decidida, o `porTriar` exclui-a, a fila fica vazia, e
+ * o portao 2 fica em 19 de 20 para sempre. Uma unica escrita constroi a prisao.
+ *
+ * A regra "uma triagem do dono NAO se sobrepoe" estava escrita em prosa no
+ * `voidar-fila.mjs` e em lado nenhum no codigo.
+ */
+test('ABSORVENTE 2: um agente NAO sobrepoe uma decisao do dono', async () => {
+  const { registarTriagem: reg, lerTriagem: ler } = await import('./triagem.mjs');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sobrepor-')), 'triagem.jsonl');
+
+  reg(f, { chave: 'k1', decisao: 'aceite', por: 'dono' });
+  for (const quem of ['agente', 'claude']) {
+    assert.throws(
+      () => reg(f, { chave: 'k1', decisao: 'descartado', motivo: 'trivial', por: quem }),
+      /nao sobrepoe uma decisao do dono/,
+      `${quem} nao pode mudar de ideias pelo dono`,
+    );
+  }
+  assert.equal(ler(f).decisoes.get('k1').decisao, 'aceite', 'a decisao dele fica intacta');
+
+  // E o dono continua a poder mudar de ideias sobre o que e dele.
+  reg(f, { chave: 'k1', decisao: 'descartado', motivo: 'ja-sabido', por: 'dono' });
+  assert.equal(ler(f).decisoes.get('k1').decisao, 'descartado');
+  // Depois disso, um agente tambem nao pode sobrepor a NOVA decisao dele.
+  assert.throws(() => reg(f, { chave: 'k1', decisao: 'aceite', por: 'agente' }), /nao sobrepoe/);
+});
+
+test('SOBREPOSICAO: um agente sobrepoe outro agente sem problema', async () => {
+  const { registarTriagem: reg, lerTriagem: ler } = await import('./triagem.mjs');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-sobrepor2-')), 'triagem.jsonl');
+  reg(f, { chave: 'k1', decisao: 'descartado', motivo: 'trivial', por: 'claude' });
+  reg(f, { chave: 'k1', decisao: 'descartado', motivo: 'ja-sabido', por: 'agente' });
+  assert.equal(ler(f).decisoes.get('k1').motivo, 'ja-sabido', 'entre agentes, a ultima vence');
+});
+
+/**
+ * O COMPLEMENTO INSTAVEL. O adversario inseriu UM achado novo no topo da fila
+ * e mediu um cartao a sair da reserva. Um achado reservado que volta ao dreno
+ * antes de o dono lhe tocar e exactamente a instabilidade que o hash existe
+ * para evitar — metade da funcao era estavel e a outra metade nao.
+ */
+test('COMPLEMENTO ESTAVEL: inserir achados novos nao expulsa nenhum reservado, no mesmo degrau', () => {
+  const fila = Array.from({ length: 60 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const antes = reservarParaODono(fila, { jaDoDono: 0 });
+  const degrauAntes = degrauDaReserva(fila, { jaDoDono: 0 });
+
+  const comNovo = [achado({ chave: 'P2.novo|new.js:1-9:zzz' }), ...fila];
+  const depois = reservarParaODono(comNovo, { jaDoDono: 0 });
+  assert.equal(degrauDaReserva(comNovo, { jaDoDono: 0 }), degrauAntes, 'um achado a mais nao muda o degrau');
+
+  const sairam = [...antes].filter((k) => !depois.has(k));
+  assert.deepEqual(sairam, [], `nenhum reservado pode sair: sairam ${JSON.stringify(sairam)}`);
+});
+
+/**
+ * O RESIDUO, escrito em vez de escondido.
+ *
+ * A escada e aninhada, por isso nao ha troca de cartoes DENTRO de um degrau.
+ * Mas se a fila crescer o suficiente para um degrau mais grosso chegar, as
+ * chaves que so pertenciam ao degrau fino saem da reserva. Estabilidade
+ * absoluta exigiria PERSISTIR a reserva — uma segunda fonte de verdade ao lado
+ * do `triagem.jsonl`, que e exactamente o que este projecto recusa.
+ *
+ * Este teste existe para o residuo ser conhecido e nao redescoberto por um
+ * adversario daqui a duas semanas.
+ */
+test('RESIDUO CONHECIDO: uma fila muito maior promove o degrau, e isso muda a reserva', () => {
+  const curta = Array.from({ length: 12 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const longa = Array.from({ length: 600 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const dCurta = degrauDaReserva(curta, { jaDoDono: 0 });
+  const dLonga = degrauDaReserva(longa, { jaDoDono: 0 });
+  assert.ok(dLonga > dCurta, `a fila longa usa um degrau mais grosso (${dCurta} -> ${dLonga})`);
+  // A amostra por hash 1-em-20 sobrevive SEMPRE — e a parte representativa.
+  const amostraCurta = curta.filter((a) => naAmostraDeAuditoria(a.chave)).map((a) => a.chave);
+  const reservaLonga = reservarParaODono(longa, { jaDoDono: 0 });
+  for (const k of amostraCurta) assert.ok(reservaLonga.has(k), `a amostra nunca sai: ${k}`);
+});
+
+test('COMPLEMENTO ESTAVEL: a ordem da fila nao muda a reserva', () => {
+  const fila = Array.from({ length: 60 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const a = reservarParaODono(fila, { jaDoDono: 0 });
+  const b = reservarParaODono([...fila].reverse(), { jaDoDono: 0 });
+  assert.deepEqual([...a].sort(), [...b].sort(), 'a mesma fila por outra ordem tem de dar a mesma reserva');
+});
+
+/**
+ * A PARAGEM TOTAL. `100,100,100` seguido de ZERO actos reportava
+ * `ultimo=2026-08-22, hoje=100, anomalia=false`: o detector so olhava para dias
+ * que tinham trabalho, e o pior caso — o pilar que morre de vez — era invisivel
+ * por construcao. A deteccao de queda que eu tinha acabado de acrescentar tinha
+ * um buraco com a forma exacta do pior caso.
+ */
+test('PARAGEM TOTAL: zero actos hoje dispara o alarme, com `agora`', () => {
+  const historia = [...dia('2026-08-20', 100), ...dia('2026-08-21', 100), ...dia('2026-08-22', 100)];
+  const semAgora = anomaliaDeDreno(historia);
+  assert.equal(semAgora.ultimo, '2026-08-22');
+  assert.equal(semAgora.anomalia, false, 'sem `agora`, a funcao continua pura e nao inventa hoje');
+
+  const comAgora = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-24T15:00:00Z') });
+  assert.equal(comAgora.ultimo, '2026-08-24');
+  assert.equal(comAgora.hoje, 0, 'o dia de hoje existe mesmo sem actos');
+  assert.equal(comAgora.anomalia, true, 'uma paragem TOTAL nao pode ser sossego');
+  assert.equal(comAgora.direccao, 'caiu');
+});
+
+test('PARAGEM TOTAL: com actos hoje, `agora` nao inventa nem duplica nada', () => {
+  const historia = [...dia('2026-08-20', 20), ...dia('2026-08-21', 20), ...dia('2026-08-22', 22)];
+  const r = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-22T15:00:00Z') });
+  assert.equal(r.ultimo, '2026-08-22');
+  assert.equal(r.hoje, 22, 'nao se sobrepoe ao que ja la estava');
+  assert.equal(r.anomalia, false);
 });
