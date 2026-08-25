@@ -45,7 +45,14 @@ const TESTA = /^test\.ya?ml$/;
 
 export function lerWorkflows(dir, { readdirImpl = fs.readdirSync, readImpl = fs.readFileSync } = {}) {
   let nomes = [];
-  try { nomes = readdirImpl(dir).filter((f) => /\.ya?ml$/.test(f)); } catch { return []; }
+  try { nomes = readdirImpl(dir).filter((f) => /\.ya?ml$/.test(f)); }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Uma pasta ilegível e uma pasta sem workflows davam ambas `[]`, fazendo a
+    // verificação publicar "sem workflows" como se tivesse conseguido medir.
+    try { process.stderr.write(`ci-coerencia: workflows n/d — ${erro && erro.message ? erro.message : erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
   return nomes.map((f) => {
     let src = '';
     try { src = String(readImpl(path.join(dir, f), 'utf8')); } catch { src = ''; }
@@ -155,6 +162,7 @@ export function scriptsEmFalta(workflows, raiz, { existsImpl = fs.existsSync, ch
 function principal() {
   const raiz = process.argv[2] || process.env.MOOTER_REPO || process.cwd();
   const workflows = lerWorkflows(path.join(raiz, '.github', 'workflows'));
+  if (workflows === null) { console.log('workflows: n/d — não consegui listar a pasta'); return; }
   if (!workflows.length) { console.log('sem workflows — n/d'); return; }
 
   const porVersao = {};

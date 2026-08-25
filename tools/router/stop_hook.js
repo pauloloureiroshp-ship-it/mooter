@@ -204,8 +204,11 @@ function tierCost(tier, tin, tout) {
   try {
     const { priceTurn, TIER_TO_PRICING_KEY } = require('./pricing.js');
     return priceTurn(TIER_TO_PRICING_KEY[tier], tin, tout);
-  } catch {
-    return 0;
+  } catch (erro) {
+    // Pricing indisponível não torna uma chamada grátis: null mantém custo e
+    // poupança como n/d, em vez de produzir um verde por ignorância.
+    try { process.stderr.write(`stop-hook: pricing n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
   }
 }
 
@@ -284,6 +287,7 @@ function buildSessionReport(d = {}) {
   lines.push('  TOKENS BY TIER');
   let spent = 0;
   let opusBaseline = 0;
+  let pricingAvailable = true;
   let anyTier = false;
   for (const t of ['T0', 'T1', 'T2', 'T3']) {
     const s = tokens[t];
@@ -294,9 +298,15 @@ function buildSessionReport(d = {}) {
     if (calls === 0 && tin + tout === 0) continue;
     anyTier = true;
     const cost = tierCost(t, tin, tout);
-    spent += cost;
-    opusBaseline += tierCost('T3', tin, tout); // what these tokens would cost at Opus
-    lines.push(`  ${TIER_LABEL[t]}  ${fmtTok(tin + tout)} tokens · ${calls} calls · $${cost.toFixed(2)}`);
+    const baselineCost = tierCost('T3', tin, tout); // what these tokens would cost at Opus
+    if (cost === null || baselineCost === null) {
+      pricingAvailable = false;
+      lines.push(`  ${TIER_LABEL[t]}  ${fmtTok(tin + tout)} tokens · ${calls} calls · n/d`);
+    } else {
+      spent += cost;
+      opusBaseline += baselineCost;
+      lines.push(`  ${TIER_LABEL[t]}  ${fmtTok(tin + tout)} tokens · ${calls} calls · $${cost.toFixed(2)}`);
+    }
   }
   if (!anyTier) lines.push('  (no LLM calls recorded this session)');
 
@@ -366,12 +376,17 @@ function buildSessionReport(d = {}) {
 
   // ── SAVINGS (real tokens × pricing.js; vs an all-Opus baseline) ──
   if (anyTier) {
-    const saved = Math.max(0, opusBaseline - spent);
-    const pct = opusBaseline > 0 ? Math.round((saved / opusBaseline) * 100) : 0;
     lines.push('');
     lines.push('  SAVINGS');
-    lines.push(`  Saved vs all-Opus: $${saved.toFixed(2)} (${pct}% reduction)`);
-    lines.push(`  Total spent: $${spent.toFixed(2)}`);
+    if (!pricingAvailable) {
+      lines.push('  Saved vs all-Opus: n/d (pricing unavailable)');
+      lines.push('  Total spent: n/d');
+    } else {
+      const saved = Math.max(0, opusBaseline - spent);
+      const pct = opusBaseline > 0 ? Math.round((saved / opusBaseline) * 100) : 0;
+      lines.push(`  Saved vs all-Opus: $${saved.toFixed(2)} (${pct}% reduction)`);
+      lines.push(`  Total spent: $${spent.toFixed(2)}`);
+    }
   }
 
   lines.push('');

@@ -13,7 +13,7 @@
  *     coverage,             // coverageStats() result from specialization-matrix, or null
  *     cells_measured,       // number of cells with a non-null TES, or 0
  *     tes_by_cell,          // { "<model>|<category>": <tes> | null } for all cells
- *     total_routings,       // best-effort integer from cost-perf-log, or 0
+ *     total_routings,       // best-effort integer from cost-perf-log, or null
  *     pricing_pending_count // integer — cells where TES is null due to pending pricing
  *   }
  *
@@ -208,16 +208,20 @@ function gatherCells() {
 
 /**
  * Best-effort count of total routing events recorded in cost-perf-log.
- * Returns 0 when the log is absent or the tracker module is unavailable.
+ * Returns null when the tracker module is unavailable.
  *
  * We read all rows (no time filter) to give a cumulative total count.
  */
 function totalRoutingsFromLog(home) {
-  if (!costPerfTracker || typeof costPerfTracker.readRows !== 'function') return 0;
+  if (!costPerfTracker || typeof costPerfTracker.readRows !== 'function') return null;
   try {
     const rows = costPerfTracker.readRows({ home, last_days: Infinity });
-    return Array.isArray(rows) ? rows.length : 0;
-  } catch { return 0; }
+    return Array.isArray(rows) ? rows.length : null;
+  } catch (erro) {
+    // Tracker indisponível não é zero routings: o snapshot transporta n/d.
+    try { process.stderr.write(`matrix-snapshot: total_routings n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 // ── coverage helper ────────────────────────────────────────────────────────────
@@ -303,7 +307,14 @@ function computeEvolution({ category, period_days = 30, dir, now } = {}) {
   const snapDir = snapshotDir(dir);
 
   let names;
-  try { names = fs.readdirSync(snapDir); } catch { return []; }
+  try { names = fs.readdirSync(snapDir); }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Directório ilegível não é uma evolução sem pontos; null chega às CLIs
+    // como n/d e nunca entra em length/map/for-of.
+    try { process.stderr.write(`matrix-snapshot: evolução n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 
   const dateFiles = names
     .filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n))
@@ -369,6 +380,7 @@ if (require.main === module) {
     const period_days = Number(args[2]) || 30;
     const result = computeEvolution({ category, period_days });
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    if (result === null) process.exitCode = 1;
   } else {
     const result = writeSnapshot();
     process.stdout.write(JSON.stringify({

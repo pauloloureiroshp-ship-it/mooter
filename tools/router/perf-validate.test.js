@@ -84,6 +84,18 @@ test('speedTable separates measured-local from estimated-cloud', () => {
   fs.rmSync(tmp, { force: true });
 });
 
+test('speedTable mantém medição local n/d quando o log é ilegível', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'perf-validate-speed-unreadable-'));
+  try {
+    const t = pv.speedTable({ speedLog: dir });
+    assert.strictEqual(t.has_local_measurement, null);
+    assert.strictEqual(t.local, null);
+    assert.ok(t.cloud.length >= 1, 'estimativas cloud continuam independentes');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('paretoPoints: baseline is 100/100, Mooter quality = A/B non-regression', () => {
   const rows = pv.classifyCorpus();
   const s = pv.strategyCosts(rows);

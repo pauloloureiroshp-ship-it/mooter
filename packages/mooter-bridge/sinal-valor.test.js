@@ -90,6 +90,17 @@ test('linha corrompida é saltada, não inventada nem fatal', () => {
   assert.strictEqual(a.total_respostas, 2, 'as duas boas contam, a corrompida desaparece: ' + a.total_respostas);
 });
 
+test('registo ilegível devolve contagens n/d, nunca zeros fabricados', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sinal-ilegivel-'));
+  assert.strictEqual(sv.lerTodas(dir), null);
+  const a = sv.agregado({ ficheiro: dir });
+  assert.strictEqual(a.total_respostas, null);
+  assert.strictEqual(a.disposicao_a_pagar_declarada, null);
+  assert.strictEqual(a.pagaria.denominador, null);
+  assert.match(a.resumo, /n\/d — não consegui ler/);
+  assert.strictEqual(a.receita_real_usd, 0, 'receita real não depende do registo de intenção');
+});
+
 test('nada de identificação pessoal entra no registo', () => {
   const f = ficheiroTemp('privacidade');
   sv.registar({ origem: 'estranho', pagaria: true, nome: 'Maria', email: 'maria@exemplo.pt' }, { ficheiro: f });

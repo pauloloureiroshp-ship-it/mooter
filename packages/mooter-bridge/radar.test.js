@@ -139,6 +139,18 @@ test('radar · repo vazio dá 0/6 e diz o que fazer primeiro — sem inventar no
   assert.match(r.pontuacao.denominador, /presença/, 'o denominador tem de declarar que não é nota de qualidade');
 });
 
+test('radar · pasta de skill ilegível anuncia a medição incompleta', () => {
+  const raiz = repoFalso('skill-ilegivel', {
+    '.claude/skills': 'isto é um ficheiro, não uma pasta',
+  });
+  const mensagens = [];
+  const original = process.stderr.write;
+  process.stderr.write = (texto) => { mensagens.push(String(texto)); return true; };
+  try { radar(raiz); }
+  finally { process.stderr.write = original; }
+  assert.match(mensagens.join(''), /mooter-radar.*pasta não listada.*pilar fica incompleto/s);
+});
+
 test('radar · repo bem montado reconhece os pilares e para de propor passos', () => {
   const raiz = repoFalso('completo', {
     'AGENTS.md': '# instruções\n'.repeat(40),

@@ -85,5 +85,14 @@ teste('Q8 · sem raiz devolve motivo, nunca rebenta', () => {
   assert.match(p.portasDoProjecto(null).porque, /não há pasta de sessão/);
 });
 
+teste('Q9 · raiz ilegível é n/d, nunca projecto vazio medido', () => {
+  const ficheiro = path.join(raiz, 'nao-e-pasta.txt');
+  fs.writeFileSync(ficheiro, 'x');
+  const r = p.portasDoProjecto(ficheiro);
+  assert.deepStrictEqual(r.portas, []);
+  assert.strictEqual(r.procurado, null);
+  assert.match(r.porque, /^n\/d — não consegui listar/);
+});
+
 console.log('\n' + ok + ' passou · ' + mau + ' falhou\n');
 process.exit(mau ? 1 : 0);

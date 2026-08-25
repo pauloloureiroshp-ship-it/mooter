@@ -165,7 +165,9 @@ async function loadedModels(fetchImpl = fetch) {
       expira: String(m.expires_at || '').slice(0, 19),
     }));
   } catch {
-    return [];
+    // Falhar /api/ps e não haver modelos residentes eram ambos `[]`; o estado
+    // viaja como null para o painel mostrar n/d sem chamar `.map()` ao neutro.
+    return null;
   }
 }
 

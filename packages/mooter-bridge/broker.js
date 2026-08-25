@@ -114,7 +114,16 @@ function lerLedger() {
     return fs.readFileSync(LEDGER_PATH(), 'utf8').split('\n').filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } })
       .filter(Boolean);
-  } catch { return []; }
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    // Falhar a leitura e não haver eventos davam ambos `[]`. Não propagamos
+    // `null`: estadoDoJob, listPending, decide e o adapter Slack consomem este
+    // contrato como colecção. O neutro fica, mas a falha real deixa de ser muda.
+    try { process.stderr.write('[mooter-broker] ledger não lido: '
+      + ((erro && erro.message) || erro)
+      + ' — a lista vazia é falha de leitura, não ausência de eventos\n'); } catch { /* stderr fechado */ }
+    return [];
+  }
 }
 
 /**

@@ -151,6 +151,7 @@ test('q09 · vê-se que modelos locais estão residentes e quanta VRAM ocupam', 
   assert.match(read(`${RUNNER}/f10-server.mjs`), /api\/ps/, 'lê os modelos residentes do Ollama');
   const shell = read(SHELL);
   assert.match(shell, /modelos_carregados/, 'o painel mostra-os');
+  assert.match(shell, /m == null[\s\S]*n\/d — could not measure/, 'falha de leitura dos residentes não pode parecer lista vazia');
   assert.match(shell, /no model resident/, 'e diz quando não há nenhum (a interface é inglesa: o público é global)');
 });
 

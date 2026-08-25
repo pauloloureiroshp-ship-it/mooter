@@ -428,17 +428,26 @@ function hashPrompt(p, prevTier) {
 }
 
 function tuningMtime() {
-  try { return Math.floor(fs.statSync(TUNING_PATH).mtimeMs); } catch { return 0; }
+  try { return Math.floor(fs.statSync(TUNING_PATH).mtimeMs); }
+  catch (erro) {
+    if (erro && erro.code === 'ENOENT') return 0;
+    // Tuning ilegível não é tuning inexistente: null desliga a cache neste
+    // turno, em vez de reutilizar uma decisão sob um falso mtime zero.
+    try { process.stderr.write(`inject-context: tuning mtime n/d — ${(erro && erro.message) || erro}\n`); } catch { /* stderr fechado */ }
+    return null;
+  }
 }
 
 function loadClassifyCache() {
+  const mtime = tuningMtime();
+  if (mtime === null) return null;
   try {
     const raw = JSON.parse(fs.readFileSync(CLASSIFY_CACHE_PATH, 'utf8'));
     if (!raw || typeof raw !== 'object') return { tuning_mtime: 0, entries: {} };
     // Invalidate entire cache if router-tuning.json changed since last save.
-    if (raw.tuning_mtime !== tuningMtime()) return { tuning_mtime: tuningMtime(), entries: {} };
+    if (raw.tuning_mtime !== mtime) return { tuning_mtime: mtime, entries: {} };
     return raw;
-  } catch { return { tuning_mtime: tuningMtime(), entries: {} }; }
+  } catch { return { tuning_mtime: mtime, entries: {} }; }
 }
 
 /**
@@ -472,6 +481,7 @@ function saveClassifyCache(cache) {
 function getClassifyCached(prompt, prevTier) {
   if (V07_DISABLED) return null;
   const cache = loadClassifyCache();
+  if (cache === null) return null;
   const key = hashPrompt(prompt, prevTier);
   const entry = cache.entries[key];
   if (!entry) return null;
@@ -489,6 +499,7 @@ function setClassifyCached(prompt, decision, cache, prevTier) {
   if (V07_DISABLED) return;
   if (decision && decision.user_override) return; // never cache override results
   const c = cache || loadClassifyCache();
+  if (c === null) return;
   c.entries[hashPrompt(prompt, prevTier)] = { ts: Date.now(), decision };
   saveClassifyCache(c);
 }
@@ -1336,13 +1347,21 @@ if (
     try {
       const lat = require('./latencia-local.js');
       const cat = require('./catalogo-local.js');
-      const escolha = lat.escolher({
-        recomendado: decision.recommended_model || null,
-        resumo: lat.resumir(lat.lerAmostras(LATENCIA_PATH)),
-        catalogo: cat.lerCatalogo(CATALOGO_PATH),
-        orcamentoMs,
-      });
-      if (escolha.modelo) { modeloEscolhido = escolha.modelo; razaoModelo = escolha.razao; }
+      const catalogo = cat.lerCatalogo(CATALOGO_PATH);
+      const amostras = lat.lerAmostras(LATENCIA_PATH);
+      if (amostras === null) {
+        razaoModelo = 'latência n/d — registo ilegível; recomendado pelo router';
+      } else if (catalogo === null) {
+        razaoModelo = 'catálogo local n/d; recomendado pelo router';
+      } else {
+        const escolha = lat.escolher({
+          recomendado: decision.recommended_model || null,
+          resumo: lat.resumir(amostras),
+          catalogo,
+          orcamentoMs,
+        });
+        if (escolha.modelo) { modeloEscolhido = escolha.modelo; razaoModelo = escolha.razao; }
+      }
     } catch { /* sem medicao, fica o recomendado */ }
     if (modeloEscolhido) {
       ollamaEnv.OLLAMA_OPTION_A_MODEL = modeloEscolhido;
@@ -1386,7 +1405,8 @@ if (
     if (!acertou) {
       try {
         const cat = require('./catalogo-local.js');
-        if (cat.caducou(CATALOGO_PATH) || !cat.lerCatalogo(CATALOGO_PATH).length) cat.refrescar(CATALOGO_PATH);
+        const catalogo = cat.lerCatalogo(CATALOGO_PATH);
+        if (cat.caducou(CATALOGO_PATH) || catalogo === null || catalogo.length === 0) cat.refrescar(CATALOGO_PATH);
       } catch { /* sem catalogo, fica o recomendado */ }
     }
     if (acertou) {

@@ -445,10 +445,10 @@ test('nextPillar roda sem sair do conjunto', () => {
 
 // ---------------------------------------------------------------- âncora estática
 
-test('readAnchor devolve [] sem ficheiro, sem json valido, ou sem array', () => {
+test('readAnchor distingue âncora ausente de âncora ilegível', () => {
   assert.deepEqual(readAnchor(null), []);
   assert.deepEqual(readAnchor('/caminho/que/nao/existe.json'), []);
-  assert.deepEqual(readAnchor('x.json', { readImpl: () => 'nao é json' }), []);
+  assert.equal(readAnchor('x.json', { readImpl: () => 'nao é json' }), null);
   assert.deepEqual(readAnchor('x.json', { readImpl: () => '{"nao":"array"}' }), []);
 });
 
