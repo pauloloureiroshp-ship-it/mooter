@@ -211,3 +211,96 @@ existia com outro nome e era um defeito maior do que o enunciado.
 
 **O `kimi-k3` não correu**: não existe canal para ele nesta máquina. Está declarado no topo em vez
 de ser silenciosamente substituído.
+
+---
+
+`2026-08-25 | FECHO 2 | as seis pendências do dono, decididas por delegação escrita`
+
+O dono delegou por escrito (via Cowork, ~19:00Z: *"resolver tudo como sempre"*). Tudo o que se
+segue foi decidido **em nome dele, por instrução escrita** — não é auto-autorização, e está
+registado assim em cada commit e no PR.
+
+### O que fechou
+
+**#390 mergido.** O ramo estava `CONFLICTING`: o `main` tinha avançado de `9c54af2c` para
+`77cc92bc` (o PC entregou #388, #389, #391, #392). Único conflito: `SYNC.md`, colisão de append.
+Resolvido mantendo **as duas** entradas. 21/21 checks verdes no momento do merge — até os dois
+Vercel, que recuperaram sozinhos do rate-limit.
+
+**Item 4 (colisões), item 5 (archive órfão), item 7 (corpus).** Feitos, nada apagado sem medir
+primeiro. Detalhe nos commits.
+
+### O item 2 caiu — e não por opinião
+
+O plano dizia: *remover o campo `tier` do fable-5 (deixa de ser ordenável por custo), e só então
+precificar do SSOT*. A missão mandava refutar antes de codificar. **As duas metades caem**, medidas
+contra o motor real:
+
+| | `decideAgent({task_category:"reasoning.science"})` |
+|---|---|
+| hoje | `chosen_model: null` |
+| sem `tier` + preço $10/$50 do SSOT | **`chosen_model: "claude-fable-5"`, TES 3784** |
+
+Ninguém escreveu `@fable`. **O passo final do plano produzia exactamente a violação que o plano
+existia para evitar.**
+
+Porquê: o campo `tier` só alimenta o proxy heurístico usado quando **não há score medido**. A
+ordenação por TES depende de **preço**. O fable está no roster e tem a **única** célula medida de
+`reasoning.science` (0.946, GPQA Diamond) — falta-lhe só um preço para ganhar a categoria sozinho.
+
+E remover o campo tem um efeito colateral que o plano não previa: `tierForModel()` devolve `"T2"`
+por omissão. Tirar o `"T5"` **não apaga o tier — troca uma etiqueta verdadeira por uma falsa**, e
+põe as superfícies a dizer `tier-heuristic:T2` sobre o Fable. Por isso o campo **fica**, e a
+divergência com o SSOT passa a estar declarada nos dados (`tier_diverges_from_ssot`).
+
+**O que hoje segura o invariante é a ausência de preço, e mais nada.** Não existe exclusão de T5
+dentro do `decideAgent` (verificado por grep). O sítio certo para a correcção é lá — mas
+`decide-agent.ts` é ficheiro de motor congelado e o allowlist da Wave 58 diz *"new files only — no
+existing engine file is modified"*. **Não mexi.** Entra um **arame**, não uma correcção:
+`precificavel-nao-rotavel.mjs` + teste no comando do CI, que dispara no instante em que a violação
+se torna possível. O teste `ARAME` semeia o estado proibido com os ficheiros reais e exige que o
+portão acuse — sem ele, os assertos ancorados podiam estar verdes por o código não fazer nada.
+
+**Adversário:** o `codex` que a missão pedia **não está instalado nesta máquina** — `n/d`, não
+fingido. A refutação correu no adversário que há (Ollama `gpt-oss:20b`, local, $0) e confirmou os
+quatro pontos de forma independente. O mesmo validou o item 4.
+
+### O item 3 parou, como estava mandado
+
+O stash `mac-checkup-v1494` **não era resíduo**. Medido: ~230 das 294 linhas adicionadas **não
+existem em nenhum ref do repositório**. `medirParidade` e `BEACON_FRESH_REMOTO_S` não aparecem em
+`git log --all -S` nem em branch nenhum. `verConector` é a excepção — essa fatia já aterrou pelos
+PRs #335, #337 e #351, e está superseded.
+
+O que há de único é uma funcionalidade inteira por entregar: **PARIDADE** (cada device leva no
+beacon versões, sha e paths, para o painel de *qualquer* device acusar a diferença) e a **frescura
+de beacon remoto** (um device remoto julgado pela cadência do sync, não pelo relógio local — sem
+isto, um Mac a publicar de 10 em 10 min aparecia no PC como *"sem sinal há 716s"*).
+
+Preservado em `mac/stash-paridade-2026-08-24`, no próprio commit-base dele. **A stash original NÃO
+foi dropada** e continua em `stash@{0}`. Não vai a merge sem o dono.
+
+### O item 6 fica bloqueado, e a razão é mecânica
+
+`--update-baseline` **não** actualiza só as métricas que melhoraram: reescreve o ficheiro inteiro
+com a medição corrente (`tools/docs-hygiene.js:313-320`). Correr agora gravaria `stashes: 1` e
+**subiria o limite de 0 para 1 em permanência** — que é exactamente o que o ratchet existe para
+impedir. E a única razão para `stashes` ser 1 é o item 3 ter mandado *não* dropar.
+
+Ficam por baixar, quando o stash for decidido: `active_packets` 204 → **26**,
+`top_level_handoff_files` 312 → **141**, `sync_lines` 606 → **598**.
+
+### Continua a precisar do dono
+
+1. **Stash / branch `mac/stash-paridade-2026-08-24`** — mergir, refazer sobre o `main` de hoje, ou
+   descartar. Enquanto não decidir, o item 6 fica bloqueado.
+2. **Precificar o `claude-fable-5`** — só depois de a exclusão de T5 viver em código dentro do
+   `decideAgent`, o que exige entrada nova no allowlist da Wave 58 e autorização dele.
+3. **Baseline do ratchet** — três métricas prontas a descer muito, à espera do nº 1.
+4. **`packages/mooter-bridge/package-lock.json`** untracked. Os outros cinco packages têm o lock em
+   git; este não. Não o adicionei: um lockfile tem implicações de dependências e não estava no
+   enunciado.
+5. **`SYNC.md` continua a ~3x o orçamento** (598 vs ~220). Enrolar para o arquivo mexe num ficheiro
+   partilhado com o PC — continua por fazer, pela mesma razão de ontem.
+
+**F1–F4 continuam fora**, como manda o kickoff.
