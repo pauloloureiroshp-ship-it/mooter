@@ -23,7 +23,7 @@
  * Nada aqui chama a rede, nenhum modelo, e nenhuma funcao escreve no repo.
  */
 
-import { ownerDay } from './fleet-state.mjs';
+import { ownerDay, OWNER_TZ as OWNER_TZ_LOCAL } from './fleet-state.mjs';
 
 /* ─────────────────────────── 1. severidade ─────────────────────────── */
 
@@ -411,10 +411,25 @@ export function reservarParaODono(fila, { jaDoDono = 0, alvo = MIN_TRIADOS, umEm
   // PERSISTIR a reserva — uma segunda fonte de verdade ao lado do
   // `triagem.jsonl`, que e precisamente o que este projecto recusa. Fica o
   // degrau visivel em `degrauDaReserva()` para quem precise de o auditar.
-  for (const d of ESCADA_RESERVA) {
-    if (d >= umEmValido(umEm)) continue;
-    for (const a of itens) if (hashDaChave(a.chave) % d === 0) reservadas.add(a.chave);
-    if (reservadas.size >= faltam) return reservadas;
+  // Toma-se por ORDEM DE HASH, ate `faltam`, e nao o degrau inteiro.
+  //
+  // A escada de degraus inteiros trocava a instabilidade pequena por uma
+  // grande: a 3.a ronda mediu `fila 93→94` a mudar o degrau e a expulsar 41
+  // cartoes de uma vez. Por ordem de hash, um achado novo com hash mais baixo
+  // empurra EXACTAMENTE UM para fora — o churn passa de um precipicio a um
+  // degrau de um.
+  //
+  // Nenhuma das duas e estabilidade absoluta, e nao ha aqui uma opcao que o
+  // seja: isso exigiria PERSISTIR a reserva, uma segunda fonte de verdade ao
+  // lado do `triagem.jsonl`. Entre um churn limitado a 1 por chegada e um de
+  // dezenas num limiar, escolhe-se o limitado.
+  const porHash = itens
+    .filter((a) => !reservadas.has(a.chave))
+    .map((a) => ({ chave: a.chave, h: hashDaChave(a.chave) }))
+    .sort((x, y) => (x.h - y.h) || (x.chave < y.chave ? -1 : 1));
+  for (const { chave } of porHash) {
+    if (reservadas.size >= faltam) break;
+    reservadas.add(chave);
   }
   return reservadas;
 }
@@ -547,9 +562,30 @@ export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = A
   // `agora` e injectavel para os testes; sem ele nao se materializa dia nenhum,
   // porque inventar "hoje" a partir do relogio dentro de uma funcao pura
   // tornava-a nao-determinista.
-  if (agora != null) {
-    const hojeReal = ownerDay(agora);
+  // `agora` invalido nao materializa nada e NAO rebenta. `ownerDay(NaN)` atira
+  // `RangeError` — um alarme que mata o tique porque o relogio veio estranho e
+  // pior do que um alarme que se cala.
+  // `typeof` e nao `Number()`: `Number([])` e 0, e um array vazio virava a
+  // meia-noite de 1970. Aceita-se um numero finito ou uma `Date` valida, e
+  // mais nada.
+  const agoraMs = typeof agora === 'number' ? agora
+    : (agora instanceof Date ? agora.getTime() : null);
+  const agoraValido = agoraMs != null && Number.isFinite(agoraMs);
+  let fraccaoDoDia = 1;
+  if (agoraValido) {
+    const hojeReal = ownerDay(agoraMs);
     if (!(hojeReal in porDia)) porDia[hojeReal] = 0;
+    // Um acto com `ts` no FUTURO escondia a paragem de hoje: `ultimo` passava a
+    // ser o dia futuro e o dia real nem era olhado. Fora.
+    for (const d of Object.keys(porDia)) if (d > hojeReal) delete porDia[d];
+    // QUE FRACCAO DO DIA JA PASSOU. Comparar um dia a comecar com dias
+    // completos dava alarme de queda todas as manhas — a 3.a ronda mediu
+    // `12,12,12 + hoje 0 -> anomalia=true` as 00:23. A linha de base escala
+    // com o tempo decorrido, e as 09:00 espera-se ~37% de um dia normal.
+    // A hora tem de ser lida NO FUSO DO DONO. Calcular a partir da meia-noite
+    // UTC do dia dele dava > 1 (o dia dele comeca as 03:00Z), e a fraccao vinha
+    // sempre 1 — que e exactamente o falso alarme que isto vem corrigir.
+    fraccaoDoDia = Math.min(1, Math.max(0.02, horaDoDono(agoraMs) / 24));
   }
   const dias = Object.keys(porDia).sort();
   if (!dias.length) {
@@ -568,8 +604,12 @@ export function anomaliaDeDreno(fechados, { factor = ANOMALIA_FACTOR, minimo = A
   // isso `100,100,100 -> 3` passava como "abaixo do minimo" — a queda mais
   // brutal possivel classificada como sossego. Um detector que so ve uma
   // direccao nao esta a vigiar, esta a confirmar.
+  // A queda compara-se com o que era ESPERADO ATE AGORA, nao com um dia
+  // inteiro. `baseEsperada` e a mediana escalada pela fraccao do dia decorrida;
+  // ao fim do dia sao a mesma coisa, e as 00:23 nao sao.
+  const baseEsperada = base * fraccaoDoDia;
   const subiu = base > 0 && hoje >= minimo && hoje >= base * factor;
-  const caiu = base >= minimo && hoje * factor <= base;
+  const caiu = baseEsperada >= minimo && hoje * factor <= baseEsperada;
 
   // POR PILAR: um pilar a explodir pode ficar escondido no agregado se outro
   // encolher ao mesmo tempo (medido: P2 1->101 e P3 99->99 da 100->200, que nao
@@ -605,4 +645,20 @@ function mediana(ordenada) {
   if (!ordenada.length) return null;
   const meio = Math.floor(ordenada.length / 2);
   return ordenada.length % 2 ? ordenada[meio] : (ordenada[meio - 1] + ordenada[meio]) / 2;
+}
+
+/**
+ * Que horas sao para o dono, em horas decimais (0..24).
+ *
+ * Le do `Intl` no fuso dele, tal como o `ownerDay`. Nao se subtrai um offset
+ * fixo: Sao Paulo aboliu o horario de verao em 2019, mas as datas anteriores
+ * ainda o tem, e um `-3` cravado seria um numero inventado para o passado.
+ */
+function horaDoDono(ms) {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: OWNER_TZ_LOCAL, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(ms));
+  const h = Number(p.find((x) => x.type === 'hour')?.value ?? 0);
+  const m = Number(p.find((x) => x.type === 'minute')?.value ?? 0);
+  return (h % 24) + m / 60;
 }

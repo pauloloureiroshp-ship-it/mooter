@@ -32,7 +32,7 @@ function shaDoRunner(statePath) {
     return typeof s.sha_carregado === 'string' && s.sha_carregado ? s.sha_carregado : null;
   } catch { return null; }
 }
-import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
+import { registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
@@ -336,14 +336,16 @@ export function createServer({
       // em que ele foi persistido sempre que o tique atravessasse a meia-noite
       // do dono — `persisted=2026-08-23` contra `sintetico=2026-08-24`. O
       // alarme lia um dia que nao existia no ledger.
-      const escritos = [];
-      for (const acto of actos) {
-        // `via` diz por onde a decisao entrou. Uma linha `agente` sem
-        // `via:'autopilot-l1'` nao veio deste tique.
-        const e = registarTriagem(triagemFile, { ...acto, via: 'autopilot-l1' });
-        escritos.push({ ...e, pilar: (acto.recibo && acto.recibo.pilar) || null });
-        feitos += 1;
-      }
+      // `registarVarias` NAO para na primeira colisao. O guard do dono e uma
+      // excepcao, e uma excepcao a meio de um `for` deixava metade do trabalho
+      // feito e o log a dizer que a fila ficara intacta.
+      const r = registarVarias(triagemFile, actos.map((a) => ({ ...a, via: 'autopilot-l1' })));
+      const escritos = r.escritas.map((e, i) => ({ ...e, pilar: (actos[i] && actos[i].recibo && actos[i].recibo.pilar) || null }));
+      feitos = r.escritas.length;
+      if (r.recusadas.length) logImpl(`autopilot L1: ${r.recusadas.length} nao escritas — o dono ja decidiu essas chaves
+`);
+      if (r.erros.length) logImpl(`autopilot L1: ${r.erros.length} falharam por outra razao: ${r.erros[0].porque.slice(0, 100)}
+`);
       const porAmostra = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
       const extra = reservadas.size - porAmostra;
       if (feitos) {
@@ -358,7 +360,9 @@ export function createServer({
       // um pico que comecasse neste tique so aparecia no seguinte, e o alarme
       // que existe para ser atempado chegava sempre tarde.
       const fechadosPeloAgente = [
-        ...[...decisoes.values()].filter((d) => d && d.por === 'agente'),
+        // So o que ESTE canal escreveu. Filtrar so por `por:'agente'` mostrava
+        // ao dono, como actividade do L1, decisoes de agentes de outros canais.
+        ...[...decisoes.values()].filter((d) => d && d.por === 'agente' && d.via === 'autopilot-l1'),
         ...escritos,
       ];
       // `agora` materializa o dia de hoje mesmo sem actos nenhuns. Sem ele, uma
@@ -368,7 +372,7 @@ export function createServer({
       if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
 `);
     } catch (err) {
-      logImpl(`autopilot L1 falhou (a fila fica intacta): ${String(err && err.message).slice(0, 160)}
+      logImpl(`autopilot L1 falhou apos ${feitos} escrita(s) — o que ja foi escrito FICA (append-only): ${String(err && err.message).slice(0, 160)}
 `);
     }
     return feitos;

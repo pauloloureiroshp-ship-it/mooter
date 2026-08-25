@@ -973,17 +973,37 @@ test('SOBREPOSICAO: um agente sobrepoe outro agente sem problema', async () => {
  * antes de o dono lhe tocar e exactamente a instabilidade que o hash existe
  * para evitar — metade da funcao era estavel e a outra metade nao.
  */
-test('COMPLEMENTO ESTAVEL: inserir achados novos nao expulsa nenhum reservado, no mesmo degrau', () => {
+/**
+ * O CHURN, MEDIDO — e limitado a UM por chegada.
+ *
+ * A 3.a ronda mediu a escada de degraus inteiros a expulsar 41 cartoes numa
+ * unica insercao (`fila 93→94`, degrau 2→5). Trocar uma instabilidade pequena
+ * por um precipicio nao e corrigir. Por ordem de hash, um achado novo com hash
+ * mais baixo empurra EXACTAMENTE UM para fora.
+ *
+ * Nenhuma das duas e estabilidade absoluta — isso exigiria persistir a reserva,
+ * uma segunda fonte de verdade ao lado do ledger. Entre um churn de 1 e um de
+ * dezenas, escolhe-se o de 1, e MEDE-SE.
+ */
+test('CHURN LIMITADO: cada achado novo expulsa no maximo UM reservado', () => {
   const fila = Array.from({ length: 60 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
-  const antes = reservarParaODono(fila, { jaDoDono: 0 });
-  const degrauAntes = degrauDaReserva(fila, { jaDoDono: 0 });
+  let pior = 0;
+  for (let n = 0; n < 40; n += 1) {
+    const antes = reservarParaODono(fila, { jaDoDono: 0 });
+    fila.unshift(achado({ chave: `P2.novo${n}|n${n}.js:1-9:z${n}` }));
+    const depois = reservarParaODono(fila, { jaDoDono: 0 });
+    const sairam = [...antes].filter((k) => !depois.has(k)).length;
+    pior = Math.max(pior, sairam);
+  }
+  assert.ok(pior <= 1, `o pior churn em 40 chegadas foi ${pior}, e tem de ser <= 1`);
+});
 
-  const comNovo = [achado({ chave: 'P2.novo|new.js:1-9:zzz' }), ...fila];
-  const depois = reservarParaODono(comNovo, { jaDoDono: 0 });
-  assert.equal(degrauDaReserva(comNovo, { jaDoDono: 0 }), degrauAntes, 'um achado a mais nao muda o degrau');
-
-  const sairam = [...antes].filter((k) => !depois.has(k));
-  assert.deepEqual(sairam, [], `nenhum reservado pode sair: sairam ${JSON.stringify(sairam)}`);
+test('CHURN: sem chegadas novas, a reserva nao mexe', () => {
+  const fila = Array.from({ length: 60 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
+  const a = [...reservarParaODono(fila, { jaDoDono: 0 })].sort();
+  for (let i = 0; i < 20; i += 1) {
+    assert.deepEqual([...reservarParaODono(fila, { jaDoDono: 0 })].sort(), a);
+  }
 });
 
 /**
@@ -998,16 +1018,15 @@ test('COMPLEMENTO ESTAVEL: inserir achados novos nao expulsa nenhum reservado, n
  * Este teste existe para o residuo ser conhecido e nao redescoberto por um
  * adversario daqui a duas semanas.
  */
-test('RESIDUO CONHECIDO: uma fila muito maior promove o degrau, e isso muda a reserva', () => {
+test('RESIDUO CONHECIDO: a amostra por hash sobrevive a qualquer tamanho de fila', () => {
   const curta = Array.from({ length: 12 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
   const longa = Array.from({ length: 600 }, (_, i) => achado({ chave: `P2.${i}|f${i}.js:1-9:s${i}` }));
-  const dCurta = degrauDaReserva(curta, { jaDoDono: 0 });
-  const dLonga = degrauDaReserva(longa, { jaDoDono: 0 });
-  assert.ok(dLonga > dCurta, `a fila longa usa um degrau mais grosso (${dCurta} -> ${dLonga})`);
-  // A amostra por hash 1-em-20 sobrevive SEMPRE — e a parte representativa.
+  // A amostra 1-em-20 e a parte REPRESENTATIVA e nunca sai — nem quando a fila
+  // cresce 50x. O que pode sair e o complemento, um por chegada.
   const amostraCurta = curta.filter((a) => naAmostraDeAuditoria(a.chave)).map((a) => a.chave);
   const reservaLonga = reservarParaODono(longa, { jaDoDono: 0 });
   for (const k of amostraCurta) assert.ok(reservaLonga.has(k), `a amostra nunca sai: ${k}`);
+  assert.ok(reservarParaODono(longa, { jaDoDono: 0 }).size >= MIN_TRIADOS);
 });
 
 test('COMPLEMENTO ESTAVEL: a ordem da fila nao muda a reserva', () => {
@@ -1043,4 +1062,88 @@ test('PARAGEM TOTAL: com actos hoje, `agora` nao inventa nem duplica nada', () =
   assert.equal(r.ultimo, '2026-08-22');
   assert.equal(r.hoje, 22, 'nao se sobrepoe ao que ja la estava');
   assert.equal(r.anomalia, false);
+});
+
+/* ═══ 3.a ronda adversarial ═══ */
+
+/**
+ * ESCRITA EM MASSA NAO PARA A MEIO. O guard do dono e uma excepcao, e uma
+ * excepcao no meio de um `for` deixava `k1` escrita, `k2` a rebentar e `k3`
+ * nunca tentada — com o log a dizer que a fila ficara intacta.
+ */
+test('ESCRITA PARCIAL: uma colisao nao impede as chaves seguintes', async () => {
+  const { registarTriagem: reg, registarVarias, lerTriagem: ler } = await import('./triagem.mjs');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-massa-')), 'triagem.jsonl');
+  reg(f, { chave: 'k2', decisao: 'aceite', por: 'dono' });
+
+  const r = registarVarias(f, [
+    { chave: 'k1', decisao: 'descartado', motivo: 'trivial', por: 'agente' },
+    { chave: 'k2', decisao: 'descartado', motivo: 'trivial', por: 'agente' },
+    { chave: 'k3', decisao: 'descartado', motivo: 'trivial', por: 'agente' },
+  ]);
+  assert.deepEqual(r.escritas.map((e) => e.chave), ['k1', 'k3'], 'k3 tem de ser tentada apesar do k2');
+  assert.equal(r.recusadas.length, 1);
+  assert.equal(r.recusadas[0].chave, 'k2');
+  assert.equal(r.erros.length, 0, 'uma colisao esperada nao e um erro');
+  assert.equal(ler(f).decisoes.get('k2').por, 'dono', 'a decisao dele fica');
+});
+
+test('ESCRITA PARCIAL: erros REAIS separam-se das colisoes esperadas', async () => {
+  const { registarVarias } = await import('./triagem.mjs');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-massa2-')), 'triagem.jsonl');
+  const r = registarVarias(f, [
+    { chave: 'ok', decisao: 'descartado', motivo: 'trivial', por: 'agente' },
+    { chave: 'mau', decisao: 'inventada', por: 'agente' },
+  ]);
+  assert.equal(r.escritas.length, 1);
+  assert.equal(r.recusadas.length, 0, '"decisao desconhecida" NAO e uma colisao com o dono');
+  assert.equal(r.erros.length, 1, 'e um defeito, e conta-se a parte');
+});
+
+/**
+ * `ownerDay(NaN)` atira `RangeError`. Um alarme que mata o tique porque o
+ * relogio veio estranho e pior do que um alarme que se cala.
+ */
+test('RELOGIO: `agora` invalido nao rebenta e nao materializa nada', () => {
+  const historia = [...dia('2026-08-20', 20), ...dia('2026-08-21', 20)];
+  for (const mau of [NaN, 'lixo', {}, [], Infinity, -Infinity]) {
+    const r = anomaliaDeDreno(historia, { agora: mau });
+    assert.equal(r.ultimo, '2026-08-21', `${String(mau)} nao pode inventar um dia`);
+  }
+  assert.equal(anomaliaDeDreno(historia, { agora: null }).ultimo, '2026-08-21');
+});
+
+/**
+ * Comparar um dia A COMECAR com dias completos dava alarme de queda todas as
+ * manhas: a 3.a ronda mediu `12,12,12 + hoje 0 -> anomalia=true` as 00:23.
+ */
+test('DIA INCOMPLETO: de madrugada nao ha alarme de queda; ao fim do dia ha', () => {
+  const historia = [...dia('2026-08-20', 12), ...dia('2026-08-21', 12), ...dia('2026-08-22', 12)];
+  // As horas sao as DELE. `04:00Z` = 01:00 em Sao Paulo — o dia mal comecou.
+  // (Este teste ja apanhou o autor a usar 00:23Z a pensar que era madrugada,
+  //  quando sao 21:23 para o dono e o dia esta quase no fim.)
+  const cedo = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-24T04:00:00Z') });
+  assert.equal(cedo.hoje, 0);
+  assert.equal(cedo.anomalia, false, 'um dia com uma hora nao se compara com dias inteiros');
+
+  // `02:00Z` do dia seguinte = 23:00 do dia dele. Agora sim.
+  const tarde = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-25T02:00:00Z') });
+  assert.equal(tarde.hoje, 0);
+  assert.equal(tarde.anomalia, true, 'ao fim do dia dele, zero actos e mesmo uma paragem');
+  assert.equal(tarde.direccao, 'caiu');
+});
+
+/**
+ * Um acto com `ts` no FUTURO fazia `ultimo` saltar para o dia futuro, e o dia
+ * real nem chegava a ser olhado — a paragem de hoje ficava escondida.
+ */
+test('FUTURO: um acto com data futura nao esconde a paragem de hoje', () => {
+  const historia = [
+    ...dia('2026-08-20', 12), ...dia('2026-08-21', 12), ...dia('2026-08-22', 12),
+    { ts: '2026-08-25T12:00:00Z', chave: 'futuro' },
+  ];
+  const r = anomaliaDeDreno(historia, { agora: Date.parse('2026-08-24T23:30:00Z') });
+  assert.equal(r.ultimo, '2026-08-24', 'o dia de amanha nao e hoje');
+  assert.equal(r.hoje, 0);
+  assert.equal(r.anomalia, true, 'a paragem continua visivel');
 });
