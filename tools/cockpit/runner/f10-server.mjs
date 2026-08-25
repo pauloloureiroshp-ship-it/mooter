@@ -32,7 +32,7 @@ function shaDoRunner(statePath) {
     return typeof s.sha_carregado === 'string' && s.sha_carregado ? s.sha_carregado : null;
   } catch { return null; }
 }
-import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar } from './triagem.mjs';
+import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
@@ -296,9 +296,23 @@ export function createServer({
       // 400 linhas num ecra; aqui ele so escondia trabalho — e escondia a
       // reserva, que passava a contar sobre uma janela dentro de outra janela.
       const fila = porTriar(receipts, decisoes, Number.MAX_SAFE_INTEGER);
-      // Quantas decisoes CORRENTES sao mesmo do dono. E o que diz a reserva
-      // quanto material ela ainda tem de guardar para o portao 2 poder abrir.
-      const jaDoDono = [...decisoes.values()].filter((d) => d && d.por === 'dono').length;
+      // Quantas decisoes do dono e que o PORTAO 2 conta — nao quantas existem
+      // no ficheiro.
+      //
+      // A diferenca nao e teorica: `contarTriagem` cruza as decisoes com os
+      // recibos da JANELA do ledger (5000 linhas), e so conta as que ainda
+      // correspondem a um achado dentro dela. Contar aqui o ficheiro inteiro
+      // criava duas contagens da mesma coisa — e, com o ledger a crescer, as
+      // decisoes do dono saem da janela: o tique via `jaDoDono=20` e PARAVA de
+      // reservar, enquanto o portao via 0 e continuava fechado. Era a fome de
+      // volta, pela porta do lado.
+      //
+      // Duas verdades para o mesmo numero foi exactamente o defeito que o
+      // `porTriar`/`contarTriagem` teve ate hoje. Uma so fonte.
+      const jaDoDono = (() => {
+        const c = contarTriagem(receipts, decisoes).do_dono;
+        return c.aceite + c.descartado + c.issue;
+      })();
       const ps = portoes({
         recibos: {
           total: receipts.length,

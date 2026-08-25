@@ -880,3 +880,47 @@ test('sem pilar nos actos, o detector agregado continua a funcionar', () => {
   assert.equal(r.anomalia, true);
   assert.deepEqual(r.suspeitos, [], 'sem pilar nao se inventam suspeitos');
 });
+
+/**
+ * A FOME PELA PORTA DO LADO — 2.a ronda adversarial da FASE 2.
+ *
+ * A correccao da fome fez o tique passar `jaDoDono` a reserva. Mas o tique
+ * contava as decisoes do dono no FICHEIRO INTEIRO, e o portao 2 conta so as que
+ * ainda casam com um achado dentro da JANELA de 5000 linhas do ledger.
+ *
+ * Com o ledger a crescer, as decisoes antigas do dono saem da janela: o tique
+ * continuava a ver `jaDoDono = 20` e PARAVA de reservar, enquanto o portao
+ * passava a ver 0 e ficava fechado para sempre. Duas contagens da mesma coisa —
+ * exactamente o defeito que o `porTriar`/`contarTriagem` teve ate hoje.
+ *
+ * Este teste tranca a propriedade: a reserva tem de ler o MESMO numero que o
+ * portao le.
+ */
+test('SEM FOME PELA PORTA DO LADO: a reserva conta como o portao conta', async () => {
+  const { contarTriagem } = await import('./triagem.mjs');
+
+  // 30 achados na janela; o dono decidiu 20 achados que JA NAO estao nela.
+  const naJanela = Array.from({ length: 30 }, (_, i) => ({
+    chave: `novo${i}`, pilar: 'P2', ficheiro: 'tools/x.js', janela: '1-9',
+    verdict: 'citacao-ok', conclusao: 'achado', evidencia: 'tools/x.js:1 => n = 5',
+    resultado_resumo: 'ACHADO: x', ts: '2026-08-21T12:00:00Z',
+  }));
+  const decisoes = new Map();
+  for (let i = 0; i < 20; i += 1) decisoes.set(`velho${i}`, { decisao: 'aceite', por: 'dono' });
+
+  const noFicheiro = [...decisoes.values()].filter((d) => d.por === 'dono').length;
+  const c = contarTriagem(naJanela, decisoes).do_dono;
+  const noPortao = c.aceite + c.descartado + c.issue;
+
+  assert.equal(noFicheiro, 20, 'o ficheiro tem 20 decisoes do dono');
+  assert.equal(noPortao, 0, 'mas nenhuma casa com um achado da janela — o portao ve 0');
+
+  // Com a contagem ERRADA (a do ficheiro), a reserva pararia:
+  assert.equal(reservarParaODono(naJanela, { jaDoDono: noFicheiro }).size,
+    naJanela.filter((a) => naAmostraDeAuditoria(a.chave)).length,
+    'contando o ficheiro, a reserva volta a 1-em-20 e o portao nunca reune as 20');
+
+  // Com a contagem CERTA (a do portao), a reserva continua a guardar:
+  assert.equal(reservarParaODono(naJanela, { jaDoDono: noPortao }).size, MIN_TRIADOS,
+    'contando como o portao conta, a reserva guarda o que ele ainda exige');
+});
