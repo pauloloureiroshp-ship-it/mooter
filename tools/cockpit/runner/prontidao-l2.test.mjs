@@ -299,7 +299,10 @@ test('as duas parcelas do `reservados` sao publicadas, nao so o total', () => {
   const r = prontidao({ receipts, decisoes: new Map() });
   assert.equal(r.reservados, r.reservados_por_amostra + r.reservados_extra,
     'o total tem de ser a soma das parcelas que o relatorio mostra');
-  assert.ok(r.degrau_da_reserva >= 1, 'o degrau e publicado para ser auditavel');
+  // `degrau_da_reserva` SAIU. Explicava a reserva com um mecanismo que ja nao
+  // existe: medido na main, publicava "1-em-5" enquanto 8 reservadas estavam
+  // fora desse degrau e 39 do degrau estavam fora da reserva.
+  assert.ok(!('degrau_da_reserva' in r), 'um numero que explica mal e pior do que numero nenhum');
 });
 
 /* ═══ 3.a ronda adversarial ═══ */
@@ -344,4 +347,40 @@ test('a soma dos baldes de proveniencia e SEMPRE o total de decisoes', () => {
     const soma = Object.values(p).reduce((a, b) => a + b, 0);
     assert.equal(soma, d.size, `nenhuma decisao pode desaparecer: ${JSON.stringify(p)}`);
   }
+});
+
+/* ═══ remediacao dos 2 HIGH da 4.a ronda ═══ */
+
+/**
+ * O SPOOF QUE NAO SE FECHA, CONTADO.
+ *
+ * `/triagem` faz `body.por || 'dono'`. Eu fechei "sem Origin E sem `por`"; um
+ * processo local que DIGA `por:'dono'` continua a passar, e o PR anterior deu a
+ * entender que estava fechado. Fechar a serio exige uma credencial no canal, e
+ * uma credencial que o painel serve pode ser lida por quem faca um GET.
+ *
+ * O que se pode fazer honestamente e CONTAR: uma decisao `dono` sem
+ * `via:'painel'` nao veio do painel. Nao acusa ninguem — torna visivel uma
+ * pergunta que so o dono sabe responder.
+ */
+test('SPOOF VISIVEL: decisoes do dono sem `via:painel` sao contadas a parte', () => {
+  const receipts = Array.from({ length: 6 }, (_, i) => achado(`k${i}`));
+  const decisoes = new Map([
+    ['k0', dec({ por: 'dono', via: 'painel' })],
+    ['k1', dec({ por: 'dono', via: 'painel' })],
+    ['k2', dec({ por: 'dono' })],                        // sem via — CLI, ou outra coisa
+    ['k3', dec({ por: 'dono', via: 'cliente-local' })],   // declarou-se, e nao e o painel
+    ['k4', dec({ por: 'agente', decisao: 'descartado', motivo: 'trivial', via: 'autopilot-l1' })],
+  ]);
+  const r = prontidao({ receipts, decisoes });
+  assert.equal(r.dono_via_painel, 2);
+  assert.equal(r.dono_sem_painel, 2, 'sem via, ou com via que nao e o painel');
+  assert.equal(r.dono_via_painel + r.dono_sem_painel, r.triados_pelo_dono,
+    'as duas parcelas TEM de somar o total do dono, senao e mais uma contagem a divergir');
+});
+
+test('SPOOF VISIVEL: sem decisoes do dono, as duas parcelas sao zero e nao null', () => {
+  const r = prontidao({ receipts: [achado('k0')], decisoes: new Map() });
+  assert.equal(r.dono_via_painel, 0);
+  assert.equal(r.dono_sem_painel, 0);
 });
