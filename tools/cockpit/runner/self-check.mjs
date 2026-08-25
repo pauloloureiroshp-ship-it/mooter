@@ -336,7 +336,11 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
 const FONTES_DO_PROJECTO = Object.freeze([
   { ficheiro: 'cowork-session.json', chaves: ['project', 'projecto', 'projeto'],
     quando: ['realigned_at', 'bound_at'] },
-  { ficheiro: path.join('sessoes', 'mooter.json'), chaves: ['projecto', 'project', 'projeto'],
+  // Rotulo em POSIX de proposito: o `ficheiro` e ao mesmo tempo o caminho que se
+  // junta ao `mooDir` (o `path.join` normaliza a barra sozinho) e o ROTULO que se
+  // mostra ao dono. Com `path.join` aqui, o Windows dizia `sessoes\mooter.json` e
+  // o mesmo self-check falava duas linguas conforme a maquina.
+  { ficheiro: 'sessoes/mooter.json', chaves: ['projecto', 'project', 'projeto'],
     quando: ['actualizada_em', 'aberta_em'] },
 ]);
 

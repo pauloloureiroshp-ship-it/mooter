@@ -387,6 +387,26 @@ test('precedência: ganha o ficheiro mais recentemente actualizado, e diz-se qua
   assert.match(r.porque, /frescura/);
 });
 
+// O CI do Windows apanhou isto e o macOS nunca o apanharia: o rotulo vinha de um
+// `path.join`, portanto `sessoes\\mooter.json` la e `sessoes/mooter.json` aqui. O
+// `fonte` e citado no `porque` que o dono le — um rotulo que muda com a maquina
+// nao e um rotulo. Este teste falha nos dois sistemas se a barra voltar.
+test('precedência: o rótulo da fonte é o mesmo em qualquer sistema operativo', () => {
+  const ler = (mapa) => (p) => {
+    const k = String(p).split(path.sep).join('/');
+    for (const [chave, v] of Object.entries(mapa)) if (k.endsWith(chave)) return JSON.stringify(v);
+    throw new Error('ENOENT ' + k);
+  };
+  const r = projectoActivo('/m', { readImpl: ler({
+    'cowork-session.json': { project: 'velho', bound_at: '2026-08-16T14:47:23.334Z' },
+    'sessoes/mooter.json': { projecto: 'novo', actualizada_em: '2026-08-25T14:54:59.273Z' },
+  }) });
+  assert.ok(!String(r.fonte).includes('\\'), `rotulo com barra invertida: ${r.fonte}`);
+  for (const c of r.candidatos) {
+    assert.ok(!String(c.ficheiro).includes('\\'), `candidato com barra invertida: ${c.ficheiro}`);
+  }
+});
+
 test('precedência: e ganha nos DOIS sentidos — não é uma preferência disfarçada', () => {
   // Se o `cowork-session.json` for o mais fresco, é ele que vale. Um árbitro
   // que escolhe sempre o mesmo ficheiro não é um árbitro, é um favorito.
