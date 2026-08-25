@@ -102,14 +102,6 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 `slack-spike` não corre em CI nenhum.
 
 <!-- slack-spike — o GO CONDICIONADO que autoriza a linha de destrave -->
-### [2026-08-17] COWORK — decisão do RISK do slack-spike: GO CONDICIONADO (a linha acima é o destrave mecânico)
-- Decisor: Cowork/Fable 5 como maestro, sob delegação do dono (veto dele disponível). Fundamento: o ALTO de CÓDIGO aberto da kimi-egress (plano em disco não declarado no recibo, na recusa por agent kimi) vive EXCLUSIVAMENTE no caminho kimi/Moonshot. CONDIÇÃO DURA do GO: o spike exclui o kimi por construção — allowlist de motores do despacho SEM kimi, com teste que prova a recusa de agent:"kimi" — ANTES do 1º dispatch vivo. Com o vendor guardado fora da rota, o ALTO não é alcançável pelo caminho vivo. Quando a kimi-egress mergear de verdade, o kimi volta por decisão explícita, nunca por default.
-- A demo declara isto ao estranho como feature: "Moonshot desligado até o veto de egress entrar em main" — custódia por enforcement, não por promessa.
-- Restante fila do CC slack-spike inalterada: tokens (.env, caminho vem do Paulo) → exclusão kimi testada → MODO VIVO → ensaio do infeliz real → final-reviewer antes de push. Condição de sócio nº1 mantém-se: demo AGENDADA com estranho antes do merge.
-
----
-
-<!-- frota Ed25519 — FECHADO 2026-08-25: 2 de 2 -->
 ### ✅ Fechados a 25/08 — detalhe em `docs/foundation/SYNC_ARCHIVE_2026.md`
 
 - **Frota em Ed25519, 2 de 2 devices.** `prova_frota: true`, `verificados: 2`, `rejeitados: 0`, os dois
@@ -146,14 +138,6 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
-### ⇄ COWORK → CC/PC · o SYNC foi enrolado (Mac, 25/08 17:17 BRT, `ad0deaed`/PR #396)
-
-**PC: se o teu `SYNC.md` tem ~600 linhas está velho — puxa antes de escrever.** 604 → 212; a história saiu
-para `docs/foundation/SYNC_ARCHIVE_2026.md` (path canónico do `AGENTS.md`), não foi apagada. Ficheiro
-partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum (`git diff $(git merge-base
-…)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
-antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
-
 ### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
 
 **A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
@@ -173,12 +157,6 @@ instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench =
 **A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
 (`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
 `/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
-
-### 2026-08-25 (Mac · fecho 2, PR #394) · seis pendências decididas por delegação escrita
-
-#390 mergido (`main @57fa1e44`). O item 2 caiu por **medição**: remover o `tier` do fable-5 e precificá-lo do SSOT fazia `decideAgent("reasoning.science")` devolver `claude-fable-5` (TES 3784) sem ninguém escrever `@fable` — o passo final do plano produzia a violação que o plano existia para evitar. **Superseded a 25/08 (PR #398):** a exclusão de T5 passou a viver no `decideAgent` (allowlist autorizado), o Fable foi precificado e o arame virou teste permanente. O stash de 24/08 não era resíduo — ~230 linhas que não existem em ref nenhum (PARIDADE entre devices + frescura de beacon remoto), preservadas em `mac/stash-paridade-2026-08-24`, stash **não** dropada; por isso o item 6 fica bloqueado (`--update-baseline` reescreve tudo e gravaria `stashes: 1`). Três colisões fundidas — a 3ª apareceu ao mover o archive órfão — com reconstrução verificada byte a byte. Adversário `codex`: **n/d**, não instalado nesta máquina; a refutação correu em Ollama local.
-
-gate: 840 testes · 838 pass · 0 fail · 2 todo (pré-existentes) · higiene 26 pacotes / 141 topo · classify.js `427d8c0b` intacto
 
 ### 2026-08-25 (Mac · `mac/sistema-sync-2026-08-25`) · sistema & sync — o que estava a medir mal
 
@@ -215,5 +193,28 @@ por utilizador). `codex` e `kimi`: **n/d** nesta maquina; refutacao em Ollama lo
 
 gate: router 1160/1159/0 (x3, mesmo total) · cockpit 876/874/0/2 todo ·
 varredura de segredos HIGH 0 · restauro do vault 0 falhas · classify.js `427d8c0b`
+
+### 2026-08-25 (Mac · CC headless) · merges delegados — e o vermelho que eles revelaram
+
+**5 mergidos** (#397 #398 #399 #401 + **#406**, meu) · **3 retidos**: #396 (`Vercel … retry in 24 hours`, 4ª verificação — **ainda rate-limited**), #400/#402 por ordem do dono. Nunca `--admin`.
+
+**`main` ficou vermelho sem que nenhum PR estivesse vermelho.** (a) O `retomar.js` (#404) resolvia
+um `cwd` de outra máquina contra o `process.cwd()` local e declarava o **repo local** como «onde
+estavas», `status: measured` — facto **fabricado**, e só falhava fora do Windows. (b) O #398 partiu
+o teste de TES da landing, que **nunca correu no PR**: o `landing-test.yml` só acorda em
+`landing/**` e a rota lê `data/` — **filtro de paths é gate a fingir**. Ambos corrigidos no #406.
+
+**Não relancei o loop — é a decisão que mais importa.** O `launch.mjs` achou tudo vivo e não reiniciou; ainda bem: o loop roda pilares (`P2`→`P3` em 13 s) e `PILLAR_IDS = []` **no checkout E em `main`**. O código que está a produzir **não existe em branch nenhuma**; reiniciar trocava 10 pilares por zero, em silêncio. `:4290` vivo · beacon assinado (`Ed25519-v1`, `idade_s 0`).
+
+**O painel deste device não tem os fixes do #401** (`✗ código — 18 atrás`): o merge trava num conflito **de desenho** — #396 e #401 corrigiram o cartão da frota de duas maneiras incompatíveis (rótulo do `/fleet.json` **vs** calculado no painel). Abortei — **é decisão do dono**.
+
+**Refutação:** `codex` **autenticado**, mas `out of credits` — a parede mudou de login para
+dinheiro, e dois documentos ainda dizem «401». 3 desenhos em Ollama `gpt-oss:20b` ($0): **2 objecções
+sobrevivem em 9** — beacon **auto-assinado** no M2, e a porta do M1 **sem token** (`proxy.mjs:123` só
+valida loopback). Os 3 ficam **🔴 por adversário externo**.
+
+gate em `main @7d5e3566`: cockpit 875/0 · CLI 663/0 · landing 219/0 + typecheck + lint 0 erros ·
+router 996/1 e packages/router 305/3 (estado da máquina e dívida sem CI) · classify.js
+`427d8c0b` intacto · detalhe: `_handoff/cc-merges-progress.md`
 
 <!-- HUMANO:FIM -->

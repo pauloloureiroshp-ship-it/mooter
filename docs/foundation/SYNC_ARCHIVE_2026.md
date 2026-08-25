@@ -8534,3 +8534,35 @@ verdadeiras** o tempo todo, cortadas junto com o resto. Sem o flag: 1160 / 1160 
 **O gargalo continua onde estava:** 1054 achados por triar, loop em pausa por
 `human queue full (524/6)`. Nada dos sete PRs lhe tocou — foi tudo encanamento,
 ainda que encanamento que estava a mentir.
+
+
+<!-- rolado do SYNC.md a 2026-08-25 23:3xZ: o orcamento de ~220 linhas obrigou, e a
+     entrada ja estava superseded pelo PR #398 (a exclusao de T5 passou a viver no
+     decideAgent). Rolado, nao apagado. -->
+### 2026-08-25 (Mac · fecho 2, PR #394) · seis pendências decididas por delegação escrita
+
+#390 mergido (`main @57fa1e44`). O item 2 caiu por **medição**: remover o `tier` do fable-5 e precificá-lo do SSOT fazia `decideAgent("reasoning.science")` devolver `claude-fable-5` (TES 3784) sem ninguém escrever `@fable` — o passo final do plano produzia a violação que o plano existia para evitar. **Superseded a 25/08 (PR #398):** a exclusão de T5 passou a viver no `decideAgent` (allowlist autorizado), o Fable foi precificado e o arame virou teste permanente. O stash de 24/08 não era resíduo — ~230 linhas que não existem em ref nenhum (PARIDADE entre devices + frescura de beacon remoto), preservadas em `mac/stash-paridade-2026-08-24`, stash **não** dropada; por isso o item 6 fica bloqueado (`--update-baseline` reescreve tudo e gravaria `stashes: 1`). Três colisões fundidas — a 3ª apareceu ao mover o archive órfão — com reconstrução verificada byte a byte. Adversário `codex`: **n/d**, não instalado nesta máquina; a refutação correu em Ollama local.
+
+gate: 840 testes · 838 pass · 0 fail · 2 todo (pré-existentes) · higiene 26 pacotes / 141 topo · classify.js `427d8c0b` intacto
+
+
+<!-- rolado do SYNC.md a 2026-08-25 23:3xZ pelo mesmo orcamento de ~220 linhas.
+     A decisao de 17/08 mantem-se valida; o que saiu daqui foi a copia, nao o facto. -->
+### [2026-08-17] COWORK — decisão do RISK do slack-spike: GO CONDICIONADO (a linha acima é o destrave mecânico)
+- Decisor: Cowork/Fable 5 como maestro, sob delegação do dono (veto dele disponível). Fundamento: o ALTO de CÓDIGO aberto da kimi-egress (plano em disco não declarado no recibo, na recusa por agent kimi) vive EXCLUSIVAMENTE no caminho kimi/Moonshot. CONDIÇÃO DURA do GO: o spike exclui o kimi por construção — allowlist de motores do despacho SEM kimi, com teste que prova a recusa de agent:"kimi" — ANTES do 1º dispatch vivo. Com o vendor guardado fora da rota, o ALTO não é alcançável pelo caminho vivo. Quando a kimi-egress mergear de verdade, o kimi volta por decisão explícita, nunca por default.
+- A demo declara isto ao estranho como feature: "Moonshot desligado até o veto de egress entrar em main" — custódia por enforcement, não por promessa.
+- Restante fila do CC slack-spike inalterada: tokens (.env, caminho vem do Paulo) → exclusão kimi testada → MODO VIVO → ensaio do infeliz real → final-reviewer antes de push. Condição de sócio nº1 mantém-se: demo AGENDADA com estranho antes do merge.
+
+---
+
+<!-- frota Ed25519 — FECHADO 2026-08-25: 2 de 2 -->
+
+
+<!-- rolado do SYNC.md a 2026-08-25 23:3xZ: era a nota do proprio rolo, e o rolo ja aconteceu. -->
+### ⇄ COWORK → CC/PC · o SYNC foi enrolado (Mac, 25/08 17:17 BRT, `ad0deaed`/PR #396)
+
+**PC: se o teu `SYNC.md` tem ~600 linhas está velho — puxa antes de escrever.** 604 → 212; a história saiu
+para `docs/foundation/SYNC_ARCHIVE_2026.md` (path canónico do `AGENTS.md`), não foi apagada. Ficheiro
+partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum (`git diff $(git merge-base
+…)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
+antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.

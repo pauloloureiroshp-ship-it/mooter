@@ -26,3 +26,8 @@ A6c. Se `gemini` existir: smoke `gemini --output-format json`; adiciona ao Moote
 A6d. kimi-adapter.js do bridge: smoke com o CLI novo; qualquer divergência de schema vira nota no SYNC.
 
 FASE A — adenda A0 (primeiro de tudo): PR #396 (mac/sistema-sync-2026-08-25) está com 19 checks verdes e 2 fails de rate-limit do Vercel (recuperam sozinhos, como no #390). Se ao arrancar o CI estiver todo verde: merge. Senão: espera não — regista o estado e segue as fases; re-verifica no fecho.
+
+FASE E — ADR M2 convergidor (design→refutação, SEM implementar ainda):
+E1. Lê ~/paulo-vault/20-decisions/DRAFT-2026-08-25-adr-m2-convergidor-de-versao.md. Produz o design técnico: schema do release-manifest.json, contrato do recibo de update no beacon, máquina de estados do rolling (sentinela→PC→mac, gate de saúde, timeout/quórum 2/3), e o diff conceptual das skills mooter-atualizar (convergidor) e moo-pilot (mostra drift por eixo). Publica em ~/paulo-vault/_handoff/design-m2-convergidor.md.
+E2. Refutação OBRIGATÓRIA antes de qualquer código: codex local (agora logado — "Logged in using ChatGPT") em modo read-only com ordem de REFUTAR o design (foco: os 3 riscos do ADR + o que mais partir). Anexa a refutação ao mesmo ficheiro. Se objeção sobreviver, ajusta o design e declara.
+E3. NÃO implementar nesta onda — implementação é onda própria após o dono assinar o ADR M2.
