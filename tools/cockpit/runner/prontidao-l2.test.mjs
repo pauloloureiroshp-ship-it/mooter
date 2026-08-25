@@ -301,3 +301,47 @@ test('as duas parcelas do `reservados` sao publicadas, nao so o total', () => {
     'o total tem de ser a soma das parcelas que o relatorio mostra');
   assert.ok(r.degrau_da_reserva >= 1, 'o degrau e publicado para ser auditavel');
 });
+
+/* ═══ 3.a ronda adversarial ═══ */
+
+/**
+ * Eu corrigi "zero legiveis" e deixei "quase zero". A 3.a ronda mediu: 1 achado
+ * legivel com 500 linhas partidas dava `1 achado unico · faltam 19 · exit=0` —
+ * valores exactos sobre dados que faltam quase todos.
+ */
+test('LEITURA PARCIAL: acima de 10% ilegivel, os numeros sao limites inferiores', () => {
+  // A funcao pura nao sabe do ficheiro; o que se tranca aqui e o predicado que
+  // o CLI usa, para ele nao voltar a ser um `if` esquecido.
+  const parcial = (partidas, linhas) => (linhas ? partidas / linhas : 0) > 0.1;
+  assert.equal(parcial(500, 501), true, '500 de 501 e leitura parcial');
+  assert.equal(parcial(1, 100), false, '1 de 100 nao muda a leitura');
+  assert.equal(parcial(11, 100), true, 'acima de um decimo, sim');
+  assert.equal(parcial(0, 0), false, 'ficheiro vazio nao e leitura parcial');
+});
+
+/**
+ * `null` e `12` sao JSON validos e NAO sao recibos. A guarda de "zero legiveis"
+ * contava-os como legiveis, e um ledger cheio de `null` passava por "leitura
+ * completa, zero achados".
+ */
+test('JSON VALIDO nao e DADO VALIDO: null e escalares contam como partidas', () => {
+  const ehRecibo = (o) => Boolean(o) && typeof o === 'object' && !Array.isArray(o);
+  for (const mau of [null, 12, 'texto', true, []]) {
+    assert.equal(ehRecibo(mau), false, `${JSON.stringify(mau)} e JSON valido mas nao e um recibo`);
+  }
+  assert.equal(ehRecibo({ chave: 'k' }), true);
+});
+
+test('a soma dos baldes de proveniencia e SEMPRE o total de decisoes', () => {
+  const casos = [
+    [['dono', 'aceite', null], ['claude', 'descartado', 'instrumento-nao-discrimina']],
+    [['agente', 'descartado', 'trivial'], ['claude', 'aceite', null], [null, 'aceite', null]],
+    [['claude', 'descartado', 'nao-e-um-problema'], ['claude', 'issue', null]],
+  ];
+  for (const caso of casos) {
+    const d = new Map(caso.map(([por, decisao, motivo], i) => [`k${i}`, { por, decisao, motivo }]));
+    const p = proveniencia(d);
+    const soma = Object.values(p).reduce((a, b) => a + b, 0);
+    assert.equal(soma, d.size, `nenhuma decisao pode desaparecer: ${JSON.stringify(p)}`);
+  }
+});

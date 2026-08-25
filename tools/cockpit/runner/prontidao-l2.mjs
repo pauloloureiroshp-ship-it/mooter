@@ -84,7 +84,8 @@ export function proveniencia(decisoes) {
  * `precisao` e `null` — nunca 0 — quando o dono ainda nao decidiu nada, e
  * `faltam` conta so o que falta em VOLUME. Nao ha previsao de data aqui: a
  * taxa de chegada depende dos pilares e do dono, e uma data estimada seria a
- * unica mentira que este ficheiro podia contar.
+ * mentira mais facil de contar aqui — mas nao a unica possivel, e por isso a
+ * leitura parcial do ledger tambem avisa em vez de dar numeros exactos.
  */
 export function prontidao({ receipts = [], decisoes = new Map() } = {}) {
   const contas = contarTriagem(receipts, decisoes);
@@ -163,7 +164,14 @@ function principal() {
     for (const l of fs.readFileSync(ledger, 'utf8').split(/\r?\n/)) {
       if (!l.trim()) continue;
       linhasLedger += 1;
-      try { receipts.push(JSON.parse(l)); } catch { partidasLedger += 1; }
+      // `null` e `12` sao JSON validos e NAO sao recibos. A guarda anterior
+      // contava-os como legiveis, e um ledger cheio de `null` passava por
+      // "leitura completa, zero achados" — JSON valido nao e o mesmo que dado
+      // valido, e a diferenca aqui e entre `n/d` e um zero com autoridade.
+      let o;
+      try { o = JSON.parse(l); } catch { partidasLedger += 1; continue; }
+      if (!o || typeof o !== 'object' || Array.isArray(o)) { partidasLedger += 1; continue; }
+      receipts.push(o);
     }
   } catch {
     console.log(`sem ledger em ${ledger} — n/d`);
@@ -180,6 +188,14 @@ function principal() {
     process.exitCode = 1;
     return;
   }
+  // CORRUPCAO PARCIAL TAMBEM NAO E UM NUMERO EXACTO.
+  //
+  // Eu corrigi "zero legiveis" e deixei "quase zero": 1 achado legivel com 500
+  // linhas partidas dava `1 achado unico · faltam 19 · exit=0` — valores
+  // exactos sobre dados que faltam quase todos. Acima de um decimo de linhas
+  // ilegiveis, tudo o que sai daqui e um LIMITE INFERIOR, e diz-se que e.
+  const fraccaoPartida = linhasLedger ? partidasLedger / linhasLedger : 0;
+  const parcial = fraccaoPartida > 0.1;
   const { decisoes, partidas } = lerTriagem(triagemFile);
   const r = prontidao({ receipts, decisoes });
   // ACHADOS UNICOS, nao eventos. O ledger repete a mesma chave (medido: 1695
@@ -202,6 +218,12 @@ function principal() {
 
   console.log(`\nPRONTIDAO DO NIVEL 2 — ${achados} achados unicos no ledger${partidasLedger ? ` · ${partidasLedger} linha(s) partida(s)` : ''}${semIdentidade ? ` · ${semIdentidade} SEM identidade (nao contados, nao ignorados)` : ''}`);
   console.log(`${'─'.repeat(64)}\n`);
+  if (parcial) {
+    console.log(`⚠️  LEITURA PARCIAL: ${partidasLedger} de ${linhasLedger} linhas do ledger sao`);
+    console.log(`   ilegiveis (${(100 * fraccaoPartida).toFixed(0)}%). Tudo o que se segue e um LIMITE INFERIOR,`);
+    console.log('   nao um numero exacto.\n');
+    process.exitCode = 1;
+  }
 
   console.log('DE QUEM SAO AS DECISOES QUE EXISTEM');
   const p = r.proveniencia;
@@ -222,7 +244,12 @@ function principal() {
     if (p.sem_assinatura) linha('SEM assinatura', p.sem_assinatura, '<- nao contam como do dono');
   }
   if (partidas) console.log(`  ${partidas} linha(s) de triagem ilegiveis — contadas, nao engolidas`);
-  if (partidas && !total) console.log('  ATENCAO: o registo tem linhas e NENHUMA legivel — isto e n/d, nao zero.');
+  if (partidas && !total) {
+    console.log('  ATENCAO: o registo tem linhas e NENHUMA legivel — isto e n/d, nao zero.');
+    // Saia com codigo != 0. Avisar e continuar a imprimir `0 de 20` com exit=0
+    // era dizer a um script que correu tudo bem sobre dados que nao existem.
+    process.exitCode = 1;
+  }
 
   console.log('\nO QUE O PORTAO 2 EXIGE');
   console.log(`  decisoes do dono      ${String(r.triados_pelo_dono).padStart(6)} de ${r.alvo_triados}${r.faltam ? `   faltam ${r.faltam}` : '   ✓'}`);
@@ -256,7 +283,12 @@ function principal() {
   console.log('\nO QUE ISTO NAO DIZ');
   console.log('  Nao promete que o portao vai abrir, nem quando. A taxa de chegada');
   console.log('  depende dos pilares; a taxa de decisao depende do dono. Uma data');
-  console.log('  estimada seria a unica mentira que este relatorio podia contar.\n');
+  // A frase antiga dizia "a UNICA mentira que este relatorio podia contar", e o
+  // adversario da 3.a ronda mostrou que ela propria era uma afirmacao nao
+  // sustentada: dar numeros exactos sobre um ledger meio ilegivel e outra.
+  console.log('  estimada seria a mentira mais facil de contar aqui. Nao e a unica');
+  console.log('  possivel: dar numeros exactos sobre um ledger meio ilegivel tambem');
+  console.log('  o seria, e por isso a leitura parcial avisa em vez de se calar.\n');
 }
 
 if (process.argv[1] && process.argv[1].endsWith('prontidao-l2.mjs')) principal();
