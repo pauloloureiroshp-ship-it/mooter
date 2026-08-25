@@ -175,3 +175,50 @@ test('preview sem candidatas é medição vazia com motivo explícito', async ()
     fs.rmSync(files._dir, { recursive: true, force: true });
   }
 });
+
+// ── validar-e-depois-substituir (achado da triagem de 2026-08-25) ───────────
+//
+// Quando o HTML passa o tecto de bytes, o preview e TROCADO por um compacto —
+// depois de o preview original ja ter sido validado. O que se escrevia nao era
+// o que tinha sido validado, e isso corria so nos snapshots GRANDES, que sao
+// os que mais gente ve.
+
+/** Enche o preview ate o HTML passar `SNAPSHOT_MAX_BYTES`. */
+function previewGordo() {
+  const candidatas = [];
+  // Just enough to clear SNAPSHOT_MAX_BYTES (2 MB) — nao mais: cada MB extra
+  // e tempo de suite pago em todas as corridas, para provar o mesmo ramo.
+  for (let i = 0; i < 7000; i += 1) {
+    candidatas.push({ url: 'http://localhost:' + (3000 + i), porta: 3000 + i, peso: 1,
+      confianca: 'baixa', nota: 'x'.repeat(300) });
+  }
+  return { candidatas, escolhida: candidatas[0], sondadas: candidatas.length, portas: [], nota: 'gordo' };
+}
+
+test('um preview compacto VAZIO nao entra no snapshot sem ser marcado', async () => {
+  const files = fixture();
+  try {
+    const r = readers();
+    r.readPreview = async () => previewGordo();
+    // O compacto vem VAZIO — e o caso que o guarda existe para apanhar, e que
+    // ate aqui passava porque a validacao corria antes da substituicao.
+    r.readPreviewCompact = async () => ({ candidatas: [], nota: 'compacto sem candidatas' });
+    // Os readers ESPALHAM-SE, nao vao numa chave `readers`: o `generateSnapshot`
+    // decide se os aceita por `options.readView && options.readSetup &&
+    // options.readPreview`. Passa-los como `{readers: r}` fazia-o cair
+    // silenciosamente nos `defaultReaders()` — o teste corria contra a maquina
+    // real e ficava verde pela razao errada. Custou-me uma corrida a perceber.
+    const res = await generateSnapshot({ ...files, ...r, logger: () => {} });
+    assert.ok(res.bytes > 0);
+    assert.equal(res.snapshot.preview.vazia, true,
+      'o preview compacto vazio foi injectado como se fosse bom — uma fotografia vazia le-se como facto');
+    assert.match(res.snapshot.preview.motivo, /nenhuma candidata/);
+    assert.ok(res.emptyViews.some((f) => f.view === 'preview'),
+      'e tem de aparecer no relatorio, senao ninguem sabe que aconteceu');
+  } finally { fs.rmSync(files._dir, { recursive: true, force: true }); }
+});
+
+// O caso inverso — original vazio (marcado) e compacto com candidatas — NAO
+// tem teste porque e inalcancavel: medido, um preview sem candidatas rende
+// ~36 KB e nunca aciona o ramo dos 2 MB. Um teste que semeasse esse estado a
+// mao provaria codigo que a producao nunca corre.

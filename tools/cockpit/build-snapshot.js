@@ -244,7 +244,38 @@ async function generateSnapshot(options = {}) {
   let rendered = injectSnapshot(source, snapshot);
   let bytes = Buffer.byteLength(rendered, 'utf8');
   if (bytes > SNAPSHOT_MAX_BYTES && typeof readers.readPreviewCompact === 'function') {
+    /**
+     * VALIDAR-E-DEPOIS-SUBSTITUIR: o preview que se ESCREVE nao era o preview
+     * que foi VALIDADO.
+     *
+     * As linhas acima correm `emptyPreview` sobre `snapshot.preview`, marcam-no
+     * se vier vazio, e e isso que faz o painel dizer «vazia» em vez de deixar
+     * uma fotografia vazia ler-se como facto. Depois, se o HTML passar o tecto
+     * de bytes, este ramo TROCA o preview por um compacto — e a versao trocada
+     * nunca passava por essa validacao. Duas consequencias, ambas silenciosas:
+     *
+     *   - um preview compacto VAZIO era injectado como se fosse bom, exactamente
+     *     o caso que o guarda existe para apanhar (e so acontece nos snapshots
+     *     grandes, que sao os que mais gente ve);
+     *   - um preview que veio vazio, foi marcado, e cujo compacto tem candidatas
+     *     ficava marcado `vazia:true` a mentir ao contrario.
+     *
+     * O `await` no meio nao e o problema em si — o `snapshot` e local a esta
+     * funcao — mas e ele que separa a validacao da escrita, e e por isso que a
+     * releitura tem de vir DEPOIS dele e nao antes.
+     *
+     * So se re-valida, nao se limpa um achado anterior: o caso inverso (o
+     * original vazio, ja marcado, e o compacto com candidatas) e inalcancavel
+     * por construcao, e foi MEDIDO — um preview sem candidatas rende ~36 KB, e
+     * nunca chega ao tecto de 2 MB que aciona este ramo. Codigo defensivo para
+     * um estado impossivel e codigo que nenhum teste pode cobrir.
+     */
     snapshot.preview = await readers.readPreviewCompact();
+    const compactoVazio = emptyPreview(snapshot.preview);
+    if (compactoVazio) {
+      markEmptyView(snapshot, compactoVazio);
+      findings.push(compactoVazio);
+    }
     rendered = injectSnapshot(source, snapshot);
     bytes = Buffer.byteLength(rendered, 'utf8');
   }

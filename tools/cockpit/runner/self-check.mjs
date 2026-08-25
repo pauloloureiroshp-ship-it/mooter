@@ -333,26 +333,96 @@ export function verBeacon(beaconFile, { statImpl = fs.statSync, agora = Date.now
  * `sessoes/mooter.json` dizia `mooter-gpu-local-strategy`. Dois donos da mesma
  * verdade e nenhum árbitro no código.
  */
+const FONTES_DO_PROJECTO = Object.freeze([
+  { ficheiro: 'cowork-session.json', chaves: ['project', 'projecto', 'projeto'],
+    quando: ['realigned_at', 'bound_at'] },
+  // Rotulo em POSIX de proposito: o `ficheiro` e ao mesmo tempo o caminho que se
+  // junta ao `mooDir` (o `path.join` normaliza a barra sozinho) e o ROTULO que se
+  // mostra ao dono. Com `path.join` aqui, o Windows dizia `sessoes\mooter.json` e
+  // o mesmo self-check falava duas linguas conforme a maquina.
+  { ficheiro: 'sessoes/mooter.json', chaves: ['projecto', 'project', 'projeto'],
+    quando: ['actualizada_em', 'aberta_em'] },
+]);
+
+/**
+ * QUAL DOS DOIS VALE — a precedência, decidida por medição e não por gosto.
+ *
+ * Até 2026-08-25 não havia árbitro nenhum: o `resolver` desta verificação dizia
+ * ao dono «decide qual vale», e o código continuava a não saber. Quem lesse
+ * primeiro decidia, e isso é sorte.
+ *
+ * A precedência é a FRESCURA, e a razão está nos dados, não numa preferência:
+ * `sessoes/mooter.json` carrega `actualizada_em`, reescrito a cada ronda pelo
+ * runner; `cowork-session.json` carrega `bound_at`, escrito UMA vez quando o
+ * MCP entrega o `roots/list`. Medido nesta máquina a 2026-08-25: o primeiro
+ * dizia `2026-08-25T14:54`, o segundo continuava em `2026-08-16` — nove dias a
+ * afirmar um projecto que já não era o activo, e foi preciso um humano
+ * realinhá-lo à mão.
+ *
+ * Empate, ou nenhum com data: ganha `sessoes/mooter.json`, porque é o único que
+ * ALGUÉM actualiza sem ser pedido — e isso vai dito no `porque`, para não se
+ * confundir uma regra de desempate com uma medição.
+ *
+ * @returns {{projecto:string|null, fonte:string|null, porque:string, candidatos:Array}}
+ */
+export function projectoActivo(mooDir, { readImpl = fs.readFileSync } = {}) {
+  const candidatos = FONTES_DO_PROJECTO.map((f) => {
+    let d = null;
+    try { d = JSON.parse(String(readImpl(path.join(mooDir, f.ficheiro), 'utf8'))); } catch { d = null; }
+    let projecto = null;
+    if (d) for (const k of f.chaves) if (typeof d[k] === 'string') { projecto = d[k]; break; }
+    let quando = null;
+    if (d) {
+      for (const k of f.quando) {
+        const t = typeof d[k] === 'string' ? Date.parse(d[k]) : NaN;
+        if (Number.isFinite(t)) { quando = t; break; }
+      }
+    }
+    return { ficheiro: f.ficheiro, projecto, quando };
+  });
+
+  const comValor = candidatos.filter((c) => c.projecto !== null);
+  if (!comValor.length) {
+    return { projecto: null, fonte: null, porque: 'nenhum dos ficheiros declara projecto', candidatos };
+  }
+  if (comValor.length === 1) {
+    return { projecto: comValor[0].projecto, fonte: comValor[0].ficheiro,
+      porque: 'é o único que declara projecto', candidatos };
+  }
+  const [a, b] = comValor;
+  if (a.projecto === b.projecto) {
+    return { projecto: a.projecto, fonte: 'ambos', porque: 'os dois ficheiros concordam', candidatos };
+  }
+  const datados = comValor.filter((c) => c.quando !== null);
+  if (datados.length === 2 && datados[0].quando !== datados[1].quando) {
+    const vencedor = datados[0].quando > datados[1].quando ? datados[0] : datados[1];
+    return { projecto: vencedor.projecto, fonte: vencedor.ficheiro,
+      porque: `precedência por frescura — é o mais recentemente actualizado`, candidatos };
+  }
+  const desempate = comValor.find((c) => c.ficheiro.endsWith('mooter.json')) || comValor[0];
+  return { projecto: desempate.projecto, fonte: desempate.ficheiro,
+    porque: 'sem datas comparáveis — desempate declarado: vale o ficheiro que o runner actualiza sozinho',
+    candidatos };
+}
+
 export function verProjectoActivo(mooDir, { readImpl = fs.readFileSync } = {}) {
-  const ler = (p, chaves) => {
-    try {
-      const d = JSON.parse(String(readImpl(path.join(mooDir, p), 'utf8')));
-      for (const k of chaves) if (d && typeof d[k] === 'string') return d[k];
-      return null;
-    } catch { return null; }
-  };
-  const a = ler('cowork-session.json', ['project', 'projecto', 'projeto']);
-  const b = ler(path.join('sessoes', 'mooter.json'), ['projecto', 'project', 'projeto']);
-  if (a === null || b === null) {
+  const r = projectoActivo(mooDir, { readImpl });
+  const [a, b] = r.candidatos;
+  if (a.projecto === null || b.projecto === null) {
     return { id: 'projecto-activo', estado: ND, o_que: 'projecto activo', porque: 'só um dos dois ficheiros declara projecto — nada a comparar', resolver: null };
   }
-  if (a === b) {
-    return { id: 'projecto-activo', estado: OK, o_que: 'projecto activo', valor: a, porque: 'os dois ficheiros concordam', resolver: null };
+  if (a.projecto === b.projecto) {
+    return { id: 'projecto-activo', estado: OK, o_que: 'projecto activo', valor: a.projecto, porque: 'os dois ficheiros concordam', resolver: null, fonte: r.fonte };
   }
+  // Continua MAU: haver árbitro não torna a divergência aceitável — só deixa de
+  // ser sorte. Baixar isto a aviso seria calar um alarme por o ter resolvido a
+  // meio, que é como o `cowork-session.json` passou nove dias a mentir.
   return {
-    id: 'projecto-activo', estado: MAU, o_que: 'projecto activo', valor: `${a} ≠ ${b}`,
-    porque: 'dois ficheiros dizem qual é o projecto activo e discordam — quem ler primeiro decide, e isso é sorte',
-    resolver: `decide qual vale e alinha o outro: ${path.join(mooDir, 'cowork-session.json')} · ${path.join(mooDir, 'sessoes/mooter.json')}`,
+    id: 'projecto-activo', estado: MAU, o_que: 'projecto activo',
+    valor: `${a.projecto} ≠ ${b.projecto}`,
+    porque: `dois ficheiros dizem qual é o projecto activo e discordam — vale «${r.projecto}» (${r.fonte}): ${r.porque}`,
+    resolver: `alinha o outro pelo que vale: ${path.join(mooDir, r.fonte)} diz «${r.projecto}»`,
+    fonte: r.fonte, projecto: r.projecto,
   };
 }
 
