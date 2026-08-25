@@ -317,49 +317,6 @@ ainda que encanamento que estava a mentir.
 
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-25 (4) · o dono decidiu os 20: **0 mantidos**. O P2 e o P3 têm veredicto.
-
-**Decisão do dono, em lote:** os 20 reservados descartados com motivo
-`nao-e-um-problema`. Razão dele, registada em cada linha: *são a mesma forma
-repetida — variável inicializada a zero, comentário que "diverge" — e não
-afirmam nada sobre o código.*
-
-```
-decisoes do dono        20 de 20   ✓
-mantidas por ele       0.0% de 70%
-portao 2               fechado — "you keep 0% of what it finds"
-```
-
-**A mesma frase que de manhã era mentira, agora é verdade.** Às 05:00 o painel
-dizia *"you keep 0% of what it finds"* medindo 531 decisões de scripts que não
-eram dele. Agora diz o mesmo sobre 20 decisões que **são** dele. O portão está
-fechado pela razão certa, medida sobre o juízo do dono.
-
-**Veredicto sobre os dois pilares que restavam: 20 achados, 0 valiam.** É a
-mesma resposta que os outros sete deram este mês antes de serem desligados. O
-portão 1 continua aberto (as citações resolvem) — mas **resolver uma citação
-nunca foi o mesmo que encontrar um problema**, e é exactamente esta a distinção
-que o gate L0 nunca conseguiria produzir.
-
-O que os 20 eram: 11 do P2, todos *"esta variável é inicializada a 0/`[]`"* — um
-deles sobre o `classify.js`, que é FROZEN e está a fazer o que deve. 8 do P3,
-*"o comentário diverge do código"* — **três citando comentários escritos nesta
-própria sessão**, e dois citando como evidência a linha `*/`, o fecho do bloco.
-
-**Registado com honestidade:** `0 vieram do painel · 20 NÃO`. Foi o agente a
-escrever a decisão do dono, e o relatório di-lo em voz alta — é o sinal
-construído hoje para o spoof que não se consegue fechar. Backup em
-`~/.mooter/triagem.jsonl.antes-decisao-dono`.
-
-**E o alarme de dreno disparou pela primeira vez a sério:** `P2 81→9 (caiu)`. O
-agregado não dispararia; a detecção **por pilar** sim — a que o adversário
-obrigou a acrescentar na 3.ª ronda, a funcionar em dados reais no dia em que foi
-escrita.
-
-gate: 761 pass / 0 fail · `main` @ `0e4f4047` · classify.js `427d8c0b` intacto
-
----
-
 ### 2026-08-25 · O loop cala-se: onze pilares, onze reprovados (PR #373)
 
 Consequência directa do veredicto de ontem. O dono decidiu 20 achados à mão e
@@ -555,3 +512,53 @@ passaram de invisíveis a declarados — a rotação vazia, a âncora vazia, e a
 diferença entre *não existe* e *está vazio*.
 
 gate: 799 testes · 798 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (fecho 4) · a primeira classe medida antes de escrita — #383
+
+**`main` @ `ba1d99a0`.** O dia fecha onde devia ter começado há onze pilares: com
+uma classe de defeito **medida antes de o enunciado existir**.
+
+**A classe:** um `catch` que devolve uma **contagem ou colecção vazia** — `[]`,
+`{}`, `0` — onde *"não consegui ler"* fica com a mesma cara que *"não há nada"*.
+Não é preferência: é a regra escrita do próprio motor, e violada — *"o que não se
+consegue medir devolve `n/d`, **nunca** `ok`"*.
+
+**Os dois números, pelo portão do #378:**
+
+| versão | candidatos | reais | precisão | veredicto |
+|---|---:|---:|---:|---|
+| v1 — inclui `return false` e `''` | 177 | 8/40 | 20% | reprova |
+| v2 — só contagens e colecções | 84 | **28/40** | **70%** | **passa** |
+
+A v1 falhou porque um `false` a fechar uma **acção** (escrever, apagar, matar)
+significa mesmo *"não aconteceu"*. Estreitou-se pelo **critério**, dizível numa
+frase; a fasquia continua congelada e a amostra da v2 foi nova.
+
+Dos 28 reais, os que mais doem: `badge.js:86` devolve **`0` de poupança** e esse
+número vai ao ecrã; `docs-hygiene.js:31` devolve `[]` de uma pasta ilegível e
+**faz o ratchet ver uma melhoria** que não existe. Não contaram 12: `prefs()` a
+devolver `{}` (os defaults aplicam-se) e o `classify.js`, que é **FROZEN** —
+marcar código congelado foi o erro do P2.
+
+**O enunciado era a peça que faltava.** O `context-pack` imprime `hit.msg`
+debaixo de *"A ferramenta apontou a LINHA N, regra …"*, e o produtor escrevia
+`{file, line, rule}` sem `msg` — o juiz receberia uma linha em branco onde devia
+estar a razão. **E tem de caber em 200 caracteres:** a primeira versão tinha 341 e
+chegava cortada a meio de uma frase — *"…Se sim, e d"*. **Um enunciado truncado é
+pior do que nenhum: parece completo.** Ficou um teste a travá-lo.
+
+**Prova contra o Ollama** — a primeira vez que o modo ancorado produz seja o que
+for em 10 624+ recibos: `modo=ancorado · catch-neutro · docs-hygiene.js:31 →
+ACHADO`, 53 tokens, citação certa.
+
+**⚠️ Isto NÃO liga o loop, e está escrito no PR.** O ramo ancorado é alcançado
+**por pilar**, e o `files` do pilar filtra a âncora — medido: dos 84 apontamentos
+só 1 caía no âmbito do pilar de ensaio, e julgado esse a escada caiu para `caça`,
+como deve. Com a rotação a zero, nenhum apontamento é alcançado. **Ligar a regra
+não liga o modo**, e essa decisão continua por tomar.
+
+**O arco do dia, em uma linha:** começou com um masterprompt que mandava
+**suprimir** achados por classe; acabou com uma classe **medida antes de escrita**
+— a primeira deste repositório.
+
+gate: 806 testes · 805 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
