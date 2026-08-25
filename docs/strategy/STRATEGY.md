@@ -121,8 +121,8 @@ bater com a barra da aplicação.
 | Precisas de | Ficheiro |
 |---|---|
 | Estado actual e próxima missão | `SYNC.md` |
-| Plano das ondas e cobertura das 15 frentes | `_handoff/PLANO_CONDUTOR_2026-07-26.md` |
-| Auditoria que originou o plano | `_handoff/MASTER_PROMPT_MOOTER_COWORK_2026-07-26.md` |
+| Plano das ondas e cobertura das 15 frentes | `_handoff/_archive/2026-07/PLANO_CONDUTOR_2026-07-26.md` |
+| Auditoria que originou o plano | `_handoff/_archive/2026-07/MASTER_PROMPT_MOOTER_COWORK_2026-07-26.md` |
 | Infra, URLs, endpoints, afinação do Ollama | `INFRA.md` |
 | Instruções para agentes | `AGENTS.md` · `CLAUDE.md` |
 | Política de routing detalhada | `~/.claude/docs/ROUTING_POLICY.md` |

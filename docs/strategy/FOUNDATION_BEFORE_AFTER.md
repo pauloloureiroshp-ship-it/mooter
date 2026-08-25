@@ -1,7 +1,7 @@
 # Foundation — Before / After (2026-07-14)
 
 > The forensic "before" snapshot of the foundation reset (masterprompt
-> `_handoff/FOUNDATION_SUPER_MASTERPROMPT.md`). The "after" column is filled at **F7**.
+> `_handoff/_archive/2026-07/FOUNDATION_SUPER_MASTERPROMPT.md`). The "after" column is filled at **F7**.
 > This is also the first artifact of the **Resume** pillar: measuring the drift we let
 > accumulate is the baseline for proving Resume works. Numbers are mechanical (git plumbing);
 > `n/d` where not yet measured — never a guess.
