@@ -4,101 +4,50 @@
 
 ## Cabeçalho
 
-- versão instalada: 1.24.1
-- HEAD: 49727a5a5cdeb60e30f1f6432859bd55830f45c8
-- branch: chore/mooter-20-h0
-- remoto: 1 à frente / 0 atrás de origin/chore/mooter-20-h0 (fonte: git rev-list)
-- gerado_em: 2026-07-27T17:21:55.695Z (derivado do último facto observado; não do relógio da execução)
+- versão instalada: 1.49.4
+- HEAD: e96df724d7890007989e7964dfe998322a836f33
+- branch: mac/sistema-sync-2026-08-25
+- remoto: n/d (porque não foi possível determinar o upstream: fatal: no upstream configured for branch 'mac/sistema-sync-2026-08-25')
+- gerado_em: 2026-08-25T20:11:38.000Z (derivado do último facto observado; não do relógio da execução)
 
 ## Entregas
 
 | Versão | Entrega medida | Commit que a trouxe |
 |---|---|---|
-| v1.20 | sentinela.js, afericao.js | 44c9a80 — feat(mooter-bridge): v1.20.0 - os dois loops de self-learning: sentinela horaria que ESCREVE em vez de gritar (so transicoes, custo zero) e afericao com tarefas de resposta conhecida que mede custo por resposta certa por motor; estudo dos pilares de vibe coding com a bateria real (moo 3/3 em 7s a 0 USD contra sonnet a 0.44 USD) |
-| v1.22 | n/d (porque a versão não tem entregas descritas na fonte) | 09e1e94 — fix(mooter-bridge): v1.22.0 - L1 fecha os 14 loopholes da auditoria UX: nenhum agregado nasce a 0 (somatorio sem parcelas medidas e n/d com jobs_sem_medicao), totals e arvore derivam da mesma funcao, medido_em+fresco+idade_h por bloco, blocos vazios desaparecem e o coherence deixa de mostrar stderr de ambiente; e o BUG DE TIJOLO: o verificador rejeitava o shebang dos nossos proprios ficheiros e teria trancado todas as instalacoes futuras |
-| v1.23 | board.js, seamless.js, tools6.js, server-apps.js | cfc3f5d — ﻿feat(bridge): onda 1 - parar a mentira (v1.23.0) |
-| v1.24 | capacidades.js, eta.js, estimativa.js, fleet.js, fleet-ui.html, sync.js, worktrees.js | 49727a5 — fix(bridge): v1.24.1 - o --check deixa de ser auto-referencial e o npm test deixa de mentir |
+| v1.20 | sentinela.js, afericao.js | 44c9a803 — feat(mooter-bridge): v1.20.0 - os dois loops de self-learning: sentinela horaria que ESCREVE em vez de gritar (so transicoes, custo zero) e afericao com tarefas de resposta conhecida que mede custo por resposta certa por motor; estudo dos pilares de vibe coding com a bateria real (moo 3/3 em 7s a 0 USD contra sonnet a 0.44 USD) |
+| v1.22 | n/d (porque a versão não tem entregas descritas na fonte) | 09e1e948 — fix(mooter-bridge): v1.22.0 - L1 fecha os 14 loopholes da auditoria UX: nenhum agregado nasce a 0 (somatorio sem parcelas medidas e n/d com jobs_sem_medicao), totals e arvore derivam da mesma funcao, medido_em+fresco+idade_h por bloco, blocos vazios desaparecem e o coherence deixa de mostrar stderr de ambiente; e o BUG DE TIJOLO: o verificador rejeitava o shebang dos nossos proprios ficheiros e teria trancado todas as instalacoes futuras |
+| v1.23 | board.js, seamless.js, tools6.js, server-apps.js | cfc3f5dc — ﻿feat(bridge): onda 1 - parar a mentira (v1.23.0) |
+| v1.24 | capacidades.js, eta.js, estimativa.js, fleet.js, fleet-ui.html, sync.js, worktrees.js | 8bc25a07 — chore(sync): regenerar SYNC.md para v1.24.1 |
+| v1.25 | moo.js, localfirst.js, estimativa.js | fe58c45d — feat(bridge): tecto de VRAM, a ETA para de fingir 100%, e os gates entram no CI (v1.25.0) |
+| v1.26 | recibo.js, seamless.js, tools6.js, fleet.js | bf84d0ec — feat(bridge): o trabalho passa a saber de que departamento e (v1.26.0) |
+| v1.27 | manifest.json, tools6.js, update.js, seamless.js, fleet.js | n/d (porque nenhum commit do branch menciona v1.27) |
+| v1.28 | manifest.json, tools6.js, update.js, seamless.js, kimi-adapter.js, fleet.js | 26366897 — chore(bridge): bump version to 1.28.1 (force updater past old kimi bundle) |
+| v1.28.1 | manifest.json | 26366897 — chore(bridge): bump version to 1.28.1 (force updater past old kimi bundle) |
+| v1.29 | manifest.json, seamless.js, kimi-adapter.js, install-id.js | 838dbe17 — fix(bridge): manifest.json v1.29.1 ÔÇö DXT schema violations blocking install |
+| v1.32 | recibo.js, recibo-contexto.js, fleet.js, tools6.js, kimi-adapter.js | a157c095 — feat(bridge): v1.32.0 - dieta de payload, schema destravado e recibo com contexto |
+| v1.33 | seamless.js, tools6.js, worktrees.js, fosso.js, moo.js, afericao.js, aprender.js, kimi-adapter.js | 3506c762 — chore(release): sync version.json → 1.33.0 [skip ci] |
+| v1.45 | fatia-local.js | 4d4254fc — chore(release): sync version.json → 1.45.4 [skip ci] |
+| v1.47 | retry.js, terminal.js, board.js, fleet.js, seamless.js | 3af2c2ce — chore(release): adiciona v1.47 a entregas-por-versao.json |
+| v1.48 | trilha.js, trilha-tool.js, seamless.js, fleet.js, tools6.js, probe.js, server.js | 72b8e31f — chore(release): 1.48.0 -> 1.48.1 para o .mcpb do piloto poder instalar |
+| v1.49 | capacidades.js, server-apps.js, probe.js, fleet-ui.html | 15280a66 — chore(v1.49.4): a versao lidera a tag (#348) |
 
-## Trabalho recente (até 30 jobs terminais)
+## Trabalho recente (até 1 jobs terminais)
 
-### w5-commit
+### validacao-generalizacao-2026-08-18
 
-- `job-ms3fvuvr-ddbe` · agente=cc · duração=342 (fonte: ledger.duration_s) · desfecho=entregue · custo=2.7447662999999998 (fonte: ledger.cost_usd) USD
-
-### w4-gitignore
-
-- `job-ms3fpfil-d83e` · agente=cc · duração=76 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.7746507000000001 (fonte: ledger.cost_usd) USD
-
-### revisao-pre-commit
-
-- `job-ms3fjdxm-45e0` · agente=cc · duração=219 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.4341806000000001 (fonte: ledger.cost_usd) USD
-
-### w3-runners
-
-- `job-ms3fbk7o-5884` · agente=cc · duração=197 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.1510193000000002 (fonte: ledger.cost_usd) USD
-
-### w1-divida
-
-- `job-ms3eufhj-e8da` · agente=cc · duração=764 (fonte: ledger.duration_s) · desfecho=entregue · custo=6.140519099999999 (fonte: ledger.cost_usd) USD
-
-### super-auditoria
-
-- `job-ms3e76ec-574f` · agente=cc · duração=53 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.5700399 (fonte: ledger.cost_usd) USD
-- `job-ms3e3not-9a28` · agente=cc · duração=133 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.0960503 (fonte: ledger.cost_usd) USD
-- `job-ms3e1vs6-a9c4` · agente=cc · duração=134 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.9715478999999998 (fonte: ledger.cost_usd) USD
-- `job-ms3e0hem-7786` · agente=cc · duração=103 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.8111004 (fonte: ledger.cost_usd) USD
-- `job-ms3e1pzf-092d` · agente=moo · duração=7 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-- `job-ms3e0tam-30a7` · agente=moo · duração=14 (fonte: ledger.duration_s) · desfecho=interrompido · custo=n/d (porque o ledger do job não contém cost_usd) USD
-- `job-ms3e0c3w-a7ba` · agente=moo · duração=7 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### bateria-real
-
-- `job-ms3dv4mw-8f5f` · agente=cc · duração=106 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.0966488000000003 (fonte: ledger.cost_usd) USD
-- `job-ms3duzk2-15bd` · agente=moo · duração=6 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### mapa-de-testes
-
-- `job-ms3dptcn-41b6` · agente=cc · duração=177 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.3911209999999998 (fonte: ledger.cost_usd) USD
-- `job-ms3dphff-328d` · agente=moo · duração=15 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### prova-eta-v3
-
-- `job-ms3cmaz8-c36c` · agente=cc · duração=157 (fonte: ledger.duration_s) · desfecho=entregue · custo=1.1594085 (fonte: ledger.cost_usd) USD
-- `job-ms3clzix-b2b3` · agente=moo · duração=15 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### eta-v3-barra
-
-- `job-ms3b89a4-96e2` · agente=codex · duração=1091 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
-- `job-ms3b82yy-f7be` · agente=moo · duração=8 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### eta-v2-estimadores
-
-- `job-ms39vd1s-5a5f` · agente=codex · duração=1788 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
-- `job-ms39uxgb-0aff` · agente=moo · duração=20 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### sync-gerado
-
-- `job-ms3a0c73-f579` · agente=codex · duração=1267 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
-- `job-ms3a03py-87e8` · agente=moo · duração=11 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### eta-v1-instrumentacao
-
-- `job-ms389r1r-332a` · agente=codex · duração=1426 (fonte: ledger.duration_s) · desfecho=entregue · custo=n/d (porque o ledger do job não contém cost_usd) USD
-- `job-ms389fz7-8fef` · agente=moo · duração=14 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-
-### onda1-parar-a-mentira
-
-- `job-ms36khvh-6b23` · agente=codex · duração=1801 (fonte: ledger.duration_s) · desfecho=expirou · custo=n/d (porque o ledger do job não contém cost_usd) USD
-
-### auditoria-ux
-
-- `job-ms364bff-33b4` · agente=moo · duração=120 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
-- `job-ms3652cu-271f` · agente=cc · duração=72 (fonte: ledger.duration_s) · desfecho=entregue · custo=0.6054054 (fonte: ledger.cost_usd) USD
-- `job-ms364x1s-f02e` · agente=moo · duração=7 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+- `job-msyeuimh-84b1` · agente=moo · actor={"type":"system","id":"legacy","origem":"evento anterior à instrumentação de identidade (f-mu0)"} · actor_porque=n/d (porque o evento não contém actor_porque; nunca inferido) · duração=20 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
 
 ## Zona humana
 
 <!-- HUMANO:INICIO -->
+> **SNAPSHOT, nao log.** Orcamento ~220 linhas; ao passar, rola-se a historia
+> para `docs/foundation/SYNC_ARCHIVE_2026.md` (`docs-hygiene` avisa).
+>
+> O bloco acima e da MAQUINA. Precisa dos DOIS marcadores da zona humana —
+> faltava o de FIM, o `extractHumanBlock` lancava em todas as corridas, e o
+> cabecalho serviu `v1.24.1 / 2026-07-27` durante um mes com a maquina em
+> `v1.49.4`. Regenerar: `node packages/mooter-bridge/sync.js --max-jobs 1`
+
 # Mooter — Sync Snapshot
 
 ## ⏳ PENDENTE — o que continua aberto
@@ -160,108 +109,46 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 
 ---
 
-## 📌 [2026-08-24] MAC — destrave do vault, e a identidade da frota em três fases
-
-Começou num `git status` trancado e acabou num esquema de identidade. A cadeia
-foi toda por descoberta: nenhum passo abaixo do segundo estava no pedido.
-
-**O destrave.** O vault estava `behind 262` com um `DU .claude/3rd-brain/index.json`.
-Não era um merge a meio — `.git/MERGE_HEAD` não existia. Era o **autostash do
-`pull --rebase --autostash` a falhar o pop**. E não havia commits presos:
-`HEAD...origin/main` dava `0 262`, os beacons já lá estavam. Resolvido pelo
-precedente do `e7f99d6` (ficheiro derivado, `.gitignore:71`) com `git reset` do
-caminho — sem tocar no disco, sem `--force`, sem escolher entre históricos.
-
-**Sete PRs, todos com CI verde e ramos limpos:**
-
-| PR | Commit | O que trazia |
-|---|---|---|
-| #351 | `56a57eb1` | o alinhador lia a versão do conector do **registo do instalador**, que fica para trás a cada auto-actualização — passa a usar `versaoInstalada()` |
-| #352 | `32007142` | beacons dos outros devices lidos do **remoto** do vault (`fetch`, nunca `pull`): a frescura deixa de esperar 20 min |
-| #353 | `25d9ba93` | os 4 `.command` de operação versionados, em `_handoff/operar/`, com os campos mortos curados |
-| #354 | `f7ffe16d` | `kid` no envelope da assinatura · `prova_frota` **medida** |
-| #355 | `6869f8b6` | o `cd` do #353 ficou por commitar — os scripts estiveram partidos na main |
-| #356 | `64ceb6ad` | Fase 1: mover a chave do dono à mão, fora do git |
-| #357 | `f560b3cd` | Fase 2: **Ed25519 com registo de públicas** — nenhum segredo viaja |
-
-**Duas afirmações falsas mortas.** `prova_frota: true` significava só "o ficheiro
-da chave está debaixo do vault" — mas a `.owner.key` cai no `*.key` do
-`.gitignore` do vault e **nunca viajou**: cada device gerou a sua. E o HMAC dava
-`adulterado` tanto para chave errada como para conteúdo mexido, acusando de forja
-um beacon que ninguém tocara. O `kid` separa as duas causas; o `ancora`
-(`registo` · `chave-partilhada` · `chave-local`) diz o que cada verificação prova.
-
-**O que destapou a chave:** ligar `frota.rejeitados` no `4-VERIFICAR-FROTA`. Um
-beacon descartado em silêncio era indistinguível de um device que nunca existiu.
-
 <!-- frota Ed25519 — metade feita, metade bloqueada em CODIGO, nao em gesto -->
 ### ⏳ Migrar a frota para Ed25519 — **1 de 2 devices** (2026-08-24)
 
 **Feito · `mac-mini-de-paulo`.** Inscrito no `50-fleet/trusted-devices.json`
-(vault `f981831`, empurrado) e a assinar `Ed25519-v1`, kid `bb8ed09958167518`.
-No painel: `ancora: registo`. A privada vive em `~/.mooter/device-ed25519.key`
-e nunca saiu da máquina — o vault só carrega a pública, que por isso se
-versiona (a `.owner.key` continua no `*.key` do `.gitignore`, e é essa a
-diferença que esta fase compra).
+(vault `f981831`), a assinar `Ed25519-v1`, kid `bb8ed09958167518`, `ancora:
+registo`. A privada vive em `~/.mooter/device-ed25519.key` e nunca sai da
+maquina; o vault so carrega a publica — e e essa a diferenca que esta fase
+compra face a `.owner.key`, que cai no `*.key` do `.gitignore` e nunca viajou.
 
-**Bloqueado · `desktop-j26409q`.** Não é um gesto que falte: é **código que
-aquela máquina não tem**. Mede-se no beacon dela — `sha_carregado 15280a66`,
-anterior ao #354, `sig.alg HMAC-SHA256-v1` e **sem `kid`**. Não há
-`frota:chave` para correr lá antes de um `git pull`.
+**Bloqueado · `desktop-j26409q`.** Nao falta um gesto: falta **codigo naquela
+maquina**. Medido no beacon dela: `sha_carregado 15280a66` (anterior ao #354),
+`sig.alg HMAC-SHA256-v1`, **sem `kid`**. Nao ha `frota:chave` para correr la
+antes de um `git pull`.
 
 Ordem para fechar, **no PC**: `git pull` → reiniciar o cockpit →
-`npm run frota:chave -- --inscrever`, que imprime a pública (não é segredo,
-viaja por onde se quiser) → na máquina do vault
-`--inscrever-device desktop-j26409q <pub>` → **rever o `git diff` do
-`trusted-devices.json` e commitar** → reiniciar. A inscrição não é commitada
-pelo comando de propósito: a lista de quem a frota acredita revê-se num
-`git diff`, e um comando que commitasse deixaria qualquer processo com escrita
-no vault inscrever-se a si próprio.
+`npm run frota:chave -- --inscrever` (imprime a publica; nao e segredo) → na
+maquina do vault `--inscrever-device desktop-j26409q <pub>` → **rever o
+`git diff` do `trusted-devices.json` e commitar** → reiniciar. O comando nao
+commita de proposito: a lista de quem a frota acredita revê-se num `git diff`,
+senao qualquer processo com escrita no vault inscrevia-se a si proprio.
 
-**`prova_frota` continua `false`, e está certo:** *"só um device verifica: uma
-máquina sozinha não prova frota"*. Antes de hoje o painel dizia `true` nesta
-mesma situação. O `true` honesto só chega com o segundo device inscrito.
+`prova_frota` continua `false`, e esta certo — *"so um device verifica"*. O
+`true` honesto so chega com o segundo inscrito. Efeito colateral aceite: o
+painel do PC, em codigo antigo, passa a ver o beacon do Mac como
+`alg-desconhecido` em vez de `adulterado` — ja o rejeitava, muda a mensagem.
 
-Efeito colateral aceite: o painel do PC, em código antigo, passa a ver o beacon
-do Mac como `alg-desconhecido` em vez de `adulterado`. Já o rejeitava — as
-chaves HMAC das duas máquinas nunca foram a mesma. Muda a mensagem, não o
-resultado.
+<!-- suite do router — RESOLVIDO 2026-08-25 -->
+### ✅ A suite `tools/router` ja conta sempre o mesmo (fechado 2026-08-25)
 
-<!-- suite do router — observação, não conclusão -->
-### 🔍 A suite `tools/router` não conta sempre o mesmo (visto 2026-08-24)
-944, 962, 969 e 983 testes em corridas diferentes, incluindo em `main` intocada.
-`fail` foi sempre 0. Não investigado — mas uma suite que não conta sempre o mesmo
-pode estar a saltar testes em silêncio.
+Era o `--test-force-exit`, que matava o reporter antes de ele drenar os
+subtestes. Nao era flakiness nem descoberta (o script lista os ficheiros a mao).
+O `fail 0` da observacao original tambem era artefacto — havia **3 falhas
+verdadeiras** o tempo todo, cortadas junto com o resto. Sem o flag: 1160 / 1160 /
+1160, `fail 0`, em 3-4 s. Detalhe no arquivo e no commit.
 
 **O gargalo continua onde estava:** 1054 achados por triar, loop em pausa por
 `human queue full (524/6)`. Nada dos sete PRs lhe tocou — foi tudo encanamento,
 ainda que encanamento que estava a mentir.
 
 ---
-
-## 🏁 Sprints
-
-| Sprint | Nome | Estado |
-|--------|------|--------|
-| v0.9.9 | INFRA.md + deploy | ✅ Shipped (2026-04-13) |
-| Rebrand | frugal → Mooter | ✅ Shipped (2026-04-14) |
-| Sprint B | METHODOLOGY + Shadow + Closed Loop | ✅ Shipped (2026-04-16) |
-| Review #1 | Context-aware overrides + 48 TUNED | ✅ Shipped (2026-04-16, #22) |
-| MacBook bootstrap | 3 Cowork sessions — install + 3 bugs fixed | ✅ Shipped (2026-04-16) |
-| Sprint C | Statusline redesign + Multi-Model V2 | ⏳ Pendente |
-| Full Rebrand | frugal → mooter em toda a app shell (dashboard, onboarding, setup, admin, settings, OG, APIs) | ✅ Shipped (2026-04-17, #24) |
-| OAuth verification | Env vars OK, OAuth 302 OK, waitlist RLS fix, mooter.ai domain verified | ✅ Shipped (2026-04-17, #24) |
-| v1.0 | Public OSS launch | 🔵 Roadmap |
-
-## 📊 Stats actuais
-| Métrica | Valor |
-|---------|-------|
-| Overall accuracy | 88.3% (GATE PASS) |
-| Tests passing | 89/89 |
-| Gold labels | 84+ |
-| Patterns | 114+ (48 TUNED_PROMOTE_T0 + 7 ARCH_SIGNALS novos) |
-| Mac savings-tracker | saved 69.2% ($0.24 over 4 prompts) |
-| Hub global | 1 user, 1 prompt (Mac), 1 hw (apple-silicon), 1 sub (max) |
 
 ## 🧱 Stack técnica
 | Camada | Tecnologia |
@@ -274,331 +161,59 @@ ainda que encanamento que estava a mentir.
 | Telemetry | savings-tracker :7821 + hub Cloudflare + D1 |
 | Landing | `mooter.ai` (public waitlist) + `landing-five-azure-16.vercel.app` (Friends Beta) |
 
-## 🔗 Links
+## 🔗 Links duraveis
 
 | Recurso | URL |
 |---------|-----|
 | Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
-| 🐮 Wave 2.5 CLOSURE — v0.2.1-polish (2026-05-31) | https://www.notion.so/3716f6e42bc4813aaa58e6ffeb5bb241 |
-| 🐮 Sessão 2026-05-30 — Wave 2.5 Day 1 | https://www.notion.so/3706f6e42bc481f8bca3d34d778dda34 |
-| 🐑 Pastor Day 1 — Schema + ADR (2026-05-28) | https://www.notion.so/36d6f6e42bc4815eab62c8d38247fc42 |
-| 🐑 Pastor Day 4 — hook emite <pack-hint> (2026-05-27) | https://www.notion.so/36d6f6e42bc48110bf0deedfa4cb81a3 |
-| 🐑 Pastor Day 5 — CLI mooter pack (2026-05-27) | https://www.notion.so/36d6f6e42bc481458f08f79e3ad25ecd |
-| 🐑 Pastor Day 6 — pack_resolve + 5 cenários + registry 27 (2026-05-27) | https://www.notion.so/36d6f6e42bc481778293ea3c9b5dde30 |
-| 🟢 Wave 1 — SHIPPED (2026-05-27) — validation 20/20 + repo público | https://www.notion.so/36d6f6e42bc481eda50be369a5bbbdd8 |
-| Notion Sessão #4 — Mirror Win→Mac | https://www.notion.so/3446f6e42bc4818d8b40f023b3ed758f |
-| MacBook Install Playbook | https://www.notion.so/3446f6e42bc48156a7a7fab59fa87ac5 |
-| Sessão 2026-04-16 — Review #1 + Multi-device | https://www.notion.so/3446f6e42bc4819eb313fa21cf15765d |
-| Sessão 2026-04-17 — Review #2 + Classifier Detox | https://www.notion.so/3456f6e42bc4812e81e3dac67cb73b3f |
-| Sessão 2026-04-17 — Landing Redesign + Reviews | https://www.notion.so/3456f6e42bc481d3b8fccacf8ed8a56b |
-| Sessão 2026-04-17 — Post-crash Recovery + Router Deep Fixes (#25) | https://www.notion.so/3456f6e42bc4810099aae0b5d1ede30e |
-| Sessão 2026-04-17 — Cowork Ship (#25-continued) | https://www.notion.so/3456f6e42bc481f991f0c9538438417e |
-| Sessão 2026-04-18 — Review #11 + Counters data layer (#27) | https://www.notion.so/3466f6e42bc481c99569cb216e748c5f |
-| Sessão 2026-04-18 — Mooter Review #16 (classifier limpo) | https://www.notion.so/3476f6e42bc4810b9ad6e7c605acccad |
-| Sessão 2026-04-19 — /doctor fix (MCP Windows + HOME env) | https://www.notion.so/3476f6e42bc481a1a3ffc682d7fcdc1f |
-| Sessão #35 2026-04-21 — H2 hygiene + bidirectional drift | https://www.notion.so/3496f6e42bc4814286b1d4d41c1a658e |
-| Sessão 2026-05-05 — Codex Integration v0.11 (advisory layer) | https://www.notion.so/3586f6e42bc48177894dd04aec7a0e16 |
-| Sessão #37 2026-05-05 — Site coherence + install alignment + statusline mode trio | https://www.notion.so/3576f6e42bc481fab148fa6a26db00de |
-| Sessão #39 2026-05-07 — Wave-2 readiness (5 patches → 87.5% accuracy) | https://www.notion.so/3596f6e42bc4818caaf2e3b18dd7a581 |
-| Sessão #40 2026-05-07 — Wave-2 router-execute LANDED + Validation Master Prompt | https://www.notion.so/3596f6e42bc4812e824cf48bf8b9321d |
-| Sessão #40-validation 2026-05-07 — Wave-2 Independent Audit (APPROVED_WITH_NOTES) | https://www.notion.so/3596f6e42bc481b9a9e4c80086087885 |
-| Sessão 2026-05-24 — Matriz de modelos 2026 + camada de dados do router | https://www.notion.so/36a6f6e42bc481a886d1d48a412ca1d7 |
-| GitHub repo (PÚBLICO desde 2026-05-27) | https://github.com/pauloloureiroshp-ship-it/mooter |
-| Landing público | https://mooter.ai |
-| Friends Beta (private) | https://landing-five-azure-16.vercel.app |
+| GitHub (publico) | https://github.com/pauloloureiroshp-ship-it/mooter |
+| Landing | https://mooter.ai |
 | Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |
 | npm | https://www.npmjs.com/package/@mooter/cli |
 
----
-
-*Cowork Mac working surface: `~/Documents/Claude/Projects/Mooter.ai (macOS)/` com logs, dumps, mapa operacional HTML, e este SYNC.md.*
-
----
-
+*(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
-
-### 2026-08-25 (fecho) · #373 e #375 em `main`; a máquina corre o que foi decidido
-
-**`main` @ `9c54af2c`.** Fecho da cadeia que começou com a FASE 0 a refutar o
-masterprompt do gate L0.
-
-**[#373](https://github.com/pauloloureiroshp-ship-it/mooter/pull/373) merged** —
-14/14 checks verdes, incluindo `cockpit tests (windows)`. Verificado por
-**avaliação**, não pelo estado do PR: `PILLAR_IDS` em `main` é `[]`, catálogo com
-11, `P2.activo`/`P3.activo` a `false`. `MERGED` nunca provou que o conteúdo está
-lá — já custou um PR nesta mesma cadeia.
-
-**O runner reiniciado, e o `sha_carregado` a prová-lo:** `b24d8359b16e` →
-`356f4e3d2309` → `9c54af2c5df8`. Um `import` é estático, portanto o merge
-sozinho não muda o que a máquina corre. O estado que ele escreve de si próprio
-passou a `pausa: "no eligible loop (all capped / paused / suspended)", fila 0` —
-**o loop está parado e diz porquê**, que é a diferença entre uma decisão e uma
-avaria.
-
-**[#374](https://github.com/pauloloureiroshp-ship-it/mooter/issues/374) →
-[#375](https://github.com/pauloloureiroshp-ship-it/mooter/pull/375), e o
-diagnóstico que eu tinha dado estava errado.** Disse que o `self-check` não
-verificava o remoto; verifica. O que existia era uma **janela**: o publicador faz
-`commit` → `pull --rebase` → `push`, e o `launch.mjs` arranca o loop e verifica
-logo a seguir — apanha a janela quase de propósito. Medido no reflog do vault:
-commit `08:51:01`, aviso impresso, push `08:51:06`. O `git push` sugerido
-respondia `Everything up-to-date`.
-
-Corrigidas as duas causas: a pergunta passou a ser sobre **o beacon**
-(`log <range> -- <ficheiro>`) e não sobre o repo (`rev-list @{u}..HEAD` acusava
-o beacon por causa de um commit do dono no vault); e abaixo de uma passagem do
-publicador o item é `n/d` sem `resolver`, portanto sai de *"FALTA O TEU GESTO"*.
-
-**O detalhe que não estava na issue:** o discriminador tem de ser o commit **mais
-antigo** por publicar. Um publicador avariado reescreve o beacon a cada ronda e
-deixa sempre um commit de segundos atrás — com o mais recente ficaria mudo para
-sempre. Trocar um alarme falso por um **silêncio** falso é pior. Há um teste só
-para isso.
-
-**Prova em campo, não só em teste:** `launch.mjs --status` passou a imprimir
-`alinhamento tudo em dia`, sem um único item na secção do dono. Primeira vez no
-dia.
-
-**A decisão que fica em aberto** (e que não é para o fim de uma sessão longa):
-pilar novo desenhado contra o modo de falha dos onze — nenhum deles perguntava
-*"isto parte alguma coisa?"*, todos produziam observações verdadeiras e inúteis —,
-ou ir à dívida declarada no #366, ou desligar o loop de vez.
-
-gate: 766 testes · 765 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
-
-### 2026-08-25 (fecho 2) · o instrumento antes do enunciado — #377 e #378
-
-**`main` @ `00e9feed`.** Depois de a rotação ficar vazia, a pergunta natural era
-*"escreve um pilar novo"*. O que saiu foi outra coisa, e é melhor.
-
-**#377 — o arnês aceitava `NO FINDING` como aprovação.** Corridos os dez pares
-contra o Ollama real, o P6 foi graduado `funciona` tendo respondido, literalmente,
-`NO FINDING` seguido de `PROOF: …:36`. O enunciado dele exige `PROOF:` sempre, o
-número da linha aparece na citação obrigatória, e o ramo `achou && !acusouControlo`
-respondia `funciona` sem perguntar se o semeado estava calado. **A variável
-`caladoNoSemeado` já existia — era consultada tarde de mais.** Foi assim que o
-P11 entrou: passou o ensaio, e em um dia deu 87 achados dos quais 76 falhavam o
-próprio enunciado.
-
-Verificação: dez pares antes e depois, mudou **um** veredicto (`P6 funciona →
-partido`). **Com o arnês corrigido, dos dez passa um — o P3, que está desligado
-por 0% de precisão em campo.** Nenhum pilar do catálogo passa o ensaio *e* vale
-em campo.
-
-**A hipótese do prompt de sistema, medida e REFUTADA.** Um adversário disse que
-a saída barata vive no `SYSTEM_PROMPT`, não no `ask`. Testei — e o meu primeiro
-ensaio estava errado: emparelhei o `ask` com o `DIFF_SYSTEM_PROMPT`, **uma
-combinação que não existe em produção** (no ramo `diff` o `question` é *"rever
-mudança em …"*; o `ask` só corre em `caça`). Refeito com a linha de base certa:
-**V0 8/30 · sem sistema 10/30 · mínimo 8/30 · mínimo+guardas 7/30** — ruído. Não
-mexi no prompt. Trocá-lo seria a engenharia por intuição que produziu os onze.
-
-**O que É a variável, medido em 7 760 rondas reais do ledger e verificado por mim:**
-enunciados com saída genérica (`NO FINDING`) → 2 680 rondas, **0,1%** de achados;
-com saída conclusiva (`THEY MATCH`, `SHAPE IS UNIQUE`) → 5 080 rondas, **35,4%**.
-O modelo toma a saída que o **enunciado** escreve, não a que o sistema oferece.
-
-**#378 — o portão de existência, o que faltava.** Os onze foram escritos pela
-ordem errada: enunciado primeiro, e só meses depois a pergunta de se a classe
-existe aqui. Três portões, por ordem: **a classe existe?** (censo determinista +
-triagem à mão, $0) · **o detector detecta?** (ensaio semeado) · **o que sai vale
-ser lido?** (campo). O P11 saltou o primeiro.
-
-Dois limiares, **≥10 reais E ≥30% de precisão**, `Object.freeze`, com um teste
-para cada: só a precisão deixaria passar o `|| 0` (2 em 39 → pilar mudo); só o
-volume deixaria passar o P11 (87 achados, 1 útil). Fechadas as três formas de ele
-mentir a favor da classe: contar testes, `real: null` virar `false`, e um glob
-vazio virar zero em silêncio.
-
-**Corrido contra o repo, com a classe do P2:** 236 ficheiros, 504 candidatos,
-amostra de 40 espalhada por 25 ficheiros — `const out = []`, `let failed = 0`.
-Zero reais. **`NÃO PASSA`.** Dez minutos sem GPU reproduzem o veredicto que
-custou ler 20 achados à mão depois de meses de rotação.
-
-**A decisão continua em aberto**, e agora com instrumento para a tomar: nenhuma
-das classes conhecidas passa o portão. Escrever um P12 hoje seria repetir a
-experiência com melhor advocacia.
-
-gate: 784 testes · 783 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
-
-### 2026-08-25 (fecho 3) · a âncora tinha leitor e não tinha escritor — #380 e #381
-
-**`main` @ `2f746d21`.** A síntese apontou o `mode: 'ancorado'` como a direcção a
-seguir em vez de um décimo segundo pilar, e disse não a ter medido. Medido:
-
-| modo | rondas | achados |
-|---|---:|---:|
-| `caca` | 7 760 | 1 801 (23,2%) |
-| `diff` | 1 812 | 12 (0,7%) |
-| **`ancorado`** | **0** | **0** |
-
-**Zero em 10 624 recibos.** Não por estar partido — por **nunca ter tido
-entrada**. O `~/.mooter/ancora-achados.json` não existia e **nada no repositório
-o escrevia**: há quem o leia, quem o teste com fixtures, e um comentário a citar
-uma medição real de 76 apontamentos feita à mão a 19/08. Produtor, nenhum.
-
-**O sinal, nomeado (#380):** *uma arquitectura completa excepto a entrada, cuja
-ausência degrada em silêncio.* Não há bug — o `readAnchor` devolve `[]` numa
-ausência **por desenho**, a escada cai para `caça`, os testes passam. **"Sem
-âncora" era indistinguível de "âncora vazia"**, e nada tinha onde dizer a
-diferença. É a mesma forma do guarda de 20/08: rigor no consumidor, nenhum no
-produtor.
-
-**#381 — o produtor.** Escreve sempre os dois lados da distinção: o array que o
-`readAnchor` consome (contrato inalterado) e um `ancora-manifesto.json` ao lado.
-*Um manifesto com `apontamentos: 0` é uma afirmação; um ficheiro que não existe
-não é afirmação nenhuma.*
-
-**Nasce com zero regras activas, e isso é medição.** Sete candidatas sondadas em
-288 ficheiros, nenhuma passa o portão do #378. A melhor — `catch-mudo`, 58
-candidatos — é a classe que o `REGRAS_IGNORADAS` já filtrava: o comentário do
-`context-pack` diz *"76 apontamentos, 58 deles `no-empty`"* (19/08) e a sondagem
-de 25/08 deu **exactamente 58**. Mesma classe, mesmo número, seis dias depois.
-
-O `PARSE` (`node --check`, 0 em 288) ficou **de fora de propósito**: um erro de
-parse é *certo*, e a âncora existe para dar ao modelo coisas por **julgar**.
-
-**O self-check passa a distinguir:** nunca gerada → aviso com o gesto; vazia por
-decisão → ok, com o porquê; contagem ilegível → `n/d`. Uma âncora vazia **não** é
-alerta — um aviso de rotina ensina a ignorar a secção.
-
-Verificado na máquina, não só em teste: `aviso · nunca gerada` → `ok · 0
-apontamentos, 0 regras activas`.
-
-**O arco do dia:** começou com um masterprompt que mandava **suprimir** achados
-por classe; acabou com três instrumentos que os **medem**, e três estados que
-passaram de invisíveis a declarados — a rotação vazia, a âncora vazia, e a
-diferença entre *não existe* e *está vazio*.
-
-gate: 799 testes · 798 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
-
-### 2026-08-25 (fecho 4) · a primeira classe medida antes de escrita — #383
-
-**`main` @ `ba1d99a0`.** O dia fecha onde devia ter começado há onze pilares: com
-uma classe de defeito **medida antes de o enunciado existir**.
-
-**A classe:** um `catch` que devolve uma **contagem ou colecção vazia** — `[]`,
-`{}`, `0` — onde *"não consegui ler"* fica com a mesma cara que *"não há nada"*.
-Não é preferência: é a regra escrita do próprio motor, e violada — *"o que não se
-consegue medir devolve `n/d`, **nunca** `ok`"*.
-
-**Os dois números, pelo portão do #378:**
-
-| versão | candidatos | reais | precisão | veredicto |
-|---|---:|---:|---:|---|
-| v1 — inclui `return false` e `''` | 177 | 8/40 | 20% | reprova |
-| v2 — só contagens e colecções | 84 | **28/40** | **70%** | **passa** |
-
-A v1 falhou porque um `false` a fechar uma **acção** (escrever, apagar, matar)
-significa mesmo *"não aconteceu"*. Estreitou-se pelo **critério**, dizível numa
-frase; a fasquia continua congelada e a amostra da v2 foi nova.
-
-Dos 28 reais, os que mais doem: `badge.js:86` devolve **`0` de poupança** e esse
-número vai ao ecrã; `docs-hygiene.js:31` devolve `[]` de uma pasta ilegível e
-**faz o ratchet ver uma melhoria** que não existe. Não contaram 12: `prefs()` a
-devolver `{}` (os defaults aplicam-se) e o `classify.js`, que é **FROZEN** —
-marcar código congelado foi o erro do P2.
-
-**O enunciado era a peça que faltava.** O `context-pack` imprime `hit.msg`
-debaixo de *"A ferramenta apontou a LINHA N, regra …"*, e o produtor escrevia
-`{file, line, rule}` sem `msg` — o juiz receberia uma linha em branco onde devia
-estar a razão. **E tem de caber em 200 caracteres:** a primeira versão tinha 341 e
-chegava cortada a meio de uma frase — *"…Se sim, e d"*. **Um enunciado truncado é
-pior do que nenhum: parece completo.** Ficou um teste a travá-lo.
-
-**Prova contra o Ollama** — a primeira vez que o modo ancorado produz seja o que
-for em 10 624+ recibos: `modo=ancorado · catch-neutro · docs-hygiene.js:31 →
-ACHADO`, 53 tokens, citação certa.
-
-**⚠️ Isto NÃO liga o loop, e está escrito no PR.** O ramo ancorado é alcançado
-**por pilar**, e o `files` do pilar filtra a âncora — medido: dos 84 apontamentos
-só 1 caía no âmbito do pilar de ensaio, e julgado esse a escada caiu para `caça`,
-como deve. Com a rotação a zero, nenhum apontamento é alcançado. **Ligar a regra
-não liga o modo**, e essa decisão continua por tomar.
-
-**O arco do dia, em uma linha:** começou com um masterprompt que mandava
-**suprimir** achados por classe; acabou com uma classe **medida antes de escrita**
-— a primeira deste repositório.
-
-gate: 806 testes · 805 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
-
-### 2026-08-25 (fecho 5) · os 28 defeitos corrigidos, e a causa comum que ficou — #385
-
-O PR #385 tocou **28 ficheiros** com **596 inserções** e **134 remoções**.
-
-Os **28** são exactamente os achados reais da amostra que passou o portão de existência: **84** candidatos, **40** lidos à mão, **70%** de precisão.
-
-**23** foram corrigidos com `null` e os chamadores actualizados a mostrar **n/d**. Os restantes **5** receberam uma falha **visível** (aviso em `stderr`, valor neutro mantido).
-
-Estes **5** não são desistência. Forçar `null` obrigava a guardas em **8–9** sítios e alterava contratos exportados. Uma degradação anunciada é preferível a uma silenciosa.
-
-**docs-hygiene.js:31** era o pior caso: um `_handoff/` ilegível devolvia `[]` e o ratchet lia a maior melhoria de sempre; um `--update-baseline` gravaria esse zero fabricado. Agora distingue `ENOENT` (medição real) de outros erros (ignorância -> **n/d**).
-
-**badge.js:86** devolvia `0` de poupança quando o pricing não carregava, indistinguível de "T3, não há poupança". Passou a `saved n/d`.
-
-**gsd-statusline.js:380** com perfil ilegível desenhava a mesma linha de quem não tem plano. Ganhou o chip `subs n/d`.
-
-Verificação:
-
-| suite | total | pass | fail |
-|---|---|---|---|
-| cockpit-runner | 806 | 805 | 0 |
-| mooter-bridge | 1090 | 1089 | 0 |
-| tools/router | 1158 | 1151 | 6 |
-
-As **6** falhas do router são pré-existentes. O mesmo comando em `main`, sem o patch, dá o conjunto de nomes idêntico (diff vazio). Zero regressões.
-
-A statusline corre a cada turno do dono: testada com payload real, 6 linhas, exit 0. Os **13** módulos tocados carregam. O único que rebenta (`update-metrics` em require nu) rebenta igual em `main`.
-
-Trabalho feito por **14** agentes em paralelo, um dono exclusivo por ficheiro.
-
-**Fica por fazer:** **seamless.js:405** tem o mesmo padrão no `ledgerRead` e é ele que engole o caso comum (ficheiro em falta, corrompido, permissão negada). Os `catch` corrigidos estão um andar acima e só disparam com injecção.
-
-gate: 806/805/0 cockpit · 1090/1089/0 bridge · 1158/1151/6 router (6 pré-existentes, diff vazio contra main) · classify.js `427d8c0b` intacto
-
-### 2026-08-25 (fecho 6) · o portão vira código, e a dívida do #366 fecha — #388 #389 #391
-
-`main @ b7cfc83b`. Dezoito PRs merjidos hoje.
-
-O #388 abre o roadmap dos portões. Cruzam-se as best practices da Anthropic (code.claude.com/docs/en/best-practices, lidas a 25/08) com o estado do repo. Cinco fases, gate numérico em cada.
-
-A convergência é directa: a Anthropic escreve "if you can't verify it, don't ship it"; o self-check.mjs escreve "o que não se consegue medir devolve n/d, nunca ok". É a mesma regra. O gap está na citação: "As a deterministic gate: a Stop hook blocks the turn from ending until it passes." Há um Stop hook no repo, mas só acumula contexto.
-
-O #389 entrega F1. `podeEntrar(regra)` decide em **código** a partir de `medicao: {candidatos, lidos, reais}`. Antes bastava `activo: true` e uma frase. O teste antigo só verificava se o `porque` tinha um dígito; "medido 1 vez" passava. Foi assim que o P11 entrou. A **precisão deriva-se**, não se declara. Há um teste com `precisao: 0.99` a ser ignorada. Uma regra recusada é **declarada** no manifesto, não some em silêncio.
-
-Dois defeitos no detector surgiram na pré-triagem local (Ollama, $0), não nos testes. Acusava quem obedecia: o seamless.js corrigido no #387 continuava marcado porque o detector só perdoava **comentários** e a correcção anunciava-se com `log()`. Apontava também para o classify.js, que está **FROZEN** — o mesmo erro do P2.
-
-| apontamentos | causa |
-|---|---|
-| 84 | baseline |
-| 59 | correcções #385 e #387 |
-| 57 | dois defeitos do detector corrigidos |
-
-O #391 limpa cinco dos seis resíduos do #366. Cada um com o teste a falhar **primeiro**. O sexto (`pilar:esgotado`) fica como `todo` visível; a correcção certa é decisão de desenho, não código. O codex entregou o resíduo 5 com o `appendReceipt` a **lançar**. O contrato está certo, mas o chamador não apanhava e uma excepção ali mata o ciclo. Ajustei: o recibo mau perde-se **alto** e o trabalho continua. Dois testes tiveram de mudar.
-
-O tools/router caracterizou-se em três rondas: 6 falhas estáveis, 1 **instável** (`concurrent writers preserve every event and atomic projections`, 1 em 3). Isso explica a divergência entre 6 e 8 medidas em momentos diferentes.
-
-Protocolo multi-device: LOCAL_AGENT_SYNC passou de fail para pass. O windows-rtx4090 ficou active com errors=none. Os outros três devices continuam pending — não são desta máquina para inscrever.
-
-| gate | |
-|---|---|
-| total | 821 |
-| pass | 819 |
-| fail | 0 |
-| todo | 2 (q13 pre-existente + resíduo 6) |
-
-Por decidir: o release. 75+ commits desde a v1.49.4. O loop continua parado por decisão.
-
-gate: 821 testes · 819 pass / 0 fail / 2 todo (q13 + o residuo 6) · classify.js `427d8c0b` intacto
-
-### 2026-08-25 (Mac · `mac/no-talo-m2b`, PR #390) · M2b — escopo declarado e fechado
-
-Mutex respeitado: o PC está em `fix/ledger-read-raiz`; F1–F4 não foram abertos. O achado não foi o claim dos 47% — foi `claude-opus-4-6` marcado `pending` com a nota "No in-repo source", **falsa quando escrita** (`pricing.js:46` tem $5/$25 desde 2026-04-16). É o modelo T3 por omissão e estava fora do sort de custo do `decide-agent`. Preenchido do SSOT do repo; nada inventado. `claude-fable-5` ficou pending **de propósito** — precificá-lo sem resolver o `tier: T5` podia metê-lo num sort de custo, contra o invariante. Decisão do MEO. Portão novo `frescura-de-precos.test.mjs` no comando do CI: falha aos 30 dias, na divergência com o SSOT e em pending precificável. `_handoff/`: 180 pacotes arquivados (204→28), 30 citações reescritas, 0 penduradas. A ratificar pelo dono: fixture em `packages/router/tests/` fora do allowlist (não toquei no allowlist), baseline do ratchet, e 2 colisões de conteúdo divergente. Detalhe: `_handoff/cc-no-talo-progress.md` e PR #390.
-
-gate: 814/813/0 cockpit (+8) · router 302/295/3 com diff **vazio** contra main · docs-hygiene 12/12 · classify.js `427d8c0b` intacto
 
 ### 2026-08-25 (Mac · fecho 2, PR #394) · seis pendências decididas por delegação escrita
 
 #390 mergido (`main @57fa1e44`). O item 2 caiu por **medição**: remover o `tier` do fable-5 e precificá-lo do SSOT fazia `decideAgent("reasoning.science")` devolver `claude-fable-5` (TES 3784) sem ninguém escrever `@fable` — o passo final do plano produzia a violação que o plano existia para evitar. O que segura o invariante hoje é a **ausência de preço**, e mais nada: não há exclusão de T5 dentro do `decideAgent`, e ele é ficheiro congelado. Entra um **arame** no CI (`precificavel-nao-rotavel`), não uma correcção. O stash de 24/08 não era resíduo — ~230 linhas que não existem em ref nenhum (PARIDADE entre devices + frescura de beacon remoto), preservadas em `mac/stash-paridade-2026-08-24`, stash **não** dropada; por isso o item 6 fica bloqueado (`--update-baseline` reescreve tudo e gravaria `stashes: 1`). Três colisões fundidas — a 3ª apareceu ao mover o archive órfão — com reconstrução verificada byte a byte. Adversário `codex`: **n/d**, não instalado nesta máquina; a refutação correu em Ollama local.
 
 gate: 840 testes · 838 pass · 0 fail · 2 todo (pré-existentes) · higiene 26 pacotes / 141 topo · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (Mac · `mac/sistema-sync-2026-08-25`) · sistema & sync — o que estava a medir mal
+
+Detive o **lock logico do SYNC** para este rolo (604 linhas -> orcamento).
+Verifiquei antes que o unico outro device activo (`desktop-j26409q`) nao lhe
+tinha tocado desde a base comum: o `git diff main <branch>` mostrava um falso
+`-6` que era o main a estar a frente, nao a branch a apagar.
+
+Tres coisas mediam mal, e as tres eram do instrumento, nao do objecto:
+
+1. **A suite do router.** `--test-force-exit` matava o reporter: 889/977/979/
+   1029/1000/1004 em corridas seguidas, e o `fail 0` era artefacto — havia 3
+   falhas verdadeiras cortadas com o resto. Sem o flag: **1160 x3, fail 0**. As
+   3 falhas eram `renderResolved` a chamar `renderTwoLine(ctx)` sem `opts`, a
+   ler o `~/.mooter` REAL do dono.
+2. **O painel.** "1 min ago" com ficheiro de 2 dias: o campo `via` (disco/remoto)
+   existia nos dados e o painel **nunca o renderizou**. O rotulo passou para
+   modulo testado — a unica coisa que o painel afirmava era a unica sem teste.
+3. **Este ficheiro.** O cabecalho "verificavel" dizia `v1.24.1 / 2026-07-27`
+   com a maquina em `1.49.4`: faltava o marcador de FIM da zona humana e o gerador
+   lancava em **todas** as corridas, ha um mes.
+
+**Refutado por medicao:** os 14 MB do `.git` do vault nao sao dos beacons — eles
+sao 91% dos commits e **0,79 MiB** do pack; um clone fresco da 5,9 MB. E o beacon
+do PC ja publica `conector` preenchido (a premissa do `null` estava velha).
+
+**Veredicto `codex/agent-sync-fleet-v3`: APROVEITAR.** Enxertada numa worktree do
+main de hoje (529 commits a frente): 56/56 na suite agent-sync, 1170 no router
+sem regressao. Bloqueio unico: dois publicadores que nao se conhecem a escrever
+no vault (`DR_VAULT.md` / `CANAL_DE_SYNC_ROADMAP.md`).
+
+**Nao feito, declarado:** W4 (metrica-mae, quota por motor, kWh) e W5.1 (Ed25519
+por utilizador). `codex` e `kimi`: **n/d** nesta maquina; refutacao em Ollama local.
+
+gate: router 1160/1159/0 (x3, mesmo total) · cockpit 876/874/0/2 todo ·
+varredura de segredos HIGH 0 · restauro do vault 0 falhas · classify.js `427d8c0b`
+
+<!-- HUMANO:FIM -->
