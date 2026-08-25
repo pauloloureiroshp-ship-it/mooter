@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   gerar, escrever, lerManifesto, regrasActivas, limparLinha,
-  REGRAS, GLOBS_OMISSAO,
+  REGRAS, GLOBS_OMISSAO, MSG_MAX,
 } from './ancora.mjs';
 import { verAncora } from './self-check.mjs';
 import { readAnchor } from './context-pack.mjs';
@@ -24,16 +24,21 @@ const ler = (mapa) => (p) => {
 
 // ── o catálogo nasce a zero, e isso é medição, não esqueleto ───────────────
 
-test('nenhuma regra está activa — e cada entrada diz o número que a desligou', () => {
-  // Sete regras candidatas sondadas em 288 ficheiros a 2026-08-25. Nenhuma
-  // passou o portão de existência (>= 10 reais E >= 30% de precisão). Um
-  // catálogo a zero aqui é o mesmo estado honesto que a rotação de pilares.
-  assert.deepEqual(regrasActivas(), [], 'se isto deixar de ser vazio, foi por decisão e este teste muda com ela');
-  assert.ok(Object.keys(REGRAS).length >= 6, 'as candidatas ficam no catálogo, como os pilares desligados');
+test('só corre quem passou o portão — e as reprovadas ficam com o seu número', () => {
+  // Sete candidatas sondadas em 288 ficheiros a 2026-08-25; seis reprovaram.
+  // A sétima — `catch-neutro` — passou numa segunda versão, estreitada pelo
+  // critério: 84 candidatos, 28 reais em 40, 70,0%.
+  //
+  // Este teste nasceu a exigir o catálogo VAZIO, e dizia "se isto deixar de ser
+  // vazio, foi por decisão e este teste muda com ela". Mudou por decisão, com
+  // medição. É a mesma promessa que os testes dos pilares fizeram e cumpriram.
+  assert.deepEqual(regrasActivas(), ['catch-neutro']);
+  assert.ok(Object.keys(REGRAS).length >= 7, 'as reprovadas ficam no catálogo, como os pilares desligados');
   for (const [id, r] of Object.entries(REGRAS)) {
-    assert.equal(r.activo, false, `${id} está activa sem ter passado o portão`);
-    assert.ok(r.porque && r.porque.length > 10, `${id} está desligada sem dizer com que número`);
-    assert.equal(typeof r.detectar, 'function', `${id} tem de continuar executável para se poder re-medir`);
+    assert.ok(r.porque && r.porque.length > 10, `${id} não diz com que número está como está`);
+    assert.match(r.porque, /\d/, `${id} justifica-se sem um único número`);
+    const temDetector = typeof r.detectar === 'function' || typeof r.detectarFicheiro === 'function';
+    assert.ok(temDetector, `${id} tem de continuar executável para se poder re-medir`);
   }
 });
 
@@ -90,7 +95,11 @@ test('os apontamentos saem no formato que o readAnchor consome — sem traduçã
     expandirImpl: () => ['a/um.js'],
     readImpl: () => 'ok\nBUG aqui\nok\n',
   });
-  assert.deepEqual(apontamentos, [{ file: 'a/um.js', line: 2, rule: 'minha' }]);
+  // `msg` viaja com o apontamento: é o ENUNCIADO que o `context-pack` imprime
+  // debaixo de `A ferramenta apontou a LINHA N, regra "..."`. Uma regra sem
+  // `enunciado` manda string vazia — e o juiz vê a linha em branco, que é o
+  // estado que a regra activa deste catálogo tem um teste próprio a impedir.
+  assert.deepEqual(apontamentos, [{ file: 'a/um.js', line: 2, rule: 'minha', msg: '' }]);
 
   let escrito = null;
   escrever({
@@ -186,4 +195,76 @@ test('lerManifesto rejeita um array — só um objecto é um manifesto', () => {
   assert.equal(lerManifesto('/m', { readImpl: () => '[]' }), null);
   assert.equal(lerManifesto('/m', { readImpl: () => 'nao e json' }), null);
   assert.ok(lerManifesto('/m', { readImpl: () => '{"apontamentos":0}' }));
+});
+
+// ── a primeira regra activa, e o enunciado que o juiz lê (2026-08-25) ───────
+
+test('catch-neutro está ACTIVA, e a entrada traz o número que a autorizou', () => {
+  // A primeira classe a passar o portão de existência: 84 candidatos em 289
+  // ficheiros, amostra de 40 lida à mão, 28 reais, 70,0% de precisão.
+  const r = REGRAS['catch-neutro'];
+  assert.equal(r.activo, true);
+  assert.match(r.porque, /28 reais/);
+  assert.match(r.porque, /70/);
+  assert.deepEqual(regrasActivas(), ['catch-neutro'], 'só esta passou — as outras seis ficam com o seu número');
+});
+
+test('o ENUNCIADO cabe no que o juiz recebe — um truncado é pior do que nenhum', () => {
+  // O `context-pack` faz `String(hit.msg || '').slice(0, 200)`. A primeira
+  // versão deste enunciado tinha 341 caracteres e chegava cortada a meio de uma
+  // frase: "...Se sim, e d". Parecia completa, e não era.
+  for (const valor of ['[]', '{}', '0']) {
+    const msg = REGRAS['catch-neutro'].enunciado(valor);
+    assert.ok(msg.length <= MSG_MAX, `enunciado com ${msg.length} chars, o juiz só vê ${MSG_MAX}`);
+    assert.equal(msg.slice(0, MSG_MAX), msg, 'o que o juiz lê tem de ser o enunciado inteiro');
+  }
+});
+
+test('o enunciado diz o que VERIFICAR e não afirma o defeito', () => {
+  // O contrato ancorado já não tem saída grátis (`ACHADO:` ou `FALSO POSITIVO:`,
+  // ambos a exigir `PROVA:`). Empurrar só inflacionaria os falsos positivos —
+  // que é exactamente o que este loop não pode voltar a fazer.
+  const msg = REGRAS['catch-neutro'].enunciado('[]');
+  assert.match(msg, /VERIFICA/, 'tem de mandar verificar');
+  assert.match(msg, /falso positivo/i, 'e tem de deixar a porta aberta ao falso positivo');
+  assert.match(msg, /null/, 'e dizer qual era a resposta certa');
+});
+
+test('todo o apontamento leva `msg` — sem ele o juiz vê uma linha em branco', () => {
+  const { apontamentos } = gerar({
+    repoRoot: '/r',
+    globs: ['a/*.js'],
+    expandirImpl: () => ['a/um.js'],
+    readImpl: () => ['function f() {', '  try { return leitura(); } catch {', '    return [];', '  }', '}'].join('\n'),
+  });
+  assert.equal(apontamentos.length, 1);
+  assert.equal(apontamentos[0].rule, 'catch-neutro');
+  assert.equal(apontamentos[0].line, 3);
+  assert.ok(apontamentos[0].msg && apontamentos[0].msg.length > 20, 'o campo que o context-pack imprime não pode vir vazio');
+});
+
+test('o detector NÃO marca `return null` — essa é a resposta certa', () => {
+  const nada = gerar({
+    repoRoot: '/r', globs: ['a/*.js'], expandirImpl: () => ['a/um.js'],
+    readImpl: () => ['try {', '} catch {', '  return null;', '}'].join('\n'),
+  });
+  assert.equal(nada.apontamentos.length, 0);
+});
+
+test('o detector respeita um comentário dentro do catch — "está explicado, lê e acredita"', () => {
+  // A doutrina do motor: um comentário que justifica a decisão é a resposta à
+  // objecção, escrita antes de ela ser feita.
+  const explicado = gerar({
+    repoRoot: '/r', globs: ['a/*.js'], expandirImpl: () => ['a/um.js'],
+    readImpl: () => ['try {', '} catch {', '  // vazio aqui é mesmo vazio: o chamador só quer iterar', '  return [];', '}'].join('\n'),
+  });
+  assert.equal(explicado.apontamentos.length, 0);
+});
+
+test('o âmbito do produtor é o que o portão MEDIU, não um mais estreito', () => {
+  // Um produtor de âmbito mais estreito do que a medição que o autoriza mente
+  // sobre o que foi provado. O censo correu com `tools/*.js`; sem ele ficavam
+  // de fora casos dos fortes — o `docs-hygiene.js` a devolver `[]` de uma pasta
+  // ilegível faz o próprio ratchet ver uma melhoria que não existe.
+  assert.ok(GLOBS_OMISSAO.includes('tools/*.js'), 'o âmbito encolheu abaixo da medição');
 });
