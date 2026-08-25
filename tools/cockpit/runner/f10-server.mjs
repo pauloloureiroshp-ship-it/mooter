@@ -32,10 +32,11 @@ function shaDoRunner(statePath) {
     return typeof s.sha_carregado === 'string' && s.sha_carregado ? s.sha_carregado : null;
   } catch { return null; }
 }
-import { registarTriagem, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar } from './triagem.mjs';
+import { registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
+  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, reservarParaODono,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
@@ -291,7 +292,27 @@ export function createServer({
       if (pedido.nivel < 1) return 0;
       const { receipts } = readLedger(ledgerPath);
       const { decisoes } = lerTriagem(triagemFile);
-      const fila = porTriar(receipts, decisoes);
+      // A fila SEM o corte de 50. O corte existe para o painel nao despejar
+      // 400 linhas num ecra; aqui ele so escondia trabalho — e escondia a
+      // reserva, que passava a contar sobre uma janela dentro de outra janela.
+      const fila = porTriar(receipts, decisoes, Number.MAX_SAFE_INTEGER);
+      // Quantas decisoes do dono e que o PORTAO 2 conta — nao quantas existem
+      // no ficheiro.
+      //
+      // A diferenca nao e teorica: `contarTriagem` cruza as decisoes com os
+      // recibos da JANELA do ledger (5000 linhas), e so conta as que ainda
+      // correspondem a um achado dentro dela. Contar aqui o ficheiro inteiro
+      // criava duas contagens da mesma coisa — e, com o ledger a crescer, as
+      // decisoes do dono saem da janela: o tique via `jaDoDono=20` e PARAVA de
+      // reservar, enquanto o portao via 0 e continuava fechado. Era a fome de
+      // volta, pela porta do lado.
+      //
+      // Duas verdades para o mesmo numero foi exactamente o defeito que o
+      // `porTriar`/`contarTriagem` teve ate hoje. Uma so fonte.
+      const jaDoDono = (() => {
+        const c = contarTriagem(receipts, decisoes).do_dono;
+        return c.aceite + c.descartado + c.issue;
+      })();
       const ps = portoes({
         recibos: {
           total: receipts.length,
@@ -304,14 +325,54 @@ export function createServer({
 `);
         return 0;
       }
-      for (const acto of curar(fila)) {
-        registarTriagem(triagemFile, acto);
-        feitos += 1;
+      // Quem fica de fora do dreno. A reserva olha para o ALVO: enquanto o dono
+      // nao tiver as decisoes que o portao 2 exige, guarda-se o que falta; a
+      // partir dai volta a ser so 1-em-20. Sem isto havia estado absorvente — a
+      // fila estabilizava vazia com 5 decisoes dele e o portao pedia 20.
+      const reservadas = reservarParaODono(fila, { jaDoDono });
+      const actos = curar(fila, { jaDoDono });
+      // O que foi MESMO escrito, com o `ts` que ficou no ficheiro. Gerar um
+      // `new Date()` novo para a analise punha o acto num dia diferente daquele
+      // em que ele foi persistido sempre que o tique atravessasse a meia-noite
+      // do dono — `persisted=2026-08-23` contra `sintetico=2026-08-24`. O
+      // alarme lia um dia que nao existia no ledger.
+      // `registarVarias` NAO para na primeira colisao. O guard do dono e uma
+      // excepcao, e uma excepcao a meio de um `for` deixava metade do trabalho
+      // feito e o log a dizer que a fila ficara intacta.
+      const r = registarVarias(triagemFile, actos.map((a) => ({ ...a, via: 'autopilot-l1' })));
+      const escritos = r.escritas.map((e, i) => ({ ...e, pilar: (actos[i] && actos[i].recibo && actos[i].recibo.pilar) || null }));
+      feitos = r.escritas.length;
+      if (r.recusadas.length) logImpl(`autopilot L1: ${r.recusadas.length} nao escritas — o dono ja decidiu essas chaves
+`);
+      if (r.erros.length) logImpl(`autopilot L1: ${r.erros.length} falharam por outra razao: ${r.erros[0].porque.slice(0, 100)}
+`);
+      const porAmostra = fila.filter((a) => naAmostraDeAuditoria(a && a.chave)).length;
+      const extra = reservadas.size - porAmostra;
+      if (feitos) {
+        const nota = reservadas.size
+          ? ` · ${reservadas.size} reservado(s) para a tua auditoria (${porAmostra} por amostra 1-em-${AUDITORIA_1_EM}${extra > 0 ? ` + ${extra} para o portao 2 poder abrir` : ''})`
+          : '';
+        logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado${nota}
+`);
       }
-      if (feitos) logImpl(`autopilot L1: ${feitos} achado(s) de baixa severidade fechados com motivo tipado
+      // O alarme corre sobre o dreno INCLUINDO o que este tique acabou de
+      // escrever. Ler so o `decisoes` de antes das escritas era um off-by-one:
+      // um pico que comecasse neste tique so aparecia no seguinte, e o alarme
+      // que existe para ser atempado chegava sempre tarde.
+      const fechadosPeloAgente = [
+        // So o que ESTE canal escreveu. Filtrar so por `por:'agente'` mostrava
+        // ao dono, como actividade do L1, decisoes de agentes de outros canais.
+        ...[...decisoes.values()].filter((d) => d && d.por === 'agente' && d.via === 'autopilot-l1'),
+        ...escritos,
+      ];
+      // `agora` materializa o dia de hoje mesmo sem actos nenhuns. Sem ele, uma
+      // PARAGEM TOTAL do dreno era invisivel: o detector so via dias que tinham
+      // trabalho, e o pior caso — o pilar que morre de vez — nunca disparava.
+      const an = anomaliaDeDreno(fechadosPeloAgente, { agora: Date.now() });
+      if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
 `);
     } catch (err) {
-      logImpl(`autopilot L1 falhou (a fila fica intacta): ${String(err && err.message).slice(0, 160)}
+      logImpl(`autopilot L1 falhou apos ${feitos} escrita(s) — o que ja foi escrito FICA (append-only): ${String(err && err.message).slice(0, 160)}
 `);
     }
     return feitos;

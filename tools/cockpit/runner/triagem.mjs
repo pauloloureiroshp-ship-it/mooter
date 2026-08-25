@@ -145,6 +145,45 @@ export function registarTriagem(caminho, { chave, decisao, recibo = null, por, n
   if (motivo && !MOTIVOS.includes(motivo)) {
     throw new Error(`motivo desconhecido: ${motivo} (aceites: ${MOTIVOS.join(', ')})`);
   }
+  // NENHUM AGENTE SOBREPOE UMA DECISAO DO DONO.
+  //
+  // A regra estava escrita em prosa no `voidar-fila.mjs` ("uma triagem do dono
+  // NAO se sobrepoe") e em lado nenhum no codigo. A 2.a ronda adversarial
+  // mostrou o que isso custava: basta um agente sobrepor UMA das 20 decisoes
+  // do dono e a contagem cai para 19 — a chave continua decidida, logo o
+  // `porTriar` exclui-a, a fila fica vazia, e o portao 2 fica em 19 de 20 PARA
+  // SEMPRE. Um estado absorvente construido por uma unica escrita.
+  //
+  // O dono pode mudar de ideias sobre o que e dele; um agente nao pode mudar
+  // de ideias por ele. A reversao existe — outra decisao DELE — e continua a
+  // ser um append, nunca um apagar.
+  //
+  // O QUE ESTE GUARD NAO E: atomico. Le e depois escreve, e entre as duas
+  // coisas o dono pode ter escrito — a 3.a ronda adversarial mediu a corrida:
+  // `[dono, agente]` no ficheiro, decisao efectiva `agente`. Um lock a serio
+  // exigiria um ficheiro de lock ao lado do ledger, ou seja um segundo estado
+  // a manter em sincronia; a alternativa que o projecto ja usa noutros sitios.
+  //
+  // O QUE ELE E: o custo de escrever mal desce de "silencioso e permanente"
+  // para "raro e visivel". A janela e de milissegundos e o dono escreve a mao,
+  // um clique de cada vez. E a decisao errada continua reversivel com outro
+  // append — que e a propriedade que este ledger sempre teve.
+  //
+  // FALHA ABERTA se nao conseguir ler (`lerDecisaoAnterior` devolve null). Um
+  // guard que rebenta a escrita porque o disco tossiu seria pior do que o
+  // defeito que evita; mas fica DITO, porque um fail-open silencioso e
+  // exactamente o genero de coisa que este ficheiro existe para nao ter.
+  if (por !== 'dono') {
+    const anterior = lerDecisaoAnterior(caminho, String(chave));
+    if (anterior && anterior.por === 'dono') {
+      const e = new Error(
+        `${por} nao sobrepoe uma decisao do dono (chave ${chave} ja tem "${anterior.decisao}" assinado por ele)`,
+      );
+      e.code = 'DONO_NAO_SE_SOBREPOE';
+      e.chave = String(chave);
+      throw e;
+    }
+  }
   const entrada = {
     ts: ts || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     chave: String(chave),
@@ -192,14 +231,23 @@ export const LIMITE_TRIAGEM = 50;
  * O corte e real e NAO se ve daqui: quem le esta lista nao sabe se ficaram 0
  * ou 400 de fora. Quem publica tem de emparelha-la com `contarTriagem().
  * por_triar`, que conta o ledger inteiro -- e e o que o `/fleet.json` faz.
+ *
+ * DEDUPLICA por chave, e ate 2026-08-24 nao deduplicava. `contarTriagem` sempre
+ * teve o seu `vistos`; esta funcao nao, e as duas respondiam numeros diferentes
+ * a mesma pergunta: 232 entradas contra 219 chaves no ledger real. O mesmo
+ * achado aparecia duas vezes na fila do dono, e o `curar()` escrevia duas
+ * decisoes para a mesma chave. Nenhuma das duas era falsa — a segunda era
+ * apenas ruido, e ruido numa fila que existe para ser curta e um defeito.
  */
 export function porTriar(receipts, decisoes, limite = LIMITE_TRIAGEM) {
   const out = [];
+  const vistos = new Set();
   for (let i = (receipts || []).length - 1; i >= 0 && out.length < limite; i -= 1) {
     const r = receipts[i];
     if (!ehAchado(r)) continue;
     const chave = chaveDoRecibo(r);
-    if (!chave || (decisoes && decisoes.has(chave))) continue;
+    if (!chave || vistos.has(chave) || (decisoes && decisoes.has(chave))) continue;
+    vistos.add(chave);
     out.push({
       chave,
       ts: r.ts ?? null,
@@ -299,4 +347,67 @@ export function menuDeMotores(opts = {}) {
     { id: 'claude-sonnet-5', etiqueta: 'Sonnet', tier: 'T2', ...custoEstimado('claude-sonnet-5', opts) },
     { id: 'claude-opus-5', etiqueta: 'Opus', tier: 'T3', ...custoEstimado('claude-opus-5', opts) },
   ];
+}
+
+/**
+ * A ultima decisao registada para uma chave, lida do disco.
+ *
+ * Existe para o guard "nenhum agente sobrepoe o dono" poder ser verificado no
+ * momento da escrita, sem obrigar cada chamador a passar o mapa inteiro. Le o
+ * ficheiro; num ledger de 1448 linhas isso e desprezavel ao lado da escrita que
+ * se segue, e a alternativa — confiar em estado em memoria — era outra fonte de
+ * verdade a divergir.
+ *
+ * Ficheiro ausente ou ilegivel devolve `null`: sem prova de decisao anterior,
+ * nao se bloqueia ninguem. Falha ABERTA de proposito — um guard que rebenta a
+ * escrita porque nao conseguiu ler seria pior do que o defeito que evita.
+ */
+export function lerDecisaoAnterior(caminho, chave, { readImpl = fs.readFileSync } = {}) {
+  let bruto;
+  try { bruto = String(readImpl(caminho, 'utf8')); } catch { return null; }
+  let ultima = null;
+  for (const linha of bruto.split(/\r?\n/)) {
+    if (!linha.trim()) continue;
+    let o;
+    try { o = JSON.parse(linha); } catch { continue; }
+    if (o && String(o.chave) === chave) ultima = o;
+  }
+  return ultima;
+}
+
+/**
+ * Escreve MUITAS decisoes sem parar na primeira que colide.
+ *
+ * O guard "nenhum agente sobrepoe o dono" e uma excepcao, e uma excepcao no
+ * meio de um `for` deixa metade do trabalho feito e a outra metade por fazer —
+ * a 3.a ronda adversarial mediu-o: `k1` persistida, `k2` rebenta, `k3` nunca
+ * chega a ser tentada. Um script de varredura que morre a meio e pior do que um
+ * que nao corre, porque ninguem sabe onde ficou.
+ *
+ * Aqui cada chave e independente: as que colidem sao SALTADAS e devolvidas em
+ * `recusadas`, e o chamador tem de dizer quantas foram. Nao ha rollback — o
+ * ledger e append-only e desfazer seria reescrever o passado.
+ *
+ * @returns {{escritas:Array, recusadas:Array<{chave:string,porque:string}>, erros:Array}}
+ */
+export function registarVarias(caminho, actos, { onErro = null } = {}) {
+  const escritas = [];
+  const recusadas = [];
+  const erros = [];
+  for (const acto of actos || []) {
+    try {
+      escritas.push(registarTriagem(caminho, acto));
+    } catch (err) {
+      if (err && err.code === 'DONO_NAO_SE_SOBREPOE') {
+        recusadas.push({ chave: String(acto && acto.chave), porque: err.message });
+      } else {
+        // Qualquer outro erro e um defeito, nao uma colisao esperada. Conta-se
+        // a parte para nao se confundir "o dono ja decidiu isto" com "o disco
+        // esta cheio" — dois problemas com respostas opostas.
+        erros.push({ chave: String(acto && acto.chave), porque: String(err && err.message) });
+      }
+      if (onErro) onErro(err, acto);
+    }
+  }
+  return { escritas, recusadas, erros };
 }
