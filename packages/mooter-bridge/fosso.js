@@ -350,15 +350,22 @@ function crossCheckPrompt(resultado, evidence) {
   ].join('\n');
 }
 
+/**
+ * Devolve `null` — e não lista vazia — quando a resposta do modelo não é JSON
+ * legível. Uma resposta truncada e um `{"claims":[]}` limpo davam ambos `[]`, e
+ * daí saía exactamente o mesmo «0 divergências»: quem lê não conseguia
+ * distinguir «o verificador olhou e não achou nada» de «não consegui ler o que
+ * ele disse». Só a lista vazia que veio mesmo no JSON continua a ser `[]`.
+ */
 function parseClaims(text) {
   const raw = String(text || '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
-  if (start < 0 || end <= start) return [];
+  if (start < 0 || end <= start) return null;
   try {
     const parsed = JSON.parse(raw.slice(start, end + 1));
     return Array.isArray(parsed.claims) ? parsed.claims : [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 function resultTextFromNdjson(buffer) {
@@ -529,15 +536,25 @@ async function verificacaoCruzada(input, options) {
       nota: 'sem veredicto: não verificou; VRAM livre no momento: ' + vramLivreTexto,
     };
   }
-  const checked = evaluateClaims(paths, parseClaims(local.text), evidence);
+  // `null` aqui é «o modelo respondeu, mas não em JSON legível». Os caminhos
+  // citados continuam a ser verificados — essa extracção é nossa e não depende
+  // dele —, mas as afirmações do modelo ficam n/d em vez de contarem zero.
+  const claims = parseClaims(local.text);
+  const respostaIlegivel = claims == null;
+  const checked = evaluateClaims(paths, claims || [], evidence);
   return {
     job_id: jobId, disponivel: true, modelo: local.model || null,
     divergencias: checked.divergencias, verificado: checked.verificado, custo_usd: 0,
+    afirmacoes_do_modelo: respostaIlegivel ? 'n/d' : claims.length,
     vram_livre_mb: vramLivreMb == null ? 'n/d' : vramLivreMb,
     rotulo: CROSS_CHECK_LABEL,
+    porque: respostaIlegivel
+      ? 'o modelo local respondeu fora do formato JSON pedido; só os caminhos citados foram verificados'
+      : null,
     nota: checked.verificado + ' afirmação(ões) verificadas; '
       + checked.divergencias.length + ' divergência(s); ' + checked.nd
-      + ' n/d. Verificação factual apenas; não avaliou qualidade nem reescreveu.',
+      + ' n/d. Verificação factual apenas; não avaliou qualidade nem reescreveu.'
+      + (respostaIlegivel ? ' Afirmações do modelo: n/d — a resposta não veio em JSON legível.' : ''),
   };
 }
 

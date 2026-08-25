@@ -13,7 +13,9 @@
  * released — are excluded so a dead terminal never inflates the count.
  *
  * Budget: one readdir + at most LOCK_CAP small readFileSyncs (well within the
- * ≤10ms render budget). `hidden_chips: ["conductor"]` drops it. Any failure → ''.
+ * ≤10ms render budget). `hidden_chips: ["conductor"]` drops it. Um directorio de
+ * locks ilegivel (permissoes, I/O) rende `🔒 conductor: ?` — nao '', que seria
+ * indistinguivel de nao haver locks nenhuns.
  */
 'use strict';
 
@@ -44,8 +46,11 @@ function isLive(lock, now) {
   return now <= lock.acquired_at_ms + lock.ttl_seconds * 1000;
 }
 
-/** Pure renderer (locks injected) → chip string ('' when no live locks). */
+/** Pure renderer (locks injected) → chip string ('' when no live locks, `?` when unknown). */
 function buildConductorChip(locks, now) {
+  // `null` chega de uma leitura falhada. Contar zero seria afirmar que ninguem
+  // tem locks quando nem sequer os conseguimos ver.
+  if (locks === null) return '🔒 conductor: ?';
   const live = (Array.isArray(locks) ? locks : []).filter((l) => isLive(l, now));
   if (live.length === 0) return '';
   if (live.length === 1) {
@@ -55,13 +60,22 @@ function buildConductorChip(locks, now) {
   return `🔒 conductor: ${live.length} locks`;
 }
 
-/** Read + parse the lock files (best-effort, bounded). */
+/**
+ * Read + parse the lock files (best-effort, bounded).
+ * @returns {object[]|null} os locks lidos, ou `null` = nao deu para ler.
+ */
 function readLocks(dir) {
   let names;
   try {
     names = fs.readdirSync(dir).filter((n) => n.endsWith('.lock')).slice(0, LOCK_CAP);
-  } catch {
-    return [];
+  } catch (e) {
+    // Sem directorio de locks o conductor nunca correu: zero locks e a verdade.
+    // Mas qualquer outra falha (permissoes, I/O, o caminho ser um ficheiro) dava
+    // tambem `[]`, e o chip calava-se exactamente como quando nao ha locks — um
+    // terminal podia ter o worktree trancado e a statusline dizia que nao.
+    // `null` separa "nao ha" de "nao sei", e o chip mostra `?`.
+    if (e && e.code === 'ENOENT') return [];
+    return null;
   }
   const out = [];
   for (const n of names) {

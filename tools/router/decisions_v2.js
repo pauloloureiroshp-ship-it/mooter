@@ -106,13 +106,32 @@ function appendFromDecision(d, opts = {}) {
 }
 
 /**
- * Read v2 records (newest `limit` kept). Skips junk + tierless lines. Returns []
- * on a missing file. Pure read — never throws. Used by `mooter trail --calls`
- * and the Stop session report.
+ * Read v2 records (newest `limit` kept). Skips junk + tierless lines. A log that
+ * does not exist yet is genuinely zero records ⇒ []. A log that exists but cannot
+ * be read is ignorance, not emptiness: it still returns [] (the caller indexes the
+ * result) but says so on stderr first. Pure read — never throws. Used by
+ * `mooter trail --calls` and the Stop session report.
  */
 function readRecords(opts = {}) {
   let raw;
-  try { raw = fs.readFileSync(opts.logPath || logPath(), 'utf8'); } catch { return []; }
+  try {
+    raw = fs.readFileSync(opts.logPath || logPath(), 'utf8');
+  } catch (e) {
+    // O [] dizia duas coisas diferentes com a mesma palavra: "ainda nao houve
+    // decisoes" e "nao consegui ler o log" — e o relatorio de sessao imprimia
+    // "(no decisions logged this session)" nos dois casos. ENOENT e mesmo zero (o
+    // ficheiro so nasce no primeiro append); os restantes erros (permissoes, I/O)
+    // passam a sair em stderr com o codigo real. O [] fica porque o unico chamador
+    // (stop_hook.js:421) faz `.length` na linha seguinte e esta fora do ambito
+    // desta correccao — degradacao anunciada em vez de silenciosa.
+    if (!e || e.code !== 'ENOENT') {
+      const code = (e && (e.code || e.message)) || 'erro desconhecido';
+      try {
+        process.stderr.write('mooter: decisions_v2.jsonl ilegivel (' + code + ') — o relatorio desta sessao sai incompleto\n');
+      } catch { /* stderr fechado */ }
+    }
+    return [];
+  }
   const out = [];
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
@@ -128,17 +147,28 @@ function readRecords(opts = {}) {
  * The statusline "trained on N decisions" must reflect the real corpus, not the stale
  * tuning-state.sample_size snapshot (a backtest metric that lagged at 8 while the corpus
  * grew to 188). Counts non-empty lines (append-only valid jsonl ⇒ matches `wc -l`) so it
- * stays cheap on the statusline render path. Best-effort; 0 on an unreadable log.
+ * stays cheap on the statusline render path. Best-effort: 0 when the log does not
+ * exist yet (a real zero), null when it exists but cannot be read (`n/d`).
  */
 function recordCount(opts = {}) {
+  let raw;
   try {
-    const raw = fs.readFileSync(opts.logPath || logPath(), 'utf8');
-    let n = 0;
-    for (const line of raw.split('\n')) if (line.trim()) n += 1;
-    return n;
-  } catch {
-    return 0;
+    raw = fs.readFileSync(opts.logPath || logPath(), 'utf8');
+  } catch (e) {
+    // O 0 afirmava "o corpus tem zero decisoes" quando o que se passava era nao
+    // conseguir le-lo — e a statusline escrevia essa ignorancia como facto ("trained
+    // on 0"). Ficheiro inexistente continua a ser zero (so nasce no primeiro
+    // append); o resto devolve null = "nao sei". Os dois chamadores
+    // (statusline-multi.js:1115 e stop_hook.js:441) ja tratam o valor falsy como
+    // desconhecido: caem para o tuning-state.json e, se esse tambem falhar, omitem o
+    // "trained on N" em vez de imprimirem um 0 inventado. Nenhum deles indexa o
+    // retorno, por isso o null nao chega a nenhum .length/.map.
+    if (e && e.code === 'ENOENT') return 0;
+    return null;
   }
+  let n = 0;
+  for (const line of raw.split('\n')) if (line.trim()) n += 1;
+  return n;
 }
 
 module.exports = {

@@ -238,10 +238,20 @@ function custoDeArrastar(medida) {
   };
 }
 
-/** Listar as sessões guardadas, da mais recente para a mais antiga. */
+/**
+ * Listar as sessões guardadas, da mais recente para a mais antiga.
+ *
+ * ⚠️ `null` (e não `[]`) quando a pasta não se deixa ler. `ENOENT` é a única
+ * falha que significa mesmo "não há sessões" — a pasta só nasce ao primeiro
+ * `registar()`. Qualquer outra (permissões, disco, perfil noutro utilizador) é
+ * "não sei", e devolver `[]` aí dizia a quem TEM estado no disco que não tem
+ * nenhum — o pior conselho possível num ficheiro cujo trabalho é impedir que a
+ * conversa recomece amnésica.
+ */
 function listar() {
   let ents;
-  try { ents = fs.readdirSync(DIR).filter((f) => f.endsWith('.json')); } catch { return []; }
+  try { ents = fs.readdirSync(DIR).filter((f) => f.endsWith('.json')); }
+  catch (e) { return (e && e.code === 'ENOENT') ? [] : null; }
   const out = [];
   for (const f of ents) {
     try {

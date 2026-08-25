@@ -101,7 +101,17 @@ function gitInfo(cwd) {
       try {
         const m = fs.readFileSync(gitDir, 'utf8').match(/gitdir:\s*(.+)\s*$/m);
         if (m && m[1]) gitDir = path.resolve(cwd, m[1].trim());
-      } catch { return {}; }
+      } catch (e) {
+        // Aqui o .git EXISTE — é o ficheiro-ponteiro de um worktree — mas não deu
+        // para o ler. O {} dizia ao chamador exactamente o mesmo que "isto não é
+        // um repositório git", e a proveniência do turno morria sem rasto nenhum.
+        // Não dá para devolver null em vez dele: {} é o contrato desta função em
+        // todos os ramos, e o formato do journal (_normEntry → head/branch) é a
+        // interface partilhada com host-extra.js e não tem campo para "não sei".
+        // Fica o neutro de sempre, mas com a falha dita em voz alta.
+        try { process.stderr.write(`[mooter] handoff-journal: .git de ${cwd} ilegível — proveniência deste turno fica n/d (${(e && e.message) || e})\n`); } catch { /* stderr fechado */ }
+        return {};
+      }
     }
     const headRaw = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim();
     const refM = headRaw.match(/^ref:\s*(.+)$/);

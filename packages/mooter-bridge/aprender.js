@@ -233,7 +233,20 @@ function readLedger(input) {
   const options = normalizeOptions(input);
   if (Array.isArray(options.ledger)) return options.ledger;
   if (typeof options.ledgerRead === 'function') return options.ledgerRead();
-  try { return require('./seamless.js').ledgerRead(); } catch { return []; }
+  try { return require('./seamless.js').ledgerRead(); } catch (erro) {
+    // "Não consegui ler o ledger" e "o ledger não tem eventos" davam a mesma
+    // lista vazia, e daí saía `0 jobs` e "n/d — o ledger não tem jobs
+    // concluídos" com ar de facto medido. A lista vazia fica — jobRecords e
+    // todos os seus consumidores (incluindo o board, via _jobRecords) contam
+    // com um array —, mas a falha deixa de ser silenciosa: vai para stderr com
+    // o erro real, para o zero seguinte ser lido como ignorância, não medição.
+    try {
+      process.stderr.write('[mooter-aprender] ledger não lido: '
+        + ((erro && erro.message) || erro)
+        + ' — a lista vazia que se segue é falha de leitura, não ausência de jobs\n');
+    } catch { /* stderr fechado: não há mais para onde avisar */ }
+    return [];
+  }
 }
 
 function jobRecords(input) {

@@ -62,7 +62,19 @@ const TIMEOUT_MS_DEFAULT = 120000;
 function detectarChecks(worktree, opts = {}) {
   const readFile = opts.readFile || ((p) => fs.readFileSync(p, 'utf8'));
   const exists = opts.exists || ((p) => fs.existsSync(p));
-  const listar = opts.listar || ((dir) => { try { return fs.readdirSync(dir); } catch { return []; } });
+  // Pasta ilegível devolve null, não lista vazia: «não há ficheiros de teste» e
+  // «não consegui ver a pasta» acabavam os dois em `checks: []`, e o motivo
+  // impresso jurava «sem *.test.js na raiz» sem nunca ter olhado. O aviso vai
+  // para stderr porque `detectarChecks` devolve um array de checks — não tem
+  // onde carregar um n/d até ao veredicto sem mudar o contrato de `medir`.
+  const listar = opts.listar || ((dir) => {
+    try { return fs.readdirSync(dir); }
+    catch (e) {
+      process.stderr.write('oraculo: não consegui listar ' + dir
+        + ' (' + ((e && e.code) || 'erro') + ') — não infiro checks a partir do que não vi\n');
+      return null;
+    }
+  });
 
   const checks = [];
   const pkgPath = path.join(worktree, 'package.json');
@@ -85,7 +97,11 @@ function detectarChecks(worktree, opts = {}) {
   }
   // 3. Inferência mínima: node:test nativo, só se não houver script de teste declarado.
   if (!checks.some((c) => c.id === 'test')) {
-    const temTestes = listar(worktree).some((f) => /\.test\.(?:js|mjs|cjs)$/.test(f));
+    // null = não consegui ver a pasta; infere-se só a partir de uma listagem
+    // que existiu mesmo, nunca de uma que falhou.
+    const entradas = listar(worktree);
+    const temTestes = Array.isArray(entradas)
+      && entradas.some((f) => /\.test\.(?:js|mjs|cjs)$/.test(f));
     if (temTestes) {
       checks.push({ id: 'node-test', bin: 'node', args: ['--test'], fonte: 'ficheiros *.test.js na raiz da worktree' });
     }

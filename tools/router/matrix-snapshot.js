@@ -97,11 +97,22 @@ function dateKey(nowMs) {
 /**
  * Remove day-files in `dir` that are older than `maxDays`.
  * Best-effort: any individual unlink failure is silently skipped.
- * Returns the number of files removed.
+ * Returns the number of files removed, or `null` when the dir could not be read
+ * (contagem desconhecida).
  */
 function pruneOldSnapshots(dir, maxDays = MAX_SNAPSHOT_DAYS) {
   let names;
-  try { names = fs.readdirSync(dir); } catch { return 0; }
+  try {
+    names = fs.readdirSync(dir);
+  } catch (e) {
+    // Dir inexistente é mesmo "não há nada para podar" → 0. Qualquer outra falha
+    // (permissões, caminho que não é um dir) devolvia esse mesmo 0, e um prune
+    // que nunca chegou a correr ficava indistinguível de um prune sem trabalho:
+    // os day-files passavam dos 90 dias sem um único sinal. Agora null = não sei.
+    if (e && e.code === 'ENOENT') return 0;
+    try { process.stderr.write(`[matrix-snapshot] prune não conseguiu ler ${dir} (${(e && e.message) || e}) — contagem n/d\n`); } catch { /* best-effort */ }
+    return null;
+  }
   const dateFiles = names.filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort();
   if (dateFiles.length <= maxDays) return 0;
   const toRemove = dateFiles.slice(0, dateFiles.length - maxDays);
@@ -229,7 +240,8 @@ function getCoverageStats() {
  * @param {string} [opts.dir]   — override snapshot dir (for tests)
  * @param {string} [opts.home]  — override mooter home (for cost-perf-log lookup)
  * @param {number} [opts.now]   — override current timestamp ms (for tests)
- * @returns {{ written: boolean, file: string, pruned: number, snapshot: object }}
+ * @returns {{ written: boolean, file: string, pruned: number|null, snapshot: object }}
+ *          `pruned` é null quando o dir de snapshots não pôde ser lido (n/d).
  */
 function writeSnapshot(opts = {}) {
   const now = Number.isFinite(opts.now) ? opts.now : Date.now();
@@ -259,6 +271,8 @@ function writeSnapshot(opts = {}) {
     written = true;
   } catch { /* write failed — caller can inspect written: false */ }
 
+  // pruned pode vir null (dir ilegível) e passa assim para quem lê — n/d em vez
+  // de um 0 que diria "não havia nada velho".
   const pruned = written ? pruneOldSnapshots(dir, MAX_SNAPSHOT_DAYS) : 0;
 
   return { written, file, pruned, snapshot };

@@ -14,7 +14,9 @@
 //
 // Renders via systemMessage (same UI channel PostToolUse.js uses), so it
 // appears as a one-liner right after the user prompt and before Claude starts
-// working. Silent on any error — never blocks the turn.
+// working. Never blocks the turn — but a decisions.log that exists and cannot
+// be read is reported as `n/d`, not swallowed: silence there is identical to a
+// turn nobody classified, and the two are not the same thing.
 //
 // Reads the latest `classified` + `option_a_*` events for this session from
 // decisions.log. inject_context.js has already logged them by the time this
@@ -35,6 +37,16 @@ try { pricing = require(path.join(ROUTER_DIR, 'pricing.js')); } catch { /* optio
 function readStdin() { try { return fs.readFileSync(0, 'utf8'); } catch { return ''; } }
 function safeJson(s) { try { return JSON.parse(s); } catch { return null; } }
 
+// Guarda o erro real da última leitura falhada do log, para o main o poder
+// mostrar em vez de desaparecer em silêncio.
+let tailError = null;
+
+// Devolve `null` quando o log existe mas não se consegue ler. Antes o catch
+// devolvia `[]`, que é exactamente o que se lê de um log vazio — quem chama não
+// distinguia "ninguém classificou este turno" (normal) de "não consegui abrir o
+// decisions.log" (avaria do motor), e nos dois casos o cabeçalho simplesmente
+// não aparecia. Log ainda inexistente continua a ser `[]`: numa instalação
+// fresca isso é mesmo vazio, não é ignorância.
 function tailLines(filePath, maxBytes = 65536) {
   try {
     const stat = fs.statSync(filePath);
@@ -44,7 +56,11 @@ function tailLines(filePath, maxBytes = 65536) {
     fs.readSync(fd, buf, 0, buf.length, start);
     fs.closeSync(fd);
     return buf.toString('utf8').split('\n').filter(Boolean);
-  } catch { return []; }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return [];
+    tailError = err;
+    return null;
+  }
 }
 
 function modelEmoji(model) {
@@ -93,6 +109,7 @@ function sleepMs(ms) {
 function findFreshClassified(sessionId, freshnessWindowMs) {
   const nowMs = Date.now();
   const lines = tailLines(LOG_PATH);
+  if (!lines) return null; // log ilegível: não sabemos — o main avisa via tailError
   for (let i = lines.length - 1; i >= 0; i--) {
     const obj = safeJson(lines[i]);
     if (!obj || obj.event !== 'classified') continue;
@@ -126,7 +143,19 @@ function findFreshClassified(sessionId, freshnessWindowMs) {
     sleepMs(POLL_INTERVAL_MS);
     classified = findFreshClassified(sessionId, FRESHNESS_MS);
   }
-  if (!classified) { process.exit(0); }
+  if (!classified) {
+    // Não haver cabeçalho é normal quando ninguém classificou este turno. Mas se
+    // o decisions.log não deu para ler, o mesmo silêncio estaria a esconder uma
+    // avaria — dizemos qual foi, e seguimos sem bloquear o turno.
+    if (tailError) {
+      process.stdout.write(JSON.stringify({
+        continue: true,
+        suppressOutput: false,
+        systemMessage: `mooter → ⚠ n/d · decisions.log unreadable (${tailError.code || tailError.message})`,
+      }));
+    }
+    process.exit(0);
+  }
 
   // Look for Option A event in the 10 s window around the classified event.
   // Re-read the log here because findFreshClassified() only returned the one
@@ -134,11 +163,17 @@ function findFreshClassified(sessionId, freshnessWindowMs) {
   let optionA = null;
   const anchor = classified.ts_ms || 0;
   const tailForOptionA = tailLines(LOG_PATH);
-  for (let i = tailForOptionA.length - 1; i >= 0; i--) {
-    const obj = safeJson(tailForOptionA[i]);
-    if (!obj || !obj.event || !/^option_a_/.test(obj.event)) continue;
-    const dt = Math.abs((obj.ts_ms || 0) - anchor);
-    if (dt < 10000) { optionA = obj.event.replace('option_a_', ''); break; }
+  if (!tailForOptionA) {
+    // Esta segunda leitura falhou: não sabemos se houve pre-compute. Sem isto, a
+    // ausência do chip diria "não houve" — que é uma afirmação que não podemos fazer.
+    optionA = 'unknown';
+  } else {
+    for (let i = tailForOptionA.length - 1; i >= 0; i--) {
+      const obj = safeJson(tailForOptionA[i]);
+      if (!obj || !obj.event || !/^option_a_/.test(obj.event)) continue;
+      const dt = Math.abs((obj.ts_ms || 0) - anchor);
+      if (dt < 10000) { optionA = obj.event.replace('option_a_', ''); break; }
+    }
   }
 
   const tier    = classified.tier || 'T?';
@@ -171,6 +206,7 @@ function findFreshClassified(sessionId, freshnessWindowMs) {
   if (optionA === 'hit')   parts.push('🦙 pre-compute ✓');
   if (optionA === 'miss')  parts.push('🦙 pre-compute ✗');
   if (optionA === 'error') parts.push('🦙 pre-compute err');
+  if (optionA === 'unknown') parts.push('🦙 pre-compute n/d');
 
   // Potential savings vs Opus baseline. Phrased as "est. save" because this
   // is the RECOMMENDATION cost — the actual savings only materialize if the

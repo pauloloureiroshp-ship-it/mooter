@@ -43,7 +43,7 @@ const existe = (repoRoot, rel) => {
 /**
  * Os ficheiros de codigo que MAIS mudaram nos ultimos commits. E o melhor sinal
  * barato que ha para "onde e que os defeitos aterram" — e nao precisa de LLM
- * nenhum. Sem git, devolve [] e o pilar simplesmente nao e proposto.
+ * nenhum. Sem git, devolve `null` (nao sei) — nunca [].
  */
 export function ficheirosComMaisChurn(repoRoot, { limite = 200, runImpl = null } = {}) {
   const run = runImpl || ((args) => execFileSync('git', args, {
@@ -53,7 +53,11 @@ export function ficheirosComMaisChurn(repoRoot, { limite = 200, runImpl = null }
   try {
     out = run(['log', '--format=', '--name-only', '-n', String(limite)]);
   } catch {
-    return [];
+    // O [] daqui era indistinguivel de "o git correu e nenhum ficheiro de
+    // codigo mudou": em ambos os casos P1 caia na lista dos rejeitados por
+    // "nao terem ficheiros reais". O dono lia "nao ha codigo quente" quando o
+    // que havia era um repo sem git, ou um git que rebentou. `null` = nao sei.
+    return null;
   }
   const contagem = new Map();
   for (const linha of String(out || '').split('\n')) {
@@ -105,18 +109,28 @@ export function canonDoProjecto(repoRoot) {
     .filter((rel) => existe(repoRoot, rel));
 }
 
-/** A automacao que decide o que entra: se ela mente, o verde nao vale nada. */
+/**
+ * A automacao que decide o que entra: se ela mente, o verde nao vale nada.
+ * So ENOENT prova que nao ha CI; qualquer outro erro devolve `null` (nao sei).
+ */
 export function automacao(repoRoot) {
   const dir = path.join(repoRoot, '.github', 'workflows');
+  let nomes;
   try {
-    return fs.readdirSync(dir)
-      .filter((n) => n.endsWith('.yml') || n.endsWith('.yaml'))
-      .sort()
-      .slice(0, MAX_POR_PILAR)
-      .map((n) => `.github/workflows/${n}`);
-  } catch {
-    return [];
+    nomes = fs.readdirSync(dir);
+  } catch (err) {
+    // O [] apanhava os dois casos: "este projecto nao tem workflows" e "nao
+    // consegui ler a pasta" (permissoes, caminho ilegivel). Um repo com guardas
+    // que nao se conseguem ler aparecia ao dono como um repo sem guardas — que
+    // e exactamente o pilar que existe para nao se acreditar em verdes cegos.
+    if (err && err.code === 'ENOENT') return [];
+    return null;
   }
+  return nomes
+    .filter((n) => n.endsWith('.yml') || n.endsWith('.yaml'))
+    .sort()
+    .slice(0, MAX_POR_PILAR)
+    .map((n) => `.github/workflows/${n}`);
 }
 
 /**
@@ -128,10 +142,17 @@ export function proporPilares(repoRoot, { churnImpl = null } = {}) {
   const entradas = entradasDeclaradas(repoRoot).slice(0, MAX_POR_PILAR);
   const canon = canonDoProjecto(repoRoot).slice(0, MAX_POR_PILAR);
   const ci = automacao(repoRoot);
-  const quentes = churn.slice(0, MAX_POR_PILAR).map((c) => c.file);
+  const quentes = churn === null ? null : churn.slice(0, MAX_POR_PILAR).map((c) => c.file);
+
+  // Uma fonte que devolve `null` nao disse "nao ha" — disse "nao consegui ler".
+  // Os dois casos caiam na mesma linha de rejeicao, e um pilar por ler passava
+  // por um pilar vazio.
+  const indeterminados = [];
+  if (churn === null) indeterminados.push('P1');
+  if (ci === null) indeterminados.push('P4');
 
   const candidatos = {
-    P1: quentes.length && {
+    P1: Boolean(quentes && quentes.length) && {
       label: 'Codigo quente',
       files: quentes,
       ask: 'Qual destas linhas pode rebentar, engolir um erro em silencio, ou inverter uma condicao? Escolhe uma e diz porque.',
@@ -149,7 +170,7 @@ export function proporPilares(repoRoot, { churnImpl = null } = {}) {
       ask: 'Qual destas linhas afirma um valor mecanico (sha, comando, caminho, limite, numero) que pode ja nao bater com o codigo? Escolhe uma e diz porque.',
       porque: 'os documentos que o projecto trata como canon',
     },
-    P4: ci.length && {
+    P4: Boolean(ci && ci.length) && {
       label: 'Automacao & Guardas',
       files: ci,
       ask: 'Qual destas linhas deixa passar verde sem prova, ou nao corre quando devia correr? Escolhe uma e diz porque.',
@@ -161,13 +182,14 @@ export function proporPilares(repoRoot, { churnImpl = null } = {}) {
   const rejeitados = [];
   for (const [id, p] of Object.entries(candidatos)) {
     if (p) pilares[id] = { label: p.label, files: p.files, ask: p.ask };
-    else rejeitados.push(id);
+    else if (!indeterminados.includes(id)) rejeitados.push(id);
   }
   return {
     pilares,
     porque: Object.fromEntries(Object.entries(candidatos).filter(([, p]) => p).map(([id, p]) => [id, p.porque])),
     rejeitados,
-    churn: churn.slice(0, 10),
+    indeterminados,
+    churn: churn === null ? null : churn.slice(0, 10),
   };
 }
 
@@ -202,8 +224,19 @@ export function main(argv = process.argv.slice(2), escrever = process.stdout.wri
   const ids = Object.keys(proposta.pilares);
 
   escrever(`repo ${root} (via ${fonte})\n`);
+  if (proposta.indeterminados.length) {
+    // n/d, nao "nao ha": a fonte destes pilares nao se conseguiu ler. Anuncia-se
+    // antes do resto para nao se confundir com a lista dos rejeitados por vazio.
+    escrever(`\nn/d — nao consegui ler a fonte de: ${proposta.indeterminados.join(', ')}`
+      + ' (P1 le a historia do git; P4 le .github/workflows). Nao e o mesmo que nao existirem.\n');
+  }
   if (ids.length === 0) {
-    escrever('nao consegui propor um unico pilar: nao encontrei package.json, canon, workflows nem historia git.\n');
+    // So se afirma ausencia do que se conseguiu mesmo ler; o resto ficou em n/d
+    // acima. Dizer "nao encontrei historia git" quando o git nem correu era a
+    // mesma mentira, um andar acima.
+    escrever(proposta.indeterminados.length
+      ? `nao consegui propor um unico pilar: nada nas fontes que li, e ${proposta.indeterminados.join(', ')} ficaram por ler.\n`
+      : 'nao consegui propor um unico pilar: nao encontrei package.json, canon, workflows nem historia git.\n');
     escrever(`escreve tu ${PILLARS_FILE} a mao — cada pilar precisa de { label, files[], ask }.\n`);
     return { root, proposta, destino: null };
   }

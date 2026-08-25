@@ -55,11 +55,18 @@ function loadDecisions() {
 
 // ── Load gold labels ─────────────────────────────────────────────────────────
 
+// Ficheiro ausente = mesmo zero labels curadas ([]). Ficheiro presente mas
+// ilegível/corrupto = não sabemos quantas há (null). Devolver [] nos dois casos
+// fazia o snapshot anunciar "0 curados" com o corpus curado intacto no disco —
+// um zero por ignorância, indistinguível de um zero real.
 function loadGoldLabels() {
   if (!fs.existsSync(GOLD_LABELS_PATH)) return [];
   try {
     return JSON.parse(fs.readFileSync(GOLD_LABELS_PATH, 'utf8'));
-  } catch { return []; }
+  } catch (err) {
+    console.warn(`[update-metrics] gold-labels.json ilegível (${err.message}) — contagem n/d`);
+    return null;
+  }
 }
 
 // ── Analyse ──────────────────────────────────────────────────────────────────
@@ -144,6 +151,9 @@ function analyse(decisions) {
 // ── Gold label accuracy ───────────────────────────────────────────────────────
 
 function goldAccuracy(labels) {
+  // null = gold-labels.json existe mas não foi lido; `count: null` mantém isso
+  // visível no snapshot em vez de o achatar para "sem labels".
+  if (labels === null) return { count: null, note: 'gold-labels.json ilegível — contagem n/d' };
   if (!labels.length) return null;
   // gold-labels.json format: [{ prompt, expected_tier }, ...]
   // We can't re-run classify here without spawning, so just report count
@@ -220,7 +230,7 @@ function main() {
   console.log(`│  Naive cost:              $${String(cost.naive_usd).padEnd(25)}│`);
   console.log(`│  Real cost:               $${String(cost.real_usd).padEnd(25)}│`);
   console.log(`│  Saved:                   $${cost.saved_usd} (${cost.saved_pct}%)${' '.repeat(Math.max(0, 16 - String(cost.saved_usd).length - String(cost.saved_pct).length))}│`);
-  console.log(`│  Gold labels:             ${String(gold.length + ' curados').padEnd(26)}│`);
+  console.log(`│  Gold labels:             ${String(gold === null ? 'n/d (ilegível)' : gold.length + ' curados').padEnd(26)}│`);
   console.log('└─────────────────────────────────────────────────────┘');
   console.log(`\n  Written: ${SNAPSHOT_PATH}`);
 

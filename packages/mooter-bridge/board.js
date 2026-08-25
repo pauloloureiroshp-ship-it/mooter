@@ -174,7 +174,20 @@ function lerLedger(opts) {
   try {
     const r = read();
     return Array.isArray(r) ? r.map(aprender.comDesfecho) : [];
-  } catch { return []; }
+  } catch (erro) {
+    // Falhar a leitura era indistinguível de um ledger sem eventos: ambos davam
+    // `[]`, e o cartão publicava `ledger_eventos: 0` e "o ledger não tem eventos
+    // — janela vazia" como se fosse medição. Num scorecard que promete não usar
+    // zero para representar n/d, isso é o verde por ignorância. O neutro fica
+    // (todo o `construir` conta com um array), mas a falha é anunciada em stderr
+    // com o erro real, em vez de virar um zero silencioso.
+    try {
+      process.stderr.write('[mooter-board] ledger não lido: '
+        + ((erro && erro.message) || erro)
+        + ' — o scorecard sai com o ledger vazio por falha de leitura, não por ausência de eventos\n');
+    } catch { /* stderr fechado: não há mais para onde avisar */ }
+    return [];
+  }
 }
 
 function registos(ledger, opts) {

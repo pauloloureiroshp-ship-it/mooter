@@ -41,13 +41,23 @@ export function skillHomes({ home = HOME, repo = REPO } = {}) {
   ];
 }
 
-/** Lista os nomes de skill de uma morada. Uma morada ausente é [], não erro. */
+/**
+ * Lista os nomes de skill de uma morada. Uma morada ausente é [], não erro — não
+ * existir é uma medição: não há lá skills nenhumas.
+ *
+ * Ilegível é outra coisa. Permissões, I/O, um caminho que não é pasta: aí não se
+ * sabe o que lá está, e devolver [] fazia-a passar por morada limpa — as órfãs e
+ * as colisões que ela contivesse desapareciam num `ok: true` que ninguém mediu.
+ * Devolve null, e o `diagnose` trata-o como n/d.
+ */
 export function listSkills(dir, { readdirImpl = fs.readdirSync, existsImpl = fs.existsSync } = {}) {
   let entries;
   try {
     entries = readdirImpl(dir, { withFileTypes: true });
-  } catch {
-    return [];
+  } catch (erro) {
+    if (erro && erro.code === 'ENOENT') return [];
+    process.stderr.write(`  skills-doctor: ${dir} ilegivel (${(erro && erro.code) || erro}) — fica n/d\n`);
+    return null;
   }
   return entries
     .filter((e) => e.isDirectory() && existsImpl(path.join(dir, e.name, 'SKILL.md')))
@@ -102,24 +112,43 @@ export function diagnose({ home = HOME, repo = REPO } = {}) {
   const porId = Object.fromEntries(homes.map((h) => [h.id, h]));
   const conta = accountSkills({ home });
 
-  const orfas = porId['repo-orfao'].skills.filter((n) => !porId['repo-sync'].skills.includes(n));
+  // Uma morada ilegível não é uma morada vazia. Sem ler `repo-sync` toda a skill
+  // de `repo-orfao` pareceria órfã (falso positivo); sem ler `repo-orfao` nenhuma
+  // pareceria (falso negativo). Nos dois casos o campo é n/d — `null`, nunca `[]` —
+  // e o `ok` cai, porque um verde por ignorância é pior do que um vermelho.
+  const ilegiveis = homes.filter((h) => h.skills == null).map((h) => h.id);
+  const legivel = (id) => porId[id].skills != null;
+
+  const orfas = (legivel('repo-orfao') && legivel('repo-sync'))
+    ? porId['repo-orfao'].skills.filter((n) => !porId['repo-sync'].skills.includes(n))
+    : null;
   const contaNomes = new Set(conta.skills.filter((s) => s.activa !== false).map((s) => s.name));
 
-  const colisoes = [];
-  for (const nome of new Set([...porId['repo-sync'].skills, ...porId['instalado'].skills])) {
-    if (contaNomes.has(nome)) {
-      const s = conta.skills.find((x) => x.name === nome);
-      colisoes.push({
-        nome,
-        instalado: porId['instalado'].skills.includes(nome),
-        canonico: porId['repo-sync'].skills.includes(nome),
-        conta_id: s && s.id,
-        conta_dono: s && s.dono,
-      });
+  let colisoes = null;
+  if (legivel('repo-sync') && legivel('instalado')) {
+    colisoes = [];
+    for (const nome of new Set([...porId['repo-sync'].skills, ...porId['instalado'].skills])) {
+      if (contaNomes.has(nome)) {
+        const s = conta.skills.find((x) => x.name === nome);
+        colisoes.push({
+          nome,
+          instalado: porId['instalado'].skills.includes(nome),
+          canonico: porId['repo-sync'].skills.includes(nome),
+          conta_id: s && s.id,
+          conta_dono: s && s.dono,
+        });
+      }
     }
   }
 
-  return { homes, conta, orfas, colisoes, ok: orfas.length === 0 && colisoes.length === 0 };
+  return {
+    homes,
+    conta,
+    orfas,
+    colisoes,
+    ilegiveis,
+    ok: ilegiveis.length === 0 && orfas.length === 0 && colisoes.length === 0,
+  };
 }
 
 function main() {
@@ -128,19 +157,26 @@ function main() {
 
   process.stdout.write('\n  Skills — onde vivem e qual ganha\n\n');
   for (const h of d.homes) {
-    process.stdout.write(`  ${h.id.padEnd(11)} ${String(h.skills.length).padStart(3)} skills · ${h.nota}\n`);
+    const quantas = h.skills == null ? 'n/d' : String(h.skills.length);
+    process.stdout.write(`  ${h.id.padEnd(11)} ${quantas.padStart(3)} skills · ${h.nota}\n`);
     process.stdout.write(`  ${' '.repeat(11)} ${h.dir}\n`);
   }
   process.stdout.write(`  conta       ${String(d.conta.skills.length).padStart(3)} skills · cache da tua conta Claude`
     + `${d.conta.ok ? '' : ' (manifesto nao lido)'}\n\n`);
 
-  if (d.orfas.length) {
+  if (d.ilegiveis.length) {
+    process.stdout.write('  N/D — moradas que nao se conseguiram ler (motivo em stderr):\n');
+    for (const id of d.ilegiveis) process.stdout.write(`    - ${id}\n`);
+    process.stdout.write('    Sem as ler, orfas e colisoes NAO foram medidas — n/d, nao zero.\n\n');
+  }
+
+  if (d.orfas && d.orfas.length) {
     process.stdout.write('  ORFAS — no repo mas nunca instaladas (canonicas e mortas):\n');
     for (const n of d.orfas) process.stdout.write(`    - ${n}\n`);
     process.stdout.write('    correccao: git mv skills/<nome> .claude/skills/<nome>\n\n');
   }
 
-  if (d.colisoes.length) {
+  if (d.colisoes && d.colisoes.length) {
     process.stdout.write('  COLISOES — o mesmo /nome vem de dois sitios:\n');
     for (const c of d.colisoes) {
       process.stdout.write(`    - /${c.nome}  repo:${c.canonico ? 'sim' : 'nao'}`

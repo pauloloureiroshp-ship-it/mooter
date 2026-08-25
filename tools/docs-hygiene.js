@@ -22,13 +22,23 @@ function readText(file) {
   try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
 }
 
+// Pasta ausente (ENOENT) é uma medição real: não há lá ficheiro nenhum. Qualquer
+// outro erro (permissões, I/O, ENOTDIR) é ignorância — e devolvê-lo como `[]` fazia
+// `_handoff/` ilegível passar por fila vazia: `active_packets` e
+// `top_level_handoff_files` caíam a 0, o ratchet lia a maior "melhoria" de sempre e
+// `--update-baseline` gravava esse zero fabricado. Ilegível devolve null: n/d, como
+// já acontece com `stashes` quando o git não responde.
 function listFiles(dir) {
   try {
     return fs.readdirSync(dir, { withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => entry.name)
       .sort();
-  } catch { return []; }
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return [];
+    process.stderr.write(`docs-hygiene: ${dir} ilegível (${(error && error.code) || error}) — contagens de _handoff/ ficam n/d\n`);
+    return null;
+  }
 }
 
 function lineCount(text) {
@@ -104,8 +114,11 @@ function inspectRepo(root, options = {}) {
     findings.push(finding('warn', 'SYNC_TOO_LONG', `SYNC.md has ${syncLines} lines; the canonical snapshot budget is about ${opts.maxSyncLines}.`, ['SYNC.md'], { lines: syncLines, max: opts.maxSyncLines }));
   }
 
-  const topFiles = listFiles(handoffDir);
-  const packets = topFiles.filter((name) => name.endsWith('.md'));
+  const topFiles = listFiles(handoffDir);            // null = ilegível (n/d), [] = medido vazio
+  if (topFiles == null) {
+    findings.push(finding('warn', 'HANDOFF_DIR_UNREADABLE', '_handoff/ could not be listed; packet counts and the per-packet checks are n/d, not zero.', ['_handoff']));
+  }
+  const packets = (topFiles || []).filter((name) => name.endsWith('.md'));
   const readGitLines = typeof opts.gitLines === 'function' ? opts.gitLines : gitLines;
   const untracked = readGitLines(repo, ['ls-files', '--others', '--exclude-standard', '--', '_handoff/*.md']);
   const untrackedTopPackets = untracked == null ? null : untracked.filter((rel) => path.posix.dirname(rel) === '_handoff');
@@ -147,7 +160,7 @@ function inspectRepo(root, options = {}) {
     findings.push(finding('warn', 'HANDOFF_EXACT_DUPLICATES', `${duplicateGroups.length} normalized duplicate packet group(s) exist in the active queue.`, duplicateGroups.flat().slice(0, opts.maxFindingFiles), { groups: duplicateGroups.slice(0, 10) }));
   }
 
-  const operational = topFiles.filter((name) => OPERATIONAL_EXT_RE.test(name) && !name.endsWith('.md'));
+  const operational = (topFiles || []).filter((name) => OPERATIONAL_EXT_RE.test(name) && !name.endsWith('.md'));
   if (operational.length) {
     findings.push(finding('warn', 'HANDOFF_ROOT_OPERATIONAL_FILES', `${operational.length} logs/scripts/generated artifacts live beside active packets; move them to a scoped run directory or archive after human review.`, operational.slice(0, opts.maxFindingFiles).map((name) => `_handoff/${name}`), { count: operational.length, omitted: Math.max(0, operational.length - opts.maxFindingFiles) }));
   }
@@ -176,9 +189,9 @@ function inspectRepo(root, options = {}) {
     root: repo,
     ok: severityCounts.error === 0,
     summary: {
-      active_packets: packets.length,
+      active_packets: topFiles == null ? null : packets.length,
       untracked_active_packets: untrackedTopPackets == null ? null : untrackedTopPackets.length,
-      top_level_handoff_files: topFiles.length,
+      top_level_handoff_files: topFiles == null ? null : topFiles.length,
       sync_lines: syncLines,
       stashes: stashes == null ? null : stashes.length,
       classifier_sha: classifierSha,
@@ -240,8 +253,10 @@ function renderHuman(report) {
   const s = report.summary;
   const untracked = s.untracked_active_packets == null ? 'git n/d' : `${s.untracked_active_packets} untracked`;
   const stashes = s.stashes == null ? 'stashes n/d' : `${s.stashes} stashes`;
+  const active = s.active_packets == null ? 'n/d' : s.active_packets;
+  const topLevel = s.top_level_handoff_files == null ? 'n/d' : s.top_level_handoff_files;
   const lines = [
-    `handoff hygiene: ${s.active_packets} active packets (${untracked}) · ${s.top_level_handoff_files} top-level files · SYNC ${s.sync_lines} lines · ${stashes}`,
+    `handoff hygiene: ${active} active packets (${untracked}) · ${topLevel} top-level files · SYNC ${s.sync_lines} lines · ${stashes}`,
     `classifier sha: ${s.classifier_sha || 'unavailable'}`,
   ];
   if (!report.findings.length) lines.push('PASS: no drift detected.');

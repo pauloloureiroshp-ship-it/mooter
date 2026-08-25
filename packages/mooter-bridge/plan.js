@@ -213,12 +213,31 @@ function summarize(plan) {
 }
 
 function listPlans() {
+  const dir = PLANS_DIR();
+  let nomes;
   try {
-    return fs.readdirSync(PLANS_DIR())
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => { try { return JSON.parse(fs.readFileSync(path.join(PLANS_DIR(), f), 'utf8')); } catch { return null; } })
-      .filter(Boolean);
-  } catch { return []; }
+    nomes = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  } catch (e) {
+    // A pasta ainda não existir é mesmo zero planos — só nasce quando o
+    // primeiro é gravado. Já um erro de leitura (permissões, caminho ocupado)
+    // era indistinguível disso: devolvia `[]` e quem chamasse desenhava
+    // "nenhum plano" a partir de uma leitura que nunca aconteceu.
+    // `null` = não sei — mostra-se n/d, não se conta.
+    if (e && e.code === 'ENOENT') return [];
+    process.stderr.write('[plan] não consegui listar os planos em ' + dir + ': ' + ((e && e.message) || e) + '\n');
+    return null;
+  }
+  return nomes
+    .map((f) => {
+      try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) {
+        // Um plano ilegível saía da lista sem deixar rasto e a contagem ficava
+        // menor do que a realidade. Continua de fora — não há nada para
+        // devolver — mas deixa de sair em silêncio.
+        process.stderr.write('[plan] plano ilegível, fora da lista: ' + f + ' — ' + ((e && e.message) || e) + '\n');
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
 
 module.exports = { setPlan, addStep, updateStep, readPlan, summarize, reconcile, listPlans, inferRisk, planPath, RISK, STATES };
