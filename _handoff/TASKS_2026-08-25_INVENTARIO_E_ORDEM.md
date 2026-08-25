@@ -93,6 +93,8 @@ legítimos.**
 | **T4.2** | 5 listas de roadmap para 1 | v3-waves · FOUNDATION F0-F7 · North Star F0-F5 · PORTOES F1-F5 · esta. O `PORTOES_ROADMAP.md` tem 1 commit e **já dá como pendente o que o `#389` e o `#391` entregaram** | 5 para 1 · masterprompts executados fora do topo de `_handoff/` | dono decide |
 | **T4.3** | higiene de git | **32 PRs abertos**, o mais novo com 26 dias, **zero de Agosto** · 203 commits somados · pelo menos 10 de ondas que o `main` já ultrapassou · 74 worktrees · 179 ramos locais não mergeados | 32 para 22 ou menos · worktrees: alvo `n/d`, decide o dono | haiku a triar, dono autoriza |
 | **T4.4** | produção cega | Sentry: 4 projectos por criar e DSN em 3 stores, logo os 4 SDKs são **no-op** (`SYNC.md:119-137`) | DSN real · 1 evento recebido | dono |
+| **T4.5** | `sync-hooks --check` dá garantia falsa | disse `OK self-check` sobre um hook Stop de **2026-08-01**, 24 dias atrasado, enquanto o `doctor` dizia `FAIL stop_hook_capture`. Pergunta *"tem o acumulador?"*, não *"é o mesmo do repo?"*. É a verificação que o `CLAUDE.md` manda correr depois de cada release — e é a que já deixou passar 63 sessões com 0 journals | o `--check` a comparar sha com a fonte, como o `doctor:847` faz | codex |
+| **T4.6** | o ledger não tem como anular um evento mal formado | descoberto ao cair nele: dois eventos gravados com `--channel cli` (inválido, normaliza para `unknown`) são recusados por `validateEvent:459` e **`publish-vault --strict` falha para sempre**. `grep supersede\|tombstone\|retract` → **zero**. Um ledger append-only com portão estrito e sem anulação: uma escrita má envenena o portão de forma permanente | um evento de anulação que o `publish-vault` respeite · `--strict` a voltar a `ok:true` sem reescrever história | T3 |
 
 ---
 
