@@ -317,47 +317,6 @@ ainda que encanamento que estava a mentir.
 
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-25 · O loop cala-se: onze pilares, onze reprovados (PR #373)
-
-Consequência directa do veredicto de ontem. O dono decidiu 20 achados à mão e
-descartou os 20 — 11 do P2, 8 do P3. **Precisão medida: 0%.** Os dois foram
-desligados, e com eles a rotação ficou **vazia**: onze pilares no catálogo,
-onze desligados por medição.
-
-Os dois tinham passado o ensaio do defeito semeado, e correram meses. O ensaio
-mede **sensibilidade** (vê-se o defeito quando ele lá está); o campo mede
-**precisão** (o que se produz quando ele não está). São propriedades diferentes,
-e estes dois tinham a primeira sem a segunda.
-
-**Enquanto isto for verdade, o `moo-runner` não tem alvo e não escreve recibos.**
-O loop fica mudo por decisão, não por avaria. Há um teste novo cuja única função
-é exigir que esse zero seja *visível*.
-
-**Dez testes caíram no instante do desligar — nenhum por o motor estar partido.**
-Três eram snapshots (a decisão a mudar, os testes a acompanhá-la). Os outros
-sete levantavam o ciclo contra o catálogo REAL: um harness que só funciona
-enquanto existir um pilar bom não testa o motor, testa o catálogo. O
-`buildContextPack` já aceitava `pillars`; `main()` e `createServer()` passaram a
-aceitar `pillarsImpl` pelo mesmo motivo. A alternativa era `skip` nos E2E —
-esconder perda de cobertura.
-
-**Duas asserções mudaram de sentido, e não por conveniência.** `PILLAR_IDS.length
->= 1 · "sem pilares não há loop nenhum"` caiu: estava certa como facto e errada
-como regra — manter um mínimo obrigaria a deixar ligado o menos mau, que é como
-se chega a um loop que produz para não parar. E `globsActivos.includes(...)`
-caiu porque quem a garantia era o P2; num conjunto vazio, qualquer asserção da
-forma *"nenhum glob activo é X"* é vacuamente verdadeira, por isso a asserção
-passou a ser sobre o próprio zero.
-
-**Cobertura perdida, declarada:** nenhum ficheiro deste repo está a ser vigiado
-pelo loop. O catálogo continua a declarar o que deixou de ver, para que religar
-volte a ser uma decisão com um pilar novo atrás, e não um gesto.
-
-**Por fazer:** o runner em curso tem o catálogo antigo *em memória* (um `import`
-é estático) — até ser reiniciado continua a moer P2/P3.
-
-gate: 762 testes · 761 pass / 0 fail (1 todo pré-existente: q13) · classify.js `427d8c0b` intacto
-
 ### 2026-08-25 (fecho) · #373 e #375 em `main`; a máquina corre o que foi decidido
 
 **`main` @ `9c54af2c`.** Fecho da cadeia que começou com a FASE 0 a refutar o
@@ -596,3 +555,38 @@ Trabalho feito por **14** agentes em paralelo, um dono exclusivo por ficheiro.
 **Fica por fazer:** **seamless.js:405** tem o mesmo padrão no `ledgerRead` e é ele que engole o caso comum (ficheiro em falta, corrompido, permissão negada). Os `catch` corrigidos estão um andar acima e só disparam com injecção.
 
 gate: 806/805/0 cockpit · 1090/1089/0 bridge · 1158/1151/6 router (6 pré-existentes, diff vazio contra main) · classify.js `427d8c0b` intacto
+
+### 2026-08-25 (fecho 6) · o portão vira código, e a dívida do #366 fecha — #388 #389 #391
+
+`main @ b7cfc83b`. Dezoito PRs merjidos hoje.
+
+O #388 abre o roadmap dos portões. Cruzam-se as best practices da Anthropic (code.claude.com/docs/en/best-practices, lidas a 25/08) com o estado do repo. Cinco fases, gate numérico em cada.
+
+A convergência é directa: a Anthropic escreve "if you can't verify it, don't ship it"; o self-check.mjs escreve "o que não se consegue medir devolve n/d, nunca ok". É a mesma regra. O gap está na citação: "As a deterministic gate: a Stop hook blocks the turn from ending until it passes." Há um Stop hook no repo, mas só acumula contexto.
+
+O #389 entrega F1. `podeEntrar(regra)` decide em **código** a partir de `medicao: {candidatos, lidos, reais}`. Antes bastava `activo: true` e uma frase. O teste antigo só verificava se o `porque` tinha um dígito; "medido 1 vez" passava. Foi assim que o P11 entrou. A **precisão deriva-se**, não se declara. Há um teste com `precisao: 0.99` a ser ignorada. Uma regra recusada é **declarada** no manifesto, não some em silêncio.
+
+Dois defeitos no detector surgiram na pré-triagem local (Ollama, $0), não nos testes. Acusava quem obedecia: o seamless.js corrigido no #387 continuava marcado porque o detector só perdoava **comentários** e a correcção anunciava-se com `log()`. Apontava também para o classify.js, que está **FROZEN** — o mesmo erro do P2.
+
+| apontamentos | causa |
+|---|---|
+| 84 | baseline |
+| 59 | correcções #385 e #387 |
+| 57 | dois defeitos do detector corrigidos |
+
+O #391 limpa cinco dos seis resíduos do #366. Cada um com o teste a falhar **primeiro**. O sexto (`pilar:esgotado`) fica como `todo` visível; a correcção certa é decisão de desenho, não código. O codex entregou o resíduo 5 com o `appendReceipt` a **lançar**. O contrato está certo, mas o chamador não apanhava e uma excepção ali mata o ciclo. Ajustei: o recibo mau perde-se **alto** e o trabalho continua. Dois testes tiveram de mudar.
+
+O tools/router caracterizou-se em três rondas: 6 falhas estáveis, 1 **instável** (`concurrent writers preserve every event and atomic projections`, 1 em 3). Isso explica a divergência entre 6 e 8 medidas em momentos diferentes.
+
+Protocolo multi-device: LOCAL_AGENT_SYNC passou de fail para pass. O windows-rtx4090 ficou active com errors=none. Os outros três devices continuam pending — não são desta máquina para inscrever.
+
+| gate | |
+|---|---|
+| total | 821 |
+| pass | 819 |
+| fail | 0 |
+| todo | 2 (q13 pre-existente + resíduo 6) |
+
+Por decidir: o release. 75+ commits desde a v1.49.4. O loop continua parado por decisão.
+
+gate: 821 testes · 819 pass / 0 fail / 2 todo (q13 + o residuo 6) · classify.js `427d8c0b` intacto
