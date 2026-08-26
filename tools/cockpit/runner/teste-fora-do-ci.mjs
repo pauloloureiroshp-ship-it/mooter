@@ -110,6 +110,17 @@ export function escreverLinhaBase(r, { caminho = CAMINHO_LINHA_BASE, writeImpl =
     porque_existe: 'A catraca dos testes que o CI nao corre. Esta lista e a divida CONHECIDA a 2026-08-26; o guarda falha quando ela cresce. Nao e uma allowlist permanente — e um tecto que so deve descer.',
     como_regravar: 'node tools/cockpit/runner/teste-fora-do-ci.mjs --linha-base  (e commitar, com o porque no PR)',
     aviso: 'Regravar isto para calar um vermelho e o gesto que mata a catraca. Se o numero SUBIU, ou se corrige o CI ou se escreve no PR porque e que aquele teste nao deve correr.',
+    // ⚠️ O total foi escrito ERRADO a primeira vez, e a maneira como isso
+    // aconteceu vale mais do que o numero. A linha de base foi gravada com o
+    // ficheiro de teste do proprio guarda ainda por commitar: o `--linha-base`
+    // ve os nao-versionados (`incluirNaoVersionados: true`), mas naquele
+    // instante o ficheiro nem existia. Gravou 600; o commit seguinte trouxe o
+    // 601. Um agente adversarial e que apanhou, ao comparar com `git ls-files`.
+    //
+    // A catraca nao mordeu porque compara a LISTA de orfaos, nunca o total —
+    // que e o desenho certo. Mas um numero errado a viver dentro do ficheiro
+    // cuja funcao e ser a verdade de referencia e exactamente a especie de
+    // detalhe que ninguem verifica por parecer trivial.
     total_versionados: r.total,
     orfaos: [...(r.orfaos || [])].sort(),
   };
