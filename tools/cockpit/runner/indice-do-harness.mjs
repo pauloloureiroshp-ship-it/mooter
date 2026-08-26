@@ -529,6 +529,9 @@ export const NOMES = Object.freeze({
 export function imprimir(r) {
   const barra = (v) => (v === null ? '  n/d ' : `${String(Math.round(v * 100)).padStart(4)}% `);
   console.log(`INDICE DO ARNES  ${r.pontos.toFixed(2)} / ${r.total.toFixed(1)}  (${r.pct}%)`);
+  // A data e o sha nao sao decoracao: sem eles este numero e uma afirmacao sem
+  // data, e as parcelas leem estado vivo que se mexe entre duas corridas.
+  if (r.medido_em) console.log(`medido em ${r.medido_em}${r.sha ? ` · sha ${r.sha}` : ''} — as parcelas leem estado vivo, outra corrida da outro numero`);
   if (r.peso_nao_medido > 0) {
     console.log(`⚠ ${r.peso_nao_medido.toFixed(1)} pontos de peso NAO FORAM MEDIDOS e valem zero: ${r.nao_medidas.join(', ')}`);
   }
@@ -603,11 +606,32 @@ export async function recolherFrota() {
   }
 }
 
+/**
+ * ⚠️ ESTE NUMERO NAO E REPRODUZIVEL, E TEM DE O DIZER.
+ *
+ * As sete parcelas leem estado VIVO — o indice do git, os registos que crescem
+ * a cada ronda, e a API do GitHub. Entre escrever um numero e alguem o repetir,
+ * ele mexe-se sozinho.
+ *
+ * Medido a 2026-08-26, com ~90 minutos entre as duas corridas: cinco das sete
+ * parcelas derivaram. `testes_gateados` 419/599 -> 421/601, `vereditos` 2/36 ->
+ * 2/38, `telemetria` 0/4830 -> 0/4833, `higiene_de_prs` 4/36 -> 6/38, e o total
+ * 3,20 -> 3,24. Nenhuma linha de codigo mudou entre as duas.
+ *
+ * Foi um agente adversarial que apanhou isto: o PR que publicou o `3,20/10` no
+ * titulo nao dizia de quando era, e quem corresse o comando obteria outro numero
+ * e concluiria que o PR mentia. **Um numero sem carimbo de quando foi medido e
+ * uma afirmacao sem data** — e este ficheiro existe precisamente para nao
+ * publicar afirmacoes dessas.
+ *
+ * Por isso o `medido_em` viaja SEMPRE com o resultado, e o `imprimir` poe-no na
+ * primeira linha.
+ */
 export async function calcular({ raiz = RAIZ_REPO, semRede = false, agora = Date.now() } = {}) {
   const prs = semRede ? null : recolherPrs({ raiz });
   const frota = await recolherFrota();
   const shaAlvo = shaDeReferencia({ raiz });
-  return indice([
+  const r = indice([
     testesGateados({ raiz }),
     recibosDeCenso({}),
     veredictosPublicados({ prs }),
@@ -616,6 +640,13 @@ export async function calcular({ raiz = RAIZ_REPO, semRede = false, agora = Date
     higieneDePrs({ prs, agora }),
     limiaresMedidos({ raiz }),
   ]);
+  return {
+    ...r,
+    medido_em: new Date(agora).toISOString(),
+    // O sha do repo no momento da medicao: sem ele, duas corridas do mesmo
+    // numero em arvores diferentes sao indistinguiveis.
+    sha: shaAlvo ? String(shaAlvo).slice(0, 12) : null,
+  };
 }
 
 // ── publicacao ──────────────────────────────────────────────────────────────
@@ -638,7 +669,10 @@ export const CAMINHO_INSTANTANEO = path.join(os.homedir(), '.mooter', 'indice-do
 
 export function escreverInstantaneo(r, { caminho = CAMINHO_INSTANTANEO, agoraIso, writeImpl = fs.writeFileSync } = {}) {
   const magro = {
-    ts: agoraIso,
+    // O carimbo vem do resultado quando ele o traz; o parametro continua a valer
+    // para quem chama isto com um relogio injectado (os testes).
+    ts: agoraIso || r.medido_em || null,
+    sha: r.sha || null,
     pontos: r.pontos,
     total: r.total,
     pct: r.pct,

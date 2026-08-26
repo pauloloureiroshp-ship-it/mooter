@@ -19,7 +19,7 @@ import {
   parcela, indice, PESOS, TOTAL_PESOS,
   testesGateados, recibosDeCenso, veredictosPublicados, devicesNoMesmoSha,
   coberturaDeTelemetria, higieneDePrs, limiaresMedidos, limiaresNoCodigo,
-  escreverInstantaneo, lerInstantaneo, IDADE_MAX_S, SUFIXOS_DE_LIMIAR,
+  escreverInstantaneo, lerInstantaneo, IDADE_MAX_S, SUFIXOS_DE_LIMIAR, calcular,
 } from './indice-do-harness.mjs';
 
 // ── a regra-mae ─────────────────────────────────────────────────────────────
@@ -308,4 +308,27 @@ test('sem instantaneo nenhum, `presente: false` com o porque — nao um zero', (
   const r = lerInstantaneo({ readImpl: () => { throw new Error('ENOENT'); } });
   assert.equal(r.presente, false);
   assert.match(r.porque, /nunca calculado/);
+});
+
+test('o resultado leva SEMPRE o carimbo de quando foi medido e o sha', async () => {
+  // Sem isto, o "3,20/10" do titulo de um PR e uma afirmacao sem data: as sete
+  // parcelas leem estado vivo e mexem-se sozinhas. Medido a 2026-08-26, com ~90
+  // minutos entre duas corridas e ZERO linhas de codigo alteradas: cinco das
+  // sete parcelas derivaram e o total foi de 3,20 para 3,24. Foi um adversario
+  // que apanhou; quem corresse o comando concluiria que o PR mentia.
+  const r = await calcular({ semRede: true, agora: Date.parse('2026-08-26T12:00:00Z') });
+  assert.equal(r.medido_em, '2026-08-26T12:00:00.000Z');
+  assert.ok(typeof r.sha === 'string' || r.sha === null);
+  assert.ok(Number.isFinite(r.pontos));
+});
+
+test('o instantaneo herda o carimbo do resultado quando ninguem lho da', () => {
+  let escrito = null;
+  escreverInstantaneo(
+    { pontos: 3.2, total: 10, pct: 32, peso_nao_medido: 0, nao_medidas: [], parcelas: [], medido_em: '2026-08-26T12:00:00.000Z', sha: 'abcdef123456' },
+    { writeImpl: (_p, c) => { escrito = c; } },
+  );
+  const j = JSON.parse(escrito);
+  assert.equal(j.ts, '2026-08-26T12:00:00.000Z');
+  assert.equal(j.sha, 'abcdef123456');
 });
