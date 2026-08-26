@@ -353,9 +353,14 @@ test('nunca trunca em silêncio: se algo fica de fora, o número que o diz é vi
 test('DETECTOR: procedencia e n/d ficam visiveis sem fingir GPU ou citacao do modelo', () => {
   assert.match(SHELL, /id="detector-status"/, 'o estado da ancora precisa de um lugar mesmo com fila vazia');
   assert.match(SCRIPT, /detector · regex · n\/a/, 'ancora ausente ou ilegivel nao pode virar zero');
-  assert.match(SCRIPT, /a\.origem === 'detector-deterministico'/, 'a entrada tem de escolher o ramo pela procedencia');
-  assert.match(SCRIPT, /doDetector \? "detector · regex" : "GPU · model"/,
-    'as duas origens têm de ser legiveis no proprio cartao');
+  // A etiqueta do cartao vem de uma TABELA por origem, nao de um ternario
+  // "detector ou GPU" — que era o que punha 104 achados de linter no ecra do
+  // dono rotulados `GPU · model`. Ver `painel-cartao.test.mjs`, que renderiza a
+  // fila a serio e le os chips.
+  assert.match(SCRIPT, /const PROCEDENCIA = \{/, 'a procedencia tem de ser uma tabela fechada');
+  assert.match(SCRIPT, /'modelo-local':\s*\{ rotulo: 'GPU · model'/,
+    'so o achado do modelo pode ser rotulado GPU');
+  assert.doesNotMatch(CODE, /: "GPU · model"\)/, 'nenhum ramo pode voltar a cair em GPU por omissao');
   assert.match(SCRIPT, /card\.hidden = fila\.length === 0 && !detector/,
     'um detector n\/d nao pode desaparecer so porque a fila conhecida esta vazia');
 });

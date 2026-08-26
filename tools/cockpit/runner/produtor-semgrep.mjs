@@ -23,6 +23,21 @@
  * observação (que pode falhar uma ligação curta): é construção — não há rota
  * para haver chamada. É declarado ao auditor como `estado: 'bloqueado'`.
  *
+ * ⚠️ CORRIGIDO a 2026-08-26, depois de uma lente adversarial: o `unshare -rn`
+ * envolvia só o `semgrep scan` e deixava de fora o `bash -lc` que o lançava — e
+ * o `-l` é um shell de LOGIN, que lê `/etc/profile`, `/etc/profile.d/*` e
+ * `~/.profile` com `eth0` UP e rota default. Essa parte da corrida tinha como
+ * única «medição» a tabela de sockets do Windows, que não vê para dentro da VM:
+ * o zero cego que este mesmo cabeçalho condena, três parágrafos acima. Agora o
+ * namespace envolve o processo inteiro (ver `argvWsl`), e a própria sonda de
+ * disponibilidade é feita já por essa via, para não ser ela o processo cego.
+ *
+ * E os `wsl.exe` deixaram de contar duas vezes. A prova era registada como um
+ * filho SINTÉTICO ao lado dos dois `wsl.exe` reais, que ficavam em `sondado` —
+ * «5 filhos, TODOS medidos» com denominador 4 e duas observações cegas
+ * rotuladas como medições. Agora marca-se o registo do próprio processo
+ * (`marcarFilhoPorPid`): um processo, um registo, um estado.
+ *
  * Se o `unshare -rn` não estiver disponível (kernel sem user namespaces sem
  * privilégio), o produtor NÃO corre em modo cego: corre à mesma e declara
  * `n/d` com a saída exacta do erro, o que empurra `rede_zero` para `null`.
@@ -90,9 +105,13 @@ export function enunciado(msg) {
 export function traduzir(json, { dirRegras = null } = {}) {
   const results = (json && Array.isArray(json.results)) ? json.results : [];
   const brutos = [];
+  // Contados, não engolidos: o `rejeitados` do manifesto mede o filtro do
+  // ESQUEMA, e um achado que morre aqui atrás nunca lá chega. Um `rejeitados: 0`
+  // não é prova de que nada se perdeu se este número não estiver ao lado.
+  let descartados = 0;
   for (const r of results) {
     const linha = r && r.start && Number(r.start.line);
-    if (!Number.isInteger(linha) || linha < 1) continue;
+    if (!Number.isInteger(linha) || linha < 1) { descartados += 1; continue; }
     brutos.push({
       file: posix(r.path),
       line: linha,
@@ -100,14 +119,14 @@ export function traduzir(json, { dirRegras = null } = {}) {
       msg: enunciado(r.extra && r.extra.message),
     });
   }
-  return brutos;
+  return { brutos, descartados, emitidos: results.length };
 }
 
 /**
- * O comando que corre lá dentro. Montado como string porque atravessa
- * `wsl.exe -- bash -lc`, e o `unshare` tem de envolver o semgrep e não o bash.
+ * O comando que corre lá dentro do `bash -lc`. Já NÃO leva `unshare`: o
+ * namespace passou para o argv, a envolver o bash inteiro. Ver `argvWsl`.
  */
-export function comandoWsl({ raiz, dirRegras, alvo = '.', usarUnshare = true }) {
+export function comandoWsl({ raiz, dirRegras, alvo = '.' }) {
   const cd = `cd ${citar(paraWsl(raiz))}`;
   const configs = ['p-javascript', 'p-typescript', 'p-security-audit', 'p-nodejs']
     .map((n) => `--config ${citar(`${paraWsl(dirRegras)}/${n}.yaml`)}`)
@@ -116,7 +135,35 @@ export function comandoWsl({ raiz, dirRegras, alvo = '.', usarUnshare = true }) 
   // namespace); estão aqui para que o semgrep não gaste segundos a tentar e a
   // falhar contra uma rede que não existe.
   const sg = `semgrep scan --metrics=off --disable-version-check --no-git-ignore --json ${configs} ${citar(alvo)}`;
-  return `${cd} && ${usarUnshare ? `unshare -rn ${sg}` : sg}`;
+  return `${cd} && ${sg}`;
+}
+
+/**
+ * O argv do `wsl.exe`. O `unshare -rn` envolve o **bash**, não o semgrep.
+ *
+ * ── PORQUE É QUE ISTO MUDOU (2026-08-26) ───────────────────────────────────
+ * A versão anterior punha `unshare -rn` DENTRO da string, a envolver só o
+ * `semgrep scan`. O que ficava de fora era o `bash -lc` — e o `-l` é um shell
+ * de LOGIN: lê `/etc/profile`, `/etc/profile.d/*` e `~/.profile`, tudo com
+ * `eth0` UP e rota default. A única "medição" dessa parte era a tabela de
+ * sockets do Windows, que estruturalmente não vê para dentro da VM do WSL —
+ * o zero cego que o cabeçalho deste ficheiro condena.
+ *
+ * MEDIDO a 2026-08-26, com o namespace a envolver o bash inteiro:
+ *
+ *     wsl.exe -- unshare -rn bash -lc 'ip -o link show; command -v semgrep; ls /mnt/c'
+ *     1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN
+ *     /home/paulo/.local/bin/semgrep
+ *     MNT_OK
+ *
+ * Ou seja: lá dentro só existe `lo` e está DOWN, o semgrep continua no PATH
+ * (o `/etc/profile` corre à mesma, agora sem rede) e `/mnt/c` continua legível.
+ * Contra: fora do namespace o mesmo comando mostra `eth0` UP com rota default.
+ */
+export function argvWsl(comando, { usarUnshare = true } = {}) {
+  return usarUnshare
+    ? ['--', 'unshare', '-rn', 'bash', '-lc', comando]
+    : ['--', 'bash', '-lc', comando];
 }
 
 /**
@@ -128,39 +175,59 @@ export function produtorSemgrep({ dirRegras, alvo = '.', spawnImpl = spawnVivo, 
   return {
     id: 'semgrep',
     origem: 'semgrep',
-    async correr({ raiz, ambiente, declararFilhoMedido }) {
+    async correr({ raiz, ambiente, marcarFilhoPorPid }) {
       if (!dirRegras) throw new Error('semgrep sem --regras: o conjunto vendorizado de §2.1 é obrigatório e não se descarrega durante a corrida');
 
+      // Cada `wsl.exe` que nasce é marcado NO SEU PRÓPRIO REGISTO. Antes, a
+      // prova entrava como um registo sintético a mais (`declararFilhoMedido`)
+      // ao lado dos dois `wsl.exe` deixados em `sondado` — três registos para
+      // dois processos, e dois deles a chamar «medição» a uma tabela de sockets
+      // do Windows que não vê para dentro da VM.
+      const marcar = (pid) => {
+        if (!marcarFilhoPorPid) return;
+        marcarFilhoPorPid(pid, temUnshare
+          ? {
+            estado: 'bloqueado',
+            porque: 'todo o processo (bash de login incluído) correu num espaço de nomes de rede sem interfaces (unshare -rn): não há rota para haver chamada',
+          }
+          : {
+            estado: 'n/d',
+            porque: `unshare -rn indisponível neste WSL, e a tabela de sockets do Windows não vê para dentro da VM — um zero aqui seria cego · rc=${teste.rc} · ${teste.err.slice(0, 160)}`,
+          });
+      };
+
       // Primeiro pergunta-se ao WSL se o namespace de rede está disponível SEM
-      // privilégio. A resposta decide se a prova é `bloqueado` ou `n/d` — nunca
-      // se assume que está.
-      const teste = await correrWsl(spawnImpl, wsl, `unshare -rn true && echo SIM`, ambiente);
+      // privilégio. A pergunta é feita JÁ pela via que se vai usar — o namespace
+      // a envolver o bash — para que a própria sonda de disponibilidade não seja
+      // um processo cego. A resposta decide se a prova é `bloqueado` ou `n/d`.
+      const teste = await correrWsl(spawnImpl, wsl, 'echo SIM', ambiente, { usarUnshare: true });
       const temUnshare = teste.rc === 0 && /SIM/.test(teste.out);
+      marcar(teste.pid);
 
-      const cmd = comandoWsl({ raiz, dirRegras, alvo, usarUnshare: temUnshare });
+      const cmd = comandoWsl({ raiz, dirRegras, alvo });
       const t0 = Date.now();
-      const r = await correrWsl(spawnImpl, wsl, cmd, ambiente);
+      const r = await correrWsl(spawnImpl, wsl, cmd, ambiente, { usarUnshare: temUnshare });
       const ms = Date.now() - t0;
-
-      declararFilhoMedido({
-        cmd: `wsl.exe semgrep${temUnshare ? ' (unshare -rn)' : ''}`,
-        args: [cmd],
-        estado: temUnshare ? 'bloqueado' : 'n/d',
-        porque: temUnshare
-          ? 'correu num espaço de nomes de rede sem interfaces (unshare -rn): não há rota para haver chamada'
-          : `unshare -rn indisponível neste WSL, e a tabela de sockets do Windows não vê para dentro da VM — rc=${teste.rc} · ${teste.err.slice(0, 200)}`,
-      });
+      marcar(r.pid);
 
       let json;
       try { json = JSON.parse(r.out); }
       catch { throw new Error(`semgrep não devolveu JSON (rc=${r.rc}): ${r.err.slice(0, 300) || r.out.slice(0, 300)}`); }
 
+      const { brutos, descartados, emitidos } = traduzir(json, { dirRegras });
       return {
-        brutos: traduzir(json, { dirRegras }),
+        brutos,
         meta: {
           versao: json.version ?? null,
+          emitidos,
+          descartados_pelo_adaptador: descartados,
+          // Os dois números que separam «varreu 312 ficheiros e não achou nada»
+          // de «não conseguiu carregar uma regra». Um semgrep que morre com
+          // rc=7, zero regras e zero ficheiros varridos devolve JSON válido e
+          // publicava-se, até 2026-08-26, como uma corrida limpa.
           ficheiros_varridos: (json.paths && Array.isArray(json.paths.scanned)) ? json.paths.scanned.length : null,
-          erros_do_semgrep: Array.isArray(json.errors) ? json.errors.length : null,
+          erros: Array.isArray(json.errors) ? json.errors.length : null,
+          rc: Number.isInteger(r.rc) ? r.rc : null,
           rede: temUnshare ? 'bloqueada-por-namespace' : 'n/d',
           ms_wsl: ms,
         },
@@ -169,17 +236,19 @@ export function produtorSemgrep({ dirRegras, alvo = '.', spawnImpl = spawnVivo, 
   };
 }
 
-function correrWsl(spawnImpl, wsl, comando, ambiente) {
+/** Devolve também o PID: é o que permite marcar ESTE filho em vez de criar outro. */
+function correrWsl(spawnImpl, wsl, comando, ambiente, { usarUnshare = true } = {}) {
   return new Promise((resolve) => {
     let out = '';
     let err = '';
     let p;
     try {
-      p = spawnImpl(wsl, ['--', 'bash', '-lc', comando], { env: ambiente, windowsHide: true });
-    } catch (e) { resolve({ rc: -1, out: '', err: String(e && e.message) }); return; }
+      p = spawnImpl(wsl, argvWsl(comando, { usarUnshare }), { env: ambiente, windowsHide: true });
+    } catch (e) { resolve({ rc: -1, out: '', err: String(e && e.message), pid: null }); return; }
+    const pid = p.pid ?? null;
     p.stdout.on('data', (d) => { out += String(d); });
     p.stderr.on('data', (d) => { err += String(d); });
-    p.on('error', (e) => resolve({ rc: -1, out, err: err + String(e && e.message) }));
-    p.on('close', (rc) => resolve({ rc, out, err }));
+    p.on('error', (e) => resolve({ rc: -1, out, err: err + String(e && e.message), pid }));
+    p.on('close', (rc) => resolve({ rc, out, err, pid }));
   });
 }

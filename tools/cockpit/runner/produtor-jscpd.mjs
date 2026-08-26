@@ -28,6 +28,30 @@
  * sonda de sockets por PID do `rede-zero.mjs` — observação, e está dito como tal.
  * Referência do reconhecimento: 129 sondas ao PID durante uma corrida de
  * 31 197 ms sobre 3 853 ficheiros deram 0 ligações TCP e 0 endpoints UDP.
+ *
+ * ── O CAMINHO É RELATIVO À RAIZ, E ISSO CUSTOU UMA AUDITORIA ────────────────
+ * Até 2026-08-26 este adaptador escrevia o caminho ABSOLUTO da máquina onde
+ * correu. Medido no artefacto commitado: **972 dos 972 apontamentos do jscpd com
+ * caminho absoluto** (o semgrep 0/4, o knip 0/62). O `file` é o primeiro
+ * elemento de `JSON.stringify([file,line,rule,msg])` no hash de identidade, logo
+ * a mesma duplicação, no mesmo ficheiro, na mesma linha, dava chaves diferentes
+ * consoante a máquina:
+ *
+ *     Windows, sítio de hoje : detector:ancora:43acb45a2b000fef
+ *     Mac do dono            : detector:ancora:df2a786817c98df9  ← chave nova
+ *     Windows, pasta movida  : detector:ancora:85b1f87412efe30a  ← chave nova
+ *
+ * É, campo por campo, o MESMO defeito que o `produtor-semgrep.mjs` descreve e
+ * corrige na `rule` com `normalizarCheckId` — corrigido lá e deixado aberto
+ * aqui, no campo que pesa mais no hash. O projecto corre em duas máquinas por
+ * canon (`AGENTS.md` § Cross-device provenance): a primeira corrida no Mac
+ * orfanaria 93,6% das decisões de triagem. Efeito lateral resolvido de caminho:
+ * o `evidencia` de cada linha levava o home directory do dono para dentro do
+ * painel.
+ *
+ * O preço, dito por inteiro: as chaves dos apontamentos de jscpd já triados
+ * MUDAM uma vez com esta correcção. É órfão único e deliberado, em troca de
+ * deixar de haver um órfão a cada mudança de máquina ou de pasta.
  */
 
 import fs from 'node:fs';
@@ -37,31 +61,45 @@ import { posix, spawnVivo } from './produtores.mjs';
 
 export const RELATORIO = 'jscpd-report.json';
 
+/** `alvo` + o nome relativo que o jscpd devolve, em POSIX e sem `./` à frente. */
+export function caminhoNoRepo(alvo, nome) {
+  const partes = [posix(alvo || '.'), posix(nome || '')]
+    .join('/')
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((s) => s && s !== '.');
+  return partes.join('/');
+}
+
 /**
- * `duplicates[]` → `{file,line,rule,msg}`.
+ * `duplicates[]` → `{ brutos, descartados }`.
  *
  * `startLoc.line` é sempre ≥ 1 (confirmado na corrida de 2026-08-26), o que é
  * exactamente o que `apontamentoDoDetector` exige; ainda assim valida-se, porque
  * um apontamento rejeitado em silêncio é indistinguível de um que nunca existiu.
+ * E por isso os descartados são CONTADOS: o `rejeitados` do manifesto só mede o
+ * que chega ao `normalizar`, portanto um `rejeitados: 0` não provava que nada se
+ * tinha perdido aqui atrás.
  */
-export function traduzir(relatorio, { raizVarrida } = {}) {
+export function traduzir(relatorio, { alvo = '.' } = {}) {
   const dups = (relatorio && Array.isArray(relatorio.duplicates)) ? relatorio.duplicates : [];
   const brutos = [];
+  let descartados = 0;
   for (const d of dups) {
     const a = d && d.firstFile;
     const b = d && d.secondFile;
-    if (!a || !b) continue;
+    if (!a || !b) { descartados += 1; continue; }
     const linha = Number(a.startLoc && a.startLoc.line);
-    if (!Number.isInteger(linha) || linha < 1) continue;
+    if (!Number.isInteger(linha) || linha < 1) { descartados += 1; continue; }
     const outro = `${posix(b.name)}:${b.startLoc && b.startLoc.line}-${b.endLoc && b.endLoc.line}`;
     brutos.push({
-      file: posix(raizVarrida ? path.join(raizVarrida, a.name) : a.name),
+      file: caminhoNoRepo(alvo, a.name),
       line: linha,
       rule: `jscpd/duplicate:${d.format || 'desconhecido'}`,
       msg: `${d.lines} linhas (${d.tokens} tokens) duplicadas com ${outro}`,
     });
   }
-  return brutos;
+  return { brutos, descartados, emitidos: dups.length };
 }
 
 /**
@@ -109,13 +147,23 @@ export function produtorJscpd({
       }
 
       const st = relatorio.statistics && relatorio.statistics.total;
+      const { brutos, descartados, emitidos } = traduzir(relatorio, { alvo });
       return {
-        brutos: traduzir(relatorio, { raizVarrida }),
+        brutos,
         meta: {
+          // `emitidos` é o que a ferramenta disse; `brutos` é o que passou daqui
+          // adiante. Publicar só o segundo era publicar um numerador sem
+          // denominador — o painel dizia «N de N, 0 rejeitados» fosse qual fosse
+          // a fracção descartada.
+          emitidos,
+          descartados_pelo_adaptador: descartados,
           clones: st ? st.clones ?? null : null,
           linhas_duplicadas: st ? st.duplicatedLines ?? null : null,
           percentagem: st ? st.percentage ?? null : null,
           relatorio: posix(alvoRelatorio),
+          // O código de saída deixa de ser deitado fora: uma ferramenta que
+          // rebentou a meio publicava-se como «correu e não achou nada».
+          rc: Number.isInteger(r.rc) ? r.rc : null,
           ms_jscpd: ms,
         },
       };

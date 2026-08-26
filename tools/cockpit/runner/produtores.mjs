@@ -24,12 +24,41 @@
  * ressuscitaria decisões — exactamente o que o comentário de `porTriarDetector`
  * diz que não pode acontecer.
  *
- * O que sobrepõe é a `origem`, e é o único campo sobreposto: o gate da F1 exige
- * «contagem própria no /fleet.json», e sem `origem` os três produtores seriam um
- * bolo único onde ninguém saberia qual deles trouxe o quê.
+ * O que sobrepõe são os campos de APRESENTAÇÃO — nunca os quatro que entram no
+ * hash. Até 2026-08-26 sobrepunha só a `origem`, e o argumento era «só a
+ * contagem depende dela». Uma lente adversarial mostrou que era falso duas
+ * vezes: (1) `f10-server.mjs` ramifica na `origem` para decidir se re-pontua a
+ * severidade, e (2) `moo-pilot-shell.html` ramifica na `origem` para decidir a
+ * etiqueta — com o resultado medido de 104 achados de três linters de CPU
+ * apresentados ao dono como **«GPU · model»**. E os campos que ficavam intactos
+ * (`tipo: 'apontamento-regex'`, `escopo: 'regex:…'`, `evidencia: '… · regex …'`,
+ * `sev.porque: 'deterministic regex pointer'`) mentiam sobre o instrumento: o
+ * jscpd é um detector de clones por tokens e o knip é análise de grafo de
+ * módulos — nenhum dos dois é uma regex.
+ *
+ * A regra passa a ser explícita e é a única que importa: **`file`, `line`,
+ * `rule` e `msg` SÃO a identidade e não se tocam; tudo o resto é rótulo e tem
+ * de nomear o instrumento verdadeiro.** A chave continua idêntica à que
+ * `apontamentoDoDetector` produz sozinho, e há um teste que o compara.
  *
  * A corrida inteira acontece dentro de `medirRede` (ver `rede-zero.mjs`), que é
  * a outra metade do gate: «0 chamadas de rede durante a corrida (medido)».
+ *
+ * ── O `estado` DE FORA E O `estado` DE CADA ORIGEM SÃO PERGUNTAS DIFERENTES ──
+ *
+ * Segunda objecção da lente, e a mais grave deste ficheiro: com as três
+ * ferramentas a falhar por falta de binário — a situação NORMAL em qualquer
+ * máquina que não seja a do dono — o `/fleet.json` publicava
+ * `estado: "ok", rede_zero: true, por_triar: 0, alerta_achados: false` e o
+ * processo saía com `EXIT=0`. O `estado` de fora significava «o ficheiro é
+ * legível» e o de cada origem significa «a ferramenta correu»; a mesma palavra
+ * para duas perguntas, e a de fora contradizia as três de dentro.
+ *
+ * Agora são campos separados: `leitura` responde «o artefacto é legível» e
+ * `estado` responde «a corrida produziu alguma coisa» (`ok` · `parcial` ·
+ * `falhou` · `n/d`). E o `rede_zero` deixa de poder ser `true` por VACUIDADE:
+ * zero saídas de rede numa corrida onde nenhuma ferramenta chegou a arrancar
+ * não é uma medição, é a ausência de oportunidade.
  */
 
 import fs from 'node:fs';
@@ -79,6 +108,28 @@ export function posix(p) {
 }
 
 /**
+ * Os campos do esquema que são RÓTULO e não identidade. `apontamentoDoDetector`
+ * escreve-os para o detector de regex da âncora; para um produtor, cada um
+ * deles nomeia um instrumento que não é o que produziu o achado.
+ *
+ * Nenhum destes entra no hash — a identidade é `sha256([file,line,rule,msg])` e
+ * fica intacta. É isso que torna esta sobreposição segura: corrigir o rótulo não
+ * ressuscita uma decisão de triagem.
+ */
+export function rotulosDoProdutor(item, origem) {
+  return {
+    origem,
+    tipo: 'apontamento-linter',
+    escopo: `${origem}:${item.regra}`,
+    evidencia: `${item.ficheiro}:${item.janela} · ${origem} ${item.regra}`,
+    sev: {
+      ...item.sev,
+      porque: `${origem} finding (deterministic linter, no GPU and no model) — needs your judgment`,
+    },
+  };
+}
+
+/**
  * Passa apontamentos crus pelo esquema e marca-os com a origem do produtor.
  *
  * `apontamentoDoDetector` devolve `null` em silêncio para tudo o que não bata
@@ -93,9 +144,78 @@ export function normalizar(brutos, { origem, geradoEm = null } = {}) {
   for (const b of brutos || []) {
     const item = apontamentoDoDetector(b, geradoEm);
     if (!item) { rejeitados.push(b); continue; }
-    itens.push({ ...item, origem });
+    itens.push({ ...item, ...rotulosDoProdutor(item, origem) });
   }
   return { itens, aceites: itens.length, rejeitados: rejeitados.length, amostraRejeitada: rejeitados.slice(0, 3) };
+}
+
+/**
+ * A saúde de UMA origem, a partir do que a corrida mediu dela.
+ *
+ * Terceira objecção da lente: nenhum adaptador lia o código de saída, e um
+ * semgrep que morreu com `rc=7`, zero regras carregadas e zero ficheiros
+ * varridos publicava-se como `estado: "ok", apontamentos: 0` — literalmente
+ * indistinguível de «varreu 312 ficheiros e não achou nada». `parcial` é o
+ * estado que essas duas coisas deixam de partilhar.
+ */
+export function saudeDaOrigem(meta = {}) {
+  const problemas = [];
+  if (Number.isInteger(meta.rc) && meta.rc !== 0) problemas.push(`o processo saiu com rc=${meta.rc}`);
+  if (Number.isInteger(meta.erros) && meta.erros > 0) problemas.push(`a ferramenta reportou ${meta.erros} erro(s) próprio(s)`);
+  if (meta.ficheiros_varridos === 0) problemas.push('varreu ZERO ficheiros');
+  if (!problemas.length) return { estado: 'ok', porque: null };
+  return { estado: 'parcial', porque: `correu mas ${problemas.join(' e ')} — aqui "0 achados" não é "não há nada"` };
+}
+
+/**
+ * O estado da CORRIDA, derivado do estado das três ferramentas. Responde a
+ * «alguma coisa correu?», que é uma pergunta diferente de «o ficheiro é
+ * legível?» — e era a mesma palavra para as duas.
+ */
+export function estadoDaCorrida(origens) {
+  const estados = ORIGENS.map((o) => ((origens && origens[o] && origens[o].estado) || 'n/d'));
+  const correram = estados.filter((e) => e === 'ok' || e === 'parcial').length;
+  const limpas = estados.filter((e) => e === 'ok').length;
+  if (limpas === ORIGENS.length) return { estado: 'ok', porque: null, ferramentas_ok: correram };
+  if (correram === 0) {
+    return {
+      estado: 'falhou',
+      porque: `nenhuma das ${ORIGENS.length} ferramentas correu: ${ORIGENS.map((o, i) => `${o}=${estados[i]}`).join(', ')}`,
+      ferramentas_ok: 0,
+    };
+  }
+  return {
+    estado: 'parcial',
+    porque: `${correram} de ${ORIGENS.length} ferramentas correram: ${ORIGENS.map((o, i) => `${o}=${estados[i]}`).join(', ')}`,
+    ferramentas_ok: correram,
+  };
+}
+
+/**
+ * O `rede_zero` que se pode publicar, dado o que correu.
+ *
+ * `auditar()` devolve `true` com «nenhum filho nasceu» quando nada nasceu —
+ * o que é correcto do ponto de vista da rede e VÁCUO do ponto de vista do gate.
+ * A afirmação-título da F1 é «0 chamadas de rede DURANTE A CORRIDA»; sem
+ * corrida, o zero não teve oportunidade de ser diferente de zero. É a mesma
+ * regra que este ramo já aplica à sonda do SO: zero amostras não é zero
+ * ligações.
+ *
+ * Uma função, dois pontos de chamada — o escritor (`correr`) e o leitor
+ * (`lerProdutores`), para que um manifesto antigo não entre por uma porta que a
+ * regra nova já fechou na outra.
+ */
+export function redeNaoVacua(rede, origens) {
+  const base = (rede && 'rede_zero' in rede) ? { ...rede } : { rede_zero: null, porque: 'run carries no network audit' };
+  if (estadoDaCorrida(origens).ferramentas_ok === 0 && base.rede_zero === true) {
+    return {
+      ...base,
+      rede_zero: null,
+      porque: 'nenhuma ferramenta chegou a correr: "0 chamadas de rede" seria verdadeiro por VACUIDADE, '
+        + `e um zero que ninguém teve oportunidade de contrariar não é uma medição · auditoria da corrida: ${base.porque}`,
+    };
+  }
+  return base;
 }
 
 /**
@@ -140,12 +260,17 @@ export function escrever({ dir, itens, manifesto, writeImpl = fs.writeFileSync, 
 export function produtoresND(porque) {
   return {
     estado: 'n/d',
+    // `leitura` responde «o artefacto é legível», `estado` responde «a corrida
+    // produziu alguma coisa». Eram a mesma palavra e contradiziam-se.
+    leitura: 'n/d',
     porque,
     origens: null,
     apontamentos: null,
     por_triar: null,
+    ferramentas_ok: null,
     gerado_em: null,
     rede_zero: null,
+    rede_porque: null,
     fila: [],
   };
 }
@@ -197,29 +322,62 @@ export function lerProdutores({
   // cada ferramenta emitiu, quanto tempo levou, se correu de todo) com o que a
   // fila diz hoje. Uma ferramenta que não correu fica visível com `estado`
   // próprio em vez de desaparecer numa soma.
+  //
+  // A lista de campos continua fechada de propósito (o manifesto tem `meta` de
+  // cada adaptador e não se despeja tudo no `/fleet.json`), mas os DENOMINADORES
+  // passaram a estar dentro dela. Quarta objecção da lente: o knip emitiu 157
+  // entradas com nome, o adaptador passou 62 adiante, e o painel mostrava
+  // «62 de 62, 0 rejeitados» — o `rejeitados` só conta o que o ESQUEMA recusa,
+  // nunca o que o adaptador filtrou antes. `emitidos` e
+  // `descartados_pelo_adaptador` são o denominador que faltava; sem eles um 62
+  // e um 157 são a mesma linha no ecrã.
+  const inteiro = (m, k) => (m && Number.isInteger(m[k]) ? m[k] : null);
   const origens = Object.fromEntries(ORIGENS.map((o) => {
     const m = (manifesto.origens && manifesto.origens[o]) || null;
+    const correu = Boolean(m) && (m.estado === 'ok' || m.estado === 'parcial');
     return [o, {
-      ...porOrigem[o],
+      // Uma ferramenta que NÃO correu não tem contagem: `null` com razão, nunca
+      // um zero afirmado. Era a doutrina do próprio ficheiro («não medido nunca
+      // é zero medido»), aplicada ao `brutos` e violada nos outros três — com um
+      // teste a segurar a violação.
+      apontamentos: correu ? porOrigem[o].apontamentos : null,
+      por_triar: correu ? porOrigem[o].por_triar : null,
+      decididos: correu ? porOrigem[o].decididos : null,
       estado: m ? m.estado : 'n/d',
       porque: m ? (m.porque ?? null) : 'origin absent from the manifest',
-      brutos: m && Number.isInteger(m.brutos) ? m.brutos : null,
-      rejeitados: m && Number.isInteger(m.rejeitados) ? m.rejeitados : null,
-      ms: m && Number.isInteger(m.ms) ? m.ms : null,
+      brutos: inteiro(m, 'brutos'),
+      emitidos: inteiro(m, 'emitidos'),
+      descartados_pelo_adaptador: inteiro(m, 'descartados_pelo_adaptador'),
+      rejeitados: inteiro(m, 'rejeitados'),
+      // Os dois números que separam «varreu 312 ficheiros e não achou nada» de
+      // «não conseguiu carregar uma regra». Existiam no manifesto e eram
+      // deitados fora exactamente aqui.
+      ficheiros_varridos: inteiro(m, 'ficheiros_varridos'),
+      erros: inteiro(m, 'erros'),
+      rc: inteiro(m, 'rc'),
+      sem_linha: (m && m.sem_linha && typeof m.sem_linha === 'object' && !Array.isArray(m.sem_linha)) ? m.sem_linha : null,
+      ms: inteiro(m, 'ms'),
     }];
   }));
 
+  const corrida = estadoDaCorrida(origens);
+  const rede = redeNaoVacua(manifesto.rede, origens);
+
   return {
-    estado: 'ok',
-    porque: null,
+    // «a corrida produziu alguma coisa?» — ok · parcial · falhou
+    estado: corrida.estado,
+    // «o artefacto no disco é legível?» — a pergunta que o `estado` respondia.
+    leitura: 'ok',
+    porque: corrida.porque,
+    ferramentas_ok: corrida.ferramentas_ok,
     origens,
     apontamentos: itens.length,
     por_triar: total,
     gerado_em: geradoEm,
     // Três estados, herdados de `auditar()`: `null` é "não se conseguiu medir",
-    // e nunca se deixa colapsar em `true`.
-    rede_zero: manifesto.rede && 'rede_zero' in manifesto.rede ? manifesto.rede.rede_zero : null,
-    rede_porque: manifesto.rede ? (manifesto.rede.porque ?? null) : 'run carries no network audit',
+    // e nunca se deixa colapsar em `true` — nem por vacuidade.
+    rede_zero: rede.rede_zero,
+    rede_porque: rede.porque ?? null,
     fila,
   };
 }
@@ -248,37 +406,58 @@ export async function correr({
         const { brutos, meta = {} } = await p.correr({ ...ctx, raiz });
         const n = normalizar(brutos, { origem: p.origem, geradoEm });
         itens = itens.concat(n.itens);
+        // `ok` deixou de ser a consequência automática de «não atirou». Uma
+        // ferramenta pode devolver JSON válido e ter rebentado por dentro.
+        const saude = saudeDaOrigem(meta);
         origens[p.origem] = {
-          estado: 'ok',
-          porque: null,
+          ...meta,
+          estado: saude.estado,
+          porque: saude.porque,
+          // `brutos` é o que o ADAPTADOR passou adiante; `emitidos` é o que a
+          // FERRAMENTA disse. Só o segundo é denominador.
           brutos: brutos.length,
+          emitidos: Number.isInteger(meta.emitidos) ? meta.emitidos : brutos.length,
+          descartados_pelo_adaptador: Number.isInteger(meta.descartados_pelo_adaptador)
+            ? meta.descartados_pelo_adaptador : 0,
           aceites: n.aceites,
           rejeitados: n.rejeitados,
           amostra_rejeitada: n.amostraRejeitada,
           ms: Date.now() - t0,
-          ...meta,
         };
       } catch (e) {
         origens[p.origem] = {
           estado: 'falhou',
           porque: String(e && e.message ? e.message : e).slice(0, 400),
-          brutos: null, aceites: 0, rejeitados: null, ms: Date.now() - t0,
+          // Uma ferramenta que não correu não tem contagem NENHUMA — nem de
+          // aceites. `0 aceites` era um zero afirmado ao lado de `brutos: null`.
+          brutos: null, emitidos: null, descartados_pelo_adaptador: null,
+          aceites: null, rejeitados: null, ms: Date.now() - t0,
         };
       }
     }
     return itens;
   }, opcoesRede);
 
+  // A auditoria CRUA fica em `rede_bruta` (é o que o mecanismo mediu) e o que se
+  // publica é a versão que não pode ser verdadeira por vacuidade. Guardam-se as
+  // duas: esconder a crua tornaria a regra impossível de auditar.
+  const corrida = estadoDaCorrida(origens);
+  const rede = redeNaoVacua(auditoria, origens);
+
   const manifesto = {
     gerado_em: geradoEm,
     repo: posix(raiz),
+    estado: corrida.estado,
+    porque: corrida.porque,
+    ferramentas_ok: corrida.ferramentas_ok,
     origens,
     apontamentos: itens.length,
     por_origem: Object.fromEntries(ORIGENS.map((o) => [o, itens.filter((i) => i.origem === o).length])),
-    rede: auditoria,
+    rede: { ...auditoria, ...rede },
+    rede_bruta: { rede_zero: auditoria.rede_zero, porque: auditoria.porque },
   };
 
-  return { itens, manifesto, auditoria };
+  return { itens, manifesto, auditoria: { ...auditoria, ...rede } };
 }
 
 // ─────────────────────────────────────────────────────────────── CLI
@@ -312,22 +491,42 @@ async function principal(argv) {
   for (const o of ORIGENS) {
     const m = manifesto.origens[o];
     if (!m) { console.log(`  ${o.padEnd(8)} n/d (não correu)`); continue; }
-    if (m.estado !== 'ok') { console.log(`  ${o.padEnd(8)} FALHOU · ${m.porque}`); continue; }
-    console.log(`  ${o.padEnd(8)} ${m.aceites} apontamentos (${m.brutos} brutos, ${m.rejeitados} fora do esquema) · ${m.ms} ms`);
+    if (m.estado === 'falhou') { console.log(`  ${o.padEnd(8)} FALHOU · ${m.porque}`); continue; }
+    const marca = m.estado === 'parcial' ? 'PARCIAL' : 'ok';
+    console.log(`  ${o.padEnd(8)} ${marca} · ${m.aceites} apontamentos (${m.emitidos} emitidos pela ferramenta, `
+      + `${m.descartados_pelo_adaptador} sem posição, ${m.rejeitados} fora do esquema) · ${m.ms} ms`);
+    if (m.porque) console.log(`           ↳ ${m.porque}`);
   }
   console.log(`  total    ${manifesto.apontamentos} apontamentos`);
-  console.log(`\nrede_zero: ${auditoria.rede_zero === null ? 'n/d' : auditoria.rede_zero}`);
-  console.log(`  ${auditoria.porque}`);
-  for (const f of auditoria.filhos) {
-    console.log(`  filho ${f.cmd} → ${f.sonda.estado}${f.sonda.porque ? ` (${f.sonda.porque})` : ` · ${f.sonda.amostras} amostra(s)`}`);
+  console.log(`\nestado da corrida: ${manifesto.estado}${manifesto.porque ? ` — ${manifesto.porque}` : ''}`);
+  console.log(`rede_zero: ${manifesto.rede.rede_zero === null ? 'n/d' : manifesto.rede.rede_zero}`);
+  console.log(`  ${manifesto.rede.porque}`);
+  for (const f of [...auditoria.filhos, ...(auditoria.descendentes || [])]) {
+    console.log(`  processo ${f.cmd} → ${f.sonda.estado}${f.sonda.porque ? ` (${f.sonda.porque})` : ` · ${f.sonda.amostras} amostra(s)`}`);
   }
 
-  if (soRelato) { console.log('\n(--estado: não escrevi nada)'); return; }
-  const { alvoAchados, alvoManifesto } = escrever({ dir, itens, manifesto });
-  console.log(`\nescrito: ${alvoAchados}`);
-  console.log(`         ${alvoManifesto}`);
+  if (!soRelato) {
+    const { alvoAchados, alvoManifesto } = escrever({ dir, itens, manifesto });
+    console.log(`\nescrito: ${alvoAchados}`);
+    console.log(`         ${alvoManifesto}`);
+  } else {
+    console.log('\n(--estado: não escrevi nada)');
+  }
+
+  // O CÓDIGO DE SAÍDA TEM DE DIZER A VERDADE.
+  //
+  // Antes saía sempre 0 — inclusive com as três ferramentas a rebentar por falta
+  // de binário e `rede_zero: true` por vacuidade. Um cron ou um CI que chamasse
+  // isto via sucesso. Agora: 3 se a prova de rede não é `true` (é a afirmação
+  // do gate), 2 se alguma ferramenta não correu ou correu partida, 0 só quando
+  // as três correram limpas E a rede foi medida a zero.
+  if (manifesto.rede.rede_zero !== true) return 3;
+  if (manifesto.estado !== 'ok') return 2;
+  return 0;
 }
 
 if (process.argv[1] && process.argv[1].endsWith('produtores.mjs')) {
-  principal(process.argv.slice(2)).catch((e) => { console.error(e); process.exitCode = 1; });
+  principal(process.argv.slice(2))
+    .then((codigo) => { process.exitCode = codigo; })
+    .catch((e) => { console.error(e); process.exitCode = 1; });
 }

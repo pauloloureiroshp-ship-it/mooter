@@ -9,8 +9,15 @@
  * `apontamentoDoDetector` exige `line` **inteiro ≥ 1**. Medido no mesmo
  * relatório, os tipos do knip dividem-se em dois grupos:
  *
- *     COM linha : exports 24 · types 22 · devDependencies 16
- *     SEM linha : files 83 · binaries 12
+ *     COM linha : exports 24 · types 22 · devDependencies 16   (= 62)
+ *     SEM linha : files 176 · binaries 12                      (= 188)
+ *
+ * O `176` é lido do manifesto da corrida commitada
+ * (`origens.knip.sem_linha`), e não de memória. A versão anterior deste
+ * cabeçalho dizia `files 83`, e a mensagem de commit dizia «95 issues do knip»
+ * — números de uma corrida anterior que ficaram por actualizar. Um número
+ * medido que contradiz o artefacto da própria corrida não passa a regra de
+ * honest-copy desta casa, por mais menor que pareça.
  *
  * Um ficheiro inteiro não usado (`files`) e um binário não listado (`binaries`)
  * não têm posição — são afirmações sobre o ficheiro, não sobre uma linha. A
@@ -54,10 +61,17 @@ export function traduzir(relatorio) {
   const issues = (relatorio && Array.isArray(relatorio.issues)) ? relatorio.issues : [];
   const brutos = [];
   const semLinha = {};
+  // `TIPOS_COM_LINHA` era apresentada como a lista derivada da medição e o
+  // `traduzir` nunca a consultava — iterava qualquer chave com um array. Uma
+  // versão nova do knip com um tipo novo entrava na fila sem passar por lista
+  // nenhuma. Continua a entrar (deitá-lo fora perderia achados reais), mas fica
+  // CONTADO: um tipo que ninguém previu passa a ser visível em vez de calado.
+  const tiposNovos = {};
   for (const it of issues) {
     if (!it || typeof it.file !== 'string' || !it.file.trim()) continue;
     for (const [tipo, lista] of Object.entries(it)) {
       if (tipo === 'file' || !Array.isArray(lista)) continue;
+      if (lista.length && !TIPOS_COM_LINHA.includes(tipo)) tiposNovos[tipo] = (tiposNovos[tipo] || 0) + lista.length;
       for (const e of lista) {
         const nome = e && e.name ? String(e.name) : null;
         if (!nome) continue;
@@ -73,7 +87,7 @@ export function traduzir(relatorio) {
       }
     }
   }
-  return { brutos, semLinha };
+  return { brutos, semLinha, tiposNovos };
 }
 
 /**
@@ -117,14 +131,26 @@ export function produtorKnip({
       try { relatorio = JSON.parse(r.out); }
       catch { throw new Error(`knip não devolveu JSON (rc=${r.rc}): ${r.err.slice(0, 300) || r.out.slice(0, 300)}`); }
 
-      const { brutos, semLinha } = traduzir(relatorio);
+      const { brutos, semLinha, tiposNovos } = traduzir(relatorio);
+      const descartados = Object.values(semLinha).reduce((s, n) => s + n, 0);
       return {
         brutos,
         meta: {
           ficheiros_com_issue: Array.isArray(relatorio.issues) ? relatorio.issues.length : null,
           // O que o knip disse e que NÃO virou apontamento, por tipo. É a
           // diferença entre "o knip não achou nada" e "o esquema não aceita".
+          //
+          // O cabeçalho deste ficheiro prometia, em prosa, que isto ia «para o
+          // manifesto e daí para o /fleet.json». Ia até ao manifesto e morria no
+          // filtro de campos do `lerProdutores`. Medido: o knip emitiu 157
+          // entradas com nome, o adaptador passou 62, e o painel mostrava
+          // «62 de 62, 0 rejeitados». Agora `emitidos` é 157 e o filtro deixa
+          // passar `sem_linha`.
           sem_linha: semLinha,
+          tipos_novos: tiposNovos,
+          emitidos: brutos.length + descartados,
+          descartados_pelo_adaptador: descartados,
+          rc: Number.isInteger(r.rc) ? r.rc : null,
           ms_knip: ms,
         },
       };

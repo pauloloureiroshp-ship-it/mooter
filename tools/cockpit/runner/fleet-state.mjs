@@ -322,13 +322,20 @@ export function buildFleetState({
   // Cada porta conserva o seu corte de 50. Fundi-las sem um segundo corte
   // impede que 50 recibos recentes tornem o detector invisivel outra vez.
   const fila = [...filaProdutores, ...filaDetector, ...filaModelo];
+  // `ok` (as tres correram limpas) e `parcial` (correu alguma) TEM contagem.
+  // `falhou` nao tem: as ferramentas correram e rebentaram, portanto quantos
+  // achados havia e DESCONHECIDO — e desconhecido nao e zero.
+  const produtoresContam = produtores.estado === 'ok' || produtores.estado === 'parcial';
   const porTriarTotal = detector.estado === 'ok'
-    ? contasTriagem.por_triar + detector.por_triar + (produtores.estado === 'ok' ? produtores.por_triar : 0)
+    ? contasTriagem.por_triar + detector.por_triar + (produtoresContam ? produtores.por_triar : 0)
     : null;
   const alertaAchados = contasTriagem.por_triar > 0 || detector.por_triar > 0
-    || (produtores.estado === 'ok' && produtores.por_triar > 0)
+    || (produtoresContam && produtores.por_triar > 0)
     ? true
-    : (detector.estado === 'ok' ? false : null);
+    // Com `falhou`, `false` seria afirmar "nao ha nada a triar" a partir de tres
+    // ferramentas que nao chegaram a olhar. `n/d` (ninguem correu os produtores
+    // neste device) mantem o comportamento de quem nunca os correu.
+    : (detector.estado === 'ok' && produtores.estado !== 'falhou' ? false : null);
 
   const tally = tallyVerdicts(receipts);
   const tallyToday = tallyVerdicts(todays);

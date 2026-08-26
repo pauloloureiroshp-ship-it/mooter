@@ -12,82 +12,117 @@
  * Escolhido: **contar e RECUSAR toda a saída no processo que corre a experiência,
  * e tornar cada processo filho mensurável antes de o deixar nascer.**
  *
- * A instrumentação sozinha (`dns.lookup` / `net.Socket.prototype.connect` /
- * `fetch`) seria um guarda que NUNCA podia falhar em produção, porque os três
- * produtores da F1 são todos processos filhos: o semgrep corre em WSL, o jscpd
- * é um binário nativo, o knip é outro processo Node. Um contador no processo-pai
- * que conta sempre zero, façam os filhos o que fizerem, é exactamente o que o
- * enunciado desta tarefa chama «um guarda indistinguível de um partido».
+ * A instrumentação sozinha seria um guarda que NUNCA podia falhar em produção,
+ * porque os três produtores da F1 são todos processos filhos: o semgrep corre em
+ * WSL, o jscpd é um binário nativo, o knip é outro processo Node. Um contador no
+ * processo-pai que conta sempre zero, façam os filhos o que fizerem, é
+ * exactamente o que o enunciado desta tarefa chama «um guarda indistinguível de
+ * um partido».
  *
  * Por isso o mecanismo tem duas metades, e é uma só coisa:
  *
- *  1. **No processo** — `dns.lookup`, `dns.promises.lookup`, `net.Socket.prototype.connect`,
- *     `tls.connect` e `fetch` são substituídos. Cada tentativa para fora do
- *     loopback é REGISTADA e a seguir ATIRA. Contar e bloquear na mesma camada
+ *  1. **No processo** — a lista de saídas está em `rede-zero-apis.cjs` e é
+ *     instalada aqui e dentro dos filhos pelo MESMO instalador. Cada tentativa
+ *     para fora é REGISTADA e a seguir ATIRA. Contar e bloquear na mesma camada
  *     é deliberado: se só contasse, um produtor podia falar para fora e o
- *     relatório dizia «1 chamada» com os dados já enviados. Loopback e IPC
- *     (named pipes, sockets unix) são registados à parte e deixados passar —
- *     é a mesma linha que o `runner-core.assertLocalEngine` já traça, e o
- *     próprio painel do cockpit vive em loopback.
+ *     relatório dizia «1 chamada» com os dados já enviados. Loopback e IPC são
+ *     registados à parte e deixados passar — é a mesma linha que o
+ *     `runner-core.assertLocalEngine` já traça, e o painel do cockpit vive em
+ *     loopback.
  *
  *  2. **Nos filhos** — `child_process.spawn/execFile/exec` (e as variantes
  *     síncronas) passam por um ponto único que REGISTA o filho com o seu argv.
- *     Um produtor não consegue nascer sem ficar no registo. E cada filho tem de
- *     trazer a sua própria medição, numa de quatro qualidades:
+ *     E cada filho tem de trazer a sua própria medição, numa de quatro
+ *     qualidades:
  *
  *       · `bloqueado`     — o processo correu dentro de um espaço de nomes de
  *                           rede sem interfaces (`unshare -rn` no WSL). Não é
  *                           observação, é construção: não há rota nenhuma para
  *                           haver chamada. É o caminho do semgrep, e é o mais
  *                           forte, porque a tabela de sockets do Windows NÃO VÊ
- *                           para dentro da VM do WSL — sondar `wsl.exe` daria
- *                           zero por cegueira, a pior espécie de zero.
- *       · `instrumentado` — a sentinela (`rede-zero-sentinela.cjs`) entrou no
- *                           filho por `NODE_OPTIONS=--require` e interceptou lá
- *                           dentro. Não há janela para escapar: a prova é por
- *                           intercepção, não por amostragem. Só cobre as APIs de
- *                           JavaScript — um addon nativo dentro desse processo
- *                           (o motor do `jscpd@5` é um) só é coberto pela sonda.
- *       · `sondado`       — a tabela de sockets do SO foi lida pelo PID do filho,
- *                           N vezes durante a vida dele. É observação: uma
- *                           ligação curta entre duas amostras escapa. Medido a
- *                           2026-08-26, uma amostra custa ~550 ms e o jscpd corre
- *                           em 211 ms — foi por isto que a sentinela teve de
- *                           existir, e a primeira corrida a sério deu `n/d`.
- *       · `n/d`           — não se conseguiu medir. Zero amostras e sem
- *                           sentinela, PID desconhecido (variante síncrona),
- *                           plataforma sem sonda.
+ *                           para dentro da VM do WSL.
+ *       · `instrumentado` — a sentinela entrou no filho por
+ *                           `NODE_OPTIONS=--require` e interceptou lá dentro.
+ *                           **Só vale como medição completa se a camada nativa
+ *                           desse processo também estiver coberta** — ver
+ *                           abaixo.
+ *       · `sondado`       — a tabela de sockets do SO foi lida pelo PID do
+ *                           filho, N vezes durante a vida dele. É observação:
+ *                           uma ligação curta entre duas amostras escapa.
+ *                           Medido a 2026-08-26, uma amostra custa ~550 ms e o
+ *                           jscpd corre em 211 ms.
+ *       · `n/d`           — não se conseguiu medir.
  *
- *     Uma saída vista por qualquer destas vias — incluindo a de um NETO, um
- *     processo que este ramo não registou mas que herdou a sentinela — derruba o
- *     veredicto. Estar um nível abaixo não é estar de fora.
+ * ── A CORRECÇÃO DE 2026-08-26: A PROMOÇÃO QUE APAGAVA O `n/d` ──────────────
  *
- * E daí sai um resultado de TRÊS estados, que é a parte que impede este ficheiro
- * de mentir a favor:
+ * Até hoje, a linha que dizia «sentinela-carregada» promovia o filho de `n/d`
+ * (ou de `sondado` com zero amostras) para `instrumentado`, incondicionalmente.
+ * Uma lente adversarial mostrou o que isso faz: o jscpd — cujo motor é um addon
+ * NATIVO de 3,7 MB, que a sentinela por construção não vê — saía do relatório
+ * como `instrumentado`, ou seja «plenamente medido», tendo a sonda do SO tirado
+ * ZERO amostras. O mecanismo escrito para impedir que «não medi» virasse «medi
+ * zero» era o que estava a fazê-lo.
  *
- *      rede_zero = false  há tentativa registada, ou um filho com remoto observado
- *      rede_zero = null   nasceu um filho que NÃO se conseguiu medir
- *      rede_zero = true   zero tentativas e TODOS os filhos medidos a zero
+ * A promoção continua a existir, mas deixou de ser um acto de fé: a sentinela
+ * instrumenta `process.dlopen` — o ponto único por onde um addon nativo entra
+ * num processo Node — e o filho ANUNCIA quantos carregou. Daí saem três casos,
+ * e só dois deles são medição:
  *
- * `null` não é `true`. Não medido nunca é medido-zero — é a mesma regra que o
- * F0 impôs ao índice do harness («componente que não se consegue medir vale zero
- * e diz porquê») e a mesma que o `lerDetector` já impõe ao painel.
+ *   sentinela + 0 addons                     → `instrumentado`. O processo correu
+ *                                              100% em JavaScript; a intercepção
+ *                                              é cobertura completa, sem janela.
+ *   sentinela + N addons + ≥1 amostra da sonda → `instrumentado`. A camada de JS
+ *                                              por intercepção, a nativa por
+ *                                              observação, e o número de amostras
+ *                                              viaja no relatório.
+ *   sentinela + N addons + 0 amostras        → `n/d`. É o caso do jscpd. A camada
+ *                                              onde o trabalho corre não foi
+ *                                              observada nem uma vez, e dizer
+ *                                              «medido» seria a mentira exacta
+ *                                              que este ficheiro veio impedir.
  *
- * O que isto NÃO prova, e fica escrito para ninguém o vender melhor do que é:
- * não bloqueia a rede aos filhos ao nível do SO (isso exigia regra de firewall,
- * ou seja, administrador). O que faz aos filhos é (a) dar-lhes um ambiente
- * hostil — todas as variáveis de proxy apontadas a uma porta fechada do loopback
- * — e (b) exigir que cada um traga medição própria ou se declare `n/d`.
+ * ── DESCENDENTES QUE ESTE RAMO NÃO REGISTOU ────────────────────────────────
+ *
+ * O comentário que aqui estava dizia «um produtor não consegue nascer sem ficar
+ * no registo». Era FALSO e foi medido: `import { spawn } from 'node:child_process'`
+ * captura a referência no carregamento do módulo e passa ao lado da substituição
+ * (`import{spawn} vê a substituição? false`). Um filho assim não aparecia em
+ * `auditoria.filhos` e o veredicto era `true` com um processo por medir.
+ *
+ * Não há forma de fechar isso do lado do `child_process` — uma referência já
+ * capturada é uma referência já capturada. O que se faz agora é apanhá-lo do
+ * outro lado: durante a medição, o `NODE_OPTIONS` do PRÓPRIO processo leva a
+ * sentinela, portanto qualquer descendente Node que herde o ambiente
+ * ANUNCIA-SE, tenha nascido pelo ponto de registo ou não. Fica em
+ * `auditoria.descendentes`, com as mesmas regras de camada. O que continua a
+ * escapar, e fica escrito: um descendente que NÃO seja Node, ou que receba um
+ * ambiente montado à mão sem `NODE_OPTIONS`, nascido por uma referência
+ * capturada. Para os produtores deste repositório isso está trancado por um
+ * teste que exige `spawnVivo` nos três adaptadores.
+ *
+ * E daí sai um resultado de TRÊS estados:
+ *
+ *      rede_zero = false  há tentativa registada, ou um descendente com saída
+ *      rede_zero = null   nasceu um processo que NÃO se conseguiu medir
+ *      rede_zero = true   zero tentativas e TODOS os processos medidos a zero
+ *
+ * `null` não é `true`. Não medido nunca é medido-zero.
+ *
+ * O que isto NÃO prova: não bloqueia a rede aos filhos ao nível do SO (isso
+ * exigia regra de firewall, ou seja, administrador). O que faz aos filhos é
+ * (a) dar-lhes um ambiente hostil e (b) exigir que cada um traga medição própria
+ * ou se declare `n/d`.
  */
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import net from 'node:net';
-import tls from 'node:tls';
-import dns from 'node:dns';
 import child_process from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+
+const require_ = createRequire(import.meta.url);
+const apis = require_('./rede-zero-apis.cjs');
 
 /**
  * Porta do loopback escolhida para onde apontar os proxies dos filhos. Não tem
@@ -100,37 +135,27 @@ export const PORTA_PROXY_MORTA = 9;
 export const INTERVALO_SONDA_MS = 250;
 
 /**
- * A ÚNICA definição de "isto não sai da máquina" deste ramo, escrita como fonte
- * de regex de propósito: a sentinela que corre DENTRO dos filhos recebe-a por
- * ambiente (`REDE_ZERO_LOOPBACK_RE`) em vez de trazer uma cópia sua. Duas
- * definições de loopback seriam duas fronteiras diferentes para a mesma
- * pergunta, e a que divergisse seria descoberta tarde.
+ * A ÚNICA definição de "isto não sai da máquina" deste ramo. Vive em
+ * `rede-zero-apis.cjs` porque a sentinela que corre dentro dos filhos precisa da
+ * mesma, e recebe-a por ambiente (`REDE_ZERO_INERTE_RE`) em vez de trazer uma
+ * cópia sua.
+ *
+ * Inclui os endereços NÃO-ESPECIFICADOS (`0.0.0.0`, `::`, `*`). Até 2026-08-26
+ * havia duas definições — `ehLoopback` sem eles e `remotoInerte` com eles — e a
+ * divergência produzia um falso positivo medido: `dgram.bind(0)`, um socket
+ * local sem destino nenhum, passa por `dns.lookup('0.0.0.0')` e o veredicto ia a
+ * `false` com a corrida morta por dentro.
  */
-export const RE_LOOPBACK = String.raw`^(localhost|127\.[0-9.]+|::1|0:0:0:0:0:0:0:1|)$`;
+export const RE_INERTE = apis.RE_INERTE;
+export const METODOS_RESOLVER = apis.METODOS_RESOLVER;
+/** O instalador partilhado. Exportado para que o teste de PARIDADE o possa contar. */
+export const instalarGuardas = apis.instalarGuardas;
 
-const _reLoopback = new RegExp(RE_LOOPBACK, 'i');
-
-/**
- * Loopback não é rede. A mesma fronteira que o `assertLocalEngine` já usa —
- * mudar de opinião aqui tornaria o painel do próprio cockpit numa violação.
- * `0.0.0.0` e `::` contam como loopback SÓ do lado remoto de uma sonda, onde
- * significam "à escuta", nunca como destino de um connect.
- */
-export function ehLoopback(host) {
-  if (host === null || host === undefined) return true;
-  return _reLoopback.test(String(host).trim().toLowerCase().replace(/^\[|\]$/g, ''));
-}
+/** Loopback (e o não-especificado) não é rede. Uma fronteira, um predicado. */
+export const ehInerte = apis.fazEhInerte(RE_INERTE);
 
 /** O ficheiro `.cjs` que os filhos Node carregam com `--require`. */
 export const SENTINELA = fileURLToPath(new URL('./rede-zero-sentinela.cjs', import.meta.url));
-
-/** Um destino que a sonda do SO devolve e que não conta como saída. */
-function remotoInerte(addr) {
-  const a = String(addr || '').trim();
-  if (!a) return true;
-  if (a === '0.0.0.0' || a === '::' || a === '*') return true;
-  return ehLoopback(a);
-}
 
 export class RedeBloqueada extends Error {
   constructor(api, alvo) {
@@ -141,31 +166,9 @@ export class RedeBloqueada extends Error {
   }
 }
 
-/**
- * Extrai o destino de um `Socket.prototype.connect`, que aceita três formas.
- * Devolve `{ tipo, alvo }`, com `tipo` em `rede | loopback | ipc`.
- */
+/** Extrai o destino de um `Socket.prototype.connect`. Ver `rede-zero-apis.cjs`. */
 export function alvoDoConnect(args) {
-  const a0 = args[0];
-  // MEDIDO a 2026-08-26, e não estava na cabeça de ninguém: `net.connect(porta,
-  // host)` normaliza os argumentos ANTES de chamar `Socket.prototype.connect`, e
-  // o que chega cá é UM argumento só — o array `[{port,host}, cb]`. Sem este
-  // ramo, o destino lia-se como `localhost`, o connect passava por loopback, e a
-  // saída só era apanhada mais à frente pelo `dns.lookup`. Um guarda que apanha a
-  // segunda porta em vez da primeira ainda apanha; um que só tivesse a primeira
-  // não apanhava nada.
-  if (Array.isArray(a0)) return alvoDoConnect(a0);
-  if (typeof a0 === 'string') return { tipo: 'ipc', alvo: a0 };
-  if (a0 && typeof a0 === 'object') {
-    if (a0.path) return { tipo: 'ipc', alvo: String(a0.path) };
-    const host = a0.host ?? a0.hostname ?? 'localhost';
-    const alvo = `${host}:${a0.port ?? '?'}`;
-    return { tipo: ehLoopback(host) ? 'loopback' : 'rede', alvo };
-  }
-  const porta = a0;
-  const host = typeof args[1] === 'string' ? args[1] : 'localhost';
-  const alvo = `${host}:${porta ?? '?'}`;
-  return { tipo: ehLoopback(host) ? 'loopback' : 'rede', alvo };
+  return apis.alvoDoConnect(args, ehInerte);
 }
 
 /**
@@ -198,7 +201,7 @@ export function sondaWindows(spawnOriginal) {
     });
     if (saida === null) return null;
     const [tcp, udp] = String(saida).split('|');
-    const remotos = String(tcp || '').split(',').map((s) => s.trim()).filter((s) => s && !remotoInerte(s));
+    const remotos = String(tcp || '').split(',').map((s) => s.trim()).filter((s) => s && !ehInerte(s));
     return { remotos, udp: Number(udp) || 0 };
   };
 }
@@ -216,8 +219,7 @@ export function ambienteHostil(base = process.env, porta = PORTA_PROXY_MORTA, { 
   // Barras PARA A FRENTE, e não é cosmética: MEDIDO a 2026-08-26, o parser do
   // `NODE_OPTIONS` trata `\` como escape dentro de aspas, e o caminho do Windows
   // chegou ao filho como `C:UsersPaulo Loureiro...` — o knip e o jscpd morreram
-  // ambos com `Cannot find module`. O Node aceita barras para a frente no
-  // Windows; o parser de opções é que não aceita as invertidas.
+  // ambos com `Cannot find module`.
   const nodeOptions = registo
     ? `${base.NODE_OPTIONS ? `${base.NODE_OPTIONS} ` : ''}--require "${String(sentinela).split('\\').join('/')}"`
     : base.NODE_OPTIONS;
@@ -231,7 +233,7 @@ export function ambienteHostil(base = process.env, porta = PORTA_PROXY_MORTA, { 
     SEMGREP_SEND_METRICS: 'off',
     DO_NOT_TRACK: '1',
     npm_config_offline: 'true',
-    ...(registo ? { NODE_OPTIONS: nodeOptions, REDE_ZERO_REGISTO: registo, REDE_ZERO_LOOPBACK_RE: RE_LOOPBACK } : {}),
+    ...(registo ? { NODE_OPTIONS: nodeOptions, REDE_ZERO_REGISTO: registo, REDE_ZERO_INERTE_RE: RE_INERTE } : {}),
   };
 }
 
@@ -249,12 +251,43 @@ export function lerRegistoDosFilhos(caminho, { readImpl = fs.readFileSync } = {}
     let e;
     try { e = JSON.parse(linha); } catch { partidas += 1; continue; }
     if (!e || !Number.isInteger(e.pid)) { partidas += 1; continue; }
-    if (!porPid.has(e.pid)) porPid.set(e.pid, { carregada: false, saidas: [] });
+    if (!porPid.has(e.pid)) porPid.set(e.pid, { carregada: false, saidas: [], addons: [], apis: null });
     const r = porPid.get(e.pid);
-    if (e.ev === 'sentinela-carregada') r.carregada = true;
+    // `apis` é quantos pontos de saída a sentinela instalou LÁ DENTRO. É o que
+    // torna a paridade com o pai verificável através da fronteira do processo,
+    // em vez de ser uma promessa de que os dois ficheiros estão de acordo.
+    if (e.ev === 'sentinela-carregada') { r.carregada = true; r.apis = Number.isInteger(e.apis) ? e.apis : null; }
     else if (e.ev === 'saida') r.saidas.push({ api: e.api, alvo: e.alvo });
+    // A camada NATIVA do filho: cada `.node` que ele carregou. Zero destes é a
+    // única prova de que a intercepção de JavaScript cobre o processo inteiro.
+    else if (e.ev === 'nativo') r.addons.push(String(e.ficheiro || '?'));
   }
   return { porPid, partidas };
+}
+
+/**
+ * Aplica as regras de camada a um processo com sentinela carregada. Separada
+ * para poder ser testada sem correr nada — é aqui que mora a decisão que a
+ * lente adversarial derrubou.
+ */
+export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0 }) {
+  const js = `${saidas.length} saída(s) de JavaScript interceptada(s)`;
+  if (addons.length === 0) {
+    return {
+      estado: 'instrumentado',
+      porque: `sentinela dentro do processo: ${js}; ZERO addons nativos carregados, portanto não sobra camada por observar`,
+    };
+  }
+  if (amostras > 0) {
+    return {
+      estado: 'instrumentado',
+      porque: `sentinela dentro do processo: ${js}; ${addons.length} addon(s) nativo(s) cobertos por ${amostras} amostra(s) da sonda do SO`,
+    };
+  }
+  return {
+    estado: 'n/d',
+    porque: `a camada de JavaScript foi interceptada (${js}), mas o processo carregou ${addons.length} addon(s) nativo(s) e a sonda do SO não tirou UMA amostra: a camada onde esse código corre não foi observada`,
+  };
 }
 
 /**
@@ -262,8 +295,11 @@ export function lerRegistoDosFilhos(caminho, { readImpl = fs.readFileSync } = {}
  * para poder ser testado sem correr nada — é a função que tem de recusar
  * transformar "não medi" em "medi zero".
  */
-export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], netos = [] } = {}) {
-  const naoMedidos = filhos.filter((f) => f.sonda.estado === 'n/d');
+export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], descendentes = [] } = {}) {
+  // Um descendente com saída é o antigo "neto": um processo que este ramo não
+  // registou mas que a sentinela viu. Estar um nível abaixo não é estar de fora.
+  const netos = descendentes.flatMap((d) => (d.sonda.saidas || []).map((s) => ({ pid: d.pid, ...s })));
+  const naoMedidos = [...filhos, ...descendentes].filter((f) => f.sonda.estado === 'n/d');
   // Um destino visto pela sonda do SO e um destino que a sentinela apanhou
   // DENTRO do filho contam o mesmo: os dois são saída observada.
   const comRemoto = filhos.filter((f) => (f.sonda.remotos || []).length > 0 || (f.sonda.saidas || []).length > 0);
@@ -277,20 +313,17 @@ export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], n
     rede_zero = false;
     porque = `${comRemoto.length} filho(s) com destino remoto observado: ${comRemoto.map((f) => `${f.cmd}→${[...(f.sonda.remotos || []), ...(f.sonda.saidas || []).map((x) => x.alvo)].join('/')}`).join(', ')}`;
   } else if (netos.length > 0) {
-    // Um processo que a sentinela viu mas que este ramo não registou como filho
-    // é um NETO (um filho de um filho). Não se descarta: uma saída é uma saída,
-    // venha de que profundidade vier.
     rede_zero = false;
     porque = `${netos.length} saída(s) de processos descendentes: ${netos.map((n) => `pid ${n.pid}→${n.alvo}`).join(', ')}`;
   } else if (naoMedidos.length > 0) {
     rede_zero = null;
-    porque = `${naoMedidos.length} de ${filhos.length} filho(s) sem medição — ${naoMedidos.map((f) => `${f.cmd}: ${f.sonda.porque}`).join('; ')}`;
+    porque = `${naoMedidos.length} de ${filhos.length + descendentes.length} processo(s) sem medição — ${naoMedidos.map((f) => `${f.cmd}: ${f.sonda.porque}`).join('; ')}`;
   } else {
     rede_zero = true;
-    porque = filhos.length === 0
+    porque = (filhos.length + descendentes.length) === 0
       ? '0 tentativas de saída no processo e nenhum filho nasceu'
-      : `0 tentativas de saída no processo; ${filhos.length} filho(s), todos medidos: `
-        + filhos.map((f) => `${f.cmd}=${f.sonda.estado}${f.sonda.estado === 'sondado' ? `(${f.sonda.amostras} amostra(s))` : ''}`).join(', ');
+      : `0 tentativas de saída no processo; ${filhos.length + descendentes.length} processo(s), todos medidos: `
+        + [...filhos, ...descendentes].map((f) => `${f.cmd}=${f.sonda.estado}${f.sonda.estado === 'sondado' ? `(${f.sonda.amostras} amostra(s))` : ''}`).join(', ');
   }
 
   return {
@@ -300,6 +333,7 @@ export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], n
     loopback_permitido: loopback.length,
     ipc_permitido: ipc.length,
     filhos,
+    descendentes,
     netos,
   };
 }
@@ -307,8 +341,8 @@ export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], n
 /**
  * Corre `fn` com a instrumentação ligada e devolve `{ resultado, auditoria }`.
  *
- * `fn` recebe um contexto com `registarFilho` — é assim que um adaptador que
- * SABE medir-se a si próprio (o do semgrep, com `unshare -rn`) declara a sua
+ * `fn` recebe um contexto com `declararFilhoMedido` — é assim que um adaptador
+ * que SABE medir-se a si próprio (o do semgrep, com `unshare -rn`) declara a sua
  * medição em vez de ficar à mercê de uma sonda que não o consegue ver.
  */
 export async function medirRede(fn, {
@@ -329,11 +363,6 @@ export async function medirRede(fn, {
   // sempre.
   const spawnOriginal = child_process.spawn;
   const originais = {
-    dnsLookup: dns.lookup,
-    dnsPromisesLookup: dns.promises.lookup,
-    socketConnect: net.Socket.prototype.connect,
-    tlsConnect: tls.connect,
-    fetch: globalThis.fetch,
     spawn: child_process.spawn,
     spawnSync: child_process.spawnSync,
     execFile: child_process.execFile,
@@ -347,46 +376,24 @@ export async function medirRede(fn, {
     ? null
     : (plataforma === 'win32' ? null : `sem sonda de sockets para a plataforma ${plataforma}`);
 
-  // Duas formas de recusar, e só UMA forma de registar. A separação existe
-  // porque a primeira versão deste ficheiro rejeitava as promessas (`fetch`,
-  // `dns.promises`) sem passar pelo registo: recusava a chamada e depois dizia
-  // `rede_zero: true`, que é a mentira exacta que este ficheiro veio impedir.
-  // Apanhado pelo teste de mordida do `fetch`, não pela leitura.
-  const anotar = (api, alvo) => {
-    chamadas.push({ api, alvo, ts: new Date().toISOString() });
-    return new RedeBloqueada(api, alvo);
-  };
-  const registar = (api, alvo) => { throw anotar(api, alvo); };
+  // O ambiente dos filhos é calculado com o `process.env` de ANTES da mutação
+  // abaixo — senão o `--require` entrava duas vezes.
+  const ambiente = ambienteHostil(process.env, PORTA_PROXY_MORTA, { registo });
 
   // ── camada 1: as saídas do próprio processo ──────────────────────────────
-
-  dns.lookup = function (hostname, ...resto) {
-    if (ehLoopback(hostname)) { loopback.push({ api: 'dns.lookup', alvo: String(hostname) }); return originais.dnsLookup.call(this, hostname, ...resto); }
-    return registar('dns.lookup', String(hostname));
-  };
-  dns.promises.lookup = function (hostname, ...resto) {
-    if (ehLoopback(hostname)) { loopback.push({ api: 'dns.promises.lookup', alvo: String(hostname) }); return originais.dnsPromisesLookup.call(this, hostname, ...resto); }
-    return Promise.reject(anotar('dns.promises.lookup', String(hostname)));
-  };
-  net.Socket.prototype.connect = function (...args) {
-    const { tipo, alvo } = alvoDoConnect(args);
-    if (tipo === 'ipc') { ipc.push({ api: 'net.connect', alvo }); return originais.socketConnect.apply(this, args); }
-    if (tipo === 'loopback') { loopback.push({ api: 'net.connect', alvo }); return originais.socketConnect.apply(this, args); }
-    return registar('net.connect', alvo);
-  };
-  tls.connect = function (...args) {
-    const { tipo, alvo } = alvoDoConnect(args);
-    if (tipo === 'rede') return registar('tls.connect', alvo);
-    loopback.push({ api: 'tls.connect', alvo });
-    return originais.tlsConnect.apply(this, args);
-  };
-  globalThis.fetch = function (entrada, ...resto) {
-    let alvo = String(entrada && entrada.url ? entrada.url : entrada);
-    let host = alvo;
-    try { host = new URL(alvo).hostname; } catch { /* url relativa: não é saída */ }
-    if (ehLoopback(host)) { loopback.push({ api: 'fetch', alvo }); return originais.fetch.call(globalThis, entrada, ...resto); }
-    return Promise.reject(anotar('fetch', alvo));
-  };
+  //
+  // Uma só lista de APIs, partilhada com a sentinela dos filhos. A separação
+  // entre "registar" e "recusar" existe porque a primeira versão deste ficheiro
+  // rejeitava as promessas (`fetch`, `dns.promises`) sem passar pelo registo:
+  // recusava a chamada e depois dizia `rede_zero: true`.
+  const guardas = apis.instalarGuardas({
+    ehInerte,
+    aoSaida: (api, alvo) => {
+      chamadas.push({ api, alvo, ts: new Date().toISOString() });
+      return new RedeBloqueada(api, alvo);
+    },
+    aoLocal: (api, alvo) => { (api === 'ipc' ? ipc : loopback).push({ api: api === 'ipc' ? 'net.connect' : api, alvo }); },
+  });
 
   // ── camada 2: o ponto único por onde os filhos nascem ────────────────────
 
@@ -397,14 +404,19 @@ export async function medirRede(fn, {
       cmd: String(cmd),
       args: (args || []).map(String),
       pid: null,
-      sonda: { estado: 'n/d', remotos: [], udp_max: 0, amostras: 0, porque: 'ainda não medido' },
+      sonda: {
+        estado: 'n/d', remotos: [], udp_max: 0, amostras: 0, porque: 'ainda não medido',
+        js: 'n/d', nativo: 'n/d', addons: [], saidas: [],
+      },
       ...extra,
     };
     filhos.push(r);
     return r;
   };
 
-  const declararNaoMedivel = (r, porque) => { r.sonda = { estado: 'n/d', remotos: [], udp_max: 0, amostras: 0, porque }; };
+  const declararNaoMedivel = (r, porque) => {
+    r.sonda = { ...r.sonda, estado: 'n/d', remotos: [], udp_max: 0, amostras: 0, porque };
+  };
 
   child_process.spawn = function (cmd, args, opts) {
     const r = novoRegisto(cmd, Array.isArray(args) ? args : []);
@@ -413,7 +425,7 @@ export async function medirRede(fn, {
     if (!sonda) declararNaoMedivel(r, motivoSemSonda || 'sem sonda disponível');
     else if (r.pid === null) declararNaoMedivel(r, 'o processo não devolveu PID');
     else {
-      r.sonda = { estado: 'sondado', remotos: [], udp_max: 0, amostras: 0, porque: null };
+      r.sonda = { ...r.sonda, estado: 'sondado', porque: null };
       vivos.set(r.pid, r);
       filho.on('exit', () => vivos.delete(r.pid));
       filho.on('error', () => vivos.delete(r.pid));
@@ -447,6 +459,21 @@ export async function medirRede(fn, {
     return originais.execSync.call(this, linha, ...resto);
   };
 
+  // ── camada 3: os descendentes que NÃO nascem pelo ponto de registo ───────
+  //
+  // Uma referência ao `spawn` capturada no import passa ao lado da camada 2 —
+  // medido, e é o defeito que o comentário antigo negava. Pondo a sentinela no
+  // `NODE_OPTIONS` do PRÓPRIO processo, qualquer descendente Node que herde o
+  // ambiente anuncia-se à mesma. Restaurado no `finally`.
+  const envAntes = registo
+    ? { NODE_OPTIONS: process.env.NODE_OPTIONS, REDE_ZERO_REGISTO: process.env.REDE_ZERO_REGISTO, REDE_ZERO_INERTE_RE: process.env.REDE_ZERO_INERTE_RE }
+    : null;
+  if (registo) {
+    process.env.NODE_OPTIONS = ambiente.NODE_OPTIONS;
+    process.env.REDE_ZERO_REGISTO = registo;
+    process.env.REDE_ZERO_INERTE_RE = RE_INERTE;
+  }
+
   let aSondar = false;
   const amostrar = async () => {
     if (aSondar || !sonda) return;
@@ -473,24 +500,40 @@ export async function medirRede(fn, {
       // sondar `wsl.exe` daria um zero cego.
       declararFilhoMedido: ({ cmd, args = [], estado, porque, amostras = 1 }) => {
         const r = novoRegisto(cmd, args, { declarado: true });
-        r.sonda = { estado, remotos: [], udp_max: 0, amostras, porque };
+        r.sonda = { ...r.sonda, estado, amostras, porque };
         return r;
       },
-      ambiente: ambienteHostil(process.env, PORTA_PROXY_MORTA, { registo }),
+      // Marca um filho JÁ REGISTADO, pelo PID com que nasceu.
+      //
+      // `declararFilhoMedido` cria um registo NOVO, e é isso que estava a
+      // inflacionar a cardinalidade: o processo do semgrep contava duas vezes —
+      // uma como `sondado` (a leitura cega da tabela de sockets do Windows,
+      // que não vê para dentro da VM do WSL) e outra como `bloqueado`. «5
+      // filhos, TODOS medidos» tinha denominador 4 e incluía duas observações
+      // cegas rotuladas como medições. Aqui há um processo e um registo.
+      marcarFilhoPorPid: (pid, { estado, porque, amostras = 1 }) => {
+        const r = filhos.find((f) => f.pid !== null && f.pid === pid);
+        if (!r) return null;
+        r.declarado = true;
+        r.sonda = { ...r.sonda, estado, amostras, porque };
+        return r;
+      },
+      ambiente,
     });
   } finally {
     if (relogio) clearInterval(relogio);
-    dns.lookup = originais.dnsLookup;
-    dns.promises.lookup = originais.dnsPromisesLookup;
-    net.Socket.prototype.connect = originais.socketConnect;
-    tls.connect = originais.tlsConnect;
-    globalThis.fetch = originais.fetch;
+    guardas.restaurar();
     child_process.spawn = originais.spawn;
     child_process.spawnSync = originais.spawnSync;
     child_process.execFile = originais.execFile;
     child_process.execFileSync = originais.execFileSync;
     child_process.exec = originais.exec;
     child_process.execSync = originais.execSync;
+    if (envAntes) {
+      for (const [k, v] of Object.entries(envAntes)) {
+        if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
+    }
   }
 
   // A sentinela dos filhos: prova por INTERCEPÇÃO, não por amostragem. Uma
@@ -498,23 +541,40 @@ export async function medirRede(fn, {
   // mesmo lá dentro; sem ela não se conclui nada, porque um ficheiro vazio é
   // igual quer o filho tenha estado calado quer a sentinela nunca tenha entrado.
   const { porPid } = lerRegistoDosFilhos(registo);
-  const netos = [];
   const pidsDeFilhos = new Set(filhos.map((f) => f.pid).filter((x) => x !== null));
   for (const r of filhos) {
     const v = r.pid !== null ? porPid.get(r.pid) : null;
     if (!v || !v.carregada) continue;
     r.sonda.saidas = v.saidas;
+    r.sonda.addons = v.addons;
+    r.sonda.apis = v.apis;
+    r.sonda.js = 'intercetado';
+    r.sonda.nativo = v.addons.length === 0 ? 'sem-addons' : `${v.addons.length} addon(s)`;
     r.sonda.instrumentado = true;
-    if (r.sonda.estado === 'n/d' || r.sonda.estado === 'sondado') {
-      r.sonda.estado = 'instrumentado';
-      r.sonda.porque = r.sonda.amostras > 0
-        ? `sentinela dentro do processo (${v.saidas.length} saída(s)) + ${r.sonda.amostras} amostra(s) da sonda do SO`
-        : `sentinela dentro do processo: ${v.saidas.length} saída(s) de JavaScript interceptada(s)`;
+    // NUNCA se rebaixa um `bloqueado` (prova por construção) nem se toca no que
+    // o adaptador declarou. E a promoção só acontece pelas regras de camada.
+    if (!r.declarado && (r.sonda.estado === 'n/d' || r.sonda.estado === 'sondado')) {
+      const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: r.sonda.amostras });
+      r.sonda.estado = c.estado;
+      r.sonda.porque = c.porque;
     }
   }
+
+  const descendentes = [];
   for (const [pid, v] of porPid) {
-    if (pidsDeFilhos.has(pid)) continue;
-    for (const sa of v.saidas) netos.push({ pid, ...sa });
+    if (pidsDeFilhos.has(pid) || !v.carregada) continue;
+    // Nunca foi sondado: este ramo não soube o PID a tempo. Logo `amostras: 0`.
+    const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: 0 });
+    descendentes.push({
+      cmd: `descendente não registado (pid ${pid})`,
+      pid,
+      args: [],
+      sonda: {
+        estado: c.estado, porque: c.porque, remotos: [], udp_max: 0, amostras: 0,
+        js: 'intercetado', nativo: v.addons.length === 0 ? 'sem-addons' : `${v.addons.length} addon(s)`,
+        addons: v.addons, saidas: v.saidas, instrumentado: true,
+      },
+    });
   }
   try { fs.unlinkSync(registo); } catch { /* o registo é temporário; apagá-lo não pode falhar a corrida */ }
 
@@ -526,5 +586,5 @@ export async function medirRede(fn, {
     }
   }
 
-  return { resultado, auditoria: auditar({ chamadas, loopback, ipc, filhos, netos }) };
+  return { resultado, auditoria: auditar({ chamadas, loopback, ipc, filhos, descendentes }) };
 }
