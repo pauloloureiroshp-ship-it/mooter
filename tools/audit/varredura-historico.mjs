@@ -32,14 +32,23 @@
  *
  * ── PUBLICO vs LOCAL ────────────────────────────────────────────────────────
  *
- * `--refs all` (por omissao) ve tudo o que qualquer ref alcanca, incluindo
- * branches locais que nunca foram empurradas. `--refs origin` ve so o que esta
- * mesmo em `origin` — que e o que esta mesmo no mundo. Os dois numeros
- * interessam e sao diferentes: o primeiro e o risco, o segundo e o incidente.
+ * Tres ambitos, e a diferenca entre eles e a diferenca entre tres perguntas:
+ *
+ *   `--refs origin`  o que esta MESMO no mundo (clonavel por qualquer pessoa)
+ *   `--refs all`     + branches locais que nunca foram empurradas — o risco
+ *   `--refs todos`   + objectos SOLTOS (rebases, amends, branches apagadas).
+ *                    Nao sao clonaveis por ninguem, mas respondem a "isto
+ *                    alguma vez existiu nesta maquina?". Medido a 2026-08-26:
+ *                    1 571 blobs e 242 commits fora do alcance de `--all`.
+ *
+ * Em qualquer ambito lem-se tambem as MENSAGENS de commit e de tag. Um token
+ * colado numa mensagem de commit e tao publico como um token num ficheiro, e a
+ * primeira versao desta ferramenta nunca olhou para nenhuma.
  *
  * Uso:
  *   node tools/audit/varredura-historico.mjs                # refs=all
  *   node tools/audit/varredura-historico.mjs --refs origin  # so o que foi empurrado
+ *   node tools/audit/varredura-historico.mjs --refs todos   # + objectos soltos
  *   node tools/audit/varredura-historico.mjs --json
  *   node tools/audit/varredura-historico.mjs --repo <dir>
  *
@@ -105,15 +114,56 @@ export function lerDeclarados(caminho, { readImpl = fs.readFileSync } = {}) {
   }
   const mapa = new Map();
   const recusadas = [];
-  for (const [blob, motivo] of Object.entries((j && j.declarados) || {})) {
+  for (const [blob, e] of Object.entries((j && j.declarados) || {})) {
     if (!/^[0-9a-f]{40}$/.test(blob)) { recusadas.push({ blob, porque: 'nao e um sha de blob' }); continue; }
-    if (typeof motivo !== 'string' || motivo.trim().length < 20) {
+    if (!e || typeof e !== 'object' || Array.isArray(e)) {
+      recusadas.push({ blob, porque: 'entrada tem de ser um objecto com motivo, tipos e n' });
+      continue;
+    }
+    if (typeof e.motivo !== 'string' || e.motivo.trim().length < 20) {
       recusadas.push({ blob, porque: 'motivo ausente ou curto demais' });
       continue;
     }
-    mapa.set(blob, motivo.trim());
+    if (!Array.isArray(e.tipos) || e.tipos.length === 0 || !e.tipos.every((x) => typeof x === 'string' && x)) {
+      recusadas.push({ blob, porque: 'tipos ausentes — declarar sem dizer O QUE se declara nao vale' });
+      continue;
+    }
+    if (!Number.isInteger(e.n) || e.n < 1) {
+      recusadas.push({ blob, porque: 'n ausente ou invalido' });
+      continue;
+    }
+    mapa.set(blob, { motivo: e.motivo.trim(), tipos: [...e.tipos].sort(), n: e.n });
   }
   return { mapa, recusadas };
+}
+
+/**
+ * Uma declaracao so vale se descrever o que esta la.
+ *
+ * Uma allowlist e sempre abusavel — o adversario descreveu o caminho mais curto:
+ * commitar a credencial, `git hash-object`, e escrever no JSON qualquer mentira
+ * de vinte caracteres. Isso NAO se elimina com codigo: elimina-se com revisao.
+ * O que o codigo pode fazer e **encarecer a mentira**, obrigando-a a ser
+ * especifica.
+ *
+ * Com `tipos` e `n` obrigatorios, quem quiser esconder uma chave da Anthropic
+ * tem de escrever `"tipos": ["anthropic-api-key"], "n": 1` na mesma linha em que
+ * escreve "e um fixture". Fica no diff, ao lado da frase que o contradiz. Uma
+ * declaracao vaga passava despercebida; esta tem de ser lida para ser escrita.
+ *
+ * E se a forma nao bater, a declaracao NAO se aplica — o achado fica com o nivel
+ * que tinha, e a discrepancia e reportada.
+ */
+export function declaracaoBate(decl, achadosDoBlob) {
+  if (!decl) return { bate: false, porque: null };
+  const tipos = [...new Set(achadosDoBlob.map((a) => String(a.type)))].sort();
+  if (achadosDoBlob.length !== decl.n) {
+    return { bate: false, porque: `declarados n=${decl.n}, encontrados ${achadosDoBlob.length}` };
+  }
+  if (tipos.join(',') !== decl.tipos.join(',')) {
+    return { bate: false, porque: `declarados tipos=[${decl.tipos}], encontrados [${tipos}]` };
+  }
+  return { bate: true, porque: null };
 }
 
 /**
@@ -191,13 +241,77 @@ export function parseBatch(buf) {
   return out;
 }
 
-/** Le um lote de blobs. Devolve [] se o git falhar — um lote perdido e contado, nao mata a corrida. */
+/**
+ * Le um lote de objectos. Devolve `{ objs, emFalta }`.
+ *
+ * O `emFalta` existe porque a primeira versao **falhava aberto**: pedia 400
+ * shas, recebia 399 por um buffer truncado ou um objecto `missing`, e devolvia
+ * `erro: null`, `ilegiveis: 0`, `HIGH: 0`. Um objecto que nunca foi lido e
+ * indistinguivel de um objecto limpo — a nao ser que alguem conte.
+ */
 export function lerLote(dir, shas, { runImpl = execFileSync } = {}) {
-  if (!shas.length) return [];
+  if (!shas.length) return { objs: [], emFalta: 0 };
   const buf = runImpl('git', ['cat-file', '--batch'], {
     cwd: dir, input: shas.join('\n') + '\n', maxBuffer: 512 * 1024 * 1024, windowsHide: true,
   });
-  return parseBatch(Buffer.isBuffer(buf) ? buf : Buffer.from(String(buf), 'utf8'));
+  const objs = parseBatch(Buffer.isBuffer(buf) ? buf : Buffer.from(String(buf), 'utf8'));
+  return { objs, emFalta: Math.max(0, shas.length - objs.length) };
+}
+
+/**
+ * TODOS os objectos da base, alcancaveis ou nao.
+ *
+ * `--all` nao ve objectos soltos: os que sobraram de um rebase, de um `commit
+ * --amend`, de uma branch apagada. Medido neste repo a 2026-08-26: **1 571
+ * blobs e 242 commits** fora do alcance de `--all`.
+ *
+ * Estes objectos **nao sao clonaveis** — ninguem os recebe num `git clone`, e
+ * por isso nao sao um incidente publico. Mas respondem a outra pergunta, que
+ * tambem interessa: *este segredo alguma vez existiu nesta maquina?*
+ */
+export function todosOsObjectos(dir, { runImpl = execFileSync } = {}) {
+  const bruto = String(runImpl('git', [
+    'cat-file', '--batch-all-objects', '--batch-check=%(objectname) %(objecttype)',
+  ], { cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, windowsHide: true }) || '');
+  const porSha = new Map();
+  for (const linha of bruto.split('\n')) {
+    if (!linha) continue;
+    const [sha, tipo] = linha.split(' ');
+    if (!sha || !TIPOS_LIDOS.has(tipo)) continue;
+    porSha.set(sha, { sha, tipo, caminhos: new Set() });
+  }
+  return porSha;
+}
+
+/**
+ * Commits e tags cujas MENSAGENS se leem.
+ *
+ * Um token colado numa mensagem de commit e tao publico como um token num
+ * ficheiro, e a primeira versao desta ferramenta nunca olhou para nenhuma
+ * mensagem — so para blobs. Foi o adversario que apanhou.
+ */
+export const TIPOS_LIDOS = new Set(['blob', 'commit', 'tag']);
+
+export function objectosComMensagem(dir, { refs = 'all', runImpl = execFileSync } = {}) {
+  const seletor = refs === 'origin' ? ['--remotes=origin'] : ['--all'];
+  const porSha = new Map();
+  const bruto = String(runImpl('git', ['rev-list', ...seletor], {
+    cwd: dir, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, windowsHide: true,
+  }) || '');
+  for (const sha of bruto.split('\n')) {
+    if (sha) porSha.set(sha, { sha, tipo: 'commit', caminhos: new Set(['(mensagem de commit)']) });
+  }
+  // As tags anotadas tambem tem corpo, e nao aparecem no `rev-list` como tags.
+  try {
+    const tags = String(runImpl('git', ['for-each-ref', '--format=%(objecttype) %(objectname)', 'refs/tags'], {
+      cwd: dir, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+    }) || '');
+    for (const l of tags.split('\n')) {
+      const [tipo, sha] = l.split(' ');
+      if (tipo === 'tag' && sha) porSha.set(sha, { sha, tipo: 'tag', caminhos: new Set(['(mensagem de tag)']) });
+    }
+  } catch { /* sem tags e um estado legitimo */ }
+  return porSha;
 }
 
 /**
@@ -227,9 +341,13 @@ export function commitsQueTocam(dir, blobSha, { runImpl = execFileSync, limite =
  */
 export function varrerHistorico({
   dir, refs = 'all', detector, lote = LOTE, declarados = new Map(),
-  listaImpl = blobsAlcancaveis, loteImpl = lerLote, commitsImpl = commitsQueTocam,
-  shallowImpl = eShallow,
+  listaImpl = null, loteImpl = lerLote, commitsImpl = commitsQueTocam,
+  mensagensImpl = objectosComMensagem, shallowImpl = eShallow,
 } = {}) {
+  // `todos` inclui o que ficou solto de rebases e amends — nao clonavel por
+  // ninguem, mas responde a "isto alguma vez existiu nesta maquina?".
+  if (!listaImpl) listaImpl = refs === 'todos' ? todosOsObjectos : blobsAlcancaveis;
+  if (refs === 'todos') mensagensImpl = null; // ja vem tudo, incluindo commits e tags
   if (shallowImpl(dir, {})) {
     return {
       erro: 'clone SHALLOW: nao ha historico para varrer. `git fetch --unshallow` (ou `fetch-depth: 0` no checkout do CI) antes de correr isto — um "HIGH 0" sobre a ponta seria uma mentira calma.',
@@ -239,19 +357,35 @@ export function varrerHistorico({
     };
   }
   const corpus = { nome: 'repo-historico', publico: true, dir };
-  const saltados = { binarios: 0, grandes: 0, ilegiveis: 0, naoBlob: 0 };
+  const saltados = { binarios: 0, grandes: 0, ilegiveis: 0, naoBlob: 0, emFalta: 0 };
   const achados = [];
   let porSha;
   try {
     porSha = listaImpl(dir, { refs });
+    // As mensagens de commit e de tag sao historico tanto como os ficheiros, e
+    // um token colado numa delas e igualmente publico.
+    if (mensagensImpl) {
+      for (const [sha, e] of mensagensImpl(dir, { refs })) if (!porSha.has(sha)) porSha.set(sha, e);
+    }
   } catch (e) {
     return { erro: `git rev-list falhou: ${String(e && e.message).slice(0, 160)}`, achados: [], blobs: 0, lidos: 0, saltados, refs };
+  }
+
+  // Um `origin` vazio nao e um historico limpo — e um `origin` que nunca foi
+  // buscado. Sem isto, `--refs origin` num clone acabado de fazer sem remoto
+  // devolveria `HIGH 0` com a mesma cara com que devolve um repo mesmo limpo.
+  if (porSha.size === 0) {
+    return {
+      erro: `nenhum objecto alcancavel com refs=${refs}. Um zero aqui nao e "historico limpo": e "nao havia historico para ler". Verificar o remoto (\`git fetch origin\`) antes de acreditar em qualquer numero.`,
+      achados: [], blobs: 0, lidos: 0, saltados, refs,
+    };
   }
 
   // Candidatos: exclui extensoes binarias antes de sequer pedir o conteudo ao git.
   const candidatos = [];
   for (const [sha, e] of porSha) {
-    const algumTexto = [...e.caminhos].some((c) => !EXT_BINARIA.has(path.extname(c).toLowerCase()));
+    const temCaminho = e.caminhos.size > 0;
+    const algumTexto = !temCaminho || [...e.caminhos].some((c) => !EXT_BINARIA.has(path.extname(c).toLowerCase()));
     if (!algumTexto) { saltados.binarios += 1; continue; }
     candidatos.push(sha);
   }
@@ -261,13 +395,15 @@ export function varrerHistorico({
     const fatia = candidatos.slice(i, i + lote);
     let objs;
     try {
-      objs = loteImpl(dir, fatia, {});
+      const r = loteImpl(dir, fatia, {});
+      objs = r.objs;
+      saltados.emFalta += r.emFalta;
     } catch {
       saltados.ilegiveis += fatia.length;
       continue;
     }
     for (const o of objs) {
-      if (o.tipo !== 'blob') { saltados.naoBlob += 1; continue; }
+      if (!TIPOS_LIDOS.has(o.tipo)) { saltados.naoBlob += 1; continue; }
       if (o.tamanho > MAX_BYTES) { saltados.grandes += 1; continue; }
       // Um NUL diz binario melhor do que qualquer lista de extensoes.
       if (o.conteudo.includes(0)) { saltados.binarios += 1; continue; }
@@ -277,22 +413,39 @@ export function varrerHistorico({
       const rel = caminhos[0] || o.sha;
       for (const a of detector.scanSecrets([{ path: rel, content: texto }])) {
         const dummy = motivoDeDummy(a, texto);
-        const declarado = declarados.get(o.sha) || null;
         const nivelBruto = severidade(a, corpus, dummy);
         achados.push({
           ...a,
           blob: o.sha,
+          tipo_objecto: o.tipo,
           caminhos,
           corpus: corpus.nome,
           dummy,
-          declarado,
+          declarado: null,
           nivel_bruto: nivelBruto,
-          // Um blob declarado desce a INFO, mas o nivel bruto fica no registo: o
-          // relatorio tem de poder dizer "isto SERIA HIGH e foi declarado porque X".
-          nivel: declarado ? 'INFO' : nivelBruto,
+          // A declaracao NAO se aplica aqui: so depois de o blob estar todo
+          // varrido e que se sabe quantos achados tem e de que tipos, e sem
+          // isso nao se pode verificar se a declaracao descreve o que esta la.
+          nivel: nivelBruto,
         });
       }
     }
+  }
+
+  // As declaracoes aplicam-se agora, com o blob todo varrido: uma declaracao
+  // que nao descreva o que la esta NAO se aplica, e a discrepancia e reportada.
+  const porBlob = new Map();
+  for (const a of achados) {
+    if (!porBlob.has(a.blob)) porBlob.set(a.blob, []);
+    porBlob.get(a.blob).push(a);
+  }
+  const discrepancias = [];
+  for (const [blob, decl] of declarados) {
+    const doBlob = porBlob.get(blob);
+    if (!doBlob) continue; // declarado e nao encontrado: nao e um erro, e um blob que ja nao existe
+    const { bate, porque } = declaracaoBate(decl, doBlob);
+    if (!bate) { discrepancias.push({ blob, porque }); continue; }
+    for (const a of doBlob) { a.declarado = decl.motivo; a.nivel = 'INFO'; }
   }
 
   // So agora, e so para o que DECIDE, se pergunta ao git QUANDO isto entrou.
@@ -318,6 +471,7 @@ export function varrerHistorico({
     achados,
     proveniencia_omitida,
     declarados: achados.filter((a) => a.declarado).length,
+    discrepancias,
     resumo: { HIGH: conta('HIGH'), LOW: conta('LOW'), INFO: conta('INFO') },
   };
 }
@@ -330,7 +484,17 @@ export function imprimir(r) {
     return 2;
   }
   console.log(`refs=${r.refs} · blobs alcancaveis ${r.blobs} · candidatos ${r.candidatos} · lidos ${r.lidos}`);
-  console.log(`saltados: ${r.saltados.binarios} binarios · ${r.saltados.grandes} grandes · ${r.saltados.ilegiveis} ilegiveis · ${r.saltados.naoBlob} nao-blob`);
+  console.log(`saltados: ${r.saltados.binarios} binarios · ${r.saltados.grandes} grandes · ${r.saltados.ilegiveis} ilegiveis · ${r.saltados.naoBlob} nao-lidos · ${r.saltados.emFalta || 0} EM FALTA`);
+  // Um `HIGH 0` com objectos por ler nao e a mesma frase que um `HIGH 0` com
+  // tudo lido, e o leitor tem de ver a diferenca sem ir procurar.
+  const naoOlhados = (r.saltados.binarios || 0) + (r.saltados.grandes || 0)
+    + (r.saltados.ilegiveis || 0) + (r.saltados.emFalta || 0);
+  if (naoOlhados > 0) {
+    console.log(`⚠ COBERTURA INCOMPLETA: ${naoOlhados} objectos nao foram lidos. Um zero abaixo vale para os ${r.lidos} que foram.`);
+  }
+  if ((r.saltados.emFalta || 0) > 0) {
+    console.log('⚠ objectos PEDIDOS ao git e nao devolvidos — isto nao e um salto deliberado, e uma leitura que falhou.');
+  }
   const ord = [...r.achados].sort((a, b) => ORDEM[a.nivel] - ORDEM[b.nivel]);
   for (const a of ord) {
     if (a.nivel === 'INFO') continue;
@@ -355,6 +519,11 @@ export function imprimir(r) {
       console.log(`     verificar com: git cat-file -p ${blob}`);
     }
   }
+  if (r.discrepancias && r.discrepancias.length) {
+    console.log('\n⚠ declaracoes que NAO se aplicaram (a forma declarada nao bate com o que esta no blob):');
+    for (const d of r.discrepancias) console.log(`  ${d.blob.slice(0, 8)} · ${d.porque}`);
+    console.log('  Os achados desses blobs mantem o nivel que tinham.');
+  }
   if (r.recusadas && r.recusadas.length) {
     console.log('\nentradas RECUSADAS na allowlist (nao valem nada — corrigir ou remover):');
     for (const x of r.recusadas) console.log(`  ${x.blob} · ${x.porque}`);
@@ -373,14 +542,25 @@ function principal(argv) {
   const dir = iRepo >= 0 ? argv[iRepo + 1] : RAIZ_PADRAO;
   const iRefs = argv.indexOf('--refs');
   const refs = iRefs >= 0 ? argv[iRefs + 1] : 'all';
+  if (!['all', 'origin', 'todos'].includes(refs)) {
+    // Um `--refs orign` mal escrito nao pode cair no ambito por omissao em
+    // silencio: o relatorio diria `refs=orign` e varreria outra coisa.
+    console.error(`--refs invalido: ${refs}. Vale "all", "origin" ou "todos".`);
+    return 2;
+  }
   let detector;
   try {
-    detector = carregarDetector(dir);
+    // O detector e a allowlist sao DESTA ferramenta, nao do repositorio que se
+    // varre. A primeira versao carregava-os de dentro do `--repo`, o que queria
+    // dizer que apontar isto a outro repositorio falhava com "detector nao
+    // encontrado" — e que um repositorio varrido podia trazer a sua propria
+    // allowlist. Um alvo nao declara as suas proprias excepcoes.
+    detector = carregarDetector(RAIZ_PADRAO);
   } catch (e) {
     console.error(String(e.message));
     return 2;
   }
-  const cam = path.join(dir, 'tools', 'audit', 'blobs-declarados.json');
+  const cam = path.join(RAIZ_PADRAO, 'tools', 'audit', 'blobs-declarados.json');
   const { mapa: declarados, recusadas } = lerDeclarados(cam);
   const r = varrerHistorico({ dir, refs, detector, declarados });
   r.recusadas = recusadas;

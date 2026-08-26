@@ -15,7 +15,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseBatch, blobsAlcancaveis, lerDeclarados, varrerHistorico, lerLote, eShallow,
+  parseBatch, blobsAlcancaveis, lerDeclarados, varrerHistorico, lerLote, eShallow, declaracaoBate,
 } from './varredura-historico.mjs';
 
 /** Um detector falso: acha o que lhe mandarem achar, sem regex nenhuma. */
@@ -111,18 +111,20 @@ test('blobsAlcancaveis usa --remotes=origin quando refs=origin', () => {
 
 const SHA_OK = 'a'.repeat(40);
 const MOTIVO_OK = 'fixture do proprio detector, verificado a olho';
+const ENTRADA_OK = { motivo: MOTIVO_OK, tipos: ['fixture-key'], n: 1 };
 
 test('lerDeclarados aceita uma entrada com sha valido e motivo escrito', () => {
   const { mapa, recusadas } = lerDeclarados('/x', {
-    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: MOTIVO_OK } }),
+    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: ENTRADA_OK } }),
   });
-  assert.equal(mapa.get(SHA_OK), MOTIVO_OK);
+  assert.equal(mapa.get(SHA_OK).motivo, MOTIVO_OK);
+  assert.deepEqual(mapa.get(SHA_OK).tipos, ['fixture-key']);
   assert.equal(recusadas.length, 0);
 });
 
 test('lerDeclarados RECUSA um motivo curto — allowlistar sem explicar e o comeco de esconder', () => {
   const { mapa, recusadas } = lerDeclarados('/x', {
-    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: 'ok' } }),
+    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: { ...ENTRADA_OK, motivo: 'ok' } } }),
   });
   assert.equal(mapa.size, 0);
   assert.equal(recusadas.length, 1);
@@ -131,7 +133,7 @@ test('lerDeclarados RECUSA um motivo curto — allowlistar sem explicar e o come
 
 test('lerDeclarados RECUSA uma chave que nao e um sha de blob', () => {
   const { mapa, recusadas } = lerDeclarados('/x', {
-    readImpl: () => JSON.stringify({ declarados: { 'packages/x/y.test.js': MOTIVO_OK } }),
+    readImpl: () => JSON.stringify({ declarados: { 'packages/x/y.test.js': ENTRADA_OK } }),
   });
   assert.equal(mapa.size, 0, 'um caminho nunca pode ser declarado — valeria para o que la for escrito amanha');
   assert.equal(recusadas.length, 1);
@@ -147,6 +149,54 @@ test('lerDeclarados: ficheiro ausente da allowlist vazia SEM recusa; ficheiro pa
   assert.equal(partido.recusadas.length, 1, 'uma allowlist partida tem de ser VISTA, nao tratada como vazia');
 });
 
+test('lerDeclarados RECUSA uma entrada sem tipos ou sem n — declarar tem de dizer O QUE se declara', () => {
+  const semTipos = lerDeclarados('/x', {
+    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: { motivo: MOTIVO_OK, n: 1 } } }),
+  });
+  assert.equal(semTipos.mapa.size, 0);
+  assert.match(semTipos.recusadas[0].porque, /tipos/);
+
+  const semN = lerDeclarados('/x', {
+    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: { motivo: MOTIVO_OK, tipos: ['x'] } } }),
+  });
+  assert.equal(semN.mapa.size, 0);
+  assert.match(semN.recusadas[0].porque, /n /);
+
+  const stringSolta = lerDeclarados('/x', {
+    readImpl: () => JSON.stringify({ declarados: { [SHA_OK]: MOTIVO_OK } }),
+  });
+  assert.equal(stringSolta.mapa.size, 0, 'o formato antigo, so com o motivo, deixa de valer');
+});
+
+// ── declaracaoBate ──────────────────────────────────────────────────────────
+
+test('declaracaoBate: a declaracao so vale se descrever exactamente o que esta no blob', () => {
+  const achados = [{ type: 'aws-access-key' }, { type: 'pem-private-key' }, { type: 'aws-access-key' }];
+  const certa = { motivo: MOTIVO_OK, tipos: ['aws-access-key', 'pem-private-key'], n: 3 };
+  assert.equal(declaracaoBate(certa, achados).bate, true);
+
+  const contaErrada = { ...certa, n: 2 };
+  assert.equal(declaracaoBate(contaErrada, achados).bate, false);
+  assert.match(declaracaoBate(contaErrada, achados).porque, /n=2/);
+
+  // O caso que interessa: alguem esconde uma chave a mais dentro de um blob que
+  // ja estava declarado por outra razao. A conta deixa de bater e a declaracao cai.
+  const tipoAMais = [...achados, { type: 'anthropic-api-key' }];
+  assert.equal(declaracaoBate(certa, tipoAMais).bate, false);
+});
+
+test('uma declaracao que NAO bate deixa o achado com o nivel que tinha, e a discrepancia sai', () => {
+  const r = varrerHistorico(ambiente({
+    blobs: { fx: blobDe('fx', 'const k = "SEGREDO";') },
+    caminhosPorSha: { fx: ['t.test.js'] },
+    declarados: new Map([['fx', { motivo: MOTIVO_OK, tipos: ['fixture-key'], n: 99 }]]),
+  }));
+  assert.equal(r.resumo.HIGH, 1, 'a declaracao nao se aplicou — o achado continua HIGH');
+  assert.equal(r.achados[0].declarado, null);
+  assert.equal(r.discrepancias.length, 1);
+  assert.match(r.discrepancias[0].porque, /n=99/);
+});
+
 // ── varrerHistorico ─────────────────────────────────────────────────────────
 
 function ambiente({ blobs, caminhosPorSha, declarados = new Map(), commits = () => [] }) {
@@ -155,7 +205,12 @@ function ambiente({ blobs, caminhosPorSha, declarados = new Map(), commits = () 
     detector: detectorQueAcha('SEGREDO'),
     declarados,
     listaImpl: () => new Map(Object.entries(caminhosPorSha).map(([sha, cs]) => [sha, { sha, caminhos: new Set(cs) }])),
-    loteImpl: (_d, shas) => shas.map((s) => blobs[s]).filter(Boolean),
+    loteImpl: (_d, shas) => {
+      const objs = shas.map((s) => blobs[s]).filter(Boolean);
+      return { objs, emFalta: shas.length - objs.length };
+    },
+    // Os testes desta funcao sao sobre blobs; as mensagens tem os seus.
+    mensagensImpl: () => new Map(),
     commitsImpl: commits,
   };
 }
@@ -179,7 +234,7 @@ test('um blob que viveu em tres caminhos e lido UMA vez e reporta os tres', () =
       blobs: { x: blobDe('x', 'SEGREDO aqui') },
       caminhosPorSha: { x: ['a.js', 'b.js', 'c.js'] },
     }),
-    loteImpl: (_d, shas) => { lidos += shas.length; return shas.map((s) => blobDe(s, 'SEGREDO aqui')); },
+    loteImpl: (_d, shas) => { lidos += shas.length; return { objs: shas.map((s) => blobDe(s, 'SEGREDO aqui')), emFalta: 0 }; },
   });
   assert.equal(lidos, 1, 'ler o mesmo conteudo tres vezes seria tres vezes o custo pela mesma informacao');
   assert.equal(r.achados.length, 1);
@@ -190,7 +245,7 @@ test('um blob declarado desce a INFO mas guarda o nivel que TERIA', () => {
   const r = varrerHistorico(ambiente({
     blobs: { fx: blobDe('fx', 'const k = "SEGREDO";') },
     caminhosPorSha: { fx: ['t.test.js'] },
-    declarados: new Map([['fx', MOTIVO_OK]]),
+    declarados: new Map([['fx', { motivo: MOTIVO_OK, tipos: ['fixture-key'], n: 1 }]]),
   }));
   assert.equal(r.resumo.HIGH, 0);
   assert.equal(r.resumo.INFO, 1);
@@ -271,9 +326,55 @@ test('eShallow devolve false quando o git falha — nao se recusa a varrer por c
   assert.equal(eShallow('/x', { runImpl: () => 'false\n' }), false);
 });
 
+test('lerLote CONTA os objectos que pediu e nao recebeu — a falha aberta que o adversario apanhou', () => {
+  // Pedir 3, receber 1 (buffer truncado, objecto `missing`) devolvia antes
+  // `erro: null`, `ilegiveis: 0`, `HIGH: 0`. Um objecto que nunca foi lido e
+  // indistinguivel de um objecto limpo — a nao ser que alguem conte.
+  const r = lerLote('/x', ['aaa', 'bbb', 'ccc'], {
+    runImpl: () => Buffer.from('aaa blob 2\nok\n'),
+  });
+  assert.equal(r.objs.length, 1);
+  assert.equal(r.emFalta, 2);
+});
+
+test('o que o git nao devolveu chega ao resumo como EM FALTA, nao como zero', () => {
+  const r = varrerHistorico({
+    ...ambiente({
+      blobs: { a: blobDe('a', 'limpo') },
+      caminhosPorSha: { a: ['a.js'], b: ['b.js'], c: ['c.js'] },
+    }),
+  });
+  assert.equal(r.saltados.emFalta, 2, 'dois objectos pedidos e nunca devolvidos');
+  assert.equal(r.lidos, 1);
+});
+
+test('as MENSAGENS de commit sao varridas — um token numa mensagem e tao publico como num ficheiro', () => {
+  const r = varrerHistorico({
+    dir: '/repo',
+    detector: detectorQueAcha('SEGREDO'),
+    listaImpl: () => new Map(),
+    mensagensImpl: () => new Map([['c0', { sha: 'c0', tipo: 'commit', caminhos: new Set(['(mensagem de commit)']) }]]),
+    loteImpl: () => ({ objs: [{ sha: 'c0', tipo: 'commit', tamanho: 10, conteudo: Buffer.from('usei SEGREDO') }], emFalta: 0 }),
+    commitsImpl: () => [],
+  });
+  assert.equal(r.resumo.HIGH, 1);
+  assert.equal(r.achados[0].tipo_objecto, 'commit');
+});
+
+test('refs=origin sem nada alcancavel e ERRO, nao "historico limpo"', () => {
+  const r = varrerHistorico({
+    dir: '/repo', refs: 'origin',
+    detector: detectorQueAcha('SEGREDO'),
+    listaImpl: () => new Map(),
+    mensagensImpl: () => new Map(),
+  });
+  assert.match(r.erro, /nao havia historico para ler/);
+  assert.equal(r.resumo, undefined);
+});
+
 test('lerLote sem shas nao invoca o git', () => {
   let invocado = false;
   const r = lerLote('/x', [], { runImpl: () => { invocado = true; return Buffer.alloc(0); } });
-  assert.deepEqual(r, []);
+  assert.deepEqual(r, { objs: [], emFalta: 0 });
   assert.equal(invocado, false);
 });
