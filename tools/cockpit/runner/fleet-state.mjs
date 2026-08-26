@@ -282,6 +282,13 @@ export function buildFleetState({
   engineAlive = false,
   alignment = null,
   fleet = null,
+  /**
+   * O indice do arnes, LIDO de um instantaneo por quem chama — nunca calculado
+   * aqui. `buildFleetState` corre a cada pedido do painel; calcular o indice
+   * custa segundos. `null` publica-se como ausente com o porque, nunca como
+   * zero: "ninguem calculou" e "o arnes vale zero" sao afirmacoes diferentes.
+   */
+  indice = null,
   now = Date.now(),
   readImpl = fs.readFileSync,
   existsImpl = fs.existsSync,
@@ -330,6 +337,18 @@ export function buildFleetState({
   return {
     device: state.device || device || 'device-sem-nome',
     running,
+    /**
+     * O indice do arnes, com as sete parcelas e a IDADE do instantaneo.
+     *
+     * `null` publica-se como ausente **com o porque**, nunca como zero. As duas
+     * frases sao diferentes e o painel tem de as poder distinguir: "ninguem
+     * calculou o indice nesta maquina" e "o arnes vale zero" levam a decisoes
+     * opostas, e um zero em vez de uma ausencia levaria a errada.
+     */
+    indice: indice && indice.presente ? indice : {
+      presente: false,
+      porque: (indice && indice.porque) || 'indice nao lido por quem construiu este estado',
+    },
     // $0 is structural: `runner-core.assertLocalEngine` refuses any non-loopback
     // engine, so this field cannot drift away from the truth.
     usd: 0,

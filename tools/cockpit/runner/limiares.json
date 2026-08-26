@@ -1,0 +1,136 @@
+{
+  "porque_existe": "O registo dos limiares que vivem em codigo, e de onde veio cada um. Um limiar escolhido a olho e um palpite com autoridade: esta em codigo, ninguem lhe pergunta a proveniencia, e passa a valer como facto.",
+  "regra": "MEDICAO nao e derivacao. Um limiar tem `medicao` quando existe uma OBSERVACAO com um numero e um sitio onde ela vive (um log, uma corrida, um commit). Derivar 180 s de \"tres ciclos de 60 s\" e aritmetica sobre outra escolha, nao uma medicao — e conta como NAO medido. Ser estrito aqui e o ponto: a parcela do indice existe para mostrar quantos limiares nao tem chao.",
+  "como_o_denominador_e_construido": "A partir do CODIGO (`limiaresNoCodigo()`), nunca a partir deste ficheiro. Um limiar que exista no codigo e nao esteja aqui conta como NAO MEDIDO — esconder um limiar por omissao faria a parcela subir.",
+  "limiares": {
+    "tools/cockpit/runner/autopilot.mjs:MIN_PRECISAO_PCT": {
+      "onde_no_codigo": "tools/cockpit/runner/autopilot.mjs:167",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/autopilot.mjs:TETO_REFUTADO_PCT": {
+      "onde_no_codigo": "tools/cockpit/runner/autopilot.mjs:165",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/context-pack.mjs:MAX_SLICE_BYTES": {
+      "onde_no_codigo": "tools/cockpit/runner/context-pack.mjs:32",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/context-pack.mjs:MAX_SLICE_LINES": {
+      "onde_no_codigo": "tools/cockpit/runner/context-pack.mjs:31",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/engine-breaker.mjs:BACKOFF_BASE_S": {
+      "onde_no_codigo": "tools/cockpit/runner/engine-breaker.mjs:25",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/engine-breaker.mjs:BACKOFF_CAP_S": {
+      "onde_no_codigo": "tools/cockpit/runner/engine-breaker.mjs:27",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-beacon.mjs:BEACON_FRESH_REMOTO_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-beacon.mjs:51",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-beacon.mjs:BEACON_FRESH_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-beacon.mjs:37",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-beacon.mjs:BEACON_STALE_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-beacon.mjs:38",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-remoto.mjs:FETCH_MIN_MS": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-remoto.mjs:30",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-state.mjs:CLOCK_SKEW_TOLERANCE_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-state.mjs:28",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-state.mjs:DEAD_AFTER_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-state.mjs:27",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-state.mjs:FEED_LENGTH": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-state.mjs:103",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-state.mjs:IDLE_STREAK_ALARM": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-state.mjs:30",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-state.mjs:PAUSA_OBSOLETA_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-state.mjs:40",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/fleet-state.mjs:STALE_AFTER_S": {
+      "onde_no_codigo": "tools/cockpit/runner/fleet-state.mjs:26",
+      "medicao": {
+        "onde": "tools/cockpit/runner/fleet-state.mjs:23-25 — o maior intervalo saudavel entre recibos foi medido em ~45 s (uma ronda mais o sleep dela). Os 180 s anteriores eram 4x isso, e um loop morto com o endpoint de pe ficava verde tres minutos.",
+        "quando": "antes de 2026-08-24",
+        "n": "~45 s de intervalo saudavel observado"
+      }
+    },
+    "tools/cockpit/runner/indice-do-harness.mjs:IDADE_MAX_S": {
+      "onde_no_codigo": "tools/cockpit/runner/indice-do-harness.mjs",
+      "medicao": null,
+      "falta": "sem observacao registada — 24 h e um juizo sobre quanto tempo um instantaneo do indice continua util, nao um numero medido"
+    },
+    "tools/cockpit/runner/indice-do-harness.mjs:IDADE_SAUDAVEL_DIAS": {
+      "onde_no_codigo": "tools/cockpit/runner/indice-do-harness.mjs:408",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/moo-runner.mjs:MAX_LEDGER_BYTES": {
+      "onde_no_codigo": "tools/cockpit/runner/moo-runner.mjs:241",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/portao.mjs:LIMIARES": {
+      "onde_no_codigo": "tools/cockpit/runner/portao.mjs:42",
+      "medicao": {
+        "onde": "tools/cockpit/runner/portao.mjs:29-41 — duas medicoes citadas no proprio ficheiro: o P11 produziu 87 achados e 1 talvez util (1,1%), e a regra do `|| 0` em codigo de dinheiro deu 2 reais em 39 (5,1%). Os dois limiares existem por causa destes dois numeros, cada um a fechar o lado por onde o outro deixava passar.",
+        "quando": "2026-08-25",
+        "n": "87 achados (P11) · 39 candidatos (|| 0)"
+      }
+    },
+    "tools/cockpit/runner/prova-de-pilar.mjs:JANELA_S": {
+      "onde_no_codigo": "tools/cockpit/runner/prova-de-pilar.mjs:144",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/prova-de-pilar.mjs:RESERVA_SISTEMA_GB": {
+      "onde_no_codigo": "tools/cockpit/runner/prova-de-pilar.mjs:96",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    },
+    "tools/cockpit/runner/prova-de-pilar.mjs:VRAM_TOTAL_GB": {
+      "onde_no_codigo": "tools/cockpit/runner/prova-de-pilar.mjs:95",
+      "medicao": {
+        "onde": "facto de hardware da maquina do dono (RTX 4090, 24 GB). Verificavel com `nvidia-smi`; nao e uma escolha, e uma leitura.",
+        "quando": "permanente enquanto a GPU for esta",
+        "n": "24 GB lidos do dispositivo"
+      }
+    },
+    "tools/cockpit/runner/runner-core.mjs:DEFAULT_TIMEOUT_MS": {
+      "onde_no_codigo": "tools/cockpit/runner/runner-core.mjs:24",
+      "medicao": null,
+      "falta": "sem observacao registada — escolhido por juizo, ou derivado de outra escolha"
+    }
+  }
+}
