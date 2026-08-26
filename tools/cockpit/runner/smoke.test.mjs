@@ -50,7 +50,16 @@ const REPO = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
  * Quem afirma QUEM corre e o `runner-core.test.mjs`, e la a rotacao esta vazia.
  */
 const catalogoDeEnsaio = () => {
-  const pillars = { ...PILLARS, P2: { ...PILLARS.P2, activo: true } };
+  // A `medicao` e SINTETICA e serve so para o portao dos pilares deixar o ensaio
+  // correr. Desde 2026-08-26 `activo: true` deixou de chegar — a rotacao deriva
+  // de `podeEntrar`, e sem numeros o catalogo de ensaio ficava vazio e estes
+  // E2E voltavam a testar o catalogo em vez do ciclo. Nao e uma afirmacao sobre
+  // o P2: a medicao real dele (11 lidos a mao pelo dono, 0 reais) continua na
+  // entrada dele, e continua a recusa-lo em producao.
+  const pillars = {
+    ...PILLARS,
+    P2: { ...PILLARS.P2, activo: true, medicao: { candidatos: 84, lidos: 40, reais: 28 } },
+  };
   return { pillars, ids: idsActivos(pillars), fonte: 'ensaio', ficheiro: null, erro: null };
 };
 

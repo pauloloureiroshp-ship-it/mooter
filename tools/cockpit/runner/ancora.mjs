@@ -295,52 +295,14 @@ export const REGRAS = {
 };
 
 /**
- * Uma regra pode entrar na rotacao?
- *
- * ⚠️ ISTO E O PORTAO A DEIXAR DE SER UM DOCUMENTO.
- *
- * Ate 2026-08-25 a unica coisa que impedia um pilar ou uma regra de entrar sem
- * medicao era um comentario a pedi-la, e um teste que verificava se o campo
- * `porque` tinha um digito. `porque: 'medido 1 vez'` passava. Foi assim que o
- * P11 entrou: passou o ensaio, entrou, e em UM dia deu 87 achados dos quais 76
- * falhavam o proprio enunciado.
- *
- * A pratica que isto segue esta escrita nas best-practices do Claude Code:
- * *"Hooks are deterministic and guarantee the action happens"*, ao contrario das
- * instrucoes em prosa, que sao *advisory*. Um portao que se pode esquecer nao e
- * um portao.
- *
- * O `porque` continua a existir para quem le. O que DECIDE e o `medicao`, que e
- * estruturado e portanto verificavel:
- *
- *     medicao: { candidatos: 84, lidos: 40, reais: 28 }
- *
- * `precisao` NAO se declara: deriva-se de `reais / lidos`. Um numero declarado a
- * mao e um numero que se pode escrever errado — e este ficheiro ja apanhou hoje
- * um `funciona` que era um `NO FINDING`.
+ * O portao vive agora em `portao.mjs`, sem dependencias, para `context-pack.mjs`
+ * o poder usar tambem sem fechar um ciclo de imports (o motivo esta escrito la).
+ * Re-exportado daqui porque era daqui que toda a gente o importava — e mudar o
+ * sitio de onde se importa uma decisao e uma boa maneira de a perder de vista.
  */
-export function podeEntrar(regra, { limiares = LIMIARES } = {}) {
-  if (!regra || regra.activo !== true) return { pode: false, porque: 'nao esta marcada como activa' };
-  const m = regra.medicao;
-  if (!m || typeof m !== 'object') {
-    return { pode: false, porque: 'sem campo `medicao` — uma regra sem numeros nao entra, por mais convincente que seja o `porque`' };
-  }
-  const inteiro = (x) => Number.isSafeInteger(x) && x >= 0;
-  if (!inteiro(m.candidatos) || !inteiro(m.lidos) || !inteiro(m.reais)) {
-    return { pode: false, porque: 'a `medicao` tem campos que nao sao inteiros — nao se arredonda um portao' };
-  }
-  if (m.lidos === 0) return { pode: false, porque: 'zero candidatos lidos: nao houve triagem' };
-  if (m.reais > m.lidos) return { pode: false, porque: `${m.reais} reais em ${m.lidos} lidos — impossivel, a medicao esta errada` };
-  if (m.lidos > m.candidatos) return { pode: false, porque: `${m.lidos} lidos de ${m.candidatos} candidatos — a amostra nao pode ser maior que o universo` };
+import { podeEntrar } from './portao.mjs';
 
-  const precisao = m.reais / m.lidos;
-  const pct = (x) => `${(x * 100).toFixed(1)}%`;
-  const falhas = [];
-  if (m.reais < limiares.REAIS_MINIMO) falhas.push(`so ${m.reais} reais, precisa de ${limiares.REAIS_MINIMO}`);
-  if (precisao < limiares.PRECISAO_MINIMA) falhas.push(`precisao ${pct(precisao)}, abaixo de ${pct(limiares.PRECISAO_MINIMA)}`);
-  if (falhas.length) return { pode: false, porque: falhas.join(' e '), precisao };
-  return { pode: true, porque: `${m.reais} reais em ${m.lidos} lidos · ${pct(precisao)}`, precisao };
-}
+export { podeEntrar };
 
 /**
  * As que correm — e so entram as que o `podeEntrar` deixa.
