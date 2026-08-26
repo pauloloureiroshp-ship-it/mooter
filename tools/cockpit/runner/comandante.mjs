@@ -124,6 +124,36 @@ export function filaHumana(loops) {
  * o acumulador morreu 63 sessoes.
  */
 export function decidir({ registos, decisoes, ids, agora = Date.now(), gpu = null, caps = DEFAULT_CAPS }) {
+  /**
+   * ROTACAO VAZIA E OUTRA COISA QUE NAO "TUDO NO TECTO" (2026-08-26).
+   *
+   * Sem esta guarda, `pickNext` de uma lista vazia devolvia
+   * `no eligible loop (all capped / paused / suspended)` — a razao que o painel
+   * mostra e que o `moo-runner` regista. E as tres coisas que ela nomeia sao
+   * falsas quando nao ha pilar nenhum: nada esta no tecto, nada esta em pausa,
+   * nada esta suspenso. Simplesmente nao ha trabalho declarado.
+   *
+   * A diferenca importa porque as accoes sao opostas. "Tudo no tecto" pede ao
+   * dono que TRIE a fila — e ele iria triar e a pausa continuaria, sem nada a
+   * dizer-lhe porque. "Zero pilares" pede que alguem meca um pilar e o faca
+   * passar o portao. Um rotulo que manda o dono fazer a coisa errada gasta mais
+   * confianca do que um rotulo ausente.
+   *
+   * Deixou de ser hipotetico a 2026-08-26: o portao (`portao.mjs`) passou a
+   * derivar a rotacao da medicao, os onze pilares reprovam, e `ids` e `[]` em
+   * TODAS as rondas deste repo. Este e o estado por omissao, nao o excepcional.
+   */
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return {
+      pilar: null,
+      pausa: true,
+      razao: 'zero pilares na rotacao — nenhum passa o portao de medicao',
+      prioridade: null,
+      ranked: null,
+      fila: 0,
+      loops: [],
+    };
+  }
   const loops = estatisticasDosLoops(registos, decisoes, ids, { agora });
   const fila = filaHumana(loops);
   const r = pickNext(loops, { now: agora, gpu, humanQueueSize: fila, caps });
