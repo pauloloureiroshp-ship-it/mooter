@@ -33,6 +33,22 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   novo — zero linhas de lógica do motor. Não é cosmético: o `install.sh:196` compila esse bundle
   **na máquina do utilizador** e instala-o como hook do Claude Code, portanto o alvo era um
   runtime que o instalador já recusa. Verificado por `tools/cockpit/runner/piso-de-node.mjs`.
+  **2026-08-25 · exclusão de T5** allowlists **modificações** a
+  `packages/router/src/decide-agent.ts` (autorizado pelo dono, decisão A3 do plano
+  `~/paulo-vault/40-strategy/2026-08-25-plano-construir-superar.md`). É a primeira entrada que
+  autoriza mexer num ficheiro de motor **existente**, e o motivo é que a alternativa era pior:
+  até 2026-08-25 a escada de tiers não existia em código nenhum. O que impedia o `decideAgent`
+  de auto-escolher o Fable era o snapshot de preços não trazer preço para ele — «you cannot rank
+  what you cannot price». Medido nesse dia contra o motor real: pondo o preço que o SSOT
+  (`tools/router/pricing.js`) sempre teve, `decideAgent({task_category:'reasoning.science'})`
+  passava a devolver `claude-fable-5` com TES 3784, **sem ninguém ter escrito `@fable`**. Um
+  invariante defendido por um número em falta cai no dia em que alguém completa os dados de
+  boa-fé. Acrescentado: `OPT_IN_ONLY_MODELS` / `isOptInOnly()` e um filtro antes dos portões de
+  `min_score` e de orçamento — zero alterações à ordenação por TES ou ao `force_model`
+  (nomear o modelo **é** o opt-in). Provado por `packages/router/tests/decide-agent.test.ts`
+  (comportamental: 0 das 24 categorias o escolhem) e por
+  `tools/cockpit/runner/precificavel-nao-rotavel.test.mjs` (cobertura: qualquer modelo que
+  reúna preço + célula medida tem de estar coberto pela guarda).
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

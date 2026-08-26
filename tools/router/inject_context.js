@@ -613,6 +613,25 @@ if (!prompt || typeof prompt !== 'string' || prompt.length < 4) {
   process.exit(0);
 }
 
+// Retomar, camada 1 — one deterministic Resume block at the first prompt of a
+// session. UserPromptSubmit is already the installed context-injection surface;
+// keeping it here avoids a second shared hook and gives us session_id, cwd and
+// transcript_path in the same payload. Fail open, but never fail invisibly.
+try {
+  const retomarDiagnostics = [];
+  const retomarContext = require('./retomar.js').hookContext(payload, {
+    diagnostics: retomarDiagnostics,
+  });
+  for (const item of retomarDiagnostics) {
+    try { process.stderr.write(`[retomar] ${item}\n`); } catch { /* stderr fechado */ }
+  }
+  if (retomarContext) process.stdout.write(`${retomarContext}\n`);
+} catch (error) {
+  try {
+    process.stderr.write(`[retomar] falhou sem bloquear a sessão: ${(error && error.message) || error}\n`);
+  } catch { /* stderr fechado */ }
+}
+
 // v0.10: resolve prevTier early so both the disk cache lookup and the
 // classify.js subprocess see the same session context. Silent on failure.
 let _prevTier = null;

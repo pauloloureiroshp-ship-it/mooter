@@ -95,5 +95,6 @@
     "server-apps.js",
     "probe.js",
     "fleet-ui.html"
-  ]
+  ],
+  "1.50": []
 }

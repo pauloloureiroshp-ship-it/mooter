@@ -40,8 +40,14 @@ test("formula uses the documented 0.3 output weight", () => {
 });
 
 test("pending-price model → tes null, status 'pending' (no fabrication)", () => {
-  // gpt-5 / opus-4-8 / fable-5 are seeded pending (null prices) in the snapshot.
-  for (const model of ["gpt-5", "claude-opus-4-8", "claude-fable-5", "gemini-3.1-pro", "deepseek-v3.2"]) {
+  // gpt-5 / opus-4-8 / gemini-3.1-pro / deepseek-v3.2 are seeded pending (null
+  // prices) in the snapshot. claude-fable-5 USED to be on this list and was
+  // removed on 2026-08-25: it got its real $10/$50 from the SSOT once the
+  // opt-in-only exclusion moved into decide-agent.ts. Until then the missing
+  // price was doing the job of the tier ladder, and that is exactly why it
+  // could not stay missing. Its refusal is now asserted where it belongs,
+  // in tests/decide-agent.test.ts.
+  for (const model of ["gpt-5", "claude-opus-4-8", "gemini-3.1-pro", "deepseek-v3.2"]) {
     const r = computeTES({ model, category: "agents.coordinator", benchmark_score: 0.9 });
     assert.equal(r.tes, null, `${model} must not produce a fabricated TES`);
     assert.equal(r.status, "pending");

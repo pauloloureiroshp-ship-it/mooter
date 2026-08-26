@@ -120,24 +120,43 @@ describe('admin happy path (reads real seed + snapshot)', () => {
     expect(empty.tes).toBeNull();
   });
 
-  it('honest TES coverage: ONLY the 3 priced opus-4-7 cells get a real TES; the other 11 measured cells stay pending', async () => {
+  it('honest TES coverage: ONLY the 4 priced cells get a real TES; the other 10 measured cells stay pending', async () => {
     const body = await (await GET(req('tok'))).json();
-    // Of the 14 measured cells, only claude-opus-4-7 has a real price in the
-    // snapshot ($5/$25 per MTok). Its 3 cited cells (backend/refactor/debug) are
-    // the only ones that can be honestly scored; the rest are pending price.
+    // Of the 14 measured cells, only the models the snapshot actually prices can
+    // be scored. Until 2026-08-25 that was claude-opus-4-7 alone (3 cells:
+    // backend/refactor/debug) and this test asserted 3/11. PR #398 gave
+    // claude-fable-5 its real SSOT price ($10/$50 per MTok) — the withheld price
+    // had been the ONLY thing keeping T5 out of the auto-router, and that guard
+    // now lives in decide-agent.ts (OPT_IN_ONLY_MODELS). So a 4th cell became
+    // honestly scorable. 4/10 is not a relaxed number: it is the same rule
+    // ("score only what you can price") applied to one more priced model.
     const measuredOk = body.cells.filter(
       (c: { measured: boolean; tes_status: string }) => c.measured && c.tes_status === 'ok',
     );
-    expect(measuredOk).toHaveLength(3);
+    expect(measuredOk).toHaveLength(4);
+    // TES = (score*100)/(input_per_ktok + 0.3*output_per_ktok).
+    const expectedTes: Record<string, number> = {
+      // (0.876*100)/(0.005 + 0.3*0.025) = 87.6 / 0.0125 = 7008.
+      'claude-opus-4-7': 7008,
+      // (0.946*100)/(0.010 + 0.3*0.050) = 94.6 / 0.025  = 3784.
+      'claude-fable-5': 3784,
+    };
+    expect(new Set(measuredOk.map((c: { model: string }) => c.model))).toEqual(
+      new Set(['claude-opus-4-7', 'claude-fable-5']),
+    );
     for (const c of measuredOk) {
-      expect(c.model).toBe('claude-opus-4-7');
-      // TES = (0.876*100)/(0.005 + 0.3*0.025) = 87.6 / 0.0125 = 7008.
-      expect(c.tes).toBeCloseTo(7008, 1);
+      expect(expectedTes[c.model]).toBeDefined();
+      expect(c.tes).toBeCloseTo(expectedTes[c.model], 1);
     }
+    // Opus 4-7 still owns 3 of the 4 — Fable contributes exactly its one
+    // measured cell (GPQA Diamond), not a whole category.
+    expect(
+      measuredOk.filter((c: { model: string }) => c.model === 'claude-opus-4-7'),
+    ).toHaveLength(3);
     const measuredPending = body.cells.filter(
       (c: { measured: boolean; tes_status: string }) => c.measured && c.tes_status === 'pending',
     );
-    expect(measuredPending).toHaveLength(11);
+    expect(measuredPending).toHaveLength(10);
     for (const c of measuredPending) {
       expect(c.tes).toBeNull(); // never a fabricated number
     }

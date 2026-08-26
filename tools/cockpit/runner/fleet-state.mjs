@@ -16,6 +16,7 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { VERDICT, tallyVerdicts, naoCorreu } from './evidence-verifier.mjs';
 
 export const OWNER_TZ = 'America/Sao_Paulo';
@@ -185,8 +186,77 @@ export function perPillar(receipts) {
  *
  * @returns the object served at `/fleet.json`
  */
-import { lerTriagem, porTriar, contarTriagem, MOTIVOS } from './triagem.mjs';
+import {
+  lerTriagem, porTriar, porTriarDetector, contarTriagem, apontamentoDoDetector,
+  MOTIVOS, ORIGEM_DETECTOR,
+} from './triagem.mjs';
 import { verReserva } from './reserva.mjs';
+
+function detectorND(porque) {
+  return {
+    estado: 'n/d', origem: ORIGEM_DETECTOR, apontamentos: null,
+    por_triar: null, gerado_em: null, ficheiros_no_ambito: null, porque, fila: [],
+  };
+}
+
+function mesmoRepo(a, b) {
+  try {
+    const normal = (v) => {
+      const r = path.resolve(String(v)).replaceAll('\\', '/');
+      return process.platform === 'win32' ? r.toLowerCase() : r;
+    };
+    return normal(a) === normal(b);
+  } catch { return false; }
+}
+
+/**
+ * Le a porta deterministica da triagem. Ao contrario de `readAnchor`, ausencia
+ * nao vira `[]`: para o painel, nao medido e diferente de zero medido.
+ */
+export function lerDetector({
+  baseDir, repoRoot, decisoes = new Map(), readImpl = fs.readFileSync,
+  existsImpl = fs.existsSync,
+} = {}) {
+  if (!baseDir) return detectorND('detector state directory not provided');
+  if (!repoRoot) return detectorND('served repository not provided');
+  const ancoraPath = path.join(baseDir, 'ancora-achados.json');
+  const manifestoPath = path.join(baseDir, 'ancora-manifesto.json');
+  const existe = (p) => { try { return Boolean(existsImpl(p)); } catch { return false; } };
+  if (!existe(ancoraPath)) return detectorND('anchor missing');
+  if (!existe(manifestoPath)) return detectorND('anchor manifest missing');
+
+  let apontamentos;
+  let manifesto;
+  try { apontamentos = JSON.parse(String(readImpl(ancoraPath, 'utf8'))); }
+  catch { return detectorND('anchor unreadable'); }
+  try { manifesto = JSON.parse(String(readImpl(manifestoPath, 'utf8'))); }
+  catch { return detectorND('anchor manifest unreadable'); }
+
+  if (!Array.isArray(apontamentos) || apontamentos.some((a) => !apontamentoDoDetector(a))) {
+    return detectorND('anchor has invalid shape');
+  }
+  if (!manifesto || typeof manifesto !== 'object' || Array.isArray(manifesto)) {
+    return detectorND('anchor manifest has invalid shape');
+  }
+  if (!Number.isInteger(manifesto.apontamentos) || manifesto.apontamentos < 0
+    || manifesto.apontamentos !== apontamentos.length) {
+    return detectorND('anchor count disagrees with manifest');
+  }
+  if (!mesmoRepo(manifesto.repo, repoRoot)) return detectorND('anchor belongs to another repository');
+  const geradoEm = typeof manifesto.gerado_em === 'string' && Number.isFinite(Date.parse(manifesto.gerado_em))
+    ? manifesto.gerado_em : null;
+  if (!geradoEm) return detectorND('anchor generation time is invalid');
+
+  const { fila, total } = porTriarDetector(apontamentos, decisoes, { geradoEm });
+  return {
+    estado: 'ok', origem: ORIGEM_DETECTOR, apontamentos: apontamentos.length,
+    por_triar: total, gerado_em: geradoEm,
+    ficheiros_no_ambito: Number.isInteger(manifesto.ficheiros_no_ambito)
+      ? manifesto.ficheiros_no_ambito : null,
+    porque: null,
+    fila,
+  };
+}
 
 export function buildFleetState({
   // Sem default cravado: quem chama diz quem é, e a identidade vem toda de
@@ -201,6 +271,9 @@ export function buildFleetState({
   triagemPath = null,
   // A pasta de estado deste projecto, para se saber se a maquina foi cedida.
   baseDir = null,
+  // A raiz que ESTE painel serve. O manifesto tem de apontar para ela; uma
+  // ancora de outro checkout nunca pode entrar por proximidade no disco.
+  repoRoot = null,
   // Injectada por quem constroi o estado (o f10-server le-a do manifest).
   // `null` publica-se como `n/a`: um numero errado e pior do que a ausencia.
   connector = null,
@@ -236,7 +309,18 @@ export function buildFleetState({
     ? lerTriagem(triagemPath)
     : { decisoes: new Map(), partidas: 0 };
   const contasTriagem = contarTriagem(receipts, decisoes);
-  const fila = porTriar(receipts, decisoes);
+  const filaModelo = porTriar(receipts, decisoes);
+  const detectorLido = lerDetector({ baseDir, repoRoot, decisoes, readImpl, existsImpl });
+  const { fila: filaDetector, ...detector } = detectorLido;
+  // Cada porta conserva o seu corte de 50. Fundi-las sem um segundo corte
+  // impede que 50 recibos recentes tornem o detector invisivel outra vez.
+  const fila = [...filaDetector, ...filaModelo];
+  const porTriarTotal = detector.estado === 'ok'
+    ? contasTriagem.por_triar + detector.por_triar
+    : null;
+  const alertaAchados = contasTriagem.por_triar > 0 || detector.por_triar > 0
+    ? true
+    : (detector.estado === 'ok' ? false : null);
 
   const tally = tallyVerdicts(receipts);
   const tallyToday = tallyVerdicts(todays);
@@ -297,6 +381,9 @@ export function buildFleetState({
     ledger: { linhas: ledgerLinhas ?? null, janela: receipts.length, truncado: Boolean(truncado) },
     triagem: {
       ...contasTriagem,
+      por_triar_modelo: contasTriagem.por_triar,
+      por_triar: porTriarTotal,
+      detector,
       // O painel nao pode inventar a lista: ela e fechada no motor.
       motivos: MOTIVOS,
       ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),
@@ -304,7 +391,7 @@ export function buildFleetState({
     // A fila. E tambem o alerta: um achado por triar nao pode exigir que o dono
     // va procurar — ate hoje havia zero alertas no painel.
     por_triar: fila,
-    alerta_achados: fila.length > 0,
+    alerta_achados: alertaAchados,
     // Tres estados, nao dois. `null` = ninguem perguntou ao motor nesta ronda
     // (acontece quando o loop pausa sem chegar a chamar). Dizer 'ollama-local'
     // seria o bug das 11 horas outra vez; dizer 'down' seria o falso alarme

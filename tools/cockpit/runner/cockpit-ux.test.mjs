@@ -337,7 +337,7 @@ test('a fila de triagem tem um TETO nomeado, tal como o feed tem FEED_LENGTH', (
 });
 
 test('nunca trunca em silêncio: se algo fica de fora, o número que o diz é visível', () => {
-  assert.match(SCRIPT, /"showing " \+ mostrar\.length \+ " of " \+ totalReal \+ " pending"/,
+  assert.match(SCRIPT, /"showing " \+ mostrar\.length \+ " of " \+ \(totalReal \?\? 'n\/a'\) \+ " pending"/,
     'tem de haver uma linha honesta com quantos se mostram e quantos existem ao todo');
   // E o total NAO pode vir da lista ja cortada: `porTriar` corta em 50 no
   // servidor, portanto `fila.length` era o corte a medir-se a si proprio.
@@ -348,6 +348,16 @@ test('nunca trunca em silêncio: se algo fica de fora, o número que o diz é vi
   assert.match(SCRIPT, /fila\.length > TRIAGE_CAP/, 'o controlo para revelar o resto so aparece quando ha algo escondido');
   assert.match(SCRIPT, /triagemExpandida = !triagemExpandida; renderTriagem\(state\);/,
     'tem de existir um controlo que revela o resto da fila');
+});
+
+test('DETECTOR: procedencia e n/d ficam visiveis sem fingir GPU ou citacao do modelo', () => {
+  assert.match(SHELL, /id="detector-status"/, 'o estado da ancora precisa de um lugar mesmo com fila vazia');
+  assert.match(SCRIPT, /detector · regex · n\/a/, 'ancora ausente ou ilegivel nao pode virar zero');
+  assert.match(SCRIPT, /a\.origem === 'detector-deterministico'/, 'a entrada tem de escolher o ramo pela procedencia');
+  assert.match(SCRIPT, /doDetector \? "detector · regex" : "GPU · model"/,
+    'as duas origens têm de ser legiveis no proprio cartao');
+  assert.match(SCRIPT, /card\.hidden = fila\.length === 0 && !detector/,
+    'um detector n\/d nao pode desaparecer so porque a fila conhecida esta vazia');
 });
 
 test('a triagem continua a usar as classes existentes — nenhuma linguagem de design nova', () => {

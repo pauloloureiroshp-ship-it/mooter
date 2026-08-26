@@ -34,7 +34,10 @@ function shaDoRunner(statePath) {
     return typeof s.sha_carregado === 'string' && s.sha_carregado ? s.sha_carregado : null;
   } catch { return null; }
 }
-import { registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores, lerTriagem, porTriar, contarTriagem } from './triagem.mjs';
+import {
+  registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores,
+  lerTriagem, porTriar, contarTriagem, ORIGEM_DETECTOR,
+} from './triagem.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
@@ -442,6 +445,7 @@ export function createServer({
         stopFile,
         triagemPath: triagemFile,
         baseDir: paths.base,
+        repoRoot: raiz,
         gpu,
         engineAlive: alive,
         loadedModels: models,
@@ -465,6 +469,13 @@ export function createServer({
       // diferenca chegava a fila do dono marcada HIGH.
       if (Array.isArray(estado.por_triar)) {
         estado.por_triar = estado.por_triar.map((a) => {
+          if (a.origem === ORIGEM_DETECTOR) {
+            return {
+              ...a,
+              suporte: null,
+              suporte_porque: 'not applicable — a regex pointer has no model citation',
+            };
+          }
           const s = severidade(a);
           const sup = suporteDaCitacao(a);
           return { ...a, sev: { k: s.k, n: s.n, porque: s.porque }, suporte: sup.ok, suporte_porque: sup.porque };

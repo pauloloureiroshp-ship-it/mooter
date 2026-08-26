@@ -59,11 +59,47 @@ export function rotuloDeDevice(d) {
   const pausaVelha = Boolean(pausa && pausa.obsoleta);
   const canal = rotuloDeCanal(dev.via, { self: Boolean(dev.self) });
 
+  /**
+   * UM BEACON MORTO MANDA NO CARTAO, mesmo que o ultimo estado dissesse pausa.
+   *
+   * Medido 2026-08-25 (#401): o PC aparecia com a pill laranja `holding · <razao>`
+   * e SEM idade nenhuma, com o beacon a 3592 s. A distincao que faltava e que
+   * `pausa.activa` e uma afirmacao SOBRE O INSTANTE EM QUE O BEACON FOI ESCRITO:
+   * num beacon de ha uma hora ela quer dizer "ha uma hora este device estava em
+   * pausa", e nao "este device esta em pausa".
+   *
+   * Nao chega o `pausa.obsoleta`: esse mede a idade da PAUSA, nao a do BEACON.
+   * Um device que morreu com uma pausa acabada de declarar tem a pausa fresca e
+   * o sinal morto, e caia exactamente neste ramo.
+   *
+   * Este ficheiro nasceu no #396 a mudar o rotulo do HTML para onde ha testes, e
+   * a primeira versao levou o ramo da pausa ANTES da morte — reintroduzindo,
+   * dentro do modulo, o defeito que o #401 tinha acabado de fechar no HTML.
+   * Mover logica para onde se pode testar nao a corrige sozinha.
+   */
+  const beaconMorto = fr.estado === 'morto';
+
   let texto;
   let classe;
   if (fr.estado === 'vivo') {
     texto = dev.running ? `${emIdade(fr.idade_s)} ago` : 'paused';
     classe = dev.running ? 'ok' : 'warn';
+  } else if (beaconMorto) {
+    // A IDADE primeiro. O que ele estava a fazer quando morreu vai a seguir,
+    // como contexto — nunca como manchete.
+    //
+    // O contexto conta a pausa OBSOLETA tambem, e nao so a activa: um runner que
+    // morreu EM PAUSA e um runner que morreu A TRABALHAR pedem coisas diferentes
+    // ao dono — o primeiro pode estar so a espera de uma triagem que nunca veio.
+    // Sem esta segunda metade, o ramo do beacon morto engolia a informacao que o
+    // #342 introduziu, e os dois liam-se igual.
+    const contexto = emPausa || pausaVelha
+      ? ` · was holding (${(pausa && pausa.razao) || 'queue full'})`
+      : '';
+    texto = fr.idade_s == null
+      ? `no signal — ${fr.motivo || 'no timestamp'}`
+      : `no signal for ${emIdade(fr.idade_s)}${contexto}`;
+    classe = 'dead';
   } else if (emPausa) {
     texto = `holding · ${pausa.razao || 'queue full'}`;
     classe = 'warn';

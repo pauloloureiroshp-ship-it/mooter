@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { repoSha } from './project.mjs';
 
 const require = createRequire(import.meta.url);
 /**
@@ -35,7 +36,58 @@ const assinatura = require('../../router/assinatura.js');
 /** Beyond this a beacon says nothing useful about right now. */
 export const BEACON_FRESH_S = 120;
 export const BEACON_STALE_S = 1800;
+/**
+ * Um device REMOTO so chega aqui pelo sync do vault: o outro lado publica de
+ * 10 em 10 min (`MINUTOS_OMISSAO` do beacon-publisher) e este lado so o ve
+ * quando ele proprio puxa, tambem de 10 em 10 min. Dois ciclos e a idade
+ * NORMAL de um beacon remoto saudavel, nao um alarme.
+ *
+ * Medido a 2026-08-21: o Mac publicava certinho a cada 10 min e o painel do PC
+ * dizia "sem sinal ha 716s". Com o limiar de 120 s um device remoto NUNCA
+ * ficava verde, nem a funcionar bem — e um painel que nunca fica verde deixa
+ * de ser lido. O device LOCAL continua a responder a `BEACON_FRESH_S`: esse
+ * escreve para o proprio disco e nao tem desculpa nenhuma para estar velho.
+ */
+export const BEACON_FRESH_REMOTO_S = 2 * 10 * 60;
 const MAX_BEACONS = 24;
+
+/**
+ * PARIDADE — o que cada device leva no beacon para que a frota se compare.
+ *
+ * Medido a 2026-08-21 em dois devices: o PC com o cockpit em codigo de outra
+ * manha, o vault num path diferente em cada maquina, e o plugin sem ninguem
+ * saber em que versao estava do outro lado. Nada disto era visivel de um
+ * device para o outro — cada cockpit so conhecia o seu umbigo. Isto poe os
+ * factos no beacon; o painel compara com o proprio e acusa a diferenca.
+ *
+ * O que este objecto NAO traz: a versao do conector. Ela ja viaja no campo
+ * `conector` do beacon desde que `verConector` passou a ser fonte unica, e
+ * duplica-la aqui criava as duas verdades que essa correccao acabou de matar.
+ * A linha de paridade do painel le a coluna do conector desse campo.
+ *
+ * Tudo lido do disco, nada adivinhado: o que nao se consegue ler vai `null`,
+ * nunca um valor bonito.
+ */
+export function medirParidade({
+  repoRoot, vaultDir = null, readImpl = fs.readFileSync, shaImpl = repoSha,
+} = {}) {
+  if (!repoRoot) return null;
+  let plugin = null;
+  try {
+    const p = JSON.parse(String(readImpl(
+      path.join(repoRoot, 'plugin', 'mooter', '.claude-plugin', 'plugin.json'), 'utf8',
+    )));
+    plugin = typeof p.version === 'string' ? p.version : null;
+  } catch { /* sem plugin no repo: null diz isso, e o painel escreve n/d */ }
+  let sha = null;
+  try { sha = shaImpl(repoRoot); } catch { /* fica null */ }
+  return {
+    plugin,
+    repo_sha: typeof sha === 'string' ? sha : null,
+    repo_path: repoRoot,
+    vault_path: vaultDir,
+  };
+}
 
 /**
  * The ONE place this machine gets its name.
@@ -128,6 +180,9 @@ export function writeBeacon(state, {
       // reserva activa era indistinguivel de um loop morto.
       reserva: state && state.reserva ? state.reserva : null,
       branch: state && state.projeto ? state.projeto.repo_branch : null,
+      // O que este device leva para a frota se comparar (ver `medirParidade`).
+      // O chamador mede e poe em `state.paridade`; aqui so viaja.
+      paridade: state && state.paridade && typeof state.paridade === 'object' ? state.paridade : null,
       /**
        * A versao do conector DESTE device: a instalada no Claude Desktop e a
        * que o checkout traz. Dois FACTOS, sem juizo — quem julga e `naTuaMao`.
@@ -284,13 +339,16 @@ export function naTuaMao(frota, { rejeitados = [] } = {}) {
  * but computed against the beacon's own timestamp, so a device that stopped
  * syncing goes dark instead of freezing green.
  */
-export function beaconFreshness(ts, nowMs) {
+export function beaconFreshness(ts, nowMs, { remoto = false } = {}) {
   const t = ts ? Date.parse(ts) : NaN;
   if (!Number.isFinite(t)) return { estado: 'morto', idade_s: null, motivo: 'sem timestamp' };
   const raw = Math.round((nowMs - t) / 1000);
   if (raw < -5) return { estado: 'morto', idade_s: null, motivo: 'beacon datado no futuro' };
   const age = Math.max(0, raw);
-  if (age <= BEACON_FRESH_S) return { estado: 'vivo', idade_s: age, motivo: null };
+  // Um device remoto e julgado pela cadencia com que pode chegar aqui, nao
+  // pela do relogio local. Ver `BEACON_FRESH_REMOTO_S`.
+  const fresco = remoto ? BEACON_FRESH_REMOTO_S : BEACON_FRESH_S;
+  if (age <= fresco) return { estado: 'vivo', idade_s: age, motivo: null };
   if (age <= BEACON_STALE_S) return { estado: 'stale', idade_s: age, motivo: `sem sinal ha ${age}s` };
   return { estado: 'morto', idade_s: age, motivo: `sem sinal ha ${age}s` };
 }
@@ -411,7 +469,8 @@ export function readBeacons({
     //
     // O nome do FICHEIRO e a identidade, nao o campo `device` la dentro: um
     // beacon podia dizer que era outra maquina e roubar-lhe o lugar de `self`.
-    const doFicheiro = safeDeviceName(name.replace(/\.json$/, ''));
+    // Calculado uma vez em `eSelf`, la em cima, porque a mesma resposta decide
+    // duas coisas: quem e o `self` E por que limiar de frescura e julgado.
     frota.push({
       device: safeDeviceName(b.device),
       ts: typeof b.ts === 'string' ? b.ts : null,
@@ -436,13 +495,19 @@ export function readBeacons({
           repo: typeof b.conector.repo === 'string' ? b.conector.repo : null,
         }
         : null,
+      paridade: b.paridade && typeof b.paridade === 'object' ? {
+        plugin: typeof b.paridade.plugin === 'string' ? b.paridade.plugin : null,
+        repo_sha: typeof b.paridade.repo_sha === 'string' ? b.paridade.repo_sha : null,
+        repo_path: typeof b.paridade.repo_path === 'string' ? b.paridade.repo_path : null,
+        vault_path: typeof b.paridade.vault_path === 'string' ? b.paridade.vault_path : null,
+      } : null,
       usd: typeof b.usd === 'number' ? b.usd : 0,
-      self: doFicheiro === safeDeviceName(selfDevice),
+      self: eSelf,
       // De onde veio ESTE beacon. Sem isto, um device fresco pelo remoto e um
       // device fresco pelo disco sao indistinguiveis no painel — e quando a
       // frescura discorda entre dois cockpits, e a primeira coisa a perguntar.
       via,
-      frescura: beaconFreshness(b.ts, now),
+      frescura: beaconFreshness(b.ts, now, { remoto: !eSelf }),
       // Nunca `true` por omissao: um beacon so e autentico se a assinatura
       // bateu contra a chave do dono, e o painel tem de os poder distinguir.
       autenticidade: {

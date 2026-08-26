@@ -8555,6 +8555,40 @@ gate: 840 testes · 838 pass · 0 fail · 2 todo (pré-existentes) · higiene 26
 
 ---
 
+
+<!-- RESGATADO do SYNC.md do `main` a 2026-08-26, ao resolver o conflito do PR #396.
+     O #396 rolou para aqui as outras entradas de 25/08 mas nunca viu esta: foi escrita
+     no PC depois da base comum. Tomar o SYNC.md do #396 tal e qual — que e a decisao
+     delegada, e a correcta, porque e a versao que cumpre o tecto de ~220 linhas —
+     apagava-a sem deixar rasto. E a unica das quatro entradas do main que nao estava
+     ja arquivada; as outras tres estavam. Rolada, nao perdida. -->
+### 2026-08-25 (PC · `wave/detector-e-lease`) · o dia em que o roadmap foi demolido pelo próprio método
+
+Duas medições do juiz contra **57 etiquetas de verdade conhecida** (36 reais / 21 falsos), mesmo modelo, mesmos excertos, só muda a forma da pergunta:
+
+| forma | acordo | fora do contrato |
+|---|---|---|
+| **JULGAR** — o contrato em produção | **52,6%** | 0/57 |
+| **COMPARAR** — a hipótese deste dia | **25,9%** | 3/57 |
+
+A hipótese era minha e foi **refutada**. O `runner-core.test.mjs:1432` dizia desde 19/08 que o modelo não sabe julgar mas sabe comparar, e o modo ancorado tinha ficado de fora dessa reescrita. Reescrevê-lo para COMPARAR piorou: **das 20 vezes que disse "encontrei a linha que explica", as 20 eram defeitos reais.** Zero acertos — sinal invertido, não fraco. A causa é do enunciado, não do modelo: assumi que um `log` perto do `catch` significa que aquele engolir está explicado; nos casos deliberados não há log nenhum. O padrão que funciona é *"copia os dois números e compara"* — ambos existem. O meu era *"copia uma coisa que pode não existir"*, que é provar uma ausência a partir de uma janela.
+
+Correcção de instrumento a meio: a primeira corrida deu 40,0% com **17** fora do contrato, porque a verificação anti-alucinação rejeitava a linha copiada quando o modelo a envolvia em crases markdown — 14 respostas legítimas deitadas fora. Corrigida, os fora-do-contrato caíram para 3 e o acordo desceu para 25,9%. **A correcção piorou o número, que é o sinal de que era honesta.**
+
+**O roadmap de 5 passos que eu tinha proposto foi ao chão**, atacado por 8 agentes (196 tool calls, 1.071.001 tokens, 0 erros). O passo 1 comparava grandezas incomensuráveis — 70% é precisão de um **gerador de candidatos**, 52,6% é concordância de um **juiz**. O passo 5 já estava em `main` desde o #389. E o passo 3 (`MOO_HOST`) foi **cortado por segurança**: o repo já tinha decidido contra por escrito (`fleet-beacon.mjs:4-8`), e sem autenticação um `POST /triagem` com `por:'dono'` não é um botão de parar — chega a `portoes()` e **sobe o nível 2 do autopilot**. A alternativa custa zero linhas: `ssh -L 4290:127.0.0.1:4290`. Contados contra as cinco experiências, os meus 5 passos davam **Resume 0 · Plan 0 · Route 0 · Watch 1 · Review 0**.
+
+E as minhas próprias medições **não passam o portão que eu escrevi**: os 70% estão gravados em `ancora.mjs:200` e derivados por `podeEntrar:336`; os 52,6% e os 25,9% não têm ficheiro, recibo nem commit.
+
+**O hook Stop cravado estava 24 dias atrasado** (`6a67a56`, de 2026-08-01, contra `b1ba052` do `main`) — e o que diferia era uma das correcções de hoje. O `doctor` apanhou-o; o `sync-hooks --check` dizia `OK self-check`. Os dois são honestos e medem coisas diferentes: um pergunta *"tem o acumulador?"*, o outro *"é o mesmo do repo?"*. Espelhado, `LOCAL_AGENT_SYNC` passou de `fail` a `pass`.
+
+Por endereçar, com o facto ao lado: **Ollama a escutar em `0.0.0.0:11434`** com duas regras de firewall `Allow/Public` (reaberto pelo ícone hoje às 16:29) · **`pm2 mooter-fleet` há 7 semanas**, 937 MB, **4 achados em 2.653.041 ciclos**, a correr um ficheiro ausente do `origin/main` · **103 commits** desde a `v1.49.4` · o conector do dono a correr de um checkout **19 commits atrás** · o ledger **sem forma de anular** um evento mal formado, o que envenena o `publish-vault --strict` de forma permanente (descoberto ao cair nele).
+
+Quadro completo com portão numérico por linha: `_handoff/TASKS_2026-08-25_INVENTARIO_E_ORDEM.md`. O `SYNC.md` rolou 239 linhas para o arquivo — era o que o ratchet estava a pedir.
+
+gate: 808 testes · 806 pass / 0 fail / 2 todo · classify.js `427d8c0b` intacto num worktree fresco · LOCAL_AGENT_SYNC=pass · 2 recibos publicados no vault
+
+---
+
 <!-- frota Ed25519 — FECHADO 2026-08-25: 2 de 2 -->
 
 

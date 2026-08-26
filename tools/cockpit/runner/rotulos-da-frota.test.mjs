@@ -63,14 +63,45 @@ test('vivo mas parado le-se "paused", nao uma idade', () => {
   assert.equal(r.classe, 'warn');
 });
 
-test('um device EM PAUSA nao e um device morto', () => {
+/**
+ * ⚠️ ESTES TRES TESTES MUDARAM A 2026-08-26, ao fundir o #396 com o `main`.
+ *
+ * O primeiro afirmava, com um beacon de 900 s, que `pausa.activa` bastava para
+ * pintar `holding` a laranja. Isso e EXACTAMENTE o defeito que o #401 mediu e
+ * fechou no mesmo dia em que este ficheiro nasceu: o PC aparecia laranja a dizer
+ * `holding`, sem idade nenhuma, com o beacon a 3592 s.
+ *
+ * A razao esta no que `pausa.activa` quer dizer: e uma afirmacao SOBRE O INSTANTE
+ * EM QUE O BEACON FOI ESCRITO. Com `DEAD_AFTER_S = 300`, um beacon de 900 s ja
+ * esta morto — logo a frase que ele carrega e "ha 15 minutos este device estava
+ * em pausa", e nao "este device esta em pausa". Nao chega o `pausa.obsoleta`:
+ * esse mede a idade da PAUSA, nao a do BEACON, e um device que morreu com uma
+ * pausa acabada de declarar tem a pausa fresca e o sinal morto.
+ *
+ * O nucleo do teste antigo continua verdadeiro e continua coberto — um device
+ * em pausa com o beacon FRESCO nao pode pintar-se de morto. Passou a ser o caso
+ * explicito abaixo, em vez de um efeito colateral do caso do beacon morto.
+ */
+
+test('pausa com beacon FRESCO: obedecer ao escalonador nao e estar avariado', () => {
+  const r = rotuloDeDevice({
+    running: false, via: 'disco',
+    frescura: { estado: 'stale', idade_s: 90, motivo: 'sem sinal ha 90s' },
+    pausa: { activa: true, razao: 'queue full' },
+  });
+  assert.match(r.texto, /holding · queue full/);
+  assert.equal(r.classe, 'warn', 'um device obediente nao se pinta de morto');
+});
+
+test('pausa com beacon MORTO: a idade e a manchete, a pausa desce a contexto', () => {
   const r = rotuloDeDevice({
     running: false, via: 'disco',
     frescura: { estado: 'morto', idade_s: 900, motivo: 'sem sinal ha 900s' },
     pausa: { activa: true, razao: 'queue full' },
   });
-  assert.match(r.texto, /holding · queue full/);
-  assert.equal(r.classe, 'warn');
+  assert.match(r.texto, /^no signal for 15 min/, 'a idade primeiro, e a idade REAL');
+  assert.match(r.texto, /was holding \(queue full\)/, 'o que fazia nao se apaga');
+  assert.equal(r.classe, 'dead', 'um sinal morto nao pode pintar-se de laranja');
 });
 
 test('uma pausa OBSOLETA volta a contar como morte, e di-lo', () => {
@@ -79,13 +110,29 @@ test('uma pausa OBSOLETA volta a contar como morte, e di-lo', () => {
     frescura: { estado: 'morto', idade_s: 300000 },
     pausa: { activa: false, obsoleta: true, idade_s: 300000 },
   });
-  assert.match(r.texto, /^dead — was holding/);
   assert.equal(r.classe, 'dead');
+  // O texto mudou de forma (a idade passou a manchete), mas a exigencia do teste
+  // antigo mantem-se inteira: morreu EM PAUSA e o cartao tem de o dizer. Um
+  // runner que morreu a espera de triagem pede outra coisa ao dono do que um que
+  // morreu a trabalhar.
+  assert.match(r.texto, /^no signal for/);
+  assert.match(r.texto, /was holding/, 'morrer em pausa nao pode ler-se igual a morrer a trabalhar');
 });
 
-test('morto sem pausa mostra o MOTIVO, nao a palavra "morto"', () => {
+test('morto sem pausa mostra a IDADE legivel, nao a palavra "morto" nem segundos crus', () => {
   const r = rotuloDeDevice({ via: 'remoto', frescura: { estado: 'morto', idade_s: 172800, motivo: 'sem sinal ha 172800s' } });
-  assert.equal(r.texto, 'sem sinal ha 172800s');
+  assert.equal(r.classe, 'dead');
+  assert.doesNotMatch(r.texto, /morto/, 'a exigencia original: nunca a palavra crua');
+  // E a segunda metade, que o teste antigo nao cobria: `sem sinal ha 172800s` era
+  // o motivo cru do motor. 172800 segundos nao e uma coisa que se leia — o #401
+  // exigiu "a idade REAL medida", e ler e parte de ser real.
+  assert.equal(r.texto, 'no signal for 48 h');
+  assert.doesNotMatch(r.texto, /172800/, 'segundos crus nao sao uma idade legivel');
+});
+
+test('morto SEM idade nenhuma cai no motivo — nunca inventa um numero', () => {
+  const r = rotuloDeDevice({ via: 'remoto', frescura: { estado: 'morto', idade_s: null, motivo: 'no receipt' } });
+  assert.equal(r.texto, 'no signal — no receipt');
   assert.equal(r.classe, 'dead');
 });
 
