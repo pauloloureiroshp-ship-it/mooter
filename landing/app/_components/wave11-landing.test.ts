@@ -41,6 +41,11 @@ describe('Wave 11 PR-A landing', () => {
     // honest ("comparable quality on routine tasks") so it can't regress.
     expect(read('app/api/og/route.tsx')).not.toContain('Same results');
     expect(read('app/manifest.ts')).not.toContain('Same results');
+    // pilar/site — the SEO <meta description> in layout.tsx is seen by Google and
+    // was previously ungated; it carried the banned "same results" over-claim.
+    const layout = read('app/layout.tsx');
+    expect(layout).not.toContain('same results');
+    expect(layout).not.toContain('Same results');
   });
 
   // Wave 60 estendeu a guarda da FRASE ao cartao social e ao manifesto. O NUMERO

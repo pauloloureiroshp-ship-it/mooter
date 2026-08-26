@@ -40,7 +40,7 @@ export const viewport: Viewport = {
 // with zero collected reviews — a fake rating is both dishonest and a Google
 // rich-result violation).
 const DESCRIPTION =
-  'The router for Claude Code. Local-first, learns forever, spawns agents safely by default. Routes prompts across Ollama, Haiku, Sonnet and Opus — same results, a fraction of the spend, zero code changes.';
+  'The router for Claude Code. Local-first, learns forever, spawns agents safely by default. Routes prompts across Ollama, Haiku, Sonnet and Opus — comparable quality on routine tasks, a fraction of the spend, zero code changes.';
 
 export const metadata: Metadata = {
   title: 'mooter — The router for Claude Code',

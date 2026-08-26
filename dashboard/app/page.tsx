@@ -105,29 +105,48 @@ export default function Dashboard() {
   const [retrainOutput, setRetrainOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch metrics + tuning once (and every 10s)
+  // Fetch metrics + tuning once, then every 10s — but only while the tab is
+  // visible. A monitoring dashboard is left open for hours; polling a backgrounded
+  // tab just hammers the local tracker + file reads for nothing. Refresh
+  // immediately when the tab comes back into focus. (pilar/site R3)
   useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
     const loadTop = async () => {
+      if (inFlight) return; // never overlap a slow poll → no out-of-order clobber
+      inFlight = true;
       try {
         const [m, t] = await Promise.all([
           fetch('/api/metrics', { cache: 'no-store' }).then((r) => r.json()),
           fetch('/api/tuning', { cache: 'no-store' }).then((r) => r.json()),
         ]);
+        if (cancelled) return;
         setMetrics(m);
         setTuning(t);
         if (m.error) setError(`${m.error}${m.hint ? ' — ' + m.hint : ''}`);
         else setError(null);
       } catch (err) {
-        setError(`metrics fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+        if (!cancelled) setError(`metrics fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        inFlight = false;
       }
     };
-    loadTop();
-    const iv = setInterval(loadTop, 10_000);
-    return () => clearInterval(iv);
+    loadTop(); // always fetch once on mount — even in a background tab, so it never sticks on empty
+    // Re-poll only while visible; refresh the instant the tab is refocused.
+    const iv = setInterval(() => { if (!document.hidden) loadTop(); }, 10_000);
+    const onVisible = () => { if (!document.hidden) loadTop(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
-  // Fetch decisions whenever filters change (debounced via effect)
+  // Fetch decisions whenever filters change. Guard against a slower earlier
+  // request landing after a newer one and clobbering the table. (pilar/site R3)
   useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams();
     params.set('window', windowKey);
     if (tier) params.set('tier', tier);
@@ -138,10 +157,12 @@ export default function Dashboard() {
     fetch(`/api/decisions?${params.toString()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         if (data.error) setError(data.error);
         else setDecisions(data.decisions || []);
       })
-      .catch((err) => setError(`decisions fetch failed: ${err.message}`));
+      .catch((err) => { if (!cancelled) setError(`decisions fetch failed: ${err instanceof Error ? err.message : String(err)}`); });
+    return () => { cancelled = true; };
   }, [windowKey, tier, category, minConf, maxConf]);
 
   const categories = useMemo(() => {
@@ -537,19 +558,19 @@ function CostTrendSvg({ data }: { data: CostSeries }) {
       style={{ width: '100%', height: 'auto', display: 'block' }}
     >
       {/* grid */}
-      <line x1={P} y1={H - P} x2={W - P} y2={H - P} stroke="#2a2d33" strokeWidth="1" />
-      <line x1={P} y1={P} x2={P} y2={H - P} stroke="#2a2d33" strokeWidth="1" />
+      <line x1={P} y1={H - P} x2={W - P} y2={H - P} stroke="#252220" strokeWidth="1" />
+      <line x1={P} y1={P} x2={P} y2={H - P} stroke="#252220" strokeWidth="1" />
 
-      {/* naive (baseline) */}
-      <path d={pathNaive} fill="none" stroke="#f44747" strokeWidth="2" strokeDasharray="4 4" />
-      {/* real */}
-      <path d={pathReal} fill="none" stroke="#4ec9b0" strokeWidth="2.5" />
+      {/* naive (baseline) — terracotta = expensive all-Opus */}
+      <path d={pathNaive} fill="none" stroke="#D46A5A" strokeWidth="2" strokeDasharray="4 4" />
+      {/* real — green = the saved path */}
+      <path d={pathReal} fill="none" stroke="#4CAF6A" strokeWidth="2.5" />
 
       {/* labels */}
-      <text x={W - P} y={yOf(data.naiveTotal) - 6} fill="#f44747" fontSize="11" textAnchor="end" fontFamily="monospace">
+      <text x={W - P} y={yOf(data.naiveTotal) - 6} fill="#D46A5A" fontSize="11" textAnchor="end" fontFamily="'JetBrains Mono', ui-monospace, monospace">
         naive Opus ${data.naiveTotal.toFixed(3)}
       </text>
-      <text x={W - P} y={yOf(data.realTotal) - 6} fill="#4ec9b0" fontSize="11" textAnchor="end" fontFamily="monospace">
+      <text x={W - P} y={yOf(data.realTotal) - 6} fill="#4CAF6A" fontSize="11" textAnchor="end" fontFamily="'JetBrains Mono', ui-monospace, monospace">
         frugal ${data.realTotal.toFixed(3)}
       </text>
     </svg>

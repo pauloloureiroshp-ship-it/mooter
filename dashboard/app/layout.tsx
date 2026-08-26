@@ -1,9 +1,27 @@
 import type { Metadata } from 'next';
+import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import versionInfo from './version.json';
+
+// Mirror the landing's brand typography (pilar/site R1): Space Grotesk for the
+// UI, JetBrains Mono for the data — self-hosted via next/font, display:swap.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'frugal — Dashboard',
-  description: 'Local-only routing dashboard for the frugal classifier.',
+  title: 'mooter — Dashboard',
+  description: 'Local-only routing dashboard for the mooter classifier.',
 };
 
 const NAV = [
@@ -14,14 +32,14 @@ const NAV = [
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
         <div className="shell">
           <aside className="sidebar">
             <div className="brand-side">
-              <span className="mascot">&#x1F415;</span>
-              <span className="title">frugal</span>
-              <span className="version">v0.9.7</span>
+              <span className="mascot">&#x1F42E;</span>
+              <span className="title">mooter</span>
+              <span className="version">v{versionInfo.version}</span>
             </div>
             <nav className="nav">
               {NAV.map((n) => (
