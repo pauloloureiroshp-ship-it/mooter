@@ -1,0 +1,59 @@
+{
+  "regra": "AB_MOO_AUDIT_PREREGISTO.md §2.1 (branch ab-audit/preregisto)",
+  "escrito_em": "2026-08-26T18:30:42Z",
+  "escrito_por": "vendorizacao do braco A (worktree frugal-ab-braco-a, branch ab-audit/braco-a)",
+  "como_verificar": "node tools/cockpit/runner/ab-vendorizado.mjs",
+  "descarregado_em_fonte": "mtime do ficheiro descarregado, preservado na copia (cp -p). E a melhor evidencia disponivel da hora da descarga; a descarga em si (curl -sS -L, HTTP 200 nos quatro) foi feita noutra sessao e esta registada no relatorio desse bloco.",
+  "contagem_de_regras_por": "duas vias independentes que concordam nas quatro linhas: contagem de linhas `- id:` e cardinalidade do conjunto desses ids.",
+  "porque_os_quatro_ficam": "MEDIDO, nao assumido: p/javascript e p/typescript tem exactamente os mesmos 74 ids e exactamente os mesmos 214313 bytes; o sha256 difere apenas porque o servidor serializa as regras noutra ordem. Vendorizar o segundo acrescenta ZERO regras. Fica na mesma, e por duas razoes: (1) o §2.1 fixa os quatro conjuntos e diz que \"a lista nao cresce nem encolhe depois desta linha\" — retirar um depois de medir seria alterar o pre-registo depois de ver numeros, que e o que o §10 proibe; (2) o custo e desprezavel (0,97 MiB no total, conteudo imutavel, guardado uma vez e nunca re-diffado). Fica registado como REDUNDANCIA, nao como cobertura: quem ler \"409 regras\" e ler cobertura esta a ler mal.",
+  "conjuntos": [
+    {
+      "nome": "p/javascript",
+      "ficheiro": "p-javascript.yaml",
+      "fonte": "https://semgrep.dev/c/p/javascript",
+      "regras": 74,
+      "ids_distintos_no_ficheiro": 74,
+      "bytes": 214313,
+      "sha256": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
+      "descarregado_em": "2026-08-26T15:25:59Z"
+    },
+    {
+      "nome": "p/typescript",
+      "ficheiro": "p-typescript.yaml",
+      "fonte": "https://semgrep.dev/c/p/typescript",
+      "regras": 74,
+      "ids_distintos_no_ficheiro": 74,
+      "bytes": 214313,
+      "sha256": "63fbcca1826e787ca43282bf139ccec16745ad6551c87850b9ccee9ca9f98c0b",
+      "descarregado_em": "2026-08-26T15:26:00Z"
+    },
+    {
+      "nome": "p/security-audit",
+      "ficheiro": "p-security-audit.yaml",
+      "fonte": "https://semgrep.dev/c/p/security-audit",
+      "regras": 225,
+      "ids_distintos_no_ficheiro": 225,
+      "bytes": 473625,
+      "sha256": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
+      "descarregado_em": "2026-08-26T15:26:02Z"
+    },
+    {
+      "nome": "p/nodejs",
+      "ficheiro": "p-nodejs.yaml",
+      "fonte": "https://semgrep.dev/c/p/nodejs",
+      "regras": 36,
+      "ids_distintos_no_ficheiro": 36,
+      "bytes": 114750,
+      "sha256": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f",
+      "descarregado_em": "2026-08-26T15:26:03Z"
+    }
+  ],
+  "totais": {
+    "ficheiros": 4,
+    "bytes": 1017001,
+    "regras_soma_bruta": 409,
+    "ids_distintos_na_uniao": 292,
+    "duplicados_entre_conjuntos": 117
+  },
+  "o_que_nao_esta_aqui": "os JSON crus das corridas de prova offline ficaram fora do repo (evidencia do bloco anterior, nao artefacto exigido pelo §2.1). O numero honesto medido la: dos 409 candidatos brutos, 89 regras chegaram a correr contra um alvo so-TypeScript — o semgrep deduplica por id e descarta as que nao se aplicam a linguagem do alvo."
+}

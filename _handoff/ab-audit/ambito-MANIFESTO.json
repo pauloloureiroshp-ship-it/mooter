@@ -1,0 +1,59 @@
+{
+  "regra": "AB_MOO_AUDIT_PREREGISTO.md §2.2 (branch ab-audit/preregisto)",
+  "escrito_em": "2026-08-26T18:30:42Z",
+  "produtor": "tools/cockpit/runner/ambito-ab.mjs",
+  "como_verificar": "node tools/cockpit/runner/ab-vendorizado.mjs   (bytes)\nnode tools/cockpit/runner/ambito-ab.mjs --verificar        (regenera das raizes e compara)",
+  "sujeitos": [
+    {
+      "id": "S1",
+      "nome": "mooter",
+      "ficheiro": "ambito-S1.txt",
+      "raiz": "C:/Users/Paulo Loureiro/frugal-ab-audit",
+      "sha_preregisto": "97ad846b40d7e1939e02d7b826e4388fe65d60e6",
+      "head_da_raiz_ao_versionar": "2d5fd76294dfa16ef3d67e712c5a51394f72790d",
+      "no_sha_preregistado": false,
+      "ficheiros_no_ambito": 974,
+      "bytes": 36619,
+      "sha256": "4b8c0e5fa8e7f545eb8d880b05f7166f96d37e24bbdab7fae2a71f5e78920d20",
+      "gerado_em": "2026-08-26T15:27:32Z"
+    },
+    {
+      "id": "S2",
+      "nome": "fastify",
+      "ficheiro": "ambito-S2.txt",
+      "raiz": "C:/Users/Paulo Loureiro/ab-audit-subjects/fastify",
+      "sha_preregisto": "1beaf7e72d24b2fc63a02a7f5806772a00e45454",
+      "head_da_raiz_ao_versionar": "1beaf7e72d24b2fc63a02a7f5806772a00e45454",
+      "no_sha_preregistado": true,
+      "ficheiros_no_ambito": 54,
+      "bytes": 1182,
+      "sha256": "8eeb34211fe8253e53863dd97d2899e4df4dde96c1fb8ecd6b1a851ea4998e28",
+      "gerado_em": "2026-08-26T15:27:32Z"
+    },
+    {
+      "id": "S3",
+      "nome": "hono",
+      "ficheiro": "ambito-S3.txt",
+      "raiz": "C:/Users/Paulo Loureiro/ab-audit-subjects/hono",
+      "sha_preregisto": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+      "head_da_raiz_ao_versionar": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+      "no_sha_preregistado": true,
+      "ficheiros_no_ambito": 221,
+      "bytes": 6512,
+      "sha256": "0149fc8663c8c6bc4275c941542270b2889c7f43207735e188ff2e20117435a0",
+      "gerado_em": "2026-08-26T15:27:32Z"
+    }
+  ],
+  "totais": {
+    "ficheiros_no_ambito": 1249,
+    "bytes_das_listas": 44313
+  },
+  "reproduzido_das_raizes_em": "2026-08-26T18:30:42Z",
+  "reproduzido_das_raizes_resultado": "node tools/cockpit/runner/ambito-ab.mjs --verificar -> OK nos tres sujeitos, exit 0. As tres listas versionadas sao byte a byte o que as raizes desta maquina produzem hoje.",
+  "ressalva_S1": {
+    "o_que_e": "A lista S1 versionada NAO foi gerada no commit que o §1 do pre-registo ancora. Isto e medido, nao inferido.",
+    "medicao": "Reconstrui a arvore de tres commits com `git archive` (leitura pura da object DB partilhada; nao toquei na worktree de S1) e corri o produtor sobre cada uma:\n  97ad846b (ancora do §1)  -> 972 ficheiros, sha256 d1fe247d7cdf2dcd495c0d07f5049f015bfc5ad1fc9bc2e28bca1acb56f0d0a5\n  c51570a0 (HEAD a geracao) -> 974 ficheiros, sha256 4b8c0e5fa8e7f545eb8d880b05f7166f96d37e24bbdab7fae2a71f5e78920d20  <-- a lista versionada\n  2d5fd762 (HEAD a versionar) -> 974 ficheiros, mesmo sha256",
+    "diferenca_exacta": "Dois ficheiros, ambos ACRESCENTADOS, zero removidos: tools/cockpit/runner/indice-do-harness.mjs e tools/cockpit/runner/teste-fora-do-ci.mjs. Os 6 commits entre c51570a0 e 2d5fd762 nao mexeram no ambito do §2.2 — por isso as duas arvores dao a mesma lista.",
+    "porque_nao_a_corrigi": "Regenerar S1 no sha ancorado mudaria o universo de um dos tres sujeitos depois de o pre-registo estar escrito. Nao ha achados nenhuns ainda, portanto uma emenda datada AINDA e legitima (foi o argumento da Emenda 1 do proprio pre-registo) — mas e uma decisao do dono sobre o desenho da experiencia, nao um passo de vendorizacao. O que esta vendorizacao faz e por os dois numeros em cima da mesa para a decisao ser tomada com eles: 974 (a lista que existe) contra 972 (a que a ancora do §1 daria)."
+  }
+}
