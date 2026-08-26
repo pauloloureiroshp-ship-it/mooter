@@ -163,6 +163,11 @@ const DUMMIES = new Map([
   ['AKIAABCDEFGHIJKLMNOP', 'alfabeto sequencial — fixture do proprio lp-secret-scan'],
   ['sk-ant-abcdefghijklmnop1234567890', 'fixture publica do sanitizador (ja allowlisted no detector)'],
   ['sk-ant-abcdefghij0123456789XYZ', 'alfabeto sequencial — fixture do audit_pii_redactor'],
+  // Encontrado a 2026-08-26 pela varredura do HISTORICO, nao pela da arvore:
+  // vive em `packages/mooter-bridge/egress.test.js` numa branch LOCAL que nunca
+  // foi empurrada (`kimi-egress/fail-closed`). Alfabeto sequencial a seguir ao
+  // prefixo `api03-` — declara-se falso a olho.
+  ['sk-ant-api03-abcdefghijklmnop', 'alfabeto sequencial — fixture do egress.test.js do mooter-bridge'],
 ]);
 
 /**

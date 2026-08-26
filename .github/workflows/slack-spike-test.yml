@@ -68,8 +68,18 @@ jobs:
       - name: Bateria de segredos, arvore toda (zero-LLM)
         run: node tools/audit/varredura-segredos.mjs --sem-vault
 
-      - name: A propria bateria tem de estar de pe
-        run: node --test tools/audit/varredura-segredos.test.mjs
+      # A bateria toda por UMA lista (`test:audit` na raiz), nao por uma lista
+      # aqui e outra no package.json: a 2026-08-26 acrescentou-se a varredura do
+      # HISTORICO e a primeira coisa que ia acontecer era a lista daqui ficar
+      # com uma das duas.
+      #
+      # Corre os TESTES das ferramentas. A varredura do historico do proprio
+      # repo NAO corre aqui: `actions/checkout@v4` clona com `fetch-depth: 1` e
+      # uma varredura de historico sobre a ponta devolveria `HIGH 0` a mentir.
+      # A ferramenta recusa-se a correr num clone shallow (`eShallow()`), por
+      # isso liga-la ao CI exige `fetch-depth: 0` — decisao de custo de clone.
+      - name: A propria bateria tem de estar de pe (arvore + historico)
+        run: npm run test:audit
 
       - name: Tokens do Slack com forma REAL, em qualquer ficheiro
         run: |

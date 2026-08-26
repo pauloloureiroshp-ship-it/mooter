@@ -1,0 +1,8 @@
+{
+  "porque_existe": "Um blob e conteudo imutavel: declarar UM blob nunca cega o detector para outro conteudo, ao contrario de allowlistar um caminho (que passa a valer para tudo o que la for escrito no futuro) ou um valor (que passa a valer em todo o repo). Cada entrada precisa de um motivo escrito; a varredura recusa uma entrada sem motivo, e imprime sempre quantas usou. Uma allowlist silenciosa seria a forma mais limpa de esconder uma fuga.",
+  "como_obter_o_sha": "node tools/audit/varredura-historico.mjs --refs origin --json  →  campo .achados[].blob  →  git cat-file -p <sha> para ver exactamente o que foi lido",
+  "declarados": {
+    "bd1e23cf73929cd987daae3bf310ee0f933d15d9": "corpus de teste do PROPRIO detector de segredos (tools/audit/varredura-segredos.test.mjs, versao de 2026-08-25). Contem: o dummy oficial da AWS `AKIAIOSFODNN7EXAMPLE`, um AKIA de forma valida inventado para o teste 'um AKIA de forma real e desconhecido continua HIGH', e dois cabecalhos PEM (um sem corpo, outro com 58 chars de base64 — uma chave RSA real tem mais de 1000). Este blob NAO pode ir para a lista de DUMMIES por valor: o teste dele existe precisamente para provar que um AKIA desconhecido continua a ser HIGH, e allowlistar o valor partiria o teste que protege toda a gente.",
+    "b89798649aab6a4e9fa6800c9ac8a7fc8f478a0e": "placeholder num teste: `process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited-friend-build-key'`. Sufixo de 26 chars em palavras minusculas; uma chave real da Anthropic tem o prefixo `api03-` e ~100 chars. Ja nao existe em HEAD — so o historico a ve, que e exactamente a razao de esta varredura existir."
+  }
+}

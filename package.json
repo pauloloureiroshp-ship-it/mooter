@@ -29,7 +29,8 @@
     "device:sync": "node tools/cockpit/sync-device.mjs",
     "frota:chave": "node tools/cockpit/chave-da-frota.mjs",
     "device:check": "node tools/cockpit/sync-device.mjs --check",
-    "device:bootstrap": "node tools/cockpit/bootstrap.mjs"
+    "device:bootstrap": "node tools/cockpit/bootstrap.mjs",
+    "test:audit": "node --test tools/audit/varredura-segredos.test.mjs tools/audit/varredura-historico.test.mjs"
   },
   "engines": {
     "node": ">=22"
