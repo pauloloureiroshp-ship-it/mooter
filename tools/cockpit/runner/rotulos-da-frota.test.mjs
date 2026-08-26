@@ -192,3 +192,46 @@ test('anotarFrota nao rebenta com uma frota ausente', () => {
   assert.deepEqual(anotarFrota({}), {});
   assert.deepEqual(anotarFrota(null), {});
 });
+
+// ── beacon fresco != device produtivo (2026-08-26) ──────────────────────────
+//
+// O pior negativo registado a 25/08: *"produção parada desde 03:08:12Z com o
+// painel a mostrar beacon 'vivo 24s' — beacon fresco ≠ device produtivo"*. A
+// frescura do cartao le a idade do BEACON, e o ramo da pausa REESCREVE o beacon
+// a cada ciclo. Um device parado por desenho e o mais fresco de todos.
+//
+// Deixou de ser fronteira: com a rotacao derivada da medicao, a pausa e o estado
+// PERMANENTE deste device. O cartao ficava verde para sempre a dizer que ha
+// trabalho, ao lado de um chip de ligacao a dizer `holding`.
+
+test('beacon FRESCO com pausa activa diz holding — nao "23s ago" a verde', () => {
+  const r = rotuloDeDevice({
+    running: true, via: 'disco', self: true,
+    frescura: { estado: 'vivo', idade_s: 23, motivo: null },
+    pausa: { activa: true, razao: 'zero pilares na rotacao — nenhum passa o portao de medicao' },
+  });
+  assert.equal(r.classe, 'warn', 'verde afirma producao que nao existe');
+  assert.match(r.texto, /^holding · zero pilares/);
+  assert.doesNotMatch(r.texto, /ago/, 'a idade do beacon nao e a idade do trabalho');
+});
+
+test('sem pausa, um beacon fresco continua a ser uma idade — a guarda e falsificavel', () => {
+  const r = rotuloDeDevice({
+    running: true, via: 'disco',
+    frescura: { estado: 'vivo', idade_s: 23, motivo: null },
+  });
+  assert.equal(r.classe, 'ok');
+  assert.equal(r.texto, '23s ago');
+});
+
+test('a ordem entre os tres ramos: beacon MORTO ganha a pausa, pausa ganha a vivo', () => {
+  // O #401 mediu que um sinal morto ganha a uma pausa afirmada quando ele ainda
+  // estava vivo. Isso continua acima do ramo novo — os dois nao competem.
+  const morto = rotuloDeDevice({
+    running: true, via: 'remoto',
+    frescura: { estado: 'morto', idade_s: 3592, motivo: 'sem sinal ha 3592s' },
+    pausa: { activa: true, razao: 'queue full' },
+  });
+  assert.equal(morto.classe, 'dead');
+  assert.match(morto.texto, /^no signal for/);
+});

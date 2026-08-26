@@ -858,10 +858,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
        * pausa fresca e o sinal morto, e caia exactamente aqui.
        */
       const beaconMorto = fr.estado === 'morto';
+      // A pausa vem antes do `vivo` — ver o porque em `rotulos-da-frota.mjs`.
+      // Um beacon fresco nao prova producao: a pausa reescreve-o a cada ciclo.
       const cls = rot ? rot.classe
                 : beaconMorto ? 'dead'
-                : fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : emPausa ? 'warn'
+                : fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : fr.estado === 'stale' ? 'warn' : 'dead';
       // Uma pausa OBSOLETA volta a contar como morte — mas diz que morreu em
       // pausa. A primeira versao deste campo nao expirava, e um device morto ha
@@ -878,8 +880,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
                 + (emPausa || pausaVelha
                     ? ` · was holding (${(d.pausa && d.pausa.razao) || 'queue full'})`
                     : ''))
-          : fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
-            : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
+          : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
+            : fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
               : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
                 : (fr.motivo || fr.estado);
       const chip = el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`, textoChip);

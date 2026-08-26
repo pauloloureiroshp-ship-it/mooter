@@ -8589,6 +8589,80 @@ gate: 808 testes · 806 pass / 0 fail / 2 todo · classify.js `427d8c0b` intacto
 
 ---
 
+
+<!-- rolado do SYNC.md a 2026-08-26 pelo orcamento de ~220 linhas, para caber a
+     entrada da sessao "rodar perfeito". O que esta entrada dizia sobre o #396 ficou
+     superseded no mesmo dia: ela regista-o como retido por rate-limit do Vercel, e a
+     26/08 o rate-limit passou e o PR foi merjido com CI 22/22. Rolado, nao apagado. -->
+### 2026-08-25 (Mac · CC headless) · merges delegados — e o vermelho que eles revelaram
+
+**5 mergidos** (#397 #398 #399 #401 + **#406**, meu) · **3 retidos**: #396 (`Vercel … retry in 24 hours`, 4ª verificação — **ainda rate-limited**), #400/#402 por ordem do dono. Nunca `--admin`.
+
+**`main` ficou vermelho sem que nenhum PR estivesse vermelho.** (a) O `retomar.js` (#404) resolvia
+um `cwd` de outra máquina contra o `process.cwd()` local e declarava o **repo local** como «onde
+estavas», `status: measured` — facto **fabricado**, e só falhava fora do Windows. (b) O #398 partiu
+o teste de TES da landing, que **nunca correu no PR**: o `landing-test.yml` só acorda em
+`landing/**` e a rota lê `data/` — **filtro de paths é gate a fingir**. Ambos corrigidos no #406.
+
+**Não relancei o loop — é a decisão que mais importa.** O `launch.mjs` achou tudo vivo e não reiniciou; ainda bem: o loop roda pilares (`P2`→`P3` em 13 s) e `PILLAR_IDS = []` **no checkout E em `main`**. O código que está a produzir **não existe em branch nenhuma**; reiniciar trocava 10 pilares por zero, em silêncio. `:4290` vivo · beacon assinado (`Ed25519-v1`, `idade_s 0`).
+
+**O painel deste device não tem os fixes do #401** (`✗ código — 18 atrás`): o merge trava num conflito **de desenho** — #396 e #401 corrigiram o cartão da frota de duas maneiras incompatíveis (rótulo do `/fleet.json` **vs** calculado no painel). Abortei — **é decisão do dono**.
+
+**Refutação:** `codex` **autenticado**, mas `out of credits` — a parede mudou de login para
+dinheiro, e dois documentos ainda dizem «401». 3 desenhos em Ollama `gpt-oss:20b` ($0): **2 objecções
+sobrevivem em 9** — beacon **auto-assinado** no M2, e a porta do M1 **sem token** (`proxy.mjs:123` só
+valida loopback). Os 3 ficam **🔴 por adversário externo**.
+
+gate em `main @7d5e3566`: cockpit 875/0 · CLI 663/0 · landing 219/0 + typecheck + lint 0 erros ·
+router 996/1 e packages/router 305/3 (estado da máquina e dívida sem CI) · classify.js
+`427d8c0b` intacto · detalhe: `_handoff/cc-merges-progress.md`
+
+
+---
+
+
+<!-- rolado do SYNC.md a 2026-08-26 pelo mesmo orcamento de ~220 linhas. E a entrada do
+     trabalho do PR #396, que foi MERJIDO a 26/08 (`0a2c172d`, CI 22/22) — a entrada de 26/08
+     no SYNC resume-a e diz o que mudou na resolucao dos conflitos. Rolado, nao apagado. -->
+### 2026-08-25 (Mac · `mac/sistema-sync-2026-08-25`) · sistema & sync — o que estava a medir mal
+
+Detive o **lock logico do SYNC** para este rolo (604 linhas -> orcamento).
+Verifiquei antes que o unico outro device activo (`desktop-j26409q`) nao lhe
+tinha tocado desde a base comum: o `git diff main <branch>` mostrava um falso
+`-6` que era o main a estar a frente, nao a branch a apagar.
+
+Tres coisas mediam mal, e as tres eram do instrumento, nao do objecto:
+
+1. **A suite do router.** `--test-force-exit` matava o reporter: 889/977/979/
+   1029/1000/1004 em corridas seguidas, e o `fail 0` era artefacto — havia 3
+   falhas verdadeiras cortadas com o resto. Sem o flag: **1160 x3, fail 0**. As
+   3 falhas eram `renderResolved` a chamar `renderTwoLine(ctx)` sem `opts`, a
+   ler o `~/.mooter` REAL do dono.
+2. **O painel.** "1 min ago" com ficheiro de 2 dias: o campo `via` (disco/remoto)
+   existia nos dados e o painel **nunca o renderizou**. O rotulo passou para
+   modulo testado — a unica coisa que o painel afirmava era a unica sem teste.
+3. **Este ficheiro.** O cabecalho "verificavel" dizia `v1.24.1 / 2026-07-27`
+   com a maquina em `1.49.4`: faltava o marcador de FIM da zona humana e o gerador
+   lancava em **todas** as corridas, ha um mes.
+
+**Refutado por medicao:** os 14 MB do `.git` do vault nao sao dos beacons — eles
+sao 91% dos commits e **0,79 MiB** do pack; um clone fresco da 5,9 MB. E o beacon
+do PC ja publica `conector` preenchido (a premissa do `null` estava velha).
+
+**Veredicto `codex/agent-sync-fleet-v3`: APROVEITAR.** Enxertada numa worktree do
+main de hoje (529 commits a frente): 56/56 na suite agent-sync, 1170 no router
+sem regressao. Bloqueio unico: dois publicadores que nao se conhecem a escrever
+no vault (`DR_VAULT.md` / `CANAL_DE_SYNC_ROADMAP.md`).
+
+**Nao feito, declarado:** W4 (metrica-mae, quota por motor, kWh) e W5.1 (Ed25519
+por utilizador). `codex` e `kimi`: **n/d** nesta maquina; refutacao em Ollama local.
+
+gate: router 1160/1159/0 (x3, mesmo total) · cockpit 876/874/0/2 todo ·
+varredura de segredos HIGH 0 · restauro do vault 0 falhas · classify.js `427d8c0b`
+
+
+---
+
 <!-- frota Ed25519 — FECHADO 2026-08-25: 2 de 2 -->
 
 

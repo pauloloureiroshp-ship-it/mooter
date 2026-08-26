@@ -81,10 +81,7 @@ export function rotuloDeDevice(d) {
 
   let texto;
   let classe;
-  if (fr.estado === 'vivo') {
-    texto = dev.running ? `${emIdade(fr.idade_s)} ago` : 'paused';
-    classe = dev.running ? 'ok' : 'warn';
-  } else if (beaconMorto) {
+  if (beaconMorto) {
     // A IDADE primeiro. O que ele estava a fazer quando morreu vai a seguir,
     // como contexto — nunca como manchete.
     //
@@ -101,8 +98,30 @@ export function rotuloDeDevice(d) {
       : `no signal for ${emIdade(fr.idade_s)}${contexto}`;
     classe = 'dead';
   } else if (emPausa) {
+    /**
+     * A PAUSA VEM ANTES DO `vivo`, e nao depois (2026-08-26).
+     *
+     * Ate aqui um beacon fresco ganhava sempre, e o cartao dizia `23s ago` a
+     * VERDE enquanto o chip de ligacao do mesmo ecra dizia `holding`. Duas
+     * afirmacoes sobre o mesmo device, ao lado uma da outra.
+     *
+     * A frescura do cartao le a idade do BEACON, e a pausa reescreve o beacon a
+     * cada ciclo — por isso um device parado por desenho e o mais fresco de
+     * todos. `beacon fresco != device produtivo` estava registado como o pior
+     * negativo de 25/08 e nunca tinha sido fechado.
+     *
+     * Deixou de ser um caso de fronteira a 2026-08-26: com a rotacao derivada da
+     * medicao e os onze pilares reprovados, a pausa e o estado PERMANENTE deste
+     * device. O cartao ficaria verde para sempre a dizer que ha trabalho.
+     *
+     * O ramo do beacon MORTO continua acima deste: um sinal que morreu ganha a
+     * uma pausa que foi afirmada quando ele ainda estava vivo (#401).
+     */
     texto = `holding · ${pausa.razao || 'queue full'}`;
     classe = 'warn';
+  } else if (fr.estado === 'vivo') {
+    texto = dev.running ? `${emIdade(fr.idade_s)} ago` : 'paused';
+    classe = dev.running ? 'ok' : 'warn';
   } else if (pausaVelha) {
     texto = `dead — was holding, ${emIdade(pausa.idade_s)} old`;
     classe = 'dead';
