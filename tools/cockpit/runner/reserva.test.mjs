@@ -24,7 +24,13 @@ import { PILLARS, idsActivos } from './context-pack.mjs';
  * despachos e nao provaria nada sobre a reserva, que e o que ele testa.
  */
 const catalogoDeEnsaio = () => {
-  const pillars = { ...PILLARS, P2: { ...PILLARS.P2, activo: true } };
+  // `medicao` SINTETICA: desde 2026-08-26 a rotacao deriva do portao
+  // (`podeEntrar`) e `activo: true` deixou de chegar. Sem isto o catalogo de
+  // ensaio fica vazio e este E2E passa a testar o catalogo em vez do ciclo.
+  const pillars = {
+    ...PILLARS,
+    P2: { ...PILLARS.P2, activo: true, medicao: { candidatos: 84, lidos: 40, reais: 28 } },
+  };
   return { pillars, ids: idsActivos(pillars), fonte: 'ensaio', ficheiro: null, erro: null };
 };
 

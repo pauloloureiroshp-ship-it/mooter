@@ -746,7 +746,12 @@ const diffFalso = (ficheiros) => () => ficheiros
  * Nao releva a decisao do dono: os testes que afirmam QUEM corre continuam a
  * ler `PILLAR_IDS`, e esse esta vazio (ver a seccao dos onze desligados).
  */
-const CATALOGO_DE_ENSAIO = { ...PILLARS, P2: { ...PILLARS.P2, activo: true } };
+// A `medicao` e SINTETICA e existe so para o portao deixar o ensaio correr — nao
+// e uma afirmacao sobre o P2, cuja medicao real (11 lidos a mao pelo dono, 0
+// reais) esta na entrada dele e continua a recusa-lo. Desde 2026-08-26 nao chega
+// por `activo: true`: e essa a correccao, e esta linha e a prova de que morde.
+const MEDICAO_DE_ENSAIO = { candidatos: 84, lidos: 40, reais: 28 };
+const CATALOGO_DE_ENSAIO = { ...PILLARS, P2: { ...PILLARS.P2, activo: true, medicao: MEDICAO_DE_ENSAIO } };
 const IDS_DE_ENSAIO = idsActivos(CATALOGO_DE_ENSAIO);
 
 test('B6: o pathspec do diff exclui arquivo, docs/archive e testes', () => {
@@ -1773,8 +1778,20 @@ test('a caminhada usa a ROTACAO, nunca o catalogo inteiro', () => {
     'hoje ha desligados — se isto falhar, o teste perdeu o alvo');
 
   // E num catalogo sintetico, para nao depender de quem esta desligado hoje.
-  const cat = { A: { activo: false }, B: {}, C: { activo: false }, D: {} };
-  assert.deepEqual(idsActivos(cat), ['B', 'D']);
+  // Desde 2026-08-26 a rotacao e OPT-IN: um pilar sem `activo` nao entra (antes
+  // entrava — `activo !== false`). Os onze embutidos tem todos `activo: false`
+  // explicito, por isso o catalogo real nao muda; muda o que um catalogo NOVO
+  // precisa de dizer para correr, e passar a ter de o dizer e o objectivo.
+  const ok = { candidatos: 84, lidos: 40, reais: 28 };
+  const cat = {
+    A: { activo: false, medicao: ok },
+    B: { activo: true, medicao: ok },
+    C: { activo: false, medicao: ok },
+    D: { activo: true, medicao: ok },
+    E: { activo: true, medicao: null },
+  };
+  assert.deepEqual(idsActivos(cat), ['B', 'D'],
+    'o `E` quis entrar e nao tinha numeros — a rotacao nao e o catalogo, nem a lista dos que se declararam');
 });
 
 test('um recibo recusado pelo ledger perde-se ALTO, mas não derruba o ciclo', async () => {
@@ -1810,4 +1827,85 @@ test('um recibo recusado pelo ledger perde-se ALTO, mas não derruba o ciclo', a
   const avisos = logs.filter((l) => l.includes('recibo recusado pelo ledger'));
   assert.ok(avisos.length >= 1, `a recusa tem de aparecer no log: ${JSON.stringify(logs.slice(0, 4))}`);
   assert.match(avisos[0], /recibo invalido/, 'com o erro real, não com uma mensagem genérica');
+});
+
+// ── O PORTAO DOS PILARES (2026-08-26) ───────────────────────────────────────
+//
+// Ate 2026-08-25 a rotacao era `activo !== false`: onze booleanos a mao. O #389
+// tinha acabado de tirar esse desenho das REGRAS do ancorado, derivando a
+// decisao de uma `medicao` estruturada, precisamente porque foi assim que o P11
+// entrou — passou o ensaio semeado, entrou com um `porque` convincente, e num
+// dia deu 87 achados dos quais 76 falhavam o proprio enunciado.
+//
+// Os pilares, que sao de onde o problema veio, tinham ficado de fora. Estes
+// testes fixam a correccao: o que decide e o numero, e forcar o booleano nao
+// chega. Se alguem voltar a por `activo: true` sem medicao, isto fala.
+
+test('o portao dos pilares: forcar `activo: true` nos ONZE nao reactiva nenhum', async () => {
+  const { PILLARS, PILLAR_IDS_TODOS, idsActivos } = await import('./context-pack.mjs');
+  const forcados = Object.fromEntries(
+    PILLAR_IDS_TODOS.map((id) => [id, { ...PILLARS[id], activo: true }]),
+  );
+  assert.deepEqual(idsActivos(forcados), [],
+    'apagar `activo: false` voltou a ser suficiente — era exactamente assim que o P11 entrou');
+});
+
+test('o portao dos pilares: cada recusa diz um NUMERO, nao uma opiniao', async () => {
+  const { PILLARS, PILLAR_IDS_TODOS, pilaresRecusados } = await import('./context-pack.mjs');
+  const forcados = Object.fromEntries(
+    PILLAR_IDS_TODOS.map((id) => [id, { ...PILLARS[id], activo: true }]),
+  );
+  const recusados = pilaresRecusados(forcados);
+  assert.equal(recusados.length, PILLAR_IDS_TODOS.length, 'todos os onze tem de aparecer recusados');
+  for (const { id, porque } of recusados) {
+    // Duas formas honestas de recusar, e nenhuma terceira: ou o numero medido
+    // reprova, ou nao HA numero — e dizer "nao ha numero" e tao concreto quanto
+    // dizer 1,1%. O que nao pode acontecer e uma recusa em prosa vaga.
+    const temNumero = /\d/.test(porque);
+    const declaraAusencia = /sem campo `medicao`|nao houve triagem/.test(porque);
+    assert.ok(temNumero || declaraAusencia,
+      `${id}: a recusa "${porque}" nem traz numero nem declara a ausencia dele`);
+    // E o `porque` do proprio pilar cita sempre os numeros que se mediram.
+    assert.ok(/\d/.test(PILLARS[id].porque), `${id}: o \`porque\` do pilar nao cita medicao nenhuma`);
+  }
+});
+
+test('o portao dos pilares: um pilar com medicao que PASSA entra — o portao nao e um "sempre nao"', async () => {
+  const { idsActivos } = await import('./context-pack.mjs');
+  // O portao tem de ser falsificavel: se recusasse tudo, o teste acima passava
+  // por acidente e nao provava nada. Estes numeros sao os da unica regra que
+  // passou o portao ate hoje (`catch-neutro`: 28 reais em 40 lidos, 70,0%).
+  const bom = {
+    PX: { label: 'x', files: ['*.md'], ask: 'x', activo: true,
+          medicao: { candidatos: 84, lidos: 40, reais: 28 } },
+  };
+  assert.deepEqual(idsActivos(bom), ['PX']);
+});
+
+test('o portao dos pilares: a precisao DERIVA-SE — declara-la nao a sobrepoe', async () => {
+  const { idsActivos } = await import('./context-pack.mjs');
+  const mentiroso = {
+    PX: { label: 'x', files: ['*.md'], ask: 'x', activo: true,
+          precisao: 0.99,
+          medicao: { candidatos: 87, lidos: 87, reais: 1 } },
+  };
+  assert.deepEqual(idsActivos(mentiroso), [],
+    'um numero declarado a mao e um numero que se pode escrever errado');
+});
+
+test('a `medicao` de cada pilar e coerente com ela propria', async () => {
+  const { PILLARS, PILLAR_IDS_TODOS } = await import('./context-pack.mjs');
+  for (const id of PILLAR_IDS_TODOS) {
+    const p = PILLARS[id];
+    assert.ok('medicao' in p, `${id}: sem campo \`medicao\` (use null quando nao ha triagem de campo)`);
+    assert.ok(typeof p.porque === 'string' && /\d/.test(p.porque),
+      `${id}: o \`porque\` tem de citar os numeros que se mediram`);
+    if (p.medicao === null) continue;
+    const { candidatos, lidos, reais } = p.medicao;
+    for (const [k, v] of Object.entries({ candidatos, lidos, reais })) {
+      assert.ok(Number.isSafeInteger(v) && v >= 0, `${id}.medicao.${k} = ${v} nao e um inteiro >= 0`);
+    }
+    assert.ok(reais <= lidos, `${id}: ${reais} reais em ${lidos} lidos — impossivel`);
+    assert.ok(lidos <= candidatos, `${id}: ${lidos} lidos de ${candidatos} candidatos — amostra maior que o universo`);
+  }
 });

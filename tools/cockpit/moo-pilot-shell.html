@@ -824,13 +824,23 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       // device em pausa cujo sinal morreu ficava a cores, como se estivesse bem.
       const box = el('div', `dev${d.self ? ' self' : ''}${fr.estado === 'morto' ? ' morto' : ''}`);
       const hd = el('div','hd');
-      // O nome vai cortado com reticencias no CSS; o `title` e o que o torna
-      // legivel na mesma. Sem ele, dois devices com prefixo comum ficavam
-      // indistinguiveis — e distinguir devices e para o que este cartao serve.
-      const nome = d.device + (d.self ? ' \u00b7 this one' : '');
+      // O NOME leva `title`: o CSS corta-o com reticencias, e sem o tooltip dois
+      // devices de prefixo comum ficavam indistinguiveis — que e exactamente o
+      // que este cartao serve para distinguir.
+      const nome = d.device + (d.self ? ' · this one' : '');
       const spanNome = el('span','nm', nome);
       spanNome.title = nome;
       hd.appendChild(spanNome);
+      // O rotulo vem PRONTO do /fleet.json (`rotulos-da-frota.mjs`, testado).
+      // O calculo local fica como recurso para um endpoint de uma versao
+      // anterior — nunca como segunda verdade a divergir da primeira.
+      //
+      // POR ISSO O RECURSO APLICA A MESMA REGRA, e nao uma parecida: as duas
+      // vias sao confrontadas uma contra a outra em `painel-cartao.test.mjs`
+      // ("as duas vias concordam"). Um recurso que diverge do rotulo servido e
+      // pior do que recurso nenhum — mostra uma coisa quando o servidor esta
+      // desactualizado e outra quando esta em dia, sem dizer qual e qual.
+      const rot = d.rotulo || null;
       /**
        * Um beacon MORTO manda no cartao, mesmo que o ultimo estado dissesse
        * pausa. Medido 2026-08-25: o PC aparecia com a pill laranja
@@ -848,7 +858,8 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
        * pausa fresca e o sinal morto, e caia exactamente aqui.
        */
       const beaconMorto = fr.estado === 'morto';
-      const cls = beaconMorto ? 'dead'
+      const cls = rot ? rot.classe
+                : beaconMorto ? 'dead'
                 : fr.estado === 'vivo' ? (d.running ? 'ok' : 'warn')
                 : emPausa ? 'warn'
                 : fr.estado === 'stale' ? 'warn' : 'dead';
@@ -859,16 +870,26 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       const pausaVelha = Boolean(d.pausa && d.pausa.obsoleta);
       // A IDADE primeiro, sempre que o sinal morreu. O que ele estava a fazer
       // quando morreu vai a seguir, como contexto — nunca como manchete.
-      const textoChip = beaconMorto
-        ? (fr.idade_s == null
-            ? `no signal — ${fr.motivo || 'no timestamp'}`
-            : `no signal for ${ago(fr.idade_s)}`
-              + (emPausa ? ` · was holding (${d.pausa.razao || 'queue full'})` : ''))
-        : fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
-          : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
-            : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
-              : (fr.motivo || fr.estado);
-      hd.appendChild(el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`, textoChip));
+      const textoChip = rot ? rot.texto
+        : beaconMorto
+          ? (fr.idade_s == null
+              ? `no signal — ${fr.motivo || 'no timestamp'}`
+              : `no signal for ${ago(fr.idade_s)}`
+                + (emPausa || pausaVelha
+                    ? ` · was holding (${(d.pausa && d.pausa.razao) || 'queue full'})`
+                    : ''))
+          : fr.estado === 'vivo' ? (d.running ? `${ago(fr.idade_s)} ago` : 'paused')
+            : emPausa ? `holding · ${d.pausa.razao || 'queue full'}`
+              : pausaVelha ? `dead — was holding, ${ago(d.pausa.idade_s)} old`
+                : (fr.motivo || fr.estado);
+      const chip = el('span', `chip ${cls}${cls === 'ok' && d.self ? ' live' : ''}`, textoChip);
+      if (rot && rot.titulo) chip.title = rot.titulo;
+      hd.appendChild(chip);
+      // O CANAL, visivel sem passar o rato. Um device remoto pode estar
+      // legitimamente fresco enquanto o ficheiro no disco desta maquina tem
+      // dois dias — as duas coisas sao verdade, e sem esta etiqueta o painel
+      // parecia mentir sobre uma delas.
+      if (rot && rot.sufixo) hd.appendChild(el('span', 'nd', rot.sufixo));
       box.appendChild(hd);
 
       const meta = el('div','meta');
@@ -974,7 +995,9 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
       wrap.appendChild(box);
     }
-    $('fleet-note').textContent = f.aviso || '';
+    // `aviso_completo` acrescenta o estado do FETCH ao aviso base: um painel
+    // com devices frescos e um fetch falhado estaria a afirmar frescura que nao mediu.
+    $('fleet-note').textContent = f.aviso_completo || f.aviso || '';
   }
 
   /**

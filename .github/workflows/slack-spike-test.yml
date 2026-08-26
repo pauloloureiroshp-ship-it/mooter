@@ -50,6 +50,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # A bateria COMPLETA, nao so o Slack. Os greps abaixo cobrem tres formas
+      # concretas (token do Slack, signing secret, ficheiro .env); esta varredura
+      # cobre a classe: chaves AWS/GitHub/Stripe/Anthropic, PEMs com corpo, e
+      # atribuicoes de nome-credencial a literal. Reutiliza o detector que ja e
+      # testado (`lp-secret-scan.js`) em vez de uma segunda bateria de regex.
+      #
+      # `--sem-vault` porque no CI o vault NAO esta montado — e este resultado
+      # nao diz nada sobre ele. A metade do vault corre na maquina do dono
+      # (`node tools/audit/varredura-segredos.mjs`), que e o unico sitio onde o
+      # vault existe. Um CI a afirmar "vault limpo" sem o ter lido seria
+      # exactamente a especie de verde que este ficheiro existe para impedir.
+      - name: Bateria de segredos, arvore toda (zero-LLM)
+        run: node tools/audit/varredura-segredos.mjs --sem-vault
+
+      - name: A propria bateria tem de estar de pe
+        run: node --test tools/audit/varredura-segredos.test.mjs
+
       - name: Tokens do Slack com forma REAL, em qualquer ficheiro
         run: |
           # as fixtures sao curtas de proposito (xoxb-x, xapp-123, xoxb-SEGREDO) e

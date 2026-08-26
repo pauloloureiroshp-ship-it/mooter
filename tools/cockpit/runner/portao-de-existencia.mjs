@@ -68,11 +68,14 @@ import { expandirPadrao } from './context-pack.mjs';
  */
 export const AMOSTRA_MAX = 40;
 
-/** Os limiares. Pre-registados: mudar isto depois de ver os numeros e batota. */
-export const LIMIARES = Object.freeze({
-  REAIS_MINIMO: 10,
-  PRECISAO_MINIMA: 0.30,
-});
+/**
+ * Os limiares vivem em `portao.mjs` desde 2026-08-26 — o mesmo objecto que
+ * decide as regras do ancorado e os pilares. Tres copias dos mesmos dois numeros
+ * eram tres sitios para eles divergirem. Re-exportado para nao partir ninguem.
+ */
+import { LIMIARES } from './portao.mjs';
+
+export { LIMIARES };
 
 /**
  * Ficheiros que NUNCA contam para o censo.

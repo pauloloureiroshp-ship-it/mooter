@@ -112,7 +112,11 @@ test('render: missing COLUMNS assumes narrow (1-line)', () => {
 
 test('renderTwoLine: oversized chip is truncated, structure preserved', () => {
   const longPack = { ...healthyState, lastPack: { pack_id: 'very-long-pack-name-that-exceeds-thirty-characters' } };
-  const out = renderTwoLine(longPack);
+  // HOME isolado: estes dois testes falam do CONTEUDO da linha 2 (truncagem e
+  // chips ausentes) e nao de quantas linhas o dono opta por ver. Sem o `home`,
+  // liam o `~/.mooter/preferences.json` real e um dono com `statusline_line3`
+  // ligado via-os a afirmar 2 linhas contra 3 — falha na maquina dele, verde no CI.
+  const out = renderTwoLine(longPack, { home: CLEAN_HOME });
   const lines = out.split('\n');
   assert.equal(lines.length, 2);
   assert.ok(!lines[1].includes('very-long-pack-name-that-exceeds-thirty'), 'full oversized pack id is cut');
@@ -126,7 +130,7 @@ test('renderTwoLine: drops absent chips instead of printing empty fields', () =>
     recent: [{ tier: 'T2', confidence: 0.7 }],
     anthRem: 80, savedUsd: 0.1, savedPct: 50, todayCost: 0.02, dataMissing: false,
   };
-  const out = renderTwoLine(sparse);
+  const out = renderTwoLine(sparse, { home: CLEAN_HOME });
   const lines = out.split('\n');
   assert.equal(lines.length, 2);
   assert.ok(!lines[1].includes('🏠 local ×0'), 'zero local count chip is omitted');
@@ -147,4 +151,45 @@ test('truncateChip: leaves short strings untouched, cuts long ones to max', () =
   const cut = truncateChip('x'.repeat(40), 30);
   assert.equal(cut.length, 30);
   assert.ok(cut.endsWith('…'));
+});
+
+// ── HOME injectado: a regressao que faltava ─────────────────────────────────
+//
+// Medido 2026-08-25, `mac/sistema-sync-2026-08-25`: a suite do tools/router
+// falhava 3 testes na maquina do dono e passava no CI. Nao era flakiness — era
+// `renderResolved` a chamar `renderTwoLine(ctx)` SEM `opts`, portanto o `home`
+// injectado morria ali e `buildLine3` caia no `os.homedir()` real. O dono tem
+// `~/.mooter/preferences.json` = {"statusline_line3":true} (esta no CLAUDE.md,
+// e uma preferencia suportada), logo o layout largo dava 3 linhas onde o teste
+// descreve 2.
+//
+// O comentario da Wave 55 (statusline-multi.js) ja PROMETIA esta hermeticidade;
+// o que faltava era o codigo a cumpri-la. Estes dois testes provam-na nos dois
+// sentidos — sem eles, alguem volta a tirar o `opts` e so descobre na maquina
+// de quem tem a preferencia ligada.
+test('render: HOME injectado sem preferencias → 2 linhas (nao le o ~/.mooter real)', () => {
+  const cleanup = seedHomeChipTokens();
+  try {
+    const out = withColumns(140, () => render(healthyState, { home: CLEAN_HOME }));
+    assert.equal(out.split('\n').length, 2,
+      'um HOME vazio nao pode herdar o statusline_line3 da maquina que corre a suite');
+  } finally { cleanup(); }
+});
+
+test('render: HOME injectado COM statusline_line3 → 3 linhas (o opts.home e mesmo lido)', () => {
+  const homeLine3 = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-sl-line3-'));
+  fs.mkdirSync(path.join(homeLine3, '.mooter'), { recursive: true });
+  fs.writeFileSync(path.join(homeLine3, '.mooter', 'preferences.json'),
+    JSON.stringify({ statusline_line3: true }));
+  const cleanup = seedHomeChipTokens();
+  try {
+    const out = withColumns(140, () => render(healthyState, { home: homeLine3 }));
+    // A afirmacao que importa e o PAR: se este devolvesse 2, o teste anterior
+    // passaria por o `home` ser ignorado em vez de por ser respeitado.
+    assert.equal(out.split('\n').length, 3,
+      'a preferencia do HOME injectado tem de valer — senao o isolamento e so silencio');
+  } finally {
+    cleanup();
+    try { fs.rmSync(homeLine3, { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
 });

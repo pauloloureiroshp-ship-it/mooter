@@ -207,3 +207,38 @@ test('IMPASSE DA JANELA: o runner conta a fila na MESMA janela que o L1', async 
     'se ler o ficheiro inteiro desse o mesmo, este teste nao provava nada',
   );
 });
+
+// ── ROTACAO VAZIA (2026-08-26) ──────────────────────────────────────────────
+//
+// Desde que o portao de medicao passou a decidir a rotacao (`portao.mjs`), os
+// onze pilares reprovam e `ids` e `[]` em todas as rondas deste repo. Ou seja: o
+// caminho abaixo deixou de ser o caso raro e passou a ser o caso NORMAL.
+//
+// Sem a guarda, `pickNext([])` respondia
+// `no eligible loop (all capped / paused / suspended)` — e as tres coisas que
+// isso nomeia sao falsas quando nao ha pilar nenhum. O dono lia "tudo no tecto",
+// ia triar a fila, e a pausa continuava sem nada explicar porque.
+
+test('rotacao vazia nao se disfarça de "tudo no tecto"', () => {
+  const r = decidir({ registos: [], decisoes: new Map(), ids: [] });
+  assert.equal(r.pausa, true);
+  assert.equal(r.pilar, null);
+  assert.match(r.razao, /zero pilares/, 'a razao tem de nomear a causa real');
+  assert.doesNotMatch(r.razao, /capped|no eligible loop/,
+    'mandar triar uma fila que nao existe faz o dono trabalhar para nada');
+});
+
+test('rotacao vazia: `ids` ausente ou nao-lista cai no mesmo ramo honesto', () => {
+  for (const ids of [undefined, null, 'P2']) {
+    const r = decidir({ registos: [], decisoes: new Map(), ids });
+    assert.equal(r.pausa, true, `ids=${JSON.stringify(ids)}`);
+    assert.match(r.razao, /zero pilares/, `ids=${JSON.stringify(ids)}`);
+  }
+});
+
+test('com pilares a decisao continua a ser do escalonador, nao da guarda', () => {
+  // A guarda tem de ser falsificavel: se respondesse sempre, os testes acima
+  // passavam por acidente e o escalonador ficava morto sem ninguem dar por isso.
+  const r = decidir({ registos: [], decisoes: new Map(), ids: ['P2'] });
+  assert.doesNotMatch(String(r.razao), /zero pilares/);
+});

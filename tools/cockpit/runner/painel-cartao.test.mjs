@@ -326,3 +326,62 @@ test('ITEM7 · sem truncagem nao se acrescenta ruido nenhum', () => {
   assert.ok(!/outside this window/.test(p.no('yield-head').textContent),
     'um aviso por um estado normal e ruido de rotina — o erro que este painel ja corrigiu noutros sitios');
 });
+
+// ── AS DUAS VIAS · o rotulo servido contra o recurso do painel ──────────────
+//
+// Nascido a 2026-08-26, ao fundir o #396 (que moveu o rotulo para
+// `rotulos-da-frota.mjs`, onde ha testes) com o `main` (que trazia a regra do
+// beacon morto do #401). O painel passou a preferir `d.rotulo` — o facto que o
+// servidor ja calculou — e a derivar localmente so quando ele falta, para um
+// endpoint de uma versao anterior.
+//
+// Um recurso que DIVERGE do rotulo servido e pior do que recurso nenhum: mostra
+// uma coisa quando o servidor esta desactualizado e outra quando esta em dia,
+// sem dizer ao dono qual das duas esta a ver. Este ficheiro corre o script real
+// do painel; o `rotulos-da-frota.mjs` e o modulo real. Confronta-se um contra o
+// outro em vez de se confiar no comentario de nenhum dos dois.
+
+test('as duas vias concordam: o recurso do painel diz o mesmo que o rotulo servido', async () => {
+  const { rotuloDeDevice } = await import('./rotulos-da-frota.mjs');
+
+  const casos = [
+    { nome: 'vivo a trabalhar',
+      d: { running: true, via: 'disco', frescura: { estado: 'vivo', idade_s: 12, motivo: null } } },
+    { nome: 'vivo mas parado',
+      d: { running: false, via: 'disco', frescura: { estado: 'vivo', idade_s: 4, motivo: null } } },
+    { nome: 'pausa com beacon fresco',
+      d: { running: false, via: 'disco', frescura: { estado: 'stale', idade_s: 90, motivo: 'sem sinal ha 90s' },
+           pausa: { activa: true, razao: 'human queue full (6/6)' } } },
+    { nome: 'pausa com beacon MORTO — o defeito do #401',
+      d: { running: false, via: 'remoto', frescura: { estado: 'morto', idade_s: 3592, motivo: 'sem sinal ha 3592s' },
+           pausa: { activa: true, razao: 'human queue full (6/6)' } } },
+    { nome: 'pausa obsoleta e beacon morto',
+      d: { running: false, via: 'disco', frescura: { estado: 'morto', idade_s: 300000, motivo: 'sem sinal' },
+           pausa: { activa: false, obsoleta: true, idade_s: 300000, razao: 'queue full' } } },
+    { nome: 'morto sem pausa nenhuma',
+      d: { running: false, via: 'remoto', frescura: { estado: 'morto', idade_s: 172800, motivo: 'sem sinal ha 172800s' } } },
+    { nome: 'morto sem idade — nunca inventar um numero',
+      d: { running: false, via: 'remoto', frescura: { estado: 'morto', idade_s: null, motivo: 'no receipt' } } },
+    { nome: 'stale e aviso, nao morte',
+      d: { running: true, via: 'disco', frescura: { estado: 'stale', idade_s: 400, motivo: 'sem sinal ha 400s' } } },
+  ];
+
+  for (const { nome, d } of casos) {
+    const servido = rotuloDeDevice({ ...d, self: false });
+
+    // via A — o painel RENDERIZA o rotulo que o servidor calculou.
+    const pa = levantarPainel();
+    pa.ctx.renderFleet(FROTA([DEVICE({ ...d, self: false, rotulo: servido })]));
+    const [chipA] = porClasse(pa.no('fleet'), 'chip');
+
+    // via B — o mesmo device SEM `rotulo`: o painel cai no recurso local.
+    const pb = levantarPainel();
+    pb.ctx.renderFleet(FROTA([DEVICE({ ...d, self: false, rotulo: undefined })]));
+    const [chipB] = porClasse(pb.no('fleet'), 'chip');
+
+    assert.equal(chipB.textContent, chipA.textContent,
+      `${nome}: o recurso do painel diz outra coisa que o rotulo servido`);
+    assert.equal(chipB.className, chipA.className,
+      `${nome}: o recurso do painel pinta outra cor que o rotulo servido`);
+  }
+});

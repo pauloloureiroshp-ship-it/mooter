@@ -15,6 +15,8 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
+import { podeEntrar } from './portao.mjs';
+
 /**
  * A escada de bases do diff. O poco de UMA base e FINITO: medido a 2026-08-18,
  * `HEAD~12` dava 20 hunks e o runner consome 2950 rondas por dia (29s cada) —
@@ -77,6 +79,10 @@ export const PILLARS = {
      * preciso semear para o ver.
      */
     activo: false,
+    // O portao (`portao.mjs`) recusa por AUSENCIA de medicao, que e a verdade
+    // aqui: o que se sabe deste pilar nao inclui uma triagem de campo completa.
+    medicao: null,
+    porque: '485 rondas, 377 achados (77%). Nao ha triagem de CAMPO: o que se leu a mao foram os 2 resultados do ensaio semeado, e os dois eram falsos (`falso-em-ambos`). Universo de campo triado: n/d.',
     files: [
       'tools/router/*.js',
     ],
@@ -107,10 +113,16 @@ export const PILLARS = {
      * mais fraca dela — enumera inicializacoes a zero e chama-lhes achado, sem
      * nunca mostrar que o zero chega a lado nenhum.
      *
-     * **Reversivel numa linha:** apagar este `activo: false`. Mas reactivar
-     * sem mudar o enunciado e repetir a medicao, nao contradize-la.
+     * **JA NAO E reversivel numa linha** (2026-08-26): apagar o `activo: false`
+     * deixa de chegar. O portao pede uma `medicao` de campo — e este pilar nao
+     * tem nenhuma, so a triagem parcial do `porque`. Reactivar sem mudar o
+     * enunciado continuaria a ser repetir a medicao, nao contradize-la.
      */
     activo: false,
+    // O portao (`portao.mjs`) recusa por AUSENCIA de medicao, que e a verdade
+    // aqui: o que se sabe deste pilar nao inclui uma triagem de campo completa.
+    medicao: null,
+    porque: 'Dos 20 achados que o dono decidiu a mao, 11 eram deste pilar e descartou os 11 — precisao 0% em 11 lidos. O universo que ele produziu nao esta registado: n/d, e por isso nao ha `medicao`.',
     files: [
       'tools/**/*.js',
       'packages/*/src/*.ts',
@@ -149,12 +161,17 @@ export const PILLARS = {
      * Um pilar que aponta para a documentacao acabada de escrever esta a medir
      * a existencia de comentarios, nao a coerencia deles.
      *
-     * **Reversivel numa linha:** apagar este `activo: false`. Mas o passo 2 do
-     * enunciado — "copia a linha de CODIGO que este comentario descreve" — tem
-     * de deixar de aceitar o fecho de um bloco de comentario como codigo antes
-     * de valer a pena.
+     * **JA NAO E reversivel numa linha** (2026-08-26): o portao pede uma
+     * `medicao` de campo que este pilar nao tem. E o passo 2 do enunciado —
+     * "copia a linha de CODIGO que este comentario descreve" — tem de deixar de
+     * aceitar o fecho de um bloco de comentario como codigo antes de valer a
+     * pena tentar produzir essa medicao.
      */
     activo: false,
+    // O portao (`portao.mjs`) recusa por AUSENCIA de medicao, que e a verdade
+    // aqui: o que se sabe deste pilar nao inclui uma triagem de campo completa.
+    medicao: null,
+    porque: 'Dos 20 achados que o dono decidiu a mao, 8 eram deste pilar e descartou os 8 — precisao 0% em 8 lidos. Universo produzido: n/d.',
     files: [
       'tools/cockpit/runner/*.mjs',
       'tools/router/*.js',
@@ -206,14 +223,19 @@ export const PILLARS = {
      * **Custo do que se desliga:** 382 rondas de GPU para 62 achados, todos
      * falsos, sobre um defeito com zero ocorrencias.
      *
-     * **Reversivel numa linha:** apagar este `activo: false`. Reactivar sem
-     * mudar a PERGUNTA e, no entanto, repetir a medicao acima.
+     * **JA NAO E reversivel numa linha** (2026-08-26): o portao le a `medicao`
+     * abaixo — 0 reais em 78 lidos — e recusa mesmo com `activo: true`.
+     * Reactivar exige uma medicao NOVA, e a antiga diz que a classe nem existe
+     * neste repo.
      *
      * **O que NAO se fez de proposito:** reformular. Higiene a MEIO do documento
      * (links partidos, tabelas tortas) e uma pergunta DIFERENTE — enunciado novo,
      * com a sua propria medicao — e nao um remendo neste.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 78, lidos: 78, reais: 0 },
+    porque: '78 achados nas tres configuracoes (62+3+13), 78 passados por um verificador DETERMINISTICO da afirmacao que o pilar faz, 0 sobrevivem. Tres abertos a mao confirmaram-no. E das 443 `.md` em `docs/`, 0 acabam a meio de uma palavra: a classe nao existe neste repo.',
     files: [
       '*.md',
       'docs/**/*.md',
@@ -304,6 +326,10 @@ export const PILLARS = {
      * `tools/**\/*.js` do P2.
      */
     activo: false,
+    // O portao (`portao.mjs`) recusa por AUSENCIA de medicao, que e a verdade
+    // aqui: o que se sabe deste pilar nao inclui uma triagem de campo completa.
+    medicao: null,
+    porque: '486 rondas, 317 achados (65%), `falso-em-ambos` no ensaio. A camada 1 do refutador abateu 26 de 287 por regra, o que e maquina e nao triagem. Triagem de campo a mao: n/d.',
     files: [
       'tools/cockpit/runner/*.mjs',
       'tools/router/gpu-*.js',
@@ -350,6 +376,9 @@ export const PILLARS = {
      * pilar NOVO.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 0, lidos: 0, reais: 0 },
+    porque: '483 rondas, 480 (99,4%) dizem literalmente NO FINDING, 0 achados. Nao ha nada para triar — o portao recusa por ausencia de triagem, que e a verdade.',
     files: [
       'landing/app/**/*.tsx',
       'landing/components/**/*.tsx',
@@ -424,6 +453,9 @@ export const PILLARS = {
      * pelo P3 e P5.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 3, lidos: 3, reais: 0 },
+    porque: '493 rondas, 3 achados (0,6%), os 3 lidos a mao: 3 falsos E 3 fora do que o enunciado pergunta. Um deles cita a guarda a queixar-se de que a guarda nao existe.',
     files: [
       'tools/cockpit/**/*.mjs',
       'tools/cockpit/*.html',
@@ -460,10 +492,14 @@ export const PILLARS = {
      * "campo escrito e nunca lido aqui" descreve argumentos e valores de
      * retorno. Detalhe completo no bloco abaixo.
      *
-     * Reversivel numa linha, mas reactivar sem mudar a PERGUNTA e repetir 455
-     * rondas de GPU para zero.
+     * JA NAO E reversivel numa linha (2026-08-26): sem triagem nenhuma, o
+     * portao recusa-o por ausencia de medicao. Reactivar sem mudar a PERGUNTA
+     * seria repetir 455 rondas de GPU para zero.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 0, lidos: 0, reais: 0 },
+    porque: '455 rondas, 455 `sem-achado`, 0 achados. Quatro implementacoes medidas e nenhuma serve; a determinista marca 41,4% das janelas do repo real. A pergunta esta mal-posta, o que o portao nao sabe ver — mas a ausencia de triagem chega para o recusar.',
     /**
      * ⚠️ NAO REESCREVER ESTE ENUNCIADO. A PERGUNTA E QUE ESTA MAL-POSTA.
      *
@@ -543,6 +579,9 @@ export const PILLARS = {
      * (`prova-de-pilar.mjs --pilar P9`). Reactivar como esta e repetir as 455.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 0, lidos: 0, reais: 0 },
+    porque: '455 rondas, 455 `sem-achado`, 0 achados. Ao contrario do P8, NAO esta provado que a pergunta seja irrespondivel: sabe-se que este enunciado nao detecta, nao se sabe se outro detectaria.',
     files: [
       'tools/router/*.js',
       'tools/cockpit/runner/*.mjs',
@@ -621,11 +660,17 @@ export const PILLARS = {
      * Um verificador de honestidade desonesto gasta mais confianca do que
      * verificador nenhum.
      *
-     * **Reversivel numa linha:** apagar este `activo: false`. Mas reactivar sem
-     * mudar o enunciado repete o resultado — o problema esta na pergunta, que
-     * deixa o modelo emparelhar duas linhas quaisquer do mesmo excerto.
+     * **JA NAO E reversivel numa linha** — e este pilar e a razao de nao ser.
+     * Desde 2026-08-26 o portao le a `medicao` abaixo (1 real em 87 lidos, 1,1%)
+     * e recusa-o mesmo com `activo: true`. Era exactamente isto que faltava no
+     * dia em que ele entrou: passou o ensaio semeado e mais nada lhe foi pedido.
+     * Reactivar sem mudar o enunciado repete o resultado — o problema esta na
+     * pergunta, que deixa o modelo emparelhar duas linhas quaisquer do excerto.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 87, lidos: 87, reais: 1 },
+    porque: '87 achados no primeiro dia: 76 falham o criterio do proprio enunciado, 9 auto-refutam-se (alegam divergencia entre valores IGUAIS), 9 cumprem o criterio e foram lidos um a um — 2 ilegiveis, 6 falsos, 1 talvez. UM em 87, 1,1%.',
     label: 'Bridge — o numero que o dono le contra o que o codigo usa',
     files: [
       'packages/mooter-bridge/*.js',
@@ -668,6 +713,9 @@ export const PILLARS = {
      * reactivar este.
      */
     activo: false,
+    // O que DECIDE. A precisao nao se declara: deriva-se de reais/lidos.
+    medicao: { candidatos: 0, lidos: 0, reais: 0 },
+    porque: '455 rondas, 455 `sem-achado`, 0 achados. Como o P9, a causa nao esta provada: perguntado directamente, o mesmo modelo acerta a primeira (113 tokens, cita a linha 41).',
     files: [
       '*.md',
       'docs/**/*.md',
@@ -687,18 +735,46 @@ export const PILLARS = {
 };
 
 /**
- * Os pilares que ENTRAM NA ROTACAO.
+ * Os pilares que ENTRAM NA ROTACAO — decidido pelo PORTAO, nao por um booleano.
  *
- * Um pilar com `activo: false` continua no catalogo — o `PILLARS` inteiro — mas
- * o loop nao lhe pega. A distincao existe porque os recibos ja escritos guardam
- * o `pilar`, e apagar a entrada tornaria ilegivel o historico que explica porque
- * e que ele foi desligado. Um pilar desligado tem de conseguir explicar-se.
+ * ⚠️ MUDOU A 2026-08-26. Ate aqui isto era `activo !== false`: onze booleanos
+ * postos a mao, cada um com um paragrafo de prosa a explicar-se. Um pilar
+ * voltava a rotacao apagando UMA linha, e cinco dos comentarios abaixo diziam
+ * isso por extenso, como se fosse uma comodidade.
+ *
+ * Era o mesmo desenho que deixou entrar o P11 — que passou o ensaio semeado,
+ * entrou com um `porque` convincente, e num dia deu 87 achados dos quais 76
+ * falhavam o proprio enunciado. O #389 ja tinha tirado esse desenho das REGRAS
+ * do modo ancorado (`ancora.mjs`) no dia anterior, derivando a decisao de uma
+ * `medicao` estruturada. Os pilares — de onde o problema tinha vindo — ficaram
+ * de fora dessa correccao.
+ *
+ * Agora um pilar so entra se `podeEntrar` o deixar: `activo: true` **e** uma
+ * `medicao: {candidatos, lidos, reais}` com >= 10 defeitos reais e >= 30% de
+ * precisao. A precisao nao se declara — deriva-se de `reais / lidos`.
+ *
+ * O RESULTADO NAO MUDA HOJE, e isso e o ponto: a lista continua vazia. O que
+ * muda e a razao. Antes era vazia porque alguem escreveu onze `false`; agora e
+ * vazia porque nenhum dos onze tem numeros que passem, e forcar `activo: true`
+ * nos onze continua a dar zero (ha um teste que o corre).
+ *
+ * ⚠️ O QUE ISTO NAO FECHA: `loadPillars` nunca passou os pilares declarados por
+ * um projecto (`.mooter/pilares.json`) por este filtro — devolve
+ * `Object.keys(v.pillars)` directamente, e `validarPilares` nem sequer preserva
+ * o campo `medicao`. Um projecto que declare os seus pilares continua a correr
+ * sem medicao nenhuma. Nao se fechou aqui porque fecha-lo em silencio deixava
+ * qualquer `pilares.json` existente com zero pilares e sem dizer porque.
+ *
+ * Um pilar recusado continua no catalogo — o `PILLARS` inteiro — porque os
+ * recibos ja escritos guardam o `pilar`, e apagar a entrada tornaria ilegivel o
+ * historico que explica porque e que ele nao corre. Um pilar desligado tem de
+ * conseguir explicar-se, e agora explica-se com um numero.
  *
  * Consequencia deliberada: `readFocus` valida contra estes ids, portanto pedir
  * foco num pilar desligado e RECUSADO em voz alta em vez de silenciosamente
  * ignorado — que e o comportamento certo para um botao que nao pode funcionar.
  */
-export const PILLAR_IDS = Object.keys(PILLARS).filter((id) => PILLARS[id].activo !== false);
+export const PILLAR_IDS = idsActivos(PILLARS);
 
 /**
  * Os ids que CORREM, de um catalogo qualquer (o embutido ou o do projecto).
@@ -708,8 +784,21 @@ export const PILLAR_IDS = Object.keys(PILLARS).filter((id) => PILLARS[id].activo
  * faz o passo andar de 10 quando ha 4 a correr, e dois pilares seguidos caem no
  * mesmo alvo.
  */
-export function idsActivos(pillars) {
-  return Object.keys(pillars).filter((id) => !(pillars[id] && pillars[id].activo === false));
+export function idsActivos(pillars, opts = {}) {
+  return Object.keys(pillars).filter((id) => podeEntrar(pillars[id], opts).pode);
+}
+
+/**
+ * Os que QUISERAM entrar e o portao recusou, com o motivo de cada um.
+ *
+ * Espelha o `regrasRecusadas` do `ancora.mjs`. Existe porque uma recusa que nao
+ * se le e indistinguivel de um pilar que ninguem escreveu — e a diferenca
+ * interessa: um e uma decisao, o outro e um esquecimento.
+ */
+export function pilaresRecusados(pillars = PILLARS, opts = {}) {
+  return Object.keys(pillars)
+    .filter((id) => pillars[id] && pillars[id].activo === true && !podeEntrar(pillars[id], opts).pode)
+    .map((id) => ({ id, porque: podeEntrar(pillars[id], opts).porque }));
 }
 
 /** Todos, incluindo os desligados — para o painel e para ler historico. */
