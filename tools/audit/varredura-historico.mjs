@@ -77,6 +77,37 @@ const MAX_BYTES = 2 * 1024 * 1024;
 /** Quantos blobs por invocacao do `git cat-file --batch`. */
 export const LOTE = 400;
 
+/** Tecto de `git log --find-object`: cada um percorre o historico todo. */
+export const MAX_PROVENIENCIA = 40;
+
+/**
+ * O caminho que se usa quando um objecto nao tem nenhum (objectos soltos).
+ *
+ * ── PORQUE E NEUTRO, E NAO SENSIVEL ─────────────────────────────────────────
+ *
+ * O adversario apontou que passar o SHA ao detector fazia a severidade descer
+ * por ignorancia, e tinha razao **na direccao**. A primeira correccao foi usar
+ * um caminho que batesse `isSensitivePath()` — falhar fechado. O resultado
+ * medido: 101 achados HIGH em `--refs todos`, **os 101 da mesma classe
+ * heuristica** (`generic-secret-assignment`), elevados so por nao se saber
+ * onde o blob esteve. Um guarda que grita 101 vezes por ignorancia ensina toda
+ * a gente a ignora-lo — e a ignorar tambem o 102.º, que podia ser a serio.
+ *
+ * O que resolve a questao e ler o detector (`lp-secret-scan.js:22-29,133,161`):
+ *
+ *   · as chaves com FORMA DE FORNECEDOR — `AKIA`, `ghp_`, `sk_live_`,
+ *     `sk-ant-`, PEM — sao `critical` **independentemente do caminho**;
+ *   · `isSensitivePath()` so ELEVA a heuristica generica (`nome = valor`).
+ *
+ * Ou seja: uma credencial a serio num `.env` que um rebase apagou continua
+ * critica sem sentinela nenhuma. A sentinela nao protegia o que interessa —
+ * so inflacionava o que ja se sabia ser ruido.
+ *
+ * Logo: caminho neutro, e a incerteza vai para o relatorio em vez de ir para a
+ * severidade. O que nao se sabe diz-se; nao se converte num numero.
+ */
+export const CAMINHO_DESCONHECIDO = '(objecto solto — caminho desconhecido)';
+
 function carregarDetector(raizRepo) {
   const p = path.join(raizRepo, 'packages', 'vscode-extension', 'src', 'lp-secret-scan.js');
   if (!fs.existsSync(p)) {
@@ -132,7 +163,14 @@ export function lerDeclarados(caminho, { readImpl = fs.readFileSync } = {}) {
       recusadas.push({ blob, porque: 'n ausente ou invalido' });
       continue;
     }
-    mapa.set(blob, { motivo: e.motivo.trim(), tipos: [...e.tipos].sort(), n: e.n });
+    mapa.set(blob, {
+      motivo: e.motivo.trim(),
+      tipos: [...e.tipos].sort(),
+      n: e.n,
+      // Opcional: uma declaracao sem `niveis` continua a valer, mas nao protege
+      // contra uma mudanca futura na tabela de severidade.
+      niveis: Array.isArray(e.niveis) ? [...e.niveis].sort() : null,
+    });
   }
   return { mapa, recusadas };
 }
@@ -157,11 +195,18 @@ export function lerDeclarados(caminho, { readImpl = fs.readFileSync } = {}) {
 export function declaracaoBate(decl, achadosDoBlob) {
   if (!decl) return { bate: false, porque: null };
   const tipos = [...new Set(achadosDoBlob.map((a) => String(a.type)))].sort();
+  const niveis = [...new Set(achadosDoBlob.map((a) => String(a.nivel_bruto)))].sort();
   if (achadosDoBlob.length !== decl.n) {
     return { bate: false, porque: `declarados n=${decl.n}, encontrados ${achadosDoBlob.length}` };
   }
   if (tipos.join(',') !== decl.tipos.join(',')) {
     return { bate: false, porque: `declarados tipos=[${decl.tipos}], encontrados [${tipos}]` };
+  }
+  // Sem isto, uma mudanca futura na tabela de severidade podia subir um achado
+  // de LOW para HIGH e a declaracao continuava a silencia-lo, porque nem o tipo
+  // nem a contagem mudavam. A declaracao tem de descrever tambem a GRAVIDADE.
+  if (decl.niveis && decl.niveis.join(',') !== niveis.join(',')) {
+    return { bate: false, porque: `declarados niveis=[${decl.niveis}], encontrados [${niveis}]` };
   }
   return { bate: true, porque: null };
 }
@@ -197,7 +242,12 @@ export function eShallow(dir, { runImpl = execFileSync } = {}) {
  * conjunto de caminhos — varrer o conteudo uma vez, reportar todos os sitios.
  */
 export function blobsAlcancaveis(dir, { refs = 'all', runImpl = execFileSync } = {}) {
-  const seletor = refs === 'origin' ? ['--remotes=origin'] : ['--all'];
+  // `--remotes=origin` NAO inclui `refs/tags`, e uma tag e empurrada e publica
+  // como qualquer branch: conteudo alcancavel so por tag ficava fora do ambito
+  // que responde "isto esta no mundo?". `--tags` traz as tags LOCAIS, o que e
+  // conservador (pode incluir uma tag ainda por empurrar) — e num varredor de
+  // segredos o erro conservador e o unico aceitavel.
+  const seletor = refs === 'origin' ? ['--remotes=origin', '--tags'] : ['--all'];
   const bruto = String(runImpl('git', ['rev-list', '--objects', ...seletor], {
     cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, windowsHide: true,
   }) || '');
@@ -235,7 +285,11 @@ export function parseBatch(buf) {
     const tamanho = Number(partes[2]);
     if (!Number.isFinite(tamanho) || tamanho < 0) { i = nl + 1; continue; }
     const inicio = nl + 1;
-    out.push({ sha, tipo, tamanho, conteudo: buf.slice(inicio, inicio + tamanho) });
+    // Um corpo truncado NAO se aceita. `Buffer.slice` devolve o que houver sem
+    // se queixar, o objecto contava como devolvido, e o `emFalta` ficava a
+    // zero: um segredo na metade que faltou desaparecia com `erro: null`.
+    if (inicio + tamanho > buf.length) break;
+    out.push({ sha, tipo, tamanho, conteudo: buf.subarray(inicio, inicio + tamanho) });
     i = inicio + tamanho + 1; // o \n a seguir ao conteudo
   }
   return out;
@@ -269,7 +323,7 @@ export function lerLote(dir, shas, { runImpl = execFileSync } = {}) {
  * por isso nao sao um incidente publico. Mas respondem a outra pergunta, que
  * tambem interessa: *este segredo alguma vez existiu nesta maquina?*
  */
-export function todosOsObjectos(dir, { runImpl = execFileSync } = {}) {
+export function todosOsObjectos(dir, { runImpl = execFileSync, alcancaveisImpl = blobsAlcancaveis } = {}) {
   const bruto = String(runImpl('git', [
     'cat-file', '--batch-all-objects', '--batch-check=%(objectname) %(objecttype)',
   ], { cwd: dir, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, windowsHide: true }) || '');
@@ -280,6 +334,18 @@ export function todosOsObjectos(dir, { runImpl = execFileSync } = {}) {
     if (!sha || !TIPOS_LIDOS.has(tipo)) continue;
     porSha.set(sha, { sha, tipo, caminhos: new Set() });
   }
+  // Os caminhos dos que SAO alcancaveis vem de `rev-list --objects`, porque o
+  // `--batch-all-objects` nao os traz. Sem esta juncao, TODOS os objectos
+  // ficavam sem caminho — e como um objecto sem caminho e lido como sensivel
+  // (para a ignorancia nao baixar a severidade), o modo `todos` passava o repo
+  // inteiro a HIGH. Medido a 2026-08-26: 2 425 HIGH, todos artefacto.
+  // Depois desta juncao, so os objectos MESMO soltos ficam sem caminho.
+  try {
+    for (const [sha, e] of alcancaveisImpl(dir, { refs: 'all' })) {
+      const alvo = porSha.get(sha);
+      if (alvo) for (const c of e.caminhos) alvo.caminhos.add(c);
+    }
+  } catch { /* sem os caminhos, cada objecto falha fechado — que e o lado certo */ }
   return porSha;
 }
 
@@ -293,7 +359,12 @@ export function todosOsObjectos(dir, { runImpl = execFileSync } = {}) {
 export const TIPOS_LIDOS = new Set(['blob', 'commit', 'tag']);
 
 export function objectosComMensagem(dir, { refs = 'all', runImpl = execFileSync } = {}) {
-  const seletor = refs === 'origin' ? ['--remotes=origin'] : ['--all'];
+  // `--remotes=origin` NAO inclui `refs/tags`, e uma tag e empurrada e publica
+  // como qualquer branch: conteudo alcancavel so por tag ficava fora do ambito
+  // que responde "isto esta no mundo?". `--tags` traz as tags LOCAIS, o que e
+  // conservador (pode incluir uma tag ainda por empurrar) — e num varredor de
+  // segredos o erro conservador e o unico aceitavel.
+  const seletor = refs === 'origin' ? ['--remotes=origin', '--tags'] : ['--all'];
   const porSha = new Map();
   const bruto = String(runImpl('git', ['rev-list', ...seletor], {
     cwd: dir, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, windowsHide: true,
@@ -410,7 +481,11 @@ export function varrerHistorico({
       const texto = o.conteudo.toString('utf8');
       lidos += 1;
       const caminhos = [...(porSha.get(o.sha)?.caminhos || [])];
-      const rel = caminhos[0] || o.sha;
+      // Um objecto solto nao tem caminho nenhum. Ver o comentario de
+      // `CAMINHO_DESCONHECIDO` para o porque de o caminho ser NEUTRO e a
+      // incerteza ir para o relatorio em vez de ir para a severidade.
+      const semCaminho = caminhos.length === 0;
+      const rel = semCaminho ? CAMINHO_DESCONHECIDO : caminhos[0];
       for (const a of detector.scanSecrets([{ path: rel, content: texto }])) {
         const dummy = motivoDeDummy(a, texto);
         const nivelBruto = severidade(a, corpus, dummy);
@@ -418,7 +493,8 @@ export function varrerHistorico({
           ...a,
           blob: o.sha,
           tipo_objecto: o.tipo,
-          caminhos,
+          caminhos: semCaminho ? [CAMINHO_DESCONHECIDO] : caminhos,
+          caminho_desconhecido: semCaminho,
           corpus: corpus.nome,
           dummy,
           declarado: null,
@@ -456,9 +532,20 @@ export function varrerHistorico({
   // (heuristica em repo publico). E proveniencia que ninguem le para decidir
   // nada — o que decide e o HIGH. Os LOW ficam com `commits: null`, e o campo
   // `proveniencia_omitida` diz quantos, para nao parecer cobertura.
-  const comProveniencia = achados.filter((a) => a.nivel === 'HIGH');
+  //
+  // Duas travas mais, ambas por medicao (2026-08-26):
+  //   · um blob SEM CAMINHO e um objecto solto — nao esta em commit nenhum, e
+  //     o `--find-object` percorre o historico inteiro para nao devolver nada.
+  //   · e ha um tecto. Quando o modo `todos` passou a falhar fechado sobre
+  //     objectos sem caminho, os HIGH multiplicaram-se e a corrida passou dos
+  //     dois minutos so a perguntar proveniencias. O tecto e `MAX_PROVENIENCIA`
+  //     e o que fica de fora e CONTADO, nunca calado.
+  const candidatosProv = achados.filter((a) => a.nivel === 'HIGH' && !a.caminho_desconhecido);
+  const comProveniencia = candidatosProv.slice(0, MAX_PROVENIENCIA);
   for (const a of comProveniencia) a.commits = commitsImpl(dir, a.blob, {});
-  const proveniencia_omitida = achados.filter((a) => a.nivel === 'LOW').length;
+  const proveniencia_omitida = achados.filter((a) => a.nivel === 'LOW').length
+    + (candidatosProv.length - comProveniencia.length)
+    + achados.filter((a) => a.nivel === 'HIGH' && a.caminho_desconhecido).length;
 
   const conta = (n) => achados.filter((a) => a.nivel === n).length;
   return {
@@ -470,6 +557,10 @@ export function varrerHistorico({
     saltados,
     achados,
     proveniencia_omitida,
+    sem_caminho: {
+      achados: achados.filter((a) => a.caminho_desconhecido).length,
+      blobs: new Set(achados.filter((a) => a.caminho_desconhecido).map((a) => a.blob)).size,
+    },
     declarados: achados.filter((a) => a.declarado).length,
     discrepancias,
     resumo: { HIGH: conta('HIGH'), LOW: conta('LOW'), INFO: conta('INFO') },
@@ -527,6 +618,15 @@ export function imprimir(r) {
   if (r.recusadas && r.recusadas.length) {
     console.log('\nentradas RECUSADAS na allowlist (nao valem nada — corrigir ou remover):');
     for (const x of r.recusadas) console.log(`  ${x.blob} · ${x.porque}`);
+  }
+  // A incerteza que existe e nao se consegue resolver diz-se em texto. Nao se
+  // converte num numero — ver o comentario de `CAMINHO_DESCONHECIDO`.
+  if (r.sem_caminho && r.sem_caminho.achados > 0) {
+    console.log(`\n⚠ ${r.sem_caminho.achados} achados em ${r.sem_caminho.blobs} objectos SOLTOS, sem caminho conhecido.`);
+    console.log('  Lidos com caminho neutro. Uma chave com forma de fornecedor (AKIA, ghp_, sk_live_,');
+    console.log('  sk-ant-, PEM) e critica em QUALQUER caminho, portanto nenhuma escapa por isto.');
+    console.log('  O que nao se consegue saber e se algum deles esteve num ficheiro sensivel — nesse');
+    console.log('  caso a heuristica generica valeria mais do que LOW. Fica dito, nao contado.');
   }
   console.log(`\nHIGH ${r.resumo.HIGH} · LOW ${r.resumo.LOW} · INFO ${r.resumo.INFO} (INFO = dummy ou blob declarado)`);
   if (r.resumo.HIGH > 0) {

@@ -49,14 +49,20 @@ Três âmbitos, três perguntas diferentes:
 
 | | `origin`<br>o que está no mundo | `all`<br>+ branches locais | `todos`<br>+ objectos soltos |
 |---|---|---|---|
-| objectos alcançáveis | 19 041 | 20 684 | 14 775 |
-| **objectos lidos** | **11 755** | **12 851** | **13 752** |
-| saltados (binário/grande/ilegível/em falta) | 70 / 1 / 0 / 0 | 109 / 2 / 0 / 0 | 1 020 / 3 / 0 / 0 |
-| **HIGH antes de declarar** | 6 | 9 | 13 |
+| objectos enumerados¹ | 19 295 | 20 697 | 14 785 |
+| **objectos lidos** | **11 886** | **12 861** | **13 762** |
+| saltados (binário/grande/ilegível/**em falta**) | 70 / 1 / 0 / **0** | 109 / 2 / 0 / **0** | 1 020 / 3 / 0 / **0** |
 | **HIGH depois de declarar** | **0** | **0** | **0** |
-| LOW | 2 169 | 2 334 | 2 424 |
-| INFO (dummy ou blob declarado) | 69 | 83 | 93 |
-| tempo de parede | ~7,5 s | ~8 s | ~8 s |
+| LOW | 2 174 | 2 335 | 2 425 |
+| INFO (dummy ou blob declarado) | 85 | 98 | 108 |
+| achados em objectos **sem caminho** | 0 | 0 | **118** (em 61 blobs) |
+| tempo de parede | ~7,5 s | ~8 s | ~6,5 s |
+
+¹ «enumerados» inclui árvores no caso de `origin`/`all` (é o que o
+`rev-list --objects` devolve) e não as inclui em `todos`. **As três colunas de
+«enumerados» não são comparáveis entre si**; a linha comparável é a dos
+**lidos**. Foi o adversário que apanhou a incoerência, e a nota fica em vez de
+se harmonizar o número.
 
 O que cada âmbito acrescenta, e porque a diferença importa:
 
@@ -215,6 +221,49 @@ histórico.** Não é «não há absolutamente nada».
 Também não foi varrido: o **vault** (`paulo-vault`, privado) — está fora do âmbito
 da F0, que fala do repositório público. O `varredura-segredos.mjs` já o cobre à
 superfície de HEAD quando montado.
+
+---
+
+## 4.1 Segunda ronda do adversário — três bugs reais, não só objecções
+
+O mesmo adversário releu o PR emendado e bloqueou outra vez. Três das objecções
+eram **bugs no código novo**, não desacordos:
+
+| bug | o que estava errado | o que mudou |
+|---|---|---|
+| **severidade a descer por ignorância** | em `--refs todos` os blobs não têm caminho, e passava-se o **sha** ao detector. `isSensitivePath()` devolvia `false`, e um `API_KEY` num `.env` apagado descia de `critical` para `warning` | ver §4.2 — a resposta certa não foi a óbvia |
+| **`parseBatch` aceitava um corpo truncado** | `Buffer.slice` devolve o que houver sem se queixar: o objecto contava como devolvido e `emFalta` ficava a zero | recusa quando `inicio + tamanho > buf.length`, e o objecto conta como **em falta** |
+| **`--refs origin` não via as tags** | `--remotes=origin` não inclui `refs/tags`, e uma tag é empurrada e pública como qualquer branch | passa a usar `--remotes=origin --tags` (conservador: pode incluir uma tag ainda por empurrar) |
+
+Mais duas, menores: `declaracaoBate` ignorava a **gravidade** (uma mudança futura
+na tabela de severidade podia subir um achado e a declaração continuava a
+silenciá-lo — agora `niveis` é comparável), e as colunas de «objectos» não tinham
+o mesmo denominador (nota ¹ em §2.1).
+
+### 4.2 A correcção óbvia estava errada, e o número disse-o
+
+A primeira correcção ao bug da severidade foi a intuitiva: **falhar fechado** —
+tratar um objecto sem caminho como se estivesse num ficheiro sensível.
+
+Resultado medido: **101 achados HIGH** em `--refs todos`, **os 101 da mesma
+classe heurística** (`generic-secret-assignment`), elevados só por não se saber
+onde o blob esteve. Um guarda que grita 101 vezes por ignorância ensina toda a
+gente a ignorá-lo — e a ignorar também o 102.º.
+
+O que resolveu a questão foi **ler o detector** (`lp-secret-scan.js:22-29,133,161`):
+
+> As chaves com **forma de fornecedor** — `AKIA`, `ghp_`, `sk_live_`, `sk-ant-`,
+> PEM — são `critical` **independentemente do caminho**. `isSensitivePath()` só
+> **eleva** a heurística genérica.
+
+Ou seja: uma credencial a sério num `.env` que um rebase apagou **continua crítica
+sem sentinela nenhuma**. A sentinela não protegia o que interessa — só inflacionava
+o que já se sabia ser ruído.
+
+Decisão: **caminho neutro**, e a incerteza vai para o relatório em vez de ir para
+a severidade. `--refs todos` imprime hoje: *118 achados em 61 objectos soltos, sem
+caminho conhecido*, com a explicação do que isso pode e não pode esconder. **O que
+não se sabe diz-se; não se converte num número.**
 
 ---
 

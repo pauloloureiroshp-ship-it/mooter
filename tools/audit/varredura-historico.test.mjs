@@ -16,6 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseBatch, blobsAlcancaveis, lerDeclarados, varrerHistorico, lerLote, eShallow, declaracaoBate,
+  CAMINHO_DESCONHECIDO,
 } from './varredura-historico.mjs';
 
 /** Um detector falso: acha o que lhe mandarem achar, sem regex nenhuma. */
@@ -370,6 +371,62 @@ test('refs=origin sem nada alcancavel e ERRO, nao "historico limpo"', () => {
   });
   assert.match(r.erro, /nao havia historico para ler/);
   assert.equal(r.resumo, undefined);
+});
+
+test('parseBatch RECUSA um corpo truncado — a segunda falha aberta que o adversario apanhou', () => {
+  // O cabecalho promete 20 bytes e o buffer so tem 5. `Buffer.slice` devolveria
+  // os 5 sem se queixar, o objecto contaria como devolvido, e um segredo nos 15
+  // que faltavam desaparecia com `erro: null`.
+  const buf = Buffer.from('aaa blob 20\ncurto');
+  assert.deepEqual(parseBatch(buf), []);
+
+  // E o truncamento no MEIO de um stream nao engole o objecto anterior.
+  const ok = Buffer.concat([Buffer.from('aaa blob 2\nok\n'), Buffer.from('bbb blob 99\nxx')]);
+  const r = parseBatch(ok);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].sha, 'aaa');
+});
+
+test('um corpo truncado chega ao resumo como EM FALTA', () => {
+  const r = lerLote('/x', ['aaa', 'bbb'], { runImpl: () => Buffer.from('aaa blob 2\nok\nbbb blob 50\ncurto') });
+  assert.equal(r.objs.length, 1);
+  assert.equal(r.emFalta, 1);
+});
+
+test('refs=origin inclui as TAGS — uma tag e empurrada e publica como uma branch', () => {
+  let vistos = null;
+  blobsAlcancaveis('/x', { refs: 'origin', runImpl: (_c, args) => { vistos = args; return ''; } });
+  assert.ok(vistos.includes('--remotes=origin'));
+  assert.ok(vistos.includes('--tags'), 'sem --tags, conteudo alcancavel so por tag ficava fora do ambito publico');
+});
+
+test('um objecto SEM caminho e lido com caminho neutro e marcado, nunca com severidade inventada', () => {
+  let caminhoVisto = null;
+  const detector = {
+    scanSecrets(fs_) { caminhoVisto = fs_[0].path; return [{ type: 'x', severity: 'warning', line: 1, redacted: '****' }]; },
+  };
+  const r = varrerHistorico({
+    dir: '/repo',
+    detector,
+    listaImpl: () => new Map([['solto', { sha: 'solto', tipo: 'blob', caminhos: new Set() }]]),
+    mensagensImpl: () => new Map(),
+    loteImpl: () => ({ objs: [blobDe('solto', 'qualquer coisa')], emFalta: 0 }),
+    commitsImpl: () => [],
+  });
+  assert.equal(caminhoVisto, CAMINHO_DESCONHECIDO);
+  assert.ok(!/\.env$/.test(CAMINHO_DESCONHECIDO), 'o caminho neutro NAO pode bater isSensitivePath — elevaria a heuristica por ignorancia');
+  assert.equal(r.achados[0].caminho_desconhecido, true);
+  assert.equal(r.sem_caminho.achados, 1);
+  assert.equal(r.sem_caminho.blobs, 1);
+});
+
+test('declaracaoBate compara tambem a GRAVIDADE quando ela e declarada', () => {
+  const achados = [{ type: 'aws-access-key', nivel_bruto: 'HIGH' }];
+  const semNiveis = { motivo: MOTIVO_OK, tipos: ['aws-access-key'], n: 1, niveis: null };
+  assert.equal(declaracaoBate(semNiveis, achados).bate, true, 'sem niveis declarados, nao se verifica');
+
+  const comNiveis = { ...semNiveis, niveis: ['LOW'] };
+  assert.equal(declaracaoBate(comNiveis, achados).bate, false, 'declarou LOW e encontrou HIGH: a declaracao cai');
 });
 
 test('lerLote sem shas nao invoca o git', () => {
