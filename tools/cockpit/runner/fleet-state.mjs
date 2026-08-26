@@ -191,6 +191,7 @@ import {
   MOTIVOS, ORIGEM_DETECTOR,
 } from './triagem.mjs';
 import { verReserva } from './reserva.mjs';
+import { lerProdutores } from './produtores.mjs';
 
 function detectorND(porque) {
   return {
@@ -312,13 +313,20 @@ export function buildFleetState({
   const filaModelo = porTriar(receipts, decisoes);
   const detectorLido = lerDetector({ baseDir, repoRoot, decisoes, readImpl, existsImpl });
   const { fila: filaDetector, ...detector } = detectorLido;
+  // Os tres produtores da F1 (semgrep · jscpd · knip). Porta propria, corte
+  // proprio e CONTAGEM PROPRIA POR ORIGEM — e o gate da F1 exige as tres coisas.
+  // Ausente = `n/d` com razao, nunca zero: ninguem correu os produtores neste
+  // device e isso e diferente de "os produtores nao acharam nada".
+  const produtoresLido = lerProdutores({ baseDir, repoRoot, decisoes, readImpl, existsImpl });
+  const { fila: filaProdutores, ...produtores } = produtoresLido;
   // Cada porta conserva o seu corte de 50. Fundi-las sem um segundo corte
   // impede que 50 recibos recentes tornem o detector invisivel outra vez.
-  const fila = [...filaDetector, ...filaModelo];
+  const fila = [...filaProdutores, ...filaDetector, ...filaModelo];
   const porTriarTotal = detector.estado === 'ok'
-    ? contasTriagem.por_triar + detector.por_triar
+    ? contasTriagem.por_triar + detector.por_triar + (produtores.estado === 'ok' ? produtores.por_triar : 0)
     : null;
   const alertaAchados = contasTriagem.por_triar > 0 || detector.por_triar > 0
+    || (produtores.estado === 'ok' && produtores.por_triar > 0)
     ? true
     : (detector.estado === 'ok' ? false : null);
 
@@ -384,6 +392,7 @@ export function buildFleetState({
       por_triar_modelo: contasTriagem.por_triar,
       por_triar: porTriarTotal,
       detector,
+      produtores,
       // O painel nao pode inventar a lista: ela e fechada no motor.
       motivos: MOTIVOS,
       ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),
