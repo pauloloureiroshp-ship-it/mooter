@@ -50,6 +50,44 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-08-26 · A/B do Moo Audit — pré-registo + F0.1 (2 PRs abertos, **nada merged**)
+
+Execução do `_handoff/MP_AB_MOO_AUDIT_2026-08-26.md`. **Nenhum merge**: o repo é
+público e a decisão de IP do dono está em aberto.
+
+| PR | o quê | estado |
+|---|---|---|
+| [#411](https://github.com/pauloloureiroshp-ship-it/mooter/pull/411) | pré-registo — sujeitos, braços, métricas e limiares fixados **antes de correr** | aberto, 2 emendas, adversário publicado |
+| [#412](https://github.com/pauloloureiroshp-ship-it/mooter/pull/412) | F0.1 — varredura de segredos em **todo o histórico** | aberto, 7 objecções do adversário corrigidas |
+
+**Sujeitos fixados** (medidos, não estimados): `mooter` @`97ad846b` 102 188 linhas ·
+`fastify/fastify` @`1beaf7e7` 77 475 · `honojs/hono` @`06880c4a` 84 377. Todos MIT.
+
+**F0.1 · resultado:** `0` achados de severidade crítica não declarados nos três
+âmbitos (`origin` 11 755 objectos lidos · `all` 12 851 · `todos` 13 752), mensagens
+de commit e de tag incluídas. 13 críticos encontrados, os 13 verificados no blob,
+os 13 fixtures. **Nenhuma credencial precisa de rotação.** Contraprova externa
+(`gitleaks`, 2 478 commits): 61 achados → 34 distintos → 0 reais.
+**Não cobre** 2 424 `LOW` heurísticos, por triar (declarado no relatório).
+
+**Ambiente medido:** semgrep **não corre em Windows nativo** (instala, todo o scan
+morre em `semgrep-core exited with 1`); docker com daemon em baixo; **semgrep em
+WSL2 corre em 2,9 s com 0 erros** ⇒ o braço do censo fica no desktop e o Mac
+deixa de ser preciso para isto. `codex` com créditos.
+
+**Adversário:** `codex-cli` (motor OpenAI, ≠ autor) bloqueou **três vezes**.
+18 objecções procedentes. A que mais valeu: a métrica «achados reais por hora»
+era `(precisão × volume) ÷ (volume × s ÷ 3600)` — **o volume cancela-se**.
+
+### O que falta para o portão da F0 fechar
+
+- **índice do harness com as 7 parcelas** — por fazer (F0.2)
+- **um teste novo fora do CI faz o CI falhar** — por fazer (F0.3). Medido:
+  **60 de 198** ficheiros de teste sob `tools/` (30,3%) nunca correm em CI,
+  `tools/router/forecast/` inteiro incluído
+- ⚠️ **3 devices no mesmo sha: NÃO cumprido — 1 de 3.** `desktop-j26409q` em
+  `97ad846b`; `mac-mini-de-paulo` desactualizado; `paulo-desktop` em `deb14d22`
+
 ## ⏳ PENDENTE — o que continua aberto
 
 > Promovido para aqui a 2026-08-23, ao rolar a história para
