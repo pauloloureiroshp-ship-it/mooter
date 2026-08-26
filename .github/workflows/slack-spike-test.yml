@@ -71,6 +71,27 @@ jobs:
       - name: A propria bateria tem de estar de pe
         run: node --test tools/audit/varredura-segredos.test.mjs
 
+      # A CATRACA DOS TESTES FORA DO CI.
+      #
+      # Medido a 2026-08-26: 180 de 600 ficheiros de teste versionados (30%)
+      # nao sao alcancados por nada que os workflows invoquem. Nao e
+      # negligencia de ninguem — metade dos scripts de teste deste repo sao
+      # listas escritas a mao, e uma lista escrita a mao nao cresce sozinha.
+      # O teste passa localmente, entra no repo, e nunca mais corre; ninguem
+      # descobre, porque um teste que nao corre nao falha.
+      #
+      # Este passo NAO tenta levar os 180 a zero: faz uma catraca. A lista
+      # actual e a linha de base, e o CI parte quando ela CRESCE — no PR que
+      # introduz o teste, que e o unico momento em que corrigir custa dois
+      # minutos.
+      #
+      # Corre AQUI, e nao no `test.yml`, pela mesma razao que a bateria de
+      # segredos: este workflow nao tem `paths:` e portanto corre sempre. Um
+      # guarda com filtro de caminhos nao ve o PR que so mexe onde ele nao
+      # olha — que e exactamente o PR que lhe interessa.
+      - name: Nenhum teste novo fora do CI (catraca)
+        run: npm run testes:fora-do-ci
+
       - name: Tokens do Slack com forma REAL, em qualquer ficheiro
         run: |
           # as fixtures sao curtas de proposito (xoxb-x, xapp-123, xoxb-SEGREDO) e
