@@ -58,7 +58,18 @@ function medir(j) {
     erros_por_nivel: porNivel,
     erros_por_tipo: porTipo,
     ficheiros_varridos: (j.paths?.scanned ?? []).length,
-    ficheiros_saltados: (j.paths?.skipped ?? []).length,
+    // `paths.skipped` SO existe na saida do semgrep quando se corre com --verbose.
+    // Medido em 1.174.0: sem --verbose a chave nao vem, nem sequer vazia. O `?? []`
+    // que estava aqui transformava uma chave AUSENTE num zero, e o relatorio afirmava
+    // "zero ficheiros saltados" sem ter medido nada. Zero nao medido e n/d COM o
+    // porque — nunca um zero.
+    ficheiros_saltados: j.paths && 'skipped' in j.paths
+      ? j.paths.skipped.length
+      : 'n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou',
+    // "varrido" nao e "analisado": um ficheiro que falha o parse na linha 1 aparece na
+    // mesma em paths.scanned (medido: src/types.ts em S3). Estes sao os ficheiros cuja
+    // analise saiu degradada, e onde a recolha do braco e desconhecida.
+    ficheiros_com_analise_degradada: [...new Set(errs.map((e) => e.path).filter(Boolean))],
     n_classes: classes.size,
     classes: [...classes.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
     conjunto: new Set(res.map(chave)),
@@ -69,7 +80,21 @@ function medir(j) {
 // `connect(` e uma tentativa de ligacao; classificamo-la pela familia e destino.
 function medirRede(p) {
   if (!existsSync(p)) return { medido: false, porque: `trace ausente: ${p}` };
-  const linhas = readFileSync(p, 'utf8').split('\n').filter((l) => l.includes('connect('));
+  const cru = readFileSync(p, 'utf8');
+  // O CASO QUE FALTAVA. Ate aqui um trace VAZIO — ou um que so contivesse a mensagem
+  // de erro do proprio strace ("Could not attach to process") — dava total_connect: 0
+  // e saiu_da_maquina: false. Ou seja: `touch braco-a-S1.connect.trace` PASSAVA o
+  // criterio 5. Demonstrado na CLI antes desta correccao. Um trace so conta como
+  // medicao se mostrar que o tracer chegou a agarrar alguem: pelo menos uma linha no
+  // formato de registo do strace com -f (`<pid>  connect(...)`, `<pid>  --- SIG...`).
+  if (!/^\d+\s+(connect\(|---|\+\+\+)/m.test(cru)) {
+    return {
+      medido: false,
+      porque: `trace degenerado (${cru.length} bytes, nenhum registo de strace la dentro): `
+        + 'indistinguivel de um tracer que nunca correu — criterio 5 e n/d, nao "nao saiu"',
+    };
+  }
+  const linhas = cru.split('\n').filter((l) => l.includes('connect('));
   const externos = [];
   let unix = 0, loopback = 0;
   for (const l of linhas) {
@@ -144,6 +169,20 @@ for (const s of SUJEITOS) {
     achados_distintos_apos_colapso_exacto: limpo.distintos,
     erros: limpo.erros, erros_por_nivel: limpo.erros_por_nivel, erros_por_tipo: limpo.erros_por_tipo,
     ficheiros_varridos: limpo.ficheiros_varridos, ficheiros_saltados: limpo.ficheiros_saltados,
+    ficheiros_com_analise_degradada: limpo.ficheiros_com_analise_degradada.length,
+    quais_degradados: limpo.ficheiros_com_analise_degradada,
+    // O §2.2 diz "braco que veja outra lista e um braco invalido". O relatorio imprimia
+    // ficheiros_varridos e ficheiros_na_lista lado a lado e NUNCA os comparava: um braco
+    // que varresse 900 dos 974 saia daqui verde. A comparacao passa a ser um campo, nao
+    // um exercicio de leitura de quem le o JSON.
+    ambito_integro: existsSync(pMeta)
+      ? {
+        medido: true,
+        na_lista: recibo.ficheiros_na_lista,
+        varridos: limpo.ficheiros_varridos,
+        igual: recibo.ficheiros_na_lista === limpo.ficheiros_varridos,
+      }
+      : { medido: false, porque: `recibo ausente: ${pMeta} — nao ha com que comparar os varridos` },
     n_classes: limpo.n_classes,
     top10_classes: limpo.classes.slice(0, 10).map(([id, n]) => ({ n, check_id: id })),
     todas_as_classes: limpo.classes.map(([id, n]) => ({ n, check_id: id })),

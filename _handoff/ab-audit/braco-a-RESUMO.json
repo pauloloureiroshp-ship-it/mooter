@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-08-26T19:50:40.180Z",
+  "gerado_em": "2026-08-26T20:06:06.994Z",
   "dir": "C:\\Users\\Paulo Loureiro\\frugal-ab-braco-a\\_handoff\\ab-audit",
   "sujeitos": [
     {
@@ -35,7 +35,22 @@
         "PartialParsing": 6
       },
       "ficheiros_varridos": 974,
-      "ficheiros_saltados": 0,
+      "ficheiros_saltados": "n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou",
+      "ficheiros_com_analise_degradada": 6,
+      "quais_degradados": [
+        "_handoff/piloto/baralhar.mjs",
+        "landing/app/(app)/dashboard/_matrix_panel.tsx",
+        "landing/app/api/admin/matrix/route.ts",
+        "packages/cli/src/fable-observe/store.ts",
+        "packages/vscode-extension/src/overclock-fill.mjs",
+        "tools/cockpit/runner/build-shell-snapshot.mjs"
+      ],
+      "ambito_integro": {
+        "medido": true,
+        "na_lista": 974,
+        "varridos": 974,
+        "igual": true
+      },
       "n_classes": 4,
       "top10_classes": [
         {
@@ -154,7 +169,15 @@
       "erros_por_nivel": {},
       "erros_por_tipo": {},
       "ficheiros_varridos": 54,
-      "ficheiros_saltados": 0,
+      "ficheiros_saltados": "n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou",
+      "ficheiros_com_analise_degradada": 0,
+      "quais_degradados": [],
+      "ambito_integro": {
+        "medido": true,
+        "na_lista": 54,
+        "varridos": 54,
+        "igual": true
+      },
       "n_classes": 1,
       "top10_classes": [
         {
@@ -245,7 +268,24 @@
         "PartialParsing": 6
       },
       "ficheiros_varridos": 221,
-      "ficheiros_saltados": 0,
+      "ficheiros_saltados": "n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou",
+      "ficheiros_com_analise_degradada": 8,
+      "quais_degradados": [
+        "src/helper/factory/index.ts",
+        "src/types.ts",
+        "src/context.ts",
+        "src/helper/ssg/middleware.ts",
+        "src/jsx/dom/index.ts",
+        "src/jsx/hooks/index.ts",
+        "src/jsx/index.ts",
+        "src/utils/body.ts"
+      ],
+      "ambito_integro": {
+        "medido": true,
+        "na_lista": 221,
+        "varridos": 221,
+        "igual": true
+      },
       "n_classes": 2,
       "top10_classes": [
         {
