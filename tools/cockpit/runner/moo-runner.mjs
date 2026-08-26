@@ -43,6 +43,7 @@ import { createEngineBreaker } from './engine-breaker.mjs';
 import { resolveRepoRoot, projectPaths, repoSha } from './project.mjs';
 import { verConector } from './self-check.mjs';
 import { verReserva, esperaS } from './reserva.mjs';
+import { lerInstantaneo } from './indice-do-harness.mjs';
 
 const HOME = os.homedir();
 const MOO_DIR = process.env.MOOTER_HOME || path.join(HOME, '.mooter');
@@ -494,7 +495,22 @@ async function publishBeacon({ repoRoot, paths, engineAlive = true, shaCarregado
         vaultDir: where.partilhado ? path.dirname(where.dir) : null,
       });
     } catch { paridade = null; }
-    const res = writeBeacon({ ...state, conector, paridade }, where);
+    /**
+     * O indice do arnes viaja com o beacon, mas NAO se calcula aqui.
+     *
+     * Calcula-lo custa entre 2 e 8 s (git ls-files sobre o repo, dois registos
+     * de dezenas de milhar de linhas, uma chamada ao GitHub) e o beacon escreve-
+     * se a cada ronda. Quem calcula grava um instantaneo
+     * (`indice-do-harness.mjs --escrever`); aqui so se le.
+     *
+     * Um instantaneo velho publica-se com a IDADE a vista — nunca em silencio,
+     * e nunca omitido como se nao existisse. Falha -> `null`, nunca a ronda.
+     */
+    let indice = null;
+    try {
+      indice = lerInstantaneo({});
+    } catch { indice = null; }
+    const res = writeBeacon({ ...state, conector, paridade, indice }, where);
     if (!res.ok && !beaconWarned) {
       beaconWarned = true;
       logImpl(`beacon nao escrito (${res.erro}) — a frota nao vera este device.`);

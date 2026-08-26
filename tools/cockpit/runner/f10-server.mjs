@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { buildFleetState, readLedger } from './fleet-state.mjs';
+import { lerInstantaneo } from './indice-do-harness.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { buildAlignment } from './alignment.mjs';
 import { loadPillars } from './context-pack.mjs';
@@ -451,6 +452,12 @@ export function createServer({
         loadedModels: models,
         alignment,
         fleet,
+        // Leitura de um ficheiro pequeno, nao um calculo: o indice e caro
+        // (2-8 s) e este endpoint responde a cada pedido do painel. Quem
+        // calcula e o `indice-do-harness.mjs --escrever`.
+        indice: (() => {
+          try { return lerInstantaneo({}); } catch { return null; }
+        })(),
       });
       // `foco` e o pilar com que o loop CORREU a ultima ronda; so muda quando a
       // ronda seguinte acabar (ate ~35 s). O ficheiro de foco muda no instante
