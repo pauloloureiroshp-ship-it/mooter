@@ -138,6 +138,48 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
+### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
+
+**#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
+conflitos: os dois `package.json` por **união** (escolher um lado desligava testes dos dois lados);
+o painel com a **arquitectura do #396 e a regra do #401 lá dentro** — a premissa de que "o #396 já
+antecipa o #401" **não se confirma**, o ramo da pausa vinha antes do teste de morte e tomá-lo tal e
+qual reintroduzia o defeito do beacon a 3592 s; e o `SYNC.md` do #396, que era o correcto (219 vs
+390 linhas) mas tinha deixado de fora **uma** das quatro entradas de 25/08 do main — a do PC, com a
+hipótese do autor refutada contra 57 etiquetas. Resgatada para o arquivo.
+
+**O P1 do kickoff inverteu-se.** Pedia religar P4 e P5 apagando `activo: false`. O P4 não é
+"zero-LLM": é um enunciado de GPU para um defeito com **0 ocorrências** neste repo (0 de 443 `.md`
+acabam a meio de uma palavra). O P5 não mede modelos: é `falso-em-ambos`. E as **"+603 linhas de
+ledger da madrugada, $0" não eram saúde** — o processo vivo era de 25/08 08:13, tinha o catálogo
+antigo em memória, e passou ~15 h a produzir **P2/P3**, os dois pilares de que o dono decidiu 19
+achados à mão e não guardou nenhum.
+
+Em vez disso, a correcção um nível acima: **a rotação passou a derivar de medição**
+(`portao.mjs` + `podeEntrar`, o mesmo portão que o #389 pôs nas regras do ancorado na véspera
+*"porque foi assim que o P11 entrou"* — e que aos pilares, de onde o problema veio, nunca foi
+aplicado). Forçar `activo: true` nos onze dá **zero**, cada recusa com o seu número. Cinco
+comentários que diziam "reversível numa linha" passaram a ser falsos e foram corrigidos.
+
+**Loop relançado** sob launchd (PID 11825) com o código de `main` — o `ai.mooter.runner` estava
+carregado mas **não era ele que corria** (PID `-`; o processo real fora lançado à mão e segurava o
+lock). A objecção que ontem bloqueou o relançamento (`nextPillar(n,[])` a falhar em silêncio) era
+um **defeito corrigível**: com `ids=[]` o escalonador dizia `all capped / paused / suspended`, falso
+nas três coisas que nomeia e a mandar o dono triar uma fila que não existe. Corrigido. Ao vivo às
+11:18Z o painel pinta `holding · zero pilares na rotacao — nenhum passa o portao de medicao`.
+
+⚠️ **O ledger NÃO cresce, e é o resultado certo** — declarado, não disfarçado. Sem pilar não há
+ronda. Voltar a crescer exige um pilar que passe o portão (≥10 reais, ≥30 %, triados à mão): onda
+de medição, não booleano. #400/#402 avaliados e **não merjidos** — continuam 🔴 por adversário
+externo, e o codex não está nesta máquina.
+
+Vermelhos: espelho do cockpit **42 ficheiros atrás** e o LaunchAgent aponta **directo ao checkout** ·
+`.mooter/pilares.json` **contorna o portão** novo · a condição do #400 é uma linha no `SYNC.md`, não
+o veto em código.
+
+gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
+detalhe em `_handoff/cc-perfeito-progress.md`
+
 ### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
 
 **A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
@@ -157,64 +199,5 @@ instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench =
 **A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
 (`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
 `/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
-
-### 2026-08-25 (Mac · `mac/sistema-sync-2026-08-25`) · sistema & sync — o que estava a medir mal
-
-Detive o **lock logico do SYNC** para este rolo (604 linhas -> orcamento).
-Verifiquei antes que o unico outro device activo (`desktop-j26409q`) nao lhe
-tinha tocado desde a base comum: o `git diff main <branch>` mostrava um falso
-`-6` que era o main a estar a frente, nao a branch a apagar.
-
-Tres coisas mediam mal, e as tres eram do instrumento, nao do objecto:
-
-1. **A suite do router.** `--test-force-exit` matava o reporter: 889/977/979/
-   1029/1000/1004 em corridas seguidas, e o `fail 0` era artefacto — havia 3
-   falhas verdadeiras cortadas com o resto. Sem o flag: **1160 x3, fail 0**. As
-   3 falhas eram `renderResolved` a chamar `renderTwoLine(ctx)` sem `opts`, a
-   ler o `~/.mooter` REAL do dono.
-2. **O painel.** "1 min ago" com ficheiro de 2 dias: o campo `via` (disco/remoto)
-   existia nos dados e o painel **nunca o renderizou**. O rotulo passou para
-   modulo testado — a unica coisa que o painel afirmava era a unica sem teste.
-3. **Este ficheiro.** O cabecalho "verificavel" dizia `v1.24.1 / 2026-07-27`
-   com a maquina em `1.49.4`: faltava o marcador de FIM da zona humana e o gerador
-   lancava em **todas** as corridas, ha um mes.
-
-**Refutado por medicao:** os 14 MB do `.git` do vault nao sao dos beacons — eles
-sao 91% dos commits e **0,79 MiB** do pack; um clone fresco da 5,9 MB. E o beacon
-do PC ja publica `conector` preenchido (a premissa do `null` estava velha).
-
-**Veredicto `codex/agent-sync-fleet-v3`: APROVEITAR.** Enxertada numa worktree do
-main de hoje (529 commits a frente): 56/56 na suite agent-sync, 1170 no router
-sem regressao. Bloqueio unico: dois publicadores que nao se conhecem a escrever
-no vault (`DR_VAULT.md` / `CANAL_DE_SYNC_ROADMAP.md`).
-
-**Nao feito, declarado:** W4 (metrica-mae, quota por motor, kWh) e W5.1 (Ed25519
-por utilizador). `codex` e `kimi`: **n/d** nesta maquina; refutacao em Ollama local.
-
-gate: router 1160/1159/0 (x3, mesmo total) · cockpit 876/874/0/2 todo ·
-varredura de segredos HIGH 0 · restauro do vault 0 falhas · classify.js `427d8c0b`
-
-### 2026-08-25 (Mac · CC headless) · merges delegados — e o vermelho que eles revelaram
-
-**5 mergidos** (#397 #398 #399 #401 + **#406**, meu) · **3 retidos**: #396 (`Vercel … retry in 24 hours`, 4ª verificação — **ainda rate-limited**), #400/#402 por ordem do dono. Nunca `--admin`.
-
-**`main` ficou vermelho sem que nenhum PR estivesse vermelho.** (a) O `retomar.js` (#404) resolvia
-um `cwd` de outra máquina contra o `process.cwd()` local e declarava o **repo local** como «onde
-estavas», `status: measured` — facto **fabricado**, e só falhava fora do Windows. (b) O #398 partiu
-o teste de TES da landing, que **nunca correu no PR**: o `landing-test.yml` só acorda em
-`landing/**` e a rota lê `data/` — **filtro de paths é gate a fingir**. Ambos corrigidos no #406.
-
-**Não relancei o loop — é a decisão que mais importa.** O `launch.mjs` achou tudo vivo e não reiniciou; ainda bem: o loop roda pilares (`P2`→`P3` em 13 s) e `PILLAR_IDS = []` **no checkout E em `main`**. O código que está a produzir **não existe em branch nenhuma**; reiniciar trocava 10 pilares por zero, em silêncio. `:4290` vivo · beacon assinado (`Ed25519-v1`, `idade_s 0`).
-
-**O painel deste device não tem os fixes do #401** (`✗ código — 18 atrás`): o merge trava num conflito **de desenho** — #396 e #401 corrigiram o cartão da frota de duas maneiras incompatíveis (rótulo do `/fleet.json` **vs** calculado no painel). Abortei — **é decisão do dono**.
-
-**Refutação:** `codex` **autenticado**, mas `out of credits` — a parede mudou de login para
-dinheiro, e dois documentos ainda dizem «401». 3 desenhos em Ollama `gpt-oss:20b` ($0): **2 objecções
-sobrevivem em 9** — beacon **auto-assinado** no M2, e a porta do M1 **sem token** (`proxy.mjs:123` só
-valida loopback). Os 3 ficam **🔴 por adversário externo**.
-
-gate em `main @7d5e3566`: cockpit 875/0 · CLI 663/0 · landing 219/0 + typecheck + lint 0 erros ·
-router 996/1 e packages/router 305/3 (estado da máquina e dívida sem CI) · classify.js
-`427d8c0b` intacto · detalhe: `_handoff/cc-merges-progress.md`
 
 <!-- HUMANO:FIM -->
