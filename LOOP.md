@@ -20,6 +20,78 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-08-26-tres-guardas-que-nao-mordiam-e-so-o-teste-de-mordida-o-disse
+
+**Contexto:** ao construir a F0 do A/B do Moo Audit (varredura de histórico, índice
+do arnês, catraca de testes), três peças passaram a revisão e falharam ao primeiro
+contacto com a realidade. As três falhavam **para verde**, que é o modo de falha
+que ninguém vê.
+
+1. **A regex do scanner de limiares comia o alvo principal.**
+   `^export const ([A-Z][A-Z0-9_]*(?:LIMIAR|LIMIARES|…))` — o `[A-Z]` consome o
+   `L` de `LIMIARES`, e o grupo nunca consegue casar o nome inteiro. Resultado:
+   de 24 limiares no código, o único que o scanner **não** via era o
+   `LIMIARES` do `portao.mjs` — o mais importante do repositório.
+   Um denominador construído por regex não falha ao acaso: falha primeiro no
+   caso que mais interessa, porque os nomes importantes são os que começam pelo
+   próprio termo.
+
+2. **A catraca deu verde com um ficheiro órfão à frente.**
+   `git ls-files` só lista o que já está no índice do git. Um teste novo, ainda
+   por commitar, era invisível — e o guarda só acordava depois do commit, que é
+   depois do único momento em que corrigir custa dois minutos.
+   Descoberto por um **teste de mordida** (criar o ficheiro, correr o guarda,
+   exigir exit 1), não por leitura do código. A leitura tinha passado.
+
+3. **Um patch por `String.replace` não aplicou e imprimiu `ok` na mesma.**
+   `t.replace(a, b)` devolve a string intacta quando `a` não coincide. O script
+   escreveu o ficheiro sem alteração nenhuma, disse `ok`, e o teste seguinte
+   passou pela razão errada. Três edições por script foram silenciosamente
+   perdidas nesta sessão pela mesma razão.
+
+**O padrão comum:** as três peças foram **lidas** e aprovadas. Nenhuma leitura
+apanhou nada. O que apanhou as três foi executá-las contra um caso construído
+para as fazer falhar.
+
+**Corolário desagradável:** um guarda que nunca falhou é indistinguível de um
+guarda partido, e um guarda novo está sempre nesse estado até alguém lhe pôr um
+caso à frente de propósito. **Um guarda sem teste de mordida não é um guarda —
+é um comentário que corre.**
+
+---
+
+### 2026-08-26-o-adversario-em-motor-diferente-encontrou-bugs-que-a-revisao-nao
+
+**Contexto:** política do MP — adversário em motor diferente por PR, veredicto
+publicado. Corrido com `codex exec` (motor OpenAI) contra trabalho escrito por
+Claude, instruído a **refutar**, com default «há um problema».
+
+**Medido em quatro passagens:**
+
+| alvo | veredicto | do que serviu |
+|---|---|---|
+| pré-registo, 1.ª | BLOQUEIA (4 HIGH + 1 MED) | apanhou um **erro de álgebra**: `(precisão × volume) ÷ (volume × s ÷ 3600)` simplifica para `precisão × 3600 ÷ s` — o `volume` cancela-se, e a métrica dizia «combina as duas» |
+| pré-registo, 2.ª | BLOQUEIA (4 MAQUILHADO + 3 novas) | apanhou objecções **abertas pela própria emenda** |
+| F0.1, 1.ª | BLOQUEIA (6 HIGH + 1 MED) | apanhou o **título a afirmar mais do que a prova** («0 segredos reais» vs «0 críticos não declarados») |
+| F0.1, 2.ª | BLOQUEIA (3 bugs) | apanhou **três defeitos de código**: severidade a descer por ignorância do caminho, `parseBatch` a aceitar corpo truncado, `--refs origin` cego às tags |
+
+**O que isto sugere:** o valor não está no adversário «ter razão» — está em ele
+**não partilhar os pontos cegos do autor**. As quatro passagens bloquearam, e
+nenhuma das objecções úteis era uma questão de gosto.
+
+**E o custo real:** a 4.ª passagem esgotou os créditos do motor. Uma prática de
+qualidade que depende de um recurso pago tem um limite de escala que precisa de
+ser dito antes de ser descoberto a meio.
+
+**Ponta solta:** a correcção *óbvia* ao bug da severidade (falhar fechado,
+tratar um objecto sem caminho como sensível) produziu **101 alarmes HIGH**, os
+101 da mesma classe heurística. Ler o detector mostrou que chaves com forma de
+fornecedor já são críticas em qualquer caminho — a sentinela não protegia nada
+e só inflacionava ruído. **Falhar fechado nem sempre é a resposta certa; é a
+resposta certa quando a ignorância esconde risco, não quando esconde ruído.**
+
+---
+
 ### 2026-08-25-a-forma-comparar-tambem-falha-e-o-sinal-esta-invertido
 
 **REFINES:** `2026-08-25-o-juiz-ancorado-medido-contra-verdade-conhecida-52-6-por-cento`
