@@ -253,6 +253,19 @@ export const MOO = {
       "savings"
     ],
     "claims_banidos_nota": "A lista é o registo do que foi retirado e não se encolhe. Como se procura está em moo-design-check.mjs §3: comentários e ficheiros de teste ficam de fora (são o registo da retirada e a sua defesa, não a violação), e um claim que é palavra — 'savings' — só conta com uma cifra ou percentagem na mesma linha. Sem isso marcava 'savings_usd', uma coluna D1 viva.",
+    "claims_excepcoes_nota": "Um portão sem lista de excepções obriga a mentir ou a ignorar (DIRETRIZES, adenda da auditoria visual). Estas são as duas superfícies cujo TRABALHO é narrar a retirada dos números: apagá-las seria apagar o registo de que a decisão de 2026-08-24 aconteceu. Cada excepção diz o ficheiro, um pedaço literal da linha, e porquê. Se alguém editar a linha, a excepção deixa de coincidir e o claim volta — que é o modo de falhar correcto.",
+    "claims_excepcoes": [
+      {
+        "ficheiro": "landing/app/(marketing)/methodology/page.tsx",
+        "contem": "dois numeros para a mesma coisa",
+        "porque": "A página de metodologia existe para explicar porque os números foram retirados. Citar o 47% ao explicar que ele saiu é o oposto de o publicar."
+      },
+      {
+        "ficheiro": "README.md",
+        "contem": "This README used to carry five different savings figures",
+        "porque": "É a secção 'Honest numbers': o registo dos cinco números que a auditoria de 2026-08-23 não conseguiu sustentar. Sem esta frase, a tabela diz 'not measured' sem que ninguém saiba o que mudou."
+      }
+    ],
     "claims_padroes": [
       [
         "poupanca-computada",

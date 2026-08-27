@@ -36,14 +36,22 @@ describe('Day 3 — estimated-impact card is a hero "reward" treatment', () => {
   });
 });
 
-describe('Day 3 — impact calc unchanged (functionality preserved, est. is directional)', () => {
-  it('local hardware yields higher savings than cloud-only routing', () => {
+describe('Day 3 — impact card still reacts to the answers (now a mix, not a figure)', () => {
+  // 2026-08-24 (owner decision) — stop publishing savings until there are
+  // measured tokens. This test used to REQUIRE the banned claim ("90% less than
+  // Opus-only"), which made the decision reversible from underneath. It now
+  // locks the opposite: the preview names where each tier runs, and publishes
+  // no amount and no percentage at all.
+  it('local hardware changes where T0 runs, and neither answer publishes a figure', () => {
     const local = estimateMonthlySavings({ hw: 'windows_nvidia', subs: [], budget: 30 });
     const cloud = estimateMonthlySavings({ hw: 'cloud', subs: [], budget: 30 });
-    expect(local).toMatch(/Save ~\$\d+\/mo/);
-    expect(local).toMatch(/90% less than Opus-only/);
-    expect(cloud).toMatch(/cloud-only routing/);
-    expect(cloud).toMatch(/75% less than Opus-only/);
+    expect(local).toContain('T0 on your own GPU');
+    expect(cloud).toContain('T0 on Haiku');
+    for (const s of [local, cloud]) {
+      expect(s).toContain('not measured');
+      expect(s).not.toMatch(/\$\s?\d/);
+      expect(s).not.toMatch(/\d\s?%/);
+    }
   });
 
   it('5-step wizard flow + captured state shape are intact (Wave 60 — same facts, more steps)', () => {

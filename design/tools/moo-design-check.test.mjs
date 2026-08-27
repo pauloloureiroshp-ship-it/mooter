@@ -304,6 +304,31 @@ test('numero-honesto MORDE uma cifra poupada, mesmo sem a substring "saved $"', 
     `"$1.68 saved" não contém "saved $". achados=${JSON.stringify(num.achados)}`);
 });
 
+test('numero-honesto declara a excepção — e ela cai assim que a linha muda', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'landing/app/x.tsx', 'export const x = 1;\n');
+  /* A excepção declarada em `moo-tokens.json` aponta a `README.md` e à frase que
+     abre a secção «Honest numbers». Enquanto a frase estiver lá, o `65-82%` que
+     ela cita não é um claim: é o registo de que o claim foi retirado. */
+  const FRASE = 'This README used to carry five different savings figures — `65–82%`, `~78-90%`.';
+  escreve(b.repo, 'README.md', FRASE + '\n');
+
+  const comExcepcao = v(corre(b).rel, 'numero-honesto');
+  assert.equal(comExcepcao.total, 0, `esperava isento. achados=${JSON.stringify(comExcepcao.achados)}`);
+  assert.equal(comExcepcao.excepcoes_declaradas.length, 1,
+    'isento não é invisível — tem de aparecer contado');
+  assert.match(comExcepcao.porque, /declarado/);
+
+  /* Editar a frase parte a coincidência, e o claim VOLTA. É o modo de falhar
+     correcto: uma excepção por ficheiro seria uma lista negra permanente. */
+  escreve(b.repo, 'README.md', 'Savings of 65–82% across the board.\n');
+  const semExcepcao = v(corre(b).rel, 'numero-honesto');
+  assert.ok(semExcepcao.total > 0,
+    'a excepção não pode sobreviver à linha que a justificava');
+  assert.equal(semExcepcao.excepcoes_declaradas.length, 0);
+});
+
 test('superficies-vivas não acusa packages/vscode-extension, que está vivo', (t) => {
   const b = bancada();
   t.after(() => rmSync(b.raiz, { recursive: true, force: true }));

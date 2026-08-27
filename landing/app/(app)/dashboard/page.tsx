@@ -352,7 +352,7 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
         '  win32 \u00b7 x64 \u00b7 Node v24',
         '  \u2713 Core Files         10/10',
         '  \u2713 Hook               active',
-        '  \u2713 Savings %          69%',
+        '  \u2713 Savings %          \u2014',
         '  \u2713 profile updated',
       ],
     },

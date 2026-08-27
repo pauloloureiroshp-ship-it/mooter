@@ -476,7 +476,7 @@ function LoginStatuslinePreview() {
         <span style={{ color: 'var(--faint)' }}>·</span>
         <span style={{ color: 'var(--yellow)' }}>$0.18 spent</span>
         <span style={{ color: 'var(--faint)', marginLeft: 'auto' }}>·</span>
-        <span style={{ color: 'var(--green)', fontWeight: 700 }}>$1.68 saved</span>
+        <span style={{ color: 'var(--green)', fontWeight: 700 }}>— saved</span>
       </div>
 
       {/* Second row — tier share */}

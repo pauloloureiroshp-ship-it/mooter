@@ -73,8 +73,8 @@ export default function Page() {
               {/* D6 — condensed persona+$ subline (rubric C5) */}
               <p style={{ color: 'var(--color-text)', fontSize: 15, lineHeight: 1.6, marginTop: 14, maxWidth: 560, fontWeight: 500 }}>
                 For a vibe coder on a Max plan: renames, commits &amp; explains run <strong>local (free)</strong>;
-                debugging &amp; refactors go <strong>cloud</strong> — typically ~30% less on a mixed day, more when
-                local does the heavy lifting.{' '}
+                debugging &amp; refactors go <strong>cloud</strong> — so the free/cloud split shifts with the work
+                the day brings, not with a fixed ratio.{' '}
                 <a href="/methodology" style={{ color: 'var(--color-accent)' }}>Estimate yours →</a>
               </p>
 
@@ -143,8 +143,8 @@ export default function Page() {
             </p>
             <p style={{ color: 'var(--color-text)', fontSize: 15, lineHeight: 1.6, marginTop: 14, fontWeight: 500 }}>
               For a vibe coder on a Max plan: renames, commits &amp; explains run <strong>local (free)</strong>;
-              debugging &amp; refactors go <strong>cloud</strong> — typically ~30% less on a mixed day, more when
-              local does the heavy lifting.{' '}
+              debugging &amp; refactors go <strong>cloud</strong> — so the free/cloud split shifts with the work
+              the day brings, not with a fixed ratio.{' '}
               <a href="/methodology" style={{ color: 'var(--color-accent)' }}>Estimate yours →</a>
             </p>
           </section>

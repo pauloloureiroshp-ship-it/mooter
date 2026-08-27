@@ -249,6 +249,15 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const VALOR = /\$\s?[\d{]|~?\d+(?:[.,]\d+)?\s*%|\{[^}]*\}\s*%/;
   const PERTO = 48;
   const padroes = (T.numero.claims_padroes ?? []).map(([nome, re]) => [nome, new RegExp(re, 'i')]);
+  /* Excepções DECLARADAS, com ficheiro, pedaço da linha e razão escrita — não um
+     ficheiro numa lista negra. Se a linha for editada, a excepção deixa de
+     coincidir e o claim volta. Um portão sem lista de excepções obriga a mentir
+     ou a ignorar; este declara-as e conta-as à parte, como o
+     «contraste novo 0 · declarado 5» do auditor visual. */
+  const excepcoes = T.numero.claims_excepcoes ?? [];
+  const excepcionado = (f, linha) =>
+    excepcoes.find(e => f === e.ficheiro && linha.includes(e.contem));
+  const declarados = [];
 
   for (const f of alvos) {
     const bruto = ler(f); if (!bruto) continue;
@@ -257,6 +266,8 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     for (let li = 0; li < limpo.length; li++) {
       const L = limpo[li];
       if (!L.trim()) continue;
+      const exc = excepcionado(f, cru[li]);
+      if (exc) { declarados.push({ ficheiro: f, linha: li + 1, porque: exc.porque }); continue; }
       const excerto = () => cru[li].trim().slice(0, 110);
       for (const claim of T.numero.claims_banidos) {
         const palavra = E_PALAVRA(claim);
@@ -281,10 +292,12 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     ? { estado: 'n/d', porque: 'nenhuma superfície de texto encontrada', pontos: null }
     : { estado: achados.length ? 'falha' : 'passa', achados: achados.slice(0, 60), total: achados.length,
         ficheiros: new Set(achados.map(a => a.ficheiro)).size,
+        excepcoes_declaradas: declarados,
         pontos: achados.length ? 0 : 2.0,
-        porque: achados.length
+        porque: (achados.length
           ? `${achados.length} claim(s) proibido(s) vivos em ${new Set(achados.map(a => a.ficheiro)).size} ficheiro(s) (decisão 2026-08-24)`
-          : `${alvos.length} ficheiros varridos, zero claims proibidos` });
+          : `${alvos.length} ficheiros varridos, zero claims proibidos`)
+          + (declarados.length ? ` · ${declarados.length} declarado(s) e fora do resultado` : '') });
 }
 
 // 4 · GERAR, NÃO COPIAR (1.5) — a saída bate certo com a fonte
