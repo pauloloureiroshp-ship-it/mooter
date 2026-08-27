@@ -247,3 +247,9 @@ _handoff/logs/
 # do repo. Sem esta linha ficam 34 ficheiros untracked na raiz — a armadilha
 # exacta do `git add -A`, com um ABRIR-PR-AUTO.command la no meio.
 /*.command
+
+# Saída por-corrida do portão do design. A LINHA DE BASE
+# (design/.design-baseline.json) é versionada — é a referência do ratchet —
+# mas o relatório reescreve-se a cada corrida e versioná-lo dava ruído em
+# todos os diffs sem acrescentar informação nenhuma.
+design/.design-check.json

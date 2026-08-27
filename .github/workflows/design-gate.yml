@@ -1,0 +1,115 @@
+name: design-gate
+
+# PORQUÊ ISTO EXISTE
+#
+# O router emite recomendações e é obedecido 0,23% das vezes (7/3.026) porque é
+# advisory. Um design system em prosa tem exactamente o mesmo destino. Por isso a
+# ordem foi invertida: primeiro o portão, depois o token, só no fim a superfície.
+# Se a onda acabar com superfícies bonitas e sem o check a morder no CI, falhou —
+# mesmo que tudo pareça melhor.
+#   (decisão 2026-08-27 · 20-decisions/2026-08-27-design-system-do-mooter-a-fonte-e-o-portao.md)
+#
+# ⚠️ O QUE ESTE WORKFLOW **NÃO** FAZ, E PORQUÊ
+#
+# Não corre `moo-design-check --ci`. O limiar publicado é 8; o índice medido a
+# 2026-08-27, depois de o portão passar a medir a sério, é **3,18**. Ligá-lo
+# hoje deixava o `main` vermelho de forma permanente, e um CI cronicamente
+# vermelho aprende-se a ignorar — o mesmo destino que o portão existe para
+# evitar.
+#
+# A saída fácil seria `MOO_LIMIAR=3`. A decisão proíbe-o por escrito: «os
+# limiares sobem quando as verificações `n/d` passarem a medir — nunca por
+# conveniência de uma onda».
+#
+# Então o limiar fica em 8 e por atingir, e o que morde desde já é o RATCHET:
+# o índice nunca desce e nenhuma verificação perde pontos. É a mesma régua do
+# `wave-gate.yml` («a suite não pode piorar»). Quando o índice chegar a 8,
+# troca-se o passo do ratchet por `npm run design:check:ci` e apaga-se este
+# parágrafo.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Sem `paths:` de propósito. A verificação `numero-honesto` varre `landing/app`,
+# `plugin/mooter`, `packages/mooter-bridge` e os READMEs; a `marca-unica` varre o
+# repo inteiro à procura de SVGs. Um claim proibido não pede licença ao caminho
+# que o introduziu. (É também a armadilha documentada em `test.yml`: um job
+# REQUIRED com `paths:` que nunca dispara deixa o PR BLOCKED para sempre.)
+
+concurrency:
+  group: design-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portao:
+    name: o portão do design
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Zero dependências por desenho: `node --test` e `node` sobre ficheiros do
+      # repo. Se um dia precisar de `npm ci`, isso é uma mudança de desenho e
+      # deve doer aqui primeiro.
+
+      # 1 · O teste de mordida ANTES do portão.
+      #
+      # Esta ordem não é estética. A 2026-08-27 o portão dava `marca-unica`
+      # 1,5/1,5 — «um só desenho» — com OITO cópias da vaca vivas no repo: `.svg`
+      # não estava em `EXT_TEXTO`, o walker nunca devolvia um SVG, e o filtro
+      # seguinte descartava 100% do que recebia. O ✅ não era uma medição; era a
+      # ausência de medição vestida de medição. Um portão que nunca falhou é
+      # indistinguível de um portão que não funciona, por isso o CI prova
+      # primeiro que ele MORDE, e só depois acredita no número que ele dá.
+      - name: O portão morde? (26 testes que plantam o defeito)
+        run: npm run test:design
+
+      # 2 · Gerar, nunca copiar — provado, não afirmado.
+      #
+      # `moo-ui.css` e `moo-tokens.ts` são saída de `moo-tokens.json`. Editá-los
+      # à mão é o defeito que a verificação 4 apanha. Aqui regenera-se e exige-se
+      # árvore limpa: se alguém editou a saída, o `git diff` denuncia-o com o
+      # ficheiro à vista, em vez de o esconder num índice agregado.
+      #
+      # (O `--check` do gerador também apanharia isto. O `git diff` é preferível
+      # porque IMPRIME o que mudou.)
+      - name: A saída é mesmo gerada
+        run: |
+          npm run design:build
+          if ! git diff --quiet -- design/tokens/; then
+            echo "::error::design/tokens/ diverge de moo-tokens.json — correr 'npm run design:build' e commitar."
+            git diff --stat -- design/tokens/
+            git diff -- design/tokens/
+            exit 1
+          fi
+          echo "moo-ui.css e moo-tokens.ts idênticos ao que a fonte gera."
+
+      # 3 · O ratchet: vermelho se piorou.
+      - name: O índice não pode descer
+        run: npm run design:ratchet:ci
+
+      # 4 · O número, sempre visível — subiu ou não.
+      #
+      # `moo-design-check` já correu dentro do ratchet; isto reimprime o
+      # relatório humano no log para que o índice apareça em toda a corrida, e
+      # não só quando alguém abre o JSON.
+      - name: Publicar o Índice de Coerência Visual
+        run: npm run design:check
+
+      - name: Guardar o relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-check
+          path: |
+            design/.design-check.json
+            design/.design-baseline.json
+          if-no-files-found: warn

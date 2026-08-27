@@ -1,0 +1,418 @@
+{
+  "$schema": "moo-tokens/1",
+  "$meta": {
+    "version": "2.0.0",
+    "medido_em": "2026-08-27",
+    "repo": "frugal@97ad846b",
+    "fontes": [
+      "landing/app/globals.css",
+      "landing/public/brand-guide.html",
+      "_handoff/_archive/2026-06/mock/export-source/handoff/SPEC.md",
+      "landing/lib/mooter-event.ts"
+    ],
+    "regra": "Esta é a ÚNICA fonte. moo-ui.css e moo-tokens.ts são GERADOS — nunca editados à mão.",
+    "divergencias_por_decidir": {
+      "h1": {
+        "globals": "clamp(44px,6vw,76px)/-0.045em",
+        "spec": "clamp(84px,11vw,152px)/-0.055em",
+        "activo": "globals"
+      },
+      "body": {
+        "globals": "16px",
+        "spec": "15px",
+        "activo": "globals"
+      },
+      "eyebrow_ls": {
+        "globals": "0.16em",
+        "spec": "0.08em",
+        "activo": "globals"
+      }
+    },
+    "direccao": {
+      "escolhida": "Papel Milimétrico",
+      "decidida_em": "2026-08-27",
+      "porque": "é a única das cinco que sobrevive às 14 superfícies do Mooter — landing, cockpit, deck, PDF, statusline. Um design system tem de extender, não de impressionar num sítio só.",
+      "papeis": {
+        "sistema": "Papel Milimétrico — grelha 8px, coluna de margem, cotas, hairlines",
+        "momento_extremo": "O Sinal — a página corre o classificador (um por página, regra 10)",
+        "doutrina_do_numero": "O Recibo — fonte e janela coladas a cada cifra",
+        "uma_seccao": "Dois Terminais — a comparação, nunca a linguagem",
+        "reformada": "A Manada — campo de partículas: metáfora sem medição, e é o que 2026 já tem a mais"
+      }
+    }
+  },
+  "color": {
+    "tinta": {
+      "bg": "#0B0A09",
+      "bg-2": "#0F0E0C",
+      "surface": "#141311",
+      "surface-2": "#1C1A17",
+      "line": "#252220",
+      "line-strong": "#302C28",
+      "line-soft": "#1E1B19",
+      "text": "#F2EDE6",
+      "text-2": "#C9C2B8",
+      "muted": "#8A8076",
+      "faint": "#7A7168",
+      "accent": "#E8888A",
+      "accent-2": "#F2A5A5",
+      "on-accent": "#1A0E0E",
+      "ok": "#4CAF6A",
+      "warn": "#D4C090",
+      "bad": "#D46A5A"
+    },
+    "papel": {
+      "bg": "#F2ECDF",
+      "bg-2": "#EAE4D6",
+      "surface": "#FBFAF7",
+      "surface-2": "#F2ECDF",
+      "line": "#DCD8CE",
+      "line-strong": "#C9C2B4",
+      "line-soft": "#E8E4DB",
+      "text": "#26241F",
+      "text-2": "#4A453D",
+      "muted": "#6B655C",
+      "faint": "#9A8F7E",
+      "accent": "#C25F65",
+      "accent-2": "#E8888A",
+      "on-accent": "#FFFFFF",
+      "ok": "#3D8B5E",
+      "warn": "#B89050",
+      "bad": "#B8523F"
+    },
+    "tier": {
+      "web": {
+        "t0": "#4CAF6A",
+        "t1": "#5A9BD4",
+        "t2": "#A88BD4",
+        "t3": "#D46A5A"
+      },
+      "terminal": {
+        "t0": "#4CAF6A",
+        "t1": "#5A9BD4",
+        "t2": "#D4C090",
+        "t3": "#D46A5A"
+      },
+      "papel": {
+        "t0": "#3D8B5E",
+        "t1": "#3D6FA8",
+        "t2": "#7A5EA8",
+        "t3": "#B8523F"
+      },
+      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal."
+    },
+    "term": {
+      "bg": "#0d1117",
+      "line": "#30363d",
+      "head": "#161b22",
+      "fg": "#c9d1d9",
+      "dim": "#8b949e"
+    },
+    "marca": {
+      "chifre": "#B8C0C8",
+      "cabeca": "#CCD3DA",
+      "focinho": "#EDAEB0",
+      "narina": "#C16A6F",
+      "olho": "#2C2F33",
+      "brilho": "#FFFFFF"
+    }
+  },
+  "type": {
+    "family": {
+      "sans": "'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      "mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, monospace",
+      "hand": "'Caveat', cursive"
+    },
+    "scale": {
+      "hero": {
+        "size": "clamp(56px,13vw,168px)",
+        "weight": 700,
+        "lh": "0.92",
+        "ls": "-0.05em"
+      },
+      "h1": {
+        "size": "clamp(44px,6vw,76px)",
+        "weight": 700,
+        "lh": "1.02",
+        "ls": "-0.045em"
+      },
+      "h2": {
+        "size": "clamp(32px,3.6vw,48px)",
+        "weight": 700,
+        "lh": "1.08",
+        "ls": "-0.035em"
+      },
+      "h3": {
+        "size": "20px",
+        "weight": 600,
+        "lh": "1.3",
+        "ls": "-0.02em"
+      },
+      "lede": {
+        "size": "19px",
+        "weight": 400,
+        "lh": "1.6",
+        "ls": "0"
+      },
+      "body": {
+        "size": "16px",
+        "weight": 400,
+        "lh": "1.6",
+        "ls": "0"
+      },
+      "small": {
+        "size": "13px",
+        "weight": 400,
+        "lh": "1.55",
+        "ls": "0"
+      },
+      "eyebrow": {
+        "size": "11px",
+        "weight": 500,
+        "lh": "1.2",
+        "ls": "0.16em",
+        "case": "uppercase",
+        "family": "mono"
+      },
+      "num": {
+        "size": "32px",
+        "weight": 700,
+        "lh": "1.05",
+        "ls": "-0.03em",
+        "family": "mono",
+        "tabular": true
+      },
+      "label": {
+        "size": "10px",
+        "weight": 500,
+        "lh": "1.2",
+        "ls": "0.14em",
+        "case": "uppercase",
+        "family": "mono"
+      }
+    },
+    "min_body_px": 13
+  },
+  "space": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "40px",
+    "2xl": "64px",
+    "band": "clamp(4rem, 10vw, 9rem)",
+    "grid": 4
+  },
+  "radius": {
+    "control": "6px",
+    "card": "10px",
+    "window": "14px",
+    "hero": "16px",
+    "pill": "999px"
+  },
+  "shadow": {
+    "term": "0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2)",
+    "lift": "0 40px 100px -40px rgba(0,0,0,0.6)"
+  },
+  "motion": {
+    "interact": {
+      "ms": 140,
+      "curve": "ease"
+    },
+    "surface": {
+      "ms": 160,
+      "curve": "ease"
+    },
+    "reveal": {
+      "ms": 500,
+      "curve": "ease",
+      "from": "opacity 0, translateY(16px)"
+    },
+    "pulse": {
+      "ms": 2200,
+      "curve": "ease-in-out"
+    },
+    "sopro": {
+      "ms": 4200,
+      "curve": "cubic-bezier(.45,0,.55,1)",
+      "delta": "scale 1 → 1.0125"
+    },
+    "piscar": {
+      "ms": 7000,
+      "fecha": 126,
+      "abre": 112
+    },
+    "saudar": {
+      "ms": 300,
+      "curve": "cubic-bezier(.2,.8,.2,1)"
+    },
+    "entrada": {
+      "ms": 900,
+      "curve": "cubic-bezier(.16,1,.3,1)",
+      "fases": 6
+    },
+    "regra": "Só transform e opacity. prefers-reduced-motion obrigatório em todo o ficheiro com animação.",
+    "mola": {
+      "curve": "cubic-bezier(.3,1.3,.5,1)",
+      "uso": "só gestos físicos: sacudidela, encaixe",
+      "origem": "auditoria visual 2026-08-27"
+    },
+    "familia": [
+      "entrada .16,1,.3,1",
+      "reacção .2,.8,.2,1",
+      "respiração .45,0,.55,1",
+      "mola .3,1.3,.5,1"
+    ]
+  },
+  "numero": {
+    "variantes": [
+      "medido",
+      "n/d",
+      "externo",
+      "regua"
+    ],
+    "obrigatorio": [
+      "fonte",
+      "janela"
+    ],
+    "regras": [
+      "Verde só para sinal positivo genuíno — nunca num zero, nunca numa estimativa.",
+      "Estimativa vem rotulada; dados parciais mostram cobertura.",
+      "Sem dados = frase + CTA, nunca 0/0.",
+      "Nunca dois números contraditórios lado a lado.",
+      "Todo estado degradado carrega CTA.",
+      "Régua de preço de tabela NUNCA é apresentada como poupança."
+    ],
+    "claims_banidos": [
+      "47%",
+      "90% ",
+      "~30%",
+      "saved $",
+      "savings"
+    ],
+    "claims_banidos_nota": "A lista é o registo do que foi retirado e não se encolhe. Como se procura está em moo-design-check.mjs §3: comentários e ficheiros de teste ficam de fora (são o registo da retirada e a sua defesa, não a violação), e um claim que é palavra — 'savings' — só conta com uma cifra ou percentagem na mesma linha. Sem isso marcava 'savings_usd', uma coluna D1 viva.",
+    "claims_padroes": [
+      [
+        "poupanca-computada",
+        "%\\s*(?:less|cheaper|menos|off)\\b"
+      ],
+      [
+        "cifra-poupada",
+        "(?:sav(?:ed|ings)|poupan\\w*)[^\\n]{0,40}?\\$\\s?[\\d{]|\\$\\s?[\\d{][^\\n]{0,40}?\\b(?:sav(?:ed|ings)|poupan\\w*)"
+      ]
+    ]
+  },
+  "contraste": {
+    "minimo_normal": 4.5,
+    "minimo_grande": 3.0,
+    "pares": [
+      [
+        "tinta.text",
+        "tinta.bg"
+      ],
+      [
+        "tinta.text-2",
+        "tinta.bg"
+      ],
+      [
+        "tinta.muted",
+        "tinta.bg"
+      ],
+      [
+        "tinta.faint",
+        "tinta.bg"
+      ],
+      [
+        "tinta.accent",
+        "tinta.bg"
+      ],
+      [
+        "tinta.ok",
+        "tinta.bg"
+      ],
+      [
+        "tinta.warn",
+        "tinta.bg"
+      ],
+      [
+        "tinta.bad",
+        "tinta.bg"
+      ],
+      [
+        "tinta.on-accent",
+        "tinta.accent"
+      ],
+      [
+        "papel.text",
+        "papel.bg"
+      ],
+      [
+        "papel.text-2",
+        "papel.bg"
+      ],
+      [
+        "papel.muted",
+        "papel.bg"
+      ],
+      [
+        "papel.accent",
+        "papel.bg"
+      ],
+      [
+        "papel.ok",
+        "papel.bg"
+      ],
+      [
+        "papel.bad",
+        "papel.bg"
+      ],
+      [
+        "papel.on-accent",
+        "papel.accent"
+      ]
+    ],
+    "correccoes_propostas": {
+      "$nota": "Calculadas, não escolhidas: o menor desvio que passa AA mantendo o matiz. NÃO aplicadas — são valores de produção, a decisão é do dono.",
+      "tinta.faint": {
+        "actual": "#7A7168",
+        "proposto": "#817870",
+        "de": 4.13,
+        "para": 4.57
+      },
+      "papel.accent": {
+        "actual": "#C25F65",
+        "proposto": "#A55156",
+        "de": 3.49,
+        "para": 4.56
+      },
+      "papel.ok": {
+        "actual": "#3D8B5E",
+        "proposto": "#347851",
+        "de": 3.53,
+        "para": 4.51
+      },
+      "papel.bad": {
+        "actual": "#B8523F",
+        "proposto": "#AD4D3B",
+        "de": 4.13,
+        "para": 4.57
+      },
+      "papel.on-accent": {
+        "actual": "#FFFFFF",
+        "nota": "passa a 5.37:1 assim que papel.accent for corrigido — não precisa de mudança própria"
+      }
+    }
+  },
+  "layout": {
+    "grelha": {
+      "colunas": 12,
+      "margem_px": 216,
+      "folha_padding_px": 80,
+      "base_px": 8,
+      "caixa_composicao_px": 1240
+    },
+    "regra": "A anotação vive na coluna de margem, alinhada à direita, em mono 10px/0.16em caixa-alta. Nunca num cartão colorido.",
+    "seccao": "grid 216px 1fr · border-top 1px #302C28 · padding 48px 0",
+    "extremo": "um por página — um número gigante, uma faixa a sangrar, ou um momento vivo"
+  }
+}

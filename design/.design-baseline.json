@@ -1,0 +1,17 @@
+{
+  "gerado_em": "2026-08-27T03:41:47.605Z",
+  "tokens_versao": "2.0.0",
+  "indice_coerencia_visual": 3.18,
+  "limiar_alvo": 8,
+  "nota": "Linha de base do ratchet. NUNCA desce. O alvo publicado continua a ser `limiar_alvo`; esta linha existe só para que uma regressão fique vermelha antes de o alvo ser atingido.",
+  "verificacoes": {
+    "fonte-unica": 0,
+    "marca-unica": 0.75,
+    "numero-honesto": 0,
+    "gerar-nao-copiar": 1.5,
+    "movimento-seguro": 0,
+    "contraste": 0.75,
+    "superficies-vivas": 0.5,
+    "linguagem": 0
+  }
+}

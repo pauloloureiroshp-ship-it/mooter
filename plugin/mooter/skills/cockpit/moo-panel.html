@@ -1,0 +1,259 @@
+<!-- ============================================================
+     MOO — o suporte do Mooter, dentro do próprio Cockpit.
+     ------------------------------------------------------------
+     DOUTRINA DESTE BLOCO (lê antes de mexer):
+
+     1. T0 = MODELO NENHUM. A resposta vem de retrieval determinístico
+        sobre MOO_KB, em JS puro, no browser. <10ms, $0, sem jobs.
+        Isto NÃO é uma optimização — é um requisito de correcção:
+        · MEDIDO 2026-08-04 (job-msepmfkv-4ea9): o moo local sem base
+          injectada respondeu ao "o que é o tier ladder" com
+          "estrutura de classificação hierárquica que organiza os
+          fluxos por níveis de prioridade ou complexidade" — 50 s,
+          1679 tokens, ZERO factos. Um suporte que soa confiante e
+          não diz nada queima a solução.
+        · MEDIDO: `permissoes_efectivas: []` — "o moo corre via
+          /api/chat e não recebe ferramentas". Não lê ficheiros.
+          Contexto do qwen3.6:27b = 16 384. README+AGENTS+CLAUDE
+          não cabem. Logo: base curada, não RAG improvisado.
+
+     2. NÃO POLUIR O RECIBO. Nenhuma pergunta cria um job.
+        MEDIDO: trabalho_zero_pct = 28,95% (11/38), fora de [50,100],
+        excepção aberta com dono MOO. Se cada pergunta fosse por
+        mooter_work, 50 perguntas levavam a métrica a ~75% e fechavam
+        a excepção FALSAMENTE. Um chat de ajuda que corrompe o recibo
+        é o oposto exacto do fosso.
+
+     3. TODA A RESPOSTA TEM FONTE. Uma entrada sem `src` é rejeitada
+        no arranque e contada em MOO.rejeitadas — visível no rodapé.
+        Não há caminho para uma resposta sem proveniência.
+
+     4. RECUSA HONESTA. Abaixo do limiar, o Moo diz que não sabe,
+        mostra o que procurou, e dá o prompt para preencher a lacuna.
+        Nunca devolve a entrada menos má como se fosse a resposta.
+
+     5. BOTÕES QUE ESCREVEM, NUNCA CORREM. Todo CTA de acção copia o
+        comando/prompt. A única excepção é explicitamente rotulada
+        "(escreve)" e exige um segundo clique de confirmação.
+        Razão: este painel lê `resultado` de agentes. Se um payload
+        injectado pudesse executar, executava.
+
+     6. ZERO STORAGE. Constraint do artifact. Lacunas e ranking vivem
+        em memória da sessão; para persistir há um gesto explícito.
+     ============================================================ -->
+<style>
+  /* ---------- FAB ---------- */
+  #mooFab{
+    position:fixed;right:18px;bottom:18px;z-index:120;
+    width:54px;height:54px;border-radius:50%;
+    background:var(--panel);border:1px solid var(--border);
+    box-shadow:0 6px 20px -6px rgba(0,0,0,.42);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;padding:0;
+    transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  }
+  #mooFab:hover{transform:translateY(-2px);box-shadow:0 10px 26px -8px rgba(0,0,0,.5);border-color:var(--terracotta)}
+  #mooFab:focus-visible{outline:2px solid var(--terracotta);outline-offset:3px}
+  #mooFab .fabcow{width:30px;height:30px;display:block}
+  #mooFab .fabdot{
+    position:absolute;top:-2px;right:-2px;min-width:19px;height:19px;padding:0 5px;
+    border-radius:10px;background:var(--red);color:#fff;
+    font:700 10px/19px var(--mono);text-align:center;
+    border:2px solid var(--bg);
+  }
+  #mooFab[data-open="1"] .fabdot{display:none}
+  #mooFab .fabhint{
+    position:absolute;right:62px;top:50%;transform:translateY(-50%);
+    white-space:nowrap;background:var(--tipbg);border:1px solid var(--border);
+    color:var(--fg);font:400 11px/1.4 var(--sans);padding:5px 9px;border-radius:7px;
+    opacity:0;pointer-events:none;transition:opacity .16s ease;
+    box-shadow:0 6px 18px -8px rgba(0,0,0,.4);
+  }
+  #mooFab:hover .fabhint,#mooFab:focus-visible .fabhint{opacity:1}
+
+  /* ---------- painel ---------- */
+  #mooPanel{
+    position:fixed;right:18px;bottom:82px;z-index:121;
+    width:min(410px, calc(100vw - 36px));
+    height:min(640px, calc(100vh - 120px));
+    background:var(--panel);border:1px solid var(--border);border-radius:13px;
+    box-shadow:0 18px 50px -14px rgba(0,0,0,.55);
+    display:none;flex-direction:column;overflow:hidden;
+  }
+  #mooPanel[data-open="1"]{display:flex}
+  @media (max-width:520px){
+    #mooPanel{right:8px;left:8px;bottom:76px;width:auto;height:min(72vh, calc(100vh - 100px))}
+    #mooFab{right:12px;bottom:12px}
+  }
+
+  .moo-head{
+    display:flex;align-items:center;gap:9px;padding:9px 11px;
+    border-bottom:1px solid var(--border-soft);background:var(--panel2);flex:0 0 auto;
+  }
+  .moo-head .hcow{width:22px;height:22px;flex:0 0 auto}
+  .moo-head b{font-size:var(--fs2)}
+  .moo-head .sub{color:var(--faint);font-size:var(--fs1);font-family:var(--sans)}
+  .moo-x{margin-left:auto;background:none;border:1px solid var(--border-soft);color:var(--dim);
+    border-radius:7px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1;padding:0}
+  .moo-x:hover{border-color:var(--red-bd);color:var(--red)}
+  .moo-x:focus-visible{outline:2px solid var(--terracotta);outline-offset:2px}
+
+  .moo-body{flex:1 1 auto;overflow-y:auto;padding:10px 11px 4px;scroll-behavior:smooth}
+  .moo-body::-webkit-scrollbar{width:9px}
+  .moo-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}
+
+  .moo-foot{flex:0 0 auto;border-top:1px solid var(--border-soft);padding:8px 9px 9px;background:var(--panel2)}
+  .moo-inrow{display:flex;gap:6px;align-items:flex-end}
+  #mooInput{
+    flex:1 1 auto;background:var(--card);border:1px solid var(--border);border-radius:9px;
+    color:var(--fg);font-family:var(--mono);font-size:var(--fs2);padding:7px 9px;
+    resize:none;line-height:1.4;max-height:96px;min-height:34px;
+  }
+  #mooInput:focus{outline:none;border-color:var(--terracotta)}
+  #mooInput::placeholder{color:var(--faint)}
+  .moo-send{
+    background:var(--terracotta);border:1px solid var(--terracotta);color:#fff;
+    border-radius:9px;padding:0 12px;height:34px;cursor:pointer;
+    font-family:var(--mono);font-size:var(--fs2);font-weight:700;flex:0 0 auto;
+  }
+  .moo-send:disabled{opacity:.4;cursor:default}
+  .moo-send:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+  .moo-legal{margin-top:6px;color:var(--faint);font-size:10px;font-family:var(--sans);line-height:1.45}
+
+  /* ---------- chips ---------- */
+  .moo-chips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 2px}
+  .moo-chip{
+    background:var(--card);border:1px solid var(--border-soft);color:var(--dim);
+    border-radius:20px;padding:3px 10px;font-size:var(--fs1);font-family:var(--mono);
+    cursor:pointer;text-align:left;line-height:1.35;
+  }
+  .moo-chip:hover{border-color:var(--terracotta);color:var(--fg)}
+  .moo-chip:focus-visible{outline:2px solid var(--terracotta);outline-offset:2px}
+  .moo-chip[aria-pressed="true"]{background:var(--terracotta);border-color:var(--terracotta);color:#fff}
+  .moo-chip .cg{opacity:.65;margin-right:4px}
+
+  /* ---------- turnos ---------- */
+  .moo-q{
+    background:var(--terracotta);color:#fff;border-radius:11px 11px 3px 11px;
+    padding:6px 10px;margin:12px 0 8px auto;max-width:86%;width:fit-content;
+    font-size:var(--fs2);line-height:1.45;word-wrap:break-word;
+  }
+  .moo-a{
+    background:var(--card);border:1px solid var(--border-soft);
+    border-left:3px solid var(--terracotta);
+    border-radius:3px 11px 11px 3px;padding:9px 11px;margin-bottom:10px;font-size:var(--fs2);
+  }
+  .moo-a.miss{border-left-color:var(--nd);background:var(--nd-dim)}
+  .moo-a h4{font-size:var(--fs2);margin:0 0 5px;letter-spacing:.01em}
+  .moo-a p{margin:0 0 7px;line-height:1.55}
+  .moo-a p:last-child{margin-bottom:0}
+  .moo-a ul{margin:0 0 7px 16px;line-height:1.55}
+  .moo-a code{background:var(--panel2);border:1px solid var(--hairline);border-radius:4px;
+    padding:0 4px;font-size:11.5px;color:var(--fg)}
+  .moo-a pre{background:var(--term);border:1px solid var(--hairline);border-radius:7px;
+    padding:8px 10px;overflow-x:auto;margin:0 0 7px;font-size:11.5px;line-height:1.5}
+  .moo-a pre code{background:none;border:0;padding:0}
+  .moo-a table{border-collapse:collapse;width:100%;margin:0 0 8px;font-size:11.5px}
+  .moo-a th,.moo-a td{border:1px solid var(--hairline);padding:3px 7px;text-align:left;vertical-align:top}
+  .moo-a th{background:var(--panel2);color:var(--dim);font-weight:700;
+    text-transform:uppercase;font-size:10px;letter-spacing:.05em}
+  .moo-a tr:nth-child(even) td{background:var(--zebra)}
+
+  .moo-why{
+    border-left:2px solid var(--amber-bd);background:var(--amber-dim);
+    padding:6px 9px;margin:0 0 8px;font-size:var(--fs1);color:var(--dim);
+    line-height:1.55;border-radius:0 6px 6px 0;
+  }
+  .moo-why b{color:var(--amber)}
+
+  /* ---------- fontes ---------- */
+  .moo-src{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;padding-top:7px;
+    border-top:1px dotted var(--hairline)}
+  .moo-srcchip{
+    font-size:10px;font-family:var(--mono);color:var(--faint);
+    border:1px solid var(--border-soft);border-radius:5px;padding:1px 6px;
+    background:var(--panel2);cursor:help;
+  }
+  .moo-srclab{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;
+    font-family:var(--sans);align-self:center;margin-right:1px}
+
+  /* ---------- CTAs ---------- */
+  .moo-ctas{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .moo-cta{
+    display:inline-flex;align-items:center;gap:5px;
+    background:var(--panel2);border:1px solid var(--border);color:var(--fg);
+    border-radius:8px;padding:4px 9px;font-size:var(--fs1);font-family:var(--mono);
+    cursor:pointer;line-height:1.35;text-align:left;
+  }
+  .moo-cta:hover{border-color:var(--terracotta)}
+  .moo-cta:focus-visible{outline:2px solid var(--terracotta);outline-offset:2px}
+  .moo-cta.prim{background:var(--terracotta);border-color:var(--terracotta);color:#fff}
+  .moo-cta.warnw{border-color:var(--amber-bd);background:var(--amber-dim);color:var(--amber)}
+  .moo-cta.done{border-color:var(--green-bd);background:var(--green-dim);color:var(--green)}
+
+  /* ---------- estado vivo ---------- */
+  .moo-live{
+    background:var(--panel2);border:1px solid var(--border-soft);border-radius:9px;
+    padding:7px 9px;margin-bottom:9px;font-size:var(--fs1);line-height:1.6;color:var(--dim);
+  }
+  .moo-live b{color:var(--fg)}
+  .moo-live .lk{color:var(--faint);text-transform:uppercase;font-size:9.5px;letter-spacing:.09em;
+    font-family:var(--sans);display:block;margin-bottom:2px}
+  .moo-live .bad{color:var(--red)} .moo-live .warn{color:var(--amber)} .moo-live .ok{color:var(--green)}
+
+  .moo-sec{color:var(--faint);text-transform:uppercase;font-size:9.5px;letter-spacing:.11em;
+    font-family:var(--sans);margin:11px 0 4px}
+  .moo-lead{font-size:var(--fs1);color:var(--dim);line-height:1.6;font-family:var(--sans);margin-bottom:2px}
+
+  .moo-row{
+    display:block;width:100%;text-align:left;background:var(--card);
+    border:1px solid var(--border-soft);border-radius:8px;padding:6px 9px;margin-bottom:4px;
+    cursor:pointer;font-family:var(--mono);font-size:var(--fs1);color:var(--fg);line-height:1.4;
+  }
+  .moo-row:hover{border-color:var(--terracotta)}
+  .moo-row:focus-visible{outline:2px solid var(--terracotta);outline-offset:2px}
+  .moo-row .rg{color:var(--faint);margin-right:5px}
+  .moo-row .rs{display:block;color:var(--faint);font-size:10px;margin-top:1px;font-family:var(--sans)}
+
+  .moo-foot-meta{color:var(--faint);font-size:10px;font-family:var(--sans);
+    text-align:center;padding:8px 0 2px;line-height:1.6}
+  .moo-toast{
+    position:absolute;left:50%;transform:translateX(-50%);bottom:64px;z-index:5;
+    background:var(--fg);color:var(--bg);border-radius:7px;padding:5px 11px;
+    font-size:var(--fs1);font-family:var(--mono);opacity:0;transition:opacity .18s ease;
+    pointer-events:none;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;
+  }
+  .moo-toast[data-on="1"]{opacity:1}
+  @media (prefers-reduced-motion:reduce){
+    #mooFab,#mooFab:hover,.moo-toast{transition:none}
+    .moo-body{scroll-behavior:auto}
+  }
+</style>
+
+<button id="mooFab" type="button" aria-haspopup="dialog" aria-expanded="false"
+        aria-controls="mooPanel" aria-label="Abrir o Moo — suporte do Mooter">
+  <span class="fabhint">Perguntar ao Moo &nbsp;<code>?</code></span>
+  <span class="fabcow" aria-hidden="true"></span>
+  <span class="fabdot" id="mooDot" hidden></span>
+</button>
+
+<div id="mooPanel" role="dialog" aria-modal="false" aria-label="Moo — suporte do Mooter">
+  <div class="moo-head">
+    <span class="hcow" aria-hidden="true"></span>
+    <span>
+      <b>Moo</b>
+      <span class="sub" id="mooSub">suporte do Mooter</span>
+    </span>
+    <button class="moo-x" id="mooClose" type="button" aria-label="Fechar o Moo">✕</button>
+  </div>
+  <div class="moo-body" id="mooBody" tabindex="-1"></div>
+  <div class="moo-toast" id="mooToast"></div>
+  <div class="moo-foot">
+    <div class="moo-inrow">
+      <textarea id="mooInput" rows="1" placeholder="Pergunta em português…"
+                aria-label="Pergunta ao Moo" autocomplete="off" spellcheck="false"></textarea>
+      <button class="moo-send" id="mooSend" type="button">↵</button>
+    </div>
+    <div class="moo-legal" id="mooLegal"></div>
+  </div>
+</div>

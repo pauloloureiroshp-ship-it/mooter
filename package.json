@@ -29,7 +29,14 @@
     "device:sync": "node tools/cockpit/sync-device.mjs",
     "frota:chave": "node tools/cockpit/chave-da-frota.mjs",
     "device:check": "node tools/cockpit/sync-device.mjs --check",
-    "device:bootstrap": "node tools/cockpit/bootstrap.mjs"
+    "device:bootstrap": "node tools/cockpit/bootstrap.mjs",
+    "design:build": "node design/tools/moo-tokens-build.mjs",
+    "design:check": "node design/tools/moo-design-check.mjs",
+    "design:check:ci": "node design/tools/moo-design-check.mjs --ci",
+    "design:ratchet": "node design/tools/moo-design-ratchet.mjs",
+    "design:ratchet:ci": "node design/tools/moo-design-ratchet.mjs --ci",
+    "design:promover": "node design/tools/moo-design-ratchet.mjs --promover",
+    "test:design": "node --test design/tools/moo-design-check.test.mjs design/tools/moo-design-ratchet.test.mjs"
   },
   "engines": {
     "node": ">=22"
