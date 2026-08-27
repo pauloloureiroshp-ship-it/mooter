@@ -3,6 +3,54 @@
    fonte: frugal@97ad846b · medido 2026-08-27 · v2.0.0 */
 
 :root {
+  --moo-tinta-bg: #0B0A09;
+  --moo-tinta-bg-2: #0F0E0C;
+  --moo-tinta-surface: #141311;
+  --moo-tinta-surface-2: #1C1A17;
+  --moo-tinta-line: #252220;
+  --moo-tinta-line-strong: #302C28;
+  --moo-tinta-line-soft: #1E1B19;
+  --moo-tinta-text: #F2EDE6;
+  --moo-tinta-text-2: #C9C2B8;
+  --moo-tinta-muted: #8A8076;
+  --moo-tinta-faint: #84786B;
+  --moo-tinta-accent: #E8888A;
+  --moo-tinta-accent-2: #F2A5A5;
+  --moo-tinta-on-accent: #1A0E0E;
+  --moo-tinta-ok: #4CAF6A;
+  --moo-tinta-warn: #D4C090;
+  --moo-tinta-bad: #D46A5A;
+  --moo-papel-bg: #F2ECDF;
+  --moo-papel-bg-2: #EBE3D1;
+  --moo-papel-surface: #FBF7EE;
+  --moo-papel-surface-2: #FFFDF7;
+  --moo-papel-line: #D9D0BB;
+  --moo-papel-line-strong: #C8BCA0;
+  --moo-papel-line-soft: #E8E4DB;
+  --moo-papel-text: #1A1613;
+  --moo-papel-text-2: #3A332C;
+  --moo-papel-muted: #6F665A;
+  --moo-papel-faint: #9A8F7E;
+  --moo-papel-accent: #B4454B;
+  --moo-papel-accent-2: #E8888A;
+  --moo-papel-on-accent: #FFFFFF;
+  --moo-papel-ok: #347650;
+  --moo-papel-warn: #B89050;
+  --moo-papel-bad: #AD4D3B;
+  --moo-tier-web-t0: #4CAF6A;
+  --moo-tier-web-t1: #5A9BD4;
+  --moo-tier-web-t2: #A88BD4;
+  --moo-tier-web-t3: #D46A5A;
+  --moo-tier-papel-t0: #3D8B5E;
+  --moo-tier-papel-t1: #3D6FA8;
+  --moo-tier-papel-t2: #7A5EA8;
+  --moo-tier-papel-t3: #B8523F;
+  --moo-tier-terminal-t0: #4CAF6A;
+  --moo-tier-terminal-t1: #5A9BD4;
+  --moo-tier-terminal-t2: #D4C090;
+  --moo-tier-terminal-t3: #D46A5A;
+
+  /* activos — tinta por omissão; o bloco [data-moo-theme="papel"] remapeia */
   --moo-bg: #0B0A09;
   --moo-bg-2: #0F0E0C;
   --moo-surface: #141311;
@@ -50,9 +98,9 @@
   --moo-radius-pill: 999px;
   --moo-shadow-term: 0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2);
   --moo-shadow-lift: 0 40px 100px -40px rgba(0,0,0,0.6);
-  --moo-font-sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --moo-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --moo-font-hand: 'Caveat', cursive;
+  --moo-font-sans: var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --moo-font-mono: var(--font-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --moo-font-hand: var(--font-caveat), 'Caveat', cursive;
   --moo-ms-interact: 140ms;
   --moo-ms-surface: 160ms;
   --moo-ms-reveal: 500ms;

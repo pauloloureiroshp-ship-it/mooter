@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveToken } from '../../test-utils/moo-token';
 import { estimateMonthlySavings } from './_lib/estimate';
 
 const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
@@ -23,8 +24,10 @@ describe('Day 3 — onboarding adopts the landing dark palette (F-1 brand parity
     // dark bg + landing pink accent re-pointed onto the short tokens. The dark
     // scope block is shared with .app-shell-dark (Day 4), so match up to the
     // opening brace tolerantly rather than requiring `.onboarding-shell {`.
-    expect(GLOBALS).toMatch(/\.onboarding-shell[\s\S]*?\{[\s\S]*?--bg:\s*#0B0A09/);
-    expect(GLOBALS).toMatch(/\.onboarding-shell[\s\S]*?\{[\s\S]*?--accent:\s*#E8888A/);
+    // Resolvido pela cadeia ate moo-ui.css (ver test-utils/moo-token.ts):
+    // o globals.css passou a LER o valor do gerado em vez de o repetir.
+    expect(resolveToken(GLOBALS, '.app-shell-dark', 'bg')).toBe('#0B0A09');
+    expect(resolveToken(GLOBALS, '.app-shell-dark', 'accent')).toBe('#E8888A');
   });
 });
 

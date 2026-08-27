@@ -155,3 +155,56 @@ test('o rácio é o mesmo do portão — dois números para a mesma coisa seria 
   assert.equal(+racio('#5A5249', '#0B0A09').toFixed(2), 2.58);
   assert.equal(+racio('#FFFFFF', '#B4454B').toFixed(2), 5.39);
 });
+
+test('resolve var(--moo-…) — comparar a letra dava 30 divergências falsas', () => {
+  /* Desde que o `globals.css` LÊ do ficheiro gerado em vez de repetir os valores,
+     a coluna "produção" traz `var(--moo-papel-bg)`. Comparar isso com `#F2ECDF`
+     à letra marcava tudo como divergente — quando é o mesmo valor. */
+  const gerado = ':root {\n  --moo-papel-bg: #F2ECDF;\n  --moo-papel-text: #1A1613;\n}\n';
+  const folha = `
+.app-shell-root {
+  --bg:   var(--moo-papel-bg);
+  --text: var(--moo-papel-text);
+}
+.onboarding-shell,
+.app-shell-dark { --bg: #0B0A09; --text: #F2EDE6; --faint: #84786B; }
+`;
+  const r = reconciliar({ tokens: tokens(), css: folha, gerado });
+  assert.deepEqual(r.divergem, [], `esperava zero. ${JSON.stringify(r.divergem)}`);
+  const bg = [...r.pares].length && r.sem_correspondencia;
+  assert.ok(Array.isArray(bg));
+});
+
+test('MORDE um ponteiro para um token que não existe — resolve a null, não a "igual"', () => {
+  /* Aconteceu a sério: os `--tier-*` apontavam a `--moo-tier-papel-t0`, que o
+     gerador ainda não emitia. Oito valores resolviam para string vazia e o CSS
+     não dizia nada. `null` tem de ser divergência, nunca um igual por omissão. */
+  const gerado = ':root {\n  --moo-papel-bg: #F2ECDF;\n}\n';
+  const folha = `
+.app-shell-root {
+  --bg:   var(--moo-papel-bg);
+  --text: var(--moo-papel-inexistente);
+}
+.onboarding-shell,
+.app-shell-dark { --bg: #0B0A09; --text: #F2EDE6; --faint: #84786B; }
+`;
+  const r = reconciliar({ tokens: tokens(), css: folha, gerado });
+  assert.equal(r.divergem.length, 1);
+  assert.equal(r.divergem[0].nome, 'text');
+  assert.equal(r.divergem[0].producao, null, 'um ponteiro morto resolve a null');
+  assert.equal(r.divergem[0].producao_bruto, 'var(--moo-papel-inexistente)');
+});
+
+test('declara quais valores já vêm do gerado — ligado vs literal', () => {
+  const gerado = ':root {\n  --moo-papel-bg: #F2ECDF;\n}\n';
+  const folha = `
+.app-shell-root {
+  --bg:   var(--moo-papel-bg);
+  --text: #1A1613;
+}
+.onboarding-shell,
+.app-shell-dark { --bg: #0B0A09; --text: #F2EDE6; --faint: #84786B; }
+`;
+  const r = reconciliar({ tokens: tokens(), css: folha, gerado });
+  assert.deepEqual(r.divergem, [], 'os dois valores estão certos — só a forma difere');
+});

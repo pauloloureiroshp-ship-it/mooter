@@ -17,8 +17,23 @@ const head = `/* GERADO por tools/moo-tokens-build.mjs a partir de tokens/moo-to
 
 const vars = (obj, ind = '  ') => kebab(obj).map(([k, v]) => `${ind}--moo-${k}: ${v};`).join('\n');
 
+/* As duas paletas são emitidas TAMBÉM com o tema no nome, e não só através do
+   token activo. A razão é mecânica: um consumidor que queira a paleta `papel`
+   sem depender do atributo `[data-moo-theme]` no DOM — como
+   `landing/app/globals.css`, onde a shell clara é uma CLASSE (`.app-shell-root`)
+   herdada de há muito — não tinha forma nenhuma de lhe chegar. Sem isto, ligar o
+   landing aos tokens obrigava a mexer no DOM de todas as páginas autenticadas,
+   ou a duplicar os valores — que é exactamente o que a verificação 1 proíbe.
+
+   O token activo (`--moo-bg`) continua a existir e continua a ser o que se usa:
+   estes são o endereço fixo de cada paleta, não uma segunda fonte. */
 let css = head + `
 :root {
+${vars({ tinta: T.color.tinta }, '  ')}
+${vars({ papel: T.color.papel }, '  ')}
+${vars({ tier: { web: T.color.tier.web, papel: T.color.tier.papel, terminal: T.color.tier.terminal } }, '  ')}
+
+  /* activos — tinta por omissão; o bloco [data-moo-theme="papel"] remapeia */
 ${vars(T.color.tinta)}
 ${vars({ tier: T.color.tier.web }, '  ')}
 ${vars({ term: T.color.term }, '  ')}

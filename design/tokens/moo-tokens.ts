@@ -81,9 +81,10 @@ export const MOO = {
   },
   "type": {
     "family": {
-      "sans": "'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
-      "mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, monospace",
-      "hand": "'Caveat', cursive"
+      "sans": "var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      "mono": "var(--font-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace",
+      "hand": "var(--font-caveat), 'Caveat', cursive",
+      "$nota": "Cada familia comeca por uma variavel injectavel. O landing carrega as webfonts por next/font, que injecta --font-sans/--font-mono/--font-caveat no <html>; sem este prefixo, apontar --mono ao token trocava a fonte auto-hospedada por uma procura no sistema que na maioria das maquinas nao existe. O nome literal fica como fallback para quem consome o CSS sem font loader."
     },
     "scale": {
       "hero": {

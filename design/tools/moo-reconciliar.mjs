@@ -67,7 +67,17 @@ export const ALIAS = {
   'accent-2': 'accent-soft', 'on-accent': 'cream',
 };
 
-/** Lê as custom properties do bloco cuja chaveta abre depois de `ancora`. */
+/**
+ * Lê as custom properties do bloco cuja chaveta abre depois de `ancora`.
+ *
+ * ⚠️ LIMITE CONHECIDO, declarado em vez de silencioso: a extracção é ancorada por
+ * LINHA (`^\s*--nome: valor;`), portanto só lê a PRIMEIRA declaração de cada
+ * linha, e o bloco tem de fechar com `}` no início de uma linha. É o formato de
+ * `landing/app/globals.css` e de todos os alvos actuais — mas um dia em que
+ * alguém minifique ou junte declarações, isto lê a menos e NÃO se queixa.
+ * (Custou um teste: a fixture punha duas declarações na mesma linha e o
+ * ponteiro morto plantado passava despercebido.)
+ */
 export function lerBloco(css, ancora) {
   /* Procura-se a âncora seguida (com espaços/quebras) de `{`, para não apanhar
      as regras `html:has(.app-shell-dark)` que aparecem ANTES e não declaram
@@ -143,9 +153,35 @@ export function hslParaRgb(h, s, l) {
   return '#' + [r, g, b].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
 }
 
-export function reconciliar({ tokens, css } = {}) {
+/**
+ * Segue `var(--moo-…)` até ao valor literal em `moo-ui.css`.
+ *
+ * Desde que `globals.css` passou a LER do ficheiro gerado em vez de repetir os
+ * valores, comparar as duas colunas à letra dava 30 divergências falsas — todas
+ * do género `#F2ECDF` vs `var(--moo-papel-bg)`, que são o MESMO valor. O que
+ * continua a ter de ser comparado é o valor final: é ele que chega ao ecrã.
+ *
+ * Um ponteiro que não resolve devolve `null`, e `null` NÃO é "igual por
+ * omissão": aparece como divergência, que é o que é. Foi assim que se apanhou
+ * `--moo-tier-papel-t0` a não existir.
+ */
+export function resolverVar(valor, raiz, saltos = 6) {
+  let v = (valor ?? '').trim();
+  for (let i = 0; i < saltos; i++) {
+    const m = /^var\(\s*(--moo-[\w-]+)\s*\)$/.exec(v);
+    if (!m) return v;
+    const seguinte = raiz[m[1].slice(2)];
+    if (seguinte === undefined) return null;
+    v = seguinte.trim();
+  }
+  return v;
+}
+
+export function reconciliar({ tokens, css, gerado } = {}) {
   const T = tokens ?? JSON.parse(readFileSync(join(DESIGN, 'tokens/moo-tokens.json'), 'utf8'));
   const folha = css ?? readFileSync(join(REPO, BLOCOS.tinta.ficheiro), 'utf8');
+  const geradoCss = gerado ?? (() => { try { return readFileSync(join(DESIGN, 'tokens/moo-ui.css'), 'utf8'); } catch { return ''; } })();
+  const raizMoo = geradoCss ? (lerBloco(geradoCss, ':root') ?? {}) : {};
   const linhas = [];
   const ausentes = [];
 
@@ -154,12 +190,16 @@ export function reconciliar({ tokens, css } = {}) {
     if (!bloco) { ausentes.push({ tema, ancora: cfg.ancora, porque: 'bloco não encontrado no CSS' }); continue; }
     for (const [nome, valorToken] of Object.entries(T.color[tema] ?? {})) {
       const nomeCss = ALIAS[nome] ?? nome;
-      const real = bloco[nomeCss];
+      const bruto = bloco[nomeCss];
       /* Sem correspondência no CSS não é divergência: é um token que a produção
          ainda não usa. Confundir os dois inflava a lista com falsos alarmes. */
-      if (real === undefined) { linhas.push({ tema, nome, nome_css: nomeCss, token: valorToken, producao: null, estado: 'n/d' }); continue; }
-      const igual = norm(real) === norm(valorToken);
-      linhas.push({ tema, nome, nome_css: nomeCss, renomeado: nomeCss !== nome, token: valorToken, producao: real, estado: igual ? 'igual' : 'diverge' });
+      if (bruto === undefined) { linhas.push({ tema, nome, nome_css: nomeCss, token: valorToken, producao: null, estado: 'n/d' }); continue; }
+      const real = resolverVar(bruto, raizMoo);
+      const igual = real !== null && norm(real) === norm(valorToken);
+      linhas.push({ tema, nome, nome_css: nomeCss, renomeado: nomeCss !== nome,
+        token: valorToken, producao: real, producao_bruto: bruto,
+        ligado: /^var\(\s*--moo-/.test(bruto.trim()),
+        estado: igual ? 'igual' : 'diverge' });
     }
   }
 

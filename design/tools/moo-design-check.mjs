@@ -34,6 +34,11 @@ const SUPERFICIES_TEXTO = [
   'README.md', 'marketplace.json', '.claude-plugin/marketplace.json',
 ];
 const TOKENS_PROTEGIDOS = /^\s*--(bg|bg-2|surface|surface-2|line|ink|panel|text|muted|faint|accent|accent-2|ok|warn|bad|dead|mono|sans|r|radius|tier-\d)\s*:/gm;
+/* A mesma lista, mas a CAPTURAR o valor. Sem o valor não se distingue um
+   RE-EXPORT — `--bg: var(--moo-papel-bg)`, que tem fonte única — de uma
+   REDEFINIÇÃO — `--bg: #F2ECDF`, que tem duas. A verificação 1 media nome em vez
+   de fonte, e por isso pedia o impossível: apagar nomes que ~700 sítios usam. */
+const TOKENS_PROTEGIDOS_V = /^\s*--(bg|bg-2|surface|surface-2|line|ink|panel|text|muted|faint|accent|accent-2|ok|warn|bad|dead|mono|sans|r|radius|tier-\d)\s*:\s*([^;]+);/gm;
 const IGNORAR = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage', 'worktrees']);
 const EXT_TEXTO = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.html', '.css', '.md', '.json', '.yaml', '.yml']);
 const EXT_SVG = new Set(['.svg']);
@@ -117,24 +122,70 @@ const pick = (path) => path.split('.').reduce((o, k) => o?.[k], T.color);
 const V = [];
 const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
 
-// 1 · FONTE ÚNICA (2.0) — nenhum token de marca definido fora do ficheiro gerado
+// 1 · FONTE ÚNICA (2.0) — nenhum token de marca com VALOR próprio fora do gerado
+//
+// A primeira versão contava qualquer linha `--bg:` como redefinição. Isso não é
+// "fonte única": é "nome único", que é outra coisa e é impossível de cumprir.
+// Medido a 2026-08-27, das 28 linhas que apanhava em `globals.css`, 4 já eram
+// `var(...)` — re-exports de um valor definido noutro sítio.
+//
+// A distinção que importa é a do VALOR. `--bg: var(--moo-papel-bg)` tem uma
+// fonte única: o ficheiro gerado. `--bg: #F2ECDF` tem duas. A regra passa a ser
+// essa, e é o que torna a migração possível: `landing/app/globals.css` liga-se
+// aos tokens sem tocar nos ~700 sítios que já usam `var(--bg)`.
+//
+// Exigir o `@import` é a outra metade: um `var(--moo-…)` num ficheiro que não
+// importa `moo-ui.css` resolve para nada, e a cor desaparece. Já aconteceu neste
+// commit — os `--tier-*` apontavam a `--moo-tier-papel-t0`, que o gerador não
+// emitia; 8 valores resolveram para string vazia e só um diff de valores
+// resolvidos o apanhou.
 {
   const falhas = [];
+  const ligadas = [];
   let vistos = 0;
   for (const f of SUPERFICIES_UI) {
     const s = ler(f); if (s === null) continue;
     vistos++;
-    const m = [...s.matchAll(TOKENS_PROTEGIDOS)].map(x => x[1]);
-    if (m.length) falhas.push({ ficheiro: f, tokens: [...new Set(m)].sort(), n: m.length });
+    const importa = /@import\s+['"][^'"]*moo-ui\.css['"]/.test(s)
+                 || /--moo-[\w-]+\s*:/.test(s);   // ou traz o CSS inline
+    const proprios = [];
+    const origens = new Set();
+    for (const m of s.matchAll(TOKENS_PROTEGIDOS_V)) {
+      const valor = (m[2] || '').trim();
+      /* Três origens, e só uma é defeito.
+         · `var(--moo-…)`  — o ficheiro gerado. É o alvo.
+         · `var(--outra)`  — outra variável. Também não duplica um valor: delega.
+           `packages/mooter-bridge/fleet-ui.html` faz isto DE PROPÓSITO com
+           `var(--color-background-primary, transparent)`: corre dentro do VS Code
+           e herda o tema do editor. Obrigá-lo a ler os tokens do Mooter partia a
+           integração — é desenho, não dívida.
+         · um literal      — `#f5f6f8`. Aqui sim: o valor existe em dois sítios, e
+           é a colisão que a decisão de 27/08 nomeia.
+         O `importa` só é exigido para `var(--moo-…)`: sem o CSS carregado, essa
+         variável resolve para nada e a cor desaparece. */
+      if (/^var\(\s*--moo-[\w-]+/.test(valor)) {
+        if (importa) { origens.add('gerado'); continue; }
+        proprios.push({ token: m[1], valor: valor.slice(0, 60), porque: 'aponta a --moo-* sem importar moo-ui.css — resolve para nada' });
+        continue;
+      }
+      if (/^var\(/.test(valor)) { origens.add('delegado'); continue; }
+      proprios.push({ token: m[1], valor: valor.slice(0, 60), porque: 'valor literal — existe também no ficheiro gerado' });
+    }
+    if (proprios.length) {
+      falhas.push({ ficheiro: f, importa_moo_ui: importa, origens: [...origens],
+        tokens: [...new Set(proprios.map(p => p.token))].sort(), n: proprios.length,
+        exemplos: proprios.slice(0, 4) });
+    } else ligadas.push({ ficheiro: f, origens: [...origens] });
   }
+  const n = falhas.reduce((a, b) => a + b.n, 0);
   reg('fonte-unica', 'Fonte única de tokens', 2.0, vistos === 0
     ? { estado: 'n/d', porque: 'nenhuma superfície de UI encontrada em MOO_REPO', pontos: null }
-    : { estado: falhas.length ? 'falha' : 'passa', achados: falhas,
-        total: falhas.reduce((a, b) => a + b.n, 0),
+    : { estado: falhas.length ? 'falha' : 'passa', achados: falhas, total: n,
+        superficies_ligadas: ligadas, vistos,
         pontos: falhas.length ? 0 : 2.0,
         porque: falhas.length
-          ? `${falhas.reduce((a, b) => a + b.n, 0)} definições de token fora de moo-ui.css, em ${falhas.length} ficheiro(s)`
-          : `${vistos} superfícies, zero tokens redefinidos` });
+          ? `${n} token(s) com valor próprio em ${falhas.length} de ${vistos} superfícies — ${ligadas.length} já ligada(s) ao gerado`
+          : `${vistos} superfícies, todas a ler do ficheiro gerado` });
 }
 
 // 2 · MARCA ÚNICA (1.5) — a silhueta é intocável, a paleta velha não vive
