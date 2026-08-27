@@ -12,7 +12,8 @@ name: design-gate
 # ⚠️ O QUE ESTE WORKFLOW **NÃO** FAZ, E PORQUÊ
 #
 # Não corre `moo-design-check --ci`. O limiar publicado é 8; o índice medido a
-# 2026-08-27, depois de o portão passar a medir a sério, é **3,18**. Ligá-lo
+# 2026-08-27, depois de o portão passar a medir a sério e de a onda fechar 39
+# violações reais e reconciliar as cores, é **6,36**. Ligá-lo
 # hoje deixava o `main` vermelho de forma permanente, e um CI cronicamente
 # vermelho aprende-se a ignorar — o mesmo destino que o portão existe para
 # evitar.
@@ -69,7 +70,7 @@ jobs:
       # ausência de medição vestida de medição. Um portão que nunca falhou é
       # indistinguível de um portão que não funciona, por isso o CI prova
       # primeiro que ele MORDE, e só depois acredita no número que ele dá.
-      - name: O portão morde? (26 testes que plantam o defeito)
+      - name: O portão morde? (39 testes que plantam o defeito)
         run: npm run test:design
 
       # 2 · Gerar, nunca copiar — provado, não afirmado.
@@ -92,11 +93,29 @@ jobs:
           fi
           echo "moo-ui.css e moo-tokens.ts idênticos ao que a fonte gera."
 
-      # 3 · O ratchet: vermelho se piorou.
+      # 3 · O token tem de continuar a ser o que a produção serve.
+      #
+      # O portão pontua contraste sobre `moo-tokens.json`. A 2026-08-27 mediu-se
+      # que o JSON e o `globals.css` tinham divergido em 9 valores — e num deles
+      # a divergência escondia um defeito a sério:
+      #
+      #     tinta.faint   token #7A7168 (4.13:1)  ·  produção #5A5249 (2.58:1)
+      #
+      # 2.58 está abaixo de AA-GRANDE (3.0), não só de AA. O portão dava a esse
+      # par a nota do token, e as "correcções calculadas" que o JSON trazia tinham
+      # sido calculadas sobre o valor errado.
+      #
+      # Reconciliados, token == produção e os 16 pares passam. Que é exactamente o
+      # estado em que a PRÓXIMA regressão fica invisível: quem mexer só no CSS não
+      # move o índice um milímetro. Este passo é o que fecha esse buraco.
+      - name: O token e a produção não podem divergir
+        run: npm run design:reconciliar:ci
+
+      # 4 · O ratchet: vermelho se piorou.
       - name: O índice não pode descer
         run: npm run design:ratchet:ci
 
-      # 4 · O número, sempre visível — subiu ou não.
+      # 5 · O número, sempre visível — subiu ou não.
       #
       # `moo-design-check` já correu dentro do ratchet; isto reimprime o
       # relatório humano no log para que o índice apareça em toda a corrida, e

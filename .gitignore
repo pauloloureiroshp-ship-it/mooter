@@ -253,3 +253,5 @@ _handoff/logs/
 # mas o relatório reescreve-se a cada corrida e versioná-lo dava ruído em
 # todos os diffs sem acrescentar informação nenhuma.
 design/.design-check.json
+# Idem para a reconciliacao token-vs-producao: e uma medicao por corrida.
+design/.reconciliacao.json

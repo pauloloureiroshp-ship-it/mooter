@@ -384,14 +384,24 @@ test('--ci sai 1 abaixo do limiar e 0 acima', (t) => {
   superficieLimpa(b.repo);
   escreve(b.repo, 'landing/public/mooter-logo-legacy.svg', '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="#4ec9b0"/></svg>');
 
+  /* Um claim proibido ALÉM do logo legado.
+     Esta linha foi acrescentada a 2026-08-27 porque o teste passou a falhar — e a
+     razão foi o produto MELHORAR: quando `contraste` era 0,75/1,5, tirar os 1,5
+     da marca chegava para descer abaixo de 8. Reconciliados os tokens com a
+     produção, `contraste` passou a 1,5/1,5 e o mesmo cenário dá 8,64 — verde, e
+     com razão. A fixture é que ficou fraca, não o portão.
+     Fica escrito para que ninguém leia isto como "o teste foi afrouxado". */
+  escreve(b.repo, 'landing/app/copy.tsx', 'export const c = "typically ~30% less on a mixed day";\n');
+
   const mau = corre(b, { ci: true });
-  assert.equal(mau.code, 1, 'com uma variante legado viva o CI tem de ficar vermelho');
+  assert.equal(mau.code, 1, 'com um logo legado vivo E um claim proibido o CI tem de ficar vermelho');
   assert.equal(mau.rel.passa, false);
   assert.ok(mau.rel.indice_coerencia_visual < mau.rel.limiar,
     `${mau.rel.indice_coerencia_visual} devia estar abaixo do limiar ${mau.rel.limiar}`);
 
   /* O verde tem de ser alcançável, senão o vermelho não significa nada. */
   rmSync(join(b.repo, 'landing/public/mooter-logo-legacy.svg'));
+  rmSync(join(b.repo, 'landing/app/copy.tsx'));
   const bom = corre(b, { ci: true });
   assert.equal(bom.code, 0, `esperava verde. índice=${bom.rel?.indice_coerencia_visual}`);
   assert.equal(bom.rel.passa, true);

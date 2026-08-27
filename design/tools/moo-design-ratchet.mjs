@@ -96,7 +96,7 @@ export function instantaneo(rel) {
   };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const agora = medir();
 
   if (!existsSync(BASE)) {

@@ -113,7 +113,7 @@ export const build = () => ({ css, ts });
    escrevia ficheiro nenhum. O comando publicado no README e no masterprompt era
    um no-op silencioso, e só não se via porque o pacote já vinha com a saída
    gerada. `pathToFileURL` é a forma que normaliza os dois lados. */
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   writeFileSync(resolve(root, 'tokens/moo-ui.css'), css);
   writeFileSync(resolve(root, 'tokens/moo-tokens.ts'), ts);
   console.log(`moo-ui.css    ${css.length} bytes\nmoo-tokens.ts ${ts.length} bytes`);

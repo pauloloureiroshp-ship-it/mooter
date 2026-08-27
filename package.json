@@ -36,7 +36,9 @@
     "design:ratchet": "node design/tools/moo-design-ratchet.mjs",
     "design:ratchet:ci": "node design/tools/moo-design-ratchet.mjs --ci",
     "design:promover": "node design/tools/moo-design-ratchet.mjs --promover",
-    "test:design": "node --test design/tools/moo-design-check.test.mjs design/tools/moo-design-ratchet.test.mjs"
+    "test:design": "node --test design/tools/moo-design-check.test.mjs design/tools/moo-design-ratchet.test.mjs design/tools/moo-reconciliar.test.mjs",
+    "design:reconciliar": "node design/tools/moo-reconciliar.mjs",
+    "design:reconciliar:ci": "node design/tools/moo-reconciliar.mjs --ci"
   },
   "engines": {
     "node": ">=22"

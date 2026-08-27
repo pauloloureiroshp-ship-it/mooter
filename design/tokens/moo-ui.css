@@ -13,7 +13,7 @@
   --moo-text: #F2EDE6;
   --moo-text-2: #C9C2B8;
   --moo-muted: #8A8076;
-  --moo-faint: #7A7168;
+  --moo-faint: #84786B;
   --moo-accent: #E8888A;
   --moo-accent-2: #F2A5A5;
   --moo-on-accent: #1A0E0E;
@@ -61,22 +61,22 @@
 /* tema papel — mesmos nomes, valores do shell autenticado */
 [data-moo-theme="papel"] {
   --moo-bg: #F2ECDF;
-  --moo-bg-2: #EAE4D6;
-  --moo-surface: #FBFAF7;
-  --moo-surface-2: #F2ECDF;
-  --moo-line: #DCD8CE;
-  --moo-line-strong: #C9C2B4;
+  --moo-bg-2: #EBE3D1;
+  --moo-surface: #FBF7EE;
+  --moo-surface-2: #FFFDF7;
+  --moo-line: #D9D0BB;
+  --moo-line-strong: #C8BCA0;
   --moo-line-soft: #E8E4DB;
-  --moo-text: #26241F;
-  --moo-text-2: #4A453D;
-  --moo-muted: #6B655C;
+  --moo-text: #1A1613;
+  --moo-text-2: #3A332C;
+  --moo-muted: #6F665A;
   --moo-faint: #9A8F7E;
-  --moo-accent: #C25F65;
+  --moo-accent: #B4454B;
   --moo-accent-2: #E8888A;
   --moo-on-accent: #FFFFFF;
-  --moo-ok: #3D8B5E;
+  --moo-ok: #347650;
   --moo-warn: #B89050;
-  --moo-bad: #B8523F;
+  --moo-bad: #AD4D3B;
   --moo-tier-t0: #3D8B5E;
   --moo-tier-t1: #3D6FA8;
   --moo-tier-t2: #7A5EA8;

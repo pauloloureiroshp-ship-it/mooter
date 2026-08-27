@@ -873,11 +873,11 @@ html:has(.app-shell-dark) body {
   --text-2:       #3A332C;   /* ink-2 */
   --muted:        #6F665A;   /* muted-ink */
   --faint:        #9A8F7E;   /* faint-ink */
-  --accent:       #C25F65;   /* rose */
+  --accent:       #B4454B;   /* rose — 2026-08-27: 3.49:1 sobre --bg falhava AA. Mesmo matiz, L-8. Agora 4.58:1 */
   --accent-soft:  #E8888A;   /* rose-soft */
-  --accent-bg:    rgba(194,95,101,0.08);
+  --accent-bg:    rgba(180,69,75,0.08);   /* derivado de --accent; movido com ele */
   --cream:        #FFFFFF;   /* used as CTA text on rose — white on rose */
-  --green:        #3D8B5E;   /* t0-green tuned for light bg */
+  --green:        #347650;   /* t0-green tuned for light bg — 2026-08-27: 3.53:1 falhava AA, L-6, agora 4.63:1 */
   --yellow:       #B89050;   /* deeper yellow for readability on beige */
   --tier-0:       #3D8B5E;
   --tier-1:       #3D6FA8;
@@ -914,7 +914,7 @@ html:has(.app-shell-dark) body {
   --text:         #F2EDE6;
   --text-2:       #C9C2B8;
   --muted:        #8A8076;   /* Wave 16-18 A2: AA-contrast muted on dark (was #7A7168 ~4.1:1) */
-  --faint:        #5A5249;
+  --faint:        #84786B;   /* 2026-08-27: estava a 2.58:1 sobre --bg — abaixo ate de AA-GRANDE (3.0). Texto ilegivel no ar. L+15, agora 4.60:1 */
   --accent:       #E8888A;   /* landing pink (--color-accent) */
   --accent-soft:  #F2A5A5;
   --accent-bg:    rgba(232,136,138,0.08);

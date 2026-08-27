@@ -53,7 +53,7 @@
       "text": "#F2EDE6",
       "text-2": "#C9C2B8",
       "muted": "#8A8076",
-      "faint": "#7A7168",
+      "faint": "#84786B",
       "accent": "#E8888A",
       "accent-2": "#F2A5A5",
       "on-accent": "#1A0E0E",
@@ -63,22 +63,22 @@
     },
     "papel": {
       "bg": "#F2ECDF",
-      "bg-2": "#EAE4D6",
-      "surface": "#FBFAF7",
-      "surface-2": "#F2ECDF",
-      "line": "#DCD8CE",
-      "line-strong": "#C9C2B4",
+      "bg-2": "#EBE3D1",
+      "surface": "#FBF7EE",
+      "surface-2": "#FFFDF7",
+      "line": "#D9D0BB",
+      "line-strong": "#C8BCA0",
       "line-soft": "#E8E4DB",
-      "text": "#26241F",
-      "text-2": "#4A453D",
-      "muted": "#6B655C",
+      "text": "#1A1613",
+      "text-2": "#3A332C",
+      "muted": "#6F665A",
       "faint": "#9A8F7E",
-      "accent": "#C25F65",
+      "accent": "#B4454B",
       "accent-2": "#E8888A",
       "on-accent": "#FFFFFF",
-      "ok": "#3D8B5E",
+      "ok": "#347650",
       "warn": "#B89050",
-      "bad": "#B8523F"
+      "bad": "#AD4D3B"
     },
     "tier": {
       "web": {
@@ -384,35 +384,48 @@
         "papel.accent"
       ]
     ],
-    "correccoes_propostas": {
-      "$nota": "Calculadas, não escolhidas: o menor desvio que passa AA mantendo o matiz. NÃO aplicadas — são valores de produção, a decisão é do dono.",
+    "correccoes_aplicadas": {
+      "$nota": "Aplicadas a 2026-08-27, por decisao delegada do dono. O criterio de desempate foi acessibilidade: 2.58:1 e texto que muita gente nao le, e estava no ar. Cada valor e o MENOR desvio em luminosidade que passa AA mantendo matiz e saturacao — a cor continua a ser a mesma cor, so legivel. Medido por design/tools/moo-reconciliar.mjs contra landing/app/globals.css, nao contra o snapshot deste ficheiro.",
+      "$porque_o_snapshot_estava_errado": "As correccoes ANTERIORES deste bloco tinham sido calculadas sobre tinta.faint = #7A7168 (4.13:1). A producao servia #5A5249 (2.58:1). Aplica-las teria corrigido um numero que ninguem le — o site serve o outro. Por isso o par tem agora as duas colunas, e a que manda e a producao.",
       "tinta.faint": {
-        "actual": "#7A7168",
-        "proposto": "#817870",
-        "de": 4.13,
-        "para": 4.57
+        "era_no_token": "#7A7168",
+        "era_em_producao": "#5A5249",
+        "agora": "#84786B",
+        "de": 2.58,
+        "para": 4.6,
+        "deltaL": 15,
+        "porque": "O unico par abaixo de AA-GRANDE (3.0). Corpo de texto tenue no site escuro."
       },
       "papel.accent": {
-        "actual": "#C25F65",
-        "proposto": "#A55156",
+        "era": "#C25F65",
+        "agora": "#B4454B",
         "de": 3.49,
-        "para": 4.56
+        "para": 4.58,
+        "deltaL": -8,
+        "porque": "Arrasta --accent-bg em globals.css, que deriva dele: rgba(194,95,101,.08) -> rgba(180,69,75,.08)."
       },
       "papel.ok": {
-        "actual": "#3D8B5E",
-        "proposto": "#347851",
+        "era": "#3D8B5E",
+        "agora": "#347650",
         "de": 3.53,
-        "para": 4.51
+        "para": 4.63,
+        "deltaL": -6,
+        "porque": "Chama-se --green em producao. Verde e reservado a sinal positivo genuino; ilegivel nao serve de sinal."
       },
       "papel.bad": {
-        "actual": "#B8523F",
-        "proposto": "#AD4D3B",
+        "era": "#B8523F",
+        "agora": "#AD4D3B",
         "de": 4.13,
-        "para": 4.57
+        "para": 4.57,
+        "deltaL": -3,
+        "porque": "So no token: a shell autenticada NAO declara cor de erro propria (n/d em producao)."
       },
       "papel.on-accent": {
-        "actual": "#FFFFFF",
-        "nota": "passa a 5.37:1 assim que papel.accent for corrigido — não precisa de mudança própria"
+        "era": "#FFFFFF",
+        "agora": "#FFFFFF",
+        "de": 4.1,
+        "para": 5.39,
+        "porque": "Nao precisou de mudanca propria: subiu sozinho quando papel.accent desceu."
       }
     }
   },
