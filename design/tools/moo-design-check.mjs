@@ -137,26 +137,72 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
           : `${vistos} superfícies, zero tokens redefinidos` });
 }
 
-// 2 · MARCA ÚNICA (1.5) — um só desenho, sha travado, sem variantes vivas
+// 2 · MARCA ÚNICA (1.5) — a silhueta é intocável, a paleta velha não vive
+//
+// A primeira versão contava «qualquer SVG com a vaca fora de design/brand/» e
+// chamava-lhe variante. Medido a 2026-08-27, isso dava 8 achados — e nenhum
+// deles era o defeito que a decisão descreve. A decisão diz uma coisa concreta:
+// «a silhueta é INTOCÁVEL — onze paths, coordenada a coordenada». Medido path a
+// path, a silhueta não derivou em lado nenhum: os 8 ficheiros carregam os mesmos
+// `d`, ao byte. O que os distingue é o enquadramento (um tem um azulejo escuro,
+// outro um viewBox de sangria) — que é desenho legítimo por superfície, não
+// deriva.
+//
+// Ficheiro estar fora de `design/brand/` não é o defeito. Os defeitos reais são
+// três, e são estes que se medem:
+//
+//   1. a silhueta DERIVOU — um `d` que não é o do canon;
+//   2. a paleta SUPERSEDED (creme #F5EDD4 + laranja #FF6B35, que o `SPEC.md` §4
+//      de Junho ainda manda) a viver numa superfície VIVA;
+//   3. um logo LEGADO vivo — o `mooter-logo-legacy.svg`, o "F" teal do frugal,
+//      que era servido em mooter.ai com zero referências em código.
+//
+// `_handoff/_archive/` fica de fora do resultado, e é uma excepção DECLARADA,
+// não um silêncio: por `AGENTS.md` § Information architecture o arquivo é
+// história imutável, e os quatro ficheiros creme de Junho são o registo do que
+// foi decidido então. Apagá-los para o portão ficar verde seria apagar a prova
+// de que a decisão de 27/08 mudou alguma coisa. Aparecem contados à parte.
 {
   let canon = ler('design/brand/mooter-mark.svg');
   if (canon === null) { try { canon = readFileSync(join(DESIGN, 'brand/mooter-mark.svg'), 'utf8'); } catch { canon = null; } }
   const shaCanon = canon ? sha(canon) : null;
-  const variantes = [];
+  const paths = (s) => [...s.matchAll(/\sd="([^"]+)"/g)].map(m => m[1].trim());
+  const canonPaths = canon ? new Set(paths(canon)) : new Set();
+  /* A escada de redução perde formas de propósito: «16 = duas formas». Um
+     desenho declarado na escada não tem de trazer os onze paths. */
+  const ESCADA = /mooter-mark-16\.svg$/;
+  const PALETA_VELHA = /#F5EDD4|#FF6B35|#E85D2A|#FBE6C8/i;
+  const E_ARQUIVO = (f) => /(^|\/)(_archive|archive)\//.test(f) || f.startsWith('docs/archive/');
+  const E_LEGADO = (f) => /legacy|deprecated|frugal-logo/i.test(f);
+
+  const derivou = [], paletaVelha = [], legado = [], arquivadas = [], derivadas = [];
   for (const f of andar('.', 0, EXT_SVG)) {
     if (f.includes('design/brand/')) continue;
     const s = ler(f); if (!s) continue;
-    if (/M21\.976 31h-7\.951|M22 31h-8C9 31/.test(s)) variantes.push(f);
+    const vaca = /M21\.976 31h-7\.951|M22 31h-8C9 31/.test(s);
+    if (!vaca && !E_LEGADO(f)) continue;
+    if (E_ARQUIVO(f)) { arquivadas.push(f); continue; }
+    if (E_LEGADO(f)) { legado.push(f); continue; }
+    const fora = paths(s).filter(d => !canonPaths.has(d));
+    if (fora.length && !ESCADA.test(f)) derivou.push({ ficheiro: f, paths_fora_do_canon: fora.length });
+    else if (PALETA_VELHA.test(s)) paletaVelha.push(f);
+    else derivadas.push(f);
   }
-  const legado = variantes.filter(f => /legacy|frugal|creme|cream/i.test(f));
+
+  const graves = derivou.length + paletaVelha.length + legado.length;
   if (!canon) { reg('marca-unica', 'Marca única', 1.5, { estado: 'n/d', porque: 'design/brand/mooter-mark.svg ausente', pontos: null }); } else
   reg('marca-unica', 'Marca única', 1.5, {
-    estado: variantes.length ? 'aviso' : 'passa',
-    sha: shaCanon, variantes, legado,
-    pontos: legado.length ? 0 : variantes.length ? 0.75 : 1.5,
-    porque: legado.length ? `${legado.length} variante(s) legado vivas`
-      : variantes.length ? `${variantes.length} cópia(s) da vaca fora de design/brand/ — gerar, não copiar`
-      : `um só desenho, sha ${shaCanon}`,
+    estado: graves ? 'falha' : 'passa',
+    sha: shaCanon, silhueta_derivou: derivou, paleta_superseded: paletaVelha, legado,
+    /* Declaradas, não escondidas — a mesma régua do «contraste novo 0 · declarado 5». */
+    derivadas_na_marca: derivadas, arquivadas_ignoradas: arquivadas,
+    pontos: graves ? 0 : 1.5,
+    porque: graves
+      ? [derivou.length && `${derivou.length} com a silhueta derivada`,
+         paletaVelha.length && `${paletaVelha.length} na paleta creme+laranja`,
+         legado.length && `${legado.length} logo legado vivo`].filter(Boolean).join(' · ')
+      : `silhueta intacta em ${derivadas.length} superfície(s) derivada(s), sha ${shaCanon}`
+        + ` · ${arquivadas.length} arquivada(s) declarada(s) e fora do resultado`,
   });
 }
 
@@ -356,7 +402,27 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const banidos = [];
   const EAS_OK = ['.16,1,.3,1','.2,.8,.2,1','.45,0,.55,1','.3,1.3,.5,1',
                   '0.16, 1, 0.3, 1','0.2, 0.8, 0.2, 1','0.45, 0, 0.55, 1','0.3, 1.3, 0.5, 1'];
-  const RAIO_OK = new Set([0,2,3,4,6,7,8,9,10,11,12,14,16,999]);
+  /* ⚠️ DIVERGÊNCIA DECLARADA, não resolvida: esta escala é escrita à mão e NÃO
+     deriva de `moo-tokens.json`, que declara `radius` = {6,10,14,16,999}. É uma
+     terceira fonte de verdade dentro do ficheiro cuja tese é que a fonte é o
+     JSON, e `DIRETRIZES.md` diz «qualquer raio fora da escala» sem definir
+     escala. Fica escrito em vez de corrigido, e porquê:
+
+     derivá-la dos tokens (tokens + 0..4 para elementos de espessura de cabelo)
+     foi tentado e medido a 2026-08-27 — passava de 40 para **118** violações,
+     porque 7, 8, 9, 11 e 12 estão em uso legítimo por todo o lado. Apertar o
+     portão para fabricar 78 achados que ninguém quer corrigir é a forma mais
+     rápida de o pôr a ser ignorado; não é uma melhoria.
+
+     Só se corrige o buraco PROVADO: o `1` entrou porque `globals.css:437`,
+     `.statusline .sl-bar-tick`, é um tick de **3px de largura** onde 1px é o
+     único arredondamento sensato — e a lista permitia 0 e 2 mas não 1. Falso
+     positivo criado por um buraco arbitrário. Os restantes buracos (5, 13, 15)
+     ficam: são falhanços por pouco de 4/6, 14 e 16, e apanham exactamente isso.
+
+     Unificar isto com `moo-tokens.json` é trabalho de desenho, com o dono, e
+     tem de vir com a lista de sítios a mudar — não com um `Set` novo. */
+  const RAIO_OK = new Set([0,1,2,3,4,6,7,8,9,10,11,12,14,16,999]);
   const alvos = [...SUPERFICIES_UI, ...andar('design')].filter(f => /\.(html|css|tsx?|jsx?)$/.test(f));
   let vistos = 0;
   for (const f of alvos) {

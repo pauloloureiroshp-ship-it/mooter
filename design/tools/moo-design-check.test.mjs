@@ -73,26 +73,86 @@ function corre(bancadaObj, { ci = false } = {}) {
 
 const v = (rel, id) => rel.verificacoes.find(x => x.id === id);
 
-/* A vaca canónica: o path que o detector do portão procura. */
-const VACA = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">'
-  + '<path d="M21.976 31h-7.951a1 1 0 0 1 0-2h7.951a1 1 0 0 1 0 2z"/></svg>';
+/* A vaca vem do desenho CANÓNICO, não de um path inventado a partir do regex do
+   detector. A primeira versão deste ficheiro escrevia um `<path d="M21.976 31…">`
+   à mão: o detector encontrava-o (é o que ele procura), mas as coordenadas não
+   eram as do canon, e por isso a própria fixture contava como silhueta derivada.
+   Um teste cuja fixture já viola o invariante não consegue distinguir o defeito
+   plantado do defeito acidental. */
+const VACA = readFileSync(join(DESIGN_REAL, 'brand', 'mooter-mark.svg'), 'utf8');
 
 // ─────────────────────────────────────────────────────────────────────────
 
-test('marca-unica MORDE uma cópia da vaca fora de design/brand/', (t) => {
+test('marca-unica ACEITA uma superfície derivada com a silhueta intacta', (t) => {
   const b = bancada();
   t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
   superficieLimpa(b.repo);
+  /* Um favicon com azulejo escuro e um viewBox próprio é desenho por superfície,
+     não deriva. O que a decisão trava é a silhueta, não o sítio do ficheiro. */
+  escreve(b.repo, 'landing/public/favicon.svg',
+    VACA.replace('<g class="corpo"', '<rect width="32" height="32" rx="7" fill="#14110D"/><g class="corpo"'));
 
-  const limpo = corre(b);
-  assert.equal(v(limpo.rel, 'marca-unica').pontos, 1.5,
-    'sem variantes plantadas a verificação tem de dar 1,5 — senão o teste não prova nada');
+  const m = v(corre(b).rel, 'marca-unica');
+  assert.equal(m.pontos, 1.5, `esperava passagem. porque=${m.porque}`);
+  assert.deepEqual(m.derivadas_na_marca, ['landing/public/favicon.svg'],
+    'e mesmo aceite, tem de aparecer declarada — não desaparecer');
+});
 
-  escreve(b.repo, 'landing/public/mooter-logo.svg', VACA);
-  const sujo = corre(b);
-  const m = v(sujo.rel, 'marca-unica');
-  assert.equal(m.pontos, 0.75, 'uma cópia viva tem de descontar');
-  assert.deepEqual(m.variantes, ['landing/public/mooter-logo.svg']);
+test('marca-unica MORDE a silhueta derivada — o único invariante que a decisão trava', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  /* Mesma vaca detectada, mas com um path a mais que não existe no canon:
+     alguém redesenhou uma orelha. */
+  escreve(b.repo, 'landing/public/mooter-logo.svg',
+    VACA.replace('</svg>', '<path d="M9 9l3 3-3 3z"/></svg>'));
+
+  const m = v(corre(b).rel, 'marca-unica');
+  assert.equal(m.pontos, 0);
+  assert.equal(m.silhueta_derivou.length, 1);
+  assert.equal(m.silhueta_derivou[0].paths_fora_do_canon, 1);
+});
+
+test('marca-unica MORDE a paleta creme+laranja numa superfície viva', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  /* O `SPEC.md` §4 de Junho ainda manda creme #F5EDD4 + laranja #FF6B35. A
+     decisão de 2026-08-27 é cinza-aço. Se a paleta velha reaparecer numa
+     superfície viva, é a decisão a ser desfeita em silêncio. */
+  escreve(b.repo, 'landing/public/cow.svg', VACA.replace(/fill="[^"]*"/, 'fill="#F5EDD4"'));
+
+  const m = v(corre(b).rel, 'marca-unica');
+  assert.equal(m.pontos, 0);
+  assert.deepEqual(m.paleta_superseded, ['landing/public/cow.svg']);
+});
+
+test('marca-unica MORDE um logo legado vivo', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/public/mooter-logo-legacy.svg',
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="#4ec9b0"/></svg>');
+
+  const m = v(corre(b).rel, 'marca-unica');
+  assert.equal(m.pontos, 0, 'o "F" teal do frugal não precisa de ser uma vaca para contar');
+  assert.deepEqual(m.legado, ['landing/public/mooter-logo-legacy.svg']);
+});
+
+test('marca-unica IGNORA o arquivo — mas declara-o, não o esconde', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  /* `_handoff/_archive/` é história imutável (AGENTS.md § Information
+     architecture). Apagar os quatro ficheiros creme de Junho para o portão ficar
+     verde seria apagar a prova de que a decisão de 27/08 mudou alguma coisa. */
+  escreve(b.repo, '_handoff/_archive/2026-06/assets/cow.svg',
+    VACA.replace(/fill="[^"]*"/, 'fill="#F5EDD4"'));
+
+  const m = v(corre(b).rel, 'marca-unica');
+  assert.equal(m.pontos, 1.5, 'o arquivo não pontua contra');
+  assert.deepEqual(m.arquivadas_ignoradas, ['_handoff/_archive/2026-06/assets/cow.svg']);
+  assert.match(m.porque, /arquivada/, 'a excepção tem de aparecer na frase, não só no JSON');
 });
 
 test('marca-unica não confunde o canon com uma variante (barras do Windows)', (t) => {
@@ -106,19 +166,8 @@ test('marca-unica não confunde o canon com uma variante (barras do Windows)', (
   escreve(b.repo, 'design/brand/favicon.svg', VACA);
 
   const m = v(corre(b).rel, 'marca-unica');
-  assert.deepEqual(m.variantes, [], 'o canon nunca é variante de si próprio');
+  assert.deepEqual(m.derivadas_na_marca, [], 'o canon nunca é derivado de si próprio');
   assert.equal(m.pontos, 1.5);
-});
-
-test('marca-unica separa legado de cópia — legado zera, cópia desconta', (t) => {
-  const b = bancada();
-  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
-  superficieLimpa(b.repo);
-  escreve(b.repo, 'landing/public/mooter-logo-legacy.svg', VACA);
-
-  const m = v(corre(b).rel, 'marca-unica');
-  assert.equal(m.pontos, 0, 'uma variante legado viva vale zero, não 0,75');
-  assert.deepEqual(m.legado, ['landing/public/mooter-logo-legacy.svg']);
 });
 
 test('o portão RECUSA-SE a pontuar um alvo que não é o repo', (t) => {
@@ -308,7 +357,7 @@ test('--ci sai 1 abaixo do limiar e 0 acima', (t) => {
   const b = bancada();
   t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
   superficieLimpa(b.repo);
-  escreve(b.repo, 'landing/public/mooter-logo-legacy.svg', VACA);
+  escreve(b.repo, 'landing/public/mooter-logo-legacy.svg', '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="#4ec9b0"/></svg>');
 
   const mau = corre(b, { ci: true });
   assert.equal(mau.code, 1, 'com uma variante legado viva o CI tem de ficar vermelho');

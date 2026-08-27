@@ -113,10 +113,10 @@
   .el-body{padding:4px 12px 9px;border-top:1px solid var(--border-soft)}
   .sec{color:var(--faint);text-transform:uppercase;font-size:var(--fs1);letter-spacing:.1em;margin:9px 0 4px}
   /* ---------- honest failure ---------- */
-  .errbox{border:1px solid var(--red-bd);border-left:3px solid var(--red);background:var(--red-dim);
+  .errbox{border:1px solid var(--red-bd);border-left:1px solid var(--red);background:var(--red-dim);
     border-radius:0 9px 9px 0;padding:8px 12px;margin:6px 0;font-size:var(--fs1);color:var(--dim);line-height:1.6}
   .errbox b{color:var(--red)} .errbox code{color:var(--fg);word-break:break-all}
-  .bigfail{border:1px solid var(--red-bd);border-left:4px solid var(--red);background:var(--red-dim);
+  .bigfail{border:1px solid var(--red-bd);border-left:1px solid var(--red);background:var(--red-dim);
     border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:8px;font-size:var(--fs2);line-height:1.6}
   .bigfail b{color:var(--red)}
   .bigfail.info{border-color:var(--amber-bd);border-left-color:var(--amber);background:var(--amber-dim)}
@@ -365,16 +365,16 @@
   .tour-hole{position:fixed;z-index:900;border-radius:12px;pointer-events:none;
     box-shadow:0 0 0 9999px rgba(12,10,9,.74), 0 0 0 2px var(--terracotta),
                0 0 28px -4px rgba(0,0,0,.6);
-    transition:top .28s cubic-bezier(.4,0,.2,1), left .28s cubic-bezier(.4,0,.2,1),
-               width .28s cubic-bezier(.4,0,.2,1), height .28s cubic-bezier(.4,0,.2,1)}
+    transition:top .28s cubic-bezier(.2,.8,.2,1), left .28s cubic-bezier(.2,.8,.2,1),
+               width .28s cubic-bezier(.2,.8,.2,1), height .28s cubic-bezier(.2,.8,.2,1)}
   .tour-hole.nada{box-shadow:0 0 0 9999px rgba(12,10,9,.74)}   /* sem alvo: só escurece */
   .tour-card{position:fixed;z-index:901;width:min(420px,calc(100vw - 32px));
     background:var(--card);border:1px solid var(--border);border-radius:12px;
     padding:14px 16px 12px;box-shadow:0 18px 48px -12px rgba(0,0,0,.55);
-    transition:top .28s cubic-bezier(.4,0,.2,1), left .28s cubic-bezier(.4,0,.2,1)}
+    transition:top .28s cubic-bezier(.2,.8,.2,1), left .28s cubic-bezier(.2,.8,.2,1)}
   .tour-card h4{margin:0 0 6px;font-size:var(--fs3);color:var(--fg);font-weight:700;line-height:1.3}
   .tour-card p{margin:0 0 9px;font-size:var(--fs2);color:var(--dim);line-height:1.62}
-  .tour-aha{display:block;border-left:3px solid var(--terracotta);border-radius:0 7px 7px 0;
+  .tour-aha{display:block;border-left:1px solid var(--terracotta);border-radius:0 7px 7px 0;
     background:var(--nd-dim);padding:7px 11px;margin:0 0 11px;
     font-size:var(--fs1);color:var(--fg);line-height:1.55}
   .tour-nada{border:1px dashed var(--nd-bd);background:var(--nd-dim);border-radius:8px;
@@ -399,7 +399,7 @@
   .lpframe img{width:100%;height:100%;object-fit:contain;border:0;display:block}
   .lp-caption{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:5px 0 8px;
     color:var(--dim);font-size:var(--fs1)}
-  .lp-mode{border-left:3px solid var(--terracotta);padding-left:9px;margin-bottom:8px;
+  .lp-mode{border-left:1px solid var(--terracotta);padding-left:9px;margin-bottom:8px;
     color:var(--dim);font-size:var(--fs1);line-height:1.55}
   /* ── session fuel: os dois números por que se decide continuar ou passar ── */
   .fuel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin-bottom:10px}
@@ -423,7 +423,7 @@
   .ctx-m code{font-size:11px}
   .ctx-b{height:6px;border-radius:4px;background:var(--nd-dim);overflow:hidden}
   .ctx-b i{display:block;height:100%;background:var(--green);border-radius:4px;
-    transition:width .5s cubic-bezier(.4,0,.2,1)}
+    transition:width .5s cubic-bezier(.2,.8,.2,1)}
   .ctx-b.hot i{background:var(--amber,#C9A227)}
   .ctx-n{color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
   /* ── second brain ── */
@@ -438,12 +438,12 @@
   /* ── cud check: cartões, não perguntas retóricas ─────────────────────── */
   .cud-glyph{display:inline-block;transform-origin:50% 60%}
   /* UMA sacudidela quando o número de regras muda. Nada em repouso. */
-  .cud-glyph.novo{animation:cudshake .55s cubic-bezier(.36,.07,.19,.97)}
+  .cud-glyph.novo{animation:cudshake .55s cubic-bezier(.3,1.3,.5,1)}
   @keyframes cudshake{
     0%,100%{transform:rotate(0)} 25%{transform:rotate(-11deg)}
     55%{transform:rotate(9deg)} 80%{transform:rotate(-4deg)}}
   @media (prefers-reduced-motion:reduce){ .cud-glyph.novo{animation:none} }
-  .cud-card{border:1px solid var(--border-soft);border-left:3px solid var(--terracotta);
+  .cud-card{border:1px solid var(--border-soft);border-left:1px solid var(--terracotta);
     border-radius:0 9px 9px 0;padding:9px 12px;margin-bottom:8px}
   .cud-card.humano{border-left-color:var(--amber,#C9A227)}
   .cud-q{font-size:var(--fs2);color:var(--fg);line-height:1.55;font-weight:600}
@@ -500,7 +500,7 @@
   .id-b{display:inline-block;width:34px;height:5px;border-radius:3px;background:var(--nd-dim);
     overflow:hidden;vertical-align:middle}
   .id-b i{display:block;height:100%;background:var(--green);border-radius:3px;
-    transition:width .5s cubic-bezier(.4,0,.2,1)}
+    transition:width .5s cubic-bezier(.2,.8,.2,1)}
   /* ── espaçamento e escala dos títulos de bloco ─────────────────────────
      Os blocos estavam todos com o mesmo peso, e o olho não sabia por onde
      começar. Título maior, emoji ligeiramente maior, mais ar entre blocos. */
@@ -556,9 +556,16 @@
   /* o tronco vertical de cada worktree */
   .flow-wt::before{content:'';position:absolute;left:6px;top:-2px;bottom:8px;width:2px;
     background:var(--nd-bd);border-radius:2px}
-  .flow-wt.viva::before{background:linear-gradient(180deg,var(--terracotta),var(--nd-bd));
-    background-size:100% 200%;animation:flowdown 2.2s linear infinite}
-  @keyframes flowdown{from{background-position:0 -100%}to{background-position:0 100%}}
+  /* A corrente sobe o tronco vivo. Era `background-position` a animar, e isso
+     repinta a cada quadro. O mesmo desenho, agora composto: o padrao tem o dobro
+     da altura do tronco (background-size 100% 50% de um elemento com 400%), e um
+     `transform` de -50% desloca-o exactamente um periodo — laco sem costura. */
+  .flow-wt.viva:not(.aqui) .fw-trunk{position:absolute;left:6px;top:-2px;bottom:8px;width:2px;
+    overflow:hidden;border-radius:2px}
+  .flow-wt.viva:not(.aqui) .fw-trunk::before{content:'';position:absolute;left:0;right:0;top:0;
+    height:400%;background:linear-gradient(180deg,var(--terracotta),var(--nd-bd));
+    background-size:100% 50%;animation:flowdown 2.2s linear infinite}
+  @keyframes flowdown{from{transform:translateY(0)}to{transform:translateY(-50%)}}
   .flow-wt.aqui::before{background:var(--terracotta)}
   .fw-h{display:flex;align-items:center;gap:7px;font-size:var(--fs1);margin-bottom:5px}
   .fw-h::before{content:'';position:absolute;left:6px;width:9px;height:2px;background:var(--nd-bd);
@@ -566,7 +573,7 @@
   .fw-n{font-weight:600;color:var(--fg)}
   .fw-br{font:10.5px var(--mono,ui-monospace);color:var(--faint)}
   .fw-aqui{font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-    color:#fff;background:var(--terracotta);border-radius:5px;padding:1px 6px}
+    color:#fff;background:var(--terracotta);border-radius:4px;padding:1px 6px}
   .flow-wave{display:flex;align-items:center;gap:8px;padding:3px 0 3px 14px;position:relative;
     font-size:var(--fs1);color:var(--dim)}
   .flow-wave::before{content:'';position:absolute;left:0;top:50%;width:9px;height:1px;
@@ -578,12 +585,13 @@
   .fw-st.on{color:var(--green)}
   .fw-st.bad{color:var(--red)}
   .flow-vazio{color:var(--faint);font-size:var(--fs1);padding-left:20px;font-style:italic}
-  @media (prefers-reduced-motion:reduce){ .flow-wt.viva::before{animation:none;background:var(--terracotta)} }
+  @media (prefers-reduced-motion:reduce){ .flow-wt.viva::before{background:var(--terracotta)}
+    .flow-wt.viva .fw-trunk{display:none} }
   /* ── connected ── */
   .conn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:10px;margin-bottom:4px}
   .conn-gt{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:4px}
   .conn-i{display:flex;align-items:center;gap:7px;padding:3px 0;font-size:var(--fs1);cursor:help}
-  .conn-d{width:17px;height:17px;border-radius:5px;flex:none;display:grid;place-items:center;
+  .conn-d{width:17px;height:17px;border-radius:4px;flex:none;display:grid;place-items:center;
     color:#fff;font-size:10px;font-weight:700;line-height:1}
   .conn-n{color:var(--fg);font-weight:600}
   .conn-p{color:var(--faint);font-size:10px;margin-left:auto;white-space:nowrap}
@@ -612,7 +620,7 @@
   .ibar.frozen i{background:var(--red);opacity:.45}
   .ibar.empty{background:repeating-linear-gradient(90deg,var(--bar2) 0 6px,var(--barbg) 6px 12px)}
   /* devil's advocate */
-  .daq{border:1px solid var(--border-soft);border-left:3px solid var(--terracotta);
+  .daq{border:1px solid var(--border-soft);border-left:1px solid var(--terracotta);
     border-radius:0 9px 9px 0;background:var(--card);padding:7px 11px;margin-bottom:5px}
   .daq .q{font-size:var(--fs2);color:var(--fg);line-height:1.5}
   .daq .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:var(--fs1);color:var(--dim)}
@@ -631,7 +639,7 @@
   .owner{color:var(--red);font-size:var(--fs1);font-weight:700;border:1px solid var(--red-bd);
     padding:0 7px;border-radius:8px;cursor:help;white-space:nowrap}
   .fora-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px;margin:5px 0 7px}
-  .fora-card{border:1px solid var(--red-bd);border-left:3px solid var(--red);background:var(--red-dim);
+  .fora-card{border:1px solid var(--red-bd);border-left:1px solid var(--red);background:var(--red-dim);
     border-radius:0 9px 9px 0;padding:7px 11px 6px}
   .fora-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs2);margin-bottom:2px}
   .fora-top b{color:var(--fg)}
@@ -702,9 +710,9 @@
   }
 
 .rt-box{border:1px solid var(--line);border-radius:8px;padding:10px;margin:6px 0;font-size:var(--fs1)}
-.rt-sig{border-left:3px solid var(--line);padding:4px 0 6px 8px;margin:0 0 8px}
+.rt-sig{border-left:1px solid var(--line);padding:4px 0 6px 8px;margin:0 0 8px}
 .rt-bloq{border-left-color:#d9534f}
-.rt-chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:0 6px;margin:0 4px;font-size:var(--fs0)}
+.rt-chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 6px;margin:0 4px;font-size:var(--fs0)}
 .rt-g{border-color:#6c8ebf}
 .rt-warn{border-color:#d9534f;color:#d9534f}
 .rt-diag{margin:4px 0;color:var(--faint)}
@@ -737,7 +745,7 @@
 .lpsel code{font-size:.8rem}
 .lpsel .lpsel-alvo{font-weight:600}
 .lpsel textarea{width:100%;margin-top:.45rem;min-height:3.2rem;font:inherit;font-size:.82rem;
-  padding:.4rem .5rem;border:1px solid var(--linha,#d7d3cc);border-radius:5px;resize:vertical}
+  padding:.4rem .5rem;border:1px solid var(--linha,#d7d3cc);border-radius:6px;resize:vertical}
 .lpsel .lpsel-acts{margin-top:.45rem;display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
 .lpsel .lpsel-nota{color:var(--suave,#8a857d);font-style:italic}
 /* MOOTER:HITMAP:v3 */
@@ -4281,7 +4289,10 @@ function renderFlow(){
       const ehAqui = !!aqui && (nP === nA || nP.startsWith(nA + '/') || nA.startsWith(nP + '/'));
       const nome = String(pasta).split(/[\\/]/).filter(Boolean).pop() || pasta;
       const br = (P.pastas || []).find(x => x.nome === nome);
-      h += '<div class="flow-wt' + (viva ? ' viva' : '') + (ehAqui ? ' aqui' : '') + '">';
+      h += '<div class="flow-wt' + (viva ? ' viva' : '') + (ehAqui ? ' aqui' : '') + '">'
+        /* o tronco que flui precisa de um recorte proprio: o gradiente desliza
+           por transform, e um pseudo-elemento nao pode conter outro. */
+        + (viva && !ehAqui ? '<i class="fw-trunk"></i>' : '');
       h += '<div class="fw-h"><span class="fw-n">' + esc(nome) + '</span>'
         + (br && br.branch ? '<span class="fw-br">' + esc(br.branch) + '</span>' : '')
         + (ehAqui ? '<span class="fw-aqui">this session</span>' : '')
@@ -7183,7 +7194,7 @@ boot().catch(e => {
     position:fixed;right:18px;bottom:82px;z-index:121;
     width:min(410px, calc(100vw - 36px));
     height:min(640px, calc(100vh - 120px));
-    background:var(--panel);border:1px solid var(--border);border-radius:13px;
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
     box-shadow:0 18px 50px -14px rgba(0,0,0,.55);
     display:none;flex-direction:column;overflow:hidden;
   }
@@ -7207,7 +7218,7 @@ boot().catch(e => {
 
   .moo-body{flex:1 1 auto;overflow-y:auto;padding:10px 11px 4px;scroll-behavior:smooth}
   .moo-body::-webkit-scrollbar{width:9px}
-  .moo-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}
+  .moo-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 
   .moo-foot{flex:0 0 auto;border-top:1px solid var(--border-soft);padding:8px 9px 9px;background:var(--panel2)}
   .moo-inrow{display:flex;gap:6px;align-items:flex-end}
@@ -7231,7 +7242,7 @@ boot().catch(e => {
   .moo-chips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 2px}
   .moo-chip{
     background:var(--card);border:1px solid var(--border-soft);color:var(--dim);
-    border-radius:20px;padding:3px 10px;font-size:var(--fs1);font-family:var(--mono);
+    border-radius:16px;padding:3px 10px;font-size:var(--fs1);font-family:var(--mono);
     cursor:pointer;text-align:left;line-height:1.35;
   }
   .moo-chip:hover{border-color:var(--terracotta);color:var(--fg)}
@@ -7247,7 +7258,7 @@ boot().catch(e => {
   }
   .moo-a{
     background:var(--card);border:1px solid var(--border-soft);
-    border-left:3px solid var(--terracotta);
+    border-left:1px solid var(--terracotta);
     border-radius:3px 11px 11px 3px;padding:9px 11px;margin-bottom:10px;font-size:var(--fs2);
   }
   .moo-a.miss{border-left-color:var(--nd);background:var(--nd-dim)}
@@ -7278,7 +7289,7 @@ boot().catch(e => {
     border-top:1px dotted var(--hairline)}
   .moo-srcchip{
     font-size:10px;font-family:var(--mono);color:var(--faint);
-    border:1px solid var(--border-soft);border-radius:5px;padding:1px 6px;
+    border:1px solid var(--border-soft);border-radius:4px;padding:1px 6px;
     background:var(--panel2);cursor:help;
   }
   .moo-srclab{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;
