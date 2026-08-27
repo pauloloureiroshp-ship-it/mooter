@@ -406,3 +406,83 @@ test('--ci sai 1 abaixo do limiar e 0 acima', (t) => {
   assert.equal(bom.code, 0, `esperava verde. índice=${bom.rel?.indice_coerencia_visual}`);
   assert.equal(bom.rel.passa, true);
 });
+
+test('numero-honesto MORDE "% smaller" — a palavra faltava no vocabulario', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'README.md', '# t\n');
+  /* Visto na home RENDERIZADA, nao no relatorio: "One bill is 47% smaller" em
+     corpo gigante, e o portao a dar-lhe passagem. A percentagem e computada
+     (`Math.round((1 - allMoo/allVan) * 100)`), por isso nenhuma substring
+     proibida aparece — e `smaller` nao estava na lista de palavras. */
+  escreve(b.repo, 'landing/app/x.tsx',
+    'One bill is <span>{pctSaved}% smaller</span>.\n');
+
+  const num = v(corre(b).rel, 'numero-honesto');
+  assert.ok(num.achados.some(a => a.claim === 'poupanca-computada'),
+    `esperava apanhar "% smaller". achados=${JSON.stringify(num.achados)}`);
+});
+
+test('numero-honesto MORDE um claim PARTIDO EM DUAS LINHAS de JSX', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'README.md', '# t\n');
+  /* `TwoTerminalDemo.tsx:342-343`: o numero numa linha, a palavra na seguinte,
+     com 75 caracteres de `style={{…}}` pelo meio. E como JSX escreve sempre, e
+     um matcher por linha nunca o veria. */
+  escreve(b.repo, 'landing/app/y.tsx', [
+    '<div>',
+    "  <span style={{ fontSize: 40 }}>{pctSaved}%</span>",
+    "  <span style={{ color: 'grey' }}>cheaper on this trace</span>",
+    '</div>',
+  ].join('\n'));
+
+  const num = v(corre(b).rel, 'numero-honesto');
+  assert.ok(num.achados.some(a => a.claim === 'poupanca-computada'),
+    `um claim partido em duas linhas continua a ser um claim. achados=${JSON.stringify(num.achados)}`);
+});
+
+test('numero-honesto aponta a LINHA CERTA depois de tirar o markup', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'README.md', '# t\n');
+  /* Uma tag JSX ocupa varias linhas. Ao branquea-la, substituir os `\n` por
+     espacos mantinha o comprimento mas colapsava as quebras: o achado do
+     TwoTerminalDemo saia na linha 142 em vez da 172, a apontar para
+     `width: 7,`. Ficheiro certo e linha errada gasta o tempo de quem le. */
+  escreve(b.repo, 'landing/app/z.tsx', [
+    'export const A = () => (',
+    '  <div',
+    '    className="grande"',
+    '    role="note"',
+    '  >',
+    '    <span>{pct}% smaller</span>',
+    '  </div>',
+    ');',
+  ].join('\n'));
+
+  const num = v(corre(b).rel, 'numero-honesto');
+  const a = num.achados.find(x => x.claim === 'poupanca-computada');
+  assert.ok(a, 'tem de apanhar');
+  assert.equal(a.linha, 6, `a linha real e a 6. veio ${a.linha}`);
+});
+
+test('numero-honesto NAO acusa CSS nem uma comparacao de preco de tabela', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'README.md', '# t\n');
+  /* Dois vizinhos inocentes que um padrao demasiado largo apanhava:
+     · `color-mix(in srgb, var(--ok) 45%, transparent)` — o `%` e de uma cor;
+     · `5x cheaper than Opus` — preco de tabela, e o `%` mais proximo estava
+       noutra linha qualquer. Exigir SO espacos entre o numero e a palavra
+       separa os dois casos sem precisar de lista de excepcoes. */
+  escreve(b.repo, 'landing/app/w.tsx', [
+    '<style>{`.on { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }`}</style>',
+    '<ModelCard cost="~$0.01" tooltip="5x cheaper than Opus with the same bar" />',
+    '<p>90% of the capability</p>',
+  ].join('\n'));
+
+  const num = v(corre(b).rel, 'numero-honesto');
+  assert.equal(num.achados.filter(a => a.claim === 'poupanca-computada').length, 0,
+    `nenhum destes e um claim de poupanca. achados=${JSON.stringify(num.achados)}`);
+});

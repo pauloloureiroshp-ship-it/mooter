@@ -299,7 +299,10 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const LIMITE = /[A-Za-z0-9_$]/;
   const VALOR = /\$\s?[\d{]|~?\d+(?:[.,]\d+)?\s*%|\{[^}]*\}\s*%/;
   const PERTO = 48;
-  const padroes = (T.numero.claims_padroes ?? []).map(([nome, re]) => [nome, new RegExp(re, 'i')]);
+  /* `gi` e não `i`: os padrões passaram a correr com `matchAll` sobre o ficheiro
+     inteiro, e `matchAll` recusa uma regex sem `g`. Um padrão sem `g` também só
+     encontraria a PRIMEIRA ocorrência por ficheiro. */
+  const padroes = (T.numero.claims_padroes ?? []).map(([nome, re]) => [nome, new RegExp(re, 'gi')]);
   /* Excepções DECLARADAS, com ficheiro, pedaço da linha e razão escrita — não um
      ficheiro numa lista negra. Se a linha for editada, a excepção deixa de
      coincidir e o claim volta. Um portão sem lista de excepções obriga a mentir
@@ -314,12 +317,49 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     const bruto = ler(f); if (!bruto) continue;
     const cru = bruto.split('\n');
     const limpo = semComentarios(bruto);
+    /* ── Os padrões correm sobre o ficheiro INTEIRO, não linha a linha ──────
+       Medido a 2026-08-27, ao olhar para a home renderizada em vez de para o
+       relatório: `landing/app/_components/TwoTerminalDemo.tsx` publica
+       "One bill is 47% smaller" em corpo gigante, e o portão dava-lhe passagem.
+       Duas razões, as duas minhas:
+
+         · `smaller` não estava no vocabulário (só `less|cheaper|menos|off`);
+         · e o outro claim, `{pctSaved}%` + `cheaper on this trace`, está
+           partido em DUAS linhas (`:342` e `:343`) — como JSX escreve sempre.
+           Um matcher por linha nunca o veria.
+
+       Juntar as linhas já limpas de comentário mantém as duas defesas (o
+       registo da retirada continua fora) e deixa o padrão atravessar markup.
+       O `indice→linha` é reconstruído por contagem de `\n` para o achado
+       continuar a apontar ao sítio certo. */
+    /* O markup sai, mas o comprimento NÃO muda: cada tag e cada bloco de estilo
+       é substituído por espaços em igual número. Assim `indice → linha` continua
+       exacto e o achado aponta ao sítio certo — recalcular offsets seria a forma
+       fácil de o portão passar a mentir sobre onde está o problema.
+
+       Porquê tirar o markup: o padrão media a FONTE, e em JSX a fonte mete 75
+       caracteres de `style={{…}}` entre o número e a palavra. Para os alcançar,
+       o padrão tinha de ser tão largo que apanhava `5× cheaper than Opus`
+       (dashboard:1908) por causa de um `%` que estava noutra linha qualquer.
+       Medindo o TEXTO QUE SAI, o claim fica adjacente e o vizinho inocente
+       deixa de ter um `%` por perto. É também o que o leitor vê. */
+    /* Os `\n` SOBREVIVEM. Uma tag JSX ocupa várias linhas, e `[^>]*` atravessa-as;
+       substituir tudo por espaços mantinha o comprimento mas colapsava as quebras,
+       e o achado do `TwoTerminalDemo` saía na linha **142** em vez da 172 — a
+       apontar para `width: 7,`. Um portão que diz o ficheiro certo e a linha
+       errada gasta o tempo de quem o lê, e ensina a não confiar nele. */
+    const brancos = (m) => m.replace(/[^\n]/g, ' ');
+    const texto = limpo.join('\n')
+      .replace(/style=\{\{[^}]*\}\}/g, brancos)   // estilos inline do JSX
+      .replace(/<\/?[a-zA-Z][^>]*>/g, brancos);   // tags de abertura e fecho
+    const linhaDe = (idx) => texto.slice(0, idx).split('\n').length;
+    const excertoDe = (li) => (cru[li - 1] ?? '').trim().slice(0, 110);
+
     for (let li = 0; li < limpo.length; li++) {
       const L = limpo[li];
       if (!L.trim()) continue;
       const exc = excepcionado(f, cru[li]);
       if (exc) { declarados.push({ ficheiro: f, linha: li + 1, porque: exc.porque }); continue; }
-      const excerto = () => cru[li].trim().slice(0, 110);
       for (const claim of T.numero.claims_banidos) {
         const palavra = E_PALAVRA(claim);
         const alvo = palavra ? L.toLowerCase() : L;
@@ -331,11 +371,19 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
             const janela = L.slice(Math.max(0, i - PERTO), i + claim.length + PERTO);
             if (!VALOR.test(janela)) continue;
           }
-          achados.push({ ficheiro: f, linha: li + 1, claim, excerto: excerto() });
+          achados.push({ ficheiro: f, linha: li + 1, claim, excerto: excertoDe(li + 1) });
         }
       }
-      for (const [nome, re] of padroes) {
-        if (re.test(L)) achados.push({ ficheiro: f, linha: li + 1, claim: nome, excerto: excerto() });
+    }
+
+    for (const [nome, re] of padroes) {
+      re.lastIndex = 0;
+      for (const m of texto.matchAll(re)) {
+        const li = linhaDe(m.index);
+        /* A excepção declarada vale para o padrão tal como vale para o literal:
+           senão a secção «Honest numbers» do README voltava pela porta lateral. */
+        if (excepcionado(f, cru[li - 1] ?? '')) continue;
+        achados.push({ ficheiro: f, linha: li, claim: nome, excerto: excertoDe(li) });
       }
     }
   }

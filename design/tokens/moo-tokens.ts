@@ -270,13 +270,14 @@ export const MOO = {
     "claims_padroes": [
       [
         "poupanca-computada",
-        "%\\s*(?:less|cheaper|menos|off)\\b"
+        "%\\s{0,120}(?:smaller|cheaper|less|lower|menos|off|below)\\b"
       ],
       [
         "cifra-poupada",
         "(?:sav(?:ed|ings)|poupan\\w*)[^\\n]{0,40}?\\$\\s?[\\d{]|\\$\\s?[\\d{][^\\n]{0,40}?\\b(?:sav(?:ed|ings)|poupan\\w*)"
       ]
-    ]
+    ],
+    "claims_padroes_nota": "Os padroes correm sobre o ficheiro inteiro, nao linha a linha: em JSX um claim nasce partido. Medido a 2026-08-27: TwoTerminalDemo.tsx:342-343 publica {pctSaved}% numa linha e \"cheaper on this trace\" na seguinte, e :172 diz \"{pctSaved}% smaller\" com a percentagem COMPUTADA. Nenhum dos dois tinha substring proibida, e \"smaller\" nem estava no vocabulario. Foram vistos ao olhar para a home renderizada, nao para o relatorio do portao."
   }
 } as const;
 
