@@ -17,6 +17,18 @@ const head = `/* GERADO por tools/moo-tokens-build.mjs a partir de tokens/moo-to
 
 const vars = (obj, ind = '  ') => kebab(obj).map(([k, v]) => `${ind}--moo-${k}: ${v};`).join('\n');
 
+/* A grelha vinha CRAVADA aqui: `rgba(232,136,138,.05)` e `64px` escritos à mão
+   dentro do template, num ficheiro cuja tese inteira é que a fonte é o JSON.
+   Era uma segunda fonte de verdade escondida no gerador — a classe de defeito
+   que este pacote existe para apanhar noutros sítios. Agora sai de
+   `layout.grelha`, e a cor deriva de `color.tinta.accent`. */
+const G = T.layout.grelha;
+const rgbaGrelha = (alfa) => {
+  const hex = T.color.tinta[G.linha_cor] ?? T.color.tinta.accent;
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
+  return `rgba(${r},${g},${b},${alfa})`;
+};
+
 /* As duas paletas são emitidas TAMBÉM com o tema no nome, e não só através do
    token activo. A razão é mecânica: um consumidor que queira a paleta `papel`
    sem depender do atributo `[data-moo-theme]` no DOM — como
@@ -66,12 +78,12 @@ ${Object.entries(T.type.scale).map(([k, s]) => {
 /* ── LAYOUT · Papel Milimétrico (direcção fixada em ${T.$meta.direccao.decidida_em}) ── */
 .moo-mm { position: absolute; inset: 0; pointer-events: none;
   background-image:
-    linear-gradient(rgba(232,136,138,.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232,136,138,.05) 1px, transparent 1px),
-    linear-gradient(rgba(232,136,138,.11) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232,136,138,.11) 1px, transparent 1px);
-  background-size: ${T.layout.grelha.base_px}px ${T.layout.grelha.base_px}px,
-                   ${T.layout.grelha.base_px}px ${T.layout.grelha.base_px}px, 64px 64px, 64px 64px; }
+    linear-gradient(${rgbaGrelha(G.linha_fina_alfa)} 1px, transparent 1px),
+    linear-gradient(90deg, ${rgbaGrelha(G.linha_fina_alfa)} 1px, transparent 1px),
+    linear-gradient(${rgbaGrelha(G.linha_forte_alfa)} 1px, transparent 1px),
+    linear-gradient(90deg, ${rgbaGrelha(G.linha_forte_alfa)} 1px, transparent 1px);
+  background-size: ${G.base_px}px ${G.base_px}px,
+                   ${G.base_px}px ${G.base_px}px, ${G.bloco_px}px ${G.bloco_px}px, ${G.bloco_px}px ${G.bloco_px}px; }
 .moo-folha { position: relative; padding: 0 ${T.layout.grelha.folha_padding_px}px; }
 .moo-secao { display: grid; grid-template-columns: ${T.layout.grelha.margem_px}px 1fr;
   border-top: 1px solid var(--moo-line-strong); padding: 48px 0; }

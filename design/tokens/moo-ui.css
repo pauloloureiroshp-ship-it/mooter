@@ -146,10 +146,10 @@
 /* ── LAYOUT · Papel Milimétrico (direcção fixada em 2026-08-27) ── */
 .moo-mm { position: absolute; inset: 0; pointer-events: none;
   background-image:
-    linear-gradient(rgba(232,136,138,.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232,136,138,.05) 1px, transparent 1px),
-    linear-gradient(rgba(232,136,138,.11) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232,136,138,.11) 1px, transparent 1px);
+    linear-gradient(rgba(232,136,138,0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,136,138,0.07) 1px, transparent 1px),
+    linear-gradient(rgba(232,136,138,0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,136,138,0.16) 1px, transparent 1px);
   background-size: 8px 8px,
                    8px 8px, 64px 64px, 64px 64px; }
 .moo-folha { position: relative; padding: 0 80px; }
