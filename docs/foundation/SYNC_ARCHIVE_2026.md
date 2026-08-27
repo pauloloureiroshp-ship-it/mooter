@@ -8694,3 +8694,45 @@ instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench =
 **A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
 (`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
 `/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+
+### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
+
+**#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
+conflitos: os dois `package.json` por **união** (escolher um lado desligava testes dos dois lados);
+o painel com a **arquitectura do #396 e a regra do #401 lá dentro** — a premissa de que "o #396 já
+antecipa o #401" **não se confirma**, o ramo da pausa vinha antes do teste de morte e tomá-lo tal e
+qual reintroduzia o defeito do beacon a 3592 s; e o `SYNC.md` do #396, que era o correcto (219 vs
+390 linhas) mas tinha deixado de fora **uma** das quatro entradas de 25/08 do main — a do PC, com a
+hipótese do autor refutada contra 57 etiquetas. Resgatada para o arquivo.
+
+**O P1 do kickoff inverteu-se.** Pedia religar P4 e P5 apagando `activo: false`. O P4 não é
+"zero-LLM": é um enunciado de GPU para um defeito com **0 ocorrências** neste repo (0 de 443 `.md`
+acabam a meio de uma palavra). O P5 não mede modelos: é `falso-em-ambos`. E as **"+603 linhas de
+ledger da madrugada, $0" não eram saúde** — o processo vivo era de 25/08 08:13, tinha o catálogo
+antigo em memória, e passou ~15 h a produzir **P2/P3**, os dois pilares de que o dono decidiu 19
+achados à mão e não guardou nenhum.
+
+Em vez disso, a correcção um nível acima: **a rotação passou a derivar de medição**
+(`portao.mjs` + `podeEntrar`, o mesmo portão que o #389 pôs nas regras do ancorado na véspera
+*"porque foi assim que o P11 entrou"* — e que aos pilares, de onde o problema veio, nunca foi
+aplicado). Forçar `activo: true` nos onze dá **zero**, cada recusa com o seu número. Cinco
+comentários que diziam "reversível numa linha" passaram a ser falsos e foram corrigidos.
+
+**Loop relançado** sob launchd (PID 11825) com o código de `main` — o `ai.mooter.runner` estava
+carregado mas **não era ele que corria** (PID `-`; o processo real fora lançado à mão e segurava o
+lock). A objecção que ontem bloqueou o relançamento (`nextPillar(n,[])` a falhar em silêncio) era
+um **defeito corrigível**: com `ids=[]` o escalonador dizia `all capped / paused / suspended`, falso
+nas três coisas que nomeia e a mandar o dono triar uma fila que não existe. Corrigido. Ao vivo às
+11:18Z o painel pinta `holding · zero pilares na rotacao — nenhum passa o portao de medicao`.
+
+⚠️ **O ledger NÃO cresce, e é o resultado certo** — declarado, não disfarçado. Sem pilar não há
+ronda. Voltar a crescer exige um pilar que passe o portão (≥10 reais, ≥30 %, triados à mão): onda
+de medição, não booleano. #400/#402 avaliados e **não merjidos** — continuam 🔴 por adversário
+externo, e o codex não está nesta máquina.
+
+Vermelhos: espelho do cockpit **42 ficheiros atrás** e o LaunchAgent aponta **directo ao checkout** ·
+`.mooter/pilares.json` **contorna o portão** novo · a condição do #400 é uma linha no `SYNC.md`, não
+o veto em código.
+
+gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
+detalhe em `_handoff/cc-perfeito-progress.md`
