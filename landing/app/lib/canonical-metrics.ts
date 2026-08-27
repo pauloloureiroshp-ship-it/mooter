@@ -94,8 +94,19 @@ export const M = {
   execucoes: String(EXECUCAO.chamadas),
   execucoesLocal: String(EXECUCAO.local),
   execucoesOpus: String(EXECUCAO.emOpus),
+  /* ⚠️ EM INGLÊS, e a razão não é estilo.
+     Estas duas strings são renderizadas na home — `page.tsx:79` — que é uma
+     página em inglês. Estiveram em PORTUGUÊS em produção: quem abrisse
+     mooter.ai lia «Nenhum token é registado, por isso não há valor em dólares
+     medido» a meio de um parágrafo inglês.
+     E era precisamente a frase que existe para provar honestidade. Uma ressalva
+     que o leitor não entende não é uma ressalva — é ruído que faz duvidar de
+     tudo o resto na página. Medido no HTML servido por mooter.ai a 2026-08-27.
+     O resto deste ficheiro fica em PT: são comentários, e o canon do repo é
+     conversa em PT, código e superfície pública em EN. */
+
   /** A frase inteira. É deliberadamente longa: encurtá-la perde a condição. */
-  frase: `O router recomendou tier local ou barato em ${RECOMENDACAO.paraTierBarato} de ${RECOMENDACAO.promptsClassificados} prompts classificados (${recomendadoBaratoPct}%). Nas mesmas sessões, das ${EXECUCAO.chamadas} execuções registadas, ${EXECUCAO.emOpus} correram em Opus e ${EXECUCAO.local} correu localmente.`,
+  frase: `The router recommended a local or cheap tier for ${RECOMENDACAO.paraTierBarato} of ${RECOMENDACAO.promptsClassificados} classified prompts (${recomendadoBaratoPct}%). In those same sessions, of the ${EXECUCAO.chamadas} recorded executions, ${EXECUCAO.emOpus} ran on Opus and ${EXECUCAO.local} ran locally.`,
   /** A ressalva. Vai a par com a frase, sempre. */
-  ressalva: 'Nenhum token é registado, por isso não há valor em dólares medido — e não publicamos nenhum.',
+  ressalva: 'No tokens are logged, so there is no measured dollar figure — and we publish none.',
 } as const;
