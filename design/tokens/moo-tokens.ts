@@ -34,12 +34,12 @@ export const MOO = {
       "text": "#1A1613",
       "text-2": "#3A332C",
       "muted": "#6F665A",
-      "faint": "#9A8F7E",
+      "faint": "#726859",
       "accent": "#B4454B",
-      "accent-2": "#E8888A",
+      "accent-2": "#A53F45",
       "on-accent": "#FFFFFF",
       "ok": "#347650",
-      "warn": "#B89050",
+      "warn": "#826435",
       "bad": "#AD4D3B"
     },
     "tier": {

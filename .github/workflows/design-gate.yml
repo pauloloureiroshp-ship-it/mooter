@@ -9,24 +9,28 @@ name: design-gate
 # mesmo que tudo pareça melhor.
 #   (decisão 2026-08-27 · 20-decisions/2026-08-27-design-system-do-mooter-a-fonte-e-o-portao.md)
 #
-# ⚠️ O QUE ESTE WORKFLOW **NÃO** FAZ, E PORQUÊ
+# O PORTÃO ESTÁ LIGADO NO LIMIAR PUBLICADO — e o caminho até aqui importa
 #
-# Não corre `moo-design-check --ci`. O limiar publicado é 8; o índice medido a
-# 2026-08-27, depois de o portão passar a medir a sério e de a onda fechar 39
-# violações reais e reconciliar as cores, é **6,36**. Ligá-lo
-# hoje deixava o `main` vermelho de forma permanente, e um CI cronicamente
-# vermelho aprende-se a ignorar — o mesmo destino que o portão existe para
-# evitar.
+# Durante a maior parte de 2026-08-27 este workflow NÃO corria
+# `moo-design-check --ci`, e dizia-o em voz alta. A razão: o índice era **3,18**
+# depois de o portão passar a medir a sério, e o limiar publicado era 8. Ligá-lo
+# deixava o `main` vermelho de forma permanente — e um CI cronicamente vermelho
+# aprende-se a ignorar, que é o destino exacto que o portão existe para evitar.
 #
-# A saída fácil seria `MOO_LIMIAR=3`. A decisão proíbe-o por escrito: «os
+# A saída fácil era `MOO_LIMIAR=3`. A decisão de 27/08 proíbe-a por escrito: «os
 # limiares sobem quando as verificações `n/d` passarem a medir — nunca por
-# conveniência de uma onda».
+# conveniência de uma onda». Por isso o limiar nunca se moveu, e o que mordia
+# entretanto era só o ratchet («o índice nunca desce»).
 #
-# Então o limiar fica em 8 e por atingir, e o que morde desde já é o RATCHET:
-# o índice nunca desce e nenhuma verificação perde pontos. É a mesma régua do
-# `wave-gate.yml` («a suite não pode piorar»). Quando o índice chegar a 8,
-# troca-se o passo do ratchet por `npm run design:check:ci` e apaga-se este
-# parágrafo.
+# O índice chegou a **8,18**:  3,41 (inflacionado por uma verificação cega)
+#                           →  3,18 (a linha de base honesta)
+#                           →  5,68 (39 violações fechadas)
+#                           →  6,36 (contraste reconciliado com a produção)
+#                           →  8,18 (as superfícies a ler do gerado)
+#
+# Foi o trabalho que subiu até ao limiar, não o limiar que desceu até ao
+# trabalho. O `--ci` está ligado no passo 4; o ratchet FICA no passo 5, porque a
+# margem sobre o limiar é de 0,18 e uma verificação vale entre 0,5 e 2,0 pontos.
 
 on:
   push:
@@ -70,7 +74,7 @@ jobs:
       # ausência de medição vestida de medição. Um portão que nunca falhou é
       # indistinguível de um portão que não funciona, por isso o CI prova
       # primeiro que ele MORDE, e só depois acredita no número que ele dá.
-      - name: O portão morde? (39 testes que plantam o defeito)
+      - name: O portão morde? (50 testes que plantam o defeito)
         run: npm run test:design
 
       # 2 · Gerar, nunca copiar — provado, não afirmado.
@@ -93,6 +97,23 @@ jobs:
           fi
           echo "moo-ui.css e moo-tokens.ts idênticos ao que a fonte gera."
 
+      # 2b · As cópias INLINE também são saída.
+      #
+      # Duas superfícies não podem importar — servidas por HTTP e empacotadas —
+      # e trazem o bloco `:root` para dentro do próprio ficheiro. Enquanto isso
+      # foi cópia manual, com um comentário a dizer "cópia verbatim", ficou velha
+      # NO MESMO DIA: `papel.faint` passou de #9A8F7E (2,70:1) para #726859 e as
+      # cópias mantiveram o valor velho. O auditor visual apanhou-o no sítio mais
+      # irónico — o cartucho `MOOTER · COCKPIT · DES. 011`, o texto que
+      # identifica a folha, ilegível a 2,70:1.
+      #
+      # O `design/README.md` diz que este pacote existe para tornar isso
+      # impossível («o cockpit.html esteve 20 dias atrás precisamente por ser
+      # cópia»). Uma cópia com um comentário a dizer que é cópia continua a ser
+      # uma cópia; agora o bloco é ESCRITO, e este passo prova que está em dia.
+      - name: As copias inline estao em dia
+        run: npm run design:inline:ci
+
       # 3 · O token tem de continuar a ser o que a produção serve.
       #
       # O portão pontua contraste sobre `moo-tokens.json`. A 2026-08-27 mediu-se
@@ -111,13 +132,26 @@ jobs:
       - name: O token e a produção não podem divergir
         run: npm run design:reconciliar:ci
 
-      # 4 · O ratchet: vermelho se piorou.
-      - name: O índice não pode descer
+      # 4 · O PORTÃO A SÉRIO, no limiar publicado.
+      #
+      # Este passo esteve desligado durante a maior parte de 2026-08-27, com a
+      # razão escrita no cabeçalho: o índice era 3,18 e ligar `--ci` deixava o
+      # `main` vermelho de forma permanente. Baixar `MOO_LIMIAR` estava proibido
+      # por escrito. Liga-se agora porque o índice passou o limiar — 8,18 — e
+      # não porque o limiar tenha vindo ao encontro do índice.
+      - name: O portao, no limiar publicado
+        run: npm run design:check:ci
+
+      # 5 · E o ratchet FICA. O limiar de 8 e o chao; o ratchet impede que se
+      # perca terreno DENTRO do verde — a margem sobre o limiar e de 0,18, e uma
+      # verificacao vale 0,5 a 2,0 pontos. Sem ele, cair de 8,18 para 8,01 passava
+      # despercebido.
+      - name: O indice nao pode descer
         run: npm run design:ratchet:ci
 
-      # 5 · O número, sempre visível — subiu ou não.
+      # 6 · O número, sempre visível — subiu ou não.
       #
-      # `moo-design-check` já correu dentro do ratchet; isto reimprime o
+      # `moo-design-check` já correu nos passos acima; isto reimprime o
       # relatório humano no log para que o índice apareça em toda a corrida, e
       # não só quando alguém abre o JSON.
       - name: Publicar o Índice de Coerência Visual

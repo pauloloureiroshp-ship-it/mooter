@@ -72,12 +72,12 @@
       "text": "#1A1613",
       "text-2": "#3A332C",
       "muted": "#6F665A",
-      "faint": "#9A8F7E",
+      "faint": "#726859",
       "accent": "#B4454B",
-      "accent-2": "#E8888A",
+      "accent-2": "#A53F45",
       "on-accent": "#FFFFFF",
       "ok": "#347650",
-      "warn": "#B89050",
+      "warn": "#826435",
       "bad": "#AD4D3B"
     },
     "tier": {
@@ -384,6 +384,22 @@
       [
         "papel.on-accent",
         "papel.accent"
+      ],
+      [
+        "papel.faint",
+        "papel.bg"
+      ],
+      [
+        "papel.warn",
+        "papel.bg"
+      ],
+      [
+        "papel.accent-2",
+        "papel.bg"
+      ],
+      [
+        "tinta.accent-2",
+        "tinta.bg"
       ]
     ],
     "correccoes_aplicadas": {
@@ -428,6 +444,29 @@
         "de": 4.1,
         "para": 5.39,
         "porque": "Nao precisou de mudanca propria: subiu sozinho quando papel.accent desceu."
+      },
+      "papel.faint": {
+        "era": "#9A8F7E",
+        "agora": "#726859",
+        "de": 2.7,
+        "para": 4.65,
+        "deltaL": -15,
+        "porque": "Nao tinha par declarado, por isso o portao dizia \"16 pares, todos >= 4.5\" e nunca o via. 2.70 e abaixo de AA-GRANDE."
+      },
+      "papel.warn": {
+        "era": "#B89050",
+        "agora": "#826435",
+        "de": 2.5,
+        "para": 4.67,
+        "deltaL": -16,
+        "porque": "Idem, sem par. A regressao apareceu ao ligar o moo-pilot-shell aos tokens: o literal que la estava (#8a5600) dava 5.23:1 e o token dava 2.50. Ligar a fonte unica a um token pior e um retrocesso disfarcado de arrumacao."
+      },
+      "papel.accent-2": {
+        "era": "#E8888A",
+        "agora": "#A53F45",
+        "de": 2.14,
+        "para": 5.25,
+        "porque": "Era o rosa do tema ESCURO a servir de texto no tema CLARO — 2.14:1, ilegível, em quatro sítios do globals.css que o usam como `color:` (`:1215`, `:1229`, `:1261`, `:1370`). Passa a derivar do papel.accent (#B4454B) com o mesmo matiz e L-4, em vez de ser importado do outro tema."
       }
     }
   },

@@ -15,39 +15,167 @@
      Artifact constraints honoured: self-contained, zero CDN, zero
      storage, light-first (color-scheme: light), dark toggle kept.
      ============================================================ */
+
+  /* ── GRAMÁTICA DA MARCA ─────────────────────────────────────────────────
+     Cópia VERBATIM do :root de design/tokens/moo-ui.css (que é gerado de
+     design/tokens/moo-tokens.json). Está inline porque o Cockpit é
+     auto-contido: zero CDN, zero @import. Não editar aqui — a fonte é o
+     JSON; qualquer alteração feita nesta cópia é apagada na próxima geração.
+     ────────────────────────────────────────────────────────────────────── */
+/* MOO:TOKENS:INICIO — GERADO por design/tools/moo-inline-sync.mjs. NÃO EDITAR. */
+:root {
+  --moo-tinta-bg: #0B0A09;
+  --moo-tinta-bg-2: #0F0E0C;
+  --moo-tinta-surface: #141311;
+  --moo-tinta-surface-2: #1C1A17;
+  --moo-tinta-line: #252220;
+  --moo-tinta-line-strong: #302C28;
+  --moo-tinta-line-soft: #1E1B19;
+  --moo-tinta-text: #F2EDE6;
+  --moo-tinta-text-2: #C9C2B8;
+  --moo-tinta-muted: #8A8076;
+  --moo-tinta-faint: #84786B;
+  --moo-tinta-accent: #E8888A;
+  --moo-tinta-accent-2: #F2A5A5;
+  --moo-tinta-on-accent: #1A0E0E;
+  --moo-tinta-ok: #4CAF6A;
+  --moo-tinta-warn: #D4C090;
+  --moo-tinta-bad: #D46A5A;
+  --moo-papel-bg: #F2ECDF;
+  --moo-papel-bg-2: #EBE3D1;
+  --moo-papel-surface: #FBF7EE;
+  --moo-papel-surface-2: #FFFDF7;
+  --moo-papel-line: #D9D0BB;
+  --moo-papel-line-strong: #C8BCA0;
+  --moo-papel-line-soft: #E8E4DB;
+  --moo-papel-text: #1A1613;
+  --moo-papel-text-2: #3A332C;
+  --moo-papel-muted: #6F665A;
+  --moo-papel-faint: #726859;
+  --moo-papel-accent: #B4454B;
+  --moo-papel-accent-2: #A53F45;
+  --moo-papel-on-accent: #FFFFFF;
+  --moo-papel-ok: #347650;
+  --moo-papel-warn: #826435;
+  --moo-papel-bad: #AD4D3B;
+  --moo-tier-web-t0: #4CAF6A;
+  --moo-tier-web-t1: #5A9BD4;
+  --moo-tier-web-t2: #A88BD4;
+  --moo-tier-web-t3: #D46A5A;
+  --moo-tier-papel-t0: #3D8B5E;
+  --moo-tier-papel-t1: #3D6FA8;
+  --moo-tier-papel-t2: #7A5EA8;
+  --moo-tier-papel-t3: #B8523F;
+  --moo-tier-terminal-t0: #4CAF6A;
+  --moo-tier-terminal-t1: #5A9BD4;
+  --moo-tier-terminal-t2: #D4C090;
+  --moo-tier-terminal-t3: #D46A5A;
+
+  /* activos — tinta por omissão; o bloco [data-moo-theme="papel"] remapeia */
+  --moo-bg: #0B0A09;
+  --moo-bg-2: #0F0E0C;
+  --moo-surface: #141311;
+  --moo-surface-2: #1C1A17;
+  --moo-line: #252220;
+  --moo-line-strong: #302C28;
+  --moo-line-soft: #1E1B19;
+  --moo-text: #F2EDE6;
+  --moo-text-2: #C9C2B8;
+  --moo-muted: #8A8076;
+  --moo-faint: #84786B;
+  --moo-accent: #E8888A;
+  --moo-accent-2: #F2A5A5;
+  --moo-on-accent: #1A0E0E;
+  --moo-ok: #4CAF6A;
+  --moo-warn: #D4C090;
+  --moo-bad: #D46A5A;
+  --moo-tier-t0: #4CAF6A;
+  --moo-tier-t1: #5A9BD4;
+  --moo-tier-t2: #A88BD4;
+  --moo-tier-t3: #D46A5A;
+  --moo-term-bg: #0d1117;
+  --moo-term-line: #30363d;
+  --moo-term-head: #161b22;
+  --moo-term-fg: #c9d1d9;
+  --moo-term-dim: #8b949e;
+  --moo-marca-chifre: #B8C0C8;
+  --moo-marca-cabeca: #CCD3DA;
+  --moo-marca-focinho: #EDAEB0;
+  --moo-marca-narina: #C16A6F;
+  --moo-marca-olho: #2C2F33;
+  --moo-marca-brilho: #FFFFFF;
+  --moo-space-xs: 4px;
+  --moo-space-sm: 8px;
+  --moo-space-md: 16px;
+  --moo-space-lg: 24px;
+  --moo-space-xl: 40px;
+  --moo-space-2xl: 64px;
+  --moo-space-band: clamp(4rem, 10vw, 9rem);
+  --moo-space-grid: 4;
+  --moo-radius-control: 6px;
+  --moo-radius-card: 10px;
+  --moo-radius-window: 14px;
+  --moo-radius-hero: 16px;
+  --moo-radius-pill: 999px;
+  --moo-shadow-term: 0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2);
+  --moo-shadow-lift: 0 40px 100px -40px rgba(0,0,0,0.6);
+  --moo-font-sans: var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --moo-font-mono: var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace;
+  --moo-font-hand: var(--font-caveat, 'Caveat'), cursive;
+  --moo-ms-interact: 140ms;
+  --moo-ms-surface: 160ms;
+  --moo-ms-reveal: 500ms;
+}
+/* MOO:TOKENS:FIM */
+  /* cartucho de desenho técnico — regra verbatim de moo-ui.css */
+.moo-cartucho { display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--moo-font-mono); font-size: 10px; letter-spacing: .24em;
+  color: var(--moo-faint); border-bottom: 1px solid var(--moo-line-strong); padding-bottom: 16px; }
+
   :root{
     color-scheme: light;
     /* V13 light inks — calibrated for paper-white (amber #8a5f00, slate #3e6280) */
-    --bg:#f2f0ea; --panel:#fbfaf6; --panel2:#edeae1; --card:#f6f4ee; --term:#eceadf;
+    --bg:var(--moo-papel-bg); --panel:#fbfaf6; --panel2:#edeae1; --card:#f6f4ee; --term:#eceadf;
     --border:#c6c2b6; --border-soft:#d7d3c7;
     --fg:#26241f; --dim:#57534a; --faint:#7d7869;
     --terracotta:#b9532f;
-    --green:#1d7a43; --green-dim:rgba(29,122,67,.10); --green-bd:rgba(29,122,67,.45);
+    --green:var(--moo-papel-ok);
+    --green-dim:color-mix(in srgb,var(--green) 10%,transparent);
+    --green-bd:color-mix(in srgb,var(--green) 45%,transparent);
     --amber:#8a5f00; --amber-dim:rgba(138,95,0,.09); --amber-bd:rgba(138,95,0,.50);
-    --red:#b13a26; --red-dim:rgba(177,58,38,.08); --red-bd:rgba(177,58,38,.45);
+    --red:var(--moo-papel-bad);
+    --red-dim:color-mix(in srgb,var(--red) 8%,transparent);
+    --red-bd:color-mix(in srgb,var(--red) 45%,transparent);
     --blue:#2b6ca3;
     --nd:#3e6280; --nd-dim:rgba(62,98,128,.09); --nd-bd:rgba(62,98,128,.45);
     --flag:#6f6753; --flag-dim:rgba(111,103,83,.08); --flag-bd:rgba(111,103,83,.50);
     --zebra:#eeebe2; --zebraq:rgba(73,63,36,.05); --hairline:#dedacd; --barbg:#d9d5c8; --bar2:#e4e0d4;
     --glyph:#4a4538; --tipbg:#fffdf6;
-    --mono:ui-monospace,'Cascadia Code','SF Mono',Consolas,Menlo,monospace;
-    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:var(--moo-font-mono);
+    --sans:var(--moo-font-sans);
     --fs1:11px; --fs2:13px; --fs3:16px; --fs4:22px;
+    /* activos do moo-ui apontados ao tema claro (o gerado nasce em tinta) */
+    --moo-faint:var(--moo-papel-faint); --moo-line-strong:var(--moo-papel-line-strong);
   }
   html[data-theme="dark"]{
     color-scheme: dark;
-    --bg:#1f1e1b; --panel:#262522; --panel2:#2b2a26; --card:#242320; --term:#141311;
+    --bg:var(--moo-tinta-bg); --panel:#262522; --panel2:#2b2a26; --card:#242320; --term:#141311;
     --border:#3a3833; --border-soft:#33322d;
     --fg:#e8e6e1; --dim:#9c988e; --faint:#6b675e;
     --terracotta:#D97757;
-    --green:#6fbf85; --green-dim:rgba(111,191,133,.10); --green-bd:rgba(111,191,133,.40);
+    --green:var(--moo-tinta-ok);
+    --green-dim:color-mix(in srgb,var(--green) 10%,transparent);
+    --green-bd:color-mix(in srgb,var(--green) 40%,transparent);
     --amber:#dfae5e; --amber-dim:rgba(223,174,94,.09); --amber-bd:rgba(223,174,94,.38);
-    --red:#e0705c;  --red-dim:rgba(224,112,92,.08);  --red-bd:rgba(224,112,92,.40);
+    --red:var(--moo-tinta-bad);
+    --red-dim:color-mix(in srgb,var(--red) 8%,transparent);
+    --red-bd:color-mix(in srgb,var(--red) 40%,transparent);
     --blue:#8fb8d8;
     --nd:#8ea4b8; --nd-dim:rgba(142,164,184,.07); --nd-bd:rgba(142,164,184,.30);
     --flag:#a89f8d; --flag-dim:rgba(168,159,141,.06); --flag-bd:rgba(168,159,141,.38);
     --zebra:#21201d; --zebraq:rgba(0,0,0,.09); --hairline:#2c2b27; --barbg:#33312b; --bar2:#2b2a26;
     --glyph:#d5d2ca; --tipbg:#141311;
+    --moo-faint:var(--moo-tinta-faint); --moo-line-strong:var(--moo-tinta-line-strong);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -839,6 +967,9 @@
     <path fill="#2C2F33" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>
   </symbol>
 </svg>
+
+<!-- cartucho de desenho técnico: identificação à esquerda, revisão à direita -->
+<div class="moo-cartucho"><span>MOOTER · COCKPIT</span><span>DES. 011</span></div>
 
 <!-- 1 · LIVE SIGNATURE -->
 <div class="el sig">

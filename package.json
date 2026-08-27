@@ -42,7 +42,9 @@
     "design:deck": "node design/deck/moo-deck-build.mjs",
     "design:deck:json": "node design/deck/moo-deck-build.mjs --json",
     "design:deck:ci": "node design/deck/moo-deck-build.mjs --estrito",
-    "test:deck": "node --test design/deck/moo-deck-build.test.mjs"
+    "test:deck": "node --test design/deck/moo-deck-build.test.mjs",
+    "design:inline": "node design/tools/moo-inline-sync.mjs",
+    "design:inline:ci": "node design/tools/moo-inline-sync.mjs --check"
   },
   "engines": {
     "node": ">=22"

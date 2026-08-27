@@ -15,6 +15,7 @@ import { resolve, dirname, join, relative, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { build } from './moo-tokens-build.mjs';
+import { blocoDeTokens, aplicar as aplicarInline, ALVOS as ALVOS_INLINE } from './moo-inline-sync.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DESIGN = resolve(HERE, '..');
@@ -406,11 +407,40 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const derivou = pares.filter(([p, exp]) => {
     try { return readFileSync(join(DESIGN, p), 'utf8') !== exp; } catch { return true; }
   }).map(([p]) => p);
+
+  /* ── As CÓPIAS INLINE também contam ─────────────────────────────────────
+     Esta verificação media só `moo-ui.css` e `moo-tokens.ts`. Mas duas
+     superfícies não podem importar — são servidas por HTTP e empacotadas — e
+     por isso trazem o `:root` para dentro do próprio ficheiro. Enquanto isso
+     era uma cópia manual com um comentário a dizer "cópia verbatim", ficava
+     velha em silêncio.
+     Ficou velha no MESMO DIA: `papel.faint` foi corrigido de #9A8F7E (2,70:1)
+     para #726859 e as cópias mantiveram o valor velho. O auditor visual
+     apanhou-o no sítio mais irónico — o cartucho `MOOTER · COCKPIT · DES. 011`,
+     o texto que identifica a folha, a 2,70:1.
+     `design/README.md` diz que este pacote existe para tornar isso impossível
+     («o cockpit.html esteve 20 dias atrás precisamente por ser cópia»). Uma
+     cópia com um comentário a dizer que é cópia continua a ser uma cópia. */
+  const bloco = blocoDeTokens(esperado.css);
+  const inlineVelhas = [], inlineSemMarcas = [];
+  for (const rel of ALVOS_INLINE) {
+    const s = ler(rel);
+    if (s === null) continue;
+    const novo = aplicarInline(s, bloco);
+    if (novo === null) inlineSemMarcas.push(rel);
+    else if (novo !== s) inlineVelhas.push(rel);
+  }
+
+  const mal = derivou.length + inlineVelhas.length + inlineSemMarcas.length;
   reg('gerar-nao-copiar', 'Gerar, nunca copiar', 1.5, {
-    estado: derivou.length ? 'falha' : 'passa', derivou,
-    pontos: derivou.length ? 0 : 1.5,
-    porque: derivou.length ? `${derivou.join(', ')} diverge(m) de moo-tokens.json — correr moo-tokens-build`
-                           : 'css e ts idênticos ao que a fonte gera',
+    estado: mal ? 'falha' : 'passa', derivou,
+    inline_desactualizadas: inlineVelhas, inline_sem_marcas: inlineSemMarcas,
+    pontos: mal ? 0 : 1.5,
+    porque: mal
+      ? [derivou.length && `${derivou.join(', ')} diverge(m) de moo-tokens.json`,
+         inlineVelhas.length && `${inlineVelhas.length} cópia(s) inline velha(s) — correr moo-inline-sync`,
+         inlineSemMarcas.length && `${inlineSemMarcas.length} sem as marcas MOO:TOKENS`].filter(Boolean).join(' · ')
+      : `css e ts idênticos à fonte · ${ALVOS_INLINE.length} cópias inline em dia`,
   });
 }
 
@@ -467,6 +497,24 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   });
   const falha = linhas.filter(l => l.passa === false);
   const soGrande = falha.filter(l => l.grande_ok);
+  /* ── O que esta verificação NÃO estava a medir ──────────────────────────
+     Media só os pares que alguém se lembrou de escrever em `contraste.pares`,
+     e depois imprimia "16 pares, todos ≥ 4.5:1" — que se lê como cobertura.
+     Não era: `papel.warn` (2,50:1), `papel.faint` (2,70:1) e `papel.accent-2`
+     (2,14:1) estavam todos abaixo de AA-GRANDE, todos usados como `color:` em
+     produção, e nenhum tinha par. O `warn` só apareceu porque ligar o
+     `moo-pilot-shell` aos tokens SUBSTITUIU um literal de 5,23:1 por um token
+     de 2,50 — um retrocesso disfarçado de arrumação.
+     Agora as cores de primeiro plano sem par saem declaradas. Não medido é
+     `n/d`, e um `n/d` que ninguém vê é indistinguível de um verde. */
+  const FRENTE = ['text', 'text-2', 'muted', 'faint', 'accent', 'accent-2', 'ok', 'warn', 'bad'];
+  const temPar = new Set(T.contraste.pares.map(([fg]) => fg));
+  const semPar = [];
+  for (const tema of ['tinta', 'papel']) {
+    for (const nome of FRENTE) {
+      if (T.color[tema]?.[nome] && !temPar.has(`${tema}.${nome}`)) semPar.push(`${tema}.${nome}`);
+    }
+  }
   reg('contraste', 'Contraste AA', 1.5, {
     estado: falha.length === 0 ? 'passa' : soGrande.length === falha.length ? 'aviso' : 'falha',
     pares: linhas,
@@ -475,9 +523,14 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
       const c = T.contraste.correccoes_propostas?.[k];
       return `${l.par} = ${l.racio}:1` + (c?.proposto ? ` → proposto ${c.proposto} (${c.para}:1)` : '');
     }),
+    /* Declarado, não escondido: uma cor de primeiro plano sem par é uma cor que
+       esta verificação NÃO mede, e dizê-lo é a diferença entre cobertura e
+       aparência de cobertura. */
+    sem_par_declarado: semPar,
     pontos: falha.length === 0 ? 1.5 : soGrande.length === falha.length ? 0.75 : 0,
-    porque: falha.length === 0 ? `${linhas.length} pares, todos ≥ ${T.contraste.minimo_normal}:1`
-      : `${falha.length} par(es) abaixo de AA — correcção calculada em moo-tokens.json, por aplicar`,
+    porque: (falha.length === 0 ? `${linhas.length} pares, todos ≥ ${T.contraste.minimo_normal}:1`
+      : `${falha.length} par(es) abaixo de AA — correcção calculada em moo-tokens.json, por aplicar`)
+      + (semPar.length ? ` · ⚠️ ${semPar.length} cor(es) de texto SEM par: ${semPar.join(', ')}` : ''),
   });
 }
 

@@ -486,3 +486,71 @@ test('numero-honesto NAO acusa CSS nem uma comparacao de preco de tabela', (t) =
   assert.equal(num.achados.filter(a => a.claim === 'poupanca-computada').length, 0,
     `nenhum destes e um claim de poupanca. achados=${JSON.stringify(num.achados)}`);
 });
+
+test('contraste DECLARA as cores de texto que nao esta a medir', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  /* A verificacao media so os pares escritos a mao em `contraste.pares` e depois
+     imprimia "16 pares, todos >= 4.5:1" — que se le como cobertura. Nao era:
+     `papel.warn` (2,50:1), `papel.faint` (2,70:1) e `papel.accent-2` (2,14:1)
+     estavam abaixo de AA-GRANDE, os tres usados como `color:` em producao, e
+     nenhum tinha par. Um `n/d` que ninguem ve e indistinguivel de um verde. */
+  const c = v(corre(b).rel, 'contraste');
+  assert.ok(Array.isArray(c.sem_par_declarado),
+    'o relatorio tem de dizer o que NAO mediu');
+  assert.deepEqual(c.sem_par_declarado, [],
+    `toda a cor de primeiro plano tem de ter par. sem par: ${c.sem_par_declarado.join(', ')}`);
+});
+
+test('contraste MORDE uma cor de texto que perca o par', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  /* Tirar um par e a forma silenciosa de fazer um problema desaparecer do
+     relatorio. Tem de aparecer na frase, nao so no JSON. */
+  const jsonPath = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
+  const T = JSON.parse(readFileSync(jsonPath, 'utf8'));
+  T.contraste.pares = T.contraste.pares.filter(([fg]) => fg !== 'papel.warn');
+  writeFileSync(jsonPath, JSON.stringify(T, null, 2));
+
+  const c = v(corre(b).rel, 'contraste');
+  assert.deepEqual(c.sem_par_declarado, ['papel.warn']);
+  assert.match(c.porque, /SEM par/, 'a frase tem de o dizer, nao so o JSON');
+});
+
+test('gerar-nao-copiar MORDE uma copia INLINE desactualizada', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  /* Duas superficies nao podem importar (servidas por HTTP, empacotadas) e por
+     isso trazem o `:root` para dentro. Enquanto foi copia manual — com um
+     comentario a dizer "copia verbatim" — ficou velha NO MESMO DIA:
+     `papel.faint` passou de #9A8F7E (2,70:1) a #726859 e as copias mantiveram o
+     valor velho. O auditor apanhou-o no sitio mais ironico: o cartucho
+     `MOOTER · COCKPIT · DES. 011`, o texto que identifica a folha, a 2,70:1. */
+  const INI = '/* MOO:TOKENS:INICIO — GERADO por design/tools/moo-inline-sync.mjs. NÃO EDITAR. */';
+  const FIM_M = '/* MOO:TOKENS:FIM */';
+  const velho = `<style>\n${INI}\n:root {\n  --moo-papel-faint: #9A8F7E;\n}\n${FIM_M}\n</style>`;
+  escreve(b.repo, 'tools/cockpit/moo-pilot-shell.html', velho);
+
+  const g = v(corre(b).rel, 'gerar-nao-copiar');
+  assert.equal(g.pontos, 0, `uma copia velha tem de zerar. porque=${g.porque}`);
+  assert.ok(g.inline_desactualizadas.includes('tools/cockpit/moo-pilot-shell.html'));
+  assert.match(g.porque, /inline/);
+});
+
+test('gerar-nao-copiar MORDE uma superficie que perdeu as marcas', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  /* Sem as marcas o bloco nao pode ser escrito — e voltamos a copia manual.
+     Apagar as marcas nao pode ser a forma silenciosa de sair do controlo. */
+  escreve(b.repo, 'tools/cockpit/moo-pilot-shell.html',
+    '<style>:root { --moo-papel-faint: #726859; }</style>');
+
+  const g = v(corre(b).rel, 'gerar-nao-copiar');
+  assert.equal(g.pontos, 0);
+  assert.ok(g.inline_sem_marcas.includes('tools/cockpit/moo-pilot-shell.html'));
+});

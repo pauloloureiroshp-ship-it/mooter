@@ -19,28 +19,169 @@
 -->
 <title>Moo Pilot</title>
 <style>
+  /* ── tokens da marca · COPIA VERBATIM de design/tokens/moo-ui.css ────────
+     Este painel e servido por HTTP a partir de tools/cockpit/ e tem de ser
+     autonomo: nao pode importar um caminho do disco — e dois testes
+     (cockpit-ux q. e queixas q06) proibem qualquer regra de importacao aqui,
+     porque o painel tem de abrir sem rede. Por isso o bloco
+     `:root` do ficheiro GERADO vive aqui inline. NAO EDITAR a mao: regenerar
+     com tools/moo-tokens-build.mjs e recolar.
+     Deste bloco o painel consome so os nomes por tema (`--moo-papel-*` e
+     `--moo-tinta-*`). Os `--moo-*` "activos" ficam no valor que o gerado lhes
+     da (tinta) e NAO sao usados aqui — quem troca de tema sao os tokens do
+     painel, logo a seguir. */
+/* MOO:TOKENS:INICIO — GERADO por design/tools/moo-inline-sync.mjs. NÃO EDITAR. */
+:root {
+  --moo-tinta-bg: #0B0A09;
+  --moo-tinta-bg-2: #0F0E0C;
+  --moo-tinta-surface: #141311;
+  --moo-tinta-surface-2: #1C1A17;
+  --moo-tinta-line: #252220;
+  --moo-tinta-line-strong: #302C28;
+  --moo-tinta-line-soft: #1E1B19;
+  --moo-tinta-text: #F2EDE6;
+  --moo-tinta-text-2: #C9C2B8;
+  --moo-tinta-muted: #8A8076;
+  --moo-tinta-faint: #84786B;
+  --moo-tinta-accent: #E8888A;
+  --moo-tinta-accent-2: #F2A5A5;
+  --moo-tinta-on-accent: #1A0E0E;
+  --moo-tinta-ok: #4CAF6A;
+  --moo-tinta-warn: #D4C090;
+  --moo-tinta-bad: #D46A5A;
+  --moo-papel-bg: #F2ECDF;
+  --moo-papel-bg-2: #EBE3D1;
+  --moo-papel-surface: #FBF7EE;
+  --moo-papel-surface-2: #FFFDF7;
+  --moo-papel-line: #D9D0BB;
+  --moo-papel-line-strong: #C8BCA0;
+  --moo-papel-line-soft: #E8E4DB;
+  --moo-papel-text: #1A1613;
+  --moo-papel-text-2: #3A332C;
+  --moo-papel-muted: #6F665A;
+  --moo-papel-faint: #726859;
+  --moo-papel-accent: #B4454B;
+  --moo-papel-accent-2: #A53F45;
+  --moo-papel-on-accent: #FFFFFF;
+  --moo-papel-ok: #347650;
+  --moo-papel-warn: #826435;
+  --moo-papel-bad: #AD4D3B;
+  --moo-tier-web-t0: #4CAF6A;
+  --moo-tier-web-t1: #5A9BD4;
+  --moo-tier-web-t2: #A88BD4;
+  --moo-tier-web-t3: #D46A5A;
+  --moo-tier-papel-t0: #3D8B5E;
+  --moo-tier-papel-t1: #3D6FA8;
+  --moo-tier-papel-t2: #7A5EA8;
+  --moo-tier-papel-t3: #B8523F;
+  --moo-tier-terminal-t0: #4CAF6A;
+  --moo-tier-terminal-t1: #5A9BD4;
+  --moo-tier-terminal-t2: #D4C090;
+  --moo-tier-terminal-t3: #D46A5A;
+
+  /* activos — tinta por omissão; o bloco [data-moo-theme="papel"] remapeia */
+  --moo-bg: #0B0A09;
+  --moo-bg-2: #0F0E0C;
+  --moo-surface: #141311;
+  --moo-surface-2: #1C1A17;
+  --moo-line: #252220;
+  --moo-line-strong: #302C28;
+  --moo-line-soft: #1E1B19;
+  --moo-text: #F2EDE6;
+  --moo-text-2: #C9C2B8;
+  --moo-muted: #8A8076;
+  --moo-faint: #84786B;
+  --moo-accent: #E8888A;
+  --moo-accent-2: #F2A5A5;
+  --moo-on-accent: #1A0E0E;
+  --moo-ok: #4CAF6A;
+  --moo-warn: #D4C090;
+  --moo-bad: #D46A5A;
+  --moo-tier-t0: #4CAF6A;
+  --moo-tier-t1: #5A9BD4;
+  --moo-tier-t2: #A88BD4;
+  --moo-tier-t3: #D46A5A;
+  --moo-term-bg: #0d1117;
+  --moo-term-line: #30363d;
+  --moo-term-head: #161b22;
+  --moo-term-fg: #c9d1d9;
+  --moo-term-dim: #8b949e;
+  --moo-marca-chifre: #B8C0C8;
+  --moo-marca-cabeca: #CCD3DA;
+  --moo-marca-focinho: #EDAEB0;
+  --moo-marca-narina: #C16A6F;
+  --moo-marca-olho: #2C2F33;
+  --moo-marca-brilho: #FFFFFF;
+  --moo-space-xs: 4px;
+  --moo-space-sm: 8px;
+  --moo-space-md: 16px;
+  --moo-space-lg: 24px;
+  --moo-space-xl: 40px;
+  --moo-space-2xl: 64px;
+  --moo-space-band: clamp(4rem, 10vw, 9rem);
+  --moo-space-grid: 4;
+  --moo-radius-control: 6px;
+  --moo-radius-card: 10px;
+  --moo-radius-window: 14px;
+  --moo-radius-hero: 16px;
+  --moo-radius-pill: 999px;
+  --moo-shadow-term: 0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2);
+  --moo-shadow-lift: 0 40px 100px -40px rgba(0,0,0,0.6);
+  --moo-font-sans: var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --moo-font-mono: var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace;
+  --moo-font-hand: var(--font-caveat, 'Caveat'), cursive;
+  --moo-ms-interact: 140ms;
+  --moo-ms-surface: 160ms;
+  --moo-ms-reveal: 500ms;
+}
+/* MOO:TOKENS:FIM */
+
+  /* Nenhum token deste painel tem valor proprio: cada um aponta ao gerado
+     acima. Claro = tema `papel`, escuro = tema `tinta`.
+     Os fundos tingidos (`--ok-bg` e irmaos) sao derivados por `color-mix` do
+     par (estado, superficie) e por isso so existem uma vez: um `var()` dentro
+     de um custom property resolve no ponto de USO, ja com o valor do tema
+     activo — os blocos escuros nao precisam de os repetir. */
   :root {
-    --bg:#f5f6f8; --panel:#fff; --panel-2:#f0f2f5; --ink:#14171c; --ink-2:#59626f;
-    --ink-3:#8b95a4; --line:#dfe3e9;
-    --ok:#0f7a45; --ok-bg:#e4f4ec; --warn:#8a5600; --warn-bg:#fdf2e0;
-    --bad:#a51f1f; --bad-bg:#fbe9e9; --dead:#59626f; --dead-bg:#ebeef1;
-    --accent:#2b5ede; --accent-ink:#fff;
-    --r:14px; --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
-    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --bg:var(--moo-papel-bg); --panel:var(--moo-papel-surface); --panel-2:var(--moo-papel-bg-2);
+    --ink:var(--moo-papel-text); --ink-2:var(--moo-papel-text-2);
+    --ink-3:var(--moo-papel-muted); --line:var(--moo-papel-line);
+    /* BURACO MEDIDO, nao remendado aqui: papel.warn (#B89050) e um dos dois
+       unicos tokens de papel que moo-tokens.json NAO poe em contraste.pares —
+       e por isso o portao diz "16 pares, todos >= 4.5:1" sem nunca o ver.
+       Medido 2026-08-27 no browser: 2,50:1 sobre --bg, 2,34:1 sobre o proprio
+       --warn-bg. O literal que aqui estava (#8a5600) dava 5,56:1. A troca e uma
+       PERDA de legibilidade em .chip.warn, .sev.med, .dev .backlog e .sev-aviso.
+       Nao se corrige neste ficheiro: inventar um amarelo local recria a segunda
+       fonte de verdade que esta mudanca existe para matar. Corrige-se em
+       design/tokens/moo-tokens.json (valor + par declarado) e regenera-se.
+       No tema escuro nao ha problema: tinta.warn da 10,38:1. */
+    --ok:var(--moo-papel-ok); --warn:var(--moo-papel-warn);
+    --bad:var(--moo-papel-bad); --dead:var(--moo-papel-muted);
+    --accent:var(--moo-papel-accent); --accent-ink:var(--moo-papel-on-accent);
+    --ok-bg:color-mix(in srgb,var(--ok) 14%,var(--panel));
+    --warn-bg:color-mix(in srgb,var(--warn) 18%,var(--panel));
+    --bad-bg:color-mix(in srgb,var(--bad) 13%,var(--panel));
+    --dead-bg:color-mix(in srgb,var(--dead) 12%,var(--panel));
+    --r:var(--moo-radius-window);
+    --mono:var(--moo-font-mono);
+    --sans:var(--moo-font-sans);
   }
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-    --bg:#0d1015; --panel:#161a21; --panel-2:#1c212a; --ink:#e9edf3; --ink-2:#a6b0bd;
-    --ink-3:#6d7787; --line:#252b35;
-    --ok:#5ed49b; --ok-bg:#13301f; --warn:#e6b45f; --warn-bg:#32250f;
-    --bad:#f28c8c; --bad-bg:#341818; --dead:#8b95a4; --dead-bg:#1f242c;
-    --accent:#6f9bfb; --accent-ink:#0d1015;
+    --bg:var(--moo-tinta-bg); --panel:var(--moo-tinta-surface); --panel-2:var(--moo-tinta-surface-2);
+    --ink:var(--moo-tinta-text); --ink-2:var(--moo-tinta-text-2);
+    --ink-3:var(--moo-tinta-muted); --line:var(--moo-tinta-line);
+    --ok:var(--moo-tinta-ok); --warn:var(--moo-tinta-warn);
+    --bad:var(--moo-tinta-bad); --dead:var(--moo-tinta-muted);
+    --accent:var(--moo-tinta-accent); --accent-ink:var(--moo-tinta-on-accent);
   }}
   :root[data-theme="dark"]{
-    --bg:#0d1015; --panel:#161a21; --panel-2:#1c212a; --ink:#e9edf3; --ink-2:#a6b0bd;
-    --ink-3:#6d7787; --line:#252b35;
-    --ok:#5ed49b; --ok-bg:#13301f; --warn:#e6b45f; --warn-bg:#32250f;
-    --bad:#f28c8c; --bad-bg:#341818; --dead:#8b95a4; --dead-bg:#1f242c;
-    --accent:#6f9bfb; --accent-ink:#0d1015;
+    --bg:var(--moo-tinta-bg); --panel:var(--moo-tinta-surface); --panel-2:var(--moo-tinta-surface-2);
+    --ink:var(--moo-tinta-text); --ink-2:var(--moo-tinta-text-2);
+    --ink-3:var(--moo-tinta-muted); --line:var(--moo-tinta-line);
+    --ok:var(--moo-tinta-ok); --warn:var(--moo-tinta-warn);
+    --bad:var(--moo-tinta-bad); --dead:var(--moo-tinta-muted);
+    --accent:var(--moo-tinta-accent); --accent-ink:var(--moo-tinta-on-accent);
   }
   *{box-sizing:border-box}
   body{margin:0;padding:18px;background:var(--bg);color:var(--ink);
@@ -175,9 +316,13 @@
        que o proprio modelo escreve — nao de uma heuristica nossa. */
     code.ev { display:block; opacity:.72; font-size:11px; }
     .diz { margin-top:3px; font-size:12px; line-height:1.35; }
-    .diz.ok   { color:#F2A5A5; }
-    .diz.fp   { color:#8A8076; font-style:italic; }
-    .diz.mudo { color:#8A8076; opacity:.6; }
+    /* Eram tres literais do tema ESCURO (tinta.accent-2 e tinta.muted) usados
+       nos dois temas: no claro, `#F2A5A5` sobre `--panel` da 1,7:1 — texto que
+       nao se le. Passam aos tokens do painel; a distincao ok/fp/mudo continua a
+       viajar no italico e na opacidade, alem da cor. */
+    .diz.ok   { color:var(--ink); }
+    .diz.fp   { color:var(--ink-3); font-style:italic; }
+    .diz.mudo { color:var(--ink-3); opacity:.6; }
 .filtros{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin:.4rem 0 .6rem}
 .filtros label{display:flex;gap:.3rem;align-items:center;font-size:.85em}
 .tri{border:1px solid currentColor;border-radius:6px;padding:.5rem .6rem;margin:.4rem 0}
@@ -314,6 +459,15 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
               animation:ap-scan 2.6s linear infinite }
   @media (prefers-reduced-motion: reduce){ .ap-bar i { animation:none; width:100% ; opacity:.35 } }
 
+  /* Cartucho — a identificacao do desenho a esquerda, a revisao a direita.
+     Geometria e tipografia sao as de `.moo-cartucho` em design/tokens/moo-ui.css;
+     a cor vem dos tokens deste painel para acompanhar o tema claro/escuro em vez
+     de ficar presa aos "activos" (tinta) do bloco gerado. */
+  .moo-cartucho { display:flex; justify-content:space-between; align-items:baseline;
+                  gap:12px; flex-wrap:wrap; font-family:var(--mono); font-size:10px;
+                  letter-spacing:.24em; color:var(--ink-3);
+                  border-bottom:1px solid var(--line); padding-bottom:16px }
+
   .sev-aviso { flex-basis:100%; margin-top:3px; padding:2px 8px; border-radius:6px;
                background:var(--warn-bg); color:var(--warn);
                font:600 11px/1.5 var(--sans); display:inline-block }
@@ -321,6 +475,12 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 </style>
 
 <div class="wrap">
+  <!-- REV e `n/d` de proposito: este ficheiro nao mostra versao nenhuma, e
+       inventar uma seria pior do que nao ter. -->
+  <div class="moo-cartucho">
+    <span>MOOTER &middot; MOO PILOT &middot; DES. 010</span>
+    <span>ESC 1:1 &middot; REV n/d &middot; 2026-08-27</span>
+  </div>
   <header>
     <h1>
       <svg class="cow" viewBox="0 0 36 36" role="img" aria-label="Mooter">
