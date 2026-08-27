@@ -81,10 +81,10 @@ export const MOO = {
   },
   "type": {
     "family": {
-      "sans": "var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
-      "mono": "var(--font-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace",
-      "hand": "var(--font-caveat), 'Caveat', cursive",
-      "$nota": "Cada familia comeca por uma variavel injectavel. O landing carrega as webfonts por next/font, que injecta --font-sans/--font-mono/--font-caveat no <html>; sem este prefixo, apontar --mono ao token trocava a fonte auto-hospedada por uma procura no sistema que na maioria das maquinas nao existe. O nome literal fica como fallback para quem consome o CSS sem font loader."
+      "sans": "var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      "mono": "var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace",
+      "hand": "var(--font-caveat, 'Caveat'), cursive",
+      "$nota": "Cada família começa por uma variável injectável COM FALLBACK DENTRO do var(). O fallback não é cosmético: `var(--font-sans)` sem segundo argumento é INVÁLIDO quando a variável não existe, e um valor inválido no ponto de uso derruba a declaração inteira — o shorthand `font:` cai todo e o texto sai em Times New Roman 16px. Medido a 2026-08-27 pelo gerador de deck, que corre fora da landing: lá o next/font injecta --font-sans, aqui não injecta ninguém. O `globals.css:985` já fazia isto certo; o token é que não fazia."
     },
     "scale": {
       "hero": {

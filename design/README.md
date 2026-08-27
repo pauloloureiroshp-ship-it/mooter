@@ -24,6 +24,10 @@ design/
     moo-design-check.mjs        O PORTÃO. Sete verificações, índice 0–10. Zero dependências.
     moo-visual-audit.mjs        A AUDITORIA VISUAL. Renderiza e mede o que o código não diz.
                                 Precisa de playwright — por isso vive fora do portão.
+    moo-visual-audit.test.mjs   o teste de mordida do auditor: planta um defeito de cada
+                                família e exige que ele o apanhe.
+    package.json                a ÚNICA dependência do design/ (playwright), isolada aqui.
+  canvas.json                   que superfícies o auditor visual mede neste repo.
 ```
 
 ## Arrancar
@@ -32,11 +36,28 @@ design/
 node design/tools/moo-tokens-build.mjs      # regenera css e ts
 node design/tools/moo-design-check.mjs      # relatório + índice
 node design/tools/moo-design-check.mjs --ci # sai 1 abaixo do limiar (default 8)
-node design/tools/moo-visual-audit.mjs      # corte · overflow · contraste real · linha de base
-                                            # · caixas · barras · easing · raio  (precisa de browser)
+# auditoria visual — precisa de browser, por isso tem dependência e canvas próprios
+cd design/tools && npm install                       # playwright, só aqui
+node design/tools/moo-visual-audit.mjs design/canvas.json     # escreve design/.visual-audit.json
+cd design/tools && node --test moo-visual-audit.test.mjs      # o teste de mordida do auditor
 ```
 
-Zero dependências, zero rede, ~1 s. Cabe no CI e no cron.
+Zero dependências, zero rede, ~1 s — **excepto a auditoria visual**, que precisa de um browser
+e por isso tem o seu próprio `design/tools/package.json`. Nenhum `package.json` existente do
+repo foi tocado. O `moo-design-check` continua zero-dep e é esse que cabe no CI e no cron.
+
+### O canvas da auditoria visual
+
+`design/canvas.json` declara **que superfícies existem mesmo neste repo** e abrem por `file://`
+sem servidor. As páginas do `landing/` são Next.js: precisam de build + servidor, portanto são
+`n/d` neste instrumento — não zero. Cada entrada leva `scroll: true` quando a superfície rola por
+natureza; nessas, `corte` não é defeito e o auditor mostra `—` (o número medido fica no JSON).
+
+⚠️ **Ler o `.visual-audit.json` sem olhar para `alturaReal` engana.** Quatro das cinco
+superfícies são cascas que só se povoam com dados em runtime (`moo-pilot-shell` faz `fetch` a
+`127.0.0.1:4290`; `cockpit`, `fleet-ui` e `moo-panel` mostram "a arrancar…"). O auditor mede o
+que está no ecrã, e o que está no ecrã é o estado de arranque. Ver
+`design/tools/moo-visual-audit.test.mjs` para o que o instrumento garante e o que não garante.
 
 ## A regra que mantém isto vivo
 

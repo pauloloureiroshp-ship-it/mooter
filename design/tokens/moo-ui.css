@@ -98,9 +98,9 @@
   --moo-radius-pill: 999px;
   --moo-shadow-term: 0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2);
   --moo-shadow-lift: 0 40px 100px -40px rgba(0,0,0,0.6);
-  --moo-font-sans: var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --moo-font-mono: var(--font-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --moo-font-hand: var(--font-caveat), 'Caveat', cursive;
+  --moo-font-sans: var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --moo-font-mono: var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace;
+  --moo-font-hand: var(--font-caveat, 'Caveat'), cursive;
   --moo-ms-interact: 140ms;
   --moo-ms-surface: 160ms;
   --moo-ms-reveal: 500ms;

@@ -6,16 +6,37 @@
  * Precisa de um browser (playwright) — por isso vive fora do moo-design-check, que é zero-dep.
  */
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, resolve, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const CV = JSON.parse(readFileSync('canvas.json','utf8'));
+// Onde vive o canvas — argv[2] > MOO_AUDIT_CANVAS > ./canvas.json.
+// Até 2026-08-27 isto era `readFileSync('canvas.json')` com os ficheiros e a saída
+// ancorados em /home/claude/ e o chromium em /opt/pw-browsers/. Media o canvas do Claude
+// Design e mais nada: fora dessa sandbox o auditor não arrancava. As quatro âncoras
+// passaram a parâmetros; a medição em si não mudou uma linha.
+const CANVAS = resolve(process.argv[2] || process.env.MOO_AUDIT_CANVAS || 'canvas.json');
+if (!existsSync(CANVAS)) {
+  console.error(`moo-visual-audit: canvas não encontrado em ${CANVAS}\n` +
+    `  uso: node moo-visual-audit.mjs <caminho/para/canvas.json>\n` +
+    `  o canvas declara { artboards: [{ file, page, w, h, name?, scroll? }] },\n` +
+    `  com file relativo à pasta do próprio canvas.`);
+  process.exit(2);
+}
+const CV = JSON.parse(readFileSync(CANVAS,'utf8'));
+const BASE = CV.base ? resolve(dirname(CANVAS), CV.base) : dirname(CANVAS);
+const SAIDA = process.env.MOO_AUDIT_OUT
+  ? resolve(process.env.MOO_AUDIT_OUT)
+  : join(dirname(CANVAS), '.visual-audit.json');
 // família declarada: quatro curvas — a quarta (mola) saiu desta auditoria
 const EASING_OK = ['cubic-bezier(0.16, 1, 0.3, 1)','cubic-bezier(0.2, 0.8, 0.2, 1)',
                    'cubic-bezier(0.45, 0, 0.55, 1)','cubic-bezier(0.3, 1.3, 0.5, 1)',
                    'linear','ease','ease-in','ease-out','ease-in-out'];
 const RAIOS_OK = [0,1,2,3,4,6,7,8,9,10,11,12,14,16,999];
 
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+// executablePath só quando alguém o declara — senão o playwright usa o browser que instalou.
+const PW_EXE = process.env.MOO_AUDIT_CHROMIUM || '/opt/pw-browsers/chromium';
+const b = await chromium.launch(existsSync(PW_EXE) ? { executablePath: PW_EXE } : {});
 const pg = await b.newPage();
 // excepções DECLARADAS — valores de produção com correcção já calculada em moo-tokens.json.
 // Um portão sem lista de excepções obriga a mentir ou a ignorar. Este declara.
@@ -30,7 +51,9 @@ const rel = [];
 
 for (const a of CV.artboards) {
   await pg.setViewportSize({ width: a.w, height: Math.min(a.h, 3200) });
-  await pg.goto('file:///home/claude/' + a.file);
+  const alvo = resolve(BASE, a.file);
+  if (!existsSync(alvo)) { console.error(`  ! ausente: ${a.file} (${alvo}) — saltado`); continue; }
+  await pg.goto(pathToFileURL(alvo).href);
   await pg.waitForTimeout(700);
   const r = await pg.evaluate((frameH) => {
     const lum = (r,g,bl)=>{const v=[r,g,bl].map(x=>x/255).map(x=>x<=.03928?x/12.92:((x+.055)/1.055)**2.4);
@@ -117,27 +140,38 @@ for (const a of CV.artboards) {
   r.contrasteDeclarado = decl.length;
   const easBad = Object.keys(r.easings).filter(e => !EASING_OK.includes(e));
   const raiBad = Object.keys(r.raios).map(Number).filter(x => !RAIOS_OK.includes(x));
-  rel.push({ prancha: a.file.replace('.dc.html',''), pagina: a.page, ...r, easBad, raiBad,
+  rel.push({ prancha: a.name || basename(a.file).replace(/\.(dc\.)?html$/,''),
+             pagina: a.page ?? '—', ficheiro: a.file, scroll: !!a.scroll, ...r, easBad, raiBad,
              base8pc: r.base8.total ? +(r.base8.ok/r.base8.total*100).toFixed(1) : null });
 }
 await b.close();
-writeFileSync('/home/claude/.visual-audit.json', JSON.stringify(rel,null,2));
+if (!rel.length) { console.error('moo-visual-audit: nenhuma prancha medida — nada a escrever.'); process.exit(2); }
+writeFileSync(SAIDA, JSON.stringify(rel,null,2));
 
 const p = (s,n)=>String(s).padStart(n), l=(s,n)=>String(s).padEnd(n);
-console.log('\n  PRANCHA        PÁG  CORTE  OVFX   CONTR  BASE8  CAIXAS  BARRAS  EASING-FORA  RAIO-FORA');
-console.log('  ' + '─'.repeat(93));
+const larg = Math.max(14, ...rel.map(r => r.prancha.length + 1));
+const largP = Math.max(4, ...rel.map(r => String(r.pagina).replace('page-','').length + 1));
+console.log('\n  ' + l('PRANCHA',larg) + l('PÁG',largP) + ' CORTE  OVFX   CONTR  BASE8  CAIXAS  BARRAS  EASING-FORA  RAIO-FORA');
+console.log('  ' + '─'.repeat(larg + largP + 76));
 for (const r of rel) {
-  const flag = (r.corte>0?'❌':'') + (r.overflowX>0?'↔':'') + (r.contrasteNovo.length>0?'◐':'');
-  console.log('  ' + l(r.prancha,14) + l(r.pagina.replace('page-',''),4) +
-    p(r.corte>0?`+${r.corte}`:'ok',6) + p(r.overflowX||'ok',6) + p(r.contrasteNovo.length + (r.contrasteDeclarado?`(${r.contrasteDeclarado})`:''),8) +
-    p(r.base8pc+'%',7) + p(r.caixas,8) + p(r.barras,8) + p([...new Set(r.easBad)].length||'—',13) +
+  // `corte` = altura real − altura declarada. Numa prancha de altura fixa isso é um defeito;
+  // numa página que rola por natureza, não é. `scroll: true` no canvas diz qual é qual —
+  // o número medido fica no JSON de qualquer maneira, o que muda é só a leitura.
+  const corte = r.scroll ? '—' : (r.corte>0?`+${r.corte}`:'ok');
+  const flag = (!r.scroll && r.corte>0?'❌':'') + (r.overflowX>0?'↔':'') + (r.contrasteNovo.length>0?'◐':'');
+  console.log('  ' + l(r.prancha,larg) + l(String(r.pagina).replace('page-',''),largP) +
+    p(corte,6) + p(r.overflowX||'ok',6) + p(r.contrasteNovo.length + (r.contrasteDeclarado?`(${r.contrasteDeclarado})`:''),8) +
+    p(r.base8pc===null?'n/d':r.base8pc+'%',7) + p(r.caixas,8) + p(r.barras,8) + p([...new Set(r.easBad)].length||'—',13) +
     p(r.raiBad.join(' ')||'—',11) + '  ' + flag);
 }
 const T = k => rel.reduce((a,r)=>a+(Array.isArray(r[k])?r[k].length:r[k]),0);
-console.log('\n  TOTAIS  · cortes ' + rel.filter(r=>r.corte>0).length +
+const fixas = rel.filter(r => !r.scroll);
+console.log('\n  TOTAIS  · cortes ' + (fixas.length ? fixas.filter(r=>r.corte>0).length + '/' + fixas.length + ' pranchas de altura fixa' : 'n/d (todas as superfícies rolam)') +
             ' · contraste novo ' + T('contrasteNovo') + ' · declarado ' + T('contrasteDeclarado') +
             '\n          · caixas arredondadas ' + T('caixas') + ' · barras à esquerda ' + T('barras'));
-const bm = rel.reduce((a,r)=>a+r.base8pc,0)/rel.length;
-console.log('  linha de base 8px: ' + bm.toFixed(1) + '% dos blocos (medido, não alvo)');
+const comBase = rel.filter(r => r.base8pc !== null);
+console.log('  linha de base 8px: ' + (comBase.length
+  ? (comBase.reduce((a,r)=>a+r.base8pc,0)/comBase.length).toFixed(1) + '% dos blocos (medido, não alvo)'
+  : 'n/d — nenhum bloco medível'));
 console.log('  easings fora da família: ' + [...new Set(rel.flatMap(r=>r.easBad))].join('  |  '));
 console.log('  raios fora da escala:    ' + [...new Set(rel.flatMap(r=>r.raiBad))].sort((a,b)=>a-b).join(' · ') + '\n');
