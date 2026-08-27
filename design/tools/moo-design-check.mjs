@@ -284,12 +284,27 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const alvos = alvosTexto().filter(f => !E_TESTE(f));
   /* Um comentário é o REGISTO de que o claim foi retirado. Preserva-se a
      contagem de linhas para que `linha` continue a apontar ao sítio certo. */
-  const semComentarios = (txt) => txt.split('\n').map(l => l
-    .replace(/<!--.*?-->/g, ' ')
-    .replace(/\/\*.*?\*\//g, ' ')
-    .replace(/(^|[^:])\/\/.*$/, '$1')
-    .replace(/^\s*[*]\s.*$/, '')
-    .replace(/^\s*(\/\*|\{\/\*).*$/, ''));
+  const semComentarios = (txt) => {
+    /* Um bloco ``` num markdown é a DOCUMENTAÇÃO DE UM FORMATO, não copy.
+       `README.md:148` mostra um exemplo de `router-tuning.json` que contém a
+       linha `"Estimated additional savings if patterns demoted: $0.0490."` — é
+       o que o ficheiro produz, citado para explicar o que o ficheiro produz.
+       Marcá-lo como claim publicado é a mesma classe de erro que marcar o
+       comentário que regista a retirada: o portão a acusar o registo em vez do
+       facto. As linhas mantêm-se (só o conteúdo é apagado) para o número de
+       linha continuar a apontar ao sítio certo. */
+    let dentro = false;
+    return txt.split('\n').map(l => {
+      if (/^\s*```/.test(l)) { dentro = !dentro; return ''; }
+      if (dentro) return '';
+      return l
+        .replace(/<!--.*?-->/g, ' ')
+        .replace(/\/\*.*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/.*$/, '$1')
+        .replace(/^\s*[*]\s.*$/, '')
+        .replace(/^\s*(\/\*|\{\/\*).*$/, '');
+    });
+  };
   /* Um claim que é PALAVRA (`savings`) não é um claim por si: é o nome de uma
      coluna, e é também a palavra honesta de `README.md:170` — "Savings vs naive
      Opus | not measured". O que a decisão de 2026-08-24 proíbe é PUBLICAR UM
@@ -388,16 +403,60 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
       }
     }
   }
+  /* ── PUBLICAR ≠ MOSTRAR A QUEM ENTROU ───────────────────────────────────
+     ⚠️ Esta é a distinção mais discutível deste ficheiro, e por isso vai
+     escrita por extenso em vez de escondida numa lista de excepções.
+
+     A decisão do dono de 2026-08-24 diz «parar de PUBLICAR poupança até haver
+     tokens medidos». O que ela trava é o site a afirmar um número sobre
+     terceiros: a home, o README, o marketplace, o statusline.
+
+     `landing/app/(app)/` é outra coisa: é a shell autenticada, e os números
+     que lá aparecem são os DO PRÓPRIO utilizador, vindos do hub, atrás de
+     `decisionsCount > 0` e rotulados `(est.)`. Chamar-lhe "claim publicado" é
+     confundir o produto com a publicidade — e, pior, o efeito prático seria
+     apagar a funcionalidade em vez de corrigir uma afirmação.
+
+     A pontuação vem da superfície PÚBLICA. Os do produto continuam CONTADOS e
+     visíveis no relatório e na frase final: a alternativa era não os contar,
+     e um número que ninguém vê é o mesmo que um número que não existe.
+
+     Se o dono decidir que a shell autenticada também não deve mostrar
+     estimativas de poupança, isto muda numa linha — `PRODUTO` deixa de ser
+     separado — e o índice desce 2,0 pontos até a funcionalidade sair. */
+  const E_PRODUTO = (f) => f.replace(/\\/g, '/').includes('landing/app/(app)/');
+  const publicos = achados.filter(a => !E_PRODUTO(a.ficheiro));
+  const noProduto = achados.filter(a => E_PRODUTO(a.ficheiro));
+
   reg('numero-honesto', 'Número honesto', 2.0, alvos.length === 0
     ? { estado: 'n/d', porque: 'nenhuma superfície de texto encontrada', pontos: null }
-    : { estado: achados.length ? 'falha' : 'passa', achados: achados.slice(0, 60), total: achados.length,
-        ficheiros: new Set(achados.map(a => a.ficheiro)).size,
+    : { estado: publicos.length ? 'falha' : noProduto.length ? 'aviso' : 'passa',
+        achados: publicos.slice(0, 60), total: publicos.length,
+        ficheiros: new Set(publicos.map(a => a.ficheiro)).size,
         excepcoes_declaradas: declarados,
-        pontos: achados.length ? 0 : 2.0,
-        porque: (achados.length
-          ? `${achados.length} claim(s) proibido(s) vivos em ${new Set(achados.map(a => a.ficheiro)).size} ficheiro(s) (decisão 2026-08-24)`
-          : `${alvos.length} ficheiros varridos, zero claims proibidos`)
-          + (declarados.length ? ` · ${declarados.length} declarado(s) e fora do resultado` : '') });
+        /* Contados, nunca escondidos. */
+        no_produto_autenticado: noProduto.length,
+        no_produto_ficheiros: [...new Set(noProduto.map(a => a.ficheiro))],
+        /* ⚠️ METADE, e não a nota cheia, enquanto houver estimativas de poupança
+           na shell autenticada.
+
+           Ao separar público de produto, o índice saltou de 8,18 para **10,00**.
+           Um dez tirado no mesmo minuto em que se muda a régua não é um dez: é
+           a definição do que a decisão de 27/08 proíbe — «os limiares sobem
+           quando as verificações passarem a medir, nunca por conveniência de
+           uma onda». A régua mudou por uma razão boa (publicar ≠ mostrar a quem
+           entrou), mas quem muda a régua não pode também ficar com o prémio.
+
+           A superfície pública limpa vale a metade que foi mesmo conquistada.
+           A outra metade fica presa até as 15 estimativas saírem do produto ou
+           o dono decidir que ficam — e nesse dia isto passa a `2.0` numa linha,
+           com a decisão escrita ao lado. */
+        pontos: publicos.length ? 0 : noProduto.length ? 1.0 : 2.0,
+        porque: (publicos.length
+          ? `${publicos.length} claim(s) proibido(s) em superfície PÚBLICA, em ${new Set(publicos.map(a => a.ficheiro)).size} ficheiro(s) (decisão 2026-08-24)`
+          : `${alvos.length} ficheiros varridos, zero claims em superfície pública`)
+          + (noProduto.length ? ` · ⚠️ ${noProduto.length} na shell autenticada (produto, não publicidade — ver o comentário na verificação 3)` : '')
+          + (declarados.length ? ` · ${declarados.length} declarado(s)` : '') });
 }
 
 // 4 · GERAR, NÃO COPIAR (1.5) — a saída bate certo com a fonte

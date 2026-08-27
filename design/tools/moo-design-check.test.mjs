@@ -554,3 +554,43 @@ test('gerar-nao-copiar MORDE uma superficie que perdeu as marcas', (t) => {
   assert.equal(g.pontos, 0);
   assert.ok(g.inline_sem_marcas.includes('tools/cockpit/moo-pilot-shell.html'));
 });
+
+test('numero-honesto: superficie PUBLICA suja continua a zerar', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'README.md', '# t\n');
+  /* A separacao publico/produto NAO pode virar uma porta lateral: um claim na
+     home continua a valer zero, exactamente como antes. */
+  escreve(b.repo, 'landing/app/page.tsx', 'export const c = "typically ~30% less";\n');
+
+  const n = v(corre(b).rel, 'numero-honesto');
+  assert.equal(n.pontos, 0, 'a home suja zera');
+  assert.equal(n.estado, 'falha');
+});
+
+test('numero-honesto: a shell autenticada vale METADE, nunca a nota cheia', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  escreve(b.repo, 'README.md', '# t\n');
+  /* Ao separar publico de produto o indice saltou de 8,18 para 10,00. Um dez
+     tirado no minuto em que se muda a regua nao e um dez. Quem muda a regua nao
+     fica com o premio: a metade conquistada conta, a outra fica presa. */
+  escreve(b.repo, 'landing/app/(app)/dashboard/page.tsx',
+    'const x = `$${saved.toFixed(2)} saved`;\n');
+
+  const n = v(corre(b).rel, 'numero-honesto');
+  assert.equal(n.pontos, 1.0, 'metade, nao 2.0');
+  assert.equal(n.estado, 'aviso');
+  assert.ok(n.no_produto_autenticado > 0, 'e tem de ser CONTADO, nao escondido');
+  assert.match(n.porque, /shell autenticada/);
+});
+
+test('numero-honesto: so a nota cheia quando NAO ha claims em lado nenhum', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  const n = v(corre(b).rel, 'numero-honesto');
+  assert.equal(n.pontos, 2.0);
+  assert.equal(n.no_produto_autenticado, 0);
+});

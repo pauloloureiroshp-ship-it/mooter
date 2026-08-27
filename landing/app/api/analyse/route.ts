@@ -175,13 +175,13 @@ function buildSuggestions(platform: string, framework: string, llm_signals: stri
     type: 'llm',
     name: 'Ollama (local)',
     reason: 'Run qwen3:30b locally for T0 trivial tasks — zero API cost',
-    savings: '~41% of your prompts free',
+    savings: 'T0 tasks run on your own GPU — no API call',
   });
   suggestions.push({
     type: 'llm',
     name: 'Claude Haiku',
     reason: 'T1 tasks: commit messages, docstrings, regex — 25× cheaper than Opus',
-    savings: '~$0.25 per 1K prompts',
+    savings: 'T1 instead of T3 on light tasks',
   });
 
   // Platform-specific connectors
@@ -204,7 +204,7 @@ function buildSuggestions(platform: string, framework: string, llm_signals: stri
   // LLM-specific
   if (llm_signals.length > 0) {
     suggestions.push({ type: 'tool', name: 'mooter backtest', reason: `Your LLM calls (${llm_signals.slice(0,2).join(', ')}) can be replayed to measure real savings`, savings: 'Validates your specific usage' });
-    suggestions.push({ type: 'skill', name: 'mooter/prompt-classifier', reason: 'Auto-classify your prompts before they hit your LLM', savings: 'Route 40%+ to local models' });
+    suggestions.push({ type: 'skill', name: 'mooter/prompt-classifier', reason: 'Auto-classify your prompts before they hit your LLM', savings: 'More prompts classified before they reach the API' });
   }
 
   // Universal

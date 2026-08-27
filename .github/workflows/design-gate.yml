@@ -22,15 +22,24 @@ name: design-gate
 # conveniência de uma onda». Por isso o limiar nunca se moveu, e o que mordia
 # entretanto era só o ratchet («o índice nunca desce»).
 #
-# O índice chegou a **8,18**:  3,41 (inflacionado por uma verificação cega)
+# O índice chegou a **9,09**:  3,41 (inflacionado por uma verificação cega)
 #                           →  3,18 (a linha de base honesta)
 #                           →  5,68 (39 violações fechadas)
 #                           →  6,36 (contraste reconciliado com a produção)
 #                           →  8,18 (as superfícies a ler do gerado)
+#                           →  9,09 (superfície pública sem um único claim)
+#
+# ⚠️ Podia dizer 10,00. Ao separar «publicar» de «mostrar a quem entrou», a
+# verificação 3 saltou para a nota cheia — no mesmo minuto em que a régua mudou.
+# Um dez assim não é um dez, e a decisão de 27/08 nomeia-o: os limiares sobem
+# quando as verificações passam a medir, «nunca por conveniência de uma onda».
+# A verificação 3 dá METADE enquanto houver 15 estimativas de poupança na shell
+# autenticada. A outra metade fica presa até saírem, ou até o dono decidir que
+# ficam — e nesse dia é uma linha, com a decisão escrita ao lado.
 #
 # Foi o trabalho que subiu até ao limiar, não o limiar que desceu até ao
 # trabalho. O `--ci` está ligado no passo 4; o ratchet FICA no passo 5, porque a
-# margem sobre o limiar é de 0,18 e uma verificação vale entre 0,5 e 2,0 pontos.
+# margem sobre o limiar é de 1,09 e uma verificação vale entre 0,5 e 2,0 pontos.
 
 on:
   push:
@@ -74,7 +83,7 @@ jobs:
       # ausência de medição vestida de medição. Um portão que nunca falhou é
       # indistinguível de um portão que não funciona, por isso o CI prova
       # primeiro que ele MORDE, e só depois acredita no número que ele dá.
-      - name: O portão morde? (50 testes que plantam o defeito)
+      - name: O portão morde? (53 testes que plantam o defeito)
         run: npm run test:design
 
       # 2 · Gerar, nunca copiar — provado, não afirmado.
@@ -138,12 +147,12 @@ jobs:
       # razão escrita no cabeçalho: o índice era 3,18 e ligar `--ci` deixava o
       # `main` vermelho de forma permanente. Baixar `MOO_LIMIAR` estava proibido
       # por escrito. Liga-se agora porque o índice passou o limiar — 8,18 — e
-      # não porque o limiar tenha vindo ao encontro do índice.
+      # não porque o limiar tenha vindo ao encontro do índice. Hoje: 9,09.
       - name: O portao, no limiar publicado
         run: npm run design:check:ci
 
       # 5 · E o ratchet FICA. O limiar de 8 e o chao; o ratchet impede que se
-      # perca terreno DENTRO do verde — a margem sobre o limiar e de 0,18, e uma
+      # perca terreno DENTRO do verde — a margem sobre o limiar e de 1,09, e uma
       # verificacao vale 0,5 a 2,0 pontos. Sem ele, cair de 8,18 para 8,01 passava
       # despercebido.
       - name: O indice nao pode descer

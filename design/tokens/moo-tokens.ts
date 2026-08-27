@@ -262,6 +262,11 @@ export const MOO = {
         "porque": "A página de metodologia existe para explicar porque os números foram retirados. Citar o 47% ao explicar que ele saiu é o oposto de o publicar."
       },
       {
+        "ficheiro": "landing/app/(marketing)/rankings/RankingsExplorer.tsx",
+        "contem": "seed.savings.by_category[category].saved_usd",
+        "porque": "É o único sítio do projecto onde uma cifra de poupança é HONESTA por construção, e apagá-la seria uma regressão. Está atrás de `seed.savings.measured &&` — só aparece se o seed disser que foi medido — e o ramo alternativo publica, em vez do número, a frase 'Savings are measured on YOUR machine, never fabricated for this page' com o comando que a preenche do journal do próprio utilizador. É o produto a mostrar o número de quem o corre, não o site a afirmar um número sobre terceiros."
+      },
+      {
         "ficheiro": "README.md",
         "contem": "This README used to carry five different savings figures",
         "porque": "É a secção 'Honest numbers': o registo dos cinco números que a auditoria de 2026-08-23 não conseguiu sustentar. Sem esta frase, a tabela diz 'not measured' sem que ninguém saiba o que mudou."
