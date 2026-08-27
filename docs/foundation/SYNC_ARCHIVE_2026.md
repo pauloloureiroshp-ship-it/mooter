@@ -8674,3 +8674,23 @@ para `docs/foundation/SYNC_ARCHIVE_2026.md` (path canónico do `AGENTS.md`), nã
 partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum (`git diff $(git merge-base
 …)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
 antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
+
+### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
+
+**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
+MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
+Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
+`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
+readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
+que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
+
+**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
+(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
+`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
+`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
+auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
+instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
+
+**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
+(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
+`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.

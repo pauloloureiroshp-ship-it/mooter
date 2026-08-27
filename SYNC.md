@@ -138,6 +138,43 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
+### 2026-08-27 (Win · CC · design) · o portão nasceu cego, e o 3,41 era 1,5 de nada
+
+O pacote `mooter-brand-v2.0.0` aterrou em `design/`. A onda O0 não era copiar ficheiros: era pôr um
+portão a morder — e o portão que veio no pacote **não mordia**.
+
+**`marca-unica` dava 1,5/1,5 — «um só desenho» — com 8 cópias da vaca vivas no repo.** `.svg` não
+estava em `EXT_TEXTO`, o walker nunca devolvia um SVG, e a linha seguinte filtrava por
+`extname(f) !== '.svg'`: descartava 100% do que recebia (2783 ficheiros, 0 svg, `variantes: []`
+**sempre**). E pior — `MOO_REPO` apontado a uma pasta sem superfícies punha as três verificações
+pesadas a `n/d`, tirava-as do denominador, e o índice **subia de 3,41 para 8,75 com `--ci` a sair
+0**. O portão pontuava melhor quanto menos via.
+
+Seis defeitos corrigidos com o número que os justifica: `numero-honesto` marcava `savings_usd`
+(coluna D1 viva) e os comentários que registam a retirada — incluindo o teste
+`expect(src).not.toContain('up to 90% less cost')`, a prova da decisão marcada como violação dela —
+**243 achados, ~2 reais**; o regex de `@keyframes` engolia o próprio ficheiro gerado e fabricava 45
+propriedades que escondiam **3 violações reais**; e `moo-tokens-build.mjs`, o comando publicado no
+README, era um **no-op silencioso** (`file://${process.argv[1]}` nunca coincide com `import.meta.url`).
+
+**Índice: 3,41 → 3,18 → 5,68.** A descida é a correcção (o 3,41 contava 1,5 pontos de uma verificação cega); a subida são 39 violações reais fechadas em 5 superfícies. **30 testes de mordida** plantam cada defeito e exigem que o portão o apanhe.
+
+Fora do masterprompt, e o achado de marca mais consequente: o **cartão social** (`api/og/route.tsx`)
+desenhava o wordmark a `#4ec9b0` — o teal do `mooter-logo-legacy.svg`, a marca do *frugal*. A
+primeira imagem que um estranho vê ao abrir um link de mooter.ai era a marca morta.
+
+⚠️ **CI ligado como RATCHET, não como `--ci`.** Limiar 8, índice 5,68: ligar o portão a sério
+deixava o `main` vermelho permanente, e baixar `MOO_LIMIAR` está proibido por escrito na decisão de
+27/08. O limiar fica em 8 e por atingir; o que morde já é «o índice nunca desce».
+
+⚠️ **Três frentes BLOQUEADAS em decisão do dono, não em trabalho:** `contraste` (5 pares abaixo de
+AA, correcção calculada, valores de produção) · `fonte-unica` (aliasar `globals.css` aos tokens
+mudava cores enviadas — `--faint` real é `#5A5249`, 2.58:1; o token diz `#7A7168`) · as **29**
+poupanças que restam, que são a *Savings calculator* enviada, não números esquecidos.
+
+gate: design 30/30 · landing 219/219 · mooter-bridge 1093/1094 · cockpit 940/943 (1 falha
+pré-existente, provada com a árvore limpa) · cockpit-invariants 215/4 idêntico antes e depois
+
 ### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
 
 **#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
@@ -179,25 +216,5 @@ o veto em código.
 
 gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
 detalhe em `_handoff/cc-perfeito-progress.md`
-
-### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
-
-**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
-MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
-Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
-`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
-readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
-que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
-
-**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
-(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
-`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
-`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
-auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
-instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
-
-**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
-(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
-`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
 
 <!-- HUMANO:FIM -->
