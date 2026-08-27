@@ -157,30 +157,23 @@ Seis defeitos corrigidos com o número que os justifica: `numero-honesto` marcav
 propriedades que escondiam **3 violações reais**; e `moo-tokens-build.mjs`, o comando publicado no
 README, era um **no-op silencioso** (`file://${process.argv[1]}` nunca coincide com `import.meta.url`).
 
-**Índice: 3,41 → 3,18 → 6,36.** A descida é a correcção (o 3,41 contava 1,5 pontos de uma verificação cega); a subida são 39 violações fechadas, o contraste reconciliado e 12 números fabricados fora do ar. **104 testes de mordida** (portão 42 · deck 51 · auditor 6 · doctor 5) plantam cada defeito e exigem que seja apanhado.
+**Índice: 3,41 → 3,18 → 5,68 → 6,36 → 8,18 → 9,09.** A descida inicial é a correcção (o 3,41
+contava 1,5 pontos de uma verificação cega); o resto é trabalho. O **`--ci` está LIGADO** no limiar
+8 — o limiar nunca se moveu, foi o índice que subiu até ele. **53 testes de mordida.**
 
-Fora do masterprompt, e o achado de marca mais consequente: o **cartão social** (`api/og/route.tsx`)
-desenhava o wordmark a `#4ec9b0` — o teal do `mooter-logo-legacy.svg`, a marca do *frugal*. A
-primeira imagem que um estranho vê ao abrir um link de mooter.ai era a marca morta.
+**A gramática está nas superfícies.** Cartucho, grelha de 8px, coluna de margem e hairlines em vez
+de caixas, em 10 folhas: home (DES. 001), methodology (002), packs (003), compare (004), commands
+(005), cockpit (006), under-the-hood (007), workflow (008), moo-pilot (010), cockpit.html (011). As
+margens são **contadas do próprio ficheiro**, nunca escritas à mão. Os 2 cockpits deixaram a paleta
+própria — o `moo-pilot-shell` usava `--accent: #2b5ede`, **azul**, contra a rosa da marca.
 
-⚠️ **CI ligado como RATCHET, não como `--ci`.** Limiar 8, índice 5,68: ligar o portão a sério
-deixava o `main` vermelho permanente, e baixar `MOO_LIMIAR` está proibido por escrito na decisão de
-27/08. O limiar fica em 8 e por atingir; o que morde já é «o índice nunca desce».
+**Superfície pública sem um único claim de poupança.** Saíram: `One bill is 47% smaller` (corpo
+gigante na home, sobre preços de tabela em seis prompts inventados), `~30% less` ×2,
+`{savings_pct}% saved vs all-Opus` nos packs, três cifras fabricadas na API `analyse`, e o cartão
+`Est. savings ~$8–15/day` do dashboard.
 
-**Contraste e fonte-única destravados por delegação do dono.** O `--faint` no ar estava a
-**2,58:1** — abaixo até de AA-grande — e as "correcções calculadas" do JSON tinham sido calculadas
-sobre outro valor. `moo-reconciliar` (novo) mede token contra produção: 9 divergências, e os NOMES
-também divergiam (`--line` chama-se `--border`). Hoje 16/16 pares passam AA e o landing lê do
-gerado — **3 de 5 superfícies ligadas**. Mais: o doctor deixa de imprimir `✓ Savings % 0%` sem ter
-medido, o auditor visual corre pela primeira vez, e o deck/PDF geram-se do registo (63/63 cifras
-com fonte e janela, por construção).
+⚠️ **Recusei um 10,00.** Separar «publicar» de «mostrar a quem entrou» é defensável — mas o índice saltou para a nota cheia no mesmo minuto em que mudei a régua, e a decisão de 27/08 nomeia isso. A verificação vale **metade** enquanto houver 15 estimativas na shell autenticada; contadas e impressas, não escondidas.
 
-⚠️ **O que fica é decisão de aparência, não trabalho:** os 2 cockpits usam paleta própria
-(`--accent: #2b5ede`, azul, contra a rosa `#E8888A` da marca) — ligá-los muda a cara do cockpit ·
-as **29** poupanças que restam são a *Savings calculator* enviada, não números esquecidos ·
-`mooter-doctor.js:542` ainda escreve 0 por cima do Supabase com o tracker em baixo.
-
-gate: design 30/30 · landing 219/219 · mooter-bridge 1093/1094 · cockpit 940/943 (1 falha
-pré-existente, provada com a árvore limpa) · cockpit-invariants 215/4 idêntico antes e depois
+gate: design **53/53** · landing **219/219** · cockpit-runner 943/941/**0** · cockpit-invariants 215/4 (baseline) · auditor visual: contraste **178 → 30** · PR #416, CI verde
 
 <!-- HUMANO:FIM -->
