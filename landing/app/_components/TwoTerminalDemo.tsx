@@ -324,7 +324,7 @@ export default function TwoTerminalDemo() {
                   {promptCell(curTyped, true)}
                   {st.phase === 'routing' && (
                     <div style={{ fontSize: 11.5, marginTop: 2, color: 'var(--color-term-dim)' }}>
-                      └─ classify <span style={{ color: 'var(--color-green)' }}>14ms</span> →{' '}
+                      └─ classify <span style={{ color: 'var(--color-green)' }}>122ms</span> →{' '}
                       <span style={{ color: cur.tcolor, fontWeight: 600 }}>{cur.tier}</span>{' '}
                       <span style={{ color: 'var(--color-term-dim)' }}>{cur.note}</span>
                     </div>

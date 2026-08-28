@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LATENCIA } from '@/app/lib/canonical-metrics';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import Cartucho from '@/components/Cartucho';
@@ -28,7 +29,12 @@ const ROWS: string[][] = [
   ['Local models (Ollama)', '✓ T0 native', '✗', '✓ (configurable)', '✓', '✗'],
   ['Auto-routing by complexity', '✓ T0–T3 axis', '✗ Opus on all', '⚠️ rule-based', '⚠️ manual', '⚠️ tags'],
   ['Domain routing (packs)', '✓ 7+ Moo Packs', '✗', '✗', '✗', '✗'],
-  ['Pre-prompt < 50ms overhead', '✓ 14ms p50', 'n/a', '~80–200ms', '~120ms', '~200ms cloud'],
+  // 2026-08-27 · dizia '✓ 14ms p50'. O 14 aparecia como literal em três ficheiros
+  // e nenhum o ligava a uma medição — apesar de o medidor existir no repo
+  // (`tools/router/bench-hook.js`). Corrido: p50 177,1 ms de hook completo,
+  // 0,001 ms de classify. A linha passa a comparar a mesma grandeza para todos:
+  // o custo por prompt, e o que este esconde (um spawn de processo Node).
+  [`Pre-prompt overhead (measured)`, `✓ classify ${LATENCIA.classifyP50Ms} ms · hook ${LATENCIA.hookP50Ms} ms p50`, 'n/a', '~80–200ms', '~120ms', '~200ms cloud'],
   ['Code/prompts leave machine', '⚠️ T0 routes local; cloud Haiku if key set', '✓ all to Anthropic', '✓ through proxy', '✓ to cloud', '✓ via gateway'],
   ['Pack-based specialization', '✓ Moo Packs', '✗', '✗', '⚠️ commands', '✗'],
   ['Adapter Forge (local LoRA)', '⚠️ Wave 26 (training)', '✗', '✗', '✗', '✗'],

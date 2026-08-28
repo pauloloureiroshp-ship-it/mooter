@@ -95,7 +95,7 @@ export default function WorkflowPage() {
                 <div style={{ fontSize: 13, color: 'var(--color-muted)', fontFamily: 'var(--mono)', marginBottom: 16 }}>cloud-run · billed per token</div>
                 <WorkflowChip cloud />
                 <div style={{ marginTop: 'auto', paddingTop: 18, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <span className="moo-label" style={{ color: 'var(--moo-faint)' }}>est. run cost</span>
+                  <span className="moo-label" style={{ color: 'var(--moo-faint)' }}>cloud list-price estimate</span>
                   <span className="num" style={{ color: 'var(--color-tier-3)', fontSize: 26, fontWeight: 600, fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>$0.45</span>
                 </div>
               </Grupo>
@@ -104,18 +104,31 @@ export default function WorkflowPage() {
                 <div style={{ fontSize: 13, color: 'var(--color-muted)', fontFamily: 'var(--mono)', marginBottom: 16 }}>local-run · shipped 2026-06-07</div>
                 <WorkflowChip />
                 <div style={{ marginTop: 'auto', paddingTop: 18, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <span className="moo-label" style={{ color: 'var(--moo-faint)' }}>measured run cost</span>
+                  <span className="moo-label" style={{ color: 'var(--moo-faint)' }}>measured local cost</span>
                   <span className="num" style={{ color: 'var(--color-green)', fontSize: 26, fontWeight: 600, fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>$0.0028</span>
                 </div>
               </Grupo>
             </div>
 
-            {/* A unica cota da folha: a distancia entre as duas contas. O rosa
-                vive aqui e em mais lado nenhum. */}
+            {/* 2026-08-27 · este parágrafo gritava, em rosa, um «160× gap».
+                O «same shape, different bill» continua verdade; o 160× não é uma
+                medição de nada. Sai de dividir um número MEDIDO ($0,0028, custo
+                real da corrida local) por um ESTIMADO ($0,45, tokens modelados a
+                preço de tabela). Um rácio de base mista não é auditável, e a
+                decisão de 2026-08-24 proíbe publicar multiplicadores de poupança
+                sem tokens medidos — sem excepção para «um rácio, não é uma
+                percentagem». A ressalva que estava por baixo («one run, one
+                machine») limitava a AMOSTRA e não a ARITMÉTICA, que era o defeito.
+                Os dois valores ficam — cada um colado à sua natureza no rótulo do
+                cartão — e o leitor faz a divisão que quiser, sabendo o que divide.
+                (Revisto com kimi-k2.6 a 2026-08-27, que chegou à mesma conclusão
+                de forma independente.) */}
             <p style={{ marginTop: 20, fontSize: 13, color: 'var(--color-muted)', fontFamily: 'var(--mono)', lineHeight: 1.6, maxWidth: 760 }}>
-              Same shape, different bill. Demo run measured <MonoNum color="var(--color-green)">$0.0028</MonoNum> locally
-              vs an estimated <MonoNum color="var(--color-tier-3)">$0.45</MonoNum> in the cloud — a{' '}
-              <MonoNum color="var(--color-accent)">160×</MonoNum> gap on this run. One run, one machine — not a fleet average.
+              Same shape, different bill. This run stayed on your machine and cost{' '}
+              <MonoNum color="var(--color-green)">$0.0028</MonoNum>, measured. The cloud column is{' '}
+              <MonoNum color="var(--color-tier-3)">$0.45</MonoNum> estimated at list price — modelled, not billed.
+              We publish no ratio between the two: one is measured and the other is not, and dividing them
+              would invent a number. One run, one machine — not a fleet average.
             </p>
           </div>
         </div>

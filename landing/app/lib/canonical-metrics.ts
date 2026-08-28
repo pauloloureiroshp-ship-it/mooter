@@ -75,6 +75,59 @@ export const NAO_MEDIDO = {
   poupanca: 'sem custo medido não há poupança medida — em nenhuma unidade',
 } as const;
 
+/**
+ * LATÊNCIA — medida a 2026-08-27, e está aqui porque o site publicava dois
+ * números que nenhuma medição produzia.
+ *
+ * O que estava no ar:
+ *   `page.tsx:15`            → "<50ms overhead"
+ *   `compare/page.tsx:31`    → "✓ 14ms p50"
+ *   `HeroTerminal.tsx:32`    → classify: "14ms"
+ *   `TwoTerminalDemo.tsx:327`→ classify 14ms
+ *
+ * O `14ms` aparecia como literal em três ficheiros e **nenhum o ligava a uma
+ * medição** — apesar de existir um medidor real no repo desde sempre
+ * (`tools/router/bench-hook.js`). Corrido hoje, 200 amostras: **p50 177,1 ms**.
+ * O `14` não é nem uma coisa nem outra; está no meio, sem origem.
+ *
+ * E o "<50ms **overhead**" trocava duas grandezas diferentes:
+ *
+ *   classify() sozinho   p50 0,001 ms   ← a função. Regex puro, sem processo.
+ *   o hook inteiro       p50 177,1 ms   ← o que o utilizador espera de facto.
+ *
+ * A diferença é quase toda o `spawn` de um processo Node — o próprio
+ * `bench-hook.js:109` imprime "ms/sample **incl. spawn**". Chamar 177 ms de
+ * "50 ms" seria uma alegação; chamar 0,001 ms de "overhead" seria outra, ao
+ * contrário. Publicam-se os dois, cada um com o seu denominador.
+ *
+ * O número honesto é melhor do que o inventado: 0,001 ms é mil vezes menos do
+ * que o "<50ms" que se afirmava sem medir.
+ */
+export const LATENCIA = {
+  /** `classify()` em processo, 5.000 chamadas após aquecimento, sem spawn. */
+  classifyP50Ms: 0.001,
+  classifyP99Ms: 0.010,
+  classifyAmostras: 5000,
+  /** O hook completo via `node inject_context.js`, 200 amostras. Inclui o spawn. */
+  hookP50Ms: 177.1,
+  hookP95Ms: 231.3,
+  hookAmostras: 200,
+  /**
+   * E o melhor número de todos, porque não é um bench — é o que aconteceu.
+   * `~/.claude/tools/router/decisions.log` regista `classify_ms` em cada prompt
+   * real. 660 amostras de sessões a sério, lidas a 2026-08-27:
+   *   p50 121,6 ms · p95 173,1 ms · min 0,8 ms · max 325,9 ms
+   * Fica **abaixo** do bench (177,1) porque o bench paga um spawn frio a cada
+   * amostra e as sessões reais aproveitam ficheiros já em cache do SO.
+   * Publica-se este quando se fala do que o utilizador sente, e o do
+   * `classify()` quando se fala do classificador. Nunca os dois trocados.
+   */
+  realP50Ms: 121.6,
+  realP95Ms: 173.1,
+  realAmostras: 660,
+  fonte: 'decisions.log (660 prompts reais) + tools/router/bench-hook.js (200) + classify() em processo (5.000) — 2026-08-27, 1 máquina',
+} as const;
+
 const pct = (n: number, d: number): number => Math.round((n / d) * 1000) / 10;
 
 /** 82,1% — a percentagem de prompts que o router mandou para tier barato. */
@@ -107,6 +160,10 @@ export const M = {
 
   /** A frase inteira. É deliberadamente longa: encurtá-la perde a condição. */
   frase: `The router recommended a local or cheap tier for ${RECOMENDACAO.paraTierBarato} of ${RECOMENDACAO.promptsClassificados} classified prompts (${recomendadoBaratoPct}%). In those same sessions, of the ${EXECUCAO.chamadas} recorded executions, ${EXECUCAO.emOpus} ran on Opus and ${EXECUCAO.local} ran locally.`,
+  /** Latencia, com a unidade e o denominador colados — ver LATENCIA acima. */
+  classifyP50: `${LATENCIA.classifyP50Ms} ms`,
+  hookP50: `${LATENCIA.hookP50Ms} ms`,
+  latenciaFrase: `Classification itself is ${LATENCIA.classifyP50Ms} ms p50 (${LATENCIA.classifyAmostras} in-process calls). What you actually wait for is the hook: ${LATENCIA.realP50Ms} ms p50 across ${LATENCIA.realAmostras} real prompts — almost all of it spawning a Node process, not deciding.`,
   /** A ressalva. Vai a par com a frase, sempre. */
   ressalva: 'No tokens are logged, so there is no measured dollar figure — and we publish none.',
 } as const;

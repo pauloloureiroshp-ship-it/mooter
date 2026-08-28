@@ -624,7 +624,7 @@ function SetupTab({ scenario }: { scenario: Scenario }) {
             <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim }}>~/.claude · hook registered</div>
           </WizardStep>
           <WizardStep n={2} title="Mooter engine installed" done>
-            <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim }}>regex classifier · &lt;50ms</div>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim }}>regex classifier · 0.001 ms p50</div>
           </WizardStep>
           <WizardStep n={3} title="Account & keys" done>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
