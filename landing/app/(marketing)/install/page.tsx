@@ -23,7 +23,7 @@ const FLAGS: Array<[string, string]> = [
 
 // Transcribed from install.sh header (lines 7-14) — the 7 things it actually does.
 const STEPS: string[] = [
-  'verify Claude Code + Node 18 (degrades gracefully without Ollama / API key)',
+  'verify Claude Code + Node 22 (degrades gracefully without Ollama / API key)',
   'copy the routing runtime to ~/.claude/tools/router/',
   'copy the mooter CLI to ~/.mooter/cli/',
   'drop the PATH shim at ~/.local/bin/mooter',

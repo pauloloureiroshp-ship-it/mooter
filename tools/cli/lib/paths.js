@@ -56,18 +56,33 @@ function readVersion() {
   return { version: '0.10.0', channel: 'unknown' };
 }
 
-function which(cmd) {
+const WINDOWS_EXECUTABLE_EXTENSIONS = new Set(['.cmd', '.exe', '.bat']);
+
+function isLaunchableCommand(commandPath, platform = process.platform) {
+  if (!commandPath) return false;
+  if (platform !== 'win32') return true;
+  return WINDOWS_EXECUTABLE_EXTENSIONS.has(path.extname(commandPath).toLowerCase());
+}
+
+function selectCommandPath(output, platform = process.platform) {
+  const candidates = String(output || '')
+    .trim()
+    .split(/\r?\n/)
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+  if (platform !== 'win32') return candidates[0] || null;
+  return candidates.find((candidate) => isLaunchableCommand(candidate, platform)) || null;
+}
+
+function which(cmd, { platform = process.platform, execSyncImpl } = {}) {
   const { execSync } = require('child_process');
   try {
-    const bin = IS_WINDOWS ? 'where' : 'which';
-    const out = execSync(`${bin} ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString()
-      .trim()
-      .split(/\r?\n/)[0];
-    return out || null;
+    const bin = platform === 'win32' ? 'where' : 'which';
+    const out = (execSyncImpl || execSync)(`${bin} ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] });
+    return selectCommandPath(out.toString(), platform);
   } catch {
     return null;
   }
 }
 
-module.exports = { paths, readVersion, which };
+module.exports = { paths, readVersion, which, isLaunchableCommand, selectCommandPath };

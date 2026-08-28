@@ -57,27 +57,42 @@ $DeviceDir   = $MooterDir
 $LegacyDeviceIdFile = Join-Path $HOME ".frugal\device.id"
 
 # When run via `irm | iex`, $MyInvocation.MyCommand.Path is $null.
-# Clone the repo in that case.
+# Fetch the public repo in that case and remove the temporary checkout on exit.
+$RepoUrl = if ($env:MOOTER_REPO_URL) { $env:MOOTER_REPO_URL } else { "https://github.com/pauloloureiroshp-ship-it/mooter.git" }
+$CloneParent = $null
+
+try {
 $SrcDir = $null
 if ($MyInvocation.MyCommand.Path) {
     $SrcDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 if (-not $SrcDir -or -not (Test-Path (Join-Path $SrcDir "tools\router\classify.js"))) {
-    Write-Host ""
-    Write-Host "  mooter is currently in private friends-beta." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  To install:"
-    Write-Host "    1. Request access: " -NoNewline
-    Write-Host "https://mooter.ai" -ForegroundColor White -NoNewline
-    Write-Host " (or email paulo@mooter.ai)"
-    Write-Host "    2. Once invited, clone the repo and run this script locally:"
-    Write-Host "       git clone <your-invite-url> mooter" -ForegroundColor White
-    Write-Host "       cd mooter; .\install.ps1" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  The public one-liner (irm | iex) will light up when v1.0 ships" -ForegroundColor DarkGray
-    Write-Host "  with signed tarballs. Follow along at mooter.ai." -ForegroundColor DarkGray
-    Write-Host ""
-    exit 0
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Fail "git not found - install Git first, then re-run, or clone manually:"
+        Info "  git clone $RepoUrl mooter; cd mooter; .\install.ps1"
+        exit 1
+    }
+
+    $CloneParent = Join-Path ([System.IO.Path]::GetTempPath()) ("mooter-install-" + [guid]::NewGuid().ToString("N"))
+    $CloneDir = Join-Path $CloneParent "mooter"
+    Say "Fetching mooter from the public repo..."
+    try {
+        DoRun "git clone --depth 1 $RepoUrl $CloneDir" {
+            New-Item -ItemType Directory -Path $CloneParent -Force | Out-Null
+            & git clone --depth 1 $RepoUrl $CloneDir
+            if ($LASTEXITCODE -ne 0) { throw "git clone failed with exit code $LASTEXITCODE" }
+        }
+        $SrcDir = $CloneDir
+    } catch {
+        Fail "Couldn't fetch mooter - check your network, or clone manually:"
+        Info "  git clone $RepoUrl mooter; cd mooter; .\install.ps1"
+        exit 1
+    }
+
+    if (-not $DryRun -and -not (Test-Path (Join-Path $SrcDir "tools\router\classify.js"))) {
+        Fail "Fetched repo is missing the router runtime - please report at https://mooter.ai."
+        exit 1
+    }
 }
 
 # -- Version --------------------------------------------------------------
@@ -360,3 +375,8 @@ Write-Host ""
 Write-Host "  Uninstall anytime: mooter uninstall" -ForegroundColor DarkGray
 Write-Host "  Docs: https://mooter.ai" -ForegroundColor DarkGray
 Write-Host ""
+} finally {
+    if ($CloneParent -and (Test-Path -LiteralPath $CloneParent)) {
+        Remove-Item -LiteralPath $CloneParent -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}

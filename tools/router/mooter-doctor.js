@@ -183,7 +183,13 @@ async function main() {
     const exists = fileExists(file);
     if (!exists) coreMissing++;
     report.checks[label] = exists;
-    row(exists ? TICK : CROSS, label, exists ? '' : file, exists ? null : 'Re-run install.sh / install-windows.ps1');
+    // 2026-08-27 · a linha `fix:` mandava correr `install-windows.ps1`, que NUNCA
+    // existiu no repositório (`git ls-files | grep install-windows` → vazio) e que
+    // mooter.ai serve como 404. O ficheiro real chama-se `install.ps1`. Um doctor
+    // que diagnostica bem e depois manda correr um ficheiro inexistente deixa o
+    // utilizador pior do que estava: ele agora sabe que algo falta E que a
+    // instrução para o repor não funciona.
+    row(exists ? TICK : CROSS, label, exists ? '' : file, exists ? null : 'Re-run install.sh (macOS/Linux) or install.ps1 (Windows)');
   }
 
   if (coreMissing > 0) {
@@ -397,7 +403,7 @@ async function main() {
     const taskOk = taskCheck.status === 0;
     row(taskOk ? TICK : WARN, 'Windows Task Scheduler',
       taskOk ? 'FrugalRouterBacktest registered' : 'not found',
-      taskOk ? null : 'Re-run install-windows.ps1 to register the task');
+      taskOk ? null : 'Re-run install.ps1 to register the task');
     report.checks.cron_windows = taskOk;
   } else {
     const cronCheck = runCmd('crontab -l 2>/dev/null | grep backtest');

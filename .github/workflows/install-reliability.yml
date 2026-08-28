@@ -21,6 +21,9 @@ on:
       # `paths:` nao acompanhar.
       - 'install.ps1'
       - 'landing/public/install.ps1'
+      - 'README.md'
+      - 'landing/app/(marketing)/install/page.tsx'
+      - 'tools/cli/commands/doctor.js'
       - 'package.json'
       - 'packages/router/package.json'
       - 'CONTRIBUTING.md'
@@ -43,6 +46,9 @@ on:
       # `paths:` nao acompanhar.
       - 'install.ps1'
       - 'landing/public/install.ps1'
+      - 'README.md'
+      - 'landing/app/(marketing)/install/page.tsx'
+      - 'tools/cli/commands/doctor.js'
       - 'package.json'
       - 'packages/router/package.json'
       - 'CONTRIBUTING.md'
@@ -69,16 +75,8 @@ jobs:
         with:
           # 22 como o resto do CI, e o Node 20 esta em EOL desde 2026-04-30.
           #
-          # ATENCAO ao que este gate NAO prova, e nunca provou: o `install.sh:132`
-          # diz ao utilizador "mooter needs Node 18+", mas o `build.mjs:24` compila
-          # o bundle com `--target=node20`. Quem instalar em Node 18 ou 19 PASSA a
-          # verificacao do instalador e recebe um bundle compilado para 20+. O gate
-          # corria em 20: nem o piso declarado (18) nem o runtime da suite (22) —
-          # um terceiro numero que nenhum ficheiro declara. Alinha-lo com a suite
-          # nao perde cobertura do piso porque o piso nunca esteve coberto.
-          # Fechar essa contradicao (subir o piso do install.sh, ou baixar o target
-          # do esbuild) muda o que se recusa a utilizadores reais — decisao do dono,
-          # nao deste commit.
+          # O piso publicado, os instaladores, o doctor e o target do bundle sao
+          # confrontados mecanicamente pelo gate `piso-de-node` abaixo.
           node-version: '22'
 
       - name: Build v1.0 CLI bundle (esbuild, zero-runtime-deps)

@@ -5,7 +5,7 @@
 #   curl -fsSL https://mooter.ai/install.sh | bash
 #
 # What it does (zero-admin, zero-sudo):
-#   1. Verifies Claude Code + Node 18 (degrades gracefully on Ollama / API key)
+#   1. Verifies Claude Code + Node 22 (degrades gracefully on Ollama / API key)
 #   2. Copies runtime to ~/.claude/tools/router/  (the existing routing engine)
 #   3. Copies CLI to   ~/.mooter/cli/             (the new `mooter` binary)
 #   4. Drops shim at   ~/.local/bin/mooter        (shell PATH entry)

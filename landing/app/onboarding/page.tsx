@@ -29,7 +29,7 @@ const BUDGET_OPTIONS = [
 ];
 
 const INSTALL_CMD_MAC = 'bash <(curl -fsSL https://mooter.ai/install.sh)';
-const INSTALL_CMD_WIN = 'irm https://mooter.ai/install-windows.ps1 | iex';
+const INSTALL_CMD_WIN = 'irm https://mooter.ai/install.ps1 | iex';
 
 // Wave 60 — 5-step wizard (mock parity). Adopting the design's phased flow:
 // 1 hardware probe · 2 providers + budget + persona · 3 local stack ·
