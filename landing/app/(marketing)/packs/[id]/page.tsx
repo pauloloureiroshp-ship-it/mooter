@@ -85,7 +85,7 @@ export default async function PackDetailPage({ params }: { params: Promise<{ id:
       <div className="m-pad m-pad-y" style={{ padding: '64px 40px 72px', maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
         {/* O cartucho identifica a folha antes de qualquer conteúdo. A revisão
             vem de version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="UM PACK" desenho="019" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="PACK DETAIL" desenho="019" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         <div style={{ paddingTop: 26 }}>
           <Link href="/packs" className="moo-label" style={{ color: 'var(--color-muted)', textDecoration: 'none' }}>

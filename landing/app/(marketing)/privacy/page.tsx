@@ -130,7 +130,7 @@ export default async function PrivacyPage() {
       <div className="privacy-wrap m-pad m-pad-y" style={{ padding: '64px 40px 72px', maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
         {/* O cartucho identifica a folha antes de qualquer conteúdo. A revisão
             vem de version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="A PRIVACIDADE" desenho="014" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="PRIVACY" desenho="014" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O ÚNICO momento extremo da folha. Um. */}
         <div style={{ padding: '48px 0 0' }}>

@@ -1340,7 +1340,7 @@ export default function CockpitShowcase() {
         {/* O cartucho identifica a folha antes de qualquer conteúdo — e
             substitui o `<Eyebrow>` rosa («§ Cockpit · VS Code plugin») que
             dizia a mesma coisa por baixo. A revisão vem de version.json. */}
-        <Cartucho o_que="O COCKPIT" desenho="006" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+        <Cartucho o_que="COCKPIT" desenho="006" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
         {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
         <div style={{ position: 'relative', padding: '48px 0 0' }}>

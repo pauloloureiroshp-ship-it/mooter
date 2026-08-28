@@ -50,7 +50,7 @@ export default function SessionsPage() {
         {/* O cartucho identifica a folha antes de qualquer conteudo — e substitui
             o `<Eyebrow>` rosa que dizia a mesma coisa por baixo. A revisao vem de
             version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="AS SESSOES" desenho="016" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="SESSIONS" desenho="016" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O UNICO momento extremo da folha (regra 4). Um. O ponto vivo do
             estado, mais abaixo, desce a anotacao de 7px — indicador de estado

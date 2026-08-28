@@ -80,7 +80,7 @@ export default function SpawnPage() {
         {/* O cartucho identifica a folha antes de qualquer conteudo. A revisao
             vem de version.json, escrito pelo version-sync a partir da tag —
             nunca a mao. */}
-        <Cartucho o_que="O SPAWN" desenho="018" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="SPAWN" desenho="018" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O UNICO momento extremo da folha (regra 10). Um: o titulo, e o
             comando por baixo dele. Nao ha aqui numero gigante a pedir — o «4»

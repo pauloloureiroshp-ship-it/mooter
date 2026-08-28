@@ -114,7 +114,7 @@ export default function MethodologyPage() {
 
       {/* O cartucho identifica a folha antes de qualquer conteudo. A revisao vem
           de version.json, escrito pelo version-sync a partir da tag. */}
-      <Cartucho o_que="A METODOLOGIA" desenho="002" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+      <Cartucho o_que="METHODOLOGY" desenho="002" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
       {/* O UNICO momento extremo da folha (regra 10). Um. */}
       <div style={{ position: 'relative', padding: '48px 0 0' }}>

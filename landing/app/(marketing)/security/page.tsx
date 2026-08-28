@@ -55,7 +55,7 @@ export default function SecurityPage() {
       >
         {/* O cartucho identifica a folha antes de qualquer conteudo. A revisao
             vem de version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="A SEGURANCA" desenho="013" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="SECURITY" desenho="013" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O UNICO momento extremo da folha. Um: o titulo e a recusa por baixo
             dele. Nao ha aqui um numero gigante para pedir — o «4» das camadas

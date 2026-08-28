@@ -62,7 +62,7 @@ export default async function ChangelogPage() {
       >
         {/* O cartucho identifica a folha antes de qualquer conteúdo. A revisão
             vem de version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="O CHANGELOG" desenho="017" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="CHANGELOG" desenho="017" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O ÚNICO momento extremo da folha (regra 10). Um.
             Havia dois candidatos: este título e a pílula «current release» com

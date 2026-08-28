@@ -135,7 +135,7 @@ export default function CommandsPage() {
       {/* O cartucho identifica a folha antes de qualquer conteúdo — e substitui
           o `<Eyebrow>` rosa que dizia a mesma coisa por baixo. A revisão vem de
           version.json, escrito pelo version-sync a partir da tag. */}
-      <Cartucho o_que="OS COMANDOS" desenho="005" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+      <Cartucho o_que="COMMANDS" desenho="005" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
       {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
       <div style={{ position: 'relative', padding: '48px 0 0' }}>

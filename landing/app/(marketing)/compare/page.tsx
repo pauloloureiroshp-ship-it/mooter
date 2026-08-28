@@ -76,7 +76,7 @@ export default async function ComparePage() {
       <div className="moo-mm" aria-hidden="true" />
 
       {/* O cartucho identifica a folha antes de qualquer conteúdo. */}
-      <Cartucho o_que="A COMPARAÇÃO" desenho="004" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+      <Cartucho o_que="COMPARISON" desenho="004" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
       {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
       <div style={{ position: 'relative', padding: '48px 0 0' }}>
