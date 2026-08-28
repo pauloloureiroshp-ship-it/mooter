@@ -229,7 +229,7 @@ export default function MethodologyPage() {
                     <span
                       aria-hidden
                       style={{
-                        width: 16, height: 16, borderRadius: 3, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 16, height: 16, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         flexShrink: 0, fontSize: 10, color: 'var(--color-bg)',
                         background: on ? 'var(--color-text)' : 'transparent',
                         border: on ? 'none' : '1px solid var(--color-border-light)',

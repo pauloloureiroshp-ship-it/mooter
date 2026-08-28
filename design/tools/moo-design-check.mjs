@@ -624,8 +624,25 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
 // 8 · LINGUAGEM (1.0) — as DIRETRIZES que viram grep
 {
   const banidos = [];
-  const EAS_OK = ['.16,1,.3,1','.2,.8,.2,1','.45,0,.55,1','.3,1.3,.5,1',
-                  '0.16, 1, 0.3, 1','0.2, 0.8, 0.2, 1','0.45, 0, 0.55, 1','0.3, 1.3, 0.5, 1'];
+  /* A familia das quatro curvas era um segundo Set escrito a mao, com cada uma
+     duas vezes por causa do `0.` opcional. Passa a sair de `T.motion`, onde ja
+     vivia (`sopro`, `saudar`, `entrada`, ...), normalizada uma vez em vez de
+     duplicada: `0.16,1,0.3,1` e `.16,1,.3,1` sao a mesma curva. Verificado a
+     2026-08-28 que o token cobre exactamente as quatro que estavam aqui. */
+  const normCurva = (c) => String(c).replace(/\s/g, '').replace(/(^|,)0\./g, '$1.');
+  const EAS_OK = (() => {
+    const set = new Set();
+    (function colhe(o) {
+      if (!o) return;
+      if (typeof o === 'string') {
+        const m = o.match(/cubic-bezier\(([^)]+)\)/);
+        if (m) set.add(normCurva(m[1]));
+        return;
+      }
+      if (typeof o === 'object') Object.values(o).forEach(colhe);
+    })(T.motion);
+    return [...set];
+  })();
   /* DIVERGÊNCIA RESOLVIDA a 2026-08-28. O que aqui estava, e porquê:
 
      Esta escala era escrita à mão — `new Set([0,1,2,3,4,6,7,8,9,10,11,12,14,16,999])`
@@ -656,7 +673,28 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
      (`moo-tokens.json -> radius` + `radius_nota`.) */
   const RAIO_OK = new Set([0, ...Object.values(T.radius || {})
     .map(v => parseInt(v, 10)).filter(Number.isFinite)]);
-  const alvos = [...SUPERFICIES_UI, ...andar('design')].filter(f => /\.(html|css|tsx?|jsx?)$/.test(f));
+  /* AMBITO ALARGADO a 2026-08-28. Ate aqui esta verificacao varria as 5
+     superficies de `SUPERFICIES_UI` mais `design/` — e os `.tsx` da landing
+     NUNCA estiveram na lista. Nao era so a regex que nao via `borderRadius:`;
+     os ficheiros nem sequer eram abertos. Foi assim que uma pilula de raio 9999
+     sobreviveu a uma onda inteira com o indice a 9,09, e como o `T5` pode usar
+     a rosa da marca sem ninguem dar por isso.
+
+     Alargar veio com a lista de sitios primeiro, que e a regra que este proprio
+     ficheiro exigia: medidos 32 raios fora da escala em 13 ficheiros, todos
+     corrigidos com a decisao de cada empate registada, ANTES de a verificacao
+     passar a ve-los. Zero achados novos no momento em que o ambito abriu — o
+     que se quer de um alargamento: o portao ve mais e continua verde porque o
+     trabalho foi feito, nao porque a regua foi afrouxada.
+
+     `.test.`/`.spec.` ficam de fora por `E_TESTE`: um teste e onde a decisao se
+     defende, nao onde se viola. */
+  const alvos = [
+    ...SUPERFICIES_UI,
+    ...andar('design'),
+    ...andar('landing/app'),
+    ...andar('landing/components'),
+  ].filter(f => /\.(html|css|tsx?|jsx?)$/.test(f) && !E_TESTE(f));
   let vistos = 0;
   for (const f of alvos) {
     const s = ler(f); if (!s) continue; vistos++;
@@ -664,8 +702,8 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     const barras = (s.match(/border-left:\s*[3-9]px solid/g) || []).length;
     if (barras) banidos.push({ ficheiro: f, regra: 1, o_que: 'barra de acento à esquerda', n: barras });
     // regra 9 — curva fora da família
-    const curvas = [...s.matchAll(/cubic-bezier\(([^)]+)\)/g)].map(m => m[1].replace(/\s/g,''))
-      .filter(c => !EAS_OK.some(k => k.replace(/\s/g,'') === c));
+    const curvas = [...s.matchAll(/cubic-bezier\(([^)]+)\)/g)].map(m => normCurva(m[1]))
+      .filter(c => !EAS_OK.includes(c));
     if (curvas.length) banidos.push({ ficheiro: f, regra: 9, o_que: 'curva fora da família',
       n: curvas.length, exemplos: [...new Set(curvas)].slice(0,3) });
     // escala de raios

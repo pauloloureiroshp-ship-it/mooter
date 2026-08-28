@@ -2227,8 +2227,8 @@ function WorkflowTab() {
                 <span style={{ marginRight: 6 }}>{t.glyph}</span>{t.label}
                 <span style={{ color: 'var(--muted)', marginLeft: 6, fontFamily: 'var(--mono)', fontSize: '0.75rem' }}>{t.model}</span>
               </div>
-              <div style={{ flex: 1, height: 18, background: 'var(--surface, rgba(255,255,255,0.04))', borderRadius: 5, overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: t.color, borderRadius: 5, transition: 'width 240ms ease' }} />
+              <div style={{ flex: 1, height: 18, background: 'var(--surface, rgba(255,255,255,0.04))', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: t.color, borderRadius: 4, transition: 'width 240ms ease' }} />
               </div>
               <div style={{ width: 96, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: 'var(--text)' }}>
                 {count.toLocaleString('en-US')} · {pct}%

@@ -486,7 +486,7 @@ function LoginStatuslinePreview() {
         display: 'flex', alignItems: 'center', gap: 6,
       }}>
         <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.08em' }}>routing</span>
-        <div style={{ flex: 1, height: 6, background: '#1c1815', borderRadius: 3, overflow: 'hidden', display: 'flex', marginLeft: 8 }}>
+        <div style={{ flex: 1, height: 6, background: '#1c1815', borderRadius: 2, overflow: 'hidden', display: 'flex', marginLeft: 8 }}>
           <span style={{ width: '58%', height: '100%', background: 'var(--tier-0)' }} />
           <span style={{ width: '22%', height: '100%', background: 'var(--tier-1)' }} />
           <span style={{ width: '14%', height: '100%', background: 'var(--tier-2)' }} />
