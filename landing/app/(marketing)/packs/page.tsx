@@ -124,9 +124,9 @@ export default function PacksPage() {
           `minTrust`; o segundo deixou de existir a 2026-08-27 com o campo. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          filtros
-          <b>{ready ? `${allDomains.length} domínios` : 'n/d'}</b>
-          domínio é o único filtro com dados por trás
+          filters
+          <b>{ready ? `${allDomains.length} domains` : 'n/d'}</b>
+          domain is the only filter with data behind it
         </div>
         <div>
           <div className="moo-label" style={{ color: 'var(--moo-faint)' }}>Domain</div>
@@ -175,9 +175,9 @@ export default function PacksPage() {
           total do seed — e cai para `n/d` enquanto o seed não chega. Nunca zero. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          catálogo
+          catalog
           <b>{ready ? `${filtered.length}/${packs.length}` : 'n/d'}</b>
-          ordenado por id
+          sorted by id
         </div>
         <div>
           <div className="packs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0 32px' }}>
@@ -274,9 +274,9 @@ export default function PacksPage() {
           e a regra é rótulo só, nunca um número inventado para encher. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          ressalva
+          caveat
           <b>metadata</b>
-          do pack — não é o teu número
+          declared by the pack — not your number
         </div>
         <div style={{ maxWidth: 640 }}>
           <p style={{ fontSize: 13.5, color: 'var(--color-muted)', margin: 0, lineHeight: 1.65 }}>

@@ -63,9 +63,9 @@ export default function WorkflowPage() {
             numero que a governa, a ressalva. Nunca prosa. */}
         <div className="moo-secao m-stack">
           <div className="moo-marg">
-            visibilidade
-            <b>7 agentes</b>
-            animacao da folha — nao e uma corrida a serio
+            visibility
+            <b>7 agents</b>
+            sheet animation — not a real run
           </div>
           <div>
             <div style={{ maxWidth: 560 }}>
@@ -85,9 +85,9 @@ export default function WorkflowPage() {
             do numero. Passam a duas colunas separadas por hairline. */}
         <div className="moo-secao m-stack">
           <div className="moo-marg">
-            duas contas
-            <b>1 corrida</b>
-            local medido · nuvem estimada
+            two bills
+            <b>1 run</b>
+            local measured · cloud estimated
           </div>
           <div>
             <div className="workflow-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, alignItems: 'stretch' }}>

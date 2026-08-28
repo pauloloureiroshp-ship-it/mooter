@@ -88,9 +88,9 @@ export default function UnderTheHoodPage() {
           que a governa, a ressalva. Nunca prosa, e nunca dentro de um cartao. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          quantizacao
+          quantization
           <b>18 GB</b>
-          qwen3:30b em Q4_K_M — de 120 GB
+          qwen3:30b at Q4_K_M — down from 120 GB
         </div>
         <div className="uth-row m-stack" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 28, alignItems: 'start' }}>
           <div>
@@ -150,9 +150,9 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       {/* 2026 local frontier */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          fronteira local
-          <b>4 modelos</b>
-          numeros do fornecedor — nao medidos aqui
+          local frontier
+          <b>4 models</b>
+          vendor figures — not measured here
         </div>
         <p style={{ color: 'var(--color-muted)', fontSize: 15.5, lineHeight: 1.7, maxWidth: 780, margin: 0 }}>
           The local frontier moves fast. As of 2026, notable local-capable coding models include{' '}
@@ -168,8 +168,8 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       <div className="moo-secao m-stack" id="forge">
         <div className="moo-marg">
           lora · dora
-          <b>0 adaptadores</b>
-          nunca treinado — alvos da literatura
+          <b>0 adapters</b>
+          never trained — literature targets
         </div>
         <div>
           <div className="uth-row m-stack" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 28, alignItems: 'start' }}>
@@ -269,9 +269,9 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       {/* §7.3 — How the router decides (classify.js + hook) */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          o router decide
+          the router decides
           <b>~17%</b>
-          so a cauda longa vai ao arbitro
+          only the long tail reaches the arbiter
         </div>
         <div>
           <h2 style={{ fontSize: 26, fontWeight: 600, margin: '0 0 10px' }}>How the router decides — <code>classify.js</code> + the hook</h2>
@@ -307,8 +307,8 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       <div className="moo-secao m-stack">
         <div className="moo-marg">
           dynamic workflows
-          <b>16 em paralelo</b>
-          limite da Anthropic — o teu e o GPU
+          <b>16 in parallel</b>
+          cap set by Anthropic — yours is the GPU
         </div>
         <div>
           <h2 style={{ fontSize: 26, fontWeight: 600, margin: '0 0 10px' }}>Dynamic Workflows, made visible — the herd 🐄</h2>
@@ -365,9 +365,9 @@ Source: mooter benchmark, 34 prompts × 3 arms, blind judge`}</pre>
       {/* §7.5 — opt-in performance backends, honest scope */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          backends opt-in
+          opt-in backends
           <b>3</b>
-          nenhum ligado por omissao
+          none enabled by default
         </div>
         <div>
           <h2 style={{ fontSize: 26, fontWeight: 600, margin: '0 0 10px' }}>Newer, faster local backends — opt-in, never default</h2>

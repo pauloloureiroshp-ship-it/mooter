@@ -135,9 +135,9 @@ export default function Page() {
               ele só desfazia o colapso para uma coluna que a gramática agora faz. */}
           <div className="moo-secao" style={{ position: 'relative' }}>
             <div className="moo-marg">
-              medido
-              <b>1 máquina</b>
-              1 dev (Paulo) — não é média da manada
+              measured
+              <b>1 machine</b>
+              1 dev (Paulo) — not a herd average
             </div>
             <div className="m-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
               {heroStats.map(([label, num, sub]) => (
@@ -167,7 +167,7 @@ export default function Page() {
               na home seria voltar a publicá-las em corpo grande. */}
           <section id="honest-numbers" className="moo-secao" style={{ scrollMarginTop: 96 }}>
             <div className="moo-marg">
-              números honestos
+              honest numbers
               <b>{M.promptsClassificados} prompts</b>
               {JANELA.de} → {JANELA.ate}
             </div>
@@ -205,7 +205,7 @@ export default function Page() {
               a governa, a ressalva. */}
           <section className="moo-secao">
             <div className="moo-marg">
-              como funciona
+              how it works
               <b>11 passes</b>
               regex · zero ML
             </div>

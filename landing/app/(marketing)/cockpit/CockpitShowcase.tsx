@@ -1361,9 +1361,9 @@ export default function CockpitShowcase() {
             marketing — uma barra lateral de editor É feita de painéis. */}
         <div className="moo-secao m-stack">
           <div className="moo-marg">
-            maqueta
-            <b>{TABS.length} separadores</b>
-            {width}px · dados ilustrativos
+            mockup
+            <b>{TABS.length} tabs</b>
+            {width}px · mock data
           </div>
           <div>
             {/* CONTROLS — width + scenario toggles */}
@@ -1513,9 +1513,9 @@ export default function CockpitShowcase() {
             hairline, com o rótulo em mono faint. */}
         <div className="moo-secao m-stack">
           <div className="moo-marg">
-            notas
-            <b>{NOTES.length} regras</b>
-            do desenho, não do produto
+            notes
+            <b>{NOTES.length} rules</b>
+            of the design, not the product
           </div>
           <div className="m-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
             {NOTES.map(([k, v]) => (
@@ -1530,9 +1530,9 @@ export default function CockpitShowcase() {
         {/* INSTALL */}
         <div className="moo-secao m-stack">
           <div className="moo-marg">
-            instalar
+            install
             <b>v{VSIX}</b>
-            .vsix · marketplace por publicar
+            .vsix · not on the marketplace yet
           </div>
           <div>
             <div
