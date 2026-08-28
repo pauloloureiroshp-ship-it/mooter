@@ -426,4 +426,58 @@ varre 5 superfícies + `design/` — os `.tsx` da landing nunca estiveram no âm
 e há lá raios que ninguém mede. Alargar o âmbito precisa da lista de sítios
 primeiro, que é a regra que esta onda acabou de honrar.
 
+
+---
+
+### 2026-08-28 (fecho) · O PORTÃO PASSA A VER OS `.tsx` — 10 ficheiros → 123
+
+PR **#428** fundida, em produção. O último buraco de âmbito, e o maior.
+
+A `linguagem-visual` varria 5 superfícies HTML/CSS mais `design/`. **Os `.tsx` da
+landing nunca estiveram na lista** — e não era só a regex que não via
+`borderRadius:` em camelCase: os ficheiros nem eram abertos. Foi assim que uma
+pílula de raio 9999 sobreviveu a uma onda inteira com o índice a 9,09, e como o
+T5 pôde usar a rosa da marca sem ninguém dar por isso.
+
+**A lista de sítios veio primeiro, que era a regra.** O próprio portão exigia,
+por escrito, que alargar viesse «com a lista de sítios a mudar, não com um `Set`
+novo». Medidos antes de lhe tocar: **32 raios fora da escala em 13 ficheiros**,
+0 curvas, 0 barras. (As 3 «curvas» da primeira contagem eram falsos positivos
+meus — o portão aceita `.2,.8,.2,1` e `0.2, 0.8, 0.2, 1` como a mesma curva e o
+meu script só tinha a forma longa.)
+
+Três empates que valem a pena guardar:
+
+- **`layout.tsx:489`, calha de 6px, `3 → 2` e não 4** — o browser limita o raio a
+  metade da dimensão, portanto `4` num elemento de 6px renderiza como **3**:
+  ficava dentro da escala no código e idêntico ao valor antigo no ecrã. O `2` é a
+  única das duas que muda mesmo alguma coisa.
+- **`CockpitShowcase:324`, `5 → 4`** — o popover tem raio 8 e padding 4, logo o
+  raio concêntrico exacto do filho é 8−4=4. A 6 as curvas deixavam de ser paralelas.
+- **`lp-error-tap`, dois `3 → 4`** — três overlays sobre o *mesmo* rectângulo,
+  sobrepostos; a irmã já estava a 4.
+
+**E só depois o âmbito abriu:**
+
+```
+linguagem-visual:  10 ficheiros  ->  123
+achados novos no momento em que abriu:  ZERO
+```
+
+É o que se quer de um alargamento: o portão vê doze vezes mais e continua verde
+**porque o trabalho foi feito**, não porque a régua foi afrouxada.
+
+**As três sub-regras derivam agora todas do token** — raios, curvas e barras.
+O `EAS_OK` era o último `Set` à mão (as quatro curvas escritas duas vezes cada,
+por causa do `0.` opcional) e passou a sair de `T.motion`.
+
+gate: design **61/61** (53 → 57 → 61 ao longo do dia) · índice **9,09** ·
+linguagem visual **123 ficheiros**, 1.0/1.0 · landing **219/219** · cockpit 943,
+**0 fail** · 7 workflows verdes
+
+**Aberto:** os 4 tiers de **papel** abaixo de AA (t0 3,53 · t1 4,42 · t2 4,47 ·
+t3 4,13), medidos e não declarados — escurecê-los é mexer na paleta clara inteira,
+que serve impressão · as **15 estimativas de poupança na shell autenticada**, que
+são decisão de produto e mantêm a verificação 3 em metade da nota.
+
 <!-- HUMANO:FIM -->
