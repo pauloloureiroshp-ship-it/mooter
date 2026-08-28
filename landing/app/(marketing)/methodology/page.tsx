@@ -146,10 +146,20 @@ export default function MethodologyPage() {
                     <label
                       key={h.id}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
-                        background: sel ? 'var(--color-accent-12)' : 'transparent',
-                        border: `1px solid ${sel ? 'var(--color-accent-25)' : 'var(--color-border)'}`,
-                        transition: 'background 140ms cubic-bezier(.2,.8,.2,1), border-color 140ms cubic-bezier(.2,.8,.2,1)',
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', cursor: 'pointer',
+                        // 2026-08-28 · o estado seleccionado era um azulejo rosa:
+                        // `background: var(--color-accent-12)` + `border: 1px solid
+                        // var(--color-accent-25)`. Duas violações numa — fundo tingido (a
+                        // direcção não tem caixas) e rosa fora dos três sítios que a regra
+                        // permite: o `?` do wordmark, as cotas e o CTA. Um estado activo
+                        // não é um CTA. É o mesmo padrão que saiu do RankingsExplorer nesta
+                        // onda: o seleccionado diz-se com tinta e peso, e a hairline de
+                        // baixo marca a linha.
+                        // O `accentColor` do radio fica: é o controlo nativo a dizer que
+                        // está ligado, e é a afordancia que o utilizador já conhece.
+                        background: 'transparent',
+                        borderBottom: `1px solid ${sel ? 'var(--color-text)' : 'var(--color-border)'}`,
+                        transition: 'border-color 140ms cubic-bezier(.2,.8,.2,1)',
                       }}
                     >
                       <input
@@ -177,12 +187,23 @@ export default function MethodologyPage() {
                   const sel = os === o.id;
                   return (
                     <button
-                      key={o.id} type="button" onClick={() => setOs(o.id)}
+                      key={o.id} type="button" onClick={() => setOs(o.id)} aria-pressed={sel}
                       style={{
-                        flex: 1, padding: '12px', textAlign: 'left', cursor: 'pointer', borderRadius: 6,
-                        background: sel ? 'var(--color-accent-12)' : 'transparent',
-                        border: `1px solid ${sel ? 'var(--color-accent-25)' : 'var(--color-border)'}`,
-                        transition: 'background 140ms cubic-bezier(.2,.8,.2,1), border-color 140ms cubic-bezier(.2,.8,.2,1)',
+                        flex: 1, padding: '12px 0', textAlign: 'left', cursor: 'pointer',
+                        // 2026-08-28 · o estado seleccionado era um azulejo rosa:
+                        // `background: var(--color-accent-12)` + `border: 1px solid
+                        // var(--color-accent-25)`. Duas violações numa — fundo tingido (a
+                        // direcção não tem caixas) e rosa fora dos três sítios que a regra
+                        // permite: o `?` do wordmark, as cotas e o CTA. Um estado activo
+                        // não é um CTA. É o mesmo padrão que saiu do RankingsExplorer nesta
+                        // onda: o seleccionado diz-se com tinta e peso, e a hairline de
+                        // baixo marca a linha.
+                        // Aqui não há radio nativo, por isso leva `aria-pressed` — sem o
+                        // azulejo, o estado tem de continuar a existir para quem não vê a
+                        // tinta. O `fontWeight` do rótulo abaixo já mudava com `sel`.
+                        background: 'transparent',
+                        borderBottom: `1px solid ${sel ? 'var(--color-text)' : 'var(--color-border)'}`,
+                        transition: 'border-color 140ms cubic-bezier(.2,.8,.2,1)',
                       }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 600, color: sel ? 'var(--color-text)' : 'var(--color-muted)' }}>{o.label}</div>
