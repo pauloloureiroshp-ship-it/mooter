@@ -299,4 +299,67 @@ São as duas últimas superfícies com caixas · o interior do `RankingsExplorer
 continua no vocabulário antigo (pills de raio 999, faixas tingidas) e vale uma
 folha de serviço própria.
 
+
+---
+
+### 2026-08-28 (fim) · AS CAIXAS ACABARAM — e três instrumentos meus estavam cegos
+
+PRs **#422** e **#423** fundidas, em produção. O `<Card>` da landing ficou **sem
+um único importador**.
+
+| medido na superfície de marketing inteira | |
+|---|---|
+| `<Card>` | **0** |
+| fundos tingidos | **0** |
+| pílulas `999px` em `/rankings` (produção) | **0** |
+
+**RankingsExplorer** — a pílula do TierBadge virou legenda de folha de desenho
+(quadrado de amostra 6×6 na cor do tier, sem raio, sem fundo). As pílulas de
+categoria deixaram de ser rosa: um estado activo não é um CTA. A faixa verde da
+poupança saiu — e a razão vale mais do que o gesto: **a tinta verde aparecia
+também no ramo NÃO-medido**, ou seja insinuava um sinal que não existia. Tirá-la
+é menos sinal falso, não menos sinal. A cifra ficou intacta atrás de
+`seed.savings.measured &&`, com a sua excepção declarada.
+
+A linha recomendada passou a `box-shadow: inset` e não a `border` na `<tr>`, por
+uma razão medida: com `border-collapse: collapse` o empate resolve-se por
+precedência célula > linha (CSS 2.1 §17.6.2.1), e o `<th>` comia a régua de cima.
+
+⚠️ **Três instrumentos meus estavam cegos, e cada um mentiu de maneira diferente.**
+
+1. **O aferidor contou 1 `<Card>` no `MultiSessionTable` e havia 5 caixas.** Três
+   faixas tingidas e um painel com fundo, borda e `borderRadius: 12` eram caixas
+   na prática sem usarem o componente. Um grep pelo componente apanha uma em
+   cinco. Foi o agente que mo devolveu.
+2. **O `grep -c` disse-me que o `/compare` ainda tinha rosa em produção.** Conta
+   LINHAS, e o HTML servido é uma linha só. A página estava limpa; a régua é que
+   não sabia contar. Mas a busca que fiz para perceber isso mostrou o que eu não
+   procurava: os dois selectores do `/methodology` marcavam o seleccionado com um
+   **azulejo rosa** — o mesmo padrão, na folha ao lado, no mesmo dia (#423).
+3. **O portão não vê `borderRadius:` nem `background:` em JSX** — só a sintaxe
+   CSS. Há **45 raios em JSX** que ele nunca olhou. Foi por isso que estas
+   superfícies sobreviveram à onda anterior com o índice a 9,09.
+
+Não aleguei o portão. O comentário dele (`moo-design-check.mjs:645-648`) diz que
+unificar a escala «é trabalho de desenho, com o dono, e tem de vir com a lista de
+sítios a mudar — não com um `Set` novo», e alargá-lo produziria 45 achados de uma
+vez, que é o erro que esta onda já cometeu (78 não-problemas, revertidos).
+
+**A distinção que ficou desenhada, e que não atravessei:** restam 5 ficheiros com
+rosa tingido — `CockpitShowcase`, `CmdKPalette`, `TwoTerminalDemo`,
+`WorkflowPipeline`, `ConductorVisual`. Nenhum é chrome de folha: são **maquetas
+do produto**. A folha é o desenho; a maqueta é o objecto desenhado. Uma prancha
+técnica de um automóvel não pinta o automóvel de cinzento para combinar com o
+papel.
+
+gate: tsc limpo · **219/219** · design **53/53** · índice **9,09** · 7 workflows
+verdes em cada PR. Produção: `/rankings` e `/compare` a **375px**, tabelas a
+rolar dentro de si.
+
+**Por decidir (não decidi sozinho):** `landing/components/Card.tsx` ficou órfão,
+zero importadores — apagá-lo é teu · duas usages de rosa no `RankingsExplorer`
+que são SINAL e não decoração: `T5: var(--color-accent)` (não existe
+`--color-tier-5`) e o texto «✦ mooter routes here» · a escala de raios, que o
+portão aceita larga de propósito.
+
 <!-- HUMANO:FIM -->
