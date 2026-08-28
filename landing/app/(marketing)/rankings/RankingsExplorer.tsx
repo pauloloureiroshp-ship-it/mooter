@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import Card from '@/components/Card';
 import MonoNum from '@/components/MonoNum';
 
 // Wave 5 "Rankings-as-proof" — the field, through Mooter's routing lens.
@@ -41,6 +40,17 @@ const TIER_COLOR: Record<string, string> = {
   T5: 'var(--color-accent)', // Fable — opt-in only, accent rose
 };
 
+/**
+ * 2026-08-28 - era uma pilula: raio 999, fundo tingido a 12% e borda a 35%.
+ * Numa folha de desenho tecnico uma pilula e o objecto mais fora de lugar que
+ * ha, e um fundo tingido e exactamente o que a direccao de 2026-08-27 proibe.
+ * Fica o que uma folha ja tinha para isto: a LEGENDA - quadrado de amostra na
+ * cor do tier (sem raio) + o codigo em mono na mesma cor.
+ *
+ * O SINAL nao se perdeu: a cor continua a ser `TIER_COLOR[tier]`, o mesmo valor
+ * a dizer a mesma coisa. So mudou de veiculo - o fundo a 12% era a mais fraca
+ * das tres leituras, e a mais fraca era a unica que a caixa acrescentava.
+ */
 function TierBadge({ tier }: { tier: string }) {
   const color = TIER_COLOR[tier] ?? 'var(--color-muted)';
   return (
@@ -49,18 +59,15 @@ function TierBadge({ tier }: { tier: string }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '3px 9px',
-        borderRadius: 999,
         fontSize: 12,
         fontWeight: 600,
         fontFamily: 'var(--mono)',
+        letterSpacing: '0.06em',
         color,
-        background: `color-mix(in srgb, ${color} 12%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
         whiteSpace: 'nowrap',
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      <span style={{ width: 6, height: 6, background: color }} />
       {tier}
     </span>
   );
@@ -89,12 +96,13 @@ export default function RankingsExplorer() {
 
   if (error) {
     return (
-      <Card style={{ marginTop: 24 }}>
+      // Era um <Card>. O que separa passa a ser a hairline; o texto e o mesmo.
+      <div style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
         <p style={{ color: 'var(--color-muted)', margin: 0 }}>
           Rankings seed not found. Run <code>mooter rankings build</code> to generate{' '}
           <code>public/rankings-seed.json</code>.
         </p>
-      </Card>
+      </div>
     );
   }
   if (!seed) {
@@ -130,23 +138,29 @@ export default function RankingsExplorer() {
 
   return (
     <div>
-      {/* Category selector */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '20px 0 14px' }}>
+      {/* Category selector - eram pilulas de raio 999, e a activa vinha
+          PREENCHIDA a rosa. Duas coisas erradas ao mesmo tempo: o raio nao esta
+          na escala do token, e o rosa e do `?` do wordmark, das linhas de cota e
+          do CTA - uma categoria seleccionada nao e um CTA.
+          O estado activo diz-se agora como se diz num desenho: tinta cheia,
+          peso, e uma hairline por baixo. Zero fundo, zero raio. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '20px 0 14px' }}>
         {seed.categories.map((c) => {
           const active = c === category;
           return (
             <button
               key={c}
               onClick={() => setCategory(c)}
+              aria-pressed={active}
               style={{
-                padding: '6px 12px',
-                borderRadius: 999,
+                padding: '7px 10px',
                 fontSize: 12.5,
                 fontFamily: 'var(--mono)',
                 fontWeight: active ? 700 : 500,
-                color: active ? '#1A0E0E' : 'var(--color-muted)',
-                background: active ? 'var(--color-accent)' : 'var(--color-surface)',
-                border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                color: active ? 'var(--color-text)' : 'var(--color-muted)',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `1px solid ${active ? 'var(--color-text)' : 'transparent'}`,
               }}
               title={GROUP_OF(c)}
             >
@@ -158,21 +172,29 @@ export default function RankingsExplorer() {
 
       {/* Plan toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>your plan:</span>
-        <div style={{ display: 'inline-flex', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-          {([['all-cloud', false], ['Claude Max', true]] as const).map(([label, on]) => {
+        {/* Toggle de plano - era uma caixa de raio 10 com o lado activo
+            preenchido a rosa. Passa a duas etiquetas mono separadas por uma
+            hairline vertical, assentes numa hairline de base: o lado activo
+            leva tinta cheia + peso, o inactivo fica cinzento. */}
+        <span className="moo-label" style={{ color: 'var(--moo-faint)' }}>your plan:</span>
+        <div style={{ display: 'inline-flex', alignItems: 'stretch' }}>
+          {([['all-cloud', false], ['Claude Max', true]] as const).map(([label, on], i) => {
             const active = maxPlan === on;
             return (
               <button
                 key={label}
                 onClick={() => setMaxPlan(on)}
+                aria-pressed={active}
                 style={{
                   padding: '7px 14px',
                   fontSize: 13,
+                  fontFamily: 'var(--mono)',
                   fontWeight: active ? 700 : 500,
-                  color: active ? '#1A0E0E' : 'var(--color-muted)',
-                  background: active ? 'var(--color-accent)' : 'transparent',
+                  color: active ? 'var(--color-text)' : 'var(--color-muted)',
+                  background: 'transparent',
                   border: 'none',
+                  borderLeft: i === 0 ? 'none' : '1px solid var(--color-border)',
+                  borderBottom: `1px solid ${active ? 'var(--color-text)' : 'var(--color-border)'}`,
                 }}
               >
                 {label}
@@ -185,13 +207,20 @@ export default function RankingsExplorer() {
         </span>
       </div>
 
-      {/* Savings strip — honest: only show a number when measured locally. */}
+      {/* Savings strip — honest: only show a number when measured locally.
+          2026-08-28 - era um fundo tingido a verde 9% com raio 12, que e
+          literalmente a faixa que a direccao proibe. Fica a hairline.
+          O VERDE nao se perdeu: continua onde SIGNIFICA alguma coisa - no
+          numero medido, `MonoNum color="var(--color-green)"`, logo abaixo. O
+          ramo alternativo nao tem numero e agora tambem nao tem tinta verde a
+          insinuar que tem; isso e menos sinal FALSO, nao menos sinal.
+          ATENCAO: a CONDICAO (`seed.savings.measured &&`), o numero, a frase
+          alternativa e o texto sao a excepcao declarada em `moo-tokens.json` ->
+          `numero.claims_excepcoes`: ficam byte-a-byte. So mudou o involucro. */}
       <div
         style={{
-          background: 'color-mix(in srgb, var(--color-green) 9%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--color-green) 30%, transparent)',
-          borderRadius: 12,
-          padding: '12px 16px',
+          borderTop: '1px solid var(--color-border)',
+          padding: '12px 0 0',
           marginBottom: 18,
           fontSize: 13.5,
           color: 'var(--color-text)',
@@ -213,9 +242,12 @@ export default function RankingsExplorer() {
         )}
       </div>
 
-      {/* Table */}
-      <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 12 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+      {/* Table - a tabela ROLA DENTRO DE SI (`overflowX: auto` no contentor
+          proprio), para que o corpo da pagina nunca role na horizontal.
+          Saiu a caixa (borda em volta + raio 12): ficam as duas hairlines que
+          uma tabela de desenho tecnico tem, em cima e em baixo. */}
+      <div style={{ overflowX: 'auto', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
+        <table className="rk-tbl" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
           <thead>
             <tr>
               <th style={th}>Model</th>
@@ -233,10 +265,24 @@ export default function RankingsExplorer() {
               return (
                 <tr
                   key={r.model}
-                  style={{
-                    borderTop: '1px solid var(--color-border)',
-                    background: r.verdict.recommended ? 'var(--color-accent-08)' : undefined,
-                  }}
+                  /* A linha que o router escolheu. Era uma faixa tingida
+                     (`--color-accent-08`) - fundo tingido E rosa, as duas regras
+                     partidas de uma vez. O sinal FICA e passa a dizer-se como se
+                     diz num desenho: a regua que fecha a linha e tinta cheia, em
+                     cima e em baixo, contra o cinzento de borda das outras.
+                     A celula «mooter routes here» continua a nomear porque.
+
+                     Porque e `box-shadow` e nao `border`: com `borderCollapse:
+                     collapse` uma borda de 1px numa <tr> PERDE o conflito de
+                     colapso para a borda da celula acima (CSS 2.1 17.6.2.1 —
+                     empate de largura e estilo resolve-se por celula > linha).
+                     Como a linha recomendada e tipicamente a primeira, a regua
+                     de cima era comida pelo <th> e ficava um sinal assimetrico:
+                     um risco por baixo, que se le como separador e nao como
+                     «e esta». O `inset` desenha por cima do colapso e as duas
+                     reguas aparecem sempre. Medido no browser, nao deduzido. */
+                  data-rec={r.verdict.recommended ? '' : undefined}
+                  style={{ borderTop: '1px solid var(--color-border)' }}
                 >
                   <td style={{ ...td, fontFamily: 'var(--mono)', fontWeight: 600 }}>
                     {r.model}
@@ -305,6 +351,7 @@ export default function RankingsExplorer() {
           </tbody>
         </table>
       </div>
+      <style>{`.rk-tbl tr[data-rec] td { box-shadow: inset 0 1px 0 var(--color-text), inset 0 -1px 0 var(--color-text); }`}</style>
 
       {/* Honesty footer */}
       <p style={{ color: 'var(--color-muted)', fontSize: 12.5, marginTop: 16, maxWidth: 820, lineHeight: 1.6 }}>
