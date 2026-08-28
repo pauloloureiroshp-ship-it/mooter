@@ -37,6 +37,14 @@
   --color-tier-1:      #5A9BD4;
   --color-tier-2:      #A88BD4;
   --color-tier-3:      #D46A5A;
+  /* 2026-08-28 · T5 (Fable) usava `var(--color-accent)` — a rosa da marca — e a
+     marca nao e um tier. Nao ha T4: o T5 e opt-in via @fable e nunca e
+     auto-rotado, por isso nao e um quinto degrau da rampa, e a cor diz isso ao
+     ser o unico tom quente do conjunto. Escolhido por medicao (ver
+     `moo-tokens.json -> color.tier.nota_t5`): dE minimo 43,8 dentro de
+     {T0..T3,T5}, melhor do que o pior par da propria rampa (29,8). Valor igual
+     ao `--moo-tier-web-t5` do ficheiro gerado. */
+  --color-tier-5:      #D9A441;
   --color-tier-2-term: #D4C090;
 
   /* In-page TTY mockups */
@@ -70,6 +78,7 @@
   --t1-blue:      var(--color-tier-1);
   --t2-purple:    var(--color-tier-2);
   --t3-red:       var(--color-tier-3);
+  --t5-amber:     var(--color-tier-5);
 
   /* Fonts (next/font injects the --font-sans / --font-mono variables) */
   --font:         var(--moo-font-sans);
@@ -249,7 +258,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 /* Hero visual — terminal card */
 .hero-visual { position: relative; }
 .term {
-  background: #14110E; border: 1px solid #2a241f; border-radius: 12px;
+  background: #14110E; border: 1px solid #2a241f; border-radius: 14px;
   overflow: hidden;
   font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
   color: #E6DFD2;
@@ -312,7 +321,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 }
 .flow-step {
   background: var(--beige-card); border: 1px solid var(--beige-line);
-  border-radius: 12px; padding: 22px;
+  border-radius: 10px; padding: 22px;
   position: relative;
   min-height: 180px;
 }
@@ -443,13 +452,13 @@ h3 { font-size: 20px; line-height: 1.3; }
 .statusline .sl-brand { color: #E8888A; font-weight: 600; }
 .statusline .sl-model { font-weight: 600; }
 .statusline .sl-bar { display: inline-flex; gap: 1px; margin: 0 6px; }
-.statusline .sl-bar-tick { width: 3px; height: 10px; background: #E8888A; border-radius: 1px; }
+.statusline .sl-bar-tick { width: 3px; height: 10px; background: #E8888A; border-radius: 2px; }
 .statusline .sl-cow { display: inline-flex; align-items: center; margin-right: 4px; }
 .statusline .sl-save { color: #6FB28C; font-weight: 600; }
 .statusline .sl-spent { color: #D4C090; font-weight: 600; }
 .statusline .sl-ctx { color: #E8888A; }
 .statusline .sl-share-bar {
-  width: 100%; height: 8px; border-radius: 3px; overflow: hidden;
+  width: 100%; height: 8px; border-radius: 2px; overflow: hidden;
   display: flex; background: #1c1815;
   margin: 4px 0 2px;
 }
@@ -640,7 +649,7 @@ h3 { font-size: 20px; line-height: 1.3; }
   padding: 18px 24px;
   background: var(--beige-card);
   border: 1px solid var(--beige-line);
-  border-radius: 12px;
+  border-radius: 14px;
   transition: all 0.3s;
 }
 .term-savings-strip .tiny {

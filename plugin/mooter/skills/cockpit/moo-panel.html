@@ -65,7 +65,7 @@
   #mooFab .fabhint{
     position:absolute;right:62px;top:50%;transform:translateY(-50%);
     white-space:nowrap;background:var(--tipbg);border:1px solid var(--border);
-    color:var(--fg);font:400 11px/1.4 var(--sans);padding:5px 9px;border-radius:7px;
+    color:var(--fg);font:400 11px/1.4 var(--sans);padding:5px 9px;border-radius:8px;
     opacity:0;pointer-events:none;transition:opacity .16s ease;
     box-shadow:0 6px 18px -8px rgba(0,0,0,.4);
   }
@@ -94,7 +94,7 @@
   .moo-head b{font-size:var(--fs2)}
   .moo-head .sub{color:var(--faint);font-size:var(--fs1);font-family:var(--sans)}
   .moo-x{margin-left:auto;background:none;border:1px solid var(--border-soft);color:var(--dim);
-    border-radius:7px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1;padding:0}
+    border-radius:8px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1;padding:0}
   .moo-x:hover{border-color:var(--red-bd);color:var(--red)}
   .moo-x:focus-visible{outline:2px solid var(--terracotta);outline-offset:2px}
 
@@ -105,7 +105,7 @@
   .moo-foot{flex:0 0 auto;border-top:1px solid var(--border-soft);padding:8px 9px 9px;background:var(--panel2)}
   .moo-inrow{display:flex;gap:6px;align-items:flex-end}
   #mooInput{
-    flex:1 1 auto;background:var(--card);border:1px solid var(--border);border-radius:9px;
+    flex:1 1 auto;background:var(--card);border:1px solid var(--border);border-radius:8px;
     color:var(--fg);font-family:var(--mono);font-size:var(--fs2);padding:7px 9px;
     resize:none;line-height:1.4;max-height:96px;min-height:34px;
   }
@@ -113,7 +113,7 @@
   #mooInput::placeholder{color:var(--faint)}
   .moo-send{
     background:var(--terracotta);border:1px solid var(--terracotta);color:#fff;
-    border-radius:9px;padding:0 12px;height:34px;cursor:pointer;
+    border-radius:8px;padding:0 12px;height:34px;cursor:pointer;
     font-family:var(--mono);font-size:var(--fs2);font-weight:700;flex:0 0 auto;
   }
   .moo-send:disabled{opacity:.4;cursor:default}
@@ -134,14 +134,14 @@
 
   /* ---------- turnos ---------- */
   .moo-q{
-    background:var(--terracotta);color:#fff;border-radius:11px 11px 3px 11px;
+    background:var(--terracotta);color:#fff;border-radius:10px 10px 4px 10px;
     padding:6px 10px;margin:12px 0 8px auto;max-width:86%;width:fit-content;
     font-size:var(--fs2);line-height:1.45;word-wrap:break-word;
   }
   .moo-a{
     background:var(--card);border:1px solid var(--border-soft);
     border-left:1px solid var(--terracotta);
-    border-radius:3px 11px 11px 3px;padding:9px 11px;margin-bottom:10px;font-size:var(--fs2);
+    border-radius:4px 10px 10px 4px;padding:9px 11px;margin-bottom:10px;font-size:var(--fs2);
   }
   .moo-a.miss{border-left-color:var(--nd);background:var(--nd-dim)}
   .moo-a h4{font-size:var(--fs2);margin:0 0 5px;letter-spacing:.01em}
@@ -150,7 +150,7 @@
   .moo-a ul{margin:0 0 7px 16px;line-height:1.55}
   .moo-a code{background:var(--panel2);border:1px solid var(--hairline);border-radius:4px;
     padding:0 4px;font-size:11.5px;color:var(--fg)}
-  .moo-a pre{background:var(--term);border:1px solid var(--hairline);border-radius:7px;
+  .moo-a pre{background:var(--term);border:1px solid var(--hairline);border-radius:8px;
     padding:8px 10px;overflow-x:auto;margin:0 0 7px;font-size:11.5px;line-height:1.5}
   .moo-a pre code{background:none;border:0;padding:0}
   .moo-a table{border-collapse:collapse;width:100%;margin:0 0 8px;font-size:11.5px}
@@ -193,7 +193,7 @@
 
   /* ---------- estado vivo ---------- */
   .moo-live{
-    background:var(--panel2);border:1px solid var(--border-soft);border-radius:9px;
+    background:var(--panel2);border:1px solid var(--border-soft);border-radius:8px;
     padding:7px 9px;margin-bottom:9px;font-size:var(--fs1);line-height:1.6;color:var(--dim);
   }
   .moo-live b{color:var(--fg)}
@@ -219,7 +219,7 @@
     text-align:center;padding:8px 0 2px;line-height:1.6}
   .moo-toast{
     position:absolute;left:50%;transform:translateX(-50%);bottom:64px;z-index:5;
-    background:var(--fg);color:var(--bg);border-radius:7px;padding:5px 11px;
+    background:var(--fg);color:var(--bg);border-radius:8px;padding:5px 11px;
     font-size:var(--fs1);font-family:var(--mono);opacity:0;transition:opacity .18s ease;
     pointer-events:none;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;
   }

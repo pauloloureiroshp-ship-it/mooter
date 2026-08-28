@@ -85,21 +85,25 @@
         "t0": "#4CAF6A",
         "t1": "#5A9BD4",
         "t2": "#A88BD4",
-        "t3": "#D46A5A"
+        "t3": "#D46A5A",
+        "t5": "#D9A441"
       },
       "terminal": {
         "t0": "#4CAF6A",
         "t1": "#5A9BD4",
         "t2": "#D4C090",
-        "t3": "#D46A5A"
+        "t3": "#D46A5A",
+        "t5": "#D9A441"
       },
       "papel": {
         "t0": "#3D8B5E",
         "t1": "#3D6FA8",
         "t2": "#7A5EA8",
-        "t3": "#B8523F"
+        "t3": "#B8523F",
+        "t5": "#7D5A15"
       },
-      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal."
+      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal.",
+      "nota_t5": "T5 (Fable) e opt-in via @fable e NUNCA e auto-rotado; nao existe T4. Por isso nao e um quinto degrau da rampa — e a cor que se le como estando FORA dela, e e o unico tom quente-dourado do conjunto. Escolhido a 2026-08-28 por medicao, nao por gosto: entre 6 candidatos, o ambar #D9A441 e o que maximiza a MENOR distancia perceptual dentro do conjunto {T0,T1,T2,T3,T5} — dE minimo 43,8, melhor do que o pior par da propria rampa actual (29,8, entre T1 e T2). Contraste 8,80:1 sobre tinta.bg. E fica a 50,0 de dE do accent, que era o problema a resolver: ate hoje o T5 usava var(--color-accent), e a marca nao e um tier. No terminal fica o mesmo tom (dE 32,6 do #D4C090 do T2, distinguivel). Em papel escurece para #7D5A15 para passar AA (5,33:1)."
     },
     "term": {
       "bg": "#0d1117",
@@ -205,7 +209,10 @@
     "grid": 4
   },
   "radius": {
+    "hairline": "2px",
+    "tight": "4px",
     "control": "6px",
+    "panel": "8px",
     "card": "10px",
     "window": "14px",
     "hero": "16px",
@@ -405,6 +412,14 @@
       [
         "tinta.accent-2",
         "tinta.bg"
+      ],
+      [
+        "tier.web.t5",
+        "tinta.bg"
+      ],
+      [
+        "tier.papel.t5",
+        "papel.bg"
       ]
     ],
     "correccoes_aplicadas": {
@@ -473,7 +488,8 @@
         "para": 5.25,
         "porque": "Era o rosa do tema ESCURO a servir de texto no tema CLARO — 2.14:1, ilegível, em quatro sítios do globals.css que o usam como `color:` (`:1215`, `:1229`, `:1261`, `:1370`). Passa a derivar do papel.accent (#B4454B) com o mesmo matiz e L-4, em vez de ser importado do outro tema."
       }
-    }
+    },
+    "nota_tiers": "Os pares de tier.t5 sao os PRIMEIROS tiers declarados. Medido a 2026-08-28, os quatro irmaos de PAPEL estao todos abaixo de AA e nunca foram medidos porque nunca foram declarados: t0 3,53 · t1 4,42 · t2 4,47 · t3 4,13 sobre papel.bg. Nao os declarei nem lhes toquei: escurece-los e mexer na paleta clara inteira, que serve impressao e superficies que nao vi. Fica como achado com numero, nao como suposicao — e o t5 entra ja a passar (5,33) para nao acrescentar divida."
   },
   "layout": {
     "grelha": {
@@ -494,5 +510,6 @@
     "extremo": "um por página — um número gigante, uma faixa a sangrar, ou um momento vivo",
     "grelha_nota": "A grelha derivava de valores CRAVADOS no gerador — rgba(232,136,138,.05) e 64px escritos a mao dentro do template, num ficheiro cuja tese e que a fonte e este JSON. Era uma segunda fonte de verdade escondida na saida. Agora sai daqui, e a cor deriva de color.tinta.accent. Os alfas subiram de .05/.11 para .07/.16: medido a 2026-08-27, .05 de rosa sobre #0B0A09 da um racio de 1.050 contra o fundo — invisivel. A direccao diz \"grelha de 8px VISIVEL\"; a .07/.16 o racio e 1.09/1.27, que se ve sem competir com o conteudo.",
     "telemovel_nota": "A folha nasceu sem telemovel. Medido a 2026-08-27 a 375px, `scrollWidth` contra `clientWidth`: / 725px (+93%), /compare 901px (+140%), /under-the-hood 740px (+97%), /methodology 539px (+44%). A causa era mecanica e unica: `moo-ui.css` tinha UMA media query — `prefers-reduced-motion` — e zero breakpoints de largura, com `.moo-secao` cravada em `216px 1fr` e `.moo-folha` em 80px de padding. 768 e o limite escolhido porque abaixo dele a coluna de conteudo fica com menos de 400px depois de descontar a margem (216) e os dois paddings (160), e a familia de breakpoints que o globals.css ja usa e 640/1024 — 768 encaixa sem colidir. Abaixo do limite a margem deixa de ser coluna e passa a ficar ACIMA do conteudo, alinhada a esquerda: a regra diz que a anotacao vive na margem, e num ecra de uma coluna a margem e o que vem antes."
-  }
+  },
+  "radius_nota": "COMPLETADA a 2026-08-28, e a razao esta no proprio ficheiro gerado: `moo-ui.css` tinha `border-radius: 2px` no anel de :focus-visible, cravado no gerador, e 2 nao estava na escala. O sistema violava a sua propria escala na sua propria saida. Uma escala de cinco degraus cujo mais pequeno e 6 nao descreve chrome real: um raio de 6 numa barra de 3px de altura esta errado. Medido antes de decidir: 166 ocorrencias fora da escala em 24 ficheiros, com 8 (44x), 4 (26x) e 7 (22x) no topo. Acrescentados os tres degraus que o trabalho real usa — hairline 2 (aneis de foco, barras finas), tight 4 (selos, chips) e panel 8 (o valor mais usado do repositorio) — e NAO 12, para a escala continuar a ser uma escala e nao uma rampa de 2 em 2. Com ela, no ambito que o portao varre, 125 ocorrencias passam a estar dentro e 54 ficam como deriva real: 9 (18x) e 7 (15x) sao falhancos por pouco do 8; 3 (10x) do 2 ou do 4; 11 e 12 do 10 ou do 14. O `RAIO_OK` do portao deixa de ser um Set paralelo generoso e passa a ser ESTA escala."
 }

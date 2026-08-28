@@ -49,7 +49,7 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   (comportamental: 0 das 24 categorias o escolhem) e por
   `tools/cockpit/runner/precificavel-nao-rotavel.test.mjs` (cobertura: qualquer modelo que
   reúna preço + célula medida tem de estar coberto pela guarda).
-  **2026-08-28 · gramática do movimento** allowlists **3 linhas** de
+  **2026-08-28 · gramática do movimento** allowlists **4 linhas** de
   `packages/mooter-bridge/fleet-ui.html` (autorizado pelo dono, onda de design de 27-28/08).
   O portao `moo-design-check` tem duas verificações que varrem o repo inteiro e não pedem
   licença ao caminho: `movimento-seguro` (só `transform`/`opacity`, sempre com guarda de
@@ -62,6 +62,10 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   é documentário, e **uma edição não registada é indistinguível de uma violação** — foi o
   gate de pré-merge desta onda que a apanhou por commitar sem entrada. Provado por
   `npm run test:design` (53 testes) e pelo índice em 9,09.
+  A **4.ª linha** entra no mesmo dia e pelo mesmo motivo: `.eta` (linha 126) tinha
+  `border-radius: 7px`, e 7 deixou de estar na escala quando ela foi completada
+  (ver `moo-tokens.json → radius_nota`). Passou a `8px` — o degrau `panel`, que é
+  o valor mais usado do repositorio. Zero lógica, zero comportamento.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

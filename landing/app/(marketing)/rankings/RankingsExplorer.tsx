@@ -37,7 +37,13 @@ const TIER_COLOR: Record<string, string> = {
   T1: 'var(--color-tier-1)',
   T2: 'var(--color-tier-2)',
   T3: 'var(--color-tier-3)',
-  T5: 'var(--color-accent)', // Fable — opt-in only, accent rose
+  // 2026-08-28 · era `var(--color-accent)` — a rosa da marca. Rosa e para o `?` do
+  // wordmark, as cotas e o CTA; um tier nao e nenhuma dessas coisas, e usar a
+  // marca para o dizer confunde «o modelo mais caro» com «a accao principal».
+  // O T5 passa a ter cor propria: ambar. Nao e um quinto degrau da rampa — e o
+  // unico tom quente, porque o T5 esta FORA da escada (nao ha T4, e ele so entra
+  // por @fable). Ver `moo-tokens.json -> color.tier.nota_t5` para a medicao.
+  T5: 'var(--color-tier-5)',
 };
 
 /**
