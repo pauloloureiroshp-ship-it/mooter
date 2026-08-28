@@ -22,8 +22,27 @@ export const runtime = 'nodejs';
 // Devolve-se `null`, como o `api/community/pulse/route.ts:22` ja fazia. Um
 // `null` obriga quem consome a decidir o que mostrar; um numero errado nao.
 const SAVINGS_PCT: number | null = null;
-const BACKTEST_PROMPTS = 1437;
-const COMMUNITY_USERS = 312; // federated learning participants
+
+// 2026-08-27: a mesma disciplina, aplicada aos dois numeros que ficaram de pe
+// ao lado do comentario acima — e a razao pela qual ficaram e a licao.
+//
+// `BACKTEST_PROMPTS = 1437` era o corpus de 16 de Abril: exactamente o corpus
+// que o comentario acima descreve como escrito a mao e nao reproduzivel, e por
+// causa do qual `backtest_confidence` ja devolvia `null`. Publicar o TAMANHO de
+// uma amostra e ao mesmo tempo recusar a confianca dela por ela nao existir e
+// afirmar que ela existe. Sao o mesmo facto lido a duas velocidades.
+//
+// `COMMUNITY_USERS = 312`, anotado "federated learning participants", nunca
+// teve escritor. `api/community/pulse/route.ts` — que le o hub a serio —
+// devolve `active_devs` do agregado real; a 2026-08-27 esse valor era 2.
+// 312 participantes e 2 developers activos nao podem ser ambos verdade.
+//
+// Os dois passam a `null` em vez de sairem do payload: `null` diz "isto e um
+// campo real, sem valor medido", que e o que ha para dizer. Um campo que
+// desaparece deixa quem consome a inferir, e a inferencia foi como estes
+// numeros nasceram.
+const BACKTEST_PROMPTS: number | null = null;
+const COMMUNITY_USERS: number | null = null;
 
 export type AnalyseResult = {
   url: string;
@@ -284,7 +303,7 @@ export async function POST(req: NextRequest) {
         backtest_prompts: BACKTEST_PROMPTS,
         community_users: COMMUNITY_USERS,
         cached: true,
-      } satisfies AnalyseResult & { backtest_prompts: number; community_users: number });
+      } satisfies AnalyseResult & { backtest_prompts: number | null; community_users: number | null });
     }
   }
 
@@ -315,7 +334,7 @@ export async function POST(req: NextRequest) {
     analysed_at: new Date().toISOString(),
   }, 'url');
 
-  const result: AnalyseResult & { backtest_prompts: number; community_users: number } = {
+  const result: AnalyseResult & { backtest_prompts: number | null; community_users: number | null } = {
     url, platform, framework, language,
     llm_detected, llm_signals,
     savings_pct: SAVINGS_PCT,

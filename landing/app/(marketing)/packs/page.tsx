@@ -18,16 +18,26 @@ import versionInfo from '../../version.json';
 // e a decisão do dono de 2026-08-24 bane exactamente esse claim. A percentagem
 // foi retirada (aqui e na barra que a desenhava); o resto da metadata do pack
 // — trust, installs, VRAM, composição de modelos — fica, porque é o que o seed
-// realmente contém. O ficheiro de seed não foi tocado.
+// realmente contém.
+//
+// ADENDA 2026-08-27 (mais tarde no mesmo dia) — o seed FOI tocado, e a razão é
+// que a retirada acima estava incompleta. Ficaram no ficheiro público três
+// campos sem fonte: `savings_pct` (o mesmo 89 que aqui deixou de ser desenhado
+// continuava a ser servido em /packs-seed.json, e a página de detalhe ainda o
+// desenhava), `installs` (247+198+…= 805 instalações, enquanto
+// `/api/community/pulse` devolve ao vivo `active_devs: 2` — os dois não podem
+// ser verdade) e `trust` (98..73, sem rubrica e sem escritor: nenhum código
+// deste repositório escreve este ficheiro).
+//
+// Os três saíram do seed. Aqui isso custa três controlos que só faziam sentido
+// com dados reais por trás: o slider de trust mínimo, a ordenação por trust e o
+// selo «most installed». Um controlo sobre um campo que não existe é pior que
+// um número errado — parece que alguém está a medir.
 
 interface Pack {
   id: string;
-  trust: number;
-  installs: number;
   min_vram_gb: number;
   domain: string;
-  /** Existe no seed, NÃO é renderizado — ver o cabeçalho desta folha. */
-  savings_pct: number;
   models: string[];
   summary: string;
 }
@@ -44,16 +54,13 @@ function composition(p: Pack) {
 export default function PacksPage() {
   const [packs, setPacks] = useState<Pack[]>([]);
   const [domains, setDomains] = useState<string[]>([]);
-  const [minTrust, setMinTrust] = useState(0);
   const [ready, setReady] = useState(false);
 
   // Load seed + restore filters from URL (acceptance: filter persists in URL params).
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const d = sp.get('domain');
-    const t = sp.get('trust');
     if (d) setDomains(d.split(',').filter(Boolean));
-    if (t) setMinTrust(Number(t) || 0);
     fetch('/packs-seed.json')
       .then((r) => r.json())
       .then((j) => setPacks(j.packs ?? []))
@@ -66,32 +73,24 @@ export default function PacksPage() {
     if (!ready) return;
     const sp = new URLSearchParams();
     if (domains.length) sp.set('domain', domains.join(','));
-    if (minTrust > 0) sp.set('trust', String(minTrust));
     const qs = sp.toString();
     window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
-  }, [domains, minTrust, ready]);
+  }, [domains, ready]);
 
   const allDomains = useMemo(
     () => Array.from(new Set(packs.map((p) => p.domain))).sort(),
     [packs],
   );
 
-  // Highest-install pack is the only one flagged "trending" — derived from real
-  // data, not a hand-set flag.
-  const topInstalls = useMemo(
-    () => packs.reduce((max, p) => Math.max(max, p.installs), 0),
-    [packs],
-  );
-
+  // A ordenação era `b.trust - a.trust`, e o selo «most installed» saía do
+  // máximo de `installs`. Sem esses campos não há ranking honesto para exibir:
+  // ordena-se por id, que é estável, verificável e não finge mérito.
   const filtered = useMemo(
     () =>
       packs
-        .filter(
-          (p) =>
-            (domains.length === 0 || domains.includes(p.domain)) && p.trust >= minTrust,
-        )
-        .sort((a, b) => b.trust - a.trust),
-    [packs, domains, minTrust],
+        .filter((p) => domains.length === 0 || domains.includes(p.domain))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    [packs, domains],
   );
 
   function toggleDomain(d: string) {
@@ -121,12 +120,13 @@ export default function PacksPage() {
       </div>
 
       {/* Filtros. A margem conta o que está de facto no seed — não é decoração:
-          `allDomains` e `minTrust` são estado real desta página. */}
+          `allDomains` é derivado dos packs carregados. Era `allDomains` e
+          `minTrust`; o segundo deixou de existir a 2026-08-27 com o campo. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
           filtros
           <b>{ready ? `${allDomains.length} domínios` : 'n/d'}</b>
-          trust ≥ {minTrust}
+          domínio é o único filtro com dados por trás
         </div>
         <div>
           <div className="moo-label" style={{ color: 'var(--moo-faint)' }}>Domain</div>
@@ -161,21 +161,13 @@ export default function PacksPage() {
             })}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 18, paddingTop: 16, maxWidth: 320 }}>
-            <div className="moo-label" style={{ color: 'var(--moo-faint)' }}>Min trust score</div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={minTrust}
-              onChange={(e) => setMinTrust(Number(e.target.value))}
-              style={{ width: '100%', accentColor: 'var(--color-accent)', marginTop: 8 }}
-              aria-label="Minimum trust score"
-            />
-            <div className="num" style={{ fontSize: 13, color: 'var(--color-muted)', fontFamily: 'var(--mono)' }}>
-              ≥ <span style={{ color: 'var(--color-text)' }}>{minTrust}</span>
-            </div>
-          </div>
+          {/*
+            Aqui vivia um slider «Min trust score» de 0 a 100. O campo que ele
+            filtrava saiu do seed a 2026-08-27 por não ter fonte nenhuma, e um
+            controlo sem dados por trás é a forma mais convincente de afirmar
+            uma medição que não existe. Volta no dia em que houver quem escreva
+            o número — com o código que o escreve.
+          */}
         </div>
       </div>
 
@@ -185,7 +177,7 @@ export default function PacksPage() {
         <div className="moo-marg">
           catálogo
           <b>{ready ? `${filtered.length}/${packs.length}` : 'n/d'}</b>
-          ordenado por trust
+          ordenado por id
         </div>
         <div>
           <div className="packs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0 32px' }}>
@@ -197,7 +189,6 @@ export default function PacksPage() {
               filtered.map((p, i) => {
                 const comp = composition(p);
                 const fits = p.min_vram_gb <= 8;
-                const trending = p.installs === topInstalls && topInstalls > 0;
                 return (
                   <RevealOnView key={p.id} delay={Math.min(i, 6) * 50}>
                     {/* Era um <Card>: fundo próprio + raio 14, ou seja uma CAIXA.
@@ -215,7 +206,7 @@ export default function PacksPage() {
                     >
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                         {/* O número da peça no conjunto — posição real na lista
-                            ordenada por trust, não um adorno. */}
+                            ordenada por id, não um adorno. */}
                         <span
                           aria-hidden="true"
                           style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--moo-faint)', flexShrink: 0 }}
@@ -224,17 +215,15 @@ export default function PacksPage() {
                         </span>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14, fontFamily: 'var(--mono)' }}>{p.id}</div>
+                          {/* Esta linha dizia `trust 98 · 247 installs`. Ambos
+                              saíram do seed a 2026-08-27 por não terem fonte —
+                              e o `most installed` que vivia à direita saía do
+                              máximo de um campo inventado. O domínio fica: é o
+                              que o pack declara ser. */}
                           <div className="num" style={{ fontSize: 11, color: 'var(--color-muted)', display: 'flex', gap: 8, fontFamily: 'var(--mono)', marginTop: 3 }}>
-                            <span>trust <span style={{ color: 'var(--color-text)' }}>{p.trust}</span></span>
-                            <span>·</span>
-                            <span>{p.installs} installs</span>
+                            <span>domain <span style={{ color: 'var(--color-text)' }}>{p.domain}</span></span>
                           </div>
                         </div>
-                        {trending && (
-                          <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--moo-faint)', textTransform: 'uppercase', letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>
-                            most installed
-                          </span>
-                        )}
                       </div>
 
                       <p style={{ fontSize: 12.5, color: 'var(--color-muted)', lineHeight: 1.55, margin: '2px 0 0', minHeight: 54 }}>{p.summary}</p>
@@ -291,9 +280,11 @@ export default function PacksPage() {
         </div>
         <div style={{ maxWidth: 640 }}>
           <p style={{ fontSize: 13.5, color: 'var(--color-muted)', margin: 0, lineHeight: 1.65 }}>
-            Trust and installs are pack metadata, not a guarantee for your prompts — your real tier mix depends on the
-            work your day brings. This project logs no tokens, so it has no measured cost and publishes no savings
-            percentage per pack. Open source · MIT · v{versionInfo.version}
+            A pack declares what it bundles — a domain, a VRAM floor, a set of models — and nothing about your bill:
+            your real tier mix depends on the work your day brings. This project logs no tokens, so it has no
+            measured cost and publishes no savings percentage per pack. It also publishes no install count and no
+            trust score: nothing here writes them, so they were removed rather than guessed. Open source · MIT ·
+            v{versionInfo.version}
           </p>
 
           <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 18, paddingTop: 14 }}>
