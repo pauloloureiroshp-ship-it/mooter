@@ -130,9 +130,9 @@ export default function MethodologyPage() {
           governa, a ressalva. Nunca prosa, e nunca dentro de um cartao. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          calculadora
-          <b>cenario</b>
-          perfil assumido por classe de GPU — nao e medicao
+          calculator
+          <b>scenario</b>
+          profile assumed by GPU class — not a measurement
         </div>
 
         <div className="calc-grid" style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 32, alignItems: 'start' }}>
@@ -246,7 +246,7 @@ export default function MethodologyPage() {
               hairline, e o rosa so volta quando for cota ou CTA. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <Grupo rotulo="Your monthly projection">
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+              <div className="calc-saida" style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
                 <div style={{ flex: 1 }}>
                   <div className="moo-label" style={{ color: 'var(--moo-faint)' }}>without mooter</div>
                   <div className="num" style={{ fontSize: 30, fontWeight: 600, color: 'var(--color-muted)', textDecoration: 'line-through', marginTop: 6 }}>{fmt(baseline)}</div>
@@ -323,9 +323,9 @@ export default function MethodologyPage() {
           regra 1 bane exactamente isso. Passa a seccao com margem. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          um caso
-          <b>~80 prompts/dia</b>
-          perfil assumido, nao media da manada
+          one case
+          <b>~80 prompts/day</b>
+          assumed profile, not a herd average
         </div>
         <div style={{ maxWidth: 760 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 8px' }}>A concrete case</h2>
@@ -344,7 +344,7 @@ export default function MethodologyPage() {
         <div className="moo-marg">
           benchmark
           <b>N=34</b>
-          3 arms · juiz cego
+          3 arms · blind judge
         </div>
         <div style={{ maxWidth: 760 }}>
           <h2 style={{ fontSize: 26, fontWeight: 600, margin: '0 0 6px' }}>Benchmark proof</h2>
@@ -368,9 +368,9 @@ export default function MethodologyPage() {
       {/* Reproduce it yourself */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          reproduzir
+          reproduce
           <b>34 × 3</b>
-          pre-registado · repo aberto
+          pre-registered · open repo
         </div>
         <div style={{ maxWidth: 760 }}>
           <h2 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 8px' }}>Reproduce it yourself</h2>
@@ -396,7 +396,26 @@ tsx run.ts            # full run: 34 × 3 arms → outputs/`}
           </p>
         </div>
       </div>
-      <style>{`@media (max-width: 900px){ .calc-grid{ grid-template-columns: 1fr !important; } }`}</style>
+      {/* 2026-08-28 · a regra dos 900px ja colapsava a calculadora para uma
+          coluna, e mesmo assim a folha media 380px num ecra de 375. A causa e a
+          terceira ocorrencia do mesmo defeito nesta landing: um filho de grid tem
+          `min-width: auto`, por isso a pista dimensiona-se ao min-content do
+          filho mais teimoso -- aqui os dois `input[type=range]`, que o browser
+          desenha a 356px e cujo cursor ainda transborda a caixa. Colapsar para
+          uma coluna nao chega quando a coluna se recusa a encolher.
+          Medido antes: 380px. Depois: 375px. */}
+      <style>{`
+        @media (max-width: 900px){ .calc-grid{ grid-template-columns: 1fr !important; } }
+        .calc-grid > * { min-width: 0; }
+        .calc-grid input[type=range] { width: 100%; max-width: 100%; box-sizing: border-box; margin: 0; }
+        /* O trio sem-mooter / com-mooter / diferenca sao tres colunas de $30px.
+           A 375 sobram ~100px por coluna, o que nao chega para o numero e ainda
+           empurrava a folha para 376. Empilham. */
+        @media (max-width: 640px){
+          .calc-saida { flex-direction: column; align-items: stretch !important; gap: 12px !important; }
+          .calc-saida > * { text-align: left !important; }
+        }
+      `}</style>
     </section>
   );
 }

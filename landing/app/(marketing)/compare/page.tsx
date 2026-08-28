@@ -95,9 +95,9 @@ export default async function ComparePage() {
           que dessincroniza no dia em que lá se acrescentar uma linha. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          o campo
-          <b>multi-sessão</b>
-          contado das células, não afirmado
+          the field
+          <b>multi-session</b>
+          counted from the cells, not asserted
         </div>
         <div>
           <MultiSessionTable />
@@ -111,7 +111,7 @@ export default async function ComparePage() {
         <div className="moo-marg">
           vs routers
           <b>{ROWS.length} × {COLS.length - 1}</b>
-          docs públicos · não inferido
+          public docs · not inferred
         </div>
         <div>
           <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 18px' }}>
@@ -179,9 +179,9 @@ export default async function ComparePage() {
           não se lê, nunca uma data de recurso. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          erratas
+          errata
           <b>{cota}</b>
-          aberto a correcção
+          open to correction
         </div>
         <div style={{ maxWidth: 760 }}>
           <p style={{ color: 'var(--color-muted)', fontSize: 13.5, margin: 0, lineHeight: 1.65 }}>

@@ -153,8 +153,8 @@ export default function CommandsPage() {
           telegráfica: o que a secção É, o número que a governa, a ressalva. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          exemplo
-          <b>2 de {TOTAL}</b>
+          example
+          <b>2 of {TOTAL}</b>
           why · override
         </div>
         <div className="cmd-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
@@ -181,9 +181,9 @@ export default function CommandsPage() {
           hairline — zero caixas. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          referência
-          <b>{TOTAL} comandos</b>
-          {GRUPOS} grupos · {POR_IMPLEMENTAR} por implementar
+          reference
+          <b>{TOTAL} commands</b>
+          {GRUPOS} groups · {POR_IMPLEMENTAR} not implemented yet
         </div>
         <div>
           <div className="cmd-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
@@ -202,9 +202,9 @@ export default function CommandsPage() {
       {/* Install */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
-          instalar
+          install
           <b>/mooter</b>
-          um namespace · zero CLI nova
+          one namespace · zero new CLI
         </div>
         <div>
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
