@@ -70,9 +70,50 @@ export const EXECUCAO = {
  * modelado não é medido.
  */
 export const NAO_MEDIDO = {
-  tokens: 'nenhum ficheiro de telemetria regista tokens_in/tokens_out',
-  dolares: 'sem tokens não há custo medido; qualquer $ seria estimativa',
-  poupanca: 'sem custo medido não há poupança medida — em nenhuma unidade',
+  tokens: 'a telemetria do Mooter (decisions.log/execution.log) não regista tokens',
+  dolares: 'não há despesa medida: os tokens correm dentro de subscrições de valor fixo',
+  poupanca: 'poupança seria o preço do que NÃO aconteceu — e isso não se mede',
+} as const;
+
+/**
+ * 2026-08-28 · O QUE MUDOU, E PORQUE ISTO NÃO CONTRADIZ O BLOCO ACIMA.
+ *
+ * Até hoje este ficheiro dizia «sem tokens não há custo medido». Era verdade
+ * sobre a telemetria do Mooter — e **falso sobre a máquina**. O Claude Code
+ * escreve `message.usage` completo (input, output, cache lido, cache escrito e o
+ * modelo) em cada linha de `~/.claude/projects/**\/*.jsonl`, e sempre escreveu.
+ * O dado estava no disco o tempo todo; o Mooter é que nunca o tinha lido.
+ *
+ * `tools/router/recibo.js` passa a lê-lo. A chave de atribuição **não** é
+ * `session_id`: medido, 387 prompts classificados correspondem a 9.692 chamadas
+ * — 25 por prompt — e dividir por aí reconstruía o defeito exacto que matou o
+ * `0%` deste projecto («o denominador eram chamadas Bash, não prompts»). A chave
+ * é a cadeia `parentUuid` até ao turno humano mais próximo, ignorando os
+ * `tool_result` (que também são `type: "user"`). Medido: **318 turnos humanos
+ * ← 9.420 chamadas, 0 órfãs**. É causal por construção.
+ *
+ * ⚠️  E a distinção que não se pode perder: o total NÃO é despesa. Estes tokens
+ * correram dentro de uma subscrição de valor fixo. O número mede o que os mesmos
+ * tokens custariam a **preço de tabela da API** — uma régua do tamanho do
+ * trabalho, não uma fatura. Chamar-lhe «custo» seria o mesmo defeito da poupança
+ * fabricada, virado ao contrário: em vez de inflacionar o ganho, inflacionava a
+ * despesa. A regra não é «não exagerar a nosso favor» — é não afirmar o que não
+ * se mediu, em direcção nenhuma.
+ *
+ * Continua a não haver percentagem de poupança, e continua a não poder haver.
+ */
+export const RECIBO = {
+  janela: { de: '2026-08-02T17:16Z', ate: '2026-08-28T09:53Z' },
+  transcriptsLidos: 40,
+  transcriptsTotais: 282,
+  turnosHumanos: 710,
+  chamadas: 17297,
+  /** Tokens medidos x preço público. NÃO é despesa — ver o comentário acima. */
+  equivalenteListaUsd: 5704.22,
+  cacheLidoTokens: 7_569_960_888,
+  /** Chamadas atribuídas a turno humano nenhum. Zero é o ponto todo. */
+  orfas: 0,
+  fonte: 'tools/router/recibo.js sobre ~/.claude/projects/**\/*.jsonl, 1 máquina',
 } as const;
 
 /**
