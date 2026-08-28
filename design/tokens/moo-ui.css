@@ -41,14 +41,17 @@
   --moo-tier-web-t1: #5A9BD4;
   --moo-tier-web-t2: #A88BD4;
   --moo-tier-web-t3: #D46A5A;
+  --moo-tier-web-t5: #D9A441;
   --moo-tier-papel-t0: #3D8B5E;
   --moo-tier-papel-t1: #3D6FA8;
   --moo-tier-papel-t2: #7A5EA8;
   --moo-tier-papel-t3: #B8523F;
+  --moo-tier-papel-t5: #7D5A15;
   --moo-tier-terminal-t0: #4CAF6A;
   --moo-tier-terminal-t1: #5A9BD4;
   --moo-tier-terminal-t2: #D4C090;
   --moo-tier-terminal-t3: #D46A5A;
+  --moo-tier-terminal-t5: #D9A441;
 
   /* activos — tinta por omissão; o bloco [data-moo-theme="papel"] remapeia */
   --moo-bg: #0B0A09;
@@ -72,6 +75,7 @@
   --moo-tier-t1: #5A9BD4;
   --moo-tier-t2: #A88BD4;
   --moo-tier-t3: #D46A5A;
+  --moo-tier-t5: #D9A441;
   --moo-term-bg: #0d1117;
   --moo-term-line: #30363d;
   --moo-term-head: #161b22;
@@ -91,7 +95,10 @@
   --moo-space-2xl: 64px;
   --moo-space-band: clamp(4rem, 10vw, 9rem);
   --moo-space-grid: 4;
+  --moo-radius-hairline: 2px;
+  --moo-radius-tight: 4px;
   --moo-radius-control: 6px;
+  --moo-radius-panel: 8px;
   --moo-radius-card: 10px;
   --moo-radius-window: 14px;
   --moo-radius-hero: 16px;
@@ -129,6 +136,7 @@
   --moo-tier-t1: #3D6FA8;
   --moo-tier-t2: #7A5EA8;
   --moo-tier-t3: #B8523F;
+  --moo-tier-t5: #7D5A15;
 }
 
 /* escala tipográfica */

@@ -594,3 +594,64 @@ test('numero-honesto: so a nota cheia quando NAO ha claims em lado nenhum', (t) 
   assert.equal(n.pontos, 2.0);
   assert.equal(n.no_produto_autenticado, 0);
 });
+
+// ── A ESCALA DE RAIOS ──────────────────────────────────────────────────────
+//
+// Até 2026-08-28 o `RAIO_OK` era um `Set` escrito à mão dentro deste portão —
+// `[0,1,2,3,4,6,7,8,9,10,11,12,14,16,999]` — enquanto o token declarava
+// `radius = {6,10,14,16,999}`. Uma terceira fonte de verdade no ficheiro cuja
+// tese é que a fonte é o JSON. E a regex só via a sintaxe CSS: um objecto de
+// estilo em JS escreve `borderRadius: 999`, sem traço e sem `px`, e passava
+// invisível — foi assim que uma pílula sobreviveu a uma onda inteira com o
+// índice a 9,09.
+//
+// Estes quatro testes plantam cada metade do defeito.
+
+test('raio: um valor CSS fora da escala é apanhado', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/globals.css', ':root{color:#fff}\n.x{border-radius:13px}\n');
+  const { rel } = corre(b);
+  const lv = v(rel, 'linguagem');
+  assert.equal(lv.pontos, 0, 'um raio de 13px passou pelo portão');
+  assert.ok(JSON.stringify(lv).includes('raio fora da escala'));
+});
+
+test('MORDIDA · um raio em JSX (`borderRadius: N`) é apanhado — era invisível', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // Sintaxe de objecto JS: sem traço, sem `px`. A regex de CSS nunca lhe tocava.
+  escreve(b.repo, 'landing/app/globals.css', ':root{color:#fff}\n/* const s = { borderRadius: 13 } */\n');
+  const { rel } = corre(b);
+  assert.equal(v(rel, 'linguagem').pontos, 0, 'a sintaxe JSX voltou a ser invisível');
+});
+
+test('raio: um valor DA escala não é apanhado — nas duas sintaxes', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // 2/4/6/8/10/14/16/999 são a escala; 0 é ausência de raio.
+  escreve(b.repo, 'landing/app/globals.css',
+    ':root{color:#fff}\n.a{border-radius:8px}\n.b{border-radius:999px}\n/* { borderRadius: 4 } */\n');
+  const { rel } = corre(b);
+  assert.equal(v(rel, 'linguagem').pontos, 1.0, 'o portão acusou um raio que está na escala');
+});
+
+test('MORDIDA · o portão SEGUE o token: tirar um degrau passa a acusar quem o usa', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/globals.css', ':root{color:#fff}\n.a{border-radius:8px}\n');
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 1.0, 'com `panel: 8px` na escala, 8 passa');
+
+  // Tira o degrau do TOKEN — sem tocar no portão.
+  const tok = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
+  const j = JSON.parse(readFileSync(tok, 'utf8'));
+  delete j.radius.panel;
+  writeFileSync(tok, JSON.stringify(j, null, 2) + '\n');
+
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
+    'o RAIO_OK deixou de derivar do token — voltou a ser um Set paralelo');
+});

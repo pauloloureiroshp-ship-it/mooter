@@ -626,27 +626,36 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const banidos = [];
   const EAS_OK = ['.16,1,.3,1','.2,.8,.2,1','.45,0,.55,1','.3,1.3,.5,1',
                   '0.16, 1, 0.3, 1','0.2, 0.8, 0.2, 1','0.45, 0, 0.55, 1','0.3, 1.3, 0.5, 1'];
-  /* ⚠️ DIVERGÊNCIA DECLARADA, não resolvida: esta escala é escrita à mão e NÃO
-     deriva de `moo-tokens.json`, que declara `radius` = {6,10,14,16,999}. É uma
-     terceira fonte de verdade dentro do ficheiro cuja tese é que a fonte é o
-     JSON, e `DIRETRIZES.md` diz «qualquer raio fora da escala» sem definir
-     escala. Fica escrito em vez de corrigido, e porquê:
+  /* DIVERGÊNCIA RESOLVIDA a 2026-08-28. O que aqui estava, e porquê:
 
-     derivá-la dos tokens (tokens + 0..4 para elementos de espessura de cabelo)
-     foi tentado e medido a 2026-08-27 — passava de 40 para **118** violações,
-     porque 7, 8, 9, 11 e 12 estão em uso legítimo por todo o lado. Apertar o
-     portão para fabricar 78 achados que ninguém quer corrigir é a forma mais
-     rápida de o pôr a ser ignorado; não é uma melhoria.
+     Esta escala era escrita à mão — `new Set([0,1,2,3,4,6,7,8,9,10,11,12,14,16,999])`
+     — e NÃO derivava de `moo-tokens.json`. Uma terceira fonte de verdade dentro
+     do ficheiro cuja tese é que a fonte é o JSON. O comentário anterior dizia
+     porque não se corrigia, e a razão era boa: derivá-la dos tokens foi tentado a
+     2026-08-27 e passava de 40 para **118** violações, porque 7, 8, 9, 11 e 12
+     estavam em uso legítimo por todo o lado. E terminava assim:
 
-     Só se corrige o buraco PROVADO: o `1` entrou porque `globals.css:437`,
-     `.statusline .sl-bar-tick`, é um tick de **3px de largura** onde 1px é o
-     único arredondamento sensato — e a lista permitia 0 e 2 mas não 1. Falso
-     positivo criado por um buraco arbitrário. Os restantes buracos (5, 13, 15)
-     ficam: são falhanços por pouco de 4/6, 14 e 16, e apanham exactamente isso.
+       «Unificar isto com moo-tokens.json é trabalho de desenho, com o dono, e tem
+        de vir com a lista de sítios a mudar — não com um `Set` novo.»
 
-     Unificar isto com `moo-tokens.json` é trabalho de desenho, com o dono, e
-     tem de vir com a lista de sítios a mudar — não com um `Set` novo. */
-  const RAIO_OK = new Set([0,1,2,3,4,6,7,8,9,10,11,12,14,16,999]);
+     Foi isso que aconteceu. O dono pediu-o, e a resolução começou pelo lado certo:
+     **a escala e que estava incompleta, não o código.** Cinco degraus cujo mais
+     pequeno era 6 não descrevem chrome real — um raio de 6 numa barra de 3px de
+     altura está errado — e a prova estava na própria saída do sistema: o
+     `moo-ui.css` GERADO trazia `border-radius: 2px` no anel de `:focus-visible`,
+     cravado no gerador, com o 2 fora da escala.
+
+     Medido antes de decidir: 166 ocorrências fora da escala em 24 ficheiros, com
+     8 (44x), 4 (26x) e 7 (22x) no topo. A escala ganhou os três degraus que o
+     trabalho real usa — `hairline: 2`, `tight: 4`, `panel: 8` — e NÃO o 12, para
+     não virar uma rampa de 2 em 2. Depois mudaram-se os 54 sítios que ficaram a
+     falhar por pouco, com a decisão de cada empate registada no commit.
+
+     Agora deriva do token e não pode voltar a divergir: mudar a escala no JSON
+     muda o que este portao aceita, no mesmo commit.
+     (`moo-tokens.json -> radius` + `radius_nota`.) */
+  const RAIO_OK = new Set([0, ...Object.values(T.radius || {})
+    .map(v => parseInt(v, 10)).filter(Number.isFinite)]);
   const alvos = [...SUPERFICIES_UI, ...andar('design')].filter(f => /\.(html|css|tsx?|jsx?)$/.test(f));
   let vistos = 0;
   for (const f of alvos) {
@@ -660,7 +669,14 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     if (curvas.length) banidos.push({ ficheiro: f, regra: 9, o_que: 'curva fora da família',
       n: curvas.length, exemplos: [...new Set(curvas)].slice(0,3) });
     // escala de raios
-    const raios = [...s.matchAll(/border-radius:\s*(\d+)px/g)].map(m => +m[1]).filter(v => !RAIO_OK.has(v));
+    /* Duas sintaxes, e a segunda esteve invisível até 2026-08-28: um objecto de
+       estilo em JS escreve `borderRadius: 999`, sem traço e sem `px`, e a regex
+       de CSS nunca lhe tocou. Foi assim que uma pílula de raio 999 sobreviveu a
+       uma onda inteira com o índice a 9,09. */
+    const raios = [
+      ...[...s.matchAll(/border-radius:\s*(\d+)px/g)].map(m => +m[1]),
+      ...[...s.matchAll(/borderRadius:\s*(\d+)/g)].map(m => +m[1]),
+    ].filter(v => !RAIO_OK.has(v));
     if (raios.length) banidos.push({ ficheiro: f, regra: 0, o_que: 'raio fora da escala',
       n: raios.length, exemplos: [...new Set(raios)].slice(0,4) });
   }

@@ -47,21 +47,25 @@ export const MOO = {
         "t0": "#4CAF6A",
         "t1": "#5A9BD4",
         "t2": "#A88BD4",
-        "t3": "#D46A5A"
+        "t3": "#D46A5A",
+        "t5": "#D9A441"
       },
       "terminal": {
         "t0": "#4CAF6A",
         "t1": "#5A9BD4",
         "t2": "#D4C090",
-        "t3": "#D46A5A"
+        "t3": "#D46A5A",
+        "t5": "#D9A441"
       },
       "papel": {
         "t0": "#3D8B5E",
         "t1": "#3D6FA8",
         "t2": "#7A5EA8",
-        "t3": "#B8523F"
+        "t3": "#B8523F",
+        "t5": "#7D5A15"
       },
-      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal."
+      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal.",
+      "nota_t5": "T5 (Fable) e opt-in via @fable e NUNCA e auto-rotado; nao existe T4. Por isso nao e um quinto degrau da rampa — e a cor que se le como estando FORA dela, e e o unico tom quente-dourado do conjunto. Escolhido a 2026-08-28 por medicao, nao por gosto: entre 6 candidatos, o ambar #D9A441 e o que maximiza a MENOR distancia perceptual dentro do conjunto {T0,T1,T2,T3,T5} — dE minimo 43,8, melhor do que o pior par da propria rampa actual (29,8, entre T1 e T2). Contraste 8,80:1 sobre tinta.bg. E fica a 50,0 de dE do accent, que era o problema a resolver: ate hoje o T5 usava var(--color-accent), e a marca nao e um tier. No terminal fica o mesmo tom (dE 32,6 do #D4C090 do T2, distinguivel). Em papel escurece para #7D5A15 para passar AA (5,33:1)."
     },
     "term": {
       "bg": "#0d1117",
@@ -167,7 +171,10 @@ export const MOO = {
     "grid": 4
   },
   "radius": {
+    "hairline": "2px",
+    "tight": "4px",
     "control": "6px",
+    "panel": "8px",
     "card": "10px",
     "window": "14px",
     "hero": "16px",

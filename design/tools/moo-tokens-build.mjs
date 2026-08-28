@@ -118,7 +118,7 @@ ${Object.entries(T.type.scale).map(([k, s]) => {
 @keyframes moo-pulso { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 
 /* foco — anel rosa em tudo o que é interactivo, sem excepção */
-:focus-visible { outline: 2px solid var(--moo-accent); outline-offset: 2px; border-radius: 2px; }
+:focus-visible { outline: 2px solid var(--moo-accent); outline-offset: 2px; border-radius: ${T.radius.hairline}; }
 
 /* ── TELEMOVEL · a folha tinha UMA media query e nenhuma era de largura ──
    Ver \`layout.telemovel_nota\` em moo-tokens.json: os numeros medidos e o porque
