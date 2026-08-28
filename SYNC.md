@@ -176,4 +176,73 @@ gigante na home, sobre preços de tabela em seis prompts inventados), `~30% less
 
 gate: design **53/53** · landing **219/219** · cockpit-runner 943/941/**0** · cockpit-invariants 215/4 (baseline) · auditor visual: contraste **178 → 30** · PR #416, CI verde
 
+
+---
+
+### 2026-08-28 · v1.51.0 EM PRODUÇÃO — a onda que começou em design e acabou na tese
+
+**29 commits, 100 ficheiros, +11.607/−1.494. PR #416 fundida, tag `v1.51.0`, mooter.ai a servir.**
+
+**Retirado por não ser verdade — e verificado ao vivo no site depois do deploy:**
+`/privacy` afirmava «Differential privacy noise (ε=1.0)» **com visto verde**, e não há
+implementação nenhuma no repo (o único resultado é `quality.ts:32` — «lands in Wave 31»). O
+`k-anonymity ≥50` **ficou**, porque é real (`hub/routes/federated.js:22`, com testes que plantam
+49 e 60) e agora diz onde. `/packs/[id]` renderizava **«Savings vs Opus 89%»** — um dos cinco
+números mortos — a um clique da página que publicava a ressalva. O seed público trazia **805
+instalações** contra os **2 developers** que `/api/community/pulse` devolve ao vivo. `/workflow`
+gritava um **160×** que dividia um medido por um estimado.
+
+**A latência, que ninguém tinha medido apesar de o medidor existir no repo:**
+`classify()` **0,001 ms** p50 (5.000 chamadas) · o hook em prompts reais **121,6 ms** p50
+(660 amostras do `decisions.log`). O `14ms` publicado em três ficheiros não era nenhum dos dois.
+
+**O site não abria em telemóvel.** `moo-ui.css` tinha **uma** media query
+(`prefers-reduced-motion`) e **zero** breakpoints de largura. `/compare` media **901px** num ecrã
+de 375. Agora **375px em todas as rotas**, com navegação (`<details>` nativo, sem client state).
+
+**No Windows não havia caminho nenhum.** O one-liner `irm|iex` imprimia «private friends-beta» e
+saía **0**; `install-windows.ps1` era **404**; `mooter` dava `ENOENT` porque `where claude` devolve
+duas linhas. Smoke real: `claude.cmd → cmd /d /c → 2.1.224`, exit 0.
+
+**A escada de fallback tinha a lógica certa e memória nenhuma.** `resolveFallbackChain()` sempre
+existiu; `execute()` fazia `deps.providerState || {}` e **nada jamais preencheu esse campo**.
+`provider-health.js` dá-lhe memória **com decaimento** (sem isso vira lápide) e default
+**«disponível», não «morto»** (o custo dos dois erros não é simétrico). O `<router-hint>` passa a
+dizer quem está em baixo e até quando.
+
+**E o achado que muda a tese: os tokens sempre estiveram no disco.**
+O projecto publicou meses a fio «no tokens are logged» — verdade sobre a telemetria do Mooter,
+**falsa sobre a máquina**. `~/.claude/projects/**/*.jsonl` tem `message.usage` completo. 282
+transcripts; só nos 40 mais recentes, **7,57 mil milhões de tokens de cache lido**, que o modelo
+de poupança ignorava por inteiro.
+
+⚠️ **A chave de atribuição não é `session_id`.** Medido antes de escrever código: 387 prompts ↔
+9.692 chamadas = **25 por prompt** — o defeito exacto que matou o `0%` («o denominador eram
+chamadas Bash, não prompts»). Um adversário noutro fornecedor (codex) apanhou-o. A chave é a cadeia
+**`parentUuid`** até ao turno humano: **318 turnos ← 9.420 chamadas, 0 órfãs**.
+`mooter recibo` imprime-o, e a etiqueta é `EQUIVALENTE A PREÇO DE TABELA`, **nunca** `custo` — os
+tokens correm dentro de uma subscrição de valor fixo, e chamar-lhe despesa seria a poupança
+fabricada virada ao contrário. Há um teste que falha se a palavra voltar.
+
+**Dois bugs que esta onda criou e fechou, ambos registados:** `provider-health.js` gravou as falhas
+SIMULADAS dos testes no `~/.mooter` **real** (3.ª ocorrência desta armadilha no repo) — guarda posta
+com mordida; e acrescentei um sítio ao piso de Node sem o pôr no `paths:` do CI, o que o
+`piso-de-node.test.mjs` apanhou por mim.
+
+**E um que desbloqueou o repositório inteiro:** `F5/2` em `autopilot.test.mjs` **dependia da hora
+do dia** — o fixture usava base 30, e a queda só dispara depois das **08:00** na hora do dono.
+Estava vermelho no `main` e a protecção do ramo recusava **todos** os merges. Provado com o relógio
+fixado à meia-noite; fixture determinístico, detector intacto.
+
+gate: **12 workflows verdes, zero falhas** · classify.js sha `427d8c0b` intacto · design **53/53**,
+índice **9,09** · landing **219/219** · CLI **30/30** · router **1217** · cockpit **943, 0 fail** ·
+piso de Node **14 sítios** (era 13) · instaladores byte-a-byte · `packages/` com 3 linhas
+registadas na allowlist do `CLAUDE.md` no mesmo PR
+
+**Aberto:** as 15 estimativas de poupança na shell autenticada (decisão de produto do dono, e a
+verificação 3 do portão dá metade enquanto lá estiverem) · o cruzamento recomendação↔custo casa
+**22 de 710** turnos, porque o `decisions.log` só tem sessão em 1.350 das 1.916 linhas e a maioria
+dos transcripts é anterior · `/methodology` ainda grita **91%** numa calculadora hipotética ·
+o site ainda tem duas gramáticas visuais (8 folhas novas, 8 antigas, 1 scaffold)
+
 <!-- HUMANO:FIM -->
