@@ -101,7 +101,7 @@ const TELEMETRY_MATRIX: Array<{ label: string; desc: string; on: boolean; badge?
 function Toggle({ on }: { on: boolean }) {
   return (
     <span aria-hidden style={{
-      width: 38, height: 22, borderRadius: 9999, flexShrink: 0,
+      width: 38, height: 22, borderRadius: 999, flexShrink: 0,
       background: on ? 'var(--accent)' : 'var(--border-light)',
       border: `1px solid ${on ? 'var(--accent)' : 'var(--border-light)'}`,
       position: 'relative', display: 'inline-block',

@@ -140,7 +140,7 @@ function CkCard({ children, accent }: { children: ReactNode; accent?: boolean })
       style={{
         background: V.chip,
         border: `1px solid ${accent ? ROSE_25 : V.border}`,
-        borderRadius: 9,
+        borderRadius: 8,
         padding: '12px 13px',
       }}
     >
@@ -297,7 +297,7 @@ function Dropdown({
             minWidth: 200,
             background: '#202020',
             border: `1px solid ${V.border}`,
-            borderRadius: 7,
+            borderRadius: 8,
             padding: 4,
             boxShadow: '0 18px 50px -16px rgba(0,0,0,0.8)',
           }}
@@ -321,7 +321,7 @@ function Dropdown({
                 cursor: 'pointer',
                 background: it.k === value ? ROSE_12 : 'transparent',
                 border: 'none',
-                borderRadius: 5,
+                borderRadius: 4,
                 color: V.text,
                 fontFamily: MONO,
                 fontSize: 11,
@@ -441,7 +441,7 @@ function CockpitTab({
                   padding: '7px 9px',
                   background: 'rgba(217,180,90,0.08)',
                   border: `1px solid ${AMBER}`,
-                  borderRadius: 7,
+                  borderRadius: 8,
                 }}
               >
                 <span aria-hidden="true" style={{ color: AMBER }}>
@@ -458,7 +458,7 @@ function CockpitTab({
                     color: AMBER,
                     background: 'transparent',
                     border: `1px solid ${AMBER}`,
-                    borderRadius: 5,
+                    borderRadius: 6,
                     padding: '2px 7px',
                     cursor: 'pointer',
                   }}
@@ -526,7 +526,7 @@ function CockpitTab({
                     color: ROSE,
                     background: 'transparent',
                     border: `1px solid ${ROSE_25}`,
-                    borderRadius: 5,
+                    borderRadius: 6,
                     padding: '2px 8px',
                     cursor: 'pointer',
                     flexShrink: 0,
@@ -548,7 +548,7 @@ function CockpitTab({
               <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: TIER_COLOR[tier], width: 18 }}>
                 {tier}
               </span>
-              <div style={{ flex: 1, height: 8, borderRadius: 3, background: V.border, overflow: 'hidden' }}>
+              <div style={{ flex: 1, height: 8, borderRadius: 4, background: V.border, overflow: 'hidden' }}>
                 <div style={{ width: `${pct * 100}%`, height: '100%', background: TIER_COLOR[tier], opacity: 0.6 }} />
               </div>
               <span style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim, width: 30, textAlign: 'right' }}>
@@ -649,7 +649,7 @@ function SetupTab({ scenario }: { scenario: Scenario }) {
                     fontFamily: MONO,
                     fontSize: 9.5,
                     padding: '3px 4px',
-                    borderRadius: 5,
+                    borderRadius: 6,
                     cursor: 'pointer',
                     border: `1px solid ${ollama === s ? ROSE : V.border}`,
                     background: ollama === s ? ROSE_12 : 'transparent',
@@ -832,7 +832,7 @@ function HerdTab({ scenario }: { scenario: Scenario }) {
                 padding: '8px 10px',
                 background: V.chip,
                 border: `1px solid ${V.border}`,
-                borderRadius: 7,
+                borderRadius: 8,
               }}
             >
               <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: TIER_COLOR[tier], width: 16 }}>
@@ -955,7 +955,7 @@ function DecisionsTab({ scenario }: { scenario: Scenario }) {
                 style={{
                   background: V.chip,
                   border: `1px solid ${isOpen ? ROSE_25 : V.border}`,
-                  borderRadius: 7,
+                  borderRadius: 8,
                   overflow: 'hidden',
                 }}
               >
@@ -1047,7 +1047,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
               color: '#1a1411',
               background: AMBER,
               border: 'none',
-              borderRadius: 5,
+              borderRadius: 6,
               padding: '4px 9px',
               cursor: 'pointer',
             }}
@@ -1069,7 +1069,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
                 padding: '7px 9px',
                 background: V.chip,
                 border: `1px solid ${V.border}`,
-                borderRadius: 7,
+                borderRadius: 8,
               }}
             >
               <span style={{ color: ok ? GREEN : AMBER, fontFamily: MONO, fontSize: 12, width: 12 }}>
@@ -1085,7 +1085,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
                     color: ROSE,
                     background: 'transparent',
                     border: `1px solid ${ROSE_25}`,
-                    borderRadius: 5,
+                    borderRadius: 6,
                     padding: '2px 8px',
                     cursor: 'pointer',
                   }}
@@ -1118,7 +1118,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
                 padding: '7px 9px',
                 background: V.chip,
                 border: `1px solid ${V.border}`,
-                borderRadius: 7,
+                borderRadius: 8,
               }}
             >
               <span aria-hidden="true" style={{ color: GREEN, fontSize: 11 }}>
@@ -1202,7 +1202,7 @@ function CockpitPlugin({ width, scenario }: { width: Width; scenario: Scenario }
               fontSize: 10,
               color: V.dim,
               border: `1px solid ${V.border}`,
-              borderRadius: 9999,
+              borderRadius: 999,
               padding: '2px 8px',
             }}
           >
@@ -1401,7 +1401,7 @@ export default function CockpitShowcase() {
               <div
                 style={{
                   minWidth: width === 560 ? 760 : 520,
-                  borderRadius: 12,
+                  borderRadius: 14,
                   overflow: 'hidden',
                   border: `1px solid ${V.border}`,
                   boxShadow: '0 40px 120px -40px rgba(0,0,0,0.8)',

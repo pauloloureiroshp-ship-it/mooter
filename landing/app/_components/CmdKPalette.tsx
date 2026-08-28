@@ -161,7 +161,7 @@ export default function CmdKPalette() {
           }}
         >
           <span>Press</span>
-          <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text)', background: 'var(--color-bg-2)', border: '1px solid var(--color-border)', borderRadius: 5, padding: '1px 6px' }}>{mod} K</kbd>
+          <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text)', background: 'var(--color-bg-2)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '1px 6px' }}>{mod} K</kbd>
           <span>to search</span>
         </button>
       )}
@@ -211,7 +211,7 @@ export default function CmdKPalette() {
                   fontFamily: 'var(--font-sans)', fontSize: 16, letterSpacing: '-0.01em',
                 }}
               />
-              <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-muted)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 5, padding: '2px 7px' }}>esc</kbd>
+              <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-muted)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '2px 7px' }}>esc</kbd>
             </div>
 
             <Command.List style={{ maxHeight: 'min(54vh, 460px)', overflowY: 'auto', overflowX: 'hidden', padding: '8px 8px 10px' }}>
@@ -231,7 +231,7 @@ export default function CmdKPalette() {
                       keywords={it.keywords}
                       onSelect={it.run}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 9, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
                       }}
                     >
                       <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-border-light)', flexShrink: 0 }} />

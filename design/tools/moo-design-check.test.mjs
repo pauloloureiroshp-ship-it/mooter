@@ -655,3 +655,73 @@ test('MORDIDA · o portão SEGUE o token: tirar um degrau passa a acusar quem o 
   assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
     'o RAIO_OK deixou de derivar do token — voltou a ser um Set paralelo');
 });
+
+// ── O ÂMBITO: os .tsx da landing ───────────────────────────────────────────
+//
+// Até 2026-08-28 a `linguagem-visual` varria 5 superfícies HTML/CSS mais
+// `design/` — **10 ficheiros**. Os `.tsx` da landing nunca estiveram na lista, e
+// não era só a regex que não via `borderRadius:`: os ficheiros nem eram abertos.
+// Foi assim que uma pílula de raio 9999 sobreviveu a uma onda inteira com o
+// índice a 9,09.
+//
+// O âmbito abriu depois de os 32 raios fora da escala terem sido corrigidos —
+// a regra que este ficheiro exigia: a lista de sítios primeiro. Passou a varrer
+// 123. Estes testes garantem que não volta a fechar.
+
+test('MORDIDA · um raio fora da escala num .tsx da landing é apanhado', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/qualquer/page.tsx',
+    'export default () => <div style={{ borderRadius: 13 }} />;\n');
+  const lv = v(corre(b).rel, 'linguagem');
+  assert.equal(lv.pontos, 0, 'o âmbito voltou a excluir os .tsx da landing');
+  assert.ok(JSON.stringify(lv).includes('qualquer/page.tsx'), 'apanhou, mas não disse onde');
+});
+
+test('MORDIDA · e em landing/components também', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/components/Coisa.tsx',
+    'export default () => <div style={{ borderRadius: 9999 }} />;\n');
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
+    '`landing/components` ficou fora do âmbito — era lá que viviam Card e TerminalCard');
+});
+
+test('um ficheiro de TESTE continua fora — é onde a decisão se defende', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // A mesma viola\u00e7\u00e3o, mas num `.test.tsx`: n\u00e3o pode contar.
+  escreve(b.repo, 'landing/app/x/algo.test.tsx',
+    'it("recusa raios fora da escala", () => expect(s).not.toContain("borderRadius: 13"));\n');
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 1.0,
+    'um teste que CITA a violação passou a contar como violação');
+});
+
+test('MORDIDA · a família de curvas segue o token, não um Set à mão', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // `.2,.8,.2,1` é uma das quatro do token — e a forma com `0.` é a mesma curva.
+  escreve(b.repo, 'landing/app/a/page.tsx',
+    'export default () => <div style={{ transition: "all 140ms cubic-bezier(0.2, 0.8, 0.2, 1)" }} />;\n');
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 1.0,
+    'uma curva DA família foi acusada — a normalização do `0.` partiu-se');
+
+  // Tira essa curva do TOKEN e a mesma linha passa a ser violação.
+  const tok = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
+  const j = JSON.parse(readFileSync(tok, 'utf8'));
+  const limpa = (o) => {
+    for (const [k, val] of Object.entries(o)) {
+      if (typeof val === 'string' && val.includes('.2,.8,.2,1')) delete o[k];
+      else if (val && typeof val === 'object') limpa(val);
+    }
+  };
+  limpa(j.motion);
+  writeFileSync(tok, JSON.stringify(j, null, 2) + '\n');
+
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
+    'o EAS_OK deixou de derivar do token — voltou a ser um Set paralelo');
+});
