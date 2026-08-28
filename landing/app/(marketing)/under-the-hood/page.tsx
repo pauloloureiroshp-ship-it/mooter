@@ -72,7 +72,7 @@ export default function UnderTheHoodPage() {
 
       {/* O cartucho identifica a folha antes de qualquer conteudo. A revisao vem
           de version.json, escrito pelo version-sync a partir da tag. */}
-      <Cartucho o_que="POR DENTRO" desenho="007" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+      <Cartucho o_que="UNDER THE HOOD" desenho="007" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
       {/* O UNICO momento extremo da folha (regra 10). Um. */}
       <div style={{ position: 'relative', padding: '48px 0 0' }}>

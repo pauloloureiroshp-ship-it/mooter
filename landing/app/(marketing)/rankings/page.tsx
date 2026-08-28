@@ -99,7 +99,7 @@ export default async function RankingsPage() {
       <div className="m-pad m-pad-y" style={{ padding: '64px 40px 72px', maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
         {/* O cartucho identifica a folha antes de qualquer conteúdo. A revisão
             vem de version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="OS RANKINGS" desenho="009" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="RANKINGS" desenho="009" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O ÚNICO momento extremo da folha (regra 10). Um.
             Era um `<Eyebrow>` rosa + um h1 de clamp(34px,5vw,52px); passa ao h1

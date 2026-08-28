@@ -43,7 +43,7 @@ export default function WorkflowPage() {
       <div className="workflow-wrap m-pad m-pad-y" style={{ padding: '64px 40px 72px', maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
         {/* O cartucho identifica a folha antes de qualquer conteudo. A revisao
             vem de version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="O WORKFLOW" desenho="008" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+        <Cartucho o_que="WORKFLOW" desenho="008" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
         {/* O UNICO momento extremo da folha (regra 10). Um. */}
         <div style={{ padding: '48px 0 0' }}>

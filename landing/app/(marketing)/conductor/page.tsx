@@ -85,7 +85,7 @@ export default function ConductorPage() {
         {/* O cartucho identifica a folha antes de qualquer conteúdo — e substitui
             o `<Eyebrow>` rosa que dizia a mesma coisa por baixo. A revisão vem de
             version.json, escrito pelo version-sync a partir da tag. */}
-        <Cartucho o_que="O CONDUCTOR" desenho="015" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="CONDUCTOR" desenho="015" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* Abertura à escala normal da folha. O momento extremo desta prancha
             NÃO é aqui: é o baile das fechaduras, mais abaixo — um momento vivo.

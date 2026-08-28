@@ -50,7 +50,7 @@ export default function Page() {
 
           {/* O cartucho identifica a folha antes de qualquer conteúdo. A revisão
               vem de version.json, escrito pelo version-sync a partir da tag. */}
-          <Cartucho o_que="A HOME" desenho="001" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+          <Cartucho o_que="HOME" desenho="001" revisao={`v${versionInfo.version}`} data="2026-08-27" />
 
           <div className="hero-grid" style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', gap: 56, alignItems: 'center', padding: '72px 0 40px' }}>
             {/* Left */}

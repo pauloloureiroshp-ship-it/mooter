@@ -140,7 +140,7 @@ export default function InstallPage() {
             o `<Eyebrow>` rosa mais a pílula da versão, que diziam a mesma coisa
             em dois sítios. A revisão vem de version.json, escrito pelo
             version-sync a partir da tag. */}
-        <Cartucho o_que="A INSTALACAO" desenho="012" revisao={`v${versionInfo.version}`} data="2026-08-28" />
+        <Cartucho o_que="INSTALL" desenho="012" revisao={`v${versionInfo.version}`} data="2026-08-28" />
 
         {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
         <div style={{ padding: '48px 0 0' }}>
