@@ -260,7 +260,14 @@ export default function MethodologyPage() {
                 <div style={{ flex: 1, textAlign: 'right' }}>
                   <div className="moo-label" style={{ color: 'var(--moo-faint)' }}>difference</div>
                   <div className="num" style={{ fontSize: 30, fontWeight: 700, color: 'var(--color-text)', marginTop: 6 }}>{fmt(saved)}</div>
-                  <div className="num" style={{ fontSize: 13, color: 'var(--color-muted)', fontWeight: 600 }}>{r.saved_pct.toFixed(0)}%</div>
+                  {/* 2026-08-28 · aqui renderizava-se `{r.saved_pct}%`. A ressalva
+                      14px abaixo dizia, textualmente, «publishes no savings
+                      percentage» — e a percentagem estava mesmo ali. Não é uma
+                      questão de ênfase: a caixa contradizia-se a si própria em dois
+                      elementos consecutivos. A diferença em dólares fica, porque é
+                      a aritmética do cenário que o leitor acabou de configurar; o
+                      rácio saía como conclusão sobre o produto, que é outra coisa. */}
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>in this scenario</div>
                 </div>
               </div>
               {/*
@@ -273,9 +280,13 @@ export default function MethodologyPage() {
               <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--color-border)', fontSize: 11.5, color: 'var(--color-muted)', lineHeight: 1.55 }}>
                 <strong style={{ color: 'var(--color-text)' }}>Hypothetical scenario, not a measurement.</strong>{' '}
                 The tier distribution above is an assumed profile per GPU class, and the per-prompt costs are token
-                estimates. This project records no tokens, so it has no measured cost and publishes no savings
-                percentage — see the <Link href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</Link>.
-                What <em>is</em> measured: 101 of 123 classified prompts were routed to a local or cheap tier.
+                estimates — nothing on this panel was measured on your machine.
+                {' '}We publish no savings percentage, here or anywhere — see the{' '}
+                <Link href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</Link>.
+                {' '}What <em>is</em> measured, on your own machine and by you:{' '}
+                <code style={{ fontFamily: 'var(--mono)', color: 'var(--color-text)' }}>mooter recibo</code>{' '}
+                reads the token counts Claude Code already writes to your transcripts, attributes every API call to
+                the prompt that caused it, and prices it — no estimate anywhere in that number.
               </div>
             </Grupo>
 
