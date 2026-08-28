@@ -123,6 +123,18 @@ export const SITIOS = [
     padroes: [/verify Claude Code \+ Node (\d+)/g],
   },
   {
+    // 2026-08-28 · este dizia `"minNodeVersion": "18.0.0"` enquanto os dois
+    // instaladores recusavam Node < 22, e a guarda deu «todos os 13 sitios
+    // dizem Node 22+» sem o ver. Ninguem LE este campo (grep por
+    // `minNodeVersion` no repo: zero consumidores fora do proprio ficheiro),
+    // o que o torna pior e nao melhor: um numero morto que contradiz o
+    // instalador nao tem quem o corrija por deixar de funcionar.
+    ficheiro: 'tools/router/version.json',
+    porque: 'o piso declarado no SSOT da versao, que o site e o CLI servem',
+    obrigatorio: true,
+    padroes: [/"minNodeVersion":\s*"(\d+)/g],
+  },
+  {
     ficheiro: 'tools/cli/commands/doctor.js',
     porque: 'o diagnostico que aprova ou recusa o runtime instalado',
     obrigatorio: true,
