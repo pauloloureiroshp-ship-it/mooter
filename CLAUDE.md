@@ -49,6 +49,19 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   (comportamental: 0 das 24 categorias o escolhem) e por
   `tools/cockpit/runner/precificavel-nao-rotavel.test.mjs` (cobertura: qualquer modelo que
   reúna preço + célula medida tem de estar coberto pela guarda).
+  **2026-08-28 · gramática do movimento** allowlists **3 linhas** de
+  `packages/mooter-bridge/fleet-ui.html` (autorizado pelo dono, onda de design de 27-28/08).
+  O portao `moo-design-check` tem duas verificações que varrem o repo inteiro e não pedem
+  licença ao caminho: `movimento-seguro` (só `transform`/`opacity`, sempre com guarda de
+  movimento reduzido) e `linguagem-visual` (as quatro curvas da família, os raios da escala).
+  Esta folha falhava as duas: `@keyframes sl` animava `margin-left` — que fora da GPU faz
+  *layout* a cada frame —, a barra de motor usava uma curva fora da família, e um raio de 5px
+  não está na escala. As três linhas são `margin-left` → `transform: translateX`,
+  `cubic-bezier(.4,0,.2,1)` → `(.2,.8,.2,1)`, e `border-radius: 5px` → `4px`. Zero lógica,
+  zero comportamento, zero JavaScript. Fica registado porque a regra o exige: o congelamento
+  é documentário, e **uma edição não registada é indistinguível de uma violação** — foi o
+  gate de pré-merge desta onda que a apanhou por commitar sem entrada. Provado por
+  `npm run test:design` (53 testes) e pelo índice em 9,09.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
