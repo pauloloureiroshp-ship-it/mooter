@@ -36,6 +36,7 @@ export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
   const hasGPT = profile.subscriptions.includes('gpt_plus') ||
                  profile.subscriptions.includes('gpt_api');
   const isMac = profile.hardware_tier === 'mac_m_series';
+  const isWindows = profile.hardware_tier.startsWith('windows_');
   const hasGPU = profile.hardware_tier.includes('nvidia') || isMac;
 
   const budget = profile.monthly_budget_usd ?? 30;
@@ -48,9 +49,9 @@ export function generateFrugalConfig(profile: UserProfile): FrugalConfig {
     ollama_enabled: hasGPU,
     ollama_model: 'qwen2.5:3b',
     hub_push_enabled: true,
-    suggested_install_command: isMac
-      ? 'bash <(curl -fsSL https://mooter.ai/install.sh)'
-      : 'irm https://mooter.ai/install-windows.ps1 | iex',
+    suggested_install_command: isWindows
+      ? 'irm https://mooter.ai/install.ps1 | iex'
+      : 'bash <(curl -fsSL https://mooter.ai/install.sh)',
     personalized_message: '',
     monthly_budget_usd: budget,
     budget_tier: budgetTier,

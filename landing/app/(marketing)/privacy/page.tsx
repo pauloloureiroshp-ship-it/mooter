@@ -88,7 +88,23 @@ const compliance: { head: string; items: string[] }[] = [
   { head: 'GDPR-aligned · EU', items: ['Data minimization · purpose limitation', 'Right to access · right to erasure'] },
   { head: 'LGPD-aligned · Brasil', items: ['Consentimento expresso e granular', 'Direito de acesso, correção, eliminação'] },
   { head: 'CCPA-aligned · California', items: ['No sale of personal information', 'Right to know what is collected'] },
-  { head: 'Privacy-first by design', items: ['Telemetry default OFF', 'k-anonymity threshold ≥50', 'Differential privacy noise (ε=1.0)'] },
+  // 2026-08-27 · a terceira linha desta caixa dizia «Differential privacy noise
+  // (ε=1.0)», com visto verde, numa página sobre tratamento de dados. Não existe
+  // implementação nenhuma: procurados `epsilon`, `laplace`, `differential privacy`
+  // em hub/, packages/, tools/ e landing/, o único resultado a sério é
+  // `packages/cli/src/commands/quality.ts:32` — «hub upload (DP + k-anonymity≥50)
+  // **lands in Wave 31**», ou seja um plano. (O «Laplace» de
+  // `packages/fleet-commander/src/scheduler.mjs:23` é um prior Beta(1,1) de
+  // Thompson sampling, sem relação com DP.) Afirmar uma garantia de privacidade
+  // que não existe é pior do que afirmar uma poupança que não existe.
+  //
+  // O k-anonymity FICA porque é verdade e está provado: `hub/routes/federated.js`
+  // exporta `K_ANONYMITY_MIN = 50` e `applyKAnonymity()` devolve
+  // `{ suppressed: true, aggregate: null }` abaixo desse valor — com testes que
+  // plantam 49 e 60 (`hub/routes/__tests__/federated.test.js:43-51`). Por isso
+  // passa a dizer ONDE, para que a afirmação se possa verificar em vez de se
+  // ter de acreditar nela.
+  { head: 'Privacy-first by design', items: ['Telemetry default OFF', 'k-anonymity ≥50 on every public aggregate — enforced in hub/routes/federated.js, suppressed below it'] },
   { head: 'Open source · MIT', items: ['Reproducible builds', 'Independent audit welcome'] },
 ];
 
@@ -154,7 +170,14 @@ export default async function PrivacyPage() {
               ))}
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
-              <a href="/privacy" style={{ color: 'var(--color-accent)', fontSize: 14 }}>Read the privacy policy →</a>
+              {/* 2026-08-27: aqui estava `<a href="/privacy">Read the privacy policy →</a>`
+                  — na própria página /privacy. Um link que devolve o leitor ao sítio
+                  onde ele já está lê-se como política que existe noutro lado; não
+                  existe. O que existe é a fonte, e é para lá que se aponta. */}
+              <a href="https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/docs/data-policy.md"
+                 style={{ color: 'var(--color-accent)', fontSize: 14 }}>
+                Read data-policy.md on GitHub →
+              </a>
               {/* Wave 16-18 A3 / Wave 60: no "security policy" link — it pointed to /privacy.
                   A real SECURITY.md page is still backlog. */}
             </div>

@@ -114,7 +114,11 @@ export default function TwoTerminalDemo() {
   const finished = st.phase === 'finished';
   const allVan = DEMO_PROMPTS.reduce((a, b) => a + b.van, 0);
   const allMoo = DEMO_PROMPTS.reduce((a, b) => a + b.cost, 0);
-  const pctSaved = Math.round((1 - allMoo / allVan) * 100);
+  /* `pctSaved` foi removido a 2026-08-27, e não só o sítio onde era impresso.
+     Enquanto a conta existir, alguém volta a usá-la — e a decisão de 24/08 não
+     diz "não mostres a percentagem", diz "não publiques poupança até haver
+     tokens medidos". Aqui não há tokens: há preços de tabela sobre seis prompts
+     inventados. As duas somas continuam à vista, que é o que a demo mede. */
 
   const showCurrent = st.phase !== 'finished';
   const cur = DEMO_PROMPTS[st.idx];
@@ -167,9 +171,22 @@ export default function TwoTerminalDemo() {
               maxWidth: 760,
             }}
           >
+            {/* Aqui dizia "One bill is {pctSaved}% smaller", em corpo gigante e a
+                rosa. A decisão do dono de 2026-08-24 — parar de publicar poupança
+                até haver tokens medidos — proíbe exactamente isto, e a auditoria
+                de 23/08 já tinha rastreado os cinco números que o projecto
+                publicava sem que nenhum sobrevivesse.
+
+                O `pctSaved` é `Math.round((1 - allMoo / allVan) * 100)` sobre
+                PREÇOS DE TABELA aplicados a seis prompts inventados. A régua de
+                preço de tabela nunca é apresentada como poupança (`numero.regras`).
+
+                O que fica é o que a demo mostra de facto: as duas facturas, cada
+                linha com o seu tier, somadas à vista. Quem quiser tirar uma
+                percentagem tira-a — mas não é a página que a afirma. */}
             Same prompts. Comparable quality on routine tasks.
             <br />
-            One bill is <span style={{ color: 'var(--color-accent)' }}>{pctSaved}% smaller</span>.
+            Two bills, <span style={{ fontWeight: 300 }}>line by line</span>.
           </h2>
           <button
             type="button"
@@ -307,7 +324,7 @@ export default function TwoTerminalDemo() {
                   {promptCell(curTyped, true)}
                   {st.phase === 'routing' && (
                     <div style={{ fontSize: 11.5, marginTop: 2, color: 'var(--color-term-dim)' }}>
-                      └─ classify <span style={{ color: 'var(--color-green)' }}>14ms</span> →{' '}
+                      └─ classify <span style={{ color: 'var(--color-green)' }}>122ms</span> →{' '}
                       <span style={{ color: cur.tcolor, fontWeight: 600 }}>{cur.tier}</span>{' '}
                       <span style={{ color: 'var(--color-term-dim)' }}>{cur.note}</span>
                     </div>
@@ -338,11 +355,10 @@ export default function TwoTerminalDemo() {
             transition: 'opacity .4s',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <span style={{ fontFamily: 'var(--font)', fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--color-accent)' }}>{pctSaved}%</span>
-            <span style={{ color: 'var(--color-muted)', fontSize: 14 }}>cheaper on this trace</span>
-          </div>
-          <div style={{ width: 1, height: 36, background: 'var(--color-border)' }} />
+          {/* Era `{pctSaved}%` a 40px e a rosa, com "cheaper on this trace" ao
+              lado — o mesmo claim do título, repetido. As duas somas ficam
+              (são aritmética à vista sobre preços de tabela declarados); a
+              percentagem sai. */}
           <div style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-term-dim)' }}>
             <span style={{ color: 'var(--color-tier-3)' }}>{fmt(allVan)}</span> vanilla →{' '}
             <span style={{ color: 'var(--color-green)' }}>{fmt(allMoo)}</span> routed

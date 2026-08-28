@@ -55,8 +55,26 @@ export default function SecurityPage() {
         </h1>
         <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.6, maxWidth: 640, marginBottom: 36 }}>
           CVE-2025-59528 — the Antigravity sandbox escape (CVSS 10.0) — is why Mooter ships sandboxing
-          as mandatory. Every spawned agent runs inside four isolation layers, and there is no{' '}
-          <code style={{ fontFamily: 'var(--mono)' }}>--no-sandbox</code>.
+          as mandatory. There is no{' '}
+          <code style={{ fontFamily: 'var(--mono)' }}>--no-sandbox</code>: when no backend can enforce
+          these layers, the orchestrator <strong>refuses to spawn</strong> and tells you what to install.
+        </p>
+        {/* 2026-08-27 · esta frase dizia «Every spawned agent runs inside four isolation
+            layers». Não é falso, mas escondia metade: `sandbox/detect.ts` devolve
+            `bubblewrap` em Linux, `seatbelt` em macOS e **`none` em Windows** — e em
+            Windows não corre agente nenhum, sandboxed ou não. Escrito como estava,
+            um utilizador de Windows lia «todo o agente que lanço está protegido»
+            quando o que se passa é que não lança nenhum.
+            A recusa é a parte mais forte da história e estava por dizer:
+            `detect.ts:3-5` — «There is NO unsandboxed mode … the orchestrator refuses
+            to spawn and tells the user how to install one» — e `fanout.ts:126-130`
+            reporta a tarefa como «unavailable» com a razão real em vez de a correr
+            à solta. É por isso que agora está escrito ao contrário: primeiro a
+            recusa, depois a cobertura por plataforma na linha abaixo. */}
+        <p style={{ color: 'var(--color-muted)', fontSize: 14, lineHeight: 1.6, maxWidth: 640, marginBottom: 36 }}>
+          Backends today: <strong>Linux</strong> via bubblewrap, <strong>macOS</strong> via Seatbelt
+          (<code style={{ fontFamily: 'var(--mono)' }}>sandbox-exec</code>). <strong>Windows</strong> has
+          no backend yet — local spawns are reported unavailable, never run unprotected.
         </p>
 
         <ol

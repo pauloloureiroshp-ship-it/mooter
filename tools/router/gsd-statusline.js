@@ -178,13 +178,39 @@ function readRouterEnv() {
   return { lastTier: null, classifyMs: null };
 }
 
+// SEM MEDICAO NAO E ZERO.
+//
+// Ate 2026-08-27 estas tres funcoes tinham tres ramos e nenhum era "nao sei".
+// Numa maquina fresca `calcSavings` devolve `{ savingsPct: 0, signal: 'empty' }`
+// — zero prompts, zero execucoes — e o 0 caia no ramo final. O primeiro ecra de
+// um utilizador novo dizia, na mesma linha:
+//
+//     mooter · no data yet ....................... ● all-Opus
+//                                                  ^^^ a VERMELHO
+//
+// «Nao sei nada de ti» e «a tua sessao e toda Opus, isso e mau» ao mesmo tempo.
+// E o espelho exacto da fabricacao de poupanca que este projecto passou a semana
+// a desligar, so que virado ao contrario: aqui fabrica-se um FRACASSO que
+// ninguem mediu. A regra ja estava escrita para o lado positivo — «em duvida,
+// null» — e faltava aplica-la ao lado negativo, que e onde ela custa confianca.
+//
+// `null` (ou undefined) passa a significar «nao medido» e pinta-se em DIM, nunca
+// em DANGER. O ramo vermelho fica, e continua a morder quando ha dados a serio.
+function semMedicao(savings) {
+  if (!savings) return true;
+  if (savings.signal === 'empty') return true;
+  return !savings.promptCount && !savings.executionCount;
+}
+
 function healthDot(savingsPct) {
+  if (savingsPct === null || savingsPct === undefined) return `${DIM}○${RESET}`;
   if (savingsPct >= 30) return `${HEALTHY}●${RESET}`;
   if (savingsPct >= 10) return `${WARN}●${RESET}`;
   return `${DANGER}●${RESET}`;
 }
 
 function healthLabel(savingsPct) {
+  if (savingsPct === null || savingsPct === undefined) return 'not measured';
   if (savingsPct >= 30) return 'healthy';
   if (savingsPct >= 10) return 'ok';
   return 'all-Opus';
@@ -1080,6 +1106,10 @@ function renderLocalRow(counts, metrics, width, pos, sepStr, flat) {
 // Health indicator — mascot-coloured dot + matching text (no bg pill: we want
 // the shape of the row to stay calm, the *colour* carries the signal).
 function renderHealthPill(savingsPct) {
+  // Ver `semMedicao` acima: null/undefined = nao medido, e nao medido nao e mau.
+  if (savingsPct === null || savingsPct === undefined) {
+    return `${DIM}○ not measured${RESET}`;
+  }
   let color, label;
   if (savingsPct >= 30) { color = HEALTHY; label = 'healthy'; }
   else if (savingsPct >= 10) { color = WARN; label = 'ok'; }
@@ -1701,11 +1731,16 @@ function buildStatusline(data) {
     .trim();
 
   const pct = savings?.savingsPct || 0;
+  // `pct` continua numerico (o resto da linha formata-o). `pctSaude` e a versao
+  // que sabe dizer "nao sei": null quando nao ha uma unica medicao. Ver
+  // `semMedicao`. Sem isto, uma maquina fresca acendia um ponto VERMELHO
+  // 'all-Opus' ao lado das palavras 'no data yet'.
+  const pctSaude = semMedicao(savings) ? null : pct;
   const arrow = pct >= 30 ? '↓' : (pct === 0 ? '∅' : '');
   const savedStr = savings?.savedUsd ? `$${savings.savedUsd}` : null;
   const spentStr = savings?.spentUsd ? `$${savings.spentUsd}` : null;
-  const dot = healthDot(pct);
-  const label = healthLabel(pct);
+  const dot = healthDot(pctSaude);
+  const label = healthLabel(pctSaude);
   const latency = getLatencyPill(metrics);
   const providers = renderProviderDots(metrics);
   const subscriptions = getSubscriptions();
@@ -1804,7 +1839,7 @@ function buildStatusline(data) {
   const savingsCore = savedStr
     ? `${BOLD}${pct}%${arrow}${RESET} ${GREEN}${BOLD}${savedStr}${RESET}`
     : (savings?.promptCount ? `${DIM}${pct}% no savings${RESET}` : null);
-  const healthCore = renderRightAnchor(pct, !!metrics);
+  const healthCore = renderRightAnchor(pctSaude, !!metrics);
 
   // Priority-ordered extras. v5.0 reorder emphasizes mooter as a
   // multi-subscription orchestrator (not just a "route to local" router):
@@ -2034,6 +2069,7 @@ function renderMultiLine({
   //   local tracker. Fallback path (line ~1416) recomputes from decisions.log
   //   via pricing.js so the number matches /mooter-savings exactly.
   const pct = savings?.savingsPct || 0;
+  const pctSaude = semMedicao(savings) ? null : pct;   // ver `semMedicao`
   const arrow = pct >= 30 ? '↓' : '';
   const savedUsdNum = parseFloat(savings?.savedUsd) || 0;
   const savedStr = savedUsdNum > 0.01 ? `$${savings.savedUsd}` : null;
@@ -2278,6 +2314,24 @@ if (process.env.MOOTER_MOCK === '1') {
 }
 
 // Read JSON from stdin
+// TESTAVEL POR DESENHO (2026-08-27).
+//
+// Este ficheiro tem 2.300 linhas e ZERO exports. Consequencia pratica: nenhum
+// dos 100+ testes do `tools/router` conseguia tocar-lhe, porque bastava um
+// `require()` para ele comecar a ler o stdin e ficar pendurado. Foi por isso
+// que `renderHealthPill` pode passar meses a acender um ponto VERMELHO
+// 'all-Opus' numa maquina sem uma unica medicao: nao havia por onde morder.
+//
+// A leitura do stdin passa a acontecer so quando o ficheiro E o programa
+// (`require.main === module`) — que e exactamente como o Claude Code o invoca.
+// Requerido por um teste, exporta os puros e nao le nada.
+module.exports = {
+  semMedicao, healthDot, healthLabel, renderHealthPill,
+  buildStatusline, appendModularChips,
+};
+
+if (require.main !== module) return;
+
 let input = '';
 // Timeout guard: if stdin doesn't close within 3s (e.g. pipe issues on
 // Windows/Git Bash), exit silently instead of hanging. See #775.

@@ -313,7 +313,7 @@ bash install.sh           # macOS / Linux
 Requirements:
 
 - Claude Code (latest)
-- Node.js 18+
+- Node.js 22+
 - [Ollama](https://ollama.ai) with a model installed (optional — falls back to Haiku if missing)
 - Anthropic API key (optional — only needed for the T1 Haiku direct path)
 

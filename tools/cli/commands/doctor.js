@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const { color, say, ok, warn, fail, info } = require('../lib/ui');
-const { paths, which, readVersion } = require('../lib/paths');
+const { paths, which, readVersion, isLaunchableCommand } = require('../lib/paths');
 const { generateMooterSkills } = require('../lib/generate-mooter-skills');
 const { discoverAllModels, flattenModels } = require('../lib/discover-models');
 
@@ -89,19 +89,23 @@ function run() {
     return bin ? { ok: true, detail: bin } : { ok: false, fix: 'Re-run the installer or add ~/.local/bin to PATH' };
   });
 
-  check('Node.js 18+', () => {
+  check('Node.js 22+', () => {
     const nodeBin = which('node');
     if (!nodeBin) return { ok: false, fix: 'Install Node: https://nodejs.org or: brew install node / winget install OpenJS.NodeJS.LTS' };
     const ver = execSync('node --version').toString().trim();
-    if (!versionGte(ver, '18.0.0')) return { ok: false, detail: `found ${ver}, need 18+`, fix: 'Upgrade Node: https://nodejs.org' };
+    if (!versionGte(ver, '22.0.0')) return { ok: false, detail: `found ${ver}, need 22+`, fix: 'Upgrade Node: https://nodejs.org' };
     return { ok: true, detail: ver };
   });
 
   check('Claude Code CLI', () => {
     const bin = which('claude');
-    return bin
-      ? { ok: true, detail: bin }
-      : { ok: false, fix: 'Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash (Mac/Linux) or irm https://claude.ai/install.ps1 | iex (Windows)' };
+    if (!bin) {
+      return { ok: false, fix: 'Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash (Mac/Linux) or irm https://claude.ai/install.ps1 | iex (Windows)' };
+    }
+    if (!isLaunchableCommand(bin)) {
+      return { ok: false, detail: `${bin} is not spawnable`, fix: 'Repair the Claude Code PATH entry so it resolves to an executable (.cmd/.exe/.bat on Windows)' };
+    }
+    return { ok: true, detail: bin };
   });
 
   check('~/.claude exists and writable', () => {

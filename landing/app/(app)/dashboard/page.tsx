@@ -352,7 +352,7 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
         '  win32 \u00b7 x64 \u00b7 Node v24',
         '  \u2713 Core Files         10/10',
         '  \u2713 Hook               active',
-        '  \u2713 Savings %          69%',
+        '  \u2713 Savings %          \u2014',
         '  \u2713 profile updated',
       ],
     },
@@ -544,7 +544,13 @@ type RecommendedMode = {
   reason: string;
   t0_available: boolean;
   t3_unlimited: boolean;
-  est_savings_day: string;
+  /* Era `est_savings_day` e mostrava intervalos como "8-15/day vs all-Opus".
+     Nada os media: eram literais escolhidos a mao por combinacao de hardware.
+     Um intervalo com dois algarismos parece preciso, e a decisao do dono de
+     2026-08-24 proibe publicar poupanca ate haver tokens medidos. O campo passa
+     a dizer o que o MODO FAZ — verificavel lendo a configuracao, e e a
+     informacao de que a pessoa precisa para escolher. */
+  what_changes: string;
   config_block: string;
 };
 
@@ -564,7 +570,7 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
       reason: 'Claude Max detected — Opus unlimited. Router uses local T0 when available, T3 Opus for the rest.',
       t0_available: hasOllama,
       t3_unlimited: true,
-      est_savings_day: hasOllama ? '~$8\u201315/day vs all-Opus' : '~$3\u20138/day vs all-Opus',
+      what_changes: hasOllama ? 'T0 local + T3 Opus uncapped on Max' : 'T3 Opus uncapped on Max, no local tier',
       config_block: '## Router Context\ncomplexity_bias: T2\nhub_push_enabled: true',
     };
   }
@@ -577,7 +583,7 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
       reason: 'API-paid with no local GPU. Every token costs. Zen keeps everything in T0/T1 to save as much as possible.',
       t0_available: false,
       t3_unlimited: false,
-      est_savings_day: '~$5\u201312/day vs default',
+      what_changes: 'Everything in T0/T1 — no Opus unless you force it',
       config_block: '## Router Context\ncomplexity_bias: T1\nhub_push_enabled: true',
     };
   }
@@ -591,7 +597,7 @@ function calcRecommendedMode(profile: Profile): RecommendedMode {
       : 'Standard setup — the Router decides per prompt. Add Ollama to save more.',
     t0_available: hasOllama,
     t3_unlimited: false,
-    est_savings_day: hasOllama ? '~$6\u201312/day' : '~$2\u20135/day',
+    what_changes: hasOllama ? 'T0 local for simple tasks, T3 only when it matters' : 'Router decides per prompt; add Ollama for a free T0',
     config_block: '## Router Context\nhub_push_enabled: true',
   };
 }
@@ -694,10 +700,10 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
             textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
             display: 'block', marginBottom: 4,
           }}>
-            Est. savings
+            What changes
           </span>
           <span style={{ color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'var(--mono)' }}>
-            {rec.est_savings_day}
+            {rec.what_changes}
           </span>
         </div>
       </div>
@@ -1321,10 +1327,10 @@ function OverviewTab({ profile }: { profile: Profile }) {
         {decisionsCount > 0 ? (
           <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 16 }}>
             {[
-              { v: `$${savingsUsd.toFixed(2)}`, l: 'you saved', c: 'var(--tier-0)' },
+              { v: `$${savingsUsd.toFixed(2)}`, l: 'you saved (est.)', c: 'var(--tier-0)' },
               { v: `$${allOpusCost.toFixed(2)}`, l: 'all-Opus would cost', c: 'var(--text)' },
               { v: `$${Math.max(0, allOpusCost - savingsUsd).toFixed(2)}`, l: 'you actually paid (est.)', c: 'var(--text)' },
-              { v: `${savingsPct}%`, l: 'saved vs all-Opus', c: 'var(--tier-0)' },
+              { v: `${savingsPct}%`, l: 'saved vs all-Opus (est.)', c: 'var(--tier-0)' },
             ].map((m) => (
               <div key={m.l}>
                 <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: 'var(--mono)', color: m.c, lineHeight: 1 }}>{m.v}</div>

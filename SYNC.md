@@ -138,66 +138,42 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
+### 2026-08-27 (Win · CC · design) · o portão nasceu cego, e o 3,41 era 1,5 de nada
 
-**#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
-conflitos: os dois `package.json` por **união** (escolher um lado desligava testes dos dois lados);
-o painel com a **arquitectura do #396 e a regra do #401 lá dentro** — a premissa de que "o #396 já
-antecipa o #401" **não se confirma**, o ramo da pausa vinha antes do teste de morte e tomá-lo tal e
-qual reintroduzia o defeito do beacon a 3592 s; e o `SYNC.md` do #396, que era o correcto (219 vs
-390 linhas) mas tinha deixado de fora **uma** das quatro entradas de 25/08 do main — a do PC, com a
-hipótese do autor refutada contra 57 etiquetas. Resgatada para o arquivo.
+O pacote `mooter-brand-v2.0.0` aterrou em `design/`. A onda O0 não era copiar ficheiros: era pôr um
+portão a morder — e o portão que veio no pacote **não mordia**.
 
-**O P1 do kickoff inverteu-se.** Pedia religar P4 e P5 apagando `activo: false`. O P4 não é
-"zero-LLM": é um enunciado de GPU para um defeito com **0 ocorrências** neste repo (0 de 443 `.md`
-acabam a meio de uma palavra). O P5 não mede modelos: é `falso-em-ambos`. E as **"+603 linhas de
-ledger da madrugada, $0" não eram saúde** — o processo vivo era de 25/08 08:13, tinha o catálogo
-antigo em memória, e passou ~15 h a produzir **P2/P3**, os dois pilares de que o dono decidiu 19
-achados à mão e não guardou nenhum.
+**`marca-unica` dava 1,5/1,5 — «um só desenho» — com 8 cópias da vaca vivas no repo.** `.svg` não
+estava em `EXT_TEXTO`, o walker nunca devolvia um SVG, e a linha seguinte filtrava por
+`extname(f) !== '.svg'`: descartava 100% do que recebia (2783 ficheiros, 0 svg, `variantes: []`
+**sempre**). E pior — `MOO_REPO` apontado a uma pasta sem superfícies punha as três verificações
+pesadas a `n/d`, tirava-as do denominador, e o índice **subia de 3,41 para 8,75 com `--ci` a sair
+0**. O portão pontuava melhor quanto menos via.
 
-Em vez disso, a correcção um nível acima: **a rotação passou a derivar de medição**
-(`portao.mjs` + `podeEntrar`, o mesmo portão que o #389 pôs nas regras do ancorado na véspera
-*"porque foi assim que o P11 entrou"* — e que aos pilares, de onde o problema veio, nunca foi
-aplicado). Forçar `activo: true` nos onze dá **zero**, cada recusa com o seu número. Cinco
-comentários que diziam "reversível numa linha" passaram a ser falsos e foram corrigidos.
+Seis defeitos corrigidos com o número que os justifica: `numero-honesto` marcava `savings_usd`
+(coluna D1 viva) e os comentários que registam a retirada — incluindo o teste
+`expect(src).not.toContain('up to 90% less cost')`, a prova da decisão marcada como violação dela —
+**243 achados, ~2 reais**; o regex de `@keyframes` engolia o próprio ficheiro gerado e fabricava 45
+propriedades que escondiam **3 violações reais**; e `moo-tokens-build.mjs`, o comando publicado no
+README, era um **no-op silencioso** (`file://${process.argv[1]}` nunca coincide com `import.meta.url`).
 
-**Loop relançado** sob launchd (PID 11825) com o código de `main` — o `ai.mooter.runner` estava
-carregado mas **não era ele que corria** (PID `-`; o processo real fora lançado à mão e segurava o
-lock). A objecção que ontem bloqueou o relançamento (`nextPillar(n,[])` a falhar em silêncio) era
-um **defeito corrigível**: com `ids=[]` o escalonador dizia `all capped / paused / suspended`, falso
-nas três coisas que nomeia e a mandar o dono triar uma fila que não existe. Corrigido. Ao vivo às
-11:18Z o painel pinta `holding · zero pilares na rotacao — nenhum passa o portao de medicao`.
+**Índice: 3,41 → 3,18 → 5,68 → 6,36 → 8,18 → 9,09.** A descida inicial é a correcção (o 3,41
+contava 1,5 pontos de uma verificação cega); o resto é trabalho. O **`--ci` está LIGADO** no limiar
+8 — o limiar nunca se moveu, foi o índice que subiu até ele. **53 testes de mordida.**
 
-⚠️ **O ledger NÃO cresce, e é o resultado certo** — declarado, não disfarçado. Sem pilar não há
-ronda. Voltar a crescer exige um pilar que passe o portão (≥10 reais, ≥30 %, triados à mão): onda
-de medição, não booleano. #400/#402 avaliados e **não merjidos** — continuam 🔴 por adversário
-externo, e o codex não está nesta máquina.
+**A gramática está nas superfícies.** Cartucho, grelha de 8px, coluna de margem e hairlines em vez
+de caixas, em 10 folhas: home (DES. 001), methodology (002), packs (003), compare (004), commands
+(005), cockpit (006), under-the-hood (007), workflow (008), moo-pilot (010), cockpit.html (011). As
+margens são **contadas do próprio ficheiro**, nunca escritas à mão. Os 2 cockpits deixaram a paleta
+própria — o `moo-pilot-shell` usava `--accent: #2b5ede`, **azul**, contra a rosa da marca.
 
-Vermelhos: espelho do cockpit **42 ficheiros atrás** e o LaunchAgent aponta **directo ao checkout** ·
-`.mooter/pilares.json` **contorna o portão** novo · a condição do #400 é uma linha no `SYNC.md`, não
-o veto em código.
+**Superfície pública sem um único claim de poupança.** Saíram: `One bill is 47% smaller` (corpo
+gigante na home, sobre preços de tabela em seis prompts inventados), `~30% less` ×2,
+`{savings_pct}% saved vs all-Opus` nos packs, três cifras fabricadas na API `analyse`, e o cartão
+`Est. savings ~$8–15/day` do dashboard.
 
-gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
-detalhe em `_handoff/cc-perfeito-progress.md`
+⚠️ **Recusei um 10,00.** Separar «publicar» de «mostrar a quem entrou» é defensável — mas o índice saltou para a nota cheia no mesmo minuto em que mudei a régua, e a decisão de 27/08 nomeia isso. A verificação vale **metade** enquanto houver 15 estimativas na shell autenticada; contadas e impressas, não escondidas.
 
-### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
-
-**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
-MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
-Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
-`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
-readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
-que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
-
-**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
-(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
-`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
-`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
-auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
-instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
-
-**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
-(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
-`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+gate: design **53/53** · landing **219/219** · cockpit-runner 943/941/**0** · cockpit-invariants 215/4 (baseline) · auditor visual: contraste **178 → 30** · PR #416, CI verde
 
 <!-- HUMANO:FIM -->

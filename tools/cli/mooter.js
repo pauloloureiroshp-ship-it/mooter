@@ -33,6 +33,7 @@ const commands = {
   doctor: () => require('./commands/doctor').run(),
   init: () => require('./commands/init').run(),
   dashboard: () => require('./commands/dashboard').run(),
+  recibo: () => require('./commands/recibo').run(args.slice(1)),
   update: () => require('./commands/update').run(),
   uninstall: () => require('./commands/uninstall').run(args.slice(1)),
 };

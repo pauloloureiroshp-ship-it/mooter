@@ -1,0 +1,293 @@
+/* GERADO por tools/moo-tokens-build.mjs a partir de tokens/moo-tokens.json.
+   NÃO EDITAR À MÃO — a próxima geração apaga o que aqui escreveres.
+   fonte: frugal@97ad846b · medido 2026-08-27 · v2.0.0 */
+
+export const MOO = {
+  "color": {
+    "tinta": {
+      "bg": "#0B0A09",
+      "bg-2": "#0F0E0C",
+      "surface": "#141311",
+      "surface-2": "#1C1A17",
+      "line": "#252220",
+      "line-strong": "#302C28",
+      "line-soft": "#1E1B19",
+      "text": "#F2EDE6",
+      "text-2": "#C9C2B8",
+      "muted": "#8A8076",
+      "faint": "#84786B",
+      "accent": "#E8888A",
+      "accent-2": "#F2A5A5",
+      "on-accent": "#1A0E0E",
+      "ok": "#4CAF6A",
+      "warn": "#D4C090",
+      "bad": "#D46A5A"
+    },
+    "papel": {
+      "bg": "#F2ECDF",
+      "bg-2": "#EBE3D1",
+      "surface": "#FBF7EE",
+      "surface-2": "#FFFDF7",
+      "line": "#D9D0BB",
+      "line-strong": "#C8BCA0",
+      "line-soft": "#E8E4DB",
+      "text": "#1A1613",
+      "text-2": "#3A332C",
+      "muted": "#6F665A",
+      "faint": "#726859",
+      "accent": "#B4454B",
+      "accent-2": "#A53F45",
+      "on-accent": "#FFFFFF",
+      "ok": "#347650",
+      "warn": "#826435",
+      "bad": "#AD4D3B"
+    },
+    "tier": {
+      "web": {
+        "t0": "#4CAF6A",
+        "t1": "#5A9BD4",
+        "t2": "#A88BD4",
+        "t3": "#D46A5A"
+      },
+      "terminal": {
+        "t0": "#4CAF6A",
+        "t1": "#5A9BD4",
+        "t2": "#D4C090",
+        "t3": "#D46A5A"
+      },
+      "papel": {
+        "t0": "#3D8B5E",
+        "t1": "#3D6FA8",
+        "t2": "#7A5EA8",
+        "t3": "#B8523F"
+      },
+      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal."
+    },
+    "term": {
+      "bg": "#0d1117",
+      "line": "#30363d",
+      "head": "#161b22",
+      "fg": "#c9d1d9",
+      "dim": "#8b949e"
+    },
+    "marca": {
+      "chifre": "#B8C0C8",
+      "cabeca": "#CCD3DA",
+      "focinho": "#EDAEB0",
+      "narina": "#C16A6F",
+      "olho": "#2C2F33",
+      "brilho": "#FFFFFF"
+    }
+  },
+  "type": {
+    "family": {
+      "sans": "var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      "mono": "var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace",
+      "hand": "var(--font-caveat, 'Caveat'), cursive",
+      "$nota": "Cada família começa por uma variável injectável COM FALLBACK DENTRO do var(). O fallback não é cosmético: `var(--font-sans)` sem segundo argumento é INVÁLIDO quando a variável não existe, e um valor inválido no ponto de uso derruba a declaração inteira — o shorthand `font:` cai todo e o texto sai em Times New Roman 16px. Medido a 2026-08-27 pelo gerador de deck, que corre fora da landing: lá o next/font injecta --font-sans, aqui não injecta ninguém. O `globals.css:985` já fazia isto certo; o token é que não fazia."
+    },
+    "scale": {
+      "hero": {
+        "size": "clamp(56px,13vw,168px)",
+        "weight": 700,
+        "lh": "0.92",
+        "ls": "-0.05em"
+      },
+      "h1": {
+        "size": "clamp(44px,6vw,76px)",
+        "weight": 700,
+        "lh": "1.02",
+        "ls": "-0.045em"
+      },
+      "h2": {
+        "size": "clamp(32px,3.6vw,48px)",
+        "weight": 700,
+        "lh": "1.08",
+        "ls": "-0.035em"
+      },
+      "h3": {
+        "size": "20px",
+        "weight": 600,
+        "lh": "1.3",
+        "ls": "-0.02em"
+      },
+      "lede": {
+        "size": "19px",
+        "weight": 400,
+        "lh": "1.6",
+        "ls": "0"
+      },
+      "body": {
+        "size": "16px",
+        "weight": 400,
+        "lh": "1.6",
+        "ls": "0"
+      },
+      "small": {
+        "size": "13px",
+        "weight": 400,
+        "lh": "1.55",
+        "ls": "0"
+      },
+      "eyebrow": {
+        "size": "11px",
+        "weight": 500,
+        "lh": "1.2",
+        "ls": "0.16em",
+        "case": "uppercase",
+        "family": "mono"
+      },
+      "num": {
+        "size": "32px",
+        "weight": 700,
+        "lh": "1.05",
+        "ls": "-0.03em",
+        "family": "mono",
+        "tabular": true
+      },
+      "label": {
+        "size": "10px",
+        "weight": 500,
+        "lh": "1.2",
+        "ls": "0.14em",
+        "case": "uppercase",
+        "family": "mono"
+      }
+    },
+    "min_body_px": 13
+  },
+  "space": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "40px",
+    "2xl": "64px",
+    "band": "clamp(4rem, 10vw, 9rem)",
+    "grid": 4
+  },
+  "radius": {
+    "control": "6px",
+    "card": "10px",
+    "window": "14px",
+    "hero": "16px",
+    "pill": "999px"
+  },
+  "shadow": {
+    "term": "0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2)",
+    "lift": "0 40px 100px -40px rgba(0,0,0,0.6)"
+  },
+  "motion": {
+    "interact": {
+      "ms": 140,
+      "curve": "ease"
+    },
+    "surface": {
+      "ms": 160,
+      "curve": "ease"
+    },
+    "reveal": {
+      "ms": 500,
+      "curve": "ease",
+      "from": "opacity 0, translateY(16px)"
+    },
+    "pulse": {
+      "ms": 2200,
+      "curve": "ease-in-out"
+    },
+    "sopro": {
+      "ms": 4200,
+      "curve": "cubic-bezier(.45,0,.55,1)",
+      "delta": "scale 1 → 1.0125"
+    },
+    "piscar": {
+      "ms": 7000,
+      "fecha": 126,
+      "abre": 112
+    },
+    "saudar": {
+      "ms": 300,
+      "curve": "cubic-bezier(.2,.8,.2,1)"
+    },
+    "entrada": {
+      "ms": 900,
+      "curve": "cubic-bezier(.16,1,.3,1)",
+      "fases": 6
+    },
+    "regra": "Só transform e opacity. prefers-reduced-motion obrigatório em todo o ficheiro com animação.",
+    "mola": {
+      "curve": "cubic-bezier(.3,1.3,.5,1)",
+      "uso": "só gestos físicos: sacudidela, encaixe",
+      "origem": "auditoria visual 2026-08-27"
+    },
+    "familia": [
+      "entrada .16,1,.3,1",
+      "reacção .2,.8,.2,1",
+      "respiração .45,0,.55,1",
+      "mola .3,1.3,.5,1"
+    ]
+  },
+  "numero": {
+    "variantes": [
+      "medido",
+      "n/d",
+      "externo",
+      "regua"
+    ],
+    "obrigatorio": [
+      "fonte",
+      "janela"
+    ],
+    "regras": [
+      "Verde só para sinal positivo genuíno — nunca num zero, nunca numa estimativa.",
+      "Estimativa vem rotulada; dados parciais mostram cobertura.",
+      "Sem dados = frase + CTA, nunca 0/0.",
+      "Nunca dois números contraditórios lado a lado.",
+      "Todo estado degradado carrega CTA.",
+      "Régua de preço de tabela NUNCA é apresentada como poupança."
+    ],
+    "claims_banidos": [
+      "47%",
+      "90% ",
+      "~30%",
+      "saved $",
+      "savings"
+    ],
+    "claims_banidos_nota": "A lista é o registo do que foi retirado e não se encolhe. Como se procura está em moo-design-check.mjs §3: comentários e ficheiros de teste ficam de fora (são o registo da retirada e a sua defesa, não a violação), e um claim que é palavra — 'savings' — só conta com uma cifra ou percentagem na mesma linha. Sem isso marcava 'savings_usd', uma coluna D1 viva.",
+    "claims_excepcoes_nota": "Um portão sem lista de excepções obriga a mentir ou a ignorar (DIRETRIZES, adenda da auditoria visual). Estas são as duas superfícies cujo TRABALHO é narrar a retirada dos números: apagá-las seria apagar o registo de que a decisão de 2026-08-24 aconteceu. Cada excepção diz o ficheiro, um pedaço literal da linha, e porquê. Se alguém editar a linha, a excepção deixa de coincidir e o claim volta — que é o modo de falhar correcto.",
+    "claims_excepcoes": [
+      {
+        "ficheiro": "landing/app/(marketing)/methodology/page.tsx",
+        "contem": "dois numeros para a mesma coisa",
+        "porque": "A página de metodologia existe para explicar porque os números foram retirados. Citar o 47% ao explicar que ele saiu é o oposto de o publicar."
+      },
+      {
+        "ficheiro": "landing/app/(marketing)/rankings/RankingsExplorer.tsx",
+        "contem": "seed.savings.by_category[category].saved_usd",
+        "porque": "É o único sítio do projecto onde uma cifra de poupança é HONESTA por construção, e apagá-la seria uma regressão. Está atrás de `seed.savings.measured &&` — só aparece se o seed disser que foi medido — e o ramo alternativo publica, em vez do número, a frase 'Savings are measured on YOUR machine, never fabricated for this page' com o comando que a preenche do journal do próprio utilizador. É o produto a mostrar o número de quem o corre, não o site a afirmar um número sobre terceiros."
+      },
+      {
+        "ficheiro": "README.md",
+        "contem": "This README used to carry five different savings figures",
+        "porque": "É a secção 'Honest numbers': o registo dos cinco números que a auditoria de 2026-08-23 não conseguiu sustentar. Sem esta frase, a tabela diz 'not measured' sem que ninguém saiba o que mudou."
+      }
+    ],
+    "claims_padroes": [
+      [
+        "poupanca-computada",
+        "%\\s{0,120}(?:smaller|cheaper|less|lower|menos|off|below)\\b"
+      ],
+      [
+        "cifra-poupada",
+        "(?:sav(?:ed|ings)|poupan\\w*)[^\\n]{0,40}?\\$\\s?[\\d{]|\\$\\s?[\\d{][^\\n]{0,40}?\\b(?:sav(?:ed|ings)|poupan\\w*)"
+      ]
+    ],
+    "claims_padroes_nota": "Os padroes correm sobre o ficheiro inteiro, nao linha a linha: em JSX um claim nasce partido. Medido a 2026-08-27: TwoTerminalDemo.tsx:342-343 publica {pctSaved}% numa linha e \"cheaper on this trace\" na seguinte, e :172 diz \"{pctSaved}% smaller\" com a percentagem COMPUTADA. Nenhum dos dois tinha substring proibida, e \"smaller\" nem estava no vocabulario. Foram vistos ao olhar para a home renderizada, nao para o relatorio do portao."
+  }
+} as const;
+
+export type MooTheme = 'tinta' | 'papel';
+export type TierKey = 't0' | 't1' | 't2' | 't3';
+export const TIER_WEB = MOO.color.tier.web;
+export const TIER_TERMINAL = MOO.color.tier.terminal;
+export const TIER_PAPEL = MOO.color.tier.papel;

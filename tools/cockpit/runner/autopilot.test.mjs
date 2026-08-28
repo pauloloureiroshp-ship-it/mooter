@@ -1114,9 +1114,26 @@ test('F5/2: uma recusa a meio nao desloca o pilar das escritas seguintes', async
 
   const agora = Date.now();
   const historico = [];
+  // 500 e nao 30, e a razao e o relogio.
+  //
+  // `anomaliaDeDreno` escala a base pela FRACCAO DO DIA ja decorrida na hora do
+  // dono (`autopilot.mjs:576`) -- de proposito, para que «P2 normal as 09:00»
+  // nao seja indistinguivel de «P2 morreu». O detector esta certo.
+  //
+  // O que estava errado era o fixture: com base 30, `baseEsperada` = 30 x
+  // fraccao, e isso so chega ao `ANOMALIA_MIN` de 10 a partir das 08:00 na hora
+  // do dono. Antes disso a queda nunca disparava e este teste falhava --
+  // **incluindo no `main`**, medido a 2026-08-28 as 07:35 de Sao Paulo, o que
+  // deixou a proteccao do ramo a recusar todos os merges do repositorio.
+  //
+  // A fraccao tem chao em 0.02 (meia-noite). Para o teste ser deterministico a
+  // QUALQUER hora, a base tem de satisfazer `base * 0.02 >= 10`, ou seja
+  // `base >= 500`. Nao se mexeu no detector: mexeu-se no fixture, que era quem
+  // dependia da hora a que alguem corria a suite.
+  const POR_DIA = 500;
   for (let diasAtras = 3; diasAtras >= 1; diasAtras -= 1) {
     const ts = new Date(agora - diasAtras * 86_400_000).toISOString();
-    for (let i = 0; i < 30; i += 1) historico.push({
+    for (let i = 0; i < POR_DIA; i += 1) historico.push({
       ts, chave: `hist-${diasAtras}-${i}`, decisao: 'descartado', motivo: 'trivial',
       por: 'agente', via: 'autopilot-l1', pilar: 'P2',
     });
@@ -1164,8 +1181,11 @@ test('F5/2: uma recusa a meio nao desloca o pilar das escritas seguintes', async
     for (const f of [ledger, triagem, autopilot]) fs.rmSync(f, { force: true });
   }
   assert.equal(injectou, true, 'o fixture tem de ter criado a colisao');
-  assert.match(dito, /P2 30→0 \(caiu\)/,
-    `P2 nao recebeu escrita hoje; se aparecer 30→1, herdou a escrita de P3: ${dito}`);
+  // `includes` e nao `RegExp`: a string tem parenteses literais, e escapa-los
+  // dentro de um template para uma RegExp construida em runtime e uma camada de
+  // escape a mais do que este teste precisa.
+  assert.ok(dito.includes(`P2 ${POR_DIA}→0 (caiu)`),
+    `P2 nao recebeu escrita hoje; se aparecer ${POR_DIA}→1, herdou a escrita de P3: ${dito}`);
 });
 
 /**
