@@ -1609,6 +1609,30 @@ try {
     providerLines.push('anthropic_quota: n/d (quota-honesta ausente neste runtime)');
     providerLines.push('codex_quota: n/d (quota-honesta ausente neste runtime)');
   }
+
+  // ── Fornecedores que JA se sabe estarem em baixo ───────────────────────
+  //
+  // Isto e a linha que faltava, e a sua ausencia custou uma sessao inteira a
+  // 2026-08-28: tres frentes de trabalho paralelas foram despachadas para
+  // subagentes Opus que morreram todos com «You've hit your weekly limit».
+  // O sistema nao tinha como saber — nao havia estado nenhum — mas o agente
+  // que le este hint TAMBEM nao tinha, e por isso repetiu o erro tres vezes
+  // antes de perceber.
+  //
+  // `provider-health.js` guarda cada falha com a sua causa classificada e a sua
+  // hora de reposicao. Publicar isso aqui e o que transforma «tentar ate bater
+  // no limite» em «saber antes de tentar». O decaimento e aplicado na leitura,
+  // portanto uma linha destas desaparece sozinha quando o motor repuser.
+  try {
+    const linhas = require('./provider-health').relatorio();
+    if (linhas.length) {
+      providerLines.push(
+        `providers_em_baixo: ${linhas.map(l =>
+          `${l.provider}=${l.causa} (volta em ~${l.restaMin}min)`).join(' · ')}`
+      );
+      providerLines.push('  ^ nao despaches para estes; a razao e medida, nao adivinhada');
+    }
+  } catch { /* modulo ausente num runtime por actualizar — o hint sobrevive */ }
 } catch { /* never let this break the hint */ }
 
 // Wave 21 (C3) — final coherence pass. After every guardrail (budget cap, zen,
