@@ -218,6 +218,14 @@ h3 { font-size: 20px; line-height: 1.3; }
 .hero-grid {
   display: grid; grid-template-columns: 1.15fr 1fr; gap: 80px; align-items: center;
 }
+/* 2026-08-27 · a home mediu 725px de scrollWidth num ecrã de 375 (+93%) MESMO
+   com a regra dos 1100px a colapsar isto para uma coluna. A regra estava certa
+   e não bastava: um filho de grid tem `min-width: auto`, por isso a pista `1fr`
+   dimensiona-se ao min-content do filho mais teimoso — o HeroTerminal, cujo
+   min-content são 705px de linhas mono. A coluna era uma, e tinha 705px.
+   `min-width: 0` devolve a decisão à pista; o terminal rola dentro de si. */
+.hero-grid > * { min-width: 0; }
+.hero-grid pre, .hero-grid code { overflow-x: auto; max-width: 100%; }
 .hero-tag {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--mono); font-size: 11px; color: var(--muted-ink);

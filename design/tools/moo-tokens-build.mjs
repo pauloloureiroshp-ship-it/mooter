@@ -87,10 +87,20 @@ ${Object.entries(T.type.scale).map(([k, s]) => {
 .moo-folha { position: relative; padding: 0 ${T.layout.grelha.folha_padding_px}px; }
 .moo-secao { display: grid; grid-template-columns: ${T.layout.grelha.margem_px}px 1fr;
   border-top: 1px solid var(--moo-line-strong); padding: 48px 0; }
+/* Um filho de grid tem \`min-width: auto\`, e por isso um terminal ou uma tabela
+   larga EMPURRA a coluna em vez de rolar dentro dela. Foi assim que a home
+   chegou a 725px num ecra de 375: o HeroTerminal segurava a coluna e o H1, o H2
+   e o paragrafo iam atras. \`min-width: 0\` devolve a decisao ao grid. */
+.moo-secao > * { min-width: 0; }
 .moo-marg { padding-right: 32px; text-align: right; font-family: var(--moo-font-mono);
   font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--moo-faint); line-height: 1.9; }
-.moo-marg b { display: block; color: var(--moo-text); font-weight: 500; }
+  color: var(--moo-faint); line-height: 1.9; overflow-wrap: break-word; }
+/* \`break-word\` sozinho nao quebra uma palavra unica maior que a coluna; a margem
+   de /compare mediu 881px por causa de um so \`<b>multi-sessao</b>\` que nao cabia
+   nos 216px. \`anywhere\` quebra-a, e so aqui — a margem e mono, curta e
+   caixa-alta, onde uma quebra dentro da palavra le-se; no corpo do texto nao. */
+.moo-marg b { display: block; color: var(--moo-text); font-weight: 500;
+  overflow-wrap: anywhere; }
 .moo-cota { stroke: var(--moo-accent); stroke-width: 1.1; fill: none; }
 .moo-cota-t { fill: var(--moo-accent); font-family: var(--moo-font-mono);
   font-size: 9px; letter-spacing: .1em; }
@@ -109,6 +119,18 @@ ${Object.entries(T.type.scale).map(([k, s]) => {
 
 /* foco — anel rosa em tudo o que é interactivo, sem excepção */
 :focus-visible { outline: 2px solid var(--moo-accent); outline-offset: 2px; border-radius: 2px; }
+
+/* ── TELEMOVEL · a folha tinha UMA media query e nenhuma era de largura ──
+   Ver \`layout.telemovel_nota\` em moo-tokens.json: os numeros medidos e o porque
+   do limite. Abaixo dele a margem sobe para cima do conteudo e alinha a
+   esquerda — continua mono/caixa-alta, continua a ser anotacao, deixa de ser
+   coluna. */
+@media (max-width: ${G.telemovel_px}px) {
+  .moo-folha { padding: 0 ${G.folha_padding_movel_px}px; }
+  .moo-secao { grid-template-columns: 1fr; gap: 12px; padding: 32px 0; }
+  .moo-marg { padding-right: 0; text-align: left; }
+  .moo-cartucho { flex-wrap: wrap; gap: 4px 16px; letter-spacing: .16em; }
+}
 
 /* movimento */
 @media (prefers-reduced-motion: reduce) {

@@ -10,9 +10,14 @@ import CommunityPulse from './_components/CommunityPulse';
 import WhyLocalCards from './_components/WhyLocalCards';
 import HandoffStory from './_components/HandoffStory';
 import AuthErrorBanner from './_components/AuthErrorBanner';
-import { M } from './lib/canonical-metrics';
+import { JANELA, M, LATENCIA } from './lib/canonical-metrics';
 
-const trust = ['Hook, not a proxy', 'Runs locally', '<50ms overhead'];
+// 2026-08-27 · o terceiro selo dizia "<50ms overhead". Nunca foi medido, e
+// misturava duas grandezas: o `classify()` (0,001 ms p50, 5.000 chamadas) e o
+// hook inteiro, que é o que o utilizador de facto espera (177,1 ms p50, 200
+// corridas por `tools/router/bench-hook.js`). Nenhuma delas é 50. Agora sai de
+// `canonical-metrics.ts` → LATENCIA, e diz o que mede.
+const trust = ['Hook, not a proxy', 'Runs locally', `classify ${LATENCIA.classifyP50Ms} ms p50`];
 
 // Inline above-the-fold pulse strip.
 //
@@ -120,13 +125,21 @@ export default function Page() {
               não para dentro de uma caixa colorida. Passa a secção: hairline em
               cima, margem à esquerda a dizer o que a secção é e qual a ressalva
               que a governa, conteúdo à direita. Zero caixas. */}
-          <div className="moo-secao m-2col" style={{ position: 'relative' }}>
+          {/* 2026-08-27 · o `m-2col` estava AQUI, na secção. Media a 375px:
+              `.moo-secao` ficava `161.667px 161.667px` — a margem e o conteúdo
+              lado a lado com 161px cada — e lá dentro a grelha de 4 estatísticas
+              pedia 224px. Resultado: 556px de scrollWidth num ecrã de 375.
+              O `m-2col` pertence à grelha de dentro, e por uma razão mecânica: o
+              `repeat(4, 1fr)` é um estilo INLINE, e só cede a um `!important` —
+              que é exactamente o que `.m-2col` traz (globals.css:810). Na secção
+              ele só desfazia o colapso para uma coluna que a gramática agora faz. */}
+          <div className="moo-secao" style={{ position: 'relative' }}>
             <div className="moo-marg">
               medido
               <b>1 máquina</b>
               1 dev (Paulo) — não é média da manada
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
+            <div className="m-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
               {heroStats.map(([label, num, sub]) => (
                 <div key={label}>
                   <div className="moo-label" style={{ color: 'var(--color-muted)' }}>{label}</div>
@@ -136,6 +149,53 @@ export default function Page() {
               ))}
             </div>
           </div>
+
+          {/* #honest-numbers — o destino que faltava.
+              `methodology/page.tsx` liga para `/#honest-numbers` na ressalva
+              colada à calculadora — a frase que existe precisamente para dizer
+              que os números foram retirados. Grep no repo: zero elementos com
+              esse id; em runtime `document.getElementById('honest-numbers')`
+              devolvia `null`. Ou seja, o único link que redime os números
+              retirados não ia a sítio nenhum, e um link partido debaixo de uma
+              ressalva de honestidade custa mais do que não ter ressalva.
+
+              O conteúdo é o do `README.md` § Honest numbers. Nenhum número
+              aqui é escrito à mão: todos vêm de `canonical-metrics.ts`, que é
+              a única fonte do que esta landing pode afirmar. Não se repete
+              aqui a tabela dos cinco números mortos — o registo dela vive no
+              README e em `/methodology`; reimprimir as percentagens retiradas
+              na home seria voltar a publicá-las em corpo grande. */}
+          <section id="honest-numbers" className="moo-secao" style={{ scrollMarginTop: 96 }}>
+            <div className="moo-marg">
+              números honestos
+              <b>{M.promptsClassificados} prompts</b>
+              {JANELA.de} → {JANELA.ate}
+            </div>
+            <div style={{ maxWidth: 720 }}>
+              <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 600, margin: '0 0 14px' }}>
+                Honest numbers
+              </h2>
+              <p style={{ color: 'var(--color-muted)', fontSize: 15.5, lineHeight: 1.7, margin: 0 }}>
+                On 2026-08-23 an audit traced every savings figure this project had published. Five were in
+                circulation and they contradicted each other; none survived. The cause is structural and worth
+                stating plainly: no telemetry file in this project records token counts. Without tokens there is
+                no measured cost, and without a measured cost there is no measured saving — in any unit.
+              </p>
+              <p style={{ color: 'var(--color-text)', fontSize: 15.5, lineHeight: 1.7, marginTop: 16 }}>
+                <strong>What is measured.</strong> {M.frase}
+              </p>
+              <p style={{ color: 'var(--color-muted)', fontSize: 15.5, lineHeight: 1.7, marginTop: 16 }}>
+                That gap — what the router recommended against what actually ran — is the honest state of the
+                project, and closing it is the current work. {M.ressalva} A percentage published on top of this
+                would describe a product that does not exist yet.
+              </p>
+              <p style={{ marginTop: 18 }}>
+                <a href="/methodology" style={{ color: 'var(--color-accent)', fontSize: 14.5 }}>
+                  How the estimate is built, and what it is not →
+                </a>
+              </p>
+            </div>
+          </section>
 
           {/* Live two-terminal savings demo (client island) — below the hero (gap #1). */}
           <TwoTerminalDemo />

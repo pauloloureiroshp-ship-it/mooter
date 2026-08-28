@@ -485,11 +485,14 @@
       "bloco_px": 64,
       "linha_fina_alfa": 0.07,
       "linha_forte_alfa": 0.16,
-      "linha_cor": "accent"
+      "linha_cor": "accent",
+      "telemovel_px": 768,
+      "folha_padding_movel_px": 20
     },
     "regra": "A anotação vive na coluna de margem, alinhada à direita, em mono 10px/0.16em caixa-alta. Nunca num cartão colorido.",
     "seccao": "grid 216px 1fr · border-top 1px #302C28 · padding 48px 0",
     "extremo": "um por página — um número gigante, uma faixa a sangrar, ou um momento vivo",
-    "grelha_nota": "A grelha derivava de valores CRAVADOS no gerador — rgba(232,136,138,.05) e 64px escritos a mao dentro do template, num ficheiro cuja tese e que a fonte e este JSON. Era uma segunda fonte de verdade escondida na saida. Agora sai daqui, e a cor deriva de color.tinta.accent. Os alfas subiram de .05/.11 para .07/.16: medido a 2026-08-27, .05 de rosa sobre #0B0A09 da um racio de 1.050 contra o fundo — invisivel. A direccao diz \"grelha de 8px VISIVEL\"; a .07/.16 o racio e 1.09/1.27, que se ve sem competir com o conteudo."
+    "grelha_nota": "A grelha derivava de valores CRAVADOS no gerador — rgba(232,136,138,.05) e 64px escritos a mao dentro do template, num ficheiro cuja tese e que a fonte e este JSON. Era uma segunda fonte de verdade escondida na saida. Agora sai daqui, e a cor deriva de color.tinta.accent. Os alfas subiram de .05/.11 para .07/.16: medido a 2026-08-27, .05 de rosa sobre #0B0A09 da um racio de 1.050 contra o fundo — invisivel. A direccao diz \"grelha de 8px VISIVEL\"; a .07/.16 o racio e 1.09/1.27, que se ve sem competir com o conteudo.",
+    "telemovel_nota": "A folha nasceu sem telemovel. Medido a 2026-08-27 a 375px, `scrollWidth` contra `clientWidth`: / 725px (+93%), /compare 901px (+140%), /under-the-hood 740px (+97%), /methodology 539px (+44%). A causa era mecanica e unica: `moo-ui.css` tinha UMA media query — `prefers-reduced-motion` — e zero breakpoints de largura, com `.moo-secao` cravada em `216px 1fr` e `.moo-folha` em 80px de padding. 768 e o limite escolhido porque abaixo dele a coluna de conteudo fica com menos de 400px depois de descontar a margem (216) e os dois paddings (160), e a familia de breakpoints que o globals.css ja usa e 640/1024 — 768 encaixa sem colidir. Abaixo do limite a margem deixa de ser coluna e passa a ficar ACIMA do conteudo, alinhada a esquerda: a regra diz que a anotacao vive na margem, e num ecra de uma coluna a margem e o que vem antes."
   }
 }
