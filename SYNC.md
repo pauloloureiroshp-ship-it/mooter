@@ -362,4 +362,68 @@ que são SINAL e não decoração: `T5: var(--color-accent)` (não existe
 `--color-tier-5`) e o texto «✦ mooter routes here» · a escala de raios, que o
 portão aceita larga de propósito.
 
+
+---
+
+### 2026-08-28 (noite) · O T5 E A ESCALA DE RAIOS — as duas por medição
+
+PR **#426** fundida, em produção. `mooter.ai` serve `--color-tier-5: #D9A441` e
+**zero** ocorrências de `border-radius:12px`.
+
+**O T5 usava a marca.** `RankingsExplorer:40` tinha `T5: var(--color-accent)` —
+rosa é para o `?` do wordmark, as cotas e o CTA, e usar a marca para dizer
+«tier» confunde *o modelo mais caro* com *a acção principal*. Não havia
+`--color-tier-5` para usar.
+
+A cor saiu de uma medição, não de gosto. Critério: o T5 aparece sempre ao lado
+dos outros quatro, logo o que conta é a **menor** distância perceptual dentro de
+{T0..T3,T5}. Os quatro actuais têm entre si um mínimo de **dE 29,8** (T1/T2).
+Seis candidatos em CIELAB; **âmbar `#D9A441` deu dE mín 43,8** — separa-se melhor
+do que o pior par da própria rampa —, contraste 8,80 e dE 50,0 ao accent.
+
+E há uma razão de desenho por cima da medição: **não existe T4.** O T5 é opt-in
+via `@fable` e nunca é auto-rotado, portanto não é um quinto degrau da escada —
+e a cor diz isso ao ser o único tom quente. Lê-se como estando *fora* da rampa.
+
+⚠️ **Achado colateral, com número e sem acção:** os quatro tiers de **papel**
+estão todos abaixo de AA e nunca foram medidos porque nunca foram declarados —
+t0 **3,53** · t1 **4,42** · t2 **4,47** · t3 **4,13**. Não lhes toquei: escurecê-los
+é mexer na paleta clara inteira, que serve impressão e superfícies que não vi.
+Os dois pares do T5 entram já a passar, para não acrescentar dívida.
+
+**A escala de raios: o código não estava errado.** O portão tinha um `RAIO_OK`
+de 15 valores escrito à mão contra os 5 do token, e o comentário dizia que
+unificar «tem de vir com a lista de sítios a mudar — não com um `Set` novo».
+
+A prova de que a **escala** é que falhava estava na própria saída do sistema: o
+`moo-ui.css` **gerado** trazia `border-radius: 2px` no anel de `:focus-visible`,
+cravado no gerador, com o 2 fora da escala. Cinco degraus cujo mais pequeno é 6
+não descrevem chrome real — um raio de 6 numa barra de 3px está errado.
+
+Medido antes de decidir: **166 ocorrências em 24 ficheiros**, com 8 (44×),
+4 (26×) e 7 (22×) no topo. Acrescentados `hairline 2`, `tight 4`, `panel 8` — e
+**não o 12**, para não virar uma rampa de 2 em 2. Depois os **54 sítios**, cada
+empate decidido a olhar para o elemento: `3→2` nas barras finas (com 4 a barra
+virava estádio), `3→4` nos balões de conversa (têm área, e são um par
+espelhado), `12→10` num halo com `inset:-1px` (concentricidade, não tamanho),
+`12→14` no `.term` (tem barra de título e corpo — é uma janela).
+
+**E o portão deixa de poder divergir.** `RAIO_OK` deriva de `T.radius`, e a
+regex passa a ver **as duas sintaxes** — só via `border-radius: Npx`, e
+`borderRadius: 999` em JSX passava invisível. Foi assim que uma pílula
+sobreviveu a uma onda inteira com o índice a 9,09.
+
+4 mordidas novas, e a que interessa: **tira `panel: 8` do TOKEN, sem tocar no
+portão, e exige que ele passe a acusar quem usa 8.** Se alguém voltar a pôr um
+`Set` paralelo, esse teste falha.
+
+gate: design **57/57** · índice **9,09** · contraste **22 pares**, todos ≥ 4.5 ·
+reconciliação token/produção **0 divergem, 30 iguais** · landing **219/219** ·
+cockpit-runner 943, **0 fail** · 9 workflows verdes
+
+**Aberto:** os 4 tiers de papel abaixo de AA (acima) · o `linguagem-visual` só
+varre 5 superfícies + `design/` — os `.tsx` da landing nunca estiveram no âmbito,
+e há lá raios que ninguém mede. Alargar o âmbito precisa da lista de sítios
+primeiro, que é a regra que esta onda acabou de honrar.
+
 <!-- HUMANO:FIM -->
