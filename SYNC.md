@@ -245,4 +245,58 @@ verificação 3 do portão dá metade enquanto lá estiverem) · o cruzamento re
 dos transcripts é anterior · `/methodology` ainda grita **91%** numa calculadora hipotética ·
 o site ainda tem duas gramáticas visuais (8 folhas novas, 8 antigas, 1 scaffold)
 
+
+---
+
+### 2026-08-28 (tarde) · A GRAMÁTICA NAS 17 FOLHAS — e o que apareceu ao medir
+
+**PR #419 e #420 fundidas, em produção. O site deixou de estar partido ao meio.**
+
+Antes: **8 de 17 rotas** na gramática do Papel Milimétrico, 8 na antiga com
+`<Card>` e `<Eyebrow>`, e a `/spawn` em scaffold cru. Agora **17/17**, cartuchos
+DES. 001–019, zero números duplicados.
+
+Nove agentes em paralelo, ficheiros disjuntos. **Nenhum** tocou em `globals.css`,
+`design/tokens/`, `design/tools/` ou no `Cartucho` — quando precisaram,
+reportaram em vez de editar.
+
+**As margens são contadas, não escritas.** `{STEPS.length}`,
+`{pack.models.length}`, `{entries.length}` — acrescentar uma entrada ao array
+move a cota sozinho. O agente do `/changelog` foi mais longe: `loadEntries`
+devolvia `Entry[]` e a lista de reserva era indistinguível da real, portanto a
+margem **não tinha como** dizer a verdade sobre a proveniência. Passou a devolver
+`{ entries, ao_vivo }`.
+
+⚠️ **O defeito grande apareceu ao medir, não ao planear.** 55 margens renderizadas
+ao público, **38 em PORTUGUÊS**, num site inteiramente inglês. Um agente
+levantou-o em vez de decidir sozinho, e tinha razão: é o defeito que `e0187e35`
+corrigiu na home, e que ficou escrito em `canonical-metrics.ts:97-106` — «uma
+ressalva que o leitor não entende não é uma ressalva; é ruído que faz duvidar de
+tudo o resto na página». Aqui era pior, porque a margem é **onde vive a
+honestidade**: `não é medição`, `não é média da manada`, `números do fornecedor
+— não medidos aqui`. Numa língua que o leitor não lê, a honestidade é
+decorativa. **55/55 em inglês**, sem suavizar nenhuma, zero expressões tocadas.
+
+⚠️ **E depois o mesmo defeito outra vez, um elemento acima.** Os 17 cartuchos
+diziam `MOOTER · A PRIVACIDADE · DES. 014`. Apanhei-o **a olhar para o site
+depois do deploy** — o aferidor que escrevi conta cartuchos, não lê o que eles
+dizem. Um instrumento que mede a presença não mede a correcção. PR #420.
+
+**Telemóvel medido em build de PRODUÇÃO, rota a rota: 17/17 com
+`scrollWidth === 375`.** A `/methodology` media 380 — terceira ocorrência do
+mesmo `min-width: auto` nesta landing (os `input[type=range]` a 356px, com o
+cursor a transbordar). Colapsar para uma coluna não chega quando a coluna se
+recusa a encolher.
+
+gate: design **53/53** · índice **9,09** (limiar 8, inalterado) · landing tsc
+limpo · **219/219** · 8 workflows verdes em cada PR · zero ficheiros partilhados
+tocados
+
+**Aberto:** dois `<Card>` em componentes irmãos que ficaram fora de âmbito por
+instrução — `compare/MultiSessionTable.tsx` e `rankings/RankingsExplorer.tsx`
+(este tem excepção declarada no portão, a única cifra de poupança do projecto).
+São as duas últimas superfícies com caixas · o interior do `RankingsExplorer`
+continua no vocabulário antigo (pills de raio 999, faixas tingidas) e vale uma
+folha de serviço própria.
+
 <!-- HUMANO:FIM -->
