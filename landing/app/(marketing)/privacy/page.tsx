@@ -174,7 +174,7 @@ export default async function PrivacyPage() {
                   — na própria página /privacy. Um link que devolve o leitor ao sítio
                   onde ele já está lê-se como política que existe noutro lado; não
                   existe. O que existe é a fonte, e é para lá que se aponta. */}
-              <a href="https://github.com/pauloloureiroshp-ship-it/frugal/blob/main/docs/data-policy.md"
+              <a href="https://github.com/pauloloureiroshp-ship-it/mooter/blob/main/docs/data-policy.md"
                  style={{ color: 'var(--color-accent)', fontSize: 14 }}>
                 Read data-policy.md on GitHub →
               </a>

@@ -12,7 +12,7 @@ export const runtime = 'edge';
  * existir, isto é uma cópia — declarada aqui em vez de silenciosa.
  *
  * O que estava antes, e não era um detalhe: o wordmark saía a `#4ec9b0`. É o
- * teal EXACTO do `mooter-logo-legacy.svg`, o logo do *frugal* — o nome anterior
+ * teal EXACTO do `mooter-logo-legacy.svg`, o logo do nome anterior
  * do produto — e esse hex não existe em `moo-tokens.json`. A primeira imagem que
  * um estranho vê quando alguém partilha um link de mooter.ai estava a mostrar a
  * marca morta. O fundo era `#080808` e o texto `#ededed`, ambos contra o
