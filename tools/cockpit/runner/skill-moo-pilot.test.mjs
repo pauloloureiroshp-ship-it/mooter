@@ -170,7 +170,16 @@ test('a skill avisa para nao entregar um instantâneo quando pediram o cockpit',
 
 test('a skill aponta para os testes que a sustentam', () => {
   assert.match(SKILL, /npm run test:cockpit-runner/);
-  assert.ok(pkg.scripts['test:cockpit-runner'].includes('skill-moo-pilot.test.mjs'),
+  // A intenção desta linha é «este ficheiro TEM de correr na suite». Até
+  // 2026-08-29 a verificação era literal — exigia o nome escrito no script — e
+  // isso amarrava a suite a uma lista à mão. A lista já tinha perdido um
+  // ficheiro (`bench-b3b6.test.mjs`, invisível ao CI). O script passou a varrer
+  // a pasta; a guarda passa a aceitar as duas formas, e continua a morder se
+  // o ficheiro deixar de ser coberto por qualquer uma delas.
+  const cmd = pkg.scripts['test:cockpit-runner'];
+  const nomeado = cmd.includes('skill-moo-pilot.test.mjs');
+  const varrido = /tools\/cockpit\/runner\/\*\.test\.mjs/.test(cmd);
+  assert.ok(nomeado || varrido,
             'este próprio ficheiro tem de correr na suite, senão a guarda não existe');
 });
 
