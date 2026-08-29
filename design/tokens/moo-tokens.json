@@ -52,8 +52,8 @@
       "line-soft": "#1E1B19",
       "text": "#F2EDE6",
       "text-2": "#C9C2B8",
-      "muted": "#8A8076",
-      "faint": "#84786B",
+      "muted": "#8B8177",
+      "faint": "#8C8073",
       "accent": "#E8888A",
       "accent-2": "#F2A5A5",
       "on-accent": "#1A0E0E",
@@ -71,14 +71,14 @@
       "line-soft": "#E8E4DB",
       "text": "#1A1613",
       "text-2": "#3A332C",
-      "muted": "#6F665A",
-      "faint": "#726859",
-      "accent": "#B4454B",
+      "muted": "#6D6458",
+      "faint": "#6E6455",
+      "accent": "#AF4046",
       "accent-2": "#A53F45",
       "on-accent": "#FFFFFF",
-      "ok": "#347650",
-      "warn": "#826435",
-      "bad": "#AD4D3B"
+      "ok": "#30724C",
+      "warn": "#7E6031",
+      "bad": "#A84836"
     },
     "tier": {
       "web": {
@@ -340,84 +340,12 @@
     "minimo_grande": 3,
     "pares": [
       [
-        "tinta.text",
-        "tinta.bg"
-      ],
-      [
-        "tinta.text-2",
-        "tinta.bg"
-      ],
-      [
-        "tinta.muted",
-        "tinta.bg"
-      ],
-      [
-        "tinta.faint",
-        "tinta.bg"
-      ],
-      [
-        "tinta.accent",
-        "tinta.bg"
-      ],
-      [
-        "tinta.ok",
-        "tinta.bg"
-      ],
-      [
-        "tinta.warn",
-        "tinta.bg"
-      ],
-      [
-        "tinta.bad",
-        "tinta.bg"
-      ],
-      [
         "tinta.on-accent",
         "tinta.accent"
       ],
       [
-        "papel.text",
-        "papel.bg"
-      ],
-      [
-        "papel.text-2",
-        "papel.bg"
-      ],
-      [
-        "papel.muted",
-        "papel.bg"
-      ],
-      [
-        "papel.accent",
-        "papel.bg"
-      ],
-      [
-        "papel.ok",
-        "papel.bg"
-      ],
-      [
-        "papel.bad",
-        "papel.bg"
-      ],
-      [
         "papel.on-accent",
         "papel.accent"
-      ],
-      [
-        "papel.faint",
-        "papel.bg"
-      ],
-      [
-        "papel.warn",
-        "papel.bg"
-      ],
-      [
-        "papel.accent-2",
-        "papel.bg"
-      ],
-      [
-        "tinta.accent-2",
-        "tinta.bg"
       ],
       [
         "tier.web.t5",
@@ -442,6 +370,42 @@
       [
         "tier.papel.t3",
         "papel.bg"
+      ],
+      [
+        "tier.web.t0",
+        "tinta.bg"
+      ],
+      [
+        "tier.web.t1",
+        "tinta.bg"
+      ],
+      [
+        "tier.web.t2",
+        "tinta.bg"
+      ],
+      [
+        "tier.web.t3",
+        "tinta.bg"
+      ],
+      [
+        "tier.terminal.t0",
+        "tinta.bg"
+      ],
+      [
+        "tier.terminal.t1",
+        "tinta.bg"
+      ],
+      [
+        "tier.terminal.t2",
+        "tinta.bg"
+      ],
+      [
+        "tier.terminal.t3",
+        "tinta.bg"
+      ],
+      [
+        "tier.terminal.t5",
+        "tinta.bg"
       ]
     ],
     "correccoes_aplicadas": {
@@ -511,7 +475,9 @@
         "porque": "Era o rosa do tema ESCURO a servir de texto no tema CLARO — 2.14:1, ilegível, em quatro sítios do globals.css que o usam como `color:` (`:1215`, `:1229`, `:1261`, `:1370`). Passa a derivar do papel.accent (#B4454B) com o mesmo matiz e L-4, em vez de ser importado do outro tema."
       }
     },
-    "nota_tiers": "Os cinco tiers de PAPEL estao declarados e medidos desde 2026-08-29. Ate ai nenhum estava: o t5 entrou a 28/08 ja a passar, e os quatro irmaos ficaram medidos-mas-nao-declarados durante um dia, o que os deixava fora do denominador do portao. Ver `color.tier.nota_papel` para como os valores foram escolhidos. Os tiers WEB continuam por declarar — sao outro fundo (tinta.bg) e outra conversa."
+    "nota_tiers": "Os cinco tiers de PAPEL estao declarados e medidos desde 2026-08-29. Ate ai nenhum estava: o t5 entrou a 28/08 ja a passar, e os quatro irmaos ficaram medidos-mas-nao-declarados durante um dia, o que os deixava fora do denominador do portao. Ver `color.tier.nota_papel` para como os valores foram escolhidos. Os tiers WEB continuam por declarar — sao outro fundo (tinta.bg) e outra conversa.",
+    "matriz_nota": "DERIVADA a 2026-08-29. Ate aqui `pares` era uma lista escrita a mao de 26 combinacoes, e a verificacao imprimia \"26 pares, todos >= 4.5:1\" — verdadeiro e enganador ao mesmo tempo. Medido nesse dia: a matriz frente x fundo do proprio sistema tem 72 combinacoes, 10 falhavam AA, e as 10 eram NAO DECLARADAS. Um par que ninguem escreveu era invisivel — a mesma forma de presenca-em-vez-de-cobertura que apanhou o portao quatro vezes na mesma sessao. A verificacao passa a DERIVAR frente x fundo por tema; `pares` fica so para o que a matriz nao exprime (`on-accent` sobre `accent`, e as cores de tier sobre o fundo). As 10 falhas foram corrigidas ANTES de a matriz ligar, pelo metodo dos tiers de papel de 2026-08-28: desvio MINIMO sujeito a AA, nunca separacao maxima. Oito tokens, dE76 entre 0,4 e 3,1 — seis abaixo de 1,9, imperceptiveis lado a lado. Escurecer os FUNDOS foi tentado primeiro e recusado: punha `tinta.surface-2` em #0F0D0A, mais escuro que o proprio `tinta.bg-2` (#0F0E0C), invertendo a hierarquia de elevacao.",
+    "pares_nota": "So o que a matriz frente x fundo NAO exprime. As 18 combinacoes derivaveis sairam daqui a 2026-08-29 — mante-las era ter a mesma coisa escrita em dois sitios, e o segundo e sempre o que fica velho. Ficam: `on-accent` sobre `accent` (texto sobre o preenchimento, nao sobre uma superficie) e as cores de TIER sobre o fundo do seu tema, porque o mapa tier->tema e facto de desenho e nao se deriva de nomes. As 9 de `web`/`terminal` foram acrescentadas no mesmo dia: estavam a ser DECLARADAS como sem par, e medidas passam todas entre 5,66:1 e 11,06:1 sobre `tinta.bg`. Ressalva honesta: o `terminal` pinta num terminal, cujo fundo nao e o `tinta.bg` — usa-se a superficie escura declarada mais proxima, como ja fazia o par `tier.web.t5`."
   },
   "layout": {
     "grelha": {

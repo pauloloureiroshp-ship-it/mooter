@@ -503,20 +503,37 @@ test('contraste DECLARA as cores de texto que nao esta a medir', (t) => {
     `toda a cor de primeiro plano tem de ter par. sem par: ${c.sem_par_declarado.join(', ')}`);
 });
 
-test('contraste MORDE uma cor de texto que perca o par', (t) => {
+test('contraste MORDE uma cor que perca o par — e o buraco mudou de sítio', (t) => {
   const b = bancada();
   t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
   superficieLimpa(b.repo);
-  /* Tirar um par e a forma silenciosa de fazer um problema desaparecer do
-     relatorio. Tem de aparecer na frase, nao so no JSON. */
+  /* Este teste guardava `papel.warn`: tirar-lhe o par fazia-o desaparecer do
+     relatório. A 2026-08-29 isso deixou de ser possível — a matriz frente x fundo
+     passou a ser DERIVADA, e uma cor de primeiro plano não pode sair dela por
+     alguém apagar uma linha. A guarda não desaparece com o buraco: segue-o.
+
+     O que ainda depende de mão escrita são as cores de TIER, porque o mapa
+     tier->tema é facto de desenho e não se deriva de nomes. É aí que a mesma
+     forma de desaparecimento silencioso continua a ser possível, e é aí que este
+     teste passa a morder. */
   const jsonPath = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
   const T = JSON.parse(readFileSync(jsonPath, 'utf8'));
-  T.contraste.pares = T.contraste.pares.filter(([fg]) => fg !== 'papel.warn');
-  writeFileSync(jsonPath, JSON.stringify(T, null, 2));
 
-  const c = v(corre(b).rel, 'contraste');
-  assert.deepEqual(c.sem_par_declarado, ['papel.warn']);
-  assert.match(c.porque, /SEM par/, 'a frase tem de o dizer, nao so o JSON');
+  // 1 · uma cor de FRENTE já não consegue perder a cobertura
+  const semWarn = T.contraste.pares.filter(([fg]) => !fg.startsWith('papel.'));
+  T.contraste.pares = semWarn;
+  writeFileSync(jsonPath, JSON.stringify(T, null, 2));
+  const c1 = v(corre(b).rel, 'contraste');
+  assert.ok(!c1.sem_par_declarado.some((x) => x.startsWith('papel.')),
+    'uma cor de frente saiu da cobertura ao perder o par — a matriz não está a derivar');
+
+  // 2 · uma cor de TIER continua a poder, e tem de o DIZER
+  T.contraste.pares = T.contraste.pares.filter(([fg]) => fg !== 'tier.papel.t3');
+  writeFileSync(jsonPath, JSON.stringify(T, null, 2));
+  const c2 = v(corre(b).rel, 'contraste');
+  assert.ok(c2.sem_par_declarado.includes('tier.papel.t3'),
+    `o tier sem par tem de ficar visível: ${JSON.stringify(c2.sem_par_declarado)}`);
+  assert.match(c2.porque, /SEM par/, 'a frase tem de o dizer, nao so o JSON');
 });
 
 test('gerar-nao-copiar MORDE uma copia INLINE desactualizada', (t) => {
@@ -1008,4 +1025,85 @@ test('MORDIDA · sem guarda nenhuma continua a falhar', (t) => {
   const m = v(corre(b).rel, 'movimento-seguro');
   assert.equal(m.pontos, 0, 'um ficheiro com keyframes e ZERO guarda passou');
   assert.ok(m.sem_guarda.some((x) => x.includes('globals.css')));
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   O contraste media uma LISTA À MÃO
+
+   `T.contraste.pares` tinha 26 combinações escritas por alguém, e a verificação
+   imprimia «26 pares, todos ≥ 4.5:1». Verdadeiro, e enganador: a matriz
+   frente × fundo do próprio sistema tem 72, e **um par que ninguém se lembrou de
+   escrever era invisível**.
+
+   Medido a 2026-08-29: das 72, dez falhavam AA — e as dez eram exactamente as
+   não declaradas. A verificação passa a DERIVAR a matriz; a lista à mão fica só
+   para o que ela não exprime (`on-accent` sobre `accent`, tiers sobre o fundo).
+
+   Estes testes fixam a diferença: um par mau que NINGUÉM declarou tem de ser
+   apanhado, e a matriz tem de sair mesmo do token — senão é uma lista maior com
+   outro nome. */
+
+test('MORDIDA · um par MAU que ninguém declarou é apanhado na mesma', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  // Estraga-se `papel.muted` no token COPIADO da bancada: cinzento clarissimo
+  // sobre fundo claro. Nao se toca em `contraste.pares` — o objectivo e provar
+  // que a deteccao ja nao depende de alguem ter escrito o par.
+  const tok = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
+  const T = JSON.parse(readFileSync(tok, 'utf8'));
+  T.color.papel.muted = '#D8D2C4';
+  T.contraste.pares = T.contraste.pares.filter((p) => !p[0].includes('papel.muted'));
+  writeFileSync(tok, JSON.stringify(T, null, 2));
+
+  const c = v(corre(b).rel, 'contraste');
+  assert.notEqual(c.pontos, 1.5, 'um par mau NÃO declarado passou — a matriz não está a derivar');
+  assert.ok(c.abaixo_AA.some((x) => x.includes('papel.muted')),
+    `o par derivado tinha de aparecer em abaixo_AA: ${JSON.stringify(c.abaixo_AA)}`);
+});
+
+test('a matriz sai MESMO do token: mais uma cor de frente, mais pares', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  const antes = v(corre(b).rel, 'contraste').pares.length;
+
+  // `warn` existe nos dois temas; apagá-lo tem de RETIRAR os seus 4 pares por tema.
+  const tok = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
+  const T = JSON.parse(readFileSync(tok, 'utf8'));
+  delete T.color.papel.warn;
+  writeFileSync(tok, JSON.stringify(T, null, 2));
+
+  const depois = v(corre(b).rel, 'contraste').pares.length;
+  assert.equal(depois, antes - 4,
+    `tirar uma cor de frente tinha de tirar 4 pares (um por fundo): ${antes} -> ${depois}`);
+});
+
+test('as cores de TIER sem par continuam declaradas, não escondidas', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  const tok = join(b.raiz, 'design', 'tokens', 'moo-tokens.json');
+  const T = JSON.parse(readFileSync(tok, 'utf8'));
+  T.color.tier.web.t9 = '#123456';          // um tier novo, sem par nenhum
+  writeFileSync(tok, JSON.stringify(T, null, 2));
+
+  const c = v(corre(b).rel, 'contraste');
+  assert.ok(c.sem_par_declarado.includes('tier.web.t9'),
+    `um tier novo sem par tem de ficar VISÍVEL: ${JSON.stringify(c.sem_par_declarado)}`);
+});
+
+test('e `tier.nota*` não entra na lista — são escalas, não cores', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // A primeira versão desta lista percorria tudo debaixo de `tier` e devolvia
+  // 1958 entradas. Um número absurdo denuncia-se sozinho; um plausível e errado
+  // não — por isso fica um teste, não uma lembrança.
+  const c = v(corre(b).rel, 'contraste');
+  assert.ok(!c.sem_par_declarado.some((x) => x.startsWith('tier.nota')),
+    `escalas de nota não são cores: ${JSON.stringify(c.sem_par_declarado.slice(0, 5))}`);
 });
