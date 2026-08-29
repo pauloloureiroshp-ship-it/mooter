@@ -360,8 +360,16 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   .y-row { display:grid; grid-template-columns:44px 1fr auto; align-items:center; gap:10px }
   .y-id { font:600 12px/1 var(--mono); color:var(--ink-2); letter-spacing:.02em }
   .y-track { position:relative; height:16px; background:var(--panel-2); border-radius:4px; overflow:hidden }
-  .y-bar { position:absolute; inset:0 auto 0 0; width:0; border-radius:4px;
-           background:var(--ok); transition:width .7s cubic-bezier(.16,1,.3,1) }
+  /* A barra vive sempre a largura TODA do carril e DESLIZA — nao cresce.
+     `scaleX` era o candidato obvio e esta errado aqui: o raio horizontal e
+     multiplicado pela escala, e o proprio codigo impoe minimos de 3% e 1,5%
+     (:1338). Medido: a barra mais curta pinta 14,2px com raio 4px; a 0,015 de
+     escala o raio viraria 0,06px e a ponta arredondada virava corte a direito.
+     Com `translateX` a largura nunca muda, o raio fica exacto, e o que sai de
+     vista e recortado pelo `overflow:hidden` do carril — que e literalmente o
+     que ja acontecia. A curva `.16,1,.3,1` e a `entrada` da familia; nao muda. */
+  .y-bar { position:absolute; inset:0; border-radius:4px; transform:translateX(-100%);
+           background:var(--ok); transition:transform .7s cubic-bezier(.16,1,.3,1) }
   .y-bar.zero { background:var(--dead); opacity:.35 }
   .y-lab { font:12px/1.3 var(--sans); color:var(--ink-2); white-space:nowrap }
   .y-lab b { color:var(--ink); font-variant-numeric:tabular-nums }
@@ -1333,7 +1341,10 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       const track = el('div','y-track');
       track.title = r.id + ': ' + r.cited + ' cited / ' + r.total + ' rounds';
       const bar = el('div', 'y-bar' + (r.cited === 0 ? ' zero' : ''));
-      bar.dataset.w = Math.max(r.cited ? 3 : 1.5, Math.round(100 * r.pct / max)) + '%';
+      /* Guarda-se o NUMERO, nao a string com '%': quem o aplica agora precisa
+         de calcular `100 - w`. Os minimos (3% e 1,5%) ficam intactos — sao o
+         que impede uma barra medida de desaparecer, e nao mudam de semantica. */
+      bar.dataset.p = String(Math.max(r.cited ? 3 : 1.5, Math.round(100 * r.pct / max)));
       track.appendChild(bar);
       row.appendChild(track);
       const lab = el('span','y-lab');
@@ -1348,7 +1359,13 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       'The bars are CITED rate per pillar, relative to the best one \u2014 not findings. A pillar can cite a line to say COMPLETE, meaning it found nothing wrong, and that still counts as cited. '
       + 'The number that matters is the funnel above. A pillar at 0% is not proof the question is wrong: it can also mean the slice it receives is too small to contain the answer. That is the next measurement, not a conclusion.';
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      wrap.querySelectorAll('[data-w]').forEach((n) => { n.style.width = n.dataset.w; });
+      /* `translateX` em percentagem e relativo a largura do PROPRIO elemento,
+         que agora e a do carril (`inset:0`) — por isso -(100-w)% deixa w% a
+         vista, a partir da esquerda. O rAF duplo continua a ser o que faz a
+         transicao correr em vez de saltar. */
+      wrap.querySelectorAll('[data-p]').forEach((n) => {
+        n.style.transform = 'translateX(-' + (100 - Number(n.dataset.p)) + '%)';
+      });
     }));
   }
 
