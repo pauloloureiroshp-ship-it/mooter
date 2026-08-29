@@ -73,15 +73,38 @@ const PRICES = {
   // ── Local / free (Ollama) ──────────────────────────────────────────
   // v0.7: specialists added. See classify.js sub-tier routing + doctrine
   // files. check-local-models.js surfaces which of these are installed.
+  //
+  // MEDIDO no Mac mini (M4 Pro, 24 GB) em 2026-08-29, ctx 65536, 100% GPU,
+  // prompt fixo, `ollama run --verbose`. Recibo:
+  // _handoff/motor-mac-20260829-1155.log · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md
+  //   granite4.2:3b       60.48 tok/s · load 2.37s · 8.1 GB carregados
+  //   gpt-oss:20b         39.16 tok/s · load 16.94s · 12 GB
+  //   granite4.2:8b       32.66 tok/s · load 2.38s · 16 GB
+  //   gemma4:12b          22.93 tok/s · load 5.92s · 8.1 GB
+  //   qwen2.5-coder:14b   22.22 tok/s · load 7.03s · 15 GB (ctx 32768)
+  // Estas sao as PRIMEIRAS medicoes locais deste device. Uma medicao != MooterBench:
+  // nenhuma entrada abaixo esta promovida a residente (gate B1-B6 + ▶ do dono).
   'qwen2.5:3b':                      { input: 0, output: 0, strengths: ['general','summarize','translate','quick-answer'], tier: 'T0', subtier: 'general' },
+  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
   'qwen3:30b':                       { input: 0, output: 0, strengths: ['reasoning-local'],                                 tier: 'T0', subtier: 'reason' },
+  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
   'qwen2.5-coder:14b-q4':            { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
   'qwen2.5-coder:14b':               { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
+  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
   'deepseek-r1-distill-qwen:14b':    { input: 0, output: 0, strengths: ['math','reasoning','step-by-step'],                 tier: 'T0', subtier: 'math' },
+  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
   'deepseek-r1:7b':                  { input: 0, output: 0, strengths: ['math','reasoning'],                                tier: 'T0', subtier: 'math' },
   // Google Gemma 4 (local via Ollama) — multimodal, strong reasoning
+  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
   'gemma4:e4b':                       { input: 0, output: 0, strengths: ['reasoning','multimodal','general','summarize'], tier: 'T0', subtier: 'reason' },
+  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
   'gemma3:12b':                       { input: 0, output: 0, strengths: ['general','summarize','translate'],              tier: 'T0', subtier: 'general' },
+  // IBM Granite 4.2 (2026-08-25, Apache 2.0, tool-calling formato OpenAI, 128K)
+  'granite4.2:3b':                   { input: 0, output: 0, strengths: ['general','triage','classify','quick-answer','summarize'], tier: 'T0', subtier: 'general' },
+  'granite4.2:8b':                   { input: 0, output: 0, strengths: ['code','refactor-local','long-context','reasoning'],       tier: 'T0', subtier: 'code' },
+  // Ja estavam em disco ha meses e NAO tinham entrada: o router nunca os escolhia.
+  'gemma4:12b':                      { input: 0, output: 0, strengths: ['general','summarize','translate','multimodal','long-context'], tier: 'T0', subtier: 'reason' },
+  'gpt-oss:20b':                     { input: 0, output: 0, strengths: ['general','reasoning','fast-local'],                       tier: 'T0', subtier: 'reason' },
   'ollama':                          { input: 0, output: 0 }, // generic
 
   // ── Google (Gemini) — verified 2026-08-03 from ai.google.dev ────────
