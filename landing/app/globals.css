@@ -1,3 +1,4 @@
+@import '../../design/tokens/moo-ui.css';
 /* ============================================================
    Mooter Landing — dark warm palette (Wave 4 Phase A redesign)
    Source of truth: --color-* tokens (IMPLEMENTATION_SPEC §3).
@@ -36,6 +37,14 @@
   --color-tier-1:      #5A9BD4;
   --color-tier-2:      #A88BD4;
   --color-tier-3:      #D46A5A;
+  /* 2026-08-28 · T5 (Fable) usava `var(--color-accent)` — a rosa da marca — e a
+     marca nao e um tier. Nao ha T4: o T5 e opt-in via @fable e nunca e
+     auto-rotado, por isso nao e um quinto degrau da rampa, e a cor diz isso ao
+     ser o unico tom quente do conjunto. Escolhido por medicao (ver
+     `moo-tokens.json -> color.tier.nota_t5`): dE minimo 43,8 dentro de
+     {T0..T3,T5}, melhor do que o pior par da propria rampa (29,8). Valor igual
+     ao `--moo-tier-web-t5` do ficheiro gerado. */
+  --color-tier-5:      #D9A441;
   --color-tier-2-term: #D4C090;
 
   /* In-page TTY mockups */
@@ -53,7 +62,7 @@
   --beige-line:   var(--color-border);
   --beige-line-2: var(--color-border-light);
 
-  --ink:          var(--color-text);
+  --ink:          var(--moo-tinta-text);   /* alias legado do beige; o valor passa a vir do gerado */
   --ink-2:        #D8D1C8;
   --muted-ink:    var(--color-muted);
   --faint-ink:    #5A534B;
@@ -69,10 +78,11 @@
   --t1-blue:      var(--color-tier-1);
   --t2-purple:    var(--color-tier-2);
   --t3-red:       var(--color-tier-3);
+  --t5-amber:     var(--color-tier-5);
 
   /* Fonts (next/font injects the --font-sans / --font-mono variables) */
-  --font:         var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --mono:         var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
+  --font:         var(--moo-font-sans);
+  --mono:         var(--moo-font-mono);
 }
 
 * { box-sizing: border-box; }
@@ -217,6 +227,14 @@ h3 { font-size: 20px; line-height: 1.3; }
 .hero-grid {
   display: grid; grid-template-columns: 1.15fr 1fr; gap: 80px; align-items: center;
 }
+/* 2026-08-27 · a home mediu 725px de scrollWidth num ecrã de 375 (+93%) MESMO
+   com a regra dos 1100px a colapsar isto para uma coluna. A regra estava certa
+   e não bastava: um filho de grid tem `min-width: auto`, por isso a pista `1fr`
+   dimensiona-se ao min-content do filho mais teimoso — o HeroTerminal, cujo
+   min-content são 705px de linhas mono. A coluna era uma, e tinha 705px.
+   `min-width: 0` devolve a decisão à pista; o terminal rola dentro de si. */
+.hero-grid > * { min-width: 0; }
+.hero-grid pre, .hero-grid code { overflow-x: auto; max-width: 100%; }
 .hero-tag {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--mono); font-size: 11px; color: var(--muted-ink);
@@ -240,7 +258,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 /* Hero visual — terminal card */
 .hero-visual { position: relative; }
 .term {
-  background: #14110E; border: 1px solid #2a241f; border-radius: 12px;
+  background: #14110E; border: 1px solid #2a241f; border-radius: 14px;
   overflow: hidden;
   font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
   color: #E6DFD2;
@@ -303,7 +321,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 }
 .flow-step {
   background: var(--beige-card); border: 1px solid var(--beige-line);
-  border-radius: 12px; padding: 22px;
+  border-radius: 10px; padding: 22px;
   position: relative;
   min-height: 180px;
 }
@@ -374,7 +392,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 }
 .model-row .model-logo {
   width: 22px; height: 22px; flex-shrink: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   background: #fff;
   border: 1px solid rgba(0,0,0,0.08);
   display: inline-flex; align-items: center; justify-content: center;
@@ -434,13 +452,13 @@ h3 { font-size: 20px; line-height: 1.3; }
 .statusline .sl-brand { color: #E8888A; font-weight: 600; }
 .statusline .sl-model { font-weight: 600; }
 .statusline .sl-bar { display: inline-flex; gap: 1px; margin: 0 6px; }
-.statusline .sl-bar-tick { width: 3px; height: 10px; background: #E8888A; border-radius: 1px; }
+.statusline .sl-bar-tick { width: 3px; height: 10px; background: #E8888A; border-radius: 2px; }
 .statusline .sl-cow { display: inline-flex; align-items: center; margin-right: 4px; }
 .statusline .sl-save { color: #6FB28C; font-weight: 600; }
 .statusline .sl-spent { color: #D4C090; font-weight: 600; }
 .statusline .sl-ctx { color: #E8888A; }
 .statusline .sl-share-bar {
-  width: 100%; height: 8px; border-radius: 3px; overflow: hidden;
+  width: 100%; height: 8px; border-radius: 2px; overflow: hidden;
   display: flex; background: #1c1815;
   margin: 4px 0 2px;
 }
@@ -546,7 +564,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 .mode-cmd code {
   background: var(--beige-card-2);
   border: 1px solid var(--beige-line);
-  padding: 2px 7px; border-radius: 5px;
+  padding: 2px 7px; border-radius: 4px;
   color: var(--rose);
   font-weight: 600;
 }
@@ -572,7 +590,7 @@ h3 { font-size: 20px; line-height: 1.3; }
 .modes-foot code {
   background: var(--beige-card-2);
   border: 1px solid var(--beige-line);
-  padding: 2px 7px; border-radius: 5px;
+  padding: 2px 7px; border-radius: 4px;
   color: var(--rose); font-weight: 600;
 }
 
@@ -631,7 +649,7 @@ h3 { font-size: 20px; line-height: 1.3; }
   padding: 18px 24px;
   background: var(--beige-card);
   border: 1px solid var(--beige-line);
-  border-radius: 12px;
+  border-radius: 14px;
   transition: all 0.3s;
 }
 .term-savings-strip .tiny {
@@ -863,34 +881,34 @@ html:has(.app-shell-dark) body {
 }
 
 .app-shell-root {
-  --bg:           #F2ECDF;   /* warm parchment — same as landing */
-  --bg-2:         #EBE3D1;   /* sidebar / section band */
-  --surface:      #FBF7EE;   /* card */
-  --surface-2:    #FFFDF7;   /* elevated card */
-  --border:       #D9D0BB;   /* warm line */
-  --border-light: #C8BCA0;   /* visible line */
-  --text:         #1A1613;   /* ink */
-  --text-2:       #3A332C;   /* ink-2 */
-  --muted:        #6F665A;   /* muted-ink */
-  --faint:        #9A8F7E;   /* faint-ink */
-  --accent:       #C25F65;   /* rose */
-  --accent-soft:  #E8888A;   /* rose-soft */
-  --accent-bg:    rgba(194,95,101,0.08);
-  --cream:        #FFFFFF;   /* used as CTA text on rose — white on rose */
-  --green:        #3D8B5E;   /* t0-green tuned for light bg */
-  --yellow:       #B89050;   /* deeper yellow for readability on beige */
-  --tier-0:       #3D8B5E;
-  --tier-1:       #3D6FA8;
-  --tier-2:       #7A5EA8;
-  --tier-3:       #B8523F;
+  --bg:           var(--moo-papel-bg);   /* warm parchment — same as landing */
+  --bg-2:         var(--moo-papel-bg-2);   /* sidebar / section band */
+  --surface:      var(--moo-papel-surface);   /* card */
+  --surface-2:    var(--moo-papel-surface-2);   /* elevated card */
+  --border:       var(--moo-papel-line);   /* warm line */
+  --border-light: var(--moo-papel-line-strong);   /* visible line */
+  --text:         var(--moo-papel-text);   /* ink */
+  --text-2:       var(--moo-papel-text-2);   /* ink-2 */
+  --muted:        var(--moo-papel-muted);   /* muted-ink */
+  --faint:        var(--moo-papel-faint);   /* faint-ink */
+  --accent:       var(--moo-papel-accent);   /* rose — 2026-08-27: 3.49:1 sobre --bg falhava AA. Mesmo matiz, L-8. Agora 4.58:1 */
+  --accent-soft:  var(--moo-papel-accent-2);   /* rose-soft */
+  --accent-bg:    rgba(180,69,75,0.08);   /* derivado de --accent; movido com ele */
+  --cream:        var(--moo-papel-on-accent);   /* used as CTA text on rose — white on rose */
+  --green:        var(--moo-papel-ok);   /* t0-green tuned for light bg — 2026-08-27: 3.53:1 falhava AA, L-6, agora 4.63:1 */
+  --yellow:       var(--moo-papel-warn);   /* deeper yellow for readability on beige */
+  --tier-0:       var(--moo-tier-papel-t0);
+  --tier-1:       var(--moo-tier-papel-t1);
+  --tier-2:       var(--moo-tier-papel-t2);
+  --tier-3:       var(--moo-tier-papel-t3);
   --r-sm:         6px;
   --r-md:         10px;
   --r-lg:         16px;
   --r-full:       999px;
 
   /* Aliases for legacy --font / --mono tokens used by existing app components */
-  --font: var(--font-sans, 'Space Grotesk'), sans-serif;
-  --mono: var(--font-mono, 'JetBrains Mono'), monospace;
+  --font: var(--moo-font-sans);
+  --mono: var(--moo-font-mono);
 
   background: var(--bg);
   color: var(--text);
@@ -905,33 +923,33 @@ html:has(.app-shell-dark) body {
    .app-shell-dark resolves these dark tokens (equal specificity → source order). */
 .onboarding-shell,
 .app-shell-dark {
-  --bg:           #0B0A09;
-  --bg-2:         #0F0E0C;
-  --surface:      #141311;
-  --surface-2:    #1C1A17;
-  --border:       #252220;
-  --border-light: #302C28;
-  --text:         #F2EDE6;
-  --text-2:       #C9C2B8;
-  --muted:        #8A8076;   /* Wave 16-18 A2: AA-contrast muted on dark (was #7A7168 ~4.1:1) */
-  --faint:        #5A5249;
-  --accent:       #E8888A;   /* landing pink (--color-accent) */
-  --accent-soft:  #F2A5A5;
+  --bg:           var(--moo-tinta-bg);
+  --bg-2:         var(--moo-tinta-bg-2);
+  --surface:      var(--moo-tinta-surface);
+  --surface-2:    var(--moo-tinta-surface-2);
+  --border:       var(--moo-tinta-line);
+  --border-light: var(--moo-tinta-line-strong);
+  --text:         var(--moo-tinta-text);
+  --text-2:       var(--moo-tinta-text-2);
+  --muted:        var(--moo-tinta-muted);   /* Wave 16-18 A2: AA-contrast muted on dark (was #7A7168 ~4.1:1) */
+  --faint:        var(--moo-tinta-faint);   /* 2026-08-27: estava a 2.58:1 sobre --bg — abaixo ate de AA-GRANDE (3.0). Texto ilegivel no ar. L+15, agora 4.60:1 */
+  --accent:       var(--moo-tinta-accent);   /* landing pink (--color-accent) */
+  --accent-soft:  var(--moo-tinta-accent-2);
   --accent-bg:    rgba(232,136,138,0.08);
-  --cream:        #1A0E0E;   /* dark ink as text ON the pink CTA — matches landing Btn */
-  --green:        #4CAF6A;
-  --yellow:       #D4C090;
-  --tier-0:       #4CAF6A;
-  --tier-1:       #5A9BD4;
-  --tier-2:       #A88BD4;
-  --tier-3:       #D46A5A;
+  --cream:        var(--moo-tinta-on-accent);   /* dark ink as text ON the pink CTA — matches landing Btn */
+  --green:        var(--moo-tinta-ok);
+  --yellow:       var(--moo-tinta-warn);
+  --tier-0:       var(--moo-tier-web-t0);
+  --tier-1:       var(--moo-tier-web-t1);
+  --tier-2:       var(--moo-tier-web-t2);
+  --tier-3:       var(--moo-tier-web-t3);
   --r-sm:         6px;
   --r-md:         10px;
   --r-lg:         16px;
   --r-full:       999px;
 
-  --font: var(--font-sans, 'Space Grotesk'), sans-serif;
-  --mono: var(--font-mono, 'JetBrains Mono'), monospace;
+  --font: var(--moo-font-sans);
+  --mono: var(--moo-font-mono);
 
   background: var(--bg);
   color: var(--text);

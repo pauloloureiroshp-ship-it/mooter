@@ -193,6 +193,39 @@ function filterDegraded(chain, providerState) {
   return out;
 }
 
+// ── Saude dos fornecedores ──────────────────────────────────────────────
+//
+// `resolveFallbackChain`/`filterDegraded` sempre souberam contornar um motor
+// morto. O que nunca existiu foi quem lhes dissesse QUAL estava morto:
+// `execute()` fazia `deps.providerState || {}` e **nada, em lado nenhum,
+// preenchia esse campo**. A escada era correcta e cega.
+//
+// `provider-health.js` e o ficheiro que faltava. Le-se aqui, com decaimento
+// aplicado na leitura, e escreve-se no fim de cada tentativa. `deps.providerState`
+// continua a ganhar, porque os testes injectam-no e a injeccao tem de mandar.
+let _saude = null;
+function saude() {
+  if (_saude === null) {
+    try { _saude = require('./provider-health.js'); }
+    catch { _saude = false; }   // sem o modulo, o executor comporta-se como antes
+  }
+  return _saude;
+}
+
+/** O estado persistido, ou `{}` se o modulo nao existir / falhar. Nunca lanca. */
+function estadoPersistido(home) {
+  const m = saude();
+  if (!m) return {};
+  try { return m.estadoActual({ home }); } catch { return {}; }
+}
+
+/** Regista o desfecho de uma tentativa. Best-effort: nunca parte o despacho. */
+function registarDesfecho(provider, resultado, extra = {}) {
+  const m = saude();
+  if (!m) return;
+  try { m.registar(provider, resultado, extra); } catch { /* best-effort */ }
+}
+
 // ── Result helpers ──────────────────────────────────────────────────────
 
 /**
@@ -659,7 +692,11 @@ async function execute(input = {}) {
   }
 
   // ── T-06 — fallback chain construction ──────────────────────────────
-  const chain = resolveFallbackChain(classification, deps.providerState || {});
+  // `deps.providerState` (injectado pelos testes) ganha sempre. Sem ele, le-se o
+  // que as sessoes anteriores aprenderam -- que ate 2026-08-28 era literalmente
+  // nada, porque o ficheiro nao existia.
+  const providerState = deps.providerState || estadoPersistido(deps.home);
+  const chain = resolveFallbackChain(classification, providerState);
 
   // If the resolved chain is empty or contains only Anthropic-tier
   // providers, there is nothing the executor can dispatch directly →
@@ -737,6 +774,11 @@ async function execute(input = {}) {
     fallbackChain.push(provider);
 
     if (attemptError) {
+      // A causa e classificada a partir da mensagem real do fornecedor
+      // (`provider-health.js` conhece quota, id de modelo, tier, auth, rede) e
+      // guardada com a sua politica de recuperacao. E o que evita gastar a
+      // proxima sessao a redescobrir isto.
+      registarDesfecho(provider, 'fail', { erro: attemptError, home: deps.home });
       errors.push({
         provider,
         message: String((attemptError && attemptError.message) || attemptError || 'unknown error'),
@@ -746,6 +788,9 @@ async function execute(input = {}) {
     }
 
     if (response && response.ok && response.text) {
+      // Respondeu => esta vivo, e qualquer degradacao anterior deixou de
+      // descrever a realidade. O sucesso limpa na hora.
+      registarDesfecho(provider, 'ok', { home: deps.home });
       // Success! Build ExecuteResult_Ok in the SPEC §4.1 shape.
       const ok = buildOk({
         provider,
@@ -764,7 +809,18 @@ async function execute(input = {}) {
       return ok;
     }
 
-    // Soft failure (returned null or empty text).
+    // Falha macia: devolveu null ou texto vazio.
+    //
+    // Esta e a que nao traz erro nenhum para classificar, e por isso a causa e
+    // DECLARADA. Caso real de 2026-08-28: `kimi-k2.6` e um modelo de raciocinio
+    // e com `max_tokens: 1400` devolveu HTTP 200, content vazio e
+    // `reasoning_tokens: 1399` -- gastou o orcamento todo a pensar. Um executor
+    // que trate isto como «nada a registar» reporta verde tendo produzido nada.
+    registarDesfecho(provider, 'fail', {
+      causa: 'empty_completion',
+      detalhe: 'wrapper devolveu null ou texto vazio (HTTP ok)',
+      home: deps.home,
+    });
     errors.push({
       provider,
       message: 'wrapper returned null or empty text',
@@ -963,6 +1019,8 @@ module.exports = {
     sanitisePromptPreview,
     buildTelemetryRecord,
     resolveFallbackChain,
+    estadoPersistido,
+    registarDesfecho,
     isAnthropicProvider,
     filterDegraded,
     anthropicProviderToSubagent,

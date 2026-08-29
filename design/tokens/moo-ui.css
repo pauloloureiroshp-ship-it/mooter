@@ -1,0 +1,215 @@
+/* GERADO por tools/moo-tokens-build.mjs a partir de tokens/moo-tokens.json.
+   NÃO EDITAR À MÃO — a próxima geração apaga o que aqui escreveres.
+   fonte: frugal@97ad846b · medido 2026-08-27 · v2.0.0 */
+
+:root {
+  --moo-tinta-bg: #0B0A09;
+  --moo-tinta-bg-2: #0F0E0C;
+  --moo-tinta-surface: #141311;
+  --moo-tinta-surface-2: #1C1A17;
+  --moo-tinta-line: #252220;
+  --moo-tinta-line-strong: #302C28;
+  --moo-tinta-line-soft: #1E1B19;
+  --moo-tinta-text: #F2EDE6;
+  --moo-tinta-text-2: #C9C2B8;
+  --moo-tinta-muted: #8A8076;
+  --moo-tinta-faint: #84786B;
+  --moo-tinta-accent: #E8888A;
+  --moo-tinta-accent-2: #F2A5A5;
+  --moo-tinta-on-accent: #1A0E0E;
+  --moo-tinta-ok: #4CAF6A;
+  --moo-tinta-warn: #D4C090;
+  --moo-tinta-bad: #D46A5A;
+  --moo-papel-bg: #F2ECDF;
+  --moo-papel-bg-2: #EBE3D1;
+  --moo-papel-surface: #FBF7EE;
+  --moo-papel-surface-2: #FFFDF7;
+  --moo-papel-line: #D9D0BB;
+  --moo-papel-line-strong: #C8BCA0;
+  --moo-papel-line-soft: #E8E4DB;
+  --moo-papel-text: #1A1613;
+  --moo-papel-text-2: #3A332C;
+  --moo-papel-muted: #6F665A;
+  --moo-papel-faint: #726859;
+  --moo-papel-accent: #B4454B;
+  --moo-papel-accent-2: #A53F45;
+  --moo-papel-on-accent: #FFFFFF;
+  --moo-papel-ok: #347650;
+  --moo-papel-warn: #826435;
+  --moo-papel-bad: #AD4D3B;
+  --moo-tier-web-t0: #4CAF6A;
+  --moo-tier-web-t1: #5A9BD4;
+  --moo-tier-web-t2: #A88BD4;
+  --moo-tier-web-t3: #D46A5A;
+  --moo-tier-web-t5: #D9A441;
+  --moo-tier-papel-t0: #28784C;
+  --moo-tier-papel-t1: #196BA4;
+  --moo-tier-papel-t2: #795DA7;
+  --moo-tier-papel-t3: #B14C39;
+  --moo-tier-papel-t5: #7D5A15;
+  --moo-tier-terminal-t0: #4CAF6A;
+  --moo-tier-terminal-t1: #5A9BD4;
+  --moo-tier-terminal-t2: #D4C090;
+  --moo-tier-terminal-t3: #D46A5A;
+  --moo-tier-terminal-t5: #D9A441;
+
+  /* activos — tinta por omissão; o bloco [data-moo-theme="papel"] remapeia */
+  --moo-bg: #0B0A09;
+  --moo-bg-2: #0F0E0C;
+  --moo-surface: #141311;
+  --moo-surface-2: #1C1A17;
+  --moo-line: #252220;
+  --moo-line-strong: #302C28;
+  --moo-line-soft: #1E1B19;
+  --moo-text: #F2EDE6;
+  --moo-text-2: #C9C2B8;
+  --moo-muted: #8A8076;
+  --moo-faint: #84786B;
+  --moo-accent: #E8888A;
+  --moo-accent-2: #F2A5A5;
+  --moo-on-accent: #1A0E0E;
+  --moo-ok: #4CAF6A;
+  --moo-warn: #D4C090;
+  --moo-bad: #D46A5A;
+  --moo-tier-t0: #4CAF6A;
+  --moo-tier-t1: #5A9BD4;
+  --moo-tier-t2: #A88BD4;
+  --moo-tier-t3: #D46A5A;
+  --moo-tier-t5: #D9A441;
+  --moo-term-bg: #0d1117;
+  --moo-term-line: #30363d;
+  --moo-term-head: #161b22;
+  --moo-term-fg: #c9d1d9;
+  --moo-term-dim: #8b949e;
+  --moo-marca-chifre: #B8C0C8;
+  --moo-marca-cabeca: #CCD3DA;
+  --moo-marca-focinho: #EDAEB0;
+  --moo-marca-narina: #C16A6F;
+  --moo-marca-olho: #2C2F33;
+  --moo-marca-brilho: #FFFFFF;
+  --moo-space-xs: 4px;
+  --moo-space-sm: 8px;
+  --moo-space-md: 16px;
+  --moo-space-lg: 24px;
+  --moo-space-xl: 40px;
+  --moo-space-2xl: 64px;
+  --moo-space-band: clamp(4rem, 10vw, 9rem);
+  --moo-space-grid: 4;
+  --moo-radius-hairline: 2px;
+  --moo-radius-tight: 4px;
+  --moo-radius-control: 6px;
+  --moo-radius-panel: 8px;
+  --moo-radius-card: 10px;
+  --moo-radius-window: 14px;
+  --moo-radius-hero: 16px;
+  --moo-radius-pill: 999px;
+  --moo-shadow-term: 0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2);
+  --moo-shadow-lift: 0 40px 100px -40px rgba(0,0,0,0.6);
+  --moo-font-sans: var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --moo-font-mono: var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace;
+  --moo-font-hand: var(--font-caveat, 'Caveat'), cursive;
+  --moo-ms-interact: 140ms;
+  --moo-ms-surface: 160ms;
+  --moo-ms-reveal: 500ms;
+}
+
+/* tema papel — mesmos nomes, valores do shell autenticado */
+[data-moo-theme="papel"] {
+  --moo-bg: #F2ECDF;
+  --moo-bg-2: #EBE3D1;
+  --moo-surface: #FBF7EE;
+  --moo-surface-2: #FFFDF7;
+  --moo-line: #D9D0BB;
+  --moo-line-strong: #C8BCA0;
+  --moo-line-soft: #E8E4DB;
+  --moo-text: #1A1613;
+  --moo-text-2: #3A332C;
+  --moo-muted: #6F665A;
+  --moo-faint: #726859;
+  --moo-accent: #B4454B;
+  --moo-accent-2: #A53F45;
+  --moo-on-accent: #FFFFFF;
+  --moo-ok: #347650;
+  --moo-warn: #826435;
+  --moo-bad: #AD4D3B;
+  --moo-tier-t0: #28784C;
+  --moo-tier-t1: #196BA4;
+  --moo-tier-t2: #795DA7;
+  --moo-tier-t3: #B14C39;
+  --moo-tier-t5: #7D5A15;
+}
+
+/* escala tipográfica */
+.moo-hero { font: 700 clamp(56px,13vw,168px)/0.92 var(--moo-font-sans); letter-spacing: -0.05em; }
+.moo-h1 { font: 700 clamp(44px,6vw,76px)/1.02 var(--moo-font-sans); letter-spacing: -0.045em; }
+.moo-h2 { font: 700 clamp(32px,3.6vw,48px)/1.08 var(--moo-font-sans); letter-spacing: -0.035em; }
+.moo-h3 { font: 600 20px/1.3 var(--moo-font-sans); letter-spacing: -0.02em; }
+.moo-lede { font: 400 19px/1.6 var(--moo-font-sans); letter-spacing: 0; }
+.moo-body { font: 400 16px/1.6 var(--moo-font-sans); letter-spacing: 0; }
+.moo-small { font: 400 13px/1.55 var(--moo-font-sans); letter-spacing: 0; }
+.moo-eyebrow { font: 500 11px/1.2 var(--moo-font-mono); letter-spacing: 0.16em; text-transform: uppercase; }
+.moo-num { font: 700 32px/1.05 var(--moo-font-mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.moo-label { font: 500 10px/1.2 var(--moo-font-mono); letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* ── LAYOUT · Papel Milimétrico (direcção fixada em 2026-08-27) ── */
+.moo-mm { position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(232,136,138,0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,136,138,0.07) 1px, transparent 1px),
+    linear-gradient(rgba(232,136,138,0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,136,138,0.16) 1px, transparent 1px);
+  background-size: 8px 8px,
+                   8px 8px, 64px 64px, 64px 64px; }
+.moo-folha { position: relative; padding: 0 80px; }
+.moo-secao { display: grid; grid-template-columns: 216px 1fr;
+  border-top: 1px solid var(--moo-line-strong); padding: 48px 0; }
+/* Um filho de grid tem `min-width: auto`, e por isso um terminal ou uma tabela
+   larga EMPURRA a coluna em vez de rolar dentro dela. Foi assim que a home
+   chegou a 725px num ecra de 375: o HeroTerminal segurava a coluna e o H1, o H2
+   e o paragrafo iam atras. `min-width: 0` devolve a decisao ao grid. */
+.moo-secao > * { min-width: 0; }
+.moo-marg { padding-right: 32px; text-align: right; font-family: var(--moo-font-mono);
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--moo-faint); line-height: 1.9; overflow-wrap: break-word; }
+/* `break-word` sozinho nao quebra uma palavra unica maior que a coluna; a margem
+   de /compare mediu 881px por causa de um so `<b>multi-sessao</b>` que nao cabia
+   nos 216px. `anywhere` quebra-a, e so aqui — a margem e mono, curta e
+   caixa-alta, onde uma quebra dentro da palavra le-se; no corpo do texto nao. */
+.moo-marg b { display: block; color: var(--moo-text); font-weight: 500;
+  overflow-wrap: anywhere; }
+.moo-cota { stroke: var(--moo-accent); stroke-width: 1.1; fill: none; }
+.moo-cota-t { fill: var(--moo-accent); font-family: var(--moo-font-mono);
+  font-size: 9px; letter-spacing: .1em; }
+.moo-cartucho { display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--moo-font-mono); font-size: 10px; letter-spacing: .24em;
+  color: var(--moo-faint); border-bottom: 1px solid var(--moo-line-strong); padding-bottom: 16px; }
+
+/* ── MOVIMENTO · a família de quatro, e mais nenhuma ── */
+.moo-ent { opacity: 0; animation: moo-ent 640ms cubic-bezier(.16,1,.3,1) forwards var(--d, 0ms); }
+.moo-traco { stroke-dasharray: var(--L); stroke-dashoffset: var(--L);
+  animation: moo-traco 1200ms cubic-bezier(.16,1,.3,1) forwards var(--d, 0ms); }
+.moo-pulso { animation: moo-pulso 2200ms cubic-bezier(.45,0,.55,1) infinite; }
+@keyframes moo-ent   { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes moo-traco { to { stroke-dashoffset: 0; } }
+@keyframes moo-pulso { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* foco — anel rosa em tudo o que é interactivo, sem excepção */
+:focus-visible { outline: 2px solid var(--moo-accent); outline-offset: 2px; border-radius: 2px; }
+
+/* ── TELEMOVEL · a folha tinha UMA media query e nenhuma era de largura ──
+   Ver `layout.telemovel_nota` em moo-tokens.json: os numeros medidos e o porque
+   do limite. Abaixo dele a margem sobe para cima do conteudo e alinha a
+   esquerda — continua mono/caixa-alta, continua a ser anotacao, deixa de ser
+   coluna. */
+@media (max-width: 768px) {
+  .moo-folha { padding: 0 20px; }
+  .moo-secao { grid-template-columns: 1fr; gap: 12px; padding: 32px 0; }
+  .moo-marg { padding-right: 0; text-align: left; }
+  .moo-cartucho { flex-wrap: wrap; gap: 4px 16px; letter-spacing: .16em; }
+}
+
+/* movimento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+                           transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

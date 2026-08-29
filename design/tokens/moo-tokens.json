@@ -1,0 +1,532 @@
+{
+  "$schema": "moo-tokens/1",
+  "$meta": {
+    "version": "2.0.0",
+    "medido_em": "2026-08-27",
+    "repo": "frugal@97ad846b",
+    "fontes": [
+      "landing/app/globals.css",
+      "landing/public/brand-guide.html",
+      "_handoff/_archive/2026-06/mock/export-source/handoff/SPEC.md",
+      "landing/lib/mooter-event.ts"
+    ],
+    "regra": "Esta é a ÚNICA fonte. moo-ui.css e moo-tokens.ts são GERADOS — nunca editados à mão.",
+    "divergencias_por_decidir": {
+      "h1": {
+        "globals": "clamp(44px,6vw,76px)/-0.045em",
+        "spec": "clamp(84px,11vw,152px)/-0.055em",
+        "activo": "globals"
+      },
+      "body": {
+        "globals": "16px",
+        "spec": "15px",
+        "activo": "globals"
+      },
+      "eyebrow_ls": {
+        "globals": "0.16em",
+        "spec": "0.08em",
+        "activo": "globals"
+      }
+    },
+    "direccao": {
+      "escolhida": "Papel Milimétrico",
+      "decidida_em": "2026-08-27",
+      "porque": "é a única das cinco que sobrevive às 14 superfícies do Mooter — landing, cockpit, deck, PDF, statusline. Um design system tem de extender, não de impressionar num sítio só.",
+      "papeis": {
+        "sistema": "Papel Milimétrico — grelha 8px, coluna de margem, cotas, hairlines",
+        "momento_extremo": "O Sinal — a página corre o classificador (um por página, regra 10)",
+        "doutrina_do_numero": "O Recibo — fonte e janela coladas a cada cifra",
+        "uma_seccao": "Dois Terminais — a comparação, nunca a linguagem",
+        "reformada": "A Manada — campo de partículas: metáfora sem medição, e é o que 2026 já tem a mais"
+      }
+    }
+  },
+  "color": {
+    "tinta": {
+      "bg": "#0B0A09",
+      "bg-2": "#0F0E0C",
+      "surface": "#141311",
+      "surface-2": "#1C1A17",
+      "line": "#252220",
+      "line-strong": "#302C28",
+      "line-soft": "#1E1B19",
+      "text": "#F2EDE6",
+      "text-2": "#C9C2B8",
+      "muted": "#8A8076",
+      "faint": "#84786B",
+      "accent": "#E8888A",
+      "accent-2": "#F2A5A5",
+      "on-accent": "#1A0E0E",
+      "ok": "#4CAF6A",
+      "warn": "#D4C090",
+      "bad": "#D46A5A"
+    },
+    "papel": {
+      "bg": "#F2ECDF",
+      "bg-2": "#EBE3D1",
+      "surface": "#FBF7EE",
+      "surface-2": "#FFFDF7",
+      "line": "#D9D0BB",
+      "line-strong": "#C8BCA0",
+      "line-soft": "#E8E4DB",
+      "text": "#1A1613",
+      "text-2": "#3A332C",
+      "muted": "#6F665A",
+      "faint": "#726859",
+      "accent": "#B4454B",
+      "accent-2": "#A53F45",
+      "on-accent": "#FFFFFF",
+      "ok": "#347650",
+      "warn": "#826435",
+      "bad": "#AD4D3B"
+    },
+    "tier": {
+      "web": {
+        "t0": "#4CAF6A",
+        "t1": "#5A9BD4",
+        "t2": "#A88BD4",
+        "t3": "#D46A5A",
+        "t5": "#D9A441"
+      },
+      "terminal": {
+        "t0": "#4CAF6A",
+        "t1": "#5A9BD4",
+        "t2": "#D4C090",
+        "t3": "#D46A5A",
+        "t5": "#D9A441"
+      },
+      "papel": {
+        "t0": "#28784C",
+        "t1": "#196BA4",
+        "t2": "#795DA7",
+        "t3": "#B14C39",
+        "t5": "#7D5A15"
+      },
+      "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal.",
+      "nota_t5": "T5 (Fable) e opt-in via @fable e NUNCA e auto-rotado; nao existe T4. Por isso nao e um quinto degrau da rampa — e a cor que se le como estando FORA dela, e e o unico tom quente-dourado do conjunto. Escolhido a 2026-08-28 por medicao, nao por gosto: entre 6 candidatos, o ambar #D9A441 e o que maximiza a MENOR distancia perceptual dentro do conjunto {T0,T1,T2,T3,T5} — dE minimo 43,8, melhor do que o pior par da propria rampa actual (29,8, entre T1 e T2). Contraste 8,80:1 sobre tinta.bg. E fica a 50,0 de dE do accent, que era o problema a resolver: ate hoje o T5 usava var(--color-accent), e a marca nao e um tier. No terminal fica o mesmo tom (dE 32,6 do #D4C090 do T2, distinguivel). Em papel escurece para #7D5A15 para passar AA (5,33:1).",
+      "nota_papel": "ESCURECIDOS a 2026-08-29 para passarem AA. Antes: t0 3,53 · t1 4,42 · t2 4,47 · t3 4,13 sobre papel.bg — os quatro abaixo de 4,5, e nenhum declarado como par, portanto o portao nunca os tinha medido. Foram encontrados a 28/08 ao declarar o t5, e ficaram um dia por resolver com a cautela de que mexer na paleta clara era mexer em impressao. Medido depois: **a paleta de papel esta declarada em todo o lado e usada em lado nenhum** — os dois decks gerados (`moo-deck.html`, `moo-pitch-a4.html`) declaram as variaveis mas tem ZERO `var(--moo-tier-papel-*)`. A cautela era boa e a medicao dissolveu-a. Os valores nao sairam de escurecer as cegas: procurou-se, dentro da mesma familia de matiz (+-8 graus), a combinacao de MENOR desvio sujeita a duas restricoes — AA >= 4,5 e separacao minima do conjunto {t0..t3,t5} >= 29,8, que e a da rampa web. Resultado: contraste 4,50 a 4,85, separacao minima a subir de 25,9 para **30,1** (o par apertado continua a ser t1/t2, azul e roxo, tal como na web), e desvio total de 15,2 nas quatro cores — o t2 mexe-se 0,4, o t3 2,4. Cada uma continua na sua familia: verde, azul, roxo, terracota."
+    },
+    "term": {
+      "bg": "#0d1117",
+      "line": "#30363d",
+      "head": "#161b22",
+      "fg": "#c9d1d9",
+      "dim": "#8b949e"
+    },
+    "marca": {
+      "chifre": "#B8C0C8",
+      "cabeca": "#CCD3DA",
+      "focinho": "#EDAEB0",
+      "narina": "#C16A6F",
+      "olho": "#2C2F33",
+      "brilho": "#FFFFFF"
+    }
+  },
+  "type": {
+    "family": {
+      "sans": "var(--font-sans, 'Space Grotesk'), -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      "mono": "var(--font-mono, 'JetBrains Mono'), ui-monospace, SFMono-Regular, monospace",
+      "hand": "var(--font-caveat, 'Caveat'), cursive",
+      "$nota": "Cada família começa por uma variável injectável COM FALLBACK DENTRO do var(). O fallback não é cosmético: `var(--font-sans)` sem segundo argumento é INVÁLIDO quando a variável não existe, e um valor inválido no ponto de uso derruba a declaração inteira — o shorthand `font:` cai todo e o texto sai em Times New Roman 16px. Medido a 2026-08-27 pelo gerador de deck, que corre fora da landing: lá o next/font injecta --font-sans, aqui não injecta ninguém. O `globals.css:985` já fazia isto certo; o token é que não fazia."
+    },
+    "scale": {
+      "hero": {
+        "size": "clamp(56px,13vw,168px)",
+        "weight": 700,
+        "lh": "0.92",
+        "ls": "-0.05em"
+      },
+      "h1": {
+        "size": "clamp(44px,6vw,76px)",
+        "weight": 700,
+        "lh": "1.02",
+        "ls": "-0.045em"
+      },
+      "h2": {
+        "size": "clamp(32px,3.6vw,48px)",
+        "weight": 700,
+        "lh": "1.08",
+        "ls": "-0.035em"
+      },
+      "h3": {
+        "size": "20px",
+        "weight": 600,
+        "lh": "1.3",
+        "ls": "-0.02em"
+      },
+      "lede": {
+        "size": "19px",
+        "weight": 400,
+        "lh": "1.6",
+        "ls": "0"
+      },
+      "body": {
+        "size": "16px",
+        "weight": 400,
+        "lh": "1.6",
+        "ls": "0"
+      },
+      "small": {
+        "size": "13px",
+        "weight": 400,
+        "lh": "1.55",
+        "ls": "0"
+      },
+      "eyebrow": {
+        "size": "11px",
+        "weight": 500,
+        "lh": "1.2",
+        "ls": "0.16em",
+        "case": "uppercase",
+        "family": "mono"
+      },
+      "num": {
+        "size": "32px",
+        "weight": 700,
+        "lh": "1.05",
+        "ls": "-0.03em",
+        "family": "mono",
+        "tabular": true
+      },
+      "label": {
+        "size": "10px",
+        "weight": 500,
+        "lh": "1.2",
+        "ls": "0.14em",
+        "case": "uppercase",
+        "family": "mono"
+      }
+    },
+    "min_body_px": 13
+  },
+  "space": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "40px",
+    "2xl": "64px",
+    "band": "clamp(4rem, 10vw, 9rem)",
+    "grid": 4
+  },
+  "radius": {
+    "hairline": "2px",
+    "tight": "4px",
+    "control": "6px",
+    "panel": "8px",
+    "card": "10px",
+    "window": "14px",
+    "hero": "16px",
+    "pill": "999px"
+  },
+  "shadow": {
+    "term": "0 40px 80px -40px rgba(26,22,19,0.4), 0 12px 32px -16px rgba(26,22,19,0.2)",
+    "lift": "0 40px 100px -40px rgba(0,0,0,0.6)"
+  },
+  "motion": {
+    "interact": {
+      "ms": 140,
+      "curve": "ease"
+    },
+    "surface": {
+      "ms": 160,
+      "curve": "ease"
+    },
+    "reveal": {
+      "ms": 500,
+      "curve": "ease",
+      "from": "opacity 0, translateY(16px)"
+    },
+    "pulse": {
+      "ms": 2200,
+      "curve": "ease-in-out"
+    },
+    "sopro": {
+      "ms": 4200,
+      "curve": "cubic-bezier(.45,0,.55,1)",
+      "delta": "scale 1 → 1.0125"
+    },
+    "piscar": {
+      "ms": 7000,
+      "fecha": 126,
+      "abre": 112
+    },
+    "saudar": {
+      "ms": 300,
+      "curve": "cubic-bezier(.2,.8,.2,1)"
+    },
+    "entrada": {
+      "ms": 900,
+      "curve": "cubic-bezier(.16,1,.3,1)",
+      "fases": 6
+    },
+    "regra": "Só transform e opacity. prefers-reduced-motion obrigatório em todo o ficheiro com animação.",
+    "mola": {
+      "curve": "cubic-bezier(.3,1.3,.5,1)",
+      "uso": "só gestos físicos: sacudidela, encaixe",
+      "origem": "auditoria visual 2026-08-27"
+    },
+    "familia": [
+      "entrada .16,1,.3,1",
+      "reacção .2,.8,.2,1",
+      "respiração .45,0,.55,1",
+      "mola .3,1.3,.5,1"
+    ]
+  },
+  "numero": {
+    "variantes": [
+      "medido",
+      "n/d",
+      "externo",
+      "regua"
+    ],
+    "obrigatorio": [
+      "fonte",
+      "janela"
+    ],
+    "regras": [
+      "Verde só para sinal positivo genuíno — nunca num zero, nunca numa estimativa.",
+      "Estimativa vem rotulada; dados parciais mostram cobertura.",
+      "Sem dados = frase + CTA, nunca 0/0.",
+      "Nunca dois números contraditórios lado a lado.",
+      "Todo estado degradado carrega CTA.",
+      "Régua de preço de tabela NUNCA é apresentada como poupança."
+    ],
+    "claims_banidos": [
+      "47%",
+      "90% ",
+      "~30%",
+      "saved $",
+      "savings"
+    ],
+    "claims_banidos_nota": "A lista é o registo do que foi retirado e não se encolhe. Como se procura está em moo-design-check.mjs §3: comentários e ficheiros de teste ficam de fora (são o registo da retirada e a sua defesa, não a violação), e um claim que é palavra — 'savings' — só conta com uma cifra ou percentagem na mesma linha. Sem isso marcava 'savings_usd', uma coluna D1 viva.",
+    "claims_excepcoes_nota": "Um portão sem lista de excepções obriga a mentir ou a ignorar (DIRETRIZES, adenda da auditoria visual). Estas são as duas superfícies cujo TRABALHO é narrar a retirada dos números: apagá-las seria apagar o registo de que a decisão de 2026-08-24 aconteceu. Cada excepção diz o ficheiro, um pedaço literal da linha, e porquê. Se alguém editar a linha, a excepção deixa de coincidir e o claim volta — que é o modo de falhar correcto.",
+    "claims_excepcoes": [
+      {
+        "ficheiro": "landing/app/(marketing)/methodology/page.tsx",
+        "contem": "dois numeros para a mesma coisa",
+        "porque": "A página de metodologia existe para explicar porque os números foram retirados. Citar o 47% ao explicar que ele saiu é o oposto de o publicar."
+      },
+      {
+        "ficheiro": "landing/app/(marketing)/rankings/RankingsExplorer.tsx",
+        "contem": "seed.savings.by_category[category].saved_usd",
+        "porque": "É o único sítio do projecto onde uma cifra de poupança é HONESTA por construção, e apagá-la seria uma regressão. Está atrás de `seed.savings.measured &&` — só aparece se o seed disser que foi medido — e o ramo alternativo publica, em vez do número, a frase 'Savings are measured on YOUR machine, never fabricated for this page' com o comando que a preenche do journal do próprio utilizador. É o produto a mostrar o número de quem o corre, não o site a afirmar um número sobre terceiros."
+      },
+      {
+        "ficheiro": "README.md",
+        "contem": "This README used to carry five different savings figures",
+        "porque": "É a secção 'Honest numbers': o registo dos cinco números que a auditoria de 2026-08-23 não conseguiu sustentar. Sem esta frase, a tabela diz 'not measured' sem que ninguém saiba o que mudou."
+      }
+    ],
+    "claims_padroes": [
+      [
+        "poupanca-computada",
+        "%\\s{0,120}(?:smaller|cheaper|less|lower|menos|off|below)\\b"
+      ],
+      [
+        "cifra-poupada",
+        "(?:sav(?:ed|ings)|poupan\\w*)[^\\n]{0,40}?\\$\\s?[\\d{]|\\$\\s?[\\d{][^\\n]{0,40}?\\b(?:sav(?:ed|ings)|poupan\\w*)"
+      ]
+    ],
+    "claims_padroes_nota": "Os padroes correm sobre o ficheiro inteiro, nao linha a linha: em JSX um claim nasce partido. Medido a 2026-08-27: TwoTerminalDemo.tsx:342-343 publica {pctSaved}% numa linha e \"cheaper on this trace\" na seguinte, e :172 diz \"{pctSaved}% smaller\" com a percentagem COMPUTADA. Nenhum dos dois tinha substring proibida, e \"smaller\" nem estava no vocabulario. Foram vistos ao olhar para a home renderizada, nao para o relatorio do portao."
+  },
+  "contraste": {
+    "minimo_normal": 4.5,
+    "minimo_grande": 3.0,
+    "pares": [
+      [
+        "tinta.text",
+        "tinta.bg"
+      ],
+      [
+        "tinta.text-2",
+        "tinta.bg"
+      ],
+      [
+        "tinta.muted",
+        "tinta.bg"
+      ],
+      [
+        "tinta.faint",
+        "tinta.bg"
+      ],
+      [
+        "tinta.accent",
+        "tinta.bg"
+      ],
+      [
+        "tinta.ok",
+        "tinta.bg"
+      ],
+      [
+        "tinta.warn",
+        "tinta.bg"
+      ],
+      [
+        "tinta.bad",
+        "tinta.bg"
+      ],
+      [
+        "tinta.on-accent",
+        "tinta.accent"
+      ],
+      [
+        "papel.text",
+        "papel.bg"
+      ],
+      [
+        "papel.text-2",
+        "papel.bg"
+      ],
+      [
+        "papel.muted",
+        "papel.bg"
+      ],
+      [
+        "papel.accent",
+        "papel.bg"
+      ],
+      [
+        "papel.ok",
+        "papel.bg"
+      ],
+      [
+        "papel.bad",
+        "papel.bg"
+      ],
+      [
+        "papel.on-accent",
+        "papel.accent"
+      ],
+      [
+        "papel.faint",
+        "papel.bg"
+      ],
+      [
+        "papel.warn",
+        "papel.bg"
+      ],
+      [
+        "papel.accent-2",
+        "papel.bg"
+      ],
+      [
+        "tinta.accent-2",
+        "tinta.bg"
+      ],
+      [
+        "tier.web.t5",
+        "tinta.bg"
+      ],
+      [
+        "tier.papel.t5",
+        "papel.bg"
+      ],
+      [
+        "tier.papel.t0",
+        "papel.bg"
+      ],
+      [
+        "tier.papel.t1",
+        "papel.bg"
+      ],
+      [
+        "tier.papel.t2",
+        "papel.bg"
+      ],
+      [
+        "tier.papel.t3",
+        "papel.bg"
+      ]
+    ],
+    "correccoes_aplicadas": {
+      "$nota": "Aplicadas a 2026-08-27, por decisao delegada do dono. O criterio de desempate foi acessibilidade: 2.58:1 e texto que muita gente nao le, e estava no ar. Cada valor e o MENOR desvio em luminosidade que passa AA mantendo matiz e saturacao — a cor continua a ser a mesma cor, so legivel. Medido por design/tools/moo-reconciliar.mjs contra landing/app/globals.css, nao contra o snapshot deste ficheiro.",
+      "$porque_o_snapshot_estava_errado": "As correccoes ANTERIORES deste bloco tinham sido calculadas sobre tinta.faint = #7A7168 (4.13:1). A producao servia #5A5249 (2.58:1). Aplica-las teria corrigido um numero que ninguem le — o site serve o outro. Por isso o par tem agora as duas colunas, e a que manda e a producao.",
+      "tinta.faint": {
+        "era_no_token": "#7A7168",
+        "era_em_producao": "#5A5249",
+        "agora": "#84786B",
+        "de": 2.58,
+        "para": 4.6,
+        "deltaL": 15,
+        "porque": "O unico par abaixo de AA-GRANDE (3.0). Corpo de texto tenue no site escuro."
+      },
+      "papel.accent": {
+        "era": "#C25F65",
+        "agora": "#B4454B",
+        "de": 3.49,
+        "para": 4.58,
+        "deltaL": -8,
+        "porque": "Arrasta --accent-bg em globals.css, que deriva dele: rgba(194,95,101,.08) -> rgba(180,69,75,.08)."
+      },
+      "papel.ok": {
+        "era": "#3D8B5E",
+        "agora": "#347650",
+        "de": 3.53,
+        "para": 4.63,
+        "deltaL": -6,
+        "porque": "Chama-se --green em producao. Verde e reservado a sinal positivo genuino; ilegivel nao serve de sinal."
+      },
+      "papel.bad": {
+        "era": "#B8523F",
+        "agora": "#AD4D3B",
+        "de": 4.13,
+        "para": 4.57,
+        "deltaL": -3,
+        "porque": "So no token: a shell autenticada NAO declara cor de erro propria (n/d em producao)."
+      },
+      "papel.on-accent": {
+        "era": "#FFFFFF",
+        "agora": "#FFFFFF",
+        "de": 4.1,
+        "para": 5.39,
+        "porque": "Nao precisou de mudanca propria: subiu sozinho quando papel.accent desceu."
+      },
+      "papel.faint": {
+        "era": "#9A8F7E",
+        "agora": "#726859",
+        "de": 2.7,
+        "para": 4.65,
+        "deltaL": -15,
+        "porque": "Nao tinha par declarado, por isso o portao dizia \"16 pares, todos >= 4.5\" e nunca o via. 2.70 e abaixo de AA-GRANDE."
+      },
+      "papel.warn": {
+        "era": "#B89050",
+        "agora": "#826435",
+        "de": 2.5,
+        "para": 4.67,
+        "deltaL": -16,
+        "porque": "Idem, sem par. A regressao apareceu ao ligar o moo-pilot-shell aos tokens: o literal que la estava (#8a5600) dava 5.23:1 e o token dava 2.50. Ligar a fonte unica a um token pior e um retrocesso disfarcado de arrumacao."
+      },
+      "papel.accent-2": {
+        "era": "#E8888A",
+        "agora": "#A53F45",
+        "de": 2.14,
+        "para": 5.25,
+        "porque": "Era o rosa do tema ESCURO a servir de texto no tema CLARO — 2.14:1, ilegível, em quatro sítios do globals.css que o usam como `color:` (`:1215`, `:1229`, `:1261`, `:1370`). Passa a derivar do papel.accent (#B4454B) com o mesmo matiz e L-4, em vez de ser importado do outro tema."
+      }
+    },
+    "nota_tiers": "Os cinco tiers de PAPEL estao declarados e medidos desde 2026-08-29. Ate ai nenhum estava: o t5 entrou a 28/08 ja a passar, e os quatro irmaos ficaram medidos-mas-nao-declarados durante um dia, o que os deixava fora do denominador do portao. Ver `color.tier.nota_papel` para como os valores foram escolhidos. Os tiers WEB continuam por declarar — sao outro fundo (tinta.bg) e outra conversa."
+  },
+  "layout": {
+    "grelha": {
+      "colunas": 12,
+      "margem_px": 216,
+      "folha_padding_px": 80,
+      "base_px": 8,
+      "caixa_composicao_px": 1240,
+      "bloco_px": 64,
+      "linha_fina_alfa": 0.07,
+      "linha_forte_alfa": 0.16,
+      "linha_cor": "accent",
+      "telemovel_px": 768,
+      "folha_padding_movel_px": 20
+    },
+    "regra": "A anotação vive na coluna de margem, alinhada à direita, em mono 10px/0.16em caixa-alta. Nunca num cartão colorido.",
+    "seccao": "grid 216px 1fr · border-top 1px #302C28 · padding 48px 0",
+    "extremo": "um por página — um número gigante, uma faixa a sangrar, ou um momento vivo",
+    "grelha_nota": "A grelha derivava de valores CRAVADOS no gerador — rgba(232,136,138,.05) e 64px escritos a mao dentro do template, num ficheiro cuja tese e que a fonte e este JSON. Era uma segunda fonte de verdade escondida na saida. Agora sai daqui, e a cor deriva de color.tinta.accent. Os alfas subiram de .05/.11 para .07/.16: medido a 2026-08-27, .05 de rosa sobre #0B0A09 da um racio de 1.050 contra o fundo — invisivel. A direccao diz \"grelha de 8px VISIVEL\"; a .07/.16 o racio e 1.09/1.27, que se ve sem competir com o conteudo.",
+    "telemovel_nota": "A folha nasceu sem telemovel. Medido a 2026-08-27 a 375px, `scrollWidth` contra `clientWidth`: / 725px (+93%), /compare 901px (+140%), /under-the-hood 740px (+97%), /methodology 539px (+44%). A causa era mecanica e unica: `moo-ui.css` tinha UMA media query — `prefers-reduced-motion` — e zero breakpoints de largura, com `.moo-secao` cravada em `216px 1fr` e `.moo-folha` em 80px de padding. 768 e o limite escolhido porque abaixo dele a coluna de conteudo fica com menos de 400px depois de descontar a margem (216) e os dois paddings (160), e a familia de breakpoints que o globals.css ja usa e 640/1024 — 768 encaixa sem colidir. Abaixo do limite a margem deixa de ser coluna e passa a ficar ACIMA do conteudo, alinhada a esquerda: a regra diz que a anotacao vive na margem, e num ecra de uma coluna a margem e o que vem antes."
+  },
+  "radius_nota": "COMPLETADA a 2026-08-28, e a razao esta no proprio ficheiro gerado: `moo-ui.css` tinha `border-radius: 2px` no anel de :focus-visible, cravado no gerador, e 2 nao estava na escala. O sistema violava a sua propria escala na sua propria saida. Uma escala de cinco degraus cujo mais pequeno e 6 nao descreve chrome real: um raio de 6 numa barra de 3px de altura esta errado. Medido antes de decidir: 166 ocorrencias fora da escala em 24 ficheiros, com 8 (44x), 4 (26x) e 7 (22x) no topo. Acrescentados os tres degraus que o trabalho real usa — hairline 2 (aneis de foco, barras finas), tight 4 (selos, chips) e panel 8 (o valor mais usado do repositorio) — e NAO 12, para a escala continuar a ser uma escala e nao uma rampa de 2 em 2. Com ela, no ambito que o portao varre, 125 ocorrencias passam a estar dentro e 54 ficam como deriva real: 9 (18x) e 7 (15x) sao falhancos por pouco do 8; 3 (10x) do 2 ou do 4; 11 e 12 do 10 ou do 14. O `RAIO_OK` do portao deixa de ser um Set paralelo generoso e passa a ser ESTA escala."
+}

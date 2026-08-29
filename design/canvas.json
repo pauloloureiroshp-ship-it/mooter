@@ -1,0 +1,23 @@
+{
+  "_": [
+    "Lista de superfícies para o moo-visual-audit.mjs. Não é uma prancha de canvas — é o que",
+    "existe MESMO neste repo e que abre por file:// sem servidor. Derivada do que o auditor",
+    "espera: { file, page, w, h } por artboard, file relativo a `base`.",
+    "",
+    "Critério de inclusão (não é gosto): HTML autónomo, consumidor dos tokens do design system.",
+    "As páginas do landing/ são Next.js — precisam de build + servidor, portanto ficam FORA e",
+    "são n/d neste instrumento, não zero.",
+    "",
+    "w/h é a lente da medição, não uma dimensão de design: 1440x900 é o desktop de referência.",
+    "`scroll: true` diz que a superfície rola por natureza — nessas, `corte` não é defeito, e o",
+    "auditor mostra '—' em vez de ❌ (o número medido continua no .visual-audit.json)."
+  ],
+  "base": "..",
+  "artboards": [
+    { "name": "brand-guide",  "page": "landing/public", "file": "landing/public/brand-guide.html",              "w": 1440, "h": 900, "scroll": true },
+    { "name": "pilot-shell",  "page": "tools/cockpit",  "file": "tools/cockpit/moo-pilot-shell.html",           "w": 1440, "h": 900, "scroll": true },
+    { "name": "cockpit",      "page": "plugin/cockpit", "file": "plugin/mooter/skills/cockpit/cockpit.html",    "w": 1440, "h": 900, "scroll": true },
+    { "name": "moo-panel",    "page": "plugin/cockpit", "file": "plugin/mooter/skills/cockpit/moo-panel.html",  "w": 1440, "h": 900, "scroll": true },
+    { "name": "fleet-ui",     "page": "mooter-bridge",  "file": "packages/mooter-bridge/fleet-ui.html",         "w": 1440, "h": 900, "scroll": true }
+  ]
+}

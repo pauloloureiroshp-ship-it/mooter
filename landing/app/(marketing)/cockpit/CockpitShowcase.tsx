@@ -1,18 +1,25 @@
 'use client';
 
 import { useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
-import Eyebrow from '@/components/Eyebrow';
-import Card from '@/components/Card';
 import Btn from '@/components/Btn';
+import Cartucho from '@/components/Cartucho';
 import MooterMark from '@/components/MooterMark';
 import { M } from '../../lib/canonical-metrics';
+import versionInfo from '../../version.json';
 
 // Wave 60 — port of _handoff/mock/export-source/mooter-v1-cockpit.jsx
 // (CockpitArtboard + CockpitPlugin + tab bodies) into real TSX. The VS Code
 // chrome hardcodes neutral greys on purpose ("inherits the editor theme");
 // Mooter shows through the rose accent, the warm hero card and the cow only.
-// All cockpit data is MOCK — labelled "illustrative · mock data" in the chrome.
-// Honest numbers only: 47% / 658 / $25.95 / $48.90. No banned over-claims.
+// All cockpit data is MOCK — a ressalva «dados ilustrativos» vive na margem da
+// secção, que é onde esta linguagem põe o que governa o que está ao lado.
+//
+// A linha que aqui estava — «Honest numbers only: 47% / 658 / $25.95 / $48.90»
+// — foi retirada a 2026-08-27 porque já não descrevia o ficheiro: os $25.95 e os
+// $48.90 saíram quando o herói passou a mostrar a divisão de routing MEDIDA
+// (`M.recomendadoBaratoPct`), e os 47% são precisamente o número que a decisão
+// de 2026-08-24 baniu. Um comentário que promete honestidade citando um número
+// que já não existe é a mesma falha, uma camada acima.
 
 // ── VS Code native surface greys (reference theme, not Mooter brand) ──────────
 const V = {
@@ -133,7 +140,7 @@ function CkCard({ children, accent }: { children: ReactNode; accent?: boolean })
       style={{
         background: V.chip,
         border: `1px solid ${accent ? ROSE_25 : V.border}`,
-        borderRadius: 9,
+        borderRadius: 8,
         padding: '12px 13px',
       }}
     >
@@ -290,7 +297,7 @@ function Dropdown({
             minWidth: 200,
             background: '#202020',
             border: `1px solid ${V.border}`,
-            borderRadius: 7,
+            borderRadius: 8,
             padding: 4,
             boxShadow: '0 18px 50px -16px rgba(0,0,0,0.8)',
           }}
@@ -314,7 +321,7 @@ function Dropdown({
                 cursor: 'pointer',
                 background: it.k === value ? ROSE_12 : 'transparent',
                 border: 'none',
-                borderRadius: 5,
+                borderRadius: 4,
                 color: V.text,
                 fontFamily: MONO,
                 fontSize: 11,
@@ -434,7 +441,7 @@ function CockpitTab({
                   padding: '7px 9px',
                   background: 'rgba(217,180,90,0.08)',
                   border: `1px solid ${AMBER}`,
-                  borderRadius: 7,
+                  borderRadius: 8,
                 }}
               >
                 <span aria-hidden="true" style={{ color: AMBER }}>
@@ -451,7 +458,7 @@ function CockpitTab({
                     color: AMBER,
                     background: 'transparent',
                     border: `1px solid ${AMBER}`,
-                    borderRadius: 5,
+                    borderRadius: 6,
                     padding: '2px 7px',
                     cursor: 'pointer',
                   }}
@@ -519,7 +526,7 @@ function CockpitTab({
                     color: ROSE,
                     background: 'transparent',
                     border: `1px solid ${ROSE_25}`,
-                    borderRadius: 5,
+                    borderRadius: 6,
                     padding: '2px 8px',
                     cursor: 'pointer',
                     flexShrink: 0,
@@ -541,7 +548,7 @@ function CockpitTab({
               <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: TIER_COLOR[tier], width: 18 }}>
                 {tier}
               </span>
-              <div style={{ flex: 1, height: 8, borderRadius: 3, background: V.border, overflow: 'hidden' }}>
+              <div style={{ flex: 1, height: 8, borderRadius: 4, background: V.border, overflow: 'hidden' }}>
                 <div style={{ width: `${pct * 100}%`, height: '100%', background: TIER_COLOR[tier], opacity: 0.6 }} />
               </div>
               <span style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim, width: 30, textAlign: 'right' }}>
@@ -617,7 +624,7 @@ function SetupTab({ scenario }: { scenario: Scenario }) {
             <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim }}>~/.claude · hook registered</div>
           </WizardStep>
           <WizardStep n={2} title="Mooter engine installed" done>
-            <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim }}>regex classifier · &lt;50ms</div>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: V.dim }}>regex classifier · 0.001 ms p50</div>
           </WizardStep>
           <WizardStep n={3} title="Account & keys" done>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -642,7 +649,7 @@ function SetupTab({ scenario }: { scenario: Scenario }) {
                     fontFamily: MONO,
                     fontSize: 9.5,
                     padding: '3px 4px',
-                    borderRadius: 5,
+                    borderRadius: 6,
                     cursor: 'pointer',
                     border: `1px solid ${ollama === s ? ROSE : V.border}`,
                     background: ollama === s ? ROSE_12 : 'transparent',
@@ -825,7 +832,7 @@ function HerdTab({ scenario }: { scenario: Scenario }) {
                 padding: '8px 10px',
                 background: V.chip,
                 border: `1px solid ${V.border}`,
-                borderRadius: 7,
+                borderRadius: 8,
               }}
             >
               <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: TIER_COLOR[tier], width: 16 }}>
@@ -948,7 +955,7 @@ function DecisionsTab({ scenario }: { scenario: Scenario }) {
                 style={{
                   background: V.chip,
                   border: `1px solid ${isOpen ? ROSE_25 : V.border}`,
-                  borderRadius: 7,
+                  borderRadius: 8,
                   overflow: 'hidden',
                 }}
               >
@@ -1040,7 +1047,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
               color: '#1a1411',
               background: AMBER,
               border: 'none',
-              borderRadius: 5,
+              borderRadius: 6,
               padding: '4px 9px',
               cursor: 'pointer',
             }}
@@ -1062,7 +1069,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
                 padding: '7px 9px',
                 background: V.chip,
                 border: `1px solid ${V.border}`,
-                borderRadius: 7,
+                borderRadius: 8,
               }}
             >
               <span style={{ color: ok ? GREEN : AMBER, fontFamily: MONO, fontSize: 12, width: 12 }}>
@@ -1078,7 +1085,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
                     color: ROSE,
                     background: 'transparent',
                     border: `1px solid ${ROSE_25}`,
-                    borderRadius: 5,
+                    borderRadius: 6,
                     padding: '2px 8px',
                     cursor: 'pointer',
                   }}
@@ -1111,7 +1118,7 @@ function DoctorTab({ scenario }: { scenario: Scenario }) {
                 padding: '7px 9px',
                 background: V.chip,
                 border: `1px solid ${V.border}`,
-                borderRadius: 7,
+                borderRadius: 8,
               }}
             >
               <span aria-hidden="true" style={{ color: GREEN, fontSize: 11 }}>
@@ -1195,7 +1202,7 @@ function CockpitPlugin({ width, scenario }: { width: Width; scenario: Scenario }
               fontSize: 10,
               color: V.dim,
               border: `1px solid ${V.border}`,
-              borderRadius: 9999,
+              borderRadius: 999,
               padding: '2px 8px',
             }}
           >
@@ -1299,6 +1306,12 @@ const NOTES: [string, string][] = [
   ],
 ];
 
+/* A versão do .vsix que esta folha oferece. Era um literal repetido três vezes
+   (href, corpo, comando de instalação) e agora é uma só — a cota da margem é
+   lida daqui, e por isso não pode divergir do ficheiro que o botão descarrega.
+   Não é a versão do mooter (`version.json`): é a do artefacto publicado. */
+const VSIX = '0.12.1';
+
 // ── the page ──────────────────────────────────────────────────────────────────
 export default function CockpitShowcase() {
   const [width, setWidth] = useState<Width>(300);
@@ -1319,248 +1332,256 @@ export default function CockpitShowcase() {
         className="m-pad m-pad-y"
         style={{ position: 'relative', maxWidth: 1180, margin: '0 auto', padding: '72px 40px' }}
       >
-        {/* HERO */}
-        <Eyebrow>§ Cockpit · VS Code plugin</Eyebrow>
-        <h1
-          style={{
-            fontSize: 'clamp(32px, 5vw, 48px)',
-            fontWeight: 700,
-            letterSpacing: '-0.035em',
-            lineHeight: 1.04,
-            margin: '0 0 14px',
-            maxWidth: 760,
-          }}
-        >
-          The router, in your editor&apos;s sidebar.
-        </h1>
-        <p style={{ color: 'var(--color-muted)', fontSize: 16, lineHeight: 1.6, maxWidth: 680, marginBottom: 24 }}>
-          One design system, a second render target. Five tabs, designed for a 300px sidebar. The chrome inherits VS
-          Code&apos;s theme so it feels native; Mooter shows through the accents, the hero card and the cow. All data is
-          mock.
-        </p>
+        {/* A grelha de 8px, faint. Substitui o campo de pontos: a direcção
+            fixada a 2026-08-27 é papel milimétrico, e um desenho técnico
+            assenta numa grelha. */}
+        <div className="moo-mm" aria-hidden="true" />
 
-        {/* CONTROLS — width + scenario toggles */}
-        <div
-          className="m-stack"
-          style={{ display: 'flex', gap: 18, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-muted)' }}>width</span>
-            <Segment<Width>
-              items={[
-                { k: 300, label: '300px' },
-                { k: 560, label: '560px' },
-              ]}
-              value={width}
-              onChange={setWidth}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-muted)' }}>scenario</span>
-            <Segment<Scenario>
-              items={[
-                { k: 'happy', label: 'happy' },
-                { k: 'firstrun', label: 'first-run' },
-                { k: 'degraded', label: 'degraded' },
-              ]}
-              value={scenario}
-              onChange={setScenario}
-            />
-          </div>
-          <span
-            style={{
-              marginLeft: 'auto',
-              fontFamily: MONO,
-              fontSize: 10.5,
-              color: 'var(--color-muted)',
-              border: `1px solid var(--color-border)`,
-              borderRadius: 999,
-              padding: '3px 10px',
-            }}
-          >
-            illustrative · mock data
-          </span>
+        {/* O cartucho identifica a folha antes de qualquer conteúdo — e
+            substitui o `<Eyebrow>` rosa («§ Cockpit · VS Code plugin») que
+            dizia a mesma coisa por baixo. A revisão vem de version.json. */}
+        <Cartucho o_que="COCKPIT" desenho="006" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+
+        {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
+        <div style={{ position: 'relative', padding: '48px 0 0' }}>
+          <h1 className="moo-h1" style={{ margin: '0 0 12px', maxWidth: 760 }}>
+            The router, in your editor&apos;s sidebar.
+          </h1>
+          <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.6, maxWidth: 680, margin: 0 }}>
+            One design system, a second render target. Five tabs, designed for a 300px sidebar. The chrome inherits VS
+            Code&apos;s theme so it feels native; Mooter shows through the accents, the hero card and the cow. All data is
+            mock.
+          </p>
         </div>
 
-        {/* VS CODE WINDOW */}
-        <div className="m-scroll-x" style={{ overflowX: 'auto' }}>
-          <div
-            style={{
-              minWidth: width === 560 ? 760 : 520,
-              borderRadius: 12,
-              overflow: 'hidden',
-              border: `1px solid ${V.border}`,
-              boxShadow: '0 40px 120px -40px rgba(0,0,0,0.8)',
-              background: V.editor,
-            }}
-          >
-            {/* title bar */}
+        {/* A maqueta. A ressalva «illustrative · mock data» era uma pílula
+            solta ao lado dos controlos; passa para a MARGEM, que é onde esta
+            linguagem põe o que governa a secção. A janela do VS Code fica como
+            está de propósito: é o produto a ser desenhado, não um cartão de
+            marketing — uma barra lateral de editor É feita de painéis. */}
+        <div className="moo-secao m-stack">
+          <div className="moo-marg">
+            mockup
+            <b>{TABS.length} tabs</b>
+            {width}px · mock data
+          </div>
+          <div>
+            {/* CONTROLS — width + scenario toggles */}
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 14px',
-                background: '#181818',
-                borderBottom: `1px solid ${V.border}`,
-              }}
+              className="m-stack"
+              style={{ display: 'flex', gap: 18, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}
             >
-              <span style={{ display: 'flex', gap: 7 }}>
-                {['#ff5f57', '#febc2e', '#28c840'].map((c) => (
-                  <span key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c }} />
-                ))}
-              </span>
-              <span style={{ marginLeft: 8, fontFamily: MONO, fontSize: 11.5, color: V.dim }}>
-                auth.ts — mooter — Visual Studio Code
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-muted)' }}>width</span>
+                <Segment<Width>
+                  items={[
+                    { k: 300, label: '300px' },
+                    { k: 560, label: '560px' },
+                  ]}
+                  value={width}
+                  onChange={setWidth}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-muted)' }}>scenario</span>
+                <Segment<Scenario>
+                  items={[
+                    { k: 'happy', label: 'happy' },
+                    { k: 'firstrun', label: 'first-run' },
+                    { k: 'degraded', label: 'degraded' },
+                  ]}
+                  value={scenario}
+                  onChange={setScenario}
+                />
+              </div>
             </div>
-            {/* body: activity bar + sidebar + editor */}
-            <div style={{ display: 'flex', height: 660 }}>
+
+            {/* VS CODE WINDOW */}
+            <div className="m-scroll-x" style={{ overflowX: 'auto' }}>
               <div
-                className="m-hide"
                 style={{
-                  width: 48,
-                  flexShrink: 0,
-                  background: V.activity,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 18,
-                  padding: '14px 0',
+                  minWidth: width === 560 ? 760 : 520,
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  border: `1px solid ${V.border}`,
+                  boxShadow: '0 40px 120px -40px rgba(0,0,0,0.8)',
+                  background: V.editor,
                 }}
               >
-                {['❑', '⑂', '⌕', '⚐'].map((ic, i) => (
-                  <span key={i} aria-hidden="true" style={{ fontSize: 16, color: V.faint }}>
-                    {ic}
-                  </span>
-                ))}
-                <span
-                  aria-hidden="true"
-                  style={{ fontSize: 18, borderLeft: '2px solid var(--color-accent)', width: '100%', textAlign: 'center', lineHeight: 1 }}
-                >
-                  🐮
-                </span>
-              </div>
-              <CockpitPlugin width={width} scenario={scenario} />
-              {showEditor && (
+                {/* title bar */}
                 <div
-                  className="m-hide"
                   style={{
-                    flex: 1,
-                    background: V.editor,
-                    padding: '16px 20px',
-                    fontFamily: MONO,
-                    fontSize: 12.5,
-                    lineHeight: 1.8,
-                    color: V.faint,
-                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '9px 14px',
+                    background: '#181818',
+                    borderBottom: `1px solid ${V.border}`,
                   }}
                 >
-                  {editorLines.map((ln, i) => (
-                    <div key={i}>
-                      <span style={{ color: V.faint, marginRight: 16, userSelect: 'none' }}>{i + 1}</span>
-                      <span style={{ color: '#6a8cc7' }}>{ln[0]}</span>
-                      <span style={{ color: '#b07fc7' }}>{ln[1]}</span>
-                      <span style={{ color: V.dim }}>{ln[2]}</span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop: 24, color: V.faint, fontSize: 11 }}>
-                    # the cockpit lives in the sidebar — the editor stays out of the way
-                  </div>
+                  <span style={{ display: 'flex', gap: 7 }}>
+                    {['#ff5f57', '#febc2e', '#28c840'].map((c) => (
+                      <span key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c }} />
+                    ))}
+                  </span>
+                  <span style={{ marginLeft: 8, fontFamily: MONO, fontSize: 11.5, color: V.dim }}>
+                    auth.ts — mooter — Visual Studio Code
+                  </span>
                 </div>
-              )}
-            </div>
-            {/* statusbar */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                padding: '5px 14px',
-                background: '#161616',
-                borderTop: `1px solid ${V.border}`,
-                fontFamily: MONO,
-                fontSize: 10.5,
-                color: V.dim,
-              }}
-            >
-              <span style={{ color: ROSE }}>🐮 mooter</span>
-              <span>Score {SCORE.filter((c) => c[1]).length}/8</span>
-              <span style={{ marginLeft: 'auto' }}>Community project · not affiliated with Anthropic</span>
+                {/* body: activity bar + sidebar + editor */}
+                <div style={{ display: 'flex', height: 660 }}>
+                  <div
+                    className="m-hide"
+                    style={{
+                      width: 48,
+                      flexShrink: 0,
+                      background: V.activity,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 18,
+                      padding: '14px 0',
+                    }}
+                  >
+                    {['❑', '⑂', '⌕', '⚐'].map((ic, i) => (
+                      <span key={i} aria-hidden="true" style={{ fontSize: 16, color: V.faint }}>
+                        {ic}
+                      </span>
+                    ))}
+                    <span
+                      aria-hidden="true"
+                      style={{ fontSize: 18, borderLeft: '2px solid var(--color-accent)', width: '100%', textAlign: 'center', lineHeight: 1 }}
+                    >
+                      🐮
+                    </span>
+                  </div>
+                  <CockpitPlugin width={width} scenario={scenario} />
+                  {showEditor && (
+                    <div
+                      className="m-hide"
+                      style={{
+                        flex: 1,
+                        background: V.editor,
+                        padding: '16px 20px',
+                        fontFamily: MONO,
+                        fontSize: 12.5,
+                        lineHeight: 1.8,
+                        color: V.faint,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {editorLines.map((ln, i) => (
+                        <div key={i}>
+                          <span style={{ color: V.faint, marginRight: 16, userSelect: 'none' }}>{i + 1}</span>
+                          <span style={{ color: '#6a8cc7' }}>{ln[0]}</span>
+                          <span style={{ color: '#b07fc7' }}>{ln[1]}</span>
+                          <span style={{ color: V.dim }}>{ln[2]}</span>
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 24, color: V.faint, fontSize: 11 }}>
+                        # the cockpit lives in the sidebar — the editor stays out of the way
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* statusbar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '5px 14px',
+                    background: '#161616',
+                    borderTop: `1px solid ${V.border}`,
+                    fontFamily: MONO,
+                    fontSize: 10.5,
+                    color: V.dim,
+                  }}
+                >
+                  <span style={{ color: ROSE }}>🐮 mooter</span>
+                  <span>Score {SCORE.filter((c) => c[1]).length}/8</span>
+                  <span style={{ marginLeft: 'auto' }}>Community project · not affiliated with Anthropic</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* FEATURE CARDS */}
-        <div
-          className="m-stack"
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 24 }}
-        >
-          {NOTES.map(([k, v]) => (
-            <Card key={k} padding={20} style={{ height: '100%' }}>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-accent)',
-                  marginBottom: 6,
-                }}
-              >
-                {k}
+        {/* As notas de desenho. Eram três `<Card>` — fundo próprio e raio 14,
+            ou seja CAIXAS, que é o que a direcção tirou da linguagem — e o
+            rótulo de cada uma era rosa. Passam a três blocos separados por
+            hairline, com o rótulo em mono faint. */}
+        <div className="moo-secao m-stack">
+          <div className="moo-marg">
+            notes
+            <b>{NOTES.length} rules</b>
+            of the design, not the product
+          </div>
+          <div className="m-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+            {NOTES.map(([k, v]) => (
+              <div key={k} style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
+                <div className="moo-label" style={{ color: 'var(--moo-faint)', marginBottom: 8 }}>{k}</div>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text)', lineHeight: 1.6 }}>{v}</p>
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text)', lineHeight: 1.6 }}>{v}</p>
-            </Card>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* INSTALL CTA */}
-        <div
-          className="m-stack"
-          style={{ marginTop: 32, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}
-        >
-          <Btn href="/install" size="lg">
-            Install in 30s →
-          </Btn>
-          <a
-            href="https://github.com/pauloloureiroshp-ship-it/mooter/releases/download/vscode-cockpit-v0.12.1/mooter-cockpit-0.12.1.vsix"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 9,
-              padding: '15px 24px',
-              fontSize: 16,
-              fontWeight: 600,
-              borderRadius: 10,
-              fontFamily: 'var(--font)',
-              background: 'transparent',
-              color: 'var(--color-text)',
-              border: '1px solid var(--color-border-light)',
-              textDecoration: 'none',
-              lineHeight: 1,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 256 254" aria-hidden="true" style={{ flexShrink: 0 }}>
-              <path
-                fill="#0098FF"
-                d="M181.534 254.252a15.91 15.91 0 0 0 12.676-.486l52.299-25.166a16 16 0 0 0 9.045-14.433V40.535a16 16 0 0 0-9.045-14.434L194.21.935a15.92 15.92 0 0 0-18.164 3.092L75.911 95.397l-43.652-33.135a10.642 10.642 0 0 0-13.598.605L4.534 75.952c-4.85 4.418-4.855 12.06-.012 16.485L42.318 127 4.522 161.563c-4.843 4.426-4.838 12.067.012 16.485l14.127 12.886a10.643 10.643 0 0 0 13.598.604l43.652-33.135 100.135 91.37a15.91 15.91 0 0 0 5.488 3.479ZM192.137 69.6 116.156 127l75.981 57.4V69.6Z"
-              />
-            </svg>
-            Install for VS Code
-          </a>
+        {/* INSTALL */}
+        <div className="moo-secao m-stack">
+          <div className="moo-marg">
+            install
+            <b>v{VSIX}</b>
+            .vsix · not on the marketplace yet
+          </div>
+          <div>
+            <div
+              className="m-stack"
+              style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}
+            >
+              <Btn href="/install" size="lg">
+                Install in 30s →
+              </Btn>
+              <a
+                href={`https://github.com/pauloloureiroshp-ship-it/mooter/releases/download/vscode-cockpit-v${VSIX}/mooter-cockpit-${VSIX}.vsix`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  padding: '15px 24px',
+                  fontSize: 16,
+                  fontWeight: 600,
+                  borderRadius: 10,
+                  fontFamily: 'var(--font)',
+                  background: 'transparent',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border-light)',
+                  textDecoration: 'none',
+                  lineHeight: 1,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 256 254" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <path
+                    fill="#0098FF"
+                    d="M181.534 254.252a15.91 15.91 0 0 0 12.676-.486l52.299-25.166a16 16 0 0 0 9.045-14.433V40.535a16 16 0 0 0-9.045-14.434L194.21.935a15.92 15.92 0 0 0-18.164 3.092L75.911 95.397l-43.652-33.135a10.642 10.642 0 0 0-13.598.605L4.534 75.952c-4.85 4.418-4.855 12.06-.012 16.485L42.318 127 4.522 161.563c-4.843 4.426-4.838 12.067.012 16.485l14.127 12.886a10.643 10.643 0 0 0 13.598.604l43.652-33.135 100.135 91.37a15.91 15.91 0 0 0 5.488 3.479ZM192.137 69.6 116.156 127l75.981 57.4V69.6Z"
+                  />
+                </svg>
+                Install for VS Code
+              </a>
+            </div>
+            <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--color-muted)' }}>
+              Downloads the Cockpit extension <code>.vsix</code> (v{VSIX}). Then run{' '}
+              <code style={{ color: 'var(--color-text)' }}>code --install-extension mooter-cockpit-{VSIX}.vsix</code>{' '}
+              — or in VS Code, Extensions → ⋯ → <em>Install from VSIX…</em>. Marketplace listing coming soon.
+            </p>
+            <p style={{ marginTop: 10, fontSize: 12, color: 'var(--color-muted)' }}>
+              Community project · not affiliated with Anthropic. The cockpit above is an illustrative mock — numbers are
+              token-estimated and advisory.
+            </p>
+          </div>
         </div>
-        <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--color-muted)' }}>
-          Downloads the Cockpit extension <code>.vsix</code> (v0.12.1). Then run{' '}
-          <code style={{ color: 'var(--color-text)' }}>code --install-extension mooter-cockpit-0.12.1.vsix</code>{' '}
-          — or in VS Code, Extensions → ⋯ → <em>Install from VSIX…</em>. Marketplace listing coming soon.
-        </p>
-        <p style={{ marginTop: 10, fontSize: 12, color: 'var(--color-muted)' }}>
-          Community project · not affiliated with Anthropic. The cockpit above is an illustrative mock — numbers are
-          token-estimated and advisory.
-        </p>
       </div>
     </section>
   );

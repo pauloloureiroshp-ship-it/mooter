@@ -20,7 +20,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
-const { getHubUrl } = require('./env');
+const { getHubUrl, tryEnv } = require('./env');
 const path = require('path');
 const os = require('os');
 const http = require('http');
@@ -39,6 +39,14 @@ const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const MOOTER_DIR = path.join(os.homedir(), '.mooter');
 const LEGACY_DIR = path.join(os.homedir(), '.frugal');
 
+// A porta do tracker é configurável (env.js: MOOTER_TRACKER_PORT >
+// FRUGAL_TRACKER_PORT > 7821). Cravar 7821 fazia o doctor jurar "tracker not
+// running" a quem apenas lhe tinha mudado a porta.
+const TRACKER_PORT = (() => {
+  try { return tryEnv().value.tracker_port; } catch { return 7821; }
+})();
+const TRACKER_URL = `http://127.0.0.1:${TRACKER_PORT}`;
+
 // ── Output helpers ────────────────────────────────────────────────────────
 const C = {
   green:  s => JSON_MODE ? s : `\x1b[38;2;78;201;176m${s}\x1b[0m`,
@@ -53,6 +61,9 @@ const TICK   = C.green('✓');
 const CROSS  = C.red('✗');
 const WARN   = C.yellow('⚠');
 const ARROW  = C.cyan('→');
+// Não medido. Deliberadamente NÃO é o TICK: um check que não mediu nada não
+// passou — apenas não tem nada a dizer.
+const NA     = C.dim('○');
 
 function section(title) {
   if (JSON_MODE) return;
@@ -66,6 +77,25 @@ function row(icon, label, value, fix) {
   const valStr = value ? C.dim(value) : '';
   console.log(`  ${icon}  ${label.padEnd(30)} ${valStr}`);
   if (fix) console.log(`     ${ARROW} ${C.yellow(fix)}`);
+}
+
+// Um valor só conta como medição se for mesmo um número. `undefined`, `null`
+// e `NaN` são AUSÊNCIA de medição — nunca zero. (Num sistema que mede
+// poupança, o default de um heurístico nunca pode ser o número que favorece
+// o próprio sistema; em dúvida, null.)
+function measured(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+// Linha de métrica honesta: medido → TICK + valor (mesmo que o valor seja 0,
+// que é um facto e mostra-se); não medido → NA + `n/d` com o porquê, e SEM
+// tick de sucesso. Nunca um número que nasce a zero por falta de dados.
+function metricRow(label, value, format, why) {
+  if (value === null || value === undefined) {
+    row(NA, label, `n/d — ${why}`);
+    return;
+  }
+  row(TICK, label, format(value));
 }
 
 // ── Check helpers ─────────────────────────────────────────────────────────
@@ -153,7 +183,13 @@ async function main() {
     const exists = fileExists(file);
     if (!exists) coreMissing++;
     report.checks[label] = exists;
-    row(exists ? TICK : CROSS, label, exists ? '' : file, exists ? null : 'Re-run install.sh / install-windows.ps1');
+    // 2026-08-27 · a linha `fix:` mandava correr `install-windows.ps1`, que NUNCA
+    // existiu no repositório (`git ls-files | grep install-windows` → vazio) e que
+    // mooter.ai serve como 404. O ficheiro real chama-se `install.ps1`. Um doctor
+    // que diagnostica bem e depois manda correr um ficheiro inexistente deixa o
+    // utilizador pior do que estava: ele agora sabe que algo falta E que a
+    // instrução para o repor não funciona.
+    row(exists ? TICK : CROSS, label, exists ? '' : file, exists ? null : 'Re-run install.sh (macOS/Linux) or install.ps1 (Windows)');
   }
 
   if (coreMissing > 0) {
@@ -300,8 +336,8 @@ async function main() {
   report.checks.decisions_count = decisionCount;
 
   // Tracker HTTP
-  const trackerHealth = await httpGet('http://127.0.0.1:7821/health', 800);
-  row(trackerHealth.ok ? TICK : WARN, 'Savings tracker (:7821)',
+  const trackerHealth = await httpGet(TRACKER_URL + '/health', 800);
+  row(trackerHealth.ok ? TICK : WARN, `Savings tracker (:${TRACKER_PORT})`,
     trackerHealth.ok ? `running (pid ${trackerHealth.json?.pid || '?'})` : 'not running (starts on next prompt)',
     trackerHealth.ok ? null : 'Start manually: node ~/.claude/tools/router/savings-tracker.js &');
   report.checks.tracker_running = trackerHealth.ok;
@@ -325,12 +361,22 @@ async function main() {
   if (fileExists(hubPushLog)) {
     try {
       const ts = parseInt(fs.readFileSync(hubPushLog, 'utf8').trim(), 10);
-      const ageH = Math.round((Date.now() - ts) / 3600000);
-      row(ageH < 25 ? TICK : WARN, 'Last hub-push',
-        `${ageH}h ago`,
-        ageH >= 25 ? 'Run: node ~/.claude/tools/router/hub-push.js --force' : null);
-      report.checks.last_hub_push_hours = ageH;
-    } catch { row(WARN, 'Last hub-push', 'timestamp unreadable'); }
+      // Um carimbo ilegível não é "0h atrás" nem "NaNh atrás": é n/d.
+      if (!Number.isFinite(ts)) {
+        row(WARN, 'Last hub-push', 'n/d — unreadable timestamp in .hub-push.ts',
+          'Run: node ~/.claude/tools/router/hub-push.js --force');
+        report.checks.last_hub_push_hours = null;
+      } else {
+        const ageH = Math.round((Date.now() - ts) / 3600000);
+        row(ageH < 25 ? TICK : WARN, 'Last hub-push',
+          `${ageH}h ago`,
+          ageH >= 25 ? 'Run: node ~/.claude/tools/router/hub-push.js --force' : null);
+        report.checks.last_hub_push_hours = ageH;
+      }
+    } catch {
+      row(WARN, 'Last hub-push', 'n/d — timestamp unreadable');
+      report.checks.last_hub_push_hours = null;
+    }
   } else {
     row(WARN, 'Hub push',
       'never sent',
@@ -357,7 +403,7 @@ async function main() {
     const taskOk = taskCheck.status === 0;
     row(taskOk ? TICK : WARN, 'Windows Task Scheduler',
       taskOk ? 'FrugalRouterBacktest registered' : 'not found',
-      taskOk ? null : 'Re-run install-windows.ps1 to register the task');
+      taskOk ? null : 'Re-run install.ps1 to register the task');
     report.checks.cron_windows = taskOk;
   } else {
     const cronCheck = runCmd('crontab -l 2>/dev/null | grep backtest');
@@ -389,27 +435,92 @@ async function main() {
   section('9. Savings Summary');
 
   if (trackerHealth.ok) {
-    const metrics = await httpGet('http://127.0.0.1:7821/metrics', 800);
+    const metrics = await httpGet(TRACKER_URL + '/metrics', 800);
     if (metrics.ok && metrics.json) {
       const m = metrics.json;
-      const advisoryUsd = m.saved || 0;
-      const guaranteedUsd = m.guaranteed_saved || 0;
-      const advisoryCovers = advisoryUsd > 0 ? Math.round(((advisoryUsd - guaranteedUsd) / advisoryUsd) * 100) : 100;
-      const verifiedPct = 100 - advisoryCovers;
-      row(TICK, 'Total decisions', String(m.prompts || 0));
-      row(TICK, 'Savings % (advisory)', `${Math.round(m.saved_pct || 0)}%  ← token-estimated vs Opus baseline, assumes hints honoured`);
-      row(TICK, 'Saved (advisory ~)', `~$${advisoryUsd.toFixed(2)}`);
-      row(guaranteedUsd > 0 ? TICK : '○', 'Guaranteed saved', `$${guaranteedUsd.toFixed(2)}  ← only Option-A hits (Ollama verbatim)`);
-      row(TICK, 'Advisory covers', `${advisoryCovers}% of total  (${verifiedPct}% verified)`);
-      row(TICK, 'Actual spend', `~$${(m.actual_cost || 0).toFixed(2)}`);
-      if (m.pct_by_tier) {
-        row(TICK, 'T0 (Ollama/free)', `${Math.round(m.pct_by_tier.T0 || 0)}%`);
-        row(TICK, 'T3 (Opus)', `${Math.round(m.pct_by_tier.T3 || 0)}%`);
+
+      // JANELA antes de número. Sem prompts classificados não há nada somado;
+      // sem baseline Opus (`naive_cost`) a percentagem é 0/0, não "0% de
+      // poupança". O próprio tracker devolve `saved_pct: 0` nesse caso
+      // (savings-tracker.js:555), por isso um zero VINDO do tracker não prova
+      // medição nenhuma — quem decide é a janela. Até 2026-08-27 esta secção
+      // fazia `Math.round(m.saved_pct || 0)` e imprimia
+      //     ✓  Savings % (advisory)  0%
+      // numa máquina que nunca classificou um prompt: um número de poupança
+      // com selo de sucesso exactamente onde não houve medição.
+      const prompts     = measured(m.prompts);
+      const naiveCost   = measured(m.naive_cost);
+      const hasWindow   = prompts !== null && prompts > 0;
+      const hasBaseline = hasWindow && naiveCost !== null && naiveCost > 0;
+      const NO_WINDOW   = 'no prompts classified yet (empty window)';
+
+      const savedPct      = hasBaseline ? measured(m.saved_pct) : null;
+      const advisoryUsd   = hasWindow ? measured(m.saved) : null;
+      const guaranteedUsd = hasWindow ? measured(m.guaranteed_saved) : null;
+
+      // `actual_cost` nunca existiu no /metrics do tracker — o campo medido
+      // chama-se `executions.actual_cost_usd` (savings-tracker.js:1000). O
+      // `|| 0` fazia esta linha imprimir "~$0.00" em TODAS as máquinas desde
+      // sempre: um zero de uma chave que nunca é emitida.
+      const execRuns = measured(m.executions && m.executions.total);
+      const spentUsd = execRuns !== null && execRuns > 0
+        ? measured(m.executions.actual_cost_usd)
+        : null;
+
+      metricRow('Total decisions', prompts,
+        v => String(v),
+        'tracker returned no prompt count');
+
+      metricRow('Savings % (advisory)', savedPct,
+        v => `${Math.round(v)}%  ← token-estimated vs Opus baseline, assumes hints honoured`
+           + `  (source :${TRACKER_PORT}/metrics · window ${prompts} prompts)`,
+        hasWindow ? 'no Opus baseline to compare against (naive_cost = 0)' : NO_WINDOW);
+
+      metricRow('Saved (advisory ~)', advisoryUsd,
+        v => `~$${v.toFixed(2)}  (window ${prompts} prompts)`,
+        NO_WINDOW);
+
+      if (guaranteedUsd === null) {
+        row(NA, 'Guaranteed saved', `n/d — ${NO_WINDOW}`);
+      } else {
+        row(guaranteedUsd > 0 ? TICK : NA, 'Guaranteed saved',
+          `$${guaranteedUsd.toFixed(2)}  ← only Option-A hits (Ollama verbatim)`);
       }
-      report.checks.savings = { pct: m.saved_pct, saved_usd: m.saved, guaranteed_usd: guaranteedUsd, spent_usd: m.actual_cost };
+
+      const advisoryCovers = advisoryUsd !== null && advisoryUsd > 0 && guaranteedUsd !== null
+        ? Math.round(((advisoryUsd - guaranteedUsd) / advisoryUsd) * 100)
+        : null;
+      metricRow('Advisory covers', advisoryCovers,
+        v => `${v}% of total  (${100 - v}% verified)`,
+        advisoryUsd === null ? NO_WINDOW : 'advisory saved is $0 — no total to split');
+
+      metricRow('Actual spend', spentUsd,
+        v => `~$${v.toFixed(2)}  (measured over ${execRuns} router-execute runs)`,
+        'no run measured by router-execute');
+
+      const tierPct = m.pct_by_tier || {};
+      metricRow('T0 (Ollama/free)', hasWindow ? measured(tierPct.T0) : null,
+        v => `${Math.round(v)}%  (of ${prompts} prompts)`, NO_WINDOW);
+      metricRow('T3 (Opus)', hasWindow ? measured(tierPct.T3) : null,
+        v => `${Math.round(v)}%  (of ${prompts} prompts)`, NO_WINDOW);
+
+      report.checks.savings = {
+        source: `${TRACKER_URL}/metrics`,
+        window_prompts: prompts,
+        pct: savedPct,
+        saved_usd: advisoryUsd,
+        guaranteed_usd: guaranteedUsd,
+        spent_usd: spentUsd,
+        spent_window_runs: execRuns,
+      };
+    } else {
+      // Tracker de pé mas /metrics ilegível: n/d com o porquê, nunca zeros.
+      row(NA, 'Savings data', `n/d — :${TRACKER_PORT}/metrics returned no JSON`);
+      report.checks.savings = null;
     }
   } else {
     row(WARN, 'Savings data', 'tracker not running — will show after next prompt');
+    report.checks.savings = null;
   }
 
   // ── SECTION 10: Dashboard Sync (only with --sync) ─────────────────────
@@ -432,7 +543,7 @@ async function main() {
     let savingsUsd = 0;
     let guaranteedSavedUsd = 0;
     try {
-      const metricsRes = await httpGet('http://127.0.0.1:7821/metrics', 800);
+      const metricsRes = await httpGet(TRACKER_URL + '/metrics', 800);
       if (metricsRes.ok && metricsRes.json) {
         savingsUsd = metricsRes.json.saved || metricsRes.json.advisory_saved || 0;
         guaranteedSavedUsd = metricsRes.json.guaranteed_saved || 0;

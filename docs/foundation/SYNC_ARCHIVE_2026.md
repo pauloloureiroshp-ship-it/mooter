@@ -8676,6 +8676,26 @@ partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum
 antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
 
 <!-- rolado do SYNC.md a 2026-08-29 para o SYNC voltar a caber no orcamento -->
+### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
+
+**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
+MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
+Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
+`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
+readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
+que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
+
+**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
+(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
+`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
+`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
+auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
+instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
+
+**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
+(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
+`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+
 ### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
 
 **#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
@@ -8717,60 +8737,3 @@ o veto em código.
 
 gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
 detalhe em `_handoff/cc-perfeito-progress.md`
-
-### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
-
-**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
-MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
-Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
-`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
-readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
-que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
-
-**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
-(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
-`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
-`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
-auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
-instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
-
-**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
-(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
-`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
-
-<!-- rolado do SYNC.md a 2026-08-29 (2.a volta) — a seccao ja apontava para aqui -->
-### ✅ Fechados a 25/08 — detalhe em `docs/foundation/SYNC_ARCHIVE_2026.md`
-
-- **Frota em Ed25519, 2 de 2 devices.** `prova_frota: true`, `verificados: 2`, `rejeitados: 0`, os dois
-  ancorados no registo. A privada nunca sai da máquina. Multi-user é desenho sem código
-  (`docs/strategy/IDENTIDADE_MULTI_USER.md`).
-- **A suite `tools/router` já conta sempre o mesmo.** Era o `--test-force-exit` a matar o reporter; sem
-  ele, 1160 ×3, `fail 0`. O `fail 0` original era artefacto — havia 3 falhas verdadeiras cortadas.
-
-**Continua ABERTO (não é história):** beacon do `desktop-j26409q` com **66 min** (tecto 30) — `morto`: ou o loop parou lá, ou o publicador parou de empurrar. Gargalo do Mac: **1054 achados por triar**, loop em pausa por `human queue full (524/6)` — nenhum dos PRs lhe tocou.
-
----
-
-## 🧱 Stack técnica
-| Camada | Tecnologia |
-|--------|------------|
-| Classifier | `classify.js` v0.10+ (regex, ~47KB, 11-pass + ARCH_SIGNALS guard) |
-| Arbiter | Haiku 4.5 via Anthropic SDK |
-| Hooks | UserPromptSubmit + PostToolUse + Stop |
-| T0 Local | Ollama brew service (qwen2.5:3b/14b, gemma4:e4b, nomic-embed-text) |
-| T1-T3 | Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6 |
-| Telemetry | savings-tracker :7821 + hub Cloudflare + D1 |
-| Landing | `mooter.ai` (public waitlist) + `landing-five-azure-16.vercel.app` (Friends Beta) |
-
-## 🔗 Links duraveis
-
-| Recurso | URL |
-|---------|-----|
-| Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
-| GitHub (publico) | https://github.com/pauloloureiroshp-ship-it/mooter |
-| Landing | https://mooter.ai |
-| Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |
-| npm | https://www.npmjs.com/package/@mooter/cli |
-
-*(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
-kimi-egress FECHADA — slack-spike destravado

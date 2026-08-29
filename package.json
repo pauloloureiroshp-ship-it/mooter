@@ -29,7 +29,22 @@
     "device:sync": "node tools/cockpit/sync-device.mjs",
     "frota:chave": "node tools/cockpit/chave-da-frota.mjs",
     "device:check": "node tools/cockpit/sync-device.mjs --check",
-    "device:bootstrap": "node tools/cockpit/bootstrap.mjs"
+    "device:bootstrap": "node tools/cockpit/bootstrap.mjs",
+    "design:build": "node design/tools/moo-tokens-build.mjs",
+    "design:check": "node design/tools/moo-design-check.mjs",
+    "design:check:ci": "node design/tools/moo-design-check.mjs --ci",
+    "design:ratchet": "node design/tools/moo-design-ratchet.mjs",
+    "design:ratchet:ci": "node design/tools/moo-design-ratchet.mjs --ci",
+    "design:promover": "node design/tools/moo-design-ratchet.mjs --promover",
+    "test:design": "node --test \"design/tools/*.test.mjs\"",
+    "design:reconciliar": "node design/tools/moo-reconciliar.mjs",
+    "design:reconciliar:ci": "node design/tools/moo-reconciliar.mjs --ci",
+    "design:deck": "node design/deck/moo-deck-build.mjs",
+    "design:deck:json": "node design/deck/moo-deck-build.mjs --json",
+    "design:deck:ci": "node design/deck/moo-deck-build.mjs --estrito",
+    "test:deck": "node --test design/deck/moo-deck-build.test.mjs",
+    "design:inline": "node design/tools/moo-inline-sync.mjs",
+    "design:inline:ci": "node design/tools/moo-inline-sync.mjs --check"
   },
   "engines": {
     "node": ">=22"

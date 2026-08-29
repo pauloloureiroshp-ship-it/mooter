@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveToken } from '../../test-utils/moo-token';
 
 const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
 const LAYOUT = read('layout.tsx');
@@ -30,8 +31,12 @@ describe('Day 4 — app shell goes dark on dashboard/settings, /admin stays ligh
   it('globals.css maps .app-shell-dark to the landing dark tokens', () => {
     expect(GLOBALS).toContain('.app-shell-dark');
     // shares the onboarding dark block (same dark bg + landing pink accent)
-    expect(GLOBALS).toMatch(/\.app-shell-dark\s*\{[\s\S]*?--bg:\s*#0B0A09/);
-    expect(GLOBALS).toMatch(/\.app-shell-dark\s*\{[\s\S]*?--accent:\s*#E8888A/);
+    // Resolvido pela cadeia ate design/tokens/moo-ui.css, e nao pelo literal:
+    // desde 2026-08-27 o globals.css LE o valor do ficheiro gerado em vez de o
+    // repetir. Continua a exigir a mesma cor no ecra, e passa a apanhar tambem
+    // um ponteiro para um token que nao existe (resolve a null).
+    expect(resolveToken(GLOBALS, '.app-shell-dark', 'bg')).toBe('#0B0A09');
+    expect(resolveToken(GLOBALS, '.app-shell-dark', 'accent')).toBe('#E8888A');
   });
 });
 

@@ -1,0 +1,14 @@
+# A saída do gerador NÃO é versionada. Decisão de 2026-08-27, com motivo:
+#
+# O deck e o PDF são uma projecção de um registo que vive FORA deste repo
+# ($VAULT_PATH/40-strategy/2026-08-25-pitch-registro-metricas-medidas.md).
+# Um HTML versionado seria uma SEGUNDA VERDADE: números commitados cuja fonte
+# o repo não contém, a envelhecer em silêncio a cada delta do registo — e um
+# ficheiro que alguém, mais cedo ou mais tarde, abre e corrige à mão. É
+# exactamente o que a regra proíbe: «muda-se o registo, regenera-se; NUNCA se
+# edita o slide».
+#
+# A consequência é assumida: sem o vault montado não há deck. Isso é correcto.
+# O deck não é um documento — é a projecção de um registo. Quem precisa dele
+# regenera-o com `npm run design:deck`.
+out/
