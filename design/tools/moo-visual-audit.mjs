@@ -101,15 +101,32 @@ const { chromium } = await import('playwright');
 const PW_EXE = process.env.MOO_AUDIT_CHROMIUM || '/opt/pw-browsers/chromium';
 const b = await chromium.launch(existsSync(PW_EXE) ? { executablePath: PW_EXE } : {});
 const pg = await b.newPage();
-// excepções DECLARADAS — valores de produção com correcção já calculada em moo-tokens.json.
-// Um portão sem lista de excepções obriga a mentir ou a ignorar. Este declara.
-const DECLARADO = {
-  'rgb(194, 95, 101)|rgb(242,236,223)': 'papel.accent · correcção #A55156 calculada, por aplicar',
-  'rgb(61, 139, 94)|rgb(242,236,223)':  'papel.ok · correcção #347851 calculada, por aplicar',
-  'rgb(184, 82, 63)|rgb(242,236,223)':  'papel.bad · correcção #AD4D3B calculada, por aplicar',
-  'rgb(61, 111, 168)|rgb(242,236,223)': 'papel.tier-1 · abaixo de AA na paleta de papel',
-  'rgb(122, 94, 168)|rgb(242,236,223)': 'papel.tier-2 · abaixo de AA na paleta de papel',
-};
+/* ── EXCEPÇÕES DECLARADAS ────────────────────────────────────────────────────
+   Aqui estavam CINCO entradas, cada uma a nomear um par de cores exacto com a
+   nota «correcção calculada, por aplicar». As correcções foram aplicadas — e as
+   cinco entradas MORRERAM sem ninguém dar por isso, porque uma excepção por
+   valor de cor deixa de coincidir no dia em que a cor muda. Verificado a
+   2026-08-29: apanhavam ZERO achados, e o relatório imprimia
+   «declarado 0» há semanas sem que isso significasse «não há nada declarado».
+
+   Uma lista de excepções que envelhece em silêncio é pior do que não existir:
+   dá a impressão de que alguém está a olhar. Por isso a forma mudou — declara-se
+   a SUPERFÍCIE, não o par de cores.
+
+   `fleet-ui.html` é o único caso, e é estrutural, não uma cor a corrigir: a
+   folha declara `--bg: var(--color-background-primary, transparent)` de
+   propósito (`:31`), para herdar o tema do editor que a embebe. Num browser nu
+   não há host, o fallback é transparente, e o que o auditor mede por trás é o
+   preto do próprio browser. Os 1,26:1 e 3,87:1 que ele reportava eram o
+   contraste contra um fundo que NÃO EXISTE em produção — a mesma classe do
+   `color(srgb ...)` mal lido, mas por outra via.
+   Medido, não medível: o contraste desta folha é `n/d` enquanto for renderizada
+   fora do host. Contado à parte e visível, nunca somado aos achados. */
+const SEM_FUNDO_PROPRIO = new Map([
+  ['packages/mooter-bridge/fleet-ui.html',
+   'declara `--bg: transparent` para herdar o tema do editor (fleet-ui.html:31); '
+   + 'fora do host o fundo medido e o do browser, nao o do produto'],
+]);
 const rel = [];
 
 for (const a of CV.artboards) {
@@ -266,9 +283,12 @@ for (const a of CV.artboards) {
     return out;
   }, a.h);
 
-  const decl = r.contraste.filter(c => DECLARADO[`${c.cor}|${c.fundo}`]);
-  r.contrasteNovo = r.contraste.filter(c => !DECLARADO[`${c.cor}|${c.fundo}`]);
-  r.contrasteDeclarado = decl.length;
+  /* A folha inteira e n/d quando nao tem fundo proprio — nao se filtram cores
+     uma a uma, filtra-se a superficie, porque o problema e do fundo. */
+  const porque = SEM_FUNDO_PROPRIO.get(a.file.split(String.fromCharCode(92)).join('/'));
+  r.contrasteNovo = porque ? [] : r.contraste;
+  r.contrasteDeclarado = porque ? r.contraste.length : 0;
+  r.contrasteND = porque ?? null;
   const easBad = Object.keys(r.easings).filter(e => !EASING_OK.has(normCurva(e)));
   const raiBad = Object.keys(r.raios).map(Number).filter(x => !RAIOS_OK.has(x));
   rel.push({ prancha: a.name || basename(a.file).replace(/\.(dc\.)?html$/,''),

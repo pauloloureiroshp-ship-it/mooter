@@ -24,7 +24,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -264,4 +264,64 @@ test('o defeito plantado está mesmo fora da escala, e o controlo dentro', () =>
   assert.ok(!ESCALA.has(RAIO_MAU),
     `${RAIO_MAU} entrou na escala — escolhe outro valor para o defeito plantado`);
   assert.ok(ESCALA.has(RAIO_OK), `${RAIO_OK} saiu da escala — o controlo deixou de ser legítimo`);
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   A excepção de contraste passou a ser por SUPERFÍCIE
+
+   Eram cinco entradas a nomear pares de cores exactos, com a nota «correcção
+   calculada, por aplicar». As correcções foram aplicadas — e as cinco entradas
+   morreram sem ninguém dar por isso, porque uma excepção por VALOR deixa de
+   coincidir no dia em que a cor muda. Verificado a 2026-08-29: apanhavam ZERO,
+   e o relatório dizia «declarado 0» sem que isso significasse «nada declarado».
+
+   Agora declara-se a folha, e só uma: o `fleet-ui.html` herda o fundo do editor
+   que o embebe, portanto fora do host o auditor mede o preto do browser. Estes
+   testes exigem que a excepção continue a CONTAR o que dispensou — uma excepção
+   que faz o número desaparecer é a forma silenciosa de mentir. */
+
+test('a folha sem fundo próprio é n/d — e o que foi dispensado fica CONTADO', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  // Texto que falha AA em qualquer fundo, na folha declarada.
+  const mau = '<!doctype html><meta charset="utf-8"><title>fleet-ui</title>'
+    + '<style>body{background:transparent}.t{color:#1f1e1b;font-size:14px}</style>'
+    + '<p class="t">texto sem contraste nenhum</p>';
+
+  const dir = mkdtempSync(join(tmpdir(), 'moo-sf-'));
+  const alvo = join(dir, 'fleet-ui.html');
+  writeFileSync(alvo, mau);
+  writeFileSync(join(dir, 'canvas.json'), JSON.stringify({
+    artboards: [{ name: 'fleet-ui', page: 'teste',
+                  file: 'packages/mooter-bridge/fleet-ui.html', w: 1200, h: H }],
+    base: dir,
+  }));
+  // O canvas aponta ao caminho DECLARADO; o ficheiro real vive na base.
+  const destino = join(dir, 'packages', 'mooter-bridge');
+  mkdirSync(destino, { recursive: true });
+  writeFileSync(join(destino, 'fleet-ui.html'), mau);
+
+  const saida = execFileSync(process.execPath, [AUDITOR, join(dir, 'canvas.json')],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const json = JSON.parse(readFileSync(join(dir, '.visual-audit.json'), 'utf8'));
+  rmSync(dir, { recursive: true, force: true });
+
+  const r = json.find((x) => x.prancha === 'fleet-ui');
+  assert.ok(r, 'a prancha devia ter sido medida');
+  assert.deepEqual(r.contrasteNovo, [], 'a folha declarada não pode produzir achados');
+  assert.ok(r.contrasteDeclarado > 0,
+    'o que foi dispensado tem de ficar CONTADO — senão a excepção apaga o número');
+  assert.match(String(r.contrasteND), /transparent/,
+    'a razão da dispensa tem de ir no relatório, não só no código');
+});
+
+test('MORDIDA · a MESMA folha, com outro caminho, volta a ser medida', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  // Sem esta metade, uma excepção larga demais (ex.: por nome de prancha) passava
+  // por correcção — e o auditor deixava de medir folhas a mais, em silêncio.
+  const { json } = correr({ 'outra.html':
+    '<!doctype html><meta charset="utf-8"><title>outra</title>'
+    + '<style>body{background:#ffffff}.t{color:#bbbbbb;font-size:14px}</style>'
+    + '<p class="t">texto sem contraste nenhum</p>' });
+  const r = json.find((x) => x.prancha === 'outra');
+  assert.ok(r.contrasteNovo.length > 0,
+    'uma folha NÃO declarada tem de continuar a ser medida');
+  assert.equal(r.contrasteDeclarado, 0);
 });
