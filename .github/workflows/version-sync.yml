@@ -12,6 +12,9 @@ on:
 
 permissions:
   contents: write
+  # necessario desde 2026-08-29: o sync deixou de empurrar para `main` (proteccao
+  # de ramo) e passou a abrir um PR. Sem isto o `gh pr create` leva 403.
+  pull-requests: write
 
 jobs:
   sync:
@@ -98,4 +101,36 @@ jobs:
           # main may have advanced between the tag push and this job — rebase before
           # pushing so a racing commit doesn't cause a non-fast-forward failure.
           git pull --rebase origin main
-          git push origin HEAD:main
+          # ⚠️ 2026-08-29 — este passo empurrava DIRECTO para `main` e passou a
+          # falhar em TODAS as tags no momento em que a proteccao de ramo com
+          # checks obrigatorios entrou. Medido na v1.51.0 (run 33164279461): o
+          # commit era construido bem — "3 files changed" — e o push levava
+          # `GH006: Protected branch update failed ... 5 of 5 required status
+          # checks are expected`. Resultado silencioso: a release v1.51.0 foi
+          # publicada com os cinco ficheiros a dizer 1.50.0, incluindo o
+          # `manifest.json` que da o nome e o rotulo ao .mcpb que o utilizador
+          # instala. O gate que existe para impedir deriva de versao era, ele
+          # proprio, a fonte da deriva.
+          #
+          # O GITHUB_TOKEN nao pode contornar a proteccao (e e bom que nao possa).
+          # Entao deixa de tentar: abre um PR, que e o caminho que a proteccao
+          # preve. Falhar a abrir o PR continua a falhar o job — um sync de
+          # versao que se cala e como nao existir.
+          BRANCH="chore/version-sync-${{ steps.ver.outputs.version }}"
+          git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
+          gh pr create \
+            --base main \
+            --head "${BRANCH}" \
+            --title "chore(release): sync version.json → ${{ steps.ver.outputs.version }}" \
+            --body "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${{ github.ref_name }}\`.
+
+Alinha os cinco ficheiros de versao com a tag publicada:
+\`tools/router/version.json\` · \`landing/app/version.json\` ·
+\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·
+\`plugin/mooter/.claude-plugin/plugin.json\`.
+
+O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador
+instala — sem este merge, a release publica um bundle rotulado com a versao anterior." \
+            || echo "PR ja existe para ${BRANCH} — nada a abrir."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

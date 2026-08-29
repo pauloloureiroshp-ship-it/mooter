@@ -96,5 +96,8 @@
     "probe.js",
     "fleet-ui.html"
   ],
-  "1.50": []
+  "1.50": [],
+  "1.52": [
+    "seamless.js"
+  ]
 }
