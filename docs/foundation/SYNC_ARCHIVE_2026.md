@@ -8737,3 +8737,40 @@ instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench =
 **A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
 (`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
 `/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+
+<!-- rolado do SYNC.md a 2026-08-29 (2.a volta) — a seccao ja apontava para aqui -->
+### ✅ Fechados a 25/08 — detalhe em `docs/foundation/SYNC_ARCHIVE_2026.md`
+
+- **Frota em Ed25519, 2 de 2 devices.** `prova_frota: true`, `verificados: 2`, `rejeitados: 0`, os dois
+  ancorados no registo. A privada nunca sai da máquina. Multi-user é desenho sem código
+  (`docs/strategy/IDENTIDADE_MULTI_USER.md`).
+- **A suite `tools/router` já conta sempre o mesmo.** Era o `--test-force-exit` a matar o reporter; sem
+  ele, 1160 ×3, `fail 0`. O `fail 0` original era artefacto — havia 3 falhas verdadeiras cortadas.
+
+**Continua ABERTO (não é história):** beacon do `desktop-j26409q` com **66 min** (tecto 30) — `morto`: ou o loop parou lá, ou o publicador parou de empurrar. Gargalo do Mac: **1054 achados por triar**, loop em pausa por `human queue full (524/6)` — nenhum dos PRs lhe tocou.
+
+---
+
+## 🧱 Stack técnica
+| Camada | Tecnologia |
+|--------|------------|
+| Classifier | `classify.js` v0.10+ (regex, ~47KB, 11-pass + ARCH_SIGNALS guard) |
+| Arbiter | Haiku 4.5 via Anthropic SDK |
+| Hooks | UserPromptSubmit + PostToolUse + Stop |
+| T0 Local | Ollama brew service (qwen2.5:3b/14b, gemma4:e4b, nomic-embed-text) |
+| T1-T3 | Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6 |
+| Telemetry | savings-tracker :7821 + hub Cloudflare + D1 |
+| Landing | `mooter.ai` (public waitlist) + `landing-five-azure-16.vercel.app` (Friends Beta) |
+
+## 🔗 Links duraveis
+
+| Recurso | URL |
+|---------|-----|
+| Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| GitHub (publico) | https://github.com/pauloloureiroshp-ship-it/mooter |
+| Landing | https://mooter.ai |
+| Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |
+| npm | https://www.npmjs.com/package/@mooter/cli |
+
+*(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
+kimi-egress FECHADA — slack-spike destravado

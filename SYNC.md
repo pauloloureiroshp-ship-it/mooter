@@ -102,41 +102,10 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 `slack-spike` não corre em CI nenhum.
 
 <!-- slack-spike — o GO CONDICIONADO que autoriza a linha de destrave -->
-### ✅ Fechados a 25/08 — detalhe em `docs/foundation/SYNC_ARCHIVE_2026.md`
+### ✅ Fechados a 25/08
 
-- **Frota em Ed25519, 2 de 2 devices.** `prova_frota: true`, `verificados: 2`, `rejeitados: 0`, os dois
-  ancorados no registo. A privada nunca sai da máquina. Multi-user é desenho sem código
-  (`docs/strategy/IDENTIDADE_MULTI_USER.md`).
-- **A suite `tools/router` já conta sempre o mesmo.** Era o `--test-force-exit` a matar o reporter; sem
-  ele, 1160 ×3, `fail 0`. O `fail 0` original era artefacto — havia 3 falhas verdadeiras cortadas.
-
-**Continua ABERTO (não é história):** beacon do `desktop-j26409q` com **66 min** (tecto 30) — `morto`: ou o loop parou lá, ou o publicador parou de empurrar. Gargalo do Mac: **1054 achados por triar**, loop em pausa por `human queue full (524/6)` — nenhum dos PRs lhe tocou.
-
----
-
-## 🧱 Stack técnica
-| Camada | Tecnologia |
-|--------|------------|
-| Classifier | `classify.js` v0.10+ (regex, ~47KB, 11-pass + ARCH_SIGNALS guard) |
-| Arbiter | Haiku 4.5 via Anthropic SDK |
-| Hooks | UserPromptSubmit + PostToolUse + Stop |
-| T0 Local | Ollama brew service (qwen2.5:3b/14b, gemma4:e4b, nomic-embed-text) |
-| T1-T3 | Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6 |
-| Telemetry | savings-tracker :7821 + hub Cloudflare + D1 |
-| Landing | `mooter.ai` (public waitlist) + `landing-five-azure-16.vercel.app` (Friends Beta) |
-
-## 🔗 Links duraveis
-
-| Recurso | URL |
-|---------|-----|
-| Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
-| GitHub (publico) | https://github.com/pauloloureiroshp-ship-it/mooter |
-| Landing | https://mooter.ai |
-| Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |
-| npm | https://www.npmjs.com/package/@mooter/cli |
-
-*(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
-kimi-egress FECHADA — slack-spike destravado
+Rolados para `docs/foundation/SYNC_ARCHIVE_2026.md` a 2026-08-29 — a secção já apontava para lá e o
+SYNC é snapshot, não log. Frota em Ed25519 (2/2 devices) · suite `tools/router` estabilizada · e o resto.
 
 ### 2026-08-29 (Mac · CC · executar) · o conector passa a acusar a varredura que nao pode fazer
 
@@ -173,14 +142,38 @@ producao chega `undefined`, a `:662` aplica `|| {}` e nada e excluido. Corrigido
 - ⚠️ **Por corrigir, fora do meu alcance:** `claude/ARQUITETURA_ONBOARDING_E_SAAS_2026-08-28.md` (doc do
   Project) **nao existe neste checkout** — mantem o diagnostico errado. **Fica para o Cowork.**
 
+**T4 (nao estava no enunciado — apareceu ao seguir a sequencia ate ao fim).** Ao preparar o deploy:
+o conector instalado e **1.49.4**, o repo dizia **1.50.0**, e a ultima release publicada e **v1.51.0**.
+Causa medida: o workflow `Version Sync` **falha em TODAS as tags** desde que a proteccao de ramo entrou —
+run `33164279461` constroi o commit certo e leva `GH006: Protected branch update failed · 5 of 5 required
+status checks are expected`. A v1.51.0 foi publicada com os cinco ficheiros a dizer 1.50.0, incluindo o
+`manifest.json` que rotula o `.mcpb` que o utilizador instala. **O gate que existe para impedir deriva de
+versao era a fonte da deriva.** Corrigido: abre um PR em vez de empurrar para `main` (+`pull-requests:
+write`); os cinco ficheiros vao a **1.52.0**. O portao de entrega recusou o bump ate a entrega estar
+declarada — **funcionou como devia**: `entregas-por-versao.json` declara `1.52: [seamless.js]` com dois
+marcadores que provam o A6 no conteudo. `pack-mcpb.mjs` produz `mooter-v1520.mcpb` (61 ficheiros, 335
+verificacoes OK) e o bundle **contem** o A6; o conector instalado **nao**.
+
+**T5 · os quatro vermelhos do router eram testes a guardar contratos mortos — 1498/4 → 1503/0.** Zero
+linhas de producao alteradas. `sparkline.test.js` fixava o `COLUMNS` e lia o `~/.mooter/preferences.json`
+do dono real (com `statusline_line3:true` ligado nesta maquina) — a saida `opts.home` ja existia,
+faltava usa-la. Dois `sub-tier` exigiam `gemma4:e4b`/`deepseek-r1-distill-qwen:14b` quando o
+`classify.js` FROZEN tem `qwen2.5:3b`/`deepseek-r1:7b` e o comentario diz que a escolha **saiu** para o
+`inject_context.js`. O `TUNED` exigia um bloco dentro do `classify.js` — **exactamente o que o freeze
+proibe**; o tuner escreve hoje em `tuning-state.json`. Passa a afirmar uma garantia mais forte: correr o
+tuner nao pode mexer no sha `427d8c0b`.
+
+**Prova ponta-a-ponta do A6, job real, $0** (`job-mtebrb36-2af0`, Ollama local): `aviso_fabricacao`
+nao-nulo no despacho e a entrega prefixada com `SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO`.
+**Flake da bridge nao reproduzido** em 4 corridas seguidas (1126/0 cada). PR **#432** aberto.
+
 **Gates, sem disfarce.** T1 ✅ 8 testes novos, **7 falham em `main`** e 8 passam depois (`varredura.test.js`);
 bridge **1102/0**. T2 ✅ ronda escreveu, `launchctl list` mostra o agente. T3 ✅ grep re-corrido por mim.
 cockpit **941/0** (2 todo). classify.js `427d8c0b` intacto.
-- ❌ **router: 4 falhas** (`TUNED block idempotent`, dois `sub-tier` T0, um `render (wide)`). **Ja falham em
-  `main`** — verificado com `git stash` e re-corrida: 1498/4 identico com e sem a minha alteracao. Nao sao
-  minhas, e **nao as escondi baixando o gate**. A referencia "977/0" do brief e de outro glob de ficheiros.
-- ❌ **Bridge deu 1101/1 numa das quatro corridas** e 1102/0 nas outras tres. Flake nao reproduzido e
-  **nao identificado** — o output da corrida vermelha nao foi capturado. Dito porque aconteceu.
+- ✅ **router 1503/0** — as 4 falhas eram pre-existentes (confirmado com `git stash`: 1498/4 identico
+  com e sem a minha alteracao) e ficaram **corrigidas** em T5. A referencia "977/0" do brief e de outro glob.
+- ⚠️ **Bridge deu 1101/1 numa corrida** e verde em todas as outras (4 corridas dedicadas a cacar o flake,
+  1126/0 cada). **Nao reproduzido e nao identificado.** Dito porque aconteceu.
 - `MP-LIGAR` e `MP-MOOTER` de 28/08 continuam **untracked**, por decidir. Nao os movi: o brief manda
   confirmar com o dono.
 
