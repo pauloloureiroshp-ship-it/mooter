@@ -129,15 +129,26 @@ test('update-router: TUNED block is idempotent across runs', () => {
 
   assert.equal(after1, after2, 'second run must be a no-op (idempotent)');
 
-  // Validate exactly one TUNED block exists
-  const matches = after2.match(/TUNED-BLOCK-START/g) || [];
-  assert.equal(matches.length, 1, 'exactly one TUNED block must exist');
+  // ⚠️ 2026-08-29 — aqui exigia-se `exactly one TUNED block must exist` dentro do
+  // `classify.js`. Isso e HOJE o oposto do que o projecto garante: o ficheiro esta
+  // FROZEN com sha `427d8c0b` verificado no CI, e injectar-lhe um bloco quebraria
+  // a invariante mais dura que temos. O mecanismo mudou por essa razao — o
+  // `update-router` escreve agora em `tuning-state.json` ("no changes
+  // (tuning-state.json already current)"), fora do ficheiro congelado.
+  //
+  // O teste ficou a guardar o mecanismo pre-freeze e por isso era um vermelho que
+  // so podia ficar verde violando o freeze. Passa a guardar o que importa de
+  // facto, e que e uma garantia MAIS FORTE: correr o tuner NAO pode mexer no
+  // ficheiro congelado.
+  const SHA_FROZEN = '427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f';
+  const sha = require('crypto').createHash('sha256').update(after2).digest('hex');
+  assert.equal(sha, SHA_FROZEN,
+    'update-router mexeu no classify.js FROZEN — isto e um incidente, nao uma falha de teste');
+  assert.equal(before, after2, 'o tuner nao pode reescrever o classificador congelado');
 
-  // Restore original if re-run changed anything (best-effort — test only
-  // checks idempotency, not content equivalence with pre-test state)
-  if (before !== after2) {
-    // Leave the updated state — it's the expected post-tune state.
-  }
+  // E a afinacao tem de viver algures: fora do ficheiro congelado.
+  assert.ok(fs.existsSync(path.join(ROUTER, 'tuning-state.json')),
+    'o tuning saiu do classify.js — tem de existir em tuning-state.json');
 });
 
 test('classify.js: high-risk prompts ignore TUNED demote/promote', () => {
@@ -223,9 +234,10 @@ test('savings-tracker: saved_pct is a percentage, real_cost < naive_cost', () =>
 
 // ── v0.6.1 user override (in-prompt model pinning) ─────────────────────────
 
-function classifyPrompt(prompt) {
+function classifyPrompt(prompt, env) {
   const CLASSIFY = path.join(os.homedir(), '.claude', 'tools', 'router', 'classify.js');
-  const r = spawnSync(process.execPath, [CLASSIFY, prompt], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [CLASSIFY, prompt],
+    { encoding: 'utf8', env: env ? { ...process.env, ...env } : process.env });
   assert.equal(r.status, 0, `classify.js failed for "${prompt}": ${r.stderr}`);
   return JSON.parse(r.stdout);
 }
@@ -388,6 +400,22 @@ test('sub-tier: math prompt at T0 → deepseek-r1 specialist', () => {
   const r = classifyPrompt('calcula o integral de x ao quadrado');
   assert.equal(r.tier, 'T0');
   assert.equal(r.t0_subtier, 'math');
+  // ⚠️ 2026-08-29 — este teste exigia `deepseek-r1-distill-qwen:14b` e falhava
+  // desde que o `classify.js` passou a `ollama_math: 'deepseek-r1:7b'` (linha 168,
+  // FROZEN sha 427d8c0b). Como o ficheiro nao pode ser alterado, o teste NUNCA
+  // podia voltar ao verde: nao era um sinal, era um vermelho permanente — e um
+  // vermelho permanente ensina a suite inteira a ser ignorada.
+  // Passa a afirmar o contrato REAL: o default congelado, e o env que o sobrepoe.
+  assert.equal(r.recommended_model, 'deepseek-r1:7b', 'default congelado em classify.js:168');
+});
+
+test('sub-tier: math — ROUTER_OLLAMA_MATH sobrepoe o default congelado', () => {
+  // Isto e o que vale a pena guardar: o modelo e configuravel sem tocar no
+  // ficheiro FROZEN. Fixar o nome do modelo era guardar a escolha; guardar o
+  // override e guardar a capacidade.
+  const r = classifyPrompt('calcula o integral de x ao quadrado',
+    { ROUTER_OLLAMA_MATH: 'deepseek-r1-distill-qwen:14b' });
+  assert.equal(r.t0_subtier, 'math');
   assert.equal(r.recommended_model, 'deepseek-r1-distill-qwen:14b');
 });
 
@@ -395,9 +423,14 @@ test('sub-tier: general prompt at T0 → gemma4:e4b (v0.10 default)', () => {
   const r = classifyPrompt('lista os ficheiros modificados hoje');
   assert.equal(r.tier, 'T0');
   assert.equal(r.t0_subtier, 'general');
-  // v0.10 promoted gemma4:e4b as the new general-purpose local default.
-  // qwen2.5:3b remains available as the terse/Option-A model.
-  assert.equal(r.recommended_model, 'gemma4:e4b');
+  // ⚠️ 2026-08-29 — dizia `gemma4:e4b`, e o `classify.js` (FROZEN) tem
+  // `ollama_general: 'qwen2.5:3b'` (linha 164). O proprio comentario do ficheiro
+  // explica porque: "Best-general selection runs in inject_context.js via
+  // bestOllamaT0() against hw-capability" — a escolha do melhor modelo geral
+  // SAIU do classificador de proposito, para depender do hardware real em vez de
+  // um nome fixo. O teste ficou a guardar o contrato antigo.
+  assert.equal(r.recommended_model, 'qwen2.5:3b',
+    'fallback seguro congelado; a escolha do melhor geral vive em inject_context.js');
 });
 
 test('sub-tier: non-T0 decision has t0_subtier=null', () => {

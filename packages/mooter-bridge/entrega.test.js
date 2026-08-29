@@ -42,7 +42,9 @@ const MARCADORES = {
   'afericao.js': ['avaliarResposta', 'resultadoDaAfericao'],
   // v1.23 — a Onda 1, parar a mentira
   'board.js': ['custo_total_usd', 'cobertura_custo_pct'],
-  'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify', '🐄 Mooter · '],
+  'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify', '🐄 Mooter · ',
+    // +v1.52 — o A6: o conector acusa a varredura que nao pode fazer
+    'varreduraSemFerramentas', 'SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO'],
   'tools6.js': ['permissoes_diferenca', 'primeira_vez', '🐄 Mooter · '],
   'server-apps.js': ['resourceUri', "process.pid + '.log'", 'faz assim: '], // +v1.49
   // v1.24 — a ETA e o SYNC gerado

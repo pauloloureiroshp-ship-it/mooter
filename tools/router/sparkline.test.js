@@ -7,6 +7,13 @@ const assert   = require('node:assert/strict');
 const { tierSparkline, localCloudSplit, localBar } = require('./sparkline.js');
 const { render } = require('./statusline-multi.js');
 
+// Uma pasta que existe e nao tem `.mooter/preferences.json`: e o unico
+// estado que significa "o utilizador nao ligou a linha 3". Apontar para
+// uma pasta inexistente daria o mesmo resultado por acidente, e um teste
+// que passa por acidente nao guarda nada.
+const HOME_SEM_PREFERENCIAS = require('node:fs')
+  .mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'sparkline-home-'));
+
 test('tierSparkline: one cell per decision, last 10, plain glyphs', () => {
   const events = [
     { tier: 'T0' }, { tier: 'T0' }, { tier: 'T1' }, { tier: 'T0' }, { tier: 'T3' },
@@ -60,8 +67,18 @@ test('render (wide): line 1 carries the sparkline, line 2 the per-session chips'
   const prev = process.env.COLUMNS;
   process.env.COLUMNS = '160';
   try {
-    const lines = render(ctx).split('\n');
-    assert.equal(lines.length, 2);
+    // ⚠️ 2026-08-29 — este teste fixava o `COLUMNS` e esquecia a OUTRA entrada de
+    // ambiente. `buildLine3` lia `~/.mooter/preferences.json` do dono REAL, e numa
+    // maquina com o opt-in `{"statusline_line3": true}` (documentado no
+    // PREFERENCES.md, e ligado nesta) a render devolvia 3 linhas: o teste media a
+    // maquina de quem corre a suite, nao o caso que descreve. Vermelho para uns,
+    // verde para outros, sem nada no codigo ter mudado.
+    //
+    // A saida ja existia e estava desenhada — `opts.home` (statusline-multi.js:1229,
+    // com este mesmo aviso escrito por extenso). O que faltava era este teste usa-la.
+    // Uma pasta sem `preferences.json` e o unico estado que descreve "sem opt-in".
+    const lines = render(ctx, { home: HOME_SEM_PREFERENCIAS }).split('\n');
+    assert.equal(lines.length, 2, 'sem o opt-in de linha 3, a render tem de dar exactamente 2 linhas');
     assert.match(lines[0], /last 10/, 'line 1 trails the sparkline label');
     // Wave 21 dropped the ASCII "% local" bar from line 2; Wave 33 renamed the
     // cost chips. Assert the per-session economics line 2 actually carries now.

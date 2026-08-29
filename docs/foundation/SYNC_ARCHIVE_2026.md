@@ -8675,6 +8675,7 @@ partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum
 …)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
 antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
 
+<!-- rolado do SYNC.md a 2026-08-29 para o SYNC voltar a caber no orcamento -->
 ### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
 
 **A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
