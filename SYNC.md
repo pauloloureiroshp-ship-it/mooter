@@ -138,66 +138,51 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
+### 2026-08-29 (Mac · CC · executar) · o conector passa a acusar a varredura que nao pode fazer
 
-**#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
-conflitos: os dois `package.json` por **união** (escolher um lado desligava testes dos dois lados);
-o painel com a **arquitectura do #396 e a regra do #401 lá dentro** — a premissa de que "o #396 já
-antecipa o #401" **não se confirma**, o ramo da pausa vinha antes do teste de morte e tomá-lo tal e
-qual reintroduzia o defeito do beacon a 3592 s; e o `SYNC.md` do #396, que era o correcto (219 vs
-390 linhas) mas tinha deixado de fora **uma** das quatro entradas de 25/08 do main — a do PC, com a
-hipótese do autor refutada contra 57 etiquetas. Resgatada para o arquivo.
+**T1 · `aviso_fabricacao` — o defeito de classe, fechado.** O guard A4 (`veredictoSemEvidencia`) exigia
+evidencia ZERO para disparar; o job `job-mtea5wou-f2b3` tinha 304 das 1131 linhas de `router-execute.js`
+injectadas, logo escapou-lhe por construcao — e respondeu "0 chamadores em TODO o repo". Regra nova (A6,
+`seamless.js`): quantificador de varredura no goal **E** (`permissoes_diferenca.diferem===true` **OU**
+lista efectiva vazia) ⇒ `sem_ferramentas`, `aviso_fabricacao` nao-nulo **no despacho** (antes de o modelo
+responder) e prefixo `SEM FERRAMENTAS — NAO PUBLICAVEL COMO FACTO` no `collect`. A truncagem entra na razao.
+Reutiliza a mecanica do A4 (prefixar, nunca substituir) e o mesmo campo — **taxonomia nova nenhuma**.
+- ⚠️ **`sem_adversario` NAO EXISTE** (`grep -rn "sem_adversario" --include="*.js"` = 0 resultados). O que
+  existe com essa mecanica e `veredictoSemEvidencia`/`veredicto_sem_evidencia`. Foi essa que se reutilizou.
+- Decisao declarada: a regra **nao** e travada por nome de motor (`ENGINES_SEM_FICHEIROS`), porque a
+  condicao do brief e a ausencia MEDIDA de ferramentas, nao quem esta a correr. Suite verde a confirmar.
 
-**O P1 do kickoff inverteu-se.** Pedia religar P4 e P5 apagando `activo: false`. O P4 não é
-"zero-LLM": é um enunciado de GPU para um defeito com **0 ocorrências** neste repo (0 de 443 `.md`
-acabam a meio de uma palavra). O P5 não mede modelos: é `falso-em-ambos`. E as **"+603 linhas de
-ledger da madrugada, $0" não eram saúde** — o processo vivo era de 25/08 08:13, tinha o catálogo
-antigo em memória, e passou ~15 h a produzir **P2/P3**, os dois pilares de que o dono decidiu 19
-achados à mão e não guardou nenhum.
+**T2 · `tools/radar/vigia.mjs` — primeira ronda com rede, agendada.** 3/3 alvos alcancados (a VM do Cowork
+nao tinha rede). Linha de base: ollama-catalogo **239**, openrouter-precos **396**, openrouter-docs **3**.
+2.a corrida confirmou "sem delta" contra o snapshot. `launchctl` regista `ai.mooter.radar` com
+`Weekday 1 / Hour 9 / Minute 0`; a maquina esta em **-03**, medido com `date` — logo 09:00 BRT.
+- **Revisao de PR externo: 1 defeito corrigido.** Uma digestao vazia ou em erro virava snapshot valido e
+  envenenava a linha de base (a ronda seguinte cuspiria "+239 modelos novos" falsos). Agora e `n/d` e o
+  snapshot **nao** e tocado. **Nao existe rotina de pitch no launchd** (`ls ~/Library/LaunchAgents` +
+  `grep -ril pitch` = 0) — o brief dizia "colado a rotina do pitch"; ficou autonomo.
+- **O achado do kimi refuta-se, medido no JSON completo (396 modelos, nao 88).** Nao sao tres fontes para
+  o mesmo modelo — sao modelos diferentes: `kimi-k3` **$3,00/$15,00** (o `pricing.js` **nao o lista**);
+  `kimi-k2.6` **$0,95/$4,00** hoje, contra **$0,60/$2,50** no codigo (`pricing.js:116`) — o `$0,95/$4,00`
+  do brief e o que o **comentario** ja dizia, nao o valor a correr; `$0,68/$3,41` do comentario aproxima
+  `kimi-k2.7-code` (**$0,66/$3,40**). **`pricing.js` NAO foi tocado** — fora do enunciado desta sessao.
 
-Em vez disso, a correcção um nível acima: **a rotação passou a derivar de medição**
-(`portao.mjs` + `podeEntrar`, o mesmo portão que o #389 pôs nas regras do ancorado na véspera
-*"porque foi assim que o P11 entrou"* — e que aos pilares, de onde o problema veio, nunca foi
-aplicado). Forçar `activo: true` nos onze dá **zero**, cada recusa com o seu número. Cinco
-comentários que diziam "reversível numa linha" passaram a ser falsos e foram corrigidos.
+**T3 · a correccao confirmada por mim antes de escrever (L7).** O grep bate certo: `providerState` **e**
+construido (`router-execute.harness.js:64,135`; `.test.js:794`) e `filterDegraded` (`:181-192`) esta
+correcto. O que falta e o **PRODUTOR**: so `if (MOCK_PROVIDERS==='1')` (`:1067-1075`) o preenche, em
+producao chega `undefined`, a `:662` aplica `|| {}` e nada e excluido. Corrigido no `ADENDO`, seccao A1.
+- ⚠️ **Por corrigir, fora do meu alcance:** `claude/ARQUITETURA_ONBOARDING_E_SAAS_2026-08-28.md` (doc do
+  Project) **nao existe neste checkout** — mantem o diagnostico errado. **Fica para o Cowork.**
 
-**Loop relançado** sob launchd (PID 11825) com o código de `main` — o `ai.mooter.runner` estava
-carregado mas **não era ele que corria** (PID `-`; o processo real fora lançado à mão e segurava o
-lock). A objecção que ontem bloqueou o relançamento (`nextPillar(n,[])` a falhar em silêncio) era
-um **defeito corrigível**: com `ids=[]` o escalonador dizia `all capped / paused / suspended`, falso
-nas três coisas que nomeia e a mandar o dono triar uma fila que não existe. Corrigido. Ao vivo às
-11:18Z o painel pinta `holding · zero pilares na rotacao — nenhum passa o portao de medicao`.
+**Gates, sem disfarce.** T1 ✅ 8 testes novos, **7 falham em `main`** e 8 passam depois (`varredura.test.js`);
+bridge **1102/0**. T2 ✅ ronda escreveu, `launchctl list` mostra o agente. T3 ✅ grep re-corrido por mim.
+cockpit **941/0** (2 todo). classify.js `427d8c0b` intacto.
+- ❌ **router: 4 falhas** (`TUNED block idempotent`, dois `sub-tier` T0, um `render (wide)`). **Ja falham em
+  `main`** — verificado com `git stash` e re-corrida: 1498/4 identico com e sem a minha alteracao. Nao sao
+  minhas, e **nao as escondi baixando o gate**. A referencia "977/0" do brief e de outro glob de ficheiros.
+- ❌ **Bridge deu 1101/1 numa das quatro corridas** e 1102/0 nas outras tres. Flake nao reproduzido e
+  **nao identificado** — o output da corrida vermelha nao foi capturado. Dito porque aconteceu.
+- `MP-LIGAR` e `MP-MOOTER` de 28/08 continuam **untracked**, por decidir. Nao os movi: o brief manda
+  confirmar com o dono.
 
-⚠️ **O ledger NÃO cresce, e é o resultado certo** — declarado, não disfarçado. Sem pilar não há
-ronda. Voltar a crescer exige um pilar que passe o portão (≥10 reais, ≥30 %, triados à mão): onda
-de medição, não booleano. #400/#402 avaliados e **não merjidos** — continuam 🔴 por adversário
-externo, e o codex não está nesta máquina.
-
-Vermelhos: espelho do cockpit **42 ficheiros atrás** e o LaunchAgent aponta **directo ao checkout** ·
-`.mooter/pilares.json` **contorna o portão** novo · a condição do #400 é uma linha no `SYNC.md`, não
-o veto em código.
-
-gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
-detalhe em `_handoff/cc-perfeito-progress.md`
-
-### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
-
-**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
-MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
-Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
-`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
-readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
-que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
-
-**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
-(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
-`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
-`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
-auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
-instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
-
-**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
-(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
-`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
 
 <!-- HUMANO:FIM -->
