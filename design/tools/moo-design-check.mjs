@@ -11,6 +11,7 @@
  *   node design/tools/moo-design-check.mjs --json     # só JSON
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join, relative, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -21,6 +22,51 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DESIGN = resolve(HERE, '..');
 const REPO = process.env.MOO_REPO ? resolve(process.env.MOO_REPO) : resolve(DESIGN, '..');
 const LIMIAR = Number(process.env.MOO_LIMIAR ?? 8);
+
+/* ── O PORTÃO NÃO VARRE O QUE O GIT IGNORA ─────────────────────────────────
+   Descoberto a 2026-08-29 por uma discrepância que não batia certo: o CI dizia
+   «8 folhas» e a minha máquina dizia «10». Os dois números estavam certos — o
+   que estava errado era o portão ler artefactos de build.
+
+   Medido: 6 ficheiros ignorados a serem varridos, e três deles são a SAÍDA DO
+   PRÓPRIO PORTÃO (`.design-check.json`, `.visual-audit.json`,
+   `.reconciliacao.json`). Um portão que se lê a si próprio pode ter resultado
+   dependente da corrida anterior — na primeira execução o ficheiro não existe,
+   na segunda existe. Hoje nenhum deles produz achado, mas isso é sorte de
+   extensões: `.json` está fora das listas que importam. Bastava a `numero-honesto`
+   ganhar `design/` para o portão passar a acusar-se do `$6.29 saved` que está
+   escrito na sua própria lista de excepções.
+
+   Os outros dois eram `design/deck/out/*.html` — deck GERADO, ignorado por
+   `design/deck/.gitignore:14`. Um `transition: all` num deck chumbava aqui e
+   passava no CI, ou o contrário: o portão deixava de ser a mesma régua em duas
+   máquinas, que é a única coisa que um portão tem de ser.
+
+   `git ls-files --others --ignored --exclude-standard --directory` numa só
+   chamada. Fora de um repositório git — que é o caso das bancadas de teste, em
+   pastas temporárias — devolve erro e NÃO se filtra nada, para o comportamento
+   dos testes não mudar. Mas esse fallback vai DECLARADO no rodapé: um portão que
+   silenciosamente deixa de filtrar é o mesmo defeito com outra roupa. */
+const IGNORADOS_GIT = (() => {
+  try {
+    const out = execFileSync('git',
+      ['-C', REPO, 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return new Set(out.split('\n').map(x => x.trim().replace(/\/$/, '')).filter(Boolean));
+  } catch { return null; }
+})();
+/* Um SET, nao um contador: o mesmo caminho e saltado uma vez por cada varredura
+   (linguagem, movimento, texto...), e somar passagens dava 11 onde ha 6 ficheiros.
+   E a terceira vez que este defeito aparece hoje — a frase tem de contar a coisa
+   que nomeia, nao as vezes que o codigo lhe passou ao lado. */
+const saltadosPorGit = new Set();
+const gitIgnora = (rel) => {
+  if (!IGNORADOS_GIT) return false;
+  const p = rel.split(String.fromCharCode(92)).join('/');
+  if (IGNORADOS_GIT.has(p)) return true;
+  for (const d of IGNORADOS_GIT) if (p.startsWith(d + '/')) return true;
+  return false;
+};
 
 // ── configuração: os alvos reais do Mooter ──────────────────────────────
 const SUPERFICIES_UI = [
@@ -108,6 +154,10 @@ function* andar(dir, prof = 0, exts = EXT_TEXTO) {
   for (const e of ents) {
     if (IGNORAR.has(e) || e.startsWith('.') && e !== '.claude-plugin') continue;
     const rel = join(dir, e);
+    /* O git decide o que e fonte e o que e artefacto. Testar aqui, e nao so nos
+       ficheiros, corta a pasta inteira num so `statSync` — e e o que apanha o
+       `design/deck/out/`, que o `--directory` devolve colapsado. */
+    if (gitIgnora(rel)) { saltadosPorGit.add(rel.split(String.fromCharCode(92)).join('/')); continue; }
     let st; try { st = statSync(join(REPO, rel)); } catch { continue; }
     if (st.isDirectory()) yield* andar(rel, prof + 1, exts);
     else if (exts.has(extname(e))) yield rel.split(String.fromCharCode(92)).join('/');
@@ -887,6 +937,10 @@ const rel = {
   indice_coerencia_visual: indice,
   possivel: +possivel.toFixed(1), obtido: +obtido.toFixed(2),
   nao_medido: nd,
+  /* O filtro do git DECLARADO. Um portao que silenciosamente deixa de filtrar
+     volta a ser reguas diferentes em maquinas diferentes, sem aviso. */
+  gitignore_aplicado: IGNORADOS_GIT !== null,
+  artefactos_ignorados: [...saltadosPorGit].sort(),
   /* Uma superfície que não existe era saltada em silêncio por todas as
      verificações (`if (!s) continue`) e o portão pontuava 4 superfícies dizendo
      5. Declarar a ausência é a mesma regra do `n/d`. */
@@ -907,6 +961,9 @@ else {
     console.log(`  ${ico[v.estado] ?? '  '} ${v.nome.padEnd(24)} ${p.padStart(8)}   ${v.porque}`);
   }
   if (nd.length) console.log(`\n  n/d: ${nd.join(', ')} — não medido não conta para o índice, e não é zero.`);
+  console.log(IGNORADOS_GIT === null
+    ? `\n  ⚠ sem git aqui — o portao esta a varrer TAMBEM artefactos gerados (a regua pode diferir de outra maquina)`
+    : `\n  artefactos gerados ignorados: ${saltadosPorGit.size} (via .gitignore)`);
   console.log(`\n  detalhe → design/.design-check.json\n`);
 }
 if (process.argv.includes('--ci') && !rel.passa) process.exit(1);
