@@ -725,3 +725,65 @@ test('MORDIDA · a família de curvas segue o token, não um Set à mão', (t) =
   assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
     'o EAS_OK deixou de derivar do token — voltou a ser um Set paralelo');
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   `landing/public` — o âmbito que faltava, e porque tem de ter mordida própria
+
+   Alargado a 2026-08-29. Até esse dia NENHUMA das listas do portão incluía
+   `landing/public`: nem `SUPERFICIES_TEXTO` (número honesto, superfícies vivas),
+   nem os alvos da linguagem visual, nem os do movimento. E ali vive o
+   `brand-guide.html`, servido em `mooter.ai/brand-guide.html` — **HTTP 200**,
+   tão público quanto este projecto tem.
+
+   O que estava lá, medido no dia em que o âmbito abriu:
+     · um espécime de tipografia a publicar `$6.29 saved`, uma cifra inventada
+       exactamente da classe que a auditoria de 2026-08-23 matou em todo o lado;
+     · uma spec da secção 03 a PRESCREVER à landing uma headline com `84%`,
+       ou seja, a mandar fazer o contrário da decisão de 2026-08-24;
+     · e uma terceira ocorrência que é legítima e ficou declarada — a lista
+       «✗ Hero NÃO contém», onde citar o banner é vedá-lo, não publicá-lo.
+
+   Os dois primeiros foram corrigidos ANTES de o âmbito abrir. Estes testes
+   existem para que a pasta não possa voltar a sair da lista em silêncio, que é
+   como os `.svg` sobreviveram invisíveis até 2026-08-27 e como o
+   `moo-visual-audit.test.mjs` ficou fora do `test:design` até 2026-08-29. Um
+   âmbito sem mordida é uma lista de boas intenções. */
+
+test('MORDIDA · uma cifra poupada em `landing/public` é um claim PÚBLICO', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/public/brand-guide.html',
+    '<!doctype html><p>$6.29 saved</p>\n');
+
+  const num = v(corre(b).rel, 'numero-honesto');
+  assert.equal(num.pontos, 0, 'um claim publicado em landing/public passou — a pasta saiu do âmbito');
+  assert.ok(num.achados.some((a) => a.ficheiro.includes('landing/public')),
+    `o achado devia apontar a landing/public: ${JSON.stringify(num.achados)}`);
+});
+
+test('MORDIDA · um raio fora da escala em `landing/public` é uma violação', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // 13 não está na escala canónica (2/4/6/8/10/14/16/999).
+  escreve(b.repo, 'landing/public/brand-guide.html',
+    '<!doctype html><style>.c { border-radius: 13px; }</style>\n');
+
+  const lng = v(corre(b).rel, 'linguagem');
+  assert.equal(lng.pontos, 0, 'um raio fora da escala em landing/public passou — a pasta saiu do âmbito');
+});
+
+test('mas `landing/public` limpo não inventa achados', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/public/brand-guide.html',
+    '<!doctype html><style>.c { border-radius: 10px; }</style><p>a marca do Mooter</p>\n');
+
+  const r = corre(b).rel;
+  for (const id of ['numero-honesto', 'linguagem']) {
+    const x = v(r, id);
+    assert.notEqual(x.pontos, 0, `${id} acusou uma folha limpa: ${JSON.stringify(x.achados ?? x.porque)}`);
+  }
+});
