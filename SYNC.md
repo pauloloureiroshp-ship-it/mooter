@@ -193,116 +193,6 @@ o inverso, que e mais forte: correr o tuner nao pode mexer no sha `427d8c0b`.
   (`GO CONDICIONADO`) e a linha continuam a viver juntas.
 - `MP-LIGAR`, `MP-MOOTER`, `KICKOFF` e `18-CC-PERFEITO.command` continuam **untracked**, por decidir.
 
-### 2026-08-27 (Win · CC · design) · o portão nasceu cego, e o 3,41 era 1,5 de nada
-
-O pacote `mooter-brand-v2.0.0` aterrou em `design/`. A onda O0 não era copiar ficheiros: era pôr um
-portão a morder — e o portão que veio no pacote **não mordia**.
-
-**`marca-unica` dava 1,5/1,5 — «um só desenho» — com 8 cópias da vaca vivas no repo.** `.svg` não
-estava em `EXT_TEXTO`, o walker nunca devolvia um SVG, e a linha seguinte filtrava por
-`extname(f) !== '.svg'`: descartava 100% do que recebia (2783 ficheiros, 0 svg, `variantes: []`
-**sempre**). E pior — `MOO_REPO` apontado a uma pasta sem superfícies punha as três verificações
-pesadas a `n/d`, tirava-as do denominador, e o índice **subia de 3,41 para 8,75 com `--ci` a sair
-0**. O portão pontuava melhor quanto menos via.
-
-Seis defeitos corrigidos com o número que os justifica: `numero-honesto` marcava `savings_usd`
-(coluna D1 viva) e os comentários que registam a retirada — incluindo o teste
-`expect(src).not.toContain('up to 90% less cost')`, a prova da decisão marcada como violação dela —
-**243 achados, ~2 reais**; o regex de `@keyframes` engolia o próprio ficheiro gerado e fabricava 45
-propriedades que escondiam **3 violações reais**; e `moo-tokens-build.mjs`, o comando publicado no
-README, era um **no-op silencioso** (`file://${process.argv[1]}` nunca coincide com `import.meta.url`).
-
-**Índice: 3,41 → 3,18 → 5,68 → 6,36 → 8,18 → 9,09.** A descida inicial é a correcção (o 3,41
-contava 1,5 pontos de uma verificação cega); o resto é trabalho. O **`--ci` está LIGADO** no limiar
-8 — o limiar nunca se moveu, foi o índice que subiu até ele. **53 testes de mordida.**
-
-**A gramática está nas superfícies.** Cartucho, grelha de 8px, coluna de margem e hairlines em vez
-de caixas, em 10 folhas: home (DES. 001), methodology (002), packs (003), compare (004), commands
-(005), cockpit (006), under-the-hood (007), workflow (008), moo-pilot (010), cockpit.html (011). As
-margens são **contadas do próprio ficheiro**, nunca escritas à mão. Os 2 cockpits deixaram a paleta
-própria — o `moo-pilot-shell` usava `--accent: #2b5ede`, **azul**, contra a rosa da marca.
-
-**Superfície pública sem um único claim de poupança.** Saíram: `One bill is 47% smaller` (corpo
-gigante na home, sobre preços de tabela em seis prompts inventados), `~30% less` ×2,
-`{savings_pct}% saved vs all-Opus` nos packs, três cifras fabricadas na API `analyse`, e o cartão
-`Est. savings ~$8–15/day` do dashboard.
-
-⚠️ **Recusei um 10,00.** Separar «publicar» de «mostrar a quem entrou» é defensável — mas o índice saltou para a nota cheia no mesmo minuto em que mudei a régua, e a decisão de 27/08 nomeia isso. A verificação vale **metade** enquanto houver 15 estimativas na shell autenticada; contadas e impressas, não escondidas.
-
-gate: design **53/53** · landing **219/219** · cockpit-runner 943/941/**0** · cockpit-invariants 215/4 (baseline) · auditor visual: contraste **178 → 30** · PR #416, CI verde
-
-
----
-
-### 2026-08-28 · v1.51.0 EM PRODUÇÃO — a onda que começou em design e acabou na tese
-
-**29 commits, 100 ficheiros, +11.607/−1.494. PR #416 fundida, tag `v1.51.0`, mooter.ai a servir.**
-
-**Retirado por não ser verdade — e verificado ao vivo no site depois do deploy:**
-`/privacy` afirmava «Differential privacy noise (ε=1.0)» **com visto verde**, e não há
-implementação nenhuma no repo (o único resultado é `quality.ts:32` — «lands in Wave 31»). O
-`k-anonymity ≥50` **ficou**, porque é real (`hub/routes/federated.js:22`, com testes que plantam
-49 e 60) e agora diz onde. `/packs/[id]` renderizava **«Savings vs Opus 89%»** — um dos cinco
-números mortos — a um clique da página que publicava a ressalva. O seed público trazia **805
-instalações** contra os **2 developers** que `/api/community/pulse` devolve ao vivo. `/workflow`
-gritava um **160×** que dividia um medido por um estimado.
-
-**A latência, que ninguém tinha medido apesar de o medidor existir no repo:**
-`classify()` **0,001 ms** p50 (5.000 chamadas) · o hook em prompts reais **121,6 ms** p50
-(660 amostras do `decisions.log`). O `14ms` publicado em três ficheiros não era nenhum dos dois.
-
-**O site não abria em telemóvel.** `moo-ui.css` tinha **uma** media query
-(`prefers-reduced-motion`) e **zero** breakpoints de largura. `/compare` media **901px** num ecrã
-de 375. Agora **375px em todas as rotas**, com navegação (`<details>` nativo, sem client state).
-
-**No Windows não havia caminho nenhum.** O one-liner `irm|iex` imprimia «private friends-beta» e
-saía **0**; `install-windows.ps1` era **404**; `mooter` dava `ENOENT` porque `where claude` devolve
-duas linhas. Smoke real: `claude.cmd → cmd /d /c → 2.1.224`, exit 0.
-
-**A escada de fallback tinha a lógica certa e memória nenhuma.** `resolveFallbackChain()` sempre
-existiu; `execute()` fazia `deps.providerState || {}` e **nada jamais preencheu esse campo**.
-`provider-health.js` dá-lhe memória **com decaimento** (sem isso vira lápide) e default
-**«disponível», não «morto»** (o custo dos dois erros não é simétrico). O `<router-hint>` passa a
-dizer quem está em baixo e até quando.
-
-**E o achado que muda a tese: os tokens sempre estiveram no disco.**
-O projecto publicou meses a fio «no tokens are logged» — verdade sobre a telemetria do Mooter,
-**falsa sobre a máquina**. `~/.claude/projects/**/*.jsonl` tem `message.usage` completo. 282
-transcripts; só nos 40 mais recentes, **7,57 mil milhões de tokens de cache lido**, que o modelo
-de poupança ignorava por inteiro.
-
-⚠️ **A chave de atribuição não é `session_id`.** Medido antes de escrever código: 387 prompts ↔
-9.692 chamadas = **25 por prompt** — o defeito exacto que matou o `0%` («o denominador eram
-chamadas Bash, não prompts»). Um adversário noutro fornecedor (codex) apanhou-o. A chave é a cadeia
-**`parentUuid`** até ao turno humano: **318 turnos ← 9.420 chamadas, 0 órfãs**.
-`mooter recibo` imprime-o, e a etiqueta é `EQUIVALENTE A PREÇO DE TABELA`, **nunca** `custo` — os
-tokens correm dentro de uma subscrição de valor fixo, e chamar-lhe despesa seria a poupança
-fabricada virada ao contrário. Há um teste que falha se a palavra voltar.
-
-**Dois bugs que esta onda criou e fechou, ambos registados:** `provider-health.js` gravou as falhas
-SIMULADAS dos testes no `~/.mooter` **real** (3.ª ocorrência desta armadilha no repo) — guarda posta
-com mordida; e acrescentei um sítio ao piso de Node sem o pôr no `paths:` do CI, o que o
-`piso-de-node.test.mjs` apanhou por mim.
-
-**E um que desbloqueou o repositório inteiro:** `F5/2` em `autopilot.test.mjs` **dependia da hora
-do dia** — o fixture usava base 30, e a queda só dispara depois das **08:00** na hora do dono.
-Estava vermelho no `main` e a protecção do ramo recusava **todos** os merges. Provado com o relógio
-fixado à meia-noite; fixture determinístico, detector intacto.
-
-gate: **12 workflows verdes, zero falhas** · classify.js sha `427d8c0b` intacto · design **53/53**,
-índice **9,09** · landing **219/219** · CLI **30/30** · router **1217** · cockpit **943, 0 fail** ·
-piso de Node **14 sítios** (era 13) · instaladores byte-a-byte · `packages/` com 3 linhas
-registadas na allowlist do `CLAUDE.md` no mesmo PR
-
-**Aberto:** as 15 estimativas de poupança na shell autenticada (decisão de produto do dono, e a
-verificação 3 do portão dá metade enquanto lá estiverem) · o cruzamento recomendação↔custo casa
-**22 de 710** turnos, porque o `decisions.log` só tem sessão em 1.350 das 1.916 linhas e a maioria
-dos transcripts é anterior · `/methodology` ainda grita **91%** numa calculadora hipotética ·
-o site ainda tem duas gramáticas visuais (8 folhas novas, 8 antigas, 1 scaffold)
-
-
----
-
 ### 2026-08-28 (tarde) · A GRAMÁTICA NAS 17 FOLHAS — e o que apareceu ao medir
 
 **PR #419 e #420 fundidas, em produção. O site deixou de estar partido ao meio.**
@@ -601,5 +491,75 @@ raios e da família de curvas (`RAIOS_OK` inclui o 12, que a escala canónica
 recusa) — é a quarta fonte de verdade, e ficou para trás porque os seus testes
 nunca corriam. Derivá-la dos tokens torna o auditor mais estrito e precisa da
 lista de sítios medida primeiro, numa máquina com playwright.
+
+
+### 2026-08-29 (tarde) · O RESIDENTE LOCAL NÃO CHAMA FERRAMENTAS — medido, 0 em 20
+
+O dia começou com um estudo de LLMs locais e acabou a desmentir três coisas que
+este projecto tinha escritas. Todas caíram pela mesma razão: **ninguém tinha
+medido**.
+
+**Primeiro caiu a máquina.** O radar de 28/08 dizia «Mac mini 16GB, tecto Metal
+~11-12 GB», e daí concluía por aritmética que o `gpt-oss:20b` (13 GB) **NÃO
+CABE**. São **24 GB (M4 Pro)**. O modelo corre a 100% GPU com 12 GB carregados, a
+39,16 tok/s. A aritmética estava certa; o input é que nunca tinha sido medido. E
+o meu próprio estudo da manhã repetiu o erro, porque leu a RAM no vault em vez de
+a perguntar à máquina.
+
+**Depois caiu a recomendação.** Com os tok/s na mão eu propus trocar o residente
+`qwen2.5-coder:14b` (22,22 tok/s, 15 GB — «o pior em todos os eixos») pelos
+Granite 4.2. O MooterBench, N=100 emparelhado no P2, disse o contrário:
+
+```
+B1 citação-ok    qwen2.5-coder:14b  99%   granite4.2:8b  1%   granite4.2:3b  1%
+```
+
+Os Granite bateram no tecto de 700 tokens em 20/20 rondas. O qwen tem mediana de
+54. Não é qualidade — é o contrato de saída. **A régua que eu usei (velocidade
+bruta) era a errada.**
+
+**E depois caiu o catálogo.** B3 e B6 não existiam — o `runRound` nunca
+exercitou ferramentas nem saída estruturada, por isso o portão de promoção do
+mapa §3 **nunca podia fechar, com modelo nenhum**. A lacuna era do instrumento.
+Construídos (`tools/cockpit/runner/bench-b3b6.mjs`, 12 testes sem rede), a
+primeira medição inverteu a leitura:
+
+```
+B3 tool-calling  qwen2.5-coder:14b  20%   granite4.2:8b 100%   granite4.2:3b 100%
+```
+
+Os 20% do qwen são inteiramente da tarefa de IRRELEVÂNCIA — que ele acerta por
+nunca chamar. Detalhe das 20 tarefas que exigiam uma chamada: **`20x "não chamou
+ferramenta nenhuma"`**. E o catálogo declarava, por escrito,
+`capabilities: ['completion','tools']`.
+
+**Não é «qual dos dois». São dois motores para dois trabalhos:** citação → qwen
+(99%); qualquer coisa com ferramentas → `granite4.2:3b` (100%, 2,2 GB, e ainda
+mais rápido: p50 15s contra 19s).
+
+**O órfão `require_parameters` do radar §2 (#4) deixou de ser texto.**
+`tools/router/capacidades-modelo.js` (13 testes) com três estados e duas regras:
+*medido vence declarado* e *ausência não é negação* — um modelo sem recibo dá
+`n/d`, nunca `false`. E o veredicto exige DUAS condições, porque a nota sozinha
+premeia quem nunca chama. O `hardware-matcher` passa a publicar
+`declaracoes_desmentidas`, que hoje traz exactamente uma linha.
+
+**Também nesta tarde:** o `gpu-probe` devolvia `vramMB: null` em Apple e
+compensava com um tecto de **9216 MB cravado para toda a frota Apple** — errado
+por quase o dobro, e sem um único teste que o pudesse contradizer (agora tem 6).
+O `test:cockpit-runner` era uma lista à mão e já tinha perdido um ficheiro; passa
+a varrer as duas pastas (0 perdidos, 1 ganho, 43 → 44). E a varredura fez cair um
+teste que exigia o próprio nome no `package.json` — a intenção mantém-se, a
+verificação passa a aceitar lista OU varredura.
+
+PRs **#436** e **#441** fundidos. Testes: router 0 fail · cockpit **948/0** ·
+`classify.js` FROZEN intacto (`427d8c0b`).
+
+**Aberto:** o `gpu-probe` ainda crava `req <= 9216` para o resto da frota Apple —
+corrigi-lo mexe em todos os devices e é decisão do dono · Ollama 0.32.5 → 0.33.1
+travado porque o `moo-runner` está vivo e pará-lo é um `/stop` · **um pilar de
+onze (P2) e um device de quatro** — generalizar daqui é o erro que este dia
+inteiro documenta · a doutrina «NUNCA agentic <30B» (16/07) não sobreviveu ao
+contacto: o 14B não chama ferramentas e o 3B chama 100%.
 
 <!-- HUMANO:FIM -->

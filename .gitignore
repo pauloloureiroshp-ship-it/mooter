@@ -241,6 +241,15 @@ tools/ancora/package-lock.json
 # O conector escreve um boot log no _handoff a cada arranque. Nao versionar,
 # e manter fora do topo (conta para o ratchet de higiene).
 _handoff/*.log
+# Saidas GERADAS do MooterBench e da experiencia de acoplamento. Sao artefactos,
+# nao pacotes de handoff — a propria docs-hygiene avisa que "logs/scripts/generated
+# artifacts" nao devem viver ao lado dos pacotes activos. O recibo que interessa vai
+# para o vault (50-fleet/), que e onde e lido.
+_handoff/mooterbench-*.md
+_handoff/mooterbench-*.json
+_handoff/mooterbench-*.jsonl
+_handoff/acoplamento-*.md
+_handoff/acoplamento-*.jsonl
 _handoff/logs/
 
 # Scripts .command soltos na raiz: sao atalhos locais do dono, nunca artefactos
