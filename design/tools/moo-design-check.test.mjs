@@ -725,3 +725,132 @@ test('MORDIDA · a família de curvas segue o token, não um Set à mão', (t) =
   assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
     'o EAS_OK deixou de derivar do token — voltou a ser um Set paralelo');
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   `landing/public` — o âmbito que faltava, e porque tem de ter mordida própria
+
+   Alargado a 2026-08-29. Até esse dia NENHUMA das listas do portão incluía
+   `landing/public`: nem `SUPERFICIES_TEXTO` (número honesto, superfícies vivas),
+   nem os alvos da linguagem visual, nem os do movimento. E ali vive o
+   `brand-guide.html`, servido em `mooter.ai/brand-guide.html` — **HTTP 200**,
+   tão público quanto este projecto tem.
+
+   O que estava lá, medido no dia em que o âmbito abriu:
+     · um espécime de tipografia a publicar `$6.29 saved`, uma cifra inventada
+       exactamente da classe que a auditoria de 2026-08-23 matou em todo o lado;
+     · uma spec da secção 03 a PRESCREVER à landing uma headline com `84%`,
+       ou seja, a mandar fazer o contrário da decisão de 2026-08-24;
+     · e uma terceira ocorrência que é legítima e ficou declarada — a lista
+       «✗ Hero NÃO contém», onde citar o banner é vedá-lo, não publicá-lo.
+
+   Os dois primeiros foram corrigidos ANTES de o âmbito abrir. Estes testes
+   existem para que a pasta não possa voltar a sair da lista em silêncio, que é
+   como os `.svg` sobreviveram invisíveis até 2026-08-27 e como o
+   `moo-visual-audit.test.mjs` ficou fora do `test:design` até 2026-08-29. Um
+   âmbito sem mordida é uma lista de boas intenções. */
+
+test('MORDIDA · uma cifra poupada em `landing/public` é um claim PÚBLICO', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/public/brand-guide.html',
+    '<!doctype html><p>$6.29 saved</p>\n');
+
+  const num = v(corre(b).rel, 'numero-honesto');
+  assert.equal(num.pontos, 0, 'um claim publicado em landing/public passou — a pasta saiu do âmbito');
+  assert.ok(num.achados.some((a) => a.ficheiro.includes('landing/public')),
+    `o achado devia apontar a landing/public: ${JSON.stringify(num.achados)}`);
+});
+
+test('MORDIDA · um raio fora da escala em `landing/public` é uma violação', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // 13 não está na escala canónica (2/4/6/8/10/14/16/999).
+  escreve(b.repo, 'landing/public/brand-guide.html',
+    '<!doctype html><style>.c { border-radius: 13px; }</style>\n');
+
+  const lng = v(corre(b).rel, 'linguagem');
+  assert.equal(lng.pontos, 0, 'um raio fora da escala em landing/public passou — a pasta saiu do âmbito');
+});
+
+test('mas `landing/public` limpo não inventa achados', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/public/brand-guide.html',
+    '<!doctype html><style>.c { border-radius: 10px; }</style><p>a marca do Mooter</p>\n');
+
+  const r = corre(b).rel;
+  for (const id of ['numero-honesto', 'linguagem']) {
+    const x = v(r, id);
+    assert.notEqual(x.pontos, 0, `${id} acusou uma folha limpa: ${JSON.stringify(x.achados ?? x.porque)}`);
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   `transition: all` — a porta que o «movimento seguro» não vigiava
+
+   Esta verificação chama-se «movimento seguro» e até 2026-08-29 inspeccionava
+   só `@keyframes`. Metade do movimento de uma interface não está lá: está em
+   `transition`. E `all` não é uma lista de propriedades — é «o que quer que
+   venha a mudar», incluindo `width`, `padding` e `margin`, que é exactamente a
+   classe que esta verificação existe para impedir. Entra sem ninguém a
+   escrever, no dia em que alguém acrescenta uma propriedade de layout a um
+   `:hover`.
+
+   12 ocorrências foram corrigidas antes de a regra existir. Estes testes
+   existem para que ela não possa ser desfeita nem alargada por engano. */
+
+test('MORDIDA · `transition: all` é apanhado — anima também layout', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/x.css', '.a { transition: all 140ms ease; }\n');
+
+  const m = v(corre(b).rel, 'movimento-seguro');
+  assert.equal(m.pontos, 0, '`transition: all` passou');
+  assert.ok(m.transicao_all.some((x) => x.ficheiro.includes('x.css')),
+    `o achado devia apontar o ficheiro: ${JSON.stringify(m.transicao_all)}`);
+});
+
+test('a lista EXPLÍCITA passa — a correcção não pode continuar a acusar', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // Exactamente a forma que as 12 correcções tomaram.
+  escreve(b.repo, 'landing/app/x.css',
+    '.a { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease; }\n');
+
+  assert.notEqual(v(corre(b).rel, 'movimento-seguro').pontos, 0,
+    'a lista explícita foi acusada — a regra está a apanhar a própria correcção');
+});
+
+test('uma transição COMENTADA não é movimento', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // O registo do que saiu costuma NOMEAR o que saiu. Contar comentários como
+  // código deu 243 achados com ~2 reais a 2026-08-27.
+  escreve(b.repo, 'landing/app/x.css',
+    '/* era `transition: all 140ms` — trocado pela lista explícita */\n.a { color: #fff; }\n');
+
+  assert.notEqual(v(corre(b).rel, 'movimento-seguro').pontos, 0,
+    'um comentário foi contado como movimento');
+});
+
+test('animar uma propriedade de layout NOMEADAMENTE é declarado, não banido', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // Uma barra de progresso. 8 das 10 do repo são isto, e convertê-las a
+  // `transform: scaleX()` não é troca mecânica (distorce filhos) e duas vivem
+  // em pacote CONGELADO. Apertar a régua sem a lista de sítios feita é o que
+  // este repo proíbe — por isso conta-se e mostra-se, em vez de se banir.
+  escreve(b.repo, 'landing/app/x.css', '.barra > i { transition: width .5s ease; }\n');
+
+  const m = v(corre(b).rel, 'movimento-seguro');
+  assert.notEqual(m.pontos, 0, 'uma transição de largura foi banida sem a lista de sítios feita');
+  assert.ok(m.transicao_layout_declarada.some((x) => x.includes('x.css')),
+    `tinha de ficar DECLARADA e visível: ${JSON.stringify(m.transicao_layout_declarada)}`);
+});

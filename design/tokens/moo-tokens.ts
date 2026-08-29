@@ -278,6 +278,11 @@ export const MOO = {
         "ficheiro": "README.md",
         "contem": "This README used to carry five different savings figures",
         "porque": "É a secção 'Honest numbers': o registo dos cinco números que a auditoria de 2026-08-23 não conseguiu sustentar. Sem esta frase, a tabela diz 'not measured' sem que ninguém saiba o que mudou."
+      },
+      {
+        "ficheiro": "landing/public/brand-guide.html",
+        "contem": "savings\" banner",
+        "porque": "Esta linha esta dentro da lista \"✗ Hero NAO contem\": e a PROIBICAO do banner, nao o banner. Citar o claim para o vedar e o oposto de o publicar — a mesma razao ja escrita para a pagina de metodologia. As outras duas ocorrencias deste ficheiro NAO foram excepcionadas e sim corrigidas: o especime de tipografia publicava um \"$6.29 saved\" inventado (passou a mostrar os numerais), e a spec da seccao 03 PRESCREVIA uma headline com cifra para a landing, o que e o contrario de citar uma retirada."
       }
     ],
     "claims_padroes": [

@@ -62,7 +62,7 @@ jobs:
   portao:
     name: o portão do design
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -70,9 +70,38 @@ jobs:
         with:
           node-version: '22'
 
-      # Zero dependências por desenho: `node --test` e `node` sobre ficheiros do
-      # repo. Se um dia precisar de `npm ci`, isso é uma mudança de desenho e
-      # deve doer aqui primeiro.
+      # ── A DEPENDÊNCIA QUE ESTE JOB NÃO TINHA, E PORQUE PASSOU A TER ─────────
+      #
+      # Aqui dizia: «Zero dependências por desenho: `node --test` e `node` sobre
+      # ficheiros do repo. Se um dia precisar de `npm ci`, isso é uma mudança de
+      # desenho e deve doer aqui primeiro.»
+      #
+      # Doeu, e a resposta é esta. O `moo-visual-audit` é a ÚNICA peça do design
+      # que precisa de um browser, e por isso a sua dependência vive isolada em
+      # `design/tools/package.json` e em mais lado nenhum — o viés zero-dep do
+      # repo mantém-se para todo o resto, e este job continua a correr o portão
+      # estático sem instalar nada até chegar aqui.
+      #
+      # O que forçou a mudança: sem playwright, os 7 testes com browser
+      # aparecem como salto — e um salto imprime-se a verde. Medido a
+      # 2026-08-29 nesta máquina: escondido o pacote, `npm run test:design`
+      # sai **0** com 7 mordidas por correr. A 2026-08-29
+      # descobriu-se que `test:design` era uma lista escrita à mão sem o
+      # `moo-visual-audit.test.mjs`: corriam 61 dos 72 testes. Corrigiu-se a
+      # lista, e o resultado foi trocar «não corre» por «corre e salta» — que é
+      # a mesma cegueira com melhor aspecto. As mordidas que provam que a escala
+      # de raios DERIVA do token são exactamente as que saltavam.
+      - name: Cache do browser do auditor visual
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('design/tools/package-lock.json') }}
+
+      - name: O browser do auditor visual
+        working-directory: design/tools
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
 
       # 1 · O teste de mordida ANTES do portão.
       #
@@ -84,7 +113,33 @@ jobs:
       # indistinguível de um portão que não funciona, por isso o CI prova
       # primeiro que ele MORDE, e só depois acredita no número que ele dá.
       - name: O portão morde? (testes que plantam o defeito)
-        run: npm run test:design
+        run: |
+          set -o pipefail
+          npm run test:design 2>&1 | tee /tmp/design-tests.log
+
+      # 1b · UM SALTO NÃO É UM VERDE.
+      #
+      # Sem esta verificação, apagar a instalação do browser acima devolvia o CI
+      # ao estado anterior — verde, com as mordidas do auditor a não correrem — e
+      # ninguém dava por isso, porque o passo acima sai 0 na mesma. É a lição de
+      # `feedback_guarda_sem_teste_de_mordida` aplicada à própria guarda: o que
+      # não corre tem de ser VISÍVEL, e aqui tem de ser FATAL.
+      #
+      # Se algum dia um salto for legítimo, o sítio de o declarar é aqui, com o
+      # nome do teste e a razão — não um número que sobe em silêncio.
+      - name: Nenhuma mordida foi saltada
+        run: |
+          saltados=$(grep -oE '^(#|ℹ) skipped [0-9]+' /tmp/design-tests.log | grep -oE '[0-9]+$' | tail -1)
+          echo "saltados: ${saltados:-<não encontrado>}"
+          if [ -z "$saltados" ]; then
+            echo "::error::não consegui ler a contagem de saltos do relatório — a verificação não pode ser silenciosa"
+            exit 1
+          fi
+          if [ "$saltados" != "0" ]; then
+            echo "::error::$saltados teste(s) saltaram. Um SKIP imprime-se a verde e não mede nada — normalmente é o playwright em falta (design/tools). Corrige a instalação ou declara o salto aqui, com nome e razão."
+            grep -iE 'skip|↓|﹣' /tmp/design-tests.log || true
+            exit 1
+          fi
 
       # 2 · Gerar, nunca copiar — provado, não afirmado.
       #
