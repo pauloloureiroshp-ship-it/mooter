@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { spawnSync } = require('child_process');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const INTEL_PATH = path.join(__dirname, 'model-intelligence.json');
@@ -57,7 +58,21 @@ function run() {
   }
 
   // What's installed on Ollama?
-  const installed = (hw && hw.available_ollama_models || []).map(m => m.name || m);
+  // `hw.available_ollama_models` NUNCA e escrito por ninguem — o gpu-probe grava
+  // `t0_models_available` (tabela estatica de VRAM), nao a lista do disco. Enquanto
+  // isto foi a unica fonte, `installed` era falso para tudo. Passa a perguntar ao
+  // Ollama, como o check-local-models.js e o catalogo-local.js ja faziam; a lista
+  // do hw-capability fica como fallback. Medido 2026-08-29.
+  function ollamaInstalled() {
+    try {
+      const r = spawnSync('ollama', ['list'], { encoding: 'utf8', timeout: 5000 });
+      if (r.status !== 0 || !r.stdout) return null;
+      return r.stdout.split('\n').slice(1)
+        .map(l => l.trim().split(/\s+/)[0]).filter(Boolean);
+    } catch { return null; }
+  }
+  const installed = ollamaInstalled()
+    || (hw && hw.available_ollama_models || []).map(m => m.name || m);
 
   // What does the tier recommend?
   const recommended = tierConfig.recommended_models;
@@ -72,11 +87,16 @@ function run() {
   for (const [subtier, modelName] of Object.entries(recommended)) {
     const modelDef = intel.models.local[modelName];
     if (modelDef) {
-      const avgQuality = Object.values(modelDef.quality).reduce((a, b) => a + b, 0) / Object.values(modelDef.quality).length;
+      // `quality` pode ser null: um modelo entra no catalogo antes de ter notas
+      // medidas. Sem esta guarda o unico jeito de o registar era inventar as notas
+      // — e "numero nao medido = n/d, nunca inventado" e regra do projecto.
+      const q = modelDef.quality && typeof modelDef.quality === 'object'
+        ? Object.values(modelDef.quality) : [];
+      const avgQuality = q.length ? q.reduce((a, b) => a + b, 0) / q.length : null;
       subtierAssessment[subtier] = {
         model: modelName,
         installed: installed.includes(modelName),
-        avg_quality: Math.round(avgQuality * 10) / 10,
+        avg_quality: avgQuality === null ? null : Math.round(avgQuality * 10) / 10,
         vram_mb: modelDef.vram_required_mb,
         strengths: modelDef.strengths,
       };
@@ -124,7 +144,8 @@ function run() {
     for (const [subtier, detail] of Object.entries(subtierAssessment)) {
       const status = detail.installed ? '✅' : '❌';
       const vramGb = (detail.vram_mb / 1024).toFixed(1);
-      lines.push(`  ${status} ${subtier.padEnd(8)} → ${detail.model.padEnd(28)} (${vramGb}GB, quality: ${detail.avg_quality}/10)`);
+      const qLabel = detail.avg_quality === null ? 'quality: n/d' : `quality: ${detail.avg_quality}/10`;
+      lines.push(`  ${status} ${subtier.padEnd(8)} → ${detail.model.padEnd(28)} (${vramGb}GB, ${qLabel})`);
     }
 
     lines.push('');

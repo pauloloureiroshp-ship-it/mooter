@@ -425,6 +425,121 @@
     },
 
     "local": {
+      "_medicao_2026-08-29": "Primeiras medicoes locais do Mac mini (M4 Pro, 24 GB): ctx 65536, 100% GPU, prompt fixo, `ollama run --verbose`. Recibo _handoff/motor-mac-20260829-1155.log e vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md. Uma medicao NAO e MooterBench: nada aqui esta promovido a residente.",
+      "granite4.2:3b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "general",
+        "emoji": "\ud83e\uddca",
+        "architecture": "granite-hybrid-mamba2",
+        "parameters": "3B",
+        "quantization": "Q4_K_M",
+        "size_gb": 2.2,
+        "context_window": 131072,
+        "capabilities": ["completion", "tools", "thinking"],
+        "latency": {
+          "measured_eval_tokens_per_s": 60.48,
+          "measured_load_s": 2.37,
+          "measured_loaded_gb": 8.1,
+          "measured_context": 65536,
+          "measured_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+          "measured_at": "2026-08-29",
+          "p50_total_ms": null,
+          "p95_total_ms": null
+        },
+        "quality": null,
+        "quality_note": "n/d — sem MooterBench (B1-B6). Numero nao medido nao se inventa.",
+        "strengths": ["o mais rapido medido neste device", "tool-calling formato OpenAI", "Apache 2.0", "reasoning_effort low/high"],
+        "weaknesses": ["3B — teto de qualidade baixo", "IBM nao publica BFCL"],
+        "when_to_use": "Triagem e classificacao local: o mais barato por token neste device",
+        "recommended_for_hw_tier": ["gpu-high", "gpu-mid"]
+      },
+      "granite4.2:8b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "code",
+        "emoji": "\ud83e\uddf1",
+        "architecture": "granite-hybrid-mamba2",
+        "parameters": "8B",
+        "quantization": "Q4_K_M",
+        "size_gb": 5.3,
+        "context_window": 131072,
+        "capabilities": ["completion", "tools", "thinking"],
+        "latency": {
+          "measured_eval_tokens_per_s": 32.66,
+          "measured_load_s": 2.38,
+          "measured_loaded_gb": 16.0,
+          "measured_context": 65536,
+          "measured_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+          "measured_at": "2026-08-29",
+          "p50_total_ms": null,
+          "p95_total_ms": null
+        },
+        "quality": null,
+        "quality_note": "n/d — sem MooterBench (B1-B6).",
+        "strengths": ["RULER 128K 71.41 (fabricante)", "tool-calling nativo", "Apache 2.0", "load 2.4s"],
+        "weaknesses": ["16 GB carregados a 65536 ctx — o mais pesado medido aqui", "nao co-residente com outro grande neste device"],
+        "when_to_use": "Leitura longa e codigo local quando for o unico grande carregado",
+        "recommended_for_hw_tier": ["gpu-high"]
+      },
+      "gemma4:12b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "reason",
+        "emoji": "\ud83d\udca0",
+        "architecture": "gemma4",
+        "parameters": "12B",
+        "quantization": "Q4_K_M",
+        "size_gb": 7.6,
+        "context_window": 262144,
+        "capabilities": ["completion", "vision", "tools", "thinking"],
+        "latency": {
+          "measured_eval_tokens_per_s": 22.93,
+          "measured_load_s": 5.92,
+          "measured_loaded_gb": 8.1,
+          "measured_context": 65536,
+          "measured_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+          "measured_at": "2026-08-29",
+          "p50_total_ms": null,
+          "p95_total_ms": null
+        },
+        "quality": null,
+        "quality_note": "n/d — sem MooterBench (B1-B6).",
+        "strengths": ["256K de contexto", "sliding window corta o KV ~6x", "multimodal", "Apache 2.0"],
+        "weaknesses": ["22.93 tok/s — dos mais lentos medidos aqui"],
+        "when_to_use": "Contexto muito longo e multimodal",
+        "recommended_for_hw_tier": ["gpu-high", "gpu-mid"],
+        "note": "Estava em disco desde Abril e NAO tinha entrada no catalogo: o router nunca o escolhia."
+      },
+      "gpt-oss:20b": {
+        "provider": "ollama",
+        "tier": "T0",
+        "subtier": "reason",
+        "emoji": "\u26a1",
+        "architecture": "gpt-oss-moe",
+        "parameters": "21B total / 3.6B activos",
+        "quantization": "MXFP4",
+        "size_gb": 13.0,
+        "context_window": 131072,
+        "capabilities": ["completion", "tools", "thinking"],
+        "latency": {
+          "measured_eval_tokens_per_s": 39.16,
+          "measured_load_s": 16.94,
+          "measured_loaded_gb": 12.0,
+          "measured_context": 65536,
+          "measured_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+          "measured_at": "2026-08-29",
+          "p50_total_ms": null,
+          "p95_total_ms": null
+        },
+        "quality": null,
+        "quality_note": "n/d — sem MooterBench (B1-B6).",
+        "strengths": ["MoE 3.6B activos: 39.16 tok/s, 2o mais rapido medido", "12 GB carregados, 100% GPU", "Apache 2.0"],
+        "weaknesses": ["load a frio 16.94s — o pior medido", "OpenAI nao lanca open-weights desde Out/2025"],
+        "when_to_use": "Volume local: leitura e raciocinio quando ja esta quente",
+        "recommended_for_hw_tier": ["gpu-high"],
+        "note": "MEDIDO a correr 100% GPU neste device — refuta a linha 'NAO CABE' do radar de 2026-08-28, que assumia 16 GB de RAM (sao 24)."
+      },
       "gemma4:e4b": {
         "provider": "ollama",
         "tier": "T0",
@@ -645,14 +760,17 @@
       "description": "M1/M2/M3/M4 with unified memory (8-128GB shared RAM+VRAM)",
       "vram_min_mb": 8192,
       "recommended_models": {
-        "general": "gemma4:e4b",
-        "reason": "qwen3:30b",
-        "code": "qwen2.5-coder:14b",
-        "math": "deepseek-r1:7b",
-        "terse": "qwen2.5:3b"
+        "general": "granite4.2:3b",
+        "reason": "gpt-oss:20b",
+        "code": "granite4.2:8b",
+        "math": "gpt-oss:20b",
+        "terse": "granite4.2:3b"
       },
-      "can_run_simultaneously": ["gemma4:e4b", "qwen2.5:3b"],
-      "optimal_config_note": "Unified memory makes large models viable. M3 Pro+ can run qwen3:30b comfortably. Metal acceleration is excellent."
+      "can_run_simultaneously": [
+        "granite4.2:3b",
+        "gemma4:12b"
+      ],
+      "optimal_config_note": "MEDIDO no Mac mini M4 Pro 24GB em 2026-08-29 (ctx 65536, 100% GPU): granite4.2:3b 60.48 tok/s / 8.1GB · gpt-oss:20b 39.16 tok/s / 12GB · granite4.2:8b 32.66 tok/s / 16GB · gemma4:12b 22.93 tok/s / 8.1GB · qwen2.5-coder:14b 22.22 tok/s / 15GB (o mais lento E o mais pesado — retirado da recomendacao). A 65536 de contexto so UM modelo grande cabe de cada vez: granite4.2:8b sozinho ja carrega 16GB. Par co-residente medido como viavel: granite4.2:3b + gemma4:12b = 16.2GB. Nada aqui esta promovido a residente — falta MooterBench B1-B6."
     }
   },
 
