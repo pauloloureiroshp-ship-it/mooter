@@ -2,7 +2,7 @@
   "_": [
     "Lista de superfícies para o moo-visual-audit.mjs. Não é uma prancha de canvas — é o que",
     "existe MESMO neste repo e que abre por file:// sem servidor. Derivada do que o auditor",
-    "espera: { file, page, w, h } por artboard, file relativo a `base`.",
+    "espera: { file, page, w, h, temas } por artboard, file relativo a `base`.",
     "",
     "Critério de inclusão (não é gosto): HTML autónomo, consumidor dos tokens do design system.",
     "As páginas do landing/ são Next.js — precisam de build + servidor, portanto ficam FORA e",
@@ -10,14 +10,42 @@
     "",
     "w/h é a lente da medição, não uma dimensão de design: 1440x900 é o desktop de referência.",
     "`scroll: true` diz que a superfície rola por natureza — nessas, `corte` não é defeito, e o",
-    "auditor mostra '—' em vez de ❌ (o número medido continua no .visual-audit.json)."
+    "auditor mostra '—' em vez de ❌ (o número medido continua no .visual-audit.json).",
+    "",
+    "`temas` ENTROU a 2026-08-29, e a razão é um buraco medido: o auditor renderizava cada folha",
+    "UMA vez, sem forçar tema, e o default do playwright é claro. Ao medir o tema escuro do",
+    "cockpit à mão apareceram TRÊS defeitos que ninguém tinha visto — o `--faint` a 3,51:1 em 73",
+    "usos de texto, o rótulo do BOTÃO PRIMÁRIO a 3,12:1 e a mensagem de arranque a 3,07:1. Metade",
+    "da superfície do produto não estava a ser auditada, e o relatório não dizia que não estava.",
+    "",
+    "Vocabulário fechado: `claro` | `escuro` | `n/d`. O `n/d` não se mistura com os outros e exige",
+    "`temaND` com a razão escrita — uma exclusão silenciosa é indistinguível de um valor que passou.",
+    "Omitir `temas` vale `[\"n/d\"]` sem razão: mede-se uma vez, como antes, e o relatório di-lo.",
+    "",
+    "E a declaração é VERIFICADA, não acreditada: duas renderizações do mesmo ficheiro têm de dar",
+    "impressões diferentes (senão o relatório dizia dois temas tendo medido um), e `tema único` é",
+    "sondado no modo oposto para provar que não muda. Falhar qualquer das duas é exit 3."
   ],
   "base": "..",
   "artboards": [
-    { "name": "brand-guide",  "page": "landing/public", "file": "landing/public/brand-guide.html",              "w": 1440, "h": 900, "scroll": true },
-    { "name": "pilot-shell",  "page": "tools/cockpit",  "file": "tools/cockpit/moo-pilot-shell.html",           "w": 1440, "h": 900, "scroll": true },
-    { "name": "cockpit",      "page": "plugin/cockpit", "file": "plugin/mooter/skills/cockpit/cockpit.html",    "w": 1440, "h": 900, "scroll": true },
-    { "name": "moo-panel",    "page": "plugin/cockpit", "file": "plugin/mooter/skills/cockpit/moo-panel.html",  "w": 1440, "h": 900, "scroll": true },
-    { "name": "fleet-ui",     "page": "mooter-bridge",  "file": "packages/mooter-bridge/fleet-ui.html",         "w": 1440, "h": 900, "scroll": true }
+    { "name": "brand-guide",  "page": "landing/public", "file": "landing/public/brand-guide.html",              "w": 1440, "h": 900, "scroll": true,
+      "temas": ["escuro"],
+      "porque_tema": "Folha escura assumida, não um defeito: zero `var(--`, zero `:root`, e a única @media é de largura. Não há onde um segundo tema existisse." },
+
+    { "name": "pilot-shell",  "page": "tools/cockpit",  "file": "tools/cockpit/moo-pilot-shell.html",           "w": 1440, "h": 900, "scroll": true,
+      "temas": ["claro", "escuro"],
+      "porque_tema": "Responde aos DOIS mecanismos (`prefers-color-scheme` e `data-theme`) e não tem JS de tema — a media query sozinha chega." },
+
+    { "name": "cockpit",      "page": "plugin/cockpit", "file": "plugin/mooter/skills/cockpit/cockpit.html",    "w": 1440, "h": 900, "scroll": true,
+      "temas": ["claro", "escuro"],
+      "porque_tema": "Só `html[data-theme=\"dark\"]`; ignora `prefers-color-scheme`. E o `applyTheme()` corre durante o parse e APAGA o atributo — por isso o auditor escreve-o DEPOIS do load, nunca por addInitScript." },
+
+    { "name": "moo-panel",    "page": "plugin/cockpit", "file": "plugin/mooter/skills/cockpit/moo-panel.html",  "w": 1440, "h": 900, "scroll": true,
+      "temas": ["n/d"],
+      "temaND": "Fragmento, não página: sem <html>, sem <body>, define 0 custom properties e consome 28 que vivem no :root do cockpit.html. Aberto sozinho, cada var() é inválida e o que se mede é o default do agente de utilizador, não uma superfície do produto." },
+
+    { "name": "fleet-ui",     "page": "mooter-bridge",  "file": "packages/mooter-bridge/fleet-ui.html",         "w": 1440, "h": 900, "scroll": true,
+      "temas": ["n/d"],
+      "temaND": "Declara `--bg: var(--color-background-primary, transparent)` para herdar o tema do editor que o embebe. Fora do host o fundo é o do browser nos dois modos — medido: impressão idêntica em claro e escuro, portanto declarar dois temas seria dizer dois tendo medido um." }
   ]
 }
