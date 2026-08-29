@@ -14,8 +14,8 @@ export const MOO = {
       "line-soft": "#1E1B19",
       "text": "#F2EDE6",
       "text-2": "#C9C2B8",
-      "muted": "#8A8076",
-      "faint": "#84786B",
+      "muted": "#8B8177",
+      "faint": "#8C8073",
       "accent": "#E8888A",
       "accent-2": "#F2A5A5",
       "on-accent": "#1A0E0E",
@@ -33,14 +33,14 @@ export const MOO = {
       "line-soft": "#E8E4DB",
       "text": "#1A1613",
       "text-2": "#3A332C",
-      "muted": "#6F665A",
-      "faint": "#726859",
-      "accent": "#B4454B",
+      "muted": "#6D6458",
+      "faint": "#6E6455",
+      "accent": "#AF4046",
       "accent-2": "#A53F45",
       "on-accent": "#FFFFFF",
-      "ok": "#347650",
-      "warn": "#826435",
-      "bad": "#AD4D3B"
+      "ok": "#30724C",
+      "warn": "#7E6031",
+      "bad": "#A84836"
     },
     "tier": {
       "web": {

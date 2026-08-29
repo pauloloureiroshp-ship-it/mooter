@@ -121,7 +121,38 @@ for (const a of CV.artboards) {
   const r = await pg.evaluate((frameH) => {
     const lum = (r,g,bl)=>{const v=[r,g,bl].map(x=>x/255).map(x=>x<=.03928?x/12.92:((x+.055)/1.055)**2.4);
       return .2126*v[0]+.7152*v[1]+.0722*v[2];};
-    const parse = c => { const m = c.match(/[\d.]+/g); return m ? m.map(Number) : null; };
+    /* ── O PARSER LIA `color(srgb ...)` COMO SE FOSSE 0-255 ──────────────────
+       Era `c.match(/[\d.]+/g)` — um scrape de digitos. Funciona para
+       `rgb(242, 236, 223)` e MENTE para a sintaxe moderna: o Chromium devolve
+       `color(srgb 0.875059 0.897804 0.846588)` para tudo o que sai de um
+       `color-mix()`, com componentes de 0 a 1. O scrape apanhava 0,875 e tratava
+       como 0,875/255 — ou seja, calculava o contraste contra um fundo QUASE
+       PRETO que nao existe em lado nenhum.
+       Medido a 2026-08-29 no `moo-pilot-shell`: os dois unicos achados de
+       contraste da folha vinham dai. O auditor nao estava a ser severo demais;
+       estava a inventar o fundo.
+       Isto e pior do que um numero errado num relatorio: o auditor existe para
+       ser acreditado, e um parser que falha em silencio faz o proximo verde
+       valer tanto como o vermelho de hoje. */
+    const parse = (c) => {
+      if (!c || c === 'transparent' || c === 'none') return null;
+      const m = String(c).match(/^color\(\s*srgb\s+([^)]+)\)$/i);
+      if (m) {
+        const [rgb, alfa] = m[1].split('/');
+        const v = rgb.trim().split(/\s+/).map((x) => x.endsWith('%') ? parseFloat(x) / 100 : Number(x));
+        if (v.length < 3 || v.some((x) => !Number.isFinite(x))) return null;
+        const a = alfa === undefined ? 1
+          : (alfa.trim().endsWith('%') ? parseFloat(alfa) / 100 : Number(alfa));
+        return [v[0] * 255, v[1] * 255, v[2] * 255, a];
+      }
+      const n = String(c).match(/[\d.]+%?/g);
+      if (!n) return null;
+      /* A percentagem vale 0-255 nos tres canais e 0-1 no alfa — tratar as duas
+         com a mesma regra era o mesmo defeito com outro nome. */
+      return n.map((x, i) => x.endsWith('%')
+        ? (i < 3 ? parseFloat(x) * 2.55 : parseFloat(x) / 100)
+        : Number(x));
+    };
     const bgDe = el => { let n = el;
       while (n && n !== document.documentElement) {
         const c = parse(getComputedStyle(n).backgroundColor);

@@ -764,7 +764,35 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
 
 // 6 · CONTRASTE (1.5) — WCAG AA sobre os pares declarados
 {
-  const linhas = T.contraste.pares.map(([fg, bg]) => {
+  /* ── A MATRIZ DERIVA; A LISTA À MÃO FICA SÓ PARA O QUE ELA NÃO EXPRIME ────
+     Isto media `T.contraste.pares` — 26 combinações escritas à mão — e imprimia
+     «26 pares, todos ≥ 4.5:1». Verdadeiro, e enganador ao mesmo tempo: a matriz
+     frente × fundo do próprio sistema tem 72 combinações, e um par que ninguém
+     se lembrou de escrever era invisível.
+
+     Medido a 2026-08-29: das 72, **10 falhavam AA — e as 10 eram exactamente as
+     não declaradas**. É a mesma forma de presença-em-vez-de-cobertura que
+     apanhou este portão quatro vezes na mesma sessão (os `.svg`, o rótulo em
+     comentário, a lista do `test:design`, a guarda de movimento reduzido).
+
+     As 10 foram corrigidas ANTES de a matriz ligar — 8 tokens, dE76 entre 0,4 e
+     3,1, pelo método dos tiers de papel: desvio mínimo sujeito a AA, nunca
+     separação máxima (ver `contraste.matriz_nota`).
+
+     `pares` fica com o que a matriz não consegue derivar: `on-accent` sobre
+     `accent` (texto sobre o preenchimento, não sobre uma superfície) e as cores
+     de tier sobre o fundo do seu tema — o mapa tier→tema é facto de desenho,
+     não coisa que se derive de nomes. */
+  const FRENTE = ['text', 'text-2', 'muted', 'faint', 'accent', 'accent-2', 'ok', 'warn', 'bad'];
+  const FUNDO = ['bg', 'bg-2', 'surface', 'surface-2'];
+  const derivados = [];
+  for (const tema of ['tinta', 'papel'])
+    for (const f of FRENTE)
+      for (const g of FUNDO)
+        if (T.color[tema]?.[f] && T.color[tema]?.[g]) derivados.push([`${tema}.${f}`, `${tema}.${g}`]);
+  const extras = (T.contraste.pares ?? [])
+    .filter(([f, g]) => !derivados.some(([a, b]) => a === f && b === g));
+  const linhas = [...derivados, ...extras].map(([fg, bg]) => {
     const a = pick(fg), b = pick(bg);
     const r = a && b ? +rácio(a, b).toFixed(2) : null;
     return { par: `${fg} sobre ${bg}`, hex: `${a} / ${b}`, racio: r,
@@ -783,13 +811,22 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
      de 2,50 — um retrocesso disfarçado de arrumação.
      Agora as cores de primeiro plano sem par saem declaradas. Não medido é
      `n/d`, e um `n/d` que ninguém vê é indistinguível de um verde. */
-  const FRENTE = ['text', 'text-2', 'muted', 'faint', 'accent', 'accent-2', 'ok', 'warn', 'bad'];
-  const temPar = new Set(T.contraste.pares.map(([fg]) => fg));
+  /* O que continua a NÃO ser medido, declarado. Com a matriz derivada, nenhuma
+     cor de `FRENTE` pode ficar de fora — mas as cores de TIER podem, porque o
+     mapa tier→tema não se deriva de nomes e tem de ser escrito. Sem esta lista,
+     um tier novo nascia sem par e sem ninguém saber: exactamente o buraco que a
+     matriz acabou de fechar do outro lado. */
+  const comPar = new Set(linhas.map((l) => l.par.split(' sobre ')[0]));
+  /* Só o que É uma cor. `tier.nota*` são escalas de NOTA (0..77), não cores — a
+     primeira versão desta lista deu 1958 entradas por percorrer tudo o que
+     estivesse debaixo de `tier`. Um número absurdo denuncia-se sozinho; um
+     número plausível e errado não. */
+  const E_COR = (v) => typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v);
   const semPar = [];
-  for (const tema of ['tinta', 'papel']) {
-    for (const nome of FRENTE) {
-      if (T.color[tema]?.[nome] && !temPar.has(`${tema}.${nome}`)) semPar.push(`${tema}.${nome}`);
-    }
+  for (const [grupo, cores] of Object.entries(T.color.tier ?? {})) {
+    if (!cores || typeof cores !== 'object') continue;
+    for (const [t, v] of Object.entries(cores))
+      if (E_COR(v) && !comPar.has(`tier.${grupo}.${t}`)) semPar.push(`tier.${grupo}.${t}`);
   }
   reg('contraste', 'Contraste AA', 1.5, {
     estado: falha.length === 0 ? 'passa' : soGrande.length === falha.length ? 'aviso' : 'falha',
