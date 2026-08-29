@@ -7,7 +7,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 // Onde vive o canvas — argv[2] > MOO_AUDIT_CANVAS > ./canvas.json.
 // Até 2026-08-27 isto era `readFileSync('canvas.json')` com os ficheiros e a saída
@@ -27,11 +27,63 @@ const BASE = CV.base ? resolve(dirname(CANVAS), CV.base) : dirname(CANVAS);
 const SAIDA = process.env.MOO_AUDIT_OUT
   ? resolve(process.env.MOO_AUDIT_OUT)
   : join(dirname(CANVAS), '.visual-audit.json');
-// família declarada: quatro curvas — a quarta (mola) saiu desta auditoria
-const EASING_OK = ['cubic-bezier(0.16, 1, 0.3, 1)','cubic-bezier(0.2, 0.8, 0.2, 1)',
-                   'cubic-bezier(0.45, 0, 0.55, 1)','cubic-bezier(0.3, 1.3, 0.5, 1)',
-                   'linear','ease','ease-in','ease-out','ease-in-out'];
-const RAIOS_OK = [0,1,2,3,4,6,7,8,9,10,11,12,14,16,999];
+/* ── A ESCALA E A FAMÍLIA SAEM DO TOKEN ─────────────────────────────────────
+   Até 2026-08-29 estas duas listas eram escritas à mão AQUI, e eram a QUARTA
+   fonte de verdade de um sistema cuja tese é que a fonte é o JSON. A escala à
+   mão era `[0,1,2,3,4,6,7,8,9,10,11,12,14,16,999]` — quinze valores, sete dos
+   quais (1,3,7,9,11,12 e o próprio critério) nunca estiveram na escala
+   canónica. Um auditor que mede contra uma régua sua não audita: ratifica.
+
+   A divergência gémea já tinha sido resolvida em `moo-design-check.mjs` a
+   2026-08-28. Este ficheiro ficou para trás por uma razão que vale a pena
+   registar: os seus testes não corriam. `test:design` era uma lista escrita à
+   mão sem o `moo-visual-audit.test.mjs`, e corriam 61 dos 72 testes — o que se
+   descobriu a 2026-08-29 ao passar a lista a varrimento da pasta. Um
+   instrumento que ninguém corre diverge sem fazer barulho.
+
+   MEDIDO ANTES DE APERTAR, que é a regra deste repo («os limiares sobem quando
+   as verificações passarem a medir, nunca por conveniência de uma onda»).
+   Contra as 5 pranchas reais de `design/canvas.json`:
+     raios computados:  4px x18 · 8px x6 · 10px x22 · 12px x16 · 14px x10 · 16px x1
+     curvas computadas: ease · cubic-bezier(0.2, 0.8, 0.2, 1) · ease-in-out
+   Com a escala derivada, o ÚNICO valor que sai é o 12 (x16), todas em
+   `landing/public/brand-guide.html`, de três regras. Foram corrigidas primeiro,
+   com o desempate de cada uma registado no commit. As curvas custam ZERO: o
+   `motion` já declara `ease` e `ease-in-out` como valores de token, e os quatro
+   cubic-bezier da família estão lá. `linear`, `ease-in` e `ease-out` estavam na
+   lista à mão e NÃO no token — saem, sem custo hoje; se algum dia forem
+   precisos, o sítio de os pôr é o token, não este ficheiro.
+
+   NORMALIZAÇÃO, e porque é obrigatória: o token escreve
+   `cubic-bezier(.45,0,.55,1)` e o browser computa `cubic-bezier(0.45, 0, 0.55, 1)`.
+   São a mesma curva. Sem normalizar os DOIS lados, derivar do token trocava uma
+   lista desactualizada por um alarme permanente — que é pior. É a mesma
+   `normCurva` do portão.
+
+   Guardado por `moo-visual-audit.test.mjs`, que edita a escala numa cópia do
+   `design/` e exige que o veredicto do auditor MUDE com ela. Derivar sem esse
+   teste seria indistinguível de ter copiado os valores certos por sorte. */
+const E_CURVA = /^(cubic-bezier\([^)]*\)|steps\([^)]*\)|linear|ease|ease-in|ease-out|ease-in-out)$/;
+const normCurva = (c) => String(c).trim().replace(/\s/g, '').replace(/(^|\(|,)0\./g, '$1.');
+/* O caminho dos tokens é a QUINTA âncora a virar parâmetro, pela mesma razão que
+   as outras quatro (CANVAS, SAIDA, PW_EXE, base): uma derivação que não se pode
+   apontar a outro ficheiro não se pode testar, e uma derivação não testada é
+   indistinguível de ter copiado os valores certos por sorte. O default continua
+   a ser o irmão real, portanto o uso normal não muda. */
+const TOKENS = JSON.parse(readFileSync(process.env.MOO_TOKENS
+  ? resolve(process.env.MOO_TOKENS)
+  : join(dirname(fileURLToPath(import.meta.url)), '..', 'tokens', 'moo-tokens.json'), 'utf8'));
+const EASING_OK = (() => {
+  const set = new Set();
+  (function colhe(o) {
+    if (o == null) return;
+    if (typeof o === 'string') { const v = normCurva(o); if (E_CURVA.test(v)) set.add(v); return; }
+    if (typeof o === 'object') Object.values(o).forEach(colhe);
+  })(TOKENS.motion);
+  return set;
+})();
+const RAIOS_OK = new Set([0, ...Object.values(TOKENS.radius || {})
+  .map(v => parseInt(v, 10)).filter(Number.isFinite)]);
 
 // executablePath só quando alguém o declara — senão o playwright usa o browser que instalou.
 /* O `playwright` carrega-se AQUI, e nao no topo. Um `import` estatico e
@@ -86,7 +138,7 @@ for (const a of CV.artboards) {
     const out = { alturaReal: document.body.scrollHeight, corte: document.body.scrollHeight - frameH,
                   overflowX: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
                   contraste: [], base8: {ok:0,total:0}, easings: {}, raios: {}, barras: 0,
-                  fontes: [], caixas: 0 };
+                  fontes: [], caixas: 0, raiosPercentagem: 0 };
 
     // contraste sobre texto realmente visível
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -121,11 +173,48 @@ for (const a of CV.artboards) {
       const cs = getComputedStyle(el);
       const rawBr = cs.borderTopLeftRadius;
       const br = rawBr.includes('%') ? 0 : (parseFloat(rawBr) || 0);
-      if (br > 0) { const k = br > 500 ? 999 : Math.round(br); out.raios[k] = (out.raios[k]||0)+1; }
       if (br >= 8 && rect.height > 60 && rect.width > 120 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') out.caixas++;
       const bl = parseFloat(cs.borderLeftWidth) || 0;
       const temFundo = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent';
       if (bl >= 3 && temFundo && rect.height > 40) out.barras++;
+    });
+
+    /* ── OS RAIOS MEDEM-SE EM TUDO, E NOS QUATRO CANTOS ─────────────────────
+       Até 2026-08-29 a medição de raios ia à boleia do ciclo da linha de base,
+       que varre `div,section,h1,h2,h3,p,table,svg,pre` — e lia só o canto
+       superior-esquerdo. Isso não é uma amostra: é um filtro que apaga
+       exactamente onde os raios pequenos vivem. Medido nas 5 pranchas reais, o
+       que estava invisível:
+         · `a`, `span`, `button` — o `.badge` a 3px (x5) e o `.hero-copy-btn` a
+           5px (x1) do brand-guide, nenhum na escala, nenhum jamais acusado;
+         · toda a regra `border-radius: 0 0 Xpx Xpx` — as pilhas de `.type-row`,
+           `.structure-item`, `.space-row` e `.voice-*` contam 0 pelo canto de
+           cima, e o raio real está em baixo.
+       Um auditor que anuncia «raios fora da escala: —» tendo olhado para nove
+       etiquetas e um canto diz uma coisa mais perigosa do que um número errado:
+       diz que procurou.
+       Alargado com a medição feita PRIMEIRO — as duas violações que apareceram
+       foram corrigidas no mesmo commit, não descobertas depois.
+
+       A PERCENTAGEM fica de fora, mas DECLARADA. `border-radius: 50%` é um
+       círculo (os pontos da barra de título, o `.dot`), não um degrau falhado —
+       compará-lo com uma escala em px seria acusar por acusar. Mas um valor que
+       se exclui em silêncio é indistinguível de um valor que passou, por isso
+       vai contado no relatório. */
+    document.querySelectorAll('*').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.height < 8 || rect.width < 8) return;
+      const cs = getComputedStyle(el);
+      const cantos = new Set();
+      let pct = false;
+      for (const c of ['borderTopLeftRadius','borderTopRightRadius','borderBottomLeftRadius','borderBottomRightRadius']) {
+        const cru = cs[c];
+        if (cru.includes('%')) { pct = true; continue; }
+        const v = parseFloat(cru) || 0;
+        if (v > 0) cantos.add(v > 500 ? 999 : Math.round(v));
+      }
+      if (pct) out.raiosPercentagem++;
+      cantos.forEach(k => { out.raios[k] = (out.raios[k] || 0) + 1; });
     });
 
     // easing de tudo o que anima
@@ -149,8 +238,8 @@ for (const a of CV.artboards) {
   const decl = r.contraste.filter(c => DECLARADO[`${c.cor}|${c.fundo}`]);
   r.contrasteNovo = r.contraste.filter(c => !DECLARADO[`${c.cor}|${c.fundo}`]);
   r.contrasteDeclarado = decl.length;
-  const easBad = Object.keys(r.easings).filter(e => !EASING_OK.includes(e));
-  const raiBad = Object.keys(r.raios).map(Number).filter(x => !RAIOS_OK.includes(x));
+  const easBad = Object.keys(r.easings).filter(e => !EASING_OK.has(normCurva(e)));
+  const raiBad = Object.keys(r.raios).map(Number).filter(x => !RAIOS_OK.has(x));
   rel.push({ prancha: a.name || basename(a.file).replace(/\.(dc\.)?html$/,''),
              pagina: a.page ?? '—', ficheiro: a.file, scroll: !!a.scroll, ...r, easBad, raiBad,
              base8pc: r.base8.total ? +(r.base8.ok/r.base8.total*100).toFixed(1) : null });
@@ -185,4 +274,11 @@ console.log('  linha de base 8px: ' + (comBase.length
   ? (comBase.reduce((a,r)=>a+r.base8pc,0)/comBase.length).toFixed(1) + '% dos blocos (medido, não alvo)'
   : 'n/d — nenhum bloco medível'));
 console.log('  easings fora da família: ' + [...new Set(rel.flatMap(r=>r.easBad))].join('  |  '));
-console.log('  raios fora da escala:    ' + [...new Set(rel.flatMap(r=>r.raiBad))].sort((a,b)=>a-b).join(' · ') + '\n');
+console.log('  raios fora da escala:    '
+  + ([...new Set(rel.flatMap(r=>r.raiBad))].sort((a,b)=>a-b).join(' · ') || '—')
+  /* Declarado, nao escondido: um `border-radius: 50%` e um circulo, nao um degrau
+     falhado, e compara-lo com uma escala em px seria acusar por acusar. Mas uma
+     exclusao silenciosa e indistinguivel de um valor que passou — e a mesma regra
+     do `sem_par_declarado` do contraste: nao medido tem de ser VISIVEL. */
+  + `   ·   ${rel.reduce((n, r) => n + (r.raiosPercentagem || 0), 0)} em % (circulos, fora desta escala por desenho)`
+  + '\n');

@@ -6,7 +6,8 @@
  * medir — corte, overflow horizontal, contraste abaixo de AA, raio fora da
  * escala, easing fora da família, barra à esquerda, caixa arredondada — e exige
  * que ele os apanhe TODOS. Ao lado de cada defeito planta o controlo legítimo
- * correspondente (raio 12, easing da família, texto com contraste bom) e exige
+ * correspondente (o degrau `card` do token, a curva da família, texto com
+ * contraste bom) e exige
  * que esses NÃO apareçam: um portão que acusa tudo mente tanto como um que não
  * acusa nada.
  *
@@ -32,6 +33,21 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const AUDITOR = join(AQUI, 'moo-visual-audit.mjs');
 const TEM_PW = existsSync(join(AQUI, 'node_modules', 'playwright'));
 
+/* ── O CONTROLO VEM DO TOKEN, NAO DA MEMORIA DE QUEM ESCREVEU O TESTE ───────
+   Ate 2026-08-29 o controlo legitimo deste ficheiro era `border-radius: 12px`,
+   com o comentario «raio 12 esta na escala». **Nunca esteve.** A escala canonica
+   e 2/4/6/8/10/14/16/999 e recusa o 12 de proposito (ver `radius_nota`). O que
+   fazia o teste passar era o auditor ter a SUA propria lista generosa, que
+   incluia 12 — ou seja, o controlo e o instrumento estavam errados da mesma
+   maneira, e concordavam. Dois numeros cravados a mao a validarem-se um ao
+   outro e o modo mais silencioso de um teste nao testar nada.
+   Agora o controlo sai do token. Se a escala mudar, o teste segue-a. */
+const TOKENS = JSON.parse(readFileSync(join(AQUI, '..', 'tokens', 'moo-tokens.json'), 'utf8'));
+const ESCALA = new Set(Object.values(TOKENS.radius).map(v => parseInt(v, 10)));
+const RAIO_OK = parseInt(TOKENS.radius.card, 10);   // o degrau de cartao
+const RAIO_MAU = 13;                                // afirmado fora da escala, nao assumido
+const CURVA_OK = TOKENS.motion.entrada.curve;       // `.16,1,.3,1` — grafia do TOKEN, nao do browser
+
 // Altura declarada da prancha. O conteúdo abaixo passa dela de propósito.
 const H = 400;
 
@@ -47,15 +63,15 @@ const PRANCHA = `<!doctype html><meta charset="utf-8"><title>mordida</title>
   /* DEFEITO · overflow horizontal */
   .larga { width:2400px; height:20px; background:#eeeeee; }
 
-  /* DEFEITO · raio 13 não está na escala declarada (…12,14,16,999) */
-  .raio-mau { border-radius:13px; width:200px; height:80px; background:#dddddd; }
-  /* CONTROLO · raio 12 está na escala */
-  .raio-bom { border-radius:12px; width:200px; height:80px; background:#dddddd; }
+  /* DEFEITO · um raio que o token NAO declara */
+  .raio-mau { border-radius:${RAIO_MAU}px; width:200px; height:80px; background:#dddddd; }
+  /* CONTROLO · o degrau card da escala, lido do token */
+  .raio-bom { border-radius:${RAIO_OK}px; width:200px; height:80px; background:#dddddd; }
 
   /* DEFEITO · easing fora da família declarada */
   .easing-mau { transition: opacity 300ms cubic-bezier(0.9, 0.1, 0.9, 0.1); width:50px; height:50px; background:#ccc; }
   /* CONTROLO · a primeira curva da família */
-  .easing-bom { transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1); width:50px; height:50px; background:#ccc; }
+  .easing-bom { transition: opacity 300ms ${CURVA_OK}; width:50px; height:50px; background:#ccc; }
 
   /* DEFEITO · barra à esquerda (borda >= 3px + fundo + altura > 40) */
   .barra { border-left:4px solid #333333; background:#f2f2f2; height:60px; width:300px; }
@@ -77,12 +93,12 @@ const PRANCHA = `<!doctype html><meta charset="utf-8"><title>mordida</title>
 const LIMPA = `<!doctype html><meta charset="utf-8"><title>limpa</title>
 <style>
   body { margin:0; background:#ffffff; font-family:sans-serif; }
-  .ok { color:#111111; background:#ffffff; font-size:14px; border-radius:12px;
-        width:200px; height:80px; transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .ok { color:#111111; background:#ffffff; font-size:14px; border-radius:${RAIO_OK}px;
+        width:200px; height:80px; transition: opacity 300ms ${CURVA_OK}; }
 </style>
 <div class="ok">texto legivel numa caixa legitima</div>`;
 
-function correr(pranchas) {
+function correr(pranchas, env = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'moo-audit-'));
   for (const [nome, html] of Object.entries(pranchas)) writeFileSync(join(dir, nome), html);
   writeFileSync(join(dir, 'canvas.json'), JSON.stringify({
@@ -91,7 +107,7 @@ function correr(pranchas) {
     })),
   }));
   const saida = execFileSync(process.execPath, [AUDITOR, join(dir, 'canvas.json')],
-    { encoding: 'utf8', stdio: ['ignore','pipe','pipe'] });
+    { encoding: 'utf8', stdio: ['ignore','pipe','pipe'], env: { ...process.env, ...env } });
   const json = JSON.parse(readFileSync(join(dir, '.visual-audit.json'), 'utf8'));
   rmSync(dir, { recursive: true, force: true });
   return { json, saida };
@@ -125,7 +141,7 @@ test('morde: apanha os sete defeitos plantados', { skip: !TEM_PW && 'playwright 
   assert.ok(mau.r < 4.5, `o rácio medido devia ser < 4.5, foi ${mau.r}`);
 
   // 4 · raio fora da escala
-  assert.ok(r.raiBad.includes(13), `raiBad devia conter 13, contém ${JSON.stringify(r.raiBad)}`);
+  assert.ok(r.raiBad.includes(RAIO_MAU), `raiBad devia conter ${RAIO_MAU}, contém ${JSON.stringify(r.raiBad)}`);
 
   // 5 · easing fora da família
   assert.ok(r.easBad.some(e => e.includes('0.9')),
@@ -144,9 +160,17 @@ test('não acusa por acusar: os controlos legítimos ficam de fora', { skip: !TE
 
   assert.ok(!r.contrasteNovo.some(c => c.txt.includes('contraste legitimo')),
     'o texto com contraste bom não pode aparecer na lista de falhas');
-  assert.ok(!r.raiBad.includes(12), 'o raio 12 está na escala declarada e não pode ser acusado');
-  assert.ok(!r.easBad.includes('cubic-bezier(0.16, 1, 0.3, 1)'),
-    'a curva da família não pode ser acusada');
+  assert.ok(!r.raiBad.includes(RAIO_OK), `o raio ${RAIO_OK} está na escala declarada e não pode ser acusado`);
+  /* A curva de controlo entra na prancha com a grafia do TOKEN — `.16,1,.3,1` — e
+     o browser devolve-a com zero à esquerda e espaços. Se a normalização não
+     reconciliasse as duas, derivar do token trocava uma lista desactualizada por
+     um alarme permanente, que é pior. Por isso a asserção é sobre a curva
+     NORMALIZADA e não sobre a string: é a normalização que está a ser testada.
+     (A prancha planta também uma curva má de propósito, portanto `easBad` não
+     pode ser vazio — o que não pode é conter ESTA.) */
+  const norm = (c) => String(c).trim().replace(/\s/g, '').replace(/(^|\(|,)0\./g, '$1.');
+  assert.ok(!r.easBad.some((e) => norm(e) === norm(CURVA_OK)),
+    `a curva da família (${CURVA_OK}) foi acusada: ${JSON.stringify(r.easBad)}`);
 });
 
 test('uma prancha limpa mede zero em todas as famílias', { skip: !TEM_PW && 'playwright não instalado' }, () => {
@@ -177,4 +201,67 @@ test('a saída em JSON existe e é lista de pranchas', { skip: !TEM_PW && 'playw
   assert.equal(json.length, 1);
   for (const k of ['prancha','ficheiro','corte','overflowX','contraste','base8','easings','raios','caixas','barras'])
     assert.ok(k in json[0], `falta a chave ${k} no relatório`);
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   A ESCALA DERIVA MESMO? — as três mordidas que separam derivar de acertar
+
+   A 2026-08-29 estas duas listas deixaram de ser escritas à mão neste ficheiro e
+   passaram a sair de `design/tokens/moo-tokens.json`. Um diff que troca quinze
+   números por um `Object.values(...)` parece obviamente certo e pode estar
+   obviamente errado: basta a normalização falhar, ou o caminho resolver para
+   outro sítio, e o auditor passa a acusar tudo — ou nada.
+
+   A única prova é MUDAR A ESCALA e exigir que o veredicto mude com ela. Se estes
+   testes passassem com a lista antiga cravada, não estariam a testar nada. */
+
+test('a ESCALA vem do token: tirar um degrau torna-o uma violação', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const alvo = `<!doctype html><meta charset="utf-8"><title>escala</title>
+<style>.c { border-radius:${RAIO_OK}px; width:200px; height:80px; background:#ddd; }</style>
+<div class="c">caixa no degrau card</div>`;
+
+  const comEscalaReal = correr({ 'escala.html': alvo }).json.find((x) => x.prancha === 'escala');
+  assert.ok(!comEscalaReal.raiBad.includes(RAIO_OK),
+    `${RAIO_OK} está na escala e foi acusado: ${JSON.stringify(comEscalaReal.raiBad)}`);
+
+  // A MESMA prancha, contra uma escala a que se tirou exactamente esse degrau.
+  const mutilado = JSON.parse(JSON.stringify(TOKENS));
+  delete mutilado.radius.card;
+  const semCard = join(mkdtempSync(join(tmpdir(), 'moo-tok-')), 'moo-tokens.json');
+  writeFileSync(semCard, JSON.stringify(mutilado));
+
+  const comEscalaMutilada = correr({ 'escala.html': alvo }, { MOO_TOKENS: semCard })
+    .json.find((x) => x.prancha === 'escala');
+  assert.ok(comEscalaMutilada.raiBad.includes(RAIO_OK),
+    `tirei o degrau card do token e o auditor continuou a aceitar ${RAIO_OK} — ` +
+    `a escala não está a derivar, está cravada algures: ${JSON.stringify(comEscalaMutilada.raiBad)}`);
+});
+
+test('a FAMÍLIA vem do token: tirar uma curva torna-a uma violação', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const alvo = `<!doctype html><meta charset="utf-8"><title>curva</title>
+<style>.c { width:50px; height:50px; background:#ccc; transition: opacity 300ms ${CURVA_OK}; }</style>
+<div class="c"></div>`;
+
+  const comFamiliaReal = correr({ 'curva.html': alvo }).json.find((x) => x.prancha === 'curva');
+  assert.deepEqual(comFamiliaReal.easBad, [],
+    `a curva da família foi acusada — falha de normalização: ${JSON.stringify(comFamiliaReal.easBad)}`);
+
+  const mutilado = JSON.parse(JSON.stringify(TOKENS));
+  mutilado.motion.entrada.curve = 'cubic-bezier(.1,.1,.1,.1)';
+  const semEntrada = join(mkdtempSync(join(tmpdir(), 'moo-tok-')), 'moo-tokens.json');
+  writeFileSync(semEntrada, JSON.stringify(mutilado));
+
+  const comFamiliaMutilada = correr({ 'curva.html': alvo }, { MOO_TOKENS: semEntrada })
+    .json.find((x) => x.prancha === 'curva');
+  assert.ok(comFamiliaMutilada.easBad.length > 0,
+    'troquei a curva de entrada no token e o auditor continuou a aceitar a antiga — a família não está a derivar');
+});
+
+test('o defeito plantado está mesmo fora da escala, e o controlo dentro', () => {
+  // Guarda contra o silêncio: se alguém acrescentar o 13 à escala, a prancha de
+  // mordida deixa de plantar um defeito e o teste principal passa a verde sem
+  // medir nada. Foi assim que o `raio 12` sobreviveu como «controlo legítimo».
+  assert.ok(!ESCALA.has(RAIO_MAU),
+    `${RAIO_MAU} entrou na escala — escolhe outro valor para o defeito plantado`);
+  assert.ok(ESCALA.has(RAIO_OK), `${RAIO_OK} saiu da escala — o controlo deixou de ser legítimo`);
 });
