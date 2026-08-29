@@ -104,78 +104,94 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 <!-- slack-spike — o GO CONDICIONADO que autoriza a linha de destrave -->
 ### ✅ Fechados a 25/08
 
-Rolados para `docs/foundation/SYNC_ARCHIVE_2026.md` a 2026-08-29 — a secção já apontava para lá e o
-SYNC é snapshot, não log. Frota em Ed25519 (2/2 devices) · suite `tools/router` estabilizada · e o resto.
+Os fechados rolaram para `docs/foundation/SYNC_ARCHIVE_2026.md` a 2026-08-29 — a secção já apontava para
+lá e o SYNC é snapshot, não log. Frota em Ed25519 (2/2 devices) · suite `tools/router` estabilizada.
+
+> ⚠️ **O que está abaixo NÃO é história e não rola.** A primeira volta deste corte levou-o por engano e
+> `packages/slack-spike/guardas.test.js` ficou vermelho no CI — que é exactamente o que ele existe para
+> fazer. A linha de destrave e o `GO CONDICIONADO` que a autoriza vivem juntos de propósito: uma linha
+> sozinha seria indistinguível de alguém a passá-la para o ficheiro para calar o gate.
+
+**Continua ABERTO (não é história):** beacon do `desktop-j26409q` com **66 min** (tecto 30) — `morto`: ou o loop parou lá, ou o publicador parou de empurrar. Gargalo do Mac: **1054 achados por triar**, loop em pausa por `human queue full (524/6)` — nenhum dos PRs lhe tocou.
+
+---
+
+## 🧱 Stack técnica
+| Camada | Tecnologia |
+|--------|------------|
+| Classifier | `classify.js` v0.10+ (regex, ~47KB, 11-pass + ARCH_SIGNALS guard) |
+| Arbiter | Haiku 4.5 via Anthropic SDK |
+| Hooks | UserPromptSubmit + PostToolUse + Stop |
+| T0 Local | Ollama brew service (qwen2.5:3b/14b, gemma4:e4b, nomic-embed-text) |
+| T1-T3 | Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6 |
+| Telemetry | savings-tracker :7821 + hub Cloudflare + D1 |
+| Landing | `mooter.ai` (public waitlist) + `landing-five-azure-16.vercel.app` (Friends Beta) |
+
+## 🔗 Links duraveis
+
+| Recurso | URL |
+|---------|-----|
+| Notion HQ | https://www.notion.so/33d6f6e42bc4816b977afe84bbe912c9 |
+| GitHub (publico) | https://github.com/pauloloureiroshp-ship-it/mooter |
+| Landing | https://mooter.ai |
+| Hub Cloudflare | https://mooter-hub.frugal-hub.workers.dev/api/stats |
+| npm | https://www.npmjs.com/package/@mooter/cli |
+
+*(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
+kimi-egress FECHADA — slack-spike destravado
 
 ### 2026-08-29 (Mac · CC · executar) · o conector passa a acusar a varredura que nao pode fazer
 
-**T1 · `aviso_fabricacao` — o defeito de classe, fechado.** O guard A4 (`veredictoSemEvidencia`) exigia
-evidencia ZERO para disparar; o job `job-mtea5wou-f2b3` tinha 304 das 1131 linhas de `router-execute.js`
-injectadas, logo escapou-lhe por construcao — e respondeu "0 chamadores em TODO o repo". Regra nova (A6,
-`seamless.js`): quantificador de varredura no goal **E** (`permissoes_diferenca.diferem===true` **OU**
-lista efectiva vazia) ⇒ `sem_ferramentas`, `aviso_fabricacao` nao-nulo **no despacho** (antes de o modelo
-responder) e prefixo `SEM FERRAMENTAS — NAO PUBLICAVEL COMO FACTO` no `collect`. A truncagem entra na razao.
-Reutiliza a mecanica do A4 (prefixar, nunca substituir) e o mesmo campo — **taxonomia nova nenhuma**.
-- ⚠️ **`sem_adversario` NAO EXISTE** (`grep -rn "sem_adversario" --include="*.js"` = 0 resultados). O que
-  existe com essa mecanica e `veredictoSemEvidencia`/`veredicto_sem_evidencia`. Foi essa que se reutilizou.
-- Decisao declarada: a regra **nao** e travada por nome de motor (`ENGINES_SEM_FICHEIROS`), porque a
-  condicao do brief e a ausencia MEDIDA de ferramentas, nao quem esta a correr. Suite verde a confirmar.
+Detalhe por extenso no PR **#432** e no journal `~/paulo-vault/10-projects/2026-08-29-mac-cc-executar-*`.
 
-**T2 · `tools/radar/vigia.mjs` — primeira ronda com rede, agendada.** 3/3 alvos alcancados (a VM do Cowork
-nao tinha rede). Linha de base: ollama-catalogo **239**, openrouter-precos **396**, openrouter-docs **3**.
-2.a corrida confirmou "sem delta" contra o snapshot. `launchctl` regista `ai.mooter.radar` com
-`Weekday 1 / Hour 9 / Minute 0`; a maquina esta em **-03**, medido com `date` — logo 09:00 BRT.
-- **Revisao de PR externo: 1 defeito corrigido.** Uma digestao vazia ou em erro virava snapshot valido e
-  envenenava a linha de base (a ronda seguinte cuspiria "+239 modelos novos" falsos). Agora e `n/d` e o
-  snapshot **nao** e tocado. **Nao existe rotina de pitch no launchd** (`ls ~/Library/LaunchAgents` +
-  `grep -ril pitch` = 0) — o brief dizia "colado a rotina do pitch"; ficou autonomo.
-- **O achado do kimi refuta-se, medido no JSON completo (396 modelos, nao 88).** Nao sao tres fontes para
-  o mesmo modelo — sao modelos diferentes: `kimi-k3` **$3,00/$15,00** (o `pricing.js` **nao o lista**);
-  `kimi-k2.6` **$0,95/$4,00** hoje, contra **$0,60/$2,50** no codigo (`pricing.js:116`) — o `$0,95/$4,00`
-  do brief e o que o **comentario** ja dizia, nao o valor a correr; `$0,68/$3,41` do comentario aproxima
-  `kimi-k2.7-code` (**$0,66/$3,40**). **`pricing.js` NAO foi tocado** — fora do enunciado desta sessao.
+**T1 · `aviso_fabricacao` (A6).** O guard A4 exige evidencia ZERO; o job `job-mtea5wou-f2b3` tinha 304 das
+1131 linhas injectadas, logo escapou-lhe **por construcao**, e respondeu "0 chamadores em TODO o repo".
+A condicao estava amarrada a QUANTIDADE de evidencia em vez de a RELACAO entre a evidencia e a pergunta:
+contexto injectado e uma amostra, um quantificador de varredura e uma afirmacao sobre o universo.
+Regra nova: quantificador no goal **E** (`diferem===true` **OU** efectivas vazias) ⇒ `sem_ferramentas`,
+`aviso_fabricacao` nao-nulo **no despacho** e prefixo `SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO` no
+collect. Reutiliza a mecanica do A4 e o mesmo campo. ⚠️ **`sem_adversario` NAO EXISTE** (grep = 0); a
+regra com essa mecanica e `veredictoSemEvidencia`. **Prova ponta-a-ponta, job real, $0**
+(`job-mtebrb36-2af0`): recibo acusou antes de o modelo responder, entrega saiu prefixada.
 
-**T3 · a correccao confirmada por mim antes de escrever (L7).** O grep bate certo: `providerState` **e**
-construido (`router-execute.harness.js:64,135`; `.test.js:794`) e `filterDegraded` (`:181-192`) esta
-correcto. O que falta e o **PRODUTOR**: so `if (MOCK_PROVIDERS==='1')` (`:1067-1075`) o preenche, em
-producao chega `undefined`, a `:662` aplica `|| {}` e nada e excluido. Corrigido no `ADENDO`, seccao A1.
-- ⚠️ **Por corrigir, fora do meu alcance:** `claude/ARQUITETURA_ONBOARDING_E_SAAS_2026-08-28.md` (doc do
-  Project) **nao existe neste checkout** — mantem o diagnostico errado. **Fica para o Cowork.**
+**T2 · `tools/radar/vigia.mjs`.** 1.a ronda com rede: 3/3 alvos, base 239/396/3. `ai.mooter.radar` no
+launchd (segunda 09:00; maquina em -03, medido). **1 defeito corrigido na revisao:** digestao vazia ou em
+erro virava snapshot e envenenava a base. **Nao ha rotina de pitch no launchd** (grep = 0). **Achado do
+kimi refutado** com o JSON completo (396 modelos, nao 88): nao sao 3 fontes, sao **modelos diferentes** —
+`kimi-k3` $3,00/$15,00 (o `pricing.js` nem o lista); `kimi-k2.6` $0,95/$4,00 hoje contra $0,60/$2,50 no
+codigo. **`pricing.js` NAO tocado** — fora do enunciado.
 
-**T4 (nao estava no enunciado — apareceu ao seguir a sequencia ate ao fim).** Ao preparar o deploy:
-o conector instalado e **1.49.4**, o repo dizia **1.50.0**, e a ultima release publicada e **v1.51.0**.
-Causa medida: o workflow `Version Sync` **falha em TODAS as tags** desde que a proteccao de ramo entrou —
-run `33164279461` constroi o commit certo e leva `GH006: Protected branch update failed · 5 of 5 required
-status checks are expected`. A v1.51.0 foi publicada com os cinco ficheiros a dizer 1.50.0, incluindo o
-`manifest.json` que rotula o `.mcpb` que o utilizador instala. **O gate que existe para impedir deriva de
-versao era a fonte da deriva.** Corrigido: abre um PR em vez de empurrar para `main` (+`pull-requests:
-write`); os cinco ficheiros vao a **1.52.0**. O portao de entrega recusou o bump ate a entrega estar
-declarada — **funcionou como devia**: `entregas-por-versao.json` declara `1.52: [seamless.js]` com dois
-marcadores que provam o A6 no conteudo. `pack-mcpb.mjs` produz `mooter-v1520.mcpb` (61 ficheiros, 335
-verificacoes OK) e o bundle **contem** o A6; o conector instalado **nao**.
+**T3 · o orfao 1 nao e o filtro, e quem o alimenta.** Grep re-corrido por mim (L7): `providerState` **e**
+construido (`harness.js:64,135`; `.test.js:794`) e `filterDegraded` (`:181-192`) esta correcto. So
+`if (MOCK_PROVIDERS==='1')` (`:1067-1075`) o preenche; em producao chega `undefined`, a `:662` aplica
+`|| {}` e nada e excluido. **Falta o PRODUTOR.** Corrigido no `ADENDO` A1.
+- ⚠️ **Fora do meu alcance:** `claude/ARQUITETURA_ONBOARDING_E_SAAS_2026-08-28.md` nao existe neste
+  checkout e mantem o diagnostico errado. **Fica para o Cowork.**
 
-**T5 · os quatro vermelhos do router eram testes a guardar contratos mortos — 1498/4 → 1503/0.** Zero
-linhas de producao alteradas. `sparkline.test.js` fixava o `COLUMNS` e lia o `~/.mooter/preferences.json`
-do dono real (com `statusline_line3:true` ligado nesta maquina) — a saida `opts.home` ja existia,
-faltava usa-la. Dois `sub-tier` exigiam `gemma4:e4b`/`deepseek-r1-distill-qwen:14b` quando o
-`classify.js` FROZEN tem `qwen2.5:3b`/`deepseek-r1:7b` e o comentario diz que a escolha **saiu** para o
-`inject_context.js`. O `TUNED` exigia um bloco dentro do `classify.js` — **exactamente o que o freeze
-proibe**; o tuner escreve hoje em `tuning-state.json`. Passa a afirmar uma garantia mais forte: correr o
-tuner nao pode mexer no sha `427d8c0b`.
+**T4 · o gate de versao era a fonte da deriva** (nao estava no enunciado; apareceu a caminho do deploy).
+Conector instalado **1.49.4**, repo **1.50.0**, ultima release **v1.51.0**. Run `33164279461`: o
+`Version Sync` constroi o commit certo e leva `GH006: Protected branch update failed · 5 of 5 required
+status checks` — **falha em TODAS as tags** desde que a proteccao de ramo entrou. A v1.51.0 foi publicada
+com os cinco ficheiros a dizer 1.50.0, incluindo o `manifest.json` que rotula o `.mcpb`. Corrigido: abre
+PR em vez de empurrar para `main` (+`pull-requests: write`); os cinco vao a **1.52.0**. O portao de
+entrega recusou o bump ate a entrega estar declarada — **funcionou como devia**. `pack-mcpb.mjs` produz
+`mooter-v1520.mcpb` (335 verificacoes OK) e o bundle **contem** o A6; o instalado **nao**.
 
-**Prova ponta-a-ponta do A6, job real, $0** (`job-mtebrb36-2af0`, Ollama local): `aviso_fabricacao`
-nao-nulo no despacho e a entrega prefixada com `SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO`.
-**Flake da bridge nao reproduzido** em 4 corridas seguidas (1126/0 cada). PR **#432** aberto.
+**T5 · os 4 vermelhos do router guardavam contratos mortos — 1498/4 → 1503/0**, zero linhas de producao.
+`sparkline.test.js` fixava o `COLUMNS` e lia o `~/.mooter/preferences.json` do dono real (`opts.home` ja
+existia, faltava usa-la). Dois `sub-tier` exigiam modelos que o `classify.js` FROZEN nao produz — a
+escolha **saiu** para o `inject_context.js`, de proposito. O `TUNED` exigia um bloco DENTRO do
+`classify.js`: exactamente o que o freeze proibe; o tuner escreve em `tuning-state.json`. Passa a afirmar
+o inverso, que e mais forte: correr o tuner nao pode mexer no sha `427d8c0b`.
 
-**Gates, sem disfarce.** T1 ✅ 8 testes novos, **7 falham em `main`** e 8 passam depois (`varredura.test.js`);
-bridge **1102/0**. T2 ✅ ronda escreveu, `launchctl list` mostra o agente. T3 ✅ grep re-corrido por mim.
-cockpit **941/0** (2 todo). classify.js `427d8c0b` intacto.
-- ✅ **router 1503/0** — as 4 falhas eram pre-existentes (confirmado com `git stash`: 1498/4 identico
-  com e sem a minha alteracao) e ficaram **corrigidas** em T5. A referencia "977/0" do brief e de outro glob.
-- ⚠️ **Bridge deu 1101/1 numa corrida** e verde em todas as outras (4 corridas dedicadas a cacar o flake,
-  1126/0 cada). **Nao reproduzido e nao identificado.** Dito porque aconteceu.
-- `MP-LIGAR` e `MP-MOOTER` de 28/08 continuam **untracked**, por decidir. Nao os movi: o brief manda
-  confirmar com o dono.
+**Gates.** bridge **1102/0** · cockpit **941/0** · router **1503/0** · `classify.js` `427d8c0b` intacto ·
+`varredura.test.js` **7/8 falham em `main`**, 8/8 passam depois.
+- ⚠️ **Flake da bridge: 1 vermelho em 9 corridas** (5 dedicadas, 1126/0 cada). **Nao reproduzido, nao
+  identificado.** Fica dito, nao fica resolvido.
+- ⚠️ **O corte deste SYNC levou por engano a linha de destrave do `slack-spike`** e o
+  `guardas.test.js` ficou vermelho no CI — que e para o que ele existe. Restaurado verbatim; a decisao
+  (`GO CONDICIONADO`) e a linha continuam a viver juntas.
+- `MP-LIGAR`, `MP-MOOTER`, `KICKOFF` e `18-CC-PERFEITO.command` continuam **untracked**, por decidir.
 
 
 <!-- HUMANO:FIM -->
