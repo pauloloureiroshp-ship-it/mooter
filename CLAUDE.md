@@ -66,6 +66,28 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `border-radius: 7px`, e 7 deixou de estar na escala quando ela foi completada
   (ver `moo-tokens.json → radius_nota`). Passou a `8px` — o degrau `panel`, que é
   o valor mais usado do repositorio. Zero lógica, zero comportamento.
+  **2026-08-29 · a guarda de movimento reduzido passa a cobrir** allowlists a
+  substituição do bloco `@media (prefers-reduced-motion: reduce)` de
+  `packages/mooter-bridge/fleet-ui.html` (3 linhas → 8, autorizado pelo dono, a
+  pedido explícito). O que estava lá nomeava **dois** selectores —
+  `.mrow.on .mdot` e `.mbar.ind i` — e a folha tem **seis** animados. Ficavam de
+  fora `.pulse` (:59), `.eta-track.pulsante` (:133), `.eta-track.ind > i` (:134)
+  e `.eta-dot.vivo` (:137): **quatro animações `infinite` a correr para quem pediu
+  ao sistema operativo que não corressem.** Não é cosmética — é acessibilidade
+  (WCAG 2.1 SC 2.3.3), e o utilizador afectado é o que tem enxaqueca vestibular
+  ou perturbação de movimento. O portão dava verde porque testava
+  `/prefers-reduced-motion/` por ficheiro: **presença, não cobertura** — a mesma
+  classe de defeito que fez o portão nascer cego para os `.svg` a 2026-08-27.
+  A substituição passa a universal (`*, *::before, *::after` com
+  `animation-duration`, `animation-iteration-count`, `transition-duration` e
+  `scroll-behavior`) **de propósito**: uma lista de selectores foi exactamente o
+  que envelheceu aqui, porque cada animação nova nascia descoberta e em silêncio.
+  Zero lógica, zero comportamento, zero JavaScript — só CSS dentro de um `@media`
+  que só se aplica a quem já pediu menos movimento. Provado por playwright com
+  `reducedMotion: 'reduce'`: as **seis** passam de `infinite` para `x1` a 0,01ms,
+  e as 3 transições da folha também. E o portão deixou de aceitar presença: a
+  verificação `movimento-seguro` passa a exigir cobertura (universal, ou lista
+  que nomeie todos), guardada por 4 testes novos em `moo-design-check.test.mjs`.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

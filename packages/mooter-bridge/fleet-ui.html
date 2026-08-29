@@ -86,8 +86,24 @@
   .maisdet { border: 0; background: none; color: #8a8f94; font: inherit; font-size: 12px;
     cursor: pointer; padding: 6px 2px; text-decoration: underline; }
   .maisdet:hover { color: #1f1f1f; }
+  /* COBERTURA, nao presenca. Ate 2026-08-29 esta guarda nomeava DOIS selectores
+     e o ficheiro tinha SEIS animados: ficavam de fora `.pulse` (:59), a
+     `.eta-track.pulsante` (:133), a `.eta-track.ind > i` (:134) e o
+     `.eta-dot.vivo` (:137) — quatro animacoes INFINITAS a correr para quem pediu
+     ao sistema operativo que nao corressem. O portao dava verde porque so testa
+     /prefers-reduced-motion/ por ficheiro: presenca, nao cobertura.
+     Passa a universal de proposito. Uma lista de selectores foi exactamente o
+     que envelheceu aqui — cada animacao nova nascia descoberta e em silencio.
+     Isto nao pode rodar: `*` nao tem como ficar desactualizado.
+     As `transition` entram tambem: movimento reduzido e sobre MOVIMENTO, e a
+     folha tem 3 transicoes que a guarda antiga nunca tocou. */
   @media (prefers-reduced-motion: reduce) {
-    .mrow.on .mdot, .mbar.ind i { animation: none; }
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
   @media (prefers-color-scheme: dark) {
     .mname { color: #ECEDEE; } .mbar { background: #2A2D30; }

@@ -927,3 +927,85 @@ test('fora de um repo git não se filtra nada — e isso vai DECLARADO', (t) => 
   // E mede tudo, que é o comportamento honesto quando não se sabe o que é gerado.
   assert.equal(v(r, 'linguagem').pontos, 0, 'sem git tem de medir tudo, não de saltar em silêncio');
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Presença não é cobertura
+
+   Esta verificação testava `/prefers-reduced-motion/.test(s)`: existe a
+   expressão no ficheiro? Sim → verde. Media que alguém se LEMBROU do assunto.
+
+   Medido a 2026-08-29 no `packages/mooter-bridge/fleet-ui.html`: a guarda
+   nomeava DOIS selectores e o ficheiro tinha SEIS animados — quatro animações
+   INFINITAS a correr para quem pediu ao sistema operativo que não corressem,
+   com o portão a imprimir «todas com guarda de movimento reduzido».
+
+   Uma lista de selectores envelhece: cada animação nova nasce descoberta e em
+   silêncio. Estes testes fixam as duas formas que contam como cobertura — o
+   bloco universal e a lista completa — e a que não conta. */
+
+test('MORDIDA · guarda que NOMEIA selectores e deixa um de fora é incompleta', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/globals.css', [
+    '@keyframes bp { 0%,100% { opacity: 1 } 50% { opacity: .25 } }',
+    '.um { animation: bp 1.6s ease-in-out infinite; }',
+    '.dois { animation: bp 1.6s ease-in-out infinite; }',
+    '@media (prefers-reduced-motion: reduce) {',
+    '  .um { animation: none; }',
+    '}',
+  ].join('\n') + '\n');
+
+  const m = v(corre(b).rel, 'movimento-seguro');
+  assert.equal(m.pontos, 0, 'a guarda deixou `.dois` a animar e o portão passou');
+  assert.ok(m.guarda_incompleta.some((x) => x.descobertos.includes('.dois')),
+    `o selector descoberto tem de ficar visível: ${JSON.stringify(m.guarda_incompleta)}`);
+});
+
+test('a guarda UNIVERSAL passa — é a forma que não pode envelhecer', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/globals.css', [
+    '@keyframes bp { 0%,100% { opacity: 1 } 50% { opacity: .25 } }',
+    '.um { animation: bp 1.6s ease-in-out infinite; }',
+    '.dois { animation: bp 1.6s ease-in-out infinite; }',
+    '@media (prefers-reduced-motion: reduce) {',
+    '  *, *::before, *::after { animation-duration: .01ms !important; }',
+    '}',
+  ].join('\n') + '\n');
+
+  assert.notEqual(v(corre(b).rel, 'movimento-seguro').pontos, 0,
+    'a guarda universal foi acusada — a regra está a exigir a forma que envelhece');
+});
+
+test('a lista COMPLETA também passa — não se impõe uma só forma', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/globals.css', [
+    '@keyframes bp { 0%,100% { opacity: 1 } 50% { opacity: .25 } }',
+    '.um { animation: bp 1.6s ease-in-out infinite; }',
+    '.dois { animation: bp 1.6s ease-in-out infinite; }',
+    '@media (prefers-reduced-motion: reduce) {',
+    '  .um, .dois { animation: none; }',
+    '}',
+  ].join('\n') + '\n');
+
+  assert.notEqual(v(corre(b).rel, 'movimento-seguro').pontos, 0,
+    'uma lista que cobre TUDO é cobertura, e foi acusada');
+});
+
+test('MORDIDA · sem guarda nenhuma continua a falhar', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/globals.css', [
+    '@keyframes bp { 0%,100% { opacity: 1 } 50% { opacity: .25 } }',
+    '.um { animation: bp 1.6s ease-in-out infinite; }',
+  ].join('\n') + '\n');
+
+  const m = v(corre(b).rel, 'movimento-seguro');
+  assert.equal(m.pontos, 0, 'um ficheiro com keyframes e ZERO guarda passou');
+  assert.ok(m.sem_guarda.some((x) => x.includes('globals.css')));
+});
