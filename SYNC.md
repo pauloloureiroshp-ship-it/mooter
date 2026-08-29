@@ -602,4 +602,74 @@ recusa) — é a quarta fonte de verdade, e ficou para trás porque os seus test
 nunca corriam. Derivá-la dos tokens torna o auditor mais estrito e precisa da
 lista de sítios medida primeiro, numa máquina com playwright.
 
+
+### 2026-08-29 (tarde) · O RESIDENTE LOCAL NÃO CHAMA FERRAMENTAS — medido, 0 em 20
+
+O dia começou com um estudo de LLMs locais e acabou a desmentir três coisas que
+este projecto tinha escritas. Todas caíram pela mesma razão: **ninguém tinha
+medido**.
+
+**Primeiro caiu a máquina.** O radar de 28/08 dizia «Mac mini 16GB, tecto Metal
+~11-12 GB», e daí concluía por aritmética que o `gpt-oss:20b` (13 GB) **NÃO
+CABE**. São **24 GB (M4 Pro)**. O modelo corre a 100% GPU com 12 GB carregados, a
+39,16 tok/s. A aritmética estava certa; o input é que nunca tinha sido medido. E
+o meu próprio estudo da manhã repetiu o erro, porque leu a RAM no vault em vez de
+a perguntar à máquina.
+
+**Depois caiu a recomendação.** Com os tok/s na mão eu propus trocar o residente
+`qwen2.5-coder:14b` (22,22 tok/s, 15 GB — «o pior em todos os eixos») pelos
+Granite 4.2. O MooterBench, N=100 emparelhado no P2, disse o contrário:
+
+```
+B1 citação-ok    qwen2.5-coder:14b  99%   granite4.2:8b  1%   granite4.2:3b  1%
+```
+
+Os Granite bateram no tecto de 700 tokens em 20/20 rondas. O qwen tem mediana de
+54. Não é qualidade — é o contrato de saída. **A régua que eu usei (velocidade
+bruta) era a errada.**
+
+**E depois caiu o catálogo.** B3 e B6 não existiam — o `runRound` nunca
+exercitou ferramentas nem saída estruturada, por isso o portão de promoção do
+mapa §3 **nunca podia fechar, com modelo nenhum**. A lacuna era do instrumento.
+Construídos (`tools/cockpit/runner/bench-b3b6.mjs`, 12 testes sem rede), a
+primeira medição inverteu a leitura:
+
+```
+B3 tool-calling  qwen2.5-coder:14b  20%   granite4.2:8b 100%   granite4.2:3b 100%
+```
+
+Os 20% do qwen são inteiramente da tarefa de IRRELEVÂNCIA — que ele acerta por
+nunca chamar. Detalhe das 20 tarefas que exigiam uma chamada: **`20x "não chamou
+ferramenta nenhuma"`**. E o catálogo declarava, por escrito,
+`capabilities: ['completion','tools']`.
+
+**Não é «qual dos dois». São dois motores para dois trabalhos:** citação → qwen
+(99%); qualquer coisa com ferramentas → `granite4.2:3b` (100%, 2,2 GB, e ainda
+mais rápido: p50 15s contra 19s).
+
+**O órfão `require_parameters` do radar §2 (#4) deixou de ser texto.**
+`tools/router/capacidades-modelo.js` (13 testes) com três estados e duas regras:
+*medido vence declarado* e *ausência não é negação* — um modelo sem recibo dá
+`n/d`, nunca `false`. E o veredicto exige DUAS condições, porque a nota sozinha
+premeia quem nunca chama. O `hardware-matcher` passa a publicar
+`declaracoes_desmentidas`, que hoje traz exactamente uma linha.
+
+**Também nesta tarde:** o `gpu-probe` devolvia `vramMB: null` em Apple e
+compensava com um tecto de **9216 MB cravado para toda a frota Apple** — errado
+por quase o dobro, e sem um único teste que o pudesse contradizer (agora tem 6).
+O `test:cockpit-runner` era uma lista à mão e já tinha perdido um ficheiro; passa
+a varrer as duas pastas (0 perdidos, 1 ganho, 43 → 44). E a varredura fez cair um
+teste que exigia o próprio nome no `package.json` — a intenção mantém-se, a
+verificação passa a aceitar lista OU varredura.
+
+PRs **#436** e **#441** fundidos. Testes: router 0 fail · cockpit **948/0** ·
+`classify.js` FROZEN intacto (`427d8c0b`).
+
+**Aberto:** o `gpu-probe` ainda crava `req <= 9216` para o resto da frota Apple —
+corrigi-lo mexe em todos os devices e é decisão do dono · Ollama 0.32.5 → 0.33.1
+travado porque o `moo-runner` está vivo e pará-lo é um `/stop` · **um pilar de
+onze (P2) e um device de quatro** — generalizar daqui é o erro que este dia
+inteiro documenta · a doutrina «NUNCA agentic <30B» (16/07) não sobreviveu ao
+contacto: o 14B não chama ferramentas e o 3B chama 100%.
+
 <!-- HUMANO:FIM -->

@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawnSync } = require('child_process');
+const capModelo = require('./capacidades-modelo');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const INTEL_PATH = path.join(__dirname, 'model-intelligence.json');
@@ -93,17 +94,32 @@ function run() {
       const q = modelDef.quality && typeof modelDef.quality === 'object'
         ? Object.values(modelDef.quality) : [];
       const avgQuality = q.length ? q.reduce((a, b) => a + b, 0) / q.length : null;
+      // O que este modelo sabe fazer, MEDIDO. O catálogo declarava `tools` para
+      // o `qwen2.5-coder:14b` e a medição de 2026-08-29 mostrou 0 chamadas em
+      // 20 tarefas que as exigiam. Uma recomendação que não diz isto manda
+      // trabalho agêntico para um modelo que não o consegue fazer.
+      const tools = capModelo.verificaTools(capModelo.capacidadesDe(modelName));
+      const json = capModelo.verificaJson(capModelo.capacidadesDe(modelName));
       subtierAssessment[subtier] = {
         model: modelName,
         installed: installed.includes(modelName),
         avg_quality: avgQuality === null ? null : Math.round(avgQuality * 10) / 10,
         vram_mb: modelDef.vram_required_mb,
         strengths: modelDef.strengths,
+        tool_calling: tools.estado,
+        tool_calling_porque: tools.porque,
+        json_schema: json.estado,
       };
     }
   }
 
+  const desmentidas = capModelo.declaracoesDesmentidas();
+
   const result = {
+    // Onde o catálogo DECLARA uma capacidade que a medição desmente. Vazio é a
+    // resposta boa; não-vazio é um catálogo a mentir, e isso tem de ser visível
+    // sem ninguém ter de ir procurar.
+    declaracoes_desmentidas: desmentidas,
     hardware: {
       tier: hwTier,
       label: tierConfig.label,
@@ -145,7 +161,9 @@ function run() {
       const status = detail.installed ? '✅' : '❌';
       const vramGb = (detail.vram_mb / 1024).toFixed(1);
       const qLabel = detail.avg_quality === null ? 'quality: n/d' : `quality: ${detail.avg_quality}/10`;
-      lines.push(`  ${status} ${subtier.padEnd(8)} → ${detail.model.padEnd(28)} (${vramGb}GB, ${qLabel})`);
+      const tMark = detail.tool_calling === 'cumpre' ? 'tools ✅' : detail.tool_calling === 'nao-cumpre' ? 'tools ❌' : 'tools n/d';
+      lines.push(`  ${status} ${subtier.padEnd(8)} → ${detail.model.padEnd(28)} (${vramGb}GB, ${qLabel}, ${tMark})`);
+      if (detail.tool_calling === 'nao-cumpre') lines.push(`       ⚠️  ${detail.tool_calling_porque}`);
     }
 
     lines.push('');

@@ -436,7 +436,26 @@
         "quantization": "Q4_K_M",
         "size_gb": 2.2,
         "context_window": 131072,
-        "capabilities": ["completion", "tools", "thinking"],
+        "capabilities_medidas": {
+          "tool_calling": {
+            "b3_pct": 100,
+            "acertos": "25/25",
+            "chamou_quando_devia": "20/20",
+            "por_tarefa": {"ler": "5/5", "procurar": "5/5", "testes": "5/5", "git": "5/5", "irrelevante": "5/5"},
+            "medido_em": "2026-08-29",
+            "medido_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+            "recibo": "_handoff/mooterbench-20260829T162942.md · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md"
+          },
+          "json_schema": {
+            "b6_parse_pct": 100,
+            "b6_schema_pct": 100,
+            "b6_enum_pct": 100,
+            "n": 10,
+            "medido_em": "2026-08-29",
+            "recibo": "_handoff/mooterbench-20260829T162942.md · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md"
+          }
+        },
+        "capabilities":  ["completion", "tools", "thinking"],
         "latency": {
           "measured_eval_tokens_per_s": 60.48,
           "measured_load_s": 2.37,
@@ -464,7 +483,26 @@
         "quantization": "Q4_K_M",
         "size_gb": 5.3,
         "context_window": 131072,
-        "capabilities": ["completion", "tools", "thinking"],
+        "capabilities_medidas": {
+          "tool_calling": {
+            "b3_pct": 100,
+            "acertos": "25/25",
+            "chamou_quando_devia": "20/20",
+            "por_tarefa": {"ler": "5/5", "procurar": "5/5", "testes": "5/5", "git": "5/5", "irrelevante": "5/5"},
+            "medido_em": "2026-08-29",
+            "medido_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+            "recibo": "_handoff/mooterbench-20260829T162942.md · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md"
+          },
+          "json_schema": {
+            "b6_parse_pct": 100,
+            "b6_schema_pct": 100,
+            "b6_enum_pct": 100,
+            "n": 10,
+            "medido_em": "2026-08-29",
+            "recibo": "_handoff/mooterbench-20260829T162942.md · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md"
+          }
+        },
+        "capabilities":  ["completion", "tools", "thinking"],
         "latency": {
           "measured_eval_tokens_per_s": 32.66,
           "measured_load_s": 2.38,
@@ -655,7 +693,26 @@
         "vram_required_mb": 8192,
         "vram_recommended_mb": 10240,
         "context_window": 32768,
-        "capabilities": ["completion", "tools"],
+        "capabilities_medidas": {
+          "tool_calling": {
+            "b3_pct": 20,
+            "acertos": "5/25",
+            "chamou_quando_devia": "0/20",
+            "por_tarefa": {"ler": "0/5", "procurar": "0/5", "testes": "0/5", "git": "0/5", "irrelevante": "5/5"},
+            "medido_em": "2026-08-29",
+            "medido_on": "mac-mini-de-paulo-local (M4 Pro 24GB)",
+            "recibo": "_handoff/mooterbench-20260829T162942.md · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md"
+          },
+          "json_schema": {
+            "b6_parse_pct": 100,
+            "b6_schema_pct": 100,
+            "b6_enum_pct": 100,
+            "n": 10,
+            "medido_em": "2026-08-29",
+            "recibo": "_handoff/mooterbench-20260829T162942.md · vault 50-fleet/2026-08-29-mac-mini-motor-medicao.md"
+          }
+        },
+        "capabilities":  ["completion", "tools"],
         "quality": {
           "trivial_edit": 8, "debug": 6, "architecture": 4,
           "summarize": 6, "transform": 8, "explain": 6,
