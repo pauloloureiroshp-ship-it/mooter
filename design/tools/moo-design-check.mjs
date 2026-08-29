@@ -30,8 +30,22 @@ const SUPERFICIES_UI = [
   'plugin/mooter/skills/cockpit/moo-panel.html',
   'packages/mooter-bridge/fleet-ui.html',
 ];
+/* `landing/public` ENTROU a 2026-08-29, e a lacuna era a pior de todas: esta
+   lista governa o NÚMERO HONESTO, a verificação que proíbe publicar poupança —
+   e ali vive o `brand-guide.html`, servido em `mooter.ai/brand-guide.html`,
+   HTTP 200. A decisão de 2026-08-24 estava a ser aplicada em todo o lado menos
+   na pasta cujo nome é literalmente «público».
+   Medido no dia em que abriu: 3 claims. Um espécime de tipografia a publicar
+   `$6.29 saved` (cifra inventada, a classe que a auditoria de 2026-08-23 matou);
+   uma spec a PRESCREVER à landing uma headline com `84%`, o contrário da
+   decisão; e uma terceira legítima — a lista «✗ Hero NÃO contém», onde citar o
+   banner é vedá-lo. As duas primeiras foram corrigidas ANTES de o âmbito abrir,
+   a terceira ficou declarada em `claims_excepcoes`.
+   Guardado por `moo-design-check.test.mjs`, que planta um claim nesta pasta e
+   exige que o portão o apanhe — senão a pasta volta a sair da lista em silêncio,
+   que é como os `.svg` viveram invisíveis até 2026-08-27. */
 const SUPERFICIES_TEXTO = [
-  'landing/app', 'plugin/mooter', 'packages/mooter-bridge',
+  'landing/app', 'landing/public', 'plugin/mooter', 'packages/mooter-bridge',
   'README.md', 'marketplace.json', '.claude-plugin/marketplace.json',
 ];
 const TOKENS_PROTEGIDOS = /^\s*--(bg|bg-2|surface|surface-2|line|ink|panel|text|muted|faint|accent|accent-2|ok|warn|bad|dead|mono|sans|r|radius|tier-\d)\s*:/gm;
@@ -559,7 +573,17 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   const maus = [], semGuarda = [];
   /* Só folhas de estilo. Antes disto a lista incluía `moo-tokens-build.mjs`, e o
      portão lintava o TEMPLATE do próprio gerador como se fosse CSS. */
-  const alvosMov = [...SUPERFICIES_UI, ...andar('design')].filter(f => /[.](css|html)$/.test(f));
+    /* `landing/public` entrou aqui pela mesma razão que entrou nas outras duas
+       listas, mas com uma diferença que tem de ser dita: HOJE É UM NO-OP. Esta
+       verificação só inspecciona blocos `@keyframes`, e o `brand-guide.html` não
+       tem nenhum — tem duas `transition: all 0.15s`, que esta verificação NÃO
+       olha. Ou seja, o âmbito fecha-se mas a lacuna do `transition: all`
+       (12 ocorrências em 2 ficheiros, medidas a 2026-08-29) continua aberta e é
+       outro front: `all` anima também propriedades de layout, que é exactamente
+       o que esta verificação existe para impedir.
+       Entra na mesma, porque a alternativa é a pasta ficar fora e a lacuna
+       tornar-se duas no dia em que alguém lá puser um keyframe. */
+  const alvosMov = [...SUPERFICIES_UI, ...andar('design'), ...andar('landing/public')].filter(f => /[.](css|html)$/.test(f));
   let vistosMov = 0;
   for (const f of alvosMov) {
     const s = ler(f); if (!s) continue; vistosMov++;
@@ -745,6 +769,13 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     ...andar('design'),
     ...andar('landing/app'),
     ...andar('landing/components'),
+    /* A terceira lista a receber a pasta. O `brand-guide.html` tinha aqui
+       cinco raios fora da escala (12 x16, 3 x5, 5 x1) — corrigidos pelo auditor
+       visual antes de esta linha existir, com o desempate de cada um registado.
+       Zero achados novos no momento em que o ambito abriu, que e o que se quer
+       de um alargamento: o portao ve mais e continua verde porque o trabalho
+       foi feito, nao porque a regua foi afrouxada. */
+    ...andar('landing/public'),
   ].filter(f => /\.(html|css|tsx?|jsx?)$/.test(f) && !E_TESTE(f));
   let vistos = 0;
   for (const f of alvos) {
