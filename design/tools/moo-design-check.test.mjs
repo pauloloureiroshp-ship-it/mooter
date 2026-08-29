@@ -787,3 +787,70 @@ test('mas `landing/public` limpo não inventa achados', (t) => {
     assert.notEqual(x.pontos, 0, `${id} acusou uma folha limpa: ${JSON.stringify(x.achados ?? x.porque)}`);
   }
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   `transition: all` — a porta que o «movimento seguro» não vigiava
+
+   Esta verificação chama-se «movimento seguro» e até 2026-08-29 inspeccionava
+   só `@keyframes`. Metade do movimento de uma interface não está lá: está em
+   `transition`. E `all` não é uma lista de propriedades — é «o que quer que
+   venha a mudar», incluindo `width`, `padding` e `margin`, que é exactamente a
+   classe que esta verificação existe para impedir. Entra sem ninguém a
+   escrever, no dia em que alguém acrescenta uma propriedade de layout a um
+   `:hover`.
+
+   12 ocorrências foram corrigidas antes de a regra existir. Estes testes
+   existem para que ela não possa ser desfeita nem alargada por engano. */
+
+test('MORDIDA · `transition: all` é apanhado — anima também layout', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/x.css', '.a { transition: all 140ms ease; }\n');
+
+  const m = v(corre(b).rel, 'movimento-seguro');
+  assert.equal(m.pontos, 0, '`transition: all` passou');
+  assert.ok(m.transicao_all.some((x) => x.ficheiro.includes('x.css')),
+    `o achado devia apontar o ficheiro: ${JSON.stringify(m.transicao_all)}`);
+});
+
+test('a lista EXPLÍCITA passa — a correcção não pode continuar a acusar', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // Exactamente a forma que as 12 correcções tomaram.
+  escreve(b.repo, 'landing/app/x.css',
+    '.a { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease; }\n');
+
+  assert.notEqual(v(corre(b).rel, 'movimento-seguro').pontos, 0,
+    'a lista explícita foi acusada — a regra está a apanhar a própria correcção');
+});
+
+test('uma transição COMENTADA não é movimento', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // O registo do que saiu costuma NOMEAR o que saiu. Contar comentários como
+  // código deu 243 achados com ~2 reais a 2026-08-27.
+  escreve(b.repo, 'landing/app/x.css',
+    '/* era `transition: all 140ms` — trocado pela lista explícita */\n.a { color: #fff; }\n');
+
+  assert.notEqual(v(corre(b).rel, 'movimento-seguro').pontos, 0,
+    'um comentário foi contado como movimento');
+});
+
+test('animar uma propriedade de layout NOMEADAMENTE é declarado, não banido', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  // Uma barra de progresso. 8 das 10 do repo são isto, e convertê-las a
+  // `transform: scaleX()` não é troca mecânica (distorce filhos) e duas vivem
+  // em pacote CONGELADO. Apertar a régua sem a lista de sítios feita é o que
+  // este repo proíbe — por isso conta-se e mostra-se, em vez de se banir.
+  escreve(b.repo, 'landing/app/x.css', '.barra > i { transition: width .5s ease; }\n');
+
+  const m = v(corre(b).rel, 'movimento-seguro');
+  assert.notEqual(m.pontos, 0, 'uma transição de largura foi banida sem a lista de sítios feita');
+  assert.ok(m.transicao_layout_declarada.some((x) => x.includes('x.css')),
+    `tinha de ficar DECLARADA e visível: ${JSON.stringify(m.transicao_layout_declarada)}`);
+});
