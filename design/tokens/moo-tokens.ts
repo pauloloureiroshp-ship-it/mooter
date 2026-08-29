@@ -58,14 +58,15 @@ export const MOO = {
         "t5": "#D9A441"
       },
       "papel": {
-        "t0": "#3D8B5E",
-        "t1": "#3D6FA8",
-        "t2": "#7A5EA8",
-        "t3": "#B8523F",
+        "t0": "#28784C",
+        "t1": "#196BA4",
+        "t2": "#795DA7",
+        "t3": "#B14C39",
         "t5": "#7D5A15"
       },
       "nota": "T2 diverge por desenho: o roxo não sobrevive à paleta de 16 cores do terminal.",
-      "nota_t5": "T5 (Fable) e opt-in via @fable e NUNCA e auto-rotado; nao existe T4. Por isso nao e um quinto degrau da rampa — e a cor que se le como estando FORA dela, e e o unico tom quente-dourado do conjunto. Escolhido a 2026-08-28 por medicao, nao por gosto: entre 6 candidatos, o ambar #D9A441 e o que maximiza a MENOR distancia perceptual dentro do conjunto {T0,T1,T2,T3,T5} — dE minimo 43,8, melhor do que o pior par da propria rampa actual (29,8, entre T1 e T2). Contraste 8,80:1 sobre tinta.bg. E fica a 50,0 de dE do accent, que era o problema a resolver: ate hoje o T5 usava var(--color-accent), e a marca nao e um tier. No terminal fica o mesmo tom (dE 32,6 do #D4C090 do T2, distinguivel). Em papel escurece para #7D5A15 para passar AA (5,33:1)."
+      "nota_t5": "T5 (Fable) e opt-in via @fable e NUNCA e auto-rotado; nao existe T4. Por isso nao e um quinto degrau da rampa — e a cor que se le como estando FORA dela, e e o unico tom quente-dourado do conjunto. Escolhido a 2026-08-28 por medicao, nao por gosto: entre 6 candidatos, o ambar #D9A441 e o que maximiza a MENOR distancia perceptual dentro do conjunto {T0,T1,T2,T3,T5} — dE minimo 43,8, melhor do que o pior par da propria rampa actual (29,8, entre T1 e T2). Contraste 8,80:1 sobre tinta.bg. E fica a 50,0 de dE do accent, que era o problema a resolver: ate hoje o T5 usava var(--color-accent), e a marca nao e um tier. No terminal fica o mesmo tom (dE 32,6 do #D4C090 do T2, distinguivel). Em papel escurece para #7D5A15 para passar AA (5,33:1).",
+      "nota_papel": "ESCURECIDOS a 2026-08-29 para passarem AA. Antes: t0 3,53 · t1 4,42 · t2 4,47 · t3 4,13 sobre papel.bg — os quatro abaixo de 4,5, e nenhum declarado como par, portanto o portao nunca os tinha medido. Foram encontrados a 28/08 ao declarar o t5, e ficaram um dia por resolver com a cautela de que mexer na paleta clara era mexer em impressao. Medido depois: **a paleta de papel esta declarada em todo o lado e usada em lado nenhum** — os dois decks gerados (`moo-deck.html`, `moo-pitch-a4.html`) declaram as variaveis mas tem ZERO `var(--moo-tier-papel-*)`. A cautela era boa e a medicao dissolveu-a. Os valores nao sairam de escurecer as cegas: procurou-se, dentro da mesma familia de matiz (+-8 graus), a combinacao de MENOR desvio sujeita a duas restricoes — AA >= 4,5 e separacao minima do conjunto {t0..t3,t5} >= 29,8, que e a da rampa web. Resultado: contraste 4,50 a 4,85, separacao minima a subir de 25,9 para **30,1** (o par apertado continua a ser t1/t2, azul e roxo, tal como na web), e desvio total de 15,2 nas quatro cores — o t2 mexe-se 0,4, o t3 2,4. Cada uma continua na sua familia: verde, azul, roxo, terracota."
     },
     "term": {
       "bg": "#0d1117",
