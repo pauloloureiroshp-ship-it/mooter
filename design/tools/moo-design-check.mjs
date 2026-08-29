@@ -583,7 +583,16 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
        o que esta verificação existe para impedir.
        Entra na mesma, porque a alternativa é a pasta ficar fora e a lacuna
        tornar-se duas no dia em que alguém lá puser um keyframe. */
-  const alvosMov = [...SUPERFICIES_UI, ...andar('design'), ...andar('landing/public')].filter(f => /[.](css|html)$/.test(f));
+  /* `landing/app` entra como PASTA, nao como um `globals.css` nomeado. A lista
+     tinha o ficheiro, nao o directorio: qualquer `.css` novo ao lado dele nascia
+     fora desta verificacao — a mesma classe de buraco que manteve o
+     `landing/public` inteiro invisivel ate hoje. O filtro de extensao ja deixa
+     de fora os `.tsx`, portanto isto nao alarga o que se le, so o onde. */
+  /* `new Set` NAO e cosmetica: o `globals.css` esta em `SUPERFICIES_UI` E em
+     `landing/app`, e sem dedupe era lido duas vezes — 11 folhas e 11 transicoes
+     declaradas quando sao 10 e 10. Um numero inflacionado por construcao, num
+     ficheiro cuja tese e que os numeros dizem o que parecem dizer. */
+  const alvosMov = [...new Set([...SUPERFICIES_UI, ...andar('design'), ...andar('landing/public'), ...andar('landing/app')])].filter(f => /[.](css|html)$/.test(f));
   let vistosMov = 0;
   for (const f of alvosMov) {
     const s = ler(f); if (!s) continue; vistosMov++;
@@ -607,16 +616,68 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     if (proibidas.length) maus.push({ ficheiro: f, propriedades: proibidas });
     if (!/prefers-reduced-motion/.test(s)) semGuarda.push(f);
   }
-  const n = maus.length + semGuarda.length;
+  /* ── AS TRANSIÇÕES, QUE ESTA VERIFICAÇÃO NUNCA TINHA OLHADO ────────────────
+     Até 2026-08-29 isto inspeccionava só blocos `@keyframes`. O nome da
+     verificação é «movimento seguro» e metade do movimento de uma interface não
+     está em keyframes nenhum: está em `transition`.
+
+     `transition: all` é o caso que obriga a agir. `all` não é uma lista de
+     propriedades — é «o que quer que venha a mudar», incluindo `width`,
+     `height`, `padding` e `margin`. Ou seja: exactamente a classe de animação
+     que esta verificação existe para impedir, a entrar pela porta que ela não
+     vigiava. E entra sem ninguém a escrever, no dia em que alguém acrescentar
+     uma propriedade de layout a um `:hover`.
+
+     Medido a 2026-08-29, antes de a regra existir: 12 ocorrências em 2
+     ficheiros (`landing/app/globals.css` x10, `landing/public/brand-guide.html`
+     x2). Todas substituídas pela lista explícita do que cada regra MUDA mesmo,
+     lida dos respectivos `:hover`/`.active` — e uma delas removida, porque o
+     `.term-savings-strip` transicionava `all` sem ter estado nenhum que mude,
+     nem em CSS nem em TSX.
+
+     O QUE ESTA REGRA NÃO FAZ, e porque não. Animar uma propriedade de layout
+     nomeadamente — `transition: width .5s` — continua a passar. Medido: 10
+     sítios, e 8 são BARRAS DE PROGRESSO, cujo trabalho é mudar de largura.
+     Convertê-las a `transform: scaleX()` é melhor (a GPU faz o trabalho em vez
+     do motor de layout) mas não é uma troca mecânica — distorce os filhos — e
+     duas delas vivem em `packages/mooter-bridge`, que é pacote CONGELADO e
+     exigiria entrada na allowlist. Bani-las aqui seria apertar a régua sem a
+     lista de sítios feita, que é precisamente o que este repo proíbe.
+     Ficam CONTADAS e visíveis no relatório: um `n/d` que ninguém vê é
+     indistinguível de um verde. */
+  const ALL = /transition(?:-property)?\s*:\s*(?:[^;}"'`]*?\b)?all\b/;
+  const LAYOUT = /^(width|height|min-width|min-height|max-width|max-height|margin|margin-\w+|padding|padding-\w+|top|right|bottom|left|inset|font-size|line-height|border-width|border-\w+-width|flex|flex-basis|gap|row-gap|column-gap|grid-\w+)$/;
+  const transicaoAll = [], transicaoLayout = [];
+  for (const f of alvosMov) {
+    const s = ler(f); if (!s) continue;
+    /* Uma transicao COMENTADA nao e movimento. Apagam-se os comentarios
+       preservando as quebras, para a linha do achado continuar exacta — a
+       mesma armadilha que deu 243 achados com ~2 reais a 2026-08-27. */
+    const semCom = s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+    semCom.split('\n').forEach((L, i) => {
+      if (ALL.test(L)) transicaoAll.push({ ficheiro: f, linha: i + 1, excerto: L.trim().slice(0, 110) });
+      for (const m of L.matchAll(/transition(?:-property)?\s*:\s*([^;}"'`]+)/g)) {
+        const props = m[1].split(',').map(x => x.trim().split(/\s+/)[0]).filter(Boolean);
+        if (props.some(p => LAYOUT.test(p))) transicaoLayout.push(`${f}:${i + 1}`);
+      }
+    });
+  }
+
+  const n = maus.length + semGuarda.length + transicaoAll.length;
   /* Sem esta guarda a verificação dizia "só transform/opacity, e todos com guarda
      de movimento reduzido" tendo lido ZERO ficheiros. Não medido é `n/d`. */
   reg('movimento-seguro', 'Movimento seguro', 1.0, vistosMov === 0
     ? { estado: 'n/d', porque: 'nenhuma folha de estilo legível em MOO_REPO', pontos: null }
     : {
     estado: n ? 'falha' : 'passa', repinta: maus, sem_guarda: semGuarda, vistos: vistosMov,
+    transicao_all: transicaoAll,
+    /* Contadas, não escondidas — ver o comentário acima. */
+    transicao_layout_declarada: transicaoLayout,
     pontos: n ? 0 : 1.0,
-    porque: n ? `${maus.length} ficheiro(s) animam propriedades que repintam · ${semGuarda.length} sem prefers-reduced-motion`
-              : `${vistosMov} folhas · só transform/opacity, e todas com guarda de movimento reduzido`,
+    porque: (n ? `${maus.length} ficheiro(s) animam propriedades que repintam · ${semGuarda.length} sem prefers-reduced-motion`
+              + (transicaoAll.length ? ` · ${transicaoAll.length} \`transition: all\` (anima também layout)` : '')
+              : `${vistosMov} folhas · só transform/opacity, todas com guarda de movimento reduzido, zero \`transition: all\``)
+      + (transicaoLayout.length ? ` · ${transicaoLayout.length} transição(ões) de propriedade de layout, DECLARADAS (barras de progresso) e não banidas` : ''),
   });
 }
 
