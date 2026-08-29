@@ -854,3 +854,76 @@ test('animar uma propriedade de layout NOMEADAMENTE é declarado, não banido', 
   assert.ok(m.transicao_layout_declarada.some((x) => x.includes('x.css')),
     `tinha de ficar DECLARADA e visível: ${JSON.stringify(m.transicao_layout_declarada)}`);
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   O portão não varre o que o git ignora
+
+   Descoberto a 2026-08-29 por uma discrepância que não batia certo: o CI dizia
+   «8 folhas» e a máquina do dono dizia «10». Os dois números estavam certos — o
+   que estava errado era o portão ler artefactos de build (`design/deck/out/`,
+   ignorado, mais a sua PRÓPRIA saída `.design-check.json`).
+
+   Um portão que mede coisas diferentes em máquinas diferentes deixa de ser uma
+   régua. E o pior caso não é o falso positivo: é o `transition: all` num deck
+   gerado que chumba no portátil e passa no CI, ou o contrário.
+
+   Estes testes cobrem os DOIS lados, porque o fallback é a parte perigosa: fora
+   de um repositório git não se filtra nada — e isso tem de ficar declarado, não
+   assumido. */
+
+test('MORDIDA · um defeito num ficheiro IGNORADO não é medido', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  const git = (...a) => execFileSync('git', ['-C', b.repo, ...a], { stdio: 'ignore' });
+  git('init', '-q');
+  git('config', 'user.email', 'teste@exemplo');
+  git('config', 'user.name', 'teste');
+  escreve(b.repo, '.gitignore', 'gerado/\n');
+  git('add', '-A');
+  git('commit', '-qm', 'base');
+
+  // O MESMO defeito, dentro da pasta ignorada. 13 não está na escala.
+  escreve(b.repo, 'landing/app/gerado/deck.html', '<style>.c { border-radius: 13px; }</style>\n');
+
+  const r = corre(b).rel;
+  assert.equal(r.gitignore_aplicado, true, 'o filtro do git não se aplicou num repo git');
+  assert.notEqual(v(r, 'linguagem').pontos, 0,
+    'um artefacto gerado foi medido — o portão volta a dar réguas diferentes em máquinas diferentes');
+  assert.ok(r.artefactos_ignorados.some((x) => x.includes('gerado')),
+    `o que foi saltado tem de ficar visível: ${JSON.stringify(r.artefactos_ignorados)}`);
+});
+
+test('MORDIDA · o MESMO ficheiro, NÃO ignorado, continua a ser apanhado', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+
+  const git = (...a) => execFileSync('git', ['-C', b.repo, ...a], { stdio: 'ignore' });
+  git('init', '-q');
+  git('config', 'user.email', 'teste@exemplo');
+  git('config', 'user.name', 'teste');
+  escreve(b.repo, '.gitignore', 'outra-coisa/\n');   // <- já NÃO cobre `gerado/`
+  git('add', '-A');
+  git('commit', '-qm', 'base');
+  escreve(b.repo, 'landing/app/gerado/deck.html', '<style>.c { border-radius: 13px; }</style>\n');
+
+  // O teste inverso: sem esta metade, um filtro que ignorasse TUDO passava por
+  // correcção. Foi assim que o portão nasceu cego para os `.svg` a 2026-08-27.
+  assert.equal(v(corre(b).rel, 'linguagem').pontos, 0,
+    'o filtro está a saltar ficheiros que o git NÃO ignora');
+});
+
+test('fora de um repo git não se filtra nada — e isso vai DECLARADO', (t) => {
+  const b = bancada();
+  t.after(() => rmSync(b.raiz, { recursive: true, force: true }));
+  superficieLimpa(b.repo);
+  escreve(b.repo, 'landing/app/gerado/deck.html', '<style>.c { border-radius: 13px; }</style>\n');
+
+  const r = corre(b).rel;
+  assert.equal(r.gitignore_aplicado, false, 'disse que filtrou onde não há git');
+  assert.deepEqual(r.artefactos_ignorados, []);
+  // E mede tudo, que é o comportamento honesto quando não se sabe o que é gerado.
+  assert.equal(v(r, 'linguagem').pontos, 0, 'sem git tem de medir tudo, não de saltar em silêncio');
+});
