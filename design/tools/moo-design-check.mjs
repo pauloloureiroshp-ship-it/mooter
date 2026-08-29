@@ -318,6 +318,12 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
   /* `gi` e não `i`: os padrões passaram a correr com `matchAll` sobre o ficheiro
      inteiro, e `matchAll` recusa uma regex sem `g`. Um padrão sem `g` também só
      encontraria a PRIMEIRA ocorrência por ficheiro. */
+  /* Duas grafias de proposito: `Modelado` e o identificador (o canon do repo e
+     codigo em ingles, mas este componente nasceu com nome portugues e mudar-lhe
+     o nome agora era ruido), e `modelled` e o que o utilizador le. Um rotulo que
+     so conta numa lingua deixaria passar exactamente os sitios onde o texto
+     visivel faz o trabalho. */
+  const MARCA_PROVENIENCIA = /modelado|modelled/i;
   const padroes = (T.numero.claims_padroes ?? []).map(([nome, re]) => [nome, new RegExp(re, 'gi')]);
   /* Excepções DECLARADAS, com ficheiro, pedaço da linha e razão escrita — não um
      ficheiro numa lista negra. Se a linha for editada, a excepção deixa de
@@ -370,6 +376,15 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
       .replace(/<\/?[a-zA-Z][^>]*>/g, brancos);   // tags de abertura e fecho
     const linhaDe = (idx) => texto.slice(0, idx).split('\n').length;
     const excertoDe = (li) => (cru[li - 1] ?? '').trim().slice(0, 110);
+    /* A MARCA LE-SE NA LINHA JA SEM COMENTARIOS, e a razao e uma falha real
+       cometida a 2026-08-29 dentro deste mesmo trabalho: em `admin/page.tsx`
+       uma cifra foi «marcada» com um comentario JSX — que satisfaz a regex e
+       NAO RENDERIZA NADA. O leitor via o numero nu; o portao dizia que estava
+       rotulado. E a armadilha «documentar nao corrige» na sua forma mais pura,
+       num ficheiro cuja unica funcao e impedi-la.
+       `limpo` ja tem os comentarios apagados (com as colunas preservadas), por
+       isso so conta a marca que chega ao ecra. */
+    const MARCADA = (i) => MARCA_PROVENIENCIA.test(limpo[i] ?? '');
 
     for (let li = 0; li < limpo.length; li++) {
       const L = limpo[li];
@@ -387,7 +402,7 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
             const janela = L.slice(Math.max(0, i - PERTO), i + claim.length + PERTO);
             if (!VALOR.test(janela)) continue;
           }
-          achados.push({ ficheiro: f, linha: li + 1, claim, excerto: excertoDe(li + 1) });
+          achados.push({ ficheiro: f, linha: li + 1, claim, excerto: excertoDe(li + 1), marcado: MARCADA(li) });
         }
       }
     }
@@ -399,7 +414,7 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
         /* A excepção declarada vale para o padrão tal como vale para o literal:
            senão a secção «Honest numbers» do README voltava pela porta lateral. */
         if (excepcionado(f, cru[li - 1] ?? '')) continue;
-        achados.push({ ficheiro: f, linha: li, claim: nome, excerto: excertoDe(li) });
+        achados.push({ ficheiro: f, linha: li, claim: nome, excerto: excertoDe(li), marcado: MARCADA(li - 1) });
       }
     }
   }
@@ -424,9 +439,24 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
      Se o dono decidir que a shell autenticada também não deve mostrar
      estimativas de poupança, isto muda numa linha — `PRODUTO` deixa de ser
      separado — e o índice desce 2,0 pontos até a funcionalidade sair. */
+  /* A MARCA DE PROVENIENCIA — `landing/app/(app)/_modelado.tsx`.
+     Uma cifra que renderiza COLADA a sua proveniencia nao e um claim: e um
+     modelo rotulado, e a diferenca e a unica coisa que a decisao de 2026-08-24
+     alguma vez pediu. A marca tem de estar na MESMA linha do numero, e nao
+     algures na folha — um rotulo que se afasta do numero perde-se na proxima
+     refactorizacao. */
   const E_PRODUTO = (f) => f.replace(/\\/g, '/').includes('landing/app/(app)/');
   const publicos = achados.filter(a => !E_PRODUTO(a.ficheiro));
-  const noProduto = achados.filter(a => E_PRODUTO(a.ficheiro));
+  /* CONTAR CIFRAS, NAO COINCIDENCIAS. Um achado e uma coincidencia de padrao, e
+     a mesma linha casa mais do que um: `you saved $42.10 this month` dispara o
+     literal E o padrao. Enquanto isto somava achados, a frase final dizia «14
+     modelada(s)» de 8 cifras — um numero inflacionado por construcao, num
+     ficheiro cuja unica tese e que os numeros dizem o que parecem dizer.
+     `marcado` e propriedade da LINHA, portanto colapsar por ficheiro:linha e
+     exacto, nao aproximado. */
+  const porLinha = (xs) => [...new Map(xs.map(a => [`${a.ficheiro}:${a.linha}`, a])).values()];
+  const noProduto = porLinha(achados.filter(a => E_PRODUTO(a.ficheiro) && !a.marcado));
+  const marcadosNoProduto = porLinha(achados.filter(a => E_PRODUTO(a.ficheiro) && a.marcado)).length;
 
   reg('numero-honesto', 'Número honesto', 2.0, alvos.length === 0
     ? { estado: 'n/d', porque: 'nenhuma superfície de texto encontrada', pontos: null }
@@ -437,25 +467,46 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
         /* Contados, nunca escondidos. */
         no_produto_autenticado: noProduto.length,
         no_produto_ficheiros: [...new Set(noProduto.map(a => a.ficheiro))],
-        /* ⚠️ METADE, e não a nota cheia, enquanto houver estimativas de poupança
-           na shell autenticada.
+        /* Contadas tambem as que JA declaram de onde vem. */
+        no_produto_marcadas: marcadosNoProduto,
+        /* A METADE FOI LIBERTADA a 2026-08-29 — e a condicao que a prendia
+           deixou de existir, nao foi a regua que se mexeu.
 
-           Ao separar público de produto, o índice saltou de 8,18 para **10,00**.
-           Um dez tirado no mesmo minuto em que se muda a régua não é um dez: é
-           a definição do que a decisão de 27/08 proíbe — «os limiares sobem
-           quando as verificações passarem a medir, nunca por conveniência de
-           uma onda». A régua mudou por uma razão boa (publicar ≠ mostrar a quem
-           entrou), mas quem muda a régua não pode também ficar com o prémio.
+           O que aqui estava: «fica presa ate as 15 estimativas sairem do produto
+           ou o dono decidir que ficam — e nesse dia isto passa a 2.0 numa linha,
+           com a decisao escrita ao lado». A decisao esta escrita, e nao e nenhuma
+           das duas que eu tinha previsto.
 
-           A superfície pública limpa vale a metade que foi mesmo conquistada.
-           A outra metade fica presa até as 15 estimativas saírem do produto ou
-           o dono decidir que ficam — e nesse dia isto passa a `2.0` numa linha,
-           com a decisão escrita ao lado. */
+           As cifras FICAM, porque a shell mostra dados sincronizados de outros
+           devices, e nenhum servidor pode medir tokens que nunca lhe passaram
+           pelas maos — e e bom que nao possa: os prompts nunca saem da maquina,
+           que e a tese do produto. O numero de la e modelado por construcao
+           (`savings-tracker.js:441-451`: `saved = naive - real`, os dois
+           derivados do COMPRIMENTO DO PROMPT, zero tokens contados).
+
+           O que mudou e que deixaram de ser estimativas apresentadas como
+           factos. Cada cifra renderiza colada a sua proveniencia, de uma unica
+           fonte (`_modelado.tsx`), e aponta para o numero MEDIDO — `mooter
+           recibo`, que le os tokens reais da maquina de quem o corre. Ate
+           2026-08-28 a defesa era «real token counts require API access mooter
+           doesn't have»; isso deixou de ser verdade e a frase foi corrigida.
+
+           Por isso isto nao e afrouxar a regua: a verificacao passou a medir a
+           coisa certa. Antes contava «cifras de poupanca na shell», que castiga
+           igualmente um numero honesto e um numero mudo. Agora conta «cifras SEM
+           proveniencia declarada», que e o defeito que a decisao de 2026-08-24
+           sempre visou. Uma cifra sem marca continua a valer metade.
+
+           Guardado por `design/tools/moo-proveniencia.test.mjs`, que planta uma
+           cifra sem marca e exige que ela apareca aqui — e planta a MESMA cifra
+           com marca e exige a nota cheia. Sem essa mordida isto era o 10,00
+           recusado a 2026-08-27 outra vez, com outra roupa. */
         pontos: publicos.length ? 0 : noProduto.length ? 1.0 : 2.0,
         porque: (publicos.length
           ? `${publicos.length} claim(s) proibido(s) em superfície PÚBLICA, em ${new Set(publicos.map(a => a.ficheiro)).size} ficheiro(s) (decisão 2026-08-24)`
           : `${alvos.length} ficheiros varridos, zero claims em superfície pública`)
-          + (noProduto.length ? ` · ⚠️ ${noProduto.length} na shell autenticada (produto, não publicidade — ver o comentário na verificação 3)` : '')
+          + (noProduto.length ? ` · ⚠️ ${noProduto.length} SEM proveniência na shell autenticada (ver o comentário na verificação 3)` : '')
+          + (marcadosNoProduto ? ` · ${marcadosNoProduto} modelada(s) e declarada(s) na shell` : '')
           + (declarados.length ? ` · ${declarados.length} declarado(s)` : '') });
 }
 
