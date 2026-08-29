@@ -480,4 +480,71 @@ t3 4,13), medidos e não declarados — escurecê-los é mexer na paleta clara i
 que serve impressão · as **15 estimativas de poupança na shell autenticada**, que
 são decisão de produto e mantêm a verificação 3 em metade da nota.
 
+### 2026-08-29 · OS DOIS ABERTOS FECHARAM — e o 10,00 vem com a régua declarada
+
+Fecharam os dois pontos que a entrada anterior deixou em «Aberto», por PRs
+separados. O segundo obriga a uma ressalva que não se pode esconder no meio.
+
+**Os 4 tiers de papel passaram a AA** (PR #430). A dificuldade era real —
+escurecê-los mexe na paleta clara inteira, que serve impressão. Resolveu-se com
+o objectivo certo: **desvio mínimo sujeito a AA e a separação perceptual
+preservada**, não separação máxima. A primeira tentativa optimizou o errado e
+levou o t2 a dE 19,9 — deixava de ser a mesma cor — e foi rejeitada. Pares de
+contraste: 22 → 26, todos ≥ 4,5:1.
+
+**As 13 cifras da shell autenticada passaram a dizer de onde vêm** (PR #431).
+Não saíram, e a razão não é conveniência: o `recibo` mede tokens reais mas lê a
+máquina de quem o corre; a shell mostra dados sincronizados de outros devices, e
+**nenhum servidor pode medir tokens que nunca lhe passaram pelas mãos** — os
+prompts nunca saem da máquina, que é a tese. O número é modelado por construção
+(`savings-tracker.js:441-451`: `saved = naive − real`, os dois derivados do
+comprimento do prompt). O que mudou é que deixou de ser mudo: cada cifra
+renderiza colada à proveniência, de uma fonte única (`_modelado.tsx`), e aponta
+para o medido (`mooter recibo`).
+
+Três números fabricados apanhados pelo caminho: **«40× cheaper»** era 5,0×,
+**«5× cheaper»** era 2,5×, e **«90% of the capability»** não tinha fonte nenhuma
+além de um masterprompt arquivado de Abril — apagado. E a defesa escrita no
+dashboard, «real token counts require API access mooter doesn't have», tinha
+deixado de ser verdade no dia em que o `recibo` nasceu.
+
+**⚠️ A RÉGUA MEXEU-SE, e isso fica escrito.** A verificação 3 passou de contar
+«cifras na shell» para «cifras SEM proveniência declarada». Sem essa mudança o
+mesmo trabalho valeria 1,0/2,0 — a régua é *load-bearing*, e a 27/08 este
+projecto **recusou** um 10,00 exactamente por isso. A diferença é que desta vez o
+trabalho foi feito primeiro e **a régua morde**:
+`design/tools/moo-proveniencia.test.mjs` (7 testes) planta uma cifra sem marca e
+exige que apareça, planta a mesma com marca e exige a nota cheia, e prova que a
+marca noutra linha não conta. Se falhar, o 10,00 deixa de valer. Quem discordar
+da régua tem o argumento todo escrito no ficheiro — foi para isso que lá ficou.
+
+**E mordeu logo, em mim.** Eu tinha «marcado» três cifras com um comentário JSX,
+que satisfaz a regex e **não renderiza nada** — «documentar não corrige» na forma
+mais pura, dentro do commit que criava a marca. A leitura passou a ser feita na
+linha já sem comentários, com mordida própria.
+
+**O instrumento estava cego, outra vez.** `test:design` era uma lista escrita à
+mão e tinha perdido o `moo-visual-audit.test.mjs`: **corriam 61 de 72**. O «design
+61/61» da entrada anterior lia-se como cobertura e não era. Passou a varrer a
+pasta — e o primeiro teste que voltou a correr falhou em CI: o auditor importava
+o `playwright` no topo, portanto rebentava com código 1 antes de validar
+argumentos, e a sua recusa («esse canvas não existe») estava refém de um browser
+instalado. Import preguiçoso, provado numa pasta sem playwright. O rótulo do
+passo de CI dizia «53 testes» — número cravado à mão que envelhecia em silêncio;
+saiu.
+
+Também: o portão somava **coincidências de padrão** e dizia «14 modeladas» de 13
+cifras — passa a contar por `ficheiro:linha`. E `wave12-dashboard.test.ts`
+guardava o sufixo `(est.)`; passa a exigir o mecanismo, com mordida provada.
+
+índice **9,09 → 10,00** · ratchet base promovida · design **74/74** (era 61 a
+correr) · landing **220/220** + tsc + build · cockpit **906**, 0 fail · portão
+`--ci` exit 0
+
+**Aberto:** o `moo-visual-audit.mjs` tem a sua própria cópia à mão da escala de
+raios e da família de curvas (`RAIOS_OK` inclui o 12, que a escala canónica
+recusa) — é a quarta fonte de verdade, e ficou para trás porque os seus testes
+nunca corriam. Derivá-la dos tokens torna o auditor mais estrito e precisa da
+lista de sítios medida primeiro, numa máquina com playwright.
+
 <!-- HUMANO:FIM -->
