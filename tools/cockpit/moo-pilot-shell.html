@@ -153,23 +153,33 @@
     --bg:var(--moo-papel-bg); --panel:var(--moo-papel-surface); --panel-2:var(--moo-papel-bg-2);
     --ink:var(--moo-papel-text); --ink-2:var(--moo-papel-text-2);
     --ink-3:var(--moo-papel-muted); --line:var(--moo-papel-line);
-    /* BURACO MEDIDO, nao remendado aqui: papel.warn (#B89050) e um dos dois
-       unicos tokens de papel que moo-tokens.json NAO poe em contraste.pares —
-       e por isso o portao diz "16 pares, todos >= 4.5:1" sem nunca o ver.
-       Medido 2026-08-27 no browser: 2,50:1 sobre --bg, 2,34:1 sobre o proprio
-       --warn-bg. O literal que aqui estava (#8a5600) dava 5,56:1. A troca e uma
-       PERDA de legibilidade em .chip.warn, .sev.med, .dev .backlog e .sev-aviso.
-       Nao se corrige neste ficheiro: inventar um amarelo local recria a segunda
+    /* BURACO FECHADO a 2026-08-29, e o registo fica porque a correccao seguiu
+       exactamente o caminho que este comentario mandava seguir.
+       O que aqui estava: `papel.warn` era #B89050, media 2,50:1 sobre `--bg`, e
+       o portao dizia "16 pares, todos >= 4.5:1" sem nunca o ver — porque media
+       uma LISTA A MAO e o `warn` nao estava nela. A nota terminava assim: "Nao
+       se corrige neste ficheiro: inventar um amarelo local recria a segunda
        fonte de verdade que esta mudanca existe para matar. Corrige-se em
-       design/tokens/moo-tokens.json (valor + par declarado) e regenera-se.
-       No tema escuro nao ha problema: tinta.warn da 10,38:1. */
+       design/tokens/moo-tokens.json (valor + par declarado) e regenera-se."
+       Foi o que se fez. `papel.warn` e agora #7E6031, e a verificacao deixou de
+       medir uma lista: DERIVA a matriz frente x fundo (89 pares). O `warn` ja
+       nao pode ficar de fora por ninguem o ter escrito. */
     --ok:var(--moo-papel-ok); --warn:var(--moo-papel-warn);
     --bad:var(--moo-papel-bad); --dead:var(--moo-papel-muted);
     --accent:var(--moo-papel-accent); --accent-ink:var(--moo-papel-on-accent);
-    --ok-bg:color-mix(in srgb,var(--ok) 14%,var(--panel));
-    --warn-bg:color-mix(in srgb,var(--warn) 18%,var(--panel));
-    --bad-bg:color-mix(in srgb,var(--bad) 13%,var(--panel));
+    --ok-bg:color-mix(in srgb,var(--ok) 13%,var(--panel));
+    --warn-bg:color-mix(in srgb,var(--warn) 14%,var(--panel));
+    --bad-bg:color-mix(in srgb,var(--bad) 12%,var(--panel));
     --dead-bg:color-mix(in srgb,var(--dead) 12%,var(--panel));
+    /* AS PERCENTAGENS BAIXARAM a 2026-08-29, e a razao e aritmetica: o texto do
+       chip e a MESMA cor com que o fundo e tingido, portanto quanto mais tinta
+       menos contraste. Medido: ok 14%->4,47:1 · warn 18%->4,27:1 · bad
+       13%->4,49:1, os tres abaixo de AA. Baixados ao minimo que passa —
+       13/14/12 — e nao mais, para o chip nao deixar de se distinguir do painel.
+       O `dead` ja passava a 12% (4,64:1) e nao se toca.
+       So o `ok` aparecia no relatorio do auditor: `warn` e `bad` nao estavam no
+       ecra no momento da captura. Um auditor que renderiza ve o que esta
+       pintado, nao o que existe — por isso a conta foi feita, e nao lida. */
     --r:var(--moo-radius-window);
     --mono:var(--moo-font-mono);
     --sans:var(--moo-font-sans);

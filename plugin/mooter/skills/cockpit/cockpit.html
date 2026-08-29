@@ -144,8 +144,18 @@
     /* V13 light inks — calibrated for paper-white (amber #8a5f00, slate #3e6280) */
     --bg:var(--moo-papel-bg); --panel:#fbfaf6; --panel2:#edeae1; --card:#f6f4ee; --term:#eceadf;
     --border:#c6c2b6; --border-soft:#d7d3c7;
-    --fg:#26241f; --dim:#57534a; --faint:#7d7869;
-    --terracotta:#b9532f;
+    --fg:#26241f; --dim:#57534a; --faint:var(--moo-papel-faint);
+    --terracotta:#b04a26;
+    /* CONTRASTE, medido 2026-08-29 no browser e nao no olho:
+       · `--faint` era #7d7869 e dava 3,75:1 sobre `--bg` e 3,65:1 sobre `--term`.
+         Passa a apontar ao token `papel.faint` (#6E6455), que mede 4,81 a 5,56:1
+         nas CINCO superficies claras desta folha — resolve o contraste e mata de
+         caminho um valor cravado, que era a segunda fonte de verdade contra a
+         qual este ficheiro ja avisava noutro comentario.
+       · `--terracotta` #b9532f falhava em QUATRO das cinco (4,01 a 4,63:1).
+         Escurecido o minimo para passar nas cinco: dE76 3,4. Nao vai para token
+         porque nenhum existe com este laranja — os `accent` sao vermelhos — e
+         inventar um token e canon, decisao do dono. 56 usos nesta folha. */
     --green:var(--moo-papel-ok);
     --green-dim:color-mix(in srgb,var(--green) 10%,transparent);
     --green-bd:color-mix(in srgb,var(--green) 45%,transparent);
