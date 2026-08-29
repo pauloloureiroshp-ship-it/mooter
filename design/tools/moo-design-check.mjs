@@ -620,7 +620,7 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
 
 // 5 · MOVIMENTO SEGURO (1.0) — só transform/opacity, e reduced-motion sempre
 {
-  const maus = [], semGuarda = [];
+  const maus = [], semGuarda = [], guardaIncompleta = [];
   /* Só folhas de estilo. Antes disto a lista incluía `moo-tokens-build.mjs`, e o
      portão lintava o TEMPLATE do próprio gerador como se fosse CSS. */
     /* `landing/public` entrou aqui pela mesma razão que entrou nas outras duas
@@ -664,7 +664,36 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     kf.forEach(b => [...b.matchAll(/(?:^|[{;])\s*([a-z-]+)\s*:/gm)].forEach(m => props.add(m[1])));
     const proibidas = [...props].filter(p => !['transform', 'opacity', 'filter', 'stroke-dashoffset'].includes(p));
     if (proibidas.length) maus.push({ ficheiro: f, propriedades: proibidas });
-    if (!/prefers-reduced-motion/.test(s)) semGuarda.push(f);
+    /* ── PRESENÇA NÃO É COBERTURA ──────────────────────────────────────────
+       Isto testava `/prefers-reduced-motion/.test(s)`: existe a expressão no
+       ficheiro? Sim -> verde. Media que alguém se lembrou do assunto, não que o
+       resolveu.
+
+       Medido a 2026-08-29 em `packages/mooter-bridge/fleet-ui.html`: a guarda
+       nomeava DOIS selectores e o ficheiro tinha SEIS animados. Quatro animações
+       INFINITAS — `.pulse`, `.eta-track.pulsante`, `.eta-track.ind > i` e
+       `.eta-dot.vivo` — corriam para quem pediu ao sistema operativo que não
+       corressem, com o portão a dizer «todas com guarda de movimento reduzido».
+
+       Uma lista de selectores envelhece: cada animação nova nasce descoberta, em
+       silêncio. Por isso o que se aceita é a forma que NÃO pode rodar — um bloco
+       universal (`*`) — ou, em alternativa, uma lista que nomeie todos os
+       animados do ficheiro. As duas são cobertura; a presença não era nenhuma.
+
+       Zero achados no momento em que a regra ligou: as 8 folhas com keyframes já
+       têm guarda universal, a última corrigida no mesmo commit que trouxe esta
+       verificação. É o que se quer de um aperto — o portão passa a medir e
+       continua verde porque o trabalho foi feito. */
+    const blocosRM = [...s.matchAll(/@media[^{]*prefers-reduced-motion[^{]*\{([\s\S]*?)\n\s*\}/g)]
+      .map((m) => m[1]).join('\n');
+    if (!blocosRM) { semGuarda.push(f); continue; }
+    if (!/(^|[\s,{])\*/.test(blocosRM)) {
+      const animados = [...s.matchAll(/([^{}]+)\{[^{}]*animation\s*:\s*(?!none)[^;}]+/g)]
+        .map((m) => m[1].trim().split('\n').pop().trim())
+        .filter((x) => x && !x.startsWith('@'));
+      const descobertos = [...new Set(animados.filter((sel) => !blocosRM.includes(sel.split(',')[0].trim())))];
+      if (descobertos.length) guardaIncompleta.push({ ficheiro: f, descobertos });
+    }
   }
   /* ── AS TRANSIÇÕES, QUE ESTA VERIFICAÇÃO NUNCA TINHA OLHADO ────────────────
      Até 2026-08-29 isto inspeccionava só blocos `@keyframes`. O nome da
@@ -713,20 +742,22 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
     });
   }
 
-  const n = maus.length + semGuarda.length + transicaoAll.length;
+  const n = maus.length + semGuarda.length + transicaoAll.length + guardaIncompleta.length;
   /* Sem esta guarda a verificação dizia "só transform/opacity, e todos com guarda
      de movimento reduzido" tendo lido ZERO ficheiros. Não medido é `n/d`. */
   reg('movimento-seguro', 'Movimento seguro', 1.0, vistosMov === 0
     ? { estado: 'n/d', porque: 'nenhuma folha de estilo legível em MOO_REPO', pontos: null }
     : {
     estado: n ? 'falha' : 'passa', repinta: maus, sem_guarda: semGuarda, vistos: vistosMov,
+    guarda_incompleta: guardaIncompleta,
     transicao_all: transicaoAll,
     /* Contadas, não escondidas — ver o comentário acima. */
     transicao_layout_declarada: transicaoLayout,
     pontos: n ? 0 : 1.0,
     porque: (n ? `${maus.length} ficheiro(s) animam propriedades que repintam · ${semGuarda.length} sem prefers-reduced-motion`
+              + (guardaIncompleta.length ? ` · ${guardaIncompleta.length} com guarda de movimento reduzido INCOMPLETA (nomeia selectores e deixa animacoes de fora)` : '')
               + (transicaoAll.length ? ` · ${transicaoAll.length} \`transition: all\` (anima também layout)` : '')
-              : `${vistosMov} folhas · só transform/opacity, todas com guarda de movimento reduzido, zero \`transition: all\``)
+              : `${vistosMov} folhas · só transform/opacity, guarda de movimento reduzido COMPLETA em todas, zero \`transition: all\``)
       + (transicaoLayout.length ? ` · ${transicaoLayout.length} transição(ões) de propriedade de layout, DECLARADAS (barras de progresso) e não banidas` : ''),
   });
 }
