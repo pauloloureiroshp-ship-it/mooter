@@ -7397,7 +7397,10 @@ boot().catch(e => {
   #mooInput:focus{outline:none;border-color:var(--terracotta)}
   #mooInput::placeholder{color:var(--faint)}
   .moo-send{
-    background:var(--terracotta);border:1px solid var(--terracotta);color:#fff;
+    /* Mesmo caso do .btn.primary: no tema escuro o terracota e claro e o branco
+       da 3,12:1. Medido a 2026-08-29 ao render o cockpit em escuro pela primeira
+       vez — o glifo ↵ deste botao foi o segundo achado. */
+    background:var(--terracotta);border:1px solid var(--terracotta);color:var(--on-terracotta);
     border-radius:8px;padding:0 12px;height:34px;cursor:pointer;
     font-family:var(--mono);font-size:var(--fs2);font-weight:700;flex:0 0 auto;
   }

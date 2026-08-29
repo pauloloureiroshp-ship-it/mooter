@@ -98,19 +98,40 @@ const LIMPA = `<!doctype html><meta charset="utf-8"><title>limpa</title>
 </style>
 <div class="ok">texto legivel numa caixa legitima</div>`;
 
-function correr(pranchas, env = {}) {
+/* `correr` ganha um 3.º parâmetro: mapa `ficheiro -> temas[]` (e opcionalmente
+   `{temas, temaND}`). As chamadas antigas não o passam, portanto os canvases
+   sintéticos continuam SEM o campo — que é a forma de a retro-compatibilidade
+   ser verificada pela suite em vez de prometida no comentário. */
+function correr(pranchas, env = {}, temaPorFicheiro = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'moo-audit-'));
   for (const [nome, html] of Object.entries(pranchas)) writeFileSync(join(dir, nome), html);
   writeFileSync(join(dir, 'canvas.json'), JSON.stringify({
-    artboards: Object.keys(pranchas).map(f => ({
-      name: f.replace('.html',''), page: 'teste', file: f, w: 1200, h: H,
-    })),
+    artboards: Object.keys(pranchas).map((f) => {
+      const t = temaPorFicheiro[f];
+      const extra = Array.isArray(t) ? { temas: t } : (t ?? {});
+      return { name: f.replace('.html',''), page: 'teste', file: f, w: 1200, h: H, ...extra };
+    }),
   }));
-  const saida = execFileSync(process.execPath, [AUDITOR, join(dir, 'canvas.json')],
-    { encoding: 'utf8', stdio: ['ignore','pipe','pipe'], env: { ...process.env, ...env } });
-  const json = JSON.parse(readFileSync(join(dir, '.visual-audit.json'), 'utf8'));
+  let saida = '', status = 0, err = '';
+  try {
+    saida = execFileSync(process.execPath, [AUDITOR, join(dir, 'canvas.json')],
+      { encoding: 'utf8', stdio: ['ignore','pipe','pipe'], env: { ...process.env, ...env } });
+  } catch (e) { status = e.status; saida = e.stdout ?? ''; err = String(e.stderr ?? ''); }
+  let json = [];
+  try { json = JSON.parse(readFileSync(join(dir, '.visual-audit.json'), 'utf8')); } catch { /* pode nao existir */ }
   rmSync(dir, { recursive: true, force: true });
-  return { json, saida };
+  return { json, saida, status, err };
+}
+
+/* `find` devolve a PRIMEIRA linha que casa. Com uma linha por (prancha, tema),
+   um `find` só pelo nome devolveria o claro e ficava verde sem nunca ter olhado
+   para o escuro — que é o defeito que este trabalho existe para matar,
+   reencarnado dentro do próprio teste. Este localizador recusa-se a escolher. */
+function acha(json, prancha, tema = null) {
+  const m = json.filter((x) => x.prancha === prancha && (tema === null || x.tema === tema));
+  if (m.length > 1) throw new Error(
+    `localizador ambíguo: "${prancha}" deu ${m.length} linhas (${m.map((x) => x.tema).join(', ')}) — nomeia o tema`);
+  return m[0];
 }
 
 test('o auditor recusa-se a inventar quando o canvas não existe', () => {
@@ -324,4 +345,126 @@ test('MORDIDA · a MESMA folha, com outro caminho, volta a ser medida', { skip: 
   assert.ok(r.contrasteNovo.length > 0,
     'uma folha NÃO declarada tem de continuar a ser medida');
   assert.equal(r.contrasteDeclarado, 0);
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TEMA POR PRANCHA — as mordidas
+
+   O auditor renderizava cada folha UMA vez, sem forçar tema, e o default do
+   playwright é claro. Medido a 2026-08-29: forçar o escuro do cockpit à mão deu
+   TRÊS defeitos que ninguém tinha visto, um deles o rótulo do botão primário a
+   3,12:1. Metade da superfície do produto não era auditada — e o relatório não
+   dizia que não era.
+
+   Estes testes fixam as três coisas que podem correr mal a seguir:
+     · medir o tema errado (a ORDEM: atributo depois do load, media query antes);
+     · dizer «dois temas» tendo medido um (a PROVA);
+     · deixar o tema vazar de uma prancha para a seguinte (o `pg` é partilhado). */
+
+const SO_ATRIBUTO = `<!doctype html><meta charset="utf-8"><title>d</title>
+<style>
+  body{background:#ffffff}
+  .t{color:#595959;font-size:14px}
+  html[data-theme="dark"] body{background:#111111}
+  html[data-theme="dark"] .t{color:#3a3a3a}
+</style>
+<p class="t">texto</p>
+<script>
+  /* Réplica do applyTheme() do cockpit.html: corre durante o PARSE e apaga o
+     atributo. Um addInitScript é desfeito por isto — e o auditor mediria o claro
+     escrevendo «escuro» no relatório. */
+  delete document.documentElement.dataset.theme;
+</script>`;
+
+const SO_MEDIA = `<!doctype html><meta charset="utf-8"><title>m</title>
+<style>
+  body{background:#ffffff}
+  .t{color:#595959;font-size:14px}
+  @media (prefers-color-scheme: dark){ body{background:#111111} .t{color:#3a3a3a} }
+</style>
+<p class="t">texto</p>`;
+
+const SEM_MECANISMO = `<!doctype html><meta charset="utf-8"><title>s</title>
+<style>body{background:#ffffff}.t{color:#595959;font-size:14px}</style>
+<p class="t">texto</p>`;
+
+test('MORDIDA · um defeito SÓ no escuro é apanhado — via ATRIBUTO, contra um script que o apaga', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const { json, status } = correr({ 'd.html': SO_ATRIBUTO }, {}, { 'd.html': ['claro', 'escuro'] });
+  assert.equal(status, 0);
+  assert.equal(json.length, 2, 'duas declarações de tema têm de dar duas linhas');
+  assert.equal(acha(json, 'd', 'claro').contrasteNovo.length, 0, 'o claro passa');
+  assert.ok(acha(json, 'd', 'escuro').contrasteNovo.length > 0,
+    'o defeito do escuro escapou — o atributo terá sido escrito ANTES do load e o script apagou-o');
+});
+
+test('MORDIDA · e via MEDIA QUERY — sem esta metade, metade das folhas ficava por medir', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const { json } = correr({ 'm.html': SO_MEDIA }, {}, { 'm.html': ['claro', 'escuro'] });
+  assert.equal(acha(json, 'm', 'claro').contrasteNovo.length, 0);
+  assert.ok(acha(json, 'm', 'escuro').contrasteNovo.length > 0,
+    'o emulateMedia não está a correr ANTES do goto');
+});
+
+test('MORDIDA · declarar dois temas numa folha que não muda vale exit 3', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const { json, status, err } = correr({ 's.html': SEM_MECANISMO }, {}, { 's.html': ['claro', 'escuro'] });
+  assert.equal(status, 3, 'o relatório diria dois temas tendo medido um, e isso tem de chumbar');
+  assert.match(err, /MESMA impressão/);
+  assert.equal(json.length, 2, 'o JSON é escrito na mesma — a prova sobrevive ao veredicto');
+  json.forEach((l) => assert.equal(l.temaAplicado, false));
+});
+
+test('«tema único» é PROVADO — e desmentido quando é mentira', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const bom = correr({ 's.html': SEM_MECANISMO }, {}, { 's.html': ['claro'] });
+  assert.equal(bom.status, 0);
+  assert.equal(acha(bom.json, 's').temaUnicoProvado, true);
+
+  const mau = correr({ 'm.html': SO_MEDIA }, {}, { 'm.html': ['claro'] });
+  assert.equal(mau.status, 3);
+  assert.match(mau.err, /MUDA sob o modo oposto/);
+  assert.equal(acha(mau.json, 'm').temaUnicoProvado, false);
+});
+
+test('MORDIDA · o tema não vaza de uma prancha para a seguinte', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  /* O `pg` é partilhado por todas as pranchas. Sem emulateMedia a correr SEMPRE,
+     a folha a seguir a uma escura herdava o escuro em silêncio — o defeito mais
+     fácil de introduzir e o mais difícil de ver. */
+  const { json } = correr(
+    { 'a.html': SO_MEDIA, 'b.html': SO_MEDIA },
+    {},
+    { 'a.html': ['escuro'], 'b.html': ['claro'] });
+  const b = acha(json, 'b', 'claro');
+  assert.match(b.impressao, /rgb\(255, 255, 255\)/, `a prancha B herdou o escuro da A: ${b.impressao}`);
+});
+
+test('`n/d` não toca no DOM — a retro-compatibilidade é verificável, não prometida', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const porJs = `<!doctype html><meta charset="utf-8"><title>j</title>
+<style>body{background:#ffffff} html[data-theme="dark"] body{background:#111111}</style>
+<p>texto</p><script>document.documentElement.dataset.theme='dark';</script>`;
+  const { json } = correr({ 'j.html': porJs }, {}, { 'j.html': { temas: ['n/d'], temaND: 'razão declarada' } });
+  const r = acha(json, 'j');
+  assert.equal(r.tema, 'n/d');
+  assert.equal(r.temaND, 'razão declarada');
+  assert.equal(r.temaAplicado, null);
+  assert.match(r.impressao, /rgb\(17, 17, 17\)/, 'o auditor mexeu no DOM de uma prancha n/d');
+});
+
+test('vocabulário fechado — e a recusa acontece ANTES do browser', () => {
+  /* Sem `skip`: tem de funcionar numa máquina sem playwright, como a recusa do
+     canvas em falta. Foi por não ser assim que aquele teste passou semanas a
+     verde só nas máquinas com browser. */
+  const mau = correr({ 'x.html': SEM_MECANISMO }, {}, { 'x.html': ['dark'] });
+  assert.equal(mau.status, 2, '`dark` não é vocabulário — mediria o tema errado em silêncio');
+  assert.match(mau.err, /temas.*inválido/);
+  assert.match(mau.err, /x\.html/, 'a mensagem tem de nomear o ficheiro');
+
+  const semRazao = correr({ 'x.html': SEM_MECANISMO }, {}, { 'x.html': ['n/d'] });
+  assert.equal(semRazao.status, 2, '`n/d` sem `temaND` é uma exclusão silenciosa');
+  assert.match(semRazao.err, /temaND/);
+});
+
+test('o localizador dos testes recusa-se a escolher entre temas', { skip: !TEM_PW && 'playwright não instalado' }, () => {
+  const { json } = correr({ 'm.html': SO_MEDIA }, {}, { 'm.html': ['claro', 'escuro'] });
+  assert.equal(json.length, 2);
+  assert.throws(() => acha(json, 'm'), /ambíguo/,
+    'um find pelo nome devolveria o claro e ficaria verde sem olhar para o escuro');
+  assert.equal(acha(json, 'm', 'escuro').tema, 'escuro');
 });
