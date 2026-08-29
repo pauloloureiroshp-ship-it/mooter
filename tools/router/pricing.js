@@ -85,19 +85,25 @@ const PRICES = {
   // Estas sao as PRIMEIRAS medicoes locais deste device. Uma medicao != MooterBench:
   // nenhuma entrada abaixo esta promovida a residente (gate B1-B6 + ▶ do dono).
   'qwen2.5:3b':                      { input: 0, output: 0, strengths: ['general','summarize','translate','quick-answer'], tier: 'T0', subtier: 'general' },
-  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
+  // NAO instalado NESTE device (Mac mini, medido 2026-08-29). Sobre o Jetson e a
+  // 4090 nao ha medicao — nao se remove do catalogo com evidencia de uma maquina.
   'qwen3:30b':                       { input: 0, output: 0, strengths: ['reasoning-local'],                                 tier: 'T0', subtier: 'reason' },
-  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
+  // NAO instalado NESTE device (Mac mini, medido 2026-08-29). Sobre o Jetson e a
+  // 4090 nao ha medicao — nao se remove do catalogo com evidencia de uma maquina.
   'qwen2.5-coder:14b-q4':            { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
   'qwen2.5-coder:14b':               { input: 0, output: 0, strengths: ['code','refactor-local','lint','regex'],            tier: 'T0', subtier: 'code' },
-  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
+  // NAO instalado NESTE device (Mac mini, medido 2026-08-29). Sobre o Jetson e a
+  // 4090 nao ha medicao — nao se remove do catalogo com evidencia de uma maquina.
   'deepseek-r1-distill-qwen:14b':    { input: 0, output: 0, strengths: ['math','reasoning','step-by-step'],                 tier: 'T0', subtier: 'math' },
-  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
+  // NAO instalado NESTE device (Mac mini, medido 2026-08-29). Sobre o Jetson e a
+  // 4090 nao ha medicao — nao se remove do catalogo com evidencia de uma maquina.
   'deepseek-r1:7b':                  { input: 0, output: 0, strengths: ['math','reasoning'],                                tier: 'T0', subtier: 'math' },
   // Google Gemma 4 (local via Ollama) — multimodal, strong reasoning
-  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
+  // NAO instalado NESTE device (Mac mini, medido 2026-08-29). Sobre o Jetson e a
+  // 4090 nao ha medicao — nao se remove do catalogo com evidencia de uma maquina.
   'gemma4:e4b':                       { input: 0, output: 0, strengths: ['reasoning','multimodal','general','summarize'], tier: 'T0', subtier: 'reason' },
-  // NAO instalado em nenhum device da frota (medido 2026-08-29) — mantido so como catalogo.
+  // NAO instalado NESTE device (Mac mini, medido 2026-08-29). Sobre o Jetson e a
+  // 4090 nao ha medicao — nao se remove do catalogo com evidencia de uma maquina.
   'gemma3:12b':                       { input: 0, output: 0, strengths: ['general','summarize','translate'],              tier: 'T0', subtier: 'general' },
   // IBM Granite 4.2 (2026-08-25, Apache 2.0, tool-calling formato OpenAI, 128K)
   'granite4.2:3b':                   { input: 0, output: 0, strengths: ['general','triage','classify','quick-answer','summarize'], tier: 'T0', subtier: 'general' },
