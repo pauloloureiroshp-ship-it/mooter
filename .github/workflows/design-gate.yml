@@ -83,7 +83,7 @@ jobs:
       # ausência de medição vestida de medição. Um portão que nunca falhou é
       # indistinguível de um portão que não funciona, por isso o CI prova
       # primeiro que ele MORDE, e só depois acredita no número que ele dá.
-      - name: O portão morde? (53 testes que plantam o defeito)
+      - name: O portão morde? (testes que plantam o defeito)
         run: npm run test:design
 
       # 2 · Gerar, nunca copiar — provado, não afirmado.

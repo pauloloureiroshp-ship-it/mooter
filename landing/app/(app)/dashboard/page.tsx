@@ -1,5 +1,6 @@
 'use client';
 
+import { Modelado, ModeladoNota, MODELADO_PORQUE } from '../_modelado';
 import { useEffect, useState } from 'react';
 // Wave 4 Phase C — new dashboard cards (extend, not replace).
 import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
@@ -238,7 +239,7 @@ function DevicesTab({ profile }: { profile: Profile }) {
             <div style={{ fontSize: '0.85rem', color: 'var(--text)' }}>
               {(d.decisions_count || 0).toLocaleString()} prompts ·{' '}
               <span style={{ color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>
-                ${Number(d.savings_usd || 0).toFixed(2)}
+                ${Number(d.savings_usd || 0).toFixed(2)}<Modelado />
               </span>
             </div>
             <div style={{ color: 'var(--muted)', fontSize: '0.72rem', marginTop: 2 }}>
@@ -1325,19 +1326,22 @@ function OverviewTab({ profile }: { profile: Profile }) {
       <div style={card}>
         <h2 style={sectionHeading}>Savings depth</h2>
         {decisionsCount > 0 ? (
+          <>
           <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 16 }}>
             {[
-              { v: `$${savingsUsd.toFixed(2)}`, l: 'you saved (est.)', c: 'var(--tier-0)' },
-              { v: `$${allOpusCost.toFixed(2)}`, l: 'all-Opus would cost', c: 'var(--text)' },
-              { v: `$${Math.max(0, allOpusCost - savingsUsd).toFixed(2)}`, l: 'you actually paid (est.)', c: 'var(--text)' },
-              { v: `${savingsPct}%`, l: 'saved vs all-Opus (est.)', c: 'var(--tier-0)' },
+              { v: `$${savingsUsd.toFixed(2)}`, l: 'you saved', c: 'var(--tier-0)', modelado: true },
+              { v: `$${allOpusCost.toFixed(2)}`, l: 'all-Opus would cost', c: 'var(--text)', modelado: true },
+              { v: `$${Math.max(0, allOpusCost - savingsUsd).toFixed(2)}`, l: 'you actually paid', c: 'var(--text)', modelado: true },
+              { v: `${savingsPct}%`, l: 'saved vs all-Opus', c: 'var(--tier-0)', modelado: true },
             ].map((m) => (
               <div key={m.l}>
                 <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: 'var(--mono)', color: m.c, lineHeight: 1 }}>{m.v}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{m.l}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{m.l}{m.modelado ? <Modelado /> : null}</div>
               </div>
             ))}
           </div>
+            <ModeladoNota />
+          </>
         ) : (
           <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 16 }}>Run a few prompts to see your all-Opus comparison.</p>
         )}
@@ -1459,9 +1463,14 @@ function MetricsTab({ profile }: { profile: Profile }) {
               source: 'mooter dashboard',
               badge: '~est',
               badgeColor: 'var(--yellow)',
-              what: `${decisionsCount} decisions · $${savingsUsd.toFixed(2)} saved`,
+              what: `${decisionsCount} decisions · $${savingsUsd.toFixed(2)} saved (Modelado: ${MODELADO_PORQUE})`,
               how: 'Counts user prompts routed. Savings = (what Opus would cost) − (what mooter paid). Uses estimated token counts from prompt length.',
-              why: 'Honest estimate. Not real tokens — real token counts require API access mooter doesn\u2019t have.',
+              /* 2026-08-29 · dizia «real token counts require API access mooter doesn't have».
+                 Era verdade quando foi escrito e DEIXOU de ser: `tools/router/recibo.js` le o
+                 `message.usage` que o Claude Code ja escreve em `~/.claude/projects`, sem API
+                 nenhuma. O numero modelado deixou de ser o melhor que se consegue e passou a
+                 ser o pior dos dois que existem. */
+              why: 'Modelled, not measured — no tokens are counted here. Real token counts DO exist: `mooter recibo` reads them from your own machine. This page cannot, because it shows data synced from devices whose prompts never left them.',
             },
             {
               source: 'VSCode Claude plugin',
@@ -1582,7 +1591,7 @@ function MetricsTab({ profile }: { profile: Profile }) {
             { term: 'real cost (est.)', def: 'Estimated actual cost based on the tier it was routed to × avg token estimate.' },
             { term: 'saved (est.)', def: 'naive cost − real cost (est.). This is the savings number shown in the dashboard.' },
             { term: 'guaranteed saved', def: 'Only Option A hits where Ollama answered directly instead of Opus. Conservative floor.' },
-            { term: 'savings %', def: 'saved / naive × 100. 68% means mooter spent 32% of what pure-Opus would cost.' },
+            { term: 'savings %', def: 'saved / naive × 100 — both modelled from prompt length, so this ratio is modelled too. Nothing here counts a token; `mooter recibo` does, on your own machine.' },
           ].map(({ term, def }) => (
             <div key={term} style={{ display: 'flex', gap: 14, fontSize: '0.82rem' }}>
               <code style={{
@@ -1910,8 +1919,8 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         <div className="flow-node" style={{ animationDelay: '0.5s', padding: 0, border: 'none', background: 'transparent' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <ModelCard label="Ollama" badge="FREE · LOCAL" color="var(--tier-0)" cost="$0.00" tooltip={`Runs entirely on your ${gpuName} — no API calls, the prompt stays on your machine. Note: when you have an Anthropic API key, some tasks that classify as T0 still execute on cloud Haiku for quality. Your terminal's divergence chip shows when local intent runs cloud.`} />
-            <ModelCard label="Claude Haiku" badge="API · FAST" color="var(--tier-1)" cost="~$0.001" tooltip="Anthropic's fastest Claude. Used for light code tasks, commit messages, explanations, regex. 40× cheaper than Opus." />
-            <ModelCard label="Claude Sonnet" badge="API · BALANCED" color="var(--tier-2)" cost="~$0.01" tooltip="Used for debugging, root cause analysis, comparing approaches. 5× cheaper than Opus with 90% of the capability for most tasks." />
+            <ModelCard label="Claude Haiku" badge="API · FAST" color="var(--tier-1)" cost="~$0.001" tooltip="Anthropic's fastest Claude. Used for light code tasks, commit messages, explanations, regex. 5× cheaper than Opus at list prices ($1/$5 vs $5/$25 per M tokens)." />
+            <ModelCard label="Claude Sonnet" badge="API · BALANCED" color="var(--tier-2)" cost="~$0.01" tooltip="Used for debugging, root cause analysis, comparing approaches. 2.5× cheaper than Opus at list prices ($2/$10 vs $5/$25 per M tokens)." />
             <ModelCard label="Claude Opus" badge="API · MAXIMUM" color="var(--tier-3)" cost="~$0.15" tooltip={`Reserved for architecture decisions, multi-file refactors, production-critical tasks. mooter only sends here when it has to — your ${t3Pct}% T3 rate means ${routedAwayPct}% of prompts were handled cheaper.`} />
           </div>
         </div>
@@ -1963,7 +1972,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
             textAlign: 'center', lineHeight: 1.7,
           }}>
             If every prompt went to Opus: ~${naiveCost.toFixed(2)}<br />
-            mooter actually spent: ~${Math.max(0, naiveCost - savingsUsd).toFixed(2)}
+            mooter actually spent: ~${Math.max(0, naiveCost - savingsUsd).toFixed(2)}<Modelado />
           </div>
           <div style={{
             fontSize: '0.7rem', color: 'var(--faint)',
@@ -2054,7 +2063,7 @@ function DecisionsTab({ profile: _profile }: { profile: Profile }) {
                 color: 'var(--tier-0)', fontFamily: 'var(--mono)',
                 textAlign: 'right',
               }}>
-                ${Number(row.savings_usd).toFixed(2)}
+                ${Number(row.savings_usd).toFixed(2)}<Modelado />
               </span>
               {delta !== null && delta > 0 ? (
                 <span style={{
@@ -2207,7 +2216,7 @@ function WorkflowTab() {
         <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '8px 0 0' }}>
           <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>{(userAgg!.total_calls || 0).toLocaleString('en-US')}</span> calls routed
           {typeof userAgg!.saved_usd === 'number' && (
-            <> · <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>${(userAgg!.saved_usd).toFixed(2)}</span> saved vs all-Opus</>
+            <> · <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>${(userAgg!.saved_usd).toFixed(2)}</span> saved vs all-Opus<Modelado /></>
           )}
         </p>
       )}

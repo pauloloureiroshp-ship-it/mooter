@@ -5,7 +5,6 @@
  * escala de raios, e os padrões banidos pelas DIRETRIZES.
  * Precisa de um browser (playwright) — por isso vive fora do moo-design-check, que é zero-dep.
  */
-import { chromium } from 'playwright';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -35,6 +34,18 @@ const EASING_OK = ['cubic-bezier(0.16, 1, 0.3, 1)','cubic-bezier(0.2, 0.8, 0.2, 
 const RAIOS_OK = [0,1,2,3,4,6,7,8,9,10,11,12,14,16,999];
 
 // executablePath só quando alguém o declara — senão o playwright usa o browser que instalou.
+/* O `playwright` carrega-se AQUI, e nao no topo. Um `import` estatico e
+   avaliado antes da primeira linha de codigo, portanto numa maquina sem o
+   pacote este ficheiro rebentava com MODULE_NOT_FOUND e codigo 1 — incluindo
+   no caminho que nem browser precisa: recusar um canvas que nao existe.
+   O teste `o auditor recusa-se a inventar quando o canvas nao existe` exige
+   codigo 2, e passava so nas maquinas que ja tinham o browser. Ninguem deu
+   por isso porque `test:design` era uma lista escrita a mao e este ficheiro
+   nao estava nela: 61 dos 72 testes corriam em CI. Descoberto a 2026-08-29,
+   ao passar a lista a varrimento da pasta.
+   A validacao de argumentos vem antes das dependencias pesadas — assim a
+   recusa e a mensagem de uso funcionam em qualquer maquina. */
+const { chromium } = await import('playwright');
 const PW_EXE = process.env.MOO_AUDIT_CHROMIUM || '/opt/pw-browsers/chromium';
 const b = await chromium.launch(existsSync(PW_EXE) ? { executablePath: PW_EXE } : {});
 const pg = await b.newPage();

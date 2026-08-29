@@ -1,5 +1,6 @@
 'use client';
 
+import { Modelado } from '../_modelado';
 import { useEffect, useState, useMemo } from 'react';
 import { maskEmail } from './_lib/privacy';
 
@@ -228,8 +229,11 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
       }}>
         <HeroCard label="Users" value={stats.totalUsers} sub={`+${stats.activeUsers} active (7d)`} />
         <HeroCard label="Devices" value={stats.totalDevices} sub={`${stats.devicesPerUser}/user`} />
-        <HeroCard label="Decisions" value={stats.totalDecisions.toLocaleString()} sub={`${stats.avgSavingsPct}% avg savings`} accent />
-        <HeroCard label="Savings" value={`$${stats.totalSavingsUsd.toFixed(2)}`} sub="all time" accent />
+        {/* Modelado — ver `_modelado.tsx`. As duas cifras abaixo somam o
+            `savings_usd` que os devices enviam, e esse e derivado do comprimento
+            do prompt, nao de tokens contados. */}
+        <HeroCard label="Decisions" value={stats.totalDecisions.toLocaleString()} sub={`${stats.avgSavingsPct}% avg savings (modelled)`} accent />
+        <HeroCard label="Savings" value={`$${stats.totalSavingsUsd.toFixed(2)}`} sub="all time · modelled" accent />
       </div>
 
       {/* Hardware distribution */}
@@ -543,7 +547,7 @@ function UserTableRow({ user: u, status: st, isOpen, onToggle }: { user: UserRow
         <td style={tdStyle}>{u.os_type ? osIcon(u.os_type) : '\u2014'}</td>
         <td style={tdStyle}>{u.devices.length}</td>
         <td style={tdStyle}>{u.decisions.toLocaleString()}</td>
-        <td style={{ ...tdStyle, color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>${u.savings_usd.toFixed(2)}</td>
+        <td style={{ ...tdStyle, color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>${u.savings_usd.toFixed(2)}<Modelado /></td>
         <td style={{ ...tdStyle, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{u.frugal_version || '\u2014'}</td>
         <td style={{ ...tdStyle, color: 'var(--muted)' }}>{timeAgo(u.last_sync)}</td>
         <td style={tdStyle}>
@@ -614,7 +618,7 @@ function UserDetail({ user: u }: { user: UserRow }) {
               <span style={{ color: 'var(--muted)' }}>{d.hw_tier?.replace(/_/g, ' ')}</span>
               <span style={{ color: 'var(--muted)', fontFamily: 'var(--mono)' }}>v{d.frugal_version || '?'}</span>
               <span style={{ color: 'var(--text)' }}>{d.decisions_count} dec</span>
-              <span style={{ color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>${Number(d.savings_usd || 0).toFixed(2)}</span>
+              <span style={{ color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>${Number(d.savings_usd || 0).toFixed(2)}<Modelado /></span>
               <span style={{ color: 'var(--muted)', marginLeft: 'auto' }}>{timeAgo(d.last_sync_at)}</span>
             </div>
           ))}
@@ -719,7 +723,7 @@ function DevicesTab({ stats }: { stats: AdminStats }) {
                   </td>
                   <td style={tdStyle}>{d.decisions_count}</td>
                   <td style={{ ...tdStyle, color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>
-                    ${Number(d.savings_usd || 0).toFixed(2)}
+                    ${Number(d.savings_usd || 0).toFixed(2)}<Modelado />
                   </td>
                   <td style={{ ...tdStyle, color: 'var(--muted)' }}>{timeAgo(d.last_sync_at)}</td>
                 </tr>
