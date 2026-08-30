@@ -74,12 +74,35 @@ export function isStopped(stopFile, statImpl = fs.statSync) {
 }
 
 /** Builds the Ollama payload. `keep_alive` holds the model resident between rounds. */
-export function buildPayload({ model, pack, numPredict = NUM_PREDICT }) {
+/**
+ * `think: false` — MEDIDO a 2026-08-29, e e a diferenca entre 0% e 83%.
+ *
+ * Um modelo de raciocinio (o `granite4.2` declara `thinking`; o
+ * `qwen2.5-coder:14b` nao) gasta o `num_predict` DENTRO do traco de raciocinio e
+ * nunca chega a escrever a conclusao. Medido no P2, N=12, mesmo excerto:
+ *
+ *   granite4.2:3b   sem think:false  0%  ·  com think:false  83,3%  (700 -> 127 tok)
+ *   granite4.2:8b   sem think:false  0%  ·  com think:false  50%
+ *
+ * Dar-lhe MAIS espaco nao resolve (num_predict 2500 deu 8,3%): o raciocinio
+ * expande para encher o que lhe derem. O `NUM_PREDICT = 700` foi afinado contra
+ * um modelo que nao pensa, e por isso qualquer modelo de thinking ligado a este
+ * runner parecia avariado — sempre 700 tokens, sempre `sem-citacao`.
+ *
+ * O repo ja sabia disto noutro canto, e nunca chegou aqui:
+ * `tools/audit/audit_corpus_builder.js` — «think:false keeps qwen3 from emitting
+ * reasoning tokens we'd have to strip».
+ *
+ * A ronda de pilar quer uma citacao curta, nao um rascunho. Um modelo que nao
+ * suporta o campo ignora-o.
+ */
+export function buildPayload({ model, pack, numPredict = NUM_PREDICT, think = false }) {
   return {
     model,
     prompt: pack.prompt,
     system: pack.system,
     stream: false,
+    think,
     keep_alive: '10m',
     options: { num_predict: numPredict, temperature: 0.2 },
   };
@@ -122,7 +145,8 @@ export async function segundoParecer({ pack, model, base, fetchImpl, timeoutMs }
     if (res && res.url) assertLocalEngine(new URL(res.url).origin);
     if (!res || !res.ok) return { modelo: model, ok: false, porque: 'http' };
     const body = await res.json();
-    const texto = String((body && (body.response || body.thinking)) || '').trim();
+    // Mesma correccao do `runRound`: o segundo parecer tambem nao pontua rascunhos.
+    const texto = String((body && body.response) || '').trim();
     return { modelo: model, ok: true, texto: texto.replace(/\s+/g, ' ').slice(0, 240) };
   } catch (err) {
     return { modelo: model, ok: false, porque: String((err && err.message) || err).slice(0, 80) };
@@ -317,7 +341,14 @@ export async function runRound({
     clearInterval(stopWatch);
   }
 
-  const text = String((body && (body.response || body.thinking)) || '').trim();
+  // NAO cair para `body.thinking`. Ate 2026-08-29 esta linha era
+  // `body.response || body.thinking` e, quando um modelo de raciocinio esgotava o
+  // `num_predict` dentro do traco, o `response` vinha vazio — o fallback entregava
+  // o RASCUNHO ao `verifyEvidence` como se fosse a resposta. Nao era resposta
+  // truncada: era o runner a pontuar o raciocinio. Com `think:false` o `thinking`
+  // deixa de existir; se aparecer, e sinal de que o pedido nao levou a trava, e um
+  // `sem-citacao` honesto vale mais do que uma nota dada ao rascunho.
+  const text = String((body && body.response) || '').trim();
   const tokens = Number((body && body.eval_count) || 0);
   const check = verifyEvidence({
     repoRoot,
