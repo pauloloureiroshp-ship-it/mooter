@@ -28,13 +28,15 @@
   --moo-tinta-bg-2: #0F0E0C;
   --moo-tinta-surface: #141311;
   --moo-tinta-surface-2: #1C1A17;
+  --moo-tinta-surface-4: #2B2A26;
+  --moo-tinta-surface-3: #242320;
   --moo-tinta-line: #252220;
   --moo-tinta-line-strong: #302C28;
   --moo-tinta-line-soft: #1E1B19;
   --moo-tinta-text: #F2EDE6;
   --moo-tinta-text-2: #C9C2B8;
-  --moo-tinta-muted: #8B8177;
-  --moo-tinta-faint: #8C8073;
+  --moo-tinta-muted: #998F85;
+  --moo-tinta-faint: #9B8F82;
   --moo-tinta-accent: #E8888A;
   --moo-tinta-accent-2: #F2A5A5;
   --moo-tinta-on-accent: #1A0E0E;
@@ -45,6 +47,8 @@
   --moo-papel-bg-2: #EBE3D1;
   --moo-papel-surface: #FBF7EE;
   --moo-papel-surface-2: #FFFDF7;
+  --moo-papel-surface-4: #EDEAE1;
+  --moo-papel-surface-3: #F6F4EE;
   --moo-papel-line: #D9D0BB;
   --moo-papel-line-strong: #C8BCA0;
   --moo-papel-line-soft: #E8E4DB;
@@ -79,13 +83,15 @@
   --moo-bg-2: #0F0E0C;
   --moo-surface: #141311;
   --moo-surface-2: #1C1A17;
+  --moo-surface-4: #2B2A26;
+  --moo-surface-3: #242320;
   --moo-line: #252220;
   --moo-line-strong: #302C28;
   --moo-line-soft: #1E1B19;
   --moo-text: #F2EDE6;
   --moo-text-2: #C9C2B8;
-  --moo-muted: #8B8177;
-  --moo-faint: #8C8073;
+  --moo-muted: #998F85;
+  --moo-faint: #9B8F82;
   --moo-accent: #E8888A;
   --moo-accent-2: #F2A5A5;
   --moo-on-accent: #1A0E0E;
@@ -142,7 +148,17 @@
   :root{
     color-scheme: light;
     /* V13 light inks — calibrated for paper-white (amber #8a5f00, slate #3e6280) */
-    --bg:var(--moo-papel-bg); --panel:#fbfaf6; --panel2:#edeae1; --card:#f6f4ee; --term:#eceadf;
+    /* AS SUPERFICIES DERIVAM, desde 2026-08-30. Eram quatro valores cravados, e
+       eram a causa de raiz de tres achados de contraste separados nesta semana
+       (o --faint, o --dead-bg e o tinta.bad): estavam FORA da escala do sistema.
+       Medido: no tema escuro mapeavam para `line` e `line-strong` — os degraus
+       que a escala reserva aos TRACOS. A escala ganhou `surface-3` e `surface-4`
+       (ver `superficies_nota` no token) e agora o desvio maximo e dE76 1,5.
+       O `--panel` e o `--card` passam a apontar ao MESMO degrau no escuro: estavam
+       a dE 1,3 um do outro, que nao e um degrau, e a escala nao inventa um so
+       para os separar. As BORDAS ficam cravadas e declaradas — mapeiam a dE
+       5,4-7,3, e move-las e decisao de desenho, nao de acessibilidade. */
+    --bg:var(--moo-papel-bg); --panel:var(--moo-papel-surface-2); --panel2:var(--moo-papel-surface-4); --card:var(--moo-papel-surface-3); --term:var(--moo-papel-bg);
     --border:#c6c2b6; --border-soft:#d7d3c7;
     --fg:#26241f; --dim:#57534a; --faint:var(--moo-papel-faint);
     --terracotta:#b04a26;
@@ -182,7 +198,7 @@
   }
   html[data-theme="dark"]{
     color-scheme: dark;
-    --bg:var(--moo-tinta-bg); --panel:#262522; --panel2:#2b2a26; --card:#242320; --term:#141311;
+    --bg:var(--moo-tinta-bg); --panel:var(--moo-tinta-surface-3); --panel2:var(--moo-tinta-surface-4); --card:var(--moo-tinta-surface-3); --term:var(--moo-tinta-surface);
     --border:#3a3833; --border-soft:#33322d;
     --fg:#e8e6e1; --dim:#9c988e; --faint:var(--dim);
     /* O `--faint` ESCURO FUNDE-SE com o `--dim`, por decisao do dono (2026-08-29).
