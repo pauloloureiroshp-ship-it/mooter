@@ -141,6 +141,26 @@ jobs:
             exit 1
           fi
 
+
+      # 2b · O AUDITOR VISUAL, sobre as superfícies REAIS.
+      #
+      # Até 2026-08-30 este job corria as mordidas do auditor e nunca o auditor.
+      # As 19 mordidas provavam que ele morde; a medição das cinco folhas só
+      # acontecia quando alguém a corria à mão. Um instrumento honesto que
+      # ninguém invoca continua a não impedir nada — é a mesma frase que este
+      # repo já escreveu sobre a marca, sobre o movimento reduzido e sobre a
+      # lista do `test:design`, e é a terceira vez que a resposta é a mesma:
+      # ligá-lo.
+      #
+      # É RATCHET e não limiar, e a razão é honesta: há hoje UM achado real por
+      # corrigir (`#D46A5A` a 4,11–4,50:1 nos painéis escuros do cockpit), e
+      # corrigi-lo é mexer na paleta, que é canon. Exigir zero hoje deixava o
+      # `main` vermelho à espera de uma decisão que não é do CI, e um CI
+      # cronicamente vermelho aprende-se a ignorar. A regra é a que o repo já usa
+      # em três sítios: nada pode piorar, e nenhuma prancha pode desaparecer.
+      - name: O auditor visual mede mesmo as superfícies (ratchet)
+        run: npm run design:visual:ci
+
       # 2 · Gerar, nunca copiar — provado, não afirmado.
       #
       # `moo-ui.css` e `moo-tokens.ts` são saída de `moo-tokens.json`. Editá-los
