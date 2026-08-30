@@ -1,0 +1,51 @@
+{
+  "brand-guide · escuro": {
+    "contraste": 0,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  },
+  "cockpit · claro": {
+    "contraste": 0,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  },
+  "cockpit · escuro": {
+    "contraste": 1,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  },
+  "fleet-ui · n/d": {
+    "contraste": 0,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  },
+  "moo-panel · n/d": {
+    "contraste": 0,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  },
+  "pilot-shell · claro": {
+    "contraste": 0,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  },
+  "pilot-shell · escuro": {
+    "contraste": 0,
+    "overflowX": 0,
+    "easing": 0,
+    "raio": 0,
+    "corte": 0
+  }
+}
