@@ -9,13 +9,15 @@ export const MOO = {
       "bg-2": "#0F0E0C",
       "surface": "#141311",
       "surface-2": "#1C1A17",
+      "surface-4": "#2B2A26",
+      "surface-3": "#242320",
       "line": "#252220",
       "line-strong": "#302C28",
       "line-soft": "#1E1B19",
       "text": "#F2EDE6",
       "text-2": "#C9C2B8",
-      "muted": "#8B8177",
-      "faint": "#8C8073",
+      "muted": "#998F85",
+      "faint": "#9B8F82",
       "accent": "#E8888A",
       "accent-2": "#F2A5A5",
       "on-accent": "#1A0E0E",
@@ -28,6 +30,8 @@ export const MOO = {
       "bg-2": "#EBE3D1",
       "surface": "#FBF7EE",
       "surface-2": "#FFFDF7",
+      "surface-4": "#EDEAE1",
+      "surface-3": "#F6F4EE",
       "line": "#D9D0BB",
       "line-strong": "#C8BCA0",
       "line-soft": "#E8E4DB",
@@ -83,7 +87,8 @@ export const MOO = {
       "olho": "#2C2F33",
       "brilho": "#FFFFFF"
     },
-    "bad_nota_tinta": "CLAREADO a 2026-08-30, de #D46A5A. O token PASSAVA em todas as superficies que o sistema define (5,66:1 sobre tinta.bg, 4,97 sobre surface-2) e FALHAVA onde e realmente pintado: os paineis do cockpit, que sao cravados e mais claros do que qualquer superficie do token — 4,39:1 no --panel e 4,11:1 no --panel2. Foi o unico achado que sobreviveu ao auditor visual depois de ele passar a medir os dois temas. Escolhido clarear o TOKEN (dE76 3,0) em vez de escurecer os paineis (dE 1,0 e 3,3): uma cor de alerta mais clara em tema escuro e o padrao, resolve para superficies que ainda nao existem, e nao mexe na elevacao do cockpit. Distancia ao tinta.warn praticamente inalterada (dE 45,6 -> 43,9). RESSALVA REGISTADA: isto nao fecha a classe. Os mesmos paineis dao 6 outras combinacoes abaixo de AA na matriz (tinta.muted e tinta.faint sobre --panel/--panel2/--card) que NAO renderizam hoje, porque o cockpit usa cinzentos proprios. A causa de raiz — paineis fora da escala de superficies — continua de pe."
+    "bad_nota_tinta": "CLAREADO a 2026-08-30, de #D46A5A. O token PASSAVA em todas as superficies que o sistema define (5,66:1 sobre tinta.bg, 4,97 sobre surface-2) e FALHAVA onde e realmente pintado: os paineis do cockpit, que sao cravados e mais claros do que qualquer superficie do token — 4,39:1 no --panel e 4,11:1 no --panel2. Foi o unico achado que sobreviveu ao auditor visual depois de ele passar a medir os dois temas. Escolhido clarear o TOKEN (dE76 3,0) em vez de escurecer os paineis (dE 1,0 e 3,3): uma cor de alerta mais clara em tema escuro e o padrao, resolve para superficies que ainda nao existem, e nao mexe na elevacao do cockpit. Distancia ao tinta.warn praticamente inalterada (dE 45,6 -> 43,9). RESSALVA REGISTADA: isto nao fecha a classe. Os mesmos paineis dao 6 outras combinacoes abaixo de AA na matriz (tinta.muted e tinta.faint sobre --panel/--panel2/--card) que NAO renderizam hoje, porque o cockpit usa cinzentos proprios. A causa de raiz — paineis fora da escala de superficies — continua de pe.",
+    "superficies_nota": "COMPLETADA a 2026-08-30, e a razao e a mesma da escala de raios a 2026-08-28: a escala e que estava incompleta, nao o codigo. Medido nesse dia: os quatro paineis do cockpit mapeavam, no tema ESCURO, para `line` e `line-strong` — ou seja, para os degraus que a escala reserva aos TRACOS, nao as superficies. Usar uma cor de linha como fundo de painel e semanticamente errado mesmo quando e numericamente o mais proximo. A causa: a rampa escura ia de L* 2,8 a 9,4 (bg -> surface-2) e o cockpit precisa de L* 13,7 e 17. Quatro degraus para uma superficie que tem cinco niveis de elevacao. Acrescentados `surface-3` e `surface-4` com os valores que o trabalho REAL usa, tal como o `radius_nota` fez com o hairline/tight/panel — e NAO um quinto, para a rampa nao virar uma escada sem degraus. Custo medido e pago no mesmo commit: os degraus novos punham `tinta.muted` (4,12 e 3,77) e `tinta.faint` (4,08 e 3,73) abaixo de AA, e os dois foram clareados (dE76 5,4 e 5,8) mantendo a separacao entre eles em dE 1,9 e a distancia ao `text-2` em dE 20. O `papel` recebe os mesmos nomes por simetria e passa sem tocar em nada. Com isto os paineis do cockpit deixam de ser uma segunda fonte de verdade: `--panel`/`--panel2`/`--card`/`--term` passam a apontar ao token, com desvio maximo de dE 1,5. As BORDAS ficam de fora e declaradas: mapeiam a dE 5,4-7,3, e move-las e uma decisao de desenho, nao de acessibilidade."
   },
   "type": {
     "family": {

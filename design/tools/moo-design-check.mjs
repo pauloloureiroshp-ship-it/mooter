@@ -784,7 +784,13 @@ const reg = (id, nome, peso, r) => V.push({ id, nome, peso, ...r });
      de tier sobre o fundo do seu tema — o mapa tier→tema é facto de desenho,
      não coisa que se derive de nomes. */
   const FRENTE = ['text', 'text-2', 'muted', 'faint', 'accent', 'accent-2', 'ok', 'warn', 'bad'];
-  const FUNDO = ['bg', 'bg-2', 'surface', 'surface-2'];
+  /* `surface-3` e `surface-4` entraram a 2026-08-30, quando a escala foi
+     completada para os paineis do cockpit deixarem de ser uma segunda fonte de
+     verdade. Acrescenta-los AQUI e o que impede a escala nova de nascer sem
+     cobertura: sem esta linha, dois degraus de superficie existiriam e a matriz
+     nao os testaria — exactamente a forma que esta verificacao passou a semana
+     a fechar noutros sitios. */
+  const FUNDO = ['bg', 'bg-2', 'surface', 'surface-2', 'surface-3', 'surface-4'];
   const derivados = [];
   for (const tema of ['tinta', 'papel'])
     for (const f of FRENTE)

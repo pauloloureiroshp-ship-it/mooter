@@ -1077,8 +1077,16 @@ test('a matriz sai MESMO do token: mais uma cor de frente, mais pares', (t) => {
   writeFileSync(tok, JSON.stringify(T, null, 2));
 
   const depois = v(corre(b).rel, 'contraste').pares.length;
-  assert.equal(depois, antes - 4,
-    `tirar uma cor de frente tinha de tirar 4 pares (um por fundo): ${antes} -> ${depois}`);
+  /* O esperado DERIVA do token, nao e um numero cravado. Este teste dizia `- 4`
+     e partiu-se a 2026-08-30, quando a escala de superficies ganhou `surface-3` e
+     `surface-4` e passaram a ser SEIS fundos. Um teste que crava a forma do
+     sistema envelhece com ela — que e exactamente o defeito que este ficheiro
+     passou a semana a apanhar noutros sitios. */
+  const TOK = JSON.parse(readFileSync(join(b.raiz, 'design', 'tokens', 'moo-tokens.json'), 'utf8'));
+  const FUNDOS = ['bg', 'bg-2', 'surface', 'surface-2', 'surface-3', 'surface-4']
+    .filter((g) => TOK.color.papel[g]).length;
+  assert.equal(depois, antes - FUNDOS,
+    `tirar uma cor de frente tinha de tirar ${FUNDOS} pares (um por fundo): ${antes} -> ${depois}`);
 });
 
 test('as cores de TIER sem par continuam declaradas, não escondidas', (t) => {
