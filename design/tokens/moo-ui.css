@@ -12,6 +12,8 @@
   --moo-tinta-line: #252220;
   --moo-tinta-line-strong: #302C28;
   --moo-tinta-line-soft: #1E1B19;
+  --moo-tinta-line-raised: #3A3833;
+  --moo-tinta-line-raised-soft: #33322D;
   --moo-tinta-text: #F2EDE6;
   --moo-tinta-text-2: #C9C2B8;
   --moo-tinta-muted: #998F85;
@@ -31,6 +33,8 @@
   --moo-papel-line: #D9D0BB;
   --moo-papel-line-strong: #C8BCA0;
   --moo-papel-line-soft: #E8E4DB;
+  --moo-papel-line-raised: #C6C2B6;
+  --moo-papel-line-raised-soft: #D7D3C7;
   --moo-papel-text: #1A1613;
   --moo-papel-text-2: #3A332C;
   --moo-papel-muted: #6D6458;
@@ -67,6 +71,8 @@
   --moo-line: #252220;
   --moo-line-strong: #302C28;
   --moo-line-soft: #1E1B19;
+  --moo-line-raised: #3A3833;
+  --moo-line-raised-soft: #33322D;
   --moo-text: #F2EDE6;
   --moo-text-2: #C9C2B8;
   --moo-muted: #998F85;
@@ -130,6 +136,8 @@
   --moo-line: #D9D0BB;
   --moo-line-strong: #C8BCA0;
   --moo-line-soft: #E8E4DB;
+  --moo-line-raised: #C6C2B6;
+  --moo-line-raised-soft: #D7D3C7;
   --moo-text: #1A1613;
   --moo-text-2: #3A332C;
   --moo-muted: #6D6458;
