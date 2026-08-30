@@ -40,7 +40,7 @@
   --moo-tinta-on-accent: #1A0E0E;
   --moo-tinta-ok: #4CAF6A;
   --moo-tinta-warn: #D4C090;
-  --moo-tinta-bad: #D46A5A;
+  --moo-tinta-bad: #DC7262;
   --moo-papel-bg: #F2ECDF;
   --moo-papel-bg-2: #EBE3D1;
   --moo-papel-surface: #FBF7EE;
@@ -91,7 +91,7 @@
   --moo-on-accent: #1A0E0E;
   --moo-ok: #4CAF6A;
   --moo-warn: #D4C090;
-  --moo-bad: #D46A5A;
+  --moo-bad: #DC7262;
   --moo-tier-t0: #4CAF6A;
   --moo-tier-t1: #5A9BD4;
   --moo-tier-t2: #A88BD4;
@@ -146,6 +146,12 @@
     --border:#c6c2b6; --border-soft:#d7d3c7;
     --fg:#26241f; --dim:#57534a; --faint:var(--moo-papel-faint);
     --terracotta:#b04a26;
+    /* O que se escreve EM CIMA do terracota. No claro ele e escuro (#b04a26) e
+       aceita branco a 5,45:1; no escuro e claro (#D97757) e o branco da 3,12:1 —
+       medido, e ilegivel num botao primario. Escurecer o terracota escuro ate o
+       branco passar era circular: a dE76 11 ele deixava de servir como TEXTO
+       sobre o fundo (4,39:1). Um preenchimento claro leva tinta escura. */
+    --on-terracotta:#fff;
     /* CONTRASTE, medido 2026-08-29 no browser e nao no olho:
        · `--faint` era #7d7869 e dava 3,75:1 sobre `--bg` e 3,65:1 sobre `--term`.
          Passa a apontar ao token `papel.faint` (#6E6455), que mede 4,81 a 5,56:1
@@ -178,8 +184,21 @@
     color-scheme: dark;
     --bg:var(--moo-tinta-bg); --panel:#262522; --panel2:#2b2a26; --card:#242320; --term:#141311;
     --border:#3a3833; --border-soft:#33322d;
-    --fg:#e8e6e1; --dim:#9c988e; --faint:#6b675e;
+    --fg:#e8e6e1; --dim:#9c988e; --faint:var(--dim);
+    /* O `--faint` ESCURO FUNDE-SE com o `--dim`, por decisao do dono (2026-08-29).
+       Media 3,51:1 sobre o fundo MAIS ESCURO que existe nesta folha — ou seja,
+       falhava AA em todo o lado, e o auditor visual nunca o viu porque renderiza
+       o tema claro. Torna-lo acessivel exigia dE76 16,2 e aterrava a dE 3,1 do
+       proprio `--dim`: a paleta escura nao tem espaco para tres degraus de cinzento
+       acima de 4,5:1 sobre painéis tao claros como #2b2a26.
+       Entre fundir e fingir que ha hierarquia, funde-se. `--dim` mede 4,99 a 6,87:1
+       nas cinco superficies — os 73 usos de `var(--faint)` continuam a resolver, e
+       o alias fica em vez de uma substituicao em massa porque no tema CLARO o
+       `--faint` continua a ser um degrau proprio (aponta ao token `papel.faint`).
+       O que se perde e um nivel de enfase no escuro; o que se ganha e que o texto
+       se le. Nao ha leitura possivel a 3,51:1. */
     --terracotta:#D97757;
+    --on-terracotta:var(--moo-papel-text);   /* tinta escura sobre o preenchimento claro — 5,76:1 */
     --green:var(--moo-tinta-ok);
     --green-dim:color-mix(in srgb,var(--green) 10%,transparent);
     --green-bd:color-mix(in srgb,var(--green) 40%,transparent);
@@ -614,7 +633,7 @@
      Um botão que se usa todas as manhãs não pode ter o mesmo peso visual que
      um que se usa uma vez. Três níveis: primary (what's next), accent
      (refresh), mini (o resto). */
-  .btn.primary{background:var(--terracotta);color:#fff;border-color:var(--terracotta);
+  .btn.primary{background:var(--terracotta);color:var(--on-terracotta);border-color:var(--terracotta);
     font-weight:650;padding:4px 12px}
   .btn.primary:hover{filter:brightness(1.08)}
   .btn.accent{color:var(--terracotta);border-color:var(--terracotta);font-weight:700;
@@ -910,7 +929,7 @@
      do Cockpit é falhar em voz alta. Isto garante que QUALQUER erro no
      arranque aparece no ecrã em vez de matar o script em silêncio.
      ══════════════════════════════════════════════════════════════════════════ -->
-<div id="bootMsg" style="font:13px ui-sans-serif,system-ui,sans-serif;padding:14px;color:#3e6280">
+<div id="bootMsg" style="font:13px ui-sans-serif,system-ui,sans-serif;padding:14px;color:var(--nd)">
   <b>Mooter Cockpit</b> — a arrancar…
 </div>
 <script>
@@ -7378,7 +7397,10 @@ boot().catch(e => {
   #mooInput:focus{outline:none;border-color:var(--terracotta)}
   #mooInput::placeholder{color:var(--faint)}
   .moo-send{
-    background:var(--terracotta);border:1px solid var(--terracotta);color:#fff;
+    /* Mesmo caso do .btn.primary: no tema escuro o terracota e claro e o branco
+       da 3,12:1. Medido a 2026-08-29 ao render o cockpit em escuro pela primeira
+       vez — o glifo ↵ deste botao foi o segundo achado. */
+    background:var(--terracotta);border:1px solid var(--terracotta);color:var(--on-terracotta);
     border-radius:8px;padding:0 12px;height:34px;cursor:pointer;
     font-family:var(--mono);font-size:var(--fs2);font-weight:700;flex:0 0 auto;
   }

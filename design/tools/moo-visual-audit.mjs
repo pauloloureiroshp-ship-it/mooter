@@ -86,6 +86,30 @@ const RAIOS_OK = new Set([0, ...Object.values(TOKENS.radius || {})
   .map(v => parseInt(v, 10)).filter(Number.isFinite)]);
 
 // executablePath só quando alguém o declara — senão o playwright usa o browser que instalou.
+/* ── O VOCABULÁRIO DE `temas` É FECHADO, e recusa-se ANTES do browser ────────
+   Aqui, e não depois do `import('playwright')`, pela mesma razão pela qual esse
+   import desceu do topo a 2026-08-29: a recusa e a mensagem de uso têm de
+   funcionar numa máquina sem browser. Um canvas com `["dark"]` em vez de
+   `["escuro"]` mediria em silêncio o tema errado. */
+const TEMAS_VALIDOS = new Set(['claro', 'escuro', 'n/d']);
+for (const a of CV.artboards) {
+  const t = a.temas;
+  if (t === undefined) continue;
+  if (!Array.isArray(t) || t.length === 0 || t.length !== new Set(t).size
+      || t.some((x) => !TEMAS_VALIDOS.has(x))
+      || (t.includes('n/d') && t.length > 1)) {
+    console.error(`moo-visual-audit: "temas" inválido em ${a.file}: ${JSON.stringify(t)}\n`
+      + `  valores: "claro" | "escuro" | "n/d", sem repetições; "n/d" não se mistura.\n`
+      + `  omitir o campo vale ["n/d"] sem razão declarada.`);
+    process.exit(2);
+  }
+  if (t[0] === 'n/d' && !a.temaND) {
+    console.error(`moo-visual-audit: ${a.file} declara "n/d" sem "temaND".\n`
+      + `  uma exclusão silenciosa é indistinguível de um valor que passou.`);
+    process.exit(2);
+  }
+}
+
 /* O `playwright` carrega-se AQUI, e nao no topo. Um `import` estatico e
    avaliado antes da primeira linha de codigo, portanto numa maquina sem o
    pacote este ficheiro rebentava com MODULE_NOT_FOUND e codigo 1 — incluindo
@@ -127,14 +151,85 @@ const SEM_FUNDO_PROPRIO = new Map([
    'declara `--bg: transparent` para herdar o tema do editor (fleet-ui.html:31); '
    + 'fora do host o fundo medido e o do browser, nao o do produto'],
 ]);
+/* ── FORÇAR O TEMA: os três mecanismos, e a ordem, que é o que importa ───────
+   Até 2026-08-29 o auditor renderizava cada folha UMA vez, sem opções — e o
+   default do playwright é claro. Medido nesse dia: forçar o escuro do cockpit à
+   mão deu TRÊS defeitos que ninguém tinha visto, um deles o rótulo do botão
+   primário a 3,12:1. Metade da superfície do produto não era auditada, e o
+   relatório não dizia que não era.
+
+   As folhas não trocam de tema todas da mesma maneira, e o auditor tem de as
+   servir às três:
+     · `pilot-shell` responde a `prefers-color-scheme` E a `data-theme`, sem JS;
+     · `cockpit` responde SÓ ao atributo — e o seu `applyTheme()` corre durante o
+       parse e faz `delete document.documentElement.dataset.theme`;
+     · `brand-guide` não responde a nenhum: é escura por construção.
+
+   Daí a ordem, que não é estilo:
+     1. `emulateMedia` ANTES do `goto` — a media query resolve-se no parse.
+        Chamado SEMPRE, mesmo em `n/d`: o `pg` é partilhado por todas as pranchas,
+        e sem esta linha a folha a seguir a uma escura herdava o escuro em
+        silêncio, medindo o tema errado sem o dizer.
+     2. o atributo DEPOIS do load — um `addInitScript` seria desfeito pelo
+        `applyTheme()` do cockpit, e o auditor mediria o claro a escrever
+        «escuro» no relatório. Errado, e errado em silêncio: é a razão mecânica
+        pela qual aqueles três defeitos sobreviveram meses. */
+const CS = { claro: 'light', escuro: 'dark', 'n/d': 'light' };
+const OPOSTO = { claro: 'dark', escuro: 'light' };
+
+/* A impressão do <body>, em duas cores legíveis. NÃO é um hash de propósito: um
+   hash que difere não diz o que mudou, e a coisa que muda entre temas é
+   literalmente isto. Serve de PROVA de que a folha trocou mesmo de tema. */
+const impressaoDe = () => pg.evaluate(() => {
+  const cs = getComputedStyle(document.body);
+  return cs.backgroundColor + ' | ' + cs.color;
+});
+
+/* Depois de escrever o atributo, `color` e `background-color` podem estar A MEIO
+   de uma transição, e `getComputedStyle` a meio devolve um valor intermédio que
+   não pertence a tema nenhum. Espera-se o que a PRÓPRIA folha declara. O tecto
+   de 1000ms é escolha minha e não um número medido — fica dito em vez de
+   escondido num comentário confiante. */
+const assentar = async () => {
+  const ms = await pg.evaluate(() => {
+    let m = 0;
+    for (const el of document.querySelectorAll('*')) {
+      for (const d of getComputedStyle(el).transitionDuration.split(',')) {
+        const t = d.trim();
+        m = Math.max(m, t.endsWith('ms') ? parseFloat(t) : (parseFloat(t) * 1000 || 0));
+      }
+    }
+    return m;
+  });
+  await pg.waitForTimeout(Math.min(1000, Math.max(120, Math.ceil(ms) + 40)));
+};
+
+/* Em `n/d` o DOM NÃO é tocado. Remover `data-theme` numa folha que o põe por JS
+   mudaria a medição de hoje — e a retro-compatibilidade tem de ser verificável,
+   não prometida. */
+const aplicarDom = (tema) => tema === 'n/d' ? null : pg.evaluate((t) => {
+  if (t === 'escuro') document.documentElement.dataset.theme = 'dark';
+  else delete document.documentElement.dataset.theme;
+}, tema);
+
 const rel = [];
 
 for (const a of CV.artboards) {
   await pg.setViewportSize({ width: a.w, height: Math.min(a.h, 3200) });
   const alvo = resolve(BASE, a.file);
   if (!existsSync(alvo)) { console.error(`  ! ausente: ${a.file} (${alvo}) — saltado`); continue; }
+  /* Omitir `temas` vale `n/d`: mede-se UMA vez, com o colorScheme claro que já
+     era o default, e sem tocar no DOM. A medição fica byte-idêntica à de antes. */
+  const temas = a.temas?.length ? a.temas : ['n/d'];
+  const linhas = [];
+
+  for (const tema of temas) {
+  await pg.emulateMedia({ colorScheme: CS[tema] });
   await pg.goto(pathToFileURL(alvo).href);
   await pg.waitForTimeout(700);
+  await aplicarDom(tema);
+  await assentar();
+  const impressao = await impressaoDe();
   const r = await pg.evaluate((frameH) => {
     const lum = (r,g,bl)=>{const v=[r,g,bl].map(x=>x/255).map(x=>x<=.03928?x/12.92:((x+.055)/1.055)**2.4);
       return .2126*v[0]+.7152*v[1]+.0722*v[2];};
@@ -291,26 +386,70 @@ for (const a of CV.artboards) {
   r.contrasteND = porque ?? null;
   const easBad = Object.keys(r.easings).filter(e => !EASING_OK.has(normCurva(e)));
   const raiBad = Object.keys(r.raios).map(Number).filter(x => !RAIOS_OK.has(x));
-  rel.push({ prancha: a.name || basename(a.file).replace(/\.(dc\.)?html$/,''),
-             pagina: a.page ?? '—', ficheiro: a.file, scroll: !!a.scroll, ...r, easBad, raiBad,
+  linhas.push({ prancha: a.name || basename(a.file).replace(/\.(dc\.)?html$/,''),
+             pagina: a.page ?? '—', ficheiro: a.file, scroll: !!a.scroll,
+             tema, temaND: tema === 'n/d' ? (a.temaND ?? null) : null,
+             temaAplicado: null, temaUnicoProvado: null, impressao,
+             ...r, easBad, raiBad,
              base8pc: r.base8.total ? +(r.base8.ok/r.base8.total*100).toFixed(1) : null });
+  }
+
+  /* PROVA 1 — duas renderizações declaradas têm de dar impressões DIFERENTES.
+     Sem isto, o relatório podia dizer «dois temas» tendo medido o mesmo duas
+     vezes, que é exactamente o defeito que este trabalho existe para matar. */
+  if (linhas.length >= 2) {
+    const aplicado = new Set(linhas.map((l) => l.impressao)).size > 1;
+    linhas.forEach((l) => { l.temaAplicado = aplicado; });
+  }
+  /* PROVA 2 — «tema único» é uma AFIRMAÇÃO, e afirmações verificam-se. Uma sonda
+     no modo oposto: não produz linha, só um veredicto. Custa 1 render por folha
+     de tema único (hoje: só a `brand-guide`). */
+  if (temas.length === 1 && temas[0] !== 'n/d') {
+    await pg.emulateMedia({ colorScheme: OPOSTO[temas[0]] });
+    await pg.goto(pathToFileURL(alvo).href);
+    await pg.waitForTimeout(700);
+    await aplicarDom(temas[0] === 'escuro' ? 'claro' : 'escuro');
+    await assentar();
+    linhas[0].temaUnicoProvado = (await impressaoDe()) === linhas[0].impressao;
+  }
+  rel.push(...linhas);
 }
 await b.close();
 if (!rel.length) { console.error('moo-visual-audit: nenhuma prancha medida — nada a escrever.'); process.exit(2); }
 writeFileSync(SAIDA, JSON.stringify(rel,null,2));
 
+/* ── A DECLARAÇÃO DE TEMA É VERIFICADA, NÃO ACREDITADA ───────────────────────
+   O JSON é escrito ANTES deste bloco de propósito: a prova tem de sobreviver ao
+   veredicto, senão quem for depurar fica sem o ficheiro que explica a falha.
+   Exit 2 continua a ser «recuso-me a inventar» (canvas em falta, malformado,
+   nada medido). Exit 3 é novo: «medi e escrevi, mas a declaração não se sustenta». */
+const desmentidas = rel.filter((l) => l.temaAplicado === false || l.temaUnicoProvado === false);
+if (desmentidas.length) {
+  for (const l of desmentidas) {
+    console.error(l.temaAplicado === false
+      ? `  ✖ ${l.prancha}: declara mais do que um tema e as renderizações deram a MESMA impressão (${l.impressao}) — o relatório diria dois tendo medido um`
+      : `  ✖ ${l.prancha}: declara tema único "${l.tema}" e MUDA sob o modo oposto — o «único» era mentira`);
+  }
+  process.exit(3);
+}
+
 const p = (s,n)=>String(s).padStart(n), l=(s,n)=>String(s).padEnd(n);
 const larg = Math.max(14, ...rel.map(r => r.prancha.length + 1));
 const largP = Math.max(4, ...rel.map(r => String(r.pagina).replace('page-','').length + 1));
-console.log('\n  ' + l('PRANCHA',larg) + l('PÁG',largP) + ' CORTE  OVFX   CONTR  BASE8  CAIXAS  BARRAS  EASING-FORA  RAIO-FORA');
-console.log('  ' + '─'.repeat(larg + largP + 76));
+/* A coluna TEMA nao e decoracao: sem ela, duas linhas da mesma folha ficam
+   indistinguiveis, e o relatorio volta a parecer uma medicao onde sao duas. */
+console.log('\n  ' + l('PRANCHA',larg) + l('PÁG',largP) + l('TEMA',8) + ' CORTE  OVFX   CONTR  BASE8  CAIXAS  BARRAS  EASING-FORA  RAIO-FORA');
+console.log('  ' + '─'.repeat(larg + largP + 84));
 for (const r of rel) {
   // `corte` = altura real − altura declarada. Numa prancha de altura fixa isso é um defeito;
   // numa página que rola por natureza, não é. `scroll: true` no canvas diz qual é qual —
   // o número medido fica no JSON de qualquer maneira, o que muda é só a leitura.
   const corte = r.scroll ? '—' : (r.corte>0?`+${r.corte}`:'ok');
-  const flag = (!r.scroll && r.corte>0?'❌':'') + (r.overflowX>0?'↔':'') + (r.contrasteNovo.length>0?'◐':'');
-  console.log('  ' + l(r.prancha,larg) + l(String(r.pagina).replace('page-',''),largP) +
+  const flag = (!r.scroll && r.corte>0?'❌':'') + (r.overflowX>0?'↔':'') + (r.contrasteNovo.length>0?'◐':'')
+    /* `!` = a declaracao de tema nao se sustenta. Sai tambem em stderr e vale exit 3;
+       aparece aqui para quem le a tabela nao ter de ir ao JSON perceber porque falhou. */
+    + (r.temaAplicado === false || r.temaUnicoProvado === false ? '!' : '');
+  console.log('  ' + l(r.prancha,larg) + l(String(r.pagina).replace('page-',''),largP) + l(r.tema ?? 'n/d',8) +
     p(corte,6) + p(r.overflowX||'ok',6) + p(r.contrasteNovo.length + (r.contrasteDeclarado?`(${r.contrasteDeclarado})`:''),8) +
     p(r.base8pc===null?'n/d':r.base8pc+'%',7) + p(r.caixas,8) + p(r.barras,8) + p([...new Set(r.easBad)].length||'—',13) +
     p(r.raiBad.join(' ')||'—',11) + '  ' + flag);

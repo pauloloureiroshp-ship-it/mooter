@@ -48,7 +48,7 @@
   --moo-tinta-on-accent: #1A0E0E;
   --moo-tinta-ok: #4CAF6A;
   --moo-tinta-warn: #D4C090;
-  --moo-tinta-bad: #D46A5A;
+  --moo-tinta-bad: #DC7262;
   --moo-papel-bg: #F2ECDF;
   --moo-papel-bg-2: #EBE3D1;
   --moo-papel-surface: #FBF7EE;
@@ -99,7 +99,7 @@
   --moo-on-accent: #1A0E0E;
   --moo-ok: #4CAF6A;
   --moo-warn: #D4C090;
-  --moo-bad: #D46A5A;
+  --moo-bad: #DC7262;
   --moo-tier-t0: #4CAF6A;
   --moo-tier-t1: #5A9BD4;
   --moo-tier-t2: #A88BD4;
@@ -191,6 +191,16 @@
     --ok:var(--moo-tinta-ok); --warn:var(--moo-tinta-warn);
     --bad:var(--moo-tinta-bad); --dead:var(--moo-tinta-muted);
     --accent:var(--moo-tinta-accent); --accent-ink:var(--moo-tinta-on-accent);
+    /* A UNICA excepcao ao "os blocos escuros nao precisam de repetir os tingidos":
+       o `--dead-bg` precisa. Medido a 2026-08-29, ao render esta folha em ESCURO
+       pela primeira vez — o auditor so renderizava o claro. A 12% o chip `dead` da
+       4,25:1 no escuro (contra 4,64:1 no claro): o `tinta.muted` e mais claro que o
+       `papel.muted`, logo tinge mais e come mais contraste sobre superficie escura.
+       A 7% da 4,63:1. Baixar os 12% GLOBAIS resolvia tambem, mas degradava o claro
+       sem necessidade. Entra nos DOIS blocos escuros — o de `prefers-color-scheme`
+       e o de `data-theme` — porque esta folha responde aos dois, e corrigir so um
+       daria a correccao a metade dos utilizadores. */
+    --dead-bg:color-mix(in srgb,var(--dead) 7%,var(--panel));
   }}
   :root[data-theme="dark"]{
     --bg:var(--moo-tinta-bg); --panel:var(--moo-tinta-surface); --panel-2:var(--moo-tinta-surface-2);
@@ -199,6 +209,16 @@
     --ok:var(--moo-tinta-ok); --warn:var(--moo-tinta-warn);
     --bad:var(--moo-tinta-bad); --dead:var(--moo-tinta-muted);
     --accent:var(--moo-tinta-accent); --accent-ink:var(--moo-tinta-on-accent);
+    /* A UNICA excepcao ao "os blocos escuros nao precisam de repetir os tingidos":
+       o `--dead-bg` precisa. Medido a 2026-08-29, ao render esta folha em ESCURO
+       pela primeira vez — o auditor so renderizava o claro. A 12% o chip `dead` da
+       4,25:1 no escuro (contra 4,64:1 no claro): o `tinta.muted` e mais claro que o
+       `papel.muted`, logo tinge mais e come mais contraste sobre superficie escura.
+       A 7% da 4,63:1. Baixar os 12% GLOBAIS resolvia tambem, mas degradava o claro
+       sem necessidade. Entra nos DOIS blocos escuros — o de `prefers-color-scheme`
+       e o de `data-theme` — porque esta folha responde aos dois, e corrigir so um
+       daria a correccao a metade dos utilizadores. */
+    --dead-bg:color-mix(in srgb,var(--dead) 7%,var(--panel));
   }
   *{box-sizing:border-box}
   body{margin:0;padding:18px;background:var(--bg);color:var(--ink);
