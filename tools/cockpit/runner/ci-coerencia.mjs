@@ -120,6 +120,59 @@ export function nomeQueMente(workflows) {
 }
 
 /**
+ * Alguma linha de conteudo escapou do seu bloco `run:` para a coluna 0?
+ *
+ * Num block scalar de YAML (`run: |`) a indentacao da PRIMEIRA linha define o
+ * bloco, e qualquer linha menos indentada FECHA-O. Uma string multilinha escrita
+ * a coluna 0 dentro de um `run:` deixa de ser conteudo e passa a ser lida como
+ * chave nova — e o ficheiro deixa de ser YAML.
+ *
+ * Isto nao e hipotetico. Medido a 2026-09-01: o `version-sync.yml` estava assim
+ * desde 2026-08-29, por um commit chamado — sem ironia — «fix(ci): o Version
+ * Sync deixa de falhar em todas as tags». Consequencia real: 12 de 12 corridas
+ * em falha, e o workflow NUNCA chegou a correr numa tag. O GitHub anuncia o
+ * sintoma de forma facil de ignorar: mostra o CAMINHO do ficheiro onde devia
+ * mostrar o `name:`, e marca a corrida como falhada em cada push.
+ *
+ * Porque e que nenhuma guarda apanhou: o `lerWorkflows` acima le cada workflow
+ * como TEXTO e faz analises por expressao regular. Um ficheiro que nao e YAML
+ * nenhum continua a ser uma string perfeitamente boa — passa em tudo. Presenca,
+ * outra vez, em vez de cobertura.
+ *
+ * LIMITE, dito de frente: isto NAO e um parser de YAML. Valida uma classe — a
+ * que partiu este ficheiro e a que parte sempre que alguem cola um corpo de
+ * texto dentro de um `run:`. Validacao completa exigia uma dependencia, e o
+ * repo tem viés de zero dependencias; uma catraca barata que morde a classe
+ * conhecida vale mais do que uma dependencia nova para o caso geral.
+ */
+export function blocoPartido(workflows) {
+  // As chaves de topo legitimas de um workflow sao sempre uma palavra seguida
+  // de dois pontos. Qualquer outra coisa a coluna 0 e conteudo fugido.
+  const CHAVE_DE_TOPO = /^[A-Za-z_][A-Za-z0-9_-]*:/;
+  const fugidas = [];
+  for (const w of workflows) {
+    // O `\r` do CRLF tem de cair ANTES de qualquer teste. Sem isto, uma linha
+    // vazia num ficheiro com fins de linha do Windows chega aqui como '\r' —
+    // comprimento 1, primeiro caracter que nao e espaco — e a guarda acusa
+    // todas as linhas em branco do ficheiro. Apanhado na propria mordida:
+    // 15 acusacoes, das quais 8 eram brancos. Uma guarda que grita a mais
+    // ensina toda a gente a ignora-la, que e a maneira mais rapida de a matar.
+    // (O repo ja pagou por CRLF uma vez: o sha do `classify.js` congelado nao
+    //  batia em Windows por falta de `.gitattributes`.)
+    String(w.src).split('\n').forEach((cru, i) => {
+      const linha = cru.replace(/\r$/, '');
+      if (!linha.length) return;                       // linha vazia e legitima
+      if (linha[0] === ' ' || linha[0] === '\t') return; // indentada: dentro do bloco
+      if (linha[0] === '#') return;                    // comentario de topo
+      if (linha === '---' || linha === '...') return;  // marcadores de documento
+      if (CHAVE_DE_TOPO.test(linha)) return;
+      fugidas.push({ ficheiro: w.ficheiro, linha: i + 1, texto: linha.slice(0, 60) });
+    });
+  }
+  return fugidas;
+}
+
+/**
  * O caminho esta ausente por ser um ARTEFACTO que o proprio CI constroi?
  *
  * A pergunta nao e retorica. O `packages/cli/mooter.js` e gerado por esbuild no
