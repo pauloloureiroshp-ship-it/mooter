@@ -72,6 +72,7 @@ const gitIgnora = (rel) => {
 const SUPERFICIES_UI = [
   'landing/app/globals.css',
   'tools/cockpit/moo-pilot-shell.html',
+  'tools/cockpit/moo-ledger-shell.html',
   'plugin/mooter/skills/cockpit/cockpit.html',
   'plugin/mooter/skills/cockpit/moo-panel.html',
   'packages/mooter-bridge/fleet-ui.html',
