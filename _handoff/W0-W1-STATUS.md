@@ -44,7 +44,7 @@ teste. 9 testes.
 | **a** | Enter submete no Ask (Shift+Enter = linha nova, IME não submete) | 9 testes que **correm** os dois `<script>` num DOM de bolso e disparam teclas; mordida verificada (tirar as guardas reprova 2) |
 | **b** | Aviso de dreno ≤1/h + calado com fila vazia | **medido: 9558 de 9784 linhas do `f10.log` eram este aviso — 97,7%.** 10 testes |
 | **c** | `?capture=1` no Ledger + `capturar-ledger.mjs` | **premissa refutada**: o capture leva **148 ms**, não >5 s. O defeito real era visual e está medido (textura só nos primeiros 800 px de 5142). 13 testes, o principal de **cobertura** |
-| **d** | `version-sync.yml` verde | **causa encontrada: não era YAML válido.** 60/60 corridas mortas a 0 s desde 2026-08-29T23:02Z. Corrigido + `workflow_dispatch` com ensaio + `tools/workflows-lint.mjs` para a classe |
+| **d** | `version-sync.yml` verde | **encontrei a causa — e o #471 encontrou-a em paralelo e corrigiu-a melhor.** Ver «Colisão com o #471» abaixo. Do meu sobrevive o `workflow_dispatch` com ensaio |
 | **e** | `nd-registry.json` + `nd-check.mjs` + launchd semanal | 18 testes. **Não corrido, não instalado** |
 
 ### W1 — instrumento
@@ -71,13 +71,54 @@ teste. 9 testes.
    1280×60000, que é uma propriedade do instrumento, não da página.
 3. **«corrigir o `version-sync.yml`, o erro é de workflow»** → certo, e pior do
    que se pensava: o ficheiro não parseava, logo o gate contra deriva de versão
-   **nunca correu** desde que nasceu.
+   **nunca correu** desde que nasceu. (O #471 chegou à mesma conclusão em
+   paralelo — ver abaixo.)
 4. **«a suite do router demora 40+ min»** → ela corre em **4,3 s** (1059 testes).
    Ela **PENDURA**, e o culpado está isolado: `tools/verify/render_medir.test.js`,
    sozinho, 5 tentativas → `25,0s PENDUROU · 0,1s ok · 25,0s PENDUROU · 0,1s ok ·
    25,0s PENDUROU`. **3 em 5.** Havia um `node --test` do router vivo **há 2 h 11 m**
    de uma sessão anterior — matei-o. Causa **provável** (não provada): `await
    import()` de ESM a partir de CJS debaixo do `node --test`.
+
+---
+
+## Colisão com o #471 — e o que fiz com ela
+
+Enquanto esta onda corria, o **#471** («o `version-sync.yml` não era YAML — e nada
+no repo sabia») foi aberto e fundido no `main`. Chegou ao **mesmo diagnóstico** e
+corrigiu-o **melhor**:
+
+- usa `--body-file` em vez de construir o corpo argumento a argumento — uma classe
+  de defeito que simplesmente não existe nesse formato;
+- apanhou um segundo bug que eu **não vi**: o `|| echo` engolia o **403** do
+  `gh pr create`. Com a permissão «Actions: create and approve pull requests»
+  desligada (o *default*), o job ficava **verde** sem abrir PR nenhum, enquanto a
+  release publicava;
+- trouxe `ci-coerencia.mjs::blocoPartido` + `workflows-parseiam.test.mjs`, que
+  verificam a mesma classe contra os workflows reais.
+
+**Fiquei com a versão deles e apaguei a minha.** `tools/workflows-lint.mjs` e o seu
+teste foram removidos: duas verificações para a mesma regra são duas fontes de
+verdade a envelhecer em paralelo, e este repositório tem regra escrita sobre isso
+(*«não duplicar — apontar»*). A fusão foi conferida com o verificador **deles**:
+18 workflows, 0 fugas.
+
+Do meu W0d sobrevive **uma** coisa, e é aditiva: o `workflow_dispatch` com ensaio
+(`aplicar` a falso não escreve e não abre PR). Depois do #471 o ficheiro parseia e
+tem teste — mas continua a só poder ser exercitado de ponta a ponta publicando uma
+tag, que é irreversível.
+
+---
+
+## O que o CI apanhou e eu não
+
+**`os.tmpdir()`.** Escrevi `process.env.TMPDIR || '/tmp'` em oito sítios. No Windows
+nenhum dos dois existe: `ENOENT: mkdtemp '\tmp\nd-XXXXXX'`. Cinco testes meus
+reprovaram no job `cockpit tests (windows)` — que é um check **obrigatório**, por
+isso o PR nunca fundiria. `os.tmpdir()` já era o que os testes mais antigos deste
+repo usavam; eu é que não olhei para o lado antes de escrever. É a mesma família
+que a `.gitattributes` deste repo documenta: código que assume o SO de quem o
+escreveu.
 
 ---
 
@@ -111,12 +152,13 @@ teste. 9 testes.
 ## Números finais
 
 ```
-suite do cockpit    1273 testes · 1271 ok · 0 falhas
-test:router:quick    413 testes ·  0 falhas · 2,8 s
+suite do cockpit    1283 testes · 1281 ok · 0 falhas
+test:router:quick    423 testes ·  0 falhas · 2,8 s
 design:check        10,00 / 10 (limiar 8)
-lint:workflows      18 workflows · 0 fugas
+workflows           18 · 0 fugas  (pelo verificador do #471)
 classify.js         427d8c0b…4bc48f  (intacto)
 captura do Ledger   148 ms (tecto 5000)
+CI do PR #474       23 de 23 checks verdes
 ```
 
 ~130 testes novos. Zero números inventados; onde não medi, está `n/d` com o motivo.
