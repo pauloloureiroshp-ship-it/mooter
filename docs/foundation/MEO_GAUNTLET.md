@@ -1,4 +1,4 @@
-# MEO GAUNTLET v6 — 18 perguntas, régua de disparo, crítico ≠ autor
+# MEO GAUNTLET v7 — 20 perguntas, régua de disparo, crítico ≠ autor
 > v1: as 8 do Paulo (terreno real). v2: +5 da literatura. **v3: uma sessão de contexto fresco
 > correu o gauntlet SOBRE o gauntlet, apanhou um erro factual (números do CoVe colados pelo
 > autor na compressão — os três valores são de três tarefas distintas: MultiSpanQA F1 0.39→0.48,
@@ -15,6 +15,18 @@
 > EXPLÍCITA DO DONO, registada: o Paulo mandou-as commitar antes de a wave arrancar. É a segunda
 > vez que o tecto sobe — e a regra do fecho (entra uma → sai uma) só se suspende assim, por gesto
 > do dono, nunca por entusiasmo do agente. Retro-prova ×3 anexada a cada uma, toda do registo.**
+> **v7 (2026-09-01, D8 fechada): +2 entradas — G19 (tabela inteira do fornecedor, ex-C3) e G20
+> (o que tentaste remover, ex-C4). Tecto elevado 18→20 por DECISÃO EXPLÍCITA DO DONO, registada:
+> «entram a C3 e a C4». É a TERCEIRA vez que o tecto sobe. A C1 sai da fila — não por ser fraca
+> (era a de retro-prova mais sólida: 3/3 confirmadas com sha e a linha defeituosa lida nos dois
+> lados do fix), mas porque desce a MECANISMO: «o ficheiro que este ✓ descreve tem bytes?» é um
+> `statSync().size > 0`, e uma coisa que um portão faz não gasta um slot que um humano tem de
+> correr. A C2 fica em fila.**
+> **E as duas entram CORRIGIDAS.** Antes da entrada, as quatro candidatas foram confrontadas com o
+> registo por um motor diferente do autor (dossier em `_handoff/DOSSIER_D8_GAUNTLET_2026-09-01.md`).
+> A auditoria refutou afirmações concretas nas retro-provas da C3 e da C4 — as correcções estão
+> marcadas `[corrigido 2026-09-01]` abaixo, com o que foi medido. Entrar com números que o git
+> desmente seria, num documento cuja G18 exige `[medido]`, o defeito que ele existe para matar.
 
 ## Régua de disparo (o buraco mais caro da v2 — sem "quando", ou não corre ou corre a fingir)
 
@@ -22,9 +34,9 @@
 |---|---|---|
 | **Trivial** | reversível em <5 min, não sai da sessão | **nenhum** |
 | **Rotina** | entregável que o dono vai ler mas não re-verificar linha a linha | **G1, G3, G7 auto-aplicadas** + declaração de 1 linha |
-| **Alto risco** | toca produção/secrets/CI/release/site público, OU o dono vai agir sem reler, OU vira masterprompt para outra sessão | **as 18, com G4 num MOTOR DIFERENTE.** Sem segundo motor disponível: o entregável não sai, ou sai carimbado `não-verificado` — nunca sai limpo |
+| **Alto risco** | toca produção/secrets/CI/release/site público, OU o dono vai agir sem reler, OU vira masterprompt para outra sessão | **as 20, com G4 num MOTOR DIFERENTE.** Sem segundo motor disponível: o entregável não sai, ou sai carimbado `não-verificado` — nunca sai limpo |
 
-## As 18 — G1 a G13 na tabela abaixo; G14 a G18 seguem, cada uma colada à sua retro-prova
+## As 20 — G1 a G13 na tabela abaixo; G14 a G20 seguem, cada uma colada à sua retro-prova
 
 | # | Pergunta | Origem · prova de terreno |
 |---|---|---|
@@ -193,7 +205,65 @@ no código e nunca atravessou para a copy pública — o mesmo produto com duas 
 **A régua:** cada claim público carrega `[medido: onde]` ou desce a "auditável: corre X e vê".
 Superlativo sem fonte possível não se suaviza — sai.
 
-**Tecto 18 · 0 slots.** Entradas desde a v4 (12 perguntas, tecto 13): a G13 (procura-antes-de-delegar)
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G19 | **Leste a tabela de preços/regras INTEIRA do fornecedor, ou só a linha que a tua pergunta trouxe?** Desconto garantido por regra publicada (batch, off-peak, TTL longo, assimetria input/output, tier) vale mais que a optimização engenhosa em desenho — e não aparece se a pesquisa for guiada só pelo tópico. | Paulo 2026-08-12 (ex-C3) · entrada na v7 · retro-prova ×2 confirmada abaixo. A G5 é build-vs-adopt; a G12 e a G18 atacam números que EU publico. **Nenhuma das 18 varria os descontos publicados pelo fornecedor que eu deixei na mesa** — é a única das quatro candidatas que apanha algo com dinheiro directo |
+
+### Retro-prova da G19 (tabela inteira do fornecedor) — 2 confirmadas, 1 retirada
+
+1. **Batch API −50% empilhável com caching** entrou como M4 só no delta v1.0→v1.1 — a v1.0 tinha três
+   medições e não o incluía. **[corrigido 2026-09-01]** A cláusula «ao 6º turno, por pergunta do dono»
+   **não é confrontável**: não há transcript da conversa no disco nem no vault. O que se confirma é a
+   entrada tardia; o *quando* exacto é palavra do autor.
+2. **Assimetria output ≈ 5× input** entrou como M5 no mesmo delta, enquanto se optimizava o input.
+   **[corrigido 2026-09-01]** Esta e a anterior são duas células da mesma tabela, do mesmo fornecedor,
+   no mesmo delta — **uma falha com duas caras, não duas independentes.**
+3. ~~«Preço do Kimi lido de um agregador; a regra virou DO-NOT do M2 a posteriori.»~~
+   **[RETIRADA 2026-09-01 — refutada.]** As secções DO-NOT têm as mesmas 6 balas nas duas versões,
+   nenhuma sobre verificar o fornecedor, e a regra já vivia no corpo do M2 na v1.0 — logo não é
+   *a posteriori*. E «lido de um agregador» não tem qualquer suporte no registo
+   (`grep -i "openrouter|artificialanalysis|agregador"` nos 9 ficheiros → zero).
+
+**A entrada.** Com 2 confirmadas (e essas duas parentes), a G19 **não cumpre a régua de ≥3**. Entra
+por decisão explícita do dono, registada, com esta lacuna à vista em vez de escondida — que é o
+tratamento que a G18 exige a qualquer claim.
+
+**A régua da G19:** ANTES do despacho de alto risco, um snapshot de preços com `verified_at` no
+briefing. Ela exige rede viva e o G4 corre em `--sandbox read-only`: sem o snapshot pinado, degrada
+para `n/d` exactamente onde o gauntlet manda correr as 20 — e degrada em silêncio, que é pior.
+
+| # | Pergunta | Origem · prova |
+|---|---|---|
+| G20 | **É a versão mais SIMPLES que atinge o objectivo — o que tentaste REMOVER antes de entregar?** | Paulo 2026-08-12 (ex-C4) · entrada na v7 · retro-prova abaixo, **0 de 3 confirmadas**. A G14 e a G16 cortam à unidade WAVE (matam a coisa inteira ou deixam-na passar inteira); **nenhuma abre o entregável e pergunta que partes DENTRO dele são carga morta**. E a G8 empurra na direcção contrária: um bloco de 8 passos numa só sessão é MENOS interacções do dono, logo a G8 aplicada a ele daria verde |
+
+### Retro-prova da G20 (subtracção) — **0 de 3 confirmadas**, e entra assim mesmo
+
+**[auditado 2026-09-01, motor diferente do autor]** As três afirmações originais não sobreviveram ao
+confronto com o registo. Ficam aqui **como estavam e com o que se mediu**, porque apagá-las seria
+esconder que esta é a candidata de prova mais fraca — e a decisão de a fazer entrar foi tomada com
+esse facto à vista.
+
+1. ~~«Bloco v3 kitchen-sink: 8 passos numa só sessão.»~~ → **n/d.** Nunca existiu em git
+   (`git log --all -- '*COLAR_NO_CC*'` → vazio) nem está em disco.
+2. ~~«v1.0 → v1.1 → v3: três gerações no mesmo dia, todas ADICIONARAM.»~~ → **refutada.** Junta duas
+   famílias distintas (o MASTERPROMPT fez v1.0→v1.1; o COLAR_NO_CC fez v1→v4), e a única transição
+   descrita em detalhe — o v4 — é uma **partição em PARTE A / PARTE B**, que é precisamente o gesto
+   de subtracção que a afirmação diz não ter havido.
+3. ~~«8 artefactos + 6 appends.»~~ → **refutada nos números.** São 9 ou 10 artefactos, e os appends
+   eram **4** à hora em que a candidata foi escrita (04:49) — os Addendum 4 e 5 são de horas depois.
+
+**Porque entra na mesma, e o que isso custa.** A lacuna que ela nomeia é real e nenhuma das 18 a
+cobria. Mas é a única das quatro **sem gesto verificável**: a G1 confronta-se contra a fonte, a G11
+valida o instrumento, a G18 procura o `[medido]`; «o que tentaste remover?» não tem comando. Sem
+prova mecânica, é a pergunta mais fácil de carimbar das 20 — e acrescentar uma pergunta a um gauntlet
+que este documento já diz estar sobrecarregado é, literalmente, a falha que a G20 existe para apanhar.
+
+**A régua da G20:** a declaração tem de nomear **uma coisa concretamente removida** (`removido: X`) ou
+**dizer porque nenhuma podia sair** (`nada saiu porque Y`). É um campo grep-ável pelo mesmo portão do
+estágio 2, no formato das restantes. **Sem esse campo, a G20 não conta como respondida** — é a
+condição que a torna auditável em vez de honrada.
+
+**Tecto 20 · 0 slots.** Entradas desde a v4 (12 perguntas, tecto 13): a G13 (procura-antes-de-delegar)
 ocupou o slot que estava livre — **não** elevou o tecto; a G14 (valor de negócio) elevou 13→14 e a G15
 (memória cross-silo) elevou 14→15. Todas com retro-prova ×3 do próprio dia, nenhuma da literatura.
 A v6 elevou 15→18 (G16, G17, G18) **por decisão explícita do dono no masterprompt de 2026-08-02** —
@@ -210,19 +280,19 @@ reais do registo e apanhar ≥1 que as 18 não apanham):
 - *Pontos de revisão anteriores abertos* (NASA) — volta QUANDO o registo de acções abertas existir
   como artefacto (cérebro da Wave M). Sem ficheiro grep-ável, é pergunta retórica.
 
-- **C1 — "o ✓ tem corpo?"** · candidata, retro-prova abaixo. *Um estado de sucesso só conta se o
-  artefacto que ele descreve existir e tiver conteúdo. `ok`, `✓`, `done` e `exit 0` são afirmações
-  sobre o processo, não sobre o produto — medir o produto.*
+- ~~**C1 — "o ✓ tem corpo?"**~~ · **SAIU DA FILA na v7 (2026-09-01), e não por ser fraca.** Era a de
+  retro-prova mais sólida das quatro — 3/3 confirmadas com sha, e a linha defeituosa lida nos dois
+  lados de cada fix. Sai porque **desce a MECANISMO**: «o ficheiro que este ✓ descreve tem bytes?» é
+  um `statSync().size > 0`, e uma coisa que um portão faz em segundos não gasta um slot que um humano
+  tem de correr em cada entrega de alto risco. A classe é real (3 falhas num só dia) e não pode
+  simplesmente desaparecer — **fica como dívida declarada: o `stat` no hook de fecho do estágio 2**,
+  ainda por implementar. Se essa dívida não for paga, o «✓ sobre nada» volta, e volta em silêncio.
+  *(A retro-prova completa fica abaixo, para quem implementar o `stat` saber o que está a fechar.)*
 - **C2 — "congelaste todas as superfícies?"** · candidata, retro-prova abaixo. *Um invariante
   aplicado a uma superfície e não às irmãs não é invariante, é um hábito. Quando se corrige uma
   classe de defeito, varrer TODAS as superfícies onde ela cabe, no mesmo commit.*
-- **C3 — "Leste a tabela de preços/regras INTEIRA do fornecedor, ou só a linha que a tua pergunta
-  trouxe?"** · candidata, retro-prova abaixo. *Desconto garantido por regra publicada (batch,
-  off-peak, TTL longo, assimetria input/output, tier) vale mais que a optimização engenhosa em
-  desenho — e não aparece se a pesquisa for guiada só pelo tópico.*
-- **C4 — "É a versão mais SIMPLES que atinge o objectivo — o que tentaste REMOVER antes de
-  entregar?"** · candidata, retro-prova abaixo. *Nenhuma das 18 força SUBTRACÇÃO no entregável.
-  Origem: pergunta do Paulo "vamos criar complexidade e perder eficiência por prompt?" (08-12).*
+- ~~**C3 — "Leste a tabela de preços/regras INTEIRA do fornecedor?"**~~ · **ENTROU na v7 como G19.**
+- ~~**C4 — "É a versão mais SIMPLES — o que tentaste REMOVER?"**~~ · **ENTROU na v7 como G20.**
 
 #### Retro-prova da C1 ("o ✓ tem corpo?") — 3 falhas reais, todas de 2026-08-07
 
@@ -283,10 +353,21 @@ Fonte: a própria conversa Cowork de 2026-08-12.
 **O que a C4 apanha e as 18 não:** a G8 cobre gestos do **dono**; a G17 cobre o eixo (modelo vs
 fluxo). Nenhuma das 18 força **subtracção** no entregável antes de ele sair.
 
-> **Tecto 18 intocado.** C1, C2, C3 e C4 ficam em FILA, não entram. A entrada é decisão do Paulo e
-> obedece à regra do fecho (entra uma → sai uma), ou a um gesto explícito do dono que eleve o tecto.
-> **D8 (Paulo, aberta):** C3 e C4 entram? Se sim, quais das 18 saem, OU gesto explícito de elevar o
-> tecto. Sem dados do juiz O-1 não há recomendação de poda — tecto ou fila é decisão do dono.
+> **Tecto 20.** Sobra **a C2** em fila. A entrada é decisão do Paulo e obedece à regra do fecho
+> (entra uma → sai uma), ou a um gesto explícito do dono que eleve o tecto.
+> **D8 — FECHADA a 2026-09-01.** «Entram a C3 e a C4» (gesto do dono, verbatim). A C3 entrou como
+> G19, a C4 como G20, e o tecto subiu 18→20 — **terceira vez**, e a conta só fecha assim: a C1
+> estava na FILA, e tirar da fila não liberta slot. Quem sai das 20 continua sem recomendação
+> possível: sem dados do juiz O-1 não há poda por mérito, e as 13 perguntas sem delta literal **não
+> são 13 perguntas mortas** (pelo menos G1, G9, G10 e G18 morderam por sentido — é o critério
+> literal que as invisibiliza). Dossier da decisão, com as quatro candidatas confrontadas contra o
+> registo por um motor diferente do autor: `_handoff/DOSSIER_D8_GAUNTLET_2026-09-01.md`.
+>
+> **D9 (Paulo, aberta):** a C2 entra? A sua retro-prova confirma-se em substância (5 shas
+> verificados) mas tem **dois erros de facto por corrigir** — «14:5x» é 14:43:54, e a «quarta
+> aparição» não se reconstrói (o registo prova três sítios; o quarto assenta num episódio que o repo
+> conta com duas causas incompatíveis). E ela nunca confronta a **G6**, que é a única das 20 com
+> «superfícies» no corpo. Corrigir antes de decidir.
 
 ## Como funciona — os 3 estágios de automação (honestidade sobre o que é automático HOJE)
 
@@ -301,19 +382,53 @@ fluxo). Nenhuma das 18 força **subtracção** no entregável antes de ele sair.
 
 ## Protocolo de declaração (formato fixo, grep-ável para o estágio 2)
 
-`gauntlet: [classe] · Gn mudou X · G4 em [motor|auto-DEGRADADO|não-verificado] · não corridos: Gn (porquê)`
+`gauntlet: [classe] · Gn mudou X · G4 em [motor|auto-DEGRADADO|não-verificado] · não corridos: Gn (porquê) · removido: X | nada saiu porque Y · artefactos: a.json b.md`
+
+Os campos, e o que cada um custa se faltar (tudo verificado por
+`tools/gauntlet/portao-gauntlet.mjs`, que **lê as perguntas deste ficheiro** — não tem cópia delas):
+
+| Campo | Quando | Sem ele |
+|---|---|---|
+| `[classe]` | sempre | reprova — a régua de disparo não tem quarta linha |
+| `Gn` | as que a classe exige | reprova, e diz **quais** faltam |
+| `Gn mudou X` | quando a pergunta mordeu | passa **com nota**: um gauntlet de alto risco que só aprova é indistinguível de um que não correu |
+| `G4 em [motor]` | alto risco | reprova. Com `não-verificado`/`auto-DEGRADADO` passa **carimbado** — nunca limpo |
+| `não corridos: Gn (porquê)` | ao saltar uma | saltar é legítimo; saltar **em silêncio** reprova |
+| **`removido: X`** ou **`nada saiu porque Y`** | quando a **G20** é exigida | reprova. É a única das 20 sem gesto verificável — sem o campo, é a mais fácil de carimbar |
+| **`artefactos: …`** | opcional | o que for nomeado é confrontado com o disco: **existe? tem bytes?** É a antiga C1, que saiu da fila na v7 por descer a mecanismo. Nada é adivinhado — um portão que inventa que ficheiros deviam existir cria uma segunda verdade sobre o que a entrega é |
+
+**Aviso sobre a crase.** O portão tolera prefixos markdown (`` ` ``, `-`, `>`, `*`) porque a primeira
+versão dele não os tolerava e ficou **cega a 11 das 27 declarações do registo** — escritas dentro de
+crases, porque é assim que o formato aparece nesta secção. Um instrumento que não lê o que as pessoas
+escrevem responde «não há declarações» quando a resposta certa é «não sei ler as que há». É a G11
+virada contra o próprio gauntlet, e foi um motor diferente do autor que a apanhou.
+
+**Onde corre.** No CI, sobre o **corpo do PR** (`.github/workflows/test.yml`, step «Gauntlet
+declarado no PR»), em modo **advisory**: produz sinal, não bloqueia. Torná-lo obrigatório muda o
+processo de toda a gente e é gesto do dono — não do agente que escreveu o portão.
 
 ## Regras de crescimento
 
-- Tecto **18 efectivas**: hoje 18 + 0 slots. Entrada SÓ por retro-prova (≥3 falhas reais, apanha ≥1 nova).
+- Tecto **20 efectivas**: hoje 20 + 0 slots. Entrada SÓ por retro-prova (≥3 falhas reais, apanha ≥1 nova).
   A v2 violou isto (5 entraram por autoridade da literatura numa tarde) — a v3 pagou a multa.
   A v4 respeitou-a: G11 e G12 entraram com 4 falhas medidas cada, todas do registo, nenhuma da literatura.
   A v5 respeitou-a: G13, G14 e G15 entraram com 3 falhas medidas cada, todas do próprio dia.
   A v6 respeitou-a: G16, G17 e G18 entraram com 3 falhas medidas cada, todas do registo verificável.
+  **A v7 NÃO a respeitou, e isso fica escrito:** a G19 entrou com **2** confirmadas (e as duas são
+  parentes — a mesma tabela, o mesmo delta) e a G20 com **0 de 3**, todas refutadas ou `n/d` na
+  auditoria de 2026-09-01. Entraram por decisão explícita do dono, com a lacuna à vista. É a segunda
+  vez na história do ficheiro que a régua de entrada cede; a primeira (v2) custou uma v3 inteira a
+  pagar a multa. **Se o juiz O-1 vier a mostrar a G19 ou a G20 carimbadas às cegas, são as primeiras
+  a sair** — entraram com menos prova do que qualquer uma das 18.
   Com 0 slots vale a regra do fecho: entra uma → sai uma. Elevar o tecto NÃO é alternativa a essa
-  regra — exige decisão explícita do dono, registada. Aconteceu 2×: 13→15 (2026-08-01) e 15→18
-  (2026-08-02, masterprompt "O FLUXO, O ESTRANHO E O JUIZ"). Um agente **nunca** eleva o tecto sozinho.
-  **Aviso de calibração:** 18 perguntas é muito para correr a sério em cada entrega de alto risco.
+  regra — exige decisão explícita do dono, registada. Aconteceu 3×: 13→15 (2026-08-01), 15→18
+  (2026-08-02, masterprompt "O FLUXO, O ESTRANHO E O JUIZ") e 18→20 (2026-09-01, D8: «entram a C3 e
+  a C4»). Um agente **nunca** eleva o tecto sozinho.
+  **Aviso de calibração:** 20 perguntas é muito para correr a sério em cada entrega de alto risco —
+  e o aviso agora é mais duro do que era, porque o tecto subiu enquanto o número de declarações
+  válidas no registo era **zero** (medido 2026-09-01: 27 linhas `gauntlet:`, nenhuma passa o portão
+  do estágio 2, a mais recente de 23/08). Um gauntlet que cresce sem estar a ser corrido cresce no
+  papel.
   Se o juiz O-1 (estágio 3) mostrar perguntas carimbadas às cegas, a resposta é PODAR, não crescer.
 - Pergunta que não muda nada em 3+ sessões de alto risco → o juiz distingue internalizada de
   carimbada; carimbada sai para a fila de espera.

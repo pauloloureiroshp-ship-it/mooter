@@ -1,7 +1,23 @@
 # Dossier da D8 — as candidatas C1–C4 do gauntlet, verificadas contra o registo
 
 **Data:** 2026-09-01 (03:00 São Paulo) · **Para:** decisão do dono · **Autor:** Claude Code
-**Estado:** aberto — nada foi decidido, nada entrou, o tecto continua 18 (`grep -c "| G19 |"` → 0)
+**Estado:** ~~aberto~~ → **FECHADA no mesmo dia.** Decisão do dono, verbatim: «entram a C3 e a C4».
+
+> **O que foi decidido** (registado no `MEO_GAUNTLET.md` v7):
+> A C3 entrou como **G19**, a C4 como **G20**, e o tecto subiu **18 → 20** — terceira vez na história
+> do documento, e a conta só fecha assim: a C1 estava na FILA, e tirar da fila não liberta slot.
+> A **C1 sai** — não por ser fraca (era a de prova mais sólida das quatro), mas porque desce a
+> **mecanismo**: `statSync().size > 0` no hook do estágio 2, que não gasta slot. Fica como **dívida
+> declarada**, ainda por implementar. A **C2 continua em fila** (D9, aberta).
+>
+> **As duas entraram corrigidas.** A auditoria abaixo refutou afirmações concretas nas retro-provas
+> da C3 e da C4; as correcções foram para o documento marcadas `[corrigido 2026-09-01]`, e a v7
+> regista, em texto, que **a régua de entrada cedeu** — a G19 entrou com 2 confirmadas (parentes
+> entre si) e a G20 com 0 de 3. É a segunda vez na história do ficheiro que isso acontece; a
+> primeira custou uma versão inteira a pagar a multa. Se o juiz O-1 as vier a mostrar carimbadas às
+> cegas, são as primeiras a sair.
+>
+> O que se segue é o dossier tal como foi entregue para a decisão, sem reescrita a posteriori.
 
 > **A D8, verbatim** (`docs/foundation/MEO_GAUNTLET.md:288`):
 > «C3 e C4 entram? Se sim, quais das 18 saem, OU gesto explícito de elevar o tecto.
