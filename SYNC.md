@@ -306,7 +306,23 @@ Consertado com `--body-file`, e a guarda que faltava: `blocoPartido()` +
 `ci-coerencia.mjs` aos workflows reais. Descoberta pelo caminho: os outros 5 exports desse
 módulo nunca são invocados fora dos próprios testes sintéticos. Runner **1087/0**.
 
-**Aberto:** fundir os dois ramos · etiquetar a 1.53.0 (bump→merge→tag→release) · ligar as
-5 guardas inertes do `ci-coerencia` · a fraqueza `historical` 68,0% · a obediência a 0%.
+**Fechado no mesmo dia:** os dois ramos fundidos (#471, #472) · **v1.53.0 etiquetada e
+publicada**, com `mooter-v1530.mcpb` anexado — e o `Version Sync` correu nessa tag e passou,
+pela primeira vez desde 2026-08-29 · o harness A/B passou a ter **22 testes + mordida de
+13 defeitos plantados**, ligados ao CI (#473).
+
+Três buracos da mesma família, encontrados a **provar** que os testes novos corriam mesmo:
+o `test.yml` não cobria `.github/workflows/**`; o `paths-ignore` do `test-skip.yml` tinha
+**7 padrões contra 14** da referência; e o `package.json` — que define *o que os testes são* —
+estava fora dos dois. Em qualquer deles o par reportava os checks obrigatórios a verde
+**sem correr nada**. O espelho passa a ser exigido por teste, porque a deriva era silenciosa
+por construção: cada padrão novo no `test.yml` nascia em falta no espelho e nada gritava.
+
+E a mordida pagou-se à primeira: dos 13 defeitos plantados, **1 passou** — o teste das
+convenções casava com a linha que define os tiers em vez do bloco que devia guardar.
+22 testes verdes, e um deles não verificava nada.
+
+**Aberto:** ligar as 5 guardas inertes do `ci-coerencia` · a fraqueza `historical` 68,0% ·
+a obediência a 0% (43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
 
 <!-- HUMANO:FIM -->
