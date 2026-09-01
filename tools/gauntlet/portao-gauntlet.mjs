@@ -163,10 +163,32 @@ export function lerGauntlet(docPath = DOC_PADRAO) {
  */
 export function extrairDeclaracao(texto) {
   const src = String(texto == null ? '' : texto);
-  const linha = src.split(/\r?\n/).find((l) => /^\s*gauntlet\s*:/i.test(l));
+  // O prefixo tolerado (crase, `-`, `>`, `*`) não é generosidade: é uma
+  // correcção a um defeito MEDIDO deste próprio ficheiro, no dia em que nasceu.
+  //
+  // A primeira versão exigia `^\s*gauntlet\s*:`. Varrido o registo real
+  // (repo + vault) a 2026-09-01: **16 linhas** com esse regex, **27** tolerando
+  // prefixos markdown. Onze declarações reais eram invisíveis — e não por
+  // desleixo de quem as escreveu: o formato é apresentado no `MEO_GAUNTLET.md`
+  // dentro de crases, portanto foi copiado com elas.
+  //
+  //   `gauntlet: alto-risco · wrapper de orquestração · G4 CORRIDO (job-…)`
+  //   `gauntlet: auditoria pedida pelo dono · autor≠crítico por construção`
+  //
+  // É a G11 virada contra o instrumento: «um negativo é ausência do facto, ou
+  // defeito do teu método — provaste qual?». O portão respondia «não há
+  // declarações» quando a resposta certa era «não sei ler as que há». E o teste
+  // que dizia «nenhuma declaração real passa hoje» continuava verde, porque
+  // passava por outra razão — a cegueira estava a ser mascarada por um acerto.
+  //
+  // Apanhado por um motor diferente do autor, que é exactamente o que a G4 pede.
+  const PREFIXO = /^[\s`>*\-]*gauntlet\s*:/i;
+
+  const linha = src.split(/\r?\n/).find((l) => PREFIXO.test(l));
   if (!linha) return { presente: false, porque: 'nenhuma linha começa por `gauntlet:`' };
 
-  const corpo = linha.replace(/^\s*gauntlet\s*:/i, '').trim();
+  // A crase de fecho, quando existe, não faz parte do corpo.
+  const corpo = linha.replace(PREFIXO, '').replace(/`+\s*$/, '').trim();
   if (!corpo) return { presente: false, porque: 'a linha `gauntlet:` está vazia' };
 
   // classe: `[trivial]`, `[alto risco]`, ou a primeira palavra antes do `·`
