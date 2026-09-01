@@ -29,12 +29,25 @@ const todas = (extra = '') =>
 test('lerGauntlet extrai as perguntas do MEO_GAUNTLET.md real', () => {
   // Se isto falhar, o portão está a validar contra uma lista que não é a do
   // documento — exactamente a segunda verdade que ele existe para não ter.
+  //
+  // NÃO se cravam aqui a versão nem o número exacto. A primeira versão deste
+  // teste cravava `v6` e `18`, e falhou no dia seguinte quando a D8 fechou e o
+  // dono elevou o tecto para 20 — a falhar por o documento ter MUDADO, não por
+  // o portão estar errado. Cravar o valor contradiz o princípio do ficheiro:
+  // a lista vem do documento, e um teste que exige um número fixo é uma segunda
+  // cópia desse número, só que escondida num assert.
+  //
+  // O que se verifica são INVARIANTES: o parse funciona, apanha o primeiro e o
+  // último, e o tecto nunca desceu abaixo de 18 (a história do documento é de
+  // subidas por gesto do dono: 13→15→18→20). Um documento que encolha para
+  // menos do que já teve é anomalia e deve parar aqui.
   const g = lerGauntlet();
   assert.equal(g.ok, true, g.porque);
   assert.ok(g.ids.length >= 18, `só ${g.ids.length} perguntas lidas: ${g.ids.join(', ')}`);
-  assert.ok(g.ids.includes('G1') && g.ids.includes('G18'));
-  assert.equal(g.versao, 'v6');
-  assert.equal(g.tecto, 18);
+  assert.ok(g.ids.includes('G1'), 'a primeira pergunta tem de estar lá');
+  assert.equal(g.ids.at(-1), `G${g.ids.length}`, 'a numeração tem de ser contínua até à última');
+  assert.match(String(g.versao), /^v\d+$/, `versão não parseada: ${g.versao}`);
+  assert.ok(Number.isInteger(g.tecto) && g.tecto >= 18, `tecto lido: ${g.tecto}`);
 });
 
 test('o documento real não diverge de si próprio — tecto == nº de perguntas', () => {
