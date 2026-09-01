@@ -24,17 +24,31 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
+    # ESPELHO EXACTO do `paths:` do test.yml — não uma lista à parte.
+    #
+    # O `paths-ignore` só salta a workflow quando TODOS os ficheiros alterados
+    # casam. Se este espelho tiver menos padrões do que o `paths:` do test.yml,
+    # um PR que toque num dos que faltam faz correr os DOIS — e ficam dois check
+    # runs com o mesmo nome obrigatório, um deles verde sem ter corrido nada.
+    #
+    # Medido a 2026-09-01: a referência tinha 13 padrões e este espelho 7. Um PR
+    # a `tools/ab/**` disparava os dois. A deriva é silenciosa — cada padrão novo
+    # no test.yml nasce em falta aqui — por isso há um teste que exige o espelho:
+    # `tools/cockpit/runner/workflows-parseiam.test.mjs`.
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
       - 'tools/cockpit/**'
+      - 'tools/verify/**'
+      - 'tools/gauntlet/**'
+      - 'tools/ab/**'
+      - 'tools/handoff-preflight*'
+      - 'AGENTS.md'
+      - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
       - 'packages/slack-spike/**'
-      - '.github/workflows/test.yml'
-      # Espelho do `paths:` do test.yml. Se o test.yml corre para qualquer
-      # workflow, o skip TEM de ignorar qualquer workflow — senao os dois
-      # disparam e ha dois check runs com o mesmo nome obrigatorio, um deles
-      # verde sem ter corrido nada.
+      - 'tools/guarda-home*'
       - '.github/workflows/**'
+      - 'package.json'
 
 jobs:
   unit:

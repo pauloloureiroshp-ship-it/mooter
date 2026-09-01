@@ -23,7 +23,7 @@
  * só conta ao lado dela.
  *
  * O dataset é `tools/router/gold-labels.json` — 84 prompts com `expected_tier`
- * escrito por humano, versionado no repo desde 2026-06-08. Não foi feito para
+ * escrito por humano, versionado no repo desde 2026-04-11. Não foi feito para
  * este teste; é anterior a ele, o que é precisamente o que o torna utilizável
  * (um gold escrito depois da hipótese não é gold, é decoração).
  *
@@ -84,9 +84,20 @@ const VALIDATION = path.join(RAIZ, 'tools', 'router', 'validation-set.json');
  *
  * Por isso o número que se publica é o do `validation-set.json`, que tem uma
  * secção **adversarial** escrita para partir o classificador. Medido a
- * 2026-09-01: gold 96,4%, holdout 84,3%. **Publica-se o segundo.** A diferença
- * de 12 pontos é a medida do que a afinação valeu — e escondê-la seria vender o
- * número do treino como se fosse o do teste.
+ * **Publica-se o segundo**, e a diferença entre os dois é a medida do que a
+ * afinação valeu — escondê-la seria vender o número do treino como se fosse o
+ * do teste.
+ *
+ * E há um segundo corte, mais duro, dentro deste. Dez das amostras `canonical`
+ * têm `confidence_source: mooter_review_1|2` — os nomes dos commits 4b6e4548 e
+ * bc4f84f1, que alteram o `classify.js` **no mesmo commit** que escreve os
+ * rótulos. O Mooter fazia 10/10 exactamente nessas. São marcadas `coautorada` e
+ * ficam FORA do número publicado (`precisao_limpa`), que corre sobre 60 e não
+ * sobre 70.
+ *
+ * Números concretos vivem no recibo (`_handoff/ab-2026-09-01/`), nunca aqui: um
+ * valor cravado no instrumento é um valor que deixou de depender da medição, e
+ * há um teste em `mooter-vs-sem.test.mjs` que o impede de voltar.
  */
 export function holdout() {
   const v = JSON.parse(fs.readFileSync(VALIDATION, 'utf8'));
