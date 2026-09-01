@@ -21,7 +21,12 @@
 const http = require('http');
 const https = require('https');
 
-const HOST_URL = process.env.OLLAMA_HOST || 'http://localhost:11434';
+// `new URL('/api/…', HOST_URL)` (linha ~46) lança `Invalid URL` se o host vier
+// sem esquema — e `OLLAMA_HOST=127.0.0.1:11434` é o formato canónico do Ollama.
+// Ver `ollama-host.js`.
+const { ollamaHostFromEnv } = require('./ollama-host.js');
+
+const HOST_URL = ollamaHostFromEnv('http://localhost:11434');
 function getModelsToWarm() {
   // 1. Env override — honour always
   if (process.env.FRUGAL_WARMUP_MODELS) {

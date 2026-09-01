@@ -1,0 +1,123 @@
+{
+  "probe_ts": "2026-09-01T01:42:14.091Z",
+  "motores": {
+    "ollama": {
+      "motor": "ollama",
+      "saude": "sem-resposta",
+      "saude_porque": "isAvailable(): tags error: Failed to parse URL from 127.0.0.1:11434/api/tags",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "sem fonte oficial de quota para este motor — n/d"
+    },
+    "codex": {
+      "motor": "codex",
+      "saude": "vivo",
+      "saude_porque": "isAvailable() respondeu disponível",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "não existe fonte oficial de quota do Codex nesta máquina — o antigo codex_quota vinha de um orçamento local (quota-tracker.js:319) e já se provou errado (hint dizia 0%, o motor correu)"
+    },
+    "deepseek": {
+      "motor": "deepseek",
+      "saude": "sem-resposta",
+      "saude_porque": "isAvailable(): sem motivo declarado",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "sem fonte oficial de quota para este motor — n/d"
+    },
+    "openai": {
+      "motor": "openai",
+      "saude": "sem-resposta",
+      "saude_porque": "isAvailable(): sem motivo declarado",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "sem fonte oficial de quota para este motor — n/d"
+    },
+    "claude": {
+      "motor": "claude",
+      "saude": "vivo",
+      "saude_porque": "é o processo que corre este probe — vivo por construção, não por medição",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "motor fora do roster de quota — n/d"
+    },
+    "gemini": {
+      "motor": "gemini",
+      "saude": null,
+      "saude_porque": "sem adaptador em tools/router/providers/ — não há sonda barata; n/d",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "motor fora do roster de quota — n/d"
+    },
+    "kimi": {
+      "motor": "kimi",
+      "saude": null,
+      "saude_porque": "sem adaptador em tools/router/providers/ — não há sonda barata; n/d",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "motor fora do roster de quota — n/d"
+    },
+    "anthropic": {
+      "motor": "anthropic",
+      "saude": null,
+      "saude_porque": "sem prova de saúde nesta janela — n/d",
+      "degradado": false,
+      "degradado_porque": null,
+      "quota_pct": null,
+      "quota_fonte": null,
+      "quota_porque": "sem quota-live: o Claude Code ainda não renderizou a statusline nesta janela — n/d"
+    }
+  },
+  "rotas": {
+    "leitura": {
+      "etapa": "leitura",
+      "motor": "codex",
+      "bloqueada": false,
+      "fallback_de": "ollama",
+      "porque": "ollama indisponível — sem resposta na sonda: isAvailable(): tags error: Failed to parse URL from 127.0.0.1:11434/api/tags; caiu para codex (respondeu ao pong)"
+    },
+    "codigo_git": {
+      "etapa": "codigo_git",
+      "motor": "claude-code",
+      "bloqueada": false,
+      "fallback_de": null,
+      "porque": "insubstituível por desenho — §1: custódia do git do repo e do vault"
+    },
+    "refutacao": {
+      "etapa": "refutacao",
+      "motor": "codex",
+      "bloqueada": false,
+      "fallback_de": null,
+      "porque": "adversário ≠ autor(claude): codex despachável (respondeu ao pong)"
+    },
+    "pesquisa_web": {
+      "etapa": "pesquisa_web",
+      "motor": null,
+      "bloqueada": true,
+      "fallback_de": null,
+      "excluido_por_nd": [
+        "codex: não existe fonte oficial de quota do Codex nesta máquina — o antigo codex_quota vinha de um orçamento local (quota-tracker.js:319) e já se provou errado (hint dizia 0%, o motor correu)",
+        "claude: motor fora do roster de quota — n/d",
+        "gemini: motor fora do roster de quota — n/d",
+        "kimi: motor fora do roster de quota — n/d",
+        "anthropic: sem quota-live: o Claude Code ainda não renderizou a statusline nesta janela — n/d"
+      ],
+      "esgotado_medido": [],
+      "porque": "BLOQUEADA — nenhum motor com quota medida. §2 manda tratar n/d como esgotada, e nesta janela TODOS são n/d. Não há vencedor a inventar: escolher o mais barato aqui seria o «viés do default barato». Repor com uma fonte oficial de quota (a statusline do Claude Code alimenta quota-live) e voltar a correr o probe."
+    }
+  }
+}

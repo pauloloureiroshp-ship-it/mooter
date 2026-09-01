@@ -38,7 +38,12 @@ const BLOG_PATH = path.join(AUDIT_DIR, 'BLOG_POST_DRAFT.md');
 const BENCHMARK_PATH = path.join(REPO_ROOT, 'AUDIT_BENCHMARK.md');
 const PHASE_TOKENS_PATH = path.join(AUDIT_DIR, 'phase_tokens.json'); // phase3/4 tokens (recorded by orchestrator)
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://host.docker.internal:11434';
+// `new URL('/api/generate', OLLAMA_HOST)` (linha ~199) lança `Invalid URL` se o
+// host vier sem esquema, e `OLLAMA_HOST=127.0.0.1:11434` é o formato canónico
+// do Ollama. Ver `../router/ollama-host.js`.
+const { ollamaHostFromEnv } = require('../router/ollama-host.js');
+
+const OLLAMA_HOST = ollamaHostFromEnv('http://host.docker.internal:11434');
 const OPUS_KEY = 'claude-opus-4-6';
 
 function readJson(p, dflt = null) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return dflt; } }

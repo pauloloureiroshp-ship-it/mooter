@@ -311,3 +311,102 @@ test('ollama isAvailable: returns true when /api/tags responds ok', async () => 
     }
   );
 });
+
+// ── ollama-api: OLLAMA_HOST sem esquema ─────────────────────────────────
+//
+// `OLLAMA_HOST=127.0.0.1:11434` é o formato canónico do Ollama. Este ficheiro
+// concatenava-o à bruta e produzia `fetch('127.0.0.1:11434/api/…')`.
+//
+// Medido a 2026-08-31, com o Ollama vivo e 10 modelos:
+//   · isAvailable() → {available:false, reason:'…Failed to parse URL…'}
+//   · callOllama()  → null, SEM razão nenhuma
+//
+// O segundo é o que custava: o motor $0 falhava mudo e o trabalho caía para um
+// motor pago sem sinal nenhum. Estes testes mordem esse caminho — capturam o
+// URL que chega ao fetch, que é onde o defeito vivia.
+
+let SAVED_OLLAMA_HOST;
+
+function withOllamaHost(valor, fn) {
+  SAVED_OLLAMA_HOST = process.env.OLLAMA_HOST;
+  if (valor === undefined) delete process.env.OLLAMA_HOST;
+  else process.env.OLLAMA_HOST = valor;
+  const restaurar = () => {
+    if (SAVED_OLLAMA_HOST === undefined) delete process.env.OLLAMA_HOST;
+    else process.env.OLLAMA_HOST = SAVED_OLLAMA_HOST;
+  };
+  return Promise.resolve()
+    .then(fn)
+    .finally(restaurar);
+}
+
+/** Stub que grava o URL recebido e responde ok. */
+function fetchQueGravaUrl(caixa, corpo) {
+  return async (url) => {
+    caixa.url = url;
+    return { ok: true, json: async () => corpo };
+  };
+}
+
+test('ollama normalizeHost: prefixa http:// quando falta o esquema', () => {
+  const { ollama } = loadFresh();
+  assert.equal(ollama.normalizeHost('127.0.0.1:11434'), 'http://127.0.0.1:11434');
+  assert.equal(ollama.normalizeHost('localhost:11434'), 'http://localhost:11434');
+});
+
+test('ollama normalizeHost: não mexe em http:// nem https://', () => {
+  const { ollama } = loadFresh();
+  assert.equal(ollama.normalizeHost('http://localhost:11434'), 'http://localhost:11434');
+  assert.equal(ollama.normalizeHost('https://gpu.local:11434'), 'https://gpu.local:11434');
+  // maiúsculas contam como esquema — não pode virar http://HTTP://…
+  assert.equal(ollama.normalizeHost('HTTP://localhost:11434'), 'HTTP://localhost:11434');
+});
+
+test('ollama normalizeHost: apara barras finais e cai no default quando vazio', () => {
+  const { ollama } = loadFresh();
+  assert.equal(ollama.normalizeHost('127.0.0.1:11434///'), 'http://127.0.0.1:11434');
+  assert.equal(ollama.normalizeHost(''), ollama.DEFAULT_HOST);
+  assert.equal(ollama.normalizeHost('   '), ollama.DEFAULT_HOST);
+  assert.equal(ollama.normalizeHost(undefined), ollama.DEFAULT_HOST);
+});
+
+test('ollama isAvailable: host sem esquema chega ao fetch como URL absoluto', async () => {
+  await withOllamaHost('127.0.0.1:11434', async () => {
+    const { ollama } = loadFresh();
+    const caixa = {};
+    await withMockedFetch(fetchQueGravaUrl(caixa, { models: [] }), async () => {
+      const probe = await ollama.isAvailable({ timeoutMs: 200 });
+      assert.equal(probe.available, true);
+    });
+    assert.equal(caixa.url, 'http://127.0.0.1:11434/api/tags');
+  });
+});
+
+test('ollama callOllama: host sem esquema chega ao fetch como URL absoluto', async () => {
+  // A mordida que interessa: antes da correcção isto devolvia `null` mudo.
+  await withOllamaHost('127.0.0.1:11434', async () => {
+    const { ollama } = loadFresh();
+    const caixa = {};
+    await withMockedFetch(
+      fetchQueGravaUrl(caixa, { message: { content: 'ok' }, prompt_eval_count: 1, eval_count: 1 }),
+      async () => {
+        const r = await ollama.callOllama('diz ok', { timeoutMs: 200 });
+        assert.notEqual(r, null, 'callOllama não pode devolver null por causa do host');
+        assert.equal(r.ok, true);
+      }
+    );
+    assert.equal(caixa.url, 'http://127.0.0.1:11434/api/chat');
+  });
+});
+
+test('ollama: host COM esquema continua a funcionar exactamente como antes', async () => {
+  // Guarda de regressão: a correcção não pode mudar o caminho que já servia.
+  await withOllamaHost('http://localhost:11434', async () => {
+    const { ollama } = loadFresh();
+    const caixa = {};
+    await withMockedFetch(fetchQueGravaUrl(caixa, { models: [] }), async () => {
+      await ollama.isAvailable({ timeoutMs: 200 });
+    });
+    assert.equal(caixa.url, 'http://localhost:11434/api/tags');
+  });
+});

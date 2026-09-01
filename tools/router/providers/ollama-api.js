@@ -25,6 +25,14 @@ const DEFAULT_HOST  = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen2.5:3b';
 const DEFAULT_TIMEOUT_MS = 90_000;
 
+/**
+ * `OLLAMA_HOST` sem esquema é o formato CANÓNICO — ver `../ollama-host.js` para
+ * o porquê completo e para o que este ficheiro fazia antes (devolvia `null` mudo).
+ * A normalização vive lá porque sete sítios do repo tinham o mesmo defeito, e
+ * sete cópias seriam sete verdades.
+ */
+const { normalizeHost } = require('../ollama-host.js');
+
 const SYSTEM = [
   'És um assistente de software engineering conciso.',
   'Respondes em PT-PT (Portugal). Código e identificadores em inglês.',
@@ -61,7 +69,7 @@ async function callOllama(prompt, opts = {}) {
     throw new Error('ollama-api: prompt must be a non-empty string');
   }
 
-  const host  = opts.host  || process.env.OLLAMA_HOST          || DEFAULT_HOST;
+  const host  = normalizeHost(opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST);
   const model = opts.model || process.env.OLLAMA_OPTION_A_MODEL || DEFAULT_MODEL;
   const timeoutMs = Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS;
 
@@ -85,7 +93,7 @@ async function callOllama(prompt, opts = {}) {
     think: false,
   });
 
-  const url = host.replace(/\/+$/, '') + '/api/chat';
+  const url = host + '/api/chat';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -158,8 +166,8 @@ async function callOllama(prompt, opts = {}) {
  * @returns {Promise<{available:boolean,reason?:string}>}
  */
 async function isAvailable(opts = {}) {
-  const host = opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST;
-  const url  = host.replace(/\/+$/, '') + '/api/tags';
+  const host = normalizeHost(opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST);
+  const url  = host + '/api/tags';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Number(opts.timeoutMs) || 1500);
@@ -178,6 +186,7 @@ async function isAvailable(opts = {}) {
 module.exports = {
   callOllama,
   isAvailable,
+  normalizeHost,
   DEFAULT_MODEL,
   DEFAULT_HOST,
 };

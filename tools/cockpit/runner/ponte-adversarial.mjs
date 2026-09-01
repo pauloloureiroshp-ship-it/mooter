@@ -30,6 +30,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+// O `host` é serializado para o script da ponte e entregue ao `makeOllamaCaller`
+// do pacote (que está FROZEN). Sem esquema o caller parte lá dentro, longe daqui
+// — por isso normaliza-se aqui, antes de sair. Ver `../../router/ollama-host.js`.
+const { ollamaHostFromEnv } = require('../../router/ollama-host.js');
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 /** `tools/cockpit/runner` -> raiz do repo. */
@@ -93,7 +100,7 @@ export function revisarLote(alvos, {
   threshold = 0.5,
   raiz = RAIZ_REPO,
   modelo = process.env.MOO_JUIZ_MODELO || 'qwen2.5-coder:14b',
-  host = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
+  host = ollamaHostFromEnv('http://127.0.0.1:11434'),
   timeoutMs = 15 * 60 * 1000,
   spawnImpl = spawn,
 } = {}) {
