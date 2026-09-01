@@ -207,8 +207,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
 <div class="cromo">
   <div class="cab">
     <div class="marca">Banco de <em>Ensaio</em></div>
-    <div class="sub">60 amostras limpas (de 70) · 3 encaminhamentos · 6 corridas · medido <b>2026-09-01</b> ·
-      recibo <b>_handoff/ab-2026-09-01/holdout-6-corridas.json</b></div>
+    <div class="sub">35 rótulos verificados (de 70) · 3 encaminhamentos · 6 corridas · medido <b>2026-09-01</b> ·
+      recibo <b>_handoff/ab-2026-09-01/holdout-ground-truth.json</b></div>
   </div>
 
   <div class="barra">
@@ -241,11 +241,11 @@ h1,h2,h3{text-wrap:balance;margin:0}
    valores, para o vídeo e o texto não poderem divergir.
    ──────────────────────────────────────────────────────────────────── */
 const D = {
-  n:60, nTodas:70, nGold:84, coautoradas:10, corridas:6,
-  a1:{nome:'SEM ROUTER',   p:40.0, c:24, sob:36, tok:0,     ms:null, gold:16.7},
-  a2:{nome:'ROUTER POR LLM',p:71.7, c:43, sub:10, sob:7, tok:23182, ms:76.1, gold:75.0},
-  b :{nome:'MOOTER',       p:81.7, c:49, sub:10, sob:1, tok:0, ms:1.61, gold:96.4},
-  sec:{canonical:[20.0,90.0,90.0], adversarial:[48.0,80.0,92.0], historical:[40.0,56.0,68.0]},
+  n:35, nTodas:70, nGold:84, coautoradas:10, deriva:25, corridas:6,
+  a1:{nome:'SEM ROUTER',   p:40.0, sob:22, tok:0,     ms:null, gold:16.7},
+  a2:{nome:'ROUTER POR LLM',p:82.9, tok:23182, ms:76.1, gold:75.0},
+  b :{nome:'MOOTER',       p:91.4, c:32, tok:0, ms:1.61, gold:96.4},
+  sec:{canonical:[20.0,90.0,90.0], adversarial:[48.0,80.0,92.0]},
   sessao:{decisoes:112, t0:43, deleg:0}
 };
 const nb = (x,d=1) => x.toLocaleString('pt-PT',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -258,13 +258,13 @@ const CAR = (dir,esq='holdout · 70 amostras · o corte que ninguém afinou') =>
 /* ══════════ PEÇA VERTICAL · 52 s ══════════════════════════════════ */
 const V = [
 {t:0, d:4.5, h:`
-  <div class="olho an">Ensaio A/B · 2026-09-01 · 60 amostras limpas</div>
-  <h2 class="tit an2">Sessenta<br>prompts. Três<br>encaminhamentos.
-    <small>Um deles não gasta um único token a decidir —<br>e acerta dez pontos acima do modelo que decide a pensar.</small></h2>
+  <div class="olho an">Ensaio A/B · 2026-09-01 · 35 rótulos verificados</div>
+  <h2 class="tit an2">Trinta e cinco<br>prompts. Três<br>encaminhamentos.
+    <small>Um deles não gasta um único token a decidir —<br>e acerta oito pontos acima do modelo que decide a pensar.</small></h2>
   ${CAR('recibo aberto','gabarito anterior ao ensaio')}`},
 
 {t:4.5, d:10.5, h:`
-  <div class="olho an">A corrida · acertos em 60</div>
+  <div class="olho an">A corrida · acertos em 35</div>
   <div class="pistas">
     <div class="pista p-oxi an">
       <div class="pnome"><b>Sem router</b><br>tudo no tier mais caro</div>
@@ -272,21 +272,21 @@ const V = [
       <div class="ptrilho"><i data-larg="40.0"></i></div></div>
     <div class="pista p-aco an2">
       <div class="pnome"><b>Router por LLM</b><br>um LLM decide cada prompt</div>
-      <div class="pval"><span data-conta="71.7">0,0</span>%</div>
-      <div class="ptrilho"><i data-larg="71.7"></i></div></div>
+      <div class="pval"><span data-conta="82.9">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="82.9"></i></div></div>
     <div class="pista p-amb an3">
       <div class="pnome"><b>Mooter</b><br>regex local, determinista</div>
-      <div class="pval"><span data-conta="81.7">0,0</span>%</div>
-      <div class="ptrilho"><i data-larg="81.7"></i></div></div>
+      <div class="pval"><span data-conta="91.4">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="91.4"></i></div></div>
   </div>
-  ${CAR('81,7% · 49 de 60','holdout · 60 limpas · idêntico em 6 corridas')}`},
+  ${CAR('91,4% · 32 de 35','só rótulos verificados por humano · idêntico em 6 corridas')}`},
 
 {t:15, d:7.5, h:`
   <div class="olho an">O que custou decidir</div>
   <div class="placar c2">
     <div class="cel aco an2"><div class="crot">Router por LLM</div>
       <div class="cnum aco"><span data-conta="23182" data-dec="0">0</span></div>
-      <div class="cpe">tokens queimados só para<br>classificar as 60 · 76 ms cada</div></div>
+      <div class="cpe">tokens queimados só para<br>classificar as 70 · 76 ms cada</div></div>
     <div class="cel amb an3"><div class="crot">Mooter</div>
       <div class="cnum amb">0</div>
       <div class="cpe">zero tokens · 1,6 ms cada<br><b style="color:var(--amb)">47× mais rápido</b></div></div>
@@ -298,14 +298,14 @@ const V = [
 {t:22.5, d:8, h:`
   <div class="olho an">O desperdício</div>
   <h2 class="tit an2" style="font-size:88px">Quantas vezes<br>mandou caro<br>sem precisar.
-    <small>De 60 pedidos. Este é o número que se paga<br>ao fim do mês, todos os meses.</small></h2>
+    <small>De 35 pedidos. Este é o número que se paga<br>ao fim do mês, todos os meses.</small></h2>
   <div class="placar c2" style="margin-top:40px">
     <div class="cel aco an3"><div class="crot">Router por LLM</div>
-      <div class="cnum aco"><span data-conta="7" data-dec="0">0</span></div></div>
+      <div class="cnum aco"><span data-conta="3" data-dec="0">0</span></div></div>
     <div class="cel amb an4"><div class="crot">Mooter</div>
       <div class="cnum amb"><span data-conta="1" data-dec="0">0</span></div></div>
   </div>
-  ${CAR('sem router: 36 de 60','7× menos')}`},
+  ${CAR('sem router: 22 de 35','3× menos')}`},
 
 {t:30.5, d:7.5, h:`
   <div class="olho an">Onde o teu prompt esteve</div>
@@ -318,12 +318,13 @@ const V = [
   ${CAR('sem proxy · sem telemetria de conteúdo')}`},
 
 {t:38, d:7.5, h:`
-  <div class="olho an" style="color:var(--mau)">A fraqueza — dita por nós</div>
-  <h2 class="tit an2">Nos prompts<br>reais e longos,<br>cai a 68%.
-    <small>É a pior das três secções, e está na tabela ao lado das outras.
-    Nas adversariais faz <b style="color:var(--papel)">92%</b>; nos prompts compridos
-    colados de uma vez, <b style="color:var(--mau)">68%</b>.</small></h2>
-  ${CAR('historical · 25 amostras','é isto que vamos atacar a seguir')}`},
+  <div class="olho an" style="color:var(--mau)">O que ainda não sabemos</div>
+  <h2 class="tit an2" style="font-size:88px">Em prompts<br>reais e longos:<br>não medimos.
+    <small>Tínhamos um número — 68% — e ele não valia nada: os rótulos eram
+    a saída do <b style="color:var(--papel)">próprio classificador</b>, e o texto guardado
+    era um <b style="color:var(--papel)">preview de 80 caracteres</b>. Retirámo-lo.
+    Isto é <b style="color:var(--mau)">n/d</b>, não 68%.</small></h2>
+  ${CAR('precisa de rótulos humanos sobre prompts longos','a lacuna, dita por nós')}`},
 
 {t:45.5, d:6.5, h:`
   <div class="olho an">Mooter · mooter.ai · MIT</div>
@@ -372,12 +373,12 @@ const H = [
   <div class="placar c2 an3" style="margin-top:36px">
     <div class="cel oxi"><div class="crot">Acertou</div>
       <div class="cnum oxi"><span data-conta="40.0">0,0</span>%</div>
-      <div class="cpe">24 de 60</div></div>
+      <div class="cpe">14 de 35</div></div>
     <div class="cel oxi"><div class="crot">Mandou caro sem precisar</div>
-      <div class="cnum oxi"><span data-conta="36" data-dec="0">0</span></div>
-      <div class="cpe">de 60 pedidos</div></div>
+      <div class="cnum oxi"><span data-conta="22" data-dec="0">0</span></div>
+      <div class="cpe">de 35 pedidos</div></div>
   </div>
-  ${CAR('parte 5','36 de 60 = desperdício estrutural')}`},
+  ${CAR('parte 5','22 de 35 = desperdício estrutural')}`},
 
 {t:54, d:15, h:`
   <div class="olho an" style="color:var(--aco)">Braço A2 · o adversário, jogado a sério</div>
@@ -387,7 +388,7 @@ const H = [
     era examiná-lo sobre matéria que não lhe demos.</small></h2>
   <div class="placar c3 an3" style="margin-top:32px">
     <div class="cel aco"><div class="crot">Acertou</div>
-      <div class="cnum aco"><span data-conta="71.7">0,0</span>%</div><div class="cpe">43 de 60</div></div>
+      <div class="cnum aco"><span data-conta="82.9">0,0</span>%</div><div class="cpe">29 de 35</div></div>
     <div class="cel aco"><div class="crot">Tokens</div>
       <div class="cnum aco"><span data-conta="23182" data-dec="0">0</span></div><div class="cpe">só para decidir</div></div>
     <div class="cel aco"><div class="crot">Por prompt</div>
@@ -402,7 +403,7 @@ const H = [
     ninguém lhe mexe entre medições.</small></h2>
   <div class="placar c3 an3" style="margin-top:34px">
     <div class="cel amb"><div class="crot">Acertou</div>
-      <div class="cnum amb"><span data-conta="81.7">0,0</span>%</div><div class="cpe">49 de 60</div></div>
+      <div class="cnum amb"><span data-conta="91.4">0,0</span>%</div><div class="cpe">32 de 35</div></div>
     <div class="cel amb"><div class="crot">Tokens</div>
       <div class="cnum amb">0</div><div class="cpe">a decidir</div></div>
     <div class="cel amb"><div class="crot">Por prompt</div>
@@ -413,10 +414,10 @@ const H = [
 {t:81, d:13, h:`
   <div class="olho an">Resultado · as duas medições</div>
   <table class="tsec an2">
-    <tr><th>braço</th><th>gold · 84</th><th>holdout limpo · 60</th><th>tokens</th></tr>
+    <tr><th>braço</th><th>gold · 84</th><th>holdout verificado · 35</th><th>tokens</th></tr>
     <tr><td>Sem router</td><td class="v-oxi">16,7%</td><td class="v-oxi">40,0%</td><td class="v-oxi">0</td></tr>
-    <tr><td>Router por LLM</td><td class="v-aco">75,0%</td><td class="v-aco">71,7%</td><td class="v-aco">23 182</td></tr>
-    <tr><td>Mooter</td><td class="v-amb">96,4%</td><td class="v-amb">81,7%</td><td class="v-amb">0</td></tr>
+    <tr><td>Router por LLM</td><td class="v-aco">75,0%</td><td class="v-aco">82,9%</td><td class="v-aco">23 182</td></tr>
+    <tr><td>Mooter</td><td class="v-amb">96,4%</td><td class="v-amb">91,4%</td><td class="v-amb">0</td></tr>
   </table>
   <p class="nota an3" style="margin-top:30px">O holdout é mais duro para todos — é para isso que serve.<br>
      A ordem não muda: <b>o determinista ganha nos dois</b>.</p>
@@ -425,23 +426,24 @@ const H = [
 {t:94, d:15, h:`
   <div class="olho an">Onde ganha e onde perde · por secção</div>
   <table class="tsec an2">
-    <tr><th>secção do holdout limpo</th><th>sem router</th><th>por LLM</th><th>Mooter</th></tr>
+    <tr><th>secção verificada</th><th>sem router</th><th>por LLM</th><th>Mooter</th></tr>
     <tr><td>canonical · claros (10)</td><td class="v-oxi">20,0%</td><td class="v-aco">90,0%</td><td class="v-amb">90,0%</td></tr>
     <tr><td>adversarial · a enganar (25)</td><td class="v-oxi">48,0%</td><td class="v-aco">80,0%</td><td class="v-amb">92,0%</td></tr>
-    <tr class="rmau"><td>historical · reais, longos (25)</td><td class="v-oxi">40,0%</td><td class="v-aco">56,0%</td><td class="v-amb">68,0%</td></tr>
+    <tr class="rmau"><td>prompts reais e longos</td><td class="v-oxi">n/d</td><td class="v-aco">n/d</td><td class="v-amb">n/d</td></tr>
   </table>
-  <p class="nota an3" style="margin-top:26px">Nos prompts claros <b>empatam</b>. A vantagem está nas ambíguas e nas longas.<br>
-     A linha a vermelho é a nossa fraqueza, e fica na tabela, não no rodapé.</p>
-  ${CAR('parte 9','empate no fácil, distância no difícil')}`},
+  <p class="nota an3" style="margin-top:26px">Nos prompts claros <b>empatam</b>. A vantagem está nas ambíguas.<br>
+     A linha a vermelho é a que <b>não temos</b> — e a próxima parte explica porquê.</p>
+  ${CAR('parte 9','empate no fácil, distância no ambíguo')}`},
 
 {t:109, d:15, h:`
-  <div class="olho an" style="color:var(--mau)">Uma alegação que tivemos de retirar</div>
-  <h2 class="tit an2" style="font-size:60px">«Só o nosso é reprodutível»<br>era falso — e a culpa<br>era da nossa configuração.
-    <small>Nós corríamos o adversário a <b style="color:var(--papel)">temperature 0,2</b>, e depois
-    publicávamos que ele mudava de opinião. Fixado a zero, dá o mesmo resultado
-    nas <b style="color:var(--papel)">seis</b> corridas — tal como o nosso.
-    O painel caiu; o número que sobra é a precisão.</small></h2>
-  ${CAR('parte 10','determinismo deixou de ser diferenciador')}`},
+  <div class="olho an" style="color:var(--mau)">Duas alegações que tivemos de retirar</div>
+  <h2 class="tit an2" style="font-size:56px">«Só o nosso é reprodutível»<br>e «a fraqueza é 68%».<br>Nenhuma se aguentou.
+    <small><b style="color:var(--papel)">1.</b> Corríamos o adversário a <code>temperature 0,2</code> e
+    publicávamos que ele oscilava. A zero dá o mesmo nas seis corridas.
+    <b style="color:var(--papel)">2.</b> As 25 amostras «reais e longas» tinham como rótulo a saída do
+    <b style="color:var(--papel)">próprio classificador</b>, e como texto um preview de 80 caracteres
+    — <code>prompt.slice(0, 80)</code>. Truncadas: 2/10. Inteiras: 15/15.</small></h2>
+  ${CAR('parte 10','a segunda subiu-nos a nota e encolheu-nos a vantagem')}`},
 
 {t:124, d:16, h:`
   <div class="olho an" style="color:var(--mau)">A confissão · a sessão de hoje</div>
@@ -459,7 +461,7 @@ const H = [
     node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6</small></h2>
   <p class="nota an3" style="margin-top:38px">O recibo das seis corridas, os rótulos e o harness estão no repositório.<br>
      Se o número estiver errado, <b>dá para provar que está</b> — que é o ponto.</p>
-  ${CAR('parte 12 de 12','_handoff/ab-2026-09-01/holdout-6-corridas.json')}`},
+  ${CAR('parte 12 de 12','_handoff/ab-2026-09-01/holdout-ground-truth.json')}`},
 ];
 
 /* ══════════ motor do player ══════════════════════════════════════ */
@@ -565,24 +567,24 @@ document.addEventListener('fullscreenchange', () => setTimeout(ajustar, 60));
 /* ══════════ guião + trajectória (por baixo do palco) ═════════════ */
 const GV = [
  ['0:00–0:04','Sessenta prompts reais. Três maneiras diferentes de decidir para onde os mandar.','arranque frio, sem logo'],
- ['0:04–0:15','Quem não encaminha nada acerta quarenta por cento das vezes. Um LLM a classificar acerta setenta e um vírgula sete. O Mooter acerta oitenta e um vírgula sete — e não gasta um único token a decidir.','as três barras entram desfasadas 130 ms'],
+ ['0:04–0:15','Quem não encaminha nada acerta quarenta por cento das vezes. Um LLM a classificar acerta oitenta e dois vírgula nove. O Mooter acerta noventa e um vírgula quatro — e não gasta um único token a decidir.','as três barras entram desfasadas 130 ms'],
  ['0:15–0:22','O router por LLM queimou vinte e três mil tokens só para classificar. O Mooter gastou zero, e foi quarenta e sete vezes mais rápido. Classificar não é pensar: é reconhecer.','o zero fica sozinho no ecrã'],
- ['0:22–0:30','E este é o número que se paga ao fim do mês: quantas vezes cada um mandou para o motor caro sem precisar. O LLM, sete vezes em sessenta. O Mooter, uma.','sete contra um'],
+ ['0:22–0:30','E este é o número que se paga ao fim do mês: quantas vezes cada um mandou para o motor caro sem precisar. O LLM, três vezes em trinta e cinco. O Mooter, uma.','sete contra um'],
  ['0:30–0:38','E o teu prompt? Nunca sai do teu computador. São expressões regulares a correr na tua máquina. O router que usa um LLM tem de ler o prompt — se esse modelo estiver na nuvem, o prompt vai com ele.','o argumento de segurança, sem adjectivos'],
- ['0:38–0:45','Agora a parte má, dita por nós: nos prompts reais e longos o Mooter cai a sessenta e oito por cento. Nas ambíguas faz noventa e dois; nos textos compridos colados de uma vez, sessenta e oito. Está na tabela, ao lado dos números bons.','a fraqueza no mesmo corpo que as vitórias'],
+ ['0:38–0:45','Agora a parte má, dita por nós: em prompts reais e longos nós não medimos nada. Tínhamos um número, sessenta e oito por cento, e ele não valia — os rótulos eram a saída do próprio classificador e o texto guardado era um preview de oitenta caracteres. Retirámo-lo. Isto é n/d, não sessenta e oito.','a fraqueza no mesmo corpo que as vitórias'],
  ['0:45–0:52','Mooter. Encaminhar devia custar zero. O recibo deste ensaio vai no repositório.','fecho seco, sem música a subir'],
 ];
 const GH = [
  ['0:00–0:06','Isto é a trajectória completa de como medimos o Mooter contra não ter Mooter nenhum.',''],
  ['0:06–0:17','O problema era simples e incómodo: o produto dizia que poupava, e a única prova era o próprio produto a dizê-lo. Um router que se auto-avalia não é evidência — é publicidade.',''],
  ['0:17–0:29','A primeira regra do desenho é a que impede a batota: o gabarito é anterior ao ensaio. Os rótulos saem de um ficheiro que já estava no repositório, escrito para outro fim.',''],
- ['0:29–0:42','E foi essa regra que nos obrigou a tirar dez das setenta amostras. Dez rótulos foram escritos no mesmo commit que afinou o classificador — e o Mooter fazia dez em dez precisamente nessas. Um rótulo escrito ao lado da linha que o vai classificar não é um teste. Saíram, e a nota desceu de oitenta e quatro vírgula três para oitenta e um vírgula sete.',''],
+ ['0:29–0:42','E foi essa regra que nos obrigou a tirar dez das setenta amostras. Dez rótulos foram escritos no mesmo commit que afinou o classificador — e o Mooter fazia dez em dez precisamente nessas. Um rótulo escrito ao lado da linha que o vai classificar não é um teste. Saíram. E a mesma régua obrigou a tirar mais vinte e cinco, que veremos daqui a pouco.',''],
  ['0:42–0:54','Braço um: sem router. Tudo vai para o tier mais caro, que é o que acontece por defeito a quem não encaminha nada. Acerta quarenta por cento — e manda trinta e seis dos sessenta pedidos para o modelo caro sem precisar.',''],
  ['0:54–1:09','Braço dois é o adversário jogado a sério: um LLM verdadeiro, o qwen dois vírgula cinco coder, na GPU local, uma chamada real por prompt. Recebe as convenções privadas do repositório por escrito, porque escondê-las era examiná-lo sobre matéria que não lhe demos. E corre a temperatura zero. Setenta e um vírgula sete por cento.',''],
  ['1:09–1:21','Braço três é o Mooter. Expressões regulares, sem modelo, sem rede. O ficheiro está congelado e o seu sha256 é verificado no CI, para ninguém lhe mexer entre medições. Oitenta e um vírgula sete.',''],
- ['1:21–1:34','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e cinco, noventa e seis. No holdout limpo, que é mais duro para todos: quarenta, setenta e um, oitenta e dois.',''],
- ['1:34–1:49','Por secção é onde fica honesto. Nos prompts claros empatam, os dois a noventa. A vantagem aparece nas ambíguas — noventa e dois contra oitenta — e nas longas, sessenta e oito contra cinquenta e seis. Essa última é a nossa fraqueza e fica na tabela, não no rodapé.',''],
- ['1:49–2:04','E há uma alegação que tivemos de retirar. Dizíamos que só o nosso era reprodutível. Era falso, e a culpa era da nossa configuração: corríamos o adversário a temperatura zero vírgula dois e depois publicávamos que ele mudava de opinião. Fixado a zero, dá o mesmo resultado nas seis corridas, tal como o nosso. O painel caiu. O que sobra é a precisão.',''],
+ ['1:21–1:34','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e cinco, noventa e seis. No holdout verificado, que é mais duro para todos: quarenta, oitenta e três, noventa e um.',''],
+ ['1:34–1:49','Por secção é onde fica honesto. Nos prompts claros empatam, os dois a noventa. A vantagem aparece nas ambíguas: noventa e dois contra oitenta. E na linha dos prompts reais e longos está n/d — não temos medição nenhuma válida, e a parte seguinte explica porquê.',''],
+ ['1:49–2:04','E há duas alegações que tivemos de retirar. A primeira: dizíamos que só o nosso era reprodutível, e a culpa era da nossa configuração — corríamos o adversário a temperatura zero vírgula dois. A zero, dá o mesmo nas seis corridas. A segunda: as vinte e cinco amostras reais e longas tinham como rótulo a saída do próprio classificador, e como texto um preview de oitenta caracteres. Nas truncadas ele faz dois em dez; nas inteiras, quinze em quinze. A fraqueza era o dataset.',''],
  ['2:04–2:20','E agora a confissão. Nesta sessão o router classificou cento e doze pedidos e marcou quarenta e três como trabalho de graça, para correr na GPU local. Delegações efectivas: zero. O motor acerta; quem o devia obedecer não obedeceu.',''],
  ['2:20–2:40','Mooter, mooter ponto ai, licença MIT. Corre o ensaio na tua máquina. O harness e os recibos das seis corridas estão no repositório — se o número estiver errado, dá para provar que está. Que é o ponto.',''],
 ];
@@ -600,14 +602,14 @@ function guiao(){
   <h2>Todas as métricas · <span>o dossiê</span></h2>
   <div class="cap">holdout de 70 amostras · 2026-09-01 · derivado de _handoff/ab-2026-09-01/holdout.json</div>
   <table class="tab">
-    <tr><th>métrica · holdout limpo</th><th>sem router</th><th>router por LLM</th><th>Mooter</th><th>quem ganha</th></tr>
-    <tr><td>acertos (de 60)</td><td class="o">24</td><td class="a">43</td><td class="g">49</td><td class="g">Mooter</td></tr>
-    <tr><td>precisão</td><td class="o">40,0%</td><td class="a">71,7%</td><td class="g">81,7%</td><td class="g">+10,0 pts</td></tr>
+    <tr><th>métrica · rótulos verificados</th><th>sem router</th><th>router por LLM</th><th>Mooter</th><th>quem ganha</th></tr>
+    <tr><td>acertos (de 35)</td><td class="o">14</td><td class="a">29</td><td class="g">32</td><td class="g">Mooter</td></tr>
+    <tr><td>precisão</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">91,4%</td><td class="g">+8,5 pts</td></tr>
     <tr><td>canonical (10)</td><td class="o">20,0%</td><td class="a">90,0%</td><td class="g">90,0%</td><td class="a">empate</td></tr>
     <tr><td>adversarial (25)</td><td class="o">48,0%</td><td class="a">80,0%</td><td class="g">92,0%</td><td class="g">+12 pts</td></tr>
-    <tr><td>historical (25)</td><td class="o">40,0%</td><td class="a">56,0%</td><td class="g">68,0%</td><td class="g">Mooter (fraco)</td></tr>
-    <tr><td>subestimou (arrisca qualidade)</td><td class="o">0</td><td class="a">10</td><td class="g">10</td><td class="a">empate</td></tr>
-    <tr><td>sobrestimou (queima dinheiro)</td><td class="o">36</td><td class="a">7</td><td class="g">1</td><td class="g">7×</td></tr>
+    <tr><td>prompts reais e longos</td><td class="o">n/d</td><td class="a">n/d</td><td class="g">n/d</td><td class="a">não medido</td></tr>
+    <tr><td>subestimou (arrisca qualidade)</td><td class="o">0</td><td class="a">3</td><td class="g">2</td><td class="g">Mooter</td></tr>
+    <tr><td>sobrestimou (queima dinheiro)</td><td class="o">22</td><td class="a">3</td><td class="g">1</td><td class="g">3×</td></tr>
     <tr><td>tokens para decidir</td><td class="o">0</td><td class="a">23 182</td><td class="g">0</td><td class="g">empate A1</td></tr>
     <tr><td>latência p50</td><td class="o">—</td><td class="a">76,1 ms</td><td class="g">1,61 ms</td><td class="g">47×</td></tr>
     <tr><td>idêntico em 6 corridas</td><td class="o">sim</td><td class="a">sim</td><td class="g">sim</td><td class="a">empate</td></tr>
@@ -616,13 +618,23 @@ function guiao(){
   </table>
 
   <div class="avs"><b>Três coisas que este ensaio deixou de afirmar.</b>
-    <b>1 · O número era 84,3%; é 81,7%.</b> Dez das 70 amostras foram escritas no mesmo commit
+    <b>1 · O número era 84,3%; é 91,4%.</b> Dez das 70 amostras foram escritas no mesmo commit
     que afinou o <code>classify.js</code> — e o Mooter fazia 10/10 exactamente nessas. Saíram.
     <b>2 · «Só o nosso é reprodutível» era falso.</b> Corríamos o adversário a
     <code>temperature 0,2</code> e publicávamos que ele oscilava; a zero dá o mesmo resultado nas
     seis corridas, como o nosso. <b>3 · O «+36 pontos» nas adversariais era +12.</b> O adversário
     não recebia as convenções privadas que 9 dos rótulos codificam. Agora recebe-as por escrito.
-    Todas as três correcções foram contra o nosso interesse, e é por isso que estão aqui.</div>
+    <b>4 · A «fraqueza historical 68%» não existia.</b> Essas 25 amostras têm como rótulo a
+    saída do <b>próprio classificador</b> (o dataset chama-lhes <code>assumed_correct</code> e diz
+    que servem para detectar <i>deriva</i>, não para medir precisão), e como texto um
+    <code>prompt.slice(0, 80)</code>. Truncadas: 2/10. Inteiras: 15/15. Foram tiradas da média —
+    o que sobe a nossa nota de 81,7% para 91,4%.
+    <br><br>
+    As três primeiras foram contra o nosso interesse. <b>A quarta favorece-nos</b>, e por isso
+    medimos o adversário no mesmo corte antes de a publicar: ele sobe mais (71,7 → 82,9) e a
+    nossa vantagem <b>encolhe de +10,0 para +8,5 pontos</b>. Uma correcção que nos sobe o
+    absoluto e nos baixa o relativo é o mais perto que conseguimos estar de saber que não é
+    raciocínio motivado.</div>
 
   <div class="avs"><b>O que este ensaio NÃO prova.</b> Mede a <b>decisão</b> de encaminhamento,
     não a poupança em euros de uma sessão inteira. Nesta sessão o router marcou
@@ -645,7 +657,8 @@ function guiao(){
     <div class="gl"><div class="gt">8 · o adversário era examinado sobre matéria que não teve</div><div class="gx">~9 dos rótulos codificam convenções privadas do repositório (piso de risco, pin de modelo, sinal de qualidade) que o prompt do juiz nunca lhe dava. Passaram a ir por escrito: as adversariais do LLM sobem de 56,0% para <b>80,0%</b>, e o «+36 pontos» passa a <b>+12</b>.</div></div>
     <div class="gl"><div class="gt">9 · a variância era nossa</div><div class="gx">O adversário corria a <code>temperature 0,2</code> por omissão, e nós publicávamos que ele mudava de opinião. Fixado a <b>0</b>, dá o mesmo resultado nas seis corridas — tal como o Mooter. O painel de reprodutibilidade foi retirado: deixou de haver diferença para mostrar.</div></div>
     <div class="gl"><div class="gt">10 · recibo das seis</div><div class="gx">A mediana só existia numa mensagem de commit. Agora <code>--corridas 6</code> produz as seis num ficheiro só, e a mediana sai delas. Um número cuja única fonte é prosa não é auditável.</div></div>
-    <div class="gl"><div class="gt">11 · a confissão fica</div><div class="gx">Ler o <code>decisions.log</code> da própria sessão e publicar o que lá estava: 0 delegações em 43 oportunidades. Entra na peça em vez de ficar de fora.</div></div>
+    <div class="gl"><div class="gt">11 · e a fraqueza não existia</div><div class="gx">Ao ir atacar os «68% em prompts longos», o dataset respondeu por escrito: essas 25 amostras são <code>assumed_correct</code>, rotuladas pela saída do próprio classificador, «for drift detection». E o texto guardado é <code>prompt_preview</code> — <code>slice(0, 80)</code>. Truncadas 2/10, inteiras 15/15. A fraqueza era o instrumento.</div></div>
+    <div class="gl"><div class="gt">12 · a confissão fica</div><div class="gx">Ler o <code>decisions.log</code> da própria sessão e publicar o que lá estava: 0 delegações em 43 oportunidades. Entra na peça em vez de ficar de fora.</div></div>
   </div>
 
   <div class="avs"><b>Porque é que os passos 7 a 9 estão aqui.</b> Cada um deles baixou um número
