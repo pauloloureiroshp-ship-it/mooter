@@ -93,9 +93,16 @@ export function holdout() {
   const out = [];
   for (const sec of ['canonical', 'adversarial', 'historical']) {
     for (const [i, a] of (v[sec] || []).entries()) {
+      // `coautorada`: este rótulo foi escrito no MESMO commit que mexeu no
+      // classify.js? `mooter_review_1`/`_2` são os nomes dos commits 4b6e4548 e
+      // bc4f84f1, e os dois tocam `tools/router/classify.js`. Marcá-las é o que
+      // permite publicar o número que não as inclui — sem isto, «o corte que
+      // ninguém afinou» é uma frase que o próprio ficheiro desmente.
       out.push({
         id: `${sec}-${String(i + 1).padStart(2, '0')}`,
         prompt: a.prompt, expected_tier: a.expected_tier, seccao: sec,
+        confidence_source: a.confidence_source || null,
+        coautorada: /^mooter_review/.test(a.confidence_source || ''),
       });
     }
   }
@@ -148,6 +155,9 @@ export function bracoMooter(amostras) {
       id: a.id, esperado: a.expected_tier, obtido: tier, erro,
       ms: Number(process.hrtime.bigint() - t) / 1e6,
       tokens_in: 0, tokens_out: 0,
+      // sem isto, `precisao_limpa` era igual a `precisao_total` e o corte limpo
+      // nao existia — a marca morria no braco em vez de chegar a contabilidade
+      coautorada: !!a.coautorada,
     });
   }
   return {
@@ -173,6 +183,7 @@ export function bracoSemRouter(amostras, { tierFixo = 'T3' } = {}) {
   const linhas = amostras.map((a) => ({
     id: a.id, esperado: a.expected_tier, obtido: tierFixo, erro: null,
     ms: 0, tokens_in: 0, tokens_out: 0,
+    coautorada: !!a.coautorada,
   }));
   return {
     braco: `A1 · SEM ROUTER (tudo em ${tierFixo})`,
@@ -192,6 +203,13 @@ T1 = pequeno, texto ou explicação curta (mensagem de commit, docstring, regex)
 T2 = raciocínio (investigar bug, comparar abordagens, plano técnico)
 T3 = arquitectura, multi-ficheiro, produção, segredos, CI, migrações
 
+CONVENÇÕES deste repositório, que os rótulos usam (não as adivinhes — estão aqui):
+- risco alto força T3: deploy, push, merge, release, migrações, segredos, .env, CI
+- pedido explícito de mais cuidado ("pensa bem", "é crítico", "think hard",
+  "preciso do teu melhor") sobe um nível
+- nomear um modelo (@opus, @haiku, "usa o sonnet") fixa o nível desse modelo
+- mexer em mais de 3 ficheiros, ou decidir arquitectura, é T3
+
 Tarefa: ${p}
 
 Responde só: T0, T1, T2 ou T3.`;
@@ -209,7 +227,11 @@ export async function bracoLlm(amostras, { modelo, callImpl, timeoutMs = 120000 
     const t = process.hrtime.bigint();
     let tier = null, erro = null, ti = 0, to = 0;
     try {
-      const r = await call(PROMPT_JUIZ(a.prompt), { model: modelo, timeoutMs, system: 'Responde só com T0, T1, T2 ou T3.' });
+      const r = await call(PROMPT_JUIZ(a.prompt), {
+        model: modelo, timeoutMs, system: 'Responde só com T0, T1, T2 ou T3.',
+        temperature: 0,
+        sessionId: 'ab-harness',
+      });
       if (!r) {
         erro = 'resposta nula';
       } else {
@@ -222,7 +244,7 @@ export async function bracoLlm(amostras, { modelo, callImpl, timeoutMs = 120000 
       }
     } catch (e) { erro = (e && e.message) || 'erro'; }
     tIn += ti; tOut += to;
-    linhas.push({ id: a.id, esperado: a.expected_tier, obtido: tier, erro, ms: Number(process.hrtime.bigint() - t) / 1e6, tokens_in: ti, tokens_out: to });
+    linhas.push({ id: a.id, esperado: a.expected_tier, obtido: tier, erro, ms: Number(process.hrtime.bigint() - t) / 1e6, tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada });
   }
 
   return {
@@ -264,10 +286,21 @@ export function contabilizar(r) {
     if (a < b) sub++; else sobre++;
   }
 
+  // O número que se publica é o LIMPO. O sujo fica ao lado, e a diferença
+  // entre os dois é a medida exacta do quanto o gabarito me favorecia.
+  const limpas = r.linhas.filter((l) => !l.coautorada);
+  const limpasCertas = limpas.filter((l) => l.obtido === l.esperado).length;
+  const coa = r.linhas.filter((l) => l.coautorada);
+
   return {
     ...r,
     total, respondidas, certas, sem_resposta: semResposta,
     precisao_respondidas, precisao_total,
+    n_limpas: limpas.length,
+    certas_limpas: limpasCertas,
+    precisao_limpa: limpas.length ? limpasCertas / limpas.length : null,
+    n_coautoradas: coa.length,
+    certas_coautoradas: coa.filter((l) => l.obtido === l.esperado).length,
     subestimou: sub, sobrestimou: sobre,
     ms_p50: p50, ms_p95: p95,
   };
@@ -309,13 +342,16 @@ export function imprimir(resultados, meta) {
   L.push('');
   L.push('  A/B · MOOTER vs SEM MOOTER — tokens medidos, gold anterior ao teste');
   L.push('  ' + '─'.repeat(72));
-  L.push(`  dataset   ${meta.n} de ${meta.total_gold} amostras · tools/router/gold-labels.json (2026-06-08)`);
+  L.push(`  dataset   ${meta.n} de ${meta.total_gold} amostras · ${meta.dataset}`);
+  if (meta.coautoradas) {
+    L.push(`  excluídas ${meta.coautoradas} co-autoradas com o classify.js (rótulo e afinação no mesmo commit)`);
+  }
   L.push(`  corrido   ${meta.ts}`);
   L.push('');
-  L.push('  BRAÇO                              PRECISÃO   SUB   SOBRE    TOKENS      p50');
+  L.push('  BRAÇO                             LIMPA  TODAS   SUB SOBRE   TOKENS     p50');
   for (const r of resultados) {
     const nome = r.braco.padEnd(34).slice(0, 34);
-    L.push(`  ${nome} ${pct(r.precisao_total).padStart(8)} ${String(r.subestimou).padStart(5)} ${String(r.sobrestimou).padStart(7)} ${String(r.tokens_in + r.tokens_out).padStart(9)} ${ms(r.ms_p50).padStart(8)}`);
+    L.push(`  ${nome} ${pct(r.precisao_limpa).padStart(6)} ${pct(r.precisao_total).padStart(6)} ${String(r.subestimou).padStart(5)} ${String(r.sobrestimou).padStart(7)} ${String(r.tokens_in + r.tokens_out).padStart(9)} ${ms(r.ms_p50).padStart(8)}`);
   }
   L.push('');
   L.push('  CUSTO');
@@ -353,9 +389,53 @@ export async function correr(opts = {}) {
     ts: new Date().toISOString(),
     n: amostras.length,
     total_gold: gold.length,
+    // Derivada, nunca cravada: o `--holdout` lê OUTRO ficheiro, e a linha de
+    // proveniência de um recibo é a única que não pode estar errada.
+    dataset: opts.holdout
+      ? 'tools/router/validation-set.json (2026-04-15)'
+      : 'tools/router/gold-labels.json (2026-04-11)',
+    coautoradas: amostras.filter((a) => a.coautorada).length,
     precos_ssot: temPrecos ? 'tools/router/pricing.js' : `n/d (${semPrecos})`,
     resultados,
   };
+}
+
+/**
+ * N corridas do mesmo ensaio, com a mediana derivada — nunca escrita à mão.
+ *
+ * Existe porque a peça pública dizia «mediana de 6 corridas» e o repositório
+ * guardava uma. Um número cuja única fonte é a mensagem de um commit não é
+ * auditável, e auditabilidade é literalmente o que o produto vende.
+ */
+export async function correrVarias(opts = {}, n = 1) {
+  const corridas = [];
+  for (let i = 0; i < n; i++) corridas.push(await correr(opts));
+
+  const mediana = (xs) => {
+    const v = xs.filter((x) => x != null).sort((a, b) => a - b);
+    if (!v.length) return null;
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+
+  const bracos = corridas[0].resultados.map((r) => r.braco);
+  const resumo = bracos.map((braco, i) => {
+    const lim = corridas.map((c) => c.resultados[i].precisao_limpa);
+    const tot = corridas.map((c) => c.resultados[i].precisao_total);
+    return {
+      braco,
+      corridas: n,
+      precisao_limpa_mediana: mediana(lim),
+      precisao_limpa_min: Math.min(...lim.filter((x) => x != null)),
+      precisao_limpa_max: Math.max(...lim.filter((x) => x != null)),
+      precisao_limpa_por_corrida: lim,
+      precisao_total_mediana: mediana(tot),
+      identico_em_todas: new Set(lim.map((x) => (x == null ? 'n/d' : x.toFixed(6)))).size === 1,
+    };
+  });
+
+  return { ts: corridas[0].ts, corridas: n, dataset: corridas[0].dataset,
+    coautoradas: corridas[0].coautoradas, resumo, detalhe: corridas };
 }
 
 const ESTE = fileURLToPath(import.meta.url);
@@ -363,12 +443,29 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ESTE)) {
   const argv = process.argv.slice(2);
   const iM = argv.indexOf('--modelo');
   const iN = argv.indexOf('--n');
-  correr({
+  const iC = argv.indexOf('--corridas');
+  const vezes = iC >= 0 ? Math.max(1, Number(argv[iC + 1]) || 1) : 1;
+  const op = {
     modelo: iM >= 0 ? argv[iM + 1] : undefined,
     n: iN >= 0 ? Number(argv[iN + 1]) : undefined,
     holdout: argv.includes('--holdout'),
-  }).then((r) => {
-    console.log(argv.includes('--json') ? JSON.stringify(r, null, 2) : imprimir(r.resultados, r));
+  };
+  (vezes > 1 ? correrVarias(op, vezes) : correr(op)).then((r) => {
+    if (argv.includes('--json')) { console.log(JSON.stringify(r, null, 2)); process.exit(0); }
+    if (r.resumo) {
+      console.log('');
+      console.log(`  ${r.corridas} corridas · ${r.dataset} · ${r.coautoradas} co-autoradas excluídas`);
+      console.log('  ' + '─'.repeat(72));
+      for (const b of r.resumo) {
+        const f = (x) => (x == null ? 'n/d' : `${(x * 100).toFixed(1)}%`);
+        console.log(`  ${b.braco.padEnd(34).slice(0, 34)} mediana ${f(b.precisao_limpa_mediana).padStart(6)}` +
+          `  faixa ${f(b.precisao_limpa_min)}–${f(b.precisao_limpa_max)}` +
+          (b.identico_em_todas ? '  (idêntico nas ' + b.corridas + ')' : ''));
+      }
+      console.log('');
+      process.exit(0);
+    }
+    console.log(imprimir(r.resultados, r));
     process.exit(0);
   }).catch((e) => {
     console.error(`ab falhou: ${(e && e.message) || e}`);

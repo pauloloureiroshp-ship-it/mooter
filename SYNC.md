@@ -263,13 +263,28 @@ conjunto — sem router (tudo em T3) · router por LLM (qwen2.5-coder local, cha
 Mooter. O gold é **anterior ao ensaio** (sai do `validation-set.json`, escrito para outro
 fim), os preços vêm do SSOT `pricing.js`. Recibos em `_handoff/ab-2026-09-01/`.
 
-Holdout, n=70: **34,3% · 71,4% · 84,3%** · tokens **0 · 12 962 · 0** · p50 **— · 74,8ms · 1,54ms**.
-Gold, n=84: 16,7% · 78,6% · **96,4%**. **Seis corridas do holdout**: o Mooter dá 84,3% nas
-seis, sempre com os mesmos 10 erros para baixo e 1 para cima; o LLM anda entre **68,6 e 75,7**
-(mediana 71,4 — é este o valor publicado, e encolhe a vantagem anunciada de +15,7 para +12,9
-pontos). Duas dessas corridas deram **a mesma nota errando em sítios diferentes** (17 sub/3 sob
-contra 15/5) — não é só a nota que oscila, é o conjunto das decisões. Por secção o Mooter faz canonical 95,0% · **adversarial 92,0%** ·
-**historical 68,0%** — esta última é a fraqueza, e 8 das 10 subestimações estão lá dentro.
+**Holdout limpo, n=60** (6 corridas, todas idênticas): **40,0% · 71,7% · 81,7%** ·
+tokens **0 · 23 182 · 0** · p50 **— · 76,1ms · 1,61ms** · sobrestimou **36 · 7 · 1**.
+Gold, n=84: 16,7% · 75,0% · **96,4%**. Por secção: canonical **90,0% empatado** ·
+adversarial **92,0%** vs 80,0% · historical **68,0%** vs 56,0% — esta última é a fraqueza.
+
+**O portão adversarial de pré-merge (70 agentes) derrubou três alegações**, e as três
+correcções foram contra o nosso interesse:
+
+1. **84,3% → 81,7%.** 10 das 70 amostras foram escritas nos commits `4b6e4548` e
+   `bc4f84f1`, que alteram o `classify.js` **no mesmo commit**. O Mooter fazia **10/10**
+   exactamente nessas. Saíram; n passa a 60. A frase «o corte que ninguém afinou» era falsa.
+2. **«+36 pontos» nas adversariais → +12.** O prompt do juiz não dava ao adversário as
+   convenções privadas do repo (piso de risco, pin de modelo, sinal de qualidade) que ~9
+   rótulos codificam. Passaram a ir por escrito: o LLM sobe de 56,0% para **80,0%**.
+3. **«Só o nosso é reprodutível» — retirado.** Corríamos o adversário a `temperature 0,2`
+   e publicávamos que ele oscilava. A zero dá o mesmo nas 6 corridas, como o nosso. O painel
+   caiu: determinismo deixou de ser diferenciador.
+
+Também derrubou dois bloqueios no ramo de CI, corrigidos: uma **injecção de shell** que o
+próprio conserto armava (`${{ github.ref_name }}` dentro de um `run:`, num workflow que ia
+correr na tag v1.53.0), e o facto de os `paths:` do `test.yml` **não cobrirem
+`.github/workflows/**`** — a guarda nova nunca correria quando um workflow mudasse.
 
 **O que o ensaio NÃO prova, dito por escrito:** mede a *decisão* de encaminhamento, não a
 poupança em euros. Nesta sessão o router classificou 112 pedidos, marcou 43 como trabalho
