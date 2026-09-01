@@ -177,23 +177,24 @@ enquanto o `mapa-e-roadmap.md` não existir · F3 está **inverificável**, não
 `render_medir.js` e o «rascunho B do round 1») · o probe **não está no CI** (`_handoff/` não é varrido
 pela lista à mão do `tools/router`); é a F1 que o promove.
 
-
-**Fecho (22:55–23:40 SP) · o motor $0 volta a estar operacional.** O defeito era pior do que a sonda:
-`callOllama()` devolvia **`null` sem razão nenhuma** — o `catch` engolia o `Failed to parse URL` e
-quem lia o `null` concluía «o modelo não respondeu». O motor $0 falhava **mudo** e a leitura caía para
-um motor pago sem sinal (família do `empty_completion`). Medido: `leitura → ollama`, chamada real em
-**322 ms, custo 0** (`8788e1d8`). **E eram SETE sítios, não cinco** (`61efb446`) — a minha lista ficou
-a cinco porque o `grep` parou no 1.º ecrã. Nos outros seis o padrão era `new URL('/api/…', HOST)`, que
-lança `Invalid URL`: falham alto, mas falham. Um só helper, `tools/router/ollama-host.js`.
+**Fecho (22:55–23:40 SP) · o motor $0 volta a estar operacional.** Pior do que a sonda: `callOllama()`
+devolvia **`null` sem razão nenhuma** — o `catch` engolia o `Failed to parse URL` e quem o lia concluía
+«o modelo não respondeu». O motor $0 falhava **mudo** e a leitura caía para motor pago sem sinal (família
+do `empty_completion`). **E eram SETE sítios, não cinco** — a minha lista ficou a cinco porque o `grep`
+parou no 1.º ecrã. Nos outros seis, `new URL(…)` lançava `Invalid URL`: falham alto, mas falham. Um só
+helper: `tools/router/ollama-host.js` (`8788e1d8`, `61efb446`).
 
 **A peça durável são 10 testes, sobretudo a varredura de COBERTURA:** falha se qualquer ficheiro de
-`tools/` voltar a ler `process.env.OLLAMA_HOST` sem normalizar — sem ela o oitavo sítio nascia partido
-em silêncio (a lição do portão que media *presença* em vez de *cobertura*). Mordida provada e
-**inscrito na lista à mão do `npm test`**, porque teste fora da lista não corre. Suites: router
-**1231/1234** · cockpit **948/0** · audit **5/6** — as 3 falhas **pré-existentes**, verificadas em
-`HEAD` limpo.
+`tools/` voltar a ler `process.env.OLLAMA_HOST` sem normalizar — sem ela o oitavo sítio nascia partido em
+silêncio. Mordida provada e inscrito na lista à mão do `npm test`. Suites: router **1231/1234** · cockpit
+**948/0** · audit **5/6** — as 3 falhas **pré-existentes**, verificadas em `HEAD` limpo. CI de #454: verde.
 
-**Aberto:** o runtime `~/.claude/` só muda com `/mooter-update` — até lá o hook vê o Ollama morto ·
+**Update corrido** (#454 merged @ `d3c4b995`, runtime 1.51.0 → 1.52.0) — e **a correcção continuava morta**:
+o Step 5 do `/mooter-update` usa `tools/router/*.js`, **glob não recursivo** — apanha 346 ficheiros e deixa
+de fora os 8 de `providers/`. Deu 5 ✓ com o `ollama-api.js` velho, e o `deepseek-v4.js` nem existia no
+runtime. Falha em **silêncio**: o ficheiro velho não requer o novo, logo não há erro de require. Reparado à
+mão — prova pelo runtime: `available:true`, `callOllama` **206 ms, custo 0**. **Por corrigir:** o Step 5 da
+skill (que é do repo, logo afecta quem instalar) — mudança de processo partilhado, decisão do dono ·
 `npm test` do audit escreve em `audit/cost_breakdown.json`, **versionado** · detalhe no journal
 `10-projects/2026-08-31-o-probe-que-nunca-existiu…`.
 

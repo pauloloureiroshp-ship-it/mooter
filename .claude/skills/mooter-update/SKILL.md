@@ -53,19 +53,29 @@ node ~/.claude/tools/router/hub-pull.js --force 2>/dev/null
 ### Step 5 — Sync runtime (router files + wired hooks)
 
 ```bash
-# Sync the ENTIRE router runtime via glob — no hardcoded file list to drift.
-# (A hardcoded list silently missed runtime files twice: Wave 13 "Show the Herd"
-#  hooks stop_hook/post_tool_badge/subagent_tracker, and Wave 58 chip-composer +
-#  matrix-status — each left the runtime require chain broken until hand-patched.
-#  A glob can't go stale: every new tools/router/*.js propagates automatically.)
-# Excludes *.test.js — tests never run in the hook runtime.
-for f in ~/frugal/tools/router/*.js; do
-  case "$f" in *.test.js) continue ;; esac
-  cp "$f" ~/.claude/tools/router/"$(basename "$f")"
-done
-# version.json is the runtime SSOT for `mooter --version` but is NOT a .js, so the glob above
-# skips it. Sync explicitly or it drifts (was stuck at 0.11.0 while the repo shipped 1.38.0).
-cp ~/frugal/tools/router/version.json ~/.claude/tools/router/version.json 2>/dev/null
+# Sync the ENTIRE router runtime via sync-runtime.js — recursive, and with the
+# .json set DERIVED from what the code actually requires. No hardcoded list.
+#
+# History of this line, because it rhymes: a hardcoded list silently missed
+# runtime files twice (Wave 13 hooks, Wave 58 chip-composer + matrix-status), so
+# it became `for f in ~/frugal/tools/router/*.js`. That glob does NOT descend into
+# subdirectories — measured 2026-08-31, right after an update that printed five ✓
+# and passed every gate: 204 runtime files from the root copied, and the 17 in
+# providers/ + forecast/ + hooks/ left behind. The ollama-api.js fix stayed in
+# ~/frugal and never reached the runtime; the new ollama-host.js landed in the
+# root and sat there orphaned, required by nobody. No require error, because the
+# OLD file doesn't require the NEW one — so the update declared success while the
+# $0 engine stayed dead. deepseek-v4.js had never been in the runtime at all.
+#
+# install.sh already knew (lines ~158-160, "Wave 61. Copy the providers/ subdir
+# explicitly"), which is the real defect: installer and updater held two different
+# definitions of "the runtime", so a fresh install and an updated machine did not
+# converge. sync-runtime.js is now the single definition, the same way
+# sync-hooks.js is the single definition of the wired hooks.
+#
+# Invoked from the REPO copy, not the runtime one: on a machine whose runtime
+# predates this file, the runtime copy does not exist yet. The repo copy always does.
+node ~/frugal/tools/router/sync-runtime.js
 
 # ── Mirror the WIRED hooks (~/.claude/hooks/) ─────────────────────────────────
 # settings.json wires the Stop/UserPromptSubmit hooks at ~/.claude/hooks/<name>,
@@ -105,7 +115,14 @@ actually wires and confirms `gsd-turn-end.js` still contains the accumulator
 
 ```bash
 node ~/.claude/tools/router/sync-hooks.js --check
+node ~/frugal/tools/router/sync-runtime.js --check
 ```
+
+The second line is the gate that did not exist on 2026-08-31, when the update
+printed five ✓ with a stale `providers/ollama-api.js`. It re-walks the repo and
+fails if any runtime file still differs from it — **presence of a sync step is
+not proof of coverage**. On `WARNING`, re-run `node ~/frugal/tools/router/sync-runtime.js`
+(without `--check`) and re-check. Never report the update as complete while it warns.
 
 - **PASS** → `OK self-check: wired Stop hook has the accumulator -> <path>`.
 - **FAIL** → it prints `WARNING: Stop hook ligado NAO tem o acumulador - re-sincroniza`
