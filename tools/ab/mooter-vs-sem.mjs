@@ -395,6 +395,59 @@ const pct = (x) => (x == null ? 'n/d' : `${(x * 100).toFixed(1)}%`);
 const usd = (x) => (x == null ? 'n/d' : `$${x.toFixed(4)}`);
 const ms = (x) => (x == null ? 'n/d' : `${x.toFixed(1)}ms`);
 
+/**
+ * McNemar exacto, bicaudal — a diferença entre dois braços é distinguível de ruído?
+ *
+ * PORQUE EXISTE, e porque só existe agora.
+ *
+ * Este harness publicou «+10,0 pontos», «+12,9», «+8,5» — sempre a diferença
+ * crua entre duas percentagens, sem uma única vez perguntar se a amostra
+ * chegava para a afirmar. Medido a 2026-09-01 sobre os 35 rótulos verificados:
+ *
+ *   MOOTER vs SEM ROUTER ....  19 discordantes a 1  ·  p < 0,0001  · PROVADO
+ *   MOOTER vs router por LLM .   5 discordantes a 2  ·  p = 0,4531 · NAO
+ *
+ * Ou seja: a vantagem de 8,5 pontos sobre o adversário **não se aguenta** com
+ * n=35. A vantagem sobre não-ter-router aguenta-se com folga enorme.
+ *
+ * É o teste certo porque os braços vêem AS MESMAS amostras — são pares, não
+ * dois grupos independentes. Só as discordantes carregam informação: onde os
+ * dois acertam ou os dois erram, não há nada a distinguir. Com n pequeno usa-se
+ * a binomial exacta e não a aproximação qui-quadrado, que mente abaixo de ~25
+ * discordantes — e aqui há 7.
+ */
+export function mcnemar(linhasA, linhasB) {
+  const okA = new Map(linhasA.map((l) => [l.id, l.obtido === l.esperado]));
+  const okB = new Map(linhasB.map((l) => [l.id, l.obtido === l.esperado]));
+
+  let soA = 0, soB = 0, comuns = 0;
+  for (const [id, a] of okA) {
+    if (!okB.has(id)) continue;
+    comuns++;
+    const b = okB.get(id);
+    if (a && !b) soA++;
+    if (!a && b) soB++;
+  }
+  const n = soA + soB;
+  if (!comuns) return { n_pares: 0, so_a: 0, so_b: 0, discordantes: 0, p: null, significativo: null };
+
+  // binomial exacta bicaudal com p=0.5, somando a cauda menor e duplicando
+  const escolhe = (N, k) => { let r = 1; for (let i = 1; i <= k; i++) r = r * (N - k + i) / i; return r; };
+  let p = 1;
+  if (n > 0) {
+    const k = Math.min(soA, soB);
+    let cauda = 0;
+    for (let i = 0; i <= k; i++) cauda += escolhe(n, i);
+    p = Math.min(1, 2 * cauda / Math.pow(2, n));
+  }
+  return {
+    n_pares: comuns, so_a: soA, so_b: soB, discordantes: n,
+    p,
+    // Sem discordantes não há informação nenhuma: é n/d, nunca «não significativo».
+    significativo: n === 0 ? null : p < 0.05,
+  };
+}
+
 export function imprimir(resultados, meta) {
   const L = [];
   L.push('');
@@ -418,6 +471,20 @@ export function imprimir(resultados, meta) {
     L.push(`      medido: ${usd(r.custo.usd_medido)}${r.custo.usd_medido_porque ? '  (' + r.custo.usd_medido_porque + ')' : ''}`);
     if (r.custo.usd_se_nuvem != null) {
       L.push(`      se corresse em ${r.custo.usd_se_nuvem_modelo}: ${usd(r.custo.usd_se_nuvem)} — ${r.custo.usd_se_nuvem_porque}`);
+    }
+  }
+  L.push('');
+  L.push('  A DIFERENÇA AGUENTA-SE? (McNemar exacto, pares, sobre o ground truth)');
+  const alvo = resultados.find((r) => /MOOTER/i.test(r.braco));
+  if (alvo) {
+    const gtDe = (r) => r.linhas.filter((l) => l.trust === 'ground_truth' && !l.coautorada);
+    for (const r of resultados) {
+      if (r === alvo) continue;
+      const m = mcnemar(gtDe(r), gtDe(alvo));
+      const vd = m.significativo === null ? 'n/d (sem discordantes)'
+        : m.significativo ? 'SIM — distinguível de ruído'
+        : 'NÃO — a diferença não se separa do ruído com este n';
+      L.push(`    MOOTER vs ${r.braco.slice(0, 24).padEnd(25)} ${m.so_b} a ${m.so_a} discordantes · p=${m.p == null ? 'n/d' : m.p.toFixed(4)} · ${vd}`);
     }
   }
   L.push('');
@@ -500,8 +567,19 @@ export async function correrVarias(opts = {}, n = 1) {
     };
   });
 
+  // A significância calcula-se sobre UMA corrida: os braços são determinísticos
+  // (verificado — `identico_em_todas`), portanto repetir não acrescenta pares.
+  // Somar as 6 corridas inflacionaria n por 6 sem uma única observação nova, que
+  // é a maneira mais fácil de fabricar significância a partir de nada.
+  const gtDe = (r) => r.linhas.filter((l) => l.trust === 'ground_truth' && !l.coautorada);
+  const prim = corridas[0].resultados;
+  const alvo = prim.find((r) => /MOOTER/i.test(r.braco));
+  const significancia = alvo ? prim.filter((r) => r !== alvo).map((r) => ({
+    contra: r.braco, ...mcnemar(gtDe(r), gtDe(alvo)),
+  })) : [];
+
   return { ts: corridas[0].ts, corridas: n, dataset: corridas[0].dataset,
-    coautoradas: corridas[0].coautoradas, resumo, detalhe: corridas };
+    coautoradas: corridas[0].coautoradas, resumo, significancia, detalhe: corridas };
 }
 
 const ESTE = fileURLToPath(import.meta.url);

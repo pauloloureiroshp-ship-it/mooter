@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   holdout, bracoMooter, bracoSemRouter, bracoLlm,
-  contabilizar, custoEquivalente, imprimir, correr, correrVarias,
+  contabilizar, custoEquivalente, imprimir, correr, correrVarias, mcnemar,
 } from './mooter-vs-sem.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
@@ -397,6 +397,79 @@ test('correrVarias(): um braço que VARIA não pode ser declarado idêntico', as
     'um juiz que responde diferente na 2.ª corrida TEM de ser reportado como não idêntico');
   assert.ok(llm.precisao_limpa_max > llm.precisao_limpa_min,
     'e a faixa tem de mostrar a variação, senão a bandeira sozinha não prova nada');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5b · A DIFERENÇA AGUENTA-SE? — o teste que faltava a todas as versões
+// ═══════════════════════════════════════════════════════════════════════════
+
+const par = (id, certo) => ({ id, esperado: 'T2', obtido: certo ? 'T2' : 'T0', ms: 1, trust: 'ground_truth' });
+
+test('mcnemar(): conta só os discordantes — onde os dois concordam não há informação', () => {
+  // 10 pares: em 8 os dois acertam, em 2 só o B acerta. Só os 2 contam.
+  const A = [], B = [];
+  for (let i = 0; i < 8; i++) { A.push(par('c' + i, true)); B.push(par('c' + i, true)); }
+  for (let i = 0; i < 2; i++) { A.push(par('d' + i, false)); B.push(par('d' + i, true)); }
+  const m = mcnemar(A, B);
+  assert.equal(m.n_pares, 10);
+  assert.equal(m.discordantes, 2, 'os 8 concordantes não podem inflacionar o n do teste');
+  assert.equal(m.so_b, 2);
+  assert.equal(m.so_a, 0);
+});
+
+test('mcnemar(): 2 discordantes a 0 NÃO chegam para afirmar diferença', () => {
+  // Controlo derivado à mão, não copiado do instrumento: com n=2 e k=0, a
+  // binomial bicaudal dá 2·(1/4) = 0,5. Muito acima de 0,05.
+  const A = [par('d0', false), par('d1', false)];
+  const B = [par('d0', true), par('d1', true)];
+  const m = mcnemar(A, B);
+  assert.equal(m.p, 0.5, 'p tem de ser exactamente 0,5 — derivado, não medido');
+  assert.equal(m.significativo, false);
+});
+
+test('mcnemar(): 20 discordantes a 0 chegam — e por larga margem', () => {
+  const A = [], B = [];
+  for (let i = 0; i < 20; i++) { A.push(par('d' + i, false)); B.push(par('d' + i, true)); }
+  const m = mcnemar(A, B);
+  assert.ok(m.p < 0.0001, `p=${m.p} tinha de ser minúsculo com 20 a 0`);
+  assert.equal(m.significativo, true);
+});
+
+test('mcnemar(): sem discordantes é n/d, NUNCA «não significativo»', () => {
+  // Dois braços que acertam e erram exactamente nos mesmos sítios não dão
+  // informação nenhuma. Chamar a isso «não significativo» seria afirmar que se
+  // testou e não deu — quando não se testou nada.
+  const A = [par('a', true), par('b', false)];
+  const B = [par('a', true), par('b', false)];
+  const m = mcnemar(A, B);
+  assert.equal(m.discordantes, 0);
+  assert.equal(m.significativo, null, 'sem discordantes não há veredicto a dar');
+});
+
+test('mcnemar(): é simétrico na magnitude e nomeia quem ganha', () => {
+  const A = [par('x', true), par('y', false), par('z', false)];
+  const B = [par('x', false), par('y', true), par('z', true)];
+  const ab = mcnemar(A, B), ba = mcnemar(B, A);
+  assert.equal(ab.p, ba.p, 'o p não depende da ordem dos argumentos');
+  assert.equal(ab.so_a, ba.so_b, 'mas quem ganha cada discordante, sim');
+  assert.equal(ab.so_b, 2);
+});
+
+test('nos dados reais: vs SEM ROUTER aguenta-se; vs router-por-LLM não', async () => {
+  // A afirmação central desta sessão, ancorada no motor e não numa nota.
+  // Se um dia isto mudar, ou o dataset cresceu (bom) ou algo regrediu (mau).
+  const j = juizFixo('T3');
+  const r = await correrVarias({ holdout: true, callImpl: j }, 1);
+  assert.ok(Array.isArray(r.significancia) && r.significancia.length >= 1,
+    'o resumo tem de trazer a significância, senão volta-se a publicar diferenças cruas');
+
+  const semRouter = r.significancia.find((x) => /SEM ROUTER/i.test(x.contra));
+  assert.ok(semRouter, 'preciso do braço de controlo para a comparação que interessa');
+  assert.equal(semRouter.significativo, true,
+    `Mooter vs sem router tinha de ser distinguível de ruído (p=${semRouter.p}) — ` +
+    'é esta a alegação que o produto faz, e é a única que está provada');
+  assert.ok(semRouter.so_b > semRouter.so_a,
+    'e a diferença tem de ser A FAVOR do Mooter, não só grande');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
