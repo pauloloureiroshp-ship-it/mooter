@@ -47,6 +47,7 @@ import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
+import { renderLedgerHtml } from './build-ledger-snapshot.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -594,6 +595,42 @@ export function createServer({
       });
     }
 
+    /**
+     * `GET /ledger` — a vista do DONO (o Moo Ledger, casca v4).
+     *
+     * O `/panel` v1 fica exactamente onde estava: e a vista do OPERADOR, com os
+     * controlos (▶/⏸, foco, triagem) que o Ledger ainda nao tem. Duas vistas,
+     * duas rotas, zero ambiguidade — substituir uma pela outra tirava botoes ao
+     * dono sem lhe dar nada em troca.
+     *
+     * Constroi-se A CADA PEDIDO. E mais caro do que servir um ficheiro, e e
+     * esse o ponto: um Ledger servido de disco seria um instantaneo a fingir-se
+     * vivo, que e a unica coisa que esta pagina promete nunca ser. Se a
+     * construcao falhar, responde 503 e DIZ porque — nunca uma copia velha.
+     */
+    if (req.method === 'GET' && route === '/ledger') {
+      try {
+        const { html, snapshot, shell } = await renderLedgerHtml({ repoRoot: raiz, mooDir: paths.base });
+        const buf = Buffer.from(html, 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': buf.length,
+          'Cache-Control': 'no-store',
+          'X-Moo-Panel': 'ledger',
+          'X-Moo-Panel-Source': 'tools/cockpit/moo-ledger-shell.html',
+          'X-Moo-Ledger-Shell': shell.version,
+          'X-Moo-Ledger-Generated': snapshot.generated_at,
+        });
+        return res.end(buf);
+      } catch (e) {
+        return sendJson(res, 503, {
+          erro: 'nao consegui construir o ledger',
+          porque: String((e && e.message) || e),
+          faz_assim: 'node tools/cockpit/runner/build-ledger-snapshot.mjs',
+        });
+      }
+    }
+
     if (req.method === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
       const candidatos = panelCandidates(raiz);
       for (let i = 0; i < candidatos.length; i += 1) {
@@ -611,7 +648,15 @@ export function createServer({
             'X-Moo-Panel': i === 0 ? 'canonico' : 'prototipo',
             'Content-Length': html.length,
             'Cache-Control': 'no-store',
-            'X-Moo-Panel-Source': path.relative(raiz, candidate) || candidate,
+            // POSIX SEMPRE, mesmo no Windows. Um cabecalho e um valor de fio, nao
+            // um caminho de disco: `path.relative` devolvia
+            // `tools\cockpit\moo-pilot-shell.html` na maquina Windows do dono, e a
+            // skill `/moo-pilot` manda conferir `tools/cockpit/moo-pilot-shell.html`.
+            // O painel CANONICO seria reportado como "outro ficheiro" — um alarme
+            // falso sobre a peca que o cabecalho existe para autenticar. Apanhado
+            // pelo job `cockpit tests (windows)` na primeira vez que alguem
+            // comparou o valor em vez de o imprimir.
+            'X-Moo-Panel-Source': (path.relative(raiz, candidate) || candidate).split(path.sep).join('/'),
           });
           return res.end(html);
         } catch {

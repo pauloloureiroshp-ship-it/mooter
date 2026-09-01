@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.mooter.f10.plist — supervisao do endpoint F10 (roadmap G1).
+
+  ⚠️ ISTO E UM MOLDE, NAO UM PLIST INSTALAVEL.
+
+  Os quatro campos `__ASSIM__` sao absolutos e por-maquina: o `node` desta
+  bancada nao e o do desktop, e um plist commitado com `/Users/<alguem>/` seria
+  um ficheiro que so funciona no computador de quem o escreveu — e que falha em
+  silencio em todos os outros, porque o launchd nao se queixa de um caminho que
+  nao existe: simplesmente nunca arranca nada.
+
+  Quem substitui e instala e
+  `_handoff/operar/43-INSTALAR-SUPERVISAO-F10.command`.
+
+  O QUE ISTO SUPERVISIONA, E O QUE NAO SUPERVISIONA.
+
+  So o F10 (`f10-server.mjs`) — o endpoint de leitura e o painel. NAO o runner:
+  o loop que gasta GPU continua a exigir o gesto do dono (▶), e um KeepAlive
+  sobre ele seria ligar a maquina a trabalhar sozinha por decisao de um
+  ficheiro. O F10 e o oposto: ele nao decide nada, so mostra, e quando morre o
+  dono fica sem instrumentos exactamente quando precisa deles.
+
+  `KeepAlive` e um dicionario com `SuccessfulExit: false`, e nao `<true/>`: um
+  `true` cru faz o launchd reiniciar tambem uma saida limpa, o que transforma um
+  `Ctrl-C` deliberado numa luta contra a maquina. Assim, sair a zero fica
+  significando "parei de proposito", e so uma morte anormal e reposta.
+
+  `ThrottleInterval` de 30s existe porque a alternativa medida e um ciclo de
+  arranque-crash-arranque a consumir CPU e a encher o log: se o F10 nao
+  conseguir levantar (porta ocupada, repo em falta), o launchd espera antes de
+  tentar de novo, e o `f10-launchd.log` fica legivel para se ver PORQUE nao
+  levanta.
+
+  O STOP nao e tocado por nada disto. Levantar o painel e "mostra-me os
+  controlos"; trabalhar continua a ser o botao do dono.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.mooter.f10</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__F10__</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>__LOG__</string>
+  <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>
