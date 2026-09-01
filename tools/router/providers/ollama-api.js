@@ -26,26 +26,12 @@ const DEFAULT_MODEL = 'qwen2.5:3b';
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 /**
- * `OLLAMA_HOST` sem esquema é o formato CANÓNICO — é assim que o próprio Ollama
- * o documenta e o imprime (`OLLAMA_HOST=127.0.0.1:11434`). Este ficheiro assumia
- * que vinha sempre com `http://` e concatenava à bruta, o que produzia
- * `fetch('127.0.0.1:11434/api/chat')` → `Failed to parse URL`.
- *
- * Medido a 2026-08-31 nesta máquina, com o Ollama VIVO e 10 modelos carregados:
- *   · `isAvailable()` → `{available:false, reason:'…Failed to parse URL…'}`
- *   · `callOllama()`  → **`null`, sem razão nenhuma** — o `catch` do fetch
- *     engole o erro de parse e o chamador lê «o modelo não respondeu».
- *
- * O segundo é o caro: o motor $0 falhava MUDO, e todo o trabalho de leitura
- * caía para um motor pago sem que nada o dissesse. É a mesma família do
- * `empty_completion` que o `provider-health.js` documenta — um erro de
- * transporte a sair pela porta de «resposta vazia».
+ * `OLLAMA_HOST` sem esquema é o formato CANÓNICO — ver `../ollama-host.js` para
+ * o porquê completo e para o que este ficheiro fazia antes (devolvia `null` mudo).
+ * A normalização vive lá porque sete sítios do repo tinham o mesmo defeito, e
+ * sete cópias seriam sete verdades.
  */
-function normalizeHost(raw) {
-  const s = String(raw == null ? '' : raw).trim().replace(/\/+$/, '');
-  if (!s) return DEFAULT_HOST;
-  return /^https?:\/\//i.test(s) ? s : `http://${s}`;
-}
+const { normalizeHost } = require('../ollama-host.js');
 
 const SYSTEM = [
   'És um assistente de software engineering conciso.',

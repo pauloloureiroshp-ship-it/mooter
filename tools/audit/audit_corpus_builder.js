@@ -29,7 +29,11 @@ const AUDIT_DIR = path.join(REPO_ROOT, 'audit');
 const CORPUS_PATH = path.join(AUDIT_DIR, 'corpus.jsonl');
 const STATS_PATH = path.join(AUDIT_DIR, 'corpus_stats.json');
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://host.docker.internal:11434';
+// `new URL('/api/generate', host)` (linha ~118) lança `Invalid URL` se o host
+// vier sem esquema. Ver `../router/ollama-host.js`.
+const { ollamaHostFromEnv } = require('../router/ollama-host.js');
+
+const OLLAMA_HOST = ollamaHostFromEnv('http://host.docker.internal:11434');
 // qwen2.5-coder:7b is the project's canonical local model (Wave 12 Gate A: keep-qwen2.5-coder)
 // and — unlike qwen3:30b — is NOT a reasoning model, so it emits the clean 5-line summary
 // instead of leaking chain-of-thought into the corpus. Honest, fast (~4s/file), $0.
