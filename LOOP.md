@@ -20,6 +20,45 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-01-o-instrumento-errava-cinco-vezes-e-so-a-quinta-nos-favorecia
+
+**Contexto:** o dono pediu um A/B «Mooter vs sem Mooter». Não existia nenhum.
+Construí-o, publiquei números, e depois pus agentes adversariais a tentar
+derrubá-los. Derrubaram **cinco vezes**.
+
+| # | alegação publicada | o que estava errado | efeito |
+|---|---|---|---|
+| 1 | 84,3% | 10 rótulos escritos no MESMO commit que afinou o `classify.js` | 84,3 → 81,7 |
+| 2 | «+36 pts» nas adversariais | o juiz não recebia as convenções privadas do repo | +36 → +12 |
+| 3 | «só o nosso é reprodutível» | corríamos o adversário a `temperature 0.2` por omissão NOSSA | retirada |
+| 4 | «fraqueza historical 68%» | rótulo = saída do próprio classificador; texto = preview de 80 chars | 81,7 → 91,4 |
+| 5 | «+8,5 pontos» | nunca testámos se a diferença existia | p=0,45 · retirada |
+
+**O padrão, que é o que interessa:** as quatro primeiras foram encontradas por
+auditoria adversarial, nunca por leitura. A quinta encontrei-a eu, mas só porque
+a auditoria me tinha ensinado a procurar. **Nenhuma foi apanhada por um teste** —
+todos passavam a verde em todas as versões.
+
+**E o sinal de que não é raciocínio motivado:** três das cinco baixaram o número.
+A quarta subiu-o, e por isso remedi o adversário no mesmo corte antes de publicar
+— ele subiu mais, e a vantagem encolheu de +10,0 para +8,5. Uma correcção que
+sobe o absoluto e baixa o relativo é o mais perto que consigo estar de saber que
+estou a corrigir e não a arranjar.
+
+**Duas classes novas, que valem para além deste ensaio:**
+
+1. **Um número cuja única fonte é a mensagem de um commit não é auditável.** A
+   peça dizia «mediana de 6 corridas» e o repositório guardava uma.
+2. **Um banco de ensaio sem a sua dependência FABRICA a vitória que se quer.**
+   Sem Ollama, o adversário marcava 0,0% em silêncio com exit 0, e o Mooter
+   «ganhava» 100 a 0 — precisamente a quem não tinha como verificar.
+
+**HIPÓTESE (por testar):** o `classify.js` está congelado por sha256 e importa
+`patterns.js`, que não tem congelamento nenhum. Um agente afirmou que os padrões
+tinham sido afinados contra o holdout; medi e **refutei** — reverter o
+`patterns.js` a antes dos quatro commits candidatos faz a nota SUBIR (91,4 →
+94,3), não cair. Mas a fraqueza do invariante é real e continua por fechar.
+
 ### 2026-08-25-a-forma-comparar-tambem-falha-e-o-sinal-esta-invertido
 
 **REFINES:** `2026-08-25-o-juiz-ancorado-medido-contra-verdade-conhecida-52-6-por-cento`
