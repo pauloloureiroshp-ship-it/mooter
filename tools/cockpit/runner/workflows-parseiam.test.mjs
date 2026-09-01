@@ -27,6 +27,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,6 +51,61 @@ test('nenhum workflow do repo tem conteúdo fugido para a coluna 0', () => {
     `${fugas.length} linha(s) de conteúdo à coluna 0 — o ficheiro deixa de ser YAML:\n${relato}\n` +
     'Um corpo de texto multilinha dentro de um `run:` tem de ir por --body-file, ' +
     'ou indentado dentro do bloco.');
+});
+
+/**
+ * Extrai uma lista YAML plana de strings entre aspas simples. Line-based de
+ * propósito — o repo tem viés de zero dependências, e a forma aqui é sempre a
+ * mesma: `chave:` seguida de linhas `- 'padrão'`, com comentários pelo meio.
+ */
+function listaYaml(src, chave, aPartirDe = 0) {
+  const L = src.replace(/\r/g, '').split('\n');
+  const i = L.findIndex((l, k) => k >= aPartirDe && new RegExp(`^\\s*${chave}:\\s*$`).test(l));
+  if (i < 0) return null;
+  const itens = [];
+  for (let k = i + 1; k < L.length; k++) {
+    const m = L[k].match(/^\s*-\s*'([^']+)'\s*$/);
+    if (m) { itens.push(m[1]); continue; }
+    if (/^\s*#/.test(L[k]) || !L[k].trim()) continue;
+    break;
+  }
+  return itens;
+}
+
+test('o `test-skip.yml` é o espelho EXACTO do `paths:` do `test.yml`', () => {
+  // O par existe porque a protecção de ramo exige checks com nomes fixos, e o
+  // `test.yml` tem filtro de caminhos: quando ele não corre, alguém tem de
+  // reportar esses nomes. Mas o `paths-ignore` só salta a workflow quando TODOS
+  // os ficheiros alterados casam — logo, se o espelho tiver menos padrões do que
+  // a referência, um PR que toque num dos que faltam faz correr os DOIS. Ficam
+  // dois check runs com o mesmo nome obrigatório, **um deles verde sem ter
+  // corrido nada**.
+  //
+  // Medido a 2026-09-01: a referência tinha 13 padrões e o espelho 7. Sete em
+  // falta, incluindo `tools/ab/**` — os testes do harness que produz os números
+  // públicos. A deriva é silenciosa por construção: cada padrão novo no
+  // `test.yml` nasce em falta aqui, e nada gritava.
+  const ty = fs.readFileSync(path.join(DIR, 'test.yml'), 'utf8');
+  const ts = fs.readFileSync(path.join(DIR, 'test-skip.yml'), 'utf8');
+
+  const iPr = ty.replace(/\r/g, '').split('\n').findIndex((l) => /^\s*pull_request:\s*$/.test(l));
+  assert.ok(iPr > 0, 'o test.yml perdeu o bloco pull_request');
+
+  const ref = listaYaml(ty, 'paths', iPr);
+  const espelho = listaYaml(ts, 'paths-ignore');
+
+  // Anti-vacuidade: duas listas vazias são «iguais» e não mediram nada.
+  assert.ok(ref && ref.length >= 10, `paths de referência com ${ref ? ref.length : 0} itens — não li nada`);
+  assert.ok(espelho && espelho.length >= 10, `paths-ignore com ${espelho ? espelho.length : 0} itens — não li nada`);
+
+  const faltam = ref.filter((p) => !espelho.includes(p));
+  const aMais = espelho.filter((p) => !ref.includes(p));
+  assert.deepEqual(faltam, [],
+    `o test-skip.yml não ignora ${faltam.length} caminho(s) que o test.yml cobre — ` +
+    'um PR que lhes toque dispara os dois, e um check obrigatório fica verde sem correr nada');
+  assert.deepEqual(aMais, [],
+    `o test-skip.yml ignora ${aMais.length} caminho(s) que o test.yml NÃO cobre — ` +
+    'esses ficam sem job nenhum a correr, e sem ninguém a reportar o check');
 });
 
 test('todo o workflow declara um `name:` — é ele que o GitHub mostra', () => {
