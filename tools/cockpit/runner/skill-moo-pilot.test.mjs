@@ -213,3 +213,29 @@ test('a skill diz que escrever o beacon nao chega', () => {
   assert.match(SKILL, /MOO_PUBLICAR_BEACON/, 'sem isto, a frota é um device só');
   assert.match(SKILL, /nasce desligado/i, 'publicar no vault de alguém pede-se, não se assume');
 });
+
+/**
+ * A skill descreve os verbos do F10 desde a 1.53.0. Um verbo documentado que o
+ * servidor nao aceita e a skill a mentir — que e o pilar P3 a falhar em casa.
+ */
+test('todo o verbo POST que a skill promete existe no servidor', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const prometidos = [...SKILL.matchAll(/`POST (\/[a-z]+)`/g)].map((m) => m[1]);
+  assert.ok(prometidos.length >= 3, `a skill devia nomear os verbos, achei ${prometidos.length}`);
+  for (const v of prometidos) {
+    assert.ok(VERBOS_DE_CONTROLO.includes(v), `a skill promete ${v} e o servidor nao o aceita`);
+  }
+});
+
+test('a skill nao promete que o /update instala — porque ele nao instala', () => {
+  assert.match(SKILL, /\*\*não instala\.\*\*/);
+  const src = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'actualizacao.mjs'), 'utf8');
+  assert.match(src, /instala_sozinho: false/, 'a recusa tem de estar no codigo, nao so na skill');
+});
+
+test('a skill diz que um 200 nao e uma confirmacao — e a casca cumpre', () => {
+  assert.match(SKILL, /confirmed by re-read/);
+  const casca = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'moo-ledger-shell.html'), 'utf8');
+  assert.match(casca, /confirmed by re-read/, 'a casca tem de dizer o mesmo que a skill promete');
+  assert.match(casca, /count did not move/, 'e tem de ter o ramo em que a contagem NAO mexeu');
+});

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.mooter.beacon-renew.plist — renovacao horaria do beacon (roadmap G3).
+
+  ⚠️ ISTO E UM MOLDE, NAO UM PLIST INSTALAVEL.
+
+  Os quatro campos `__ASSIM__` sao absolutos e por-maquina, pela mesma razao que
+  no `ai.mooter.f10.plist`: um plist commitado com `/Users/<alguem>/` funciona
+  no computador de quem o escreveu e falha em SILENCIO em todos os outros — o
+  launchd nao se queixa de um caminho que nao existe, simplesmente nunca arranca
+  nada. Quem substitui e instala e
+  `_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command`.
+
+  O QUE ISTO RESOLVE (medido 2026-09-01):
+
+    desktop-j26409q — assinatura expirada (553768s > 86400s)
+    paulo-desktop   — assinatura expirada (496375s > 86400s)
+
+  Dois devices reais, apagados do painel da frota. A assinatura de um beacon
+  vale 24 h por desenho, e o beacon so se reescreve quando o loop corre uma
+  ronda — portanto um device parado desaparece ao fim de um dia. Este agente
+  reassina o MESMO conteudo antes de a prova caducar.
+
+  `StartInterval` de 3600 e nao um `StartCalendarInterval`: nao ha hora certa
+  nenhuma a respeitar aqui, so um tecto de idade. De hora a hora o script LE um
+  ficheiro e quase sempre nao faz nada — so escreve quando a assinatura passou
+  de metade da janela (12 h), ou seja duas vezes por dia. Publicar de hora a
+  hora daria ~8760 commits por ano no vault PESSOAL do dono para renovar uma
+  prova que dura 24 h.
+
+  `RunAtLoad` porque a primeira coisa a fazer depois de um reboot e exactamente
+  esta: a maquina esteve desligada, e a assinatura envelheceu enquanto dormia.
+
+  SEM `KeepAlive`: isto e uma tarefa que acaba, nao um servidor. Um KeepAlive
+  aqui poria o launchd a relanca-la em ciclo.
+
+  O que este agente NAO faz: nao toca no runner, nao apaga o STOP, nao muda um
+  unico campo do corpo do beacon — o `ts` do device continua a ser o instante do
+  estado que ele descreve, e e por isso que uma maquina parada continua a
+  aparecer como parada em vez de "acordada ha 3 minutos".
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.mooter.beacon-renew</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__RENEW__</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>3600</integer>
+  <key>StandardOutPath</key><string>__LOG__</string>
+  <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>

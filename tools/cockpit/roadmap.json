@@ -15,15 +15,16 @@
   "owner": "Owner (gesture)",
   "status": "waiting-owner",
   "user": "paulo",
-  "note": "measured 2026-09-01: installed 1.49.4, repo 1.52.0. The Ledger reads both and says so in the header."
+  "note": "measured 2026-09-01: installed 1.49.4, repo 1.53.0. The Ledger reads both, says so in the header, and POST /update now points at the exact bundle — installing it stays a double-click by the owner."
  },
  {
   "id": "G3",
   "title": "Beacon hardening: force-with-lease, TTL, seq · verify signature on read",
   "device": "fleet",
-  "owner": "Claude Code",
-  "status": "ready",
-  "user": "paulo"
+  "owner": "Claude Code + Owner (gesture)",
+  "status": "waiting-owner",
+  "user": "paulo",
+  "note": "code shipped 2026-09-01: beacon-renew.mjs re-signs the SAME body before the 24h window closes — the device's `ts` is never re-stamped, so a stopped machine still reads as stopped — plus a monotonic `seq` inside the signed payload, which VETOES a remote copy whose counter went backwards (the `ts` still decides; letting `seq` decide marked a live device dead when the counter epochs differed, and was reverted before ship). STILL waiting-owner and not done: the hourly agent is a double-click (_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command) and it only fixes the machine it runs on. Until it runs on desktop-j26409q and paulo-desktop, those two beacons keep expiring exactly as they do today."
  },
  {
   "id": "G4",
@@ -48,8 +49,9 @@
   "title": "Fleet-state fields: finding_id, triage.items[], route, publish, feed[].device",
   "device": "fleet",
   "owner": "Claude Code",
-  "status": "ready",
-  "user": "paulo"
+  "status": "done",
+  "user": "paulo",
+  "note": "done 2026-09-01: finding_id (stable, content-addressed, 12 hex) + triage.items[] + route (a real table in tools/cockpit/runner/rota.mjs — until today the page cited a \"closed routing table\" that existed in no file) + publish (measured from the vault git, not from an env var) + feed[].device. The Ledger chapter V now renders real triage decisions instead of arbitrary cited receipts dressed as tasks."
  },
  {
   "id": "G7",
@@ -64,7 +66,8 @@
   "title": "Bind check (lsof :4290) + origin allowlist on the F10",
   "device": "mac-mini",
   "owner": "Claude Code",
-  "status": "ready",
-  "user": "paulo"
+  "status": "done",
+  "user": "paulo",
+  "note": "done 2026-09-01: originAllowed guards all POST verbs from one frozen list (VERBOS_DE_CONTROLO) and the bind is MEASURED at startup with lsof -nP -iTCP:4290 -sTCP:LISTEN, written to the log. No lsof means n/d, never a silent \"it is safe\"."
  }
 ]

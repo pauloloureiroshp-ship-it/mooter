@@ -164,6 +164,174 @@ test('smoke: o kill-switch local continua a funcionar (sem Origin = CLI desta ma
   }
 });
 
+// ------------------------------------------- as rotas que tiraram os "proposed"
+//
+// ⚠️ TODA a escrita aqui vai para `HOME_TMP`, e isso nao e higiene — e o
+// incidente de 2026-09-01. Uma prova manual do `/triage` feita contra um F10
+// levantado a mao, sem `MOOTER_HOME` temporario, escreveu no `triagem.jsonl`
+// REAL do dono uma decisao assinada `por:'dono'` que ele nunca tomou. As
+// contagens nao mexeram (a chave nao tinha recibo), e essa foi a sorte, nao o
+// desenho. A linha foi removida e o facto registado. Quem levantar um F10 a
+// mao para experimentar um verbo de ESCRITA: `MOOTER_HOME=$(mktemp -d)` antes.
+
+/**
+ * Um motor local de mentira que responde as DUAS rotas do Ollama que a doca usa:
+ * `/api/ps` (quem esta residente) e `/api/generate` (a resposta).
+ */
+const motorDeDoca = ({ residente = 'granite4.2:3b', resposta = 'Tres frases curtas.' } = {}) =>
+  async (url) => {
+    assert.match(url, /^http:\/\/127\.0\.0\.1:11434\//, '$0 duro: a doca nunca fala para fora do loopback');
+    if (/\/api\/ps$/.test(url)) {
+      return { ok: true, json: async () => ({ models: residente ? [{ name: residente, size: 3e9 }] : [] }) };
+    }
+    return {
+      ok: true, url: 'http://127.0.0.1:11434/api/generate',
+      json: async () => ({ response: resposta, eval_count: 31 }),
+    };
+  };
+
+test('smoke: POST /triage e a MESMA porta que /triagem — um so escritor', async () => {
+  const triagem = path.join(HOME_TMP, 'triagem.jsonl');
+  fs.rmSync(triagem, { force: true });
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/triage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: 'f.js:1-9@2026-09-01T00:00:00Z', decisao: 'aceite', por: 'dono' }),
+    });
+    assert.equal(res.status, 200);
+    const { ok, registado } = await res.json();
+    assert.equal(ok, true);
+    assert.equal(registado.decisao, 'aceite');
+    // O ficheiro e o mesmo. Se um dia alguem duplicar a logica, esta linha cai.
+    const linhas = fs.readFileSync(triagem, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.equal(linhas.length, 1);
+    assert.equal(linhas[0].via, 'cliente-local', 'sem Origin, o canal e o que se observou');
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: /triage herda as validacoes todas — descartar sem motivo leva 400', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const r = await fetch(`${base}/triage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: 'x', decisao: 'descartado', por: 'dono' }),
+    });
+    assert.equal(r.status, 400);
+    const b = await r.json();
+    assert.match(b.erro, /motivo/);
+    assert.ok(Array.isArray(b.aceites) && b.aceites.length, 'o painel precisa de saber O QUE mandar');
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke ACEITACAO: as rotas novas tem a MESMA guarda de origem que o kill-switch', async () => {
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  try {
+    for (const rota of ['/triage', '/assist', '/update']) {
+      const res = await fetch(`${base}${rota}`, {
+        method: 'POST',
+        headers: { Origin: 'https://site-qualquer.example', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: 'ola', chave: 'x', decisao: 'aceite' }),
+      });
+      assert.equal(res.status, 403, `${rota} tem de recusar uma origem de site`);
+    }
+    // E a origem de um iframe sandboxed (`null`) tambem nao entra.
+    const sandbox = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { Origin: 'null' }, body: JSON.stringify({ mensagem: 'ola' }),
+    });
+    assert.equal(sandbox.status, 403);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: POST /assist responde com texto do motor local e diz de onde veio o modelo', async () => {
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  try {
+    const r = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mensagem: 'o que e um recibo?' }),
+    });
+    assert.equal(r.status, 200);
+    const b = await r.json();
+    assert.equal(b.ok, true);
+    assert.equal(b.texto, 'Tres frases curtas.');
+    assert.equal(b.modelo, 'granite4.2:3b');
+    assert.equal(b.fonte_do_modelo, 'residente');
+    assert.equal(b.usd, 0, '$0 e estrutural, nao uma estimativa');
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: /assist com o motor em baixo da 503 COM o porque — nunca 200 vazio', async () => {
+  const { base, fechar } = await servidorEfemero({
+    fetchImpl: async (url) => (/\/api\/ps$/.test(url)
+      ? { ok: true, json: async () => ({ models: [{ name: 'm:1b' }] }) }
+      : { ok: false, status: 500, url: 'http://127.0.0.1:11434/api/generate' }),
+  });
+  try {
+    const r = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mensagem: 'ola' }),
+    });
+    assert.equal(r.status, 503);
+    const b = await r.json();
+    assert.equal(b.ok, false);
+    assert.match(b.porque, /500/);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: /assist recusa uma mensagem vazia com 400 antes de gastar GPU', async () => {
+  let tocouNoMotor = false;
+  const { base, fechar } = await servidorEfemero({
+    fetchImpl: async (url) => { if (/generate/.test(url)) tocouNoMotor = true; return { ok: false, status: 500 }; },
+  });
+  try {
+    const r = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(r.status, 400);
+    assert.equal(tocouNoMotor, false);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: POST /update aponta o bundle e declara que NAO instala', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const r = await fetch(`${base}/update`, { method: 'POST', body: '{}' });
+    assert.equal(r.status, 200);
+    const b = await r.json();
+    assert.equal(b.instala_sozinho, false, 'instalar e um gesto do dono, nunca do painel');
+    assert.match(b.porque_nao, /dono/);
+    assert.ok('disponivel' in b && 'instalada' in b && 'faz_assim' in b);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: uma rota POST desconhecida da 404 — nunca cai no /play por engano', async () => {
+  fs.writeFileSync(path.join(HOME_TMP, 'STOP'), '1');
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const r = await fetch(`${base}/triagemm`, { method: 'POST', body: '{}' });
+    assert.equal(r.status, 404, 'um endereco mal escrito nao pode religar o loop');
+    assert.equal(fs.existsSync(path.join(HOME_TMP, 'STOP')), true, 'e o STOP tem de continuar de pe');
+  } finally {
+    fs.rmSync(path.join(HOME_TMP, 'STOP'), { force: true });
+    await fechar();
+  }
+});
+
 // ------------------------------------------------------------------ o ciclo
 
 /**
@@ -436,4 +604,59 @@ test('o aviso do prototipo diz o que se esta a ver e porque', () => {
   assert.match(AVISO_PROTOTIPO, /not the current one/);
   assert.match(AVISO_PROTOTIPO, /moo-pilot-shell\.html/, 'tem de nomear o ficheiro que falhou');
   assert.match(AVISO_PROTOTIPO, /nothing below is guaranteed/i);
+});
+
+/**
+ * Cada verbo declarado tem de ser SERVIDO por um ramo.
+ *
+ * Apanhado em revisao a 2026-09-01: a lista `VERBOS_DE_CONTROLO` passou a guarda
+ * de origem para um sitio so, mas a cauda do bloco era o `/play` — logo um verbo
+ * acrescentado a lista sem ramo proprio APAGAVA o STOP e ligava a maquina a
+ * trabalhar. O `/play` ganhou `if` proprio, a cauda passou a 404, e este teste
+ * exige que as duas metades andem juntas para sempre.
+ */
+test('smoke ACEITACAO: nenhum verbo declarado religa o loop por omissao', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  const STOP = path.join(HOME_TMP, 'STOP');
+  try {
+    for (const rota of VERBOS_DE_CONTROLO) {
+      if (rota === '/play') continue;              // este É o que apaga o STOP, e de propósito
+      fs.writeFileSync(STOP, '1');
+      await fetch(`${base}${rota}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: 'ola', chave: 'x', decisao: 'aceite', por: 'dono' }),
+      });
+      assert.equal(fs.existsSync(STOP), true, `${rota} apagou o STOP — caiu na cauda do /play`);
+    }
+    // E um verbo declarado SEM ramo dá 404 a dizer que é um defeito, não 200.
+    const semRamo = await fetch(`${base}/autopilot`, { method: 'POST', body: 'nao-e-json' });
+    assert.notEqual(semRamo.status, 404, 'o /autopilot TEM ramo — se der 404 este teste mede a coisa errada');
+  } finally {
+    fs.rmSync(STOP, { force: true });
+    await fechar();
+  }
+});
+
+/**
+ * COBERTURA, NAO PRESENCA — a mesma licao que o portao de movimento reduzido
+ * aprendeu a 2026-08-29 (`CLAUDE.md`): testar que os verbos de HOJE se portam
+ * bem nao impede que o de AMANHA nasca descoberto. Este exige que cada entrada
+ * de `VERBOS_DE_CONTROLO` seja comparada por um ramo no corpo do handler.
+ */
+test('smoke ACEITACAO: cada verbo declarado tem um ramo que o serve', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const src = fs.readFileSync(new URL('./f10-server.mjs', import.meta.url), 'utf8');
+  // Só o corpo do handler: a própria lista também nomeia as rotas.
+  const corpo = src.slice(src.indexOf('const servidor = http.createServer'));
+  for (const v of VERBOS_DE_CONTROLO) {
+    const ramo = new RegExp(`route === '${v}'`).test(corpo);
+    assert.ok(ramo, `${v} está na lista e nenhum ramo o serve — cai na cauda`);
+  }
+  // E a cauda tem de ser um 404, nunca a escrita que religa o loop.
+  const cauda = corpo.slice(corpo.lastIndexOf("route === '/play'"));
+  assert.ok(cauda.includes('verbo declarado sem tratamento'),
+            'a cauda do bloco de POST tem de ser um 404 explícito');
+  assert.equal(/rmSync\(stopFile[\s\S]*verbo declarado sem tratamento/.test(cauda), true,
+               'o /play tem de vir ANTES da cauda, dentro do seu próprio ramo');
 });

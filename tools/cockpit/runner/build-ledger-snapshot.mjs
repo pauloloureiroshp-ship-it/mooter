@@ -30,7 +30,12 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { readLedger, ownerDay, OWNER_TZ } from './fleet-state.mjs';
-import { lerTriagem, contarTriagem, chaveDoRecibo, ehAchado } from './triagem.mjs';
+import {
+  lerTriagem, contarTriagem, chaveDoRecibo, ehAchado,
+  idDoAchado, idEstavel, MOTIVOS,
+} from './triagem.mjs';
+import { exercidas, rotaDoRecibo, rotaDaCorreccao } from './rota.mjs';
+import { estadoDaPublicacao } from './publicacao.mjs';
 import { portoes } from './autopilot.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
@@ -43,7 +48,7 @@ const ROADMAP = path.join(REPO, 'tools', 'cockpit', 'roadmap.json');
 const MOO_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 
 /** A versao da casca. Sobe quando o CONTRATO de campos muda, nunca por estetica. */
-export const SHELL_VERSION = '4.0.1';
+export const SHELL_VERSION = '4.1.0';
 
 export const BEGIN = '<!-- MOO_LEDGER:BEGIN -->';
 export const END = '<!-- MOO_LEDGER:END -->';
@@ -59,11 +64,58 @@ const LEDGER_MAX_LINES = 1e9;
 export const CAMPOS_OBRIGATORIOS = Object.freeze([
   'generated_at', 'device', 'window', 'counters', 'daily', 'triage', 'yardstick',
   'night', 'needs_you', 'receipts', 'fleet', 'fleet_rejected', 'versions', 'worktrees', 'engine',
-  'gates', 'hold', 'eta_keys', 'worktrees_list', 'paths',
+  'gates', 'hold', 'eta_keys', 'worktrees_list', 'paths', 'route', 'publish',
 ]);
 
 /** Quantos recibos viajam. Um ledger de 50 MB nao pode congelar a pagina. */
 export const MAX_RECIBOS = 50;
+
+/** Quantas decisoes de triagem viajam. Mesma razao, mesmo tecto de bom senso. */
+export const MAX_ITENS_TRIAGEM = 40;
+
+/**
+ * As decisoes de triagem, as ULTIMAS primeiro, com o achado a que pertencem.
+ *
+ * Ate aqui o payload levava so CONTAGENS (`aceite: 3, descartado: 72`), e a
+ * pagina que as recebia nao tinha como mostrar uma unica delas: para contar a
+ * historia de um achado inventava-a a partir de um recibo qualquer com
+ * `citacao-ok`. Ou seja, o capitulo das tarefas nao mostrava tarefas — mostrava
+ * um molde preenchido com dados de outra coisa.
+ *
+ * `recibo: null` e legitimo e frequente: uma decisao pode ser sobre um
+ * apontamento do detector deterministico, que nunca passou pelo ledger de
+ * rondas. Nesse caso o item leva o que a decisao sabe e mais nada.
+ */
+export function itensDeTriagem(decisoes, receipts, limite = MAX_ITENS_TRIAGEM) {
+  const porChave = new Map();
+  for (const r of receipts || []) {
+    const k = chaveDoRecibo(r);
+    // O ULTIMO recibo de uma chave e o que descreve o estado actual dela.
+    if (k) porChave.set(k, r);
+  }
+  const itens = [...(decisoes ? decisoes.values() : [])]
+    .filter((d) => d && d.chave)
+    .sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')))
+    .slice(0, limite);
+  return itens.map((d) => {
+    const r = porChave.get(String(d.chave)) || null;
+    return {
+      finding_id: r ? idDoAchado(r) : null,
+      chave: String(d.chave),
+      decision: d.decisao || null,
+      reason: d.motivo || null,
+      by: d.por || null,
+      via: d.via || null,
+      decided_at: d.ts || null,
+      note: d.nota || null,
+      ficheiro: (r && r.ficheiro) || null,
+      pilar: (r && r.pilar) || null,
+      // `null` quer dizer que a decisao nao tem recibo no ledger desta janela —
+      // nao que o achado nao exista. A pagina tem de saber a diferenca.
+      route: r ? (rotaDoRecibo(r) || {}).id || null : null,
+    };
+  });
+}
 
 /** A hora do dono, como numero, a partir de um epoch. `null` se nao for lido. */
 export function ownerHour(ms, tz = OWNER_TZ) {
@@ -364,6 +416,11 @@ export async function buildLedgerSnapshot({
     if (!d || d.decisao !== 'issue') continue;
     needsYou.push({
       id: chave,
+      // O id curto e estavel. Viaja ao lado da `chave` e nunca em vez dela: a
+      // chave e o que se escreve no `triagem.jsonl`, e escrever com o id seria
+      // criar uma segunda identidade para a mesma coisa.
+      finding_id: idDoAchado(r),
+      finding_id_estavel: idEstavel(r),
       receipt_ref: [r.pilar, r.ficheiro && r.janela ? `${r.ficheiro}:${r.janela}` : r.ficheiro]
         .filter(Boolean).join(' · ') || null,
       ficheiro: r.ficheiro || null,
@@ -372,6 +429,11 @@ export async function buildLedgerSnapshot({
       modelo: r.modelo || null,
       summary: r.resultado_resumo || null,
       decided_at: d.ts || null,
+      // Quem FEZ, e quem faria a seguir. Duas classes da tabela, lidas dela —
+      // ate 2026-09-01 esta frase era prosa cravada no HTML a citar uma tabela
+      // que nao existia em ficheiro nenhum.
+      route: (rotaDoRecibo(r) || {}).id || null,
+      route_next: rotaDaCorreccao().id,
     });
   }
 
@@ -450,12 +512,19 @@ export async function buildLedgerSnapshot({
       dismissed: contas.por_motivo,
       dismissed_without_reason: contas.sem_motivo,
       by_owner: contas.do_dono,
+      // A lista FECHADA de motivos, vinda do motor. O painel tem um botao de
+      // descartar e o endpoint devolve 400 sem um motivo valido: sem esta lista,
+      // a pagina teria de os cravar a mao e divergiriam no primeiro motivo novo.
+      reasons: MOTIVOS,
+      items: itensDeTriagem(decisoes, receipts),
+      items_cap: MAX_ITENS_TRIAGEM,
     },
     yardstick,
     night: agregarNoite(receipts),
     needs_you: needsYou,
     receipts: receipts.slice(-MAX_RECIBOS).reverse().map((r) => ({
       ts: r.ts || null, pilar: r.pilar || null, verdict: r.verdict || null,
+      finding_id: idDoAchado(r), route: (rotaDoRecibo(r) || {}).id || null,
       resumo: r.resultado_resumo || null, ficheiro: r.ficheiro || null,
       modelo: r.modelo || null, engine: r.engine || null,
       dur_s: Number.isFinite(r.dur_s) ? r.dur_s : null,
@@ -465,6 +534,19 @@ export async function buildLedgerSnapshot({
     fleet,
     fleet_rejected: fleetRejected,
     fleet_note: (frota && frota.aviso) || null,
+    /**
+     * A tabela de encaminhamento, uma vez, para a pagina a citar em vez de a
+     * recitar. `route` e a lista das classes que este sistema EXERCITA — as
+     * outras duas ficam no modulo, declaradas como nao exercidas, e nao viajam
+     * para nao darem a impressao de uma escada que ninguem subiu.
+     */
+    route: { classes: exercidas(), fonte: 'tools/cockpit/runner/rota.mjs' },
+    /**
+     * A frota ve mesmo este device? Medido pelo git do vault — a variavel de
+     * ambiente que ligaria a publicacao vive no processo do LOOP, e le-la aqui
+     * responderia sobre o processo errado.
+     */
+    publish: estadoDaPublicacao({ vaultPath, device: dev }),
     versions: {
       connector_installed: versaoInstalada({ home: homeImpl, readImpl, existsImpl }),
       connector_latest: versaoDoConector(repoRoot, { readImpl }),

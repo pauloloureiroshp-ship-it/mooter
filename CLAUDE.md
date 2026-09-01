@@ -109,6 +109,26 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `packages/cli/tests/ollama-host.test.ts` (6) e pelos 2 casos de paridade em
   `tools/router/ollama-host.test.js`; mordida verificada: alterar um caso da
   tabela reprova **os dois lados**.
+  **2026-09-01 · release 1.53.0** allowlists **uma linha** em cada um de
+  `packages/mooter-bridge/manifest.json` e `packages/mooter-bridge/version.json`
+  (mais o `released`), e **duas** em `packages/mooter-bridge/entregas-por-versao.json`
+  (a chave `"1.53": []`). Autorizado pelo dono no kickoff da release
+  (`_handoff/_archive/2026-09/KICKOFF-RELEASE-1530.md` — arquivado no mesmo commit
+  que o executa, como manda o `AGENTS.md` § Information architecture; ponto 1:
+  «Bump 1.53.0 … e build
+  `_handoff/mooter-v1530.mcpb`»). Zero linhas de lógica.
+  Não é cosmético e não é redundante com a automação: o `version-sync.yml` só
+  corre **no push da tag**, que acontece DEPOIS do merge — e o `pack-mcpb.mjs`
+  lê `manifest.version` para dar nome e versão ao bundle. Sem o bump aqui, o
+  artefacto que o kickoff pede sairia chamado `mooter-v1520.mcpb` e rotulado
+  1.52.0. O bump manual é **idempotente** com o workflow (ele imprime «already
+  1.53.0 — no change») e é o mesmo gesto de 2026-08-18, que o
+  `versao-coerente.test.js` apanhou e passou a guardar.
+  `"1.53": []` é a declaração honesta de que esta onda **não entrega ficheiro
+  novo à bridge** — o trabalho todo vive em `tools/cockpit/`. Precedente:
+  `"1.50": []`. Provado por `node pack-mcpb.mjs` (335 verificações de conteúdo
+  OK, sha256 `9100e0dfaf5724fbb5845122c64ef3e89e10c0d49a7385f95fa3774004f96ad6`)
+  e por `packages/mooter-bridge/versao-coerente.test.js`.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

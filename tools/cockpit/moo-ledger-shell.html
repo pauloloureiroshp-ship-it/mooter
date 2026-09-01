@@ -3,8 +3,11 @@
   Moo Pilot v4 — "The Moo Ledger" · mac-mini-de-paulo · 2026-09-01
   A cockpit that reads like a printed field ledger, because the receipt IS the product.
   Doctrine unchanged: every number measured or "n/d"; staleness visible; dead buttons
-  become instructions; motion only for a real, current state; proposed endpoints badged.
+  become instructions; motion only for a real, current state.
   Data ladder: LIVE (F10 on the device) → embedded stamped snapshot (this copy).
+  2026-09-01 · the controls stopped being proposals: triage, ask and update now POST to
+  the device's F10, and every write is confirmed by RE-READING the server's own count —
+  a 200 is the endpoint accepting, never the ledger confirming.
 -->
 <style>
   :root{
@@ -21,7 +24,24 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--paper);color:var(--pine);font-family:var(--f-serif);
-    font-size:16px;line-height:1.55;
+    font-size:16px;line-height:1.55}
+  /* A textura de riso, pintada UMA VEZ POR JANELA em vez de uma vez por PAGINA.
+     Estava em `background-image` do <body>: um degrade radial ladrilhado de 5 em
+     5 px, rasterizado sobre toda a ALTURA DO DOCUMENTO. Uma camada `fixed` cobre
+     so o que se ve, e como o padrao e uniforme fica visualmente identica —
+     verificado por capture: 1280x2400 antes e depois, sem diferenca no ecra.
+
+     ⚠️ NAO E A CAUSA DO CAPTURE LENTO, e a medicao esta aqui para ninguem voltar
+     a supo-lo. Medido a 2026-09-01, Chrome headless, 3 corridas cada:
+       1280x20000 — antes 2,88 / 4,62 / 3,10 s · depois 3,29 / 2,93 / 2,93 s
+       1280x60000 — antes 8,13 / 8,15 s        · depois 7,60 / 8,01 s
+     ~3% no melhor caso, dentro do ruido das proprias corridas. O tempo cresce
+     com a AREA capturada (rasterizar e codificar 1280x60000 em PNG), e nenhuma
+     folha de estilos encurta isso. Se o capture voltar a expirar, o remedio e
+     capturar por fatias do tamanho da janela ou subir o tecto do CDP — nao mexer
+     outra vez na textura. Esta mudanca fica por ser gratis e correcta, nao por
+     ter resolvido o que se pensava que resolvia. */
+  body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
     background-image:radial-gradient(rgba(31,43,37,.05) 1px,transparent 1px);
     background-size:5px 5px}
   a{color:var(--spot)} a:hover{color:#236A41}
@@ -168,6 +188,19 @@
   .case .bignum{font-family:var(--f-mono);font-size:22px;color:var(--pine)}
   .case .fine{font-size:11.5px;color:var(--ink-3);font-style:italic}
 
+  /* ── the dock: ask the local engine ── */
+  .dock{border:1.5px solid var(--pine);border-radius:4px;padding:16px 18px;background:var(--paper)}
+  .dock label{display:block;margin-bottom:6px}
+  .dock textarea{width:100%;font-family:var(--f-serif);font-size:15px;line-height:1.5;color:var(--pine);
+    background:var(--paper-2);border:1px solid var(--rule);border-radius:4px;padding:10px 12px;resize:vertical}
+  .dock textarea:focus-visible{outline:2px solid var(--spot);outline-offset:1px}
+  .dock-row{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .dock .answer{margin-top:12px;border-top:1px dotted var(--rule);padding-top:12px;
+    font-size:15px;line-height:1.55;white-space:pre-wrap}
+  .sel{font-family:var(--f-mono);font-size:12px;color:var(--pine);background:var(--paper);
+    border:1.5px solid var(--pine);border-radius:2px;padding:6px 8px}
+  .sel:focus-visible{outline:2px solid var(--spot);outline-offset:2px}
+
   /* buttons + toasts */
   .btn{font-family:var(--f-mono);font-size:12px;letter-spacing:.04em;color:var(--pine);
     background:var(--paper);border:1.5px solid var(--pine);border-radius:2px;padding:6px 14px;
@@ -218,12 +251,14 @@
   <span class="stamp" id="hd-mode">connecting…</span>
   <nav class="toc">
     <a href="#story">Story</a><a href="#night">Night</a><a href="#herd">Herd</a>
-    <a href="#journey">Journey</a><a href="#tasks">Tasks</a><a href="#engines">Engines</a>
+    <a href="#journey">Journey</a><a href="#tasks">Tasks</a><a href="#ask" class="live-only">Ask</a><a href="#engines">Engines</a>
     <a href="#field">Field</a><a href="#case">The case</a>
   </nav>
   <div class="sub">
     <span class="ovl" id="hd-dev">—</span>
     <span class="stamp red" id="hd-ver" data-tip="The Mooter connector is the bridge that launched this cockpit. A newer one exists in the repo — until it's installed, panel and tools can disagree.">launched by mooter n/d</span>
+    <button class="btn live-only" id="hd-upd-btn" data-act="update" style="padding:2px 9px;font-size:10.5px">Where is the new one?</button>
+    <span class="ovl mono" id="hd-upd"></span>
     <span class="ovl mono" id="hd-fresh" style="margin-left:auto">—</span>
   </div>
 </div></header>
@@ -280,6 +315,23 @@
 <section class="ch" id="tasks">
   <div class="ch-head"><span class="no">V</span><h2>Tasks, told simply</h2><span class="meta" id="tasks-meta">—</span></div>
   <div id="storylist"></div>
+</section>
+
+<section class="ch live-only" id="ask">
+  <div class="ch-head"><span class="no">V·b</span><h2>Ask the Moo</h2>
+    <span class="meta" data-tip="The answer is generated by the model already resident on this machine's GPU. Nothing is sent to a paid engine, and the Moo cannot read files or change anything — it only sees what you type.">local engine · $0 · read-only</span></div>
+  <div class="dock">
+    <label class="ovl" for="moo-q">Your question</label>
+    <textarea id="moo-q" rows="2" placeholder="e.g. what does &quot;refuted&quot; mean on this page?"></textarea>
+    <div class="dock-row">
+      <button class="btn spot" id="moo-send" data-act="ask">Ask</button>
+      <span class="note" id="moo-meta"></span>
+    </div>
+    <div class="answer" id="moo-a"><span class="nd">No question asked yet.</span></div>
+    <p class="note" style="font-style:italic;margin:8px 2px 0">The Moo answers from the words in your question alone — it has no tools, no
+      file access and no memory between questions. If it does not know a number it is instructed to say <span class="nd">n/d</span>, and
+      nothing here ever escalates to a paid engine: if the local engine is down, this box says so.</p>
+  </div>
 </section>
 
 <section class="ch" id="engines">
@@ -535,37 +587,17 @@ function renderTasks(){
   const t = S.triage;
   $('tasks-meta').textContent =
     `${fmt(t.total)} findings · ${fmt(t.accepted)} kept · ${fmt(t.issues)} open · ${fmt(t.pending)} untriaged`;
-  const cited = (S.receipts || []).filter(r => r.verdict === 'citacao-ok');
-  const issue = (S.needs_you || [])[0];
-  const pick = cited.filter(r => !issue || r.ficheiro !== issue.ficheiro).slice(0, 2);
-
-  const story = (r, cls, extra) => `<div class="story ${cls || ''}">
-    <div class="head"><span class="stamp ${cls === 'issue' ? 'red' : ''}">${cls === 'issue' ? 'needs your decision' : 'closed · self-curated'}</span>
-      <span class="file">${esc(r.ficheiro || r.receipt_ref || 'file n/d')}</span><span class="when">${r.ts ? dmy(r.ts) : 'n/d'}</span></div>
-    <dl>
-      <dt>What</dt><dd>${extra?.what || `Read <span class="mono">${esc(r.ficheiro || 'n/d')}</span> with line numbers and hunted for a claim it could pin to an exact line.`}</dd>
-      <dt>Why</dt><dd>${extra?.why || `Pillar ${esc(r.pilar || 'n/d')} hunts values that silently never reach the output — the kind of bug no one sees until production.`}</dd>
-      <dt>Routing</dt><dd>${extra?.route || `Local <span class="mono">${esc(r.modelo || 'n/d')}</span>, because reading is class C2 work — the closed routing table sends reading to the local engine: $0, and your code never leaves the machine.`}</dd>
-      <dt>Result</dt><dd>${extra?.result || `Verified citation in ${fmt(r.dur_s)}s · ${fmt(r.tokens_out)} tokens · $${(r.usd ?? 0).toFixed(2)}. <span class="mono" style="color:var(--ink-3)">${esc((r.resumo||'').slice(0,90))}</span>`}</dd>
-      <dt>Benefit</dt><dd>${extra?.benefit || 'A receipt now exists: this exact line was machine-checked on this date. Nobody had to read it by hand, and nothing was billed.'}</dd>
-    </dl>
-    ${extra?.actions || ''}
-  </div>`;
-
-  const cartaoIssue = issue ? story(issue, 'issue', {
-    what: `The local model read <span class="mono">${esc(issue.ficheiro || 'n/d')}</span> and produced a finding you flagged as an issue in triage.`,
-    why: `Pillar ${esc(issue.pilar || 'n/d')} raised it; triage marked it <b>issue</b> rather than accept or dismiss — it is waiting on you.`,
-    route: `Found by local <span class="mono">${esc(issue.modelo || 'n/d')}</span> (class C2, $0). If you accept it, the fix is class C4 — <b>Claude Code</b> writes and commits it, because git custody always belongs to a subscription engine you trust with writes.`,
-    result: `Citation verified against the file. <span class="mono" style="color:var(--ink-3)">${esc((issue.summary || '').slice(0, 140))}</span>`,
-    benefit: `${fmt(S.needs_you.length)} of ${fmt(t.total)} findings are in this state — the loop found it for free, a rule chose the fixer, and nothing moves until you say so.`,
-    actions: `<div class="act-row live-only">
-        <button class="btn spot" data-act="accept">Accept — send to Claude Code <span class="badge">proposed endpoint</span></button>
-        <button class="btn" data-act="dismiss">Dismiss with reason</button></div>
-      <div class="act-row snap-only"><span class="note" style="font-style:italic">Deciding requires the live cockpit on the device —</span>
-        <button class="btn" data-copy="/moo-pilot">Copy /moo-pilot</button></div>`,
-  }) : '<p class="note">Nothing is waiting on you: no finding is flagged as an issue right now.</p>';
-
-  const motivos = Object.entries(t.dismissed || {}).sort((a, b) => b[1] - a[1]);
+  /* ── DADO, NAO HEURISTICA (2026-09-01) ───────────────────────────────────
+     Ate aqui esta funcao escolhia dois recibos com `citacao-ok` QUAISQUER e
+     carimbava-os "closed · self-curated". Nenhum deles tinha sido triado: o
+     capitulo das tarefas mostrava recibos vestidos de tarefas. Agora as fichas
+     fechadas vem de `S.triage.items[]` — decisoes a serio, com quem decidiu,
+     quando e porque — e o recibo entra so para dar os numeros da linha Result,
+     ligado pelo `finding_id`. Uma decisao sem recibo na janela mostra o que
+     sabe e diz `n/d` no resto, em vez de pedir emprestado a outro achado. */
+  /* A legenda dos motivos. Vive ANTES de quem a usa de proposito: o menu de
+     descarte le-a enquanto constroi a ficha, e um `const` declarado depois
+     rebentava com um ReferenceError em vez de mostrar um botao. */
   const LEGENDA = {
     'instrumento-nao-discrimina': ['the instrument couldn’t discriminate',
       'The seeded-defect trial proved these pillars answer the same with and without a defect — the findings are not false, they are without probative value. Sharpening that instrument is what the loop is holding for.'],
@@ -575,14 +607,104 @@ function renderTasks(){
     'fora-do-que-estou-a-fazer': ['out of scope', 'The defect is in RELEVANCE, not in quality.'],
     'citacao-certa-conclusao-errada': ['right line, wrong conclusion', 'The line exists; the reasoning on top of it does not hold.'],
   };
-  const resto = Math.max(0, (t.total ?? 0) - (issue ? 1 : 0) - pick.length);
+  const issue = (S.needs_you || [])[0];
+  const porId = new Map((S.receipts || []).filter(r => r.finding_id).map(r => [r.finding_id, r]));
+  const fechadas = (t.items || [])
+    .filter(i => i.decision !== 'issue' && (!issue || i.chave !== issue.id))
+    .slice(0, 2);
+
+  /* A linha de encaminhamento sai da TABELA que viaja no payload. A frase que
+     estava aqui citava «the closed routing table» — uma tabela que nao existia
+     em ficheiro nenhum do repositorio ate hoje (tools/cockpit/runner/rota.mjs). */
+  const CLASSES = new Map(((S.route && S.route.classes) || []).map(c => [c.id, c]));
+  const maiuscula = (x) => esc(String(x).charAt(0).toUpperCase() + String(x).slice(1));
+  /**
+   * `frase:false` devolve so o sintagma, para caber depois de "Found by …".
+   * Sem isso, uma rota desconhecida dava «Found by Routing class n/d — this
+   * receipt does not carry enough…»: o dado estava certo e a prosa partida.
+   */
+  const rota = (id, modelo, { frase = true } = {}) => {
+    const c = CLASSES.get(id);
+    if (!c) {
+      return frase
+        ? `Routing class <span class="nd">n/d</span> — this receipt does not carry enough to say which engine produced it.`
+        : `an engine this receipt does not name (<span class="nd">n/d</span>)`;
+    }
+    const quem = id === 'C2' && modelo ? `local <span class="mono">${esc(modelo)}</span>` : esc(c.motor);
+    const corpo = `<b>${esc(c.id)}</b> · ${esc(c.nome)} — ${quem}`;
+    return frase ? `${corpo}. ${maiuscula(c.custo)}. ${maiuscula(c.porque)}.` : `${corpo} (${esc(c.custo)})`;
+  };
+
+  const story = (r, cls, extra) => `<div class="story ${cls || ''}">
+    <div class="head"><span class="stamp ${cls === 'issue' ? 'red' : ''}">${cls === 'issue' ? 'needs your decision' : 'closed · triaged'}</span>
+      <span class="file">${esc(r.ficheiro || r.receipt_ref || 'file n/d')}</span><span class="when">${r.ts ? dmy(r.ts) : 'n/d'}</span></div>
+    <dl>
+      <dt>What</dt><dd>${extra?.what || `Read <span class="mono">${esc(r.ficheiro || 'n/d')}</span> with line numbers and hunted for a claim it could pin to an exact line.`}</dd>
+      <dt>Why</dt><dd>${extra?.why || `Pillar ${esc(r.pilar || 'n/d')} hunts values that silently never reach the output — the kind of bug no one sees until production.`}</dd>
+      <dt>Routing</dt><dd>${extra?.route || rota(r.route, r.modelo)}</dd>
+      <dt>Result</dt><dd>${extra?.result || `Verified citation in ${fmt(r.dur_s)}s · ${fmt(r.tokens_out)} tokens · $${(r.usd ?? 0).toFixed(2)}. <span class="mono" style="color:var(--ink-3)">${esc((r.resumo||'').slice(0,90))}</span>`}</dd>
+      <dt>Benefit</dt><dd>${extra?.benefit || 'A receipt now exists: this exact line was machine-checked on this date. Nobody had to read it by hand, and nothing was billed.'}</dd>
+    </dl>
+    ${extra?.actions || ''}
+  </div>`;
+
+  const cartaoIssue = issue ? story(issue, 'issue', {
+    what: `The local model read <span class="mono">${esc(issue.ficheiro || 'n/d')}</span> and produced a finding you flagged as an issue in triage.`,
+    why: `Pillar ${esc(issue.pilar || 'n/d')} raised it; triage marked it <b>issue</b> rather than accept or dismiss — it is waiting on you.`,
+    route: `Found by ${rota(issue.route, issue.modelo, {frase: false})}. `
+      + `If you accept it, the fix goes to ${rota(issue.route_next, null, {frase: false})} — `
+      + `${esc((CLASSES.get(issue.route_next) || {}).porque || 'reason n/d')}.`,
+    result: `Citation verified against the file. <span class="mono" style="color:var(--ink-3)">${esc((issue.summary || '').slice(0, 140))}</span>`,
+    benefit: `${fmt(S.needs_you.length)} of ${fmt(t.total)} findings are in this state — the loop found it for free, a rule chose the fixer, and nothing moves until you say so.`,
+    actions: `<div class="act-row live-only" data-key="${esc(issue.id)}">
+        <button class="btn spot" data-act="accept">Accept — send to Claude Code</button>
+        <select class="sel" data-role="reason" aria-label="Reason for dismissing">
+          ${(t.reasons || []).map(m => `<option value="${esc(m)}">${esc((LEGENDA[m] || [m])[0])}</option>`).join('')}
+        </select>
+        <button class="btn" data-act="dismiss">Dismiss with reason</button>
+        <span class="note" data-role="estado"></span></div>
+      <div class="act-row snap-only"><span class="note" style="font-style:italic">Deciding requires the live cockpit on the device —</span>
+        <button class="btn" data-copy="/moo-pilot">Copy /moo-pilot</button></div>`,
+  }) : '<p class="note">Nothing is waiting on you: no finding is flagged as an issue right now.</p>';
+
+  const motivos = Object.entries(t.dismissed || {}).sort((a, b) => b[1] - a[1]);
+  const resto = Math.max(0, (t.total ?? 0) - (issue ? 1 : 0) - fechadas.length);
   const cauda = motivos.length
     ? motivos.map(([k, n]) => {
         const l = LEGENDA[k] || [k, 'Reason recorded in triage.'];
         return `${fmt(n)} <span data-tip="${esc(l[1])}">${esc(l[0])}</span>`;
       }).join(', ')
     : 'no dismissal carries a reason yet';
-  $('storylist').innerHTML = cartaoIssue + pick.map(r => story(r)).join('')
+
+  /* Uma ficha FECHADA e uma decisao, e diz-se quem a tomou. `agente` e o
+     autopilot de nivel 1; `dono` e ele proprio. Ate aqui as duas apareciam
+     como "self-curated" sem distincao, o que apagava exactamente a informacao
+     que o dono precisa para confiar (ou nao) no que se fechou sozinho. */
+  const fichaFechada = (i) => {
+    const r = i.finding_id ? porId.get(i.finding_id) : null;
+    const l = i.reason ? (LEGENDA[i.reason] || [i.reason, 'Reason recorded in triage.']) : null;
+    const quem = { dono: 'you', agente: 'the level-1 autopilot', claude: 'Claude Code' }[i.by] || 'n/d';
+    // Os valores de decisao sao identificadores do motor (`aceite`/`descartado`/
+    // `issue`); a pagina fala ingles. Traduz-se a ETIQUETA, nunca o dado — o que
+    // viaja no payload e o que se escreve no ledger continua a ser o original.
+    const oQue = { aceite: 'Kept', descartado: 'Dismissed', issue: 'Flagged as an issue' }[i.decision]
+      || esc(i.decision || 'n/d');
+    return story({
+      ficheiro: i.ficheiro, receipt_ref: i.chave, ts: i.decided_at,
+      pilar: i.pilar, route: i.route, modelo: r ? r.modelo : null,
+    }, 'closed', {
+      what: r
+        ? `Read <span class="mono">${esc(i.ficheiro || 'n/d')}</span> with line numbers and pinned a claim to an exact line.`
+        : `Decided on <span class="mono">${esc(i.chave)}</span>. No receipt for it in this window — the decision travels, the round's numbers do not.`,
+      why: `Pillar ${esc(i.pilar || 'n/d')} raised it.`,
+      result: `<b>${oQue}</b> by ${esc(quem)}${l ? ` — <span data-tip="${esc(l[1])}">${esc(l[0])}</span>` : ''}`
+        + (i.note ? `. <span class="mono" style="color:var(--ink-3)">${esc(i.note.slice(0, 90))}</span>` : '')
+        + (r ? `. Round: ${fmt(r.dur_s)}s · ${fmt(r.tokens_out)} tokens · $${(r.usd ?? 0).toFixed(2)}` : ''),
+      benefit: `Closed on ${i.decided_at ? dmy(i.decided_at) : 'n/d'} — the decision is a line in an append-only file, and changing your mind writes another one rather than erasing this.`,
+    });
+  };
+
+  $('storylist').innerHTML = cartaoIssue + fechadas.map(fichaFechada).join('')
     + `<p class="note" style="font-style:italic">…and ${fmt(resto)} more, all triaged the same way — ${cauda}`
     + (t.dismissed_without_reason ? `, plus ${fmt(t.dismissed_without_reason)} dismissed before reasons were required` : '')
     + `. The gate read those numbers and paused the loop. That honesty is the product.</p>`;
@@ -619,6 +741,16 @@ function renderField(){
     ${linha('vault', p.vault, 'journals, beacons, receipts of record')}
     ${linha('ledger', p.ledger, `append-only, ${fmt(S.window.lines)} lines`)}
     ${linha('beacons', p.beacons, 'ed25519-signed heartbeats')}
+    ${(() => {
+      /* `publish` viajava no payload sem ninguem o ler — um campo medido que
+         nao chega ao dono nao vale mais do que um campo em falta. Responde a
+         pergunta que a pastagem nao responde: os OUTROS veem esta maquina? */
+      const q = S.publish || {};
+      if (!q.transporte) return linha('fleet sees this device', null, esc(q.porque || 'not measured'));
+      const quando = q.ultima_publicacao ? dmy(q.ultima_publicacao) : 'never';
+      return linha('fleet sees this device', `last published ${quando}`,
+        esc(q.porque || '') + (q.por_publicar ? ' · <b style="color:var(--stamp)">changes pending</b>' : ''));
+    })()}
     <h3>CI &amp; pull requests</h3>
     <p class="note">Not measured by this build — <span class="nd">n/d</span>. The hygiene pillar (P4) is designed to feed this
     block from CI runs and open PRs; wiring it is on the roadmap. An empty slot beats an invented one.</p>`;
@@ -645,25 +777,173 @@ function renderColophon(){
     `roadmap: ${esc(RM.map(g => g.id + ' ' + g.status).join(' · ')) || 'n/d'}`;
 }
 
+/* ── the F10, and the rule that nothing is claimed until it is re-read ──────
+   Every write below follows the same three beats: read the count, write, read
+   the count AGAIN. A 200 from the endpoint is the server saying it accepted the
+   request — it is not the ledger saying the line is there. Reporting success on
+   the 200 alone is optimistic UI, and optimistic UI in a panel whose whole
+   product is "the receipt is the proof" would be the one lie that costs all the
+   others. If the second read does not move, this page says so. */
+/**
+ * O F10 e o servidor QUE SERVIU ESTA PAGINA — nunca um endereco cravado.
+ *
+ * Estava `http://127.0.0.1:4290`, e a porta e configuravel: o proprio servidor
+ * diz ao dono para usar `MOO_PORT` quando ha um segundo projecto na mesma
+ * maquina. Com dois F10 vivos (A na 4290, B na 4291), abrir o Ledger de B em
+ * `127.0.0.1:4291/ledger` — construido a partir do ledger de B — e carregar em
+ * Accept escrevia a chave de B no `triagem.jsonl` de **A**. Pior: como a
+ * contagem de A subia mesmo, a releitura confirmava, e a pagina dizia
+ * «confirmed by re-read» sobre uma escrita no projecto errado. Uma confirmacao
+ * que certifica o alvo errado e pior do que nao haver confirmacao nenhuma.
+ *
+ * `location.origin` resolve as duas pontas de uma vez: quem le a pagina servida
+ * pelo F10 fala com esse F10. So um `file://` (um instantaneo guardado em
+ * disco) nao tem origem utilizavel, e ai cai-se no endereco por omissao — que e
+ * o unico caso em que adivinhar e melhor do que nao tentar.
+ */
+const F10 = (typeof location === 'object' && location
+  && (location.protocol === 'http:' || location.protocol === 'https:'))
+  ? location.origin : 'http://127.0.0.1:4290';
+
+async function f10(rota, corpo, ms = 60000){
+  const r = await fetch(F10 + rota, {
+    method: 'POST', cache: 'no-store',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(corpo || {}),
+    signal: AbortSignal.timeout(ms),
+  });
+  let b = null; try { b = await r.json(); } catch(_){}
+  return { status: r.status, body: b };
+}
+
+/** As contagens de triagem, lidas do F10. `null` quando nao se conseguiu ler. */
+async function contagens(){
+  try{
+    // O MESMO tecto do poll de vivacidade acima: um `/fleet.json` lento dava
+    // «accepted · NOT confirmed» numa escrita que tinha corrido bem.
+    const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
+    if (!r.ok) return null;
+    const b = await r.json();
+    return (b && b.triagem) || null;
+  } catch(_){ return null; }
+}
+
+/**
+ * Decide sobre um achado e CONFIRMA por releitura.
+ *
+ * O sinal de confirmacao e a contagem do proprio veredicto a subir no servidor.
+ * Nao e perfeito — duas decisoes em paralelo mexem no mesmo numero — e por isso
+ * a mensagem diz "confirmed by re-read", nao "guaranteed": afirma-se o que se
+ * observou, com o nome do que se observou.
+ */
+async function decidir(linha, decisao){
+  // Sem a linha nao ha chave, e sem chave nao ha nada para escrever. Um `null`
+  // aqui rebentaria em `linha.dataset` e o dono via um botao que nao faz nada
+  // sem uma unica palavra a dizer porque.
+  if (!linha || !linha.dataset || !linha.dataset.key){
+    toast('This card carries no finding key — nothing to decide on. Rebuild the snapshot.');
+    return;
+  }
+  const chave = linha.dataset.key;
+  const nota = linha.querySelector('[data-role="estado"]');
+  const botoes = [...linha.querySelectorAll('button')];
+  const motivo = decisao === 'descartado'
+    ? (linha.querySelector('[data-role="reason"]') || {}).value : null;
+  botoes.forEach(b => { b.disabled = true; });
+  if (nota) nota.textContent = 'sending…';
+  try{
+    const antes = await contagens();
+    const r = await f10('/triage', {chave, decisao, motivo, por: 'dono'});
+    if (r.status !== 200){
+      const porque = (r.body && (r.body.erro || r.body.porque)) || ('HTTP ' + r.status);
+      if (nota) nota.textContent = 'refused: ' + porque;
+      toast('The device refused it: ' + porque + '. Nothing was written.');
+      return;
+    }
+    const depois = await contagens();
+    const campo = {aceite: 'aceite', descartado: 'descartado'}[decisao];
+    const subiu = antes && depois && Number(depois[campo]) > Number(antes[campo]);
+    if (subiu){
+      if (nota) nota.textContent = 'recorded · confirmed by re-read';
+      toast('Recorded on the device, and confirmed by re-reading its count.');
+    } else if (!antes || !depois){
+      if (nota) nota.textContent = 'accepted · NOT confirmed (count unreadable)';
+      toast('The device accepted it, but the count could not be re-read — so this page is not claiming it landed.');
+    } else {
+      if (nota) nota.textContent = 'accepted · count did not move';
+      toast('The device answered OK and its count did not move. Nothing is being claimed — check the ledger.');
+    }
+  } catch(err){
+    if (nota) nota.textContent = 'failed: ' + String(err && err.message || err).slice(0, 60);
+    toast('Could not reach the device’s F10. Nothing was sent.');
+  } finally {
+    botoes.forEach(b => { b.disabled = false; });
+  }
+}
+
 /* interactions — every control acts or explains */
 document.addEventListener('click', async e => {
   const cp = e.target.closest('[data-copy]');
   if (cp){ try { await navigator.clipboard.writeText(cp.dataset.copy); toast('Copied: ' + cp.dataset.copy); }
     catch { toast('Couldn’t copy here — select the command and copy manually.'); } return; }
+
   const act = e.target.closest('[data-act]');
   if (act){
-    toast('This action posts to the device’s F10 — the endpoint is proposed, not built yet. Nothing was sent, nothing pretended.');
+    if (mode !== 'live'){
+      toast('This is the stamped snapshot, not the live cockpit — there is no device here to write to.');
+      return;
+    }
+    const linha = act.closest('[data-key]');
+    if (act.dataset.act === 'accept') return decidir(linha, 'aceite');
+    if (act.dataset.act === 'dismiss') return decidir(linha, 'descartado');
+    if (act.dataset.act === 'ask') return perguntarAoMoo();
+    if (act.dataset.act === 'update') return verActualizacao();
   }
 });
+
+/** O Moo responde na GPU deste device. Sem tool-calls, sem escalada, $0. */
+async function perguntarAoMoo(){
+  const campo = $('moo-q'), saida = $('moo-a'), botao = $('moo-send');
+  const q = (campo.value || '').trim();
+  if (!q){ toast('Type a question first.'); return; }
+  botao.disabled = true;
+  saida.innerHTML = '<span class="nd">asking the local engine…</span>';
+  try{
+    const r = await f10('/assist', {mensagem: q});
+    if (r.status === 200 && r.body && r.body.ok){
+      saida.textContent = r.body.texto;
+      $('moo-meta').textContent = `${r.body.modelo} · ${r.body.dur_s}s · ${fmt(r.body.tokens_out)} tokens · $0 · on this machine`;
+    } else {
+      const porque = (r.body && r.body.porque) || ('HTTP ' + r.status);
+      saida.innerHTML = `<span class="nd">no answer — ${esc(porque)}</span>`;
+      $('moo-meta').textContent = 'nothing was escalated to a paid engine, and nothing was invented';
+    }
+  } catch(err){
+    saida.innerHTML = `<span class="nd">could not reach the device — ${esc(String(err && err.message || err).slice(0,80))}</span>`;
+  } finally { botao.disabled = false; }
+}
+
+/** Onde esta o conector novo. Instalar continua a ser um gesto do dono. */
+async function verActualizacao(){
+  try{
+    const r = await f10('/update', {});
+    const b = r.body || {};
+    if (r.status !== 200){ toast('The device could not answer: HTTP ' + r.status); return; }
+    $('hd-upd').textContent = b.bundle
+      ? `${b.bundle} — ${b.faz_assim}`
+      : `no bundle on disk — ${b.faz_assim}`;
+    toast(b.bundle ? ('Bundle: ' + b.bundle) : 'The bundle for this version has not been built on this device.');
+  } catch(_){ toast('Could not reach the device’s F10.'); }
+}
 
 /* boot ladder */
 async function boot(){
   let live = false;
   try{
-    const r = await fetch('http://127.0.0.1:4290/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
+    const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
     if (r && r.ok){ const b = await r.json(); if (b && 'recibos' in b){ live = true; lastLiveAt = Date.now();
       setInterval(async () => { try{
-        const p = await fetch('http://127.0.0.1:4290/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
+        const p = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
         if (p.ok){ lastLiveAt = Date.now(); } } catch(_){} }, 3000);
     }}
   } catch(_){ /* any failure — CSP included — lands honestly in snapshot */ }

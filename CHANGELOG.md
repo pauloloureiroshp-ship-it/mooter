@@ -8,6 +8,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versions follo
 
 ---
 
+## [1.53.0] — 2026-09-01 — The Moo Ledger stops proposing
+
+**The cockpit's controls stopped being mock-ups. `classify.js` (sha `427d8c0b…`) untouched; the runner and the kill-switch untouched.**
+
+> An adversarial review before merge caught four defects in this work, one of them blocking: the page wrote to a hardcoded `127.0.0.1:4290` while being served from a configurable port, so with two projects open a decision on project B was appended to project A's ledger — and the re-read *confirmed* it. All four are fixed below with tests that bite. Recorded here because a release note that only lists what shipped hides how close it came to shipping wrong.
+
+### Added
+- **Three real F10 verbs**, all behind the same origin guard as the kill-switch (a site the owner visits gets 403; a local `curl` does not):
+  - `POST /triage` — the **same door** as the panel's `/triagem`, with the English name. One writer, one file: a second code path would be a second way to write `triagem.jsonl`, and the two would diverge on the first new field.
+  - `POST /assist` — the Moo dock. Relays to the local Ollama and returns plain text. **No tool-calls, no escalation, no memory** — three deliberate refusals, documented in `tools/cockpit/runner/assist.mjs`. Local engine down ⇒ `503` with the reason, never a paid engine.
+  - `POST /update` — points at the newest `.mcpb` and says what to do with it. **It does not install**, and the payload declares that (`instala_sozinho: false`): installing writes into the owner's Claude Desktop and restarts it, which is his gesture.
+- **The bind is measured, not echoed** (G8) — startup runs `lsof -nP -iTCP:4290 -sTCP:LISTEN` and writes what the OS answered to the log. Measured on this machine: `1 socket(s), todos locais`. No `lsof` (Windows) prints `n/d`, never a silent "it's safe".
+- **A routing table that exists** (`tools/cockpit/runner/rota.mjs`) — the Ledger used to cite "the closed routing table (C0–C5)" in prose. That table was in no file in the repository. It now exists, each class carries the file that **enforces** it, and the two classes this loop does not exercise say so instead of being invented to round the scale out to six.
+- **Snapshot fields** (G6) — `finding_id` (stable, content-addressed, 12 hex, carries no disk path into the HTML), `triage.items[]`, `triage.reasons` (the closed list, from the engine), `route`/`route_next`, `publish`, `feed[].device`.
+- **`publish` is measured from the vault's git** — last commit that touched this device's beacon, whether the on-disk copy has diverged, and whether that commit was ever **pushed** (`@{u}..HEAD`). Reading `MOO_PUBLICAR_BEACON` would answer about the wrong process (the loop's) and the wrong question (intent, not result); stopping at the local HEAD would call a commit that never left the machine "published". First measurement here: beacon last committed **2026-08-26**, with changes pending since.
+- **A beacon that does not rot** (G3) — `beacon-renew.mjs` re-signs the **same body** before the 24 h signature window closes, plus a monotonic `seq` **inside** the signed payload. The `seq` is a **veto, never the decider**: the `ts` still picks the winner of the disk-vs-remote race and `seq` can only say *no* when both sides carry one and the remote's is lower. Letting it decide was tried and reverted before ship — the counter lives outside the vault and restarts on a fresh profile, so an old-epoch counter (800) beat a fresh one (2) and marked a working device dead. Hourly LaunchAgent + double-click installer (`_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command`).
+
+### Changed
+- **Chapter V of the Ledger shows real triage decisions.** It used to pick any two `citacao-ok` receipts and stamp them "closed · self-curated" — none of them had been triaged. Now the closed cards come from `triage.items[]`, with who decided, when, and why; a decision with no receipt in the window says `n/d` instead of borrowing another finding's numbers.
+- **No write is claimed on a `200`.** After each write the page **re-reads** the server's own count and only then says "recorded · confirmed by re-read". If the count does not move, it says that.
+- **Connector 1.53.0** — and the reason is not this wave. `_handoff/mooter-v1520.mcpb` was built 2026-08-29 at 09:00; the accessibility fix for `fleet-ui.html` (#442, four `infinite` animations running for people who asked their OS for less motion — WCAG 2.1 SC 2.3.3) landed at **15:51 the same day**. The newest bundle on disk was 6 h 51 m older than that fix. `mooter-v1530.mcpb` is the first one that carries it (335 delivery checks OK, sha256 `9100e0df…`).
+
+### Hand-edits worth naming
+- `tools/router/version.json` and `landing/app/version.json` carry a `_comment` saying "Generated — never hand-edit"; both were bumped here anyway. The reason is the same as the manifest's: `version-sync.yml` runs on **tag push**, after the merge, and the `.mcpb` bundles `tools/router/version.json` — leaving it at 1.52.0 would ship a 1.53.0 connector whose own version file disagrees. The workflow is idempotent (it prints `already 1.53.0 — no change`). Saying it here rather than leaving it to be discovered.
+
+### Not in this release, and why
+- **G4 (instrument/rotation)** and **G7 (resident model + MooterBench)** — out of scope by the kickoff; the owner decides.
+- **The CDP screenshot timeout is NOT fixed.** The kickoff's premise was that the dotted background was the cause. Measured, Chrome headless, 3 runs each: at 1280×20000, 2.88/4.62/3.10 s before vs 3.29/2.93/2.93 s after; at 1280×60000, 8.13/8.15 s vs 7.60/8.01 s. ~3 % at best, inside the noise of the runs themselves. The cost scales with the **captured area**, and no stylesheet shortens that. The texture moved to a `fixed` layer anyway — it is free, correct and visually identical — but the remedy for the timeout is capturing in viewport-sized slices or raising the CDP ceiling.
+- **G3 is shipped as code, not as a running agent.** The hourly LaunchAgent is a double-click, and it only fixes the machine it runs on. Until it runs on `desktop-j26409q` and `paulo-desktop`, those two beacons keep expiring exactly as they do today (553 768 s and 496 375 s past a 86 400 s window, measured 2026-09-01).
+
 ## [1.34.0] — 2026-06-10 — Local CC Mirror + Anthropic Pride (Wave 53)
 
 **Mooter as a local Claude Code mirror + honesty layer. Every new surface is opt-in, the statusline default is byte-identical, and `classify.js` (sha `427d8c0b…`) is untouched.**

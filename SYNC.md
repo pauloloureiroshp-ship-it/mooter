@@ -184,4 +184,70 @@ cli **668/669** · router **1285/1288** · audit **5/6** (as 3 pré-existentes) 
 `classify.js` FROZEN intacto. **Aberto:** o estágio 3 (juiz O-1) não existe · a **D8** é do dono
 (C1–C4 entram? quais das 18 saem?) · detalhe completo no journal do vault.
 
+### 2026-09-01 (manhã) · A 1.53.0 — os botões do Ledger deixaram de ser maquetas
+
+Três verbos POST a sério no F10, todos com a **mesma guarda de origem do kill-switch**: `/triage`
+(a **mesma porta** que o `/triagem` — um só escritor, um só ficheiro), `/assist` (a doca do Moo:
+relay ao Ollama local, **sem tool-calls, sem escalada, sem memória**; medido ao vivo, 7,3 s e $0 no
+`qwen2.5-coder:14b`) e `/update` (aponta o `.mcpb` e **não instala** — a recusa viaja no payload).
+**G8 fechado:** o arranque deixou de ECOAR o bind e passou a medi-lo (`lsof -nP -iTCP:4290`) —
+`1 socket(s), todos locais`, escrito no log; sem `lsof` fica `n/d`, nunca um «está seguro».
+
+**A prosa que citava uma fonte inexistente.** O Ledger dizia «the closed routing table (C0–C5)».
+Procurada no repo inteiro: **não existia ficheiro nenhum**. Não era mentira sobre o comportamento
+(as rondas correm mesmo local, o git é mesmo custódia do CC) — era pior: um facto verdadeiro
+afirmado por uma fonte que não existe. Agora existe (`runner/rota.mjs`), cada classe carrega a
+**prova** de quem a impõe, e as duas que este loop não exercita dizem-no em vez de serem inventadas
+para a escala fechar em seis. **G6 fechado** com o resto: `finding_id` estável, `triage.items[]`,
+`route`, `publish`, `feed[].device` — e o capítulo V passou a mostrar **decisões a sério** em vez de
+dois recibos `citacao-ok` quaisquer carimbados «closed · self-curated» sem nunca terem sido triados.
+Nada é dado por escrito num 200: cada escrita **relê a contagem** do servidor e só então diz
+`confirmed by re-read`; se não mexer, di-lo.
+
+**REFUTADA A REFUTAÇÃO DE ONTEM** («o bump para 1.53.0 não entrega nada»). A premissa estava certa —
+nada nesta onda toca em `packages/mooter-bridge/` — e a conclusão estava errada sobre o **artefacto**:
+o `mooter-v1520.mcpb` foi construído a 29/08 às **09:00**, e o fix de acessibilidade do `fleet-ui.html`
+(#442, quatro animações `infinite` a correr para quem pediu ao SO que não corressem) entrou às
+**15:51 do mesmo dia**. O bundle mais novo em disco estava **6h51m** atrás do fix. O
+`mooter-v1530.mcpb` é o primeiro que o leva (335 verificações, sha `9100e0df…`).
+
+**REFUTADO — a perf do Ledger.** A premissa do kickoff era que o fundo pontilhado fazia o capture CDP
+expirar. **Medido** (Chrome headless, 3 corridas cada): 1280×20000 → antes 2,88/4,62/3,10 s, depois
+3,29/2,93/2,93 s; 1280×60000 → 8,13/8,15 s vs 7,60/8,01 s. ~3% no melhor caso, **dentro do ruído**.
+O custo cresce com a ÁREA capturada e nenhuma folha de estilos o encurta. A textura passou a camada
+`fixed` na mesma (é grátis, correcta e visualmente idêntica), mas o remédio é capturar por fatias ou
+subir o tecto do CDP — está escrito no CSS para ninguém voltar a supô-lo.
+
+**G3 entregue como CÓDIGO, não como agente a correr.** O `beacon-renew.mjs` re-assina o **mesmo
+corpo** antes da janela de 24 h fechar — o `ts` do device **nunca** se re-carimba, senão um cron
+punha uma máquina morta a dizer «awake · heartbeat 3m ago», que é a mentira que a correcção viria
+introduzir (e há um teste que reprova essa alteração). Mais `seq` monotónico **dentro** do payload
+assinado, que passou a decidir a corrida disco-vs-remoto em vez do relógio. Instalar é duplo-clique
+(`_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command`) e **só arruma esta máquina**: até correr no
+`desktop-j26409q` e no `paulo-desktop`, esses dois beacons continuam a expirar exactamente como hoje
+(553 768 s e 496 375 s contra uma janela de 86 400 s).
+
+**A REVISÃO ADVERSARIAL ANTES DO PUSH APANHOU UM BLOQUEANTE MEU.** A casca tinha
+`const F10 = 'http://127.0.0.1:4290'` cravado, e a porta é configurável — o próprio servidor manda
+usar `MOO_PORT` num segundo projecto. Com dois F10 vivos, o Ledger do projecto B (servido na :4291)
+escrevia a chave de B no `triagem.jsonl` de **A** — e como a contagem de A subia mesmo, a releitura
+CONFIRMAVA. Uma confirmação que certifica o alvo errado é pior do que não haver confirmação nenhuma.
+Agora o alvo é `location.origin`; provado ao vivo a servir o Ledger na :4292 (arranca em `live`, fala
+com a :4292) e há um teste que **morde** (repor o endereço cravado reprova). Mais três da mesma
+revisão: o `seq` passou de decisor a **veto** (a decidir, um contador de época antiga declarava
+`morto` um device a trabalhar — reproduzido); o `proximoSeq` deixou de reinventar `1` sobre um
+contador ilegível (agora `null`, escrita atómica); e o `publicacao.mjs` deixou de chamar «publicado»
+a um commit que não foi empurrado (`por_empurrar`, medido contra `@{u}`).
+
+**E um incidente meu, registado porque a regra o exige:** a prova manual do `/triage` correu contra o
+`MOOTER_HOME` REAL e escreveu no `triagem.jsonl` do dono uma decisão assinada `por:'dono'` que ele
+nunca tomou. As contagens não mexeram (a chave não tinha recibo) — isso foi sorte, não desenho. A
+linha foi removida (era a última, e provavelmente minha: `PROVA-DA-PORTA-1530`), as contagens foram
+reconferidas antes e depois (`achados 1071 · aceite 3`, iguais), e o aviso ficou no `smoke.test.mjs`.
+
+Cockpit **1078/0** · bridge **1126/0** · design **10,00/10** · `classify.js` FROZEN intacto.
+Congelamento registado em `CLAUDE.md` (3 ficheiros do bridge, versão apenas).
+**Aberto:** instalar os dois LaunchAgents (G1 e G3, gesto do dono) · `npm run sync:cockpit` ·
+`version-sync.yml` continua vermelho por erro de ficheiro de workflow, também em `main`.
+
 <!-- HUMANO:FIM -->
