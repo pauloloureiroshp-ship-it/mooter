@@ -30,11 +30,14 @@
   `KeepAlive`: isto e uma tarefa que acaba, nao um servidor.
 
   NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    # O caminho do repo NAO se crava: ha 13 worktrees nesta maquina e o
+    # checkout pode viver em qualquer uma. Corre isto de DENTRO do repo.
+    REPO="$(git rev-parse --show-toplevel)"
     sed -e "s|__NODE__|$(command -v node)|" \
-        -e "s|__CHECK__|$HOME/frugal/tools/cockpit/runner/nd-check.mjs|" \
-        -e "s|__REPO__|$HOME/frugal|" \
+        -e "s|__CHECK__|${REPO}/tools/cockpit/runner/nd-check.mjs|" \
+        -e "s|__REPO__|${REPO}|" \
         -e "s|__LOG__|$HOME/.mooter/nd-check.log|" \
-        tools/ops/moo/launchd/ai.mooter.nd-check.plist \
+        "${REPO}/tools/ops/moo/launchd/ai.mooter.nd-check.plist" \
         > ~/Library/LaunchAgents/ai.mooter.nd-check.plist
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.nd-check.plist
 -->

@@ -28,11 +28,14 @@
   SEM `RunAtLoad`: um reboot nao e uma noite. SEM `KeepAlive`: acaba.
 
   NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    # O caminho do repo NAO se crava: ha 13 worktrees nesta maquina e o
+    # checkout pode viver em qualquer uma. Corre isto de DENTRO do repo.
+    REPO="$(git rev-parse --show-toplevel)"
     sed -e "s|__NODE__|$(command -v node)|" \
-        -e "s|__SUITE__|$HOME/frugal/tools/router/correr-suite.mjs|" \
-        -e "s|__REPO__|$HOME/frugal|" \
+        -e "s|__SUITE__|${REPO}/tools/router/correr-suite.mjs|" \
+        -e "s|__REPO__|${REPO}|" \
         -e "s|__LOG__|$HOME/.mooter/router-suite.log|" \
-        tools/ops/moo/launchd/ai.mooter.router-suite.plist \
+        "${REPO}/tools/ops/moo/launchd/ai.mooter.router-suite.plist" \
         > ~/Library/LaunchAgents/ai.mooter.router-suite.plist
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.router-suite.plist
 -->

@@ -28,11 +28,14 @@
   instantaneo mais velho de todos. SEM `KeepAlive`: e uma tarefa que acaba.
 
   NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    # O caminho do repo NAO se crava: ha 13 worktrees nesta maquina e o
+    # checkout pode viver em qualquer uma. Corre isto de DENTRO do repo.
+    REPO="$(git rev-parse --show-toplevel)"
     sed -e "s|__NODE__|$(command -v node)|" \
-        -e "s|__SNAPSHOT__|$HOME/frugal/tools/cockpit/runner/build-ledger-snapshot.mjs|" \
-        -e "s|__REPO__|$HOME/frugal|" \
+        -e "s|__SNAPSHOT__|${REPO}/tools/cockpit/runner/build-ledger-snapshot.mjs|" \
+        -e "s|__REPO__|${REPO}|" \
         -e "s|__LOG__|$HOME/.mooter/snapshot.log|" \
-        tools/ops/moo/launchd/ai.mooter.snapshot.plist \
+        "${REPO}/tools/ops/moo/launchd/ai.mooter.snapshot.plist" \
         > ~/Library/LaunchAgents/ai.mooter.snapshot.plist
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.snapshot.plist
 -->

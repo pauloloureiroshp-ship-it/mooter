@@ -29,11 +29,14 @@
   SEM `KeepAlive`: e uma tarefa que acaba, nao um servidor.
 
   NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    # O caminho do repo NAO se crava: ha 13 worktrees nesta maquina e o
+    # checkout pode viver em qualquer uma. Corre isto de DENTRO do repo.
+    REPO="$(git rev-parse --show-toplevel)"
     sed -e "s|__NODE__|$(command -v node)|" \
-        -e "s|__WATCHDOG__|$HOME/frugal/tools/cockpit/runner/watchdog.mjs|" \
-        -e "s|__REPO__|$HOME/frugal|" \
+        -e "s|__WATCHDOG__|${REPO}/tools/cockpit/runner/watchdog.mjs|" \
+        -e "s|__REPO__|${REPO}|" \
         -e "s|__LOG__|$HOME/.mooter/watchdog.log|" \
-        tools/ops/moo/launchd/ai.mooter.watchdog.plist \
+        "${REPO}/tools/ops/moo/launchd/ai.mooter.watchdog.plist" \
         > ~/Library/LaunchAgents/ai.mooter.watchdog.plist
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.watchdog.plist
 -->
