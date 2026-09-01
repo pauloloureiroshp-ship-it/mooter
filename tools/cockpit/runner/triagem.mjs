@@ -60,6 +60,30 @@ export const MOTIVOS = Object.freeze([
   // produzir — a escolha entre "o defeito esta na PERGUNTA" e "esta na
   // RELEVANCIA". Um numero que se estraga a si proprio nao e um numero.
   'instrumento-nao-discrimina',
+  // Acrescentado a 2026-09-01, e outra vez a lista era fechada de proposito —
+  // por isso a razao fica escrita.
+  //
+  // `instrumento-nao-discrimina` e um juizo sobre a MAQUINA: ela responderia o
+  // mesmo perante codigo limpo. Este e um juizo sobre a RESPOSTA: o modelo
+  // escreveu o que supostamente estava numa linha, e nao esta la — nem nessa
+  // linha, nem em nenhuma outra do ficheiro. Nao e opiniao de ninguem; e
+  // determinístico, $0, e `tools/cockpit/runner/receipts-check.mjs` re-confere
+  // contra o disco.
+  //
+  // Precisa de balde proprio pela mesma razao que o anterior precisou: sao
+  // diagnosticos OPOSTOS e pedem trabalho oposto. "A pergunta nao discrimina"
+  // ataca-se mudando a pergunta; "a transcricao e inventada" ataca-se com um
+  // verificador antes da triagem — que e este. Somar os dois destruiria a
+  // escolha entre eles.
+  //
+  // Medido a 2026-09-01 contra os 1072 achados do ledger deste device:
+  //   evidencia-bate 264 (24,6%) · sem-evidencia 175 (16,3%) ·
+  //   linha-errada  202 (18,8%) · sem-alegacao  431 (40,2%)
+  // ⚠️ Estes baldes sao uma classificacao MEDIDA, nao validada contra rotulos
+  // do dono. O replay de 50 (`replay-sample.mjs`) existe exactamente para isso,
+  // e ate ele acontecer nenhum destes numeros e um veredicto sobre a qualidade
+  // do instrumento — so sobre o que ele consegue conferir sozinho.
+  'sem-evidencia',
 ]);
 
 /**

@@ -52,7 +52,8 @@
     "ledger:capturar": "node tools/cockpit/runner/capturar-ledger.mjs",
     "lint:workflows": "node tools/workflows-lint.mjs",
     "test:workflows-lint": "node --test tools/workflows-lint.test.mjs",
-    "nd:check": "node tools/cockpit/runner/nd-check.mjs"
+    "nd:check": "node tools/cockpit/runner/nd-check.mjs",
+    "receipts:check": "node tools/cockpit/runner/receipts-check.mjs"
   },
   "engines": {
     "node": ">=22"
