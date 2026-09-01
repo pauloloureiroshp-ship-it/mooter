@@ -19,6 +19,9 @@ on:
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
+      # O harness A/B e a sua mordida. Sem esta linha, um PR que so lhes
+      # mexesse nao corria os testes que os guardam — presenca sem cobertura.
+      - 'tools/ab/**'
       - 'tools/handoff-preflight*'
       - 'AGENTS.md'
       - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
@@ -34,8 +37,19 @@ on:
       # um PR que so lhes mexesse nunca corria o job que os usa — e a lista de
       # divida podia crescer sem ninguem ver.
       - 'tools/guarda-home*'
+      # NAO basta nomear este ficheiro: `workflows-parseiam.test.mjs` corre so
+      # por `test:cockpit-runner`, invocado so aqui. Com `paths:` a nomear
+      # apenas o proprio `test.yml`, um PR que editasse OUTRO workflow nao
+      # disparava este job — e o `test-skip.yml` reportava os dois checks
+      # obrigatorios a verde sem correr nada. A guarda que existe para apanhar
+      # um workflow partido era cega a workflows. Medido a 2026-09-01.
       - '.github/workflows/**'
-      - 'tools/workflows-lint*'
+      # O `package.json` define O QUE os testes SAO (`test:ab`, `test:ab-morde`,
+      # `test:cockpit-runner`...). Sem esta linha, um PR que so mudasse um desses
+      # scripts nao corria este job — e o `test-skip` reportava os checks
+      # obrigatorios a verde sem ter corrido nada. Medido a 2026-09-01, ao ligar
+      # os testes do harness A/B: era o unico ficheiro do PR fora dos paths.
+      - 'package.json'
   pull_request:
     branches: [main]
     paths:
@@ -50,6 +64,9 @@ on:
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
+      # O harness A/B e a sua mordida. Sem esta linha, um PR que so lhes
+      # mexesse nao corria os testes que os guardam — presenca sem cobertura.
+      - 'tools/ab/**'
       - 'tools/handoff-preflight*'
       - 'AGENTS.md'
       - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
@@ -63,8 +80,19 @@ on:
       - 'packages/slack-spike/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/guarda-home*'
+      # NAO basta nomear este ficheiro: `workflows-parseiam.test.mjs` corre so
+      # por `test:cockpit-runner`, invocado so aqui. Com `paths:` a nomear
+      # apenas o proprio `test.yml`, um PR que editasse OUTRO workflow nao
+      # disparava este job — e o `test-skip.yml` reportava os dois checks
+      # obrigatorios a verde sem correr nada. A guarda que existe para apanhar
+      # um workflow partido era cega a workflows. Medido a 2026-09-01.
       - '.github/workflows/**'
-      - 'tools/workflows-lint*'
+      # O `package.json` define O QUE os testes SAO (`test:ab`, `test:ab-morde`,
+      # `test:cockpit-runner`...). Sem esta linha, um PR que so mudasse um desses
+      # scripts nao corria este job — e o `test-skip` reportava os checks
+      # obrigatorios a verde sem ter corrido nada. Medido a 2026-09-01, ao ligar
+      # os testes do harness A/B: era o unico ficheiro do PR fora dos paths.
+      - 'package.json'
   workflow_dispatch:
 
 jobs:
@@ -130,15 +158,6 @@ jobs:
       - name: Cockpit runner + smoke E2E
         run: npm run test:cockpit-runner
 
-      # Um workflow que nao parseia NAO CORRE PASSO NENHUM: sem log, sem
-      # anotacao, so uma bolinha vermelha. Medido a 2026-09-01: o
-      # `version-sync.yml` esteve assim 60 corridas seguidas (desde
-      # 2026-08-29T23:02Z), e o gate que existe para impedir deriva de versao
-      # foi ele proprio a fonte da deriva. Isto verifica a regra que ele
-      # quebrou — texto que sai de um bloco escalar por dedentacao.
-      - name: Workflows — nenhum bloco escalar com fuga
-        run: npm run lint:workflows && npm run test:workflows-lint
-
       # O portao do gauntlet (estagio 2). O MEO_GAUNTLET.md declara tres estagios
       # e diz que estava no primeiro — «contrato de prompt ... NAO e automatico,
       # depende de obediencia». Medido a 2026-09-01: zero ficheiros verificavam a
@@ -147,6 +166,28 @@ jobs:
       # gesto do dono, nao do agente que o escreveu.
       - name: Portao do gauntlet (estagio 2)
         run: npm run test:gauntlet
+
+      # O harness A/B produz os numeros que vao para releases e para paginas
+      # publicas, e ate 2026-09-01 nao tinha teste nenhum. Uma auditoria de
+      # pre-merge apanhou-lhe quatro defeitos — dois de metodo, dois de
+      # honestidade — e as correccoes baixaram TODOS os numeros anunciados
+      # (84,3% -> 81,7%, «+36 pontos» -> +12, «so o nosso e reprodutivel» ->
+      # retirado). Sem estes testes, qualquer uma pode ser desfeita em silencio.
+      # Hermetico: o braco do LLM recebe sempre um callImpl falso, zero rede.
+      - name: Harness A/B (os numeros publicos)
+        run: npm run test:ab
+
+      # E a prova de que os testes acima mordem. No primeiro uso, 1 dos 13
+      # defeitos plantados PASSOU: o teste das convencoes casava com a linha
+      # que define os tiers em vez do bloco que devia guardar. 22 testes verdes
+      # e um deles nao verificava nada — que e exactamente a classe de defeito
+      # que este passo existe para tornar impossivel de repetir.
+      #
+      # Passo separado porque o script MUTA o harness e restaura-o; o
+      # `node --test` corre ficheiros em paralelo e nao pode ver o ficheiro a
+      # meio de uma mutacao.
+      - name: Mordida do harness A/B (13 defeitos plantados)
+        run: npm run test:ab-morde
 
       # O portao a MORDER uma entrega real, nao so os seus proprios testes.
       # Ate aqui ele corria no CI e nunca via uma declaracao verdadeira — que e

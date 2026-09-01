@@ -250,4 +250,63 @@ Congelamento registado em `CLAUDE.md` (3 ficheiros do bridge, versão apenas).
 **Aberto:** instalar os dois LaunchAgents (G1 e G3, gesto do dono) · `npm run sync:cockpit` ·
 `version-sync.yml` continua vermelho por erro de ficheiro de workflow, também em `main`.
 
+---
+
+## 2026-09-01 · o A/B que faltava, e o bloqueio da 1.53.0
+
+**Construído, NÃO fundido.** Dois ramos, ambos à espera do gesto do dono:
+`feat/ab-mooter-vs-sem` (2 commits) · `fix/ci-version-sync-yaml` (1 commit).
+
+**O A/B existe pela primeira vez.** Até hoje o produto dizia que poupava e a única prova
+era ele próprio a dizê-lo. `tools/ab/mooter-vs-sem.mjs` corre três braços sobre o mesmo
+conjunto — sem router (tudo em T3) · router por LLM (qwen2.5-coder local, chamada real) ·
+Mooter. O gold é **anterior ao ensaio** (sai do `validation-set.json`, escrito para outro
+fim), os preços vêm do SSOT `pricing.js`. Recibos em `_handoff/ab-2026-09-01/`.
+
+**Holdout limpo, n=60** (6 corridas, todas idênticas): **40,0% · 71,7% · 81,7%** ·
+tokens **0 · 23 182 · 0** · p50 **— · 76,1ms · 1,61ms** · sobrestimou **36 · 7 · 1**.
+Gold, n=84: 16,7% · 75,0% · **96,4%**. Por secção: canonical **90,0% empatado** ·
+adversarial **92,0%** vs 80,0% · historical **68,0%** vs 56,0% — esta última é a fraqueza.
+
+**O portão adversarial de pré-merge (70 agentes) derrubou três alegações**, e as três
+correcções foram contra o nosso interesse:
+
+1. **84,3% → 81,7%.** 10 das 70 amostras foram escritas nos commits `4b6e4548` e
+   `bc4f84f1`, que alteram o `classify.js` **no mesmo commit**. O Mooter fazia **10/10**
+   exactamente nessas. Saíram; n passa a 60. A frase «o corte que ninguém afinou» era falsa.
+2. **«+36 pontos» nas adversariais → +12.** O prompt do juiz não dava ao adversário as
+   convenções privadas do repo (piso de risco, pin de modelo, sinal de qualidade) que ~9
+   rótulos codificam. Passaram a ir por escrito: o LLM sobe de 56,0% para **80,0%**.
+3. **«Só o nosso é reprodutível» — retirado.** Corríamos o adversário a `temperature 0,2`
+   e publicávamos que ele oscilava. A zero dá o mesmo nas 6 corridas, como o nosso. O painel
+   caiu: determinismo deixou de ser diferenciador.
+
+Também derrubou dois bloqueios no ramo de CI, corrigidos: uma **injecção de shell** que o
+próprio conserto armava (`${{ github.ref_name }}` dentro de um `run:`, num workflow que ia
+correr na tag v1.53.0), e o facto de os `paths:` do `test.yml` **não cobrirem
+`.github/workflows/**`** — a guarda nova nunca correria quando um workflow mudasse.
+
+**O que o ensaio NÃO prova, dito por escrito:** mede a *decisão* de encaminhamento, não a
+poupança em euros. Nesta sessão o router classificou 112 pedidos, marcou 43 como trabalho
+de graça e houve **0 delegações**. O motor acerta; a obediência é o próximo trabalho.
+
+**Material de divulgação:** `_handoff/ab-2026-09-01/banco-de-ensaio.html` — as duas peças
+(1080×1920 e 1920×1080) temporizadas e graváveis em ecrã, com guião e dossiê. Não são
+`.mp4`: é a página que se grava.
+
+**A 1.53.0 não podia sair.** `main` está em 1.53.0, a última release é a **v1.51.0** (78
+commits atrás) e o `version-sync.yml` **não era YAML válido** desde 2026-08-29 — um corpo
+de PR multilinha à coluna 0 dentro de um `run:`. 12 corridas em falha, **nenhuma numa tag**,
+que era a única coisa para que existia. O commit que o partiu chama-se «fix(ci): o Version
+Sync deixa de falhar em todas as tags». Este `SYNC.md` já o dava como vermelho — sabido,
+escrito, nunca corrigido: **documentar não corrige** (3.ª vez).
+
+Consertado com `--body-file`, e a guarda que faltava: `blocoPartido()` +
+`workflows-parseiam.test.mjs` — que é a **única** verificação do repo a apontar o
+`ci-coerencia.mjs` aos workflows reais. Descoberta pelo caminho: os outros 5 exports desse
+módulo nunca são invocados fora dos próprios testes sintéticos. Runner **1087/0**.
+
+**Aberto:** fundir os dois ramos · etiquetar a 1.53.0 (bump→merge→tag→release) · ligar as
+5 guardas inertes do `ci-coerencia` · a fraqueza `historical` 68,0% · a obediência a 0%.
+
 <!-- HUMANO:FIM -->

@@ -9,10 +9,12 @@ name: Version Sync
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
-  # Ensaio a pedido. Existe porque a unica forma de provar este workflow era
-  # publicar uma tag — e uma tag e irreversivel. Um gate que so se pode testar
-  # em producao nao se testa: foi assim que ele passou 60 corridas morto sem
-  # ninguem reparar. Por omissao o ensaio NAO escreve nada e NAO abre PR.
+  # Ensaio a pedido. O #471 poe este ficheiro a parsear outra vez e da-lhe um
+  # teste que o guarda — mas ainda so ha UMA forma de o exercitar de ponta a
+  # ponta: publicar uma tag, que e irreversivel. Um gate que so se pode provar
+  # em producao nao se prova, e foi assim que ele passou 60 corridas morto (12
+  # em falha por dia, e ZERO numa tag, que era a unica coisa para que existia).
+  # Por omissao o ensaio NAO escreve nada e NAO abre PR.
   workflow_dispatch:
     inputs:
       tag:
@@ -49,7 +51,6 @@ jobs:
           # nome do ramo — que nunca produz um semver limpo, e por isso um
           # ensaio sem `tag` sai por `skip=1` em vez de inventar uma versao.
           TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           CORE="${TAG#v}"        # strip leading v
           CORE="${CORE%%-*}"     # strip first -suffix onward
           if ! printf '%s' "$CORE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -111,8 +112,7 @@ jobs:
       - name: Ensaio — o que MUDARIA, sem escrever nada
         if: steps.ver.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && inputs.aplicar != true
         run: |
-          echo "ENSAIO da tag '${{ steps.ver.outputs.tag }}' -> versao ${{ steps.ver.outputs.version }}."
-          echo "Nada e commitado e nenhum PR e aberto. Diferenca que existiria:"
+          echo "ENSAIO da tag '${{ steps.ver.outputs.version }}'. Nada e commitado, nenhum PR e aberto."
           git --no-pager diff --stat -- tools/router/version.json landing/app/version.json \
             packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json \
             plugin/mooter/.claude-plugin/plugin.json || true
@@ -127,7 +127,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json plugin/mooter/.claude-plugin/plugin.json
-          git commit -m "chore(release): sync version.json → ${{ steps.ver.outputs.version }} [skip ci]"
+          git commit -m "chore(release): sync version.json → ${VERSAO} [skip ci]"
           # main may have advanced between the tag push and this job — rebase before
           # pushing so a racing commit doesn't cause a non-fast-forward failure.
           git pull --rebase origin main
@@ -146,33 +146,50 @@ jobs:
           # Entao deixa de tentar: abre um PR, que e o caminho que a proteccao
           # preve. Falhar a abrir o PR continua a falhar o job — um sync de
           # versao que se cala e como nao existir.
-          BRANCH="chore/version-sync-${{ steps.ver.outputs.version }}"
+          BRANCH="chore/version-sync-${VERSAO}"
           git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
-          # ⚠️ 2026-09-01 — o corpo do PR era uma string de varias linhas escrita
-          # A COMEcAR NA COLUNA 0, dentro de um bloco `run: |` indentado a 10.
-          # Em YAML isso TERMINA o bloco: as linhas seguintes ficam no raiz do
-          # documento e o ficheiro deixa de parsear. Resultado medido: 60 de 60
-          # corridas falhadas a 0s desde 2026-08-29T23:02Z ("This run likely
-          # failed because of a workflow file issue"), ou seja, desde o commit
-          # que introduziu este mesmo `gh pr create`. O gate que existe para
-          # impedir deriva de versao esteve morto durante toda a sua vida.
-          # Agora o corpo constroi-se com `printf`, uma linha por argumento,
-          # todas indentadas — nao ha forma de o texto voltar a sair do bloco.
-          BODY=$(printf '%s\n' \
-            "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${{ github.ref_name }}\`." \
-            "" \
-            "Alinha os cinco ficheiros de versao com a tag publicada:" \
-            "\`tools/router/version.json\` · \`landing/app/version.json\` ·" \
-            "\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·" \
-            "\`plugin/mooter/.claude-plugin/plugin.json\`." \
-            "" \
-            "O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador" \
-            "instala — sem este merge, a release publica um bundle rotulado com a versao anterior.")
-          gh pr create \
+          # O corpo do PR vai num FICHEIRO, não numa string multilinha dentro do
+          # `run: |`. A versão anterior punha as linhas do corpo à coluna 0: num
+          # block scalar YAML, a indentação da primeira linha define o bloco, e
+          # qualquer linha menos indentada FECHA-O. O ficheiro deixou de ser YAML
+          # válido a 2026-08-29 e desde então falhou em todos os pushes — e, o que
+          # importa mesmo, nunca chegou a correr numa tag. Um `--body-file` não
+          # tem esta classe de defeito porque o corpo nunca toca na indentação.
+          {
+            printf '%s\n' "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${TAG_NAME}\`."
+            printf '%s\n' ""
+            printf '%s\n' "Alinha os cinco ficheiros de versao com a tag publicada:"
+            printf '%s\n' "\`tools/router/version.json\` · \`landing/app/version.json\` ·"
+            printf '%s\n' "\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·"
+            printf '%s\n' "\`plugin/mooter/.claude-plugin/plugin.json\`."
+            printf '%s\n' ""
+            printf '%s\n' "O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador"
+            printf '%s\n' "instala — sem este merge, a release publica um bundle rotulado com a versao anterior."
+          } > "${RUNNER_TEMP}/pr-body.md"
+
+          # `|| echo` sozinho engolia TUDO. Com a permissão «Actions: create and
+          # approve pull requests» desligada — que é o default — o `gh pr create`
+          # leva 403, o job ficava VERDE, e o bump dos cinco ficheiros de versão
+          # nunca chegava a ser aberto enquanto a release publicava. Só o caso
+          # "já existe" é benigno; qualquer outro erro volta a falhar o job,
+          # como o comentário acima sempre prometeu.
+          if ! saida=$(gh pr create \
             --base main \
             --head "${BRANCH}" \
-            --title "chore(release): sync version.json → ${{ steps.ver.outputs.version }}" \
-            --body "$BODY" \
-            || echo "PR ja existe para ${BRANCH} — nada a abrir."
+            --title "chore(release): sync version.json → ${VERSAO}" \
+            --body-file "${RUNNER_TEMP}/pr-body.md" 2>&1); then
+            if printf '%s' "$saida" | grep -qi 'already exists'; then
+              echo "PR ja existe para ${BRANCH} — nada a abrir."
+            else
+              echo "::error::gh pr create falhou: $saida"
+              exit 1
+            fi
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Texto controlado por quem cria a tag. Vai por `env:` e NUNCA
+          # interpolado no `run:` — um `${{ }}` dentro do shell é substituído
+          # textualmente antes de o shell correr, e uma tag com `$(...)`
+          # executaria no runner com este GH_TOKEN na mão.
+          TAG_NAME: ${{ github.ref_name }}
+          VERSAO: ${{ steps.ver.outputs.version }}
