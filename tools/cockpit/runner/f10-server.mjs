@@ -44,7 +44,7 @@ import { verificarBind, linhaDeLog } from './bind-check.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
-  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, reservarParaODono,
+  naAmostraDeAuditoria, anomaliaDeDreno, avisoDeDreno, AUDITORIA_1_EM, reservarParaODono,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
@@ -327,6 +327,13 @@ export function createServer({
    * tecto desde o tique anterior, o autopilot suspende-se AQUI, sozinho, e diz
    * porque. Nao ha estado de confianca acumulado.
    */
+  /**
+   * O estado do alarme de dreno, entre tiques. Vive AQUI, no fecho do servidor,
+   * e nao num modulo: dois servidores no mesmo processo (os testes levantam
+   * varios) tem de ter relogios de silencio independentes.
+   */
+  const avisoDreno = { ultimoMs: null, silenciados: 0 };
+
   function tiqueCurar(logImpl = (s) => process.stdout.write(s)) {
     let feitos = 0;
     try {
@@ -415,8 +422,21 @@ export function createServer({
       // PARAGEM TOTAL do dreno era invisivel: o detector so via dias que tinham
       // trabalho, e o pior caso — o pilar que morre de vez — nunca disparava.
       const an = anomaliaDeDreno(fechadosPeloAgente, { agora: Date.now() });
-      if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
+      // O alarme e verdadeiro; dize-lo a cada poll do painel nao o torna mais
+      // verdadeiro — torna-o invisivel. Medido: 9558 destas linhas em 9784 do
+      // `f10.log`, 97,7% do ficheiro. `avisoDeDreno` cala a fila vazia (zero de
+      // zero nao e paragem) e limita o resto a 1/h, dizendo quantos calou.
+      const av = avisoDeDreno(an, {
+        fila: fila.length, ultimoMs: avisoDreno.ultimoMs,
+        agora: Date.now(), silenciados: avisoDreno.silenciados,
+      });
+      avisoDreno.ultimoMs = av.ultimoMs;
+      avisoDreno.silenciados = av.silenciados;
+      if (av.avisar) {
+        const calados = av.calados ? ` (+${av.calados} repeticao(oes) calada(s) na ultima hora)` : '';
+        logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${av.porque}${calados}
 `);
+      }
     } catch (err) {
       logImpl(`autopilot L1 falhou apos ${feitos} escrita(s) — o que ja foi escrito FICA (append-only): ${String(err && err.message).slice(0, 160)}
 `);
