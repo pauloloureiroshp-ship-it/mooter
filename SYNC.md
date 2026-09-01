@@ -177,4 +177,23 @@ enquanto o `mapa-e-roadmap.md` não existir · F3 está **inverificável**, não
 `render_medir.js` e o «rascunho B do round 1») · o probe **não está no CI** (`_handoff/` não é varrido
 pela lista à mão do `tools/router`); é a F1 que o promove.
 
+
+**Fecho do bloco (22:55 São Paulo, mesma sessão) · `ollama-api` corrigido — commit `8788e1d8`.**
+O defeito era pior do que a sonda: `callOllama()` devolvia **`null` sem razão nenhuma**, porque o
+`catch` do fetch engolia o `Failed to parse URL`. O motor $0 não falhava alto — falhava **mudo**, e
+quem lia o `null` concluía «o modelo não respondeu». Mesma família do `empty_completion` que o
+`provider-health.js` documenta: erro de transporte a sair pela porta de «resposta vazia».
+`normalizeHost()` nos dois pontos de entrada. **Medido depois:** `leitura → ollama` (era `codex`
+com `fallback_de: ollama`), e chamada real em **322 ms, custo 0, tokens 90/2**. 6 testes novos em
+`providers.test.js` — **que está na lista do CI**, ao contrário do probe; mordida provada (defeito
+plantado → 4 vermelhos). Suite `tools/router`: **1221/1224**; as 2 falhas são **pré-existentes** em
+`agent-sync-ledger.test.js` (paths Windows), verificado correndo `HEAD` limpo num temp dir.
+
+**Ainda aberto, e é o que interessa:** o runtime `~/.claude/tools/router/providers/ollama-api.js`
+**continua com o bug** — é esse que o hook carrega, e a correcção só fica viva depois de
+`/mooter-update`. E mais **5 ficheiros** em `tools/` usam `OLLAMA_HOST` cru pelo mesmo padrão
+(`ollama-warmup.js`, `ollama_call_node.js`, `speed-meter.js`, `cockpit/runner/ponte-adversarial.mjs`,
+`audit/audit_benchmark.js`); `packages/cli` tem-no também, mas está FROZEN. Corrigi **só** o que foi
+pedido.
+
 <!-- HUMANO:FIM -->
