@@ -14,6 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const {
@@ -51,7 +52,7 @@ test('o cap e de UMA issue por semana — nunca uma por entrada (M19)', () => {
 // ── o verificador mede o MUNDO ──────────────────────────────────────────────
 
 test('eta-index: le o indice de verdade e conta as chaves com p50', () => {
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'nd-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nd-'));
   fs.writeFileSync(path.join(dir, 'eta-index.json'), JSON.stringify({
     chaves: { a: { p50: 12 }, b: { p50: null }, c: { p50: 3 } },
   }));

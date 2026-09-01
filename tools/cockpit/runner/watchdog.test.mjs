@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -100,7 +101,7 @@ test('as constantes estao onde se possam discutir', () => {
 // ── o registo sobrevive ao reinicio ─────────────────────────────────────────
 
 test('o registo e APPEND-ONLY e le-se de volta', () => {
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-'));
   registar({ ts: '2026-09-01T12:00:00Z', ok: true }, { mooDir: dir });
   registar({ ts: '2026-09-01T12:01:00Z', ok: false }, { mooDir: dir });
   const l = lerRegisto({ mooDir: dir });
@@ -114,7 +115,7 @@ test('sem registo nenhum devolve lista vazia, nao rebenta', () => {
 });
 
 test('uma linha corrompida nao deita fora o registo inteiro', () => {
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-'));
   fs.writeFileSync(path.join(dir, 'watchdog.jsonl'), '{"ts":"a","ok":true}\nlixo\n{"ts":"b","ok":false}\n');
   assert.equal(lerRegisto({ mooDir: dir }).length, 2);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -151,7 +152,7 @@ test('o /saude.json publica o uptime, e so o poe em `itens` quando ha alerta', (
 const { MAX_LINHAS } = await import('./watchdog.mjs');
 
 test('o registo apara-se, e o que sai sao as linhas MAIS VELHAS', () => {
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-cap-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-cap-'));
   const f = path.join(dir, 'watchdog.jsonl');
   const linhas = Array.from({ length: 60 }, (_, i) => JSON.stringify({ ts: `t${i}`, ok: true, n: i }));
   fs.writeFileSync(f, `${linhas.join('\n')}\n`);
@@ -165,7 +166,7 @@ test('o registo apara-se, e o que sai sao as linhas MAIS VELHAS', () => {
 });
 
 test('abaixo do tecto (com folga) NAO se reescreve o ficheiro', () => {
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-cap2-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-cap2-'));
   fs.writeFileSync(path.join(dir, 'watchdog.jsonl'), `${JSON.stringify({ ts: 'a', ok: true })}\n`);
   let escreveu = false;
   registar({ ts: 'b', ok: true }, {
@@ -176,7 +177,7 @@ test('abaixo do tecto (com folga) NAO se reescreve o ficheiro', () => {
 });
 
 test('a LEITURA tambem so pega na cauda — nao se carrega o historico todo', () => {
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-cap3-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-cap3-'));
   const linhas = Array.from({ length: 500 }, (_, i) => JSON.stringify({ ts: `t${i}`, ok: true, n: i }));
   fs.writeFileSync(path.join(dir, 'watchdog.jsonl'), `${linhas.join('\n')}\n`);
   const lidas = lerRegisto({ mooDir: dir, max: 50 });

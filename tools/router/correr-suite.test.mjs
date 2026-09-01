@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -66,14 +67,14 @@ test('o sumario le o TAP, e o que nao vier fica `null` — nunca zero', () => {
 
 test('a corrida tem TECTO — um processo pendurado nao pode ficar a apodrecer', async () => {
   const r = await correr(['-e', 'setTimeout(()=>{},1e9)'], {
-    prefixo: [], saida: path.join(process.env.TMPDIR || '/tmp', 'suite-teste.tap'), tectoMs: 1500,
+    prefixo: [], saida: path.join(os.tmpdir(), 'suite-teste.tap'), tectoMs: 1500,
   });
   assert.equal(r.sinal, 'SIGKILL');
   assert.ok(r.ms < 6000);
 });
 
 test('a suite escreve para FICHEIRO — o TAP fica auditavel depois da corrida', async () => {
-  const saida = path.join(process.env.TMPDIR || '/tmp', 'suite-teste2.tap');
+  const saida = path.join(os.tmpdir(), 'suite-teste2.tap');
   const r = await correr(['-e', 'process.stdout.write("# tests 1\\n# pass 1\\n")'], { prefixo: [], saida, tectoMs: 8000 });
   assert.equal(r.tap, saida);
   assert.equal(r.ok, 1);
