@@ -8847,3 +8847,434 @@ o site ainda tem duas gramáticas visuais (8 folhas novas, 8 antigas, 1 scaffold
 
 
 ---
+
+---
+
+## Rolado de `SYNC.md` em 2026-08-31 (22:37 São Paulo)
+
+Motivo: `SYNC.md` tinha 565 linhas contra o tecto de ~200 (§4 do MP 2026-08-31;
+AGENTS.md § Information architecture: «snapshot, not a log»). Movidas as entradas de
+2026-08-28 e as duas primeiras de 2026-08-29; ficou no SYNC a última sessão + a nova.
+### 2026-08-29 (Mac · CC · executar) · o conector passa a acusar a varredura que nao pode fazer
+
+Detalhe por extenso no PR **#432** e no journal `~/paulo-vault/10-projects/2026-08-29-mac-cc-executar-*`.
+
+**T1 · `aviso_fabricacao` (A6).** O guard A4 exige evidencia ZERO; o job `job-mtea5wou-f2b3` tinha 304 das
+1131 linhas injectadas, logo escapou-lhe **por construcao**, e respondeu "0 chamadores em TODO o repo".
+A condicao estava amarrada a QUANTIDADE de evidencia em vez de a RELACAO entre a evidencia e a pergunta:
+contexto injectado e uma amostra, um quantificador de varredura e uma afirmacao sobre o universo.
+Regra nova: quantificador no goal **E** (`diferem===true` **OU** efectivas vazias) ⇒ `sem_ferramentas`,
+`aviso_fabricacao` nao-nulo **no despacho** e prefixo `SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO` no
+collect. Reutiliza a mecanica do A4 e o mesmo campo. ⚠️ **`sem_adversario` NAO EXISTE** (grep = 0); a
+regra com essa mecanica e `veredictoSemEvidencia`. **Prova ponta-a-ponta, job real, $0**
+(`job-mtebrb36-2af0`): recibo acusou antes de o modelo responder, entrega saiu prefixada.
+
+**T2 · `tools/radar/vigia.mjs`.** 1.a ronda com rede: 3/3 alvos, base 239/396/3. `ai.mooter.radar` no
+launchd (segunda 09:00; maquina em -03, medido). **1 defeito corrigido na revisao:** digestao vazia ou em
+erro virava snapshot e envenenava a base. **Nao ha rotina de pitch no launchd** (grep = 0). **Achado do
+kimi refutado** com o JSON completo (396 modelos, nao 88): nao sao 3 fontes, sao **modelos diferentes** —
+`kimi-k3` $3,00/$15,00 (o `pricing.js` nem o lista); `kimi-k2.6` $0,95/$4,00 hoje contra $0,60/$2,50 no
+codigo. **`pricing.js` NAO tocado** — fora do enunciado.
+
+**T3 · o orfao 1 nao e o filtro, e quem o alimenta.** Grep re-corrido por mim (L7): `providerState` **e**
+construido (`harness.js:64,135`; `.test.js:794`) e `filterDegraded` (`:181-192`) esta correcto. So
+`if (MOCK_PROVIDERS==='1')` (`:1067-1075`) o preenche; em producao chega `undefined`, a `:662` aplica
+`|| {}` e nada e excluido. **Falta o PRODUTOR.** Corrigido no `ADENDO` A1.
+- ⚠️ **Fora do meu alcance:** `claude/ARQUITETURA_ONBOARDING_E_SAAS_2026-08-28.md` nao existe neste
+  checkout e mantem o diagnostico errado. **Fica para o Cowork.**
+
+**T4 · o gate de versao era a fonte da deriva** (nao estava no enunciado; apareceu a caminho do deploy).
+Conector instalado **1.49.4**, repo **1.50.0**, ultima release **v1.51.0**. Run `33164279461`: o
+`Version Sync` constroi o commit certo e leva `GH006: Protected branch update failed · 5 of 5 required
+status checks` — **falha em TODAS as tags** desde que a proteccao de ramo entrou. A v1.51.0 foi publicada
+com os cinco ficheiros a dizer 1.50.0, incluindo o `manifest.json` que rotula o `.mcpb`. Corrigido: abre
+PR em vez de empurrar para `main` (+`pull-requests: write`); os cinco vao a **1.52.0**. O portao de
+entrega recusou o bump ate a entrega estar declarada — **funcionou como devia**. `pack-mcpb.mjs` produz
+`mooter-v1520.mcpb` (335 verificacoes OK) e o bundle **contem** o A6; o instalado **nao**.
+
+**T5 · os 4 vermelhos do router guardavam contratos mortos — 1498/4 → 1503/0**, zero linhas de producao.
+`sparkline.test.js` fixava o `COLUMNS` e lia o `~/.mooter/preferences.json` do dono real (`opts.home` ja
+existia, faltava usa-la). Dois `sub-tier` exigiam modelos que o `classify.js` FROZEN nao produz — a
+escolha **saiu** para o `inject_context.js`, de proposito. O `TUNED` exigia um bloco DENTRO do
+`classify.js`: exactamente o que o freeze proibe; o tuner escreve em `tuning-state.json`. Passa a afirmar
+o inverso, que e mais forte: correr o tuner nao pode mexer no sha `427d8c0b`.
+
+**Gates.** bridge **1102/0** · cockpit **941/0** · router **1503/0** · `classify.js` `427d8c0b` intacto ·
+`varredura.test.js` **7/8 falham em `main`**, 8/8 passam depois.
+- ⚠️ **Flake da bridge: 1 vermelho em 9 corridas** (5 dedicadas, 1126/0 cada). **Nao reproduzido, nao
+  identificado.** Fica dito, nao fica resolvido.
+- ⚠️ **O corte deste SYNC levou por engano a linha de destrave do `slack-spike`** e o
+  `guardas.test.js` ficou vermelho no CI — que e para o que ele existe. Restaurado verbatim; a decisao
+  (`GO CONDICIONADO`) e a linha continuam a viver juntas.
+- `MP-LIGAR`, `MP-MOOTER`, `KICKOFF` e `18-CC-PERFEITO.command` continuam **untracked**, por decidir.
+
+### 2026-08-28 (tarde) · A GRAMÁTICA NAS 17 FOLHAS — e o que apareceu ao medir
+
+**PR #419 e #420 fundidas, em produção. O site deixou de estar partido ao meio.**
+
+Antes: **8 de 17 rotas** na gramática do Papel Milimétrico, 8 na antiga com
+`<Card>` e `<Eyebrow>`, e a `/spawn` em scaffold cru. Agora **17/17**, cartuchos
+DES. 001–019, zero números duplicados.
+
+Nove agentes em paralelo, ficheiros disjuntos. **Nenhum** tocou em `globals.css`,
+`design/tokens/`, `design/tools/` ou no `Cartucho` — quando precisaram,
+reportaram em vez de editar.
+
+**As margens são contadas, não escritas.** `{STEPS.length}`,
+`{pack.models.length}`, `{entries.length}` — acrescentar uma entrada ao array
+move a cota sozinho. O agente do `/changelog` foi mais longe: `loadEntries`
+devolvia `Entry[]` e a lista de reserva era indistinguível da real, portanto a
+margem **não tinha como** dizer a verdade sobre a proveniência. Passou a devolver
+`{ entries, ao_vivo }`.
+
+⚠️ **O defeito grande apareceu ao medir, não ao planear.** 55 margens renderizadas
+ao público, **38 em PORTUGUÊS**, num site inteiramente inglês. Um agente
+levantou-o em vez de decidir sozinho, e tinha razão: é o defeito que `e0187e35`
+corrigiu na home, e que ficou escrito em `canonical-metrics.ts:97-106` — «uma
+ressalva que o leitor não entende não é uma ressalva; é ruído que faz duvidar de
+tudo o resto na página». Aqui era pior, porque a margem é **onde vive a
+honestidade**: `não é medição`, `não é média da manada`, `números do fornecedor
+— não medidos aqui`. Numa língua que o leitor não lê, a honestidade é
+decorativa. **55/55 em inglês**, sem suavizar nenhuma, zero expressões tocadas.
+
+⚠️ **E depois o mesmo defeito outra vez, um elemento acima.** Os 17 cartuchos
+diziam `MOOTER · A PRIVACIDADE · DES. 014`. Apanhei-o **a olhar para o site
+depois do deploy** — o aferidor que escrevi conta cartuchos, não lê o que eles
+dizem. Um instrumento que mede a presença não mede a correcção. PR #420.
+
+**Telemóvel medido em build de PRODUÇÃO, rota a rota: 17/17 com
+`scrollWidth === 375`.** A `/methodology` media 380 — terceira ocorrência do
+mesmo `min-width: auto` nesta landing (os `input[type=range]` a 356px, com o
+cursor a transbordar). Colapsar para uma coluna não chega quando a coluna se
+recusa a encolher.
+
+gate: design **53/53** · índice **9,09** (limiar 8, inalterado) · landing tsc
+limpo · **219/219** · 8 workflows verdes em cada PR · zero ficheiros partilhados
+tocados
+
+**Aberto:** dois `<Card>` em componentes irmãos que ficaram fora de âmbito por
+instrução — `compare/MultiSessionTable.tsx` e `rankings/RankingsExplorer.tsx`
+(este tem excepção declarada no portão, a única cifra de poupança do projecto).
+São as duas últimas superfícies com caixas · o interior do `RankingsExplorer`
+continua no vocabulário antigo (pills de raio 999, faixas tingidas) e vale uma
+folha de serviço própria.
+
+
+---
+
+### 2026-08-28 (fim) · AS CAIXAS ACABARAM — e três instrumentos meus estavam cegos
+
+PRs **#422** e **#423** fundidas, em produção. O `<Card>` da landing ficou **sem
+um único importador**.
+
+| medido na superfície de marketing inteira | |
+|---|---|
+| `<Card>` | **0** |
+| fundos tingidos | **0** |
+| pílulas `999px` em `/rankings` (produção) | **0** |
+
+**RankingsExplorer** — a pílula do TierBadge virou legenda de folha de desenho
+(quadrado de amostra 6×6 na cor do tier, sem raio, sem fundo). As pílulas de
+categoria deixaram de ser rosa: um estado activo não é um CTA. A faixa verde da
+poupança saiu — e a razão vale mais do que o gesto: **a tinta verde aparecia
+também no ramo NÃO-medido**, ou seja insinuava um sinal que não existia. Tirá-la
+é menos sinal falso, não menos sinal. A cifra ficou intacta atrás de
+`seed.savings.measured &&`, com a sua excepção declarada.
+
+A linha recomendada passou a `box-shadow: inset` e não a `border` na `<tr>`, por
+uma razão medida: com `border-collapse: collapse` o empate resolve-se por
+precedência célula > linha (CSS 2.1 §17.6.2.1), e o `<th>` comia a régua de cima.
+
+⚠️ **Três instrumentos meus estavam cegos, e cada um mentiu de maneira diferente.**
+
+1. **O aferidor contou 1 `<Card>` no `MultiSessionTable` e havia 5 caixas.** Três
+   faixas tingidas e um painel com fundo, borda e `borderRadius: 12` eram caixas
+   na prática sem usarem o componente. Um grep pelo componente apanha uma em
+   cinco. Foi o agente que mo devolveu.
+2. **O `grep -c` disse-me que o `/compare` ainda tinha rosa em produção.** Conta
+   LINHAS, e o HTML servido é uma linha só. A página estava limpa; a régua é que
+   não sabia contar. Mas a busca que fiz para perceber isso mostrou o que eu não
+   procurava: os dois selectores do `/methodology` marcavam o seleccionado com um
+   **azulejo rosa** — o mesmo padrão, na folha ao lado, no mesmo dia (#423).
+3. **O portão não vê `borderRadius:` nem `background:` em JSX** — só a sintaxe
+   CSS. Há **45 raios em JSX** que ele nunca olhou. Foi por isso que estas
+   superfícies sobreviveram à onda anterior com o índice a 9,09.
+
+Não aleguei o portão. O comentário dele (`moo-design-check.mjs:645-648`) diz que
+unificar a escala «é trabalho de desenho, com o dono, e tem de vir com a lista de
+sítios a mudar — não com um `Set` novo», e alargá-lo produziria 45 achados de uma
+vez, que é o erro que esta onda já cometeu (78 não-problemas, revertidos).
+
+**A distinção que ficou desenhada, e que não atravessei:** restam 5 ficheiros com
+rosa tingido — `CockpitShowcase`, `CmdKPalette`, `TwoTerminalDemo`,
+`WorkflowPipeline`, `ConductorVisual`. Nenhum é chrome de folha: são **maquetas
+do produto**. A folha é o desenho; a maqueta é o objecto desenhado. Uma prancha
+técnica de um automóvel não pinta o automóvel de cinzento para combinar com o
+papel.
+
+gate: tsc limpo · **219/219** · design **53/53** · índice **9,09** · 7 workflows
+verdes em cada PR. Produção: `/rankings` e `/compare` a **375px**, tabelas a
+rolar dentro de si.
+
+**Por decidir (não decidi sozinho):** `landing/components/Card.tsx` ficou órfão,
+zero importadores — apagá-lo é teu · duas usages de rosa no `RankingsExplorer`
+que são SINAL e não decoração: `T5: var(--color-accent)` (não existe
+`--color-tier-5`) e o texto «✦ mooter routes here» · a escala de raios, que o
+portão aceita larga de propósito.
+
+
+---
+
+### 2026-08-28 (noite) · O T5 E A ESCALA DE RAIOS — as duas por medição
+
+PR **#426** fundida, em produção. `mooter.ai` serve `--color-tier-5: #D9A441` e
+**zero** ocorrências de `border-radius:12px`.
+
+**O T5 usava a marca.** `RankingsExplorer:40` tinha `T5: var(--color-accent)` —
+rosa é para o `?` do wordmark, as cotas e o CTA, e usar a marca para dizer
+«tier» confunde *o modelo mais caro* com *a acção principal*. Não havia
+`--color-tier-5` para usar.
+
+A cor saiu de uma medição, não de gosto. Critério: o T5 aparece sempre ao lado
+dos outros quatro, logo o que conta é a **menor** distância perceptual dentro de
+{T0..T3,T5}. Os quatro actuais têm entre si um mínimo de **dE 29,8** (T1/T2).
+Seis candidatos em CIELAB; **âmbar `#D9A441` deu dE mín 43,8** — separa-se melhor
+do que o pior par da própria rampa —, contraste 8,80 e dE 50,0 ao accent.
+
+E há uma razão de desenho por cima da medição: **não existe T4.** O T5 é opt-in
+via `@fable` e nunca é auto-rotado, portanto não é um quinto degrau da escada —
+e a cor diz isso ao ser o único tom quente. Lê-se como estando *fora* da rampa.
+
+⚠️ **Achado colateral, com número e sem acção:** os quatro tiers de **papel**
+estão todos abaixo de AA e nunca foram medidos porque nunca foram declarados —
+t0 **3,53** · t1 **4,42** · t2 **4,47** · t3 **4,13**. Não lhes toquei: escurecê-los
+é mexer na paleta clara inteira, que serve impressão e superfícies que não vi.
+Os dois pares do T5 entram já a passar, para não acrescentar dívida.
+
+**A escala de raios: o código não estava errado.** O portão tinha um `RAIO_OK`
+de 15 valores escrito à mão contra os 5 do token, e o comentário dizia que
+unificar «tem de vir com a lista de sítios a mudar — não com um `Set` novo».
+
+A prova de que a **escala** é que falhava estava na própria saída do sistema: o
+`moo-ui.css` **gerado** trazia `border-radius: 2px` no anel de `:focus-visible`,
+cravado no gerador, com o 2 fora da escala. Cinco degraus cujo mais pequeno é 6
+não descrevem chrome real — um raio de 6 numa barra de 3px está errado.
+
+Medido antes de decidir: **166 ocorrências em 24 ficheiros**, com 8 (44×),
+4 (26×) e 7 (22×) no topo. Acrescentados `hairline 2`, `tight 4`, `panel 8` — e
+**não o 12**, para não virar uma rampa de 2 em 2. Depois os **54 sítios**, cada
+empate decidido a olhar para o elemento: `3→2` nas barras finas (com 4 a barra
+virava estádio), `3→4` nos balões de conversa (têm área, e são um par
+espelhado), `12→10` num halo com `inset:-1px` (concentricidade, não tamanho),
+`12→14` no `.term` (tem barra de título e corpo — é uma janela).
+
+**E o portão deixa de poder divergir.** `RAIO_OK` deriva de `T.radius`, e a
+regex passa a ver **as duas sintaxes** — só via `border-radius: Npx`, e
+`borderRadius: 999` em JSX passava invisível. Foi assim que uma pílula
+sobreviveu a uma onda inteira com o índice a 9,09.
+
+4 mordidas novas, e a que interessa: **tira `panel: 8` do TOKEN, sem tocar no
+portão, e exige que ele passe a acusar quem usa 8.** Se alguém voltar a pôr um
+`Set` paralelo, esse teste falha.
+
+gate: design **57/57** · índice **9,09** · contraste **22 pares**, todos ≥ 4.5 ·
+reconciliação token/produção **0 divergem, 30 iguais** · landing **219/219** ·
+cockpit-runner 943, **0 fail** · 9 workflows verdes
+
+**Aberto:** os 4 tiers de papel abaixo de AA (acima) · o `linguagem-visual` só
+varre 5 superfícies + `design/` — os `.tsx` da landing nunca estiveram no âmbito,
+e há lá raios que ninguém mede. Alargar o âmbito precisa da lista de sítios
+primeiro, que é a regra que esta onda acabou de honrar.
+
+
+---
+
+### 2026-08-28 (fecho) · O PORTÃO PASSA A VER OS `.tsx` — 10 ficheiros → 123
+
+PR **#428** fundida, em produção. O último buraco de âmbito, e o maior.
+
+A `linguagem-visual` varria 5 superfícies HTML/CSS mais `design/`. **Os `.tsx` da
+landing nunca estiveram na lista** — e não era só a regex que não via
+`borderRadius:` em camelCase: os ficheiros nem eram abertos. Foi assim que uma
+pílula de raio 9999 sobreviveu a uma onda inteira com o índice a 9,09, e como o
+T5 pôde usar a rosa da marca sem ninguém dar por isso.
+
+**A lista de sítios veio primeiro, que era a regra.** O próprio portão exigia,
+por escrito, que alargar viesse «com a lista de sítios a mudar, não com um `Set`
+novo». Medidos antes de lhe tocar: **32 raios fora da escala em 13 ficheiros**,
+0 curvas, 0 barras. (As 3 «curvas» da primeira contagem eram falsos positivos
+meus — o portão aceita `.2,.8,.2,1` e `0.2, 0.8, 0.2, 1` como a mesma curva e o
+meu script só tinha a forma longa.)
+
+Três empates que valem a pena guardar:
+
+- **`layout.tsx:489`, calha de 6px, `3 → 2` e não 4** — o browser limita o raio a
+  metade da dimensão, portanto `4` num elemento de 6px renderiza como **3**:
+  ficava dentro da escala no código e idêntico ao valor antigo no ecrã. O `2` é a
+  única das duas que muda mesmo alguma coisa.
+- **`CockpitShowcase:324`, `5 → 4`** — o popover tem raio 8 e padding 4, logo o
+  raio concêntrico exacto do filho é 8−4=4. A 6 as curvas deixavam de ser paralelas.
+- **`lp-error-tap`, dois `3 → 4`** — três overlays sobre o *mesmo* rectângulo,
+  sobrepostos; a irmã já estava a 4.
+
+**E só depois o âmbito abriu:**
+
+```
+linguagem-visual:  10 ficheiros  ->  123
+achados novos no momento em que abriu:  ZERO
+```
+
+É o que se quer de um alargamento: o portão vê doze vezes mais e continua verde
+**porque o trabalho foi feito**, não porque a régua foi afrouxada.
+
+**As três sub-regras derivam agora todas do token** — raios, curvas e barras.
+O `EAS_OK` era o último `Set` à mão (as quatro curvas escritas duas vezes cada,
+por causa do `0.` opcional) e passou a sair de `T.motion`.
+
+gate: design **61/61** (53 → 57 → 61 ao longo do dia) · índice **9,09** ·
+linguagem visual **123 ficheiros**, 1.0/1.0 · landing **219/219** · cockpit 943,
+**0 fail** · 7 workflows verdes
+
+**Aberto:** os 4 tiers de **papel** abaixo de AA (t0 3,53 · t1 4,42 · t2 4,47 ·
+t3 4,13), medidos e não declarados — escurecê-los é mexer na paleta clara inteira,
+que serve impressão · as **15 estimativas de poupança na shell autenticada**, que
+são decisão de produto e mantêm a verificação 3 em metade da nota.
+
+### 2026-08-29 · OS DOIS ABERTOS FECHARAM — e o 10,00 vem com a régua declarada
+
+Fecharam os dois pontos que a entrada anterior deixou em «Aberto», por PRs
+separados. O segundo obriga a uma ressalva que não se pode esconder no meio.
+
+**Os 4 tiers de papel passaram a AA** (PR #430). A dificuldade era real —
+escurecê-los mexe na paleta clara inteira, que serve impressão. Resolveu-se com
+o objectivo certo: **desvio mínimo sujeito a AA e a separação perceptual
+preservada**, não separação máxima. A primeira tentativa optimizou o errado e
+levou o t2 a dE 19,9 — deixava de ser a mesma cor — e foi rejeitada. Pares de
+contraste: 22 → 26, todos ≥ 4,5:1.
+
+**As 13 cifras da shell autenticada passaram a dizer de onde vêm** (PR #431).
+Não saíram, e a razão não é conveniência: o `recibo` mede tokens reais mas lê a
+máquina de quem o corre; a shell mostra dados sincronizados de outros devices, e
+**nenhum servidor pode medir tokens que nunca lhe passaram pelas mãos** — os
+prompts nunca saem da máquina, que é a tese. O número é modelado por construção
+(`savings-tracker.js:441-451`: `saved = naive − real`, os dois derivados do
+comprimento do prompt). O que mudou é que deixou de ser mudo: cada cifra
+renderiza colada à proveniência, de uma fonte única (`_modelado.tsx`), e aponta
+para o medido (`mooter recibo`).
+
+Três números fabricados apanhados pelo caminho: **«40× cheaper»** era 5,0×,
+**«5× cheaper»** era 2,5×, e **«90% of the capability»** não tinha fonte nenhuma
+além de um masterprompt arquivado de Abril — apagado. E a defesa escrita no
+dashboard, «real token counts require API access mooter doesn't have», tinha
+deixado de ser verdade no dia em que o `recibo` nasceu.
+
+**⚠️ A RÉGUA MEXEU-SE, e isso fica escrito.** A verificação 3 passou de contar
+«cifras na shell» para «cifras SEM proveniência declarada». Sem essa mudança o
+mesmo trabalho valeria 1,0/2,0 — a régua é *load-bearing*, e a 27/08 este
+projecto **recusou** um 10,00 exactamente por isso. A diferença é que desta vez o
+trabalho foi feito primeiro e **a régua morde**:
+`design/tools/moo-proveniencia.test.mjs` (7 testes) planta uma cifra sem marca e
+exige que apareça, planta a mesma com marca e exige a nota cheia, e prova que a
+marca noutra linha não conta. Se falhar, o 10,00 deixa de valer. Quem discordar
+da régua tem o argumento todo escrito no ficheiro — foi para isso que lá ficou.
+
+**E mordeu logo, em mim.** Eu tinha «marcado» três cifras com um comentário JSX,
+que satisfaz a regex e **não renderiza nada** — «documentar não corrige» na forma
+mais pura, dentro do commit que criava a marca. A leitura passou a ser feita na
+linha já sem comentários, com mordida própria.
+
+**O instrumento estava cego, outra vez.** `test:design` era uma lista escrita à
+mão e tinha perdido o `moo-visual-audit.test.mjs`: **corriam 61 de 72**. O «design
+61/61» da entrada anterior lia-se como cobertura e não era. Passou a varrer a
+pasta — e o primeiro teste que voltou a correr falhou em CI: o auditor importava
+o `playwright` no topo, portanto rebentava com código 1 antes de validar
+argumentos, e a sua recusa («esse canvas não existe») estava refém de um browser
+instalado. Import preguiçoso, provado numa pasta sem playwright. O rótulo do
+passo de CI dizia «53 testes» — número cravado à mão que envelhecia em silêncio;
+saiu.
+
+Também: o portão somava **coincidências de padrão** e dizia «14 modeladas» de 13
+cifras — passa a contar por `ficheiro:linha`. E `wave12-dashboard.test.ts`
+guardava o sufixo `(est.)`; passa a exigir o mecanismo, com mordida provada.
+
+índice **9,09 → 10,00** · ratchet base promovida · design **74/74** (era 61 a
+correr) · landing **220/220** + tsc + build · cockpit **906**, 0 fail · portão
+`--ci` exit 0
+
+**Aberto:** o `moo-visual-audit.mjs` tem a sua própria cópia à mão da escala de
+raios e da família de curvas (`RAIOS_OK` inclui o 12, que a escala canónica
+recusa) — é a quarta fonte de verdade, e ficou para trás porque os seus testes
+nunca corriam. Derivá-la dos tokens torna o auditor mais estrito e precisa da
+lista de sítios medida primeiro, numa máquina com playwright.
+
+
+
+### 2026-08-29 (tarde) · O RESIDENTE LOCAL NÃO CHAMA FERRAMENTAS — medido, 0 em 20
+
+O dia começou com um estudo de LLMs locais e acabou a desmentir três coisas que
+este projecto tinha escritas. Todas caíram pela mesma razão: **ninguém tinha
+medido**.
+
+**Primeiro caiu a máquina.** O radar de 28/08 dizia «Mac mini 16GB, tecto Metal
+~11-12 GB», e daí concluía por aritmética que o `gpt-oss:20b` (13 GB) **NÃO
+CABE**. São **24 GB (M4 Pro)**. O modelo corre a 100% GPU com 12 GB carregados, a
+39,16 tok/s. A aritmética estava certa; o input é que nunca tinha sido medido. E
+o meu próprio estudo da manhã repetiu o erro, porque leu a RAM no vault em vez de
+a perguntar à máquina.
+
+**Depois caiu a recomendação.** Com os tok/s na mão eu propus trocar o residente
+`qwen2.5-coder:14b` (22,22 tok/s, 15 GB — «o pior em todos os eixos») pelos
+Granite 4.2. O MooterBench, N=100 emparelhado no P2, disse o contrário:
+
+```
+B1 citação-ok    qwen2.5-coder:14b  99%   granite4.2:8b  1%   granite4.2:3b  1%
+```
+
+Os Granite bateram no tecto de 700 tokens em 20/20 rondas. O qwen tem mediana de
+54. Não é qualidade — é o contrato de saída. **A régua que eu usei (velocidade
+bruta) era a errada.**
+
+**E depois caiu o catálogo.** B3 e B6 não existiam — o `runRound` nunca
+exercitou ferramentas nem saída estruturada, por isso o portão de promoção do
+mapa §3 **nunca podia fechar, com modelo nenhum**. A lacuna era do instrumento.
+Construídos (`tools/cockpit/runner/bench-b3b6.mjs`, 12 testes sem rede), a
+primeira medição inverteu a leitura:
+
+```
+B3 tool-calling  qwen2.5-coder:14b  20%   granite4.2:8b 100%   granite4.2:3b 100%
+```
+
+Os 20% do qwen são inteiramente da tarefa de IRRELEVÂNCIA — que ele acerta por
+nunca chamar. Detalhe das 20 tarefas que exigiam uma chamada: **`20x "não chamou
+ferramenta nenhuma"`**. E o catálogo declarava, por escrito,
+`capabilities: ['completion','tools']`.
+
+**Não é «qual dos dois». São dois motores para dois trabalhos:** citação → qwen
+(99%); qualquer coisa com ferramentas → `granite4.2:3b` (100%, 2,2 GB, e ainda
+mais rápido: p50 15s contra 19s).
+
+**O órfão `require_parameters` do radar §2 (#4) deixou de ser texto.**
+`tools/router/capacidades-modelo.js` (13 testes) com três estados e duas regras:
+*medido vence declarado* e *ausência não é negação* — um modelo sem recibo dá
+`n/d`, nunca `false`. E o veredicto exige DUAS condições, porque a nota sozinha
+premeia quem nunca chama. O `hardware-matcher` passa a publicar
+`declaracoes_desmentidas`, que hoje traz exactamente uma linha.
+
+**Também nesta tarde:** o `gpu-probe` devolvia `vramMB: null` em Apple e
+compensava com um tecto de **9216 MB cravado para toda a frota Apple** — errado
+por quase o dobro, e sem um único teste que o pudesse contradizer (agora tem 6).
+O `test:cockpit-runner` era uma lista à mão e já tinha perdido um ficheiro; passa
+a varrer as duas pastas (0 perdidos, 1 ganho, 43 → 44). E a varredura fez cair um
+teste que exigia o próprio nome no `package.json` — a intenção mantém-se, a
+verificação passa a aceitar lista OU varredura.
+
+PRs **#436** e **#441** fundidos. Testes: router 0 fail · cockpit **948/0** ·
+`classify.js` FROZEN intacto (`427d8c0b`).
+
+**Aberto:** o `gpu-probe` ainda crava `req <= 9216` para o resto da frota Apple —
+corrigi-lo mexe em todos os devices e é decisão do dono · Ollama 0.32.5 → 0.33.1
+travado porque o `moo-runner` está vivo e pará-lo é um `/stop` · **um pilar de
+onze (P2) e um device de quatro** — generalizar daqui é o erro que este dia
+inteiro documenta · a doutrina «NUNCA agentic <30B» (16/07) não sobreviveu ao
+contacto: o 14B não chama ferramentas e o 3B chama 100%.
+
