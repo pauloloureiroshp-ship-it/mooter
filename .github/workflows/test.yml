@@ -247,6 +247,40 @@ jobs:
           fi
           echo "P11 checksum verified: $actual"
 
+      # O congelamento do `classify.js` era um congelamento de meia logica.
+      #
+      # `classify.js:179` faz `require('./patterns')` — TODAS as expressoes
+      # regulares que decidem o tier vivem no `patterns.js`, que nao tinha sha
+      # nenhum. Medido a 2026-09-01: com o `classify.js` byte-a-byte no estado
+      # congelado e SO o `patterns.js` trocado ao longo da sua linhagem, a
+      # precisao sobre os mesmos 35 rotulos anda entre 74,3% e 94,3%.
+      #
+      # Ou seja: dava para mudar 20 pontos de comportamento do classificador
+      # sem o sha do ficheiro congelado se mexer um bit. E aconteceu — cinco
+      # commits afinaram padroes CONTRA o validation-set depois de os rotulos
+      # existirem, e as mensagens deles dizem-no por escrito («three classifier
+      # safety fixes found by validation-set», «Adversarial accuracy: 80→92%»).
+      #
+      # Congelar um ficheiro que delega o que interessa a outro nao congelado
+      # e um invariante que so existe no papel.
+      - name: Enforce byte-identical patterns.js (a outra metade do P11)
+        run: |
+          expected="$(cat tools/router/patterns.js.sha256)"
+          actual="$(sha256sum tools/router/patterns.js | awk '{print $1}')"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::patterns.js mudou sem o tools/router/patterns.js.sha256 ser actualizado."
+            echo "  esperado: $expected"
+            echo "  medido:   $actual"
+            echo "  As regex que decidem o tier vivem aqui. Muda-las muda o"
+            echo "  classificador tanto como mudar o classify.js — e a medicao"
+            echo "  publicada deixa de valer para o motor que passa a correr."
+            echo "  Se for deliberado, actualiza o checksum E remede o A/B:"
+            echo "    sha256sum tools/router/patterns.js | awk '{print \$1}' > tools/router/patterns.js.sha256"
+            echo "    node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6"
+            exit 1
+          fi
+          echo "patterns.js checksum verificado: $actual"
+
       - name: Syntax check backtest.js
         run: node -c tools/router/backtest.js
 
