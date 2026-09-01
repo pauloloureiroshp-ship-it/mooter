@@ -88,6 +88,27 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   e as 3 transições da folha também. E o portão deixou de aceitar presença: a
   verificação `movimento-seguro` passa a exigir cobertura (universal, ou lista
   que nomeie todos), guardada por 4 testes novos em `moo-design-check.test.mjs`.
+  **2026-09-01 · `OLLAMA_HOST` sem esquema** allowlists **uma adição** —
+  `packages/cli/src/ollama-host.ts` — e **quatro linhas** em ficheiros
+  existentes: `src/audit/orchestrator.ts`, `src/commands/init.ts`,
+  `src/commands/quant-vector.ts`, `src/fable-observe/cca-f-audit.ts`
+  (autorizado pelo dono, a pedido explícito: «faz o install e tudo que sugeriu»).
+  `OLLAMA_HOST=127.0.0.1:11434` — **sem esquema** — é o formato canónico do
+  Ollama, é assim que ele próprio o documenta e o imprime, e é o que esta
+  máquina tem definido. Os quatro sítios assumiam `http://` e concatenavam, o
+  que produz `fetch("127.0.0.1:11434/api/generate")`. Não é hipótese: no motor,
+  a mesma linha fazia o `callOllama()` devolver **`null` sem razão nenhuma**
+  (o `catch` do fetch engolia o `Failed to parse URL`), e o motor **$0** falhava
+  MUDO enquanto o trabalho caía para um motor pago — corrigido em #454/#458.
+  A regra não é importada de `tools/router/ollama-host.js` porque o bundle
+  esbuild do CLI não arrasta código de fora do pacote (AGENTS.md § Conventions):
+  é uma fronteira de **empacotamento**, não de conhecimento. Para as duas cópias
+  não divergirem em silêncio, ambas são provadas contra a **mesma** tabela,
+  `tools/router/ollama-host.casos.json` — os testes correm no repo, não no
+  bundle, e a fronteira não se lhes aplica. Provado por
+  `packages/cli/tests/ollama-host.test.ts` (6) e pelos 2 casos de paridade em
+  `tools/router/ollama-host.test.js`; mordida verificada: alterar um caso da
+  tabela reprova **os dois lados**.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

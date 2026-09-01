@@ -128,3 +128,34 @@ test('cobertura: a varredura vê mesmo ficheiros — guarda contra um teste que 
   const comEnv = todos.filter((p) => /process\.env\.OLLAMA_HOST/.test(fs.readFileSync(p, 'utf8')));
   assert.ok(comEnv.length > 0, 'nenhum ficheiro menciona OLLAMA_HOST — o regex da varredura deixou de coincidir');
 });
+
+// ── paridade com a implementação do CLI ──────────────────────────────────
+//
+// `packages/cli/src/ollama-host.ts` é uma SEGUNDA cópia desta regra. Existe
+// porque o bundle esbuild do CLI não arrasta código de fora do pacote — é uma
+// fronteira de empacotamento, não de conhecimento. Os testes correm no repo e
+// não no bundle, por isso os dois lados podem ancorar-se na mesma tabela; sem
+// ela, duas cópias da mesma regra divergiam em silêncio, que é exactamente o
+// defeito que este ficheiro existe para matar.
+
+const CASOS_PATH = path.join(__dirname, 'ollama-host.casos.json');
+
+function carregarCasos() {
+  return JSON.parse(fs.readFileSync(CASOS_PATH, 'utf8')).casos;
+}
+
+test('a tabela de casos partilhada existe e não está vazia', () => {
+  // Um `for` sobre lista vazia passa verde tendo corrido zero asserções.
+  const casos = carregarCasos();
+  assert.ok(casos.length >= 10, `só ${casos.length} casos — a tabela não foi lida`);
+  assert.ok(casos.some((c) => c.entrada === '127.0.0.1:11434'),
+    'o caso canónico (sem esquema) tem de estar na tabela');
+});
+
+test('normalizeHost cumpre TODOS os casos partilhados com o CLI', () => {
+  for (const c of carregarCasos()) {
+    const esperado = c.esperado === '__DEFAULT__' ? DEFAULT_OLLAMA_HOST : c.esperado;
+    assert.equal(normalizeHost(c.entrada), esperado,
+      `${JSON.stringify(c.entrada)} → esperado ${esperado} · ${c.porque}`);
+  }
+});

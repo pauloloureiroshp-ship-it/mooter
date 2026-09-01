@@ -57,7 +57,7 @@ function round(n) { return Math.round(n * 10000) / 10000; }
 
 // ── cost breakdown ─────────────────────────────────────────────────────────--
 
-function costBreakdown() {
+function costBreakdown(opts = {}) {
   const corpus = readJson(STATS_PATH) || {};
   const valStats = readJson(VALIDATION_STATS_PATH) || {};
   const phaseTok = readJson(PHASE_TOKENS_PATH) || {};
@@ -115,7 +115,15 @@ function costBreakdown() {
   // Vazio quando tudo foi medido. Com conteudo, os totais acima incluem fases
   // que contribuiram 0 por AUSENCIA de dados e nao por nao terem gasto nada.
   const out = { rows, totals, fases_sem_tokens: semTokens };
-  ensureDir(); fs.writeFileSync(COST_PATH, JSON.stringify(out, null, 2));
+  // `{ write: false }` calcula sem tocar no disco.
+  //
+  // Sem isto, `npm test` do audit escrevia em `audit/cost_breakdown.json` — um
+  // ficheiro VERSIONADO. Medido a 2026-08-31: correr a suite deixava o repo
+  // sujo (`fases_sem_tokens: []` acrescentado), e quem fizesse `git add -A` a
+  // seguir commitava saída de teste como se fosse trabalho. É a mesma família
+  // do `npm test` do CLI que apagava o `~/.mooter` — uma suite não pode alterar
+  // o estado que está a medir.
+  if (opts.write !== false) { ensureDir(); fs.writeFileSync(COST_PATH, JSON.stringify(out, null, 2)); }
   return out;
 }
 
