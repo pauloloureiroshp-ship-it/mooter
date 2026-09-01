@@ -250,6 +250,11 @@ export async function bracoLlm(amostras, { modelo, callImpl, timeoutMs = 120000 
   const call = callImpl || callOllama;
   const linhas = [];
   let tIn = 0, tOut = 0;
+  // Quantas chamadas CHEGARAM ao modelo (resposta truthy), independentemente de
+  // a resposta ser util. E este o contador que separa «nao correu» (transporte
+  // em baixo) de «correu e nao acertou» (respondeu lixo, e gastou tokens a
+  // faze-lo). Confundi-los perdoaria ao adversario os erros dele.
+  let respostas = 0;
   const t0 = process.hrtime.bigint();
 
   for (const a of amostras) {
@@ -264,6 +269,7 @@ export async function bracoLlm(amostras, { modelo, callImpl, timeoutMs = 120000 
       if (!r) {
         erro = 'resposta nula';
       } else {
+        respostas++;
         ti = Number(r.tokensIn || 0); to = Number(r.tokensOut || 0);
         const m = RE_TIER.exec(String(r.text || ''));
         // Sem rótulo reconhecível é `null`, NÃO um palpite. Um juiz que não
@@ -276,10 +282,25 @@ export async function bracoLlm(amostras, { modelo, callImpl, timeoutMs = 120000 
     linhas.push({ id: a.id, esperado: a.expected_tier, obtido: tier, erro, ms: Number(process.hrtime.bigint() - t) / 1e6, tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada, trust: a.trust || null, preview_truncado: !!a.preview_truncado });
   }
 
+  // Se NENHUMA chamada chegou ao modelo, este braço não correu — e um braço que
+  // não correu não tem 0% de precisão, tem n/d. A distinção não é semântica: 0%
+  // faz o adversário perder por incomparecimento e dá uma vitória falsa a quem
+  // não tem o motor instalado, que é exactamente quem não a pode verificar.
+  //
+  // «Não correu» é falha de TRANSPORTE, não resposta inútil. Um juiz que devolve
+  // «não sei bem» CORREU: gastou tokens, teve a sua oportunidade, e não acertou.
+  // Contá-lo como ausente seria perdoar-lhe o erro. Só o que nunca chegou ao
+  // modelo — excepção ou resposta nula — conta como não ter comparecido.
+  const naoCorreu = linhas.length > 0 && respostas === 0;
+
   return {
     braco: `A2 · ROUTER POR LLM (${modelo})`,
     linhas, ms_total: Number(process.hrtime.bigint() - t0) / 1e6,
     tokens_in: tIn, tokens_out: tOut, rede: true, modelo,
+    nao_correu: naoCorreu,
+    nao_correu_porque: naoCorreu
+      ? `nenhuma das ${linhas.length} chamadas respondeu — 1.º erro: ${linhas[0] && linhas[0].erro}`
+      : null,
   };
 }
 
@@ -334,13 +355,17 @@ export function contabilizar(r) {
   const limpasCertas = limpas.filter((l) => l.obtido === l.esperado).length;
   const coa = r.linhas.filter((l) => l.coautorada);
 
+  // Um braço que não correu não pontua: todas as precisões dele são n/d.
+  const morto = !!r.nao_correu;
+
   return {
     ...r,
     total, respondidas, certas, sem_resposta: semResposta,
-    precisao_respondidas, precisao_total,
+    precisao_respondidas: morto ? null : precisao_respondidas,
+    precisao_total: morto ? null : precisao_total,
     n_limpas: limpas.length,
     certas_limpas: limpasCertas,
-    precisao_limpa: limpas.length ? limpasCertas / limpas.length : null,
+    precisao_limpa: morto || !limpas.length ? null : limpasCertas / limpas.length,
     n_coautoradas: coa.length,
     certas_coautoradas: coa.filter((l) => l.obtido === l.esperado).length,
 
@@ -348,7 +373,7 @@ export function contabilizar(r) {
     // e sem os que nasceram no mesmo commit que afinou o classificador.
     n_ground_truth: gt.length,
     certas_ground_truth: gtCertas,
-    precisao_ground_truth: gt.length ? gtCertas / gt.length : null,
+    precisao_ground_truth: morto || !gt.length ? null : gtCertas / gt.length,
 
     // DERIVA — nao e precisao, e nao entra em media nenhuma com o de cima.
     // `concordancia` = quantas vezes o classificador de hoje diz o mesmo que
@@ -459,6 +484,12 @@ export function imprimir(resultados, meta) {
   }
   L.push(`  corrido   ${meta.ts}`);
   L.push('');
+  const mortos = resultados.filter((r) => r.nao_correu);
+  if (mortos.length) {
+    L.push('  ⚠ BRAÇO(S) QUE NÃO CORRERAM — os números abaixo NÃO são uma comparação');
+    for (const r of mortos) L.push(`    ${r.braco}: ${r.nao_correu_porque}`);
+    L.push('');
+  }
   L.push('  BRAÇO                            GROUND  LIMPA  TODAS  SUB SOBRE  TOKENS    p50');
   for (const r of resultados) {
     const nome = r.braco.padEnd(34).slice(0, 34);
@@ -553,7 +584,10 @@ export async function correrVarias(opts = {}, n = 1) {
 
   const bracos = corridas[0].resultados.map((r) => r.braco);
   const resumo = bracos.map((braco, i) => {
-    const lim = corridas.map((c) => c.resultados[i].precisao_limpa);
+    // GROUND TRUTH é o que se publica, logo é o que a reprodução tem de
+    // imprimir. Publicar um número e imprimir outro no comando que se manda
+    // correr é o defeito que mata a palavra «auditável».
+    const lim = corridas.map((c) => c.resultados[i].precisao_ground_truth);
     const tot = corridas.map((c) => c.resultados[i].precisao_total);
     return {
       braco,
@@ -602,9 +636,17 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ESTE)) {
       console.log('  ' + '─'.repeat(72));
       for (const b of r.resumo) {
         const f = (x) => (x == null ? 'n/d' : `${(x * 100).toFixed(1)}%`);
-        console.log(`  ${b.braco.padEnd(34).slice(0, 34)} mediana ${f(b.precisao_limpa_mediana).padStart(6)}` +
+        console.log(`  ${b.braco.padEnd(34).slice(0, 34)} ground truth ${f(b.precisao_limpa_mediana).padStart(6)}` +
           `  faixa ${f(b.precisao_limpa_min)}–${f(b.precisao_limpa_max)}` +
           (b.identico_em_todas ? '  (idêntico nas ' + b.corridas + ')' : ''));
+      }
+      if (Array.isArray(r.significancia) && r.significancia.length) {
+        console.log('  a diferença aguenta-se? (McNemar exacto, pares)');
+        for (const m of r.significancia) {
+          const vd = m.significativo === null ? 'n/d — sem discordantes'
+            : m.significativo ? 'SIM' : 'NÃO — não se separa do ruído com este n';
+          console.log(`    MOOTER vs ${m.contra.slice(0, 26).padEnd(27)} ${m.so_b} a ${m.so_a} · p=${m.p == null ? 'n/d' : m.p.toFixed(4)} · ${vd}`);
+        }
       }
       console.log('');
       process.exit(0);

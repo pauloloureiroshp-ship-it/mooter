@@ -128,6 +128,15 @@ const DEFEITOS = [
     de: '    significativo: n === 0 ? null : p < 0.05,',
     para: '    significativo: p < 0.05, // DEFEITO' },
 
+  // ── auditabilidade para um estranho ────────────────────────────────────
+  { nome: 'um braco que nao correu volta a pontuar 0% (vitoria fabricada)',
+    de: '  const naoCorreu = linhas.length > 0 && respostas === 0;',
+    para: '  const naoCorreu = false; // DEFEITO' },
+
+  { nome: 'a reproducao volta a imprimir o numero ANTERIOR a correccao',
+    de: '    const lim = corridas.map((c) => c.resultados[i].precisao_ground_truth);',
+    para: '    const lim = corridas.map((c) => c.resultados[i].precisao_limpa); // DEFEITO' },
+
   { nome: 'a significancia deixa de sair no resumo das corridas',
     de: '  const significancia = alvo ? prim.filter((r) => r !== alvo).map((r) => ({',
     para: '  const significancia = false ? prim.filter((r) => r !== alvo).map((r) => ({ // DEFEITO' },

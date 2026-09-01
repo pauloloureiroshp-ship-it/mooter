@@ -473,6 +473,56 @@ test('nos dados reais: vs SEM ROUTER aguenta-se; vs router-por-LLM não', async 
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 5c · AUDITÁVEL PARA UM ESTRANHO — os dois defeitos que matavam a palavra
+// ═══════════════════════════════════════════════════════════════════════════
+
+test('um braço que NÃO correu vale n/d — nunca 0%', async () => {
+  // Sem Ollama (o estado por omissão de qualquer estranho) todas as chamadas
+  // falhavam, o braço marcava 0,0% e o Mooter «ganhava» 100 a 0. Um banco de
+  // ensaio que FABRICA uma vitória quando falta uma dependência dá a resposta
+  // que se quer ouvir precisamente a quem não a pode verificar.
+  const morto = async () => { throw new Error('connect ECONNREFUSED'); };
+  const r = await bracoLlm([am('a', 'T0', 'p'), am('b', 'T1', 'q')],
+    { modelo: 'ausente', callImpl: morto });
+
+  assert.equal(r.nao_correu, true, 'o braço tem de saber que não correu');
+  assert.match(r.nao_correu_porque, /nenhuma das 2 chamadas respondeu/);
+
+  const c = contabilizar(r);
+  assert.equal(c.precisao_total, null, '0% seria perder por incomparecimento');
+  assert.equal(c.precisao_ground_truth, null);
+  assert.equal(c.precisao_respondidas, null);
+  const comCusto = { ...c, custo: custoEquivalente(c, { PRICES: null }) };
+  assert.ok(imprimir([comCusto], { n: 2, total_gold: 2, dataset: 'x' }).includes('NÃO CORRERAM'),
+    'e o relatório tem de o gritar, não escondê-lo numa célula a zero');
+});
+
+test('um braço com UMA resposta já correu — o corte é «nenhuma», não «poucas»', async () => {
+  let n = 0;
+  const quase = async () => (n++ === 0 ? { text: 'T0', tokensIn: 1, tokensOut: 1 } : null);
+  const r = await bracoLlm([am('a', 'T0', 'p'), am('b', 'T1', 'q'), am('c', 'T2', 'r')],
+    { modelo: 'x', callImpl: quase });
+  assert.equal(r.nao_correu, false, 'uma resposta é uma medição parcial, não uma ausência');
+  assert.equal(contabilizar(r).sem_resposta, 2, 'e as que faltaram contam-se à parte');
+});
+
+test('o comando de reprodução imprime o MESMO número que se publica', async () => {
+  // `--corridas N` imprimia a mediana de `precisao_limpa` (81,7%) — o valor
+  // ANTERIOR à correcção do gabarito — enquanto a peça publicava
+  // `precisao_ground_truth` (91,4%). Um estranho que corresse o comando via
+  // números que não batiam com nada. É a diferença entre auditável e não.
+  const j = juizFixo('T3');
+  const r = await correrVarias({ holdout: true, callImpl: j }, 1);
+  const c = await correr({ holdout: true, callImpl: j });
+
+  for (const b of r.resumo) {
+    const único = c.resultados.find((x) => x.braco === b.braco);
+    assert.equal(b.precisao_limpa_mediana, único.precisao_ground_truth,
+      `o resumo de ${b.braco} tem de reportar o ground truth — é esse o número publicado`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 6 · O CUSTO — «equivalente a preço de tabela», nunca «poupança»
 // ═══════════════════════════════════════════════════════════════════════════
 
