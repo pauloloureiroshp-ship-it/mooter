@@ -43,7 +43,9 @@
 //     configuração de projecto (`JSON_NUNCA`, abaixo);
 //   · e, por cima de tudo isso, **só o que está versionado no git**
 //     (`ficheirosVersionados`) — a regra que impede o espelho de arrastar
-//     `coverage/` e os 12 `.json` de estado local de um checkout de trabalho.
+//     `coverage/` e os 12 `.json` de estado local de um checkout de trabalho;
+//   · **menos os hooks ligados** (`hooksLigados`), que pertencem a
+//     `~/.claude/hooks/` e cuja cópia aqui é só uma cópia a envelhecer.
 //
 // A segunda regra dispensa uma lista de inclusão: `safety_seeds.json` estava
 // ausente do runtime e é requerido por código — passa a propagar-se sozinho, e
@@ -65,6 +67,7 @@
 //   node sync-runtime.js            # espelha
 //   node sync-runtime.js --check    # não escreve; falha se houver divergência
 //   node sync-runtime.js --src DIR  # origem explícita
+//   node sync-runtime.js --dest DIR # destino explícito (o install.sh usa-o)
 //
 // Nunca lança para o chamador: devolve código de saída, imprime o que fez.
 
@@ -142,6 +145,32 @@ const JSON_NUNCA = new Set([
   '.eslintrc.json',
 ]);
 
+/**
+ * Os hooks ligados vivem em `~/.claude/hooks/`, NÃO aqui.
+ *
+ * O `install.sh` copia-os para `$HOOKS_DIR` e a seguir faz `rm -f` da cópia em
+ * `~/.claude/tools/router/` — de propósito: os `require('./_model-resolver')` do
+ * `exec-logger.js` e do `PostToolUse.js` resolvem-se ao lado do hook, e uma
+ * segunda cópia no router é só uma cópia a envelhecer sem ninguém a carregar.
+ *
+ * O espelho copiava-os na mesma e recriava essa cópia a cada update — a «4.ª
+ * cópia da statusline» que já custou uma sessão inteira ao dono: com uma origem
+ * stale, o ficheiro novo era sobreposto pelo velho e o sync dizia «synced».
+ *
+ * A lista vem do `sync-hooks.js`, que é quem a define. Duplicá-la aqui seria
+ * criar o mesmo drift que este ficheiro existe para fechar. Se esse módulo não
+ * carregar, devolve-se lista vazia: o espelho volta ao comportamento antigo
+ * (copiar a mais) em vez de rebentar.
+ */
+function hooksLigados() {
+  try {
+    const { WIRED_HOOKS } = require('./sync-hooks.js');
+    return new Set(Array.isArray(WIRED_HOOKS) ? WIRED_HOOKS : []);
+  } catch {
+    return new Set();
+  }
+}
+
 /** Subpastas que NUNCA são runtime, custe o que custar. */
 const PASTAS_IGNORADAS = new Set(['node_modules', '.git', '__pycache__', 'benchmark-results', 'coverage']);
 
@@ -161,7 +190,14 @@ function resolveSrcDir(explicit) {
   return __dirname;
 }
 
-function destDir(home) {
+/**
+ * Destino. `--dest` explícito ganha a tudo — o `install.sh` tem
+ * `CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"`, sobreponível por variável de
+ * ambiente, e um espelho que assumisse `~/.claude` escrevia no sítio errado
+ * para quem a define.
+ */
+function destDir(home, dest) {
+  if (dest) return path.resolve(dest);
   return path.join(home || homeDir(), '.claude', 'tools', 'router');
 }
 
@@ -225,14 +261,22 @@ function precisaCopia(origem, destino) {
  */
 function sync(opts = {}) {
   const src = resolveSrcDir(opts.src);
-  const dst = destDir(opts.home);
+  const dst = destDir(opts.home, opts.dest);
 
   // `opts.versionados === null` desliga o filtro explicitamente (testes).
   const versionados = opts.versionados !== undefined ? opts.versionados : ficheirosVersionados(src);
   const distribuivel = (rel) => !versionados || versionados.has(path.normalize(rel));
 
-  const js = listarJs(src).filter(distribuivel);
-  const json = listarJson(src, js).filter(distribuivel);
+  const hooks = opts.hooks !== undefined ? opts.hooks : hooksLigados();
+  // Só no nível 1: os hooks ligados vivem todos na raiz de tools/router/.
+  const ehHook = (rel) => !rel.includes(path.sep) && hooks.has(rel);
+
+  // `listarJson` lê o corpo dos `.js` para descobrir que `.json` são precisos —
+  // e os hooks contam para isso, mesmo não sendo copiados para aqui. Excluí-los
+  // ANTES da derivação faria desaparecer um `.json` que só o hook menciona.
+  const jsTodos = listarJs(src).filter(distribuivel);
+  const json = listarJson(src, jsTodos).filter(distribuivel);
+  const js = jsTodos.filter((rel) => !ehHook(rel));
   const todos = [...js, ...json];
 
   const emFalta = [];
@@ -254,17 +298,29 @@ function sync(opts = {}) {
     }
   }
 
-  return { src, dst, total: todos.length, js: js.length, json, emFalta, copiados };
+  // Cópias de hooks que ficaram no router de updates anteriores. Reporta-se,
+  // NÃO se apaga: um espelho que apaga ficheiros é uma ferramenta diferente, e
+  // muito mais perigosa, do que um que copia. Quem decide remover é o dono.
+  const hooksOrfaos = [...hooks].filter((h) => fs.existsSync(path.join(dst, h))).sort();
+
+  return { src, dst, total: todos.length, js: js.length, json, emFalta, copiados, hooksOrfaos };
 }
 
 function main(argv) {
   const check = argv.includes('--check');
   const iSrc = argv.indexOf('--src');
   const src = iSrc >= 0 ? argv[iSrc + 1] : undefined;
+  const iDest = argv.indexOf('--dest');
+  const dest = iDest >= 0 ? argv[iDest + 1] : undefined;
 
-  const r = sync({ src, check });
+  const r = sync({ src, dest, check });
   console.log(`runtime mirror: ${r.src} -> ${r.dst}`);
   console.log(`  ${r.js} .js (recursivo, sem testes) + ${r.json.length} .json derivados: ${r.json.join(', ')}`);
+  if (r.hooksOrfaos.length) {
+    console.log(`  nota: ${r.hooksOrfaos.length} cópia(s) de hooks ligados ainda no router (o install apaga-as; nós não):`);
+    console.log(`    ${r.hooksOrfaos.join(', ')}`);
+    console.log('    vivem em ~/.claude/hooks/ — estas não são carregadas por ninguém.');
+  }
 
   if (check) {
     if (r.emFalta.length === 0) {
@@ -286,6 +342,6 @@ function main(argv) {
   return 0;
 }
 
-module.exports = { sync, listarJs, listarJson, ficheirosVersionados, resolveSrcDir, destDir, JSON_SEMPRE, JSON_NUNCA, PASTAS_IGNORADAS };
+module.exports = { sync, listarJs, listarJson, ficheirosVersionados, hooksLigados, resolveSrcDir, destDir, JSON_SEMPRE, JSON_NUNCA, PASTAS_IGNORADAS };
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
