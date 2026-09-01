@@ -18,6 +18,7 @@ on:
       # job que o testa — o defeito do #398, onde um workflow filtrado por path
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
+      - 'tools/gauntlet/**'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -44,6 +45,7 @@ on:
       # job que o testa — o defeito do #398, onde um workflow filtrado por path
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
+      - 'tools/gauntlet/**'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -119,6 +121,15 @@ jobs:
       # partida: comportamento sem trava.
       - name: Cockpit runner + smoke E2E
         run: npm run test:cockpit-runner
+
+      # O portao do gauntlet (estagio 2). O MEO_GAUNTLET.md declara tres estagios
+      # e diz que estava no primeiro — «contrato de prompt ... NAO e automatico,
+      # depende de obediencia». Medido a 2026-09-01: zero ficheiros verificavam a
+      # declaracao `gauntlet:`. Dezoito perguntas escritas, nenhuma aplicada.
+      # Isto testa o PORTAO, nao as waves: torna-lo required sobre os PRs e um
+      # gesto do dono, nao do agente que o escreveu.
+      - name: Portao do gauntlet (estagio 2)
+        run: npm run test:gauntlet
 
       # O guarda do ~/.mooter tem de ser mordido antes de se confiar nele: um
       # guarda que nunca falhou e indistinguivel de um guarda que nao funciona.
