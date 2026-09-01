@@ -216,3 +216,106 @@ test('o publicador verifica o vault ANTES de lhe tocar', () => {
   assert.ok(iEstado > 0 && iAdd > 0);
   assert.ok(iEstado < iAdd, 'a verificacao tem de vir antes de qualquer escrita');
 });
+
+// ── RAIO DE ACCAO e a chave de deploy (M10) ─────────────────────────────────
+//
+// Ate 2026-09-01 o `ficheiroRel` vinha de fora e nao era verificado: este
+// modulo, que corre sozinho de 10 em 10 minutos, podia commitar QUALQUER
+// caminho do vault PESSOAL do dono. Nunca o fez — e essa nao e a questao. A
+// defesa "mas ele so passa beacons" era uma convencao de chamada, nao uma trava.
+
+const { dentroDaPasta, modoDeploy, PASTA_DOS_BEACONS, PASTA_ISOLADA } =
+  await import('./beacon-publisher.mjs');
+
+test('RAIO: um caminho fora da pasta dos beacons e recusado', () => {
+  const g = gitFalso();
+  for (const mau of [
+    '00-core/reasoning-protocol.md',
+    '40-strategy/2026-08-25-pitch.md',
+    '../fora-do-vault.json',
+    '50-fleet/../00-core/segredo.json',
+    '/etc/passwd',
+  ]) {
+    const r = publicarBeacon('/vault', mau, { runImpl: g.run, existsImpl: existeSempre, env: {} });
+    assert.equal(r.ok, false, `deixou passar ${mau}`);
+    assert.match(r.porque, /está fora de/, mau);
+  }
+});
+
+test('RAIO: e só ficheiros .json — o vault do dono é markdown', () => {
+  assert.equal(dentroDaPasta('50-fleet/mac.json'), true);
+  assert.equal(dentroDaPasta('50-fleet/notas.md'), false);
+  assert.equal(dentroDaPasta(''), false);
+  assert.equal(dentroDaPasta(null), false);
+});
+
+test('a pasta por omissão continua a ser a que os beacons já usam', () => {
+  assert.equal(PASTA_DOS_BEACONS, '50-fleet/');
+  assert.equal(PASTA_ISOLADA, '50-fleet/90-beacons/');
+});
+
+test('DESLIGADO por omissão — a activação é ata do dono', () => {
+  assert.equal(modoDeploy({}).ligado, false);
+  assert.equal(modoDeploy({ MOO_BEACON_PUSH: '0' }).ligado, false);
+});
+
+test('FAIL-CLOSED: pedir o modo sem chave NÃO cai para as credenciais do dono', () => {
+  const semChave = modoDeploy({ MOO_BEACON_PUSH: '1' });
+  assert.equal(semChave.ligado, false);
+  assert.equal(semChave.erro, true);
+  assert.match(semChave.porque, /sem MOO_BEACON_CHAVE/);
+
+  const chaveFantasma = modoDeploy(
+    { MOO_BEACON_PUSH: '1', MOO_BEACON_CHAVE: '/nao/existe' },
+    { existsImpl: () => false },
+  );
+  assert.equal(chaveFantasma.ligado, false);
+  assert.equal(chaveFantasma.erro, true);
+});
+
+test('e um modo pedido sem chave RECUSA a publicação — não publica na mesma', () => {
+  const g = gitFalso();
+  const r = publicarBeacon('/vault', '50-fleet/mac.json', {
+    runImpl: g.run, existsImpl: existeSempre, env: { MOO_BEACON_PUSH: '1' },
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.porque, /MOO_BEACON_CHAVE/);
+});
+
+test('com chave: `IdentitiesOnly` — senão o ssh oferece a identidade pessoal primeiro', () => {
+  const m = modoDeploy(
+    { MOO_BEACON_PUSH: '1', MOO_BEACON_CHAVE: '/k/beacon' },
+    { existsImpl: () => true },
+  );
+  assert.equal(m.ligado, true);
+  assert.match(m.env.GIT_SSH_COMMAND, /-i \/k\/beacon/);
+  assert.match(m.env.GIT_SSH_COMMAND, /IdentitiesOnly=yes/);
+});
+
+test('com o modo ligado, a pasta APERTA para a isolada', () => {
+  const g = gitFalso();
+  const comum = { runImpl: g.run, existsImpl: existeSempre, env: { MOO_BEACON_PUSH: '1', MOO_BEACON_CHAVE: '/k' } };
+  const fora = publicarBeacon('/vault', '50-fleet/mac.json', comum);
+  assert.equal(fora.ok, false);
+  assert.match(fora.porque, /90-beacons/);
+});
+
+test('o GIT_SSH_COMMAND chega MESMO ao git — uma chave que não viaja não protege nada', () => {
+  const chamadas = [];
+  const run = (bin, args, opts) => {
+    chamadas.push({ args, env: opts && opts.env });
+    if (args[0] === 'remote') return 'origin\n';
+    if (args[0] === 'diff') return chamadas.length > 3 ? '50-fleet/90-beacons/mac.json\n' : '';
+    return '';
+  };
+  const r = publicarBeacon('/vault', '50-fleet/90-beacons/mac.json', {
+    runImpl: run, existsImpl: existeSempre,
+    env: { MOO_BEACON_PUSH: '1', MOO_BEACON_CHAVE: '/k/beacon' },
+  });
+  assert.equal(r.ok, true, r.porque);
+  assert.equal(r.via, 'chave-de-deploy');
+  const push = chamadas.find((c) => c.args[0] === 'push');
+  assert.ok(push, 'não houve push');
+  assert.match(push.env.GIT_SSH_COMMAND, /IdentitiesOnly=yes/,
+    'o push seguiu sem a chave — ia com a identidade do dono');
+});
