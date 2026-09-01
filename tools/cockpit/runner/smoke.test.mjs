@@ -392,6 +392,40 @@ test('smoke: o painel de recurso NUNCA se serve em silencio', async () => {
   } finally { await fechar(); }
 });
 
+/**
+ * O `/ledger` e a vista do DONO, e nasceu ao lado do `/panel` — nao por cima.
+ *
+ * Estes dois testes existem porque a tentacao obvia era servir uma so pagina. O
+ * Ledger nao tem os controlos (▶/⏸, foco, triagem); trocar um pelo outro tirava
+ * botoes ao dono sem lhe dar nada em troca. A guarda e por ROTA: se alguem
+ * apontar o `/panel` para a casca nova, o segundo teste morde.
+ */
+test('GET /ledger serve a casca do Ledger, com o payload injectado', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/ledger`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-moo-panel'), 'ledger');
+    assert.equal(res.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-ledger-shell.html');
+    assert.ok(res.headers.get('x-moo-ledger-shell'), 'a resposta tem de dizer que versao de casca serviu');
+    const html = await res.text();
+    // A casca nao tem numeros; o payload tem de vir INJECTADO, senao a pagina
+    // renderiza o ecra de "no payload" e o dono ve uma pagina vazia com 200.
+    assert.match(html, /window\.__SNAPSHOT__=\{/, 'servido sem payload — a pagina sairia vazia');
+    assert.match(html, /window\.__ROADMAP__=/);
+    assert.match(html, /window\.__SHELL__=/);
+  } finally { await fechar(); }
+});
+
+test('o /panel v1 continua a ser o painel do operador — o Ledger nao o substituiu', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/panel`);
+    assert.equal(res.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-pilot-shell.html',
+      'o /panel passou a servir outra casca: o dono perdeu os controlos');
+  } finally { await fechar(); }
+});
+
 test('o aviso do prototipo diz o que se esta a ver e porque', () => {
   assert.match(AVISO_PROTOTIPO, /not the current one/);
   assert.match(AVISO_PROTOTIPO, /moo-pilot-shell\.html/, 'tem de nomear o ficheiro que falhou');
