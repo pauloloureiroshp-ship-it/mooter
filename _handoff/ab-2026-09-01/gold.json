@@ -1,0 +1,2357 @@
+{
+  "ts": "2026-09-01T11:48:12.842Z",
+  "n": 84,
+  "total_gold": 84,
+  "precos_ssot": "tools/router/pricing.js",
+  "resultados": [
+    {
+      "braco": "A1 · SEM ROUTER (tudo em T3)",
+      "linhas": [
+        {
+          "id": "gl-001",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-002",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-003",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-004",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-005",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-006",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-007",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-008",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-009",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-010",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-011",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-012",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-013",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-014",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-015",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-016",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-017",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-018",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-019",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-020",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-021",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-022",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-023",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-024",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-025",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-026",
+          "esperado": "T1",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-027",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-028",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-029",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-030",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-031",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-032",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-033",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-034",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-035",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-036",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-037",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-038",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-039",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-040",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-041",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-042",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-043",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-044",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-045",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-046",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-047",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-048",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-049",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-050",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-051",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-052",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-053",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-054",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-055",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-056",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-057",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-058",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-059",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-060",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-061",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-062",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-063",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-064",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-065",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-066",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-067",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-068",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-069",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-070",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-071",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-072",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-073",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-074",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-075",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-076",
+          "esperado": "T1",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-077",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-078",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-079",
+          "esperado": "T1",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-080",
+          "esperado": "T0",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-081",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-082",
+          "esperado": "T1",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-083",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-084",
+          "esperado": "T2",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 0,
+          "tokens_in": 0,
+          "tokens_out": 0
+        }
+      ],
+      "ms_total": 0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "rede": false,
+      "modelo": "T3 sempre",
+      "total": 84,
+      "respondidas": 84,
+      "certas": 14,
+      "sem_resposta": 0,
+      "precisao_respondidas": 0.16666666666666666,
+      "precisao_total": 0.16666666666666666,
+      "subestimou": 0,
+      "sobrestimou": 70,
+      "ms_p50": 0,
+      "ms_p95": 0,
+      "custo": {
+        "usd_medido": 0,
+        "usd_medido_porque": "zero tokens — não houve chamada a modelo nenhum",
+        "usd_se_nuvem": null,
+        "usd_se_nuvem_modelo": "claude-opus-5",
+        "usd_se_nuvem_porque": "sem tokens medidos ou sem preço no SSOT — n/d, nunca estimado"
+      }
+    },
+    {
+      "braco": "A2 · ROUTER POR LLM (qwen2.5-coder:14b)",
+      "linhas": [
+        {
+          "id": "gl-001",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 98.9656,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-002",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.0332,
+          "tokens_in": 175,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-003",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.4464,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-004",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.0189,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-005",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 76.5406,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-006",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.0196,
+          "tokens_in": 175,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-007",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.3126,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-008",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.2562,
+          "tokens_in": 179,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-009",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.144,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-010",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.4855,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-011",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.2778,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-012",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.1488,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-013",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 73.0957,
+          "tokens_in": 180,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-014",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.9678,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-015",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 79.0081,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-016",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.4161,
+          "tokens_in": 185,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-017",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.7485,
+          "tokens_in": 174,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-018",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 73.0436,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-019",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.0169,
+          "tokens_in": 175,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-020",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 73.1184,
+          "tokens_in": 182,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-021",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.7117,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-022",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 73.6742,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-023",
+          "esperado": "T3",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.6936,
+          "tokens_in": 173,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-024",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.7945,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-025",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.6734,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-026",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 75.9092,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-027",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 74.0368,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-028",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 72.5972,
+          "tokens_in": 180,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-029",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 73.2407,
+          "tokens_in": 180,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-030",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 72.4438,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-031",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.093,
+          "tokens_in": 175,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-032",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 73.1048,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-033",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.0364,
+          "tokens_in": 174,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-034",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 74.7201,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-035",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 76.5358,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-036",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.7401,
+          "tokens_in": 174,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-037",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 72.7981,
+          "tokens_in": 175,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-038",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 74.4771,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-039",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.4278,
+          "tokens_in": 179,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-040",
+          "esperado": "T0",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 74.8531,
+          "tokens_in": 200,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-041",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 73.1621,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-042",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 78.6451,
+          "tokens_in": 183,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-043",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 77.662,
+          "tokens_in": 179,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-044",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 75.4002,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-045",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 74.4519,
+          "tokens_in": 190,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-046",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 77.9718,
+          "tokens_in": 187,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-047",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 75.9451,
+          "tokens_in": 182,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-048",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 75.2402,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-049",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 73.3069,
+          "tokens_in": 183,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-050",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 73.8812,
+          "tokens_in": 187,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-051",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 72.8327,
+          "tokens_in": 186,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-052",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 77.8107,
+          "tokens_in": 183,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-053",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 86.0622,
+          "tokens_in": 180,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-054",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 86.0021,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-055",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 81.9676,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-056",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 94.6272,
+          "tokens_in": 181,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-057",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 84.8553,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-058",
+          "esperado": "T3",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 82.9835,
+          "tokens_in": 181,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-059",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 76.766,
+          "tokens_in": 182,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-060",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 75.6661,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-061",
+          "esperado": "T3",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 76.7926,
+          "tokens_in": 174,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-062",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 77.2089,
+          "tokens_in": 179,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-063",
+          "esperado": "T2",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.8521,
+          "tokens_in": 174,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-064",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 74.8474,
+          "tokens_in": 180,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-065",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 75.3391,
+          "tokens_in": 186,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-066",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 74.2108,
+          "tokens_in": 183,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-067",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 74.0934,
+          "tokens_in": 184,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-068",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.014,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-069",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 75.0712,
+          "tokens_in": 179,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-070",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 76.5129,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-071",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 72.649,
+          "tokens_in": 173,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-072",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 76.3348,
+          "tokens_in": 173,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-073",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 75.0876,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-074",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 81.7084,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-075",
+          "esperado": "T3",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 76.4531,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-076",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 76.0756,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-077",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 78.1485,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-078",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 74.1697,
+          "tokens_in": 175,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-079",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 74.7057,
+          "tokens_in": 177,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-080",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 73.5146,
+          "tokens_in": 181,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-081",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 73.4416,
+          "tokens_in": 178,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-082",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 74.7434,
+          "tokens_in": 176,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-083",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 73.8962,
+          "tokens_in": 180,
+          "tokens_out": 3
+        },
+        {
+          "id": "gl-084",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 72.227,
+          "tokens_in": 178,
+          "tokens_out": 3
+        }
+      ],
+      "ms_total": 6374.2013,
+      "tokens_in": 14984,
+      "tokens_out": 252,
+      "rede": true,
+      "modelo": "qwen2.5-coder:14b",
+      "total": 84,
+      "respondidas": 84,
+      "certas": 66,
+      "sem_resposta": 0,
+      "precisao_respondidas": 0.7857142857142857,
+      "precisao_total": 0.7857142857142857,
+      "subestimou": 5,
+      "sobrestimou": 13,
+      "ms_p50": 74.7434,
+      "ms_p95": 84.8553,
+      "custo": {
+        "usd_medido": 0,
+        "usd_medido_porque": null,
+        "usd_se_nuvem": 0.08122,
+        "usd_se_nuvem_modelo": "claude-opus-5",
+        "usd_se_nuvem_porque": "equivalente a preço de tabela de claude-opus-5 — NÃO é despesa"
+      }
+    },
+    {
+      "braco": "B · MOOTER (classify.js local)",
+      "linhas": [
+        {
+          "id": "gl-001",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 3.0825,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-002",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.4398,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-003",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 6.3859,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-004",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 3.1808,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-005",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6702,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-006",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0366,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-007",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0227,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-008",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.633,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-009",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0374,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-010",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5656,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-011",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0382,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-012",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0253,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-013",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.4335,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-014",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.7481,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-015",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.533,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-016",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0433,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-017",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5718,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-018",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6353,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-019",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5383,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-020",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0362,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-021",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6144,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-022",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6197,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-023",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.6167,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-024",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6971,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-025",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0384,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-026",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0252,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-027",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0195,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-028",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5955,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-029",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5822,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-030",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.569,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-031",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0908,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-032",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.4589,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-033",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6494,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-034",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0487,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-035",
+          "esperado": "T0",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0227,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-036",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0164,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-037",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5274,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-038",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5139,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-039",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5866,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-040",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5825,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-041",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.8839,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-042",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.828,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-043",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5385,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-044",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5169,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-045",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.8134,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-046",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5742,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-047",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.4471,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-048",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5879,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-049",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.8935,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-050",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.6051,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-051",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.476,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-052",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 0.0426,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-053",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.4875,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-054",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.3945,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-055",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.5829,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-056",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.5381,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-057",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.4337,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-058",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.4137,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-059",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.3837,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-060",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.4074,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-061",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.5536,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-062",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.5695,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-063",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.7577,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-064",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5299,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-065",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.4933,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-066",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5158,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-067",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.4037,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-068",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.6242,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-069",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0378,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-070",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.7143,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-071",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5184,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-072",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 1.5117,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-073",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.6289,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-074",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.5686,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-075",
+          "esperado": "T3",
+          "obtido": "T3",
+          "erro": null,
+          "ms": 1.8107,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-076",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0453,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-077",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0195,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-078",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.1565,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-079",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0289,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-080",
+          "esperado": "T0",
+          "obtido": "T0",
+          "erro": null,
+          "ms": 0.0611,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-081",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.7108,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-082",
+          "esperado": "T1",
+          "obtido": "T1",
+          "erro": null,
+          "ms": 0.0327,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-083",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5021,
+          "tokens_in": 0,
+          "tokens_out": 0
+        },
+        {
+          "id": "gl-084",
+          "esperado": "T2",
+          "obtido": "T2",
+          "erro": null,
+          "ms": 1.5368,
+          "tokens_in": 0,
+          "tokens_out": 0
+        }
+      ],
+      "ms_total": 106.8127,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "rede": false,
+      "modelo": "nenhum (regex determinística)",
+      "total": 84,
+      "respondidas": 84,
+      "certas": 81,
+      "sem_resposta": 0,
+      "precisao_respondidas": 0.9642857142857143,
+      "precisao_total": 0.9642857142857143,
+      "subestimou": 0,
+      "sobrestimou": 3,
+      "ms_p50": 1.5299,
+      "ms_p95": 1.8839,
+      "custo": {
+        "usd_medido": 0,
+        "usd_medido_porque": "zero tokens — não houve chamada a modelo nenhum",
+        "usd_se_nuvem": null,
+        "usd_se_nuvem_modelo": "claude-opus-5",
+        "usd_se_nuvem_porque": "sem tokens medidos ou sem preço no SSOT — n/d, nunca estimado"
+      }
+    }
+  ]
+}
