@@ -34,7 +34,8 @@ on:
       # um PR que so lhes mexesse nunca corria o job que os usa — e a lista de
       # divida podia crescer sem ninguem ver.
       - 'tools/guarda-home*'
-      - '.github/workflows/test.yml'
+      - '.github/workflows/**'
+      - 'tools/workflows-lint*'
   pull_request:
     branches: [main]
     paths:
@@ -62,7 +63,8 @@ on:
       - 'packages/slack-spike/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/guarda-home*'
-      - '.github/workflows/test.yml'
+      - '.github/workflows/**'
+      - 'tools/workflows-lint*'
   workflow_dispatch:
 
 jobs:
@@ -127,6 +129,15 @@ jobs:
       # partida: comportamento sem trava.
       - name: Cockpit runner + smoke E2E
         run: npm run test:cockpit-runner
+
+      # Um workflow que nao parseia NAO CORRE PASSO NENHUM: sem log, sem
+      # anotacao, so uma bolinha vermelha. Medido a 2026-09-01: o
+      # `version-sync.yml` esteve assim 60 corridas seguidas (desde
+      # 2026-08-29T23:02Z), e o gate que existe para impedir deriva de versao
+      # foi ele proprio a fonte da deriva. Isto verifica a regra que ele
+      # quebrou — texto que sai de um bloco escalar por dedentacao.
+      - name: Workflows — nenhum bloco escalar com fuga
+        run: npm run lint:workflows && npm run test:workflows-lint
 
       # O portao do gauntlet (estagio 2). O MEO_GAUNTLET.md declara tres estagios
       # e diz que estava no primeiro — «contrato de prompt ... NAO e automatico,

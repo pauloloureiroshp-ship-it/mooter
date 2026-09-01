@@ -9,6 +9,21 @@ name: Version Sync
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  # Ensaio a pedido. Existe porque a unica forma de provar este workflow era
+  # publicar uma tag — e uma tag e irreversivel. Um gate que so se pode testar
+  # em producao nao se testa: foi assim que ele passou 60 corridas morto sem
+  # ninguem reparar. Por omissao o ensaio NAO escreve nada e NAO abre PR.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a simular (ex.: v1.53.0). Vazio = usa o ref actual.'
+        required: false
+        default: ''
+      aplicar:
+        description: 'Escrever mesmo e abrir PR? (falso = ensaio)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -27,8 +42,14 @@ jobs:
 
       - name: Derive semver core from tag
         id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          # No `push` de tag, `GITHUB_REF_NAME` E a tag. No ensaio manual e o
+          # nome do ramo — que nunca produz um semver limpo, e por isso um
+          # ensaio sem `tag` sai por `skip=1` em vez de inventar uma versao.
+          TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           CORE="${TAG#v}"        # strip leading v
           CORE="${CORE%%-*}"     # strip first -suffix onward
           if ! printf '%s' "$CORE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -87,8 +108,17 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
 
+      - name: Ensaio — o que MUDARIA, sem escrever nada
+        if: steps.ver.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && inputs.aplicar != true
+        run: |
+          echo "ENSAIO da tag '${{ steps.ver.outputs.tag }}' -> versao ${{ steps.ver.outputs.version }}."
+          echo "Nada e commitado e nenhum PR e aberto. Diferenca que existiria:"
+          git --no-pager diff --stat -- tools/router/version.json landing/app/version.json \
+            packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json \
+            plugin/mooter/.claude-plugin/plugin.json || true
+
       - name: Commit back if changed
-        if: steps.ver.outputs.skip != '1'
+        if: steps.ver.outputs.skip != '1' && (github.event_name == 'push' || inputs.aplicar == true)
         run: |
           if git diff --quiet -- tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json plugin/mooter/.claude-plugin/plugin.json; then
             echo "No version.json change to commit."
@@ -118,19 +148,31 @@ jobs:
           # versao que se cala e como nao existir.
           BRANCH="chore/version-sync-${{ steps.ver.outputs.version }}"
           git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
+          # ⚠️ 2026-09-01 — o corpo do PR era uma string de varias linhas escrita
+          # A COMEcAR NA COLUNA 0, dentro de um bloco `run: |` indentado a 10.
+          # Em YAML isso TERMINA o bloco: as linhas seguintes ficam no raiz do
+          # documento e o ficheiro deixa de parsear. Resultado medido: 60 de 60
+          # corridas falhadas a 0s desde 2026-08-29T23:02Z ("This run likely
+          # failed because of a workflow file issue"), ou seja, desde o commit
+          # que introduziu este mesmo `gh pr create`. O gate que existe para
+          # impedir deriva de versao esteve morto durante toda a sua vida.
+          # Agora o corpo constroi-se com `printf`, uma linha por argumento,
+          # todas indentadas — nao ha forma de o texto voltar a sair do bloco.
+          BODY=$(printf '%s\n' \
+            "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${{ github.ref_name }}\`." \
+            "" \
+            "Alinha os cinco ficheiros de versao com a tag publicada:" \
+            "\`tools/router/version.json\` · \`landing/app/version.json\` ·" \
+            "\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·" \
+            "\`plugin/mooter/.claude-plugin/plugin.json\`." \
+            "" \
+            "O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador" \
+            "instala — sem este merge, a release publica um bundle rotulado com a versao anterior.")
           gh pr create \
             --base main \
             --head "${BRANCH}" \
             --title "chore(release): sync version.json → ${{ steps.ver.outputs.version }}" \
-            --body "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${{ github.ref_name }}\`.
-
-Alinha os cinco ficheiros de versao com a tag publicada:
-\`tools/router/version.json\` · \`landing/app/version.json\` ·
-\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·
-\`plugin/mooter/.claude-plugin/plugin.json\`.
-
-O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador
-instala — sem este merge, a release publica um bundle rotulado com a versao anterior." \
+            --body "$BODY" \
             || echo "PR ja existe para ${BRANCH} — nada a abrir."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
