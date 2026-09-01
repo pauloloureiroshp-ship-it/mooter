@@ -55,7 +55,8 @@
     "nd:check": "node tools/cockpit/runner/nd-check.mjs",
     "receipts:check": "node tools/cockpit/runner/receipts-check.mjs",
     "enrich": "node tools/cockpit/runner/enrich.mjs",
-    "replay:50": "node tools/cockpit/runner/replay-sample.mjs"
+    "replay:50": "node tools/cockpit/runner/replay-sample.mjs",
+    "score:sombra": "node tools/cockpit/runner/score-sombra.mjs"
   },
   "engines": {
     "node": ">=22"
