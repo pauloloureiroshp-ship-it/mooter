@@ -421,8 +421,14 @@ test('o /panel v1 continua a ser o painel do operador — o Ledger nao o substit
   const { base, fechar } = await servidorEfemero();
   try {
     const res = await fetch(`${base}/panel`);
+    // Comparacao ESTRITA, com barras POSIX, e nas duas plataformas. Foi assim
+    // que este teste apanhou o defeito para que nasceu: o cabecalho vinha de
+    // `path.relative` e no Windows saia `tools\cockpit\...`, o que faria a skill
+    // `/moo-pilot` — que manda conferir este valor — dar o painel canonico como
+    // "outro ficheiro". Uma verificacao com `.includes('moo-pilot-shell')` teria
+    // passado nas duas e nao teria visto nada.
     assert.equal(res.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-pilot-shell.html',
-      'o /panel passou a servir outra casca: o dono perdeu os controlos');
+      'o /panel passou a servir outra casca (ou o cabecalho deixou de ser POSIX)');
   } finally { await fechar(); }
 });
 

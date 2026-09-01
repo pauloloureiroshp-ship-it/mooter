@@ -648,7 +648,15 @@ export function createServer({
             'X-Moo-Panel': i === 0 ? 'canonico' : 'prototipo',
             'Content-Length': html.length,
             'Cache-Control': 'no-store',
-            'X-Moo-Panel-Source': path.relative(raiz, candidate) || candidate,
+            // POSIX SEMPRE, mesmo no Windows. Um cabecalho e um valor de fio, nao
+            // um caminho de disco: `path.relative` devolvia
+            // `tools\cockpit\moo-pilot-shell.html` na maquina Windows do dono, e a
+            // skill `/moo-pilot` manda conferir `tools/cockpit/moo-pilot-shell.html`.
+            // O painel CANONICO seria reportado como "outro ficheiro" — um alarme
+            // falso sobre a peca que o cabecalho existe para autenticar. Apanhado
+            // pelo job `cockpit tests (windows)` na primeira vez que alguem
+            // comparou o valor em vez de o imprimir.
+            'X-Moo-Panel-Source': (path.relative(raiz, candidate) || candidate).split(path.sep).join('/'),
           });
           return res.end(html);
         } catch {
