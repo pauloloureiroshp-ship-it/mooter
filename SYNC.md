@@ -178,24 +178,26 @@ enquanto o `mapa-e-roadmap.md` não existir · F3 está **inverificável**, não
 pela lista à mão do `tools/router`); é a F1 que o promove.
 
 **Fecho (22:55–23:40 SP) · o motor $0 volta a estar operacional.** Pior do que a sonda: `callOllama()`
-devolvia **`null` sem razão nenhuma** — o `catch` engolia o `Failed to parse URL` e quem o lia concluía
-«o modelo não respondeu». O motor $0 falhava **mudo** e a leitura caía para motor pago sem sinal (família
-do `empty_completion`). **E eram SETE sítios, não cinco** — a minha lista ficou a cinco porque o `grep`
-parou no 1.º ecrã. Nos outros seis, `new URL(…)` lançava `Invalid URL`: falham alto, mas falham. Um só
-helper: `tools/router/ollama-host.js` (`8788e1d8`, `61efb446`).
+devolvia **`null` sem razão nenhuma** — o `catch` engolia o `Failed to parse URL`, e quem o lia concluía
+«o modelo não respondeu». O motor $0 falhava **mudo** e a leitura caía para motor pago sem sinal. **E
+eram SETE sítios, não cinco** — a minha lista ficou a cinco porque o `grep` parou no 1.º ecrã; nos
+outros seis, `new URL(…)` lançava `Invalid URL`. Um só helper: `ollama-host.js` (`8788e1d8`,
+`61efb446`), e **10 testes, sobretudo a varredura de COBERTURA**, que falha se alguém voltar a ler
+`process.env.OLLAMA_HOST` sem normalizar. Suites: router **1231/1234** · cockpit **948/0** · audit
+**5/6** — as 3 falhas **pré-existentes**, verificadas em `HEAD` limpo.
 
-**A peça durável são 10 testes, sobretudo a varredura de COBERTURA:** falha se qualquer ficheiro de
-`tools/` voltar a ler `process.env.OLLAMA_HOST` sem normalizar — sem ela o oitavo sítio nascia partido em
-silêncio. Mordida provada e inscrito na lista à mão do `npm test`. Suites: router **1231/1234** · cockpit
-**948/0** · audit **5/6** — as 3 falhas **pré-existentes**, verificadas em `HEAD` limpo. CI de #454: verde.
-
-**Update corrido** (#454 merged @ `d3c4b995`, runtime 1.51.0 → 1.52.0) — e **a correcção continuava morta**:
-o Step 5 do `/mooter-update` usa `tools/router/*.js`, **glob não recursivo** — apanha 346 ficheiros e deixa
-de fora os 8 de `providers/`. Deu 5 ✓ com o `ollama-api.js` velho, e o `deepseek-v4.js` nem existia no
-runtime. Falha em **silêncio**: o ficheiro velho não requer o novo, logo não há erro de require. Reparado à
-mão — prova pelo runtime: `available:true`, `callOllama` **206 ms, custo 0**. **Por corrigir:** o Step 5 da
-skill (que é do repo, logo afecta quem instalar) — mudança de processo partilhado, decisão do dono ·
-`npm test` do audit escreve em `audit/cost_breakdown.json`, **versionado** · detalhe no journal
-`10-projects/2026-08-31-o-probe-que-nunca-existiu…`.
+**Update corrido** (#454) — e **a correcção continuava morta**: o Step 5 usava um glob **não
+recursivo** (204 da raiz; os 17 de `providers/`+`forecast/`+`hooks/` fora). Cinco ✓ com o
+`ollama-api.js` velho, em silêncio — o ficheiro velho não requer o novo, logo nem erro havia.
+**Corrigido** (#455): `sync-runtime.js` é a definição única do runtime, no padrão do `sync-hooks.js`;
+o Step 6 ganha esse gate — **presença de um passo de sync não é prova de cobertura**. O `install.sh`
+já sabia desde a Wave 61: o defeito era instalador e updater terem duas definições de «runtime».
+**E depois eu fiz a mesma classe de erro, com o sinal trocado** (#456): o espelho arrastava
+`coverage/` e **12 `.json` de estado local**, entre eles o `router-tuning.json` que o backtest escreve
+**no runtime** — copiá-lo do repo por cima desfaz o tuning em silêncio. `git ls-files` resolve (23 →
+9); sem git **desliga** em vez de falhar fechado. Corri o sync errado 1×: 13 estados ficaram iguais ao
+repo e **não consigo provar quais sobrepus** (sem backup); dano material ~0. **Revalidado:** `runtime
+em dia (230)` · acumulador OK · `TEST=pass` · motor $0 custo 0. **Aberto:** `install.sh` é 2.ª
+definição do runtime · `coverage/` ficou no runtime · `retrato-mapa.test.js` é **flaky**. Journal no vault.
 
 <!-- HUMANO:FIM -->
