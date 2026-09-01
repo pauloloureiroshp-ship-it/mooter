@@ -322,7 +322,49 @@ E a mordida pagou-se à primeira: dos 13 defeitos plantados, **1 passou** — o 
 convenções casava com a linha que define os tiers em vez do bloco que devia guardar.
 22 testes verdes, e um deles não verificava nada.
 
-**Aberto:** ligar as 5 guardas inertes do `ci-coerencia` · a fraqueza `historical` 68,0% ·
-a obediência a 0% (43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
+### O fecho do dia — a alegação que se pode fazer, e a que não se pode
+
+O PC reiniciou a meio; a cadeia de prova foi corrida **a frio** e reproduz em
+**32 segundos** (testes 4s, ensaio 6 corridas 32s), com o `classify.js` de sha
+intacto e o `OLLAMA_HOST` sem esquema a normalizar bem.
+
+| | sem router | por LLM | **MOOTER** |
+|---|---|---|---|
+| precisão (35 ground truth) | 40,0% | 82,9% | **91,4%** |
+| tokens para decidir | 0 | 23 182 | **0** |
+| latência p50 | — | 74,5 ms | **1,85 ms** |
+| idêntico em 6 corridas | sim | sim | sim |
+
+**A quinta correcção, encontrada ao fechar:** publicávamos «+8,5 pontos» sem
+nunca ter testado se a diferença existia. McNemar exacto emparelhado:
+
+- **vs sem router: 19 discordantes a 1, p < 0,0001 — PROVADO**
+- vs router-por-LLM: 5 a 2, p = 0,4531 — **não distinguível de ruído com n=35**
+
+Ou seja: em precisão **empatamos com o adversário até prova em contrário**, e a
+alegação que o produto realmente faz — *vs não ter router* — é a única provada,
+e está provada com folga. Contra o adversário o que sobra não é estatístico e não
+precisa de ser: 0 tokens contra 23 182, 47× mais rápido, 0 bytes para a rede.
+
+**Mais duas, da auditoria de 6 lentes ao próprio ensaio:** sem Ollama o adversário
+marcava 0,0% em silêncio (o banco **fabricava** a vitória para quem não a podia
+verificar), e o comando publicado como reprodução imprimia 81,7% — o valor
+anterior à correcção nº4. Os dois fechados; o comando imprime agora o número
+publicado e o veredicto McNemar por baixo.
+
+**Refutado por medição:** um agente afirmou que o holdout fora afinado pelo
+`patterns.js` e que revertê-lo derrubava o Mooter de 91,4% para 82,9%. Reverter
+fá-lo **subir** (91,4 → 94,3). A alegação não se reproduz. Mas a observação
+estrutural fica: o sha do `classify.js` congela um ficheiro que **delega os
+padrões para o `patterns.js`, que não está congelado**.
+
+Instrumento: **35 testes, 23 mordidas** (`test:ab`, `test:ab-morde`), ambos no CI.
+
+**Aberto:** ligar as 5 guardas inertes do `ci-coerencia` (tarefa lançada, commit
+`4b7c44cb` em `claude/sweet-wescoff-32b706`, sem PR) · congelar o `patterns.js`
+ou deixar de dizer que o classificador está congelado · n=35 é pequeno demais
+para separar routers (efeito mínimo detectável ~20 pts) · nenhuma medição válida
+de prompts reais e longos — precisa de rótulos humanos · a obediência a 0%
+(43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
 
 <!-- HUMANO:FIM -->

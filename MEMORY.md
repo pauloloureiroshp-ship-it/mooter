@@ -10,6 +10,38 @@ Fatos duradouros sobre o projeto. Decisões arquiteturais estáveis, constraints
 
 ---
 
+## 2026-09-01 — a-alegacao-que-o-produto-pode-fazer
+
+**Decisão:** o Mooter afirma publicamente que **bate não-ter-router**, e só isso.
+Contra outro router não afirma precisão superior — afirma custo, latência e
+privacidade, que são contagens e propriedades de construção, não estimativas.
+
+**Por quê:** medido a 2026-09-01 sobre 35 rótulos `ground_truth`, seis corridas
+idênticas, McNemar exacto emparelhado:
+
+| comparação | resultado | p | afirmável? |
+|---|---|---|---|
+| **vs sem router** | 91,4% vs 40,0% · 19 discordantes a 1 | **< 0,0001** | **sim** |
+| vs router-por-LLM | 91,4% vs 82,9% · 5 a 2 | 0,4531 | **não** |
+
+Contra o router-por-LLM o que se afirma é: **0 tokens contra 23 182**, **1,85 ms
+contra 74,5 ms**, e **0 bytes para a rede**. Nenhum precisa de teste estatístico.
+
+**Implicações imutáveis:**
+
+- Publicar uma diferença de percentagens sem teste emparelhado é publicar ruído.
+  O harness passa a recusá-lo: `mcnemar()` sai no relatório e no CLI.
+- Rótulo escrito pelo próprio classificador (`trust: assumed_correct`) mede
+  **deriva**, nunca precisão. As duas nunca mais entram na mesma média.
+- Um braço sem uma única resposta vale `n/d`, nunca 0% — senão o ensaio fabrica
+  a vitória para quem não tem a dependência instalada.
+- O comando publicado como reprodução tem de imprimir **o número publicado**.
+- O sha256 do `classify.js` congela um ficheiro que delega os padrões para
+  `patterns.js`, **que não está congelado**. Não foi explorado (verificado por
+  contrafactual), mas o invariante é mais fraco do que anuncia.
+
+**Reproduz:** `node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6`
+
 ## 2026-04-21 — tese-perene
 
 **Decisão:** Mooter é o protocolo aberto de observabilidade e roteamento para agentes de AI.
