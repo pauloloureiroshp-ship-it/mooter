@@ -263,10 +263,12 @@ conjunto — sem router (tudo em T3) · router por LLM (qwen2.5-coder local, cha
 Mooter. O gold é **anterior ao ensaio** (sai do `validation-set.json`, escrito para outro
 fim), os preços vêm do SSOT `pricing.js`. Recibos em `_handoff/ab-2026-09-01/`.
 
-Holdout, n=70: **34,3% · 68,6% · 84,3%** · tokens **0 · 12 962 · 0** · p50 **— · 74,8ms · 1,54ms**.
-Gold, n=84: 16,7% · 78,6% · **96,4%**. Reprodutibilidade em 25 historical, duas corridas:
-Mooter **100%**, LLM **96,0%** (uma mudança de opinião sem o input mudar), e 9 472 tokens
-gastos só para verificar. Por secção o Mooter faz canonical 95,0% · **adversarial 92,0%** ·
+Holdout, n=70: **34,3% · 71,4% · 84,3%** · tokens **0 · 12 962 · 0** · p50 **— · 74,8ms · 1,54ms**.
+Gold, n=84: 16,7% · 78,6% · **96,4%**. **Seis corridas do holdout**: o Mooter dá 84,3% nas
+seis, sempre com os mesmos 10 erros para baixo e 1 para cima; o LLM anda entre **68,6 e 75,7**
+(mediana 71,4 — é este o valor publicado, e encolhe a vantagem anunciada de +15,7 para +12,9
+pontos). Duas dessas corridas deram **a mesma nota errando em sítios diferentes** (17 sub/3 sob
+contra 15/5) — não é só a nota que oscila, é o conjunto das decisões. Por secção o Mooter faz canonical 95,0% · **adversarial 92,0%** ·
 **historical 68,0%** — esta última é a fraqueza, e 8 das 10 subestimações estão lá dentro.
 
 **O que o ensaio NÃO prova, dito por escrito:** mede a *decisão* de encaminhamento, não a
