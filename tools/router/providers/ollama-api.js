@@ -25,6 +25,28 @@ const DEFAULT_HOST  = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen2.5:3b';
 const DEFAULT_TIMEOUT_MS = 90_000;
 
+/**
+ * `OLLAMA_HOST` sem esquema é o formato CANÓNICO — é assim que o próprio Ollama
+ * o documenta e o imprime (`OLLAMA_HOST=127.0.0.1:11434`). Este ficheiro assumia
+ * que vinha sempre com `http://` e concatenava à bruta, o que produzia
+ * `fetch('127.0.0.1:11434/api/chat')` → `Failed to parse URL`.
+ *
+ * Medido a 2026-08-31 nesta máquina, com o Ollama VIVO e 10 modelos carregados:
+ *   · `isAvailable()` → `{available:false, reason:'…Failed to parse URL…'}`
+ *   · `callOllama()`  → **`null`, sem razão nenhuma** — o `catch` do fetch
+ *     engole o erro de parse e o chamador lê «o modelo não respondeu».
+ *
+ * O segundo é o caro: o motor $0 falhava MUDO, e todo o trabalho de leitura
+ * caía para um motor pago sem que nada o dissesse. É a mesma família do
+ * `empty_completion` que o `provider-health.js` documenta — um erro de
+ * transporte a sair pela porta de «resposta vazia».
+ */
+function normalizeHost(raw) {
+  const s = String(raw == null ? '' : raw).trim().replace(/\/+$/, '');
+  if (!s) return DEFAULT_HOST;
+  return /^https?:\/\//i.test(s) ? s : `http://${s}`;
+}
+
 const SYSTEM = [
   'És um assistente de software engineering conciso.',
   'Respondes em PT-PT (Portugal). Código e identificadores em inglês.',
@@ -61,7 +83,7 @@ async function callOllama(prompt, opts = {}) {
     throw new Error('ollama-api: prompt must be a non-empty string');
   }
 
-  const host  = opts.host  || process.env.OLLAMA_HOST          || DEFAULT_HOST;
+  const host  = normalizeHost(opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST);
   const model = opts.model || process.env.OLLAMA_OPTION_A_MODEL || DEFAULT_MODEL;
   const timeoutMs = Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS;
 
@@ -85,7 +107,7 @@ async function callOllama(prompt, opts = {}) {
     think: false,
   });
 
-  const url = host.replace(/\/+$/, '') + '/api/chat';
+  const url = host + '/api/chat';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -158,8 +180,8 @@ async function callOllama(prompt, opts = {}) {
  * @returns {Promise<{available:boolean,reason?:string}>}
  */
 async function isAvailable(opts = {}) {
-  const host = opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST;
-  const url  = host.replace(/\/+$/, '') + '/api/tags';
+  const host = normalizeHost(opts.host || process.env.OLLAMA_HOST || DEFAULT_HOST);
+  const url  = host + '/api/tags';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Number(opts.timeoutMs) || 1500);
@@ -178,6 +200,7 @@ async function isAvailable(opts = {}) {
 module.exports = {
   callOllama,
   isAvailable,
+  normalizeHost,
   DEFAULT_MODEL,
   DEFAULT_HOST,
 };
