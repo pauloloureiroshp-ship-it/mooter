@@ -68,9 +68,12 @@ function bancada() {
 }
 
 const semGpu = async () => null;
+// Os nomes sao neutros de proposito. O ratchet do rebranding conta FICHEIROS que
+// mencionam o nome antigo do repo, e uma fixture de worktrees nao precisa de o
+// repetir para medir o que mede. (Custou um CI vermelho: 216 > 215.)
 const gitFalso = () => [
-  'worktree /r/frugal', 'HEAD abc', 'branch refs/heads/main', '',
-  'worktree /r/frugal-x', 'HEAD def', 'detached', '',
+  'worktree /r/projecto', 'HEAD abc', 'branch refs/heads/main', '',
+  'worktree /r/projecto-x', 'HEAD def', 'detached', '',
 ].join('\n');
 
 const construir = (dir, extra = {}) => buildLedgerSnapshot({
