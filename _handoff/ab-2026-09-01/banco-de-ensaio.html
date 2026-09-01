@@ -260,8 +260,9 @@ const V = [
 {t:0, d:4.5, h:`
   <div class="olho an">Ensaio A/B · 2026-09-01 · 35 rótulos verificados</div>
   <h2 class="tit an2">Trinta e cinco<br>prompts. Três<br>encaminhamentos.
-    <small>Contra não ter router nenhum: <b style="color:var(--papel)">91,4% contra 40,0%</b>,
-    e a diferença aguenta o teste estatístico com <b style="color:var(--papel)">p &lt; 0,0001</b>.</small></h2>
+    <small>Contra não ter router nenhum, a diferença aguenta o teste estatístico
+    <b style="color:var(--papel)">nas duas leituras do gabarito</b> — a optimista e a
+    pessimista. É a única coisa que este ensaio prova, e prova-a bem.</small></h2>
   ${CAR('recibo aberto','gabarito anterior ao ensaio')}`},
 
 {t:4.5, d:10.5, h:`
@@ -276,11 +277,11 @@ const V = [
       <div class="pval"><span data-conta="82.9">0,0</span>%</div>
       <div class="ptrilho"><i data-larg="82.9"></i></div></div>
     <div class="pista p-amb an3">
-      <div class="pnome"><b>Mooter</b><br>regex local, determinista</div>
-      <div class="pval"><span data-conta="91.4">0,0</span>%</div>
-      <div class="ptrilho"><i data-larg="91.4"></i></div></div>
+      <div class="pnome"><b>Mooter</b><br>82,9% a 91,4% — ver ressalva</div>
+      <div class="pval"><span data-conta="82.9">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="82.9"></i></div></div>
   </div>
-  ${CAR('91,4% · 32 de 35','só rótulos verificados por humano · idêntico em 6 corridas')}`},
+  ${CAR('82,9% no corte honesto · 91,4% com os padrões de hoje','o gabarito foi afinado — a peça diz onde')}`},
 
 {t:15, d:7.5, h:`
   <div class="olho an">O que custou decidir</div>
@@ -303,11 +304,13 @@ const V = [
     discordam carregam informação — e são esses que se contam.</small></h2>
   <div class="placar c2" style="margin-top:36px">
     <div class="cel amb an3"><div class="crot">contra não ter router</div>
-      <div class="cnum amb" style="font-size:74px">p &lt; 0,0001</div>
-      <div class="cpe"><b style="color:var(--amb)">19 discordantes a 1</b><br>a favor do Mooter · <b style="color:var(--amb)">provado</b></div></div>
+      <div class="cnum amb" style="font-size:60px">p ≤ 0,0015</div>
+      <div class="cpe"><b style="color:var(--amb)">18 a 3</b> no corte pessimista,
+        <b style="color:var(--amb)">19 a 1</b> no optimista.<br>Aguenta nos dois · <b style="color:var(--amb)">provado</b></div></div>
     <div class="cel aco an4"><div class="crot">contra o router por LLM</div>
-      <div class="cnum aco" style="font-size:74px">p = 0,45</div>
-      <div class="cpe">5 a 2 · <b style="color:var(--aco)">não distinguível de ruído</b><br>em precisão, empatamos</div></div>
+      <div class="cnum aco" style="font-size:60px">empate</div>
+      <div class="cpe">5 a 5 no corte pessimista (p = 1,000),<br>5 a 2 no optimista (p = 0,45).<br>
+        Em precisão, <b style="color:var(--aco)">não somos melhores</b>.</div></div>
   </div>
   ${CAR('n=35 · uma corrida (os braços são determinísticos)','o teste que faltava a todas as versões')}`},
 
@@ -609,8 +612,10 @@ function guiao(){
   <table class="tab">
     <tr><th>métrica · rótulos verificados</th><th>sem router</th><th>router por LLM</th><th>Mooter</th><th>quem ganha</th></tr>
     <tr><td>acertos (de 35)</td><td class="o">14</td><td class="a">29</td><td class="g">32</td><td class="g">Mooter</td></tr>
-    <tr><td>precisão</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">91,4%</td><td class="g">ver McNemar ↓</td></tr>
-    <tr><td>McNemar vs esse braço</td><td class="g">p&lt;0,0001 · 19 a 1</td><td class="a">p=0,45 · 5 a 2</td><td class="g">—</td><td class="g">provado só vs A1</td></tr>
+    <tr><td>precisão · gabarito afinado</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">91,4%</td><td class="a">score de TREINO</td></tr>
+    <tr><td>precisão · padrões anteriores aos rótulos</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">82,9%</td><td class="a">empate com o LLM</td></tr>
+    <tr><td>McNemar · gabarito afinado</td><td class="g">p&lt;0,0001 · 19 a 1</td><td class="a">p=0,45 · 5 a 2</td><td class="g">—</td><td class="g">provado só vs A1</td></tr>
+    <tr><td>McNemar · padrões anteriores</td><td class="g">p=0,0015 · 18 a 3</td><td class="a">p=1,000 · 5 a 5</td><td class="g">—</td><td class="g">provado só vs A1</td></tr>
     <tr><td>canonical (10)</td><td class="o">20,0%</td><td class="a">90,0%</td><td class="g">90,0%</td><td class="a">empate</td></tr>
     <tr><td>adversarial (25)</td><td class="o">48,0%</td><td class="a">80,0%</td><td class="g">92,0%</td><td class="g">+12 pts</td></tr>
     <tr><td>prompts reais e longos</td><td class="o">n/d</td><td class="a">n/d</td><td class="g">n/d</td><td class="a">não medido</td></tr>
@@ -648,7 +653,23 @@ function guiao(){
     favor. <b>Contra o router-por-LLM, p = 0,45</b>: só há 7 pares discordantes e 5-2 sai de atirar
     uma moeda ao ar. Em precisão, <b>empatamos com o adversário até prova em contrário</b>. O que
     sobra contra ele não é estatístico e não precisa de ser: 0 tokens contra 23 182, 1,85 ms contra
-    74,5 ms, e zero bytes para a rede.</div>
+    74,5 ms, e zero bytes para a rede.
+    <br><br>
+    <b>6 · O gabarito tinha sido afinado — e nós refutámos a acusação antes de a confirmar.</b>
+    O <code>classify.js</code> está congelado por sha256, mas importa o <code>patterns.js</code>, onde
+    vivem <b>todas</b> as regex que decidem o tier — e esse não tinha congelamento nenhum. Com o
+    ficheiro congelado intacto e só o <code>patterns.js</code> a variar ao longo da sua linhagem, a
+    nota nos mesmos 35 rótulos anda entre <b>74,3% e 94,3%</b>. Dezassete minutos depois de os
+    rótulos nascerem, um commit acrescenta <code>/\bmerg(ea|ear|eia)\b/i</code> com o comentário
+    <code>// "mergea na main"</code> — texto <b>literal</b> de uma das amostras. Outros dizem-no na
+    mensagem: «three classifier safety fixes <b>found by validation-set</b>», «Adversarial accuracy:
+    80% → 92%».
+    <br><br>
+    Quando um agente adversarial nos disse isto, medimos e escrevemos que «não se reproduzia».
+    <b>Tínhamos testado a janela errada</b> — o ponto mais antigo que usámos já continha o commit do
+    salto. A acusação estava certa. O <b>91,4% é um score de treino</b>; o número mais próximo de
+    fora-da-amostra é <b>82,9%</b>, e aí empatamos com o adversário. A alegação contra não-ter-router
+    aguenta nos dois. O <code>patterns.js</code> passou a ter sha e passo próprio no CI.</div>
 
   <div class="avs"><b>O que este ensaio NÃO prova.</b> Mede a <b>decisão</b> de encaminhamento,
     não a poupança em euros de uma sessão inteira. Nesta sessão o router marcou
