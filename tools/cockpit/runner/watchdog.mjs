@@ -33,6 +33,19 @@ export const FALHAS_PARA_ALERTA = 3;
 /** Janela por omissao do calculo de uptime. */
 export const JANELA_H = 24;
 
+/**
+ * Quantas linhas do registo se guardam. A 5 em 5 minutos sao 288 por dia,
+ * portanto 3000 sao ~10 dias — muito acima da janela de 24 h que se calcula.
+ *
+ * ⚠️ ISTO NAO E ARRUMACAO. Este ficheiro e appendado de 5 em 5 minutos E LIDO
+ * INTEIRO a cada pedido de `/saude.json`, que o painel faz de 60 em 60 s. Sem
+ * corte, ao fim de um ano sao ~12 MB relidos a cada minuto para responder a uma
+ * pergunta sobre as ultimas 24 h. Este repositorio ja pagou exactamente esta
+ * conta uma vez: o `runner-ledger.jsonl` chegou a 4,27 MB com ZERO rotacao
+ * (medido 2026-08-19), e foi por isso que o `rodarLedger` existe.
+ */
+export const MAX_LINHAS = 3000;
+
 /** Uma sondagem. Nunca lanca: um watchdog que rebenta e pior do que nenhum. */
 export async function sondar({
   base = `http://127.0.0.1:${PORTA}`, fetchImpl = fetch, timeoutMs = 6000, agora = Date.now(),
@@ -64,9 +77,32 @@ export async function sondar({
   }
 }
 
-/** Acrescenta ao registo. Append-only: um historico reescrito nao e historico. */
-export function registar(linha, { mooDir = path.join(os.homedir(), '.mooter'), appendImpl = fs.appendFileSync } = {}) {
-  appendImpl(path.join(mooDir, REGISTO), `${JSON.stringify(linha)}\n`);
+/**
+ * Acrescenta ao registo, e apara-o quando ele passa do tecto.
+ *
+ * Append-only DENTRO da janela: o que sai sao as linhas mais VELHAS, nunca as
+ * recentes, e nunca se reescreve uma linha que fica. Um historico que se
+ * reescreve nao e historico; um historico infinito lido a cada minuto tambem
+ * nao e — e um imposto.
+ */
+export function registar(linha, {
+  mooDir = path.join(os.homedir(), '.mooter'),
+  appendImpl = fs.appendFileSync,
+  readImpl = fs.readFileSync,
+  writeImpl = fs.writeFileSync,
+  max = MAX_LINHAS,
+} = {}) {
+  const f = path.join(mooDir, REGISTO);
+  appendImpl(f, `${JSON.stringify(linha)}\n`);
+  try {
+    const linhas = String(readImpl(f, 'utf8')).split('\n').filter((l) => l.trim());
+    // Folga de 20%: aparar a cada linha depois do tecto seria reescrever o
+    // ficheiro de 5 em 5 minutos para sempre.
+    if (linhas.length <= max * 1.2) return { aparado: 0 };
+    const ficam = linhas.slice(-max);
+    writeImpl(f, `${ficam.join('\n')}\n`);
+    return { aparado: linhas.length - ficam.length };
+  } catch { return { aparado: 0 }; }
 }
 
 /**
@@ -96,9 +132,17 @@ export function uptime(linhas, { horas = JANELA_H, agora = Date.now() } = {}) {
   };
 }
 
-export function lerRegisto({ mooDir = path.join(os.homedir(), '.mooter'), readImpl = fs.readFileSync } = {}) {
+/**
+ * Le o registo — SO A CAUDA. `uptime()` olha para 24 h; carregar dez dias para
+ * responder a isso e trabalho que ninguem pediu, e e feito a cada
+ * `/saude.json`.
+ */
+export function lerRegisto({
+  mooDir = path.join(os.homedir(), '.mooter'), readImpl = fs.readFileSync, max = MAX_LINHAS,
+} = {}) {
   try {
-    return readImpl(path.join(mooDir, REGISTO), 'utf8').trim().split('\n').filter(Boolean)
+    const todas = String(readImpl(path.join(mooDir, REGISTO), 'utf8')).trim().split('\n').filter(Boolean);
+    return todas.slice(-max)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   } catch { return []; }
 }

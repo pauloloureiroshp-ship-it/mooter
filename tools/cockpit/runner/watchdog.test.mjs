@@ -139,3 +139,52 @@ test('o /saude.json publica o uptime, e so o poe em `itens` quando ha alerta', (
     'um verde a mais no cartao da saude ensina a ignorar o cartao');
   assert.match(f10, /launchctl kickstart -k gui/, 'o item tem de dizer como se resolve');
 });
+
+// ── o registo nao pode virar um imposto ─────────────────────────────────────
+//
+// Este ficheiro e appendado de 5 em 5 minutos E LIDO INTEIRO a cada
+// `/saude.json`, que o painel pede de 60 em 60 s. Sem corte, ao fim de um ano
+// sao ~12 MB relidos a cada minuto para responder a uma pergunta sobre as
+// ultimas 24 h. Este repositorio ja pagou esta conta uma vez (`runner-ledger`
+// a 4,27 MB com zero rotacao, 2026-08-19).
+
+const { MAX_LINHAS } = await import('./watchdog.mjs');
+
+test('o registo apara-se, e o que sai sao as linhas MAIS VELHAS', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-cap-'));
+  const f = path.join(dir, 'watchdog.jsonl');
+  const linhas = Array.from({ length: 60 }, (_, i) => JSON.stringify({ ts: `t${i}`, ok: true, n: i }));
+  fs.writeFileSync(f, `${linhas.join('\n')}\n`);
+  const r = registar({ ts: 'novo', ok: true, n: 999 }, { mooDir: dir, max: 20 });
+  assert.ok(r.aparado > 0, 'nao aparou nada');
+  const ficaram = lerRegisto({ mooDir: dir, max: 1000 });
+  assert.equal(ficaram.length, 20);
+  assert.equal(ficaram.at(-1).n, 999, 'a linha nova tem de sobreviver');
+  assert.ok(ficaram.every((l) => l.n >= 41), 'saiu uma linha recente em vez de uma velha');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('abaixo do tecto (com folga) NAO se reescreve o ficheiro', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-cap2-'));
+  fs.writeFileSync(path.join(dir, 'watchdog.jsonl'), `${JSON.stringify({ ts: 'a', ok: true })}\n`);
+  let escreveu = false;
+  registar({ ts: 'b', ok: true }, {
+    mooDir: dir, max: 3000, writeImpl: () => { escreveu = true; },
+  });
+  assert.equal(escreveu, false, 'reescrever a cada tique seria pior do que nao aparar');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a LEITURA tambem so pega na cauda — nao se carrega o historico todo', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wd-cap3-'));
+  const linhas = Array.from({ length: 500 }, (_, i) => JSON.stringify({ ts: `t${i}`, ok: true, n: i }));
+  fs.writeFileSync(path.join(dir, 'watchdog.jsonl'), `${linhas.join('\n')}\n`);
+  const lidas = lerRegisto({ mooDir: dir, max: 50 });
+  assert.equal(lidas.length, 50);
+  assert.equal(lidas[0].n, 450);
+});
+
+test('o tecto cobre a janela do uptime com folga larga', () => {
+  const porDia = (24 * 60) / 5;   // sondagem de 5 em 5 minutos
+  assert.ok(MAX_LINHAS >= porDia * 7, `${MAX_LINHAS} nao cobre uma semana de sondagens`);
+});

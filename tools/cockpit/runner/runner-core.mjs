@@ -19,6 +19,7 @@ import { buildContextPack, PILLARS, PILLAR_IDS } from './context-pack.mjs';
 import { verifyEvidence, VERDICT } from './evidence-verifier.mjs';
 import { deviceName } from './fleet-beacon.mjs';
 import { campoDeScore } from './score-sombra.mjs';
+import { conferirRecibo } from './receipts-check.mjs';
 
 export const DEFAULT_OLLAMA = 'http://127.0.0.1:11434';
 export const DEFAULT_MODEL = 'qwen2.5-coder:14b';
@@ -380,7 +381,7 @@ export async function runRound({
     }
   }
 
-  return {
+  const r = {
     dispatched: true,
     receipt: {
       ...receiptBase(),
@@ -442,6 +443,24 @@ export async function runRound({
       ...(parecer && parecer.concorda === false ? { precisa_tier_superior: true } : {}),
     },
   };
+  /**
+   * A CONFERENCIA DA EVIDENCIA, como CAMPO — nunca como decisao.
+   *
+   * O `verdict` diz que a linha citada existe. Este diz se o que o modelo
+   * escreveu que la estava esta MESMO la. Medido sobre os 1072 achados do ledger
+   * deste device: 16,3% `sem-evidencia`, 18,8% `linha-errada`.
+   *
+   * Escreve-se no recibo e NAO se escreve triagem nenhuma. Fechar 175 achados
+   * sozinho no `triagem.jsonl` do dono seria uma decisao dele, nao minha — e
+   * ligar a escrita e trabalho da W2, com o loop reaberto por ata. Aqui o campo
+   * so acumula, como o `score`.
+   */
+  if (r.receipt && r.receipt.conclusao === 'achado') {
+    const c = conferirRecibo(r.receipt, { raiz: repoRoot });
+    r.receipt.evidencia_confere = c.veredicto;
+    r.receipt.evidencia_porque = c.porque;
+  }
+  return r;
 }
 
 /** Rotation over the pillars, kept pure so the loop stays trivial to reason about. */

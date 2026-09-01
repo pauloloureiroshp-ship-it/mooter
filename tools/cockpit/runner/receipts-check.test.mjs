@@ -231,3 +231,50 @@ test('as constantes de tolerancia estao onde se possam discutir', () => {
   assert.equal(JANELA_LINHAS, 8);
   assert.equal(PREFIXO_MIN_PCT, 0.9);
 });
+
+// ── o campo chega MESMO ao recibo de uma ronda real ─────────────────────────
+//
+// Um teste sobre o texto do ficheiro provaria que a linha existe. Nao provaria
+// que ela CORRE: a primeira versao desta ligacao ficou depois de um `return` —
+// codigo morto que importava, passava nos 112 testes do motor, e nunca escrevia
+// campo nenhum. Por isso este teste corre uma ronda.
+
+const { runRound } = await import('./runner-core.mjs');
+
+/** O mesmo repo de bolso que o `runner-core.test.mjs` usa. */
+function repoDeBolso() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rc-round-'));
+  fs.mkdirSync(path.join(dir, 'tools', 'router'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'tools', 'router', 'mooter-review.js'),
+    `const TIER = 3;\n${'// linha\n'.repeat(80)}`);
+  return dir;
+}
+
+const ronda = (resposta) => runRound({
+  repoRoot: repoDeBolso(),
+  pillar: 'P1',
+  stopFile: '/nao/existe/STOP', stopPollMs: 60_000,
+  clock: () => 0,
+  fetchImpl: async () => ({ ok: true, json: async () => ({ response: resposta, eval_count: 21 }) }),
+});
+
+test('uma ronda com transcricao CERTA sai `evidencia-bate`', async () => {
+  const out = await ronda('ACHADO: o tier esta cravado. LINE 1: const TIER = 3; PROVA: tools/router/mooter-review.js:1');
+  assert.equal(out.receipt.conclusao, 'achado');
+  assert.equal(out.receipt.evidencia_confere, VEREDICTO.BATE, out.receipt.evidencia_porque);
+});
+
+test('uma ronda com transcricao INVENTADA sai `sem-evidencia` — e o recibo diz porque', async () => {
+  const out = await ronda('ACHADO: isto rebenta. LINE 1: const NADA_DISTO = 999; PROVA: tools/router/mooter-review.js:1');
+  assert.equal(out.receipt.evidencia_confere, VEREDICTO.SEM);
+  assert.match(out.receipt.evidencia_porque, /nao existem no ficheiro/);
+});
+
+test('e NAO escreve triagem nenhuma — fechar achados sozinho e decisao do dono', async () => {
+  // Sem comentarios: a regra citada dentro de um comentario nao e uma violacao —
+  // e e exactamente onde `triagem.jsonl` aparece, a explicar porque NAO se escreve.
+  const core = fs.readFileSync(new URL('./runner-core.mjs', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(core, /registarDecisao|triagem\.jsonl|registarVarias/,
+    'o motor passou a escrever no ledger de triagem — isso e um gesto do dono');
+});
