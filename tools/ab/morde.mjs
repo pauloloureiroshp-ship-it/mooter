@@ -52,8 +52,8 @@ const DEFEITOS = [
       coautorada: !!a.coautorada,`,
     para: '      tokens_in: 0, tokens_out: 0, // DEFEITO: marca perdida' },
 
-  { nome: 'o braço do LLM deixa de propagar a marca',
-    de: 'tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada });',
+  { nome: 'o braço do LLM deixa de propagar as marcas',
+    de: 'tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada, trust: a.trust || null, preview_truncado: !!a.preview_truncado });',
     para: 'tokens_in: ti, tokens_out: to }); // DEFEITO' },
 
   { nome: 'o adversário volta a correr a temperature 0.2 (a variância falsa)',
@@ -97,6 +97,23 @@ const DEFEITOS = [
   { nome: 'a bandeira --corridas desaparece do CLI',
     de: "  const iC = argv.indexOf('--corridas');",
     para: '  const iC = -1; // DEFEITO' },
+
+  // ── a separacao deriva/precisao (a «fraqueza historical 68%») ──────────
+  { nome: 'o `trust` deixa de sair do dataset (deriva volta a misturar-se)',
+    de: '        trust: a.trust || null,\n        // E o prompt guardado nao e o prompt',
+    para: '        trust: null, // DEFEITO\n        // E o prompt guardado nao e o prompt' },
+
+  { nome: 'a precisao volta a incluir rotulos escritos pelo classificador',
+    de: "  const gt = r.linhas.filter((l) => l.trust === 'ground_truth' && !l.coautorada);",
+    para: '  const gt = r.linhas.filter((l) => !l.coautorada); // DEFEITO' },
+
+  { nome: 'a deriva deixa de declarar quantas guardam preview truncado',
+    de: '  const drTrunc = dr.filter((l) => l.preview_truncado);',
+    para: '  const drTrunc = []; // DEFEITO' },
+
+  { nome: 'a marca de preview truncado deixa de ser calculada',
+    de: "        preview_truncado: String(a.prompt || '').length >= 79,",
+    para: '        preview_truncado: false, // DEFEITO' },
 ];
 
 let mordeu = 0;

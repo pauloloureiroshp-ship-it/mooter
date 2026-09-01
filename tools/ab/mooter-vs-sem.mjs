@@ -114,6 +114,22 @@ export function holdout() {
         prompt: a.prompt, expected_tier: a.expected_tier, seccao: sec,
         confidence_source: a.confidence_source || null,
         coautorada: /^mooter_review/.test(a.confidence_source || ''),
+        // `trust` é do próprio dataset e é a distinção que ele documenta:
+        // «Canonical entries are ground truth (must pass 100%). Adversarial
+        // entries stress edge cases. **Historical entries are sampled from
+        // decisions.log when confidence >= 0.9 (assumed-correct baseline for
+        // DRIFT DETECTION)**.»
+        //
+        // Ou seja: as 25 `historical` sao rotuladas pelo PROPRIO classificador,
+        // e existem para responder «mudou o comportamento?», nao «acertou?».
+        // Media-las junto com o ground truth foi erro meu — e foi de la que
+        // saiu a «fraqueza historical 68%» que este harness publicou.
+        trust: a.trust || null,
+        // E o prompt guardado nao e o prompt: veio do campo `prompt_preview`
+        // do decisions.log, que e `prompt.slice(0, 80)` com espacos colapsados
+        // (`inject_context.js:1017`). 10 das 25 cortam a meio da palavra.
+        // Medido: truncadas 2/10, inteiras 15/15. A «fraqueza» era isto.
+        preview_truncado: String(a.prompt || '').length >= 79,
       });
     }
   }
@@ -169,6 +185,7 @@ export function bracoMooter(amostras) {
       // sem isto, `precisao_limpa` era igual a `precisao_total` e o corte limpo
       // nao existia — a marca morria no braco em vez de chegar a contabilidade
       coautorada: !!a.coautorada,
+      trust: a.trust || null, preview_truncado: !!a.preview_truncado,
     });
   }
   return {
@@ -195,6 +212,7 @@ export function bracoSemRouter(amostras, { tierFixo = 'T3' } = {}) {
     id: a.id, esperado: a.expected_tier, obtido: tierFixo, erro: null,
     ms: 0, tokens_in: 0, tokens_out: 0,
     coautorada: !!a.coautorada,
+    trust: a.trust || null, preview_truncado: !!a.preview_truncado,
   }));
   return {
     braco: `A1 · SEM ROUTER (tudo em ${tierFixo})`,
@@ -255,7 +273,7 @@ export async function bracoLlm(amostras, { modelo, callImpl, timeoutMs = 120000 
       }
     } catch (e) { erro = (e && e.message) || 'erro'; }
     tIn += ti; tOut += to;
-    linhas.push({ id: a.id, esperado: a.expected_tier, obtido: tier, erro, ms: Number(process.hrtime.bigint() - t) / 1e6, tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada });
+    linhas.push({ id: a.id, esperado: a.expected_tier, obtido: tier, erro, ms: Number(process.hrtime.bigint() - t) / 1e6, tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada, trust: a.trust || null, preview_truncado: !!a.preview_truncado });
   }
 
   return {
@@ -299,6 +317,19 @@ export function contabilizar(r) {
 
   // O número que se publica é o LIMPO. O sujo fica ao lado, e a diferença
   // entre os dois é a medida exacta do quanto o gabarito me favorecia.
+  // GROUND TRUTH vs DERIVA — a separacao que faltava.
+  //
+  // `assumed_correct` quer dizer que o rotulo e a saida do proprio
+  // classificador. Compara-lo consigo mesmo nao mede precisao: mede se ele
+  // mudou de ideias, que e util e e outra coisa. Media-los dava um numero que
+  // nao e nem uma coisa nem outra — e foi esse que este harness publicou como
+  // «historical 68%», tratando-o como fraqueza medida.
+  const gt = r.linhas.filter((l) => l.trust === 'ground_truth' && !l.coautorada);
+  const gtCertas = gt.filter((l) => l.obtido === l.esperado).length;
+  const dr = r.linhas.filter((l) => l.trust === 'assumed_correct');
+  const drIguais = dr.filter((l) => l.obtido === l.esperado).length;
+  const drTrunc = dr.filter((l) => l.preview_truncado);
+
   const limpas = r.linhas.filter((l) => !l.coautorada);
   const limpasCertas = limpas.filter((l) => l.obtido === l.esperado).length;
   const coa = r.linhas.filter((l) => l.coautorada);
@@ -312,6 +343,22 @@ export function contabilizar(r) {
     precisao_limpa: limpas.length ? limpasCertas / limpas.length : null,
     n_coautoradas: coa.length,
     certas_coautoradas: coa.filter((l) => l.obtido === l.esperado).length,
+
+    // O NUMERO QUE SE PUBLICA. So rotulos que o dataset declara `ground_truth`,
+    // e sem os que nasceram no mesmo commit que afinou o classificador.
+    n_ground_truth: gt.length,
+    certas_ground_truth: gtCertas,
+    precisao_ground_truth: gt.length ? gtCertas / gt.length : null,
+
+    // DERIVA — nao e precisao, e nao entra em media nenhuma com o de cima.
+    // `concordancia` = quantas vezes o classificador de hoje diz o mesmo que
+    // ele proprio disse quando a amostra foi colhida.
+    deriva_n: dr.length,
+    deriva_concordancia: dr.length ? drIguais / dr.length : null,
+    // Quantas dessas amostras guardam um PREVIEW truncado em vez do prompt.
+    // Enquanto isto nao for zero, a deriva mede-se contra um texto que nao e
+    // o que produziu o rotulo — o sinal existe, mas e fraco e sabe-se porque.
+    deriva_com_preview_truncado: drTrunc.length,
     subestimou: sub, sobrestimou: sobre,
     ms_p50: p50, ms_p95: p95,
   };
@@ -359,10 +406,10 @@ export function imprimir(resultados, meta) {
   }
   L.push(`  corrido   ${meta.ts}`);
   L.push('');
-  L.push('  BRAÇO                             LIMPA  TODAS   SUB SOBRE   TOKENS     p50');
+  L.push('  BRAÇO                            GROUND  LIMPA  TODAS  SUB SOBRE  TOKENS    p50');
   for (const r of resultados) {
     const nome = r.braco.padEnd(34).slice(0, 34);
-    L.push(`  ${nome} ${pct(r.precisao_limpa).padStart(6)} ${pct(r.precisao_total).padStart(6)} ${String(r.subestimou).padStart(5)} ${String(r.sobrestimou).padStart(7)} ${String(r.tokens_in + r.tokens_out).padStart(9)} ${ms(r.ms_p50).padStart(8)}`);
+    L.push(`  ${nome} ${pct(r.precisao_ground_truth).padStart(6)} ${pct(r.precisao_limpa).padStart(6)} ${pct(r.precisao_total).padStart(6)} ${String(r.subestimou).padStart(5)} ${String(r.sobrestimou).padStart(7)} ${String(r.tokens_in + r.tokens_out).padStart(9)} ${ms(r.ms_p50).padStart(8)}`);
   }
   L.push('');
   L.push('  CUSTO');
@@ -372,6 +419,14 @@ export function imprimir(resultados, meta) {
     if (r.custo.usd_se_nuvem != null) {
       L.push(`      se corresse em ${r.custo.usd_se_nuvem_modelo}: ${usd(r.custo.usd_se_nuvem)} — ${r.custo.usd_se_nuvem_porque}`);
     }
+  }
+  L.push('');
+  L.push('  DERIVA (rótulo = saída do próprio classificador — NÃO é precisão)');
+  for (const r of resultados) {
+    const t = r.deriva_com_preview_truncado
+      ? `  ·  ${r.deriva_com_preview_truncado} de ${r.deriva_n} guardam preview truncado a 80 chars`
+      : '';
+    L.push(`    ${r.braco.padEnd(34).slice(0, 34)} concordância ${pct(r.deriva_concordancia)} em ${r.deriva_n}${t}`);
   }
   L.push('');
   L.push('  SEM RESPOSTA (nem certo nem errado — contado à parte, nunca como acerto)');
