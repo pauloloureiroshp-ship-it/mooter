@@ -47,6 +47,7 @@ import {
   naAmostraDeAuditoria, anomaliaDeDreno, avisoDeDreno, AUDITORIA_1_EM, reservarParaODono,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
+import { uptime as uptimeDoF10, lerRegisto as lerRegistoDoWatchdog } from './watchdog.mjs';
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
@@ -249,12 +250,28 @@ function lerFrota(where, device) {
   return anotarFrota(fleet);
 }
 
+/**
+ * Quantos segundos esperar depois de um 503. Nao e um numero de cabeca: o poll
+ * do painel e de 3s, e um `Retry-After` mais curto do que isso nao muda nada.
+ */
+export const RETRY_AFTER_S = 5;
+
 function sendJson(res, code, obj, { cors = true, origin = null } = {}) {
   const body = JSON.stringify(obj);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
+    // ⚠️ 503 SEM `Retry-After` E UM 503 QUE NAO DIZ NADA.
+    //
+    // Medido a 2026-09-01 pelo dono: em rajada (<3s entre pedidos) o
+    // `/fleet.json` devolvia 503 sem `Retry-After`; espacado 4s, 5/5 em 200 OK
+    // (~250ms). Do lado da pagina os dois casos eram indistinguiveis de uma
+    // avaria — e a resposta dela era voltar a bater na mesma cadencia, que e
+    // exactamente o que nao ajuda. O cabecalho e a metade do servidor; a outra
+    // metade e o backoff do cliente. Aplica-se a TODOS os 503 deste servidor:
+    // nenhum deles significa "desiste", todos significam "ainda nao".
+    ...(code === 503 ? { 'Retry-After': String(RETRY_AFTER_S) } : {}),
     ...(cors ? corsHeaders(origin) : {}),
   });
   res.end(body);
@@ -605,6 +622,29 @@ export function createServer({
       } catch (e) {
         saude.metrica_mae = { total: 0, porque: `sem decisions_v2.jsonl legivel: ${String(e && e.message).slice(0, 80)}` };
         saude.quota_por_motor = [];
+      }
+      /**
+       * O UPTIME DO PROPRIO ENDPOINT, lido do registo do watchdog.
+       *
+       * O `KeepAlive` do launchd cobre um caso — o processo morrer. Nao cobre o
+       * que acontece mais: processo VIVO, endpoint inutil. E um numero de
+       * disponibilidade guardado na memoria deste processo nao valeria nada,
+       * porque reiniciar poe-no a 100%. Vem do `watchdog.jsonl`, que e
+       * append-only e sobrevive ao reinicio.
+       *
+       * Entra em `itens` SO quando ha alerta: o cartao da saude do painel mostra
+       * apenas o que precisa de mao, e um verde a mais ensina a ignorar o cartao.
+       */
+      const wd = uptimeDoF10(lerRegistoDoWatchdog({ mooDir: paths.base }));
+      saude.watchdog = wd;
+      if (wd.alerta) {
+        saude.itens = [...(saude.itens || []), {
+          o_que: 'o endpoint do cockpit falhou seguidas vezes',
+          valor: `${wd.seguidas} falhas seguidas · uptime ${wd.pct == null ? 'n/d' : `${wd.pct}%`} em 24 h`,
+          estado: 'mau',
+          porque: wd.porque,
+          resolver: 'launchctl kickstart -k gui/$(id -u)/ai.mooter.f10',
+        }];
       }
       return sendJson(res, 200, saude);
     }

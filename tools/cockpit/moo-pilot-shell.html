@@ -239,6 +239,9 @@
 
   /* Data we can no longer vouch for is visibly demoted, never hidden. */
   body[data-trust="stale"] .vouched{opacity:.6}
+  /* `throttled` esmaece como `stale` — os dados SAO velhos — mas o chip diz
+     outra coisa, porque a causa e outra e o que o dono deve fazer tambem. */
+  body[data-trust="throttled"] .vouched{opacity:.6}
   body[data-trust="dead"]  .vouched{opacity:.32;filter:grayscale(1)}
 
   header{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
@@ -696,6 +699,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
 
   const BASE = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:4290';
   const POLL_MS = 3000;
+  /* BACKOFF. Medido a 2026-09-01: em rajada (<3s) o /fleet.json devolvia 503;
+     espacado 4s, 5/5 em 200 OK. Bater na mesma cadencia depois de um 503 e a
+     unica resposta que garantidamente nao ajuda. Duplica ate ao tecto, e o
+     `Retry-After` do servidor manda quando existe. */
+  const BACKOFF_MAX_MS = 60000;
   const FETCH_TIMEOUT_MS = 6000;    // a hung endpoint must fail, not hang the page
   const OWN_STALE_MS = 12000;       // the page's own clock, independent of the server
   /** A partir daqui o rodape DIZ a idade dos dados em vez de a esconder. */
@@ -735,6 +743,11 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   const ago = (s) => s == null ? 'n/a' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.round(s/3600)} h`;
 
   let state = null, source = null, fails = 0, busy = false, lastFetchAt = 0;
+  /* `throttled` e um terceiro estado, e nao um sabor de `stale`: os dados sao
+     velhos nos dois casos, mas um quer dizer "o device nao responde" e o outro
+     "o device mandou-me esperar". Pintar os dois de igual ensina o dono a
+     ignorar o que importa. */
+  let backoffAte = 0, backoffMs = 0, throttled = false;
   let expecting = null;             // {running:bool, tries:int} — a control awaiting confirmation
   const spark = [];                 // GPU history, client-side only
   const sig = {};                   // per-section change signature (perf: skip identical redraws)
@@ -753,20 +766,41 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       && ('running' in p) && ('recibos' in p);
   }
 
+  /** Recua. `Retry-After` do servidor manda; sem ele, duplica ate ao tecto. */
+  function recuar(retryAfter){
+    const pedido = Number(retryAfter);
+    const espera = Number.isFinite(pedido) && pedido > 0
+      ? Math.min(pedido * 1000, BACKOFF_MAX_MS)
+      : Math.min(backoffMs ? backoffMs * 2 : POLL_MS * 2, BACKOFF_MAX_MS);
+    backoffMs = espera;
+    backoffAte = Date.now() + espera;
+    throttled = true;
+    /* NAO conta como falha: o device respondeu, e respondeu correctamente.
+       Somar isto a `fails` levava a pagina a declarar-se offline por estar a
+       obedecer. */
+  }
+
   async function poll() {
     try {
       // Without a timeout, an endpoint that accepts the socket and never
       // answers keeps this promise pending for ever — and the page stays green
       // for ever, because `fails` is only incremented by a rejection.
+      if (Date.now() < backoffAte) return;   /* o device pediu para esperar */
       const res = await fetch(`${BASE}/fleet.json`, {
         cache:'no-store',
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
+      if (res.status === 503 || res.status === 429){
+        recuar(res.headers && res.headers.get && res.headers.get('Retry-After'));
+        render();
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = await res.json();
       if (!usable(body)) throw new Error('200 response with no usable payload');
       state = body; lastFetchAt = Date.now();
       source = 'live'; fails = 0;
+      backoffMs = 0; backoffAte = 0; throttled = false;
       if (typeof state?.gpu?.util_pct === 'number') {
         spark.push(state.gpu.util_pct);
         if (spark.length > SPARK_MAX) spark.shift();
@@ -899,12 +933,15 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     const selfStale = live && lastFetchAt > 0 && mine > OWN_STALE_MS;
 
     document.body.dataset.trust = !live ? 'dead'
+      : throttled ? 'throttled'
       : selfStale ? 'stale'
       : (fresh.estado === 'vivo' ? 'ok' : fresh.estado || 'dead');
     $('device').textContent = `· ${state.device || 'n/a'}`;
 
     if (live) {
-      if (selfStale) setChip($('conn'),'warn',`screen frozen for ${Math.round(mine/1000)}s — revalidating`);
+      if (throttled) setChip($('conn'),'warn',
+        `holding off — the device asked for ${Math.round((backoffAte - Date.now())/1000)}s. Not a fault: it answered.`);
+      else if (selfStale) setChip($('conn'),'warn',`screen frozen for ${Math.round(mine/1000)}s — revalidating`);
       else if (!state.running) setChip($('conn'),'warn','paused — hit Ship');
       else if (state.recibos && state.recibos.alarme_ocioso)
         setChip($('conn'),'warn',`spinning, not shipping · ${state.recibos.vazias_seguidas} empty rounds in a row`);

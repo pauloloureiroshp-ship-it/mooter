@@ -995,9 +995,24 @@ async function boot(){
   try{
     const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
     if (r && r.ok){ const b = await r.json(); if (b && 'recibos' in b){ live = true; lastLiveAt = Date.now();
-      setInterval(async () => { try{
-        const p = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
-        if (p.ok){ lastLiveAt = Date.now(); } } catch(_){} }, 3000);
+      /* BACKOFF. Medido a 2026-09-01: em rajada (<3s) o /fleet.json devolvia
+         503 sem `Retry-After`; espacado 4s, 5/5 em 200 OK (~250ms). Esta pagina
+         batia de 3 em 3 segundos e nunca recuava — bater na mesma cadencia
+         depois de um 503 e a unica resposta que garantidamente nao ajuda.
+         Agora o servidor manda (`Retry-After`) e, sem ele, a espera duplica ate
+         um minuto. Um 503 nao e uma avaria: e um "ainda nao". */
+      let espera = 3000;
+      const bater = async () => {
+        try{
+          const p = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
+          if (p.status === 503 || p.status === 429){
+            const pedido = Number(p.headers && p.headers.get && p.headers.get('Retry-After'));
+            espera = Math.min(pedido > 0 ? pedido * 1000 : espera * 2, 60000);
+          } else if (p.ok){ lastLiveAt = Date.now(); espera = 3000; }
+        } catch(_){ espera = Math.min(espera * 2, 60000); }
+        setTimeout(bater, espera);
+      };
+      setTimeout(bater, espera);
     }}
   } catch(_){ /* any failure — CSP included — lands honestly in snapshot */ }
   mode = live ? 'live' : 'snapshot';
