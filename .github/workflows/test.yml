@@ -13,6 +13,11 @@ on:
       # para 225 no mesmo dia, e um comentario com um numero errado e pior do
       # que um comentario sem numero nenhum.)
       - 'tools/cockpit/**'
+      # O `render_medir` (F3) vive em tools/verify/ mas a sua suite corre a partir
+      # de tools/router. Sem esta linha, um PR que so lhe tocasse nunca corria o
+      # job que o testa — o defeito do #398, onde um workflow filtrado por path
+      # deixou de acordar para os dados que a suite le.
+      - 'tools/verify/**'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -34,6 +39,11 @@ on:
       - 'packages/mooter-bridge/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/cockpit/**'
+      # O `render_medir` (F3) vive em tools/verify/ mas a sua suite corre a partir
+      # de tools/router. Sem esta linha, um PR que so lhe tocasse nunca corria o
+      # job que o testa — o defeito do #398, onde um workflow filtrado por path
+      # deixou de acordar para os dados que a suite le.
+      - 'tools/verify/**'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
