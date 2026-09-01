@@ -137,6 +137,25 @@ jobs:
       - name: Portao do gauntlet (estagio 2)
         run: npm run test:gauntlet
 
+      # O portao a MORDER uma entrega real, nao so os seus proprios testes.
+      # Ate aqui ele corria no CI e nunca via uma declaracao verdadeira — que e
+      # exactamente o estagio 1 que o MEO_GAUNTLET.md descreve («depende de
+      # obediencia»). Agora le o corpo do PR e diz o que encontrou.
+      #
+      # ADVISORY (`continue-on-error`): produz sinal, nao bloqueia. Tornar isto
+      # required sobre os PRs muda o processo de toda a gente e e gesto do dono,
+      # nao do agente que escreveu o portao.
+      #
+      # SEGURANCA: o corpo do PR e texto de terceiros e vai por `env:`, nunca
+      # interpolado no `run:`. Um `${{ github.event.pull_request.body }}` dentro
+      # do shell e script injection — um PR com backticks executa no runner.
+      - name: Gauntlet declarado no PR (advisory)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s' "$PR_BODY" | node tools/gauntlet/portao-gauntlet.mjs --stdin
+
       # O irmao do portao acima, e o mesmo defeito noutro sitio.
       # `tools/handoff-preflight.js` valida a seccao "Pre-Dispatch Red-Team
       # Gate" do AGENTS.md — exige exactamente 8 perguntas, numeradas 1..8,

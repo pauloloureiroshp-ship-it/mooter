@@ -382,7 +382,30 @@ fluxo). Nenhuma das 18 força **subtracção** no entregável antes de ele sair.
 
 ## Protocolo de declaração (formato fixo, grep-ável para o estágio 2)
 
-`gauntlet: [classe] · Gn mudou X · G4 em [motor|auto-DEGRADADO|não-verificado] · não corridos: Gn (porquê)`
+`gauntlet: [classe] · Gn mudou X · G4 em [motor|auto-DEGRADADO|não-verificado] · não corridos: Gn (porquê) · removido: X | nada saiu porque Y · artefactos: a.json b.md`
+
+Os campos, e o que cada um custa se faltar (tudo verificado por
+`tools/gauntlet/portao-gauntlet.mjs`, que **lê as perguntas deste ficheiro** — não tem cópia delas):
+
+| Campo | Quando | Sem ele |
+|---|---|---|
+| `[classe]` | sempre | reprova — a régua de disparo não tem quarta linha |
+| `Gn` | as que a classe exige | reprova, e diz **quais** faltam |
+| `Gn mudou X` | quando a pergunta mordeu | passa **com nota**: um gauntlet de alto risco que só aprova é indistinguível de um que não correu |
+| `G4 em [motor]` | alto risco | reprova. Com `não-verificado`/`auto-DEGRADADO` passa **carimbado** — nunca limpo |
+| `não corridos: Gn (porquê)` | ao saltar uma | saltar é legítimo; saltar **em silêncio** reprova |
+| **`removido: X`** ou **`nada saiu porque Y`** | quando a **G20** é exigida | reprova. É a única das 20 sem gesto verificável — sem o campo, é a mais fácil de carimbar |
+| **`artefactos: …`** | opcional | o que for nomeado é confrontado com o disco: **existe? tem bytes?** É a antiga C1, que saiu da fila na v7 por descer a mecanismo. Nada é adivinhado — um portão que inventa que ficheiros deviam existir cria uma segunda verdade sobre o que a entrega é |
+
+**Aviso sobre a crase.** O portão tolera prefixos markdown (`` ` ``, `-`, `>`, `*`) porque a primeira
+versão dele não os tolerava e ficou **cega a 11 das 27 declarações do registo** — escritas dentro de
+crases, porque é assim que o formato aparece nesta secção. Um instrumento que não lê o que as pessoas
+escrevem responde «não há declarações» quando a resposta certa é «não sei ler as que há». É a G11
+virada contra o próprio gauntlet, e foi um motor diferente do autor que a apanhou.
+
+**Onde corre.** No CI, sobre o **corpo do PR** (`.github/workflows/test.yml`, step «Gauntlet
+declarado no PR»), em modo **advisory**: produz sinal, não bloqueia. Torná-lo obrigatório muda o
+processo de toda a gente e é gesto do dono — não do agente que escreveu o portão.
 
 ## Regras de crescimento
 
