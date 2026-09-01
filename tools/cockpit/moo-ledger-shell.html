@@ -75,6 +75,32 @@
   body[data-capture]::before{display:none}
   body[data-capture] header.cover{position:static}
   body[data-capture] #toast{display:none}
+
+  /* ── a faixa OPERATE ──────────────────────────────────────────────────────
+     O Ledger conta uma HISTORIA: le-se de cima a baixo e acaba. O que ele nao
+     tinha era o presente — o estado do loop e o que fazer a seguir viviam a
+     2115 linhas de scroll, no /panel, que e outra pagina. Uma pagina que
+     explica muito bem um sistema e nao deixa toca-lo obriga o dono a lembrar-se
+     do endereco do cockpit, e ele nao se lembra: os `.command` do `_handoff`
+     existem por isso.
+     Fixa em baixo e nao em cima: em cima competia com o cabecalho sticky (e
+     duplicava a informacao dele); em baixo esta onde o polegar chega e onde
+     ja vivia o toast. */
+  .operate{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    border-top:1.5px solid var(--pine);background:var(--paper);
+    padding:8px 0;font-size:12.5px}
+  .operate .wrap{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .operate .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
+  .operate .dot.on{background:var(--spot)}
+  .operate .dot.hold{background:#B57F6F}
+  .operate .idade{margin-left:auto;color:var(--ink-3);font-family:var(--f-mono)}
+  .operate .idade.velho{color:#8A3B2A;font-weight:500}
+  /* Sem esta almofada, a faixa tapa o rodape — e um rodape que nao se le e o
+     mesmo que nao existir. */
+  body{padding-bottom:52px}
+  /* No retrato, a faixa sairia carimbada por cima do fim da pagina. */
+  body[data-capture] .operate{display:none}
+  body[data-capture]{padding-bottom:0}
   .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
   .nd{color:var(--ink-3);font-style:italic}
   .wrap{max-width:760px;margin:0 auto;padding:0 24px}
@@ -405,6 +431,17 @@
 </footer>
 </main>
 
+<div class="operate" id="operate">
+  <div class="wrap">
+    <span class="dot" id="op-dot"></span>
+    <span id="op-estado">—</span>
+    <a href="http://127.0.0.1:4290/panel" id="op-panel">open the cockpit</a>
+    <span class="nd">·</span>
+    <span class="mono" data-copy="node tools/cockpit/runner/build-ledger-snapshot.mjs"
+      style="cursor:copy" data-tip="Copies the command that rebuilds this page from the device's own measurements.">rebuild this page</span>
+    <span class="idade" id="op-idade">—</span>
+  </div>
+</div>
 <div id="toast" role="status"></div>
 <script>
 (() => {
@@ -486,6 +523,38 @@ function tickFresh(){
   $('hd-fresh').textContent = mode === 'live' && lastLiveAt
     ? `updated ${Math.round((Date.now()-lastLiveAt)/1000)}s ago`
     : `newest receipt ${ago(S.window.cutoff)}`;
+  renderOperate();
+}
+
+/** A partir daqui um instantaneo deixa de falar do presente. */
+const SNAPSHOT_VELHO_MS = 24*3600*1000;
+
+/**
+ * A faixa OPERATE: o estado do loop, o que fazer, e HA QUANTO TEMPO.
+ *
+ * A idade e a parte que nao se pode omitir. Uma pagina carimbada continua a
+ * parecer certa depois de deixar de o ser — e este ficheiro ja tem um teste que
+ * existe por causa disso mesmo. Passadas 24h o numero pinta-se, em vez de
+ * continuar a ser um cinzento discreto que ninguem le.
+ */
+function renderOperate(){
+  const parado = !!(S.hold || (S.pausa && S.pausa.activa));
+  const dot = $('op-dot');
+  dot.className = 'dot' + (mode === 'live' ? (parado ? ' hold' : ' on') : '');
+  $('op-estado').textContent = mode === 'live'
+    ? (parado ? 'the loop is holding — reopening it is the owner\u2019s call' : 'the loop is running on this device')
+    : 'stamped copy — the loop lives on the device, not here';
+  const alvo = $('op-panel');
+  alvo.hidden = mode !== 'live';
+
+  const t = Date.parse(S.generated_at);
+  const idade = isFinite(t) ? Date.now() - t : null;
+  const campo = $('op-idade');
+  campo.textContent = idade == null ? 'stamped n/d' : `stamped ${dur(idade/1000)} ago`;
+  campo.className = 'idade' + (idade != null && idade > SNAPSHOT_VELHO_MS ? ' velho' : '');
+  campo.setAttribute('data-tip', idade != null && idade > SNAPSHOT_VELHO_MS
+    ? 'This page is more than a day old. The numbers were true when it was built and nothing here has checked since.'
+    : 'When this page was built from the device\u2019s measurements.');
 }
 
 /* chapter I */
