@@ -53,7 +53,8 @@
     "lint:workflows": "node tools/workflows-lint.mjs",
     "test:workflows-lint": "node --test tools/workflows-lint.test.mjs",
     "nd:check": "node tools/cockpit/runner/nd-check.mjs",
-    "receipts:check": "node tools/cockpit/runner/receipts-check.mjs"
+    "receipts:check": "node tools/cockpit/runner/receipts-check.mjs",
+    "enrich": "node tools/cockpit/runner/enrich.mjs"
   },
   "engines": {
     "node": ">=22"
