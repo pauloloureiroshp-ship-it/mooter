@@ -662,7 +662,7 @@ test('A2: o comando copiado e o comando que CORRE — sem variaveis de ambiente 
 
 // ── A4 · `user n/d` sem causa ───────────────────────────────────────────────
 //
-// O cabecalho dizia `project frugal · user n/d`. Honesto, e mudo. A causa e
+// O cabecalho dizia `project <nome do repo> · user n/d`. Honesto, e mudo. A causa e
 // concreta: o batimento de um device nao transporta campo de utilizador nenhum
 // — nao e "ainda nao medimos", e um campo que `writeBeacon` nunca escreveu.
 // Nao se inventa um: ha um identificador real a mao (a conta do sistema) e ele
