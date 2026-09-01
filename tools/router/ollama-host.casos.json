@@ -1,0 +1,18 @@
+{
+  "_porque": "Casos partilhados por DUAS implementações da mesma regra: tools/router/ollama-host.js (motor) e packages/cli/src/ollama-host.ts (CLI). A duplicação existe porque o bundle do CLI não pode importar de tools/ (AGENTS.md: nada de fora entra no bundle) — mas os TESTES correm no repo, não no bundle, e por isso podem partilhar esta tabela. Sem ela, as duas implementações divergiam em silêncio, que é a classe de defeito que o ollama-host existe para matar.",
+  "_regra": "OLLAMA_HOST=127.0.0.1:11434 (sem esquema) é o formato canónico do Ollama. Normalizar = garantir uma origem absoluta, sem barra final, sem rebaixar https para http.",
+  "casos": [
+    { "entrada": "127.0.0.1:11434",           "esperado": "http://127.0.0.1:11434",           "porque": "o formato canónico do Ollama — o caso que partiu tudo a 2026-08-31" },
+    { "entrada": "localhost:11434",            "esperado": "http://localhost:11434",           "porque": "idem, com nome" },
+    { "entrada": "host.docker.internal:11434", "esperado": "http://host.docker.internal:11434","porque": "o default do audit em Docker" },
+    { "entrada": "http://localhost:11434",     "esperado": "http://localhost:11434",           "porque": "já absoluto — não se duplica o esquema" },
+    { "entrada": "https://gpu.local:11434",    "esperado": "https://gpu.local:11434",          "porque": "https NUNCA é rebaixado a http por um utilitário de URLs" },
+    { "entrada": "HTTP://localhost:11434",     "esperado": "HTTP://localhost:11434",           "porque": "esquema em maiúsculas continua a ser esquema" },
+    { "entrada": "127.0.0.1:11434/",           "esperado": "http://127.0.0.1:11434",           "porque": "barra final aparada" },
+    { "entrada": "http://gpu:11434///",        "esperado": "http://gpu:11434",                 "porque": "várias barras finais aparadas" },
+    { "entrada": "  127.0.0.1:11434  ",        "esperado": "http://127.0.0.1:11434",           "porque": "espaços à volta (env mal colada)" },
+    { "entrada": "",                           "esperado": "__DEFAULT__",                      "porque": "vazio cai no fallback do chamador" },
+    { "entrada": "   ",                        "esperado": "__DEFAULT__",                      "porque": "só espaços conta como vazio" },
+    { "entrada": null,                         "esperado": "__DEFAULT__",                      "porque": "ausente cai no fallback" }
+  ]
+}

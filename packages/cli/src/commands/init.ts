@@ -30,6 +30,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { homedir, cpus, totalmem, platform } from "node:os";
+import { normalizeOllamaHost } from "../ollama-host.ts";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createInterface } from "node:readline";
@@ -181,7 +182,7 @@ export async function probeHardware(fetchImpl: typeof fetch = fetch): Promise<Ha
   // Probe the env override first, then the two common defaults: Docker/WSL
   // (host.docker.internal) and bare-metal Linux/macOS (localhost). First hit wins.
   const candidates = process.env.OLLAMA_HOST
-    ? [process.env.OLLAMA_HOST]
+    ? [normalizeOllamaHost(process.env.OLLAMA_HOST)]
     : ["http://host.docker.internal:11434", "http://localhost:11434"];
   let ollama: OllamaInfo = { url: candidates[0]!, models: [], available: false };
   for (const url of candidates) {

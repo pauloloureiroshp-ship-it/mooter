@@ -16,6 +16,7 @@
 import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
+import { ollamaHostFromEnv } from "../ollama-host.ts";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -217,7 +218,7 @@ const TIER_MODEL: Record<string, string> = {
 const OOM_FALLBACK = "qwen2.5:7b";
 
 function ollamaHost(): string {
-  return process.env.OLLAMA_HOST || "http://localhost:11434";
+  return ollamaHostFromEnv("http://localhost:11434");
 }
 
 async function ollamaGenerate(model: string, prompt: string, timeoutMs = 180_000): Promise<ResolveResult> {
