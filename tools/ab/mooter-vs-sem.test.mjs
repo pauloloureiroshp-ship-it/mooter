@@ -122,6 +122,82 @@ test('contabilizar(): a precisão limpa exclui as co-autoradas, e as duas são p
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 1b · DERIVA ≠ PRECISÃO — a correcção que matou a «fraqueza historical 68%»
+// ═══════════════════════════════════════════════════════════════════════════
+
+test('holdout(): carrega o `trust` que o próprio dataset declara', () => {
+  const h = holdout();
+  const v = JSON.parse(fs.readFileSync(path.join(RAIZ, 'tools', 'router', 'validation-set.json'), 'utf8'));
+
+  // A verdade vem da fonte. O `_description` do ficheiro é explícito: canonical
+  // e adversarial são ground truth; historical é «assumed-correct baseline for
+  // drift detection» — rotulada pela saída do PRÓPRIO classificador.
+  const esperado = {};
+  for (const sec of ['canonical', 'adversarial', 'historical']) {
+    for (const a of v[sec] || []) esperado[a.trust] = (esperado[a.trust] || 0) + 1;
+  }
+  const obtido = {};
+  for (const a of h) obtido[a.trust] = (obtido[a.trust] || 0) + 1;
+  assert.deepEqual(obtido, esperado, 'o trust tem de sobreviver do dataset até à amostra');
+  assert.ok((obtido.ground_truth || 0) > 0 && (obtido.assumed_correct || 0) > 0,
+    'se um dos dois desaparecer, a separação deixa de ter o que separar');
+});
+
+test('a precisão publicada NÃO inclui rótulos que o classificador escreveu', () => {
+  // Foi assim que nasceu a «fraqueza historical 68%»: 25 amostras cujo
+  // `expected_tier` É a saída do classify.js foram metidas na média com o
+  // ground truth. Comparar o classificador consigo mesmo não mede precisão —
+  // mede se ele mudou de ideias, que é útil e é outra coisa.
+  const c = contabilizar({ braco: 'x', linhas: [
+    { id: 'a', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'ground_truth' },
+    { id: 'b', esperado: 'T3', obtido: 'T0', ms: 1, trust: 'ground_truth' },
+    // as três de deriva estão TODAS certas — se entrassem na média, subiam-na
+    { id: 'c', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'assumed_correct' },
+    { id: 'd', esperado: 'T1', obtido: 'T1', ms: 1, trust: 'assumed_correct' },
+    { id: 'e', esperado: 'T2', obtido: 'T2', ms: 1, trust: 'assumed_correct' },
+  ] });
+
+  assert.equal(c.n_ground_truth, 2, 'só as duas de ground truth contam para a precisão');
+  assert.equal(c.precisao_ground_truth, 1 / 2);
+  assert.notEqual(c.precisao_ground_truth, c.precisao_total,
+    'construí este caso para que misturar mudasse o número — se forem iguais, não separou');
+  assert.equal(c.deriva_n, 3);
+  assert.equal(c.deriva_concordancia, 1, 'a deriva reporta-se à parte, e aqui é total');
+});
+
+test('a deriva declara quantas amostras guardam um PREVIEW em vez do prompt', () => {
+  // `inject_context.js:1017` grava `prompt_preview: prompt.slice(0, 80)` — o
+  // campo diz no nome que é um preview. Quem construiu a secção historical usou
+  // esse campo como se fosse o prompt. Medido a 2026-09-01: nas truncadas o
+  // Mooter faz 2/10; nas inteiras, 15/15. A «fraqueza» era isto.
+  const c = contabilizar({ braco: 'x', linhas: [
+    { id: 'a', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'assumed_correct', preview_truncado: true },
+    { id: 'b', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'assumed_correct', preview_truncado: false },
+  ] });
+  assert.equal(c.deriva_com_preview_truncado, 1,
+    'enquanto isto não for zero, a deriva mede-se contra um texto que não é o que produziu o rótulo');
+});
+
+test('nos dados reais, a truncagem explica a falha — e a marca vê-a', () => {
+  const h = holdout();
+  const hist = h.filter((a) => a.trust === 'assumed_correct');
+  assert.ok(hist.length > 0, 'sem amostras de deriva este teste não mediu nada');
+
+  const r = bracoMooter(hist);
+  const grupo = (f) => { const L = r.linhas.filter(f); return { n: L.length, ok: L.filter((l) => l.obtido === l.esperado).length }; };
+  const trunc = grupo((l) => l.preview_truncado);
+  const inteiras = grupo((l) => !l.preview_truncado);
+
+  assert.ok(trunc.n > 0 && inteiras.n > 0, 'preciso dos dois grupos para comparar');
+  // A afirmação forte: a concordância nas inteiras é MUITO maior. Se um dia
+  // deixar de ser, ou o dataset foi reparado (bom) ou o classificador
+  // regrediu (mau) — e nos dois casos alguém tem de olhar.
+  assert.ok(inteiras.ok / inteiras.n > trunc.ok / trunc.n,
+    `concordância nas inteiras (${inteiras.ok}/${inteiras.n}) tinha de ser maior que nas ` +
+    `truncadas (${trunc.ok}/${trunc.n}) — é o que sustenta dizer que a «fraqueza» é do dataset`);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 2 · O ADVERSÁRIO JOGADO A SÉRIO — as correcções +36→+12 e a variância
 // ═══════════════════════════════════════════════════════════════════════════
 
