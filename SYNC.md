@@ -140,63 +140,58 @@ lá e o SYNC é snapshot, não log. Frota em Ed25519 (2/2 devices) · suite `too
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-31 (noite) · O PROBE QUE NUNCA EXISTIU — e o motor $0 dado como morto
+### 2026-08-31 → 09-01 · TRÊS ARTEFACTOS FANTASMA, E A MESMA CLASSE DE DEFEITO EM CADA CAMADA
 
-O SUPER MASTERPROMPT «NO TALO» v1 mandava correr `_handoff/duelo-2026-08-31/probe-frota.mjs` antes
-de cada tarefa. **Não existia** — nem ele, nem o `render_medir.js` (F3), nem o `mapa-e-roadmap.md`
-(as 10 perguntas da §5). Busca exaustiva e citada: `git log --all` em todo o histórico e todas as
-branches · `find` por nome na home inteira · `grep -rl` no repo · vault. **Zero.** Parei e disse
-(L7); o dono confirmou que nunca existiram e mandou desenhar de raiz.
+O SUPER MASTERPROMPT «NO TALO» mandava usar três ficheiros que **nunca existiram** — busca exaustiva
+citada em cada caso (`git log --all`, `find` na home inteira, `grep -rl`, vault). Dois foram
+desenhados de raiz porque o repo tinha com que os reconstruir; o terceiro não.
 
-**Feito** (`23655073`): probe + 19 testes. Não inventa sondas — compõe `providers/*.isAvailable()`
-(nenhum consome quota), `quota-honesta.js` (separa saúde de quota) e `provider-health.js` (**o
-cooldown que a F1 pedia já existia**). Mordida provada: 3 defeitos plantados → 1, 1 e 6 falhas.
-A regra «n/d de quota = esgotada» da §2 é aplicada à letra mas **nunca em silêncio**:
-`excluido_por_nd` é campo distinto de `esgotado_medido`, e sem candidatos a etapa sai `BLOQUEADA`
-em vez de eleger o mais barato — o *viés do default barato*.
+**F1 · `probe-frota.mjs`** (`23655073`) — compõe `providers/*.isAvailable()`, `quota-honesta.js` e
+`provider-health.js` (o cooldown que a F1 pedia **já existia**). A regra «n/d de quota = esgotada» é
+aplicada à letra mas nunca em silêncio: `excluido_por_nd` ≠ `esgotado_medido`, e sem candidatos a
+etapa sai `BLOQUEADA` — nunca o mais barato por defeito. **Na 1.ª corrida encontrou o motor $0 dado
+por morto:** `OLLAMA_HOST=127.0.0.1:11434` (o formato canónico do Ollama) e o adaptador concatenava
+sem normalizar. O Ollama estava **vivo, com 10 modelos**.
 
-**O achado da 1.ª corrida:** `OLLAMA_HOST=127.0.0.1:11434` (sem esquema — o formato canónico do
-Ollama) e `ollama-api.js:161` concatenava sem normalizar. O Ollama estava **vivo, com 10 modelos**.
+**A cadeia que isso abriu** (#454 → #458 → #459): o `callOllama()` devolvia **`null` mudo** (o
+`catch` engolia o `Failed to parse URL`); eram **11 sítios** a ler `OLLAMA_HOST` cru, não 5 nem 3; e
+**cinco** definições de «runtime», não três — os dois instaladores, o Step 5 do update e as duas
+cópias servidas pelo site, que o `piso-de-node.mjs` apanhou quando eu já julgava ter fechado o drift.
+Pelo meio meti eu próprio a mesma classe de defeito com o sinal trocado (#456: o espelho arrastava
+`coverage/` e 12 `.json` de **estado local**, entre eles o `router-tuning.json` que o backtest
+escreve no runtime). Corri o sync errado 1×: 13 estados ficaram iguais ao repo e **não consigo provar
+quais sobrepus** — sem backup; dano material ~0.
 
-**Fecho (22:55–23:40 SP) · o motor $0 volta a estar operacional.** Pior do que a sonda: `callOllama()`
-devolvia **`null` sem razão nenhuma** — o `catch` engolia o `Failed to parse URL`, e quem o lia concluía
-«o modelo não respondeu». O motor $0 falhava **mudo** e a leitura caía para motor pago sem sinal. **E
-eram SETE sítios, não cinco** — a minha lista ficou a cinco porque o `grep` parou no 1.º ecrã; nos
-outros seis, `new URL(…)` lançava `Invalid URL`. Um só helper: `ollama-host.js` (`8788e1d8`,
-`61efb446`), e **10 testes, sobretudo a varredura de COBERTURA**, que falha se alguém voltar a ler
-`process.env.OLLAMA_HOST` sem normalizar. Suites: router **1231/1234** · cockpit **948/0** · audit
-**5/6** — as 3 falhas **pré-existentes**, verificadas em `HEAD` limpo.
+**O que fechou o assunto não foi nenhuma correcção** — foi passar a haver, em cada camada, **um teste
+de cobertura que morde**: a varredura do `OLLAMA_HOST` (dos dois lados da fronteira do bundle), o
+`sync-runtime --check`, e o `paridade-instaladores` (os três ficheiros pediam «keep in lockstep» *em
+comentário*, e ninguém verificava).
 
-**Update corrido** (#454) — e **a correcção continuava morta**: o Step 5 usava um glob **não
-recursivo** (204 da raiz; os 17 de `providers/`+`forecast/`+`hooks/` fora). Cinco ✓ com o
-`ollama-api.js` velho, em silêncio — o ficheiro velho não requer o novo, logo nem erro havia.
-**Corrigido** (#455): `sync-runtime.js` é a definição única do runtime, no padrão do `sync-hooks.js`;
-o Step 6 ganha esse gate — **presença de um passo de sync não é prova de cobertura**. O `install.sh`
-já sabia desde a Wave 61: o defeito era instalador e updater terem duas definições de «runtime».
-**E depois eu fiz a mesma classe de erro, com o sinal trocado** (#456): o espelho arrastava
-`coverage/` e **12 `.json` de estado local**, entre eles o `router-tuning.json` que o backtest escreve
-**no runtime** — copiá-lo do repo por cima desfaz o tuning em silêncio. `git ls-files` resolve (23 →
-9); sem git **desliga** em vez de falhar fechado. Corri o sync errado 1×: 13 estados ficaram iguais ao
-repo e **não consigo provar quais sobrepus** (sem backup); dano material ~0.
+**Medido no fim:** `runtime em dia` · acumulador OK · `TEST=pass` · motor $0 `available:true` · cli
+**668/669 (0 fail)** · router **1285/1288** · audit **5/6** (as 3 pré-existentes) · ratchet 215 ·
+`classify.js` FROZEN intacto. Detalhe completo no journal do vault.
 
-**A onda do install** (#458, #459) fechou o resto. Eram **cinco** definições de «runtime», não três:
-os dois instaladores, o Step 5, e as **duas cópias servidas pelo site** — que o `piso-de-node.mjs`
-apanhou quando eu já julgava ter fechado o drift. Todas passam por `sync-runtime.js`. Cai a cópia
-cega de `*.json` (um `package.json` no router governa a resolução de módulos daquela árvore) e o
-espelho deixa de recriar a 4.ª cópia dos hooks ligados. **O portão que faltava:** os três ficheiros
-pediam «keep in lockstep» *em comentário* e ninguém verificava — `paridade-instaladores.test.js`
-falha se as listas divergirem, se alguém voltar a copiar à mão, ou se o piso de Node se separar.
-E os últimos **4** sítios do `OLLAMA_HOST` (`packages/cli`, FROZEN, allowlist no mesmo commit):
-a regra não é importada de `tools/` porque o bundle não arrasta código de fora — as duas cópias são
-ancoradas na **mesma tabela de casos**, e alterar um caso reprova os dois lados. O `npm test` do
-audit deixa de escrever num ficheiro **versionado**: uma suite não pode alterar o estado que mede.
+**F3 · o `render_medir` desenhado de raiz** (#462) — o segundo artefacto fantasma do MP. Busca
+citada: uma só ocorrência de `render_medir` no repo, e é o `SYNC.md` a dizer que não existia. O
+critério («rascunho B sai fail») era inverificável, e **o repo devolveu-o**: o #450 mediu que
+pontuar `body.thinking` em vez de `body.response` valia **0% contra 83%** — logo *um rascunho tem de
+sair `falha`, e pelo critério certo*. **Não implementa critérios: compõe quatro** que já existiam,
+cada um com um número atrás (#450 0→83% · **209/275** rondas que nunca chegaram ao modelo · **174**
+achados alucinados · **62** achados com `citacao-ok` e **0 de 78** verdadeiros). «Render» era a
+metade que faltava: os verificadores do repo devolvem JSON para máquinas, e o fosso é «work a non-dev
+can check» — cada critério sai com o medido, o limiar e a prova. `n/d` é estrutural: só n/d nunca
+reprova; uma falha medida ganha a um n/d. 24 testes, **2 de integração real CJS→ESM**; mordida com 4
+defeitos plantados → **3, 1, 1, 1**. E `tools/verify/**` entrou nos paths do `test.yml` — sem isso um
+PR que só lhe tocasse nunca acordava o job (o defeito do #398).
 
-**Medido:** `runtime em dia (221)` · acumulador OK · `TEST=pass` · motor $0 `available:true` · cli
-**668/669 (0 fail)** · router **1261/1264** · audit **5/6** (as 3 pré-existentes) · ratchet 215.
-**Aberto:** `retrato-mapa.test.js` **flaky** (FROZEN; corrigir sem reproduzir é adivinhar) ·
-`coverage/` e 9 cópias de hooks ficaram no runtime (o `cert-guard` bloqueia `rm -rf` sob `$HOME` e
-não contornei) · **F3 inverificável e §5 inexequível** — nada nesta onda desbloqueia isso.
-Detalhe no journal do vault.
+**A leitura foi minha e pode estar errada:** um fan-out de 6 agentes propôs um verificador *visual*
+(playwright/contraste). Não segui — o F3 está entre F2 e F4, ambos de motor, e «rascunho»/«ronda» é
+vocabulário do runner. Se o duelo era visual, o eixo está trocado; o desenho alternativo está no
+journal do workflow.
+
+**Aberto:** a **§5 continua inexequível** — o gauntlet aponta para um `mapa-e-roadmap.md` que não
+existe, e é o único dos três fantasmas sem substituto, porque as «10 perguntas» não são deriváveis
+de nada medido.
 
 ### 2026-09-01 (madrugada) · O MOO LEDGER — e os números saem do HTML
 
