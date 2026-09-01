@@ -198,4 +198,23 @@ audit deixa de escrever num ficheiro **versionado**: uma suite não pode alterar
 não contornei) · **F3 inverificável e §5 inexequível** — nada nesta onda desbloqueia isso.
 Detalhe no journal do vault.
 
+### 2026-09-01 (madrugada) · O MOO LEDGER — e os números saem do HTML
+
+A v4 do Moo Pilot chegou dogfoodada e com o instantâneo **cravado no HTML** (2094 citações,
+$24.29 de padrão, 16 GB de VRAM): verdadeiros no minuto em que foram escritos, mentiras silenciosas
+no dia seguinte. Adoptada ao contrário — `moo-ledger-shell.html` é uma **casca sem um número
+dentro** e `runner/build-ledger-snapshot.mjs` mede-os (ledger · triagem · beacons · `git worktree
+list` · eta-index · portões do `autopilot`); sem payload a página **diz-o e pára**. F10 ganha
+`GET /ledger`; o `/panel` v1 fica **intacto** (vista do operador, com os controlos), guarda de rota
+nos dois. **26 testes**, metade a correr a casca contra um DOM de bolso. Cockpit **976/0** · router
+**1126/0** · design **10,00/10** (o `SUPERFICIES_UI` não tinha a vista do dono: entrou e mordeu,
+10,00 → 7,27). Onde **"sem medição = null"** doeu: `vram_total_gb` → `n/d`, e a pastagem mostra
+**1 device, não 3** — os recusados viajam em `fleet_rejected` **com o motivo**. G1 entregue como
+molde. **PR #461; detalhe no journal do vault.**
+**REFUTADO — o bump do conector para 1.53.0:** a `FILES` do `pack-mcpb.mjs` não leva uma única skill
+(vão por `/mooter-update`) e nada nesta onda toca em `packages/mooter-bridge/`. Fica em **1.52.0**.
+**Aberto:** `npm run sync:cockpit` depois do merge (espelho desta máquina **vazio**, pré-existente) ·
+instalar o LaunchAgent (gesto do dono) · **`version-sync.yml` vermelho por erro de ficheiro de
+workflow**, também em `main` e desde antes desta onda — a rede sob o protocolo de release está caída.
+
 <!-- HUMANO:FIM -->
