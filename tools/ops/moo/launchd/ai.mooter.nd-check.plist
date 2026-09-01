@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.mooter.nd-check.plist — o relatorio semanal dos `n/d` vencidos.
+
+  ⚠️ ISTO E UM MOLDE, NAO UM PLIST INSTALAVEL.
+
+  Os campos `__ASSIM__` sao absolutos e por-maquina, pela mesma razao que no
+  `ai.mooter.f10.plist` e no `ai.mooter.beacon-renew.plist`: um plist commitado
+  com `/Users/<alguem>/` funciona no computador de quem o escreveu e falha em
+  SILENCIO em todos os outros — o launchd nao se queixa de um caminho que nao
+  existe, simplesmente nunca arranca nada.
+
+  PORQUE SEMANAL, E NAO DIARIO:
+
+  A regra deste projecto e escrever `n/d` em vez de inventar um numero, e ela
+  esta certa. O risco que este agente cobre e o OUTRO: um `n/d` que fica escrito
+  para sempre le-se, ao fim de umas semanas, como "isto nunca vai existir".
+  Cada um passou a ter dono e data-limite em `tools/cockpit/nd-registry.json`.
+
+  Mas um relatorio de divida que gera divida e so mais um dreno — e este
+  projecto ja mediu o que isso custa (a anomalia de dreno chegou a ser 97,7% do
+  `f10.log`). Por isso: `StartCalendarInterval` a segunda-feira, UMA issue
+  agregada, e um cap proprio dentro do `nd-check.mjs` que se recusa a abrir
+  outra antes de passar uma semana — mesmo que alguem corra o comando a mao.
+
+  `--issue` fala com o GitHub. Sem `gh` autenticado, o passo falha RUIDOSAMENTE
+  e o relatorio de texto continua a sair — nao ha modo silencioso.
+
+  SEM `RunAtLoad`: um reboot a segunda-feira nao e uma semana nova. Sem
+  `KeepAlive`: isto e uma tarefa que acaba, nao um servidor.
+
+  NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    sed -e "s|__NODE__|$(command -v node)|" \
+        -e "s|__CHECK__|$HOME/frugal/tools/cockpit/runner/nd-check.mjs|" \
+        -e "s|__REPO__|$HOME/frugal|" \
+        -e "s|__LOG__|$HOME/.mooter/nd-check.log|" \
+        tools/ops/moo/launchd/ai.mooter.nd-check.plist \
+        > ~/Library/LaunchAgents/ai.mooter.nd-check.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.nd-check.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.mooter.nd-check</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__CHECK__</string>
+    <string>--issue</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key><string>__LOG__</string>
+  <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>
