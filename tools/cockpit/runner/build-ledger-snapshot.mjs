@@ -40,6 +40,7 @@ import { portoes } from './autopilot.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { versaoDoConector } from './project.mjs';
+import { ciEPrs } from './ci-prs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..');
@@ -48,7 +49,7 @@ const ROADMAP = path.join(REPO, 'tools', 'cockpit', 'roadmap.json');
 const MOO_DIR = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 
 /** A versao da casca. Sobe quando o CONTRATO de campos muda, nunca por estetica. */
-export const SHELL_VERSION = '4.1.0';
+export const SHELL_VERSION = '4.2.0';
 
 export const BEGIN = '<!-- MOO_LEDGER:BEGIN -->';
 export const END = '<!-- MOO_LEDGER:END -->';
@@ -375,6 +376,8 @@ export function injectPayload(html, { snapshot, roadmap, shell }) {
  * nao foi lido sai `null`.
  */
 export async function buildLedgerSnapshot({
+  // Injectavel: os testes nao podem depender de haver `gh` com sessao.
+  ciPrsImpl = ciEPrs,
   repoRoot = REPO,
   mooDir = MOO_DIR,
   now = Date.now(),
@@ -520,6 +523,15 @@ export async function buildLedgerSnapshot({
       items_cap: MAX_ITENS_TRIAGEM,
     },
     yardstick,
+    /**
+     * CI e PRs — o unico bloco do Ledger que dizia `n/d` por nunca ter
+     * perguntado. Decidiu-se ALIMENTAR e nao remover: os PRs e o CI sao a unica
+     * parte do trabalho deste projecto que existe FORA da maquina do dono, e um
+     * Ledger que so conta o que a GPU local fez conta metade da historia.
+     * Best-effort: se o `gh` nao existir, nao tiver sessao ou nao responder, o
+     * campo sai `n/d` COM O MOTIVO — e uma seccao nunca derruba a construcao.
+     */
+    ci_prs: ciPrsImpl(),
     night: agregarNoite(receipts),
     needs_you: needsYou,
     receipts: receipts.slice(-MAX_RECIBOS).reverse().map((r) => ({

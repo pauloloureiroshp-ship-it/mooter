@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.mooter.watchdog.plist — sondagem do endpoint do cockpit, de 5 em 5 minutos.
+
+  ⚠️ ISTO E UM MOLDE, NAO UM PLIST INSTALAVEL. Os `__ASSIM__` sao absolutos e
+  por-maquina: um plist commitado com `/Users/<alguem>/` funciona no computador
+  de quem o escreveu e falha em SILENCIO em todos os outros.
+
+  O QUE ISTO COBRE QUE O `KeepAlive` NAO COBRE.
+
+  O `ai.mooter.f10.plist` ja tem `KeepAlive`: o processo morre, o launchd
+  relanca. Isso cobre UM modo de falha. O que o dono encontra e outro — processo
+  VIVO e endpoint inutil: a porta aceita, o 200 vem sem payload, o ledger nao se
+  le. Do lado do launchd isso e um servico saudavel; do lado do ecra e um
+  cockpit em branco. Nenhum supervisor de processos ve a diferenca, porque a
+  diferenca esta no CORPO da resposta.
+
+  O QUE ELE NAO FAZ: nao relanca nada. So mede e appenda uma linha em
+  `~/.mooter/watchdog.jsonl`. Relancar um servidor que escreve no ledger e uma
+  decisao do dono — e um watchdog que reinicia sozinho esconde exactamente o
+  padrao que existe para tornar visivel. O alerta sai no /panel (cartao da
+  saude) quando ha 3 falhas seguidas, com o `launchctl kickstart` ao lado.
+
+  `StartInterval` de 300: a 5 minutos sao 288 linhas por dia, e uma janela de
+  24h com 288 pontos da um uptime com resolucao de 0,35%. De 30 em 30 segundos
+  seriam 2880 linhas/dia para medir a mesma coisa.
+
+  `RunAtLoad` porque a primeira pergunta depois de um reboot e exactamente esta.
+  SEM `KeepAlive`: e uma tarefa que acaba, nao um servidor.
+
+  NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    # O caminho do repo NAO se crava: ha 13 worktrees nesta maquina e o
+    # checkout pode viver em qualquer uma. Corre isto de DENTRO do repo.
+    REPO="$(git rev-parse --show-toplevel)"
+    sed -e "s|__NODE__|$(command -v node)|" \
+        -e "s|__WATCHDOG__|${REPO}/tools/cockpit/runner/watchdog.mjs|" \
+        -e "s|__REPO__|${REPO}|" \
+        -e "s|__LOG__|$HOME/.mooter/watchdog.log|" \
+        "${REPO}/tools/ops/moo/launchd/ai.mooter.watchdog.plist" \
+        > ~/Library/LaunchAgents/ai.mooter.watchdog.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.watchdog.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.mooter.watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__WATCHDOG__</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>300</integer>
+  <key>StandardOutPath</key><string>__LOG__</string>
+  <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>

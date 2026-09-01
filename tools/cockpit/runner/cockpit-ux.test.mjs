@@ -197,7 +197,12 @@ test('os ouvintes dos filtros ligam-se no arranque, nunca dentro de offline()', 
     /addEventListener/,
     'offline() volta a registar ouvintes: só ligam quando o endpoint cai, e duplicam a cada falha',
   );
-  assert.match(CODE, /f-verdict[\s\S]{0,200}addEventListener/, 'os filtros do feed não estão ligados a lado nenhum');
+  // A janela cresceu de 200 para 600 a 2026-09-01, quando o corpo do ciclo
+  // passou a ligar TAMBEM o `keydown` (Enter deixou de ser tecla morta). Em
+  // troca a asserção ficou mais apertada, não mais frouxa: exige o ouvinte de
+  // `input` pelo nome, e o de `keydown` a seguir.
+  assert.match(CODE, /f-verdict[\s\S]{0,600}addEventListener\('input'/, 'os filtros do feed não estão ligados a lado nenhum');
+  assert.match(CODE, /f-verdict[\s\S]{0,700}addEventListener\('keydown'/, 'Enter voltou a ser tecla morta no filtro do feed');
 });
 
 // ── o custo por modelo (Fase 1) ──────────────────────────────────────────────

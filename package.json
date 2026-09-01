@@ -50,7 +50,16 @@
     "design:inline:ci": "node design/tools/moo-inline-sync.mjs --check",
     "test:gauntlet": "node --test \"tools/gauntlet/*.test.mjs\"",
     "test:ab": "node --test \"tools/ab/*.test.mjs\"",
-    "test:ab-morde": "node tools/ab/morde.mjs"
+    "test:ab-morde": "node tools/ab/morde.mjs",
+    "ledger:capturar": "node tools/cockpit/runner/capturar-ledger.mjs",
+    "nd:check": "node tools/cockpit/runner/nd-check.mjs",
+    "receipts:check": "node tools/cockpit/runner/receipts-check.mjs",
+    "enrich": "node tools/cockpit/runner/enrich.mjs",
+    "replay:50": "node tools/cockpit/runner/replay-sample.mjs",
+    "score:sombra": "node tools/cockpit/runner/score-sombra.mjs",
+    "watchdog": "node tools/cockpit/runner/watchdog.mjs",
+    "test:router:quick": "node tools/router/correr-suite.mjs --quick",
+    "test:router:full": "node tools/router/correr-suite.mjs"
   },
   "engines": {
     "node": ">=22"

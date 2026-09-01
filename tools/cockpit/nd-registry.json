@@ -1,0 +1,49 @@
+{
+  "_": "Cada `n/d` visivel ao dono tem aqui um dono humano e uma data-limite. Um `n/d` sem prazo nao e honestidade: e uma divida sem credor. Este ficheiro NAO e a fonte do estado — `nd-check.mjs` corre o `verificador` de cada linha e mede. Uma entrada cujo verificador diz `resolvido` sai do relatorio sozinha, mesmo que ninguem se lembre de a apagar.",
+  "versao": 1,
+  "criado": "2026-09-01",
+  "vence_apos_dias": 14,
+  "cap_issues_por_semana": 1,
+  "entradas": [
+    {
+      "id": "ttv-terceiro-humano",
+      "o_que": "Time-to-value: quanto tempo um terceiro leva do link ao primeiro recibo, num device limpo",
+      "visivel_em": "_handoff/ROADMAP-PERFEITO-2026-09-01.md (gate 4 da Definition of Chargeable)",
+      "porque_nd": "zero testes com terceiros ate hoje. A regua externa de TTV tambem e n/d ate haver fonte citada — o primeiro TTV medido e o baseline da casa.",
+      "dono": "dono",
+      "data_limite": "2026-10-01",
+      "como_deixa_de_ser_nd": "um terceiro instala sozinho (0 ajuda sincrona, <=2 intervencoes assincronas) e o tempo fica registado, etiquetado 'assistido (N)' se N>0",
+      "verificador": null
+    },
+    {
+      "id": "poupanca-por-tarefa",
+      "o_que": "US$ poupados por tarefa entregue",
+      "visivel_em": "registo de pitch (vault 40-strategy/2026-08-25-pitch-registro-metricas-medidas.md)",
+      "porque_nd": "so conta o par REAL — a mesma tarefa nos dois motores com tokens medidos dos DOIS lados, >=20 tarefas. O contrafactual por rate-card existe mas esta proibido no pitch. Sem par real, o pitch vende cockpit + auditabilidade + recibos, e nao poupanca.",
+      "dono": "CC",
+      "data_limite": "2026-10-15",
+      "como_deixa_de_ser_nd": ">=20 pares reais medidos, tokens dos dois lados, num ficheiro citavel",
+      "verificador": null
+    },
+    {
+      "id": "ci-prs-no-ledger",
+      "o_que": "A seccao CI & PULL REQUESTS do Ledger",
+      "visivel_em": "tools/cockpit/moo-ledger-shell.html · 'Not measured by this build'",
+      "porque_nd": "o construtor do snapshot nunca perguntou ao GitHub. A seccao declara-se vazia em vez de inventar, o que esta certo — mas uma seccao permanentemente vazia acaba por ser ruido.",
+      "dono": "CC",
+      "data_limite": "2026-09-15",
+      "como_deixa_de_ser_nd": "o snapshot passa a trazer `ci` medido por `gh`, com `n/d` honesto quando o `gh` falha",
+      "verificador": "ci-no-snapshot"
+    },
+    {
+      "id": "eta-index-fora-das-2-chaves",
+      "o_que": "O p50 de duracao por classe de tarefa",
+      "visivel_em": "~/.mooter/eta-index.json, lido pelo Ledger",
+      "porque_nd": "medido a 2026-09-01: 14 chaves no indice, 2 com p50 (moo|outro|<4k e moo|outro|4-32k). As outras 12 nunca acumularam corridas que cheguem, e o Ledger mostra n/d nelas — correctamente.",
+      "dono": "CC",
+      "data_limite": "2026-10-15",
+      "como_deixa_de_ser_nd": "as classes em falta acumulam corridas suficientes para um p50, OU declara-se por escrito quais NUNCA vao ter e retiram-se do indice",
+      "verificador": "eta-index-cobertura"
+    }
+  ]
+}
