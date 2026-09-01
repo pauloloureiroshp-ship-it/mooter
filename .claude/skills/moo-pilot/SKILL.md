@@ -56,6 +56,33 @@ tarefa do `schtasks` conforme a máquina. **O que muda é só a sintaxe da linha
 comandos.** Se estiveres a conduzir uma máquina Windows, NUNCA mandes `export VAR=x`
 nem caminhos com `~/` — em PowerShell é `$env:VAR = "x"` e `$HOME\frugal`.
 
+## Devolve SEMPRE o endereço vivo, clicável
+
+No fim de cada invocação desta skill, escreve as duas linhas abaixo — **tal e
+qual, com o `http://`**, para o terminal as tornar clicáveis:
+
+```
+Cockpit (operador): http://127.0.0.1:4290/panel
+Ledger (dono):      http://127.0.0.1:4290/ledger
+```
+
+Não é decoração e não é redundante com o `npm run pilot` (que abre o browser
+uma vez, no arranque). O que acontece a seguir é o Paulo mudar de janela, fechar
+o separador, ou voltar horas depois — e o endereço deixa de estar em lado
+nenhum. É por isso que existem `.command` no `_handoff/` a fazer o que uma linha
+de texto faz. Repetir o endereço custa duas linhas por sessão.
+
+Se o F10 não estiver de pé, diz isso **em vez** de dar o endereço — um link que
+não abre é pior do que nenhum:
+
+```bash
+npm run pilot:status   # reporta sem arrancar nada
+```
+
+O `/ledger` tem uma **faixa OPERATE** fixa em baixo: estado do loop, atalho para
+o cockpit, o comando que reconstrói a página, e **há quanto tempo** ela foi
+carimbada (passadas 24 h o número pinta-se, em vez de continuar cinzento).
+
 **O lançamento NUNCA levanta o STOP.** Lançar é "mostra-me os controlos"; trabalhar é o
 ▶ do dono. Se o STOP estiver activo, o cockpit abre com a máquina parada e o botão pronto.
 

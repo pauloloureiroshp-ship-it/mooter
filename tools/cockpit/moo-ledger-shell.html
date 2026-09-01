@@ -45,6 +45,62 @@
     background-image:radial-gradient(rgba(31,43,37,.05) 1px,transparent 1px);
     background-size:5px 5px}
   a{color:var(--spot)} a:hover{color:#236A41}
+
+  /* ── ?capture=1 · o modo retrato ──────────────────────────────────────────
+     Um screenshot de pagina inteira NAO e a pagina. O que e `fixed` desenha-se
+     uma unica vez, do tamanho da JANELA, e o resto do documento sai sem ele.
+     Medido a 2026-09-01 (Chrome headless, 1280x800, ledger real de 5142px):
+     um recorte de 80x80 na goteira a y=300 sai com textura (PNG 324 B) e o
+     mesmo recorte a y=4600 sai liso (252 B). Ou seja: o retrato do Ledger tinha
+     textura nos primeiros 800 px e nada nos 4342 seguintes. Com o modo ligado
+     os dois recortes saem byte a byte iguais.
+
+     Aqui o fundo passa a solido — uniforme em toda a altura, que e o que o olho
+     esperava — e o cabecalho deixa de ser sticky para nao se imprimir a
+     flutuar sobre o corpo. A pagina que o dono usa nao muda: isto so existe
+     quando alguem pede `?capture=1`.
+
+     ⚠️ Isto NAO e uma optimizacao de tempo, e a medicao esta aqui para ninguem
+     voltar a supo-lo (ver o aviso na textura, acima). Medido no mac-mini,
+     3 corridas: 1280x800 -> 153/150/151 ms · 1280x20000 -> 298/293/296 ms ·
+     1280x60000 -> 675/654/648 ms. O Ledger inteiro captura-se em ~150 ms, uma
+     ordem de grandeza abaixo do tecto de 5 s. Quem medir outra coisa esta a
+     medir o instrumento, nao a pagina — corra
+     `node tools/cockpit/runner/capturar-ledger.mjs` e compare.
+
+     A cobertura desta lista e verificada: `capturar-ledger.test.mjs` varre a
+     folha e reprova se APARECER um `position:fixed|sticky` sem regra aqui. Uma
+     lista escrita a mao foi exactamente o que envelheceu no `prefers-reduced-
+     motion` a 2026-08-29, porque cada elemento novo nascia descoberto. */
+  body[data-capture]::before{display:none}
+  body[data-capture] header.cover{position:static}
+  body[data-capture] #toast{display:none}
+
+  /* ── a faixa OPERATE ──────────────────────────────────────────────────────
+     O Ledger conta uma HISTORIA: le-se de cima a baixo e acaba. O que ele nao
+     tinha era o presente — o estado do loop e o que fazer a seguir viviam a
+     2115 linhas de scroll, no /panel, que e outra pagina. Uma pagina que
+     explica muito bem um sistema e nao deixa toca-lo obriga o dono a lembrar-se
+     do endereco do cockpit, e ele nao se lembra: os `.command` do `_handoff`
+     existem por isso.
+     Fixa em baixo e nao em cima: em cima competia com o cabecalho sticky (e
+     duplicava a informacao dele); em baixo esta onde o polegar chega e onde
+     ja vivia o toast. */
+  .operate{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    border-top:1.5px solid var(--pine);background:var(--paper);
+    padding:8px 0;font-size:12.5px}
+  .operate .wrap{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .operate .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
+  .operate .dot.on{background:var(--spot)}
+  .operate .dot.hold{background:#B57F6F}
+  .operate .idade{margin-left:auto;color:var(--ink-3);font-family:var(--f-mono)}
+  .operate .idade.velho{color:#8A3B2A;font-weight:500}
+  /* Sem esta almofada, a faixa tapa o rodape — e um rodape que nao se le e o
+     mesmo que nao existir. */
+  body{padding-bottom:52px}
+  /* No retrato, a faixa sairia carimbada por cima do fim da pagina. */
+  body[data-capture] .operate{display:none}
+  body[data-capture]{padding-bottom:0}
   .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
   .nd{color:var(--ink-3);font-style:italic}
   .wrap{max-width:760px;margin:0 auto;padding:0 24px}
@@ -375,6 +431,17 @@
 </footer>
 </main>
 
+<div class="operate" id="operate">
+  <div class="wrap">
+    <span class="dot" id="op-dot"></span>
+    <span id="op-estado">—</span>
+    <a href="http://127.0.0.1:4290/panel" id="op-panel">open the cockpit</a>
+    <span class="nd">·</span>
+    <span class="mono" data-copy="node tools/cockpit/runner/build-ledger-snapshot.mjs"
+      style="cursor:copy" data-tip="Copies the command that rebuilds this page from the device's own measurements.">rebuild this page</span>
+    <span class="idade" id="op-idade">—</span>
+  </div>
+</div>
 <div id="toast" role="status"></div>
 <script>
 (() => {
@@ -382,6 +449,12 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const S = window.__SNAPSHOT__, RM = window.__ROADMAP__ || [], SH = window.__SHELL__;
+
+/* O modo retrato. Le-se do endereco (`?capture=1`) e nao ha forma de o ligar
+   sem o pedir — um modo que se auto-activa e um modo que ninguem confere. */
+if (/(?:^|[?&])capture=1(?:&|$)/.test((typeof location === 'object' && location.search) || '')){
+  document.body.dataset.capture = '1';
+}
 
 /* ── A CASCA NAO TEM NUMEROS ────────────────────────────────────────────────
    Nem um. Tudo o que se le nesta pagina entrou por `__SNAPSHOT__`,
@@ -450,6 +523,38 @@ function tickFresh(){
   $('hd-fresh').textContent = mode === 'live' && lastLiveAt
     ? `updated ${Math.round((Date.now()-lastLiveAt)/1000)}s ago`
     : `newest receipt ${ago(S.window.cutoff)}`;
+  renderOperate();
+}
+
+/** A partir daqui um instantaneo deixa de falar do presente. */
+const SNAPSHOT_VELHO_MS = 24*3600*1000;
+
+/**
+ * A faixa OPERATE: o estado do loop, o que fazer, e HA QUANTO TEMPO.
+ *
+ * A idade e a parte que nao se pode omitir. Uma pagina carimbada continua a
+ * parecer certa depois de deixar de o ser — e este ficheiro ja tem um teste que
+ * existe por causa disso mesmo. Passadas 24h o numero pinta-se, em vez de
+ * continuar a ser um cinzento discreto que ninguem le.
+ */
+function renderOperate(){
+  const parado = !!(S.hold || (S.pausa && S.pausa.activa));
+  const dot = $('op-dot');
+  dot.className = 'dot' + (mode === 'live' ? (parado ? ' hold' : ' on') : '');
+  $('op-estado').textContent = mode === 'live'
+    ? (parado ? 'the loop is holding — reopening it is the owner\u2019s call' : 'the loop is running on this device')
+    : 'stamped copy — the loop lives on the device, not here';
+  const alvo = $('op-panel');
+  alvo.hidden = mode !== 'live';
+
+  const t = Date.parse(S.generated_at);
+  const idade = isFinite(t) ? Date.now() - t : null;
+  const campo = $('op-idade');
+  campo.textContent = idade == null ? 'stamped n/d' : `stamped ${dur(idade/1000)} ago`;
+  campo.className = 'idade' + (idade != null && idade > SNAPSHOT_VELHO_MS ? ' velho' : '');
+  campo.setAttribute('data-tip', idade != null && idade > SNAPSHOT_VELHO_MS
+    ? 'This page is more than a day old. The numbers were true when it was built and nothing here has checked since.'
+    : 'When this page was built from the device\u2019s measurements.');
 }
 
 /* chapter I */
@@ -752,8 +857,27 @@ function renderField(){
         esc(q.porque || '') + (q.por_publicar ? ' · <b style="color:var(--stamp)">changes pending</b>' : ''));
     })()}
     <h3>CI &amp; pull requests</h3>
-    <p class="note">Not measured by this build — <span class="nd">n/d</span>. The hygiene pillar (P4) is designed to feed this
-    block from CI runs and open PRs; wiring it is on the roadmap. An empty slot beats an invented one.</p>`;
+    ${(() => {
+      /* O unico bloco desta pagina que dizia `n/d` por nunca ter perguntado.
+         Agora pergunta ao `gh` na construcao do snapshot — e continua a dizer
+         `n/d` COM O MOTIVO quando nao consegue. "Zero PRs abertos" e um facto;
+         "nao consegui perguntar" e outro, e confundi-los seria pior do que a
+         seccao vazia que isto substitui. */
+      const c = S.ci_prs;
+      if (!c || !c.disponivel){
+        return `<p class="note">${esc((c && c.porque) || 'n/d — this build did not ask')}. ` +
+          `An empty slot beats an invented one.</p>`;
+      }
+      const e = c.prs_por_estado || {};
+      const ci = c.ci || {};
+      return linha('open pull requests',
+          `${fmt(c.prs_abertos)}${c.rascunhos ? ` · ${fmt(c.rascunhos)} draft` : ''}`,
+          `${fmt(e.verde)} green · ${fmt(e.vermelho)} red · ${fmt(e['a-correr'])} running · ${fmt(e['sem-checks'])} with no checks`)
+        + linha('CI, last runs',
+          ci.janela ? `${fmt(ci.verdes)} of ${fmt(ci.janela)} green` : 'n/d',
+          ci.janela ? 'completed runs only — a run still going has no verdict yet'
+                    : esc(ci.porque || 'n/d'));
+    })()}`;
 }
 
 /* chapter VIII — the case */
@@ -881,6 +1005,10 @@ async function decidir(linha, decisao){
   }
 }
 
+/** Um controlo que escreve so existe quando ha device para escrever nele. */
+const SO_SNAPSHOT = 'This is the stamped snapshot, not the live cockpit — there is no device here to write to.';
+function aoVivo(){ if (mode === 'live') return true; toast(SO_SNAPSHOT); return false; }
+
 /* interactions — every control acts or explains */
 document.addEventListener('click', async e => {
   const cp = e.target.closest('[data-copy]');
@@ -889,16 +1017,29 @@ document.addEventListener('click', async e => {
 
   const act = e.target.closest('[data-act]');
   if (act){
-    if (mode !== 'live'){
-      toast('This is the stamped snapshot, not the live cockpit — there is no device here to write to.');
-      return;
-    }
+    if (!aoVivo()) return;
     const linha = act.closest('[data-key]');
     if (act.dataset.act === 'accept') return decidir(linha, 'aceite');
     if (act.dataset.act === 'dismiss') return decidir(linha, 'descartado');
     if (act.dataset.act === 'ask') return perguntarAoMoo();
     if (act.dataset.act === 'update') return verActualizacao();
   }
+});
+
+/* Enter asks; Shift+Enter is a new line.
+   Ate 2026-09-01 a unica forma de perguntar era acertar no botao: Enter dentro
+   do textarea nao fazia NADA. Num campo de texto isso le-se como avaria, e foi
+   a unica nota de UX que sobreviveu ao teste ao vivo do dono.
+   `isComposing` e a guarda que falta quase sempre: com um teclado PT o Enter que
+   fecha a composicao de um acento chegava aqui como submissao, e a pergunta
+   partia a meio da palavra. */
+document.addEventListener('keydown', e => {
+  const alvo = e.target;
+  if (!alvo || alvo.id !== 'moo-q') return;
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  if (!aoVivo()) return;
+  perguntarAoMoo();
 });
 
 /** O Moo responde na GPU deste device. Sem tool-calls, sem escalada, $0. */
@@ -942,9 +1083,24 @@ async function boot(){
   try{
     const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
     if (r && r.ok){ const b = await r.json(); if (b && 'recibos' in b){ live = true; lastLiveAt = Date.now();
-      setInterval(async () => { try{
-        const p = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
-        if (p.ok){ lastLiveAt = Date.now(); } } catch(_){} }, 3000);
+      /* BACKOFF. Medido a 2026-09-01: em rajada (<3s) o /fleet.json devolvia
+         503 sem `Retry-After`; espacado 4s, 5/5 em 200 OK (~250ms). Esta pagina
+         batia de 3 em 3 segundos e nunca recuava — bater na mesma cadencia
+         depois de um 503 e a unica resposta que garantidamente nao ajuda.
+         Agora o servidor manda (`Retry-After`) e, sem ele, a espera duplica ate
+         um minuto. Um 503 nao e uma avaria: e um "ainda nao". */
+      let espera = 3000;
+      const bater = async () => {
+        try{
+          const p = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
+          if (p.status === 503 || p.status === 429){
+            const pedido = Number(p.headers && p.headers.get && p.headers.get('Retry-After'));
+            espera = Math.min(pedido > 0 ? pedido * 1000 : espera * 2, 60000);
+          } else if (p.ok){ lastLiveAt = Date.now(); espera = 3000; }
+        } catch(_){ espera = Math.min(espera * 2, 60000); }
+        setTimeout(bater, espera);
+      };
+      setTimeout(bater, espera);
     }}
   } catch(_){ /* any failure — CSP included — lands honestly in snapshot */ }
   mode = live ? 'live' : 'snapshot';

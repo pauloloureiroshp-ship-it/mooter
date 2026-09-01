@@ -9,6 +9,23 @@ name: Version Sync
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  # Ensaio a pedido. O #471 poe este ficheiro a parsear outra vez e da-lhe um
+  # teste que o guarda — mas ainda so ha UMA forma de o exercitar de ponta a
+  # ponta: publicar uma tag, que e irreversivel. Um gate que so se pode provar
+  # em producao nao se prova, e foi assim que ele passou 60 corridas morto (12
+  # em falha por dia, e ZERO numa tag, que era a unica coisa para que existia).
+  # Por omissao o ensaio NAO escreve nada e NAO abre PR.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a simular (ex.: v1.53.0). Vazio = usa o ref actual.'
+        required: false
+        default: ''
+      aplicar:
+        description: 'Escrever mesmo e abrir PR? (falso = ensaio)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -27,8 +44,13 @@ jobs:
 
       - name: Derive semver core from tag
         id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          # No `push` de tag, `GITHUB_REF_NAME` E a tag. No ensaio manual e o
+          # nome do ramo — que nunca produz um semver limpo, e por isso um
+          # ensaio sem `tag` sai por `skip=1` em vez de inventar uma versao.
+          TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
           CORE="${TAG#v}"        # strip leading v
           CORE="${CORE%%-*}"     # strip first -suffix onward
           if ! printf '%s' "$CORE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -87,8 +109,16 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
 
+      - name: Ensaio — o que MUDARIA, sem escrever nada
+        if: steps.ver.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && inputs.aplicar != true
+        run: |
+          echo "ENSAIO da tag '${{ steps.ver.outputs.version }}'. Nada e commitado, nenhum PR e aberto."
+          git --no-pager diff --stat -- tools/router/version.json landing/app/version.json \
+            packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json \
+            plugin/mooter/.claude-plugin/plugin.json || true
+
       - name: Commit back if changed
-        if: steps.ver.outputs.skip != '1'
+        if: steps.ver.outputs.skip != '1' && (github.event_name == 'push' || inputs.aplicar == true)
         run: |
           if git diff --quiet -- tools/router/version.json landing/app/version.json packages/mooter-bridge/version.json packages/mooter-bridge/manifest.json plugin/mooter/.claude-plugin/plugin.json; then
             echo "No version.json change to commit."

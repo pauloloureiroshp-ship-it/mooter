@@ -639,6 +639,49 @@ function mediana(ordenada) {
   return ordenada.length % 2 ? ordenada[meio] : (ordenada[meio - 1] + ordenada[meio]) / 2;
 }
 
+/** Uma hora. Abaixo disto o mesmo alarme nao se repete. */
+export const AVISO_DRENO_MS = 3600_000;
+
+/**
+ * QUANDO e que a anomalia de dreno chega mesmo aos olhos do dono.
+ *
+ * `anomaliaDeDreno` responde "ha anomalia?". Esta responde "vale a pena
+ * dize-lo AGORA?", e sao perguntas diferentes. Medido a 2026-09-01:
+ * `~/.mooter/f10.log` tinha 9784 linhas e 9558 delas eram ESTE aviso — 97,7%
+ * do log. O tique corre a cada poll do painel, e um alarme que se repete a
+ * cada poll nao alarma: ensina a ignorar.
+ *
+ * Duas regras, e a primeira e mais importante do que a segunda:
+ *
+ *  1. FILA VAZIA CALA. Zero fechados de zero por fechar nao e uma paragem — e
+ *     aritmetica. O detector nasceu para apanhar o pilar que MORRE com
+ *     trabalho a espera, e esse caso continua a disparar. Sem esta regra o
+ *     loop parado (que e uma decisao do dono, nao uma avaria) alarmava para
+ *     sempre.
+ *  2. UMA VEZ POR HORA. E nada se perde em silencio: o aviso seguinte diz
+ *     quantos foram calados entretanto.
+ *
+ * Pura e injectavel — o relogio entra por argumento, nunca se le aqui dentro.
+ *
+ * @returns {{avisar:boolean, porque:string, ultimoMs:number|null, silenciados:number, calados:number}}
+ */
+export function avisoDeDreno(an, { fila = 0, ultimoMs = null, agora = Date.now(), silenciados = 0 } = {}) {
+  const nao = (porque, extra = {}) => ({ avisar: false, porque, ultimoMs, silenciados, calados: 0, ...extra });
+  if (!an || !an.anomalia) return nao('sem anomalia', { silenciados: 0 });
+  if (!(Number(fila) > 0)) return nao('nada por drenar — zero de zero nao e uma paragem');
+  if (ultimoMs != null && Number.isFinite(ultimoMs) && agora - ultimoMs < AVISO_DRENO_MS) {
+    return nao('ja avisado nesta hora', { silenciados: silenciados + 1 });
+  }
+  return {
+    avisar: true,
+    porque: an.porque,
+    ultimoMs: agora,
+    silenciados: 0,
+    // O que ficou por dizer desde o ultimo aviso. Zero nao se imprime.
+    calados: silenciados,
+  };
+}
+
 /**
  * Que horas sao para o dono, em horas decimais (0..24).
  *

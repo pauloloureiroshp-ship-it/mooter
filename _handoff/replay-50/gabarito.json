@@ -1,0 +1,505 @@
+{
+  "_": "NAO ABRIR antes de rotular os 50. Isto sao as decisoes da PRIMEIRA vez.",
+  "itens": [
+    {
+      "n": 1,
+      "ficheiro": "01-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/seamless.js:3921-3990:257e2b874a86",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 2,
+      "ficheiro": "02-p2.md",
+      "chave": "P2.fa64cb|packages/data-rights/src/delete.ts:1-63:11e50eeeb77a",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "dono",
+      "decidido_em": "2026-08-26T10:49:33Z"
+    },
+    {
+      "n": 3,
+      "ficheiro": "03-p1.md",
+      "chave": "P1.3992e3|tools/router/budget-engine.js:141-210:c568a717c983",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 4,
+      "ficheiro": "04-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/retry.js:631-700:4975fd878f4f",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 5,
+      "ficheiro": "05-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/recibo.js:491-539:0bf77da36cd2",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 6,
+      "ficheiro": "06-p1.md",
+      "chave": "P1.3992e3|tools/router/inject_context.js:1051-1120:dcea62fd9672",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 7,
+      "ficheiro": "07-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/capacidades.js:71-140:f3340743fb32",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 8,
+      "ficheiro": "08-p1.md",
+      "chave": "P1.3992e3|tools/router/classify.js:351-420:f0f36c350245",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 9,
+      "ficheiro": "09-p4.md",
+      "chave": "P4.1721a1|README.md:141-210:36a74ca0c44b",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 10,
+      "ficheiro": "10-p1.md",
+      "chave": "P1.3992e3|tools/router/ux-insights.js:141-210:4f3e2a536bd0",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 11,
+      "ficheiro": "11-p5.md",
+      "chave": "P5.c8d27f|tools/cockpit/runner/skills-doctor.mjs:1-70:ba5c489343f9",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 12,
+      "ficheiro": "12-p1.md",
+      "chave": "P1.3992e3|tools/router/agents-progress-status.js:1-70:e5056c5cfc12",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 13,
+      "ficheiro": "13-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/fleet.js:141-210:2761a6d30e69",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 14,
+      "ficheiro": "14-p1.md",
+      "chave": "P1.3992e3|tools/router/backtest.js:351-420:ef0f3b71115d",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 15,
+      "ficheiro": "15-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/seamless.js:1751-1820:1bd818b9da61",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 16,
+      "ficheiro": "16-p1.md",
+      "chave": "P1.3992e3|tools/router/savings-tracker.js:561-630:d9d576508cb6",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 17,
+      "ficheiro": "17-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/fleet.js:1121-1190:219f67fe949c",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 18,
+      "ficheiro": "18-p1.md",
+      "chave": "P1.3992e3|tools/router/inject_context.js:911-980:e08e04e2d2d3",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 19,
+      "ficheiro": "19-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/aprender.js:211-280:a9b93127bcfd",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 20,
+      "ficheiro": "20-p1.md",
+      "chave": "P1.3992e3|tools/router/inject_context.js:421-490:1f6f1a3e2fa6",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 21,
+      "ficheiro": "21-p5.md",
+      "chave": "P5.c8d27f|tools/cockpit/runner/pilot-init.mjs:211-236:ae262e86d572",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 22,
+      "ficheiro": "22-p1.md",
+      "chave": "P1.3992e3|tools/router/similarity.js:71-140:1152ad5d0655",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 23,
+      "ficheiro": "23-p1.md",
+      "chave": "P1.3992e3|tools/router/mega-test.js:1-70:86744871b46f",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 24,
+      "ficheiro": "24-p4.md",
+      "chave": "P4.1721a1|docs/strategy/MOOTER_SESSIONS_ORCHESTRATOR_DESIGN_v1.md:281-350:b8b18328a345",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 25,
+      "ficheiro": "25-p1.md",
+      "chave": "P1.3992e3|tools/router/savings-tracker.js:141-210:2864e850cc21",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 26,
+      "ficheiro": "26-p5.md",
+      "chave": "P5.c8d27f|packages/mooter-bridge/eta.js:281-298:04269bae19cf",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 27,
+      "ficheiro": "27-p1.md",
+      "chave": "P1.3992e3|tools/router/classify.js:1-70:7d257ef56e24",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 28,
+      "ficheiro": "28-p1.md",
+      "chave": "P1.3992e3|tools/router/classify.js:211-280:29d96c32096f",
+      "estrato": "instrumento-nao-discrimina",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "instrumento-nao-discrimina",
+      "por": "claude",
+      "decidido_em": "2026-08-24T11:40:46Z"
+    },
+    {
+      "n": 29,
+      "ficheiro": "29-p2.md",
+      "chave": "P2.fa64cb|packages/workflow/src/pool.ts:71-110:2fea487b96e3",
+      "estrato": "nao-e-um-problema",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "nao-e-um-problema",
+      "por": "dono",
+      "decidido_em": "2026-08-25T11:56:12Z"
+    },
+    {
+      "n": 30,
+      "ficheiro": "30-p2.md",
+      "chave": "P2.fa64cb|tools/router/refresh-budget.js:71-85:5d1c1b32cb60",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:37:17Z"
+    },
+    {
+      "n": 31,
+      "ficheiro": "31-p3.md",
+      "chave": "P3.613869|tools/router/mooter-stats.js:1-70:856f815423e5",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-26T01:10:20Z"
+    },
+    {
+      "n": 32,
+      "ficheiro": "32-p2.md",
+      "chave": "P2.fa64cb|tools/router/local-fleet.js:1-70:f3180cb0e042",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:43:17Z"
+    },
+    {
+      "n": 33,
+      "ficheiro": "33-p3.md",
+      "chave": "P3.613869|tools/router/statusline-modes.js:1-70:4adf0b67263a",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T17:28:18Z"
+    },
+    {
+      "n": 34,
+      "ficheiro": "34-p3.md",
+      "chave": "P3.613869|tools/router/catalogo-local.js:40-46:4895b5bb5caf",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T21:43:19Z"
+    },
+    {
+      "n": 35,
+      "ficheiro": "35-p3.md",
+      "chave": "P3.613869|tools/cockpit/runner/precificavel-nao-rotavel.mjs:141-166:095cc3ba52aa",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-26T02:20:05Z"
+    },
+    {
+      "n": 36,
+      "ficheiro": "36-p2.md",
+      "chave": "P2.fa64cb|tools/audit/audit_benchmark.js:351-410:e0068dd7a999",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:41:02Z"
+    },
+    {
+      "n": 37,
+      "ficheiro": "37-p2.md",
+      "chave": "P2.fa64cb|tools/router/router-execute.js:281-350:63ab9e2dd7b4",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:39:32Z"
+    },
+    {
+      "n": 38,
+      "ficheiro": "38-p3.md",
+      "chave": "P3.613869|tools/router/gsd-statusline.js:1891-1960:5ee04c1fe9a4",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:37:17Z"
+    },
+    {
+      "n": 39,
+      "ficheiro": "39-p2.md",
+      "chave": "P2.fa64cb|tools/router/mooter-continuous-tester.js:981-1050:3704a274c8e8",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:37:17Z"
+    },
+    {
+      "n": 40,
+      "ficheiro": "40-p3.md",
+      "chave": "P3.613869|tools/cockpit/runner/evidence-verifier.mjs:260-260:bde236382890",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T15:05:48Z"
+    },
+    {
+      "n": 41,
+      "ficheiro": "41-p3.md",
+      "chave": "P3.613869|tools/router/quantization.js:71-78:545cf3e61e03",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-26T01:22:20Z"
+    },
+    {
+      "n": 42,
+      "ficheiro": "42-p3.md",
+      "chave": "P3.613869|tools/router/cost-perf-tracker.js:71-140:d68fce27df07",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-26T00:26:50Z"
+    },
+    {
+      "n": 43,
+      "ficheiro": "43-p2.md",
+      "chave": "P2.fa64cb|tools/router/gsd-statusline.js:1751-1820:bd61b4622b98",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:38:47Z"
+    },
+    {
+      "n": 44,
+      "ficheiro": "44-p3.md",
+      "chave": "P3.613869|tools/cockpit/runner/context-pack.mjs:841-910:b423f8652905",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-26T01:59:50Z"
+    },
+    {
+      "n": 45,
+      "ficheiro": "45-p2.md",
+      "chave": "P2.fa64cb|tools/router/handoff-rollup.js:71-140:8d640e9cb1a7",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:44:02Z"
+    },
+    {
+      "n": 46,
+      "ficheiro": "46-p3.md",
+      "chave": "P3.613869|tools/router/speed-meter.js:281-350:a639bce0f690",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:41:02Z"
+    },
+    {
+      "n": 47,
+      "ficheiro": "47-p2.md",
+      "chave": "P2.fa64cb|tools/router/pricing.js:71-140:93c54664b908",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T22:56:50Z"
+    },
+    {
+      "n": 48,
+      "ficheiro": "48-p2.md",
+      "chave": "P2.fa64cb|tools/router/harvest-misroutings.js:71-140:4ddcdf6301ee",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:39:32Z"
+    },
+    {
+      "n": 49,
+      "ficheiro": "49-p2.md",
+      "chave": "P2.fa64cb|tools/router/bench-status.js:71-99:a3d8e56a2e53",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T21:57:35Z"
+    },
+    {
+      "n": 50,
+      "ficheiro": "50-p2.md",
+      "chave": "P2.fa64cb|tools/router/provider-emoji.js:1-70:cbe03e174de0",
+      "estrato": "trivial",
+      "decisao_anterior": "descartado",
+      "motivo_anterior": "trivial",
+      "por": "agente",
+      "decidido_em": "2026-08-25T11:42:32Z"
+    }
+  ]
+}
