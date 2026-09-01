@@ -857,8 +857,27 @@ function renderField(){
         esc(q.porque || '') + (q.por_publicar ? ' · <b style="color:var(--stamp)">changes pending</b>' : ''));
     })()}
     <h3>CI &amp; pull requests</h3>
-    <p class="note">Not measured by this build — <span class="nd">n/d</span>. The hygiene pillar (P4) is designed to feed this
-    block from CI runs and open PRs; wiring it is on the roadmap. An empty slot beats an invented one.</p>`;
+    ${(() => {
+      /* O unico bloco desta pagina que dizia `n/d` por nunca ter perguntado.
+         Agora pergunta ao `gh` na construcao do snapshot — e continua a dizer
+         `n/d` COM O MOTIVO quando nao consegue. "Zero PRs abertos" e um facto;
+         "nao consegui perguntar" e outro, e confundi-los seria pior do que a
+         seccao vazia que isto substitui. */
+      const c = S.ci_prs;
+      if (!c || !c.disponivel){
+        return `<p class="note">${esc((c && c.porque) || 'n/d — this build did not ask')}. ` +
+          `An empty slot beats an invented one.</p>`;
+      }
+      const e = c.prs_por_estado || {};
+      const ci = c.ci || {};
+      return linha('open pull requests',
+          `${fmt(c.prs_abertos)}${c.rascunhos ? ` · ${fmt(c.rascunhos)} draft` : ''}`,
+          `${fmt(e.verde)} green · ${fmt(e.vermelho)} red · ${fmt(e['a-correr'])} running · ${fmt(e['sem-checks'])} with no checks`)
+        + linha('CI, last runs',
+          ci.janela ? `${fmt(ci.verdes)} of ${fmt(ci.janela)} green` : 'n/d',
+          ci.janela ? 'completed runs only — a run still going has no verdict yet'
+                    : esc(ci.porque || 'n/d'));
+    })()}`;
 }
 
 /* chapter VIII — the case */

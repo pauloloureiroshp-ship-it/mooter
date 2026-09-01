@@ -58,12 +58,12 @@ export const VERIFICADORES = Object.freeze({
     let src;
     try { src = readImpl(path.join(repoRoot, 'tools', 'cockpit', 'runner', 'build-ledger-snapshot.mjs'), 'utf8'); }
     catch { return { resolvido: null, porque: 'n/d — nao consegui ler o construtor do snapshot' }; }
-    const temCampo = /\n\s{4}ci:\s/.test(src);
+    const temCampo = /\n\s{4}ci_prs:\s/.test(src);
     return {
       resolvido: temCampo,
       porque: temCampo
-        ? 'o snapshot ja traz um campo `ci`'
-        : 'o construtor do snapshot nao emite campo `ci` nenhum',
+        ? 'o snapshot ja traz um campo `ci_prs`'
+        : 'o construtor do snapshot nao emite campo `ci_prs` nenhum',
     };
   },
 });

@@ -74,7 +74,7 @@ test('eta-index: nao conseguir ler NAO e "por resolver" — e n/d', () => {
 test('ci-no-snapshot: mede o construtor real, nao um campo do registo', () => {
   const semCi = VERIFICADORES['ci-no-snapshot']({ readImpl: () => 'export const x = 1;\n' });
   assert.equal(semCi.resolvido, false);
-  const comCi = VERIFICADORES['ci-no-snapshot']({ readImpl: () => 'return {\n    ci: algo,\n  };\n' });
+  const comCi = VERIFICADORES['ci-no-snapshot']({ readImpl: () => 'return {\n    ci_prs: algo,\n  };\n' });
   assert.equal(comCi.resolvido, true);
 });
 
@@ -117,7 +117,7 @@ test('medido por resolver mas ainda em prazo = em-prazo', () => {
 
 test('uma entrada JA RESOLVIDA sai sozinha, sem ninguem a apagar', () => {
   const l = avaliar(REG({ verificador: 'ci-no-snapshot' }), {
-    agora: AGORA, ambiente: { readImpl: () => '\n    ci: medido,\n' },
+    agora: AGORA, ambiente: { readImpl: () => '\n    ci_prs: medido,\n' },
   })[0];
   assert.equal(l.estado, 'resolvido');
   assert.equal(corpoDaIssue([l]), null, 'nada resolvido pode gerar issue');
