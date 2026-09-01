@@ -352,17 +352,34 @@ verificar), e o comando publicado como reprodução imprimia 81,7% — o valor
 anterior à correcção nº4. Os dois fechados; o comando imprime agora o número
 publicado e o veredicto McNemar por baixo.
 
-**Refutado por medição:** um agente afirmou que o holdout fora afinado pelo
-`patterns.js` e que revertê-lo derrubava o Mooter de 91,4% para 82,9%. Reverter
-fá-lo **subir** (91,4 → 94,3). A alegação não se reproduz. Mas a observação
-estrutural fica: o sha do `classify.js` congela um ficheiro que **delega os
-padrões para o `patterns.js`, que não está congelado**.
+**A SEXTA correcção — e eu tinha-a refutado por engano.** Um agente afirmou que o
+holdout fora afinado pelo `patterns.js`, que o `classify.js` FROZEN importa e que
+não tinha sha nenhum. Medi, dei 91,4/94,3, e escrevi aqui que «não se reproduz».
+**Não fui suficientemente atrás:** testei revertendo a `~1` de quatro commits, e o
+mais antigo já continha o `9530efae`, que é onde está o salto.
+
+A escada real (`classify.js` congelado, só o `patterns.js` a variar, 35 rótulos):
+**74,3% → 94,3%**, com o último ponto *antes* de os rótulos nascerem em **82,9%**.
+Cinco commits afinaram padrões contra o `validation-set` depois disso, e dizem-no
+por escrito («three classifier safety fixes **found by validation-set**»,
+«Adversarial accuracy: 80% → 92%»). Um deles acrescenta `// "mergea na main"` —
+texto literal de `adversarial-17`.
+
+| `patterns.js` | Mooter | vs sem router | vs router-LLM |
+|---|---|---|---|
+| **anterior aos rótulos** | **82,9%** | 18 a 3 · **p = 0,0015** | 5 a 5 · p = 1,000 |
+| de hoje (**treino**) | 91,4% | 19 a 1 · p < 0,0001 | 5 a 2 · p = 0,45 |
+
+**A alegação sobrevive nos dois extremos.** O 91,4% passa a ser dito como score de
+treino. Fechado estruturalmente: `patterns.js.sha256` + passo próprio no CI —
+congelar um ficheiro que delega o que interessa a outro não congelado permitia
+mover **20 pontos** de comportamento sem o sha mexer um bit.
 
 Instrumento: **35 testes, 23 mordidas** (`test:ab`, `test:ab-morde`), ambos no CI.
 
 **Aberto:** ligar as 5 guardas inertes do `ci-coerencia` (tarefa lançada, commit
-`4b7c44cb` em `claude/sweet-wescoff-32b706`, sem PR) · congelar o `patterns.js`
-ou deixar de dizer que o classificador está congelado · n=35 é pequeno demais
+`4b7c44cb` em `claude/sweet-wescoff-32b706`, sem PR) · **o holdout está queimado —
+precisa de rótulos novos que os padrões nunca tenham visto** · n=35 é pequeno demais
 para separar routers (efeito mínimo detectável ~20 pts) · nenhuma medição válida
 de prompts reais e longos — precisa de rótulos humanos · a obediência a 0%
 (43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
