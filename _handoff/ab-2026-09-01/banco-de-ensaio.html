@@ -243,8 +243,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
 const D = {
   n:70, nGold:84,
   a1:{nome:'SEM ROUTER',  det:'tudo no tier mais caro', p:34.3, c:24, sob:46, tok:0,     ms:null, gold:16.7},
-  a2:{nome:'ROUTER POR LLM',det:'um modelo classifica cada prompt', p:68.6, c:48, sub:16, sob:6, tok:12962, ms:74.8, gold:78.6},
-  b :{nome:'MOOTER',      det:'classify.js · regex local', p:84.3, c:59, sub:10, sob:1, tok:0, ms:1.54, gold:96.4},
+  a2:{nome:'ROUTER POR LLM',det:'um modelo classifica cada prompt', p:71.4, faixa:'68,6–75,7', corridas:6, c:48, sub:16, sob:6, tok:12962, ms:74.8, gold:78.6},
+  b :{nome:'MOOTER',      det:'classify.js · regex local', p:84.3, faixa:'84,3 nas 6', corridas:6, c:59, sub:10, sob:1, tok:0, ms:1.54, gold:96.4},
   sec:{canonical:[10.0,90.0,95.0], adversarial:[48.0,56.0,92.0], historical:[40.0,64.0,68.0]},
   repro:{moo:100.0, llm:96.0, tokVerif:9472},
   sessao:{decisoes:112, t0:43, deleg:0}
@@ -273,14 +273,14 @@ const V = [
       <div class="ptrilho"><i data-larg="34.3"></i></div></div>
     <div class="pista p-aco an2">
       <div class="pnome"><b>Router por LLM</b><br>um LLM decide cada prompt</div>
-      <div class="pval"><span data-conta="68.6">0,0</span>%</div>
-      <div class="ptrilho"><i data-larg="68.6"></i></div></div>
+      <div class="pval"><span data-conta="71.4">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="71.4"></i></div></div>
     <div class="pista p-amb an3">
       <div class="pnome"><b>Mooter</b><br>regex local, determinista</div>
       <div class="pval"><span data-conta="84.3">0,0</span>%</div>
       <div class="ptrilho"><i data-larg="84.3"></i></div></div>
   </div>
-  ${CAR('84,3% · 59 de 70')}`},
+  ${CAR('84,3% · 59 de 70','holdout · 70 amostras · mediana de 6 corridas')}`},
 
 {t:15, d:7.5, h:`
   <div class="olho an">O que custou decidir</div>
@@ -381,7 +381,7 @@ const H = [
     prompt. Não é um espantalho: é a alternativa que toda a gente constrói.</small></h2>
   <div class="placar c3 an3" style="margin-top:34px">
     <div class="cel aco"><div class="crot">Acertou</div>
-      <div class="cnum aco"><span data-conta="68.6">0,0</span>%</div><div class="cpe">48 de 70</div></div>
+      <div class="cnum aco"><span data-conta="71.4">0,0</span>%</div><div class="cpe">mediana de 6 corridas<br>68,6 – 75,7</div></div>
     <div class="cel aco"><div class="crot">Tokens</div>
       <div class="cnum aco"><span data-conta="12962" data-dec="0">0</span></div><div class="cpe">só para decidir</div></div>
     <div class="cel aco"><div class="crot">Por prompt</div>
@@ -409,11 +409,12 @@ const H = [
   <table class="tsec an2">
     <tr><th>braço</th><th>gold · 84</th><th>holdout · 70</th><th>tokens</th></tr>
     <tr><td>Sem router</td><td class="v-oxi">16,7%</td><td class="v-oxi">34,3%</td><td class="v-oxi">0</td></tr>
-    <tr><td>Router por LLM</td><td class="v-aco">78,6%</td><td class="v-aco">68,6%</td><td class="v-aco">12 962</td></tr>
+    <tr><td>Router por LLM</td><td class="v-aco">78,6%</td><td class="v-aco">71,4%</td><td class="v-aco">12 962</td></tr>
     <tr><td>Mooter</td><td class="v-amb">96,4%</td><td class="v-amb">84,3%</td><td class="v-amb">0</td></tr>
   </table>
   <p class="nota an3" style="margin-top:34px">O holdout é mais duro para todos — é para isso que serve.<br>
-     A ordem não muda: <b>o determinista ganha nos dois</b>.</p>
+     A ordem não muda: <b>o determinista ganha nos dois</b>.<br>
+     <b>A coluna do LLM é a mediana de 6 corridas</b> — a do Mooter é a mesma nas seis.</p>
   ${CAR('parte 7','a ordem aguenta o corte mais duro')}`},
 
 {t:81, d:15, h:`
@@ -425,24 +426,26 @@ const H = [
     <tr class="rmau"><td>historical · reais, longos</td><td class="v-oxi">40,0%</td><td class="v-aco">64,0%</td><td class="v-amb">68,0%</td></tr>
   </table>
   <p class="nota an3" style="margin-top:30px">A linha a vermelho é a nossa. <b>68,0%</b> nos prompts compridos
-     colados de uma vez —<br>8 das 10 subestimações do Mooter estão ali dentro.</p>
+     colados de uma vez —<br>8 das 10 subestimações do Mooter estão ali dentro.<br>
+     <b>A coluna do LLM é uma corrida</b>; a do Mooter repete-se igual em todas.</p>
   ${CAR('parte 8','a fraqueza fica na tabela, não no rodapé')}`},
 
 {t:96, d:14, h:`
-  <div class="olho an">Reprodutibilidade · corri tudo duas vezes</div>
+  <div class="olho an">Reprodutibilidade · corri o ensaio seis vezes</div>
   <div class="placar c2 an2">
-    <div class="cel aco"><div class="crot">Router por LLM</div>
-      <div class="cnum aco"><span data-conta="96.0">0,0</span>%</div>
-      <div class="cpe">1 em 25 mudou de opinião entre corridas<br>
-        <b style="color:var(--aco)">${ni(D.repro.tokVerif)} tokens</b> só para verificar</div></div>
-    <div class="cel amb"><div class="crot">Mooter</div>
-      <div class="cnum amb"><span data-conta="100.0">0,0</span>%</div>
-      <div class="cpe">0 divergências em 25<br>
-        <b style="color:var(--amb)">0 tokens</b> para verificar</div></div>
+    <div class="cel aco"><div class="crot">Router por LLM · 6 corridas</div>
+      <div class="cnum aco">68,6<span style="font-size:.42em"> – </span>75,7</div>
+      <div class="cpe">a nota mexe 7,1 pontos entre corridas.<br>
+        Duas delas deram <b style="color:var(--aco)">a mesma nota errando
+        em sítios diferentes</b> (17 sub/3 sob · 15/5).</div></div>
+    <div class="cel amb"><div class="crot">Mooter · 6 corridas</div>
+      <div class="cnum amb">84,3<span style="font-size:.42em"> nas 6</span></div>
+      <div class="cpe">bit a bit igual: sempre os mesmos<br>
+        10 sub e 1 sob. <b style="color:var(--amb)">0 tokens</b> para verificar.</div></div>
   </div>
   <p class="nota an3" style="margin-top:36px">Num router, mudar de opinião sem o input mudar não é criatividade.<br>
      É <b>a mesma factura a dar dois valores</b>.</p>
-  ${CAR('parte 9','25 amostras historical, duas corridas')}`},
+  ${CAR('parte 9','6 corridas do holdout completo')}`},
 
 {t:110, d:16, h:`
   <div class="olho an" style="color:var(--mau)">A confissão · a sessão de hoje</div>
@@ -582,7 +585,7 @@ document.addEventListener('fullscreenchange', () => setTimeout(ajustar, 60));
 /* ══════════ guião + trajectória (por baixo do palco) ═════════════ */
 const GV = [
  ['0:00–0:04','Setenta prompts reais. Três maneiras diferentes de decidir para onde os mandar.','arranque frio, sem logo'],
- ['0:04–0:15','Quem não encaminha nada acerta trinta e quatro por cento das vezes. Um LLM a classificar acerta sessenta e oito. O Mooter acerta oitenta e quatro — e não gasta um único token a decidir.','as três barras entram desfasadas 130 ms'],
+ ['0:04–0:15','Quem não encaminha nada acerta trinta e quatro por cento das vezes. Um LLM a classificar acerta setenta e um. O Mooter acerta oitenta e quatro — e não gasta um único token a decidir.','as três barras entram desfasadas 130 ms · o valor do LLM é a mediana de 6 corridas'],
  ['0:15–0:22','O router por LLM queimou quase treze mil tokens só para classificar. O Mooter gastou zero, e foi quarenta e oito vezes mais rápido. Classificar não é pensar: é reconhecer.','o zero fica sozinho no ecrã'],
  ['0:22–0:30','Vinte e cinco destes prompts foram escritos de propósito para enganar um classificador. O LLM acertou cinquenta e seis por cento. O Mooter, noventa e dois.','trinta e seis pontos de diferença'],
  ['0:30–0:38','E o teu prompt? Nunca sai do teu computador. São expressões regulares a correr na tua máquina. O router que usa um LLM tem de ler o prompt — se esse modelo estiver na nuvem, o prompt vai com ele.','o argumento de segurança, sem adjectivos'],
@@ -594,11 +597,11 @@ const GH = [
  ['0:06–0:17','O problema era simples e incómodo: o produto dizia que poupava, e a única prova era o próprio produto a dizê-lo. Um router que se auto-avalia não é evidência — é publicidade.',''],
  ['0:17–0:29','A primeira regra do desenho é a que impede a batota: o gabarito é anterior ao ensaio. Os rótulos saem de um ficheiro que já estava no repositório, escrito para outro fim. E o holdout é um corte que o classificador nunca viu afinado.',''],
  ['0:29–0:41','Braço um: sem router. Tudo vai para o tier mais caro, que é o que acontece por defeito a quem não encaminha nada. Acerta trinta e quatro por cento — e manda quarenta e seis dos setenta pedidos para o modelo caro sem precisar.',''],
- ['0:41–0:55','Braço dois é o adversário a sério, não um espantalho: um LLM verdadeiro a classificar, o qwen dois vírgula cinco coder, a correr na GPU local, uma chamada real por prompt. Sessenta e oito vírgula seis por cento, quase treze mil tokens, setenta e cinco milissegundos cada.',''],
+ ['0:41–0:55','Braço dois é o adversário a sério, não um espantalho: um LLM verdadeiro a classificar, o qwen dois vírgula cinco coder, a correr na GPU local, uma chamada real por prompt. Setenta e um vírgula quatro por cento — mediana de seis corridas —, quase treze mil tokens, setenta e cinco milissegundos cada.',''],
  ['0:55–1:07','Braço três é o Mooter. Expressões regulares, sem modelo, sem rede. O ficheiro está congelado e o seu sha256 é verificado no CI, para ninguém lhe mexer entre medições.',''],
- ['1:07–1:21','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e oito, noventa e seis. No holdout, que é mais duro para todos: trinta e quatro, sessenta e oito, oitenta e quatro.',''],
+ ['1:07–1:21','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e oito, noventa e seis. No holdout, que é mais duro para todos: trinta e quatro, setenta e um, oitenta e quatro.',''],
  ['1:21–1:36','Por secção é onde fica honesto. Nos prompts claros, noventa e cinco. Nos adversariais, noventa e dois contra cinquenta e seis. E nos históricos — prompts reais, longos — sessenta e oito. Essa linha é a nossa fraqueza e fica na tabela, não no rodapé.',''],
- ['1:36–1:50','Corri tudo duas vezes. O Mooter deu exactamente o mesmo resultado nas vinte e cinco. O LLM mudou de opinião numa, sem o input ter mudado, e custou nove mil e quatrocentos tokens só para eu verificar. Num router, isso é a mesma factura a dar dois valores.',''],
+ ['1:36–1:50','Corri o ensaio seis vezes. O Mooter deu oitenta e quatro vírgula três nas seis, sempre com os mesmos dez erros para baixo e um para cima. O LLM andou entre sessenta e oito vírgula seis e setenta e cinco vírgula sete — sete pontos de amplitude sem o input mudar. E em duas corridas deu a mesma nota errando em sítios diferentes. Num router, isso é a mesma factura a dar dois valores.',''],
  ['1:50–2:06','E agora a confissão. Nesta sessão o router classificou cento e doze pedidos e marcou quarenta e três como trabalho de graça, para correr na GPU local. Delegações efectivas: zero. O motor acerta; quem o devia obedecer não obedeceu. Está aqui porque é verdade e porque é o próximo trabalho.',''],
  ['2:06–2:20','O que isto te dá são três propriedades que um router feito com um LLM não consegue ter: classificar não custa nada, o prompt não sai da máquina, e a mesma entrada dá sempre a mesma saída.',''],
  ['2:20–2:40','Mooter, mooter ponto ai, licença MIT. Corre o ensaio na tua máquina. O harness e os recibos estão no repositório — se o número estiver errado, dá para provar que está. Que é o ponto.',''],
@@ -619,18 +622,21 @@ function guiao(){
   <table class="tab">
     <tr><th>métrica</th><th>sem router</th><th>router por LLM</th><th>Mooter</th><th>quem ganha</th></tr>
     <tr><td>acertos (de 70)</td><td class="o">24</td><td class="a">48</td><td class="g">59</td><td class="g">Mooter</td></tr>
-    <tr><td>precisão</td><td class="o">34,3%</td><td class="a">68,6%</td><td class="g">84,3%</td><td class="g">+15,7 pts</td></tr>
-    <tr><td>canonical (20)</td><td class="o">10,0%</td><td class="a">90,0%</td><td class="g">95,0%</td><td class="g">Mooter</td></tr>
-    <tr><td>adversarial (25)</td><td class="o">48,0%</td><td class="a">56,0%</td><td class="g">92,0%</td><td class="g">+36 pts</td></tr>
-    <tr><td>historical (25)</td><td class="o">40,0%</td><td class="a">64,0%</td><td class="g">68,0%</td><td class="g">Mooter (fraco)</td></tr>
+    <tr><td>precisão · mediana de 6</td><td class="o">34,3%</td><td class="a">71,4%</td><td class="g">84,3%</td><td class="g">+12,9 pts</td></tr>
+    <tr><td>precisão · amplitude</td><td class="o">—</td><td class="a">68,6 – 75,7</td><td class="g">84,3 nas 6</td><td class="g">Mooter</td></tr>
+    <tr><td>canonical (20) ¹</td><td class="o">10,0%</td><td class="a">90,0%</td><td class="g">95,0%</td><td class="g">Mooter</td></tr>
+    <tr><td>adversarial (25) ¹</td><td class="o">48,0%</td><td class="a">56,0%</td><td class="g">92,0%</td><td class="g">+36 pts</td></tr>
+    <tr><td>historical (25) ¹</td><td class="o">40,0%</td><td class="a">64,0%</td><td class="g">68,0%</td><td class="g">Mooter (fraco)</td></tr>
     <tr><td>subestimou (arrisca qualidade)</td><td class="o">0</td><td class="a">16</td><td class="g">10</td><td class="g">Mooter</td></tr>
     <tr><td>sobrestimou (queima dinheiro)</td><td class="o">46</td><td class="a">6</td><td class="g">1</td><td class="g">Mooter</td></tr>
     <tr><td>tokens para decidir</td><td class="o">0</td><td class="a">12 962</td><td class="g">0</td><td class="g">empate A1</td></tr>
     <tr><td>latência p50</td><td class="o">—</td><td class="a">74,8 ms</td><td class="g">1,54 ms</td><td class="g">48×</td></tr>
-    <tr><td>reprodutível (2 corridas)</td><td class="o">100%</td><td class="a">96,0%</td><td class="g">100%</td><td class="g">Mooter</td></tr>
+    <tr><td>reprodutível (6 corridas)</td><td class="o">100%</td><td class="a">não</td><td class="g">bit a bit</td><td class="g">Mooter</td></tr>
     <tr><td>bytes para a rede</td><td class="o">0</td><td class="a">depende do modelo</td><td class="g">0</td><td class="g">Mooter</td></tr>
     <tr><td>gold · conjunto grande (84)</td><td class="o">16,7%</td><td class="a">78,6%</td><td class="g">96,4%</td><td class="g">Mooter</td></tr>
   </table>
+
+  <div class="cap" style="margin-top:12px">¹ os cortes por secção vêm da corrida guardada no recibo. A coluna do Mooter é invariante (6/6 corridas idênticas); a do router-por-LLM é <b style="color:var(--aco)">uma amostra</b> de uma distribuição que varia 7,1 pontos.</div>
 
   <div class="avs"><b>O que este ensaio NÃO prova.</b> Mede a <b>decisão</b> de encaminhamento,
     não a poupança em euros de uma sessão inteira. Nesta sessão o router marcou
@@ -647,7 +653,7 @@ function guiao(){
     <div class="gl"><div class="gt">3 · gabarito</div><div class="gx">Usar como gold um ficheiro que já existia no repositório, escrito para outro fim — para nenhum rótulo poder ser escrito depois de ver o resultado.</div></div>
     <div class="gl"><div class="gt">4 · três braços</div><div class="gx">Sem router (controlo) · router por LLM (adversário forte, a correr mesmo) · Mooter. Preços do SSOT, nunca cravados no teste.</div></div>
     <div class="gl"><div class="gt">5 · holdout</div><div class="gx">Repetir num corte que o classificador nunca viu afinado. Todos pioram; a ordem aguenta.</div></div>
-    <div class="gl"><div class="gt">6 · duas corridas</div><div class="gx">Correr tudo outra vez para medir reprodutibilidade. É aqui que aparece a divergência do LLM.</div></div>
+    <div class="gl"><div class="gt">6 · seis corridas</div><div class="gx">Correr o ensaio inteiro seis vezes. O Mooter dá 84,3% nas seis, sempre com os mesmos 10 erros para baixo e 1 para cima. O LLM anda entre 68,6% e 75,7% — e em duas corridas deu <b>a mesma nota errando em sítios diferentes</b>. Foi isto que obrigou a trocar o 68,6% publicado pela mediana, 71,4%: a nota mais baixa do adversário era a que me favorecia.</div></div>
     <div class="gl"><div class="gt">7 · a confissão</div><div class="gx">Ler o <code>decisions.log</code> da própria sessão e publicar o que lá estava: ${D.sessao.deleg} delegações. Entra na peça em vez de ficar de fora.</div></div>
   </div>
 
