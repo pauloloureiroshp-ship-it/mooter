@@ -40,7 +40,10 @@
 //
 //   · todo o `.js` que não seja `*.test.js`, **recursivamente**;
 //   · todo o `.json` que algum desses `.js` mencione pelo nome, menos a
-//     configuração de projecto (`JSON_NUNCA`, abaixo).
+//     configuração de projecto (`JSON_NUNCA`, abaixo);
+//   · e, por cima de tudo isso, **só o que está versionado no git**
+//     (`ficheirosVersionados`) — a regra que impede o espelho de arrastar
+//     `coverage/` e os 12 `.json` de estado local de um checkout de trabalho.
 //
 // A segunda regra dispensa uma lista de inclusão: `safety_seeds.json` estava
 // ausente do runtime e é requerido por código — passa a propagar-se sozinho, e
@@ -70,6 +73,43 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFileSync } = require('child_process');
+
+/**
+ * O QUE O REPO DISTRIBUI É O QUE ESTÁ VERSIONADO — e mais nada.
+ *
+ * Apanhado a 2026-08-31 na primeira corrida real a partir de `~/frugal`, que
+ * (ao contrário de um worktree limpo) é um checkout DE TRABALHO. Sem este
+ * filtro, o espelho arrastava:
+ *
+ *   · `coverage/lcov-report/*.js` — artefactos de uma corrida de testes;
+ *   · **12 `.json` de estado local**: `router-tuning.json`, `quota-state.json`,
+ *     `tuning-state.json`, `subscription-profile.json`, `hw-capability.json`,
+ *     os quatro caches `.*-cache.json`, `mooter-tester-*`, …
+ *
+ * O segundo grupo é o perigoso, e não por ocupar espaço: são estados de DUAS
+ * instalações diferentes. Copiar o do repo por cima do do runtime é apagar o
+ * que o runtime aprendeu — o `router-tuning.json` é escrito pelo backtest
+ * directamente em `~/.claude/tools/router/`, e um sync que o sobreponha desfaz
+ * o tuning da máquina em silêncio, no mesmo passo que diz `✓ synced`.
+ *
+ * `git ls-files` responde a isto sem lista à mão: estado local nunca está
+ * versionado, artefactos de build nunca estão versionados. Sem git (uma
+ * instalação por tarball), não há estado local na origem — devolve-se `null` e
+ * o chamador segue sem filtro.
+ */
+function ficheirosVersionados(raiz) {
+  try {
+    const out = execFileSync('git', ['ls-files', '-z'], {
+      cwd: raiz, encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'], timeout: 15_000,
+    });
+    const lista = out.toString('utf8').split('\0').filter(Boolean);
+    if (!lista.length) return null;
+    return new Set(lista.map((p) => path.normalize(p)));
+  } catch {
+    return null; // não é repo git, ou git ausente — sem filtro
+  }
+}
 
 /** `version.json` é lido por caminho construído, logo nenhum `.js` o nomeia. */
 const JSON_SEMPRE = ['version.json'];
@@ -103,7 +143,7 @@ const JSON_NUNCA = new Set([
 ]);
 
 /** Subpastas que NUNCA são runtime, custe o que custar. */
-const PASTAS_IGNORADAS = new Set(['node_modules', '.git', '__pycache__', 'benchmark-results']);
+const PASTAS_IGNORADAS = new Set(['node_modules', '.git', '__pycache__', 'benchmark-results', 'coverage']);
 
 function homeDir() {
   return process.env.MOOTER_HOME_OVERRIDE || os.homedir();
@@ -187,8 +227,12 @@ function sync(opts = {}) {
   const src = resolveSrcDir(opts.src);
   const dst = destDir(opts.home);
 
-  const js = listarJs(src);
-  const json = listarJson(src, js);
+  // `opts.versionados === null` desliga o filtro explicitamente (testes).
+  const versionados = opts.versionados !== undefined ? opts.versionados : ficheirosVersionados(src);
+  const distribuivel = (rel) => !versionados || versionados.has(path.normalize(rel));
+
+  const js = listarJs(src).filter(distribuivel);
+  const json = listarJson(src, js).filter(distribuivel);
   const todos = [...js, ...json];
 
   const emFalta = [];
@@ -242,6 +286,6 @@ function main(argv) {
   return 0;
 }
 
-module.exports = { sync, listarJs, listarJson, resolveSrcDir, destDir, JSON_SEMPRE, JSON_NUNCA, PASTAS_IGNORADAS };
+module.exports = { sync, listarJs, listarJson, ficheirosVersionados, resolveSrcDir, destDir, JSON_SEMPRE, JSON_NUNCA, PASTAS_IGNORADAS };
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));

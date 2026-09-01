@@ -15,7 +15,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const mod = require('./sync-runtime.js');
-const { sync, listarJs, listarJson, JSON_SEMPRE } = mod;
+const { sync, listarJs, listarJson, ficheirosVersionados, JSON_SEMPRE } = mod;
 
 function tmpRepo() {
   const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-syncrt-'));
@@ -187,4 +187,63 @@ test('JSON_NUNCA ganha a JSON_SEMPRE se alguém puser o mesmo nome nos dois', ()
     const json = listarJson(t.src, listarJs(t.src));
     assert.ok(!json.includes('package.json'));
   } finally { limpar(t.raiz); }
+});
+
+// ── só o que o git distribui ─────────────────────────────────────────────
+//
+// Defeito meu, apanhado na primeira corrida a partir do checkout principal — um
+// checkout DE TRABALHO, ao contrário do worktree limpo onde os testes acima
+// correm. Sem o filtro, o espelho arrastava `coverage/lcov-report/*.js` e 12
+// `.json` de estado local, entre eles o `router-tuning.json` que o backtest
+// escreve DIRECTAMENTE no runtime: copiá-lo do repo por cima desfaz o tuning
+// da máquina, em silêncio, no mesmo passo que imprime `✓ synced`.
+
+test('estado local e artefactos NÃO são copiados — só o que está versionado', () => {
+  const t = tmpRepo();
+  try {
+    fs.writeFileSync(path.join(t.src, 'router-tuning.json'), '{"local":true}');
+    fs.writeFileSync(path.join(t.src, 'classify.js'),
+      'require("./gold-labels.json");require("./router-tuning.json");\n');
+
+    // o git diz que só estes é que se distribuem
+    const versionados = new Set(['classify.js', 'gold-labels.json', 'version.json',
+      path.join('providers', 'ollama-api.js')].map((p) => path.normalize(p)));
+
+    const r = sync({ src: t.src, home: t.home, versionados });
+    assert.ok(!fs.existsSync(path.join(t.dst, 'router-tuning.json')),
+      'router-tuning.json é estado local — copiá-lo apaga o tuning do runtime');
+    assert.ok(fs.existsSync(path.join(t.dst, 'gold-labels.json')), 'gold-labels.json é versionado');
+    assert.ok(fs.existsSync(path.join(t.dst, 'providers', 'ollama-api.js')));
+    assert.equal(r.total, 4);
+  } finally { limpar(t.raiz); }
+});
+
+test('sem git (instalação por tarball) o filtro desliga em vez de copiar nada', () => {
+  // Um filtro que falhasse fechado transformava «git ausente» em «runtime vazio».
+  const t = tmpRepo();
+  try {
+    assert.equal(ficheirosVersionados(t.src), null, 'tmpdir não é repo git');
+    const r = sync({ src: t.src, home: t.home });
+    assert.ok(r.total > 0, 'sem git tem de copiar à mesma');
+    assert.ok(fs.existsSync(path.join(t.dst, 'providers', 'ollama-api.js')));
+  } finally { limpar(t.raiz); }
+});
+
+test('coverage/ nunca entra, mesmo que alguém o versione por engano', () => {
+  const t = tmpRepo();
+  try {
+    fs.mkdirSync(path.join(t.src, 'coverage', 'lcov-report'), { recursive: true });
+    fs.writeFileSync(path.join(t.src, 'coverage', 'lcov-report', 'prettify.js'), '// artefacto\n');
+    const js = listarJs(t.src);
+    assert.ok(!js.some((f) => f.includes('coverage')), `coverage entrou: ${js.join(', ')}`);
+  } finally { limpar(t.raiz); }
+});
+
+test('no repo real, o filtro do git existe e exclui estado local', () => {
+  const v = ficheirosVersionados(__dirname);
+  assert.ok(v && v.size > 100, `git ls-files devolveu ${v ? v.size : 'null'} — o filtro não está a funcionar`);
+  assert.ok(v.has('classify.js'), 'classify.js é versionado');
+  for (const estado of ['router-tuning.json', 'quota-state.json', 'tuning-state.json', 'subscription-profile.json']) {
+    assert.ok(!v.has(estado), `${estado} é estado local e não pode ser distribuído`);
+  }
 });
