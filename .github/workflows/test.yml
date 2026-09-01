@@ -19,6 +19,9 @@ on:
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
+      # O harness A/B e a sua mordida. Sem esta linha, um PR que so lhes
+      # mexesse nao corria os testes que os guardam — presenca sem cobertura.
+      - 'tools/ab/**'
       - 'tools/handoff-preflight*'
       - 'AGENTS.md'
       - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
@@ -55,6 +58,9 @@ on:
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
+      # O harness A/B e a sua mordida. Sem esta linha, um PR que so lhes
+      # mexesse nao corria os testes que os guardam — presenca sem cobertura.
+      - 'tools/ab/**'
       - 'tools/handoff-preflight*'
       - 'AGENTS.md'
       - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
@@ -148,6 +154,28 @@ jobs:
       # gesto do dono, nao do agente que o escreveu.
       - name: Portao do gauntlet (estagio 2)
         run: npm run test:gauntlet
+
+      # O harness A/B produz os numeros que vao para releases e para paginas
+      # publicas, e ate 2026-09-01 nao tinha teste nenhum. Uma auditoria de
+      # pre-merge apanhou-lhe quatro defeitos — dois de metodo, dois de
+      # honestidade — e as correccoes baixaram TODOS os numeros anunciados
+      # (84,3% -> 81,7%, «+36 pontos» -> +12, «so o nosso e reprodutivel» ->
+      # retirado). Sem estes testes, qualquer uma pode ser desfeita em silencio.
+      # Hermetico: o braco do LLM recebe sempre um callImpl falso, zero rede.
+      - name: Harness A/B (os numeros publicos)
+        run: npm run test:ab
+
+      # E a prova de que os testes acima mordem. No primeiro uso, 1 dos 13
+      # defeitos plantados PASSOU: o teste das convencoes casava com a linha
+      # que define os tiers em vez do bloco que devia guardar. 22 testes verdes
+      # e um deles nao verificava nada — que e exactamente a classe de defeito
+      # que este passo existe para tornar impossivel de repetir.
+      #
+      # Passo separado porque o script MUTA o harness e restaura-o; o
+      # `node --test` corre ficheiros em paralelo e nao pode ver o ficheiro a
+      # meio de uma mutacao.
+      - name: Mordida do harness A/B (13 defeitos plantados)
+        run: npm run test:ab-morde
 
       # O portao a MORDER uma entrega real, nao so os seus proprios testes.
       # Ate aqui ele corria no CI e nunca via uma declaracao verdadeira — que e

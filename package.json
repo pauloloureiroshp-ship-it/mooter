@@ -48,7 +48,9 @@
     "test:deck": "node --test design/deck/moo-deck-build.test.mjs",
     "design:inline": "node design/tools/moo-inline-sync.mjs",
     "design:inline:ci": "node design/tools/moo-inline-sync.mjs --check",
-    "test:gauntlet": "node --test \"tools/gauntlet/*.test.mjs\""
+    "test:gauntlet": "node --test \"tools/gauntlet/*.test.mjs\"",
+    "test:ab": "node --test \"tools/ab/*.test.mjs\"",
+    "test:ab-morde": "node tools/ab/morde.mjs"
   },
   "engines": {
     "node": ">=22"
