@@ -464,6 +464,29 @@ export function createServer({
   const servidor = http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
 
+    /**
+     * HEAD E UM GET SEM CORPO — e ate 2026-09-01 nao era nada.
+     *
+     * Achado A3 do live test do dono: `curl -sI http://127.0.0.1:4290/ledger`
+     * caia na cauda e respondia `404 not found`. Qualquer watchdog, uptime
+     * checker ou health probe que use HEAD — que e o metodo canonico para
+     * "esta vivo?", porque nao puxa o corpo — lia o F10 como MORTO estando ele
+     * a servir 200 no mesmo endereco. E o R7 do adversario exige exactamente
+     * um observador externo.
+     *
+     * Uma linha, e nao um ramo por rota, de proposito: um HEAD que responda a
+     * um subconjunto das rotas GET e a mesma classe de defeito outra vez, so
+     * que mais dificil de ver. O corpo e suprimido pelo proprio Node
+     * (`res._hasBody` e falso num pedido HEAD), portanto os cabecalhos saem
+     * IDENTICOS aos do GET — `Content-Length` incluido, que e o unico ponto de
+     * um HEAD.
+     *
+     * O custo fica dito: `HEAD /ledger` reconstroi o Ledger, tal como o GET.
+     * E o preco de nao mentir no `Content-Length`, e e o mesmo preco que esta
+     * rota ja documenta pagar a cada pedido.
+     */
+    const metodo = req.method === 'HEAD' ? 'GET' : req.method;
+
     if (!hostAllowed(req.headers.host)) {
       return sendJson(res, 403, { erro: 'Host nao local recusado' }, { cors: false });
     }
@@ -471,13 +494,13 @@ export function createServer({
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         ...corsHeaders(req.headers.origin),
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       });
       return res.end();
     }
 
-    if (req.method === 'GET' && (route === '/fleet.json' || route === '/fleet')) {
+    if (metodo === 'GET' && (route === '/fleet.json' || route === '/fleet')) {
       const [gpu, alive, models, alignment] = await Promise.all([
         sampleGpu(),
         engineAlive(fetchImpl),
@@ -563,7 +586,7 @@ export function createServer({
     // pillar names and questions never change while the process is up.
     // Os motores e o custo REAL de mandar um achado a cada um. A tabela vem de
     // tools/router/pricing.js; um modelo fora dela sai `n/d`, nunca estimado.
-    if (req.method === 'GET' && route === '/motores.json') {
+    if (metodo === 'GET' && route === '/motores.json') {
       return sendJson(res, 200, { motores: menuDeMotores() });
     }
 
@@ -582,7 +605,7 @@ export function createServer({
     // mao, e nenhum precisava de um modelo — um `stat` e uma comparacao
     // chegavam. Isto corre-os a cada pedido, de graca. "Nao ha alertas" nunca
     // quis dizer "esta tudo bem": queria dizer que ninguem estava a olhar.
-    if (req.method === 'GET' && route === '/saude.json') {
+    if (metodo === 'GET' && route === '/saude.json') {
       const saude = autoVerificar({
         paths,
         mooDir: paths.base,
@@ -649,7 +672,7 @@ export function createServer({
       return sendJson(res, 200, saude);
     }
 
-    if (req.method === 'GET' && route === '/custo.json') {
+    if (metodo === 'GET' && route === '/custo.json') {
       const agora = Date.now();
       if (!custoCache.dados || agora - custoCache.em > CUSTO_TTL_MS) {
         try {
@@ -662,7 +685,7 @@ export function createServer({
       return sendJson(res, 200, custoCache.dados);
     }
 
-    if (req.method === 'GET' && route === '/pilares.json') {
+    if (metodo === 'GET' && route === '/pilares.json') {
       return sendJson(res, 200, {
         repo: raiz,
         fonte: pilares.fonte,
@@ -691,7 +714,7 @@ export function createServer({
      * vivo, que e a unica coisa que esta pagina promete nunca ser. Se a
      * construcao falhar, responde 503 e DIZ porque — nunca uma copia velha.
      */
-    if (req.method === 'GET' && route === '/ledger') {
+    if (metodo === 'GET' && route === '/ledger') {
       try {
         const { html, snapshot, shell } = await renderLedgerHtml({ repoRoot: raiz, mooDir: paths.base });
         const buf = Buffer.from(html, 'utf8');
@@ -714,7 +737,7 @@ export function createServer({
       }
     }
 
-    if (req.method === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
+    if (metodo === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
       const candidatos = panelCandidates(raiz);
       for (let i = 0; i < candidatos.length; i += 1) {
         const candidate = candidatos[i];
@@ -752,7 +775,7 @@ export function createServer({
       });
     }
 
-    if (req.method === 'POST' && VERBOS_DE_CONTROLO.includes(route)) {
+    if (metodo === 'POST' && VERBOS_DE_CONTROLO.includes(route)) {
       if (!originAllowed(req.headers.origin)) {
         return sendJson(res, 403, { erro: 'origem nao local recusada' }, { cors: false });
       }
