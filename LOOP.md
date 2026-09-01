@@ -53,11 +53,44 @@ estou a corrigir e não a arranjar.
    Sem Ollama, o adversário marcava 0,0% em silêncio com exit 0, e o Mooter
    «ganhava» 100 a 0 — precisamente a quem não tinha como verificar.
 
-**HIPÓTESE (por testar):** o `classify.js` está congelado por sha256 e importa
-`patterns.js`, que não tem congelamento nenhum. Um agente afirmou que os padrões
-tinham sido afinados contra o holdout; medi e **refutei** — reverter o
-`patterns.js` a antes dos quatro commits candidatos faz a nota SUBIR (91,4 →
-94,3), não cair. Mas a fraqueza do invariante é real e continua por fechar.
+**A SEXTA — e eu refutei-a antes de a confirmar.** Um agente afirmou que o
+holdout fora afinado pelo `patterns.js`, que o `classify.js` FROZEN importa e que
+não tinha sha nenhum. Medi, dei 91,4/94,3/94,3, e escrevi em commit, no `SYNC.md`
+e no `MEMORY.md` que «não se reproduz».
+
+**Não fui suficientemente atrás.** Testei revertendo a `~1` de quatro commits, e o
+mais antigo desses pontos já continha o `9530efae` — exactamente onde está o
+salto. Testei a janela errada e declarei refutado o que estava certo.
+
+A escada completa (`classify.js` byte-a-byte no estado congelado, só o
+`patterns.js` a variar, mesmos 35 rótulos):
+
+| `patterns.js` | nota | o que o commit diz de si |
+|---|---|---|
+| `b13262a1` 04-12 | **82,9%** | último antes dos rótulos |
+| `caf8a67d` 04-15 22:29 | — | **nascem os rótulos** |
+| `5e50cbb0` 04-15 22:46 | 85,7% | «three classifier safety fixes **found by validation-set**» |
+| `9530efae` 04-16 | **94,3%** | «Adversarial accuracy: 80% → 92%» |
+| `b57efa9e` 04-18 | 91,4% | «gaps **caught by adversarial probe**» |
+| HEAD | 91,4% | o número que publiquei |
+
+Dezassete minutos depois dos rótulos, um commit acrescenta
+`/\bmerg(ea|ear|eia)\b/i` com o comentário `// "mergea na main"` — texto **literal**
+de `adversarial-17`. **O holdout não era holdout: era o sinal de treino.**
+
+**O que sobra:** a alegação «melhor do que não ter router» aguenta nos dois
+extremos (82,9% → p=0,0015; 91,4% → p<0,0001). Contra o router-por-LLM é empate
+literal, 29/35 contra 29/35. O 91,4% passa a ser dito como score de **treino**.
+
+**Duas classes, e a segunda é sobre mim:**
+
+1. **Congelar um ficheiro que delega o que interessa a outro não congelado é um
+   invariante de papel.** 20 pontos de comportamento sem o sha mexer um bit.
+   Fechado: `patterns.js.sha256` + passo no CI.
+2. **Um contrafactual que não vai suficientemente atrás refuta o que está certo.**
+   A janela tem de começar *antes de os rótulos existirem* — não num ponto
+   qualquer do histórico que me pareça antigo. Refutar mal é pior do que não
+   refutar: dá confiança onde não há.
 
 ### 2026-08-25-a-forma-comparar-tambem-falha-e-o-sinal-esta-invertido
 
