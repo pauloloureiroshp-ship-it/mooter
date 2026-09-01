@@ -142,40 +142,21 @@ kimi-egress FECHADA — slack-spike destravado
 
 ### 2026-08-31 (noite) · O PROBE QUE NUNCA EXISTIU — e o motor $0 dado como morto
 
-O SUPER MASTERPROMPT «NO TALO» v1 mandava correr `_handoff/duelo-2026-08-31/probe-frota.mjs`
-antes de cada tarefa. **Não existia.** Busca exaustiva, citada: `git log --all --diff-filter=A`
-em todo o histórico e todas as branches · `find` por nome na home inteira (inclui `AppData`,
-`Downloads`, `Documents`) · `grep -rl` no repo · vault. **Zero.** Idem `tools/verify/render_medir.js`
-(F3) e `40-strategy/2026-08-25-mooter-mapa-e-roadmap.md` (as 10 perguntas do gauntlet da §5).
-O «duelo 2026-08-31» não deixou rasto: 0 ficheiros no vault com essa data, 0 handoffs a mencioná-lo,
-e o receipt mais recente do agent-sync é de **2026-07-29**. Parei e disse — L7 — em vez de construir
-por cima. O dono confirmou que nunca existiram e mandou desenhar de raiz.
+O SUPER MASTERPROMPT «NO TALO» v1 mandava correr `_handoff/duelo-2026-08-31/probe-frota.mjs` antes
+de cada tarefa. **Não existia** — nem ele, nem o `render_medir.js` (F3), nem o `mapa-e-roadmap.md`
+(as 10 perguntas da §5). Busca exaustiva e citada: `git log --all` em todo o histórico e todas as
+branches · `find` por nome na home inteira · `grep -rl` no repo · vault. **Zero.** Parei e disse
+(L7); o dono confirmou que nunca existiram e mandou desenhar de raiz.
 
-**Feito** (`23655073`): `probe-frota.mjs` + `.test.mjs`. Não inventa sondas — compõe as três peças
-que já existiam: `providers/*.isAvailable()` (nenhum consome quota; o do codex é `codex login status`),
-`quota-honesta.js` (separa `engine_health` de `quota_remaining_pct`) e `provider-health.js`
-(**o cooldown que a F1 pedia já existia aqui**). Uma quarta sonda seria repor a segunda verdade que
-estes ficheiros passaram meses a eliminar. 19 testes; **mordida provada**: 3 defeitos plantados
-(refutador = autor · 0% deixa de bloquear · memória deixa de degradar) → 1, 1 e 6 falhas; revert → 19/19.
+**Feito** (`23655073`): probe + 19 testes. Não inventa sondas — compõe `providers/*.isAvailable()`
+(nenhum consome quota), `quota-honesta.js` (separa saúde de quota) e `provider-health.js` (**o
+cooldown que a F1 pedia já existia**). Mordida provada: 3 defeitos plantados → 1, 1 e 6 falhas.
+A regra «n/d de quota = esgotada» da §2 é aplicada à letra mas **nunca em silêncio**:
+`excluido_por_nd` é campo distinto de `esgotado_medido`, e sem candidatos a etapa sai `BLOQUEADA`
+em vez de eleger o mais barato — o *viés do default barato*.
 
-**A contradição, declarada.** A §2 manda «n/d de quota = tratar como esgotada», mas o `quota-honesta.js`
-estabelece que a única fonte oficial nesta máquina é a da Anthropic e a do Codex é `n/d` por construção.
-À letra: exclui o Codex da pesquisa web para sempre (por inmensurável, não por esgotado), e hoje — sem
-statusline renderizada — deixa **todos** n/d e a pesquisa web sem motor. Foi o que o probe devolveu.
-Implementado à letra, mas nunca em silêncio: `excluido_por_nd` é campo distinto de `esgotado_medido`,
-e sem candidatos a etapa sai `BLOQUEADA` — nunca o mais barato por defeito.
-
-**O achado da primeira corrida.** `OLLAMA_HOST=127.0.0.1:11434` (sem esquema — o formato canónico que
-o Ollama documenta) e `providers/ollama-api.js:161` concatena sem normalizar → `Failed to parse URL`.
-**O Ollama está vivo, com 10 modelos**, verificado com `http://` explícito no mesmo segundo. O motor $0,
-primeiro degrau da escada de poupança, é dado por morto e a leitura cai para o Codex com
-`fallback_de: ollama`. O fallback funciona; errada estava a premissa. Não corrigido — ficheiro do motor,
-1 PR por item.
-
-**Aberto:** `ollama-api.js` a normalizar o esquema (1 linha, decisão do dono) · a §5 é inexequível
-enquanto o `mapa-e-roadmap.md` não existir · F3 está **inverificável**, não só bloqueada (falta o
-`render_medir.js` e o «rascunho B do round 1») · o probe **não está no CI** (`_handoff/` não é varrido
-pela lista à mão do `tools/router`); é a F1 que o promove.
+**O achado da 1.ª corrida:** `OLLAMA_HOST=127.0.0.1:11434` (sem esquema — o formato canónico do
+Ollama) e `ollama-api.js:161` concatenava sem normalizar. O Ollama estava **vivo, com 10 modelos**.
 
 **Fecho (22:55–23:40 SP) · o motor $0 volta a estar operacional.** Pior do que a sonda: `callOllama()`
 devolvia **`null` sem razão nenhuma** — o `catch` engolia o `Failed to parse URL`, e quem o lia concluía
@@ -196,8 +177,25 @@ já sabia desde a Wave 61: o defeito era instalador e updater terem duas defini�
 `coverage/` e **12 `.json` de estado local**, entre eles o `router-tuning.json` que o backtest escreve
 **no runtime** — copiá-lo do repo por cima desfaz o tuning em silêncio. `git ls-files` resolve (23 →
 9); sem git **desliga** em vez de falhar fechado. Corri o sync errado 1×: 13 estados ficaram iguais ao
-repo e **não consigo provar quais sobrepus** (sem backup); dano material ~0. **Revalidado:** `runtime
-em dia (230)` · acumulador OK · `TEST=pass` · motor $0 custo 0. **Aberto:** `install.sh` é 2.ª
-definição do runtime · `coverage/` ficou no runtime · `retrato-mapa.test.js` é **flaky**. Journal no vault.
+repo e **não consigo provar quais sobrepus** (sem backup); dano material ~0.
+
+**A onda do install** (#458, #459) fechou o resto. Eram **cinco** definições de «runtime», não três:
+os dois instaladores, o Step 5, e as **duas cópias servidas pelo site** — que o `piso-de-node.mjs`
+apanhou quando eu já julgava ter fechado o drift. Todas passam por `sync-runtime.js`. Cai a cópia
+cega de `*.json` (um `package.json` no router governa a resolução de módulos daquela árvore) e o
+espelho deixa de recriar a 4.ª cópia dos hooks ligados. **O portão que faltava:** os três ficheiros
+pediam «keep in lockstep» *em comentário* e ninguém verificava — `paridade-instaladores.test.js`
+falha se as listas divergirem, se alguém voltar a copiar à mão, ou se o piso de Node se separar.
+E os últimos **4** sítios do `OLLAMA_HOST` (`packages/cli`, FROZEN, allowlist no mesmo commit):
+a regra não é importada de `tools/` porque o bundle não arrasta código de fora — as duas cópias são
+ancoradas na **mesma tabela de casos**, e alterar um caso reprova os dois lados. O `npm test` do
+audit deixa de escrever num ficheiro **versionado**: uma suite não pode alterar o estado que mede.
+
+**Medido:** `runtime em dia (221)` · acumulador OK · `TEST=pass` · motor $0 `available:true` · cli
+**668/669 (0 fail)** · router **1261/1264** · audit **5/6** (as 3 pré-existentes) · ratchet 215.
+**Aberto:** `retrato-mapa.test.js` **flaky** (FROZEN; corrigir sem reproduzir é adivinhar) ·
+`coverage/` e 9 cópias de hooks ficaram no runtime (o `cert-guard` bloqueia `rm -rf` sob `$HOME` e
+não contornei) · **F3 inverificável e §5 inexequível** — nada nesta onda desbloqueia isso.
+Detalhe no journal do vault.
 
 <!-- HUMANO:FIM -->
