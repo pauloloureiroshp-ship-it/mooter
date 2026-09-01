@@ -34,7 +34,13 @@ on:
       # um PR que so lhes mexesse nunca corria o job que os usa — e a lista de
       # divida podia crescer sem ninguem ver.
       - 'tools/guarda-home*'
-      - '.github/workflows/test.yml'
+      # NAO basta nomear este ficheiro: `workflows-parseiam.test.mjs` corre so
+      # por `test:cockpit-runner`, invocado so aqui. Com `paths:` a nomear
+      # apenas o proprio `test.yml`, um PR que editasse OUTRO workflow nao
+      # disparava este job — e o `test-skip.yml` reportava os dois checks
+      # obrigatorios a verde sem correr nada. A guarda que existe para apanhar
+      # um workflow partido era cega a workflows. Medido a 2026-09-01.
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
@@ -62,7 +68,13 @@ on:
       - 'packages/slack-spike/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/guarda-home*'
-      - '.github/workflows/test.yml'
+      # NAO basta nomear este ficheiro: `workflows-parseiam.test.mjs` corre so
+      # por `test:cockpit-runner`, invocado so aqui. Com `paths:` a nomear
+      # apenas o proprio `test.yml`, um PR que editasse OUTRO workflow nao
+      # disparava este job — e o `test-skip.yml` reportava os dois checks
+      # obrigatorios a verde sem correr nada. A guarda que existe para apanhar
+      # um workflow partido era cega a workflows. Medido a 2026-09-01.
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:

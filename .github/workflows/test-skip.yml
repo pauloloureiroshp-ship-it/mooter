@@ -30,6 +30,11 @@ on:
       - 'tools/cockpit/**'
       - 'packages/slack-spike/**'
       - '.github/workflows/test.yml'
+      # Espelho do `paths:` do test.yml. Se o test.yml corre para qualquer
+      # workflow, o skip TEM de ignorar qualquer workflow — senao os dois
+      # disparam e ha dois check runs com o mesmo nome obrigatorio, um deles
+      # verde sem ter corrido nada.
+      - '.github/workflows/**'
 
 jobs:
   unit:
