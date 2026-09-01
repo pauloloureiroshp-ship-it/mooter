@@ -120,3 +120,57 @@ captura do Ledger   148 ms (tecto 5000)
 ```
 
 ~130 testes novos. Zero números inventados; onde não medi, está `n/d` com o motivo.
+
+---
+
+## CI do #474 — a falha do kickoff já estava corrigida
+
+**Causa.** Seis testes reprovaram no job `cockpit tests (windows)` com
+`ENOENT: no such file or directory, mkdtemp '\tmp\...'`. Escrevi
+`path.join(process.env.TMPDIR || '/tmp', …)` em oito sítios: no Windows a
+variável `TMPDIR` não existe e `/tmp` também não, portanto o caminho resolvia
+para `\tmp\` e o `mkdtempSync` rebentava antes do primeiro `assert`.
+
+| # | Teste | Ficheiro |
+|---|---|---|
+| 675 | `eta-index: le o indice de verdade e conta as chaves com p50` | `tools/cockpit/runner/nd-check.test.mjs:53` |
+| 1242 | `o registo e APPEND-ONLY e le-se de volta` | `tools/cockpit/runner/watchdog.test.mjs:102` |
+| 1244 | `uma linha corrompida nao deita fora o registo inteiro` | `tools/cockpit/runner/watchdog.test.mjs:116` |
+| 1247 | `o registo apara-se, e o que sai sao as linhas MAIS VELHAS` | `tools/cockpit/runner/watchdog.test.mjs:153` |
+| 1248 | `abaixo do tecto (com folga) NAO se reescreve o ficheiro` | `tools/cockpit/runner/watchdog.test.mjs:167` |
+| 1249 | `a LEITURA tambem so pega na cauda` | `tools/cockpit/runner/watchdog.test.mjs:178` |
+
+As outras duas linhas `not ok` do log (467 `pilar:esgotado`, 846 `q13 · desenho
+confrontado`) são `# TODO` **declarados**, não falhas — o próprio sumário do
+`node:test` separa-as: `# fail 6` · `# todo 2` (1275 + 6 + 2 = 1283).
+
+**Correção.** `os.tmpdir()` em vez de `process.env.TMPDIR || '/tmp'`, nos 8
+sítios — commit `f95c1ab8`, já empurrado antes deste kickoff. Varri o repo
+outra vez à procura da mesma família (`TMPDIR ||`, `mkdtempSync('/tmp`,
+`path.join('/tmp`) em `tools/` e `packages/`): **zero ocorrências restantes**.
+
+**Nada foi remendado nesta sessão, e o motivo interessa.** A corrida citada no
+kickoff — run `33517358004`, job `99887631731` — correu sobre `7adac7c9`, que é
+o commit **anterior** ao da correcção. Era um log velho, não o estado do PR. O
+que confirma isso, e não a minha palavra:
+
+```
+run 33517358004  headSha = 7adac7c9   ← o log do kickoff
+git log          f95c1ab8 (fix)  vem DEPOIS de 7adac7c9
+HEAD = origin/w0-w1-perfeito = 24728650   (0 à frente, 0 atrás)
+```
+
+Verificação local dos dois ficheiros: `node --test nd-check.test.mjs
+watchdog.test.mjs` → **36 testes, 0 falhas**. E a corrida nova sobre o head
+real (`33517868070`) passou o `Cockpit runner + smoke E2E (Windows)`.
+
+**Estado final dos checks** (`gh pr checks 474`, head `24728650`):
+
+```
+23 pass · 0 fail · 0 pending      mergeStateStatus = CLEAN
+```
+
+Inclui `cockpit tests (windows)`, `o portão do design`, `a suite não pode
+piorar`, `a higiene não pode piorar`, `MLWR regression gate` e os 4 `npm audit`.
+
+**NÃO fundido** — o merge continua a ser do circuito do dono (script 55).
