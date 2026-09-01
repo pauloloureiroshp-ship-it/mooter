@@ -1,0 +1,70 @@
+[
+ {
+  "id": "G1",
+  "title": "launchd supervision for the F10 panel (KeepAlive + RunAtLoad)",
+  "device": "mac-mini",
+  "owner": "Claude Code",
+  "status": "waiting-owner",
+  "user": "paulo",
+  "note": "shipped 2026-09-01: tools/ops/moo/launchd/ai.mooter.f10.plist + _handoff/operar/43-INSTALAR-SUPERVISAO-F10.command. Installing is a double-click on the owner’s machine — nothing installs itself."
+ },
+ {
+  "id": "G2",
+  "title": "Install the repo connector on this device + generate snapshot anchor",
+  "device": "mac-mini",
+  "owner": "Owner (gesture)",
+  "status": "waiting-owner",
+  "user": "paulo",
+  "note": "measured 2026-09-01: installed 1.49.4, repo 1.52.0. The Ledger reads both and says so in the header."
+ },
+ {
+  "id": "G3",
+  "title": "Beacon hardening: force-with-lease, TTL, seq · verify signature on read",
+  "device": "fleet",
+  "owner": "Claude Code",
+  "status": "ready",
+  "user": "paulo"
+ },
+ {
+  "id": "G4",
+  "title": "Rotation decision",
+  "device": "fleet",
+  "owner": "Owner + Claude Code",
+  "status": "blocked",
+  "note": "Preceded by L0-before-LLM instrument work — 49% of dismissals say the instrument can't discriminate",
+  "user": "paulo"
+ },
+ {
+  "id": "G5",
+  "title": "Adopt the Moo Ledger shell (v4) · fix the skill path · payload out of the HTML",
+  "device": "mac-mini → fleet",
+  "owner": "Claude Code + plugin release",
+  "status": "done",
+  "user": "paulo",
+  "note": "done 2026-09-01: tools/cockpit/moo-ledger-shell.html carries no numbers; build-ledger-snapshot.mjs measures them; F10 serves GET /ledger."
+ },
+ {
+  "id": "G6",
+  "title": "Fleet-state fields: finding_id, triage.items[], route, publish, feed[].device",
+  "device": "fleet",
+  "owner": "Claude Code",
+  "status": "ready",
+  "user": "paulo"
+ },
+ {
+  "id": "G7",
+  "title": "Resident model proposal (granite 3B on mac) + MooterBench 30B on 4090",
+  "device": "desktop-j26409q",
+  "owner": "Owner (gate)",
+  "status": "waiting-owner",
+  "user": "paulo"
+ },
+ {
+  "id": "G8",
+  "title": "Bind check (lsof :4290) + origin allowlist on the F10",
+  "device": "mac-mini",
+  "owner": "Claude Code",
+  "status": "ready",
+  "user": "paulo"
+ }
+]

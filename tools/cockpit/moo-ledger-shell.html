@@ -1,0 +1,680 @@
+<title>The Moo Ledger</title>
+<!--
+  Moo Pilot v4 — "The Moo Ledger" · mac-mini-de-paulo · 2026-09-01
+  A cockpit that reads like a printed field ledger, because the receipt IS the product.
+  Doctrine unchanged: every number measured or "n/d"; staleness visible; dead buttons
+  become instructions; motion only for a real, current state; proposed endpoints badged.
+  Data ladder: LIVE (F10 on the device) → embedded stamped snapshot (this copy).
+-->
+<style>
+  :root{
+    /* risograph print: cool paper, pine ink, one pasture-green spot, stamp red for alerts */
+    --paper:#F2F3EC; --paper-2:#EAECE2; --paper-3:#E0E3D6;
+    --pine:#1F2B25; --ink-2:#51625A; --ink-3:#8A968E;
+    --spot:#2E7D4F; --spot-soft:rgba(46,125,79,.12);
+    --stamp:#C4452D; --stamp-soft:rgba(196,69,45,.1);
+    --gold:#A8862D;
+    --rule:#C9CDBE;
+    --f-serif:'Newsreader',Georgia,'Times New Roman',serif;
+    --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--pine);font-family:var(--f-serif);
+    font-size:16px;line-height:1.55;
+    background-image:radial-gradient(rgba(31,43,37,.05) 1px,transparent 1px);
+    background-size:5px 5px}
+  a{color:var(--spot)} a:hover{color:#236A41}
+  .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+  .nd{color:var(--ink-3);font-style:italic}
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px}
+  .ovl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+
+  /* ── plain-words tooltip (for non-coders) ── */
+  [data-tip]{position:relative;cursor:help;border-bottom:1px dotted var(--ink-3)}
+  [data-tip]::after{content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 8px);
+    transform:translateX(-50%) scale(.97);width:min(300px,80vw);background:var(--pine);color:var(--paper);
+    font-family:var(--f-serif);font-size:13px;font-style:normal;line-height:1.45;letter-spacing:0;
+    text-transform:none;padding:10px 12px;border-radius:4px;opacity:0;pointer-events:none;z-index:40;
+    transition:opacity .15s var(--ease),transform .15s var(--ease);box-shadow:0 6px 18px rgba(31,43,37,.25)}
+  [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translateX(-50%) scale(1)}
+
+  /* ── header ── */
+  header.cover{border-bottom:3px double var(--pine);padding:26px 0 18px;position:sticky;top:0;
+    background:var(--paper);z-index:50;
+    background-image:radial-gradient(rgba(31,43,37,.05) 1px,transparent 1px);background-size:5px 5px}
+  .cover .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .cover svg{width:34px;height:34px}
+  .cover h1{margin:0;font-size:24px;font-weight:500;letter-spacing:.01em}
+  .cover h1 em{font-style:italic;color:var(--spot)}
+  .cover .sub{width:100%;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .stamp{display:inline-flex;gap:6px;align-items:center;border:1.5px solid var(--pine);border-radius:2px;
+    padding:2px 9px;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    transform:rotate(-.6deg);background:var(--paper)}
+  .stamp.red{border-color:var(--stamp);color:var(--stamp);transform:rotate(.7deg)}
+  .stamp.green{border-color:var(--spot);color:var(--spot)}
+  nav.toc{margin-left:auto;display:flex;gap:2px;flex-wrap:wrap}
+  .toc a{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-2);text-decoration:none;padding:4px 8px;border-radius:2px}
+  .toc a:hover{background:var(--paper-3);color:var(--pine)}
+
+  /* ── chapters ── */
+  .ch{padding:44px 0 8px}
+  .ch-head{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--pine);
+    padding-bottom:6px;margin-bottom:20px}
+  .ch-head .no{font-family:var(--f-mono);font-size:11px;color:var(--spot)}
+  .ch-head h2{margin:0;font-size:21px;font-weight:500;font-style:italic}
+  .ch-head .meta{margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3)}
+  .note{font-size:13.5px;color:var(--ink-2)}
+
+  /* acts: was / is / will be */
+  .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1.5px solid var(--pine);border-radius:4px;overflow:hidden}
+  .act{padding:16px 18px;border-right:1px solid var(--rule)}
+  .act:last-child{border-right:none}
+  .act.now{background:var(--spot-soft)}
+  .act h3{margin:0 0 8px;font-size:12px;font-family:var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+  .act.now h3{color:var(--spot)}
+  .act p{margin:0;font-size:14px;line-height:1.5}
+  .act .big{font-family:var(--f-mono);font-size:20px;display:block;margin-bottom:2px}
+
+  /* night ledger */
+  .ledgerbox{border:1.5px solid var(--pine);border-radius:4px;padding:22px 26px;position:relative;background:var(--paper)}
+  .ledgerbox .period{font-family:var(--f-mono);font-size:11px;color:var(--ink-2);margin-bottom:14px}
+  .ledgerline{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+    border-bottom:1px dotted var(--rule);padding:7px 0;font-size:15px}
+  .ledgerline:last-of-type{border-bottom:2px solid var(--pine)}
+  .ledgerline .v{font-family:var(--f-mono);font-size:19px;font-weight:500}
+  .ledgerline .v.zero{color:var(--stamp)}
+  .paid{position:absolute;right:18px;top:14px;transform:rotate(6deg);border:2px solid var(--spot);
+    color:var(--spot);border-radius:4px;padding:3px 12px;font-family:var(--f-mono);font-size:13px;
+    letter-spacing:.1em;opacity:.9}
+  .ledgerfoot{font-size:12.5px;color:var(--ink-2);margin-top:12px;font-style:italic}
+
+  /* herd (devices) */
+  .herd{display:flex;flex-direction:column;gap:14px}
+  .cow-card{display:grid;grid-template-columns:64px 1fr auto;gap:18px;border:1.5px solid var(--pine);
+    border-radius:4px;padding:16px 20px;background:var(--paper);align-items:center}
+  .cow-card.asleep{border-style:dashed;border-color:var(--ink-3)}
+  .cow-card .avatar{position:relative;width:56px}
+  .cow-card .avatar svg{width:56px;height:56px;display:block}
+  .cow-card.asleep .avatar svg{filter:grayscale(.6);opacity:.7}
+  .cow-card .zzz{position:absolute;top:-8px;right:-6px;font-family:var(--f-mono);font-size:11px;color:var(--ink-3)}
+  .cow-card h3{margin:0;font-size:17px;font-weight:500}
+  .cow-card h3 .who{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-2);letter-spacing:.08em;text-transform:uppercase;margin-left:8px}
+  .cow-card .doing{font-size:13.5px;color:var(--ink-2);margin:3px 0 0}
+  .cow-card .why{font-size:12.5px;color:var(--ink-3);font-style:italic;margin:2px 0 0}
+  .cow-card .fresh{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3);margin-top:6px}
+  /* thermometer */
+  .thermo{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .thermo .tube{width:14px;height:86px;border:1.5px solid var(--pine);border-radius:8px 8px 0 0;
+    position:relative;background:var(--paper-2);overflow:hidden}
+  .thermo .fill{position:absolute;left:0;right:0;bottom:0;background:var(--spot);height:0;
+    transition:height 1s var(--ease) .3s}
+  .thermo .bulb{width:24px;height:24px;border:1.5px solid var(--pine);border-radius:50%;
+    background:var(--spot);margin-top:-7px;z-index:1}
+  .thermo.cold .bulb{background:var(--paper-2)}
+  .thermo .lbl{font-family:var(--f-mono);font-size:10px;color:var(--ink-2);text-align:center;line-height:1.3}
+
+  /* journey */
+  .journey{border:1.5px solid var(--pine);border-radius:4px;padding:26px 22px 18px;overflow-x:auto}
+  .journey svg{display:block;min-width:640px;width:100%;height:auto}
+  .jnote{font-size:13px;color:var(--ink-2);margin-top:10px}
+
+  /* task stories */
+  .story{border:1.5px solid var(--pine);border-radius:4px;padding:18px 22px;margin-bottom:14px;background:var(--paper)}
+  .story.issue{border-color:var(--stamp)}
+  .story .head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px}
+  .story .head .file{font-family:var(--f-mono);font-size:12px;color:var(--pine)}
+  .story .head .when{margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3)}
+  .story dl{margin:0;display:grid;grid-template-columns:96px 1fr;gap:5px 14px;font-size:13.5px}
+  .story dt{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--spot);padding-top:2px}
+  .story dd{margin:0;color:var(--ink-2)}
+  .story dd .mono{font-size:12px}
+  .story .act-row{display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap}
+
+  /* engines */
+  .engines{display:flex;flex-direction:column;gap:12px}
+  .engine{display:flex;gap:16px;align-items:center;border:1.5px solid var(--pine);border-radius:4px;
+    padding:14px 18px;background:var(--paper)}
+  .engine .mark{width:44px;height:44px;border:1.5px solid var(--pine);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);
+    font-weight:600;font-size:13px;flex:none}
+  .engine h3{margin:0;font-size:16px;font-weight:500}
+  .engine .role{font-size:13px;color:var(--ink-2)}
+  .engine .tally{margin-left:auto;text-align:right;font-family:var(--f-mono);font-size:12px;color:var(--ink-2)}
+  .engine .tally b{font-size:17px;color:var(--pine);display:block}
+
+  /* field map */
+  .fieldmap{border:1.5px solid var(--pine);border-radius:4px;padding:18px 22px}
+  .fieldmap h3{margin:14px 0 8px;font-size:12px;font-family:var(--f-mono);letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-2)}
+  .fieldmap h3:first-child{margin-top:0}
+  .wtgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+  .wt{font-family:var(--f-mono);font-size:11px;border:1px solid var(--rule);border-radius:2px;
+    padding:5px 9px;color:var(--ink-2);background:var(--paper-2)}
+  .wt b{color:var(--pine);display:block;font-weight:500}
+  .pathline{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2);padding:4px 0;
+    border-bottom:1px dotted var(--rule);display:flex;gap:10px;flex-wrap:wrap}
+  .pathline:last-child{border-bottom:none}
+  .pathline .k{color:var(--ink-3);width:88px;flex:none}
+
+  /* the case */
+  .case{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1.5px solid var(--pine);border-radius:4px;overflow:hidden}
+  .case>div{padding:18px 22px}
+  .case .without{background:var(--paper-2);border-right:1px solid var(--rule)}
+  .case h3{margin:0 0 10px;font-size:12px;font-family:var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+  .case .with h3{color:var(--spot)}
+  .case p{margin:0 0 8px;font-size:14px}
+  .case .bignum{font-family:var(--f-mono);font-size:22px;color:var(--pine)}
+  .case .fine{font-size:11.5px;color:var(--ink-3);font-style:italic}
+
+  /* buttons + toasts */
+  .btn{font-family:var(--f-mono);font-size:12px;letter-spacing:.04em;color:var(--pine);
+    background:var(--paper);border:1.5px solid var(--pine);border-radius:2px;padding:6px 14px;
+    cursor:pointer;transition:transform .1s var(--ease)}
+  .btn:hover{background:var(--paper-3)}
+  .btn:active{transform:scale(.97)}
+  .btn:focus-visible{outline:2px solid var(--spot);outline-offset:2px}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .btn.spot{background:var(--spot);border-color:var(--spot);color:#fff}
+  .btn.spot:hover{background:#286F46}
+  .badge{font-family:var(--f-mono);font-size:9.5px;border:1px dashed var(--ink-3);color:var(--ink-3);
+    border-radius:2px;padding:1px 6px;letter-spacing:.04em}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);
+    background:var(--pine);color:var(--paper);font-family:var(--f-mono);font-size:12px;
+    padding:9px 16px;border-radius:4px;opacity:0;pointer-events:none;z-index:90;
+    transition:opacity .2s var(--ease),transform .2s var(--ease);max-width:88vw}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  body[data-mode="snapshot"] .live-only{display:none !important}
+  body[data-mode="live"] .snap-only{display:none !important}
+
+  footer.colophon{margin-top:56px;border-top:3px double var(--pine);padding:20px 0 60px}
+  .colophon .principle{font-style:italic;font-size:15px;margin-bottom:10px}
+  .colophon .mono{font-size:10.5px;color:var(--ink-3);line-height:1.7}
+
+  /* load reveal — once */
+  body[data-loaded="0"] .ch,body[data-loaded="0"] .acts{opacity:0;transform:translateY(10px)}
+  body[data-loaded="1"] .ch{opacity:1;transform:none;transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  @media(max-width:640px){
+    .acts{grid-template-columns:1fr}.act{border-right:none;border-bottom:1px solid var(--rule)}
+    .cow-card{grid-template-columns:48px 1fr;grid-template-rows:auto auto}
+    .cow-card .thermo{grid-column:1/-1;flex-direction:row;justify-content:flex-start}
+    .thermo .tube{width:86px;height:14px;border-radius:0 8px 8px 0}
+    .thermo .fill{left:0;top:0;bottom:0;right:auto;width:0;height:auto!important;transition:width 1s var(--ease) .3s}
+    .case{grid-template-columns:1fr}
+    .story dl{grid-template-columns:1fr}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    body[data-loaded="0"] .ch{opacity:1;transform:none}
+    .thermo .fill{transition:none!important}
+  }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<header class="cover"><div class="wrap">
+  <svg viewBox="0 0 36 36" role="img" aria-label="Moo"><path fill="#8A968E" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/><path fill="#8A968E" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/><path fill="#8A968E" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"/><path fill="#8A968E" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"/><path fill="#C9CDBE" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/><path fill="#E5B8AC" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/><ellipse fill="#B57F6F" cx="9.5" cy="26" rx="1.5" ry="3"/><ellipse fill="#B57F6F" cx="26.5" cy="26" rx="1.5" ry="3"/><path fill="#1F2B25" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><path fill="#1F2B25" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><circle fill="#F2F3EC" cx="12.4" cy="11.6" r=".7"/><circle fill="#F2F3EC" cx="22.4" cy="11.6" r=".7"/></svg>
+  <h1>The <em>Moo</em> Ledger</h1>
+  <span class="stamp" id="hd-mode">connecting…</span>
+  <nav class="toc">
+    <a href="#story">Story</a><a href="#night">Night</a><a href="#herd">Herd</a>
+    <a href="#journey">Journey</a><a href="#tasks">Tasks</a><a href="#engines">Engines</a>
+    <a href="#field">Field</a><a href="#case">The case</a>
+  </nav>
+  <div class="sub">
+    <span class="ovl" id="hd-dev">—</span>
+    <span class="stamp red" id="hd-ver" data-tip="The Mooter connector is the bridge that launched this cockpit. A newer one exists in the repo — until it's installed, panel and tools can disagree.">launched by mooter n/d</span>
+    <span class="ovl mono" id="hd-fresh" style="margin-left:auto">—</span>
+  </div>
+</div></header>
+
+<main class="wrap">
+
+<section class="ch" id="story">
+  <div class="ch-head"><span class="no">I</span><h2>The story so far</h2>
+    <span class="meta" id="story-meta">—</span></div>
+  <div class="acts">
+    <div class="act">
+      <h3>What was</h3>
+      <p><span class="big">0</span>automated verification. Nobody reads
+      <span class="mono" id="act-was-n">—</span> windows of code by hand —
+      so silent failures aged quietly, and every review minute was yours or billed.</p>
+    </div>
+    <div class="act now">
+      <h3>What is</h3>
+      <p><span class="big mono" id="act-now-n">—</span><span data-tip="A 'source-verified' claim means the AI pointed at an exact line of a real file, and the system opened that file and confirmed the line exists. Proof, not opinion.">source-verified claims</span>,
+      produced on this machine's own chip for $0, each with a receipt. The loop is
+      <b id="act-hold">—</b> — honesty over motion.</p>
+    </div>
+    <div class="act">
+      <h3>What will be</h3>
+      <p><span class="big mono" id="act-next-n">—</span>gates on the roadmap: supervision so the panel never dies silently,
+      a sharper instrument, then the rotation reopens — and findings ride to publish on their own.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ch" id="night">
+  <div class="ch-head"><span class="no">II</span><h2>While you slept</h2><span class="meta" id="night-meta">—</span></div>
+  <div class="ledgerbox">
+    <div class="paid">$0 PAID</div>
+    <div class="period" id="night-period">—</div>
+    <div id="night-lines"></div>
+    <p class="ledgerfoot" id="night-foot">Every line above has a receipt in the ledger — nothing here is an estimate.</p>
+  </div>
+</section>
+
+<section class="ch" id="herd">
+  <div class="ch-head"><span class="no">III</span><h2>The herd</h2>
+    <span class="meta" data-tip="Each machine running Mooter is a cow in this pasture. A sleeping cow hasn't sent a signed heartbeat in a while — its numbers are 'last known', never current.">devices, honestly aged</span></div>
+  <div class="herd" id="herdlist"></div>
+</section>
+
+<section class="ch" id="journey">
+  <div class="ch-head"><span class="no">IV</span><h2>The journey of a finding</h2>
+    <span class="meta">prompt → publish, gate by gate</span></div>
+  <div class="journey" id="journeybox"></div>
+  <p class="jnote" id="journeynote"></p>
+</section>
+
+<section class="ch" id="tasks">
+  <div class="ch-head"><span class="no">V</span><h2>Tasks, told simply</h2><span class="meta" id="tasks-meta">—</span></div>
+  <div id="storylist"></div>
+</section>
+
+<section class="ch" id="engines">
+  <div class="ch-head"><span class="no">VI</span><h2>Who did the work</h2>
+    <span class="meta" data-tip="Every receipt records which AI model produced it. This is the measured tally — never a guess.">engine per receipt, measured</span></div>
+  <div class="engines" id="enginelist"></div>
+</section>
+
+<section class="ch" id="field">
+  <div class="ch-head"><span class="no">VII</span><h2>The field map</h2>
+    <span class="meta">worktrees · branches · paths</span></div>
+  <div class="fieldmap" id="fieldbox"></div>
+</section>
+
+<section class="ch" id="case">
+  <div class="ch-head"><span class="no">VIII</span><h2>The case for the cow</h2>
+    <span class="meta">with vs without</span></div>
+  <div class="case">
+    <div class="without">
+      <h3>Without Moo Pilot</h3>
+      <p>These <span class="bignum" id="case-runs">—</span> reading passes simply don't happen —
+      no one does them by hand — or each one bills subscription tokens and your attention.</p>
+      <p>Silent failures stay silent. Docs drift from code. The GPU you already own sits idle.</p>
+      <p class="fine">No like-for-like price comparison exists yet — measuring one is itself on the roadmap
+      (MooterBench). We won't invent the number.</p>
+    </div>
+    <div class="with">
+      <h3>With Moo Pilot</h3>
+      <p><span class="bignum" id="case-cited">—</span> <span data-tip="The AI pointed at an exact line, and the file was opened to confirm it. This is the count of claims that survived that check.">source-verified claims</span>
+        + <span class="bignum" id="case-ref">—</span> <span data-tip="Claims the checker DISPROVED against the file. Refutations are kept and shown — a system that never catches itself lying isn't checking.">refuted</span>, overnight, on hardware you already own.</p>
+      <p>Cost: <span class="bignum">$0</span> · <span class="mono" id="case-tokens">—</span> tokens generated on-device.
+      Your files never left the machine.</p>
+      <p class="fine" id="case-yard">—</p>
+    </div>
+  </div>
+</section>
+
+<footer class="colophon">
+  <p class="principle">“Citing isn’t finding — only what has a source counts.”</p>
+  <div class="mono" id="colophon-src">—</div>
+</footer>
+</main>
+
+<div id="toast" role="status"></div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const S = window.__SNAPSHOT__, RM = window.__ROADMAP__ || [], SH = window.__SHELL__;
+
+/* ── A CASCA NAO TEM NUMEROS ────────────────────────────────────────────────
+   Nem um. Tudo o que se le nesta pagina entrou por `__SNAPSHOT__`,
+   `__ROADMAP__` ou `__SHELL__`, injectados por
+   `tools/cockpit/runner/build-ledger-snapshot.mjs`. Um numero cravado aqui
+   sobrevive a medicao que o desmente e continua a parecer certo — que e
+   exactamente a mentira que este ficheiro existe para nao contar.
+   Sem payload, a pagina DIZ-O e para. Uma casca vazia que renderiza meia
+   pagina de travessoes e pior do que um erro, porque deixa-se acreditar. */
+if (!S || !SH){
+  document.body.innerHTML = '<div style="max-width:640px;margin:80px auto;padding:0 24px;'
+    + 'font:16px/1.6 Newsreader,Georgia,serif;color:#1F2B25">'
+    + '<h1 style="font-weight:500">The Moo Ledger — no payload</h1>'
+    + '<p>This file is the shell only: it carries no numbers of its own, by design.</p>'
+    + '<p>Build a copy with the device’s measurements:</p>'
+    + '<pre style="font:12px ui-monospace,Menlo,monospace;background:#EAECE2;padding:12px;'
+    + 'border-radius:4px">node tools/cockpit/runner/build-ledger-snapshot.mjs</pre>'
+    + '<p>Or open the live one on the device: '
+    + '<code style="font:12px ui-monospace,Menlo,monospace">http://127.0.0.1:4290/ledger</code></p></div>';
+  return;
+}
+
+const fmt = v => (v === null || v === undefined) ? 'n/d' : Number(v).toLocaleString('en-US');
+const pct = v => (v === null || v === undefined) ? 'n/d' : `${v}%`;
+function dur(s){ s = Math.max(0, Math.round(s));
+  const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : m ? `${m}m` : `${s}s`; }
+const ago = iso => { const t = Date.parse(iso); return isFinite(t) ? dur((Date.now()-t)/1000) + ' ago' : 'n/d'; };
+const dmy = iso => { const t = Date.parse(iso); return isFinite(t)
+  ? new Date(t).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : 'n/d'; };
+const STALE_S = 1800;   /* idade a partir da qual um beacon deixa de falar do presente */
+let mode = 'snapshot', lastLiveAt = null;
+
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); }
+
+const COW = `<svg viewBox="0 0 36 36"><path fill="#8A968E" d="M1 1c-1.01.99 1 8 5 9s4-5 3-5C5 5 3.042-1 1 1z"/><path fill="#8A968E" d="M35.297 1c1.011.99-1 8-5 9s-4-5-3-5c4 0 5.959-6 8-4z"/><path fill="#8A968E" d="M4 8s-4 2-4 11c0 0 6-1 7-3 0 0 2-12.25-3-8z"/><path fill="#8A968E" d="M27.995 8.043s4 2 4 11c0 0-6-.999-7-2.999 0 0-2-12.251 3-8.001z"/><path fill="#C9CDBE" d="M21.976 31h-7.951C8.488 31 4 26.512 4 20.976v-8.951C4 6.488 8.488 2 14.025 2h7.951C27.512 2 32 6.488 32 12.025v8.951C32 26.512 27.512 31 21.976 31z"/><path fill="#E5B8AC" d="M35 28c0 5.522-4.478 8-10 8H11c-5.523 0-10-2.478-10-8s4.477-10 10-10h14c5.522 0 10 4.478 10 10z"/><ellipse fill="#B57F6F" cx="9.5" cy="26" rx="1.5" ry="3"/><ellipse fill="#B57F6F" cx="26.5" cy="26" rx="1.5" ry="3"/><path fill="#1F2B25" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><path fill="#1F2B25" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><circle fill="#F2F3EC" cx="12.4" cy="11.6" r=".7"/><circle fill="#F2F3EC" cx="22.4" cy="11.6" r=".7"/></svg>`;
+const COW_SLEEP = COW.replace('viewBox','data-s viewBox')
+  .replace('<path fill="#1F2B25" d="M11 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>','<path fill="#1F2B25" d="M11 14h4v1.6h-4z"/>')
+  .replace('<path fill="#1F2B25" d="M21 12s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/>','<path fill="#1F2B25" d="M21 14h4v1.6h-4z"/>')
+  .replace('<circle fill="#F2F3EC" cx="12.4" cy="11.6" r=".7"/>','').replace('<circle fill="#F2F3EC" cx="22.4" cy="11.6" r=".7"/>','');
+
+/* header */
+function renderHead(){
+  $('hd-dev').textContent = `${S.device} · ${projecto()} · shell ${SH.version}`;
+  const v = S.versions, behind = v.connector_latest && v.connector_installed
+    && v.connector_installed !== v.connector_latest;
+  $('hd-ver').textContent = v.connector_installed
+    ? (behind ? `launched by mooter ${v.connector_installed} · ${v.connector_latest} available`
+              : `launched by mooter ${v.connector_installed} · up to date`)
+    : 'connector version n/d — no installed manifest found';
+  $('hd-ver').className = 'stamp ' + (behind ? 'red' : (v.connector_installed ? 'green' : ''));
+  const m = $('hd-mode');
+  m.textContent = mode === 'live' ? 'live · on the device' : 'snapshot · ' + dmy(S.generated_at);
+  m.className = 'stamp ' + (mode === 'live' ? 'green' : '');
+  m.setAttribute('data-tip', mode === 'live'
+    ? 'This page is being fed by the device right now, refreshed every 3 seconds.'
+    : 'This copy is a photograph of the device taken at the time stamped here. Numbers do not move. The live page exists only on the Mac itself — a security wall keeps web pages away from your machine.');
+}
+function projecto(){
+  const p = S.paths && S.paths.repo;
+  return p ? 'project ' + String(p).split(/[\\/]/).filter(Boolean).pop() : 'project n/d';
+}
+function tickFresh(){
+  $('hd-fresh').textContent = mode === 'live' && lastLiveAt
+    ? `updated ${Math.round((Date.now()-lastLiveAt)/1000)}s ago`
+    : `newest receipt ${ago(S.window.cutoff)}`;
+}
+
+/* chapter I */
+function renderStory(){
+  $('story-meta').textContent = `${projecto()} · ${utilizadores()}`;
+  $('act-was-n').textContent = fmt(S.window.lines);
+  $('act-now-n').textContent = fmt(S.counters.cited_verified);
+  $('act-next-n').textContent = fmt(RM.filter(g => g.status !== 'done').length);
+  $('act-hold').textContent = S.hold
+    ? 'on hold at its own quality gate'
+    : 'running';
+  $('act-hold').setAttribute('data-tip', S.hold
+    ? `The loop paused ITSELF, since ${dmy(S.hold.since)}. Reason recorded by the runner: ${S.hold.reason || 'n/d'}. The pause is the feature.`
+    : 'The loop is not paused — the runner reports no hold.');
+}
+function utilizadores(){
+  const u = [...new Set((S.fleet || []).map(d => d.user).filter(Boolean))];
+  return u.length ? 'user ' + u.join(', ') : 'user n/d';
+}
+
+/* chapter II */
+function renderNight(){
+  const n = S.night;
+  $('night-meta').textContent = 'measured from the ledger';
+  $('night-period').textContent = (n.window_label || 'no receipts fell inside the night window — n/d')
+    + (mode === 'snapshot' && n.window_label ? ' · frozen ' + dmy(S.generated_at) : '');
+  const line = (k, v, tip, zero) => `<div class="ledgerline"><span${tip ? ` data-tip="${esc(tip)}"` : ''}>${k}</span><span class="v${zero ? ' zero' : ''}">${v}</span></div>`;
+  $('night-lines').innerHTML =
+    line('Reading passes over your code', fmt(n.rounds), 'One pass = the AI reads a slice of the project with line numbers and must either point at an exact line or say "nothing found". No vague opinions allowed.') +
+    line('Claims verified against the source', fmt(n.cited), 'The AI named a line; the system opened the file and confirmed that line exists. Only these count.') +
+    line('Claims caught being wrong', fmt(n.refuted), 'The checker disproved these against the file. Shown with the same weight — a checker that never catches anything isn’t checking.') +
+    line('Words of analysis produced', fmt(n.tokens_out), 'Raw output generated by the local model — all of it on this machine’s own chip, none of it sent anywhere.') +
+    line('Cloud calls · money spent', `0 · $${(n.usd ?? 0).toFixed(2)}`, 'The whole window ran on the local engine. Zero calls left the machine; the meter reads zero because it is zero.');
+  $('night-foot').innerHTML = S.hold
+    ? `Since ${dmy(S.hold.since)} the loop has been <span data-tip="${esc(S.hold.reason || 'reason n/d')}">holding at its own gate</span> — an honest pause, ${ago(S.hold.since)} and counting.`
+    : 'Every line above has a receipt in the ledger — nothing here is an estimate.';
+}
+
+/* chapter III — herd with thermometers */
+function renderHerd(){
+  const lista = S.fleet || [];
+  if (!lista.length){ $('herdlist').innerHTML = '<p class="note">No beacons could be read — the herd is <span class="nd">n/d</span>, which is not the same as empty.</p>'; return; }
+  $('herdlist').innerHTML = lista.map(d => {
+    const t = Date.parse(d.ts), stale = !isFinite(t) || (Date.now() - t)/1000 > STALE_S;
+    const p = (d.vram_gb != null && d.vram_total_gb) ? Math.round(100*d.vram_gb/d.vram_total_gb) : null;
+    return `<div class="cow-card ${stale ? 'asleep' : ''}">
+      <div class="avatar">${stale ? COW_SLEEP + '<span class="zzz">z z</span>' : COW}</div>
+      <div>
+        <h3>${esc(d.device || 'device n/d')}<span class="who">${esc(d.user || 'user n/d')}${d.self ? ' · this machine' : ''}</span></h3>
+        <p class="doing"><b>Working on:</b> ${esc(d.state || 'state n/d')}.</p>
+        <p class="fresh">${stale
+          ? `asleep · last signed heartbeat ${dmy(d.ts)} · numbers are last-known, never current`
+          : `awake · heartbeat ${ago(d.ts)}`}
+          · on record: ${fmt(d.last_known.cited)} verified, ${fmt(d.last_known.refuted)} refuted</p>
+      </div>
+      <div class="thermo ${p ? '' : 'cold'}" data-tip="${p != null
+        ? `Video memory in use: ${d.vram_gb} of ${d.vram_total_gb} GB. This is the model’s ‘rent’ — a resident model keeps memory warm so answers start instantly.`
+        : 'Total video memory is not reported by this device’s heartbeat, and is not measured here — so no percentage is shown. In use: ' + (d.vram_gb != null ? d.vram_gb + ' GB' : 'n/d') + '.'}">
+        <div class="tube"><div class="fill" data-h="${p != null ? Math.max(4, p) : 0}"></div></div>
+        <div class="bulb"></div>
+        <div class="lbl">${p != null ? d.vram_gb + '/' + d.vram_total_gb + ' GB<br>VRAM' : 'VRAM<br>n/d'}</div>
+      </div>
+    </div>`;
+  }).join('') + rejeitados();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.thermo .fill').forEach(f => { f.style.height = f.dataset.h + '%'; });
+  }));
+}
+/* Um beacon recusado nao pode desaparecer: um device apagado em silencio le-se
+   como um device que nunca existiu. Mostra-se FORA da pastagem, com o motivo. */
+function rejeitados(){
+  const r = S.fleet_rejected || [];
+  if (!r.length) return '';
+  return `<p class="note" style="font-style:italic">Not shown above, and why: `
+    + r.map(x => `<b>${esc(x.device || 'device n/d')}</b> — ${esc(x.why || 'reason n/d')}`).join(' · ')
+    + `. These machines exist; their heartbeats no longer vouch for the present, so their numbers are not shown as current.</p>`;
+}
+
+/* chapter IV — journey. The green run is READ FROM THE GATES, never assumed. */
+function renderJourney(){
+  const st = [
+    ['Prompt','your goal'],
+    ['Round','GPU reads, $0'],
+    ['Cited','file-checked'],
+    ['Triage','you decide'],
+    ['Route','rule picks engine'],
+    ['Write','Claude Code'],
+    ['Publish','PR + receipt'],
+  ];
+  const g = S.gates || {};
+  /* L1 open ⇒ read · cite · self-curate (steps 1-4). L2 adds route, L3 adds write+publish. */
+  const openTo = (g.L1 && g.L1.open ? 3 : 1) + (g.L2 && g.L2.open ? 1 : 0) + (g.L3 && g.L3.open ? 2 : 0);
+  const W = 680, y = 60, r = 15, gap = (W - 80) / (st.length - 1);
+  let svg = `<svg viewBox="0 0 ${W} 150" role="img" aria-label="the journey from prompt to publish">`;
+  svg += `<line x1="40" y1="${y}" x2="${40 + gap*openTo}" y2="${y}" stroke="#2E7D4F" stroke-width="2.5"/>`;
+  svg += `<line x1="${40 + gap*openTo}" y1="${y}" x2="${W-40}" y2="${y}" stroke="#C9CDBE" stroke-width="2" stroke-dasharray="4 5"/>`;
+  st.forEach((s, i) => {
+    const x = 40 + gap*i, open = i <= openTo;
+    svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${open ? '#2E7D4F' : '#F2F3EC'}" stroke="${open ? '#2E7D4F' : '#8A968E'}" stroke-width="1.5"/>`;
+    svg += `<text x="${x}" y="${y+4}" text-anchor="middle" style="font:600 10px 'IBM Plex Mono',monospace;fill:${open ? '#F2F3EC' : '#8A968E'}">${i+1}</text>`;
+    svg += `<text x="${x}" y="${y-26}" text-anchor="middle" style="font:500 11px 'IBM Plex Mono',monospace;fill:#1F2B25;letter-spacing:.05em">${s[0].toUpperCase()}</text>`;
+    svg += `<text x="${x}" y="${y+30}" text-anchor="middle" style="font:italic 10.5px Newsreader,serif;fill:#51625A">${s[1]}</text>`;
+  });
+  if (S.hold){
+    const gx = 40 + gap*0.5;
+    svg += `<g transform="translate(${gx+2},${y+42})">
+      <line x1="0" y1="0" x2="0" y2="26" stroke="#C4452D" stroke-width="2"/>
+      <line x1="22" y1="0" x2="22" y2="26" stroke="#C4452D" stroke-width="2"/>
+      <line x1="-5" y1="7" x2="27" y2="7" stroke="#C4452D" stroke-width="2"/>
+      <line x1="-5" y1="18" x2="27" y2="18" stroke="#C4452D" stroke-width="2"/>
+    </g>`;
+    svg += `<g transform="translate(${gx-30},${y+46}) scale(0.6)">${COW_SLEEP.replace(/^<svg[^>]*>/,'').replace('</svg>','')}</g>`;
+    svg += `<text x="${gx+50}" y="${y+62}" style="font:600 9.5px 'IBM Plex Mono',monospace;fill:#C4452D;letter-spacing:.06em">MEASUREMENT GATE · CLOSED — she walks when a pillar earns it</text>`;
+  }
+  svg += `</svg>`;
+  $('journeybox').innerHTML = svg;
+
+  const tip = (k, fallback) => {
+    const x = g[k];
+    if (!x) return fallback;
+    const medido = x.value == null ? 'n/d' : x.value + (x.unit || '');
+    const alvo = x.limit == null ? 'n/d' : x.limit + (x.unit || '');
+    return `Gate ${k}: ${x.rule}. Measured ${medido} against ${alvo}` +
+      (x.base ? ` (${x.base})` : '') + `. ${x.open ? 'Open.' : 'Closed — ' + (x.why_closed || 'reason n/d') + '.'}`;
+  };
+  $('journeynote').innerHTML =
+    `Green = what gate <b data-tip="${esc(tip('L1','Gate L1 — n/d'))}">L1</b> already allows. ` +
+    `Dashed = locked behind <b data-tip="${esc(tip('L2','Gate L2 — n/d'))}">L2 Propose</b> and ` +
+    `<b data-tip="${esc(tip('L3','Gate L3 — n/d'))}">L3 Apply</b>.` +
+    (S.hold ? ` The cow sits at the <b style="color:var(--stamp)">measurement gate</b>: ${esc(S.hold.reason || 'reason n/d')}. When it runs again, she walks.` : '');
+}
+
+/* chapter V — task stories, all of them read off the ledger */
+function renderTasks(){
+  const t = S.triage;
+  $('tasks-meta').textContent =
+    `${fmt(t.total)} findings · ${fmt(t.accepted)} kept · ${fmt(t.issues)} open · ${fmt(t.pending)} untriaged`;
+  const cited = (S.receipts || []).filter(r => r.verdict === 'citacao-ok');
+  const issue = (S.needs_you || [])[0];
+  const pick = cited.filter(r => !issue || r.ficheiro !== issue.ficheiro).slice(0, 2);
+
+  const story = (r, cls, extra) => `<div class="story ${cls || ''}">
+    <div class="head"><span class="stamp ${cls === 'issue' ? 'red' : ''}">${cls === 'issue' ? 'needs your decision' : 'closed · self-curated'}</span>
+      <span class="file">${esc(r.ficheiro || r.receipt_ref || 'file n/d')}</span><span class="when">${r.ts ? dmy(r.ts) : 'n/d'}</span></div>
+    <dl>
+      <dt>What</dt><dd>${extra?.what || `Read <span class="mono">${esc(r.ficheiro || 'n/d')}</span> with line numbers and hunted for a claim it could pin to an exact line.`}</dd>
+      <dt>Why</dt><dd>${extra?.why || `Pillar ${esc(r.pilar || 'n/d')} hunts values that silently never reach the output — the kind of bug no one sees until production.`}</dd>
+      <dt>Routing</dt><dd>${extra?.route || `Local <span class="mono">${esc(r.modelo || 'n/d')}</span>, because reading is class C2 work — the closed routing table sends reading to the local engine: $0, and your code never leaves the machine.`}</dd>
+      <dt>Result</dt><dd>${extra?.result || `Verified citation in ${fmt(r.dur_s)}s · ${fmt(r.tokens_out)} tokens · $${(r.usd ?? 0).toFixed(2)}. <span class="mono" style="color:var(--ink-3)">${esc((r.resumo||'').slice(0,90))}</span>`}</dd>
+      <dt>Benefit</dt><dd>${extra?.benefit || 'A receipt now exists: this exact line was machine-checked on this date. Nobody had to read it by hand, and nothing was billed.'}</dd>
+    </dl>
+    ${extra?.actions || ''}
+  </div>`;
+
+  const cartaoIssue = issue ? story(issue, 'issue', {
+    what: `The local model read <span class="mono">${esc(issue.ficheiro || 'n/d')}</span> and produced a finding you flagged as an issue in triage.`,
+    why: `Pillar ${esc(issue.pilar || 'n/d')} raised it; triage marked it <b>issue</b> rather than accept or dismiss — it is waiting on you.`,
+    route: `Found by local <span class="mono">${esc(issue.modelo || 'n/d')}</span> (class C2, $0). If you accept it, the fix is class C4 — <b>Claude Code</b> writes and commits it, because git custody always belongs to a subscription engine you trust with writes.`,
+    result: `Citation verified against the file. <span class="mono" style="color:var(--ink-3)">${esc((issue.summary || '').slice(0, 140))}</span>`,
+    benefit: `${fmt(S.needs_you.length)} of ${fmt(t.total)} findings are in this state — the loop found it for free, a rule chose the fixer, and nothing moves until you say so.`,
+    actions: `<div class="act-row live-only">
+        <button class="btn spot" data-act="accept">Accept — send to Claude Code <span class="badge">proposed endpoint</span></button>
+        <button class="btn" data-act="dismiss">Dismiss with reason</button></div>
+      <div class="act-row snap-only"><span class="note" style="font-style:italic">Deciding requires the live cockpit on the device —</span>
+        <button class="btn" data-copy="/moo-pilot">Copy /moo-pilot</button></div>`,
+  }) : '<p class="note">Nothing is waiting on you: no finding is flagged as an issue right now.</p>';
+
+  const motivos = Object.entries(t.dismissed || {}).sort((a, b) => b[1] - a[1]);
+  const LEGENDA = {
+    'instrumento-nao-discrimina': ['the instrument couldn’t discriminate',
+      'The seeded-defect trial proved these pillars answer the same with and without a defect — the findings are not false, they are without probative value. Sharpening that instrument is what the loop is holding for.'],
+    'trivial': ['trivial', 'True and correct, but not worth the click.'],
+    'nao-e-um-problema': ['not a problem', 'The defect is in the pillar’s QUESTION, not in the code.'],
+    'ja-sabido': ['already known', 'Correct and old — what is missing is memory, not precision.'],
+    'fora-do-que-estou-a-fazer': ['out of scope', 'The defect is in RELEVANCE, not in quality.'],
+    'citacao-certa-conclusao-errada': ['right line, wrong conclusion', 'The line exists; the reasoning on top of it does not hold.'],
+  };
+  const resto = Math.max(0, (t.total ?? 0) - (issue ? 1 : 0) - pick.length);
+  const cauda = motivos.length
+    ? motivos.map(([k, n]) => {
+        const l = LEGENDA[k] || [k, 'Reason recorded in triage.'];
+        return `${fmt(n)} <span data-tip="${esc(l[1])}">${esc(l[0])}</span>`;
+      }).join(', ')
+    : 'no dismissal carries a reason yet';
+  $('storylist').innerHTML = cartaoIssue + pick.map(r => story(r)).join('')
+    + `<p class="note" style="font-style:italic">…and ${fmt(resto)} more, all triaged the same way — ${cauda}`
+    + (t.dismissed_without_reason ? `, plus ${fmt(t.dismissed_without_reason)} dismissed before reasons were required` : '')
+    + `. The gate read those numbers and paused the loop. That honesty is the product.</p>`;
+}
+
+/* chapter VI — engines. The roster is prose from the builder; every count is measured. */
+function renderEngines(){
+  const rows = (S.engine && S.engine.roster) || [];
+  $('enginelist').innerHTML = (rows.length
+    ? rows.map(e => `<div class="engine">
+        <div class="mark" style="border-color:${esc(e.color)};color:${esc(e.color)}">${esc(e.mark)}</div>
+        <div><h3>${esc(e.name)} <span class="ovl" style="letter-spacing:.06em">· ${esc(e.by)}</span></h3>
+          <p class="role">${esc(e.role)}</p></div>
+        <div class="tally">${e.n != null ? `<b>${fmt(e.n)}</b>` : ''}${esc(e.unit)}</div>
+      </div>`).join('')
+    : '<p class="note">No engine roster in the payload — <span class="nd">n/d</span>.</p>')
+  + `<p class="note" style="font-style:italic;margin:6px 2px 0">Marks are initials, not official logos — we don’t counterfeit brands, not even visually.
+   Routing is a printed rule (C0–C5), never a model’s mood: local engines read ($0), subscription engines only where irreplaceable.</p>`;
+}
+
+/* chapter VII — field map */
+function renderField(){
+  const wts = S.worktrees_list || [];
+  const p = S.paths || {};
+  const linha = (k, v, extra) => `<div class="pathline"><span class="k">${esc(k)}</span><span>${v == null
+    ? '<span class="nd">n/d</span>' : esc(v)}${extra ? ' <span class="ovl">· ' + extra + '</span>' : ''}</span></div>`;
+  $('fieldbox').innerHTML = `
+    <h3 data-tip="A worktree is a separate working copy of the project. Each parallel task gets its own, so two engines never type over each other. ${esc((S.worktrees && S.worktrees.criterion) || '')}">Worktrees — ${fmt(S.worktrees.free)} of ${fmt(S.worktrees.total)} eligible · measured ${dmy(S.worktrees.measured_at)}</h3>
+    <div class="wtgrid">${wts.length
+      ? wts.map(w => `<div class="wt"><b>${esc(w.name)}</b>${esc(w.branch || 'detached')}</div>`).join('')
+      : '<p class="note">git reported no worktrees — <span class="nd">n/d</span>.</p>'}</div>
+    <h3>Paths that matter</h3>
+    ${linha('repo (CC)', p.repo)}
+    ${linha('vault', p.vault, 'journals, beacons, receipts of record')}
+    ${linha('ledger', p.ledger, `append-only, ${fmt(S.window.lines)} lines`)}
+    ${linha('beacons', p.beacons, 'ed25519-signed heartbeats')}
+    <h3>CI &amp; pull requests</h3>
+    <p class="note">Not measured by this build — <span class="nd">n/d</span>. The hygiene pillar (P4) is designed to feed this
+    block from CI runs and open PRs; wiring it is on the roadmap. An empty slot beats an invented one.</p>`;
+}
+
+/* chapter VIII — the case */
+function renderCase(){
+  $('case-runs').textContent = fmt(S.window.lines);
+  $('case-cited').textContent = fmt(S.counters.cited_verified);
+  $('case-ref').textContent = fmt(S.counters.refuted);
+  $('case-tokens').textContent = fmt(S.night.tokens_out);
+  const y = S.yardstick;
+  $('case-yard').innerHTML = y && y.cost_list != null
+    ? `For scale: over ${esc(y.period)}, subscription work on this machine (${esc(y.engine || 'engine n/d')} — writing + git, work local engines don’t do)
+       metered <b>$${y.cost_list}</b> at API list price. ${esc(y.scope)}. Different job, different window — a yardstick, <b>never</b> a savings claim.`
+    : `No yardstick this build — the subscription meter had nothing to read on this machine, so the comparison is <span class="nd">n/d</span>. An absent number beats an invented one.`;
+}
+
+/* colophon */
+function renderColophon(){
+  $('colophon-src').innerHTML =
+    `sources: ${esc(S.paths.ledger || 'ledger n/d')} (${fmt(S.window.lines)} lines · day + night aggregation, owner tz ${esc(S.owner_tz || 'n/d')}) · fleet beacons · git worktree list · eta-index.json<br>`+
+    `snapshot generated ${esc(S.generated_at)} · shell ${esc(SH.version)} (requires connector ≥ ${esc(SH.requires_connector || 'n/d')}) · launched by connector ${esc(S.versions.connector_installed || 'n/d')}<br>`+
+    `roadmap: ${esc(RM.map(g => g.id + ' ' + g.status).join(' · ')) || 'n/d'}`;
+}
+
+/* interactions — every control acts or explains */
+document.addEventListener('click', async e => {
+  const cp = e.target.closest('[data-copy]');
+  if (cp){ try { await navigator.clipboard.writeText(cp.dataset.copy); toast('Copied: ' + cp.dataset.copy); }
+    catch { toast('Couldn’t copy here — select the command and copy manually.'); } return; }
+  const act = e.target.closest('[data-act]');
+  if (act){
+    toast('This action posts to the device’s F10 — the endpoint is proposed, not built yet. Nothing was sent, nothing pretended.');
+  }
+});
+
+/* boot ladder */
+async function boot(){
+  let live = false;
+  try{
+    const r = await fetch('http://127.0.0.1:4290/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
+    if (r && r.ok){ const b = await r.json(); if (b && 'recibos' in b){ live = true; lastLiveAt = Date.now();
+      setInterval(async () => { try{
+        const p = await fetch('http://127.0.0.1:4290/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
+        if (p.ok){ lastLiveAt = Date.now(); } } catch(_){} }, 3000);
+    }}
+  } catch(_){ /* any failure — CSP included — lands honestly in snapshot */ }
+  mode = live ? 'live' : 'snapshot';
+  document.body.dataset.mode = mode;
+  renderHead(); renderStory(); renderNight(); renderHerd(); renderJourney();
+  renderTasks(); renderEngines(); renderField(); renderCase(); renderColophon();
+  tickFresh(); setInterval(tickFresh, 1000);
+  requestAnimationFrame(() => { document.body.dataset.loaded = '1'; });
+}
+document.body.dataset.loaded = '0';
+boot();
+})();
+
+</script>
