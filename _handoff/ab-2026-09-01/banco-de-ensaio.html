@@ -260,7 +260,8 @@ const V = [
 {t:0, d:4.5, h:`
   <div class="olho an">Ensaio A/B · 2026-09-01 · 35 rótulos verificados</div>
   <h2 class="tit an2">Trinta e cinco<br>prompts. Três<br>encaminhamentos.
-    <small>Um deles não gasta um único token a decidir —<br>e acerta oito pontos acima do modelo que decide a pensar.</small></h2>
+    <small>Contra não ter router nenhum: <b style="color:var(--papel)">91,4% contra 40,0%</b>,
+    e a diferença aguenta o teste estatístico com <b style="color:var(--papel)">p &lt; 0,0001</b>.</small></h2>
   ${CAR('recibo aberto','gabarito anterior ao ensaio')}`},
 
 {t:4.5, d:10.5, h:`
@@ -296,16 +297,19 @@ const V = [
   ${CAR('0 tokens · 1,6 ms')}`},
 
 {t:22.5, d:8, h:`
-  <div class="olho an">O desperdício</div>
-  <h2 class="tit an2" style="font-size:88px">Quantas vezes<br>mandou caro<br>sem precisar.
-    <small>De 35 pedidos. Este é o número que se paga<br>ao fim do mês, todos os meses.</small></h2>
-  <div class="placar c2" style="margin-top:40px">
-    <div class="cel aco an3"><div class="crot">Router por LLM</div>
-      <div class="cnum aco"><span data-conta="3" data-dec="0">0</span></div></div>
-    <div class="cel amb an4"><div class="crot">Mooter</div>
-      <div class="cnum amb"><span data-conta="1" data-dec="0">0</span></div></div>
+  <div class="olho an">A diferença aguenta-se?</div>
+  <h2 class="tit an2" style="font-size:78px">Testámos<br>se é ruído.
+    <small>McNemar exacto, emparelhado. Só os casos em que os dois
+    discordam carregam informação — e são esses que se contam.</small></h2>
+  <div class="placar c2" style="margin-top:36px">
+    <div class="cel amb an3"><div class="crot">contra não ter router</div>
+      <div class="cnum amb" style="font-size:74px">p &lt; 0,0001</div>
+      <div class="cpe"><b style="color:var(--amb)">19 discordantes a 1</b><br>a favor do Mooter · <b style="color:var(--amb)">provado</b></div></div>
+    <div class="cel aco an4"><div class="crot">contra o router por LLM</div>
+      <div class="cnum aco" style="font-size:74px">p = 0,45</div>
+      <div class="cpe">5 a 2 · <b style="color:var(--aco)">não distinguível de ruído</b><br>em precisão, empatamos</div></div>
   </div>
-  ${CAR('sem router: 22 de 35','3× menos')}`},
+  ${CAR('n=35 · uma corrida (os braços são determinísticos)','o teste que faltava a todas as versões')}`},
 
 {t:30.5, d:7.5, h:`
   <div class="olho an">Onde o teu prompt esteve</div>
@@ -328,9 +332,10 @@ const V = [
 
 {t:45.5, d:6.5, h:`
   <div class="olho an">Mooter · mooter.ai · MIT</div>
-  <h2 class="tit an2">Encaminhar<br>devia custar<br>zero.
-    <small>Router local-first, determinista, auditável.<br>
-    O recibo deste ensaio vai no repositório.</small></h2>
+  <h2 class="tit an2" style="font-size:96px">Contra não ter<br>router nenhum:<br>provado.
+    <small>91,4% contra 40,0%, p &lt; 0,0001. Contra outro router não afirmamos
+    precisão superior — afirmamos <b style="color:var(--papel)">0 tokens, 47× mais rápido,
+    0 bytes para a rede</b>.</small></h2>
   ${CAR('node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6','')}`},
 ];
 
@@ -375,10 +380,10 @@ const H = [
       <div class="cnum oxi"><span data-conta="40.0">0,0</span>%</div>
       <div class="cpe">14 de 35</div></div>
     <div class="cel oxi"><div class="crot">Mandou caro sem precisar</div>
-      <div class="cnum oxi"><span data-conta="22" data-dec="0">0</span></div>
+      <div class="cnum oxi"><span data-conta="21" data-dec="0">0</span></div>
       <div class="cpe">de 35 pedidos</div></div>
   </div>
-  ${CAR('parte 5','22 de 35 = desperdício estrutural')}`},
+  ${CAR('parte 5','21 de 35 = desperdício estrutural')}`},
 
 {t:54, d:15, h:`
   <div class="olho an" style="color:var(--aco)">Braço A2 · o adversário, jogado a sério</div>
@@ -567,9 +572,9 @@ document.addEventListener('fullscreenchange', () => setTimeout(ajustar, 60));
 /* ══════════ guião + trajectória (por baixo do palco) ═════════════ */
 const GV = [
  ['0:00–0:04','Sessenta prompts reais. Três maneiras diferentes de decidir para onde os mandar.','arranque frio, sem logo'],
- ['0:04–0:15','Quem não encaminha nada acerta quarenta por cento das vezes. Um LLM a classificar acerta oitenta e dois vírgula nove. O Mooter acerta noventa e um vírgula quatro — e não gasta um único token a decidir.','as três barras entram desfasadas 130 ms'],
+ ['0:04–0:15','Quem não encaminha nada acerta quarenta por cento das vezes. O Mooter acerta noventa e um vírgula quatro — e não gasta um único token a decidir. Um LLM a classificar fica pelo meio, nos oitenta e dois vírgula nove.','as três barras entram desfasadas 130 ms'],
  ['0:15–0:22','O router por LLM queimou vinte e três mil tokens só para classificar. O Mooter gastou zero, e foi quarenta e sete vezes mais rápido. Classificar não é pensar: é reconhecer.','o zero fica sozinho no ecrã'],
- ['0:22–0:30','E este é o número que se paga ao fim do mês: quantas vezes cada um mandou para o motor caro sem precisar. O LLM, três vezes em trinta e cinco. O Mooter, uma.','sete contra um'],
+ ['0:22–0:30','E testámos se a diferença é ruído. Contra não ter router nenhum: dezanove casos discordantes a um, p abaixo de zero vírgula zero zero zero um. Provado. Contra o router feito com um LLM: cinco a dois, p igual a zero vírgula quarenta e cinco. Em precisão, empatamos com ele — e dizemo-lo.','sete contra um'],
  ['0:30–0:38','E o teu prompt? Nunca sai do teu computador. São expressões regulares a correr na tua máquina. O router que usa um LLM tem de ler o prompt — se esse modelo estiver na nuvem, o prompt vai com ele.','o argumento de segurança, sem adjectivos'],
  ['0:38–0:45','Agora a parte má, dita por nós: em prompts reais e longos nós não medimos nada. Tínhamos um número, sessenta e oito por cento, e ele não valia — os rótulos eram a saída do próprio classificador e o texto guardado era um preview de oitenta caracteres. Retirámo-lo. Isto é n/d, não sessenta e oito.','a fraqueza no mesmo corpo que as vitórias'],
  ['0:45–0:52','Mooter. Encaminhar devia custar zero. O recibo deste ensaio vai no repositório.','fecho seco, sem música a subir'],
@@ -582,7 +587,7 @@ const GH = [
  ['0:42–0:54','Braço um: sem router. Tudo vai para o tier mais caro, que é o que acontece por defeito a quem não encaminha nada. Acerta quarenta por cento — e manda trinta e seis dos sessenta pedidos para o modelo caro sem precisar.',''],
  ['0:54–1:09','Braço dois é o adversário jogado a sério: um LLM verdadeiro, o qwen dois vírgula cinco coder, na GPU local, uma chamada real por prompt. Recebe as convenções privadas do repositório por escrito, porque escondê-las era examiná-lo sobre matéria que não lhe demos. E corre a temperatura zero. Setenta e um vírgula sete por cento.',''],
  ['1:09–1:21','Braço três é o Mooter. Expressões regulares, sem modelo, sem rede. O ficheiro está congelado e o seu sha256 é verificado no CI, para ninguém lhe mexer entre medições. Oitenta e um vírgula sete.',''],
- ['1:21–1:34','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e cinco, noventa e seis. No holdout verificado, que é mais duro para todos: quarenta, oitenta e três, noventa e um.',''],
+ ['1:21–1:34','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e cinco, noventa e seis. No holdout verificado, que é mais duro para todos: quarenta, oitenta e três, noventa e um. E aplicámos o teste emparelhado a essa diferença, coisa que nunca tínhamos feito.',''],
  ['1:34–1:49','Por secção é onde fica honesto. Nos prompts claros empatam, os dois a noventa. A vantagem aparece nas ambíguas: noventa e dois contra oitenta. E na linha dos prompts reais e longos está n/d — não temos medição nenhuma válida, e a parte seguinte explica porquê.',''],
  ['1:49–2:04','E há duas alegações que tivemos de retirar. A primeira: dizíamos que só o nosso era reprodutível, e a culpa era da nossa configuração — corríamos o adversário a temperatura zero vírgula dois. A zero, dá o mesmo nas seis corridas. A segunda: as vinte e cinco amostras reais e longas tinham como rótulo a saída do próprio classificador, e como texto um preview de oitenta caracteres. Nas truncadas ele faz dois em dez; nas inteiras, quinze em quinze. A fraqueza era o dataset.',''],
  ['2:04–2:20','E agora a confissão. Nesta sessão o router classificou cento e doze pedidos e marcou quarenta e três como trabalho de graça, para correr na GPU local. Delegações efectivas: zero. O motor acerta; quem o devia obedecer não obedeceu.',''],
@@ -604,12 +609,13 @@ function guiao(){
   <table class="tab">
     <tr><th>métrica · rótulos verificados</th><th>sem router</th><th>router por LLM</th><th>Mooter</th><th>quem ganha</th></tr>
     <tr><td>acertos (de 35)</td><td class="o">14</td><td class="a">29</td><td class="g">32</td><td class="g">Mooter</td></tr>
-    <tr><td>precisão</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">91,4%</td><td class="g">+8,5 pts</td></tr>
+    <tr><td>precisão</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">91,4%</td><td class="g">ver McNemar ↓</td></tr>
+    <tr><td>McNemar vs esse braço</td><td class="g">p&lt;0,0001 · 19 a 1</td><td class="a">p=0,45 · 5 a 2</td><td class="g">—</td><td class="g">provado só vs A1</td></tr>
     <tr><td>canonical (10)</td><td class="o">20,0%</td><td class="a">90,0%</td><td class="g">90,0%</td><td class="a">empate</td></tr>
     <tr><td>adversarial (25)</td><td class="o">48,0%</td><td class="a">80,0%</td><td class="g">92,0%</td><td class="g">+12 pts</td></tr>
     <tr><td>prompts reais e longos</td><td class="o">n/d</td><td class="a">n/d</td><td class="g">n/d</td><td class="a">não medido</td></tr>
     <tr><td>subestimou (arrisca qualidade)</td><td class="o">0</td><td class="a">3</td><td class="g">2</td><td class="g">Mooter</td></tr>
-    <tr><td>sobrestimou (queima dinheiro)</td><td class="o">22</td><td class="a">3</td><td class="g">1</td><td class="g">3×</td></tr>
+    <tr><td>sobrestimou (queima dinheiro)</td><td class="o">21</td><td class="a">3</td><td class="g">1</td><td class="g">3×</td></tr>
     <tr><td>tokens para decidir</td><td class="o">0</td><td class="a">23 182</td><td class="g">0</td><td class="g">empate A1</td></tr>
     <tr><td>latência p50</td><td class="o">—</td><td class="a">76,1 ms</td><td class="g">1,61 ms</td><td class="g">47×</td></tr>
     <tr><td>idêntico em 6 corridas</td><td class="o">sim</td><td class="a">sim</td><td class="g">sim</td><td class="a">empate</td></tr>
@@ -634,7 +640,15 @@ function guiao(){
     medimos o adversário no mesmo corte antes de a publicar: ele sobe mais (71,7 → 82,9) e a
     nossa vantagem <b>encolhe de +10,0 para +8,5 pontos</b>. Uma correcção que nos sobe o
     absoluto e nos baixa o relativo é o mais perto que conseguimos estar de saber que não é
-    raciocínio motivado.</div>
+    raciocínio motivado.
+    <br><br>
+    <b>5 · Publicávamos diferenças sem nunca testar se existiam.</b> «+10,0», «+12,9», «+8,5» —
+    sempre a subtracção crua de duas percentagens. Aplicámos o teste que faltava (McNemar exacto,
+    emparelhado): <b>contra não ter router, p &lt; 0,0001</b> — 19 dos 20 pares discordantes a nosso
+    favor. <b>Contra o router-por-LLM, p = 0,45</b>: só há 7 pares discordantes e 5-2 sai de atirar
+    uma moeda ao ar. Em precisão, <b>empatamos com o adversário até prova em contrário</b>. O que
+    sobra contra ele não é estatístico e não precisa de ser: 0 tokens contra 23 182, 1,85 ms contra
+    74,5 ms, e zero bytes para a rede.</div>
 
   <div class="avs"><b>O que este ensaio NÃO prova.</b> Mede a <b>decisão</b> de encaminhamento,
     não a poupança em euros de uma sessão inteira. Nesta sessão o router marcou
