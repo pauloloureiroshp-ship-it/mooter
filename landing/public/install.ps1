@@ -153,21 +153,23 @@ foreach ($d in @($RouterDir, $HooksDir, (Join-Path $ClaudeDir "agents"), (Join-P
     DoRun "mkdir $d" { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 }
 
-DoRun "Copy router .js" {
-    Get-ChildItem (Join-Path $SrcDir "tools\router") -Filter *.js -File -ErrorAction SilentlyContinue |
-        ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
-    Get-ChildItem (Join-Path $SrcDir "tools\router") -Filter *.json -File -ErrorAction SilentlyContinue |
-        ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
-    # Provider wrappers live in a subdir — the top-level *.js scan above misses them,
-    # so router-execute would fail with wrapper_missing for ollama/codex/openai pins
-    # (Wave 61). Copy the providers/ subdir explicitly.
-    $provSrc = Join-Path $SrcDir "tools\router\providers"
-    if (Test-Path $provSrc) {
-        $provDst = Join-Path $RouterDir "providers"
-        New-Item -ItemType Directory -Path $provDst -Force | Out-Null
-        Get-ChildItem $provSrc -Filter *.js -File -ErrorAction SilentlyContinue |
-            ForEach-Object { Copy-Item $_.FullName $provDst -Force }
-    }
+# The runtime mirror is defined ONCE, in tools/router/sync-runtime.js — the same
+# call install.sh and /mooter-update make. Until 2026-08-31 there were THREE
+# definitions of "the runtime" (here, install.sh, and the updater) and they had
+# already drifted: the updater's glob was non-recursive, so providers/ never got
+# refreshed on an updated machine. Measured that day: an update printed five OK
+# and left a stale providers/ollama-api.js behind, which is how a fix for the
+# free local engine reached the repo but never the runtime.
+#
+# sync-runtime.js walks recursively, derives the .json set from what the code
+# actually requires, copies only what git tracks (never local state such as
+# router-tuning.json, never coverage/), and skips the wired hooks — those are
+# installed to $HooksDir just below. It also drops the blanket *.json copy this
+# block used to do: package.json / tsconfig.json are project config, not runtime,
+# and a package.json inside $RouterDir governs module resolution for that tree.
+$syncRuntime = Join-Path $SrcDir "tools\router\sync-runtime.js"
+DoRun "Mirror router runtime" {
+    & node $syncRuntime --src (Join-Path $SrcDir "tools\router") --dest $RouterDir
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/

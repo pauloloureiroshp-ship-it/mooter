@@ -24,6 +24,15 @@
 // ninguém verificava. Um pedido em prosa não é um portão.
 //
 // Este teste é o portão. Falha se qualquer um dos três se afastar dos outros.
+//
+// ⚠️ E são CINCO ficheiros, não três: `landing/public/install.sh` e
+// `landing/public/install.ps1` são as cópias que o site serve
+// (`curl -fsSL https://mooter.ai/install.sh`). Este teste NÃO as vê — quem as
+// guarda é `tools/cockpit/runner/piso-de-node.mjs`, que exige byte-a-byte igual
+// ao par da raiz e corre no job «fresh install builds + dispatches v1 CLI».
+// Foi ele que apanhou esta própria alteração a 2026-09-01, quando eu já julgava
+// ter fechado o drift. Não se duplica aqui a verificação dele; regista-se que
+// existe, para ninguém ler este ficheiro e concluir que a cobertura acaba aqui.
 
 'use strict';
 
