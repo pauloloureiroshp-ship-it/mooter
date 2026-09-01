@@ -45,6 +45,36 @@
     background-image:radial-gradient(rgba(31,43,37,.05) 1px,transparent 1px);
     background-size:5px 5px}
   a{color:var(--spot)} a:hover{color:#236A41}
+
+  /* ── ?capture=1 · o modo retrato ──────────────────────────────────────────
+     Um screenshot de pagina inteira NAO e a pagina. O que e `fixed` desenha-se
+     uma unica vez, do tamanho da JANELA, e o resto do documento sai sem ele.
+     Medido a 2026-09-01 (Chrome headless, 1280x800, ledger real de 5142px):
+     um recorte de 80x80 na goteira a y=300 sai com textura (PNG 324 B) e o
+     mesmo recorte a y=4600 sai liso (252 B). Ou seja: o retrato do Ledger tinha
+     textura nos primeiros 800 px e nada nos 4342 seguintes. Com o modo ligado
+     os dois recortes saem byte a byte iguais.
+
+     Aqui o fundo passa a solido — uniforme em toda a altura, que e o que o olho
+     esperava — e o cabecalho deixa de ser sticky para nao se imprimir a
+     flutuar sobre o corpo. A pagina que o dono usa nao muda: isto so existe
+     quando alguem pede `?capture=1`.
+
+     ⚠️ Isto NAO e uma optimizacao de tempo, e a medicao esta aqui para ninguem
+     voltar a supo-lo (ver o aviso na textura, acima). Medido no mac-mini,
+     3 corridas: 1280x800 -> 153/150/151 ms · 1280x20000 -> 298/293/296 ms ·
+     1280x60000 -> 675/654/648 ms. O Ledger inteiro captura-se em ~150 ms, uma
+     ordem de grandeza abaixo do tecto de 5 s. Quem medir outra coisa esta a
+     medir o instrumento, nao a pagina — corra
+     `node tools/cockpit/runner/capturar-ledger.mjs` e compare.
+
+     A cobertura desta lista e verificada: `capturar-ledger.test.mjs` varre a
+     folha e reprova se APARECER um `position:fixed|sticky` sem regra aqui. Uma
+     lista escrita a mao foi exactamente o que envelheceu no `prefers-reduced-
+     motion` a 2026-08-29, porque cada elemento novo nascia descoberto. */
+  body[data-capture]::before{display:none}
+  body[data-capture] header.cover{position:static}
+  body[data-capture] #toast{display:none}
   .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
   .nd{color:var(--ink-3);font-style:italic}
   .wrap{max-width:760px;margin:0 auto;padding:0 24px}
@@ -382,6 +412,12 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const S = window.__SNAPSHOT__, RM = window.__ROADMAP__ || [], SH = window.__SHELL__;
+
+/* O modo retrato. Le-se do endereco (`?capture=1`) e nao ha forma de o ligar
+   sem o pedir — um modo que se auto-activa e um modo que ninguem confere. */
+if (/(?:^|[?&])capture=1(?:&|$)/.test((typeof location === 'object' && location.search) || '')){
+  document.body.dataset.capture = '1';
+}
 
 /* ── A CASCA NAO TEM NUMEROS ────────────────────────────────────────────────
    Nem um. Tudo o que se le nesta pagina entrou por `__SNAPSHOT__`,
