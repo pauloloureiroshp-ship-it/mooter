@@ -881,6 +881,10 @@ async function decidir(linha, decisao){
   }
 }
 
+/** Um controlo que escreve so existe quando ha device para escrever nele. */
+const SO_SNAPSHOT = 'This is the stamped snapshot, not the live cockpit — there is no device here to write to.';
+function aoVivo(){ if (mode === 'live') return true; toast(SO_SNAPSHOT); return false; }
+
 /* interactions — every control acts or explains */
 document.addEventListener('click', async e => {
   const cp = e.target.closest('[data-copy]');
@@ -889,16 +893,29 @@ document.addEventListener('click', async e => {
 
   const act = e.target.closest('[data-act]');
   if (act){
-    if (mode !== 'live'){
-      toast('This is the stamped snapshot, not the live cockpit — there is no device here to write to.');
-      return;
-    }
+    if (!aoVivo()) return;
     const linha = act.closest('[data-key]');
     if (act.dataset.act === 'accept') return decidir(linha, 'aceite');
     if (act.dataset.act === 'dismiss') return decidir(linha, 'descartado');
     if (act.dataset.act === 'ask') return perguntarAoMoo();
     if (act.dataset.act === 'update') return verActualizacao();
   }
+});
+
+/* Enter asks; Shift+Enter is a new line.
+   Ate 2026-09-01 a unica forma de perguntar era acertar no botao: Enter dentro
+   do textarea nao fazia NADA. Num campo de texto isso le-se como avaria, e foi
+   a unica nota de UX que sobreviveu ao teste ao vivo do dono.
+   `isComposing` e a guarda que falta quase sempre: com um teclado PT o Enter que
+   fecha a composicao de um acento chegava aqui como submissao, e a pergunta
+   partia a meio da palavra. */
+document.addEventListener('keydown', e => {
+  const alvo = e.target;
+  if (!alvo || alvo.id !== 'moo-q') return;
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  if (!aoVivo()) return;
+  perguntarAoMoo();
 });
 
 /** O Moo responde na GPU deste device. Sem tool-calls, sem escalada, $0. */

@@ -2100,7 +2100,18 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   // down -- and re-bound on every failed poll.
   for (const [id, chave] of [['f-verdict', 'verdict'], ['f-pillar', 'pillar'], ['f-file', 'file']]) {
     const campo = $(id);
-    if (campo) campo.addEventListener('input', () => { FILTERS[chave] = campo.value; renderFeed(LAST_FEED); });
+    if (!campo) continue;
+    const aplicar = () => { FILTERS[chave] = campo.value; renderFeed(LAST_FEED); };
+    campo.addEventListener('input', aplicar);
+    // Enter num campo de texto nunca pode ser tecla morta. O filtro ja aplica a
+    // cada letra, mas quem escreve um caminho carrega em Enter no fim — e uma
+    // pagina que nao responde a isso le-se como avariada. `isComposing` protege
+    // o Enter que so fecha um acento num teclado PT.
+    campo.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      e.preventDefault();
+      aplicar();
+    });
   }
 
   renderToggleOffline();
