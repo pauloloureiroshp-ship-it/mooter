@@ -31,9 +31,25 @@
  * «internalizada» de «carimbada às cegas» é trabalho do estágio 3 (o juiz O-1),
  * que não existe e que este ficheiro não finge ser.
  *
- * E **não acrescenta perguntas**. O tecto é 18, com 0 slots, e a regra é
- * explícita: «Um agente **nunca** eleva o tecto sozinho.» Este portão lê as
- * perguntas do documento — não as declara.
+ * E **não acrescenta perguntas**. A regra é explícita: «Um agente **nunca**
+ * eleva o tecto sozinho.» Este portão lê as perguntas do documento — não as
+ * declara, e não escreve aqui quantas são. (A primeira versão dizia «o tecto é
+ * 18»; no dia seguinte era 20, e o comentário passou a mentir. Um número fixo
+ * num ficheiro cujo princípio é «a lista vem do documento» é a mesma segunda
+ * verdade, só que em prosa.)
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * DUAS EXIGÊNCIAS QUE O DOCUMENTO CRIOU NA v7, E QUE ESTE FICHEIRO APLICA
+ *
+ *   · **G20** — `removido: X` ou `nada saiu porque Y`. É a única das 20 sem
+ *     gesto verificável, e o documento escreve: «sem esse campo, a G20 não
+ *     conta como respondida». Aplicar isto no mesmo dia em que a regra foi
+ *     escrita é o mínimo — a alternativa era criar a dívida na hora exacta em
+ *     que a nomeávamos.
+ *   · **C1, paga em mecanismo** — `artefactos: a.json, b.md` são confrontados
+ *     com o disco (`verificarCorpo`). A C1 saiu da fila na v7 porque «o ✓ tem
+ *     corpo?» é um `statSync().size > 0`; sair da fila sem o `stat` existir
+ *     seria trocar uma pergunta por nada.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * A LISTA VEM DO DOCUMENTO, NÃO DAQUI
@@ -209,6 +225,29 @@ export function extrairDeclaracao(texto) {
   const mG4 = corpo.match(/\bG4\s+em\s+\[?([^\]·|,]+)\]?/i);
   const g4Motor = mG4 ? mG4[1].trim() : null;
 
+  // `removido: X` | `nada saiu porque Y` — a condição própria da G20 (v7).
+  //
+  // A G20 é a única das 20 sem gesto verificável: a G1 confronta-se contra a
+  // fonte, a G11 valida o instrumento, a G18 procura o `[medido]`. «O que
+  // tentaste remover?» não tem comando — e por isso o documento exige-lhe um
+  // campo, com a frase «SEM esse campo, a G20 não conta como respondida».
+  //
+  // Essa frase fui EU que a escrevi no documento, a 2026-09-01, e no mesmo dia
+  // em que ando a corrigir regras escritas que ninguém aplica. Deixá-la sem
+  // verificação era criar a dívida na hora exacta em que a nomeava.
+  const mRemovido = corpo.match(/\bremovido\s*:\s*([^·|]+)/i);
+  const mNadaSaiu = corpo.match(/\bnada\s+(?:saiu|podia\s+sair)\s+(?:porque|por)\s+([^·|]+)/i);
+  const removido = mRemovido ? mRemovido[1].trim() : null;
+  const nadaSaiu = mNadaSaiu ? mNadaSaiu[1].trim() : null;
+
+  // `artefactos: a.json, b.md` — a dívida da C1, que saiu da fila na v7 para
+  // «descer a mecanismo». O que ela pergunta («o ✓ tem corpo?») não é opinião:
+  // é `statSync().size > 0`. Ver `verificarCorpo` abaixo.
+  const mArt = corpo.match(/\bartefactos?\s*:\s*([^·|]+)/i);
+  const artefactos = mArt
+    ? mArt[1].split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
+    : [];
+
   return {
     presente: true,
     linha: linha.trim(),
@@ -218,11 +257,57 @@ export function extrairDeclaracao(texto) {
     nao_corridos: naoCorridos,
     justifica_nao_corridos: justificaNaoCorridos,
     g4_motor: g4Motor,
+    removido,
+    nada_saiu: nadaSaiu,
+    artefactos,
     // «Gn mudou X» é o sinal de que a pergunta MORDEU. Sem nenhum, ou o
     // trabalho era impecável ou o gauntlet foi carimbado — e o documento manda
     // desconfiar da segunda hipótese.
     mudou: /\bmudou\b/i.test(corpo),
+    // Que perguntas mudaram alguma coisa. É o «log de deltas» que o documento
+    // chama «o dado de calibração» e que não existia como campo — só como prosa
+    // que alguém tinha de ir grepar à mão.
+    deltas: [...new Set([...corpo.matchAll(/\bG(\d+)\s+mudou\b/gi)].map((m) => `G${m[1]}`))],
   };
+}
+
+/**
+ * A dívida da C1, paga em código: «o ✓ tem corpo?»
+ *
+ * A C1 saiu da fila na v7 não por ser fraca — era a de retro-prova mais sólida
+ * das quatro — mas porque a pergunta que ela faz é um `statSync().size > 0`, e
+ * o que um portão faz em segundos não deve gastar um slot que um humano tem de
+ * correr em cada entrega de alto risco.
+ *
+ * As três falhas que a motivaram, todas de 2026-08-07 e todas verificadas com
+ * sha: um `moo local ✓` com `bruto: ""`; um braço de 0 bytes registado como
+ * «TECTO ATINGIDO — incompleto»; `artefacto/` vazio em 6 de 9 runs com `success`
+ * reportado pelos próprios agentes. Nos três, o estado descrevia o processo e
+ * ninguém mediu o produto.
+ *
+ * Um ficheiro que não existe e um ficheiro vazio são casos DIFERENTES e saem
+ * com razões diferentes: colapsá-los perde a informação de qual dos dois é.
+ */
+export function verificarCorpo(caminhos, { raiz = process.cwd(), statImpl } = {}) {
+  const stat = statImpl || ((p) => fs.statSync(p));
+  const out = [];
+  for (const rel of caminhos || []) {
+    const abs = path.isAbsolute(rel) ? rel : path.join(raiz, rel);
+    try {
+      const s = stat(abs);
+      if (s.isDirectory && s.isDirectory()) {
+        out.push({ caminho: rel, ok: false, porque: 'é uma directoria, não um artefacto', bytes: null });
+        continue;
+      }
+      const bytes = Number(s.size);
+      out.push(bytes > 0
+        ? { caminho: rel, ok: true, porque: `${bytes} bytes`, bytes }
+        : { caminho: rel, ok: false, porque: 'existe mas tem 0 bytes — o ✓ não tem corpo', bytes: 0 });
+    } catch {
+      out.push({ caminho: rel, ok: false, porque: 'não existe', bytes: null });
+    }
+  }
+  return out;
 }
 
 const G4_SEM_MOTOR = /^(auto[- ]?degradado|n[ãa]o[- ]verificado|nenhum|none|n\/?d)$/i;
@@ -314,6 +399,38 @@ export function avaliar(texto, opts = {}) {
     }
   }
 
+  // ── G20: a condição própria, escrita no documento na v7.
+  //
+  // «SEM esse campo, a G20 não conta como respondida.» Só se cobra quando a G20
+  // é exigida — numa classe que não a exige, não há o que cobrar.
+  if (exigidas.includes('G20') && !d.removido && !d.nada_saiu) {
+    return {
+      ...base, estado: ESTADO.FALHA, declaracao: d, em_falta: ['G20'], notas,
+      porque: 'a G20 exige `removido: X` ou `nada saiu porque Y`. É a única das 20 sem gesto '
+        + 'verificável — sem o campo, é a mais fácil de carimbar, e o documento diz que não conta '
+        + 'como respondida.',
+    };
+  }
+
+  // ── C1, paga em mecanismo: um artefacto declarado tem de ter corpo.
+  //
+  // Só se verifica o que a declaração NOMEAR. Não se vai à procura: um portão
+  // que adivinha que artefactos deviam existir inventa uma segunda verdade
+  // sobre o que a entrega é.
+  const corpos = d.artefactos.length
+    ? verificarCorpo(d.artefactos, { raiz: opts.raiz, statImpl: opts.statImpl })
+    : [];
+  const semCorpo = corpos.filter((c) => !c.ok);
+  if (semCorpo.length) {
+    return {
+      ...base, estado: ESTADO.FALHA, declaracao: d, em_falta: [], notas, corpos,
+      porque: `${semCorpo.length} artefacto(s) declarado(s) sem corpo: `
+        + semCorpo.map((c) => `${c.caminho} (${c.porque})`).join(' · ')
+        + '. Um ✓ que descreve um ficheiro vazio é uma afirmação sobre o processo, não sobre o produto.',
+    };
+  }
+  if (corpos.length) notas.push(`${corpos.length} artefacto(s) com corpo verificado`);
+
   // ── anti-sycophancy. Não bloqueia: não posso PROVAR que nada mudou é falso.
   // Mas o masterprompt manda desconfiar da frase, e o AGENTS.md é mais duro:
   // «o gate DEVE produzir ≥1 objeção real ou declarar o que tentou refutar;
@@ -324,7 +441,7 @@ export function avaliar(texto, opts = {}) {
       + 'declara o que tentaste refutar.');
   }
 
-  return { ...base, estado: ESTADO.OK, declaracao: d, em_falta: [], notas, porque: `classe «${d.classe}» tratada por inteiro` };
+  return { ...base, estado: ESTADO.OK, declaracao: d, em_falta: [], notas, corpos, deltas: d.deltas, porque: `classe «${d.classe}» tratada por inteiro` };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -385,7 +502,9 @@ export async function main(argv) {
     return EXIT.ND;
   }
 
-  const v = avaliar(texto);
+  const iRaiz = argv.indexOf('--raiz');
+  const raiz = iRaiz >= 0 ? argv[iRaiz + 1] : undefined;
+  const v = avaliar(texto, { raiz });
   console.log(comoJson ? JSON.stringify(v, null, 2) : imprimir(v));
   return exitDe(v);
 }

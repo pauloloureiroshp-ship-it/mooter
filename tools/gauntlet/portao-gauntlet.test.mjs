@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  avaliar, extrairDeclaracao, lerGauntlet, normalizarClasse, exitDe,
+  avaliar, extrairDeclaracao, lerGauntlet, normalizarClasse, exitDe, verificarCorpo,
   ESTADO, EXIT, CLASSES,
 } from './portao-gauntlet.mjs';
 
@@ -310,4 +310,94 @@ test('ver uma declaração não é aprová-la — as reais continuam a reprovar'
     { gauntlet: fake() });
   assert.equal(v.estado, ESTADO.FALHA);
   assert.ok(v.em_falta.length > 10, `em_falta=${v.em_falta.length}`);
+});
+
+// ── v7 · a G20 tem de trazer o campo, e a C1 desceu a mecanismo ──────────
+//
+// As duas exigências que o MEO_GAUNTLET.md criou na v7 — e que existiriam só no
+// papel se este ficheiro não as cobrasse. A frase «sem esse campo, a G20 não
+// conta como respondida» foi escrita no mesmo dia; aplicá-la no mesmo dia é o
+// mínimo, senão a dívida nasce na hora exacta em que se nomeia.
+
+const G20 = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
+const fake20 = (over = {}) => ({ ok: true, ids: G20, tecto: 20, versao: 'v7', avisos: [], ...over });
+const vinte = (extra = '') => `gauntlet: [alto risco] · ${G20.join(' ')} · G4 em codex · G3 mudou o plano${extra}`;
+
+test('MORDIDA · alto risco sem o campo da G20 reprova', () => {
+  const v = avaliar(vinte(), { gauntlet: fake20() });
+  assert.equal(v.estado, ESTADO.FALHA);
+  assert.deepEqual(v.em_falta, ['G20']);
+  assert.match(v.porque, /removido/);
+});
+
+test('`removido: X` satisfaz a G20', () => {
+  const v = avaliar(vinte(' · removido: o passo 7, que duplicava o 3'), { gauntlet: fake20() });
+  assert.equal(v.estado, ESTADO.OK, JSON.stringify(v.porque));
+  assert.match(v.declaracao.removido, /passo 7/);
+});
+
+test('«nada saiu porque Y» também satisfaz — recusar cortar é uma resposta', () => {
+  // A pergunta é «o que tentaste remover?», não «o que removeste». Exigir sempre
+  // um corte transformaria a G20 em mutilação obrigatória.
+  const v = avaliar(vinte(' · nada saiu porque cada peça tem um teste que morde'), { gauntlet: fake20() });
+  assert.equal(v.estado, ESTADO.OK);
+  assert.match(v.declaracao.nada_saiu, /teste que morde/);
+});
+
+test('a G20 só é cobrada onde é exigida — rotina não a pede', () => {
+  const v = avaliar('gauntlet: [rotina] · G1 · G3 mudou X · G7', { gauntlet: fake20() });
+  assert.equal(v.estado, ESTADO.OK);
+});
+
+test('C1 · um artefacto declarado com 0 bytes reprova, e diz qual', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pg-corpo-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'cheio.json'), '{"a":1}');
+    fs.writeFileSync(path.join(dir, 'vazio.json'), '');
+    const v = avaliar(vinte(' · removido: nada · artefactos: cheio.json vazio.json'),
+      { gauntlet: fake20(), raiz: dir });
+    assert.equal(v.estado, ESTADO.FALHA);
+    assert.match(v.porque, /vazio\.json/);
+    assert.match(v.porque, /0 bytes/);
+  } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }
+});
+
+test('C1 · um artefacto que NÃO EXISTE é caso distinto de um vazio', () => {
+  // Colapsar os dois perde a informação de qual deles é — e são erros
+  // diferentes: um é «não produziu», o outro é «produziu nada».
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pg-corpo2-'));
+  try {
+    const r = verificarCorpo(['fantasma.json'], { raiz: dir });
+    assert.equal(r[0].ok, false);
+    assert.match(r[0].porque, /não existe/);
+    assert.equal(r[0].bytes, null, 'um ficheiro ausente não tem 0 bytes — tem n/d');
+  } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }
+});
+
+test('C1 · artefactos com corpo passam, e o recibo di-lo', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pg-corpo3-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'ok.json'), '{"medido":true}');
+    const v = avaliar(vinte(' · removido: o passo 7 · artefactos: ok.json'),
+      { gauntlet: fake20(), raiz: dir });
+    assert.equal(v.estado, ESTADO.OK, v.porque);
+    assert.ok(v.notas.some((n) => /corpo verificado/.test(n)));
+    assert.equal(v.corpos[0].bytes, 15);
+  } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }
+});
+
+test('sem `artefactos:` não se inventa nada para verificar', () => {
+  // Um portão que adivinha que ficheiros deviam existir cria uma segunda
+  // verdade sobre o que a entrega é.
+  const v = avaliar(vinte(' · removido: o passo 7'), { gauntlet: fake20() });
+  assert.equal(v.estado, ESTADO.OK);
+  assert.deepEqual(v.corpos, []);
+});
+
+test('o log de deltas passa a ser um CAMPO, não um grep à mão', () => {
+  // O documento chama-lhe «o dado de calibração» e ele não existia senão como
+  // prosa que alguém tinha de ir grepar.
+  const v = avaliar(`gauntlet: [alto risco] · ${G20.join(' ')} · G4 em codex · G3 mudou o plano · G11 mudou o instrumento · removido: nada`,
+    { gauntlet: fake20() });
+  assert.deepEqual(v.deltas.sort(), ['G11', 'G3']);
 });
