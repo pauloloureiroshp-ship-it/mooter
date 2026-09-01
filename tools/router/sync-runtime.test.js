@@ -247,3 +247,54 @@ test('no repo real, o filtro do git existe e exclui estado local', () => {
     assert.ok(!v.has(estado), `${estado} é estado local e não pode ser distribuído`);
   }
 });
+
+// ── os hooks ligados pertencem a ~/.claude/hooks/, não ao router ─────────
+//
+// O install.sh copia-os para $HOOKS_DIR e faz `rm -f` da cópia no router. O
+// espelho recriava-a a cada update — a «4.ª cópia da statusline» que já custou
+// uma sessão ao dono: com origem stale, o novo era sobreposto pelo velho e o
+// sync dizia «synced». Aqui provamos que install e update convergem.
+
+test('hooks ligados NÃO são copiados para o router', () => {
+  const t = tmpRepo();
+  try {
+    fs.writeFileSync(path.join(t.src, 'gsd-turn-end.js'), '// hook ligado\n');
+    const r = sync({ src: t.src, home: t.home, hooks: new Set(['gsd-turn-end.js']) });
+    assert.ok(!fs.existsSync(path.join(t.dst, 'gsd-turn-end.js')),
+      'o hook ligado não pode aterrar no router — o install apaga-o logo a seguir');
+    assert.ok(fs.existsSync(path.join(t.dst, 'classify.js')), 'o resto copia na mesma');
+  } finally { limpar(t.raiz); }
+});
+
+test('um .json que só o HOOK menciona continua a ser copiado', () => {
+  // A ordem importa: se os hooks fossem excluídos ANTES da derivação dos .json,
+  // o ficheiro de dados que só eles requerem desaparecia do runtime.
+  const t = tmpRepo();
+  try {
+    fs.writeFileSync(path.join(t.src, 'gsd-turn-end.js'), 'require("./so-do-hook.json");\n');
+    fs.writeFileSync(path.join(t.src, 'so-do-hook.json'), '{}');
+    const r = sync({ src: t.src, home: t.home, hooks: new Set(['gsd-turn-end.js']) });
+    assert.ok(r.json.includes('so-do-hook.json'), `json derivados: ${r.json.join(', ')}`);
+    assert.ok(fs.existsSync(path.join(t.dst, 'so-do-hook.json')));
+  } finally { limpar(t.raiz); }
+});
+
+test('cópias de hooks já no router são REPORTADAS, nunca apagadas', () => {
+  // Um espelho que apaga é uma ferramenta diferente, e muito mais perigosa.
+  const t = tmpRepo();
+  try {
+    fs.mkdirSync(t.dst, { recursive: true });
+    fs.writeFileSync(path.join(t.dst, 'gsd-turn-end.js'), '// cópia antiga\n');
+    const r = sync({ src: t.src, home: t.home, hooks: new Set(['gsd-turn-end.js']) });
+    assert.deepEqual(r.hooksOrfaos, ['gsd-turn-end.js']);
+    assert.ok(fs.existsSync(path.join(t.dst, 'gsd-turn-end.js')), 'não pode apagar');
+  } finally { limpar(t.raiz); }
+});
+
+test('a lista de hooks vem do sync-hooks.js — não é duplicada aqui', () => {
+  const { WIRED_HOOKS } = require('./sync-hooks.js');
+  const daqui = [...mod.hooksLigados()].sort();
+  assert.deepEqual(daqui, [...WIRED_HOOKS].sort(),
+    'duplicar a lista recriava o drift que este ficheiro fecha');
+  assert.ok(daqui.includes('gsd-turn-end.js'));
+});

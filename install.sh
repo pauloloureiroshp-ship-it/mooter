@@ -150,14 +150,26 @@ ok "~/.claude present"
 say "Installing runtime to ~/.claude/tools/router/..."
 do_run "mkdir -p '$ROUTER_DIR' '$HOOKS_DIR' '$CLAUDE_DIR/agents' '$CLAUDE_DIR/skills' '$CLAUDE_DIR/docs' '$MOOTER_CLI_DIR' '$LOCAL_BIN' '$DEVICE_DIR'"
 
-do_run "cp '$SRC_DIR/tools/router/'*.js '$ROUTER_DIR/' 2>/dev/null || true"
-do_run "cp '$SRC_DIR/tools/router/'*.json '$ROUTER_DIR/' 2>/dev/null || true"
-
-# Provider wrappers live in a subdir — the top-level *.js glob above misses them,
-# so router-execute would fail with `wrapper_missing` for ollama/codex/openai pins
-# (Wave 61). Copy the providers/ subdir explicitly.
-do_run "mkdir -p '$ROUTER_DIR/providers'"
-do_run "cp '$SRC_DIR/tools/router/providers/'*.js '$ROUTER_DIR/providers/' 2>/dev/null || true"
+# The runtime mirror is defined ONCE, in tools/router/sync-runtime.js, and this
+# is the same call /mooter-update makes. Until 2026-08-31 there were two
+# definitions of "the runtime" and they had already drifted:
+#
+#   · here: `*.js` + `*.json` + an explicit `providers/` copy (added Wave 61,
+#     precisely because the flat glob missed it);
+#   · in the updater: `*.js` only — non-recursive. So `providers/` never got
+#     refreshed on an updated machine. Measured that day: an update printed five
+#     ✓ and left a stale `providers/ollama-api.js` behind, which is how a fix for
+#     the free local engine shipped to the repo and never reached the runtime.
+#
+# sync-runtime.js walks recursively, derives the `.json` set from what the code
+# actually requires (so a new data file propagates on its own), copies only what
+# git tracks (never local state like router-tuning.json, never coverage/), and
+# skips the wired hooks — those are installed to $HOOKS_DIR just below.
+#
+# It also drops the blanket `*.json` copy this line used to do: files like
+# package.json and tsconfig.json are project config, not runtime, and a
+# package.json inside $ROUTER_DIR governs module resolution for that whole tree.
+do_run "node '$SRC_DIR/tools/router/sync-runtime.js' --src '$SRC_DIR/tools/router' --dest '$ROUTER_DIR'"
 
 # Hooks live under ~/.claude/hooks/ (not ~/.claude/tools/router/).
 # NOTE: keep this list in lockstep with WIRED_HOOKS in tools/router/sync-hooks.js
@@ -165,6 +177,10 @@ do_run "cp '$SRC_DIR/tools/router/providers/'*.js '$ROUTER_DIR/providers/' 2>/de
 # file-bus tap — additive/read-only/fail-soft.
 for h in gsd-statusline.js gsd-turn-end.js mooter-turn-header.js frugal-turn-header.js exec-logger.js PostToolUse.js live-preview-tap.js _model-resolver.js _model-resolver-core.js; do
   [ -f "$SRC_DIR/tools/router/$h" ] && do_run "cp '$SRC_DIR/tools/router/$h' '$HOOKS_DIR/$h'"
+  # sync-runtime.js no longer copies these into $ROUTER_DIR, so this rm is now
+  # only cleaning up copies left by older installs/updates. Kept deliberately:
+  # a stale second copy is exactly how the wired statusline once got overwritten
+  # by an older file while the sync reported success.
   do_run "rm -f '$ROUTER_DIR/$h'"
 done
 
